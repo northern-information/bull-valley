@@ -48,8 +48,7 @@ export class Player {
   update(dt, mods = {}) {
     const cfg = CONFIG.player
     this.time += dt
-    const sprinting =
-      this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')
+    const sprinting = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')
     const crouching = this.keys.has('KeyC')
     const ix = (this.keys.has('KeyD') ? 1 : 0) - (this.keys.has('KeyA') ? 1 : 0)
     const iz = (this.keys.has('KeyW') ? 1 : 0) - (this.keys.has('KeyS') ? 1 : 0)

@@ -9,7 +9,8 @@ export async function loadTerrain(url) {
   const img = await new Promise((resolve, reject) => {
     const image = new Image()
     image.onload = () => resolve(image)
-    image.onerror = () => reject(new Error(`Terrain image failed to load: ${url}`))
+    image.onerror = () =>
+      reject(new Error(`Terrain image failed to load: ${url}`))
     image.src = url
   })
   const size = img.width

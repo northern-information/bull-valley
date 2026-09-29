@@ -74,7 +74,10 @@ export class GsAudio {
     filter.type = filterType
     filter.frequency.value = frequency
     if (sweepTo) {
-      filter.frequency.linearRampToValueAtTime(sweepTo, ctx.currentTime + duration)
+      filter.frequency.linearRampToValueAtTime(
+        sweepTo,
+        ctx.currentTime + duration
+      )
     }
     const env = ctx.createGain()
     env.gain.setValueAtTime(gain, ctx.currentTime)
@@ -90,7 +93,10 @@ export class GsAudio {
     osc.type = type
     osc.frequency.value = frequency
     if (sweepTo) {
-      osc.frequency.exponentialRampToValueAtTime(sweepTo, ctx.currentTime + duration)
+      osc.frequency.exponentialRampToValueAtTime(
+        sweepTo,
+        ctx.currentTime + duration
+      )
     }
     const env = ctx.createGain()
     env.gain.setValueAtTime(gain, ctx.currentTime)
@@ -111,16 +117,31 @@ export class GsAudio {
 
   use(kind) {
     // Lighter flick ×2, then the joint gets a longer crackle.
-    this.burst({ duration: 0.03, filterType: 'highpass', frequency: 2400, gain: 0.2 })
+    this.burst({
+      duration: 0.03,
+      filterType: 'highpass',
+      frequency: 2400,
+      gain: 0.2,
+    })
     setTimeout(
       () =>
-        this.burst({ duration: 0.05, filterType: 'highpass', frequency: 2000, gain: 0.25 }),
+        this.burst({
+          duration: 0.05,
+          filterType: 'highpass',
+          frequency: 2000,
+          gain: 0.25,
+        }),
       120
     )
     if (kind === 'joints') {
       setTimeout(
         () =>
-          this.burst({ duration: 0.5, filterType: 'bandpass', frequency: 900, gain: 0.12 }),
+          this.burst({
+            duration: 0.5,
+            filterType: 'bandpass',
+            frequency: 900,
+            gain: 0.12,
+          }),
         350
       )
     }
@@ -132,8 +153,19 @@ export class GsAudio {
   }
 
   strike() {
-    this.burst({ duration: 1.1, filterType: 'highpass', frequency: 600, gain: 0.5 })
-    this.tone({ frequency: 220, sweepTo: 38, duration: 1.2, gain: 0.3, type: 'sawtooth' })
+    this.burst({
+      duration: 1.1,
+      filterType: 'highpass',
+      frequency: 600,
+      gain: 0.5,
+    })
+    this.tone({
+      frequency: 220,
+      sweepTo: 38,
+      duration: 1.2,
+      gain: 0.3,
+      type: 'sawtooth',
+    })
   }
 
   setPresence(presence) {

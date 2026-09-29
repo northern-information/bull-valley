@@ -61,7 +61,14 @@ function makeRibbonAccumulator() {
       }))
       for (let i = 0; i < points.length - 1; i++) {
         const quad = [left[i], left[i + 1], right[i], right[i + 1]]
-        for (const v of [quad[0], quad[2], quad[1], quad[1], quad[2], quad[3]]) {
+        for (const v of [
+          quad[0],
+          quad[2],
+          quad[1],
+          quad[1],
+          quad[2],
+          quad[3],
+        ]) {
           positions.push(v.x, v.y, v.z)
           colors.push(c.r, c.g, c.b)
         }
@@ -176,7 +183,12 @@ function buildRoads(geo, metres, heightAt) {
   const ribbons = makeRibbonAccumulator()
   for (const road of geo.roads) {
     const style = ROAD_STYLE[road.c] || ROAD_DEFAULT
-    ribbons.add(toWorldPoints(road.p, metres, heightAt), style.width, style.color, 0.3)
+    ribbons.add(
+      toWorldPoints(road.p, metres, heightAt),
+      style.width,
+      style.color,
+      0.3
+    )
   }
   return ribbons.build('roads')
 }
@@ -520,8 +532,7 @@ function buildFuelStations(geo, metres, heightAt, rng) {
   const group = new THREE.Group()
   group.name = 'fuel'
   const stations = geo.fuel.filter(
-    (f) =>
-      f.p[0] > 0.015 && f.p[0] < 0.985 && f.p[1] > 0.015 && f.p[1] < 0.985
+    (f) => f.p[0] > 0.015 && f.p[0] < 0.985 && f.p[1] > 0.015 && f.p[1] < 0.985
   )
   const count = stations.length
   const kioskGeo = new THREE.BoxGeometry(6, 3.2, 4.5)
@@ -673,7 +684,12 @@ function findSpawn(geo, metres, heightAt) {
     if (!/bull valley/i.test(road.n || '')) continue
     if (!best || road.p.length > best.p.length) best = road
   }
-  const pts = best ? best.p : [[0.5, 0.5], [0.51, 0.5]]
+  const pts = best
+    ? best.p
+    : [
+        [0.5, 0.5],
+        [0.51, 0.5],
+      ]
   const mid = Math.floor(pts.length / 2)
   const a = unitToWorld(pts[mid][0], pts[mid][1], metres)
   const b = unitToWorld(

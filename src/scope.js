@@ -28,7 +28,9 @@ export class Scope {
 
   draw(dt, { contacts, forward, nerves, perception }) {
     if (!this.raised) return
-    this.sweep = (this.sweep + (dt * Math.PI * 2) / CONFIG.scope.sweepSeconds) % (Math.PI * 2)
+    this.sweep =
+      (this.sweep + (dt * Math.PI * 2) / CONFIG.scope.sweepSeconds) %
+      (Math.PI * 2)
     const ctx = this.ctx
     const s = this.size
     const c = s / 2
@@ -74,10 +76,7 @@ export class Scope {
     ctx.strokeStyle = 'rgba(74, 222, 128, 0.7)'
     ctx.beginPath()
     ctx.moveTo(c, c)
-    ctx.lineTo(
-      c + Math.sin(this.sweep) * r,
-      c - Math.cos(this.sweep) * r
-    )
+    ctx.lineTo(c + Math.sin(this.sweep) * r, c - Math.cos(this.sweep) * r)
     ctx.stroke()
 
     // Contacts: alpha decays with angular distance behind the sweep.

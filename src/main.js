@@ -1,11 +1,7 @@
 import * as THREE from 'three'
 import './styles.css'
 import { CONFIG } from './config.js'
-import {
-  loadTerrain,
-  createHeightField,
-  buildTerrainMesh,
-} from './terrain.js'
+import { loadTerrain, createHeightField, buildTerrainMesh } from './terrain.js'
 import { buildWorld } from './world.js'
 import { Player } from './player.js'
 import { Shadowmen } from './shadowmen.js'
@@ -13,12 +9,7 @@ import { Scope } from './scope.js'
 import { Hud } from './hud.js'
 import { GsAudio } from './audio.js'
 import { stepNerves, nervesIntensity } from './nerves.js'
-import {
-  addItem,
-  useItem,
-  loadInventory,
-  saveInventory,
-} from './inventory.js'
+import { addItem, useItem, loadInventory, saveInventory } from './inventory.js'
 import {
   worldToUnit,
   unitToLatLon,
@@ -29,7 +20,7 @@ import { setSnapResolution } from './ps1.js'
 import { mulberry32 } from './rng.js'
 
 // Same files the Scaduscope reads; baked by scripts/fetch_bull_valley.cjs.
-const DATA_BASE = '/assets/data/bull-valley'
+const DATA_BASE = '/data/bull-valley'
 
 const PICKUP_LABEL = {
   cigarettes: 'Cigarettes ×3',
@@ -239,7 +230,9 @@ async function boot() {
     if (kind === 'cigarettes' && time < smokingUntil) return
     const result = useItem(inventory, kind)
     if (!result.used) {
-      hud.toast(kind === 'cigarettes' ? 'No cigarettes left.' : 'No joints left.')
+      hud.toast(
+        kind === 'cigarettes' ? 'No cigarettes left.' : 'No joints left.'
+      )
       return
     }
     inventory = result.inv

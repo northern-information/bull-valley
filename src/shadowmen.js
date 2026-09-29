@@ -17,7 +17,15 @@ function makeSilhouetteTexture(rng) {
   // Head
   const headR = range(rng, 5, 8)
   ctx.beginPath()
-  ctx.ellipse(32 + range(rng, -2, 2), 14, headR, headR * 1.25, 0, 0, Math.PI * 2)
+  ctx.ellipse(
+    32 + range(rng, -2, 2),
+    14,
+    headR,
+    headR * 1.25,
+    0,
+    0,
+    Math.PI * 2
+  )
   ctx.fill()
   // Torso: stacked jittered slabs tapering to the hips.
   let wander = 0
@@ -153,7 +161,8 @@ export class Shadowmen {
 
   update(dt, player, mods = {}) {
     const cfg = CONFIG.shadowmen
-    const detectRange = cfg.detectRange * (mods.ember ? CONFIG.items.emberDetectScale : 1)
+    const detectRange =
+      cfg.detectRange * (mods.ember ? CONFIG.items.emberDetectScale : 1)
     let pressure = 0
     let anyHunting = false
     let strike = false
@@ -169,8 +178,7 @@ export class Shadowmen {
       const toEntX = -dx / (d || 1)
       const toEntZ = -dz / (d || 1)
       const seen =
-        d < 110 &&
-        player.forward.x * toEntX + player.forward.z * toEntZ > 0.94
+        d < 110 && player.forward.x * toEntX + player.forward.z * toEntZ > 0.94
 
       let speed = 0
       let tx = e.pos.x

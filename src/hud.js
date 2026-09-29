@@ -101,7 +101,7 @@ export class Hud {
         <button type="button" class="gs-btn gs-btn--primary" data-gs="begin">Begin the Survey</button>
         <button type="button" class="gs-btn" data-gs="sound" aria-pressed="true">Sound On</button>
       </div>
-      <p class="gs-intro-note gs-intro-fine">Requires a keyboard and mouse. The full Scaduscope remains at <a href="/bull-valley-scaduscope/">/bull-valley-scaduscope/</a>. <a href="/">FORGOTTEN INDUSTRIES /</a></p>`
+      <p class="gs-intro-note gs-intro-fine">Requires a keyboard and mouse.</p>`
     ui.appendChild(this.intro)
     this.beginBtn = this.intro.querySelector('[data-gs="begin"]')
     this.soundBtn = this.intro.querySelector('[data-gs="sound"]')
@@ -181,7 +181,9 @@ export class Hud {
       this.introTitle.textContent = paused
         ? 'SURVEY PAUSED'
         : 'BULL VALLEY GROUND SURVEY'
-      this.beginBtn.textContent = paused ? 'Resume the Survey' : 'Begin the Survey'
+      this.beginBtn.textContent = paused
+        ? 'Resume the Survey'
+        : 'Begin the Survey'
     }
   }
 }
