@@ -2,8 +2,8 @@ import * as THREE from 'three'
 import { bilinearHeight } from './coords.js'
 import { applyPS1 } from './ps1.js'
 
-// The same heightmap the Scaduscope reads: 512×512, 16 bits of normalized
-// elevation packed as R (high byte) + G (low byte), range in geo.json.terrain.
+// The committed heightmap: square, 16 bits of normalized elevation packed as
+// R (high byte) + G (low byte), range in geo.json.terrain.
 // See scripts/fetch_bull_valley.cjs.
 export async function loadTerrain(url) {
   const img = await new Promise((resolve, reject) => {
@@ -30,11 +30,14 @@ export async function loadTerrain(url) {
 // The playable height field, in metres of relief above the valley floor.
 //
 // Everything — the terrain mesh, the player's feet, road ribbons, trees,
-// shadowmen — samples THIS grid, which is the 512 heightmap decimated to the
+// shadowmen — samples THIS grid, which is the heightmap decimated to the
 // mesh resolution. If features sampled the full-resolution map instead, they
 // would sink below or float above the rendered surface wherever the two
 // disagree (the classic draping bug).
-export function createHeightField(terrain, geo, seg = 240) {
+//
+// seg 480 over the ~15 km frame keeps the grid near the old 240-over-9 km
+// spacing (~31 m per cell).
+export function createHeightField(terrain, geo, seg = 480) {
   const n = seg + 1
   const relief = geo.terrain.max - geo.terrain.min
   const grid = new Float32Array(n * n)

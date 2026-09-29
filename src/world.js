@@ -279,10 +279,11 @@ function woodsNoise(u, v) {
 
 function buildTrees(geo, metres, heightAt, mask, rng) {
   const candidates = []
-  const CAP = 26000
+  // Caps scaled for the ~15 km frame (2.6x the original survey's area).
+  const CAP = 40000
   // Clustered scatter: dense inside the noise's stands, a thin sprinkle of
   // lone trees in the open.
-  for (let i = 0; i < 120000 && candidates.length < CAP; i++) {
+  for (let i = 0; i < 220000 && candidates.length < CAP; i++) {
     const u = rng()
     const v = rng()
     if (mask.blocked(u, v)) continue
@@ -363,7 +364,7 @@ function buildPoles(geo, metres, heightAt, rng) {
   for (const road of geo.roads) {
     if (!POLE_ROADS.has(road.c) || !road.n) continue
     let carry = rng() * SPACING
-    for (let i = 0; i < road.p.length - 1 && spots.length < 1600; i++) {
+    for (let i = 0; i < road.p.length - 1 && spots.length < 4000; i++) {
       const a = unitToWorld(road.p[i][0], road.p[i][1], metres)
       const b = unitToWorld(road.p[i + 1][0], road.p[i + 1][1], metres)
       const dx = b.x - a.x
