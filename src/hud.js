@@ -25,7 +25,7 @@ export class Hud {
     this.head = el('section', 'bv-head')
     this.head.setAttribute('aria-label', 'Survey readout')
     this.head.innerHTML = `
-      <h1><span aria-hidden="true">🥬🌚 </span>Bull Valley Cabbage Wars</h1>
+      <h1><span aria-hidden="true">🥬🌚 </span>Bull Valley Shadow Wars</h1>
       <dl>
         <dt>Position</dt><dd data-bv="pos">—</dd>
         <dt>Local</dt><dd data-bv="clock">—</dd>
@@ -100,7 +100,7 @@ export class Hud {
     this.intro.setAttribute('role', 'dialog')
     this.intro.setAttribute('aria-modal', 'true')
     this.intro.innerHTML = `
-      <h2 data-bv="intro-title">BULL VALLEY CABBAGE WARS</h2>
+      <h2 data-bv="intro-title">BULL VALLEY SHADOW WARS</h2>
       <p class="bv-intro-note">The terrain and the roads are real.<br>Matthew Marx leaves in five minutes, with or without you.<br>Ride the bed. Find cabbages. The stand pays in nothing but purpose.<br>Extract at another station, at the Keep, or whistle for the truck.</p>
       <table class="bv-controls" aria-label="Controls">
         <tr><th>WASD</th><td>Move</td><th>Shift</th><td>Sprint</td></tr>
@@ -231,9 +231,10 @@ export class Hud {
   showIntro(show, paused) {
     this.intro.hidden = !show
     if (show) {
+      // Not "paused": the valley is persistent and the clock keeps running.
       this.introTitle.textContent = paused
-        ? 'RAID PAUSED'
-        : 'BULL VALLEY CABBAGE WARS'
+        ? 'THE VALLEY DOES NOT WAIT'
+        : 'BULL VALLEY SHADOW WARS'
       this.beginBtn.textContent = paused ? 'Resume the Raid' : 'Begin the Raid'
     }
   }

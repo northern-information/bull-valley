@@ -4,7 +4,11 @@ export const CONFIG = {
     // Internal render resolution is the CSS size divided by this; the canvas
     // is upscaled with image-rendering: pixelated for the PS1 grain.
     downscale: 3,
-    fogDensity: 0.0055,
+    // Silent Hill 1 technique: dense exponential fog swallowing a short
+    // sightline (~2/density metres before full whiteout), with the PS1
+    // downscale supplying the dither. The sky group ignores fog, so the
+    // stars and moon stay overhead while the valley closes in.
+    fogDensity: 0.016,
     far: 1400,
   },
   player: {

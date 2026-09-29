@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict'
 
-// Fetches the real-world layers behind BULL VALLEY CABBAGE WARS and writes
+// Fetches the real-world layers behind BULL VALLEY SHADOW WARS and writes
 // them as committed static assets. Run by hand (npm run fetch:data) when the
 // source data should be refreshed; the build never calls it. Ported from
 // forgotten-industries, where the same script feeds the Scaduscope.

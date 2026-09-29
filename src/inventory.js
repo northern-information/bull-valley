@@ -5,7 +5,7 @@
 
 export const STARTING_INVENTORY = { cigarettes: 2, joints: 1 }
 
-const KEY = 'bull-valley-cabbage-wars:v1:inventory'
+const KEY = 'bull-valley-shadow-wars:v1:inventory'
 
 export function addItem(inv, kind, count = 1) {
   return { ...inv, [kind]: (inv[kind] || 0) + count }

@@ -61,7 +61,7 @@ async function boot() {
       loadTerrain(`${DATA_BASE}/terrain.png`),
     ])
   } catch (err) {
-    console.error('Cabbage Wars failed to load its terrain data:', err)
+    console.error('Shadow Wars failed to load its terrain data:', err)
     hud.beginBtn.textContent = 'The Valley Will Not Resolve'
     return
   }
@@ -325,25 +325,45 @@ async function boot() {
   hud.beginBtn.disabled = false
   hud.beginBtn.textContent = 'Begin the Raid'
   const startWithoutLock = () => {
-    // Dev-only: headless and some embedded browsers refuse pointer lock, and
-    // the valley is unwalkable without it. Never engages in production.
-    if (!import.meta.env.DEV) return
+    // Automation-only: headless browsers refuse pointer lock and the valley is
+    // unwalkable without it. Never engages for a human — a silent no-lock
+    // fallback reads raw cursor movement, which stops at the screen edge and
+    // makes turning around impossible.
+    if (!import.meta.env.DEV || !navigator.webdriver) return
     player.locked = true
     started = true
     hud.showIntro(false)
   }
-  hud.beginBtn.addEventListener('click', () => {
-    audio.init()
+  // Pointer lock can be refused (browser quirk, gesture rules, the cooldown
+  // after Esc). When it is, drop the intro and hand the player a direct
+  // click-the-view retry — a gesture on the canvas itself always qualifies.
+  const lockRefused = () => {
+    if (import.meta.env.DEV && navigator.webdriver) {
+      startWithoutLock()
+      return
+    }
+    started = true
+    hud.showIntro(false)
+    hud.prompt('Click the View to Take the Controls')
+  }
+  const engagePointer = () => {
     try {
       const request = hud.canvas.requestPointerLock()
       if (request && typeof request.catch === 'function') {
-        request.catch(startWithoutLock)
+        request.catch(lockRefused)
       }
     } catch {
-      startWithoutLock()
+      lockRefused()
     }
+  }
+  hud.beginBtn.addEventListener('click', () => {
+    audio.init()
+    engagePointer()
   })
-  document.addEventListener('pointerlockerror', startWithoutLock)
+  hud.canvas.addEventListener('click', () => {
+    if (started && !player.locked && !ended) engagePointer()
+  })
+  document.addEventListener('pointerlockerror', lockRefused)
   hud.soundBtn.addEventListener('click', () => {
     const on = hud.soundBtn.getAttribute('aria-pressed') !== 'true'
     hud.soundBtn.setAttribute('aria-pressed', String(on))
@@ -501,7 +521,10 @@ async function boot() {
     const dt = Math.min(0.05, (now - last) / 1000)
     last = now
     time += dt
-    if (player.locked && !ended) raidClock += dt
+    // The valley is persistent: once the raid begins, the clock never pauses —
+    // not for the intro overlay, not for a dropped pointer lock. The truck
+    // keeps its own schedule.
+    if (started && !ended) raidClock += dt
 
     const smoking = time < smokingUntil
     const ember = time < emberUntil
@@ -632,7 +655,13 @@ async function boot() {
         if (nearPickup) prompt = `E — Take ${PICKUP_LABEL[nearPickup.kind]}`
       }
     }
-    hud.prompt(player.locked && !ended ? prompt : null)
+    if (player.locked) {
+      hud.prompt(!ended ? prompt : null)
+    } else if (started && !ended) {
+      hud.prompt('Click the View to Take the Controls')
+    } else {
+      hud.prompt(null)
+    }
 
     // Readout, throttled.
     readoutTimer -= dt

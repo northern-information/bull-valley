@@ -1,4 +1,4 @@
-# Bull Valley Cabbage Wars
+# Bull Valley Shadow Wars
 
 An extraction adventure RPG set in a hauntological Bull Valley, Illinois. First-person, in the browser, on the real topology of the village.
 
