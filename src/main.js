@@ -4,11 +4,9 @@ import { CONFIG } from './config.js'
 import { loadTerrain, createHeightField, buildTerrainMesh } from './terrain.js'
 import { buildWorld } from './world.js'
 import { Player } from './player.js'
-import { Shadowmen } from './shadowmen.js'
 import { Scope } from './scope.js'
 import { Hud } from './hud.js'
 import { GsAudio } from './audio.js'
-import { stepNerves, nervesIntensity } from './nerves.js'
 import { addItem, useItem, loadInventory, saveInventory } from './inventory.js'
 import {
   worldToUnit,
@@ -138,13 +136,8 @@ async function boot() {
     metres: geo.metres,
     spawn: world.spawn,
   })
-  const shadowmen = new Shadowmen({
-    scene,
-    heightAt,
-    metres: geo.metres,
-    anchors: world.graveAnchors,
-    playerSpawn: world.spawn,
-  })
+  // The shadowmen are parked until after the MVP loop; src/shadowmen.js and
+  // src/nerves.js stay in the tree, unwired.
   const scope = new Scope(hud.scopeCanvas)
   const audio = new GsAudio()
 
@@ -166,12 +159,10 @@ async function boot() {
   // --- Game state ----------------------------------------------------------
   let inventory = loadInventory(window.localStorage)
   hud.setInventory(inventory)
-  let nerves = 18
   let time = 0
   let smokingUntil = 0
   let emberUntil = 0
   let perceptionUntil = 0
-  let strikeUntil = 0
   let started = false
   let inventoryOpen = false
   let nearPickup = null
@@ -288,35 +279,6 @@ async function boot() {
   window.addEventListener('resize', resize)
   resize()
 
-  const doStrike = () => {
-    strikeUntil = time + 1.6
-    hud.showStatic(true)
-    audio.strike()
-    // You come to at the nearest fuel station, lighter by one pocket.
-    let dest = world.spawn
-    let best = Infinity
-    for (const f of world.fuelPoints) {
-      const d = Math.hypot(f.x - player.pos.x, f.z - player.pos.z)
-      if (d < best) {
-        best = d
-        dest = f
-      }
-    }
-    player.relocate(dest.x + 3, dest.z + 3)
-    const kinds = ['cigarettes', 'joints'].filter((k) => inventory[k] > 0)
-    if (kinds.length) {
-      const kind = kinds[Math.floor(Math.random() * kinds.length)]
-      inventory = useItem(inventory, kind).inv
-      hud.setInventory(inventory)
-      saveInventory(window.localStorage, inventory)
-    }
-    nerves = 70
-    setTimeout(() => {
-      hud.toast('You are somewhere else. Time is missing.')
-      if (kinds.length) hud.toast('Something was taken from your pockets.')
-    }, 1700)
-  }
-
   // --- Loop ----------------------------------------------------------------
   let last = performance.now()
   renderer.setAnimationLoop(() => {
@@ -333,23 +295,9 @@ async function boot() {
       speedScale:
         (scope.raised ? CONFIG.player.scopeSpeedScale : 1) *
         (smoking ? 0.85 : 1),
-      swayAmp: nervesIntensity(nerves),
+      swayAmp: 0,
       driftAmp: perception ? 0.5 : 0,
     })
-
-    const swarm = shadowmen.update(dt, playerState, { ember, perception })
-    nerves = stepNerves(nerves, {
-      dt,
-      pressure: swarm.pressure,
-      smoking,
-      perception,
-    })
-    if (swarm.strike && time > strikeUntil) doStrike()
-    if (time >= strikeUntil && !hud.staticWrap.hidden) hud.showStatic(false)
-    if (time < strikeUntil) hud.drawStatic()
-
-    hud.setNerves(nerves, perception)
-    hud.setVignette(nervesIntensity(nerves) * 0.9)
 
     const timers = []
     if (smoking) timers.push(`Smoking ${Math.ceil(smokingUntil - time)}s`)
@@ -358,13 +306,11 @@ async function boot() {
       timers.push(`Perception ${Math.ceil(perceptionUntil - time)}s`)
     hud.setTimers(timers)
 
-    audio.setPresence(Math.min(1, swarm.pressure / 2))
-    audio.setHeartbeat(nervesIntensity(nerves))
     audio.update(dt)
     scope.draw(dt, {
-      contacts: swarm.contacts,
+      contacts: [],
       forward: playerState.forward,
-      nerves,
+      nerves: 0,
       perception,
     })
 
@@ -418,7 +364,7 @@ async function boot() {
           timeZone: 'America/Chicago',
         }),
         road: roadName,
-        contacts: String(swarm.contacts.length),
+        cabbages: '0',
       })
     }
 
@@ -428,7 +374,7 @@ async function boot() {
 
   if (import.meta.env.DEV) {
     // Dev-only introspection hook; stripped from production bundles.
-    window.__gs = { scene, camera, renderer, player, world, shadowmen }
+    window.__gs = { scene, camera, renderer, player, world }
   }
 }
 

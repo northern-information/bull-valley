@@ -30,15 +30,17 @@ export class Hud {
         <dt>Position</dt><dd data-gs="pos">—</dd>
         <dt>Local</dt><dd data-gs="clock">—</dd>
         <dt>Road</dt><dd data-gs="road">Off road</dd>
-        <dt>Contacts</dt><dd data-gs="contacts">0</dd>
+        <dt>Cabbages</dt><dd data-gs="cabbages">0</dd>
       </dl>`
     ui.appendChild(this.head)
 
-    // Nerves meter.
+    // Nerves meter. Hidden while the shadowmen are parked; setNerves still
+    // works for when they return.
     this.nerves = el('div', 'gs-nerves')
     this.nerves.innerHTML = `
       <span class="gs-nerves-label">Nerves</span>
       <span class="gs-nerves-track"><i class="gs-nerves-fill"></i></span>`
+    this.nerves.hidden = true
     ui.appendChild(this.nerves)
     this.nervesFill = this.nerves.querySelector('.gs-nerves-fill')
 
@@ -113,11 +115,11 @@ export class Hud {
     }
   }
 
-  setReadout({ pos, clock, road, contacts }) {
+  setReadout({ pos, clock, road, cabbages }) {
     if (pos !== undefined) this.fields.pos.textContent = pos
     if (clock !== undefined) this.fields.clock.textContent = clock
     if (road !== undefined) this.fields.road.textContent = road || 'Off road'
-    if (contacts !== undefined) this.fields.contacts.textContent = contacts
+    if (cabbages !== undefined) this.fields.cabbages.textContent = cabbages
   }
 
   setNerves(value, fuzzy) {
