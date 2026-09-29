@@ -2,7 +2,7 @@
 // Geiger-style contact ticks, footsteps, a heartbeat that arrives with the
 // nerves, and item sounds. No audio files ship with the game.
 
-export class GsAudio {
+export class BvAudio {
   constructor() {
     this.ctx = null
     this.muted = false

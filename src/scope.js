@@ -22,7 +22,7 @@ export class Scope {
 
   toggle() {
     this.raised = !this.raised
-    this.canvas.classList.toggle('gs-scope--raised', this.raised)
+    this.canvas.classList.toggle('bv-scope--raised', this.raised)
     return this.raised
   }
 

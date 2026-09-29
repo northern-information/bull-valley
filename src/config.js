@@ -46,7 +46,7 @@ export const CONFIG = {
     rangeMetres: 250,
     sweepSeconds: 3.2,
   },
-  run: {
+  raid: {
     // Pick your loadout before the pickup truck leaves.
     loadoutSeconds: 300,
   },
@@ -68,7 +68,7 @@ export const CONFIG = {
     keepRadius: 25,
   },
   shop: {
-    // Per-run purchase caps; there is no currency yet.
+    // Per-raid purchase caps; there is no currency yet.
     cigarettes: 6,
     joints: 2,
   },

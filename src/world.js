@@ -7,10 +7,17 @@ import {
 } from './coords.js'
 import { applyPS1 } from './ps1.js'
 import { mulberry32, range } from './rng.js'
+import { placeCabbages, CABBAGE_SEED } from './cabbages.js'
+import {
+  landmarkWorldPositions,
+  KEEP,
+  CABBAGE_STAND as STAND_NAME,
+} from './landmarks.js'
 
-// Builds every static feature of Bull Valley from the Scaduscope's geo.json:
-// roads, water, wetland reeds, woods, graveyards, fuel stations, the village
-// boundary. Returns the scene group plus the gameplay anchors main.js needs.
+// Builds every static feature of Bull Valley from the survey's geo.json:
+// roads, water, wetland reeds, woods, graveyards, gas stations, landmarks,
+// cabbages, the village boundary. Returns the scene group plus the gameplay
+// anchors main.js needs.
 
 // Unlit (MeshBasicMaterial) tones — these render exactly as written, then fog.
 const ROAD_STYLE = {
@@ -515,20 +522,47 @@ function buildGraveyards(geo, metres, heightAt, rng) {
   return { group, anchors }
 }
 
-function makeGlowTexture() {
+function makeGlowTexture(color = 'rgba(251, 191, 36, 0.65)') {
   const canvas = document.createElement('canvas')
   canvas.width = 64
   canvas.height = 64
   const ctx = canvas.getContext('2d')
   const grad = ctx.createRadialGradient(32, 32, 2, 32, 32, 30)
-  grad.addColorStop(0, 'rgba(251, 191, 36, 0.65)')
-  grad.addColorStop(1, 'rgba(251, 191, 36, 0)')
+  grad.addColorStop(0, color)
+  grad.addColorStop(1, 'rgba(0, 0, 0, 0)')
   ctx.fillStyle = grad
   ctx.fillRect(0, 0, 64, 64)
   const texture = new THREE.CanvasTexture(canvas)
   return texture
 }
 
+// The tall road sign: white panel, orange trimark, blue wordmark. Every
+// station wears it for now, whatever geo.json says its name is.
+function makeCitgoSignTexture() {
+  const canvas = document.createElement('canvas')
+  canvas.width = 128
+  canvas.height = 96
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = '#e9e6dc'
+  ctx.fillRect(0, 0, 128, 96)
+  ctx.fillStyle = '#f26522'
+  ctx.beginPath()
+  ctx.moveTo(64, 8)
+  ctx.lineTo(90, 40)
+  ctx.lineTo(38, 40)
+  ctx.closePath()
+  ctx.fill()
+  ctx.fillStyle = '#1f3a93'
+  ctx.font = 'bold 28px sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText('CITGO', 64, 64)
+  return new THREE.CanvasTexture(canvas)
+}
+
+// Low-poly Citgo stations at every fuel point inside the frame: flat-roofed
+// building, canopy over a pump island, tall lit road sign. The data keeps the
+// real OSM names for the HUD; the visual is uniformly Citgo for now.
 function buildFuelStations(geo, metres, heightAt, rng) {
   const group = new THREE.Group()
   group.name = 'fuel'
@@ -536,49 +570,104 @@ function buildFuelStations(geo, metres, heightAt, rng) {
     (f) => f.p[0] > 0.015 && f.p[0] < 0.985 && f.p[1] > 0.015 && f.p[1] < 0.985
   )
   const count = stations.length
-  const kioskGeo = new THREE.BoxGeometry(6, 3.2, 4.5)
-  kioskGeo.translate(0, 1.6, 0)
-  const signGeo = new THREE.BoxGeometry(1.8, 0.9, 0.15)
-  const poleGeo = new THREE.CylinderGeometry(0.08, 0.08, 4.5, 5)
-  poleGeo.translate(0, 2.25, 0)
-  const kiosks = new THREE.InstancedMesh(
-    kioskGeo,
-    lambert({ color: '#15181d' }),
+
+  const buildingGeo = new THREE.BoxGeometry(7, 3.4, 5)
+  buildingGeo.translate(0, 1.7, 0)
+  const canopyGeo = new THREE.BoxGeometry(9, 0.45, 6.5)
+  canopyGeo.translate(0, 4.6, 0)
+  const canopyPoleGeo = new THREE.CylinderGeometry(0.12, 0.12, 4.6, 5)
+  canopyPoleGeo.translate(0, 2.3, 0)
+  const pumpGeo = new THREE.BoxGeometry(0.9, 1.3, 0.5)
+  pumpGeo.translate(0, 0.65, 0)
+  const signPoleGeo = new THREE.CylinderGeometry(0.14, 0.14, 8, 5)
+  signPoleGeo.translate(0, 4, 0)
+  const signGeo = new THREE.PlaneGeometry(2.6, 1.95)
+
+  const buildings = new THREE.InstancedMesh(
+    buildingGeo,
+    lambert({ color: '#8d8a80' }),
     count
   )
-  const poles = new THREE.InstancedMesh(
-    poleGeo,
-    lambert({ color: '#20242a' }),
-    count
-  )
-  const signs = new THREE.InstancedMesh(
-    signGeo,
+  const canopies = new THREE.InstancedMesh(
+    canopyGeo,
     lambert({
-      color: '#241a05',
-      emissive: new THREE.Color('#fbbf24'),
-      emissiveIntensity: 0.85,
+      color: '#b9b5ab',
+      emissive: new THREE.Color('#5a564c'),
+      emissiveIntensity: 0.35,
     }),
     count
   )
-  const glow = makeGlowTexture()
+  const canopyPoles = new THREE.InstancedMesh(
+    canopyPoleGeo,
+    lambert({ color: '#454b54' }),
+    count * 2
+  )
+  const pumps = new THREE.InstancedMesh(
+    pumpGeo,
+    lambert({
+      color: '#7a1d1d',
+      emissive: new THREE.Color('#40100f'),
+      emissiveIntensity: 0.4,
+    }),
+    count * 2
+  )
+  const signPoles = new THREE.InstancedMesh(
+    signPoleGeo,
+    lambert({ color: '#454b54' }),
+    count
+  )
+  // Basic, not lambert: the sign face renders as-drawn, readable at night.
+  const signs = new THREE.InstancedMesh(
+    signGeo,
+    applyPS1(
+      new THREE.MeshBasicMaterial({
+        map: makeCitgoSignTexture(),
+        side: THREE.DoubleSide,
+      })
+    ),
+    count
+  )
+  const glow = makeGlowTexture('rgba(242, 101, 34, 0.4)')
+
   const dummy = new THREE.Object3D()
   const points = []
   for (let i = 0; i < count; i++) {
     const { x, z } = unitToWorld(stations[i].p[0], stations[i].p[1], metres)
     const y = heightAt(x, z)
     const yaw = rng() * Math.PI * 2
+    const cos = Math.cos(yaw)
+    const sin = Math.sin(yaw)
     points.push({ x, z, name: stations[i].n })
-    dummy.position.set(x, y, z)
-    dummy.rotation.set(0, yaw, 0)
+
+    // Building set back behind the pumps.
+    dummy.position.set(x - cos * 7, y, z - sin * 7)
+    dummy.rotation.set(0, -yaw, 0)
     dummy.scale.setScalar(1)
     dummy.updateMatrix()
-    kiosks.setMatrixAt(i, dummy.matrix)
-    const px = x + Math.cos(yaw) * 6
-    const pz = z + Math.sin(yaw) * 6
-    dummy.position.set(px, heightAt(px, pz), pz)
+    buildings.setMatrixAt(i, dummy.matrix)
+
+    // Canopy and pump island at the fuel point itself.
+    dummy.position.set(x, y, z)
     dummy.updateMatrix()
-    poles.setMatrixAt(i, dummy.matrix)
-    dummy.position.set(px, heightAt(px, pz) + 4.2, pz)
+    canopies.setMatrixAt(i, dummy.matrix)
+    for (let p = 0; p < 2; p++) {
+      const off = p === 0 ? 2.6 : -2.6
+      dummy.position.set(x - sin * off, y, z + cos * off)
+      dummy.updateMatrix()
+      canopyPoles.setMatrixAt(i * 2 + p, dummy.matrix)
+      dummy.position.set(x - sin * (off * 0.55), y, z + cos * (off * 0.55))
+      dummy.updateMatrix()
+      pumps.setMatrixAt(i * 2 + p, dummy.matrix)
+    }
+
+    // Tall road sign out front.
+    const sx = x + cos * 10
+    const sz = z + sin * 10
+    const sy = heightAt(sx, sz)
+    dummy.position.set(sx, sy, sz)
+    dummy.updateMatrix()
+    signPoles.setMatrixAt(i, dummy.matrix)
+    dummy.position.set(sx, sy + 7, sz)
     dummy.updateMatrix()
     signs.setMatrixAt(i, dummy.matrix)
     const sprite = new THREE.Sprite(
@@ -589,16 +678,73 @@ function buildFuelStations(geo, metres, heightAt, rng) {
         transparent: true,
       })
     )
-    sprite.position.set(px, heightAt(px, pz) + 4.2, pz)
-    sprite.scale.setScalar(7)
+    sprite.position.set(sx, sy + 7, sz)
+    sprite.scale.setScalar(9)
     group.add(sprite)
   }
-  kiosks.instanceMatrix.needsUpdate = true
-  poles.instanceMatrix.needsUpdate = true
-  signs.instanceMatrix.needsUpdate = true
-  group.add(kiosks)
-  group.add(poles)
-  group.add(signs)
+  for (const mesh of [
+    buildings,
+    canopies,
+    canopyPoles,
+    pumps,
+    signPoles,
+    signs,
+  ]) {
+    mesh.instanceMatrix.needsUpdate = true
+    group.add(mesh)
+  }
+  return { group, points }
+}
+
+// Beacon markers for the hand-placed landmarks: a tall pole with a lit panel
+// and a big glow, color-coded so they read across the fog — cyan for the
+// Cabbage Stand, magenta for the Keep.
+function buildLandmarks(geo, metres, heightAt) {
+  const group = new THREE.Group()
+  group.name = 'landmarks'
+  const marks = landmarkWorldPositions(geo.bbox, metres).filter(
+    (m) => m.u > 0 && m.u < 1 && m.v > 0 && m.v < 1
+  )
+  const COLORS = {
+    [KEEP]: '#e879f9',
+    [STAND_NAME]: '#22d3ee',
+  }
+  const points = []
+  for (const mark of marks) {
+    const y = heightAt(mark.x, mark.z)
+    const color = COLORS[mark.n] || '#f59e0b'
+    points.push({ n: mark.n, x: mark.x, z: mark.z })
+    const pole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.16, 0.2, 10, 5),
+      lambert({ color: '#20242a' })
+    )
+    pole.position.set(mark.x, y + 5, mark.z)
+    group.add(pole)
+    const panel = new THREE.Mesh(
+      new THREE.BoxGeometry(1.6, 1.0, 0.18),
+      lambert({
+        color: '#101216',
+        emissive: new THREE.Color(color),
+        emissiveIntensity: 0.9,
+      })
+    )
+    panel.position.set(mark.x, y + 9.4, mark.z)
+    group.add(panel)
+    const rgb = new THREE.Color(color)
+    const sprite = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: makeGlowTexture(
+          `rgba(${Math.round(rgb.r * 255)}, ${Math.round(rgb.g * 255)}, ${Math.round(rgb.b * 255)}, 0.55)`
+        ),
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        transparent: true,
+      })
+    )
+    sprite.position.set(mark.x, y + 9.4, mark.z)
+    sprite.scale.setScalar(14)
+    group.add(sprite)
+  }
   return { group, points }
 }
 
@@ -625,6 +771,18 @@ function buildBoundary(geo, metres, heightAt) {
 }
 
 function makePickupMesh(kind) {
+  if (kind === 'cabbage') {
+    const sphere = new THREE.SphereGeometry(0.35, 6, 5)
+    sphere.translate(0, 0.35, 0)
+    return new THREE.Mesh(
+      sphere,
+      new THREE.MeshLambertMaterial({
+        color: '#1c2a16',
+        emissive: new THREE.Color('#9be88a'),
+        emissiveIntensity: 0.5,
+      })
+    )
+  }
   const geo3 = new THREE.BoxGeometry(0.5, 0.35, 0.35)
   geo3.translate(0, 0.4, 0)
   const emissive = kind === 'cigarettes' ? '#fbbf24' : '#4ade80'
@@ -676,29 +834,43 @@ function buildPickups(geo, metres, heightAt, fuelPoints, rng) {
     const { x, z } = unitToWorld(u, v, metres)
     place(x, z, 'joints', 2)
   }
+  // Cabbages: seeded independently of the world scatter so re-tuning one
+  // never reshuffles the other.
+  const stand = landmarkWorldPositions(geo.bbox, metres).find(
+    (m) => m.n === STAND_NAME
+  )
+  const cabbages = placeCabbages(geo, mulberry32(CABBAGE_SEED), {
+    stand: stand ? { u: stand.u, v: stand.v } : null,
+    metres,
+  })
+  for (const spot of cabbages) {
+    const { x, z } = unitToWorld(spot.u, spot.v, metres)
+    place(x, z, 'cabbage', 1)
+  }
   return { group, pickups }
 }
 
-function findSpawn(geo, metres, heightAt) {
-  let best = null
+// The raid starts at a gas station: deterministically, the fuel point nearest
+// the midpoint of the longest road named for Bull Valley, which keeps the
+// spawn in the old survey's neighborhood. Falls back to the point nearest the
+// frame center.
+function chooseSpawnStation(geo, metres, fuelPoints) {
+  let bestRoad = null
   for (const road of geo.roads) {
     if (!/bull valley/i.test(road.n || '')) continue
-    if (!best || road.p.length > best.p.length) best = road
+    if (!bestRoad || road.p.length > bestRoad.p.length) bestRoad = road
   }
-  const pts = best
-    ? best.p
-    : [
-        [0.5, 0.5],
-        [0.51, 0.5],
-      ]
-  const mid = Math.floor(pts.length / 2)
-  const a = unitToWorld(pts[mid][0], pts[mid][1], metres)
-  const b = unitToWorld(
-    pts[Math.min(pts.length - 1, mid + 1)][0],
-    pts[Math.min(pts.length - 1, mid + 1)][1],
-    metres
-  )
-  return { x: a.x, z: a.z, yaw: Math.atan2(-(b.x - a.x), -(b.z - a.z)) }
+  let target = { x: 0, z: 0 }
+  if (bestRoad) {
+    const mid = bestRoad.p[Math.floor(bestRoad.p.length / 2)]
+    target = unitToWorld(mid[0], mid[1], metres)
+  }
+  let best = null
+  for (const station of fuelPoints) {
+    const d = Math.hypot(station.x - target.x, station.z - target.z)
+    if (!best || d < best.d) best = { station, d }
+  }
+  return best ? best.station : null
 }
 
 export function buildWorld(geo, heightAt) {
@@ -717,15 +889,24 @@ export function buildWorld(geo, heightAt) {
   group.add(graveyards.group)
   const fuel = buildFuelStations(geo, metres, heightAt, rng)
   group.add(fuel.group)
+  const landmarks = buildLandmarks(geo, metres, heightAt)
+  group.add(landmarks.group)
   group.add(buildBoundary(geo, metres, heightAt))
   const pickupSet = buildPickups(geo, metres, heightAt, fuel.points, rng)
   group.add(pickupSet.group)
+
+  const spawnStation = chooseSpawnStation(geo, metres, fuel.points)
+  const spawn = spawnStation
+    ? { x: spawnStation.x + 5, z: spawnStation.z + 5, yaw: 0 }
+    : { x: 0, z: 0, yaw: 0 }
 
   return {
     group,
     pickups: pickupSet.pickups,
     graveAnchors: graveyards.anchors,
     fuelPoints: fuel.points,
-    spawn: findSpawn(geo, metres, heightAt),
+    landmarks: landmarks.points,
+    spawnStation,
+    spawn,
   }
 }

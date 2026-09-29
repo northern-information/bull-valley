@@ -6,10 +6,27 @@ import { buildWorld } from './world.js'
 import { Player } from './player.js'
 import { Scope } from './scope.js'
 import { Hud } from './hud.js'
-import { GsAudio } from './audio.js'
+import { BvAudio } from './audio.js'
+import { Truck } from './truck.js'
+import {
+  STATES,
+  EVENTS,
+  createRaid,
+  advance,
+  carryLimit,
+  summary,
+} from './raid.js'
+import {
+  buildRoadGraph,
+  nearestRoadPoint,
+  planRoute,
+  wanderRoute,
+} from './roadgraph.js'
+import { KEEP } from './landmarks.js'
 import { addItem, useItem, loadInventory, saveInventory } from './inventory.js'
 import {
   worldToUnit,
+  unitToWorld,
   unitToLatLon,
   formatLatLon,
   pointSegmentDistance,
@@ -23,10 +40,11 @@ const DATA_BASE = '/data/bull-valley'
 const PICKUP_LABEL = {
   cigarettes: 'Cigarettes ×3',
   joints: 'Joints ×2',
+  cabbage: 'Cabbage',
 }
 
 async function boot() {
-  const root = document.getElementById('gs-root')
+  const root = document.getElementById('bv-root')
   const hud = new Hud(root)
   hud.showIntro(true, false)
   hud.beginBtn.disabled = true
@@ -43,8 +61,8 @@ async function boot() {
       loadTerrain(`${DATA_BASE}/terrain.png`),
     ])
   } catch (err) {
-    console.error('Ground Survey failed to load its terrain data:', err)
-    hud.beginBtn.textContent = 'The Survey Will Not Resolve'
+    console.error('Cabbage Wars failed to load its terrain data:', err)
+    hud.beginBtn.textContent = 'The Valley Will Not Resolve'
     return
   }
 
@@ -130,16 +148,52 @@ async function boot() {
   scene.add(sky)
 
   // --- Systems -----------------------------------------------------------
+  // The shadowmen are parked until after the MVP loop; src/shadowmen.js and
+  // src/nerves.js stay in the tree, unwired.
+  const graph = buildRoadGraph(geo.roads, geo.metres)
+  const truck = new Truck({ scene, heightAt })
+
+  // Park Matthew Marx's Chevy at the road nearest the spawn station, already
+  // pointed down tonight's joyride.
+  const spawnStation = world.spawnStation
+  const truckPoint = nearestRoadPoint(graph, spawnStation.x, spawnStation.z)
+  const departRoute = wanderRoute(
+    graph,
+    truckPoint,
+    mulberry32(0xcab42),
+    CONFIG.truck.wanderMetres
+  )
+  {
+    const dx = departRoute[1].x - departRoute[0].x
+    const dz = departRoute[1].z - departRoute[0].z
+    const len = Math.hypot(dx, dz) || 1
+    truck.parkAt(truckPoint.x, truckPoint.z, dx / len, dz / len)
+  }
+  // Spawn on the forecourt between the station and the truck, facing the
+  // truck — clear of the building, which sits behind the pumps.
+  {
+    const dx = truck.x - spawnStation.x
+    const dz = truck.z - spawnStation.z
+    const len = Math.hypot(dx, dz) || 1
+    world.spawn.x = spawnStation.x + (dx / len) * 12
+    world.spawn.z = spawnStation.z + (dz / len) * 12
+    world.spawn.yaw = Math.atan2(
+      -(truck.x - world.spawn.x),
+      -(truck.z - world.spawn.z)
+    )
+  }
+
   const player = new Player({
     camera,
     heightAt,
     metres: geo.metres,
     spawn: world.spawn,
   })
-  // The shadowmen are parked until after the MVP loop; src/shadowmen.js and
-  // src/nerves.js stay in the tree, unwired.
   const scope = new Scope(hud.scopeCanvas)
-  const audio = new GsAudio()
+  const audio = new BvAudio()
+
+  const keep = world.landmarks.find((l) => l.n === KEEP)
+  const stand = world.landmarks.find((l) => l.n !== KEEP)
 
   // Road segments in metres, for the readout's nearest-road line.
   const roadSegs = []
@@ -159,26 +213,120 @@ async function boot() {
   // --- Game state ----------------------------------------------------------
   let inventory = loadInventory(window.localStorage)
   hud.setInventory(inventory)
+  let raid = createRaid(0)
+  let raidClock = 0 // advances only while the pointer is locked
+  const shopStock = {
+    cigarettes: CONFIG.shop.cigarettes,
+    joints: CONFIG.shop.joints,
+    sack: 1,
+  }
+  hud.setShop(shopStock)
   let time = 0
   let smokingUntil = 0
   let emberUntil = 0
   let perceptionUntil = 0
   let started = false
+  let greeted = false
+  let ended = false
   let inventoryOpen = false
   let nearPickup = null
+  let nearExtract = null // { type: 'fuel' | 'keep', name }
+  let canBoard = false
+  let canBoardExtract = false
+  let canUnload = false
   let readoutTimer = 0
   let roadTimer = 0
   let roadName = ''
+  const ridingForward = new THREE.Vector3(0, 0, -1)
 
-  player.onEdge = () => hud.toast('The survey ends here.')
+  player.onEdge = () => hud.toast('The valley ends here.')
   player.onStep = (sprinting) => audio.step(sprinting)
+
+  const nearSpawnStation = () =>
+    Math.hypot(spawnStation.x - player.pos.x, spawnStation.z - player.pos.z) <
+    25
+
+  const endRaid = () => {
+    ended = true
+    hud.prompt(null)
+    hud.showInventory(false)
+    inventoryOpen = false
+    if (document.pointerLockElement) document.exitPointerLock()
+    player.locked = false
+    hud.showIntro(false)
+    hud.showSummary(summary(raid))
+  }
+
+  const truckLeaves = () => {
+    truck.driveRoute(departRoute)
+  }
+
+  const boardTruck = () => {
+    const next = advance(raid, EVENTS.BOARD_TRUCK, raidClock)
+    if (next === raid) return
+    raid = next
+    truckLeaves()
+    hud.toast('You climb into the bed. Marx pulls out.')
+    hud.toast('E hops out. Anywhere you like.')
+    hud.showInventory(false)
+    inventoryOpen = false
+  }
+
+  const hopOut = (toastText) => {
+    const next = advance(raid, EVENTS.HOP_OUT, raidClock)
+    if (next === raid) return
+    raid = next
+    const spot = truck.hopOutSpot()
+    player.relocate(spot.x, spot.z, player.yaw)
+    if (toastText) hud.toast(toastText)
+  }
+
+  const callTruck = () => {
+    if (raid.state !== STATES.ON_FOOT || raid.truckCalled) return
+    const from = nearestRoadPoint(graph, truck.x, truck.z)
+    const to = nearestRoadPoint(graph, player.pos.x, player.pos.z)
+    const route = planRoute(graph, from, to)
+    if (!route || route.length < 2) {
+      hud.toast('You whistle into the dark. Nothing turns over.')
+      return
+    }
+    raid = advance(raid, EVENTS.CALL_TRUCK, raidClock)
+    truck.driveRoute(route)
+    hud.toast('You whistle into the dark. An engine turns over, far off.')
+  }
+
+  const buy = (kind) => {
+    if (raid.state !== STATES.LOADOUT || !nearSpawnStation()) return
+    if (kind === 'sack') {
+      const next = advance(raid, EVENTS.BUY_SACK, raidClock)
+      if (next === raid || shopStock.sack < 1) return
+      raid = next
+      shopStock.sack = 0
+      hud.setShop(shopStock)
+      hud.toast('The burlap sack. Room for five.')
+      return
+    }
+    if (shopStock[kind] < 1) {
+      hud.toast('The tailgate is bare.')
+      return
+    }
+    shopStock[kind] -= 1
+    inventory = addItem(inventory, kind, 1)
+    hud.setInventory(inventory)
+    saveInventory(window.localStorage, inventory)
+    hud.setShop(shopStock)
+    audio.pickup()
+    hud.toast(
+      kind === 'cigarettes' ? 'One pack, pocketed.' : 'One joint, pocketed.'
+    )
+  }
 
   // --- Input ---------------------------------------------------------------
   hud.beginBtn.disabled = false
-  hud.beginBtn.textContent = 'Begin the Survey'
+  hud.beginBtn.textContent = 'Begin the Raid'
   const startWithoutLock = () => {
     // Dev-only: headless and some embedded browsers refuse pointer lock, and
-    // the survey is unwalkable without it. Never engages in production.
+    // the valley is unwalkable without it. Never engages in production.
     if (!import.meta.env.DEV) return
     player.locked = true
     started = true
@@ -209,7 +357,11 @@ async function boot() {
     if (locked) {
       started = true
       hud.showIntro(false)
-    } else if (started) {
+      if (!greeted) {
+        greeted = true
+        hud.toast('Matthew Marx keeps the engine running.')
+      }
+    } else if (started && !ended) {
       hud.showIntro(true, true)
     }
   })
@@ -240,19 +392,20 @@ async function boot() {
     }
   }
 
-  document.addEventListener('keydown', (e) => {
-    if (!player.locked) return
-    player.handleKey(e.code, true)
-    if (e.code === 'Tab') {
-      e.preventDefault()
-      inventoryOpen = hud.showInventory(!inventoryOpen)
-    } else if (e.code === 'KeyQ') {
-      scope.toggle()
-    } else if (e.code === 'Digit1') {
-      useKind('cigarettes')
-    } else if (e.code === 'Digit2') {
-      useKind('joints')
-    } else if (e.code === 'KeyE' && nearPickup) {
+  const takePickup = () => {
+    if (!nearPickup) return
+    if (nearPickup.kind === 'cabbage') {
+      const next = advance(raid, EVENTS.PICK_CABBAGE, raidClock)
+      if (next === raid) {
+        hud.toast('Your arms are full.')
+        return
+      }
+      raid = next
+      nearPickup.taken = true
+      nearPickup.mesh.visible = false
+      audio.pickup()
+      hud.toast('Taken: Cabbage')
+    } else {
       nearPickup.taken = true
       nearPickup.mesh.visible = false
       inventory = addItem(inventory, nearPickup.kind, nearPickup.count)
@@ -260,8 +413,70 @@ async function boot() {
       saveInventory(window.localStorage, inventory)
       audio.pickup()
       hud.toast(`Taken: ${PICKUP_LABEL[nearPickup.kind]}`)
-      nearPickup = null
-      hud.prompt(null)
+    }
+    nearPickup = null
+    hud.prompt(null)
+  }
+
+  const interact = () => {
+    if (raid.state === STATES.RIDING) {
+      hopOut('Boots on gravel. The truck rolls on.')
+      return
+    }
+    if (canBoard) {
+      boardTruck()
+      return
+    }
+    if (canBoardExtract) {
+      raid = advance(raid, EVENTS.BOARD_TRUCK, raidClock, { arrived: true })
+      if (raid.state === STATES.EXTRACTED) endRaid()
+      return
+    }
+    if (canUnload) {
+      const count = raid.carrying
+      raid = advance(raid, EVENTS.DELIVER, raidClock)
+      audio.pickup()
+      hud.toast(
+        `The stand takes your ${count === 1 ? 'cabbage' : `${count} cabbages`}. Somewhere, gratitude.`
+      )
+      return
+    }
+    if (nearExtract) {
+      raid = advance(
+        raid,
+        nearExtract.type === 'keep' ? EVENTS.EXTRACT_KEEP : EVENTS.EXTRACT_FUEL,
+        raidClock,
+        nearExtract.name
+      )
+      if (raid.state === STATES.EXTRACTED) endRaid()
+      return
+    }
+    takePickup()
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (!player.locked || ended) return
+    player.handleKey(e.code, true)
+    if (e.code === 'Tab') {
+      e.preventDefault()
+      inventoryOpen = hud.showInventory(!inventoryOpen)
+      hud.showShop(raid.state === STATES.LOADOUT && nearSpawnStation())
+    } else if (e.code === 'KeyQ') {
+      scope.toggle()
+    } else if (e.code === 'Digit1') {
+      useKind('cigarettes')
+    } else if (e.code === 'Digit2') {
+      useKind('joints')
+    } else if (e.code === 'Digit3') {
+      buy('cigarettes')
+    } else if (e.code === 'Digit4') {
+      buy('joints')
+    } else if (e.code === 'Digit5') {
+      buy('sack')
+    } else if (e.code === 'KeyT') {
+      callTruck()
+    } else if (e.code === 'KeyE') {
+      interact()
     }
   })
   document.addEventListener('keyup', (e) => player.handleKey(e.code, false))
@@ -286,20 +501,52 @@ async function boot() {
     const dt = Math.min(0.05, (now - last) / 1000)
     last = now
     time += dt
+    if (player.locked && !ended) raidClock += dt
 
     const smoking = time < smokingUntil
     const ember = time < emberUntil
     const perception = time < perceptionUntil
 
-    const playerState = player.update(dt, {
-      speedScale:
-        (scope.raised ? CONFIG.player.scopeSpeedScale : 1) *
-        (smoking ? 0.85 : 1),
-      swayAmp: 0,
-      driftAmp: perception ? 0.5 : 0,
-    })
+    // The truck leaves on the timer whether you're aboard or not.
+    if (raid.state === STATES.LOADOUT && raidClock > raid.loadoutEndsAt) {
+      raid = advance(raid, EVENTS.TIMER_EXPIRED, raidClock)
+      truckLeaves()
+      hud.toast('Taillights. The truck leaves without you.')
+      hud.showShop(false)
+    }
+
+    let forward = ridingForward
+    if (raid.state === STATES.RIDING) {
+      // The one place the camera leaves player.update(): ride the bed with
+      // free look, keeping player.pos honest for the readout and scope.
+      const truckState = truck.update(dt)
+      const seat = truck.bedSeat()
+      player.relocate(seat.x, seat.z, player.yaw)
+      camera.position.set(seat.x, seat.y, seat.z)
+      camera.rotation.set(player.pitch, player.yaw, 0)
+      ridingForward.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw))
+      if (truckState.done) {
+        hopOut('End of the line. Marx lights a cigarette.')
+      }
+    } else {
+      const playerState = player.update(dt, {
+        speedScale:
+          (scope.raised ? CONFIG.player.scopeSpeedScale : 1) *
+          (smoking ? 0.85 : 1),
+        swayAmp: 0,
+        driftAmp: perception ? 0.5 : 0,
+      })
+      forward = playerState.forward
+      truck.update(dt)
+    }
 
     const timers = []
+    if (raid.state === STATES.LOADOUT) {
+      const left = Math.max(0, Math.ceil(raid.loadoutEndsAt - raidClock))
+      const mm = Math.floor(left / 60)
+      const ss = String(left % 60).padStart(2, '0')
+      timers.push(`Truck leaves ${mm}:${ss}`)
+    }
     if (smoking) timers.push(`Smoking ${Math.ceil(smokingUntil - time)}s`)
     else if (ember) timers.push(`Ember ${Math.ceil(emberUntil - time)}s`)
     if (perception)
@@ -309,28 +556,83 @@ async function boot() {
     audio.update(dt)
     scope.draw(dt, {
       contacts: [],
-      forward: playerState.forward,
+      forward,
       nerves: 0,
       perception,
     })
 
-    // Pickups: pulse, and offer the nearest within reach.
+    // --- Interactions: what E would do right now -------------------------
+    canBoard = false
+    canBoardExtract = false
+    canUnload = false
+    nearExtract = null
     nearPickup = null
-    let bestPickup = 2.6
-    for (const pickup of world.pickups) {
-      if (pickup.taken) continue
-      pickup.mesh.material.emissiveIntensity = 0.35 + Math.sin(time * 3) * 0.2
-      const d = Math.hypot(pickup.x - player.pos.x, pickup.z - player.pos.z)
-      if (d < bestPickup) {
-        bestPickup = d
-        nearPickup = pickup
+    let prompt = null
+    if (!ended && raid.state === STATES.RIDING) {
+      prompt = 'E — Hop Out'
+    } else if (!ended && raid.state !== STATES.EXTRACTED) {
+      const truckClose =
+        truck.distanceTo(player.pos.x, player.pos.z) < CONFIG.truck.boardRange
+      if (raid.state === STATES.LOADOUT && truckClose) {
+        canBoard = true
+        prompt = 'E — Climb into the Bed'
+      } else if (
+        raid.state === STATES.ON_FOOT &&
+        raid.truckCalled &&
+        !truck.moving &&
+        truckClose
+      ) {
+        canBoardExtract = true
+        prompt = 'E — Board (End the Raid)'
+      } else if (
+        raid.state === STATES.ON_FOOT &&
+        raid.carrying > 0 &&
+        stand &&
+        Math.hypot(stand.x - player.pos.x, stand.z - player.pos.z) <
+          CONFIG.cabbage.dropRadius
+      ) {
+        canUnload = true
+        prompt = `E — Unload ${raid.carrying} ${raid.carrying === 1 ? 'Cabbage' : 'Cabbages'}`
+      } else if (raid.state === STATES.ON_FOOT) {
+        // Extraction: any station but the spawn, or the Keep.
+        for (const f of world.fuelPoints) {
+          if (f === spawnStation) continue
+          if (
+            Math.hypot(f.x - player.pos.x, f.z - player.pos.z) <
+            CONFIG.extract.fuelRadius
+          ) {
+            nearExtract = { type: 'fuel', name: f.name }
+            prompt = `E — End the Raid at ${f.name || 'the Station'}`
+            break
+          }
+        }
+        if (
+          !nearExtract &&
+          keep &&
+          Math.hypot(keep.x - player.pos.x, keep.z - player.pos.z) <
+            CONFIG.extract.keepRadius
+        ) {
+          nearExtract = { type: 'keep' }
+          prompt = "E — End the Raid at Mt. Coleman's Keep"
+        }
+      }
+      if (!prompt) {
+        // Pickups: pulse, and offer the nearest within reach.
+        let bestPickup = 2.6
+        for (const pickup of world.pickups) {
+          if (pickup.taken) continue
+          pickup.mesh.material.emissiveIntensity =
+            0.35 + Math.sin(time * 3) * 0.2
+          const d = Math.hypot(pickup.x - player.pos.x, pickup.z - player.pos.z)
+          if (d < bestPickup) {
+            bestPickup = d
+            nearPickup = pickup
+          }
+        }
+        if (nearPickup) prompt = `E — Take ${PICKUP_LABEL[nearPickup.kind]}`
       }
     }
-    hud.prompt(
-      nearPickup && player.locked
-        ? `E — Take ${PICKUP_LABEL[nearPickup.kind]}`
-        : null
-    )
+    hud.prompt(player.locked && !ended ? prompt : null)
 
     // Readout, throttled.
     readoutTimer -= dt
@@ -364,7 +666,7 @@ async function boot() {
           timeZone: 'America/Chicago',
         }),
         road: roadName,
-        cabbages: '0',
+        cabbages: `${raid.carrying}/${carryLimit(raid)} · ${raid.delivered} delivered`,
       })
     }
 
@@ -374,7 +676,25 @@ async function boot() {
 
   if (import.meta.env.DEV) {
     // Dev-only introspection hook; stripped from production bundles.
-    window.__gs = { scene, camera, renderer, player, world }
+    window.__bv = {
+      scene,
+      camera,
+      renderer,
+      player,
+      world,
+      truck,
+      graph,
+      get raid() {
+        return raid
+      },
+      teleport(u, v) {
+        const { x, z } = unitToWorld(u, v, geo.metres)
+        player.relocate(x, z)
+      },
+      hurryTruck(seconds = 5) {
+        raid = { ...raid, loadoutEndsAt: raidClock + seconds }
+      },
+    }
   }
 }
 

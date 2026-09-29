@@ -1,6 +1,6 @@
 // Pure coordinate and geometry helpers for the Bull Valley unit square
 // (x right/east, y down/south — the projection scripts/fetch_bull_valley.cjs
-// writes into geo.json). No three.js imports: tests/unit/ground-survey.test.js
+// writes into geo.json). No three.js imports: tests/unit/coords.test.js
 // runs these directly in Node.
 //
 // World space is three.js metres centred on the square: +x east, +z south,
