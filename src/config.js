@@ -46,4 +46,30 @@ export const CONFIG = {
     rangeMetres: 250,
     sweepSeconds: 3.2,
   },
+  run: {
+    // Pick your loadout before the pickup truck leaves.
+    loadoutSeconds: 300,
+  },
+  truck: {
+    speed: 12, // m/s, about 27 mph — right for gravel-adjacent Bull Valley
+    boardRange: 4,
+    arriveRange: 30, // called truck stops this close to the player's road point
+    bedEye: 1.6, // camera height above the bed
+    wanderMetres: 6000, // how far the outbound joyride runs
+  },
+  cabbage: {
+    count: 48,
+    carryLimit: 3,
+    sackCarryLimit: 5,
+    dropRadius: 12,
+  },
+  extract: {
+    fuelRadius: 12,
+    keepRadius: 25,
+  },
+  shop: {
+    // Per-run purchase caps; there is no currency yet.
+    cigarettes: 6,
+    joints: 2,
+  },
 }
