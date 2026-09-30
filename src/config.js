@@ -54,6 +54,23 @@ export const CONFIG = {
     // Pick your loadout before the pickup truck leaves.
     loadoutSeconds: 300,
   },
+  splash: {
+    // Northern Information colophon: triangle-wave fade sized to the
+    // natural length of the mp3 (~6s) so the cue ends at silence.
+    fadeInMs: 2000,
+    holdMs: 2400,
+    fadeOutMs: 1600,
+    // Skipping cuts to black and tweens out fast so the gesture feels
+    // instant; audio tails slightly longer than the visual.
+    skipFadeMs: 200,
+    skipAudioFadeMs: 300,
+    // After the logo resolves, the black backdrop lifts to reveal the intro.
+    revealFadeMs: 400,
+    imageSrc:
+      '/applied-sciences-and-phantasms-working-division-flourescent.png',
+    audioSrc: '/sfx/northern-information.mp3',
+    hint: 'Press Any Key To Begin',
+  },
   truck: {
     speed: 12, // m/s, about 27 mph — right for gravel-adjacent Bull Valley
     boardRange: 4,
