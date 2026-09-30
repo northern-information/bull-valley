@@ -22,6 +22,7 @@ Spawn at a gas station → 5-minute loadout before Matthew Marx's white Chevy le
 - `src/truck.js` — the white Chevy: mesh, drive/board/ride/call
 - `src/cabbages.js` — pure seeded cabbage placement
 - `src/landmarks.js` — consented landmark coordinates + projection
+- `src/splash.js` — Northern Information colophon splash: pure triangle-wave machine + DOM overlay
 - `src/world.js` — builds terrain features, Citgo stations, pickups, beacons from geo.json
 - `src/terrain.js` `src/player.js` `src/coords.js` `src/ps1.js` `src/rng.js` `src/config.js` `src/inventory.js` `src/hud.js` `src/audio.js` `src/scope.js` — ported engine
 - `src/shadowmen.js` `src/nerves.js` — parked, unwired; they return post-MVP

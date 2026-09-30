@@ -1,19 +1,25 @@
-// Fully procedural WebAudio: wind, radio static that scales with presence,
+// Procedural WebAudio: wind, radio static that scales with presence,
 // Geiger-style contact ticks, footsteps, a heartbeat that arrives with the
-// nerves, and item sounds. No audio files ship with the game.
+// nerves, and item sounds. One exception to the no-audio-files rule ships
+// with the game: the Northern Information splash mp3, played via playOneShot.
 
 export class BvAudio {
   constructor() {
     this.ctx = null
     this.muted = false
+    this.bedsStarted = false
+    this.oneShot = null
+    this.oneShotSeq = 0
     this.tickTimer = 1
     this.heartTimer = 0
     this.presence = 0
     this.heartbeat = 0
   }
 
-  // Must be called from a user gesture.
-  init() {
+  // Context + master gain only, no ambient beds. Must be called from a
+  // user gesture. The splash uses this so its cue can play without wind
+  // and static arriving early; init() layers the beds on top.
+  initContext() {
     if (this.ctx) {
       this.ctx.resume()
       return
@@ -28,10 +34,18 @@ export class BvAudio {
     const data = noiseBuffer.getChannelData(0)
     for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1
     this.noiseBuffer = noiseBuffer
+  }
+
+  // Must be called from a user gesture.
+  init() {
+    this.initContext()
+    if (this.bedsStarted) return
+    this.bedsStarted = true
+    const ctx = this.ctx
 
     // Wind: looped noise through a slow-wobbling lowpass.
     const wind = ctx.createBufferSource()
-    wind.buffer = noiseBuffer
+    wind.buffer = this.noiseBuffer
     wind.loop = true
     const windFilter = ctx.createBiquadFilter()
     windFilter.type = 'lowpass'
@@ -49,7 +63,7 @@ export class BvAudio {
 
     // Static bed: gain driven by shadowman presence.
     const stat = ctx.createBufferSource()
-    stat.buffer = noiseBuffer
+    stat.buffer = this.noiseBuffer
     stat.loop = true
     const statFilter = ctx.createBiquadFilter()
     statFilter.type = 'highpass'
@@ -63,6 +77,57 @@ export class BvAudio {
   setMuted(muted) {
     this.muted = muted
     if (this.master) this.master.gain.value = muted ? 0 : 0.8
+  }
+
+  // One-shot file playback with a triangle gain envelope (the splash cue).
+  // Routed through the master gain so the mute toggle stays authoritative.
+  // Fetch/decode failures are swallowed: the visual is authoritative and a
+  // missing mp3 must never block the splash.
+  async playOneShot(url, { fadeInMs, holdMs, fadeOutMs }) {
+    if (!this.ctx) return
+    const ctx = this.ctx
+    // stopOneShot can race the fetch/decode (skip before the cue loads); the
+    // token invalidates the in-flight request so a dismissed cue never starts.
+    const seq = ++this.oneShotSeq
+    try {
+      const response = await fetch(url)
+      const buffer = await ctx.decodeAudioData(await response.arrayBuffer())
+      if (seq !== this.oneShotSeq || this.oneShot) return
+      const gain = ctx.createGain()
+      const t0 = ctx.currentTime
+      gain.gain.setValueAtTime(0, t0)
+      gain.gain.linearRampToValueAtTime(1, t0 + fadeInMs / 1000)
+      gain.gain.setValueAtTime(1, t0 + (fadeInMs + holdMs) / 1000)
+      gain.gain.linearRampToValueAtTime(
+        0,
+        t0 + (fadeInMs + holdMs + fadeOutMs) / 1000
+      )
+      gain.connect(this.master)
+      const src = ctx.createBufferSource()
+      src.buffer = buffer
+      src.connect(gain)
+      this.oneShot = { src, gain }
+      src.onended = () => {
+        if (this.oneShot && this.oneShot.src === src) this.oneShot = null
+        src.disconnect()
+        gain.disconnect()
+      }
+      src.start()
+    } catch {
+      // Silent: no cue, splash carries on.
+    }
+  }
+
+  stopOneShot(fadeMs) {
+    this.oneShotSeq++
+    const shot = this.oneShot
+    this.oneShot = null
+    if (!shot || !this.ctx) return
+    const t0 = this.ctx.currentTime
+    shot.gain.gain.cancelScheduledValues(t0)
+    shot.gain.gain.setValueAtTime(shot.gain.gain.value, t0)
+    shot.gain.gain.linearRampToValueAtTime(0, t0 + fadeMs / 1000)
+    shot.src.stop(t0 + fadeMs / 1000)
   }
 
   burst({ duration, filterType, frequency, gain, sweepTo }) {

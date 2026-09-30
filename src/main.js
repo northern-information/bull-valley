@@ -7,6 +7,7 @@ import { Player } from './player.js'
 import { Scope } from './scope.js'
 import { Hud } from './hud.js'
 import { BvAudio } from './audio.js'
+import { showSplash } from './splash.js'
 import { Truck } from './truck.js'
 import {
   STATES,
@@ -46,6 +47,13 @@ const PICKUP_LABEL = {
 async function boot() {
   const root = document.getElementById('bv-root')
   const hud = new Hud(root)
+  const audio = new BvAudio()
+  // The colophon threshold covers the terrain resolve; its first gesture
+  // creates the AudioContext, but the ambient beds wait for the Begin
+  // button. Not awaited — the scene builds underneath while it plays, the
+  // backdrop stays opaque through the whole logo envelope, and the final
+  // reveal tween discloses the intro dialog already waiting beneath.
+  showSplash({ audio, config: CONFIG.splash })
   hud.showIntro(true, false)
   hud.beginBtn.disabled = true
   hud.beginBtn.textContent = 'Resolving Terrain…'
@@ -190,7 +198,6 @@ async function boot() {
     spawn: world.spawn,
   })
   const scope = new Scope(hud.scopeCanvas)
-  const audio = new BvAudio()
 
   const keep = world.landmarks.find((l) => l.n === KEEP)
   const stand = world.landmarks.find((l) => l.n !== KEEP)
