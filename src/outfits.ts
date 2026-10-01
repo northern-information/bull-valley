@@ -504,7 +504,7 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     prints: { torso: ['guitar-strap'] },
   },
   hanson: {
-    label: 'Juston Hanson',
+    label: 'Justin Hanson',
     colors: {
       skin: '#f3d9c6',
       hair: '#a8442a',
