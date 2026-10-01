@@ -38,7 +38,9 @@ describe('outfits', () => {
         for (const ring of addon.rings) expect(ring).toHaveLength(4)
       } else {
         expect(addon.box).toHaveLength(3)
-        expect(addon.offset).toHaveLength(3)
+      }
+      for (const at of addon.offsets || [addon.offset || [0, 0, 0]]) {
+        expect(at).toHaveLength(3)
       }
     }
   })

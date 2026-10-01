@@ -9,7 +9,7 @@ import { applyPS1 } from './ps1.js'
 import { lambert, makeGlowTexture, makeGlowSprite } from './assets.js'
 import { createWalker } from './roadgraph.js'
 import { CONFIG } from './config.js'
-import { buildFigure, applyPose } from './figure.js'
+import { buildFigure, applyPose, attachCigarette } from './figure.js'
 import { samplePose } from './poses.js'
 
 // Local space: the truck faces +Z, origin at ground level under the middle.
@@ -85,6 +85,7 @@ export function buildTruckMesh() {
   driver.group.scale.setScalar(DRIVER_SCALE)
   group.add(driver.group)
   group.userData.driver = driver
+  group.userData.cigarette = attachCigarette(driver)
   placeDriver(driver, 'cab')
   return group
 }
@@ -122,6 +123,7 @@ export class Truck {
     this.dirZ = 1
     this.moving = false
     this.driver = this.group.userData.driver
+    this.cigarette = this.group.userData.cigarette
     this.time = 0
   }
 
@@ -152,8 +154,9 @@ export class Truck {
   // Advances the current route. Returns { x, z, moving, done } — done is true
   // on the frame the route finishes and stays true until the next route.
   update(dt) {
-    // Matthew Marx glances about now and then.
+    // Matthew Marx glances about now and then, and smokes.
     this.time += dt
+    this.cigarette.update(this.time)
     this.driver.joints.neck.rotation.y =
       Math.sin(this.time * 0.35) * Math.max(0, Math.sin(this.time * 0.11)) * 0.6
     if (this.walker && this.moving) {

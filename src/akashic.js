@@ -12,13 +12,15 @@ import { mulberry32 } from './rng.js'
 import { WORLD_ASSETS, meshBounds } from './assets.js'
 import { buildTruckMesh } from './truck.js'
 import { makeSilhouetteTexture, buildShadowmanFigure } from './shadowmen.js'
-import { buildFigure, applyPose } from './figure.js'
+import { buildFigure, applyPose, attachCigarette } from './figure.js'
 import { OUTFITS, OUTFIT_IDS } from './outfits.js'
 import { samplePose } from './poses.js'
 
 function sampleFigure(outfitId) {
   const figure = buildFigure(outfitId)
   applyPose(figure, samplePose('stand'))
+  // Marx smokes; freeze his cigarette mid-drag with smoke in the air.
+  if (outfitId === 'marx') attachCigarette(figure).update(0.4)
   return figure.group
 }
 
@@ -78,6 +80,15 @@ key.position.set(0.6, 1, 0.8)
 neutralLights.add(key)
 scene.add(gameLights, neutralLights)
 
+// A lamp that rides the camera, so dark assets read under the game lights
+// too. It lights whatever side faces the viewer; turn it off to see the
+// asset exactly as a raid does.
+const lamp = new THREE.DirectionalLight('#fff4e0', 0.9)
+lamp.position.set(0, 0, 0)
+lamp.target.position.set(0, 0, -1)
+camera.add(lamp, lamp.target)
+scene.add(camera)
+
 // Scale aids: 1 m grid, dark ground, a 1.8 m person-height box.
 const ground = new THREE.Mesh(
   new THREE.PlaneGeometry(200, 200).rotateX(-Math.PI / 2),
@@ -98,6 +109,7 @@ const TOGGLES = [
   { id: 'ps1', label: 'PS1 snap', key: 'KeyP', on: true },
   { id: 'pixels', label: 'Downscale', key: 'KeyD', on: true },
   { id: 'gameLight', label: 'Game light', key: 'KeyL', on: true },
+  { id: 'lamp', label: 'Lamp', key: 'KeyK', on: true },
   { id: 'wireframe', label: 'Wireframe', key: 'KeyW', on: false },
   { id: 'rotate', label: 'Auto-rotate', key: 'KeyR', on: false },
   { id: 'person', label: '1.8 m figure', key: 'KeyH', on: true },
@@ -129,6 +141,7 @@ function applyToggles() {
   scene.fog = state.fog ? fog : null
   gameLights.visible = state.gameLight
   neutralLights.visible = !state.gameLight
+  lamp.visible = state.lamp
   controls.autoRotate = state.rotate
   person.visible = state.person
   grid.visible = state.grid

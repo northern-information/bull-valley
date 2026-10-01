@@ -2,30 +2,23 @@
 // body (figure.js) by slot, adds optional parts from ADDONS, and can stretch
 // limbs with proportions. Edit characters here; the body stays the same.
 
-// Every outfit colors these; add-ons may use more slots (hat, coat).
+// Every outfit colors these; add-ons may use more slots (coat, glasses).
 export const BODY_SLOTS = ['skin', 'hair', 'shirt', 'pants', 'boots']
+
+// Dreadlocks hang from a ring round the back and sides of the head, leaving
+// the face clear. Angles are around the head from +X toward +Z (the face).
+const LOC_ANGLES = [-20, 0, 20, 160, 180, 200, 220, 245, 270, 295, 320, 340]
+const LOC_ROOTS = LOC_ANGLES.map((deg) => {
+  const a = (deg * Math.PI) / 180
+  return [Math.cos(a) * 0.09, 0.27, Math.sin(a) * 0.1 - 0.012]
+})
 
 // Extra parts on the body. joint names a pivot from poses.js JOINTS; slot
 // picks the color. A part is either a loft (rings of [y, rx, rz, cz]: height,
-// half-width, half-depth and forward shift, in metres in the joint's space,
-// the same shape language as the body in figure.js) or a box (size and
-// offset).
+// half-width, half-depth and forward shift, in metres, the same shape
+// language as the body in figure.js; sides defaults to 6) or a box (size).
+// offset places it in the joint's space; offsets places one copy at each.
 export const ADDONS = {
-  cap: {
-    joint: 'neck',
-    slot: 'hat',
-    rings: [
-      [0.24, 0.1, 0.118, 0.005],
-      [0.29, 0.098, 0.112, 0],
-      [0.33, 0.06, 0.07, -0.005],
-    ],
-  },
-  brim: {
-    joint: 'neck',
-    slot: 'hat',
-    box: [0.17, 0.02, 0.1],
-    offset: [0, 0.245, 0.15],
-  },
   beard: {
     joint: 'neck',
     slot: 'hair',
@@ -33,6 +26,35 @@ export const ADDONS = {
       [0.06, 0.045, 0.05, 0.045],
       [0.1, 0.085, 0.095, 0.02],
       [0.16, 0.093, 0.108, 0.005],
+    ],
+  },
+  dreadlocks: {
+    joint: 'neck',
+    slot: 'hair',
+    sides: 4,
+    rings: [
+      [0, 0.019, 0.019, 0],
+      [-0.16, 0.017, 0.017, 0],
+      [-0.31, 0.011, 0.011, 0],
+    ],
+    offsets: LOC_ROOTS,
+  },
+  glasses: {
+    joint: 'neck',
+    slot: 'glasses',
+    box: [0.052, 0.036, 0.012],
+    offsets: [
+      [0.036, 0.198, 0.106],
+      [-0.036, 0.198, 0.106],
+    ],
+  },
+  'glasses-arms': {
+    joint: 'neck',
+    slot: 'glasses',
+    box: [0.008, 0.012, 0.11],
+    offsets: [
+      [0.088, 0.204, 0.05],
+      [-0.088, 0.204, 0.05],
     ],
   },
   'coat-hem': {
@@ -62,13 +84,13 @@ export const OUTFITS = {
     label: 'Matthew Marx',
     colors: {
       skin: '#e9c9ad',
-      hair: '#7d6d5c',
-      shirt: '#7a2f2a',
-      pants: '#3b4a63',
+      hair: '#2a1f16',
+      shirt: '#e8e4da',
+      pants: '#9b2a24',
       boots: '#3a2a1e',
-      hat: '#2f4a36',
+      glasses: '#16181c',
     },
-    addons: ['cap', 'brim', 'beard'],
+    addons: ['dreadlocks', 'beard', 'glasses', 'glasses-arms'],
   },
   player: {
     label: 'Player',

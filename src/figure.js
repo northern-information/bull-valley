@@ -8,7 +8,7 @@
 // Body space: origin at the feet, facing +Z, left side +X.
 
 import * as THREE from 'three'
-import { lambert } from './assets.js'
+import { lambert, makeGlowTexture, makeGlowSprite } from './assets.js'
 import { ADDONS, outfitById } from './outfits.js'
 import { JOINTS } from './poses.js'
 
@@ -225,13 +225,12 @@ export function buildFigure(outfitId, { head = true } = {}) {
 
   for (const id of outfit.addons || []) {
     const addon = ADDONS[id]
-    const geometry = addon.rings ? loft(addon.rings) : box(...addon.box)
-    part(
-      joints[addon.joint],
-      geometry,
-      c[addon.slot],
-      ...(addon.offset || [0, 0, 0])
-    )
+    const geometry = addon.rings
+      ? loft(addon.rings, addon.sides)
+      : box(...addon.box)
+    for (const at of addon.offsets || [addon.offset || [0, 0, 0]]) {
+      part(joints[addon.joint], geometry, c[addon.slot], ...at)
+    }
   }
 
   return { group, joints, hipY }
@@ -243,4 +242,64 @@ export function applyPose(figure, pose) {
     figure.joints[joint].rotation.set(...pose.joints[joint])
   }
   figure.joints.pelvis.position.y = figure.hipY + pose.lift
+}
+
+// A lit cigarette in the corner of the mouth: paper, an ember that glows
+// harder on each drag, and smoke wisps that rise and fade. Returns
+// { update(t) }; call it every frame with a running time in seconds.
+let emberGlow = null
+let smokeTexture = null
+export function attachCigarette(figure) {
+  const neck = figure.joints.neck
+  const holder = new THREE.Group()
+  holder.position.set(-0.03, 0.115, 0.1)
+  holder.rotation.set(0.35, -0.3, 0)
+  neck.add(holder)
+  part(holder, box(0.008, 0.008, 0.075), '#ece8de', 0, 0, 0.035)
+
+  const emberMat = new THREE.MeshBasicMaterial({ color: '#ff7a2a' })
+  const ember = new THREE.Mesh(box(0.01, 0.01, 0.012), emberMat)
+  ember.position.z = 0.076
+  holder.add(ember)
+  emberGlow ??= makeGlowTexture('rgba(255, 140, 60, 0.8)')
+  const glow = makeGlowSprite(emberGlow, 0.1)
+  glow.position.z = 0.078
+  holder.add(glow)
+
+  smokeTexture ??= makeGlowTexture('rgba(190, 196, 206, 0.5)')
+  const wisps = []
+  for (let i = 0; i < 3; i++) {
+    const wisp = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: smokeTexture,
+        transparent: true,
+        depthWrite: false,
+      })
+    )
+    neck.add(wisp)
+    wisps.push(wisp)
+  }
+  const tip = new THREE.Vector3(-0.052, 0.1, 0.168)
+
+  return {
+    update(t) {
+      // A drag every six seconds, held for one.
+      const drag =
+        Math.max(0, Math.sin(((t % 6) / 6) * Math.PI * 12)) *
+        (t % 6 < 1 ? 1 : 0)
+      glow.scale.setScalar(0.08 + drag * 0.08)
+      emberMat.color.set(drag > 0.3 ? '#ffb15a' : '#ff7a2a')
+      for (let i = 0; i < wisps.length; i++) {
+        const life = (t * 0.5 + i / wisps.length) % 1
+        const wisp = wisps[i]
+        wisp.position.set(
+          tip.x + Math.sin(t * 1.3 + i) * 0.03 * life,
+          tip.y + life * 0.45,
+          tip.z - life * 0.05
+        )
+        wisp.scale.setScalar(0.05 + life * 0.18)
+        wisp.material.opacity = 0.45 * (1 - life)
+      }
+    },
+  }
 }
