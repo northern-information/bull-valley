@@ -8,7 +8,8 @@ import type { JointName } from './poses.ts'
 export const BODY_SLOTS = ['skin', 'hair', 'shirt', 'pants', 'boots'] as const
 
 export type BodySlot = (typeof BODY_SLOTS)[number]
-export type ColorSlot = BodySlot | 'coat' | 'glasses' | 'buckle' | 'belt'
+export type ColorSlot =
+  BodySlot | 'coat' | 'glasses' | 'buckle' | 'belt' | 'stubble'
 
 // Painted art printed on a part; decalart.ts paints each one.
 export type DecalId =
@@ -20,6 +21,7 @@ export type DecalId =
   | 'chest-tattoo'
   | 'pantera'
   | 'guitar-strap'
+  | 'as-i-lay-dying'
 
 // Where an outfit prints a decal over the body: across the torso front,
 // across the front of both thighs, or all round both bare arms.
@@ -36,6 +38,8 @@ interface AddonBase {
   slot: ColorSlot
   offset?: Vec3
   offsets?: Vec3[]
+  // Euler angles in radians, in the joint's space.
+  rotation?: Vec3
 }
 
 export interface LoftAddon extends AddonBase {
@@ -65,6 +69,9 @@ export type AddonId =
   | 'belt'
   | 'belt-loops'
   | 'big-beard'
+  | 'stubble'
+  | 'fringe'
+  | 'fringe-swoop'
 
 export type LimbGroup = 'arm' | 'leg'
 
@@ -85,7 +92,7 @@ export interface Outfit {
 }
 
 export type OutfitId =
-  'marx' | 'player' | 'shadow' | 'coleman' | 'kvistad' | 'church'
+  'marx' | 'player' | 'shadow' | 'coleman' | 'kvistad' | 'church' | 'hanson'
 
 // Dreadlocks hang from a ring round the back and sides of the head, leaving
 // the face clear. Angles are around the head from +X toward +Z (the face).
@@ -132,6 +139,34 @@ export const ADDONS: Record<AddonId, Addon> = {
       [-0.06, 0.08, 0.065, 0.09],
       [-0.15, 0.042, 0.036, 0.13],
     ],
+  },
+  // Five o'clock shadow: a thin layer round the jaw and the mouth, close to
+  // the face. The rings sit forward, so the back stays inside the head.
+  stubble: {
+    joint: 'neck',
+    slot: 'stubble',
+    sides: 8,
+    rings: [
+      [0.065, 0.052, 0.045, 0.045],
+      [0.1, 0.08, 0.07, 0.04],
+      [0.15, 0.09, 0.075, 0.03],
+    ],
+  },
+  // An emo fringe: a slab of hair slanted across the forehead, low on the
+  // -X side, and a swoop that hangs from it over the -X eye.
+  fringe: {
+    joint: 'neck',
+    slot: 'hair',
+    box: [0.17, 0.05, 0.03],
+    offset: [-0.005, 0.228, 0.098],
+    rotation: [0, 0, 0.3],
+  },
+  'fringe-swoop': {
+    joint: 'neck',
+    slot: 'hair',
+    box: [0.05, 0.075, 0.022],
+    offset: [-0.042, 0.19, 0.104],
+    rotation: [0, 0, 0.15],
   },
   // A chin beard only: narrow and forward, clear of the jaw line.
   goatee: {
@@ -337,6 +372,21 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     shaved: true,
     onBack: 'guitar',
     prints: { torso: ['guitar-strap'] },
+  },
+  hanson: {
+    label: 'Juston Hanson',
+    colors: {
+      skin: '#f3d9c6',
+      hair: '#a8442a',
+      shirt: '#141416',
+      pants: '#3f5f8a',
+      boots: '#141416',
+      belt: '#0c0c0e',
+      stubble: '#dcae96',
+    },
+    addons: ['stubble', 'fringe', 'fringe-swoop', 'belt', 'belt-loops'],
+    sleeves: 'short',
+    prints: { torso: ['as-i-lay-dying'] },
   },
 }
 

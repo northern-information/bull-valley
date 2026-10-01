@@ -348,7 +348,9 @@ export function buildFigure(
   const neck = pivot(spine, built, 'neck', 0, 0.48, 0)
   part(neck, loft(NECK), c.skin)
   part(neck, loft(HEAD, 8), c.skin)
-  part(neck, loft(HAIR), outfit.shaved ? c.skin : c.hair)
+  // The hair cap has the head's 8 sides: with 6, the middle of each facet
+  // dipped inside the head and the skin showed through.
+  part(neck, loft(HAIR, 8), outfit.shaved ? c.skin : c.hair)
   // A nose and a brow line: enough for a face to read at PS1 resolution.
   part(neck, box(0.026, 0.045, 0.03), c.skin, 0, 0.17, 0.1)
   part(neck, box(0.13, 0.014, 0.02), c.hair, 0, 0.215, 0.098)
@@ -415,6 +417,7 @@ export function buildFigure(
         c[addon.slot] as string,
         ...at
       )
+      if (addon.rotation) mesh.rotation.set(...addon.rotation)
       // BoxGeometry faces run +X, -X, +Y, -Y, +Z, -Z; the decal takes +Z.
       if ('decal' in addon && addon.decal) {
         const plain = mesh.material as THREE.MeshLambertMaterial

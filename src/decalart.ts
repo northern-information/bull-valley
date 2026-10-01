@@ -9,6 +9,7 @@
 // at the top to the elbow or wrist at the bottom.
 //   suicide-silence  the band tee print, on the chest. Torso, 123×150.
 //   pantera          the band logo, on the chest. Torso, 123×150.
+//   as-i-lay-dying   the band name, on the chest. Torso, 123×150.
 //   guitar-strap     a strap from the right shoulder to the left hip.
 //                    Torso, 123×150.
 //   torn-tank        a black tank top's cut and its tears: the neck scoop,
@@ -22,7 +23,7 @@
 // A face (a box add-on's decal) is opaque and covers the box's front face:
 //   russ             the belt buckle face: gold letters on a dark plate.
 
-import { canvas, text } from './canvas.ts'
+import { canvas, SERIF, text } from './canvas.ts'
 import { mulberry32 } from './rng.ts'
 import type { CanvasArt, CanvasSize } from './canvas.ts'
 import type { DecalId, Outfit } from './outfits.ts'
@@ -288,6 +289,16 @@ function guitarStrap(): CanvasArt {
   return art
 }
 
+// The band name in pale grey serif capitals across the chest, on two lines.
+function asILayDying(): CanvasArt {
+  const art = canvas(TORSO)
+  const { ctx, w } = art
+  const grey = '#d6d6d4'
+  text(ctx, 'AS I LAY', w / 2, 40, 62, 15, SERIF, grey)
+  text(ctx, 'DYING', w / 2, 56, 62, 18, SERIF, grey)
+  return art
+}
+
 function pantera(): CanvasArt {
   const art = canvas(TORSO)
   const { ctx, w } = art
@@ -327,6 +338,7 @@ export const DECAL_PAINTERS: Record<DecalId, DecalPainter> = {
   'chest-tattoo': chestTattoo,
   pantera,
   'guitar-strap': guitarStrap,
+  'as-i-lay-dying': asILayDying,
 }
 
 // Tattoos ink only onto skin a layer below already painted.

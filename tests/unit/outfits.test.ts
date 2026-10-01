@@ -9,7 +9,7 @@ import {
 import { JOINTS } from '../../src/poses.ts'
 
 describe('outfits', () => {
-  it('has the six characters', () => {
+  it('has the seven characters', () => {
     expect(OUTFIT_IDS).toEqual([
       'marx',
       'player',
@@ -17,6 +17,7 @@ describe('outfits', () => {
       'coleman',
       'kvistad',
       'church',
+      'hanson',
     ])
   })
 
