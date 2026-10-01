@@ -8,11 +8,15 @@
 // front; an arm print wraps once round the arm, from the shoulder or elbow
 // at the top to the elbow or wrist at the bottom.
 //   suicide-silence  the band tee print, on the chest. Torso, 123×150.
+//   pantera          the band logo, on the chest. Torso, 123×150.
 //   torn-tank        a black tank top's cut and its tears: the neck scoop,
 //                    the arm holes, rips, and a ragged hem. Torso, 123×150.
 //   torn-jeans       a ripped knee and a frayed thigh. Thigh, 51×138; the
 //                    knee is at the bottom.
-//   sleeve-tattoo    full sleeve tattoos. Arm, 64×64.
+//   sleeve-tattoo    a full sleeve in black and grey: a snake, a skull,
+//                    crossbones. Arm, 64×64.
+//   chest-tattoo     the same work across the chest. Torso, 123×150; lay
+//                    it over an open shirt (see paintPrints).
 // A face (a box add-on's decal) is opaque and covers the box's front face:
 //   russ             the belt buckle face: gold letters on a dark plate.
 
@@ -115,26 +119,171 @@ function tornJeans(colors: Outfit['colors']): CanvasArt {
   return art
 }
 
+// Black and grey ink: solid black, two greys for shading, and a pale grey
+// for the bone, since a tattoo has no white.
+const INK = '#141416'
+const SHADE = '#3c3e42'
+const WASH = '#5e6166'
+const BONE = '#a4a6a8'
+
+// A skull of size s (its cranium radius) at (x, y).
+function skull(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) {
+  ctx.fillStyle = INK
+  ctx.beginPath()
+  ctx.arc(x, y, s + 1.5, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.fillRect(x - s * 0.6 - 1.5, y, s * 1.2 + 3, s * 1.05 + 1.5)
+  ctx.fillStyle = BONE
+  ctx.beginPath()
+  ctx.arc(x, y, s, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.fillRect(x - s * 0.6, y, s * 1.2, s * 1.05)
+  // Eye sockets, the nose, and the gaps between the teeth.
+  ctx.fillStyle = INK
+  ctx.beginPath()
+  ctx.arc(x - s * 0.42, y + s * 0.05, s * 0.3, 0, Math.PI * 2)
+  ctx.arc(x + s * 0.42, y + s * 0.05, s * 0.3, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.beginPath()
+  ctx.moveTo(x, y + s * 0.3)
+  ctx.lineTo(x - s * 0.15, y + s * 0.6)
+  ctx.lineTo(x + s * 0.15, y + s * 0.6)
+  ctx.closePath()
+  ctx.fill()
+  for (let i = -1; i <= 1; i++) {
+    ctx.fillRect(x + i * s * 0.3 - 0.5, y + s * 0.75, 1, s * 0.3)
+  }
+}
+
+// Two crossed bones of length l at (x, y).
+function crossbones(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  l: number
+) {
+  for (const sign of [1, -1]) {
+    const dx = (l / 2) * Math.SQRT1_2
+    for (const [color, width] of [
+      [INK, 5],
+      [BONE, 2.5],
+    ] as const) {
+      ctx.strokeStyle = color
+      ctx.lineWidth = width
+      ctx.beginPath()
+      ctx.moveTo(x - dx, y - dx * sign)
+      ctx.lineTo(x + dx, y + dx * sign)
+      ctx.stroke()
+    }
+  }
+}
+
+// A snake winding down from (x, top) to (x, bottom): a black outline, a grey
+// belly, a scale line, and a head with a forked tongue at the top.
+function snake(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  top: number,
+  bottom: number,
+  sway: number,
+  turns: number
+) {
+  const path = () => {
+    ctx.beginPath()
+    for (let i = 0; i <= 24; i++) {
+      const t = i / 24
+      ctx.lineTo(
+        x + Math.sin(t * Math.PI * 2 * turns) * sway,
+        top + t * (bottom - top)
+      )
+    }
+  }
+  ctx.lineCap = 'round'
+  for (const [color, width] of [
+    [INK, 7],
+    [WASH, 3.5],
+    [SHADE, 1],
+  ] as const) {
+    ctx.strokeStyle = color
+    ctx.lineWidth = width
+    path()
+    ctx.stroke()
+  }
+  ctx.fillStyle = INK
+  ctx.beginPath()
+  ctx.ellipse(x, top - 2, 4, 5.5, 0, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.strokeStyle = INK
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.moveTo(x, top - 7)
+  ctx.lineTo(x, top - 10)
+  ctx.lineTo(x - 2, top - 12)
+  ctx.moveTo(x, top - 10)
+  ctx.lineTo(x + 2, top - 12)
+  ctx.stroke()
+}
+
+// Grey shading that fills the gaps, the way a full sleeve has no bare skin
+// between its pieces.
+function smoke(
+  ctx: CanvasRenderingContext2D,
+  rng: () => number,
+  w: number,
+  h: number,
+  count: number
+) {
+  for (let i = 0; i < count; i++) {
+    ctx.fillStyle = rng() < 0.5 ? SHADE : WASH
+    rip(ctx, rng, rng() * w, rng() * h, 5 + rng() * 6, 5 + rng() * 6)
+  }
+}
+
+// One wrap round the arm: a snake down the outside, a skull, and
+// crossbones, over grey shading.
 function sleeveTattoo(): CanvasArt {
   const art = canvas(ARM)
   const { ctx, w, h } = art
-  const rng = mulberry32(0x5ee7e)
-  const inks = ['#1e2530', '#1e2530', '#1e2530', '#6e2a2a', '#2c5246']
-  // Bold filled shapes: the flash pieces of a sleeve.
-  for (let i = 0; i < 30; i++) {
-    ctx.fillStyle = inks[Math.floor(rng() * inks.length)]
-    rip(ctx, rng, rng() * w, rng() * h, 5 + rng() * 8, 5 + rng() * 8)
-  }
-  // Linework that ties them into one sleeve.
-  ctx.strokeStyle = '#1e2530'
-  ctx.lineWidth = 2
-  for (let i = 0; i < 24; i++) {
-    const x = rng() * w
-    const y = rng() * h
-    ctx.beginPath()
-    ctx.arc(x, y, 3 + rng() * 8, rng() * Math.PI, rng() * Math.PI * 3)
-    ctx.stroke()
-  }
+  smoke(ctx, mulberry32(0x5ee7e), w, h, 26)
+  snake(ctx, 14, 9, 62, 6, 1.5)
+  skull(ctx, 42, 18, 8)
+  crossbones(ctx, 44, 46, 18)
+  return art
+}
+
+// Chest pieces for a torso layer above an open shirt: a skull at the
+// breastbone, snakes over both shoulders, and shading across the chest.
+// Laid over a tank top, it shows only through the openings.
+function chestTattoo(): CanvasArt {
+  const art = canvas(TORSO)
+  const { ctx, w } = art
+  smoke(ctx, mulberry32(0xc4e57), w, 70, 40)
+  skull(ctx, w / 2, 16, 10)
+  snake(ctx, 14, 6, 60, 7, 1)
+  snake(ctx, w - 14, 6, 60, 7, 1)
+  crossbones(ctx, w / 2, 40, 22)
+  return art
+}
+
+// The band logo across the chest, in pale grey on the black shirt: tall
+// capitals with the first and last letters drawn larger.
+function pantera(): CanvasArt {
+  const art = canvas(TORSO)
+  const { ctx, w } = art
+  const grey = '#d6d6d4'
+  // Measure the letters so the big P and A sit tight against ANTER.
+  ctx.font = CONDENSED.replace('$', '16')
+  const middle = ctx.measureText('ANTER').width
+  ctx.font = CONDENSED.replace('$', '22')
+  const p = ctx.measureText('P').width
+  const a = ctx.measureText('A').width
+  const left = w / 2 - (p + middle + a) / 2
+  text(ctx, 'P', left + p / 2, 47, p, 22, CONDENSED, grey)
+  text(ctx, 'ANTER', left + p + middle / 2, 48, middle, 16, CONDENSED, grey)
+  text(ctx, 'A', left + p + middle + a / 2, 47, a, 22, CONDENSED, grey)
+  // The underline that runs from the P to the last A.
+  ctx.fillStyle = grey
+  ctx.fillRect(left, 59, p + middle + a, 2)
   return art
 }
 
@@ -154,4 +303,27 @@ export const DECAL_PAINTERS: Record<DecalId, DecalPainter> = {
   'torn-tank': tornTank,
   'torn-jeans': tornJeans,
   'sleeve-tattoo': sleeveTattoo,
+  'chest-tattoo': chestTattoo,
+  pantera,
+}
+
+// Tattoos ink only onto skin a layer below already painted.
+const SKIN_INK: ReadonlySet<DecalId> = new Set(['chest-tattoo'])
+
+// Paint a stack of prints for one part onto one canvas, in order. A tattoo
+// over a torn tank top shows in the openings and never on the shirt.
+export function paintPrints(
+  ids: readonly DecalId[],
+  colors: Outfit['colors']
+): CanvasArt {
+  const [first, ...rest] = ids
+  const art = DECAL_PAINTERS[first](colors)
+  for (const id of rest) {
+    art.ctx.globalCompositeOperation = SKIN_INK.has(id)
+      ? 'source-atop'
+      : 'source-over'
+    art.ctx.drawImage(DECAL_PAINTERS[id](colors).c, 0, 0)
+  }
+  art.ctx.globalCompositeOperation = 'source-over'
+  return art
 }

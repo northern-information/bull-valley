@@ -14,7 +14,7 @@ import {
   makeGlowSprite,
   makeGlowTexture,
 } from './assets.ts'
-import { DECAL_PAINTERS } from './decalart.ts'
+import { paintPrints } from './decalart.ts'
 import { ADDONS, outfitById } from './outfits.ts'
 import { JOINTS } from './poses.ts'
 import type { DecalId, LoftRing, OutfitId, PrintPart, Vec3 } from './outfits.ts'
@@ -59,14 +59,14 @@ function material(color: string): THREE.MeshLambertMaterial {
 const decals = new Map<string, THREE.MeshLambertMaterial>()
 function decalMaterial(
   outfitId: OutfitId,
-  id: DecalId,
+  ids: readonly DecalId[],
   print = false
 ): THREE.MeshLambertMaterial {
-  const key = `${outfitId}|${id}`
+  const key = `${outfitId}|${ids.join('+')}`
   let found = decals.get(key)
   if (!found) {
     found = lambert({
-      map: artTexture(DECAL_PAINTERS[id](outfitById(outfitId).colors)),
+      map: artTexture(paintPrints(ids, outfitById(outfitId).colors)),
       ...(print && {
         alphaTest: 0.5,
         polygonOffset: true,
@@ -241,10 +241,12 @@ function pivot(
 
 // Shapes in each joint's space. Limbs hang down (negative y) from their
 // pivot; the torso and head rise from theirs.
+// The front stays behind the thigh fronts below the waist, so the crotch
+// tucks in between the legs; the back keeps its full seat.
 const PELVIS: RingInput[] = [
   [0.07, 0.15, 0.1],
-  [-0.03, 0.175, 0.115],
-  [-0.11, 0.14, 0.1],
+  [-0.03, 0.175, 0.1, -0.015],
+  [-0.11, 0.13, 0.08, -0.035],
 ]
 const TORSO: RingInput[] = [
   [0, 0.145, 0.095],
@@ -329,12 +331,12 @@ export function buildFigure(
     at: PrintPart | null
   ) => {
     part(parent, loft(rings, sides), color)
-    const decal = at && outfit.prints?.[at]
-    if (!decal) return
+    const layers = at && outfit.prints?.[at]
+    if (!layers?.length) return
     parent.add(
       new THREE.Mesh(
         printLoft(rings, sides, at === 'arm'),
-        decalMaterial(outfitId, decal, true)
+        decalMaterial(outfitId, layers, true)
       )
     )
   }
@@ -411,7 +413,7 @@ export function buildFigure(
           plain,
           plain,
           plain,
-          decalMaterial(outfitId, addon.decal),
+          decalMaterial(outfitId, [addon.decal]),
           plain,
         ]
       }

@@ -12,7 +12,13 @@ export type ColorSlot = BodySlot | 'coat' | 'glasses' | 'buckle'
 
 // Painted art printed on a part; decalart.ts paints each one.
 export type DecalId =
-  'suicide-silence' | 'russ' | 'torn-tank' | 'torn-jeans' | 'sleeve-tattoo'
+  | 'suicide-silence'
+  | 'russ'
+  | 'torn-tank'
+  | 'torn-jeans'
+  | 'sleeve-tattoo'
+  | 'chest-tattoo'
+  | 'pantera'
 
 // Where an outfit prints a decal over the body: across the torso front,
 // across the front of both thighs, or all round both bare arms.
@@ -66,7 +72,8 @@ export interface Outfit {
   // 'short' leaves the forearms bare, for a t-shirt; 'none' leaves the
   // whole arm bare, for a tank top.
   sleeves?: 'short' | 'none'
-  prints?: Partial<Record<PrintPart, DecalId>>
+  // Each part's prints, painted in order (decalart.ts paintPrints).
+  prints?: Partial<Record<PrintPart, DecalId[]>>
 }
 
 export type OutfitId = 'marx' | 'player' | 'shadow' | 'coleman' | 'kvistad'
@@ -236,7 +243,7 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     },
     addons: ['goatee', 'mustache', 'buckle'],
     sleeves: 'short',
-    prints: { torso: 'suicide-silence' },
+    prints: { torso: ['suicide-silence'] },
   },
   kvistad: {
     label: 'David Kvistad',
@@ -249,7 +256,11 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     },
     addons: ['long-hair'],
     sleeves: 'none',
-    prints: { torso: 'torn-tank', thigh: 'torn-jeans', arm: 'sleeve-tattoo' },
+    prints: {
+      torso: ['torn-tank', 'chest-tattoo', 'pantera'],
+      thigh: ['torn-jeans'],
+      arm: ['sleeve-tattoo'],
+    },
   },
 }
 
