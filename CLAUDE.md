@@ -47,6 +47,7 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 - `src/akashic.ts` — the Akashic asset viewer
 - `src/terrain.ts` `src/player.ts` `src/coords.ts` `src/ps1.ts` `src/rng.ts` `src/config.ts` `src/inventory.ts` `src/hud.ts` `src/audio.ts` `src/scope.ts` — ported engine
 - `src/shadowmen.ts` `src/nerves.ts` — parked, unwired; they return post-MVP
+- The sound effects are parked too: the `BvAudio` methods other than the splash cue (`init`, `step`, `use`, `pickup`, `strike`, `setPresence`, `setHeartbeat`, `update`) have no caller, and the item `crackle` field is for them. `CONFIG.shadowmen` and `CONFIG.items.emberDetectScale` are read only by `shadowmen.ts`.
 
 Pure logic stays Three-free (like `coords.ts`); Three/DOM glue lives in `truck.ts`/`world.ts`/`hud.ts`. Dev introspection hook: `window.__bv` (raid, truck, graph, teleport, hurryTruck).
 
