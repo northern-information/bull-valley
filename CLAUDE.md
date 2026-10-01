@@ -50,6 +50,12 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 
 Pure logic stays Three-free (like `coords.ts`); Three/DOM glue lives in `truck.ts`/`world.ts`/`hud.ts`. Dev introspection hook: `window.__bv` (raid, truck, graph, teleport, hurryTruck).
 
+## Testing in a browser
+
+- Use `channel: 'chromium'` (full Chromium in headless mode) for Playwright. The default headless shell draws WebGL in software on macOS at about 2 fps, which is too slow to drive a raid. On CI there is no GPU at all, so specs take about 3 times longer; `playwright.config.ts` gives them longer timeouts when `CI` is set.
+- Wait for `window.__bv` before you click Begin. `boot()` sets the hook last, after the input listeners. The button reads "Click to Play" before boot starts, so its text is not a ready signal.
+- To prove that a refactor changes no asset, render every Akashic asset on `main` and on the branch from the same fixed view (`__akashic.select(id)` then `setView(35, 20)`). Compare the `.ak-stats` text and a hash of the canvas screenshot. Serve `main` from a `git archive` copy with a symlink to this repo's `node_modules`.
+
 ## Standing rules
 
 1. Geo data never includes driveways, private service roads, or buildings. Regenerate only via `scripts/fetch_bull_valley.cjs`, which enforces this.
