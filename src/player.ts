@@ -1,7 +1,6 @@
 import * as THREE from 'three'
 import { CONFIG } from './config.ts'
-import type { Metres } from './interfaces.ts'
-import type { HeightAt } from './terrain.ts'
+import type { HeightAt, Metres } from './interfaces.ts'
 
 // First-person controller: WASD relative to yaw, Shift sprint, C crouch,
 // pointer-lock mouse look, feet glued to the heightfield. The camera never

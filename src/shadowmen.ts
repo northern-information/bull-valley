@@ -3,11 +3,9 @@ import { context2d } from './canvas.ts'
 import { CONFIG } from './config.ts'
 import { compassBearing } from './coords.ts'
 import { mulberry32, pick, range } from './rng.ts'
-import type { Metres } from './interfaces.ts'
+import type { HeightAt, Metres, XZ } from './interfaces.ts'
 import type { PlayerState } from './player.ts'
 import type { Rng } from './rng.ts'
-import type { RoadPoint } from './roadgraph.ts'
-import type { HeightAt } from './terrain.ts'
 
 // The shadowmen. They are not fought — they are noticed too late. State
 // machine per entity: dormant (drifting far off) → stalking (keeping distance,
@@ -35,8 +33,8 @@ export interface ShadowmenOptions {
   heightAt: HeightAt
   metres: Metres
   // Graveyard centres; some shadowmen start near these.
-  anchors: readonly RoadPoint[]
-  playerSpawn: RoadPoint
+  anchors: readonly XZ[]
+  playerSpawn: XZ
 }
 
 export interface ShadowmenMods {

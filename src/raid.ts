@@ -108,6 +108,13 @@ export function advance(
   }
 }
 
+// The loadout countdown as m:ss, rounded up to the whole second and never
+// below 0:00.
+export function loadoutClock(raid: Raid, now: number): string {
+  const left = Math.max(0, Math.ceil(raid.loadoutEndsAt - now))
+  return `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`
+}
+
 export function summary(raid: Raid): RaidSummary {
   return {
     delivered: raid.delivered,

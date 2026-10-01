@@ -21,12 +21,14 @@ Spawn at a gas station → 5-minute loadout before Matthew Marx's white Chevy le
 
 ## Module map
 
-Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stays plain JS on purpose (testing a rewrite means refetching the survey). Shapes that cross modules (geo.json, items, the raid, ring entries) live in `src/interfaces.ts`; types one module owns stay in that module.
+Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stays plain JS on purpose (testing a rewrite means refetching the survey). Shapes that cross modules (world points and heights, geo.json, items, the raid, ring entries) live in `src/interfaces.ts`; types one module owns stay in that module.
 
 - `src/interfaces.ts` — shared types only, no runtime code
 
-- `src/main.ts` — boot, scene, input wiring, render loop, raid orchestration
-- `src/raid.ts` — pure raid state machine (LOADOUT → RIDING → ON_FOOT → EXTRACTED)
+- `src/main.ts` — boot, scene, input wiring, render loop, raid orchestration; game rules go in the pure modules
+- `src/raid.ts` — pure raid state machine (LOADOUT → RIDING → ON_FOOT → EXTRACTED) and the loadout clock
+- `src/interactions.ts` — pure: what E would do right now (board, hop out, unload, extract, take a pickup) and its prompt; `main.ts` resolves it each frame
+- `src/shop.ts` — pure: one purchase at the tailgate, returning new raid, stock, and inventory
 - `src/roadgraph.ts` — pure road-network graph, Dijkstra, arc-length walker
 - `src/truck.ts` — the white Chevy: seats the driver in the `assets.ts` body; drive/board/ride/call
 - `src/figure.ts` — the shared character body: rigid low-poly parts on joint pivots, built per outfit; `applyPose` drives it

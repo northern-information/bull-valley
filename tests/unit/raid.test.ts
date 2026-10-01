@@ -6,6 +6,7 @@ import {
   carryLimit,
   createRaid,
   EVENTS,
+  loadoutClock,
   STATES,
   summary,
 } from '../../src/raid.ts'
@@ -107,5 +108,13 @@ describe('raid state machine', () => {
       extract: 'keep',
       extractName: null,
     })
+  })
+
+  it('shows the loadout countdown as m:ss, rounded up, never below 0:00', () => {
+    const raid = createRaid(0)
+    const end = raid.loadoutEndsAt
+    expect(loadoutClock(raid, end - 65)).toBe('1:05')
+    expect(loadoutClock(raid, end - 9.2)).toBe('0:10')
+    expect(loadoutClock(raid, end + 3)).toBe('0:00')
   })
 })
