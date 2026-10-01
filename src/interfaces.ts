@@ -2,6 +2,17 @@
 // three.js, so the pure modules can import from here freely.
 
 // ---------------------------------------------------------------------------
+// World space: three.js metres centred on the survey, +x east, +z south.
+
+export interface XZ {
+  x: number
+  z: number
+}
+
+// The ground height in metres at a world point.
+export type HeightAt = (x: number, z: number) => number
+
+// ---------------------------------------------------------------------------
 // The survey (public/data/bull-valley/geo.json), written by
 // scripts/fetch_bull_valley.cjs. Points are in the unit square: x right/east,
 // y down/south.

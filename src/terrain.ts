@@ -2,16 +2,13 @@ import * as THREE from 'three'
 import { context2d } from './canvas.ts'
 import { bilinearHeight } from './coords.ts'
 import { applyPS1 } from './ps1.ts'
-import type { Geo } from './interfaces.ts'
+import type { Geo, HeightAt } from './interfaces.ts'
 
 // The decoded heightmap: size×size heights, normalized 0..1.
 export interface TerrainData {
   heights: Float32Array
   size: number
 }
-
-// Ground height in metres at a world (x, z).
-export type HeightAt = (x: number, z: number) => number
 
 export interface HeightField {
   seg: number

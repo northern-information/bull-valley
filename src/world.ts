@@ -31,10 +31,15 @@ import {
   CABBAGE_STAND as STAND_NAME,
 } from './landmarks.ts'
 import { mulberry32, range } from './rng.ts'
-import type { Geo, Metres, Road, UnitPoint } from './interfaces.ts'
+import type {
+  Geo,
+  HeightAt,
+  Metres,
+  Road,
+  UnitPoint,
+  XZ,
+} from './interfaces.ts'
 import type { Rng } from './rng.ts'
-import type { RoadPoint } from './roadgraph.ts'
-import type { HeightAt } from './terrain.ts'
 
 const PACK_SEED = 0xc16a7e
 
@@ -51,37 +56,27 @@ export interface WorldPoint {
   z: number
 }
 
-export interface GraveAnchor {
-  x: number
-  z: number
+export interface GraveAnchor extends XZ {
   name: string
 }
 
-export interface FuelPoint {
-  x: number
-  z: number
+export interface FuelPoint extends XZ {
   name: string
 }
 
-export interface LandmarkPoint {
+export interface LandmarkPoint extends XZ {
   n: string
-  x: number
-  z: number
 }
 
-export interface Pickup {
-  // 'cabbage', 'joints', or a cigarette item id.
+export interface Pickup extends XZ {
+  // 'cabbage', or an item id from items.ts.
   kind: string
   count: number
   mesh: THREE.Object3D
-  x: number
-  z: number
   taken: boolean
 }
 
-export interface Spawn {
-  x: number
-  z: number
+export interface Spawn extends XZ {
   yaw: number
 }
 
@@ -141,7 +136,7 @@ function makeRibbonAccumulator() {
       const c = new THREE.Color(color)
       const half = width / 2
       // Per-point direction averaged over neighbouring segments (naive miter).
-      const dirs: RoadPoint[] = []
+      const dirs: XZ[] = []
       for (let i = 0; i < points.length; i++) {
         const a = points[Math.max(0, i - 1)]
         const b = points[Math.min(points.length - 1, i + 1)]
@@ -461,7 +456,7 @@ function buildPoles(
     'unclassified',
   ])
   const SPACING = 130
-  const spots: RoadPoint[] = []
+  const spots: XZ[] = []
   for (const road of geo.roads) {
     if (!POLE_ROADS.has(road.c) || !road.n) continue
     let carry = rng() * SPACING
@@ -842,7 +837,7 @@ function chooseSpawnStation(
     if (!/bull valley/i.test(road.n || '')) continue
     if (!bestRoad || road.p.length > bestRoad.p.length) bestRoad = road
   }
-  let target: RoadPoint = { x: 0, z: 0 }
+  let target: XZ = { x: 0, z: 0 }
   if (bestRoad) {
     const mid = bestRoad.p[Math.floor(bestRoad.p.length / 2)]
     target = unitToWorld(mid[0], mid[1], metres)

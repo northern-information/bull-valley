@@ -11,8 +11,8 @@ import { applyPose, attachCigarette, buildFigure } from './figure.ts'
 import { samplePose } from './poses.ts'
 import { createWalker } from './roadgraph.ts'
 import type { CigaretteRig, Figure } from './figure.ts'
+import type { HeightAt, XZ } from './interfaces.ts'
 import type { RoadPoint, Walker } from './roadgraph.ts'
-import type { HeightAt } from './terrain.ts'
 
 export interface TruckOptions {
   scene: THREE.Object3D
@@ -170,7 +170,7 @@ export class Truck {
   }
 
   // A dismount spot just off the passenger side.
-  hopOutSpot(): RoadPoint {
+  hopOutSpot(): XZ {
     const spot = new THREE.Vector3(3, 0, -1.0)
     this.group.localToWorld(spot)
     return { x: spot.x, z: spot.z }

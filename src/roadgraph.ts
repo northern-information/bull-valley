@@ -8,14 +8,11 @@
 
 import { pointSegmentDistance, unitToWorld } from './coords.ts'
 import { pick } from './rng.ts'
-import type { Metres, Road } from './interfaces.ts'
+import type { Metres, Road, XZ } from './interfaces.ts'
 import type { Rng } from './rng.ts'
 
-// A point on the ground plane, in world metres.
-export interface RoadPoint {
-  x: number
-  z: number
-}
+// A point on the road network, in world metres.
+export type RoadPoint = XZ
 
 // A run of road between two nodes, with its full polyline.
 export interface RoadEdge {
