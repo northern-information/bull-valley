@@ -53,22 +53,24 @@ export interface BoxAddon extends AddonBase {
   decal?: DecalId
 }
 
-// One crescent: an arch of hair with its apex at `at`, turned `turn` radians
-// about Z. It follows a circle of the given radius for `sweep` radians, is
-// `width` across in the middle, and comes to a point at both ends.
+// One crescent: an arch of hair laid on the head, with its apex at `at`
+// (x, y in the neck's space) and turned `turn` radians about Z. It follows a
+// circle of the given radius for `sweep` radians, is `width` across in the
+// middle, and comes to a point at both ends. figure.ts wraps it onto the
+// head and hair cap, `lift` metres in front of them: a larger lift stacks a
+// crescent over its neighbours.
 export interface Crescent {
-  at: Vec3
+  at: [number, number]
   turn: number
   radius: number
   sweep: number
   width: number
+  lift: number
 }
 
-// Crescents stacked as one add-on. bend curves each one back by bend * x²
-// along its width, so it follows the forehead.
+// Crescents stacked as one add-on, on the neck joint.
 export interface CrescentAddon extends AddonBase {
   crescents: Crescent[]
-  bend?: number
 }
 
 export type Addon = LoftAddon | BoxAddon | CrescentAddon
@@ -179,54 +181,74 @@ export const ADDONS: Record<AddonId, Addon> = {
   fringe: {
     joint: 'neck',
     slot: 'hair',
-    bend: 4,
     crescents: [
       {
-        at: [0.02, 0.268, 0.122],
+        at: [0.02, 0.268],
         turn: 0.3,
         radius: 0.1,
         sweep: 1.5,
         width: 0.05,
+        lift: 0.002,
       },
       {
-        at: [-0.005, 0.242, 0.126],
+        at: [-0.005, 0.242],
         turn: 0.45,
         radius: 0.085,
         sweep: 1.4,
         width: 0.046,
+        lift: 0.004,
       },
       {
-        at: [-0.025, 0.216, 0.128],
+        at: [-0.025, 0.216],
         turn: 0.6,
         radius: 0.065,
         sweep: 1.3,
         width: 0.04,
+        lift: 0.009,
       },
       {
-        at: [-0.04, 0.19, 0.127],
+        at: [-0.04, 0.19],
         turn: 0.75,
         radius: 0.048,
         sweep: 1.2,
         width: 0.032,
+        lift: 0.007,
       },
       {
-        at: [-0.052, 0.164, 0.122],
+        at: [-0.052, 0.164],
         turn: 0.9,
         radius: 0.034,
         sweep: 1.1,
         width: 0.024,
+        lift: 0.004,
       },
     ],
   },
-  // Hair behind the fringe on the -X side, turned to follow the face, so
-  // nothing shows between the crescents and the side hair: it covers the
-  // -X brow and eye.
+  // A smaller crescent stacked behind the fringe on the -X side, so nothing
+  // shows between the fringe and the side hair: it covers the -X brow and
+  // eye. Its lift clears the brow line.
   'fringe-fill': {
     joint: 'neck',
     slot: 'hair',
-    box: [0.1, 0.1, 0.02],
-    offset: [-0.05, 0.205, 0.108],
-    rotation: [0, -0.45, 0],
+    crescents: [
+      {
+        at: [-0.052, 0.21],
+        turn: 0.6,
+        radius: 0.065,
+        sweep: 1.7,
+        width: 0.08,
+        lift: 0.007,
+      },
+      // Down the temple, to meet the side hair.
+      {
+        at: [-0.082, 0.215],
+        turn: 1.3,
+        radius: 0.06,
+        sweep: 1.6,
+        width: 0.06,
+        lift: 0.003,
+      },
+    ],
   },
   // Jaw-length hair over the ears and the nape, round the back and sides.
   // Like long-hair, each ring sits back far enough to keep the face clear.

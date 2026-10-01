@@ -192,39 +192,73 @@ function printLoft(
   })
 }
 
-// A crescent of hair, 0.012 m thick, with its apex at the origin: an arch
-// over a circle of the given radius, widest at the apex and pointed at both
-// ends, curved back by bend * x² so it lies on a rounded surface.
-const CRESCENT_SEGMENTS = 8
+// How far forward the head or the hair cap reaches at (x, y) in the neck's
+// space: the larger of the two smooth lofts through their rings. The real
+// facets sit inside this, so anything laid on it stays outside the head.
+function headFront(x: number, y: number): number {
+  let front = 0
+  for (const rings of [HEAD, HAIR]) {
+    for (let i = 0; i < rings.length - 1; i++) {
+      const [y0, rx0, rz0, cz0 = 0] = rings[i]
+      const [y1, rx1, rz1, cz1 = 0] = rings[i + 1]
+      if (y < y0 || y > y1) continue
+      const t = (y - y0) / (y1 - y0)
+      const rx = rx0 + (rx1 - rx0) * t
+      const rz = rz0 + (rz1 - rz0) * t
+      const cz = cz0 + (cz1 - cz0) * t
+      const across = Math.max(0, 1 - (x / rx) ** 2)
+      front = Math.max(front, cz + rz * Math.sqrt(across))
+    }
+  }
+  return front
+}
+
+// A crescent of hair, 0.012 m thick, laid on the head: an arch over a circle
+// of the given radius, widest at the apex and pointed at both ends, with its
+// apex at `at` and turned `turn` about Z. Every point sits `lift` in front
+// of the head or hair cap, so the crescent follows the forehead round.
+const CRESCENT_SEGMENTS = 12
 const CRESCENT_DEPTH = 0.012
-function crescent(
-  { radius, sweep, width }: Crescent,
-  bend = 0
-): THREE.BufferGeometry {
-  return cached(`crescent|${radius}|${sweep}|${width}|${bend}`, () => {
-    const point = (i: number, side: number): [number, number] => {
+function crescent(one: Crescent): THREE.BufferGeometry {
+  return cached(`crescent|${JSON.stringify(one)}`, () => {
+    const { at, turn, radius, sweep, width, lift } = one
+    const cos = Math.cos(turn)
+    const sin = Math.sin(turn)
+    const positions: number[] = []
+    // Four vertices per step: outer and inner edge, back and front.
+    for (let i = 0; i <= CRESCENT_SEGMENTS; i++) {
       const t = i / CRESCENT_SEGMENTS
       const a = Math.PI / 2 + sweep / 2 - sweep * t
-      const r = radius + side * (width / 2) * Math.sin(Math.PI * t)
-      return [Math.cos(a) * r, Math.sin(a) * r - radius]
+      for (const side of [1, -1]) {
+        const r = radius + side * (width / 2) * Math.sin(Math.PI * t)
+        const lx = Math.cos(a) * r
+        const ly = Math.sin(a) * r - radius
+        const x = at[0] + lx * cos - ly * sin
+        const y = at[1] + lx * sin + ly * cos
+        const z = headFront(x, y) + lift
+        positions.push(x, y, z, x, y, z + CRESCENT_DEPTH)
+      }
     }
-    const shape = new THREE.Shape()
-    shape.moveTo(...point(0, 1))
-    for (let i = 1; i <= CRESCENT_SEGMENTS; i++) shape.lineTo(...point(i, 1))
-    // Back along the inner edge; the two edges meet at the points.
-    for (let i = CRESCENT_SEGMENTS - 1; i > 0; i--) {
-      shape.lineTo(...point(i, -1))
+    // Vertex k of step i: 0 outer back, 1 outer front, 2 inner back,
+    // 3 inner front.
+    const v = (i: number, k: number) => i * 4 + k
+    const index: number[] = []
+    const quad = (p: number, q: number, r: number, s: number) => {
+      index.push(p, q, r, p, r, s)
     }
-    shape.closePath()
-    const geometry = new THREE.ExtrudeGeometry(shape, {
-      depth: CRESCENT_DEPTH,
-      bevelEnabled: false,
-    })
-    geometry.translate(0, 0, -CRESCENT_DEPTH / 2)
-    const pos = geometry.attributes.position
-    for (let i = 0; i < pos.count; i++) {
-      pos.setZ(i, pos.getZ(i) - bend * pos.getX(i) ** 2)
+    for (let i = 0; i < CRESCENT_SEGMENTS; i++) {
+      const j = i + 1
+      quad(v(i, 3), v(j, 3), v(j, 1), v(i, 1)) // front, facing +Z
+      quad(v(i, 2), v(i, 0), v(j, 0), v(j, 2)) // back
+      quad(v(i, 0), v(i, 1), v(j, 1), v(j, 0)) // outer edge
+      quad(v(i, 2), v(j, 2), v(j, 3), v(i, 3)) // inner edge
     }
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute(
+      'position',
+      new THREE.Float32BufferAttribute(positions, 3)
+    )
+    geometry.setIndex(index)
     geometry.computeVertexNormals()
     return geometry
   })
@@ -463,13 +497,7 @@ export function buildFigure(
     const addon = ADDONS[id]
     if ('crescents' in addon) {
       for (const one of addon.crescents) {
-        const mesh = part(
-          joints[addon.joint],
-          crescent(one, addon.bend),
-          c[addon.slot] as string,
-          ...one.at
-        )
-        mesh.rotation.z = one.turn
+        part(joints[addon.joint], crescent(one), c[addon.slot] as string)
       }
       continue
     }

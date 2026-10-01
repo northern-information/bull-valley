@@ -47,7 +47,8 @@ describe('outfits', () => {
       } else if ('crescents' in addon) {
         expect(addon.crescents.length).toBeGreaterThanOrEqual(1)
         for (const one of addon.crescents) {
-          expect(one.at).toHaveLength(3)
+          expect(one.at).toHaveLength(2)
+          expect(addon.joint).toBe('neck')
           expect(one.width).toBeLessThan(one.radius * 2)
         }
       } else {
