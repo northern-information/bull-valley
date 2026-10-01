@@ -1,98 +1,95 @@
-import { beginRaid, expect, test } from './fixtures.ts'
+import { test as base } from '@playwright/test'
+import { beginRaid, expect, watchErrors } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
-// These specs move the player with the dev hook instead of walking, then
-// press the real keys. Each test gets a fresh browser context, so the
-// saved inventory starts empty.
+// One raid, played in order on one page: shop, ride, take and unload a
+// cabbage, extract. Booting the valley takes about 30 seconds on CI, so
+// the steps share one boot instead of paying it four times. The specs move
+// the player with the dev hook instead of walking, then press the real
+// keys. A fresh browser context means the saved inventory starts empty.
 
-const raidState = (page: Page) => page.evaluate(() => window.__bv?.raid.state)
-const prompt = (page: Page) => page.locator('.bv-prompt')
-const toasts = (page: Page) => page.locator('.bv-toast')
+base.describe.configure({ mode: 'serial' })
 
-async function standByTruck(page: Page): Promise<void> {
-  await page.evaluate(() => {
+let page: Page
+let errors: string[] = []
+
+base.beforeAll(async ({ browser }) => {
+  page = await browser.newPage()
+  errors = watchErrors(page)
+  await beginRaid(page)
+})
+
+base.afterEach(() => {
+  expect(errors).toEqual([])
+})
+
+base.afterAll(async () => {
+  await page.close()
+})
+
+const raid = () => page.evaluate(() => window.__bv?.raid)
+const prompt = () => page.locator('.bv-prompt')
+
+async function moveTo(find: string): Promise<void> {
+  await page.evaluate((target) => {
     const bv = window.__bv
     if (!bv) throw new Error('no dev hook')
-    bv.player.relocate(bv.truck.x + 1, bv.truck.z + 1, bv.player.yaw)
-  })
+    const { world, truck } = bv
+    const spot =
+      target === 'truck'
+        ? { x: truck.x, z: truck.z }
+        : target === 'cabbage'
+          ? world.pickups.find((p) => p.kind === 'cabbage' && !p.taken)
+          : target === 'stand'
+            ? world.landmarks.find((l) => !l.n.includes('Keep'))
+            : world.fuelPoints.find((f) => f !== world.spawnStation)
+    if (!spot) throw new Error(`nothing to move to: ${target}`)
+    bv.player.relocate(spot.x + 1, spot.z + 1, bv.player.yaw)
+  }, find)
 }
 
-// Board in the loadout, then hop out of the moving truck.
-async function boardAndHopOut(page: Page): Promise<void> {
-  await standByTruck(page)
-  await expect(prompt(page)).toHaveText('E — Climb into the Bed')
-  await page.keyboard.press('KeyE')
-  await expect.poll(() => raidState(page)).toBe('RIDING')
-  await expect(prompt(page)).toHaveText('E — Hop Out')
-  await page.keyboard.press('KeyE')
-  await expect.poll(() => raidState(page)).toBe('ON_FOOT')
-}
-
-test('board the truck, ride, and hop out', async ({ page }) => {
-  await beginRaid(page)
-  await boardAndHopOut(page)
-})
-
-test('take a cabbage and unload it at the stand', async ({ page }) => {
-  await beginRaid(page)
-  await boardAndHopOut(page)
-
-  await page.evaluate(() => {
-    const bv = window.__bv
-    const cabbage = bv?.world.pickups.find(
-      (p) => p.kind === 'cabbage' && !p.taken
-    )
-    if (!bv || !cabbage) throw new Error('no cabbage in the valley')
-    bv.player.relocate(cabbage.x + 0.5, cabbage.z, bv.player.yaw)
-  })
-  await expect(prompt(page)).toHaveText('E — Take Cabbage')
-  await page.keyboard.press('KeyE')
-  await expect
-    .poll(() => page.evaluate(() => window.__bv?.raid.carrying))
-    .toBe(1)
-
-  await page.evaluate(() => {
-    const bv = window.__bv
-    const stand = bv?.world.landmarks.find((l) => !l.n.includes('Keep'))
-    if (!bv || !stand) throw new Error('no cabbage stand')
-    bv.player.relocate(stand.x + 1, stand.z, bv.player.yaw)
-  })
-  await expect(prompt(page)).toHaveText('E — Unload 1 Cabbage')
-  await page.keyboard.press('KeyE')
-  await expect
-    .poll(() => page.evaluate(() => window.__bv?.raid.delivered))
-    .toBe(1)
-})
-
-test('extract at a station other than the spawn', async ({ page }) => {
-  await beginRaid(page)
-  await boardAndHopOut(page)
-
-  await page.evaluate(() => {
-    const bv = window.__bv
-    const station = bv?.world.fuelPoints.find(
-      (f) => f !== bv.world.spawnStation
-    )
-    if (!bv || !station) throw new Error('no second station')
-    bv.player.relocate(station.x + 1, station.z, bv.player.yaw)
-  })
-  await expect(prompt(page)).toContainText('E — End the Raid at')
-  await page.keyboard.press('KeyE')
-  await expect.poll(() => raidState(page)).toBe('EXTRACTED')
-  await expect(page.locator('[data-bv="again"]')).toBeVisible()
-})
-
-test('buy from the tailgate during the loadout', async ({ page }) => {
-  await beginRaid(page)
-  const pocketed = toasts(page).filter({ hasText: 'pocketed' })
-
-  // B buys the selected item if the tailgate sells it; step round the ring
-  // until something sells.
+base('buy an item and the sack from the tailgate', async () => {
+  const pocketed = page.locator('.bv-toast').filter({ hasText: 'pocketed' })
+  // B buys the selected item when the tailgate sells it. Step round the
+  // ring, buying, until both a pocketed item and the sack are bought.
   await page.keyboard.press('Tab')
-  for (let i = 0; i < 20 && (await pocketed.count()) === 0; i++) {
+  for (let i = 0; i < 40; i++) {
+    const sack = (await raid())?.sack
+    if (sack && (await pocketed.count()) > 0) break
     await page.keyboard.press('KeyB')
     await page.keyboard.press('ArrowRight')
   }
-  await expect(pocketed.first()).toBeVisible()
   await page.keyboard.press('Tab')
+  expect((await raid())?.sack).toBe(true)
+  await expect(pocketed.first()).toBeAttached()
+})
+
+base('board the truck, ride, and hop out', async () => {
+  await moveTo('truck')
+  await expect(prompt()).toHaveText('E — Climb into the Bed')
+  await page.keyboard.press('KeyE')
+  await expect.poll(async () => (await raid())?.state).toBe('RIDING')
+  await expect(prompt()).toHaveText('E — Hop Out')
+  await page.keyboard.press('KeyE')
+  await expect.poll(async () => (await raid())?.state).toBe('ON_FOOT')
+})
+
+base('take a cabbage and unload it at the stand', async () => {
+  await moveTo('cabbage')
+  await expect(prompt()).toHaveText('E — Take Cabbage')
+  await page.keyboard.press('KeyE')
+  await expect.poll(async () => (await raid())?.carrying).toBe(1)
+
+  await moveTo('stand')
+  await expect(prompt()).toHaveText('E — Unload 1 Cabbage')
+  await page.keyboard.press('KeyE')
+  await expect.poll(async () => (await raid())?.delivered).toBe(1)
+})
+
+base('extract at a station other than the spawn', async () => {
+  await moveTo('station')
+  await expect(prompt()).toContainText('E — End the Raid at')
+  await page.keyboard.press('KeyE')
+  await expect.poll(async () => (await raid())?.state).toBe('EXTRACTED')
+  await expect(page.locator('[data-bv="again"]')).toBeVisible()
 })
