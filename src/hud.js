@@ -1,4 +1,4 @@
-// All DOM: readout, nerves meter, scope canvas, inventory, prompts, toasts,
+// All DOM: countdown, nerves meter, scope phone, inventory, prompts, toasts,
 // the intro/pause overlay, and the strike static. Markup is generated here so
 // the Eleventy page and the dev harness stay a bare #bv-root.
 
@@ -21,18 +21,12 @@ export class Hud {
     const ui = el('div', 'bv-ui')
     root.appendChild(ui)
 
-    // Readout, in the Scaduscope's voice.
-    this.head = el('section', 'bv-head')
-    this.head.setAttribute('aria-label', 'Survey readout')
-    this.head.innerHTML = `
-      <h1><span aria-hidden="true">🥬🌚 </span>Bull Valley Shadow Wars</h1>
-      <dl>
-        <dt>Position</dt><dd data-bv="pos">—</dd>
-        <dt>Local</dt><dd data-bv="clock">—</dd>
-        <dt>Road</dt><dd data-bv="road">Off road</dd>
-        <dt>Cabbages</dt><dd data-bv="cabbages">0</dd>
-      </dl>`
-    ui.appendChild(this.head)
+    // Loadout countdown: bare numbers, top center.
+    this.countdown = el('p', 'bv-countdown')
+    this.countdown.setAttribute('role', 'timer')
+    this.countdown.setAttribute('aria-label', 'Truck leaves in')
+    this.countdown.hidden = true
+    ui.appendChild(this.countdown)
 
     // Nerves meter. Hidden while the shadowmen are parked; setNerves still
     // works for when they return.
@@ -48,10 +42,33 @@ export class Hud {
     this.timers = el('div', 'bv-timers')
     ui.appendChild(this.timers)
 
-    // The scope.
-    this.scopeCanvas = el('canvas', 'bv-scope')
-    this.scopeCanvas.setAttribute('aria-hidden', 'true')
-    ui.appendChild(this.scopeCanvas)
+    // The scope: a phone held in a gloved hand. The back layer (sleeve, palm,
+    // fingers, phone body) sits under the screen canvas; the thumb and the
+    // fingertips sit over the bezel. Both layers share one viewBox.
+    this.phone = el('div', 'bv-phone')
+    this.phone.setAttribute('aria-hidden', 'true')
+    this.phone.innerHTML = `
+      <svg class="bv-phone-layer" viewBox="0 0 200 360" preserveAspectRatio="none">
+        <path class="bv-hand-sleeve" d="M58 360 L66 296 L154 296 L164 360 Z"/>
+        <path class="bv-hand-cuff" d="M64 300 L68 282 L152 282 L156 300 Z"/>
+        <path class="bv-hand" d="M34 176 C28 232 44 290 74 290 L148 290 C174 284 178 232 172 176 Z"/>
+        <rect class="bv-hand" x="146" y="112" width="34" height="22" rx="11"/>
+        <rect class="bv-hand" x="146" y="142" width="36" height="22" rx="11"/>
+        <rect class="bv-hand" x="146" y="172" width="35" height="22" rx="11"/>
+        <rect class="bv-hand" x="146" y="202" width="32" height="20" rx="10"/>
+        <rect class="bv-phone-body" x="40" y="20" width="120" height="234" rx="16"/>
+        <rect class="bv-phone-slot" x="88" y="26" width="24" height="3" rx="1.5"/>
+      </svg>
+      <canvas class="bv-scope"></canvas>
+      <svg class="bv-phone-layer" viewBox="0 0 200 360" preserveAspectRatio="none">
+        <path class="bv-hand" d="M30 246 C25 214 29 186 39 170 C44 164 51 166 50 175 C47 198 46 222 48 248 Z"/>
+        <ellipse class="bv-hand" cx="160" cy="123" rx="6" ry="10"/>
+        <ellipse class="bv-hand" cx="160" cy="153" rx="6" ry="10"/>
+        <ellipse class="bv-hand" cx="160" cy="183" rx="6" ry="10"/>
+        <ellipse class="bv-hand" cx="160" cy="212" rx="5" ry="9"/>
+      </svg>`
+    ui.appendChild(this.phone)
+    this.scopeCanvas = this.phone.querySelector('.bv-scope')
 
     // Interaction prompt + toasts.
     this.promptEl = el('p', 'bv-prompt')
@@ -127,7 +144,7 @@ export class Hud {
         <tr><th>1 / 2</th><td>Smoke / Spark</td><th>← →</th><td>Cycle Inventory</td></tr>
       </table>
       <div class="bv-intro-actions">
-        <button type="button" class="bv-btn bv-btn--primary" data-bv="begin">Begin the Raid</button>
+        <button type="button" class="bv-btn bv-btn--primary" data-bv="begin">Click to Play</button>
       </div>
       <p class="bv-intro-note bv-intro-fine">Requires a keyboard and mouse.</p>`
     ui.appendChild(this.intro)
@@ -139,11 +156,12 @@ export class Hud {
     }
   }
 
-  setReadout({ pos, clock, road, cabbages }) {
-    if (pos !== undefined) this.fields.pos.textContent = pos
-    if (clock !== undefined) this.fields.clock.textContent = clock
-    if (road !== undefined) this.fields.road.textContent = road || 'Off road'
-    if (cabbages !== undefined) this.fields.cabbages.textContent = cabbages
+  // A null text hides the countdown.
+  setCountdown(text) {
+    this.countdown.hidden = !text
+    if (text && this.countdown.textContent !== text) {
+      this.countdown.textContent = text
+    }
   }
 
   setNerves(value, fuzzy) {
@@ -264,7 +282,7 @@ export class Hud {
   showIntro(show, paused) {
     this.intro.hidden = !show
     if (show) {
-      this.beginBtn.textContent = paused ? 'Resume the Raid' : 'Begin the Raid'
+      this.beginBtn.textContent = paused ? 'Click to Resume' : 'Click to Play'
     }
   }
 }

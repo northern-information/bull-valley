@@ -1,6 +1,6 @@
 // The Northern Information colophon splash, ported from revery-prairie.
 // A black threshold before the intro dialog: pre-gesture it holds a hint
-// ("Press Any Key To Begin" — the gesture also satisfies autoplay policy),
+// ("Click to Play" — the gesture also satisfies autoplay policy),
 // then the colophon fades in/holds/fades out on a triangle wave over a
 // backdrop that stays opaque black the whole time, so nothing beneath
 // ever bleeds through. Only after the logo resolves (or a second gesture

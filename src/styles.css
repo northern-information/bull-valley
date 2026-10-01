@@ -50,37 +50,18 @@
   outline-offset: 3px;
 }
 
-/* Readout */
-.bv-head {
+/* Loadout countdown: bare numbers, no box. The dark halo keeps it legible
+   on snow and on night sky. */
+.bv-countdown {
   position: absolute;
   top: 0.9rem;
-  left: 1rem;
-  padding: 0.6rem 0.8rem;
-  background: var(--fi-surface-82);
-  border: 1px solid var(--fi-green);
-  box-shadow: 4px 4px 0 var(--fi-black-shadow);
-  letter-spacing: 0.06em;
-  max-width: calc(100vw - 2rem);
-}
-
-.bv-head h1 {
-  margin: 0 0 0.4rem;
-  text-transform: uppercase;
-}
-
-.bv-head dl {
+  left: 50%;
+  transform: translateX(-50%);
   margin: 0;
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 0.15rem 0.5rem;
-}
-
-.bv-head dt {
-  text-transform: uppercase;
-}
-
-.bv-head dd {
-  margin: 0;
+  letter-spacing: 0.08em;
+  text-shadow:
+    0 0 3px rgb(0 0 0 / 0.9),
+    1px 1px 0 rgb(0 0 0 / 0.8);
 }
 
 /* Nerves */
@@ -141,19 +122,64 @@
   width: max-content;
 }
 
-/* Scope */
-.bv-scope {
+/* Scope: a phone in a gloved hand, tilted and cut off by the bottom edge.
+   The two SVG layers and the screen canvas share the box; the canvas fills
+   the screen hole in the art (x 46-154, y 34-242 of a 200 x 360 viewBox). */
+.bv-phone {
+  --bv-phone-w: 17rem;
   position: absolute;
-  right: 1rem;
-  bottom: -18rem;
-  width: 15rem;
-  height: 15rem;
+  right: 2rem;
+  bottom: calc(var(--bv-phone-w) * -2);
+  width: var(--bv-phone-w);
+  aspect-ratio: 200 / 360;
+  transform: rotate(-7deg);
+  transform-origin: 50% 100%;
   transition: bottom 0.25s steps(6);
   filter: drop-shadow(5px 5px 0 var(--fi-black-shadow));
 }
 
-.bv-scope--raised {
-  bottom: 1rem;
+.bv-phone--raised {
+  bottom: calc(var(--bv-phone-w) * -0.3);
+}
+
+.bv-phone-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.bv-scope {
+  position: absolute;
+  left: 23%;
+  top: 9.444%;
+  width: 54%;
+  height: 57.778%;
+  border-radius: 3px;
+}
+
+.bv-hand {
+  fill: #5b4636;
+  stroke: #2b2019;
+  stroke-width: 1.5;
+}
+
+.bv-hand-cuff {
+  fill: #3f3127;
+}
+
+.bv-hand-sleeve {
+  fill: #1e293b;
+}
+
+.bv-phone-body {
+  fill: #0b0f14;
+  stroke: #334155;
+  stroke-width: 2;
+}
+
+.bv-phone-slot {
+  fill: #334155;
 }
 
 /* Prompt + toasts */
@@ -198,7 +224,14 @@
    frame around the selected item at screen center. The rest of the HUD
    steps aside while it is open. */
 .bv-shell--inventory
-  :is(.bv-head, .bv-scope, .bv-timers, .bv-nerves, .bv-prompt, .bv-vignette) {
+  :is(
+    .bv-countdown,
+    .bv-phone,
+    .bv-timers,
+    .bv-nerves,
+    .bv-prompt,
+    .bv-vignette
+  ) {
   visibility: hidden;
 }
 
@@ -534,9 +567,8 @@
 }
 
 @media (max-width: 900px) {
-  .bv-scope {
-    width: 10rem;
-    height: 10rem;
+  .bv-phone {
+    --bv-phone-w: 12rem;
   }
 }
 
