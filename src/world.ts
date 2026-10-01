@@ -1,18 +1,21 @@
 import * as THREE from 'three'
 import {
+  boundaryMaterial,
   buildLandmarkBeacon,
   buildPickup,
+  fenceMaterial,
   FUEL_LAYOUT,
   fuelStationParts,
   gravestonePart,
-  lambert,
   makeGlowSprite,
   POLE_ARM_DROP,
   poleParts,
   reedPart,
+  roadMaterial,
   TREE_CANOPY_HIGH,
   TREE_CANOPY_LOW,
   treeParts,
+  waterMaterial,
 } from './assets.ts'
 import { CABBAGE_SEED, placeCabbages } from './cabbages.ts'
 import {
@@ -27,7 +30,6 @@ import {
   landmarkWorldPositions,
   CABBAGE_STAND as STAND_NAME,
 } from './landmarks.ts'
-import { applyPS1 } from './ps1.ts'
 import { mulberry32, range } from './rng.ts'
 import type { Geo, Metres, Road, UnitPoint } from './interfaces.ts'
 import type { Rng } from './rng.ts'
@@ -186,21 +188,7 @@ function makeRibbonAccumulator() {
       const normals = new Float32Array(positions.length)
       for (let i = 0; i < normals.length; i += 3) normals[i + 1] = 1
       geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3))
-      // Basic, not lambert: ribbon winding flips with the direction each
-      // polyline was digitized in, so lighting by face normal would render
-      // half the roads unlit. Flat night asphalt wants a constant tone anyway;
-      // fog still applies. DoubleSide keeps the flipped half visible.
-      const mesh = new THREE.Mesh(
-        geometry,
-        applyPS1(
-          new THREE.MeshBasicMaterial({
-            vertexColors: true,
-            polygonOffset: true,
-            polygonOffsetFactor: -1,
-            side: THREE.DoubleSide,
-          })
-        )
-      )
+      const mesh = new THREE.Mesh(geometry, roadMaterial())
       mesh.name = name
       return mesh
     },
@@ -349,14 +337,7 @@ function buildWater(
   const normals = new Float32Array(positions.length)
   for (let i = 0; i < normals.length; i += 3) normals[i + 1] = 1
   geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3))
-  const mesh = new THREE.Mesh(
-    geometry,
-    lambert({
-      vertexColors: true,
-      emissive: new THREE.Color('#03121f'),
-      side: THREE.DoubleSide,
-    })
-  )
+  const mesh = new THREE.Mesh(geometry, waterMaterial())
   mesh.name = 'water'
 
   const group = new THREE.Group()
@@ -603,11 +584,7 @@ function buildGraveyards(
     })
     const fence = new THREE.LineLoop(
       new THREE.BufferGeometry().setFromPoints(pts),
-      new THREE.LineBasicMaterial({
-        color: '#3a3f47',
-        transparent: true,
-        opacity: 0.4,
-      })
+      fenceMaterial()
     )
     group.add(fence)
   }
@@ -771,11 +748,7 @@ function buildBoundary(
     group.add(
       new THREE.LineLoop(
         new THREE.BufferGeometry().setFromPoints(pts),
-        new THREE.LineBasicMaterial({
-          color: '#f59e0b',
-          transparent: true,
-          opacity: 0.45,
-        })
+        boundaryMaterial()
       )
     )
   }

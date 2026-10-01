@@ -1,13 +1,14 @@
 import * as THREE from 'three'
 import { paintDrink } from './canart.ts'
+import { context2d } from './canvas.ts'
 import { CONTAINERS } from './drinks.ts'
 import { isCigarette, isDrink, itemById, ITEMS } from './items.ts'
 import { paintPack } from './packart.ts'
 import { applyPS1 } from './ps1.ts'
 import { mulberry32, range } from './rng.ts'
 import type { DrinkArt } from './canart.ts'
+import type { CanvasArt } from './canvas.ts'
 import type { Container, ContainerKey } from './interfaces.ts'
-import type { CanvasArt } from './packart.ts'
 import type { Rng } from './rng.ts'
 
 // Every placed 3D asset in Bull Valley, defined once in asset-local space.
@@ -38,13 +39,6 @@ export interface AkashicAsset {
   id: string
   label: string
   build: () => THREE.Object3D
-}
-
-// The 2D context of a canvas, or a clear error if the browser has none.
-function context2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
-  const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('Canvas 2D context is not available')
-  return ctx
 }
 
 // Object3D has no isMesh in its type; this narrows by the runtime flag.
@@ -1300,6 +1294,189 @@ export function buildPickup(
   return mesh
 }
 
+// --- Truck ---------------------------------------------------------------
+
+// Matthew Marx's white Chevy, without Matthew Marx: truck.ts seats the
+// driver (figure.ts), and figure.ts imports this file. Local space: the
+// truck faces +Z, origin at ground level under the middle.
+export function buildTruckBody(): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'truck'
+  const white = lambert({ color: '#c8ccd2' })
+  const dark = lambert({ color: '#14161a' })
+  const glass = lambert({ color: '#0e141d', transparent: true, opacity: 0.45 })
+
+  const add = (
+    geoDef: THREE.BufferGeometry,
+    material: THREE.Material,
+    x: number,
+    y: number,
+    z: number
+  ) => {
+    const mesh = new THREE.Mesh(geoDef, material)
+    mesh.position.set(x, y, z)
+    group.add(mesh)
+    return mesh
+  }
+
+  // Hood, lower cab, bed floor.
+  add(new THREE.BoxGeometry(1.9, 0.7, 1.5), white, 0, 1.15, 2.0)
+  add(new THREE.BoxGeometry(1.9, 0.65, 1.7), white, 0, 1.125, 0.75)
+  // Cab greenhouse: roof on four pillars, glass all round.
+  add(new THREE.BoxGeometry(1.9, 0.1, 1.7), white, 0, 2.05, 0.75)
+  for (const [px, pz] of [
+    [0.9, -0.05],
+    [-0.9, -0.05],
+    [0.9, 1.55],
+    [-0.9, 1.55],
+  ]) {
+    add(new THREE.BoxGeometry(0.1, 0.55, 0.1), white, px, 1.725, pz)
+  }
+  add(new THREE.BoxGeometry(1.7, 0.55, 0.04), glass, 0, 1.725, 1.58) // windshield
+  add(new THREE.BoxGeometry(1.7, 0.55, 0.04), glass, 0, 1.725, -0.08) // rear
+  add(new THREE.BoxGeometry(0.04, 0.55, 1.5), glass, 0.92, 1.725, 0.75)
+  add(new THREE.BoxGeometry(0.04, 0.55, 1.5), glass, -0.92, 1.725, 0.75)
+  add(new THREE.BoxGeometry(1.9, 0.3, 2.7), white, 0, 0.85, -1.45)
+  // Bed walls and tailgate.
+  add(new THREE.BoxGeometry(0.12, 0.5, 2.7), white, 0.9, 1.25, -1.45)
+  add(new THREE.BoxGeometry(0.12, 0.5, 2.7), white, -0.9, 1.25, -1.45)
+  add(new THREE.BoxGeometry(1.9, 0.5, 0.12), white, 0, 1.25, -2.75)
+  // Wheels: cylinders rolling on the x axis.
+  const wheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.3, 7)
+  wheelGeo.rotateZ(Math.PI / 2)
+  for (const [wx, wz] of [
+    [0.85, 1.7],
+    [-0.85, 1.7],
+    [0.85, -1.7],
+    [-0.85, -1.7],
+  ]) {
+    add(wheelGeo, dark, wx, 0.42, wz)
+  }
+  // Headlights: emissive stubs plus a warm glow.
+  const lightMat = applyPS1(
+    new THREE.MeshLambertMaterial({
+      color: '#241a05',
+      emissive: new THREE.Color('#fbe7a3'),
+      emissiveIntensity: 0.9,
+    })
+  )
+  add(new THREE.BoxGeometry(0.3, 0.18, 0.08), lightMat, 0.62, 1.05, 2.78)
+  add(new THREE.BoxGeometry(0.3, 0.18, 0.08), lightMat, -0.62, 1.05, 2.78)
+  const glow = makeGlowTexture('rgba(251, 231, 163, 0.55)')
+  for (const gx of [0.62, -0.62]) {
+    const sprite = makeGlowSprite(glow, 1.6)
+    sprite.position.set(gx, 1.05, 2.85)
+    group.add(sprite)
+  }
+
+  // The steering wheel, in front of the driver seat (left side, +X).
+  const steeringGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.04, 8)
+  const wheel = add(steeringGeo, dark, 0.45, 1.46, 1.06)
+  wheel.rotation.x = Math.PI / 2 - 0.35
+  return group
+}
+
+// --- Sky -----------------------------------------------------------------
+
+// Stars and the moon. main.ts moves the group with the player so the sky
+// never recedes into fog.
+export function buildSky(): THREE.Group {
+  const sky = new THREE.Group()
+  const starRng = mulberry32(0x57a25)
+  const starPositions = new Float32Array(700 * 3)
+  for (let i = 0; i < 700; i++) {
+    const az = starRng() * Math.PI * 2
+    const el = Math.asin(starRng() * 0.95 + 0.05)
+    const r = 1200
+    starPositions[i * 3] = Math.cos(el) * Math.sin(az) * r
+    starPositions[i * 3 + 1] = Math.sin(el) * r
+    starPositions[i * 3 + 2] = Math.cos(el) * Math.cos(az) * r
+  }
+  const starGeo = new THREE.BufferGeometry()
+  starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3))
+  sky.add(
+    new THREE.Points(
+      starGeo,
+      new THREE.PointsMaterial({
+        color: '#aab6cf',
+        size: 2,
+        sizeAttenuation: false,
+        fog: false,
+        transparent: true,
+        opacity: 0.75,
+      })
+    )
+  )
+  const moonCanvas = document.createElement('canvas')
+  moonCanvas.width = 64
+  moonCanvas.height = 64
+  const mctx = context2d(moonCanvas)
+  const mgrad = mctx.createRadialGradient(32, 32, 6, 32, 32, 30)
+  mgrad.addColorStop(0, 'rgba(226, 232, 240, 0.95)')
+  mgrad.addColorStop(0.45, 'rgba(190, 205, 228, 0.35)')
+  mgrad.addColorStop(1, 'rgba(190, 205, 228, 0)')
+  mctx.fillStyle = mgrad
+  mctx.fillRect(0, 0, 64, 64)
+  const moon = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: new THREE.CanvasTexture(moonCanvas),
+      fog: false,
+      transparent: true,
+      depthWrite: false,
+    })
+  )
+  moon.position.set(450, 750, -680)
+  moon.scale.setScalar(170)
+  sky.add(moon)
+  return sky
+}
+
+// --- World surfaces ------------------------------------------------------
+
+// world.ts builds these meshes from geo.json; the materials live here. Each
+// call returns a new material.
+
+// Basic, not lambert: ribbon winding flips with the direction each polyline
+// was digitized in, so lighting by face normal would render half the roads
+// unlit. Flat night asphalt wants a constant tone anyway; fog still applies.
+// DoubleSide keeps the flipped half visible.
+export function roadMaterial(): THREE.MeshBasicMaterial {
+  return applyPS1(
+    new THREE.MeshBasicMaterial({
+      vertexColors: true,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      side: THREE.DoubleSide,
+    })
+  )
+}
+
+export function waterMaterial(): THREE.MeshLambertMaterial {
+  return lambert({
+    vertexColors: true,
+    emissive: new THREE.Color('#03121f'),
+    side: THREE.DoubleSide,
+  })
+}
+
+// The faint fence line at a property edge.
+export function fenceMaterial(): THREE.LineBasicMaterial {
+  return new THREE.LineBasicMaterial({
+    color: '#3a3f47',
+    transparent: true,
+    opacity: 0.4,
+  })
+}
+
+// The amber line round the survey boundary.
+export function boundaryMaterial(): THREE.LineBasicMaterial {
+  return new THREE.LineBasicMaterial({
+    color: '#f59e0b',
+    transparent: true,
+    opacity: 0.45,
+  })
+}
+
 // --- Assembly ------------------------------------------------------------
 
 // One Mesh per part in a Group, for a single non-instanced copy.
@@ -1316,9 +1493,9 @@ export function assembleParts(parts: Part[]): THREE.Group {
   return group
 }
 
-// Registry for the Akashic page, in cycle order. Truck and shadowman
-// builders come in from their own modules to keep this file free of game
-// state; see src/akashic.ts.
+// Registry for the Akashic page, in cycle order. The truck (with its
+// driver) and the shadowman come in from their own modules, because both
+// need figure or game code; see src/akashic.ts.
 export const WORLD_ASSETS: AkashicAsset[] = [
   { id: 'citgo-station', label: 'Citgo station', build: sampleFuelStation },
   { id: 'tree', label: 'Tree', build: sampleTree },

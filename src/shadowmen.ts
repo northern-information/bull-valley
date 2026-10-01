@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { context2d } from './canvas.ts'
 import { CONFIG } from './config.ts'
 import { compassBearing } from './coords.ts'
 import { mulberry32, pick, range } from './rng.ts'
@@ -56,12 +57,6 @@ export interface ShadowmenUpdate {
   strike: boolean
   nearest: { dist: number; bearing: number } | null
   contacts: ShadowmanContact[]
-}
-
-function context2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
-  const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('Canvas 2D context is not available')
-  return ctx
 }
 
 export function makeSilhouetteTexture(rng: Rng): THREE.CanvasTexture {

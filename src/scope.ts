@@ -1,3 +1,4 @@
+import { context2d } from './canvas.ts'
 import { CONFIG } from './config.ts'
 import { compassBearing } from './coords.ts'
 import { outfitById } from './outfits.ts'
@@ -113,12 +114,6 @@ export interface ScopeFrame {
   perception: boolean
 }
 
-function required2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
-  const ctx = canvas.getContext('2d')
-  if (ctx === null) throw new Error('Scope: no 2D context for the canvas')
-  return ctx
-}
-
 export class Scope {
   canvas: HTMLCanvasElement
   holder: HTMLElement
@@ -132,7 +127,7 @@ export class Scope {
   constructor(canvas: HTMLCanvasElement, holder: HTMLElement = canvas) {
     this.canvas = canvas
     this.holder = holder
-    this.ctx = required2d(canvas)
+    this.ctx = context2d(canvas)
     this.raised = false
     this.sweep = 0
     this.clock = ''

@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import './styles.css'
-import { pulseMaterials } from './assets.ts'
+import { buildSky, pulseMaterials } from './assets.ts'
 import { BvAudio } from './audio.ts'
 import { ringItems, stepIndex, syncIndex } from './carousel.ts'
 import { CONFIG } from './config.ts'
@@ -18,7 +18,7 @@ import {
 import { KEEP } from './landmarks.ts'
 import { Player } from './player.ts'
 import { PlayerBody } from './playerbody.ts'
-import { setSnapResolution } from './ps1.ts'
+import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import {
   advance,
   carryLimit,
@@ -75,12 +75,6 @@ function pickupLabel({ kind, count }: { kind: string; count: number }): string {
   return `${itemById(kind)?.label ?? kind} ×${count}`
 }
 
-function context2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
-  const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('Canvas 2D context is not available')
-  return ctx
-}
-
 async function boot() {
   const root = document.getElementById('bv-root')
   if (!root) throw new Error('Missing #bv-root')
@@ -118,12 +112,7 @@ async function boot() {
   const heightAt = (x: number, z: number) => field.sample(x, z)
 
   // --- Scene -------------------------------------------------------------
-  const renderer = new THREE.WebGLRenderer({
-    canvas: hud.canvas,
-    antialias: false,
-    powerPreference: 'high-performance',
-  })
-  renderer.setPixelRatio(1)
+  const renderer = createPS1Renderer(hud.canvas)
 
   const scene = new THREE.Scene()
   scene.background = new THREE.Color('#0b1018')
@@ -146,53 +135,7 @@ async function boot() {
   scene.add(world.group)
 
   // Sky furniture rides along with the player so it never recedes into fog.
-  const sky = new THREE.Group()
-  const starRng = mulberry32(0x57a25)
-  const starPositions = new Float32Array(700 * 3)
-  for (let i = 0; i < 700; i++) {
-    const az = starRng() * Math.PI * 2
-    const el = Math.asin(starRng() * 0.95 + 0.05)
-    const r = 1200
-    starPositions[i * 3] = Math.cos(el) * Math.sin(az) * r
-    starPositions[i * 3 + 1] = Math.sin(el) * r
-    starPositions[i * 3 + 2] = Math.cos(el) * Math.cos(az) * r
-  }
-  const starGeo = new THREE.BufferGeometry()
-  starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3))
-  sky.add(
-    new THREE.Points(
-      starGeo,
-      new THREE.PointsMaterial({
-        color: '#aab6cf',
-        size: 2,
-        sizeAttenuation: false,
-        fog: false,
-        transparent: true,
-        opacity: 0.75,
-      })
-    )
-  )
-  const moonCanvas = document.createElement('canvas')
-  moonCanvas.width = 64
-  moonCanvas.height = 64
-  const mctx = context2d(moonCanvas)
-  const mgrad = mctx.createRadialGradient(32, 32, 6, 32, 32, 30)
-  mgrad.addColorStop(0, 'rgba(226, 232, 240, 0.95)')
-  mgrad.addColorStop(0.45, 'rgba(190, 205, 228, 0.35)')
-  mgrad.addColorStop(1, 'rgba(190, 205, 228, 0)')
-  mctx.fillStyle = mgrad
-  mctx.fillRect(0, 0, 64, 64)
-  const moon = new THREE.Sprite(
-    new THREE.SpriteMaterial({
-      map: new THREE.CanvasTexture(moonCanvas),
-      fog: false,
-      transparent: true,
-      depthWrite: false,
-    })
-  )
-  moon.position.set(450, 750, -680)
-  moon.scale.setScalar(170)
-  sky.add(moon)
+  const sky = buildSky()
   scene.add(sky)
 
   // --- Systems -----------------------------------------------------------

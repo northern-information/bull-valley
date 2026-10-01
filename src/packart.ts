@@ -7,16 +7,8 @@
 //   lidTop   the lid's top, 100×40
 // plus the flat colors for edges, collar, and the cigarettes themselves.
 
-// A canvas size in pixels: [width, height].
-export type CanvasSize = [number, number]
-
-// A painted canvas with its 2D context and size.
-export interface CanvasArt {
-  c: HTMLCanvasElement
-  ctx: CanvasRenderingContext2D
-  w: number
-  h: number
-}
+import { canvas, SANS, SERIF, text } from './canvas.ts'
+import type { CanvasArt, CanvasSize } from './canvas.ts'
 
 // The flat colors of one cigarette. Only kreteks have a band.
 export interface StickColors {
@@ -44,52 +36,6 @@ export type PackPainter = () => PackArt
 const FRONT: CanvasSize = [100, 120]
 const SIDE: CanvasSize = [40, 120]
 const LID: CanvasSize = [100, 40]
-
-// The 2D context of a canvas. Throws if the browser cannot give one.
-function context2d(c: HTMLCanvasElement): CanvasRenderingContext2D {
-  const ctx = c.getContext('2d')
-  if (!ctx) throw new Error('Canvas 2D context is not available')
-  return ctx
-}
-
-export function canvas([w, h]: CanvasSize, fill?: string): CanvasArt {
-  const c = document.createElement('canvas')
-  c.width = w
-  c.height = h
-  const ctx = context2d(c)
-  if (fill) {
-    ctx.fillStyle = fill
-    ctx.fillRect(0, 0, w, h)
-  }
-  return { c, ctx, w, h }
-}
-
-// Centered text, shrunk until it fits maxW.
-// The font is a CSS font string with `$` in place of the pixel size.
-export function text(
-  ctx: CanvasRenderingContext2D,
-  str: string,
-  x: number,
-  y: number,
-  maxW: number,
-  px: number,
-  font: string,
-  color: string
-): void {
-  let size = px
-  ctx.font = `${font.replace('$', String(size))}`
-  while (ctx.measureText(str).width > maxW && size > 6) {
-    size -= 1
-    ctx.font = `${font.replace('$', String(size))}`
-  }
-  ctx.fillStyle = color
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(str, x, y)
-}
-
-export const SERIF = 'bold $px Georgia, "Times New Roman", serif'
-export const SANS = 'bold $px "Helvetica Neue", Arial, sans-serif'
 
 // --- Marlboro Reds: the red roof over white ---------------------------------
 
