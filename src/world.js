@@ -28,6 +28,9 @@ import {
   buildLandmarkBeacon,
   buildPickup,
 } from './assets.js'
+import { BRAND_IDS } from './brands.js'
+
+const PACK_SEED = 0xc16a7e
 
 // Builds every static feature of Bull Valley from the survey's geo.json:
 // roads, water, wetland reeds, woods, graveyards, gas stations, landmarks,
@@ -659,19 +662,25 @@ function buildPickups(geo, metres, heightAt, fuelPoints, rng) {
   const group = new THREE.Group()
   group.name = 'pickups'
   const pickups = []
-  const place = (x, z, kind, count) => {
-    const mesh = buildPickup(kind)
+  const place = (x, z, kind, count, seed, yaw = 0) => {
+    const mesh = buildPickup(kind, seed)
     mesh.position.set(x, heightAt(x, z), z)
+    mesh.rotation.y = yaw
     group.add(mesh)
     pickups.push({ kind, count, mesh, x, z, taken: false })
   }
-  // Cigarettes wait at every fuel station inside the survey square.
+  // A pack waits at every fuel station inside the survey square. Brand, yaw,
+  // and stick layout draw from their own seed so the world scatter after
+  // this loop never shifts.
+  const packRng = mulberry32(PACK_SEED)
   for (const station of fuelPoints) {
     place(
       station.x + range(rng, -4, 4),
       station.z + range(rng, -4, 4),
-      'cigarettes',
-      3
+      BRAND_IDS[Math.floor(packRng() * BRAND_IDS.length)],
+      3,
+      Math.floor(packRng() * 0xffffffff),
+      packRng() * Math.PI * 2
     )
   }
   // Weed grows where nobody mows: the reserves and the wetland edges.

@@ -25,6 +25,7 @@ import {
 } from './roadgraph.js'
 import { KEEP } from './landmarks.js'
 import { addItem, useItem, loadInventory, saveInventory } from './inventory.js'
+import { BRANDS, brandById, brandToSmoke, isBrand } from './brands.js'
 import {
   worldToUnit,
   unitToWorld,
@@ -38,10 +39,10 @@ import { mulberry32 } from './rng.js'
 // Same files the Scaduscope reads; baked by scripts/fetch_bull_valley.cjs.
 const DATA_BASE = '/data/bull-valley'
 
-const PICKUP_LABEL = {
-  cigarettes: 'Cigarettes ×3',
-  joints: 'Joints ×2',
-  cabbage: 'Cabbage',
+function pickupLabel({ kind, count }) {
+  if (kind === 'cabbage') return 'Cabbage'
+  const name = isBrand(kind) ? brandById(kind).label : 'Joints'
+  return `${name} ×${count}`
 }
 
 async function boot() {
@@ -219,11 +220,15 @@ async function boot() {
 
   // --- Game state ----------------------------------------------------------
   let inventory = loadInventory(window.localStorage)
-  hud.setInventory(inventory)
+  // The brand a bare 1 smokes: the last one picked in the inventory.
+  let selectedBrand = null
+  const showInventory = () =>
+    hud.setInventory(inventory, brandToSmoke(inventory, selectedBrand))
+  showInventory()
   let raid = createRaid(0)
   let raidClock = 0 // advances only while the pointer is locked
   const shopStock = {
-    cigarettes: CONFIG.shop.cigarettes,
+    cigarettes: { ...CONFIG.shop.cigarettes },
     joints: CONFIG.shop.joints,
     sack: 1,
   }
@@ -313,18 +318,21 @@ async function boot() {
       hud.toast('The burlap sack. Room for five.')
       return
     }
-    if (shopStock[kind] < 1) {
+    const stock = isBrand(kind) ? shopStock.cigarettes : shopStock
+    if (stock[kind] < 1) {
       hud.toast('The tailgate is bare.')
       return
     }
-    shopStock[kind] -= 1
+    stock[kind] -= 1
     inventory = addItem(inventory, kind, 1)
-    hud.setInventory(inventory)
+    showInventory()
     saveInventory(window.localStorage, inventory)
     hud.setShop(shopStock)
     audio.pickup()
     hud.toast(
-      kind === 'cigarettes' ? 'One pack, pocketed.' : 'One joint, pocketed.'
+      isBrand(kind)
+        ? `One pack of ${brandById(kind).label}, pocketed.`
+        : 'One joint, pocketed.'
     )
   }
 
@@ -396,24 +404,35 @@ async function boot() {
     player.handleMouse(e.movementX, e.movementY)
   })
 
+  // kind: a brand id, 'joints', or 'smoke' for the selected brand.
   const useKind = (kind) => {
-    if (kind === 'cigarettes' && time < smokingUntil) return
+    if (kind === 'smoke') {
+      kind = brandToSmoke(inventory, selectedBrand)
+      if (!kind) {
+        hud.toast('No cigarettes left.')
+        return
+      }
+    }
+    if (isBrand(kind) && time < smokingUntil) return
     const result = useItem(inventory, kind)
     if (!result.used) {
       hud.toast(
-        kind === 'cigarettes' ? 'No cigarettes left.' : 'No joints left.'
+        isBrand(kind) ? `No ${brandById(kind).label} left.` : 'No joints left.'
       )
       return
     }
     inventory = result.inv
-    hud.setInventory(inventory)
+    if (isBrand(kind)) selectedBrand = kind
+    showInventory()
     saveInventory(window.localStorage, inventory)
-    audio.use(kind)
-    if (kind === 'cigarettes') {
-      smokingUntil = time + CONFIG.items.cigaretteSeconds
-      emberUntil = smokingUntil + CONFIG.items.emberSeconds
-      hud.toast('You light a cigarette. Breathe.')
+    if (isBrand(kind)) {
+      const tune = CONFIG.items.cigarettes[kind]
+      audio.use(kind, { crackle: !!tune.crackle })
+      smokingUntil = time + tune.smokeSeconds
+      emberUntil = smokingUntil + tune.emberSeconds
+      hud.toast(brandById(kind).lit)
     } else {
+      audio.use(kind)
       perceptionUntil = time + CONFIG.items.perceptionSeconds
       hud.toast('You spark the joint. The valley sharpens.')
     }
@@ -436,10 +455,10 @@ async function boot() {
       nearPickup.taken = true
       nearPickup.mesh.visible = false
       inventory = addItem(inventory, nearPickup.kind, nearPickup.count)
-      hud.setInventory(inventory)
+      showInventory()
       saveInventory(window.localStorage, inventory)
       audio.pickup()
-      hud.toast(`Taken: ${PICKUP_LABEL[nearPickup.kind]}`)
+      hud.toast(`Taken: ${pickupLabel(nearPickup)}`)
     }
     nearPickup = null
     hud.prompt(null)
@@ -481,6 +500,26 @@ async function boot() {
     takePickup()
   }
 
+  // Number keys. Shift+N buys from the tailgate row N, but only while the
+  // shop is open (Shift is also sprint). With the inventory open, 1–5 light
+  // that brand and 6 a joint; closed, 1 lights the selected brand, 2 a joint.
+  const digitKey = (n, shift) => {
+    const shopOpen = raid.state === STATES.LOADOUT && nearSpawnStation()
+    if (shift && shopOpen) {
+      const rows = [...BRANDS.map((b) => b.id), 'joints', 'sack']
+      if (rows[n - 1]) buy(rows[n - 1])
+      return
+    }
+    if (inventoryOpen) {
+      const rows = [...BRANDS.map((b) => b.id), 'joints']
+      if (rows[n - 1]) useKind(rows[n - 1])
+    } else if (n === 1) {
+      useKind('smoke')
+    } else if (n === 2) {
+      useKind('joints')
+    }
+  }
+
   document.addEventListener('keydown', (e) => {
     if (!player.locked || ended) return
     player.handleKey(e.code, true)
@@ -490,16 +529,8 @@ async function boot() {
       hud.showShop(raid.state === STATES.LOADOUT && nearSpawnStation())
     } else if (e.code === 'KeyQ') {
       scope.toggle()
-    } else if (e.code === 'Digit1') {
-      useKind('cigarettes')
-    } else if (e.code === 'Digit2') {
-      useKind('joints')
-    } else if (e.code === 'Digit3') {
-      buy('cigarettes')
-    } else if (e.code === 'Digit4') {
-      buy('joints')
-    } else if (e.code === 'Digit5') {
-      buy('sack')
+    } else if (/^Digit[1-9]$/.test(e.code)) {
+      digitKey(Number(e.code.slice(5)), e.shiftKey)
     } else if (e.code === 'KeyT') {
       callTruck()
     } else if (e.code === 'KeyE') {
@@ -651,15 +682,17 @@ async function boot() {
         let bestPickup = 2.6
         for (const pickup of world.pickups) {
           if (pickup.taken) continue
-          pickup.mesh.material.emissiveIntensity =
-            0.35 + Math.sin(time * 3) * 0.2
+          const pulse = 0.35 + Math.sin(time * 3) * 0.2
+          for (const m of pickup.mesh.userData.pulseMaterials) {
+            m.emissiveIntensity = pulse
+          }
           const d = Math.hypot(pickup.x - player.pos.x, pickup.z - player.pos.z)
           if (d < bestPickup) {
             bestPickup = d
             nearPickup = pickup
           }
         }
-        if (nearPickup) prompt = `E — Take ${PICKUP_LABEL[nearPickup.kind]}`
+        if (nearPickup) prompt = `E — Take ${pickupLabel(nearPickup)}`
       }
     }
     if (player.locked) {

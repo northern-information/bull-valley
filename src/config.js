@@ -36,10 +36,16 @@ export const CONFIG = {
     detectThreshold: 6,
   },
   items: {
-    // Cigarette: nerves drain hard while smoking, but the ember raises the
-    // shadowmen's detection range while lit and shortly after.
-    cigaretteSeconds: 12,
-    emberSeconds: 20,
+    // Cigarettes: nerves drain hard while smoking, but the ember raises the
+    // shadowmen's detection range while lit and for emberSeconds after.
+    // Per brand (ids from brands.js); crackle adds the kretek's clove pop.
+    cigarettes: {
+      marlboro: { smokeSeconds: 12, emberSeconds: 20 },
+      camel: { smokeSeconds: 14, emberSeconds: 20 },
+      parliament: { smokeSeconds: 13, emberSeconds: 16 },
+      newport: { smokeSeconds: 9, emberSeconds: 14 },
+      djarum: { smokeSeconds: 18, emberSeconds: 26, crackle: true },
+    },
     emberDetectScale: 1.5,
     // Joint: two minutes of perception — shadowmen resolve through the murk —
     // but the nerves meter reads soft and slow the whole time.
@@ -89,8 +95,14 @@ export const CONFIG = {
     keepRadius: 25,
   },
   shop: {
-    // Per-raid purchase caps; there is no currency yet.
-    cigarettes: 6,
+    // Per-raid purchase caps; there is no currency yet. Packs per brand.
+    cigarettes: {
+      marlboro: 2,
+      camel: 2,
+      parliament: 2,
+      newport: 2,
+      djarum: 2,
+    },
     joints: 2,
   },
 }
