@@ -5,11 +5,17 @@ import { defineConfig, devices } from '@playwright/test'
 // exist only in dev builds.
 const PORT = 5175
 
+// CI runners have no GPU, so WebGL runs in software and every step is
+// slower. Each spec took about 3 times as long there as on a laptop.
+const CI = !!process.env.CI
+
 export default defineConfig({
   testDir: 'tests/e2e',
   fullyParallel: true,
-  forbidOnly: !!process.env.CI,
+  forbidOnly: CI,
   retries: 0,
+  timeout: CI ? 120_000 : 30_000,
+  expect: { timeout: CI ? 30_000 : 5_000 },
   reporter: 'list',
   use: {
     baseURL: `http://localhost:${PORT}`,
@@ -30,6 +36,6 @@ export default defineConfig({
   webServer: {
     command: `npx vite --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: !CI,
   },
 })
