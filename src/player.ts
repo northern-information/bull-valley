@@ -111,16 +111,17 @@ export class Player {
 
     const sin = Math.sin(this.yaw)
     const cos = Math.cos(this.yaw)
-    const target = new THREE.Vector3()
+    let targetX = 0
+    let targetZ = 0
     if ((ix || iz) && this.locked) {
       const inv = 1 / Math.hypot(ix, iz)
       // forward is (-sin, 0, -cos); right is (cos, 0, -sin)
-      target.x = (-sin * iz + cos * ix) * inv * speed
-      target.z = (-cos * iz - sin * ix) * inv * speed
+      targetX = (-sin * iz + cos * ix) * inv * speed
+      targetZ = (-cos * iz - sin * ix) * inv * speed
     }
     const blend = Math.min(1, 10 * dt)
-    this.vel.x += (target.x - this.vel.x) * blend
-    this.vel.z += (target.z - this.vel.z) * blend
+    this.vel.x += (targetX - this.vel.x) * blend
+    this.vel.z += (targetZ - this.vel.z) * blend
     this.pos.x += this.vel.x * dt
     this.pos.z += this.vel.z * dt
 

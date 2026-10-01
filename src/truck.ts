@@ -59,6 +59,9 @@ function buildTruck(): TruckModel {
 // his boots stay inside.
 const DRIVER_SCALE = 0.85
 
+// A working vector for bedSeat(); its value never leaves the method.
+const SCRATCH = new THREE.Vector3()
+
 // 'cab' puts him at the wheel with his hips at 1.18 m; 'tailgate' leans him
 // by the open tailgate, facing the customers behind the truck.
 function placeDriver(driver: Figure, post: DriverPost): void {
@@ -163,8 +166,9 @@ export class Truck {
   }
 
   // Where the rider's eyes sit: middle of the bed, CONFIG.truck.bedEye up.
+  // The loop calls this every frame of the ride, so it reuses one vector.
   bedSeat(): { x: number; y: number; z: number } {
-    const seat = new THREE.Vector3(0, 0.85 + CONFIG.truck.bedEye, -1.45)
+    const seat = SCRATCH.set(0, 0.85 + CONFIG.truck.bedEye, -1.45)
     this.group.localToWorld(seat)
     return { x: seat.x, y: seat.y, z: seat.z }
   }
