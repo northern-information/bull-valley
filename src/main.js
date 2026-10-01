@@ -178,6 +178,7 @@ async function boot() {
     const dz = departRoute[1].z - departRoute[0].z
     const len = Math.hypot(dx, dz) || 1
     truck.parkAt(truckPoint.x, truckPoint.z, dx / len, dz / len)
+    truck.setDriverPost('tailgate')
   }
   // Spawn on the forecourt between the station and the truck, facing the
   // truck — clear of the building, which sits behind the pumps.

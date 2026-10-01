@@ -2,7 +2,7 @@
 // body (figure.js) by slot, adds optional parts from ADDONS, and can stretch
 // limbs with proportions. Edit characters here; the body stays the same.
 
-// Every outfit colors these; add-ons may use more slots (hat, coat, apron).
+// Every outfit colors these; add-ons may use more slots (hat, coat).
 export const BODY_SLOTS = ['skin', 'hair', 'shirt', 'pants', 'boots']
 
 // Extra boxes on the body. joint names a pivot from poses.js JOINTS; size
@@ -32,12 +32,6 @@ export const ADDONS = {
     offset: [0, -0.06, 0],
     slot: 'coat',
   },
-  apron: {
-    joint: 'spine',
-    size: [0.32, 0.56, 0.03],
-    offset: [0, 0.12, 0.13],
-    slot: 'apron',
-  },
   hood: {
     joint: 'neck',
     size: [0.27, 0.32, 0.3],
@@ -59,18 +53,6 @@ export const OUTFITS = {
       hat: '#2f4a36',
     },
     addons: ['cap', 'brim', 'beard'],
-  },
-  vendor: {
-    label: 'Tailgate vendor',
-    colors: {
-      skin: '#d8a985',
-      hair: '#2a1d14',
-      shirt: '#c9b98f',
-      pants: '#4a4238',
-      boots: '#2b2420',
-      apron: '#5d6b3a',
-    },
-    addons: ['apron'],
   },
   player: {
     label: 'Player',
