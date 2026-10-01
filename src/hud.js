@@ -91,6 +91,7 @@ export class Hud {
         </p>
         <p class="bv-inv-desc" data-bv="inv-desc"></p>
       </div>
+      <p class="bv-inv-resume" data-bv="inv-resume" hidden>Click to Resume</p>
       <div class="bv-inv-bars bv-inv-bars--foot" aria-hidden="true"><span>← → Cycle</span><span>Tab Exit</span><span>1 Smoke · 2 Spark</span></div>`
     ui.appendChild(this.inventory)
 
@@ -105,6 +106,11 @@ export class Hud {
     this.staticWrap.appendChild(this.staticCanvas)
     this.staticWrap.appendChild(el('p', 'bv-static-label', 'SIGNAL LOST'))
     ui.appendChild(this.staticWrap)
+
+    // Center dot: the aim point while the cursor is locked and hidden.
+    this.reticle = el('div', 'bv-reticle')
+    this.reticle.setAttribute('aria-hidden', 'true')
+    ui.appendChild(this.reticle)
 
     // Intro / pause overlay.
     this.intro = el('div', 'bv-intro')
@@ -195,6 +201,13 @@ export class Hud {
     this.inventory.hidden = !show
     this.root.classList.toggle('bv-shell--inventory', show)
     return show
+  }
+
+  // Pointer lock drives the center dot, and the inventory's resume line
+  // while it is open without lock.
+  setLocked(locked) {
+    this.root.classList.toggle('bv-shell--locked', locked)
+    this.fields['inv-resume'].hidden = locked
   }
 
   // End-of-raid overlay, styled like the intro dialog.

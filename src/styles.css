@@ -385,6 +385,40 @@
   line-height: 1.35;
 }
 
+/* Lock dropped with the inventory open: dim the carousel, wait for a click. */
+.bv-shell--inventory:not(.bv-shell--locked) .bv-inv-frame {
+  opacity: 0.5;
+}
+
+.bv-inv-resume {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  padding: 0.3em 0.8em;
+  background: rgb(0 0 0 / 0.7);
+}
+
+/* Center dot. Only while locked and on foot or riding; the inventory, intro
+   and summary all hide it. */
+.bv-reticle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--bv-eggshell);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.6);
+  visibility: hidden;
+}
+
+.bv-shell--locked:not(.bv-shell--inventory) .bv-reticle {
+  visibility: visible;
+}
+
 /* Vignette + strike static */
 .bv-vignette {
   position: absolute;
