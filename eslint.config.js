@@ -19,10 +19,16 @@ export default defineConfig([
   ]),
   {
     files: ['**/*.ts'],
-    extends: [js.configs.recommended, tseslint.configs.recommended],
+    // Type-aware rules read the tsconfig project, so they catch what syntax
+    // alone cannot: a promise that nothing waits on, an any that leaks.
+    extends: [js.configs.recommended, tseslint.configs.recommendedTypeChecked],
     languageOptions: {
       ecmaVersion: 2022,
       globals: globals.browser,
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
     rules: {
       '@typescript-eslint/no-unused-vars': unusedVars,

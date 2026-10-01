@@ -72,7 +72,8 @@ export class BvAudio {
   // and static arriving early; init() layers the beds on top.
   initContext(): void {
     if (this.ctx) {
-      this.ctx.resume()
+      // Fire and forget: a context that will not resume stays silent.
+      void this.ctx.resume()
       return
     }
     const win: WebkitAudioWindow = window

@@ -203,7 +203,8 @@ export function showSplash({
       if (action === 'start') {
         // The gesture creates the AudioContext for the splash cue only.
         audio.initContext()
-        audio.playOneShot(config.audioSrc, {
+        // Not awaited: the cue catches its own failures.
+        void audio.playOneShot(config.audioSrc, {
           fadeInMs: config.fadeInMs,
           holdMs: config.holdMs,
           fadeOutMs: config.fadeOutMs,
