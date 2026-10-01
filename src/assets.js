@@ -748,8 +748,16 @@ function splitAt(points, fillY) {
   return { below, above }
 }
 
-function glassMaterial(color = '#d8e6e2', opacity = 0.35) {
-  return lambert({ color, transparent: true, opacity, depthWrite: false })
+// glow lights the glass from within, so pale plastic stays pale at night.
+function glassMaterial(color = '#d8e6e2', opacity = 0.35, glow = 0) {
+  return lambert({
+    color,
+    emissive: new THREE.Color(color),
+    emissiveIntensity: glow,
+    transparent: true,
+    opacity,
+    depthWrite: false,
+  })
 }
 
 // A cap: a short cylinder from y0 to y1.
@@ -988,7 +996,7 @@ function waterParts(art, size, { face, flat }) {
       [0.0135, 0.19],
       [0.0135, 0.193],
     ],
-    glassMaterial(art.water, 0.45)
+    glassMaterial(art.water, 0.8, 0.5)
   )
   return [
     body,

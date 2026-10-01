@@ -7,7 +7,7 @@
 import * as THREE from 'three'
 import { buildPickup, buildSack, meshBounds } from './assets.js'
 import { wrapDelta } from './carousel.js'
-import { TALLEST_DRINK, isDrink } from './drinks.js'
+import { drinkFitHeight, isDrink } from './drinks.js'
 
 // Ring radii (x across the screen, z toward the camera), the size every
 // model is fitted to, and how fast things move.
@@ -28,14 +28,14 @@ function buildModel(kind) {
 
 // A model scaled to fit the cell and centered on its own mesh bounds, inside
 // a spinner (yaw and tilt) inside a holder (place on the ring). Drinks share
-// one scale, set by the tallest container, so sizes stay true.
+// one scale per family (cans, bottles), so sizes stay true within it.
 function buildSlot(kind) {
   const model = buildModel(kind)
   const box = meshBounds(model)
   const size = box.getSize(new THREE.Vector3())
   const center = box.getCenter(new THREE.Vector3())
   const fit = isDrink(kind)
-    ? TALLEST_DRINK
+    ? drinkFitHeight(kind)
     : Math.max(size.x, size.y, size.z, 1e-3)
   const scale = RING.cell / fit
   model.scale.setScalar(scale)

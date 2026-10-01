@@ -793,7 +793,7 @@ function iceMountain() {
   }
   return {
     wrap,
-    water: '#cfe8f5',
+    water: '#f2f6f8',
     cap: '#2b6cc4',
     glow: 'rgba(127, 178, 229, 0.4)',
   }

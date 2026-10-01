@@ -117,10 +117,24 @@ export const DRINKS = [
   },
 ]
 
-// The tallest container, so a view can show every drink at one scale.
-export const TALLEST_DRINK = Math.max(
-  ...Object.values(CONTAINERS).map((c) => c.height)
-)
+// Cans and bottles each share one scale in a view, set by the tallest of
+// their family, so sizes stay true within a family. One scale for all
+// would shrink a 16 oz can to half a Grey Goose bottle.
+const CANS = ['tall', 'slim', 'can12']
+
+function familyOf(container) {
+  return CANS.includes(container) ? 'can' : 'bottle'
+}
+
+// The height a view fits this drink's family to.
+export function drinkFitHeight(id) {
+  const family = familyOf(drinkById(id).container)
+  return Math.max(
+    ...Object.entries(CONTAINERS)
+      .filter(([name]) => familyOf(name) === family)
+      .map(([, c]) => c.height)
+  )
+}
 
 export const DRINK_IDS = DRINKS.map((d) => d.id)
 
