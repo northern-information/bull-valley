@@ -741,10 +741,11 @@ interface BottleShape {
 
 // The material makers one drink's parts share, so every material it makes
 // joins the pickup pulse.
+// Function properties, not methods: the builders destructure them.
 export interface DrinkMaterials {
-  face(canvasArt: CanvasArt | undefined): THREE.MeshLambertMaterial
-  cutout(canvasArt: CanvasArt | undefined): THREE.MeshLambertMaterial
-  flat(color: string | undefined): THREE.MeshLambertMaterial
+  face: (canvasArt: CanvasArt | undefined) => THREE.MeshLambertMaterial
+  cutout: (canvasArt: CanvasArt | undefined) => THREE.MeshLambertMaterial
+  flat: (color: string | undefined) => THREE.MeshLambertMaterial
 }
 
 type DrinkPartsBuilder = (

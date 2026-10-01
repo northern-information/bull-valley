@@ -13,7 +13,7 @@ function makeMachine(startAt = 0) {
   const machine = createSplashMachine({ now: () => t, cfg })
   return {
     machine,
-    setTime(next: number) {
+    setTime: (next: number) => {
       t = next
     },
   }

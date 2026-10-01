@@ -8,8 +8,8 @@ An extraction adventure RPG set in a hauntological Bull Valley, Illinois. 3D fir
 - `localhost:5174/akashic` — dev-only asset viewer (`akashic.html`, not in the build): one asset at a time through the game's PS1 pipeline, ←/→ to cycle, `#<id>` deep links, hook `window.__akashic` (ids, select, setView). Check asset edits here before a raid.
 - `npm run build` / `npm run preview` — type check, then production bundle
 - `npm run typecheck` — strict `tsc -b` over `src`, `tests`, and the TS configs
-- `npm run lint` / `npm run lint:css` — ESLint (typescript-eslint) and Stylelint
-- `npm test` / `npm run test:watch` / `npm run test:unit:coverage` — vitest unit tests (`tests/unit/`)
+- `npm run lint` / `npm run lint:css` — ESLint (typescript-eslint, type-aware: mark a fire-and-forget promise with `void`) and Stylelint
+- `npm test` / `npm run test:watch` / `npm run test:unit:coverage` — vitest unit tests (`tests/unit/`); coverage lists every file in `src`
 - `npm run test:e2e` — Playwright (`tests/e2e/`) against its own Vite dev server on port 5175; never against `preview`, since the dev hooks exist only in dev builds. First run: `npx playwright install chromium`
 - `npm run pretty` — prettier (sorts imports too); run before every commit. `npm run format:check` checks without writing
 - CI (`.github/workflows/ci.yml`) runs on every PR to `main` and every push to `main`: format, lint, types, unit tests with coverage, build, and e2e
