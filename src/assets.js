@@ -377,7 +377,12 @@ function stickLayout(rng) {
   return spots
 }
 
-export function buildCigarettePack(brandId, seed = 0x5ac) {
+// glow: false leaves out the halo, for close-up views like the inventory.
+export function buildCigarettePack(
+  brandId,
+  seed = 0x5ac,
+  { glow = true } = {}
+) {
   const art = paintPack(brandId)
   const { width: W, depth: D, bodyHeight: BH, lidHeight: LH } = PACK
   const pack = new THREE.Group()
@@ -470,20 +475,193 @@ export function buildCigarettePack(brandId, seed = 0x5ac) {
   pack.add(hinge)
 
   // A brand-colored halo so a 9 cm pack can be found in the fog.
-  const glow = makeGlowSprite(makeGlowTexture(art.glow), PACK.glowScale)
-  glow.position.y = BH * 0.6
-  pack.add(glow)
+  if (glow) {
+    const halo = makeGlowSprite(makeGlowTexture(art.glow), PACK.glowScale)
+    halo.position.y = BH * 0.6
+    pack.add(halo)
+  }
 
   pack.userData.pulseMaterials = pulse
   return pack
+}
+
+// --- Joints --------------------------------------------------------------
+
+// A hand-rolled cone joint, 9 cm. It must not read as a cigarette, so the
+// shape is exaggerated: a strong taper from a fat tip to a thin card
+// crutch, a lumpy and slightly bent body, a long paper twist that flops to
+// one side, and a pale card crutch (not a tan filter). Origin at the middle
+// of its length, lying along +X with the tip at +X.
+export const JOINT = {
+  length: 0.09,
+  tipRadius: 0.0085,
+  crutchRadius: 0.003,
+  crutchLength: 0.012,
+  twistLength: 0.016,
+  bend: 0.004,
+  glowScale: 0.8,
+}
+
+const JOINT_PAPER = '#ece6cf'
+const JOINT_CRUTCH = '#e0d8bc'
+const JOINT_HOLE = '#2a2418'
+
+// The paper body as a lathe: radius against length, crutch end at y = 0.
+// Lumps come from the seeded rng so each joint in a pile differs.
+function jointBody(rng, length) {
+  const { tipRadius: RT, crutchRadius: RC } = JOINT
+  const points = []
+  const steps = 7
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps
+    // Cone with a belly near the tip, then a pinch into the twist.
+    let r = RC + (RT - RC) * Math.pow(t, 0.8)
+    if (i === steps) r *= 0.55
+    else if (i > 0) r *= range(rng, 0.9, 1.1)
+    points.push(new THREE.Vector2(r, t * length))
+  }
+  // Close the tip so the open lathe end never shows.
+  points.push(new THREE.Vector2(0, length * 1.02))
+  const geometry = new THREE.LatheGeometry(points, 6)
+  // A gentle bow along the length, then lay +Y along +X.
+  const pos = geometry.attributes.position
+  for (let i = 0; i < pos.count; i++) {
+    const t = pos.getY(i) / length
+    pos.setZ(i, pos.getZ(i) + JOINT.bend * 4 * t * (1 - t))
+  }
+  geometry.computeVertexNormals()
+  return geometry.rotateZ(-Math.PI / 2)
+}
+
+function jointPart(rng, paper, crutch, hole) {
+  const { length: L, crutchRadius: RC, tipRadius: RT } = JOINT
+  const { crutchLength: CL, twistLength: TL } = JOINT
+  const joint = new THREE.Group()
+  // CylinderGeometry runs along +Y; rotate so +Y becomes +X (tip end).
+  const toX = (geometry) => geometry.rotateZ(-Math.PI / 2)
+  const bodyLen = L - CL - TL
+  const body = new THREE.Mesh(jointBody(rng, bodyLen), paper)
+  body.position.x = -L / 2 + CL
+  // The card crutch sticks out past the paper, open at the end.
+  const card = new THREE.Mesh(
+    toX(new THREE.CylinderGeometry(RC, RC * 0.95, CL, 6)),
+    crutch
+  )
+  card.position.x = -L / 2 + CL / 2
+  const mouth = new THREE.Mesh(
+    toX(new THREE.CylinderGeometry(RC * 0.6, RC * 0.6, 0.0008, 6)),
+    hole
+  )
+  mouth.position.x = -L / 2 - 0.0002
+  // The twist: a thin paper wisp, kinked once and flopped sideways.
+  const twist = new THREE.Group()
+  twist.position.x = L / 2 - TL
+  const wispA = new THREE.Mesh(
+    toX(new THREE.ConeGeometry(RT * 0.55, TL * 0.55, 4)),
+    paper
+  )
+  wispA.position.x = TL * 0.27
+  const wispB = new THREE.Mesh(
+    toX(new THREE.ConeGeometry(RT * 0.3, TL * 0.6, 4)),
+    paper
+  )
+  wispB.position.set(TL * 0.62, 0, range(rng, 0.002, 0.004))
+  wispB.rotation.y = -range(rng, 0.5, 0.9)
+  twist.add(wispA, wispB)
+  twist.rotation.set(range(rng, 0, Math.PI), range(rng, -0.3, 0.3), 0)
+  joint.add(body, card, mouth, twist)
+  return joint
+}
+
+// Three joints dropped in a loose pile, crossed, not lined up like a pack.
+// glow: false leaves out the halo.
+export function buildJoints({ glow = true } = {}) {
+  const pulse = []
+  const mat = (color) => {
+    const m = lambert({
+      color,
+      emissive: new THREE.Color(color),
+      emissiveIntensity: 0.45,
+    })
+    pulse.push(m)
+    return m
+  }
+  const paper = mat(JOINT_PAPER)
+  const crutch = mat(JOINT_CRUTCH)
+  const hole = lambert({ color: JOINT_HOLE })
+  const rng = mulberry32(0x7015)
+  const group = new THREE.Group()
+  group.name = 'joints'
+  // [dx, dz, yaw, lift]: the third rests across the other two.
+  const lay = [
+    [0, -0.014, 0.35, 0],
+    [0.006, 0.012, -0.3, 0],
+    [-0.004, 0, 1.25, JOINT.tipRadius * 1.4],
+  ]
+  for (const [dx, dz, yaw, lift] of lay) {
+    const joint = jointPart(rng, paper, crutch, hole)
+    joint.position.set(dx, JOINT.tipRadius + lift, dz)
+    joint.rotation.y = yaw
+    group.add(joint)
+  }
+  if (glow) {
+    const halo = makeGlowSprite(
+      makeGlowTexture('rgba(74, 222, 128, 0.6)'),
+      JOINT.glowScale
+    )
+    halo.position.y = 0.02
+    group.add(halo)
+  }
+  group.userData.pulseMaterials = pulse
+  return group
+}
+
+// --- Burlap sack ---------------------------------------------------------
+
+// The tailgate's burlap sack, filled out a little, gathered and tied at the
+// neck. Origin at ground level under the middle. Only seen in the inventory.
+export function buildSack(seed = 0x5ac4) {
+  const rng = mulberry32(seed)
+  const burlap = lambert({ color: '#8a6d42' })
+  const twine = lambert({ color: '#5a4426' })
+  const bodyGeo = new THREE.BoxGeometry(0.42, 0.46, 0.28, 3, 3, 2)
+  const pos = bodyGeo.attributes.position
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i)
+    // Taper toward the neck, bulge at the belly, lump everything a bit.
+    const t = (y + 0.23) / 0.46
+    const squeeze = 1 - 0.45 * t * t
+    pos.setX(i, pos.getX(i) * squeeze + range(rng, -0.012, 0.012))
+    pos.setZ(i, pos.getZ(i) * squeeze + range(rng, -0.012, 0.012))
+    pos.setY(i, y + range(rng, -0.01, 0.01))
+  }
+  bodyGeo.computeVertexNormals()
+  const body = new THREE.Mesh(bodyGeo, burlap)
+  body.position.y = 0.23
+  const neck = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.035, 0.06, 0.05, 6),
+    twine
+  )
+  neck.position.y = 0.48
+  const flare = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.09, 0.03, 0.08, 6),
+    burlap
+  )
+  flare.position.y = 0.54
+  const group = new THREE.Group()
+  group.name = 'sack'
+  group.add(body, neck, flare)
+  return group
 }
 
 // --- Pickups -------------------------------------------------------------
 
 // Every pickup lists the materials the game loop pulses in
 // userData.pulseMaterials. Kinds: 'cabbage', 'joints', or a brand id.
-export function buildPickup(kind, seed) {
-  if (isBrand(kind)) return buildCigarettePack(kind, seed)
+// glow: false leaves out the halo on packs and joints.
+export function buildPickup(kind, seed, { glow = true } = {}) {
+  if (isBrand(kind)) return buildCigarettePack(kind, seed, { glow })
+  if (kind === 'joints') return buildJoints({ glow })
   let mesh
   if (kind === 'cabbage') {
     const sphere = new THREE.SphereGeometry(0.35, 6, 5)
@@ -493,17 +671,6 @@ export function buildPickup(kind, seed) {
       new THREE.MeshLambertMaterial({
         color: '#1c2a16',
         emissive: new THREE.Color('#9be88a'),
-        emissiveIntensity: 0.5,
-      })
-    )
-  } else if (kind === 'joints') {
-    const box = new THREE.BoxGeometry(0.5, 0.35, 0.35)
-    box.translate(0, 0.4, 0)
-    mesh = new THREE.Mesh(
-      box,
-      new THREE.MeshLambertMaterial({
-        color: '#101216',
-        emissive: new THREE.Color('#4ade80'),
         emissiveIntensity: 0.5,
       })
     )
@@ -560,4 +727,16 @@ export const WORLD_ASSETS = [
     build: () => buildCigarettePack(b.id),
   })),
   { id: 'joints', label: 'Joints', build: () => buildPickup('joints') },
+  { id: 'sack', label: 'Burlap sack', build: () => buildSack() },
 ]
+
+// Bounds from meshes only: glow sprites are unit planes scaled up, and would
+// frame a camera on empty air.
+export function meshBounds(object) {
+  const box = new THREE.Box3()
+  object.updateMatrixWorld(true)
+  object.traverse((o) => {
+    if (o.isMesh) box.expandByObject(o)
+  })
+  return box
+}

@@ -9,7 +9,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { CONFIG } from './config.js'
 import { setSnapResolution } from './ps1.js'
 import { mulberry32 } from './rng.js'
-import { WORLD_ASSETS } from './assets.js'
+import { WORLD_ASSETS, meshBounds } from './assets.js'
 import { buildTruckMesh } from './truck.js'
 import { makeSilhouetteTexture, buildShadowmanFigure } from './shadowmen.js'
 
@@ -156,17 +156,6 @@ function dispose(object) {
       m.dispose()
     }
   })
-}
-
-// Bounds from meshes only: glow sprites are unit planes scaled up, and would
-// frame the camera on empty air.
-function meshBounds(object) {
-  const box = new THREE.Box3()
-  object.updateMatrixWorld(true)
-  object.traverse((o) => {
-    if (o.isMesh) box.expandByObject(o)
-  })
-  return box
 }
 
 function triangleCount(object) {
