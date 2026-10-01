@@ -42,9 +42,11 @@ export class Hud {
     this.timers = el('div', 'bv-timers')
     ui.appendChild(this.timers)
 
-    // The scope: a phone held in a gloved hand. The back layer (sleeve, palm,
-    // fingers, phone body) sits under the screen canvas; the thumb and the
-    // fingertips sit over the bezel. Both layers share one viewBox.
+    // The scope: a phone held in a gloved flipper hand. The fingers are one
+    // mitten-like slab that wraps the left edge; the thumb lies on the right
+    // edge. The back layer (sleeve, palm, slab, phone body) sits under the
+    // screen canvas; the slab lip and the thumb sit over the bezel. Both
+    // layers share one viewBox.
     this.phone = el('div', 'bv-phone')
     this.phone.setAttribute('aria-hidden', 'true')
     this.phone.innerHTML = `
@@ -52,20 +54,14 @@ export class Hud {
         <path class="bv-hand-sleeve" d="M58 360 L66 296 L154 296 L164 360 Z"/>
         <path class="bv-hand-cuff" d="M64 300 L68 282 L152 282 L156 300 Z"/>
         <path class="bv-hand" d="M34 176 C28 232 44 290 74 290 L148 290 C174 284 178 232 172 176 Z"/>
-        <rect class="bv-hand" x="146" y="112" width="34" height="22" rx="11"/>
-        <rect class="bv-hand" x="146" y="142" width="36" height="22" rx="11"/>
-        <rect class="bv-hand" x="146" y="172" width="35" height="22" rx="11"/>
-        <rect class="bv-hand" x="146" y="202" width="32" height="20" rx="10"/>
+        <path class="bv-hand" d="M52 100 C32 100 16 116 16 138 L16 220 C16 244 32 258 56 258 Z"/>
         <rect class="bv-phone-body" x="40" y="20" width="120" height="234" rx="16"/>
         <rect class="bv-phone-slot" x="88" y="26" width="24" height="3" rx="1.5"/>
       </svg>
       <canvas class="bv-scope"></canvas>
       <svg class="bv-phone-layer" viewBox="0 0 200 360" preserveAspectRatio="none">
-        <path class="bv-hand" d="M30 246 C25 214 29 186 39 170 C44 164 51 166 50 175 C47 198 46 222 48 248 Z"/>
-        <ellipse class="bv-hand" cx="160" cy="123" rx="6" ry="10"/>
-        <ellipse class="bv-hand" cx="160" cy="153" rx="6" ry="10"/>
-        <ellipse class="bv-hand" cx="160" cy="183" rx="6" ry="10"/>
-        <ellipse class="bv-hand" cx="160" cy="212" rx="5" ry="9"/>
+        <path class="bv-hand" d="M45 112 C38 112 33 120 33 130 L33 214 C33 226 38 234 45 234 Z"/>
+        <path class="bv-hand" d="M174 250 C180 216 176 186 166 168 C160 160 152 163 154 174 C156 198 156 224 154 252 Z"/>
       </svg>`
     ui.appendChild(this.phone)
     this.scopeCanvas = this.phone.querySelector('.bv-scope')
