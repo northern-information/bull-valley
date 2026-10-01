@@ -21,6 +21,9 @@ Spawn at a gas station → 5-minute loadout before Matthew Marx's white Chevy le
 - `src/raid.js` — pure raid state machine (LOADOUT → RIDING → ON_FOOT → EXTRACTED)
 - `src/roadgraph.js` — pure road-network graph, Dijkstra, arc-length walker
 - `src/truck.js` — the white Chevy: mesh, drive/board/ride/call
+- `src/figure.js` — the shared character body: rigid low-poly parts on joint pivots, built per outfit; `applyPose` drives it
+- `src/outfits.js` — pure: every character outfit in one table (colors by slot, add-on parts, limb proportions); edit characters here
+- `src/poses.js` — pure: the body's joints, the poses (stand, sit, lean, crouch, walk cycle) and `samplePose`
 - `src/cabbages.js` — pure seeded cabbage placement
 - `src/brands.js` — pure: the five cigarette brands (each its own inventory kind); tuning and shop caps live in `CONFIG`
 - `src/packart.js` — canvas trade-dress art for the cigarette packs

@@ -12,6 +12,15 @@ import { mulberry32 } from './rng.js'
 import { WORLD_ASSETS, meshBounds } from './assets.js'
 import { buildTruckMesh } from './truck.js'
 import { makeSilhouetteTexture, buildShadowmanFigure } from './shadowmen.js'
+import { buildFigure, applyPose } from './figure.js'
+import { OUTFITS, OUTFIT_IDS } from './outfits.js'
+import { samplePose } from './poses.js'
+
+function sampleFigure(outfitId) {
+  const figure = buildFigure(outfitId)
+  applyPose(figure, samplePose('stand'))
+  return figure.group
+}
 
 function sampleShadowman() {
   const height = 2.8
@@ -27,6 +36,11 @@ function sampleShadowman() {
 
 const ASSETS = [
   { id: 'truck', label: "Matthew Marx's white Chevy", build: buildTruckMesh },
+  ...OUTFIT_IDS.map((id) => ({
+    id: `figure-${id}`,
+    label: `Figure: ${OUTFITS[id].label}`,
+    build: () => sampleFigure(id),
+  })),
   ...WORLD_ASSETS,
   { id: 'shadowman', label: 'Shadowman (parked)', build: sampleShadowman },
 ]
