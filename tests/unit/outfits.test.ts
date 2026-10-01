@@ -44,6 +44,12 @@ describe('outfits', () => {
       if ('rings' in addon) {
         expect(addon.rings.length).toBeGreaterThanOrEqual(2)
         for (const ring of addon.rings) expect(ring).toHaveLength(4)
+      } else if ('crescents' in addon) {
+        expect(addon.crescents.length).toBeGreaterThanOrEqual(1)
+        for (const one of addon.crescents) {
+          expect(one.at).toHaveLength(3)
+          expect(one.width).toBeLessThan(one.radius * 2)
+        }
       } else {
         expect(addon.box).toHaveLength(3)
       }

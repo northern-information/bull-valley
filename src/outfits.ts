@@ -53,7 +53,25 @@ export interface BoxAddon extends AddonBase {
   decal?: DecalId
 }
 
-export type Addon = LoftAddon | BoxAddon
+// One crescent: an arch of hair with its apex at `at`, turned `turn` radians
+// about Z. It follows a circle of the given radius for `sweep` radians, is
+// `width` across in the middle, and comes to a point at both ends.
+export interface Crescent {
+  at: Vec3
+  turn: number
+  radius: number
+  sweep: number
+  width: number
+}
+
+// Crescents stacked as one add-on. bend curves each one back by bend * x²
+// along its width, so it follows the forehead.
+export interface CrescentAddon extends AddonBase {
+  crescents: Crescent[]
+  bend?: number
+}
+
+export type Addon = LoftAddon | BoxAddon | CrescentAddon
 
 export type AddonId =
   | 'beard'
@@ -71,8 +89,8 @@ export type AddonId =
   | 'big-beard'
   | 'stubble'
   | 'fringe'
-  | 'fringe-swoop'
   | 'emo-hair'
+  | 'fringe-fill'
 
 export type LimbGroup = 'arm' | 'leg'
 
@@ -141,33 +159,74 @@ export const ADDONS: Record<AddonId, Addon> = {
       [-0.15, 0.042, 0.036, 0.13],
     ],
   },
-  // Five o'clock shadow: a thin layer round the jaw and the mouth, close to
-  // the face. The rings sit forward, so the back stays inside the head.
+  // A short beard: a thin layer round the jaw and the mouth, close to the
+  // face, that runs a little below the chin. The rings sit forward, so the
+  // back stays inside the head.
   stubble: {
     joint: 'neck',
     slot: 'stubble',
     sides: 8,
     rings: [
-      [0.065, 0.052, 0.045, 0.045],
+      [0.035, 0.034, 0.034, 0.062],
+      [0.065, 0.058, 0.052, 0.05],
       [0.1, 0.08, 0.07, 0.04],
       [0.15, 0.09, 0.075, 0.03],
     ],
   },
-  // An emo fringe: a slab of hair slanted across the forehead, low on the
-  // -X side, and a swoop that hangs from it over the -X eye.
+  // An emo fringe: stacked crescents that sweep down from the +X side of
+  // the forehead, across the -X eye, to a point on the cheek. Each one is
+  // smaller and turned further than the one above it.
   fringe: {
     joint: 'neck',
     slot: 'hair',
-    box: [0.17, 0.05, 0.03],
-    offset: [-0.005, 0.228, 0.098],
-    rotation: [0, 0, 0.3],
+    bend: 4,
+    crescents: [
+      {
+        at: [0.02, 0.268, 0.122],
+        turn: 0.3,
+        radius: 0.1,
+        sweep: 1.5,
+        width: 0.05,
+      },
+      {
+        at: [-0.005, 0.242, 0.126],
+        turn: 0.45,
+        radius: 0.085,
+        sweep: 1.4,
+        width: 0.046,
+      },
+      {
+        at: [-0.025, 0.216, 0.128],
+        turn: 0.6,
+        radius: 0.065,
+        sweep: 1.3,
+        width: 0.04,
+      },
+      {
+        at: [-0.04, 0.19, 0.127],
+        turn: 0.75,
+        radius: 0.048,
+        sweep: 1.2,
+        width: 0.032,
+      },
+      {
+        at: [-0.052, 0.164, 0.122],
+        turn: 0.9,
+        radius: 0.034,
+        sweep: 1.1,
+        width: 0.024,
+      },
+    ],
   },
-  'fringe-swoop': {
+  // Hair behind the fringe on the -X side, turned to follow the face, so
+  // nothing shows between the crescents and the side hair: it covers the
+  // -X brow and eye.
+  'fringe-fill': {
     joint: 'neck',
     slot: 'hair',
-    box: [0.05, 0.11, 0.022],
-    offset: [-0.045, 0.172, 0.103],
-    rotation: [0, 0, 0.15],
+    box: [0.1, 0.1, 0.02],
+    offset: [-0.05, 0.205, 0.108],
+    rotation: [0, -0.45, 0],
   },
   // Jaw-length hair over the ears and the nape, round the back and sides.
   // Like long-hair, each ring sits back far enough to keep the face clear.
@@ -397,13 +456,13 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
       pants: '#3f5f8a',
       boots: '#141416',
       belt: '#0c0c0e',
-      stubble: '#dcae96',
+      stubble: '#c98266',
     },
     addons: [
       'emo-hair',
       'stubble',
       'fringe',
-      'fringe-swoop',
+      'fringe-fill',
       'belt',
       'belt-loops',
     ],

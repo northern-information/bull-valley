@@ -18,7 +18,14 @@ import {
 import { paintPrints } from './decalart.ts'
 import { ADDONS, outfitById } from './outfits.ts'
 import { JOINTS } from './poses.ts'
-import type { DecalId, LoftRing, OutfitId, PrintPart, Vec3 } from './outfits.ts'
+import type {
+  Crescent,
+  DecalId,
+  LoftRing,
+  OutfitId,
+  PrintPart,
+  Vec3,
+} from './outfits.ts'
 import type { JointName, PoseSample } from './poses.ts'
 
 // A built body: its root group, one pivot per joint, and the hip height
@@ -185,6 +192,44 @@ function printLoft(
   })
 }
 
+// A crescent of hair, 0.012 m thick, with its apex at the origin: an arch
+// over a circle of the given radius, widest at the apex and pointed at both
+// ends, curved back by bend * x² so it lies on a rounded surface.
+const CRESCENT_SEGMENTS = 8
+const CRESCENT_DEPTH = 0.012
+function crescent(
+  { radius, sweep, width }: Crescent,
+  bend = 0
+): THREE.BufferGeometry {
+  return cached(`crescent|${radius}|${sweep}|${width}|${bend}`, () => {
+    const point = (i: number, side: number): [number, number] => {
+      const t = i / CRESCENT_SEGMENTS
+      const a = Math.PI / 2 + sweep / 2 - sweep * t
+      const r = radius + side * (width / 2) * Math.sin(Math.PI * t)
+      return [Math.cos(a) * r, Math.sin(a) * r - radius]
+    }
+    const shape = new THREE.Shape()
+    shape.moveTo(...point(0, 1))
+    for (let i = 1; i <= CRESCENT_SEGMENTS; i++) shape.lineTo(...point(i, 1))
+    // Back along the inner edge; the two edges meet at the points.
+    for (let i = CRESCENT_SEGMENTS - 1; i > 0; i--) {
+      shape.lineTo(...point(i, -1))
+    }
+    shape.closePath()
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      depth: CRESCENT_DEPTH,
+      bevelEnabled: false,
+    })
+    geometry.translate(0, 0, -CRESCENT_DEPTH / 2)
+    const pos = geometry.attributes.position
+    for (let i = 0; i < pos.count; i++) {
+      pos.setZ(i, pos.getZ(i) - bend * pos.getX(i) ** 2)
+    }
+    geometry.computeVertexNormals()
+    return geometry
+  })
+}
+
 function box(w: number, h: number, d: number): THREE.BufferGeometry {
   return cached(`box|${w}|${h}|${d}`, () => new THREE.BoxGeometry(w, h, d))
 }
@@ -278,6 +323,13 @@ const UPPER_ARM: RingInput[] = [
   [-0.08, 0.05, 0.055],
   [-0.32, 0.038, 0.042],
 ]
+// A t-shirt sleeve over the top third of the upper arm, a little proud of
+// it and flared at the opening.
+const SHORT_SLEEVE: RingInput[] = [
+  [0.03, 0.056, 0.062],
+  [-0.06, 0.056, 0.061],
+  [-0.12, 0.055, 0.06],
+]
 const FOREARM: RingInput[] = [
   [0.01, 0.04, 0.042],
   [-0.08, 0.045, 0.047],
@@ -369,19 +421,22 @@ export function buildFigure(
       0.42,
       0
     )
-    // Bare arm parts take the skin color, and an arm print.
-    const bare = outfit.sleeves === 'none'
-    const upper = bare ? c.skin : c.shirt
-    const lower = outfit.sleeves ? c.skin : c.shirt
-    printed(shoulder, stretch(UPPER_ARM, arm), 6, upper, bare ? 'arm' : null)
-    const elbow = pivot(shoulder, built, `elbow${side}`, 0, -upperArm, 0)
+    // Bare arm parts take the skin color, and an arm print. A short sleeve
+    // covers the top of a bare upper arm, the way a t-shirt does.
+    const bare = Boolean(outfit.sleeves)
+    const skinOrShirt = bare ? c.skin : c.shirt
     printed(
-      elbow,
-      stretch(FOREARM, arm),
+      shoulder,
+      stretch(UPPER_ARM, arm),
       6,
-      lower,
-      outfit.sleeves ? 'arm' : null
+      skinOrShirt,
+      bare ? 'arm' : null
     )
+    if (outfit.sleeves === 'short') {
+      part(shoulder, loft(stretch(SHORT_SLEEVE, arm)), c.shirt)
+    }
+    const elbow = pivot(shoulder, built, `elbow${side}`, 0, -upperArm, 0)
+    printed(elbow, stretch(FOREARM, arm), 6, skinOrShirt, bare ? 'arm' : null)
     part(elbow, loft(HAND), c.skin, 0, -foreArm, 0)
     part(elbow, box(0.025, 0.05, 0.025), c.skin, 0, -foreArm - 0.035, 0.04)
 
@@ -406,6 +461,18 @@ export function buildFigure(
 
   for (const id of outfit.addons || []) {
     const addon = ADDONS[id]
+    if ('crescents' in addon) {
+      for (const one of addon.crescents) {
+        const mesh = part(
+          joints[addon.joint],
+          crescent(one, addon.bend),
+          c[addon.slot] as string,
+          ...one.at
+        )
+        mesh.rotation.z = one.turn
+      }
+      continue
+    }
     const geometry =
       'rings' in addon ? loft(addon.rings, addon.sides) : box(...addon.box)
     const spots: Vec3[] = addon.offsets || [addon.offset || [0, 0, 0]]
