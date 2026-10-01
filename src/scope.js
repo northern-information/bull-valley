@@ -1,5 +1,6 @@
 import { CONFIG } from './config.js'
 import { compassBearing } from './coords.js'
+import { outfitById } from './outfits.js'
 
 // The handheld Scaduscope: a north-up sweep radar in the SYSOUT voice, run as
 // an app on a phone. Blips light as the sweep passes and decay until it comes
@@ -16,9 +17,12 @@ const GREEN = '#4ade80'
 const MAGENTA = '#e879f9'
 const EGGSHELL = '#f0ead6' // --bv-eggshell; canvas cannot read CSS vars
 const SLATE = '#94a3b8'
-const SKIN = '#f2dccb'
-const SKIN_SHADE = '#d9b8a2'
-const SLEEVE = '#1e293b'
+// The hand is the player's: same skin and sleeve as the player outfit, with
+// the shadow facet a darker tone of the skin.
+const PLAYER = outfitById('player').colors
+const SKIN = PLAYER.skin
+const SKIN_SHADE = darken(PLAYER.skin, 0.88)
+const SLEEVE = PLAYER.shirt
 const CUFF = '#0f172a'
 const BODY = '#0b0f14'
 const SCREEN = '#020617'
@@ -54,6 +58,12 @@ const FRONT = [
   [SKIN, [[176, 252], [180, 208], [170, 170], [160, 162], [152, 172], [156, 210], [153, 254]]],
   [SKIN_SHADE, [[176, 252], [180, 208], [166, 212], [164, 253]]],
 ]
+
+function darken(hex, factor) {
+  const n = parseInt(hex.slice(1), 16)
+  const channel = (shift) => Math.round(((n >> shift) & 255) * factor)
+  return `rgb(${channel(16)}, ${channel(8)}, ${channel(0)})`
+}
 
 function fillPolys(ctx, polys) {
   for (const [color, points] of polys) {
