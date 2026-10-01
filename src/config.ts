@@ -10,6 +10,9 @@ export const CONFIG = {
     // stars and moon stay overhead while the valley closes in.
     fogDensity: 0.016,
     far: 1400,
+    // The longest step one frame may take, in seconds, so a stall never
+    // jumps the valley ahead.
+    maxStep: 0.05,
   },
   player: {
     eyeHeight: 1.7,
@@ -19,6 +22,8 @@ export const CONFIG = {
     crouchSpeed: 2.2,
     scopeSpeedScale: 0.6,
     mouseSensitivity: 0.0023,
+    // How close a pickup must be for E to take it.
+    pickupReach: 2.6,
   },
   shadowmen: {
     count: 14,
@@ -40,6 +45,10 @@ export const CONFIG = {
     // while smoking, but the ember scales the shadowmen's detection range
     // by this while lit and for emberSeconds after.
     emberDetectScale: 1.5,
+    // Walking speed while a cigarette burns.
+    smokingSpeedScale: 0.85,
+    // Camera drift while perception is on.
+    perceptionDrift: 0.5,
   },
   scope: {
     rangeMetres: 250,
@@ -48,6 +57,10 @@ export const CONFIG = {
   raid: {
     // Pick your loadout before the pickup truck leaves.
     loadoutSeconds: 300,
+    // The spawn sits this far from the station, toward the truck.
+    spawnOffset: 12,
+    // The tailgate shop is open within this distance of the spawn station.
+    shopRadius: 25,
   },
   splash: {
     // Northern Information colophon: triangle-wave fade sized to the

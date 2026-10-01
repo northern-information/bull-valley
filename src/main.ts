@@ -169,8 +169,8 @@ async function boot() {
     const dx = truck.x - spawnStation.x
     const dz = truck.z - spawnStation.z
     const len = Math.hypot(dx, dz) || 1
-    world.spawn.x = spawnStation.x + (dx / len) * 12
-    world.spawn.z = spawnStation.z + (dz / len) * 12
+    world.spawn.x = spawnStation.x + (dx / len) * CONFIG.raid.spawnOffset
+    world.spawn.z = spawnStation.z + (dz / len) * CONFIG.raid.spawnOffset
     world.spawn.yaw = Math.atan2(
       -(truck.x - world.spawn.x),
       -(truck.z - world.spawn.z)
@@ -221,7 +221,7 @@ async function boot() {
 
   const nearSpawnStation = () =>
     Math.hypot(spawnStation.x - player.pos.x, spawnStation.z - player.pos.z) <
-    25
+    CONFIG.raid.shopRadius
   const shopOpen = () => raid.state === STATES.LOADOUT && nearSpawnStation()
 
   // Rebuild the ring after anything that changes what you carry or what the
@@ -558,7 +558,7 @@ async function boot() {
   let last = performance.now()
   renderer.setAnimationLoop(() => {
     const now = performance.now()
-    const dt = Math.min(0.05, (now - last) / 1000)
+    const dt = Math.min(CONFIG.render.maxStep, (now - last) / 1000)
     last = now
     time += dt
     // The valley is persistent: once the raid begins, the clock never pauses —
@@ -604,9 +604,9 @@ async function boot() {
       const playerState = player.update(dt, {
         speedScale:
           (scope.raised ? CONFIG.player.scopeSpeedScale : 1) *
-          (smoking ? 0.85 : 1),
+          (smoking ? CONFIG.items.smokingSpeedScale : 1),
         swayAmp: 0,
-        driftAmp: perception ? 0.5 : 0,
+        driftAmp: perception ? CONFIG.items.perceptionDrift : 0,
       })
       forward = playerState.forward
       playerBody.update(dt, {
@@ -707,7 +707,7 @@ async function boot() {
       }
       if (!prompt) {
         // Pickups: offer the nearest within reach.
-        let bestPickup = 2.6
+        let bestPickup = CONFIG.player.pickupReach
         for (const pickup of world.pickups) {
           if (pickup.taken) continue
           const d = Math.hypot(pickup.x - player.pos.x, pickup.z - player.pos.z)
