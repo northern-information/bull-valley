@@ -658,43 +658,113 @@ export function buildSack(seed = 0x5ac4) {
 
 // --- Drinks --------------------------------------------------------------
 
-// Energy drinks: five cans (one slim, four tall) and the NOS bottle. Sizes
-// come from CONTAINERS in drinks.js. Origin at ground level under the
-// middle, label front facing +Z.
-// Even, so the label (which starts at PI) shares vertices with the lathes.
+// The drinks, circa 2008: cans (slim, 12 oz, tall), the NOS bottle, three
+// liquor bottles, the MD 20/20 flask and the Ice Mountain water bottle.
+// Sizes come from CONTAINERS in drinks.js; art from canart.js. Origin at
+// ground level under the middle, label front facing +Z.
+// Even, so a label centered on the front shares vertices with the lathes.
 const DRINK_SEGMENTS = 16
 const DRINK_GLOW_SCALE = 1
 
-// The label, wrapped once around. thetaStart = PI puts the middle of the
-// canvas at +Z, the front.
-function drinkLabel(material, radius, y0, y1) {
+// A label on a round surface, centered on the front (+Z). arc is how far
+// it wraps, in radians; the default goes all the way around, and then the
+// middle of the canvas is the front. Keep arc a multiple of PI / 4 so its
+// edges land on lathe vertices.
+function drinkLabel(material, radius, y0, y1, arc = Math.PI * 2) {
   const geometry = new THREE.CylinderGeometry(
     radius,
     radius,
     y1 - y0,
-    DRINK_SEGMENTS,
+    Math.round((DRINK_SEGMENTS * arc) / (Math.PI * 2)),
     1,
     true,
-    Math.PI
+    -arc / 2,
+    arc
   )
   const label = new THREE.Mesh(geometry, material)
   label.position.y = (y0 + y1) / 2
   return label
 }
 
-function lathe(points, material) {
-  return new THREE.Mesh(
-    new THREE.LatheGeometry(
-      points.map(([r, y]) => new THREE.Vector2(r, y)),
-      DRINK_SEGMENTS
-    ),
+// A flat label on the front face of a square or flat bottle.
+function flatLabel(material, width, y0, y1, z) {
+  const label = new THREE.Mesh(
+    new THREE.PlaneGeometry(width, y1 - y0),
     material
   )
+  label.position.set(0, (y0 + y1) / 2, z)
+  return label
+}
+
+function latheGeometry(points) {
+  return new THREE.LatheGeometry(
+    points.map(([r, y]) => new THREE.Vector2(r, y)),
+    DRINK_SEGMENTS
+  )
+}
+
+function lathe(points, material) {
+  return new THREE.Mesh(latheGeometry(points), material)
+}
+
+// Square up a round lathe: push each vertex out to a superellipse of
+// exponent n, and squash front to back to depth / radius. weight(y) goes
+// from 1 (full shape) to 0 (stays round), so the neck stays a cylinder.
+function squareUp(geometry, { radius, depth, n }, weight) {
+  const pos = geometry.attributes.position
+  const squash = depth / radius
+  for (let i = 0; i < pos.count; i++) {
+    const w = weight(pos.getY(i))
+    if (w <= 0) continue
+    const x = pos.getX(i)
+    const z = pos.getZ(i)
+    const phi = Math.atan2(x, z)
+    const s = Math.abs(Math.sin(phi))
+    const c = Math.abs(Math.cos(phi))
+    const k = 1 / Math.pow(Math.pow(s, n) + Math.pow(c, n), 1 / n)
+    pos.setX(i, x * (1 + (k - 1) * w))
+    pos.setZ(i, z * (1 + (k * squash - 1) * w))
+  }
+  geometry.computeVertexNormals()
+  return geometry
+}
+
+// A lathe profile split at the fill line: the part below and the part
+// above, both including the cut point.
+function splitAt(points, fillY) {
+  const below = []
+  const above = []
+  for (let i = 0; i < points.length; i++) {
+    const [r, y] = points[i]
+    const next = points[i + 1]
+    ;(y <= fillY ? below : above).push([r, y])
+    if (next && y <= fillY && next[1] > fillY) {
+      const t = (fillY - y) / (next[1] - y)
+      const cut = [r + (next[0] - r) * t, fillY]
+      below.push(cut)
+      above.push(cut)
+    }
+  }
+  return { below, above }
+}
+
+function glassMaterial(color = '#d8e6e2', opacity = 0.35) {
+  return lambert({ color, transparent: true, opacity, depthWrite: false })
+}
+
+// A cap: a short cylinder from y0 to y1.
+function cap(material, radius, y0, y1) {
+  const mesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius, radius, y1 - y0, DRINK_SEGMENTS),
+    material
+  )
+  mesh.position.y = (y0 + y1) / 2
+  return mesh
 }
 
 // An aluminium can: necked at the bottom, necked in to a rim at the top,
 // a lid with a tab.
-function canParts(art, size, face, flat) {
+function canParts(art, size, { face, flat }) {
   const { radius: R, height: H } = size
   const bottom = H * 0.05
   const top = H * 0.07
@@ -739,7 +809,7 @@ function canParts(art, size, face, flat) {
 
 // The NOS bottle: blue plastic on five petal feet, a domed shoulder, a
 // neck ring and the orange cap.
-function bottleParts(art, size, face, flat) {
+function nosParts(art, size, { face, flat }) {
   const { radius: R, height: H } = size
   const plastic = flat(art.plastic)
   const foot = 0.024
@@ -771,24 +841,172 @@ function bottleParts(art, size, face, flat) {
     pos.setZ(i, pos.getZ(i) * k)
   }
   body.geometry.computeVertexNormals()
-  const cap = flat(art.cap)
-  const ring = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.0195, 0.0195, 0.003, DRINK_SEGMENTS),
-    plastic
-  )
-  ring.position.y = 0.2055
-  const capH = H - 0.207
   const capMesh = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.0195, 0.018, capH, DRINK_SEGMENTS),
-    cap
+    new THREE.CylinderGeometry(0.0195, 0.018, H - 0.207, DRINK_SEGMENTS),
+    flat(art.cap)
   )
-  capMesh.position.y = 0.207 + capH / 2
+  capMesh.position.y = (0.207 + H) / 2
   return [
     drinkLabel(face(art.wrap), R * 1.012, 0.035, 0.135),
     body,
-    ring,
+    cap(plastic, 0.0195, 0.204, 0.207),
     capMesh,
   ]
+}
+
+// Liquid below the fill line and clear glass above it, as two meshes.
+// shape squares the glass up (see squareUp); round when left out.
+function glassBottle(points, fillY, liquidColor, { flat }, shape) {
+  const { below, above } = splitAt(points, fillY)
+  const meshes = [
+    new THREE.Mesh(latheGeometry(below), flat(liquidColor)),
+    new THREE.Mesh(latheGeometry(above), glassMaterial()),
+  ]
+  if (shape) {
+    for (const mesh of meshes) squareUp(mesh.geometry, shape.size, shape.weight)
+  }
+  return meshes
+}
+
+// Wild Turkey 101: a round fifth with sloped shoulders and a long neck,
+// sealed under a maroon capsule.
+function bourbonParts(art, size, mats) {
+  const { radius: R, height: H } = size
+  const points = [
+    [0, 0.003],
+    [R * 0.92, 0],
+    [R, 0.01],
+    [R, 0.16],
+    [R * 0.93, 0.18],
+    [R * 0.7, 0.198],
+    [0.02, 0.212],
+    [0.0145, 0.222],
+    [0.0145, 0.27],
+  ]
+  return [
+    ...glassBottle(points, 0.226, art.liquid, mats),
+    drinkLabel(mats.face(art.label), R * 1.01, 0.018, 0.155, Math.PI),
+    drinkLabel(mats.face(art.neck), 0.0158, 0.236, H, Math.PI * 2),
+    cap(mats.flat(art.cap), 0.0157, 0.236, H),
+  ]
+}
+
+// Jim Beam: a rounded-square fifth with flat shoulders, a short neck and
+// a white cap.
+function squareParts(art, size, mats) {
+  const { radius: R, depth: D, height: H } = size
+  const points = [
+    [0, 0.003],
+    [R * 0.92, 0],
+    [R, 0.01],
+    [R, 0.2],
+    [R * 0.9, 0.214],
+    [R * 0.55, 0.225],
+    [0.017, 0.232],
+    [0.015, 0.24],
+    [0.015, 0.256],
+  ]
+  const weight = (y) => (y <= 0.2 ? 1 : Math.max(0, 1 - (y - 0.2) / 0.03))
+  const shape = { size: { radius: R, depth: D, n: 4 }, weight }
+  return [
+    ...glassBottle(points, 0.236, art.liquid, mats, shape),
+    flatLabel(mats.face(art.label), R * 1.7, 0.03, 0.15, D + 0.0008),
+    drinkLabel(mats.face(art.neck), 0.0168, 0.24, H),
+    cap(mats.flat(art.cap), 0.0166, 0.24, H),
+  ]
+}
+
+// Grey Goose: a tall frosted bottle, the label printed on the glass, a
+// blue cap.
+function gooseParts(art, size, { face, flat }) {
+  const { radius: R, height: H } = size
+  const body = lathe(
+    [
+      [0, 0.003],
+      [R * 0.95, 0],
+      [R, 0.01],
+      [R, 0.235],
+      [R * 0.93, 0.255],
+      [R * 0.7, 0.275],
+      [0.022, 0.29],
+      [0.017, 0.298],
+      [0.017, 0.31],
+    ],
+    flat(art.frost)
+  )
+  return [
+    body,
+    drinkLabel(face(art.label), R * 1.006, 0.02, 0.235, Math.PI),
+    cap(flat(art.cap), 0.0188, 0.306, H),
+  ]
+}
+
+// MD 20/20: a flat flask with round shoulders and a silver screw cap.
+function flaskParts(art, size, mats) {
+  const { radius: R, depth: D, height: H } = size
+  const points = [
+    [0, 0.003],
+    [R * 0.94, 0],
+    [R, 0.012],
+    [R, 0.17],
+    [R * 0.92, 0.2],
+    [R * 0.7, 0.22],
+    [0.02, 0.232],
+    [0.016, 0.24],
+    [0.016, 0.252],
+  ]
+  const weight = (y) => (y <= 0.17 ? 1 : Math.max(0, 1 - (y - 0.17) / 0.06))
+  const shape = { size: { radius: R, depth: D, n: 3 }, weight }
+  return [
+    ...glassBottle(points, 0.244, art.liquid, mats, shape),
+    flatLabel(mats.cutout(art.label), R * 1.6, 0.03, 0.171, D + 0.0008),
+    cap(mats.flat(art.cap), 0.018, 0.249, H),
+  ]
+}
+
+// Ice Mountain: a ribbed PET bottle of water, a wrap label, a blue cap.
+function waterParts(art, size, { face, flat }) {
+  const { radius: R, height: H } = size
+  const rib = (y) => [
+    [R, y - 0.005],
+    [R * 0.93, y],
+    [R, y + 0.005],
+  ]
+  const body = lathe(
+    [
+      [0, 0.004],
+      [R * 0.8, 0],
+      [R, 0.012],
+      ...rib(0.028),
+      [R, 0.04],
+      [R, 0.115],
+      ...rib(0.127),
+      ...rib(0.142),
+      [R, 0.15],
+      [R * 0.8, 0.172],
+      [0.016, 0.186],
+      [0.0135, 0.19],
+      [0.0135, 0.193],
+    ],
+    glassMaterial(art.water, 0.45)
+  )
+  return [
+    body,
+    drinkLabel(face(art.wrap), R * 1.01, 0.045, 0.112),
+    cap(flat(art.cap), 0.0152, 0.192, H),
+  ]
+}
+
+const DRINK_PARTS = {
+  tall: canParts,
+  slim: canParts,
+  can12: canParts,
+  nos: nosParts,
+  bourbon: bourbonParts,
+  square: squareParts,
+  goose: gooseParts,
+  flask: flaskParts,
+  water: waterParts,
 }
 
 // glow: false leaves out the halo, for close-up views like the inventory.
@@ -800,21 +1018,25 @@ export function buildDrink(drinkId, { glow = true } = {}) {
   const group = new THREE.Group()
   group.name = `drink-${drinkId}`
   const pulse = []
-  const face = (canvasArt) => {
-    const m = packFace(packTexture(canvasArt))
-    pulse.push(m)
-    return m
+  const mats = {
+    face(canvasArt) {
+      const m = packFace(packTexture(canvasArt))
+      pulse.push(m)
+      return m
+    },
+    // A label with see-through margins: the canvas alpha cuts it out.
+    cutout(canvasArt) {
+      const m = mats.face(canvasArt)
+      m.alphaTest = 0.5
+      return m
+    },
+    flat(color) {
+      const m = packFlat(color)
+      pulse.push(m)
+      return m
+    },
   }
-  const flat = (color) => {
-    const m = packFlat(color)
-    pulse.push(m)
-    return m
-  }
-  const parts =
-    drink.container === 'bottle'
-      ? bottleParts(art, size, face, flat)
-      : canParts(art, size, face, flat)
-  group.add(...parts)
+  group.add(...DRINK_PARTS[drink.container](art, size, mats))
   if (glow) {
     const halo = makeGlowSprite(makeGlowTexture(art.glow), DRINK_GLOW_SCALE)
     halo.position.y = size.height * 0.5
