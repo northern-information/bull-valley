@@ -2,6 +2,7 @@
 // body (figure.ts) by slot, adds optional parts from ADDONS, and can stretch
 // limbs with proportions. Edit characters here; the body stays the same.
 
+import type { Vec3 } from './interfaces.ts'
 import type { JointName } from './poses.ts'
 
 // Every outfit colors these; add-ons may use more slots (coat, glasses).
@@ -26,8 +27,6 @@ export type DecalId =
 // Where an outfit prints a decal over the body: across the torso front,
 // across the front of both thighs, or all round both bare arms.
 export type PrintPart = 'torso' | 'thigh' | 'arm'
-
-export type Vec3 = [number, number, number]
 
 // One loft ring: [y, rx, rz, cz] — height, half-width, half-depth and
 // forward shift, in metres.

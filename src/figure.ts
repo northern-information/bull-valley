@@ -18,13 +18,13 @@ import {
 import { paintPrints } from './decalart.ts'
 import { ADDONS, outfitById } from './outfits.ts'
 import { JOINTS } from './poses.ts'
+import type { Vec3 } from './interfaces.ts'
 import type {
   Crescent,
   DecalId,
   LoftRing,
   OutfitId,
   PrintPart,
-  Vec3,
 } from './outfits.ts'
 import type { JointName, PoseSample } from './poses.ts'
 

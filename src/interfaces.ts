@@ -12,6 +12,10 @@ export interface XZ {
 // The ground height in metres at a world point.
 export type HeightAt = (x: number, z: number) => number
 
+// Three numbers as [x, y, z]: a position, a scale, a size, or an Euler
+// rotation in radians.
+export type Vec3 = [number, number, number]
+
 // ---------------------------------------------------------------------------
 // The survey (public/data/bull-valley/geo.json), written by
 // scripts/fetch_bull_valley.cjs. Points are in the unit square: x right/east,

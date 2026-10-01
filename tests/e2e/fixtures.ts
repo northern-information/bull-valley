@@ -1,22 +1,28 @@
 import { test as base, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
+// Collect console errors, failed responses, and uncaught page errors.
+export function watchErrors(page: Page): string[] {
+  const errors: string[] = []
+  page.on('console', (msg) => {
+    // HTTP failures are logged below with their URL.
+    if (msg.text().startsWith('Failed to load resource')) return
+    if (msg.type() === 'error') errors.push(msg.text())
+  })
+  page.on('response', (res) => {
+    // The site has no favicon; Chromium asks for one anyway.
+    if (new URL(res.url()).pathname === '/favicon.ico') return
+    if (res.status() >= 400) errors.push(`${res.status()} ${res.url()}`)
+  })
+  page.on('pageerror', (err) => errors.push(err.message))
+  return errors
+}
+
 // Every spec fails on a console error or an uncaught page error.
 export const test = base.extend<{ errors: string[] }>({
   errors: [
     async ({ page }, use) => {
-      const errors: string[] = []
-      page.on('console', (msg) => {
-        // HTTP failures are logged below with their URL.
-        if (msg.text().startsWith('Failed to load resource')) return
-        if (msg.type() === 'error') errors.push(msg.text())
-      })
-      page.on('response', (res) => {
-        // The site has no favicon; Chromium asks for one anyway.
-        if (new URL(res.url()).pathname === '/favicon.ico') return
-        if (res.status() >= 400) errors.push(`${res.status()} ${res.url()}`)
-      })
-      page.on('pageerror', (err) => errors.push(err.message))
+      const errors = watchErrors(page)
       await use(errors)
       expect(errors).toEqual([])
     },

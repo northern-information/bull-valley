@@ -4,7 +4,7 @@ import {
   createSplashMachine,
   SPLASH_STATES,
   splashAlpha,
-} from '../../src/splash.ts'
+} from '../../src/splashmachine.ts'
 
 const cfg = CONFIG.splash
 
@@ -13,7 +13,7 @@ function makeMachine(startAt = 0) {
   const machine = createSplashMachine({ now: () => t, cfg })
   return {
     machine,
-    setTime(next: number) {
+    setTime: (next: number) => {
       t = next
     },
   }

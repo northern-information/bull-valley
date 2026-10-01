@@ -8,7 +8,7 @@ import { applyPS1 } from './ps1.ts'
 import { mulberry32, range } from './rng.ts'
 import type { DrinkArt } from './canart.ts'
 import type { CanvasArt } from './canvas.ts'
-import type { Container, ContainerKey } from './interfaces.ts'
+import type { Container, ContainerKey, Vec3 } from './interfaces.ts'
 import type { Rng } from './rng.ts'
 
 // Every placed 3D asset in Bull Valley, defined once in asset-local space.
@@ -18,15 +18,13 @@ import type { Rng } from './rng.ts'
 // assets export parts; one-off assets export a builder that returns an
 // Object3D. Building parts consumes no rng, so placement seeds stay put.
 
-export type Vec3Tuple = [number, number, number]
-
 export interface Part {
   name: string
   geometry: THREE.BufferGeometry
   material: THREE.Material | THREE.Material[]
-  position?: Vec3Tuple
-  rotation?: Vec3Tuple
-  scale?: Vec3Tuple
+  position?: Vec3
+  rotation?: Vec3
+  scale?: Vec3
 }
 
 // glow: false leaves out the halo, for close-up views like the inventory.
@@ -89,7 +87,7 @@ export function makeGlowSprite(
 // mid-range instance for the Akashic page.
 export const TREE_CANOPY_LOW = '#1c2f1e'
 export const TREE_CANOPY_HIGH = '#31482a'
-export const TREE_SAMPLE = { trunkH: 3.2, canopyH: 6, canopyR: 2.25, tint: 0.5 }
+const TREE_SAMPLE = { trunkH: 3.2, canopyH: 6, canopyR: 2.25, tint: 0.5 }
 
 export function treeParts() {
   const trunk = new THREE.CylinderGeometry(0.15, 0.3, 1, 5)
@@ -129,7 +127,7 @@ function sampleTree(): THREE.Group {
 
 // --- Utility poles -------------------------------------------------------
 
-export const POLE_SAMPLE = { height: 8.75 }
+const POLE_SAMPLE = { height: 8.75 }
 export const POLE_ARM_DROP = 0.9
 
 export function poleParts() {
@@ -365,7 +363,7 @@ export function buildLandmarkBeacon(
 
 // A real king-size flip-top: 55 × 88 × 22 mm, lid open about 110° so the
 // filter tips show. Origin at ground level under the middle, art facing +Z.
-export const PACK = {
+const PACK = {
   width: 0.055,
   depth: 0.022,
   bodyHeight: 0.066,
@@ -429,7 +427,7 @@ function stickLayout(rng: Rng): StickSpot[] {
 }
 
 // glow: false leaves out the halo, for close-up views like the inventory.
-export function buildCigarettePack(
+function buildCigarettePack(
   brandId: string,
   seed = 0x5ac,
   { glow = true }: PickupOptions = {}
@@ -547,7 +545,7 @@ export function buildCigarettePack(
 // crutch, a lumpy and slightly bent body, a long paper twist that flops to
 // one side, and a pale card crutch (not a tan filter). Origin at the middle
 // of its length, lying along +X with the tip at +X.
-export const JOINT = {
+const JOINT = {
   length: 0.09,
   tipRadius: 0.0085,
   crutchRadius: 0.003,
@@ -636,7 +634,7 @@ function jointPart(
 
 // Three joints dropped in a loose pile, crossed, not lined up like a pack.
 // glow: false leaves out the halo.
-export function buildJoints({ glow = true }: PickupOptions = {}): THREE.Group {
+function buildJoints({ glow = true }: PickupOptions = {}): THREE.Group {
   const pulse: THREE.MeshLambertMaterial[] = []
   const mat = (color: string): THREE.MeshLambertMaterial => {
     const m = lambert({
@@ -853,10 +851,11 @@ interface BottleShape {
 
 // The material makers one drink's parts share, so every material it makes
 // joins the pickup pulse.
+// Function properties, not methods: the builders destructure them.
 export interface DrinkMaterials {
-  face(canvasArt: CanvasArt | undefined): THREE.MeshLambertMaterial
-  cutout(canvasArt: CanvasArt | undefined): THREE.MeshLambertMaterial
-  flat(color: string | undefined): THREE.MeshLambertMaterial
+  face: (canvasArt: CanvasArt | undefined) => THREE.MeshLambertMaterial
+  cutout: (canvasArt: CanvasArt | undefined) => THREE.MeshLambertMaterial
+  flat: (color: string | undefined) => THREE.MeshLambertMaterial
 }
 
 type DrinkPartsBuilder = (
@@ -1319,7 +1318,7 @@ const DRINK_PARTS: Record<ContainerKey, DrinkPartsBuilder> = {
 }
 
 // glow: false leaves out the halo, for close-up views like the inventory.
-export function buildDrink(
+function buildDrink(
   drinkId: string,
   { glow = true }: PickupOptions = {}
 ): THREE.Group {
@@ -1592,7 +1591,7 @@ export function boundaryMaterial(): THREE.LineBasicMaterial {
 // --- Assembly ------------------------------------------------------------
 
 // One Mesh per part in a Group, for a single non-instanced copy.
-export function assembleParts(parts: Part[]): THREE.Group {
+function assembleParts(parts: Part[]): THREE.Group {
   const group = new THREE.Group()
   for (const part of parts) {
     const mesh = new THREE.Mesh(part.geometry, part.material)

@@ -85,7 +85,7 @@ async function boot() {
   // The colophon threshold covers the terrain resolve. Not awaited — the scene builds underneath while it plays, the
   // backdrop stays opaque through the whole logo envelope, and the final
   // reveal tween discloses the intro dialog already waiting beneath.
-  showSplash({ audio, config: CONFIG.splash })
+  void showSplash({ audio, config: CONFIG.splash })
   hud.showIntro(true, false)
   hud.beginBtn.disabled = true
   hud.beginBtn.textContent = 'Resolving Terrain…'
@@ -351,10 +351,9 @@ async function boot() {
   }
   const engagePointer = () => {
     try {
-      const request = hud.canvas.requestPointerLock()
-      if (request && typeof request.catch === 'function') {
-        request.catch(lockRefused)
-      }
+      // Older browsers return undefined instead of a promise.
+      const request: Promise<void> | undefined = hud.canvas.requestPointerLock()
+      request?.catch(lockRefused)
     } catch {
       lockRefused()
     }
@@ -696,4 +695,6 @@ async function boot() {
   }
 }
 
-boot()
+boot().catch((err: unknown) => {
+  console.error('Shadow Wars failed to boot:', err)
+})
