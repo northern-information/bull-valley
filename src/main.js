@@ -33,13 +33,7 @@ import {
 } from './items.js'
 import { ringItems, stepIndex, syncIndex } from './carousel.js'
 import { createInventoryView } from './inventoryview.js'
-import {
-  worldToUnit,
-  unitToWorld,
-  unitToLatLon,
-  formatLatLon,
-  pointSegmentDistance,
-} from './coords.js'
+import { unitToWorld } from './coords.js'
 import { setSnapResolution } from './ps1.js'
 import { mulberry32 } from './rng.js'
 
@@ -205,25 +199,10 @@ async function boot() {
     metres: geo.metres,
     spawn: world.spawn,
   })
-  const scope = new Scope(hud.scopeCanvas)
+  const scope = new Scope(hud.scopeCanvas, hud.phone)
 
   const keep = world.landmarks.find((l) => l.n === KEEP)
   const stand = world.landmarks.find((l) => l.n !== KEEP)
-
-  // Road segments in metres, for the readout's nearest-road line.
-  const roadSegs = []
-  for (const road of geo.roads) {
-    if (!road.n) continue
-    for (let i = 0; i < road.p.length - 1; i++) {
-      roadSegs.push({
-        name: road.n,
-        ax: (road.p[i][0] - 0.5) * geo.metres.width,
-        ay: (road.p[i][1] - 0.5) * geo.metres.height,
-        bx: (road.p[i + 1][0] - 0.5) * geo.metres.width,
-        by: (road.p[i + 1][1] - 0.5) * geo.metres.height,
-      })
-    }
-  }
 
   // --- Game state ----------------------------------------------------------
   let inventory = loadInventory(window.localStorage)
@@ -251,9 +230,6 @@ async function boot() {
   let canBoard = false
   let canBoardExtract = false
   let canUnload = false
-  let readoutTimer = 0
-  let roadTimer = 0
-  let roadName = ''
   const ridingForward = new THREE.Vector3(0, 0, -1)
 
   player.onEdge = () => hud.toast('The valley ends here.')
@@ -373,7 +349,7 @@ async function boot() {
 
   // --- Input ---------------------------------------------------------------
   hud.beginBtn.disabled = false
-  hud.beginBtn.textContent = 'Begin the Raid'
+  hud.beginBtn.textContent = 'Click to Play'
   const startWithoutLock = () => {
     // Automation-only: headless browsers refuse pointer lock and the valley is
     // unwalkable without it. Never engages for a human — a silent no-lock
@@ -396,7 +372,7 @@ async function boot() {
     }
     started = true
     hud.showIntro(false)
-    if (!inventoryOpen) hud.prompt('Click the View to Take the Controls')
+    if (!inventoryOpen) hud.prompt('Click to Resume')
   }
   const engagePointer = () => {
     try {
@@ -616,7 +592,7 @@ async function boot() {
     let forward = ridingForward
     if (raid.state === STATES.RIDING) {
       // The one place the camera leaves player.update(): ride the bed with
-      // free look, keeping player.pos honest for the readout and scope.
+      // free look, keeping player.pos honest for the scope.
       const truckState = truck.update(dt)
       const seat = truck.bedSeat()
       player.relocate(seat.x, seat.z, player.yaw)
@@ -638,13 +614,16 @@ async function boot() {
       truck.update(dt)
     }
 
-    const timers = []
+    let countdown = null
     if (raid.state === STATES.LOADOUT) {
       const left = Math.max(0, Math.ceil(raid.loadoutEndsAt - raidClock))
       const mm = Math.floor(left / 60)
       const ss = String(left % 60).padStart(2, '0')
-      timers.push(`Truck leaves ${mm}:${ss}`)
+      countdown = `${mm}:${ss}`
     }
+    hud.setCountdown(countdown)
+
+    const timers = []
     if (smoking) timers.push(`Smoking ${Math.ceil(smokingUntil - time)}s`)
     else if (ember) timers.push(`Ember ${Math.ceil(emberUntil - time)}s`)
     if (perception)
@@ -734,45 +713,9 @@ async function boot() {
     if (player.locked) {
       hud.prompt(!ended ? prompt : null)
     } else if (started && !ended) {
-      hud.prompt('Click the View to Take the Controls')
+      hud.prompt('Click to Resume')
     } else {
       hud.prompt(null)
-    }
-
-    // Readout, throttled.
-    readoutTimer -= dt
-    roadTimer -= dt
-    if (roadTimer <= 0) {
-      roadTimer = 1
-      roadName = ''
-      let bestRoad = 14
-      for (const seg of roadSegs) {
-        const d = pointSegmentDistance(
-          player.pos.x,
-          player.pos.z,
-          seg.ax,
-          seg.ay,
-          seg.bx,
-          seg.by
-        )
-        if (d < bestRoad) {
-          bestRoad = d
-          roadName = seg.name
-        }
-      }
-    }
-    if (readoutTimer <= 0) {
-      readoutTimer = 0.25
-      const { u, v } = worldToUnit(player.pos.x, player.pos.z, geo.metres)
-      hud.setReadout({
-        pos: formatLatLon(unitToLatLon(u, v, geo.bbox)),
-        clock: new Date().toLocaleTimeString('en-US', {
-          hour12: false,
-          timeZone: 'America/Chicago',
-        }),
-        road: roadName,
-        cabbages: `${raid.carrying}/${carryLimit(raid)} · ${raid.delivered} delivered`,
-      })
     }
 
     sky.position.set(player.pos.x, 0, player.pos.z)

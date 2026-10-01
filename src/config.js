@@ -64,7 +64,7 @@ export const CONFIG = {
     imageSrc:
       '/applied-sciences-and-phantasms-working-division-flourescent.png',
     audioSrc: '/sfx/northern-information.mp3',
-    hint: 'Press Any Key To Begin',
+    hint: 'Click to Play',
   },
   truck: {
     speed: 12, // m/s, about 27 mph — right for gravel-adjacent Bull Valley
