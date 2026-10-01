@@ -92,9 +92,9 @@ export const DRINKS = [
     container: 'goose',
   },
   {
-    id: 'miller-lite',
-    label: 'Miller Lite',
-    blurb: 'The blue can. Great taste, less filling.',
+    id: 'pbr',
+    label: 'Pabst Blue Ribbon',
+    blurb: 'Milwaukee, 1844. The blue ribbon, the red sash. Cheap.',
     container: 'can12',
   },
   {

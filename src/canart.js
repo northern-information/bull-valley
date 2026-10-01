@@ -615,46 +615,84 @@ function greyGoose() {
   return { label, frost, cap: '#1f3f8f', glow: 'rgba(42, 82, 190, 0.4)' }
 }
 
-// --- Miller Lite: the 2008 blue can, the gold oval --------------------------
+// --- Pabst Blue Ribbon: white can, red sash, the blue ribbon badge ----------
 
-function millerLite() {
-  const wrap = canvas(CAN, '#1d3f94')
+function pbr() {
+  const red = '#c8102e'
+  const blue = '#1f3d99'
+  const white = '#f3f4f6'
+  const wrap = canvas(CAN, '#e9ecef')
   {
     const { ctx, w, h } = wrap
-    const shade = ctx.createLinearGradient(0, 0, 0, h)
-    shade.addColorStop(0, 'rgba(255, 255, 255, 0.12)')
-    shade.addColorStop(1, 'rgba(0, 0, 30, 0.35)')
-    ctx.fillStyle = shade
-    ctx.fillRect(0, 0, w, h)
-    ctx.fillStyle = '#d9a93a'
-    ctx.strokeStyle = '#111111'
-    ctx.lineWidth = 3
+    const cx = w / 2
+    ctx.fillStyle = red
+    ctx.fillRect(0, 0, w, 4)
+    ctx.fillRect(0, h - 4, w, 4)
+    text(
+      ctx,
+      'Established in Milwaukee 1844',
+      cx,
+      13,
+      96,
+      8,
+      'italic bold $px Georgia, serif',
+      red
+    )
+    // The red sash, top left to bottom right, behind the badge.
+    ctx.fillStyle = red
     ctx.beginPath()
-    ctx.ellipse(w / 2, h / 2, 32, 64, 0.12, 0, Math.PI * 2)
+    ctx.moveTo(cx - 52, 20)
+    ctx.lineTo(cx - 24, 20)
+    ctx.lineTo(cx + 52, 150)
+    ctx.lineTo(cx + 24, 150)
+    ctx.closePath()
     ctx.fill()
-    ctx.stroke()
-    ctx.save()
-    ctx.translate(w / 2, h / 2)
-    ctx.rotate(-0.35)
-    ctx.font = 'italic bold 15px "Brush Script MT", "Snell Roundhand", cursive'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillStyle = '#c8102e'
-    ctx.fillText('Miller', -4, -26)
-    ctx.font = 'italic 900 30px "Helvetica Neue", Arial, sans-serif'
-    ctx.fillStyle = '#111111'
-    ctx.fillText('Lite', 2, 8)
-    ctx.restore()
-    // The back: MILLER LITE up each edge.
-    for (const x of [10, w - 10]) {
+    // Ribbon tails, notched at the ends.
+    ctx.fillStyle = blue
+    for (const dir of [-1, 1]) {
+      const x = cx + dir * 11
+      ctx.beginPath()
+      ctx.moveTo(x - 10, 92)
+      ctx.lineTo(x + 10, 92)
+      ctx.lineTo(x + 10 + dir * 4, 132)
+      ctx.lineTo(x + dir * 2, 124)
+      ctx.lineTo(x - 10 + dir * 4, 132)
+      ctx.closePath()
+      ctx.fill()
+    }
+    // The rosette: a scalloped blue edge, a white ring, a blue disk.
+    ctx.fillStyle = blue
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * Math.PI * 2
+      ctx.beginPath()
+      ctx.arc(cx + Math.cos(a) * 36, 62 + Math.sin(a) * 36, 5, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.fillStyle = white
+    ctx.beginPath()
+    ctx.arc(cx, 62, 36, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = blue
+    ctx.beginPath()
+    ctx.arc(cx, 62, 31, 0, Math.PI * 2)
+    ctx.fill()
+    text(ctx, 'Pabst', cx, 52, 50, 20, 'italic bold $px Georgia, serif', white)
+    // Blue Ribbon runs wider than the badge, on a blue band.
+    ctx.fillStyle = blue
+    ctx.fillRect(cx - 48, 66, 96, 18)
+    text(ctx, 'Blue Ribbon', cx, 75, 92, 15, SERIF, white)
+    text(ctx, 'BEER', cx, 90, 24, 7, SERIF, white)
+    text(ctx, '12 FL OZ', cx, 144, 40, 6, SANS, '#333333')
+    // The back: PABST BLUE RIBBON up each edge.
+    for (const x of [12, w - 12]) {
       ctx.save()
       ctx.translate(x, h / 2)
       ctx.rotate(-Math.PI / 2)
-      text(ctx, 'MILLER LITE', 0, 0, 120, 12, SANS, '#ffffff')
+      text(ctx, 'PABST BLUE RIBBON', 0, 0, 120, 10, SERIF, blue)
       ctx.restore()
     }
   }
-  return { wrap, metal: SILVER, tab: SILVER, glow: 'rgba(217, 169, 58, 0.4)' }
+  return { wrap, metal: SILVER, tab: SILVER, glow: 'rgba(31, 61, 153, 0.4)' }
 }
 
 // --- Modelo Especial: the pre-2010 cream can, lions and crest ---------------
@@ -830,7 +868,7 @@ const PAINTERS = {
   'wild-turkey': wildTurkey,
   'jim-beam': jimBeam,
   'grey-goose': greyGoose,
-  'miller-lite': millerLite,
+  pbr,
   modelo,
   'md-2020': md2020,
   'ice-mountain': iceMountain,

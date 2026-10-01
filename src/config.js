@@ -118,7 +118,7 @@ export const CONFIG = {
       'wild-turkey': 1,
       'jim-beam': 1,
       'grey-goose': 1,
-      'miller-lite': 3,
+      pbr: 3,
       modelo: 3,
       'md-2020': 1,
       'ice-mountain': 3,
