@@ -1,13 +1,16 @@
 // Matthew Marx's white Chevy: a low-poly pickup that parks, drives road
 // routes, and carries the player in its bed. The mesh is Lambert boxes through
-// the PS1 snap; the driver is a name in toasts, not a model. All route math
-// comes from roadgraph.js — this class just consumes a walker.
+// the PS1 snap, with Matthew Marx at the wheel (the shared body, figure.js),
+// visible through the cab glass. All route math comes from roadgraph.js —
+// this class just consumes a walker.
 
 import * as THREE from 'three'
 import { applyPS1 } from './ps1.js'
 import { lambert, makeGlowTexture, makeGlowSprite } from './assets.js'
 import { createWalker } from './roadgraph.js'
 import { CONFIG } from './config.js'
+import { buildFigure, applyPose } from './figure.js'
+import { samplePose } from './poses.js'
 
 // Local space: the truck faces +Z, origin at ground level under the middle.
 export function buildTruckMesh() {
@@ -15,7 +18,7 @@ export function buildTruckMesh() {
   group.name = 'truck'
   const white = lambert({ color: '#c8ccd2' })
   const dark = lambert({ color: '#14161a' })
-  const glass = lambert({ color: '#0e141d' })
+  const glass = lambert({ color: '#0e141d', transparent: true, opacity: 0.45 })
 
   const add = (geoDef, material, x, y, z) => {
     const mesh = new THREE.Mesh(geoDef, material)
@@ -24,10 +27,23 @@ export function buildTruckMesh() {
     return mesh
   }
 
-  // Hood, cab, bed floor.
+  // Hood, lower cab, bed floor.
   add(new THREE.BoxGeometry(1.9, 0.7, 1.5), white, 0, 1.15, 2.0)
-  add(new THREE.BoxGeometry(1.9, 1.3, 1.7), white, 0, 1.45, 0.75)
-  add(new THREE.BoxGeometry(1.7, 0.55, 0.1), glass, 0, 1.7, 1.62) // windshield
+  add(new THREE.BoxGeometry(1.9, 0.65, 1.7), white, 0, 1.125, 0.75)
+  // Cab greenhouse: roof on four pillars, glass all round.
+  add(new THREE.BoxGeometry(1.9, 0.1, 1.7), white, 0, 2.05, 0.75)
+  for (const [px, pz] of [
+    [0.9, -0.05],
+    [-0.9, -0.05],
+    [0.9, 1.55],
+    [-0.9, 1.55],
+  ]) {
+    add(new THREE.BoxGeometry(0.1, 0.55, 0.1), white, px, 1.725, pz)
+  }
+  add(new THREE.BoxGeometry(1.7, 0.55, 0.04), glass, 0, 1.725, 1.58) // windshield
+  add(new THREE.BoxGeometry(1.7, 0.55, 0.04), glass, 0, 1.725, -0.08) // rear
+  add(new THREE.BoxGeometry(0.04, 0.55, 1.5), glass, 0.92, 1.725, 0.75)
+  add(new THREE.BoxGeometry(0.04, 0.55, 1.5), glass, -0.92, 1.725, 0.75)
   add(new THREE.BoxGeometry(1.9, 0.3, 2.7), white, 0, 0.85, -1.45)
   // Bed walls and tailgate.
   add(new THREE.BoxGeometry(0.12, 0.5, 2.7), white, 0.9, 1.25, -1.45)
@@ -60,6 +76,21 @@ export function buildTruckMesh() {
     sprite.position.set(gx, 1.05, 2.85)
     group.add(sprite)
   }
+
+  // Matthew Marx in the driver seat (left side, +X), hands on the wheel.
+  const steeringGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.04, 8)
+  const wheel = add(steeringGeo, dark, 0.45, 1.46, 1.06)
+  wheel.rotation.x = Math.PI / 2 - 0.35
+  const driver = buildFigure('marx')
+  applyPose(driver, samplePose('sit'))
+  // The low-poly cab is short for a full-size body: shrink him a little and
+  // sit his hips at 1.18 m so his head clears the roof and his boots stay
+  // inside the cab.
+  const driverScale = 0.85
+  driver.group.scale.setScalar(driverScale)
+  driver.group.position.set(0.45, 1.18 - driver.hipY * driverScale, 0.55)
+  group.add(driver.group)
+  group.userData.driver = driver
   return group
 }
 
@@ -75,6 +106,8 @@ export class Truck {
     this.dirX = 0
     this.dirZ = 1
     this.moving = false
+    this.driver = this.group.userData.driver
+    this.time = 0
   }
 
   parkAt(x, z, dirX = 0, dirZ = 1) {
@@ -97,6 +130,10 @@ export class Truck {
   // Advances the current route. Returns { x, z, moving, done } — done is true
   // on the frame the route finishes and stays true until the next route.
   update(dt) {
+    // Matthew Marx glances about now and then.
+    this.time += dt
+    this.driver.joints.neck.rotation.y =
+      Math.sin(this.time * 0.35) * Math.max(0, Math.sin(this.time * 0.11)) * 0.6
     if (this.walker && this.moving) {
       const s = this.walker.advance(this.speed * dt)
       this.x = s.x
