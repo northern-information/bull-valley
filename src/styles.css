@@ -1,18 +1,24 @@
 /* Bull Valley Shadow Wars HUD. Tokens (--fi-*, --bv-*) are declared by the
-   host page (index.html). One face, one ink: every HUD text is Inter in
-   --bv-eggshell, set once on .bv-shell and inherited. Role colors stay on
-   borders, fills, and focus rings only. Dark field, hard edges, offset
-   shadows, 3px cyan focus. */
+   host page (index.html). One face, one size, one ink: every HUD text is
+   Inter at --bv-text-size in --bv-eggshell, set once on .bv-shell and
+   inherited. Role colors stay on borders, fills, and focus rings only.
+   Dark field, hard edges, offset shadows, 3px cyan focus. */
 
 .bv-shell {
   position: fixed;
   inset: 0;
   overflow: hidden;
   font-family: var(--bv-font, 'Inter', system-ui, sans-serif);
-  font-size: var(--bv-text-size, 0.66rem);
+  font-size: var(--bv-text-size, 1rem);
   font-variant-numeric: tabular-nums;
   color: var(--bv-eggshell);
   background: var(--fi-bg);
+}
+
+/* Headings take the one size too, not the UA's 2em / 1.5em. */
+.bv-shell h1,
+.bv-shell h2 {
+  font-size: inherit;
 }
 
 .bv-canvas {
@@ -54,19 +60,18 @@
   border: 1px solid var(--fi-green);
   box-shadow: 4px 4px 0 var(--fi-black-shadow);
   letter-spacing: 0.06em;
-  max-width: 18rem;
+  max-width: calc(100vw - 2rem);
 }
 
 .bv-head h1 {
   margin: 0 0 0.4rem;
-  font-size: 0.72rem;
   text-transform: uppercase;
 }
 
 .bv-head dl {
   margin: 0;
   display: grid;
-  grid-template-columns: 4.6rem 1fr;
+  grid-template-columns: max-content 1fr;
   gap: 0.15rem 0.5rem;
 }
 
@@ -203,7 +208,6 @@
 
 .bv-inventory h2 {
   margin: 0 0 0.6rem;
-  font-size: 0.72rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
@@ -290,7 +294,6 @@
   background: var(--fi-bg);
   border: 1px solid var(--fi-maroon);
   padding: 0.4rem 1rem;
-  font-size: 1rem;
   letter-spacing: 0.3em;
 }
 
@@ -311,7 +314,6 @@
 
 .bv-intro h2 {
   margin: 0;
-  font-size: 1.15rem;
   letter-spacing: 0.28em;
   text-shadow: 4px 4px 0 var(--fi-black-shadow);
 }
@@ -372,9 +374,6 @@
 }
 
 @media (max-width: 900px) {
-  .bv-head {
-    max-width: 12rem;
-  }
   .bv-scope {
     width: 10rem;
     height: 10rem;
@@ -416,7 +415,7 @@
 
 .bv-splash-hint {
   font-family: var(--bv-font, 'Inter', system-ui, sans-serif);
-  font-size: var(--bv-text-size, 0.66rem);
+  font-size: var(--bv-text-size, 1rem);
   color: var(--bv-eggshell);
   opacity: 0.6;
   user-select: none;

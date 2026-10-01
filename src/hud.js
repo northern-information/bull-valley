@@ -110,7 +110,7 @@ ${BRANDS.map(
     this.intro.setAttribute('aria-modal', 'true')
     this.intro.innerHTML = `
       <h2>BULL VALLEY SHADOW WARS</h2>
-      <p class="bv-intro-note">Matthew Marx leaves in five minutes, with or without you.<br>Ride the bed. Find cabbages. Extract.</p>
+      <p class="bv-intro-note">Matthew Marx leaves in five minutes.<br>Ride the bed. Find cabbages. Extract.</p>
       <table class="bv-controls" aria-label="Controls">
         <tr><th>WASD</th><td>Move</td><th>Shift</th><td>Sprint</td></tr>
         <tr><th>Mouse</th><td>Look</td><th>C</th><td>Crouch</td></tr>
@@ -120,12 +120,10 @@ ${BRANDS.map(
       </table>
       <div class="bv-intro-actions">
         <button type="button" class="bv-btn bv-btn--primary" data-bv="begin">Begin the Raid</button>
-        <button type="button" class="bv-btn" data-bv="sound" aria-pressed="true">Sound On</button>
       </div>
       <p class="bv-intro-note bv-intro-fine">Requires a keyboard and mouse.</p>`
     ui.appendChild(this.intro)
     this.beginBtn = this.intro.querySelector('[data-bv="begin"]')
-    this.soundBtn = this.intro.querySelector('[data-bv="sound"]')
 
     this.fields = {}
     for (const dd of root.querySelectorAll('[data-bv]')) {
