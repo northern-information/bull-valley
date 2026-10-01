@@ -54,7 +54,8 @@ function material(color: string): THREE.MeshLambertMaterial {
 
 // One material per decal. A print is a transparent overlay: alphaTest keeps
 // only the painted pixels, and the polygon offset pulls it in front of the
-// shirt it lies on, vertex for vertex.
+// shirt it lies on, vertex for vertex. The cache keys on the id alone, so
+// each decal is either a print or a face, never both.
 const decals = new Map<DecalId, THREE.MeshLambertMaterial>()
 function decalMaterial(id: DecalId, print = false): THREE.MeshLambertMaterial {
   let found = decals.get(id)
