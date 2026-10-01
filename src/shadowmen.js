@@ -8,7 +8,7 @@ import { mulberry32, range, pick } from './rng.js'
 // working around behind you) → hunting (closing) → strike. Staring at one
 // freezes it, but staring too long provokes it.
 
-function makeSilhouetteTexture(rng) {
+export function makeSilhouetteTexture(rng) {
   const canvas = document.createElement('canvas')
   canvas.width = 64
   canvas.height = 128
@@ -64,6 +64,21 @@ function makeSilhouetteTexture(rng) {
   return texture
 }
 
+// The visible figure: a silhouette card, height metres tall, centred on its
+// origin. The perception aura is layered on by Shadowmen.
+export function buildShadowmanFigure(texture, height) {
+  return new THREE.Mesh(
+    new THREE.PlaneGeometry(height / 2, height),
+    new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      alphaTest: 0.3,
+      color: new THREE.Color('#07080c'),
+      side: THREE.DoubleSide,
+    })
+  )
+}
+
 export class Shadowmen {
   constructor({ scene, heightAt, metres, anchors, playerSpawn }) {
     this.heightAt = heightAt
@@ -81,16 +96,7 @@ export class Shadowmen {
     for (let i = 0; i < cfg.count; i++) {
       const texture = pick(this.rng, textures)
       const height = range(this.rng, 2.4, 3.2)
-      const main = new THREE.Mesh(
-        new THREE.PlaneGeometry(height / 2, height),
-        new THREE.MeshBasicMaterial({
-          map: texture,
-          transparent: true,
-          alphaTest: 0.3,
-          color: new THREE.Color('#07080c'),
-          side: THREE.DoubleSide,
-        })
-      )
+      const main = buildShadowmanFigure(texture, height)
       // Perception aura: the same figure, additive violet, fog-proof, only
       // visible while the joint is working.
       const aura = new THREE.Mesh(
