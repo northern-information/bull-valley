@@ -122,7 +122,7 @@
   width: max-content;
 }
 
-/* Scope: a phone in a gloved hand, tilted and cut off by the bottom edge.
+/* Scope: a phone in a low-poly hand, tilted and cut off by the bottom edge.
    The two SVG layers and the screen canvas share the box; the canvas fills
    the screen hole in the art (x 46-154, y 34-242 of a 200 x 360 viewBox). */
 .bv-phone {
@@ -158,14 +158,20 @@
   border-radius: 3px;
 }
 
+/* Pale skin with one shadow facet per part; hard joins, no curves. */
 .bv-hand {
-  fill: #5b4636;
-  stroke: #2b2019;
+  fill: #f2dccb;
+  stroke: #7a5a48;
   stroke-width: 1.5;
+  stroke-linejoin: miter;
+}
+
+.bv-hand-shade {
+  fill: #d9b8a2;
 }
 
 .bv-hand-cuff {
-  fill: #3f3127;
+  fill: #0f172a;
 }
 
 .bv-hand-sleeve {
