@@ -8,11 +8,24 @@
 // Body space: origin at the feet, facing +Z, left side +X.
 
 import * as THREE from 'three'
-import { lambert, makeGlowSprite, makeGlowTexture } from './assets.ts'
+import {
+  artTexture,
+  buildGuitar,
+  lambert,
+  makeGlowSprite,
+  makeGlowTexture,
+} from './assets.ts'
+import { paintPrints } from './decalart.ts'
 import { ADDONS, outfitById } from './outfits.ts'
 import { JOINTS } from './poses.ts'
 import type { Vec3 } from './interfaces.ts'
-import type { LoftRing, OutfitId } from './outfits.ts'
+import type {
+  Crescent,
+  DecalId,
+  LoftRing,
+  OutfitId,
+  PrintPart,
+} from './outfits.ts'
 import type { JointName, PoseSample } from './poses.ts'
 
 // A built body: its root group, one pivot per joint, and the hip height
@@ -43,6 +56,33 @@ function material(color: string): THREE.MeshLambertMaterial {
   if (!found) {
     found = lambert({ color })
     materials.set(color, found)
+  }
+  return found
+}
+
+// One material per decal and outfit, since a painter can use the outfit's
+// colors. A print is a transparent overlay: alphaTest keeps only the painted
+// pixels, and the polygon offset pulls it in front of the part it lies on,
+// vertex for vertex. Each decal is either a print or a face, never both.
+const decals = new Map<string, THREE.MeshLambertMaterial>()
+function decalMaterial(
+  outfitId: OutfitId,
+  ids: readonly DecalId[],
+  print = false
+): THREE.MeshLambertMaterial {
+  const key = `${outfitId}|${ids.join('+')}`
+  let found = decals.get(key)
+  if (!found) {
+    found = lambert({
+      map: artTexture(paintPrints(ids, outfitById(outfitId).colors)),
+      ...(print && {
+        alphaTest: 0.5,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -4,
+      }),
+    })
+    decals.set(key, found)
   }
   return found
 }
@@ -93,6 +133,125 @@ export function loft(
     for (let k = 0; k < sides; k++) {
       index.push(bottom, at(0, k), at(0, k + 1))
       index.push(top, at(last, k + 1), at(last, k))
+    }
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute(
+      'position',
+      new THREE.Float32BufferAttribute(positions, 3)
+    )
+    geometry.setIndex(index)
+    geometry.computeVertexNormals()
+    return geometry
+  })
+}
+
+// A print overlay on loft(rings, sides), with no caps and with UVs that
+// span the part: from its lowest ring to its highest, and either across the
+// front half (front: from +X round to -X, projected straight on, so the
+// canvas spans the widest ring) or once all round (wrap). A print follows
+// the body's facets.
+function printLoft(
+  rings: readonly RingInput[],
+  sides: number,
+  wrap: boolean
+): THREE.BufferGeometry {
+  return cached(`print|${sides}|${wrap}|${JSON.stringify(rings)}`, () => {
+    const sorted = [...rings].sort((a, b) => a[0] - b[0])
+    const bottom = sorted[0][0]
+    const height = sorted[sorted.length - 1][0] - bottom
+    const width = 2 * Math.max(...sorted.map((ring) => ring[1]))
+    // A wrap repeats the first column at the end, so the seam has its own UVs.
+    const around = wrap ? sides + 1 : sides / 2 + 1
+    const positions: number[] = []
+    const uvs: number[] = []
+    const index: number[] = []
+    for (const [y, rx, rz, cz = 0] of sorted) {
+      for (let k = 0; k < around; k++) {
+        const a = (k / sides) * Math.PI * 2
+        const x = Math.cos(a) * rx
+        positions.push(x, y, Math.sin(a) * rz + cz)
+        uvs.push(wrap ? k / sides : 0.5 + x / width, (y - bottom) / height)
+      }
+    }
+    const at = (i: number, k: number) => i * around + k
+    for (let i = 0; i < sorted.length - 1; i++) {
+      for (let k = 0; k < around - 1; k++) {
+        index.push(at(i, k), at(i + 1, k), at(i + 1, k + 1))
+        index.push(at(i, k), at(i + 1, k + 1), at(i, k + 1))
+      }
+    }
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute(
+      'position',
+      new THREE.Float32BufferAttribute(positions, 3)
+    )
+    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2))
+    geometry.setIndex(index)
+    geometry.computeVertexNormals()
+    return geometry
+  })
+}
+
+// How far forward the head or the hair cap reaches at (x, y) in the neck's
+// space: the larger of the two smooth lofts through their rings. The real
+// facets sit inside this, so anything laid on it stays outside the head.
+function headFront(x: number, y: number): number {
+  let front = 0
+  for (const rings of [HEAD, HAIR]) {
+    for (let i = 0; i < rings.length - 1; i++) {
+      const [y0, rx0, rz0, cz0 = 0] = rings[i]
+      const [y1, rx1, rz1, cz1 = 0] = rings[i + 1]
+      if (y < y0 || y > y1) continue
+      const t = (y - y0) / (y1 - y0)
+      const rx = rx0 + (rx1 - rx0) * t
+      const rz = rz0 + (rz1 - rz0) * t
+      const cz = cz0 + (cz1 - cz0) * t
+      const across = Math.max(0, 1 - (x / rx) ** 2)
+      front = Math.max(front, cz + rz * Math.sqrt(across))
+    }
+  }
+  return front
+}
+
+// A crescent of hair, 0.012 m thick, laid on the head: an arch over a circle
+// of the given radius, widest at the apex and pointed at both ends, with its
+// apex at `at` and turned `turn` about Z. Every point sits `lift` in front
+// of the head or hair cap, so the crescent follows the forehead round.
+const CRESCENT_SEGMENTS = 12
+const CRESCENT_DEPTH = 0.012
+function crescent(one: Crescent): THREE.BufferGeometry {
+  return cached(`crescent|${JSON.stringify(one)}`, () => {
+    const { at, turn, radius, sweep, width, lift } = one
+    const cos = Math.cos(turn)
+    const sin = Math.sin(turn)
+    const positions: number[] = []
+    // Four vertices per step: outer and inner edge, back and front.
+    for (let i = 0; i <= CRESCENT_SEGMENTS; i++) {
+      const t = i / CRESCENT_SEGMENTS
+      const a = Math.PI / 2 + sweep / 2 - sweep * t
+      for (const side of [1, -1]) {
+        const r = radius + side * (width / 2) * Math.sin(Math.PI * t)
+        const lx = Math.cos(a) * r
+        const ly = Math.sin(a) * r - radius
+        const x = at[0] + lx * cos - ly * sin
+        const y = at[1] + lx * sin + ly * cos
+        const z = headFront(x, y) + lift
+        positions.push(x, y, z, x, y, z + CRESCENT_DEPTH)
+      }
+    }
+    // Vertex k of step i: 0 outer back, 1 outer front, 2 inner back,
+    // 3 inner front.
+    const v = (i: number, k: number) => i * 4 + k
+    const index: number[] = []
+    const quad = (p: number, q: number, r: number, s: number) => {
+      index.push(p, q, r, p, r, s)
+    }
+    for (let i = 0; i < CRESCENT_SEGMENTS; i++) {
+      const j = i + 1
+      quad(v(i, 3), v(j, 3), v(j, 1), v(i, 1)) // front, facing +Z
+      quad(v(i, 2), v(i, 0), v(j, 0), v(j, 2)) // back
+      quad(v(i, 0), v(i, 1), v(j, 1), v(j, 0)) // outer edge
+      quad(v(i, 2), v(j, 2), v(j, 3), v(i, 3)) // inner edge
     }
     const geometry = new THREE.BufferGeometry()
     geometry.setAttribute(
@@ -162,10 +321,12 @@ function pivot(
 
 // Shapes in each joint's space. Limbs hang down (negative y) from their
 // pivot; the torso and head rise from theirs.
+// The front stays behind the thigh fronts below the waist, so the crotch
+// tucks in between the legs; the back keeps its full seat.
 const PELVIS: RingInput[] = [
   [0.07, 0.15, 0.1],
-  [-0.03, 0.175, 0.115],
-  [-0.11, 0.14, 0.1],
+  [-0.03, 0.175, 0.1, -0.015],
+  [-0.11, 0.13, 0.08, -0.035],
 ]
 const TORSO: RingInput[] = [
   [0, 0.145, 0.095],
@@ -195,6 +356,13 @@ const UPPER_ARM: RingInput[] = [
   [0.02, 0.05, 0.056],
   [-0.08, 0.05, 0.055],
   [-0.32, 0.038, 0.042],
+]
+// A t-shirt sleeve over the top third of the upper arm, a little proud of
+// it and flared at the opening.
+const SHORT_SLEEVE: RingInput[] = [
+  [0.03, 0.056, 0.062],
+  [-0.06, 0.056, 0.061],
+  [-0.12, 0.055, 0.06],
 ]
 const FOREARM: RingInput[] = [
   [0.01, 0.04, 0.042],
@@ -241,13 +409,34 @@ export function buildFigure(
   const pelvis = pivot(group, built, 'pelvis', 0, hipY, 0)
   part(pelvis, loft(PELVIS, 8), c.pants)
 
+  // A part, with the outfit's print for it laid over the top.
+  const printed = (
+    parent: THREE.Object3D,
+    rings: readonly RingInput[],
+    sides: number,
+    color: string,
+    at: PrintPart | null
+  ) => {
+    part(parent, loft(rings, sides), color)
+    const layers = at && outfit.prints?.[at]
+    if (!layers?.length) return
+    parent.add(
+      new THREE.Mesh(
+        printLoft(rings, sides, at === 'arm'),
+        decalMaterial(outfitId, layers, true)
+      )
+    )
+  }
+
   const spine = pivot(pelvis, built, 'spine', 0, 0.07, 0)
-  part(spine, loft(TORSO, 8), c.shirt)
+  printed(spine, TORSO, 8, c.shirt, 'torso')
 
   const neck = pivot(spine, built, 'neck', 0, 0.48, 0)
   part(neck, loft(NECK), c.skin)
   part(neck, loft(HEAD, 8), c.skin)
-  part(neck, loft(HAIR), c.hair)
+  // The hair cap has the head's 8 sides: with 6, the middle of each facet
+  // dipped inside the head and the skin showed through.
+  part(neck, loft(HAIR, 8), outfit.shaved ? c.skin : c.hair)
   // A nose and a brow line: enough for a face to read at PS1 resolution.
   part(neck, box(0.026, 0.045, 0.03), c.skin, 0, 0.17, 0.1)
   part(neck, box(0.13, 0.014, 0.02), c.hair, 0, 0.215, 0.098)
@@ -266,17 +455,39 @@ export function buildFigure(
       0.42,
       0
     )
-    part(shoulder, loft(stretch(UPPER_ARM, arm)), c.shirt)
+    // Bare arm parts take the skin color, and an arm print. A short sleeve
+    // covers the top of a bare upper arm, the way a t-shirt does.
+    const bare = Boolean(outfit.sleeves)
+    const skinOrShirt = bare ? c.skin : c.shirt
+    printed(
+      shoulder,
+      stretch(UPPER_ARM, arm),
+      6,
+      skinOrShirt,
+      bare ? 'arm' : null
+    )
+    if (outfit.sleeves === 'short') {
+      part(shoulder, loft(stretch(SHORT_SLEEVE, arm)), c.shirt)
+    }
     const elbow = pivot(shoulder, built, `elbow${side}`, 0, -upperArm, 0)
-    part(elbow, loft(stretch(FOREARM, arm)), c.shirt)
+    printed(elbow, stretch(FOREARM, arm), 6, skinOrShirt, bare ? 'arm' : null)
     part(elbow, loft(HAND), c.skin, 0, -foreArm, 0)
     part(elbow, box(0.025, 0.05, 0.025), c.skin, 0, -foreArm - 0.035, 0.04)
 
     const hip = pivot(pelvis, built, `hip${side}`, 0.09 * sign, -0.05, 0)
-    part(hip, loft(stretch(THIGH, leg)), c.pants)
+    printed(hip, stretch(THIGH, leg), 6, c.pants, 'thigh')
     const knee = pivot(hip, built, `knee${side}`, 0, -thigh, 0)
     part(knee, loft(stretch(SHIN, leg)), c.pants)
     part(knee, boot(), c.boots, 0, -shin - 0.03, 0.045)
+  }
+
+  // The guitar hangs on the back with its strings out, the body at the left
+  // hip and the neck up behind the right shoulder.
+  if (outfit.onBack === 'guitar') {
+    const guitar = buildGuitar()
+    guitar.position.set(0.07, 0.12, -0.155)
+    guitar.rotation.set(0, Math.PI, -0.45)
+    spine.add(guitar)
   }
 
   // Every joint in JOINTS now has its pivot.
@@ -284,12 +495,36 @@ export function buildFigure(
 
   for (const id of outfit.addons || []) {
     const addon = ADDONS[id]
+    if ('crescents' in addon) {
+      for (const one of addon.crescents) {
+        part(joints[addon.joint], crescent(one), c[addon.slot] as string)
+      }
+      continue
+    }
     const geometry =
       'rings' in addon ? loft(addon.rings, addon.sides) : box(...addon.box)
     const spots: Vec3[] = addon.offsets || [addon.offset || [0, 0, 0]]
     for (const at of spots) {
       // An add-on slot the outfit leaves out has no color, as before.
-      part(joints[addon.joint], geometry, c[addon.slot] as string, ...at)
+      const mesh = part(
+        joints[addon.joint],
+        geometry,
+        c[addon.slot] as string,
+        ...at
+      )
+      if (addon.rotation) mesh.rotation.set(...addon.rotation)
+      // BoxGeometry faces run +X, -X, +Y, -Y, +Z, -Z; the decal takes +Z.
+      if ('decal' in addon && addon.decal) {
+        const plain = mesh.material as THREE.MeshLambertMaterial
+        mesh.material = [
+          plain,
+          plain,
+          plain,
+          plain,
+          decalMaterial(outfitId, [addon.decal]),
+          plain,
+        ]
+      }
     }
   }
 

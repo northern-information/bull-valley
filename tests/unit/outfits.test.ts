@@ -9,8 +9,16 @@ import {
 import { JOINTS } from '../../src/poses.ts'
 
 describe('outfits', () => {
-  it('has the three characters', () => {
-    expect(OUTFIT_IDS).toEqual(['marx', 'player', 'shadow'])
+  it('has the seven characters', () => {
+    expect(OUTFIT_IDS).toEqual([
+      'marx',
+      'player',
+      'shadow',
+      'coleman',
+      'kvistad',
+      'church',
+      'hanson',
+    ])
   })
 
   it('colors every body slot with a hex color', () => {
@@ -36,6 +44,13 @@ describe('outfits', () => {
       if ('rings' in addon) {
         expect(addon.rings.length).toBeGreaterThanOrEqual(2)
         for (const ring of addon.rings) expect(ring).toHaveLength(4)
+      } else if ('crescents' in addon) {
+        expect(addon.crescents.length).toBeGreaterThanOrEqual(1)
+        for (const one of addon.crescents) {
+          expect(one.at).toHaveLength(2)
+          expect(addon.joint).toBe('neck')
+          expect(one.width).toBeLessThan(one.radius * 2)
+        }
       } else {
         expect(addon.box).toHaveLength(3)
       }
