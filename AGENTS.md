@@ -11,7 +11,8 @@ An extraction adventure RPG set in a hauntological Bull Valley, Illinois. 3D fir
 - `npm run lint` / `npm run lint:css` — ESLint (typescript-eslint) and Stylelint
 - `npm test` / `npm run test:watch` / `npm run test:unit:coverage` — vitest unit tests (`tests/unit/`)
 - `npm run test:e2e` — Playwright (`tests/e2e/`) against its own Vite dev server on port 5175; never against `preview`, since the dev hooks exist only in dev builds. First run: `npx playwright install chromium`
-- `npm run pretty` — prettier (sorts imports too); run before every commit
+- `npm run pretty` — prettier (sorts imports too); run before every commit. `npm run format:check` checks without writing
+- CI (`.github/workflows/ci.yml`) runs on every PR to `main` and every push to `main`: format, lint, types, unit tests with coverage, build, and e2e
 - `npm run fetch:data` — regenerate `public/data/bull-valley/` (network: Nominatim, Overpass, AWS terrain tiles; `--reuse-traffic` skips IDOT)
 
 ## The MVP loop
