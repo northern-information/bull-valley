@@ -3,6 +3,7 @@
 // the ring into models; hud.js turns the selected item into text.
 
 import { BRANDS } from './brands.js'
+import { DRINKS, isDrink } from './drinks.js'
 import { carryLimit } from './raid.js'
 
 const JOINTS = {
@@ -14,20 +15,26 @@ const JOINTS = {
 const ORDER = [
   ...BRANDS.map((b) => ({ kind: b.id, label: b.label, blurb: b.blurb })),
   { kind: 'joints', ...JOINTS },
+  ...DRINKS.map((d) => ({ kind: d.id, label: d.label, blurb: d.blurb })),
 ]
 
+// Tailgate stock for one kind.
+function tailgateStock(shop, kind) {
+  if (kind === 'joints') return shop.joints
+  if (isDrink(kind)) return shop.drinks[kind]
+  return shop.cigarettes[kind]
+}
+
 // inv: the inventory; raid: the raid state; shop: the tailgate stock
-// ({ cigarettes, joints, sack }) while the tailgate is open, else null.
-// A kind rides the ring when the player carries it, or when the tailgate
-// has it for sale. Each entry: { kind, label, blurb, stock, tailgate,
+// ({ cigarettes, joints, drinks, sack }) while the tailgate is open, else
+// null. A kind rides the ring when the player carries it, or when the
+// tailgate has it for sale. Drinks have no use yet. Each entry: { kind, label, blurb, stock, tailgate,
 // canUse, canBuy }; tailgate is null away from the tailgate.
 export function ringItems(inv, raid, shop) {
   const items = []
   for (const { kind, label, blurb } of ORDER) {
     const stock = inv[kind] || 0
-    const tailgate = shop
-      ? (kind === 'joints' ? shop.joints : shop.cigarettes[kind]) || 0
-      : null
+    const tailgate = shop ? tailgateStock(shop, kind) || 0 : null
     if (stock < 1 && !(tailgate > 0)) continue
     items.push({
       kind,
@@ -35,7 +42,7 @@ export function ringItems(inv, raid, shop) {
       blurb,
       stock,
       tailgate,
-      canUse: stock > 0,
+      canUse: stock > 0 && !isDrink(kind),
       canBuy: tailgate > 0,
     })
   }

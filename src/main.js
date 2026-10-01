@@ -26,6 +26,7 @@ import {
 import { KEEP } from './landmarks.js'
 import { addItem, useItem, loadInventory, saveInventory } from './inventory.js'
 import { brandById, brandToSmoke, isBrand } from './brands.js'
+import { drinkById, isDrink } from './drinks.js'
 import { ringItems, stepIndex, syncIndex } from './carousel.js'
 import { createInventoryView } from './inventoryview.js'
 import {
@@ -43,7 +44,11 @@ const DATA_BASE = '/data/bull-valley'
 
 function pickupLabel({ kind, count }) {
   if (kind === 'cabbage') return 'Cabbage'
-  const name = isBrand(kind) ? brandById(kind).label : 'Joints'
+  const name = isBrand(kind)
+    ? brandById(kind).label
+    : isDrink(kind)
+      ? drinkById(kind).label
+      : 'Joints'
   return `${name} ×${count}`
 }
 
@@ -230,6 +235,7 @@ async function boot() {
   const shopStock = {
     cigarettes: { ...CONFIG.shop.cigarettes },
     joints: CONFIG.shop.joints,
+    drinks: { ...CONFIG.shop.drinks },
     sack: 1,
   }
   // The carousel: ring entries from carousel.js, the selected slot, and
@@ -360,7 +366,11 @@ async function boot() {
       hud.toast('The burlap sack. Room for five.')
       return
     }
-    const stock = isBrand(kind) ? shopStock.cigarettes : shopStock
+    const stock = isBrand(kind)
+      ? shopStock.cigarettes
+      : isDrink(kind)
+        ? shopStock.drinks
+        : shopStock
     if (stock[kind] < 1) {
       hud.toast('The tailgate is bare.')
       return
@@ -372,7 +382,9 @@ async function boot() {
     hud.toast(
       isBrand(kind)
         ? `One pack of ${brandById(kind).label}, pocketed.`
-        : 'One joint, pocketed.'
+        : isDrink(kind)
+          ? `One ${drinkById(kind).label}, pocketed.`
+          : 'One joint, pocketed.'
     )
   }
 

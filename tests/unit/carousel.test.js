@@ -13,6 +13,14 @@ const empty = { ...STARTING_INVENTORY, marlboro: 0, joints: 0 }
 const shop = {
   cigarettes: { marlboro: 2, camel: 0, parliament: 1, newport: 0, djarum: 0 },
   joints: 2,
+  drinks: {
+    monster: 0,
+    'monster-ultra': 0,
+    'red-bull': 2,
+    'rip-it': 0,
+    rockstar: 0,
+    nos: 0,
+  },
   sack: 1,
 }
 
@@ -37,6 +45,7 @@ describe('ringItems', () => {
       'camel',
       'parliament',
       'joints',
+      'red-bull',
       'sack',
     ])
     const marlboro = items[0]
@@ -52,6 +61,29 @@ describe('ringItems', () => {
   it('leaves tailgate null away from the tailgate', () => {
     const [item] = ringItems({ ...empty, djarum: 1 }, createRaid(0), null)
     expect(item).toMatchObject({ tailgate: null, canUse: true, canBuy: false })
+  })
+
+  it('carries drinks after joints, buyable but never usable', () => {
+    const inv = { ...empty, nos: 1, joints: 1 }
+    const items = ringItems(inv, createRaid(0), shop)
+    expect(kinds(items).slice(-4)).toEqual([
+      'joints',
+      'red-bull',
+      'nos',
+      'sack',
+    ])
+    expect(items.find((item) => item.kind === 'nos')).toMatchObject({
+      stock: 1,
+      tailgate: 0,
+      canUse: false,
+      canBuy: false,
+    })
+    expect(items.find((item) => item.kind === 'red-bull')).toMatchObject({
+      stock: 0,
+      tailgate: 2,
+      canUse: false,
+      canBuy: true,
+    })
   })
 
   it('carries cabbages as read-only cargo', () => {

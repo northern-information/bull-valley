@@ -104,5 +104,14 @@ export const CONFIG = {
       djarum: 2,
     },
     joints: 2,
+    // Cans (and the NOS bottle) per drink.
+    drinks: {
+      monster: 2,
+      'monster-ultra': 2,
+      'red-bull': 2,
+      'rip-it': 2,
+      rockstar: 2,
+      nos: 1,
+    },
   },
 }
