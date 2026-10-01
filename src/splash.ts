@@ -8,15 +8,61 @@
 // machine below is pure (no DOM, no Three) so the timings and latches are
 // unit-testable; showSplash() is the DOM glue.
 
+import type { BvAudio, OneShotEnvelope } from './audio.ts'
+
 export const SPLASH_STATES = {
   PRE_GESTURE: 'PRE_GESTURE',
   RUNNING: 'RUNNING',
   FADING_OUT: 'FADING_OUT',
   DONE: 'DONE',
+} as const
+
+export type SplashState = (typeof SPLASH_STATES)[keyof typeof SPLASH_STATES]
+
+// What gesture() tells the caller to do.
+export type SplashAction = 'start' | 'skip' | null
+
+// The timings the machine reads. The logo envelope is the audio envelope.
+export interface SplashTiming extends OneShotEnvelope {
+  skipFadeMs: number
+  revealFadeMs: number
+}
+
+// CONFIG.splash: the timings plus what showSplash() mounts and plays.
+export interface SplashConfig extends SplashTiming {
+  skipAudioFadeMs: number
+  imageSrc: string
+  audioSrc: string
+  hint: string
+}
+
+// One tick() of the machine. The latches are present only on the tick
+// that fires them.
+export interface SplashFrame {
+  imgAlpha: number
+  rootAlpha: number
+  fadeOutStart?: true
+  complete?: true
+}
+
+export interface SplashMachine {
+  readonly state: SplashState
+  gesture(): SplashAction
+  tick(): SplashFrame
+}
+
+export interface SplashMachineOptions {
+  now: () => number
+  cfg: SplashTiming
+}
+
+export interface ShowSplashOptions {
+  audio: BvAudio
+  config: SplashConfig
 }
 
 // Triangle wave: 0→1 over fadeInMs, hold at 1, 1→0 over fadeOutMs.
-export function splashAlpha(elapsed, cfg) {
+export function splashAlpha(elapsed: number, cfg: OneShotEnvelope): number {
   if (elapsed <= 0) return 0
   if (elapsed < cfg.fadeInMs) return elapsed / cfg.fadeInMs
   const holdEnd = cfg.fadeInMs + cfg.holdMs
@@ -31,11 +77,15 @@ export function splashAlpha(elapsed, cfg) {
 // and backdrop alphas plus fire-once fadeOutStart/complete latches. The
 // backdrop holds at 1 through the whole logo envelope and only tweens out
 // in FADING_OUT — entered naturally (revealFadeMs) or by skip (skipFadeMs).
-export function createSplashMachine({ now, cfg }) {
-  let state = SPLASH_STATES.PRE_GESTURE
-  let startT = null
-  let fadeStartT = null
-  let fadeMs = null
+export function createSplashMachine({
+  now,
+  cfg,
+}: SplashMachineOptions): SplashMachine {
+  let state: SplashState = SPLASH_STATES.PRE_GESTURE
+  // Each is set before the state that reads it is entered.
+  let startT = 0
+  let fadeStartT = 0
+  let fadeMs = 0
   let firedFadeOutStart = false
   let firedComplete = false
 
@@ -66,11 +116,12 @@ export function createSplashMachine({ now, cfg }) {
       if (state === SPLASH_STATES.PRE_GESTURE)
         return { imgAlpha: 0, rootAlpha: 1 }
       if (state === SPLASH_STATES.DONE) return { imgAlpha: 0, rootAlpha: 0 }
-      const result = {}
       if (state === SPLASH_STATES.RUNNING) {
         const elapsed = now() - startT
-        result.imgAlpha = splashAlpha(elapsed, cfg)
-        result.rootAlpha = 1
+        const result: SplashFrame = {
+          imgAlpha: splashAlpha(elapsed, cfg),
+          rootAlpha: 1,
+        }
         if (elapsed >= fadeOutStartMs && !firedFadeOutStart) {
           firedFadeOutStart = true
           result.fadeOutStart = true
@@ -84,8 +135,10 @@ export function createSplashMachine({ now, cfg }) {
         return result
       }
       const elapsed = now() - fadeStartT
-      result.imgAlpha = 0
-      result.rootAlpha = Math.max(0, 1 - elapsed / fadeMs)
+      const result: SplashFrame = {
+        imgAlpha: 0,
+        rootAlpha: Math.max(0, 1 - elapsed / fadeMs),
+      }
       if (elapsed >= fadeMs && !firedComplete) {
         state = SPLASH_STATES.DONE
         firedComplete = true
@@ -99,14 +152,17 @@ export function createSplashMachine({ now, cfg }) {
 // DOM glue. Mounts the overlay as the last child of <body> so DOM order
 // stacks it above the shell, drives opacity from a RAF loop, and resolves
 // once the splash removes itself. Audio failures never block the visual.
-export function showSplash({ audio, config }) {
+export function showSplash({
+  audio,
+  config,
+}: ShowSplashOptions): Promise<void> {
   if (
     import.meta.env.DEV &&
     new URLSearchParams(window.location.search).has('skipSplash')
   ) {
     return Promise.resolve()
   }
-  return new Promise((resolve) => {
+  return new Promise<void>((resolve) => {
     const machine = createSplashMachine({
       now: () => performance.now(),
       cfg: config,
@@ -121,8 +177,8 @@ export function showSplash({ audio, config }) {
     root.appendChild(hint)
     document.body.appendChild(root)
 
-    let rafId = null
-    let img = null
+    let rafId: number | null = null
+    let img: HTMLImageElement | null = null
 
     const cleanup = () => {
       if (rafId !== null) cancelAnimationFrame(rafId)
@@ -153,16 +209,17 @@ export function showSplash({ audio, config }) {
           fadeOutMs: config.fadeOutMs,
         })
         hint.remove()
-        img = document.createElement('img')
-        img.src = config.imageSrc
-        img.alt = 'Northern Information'
-        img.style.opacity = '0'
+        const image = document.createElement('img')
+        img = image
+        image.src = config.imageSrc
+        image.alt = 'Northern Information'
+        image.style.opacity = '0'
         // A missing PNG must not show the broken-image glyph or stall the
         // splash; the timer completes regardless.
-        img.addEventListener('error', () => {
-          img.style.visibility = 'hidden'
+        image.addEventListener('error', () => {
+          image.style.visibility = 'hidden'
         })
-        root.appendChild(img)
+        root.appendChild(image)
         rafId = requestAnimationFrame(frame)
       } else if (action === 'skip') {
         // Cut to black: the image goes at once, the backdrop tweens out

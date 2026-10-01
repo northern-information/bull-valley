@@ -8,13 +8,19 @@ import {
   unitToLatLon,
   unitToWorld,
   worldToUnit,
-} from '../../src/coords.js'
+} from '../../src/coords.ts'
+import type { Bbox, Metres, UnitPoint } from '../../src/interfaces.ts'
 
 // Illustrative fixtures for the pure math, deliberately NOT pinned to the
 // current public/data/bull-valley/geo.json — the game reads bbox and metres
 // at runtime, so the survey frame can change without touching these.
-const METRES = { width: 9300, height: 10670 }
-const BBOX = { south: 42.2775, west: -88.4225, north: 42.374, east: -88.3095 }
+const METRES: Metres = { width: 9300, height: 10670 }
+const BBOX: Bbox = {
+  south: 42.2775,
+  west: -88.4225,
+  north: 42.374,
+  east: -88.3095,
+}
 
 describe('coords', () => {
   it('centres the unit square on the world origin', () => {
@@ -58,7 +64,7 @@ describe('coords', () => {
   })
 
   it('tests points against polygon rings', () => {
-    const square = [
+    const square: UnitPoint[] = [
       [0, 0],
       [1, 0],
       [1, 1],

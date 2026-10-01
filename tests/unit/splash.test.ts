@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { CONFIG } from '../../src/config.js'
+import { CONFIG } from '../../src/config.ts'
 import {
   createSplashMachine,
   SPLASH_STATES,
   splashAlpha,
-} from '../../src/splash.js'
+} from '../../src/splash.ts'
 
 const cfg = CONFIG.splash
 
@@ -13,7 +13,7 @@ function makeMachine(startAt = 0) {
   const machine = createSplashMachine({ now: () => t, cfg })
   return {
     machine,
-    setTime(next) {
+    setTime(next: number) {
       t = next
     },
   }

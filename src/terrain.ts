@@ -1,12 +1,40 @@
 import * as THREE from 'three'
-import { bilinearHeight } from './coords.js'
-import { applyPS1 } from './ps1.js'
+import { bilinearHeight } from './coords.ts'
+import { applyPS1 } from './ps1.ts'
+import type { Geo } from './interfaces.ts'
+
+// The decoded heightmap: size×size heights, normalized 0..1.
+export interface TerrainData {
+  heights: Float32Array
+  size: number
+}
+
+// Ground height in metres at a world (x, z).
+export type HeightAt = (x: number, z: number) => number
+
+export interface HeightField {
+  seg: number
+  // Grid points per side: seg + 1.
+  n: number
+  grid: Float32Array
+  relief: number
+  sample: HeightAt
+}
+
+function context2d(
+  canvas: HTMLCanvasElement,
+  settings?: CanvasRenderingContext2DSettings
+): CanvasRenderingContext2D {
+  const ctx = canvas.getContext('2d', settings)
+  if (!ctx) throw new Error('Canvas 2D context is not available')
+  return ctx
+}
 
 // The committed heightmap: square, 16 bits of normalized elevation packed as
 // R (high byte) + G (low byte), range in geo.json.terrain.
 // See scripts/fetch_bull_valley.cjs.
-export async function loadTerrain(url) {
-  const img = await new Promise((resolve, reject) => {
+export async function loadTerrain(url: string): Promise<TerrainData> {
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image()
     image.onload = () => resolve(image)
     image.onerror = () =>
@@ -17,7 +45,7 @@ export async function loadTerrain(url) {
   const canvas = document.createElement('canvas')
   canvas.width = size
   canvas.height = size
-  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  const ctx = context2d(canvas, { willReadFrequently: true })
   ctx.drawImage(img, 0, 0)
   const { data } = ctx.getImageData(0, 0, size, size)
   const heights = new Float32Array(size * size)
@@ -37,7 +65,11 @@ export async function loadTerrain(url) {
 //
 // seg 480 over the ~15 km frame keeps the grid near the old 240-over-9 km
 // spacing (~31 m per cell).
-export function createHeightField(terrain, geo, seg = 480) {
+export function createHeightField(
+  terrain: TerrainData,
+  geo: Pick<Geo, 'terrain' | 'metres'>,
+  seg = 480
+): HeightField {
   const n = seg + 1
   const relief = geo.terrain.max - geo.terrain.min
   const grid = new Float32Array(n * n)
@@ -53,7 +85,7 @@ export function createHeightField(terrain, geo, seg = 480) {
     n,
     grid,
     relief,
-    sample(x, z) {
+    sample(x: number, z: number) {
       const u = Math.max(0, Math.min(1, x / width + 0.5))
       const v = Math.max(0, Math.min(1, z / height + 0.5))
       return bilinearHeight(grid, n, u, v)
@@ -61,7 +93,10 @@ export function createHeightField(terrain, geo, seg = 480) {
   }
 }
 
-export function buildTerrainMesh(field, geo) {
+export function buildTerrainMesh(
+  field: HeightField,
+  geo: Pick<Geo, 'metres'>
+): THREE.Mesh {
   const { seg, n, grid, relief } = field
   const { width, height } = geo.metres
   const verts = n * n

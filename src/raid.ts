@@ -1,16 +1,17 @@
-// The raid state machine, pure and immutable. main.js holds a single `raid`
+// The raid state machine, pure and immutable. main.ts holds a single `raid`
 // value and replaces it through advance(); an illegal event returns the same
 // reference so callers can detect the rejection. No three.js, no DOM.
 
-import { CONFIG } from './config.js'
-import { itemById } from './items.js'
+import { CONFIG } from './config.ts'
+import { getItem } from './items.ts'
+import type { Raid, RaidEvent, RaidState, RaidSummary } from './interfaces.ts'
 
 export const STATES = {
   LOADOUT: 'LOADOUT',
   RIDING: 'RIDING',
   ON_FOOT: 'ON_FOOT',
   EXTRACTED: 'EXTRACTED',
-}
+} as const satisfies Record<RaidState, RaidState>
 
 export const EVENTS = {
   BOARD_TRUCK: 'BOARD_TRUCK',
@@ -22,9 +23,9 @@ export const EVENTS = {
   BUY_SACK: 'BUY_SACK',
   EXTRACT_FUEL: 'EXTRACT_FUEL',
   EXTRACT_KEEP: 'EXTRACT_KEEP',
-}
+} as const satisfies Record<RaidEvent, RaidEvent>
 
-export function createRaid(now) {
+export function createRaid(now: number): Raid {
   return {
     state: STATES.LOADOUT,
     startedAt: now,
@@ -39,18 +40,30 @@ export function createRaid(now) {
   }
 }
 
-export function carryLimit(raid) {
-  return raid.sack ? itemById('sack').carryLimit : CONFIG.cabbage.carryLimit
+export function carryLimit(raid: Raid): number {
+  return raid.sack ? getItem('sack').carryLimit : CONFIG.cabbage.carryLimit
 }
+
+type AdvanceDetail = string | { arrived: boolean }
 
 // detail: EXTRACT_FUEL passes the station name; BOARD_TRUCK from ON_FOOT
 // passes { arrived: true } once the called truck is close enough to board.
-export function advance(raid, event, now, detail) {
+export function advance(
+  raid: Raid,
+  event: RaidEvent,
+  now: number,
+  detail?: AdvanceDetail
+): Raid {
   const { state } = raid
   switch (event) {
     case EVENTS.BOARD_TRUCK:
       if (state === STATES.LOADOUT) return { ...raid, state: STATES.RIDING }
-      if (state === STATES.ON_FOOT && raid.truckCalled && detail?.arrived) {
+      if (
+        state === STATES.ON_FOOT &&
+        raid.truckCalled &&
+        typeof detail === 'object' &&
+        detail.arrived
+      ) {
         return {
           ...raid,
           state: STATES.EXTRACTED,
@@ -84,7 +97,7 @@ export function advance(raid, event, now, detail) {
         ...raid,
         state: STATES.EXTRACTED,
         extract: 'fuel',
-        extractName: detail || null,
+        extractName: typeof detail === 'string' ? detail : null,
         endedAt: now,
       }
     case EVENTS.EXTRACT_KEEP:
@@ -95,7 +108,7 @@ export function advance(raid, event, now, detail) {
   }
 }
 
-export function summary(raid) {
+export function summary(raid: Raid): RaidSummary {
   return {
     delivered: raid.delivered,
     carrying: raid.carrying,

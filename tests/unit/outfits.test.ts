@@ -5,8 +5,8 @@ import {
   OUTFIT_IDS,
   outfitById,
   OUTFITS,
-} from '../../src/outfits.js'
-import { JOINTS } from '../../src/poses.js'
+} from '../../src/outfits.ts'
+import { JOINTS } from '../../src/poses.ts'
 
 describe('outfits', () => {
   it('has the three characters', () => {
@@ -33,7 +33,7 @@ describe('outfits', () => {
   it('attaches every add-on to a real joint', () => {
     for (const addon of Object.values(ADDONS)) {
       expect(JOINTS).toContain(addon.joint)
-      if (addon.rings) {
+      if ('rings' in addon) {
         expect(addon.rings.length).toBeGreaterThanOrEqual(2)
         for (const ring of addon.rings) expect(ring).toHaveLength(4)
       } else {

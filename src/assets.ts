@@ -1,27 +1,70 @@
 import * as THREE from 'three'
-import { paintDrink } from './canart.js'
-import { CONTAINERS } from './drinks.js'
-import { isCigarette, isDrink, itemById, ITEMS } from './items.js'
-import { paintPack } from './packart.js'
-import { applyPS1 } from './ps1.js'
-import { mulberry32, range } from './rng.js'
+import { paintDrink } from './canart.ts'
+import { CONTAINERS } from './drinks.ts'
+import { isCigarette, isDrink, itemById, ITEMS } from './items.ts'
+import { paintPack } from './packart.ts'
+import { applyPS1 } from './ps1.ts'
+import { mulberry32, range } from './rng.ts'
+import type { DrinkArt } from './canart.ts'
+import type { Container, ContainerKey } from './interfaces.ts'
+import type { CanvasArt } from './packart.ts'
+import type { Rng } from './rng.ts'
 
 // Every placed 3D asset in Bull Valley, defined once in asset-local space.
-// world.js instances these parts across the valley; the Akashic dev page
+// world.ts instances these parts across the valley; the Akashic dev page
 // (/akashic) assembles one of each for inspection. A part is
 // { name, geometry, material, position?, rotation?, scale? }. Instanced
 // assets export parts; one-off assets export a builder that returns an
 // Object3D. Building parts consumes no rng, so placement seeds stay put.
 
-export function lambert(opts) {
+export type Vec3Tuple = [number, number, number]
+
+export interface Part {
+  name: string
+  geometry: THREE.BufferGeometry
+  material: THREE.Material | THREE.Material[]
+  position?: Vec3Tuple
+  rotation?: Vec3Tuple
+  scale?: Vec3Tuple
+}
+
+// glow: false leaves out the halo, for close-up views like the inventory.
+export interface PickupOptions {
+  glow?: boolean
+}
+
+// One entry in the Akashic page's asset list.
+export interface AkashicAsset {
+  id: string
+  label: string
+  build: () => THREE.Object3D
+}
+
+// The 2D context of a canvas, or a clear error if the browser has none.
+function context2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas 2D context is not available')
+  return ctx
+}
+
+// Object3D has no isMesh in its type; this narrows by the runtime flag.
+export function isMesh(o: THREE.Object3D): o is THREE.Mesh {
+  return 'isMesh' in o && o.isMesh === true
+}
+
+export function lambert(
+  opts: THREE.MeshLambertMaterialParameters
+): THREE.MeshLambertMaterial {
   return applyPS1(new THREE.MeshLambertMaterial(opts))
 }
 
-export function makeGlowTexture(color = 'rgba(251, 191, 36, 0.65)') {
+export function makeGlowTexture(
+  color = 'rgba(251, 191, 36, 0.65)'
+): THREE.CanvasTexture {
   const canvas = document.createElement('canvas')
   canvas.width = 64
   canvas.height = 64
-  const ctx = canvas.getContext('2d')
+  const ctx = context2d(canvas)
   const grad = ctx.createRadialGradient(32, 32, 2, 32, 32, 30)
   grad.addColorStop(0, color)
   grad.addColorStop(1, 'rgba(0, 0, 0, 0)')
@@ -30,7 +73,10 @@ export function makeGlowTexture(color = 'rgba(251, 191, 36, 0.65)') {
   return new THREE.CanvasTexture(canvas)
 }
 
-export function makeGlowSprite(map, scale) {
+export function makeGlowSprite(
+  map: THREE.Texture,
+  scale: number
+): THREE.Sprite {
   const sprite = new THREE.Sprite(
     new THREE.SpriteMaterial({
       map,
@@ -71,7 +117,7 @@ export function treeParts() {
   }
 }
 
-function sampleTree() {
+function sampleTree(): THREE.Group {
   const { trunk, canopy } = treeParts()
   const { trunkH, canopyH, canopyR, tint } = TREE_SAMPLE
   canopy.material.color
@@ -109,7 +155,7 @@ export function poleParts() {
   }
 }
 
-function samplePole() {
+function samplePole(): THREE.Group {
   const { pole, arm } = poleParts()
   const h = POLE_SAMPLE.height
   return assembleParts([
@@ -131,10 +177,10 @@ export function reedPart() {
 }
 
 // A small clump, so a 5 cm stalk reads at all.
-function sampleReeds() {
+function sampleReeds(): THREE.Group {
   const reed = reedPart()
   const rng = mulberry32(0x2eed)
-  const parts = []
+  const parts: Part[] = []
   for (let i = 0; i < 12; i++) {
     parts.push({
       ...reed,
@@ -162,11 +208,11 @@ export function gravestonePart() {
 
 // The tall road sign: white panel, orange trimark, blue wordmark. Every
 // station wears it for now, whatever geo.json says its name is.
-function makeCitgoSignTexture() {
+function makeCitgoSignTexture(): THREE.CanvasTexture {
   const canvas = document.createElement('canvas')
   canvas.width = 128
   canvas.height = 96
-  const ctx = canvas.getContext('2d')
+  const ctx = context2d(canvas)
   ctx.fillStyle = '#e9e6dc'
   ctx.fillRect(0, 0, 128, 96)
   ctx.fillStyle = '#f26522'
@@ -260,11 +306,11 @@ export function fuelStationParts() {
   }
 }
 
-// One station at yaw 0, laid out exactly as world.js places them.
-function sampleFuelStation() {
+// One station at yaw 0, laid out exactly as world.ts places them.
+function sampleFuelStation(): THREE.Group {
   const p = fuelStationParts()
   const L = FUEL_LAYOUT
-  const parts = [
+  const parts: Part[] = [
     { ...p.building, position: [-L.buildingSetback, 0, 0] },
     p.canopy,
     { ...p.signPole, position: [L.signDistance, 0, 0] },
@@ -287,7 +333,9 @@ function sampleFuelStation() {
 
 // A tall pole with a lit panel and a big glow, color-coded so it reads
 // across the fog. Origin at ground level.
-export function buildLandmarkBeacon(color) {
+export function buildLandmarkBeacon(
+  color: THREE.ColorRepresentation
+): THREE.Group {
   const group = new THREE.Group()
   // The pole stops at the panel centre, and the panel is deeper than the
   // pole is wide, so the pole top stays hidden inside it.
@@ -334,7 +382,7 @@ export const PACK = {
   glowScale: 0.9,
 }
 
-function packTexture({ c }) {
+function packTexture({ c }: CanvasArt): THREE.CanvasTexture {
   const texture = new THREE.CanvasTexture(c)
   texture.colorSpace = THREE.SRGBColorSpace
   return texture
@@ -342,7 +390,7 @@ function packTexture({ c }) {
 
 // Art that glows through its own emissiveMap, so it reads in the dark; the
 // pickup pulse drives emissiveIntensity.
-function packFace(texture) {
+function packFace(texture: THREE.Texture): THREE.MeshLambertMaterial {
   return lambert({
     map: texture,
     emissive: new THREE.Color('#ffffff'),
@@ -351,7 +399,7 @@ function packFace(texture) {
   })
 }
 
-function packFlat(color) {
+function packFlat(color: string): THREE.MeshLambertMaterial {
   return lambert({
     color,
     emissive: new THREE.Color(color),
@@ -361,10 +409,16 @@ function packFlat(color) {
 
 // Twenty sticks in three staggered rows of 7, 6, 7. Returns tip heights
 // above the collar top: most sit flush, a few ride up out of the pack.
-function stickLayout(rng) {
+interface StickSpot {
+  x: number
+  z: number
+  raised: number
+}
+
+function stickLayout(rng: Rng): StickSpot[] {
   const d = PACK.stickRadius * 2
   const rowGap = PACK.stickRadius * Math.sqrt(3)
-  const spots = []
+  const spots: StickSpot[] = []
   for (const [row, n] of [
     [-1, 7],
     [0, 6],
@@ -381,21 +435,21 @@ function stickLayout(rng) {
 
 // glow: false leaves out the halo, for close-up views like the inventory.
 export function buildCigarettePack(
-  brandId,
+  brandId: string,
   seed = 0x5ac,
-  { glow = true } = {}
-) {
+  { glow = true }: PickupOptions = {}
+): THREE.Group {
   const art = paintPack(brandId)
   const { width: W, depth: D, bodyHeight: BH, lidHeight: LH } = PACK
   const pack = new THREE.Group()
   pack.name = `pack-${brandId}`
-  const pulse = []
-  const face = (canvasArt) => {
+  const pulse: THREE.MeshLambertMaterial[] = []
+  const face = (canvasArt: CanvasArt): THREE.MeshLambertMaterial => {
     const m = packFace(packTexture(canvasArt))
     pulse.push(m)
     return m
   }
-  const flat = (color) => {
+  const flat = (color: string): THREE.MeshLambertMaterial => {
     const m = packFlat(color)
     pulse.push(m)
     return m
@@ -439,7 +493,11 @@ export function buildCigarettePack(
   filterGeo.translate(0, -PACK.filterLength / 2, 0)
   // CylinderGeometry groups: side, top cap, bottom cap.
   const tip = flat(art.stick.tip)
-  const parts = [
+  const parts: [
+    THREE.BufferGeometry,
+    THREE.Material | THREE.Material[],
+    number,
+  ][] = [
     [paperGeo, flat(art.stick.paper), -PACK.filterLength],
     [filterGeo, [flat(art.stick.filter), tip, tip], 0],
   ]
@@ -510,9 +568,9 @@ const JOINT_HOLE = '#2a2418'
 
 // The paper body as a lathe: radius against length, crutch end at y = 0.
 // Lumps come from the seeded rng so each joint in a pile differs.
-function jointBody(rng, length) {
+function jointBody(rng: Rng, length: number): THREE.LatheGeometry {
   const { tipRadius: RT, crutchRadius: RC } = JOINT
-  const points = []
+  const points: THREE.Vector2[] = []
   const steps = 7
   for (let i = 0; i <= steps; i++) {
     const t = i / steps
@@ -535,12 +593,18 @@ function jointBody(rng, length) {
   return geometry.rotateZ(-Math.PI / 2)
 }
 
-function jointPart(rng, paper, crutch, hole) {
+function jointPart(
+  rng: Rng,
+  paper: THREE.Material,
+  crutch: THREE.Material,
+  hole: THREE.Material
+): THREE.Group {
   const { length: L, crutchRadius: RC, tipRadius: RT } = JOINT
   const { crutchLength: CL, twistLength: TL } = JOINT
   const joint = new THREE.Group()
   // CylinderGeometry runs along +Y; rotate so +Y becomes +X (tip end).
-  const toX = (geometry) => geometry.rotateZ(-Math.PI / 2)
+  const toX = <G extends THREE.BufferGeometry>(geometry: G): G =>
+    geometry.rotateZ(-Math.PI / 2)
   const bodyLen = L - CL - TL
   const body = new THREE.Mesh(jointBody(rng, bodyLen), paper)
   body.position.x = -L / 2 + CL
@@ -577,9 +641,9 @@ function jointPart(rng, paper, crutch, hole) {
 
 // Three joints dropped in a loose pile, crossed, not lined up like a pack.
 // glow: false leaves out the halo.
-export function buildJoints({ glow = true } = {}) {
-  const pulse = []
-  const mat = (color) => {
+export function buildJoints({ glow = true }: PickupOptions = {}): THREE.Group {
+  const pulse: THREE.MeshLambertMaterial[] = []
+  const mat = (color: string): THREE.MeshLambertMaterial => {
     const m = lambert({
       color,
       emissive: new THREE.Color(color),
@@ -622,7 +686,7 @@ export function buildJoints({ glow = true } = {}) {
 
 // The tailgate's burlap sack, filled out a little, gathered and tied at the
 // neck. Origin at ground level under the middle. Only seen in the inventory.
-export function buildSack(seed = 0x5ac4) {
+export function buildSack(seed = 0x5ac4): THREE.Group {
   const rng = mulberry32(seed)
   const burlap = lambert({ color: '#8a6d42' })
   const twine = lambert({ color: '#5a4426' })
@@ -660,17 +724,61 @@ export function buildSack(seed = 0x5ac4) {
 
 // The drinks, circa 2008: cans (slim, 12 oz, tall), the NOS bottle, three
 // liquor bottles, the MD 20/20 flask and the Ice Mountain water bottle.
-// Sizes come from CONTAINERS in drinks.js; art from canart.js. Origin at
+// Sizes come from CONTAINERS in drinks.ts; art from canart.ts. Origin at
 // ground level under the middle, label front facing +Z.
 // Even, so a label centered on the front shares vertices with the lathes.
 const DRINK_SEGMENTS = 16
 const DRINK_GLOW_SCALE = 1
 
+// A lathe profile point: [radius, y].
+type ProfilePoint = [number, number]
+
+// The superellipse a round lathe is pushed out to (see squareUp).
+interface SquareSize {
+  radius: number
+  depth: number
+  n: number
+}
+
+interface BottleShape {
+  size: SquareSize
+  weight: (y: number) => number
+}
+
+// The material makers one drink's parts share, so every material it makes
+// joins the pickup pulse.
+export interface DrinkMaterials {
+  face(canvasArt: CanvasArt | undefined): THREE.MeshLambertMaterial
+  cutout(canvasArt: CanvasArt | undefined): THREE.MeshLambertMaterial
+  flat(color: string | undefined): THREE.MeshLambertMaterial
+}
+
+type DrinkPartsBuilder = (
+  art: DrinkArt,
+  size: Container,
+  mats: DrinkMaterials
+) => THREE.Object3D[]
+
+// DrinkArt and Container fields are optional because they differ per
+// container. A builder that reads one its container must have gets it here.
+function need<T>(value: T | undefined, field: string): T {
+  if (value === undefined) {
+    throw new Error(`Drink art or container is missing "${field}"`)
+  }
+  return value
+}
+
 // A label on a round surface, centered on the front (+Z). arc is how far
 // it wraps, in radians; the default goes all the way around, and then the
 // middle of the canvas is the front. Keep arc a multiple of PI / 4 so its
 // edges land on lathe vertices.
-function drinkLabel(material, radius, y0, y1, arc = Math.PI * 2) {
+function drinkLabel(
+  material: THREE.Material,
+  radius: number,
+  y0: number,
+  y1: number,
+  arc = Math.PI * 2
+): THREE.Mesh {
   const geometry = new THREE.CylinderGeometry(
     radius,
     radius,
@@ -687,7 +795,13 @@ function drinkLabel(material, radius, y0, y1, arc = Math.PI * 2) {
 }
 
 // A flat label on the front face of a square or flat bottle.
-function flatLabel(material, width, y0, y1, z) {
+function flatLabel(
+  material: THREE.Material,
+  width: number,
+  y0: number,
+  y1: number,
+  z: number
+): THREE.Mesh {
   const label = new THREE.Mesh(
     new THREE.PlaneGeometry(width, y1 - y0),
     material
@@ -696,21 +810,25 @@ function flatLabel(material, width, y0, y1, z) {
   return label
 }
 
-function latheGeometry(points) {
+function latheGeometry(points: ProfilePoint[]): THREE.LatheGeometry {
   return new THREE.LatheGeometry(
     points.map(([r, y]) => new THREE.Vector2(r, y)),
     DRINK_SEGMENTS
   )
 }
 
-function lathe(points, material) {
+function lathe(points: ProfilePoint[], material: THREE.Material): THREE.Mesh {
   return new THREE.Mesh(latheGeometry(points), material)
 }
 
 // Square up a round lathe: push each vertex out to a superellipse of
 // exponent n, and squash front to back to depth / radius. weight(y) goes
 // from 1 (full shape) to 0 (stays round), so the neck stays a cylinder.
-function squareUp(geometry, { radius, depth, n }, weight) {
+function squareUp(
+  geometry: THREE.BufferGeometry,
+  { radius, depth, n }: SquareSize,
+  weight: (y: number) => number
+): THREE.BufferGeometry {
   const pos = geometry.attributes.position
   const squash = depth / radius
   for (let i = 0; i < pos.count; i++) {
@@ -731,16 +849,19 @@ function squareUp(geometry, { radius, depth, n }, weight) {
 
 // A lathe profile split at the fill line: the part below and the part
 // above, both including the cut point.
-function splitAt(points, fillY) {
-  const below = []
-  const above = []
+function splitAt(
+  points: ProfilePoint[],
+  fillY: number
+): { below: ProfilePoint[]; above: ProfilePoint[] } {
+  const below: ProfilePoint[] = []
+  const above: ProfilePoint[] = []
   for (let i = 0; i < points.length; i++) {
     const [r, y] = points[i]
     const next = points[i + 1]
     ;(y <= fillY ? below : above).push([r, y])
     if (next && y <= fillY && next[1] > fillY) {
       const t = (fillY - y) / (next[1] - y)
-      const cut = [r + (next[0] - r) * t, fillY]
+      const cut: ProfilePoint = [r + (next[0] - r) * t, fillY]
       below.push(cut)
       above.push(cut)
     }
@@ -749,7 +870,11 @@ function splitAt(points, fillY) {
 }
 
 // glow lights the glass from within, so pale plastic stays pale at night.
-function glassMaterial(color = '#d8e6e2', opacity = 0.35, glow = 0) {
+function glassMaterial(
+  color = '#d8e6e2',
+  opacity = 0.35,
+  glow = 0
+): THREE.MeshLambertMaterial {
   return lambert({
     color,
     emissive: new THREE.Color(color),
@@ -761,7 +886,12 @@ function glassMaterial(color = '#d8e6e2', opacity = 0.35, glow = 0) {
 }
 
 // A cap: a short cylinder from y0 to y1.
-function cap(material, radius, y0, y1) {
+function cap(
+  material: THREE.Material,
+  radius: number,
+  y0: number,
+  y1: number
+): THREE.Mesh {
   const mesh = new THREE.Mesh(
     new THREE.CylinderGeometry(radius, radius, y1 - y0, DRINK_SEGMENTS),
     material
@@ -772,7 +902,11 @@ function cap(material, radius, y0, y1) {
 
 // An aluminium can: necked at the bottom, necked in to a rim at the top,
 // a lid with a tab.
-function canParts(art, size, { face, flat }) {
+function canParts(
+  art: DrinkArt,
+  size: Container,
+  { face, flat }: DrinkMaterials
+): THREE.Mesh[] {
   const { radius: R, height: H } = size
   const bottom = H * 0.05
   const top = H * 0.07
@@ -817,7 +951,11 @@ function canParts(art, size, { face, flat }) {
 
 // The NOS bottle: blue plastic on five petal feet, a domed shoulder, a
 // neck ring and the orange cap.
-function nosParts(art, size, { face, flat }) {
+function nosParts(
+  art: DrinkArt,
+  size: Container,
+  { face, flat }: DrinkMaterials
+): THREE.Mesh[] {
   const { radius: R, height: H } = size
   const plastic = flat(art.plastic)
   const foot = 0.024
@@ -864,7 +1002,13 @@ function nosParts(art, size, { face, flat }) {
 
 // Liquid below the fill line and clear glass above it, as two meshes.
 // shape squares the glass up (see squareUp); round when left out.
-function glassBottle(points, fillY, liquidColor, { flat }, shape) {
+function glassBottle(
+  points: ProfilePoint[],
+  fillY: number,
+  liquidColor: string | undefined,
+  { flat }: Pick<DrinkMaterials, 'flat'>,
+  shape?: BottleShape
+): THREE.Mesh[] {
   const { below, above } = splitAt(points, fillY)
   const meshes = [
     new THREE.Mesh(latheGeometry(below), flat(liquidColor)),
@@ -878,9 +1022,13 @@ function glassBottle(points, fillY, liquidColor, { flat }, shape) {
 
 // Wild Turkey 101: a round fifth with sloped shoulders and a long neck,
 // sealed under a maroon capsule.
-function bourbonParts(art, size, mats) {
+function bourbonParts(
+  art: DrinkArt,
+  size: Container,
+  mats: DrinkMaterials
+): THREE.Mesh[] {
   const { radius: R, height: H } = size
-  const points = [
+  const points: ProfilePoint[] = [
     [0, 0.003],
     [R * 0.92, 0],
     [R, 0.01],
@@ -901,9 +1049,13 @@ function bourbonParts(art, size, mats) {
 
 // Miller High Life: a clear 12 oz longneck, a long taper into the neck,
 // gold foil on the neck and a gold crown cap.
-function longneckParts(art, size, mats) {
+function longneckParts(
+  art: DrinkArt,
+  size: Container,
+  mats: DrinkMaterials
+): THREE.Mesh[] {
   const { radius: R, height: H } = size
-  const points = [
+  const points: ProfilePoint[] = [
     [0, 0.003],
     [R * 0.9, 0],
     [R, 0.008],
@@ -923,9 +1075,14 @@ function longneckParts(art, size, mats) {
 
 // Jim Beam: a rounded-square fifth with flat shoulders, a short neck and
 // a white cap.
-function squareParts(art, size, mats) {
-  const { radius: R, depth: D, height: H } = size
-  const points = [
+function squareParts(
+  art: DrinkArt,
+  size: Container,
+  mats: DrinkMaterials
+): THREE.Mesh[] {
+  const { radius: R, height: H } = size
+  const D = need(size.depth, 'depth')
+  const points: ProfilePoint[] = [
     [0, 0.003],
     [R * 0.92, 0],
     [R, 0.01],
@@ -936,7 +1093,8 @@ function squareParts(art, size, mats) {
     [0.015, 0.24],
     [0.015, 0.256],
   ]
-  const weight = (y) => (y <= 0.2 ? 1 : Math.max(0, 1 - (y - 0.2) / 0.03))
+  const weight = (y: number): number =>
+    y <= 0.2 ? 1 : Math.max(0, 1 - (y - 0.2) / 0.03)
   const shape = { size: { radius: R, depth: D, n: 4 }, weight }
   return [
     ...glassBottle(points, 0.236, art.liquid, mats, shape),
@@ -948,7 +1106,11 @@ function squareParts(art, size, mats) {
 
 // Grey Goose: a tall frosted bottle, the label printed on the glass, a
 // blue cap.
-function gooseParts(art, size, { face, flat }) {
+function gooseParts(
+  art: DrinkArt,
+  size: Container,
+  { face, flat }: DrinkMaterials
+): THREE.Mesh[] {
   const { radius: R, height: H } = size
   const body = lathe(
     [
@@ -972,9 +1134,14 @@ function gooseParts(art, size, { face, flat }) {
 }
 
 // MD 20/20: a flat flask with round shoulders and a silver screw cap.
-function flaskParts(art, size, mats) {
-  const { radius: R, depth: D, height: H } = size
-  const points = [
+function flaskParts(
+  art: DrinkArt,
+  size: Container,
+  mats: DrinkMaterials
+): THREE.Mesh[] {
+  const { radius: R, height: H } = size
+  const D = need(size.depth, 'depth')
+  const points: ProfilePoint[] = [
     [0, 0.003],
     [R * 0.94, 0],
     [R, 0.012],
@@ -985,7 +1152,8 @@ function flaskParts(art, size, mats) {
     [0.016, 0.24],
     [0.016, 0.252],
   ]
-  const weight = (y) => (y <= 0.17 ? 1 : Math.max(0, 1 - (y - 0.17) / 0.06))
+  const weight = (y: number): number =>
+    y <= 0.17 ? 1 : Math.max(0, 1 - (y - 0.17) / 0.06)
   const shape = { size: { radius: R, depth: D, n: 3 }, weight }
   return [
     ...glassBottle(points, 0.244, art.liquid, mats, shape),
@@ -995,9 +1163,13 @@ function flaskParts(art, size, mats) {
 }
 
 // Ice Mountain: a ribbed PET bottle of water, a wrap label, a blue cap.
-function waterParts(art, size, { face, flat }) {
+function waterParts(
+  art: DrinkArt,
+  size: Container,
+  { face, flat }: DrinkMaterials
+): THREE.Mesh[] {
   const { radius: R, height: H } = size
-  const rib = (y) => [
+  const rib = (y: number): ProfilePoint[] => [
     [R, y - 0.005],
     [R * 0.93, y],
     [R, y + 0.005],
@@ -1027,7 +1199,7 @@ function waterParts(art, size, { face, flat }) {
   ]
 }
 
-const DRINK_PARTS = {
+const DRINK_PARTS: Record<ContainerKey, DrinkPartsBuilder> = {
   tall: canParts,
   slim: canParts,
   can12: canParts,
@@ -1041,17 +1213,20 @@ const DRINK_PARTS = {
 }
 
 // glow: false leaves out the halo, for close-up views like the inventory.
-export function buildDrink(drinkId, { glow = true } = {}) {
+export function buildDrink(
+  drinkId: string,
+  { glow = true }: PickupOptions = {}
+): THREE.Group {
   const drink = isDrink(drinkId) ? itemById(drinkId) : null
-  if (!drink) throw new Error(`Unknown drink "${drinkId}"`)
+  if (!drink?.container) throw new Error(`Unknown drink "${drinkId}"`)
   const art = paintDrink(drinkId)
   const size = CONTAINERS[drink.container]
   const group = new THREE.Group()
   group.name = `drink-${drinkId}`
-  const pulse = []
-  const mats = {
+  const pulse: THREE.MeshLambertMaterial[] = []
+  const mats: DrinkMaterials = {
     face(canvasArt) {
-      const m = packFace(packTexture(canvasArt))
+      const m = packFace(packTexture(need(canvasArt, 'label canvas')))
       pulse.push(m)
       return m
     },
@@ -1062,7 +1237,7 @@ export function buildDrink(drinkId, { glow = true } = {}) {
       return m
     },
     flat(color) {
-      const m = packFlat(color)
+      const m = packFlat(need(color, 'color'))
       pulse.push(m)
       return m
     },
@@ -1080,13 +1255,17 @@ export function buildDrink(drinkId, { glow = true } = {}) {
 // --- Pickups -------------------------------------------------------------
 
 // Every pickup lists the materials the game loop pulses in
-// userData.pulseMaterials. Kinds: 'cabbage', or an item id from items.js.
+// userData.pulseMaterials. Kinds: 'cabbage', or an item id from items.ts.
 // glow: false leaves out the halo on packs, joints, and drinks.
-export function buildPickup(kind, seed, { glow = true } = {}) {
+export function buildPickup(
+  kind: string,
+  seed?: number,
+  { glow = true }: PickupOptions = {}
+): THREE.Object3D {
   if (isCigarette(kind)) return buildCigarettePack(kind, seed, { glow })
   if (kind === 'joints') return buildJoints({ glow })
   if (isDrink(kind)) return buildDrink(kind, { glow })
-  let mesh
+  let mesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshLambertMaterial>
   if (kind === 'cabbage') {
     const sphere = new THREE.SphereGeometry(0.35, 6, 5)
     sphere.translate(0, 0.35, 0)
@@ -1108,7 +1287,7 @@ export function buildPickup(kind, seed, { glow = true } = {}) {
 // --- Assembly ------------------------------------------------------------
 
 // One Mesh per part in a Group, for a single non-instanced copy.
-export function assembleParts(parts) {
+export function assembleParts(parts: Part[]): THREE.Group {
   const group = new THREE.Group()
   for (const part of parts) {
     const mesh = new THREE.Mesh(part.geometry, part.material)
@@ -1123,8 +1302,8 @@ export function assembleParts(parts) {
 
 // Registry for the Akashic page, in cycle order. Truck and shadowman
 // builders come in from their own modules to keep this file free of game
-// state; see src/akashic.js.
-export const WORLD_ASSETS = [
+// state; see src/akashic.ts.
+export const WORLD_ASSETS: AkashicAsset[] = [
   { id: 'citgo-station', label: 'Citgo station', build: sampleFuelStation },
   { id: 'tree', label: 'Tree', build: sampleTree },
   { id: 'pole', label: 'Utility pole', build: samplePole },
@@ -1161,11 +1340,11 @@ export const WORLD_ASSETS = [
 
 // Bounds from meshes only: glow sprites are unit planes scaled up, and would
 // frame a camera on empty air.
-export function meshBounds(object) {
+export function meshBounds(object: THREE.Object3D): THREE.Box3 {
   const box = new THREE.Box3()
   object.updateMatrixWorld(true)
   object.traverse((o) => {
-    if (o.isMesh) box.expandByObject(o)
+    if (isMesh(o)) box.expandByObject(o)
   })
   return box
 }

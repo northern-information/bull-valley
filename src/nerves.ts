@@ -4,10 +4,17 @@
 // hunting entities weigh triple). Smoking a cigarette drains the meter fast;
 // weed perception dulls the gain — you feel less than is true, which is the
 // trade the joint makes.
+export interface NervesStep {
+  dt: number
+  pressure?: number
+  smoking?: boolean
+  perception?: boolean
+}
+
 export function stepNerves(
-  nerves,
-  { dt, pressure = 0, smoking = false, perception = false }
-) {
+  nerves: number,
+  { dt, pressure = 0, smoking = false, perception = false }: NervesStep
+): number {
   const gainScale = perception ? 0.45 : 1
   const gain = pressure * 10 * gainScale
   const decay = smoking ? 10 : 1.4
@@ -17,7 +24,7 @@ export function stepNerves(
 
 // How hard the view sways and vignettes for a given nerves level, eased so the
 // bottom third of the meter stays imperceptible.
-export function nervesIntensity(nerves) {
+export function nervesIntensity(nerves: number): number {
   const t = Math.max(0, (nerves - 30) / 70)
   return t * t
 }

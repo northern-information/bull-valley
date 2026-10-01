@@ -1,24 +1,67 @@
 // Pure: every character outfit in one table. An outfit colors the shared
-// body (figure.js) by slot, adds optional parts from ADDONS, and can stretch
+// body (figure.ts) by slot, adds optional parts from ADDONS, and can stretch
 // limbs with proportions. Edit characters here; the body stays the same.
 
+import type { JointName } from './poses.ts'
+
 // Every outfit colors these; add-ons may use more slots (coat, glasses).
-export const BODY_SLOTS = ['skin', 'hair', 'shirt', 'pants', 'boots']
+export const BODY_SLOTS = ['skin', 'hair', 'shirt', 'pants', 'boots'] as const
+
+export type BodySlot = (typeof BODY_SLOTS)[number]
+export type ColorSlot = BodySlot | 'coat' | 'glasses'
+
+export type Vec3 = [number, number, number]
+
+// One loft ring: [y, rx, rz, cz] — height, half-width, half-depth and
+// forward shift, in metres.
+export type LoftRing = [number, number, number, number]
+
+interface AddonBase {
+  joint: JointName
+  slot: ColorSlot
+  offset?: Vec3
+  offsets?: Vec3[]
+}
+
+export interface LoftAddon extends AddonBase {
+  rings: LoftRing[]
+  sides?: number
+}
+
+export interface BoxAddon extends AddonBase {
+  box: Vec3
+}
+
+export type Addon = LoftAddon | BoxAddon
+
+export type AddonId =
+  'beard' | 'dreadlocks' | 'glasses' | 'glasses-arms' | 'coat-hem' | 'hood'
+
+export type LimbGroup = 'arm' | 'leg'
+
+export interface Outfit {
+  label: string
+  colors: Record<BodySlot, string> & Partial<Record<ColorSlot, string>>
+  addons: AddonId[]
+  proportions?: Partial<Record<LimbGroup, number>>
+}
+
+export type OutfitId = 'marx' | 'player' | 'shadow'
 
 // Dreadlocks hang from a ring round the back and sides of the head, leaving
 // the face clear. Angles are around the head from +X toward +Z (the face).
 const LOC_ANGLES = [-20, 0, 20, 160, 180, 200, 220, 245, 270, 295, 320, 340]
-const LOC_ROOTS = LOC_ANGLES.map((deg) => {
+const LOC_ROOTS = LOC_ANGLES.map((deg): Vec3 => {
   const a = (deg * Math.PI) / 180
   return [Math.cos(a) * 0.09, 0.27, Math.sin(a) * 0.1 - 0.012]
 })
 
-// Extra parts on the body. joint names a pivot from poses.js JOINTS; slot
+// Extra parts on the body. joint names a pivot from poses.ts JOINTS; slot
 // picks the color. A part is either a loft (rings of [y, rx, rz, cz]: height,
 // half-width, half-depth and forward shift, in metres, the same shape
-// language as the body in figure.js; sides defaults to 6) or a box (size).
+// language as the body in figure.ts; sides defaults to 6) or a box (size).
 // offset places it in the joint's space; offsets places one copy at each.
-export const ADDONS = {
+export const ADDONS: Record<AddonId, Addon> = {
   beard: {
     joint: 'neck',
     slot: 'hair',
@@ -79,7 +122,7 @@ export const ADDONS = {
 }
 
 // proportions scale the length of each limb group (1 = the base body).
-export const OUTFITS = {
+export const OUTFITS: Record<OutfitId, Outfit> = {
   marx: {
     label: 'Matthew Marx',
     colors: {
@@ -115,15 +158,15 @@ export const OUTFITS = {
       coat: '#07080c',
     },
     addons: ['hood'],
-    // "Arms: too long" — the silhouette cards in shadowmen.js.
+    // "Arms: too long" — the silhouette cards in shadowmen.ts.
     proportions: { arm: 1.4, leg: 1.12 },
   },
 }
 
-export const OUTFIT_IDS = Object.keys(OUTFITS)
+export const OUTFIT_IDS = Object.keys(OUTFITS) as OutfitId[] // the keys of a Record<OutfitId, …>
 
-export function outfitById(id) {
-  const outfit = OUTFITS[id]
+export function outfitById(id: string): Outfit {
+  const outfit: Outfit | undefined = OUTFITS[id as OutfitId] // checked below
   if (!outfit) throw new Error(`Unknown outfit: ${id}`)
   return outfit
 }

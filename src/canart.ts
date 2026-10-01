@@ -1,6 +1,6 @@
 // Canvas art for the drinks, as they looked circa 2008: the iconic trade
 // dress of each, drawn small enough to survive the PS1 downscale. One
-// painter per drink returns the label canvases assets.js maps onto the
+// painter per drink returns the label canvases assets.ts maps onto the
 // container, plus flat colors for the metal, glass, liquid, cap and glow:
 //   wrap   a label once around. The front of the container is the middle
 //          of the canvas; the back is the left and right edges. Cans are
@@ -10,21 +10,53 @@
 //          flat on a square one.
 //   neck   a band around a bottle neck.
 
-import { canvas, SANS, SERIF, text } from './packart.js'
-import { mulberry32 } from './rng.js'
+import { canvas, SANS, SERIF, text } from './packart.ts'
+import { mulberry32 } from './rng.ts'
+import type { CanvasArt, CanvasSize } from './packart.ts'
 
-const CAN = [224, 160]
-const BOTTLE = [240, 100]
+// Everything one drink's painter returns. Which fields are present depends
+// on the container: cans have wrap, metal and tab; bottles have label, cap
+// and usually neck and liquid.
+export interface DrinkArt {
+  wrap?: CanvasArt
+  label?: CanvasArt
+  neck?: CanvasArt
+  metal?: string
+  tab?: string
+  lid?: string
+  plastic?: string
+  cap?: string
+  liquid?: string
+  frost?: string
+  water?: string
+  glow: string
+}
+
+export type DrinkPainter = () => DrinkArt
+
+// A point on the canvas: [x, y].
+type Point = [number, number]
+
+const CAN: CanvasSize = [224, 160]
+const BOTTLE: CanvasSize = [240, 100]
 const SILVER = '#c3c7cd'
 
 // --- Monster: three torn claw marks ------------------------------------------
 
 // One claw mark: a tapered stroke with torn edges, wide at the top. The
 // zigzag is fixed (no rng) so every can matches.
-function claw(ctx, x, y0, y1, width, fill, outline) {
+function claw(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y0: number,
+  y1: number,
+  width: number,
+  fill: string,
+  outline?: string
+): void {
   const steps = 9
-  const left = []
-  const right = []
+  const left: Point[] = []
+  const right: Point[] = []
   for (let i = 0; i <= steps; i++) {
     const t = i / steps
     const y = y0 + (y1 - y0) * t
@@ -48,13 +80,19 @@ function claw(ctx, x, y0, y1, width, fill, outline) {
   }
 }
 
-function claws(ctx, cx, top, fill, outline) {
+function claws(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  top: number,
+  fill: string,
+  outline?: string
+): void {
   claw(ctx, cx - 17, top, top + 58, 13, fill, outline)
   claw(ctx, cx, top - 2, top + 70, 14, fill, outline)
   claw(ctx, cx + 17, top + 2, top + 52, 12, fill, outline)
 }
 
-function monster() {
+function monster(): DrinkArt {
   const green = '#7ac142'
   const wrap = canvas(CAN, '#0d0d0d')
   {
@@ -71,7 +109,7 @@ function monster() {
   return { wrap, metal: SILVER, tab: green, glow: 'rgba(122, 193, 66, 0.4)' }
 }
 
-function monsterUltra() {
+function monsterUltra(): DrinkArt {
   const wrap = canvas(CAN, '#f4f5f6')
   {
     const { ctx, w, h } = wrap
@@ -99,7 +137,13 @@ function monsterUltra() {
 
 // --- Red Bull: blue and silver blocks, two bulls ----------------------------
 
-function bull(ctx, x, y, dir, color) {
+function bull(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  dir: number,
+  color: string
+): void {
   // Side-on, head down, charging toward the sun: body, head, horn, legs.
   ctx.fillStyle = color
   ctx.beginPath()
@@ -115,7 +159,7 @@ function bull(ctx, x, y, dir, color) {
   for (const lx of [-8, -4, 4]) ctx.fillRect(x + dir * lx, y + 3, 2, 6)
 }
 
-function redBull() {
+function redBull(): DrinkArt {
   const blue = '#1c2f8f'
   const red = '#d6133f'
   const wrap = canvas(CAN, SILVER)
@@ -126,7 +170,7 @@ function redBull() {
     ctx.fillStyle = blue
     const split = h * 0.56
     for (const cx of [0, w / 2, w]) {
-      const at = (y) => cx + 22 - 44 * (y / h)
+      const at = (y: number): number => cx + 22 - 44 * (y / h)
       ctx.beginPath()
       ctx.moveTo(cx - w / 4, 0)
       ctx.lineTo(at(0), 0)
@@ -155,7 +199,7 @@ function redBull() {
 
 // --- Rip It: gunmetal, a red X, the slanted logo ----------------------------
 
-function ripIt() {
+function ripIt(): DrinkArt {
   const red = '#c4142a'
   const wrap = canvas(CAN, '#2b2e33')
   {
@@ -210,7 +254,13 @@ function ripIt() {
 
 // --- Rockstar: black, a gold star with RR -----------------------------------
 
-function star(ctx, cx, cy, outer, inner) {
+function star(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  outer: number,
+  inner: number
+): void {
   ctx.beginPath()
   for (let i = 0; i < 10; i++) {
     const r = i % 2 ? inner : outer
@@ -220,7 +270,7 @@ function star(ctx, cx, cy, outer, inner) {
   ctx.closePath()
 }
 
-function rockstar() {
+function rockstar(): DrinkArt {
   const gold = '#d9a92c'
   const red = '#d23a3a'
   const wrap = canvas(CAN, '#0e0e0e')
@@ -265,7 +315,7 @@ function rockstar() {
 
 // --- NOS: the orange label on a blue bottle ---------------------------------
 
-function nos() {
+function nos(): DrinkArt {
   const orange = '#f25a1d'
   const lime = '#d5e83a'
   const wrap = canvas(BOTTLE, orange)
@@ -322,7 +372,14 @@ function nos() {
 // --- Four Loko: camo, a giant FOUR up the can, script Loko ------------------
 
 // Camo blobs in three colors over a base, seeded so every can matches.
-function camo(ctx, w, h, base, colors, seed) {
+function camo(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  base: string,
+  colors: string[],
+  seed: number
+): void {
   ctx.fillStyle = base
   ctx.fillRect(0, 0, w, h)
   const rng = mulberry32(seed)
@@ -341,7 +398,13 @@ function camo(ctx, w, h, base, colors, seed) {
   }
 }
 
-function fourLoko(flavor, base, colors, seed, glow) {
+function fourLoko(
+  flavor: string,
+  base: string,
+  colors: string[],
+  seed: number,
+  glow: string
+): DrinkPainter {
   return () => {
     const wrap = canvas(CAN)
     const { ctx, w, h } = wrap
@@ -386,7 +449,7 @@ function fourLoko(flavor, base, colors, seed, glow) {
 
 // --- Wild Turkey 101: the 1999–2011 label, the bird in full color -----------
 
-function turkey(ctx, x, y) {
+function turkey(ctx: CanvasRenderingContext2D, x: number, y: number): void {
   // Standing, facing left: fanned tail, bronze body, bare neck, red wattle.
   ctx.fillStyle = '#5a3a20'
   ctx.beginPath()
@@ -408,7 +471,7 @@ function turkey(ctx, x, y) {
   ctx.fillRect(x - 9, y - 26, 3, 6)
 }
 
-function wildTurkey() {
+function wildTurkey(): DrinkArt {
   const cream = '#efe6c8'
   const maroon = '#7a1e22'
   const ink = '#1d1a14'
@@ -467,7 +530,7 @@ function wildTurkey() {
 
 // --- Jim Beam: the pre-2016 white label and red seal -------------------------
 
-function jimBeam() {
+function jimBeam(): DrinkArt {
   const red = '#b22234'
   const gold = '#c9a043'
   const ink = '#1a1a1a'
@@ -534,7 +597,7 @@ function jimBeam() {
 
 // --- Grey Goose: frosted glass, the window of geese over the Alps -----------
 
-function greyGoose() {
+function greyGoose(): DrinkArt {
   const frost = '#dfe6ec'
   const blue = '#2a52be'
   const red = '#c8102e'
@@ -617,7 +680,7 @@ function greyGoose() {
 
 // --- Pabst Blue Ribbon: white can, red sash, the blue ribbon badge ----------
 
-function pbr() {
+function pbr(): DrinkArt {
   const red = '#c8102e'
   const blue = '#1f3d99'
   const white = '#f3f4f6'
@@ -697,7 +760,7 @@ function pbr() {
 
 // --- Miller High Life: white label, red script, gold neck foil -------------
 
-function highLife() {
+function highLife(): DrinkArt {
   const red = '#c8102e'
   const gold = '#c9a043'
   const ink = '#2a1d12'
@@ -768,7 +831,13 @@ function highLife() {
 
 // --- Modelo Especial: the pre-2010 cream can, lions and crest ---------------
 
-function lion(ctx, x, y, dir, color) {
+function lion(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  dir: number,
+  color: string
+): void {
   // Rampant, facing the wordmark: body, mane, raised paws, tail.
   ctx.fillStyle = color
   ctx.beginPath()
@@ -783,7 +852,7 @@ function lion(ctx, x, y, dir, color) {
   ctx.fillRect(x - dir * 7, y + 2, dir * 4, 2)
 }
 
-function modelo() {
+function modelo(): DrinkArt {
   const navy = '#1b2a5c'
   const gold = '#c9a24a'
   const wrap = canvas(CAN, '#f3efe2')
@@ -822,7 +891,7 @@ function modelo() {
 
 // --- MD 20/20 Banana Red: the black square on a red flask -------------------
 
-function md2020() {
+function md2020(): DrinkArt {
   const gold = '#c9a043'
   const red = '#d0202e'
   // Transparent margins: the flask shows around the label.
@@ -865,7 +934,7 @@ function md2020() {
 
 // --- Ice Mountain: the blue wrap, a snowy peak ------------------------------
 
-function iceMountain() {
+function iceMountain(): DrinkArt {
   const blue = '#1e5aa8'
   const wrap = canvas([240, 80], blue)
   {
@@ -908,7 +977,7 @@ function iceMountain() {
   }
 }
 
-const PAINTERS = {
+const PAINTERS: Partial<Record<string, DrinkPainter>> = {
   monster,
   'monster-ultra': monsterUltra,
   'red-bull': redBull,
@@ -947,7 +1016,7 @@ const PAINTERS = {
 }
 
 // Fresh canvases on every call, so each container owns its art.
-export function paintDrink(drinkId) {
+export function paintDrink(drinkId: string): DrinkArt {
   const painter = PAINTERS[drinkId]
   if (!painter) throw new Error(`No can art for drink "${drinkId}"`)
   return painter()

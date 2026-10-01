@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { CONFIG } from '../../src/config.js'
-import { CONTAINERS } from '../../src/drinks.js'
+import { CONFIG } from '../../src/config.ts'
+import { CONTAINERS } from '../../src/drinks.ts'
 import {
   CIGARETTE_IDS,
   cigaretteToSmoke,
+  getItem,
   INVENTORY_KINDS,
   isCigarette,
   isDrink,
@@ -12,7 +13,8 @@ import {
   itemById,
   ITEMS,
   shopStock,
-} from '../../src/items.js'
+} from '../../src/items.ts'
+import type { Item } from '../../src/interfaces.ts'
 
 describe('items', () => {
   it('has unique ids and a known category', () => {
@@ -26,6 +28,7 @@ describe('items', () => {
     expect(CIGARETTE_IDS).toHaveLength(5)
     for (const id of CIGARETTE_IDS) {
       const item = itemById(id)
+      if (!item) throw new Error(`no item ${id}`)
       expect(item.smokeSeconds).toBeGreaterThan(0)
       expect(item.emberSeconds).toBeGreaterThan(0)
       expect(item.shopCap).toBeGreaterThan(0)
@@ -35,14 +38,15 @@ describe('items', () => {
   it('gives every counted item its text and a starting count', () => {
     for (const id of INVENTORY_KINDS) {
       const item = itemById(id)
-      const keys = ['label', 'blurb', 'bought']
+      if (!item) throw new Error(`no item ${id}`)
+      const keys: (keyof Item)[] = ['label', 'blurb', 'bought']
       if (isUsable(id)) keys.push('used', 'empty')
       for (const key of keys) {
         expect(item[key], `${id}.${key}`).toBeTruthy()
       }
       expect(Number.isInteger(item.start), `${id}.start`).toBe(true)
     }
-    expect(itemById('joints').perceptionSeconds).toBeGreaterThan(0)
+    expect(getItem('joints').perceptionSeconds).toBeGreaterThan(0)
   })
 
   it('gives every drink a known container and a shop cap, and no use', () => {
@@ -58,7 +62,7 @@ describe('items', () => {
 
   it('keeps gear out of the inventory', () => {
     expect(INVENTORY_KINDS).not.toContain('sack')
-    expect(itemById('sack').carryLimit).toBeGreaterThan(
+    expect(getItem('sack').carryLimit).toBeGreaterThan(
       CONFIG.cabbage.carryLimit
     )
   })
@@ -67,7 +71,7 @@ describe('items', () => {
     expect(isCigarette('djarum')).toBe(true)
     expect(isCigarette('joints')).toBe(false)
     expect(isCigarette('nope')).toBe(false)
-    expect(itemById('newport').label).toBe('Newports')
+    expect(getItem('newport').label).toBe('Newports')
     expect(itemById('nope')).toBeNull()
   })
 

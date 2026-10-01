@@ -3,7 +3,58 @@
 // nerves, and item sounds. One exception to the no-audio-files rule ships
 // with the game: the Northern Information splash mp3, played via playOneShot.
 
+// Older Safari has only the prefixed constructor.
+interface WebkitAudioWindow {
+  AudioContext: typeof AudioContext
+  webkitAudioContext?: typeof AudioContext
+}
+
+// Triangle gain envelope for a one-shot: 0->1, hold, 1->0.
+export interface OneShotEnvelope {
+  fadeInMs: number
+  holdMs: number
+  fadeOutMs: number
+}
+
+export interface BurstOptions {
+  duration: number
+  filterType: BiquadFilterType
+  frequency: number
+  gain: number
+  sweepTo?: number
+}
+
+export interface ToneOptions {
+  frequency: number
+  duration: number
+  gain: number
+  type?: OscillatorType
+  sweepTo?: number
+}
+
+export interface UseOptions {
+  crackle?: boolean
+}
+
+interface OneShot {
+  src: AudioBufferSourceNode
+  gain: GainNode
+}
+
 export class BvAudio {
+  ctx: AudioContext | null
+  master: GainNode | null = null
+  noiseBuffer: AudioBuffer | null = null
+  staticGain: GainNode | null = null
+  muted: boolean
+  bedsStarted: boolean
+  oneShot: OneShot | null
+  oneShotSeq: number
+  tickTimer: number
+  heartTimer: number
+  presence: number
+  heartbeat: number
+
   constructor() {
     this.ctx = null
     this.muted = false
@@ -19,12 +70,13 @@ export class BvAudio {
   // Context + master gain only, no ambient beds. Must be called from a
   // user gesture. The splash uses this so its cue can play without wind
   // and static arriving early; init() layers the beds on top.
-  initContext() {
+  initContext(): void {
     if (this.ctx) {
       this.ctx.resume()
       return
     }
-    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    const win: WebkitAudioWindow = window
+    const ctx = new (win.AudioContext || win.webkitAudioContext)()
     this.ctx = ctx
     this.master = ctx.createGain()
     this.master.gain.value = this.muted ? 0 : 0.8
@@ -37,11 +89,14 @@ export class BvAudio {
   }
 
   // Must be called from a user gesture.
-  init() {
+  init(): void {
     this.initContext()
     if (this.bedsStarted) return
     this.bedsStarted = true
     const ctx = this.ctx
+    const master = this.master
+    // initContext() always sets both; this only narrows the types.
+    if (!ctx || !master) return
 
     // Wind: looped noise through a slow-wobbling lowpass.
     const wind = ctx.createBufferSource()
@@ -52,7 +107,7 @@ export class BvAudio {
     windFilter.frequency.value = 320
     const windGain = ctx.createGain()
     windGain.gain.value = 0.05
-    wind.connect(windFilter).connect(windGain).connect(this.master)
+    wind.connect(windFilter).connect(windGain).connect(master)
     wind.start()
     const lfo = ctx.createOscillator()
     lfo.frequency.value = 0.11
@@ -70,11 +125,11 @@ export class BvAudio {
     statFilter.frequency.value = 1400
     this.staticGain = ctx.createGain()
     this.staticGain.gain.value = 0
-    stat.connect(statFilter).connect(this.staticGain).connect(this.master)
+    stat.connect(statFilter).connect(this.staticGain).connect(master)
     stat.start()
   }
 
-  setMuted(muted) {
+  setMuted(muted: boolean): void {
     this.muted = muted
     if (this.master) this.master.gain.value = muted ? 0 : 0.8
   }
@@ -83,9 +138,13 @@ export class BvAudio {
   // Routed through the master gain so the mute toggle stays authoritative.
   // Fetch/decode failures are swallowed: the visual is authoritative and a
   // missing mp3 must never block the splash.
-  async playOneShot(url, { fadeInMs, holdMs, fadeOutMs }) {
-    if (!this.ctx) return
+  async playOneShot(
+    url: string,
+    { fadeInMs, holdMs, fadeOutMs }: OneShotEnvelope
+  ): Promise<void> {
+    if (!this.ctx || !this.master) return
     const ctx = this.ctx
+    const master = this.master
     // stopOneShot can race the fetch/decode (skip before the cue loads); the
     // token invalidates the in-flight request so a dismissed cue never starts.
     const seq = ++this.oneShotSeq
@@ -102,7 +161,7 @@ export class BvAudio {
         0,
         t0 + (fadeInMs + holdMs + fadeOutMs) / 1000
       )
-      gain.connect(this.master)
+      gain.connect(master)
       const src = ctx.createBufferSource()
       src.buffer = buffer
       src.connect(gain)
@@ -118,7 +177,7 @@ export class BvAudio {
     }
   }
 
-  stopOneShot(fadeMs) {
+  stopOneShot(fadeMs: number): void {
     this.oneShotSeq++
     const shot = this.oneShot
     this.oneShot = null
@@ -130,8 +189,14 @@ export class BvAudio {
     shot.src.stop(t0 + fadeMs / 1000)
   }
 
-  burst({ duration, filterType, frequency, gain, sweepTo }) {
-    if (!this.ctx) return
+  burst({
+    duration,
+    filterType,
+    frequency,
+    gain,
+    sweepTo,
+  }: BurstOptions): void {
+    if (!this.ctx || !this.master) return
     const ctx = this.ctx
     const src = ctx.createBufferSource()
     src.buffer = this.noiseBuffer
@@ -151,8 +216,14 @@ export class BvAudio {
     src.start(ctx.currentTime, Math.random(), duration + 0.05)
   }
 
-  tone({ frequency, duration, gain, type = 'sine', sweepTo }) {
-    if (!this.ctx) return
+  tone({
+    frequency,
+    duration,
+    gain,
+    type = 'sine',
+    sweepTo,
+  }: ToneOptions): void {
+    if (!this.ctx || !this.master) return
     const ctx = this.ctx
     const osc = ctx.createOscillator()
     osc.type = type
@@ -171,7 +242,7 @@ export class BvAudio {
     osc.stop(ctx.currentTime + duration + 0.05)
   }
 
-  step(sprinting) {
+  step(sprinting: boolean): void {
     this.burst({
       duration: 0.07,
       filterType: 'lowpass',
@@ -180,7 +251,7 @@ export class BvAudio {
     })
   }
 
-  use(kind, { crackle = false } = {}) {
+  use(kind: string, { crackle = false }: UseOptions = {}): void {
     // Lighter flick ×2, then the joint gets a longer crackle and a clove
     // kretek a run of short pops.
     this.burst({
@@ -227,12 +298,12 @@ export class BvAudio {
     }
   }
 
-  pickup() {
+  pickup(): void {
     this.tone({ frequency: 660, duration: 0.09, gain: 0.08, type: 'square' })
     this.tone({ frequency: 880, duration: 0.14, gain: 0.06, type: 'square' })
   }
 
-  strike() {
+  strike(): void {
     this.burst({
       duration: 1.1,
       filterType: 'highpass',
@@ -248,18 +319,18 @@ export class BvAudio {
     })
   }
 
-  setPresence(presence) {
+  setPresence(presence: number): void {
     this.presence = Math.max(0, Math.min(1, presence))
     if (this.staticGain) {
       this.staticGain.gain.value = this.presence * 0.22
     }
   }
 
-  setHeartbeat(intensity) {
+  setHeartbeat(intensity: number): void {
     this.heartbeat = Math.max(0, Math.min(1, intensity))
   }
 
-  update(dt) {
+  update(dt: number): void {
     if (!this.ctx) return
     // Contact ticks, Geiger-paced by presence.
     this.tickTimer -= dt * (0.15 + this.presence * 7)

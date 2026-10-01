@@ -1,12 +1,13 @@
 // Drink containers and how views size them. The drinks themselves (names,
-// flavor text, shop caps, which container) are entries in items.js.
+// flavor text, shop caps, which container) are entries in items.ts.
 // Pure, no Three.
 
-import { itemById } from './items.js'
+import { itemById } from './items.ts'
+import type { Container, ContainerKey } from './interfaces.ts'
 
 // Containers, in metres. radius is half the width; depth, when present, is
 // half the front-to-back size of a flat or square bottle.
-export const CONTAINERS = {
+export const CONTAINERS: Record<ContainerKey, Container> = {
   tall: { radius: 0.033, height: 0.168 }, // 16 oz can
   slim: { radius: 0.0265, height: 0.134 }, // 250 ml can
   can12: { radius: 0.033, height: 0.122 }, // 12 oz can
@@ -22,17 +23,19 @@ export const CONTAINERS = {
 // Cans and bottles each share one scale in a view, set by the tallest of
 // their family, so sizes stay true within a family. One scale for all
 // would shrink a 16 oz can to half a Grey Goose bottle.
-const CANS = ['tall', 'slim', 'can12']
+const CANS: readonly ContainerKey[] = ['tall', 'slim', 'can12']
 
-function familyOf(container) {
-  return CANS.includes(container) ? 'can' : 'bottle'
+type Family = 'can' | 'bottle'
+
+function familyOf(container: ContainerKey | undefined): Family {
+  return container && CANS.includes(container) ? 'can' : 'bottle'
 }
 
 // The height a view fits this drink's family to.
-export function drinkFitHeight(id) {
-  const family = familyOf(itemById(id).container)
+export function drinkFitHeight(id: string): number {
+  const family = familyOf(itemById(id)?.container)
   return Math.max(
-    ...Object.entries(CONTAINERS)
+    ...(Object.entries(CONTAINERS) as [ContainerKey, Container][])
       .filter(([name]) => familyOf(name) === family)
       .map(([, c]) => c.height)
   )

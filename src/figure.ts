@@ -2,44 +2,81 @@
 // Solid: rigid parts on joint pivots, each part a tapered low-poly loft
 // (rings of 6 or 8 sides) with smooth normals, so Lambert lighting shades it
 // like Gouraud-shaded hardware. Every character is this body in a different
-// outfit (outfits.js), posed and animated from poses.js. Materials go through
+// outfit (outfits.ts), posed and animated from poses.ts. Materials go through
 // the PS1 snap, the same way the truck is built.
 //
 // Body space: origin at the feet, facing +Z, left side +X.
 
 import * as THREE from 'three'
-import { lambert, makeGlowSprite, makeGlowTexture } from './assets.js'
-import { ADDONS, outfitById } from './outfits.js'
-import { JOINTS } from './poses.js'
+import { lambert, makeGlowSprite, makeGlowTexture } from './assets.ts'
+import { ADDONS, outfitById } from './outfits.ts'
+import { JOINTS } from './poses.ts'
+import type { LoftRing, OutfitId, Vec3 } from './outfits.ts'
+import type { JointName, PoseSample } from './poses.ts'
 
-// One material per color and one geometry per shape, shared by every figure.
-const materials = new Map()
-function material(color) {
-  if (!materials.has(color)) materials.set(color, lambert({ color }))
-  return materials.get(color)
+// A built body: its root group, one pivot per joint, and the hip height
+// that poses lift from.
+export interface Figure {
+  group: THREE.Group
+  joints: Record<JointName, THREE.Group>
+  hipY: number
 }
 
-const geometries = new Map()
-function cached(key, build) {
-  if (!geometries.has(key)) geometries.set(key, build())
-  return geometries.get(key)
+export interface FigureOptions {
+  // false hides the head and everything on the neck.
+  head?: boolean
+}
+
+// The lit cigarette; call update(t) every frame with a running time.
+export interface CigaretteRig {
+  update(t: number): void
+}
+
+// A loft ring, with the forward shift optional.
+type RingInput = [number, number, number, number?]
+
+// One material per color and one geometry per shape, shared by every figure.
+const materials = new Map<string, THREE.MeshLambertMaterial>()
+function material(color: string): THREE.MeshLambertMaterial {
+  let found = materials.get(color)
+  if (!found) {
+    found = lambert({ color })
+    materials.set(color, found)
+  }
+  return found
+}
+
+const geometries = new Map<string, THREE.BufferGeometry>()
+function cached(
+  key: string,
+  build: () => THREE.BufferGeometry
+): THREE.BufferGeometry {
+  let found = geometries.get(key)
+  if (!found) {
+    found = build()
+    geometries.set(key, found)
+  }
+  return found
 }
 
 // A closed loft through rings of [y, rx, rz, cz]: an elliptical cross
 // section of half-width rx and half-depth rz, shifted cz forward, at height
 // y. Sides are flat facets; normals are shared, so the shading is smooth.
-export function loft(rings, sides = 6) {
+export function loft(
+  rings: readonly RingInput[],
+  sides = 6
+): THREE.BufferGeometry {
   return cached(`${sides}|${JSON.stringify(rings)}`, () => {
     const sorted = [...rings].sort((a, b) => a[0] - b[0])
-    const positions = []
-    const index = []
+    const positions: number[] = []
+    const index: number[] = []
     for (const [y, rx, rz, cz = 0] of sorted) {
       for (let k = 0; k < sides; k++) {
         const a = (k / sides) * Math.PI * 2
         positions.push(Math.cos(a) * rx, y, Math.sin(a) * rz + cz)
       }
     }
-    const at = (i, k) => i * sides + (k % sides)
+    const at = (i: number, k: number) => i * sides + (k % sides)
     for (let i = 0; i < sorted.length - 1; i++) {
       for (let k = 0; k < sides; k++) {
         index.push(at(i, k), at(i + 1, k), at(i + 1, k + 1))
@@ -67,12 +104,12 @@ export function loft(rings, sides = 6) {
   })
 }
 
-function box(w, h, d) {
+function box(w: number, h: number, d: number): THREE.BufferGeometry {
   return cached(`box|${w}|${h}|${d}`, () => new THREE.BoxGeometry(w, h, d))
 }
 
 // A boot: a box whose toe end is lower and narrower.
-function boot() {
+function boot(): THREE.BufferGeometry {
   return cached('boot', () => {
     const geometry = new THREE.BoxGeometry(0.11, 0.1, 0.25)
     const pos = geometry.attributes.position
@@ -88,18 +125,32 @@ function boot() {
 }
 
 // Ring y values scale with a limb's length; widths stay.
-function stretch(rings, s) {
-  return rings.map(([y, rx, rz, cz = 0]) => [y * s, rx, rz, cz])
+function stretch(rings: readonly RingInput[], s: number): LoftRing[] {
+  return rings.map(([y, rx, rz, cz = 0]): LoftRing => [y * s, rx, rz, cz])
 }
 
-function part(parent, geometry, color, x = 0, y = 0, z = 0) {
+function part(
+  parent: THREE.Object3D,
+  geometry: THREE.BufferGeometry,
+  color: string,
+  x = 0,
+  y = 0,
+  z = 0
+): THREE.Mesh {
   const mesh = new THREE.Mesh(geometry, material(color))
   mesh.position.set(x, y, z)
   parent.add(mesh)
   return mesh
 }
 
-function pivot(parent, joints, name, x, y, z) {
+function pivot(
+  parent: THREE.Object3D,
+  joints: Partial<Record<JointName, THREE.Group>>,
+  name: JointName,
+  x: number,
+  y: number,
+  z: number
+): THREE.Group {
   const node = new THREE.Group()
   node.name = name
   node.position.set(x, y, z)
@@ -110,23 +161,23 @@ function pivot(parent, joints, name, x, y, z) {
 
 // Shapes in each joint's space. Limbs hang down (negative y) from their
 // pivot; the torso and head rise from theirs.
-const PELVIS = [
+const PELVIS: RingInput[] = [
   [0.07, 0.15, 0.1],
   [-0.03, 0.175, 0.115],
   [-0.11, 0.14, 0.1],
 ]
-const TORSO = [
+const TORSO: RingInput[] = [
   [0, 0.145, 0.095],
   [0.14, 0.16, 0.105, 0.005],
   [0.3, 0.195, 0.12, 0.015],
   [0.43, 0.205, 0.105, 0],
   [0.5, 0.09, 0.07, -0.005],
 ]
-const NECK = [
+const NECK: RingInput[] = [
   [-0.02, 0.05, 0.05],
   [0.09, 0.045, 0.05, 0.005],
 ]
-const HEAD = [
+const HEAD: RingInput[] = [
   [0.07, 0.05, 0.05, 0.03],
   [0.1, 0.075, 0.085, 0.02],
   [0.17, 0.088, 0.1, 0.005],
@@ -134,41 +185,44 @@ const HEAD = [
   [0.28, 0.078, 0.092, -0.005],
   [0.305, 0.035, 0.045, -0.01],
 ]
-const HAIR = [
+const HAIR: RingInput[] = [
   [0.19, 0.097, 0.11, -0.012],
   [0.27, 0.094, 0.108, -0.006],
   [0.315, 0.05, 0.06, -0.01],
 ]
-const UPPER_ARM = [
+const UPPER_ARM: RingInput[] = [
   [0.02, 0.05, 0.056],
   [-0.08, 0.05, 0.055],
   [-0.32, 0.038, 0.042],
 ]
-const FOREARM = [
+const FOREARM: RingInput[] = [
   [0.01, 0.04, 0.042],
   [-0.08, 0.045, 0.047],
   [-0.28, 0.029, 0.032],
 ]
 // Flipper hand: one mitten, flat across the palm.
-const HAND = [
+const HAND: RingInput[] = [
   [0, 0.022, 0.035],
   [-0.07, 0.02, 0.045],
   [-0.13, 0.012, 0.03],
 ]
-const THIGH = [
+const THIGH: RingInput[] = [
   [0.02, 0.085, 0.09],
   [-0.16, 0.08, 0.085],
   [-0.44, 0.05, 0.055],
 ]
-const SHIN = [
+const SHIN: RingInput[] = [
   [0.01, 0.05, 0.055],
   [-0.11, 0.055, 0.062, -0.012],
   [-0.38, 0.034, 0.038],
 ]
 
-// { group, joints, hipY }. head: false hides the head and everything on the
-// neck, for the first-person player body.
-export function buildFigure(outfitId, { head = true } = {}) {
+// head: false hides the head and everything on the neck, for the
+// first-person player body.
+export function buildFigure(
+  outfitId: OutfitId,
+  { head = true }: FigureOptions = {}
+): Figure {
   const outfit = outfitById(outfitId)
   const c = outfit.colors
   const arm = outfit.proportions?.arm ?? 1
@@ -181,15 +235,15 @@ export function buildFigure(outfitId, { head = true } = {}) {
 
   const group = new THREE.Group()
   group.name = `figure-${outfitId}`
-  const joints = {}
+  const built: Partial<Record<JointName, THREE.Group>> = {}
 
-  const pelvis = pivot(group, joints, 'pelvis', 0, hipY, 0)
+  const pelvis = pivot(group, built, 'pelvis', 0, hipY, 0)
   part(pelvis, loft(PELVIS, 8), c.pants)
 
-  const spine = pivot(pelvis, joints, 'spine', 0, 0.07, 0)
+  const spine = pivot(pelvis, built, 'spine', 0, 0.07, 0)
   part(spine, loft(TORSO, 8), c.shirt)
 
-  const neck = pivot(spine, joints, 'neck', 0, 0.48, 0)
+  const neck = pivot(spine, built, 'neck', 0, 0.48, 0)
   part(neck, loft(NECK), c.skin)
   part(neck, loft(HEAD, 8), c.skin)
   part(neck, loft(HAIR), c.hair)
@@ -198,38 +252,43 @@ export function buildFigure(outfitId, { head = true } = {}) {
   part(neck, box(0.13, 0.014, 0.02), c.hair, 0, 0.215, 0.098)
   neck.visible = head
 
-  for (const [side, sign] of [
+  const sides: ['L' | 'R', number][] = [
     ['L', 1],
     ['R', -1],
-  ]) {
+  ]
+  for (const [side, sign] of sides) {
     const shoulder = pivot(
       spine,
-      joints,
+      built,
       `shoulder${side}`,
       0.18 * sign,
       0.42,
       0
     )
     part(shoulder, loft(stretch(UPPER_ARM, arm)), c.shirt)
-    const elbow = pivot(shoulder, joints, `elbow${side}`, 0, -upperArm, 0)
+    const elbow = pivot(shoulder, built, `elbow${side}`, 0, -upperArm, 0)
     part(elbow, loft(stretch(FOREARM, arm)), c.shirt)
     part(elbow, loft(HAND), c.skin, 0, -foreArm, 0)
     part(elbow, box(0.025, 0.05, 0.025), c.skin, 0, -foreArm - 0.035, 0.04)
 
-    const hip = pivot(pelvis, joints, `hip${side}`, 0.09 * sign, -0.05, 0)
+    const hip = pivot(pelvis, built, `hip${side}`, 0.09 * sign, -0.05, 0)
     part(hip, loft(stretch(THIGH, leg)), c.pants)
-    const knee = pivot(hip, joints, `knee${side}`, 0, -thigh, 0)
+    const knee = pivot(hip, built, `knee${side}`, 0, -thigh, 0)
     part(knee, loft(stretch(SHIN, leg)), c.pants)
     part(knee, boot(), c.boots, 0, -shin - 0.03, 0.045)
   }
 
+  // Every joint in JOINTS now has its pivot.
+  const joints = built as Record<JointName, THREE.Group>
+
   for (const id of outfit.addons || []) {
     const addon = ADDONS[id]
-    const geometry = addon.rings
-      ? loft(addon.rings, addon.sides)
-      : box(...addon.box)
-    for (const at of addon.offsets || [addon.offset || [0, 0, 0]]) {
-      part(joints[addon.joint], geometry, c[addon.slot], ...at)
+    const geometry =
+      'rings' in addon ? loft(addon.rings, addon.sides) : box(...addon.box)
+    const spots: Vec3[] = addon.offsets || [addon.offset || [0, 0, 0]]
+    for (const at of spots) {
+      // An add-on slot the outfit leaves out has no color, as before.
+      part(joints[addon.joint], geometry, c[addon.slot] as string, ...at)
     }
   }
 
@@ -237,7 +296,7 @@ export function buildFigure(outfitId, { head = true } = {}) {
 }
 
 // Copy a samplePose() result onto a figure's pivots.
-export function applyPose(figure, pose) {
+export function applyPose(figure: Figure, pose: PoseSample): void {
   for (const joint of JOINTS) {
     figure.joints[joint].rotation.set(...pose.joints[joint])
   }
@@ -247,9 +306,9 @@ export function applyPose(figure, pose) {
 // A lit cigarette in the corner of the mouth: paper, an ember that glows
 // harder on each drag, and smoke wisps that rise and fade. Returns
 // { update(t) }; call it every frame with a running time in seconds.
-let emberGlow = null
-let smokeTexture = null
-export function attachCigarette(figure) {
+let emberGlow: THREE.Texture | null = null
+let smokeTexture: THREE.Texture | null = null
+export function attachCigarette(figure: Figure): CigaretteRig {
   const neck = figure.joints.neck
   const holder = new THREE.Group()
   holder.position.set(-0.03, 0.115, 0.1)
@@ -267,7 +326,7 @@ export function attachCigarette(figure) {
   holder.add(glow)
 
   smokeTexture ??= makeGlowTexture('rgba(190, 196, 206, 0.5)')
-  const wisps = []
+  const wisps: THREE.Sprite[] = []
   for (let i = 0; i < 3; i++) {
     const wisp = new THREE.Sprite(
       new THREE.SpriteMaterial({
@@ -282,7 +341,7 @@ export function attachCigarette(figure) {
   const tip = new THREE.Vector3(-0.052, 0.1, 0.168)
 
   return {
-    update(t) {
+    update(t: number) {
       // A drag every six seconds, held for one.
       const drag =
         Math.max(0, Math.sin(((t % 6) / 6) * Math.PI * 12)) *

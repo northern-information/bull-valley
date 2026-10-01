@@ -1,21 +1,62 @@
 // Canvas art for the five cigarette packs: the iconic trade dress of each
 // brand, drawn small enough to survive the PS1 downscale. One painter per
-// brand returns the face canvases assets.js maps onto the pack:
+// brand returns the face canvases assets.ts maps onto the pack:
 //   front    body front (and back), 100×120, the pack's 55×66 mm face
 //   side     body sides, 40×120
 //   lidFront the open lid's front, 100×40
 //   lidTop   the lid's top, 100×40
 // plus the flat colors for edges, collar, and the cigarettes themselves.
 
-const FRONT = [100, 120]
-const SIDE = [40, 120]
-const LID = [100, 40]
+// A canvas size in pixels: [width, height].
+export type CanvasSize = [number, number]
 
-export function canvas([w, h], fill) {
+// A painted canvas with its 2D context and size.
+export interface CanvasArt {
+  c: HTMLCanvasElement
+  ctx: CanvasRenderingContext2D
+  w: number
+  h: number
+}
+
+// The flat colors of one cigarette. Only kreteks have a band.
+export interface StickColors {
+  paper: string
+  filter: string
+  tip: string
+  band?: string
+}
+
+// Everything one brand's painter returns.
+export interface PackArt {
+  front: CanvasArt
+  side: CanvasArt
+  lidFront: CanvasArt
+  lidTop: CanvasArt
+  edge: string
+  collar: string
+  inner: string
+  stick: StickColors
+  glow: string
+}
+
+export type PackPainter = () => PackArt
+
+const FRONT: CanvasSize = [100, 120]
+const SIDE: CanvasSize = [40, 120]
+const LID: CanvasSize = [100, 40]
+
+// The 2D context of a canvas. Throws if the browser cannot give one.
+function context2d(c: HTMLCanvasElement): CanvasRenderingContext2D {
+  const ctx = c.getContext('2d')
+  if (!ctx) throw new Error('Canvas 2D context is not available')
+  return ctx
+}
+
+export function canvas([w, h]: CanvasSize, fill?: string): CanvasArt {
   const c = document.createElement('canvas')
   c.width = w
   c.height = h
-  const ctx = c.getContext('2d')
+  const ctx = context2d(c)
   if (fill) {
     ctx.fillStyle = fill
     ctx.fillRect(0, 0, w, h)
@@ -24,12 +65,22 @@ export function canvas([w, h], fill) {
 }
 
 // Centered text, shrunk until it fits maxW.
-export function text(ctx, str, x, y, maxW, px, font, color) {
+// The font is a CSS font string with `$` in place of the pixel size.
+export function text(
+  ctx: CanvasRenderingContext2D,
+  str: string,
+  x: number,
+  y: number,
+  maxW: number,
+  px: number,
+  font: string,
+  color: string
+): void {
   let size = px
-  ctx.font = `${font.replace('$', size)}`
+  ctx.font = `${font.replace('$', String(size))}`
   while (ctx.measureText(str).width > maxW && size > 6) {
     size -= 1
-    ctx.font = `${font.replace('$', size)}`
+    ctx.font = `${font.replace('$', String(size))}`
   }
   ctx.fillStyle = color
   ctx.textAlign = 'center'
@@ -42,7 +93,7 @@ export const SANS = 'bold $px "Helvetica Neue", Arial, sans-serif'
 
 // --- Marlboro Reds: the red roof over white ---------------------------------
 
-function marlboro() {
+function marlboro(): PackArt {
   const red = '#c8102e'
   const gold = '#c9a227'
   const front = canvas(FRONT, '#f4f1ea')
@@ -101,7 +152,12 @@ function marlboro() {
 
 // --- Camel Turkish Royals: blue panel, pyramid, camel -----------------------
 
-function drawCamel(ctx, x, y, s) {
+function drawCamel(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  s: number
+): void {
   // Side-on, facing left: body, hump, neck, head, four legs.
   ctx.fillStyle = '#b07a3a'
   ctx.beginPath()
@@ -117,7 +173,7 @@ function drawCamel(ctx, x, y, s) {
   }
 }
 
-function camel() {
+function camel(): PackArt {
   const blue = '#1f4fa3'
   const gold = '#c7a13f'
   const cream = '#f1e3b5'
@@ -168,7 +224,7 @@ function camel() {
 
 // --- Parliaments: white pack, blue diagonal panel ---------------------------
 
-function parliament() {
+function parliament(): PackArt {
   const navy = '#1b2a6b'
   const light = '#2f8fe0'
   const front = canvas(FRONT, '#f5f5f2')
@@ -229,7 +285,7 @@ function parliament() {
 
 // --- Newports: white over menthol teal, the spinnaker -----------------------
 
-function newport() {
+function newport(): PackArt {
   const teal = '#1f9483'
   const dark = '#0f5e53'
   const gold = '#b49a4a'
@@ -276,7 +332,7 @@ function newport() {
 
 // --- Djarum Blacks: black pack, BL▲CK, black kreteks ------------------------
 
-function djarum() {
+function djarum(): PackArt {
   const black = '#141414'
   const gold = '#b8935a'
   const red = '#d6262b'
@@ -323,10 +379,16 @@ function djarum() {
   }
 }
 
-const PAINTERS = { marlboro, camel, parliament, newport, djarum }
+const PAINTERS: Partial<Record<string, PackPainter>> = {
+  marlboro,
+  camel,
+  parliament,
+  newport,
+  djarum,
+}
 
 // Fresh canvases on every call, so each pack owns (and can dispose) its art.
-export function paintPack(brandId) {
+export function paintPack(brandId: string): PackArt {
   const painter = PAINTERS[brandId]
   if (!painter) throw new Error(`No pack art for brand "${brandId}"`)
   return painter()

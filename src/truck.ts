@@ -1,26 +1,63 @@
 // Matthew Marx's white Chevy: a low-poly pickup that parks, drives road
 // routes, and carries the player in its bed. The mesh is Lambert boxes through
-// the PS1 snap, with Matthew Marx at the wheel (the shared body, figure.js),
-// visible through the cab glass. All route math comes from roadgraph.js —
+// the PS1 snap, with Matthew Marx at the wheel (the shared body, figure.ts),
+// visible through the cab glass. All route math comes from roadgraph.ts —
 // this class just consumes a walker.
 
 import * as THREE from 'three'
-import { lambert, makeGlowSprite, makeGlowTexture } from './assets.js'
-import { CONFIG } from './config.js'
-import { applyPose, attachCigarette, buildFigure } from './figure.js'
-import { samplePose } from './poses.js'
-import { applyPS1 } from './ps1.js'
-import { createWalker } from './roadgraph.js'
+import { lambert, makeGlowSprite, makeGlowTexture } from './assets.ts'
+import { CONFIG } from './config.ts'
+import { applyPose, attachCigarette, buildFigure } from './figure.ts'
+import { samplePose } from './poses.ts'
+import { applyPS1 } from './ps1.ts'
+import { createWalker } from './roadgraph.ts'
+import type { CigaretteRig, Figure } from './figure.ts'
+import type { RoadPoint, Walker } from './roadgraph.ts'
+import type { HeightAt } from './terrain.ts'
+
+export interface TruckOptions {
+  scene: THREE.Object3D
+  heightAt: HeightAt
+}
+
+// What update() returns each frame.
+export interface TruckState {
+  x: number
+  z: number
+  moving: boolean
+  // True from the frame the route finishes until the next route.
+  done: boolean
+}
+
+// Where Matthew Marx is: at the wheel, or working the tailgate shop.
+export type DriverPost = 'cab' | 'tailgate'
+
+// The truck mesh and the driver inside it.
+interface TruckModel {
+  group: THREE.Group
+  driver: Figure
+  cigarette: CigaretteRig
+}
 
 // Local space: the truck faces +Z, origin at ground level under the middle.
-export function buildTruckMesh() {
+export function buildTruckMesh(): THREE.Group {
+  return buildTruck().group
+}
+
+function buildTruck(): TruckModel {
   const group = new THREE.Group()
   group.name = 'truck'
   const white = lambert({ color: '#c8ccd2' })
   const dark = lambert({ color: '#14161a' })
   const glass = lambert({ color: '#0e141d', transparent: true, opacity: 0.45 })
 
-  const add = (geoDef, material, x, y, z) => {
+  const add = (
+    geoDef: THREE.BufferGeometry,
+    material: THREE.Material,
+    x: number,
+    y: number,
+    z: number
+  ) => {
     const mesh = new THREE.Mesh(geoDef, material)
     mesh.position.set(x, y, z)
     group.add(mesh)
@@ -84,10 +121,9 @@ export function buildTruckMesh() {
   const driver = buildFigure('marx')
   driver.group.scale.setScalar(DRIVER_SCALE)
   group.add(driver.group)
-  group.userData.driver = driver
-  group.userData.cigarette = attachCigarette(driver)
+  const cigarette = attachCigarette(driver)
   placeDriver(driver, 'cab')
-  return group
+  return { group, driver, cigarette }
 }
 
 // The low-poly cab is short for a full-size body, so Matthew Marx is a
@@ -95,10 +131,9 @@ export function buildTruckMesh() {
 // his boots stay inside.
 const DRIVER_SCALE = 0.85
 
-// Where Matthew Marx is: 'cab' at the wheel with his hips at 1.18 m, or
-// 'tailgate', leaning by the open tailgate and facing the customers behind
-// the truck.
-function placeDriver(driver, post) {
+// 'cab' puts him at the wheel with his hips at 1.18 m; 'tailgate' leans him
+// by the open tailgate, facing the customers behind the truck.
+function placeDriver(driver: Figure, post: DriverPost): void {
   if (post === 'tailgate') {
     applyPose(driver, samplePose('lean'))
     driver.group.position.set(0.8, 0, -3.2)
@@ -111,9 +146,23 @@ function placeDriver(driver, post) {
 }
 
 export class Truck {
-  constructor({ scene, heightAt }) {
+  heightAt: HeightAt
+  group: THREE.Group
+  walker: Walker | null
+  speed: number
+  x: number
+  z: number
+  dirX: number
+  dirZ: number
+  moving: boolean
+  driver: Figure
+  cigarette: CigaretteRig
+  time: number
+
+  constructor({ scene, heightAt }: TruckOptions) {
     this.heightAt = heightAt
-    this.group = buildTruckMesh()
+    const model = buildTruck()
+    this.group = model.group
     scene.add(this.group)
     this.walker = null
     this.speed = CONFIG.truck.speed
@@ -122,12 +171,12 @@ export class Truck {
     this.dirX = 0
     this.dirZ = 1
     this.moving = false
-    this.driver = this.group.userData.driver
-    this.cigarette = this.group.userData.cigarette
+    this.driver = model.driver
+    this.cigarette = model.cigarette
     this.time = 0
   }
 
-  parkAt(x, z, dirX = 0, dirZ = 1) {
+  parkAt(x: number, z: number, dirX = 0, dirZ = 1) {
     this.walker = null
     this.moving = false
     this.x = x
@@ -139,11 +188,14 @@ export class Truck {
 
   // Matthew Marx works the tailgate shop while the truck is parked for the
   // loadout; any drive puts him back at the wheel.
-  setDriverPost(post) {
+  setDriverPost(post: DriverPost): void {
     placeDriver(this.driver, post)
   }
 
-  driveRoute(points, speed = CONFIG.truck.speed) {
+  driveRoute(
+    points: readonly RoadPoint[] | null,
+    speed: number = CONFIG.truck.speed
+  ) {
     if (!points || points.length < 2) return
     placeDriver(this.driver, 'cab')
     this.walker = createWalker(points)
@@ -153,7 +205,7 @@ export class Truck {
 
   // Advances the current route. Returns { x, z, moving, done } — done is true
   // on the frame the route finishes and stays true until the next route.
-  update(dt) {
+  update(dt: number): TruckState {
     // Matthew Marx glances about now and then, and smokes.
     this.time += dt
     this.cigarette.update(this.time)
@@ -183,20 +235,20 @@ export class Truck {
   }
 
   // Where the rider's eyes sit: middle of the bed, CONFIG.truck.bedEye up.
-  bedSeat() {
+  bedSeat(): { x: number; y: number; z: number } {
     const seat = new THREE.Vector3(0, 0.85 + CONFIG.truck.bedEye, -1.45)
     this.group.localToWorld(seat)
     return { x: seat.x, y: seat.y, z: seat.z }
   }
 
   // A dismount spot just off the passenger side.
-  hopOutSpot() {
+  hopOutSpot(): RoadPoint {
     const spot = new THREE.Vector3(3, 0, -1.0)
     this.group.localToWorld(spot)
     return { x: spot.x, z: spot.z }
   }
 
-  distanceTo(x, z) {
+  distanceTo(x: number, z: number): number {
     return Math.hypot(this.x - x, this.z - z)
   }
 }

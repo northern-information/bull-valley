@@ -1,22 +1,23 @@
 import * as THREE from 'three'
 import './styles.css'
-import { BvAudio } from './audio.js'
-import { ringItems, stepIndex, syncIndex } from './carousel.js'
-import { CONFIG } from './config.js'
-import { unitToWorld } from './coords.js'
-import { Hud } from './hud.js'
-import { addItem, loadInventory, saveInventory, useItem } from './inventory.js'
-import { createInventoryView } from './inventoryview.js'
+import { BvAudio } from './audio.ts'
+import { ringItems, stepIndex, syncIndex } from './carousel.ts'
+import { CONFIG } from './config.ts'
+import { unitToWorld } from './coords.ts'
+import { Hud } from './hud.ts'
+import { addItem, loadInventory, saveInventory, useItem } from './inventory.ts'
+import { createInventoryView } from './inventoryview.ts'
 import {
   cigaretteToSmoke,
   shopStock as freshShopStock,
+  getItem,
   isCigarette,
   itemById,
-} from './items.js'
-import { KEEP } from './landmarks.js'
-import { Player } from './player.js'
-import { PlayerBody } from './playerbody.js'
-import { setSnapResolution } from './ps1.js'
+} from './items.ts'
+import { KEEP } from './landmarks.ts'
+import { Player } from './player.ts'
+import { PlayerBody } from './playerbody.ts'
+import { setSnapResolution } from './ps1.ts'
 import {
   advance,
   carryLimit,
@@ -24,30 +25,64 @@ import {
   EVENTS,
   STATES,
   summary,
-} from './raid.js'
-import { mulberry32 } from './rng.js'
+} from './raid.ts'
+import { mulberry32 } from './rng.ts'
 import {
   buildRoadGraph,
   nearestRoadPoint,
   planRoute,
   wanderRoute,
-} from './roadgraph.js'
-import { Scope } from './scope.js'
-import { showSplash } from './splash.js'
-import { buildTerrainMesh, createHeightField, loadTerrain } from './terrain.js'
-import { Truck } from './truck.js'
-import { buildWorld } from './world.js'
+} from './roadgraph.ts'
+import { Scope } from './scope.ts'
+import { showSplash } from './splash.ts'
+import { buildTerrainMesh, createHeightField, loadTerrain } from './terrain.ts'
+import { Truck } from './truck.ts'
+import { buildWorld } from './world.ts'
+import type { Geo, Raid, RingItem } from './interfaces.ts'
+
+// Dev-only introspection hook; see the bottom of boot().
+interface BvHook {
+  scene: THREE.Scene
+  camera: THREE.PerspectiveCamera
+  renderer: THREE.WebGLRenderer
+  player: Player
+  world: ReturnType<typeof buildWorld>
+  truck: Truck
+  graph: ReturnType<typeof buildRoadGraph>
+  readonly raid: Raid
+  teleport(u: number, v: number): void
+  hurryTruck(seconds?: number): void
+}
+
+declare global {
+  interface Window {
+    __bv?: BvHook
+  }
+}
+
+// What E would end the raid at: a station other than the spawn, or the Keep.
+interface ExtractSpot {
+  type: 'fuel' | 'keep'
+  name?: string
+}
 
 // Same files the Scaduscope reads; baked by scripts/fetch_bull_valley.cjs.
 const DATA_BASE = '/data/bull-valley'
 
-function pickupLabel({ kind, count }) {
+function pickupLabel({ kind, count }: { kind: string; count: number }): string {
   if (kind === 'cabbage') return 'Cabbage'
-  return `${itemById(kind).label} ×${count}`
+  return `${itemById(kind)?.label ?? kind} ×${count}`
+}
+
+function context2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas 2D context is not available')
+  return ctx
 }
 
 async function boot() {
   const root = document.getElementById('bv-root')
+  if (!root) throw new Error('Missing #bv-root')
   const hud = new Hud(root)
   const audio = new BvAudio()
   // Sound effects are off for now; the splash cue is the only audio, and
@@ -61,13 +96,14 @@ async function boot() {
   hud.beginBtn.disabled = true
   hud.beginBtn.textContent = 'Resolving Terrain…'
 
-  let geo
-  let terrain
+  let geo: Geo
+  let terrain: Awaited<ReturnType<typeof loadTerrain>>
   try {
     ;[geo, terrain] = await Promise.all([
       fetch(`${DATA_BASE}/geo.json`).then((r) => {
         if (!r.ok) throw new Error(`geo.json ${r.status}`)
-        return r.json()
+        // Our own survey, written by scripts/fetch_bull_valley.cjs.
+        return r.json() as Promise<Geo>
       }),
       loadTerrain(`${DATA_BASE}/terrain.png`),
     ])
@@ -78,7 +114,7 @@ async function boot() {
   }
 
   const field = createHeightField(terrain, geo)
-  const heightAt = (x, z) => field.sample(x, z)
+  const heightAt = (x: number, z: number) => field.sample(x, z)
 
   // --- Scene -------------------------------------------------------------
   const renderer = new THREE.WebGLRenderer({
@@ -138,7 +174,7 @@ async function boot() {
   const moonCanvas = document.createElement('canvas')
   moonCanvas.width = 64
   moonCanvas.height = 64
-  const mctx = moonCanvas.getContext('2d')
+  const mctx = context2d(moonCanvas)
   const mgrad = mctx.createRadialGradient(32, 32, 6, 32, 32, 30)
   mgrad.addColorStop(0, 'rgba(226, 232, 240, 0.95)')
   mgrad.addColorStop(0.45, 'rgba(190, 205, 228, 0.35)')
@@ -159,15 +195,17 @@ async function boot() {
   scene.add(sky)
 
   // --- Systems -----------------------------------------------------------
-  // The shadowmen are parked until after the MVP loop; src/shadowmen.js and
-  // src/nerves.js stay in the tree, unwired.
+  // The shadowmen are parked until after the MVP loop; src/shadowmen.ts and
+  // src/nerves.ts stay in the tree, unwired.
   const graph = buildRoadGraph(geo.roads, geo.metres)
   const truck = new Truck({ scene, heightAt })
 
   // Park Matthew Marx's Chevy at the road nearest the spawn station, already
   // pointed down tonight's joyride.
   const spawnStation = world.spawnStation
+  if (!spawnStation) throw new Error('No fuel station inside the survey')
   const truckPoint = nearestRoadPoint(graph, spawnStation.x, spawnStation.z)
+  if (!truckPoint) throw new Error('No road near the spawn station')
   const departRoute = wanderRoute(
     graph,
     truckPoint,
@@ -210,16 +248,16 @@ async function boot() {
   // --- Game state ----------------------------------------------------------
   let inventory = loadInventory(window.localStorage)
   // The cigarette a bare 1 smokes: the last one picked in the inventory.
-  let selectedCigarette = null
+  let selectedCigarette: string | null = null
   let raid = createRaid(0)
   let raidClock = 0 // advances only while the pointer is locked
   const shopStock = freshShopStock()
-  // The carousel: ring entries from carousel.js, the selected slot, and
+  // The carousel: ring entries from carousel.ts, the selected slot, and
   // its kind so the selection survives the ring changing.
   const inventoryView = createInventoryView()
-  let ring = []
+  let ring: RingItem[] = []
   let ringIndex = 0
-  let ringKind = null
+  let ringKind: string | null = null
   let time = 0
   let smokingUntil = 0
   let emberUntil = 0
@@ -228,8 +266,8 @@ async function boot() {
   let greeted = false
   let ended = false
   let inventoryOpen = false
-  let nearPickup = null
-  let nearExtract = null // { type: 'fuel' | 'keep', name }
+  let nearPickup: (typeof world.pickups)[number] | null = null
+  let nearExtract: ExtractSpot | null = null
   let canBoard = false
   let canBoardExtract = false
   let canUnload = false
@@ -273,11 +311,12 @@ async function boot() {
     inventoryOpen = hud.showInventory(false)
   }
 
-  const cycleRing = (dir) => {
+  const cycleRing = (dir: number) => {
     if (ring.length < 2) return
     ringIndex = stepIndex(ringIndex, ring.length, dir)
-    ringKind = ring[ringIndex].kind
-    if (isCigarette(ringKind)) selectedCigarette = ringKind
+    const kind = ring[ringIndex].kind
+    ringKind = kind
+    if (isCigarette(kind)) selectedCigarette = kind
     refreshRing()
   }
 
@@ -305,7 +344,7 @@ async function boot() {
     closeInventory()
   }
 
-  const hopOut = (toastText) => {
+  const hopOut = (toastText?: string) => {
     const next = advance(raid, EVENTS.HOP_OUT, raidClock)
     if (next === raid) return
     raid = next
@@ -318,7 +357,7 @@ async function boot() {
     if (raid.state !== STATES.ON_FOOT || raid.truckCalled) return
     const from = nearestRoadPoint(graph, truck.x, truck.z)
     const to = nearestRoadPoint(graph, player.pos.x, player.pos.z)
-    const route = planRoute(graph, from, to)
+    const route = from && to ? planRoute(graph, from, to) : null
     if (!route || route.length < 2) {
       hud.toast('You whistle into the dark. Nothing turns over.')
       return
@@ -328,7 +367,7 @@ async function boot() {
     hud.toast('You whistle into the dark. An engine turns over, far off.')
   }
 
-  const buy = (kind) => {
+  const buy = (kind: string) => {
     if (!shopOpen()) return
     if (kind === 'sack') {
       const next = advance(raid, EVENTS.BUY_SACK, raidClock)
@@ -336,7 +375,7 @@ async function boot() {
       raid = next
       shopStock.sack = 0
       refreshRing()
-      hud.toast(itemById('sack').bought)
+      hud.toast(getItem('sack').bought)
       return
     }
     if (!(shopStock[kind] > 0)) {
@@ -347,7 +386,8 @@ async function boot() {
     inventory = addItem(inventory, kind, 1)
     saveInventory(window.localStorage, inventory)
     refreshRing()
-    hud.toast(itemById(kind).bought)
+    const item = itemById(kind)
+    if (item) hud.toast(item.bought)
   }
 
   // --- Input ---------------------------------------------------------------
@@ -420,20 +460,22 @@ async function boot() {
   })
 
   // kind: a cigarette id, 'joints', or 'smoke' for the selected cigarette.
-  const useKind = (kind) => {
-    if (kind === 'smoke') {
-      kind = cigaretteToSmoke(inventory, selectedCigarette)
-      if (!kind) {
-        hud.toast('No cigarettes left.')
-        return
-      }
+  const useKind = (choice: string) => {
+    const kind =
+      choice === 'smoke'
+        ? cigaretteToSmoke(inventory, selectedCigarette)
+        : choice
+    if (!kind) {
+      hud.toast('No cigarettes left.')
+      return
     }
     const item = itemById(kind)
+    if (!item) return
     const smoke = item.category === 'cigarette'
     if (smoke && time < smokingUntil) return
     const result = useItem(inventory, kind)
     if (!result.used) {
-      hud.toast(item.empty)
+      if (item.empty) hud.toast(item.empty)
       return
     }
     inventory = result.inv
@@ -441,12 +483,12 @@ async function boot() {
     saveInventory(window.localStorage, inventory)
     refreshRing()
     if (smoke) {
-      smokingUntil = time + item.smokeSeconds
-      emberUntil = smokingUntil + item.emberSeconds
+      smokingUntil = time + (item.smokeSeconds ?? 0)
+      emberUntil = smokingUntil + (item.emberSeconds ?? 0)
     } else {
-      perceptionUntil = time + item.perceptionSeconds
+      perceptionUntil = time + (item.perceptionSeconds ?? 0)
     }
-    hud.toast(item.used)
+    if (item.used) hud.toast(item.used)
   }
 
   const takePickup = () => {
@@ -510,7 +552,7 @@ async function boot() {
   // With the inventory open the keys drive the carousel and never reach the
   // player: ←/→ or A/D cycle, E or Enter uses, B buys at the tailgate,
   // 1 and 2 still smoke and spark. Esc drops pointer lock, which pauses it.
-  const inventoryKey = (e) => {
+  const inventoryKey = (e: KeyboardEvent) => {
     const item = ring[ringIndex]
     if (e.code === 'Tab') {
       e.preventDefault()
@@ -634,7 +676,7 @@ async function boot() {
       truck.update(dt)
     }
 
-    let countdown = null
+    let countdown: string | null = null
     if (raid.state === STATES.LOADOUT) {
       const left = Math.max(0, Math.ceil(raid.loadoutEndsAt - raidClock))
       const mm = Math.floor(left / 60)
@@ -643,7 +685,7 @@ async function boot() {
     }
     hud.setCountdown(countdown)
 
-    const timers = []
+    const timers: string[] = []
     if (smoking) timers.push(`Smoking ${Math.ceil(smokingUntil - time)}s`)
     else if (ember) timers.push(`Ember ${Math.ceil(emberUntil - time)}s`)
     if (perception)
@@ -663,7 +705,7 @@ async function boot() {
     canUnload = false
     nearExtract = null
     nearPickup = null
-    let prompt = null
+    let prompt: string | null = null
     if (!ended && raid.state === STATES.RIDING) {
       prompt = 'E — Hop Out'
     } else if (!ended && raid.state !== STATES.EXTRACTED) {
@@ -766,7 +808,7 @@ async function boot() {
       get raid() {
         return raid
       },
-      teleport(u, v) {
+      teleport(u: number, v: number) {
         const { x, z } = unitToWorld(u, v, geo.metres)
         player.relocate(x, z)
       },

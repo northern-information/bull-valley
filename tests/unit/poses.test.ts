@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { JOINTS, POSES, samplePose } from '../../src/poses.js'
+import { JOINTS, POSES, samplePose } from '../../src/poses.ts'
+import type { PoseName } from '../../src/poses.ts'
 
 describe('poses', () => {
   it('uses only known joints', () => {
@@ -41,6 +42,7 @@ describe('poses', () => {
   })
 
   it('throws on an unknown pose', () => {
-    expect(() => samplePose('moonwalk')).toThrow()
+    // An id from outside the table, on purpose.
+    expect(() => samplePose('moonwalk' as PoseName)).toThrow()
   })
 })

@@ -5,9 +5,24 @@
 // Keep the list to places meant to be found (a roadside stand) or whose owners
 // have agreed to be on a public map (a private home).
 
-import { unitToWorld } from './coords.js'
+import { unitToWorld } from './coords.ts'
+import type { Bbox, Metres, UnitPoint } from './interfaces.ts'
 
-export const LANDMARKS = [
+export interface Landmark {
+  n: string
+  lat: number
+  lon: number
+}
+
+export interface LandmarkWorld {
+  n: string
+  x: number
+  z: number
+  u: number
+  v: number
+}
+
+export const LANDMARKS: readonly Landmark[] = [
   // Dave Coleman's house in Wonder Lake. A private home, placed with his
   // consent.
   { n: "Mt. Coleman's Keep", lat: 42.3839451, lon: -88.3479778 },
@@ -24,7 +39,10 @@ export const CABBAGE_STAND = 'Bull Valley Cabbage Stand'
 // Project into the survey's unit square (x right, y down), the same
 // equirectangular mapping the fetch script uses. Points outside the frame keep
 // their out-of-range coordinates.
-export function projectLandmarks(bbox, list = LANDMARKS) {
+export function projectLandmarks(
+  bbox: Bbox,
+  list: readonly Landmark[] = LANDMARKS
+): { n: string; p: UnitPoint }[] {
   return list.map((l) => ({
     n: l.n,
     p: [
@@ -35,7 +53,11 @@ export function projectLandmarks(bbox, list = LANDMARKS) {
 }
 
 // The same landmarks in world metres: [{ n, x, z, u, v }].
-export function landmarkWorldPositions(bbox, metres, list = LANDMARKS) {
+export function landmarkWorldPositions(
+  bbox: Bbox,
+  metres: Metres,
+  list: readonly Landmark[] = LANDMARKS
+): LandmarkWorld[] {
   return projectLandmarks(bbox, list).map((l) => {
     const { x, z } = unitToWorld(l.p[0], l.p[1], metres)
     return { n: l.n, x, z, u: l.p[0], v: l.p[1] }

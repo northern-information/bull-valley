@@ -6,13 +6,13 @@ import * as THREE from 'three'
 
 const snap = new THREE.Vector2(160, 120)
 
-export function setSnapResolution(width, height) {
+export function setSnapResolution(width: number, height: number): void {
   // Half the internal render resolution reads as classic hardware; full
   // resolution barely wobbles at all.
   snap.set(Math.max(64, width / 2), Math.max(48, height / 2))
 }
 
-export function applyPS1(material) {
+export function applyPS1<T extends THREE.Material>(material: T): T {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uGsSnap = { value: snap }
     shader.vertexShader =

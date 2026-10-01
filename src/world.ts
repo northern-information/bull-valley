@@ -13,33 +13,105 @@ import {
   TREE_CANOPY_HIGH,
   TREE_CANOPY_LOW,
   treeParts,
-} from './assets.js'
-import { CABBAGE_SEED, placeCabbages } from './cabbages.js'
+} from './assets.ts'
+import { CABBAGE_SEED, placeCabbages } from './cabbages.ts'
 import {
   pointInPolygon,
   pointSegmentDistance,
   polygonBounds,
   unitToWorld,
-} from './coords.js'
-import { CIGARETTE_IDS } from './items.js'
+} from './coords.ts'
+import { CIGARETTE_IDS } from './items.ts'
 import {
   KEEP,
   landmarkWorldPositions,
   CABBAGE_STAND as STAND_NAME,
-} from './landmarks.js'
-import { applyPS1 } from './ps1.js'
-import { mulberry32, range } from './rng.js'
+} from './landmarks.ts'
+import { applyPS1 } from './ps1.ts'
+import { mulberry32, range } from './rng.ts'
+import type { Geo, Metres, Road, UnitPoint } from './interfaces.ts'
+import type { Rng } from './rng.ts'
+import type { RoadPoint } from './roadgraph.ts'
+import type { HeightAt } from './terrain.ts'
 
 const PACK_SEED = 0xc16a7e
 
 // Builds every static feature of Bull Valley from the survey's geo.json:
 // roads, water, wetland reeds, woods, graveyards, gas stations, landmarks,
 // cabbages, the village boundary. Returns the scene group plus the gameplay
-// anchors main.js needs. Asset meshes come from assets.js; this file places
+// anchors main.ts needs. Asset meshes come from assets.ts; this file places
 // them.
 
+// A world point with its ground height.
+export interface WorldPoint {
+  x: number
+  y: number
+  z: number
+}
+
+export interface GraveAnchor {
+  x: number
+  z: number
+  name: string
+}
+
+export interface FuelPoint {
+  x: number
+  z: number
+  name: string
+}
+
+export interface LandmarkPoint {
+  n: string
+  x: number
+  z: number
+}
+
+export interface Pickup {
+  // 'cabbage', 'joints', or a cigarette item id.
+  kind: string
+  count: number
+  mesh: THREE.Object3D
+  x: number
+  z: number
+  taken: boolean
+}
+
+export interface Spawn {
+  x: number
+  z: number
+  yaw: number
+}
+
+// What buildWorld returns: the scene group plus the gameplay anchors.
+export interface World {
+  group: THREE.Group
+  pickups: Pickup[]
+  graveAnchors: GraveAnchor[]
+  fuelPoints: FuelPoint[]
+  landmarks: LandmarkPoint[]
+  // Null only when the survey has no fuel point inside the frame.
+  spawnStation: FuelPoint | null
+  spawn: Spawn
+}
+
+interface RoadStyle {
+  width: number
+  color: string
+}
+
+// A geometry and material pair from assets.ts, ready to instance.
+interface MeshPart {
+  geometry: THREE.BufferGeometry
+  material: THREE.Material | THREE.Material[]
+}
+
+interface OccupancyMask {
+  blocked(u: number, v: number): boolean
+}
+
 // Unlit (MeshBasicMaterial) tones — these render exactly as written, then fog.
-const ROAD_STYLE = {
+const ROAD_STYLE: Partial<Record<string, RoadStyle>> = {
   motorway: { width: 9, color: '#343a41' },
   trunk: { width: 9, color: '#343a41' },
   primary: { width: 8, color: '#32383f' },
@@ -50,19 +122,24 @@ const ROAD_STYLE = {
   service: { width: 3.5, color: '#332e22' },
   track: { width: 3, color: '#363023' },
 }
-const ROAD_DEFAULT = { width: 4.5, color: '#2a2f35' }
+const ROAD_DEFAULT: RoadStyle = { width: 4.5, color: '#2a2f35' }
 
 // Accumulates flat ribbons (roads, streams) into one non-indexed geometry.
 function makeRibbonAccumulator() {
-  const positions = []
-  const colors = []
+  const positions: number[] = []
+  const colors: number[] = []
   return {
-    add(points, width, color, lift) {
+    add(
+      points: readonly WorldPoint[],
+      width: number,
+      color: THREE.ColorRepresentation,
+      lift: number
+    ) {
       if (points.length < 2) return
       const c = new THREE.Color(color)
       const half = width / 2
       // Per-point direction averaged over neighbouring segments (naive miter).
-      const dirs = []
+      const dirs: RoadPoint[] = []
       for (let i = 0; i < points.length; i++) {
         const a = points[Math.max(0, i - 1)]
         const b = points[Math.min(points.length - 1, i + 1)]
@@ -96,7 +173,7 @@ function makeRibbonAccumulator() {
         }
       }
     },
-    build(name) {
+    build(name: string): THREE.Mesh {
       const geometry = new THREE.BufferGeometry()
       geometry.setAttribute(
         'position',
@@ -130,7 +207,11 @@ function makeRibbonAccumulator() {
   }
 }
 
-function toWorldPoints(unitPoints, metres, heightAt) {
+function toWorldPoints(
+  unitPoints: readonly UnitPoint[],
+  metres: Metres,
+  heightAt: HeightAt
+): WorldPoint[] {
   return unitPoints.map(([u, v]) => {
     const { x, z } = unitToWorld(u, v, metres)
     return { x, y: heightAt(x, z), z }
@@ -139,11 +220,12 @@ function toWorldPoints(unitPoints, metres, heightAt) {
 
 // A 512×512 occupancy mask over the unit square marking roads and water, so
 // trees never grow through either.
-function buildMask(geo, metres) {
+function buildMask(
+  geo: Pick<Geo, 'roads' | 'water'>,
+  metres: Metres
+): OccupancyMask {
   const N = 512
   const mask = new Uint8Array(N * N)
-  const cw = metres.width / N
-  const ch = metres.height / N
   const buffer = 12 // metres of clearance around road centrelines
 
   for (const road of geo.roads) {
@@ -193,7 +275,7 @@ function buildMask(geo, metres) {
   }
 
   return {
-    blocked(u, v) {
+    blocked(u: number, v: number) {
       const k = Math.max(0, Math.min(N - 1, Math.floor(u * N)))
       const j = Math.max(0, Math.min(N - 1, Math.floor(v * N)))
       return mask[j * N + k] === 1
@@ -201,7 +283,11 @@ function buildMask(geo, metres) {
   }
 }
 
-function buildRoads(geo, metres, heightAt) {
+function buildRoads(
+  geo: Pick<Geo, 'roads'>,
+  metres: Metres,
+  heightAt: HeightAt
+): THREE.Mesh {
   const ribbons = makeRibbonAccumulator()
   for (const road of geo.roads) {
     const style = ROAD_STYLE[road.c] || ROAD_DEFAULT
@@ -215,10 +301,14 @@ function buildRoads(geo, metres, heightAt) {
   return ribbons.build('roads')
 }
 
-function buildWater(geo, metres, heightAt) {
-  const positions = []
+function buildWater(
+  geo: Pick<Geo, 'water'>,
+  metres: Metres,
+  heightAt: HeightAt
+): THREE.Group {
+  const positions: number[] = []
   const color = new THREE.Color('#102233')
-  const colors = []
+  const colors: number[] = []
   for (const water of geo.water) {
     if (water.k !== 'area' || water.p.length < 3) continue
     const pts = water.p.map(([u, v]) => {
@@ -228,7 +318,7 @@ function buildWater(geo, metres, heightAt) {
     let level = Infinity
     for (const pt of pts) level = Math.min(level, heightAt(pt.x, pt.y))
     level += 0.25
-    let triangles
+    let triangles: number[][]
     try {
       triangles = THREE.ShapeUtils.triangulateShape(pts, [])
     } catch {
@@ -277,12 +367,12 @@ function buildWater(geo, metres, heightAt) {
 
 // Two-octave value noise so the woods gather into stands instead of a uniform
 // sprinkle; Bull Valley is oak groves between open fields.
-function woodsNoise(u, v) {
-  const hash = (ix, iy) => {
+function woodsNoise(u: number, v: number): number {
+  const hash = (ix: number, iy: number) => {
     const s = Math.sin(ix * 127.1 + iy * 311.7) * 43758.5453
     return s - Math.floor(s)
   }
-  const value = (x, y) => {
+  const value = (x: number, y: number) => {
     const ix = Math.floor(x)
     const iy = Math.floor(y)
     const fx = x - ix
@@ -299,8 +389,14 @@ function woodsNoise(u, v) {
   return value(u * 13, v * 13) * 0.65 + value(u * 31 + 7, v * 31 + 3) * 0.35
 }
 
-function buildTrees(geo, metres, heightAt, mask, rng) {
-  const candidates = []
+function buildTrees(
+  geo: Pick<Geo, 'reserves'>,
+  metres: Metres,
+  heightAt: HeightAt,
+  mask: OccupancyMask,
+  rng: Rng
+): THREE.Group {
+  const candidates: UnitPoint[] = []
   // Caps scaled for the ~15 km frame (2.6x the original survey's area).
   const CAP = 40000
   // Clustered scatter: dense inside the noise's stands, a thin sprinkle of
@@ -370,8 +466,13 @@ function buildTrees(geo, metres, heightAt, mask, rng) {
 }
 
 // Utility poles pace the named roads — rural Illinois telegraphy.
-function buildPoles(geo, metres, heightAt, rng) {
-  const POLE_ROADS = new Set([
+function buildPoles(
+  geo: Pick<Geo, 'roads'>,
+  metres: Metres,
+  heightAt: HeightAt,
+  rng: Rng
+): THREE.Group {
+  const POLE_ROADS = new Set<string>([
     'primary',
     'secondary',
     'tertiary',
@@ -379,7 +480,7 @@ function buildPoles(geo, metres, heightAt, rng) {
     'unclassified',
   ])
   const SPACING = 130
-  const spots = []
+  const spots: RoadPoint[] = []
   for (const road of geo.roads) {
     if (!POLE_ROADS.has(road.c) || !road.n) continue
     let carry = rng() * SPACING
@@ -439,8 +540,13 @@ function buildPoles(geo, metres, heightAt, rng) {
   return group
 }
 
-function buildReeds(geo, metres, heightAt, rng) {
-  const spots = []
+function buildReeds(
+  geo: Pick<Geo, 'wetland'>,
+  metres: Metres,
+  heightAt: HeightAt,
+  rng: Rng
+): THREE.InstancedMesh {
+  const spots: UnitPoint[] = []
   for (const wetland of geo.wetland) {
     if (wetland.length < 3) continue
     const b = polygonBounds(wetland)
@@ -468,11 +574,16 @@ function buildReeds(geo, metres, heightAt, rng) {
   return reeds
 }
 
-function buildGraveyards(geo, metres, heightAt, rng) {
+function buildGraveyards(
+  geo: Pick<Geo, 'graveyards'>,
+  metres: Metres,
+  heightAt: HeightAt,
+  rng: Rng
+): { group: THREE.Group; anchors: GraveAnchor[] } {
   const group = new THREE.Group()
   group.name = 'graveyards'
-  const anchors = []
-  const stones = []
+  const anchors: GraveAnchor[] = []
+  const stones: UnitPoint[] = []
   for (const yard of geo.graveyards) {
     const { x, z } = unitToWorld(yard.c[0], yard.c[1], metres)
     anchors.push({ x, z, name: yard.n })
@@ -529,7 +640,12 @@ function buildGraveyards(geo, metres, heightAt, rng) {
 // Low-poly Citgo stations at every fuel point inside the frame: flat-roofed
 // building, canopy over a pump island, tall lit road sign. The data keeps the
 // real OSM names for the HUD; the visual is uniformly Citgo for now.
-function buildFuelStations(geo, metres, heightAt, rng) {
+function buildFuelStations(
+  geo: Pick<Geo, 'fuel'>,
+  metres: Metres,
+  heightAt: HeightAt,
+  rng: Rng
+): { group: THREE.Group; points: FuelPoint[] } {
   const group = new THREE.Group()
   group.name = 'fuel'
   const stations = geo.fuel.filter(
@@ -539,7 +655,7 @@ function buildFuelStations(geo, metres, heightAt, rng) {
 
   const parts = fuelStationParts()
   const L = FUEL_LAYOUT
-  const instanced = (part, n) =>
+  const instanced = (part: MeshPart, n: number) =>
     new THREE.InstancedMesh(part.geometry, part.material, n)
   const buildings = instanced(parts.building, count)
   const canopies = instanced(parts.canopy, count)
@@ -549,7 +665,7 @@ function buildFuelStations(geo, metres, heightAt, rng) {
   const signs = instanced(parts.sign, count)
 
   const dummy = new THREE.Object3D()
-  const points = []
+  const points: FuelPoint[] = []
   for (let i = 0; i < count; i++) {
     const { x, z } = unitToWorld(stations[i].p[0], stations[i].p[1], metres)
     const y = heightAt(x, z)
@@ -614,17 +730,21 @@ function buildFuelStations(geo, metres, heightAt, rng) {
 
 // Beacon markers for the hand-placed landmarks, color-coded so they read
 // across the fog — cyan for the Cabbage Stand, magenta for the Keep.
-function buildLandmarks(geo, metres, heightAt) {
+function buildLandmarks(
+  geo: Pick<Geo, 'bbox'>,
+  metres: Metres,
+  heightAt: HeightAt
+): { group: THREE.Group; points: LandmarkPoint[] } {
   const group = new THREE.Group()
   group.name = 'landmarks'
   const marks = landmarkWorldPositions(geo.bbox, metres).filter(
     (m) => m.u > 0 && m.u < 1 && m.v > 0 && m.v < 1
   )
-  const COLORS = {
+  const COLORS: Partial<Record<string, string>> = {
     [KEEP]: '#e879f9',
     [STAND_NAME]: '#22d3ee',
   }
-  const points = []
+  const points: LandmarkPoint[] = []
   for (const mark of marks) {
     const y = heightAt(mark.x, mark.z)
     const color = COLORS[mark.n] || '#f59e0b'
@@ -636,7 +756,11 @@ function buildLandmarks(geo, metres, heightAt) {
   return { group, points }
 }
 
-function buildBoundary(geo, metres, heightAt) {
+function buildBoundary(
+  geo: Pick<Geo, 'boundary'>,
+  metres: Metres,
+  heightAt: HeightAt
+): THREE.Group {
   const group = new THREE.Group()
   group.name = 'boundary'
   for (const ring of geo.boundary) {
@@ -658,11 +782,24 @@ function buildBoundary(geo, metres, heightAt) {
   return group
 }
 
-function buildPickups(geo, metres, heightAt, fuelPoints, rng) {
+function buildPickups(
+  geo: Pick<Geo, 'bbox' | 'reserves' | 'wetland'>,
+  metres: Metres,
+  heightAt: HeightAt,
+  fuelPoints: readonly FuelPoint[],
+  rng: Rng
+): { group: THREE.Group; pickups: Pickup[] } {
   const group = new THREE.Group()
   group.name = 'pickups'
-  const pickups = []
-  const place = (x, z, kind, count, seed, yaw = 0) => {
+  const pickups: Pickup[] = []
+  const place = (
+    x: number,
+    z: number,
+    kind: string,
+    count: number,
+    seed?: number,
+    yaw = 0
+  ) => {
     const mesh = buildPickup(kind, seed)
     mesh.position.set(x, heightAt(x, z), z)
     mesh.rotation.y = yaw
@@ -708,7 +845,7 @@ function buildPickups(geo, metres, heightAt, fuelPoints, rng) {
     (m) => m.n === STAND_NAME
   )
   const cabbages = placeCabbages(geo, mulberry32(CABBAGE_SEED), {
-    stand: stand ? { u: stand.u, v: stand.v } : null,
+    stand: stand ? { u: stand.u, v: stand.v } : undefined,
     metres,
   })
   for (const spot of cabbages) {
@@ -722,18 +859,22 @@ function buildPickups(geo, metres, heightAt, fuelPoints, rng) {
 // the midpoint of the longest road named for Bull Valley, which keeps the
 // spawn in the old survey's neighborhood. Falls back to the point nearest the
 // frame center.
-function chooseSpawnStation(geo, metres, fuelPoints) {
-  let bestRoad = null
+function chooseSpawnStation(
+  geo: Pick<Geo, 'roads'>,
+  metres: Metres,
+  fuelPoints: readonly FuelPoint[]
+): FuelPoint | null {
+  let bestRoad: Road | null = null
   for (const road of geo.roads) {
     if (!/bull valley/i.test(road.n || '')) continue
     if (!bestRoad || road.p.length > bestRoad.p.length) bestRoad = road
   }
-  let target = { x: 0, z: 0 }
+  let target: RoadPoint = { x: 0, z: 0 }
   if (bestRoad) {
     const mid = bestRoad.p[Math.floor(bestRoad.p.length / 2)]
     target = unitToWorld(mid[0], mid[1], metres)
   }
-  let best = null
+  let best: { station: FuelPoint; d: number } | null = null
   for (const station of fuelPoints) {
     const d = Math.hypot(station.x - target.x, station.z - target.z)
     if (!best || d < best.d) best = { station, d }
@@ -741,7 +882,7 @@ function chooseSpawnStation(geo, metres, fuelPoints) {
   return best ? best.station : null
 }
 
-export function buildWorld(geo, heightAt) {
+export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   const metres = geo.metres
   const rng = mulberry32(0x5cad0)
   const mask = buildMask(geo, metres)
@@ -764,7 +905,7 @@ export function buildWorld(geo, heightAt) {
   group.add(pickupSet.group)
 
   const spawnStation = chooseSpawnStation(geo, metres, fuel.points)
-  const spawn = spawnStation
+  const spawn: Spawn = spawnStation
     ? { x: spawnStation.x + 5, z: spawnStation.z + 5, yaw: 0 }
     : { x: 0, z: 0, yaw: 0 }
 

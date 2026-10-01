@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { CABBAGE_SEED, placeCabbages } from '../../src/cabbages.js'
-import { pointInPolygon } from '../../src/coords.js'
-import { CABBAGE_STAND, landmarkWorldPositions } from '../../src/landmarks.js'
-import { mulberry32 } from '../../src/rng.js'
+import { CABBAGE_SEED, placeCabbages } from '../../src/cabbages.ts'
+import { pointInPolygon } from '../../src/coords.ts'
+import { CABBAGE_STAND, landmarkWorldPositions } from '../../src/landmarks.ts'
+import { mulberry32 } from '../../src/rng.ts'
+import type { Bbox, Geo, Metres } from '../../src/interfaces.ts'
 
-const METRES = { width: 10000, height: 10000 }
-const GEO = {
+const METRES: Metres = { width: 10000, height: 10000 }
+const GEO: Pick<Geo, 'metres' | 'wetland' | 'reserves'> = {
   metres: METRES,
   // One wetland ring and one reserve, both squares in unit coords.
   wetland: [
@@ -89,7 +90,7 @@ describe('placeCabbages', () => {
 describe('landmarks', () => {
   it('projects both landmarks inside the current survey frame', () => {
     // The regenerated wide frame; keep in sync with scripts/fetch_bull_valley.cjs.
-    const bbox = {
+    const bbox: Bbox = {
       south: 42.2655,
       west: -88.4575,
       north: 42.4015,
@@ -105,6 +106,7 @@ describe('landmarks', () => {
       expect(mark.v).toBeLessThan(1)
     }
     const stand = marks.find((m) => m.n === CABBAGE_STAND)
+    if (!stand) throw new Error('No Cabbage Stand landmark')
     expect(stand.u).toBeCloseTo(0.775, 2)
     expect(stand.v).toBeCloseTo(0.702, 2)
   })

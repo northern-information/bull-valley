@@ -1,22 +1,38 @@
 // The Akashic record: a dev-only page (/akashic) that shows one 3D asset at
 // a time through the game's own render pipeline — same downscale, PS1 snap,
-// lights, and fog as main.js — so an asset can be checked without a raid.
+// lights, and fog as main.ts — so an asset can be checked without a raid.
 // Assets come from the same builders the game places. Dev hook:
 // window.__akashic (ids, select, setView).
 
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { meshBounds, WORLD_ASSETS } from './assets.js'
-import { CONFIG } from './config.js'
-import { applyPose, attachCigarette, buildFigure } from './figure.js'
-import { OUTFIT_IDS, OUTFITS } from './outfits.js'
-import { samplePose } from './poses.js'
-import { setSnapResolution } from './ps1.js'
-import { mulberry32 } from './rng.js'
-import { buildShadowmanFigure, makeSilhouetteTexture } from './shadowmen.js'
-import { buildTruckMesh } from './truck.js'
+import { isMesh, meshBounds, WORLD_ASSETS } from './assets.ts'
+import { CONFIG } from './config.ts'
+import { applyPose, attachCigarette, buildFigure } from './figure.ts'
+import { OUTFIT_IDS, OUTFITS } from './outfits.ts'
+import { samplePose } from './poses.ts'
+import { setSnapResolution } from './ps1.ts'
+import { mulberry32 } from './rng.ts'
+import { buildShadowmanFigure, makeSilhouetteTexture } from './shadowmen.ts'
+import { buildTruckMesh } from './truck.ts'
+import type { AkashicAsset } from './assets.ts'
+import type { OutfitId } from './outfits.ts'
 
-function sampleFigure(outfitId) {
+// The dev hook on window.__akashic.
+export interface AkashicHook {
+  ids: string[]
+  select(id: string): void
+  setView(azimuth: number, elevation: number, distance?: number): void
+  readonly current: string | undefined
+}
+
+declare global {
+  interface Window {
+    __akashic?: AkashicHook
+  }
+}
+
+function sampleFigure(outfitId: OutfitId): THREE.Group {
   const figure = buildFigure(outfitId)
   applyPose(figure, samplePose('stand'))
   // Marx smokes; freeze his cigarette mid-drag with smoke in the air.
@@ -24,7 +40,7 @@ function sampleFigure(outfitId) {
   return figure.group
 }
 
-function sampleShadowman() {
+function sampleShadowman(): THREE.Group {
   const height = 2.8
   const figure = buildShadowmanFigure(
     makeSilhouetteTexture(mulberry32(0xd06)),
@@ -36,7 +52,7 @@ function sampleShadowman() {
   return group
 }
 
-const ASSETS = [
+const ASSETS: AkashicAsset[] = [
   { id: 'truck', label: "Matthew Marx's white Chevy", build: buildTruckMesh },
   ...OUTFIT_IDS.map((id) => ({
     id: `figure-${id}`,
@@ -49,7 +65,14 @@ const ASSETS = [
 
 // --- Scene ---------------------------------------------------------------
 
-const canvas = document.querySelector('.ak-canvas')
+// akashic.html must carry every element this page wires up.
+function requireElement<T extends Element>(selector: string): T {
+  const el = document.querySelector<T>(selector)
+  if (!el) throw new Error(`Akashic page is missing "${selector}"`)
+  return el
+}
+
+const canvas = requireElement<HTMLCanvasElement>('.ak-canvas')
 const renderer = new THREE.WebGLRenderer({
   canvas,
   antialias: false,
@@ -67,7 +90,7 @@ const controls = new OrbitControls(camera, canvas)
 controls.enableDamping = true
 controls.autoRotateSpeed = 1.5
 
-// Game lights, from main.js; the neutral rig is for reading true colors.
+// Game lights, from main.ts; the neutral rig is for reading true colors.
 const gameLights = new THREE.Group()
 gameLights.add(new THREE.HemisphereLight('#33507e', '#1a2013', 1.5))
 const moonlight = new THREE.DirectionalLight('#9db4d8', 0.9)
@@ -116,9 +139,9 @@ const TOGGLES = [
   { id: 'grid', label: 'Grid', key: 'KeyG', on: true },
 ]
 const state = Object.fromEntries(TOGGLES.map((t) => [t.id, t.on]))
-const toggleInputs = {}
+const toggleInputs: Record<string, HTMLInputElement> = {}
 
-const togglesEl = document.querySelector('.ak-toggles')
+const togglesEl = requireElement<HTMLElement>('.ak-toggles')
 for (const t of TOGGLES) {
   const label = document.createElement('label')
   const input = document.createElement('input')
@@ -131,13 +154,13 @@ for (const t of TOGGLES) {
   toggleInputs[t.id] = input
 }
 
-function setToggle(id, on) {
+function setToggle(id: string, on: boolean): void {
   state[id] = on
   toggleInputs[id].checked = on
   applyToggles()
 }
 
-function applyToggles() {
+function applyToggles(): void {
   scene.fog = state.fog ? fog : null
   gameLights.visible = state.gameLight
   neutralLights.visible = !state.gameLight
@@ -150,53 +173,79 @@ function applyToggles() {
   resize()
 }
 
+// Meshes, sprites, lines and points carry a material and a geometry, but
+// Object3D declares neither; these narrow by the property being present.
+function hasMaterial(
+  o: THREE.Object3D
+): o is THREE.Object3D & { material: THREE.Material | THREE.Material[] } {
+  return 'material' in o
+}
+
+function hasGeometry(
+  o: THREE.Object3D
+): o is THREE.Object3D & { geometry: THREE.BufferGeometry | undefined } {
+  return 'geometry' in o
+}
+
+// Material declares no map; the Mesh*Material and SpriteMaterial types do.
+function hasMap(
+  m: THREE.Material
+): m is THREE.Material & { map: THREE.Texture | null } {
+  return 'map' in m
+}
+
 // A mesh may carry one material or an array (one per geometry group).
-function materialsOf(o) {
-  if (!o.material) return []
+function materialsOf(o: THREE.Object3D): THREE.Material[] {
+  if (!hasMaterial(o) || !o.material) return []
   return Array.isArray(o.material) ? o.material : [o.material]
 }
 
-function setWireframe(object, on) {
+function setWireframe(object: THREE.Object3D, on: boolean): void {
   object.traverse((o) => {
-    if (!o.isMesh) return
-    for (const m of materialsOf(o)) m.wireframe = on
+    if (!isMesh(o)) return
+    for (const m of materialsOf(o)) if ('wireframe' in m) m.wireframe = on
   })
 }
 
 // --- Asset selection -----------------------------------------------------
 
-const select = document.querySelector('.ak-panel select')
+const select = requireElement<HTMLSelectElement>('.ak-panel select')
 for (const asset of ASSETS) select.add(new Option(asset.label, asset.id))
 select.addEventListener('change', () => selectAsset(select.value))
-for (const btn of document.querySelectorAll('[data-step]')) {
+for (const btn of document.querySelectorAll<HTMLElement>('[data-step]')) {
   btn.addEventListener('click', () => step(Number(btn.dataset.step)))
 }
-const statsEl = document.querySelector('.ak-stats')
+const statsEl = requireElement<HTMLElement>('.ak-stats')
 
-let current = null
+interface Current {
+  asset: AkashicAsset
+  object: THREE.Object3D
+}
 
-function dispose(object) {
+let current: Current | null = null
+
+function dispose(object: THREE.Object3D): void {
   object.traverse((o) => {
-    o.geometry?.dispose()
+    if (hasGeometry(o)) o.geometry?.dispose()
     for (const m of materialsOf(o)) {
-      m.map?.dispose()
+      if (hasMap(m)) m.map?.dispose()
       m.dispose()
     }
   })
 }
 
-function triangleCount(object) {
+function triangleCount(object: THREE.Object3D): number {
   let n = 0
   object.traverse((o) => {
-    if (!o.isMesh) return
+    if (!isMesh(o)) return
     const g = o.geometry
     const tris = (g.index ? g.index.count : g.attributes.position.count) / 3
-    n += tris * (o.isInstancedMesh ? o.count : 1)
+    n += tris * ('isInstancedMesh' in o && o.isInstancedMesh ? o.count : 1)
   })
   return n
 }
 
-function selectAsset(id) {
+function selectAsset(id: string): void {
   const asset = ASSETS.find((a) => a.id === id) || ASSETS[0]
   if (current) {
     scene.remove(current.object)
@@ -226,14 +275,14 @@ function selectAsset(id) {
   if (location.hash.slice(1) !== asset.id) {
     history.replaceState(null, '', `#${asset.id}`)
   }
-  const m = (v) => v.toFixed(2)
+  const m = (v: number): string => v.toFixed(2)
   statsEl.textContent =
     `${asset.id}\n` +
     `${triangleCount(object)} tris\n` +
     `${m(size.x)} × ${m(size.y)} × ${m(size.z)} m (x × y × z)`
 }
 
-function step(delta) {
+function step(delta: number): void {
   const i = ASSETS.findIndex((a) => a.id === current?.asset.id)
   const next = (i + delta + ASSETS.length) % ASSETS.length
   selectAsset(ASSETS[next].id)
@@ -241,7 +290,7 @@ function step(delta) {
 
 // Azimuth 0 looks at the asset's front (+Z); degrees, elevation above the
 // ground plane. Distance defaults to the current one.
-function setView(azimuth, elevation, distance) {
+function setView(azimuth: number, elevation: number, distance?: number): void {
   const r = distance ?? camera.position.distanceTo(controls.target)
   const az = THREE.MathUtils.degToRad(azimuth)
   const el = THREE.MathUtils.degToRad(elevation)
@@ -271,7 +320,7 @@ window.addEventListener('hashchange', () => {
   }
 })
 
-function resize() {
+function resize(): void {
   const w = window.innerWidth
   const h = window.innerHeight
   const downscale = state.pixels ? CONFIG.render.downscale : 1
@@ -280,7 +329,7 @@ function resize() {
   renderer.setSize(iw, ih, false)
   camera.aspect = w / h
   camera.updateProjectionMatrix()
-  // ps1.js snaps to half the size it is given; a huge grid means no wobble.
+  // ps1.ts snaps to half the size it is given; a huge grid means no wobble.
   if (state.ps1) setSnapResolution(iw, ih)
   else setSnapResolution(1e6, 1e6)
 }

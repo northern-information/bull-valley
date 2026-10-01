@@ -1,18 +1,74 @@
 import * as THREE from 'three'
-import { CONFIG } from './config.js'
-import { compassBearing } from './coords.js'
-import { mulberry32, pick, range } from './rng.js'
+import { CONFIG } from './config.ts'
+import { compassBearing } from './coords.ts'
+import { mulberry32, pick, range } from './rng.ts'
+import type { Metres } from './interfaces.ts'
+import type { PlayerState } from './player.ts'
+import type { Rng } from './rng.ts'
+import type { RoadPoint } from './roadgraph.ts'
+import type { HeightAt } from './terrain.ts'
 
 // The shadowmen. They are not fought — they are noticed too late. State
 // machine per entity: dormant (drifting far off) → stalking (keeping distance,
 // working around behind you) → hunting (closing) → strike. Staring at one
 // freezes it, but staring too long provokes it.
 
-export function makeSilhouetteTexture(rng) {
+export type ShadowmanState = 'dormant' | 'stalking' | 'hunting'
+
+export interface Shadowman {
+  node: THREE.Group
+  aura: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>
+  halfHeight: number
+  pos: THREE.Vector3
+  state: ShadowmanState
+  waypoint: THREE.Vector3 | null
+  detect: number
+  stareTime: number
+  escapeTimer: number
+  flickerTimer: number
+  hidden: number
+}
+
+export interface ShadowmenOptions {
+  scene: THREE.Object3D
+  heightAt: HeightAt
+  metres: Metres
+  // Graveyard centres; some shadowmen start near these.
+  anchors: readonly RoadPoint[]
+  playerSpawn: RoadPoint
+}
+
+export interface ShadowmenMods {
+  ember?: boolean
+  perception?: boolean
+}
+
+// A shadowman inside scope range.
+export interface ShadowmanContact {
+  dist: number
+  bearing: number
+  hunting: boolean
+}
+
+export interface ShadowmenUpdate {
+  pressure: number
+  anyHunting: boolean
+  strike: boolean
+  nearest: { dist: number; bearing: number } | null
+  contacts: ShadowmanContact[]
+}
+
+function context2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas 2D context is not available')
+  return ctx
+}
+
+export function makeSilhouetteTexture(rng: Rng): THREE.CanvasTexture {
   const canvas = document.createElement('canvas')
   canvas.width = 64
   canvas.height = 128
-  const ctx = canvas.getContext('2d')
+  const ctx = context2d(canvas)
   ctx.fillStyle = '#ffffff'
   // Head
   const headR = range(rng, 5, 8)
@@ -66,7 +122,10 @@ export function makeSilhouetteTexture(rng) {
 
 // The visible figure: a silhouette card, height metres tall, centred on its
 // origin. The perception aura is layered on by Shadowmen.
-export function buildShadowmanFigure(texture, height) {
+export function buildShadowmanFigure(
+  texture: THREE.Texture,
+  height: number
+): THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> {
   return new THREE.Mesh(
     new THREE.PlaneGeometry(height / 2, height),
     new THREE.MeshBasicMaterial({
@@ -80,7 +139,19 @@ export function buildShadowmanFigure(texture, height) {
 }
 
 export class Shadowmen {
-  constructor({ scene, heightAt, metres, anchors, playerSpawn }) {
+  heightAt: HeightAt
+  metres: Metres
+  rng: Rng
+  entities: Shadowman[]
+  group: THREE.Group
+
+  constructor({
+    scene,
+    heightAt,
+    metres,
+    anchors,
+    playerSpawn,
+  }: ShadowmenOptions) {
     this.heightAt = heightAt
     this.metres = metres
     this.rng = mulberry32(0xd06)
@@ -89,7 +160,7 @@ export class Shadowmen {
     this.group.name = 'shadowmen'
     scene.add(this.group)
 
-    const textures = []
+    const textures: THREE.CanvasTexture[] = []
     for (let i = 0; i < 5; i++) textures.push(makeSilhouetteTexture(this.rng))
 
     const cfg = CONFIG.shadowmen
@@ -119,8 +190,8 @@ export class Shadowmen {
       this.group.add(node)
 
       // Seed them at the graveyards and random far woods, never near spawn.
-      let x
-      let z
+      let x: number
+      let z: number
       do {
         if (anchors.length && this.rng() < 0.4) {
           const anchor = pick(this.rng, anchors)
@@ -148,7 +219,12 @@ export class Shadowmen {
     }
   }
 
-  relocateEntity(e, player, minDist, maxDist) {
+  relocateEntity(
+    e: Shadowman,
+    player: Pick<PlayerState, 'pos'>,
+    minDist: number,
+    maxDist: number
+  ) {
     const angle = this.rng() * Math.PI * 2
     const d = range(this.rng, minDist, maxDist)
     e.pos.x = Math.max(
@@ -165,15 +241,19 @@ export class Shadowmen {
     e.waypoint = null
   }
 
-  update(dt, player, mods = {}) {
+  update(
+    dt: number,
+    player: PlayerState,
+    mods: ShadowmenMods = {}
+  ): ShadowmenUpdate {
     const cfg = CONFIG.shadowmen
     const detectRange =
       cfg.detectRange * (mods.ember ? CONFIG.items.emberDetectScale : 1)
     let pressure = 0
     let anyHunting = false
     let strike = false
-    let nearest = null
-    const contacts = []
+    let nearest: ShadowmenUpdate['nearest'] = null
+    const contacts: ShadowmanContact[] = []
 
     for (const e of this.entities) {
       const dx = player.pos.x - e.pos.x

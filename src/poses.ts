@@ -1,4 +1,4 @@
-// Pure: the joints of the shared character body (figure.js) and the poses
+// Pure: the joints of the shared character body (figure.ts) and the poses
 // that drive them. A pose maps joint names to [x, y, z] Euler rotations in
 // radians, plus a lift (metres added to the root height, negative to
 // crouch). Joints a pose leaves out rest at zero.
@@ -19,9 +19,34 @@ export const JOINTS = [
   'hipR',
   'kneeL',
   'kneeR',
-]
+] as const
 
-const ARMS_DOWN = {
+export type JointName = (typeof JOINTS)[number]
+
+// An Euler rotation [x, y, z] in radians.
+export type Rotation = [number, number, number]
+
+export interface PoseKey {
+  // Metres added to the root height; negative crouches.
+  lift: number
+  joints: Partial<Record<JointName, Rotation>>
+}
+
+export interface Pose {
+  keys: PoseKey[]
+  // Cycle length; only poses with more than one key loop.
+  seconds?: number
+}
+
+export type PoseName = 'stand' | 'sit' | 'lean' | 'crouch' | 'walk'
+
+// A sampled pose: every joint present.
+export interface PoseSample {
+  lift: number
+  joints: Record<JointName, Rotation>
+}
+
+const ARMS_DOWN: Partial<Record<JointName, Rotation>> = {
   shoulderL: [0, 0, 0.08],
   shoulderR: [0, 0, -0.08],
   elbowL: [-0.12, 0, 0],
@@ -132,11 +157,11 @@ export const POSES = {
       },
     ],
   },
-}
+} satisfies Record<PoseName, Pose>
 
-const ZERO = [0, 0, 0]
+const ZERO: Rotation = [0, 0, 0]
 
-function mix(a, b, t) {
+function mix(a: Rotation, b: Rotation, t: number): Rotation {
   return [
     a[0] + (b[0] - a[0]) * t,
     a[1] + (b[1] - a[1]) * t,
@@ -146,22 +171,24 @@ function mix(a, b, t) {
 
 // The pose `name` at time t seconds: { lift, joints } with every joint
 // present. Cycles interpolate linearly between keys and loop.
-export function samplePose(name, t = 0) {
-  const pose = POSES[name]
+export function samplePose(name: PoseName, t = 0): PoseSample {
+  const pose: Pose | undefined = POSES[name]
   if (!pose) throw new Error(`Unknown pose: ${name}`)
   const { keys } = pose
   let a = keys[0]
   let b = keys[0]
   let f = 0
   if (keys.length > 1) {
-    const phase = (((t / pose.seconds) % 1) + 1) % 1
+    // A cycle with no length never advances, as before (t / undefined is
+    // NaN, which reads as phase 0 below).
+    const phase = (((t / (pose.seconds ?? NaN)) % 1) + 1) % 1
     const pos = phase * keys.length
     const i = Math.floor(pos)
     a = keys[i]
     b = keys[(i + 1) % keys.length]
     f = pos - i
   }
-  const joints = {}
+  const joints = {} as Record<JointName, Rotation> // filled for every joint below
   for (const joint of JOINTS) {
     joints[joint] = mix(a.joints[joint] || ZERO, b.joints[joint] || ZERO, f)
   }

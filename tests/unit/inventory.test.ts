@@ -6,20 +6,23 @@ import {
   saveInventory,
   STARTING_INVENTORY,
   useItem,
-} from '../../src/inventory.js'
+} from '../../src/inventory.ts'
+import type { Inventory } from '../../src/interfaces.ts'
 
 function stubStorage() {
-  const store = new Map()
+  const store = new Map<string, string>()
   return {
     store,
-    getItem: (k) => (store.has(k) ? store.get(k) : null),
-    setItem: (k, value) => store.set(k, value),
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, value: string) => {
+      store.set(k, value)
+    },
   }
 }
 
 describe('inventory', () => {
   it('adds and uses items without going negative', () => {
-    let inv = { ...STARTING_INVENTORY, marlboro: 1, joints: 0 }
+    let inv: Inventory = { ...STARTING_INVENTORY, marlboro: 1, joints: 0 }
     inv = addItem(inv, 'joints', 2)
     expect(inv.joints).toBe(2)
     const used = useItem(inv, 'marlboro')
@@ -49,7 +52,9 @@ describe('inventory', () => {
 
   it('fills missing kinds and clamps bad counts', () => {
     const storage = stubStorage()
-    saveInventory(storage, { camel: -3, parliament: 'x', joints: 2.9 })
+    // Junk on purpose: what a stale or hand-edited save could hold.
+    const junk = { camel: -3, parliament: 'x', joints: 2.9 }
+    saveInventory(storage, junk as unknown as Inventory)
     const inv = loadInventory(storage)
     expect(inv.camel).toBe(0)
     expect(inv.parliament).toBe(0)

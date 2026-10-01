@@ -1,12 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { mulberry32 } from '../../src/rng.js'
+import { mulberry32 } from '../../src/rng.ts'
 import {
   buildRoadGraph,
   createWalker,
   nearestRoadPoint,
   planRoute,
   wanderRoute,
-} from '../../src/roadgraph.js'
+} from '../../src/roadgraph.ts'
+import type { Metres, Road } from '../../src/interfaces.ts'
+import type { RoadPoint } from '../../src/roadgraph.ts'
+
+// Fails the test with a clear message when a result is missing.
+function must<T>(value: T | null | undefined, what: string): T {
+  if (value === null || value === undefined) throw new Error(`No ${what}`)
+  return value
+}
 
 // A cross with a spur, in unit coordinates over a 1000x1000 m frame:
 //
@@ -18,8 +26,8 @@ import {
 //
 // The junction (0.5,0.5) and the spur joint (0.9,0.5) are shared vertices,
 // exactly as geo.json's 1e-4 quantization makes OSM junctions coincide.
-const METRES = { width: 1000, height: 1000 }
-const ROADS = [
+const METRES: Metres = { width: 1000, height: 1000 }
+const ROADS: Road[] = [
   {
     c: 'tertiary',
     n: 'North South Road',
@@ -50,7 +58,12 @@ const ROADS = [
 
 const graph = buildRoadGraph(ROADS, METRES)
 
-function polylineLength(points) {
+// The closest road point, which this fixture always has.
+function snap(x: number, z: number) {
+  return must(nearestRoadPoint(graph, x, z), 'road point')
+}
+
+function polylineLength(points: readonly RoadPoint[]) {
   let len = 0
   for (let i = 1; i < points.length; i++) {
     len += Math.hypot(
@@ -85,14 +98,14 @@ describe('buildRoadGraph', () => {
 
 describe('nearestRoadPoint', () => {
   it('projects onto the closest edge', () => {
-    const p = nearestRoadPoint(graph, 10, -100)
+    const p = snap(10, -100)
     expect(p.x).toBeCloseTo(0, 6)
     expect(p.z).toBeCloseTo(-100, 6)
     expect(p.dist).toBeCloseTo(10, 6)
   })
 
   it('clamps beyond edge ends', () => {
-    const p = nearestRoadPoint(graph, 400, 300)
+    const p = snap(400, 300)
     expect(p.x).toBeCloseTo(400, 6)
     expect(p.z).toBeCloseTo(200, 6)
   })
@@ -100,9 +113,9 @@ describe('nearestRoadPoint', () => {
 
 describe('planRoute', () => {
   it('routes across the junction with partial edges at both ends', () => {
-    const from = nearestRoadPoint(graph, 0, -200)
-    const to = nearestRoadPoint(graph, 200, 0)
-    const route = planRoute(graph, from, to)
+    const from = snap(0, -200)
+    const to = snap(200, 0)
+    const route = must(planRoute(graph, from, to), 'route')
     expect(route[0].x).toBeCloseTo(0, 6)
     expect(route[0].z).toBeCloseTo(-200, 6)
     expect(route[route.length - 1].x).toBeCloseTo(200, 6)
@@ -111,16 +124,16 @@ describe('planRoute', () => {
   })
 
   it('stays on one edge when both points share it', () => {
-    const from = nearestRoadPoint(graph, 0, -300)
-    const to = nearestRoadPoint(graph, 0, -100)
-    const route = planRoute(graph, from, to)
+    const from = snap(0, -300)
+    const to = snap(0, -100)
+    const route = must(planRoute(graph, from, to), 'route')
     expect(polylineLength(route)).toBeCloseTo(200, 4)
   })
 
   it('reaches the spur end from the far arm', () => {
-    const from = nearestRoadPoint(graph, -400, 0)
-    const to = nearestRoadPoint(graph, 400, 200)
-    const route = planRoute(graph, from, to)
+    const from = snap(-400, 0)
+    const to = snap(400, 200)
+    const route = must(planRoute(graph, from, to), 'route')
     // West arm 400 + east arm 400 + spur 200.
     expect(polylineLength(route)).toBeCloseTo(1000, 4)
   })
@@ -128,7 +141,7 @@ describe('planRoute', () => {
 
 describe('wanderRoute', () => {
   it('is deterministic for a fixed seed', () => {
-    const from = nearestRoadPoint(graph, 0, -200)
+    const from = snap(0, -200)
     const a = wanderRoute(graph, from, mulberry32(7), 600)
     const b = wanderRoute(graph, from, mulberry32(7), 600)
     expect(a).toEqual(b)
@@ -137,7 +150,7 @@ describe('wanderRoute', () => {
   it('takes the straightest continuation instead of reversing', () => {
     // Start on the north arm heading south: the straight continuation at the
     // junction is the south arm, not a turn and never a reversal.
-    const from = nearestRoadPoint(graph, 0, -200)
+    const from = snap(0, -200)
     const route = wanderRoute(graph, from, mulberry32(1), 500)
     const last = route[route.length - 1]
     expect(last.x).toBeCloseTo(0, 6)

@@ -1,6 +1,6 @@
 // Every item in Bull Valley, in one table: identity, text, and tuning. Edit
 // an item here and the carousel, the tailgate, pickups, and toasts follow.
-// Pure, no Three. Meshes stay in assets.js, keyed by id.
+// Pure, no Three. Meshes stay in assets.ts, keyed by id.
 //
 // Fields:
 //   id        inventory kind and mesh key
@@ -16,6 +16,8 @@
 // Gear is not counted in the inventory: the sack is raid state
 // (raid.sack), so it has no start, used, or empty text. Drinks cannot be
 // used yet, so they have no used or empty text.
+
+import type { Inventory, Item, ShopStock } from './interfaces.ts'
 
 export const ITEMS = [
   {
@@ -100,7 +102,7 @@ export const ITEMS = [
     perceptionSeconds: 120,
   },
   // Drinks, circa 2008. No effect yet: the player can buy and carry them,
-  // not drink them. container is a key into CONTAINERS in drinks.js.
+  // not drink them. container is a key into CONTAINERS in drinks.ts.
   {
     id: 'monster',
     category: 'drink',
@@ -282,53 +284,75 @@ export const ITEMS = [
     shopCap: 1,
     carryLimit: 5,
   },
-]
+] as const satisfies readonly Item[]
 
-export const ITEM_IDS = ITEMS.map((item) => item.id)
+type ItemEntry = (typeof ITEMS)[number]
 
-const BY_ID = new Map(ITEMS.map((item) => [item.id, item]))
+// Every item id, as a type: a typo in a literal id fails the type check.
+export type ItemId = ItemEntry['id']
 
-export function itemById(id) {
+export const ITEM_IDS: readonly ItemId[] = ITEMS.map((item) => item.id)
+
+// ITEMS widened to the plain Item shape, for code that reads optional
+// fields (shopCap, container) across every entry.
+export const ITEM_LIST: readonly Item[] = ITEMS
+
+const BY_ID = new Map<string, Item>(ITEMS.map((item) => [item.id, item]))
+
+// Look up an id that came from outside the table (saved inventory, a ring
+// entry). Null when the id is unknown.
+export function itemById(id: string): Item | null {
   return BY_ID.get(id) || null
 }
 
-export const CIGARETTE_IDS = ITEMS.filter(
+// Look up a literal id. The return type is that exact entry, so its fields
+// (the sack's carryLimit, say) need no null checks. The cast is safe: K is
+// an id in ITEMS, so find() always matches that entry.
+export function getItem<K extends ItemId>(
+  id: K
+): Extract<ItemEntry, { id: K }> {
+  return ITEMS.find((item) => item.id === id) as Extract<ItemEntry, { id: K }>
+}
+
+export const CIGARETTE_IDS: readonly string[] = ITEMS.filter(
   (item) => item.category === 'cigarette'
 ).map((item) => item.id)
 
-export function isCigarette(id) {
+export function isCigarette(id: string): boolean {
   return itemById(id)?.category === 'cigarette'
 }
 
-export function isDrink(id) {
+export function isDrink(id: string): boolean {
   return itemById(id)?.category === 'drink'
 }
 
 // Whether the player can use a carried item (E in the carousel).
-export function isUsable(id) {
+export function isUsable(id: string): boolean {
   const category = itemById(id)?.category
   return category === 'cigarette' || category === 'joint'
 }
 
 // The kinds the inventory counts: everything except gear.
-export const INVENTORY_KINDS = ITEMS.filter(
+export const INVENTORY_KINDS: readonly string[] = ITEMS.filter(
   (item) => item.category !== 'gear'
 ).map((item) => item.id)
 
 // A fresh tailgate: each for-sale item at its cap, keyed by id.
-export function shopStock() {
-  return Object.fromEntries(
-    ITEMS.filter((item) => item.shopCap > 0).map((item) => [
-      item.id,
-      item.shopCap,
-    ])
-  )
+export function shopStock(): ShopStock {
+  const stock: ShopStock = {}
+  for (const item of ITEM_LIST) {
+    if (item.shopCap && item.shopCap > 0) stock[item.id] = item.shopCap
+  }
+  return stock
 }
 
 // The cigarette that a bare "smoke" press lights: the selected one when the
 // player still carries it, else the first one in ITEMS order they carry.
 // Null when they carry none.
-export function cigaretteToSmoke(inv, selected) {
+export function cigaretteToSmoke(
+  inv: Inventory,
+  selected: string | null
+): string | null {
   if (selected && isCigarette(selected) && inv[selected] > 0) return selected
   return CIGARETTE_IDS.find((id) => inv[id] > 0) || null
 }

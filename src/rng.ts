@@ -1,6 +1,8 @@
 // Deterministic PRNG (mulberry32) so the scattered world — trees, headstones,
 // reeds, pickups — is identical for every visitor and every visit.
-export function mulberry32(seed) {
+export type Rng = () => number
+
+export function mulberry32(seed: number): Rng {
   let a = seed >>> 0
   return function () {
     a |= 0
@@ -11,6 +13,8 @@ export function mulberry32(seed) {
   }
 }
 
-export const range = (rng, lo, hi) => lo + rng() * (hi - lo)
+export const range = (rng: Rng, lo: number, hi: number): number =>
+  lo + rng() * (hi - lo)
 
-export const pick = (rng, arr) => arr[Math.floor(rng() * arr.length)]
+export const pick = <T>(rng: Rng, arr: readonly T[]): T =>
+  arr[Math.floor(rng() * arr.length)]

@@ -1,11 +1,28 @@
 // Seeded cabbage placement, pure unit-square math. Wild cabbages grow where
 // nobody mows — the wetlands (2:1) and the nature reserves — plus a guaranteed
 // cluster near the Cabbage Stand so a short first raid is always possible.
-// Rendering happens in world.js; this module never touches three.js.
+// Rendering happens in world.ts; this module never touches three.js.
 
-import { CONFIG } from './config.js'
-import { pointInPolygon, polygonBounds } from './coords.js'
-import { range } from './rng.js'
+import { CONFIG } from './config.ts'
+import { pointInPolygon, polygonBounds } from './coords.ts'
+import { range } from './rng.ts'
+import type { Geo, Metres } from './interfaces.ts'
+import type { Rng } from './rng.ts'
+
+export type CabbageSource = 'cluster' | 'wetland' | 'reserve'
+
+export interface CabbageSpot {
+  u: number
+  v: number
+  src: CabbageSource
+}
+
+export interface CabbageOptions {
+  stand?: { u: number; v: number }
+  metres?: Metres
+  count?: number
+  cluster?: number
+}
 
 export const CABBAGE_SEED = 0xcabba6e
 
@@ -13,14 +30,14 @@ export const CABBAGE_SEED = 0xcabba6e
 // coords { u, v }. metres: geo.metres, for the cluster radius.
 // Returns [{ u, v, src: 'cluster' | 'wetland' | 'reserve' }].
 export function placeCabbages(
-  geo,
-  rng,
-  { stand, metres, count, cluster } = {}
-) {
+  geo: Pick<Geo, 'wetland' | 'reserves'>,
+  rng: Rng,
+  { stand, metres, count, cluster }: CabbageOptions = {}
+): CabbageSpot[] {
   const wild = count ?? CONFIG.cabbage.count
   const clusterCount = cluster ?? 6
   const clusterRadius = 400
-  const spots = []
+  const spots: CabbageSpot[] = []
 
   // The guaranteed patch: within clusterRadius metres of the stand, never
   // right on top of it.

@@ -4,11 +4,12 @@ import {
   stepIndex,
   syncIndex,
   wrapDelta,
-} from '../../src/carousel.js'
-import { STARTING_INVENTORY } from '../../src/inventory.js'
-import { createRaid } from '../../src/raid.js'
+} from '../../src/carousel.ts'
+import { STARTING_INVENTORY } from '../../src/inventory.ts'
+import { createRaid } from '../../src/raid.ts'
+import type { RingItem } from '../../src/interfaces.ts'
 
-const kinds = (items) => items.map((item) => item.kind)
+const kinds = (items: RingItem[]) => items.map((item) => item.kind)
 const empty = { ...STARTING_INVENTORY, marlboro: 0, joints: 0 }
 const shop = {
   marlboro: 2,
@@ -124,7 +125,16 @@ describe('stepIndex', () => {
 })
 
 describe('syncIndex', () => {
-  const items = [{ kind: 'camel' }, { kind: 'joints' }]
+  const ring = (kind: string): RingItem => ({
+    kind,
+    label: kind,
+    blurb: '',
+    stock: 1,
+    tailgate: null,
+    canUse: false,
+    canBuy: false,
+  })
+  const items = [ring('camel'), ring('joints')]
 
   it('follows the selected kind when the ring shifts', () => {
     expect(syncIndex(items, 'joints', 2)).toBe(1)

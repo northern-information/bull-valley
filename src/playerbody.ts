@@ -4,8 +4,22 @@
 // they fill the view as big blocks. It stands, walks with the move speed, and crouches; it switches pose
 // without blending, the way PS1 characters snapped between animations.
 
-import { applyPose, buildFigure } from './figure.js'
-import { POSES, samplePose } from './poses.js'
+import { applyPose, buildFigure } from './figure.ts'
+import { POSES, samplePose } from './poses.ts'
+import type { Figure } from './figure.ts'
+import type { PoseSample } from './poses.ts'
+import type * as THREE from 'three'
+
+// Where the body stands this frame. ground: the y the feet stand on. yaw:
+// the player's yaw (0 faces -Z).
+export interface PlayerBodyFrame {
+  x: number
+  ground: number
+  z: number
+  yaw: number
+  speed: number
+  crouching: boolean
+}
 
 // Metres covered by one full walk cycle (two steps).
 const STRIDE = 1.5
@@ -14,7 +28,10 @@ const STRIDE = 1.5
 const BACKSET = 0.2
 
 export class PlayerBody {
-  constructor(scene) {
+  figure: Figure
+  cycle: number
+
+  constructor(scene: THREE.Object3D) {
     this.figure = buildFigure('player', { head: false })
     this.figure.group.name = 'player-body'
     // The arms hang off the spine, so this hides the torso and both arms.
@@ -23,8 +40,10 @@ export class PlayerBody {
     this.cycle = 0
   }
 
-  // ground: the y the feet stand on. yaw: the player's yaw (0 faces -Z).
-  update(dt, { x, ground, z, yaw, speed, crouching }) {
+  update(
+    dt: number,
+    { x, ground, z, yaw, speed, crouching }: PlayerBodyFrame
+  ): void {
     const group = this.figure.group
     // The figure faces +Z; the player faces -Z at yaw 0.
     group.rotation.y = yaw + Math.PI
@@ -32,7 +51,7 @@ export class PlayerBody {
     const fz = -Math.cos(yaw)
     group.position.set(x - fx * BACKSET, ground, z - fz * BACKSET)
 
-    let pose
+    let pose: PoseSample
     if (crouching) {
       pose = samplePose('crouch')
     } else if (speed > 0.3) {

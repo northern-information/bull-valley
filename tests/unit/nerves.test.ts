@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { nervesIntensity, stepNerves } from '../../src/nerves.js'
+import { nervesIntensity, stepNerves } from '../../src/nerves.ts'
 
-// nerves.js is parked (unwired from main.js) until the shadowmen return;
+// nerves.ts is parked (unwired from main.ts) until the shadowmen return;
 // these tests keep it honest in the meantime.
 describe('nerves', () => {
   it('decays toward calm when nothing is near', () => {

@@ -1,6 +1,6 @@
-import { CONFIG } from './config.js'
-import { compassBearing } from './coords.js'
-import { outfitById } from './outfits.js'
+import { CONFIG } from './config.ts'
+import { compassBearing } from './coords.ts'
+import { outfitById } from './outfits.ts'
 
 // The handheld Scaduscope: a north-up sweep radar in the SYSOUT voice, run as
 // an app on a phone. Blips light as the sweep passes and decay until it comes
@@ -32,8 +32,8 @@ const SCREEN = '#020617'
 const GRID_W = 200
 const GRID_H = 360
 const WIDTH = 90
-const HEIGHT = 162
 const K = WIDTH / GRID_W
+const HEIGHT = Math.round(GRID_H * K) // 162
 
 // The screen hole in the phone body, in grid units.
 const SX = 46
@@ -41,9 +41,12 @@ const SY = 34
 const SW = 108
 const SH = 208
 
+// A flat polygon: its fill and its corners in grid units.
+type Poly = [color: string, points: [number, number][]]
+
 // Back layer, drawn before the phone body.
 // prettier-ignore
-const BACK = [
+const BACK: Poly[] = [
   [SLEEVE, [[58, 360], [66, 296], [154, 296], [164, 360]]],
   [CUFF, [[64, 300], [68, 282], [152, 282], [156, 300]]],
   [SKIN, [[36, 172], [30, 238], [54, 286], [150, 290], [174, 258], [174, 172]]],
@@ -54,18 +57,21 @@ const BACK = [
 
 // Front layer: the thumb over the bezel.
 // prettier-ignore
-const FRONT = [
+const FRONT: Poly[] = [
   [SKIN, [[176, 252], [180, 208], [170, 170], [160, 162], [152, 172], [156, 210], [153, 254]]],
   [SKIN_SHADE, [[176, 252], [180, 208], [166, 212], [164, 253]]],
 ]
 
-function darken(hex, factor) {
+function darken(hex: string, factor: number): string {
   const n = parseInt(hex.slice(1), 16)
-  const channel = (shift) => Math.round(((n >> shift) & 255) * factor)
+  const channel = (shift: number) => Math.round(((n >> shift) & 255) * factor)
   return `rgb(${channel(16)}, ${channel(8)}, ${channel(0)})`
 }
 
-function fillPolys(ctx, polys) {
+function fillPolys(
+  ctx: CanvasRenderingContext2D,
+  polys: readonly Poly[]
+): void {
   for (const [color, points] of polys) {
     ctx.fillStyle = color
     ctx.beginPath()
@@ -86,12 +92,47 @@ function clockText() {
   })
 }
 
+// A shadowman on the scope: compass bearing in degrees, distance in metres.
+export interface ScopeContact {
+  dist: number
+  bearing: number
+  hunting: boolean
+}
+
+// A direction on the ground plane. A THREE.Vector3 fits.
+export interface GroundDirection {
+  x: number
+  z: number
+}
+
+// What draw() needs each frame. forward is the player's facing.
+export interface ScopeFrame {
+  contacts: ScopeContact[]
+  forward: GroundDirection
+  nerves: number
+  perception: boolean
+}
+
+function required2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
+  const ctx = canvas.getContext('2d')
+  if (ctx === null) throw new Error('Scope: no 2D context for the canvas')
+  return ctx
+}
+
 export class Scope {
+  canvas: HTMLCanvasElement
+  holder: HTMLElement
+  ctx: CanvasRenderingContext2D
+  raised: boolean
+  sweep: number
+  clock: string
+  clockAge: number
+
   // holder is the element that slides up when the scope is raised.
-  constructor(canvas, holder = canvas) {
+  constructor(canvas: HTMLCanvasElement, holder: HTMLElement = canvas) {
     this.canvas = canvas
     this.holder = holder
-    this.ctx = canvas.getContext('2d')
+    this.ctx = required2d(canvas)
     this.raised = false
     this.sweep = 0
     this.clock = ''
@@ -100,13 +141,16 @@ export class Scope {
     canvas.height = HEIGHT
   }
 
-  toggle() {
+  toggle(): boolean {
     this.raised = !this.raised
     this.holder.classList.toggle('bv-phone--raised', this.raised)
     return this.raised
   }
 
-  draw(dt, { contacts, forward, nerves, perception }) {
+  draw(
+    dt: number,
+    { contacts, forward, nerves, perception }: ScopeFrame
+  ): void {
     if (!this.raised) return
     this.sweep =
       (this.sweep + (dt * Math.PI * 2) / CONFIG.scope.sweepSeconds) %
@@ -214,7 +258,7 @@ export class Scope {
     ctx.beginPath()
     ctx.arc(c, cy, r, 0, Math.PI * 2)
     ctx.stroke()
-    let best = null
+    let best: ScopeContact | null = null
     for (const contact of contacts) {
       if (!best || contact.dist < best.dist) best = contact
     }

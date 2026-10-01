@@ -1,12 +1,62 @@
 import * as THREE from 'three'
-import { CONFIG } from './config.js'
+import { CONFIG } from './config.ts'
+import type { Metres } from './interfaces.ts'
+import type { HeightAt } from './terrain.ts'
 
 // First-person controller: WASD relative to yaw, Shift sprint, C crouch,
 // pointer-lock mouse look, feet glued to the heightfield. The camera never
-// leaves this class; main.js only reads the returned state.
+// leaves this class; main.ts only reads the returned state.
+
+export interface PlayerSpawn {
+  x: number
+  z: number
+  yaw?: number
+}
+
+export interface PlayerOptions {
+  camera: THREE.Camera
+  heightAt: HeightAt
+  metres: Metres
+  spawn: PlayerSpawn
+}
+
+// Per-frame movement modifiers from items and the scope.
+export interface PlayerMods {
+  speedScale?: number
+  swayAmp?: number
+  driftAmp?: number
+}
+
+// What update() returns each frame.
+export interface PlayerState {
+  pos: THREE.Vector3
+  forward: THREE.Vector3
+  speed: number
+  moving: boolean
+  sprinting: boolean
+  crouching: boolean
+}
 
 export class Player {
-  constructor({ camera, heightAt, metres, spawn }) {
+  camera: THREE.Camera
+  heightAt: HeightAt
+  metres: Metres
+  pos: THREE.Vector3
+  yaw: number
+  pitch: number
+  vel: THREE.Vector3
+  keys: Set<string>
+  locked: boolean
+  bobPhase: number
+  prevBobSin: number
+  eye: number
+  forward: THREE.Vector3
+  onStep: ((sprinting: boolean) => void) | null
+  onEdge: (() => void) | null
+  edgeCooldown: number
+  time: number
+
+  constructor({ camera, heightAt, metres, spawn }: PlayerOptions) {
     this.camera = camera
     this.camera.rotation.order = 'YXZ'
     this.heightAt = heightAt
@@ -27,25 +77,25 @@ export class Player {
     this.time = 0
   }
 
-  relocate(x, z, yaw) {
+  relocate(x: number, z: number, yaw?: number) {
     this.pos.set(x, 0, z)
     if (yaw !== undefined) this.yaw = yaw
     this.vel.set(0, 0, 0)
   }
 
-  handleKey(code, down) {
+  handleKey(code: string, down: boolean) {
     if (down) this.keys.add(code)
     else this.keys.delete(code)
   }
 
-  handleMouse(dx, dy) {
+  handleMouse(dx: number, dy: number) {
     if (!this.locked) return
     const s = CONFIG.player.mouseSensitivity
     this.yaw -= dx * s
     this.pitch = Math.max(-1.45, Math.min(1.45, this.pitch - dy * s))
   }
 
-  update(dt, mods = {}) {
+  update(dt: number, mods: PlayerMods = {}): PlayerState {
     const cfg = CONFIG.player
     this.time += dt
     const sprinting = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')

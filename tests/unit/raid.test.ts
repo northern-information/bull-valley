@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { CONFIG } from '../../src/config.js'
-import { itemById } from '../../src/items.js'
+import { CONFIG } from '../../src/config.ts'
+import { getItem } from '../../src/items.ts'
 import {
   advance,
   carryLimit,
@@ -8,7 +8,7 @@ import {
   EVENTS,
   STATES,
   summary,
-} from '../../src/raid.js'
+} from '../../src/raid.ts'
 
 describe('raid state machine', () => {
   it('starts in LOADOUT with the truck timer set', () => {
@@ -64,18 +64,18 @@ describe('raid state machine', () => {
     let sacked = createRaid(0)
     sacked = advance(sacked, EVENTS.BUY_SACK, 10)
     expect(sacked.sack).toBe(true)
-    expect(carryLimit(sacked)).toBe(itemById('sack').carryLimit)
+    expect(carryLimit(sacked)).toBe(getItem('sack').carryLimit)
     sacked = advance(sacked, EVENTS.TIMER_EXPIRED, 300)
     for (let i = 0; i < 10; i++)
       sacked = advance(sacked, EVENTS.PICK_CABBAGE, 310)
-    expect(sacked.carrying).toBe(itemById('sack').carryLimit)
+    expect(sacked.carrying).toBe(getItem('sack').carryLimit)
   })
 
   it('only sells the sack during loadout, once', () => {
     let raid = createRaid(0)
     raid = advance(raid, EVENTS.BUY_SACK, 1)
     expect(advance(raid, EVENTS.BUY_SACK, 2)).toBe(raid)
-    let onFoot = advance(createRaid(0), EVENTS.TIMER_EXPIRED, 300)
+    const onFoot = advance(createRaid(0), EVENTS.TIMER_EXPIRED, 300)
     expect(advance(onFoot, EVENTS.BUY_SACK, 301)).toBe(onFoot)
   })
 

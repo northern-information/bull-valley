@@ -36,7 +36,7 @@ export const CONFIG = {
     detectThreshold: 6,
   },
   items: {
-    // Per-item tuning lives in src/items.js. Cigarettes: nerves drain hard
+    // Per-item tuning lives in src/items.ts. Cigarettes: nerves drain hard
     // while smoking, but the ember scales the shadowmen's detection range
     // by this while lit and for emberSeconds after.
     emberDetectScale: 1.5,
@@ -75,7 +75,7 @@ export const CONFIG = {
   },
   cabbage: {
     count: 48,
-    // Arms only; the sack's limit is in src/items.js.
+    // Arms only; the sack's limit is in src/items.ts.
     carryLimit: 3,
     dropRadius: 12,
   },

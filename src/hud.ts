@@ -2,15 +2,60 @@
 // the intro/pause overlay, and the strike static. Markup is generated here so
 // the Eleventy page and the dev harness stay a bare #bv-root.
 
-function el(tag, className, html) {
+import type { RaidSummary, RingItem } from './interfaces.ts'
+
+// The inventory ring as setCarousel draws it.
+export interface CarouselView {
+  items: RingItem[]
+  index: number
+  shopOpen: boolean
+}
+
+export interface InventoryStatus {
+  carry: string
+  delivered: number
+  truck: string
+}
+
+function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  className?: string,
+  html?: string
+): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag)
   if (className) node.className = className
   if (html !== undefined) node.innerHTML = html
   return node
 }
 
+// The HUD builds its own markup, so a missing node or context is a bug here.
+function required<T>(value: T | null, what: string): T {
+  if (value === null) throw new Error(`Hud: missing ${what}`)
+  return value
+}
+
 export class Hud {
-  constructor(root) {
+  root: HTMLElement
+  canvas: HTMLCanvasElement
+  countdown: HTMLParagraphElement
+  nerves: HTMLDivElement
+  nervesFill: HTMLElement
+  timers: HTMLDivElement
+  phone: HTMLDivElement
+  scopeCanvas: HTMLCanvasElement
+  promptEl: HTMLParagraphElement
+  toasts: HTMLDivElement
+  inventory: HTMLElement
+  vignetteEl: HTMLDivElement
+  staticWrap: HTMLDivElement
+  staticCanvas: HTMLCanvasElement
+  reticle: HTMLDivElement
+  intro: HTMLDivElement
+  beginBtn: HTMLButtonElement
+  // Every [data-bv] node under the root, keyed by its data-bv value.
+  fields: Record<string, HTMLElement>
+
+  constructor(root: HTMLElement) {
     this.root = root
     root.classList.add('bv-shell')
 
@@ -36,7 +81,10 @@ export class Hud {
       <span class="bv-nerves-track"><i class="bv-nerves-fill"></i></span>`
     this.nerves.hidden = true
     ui.appendChild(this.nerves)
-    this.nervesFill = this.nerves.querySelector('.bv-nerves-fill')
+    this.nervesFill = required(
+      this.nerves.querySelector<HTMLElement>('.bv-nerves-fill'),
+      '.bv-nerves-fill'
+    )
 
     // Active effect timers.
     this.timers = el('div', 'bv-timers')
@@ -59,7 +107,7 @@ export class Hud {
     ui.appendChild(this.toasts)
 
     // Inventory: Silent Hill chrome around the 3D carousel, which the game
-    // renderer draws on the canvas underneath (inventoryview.js).
+    // renderer draws on the canvas underneath (inventoryview.ts).
     this.inventory = el('section', 'bv-inv')
     this.inventory.setAttribute('role', 'dialog')
     this.inventory.setAttribute('aria-label', 'Inventory')
@@ -128,51 +176,55 @@ export class Hud {
       </div>
       <p class="bv-intro-note bv-intro-fine">Requires a keyboard and mouse.</p>`
     ui.appendChild(this.intro)
-    this.beginBtn = this.intro.querySelector('[data-bv="begin"]')
+    this.beginBtn = required(
+      this.intro.querySelector<HTMLButtonElement>('[data-bv="begin"]'),
+      'begin button'
+    )
 
     this.fields = {}
-    for (const dd of root.querySelectorAll('[data-bv]')) {
-      this.fields[dd.dataset.bv] = dd
+    for (const dd of root.querySelectorAll<HTMLElement>('[data-bv]')) {
+      const key = dd.dataset.bv
+      if (key !== undefined) this.fields[key] = dd
     }
   }
 
   // A null text hides the countdown.
-  setCountdown(text) {
+  setCountdown(text: string | null): void {
     this.countdown.hidden = !text
     if (text && this.countdown.textContent !== text) {
       this.countdown.textContent = text
     }
   }
 
-  setNerves(value, fuzzy) {
+  setNerves(value: number, fuzzy?: boolean): void {
     this.nervesFill.style.width = `${value.toFixed(0)}%`
     this.nervesFill.classList.toggle('bv-nerves-fill--high', value > 70)
     this.nerves.classList.toggle('bv-nerves--fuzzy', !!fuzzy)
   }
 
-  setTimers(lines) {
+  setTimers(lines: string[]): void {
     this.timers.innerHTML = lines
       .map((line) => `<span class="bv-timer">${line}</span>`)
       .join('')
   }
 
-  prompt(text) {
+  prompt(text: string | null): void {
     this.promptEl.hidden = !text
     if (text) this.promptEl.textContent = text
   }
 
-  toast(text) {
+  toast(text: string): void {
     const node = el('p', 'bv-toast', text)
     this.toasts.appendChild(node)
     setTimeout(() => node.classList.add('bv-toast--out'), 3600)
     setTimeout(() => node.remove(), 4400)
   }
 
-  // The selected ring item (carousel.js entry) in text; items[index] may be
+  // The selected ring item (carousel.ts entry) in text; items[index] may be
   // missing on an empty ring. shopOpen shows the Buy command and tailgate
   // stock.
-  setCarousel({ items, index, shopOpen }) {
-    const item = items[index]
+  setCarousel({ items, index, shopOpen }: CarouselView): void {
+    const item: RingItem | undefined = items[index]
     const f = this.fields
     f['inv-no'].textContent = item ? String(index + 1) : '—'
     f['inv-name'].textContent = item ? item.label : 'Nothing'
@@ -188,14 +240,14 @@ export class Hud {
     f['inv-frame'].classList.toggle('bv-inv-frame--single', items.length < 2)
   }
 
-  setInventoryStatus({ carry, delivered, truck }) {
+  setInventoryStatus({ carry, delivered, truck }: InventoryStatus): void {
     const f = this.fields
     if (f['inv-carry'].textContent !== carry) f['inv-carry'].textContent = carry
     f['inv-delivered'].textContent = String(delivered)
     if (f['inv-truck'].textContent !== truck) f['inv-truck'].textContent = truck
   }
 
-  showInventory(show) {
+  showInventory(show: boolean): boolean {
     this.inventory.hidden = !show
     this.root.classList.toggle('bv-shell--inventory', show)
     return show
@@ -203,13 +255,19 @@ export class Hud {
 
   // Pointer lock drives the center dot, and the inventory's resume line
   // while it is open without lock.
-  setLocked(locked) {
+  setLocked(locked: boolean): void {
     this.root.classList.toggle('bv-shell--locked', locked)
     this.fields['inv-resume'].hidden = locked
   }
 
   // End-of-raid overlay, styled like the intro dialog.
-  showSummary({ delivered, carrying, durationSeconds, extract, extractName }) {
+  showSummary({
+    delivered,
+    carrying,
+    durationSeconds,
+    extract,
+    extractName,
+  }: RaidSummary): void {
     const minutes = Math.floor((durationSeconds || 0) / 60)
     const seconds = String(Math.floor((durationSeconds || 0) % 60)).padStart(
       2,
@@ -232,22 +290,26 @@ export class Hud {
       <div class="bv-intro-actions">
         <button type="button" class="bv-btn bv-btn--primary" data-bv="again">Raid Again</button>
       </div>`
-    this.root.querySelector('.bv-ui').appendChild(summary)
-    summary
-      .querySelector('[data-bv="again"]')
-      .addEventListener('click', () => window.location.reload())
+    required(this.root.querySelector('.bv-ui'), '.bv-ui').appendChild(summary)
+    required(
+      summary.querySelector('[data-bv="again"]'),
+      'again button'
+    ).addEventListener('click', () => window.location.reload())
   }
 
-  setVignette(alpha) {
+  setVignette(alpha: number): void {
     this.vignetteEl.style.opacity = alpha.toFixed(3)
   }
 
-  showStatic(show) {
+  showStatic(show: boolean): void {
     this.staticWrap.hidden = !show
   }
 
-  drawStatic() {
-    const ctx = this.staticCanvas.getContext('2d')
+  drawStatic(): void {
+    const ctx = required(
+      this.staticCanvas.getContext('2d'),
+      'static 2D context'
+    )
     const img = ctx.createImageData(160, 90)
     for (let i = 0; i < img.data.length; i += 4) {
       const v = Math.random() * 255
@@ -259,7 +321,7 @@ export class Hud {
     ctx.putImageData(img, 0, 0)
   }
 
-  showIntro(show, paused) {
+  showIntro(show: boolean, paused?: boolean): void {
     this.intro.hidden = !show
     if (show) {
       this.beginBtn.textContent = paused ? 'Click to Resume' : 'Click to Play'

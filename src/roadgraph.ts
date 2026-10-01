@@ -1,15 +1,66 @@
 // Pure road-network math over geo.json's road polylines, in world metres.
-// No three.js: tests/unit/roadgraph.test.js runs this directly in Node.
+// No three.js: tests/unit/roadgraph.test.ts runs this directly in Node.
 //
 // geo.json quantizes unit coordinates to 1e-4, so vertices shared between OSM
 // ways coincide exactly and string keys find junctions with no snapping pass.
 // Nodes are polyline endpoints plus any vertex used more than once; runs of
 // interior vertices collapse into edges that keep their full point lists.
 
-import { pointSegmentDistance, unitToWorld } from './coords.js'
-import { pick } from './rng.js'
+import { pointSegmentDistance, unitToWorld } from './coords.ts'
+import { pick } from './rng.ts'
+import type { Metres, Road } from './interfaces.ts'
+import type { Rng } from './rng.ts'
 
-function cumulative(points) {
+// A point on the ground plane, in world metres.
+export interface RoadPoint {
+  x: number
+  z: number
+}
+
+// A run of road between two nodes, with its full polyline.
+export interface RoadEdge {
+  // Node indices at the start and end of points.
+  a: number
+  b: number
+  points: RoadPoint[]
+  // Arc length at each point, in metres.
+  cum: number[]
+  length: number
+  name: string
+}
+
+export interface RoadGraph {
+  nodes: RoadPoint[]
+  edges: RoadEdge[]
+  // Node index -> indices of the edges that touch it.
+  adjacency: number[][]
+}
+
+// The closest point on the road network, from nearestRoadPoint.
+export interface RoadPointOnEdge extends RoadPoint {
+  edge: number
+  // Arc position along the edge, in metres.
+  s: number
+  dist: number
+}
+
+export type Route = RoadPoint[]
+
+export interface WalkerState {
+  x: number
+  z: number
+  dirX: number
+  dirZ: number
+  done: boolean
+}
+
+export interface Walker {
+  total: number
+  advance(metres: number): WalkerState
+  position(): WalkerState
+}
+
+function cumulative(points: readonly RoadPoint[]): number[] {
   const cum = [0]
   for (let i = 1; i < points.length; i++) {
     cum.push(
@@ -22,11 +73,16 @@ function cumulative(points) {
 
 // Polyline slice between arc positions s0 and s1 (metres along the points),
 // endpoints interpolated. Reversed when s0 > s1.
-function slice(points, cum, s0, s1) {
+function slice(
+  points: readonly RoadPoint[],
+  cum: readonly number[],
+  s0: number,
+  s1: number
+): RoadPoint[] {
   const reversed = s0 > s1
   const lo = Math.max(0, Math.min(s0, s1))
   const hi = Math.min(cum[cum.length - 1], Math.max(s0, s1))
-  const at = (s) => {
+  const at = (s: number): RoadPoint => {
     let i = 1
     while (i < cum.length - 1 && cum[i] < s) i++
     const span = cum[i] - cum[i - 1] || 1
@@ -45,9 +101,12 @@ function slice(points, cum, s0, s1) {
   return out
 }
 
-export function buildRoadGraph(roads, metres) {
+export function buildRoadGraph(
+  roads: readonly Pick<Road, 'n' | 'p'>[],
+  metres: Metres
+): RoadGraph {
   // First pass: how often each quantized vertex appears across all polylines.
-  const usage = new Map()
+  const usage = new Map<string, number>()
   for (const road of roads) {
     for (const [u, v] of road.p) {
       const key = `${u},${v}`
@@ -55,9 +114,9 @@ export function buildRoadGraph(roads, metres) {
     }
   }
 
-  const nodes = []
-  const nodeIndex = new Map()
-  const nodeAt = (key, u, v) => {
+  const nodes: RoadPoint[] = []
+  const nodeIndex = new Map<string, number>()
+  const nodeAt = (key: string, u: number, v: number): number => {
     let idx = nodeIndex.get(key)
     if (idx === undefined) {
       const { x, z } = unitToWorld(u, v, metres)
@@ -69,9 +128,9 @@ export function buildRoadGraph(roads, metres) {
   }
 
   // Second pass: split each polyline at its junction vertices.
-  const edges = []
-  const adjacency = []
-  const link = (edge) => {
+  const edges: RoadEdge[] = []
+  const adjacency: number[][] = []
+  const link = (edge: RoadEdge) => {
     const idx = edges.length
     edges.push(edge)
     ;(adjacency[edge.a] = adjacency[edge.a] || []).push(idx)
@@ -82,7 +141,8 @@ export function buildRoadGraph(roads, metres) {
     let runStart = 0
     for (let i = 1; i < road.p.length; i++) {
       const [u, v] = road.p[i]
-      const isNode = i === road.p.length - 1 || usage.get(`${u},${v}`) > 1
+      const isNode =
+        i === road.p.length - 1 || (usage.get(`${u},${v}`) ?? 0) > 1
       if (!isNode) continue
       const unitRun = road.p.slice(runStart, i + 1)
       const points = unitRun.map(([pu, pv]) => {
@@ -110,8 +170,12 @@ export function buildRoadGraph(roads, metres) {
 
 // Closest point on any edge. Returns arc position s along that edge so routes
 // can start and end mid-edge.
-export function nearestRoadPoint(graph, x, z) {
-  let best = null
+export function nearestRoadPoint(
+  graph: RoadGraph,
+  x: number,
+  z: number
+): RoadPointOnEdge | null {
+  let best: RoadPointOnEdge | null = null
   for (let e = 0; e < graph.edges.length; e++) {
     const { points, cum } = graph.edges[e]
     for (let i = 0; i < points.length - 1; i++) {
@@ -154,20 +218,25 @@ export function nearestRoadPoint(graph, x, z) {
 // endpoints of the start edge with the partial along-edge cost, targets both
 // endpoints of the goal edge, then stitches the partial slices onto the node
 // path. Returns a flat [{x, z}, …] polyline, or null when disconnected.
-export function planRoute(graph, from, to) {
+export function planRoute(
+  graph: RoadGraph,
+  from: RoadPointOnEdge,
+  to: RoadPointOnEdge
+): Route | null {
   const fromEdge = graph.edges[from.edge]
   const toEdge = graph.edges[to.edge]
   if (from.edge === to.edge) {
     return slice(fromEdge.points, fromEdge.cum, from.s, to.s)
   }
 
-  const dist = new Map()
-  const prev = new Map() // node → { node, edge } it was reached from
+  const dist = new Map<number, number>()
+  // node → { node, edge } it was reached from
+  const prev = new Map<number, { node: number; edge: number }>()
   const seed = [
     { node: fromEdge.a, cost: from.s },
     { node: fromEdge.b, cost: fromEdge.length - from.s },
   ]
-  const queue = []
+  const queue: number[] = []
   for (const { node, cost } of seed) {
     if (cost < (dist.get(node) ?? Infinity)) {
       dist.set(node, cost)
@@ -178,10 +247,12 @@ export function planRoute(graph, from, to) {
     // Linear extract-min: the graph is a few thousand nodes, called rarely.
     let qi = 0
     for (let i = 1; i < queue.length; i++) {
-      if (dist.get(queue[i]) < dist.get(queue[qi])) qi = i
+      // Every queued node has a distance; ?? only satisfies the Map type.
+      if ((dist.get(queue[i]) ?? Infinity) < (dist.get(queue[qi]) ?? Infinity))
+        qi = i
     }
     const node = queue.splice(qi, 1)[0]
-    const d = dist.get(node)
+    const d = dist.get(node) ?? Infinity
     for (const e of graph.adjacency[node]) {
       const edge = graph.edges[e]
       const next = edge.a === node ? edge.b : edge.a
@@ -199,22 +270,27 @@ export function planRoute(graph, from, to) {
     { node: toEdge.b, extra: toEdge.length - to.s },
   ].filter(({ node }) => dist.has(node))
   if (!ends.length) return null
-  ends.sort((p, q) => dist.get(p.node) + p.extra - (dist.get(q.node) + q.extra))
+  // The filter above kept only nodes with a distance.
+  const total = (end: { node: number; extra: number }) =>
+    (dist.get(end.node) ?? Infinity) + end.extra
+  ends.sort((p, q) => total(p) - total(q))
   const goal = ends[0].node
 
   // Walk prev back to a seeded node, collecting edges.
   const nodePath = [goal]
-  const edgePath = []
+  const edgePath: number[] = []
   let cursor = goal
   while (prev.has(cursor)) {
-    const { node, edge } = prev.get(cursor)
+    const step = prev.get(cursor)
+    if (!step) break
+    const { node, edge } = step
     edgePath.unshift(edge)
     nodePath.unshift(node)
     cursor = node
   }
 
-  const points = []
-  const append = (pts) => {
+  const points: Route = []
+  const append = (pts: readonly RoadPoint[]) => {
     for (const p of pts) {
       const last = points[points.length - 1]
       if (last && last.x === p.x && last.z === p.z) continue
@@ -253,7 +329,12 @@ export function planRoute(graph, from, to) {
 // An outbound joyride: from an on-edge point, keep taking the straightest
 // continuation at each junction (seeded rng breaks ties), never immediately
 // reversing, until minLength metres accumulate. Deterministic per seed.
-export function wanderRoute(graph, from, rng, minLength) {
+export function wanderRoute(
+  graph: RoadGraph,
+  from: RoadPointOnEdge,
+  rng: Rng,
+  minLength: number
+): Route {
   const fromEdge = graph.edges[from.edge]
   // Leave along the longer remaining side of the starting edge.
   const towardB = fromEdge.length - from.s >= from.s
@@ -277,7 +358,7 @@ export function wanderRoute(graph, from, rng, minLength) {
     const inZ = last.z - before.z
     const inLen = Math.hypot(inX, inZ) || 1
     let bestScore = -Infinity
-    let best = []
+    let best: number[] = []
     for (const e of candidates) {
       const edge = graph.edges[e]
       const pts = edge.a === node ? edge.points : [...edge.points].reverse()
@@ -305,12 +386,12 @@ export function wanderRoute(graph, from, rng, minLength) {
 
 // Arc-length walker over a route polyline. advance(metres) moves the cursor
 // and reports position, direction of travel, and completion.
-export function createWalker(points) {
+export function createWalker(points: readonly RoadPoint[]): Walker {
   const cum = cumulative(points)
   const total = cum[cum.length - 1]
   let s = 0
   let seg = 0
-  const state = {
+  const state: WalkerState = {
     x: points[0].x,
     z: points[0].z,
     dirX: 0,
@@ -333,7 +414,7 @@ export function createWalker(points) {
   settle()
   return {
     total,
-    advance(metres) {
+    advance(metres: number) {
       s = Math.min(total, s + metres)
       settle()
       return state
