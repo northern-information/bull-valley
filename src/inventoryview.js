@@ -7,7 +7,7 @@
 import * as THREE from 'three'
 import { buildPickup, buildSack, meshBounds } from './assets.js'
 import { wrapDelta } from './carousel.js'
-import { CONTAINERS, isDrink } from './drinks.js'
+import { drinkFitHeight, isDrink } from './drinks.js'
 
 // Ring radii (x across the screen, z toward the camera), the size every
 // model is fitted to, and how fast things move.
@@ -17,6 +17,9 @@ const EASE_PER_SECOND = 14
 const SPIN_PER_SECOND = 0.9
 const REST_YAW = 0.45
 const TILT = 0.3
+// A long ring would pack its items shoulder to shoulder, so the spacing
+// never drops below this many slots per turn; the rest hide behind.
+const MAX_SLOTS_PER_TURN = 9
 
 function buildModel(kind) {
   if (kind === 'sack') return buildSack()
@@ -25,14 +28,14 @@ function buildModel(kind) {
 
 // A model scaled to fit the cell and centered on its own mesh bounds, inside
 // a spinner (yaw and tilt) inside a holder (place on the ring). Drinks share
-// one scale, set by the tallest container, so the slim can reads smaller.
+// one scale per family (cans, bottles), so sizes stay true within it.
 function buildSlot(kind) {
   const model = buildModel(kind)
   const box = meshBounds(model)
   const size = box.getSize(new THREE.Vector3())
   const center = box.getCenter(new THREE.Vector3())
   const fit = isDrink(kind)
-    ? CONTAINERS.bottle.height
+    ? drinkFitHeight(kind)
     : Math.max(size.x, size.y, size.z, 1e-3)
   const scale = RING.cell / fit
   model.scale.setScalar(scale)
@@ -96,7 +99,7 @@ export function createInventoryView() {
     items.forEach((item, i) => {
       const slot = slotFor(item.kind)
       const offset = wrapDelta(position, i, count)
-      const angle = (offset / count) * Math.PI * 2
+      const angle = (offset / Math.min(count, MAX_SLOTS_PER_TURN)) * Math.PI * 2
       const front = Math.cos(angle) // 1 at the front, -1 at the back
       slot.holder.position.set(
         Math.sin(angle) * RING.rx,
@@ -105,7 +108,7 @@ export function createInventoryView() {
       )
       const selected = i === index
       slot.holder.scale.setScalar(0.6 + 0.4 * Math.max(0, front))
-      slot.holder.visible = count === 1 || front > -0.85
+      slot.holder.visible = count === 1 || Math.abs(angle) < Math.PI * 0.85
       if (selected) {
         slot.spinner.rotation.y += dt * SPIN_PER_SECOND
       } else {

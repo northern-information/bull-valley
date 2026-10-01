@@ -104,7 +104,7 @@ export const CONFIG = {
       djarum: 2,
     },
     joints: 2,
-    // Cans (and the NOS bottle) per drink.
+    // Cans and bottles per drink.
     drinks: {
       monster: 2,
       'monster-ultra': 2,
@@ -112,6 +112,16 @@ export const CONFIG = {
       'rip-it': 2,
       rockstar: 2,
       nos: 1,
+      'four-loko-blue': 1,
+      'four-loko-punch': 1,
+      'four-loko-lemon': 1,
+      'wild-turkey': 1,
+      'jim-beam': 1,
+      'grey-goose': 1,
+      pbr: 3,
+      modelo: 3,
+      'md-2020': 1,
+      'ice-mountain': 3,
     },
   },
 }
