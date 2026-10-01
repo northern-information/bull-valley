@@ -2,6 +2,7 @@
 // body (figure.ts) by slot, adds optional parts from ADDONS, and can stretch
 // limbs with proportions. Edit characters here; the body stays the same.
 
+import type { Vec3 } from './interfaces.ts'
 import type { JointName } from './poses.ts'
 
 // Every outfit colors these; add-ons may use more slots (coat, glasses).
@@ -9,8 +10,6 @@ export const BODY_SLOTS = ['skin', 'hair', 'shirt', 'pants', 'boots'] as const
 
 export type BodySlot = (typeof BODY_SLOTS)[number]
 export type ColorSlot = BodySlot | 'coat' | 'glasses'
-
-export type Vec3 = [number, number, number]
 
 // One loft ring: [y, rx, rz, cz] — height, half-width, half-depth and
 // forward shift, in metres.

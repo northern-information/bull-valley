@@ -22,7 +22,7 @@ export interface LandmarkWorld {
   v: number
 }
 
-export const LANDMARKS: readonly Landmark[] = [
+const LANDMARKS: readonly Landmark[] = [
   // Dave Coleman's house in Wonder Lake. A private home, placed with his
   // consent.
   { n: "Mt. Coleman's Keep", lat: 42.3839451, lon: -88.3479778 },
@@ -39,7 +39,7 @@ export const CABBAGE_STAND = 'Bull Valley Cabbage Stand'
 // Project into the survey's unit square (x right, y down), the same
 // equirectangular mapping the fetch script uses. Points outside the frame keep
 // their out-of-range coordinates.
-export function projectLandmarks(
+function projectLandmarks(
   bbox: Bbox,
   list: readonly Landmark[] = LANDMARKS
 ): { n: string; p: UnitPoint }[] {

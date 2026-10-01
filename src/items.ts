@@ -291,6 +291,9 @@ type ItemEntry = (typeof ITEMS)[number]
 // Every item id, as a type: a typo in a literal id fails the type check.
 export type ItemId = ItemEntry['id']
 
+// What a pickup in the valley can be: a cabbage, or an item.
+export type PickupKind = 'cabbage' | ItemId
+
 // ITEMS widened to the plain Item shape, for code that reads optional
 // fields (shopCap, container) across every entry.
 export const ITEM_LIST: readonly Item[] = ITEMS
@@ -312,7 +315,7 @@ export function getItem<K extends ItemId>(
   return ITEMS.find((item) => item.id === id) as Extract<ItemEntry, { id: K }>
 }
 
-export const CIGARETTE_IDS: readonly string[] = ITEMS.filter(
+export const CIGARETTE_IDS: readonly ItemId[] = ITEMS.filter(
   (item) => item.category === 'cigarette'
 ).map((item) => item.id)
 

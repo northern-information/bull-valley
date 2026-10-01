@@ -6,11 +6,11 @@ import { CONFIG } from './config.ts'
 import { itemById } from './items.ts'
 import { STATES } from './raid.ts'
 import type { Raid, XZ } from './interfaces.ts'
+import type { PickupKind } from './items.ts'
 
 // A pickup as the resolver sees it.
 export interface PickupSpot extends XZ {
-  // 'cabbage', or an item id from items.ts.
-  kind: string
+  kind: PickupKind
   count: number
   taken: boolean
 }

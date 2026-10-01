@@ -7,6 +7,8 @@
 // rotation swings a hanging limb forward; a positive x rotation bends a
 // knee back.
 
+import type { Vec3 } from './interfaces.ts'
+
 export const JOINTS = [
   'pelvis',
   'spine',
@@ -24,7 +26,7 @@ export const JOINTS = [
 export type JointName = (typeof JOINTS)[number]
 
 // An Euler rotation [x, y, z] in radians.
-export type Rotation = [number, number, number]
+export type Rotation = Vec3
 
 export interface PoseKey {
   // Metres added to the root height; negative crouches.

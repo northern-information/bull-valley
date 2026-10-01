@@ -44,7 +44,8 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 - `src/carousel.ts` — pure: which items ride the inventory ring (carried, tailgate stock, cargo) and how the selection steps and wraps
 - `src/inventoryview.ts` — the inventory carousel in 3D: its own scene and camera, drawn by the game renderer in place of the world while the inventory is open (the player freezes; the raid clock does not)
 - `src/landmarks.ts` — consented landmark coordinates + projection
-- `src/splash.ts` — Northern Information colophon splash: pure triangle-wave machine + DOM overlay
+- `src/splashmachine.ts` — pure: the colophon splash state machine (triangle-wave fade, gesture and skip latches)
+- `src/splash.ts` — the colophon splash DOM overlay, driven by `splashmachine.ts`
 - `src/assets.ts` — every 3D asset in asset-local space (instanced parts, one-off builders, the truck body, the sky, the road/water/fence/boundary materials) and the Akashic registry; new assets go here
 - `src/world.ts` — places terrain features, Citgo stations, pickups, beacons from geo.json using `assets.ts`; builds no materials of its own
 - `src/akashic.ts` — the Akashic asset viewer
