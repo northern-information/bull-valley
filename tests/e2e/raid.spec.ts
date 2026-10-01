@@ -48,20 +48,28 @@ async function moveTo(find: string): Promise<void> {
   }, find)
 }
 
+// The inventory is saved only when it changes, so in a fresh context a
+// saved inventory means a purchase went through. Toasts are no proof: they
+// leave the DOM after 4.4 seconds, which a slow CI runner can outlast.
+const savedInventory = () =>
+  page.evaluate(() =>
+    localStorage.getItem('bull-valley-shadow-wars:v1:inventory')
+  )
+
 base('buy an item and the sack from the tailgate', async () => {
-  const pocketed = page.locator('.bv-toast').filter({ hasText: 'pocketed' })
+  expect(await savedInventory()).toBeNull()
   // B buys the selected item when the tailgate sells it. Step round the
-  // ring, buying, until both a pocketed item and the sack are bought.
+  // ring, buying, until both an item and the sack are bought.
   await page.keyboard.press('Tab')
   for (let i = 0; i < 40; i++) {
     const sack = (await raid())?.sack
-    if (sack && (await pocketed.count()) > 0) break
+    if (sack && (await savedInventory()) !== null) break
     await page.keyboard.press('KeyB')
     await page.keyboard.press('ArrowRight')
   }
   await page.keyboard.press('Tab')
   expect((await raid())?.sack).toBe(true)
-  await expect(pocketed.first()).toBeAttached()
+  expect(await savedInventory()).not.toBeNull()
 })
 
 base('board the truck, ride, and hop out', async () => {
