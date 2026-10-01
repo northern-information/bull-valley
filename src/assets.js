@@ -899,6 +899,28 @@ function bourbonParts(art, size, mats) {
   ]
 }
 
+// Miller High Life: a clear 12 oz longneck, a long taper into the neck,
+// gold foil on the neck and a gold crown cap.
+function longneckParts(art, size, mats) {
+  const { radius: R, height: H } = size
+  const points = [
+    [0, 0.003],
+    [R * 0.9, 0],
+    [R, 0.008],
+    [R, 0.125],
+    [R * 0.9, 0.14],
+    [R * 0.6, 0.158],
+    [0.0128, 0.168],
+    [0.0125, 0.226],
+  ]
+  return [
+    ...glassBottle(points, 0.19, art.liquid, mats),
+    drinkLabel(mats.face(art.label), R * 1.01, 0.03, 0.1, Math.PI),
+    drinkLabel(mats.face(art.neck), 0.0134, 0.17, 0.205),
+    cap(mats.flat(art.cap), 0.0142, 0.226, H),
+  ]
+}
+
 // Jim Beam: a rounded-square fifth with flat shoulders, a short neck and
 // a white cap.
 function squareParts(art, size, mats) {
@@ -1015,6 +1037,7 @@ const DRINK_PARTS = {
   goose: gooseParts,
   flask: flaskParts,
   water: waterParts,
+  longneck: longneckParts,
 }
 
 // glow: false leaves out the halo, for close-up views like the inventory.

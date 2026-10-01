@@ -695,6 +695,77 @@ function pbr() {
   return { wrap, metal: SILVER, tab: SILVER, glow: 'rgba(31, 61, 153, 0.4)' }
 }
 
+// --- Miller High Life: white label, red script, gold neck foil -------------
+
+function highLife() {
+  const red = '#c8102e'
+  const gold = '#c9a043'
+  const ink = '#2a1d12'
+  // Half way round the bottle; paint in the middle 150 px so nothing sits
+  // on the edges that curve away.
+  const label = canvas([210, 108], '#f4f6f7')
+  {
+    const { ctx, h } = label
+    const w = 150
+    ctx.translate(30, 0)
+    ctx.fillStyle = gold
+    ctx.fillRect(0, 0, w, 6)
+    ctx.fillRect(0, h - 6, w, 6)
+    ctx.fillStyle = ink
+    ctx.fillRect(0, 6, w, 1.5)
+    ctx.fillRect(0, h - 7.5, w, 1.5)
+    // The crest: a red seal in a gold wreath.
+    ctx.fillStyle = gold
+    ctx.beginPath()
+    ctx.arc(w / 2, 22, 11, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = red
+    ctx.beginPath()
+    ctx.arc(w / 2, 22, 7, 0, Math.PI * 2)
+    ctx.fill()
+    text(
+      ctx,
+      'Miller',
+      w / 2,
+      54,
+      110,
+      34,
+      'italic bold $px "Brush Script MT", "Snell Roundhand", cursive',
+      red
+    )
+    text(ctx, 'HIGH LIFE', w / 2, 80, 90, 14, SERIF, ink)
+    text(
+      ctx,
+      "America's Quality Beer Since 1855",
+      w / 2,
+      93,
+      110,
+      6,
+      'italic $px Georgia, serif',
+      ink
+    )
+  }
+  const neck = canvas([96, 40], gold)
+  text(
+    neck.ctx,
+    'Miller',
+    48,
+    16,
+    60,
+    14,
+    'italic bold $px "Brush Script MT", "Snell Roundhand", cursive',
+    red
+  )
+  text(neck.ctx, 'HIGH LIFE', 48, 31, 50, 8, SERIF, ink)
+  return {
+    label,
+    neck,
+    liquid: '#d8a23a',
+    cap: gold,
+    glow: 'rgba(216, 162, 58, 0.4)',
+  }
+}
+
 // --- Modelo Especial: the pre-2010 cream can, lions and crest ---------------
 
 function lion(ctx, x, y, dir, color) {
@@ -869,6 +940,7 @@ const PAINTERS = {
   'jim-beam': jimBeam,
   'grey-goose': greyGoose,
   pbr,
+  'high-life': highLife,
   modelo,
   'md-2020': md2020,
   'ice-mountain': iceMountain,

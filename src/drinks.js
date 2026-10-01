@@ -16,6 +16,7 @@ export const CONTAINERS = {
   goose: { radius: 0.042, height: 0.33 }, // Grey Goose 750 ml
   flask: { radius: 0.048, depth: 0.027, height: 0.27 }, // MD 20/20 750 ml
   water: { radius: 0.033, height: 0.205 }, // Ice Mountain 500 ml
+  longneck: { radius: 0.031, height: 0.235 }, // Miller High Life 12 oz
 }
 
 // Cans and bottles each share one scale in a view, set by the tallest of
