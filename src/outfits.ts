@@ -72,6 +72,7 @@ export type AddonId =
   | 'stubble'
   | 'fringe'
   | 'fringe-swoop'
+  | 'emo-hair'
 
 export type LimbGroup = 'arm' | 'leg'
 
@@ -164,9 +165,23 @@ export const ADDONS: Record<AddonId, Addon> = {
   'fringe-swoop': {
     joint: 'neck',
     slot: 'hair',
-    box: [0.05, 0.075, 0.022],
-    offset: [-0.042, 0.19, 0.104],
+    box: [0.05, 0.11, 0.022],
+    offset: [-0.045, 0.172, 0.103],
     rotation: [0, 0, 0.15],
+  },
+  // Jaw-length hair over the ears and the nape, round the back and sides.
+  // Like long-hair, each ring sits back far enough to keep the face clear.
+  'emo-hair': {
+    joint: 'neck',
+    slot: 'hair',
+    sides: 8,
+    rings: [
+      [0.32, 0.065, 0.075, -0.015],
+      [0.27, 0.103, 0.11, -0.018],
+      [0.18, 0.106, 0.09, -0.035],
+      [0.09, 0.1, 0.08, -0.045],
+      [0.04, 0.085, 0.07, -0.05],
+    ],
   },
   // A chin beard only: narrow and forward, clear of the jaw line.
   goatee: {
@@ -384,7 +399,14 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
       belt: '#0c0c0e',
       stubble: '#dcae96',
     },
-    addons: ['stubble', 'fringe', 'fringe-swoop', 'belt', 'belt-loops'],
+    addons: [
+      'emo-hair',
+      'stubble',
+      'fringe',
+      'fringe-swoop',
+      'belt',
+      'belt-loops',
+    ],
     sleeves: 'short',
     prints: { torso: ['as-i-lay-dying'] },
   },
