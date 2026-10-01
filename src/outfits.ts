@@ -11,7 +11,12 @@ export type BodySlot = (typeof BODY_SLOTS)[number]
 export type ColorSlot = BodySlot | 'coat' | 'glasses' | 'buckle'
 
 // Painted art printed on a part; decalart.ts paints each one.
-export type DecalId = 'suicide-silence' | 'russ'
+export type DecalId =
+  'suicide-silence' | 'russ' | 'torn-tank' | 'torn-jeans' | 'sleeve-tattoo'
+
+// Where an outfit prints a decal over the body: across the torso front,
+// across the front of both thighs, or all round both bare arms.
+export type PrintPart = 'torso' | 'thigh' | 'arm'
 
 export type Vec3 = [number, number, number]
 
@@ -49,6 +54,7 @@ export type AddonId =
   | 'coat-hem'
   | 'hood'
   | 'buckle'
+  | 'long-hair'
 
 export type LimbGroup = 'arm' | 'leg'
 
@@ -57,13 +63,13 @@ export interface Outfit {
   colors: Record<BodySlot, string> & Partial<Record<ColorSlot, string>>
   addons: AddonId[]
   proportions?: Partial<Record<LimbGroup, number>>
-  // 'short' leaves the forearms bare, for a t-shirt.
-  sleeves?: 'short'
-  // Printed across the shirt front, on the chest.
-  shirtPrint?: DecalId
+  // 'short' leaves the forearms bare, for a t-shirt; 'none' leaves the
+  // whole arm bare, for a tank top.
+  sleeves?: 'short' | 'none'
+  prints?: Partial<Record<PrintPart, DecalId>>
 }
 
-export type OutfitId = 'marx' | 'player' | 'shadow' | 'coleman'
+export type OutfitId = 'marx' | 'player' | 'shadow' | 'coleman' | 'kvistad'
 
 // Dreadlocks hang from a ring round the back and sides of the head, leaving
 // the face clear. Angles are around the head from +X toward +Z (the face).
@@ -151,6 +157,20 @@ export const ADDONS: Record<AddonId, Addon> = {
     offset: [0, 0.035, 0.108],
     decal: 'russ',
   },
+  // Straight hair from the crown to the shoulders, round the back and sides.
+  // Each ring sits back far enough that the face stays clear.
+  'long-hair': {
+    joint: 'neck',
+    slot: 'hair',
+    sides: 8,
+    rings: [
+      [0.32, 0.06, 0.07, -0.015],
+      [0.27, 0.1, 0.105, -0.02],
+      [0.18, 0.104, 0.085, -0.04],
+      [0.06, 0.106, 0.075, -0.05],
+      [-0.06, 0.112, 0.07, -0.055],
+    ],
+  },
   hood: {
     joint: 'neck',
     slot: 'coat',
@@ -216,7 +236,20 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     },
     addons: ['goatee', 'mustache', 'buckle'],
     sleeves: 'short',
-    shirtPrint: 'suicide-silence',
+    prints: { torso: 'suicide-silence' },
+  },
+  kvistad: {
+    label: 'David Kvistad',
+    colors: {
+      skin: '#efcfb4',
+      hair: '#9c7a58',
+      shirt: '#141416',
+      pants: '#3f5f8a',
+      boots: '#060607',
+    },
+    addons: ['long-hair'],
+    sleeves: 'none',
+    prints: { torso: 'torn-tank', thigh: 'torn-jeans', arm: 'sleeve-tattoo' },
   },
 }
 

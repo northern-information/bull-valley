@@ -9,8 +9,14 @@ import {
 import { JOINTS } from '../../src/poses.ts'
 
 describe('outfits', () => {
-  it('has the four characters', () => {
-    expect(OUTFIT_IDS).toEqual(['marx', 'player', 'shadow', 'coleman'])
+  it('has the five characters', () => {
+    expect(OUTFIT_IDS).toEqual([
+      'marx',
+      'player',
+      'shadow',
+      'coleman',
+      'kvistad',
+    ])
   })
 
   it('colors every body slot with a hex color', () => {

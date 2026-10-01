@@ -14,10 +14,10 @@ import {
   makeGlowSprite,
   makeGlowTexture,
 } from './assets.ts'
-import { DECAL_PAINTERS, SHIRT_FRONT } from './decalart.ts'
+import { DECAL_PAINTERS } from './decalart.ts'
 import { ADDONS, outfitById } from './outfits.ts'
 import { JOINTS } from './poses.ts'
-import type { DecalId, LoftRing, OutfitId, Vec3 } from './outfits.ts'
+import type { DecalId, LoftRing, OutfitId, PrintPart, Vec3 } from './outfits.ts'
 import type { JointName, PoseSample } from './poses.ts'
 
 // A built body: its root group, one pivot per joint, and the hip height
@@ -52,16 +52,21 @@ function material(color: string): THREE.MeshLambertMaterial {
   return found
 }
 
-// One material per decal. A print is a transparent overlay: alphaTest keeps
-// only the painted pixels, and the polygon offset pulls it in front of the
-// shirt it lies on, vertex for vertex. The cache keys on the id alone, so
-// each decal is either a print or a face, never both.
-const decals = new Map<DecalId, THREE.MeshLambertMaterial>()
-function decalMaterial(id: DecalId, print = false): THREE.MeshLambertMaterial {
-  let found = decals.get(id)
+// One material per decal and outfit, since a painter can use the outfit's
+// colors. A print is a transparent overlay: alphaTest keeps only the painted
+// pixels, and the polygon offset pulls it in front of the part it lies on,
+// vertex for vertex. Each decal is either a print or a face, never both.
+const decals = new Map<string, THREE.MeshLambertMaterial>()
+function decalMaterial(
+  outfitId: OutfitId,
+  id: DecalId,
+  print = false
+): THREE.MeshLambertMaterial {
+  const key = `${outfitId}|${id}`
+  let found = decals.get(key)
   if (!found) {
     found = lambert({
-      map: artTexture(DECAL_PAINTERS[id]()),
+      map: artTexture(DECAL_PAINTERS[id](outfitById(outfitId).colors)),
       ...(print && {
         alphaTest: 0.5,
         polygonOffset: true,
@@ -69,7 +74,7 @@ function decalMaterial(id: DecalId, print = false): THREE.MeshLambertMaterial {
         polygonOffsetUnits: -4,
       }),
     })
-    decals.set(id, found)
+    decals.set(key, found)
   }
   return found
 }
@@ -132,49 +137,51 @@ export function loft(
   })
 }
 
-// The front half of loft(rings, sides), from +X round to -X, with no caps
-// and with UVs projected straight on from the front over a width x height
-// area centred on x = 0 from y = 0: a print follows the body's facets.
-function frontLoft(
+// A print overlay on loft(rings, sides), with no caps and with UVs that
+// span the part: from its lowest ring to its highest, and either across the
+// front half (front: from +X round to -X, projected straight on, so the
+// canvas spans the widest ring) or once all round (wrap). A print follows
+// the body's facets.
+function printLoft(
   rings: readonly RingInput[],
   sides: number,
-  width: number,
-  height: number
+  wrap: boolean
 ): THREE.BufferGeometry {
-  return cached(
-    `front|${sides}|${width}|${height}|${JSON.stringify(rings)}`,
-    () => {
-      const sorted = [...rings].sort((a, b) => a[0] - b[0])
-      const around = sides / 2 + 1
-      const positions: number[] = []
-      const uvs: number[] = []
-      const index: number[] = []
-      for (const [y, rx, rz, cz = 0] of sorted) {
-        for (let k = 0; k < around; k++) {
-          const a = (k / sides) * Math.PI * 2
-          const x = Math.cos(a) * rx
-          positions.push(x, y, Math.sin(a) * rz + cz)
-          uvs.push(0.5 + x / width, y / height)
-        }
+  return cached(`print|${sides}|${wrap}|${JSON.stringify(rings)}`, () => {
+    const sorted = [...rings].sort((a, b) => a[0] - b[0])
+    const bottom = sorted[0][0]
+    const height = sorted[sorted.length - 1][0] - bottom
+    const width = 2 * Math.max(...sorted.map((ring) => ring[1]))
+    // A wrap repeats the first column at the end, so the seam has its own UVs.
+    const around = wrap ? sides + 1 : sides / 2 + 1
+    const positions: number[] = []
+    const uvs: number[] = []
+    const index: number[] = []
+    for (const [y, rx, rz, cz = 0] of sorted) {
+      for (let k = 0; k < around; k++) {
+        const a = (k / sides) * Math.PI * 2
+        const x = Math.cos(a) * rx
+        positions.push(x, y, Math.sin(a) * rz + cz)
+        uvs.push(wrap ? k / sides : 0.5 + x / width, (y - bottom) / height)
       }
-      const at = (i: number, k: number) => i * around + k
-      for (let i = 0; i < sorted.length - 1; i++) {
-        for (let k = 0; k < around - 1; k++) {
-          index.push(at(i, k), at(i + 1, k), at(i + 1, k + 1))
-          index.push(at(i, k), at(i + 1, k + 1), at(i, k + 1))
-        }
-      }
-      const geometry = new THREE.BufferGeometry()
-      geometry.setAttribute(
-        'position',
-        new THREE.Float32BufferAttribute(positions, 3)
-      )
-      geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2))
-      geometry.setIndex(index)
-      geometry.computeVertexNormals()
-      return geometry
     }
-  )
+    const at = (i: number, k: number) => i * around + k
+    for (let i = 0; i < sorted.length - 1; i++) {
+      for (let k = 0; k < around - 1; k++) {
+        index.push(at(i, k), at(i + 1, k), at(i + 1, k + 1))
+        index.push(at(i, k), at(i + 1, k + 1), at(i, k + 1))
+      }
+    }
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute(
+      'position',
+      new THREE.Float32BufferAttribute(positions, 3)
+    )
+    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2))
+    geometry.setIndex(index)
+    geometry.computeVertexNormals()
+    return geometry
+  })
 }
 
 function box(w: number, h: number, d: number): THREE.BufferGeometry {
@@ -313,17 +320,27 @@ export function buildFigure(
   const pelvis = pivot(group, built, 'pelvis', 0, hipY, 0)
   part(pelvis, loft(PELVIS, 8), c.pants)
 
-  const spine = pivot(pelvis, built, 'spine', 0, 0.07, 0)
-  part(spine, loft(TORSO, 8), c.shirt)
-  if (outfit.shirtPrint) {
-    const { width, height } = SHIRT_FRONT
-    spine.add(
+  // A part, with the outfit's print for it laid over the top.
+  const printed = (
+    parent: THREE.Object3D,
+    rings: readonly RingInput[],
+    sides: number,
+    color: string,
+    at: PrintPart | null
+  ) => {
+    part(parent, loft(rings, sides), color)
+    const decal = at && outfit.prints?.[at]
+    if (!decal) return
+    parent.add(
       new THREE.Mesh(
-        frontLoft(TORSO, 8, width, height),
-        decalMaterial(outfit.shirtPrint, true)
+        printLoft(rings, sides, at === 'arm'),
+        decalMaterial(outfitId, decal, true)
       )
     )
   }
+
+  const spine = pivot(pelvis, built, 'spine', 0, 0.07, 0)
+  printed(spine, TORSO, 8, c.shirt, 'torso')
 
   const neck = pivot(spine, built, 'neck', 0, 0.48, 0)
   part(neck, loft(NECK), c.skin)
@@ -347,15 +364,24 @@ export function buildFigure(
       0.42,
       0
     )
-    part(shoulder, loft(stretch(UPPER_ARM, arm)), c.shirt)
+    // Bare arm parts take the skin color, and an arm print.
+    const bare = outfit.sleeves === 'none'
+    const upper = bare ? c.skin : c.shirt
+    const lower = outfit.sleeves ? c.skin : c.shirt
+    printed(shoulder, stretch(UPPER_ARM, arm), 6, upper, bare ? 'arm' : null)
     const elbow = pivot(shoulder, built, `elbow${side}`, 0, -upperArm, 0)
-    const sleeve = outfit.sleeves === 'short' ? c.skin : c.shirt
-    part(elbow, loft(stretch(FOREARM, arm)), sleeve)
+    printed(
+      elbow,
+      stretch(FOREARM, arm),
+      6,
+      lower,
+      outfit.sleeves ? 'arm' : null
+    )
     part(elbow, loft(HAND), c.skin, 0, -foreArm, 0)
     part(elbow, box(0.025, 0.05, 0.025), c.skin, 0, -foreArm - 0.035, 0.04)
 
     const hip = pivot(pelvis, built, `hip${side}`, 0.09 * sign, -0.05, 0)
-    part(hip, loft(stretch(THIGH, leg)), c.pants)
+    printed(hip, stretch(THIGH, leg), 6, c.pants, 'thigh')
     const knee = pivot(hip, built, `knee${side}`, 0, -thigh, 0)
     part(knee, loft(stretch(SHIN, leg)), c.pants)
     part(knee, boot(), c.boots, 0, -shin - 0.03, 0.045)
@@ -385,7 +411,7 @@ export function buildFigure(
           plain,
           plain,
           plain,
-          decalMaterial(addon.decal),
+          decalMaterial(outfitId, addon.decal),
           plain,
         ]
       }
