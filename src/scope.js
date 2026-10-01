@@ -4,17 +4,70 @@ import { compassBearing } from './coords.js'
 // The handheld Scaduscope: a north-up sweep radar in the SYSOUT voice, run as
 // an app on a phone. Blips light as the sweep passes and decay until it comes
 // around again. This is the same instrument as /bull-valley-scaduscope/,
-// carried into the field. The canvas is the phone screen (hud.js).
+// carried into the field.
+//
+// The phone, the hand that holds it and the screen all draw into one small
+// canvas that CSS upscales with image-rendering: pixelated, so the prop has
+// the same coarse pixels as the world render (CONFIG.render.downscale). The
+// shapes are flat polygons in a 200 x 360 design grid, scaled down to the
+// canvas.
 
 const GREEN = '#4ade80'
 const MAGENTA = '#e879f9'
 const EGGSHELL = '#f0ead6' // --bv-eggshell; canvas cannot read CSS vars
 const SLATE = '#94a3b8'
+const SKIN = '#f2dccb'
+const SKIN_SHADE = '#d9b8a2'
+const SLEEVE = '#1e293b'
+const CUFF = '#0f172a'
+const BODY = '#0b0f14'
+const SCREEN = '#020617'
 
-// Screen size in canvas pixels; the aspect matches the screen hole in the
-// phone art (108 x 208 viewBox units).
-const WIDTH = 216
-const HEIGHT = 416
+// Design grid, and the canvas size: the phone is 17rem (272px) wide, so one
+// canvas pixel covers about CONFIG.render.downscale screen pixels.
+const GRID_W = 200
+const GRID_H = 360
+const WIDTH = 90
+const HEIGHT = 162
+const K = WIDTH / GRID_W
+
+// The screen hole in the phone body, in grid units.
+const SX = 46
+const SY = 34
+const SW = 108
+const SH = 208
+
+// Back layer, drawn before the phone body.
+// prettier-ignore
+const BACK = [
+  [SLEEVE, [[58, 360], [66, 296], [154, 296], [164, 360]]],
+  [CUFF, [[64, 300], [68, 282], [152, 282], [156, 300]]],
+  [SKIN, [[36, 172], [30, 238], [54, 286], [150, 290], [174, 258], [174, 172]]],
+  [SKIN_SHADE, [[30, 238], [54, 286], [104, 288], [88, 246]]],
+  [SKIN, [[54, 98], [26, 106], [14, 140], [14, 224], [28, 254], [58, 260]]],
+  [SKIN_SHADE, [[14, 140], [14, 224], [28, 254], [32, 150]]],
+  [BODY, [[52, 20], [148, 20], [160, 32], [160, 242], [148, 254], [52, 254], [40, 242], [40, 32]]],
+]
+
+// Front layer: the finger lip and the thumb over the bezel.
+// prettier-ignore
+const FRONT = [
+  [SKIN, [[46, 110], [36, 118], [32, 216], [46, 236]]],
+  [SKIN, [[176, 252], [180, 208], [170, 170], [160, 162], [152, 172], [156, 210], [153, 254]]],
+  [SKIN_SHADE, [[176, 252], [180, 208], [166, 212], [164, 253]]],
+]
+
+function fillPolys(ctx, polys) {
+  for (const [color, points] of polys) {
+    ctx.fillStyle = color
+    ctx.beginPath()
+    ctx.moveTo(points[0][0], points[0][1])
+    for (let i = 1; i < points.length; i++)
+      ctx.lineTo(points[i][0], points[i][1])
+    ctx.closePath()
+    ctx.fill()
+  }
+}
 
 function clockText() {
   return new Date().toLocaleTimeString('en-US', {
@@ -51,54 +104,43 @@ export class Scope {
       (this.sweep + (dt * Math.PI * 2) / CONFIG.scope.sweepSeconds) %
       (Math.PI * 2)
     const ctx = this.ctx
-    const c = WIDTH / 2
-    const cy = 196
-    const r = c - 12
-    ctx.fillStyle = '#020617'
-    ctx.fillRect(0, 0, WIDTH, HEIGHT)
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.clearRect(0, 0, WIDTH, HEIGHT)
+    // Work in grid units from here; one canvas pixel is 1 / K units.
+    ctx.setTransform(K, 0, 0, K, 0, 0)
+    const px = 1 / K
 
-    // Status bar: the local clock, signal bars and a battery.
+    fillPolys(ctx, BACK)
+    ctx.fillStyle = SCREEN
+    ctx.fillRect(SX, SY, SW, SH)
+
+    // Status bar: the local clock and a battery.
     this.clockAge += dt
     if (this.clockAge > 1) {
       this.clockAge = 0
       this.clock = clockText()
     }
-    ctx.font = '12px Inter, system-ui, sans-serif'
+    ctx.font = `bold ${7 * px}px monospace`
     ctx.textBaseline = 'middle'
     ctx.textAlign = 'left'
     ctx.fillStyle = EGGSHELL
-    ctx.fillText(this.clock, 14, 16)
-    for (let i = 0; i < 4; i++) {
-      ctx.fillRect(WIDTH - 62 + i * 5, 20 - (i + 1) * 2.5, 3, (i + 1) * 2.5)
-    }
-    ctx.strokeStyle = EGGSHELL
-    ctx.lineWidth = 1
-    ctx.strokeRect(WIDTH - 36.5, 10.5, 20, 10)
-    ctx.fillRect(WIDTH - 16, 13, 2, 5)
-    ctx.fillRect(WIDTH - 35, 12, 12, 7)
-
-    // App title.
-    ctx.textAlign = 'center'
-    ctx.fillStyle = GREEN
-    ctx.fillText('SCADUSCOPE', c, 52)
+    ctx.fillText(this.clock, SX + 3 * px, SY + 5 * px)
+    ctx.fillRect(SX + SW - 9 * px, SY + 3 * px, 6 * px, 3 * px)
 
     // Dish
+    const c = SX + SW / 2
+    const cy = SY + 92
+    const r = 44
     ctx.save()
     ctx.beginPath()
     ctx.arc(c, cy, r, 0, Math.PI * 2)
-    ctx.fillStyle = 'rgba(2, 6, 23, 0.92)'
-    ctx.fill()
     ctx.clip()
 
     // Rings and cross
-    ctx.strokeStyle = 'rgba(74, 222, 128, 0.25)'
-    ctx.lineWidth = 1
-    for (const t of [1 / 3, 2 / 3, 1]) {
-      ctx.beginPath()
-      ctx.arc(c, cy, r * t, 0, Math.PI * 2)
-      ctx.stroke()
-    }
+    ctx.strokeStyle = 'rgba(74, 222, 128, 0.35)'
+    ctx.lineWidth = px
     ctx.beginPath()
+    ctx.arc(c, cy, r / 2, 0, Math.PI * 2)
     ctx.moveTo(c, cy - r)
     ctx.lineTo(c, cy + r)
     ctx.moveTo(c - r, cy)
@@ -110,15 +152,13 @@ export class Scope {
       ? ctx.createConicGradient(this.sweep - Math.PI / 2, c, cy)
       : null
     if (grad) {
-      grad.addColorStop(0, 'rgba(74, 222, 128, 0.28)')
+      grad.addColorStop(0, 'rgba(74, 222, 128, 0.35)')
       grad.addColorStop(0.12, 'rgba(74, 222, 128, 0)')
       grad.addColorStop(1, 'rgba(74, 222, 128, 0)')
       ctx.fillStyle = grad
-      ctx.beginPath()
-      ctx.arc(c, cy, r, 0, Math.PI * 2)
-      ctx.fill()
+      ctx.fillRect(c - r, cy - r, r * 2, r * 2)
     }
-    ctx.strokeStyle = 'rgba(74, 222, 128, 0.7)'
+    ctx.strokeStyle = GREEN
     ctx.beginPath()
     ctx.moveTo(c, cy)
     ctx.lineTo(c + Math.sin(this.sweep) * r, cy - Math.cos(this.sweep) * r)
@@ -131,55 +171,52 @@ export class Scope {
       while (behind < 0) behind += Math.PI * 2
       const alpha = Math.max(0.08, 1 - behind / (Math.PI * 2))
       const rr = Math.min(1, contact.dist / CONFIG.scope.rangeMetres) * r
-      const px = c + Math.sin(rad) * rr
-      const py = cy - Math.cos(rad) * rr
       ctx.fillStyle = contact.hunting ? MAGENTA : GREEN
       ctx.globalAlpha = perception ? Math.min(1, alpha + 0.3) : alpha
-      ctx.fillRect(px - 2, py - 2, 4, 4)
+      ctx.fillRect(
+        c + Math.sin(rad) * rr - px,
+        cy - Math.cos(rad) * rr - px,
+        2 * px,
+        2 * px
+      )
       ctx.globalAlpha = 1
     }
 
-    // Player facing wedge at centre.
+    // Player facing tick at centre.
     const yaw = (compassBearing(forward.x, forward.z) * Math.PI) / 180
     ctx.strokeStyle = SLATE
     ctx.beginPath()
     ctx.moveTo(c, cy)
-    ctx.lineTo(c + Math.sin(yaw) * 14, cy - Math.cos(yaw) * 14)
+    ctx.lineTo(c + Math.sin(yaw) * 4 * px, cy - Math.cos(yaw) * 4 * px)
     ctx.stroke()
 
     // Interference climbs with nerves.
-    const flecks = Math.floor((nerves / 100) * 60)
-    ctx.fillStyle = 'rgba(74, 222, 128, 0.35)'
+    const flecks = Math.floor((nerves / 100) * 30)
+    ctx.fillStyle = 'rgba(74, 222, 128, 0.5)'
     for (let i = 0; i < flecks; i++) {
       const a = Math.random() * Math.PI * 2
       const rr = Math.random() * r
-      ctx.fillRect(c + Math.sin(a) * rr, cy - Math.cos(a) * rr, 1.5, 1.5)
+      ctx.fillRect(c + Math.sin(a) * rr, cy - Math.cos(a) * rr, px, px)
     }
     ctx.restore()
 
-    // Bezel and readout line.
+    // Dish rim and the nearest contact.
     ctx.strokeStyle = GREEN
-    ctx.lineWidth = 2
+    ctx.lineWidth = px
     ctx.beginPath()
     ctx.arc(c, cy, r, 0, Math.PI * 2)
     ctx.stroke()
-    ctx.font = '12px Inter, system-ui, sans-serif'
-    ctx.textAlign = 'center'
-    ctx.fillStyle = EGGSHELL
-    let line = 'NO CONTACT'
     let best = null
     for (const contact of contacts) {
       if (!best || contact.dist < best.dist) best = contact
     }
-    if (best) {
-      line = `CONTACT ${String(Math.round(best.bearing)).padStart(3, '0')}° ${Math.round(best.dist)}M`
-    }
-    ctx.fillText(line, c, cy + r + 30)
-    ctx.fillStyle = SLATE
-    ctx.fillText(`RANGE ${CONFIG.scope.rangeMetres}M`, c, cy + r + 50)
+    const line = best
+      ? `${String(Math.round(best.bearing)).padStart(3, '0')}° ${Math.round(best.dist)}M`
+      : 'NO CONTACT'
+    ctx.textAlign = 'center'
+    ctx.fillStyle = EGGSHELL
+    ctx.fillText(line, c, cy + r + 9 * px)
 
-    // Home indicator.
-    ctx.fillStyle = SLATE
-    ctx.fillRect(c - 36, HEIGHT - 12, 72, 3)
+    fillPolys(ctx, FRONT)
   }
 }

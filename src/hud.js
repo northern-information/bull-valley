@@ -42,34 +42,13 @@ export class Hud {
     this.timers = el('div', 'bv-timers')
     ui.appendChild(this.timers)
 
-    // The scope: a phone held in a PS1-style flipper hand, built from flat
-    // facets like a low-poly model. The fingers are one block that wraps the
-    // left edge; the thumb lies on the right edge. A darker facet on each
-    // part fakes the shading of a lit polygon. The back layer (sleeve, palm,
-    // finger block, phone body) sits under the screen canvas; the finger lip
-    // and the thumb sit over the bezel. Both layers share one viewBox.
+    // The scope: a phone held in a PS1-style flipper hand. scope.js draws the
+    // hand, the phone and the screen into this one low-res canvas.
     this.phone = el('div', 'bv-phone')
     this.phone.setAttribute('aria-hidden', 'true')
-    this.phone.innerHTML = `
-      <svg class="bv-phone-layer" viewBox="0 0 200 360" preserveAspectRatio="none">
-        <path class="bv-hand-sleeve" d="M58 360 L66 296 L154 296 L164 360 Z"/>
-        <path class="bv-hand-cuff" d="M64 300 L68 282 L152 282 L156 300 Z"/>
-        <path class="bv-hand" d="M36 172 L30 238 L54 286 L150 290 L174 258 L174 172 Z"/>
-        <path class="bv-hand-shade" d="M30 238 L54 286 L104 288 L88 246 Z"/>
-        <path class="bv-hand" d="M54 98 L26 106 L14 140 L14 224 L28 254 L58 260 Z"/>
-        <path class="bv-hand-shade" d="M14 140 L14 224 L28 254 L32 150 Z"/>
-        <rect class="bv-phone-body" x="40" y="20" width="120" height="234" rx="16"/>
-        <rect class="bv-phone-slot" x="88" y="26" width="24" height="3" rx="1.5"/>
-      </svg>
-      <canvas class="bv-scope"></canvas>
-      <svg class="bv-phone-layer" viewBox="0 0 200 360" preserveAspectRatio="none">
-        <path class="bv-hand" d="M46 110 L36 118 L32 216 L46 236 Z"/>
-        <path class="bv-hand-shade" d="M36 118 L32 216 L39 226 L40 124 Z"/>
-        <path class="bv-hand" d="M176 252 L180 208 L170 170 L160 162 L152 172 L156 210 L153 254 Z"/>
-        <path class="bv-hand-shade" d="M176 252 L180 208 L166 212 L164 253 Z"/>
-      </svg>`
+    this.scopeCanvas = el('canvas', 'bv-scope')
+    this.phone.appendChild(this.scopeCanvas)
     ui.appendChild(this.phone)
-    this.scopeCanvas = this.phone.querySelector('.bv-scope')
 
     // Interaction prompt + toasts.
     this.promptEl = el('p', 'bv-prompt')
