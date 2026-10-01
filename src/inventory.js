@@ -32,13 +32,7 @@ export function loadInventory(storage) {
   try {
     const raw = storage.getItem(KEY)
     if (!raw) return { ...STARTING_INVENTORY }
-    const parsed = JSON.parse(raw)
-    // Saves from before the brands held one generic count; those packs
-    // become Marlboro Reds.
-    if ('cigarettes' in parsed) {
-      parsed.marlboro = (parsed.marlboro | 0) + (parsed.cigarettes | 0)
-    }
-    return normalize(parsed)
+    return normalize(JSON.parse(raw))
   } catch {
     return { ...STARTING_INVENTORY }
   }

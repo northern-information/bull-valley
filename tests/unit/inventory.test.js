@@ -47,16 +47,6 @@ describe('inventory', () => {
     expect(loadInventory(storage)).toEqual(STARTING_INVENTORY)
   })
 
-  it('moves a pre-brand cigarettes count onto Marlboro Reds', () => {
-    const storage = stubStorage()
-    saveInventory(storage, { cigarettes: 7, joints: 3 })
-    const inv = loadInventory(storage)
-    expect(inv.marlboro).toBe(7)
-    expect(inv.joints).toBe(3)
-    expect(inv).not.toHaveProperty('cigarettes')
-    expect(Object.keys(inv).sort()).toEqual([...KINDS].sort())
-  })
-
   it('fills missing kinds and clamps bad counts', () => {
     const storage = stubStorage()
     saveInventory(storage, { camel: -3, parliament: 'x', joints: 2.9 })
