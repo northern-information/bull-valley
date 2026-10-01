@@ -9,6 +9,7 @@ import { Hud } from './hud.js'
 import { BvAudio } from './audio.js'
 import { showSplash } from './splash.js'
 import { Truck } from './truck.js'
+import { PlayerBody } from './playerbody.js'
 import {
   STATES,
   EVENTS,
@@ -200,6 +201,7 @@ async function boot() {
     metres: geo.metres,
     spawn: world.spawn,
   })
+  const playerBody = new PlayerBody(scene)
   const scope = new Scope(hud.scopeCanvas, hud.phone)
 
   const keep = world.landmarks.find((l) => l.n === KEEP)
@@ -600,6 +602,15 @@ async function boot() {
       camera.position.set(seat.x, seat.y, seat.z)
       camera.rotation.set(player.pitch, player.yaw, 0)
       ridingForward.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw))
+      // Standing in the bed.
+      playerBody.update(dt, {
+        x: seat.x,
+        ground: seat.y - CONFIG.truck.bedEye,
+        z: seat.z,
+        yaw: player.yaw,
+        speed: 0,
+        crouching: false,
+      })
       if (truckState.done) {
         hopOut('End of the line. Marx lights a cigarette.')
       }
@@ -612,6 +623,14 @@ async function boot() {
         driftAmp: perception ? 0.5 : 0,
       })
       forward = playerState.forward
+      playerBody.update(dt, {
+        x: player.pos.x,
+        ground: heightAt(player.pos.x, player.pos.z),
+        z: player.pos.z,
+        yaw: player.yaw,
+        speed: playerState.speed,
+        crouching: playerState.crouching,
+      })
       truck.update(dt)
     }
 
