@@ -123,9 +123,16 @@ function applyToggles() {
   resize()
 }
 
+// A mesh may carry one material or an array (one per geometry group).
+function materialsOf(o) {
+  if (!o.material) return []
+  return Array.isArray(o.material) ? o.material : [o.material]
+}
+
 function setWireframe(object, on) {
   object.traverse((o) => {
-    if (o.isMesh) o.material.wireframe = on
+    if (!o.isMesh) return
+    for (const m of materialsOf(o)) m.wireframe = on
   })
 }
 
@@ -144,9 +151,9 @@ let current = null
 function dispose(object) {
   object.traverse((o) => {
     o.geometry?.dispose()
-    if (o.material) {
-      o.material.map?.dispose()
-      o.material.dispose()
+    for (const m of materialsOf(o)) {
+      m.map?.dispose()
+      m.dispose()
     }
   })
 }

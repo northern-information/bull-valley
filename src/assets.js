@@ -202,8 +202,8 @@ export function fuelStationParts() {
   canopyPole.translate(0, 2.3, 0)
   const pump = new THREE.BoxGeometry(0.9, 1.3, 0.5)
   pump.translate(0, 0.65, 0)
-  const signPole = new THREE.CylinderGeometry(0.14, 0.14, 8, 5)
-  signPole.translate(0, 4, 0)
+  const signPole = new THREE.CylinderGeometry(0.14, 0.14, 7, 5)
+  signPole.translate(0, 3.5, 0)
   return {
     building: {
       name: 'building',
@@ -238,16 +238,19 @@ export function fuelStationParts() {
       geometry: signPole,
       material: lambert({ color: '#454b54' }),
     },
-    // Basic, not lambert: the sign face renders as-drawn, readable at night.
+    // A box deep enough to hide the pole top inside it. BoxGeometry face
+    // order is +x, -x, +y, -y, +z, -z: the two broad faces carry the art,
+    // basic so they render as-drawn at night; the edges match the pole.
     sign: {
       name: 'sign',
-      geometry: new THREE.PlaneGeometry(2.6, 1.95),
-      material: applyPS1(
-        new THREE.MeshBasicMaterial({
-          map: makeCitgoSignTexture(),
-          side: THREE.DoubleSide,
-        })
-      ),
+      geometry: new THREE.BoxGeometry(2.6, 1.95, 0.36),
+      material: (() => {
+        const face = applyPS1(
+          new THREE.MeshBasicMaterial({ map: makeCitgoSignTexture() })
+        )
+        const edge = lambert({ color: '#454b54' })
+        return [edge, edge, edge, edge, face, face]
+      })(),
     },
     glow: makeGlowTexture('rgba(242, 101, 34, 0.4)'),
   }
