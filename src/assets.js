@@ -285,14 +285,16 @@ function sampleFuelStation() {
 // across the fog. Origin at ground level.
 export function buildLandmarkBeacon(color) {
   const group = new THREE.Group()
+  // The pole stops at the panel centre, and the panel is deeper than the
+  // pole is wide, so the pole top stays hidden inside it.
   const pole = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.16, 0.2, 10, 5),
+    new THREE.CylinderGeometry(0.16, 0.2, 9.4, 5),
     lambert({ color: '#20242a' })
   )
-  pole.position.y = 5
+  pole.position.y = 4.7
   group.add(pole)
   const panel = new THREE.Mesh(
-    new THREE.BoxGeometry(1.6, 1.0, 0.18),
+    new THREE.BoxGeometry(1.6, 1.0, 0.36),
     lambert({
       color: '#101216',
       emissive: new THREE.Color(color),
