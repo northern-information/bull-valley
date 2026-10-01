@@ -25,7 +25,9 @@ import {
 } from './roadgraph.js'
 import { KEEP } from './landmarks.js'
 import { addItem, useItem, loadInventory, saveInventory } from './inventory.js'
-import { BRANDS, brandById, brandToSmoke, isBrand } from './brands.js'
+import { brandById, brandToSmoke, isBrand } from './brands.js'
+import { ringItems, stepIndex, syncIndex } from './carousel.js'
+import { createInventoryView } from './inventoryview.js'
 import {
   worldToUnit,
   unitToWorld,
@@ -223,9 +225,6 @@ async function boot() {
   let inventory = loadInventory(window.localStorage)
   // The brand a bare 1 smokes: the last one picked in the inventory.
   let selectedBrand = null
-  const showInventory = () =>
-    hud.setInventory(inventory, brandToSmoke(inventory, selectedBrand))
-  showInventory()
   let raid = createRaid(0)
   let raidClock = 0 // advances only while the pointer is locked
   const shopStock = {
@@ -233,7 +232,12 @@ async function boot() {
     joints: CONFIG.shop.joints,
     sack: 1,
   }
-  hud.setShop(shopStock)
+  // The carousel: ring entries from carousel.js, the selected slot, and
+  // its kind so the selection survives the ring changing.
+  const inventoryView = createInventoryView()
+  let ring = []
+  let ringIndex = 0
+  let ringKind = null
   let time = 0
   let smokingUntil = 0
   let emberUntil = 0
@@ -257,12 +261,51 @@ async function boot() {
   const nearSpawnStation = () =>
     Math.hypot(spawnStation.x - player.pos.x, spawnStation.z - player.pos.z) <
     25
+  const shopOpen = () => raid.state === STATES.LOADOUT && nearSpawnStation()
+
+  // Rebuild the ring after anything that changes what you carry or what the
+  // tailgate holds, keeping the selection on the same kind.
+  const refreshRing = () => {
+    const open = shopOpen()
+    ring = ringItems(inventory, raid, open ? shopStock : null)
+    ringIndex = syncIndex(ring, ringKind, ringIndex)
+    ringKind = ring[ringIndex]?.kind ?? null
+    hud.setCarousel({ items: ring, index: ringIndex, shopOpen: open })
+  }
+
+  const truckStatus = () => {
+    if (raid.state === STATES.LOADOUT) {
+      const left = Math.max(0, Math.ceil(raid.loadoutEndsAt - raidClock))
+      return `Leaves in ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`
+    }
+    if (raid.state === STATES.RIDING) return 'Riding the bed'
+    return raid.truckCalled ? 'On its way' : 'Gone'
+  }
+
+  // The player freezes while the inventory is open; the valley does not.
+  const openInventory = () => {
+    player.keys.clear()
+    refreshRing()
+    inventoryView.snapTo(ringIndex)
+    inventoryOpen = hud.showInventory(true)
+  }
+
+  const closeInventory = () => {
+    inventoryOpen = hud.showInventory(false)
+  }
+
+  const cycleRing = (dir) => {
+    if (ring.length < 2) return
+    ringIndex = stepIndex(ringIndex, ring.length, dir)
+    ringKind = ring[ringIndex].kind
+    if (isBrand(ringKind)) selectedBrand = ringKind
+    refreshRing()
+  }
 
   const endRaid = () => {
     ended = true
     hud.prompt(null)
-    hud.showInventory(false)
-    inventoryOpen = false
+    closeInventory()
     if (document.pointerLockElement) document.exitPointerLock()
     player.locked = false
     hud.showIntro(false)
@@ -280,8 +323,7 @@ async function boot() {
     truckLeaves()
     hud.toast('You climb into the bed. Marx pulls out.')
     hud.toast('E hops out. Anywhere you like.')
-    hud.showInventory(false)
-    inventoryOpen = false
+    closeInventory()
   }
 
   const hopOut = (toastText) => {
@@ -308,13 +350,13 @@ async function boot() {
   }
 
   const buy = (kind) => {
-    if (raid.state !== STATES.LOADOUT || !nearSpawnStation()) return
+    if (!shopOpen()) return
     if (kind === 'sack') {
       const next = advance(raid, EVENTS.BUY_SACK, raidClock)
       if (next === raid || shopStock.sack < 1) return
       raid = next
       shopStock.sack = 0
-      hud.setShop(shopStock)
+      refreshRing()
       hud.toast('The burlap sack. Room for five.')
       return
     }
@@ -325,9 +367,8 @@ async function boot() {
     }
     stock[kind] -= 1
     inventory = addItem(inventory, kind, 1)
-    showInventory()
     saveInventory(window.localStorage, inventory)
-    hud.setShop(shopStock)
+    refreshRing()
     hud.toast(
       isBrand(kind)
         ? `One pack of ${brandById(kind).label}, pocketed.`
@@ -387,11 +428,12 @@ async function boot() {
         hud.toast('Matthew Marx keeps the engine running.')
       }
     } else if (started && !ended) {
+      closeInventory()
       hud.showIntro(true, true)
     }
   })
   document.addEventListener('mousemove', (e) => {
-    player.handleMouse(e.movementX, e.movementY)
+    if (!inventoryOpen) player.handleMouse(e.movementX, e.movementY)
   })
 
   // kind: a brand id, 'joints', or 'smoke' for the selected brand.
@@ -413,8 +455,8 @@ async function boot() {
     }
     inventory = result.inv
     if (isBrand(kind)) selectedBrand = kind
-    showInventory()
     saveInventory(window.localStorage, inventory)
+    refreshRing()
     if (isBrand(kind)) {
       const tune = CONFIG.items.cigarettes[kind]
       smokingUntil = time + tune.smokeSeconds
@@ -442,7 +484,6 @@ async function boot() {
       nearPickup.taken = true
       nearPickup.mesh.visible = false
       inventory = addItem(inventory, nearPickup.kind, nearPickup.count)
-      showInventory()
       saveInventory(window.localStorage, inventory)
       hud.toast(`Taken: ${pickupLabel(nearPickup)}`)
     }
@@ -485,37 +526,45 @@ async function boot() {
     takePickup()
   }
 
-  // Number keys. Shift+N buys from the tailgate row N, but only while the
-  // shop is open (Shift is also sprint). With the inventory open, 1–5 light
-  // that brand and 6 a joint; closed, 1 lights the selected brand, 2 a joint.
-  const digitKey = (n, shift) => {
-    const shopOpen = raid.state === STATES.LOADOUT && nearSpawnStation()
-    if (shift && shopOpen) {
-      const rows = [...BRANDS.map((b) => b.id), 'joints', 'sack']
-      if (rows[n - 1]) buy(rows[n - 1])
-      return
-    }
-    if (inventoryOpen) {
-      const rows = [...BRANDS.map((b) => b.id), 'joints']
-      if (rows[n - 1]) useKind(rows[n - 1])
-    } else if (n === 1) {
+  // With the inventory open the keys drive the carousel and never reach the
+  // player: ←/→ or A/D cycle, E or Enter uses, B buys at the tailgate,
+  // 1 and 2 still smoke and spark. Esc drops pointer lock, which closes it.
+  const inventoryKey = (e) => {
+    const item = ring[ringIndex]
+    if (e.code === 'Tab') {
+      e.preventDefault()
+      closeInventory()
+    } else if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
+      cycleRing(-1)
+    } else if (e.code === 'ArrowRight' || e.code === 'KeyD') {
+      cycleRing(1)
+    } else if (e.code === 'KeyE' || e.code === 'Enter') {
+      if (item?.canUse) useKind(item.kind)
+    } else if (e.code === 'KeyB') {
+      if (item?.canBuy) buy(item.kind)
+    } else if (e.code === 'Digit1') {
       useKind('smoke')
-    } else if (n === 2) {
+    } else if (e.code === 'Digit2') {
       useKind('joints')
     }
   }
 
   document.addEventListener('keydown', (e) => {
     if (!player.locked || ended) return
+    if (inventoryOpen) {
+      inventoryKey(e)
+      return
+    }
     player.handleKey(e.code, true)
     if (e.code === 'Tab') {
       e.preventDefault()
-      inventoryOpen = hud.showInventory(!inventoryOpen)
-      hud.showShop(raid.state === STATES.LOADOUT && nearSpawnStation())
+      openInventory()
     } else if (e.code === 'KeyQ') {
       scope.toggle()
-    } else if (/^Digit[1-9]$/.test(e.code)) {
-      digitKey(Number(e.code.slice(5)), e.shiftKey)
+    } else if (e.code === 'Digit1') {
+      useKind('smoke')
+    } else if (e.code === 'Digit2') {
+      useKind('joints')
     } else if (e.code === 'KeyT') {
       callTruck()
     } else if (e.code === 'KeyE') {
@@ -532,6 +581,7 @@ async function boot() {
     renderer.setSize(iw, ih, false)
     camera.aspect = w / h
     camera.updateProjectionMatrix()
+    inventoryView.setAspect(w / h)
     setSnapResolution(iw, ih)
   }
   window.addEventListener('resize', resize)
@@ -558,7 +608,7 @@ async function boot() {
       raid = advance(raid, EVENTS.TIMER_EXPIRED, raidClock)
       truckLeaves()
       hud.toast('Taillights. The truck leaves without you.')
-      hud.showShop(false)
+      refreshRing()
     }
 
     let forward = ridingForward
@@ -724,7 +774,18 @@ async function boot() {
     }
 
     sky.position.set(player.pos.x, 0, player.pos.z)
-    renderer.render(scene, camera)
+    if (inventoryOpen) {
+      // The carousel replaces the view; the world keeps running behind it.
+      hud.setInventoryStatus({
+        carry: `${raid.carrying} / ${carryLimit(raid)}`,
+        delivered: raid.delivered,
+        truck: truckStatus(),
+      })
+      inventoryView.update(dt, ring, ringIndex)
+      renderer.render(inventoryView.scene, inventoryView.camera)
+    } else {
+      renderer.render(scene, camera)
+    }
   })
 
   if (import.meta.env.DEV) {

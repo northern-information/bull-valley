@@ -2,8 +2,6 @@
 // the intro/pause overlay, and the strike static. Markup is generated here so
 // the Eleventy page and the dev harness stay a bare #bv-root.
 
-import { BRANDS } from './brands.js'
-
 function el(tag, className, html) {
   const node = document.createElement(tag)
   if (className) node.className = className
@@ -63,33 +61,37 @@ export class Hud {
     this.toasts.setAttribute('aria-live', 'polite')
     ui.appendChild(this.toasts)
 
-    // Inventory.
-    this.inventory = el('section', 'bv-inventory')
+    // Inventory: Silent Hill chrome around the 3D carousel, which the game
+    // renderer draws on the canvas underneath (inventoryview.js).
+    this.inventory = el('section', 'bv-inv')
+    this.inventory.setAttribute('role', 'dialog')
     this.inventory.setAttribute('aria-label', 'Inventory')
     this.inventory.hidden = true
     this.inventory.innerHTML = `
-      <h2>Inventory</h2>
-      <ul>
-${BRANDS.map(
-  (b, i) =>
-    `        <li data-bv="row-${b.id}"><span class="bv-item-key">${i + 1}</span> ${b.label} <b data-bv="${b.id}">0</b><i>${b.blurb}</i></li>`
-).join('\n')}
-        <li><span class="bv-item-key">${BRANDS.length + 1}</span> Joints <b data-bv="joints">0</b><i>You will see them. You will feel less.</i></li>
+      <div class="bv-inv-bars" aria-hidden="true"><span>Status</span><span>Inventory</span><span>Command</span></div>
+      <dl class="bv-inv-status">
+        <dt>Cabbages</dt><dd data-bv="inv-carry">0 / 3</dd>
+        <dt>Delivered</dt><dd data-bv="inv-delivered">0</dd>
+        <dt>Truck</dt><dd data-bv="inv-truck">—</dd>
+      </dl>
+      <ul class="bv-inv-commands" aria-label="Commands">
+        <li data-bv="cmd-use"><kbd>E</kbd> Use</li>
+        <li data-bv="cmd-buy"><kbd>B</kbd> Buy</li>
       </ul>
-      <p class="bv-inventory-hint">Every pack steadies the nerves. The ember gives you away. Closed: 1 smokes your pick (▸), 2 lights a joint.</p>
-      <div data-bv="shop" hidden>
-        <h2>Marx's Tailgate</h2>
-        <ul>
-${BRANDS.map(
-  (b, i) =>
-    `          <li><span class="bv-item-key">⇧${i + 1}</span> Buy ${b.label} <b data-bv="shop-${b.id}">0</b></li>`
-).join('\n')}
-          <li><span class="bv-item-key">⇧${BRANDS.length + 1}</span> Buy Joints <b data-bv="shop-joints">0</b><i>Grown in the reserves. Probably.</i></li>
-          <li><span class="bv-item-key">⇧${BRANDS.length + 2}</span> Buy Burlap Sack <b data-bv="shop-sack">1</b><i>Carries five cabbages instead of three.</i></li>
-        </ul>
-        <p class="bv-inventory-hint">Left on the tailgate. No money in Bull Valley. Stock is per raid.</p>
+      <div class="bv-inv-frame" data-bv="inv-frame" aria-hidden="true">
+        <span class="bv-inv-arrow bv-inv-arrow--prev">◀◀</span>
+        <span class="bv-inv-arrow bv-inv-arrow--next">▶▶</span>
       </div>
-      <p class="bv-inventory-hint">Tab closes. Found at fuel stations and in the reserves.</p>`
+      <div class="bv-inv-info" aria-live="polite">
+        <p class="bv-inv-line"><span>No.</span> <b data-bv="inv-no">—</b></p>
+        <p class="bv-inv-line">
+          <span>Name:</span> <b class="bv-inv-name" data-bv="inv-name">—</b>
+          <span>Stock:</span> <b data-bv="inv-stock">0</b>
+          <span data-bv="inv-tailgate-wrap"><span>Tailgate:</span> <b data-bv="inv-tailgate">0</b></span>
+        </p>
+        <p class="bv-inv-desc" data-bv="inv-desc"></p>
+      </div>
+      <div class="bv-inv-bars bv-inv-bars--foot" aria-hidden="true"><span>← → Cycle</span><span>Tab Exit</span><span>1 Smoke · 2 Spark</span></div>`
     ui.appendChild(this.inventory)
 
     // Vignette + strike static.
@@ -116,7 +118,7 @@ ${BRANDS.map(
         <tr><th>Mouse</th><td>Look</td><th>C</th><td>Crouch</td></tr>
         <tr><th>Q</th><td>Scaduscope</td><th>Tab</th><td>Inventory</td></tr>
         <tr><th>E</th><td>Board / Take / Unload</td><th>T</th><td>Call the Truck</td></tr>
-        <tr><th>1 / 2</th><td>Smoke / Spark</td><th></th><td></td></tr>
+        <tr><th>1 / 2</th><td>Smoke / Spark</td><th>← →</th><td>Cycle Inventory</td></tr>
       </table>
       <div class="bv-intro-actions">
         <button type="button" class="bv-btn bv-btn--primary" data-bv="begin">Begin the Raid</button>
@@ -162,33 +164,37 @@ ${BRANDS.map(
     setTimeout(() => node.remove(), 4400)
   }
 
-  // selected: the brand a bare 1 smokes, marked in the list.
-  setInventory(inv, selected) {
-    for (const b of BRANDS) {
-      this.fields[b.id].textContent = String(inv[b.id])
-      const row = this.fields[`row-${b.id}`]
-      if (b.id === selected) row.setAttribute('aria-current', 'true')
-      else row.removeAttribute('aria-current')
-    }
-    this.fields.joints.textContent = String(inv.joints)
+  // The selected ring item (carousel.js entry) in text; items[index] may be
+  // missing on an empty ring. shopOpen shows the Buy command and tailgate
+  // stock.
+  setCarousel({ items, index, shopOpen }) {
+    const item = items[index]
+    const f = this.fields
+    f['inv-no'].textContent = item ? String(index + 1) : '—'
+    f['inv-name'].textContent = item ? item.label : 'Nothing'
+    f['inv-stock'].textContent = item ? String(item.stock) : '0'
+    f['inv-desc'].textContent = item
+      ? item.blurb
+      : 'Empty pockets. Nothing between you and the valley.'
+    f['inv-tailgate-wrap'].hidden = !shopOpen || !item || item.tailgate === null
+    f['inv-tailgate'].textContent = item ? String(item.tailgate ?? 0) : '0'
+    f['cmd-buy'].hidden = !shopOpen
+    f['cmd-use'].classList.toggle('bv-inv-cmd--dim', !item?.canUse)
+    f['cmd-buy'].classList.toggle('bv-inv-cmd--dim', !item?.canBuy)
+    f['inv-frame'].classList.toggle('bv-inv-frame--single', items.length < 2)
+  }
+
+  setInventoryStatus({ carry, delivered, truck }) {
+    const f = this.fields
+    if (f['inv-carry'].textContent !== carry) f['inv-carry'].textContent = carry
+    f['inv-delivered'].textContent = String(delivered)
+    if (f['inv-truck'].textContent !== truck) f['inv-truck'].textContent = truck
   }
 
   showInventory(show) {
     this.inventory.hidden = !show
-    return !this.inventory.hidden
-  }
-
-  // The tailgate shop rides inside the inventory panel during loadout.
-  showShop(show) {
-    this.fields.shop.hidden = !show
-  }
-
-  setShop({ cigarettes, joints, sack }) {
-    for (const b of BRANDS) {
-      this.fields[`shop-${b.id}`].textContent = String(cigarettes[b.id])
-    }
-    this.fields['shop-joints'].textContent = String(joints)
-    this.fields['shop-sack'].textContent = String(sack)
+    this.root.classList.toggle('bv-shell--inventory', show)
+    return show
   }
 
   // End-of-raid overlay, styled like the intro dialog.

@@ -24,6 +24,8 @@ Spawn at a gas station → 5-minute loadout before Matthew Marx's white Chevy le
 - `src/cabbages.js` — pure seeded cabbage placement
 - `src/brands.js` — pure: the five cigarette brands (each its own inventory kind); tuning and shop caps live in `CONFIG`
 - `src/packart.js` — canvas trade-dress art for the cigarette packs
+- `src/carousel.js` — pure: which items ride the inventory ring (carried, tailgate stock, cargo) and how the selection steps and wraps
+- `src/inventoryview.js` — the inventory carousel in 3D: its own scene and camera, drawn by the game renderer in place of the world while the inventory is open (the player freezes; the raid clock does not)
 - `src/landmarks.js` — consented landmark coordinates + projection
 - `src/splash.js` — Northern Information colophon splash: pure triangle-wave machine + DOM overlay
 - `src/assets.js` — every placed 3D asset in asset-local space (instanced parts + one-off builders) and the Akashic registry; new assets go here
