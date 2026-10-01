@@ -93,6 +93,8 @@ export type AddonId =
   | 'fringe'
   | 'emo-hair'
   | 'fringe-fill'
+  | 'hair-spikes-long'
+  | 'hair-spikes-short'
 
 export type LimbGroup = 'arm' | 'leg'
 
@@ -130,6 +132,17 @@ const LOOP_SPOTS = LOOP_ANGLES.map((deg): Vec3 => {
   const a = (deg * Math.PI) / 180
   return [Math.cos(a) * 0.167, 0.039, Math.sin(a) * 0.11 - 0.005]
 })
+
+// Spikes hang from just inside the emo-hair hem, round the back and sides
+// and clear of the face; long and short ones alternate. Angles are around
+// the head from +X toward +Z (the face).
+const hemSpots = (angles: number[]) =>
+  angles.map((deg): Vec3 => {
+    const a = (deg * Math.PI) / 180
+    return [Math.cos(a) * 0.077, 0.048, Math.sin(a) * 0.063 - 0.05]
+  })
+const LONG_SPIKE_SPOTS = hemSpots([-10, 30, 150, 190, 220, 250, 280, 310, 340])
+const SHORT_SPIKE_SPOTS = hemSpots([10, 170, 205, 235, 265, 295, 325])
 
 // Extra parts on the body. joint names a pivot from poses.ts JOINTS; slot
 // picks the color. A part is either a loft (rings of [y, rx, rz, cz]: height,
@@ -263,6 +276,27 @@ export const ADDONS: Record<AddonId, Addon> = {
       [0.09, 0.1, 0.08, -0.045],
       [0.04, 0.085, 0.07, -0.05],
     ],
+  },
+  // Pointed clumps that break up the emo-hair hem.
+  'hair-spikes-long': {
+    joint: 'neck',
+    slot: 'hair',
+    sides: 4,
+    rings: [
+      [0.012, 0.02, 0.016, 0],
+      [-0.055, 0.002, 0.002, 0],
+    ],
+    offsets: LONG_SPIKE_SPOTS,
+  },
+  'hair-spikes-short': {
+    joint: 'neck',
+    slot: 'hair',
+    sides: 4,
+    rings: [
+      [0.012, 0.018, 0.014, 0],
+      [-0.033, 0.002, 0.002, 0],
+    ],
+    offsets: SHORT_SPIKE_SPOTS,
   },
   // A chin beard only: narrow and forward, clear of the jaw line.
   goatee: {
@@ -482,6 +516,8 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     },
     addons: [
       'emo-hair',
+      'hair-spikes-long',
+      'hair-spikes-short',
       'stubble',
       'fringe',
       'fringe-fill',
