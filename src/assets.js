@@ -487,46 +487,94 @@ export function buildCigarettePack(
 
 // --- Joints --------------------------------------------------------------
 
-// A hand-rolled joint, 9 cm: a paper cone wide at the twisted tip, narrow at
-// the card crutch. Origin at the middle of its length, lying along +X with
-// the tip at +X.
+// A hand-rolled cone joint, 9 cm. It must not read as a cigarette, so the
+// shape is exaggerated: a strong taper from a fat tip to a thin card
+// crutch, a lumpy and slightly bent body, a long paper twist that flops to
+// one side, and a pale card crutch (not a tan filter). Origin at the middle
+// of its length, lying along +X with the tip at +X.
 export const JOINT = {
   length: 0.09,
-  tipRadius: 0.0055,
-  crutchRadius: 0.0035,
-  crutchLength: 0.016,
-  twistLength: 0.008,
+  tipRadius: 0.0085,
+  crutchRadius: 0.003,
+  crutchLength: 0.012,
+  twistLength: 0.016,
+  bend: 0.004,
   glowScale: 0.8,
 }
 
-const JOINT_PAPER = '#e9e4d4'
-const JOINT_CRUTCH = '#b4945e'
+const JOINT_PAPER = '#ece6cf'
+const JOINT_CRUTCH = '#e0d8bc'
+const JOINT_HOLE = '#2a2418'
 
-function jointPart(paper, crutch) {
-  const { length: L, tipRadius: RT, crutchRadius: RC } = JOINT
+// The paper body as a lathe: radius against length, crutch end at y = 0.
+// Lumps come from the seeded rng so each joint in a pile differs.
+function jointBody(rng, length) {
+  const { tipRadius: RT, crutchRadius: RC } = JOINT
+  const points = []
+  const steps = 7
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps
+    // Cone with a belly near the tip, then a pinch into the twist.
+    let r = RC + (RT - RC) * Math.pow(t, 0.8)
+    if (i === steps) r *= 0.55
+    else if (i > 0) r *= range(rng, 0.9, 1.1)
+    points.push(new THREE.Vector2(r, t * length))
+  }
+  // Close the tip so the open lathe end never shows.
+  points.push(new THREE.Vector2(0, length * 1.02))
+  const geometry = new THREE.LatheGeometry(points, 6)
+  // A gentle bow along the length, then lay +Y along +X.
+  const pos = geometry.attributes.position
+  for (let i = 0; i < pos.count; i++) {
+    const t = pos.getY(i) / length
+    pos.setZ(i, pos.getZ(i) + JOINT.bend * 4 * t * (1 - t))
+  }
+  geometry.computeVertexNormals()
+  return geometry.rotateZ(-Math.PI / 2)
+}
+
+function jointPart(rng, paper, crutch, hole) {
+  const { length: L, crutchRadius: RC, tipRadius: RT } = JOINT
   const { crutchLength: CL, twistLength: TL } = JOINT
   const joint = new THREE.Group()
   // CylinderGeometry runs along +Y; rotate so +Y becomes +X (tip end).
   const toX = (geometry) => geometry.rotateZ(-Math.PI / 2)
   const bodyLen = L - CL - TL
-  const body = new THREE.Mesh(
-    toX(new THREE.CylinderGeometry(RT, RC * 1.05, bodyLen, 6)),
-    paper
-  )
-  body.position.x = -L / 2 + CL + bodyLen / 2
+  const body = new THREE.Mesh(jointBody(rng, bodyLen), paper)
+  body.position.x = -L / 2 + CL
+  // The card crutch sticks out past the paper, open at the end.
   const card = new THREE.Mesh(
-    toX(new THREE.CylinderGeometry(RC * 1.05, RC, CL, 6)),
+    toX(new THREE.CylinderGeometry(RC, RC * 0.95, CL, 6)),
     crutch
   )
   card.position.x = -L / 2 + CL / 2
-  const twist = new THREE.Mesh(toX(new THREE.ConeGeometry(RT, TL, 5)), paper)
-  twist.position.x = L / 2 - TL / 2
-  twist.rotation.x = 0.6
-  joint.add(body, card, twist)
+  const mouth = new THREE.Mesh(
+    toX(new THREE.CylinderGeometry(RC * 0.6, RC * 0.6, 0.0008, 6)),
+    hole
+  )
+  mouth.position.x = -L / 2 - 0.0002
+  // The twist: a thin paper wisp, kinked once and flopped sideways.
+  const twist = new THREE.Group()
+  twist.position.x = L / 2 - TL
+  const wispA = new THREE.Mesh(
+    toX(new THREE.ConeGeometry(RT * 0.55, TL * 0.55, 4)),
+    paper
+  )
+  wispA.position.x = TL * 0.27
+  const wispB = new THREE.Mesh(
+    toX(new THREE.ConeGeometry(RT * 0.3, TL * 0.6, 4)),
+    paper
+  )
+  wispB.position.set(TL * 0.62, 0, range(rng, 0.002, 0.004))
+  wispB.rotation.y = -range(rng, 0.5, 0.9)
+  twist.add(wispA, wispB)
+  twist.rotation.set(range(rng, 0, Math.PI), range(rng, -0.3, 0.3), 0)
+  joint.add(body, card, mouth, twist)
   return joint
 }
 
-// Three joints laid together on the ground. glow: false leaves out the halo.
+// Three joints dropped in a loose pile, crossed, not lined up like a pack.
+// glow: false leaves out the halo.
 export function buildJoints({ glow = true } = {}) {
   const pulse = []
   const mat = (color) => {
@@ -540,16 +588,19 @@ export function buildJoints({ glow = true } = {}) {
   }
   const paper = mat(JOINT_PAPER)
   const crutch = mat(JOINT_CRUTCH)
+  const hole = lambert({ color: JOINT_HOLE })
+  const rng = mulberry32(0x7015)
   const group = new THREE.Group()
   group.name = 'joints'
+  // [dx, dz, yaw, lift]: the third rests across the other two.
   const lay = [
-    [0, -0.012, 0.05],
-    [0.004, 0, -0.04],
-    [-0.003, 0.012, 0.12],
+    [0, -0.014, 0.35, 0],
+    [0.006, 0.012, -0.3, 0],
+    [-0.004, 0, 1.25, JOINT.tipRadius * 1.4],
   ]
-  for (const [dx, dz, yaw] of lay) {
-    const joint = jointPart(paper, crutch)
-    joint.position.set(dx, JOINT.tipRadius, dz)
+  for (const [dx, dz, yaw, lift] of lay) {
+    const joint = jointPart(rng, paper, crutch, hole)
+    joint.position.set(dx, JOINT.tipRadius + lift, dz)
     joint.rotation.y = yaw
     group.add(joint)
   }
