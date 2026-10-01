@@ -33,8 +33,13 @@ describe('outfits', () => {
   it('attaches every add-on to a real joint', () => {
     for (const addon of Object.values(ADDONS)) {
       expect(JOINTS).toContain(addon.joint)
-      expect(addon.size).toHaveLength(3)
-      expect(addon.offset).toHaveLength(3)
+      if (addon.rings) {
+        expect(addon.rings.length).toBeGreaterThanOrEqual(2)
+        for (const ring of addon.rings) expect(ring).toHaveLength(4)
+      } else {
+        expect(addon.box).toHaveLength(3)
+        expect(addon.offset).toHaveLength(3)
+      }
     }
   })
 

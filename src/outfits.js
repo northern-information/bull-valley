@@ -5,38 +5,54 @@
 // Every outfit colors these; add-ons may use more slots (hat, coat).
 export const BODY_SLOTS = ['skin', 'hair', 'shirt', 'pants', 'boots']
 
-// Extra boxes on the body. joint names a pivot from poses.js JOINTS; size
-// and offset are metres in that joint's space; slot picks the color.
+// Extra parts on the body. joint names a pivot from poses.js JOINTS; slot
+// picks the color. A part is either a loft (rings of [y, rx, rz, cz]: height,
+// half-width, half-depth and forward shift, in metres in the joint's space,
+// the same shape language as the body in figure.js) or a box (size and
+// offset).
 export const ADDONS = {
   cap: {
     joint: 'neck',
-    size: [0.25, 0.08, 0.27],
-    offset: [0, 0.3, 0],
     slot: 'hat',
+    rings: [
+      [0.24, 0.1, 0.118, 0.005],
+      [0.29, 0.098, 0.112, 0],
+      [0.33, 0.06, 0.07, -0.005],
+    ],
   },
   brim: {
     joint: 'neck',
-    size: [0.22, 0.03, 0.13],
-    offset: [0, 0.28, 0.17],
     slot: 'hat',
+    box: [0.17, 0.02, 0.1],
+    offset: [0, 0.245, 0.15],
   },
   beard: {
     joint: 'neck',
-    size: [0.2, 0.1, 0.06],
-    offset: [0, 0.07, 0.11],
     slot: 'hair',
+    rings: [
+      [0.06, 0.045, 0.05, 0.045],
+      [0.1, 0.085, 0.095, 0.02],
+      [0.16, 0.093, 0.108, 0.005],
+    ],
   },
   'coat-hem': {
     joint: 'pelvis',
-    size: [0.38, 0.24, 0.27],
-    offset: [0, -0.06, 0],
     slot: 'coat',
+    rings: [
+      [0.06, 0.17, 0.12, 0],
+      [-0.12, 0.2, 0.14, 0],
+      [-0.3, 0.215, 0.155, -0.01],
+    ],
   },
   hood: {
     joint: 'neck',
-    size: [0.27, 0.32, 0.3],
-    offset: [0, 0.15, -0.02],
     slot: 'coat',
+    rings: [
+      [0.02, 0.1, 0.1, -0.02],
+      [0.12, 0.115, 0.125, -0.01],
+      [0.24, 0.115, 0.13, 0],
+      [0.33, 0.07, 0.085, -0.01],
+    ],
   },
 }
 
