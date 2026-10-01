@@ -3,6 +3,8 @@ import { applyPS1 } from './ps1.js'
 import { mulberry32, range } from './rng.js'
 import { BRANDS, isBrand } from './brands.js'
 import { paintPack } from './packart.js'
+import { CONTAINERS, DRINKS, drinkById, isDrink } from './drinks.js'
+import { paintDrink } from './canart.js'
 
 // Every placed 3D asset in Bull Valley, defined once in asset-local space.
 // world.js instances these parts across the valley; the Akashic dev page
@@ -654,14 +656,183 @@ export function buildSack(seed = 0x5ac4) {
   return group
 }
 
+// --- Drinks --------------------------------------------------------------
+
+// Energy drinks: five cans (one slim, four tall) and the NOS bottle. Sizes
+// come from CONTAINERS in drinks.js. Origin at ground level under the
+// middle, label front facing +Z.
+// Even, so the label (which starts at PI) shares vertices with the lathes.
+const DRINK_SEGMENTS = 16
+const DRINK_GLOW_SCALE = 1
+
+// The label, wrapped once around. thetaStart = PI puts the middle of the
+// canvas at +Z, the front.
+function drinkLabel(material, radius, y0, y1) {
+  const geometry = new THREE.CylinderGeometry(
+    radius,
+    radius,
+    y1 - y0,
+    DRINK_SEGMENTS,
+    1,
+    true,
+    Math.PI
+  )
+  const label = new THREE.Mesh(geometry, material)
+  label.position.y = (y0 + y1) / 2
+  return label
+}
+
+function lathe(points, material) {
+  return new THREE.Mesh(
+    new THREE.LatheGeometry(
+      points.map(([r, y]) => new THREE.Vector2(r, y)),
+      DRINK_SEGMENTS
+    ),
+    material
+  )
+}
+
+// An aluminium can: necked at the bottom, necked in to a rim at the top,
+// a lid with a tab.
+function canParts(art, size, face, flat) {
+  const { radius: R, height: H } = size
+  const bottom = H * 0.05
+  const top = H * 0.07
+  const metal = flat(art.metal)
+  const parts = [
+    drinkLabel(face(art.wrap), R, bottom, H - top),
+    lathe(
+      [
+        [0, 0.004],
+        [R * 0.78, 0.0015],
+        [R * 0.84, 0],
+        [R * 0.96, bottom * 0.55],
+        [R, bottom],
+      ],
+      metal
+    ),
+    lathe(
+      [
+        [R, H - top],
+        [R * 0.9, H - top * 0.35],
+        [R * 0.86, H - 0.0015],
+        [R * 0.88, H],
+        [R * 0.82, H],
+        [R * 0.8, H - 0.003],
+      ],
+      metal
+    ),
+  ]
+  const lid = new THREE.Mesh(
+    new THREE.CircleGeometry(R * 0.8, DRINK_SEGMENTS).rotateX(-Math.PI / 2),
+    flat(art.lid || art.metal)
+  )
+  lid.position.y = H - 0.003
+  const tab = new THREE.Mesh(
+    new THREE.BoxGeometry(R * 0.42, 0.0015, R * 0.6),
+    flat(art.tab)
+  )
+  tab.position.set(0, H - 0.0022, R * 0.22)
+  parts.push(lid, tab)
+  return parts
+}
+
+// The NOS bottle: blue plastic on five petal feet, a domed shoulder, a
+// neck ring and the orange cap.
+function bottleParts(art, size, face, flat) {
+  const { radius: R, height: H } = size
+  const plastic = flat(art.plastic)
+  const foot = 0.024
+  const body = lathe(
+    [
+      [0, 0.007],
+      [R * 0.45, 0],
+      [R * 0.85, 0.003],
+      [R * 0.98, foot * 0.7],
+      [R, foot],
+      [R, 0.17],
+      [R * 0.95, 0.18],
+      [R * 0.8, 0.19],
+      [R * 0.6, 0.196],
+      [0.016, 0.2],
+      [0.0155, 0.204],
+    ],
+    plastic
+  )
+  // Pinch the base into five petal feet.
+  const pos = body.geometry.attributes.position
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i)
+    if (y >= foot) continue
+    const w = 1 - y / foot
+    const phi = Math.atan2(pos.getX(i), pos.getZ(i))
+    const k = 1 - 0.22 * w * (0.5 - 0.5 * Math.cos(5 * phi))
+    pos.setX(i, pos.getX(i) * k)
+    pos.setZ(i, pos.getZ(i) * k)
+  }
+  body.geometry.computeVertexNormals()
+  const cap = flat(art.cap)
+  const ring = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.0195, 0.0195, 0.003, DRINK_SEGMENTS),
+    plastic
+  )
+  ring.position.y = 0.2055
+  const capH = H - 0.207
+  const capMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.0195, 0.018, capH, DRINK_SEGMENTS),
+    cap
+  )
+  capMesh.position.y = 0.207 + capH / 2
+  return [
+    drinkLabel(face(art.wrap), R * 1.012, 0.035, 0.135),
+    body,
+    ring,
+    capMesh,
+  ]
+}
+
+// glow: false leaves out the halo, for close-up views like the inventory.
+export function buildDrink(drinkId, { glow = true } = {}) {
+  const drink = drinkById(drinkId)
+  if (!drink) throw new Error(`Unknown drink "${drinkId}"`)
+  const art = paintDrink(drinkId)
+  const size = CONTAINERS[drink.container]
+  const group = new THREE.Group()
+  group.name = `drink-${drinkId}`
+  const pulse = []
+  const face = (canvasArt) => {
+    const m = packFace(packTexture(canvasArt))
+    pulse.push(m)
+    return m
+  }
+  const flat = (color) => {
+    const m = packFlat(color)
+    pulse.push(m)
+    return m
+  }
+  const parts =
+    drink.container === 'bottle'
+      ? bottleParts(art, size, face, flat)
+      : canParts(art, size, face, flat)
+  group.add(...parts)
+  if (glow) {
+    const halo = makeGlowSprite(makeGlowTexture(art.glow), DRINK_GLOW_SCALE)
+    halo.position.y = size.height * 0.5
+    group.add(halo)
+  }
+  group.userData.pulseMaterials = pulse
+  return group
+}
+
 // --- Pickups -------------------------------------------------------------
 
 // Every pickup lists the materials the game loop pulses in
-// userData.pulseMaterials. Kinds: 'cabbage', 'joints', or a brand id.
-// glow: false leaves out the halo on packs and joints.
+// userData.pulseMaterials. Kinds: 'cabbage', 'joints', a brand id, or a
+// drink id. glow: false leaves out the halo on packs, joints, and drinks.
 export function buildPickup(kind, seed, { glow = true } = {}) {
   if (isBrand(kind)) return buildCigarettePack(kind, seed, { glow })
   if (kind === 'joints') return buildJoints({ glow })
+  if (isDrink(kind)) return buildDrink(kind, { glow })
   let mesh
   if (kind === 'cabbage') {
     const sphere = new THREE.SphereGeometry(0.35, 6, 5)
@@ -727,6 +898,11 @@ export const WORLD_ASSETS = [
     build: () => buildCigarettePack(b.id),
   })),
   { id: 'joints', label: 'Joints', build: () => buildPickup('joints') },
+  ...DRINKS.map((d) => ({
+    id: `drink-${d.id}`,
+    label: `Drink: ${d.label}`,
+    build: () => buildDrink(d.id),
+  })),
   { id: 'sack', label: 'Burlap sack', build: () => buildSack() },
 ]
 

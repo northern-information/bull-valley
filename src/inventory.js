@@ -2,11 +2,12 @@
 // handle is injected so tests can pass a stub and the browser can pass
 // window.localStorage; every touch of real storage is wrapped in try/catch
 // (private windows, blocked site data). Kinds are the brand ids from
-// brands.js plus joints.
+// brands.js, joints, and the drink ids from drinks.js.
 
 import { BRAND_IDS } from './brands.js'
+import { DRINK_IDS } from './drinks.js'
 
-export const KINDS = [...BRAND_IDS, 'joints']
+export const KINDS = [...BRAND_IDS, 'joints', ...DRINK_IDS]
 
 export const STARTING_INVENTORY = normalize({ marlboro: 2, joints: 1 })
 

@@ -11,7 +11,7 @@ const FRONT = [100, 120]
 const SIDE = [40, 120]
 const LID = [100, 40]
 
-function canvas([w, h], fill) {
+export function canvas([w, h], fill) {
   const c = document.createElement('canvas')
   c.width = w
   c.height = h
@@ -24,7 +24,7 @@ function canvas([w, h], fill) {
 }
 
 // Centered text, shrunk until it fits maxW.
-function text(ctx, str, x, y, maxW, px, font, color) {
+export function text(ctx, str, x, y, maxW, px, font, color) {
   let size = px
   ctx.font = `${font.replace('$', size)}`
   while (ctx.measureText(str).width > maxW && size > 6) {
@@ -37,8 +37,8 @@ function text(ctx, str, x, y, maxW, px, font, color) {
   ctx.fillText(str, x, y)
 }
 
-const SERIF = 'bold $px Georgia, "Times New Roman", serif'
-const SANS = 'bold $px "Helvetica Neue", Arial, sans-serif'
+export const SERIF = 'bold $px Georgia, "Times New Roman", serif'
+export const SANS = 'bold $px "Helvetica Neue", Arial, sans-serif'
 
 // --- Marlboro Reds: the red roof over white ---------------------------------
 
