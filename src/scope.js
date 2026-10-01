@@ -7,6 +7,7 @@ import { compassBearing } from './coords.js'
 
 const GREEN = '#4ade80'
 const MAGENTA = '#e879f9'
+const EGGSHELL = '#f0ead6' // --bv-eggshell; canvas cannot read CSS vars
 const SLATE = '#94a3b8'
 
 export class Scope {
@@ -118,9 +119,9 @@ export class Scope {
     ctx.beginPath()
     ctx.arc(c, c, r, 0, Math.PI * 2)
     ctx.stroke()
-    ctx.font = '10px "Space Mono", monospace'
+    ctx.font = '10px Inter, system-ui, sans-serif'
     ctx.textAlign = 'center'
-    ctx.fillStyle = GREEN
+    ctx.fillStyle = EGGSHELL
     let line = 'NO CONTACT'
     let best = null
     for (const contact of contacts) {

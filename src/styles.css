@@ -1,14 +1,16 @@
-/* Bull Valley Shadow Wars HUD. Tokens (--fi-*) are declared by the host page —
-   src/bull-valley.njk in production, index.html in dev — both sourced from
-   src/css/archive.css. Styleguide idioms: dark field, hard edges, offset
-   shadows, role colors, SYSOUT green for machine readouts, 3px cyan focus. */
+/* Bull Valley Shadow Wars HUD. Tokens (--fi-*, --bv-*) are declared by the
+   host page (index.html). One face, one ink: every HUD text is Inter in
+   --bv-eggshell, set once on .bv-shell and inherited. Role colors stay on
+   borders, fills, and focus rings only. Dark field, hard edges, offset
+   shadows, 3px cyan focus. */
 
 .bv-shell {
   position: fixed;
   inset: 0;
   overflow: hidden;
-  font-family: var(--bv-mono, 'Space Mono', ui-monospace, monospace);
-  color: var(--fi-paper-light);
+  font-family: var(--bv-font, 'Inter', system-ui, sans-serif);
+  font-variant-numeric: tabular-nums;
+  color: var(--bv-eggshell);
   background: var(--fi-bg);
 }
 
@@ -33,7 +35,7 @@
 }
 
 .bv-ui a {
-  color: var(--fi-cyan);
+  color: inherit;
 }
 
 .bv-ui :focus-visible {
@@ -58,7 +60,6 @@
 .bv-head h1 {
   margin: 0 0 0.4rem;
   font-size: 0.72rem;
-  color: var(--fi-green);
   text-transform: uppercase;
 }
 
@@ -70,13 +71,11 @@
 }
 
 .bv-head dt {
-  color: var(--fi-slate);
   text-transform: uppercase;
 }
 
 .bv-head dd {
   margin: 0;
-  color: var(--fi-green);
 }
 
 /* Nerves */
@@ -90,7 +89,6 @@
   font-size: 0.62rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--fi-slate);
 }
 
 .bv-nerves-track {
@@ -134,7 +132,6 @@
   font-size: 0.58rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--fi-amber);
   background: var(--fi-surface-82);
   border: 1px solid var(--fi-amber);
   padding: 0.15rem 0.4rem;
@@ -166,7 +163,6 @@
   padding: 0.3rem 0.7rem;
   background: var(--fi-surface-82);
   border: 1px solid var(--fi-cyan);
-  color: var(--fi-cyan);
   font-size: 0.66rem;
   letter-spacing: 0.08em;
 }
@@ -187,7 +183,6 @@
   padding: 0.3rem 0.7rem;
   background: var(--fi-surface-82);
   border: 1px solid var(--fi-green);
-  color: var(--fi-green);
   font-size: 0.66rem;
   letter-spacing: 0.08em;
   transition: opacity 0.8s;
@@ -216,7 +211,6 @@
   font-size: 0.72rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--fi-paper-light);
 }
 
 .bv-inventory ul {
@@ -236,14 +230,12 @@
 }
 
 .bv-inventory li b {
-  color: var(--fi-amber);
   text-align: right;
 }
 
 .bv-inventory li i {
   grid-column: 2 / 4;
   font-style: normal;
-  color: var(--fi-slate);
   font-size: 0.6rem;
 }
 
@@ -256,19 +248,16 @@
   content: '▸';
   position: absolute;
   margin-left: -0.9rem;
-  color: var(--fi-amber);
 }
 
 .bv-item-key {
   display: inline-block;
   text-align: center;
   border: 1px solid var(--fi-cyan);
-  color: var(--fi-cyan);
 }
 
 .bv-inventory-hint {
   margin: 0.7rem 0 0;
-  color: var(--fi-slate);
   font-size: 0.58rem;
   letter-spacing: 0.06em;
 }
@@ -305,7 +294,6 @@
 .bv-static-label {
   position: relative;
   margin: 0;
-  color: var(--fi-maroon);
   background: var(--fi-bg);
   border: 1px solid var(--fi-maroon);
   padding: 0.4rem 1rem;
@@ -332,14 +320,12 @@
   margin: 0;
   font-size: 1.15rem;
   letter-spacing: 0.28em;
-  color: var(--fi-paper-light);
   text-shadow: 4px 4px 0 var(--fi-black-shadow);
 }
 
 .bv-intro-note {
   margin: 0;
   max-width: 30rem;
-  color: var(--fi-slate);
   font-size: 0.66rem;
   letter-spacing: 0.06em;
   line-height: 1.7;
@@ -356,7 +342,6 @@
 }
 
 .bv-controls th {
-  color: var(--fi-cyan);
   border: 1px solid var(--fi-surface);
   padding: 0.25rem 0.6rem;
   text-align: right;
@@ -364,7 +349,6 @@
 }
 
 .bv-controls td {
-  color: var(--fi-slate);
   border: 1px solid var(--fi-surface);
   padding: 0.25rem 0.9rem 0.25rem 0.4rem;
   text-align: left;
@@ -382,7 +366,6 @@
   text-transform: uppercase;
   padding: 0.55rem 1.1rem;
   background: var(--fi-surface);
-  color: var(--fi-paper-light);
   border: 1px solid var(--fi-paper-light);
   box-shadow: 4px 4px 0 var(--fi-black-shadow);
   cursor: pointer;
@@ -444,8 +427,9 @@
 }
 
 .bv-splash-hint {
-  font-family: var(--bv-mono, 'Space Mono', ui-monospace, monospace);
+  font-family: var(--bv-font, 'Inter', system-ui, sans-serif);
   font-size: 0.875rem;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--bv-eggshell);
+  opacity: 0.6;
   user-select: none;
 }
