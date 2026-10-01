@@ -145,8 +145,7 @@ export function showSplash({ audio, config }) {
     const onGesture = () => {
       const action = machine.gesture()
       if (action === 'start') {
-        // The gesture may create the AudioContext, but the ambient beds
-        // wait for the Begin button — the splash is a quiet threshold.
+        // The gesture creates the AudioContext for the splash cue only.
         audio.initContext()
         audio.playOneShot(config.audioSrc, {
           fadeInMs: config.fadeInMs,

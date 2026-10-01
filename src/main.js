@@ -49,9 +49,10 @@ async function boot() {
   const root = document.getElementById('bv-root')
   const hud = new Hud(root)
   const audio = new BvAudio()
-  // The colophon threshold covers the terrain resolve; its first gesture
-  // creates the AudioContext, but the ambient beds wait for the Begin
-  // button. Not awaited — the scene builds underneath while it plays, the
+  // Sound effects are off for now; the splash cue is the only audio, and
+  // dev builds mute it too.
+  if (import.meta.env.DEV) audio.setMuted(true)
+  // The colophon threshold covers the terrain resolve. Not awaited — the scene builds underneath while it plays, the
   // backdrop stays opaque through the whole logo envelope, and the final
   // reveal tween discloses the intro dialog already waiting beneath.
   showSplash({ audio, config: CONFIG.splash })
@@ -252,7 +253,6 @@ async function boot() {
   const ridingForward = new THREE.Vector3(0, 0, -1)
 
   player.onEdge = () => hud.toast('The valley ends here.')
-  player.onStep = (sprinting) => audio.step(sprinting)
 
   const nearSpawnStation = () =>
     Math.hypot(spawnStation.x - player.pos.x, spawnStation.z - player.pos.z) <
@@ -328,7 +328,6 @@ async function boot() {
     showInventory()
     saveInventory(window.localStorage, inventory)
     hud.setShop(shopStock)
-    audio.pickup()
     hud.toast(
       isBrand(kind)
         ? `One pack of ${brandById(kind).label}, pocketed.`
@@ -371,20 +370,11 @@ async function boot() {
       lockRefused()
     }
   }
-  hud.beginBtn.addEventListener('click', () => {
-    audio.init()
-    engagePointer()
-  })
+  hud.beginBtn.addEventListener('click', engagePointer)
   hud.canvas.addEventListener('click', () => {
     if (started && !player.locked && !ended) engagePointer()
   })
   document.addEventListener('pointerlockerror', lockRefused)
-  hud.soundBtn.addEventListener('click', () => {
-    const on = hud.soundBtn.getAttribute('aria-pressed') !== 'true'
-    hud.soundBtn.setAttribute('aria-pressed', String(on))
-    hud.soundBtn.textContent = on ? 'Sound On' : 'Sound Off'
-    audio.setMuted(!on)
-  })
 
   document.addEventListener('pointerlockchange', () => {
     const locked = document.pointerLockElement === hud.canvas
@@ -427,12 +417,10 @@ async function boot() {
     saveInventory(window.localStorage, inventory)
     if (isBrand(kind)) {
       const tune = CONFIG.items.cigarettes[kind]
-      audio.use(kind, { crackle: !!tune.crackle })
       smokingUntil = time + tune.smokeSeconds
       emberUntil = smokingUntil + tune.emberSeconds
       hud.toast(brandById(kind).lit)
     } else {
-      audio.use(kind)
       perceptionUntil = time + CONFIG.items.perceptionSeconds
       hud.toast('You spark the joint. The valley sharpens.')
     }
@@ -449,7 +437,6 @@ async function boot() {
       raid = next
       nearPickup.taken = true
       nearPickup.mesh.visible = false
-      audio.pickup()
       hud.toast('Taken: Cabbage')
     } else {
       nearPickup.taken = true
@@ -457,7 +444,6 @@ async function boot() {
       inventory = addItem(inventory, nearPickup.kind, nearPickup.count)
       showInventory()
       saveInventory(window.localStorage, inventory)
-      audio.pickup()
       hud.toast(`Taken: ${pickupLabel(nearPickup)}`)
     }
     nearPickup = null
@@ -481,7 +467,6 @@ async function boot() {
     if (canUnload) {
       const count = raid.carrying
       raid = advance(raid, EVENTS.DELIVER, raidClock)
-      audio.pickup()
       hud.toast(
         `The stand takes your ${count === 1 ? 'cabbage' : `${count} cabbages`}. Somewhere, gratitude.`
       )
@@ -614,7 +599,6 @@ async function boot() {
       timers.push(`Perception ${Math.ceil(perceptionUntil - time)}s`)
     hud.setTimers(timers)
 
-    audio.update(dt)
     scope.draw(dt, {
       contacts: [],
       forward,

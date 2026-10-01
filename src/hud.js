@@ -109,8 +109,8 @@ ${BRANDS.map(
     this.intro.setAttribute('role', 'dialog')
     this.intro.setAttribute('aria-modal', 'true')
     this.intro.innerHTML = `
-      <h2 data-bv="intro-title">BULL VALLEY SHADOW WARS</h2>
-      <p class="bv-intro-note">The terrain and the roads are real.<br>Matthew Marx leaves in five minutes, with or without you.<br>Ride the bed. Find cabbages. The stand pays in nothing but purpose.<br>Extract at another station, at the Keep, or whistle for the truck.</p>
+      <h2>BULL VALLEY SHADOW WARS</h2>
+      <p class="bv-intro-note">Matthew Marx leaves in five minutes.<br>Ride the bed. Find cabbages. Extract.</p>
       <table class="bv-controls" aria-label="Controls">
         <tr><th>WASD</th><td>Move</td><th>Shift</th><td>Sprint</td></tr>
         <tr><th>Mouse</th><td>Look</td><th>C</th><td>Crouch</td></tr>
@@ -120,13 +120,10 @@ ${BRANDS.map(
       </table>
       <div class="bv-intro-actions">
         <button type="button" class="bv-btn bv-btn--primary" data-bv="begin">Begin the Raid</button>
-        <button type="button" class="bv-btn" data-bv="sound" aria-pressed="true">Sound On</button>
       </div>
       <p class="bv-intro-note bv-intro-fine">Requires a keyboard and mouse.</p>`
     ui.appendChild(this.intro)
     this.beginBtn = this.intro.querySelector('[data-bv="begin"]')
-    this.soundBtn = this.intro.querySelector('[data-bv="sound"]')
-    this.introTitle = this.intro.querySelector('[data-bv="intro-title"]')
 
     this.fields = {}
     for (const dd of root.querySelectorAll('[data-bv]')) {
@@ -248,10 +245,6 @@ ${BRANDS.map(
   showIntro(show, paused) {
     this.intro.hidden = !show
     if (show) {
-      // Not "paused": the valley is persistent and the clock keeps running.
-      this.introTitle.textContent = paused
-        ? 'THE VALLEY DOES NOT WAIT'
-        : 'BULL VALLEY SHADOW WARS'
       this.beginBtn.textContent = paused ? 'Resume the Raid' : 'Begin the Raid'
     }
   }
