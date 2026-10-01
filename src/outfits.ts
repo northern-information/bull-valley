@@ -8,7 +8,7 @@ import type { JointName } from './poses.ts'
 export const BODY_SLOTS = ['skin', 'hair', 'shirt', 'pants', 'boots'] as const
 
 export type BodySlot = (typeof BODY_SLOTS)[number]
-export type ColorSlot = BodySlot | 'coat' | 'glasses' | 'buckle'
+export type ColorSlot = BodySlot | 'coat' | 'glasses' | 'buckle' | 'belt'
 
 // Painted art printed on a part; decalart.ts paints each one.
 export type DecalId =
@@ -61,6 +61,8 @@ export type AddonId =
   | 'hood'
   | 'buckle'
   | 'long-hair'
+  | 'belt'
+  | 'belt-loops'
 
 export type LimbGroup = 'arm' | 'leg'
 
@@ -84,6 +86,14 @@ const LOC_ANGLES = [-20, 0, 20, 160, 180, 200, 220, 245, 270, 295, 320, 340]
 const LOC_ROOTS = LOC_ANGLES.map((deg): Vec3 => {
   const a = (deg * Math.PI) / 180
   return [Math.cos(a) * 0.09, 0.27, Math.sin(a) * 0.1 - 0.012]
+})
+
+// Belt loops stand on the belt in pairs: two at the front, one at each hip,
+// two at the back. Angles are around the waist from +X toward +Z (the front).
+const LOOP_ANGLES = [55, 125, 0, 180, 240, 300]
+const LOOP_SPOTS = LOOP_ANGLES.map((deg): Vec3 => {
+  const a = (deg * Math.PI) / 180
+  return [Math.cos(a) * 0.167, 0.039, Math.sin(a) * 0.11 - 0.005]
 })
 
 // Extra parts on the body. joint names a pivot from poses.ts JOINTS; slot
@@ -166,6 +176,24 @@ export const ADDONS: Record<AddonId, Addon> = {
   },
   // Straight hair from the crown to the shoulders, round the back and sides.
   // Each ring sits back far enough that the face stays clear.
+  // A belt round the top of the pants, just proud of the pelvis at every
+  // facet (the same 8 sides).
+  belt: {
+    joint: 'pelvis',
+    slot: 'belt',
+    sides: 8,
+    rings: [
+      [0.016, 0.169, 0.107, -0.008],
+      [0.062, 0.159, 0.107, -0.002],
+    ],
+  },
+  // Loops of pants cloth over the belt, a little taller than it.
+  'belt-loops': {
+    joint: 'pelvis',
+    slot: 'pants',
+    box: [0.012, 0.056, 0.012],
+    offsets: LOOP_SPOTS,
+  },
   'long-hair': {
     joint: 'neck',
     slot: 'hair',
@@ -200,9 +228,17 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
       shirt: '#e8e4da',
       pants: '#9b2a24',
       boots: '#3a2a1e',
+      belt: '#0c0c0e',
       glasses: '#16181c',
     },
-    addons: ['dreadlocks', 'beard', 'glasses', 'glasses-arms'],
+    addons: [
+      'dreadlocks',
+      'beard',
+      'glasses',
+      'glasses-arms',
+      'belt',
+      'belt-loops',
+    ],
   },
   player: {
     label: 'Player',
@@ -239,9 +275,10 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
       shirt: '#ecebe6',
       pants: '#16161a',
       boots: '#060607',
+      belt: '#0c0c0e',
       buckle: '#c9a227',
     },
-    addons: ['goatee', 'mustache', 'buckle'],
+    addons: ['goatee', 'mustache', 'belt', 'belt-loops', 'buckle'],
     sleeves: 'short',
     prints: { torso: ['suicide-silence'] },
   },
@@ -253,8 +290,9 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
       shirt: '#141416',
       pants: '#3f5f8a',
       boots: '#060607',
+      belt: '#0c0c0e',
     },
-    addons: ['long-hair'],
+    addons: ['long-hair', 'belt', 'belt-loops'],
     sleeves: 'none',
     prints: {
       torso: ['torn-tank', 'chest-tattoo', 'pantera'],
