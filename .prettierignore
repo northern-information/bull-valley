@@ -3,3 +3,6 @@ dist
 package-lock.json
 public/data
 .playwright-mcp
+test-results
+playwright-report
+coverage

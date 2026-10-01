@@ -4,3 +4,6 @@ dist/
 *.local
 .playwright-mcp/
 .claude/
+test-results/
+playwright-report/
+coverage/

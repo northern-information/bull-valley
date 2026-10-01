@@ -2,7 +2,7 @@
 // and how the selection moves. No three.js, no DOM. inventoryview.js turns
 // the ring into models; hud.js turns the selected item into text.
 
-import { ITEMS, isUsable, itemById } from './items.js'
+import { isUsable, itemById, ITEMS } from './items.js'
 import { carryLimit } from './raid.js'
 
 // Fixed ring order: counted items in ITEMS order. Cargo and gear ride at

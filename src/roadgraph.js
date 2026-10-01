@@ -6,7 +6,7 @@
 // Nodes are polyline endpoints plus any vertex used more than once; runs of
 // interior vertices collapse into edges that keep their full point lists.
 
-import { unitToWorld, pointSegmentDistance } from './coords.js'
+import { pointSegmentDistance, unitToWorld } from './coords.js'
 import { pick } from './rng.js'
 
 function cumulative(points) {

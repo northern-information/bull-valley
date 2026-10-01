@@ -4,7 +4,7 @@
 // they fill the view as big blocks. It stands, walks with the move speed, and crouches; it switches pose
 // without blending, the way PS1 characters snapped between animations.
 
-import { buildFigure, applyPose } from './figure.js'
+import { applyPose, buildFigure } from './figure.js'
 import { POSES, samplePose } from './poses.js'
 
 // Metres covered by one full walk cycle (two steps).

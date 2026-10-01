@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { placeCabbages, CABBAGE_SEED } from '../../src/cabbages.js'
-import { landmarkWorldPositions, CABBAGE_STAND } from '../../src/landmarks.js'
+import { CABBAGE_SEED, placeCabbages } from '../../src/cabbages.js'
 import { pointInPolygon } from '../../src/coords.js'
+import { CABBAGE_STAND, landmarkWorldPositions } from '../../src/landmarks.js'
 import { mulberry32 } from '../../src/rng.js'
 
 const METRES = { width: 10000, height: 10000 }

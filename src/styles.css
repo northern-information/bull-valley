@@ -60,8 +60,8 @@
   margin: 0;
   letter-spacing: 0.08em;
   text-shadow:
-    0 0 3px rgb(0 0 0 / 0.9),
-    1px 1px 0 rgb(0 0 0 / 0.8);
+    0 0 3px rgb(0 0 0 / 90%),
+    1px 1px 0 rgb(0 0 0 / 80%);
 }
 
 /* Nerves */
@@ -127,6 +127,7 @@
    the same coarse pixels as the world render. */
 .bv-phone {
   --bv-phone-w: 17rem;
+
   position: absolute;
   right: 2rem;
   bottom: calc(var(--bv-phone-w) * -2);
@@ -208,6 +209,7 @@
   --bv-inv-purple: #7a1fd6;
   --bv-inv-frame: #6f74ff;
   --bv-inv-cell: min(34vh, 40vw);
+
   position: absolute;
   inset: 0;
   font-family: 'Times New Roman', Times, Georgia, serif;
@@ -215,10 +217,11 @@
   font-size: clamp(0.85rem, 3.2vh, 1.6rem);
   letter-spacing: 0.06em;
   color: var(--bv-inv-ink);
+
   /* A pressed-metal bevel: light from the top left. */
   text-shadow:
-    -1px -1px 0 #ffffff55,
-    2px 2px 0 #000000;
+    -1px -1px 0 #fff5,
+    2px 2px 0 #000;
 }
 
 .bv-inv-bars {
@@ -300,12 +303,12 @@
   font-size: 0.6em;
   vertical-align: middle;
   padding: 0 0.3em;
-  border: 1px solid currentColor;
+  border: 1px solid currentcolor;
 }
 
 .bv-inv-cmd--dim {
   color: var(--bv-inv-dim);
-  text-shadow: 1px 1px 0 #000000;
+  text-shadow: 1px 1px 0 #000;
 }
 
 /* The frame: one hard rectangle, a second offset up-left and broken. */
@@ -397,7 +400,7 @@
   transform: translate(-50%, -50%);
   margin: 0;
   padding: 0.3em 0.8em;
-  background: rgb(0 0 0 / 0.7);
+  background: rgb(0 0 0 / 70%);
 }
 
 /* Center dot. Only while locked and on foot or riding; the inventory, intro
@@ -411,7 +414,7 @@
   transform: translate(-50%, -50%);
   border-radius: 50%;
   background: var(--bv-eggshell);
-  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.6);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 60%);
   visibility: hidden;
 }
 
@@ -427,7 +430,7 @@
   background: radial-gradient(
     ellipse at center,
     transparent 42%,
-    rgb(0 0 0 / 0.85) 100%
+    rgb(0 0 0 / 85%) 100%
   );
 }
 
@@ -467,7 +470,7 @@
   justify-content: center;
   gap: 1.1rem;
   text-align: center;
-  background: rgb(0 0 0 / 0.78);
+  background: rgb(0 0 0 / 78%);
   pointer-events: auto;
   padding: 1rem;
 }
@@ -483,9 +486,6 @@
   max-width: 30rem;
   letter-spacing: 0.06em;
   line-height: 1.7;
-}
-
-.bv-intro-fine {
 }
 
 .bv-controls {
@@ -533,7 +533,7 @@
   box-shadow: 5px 5px 0 var(--fi-black-shadow);
 }
 
-@media (max-width: 900px) {
+@media (width <= 900px) {
   .bv-phone {
     --bv-phone-w: 12rem;
   }

@@ -5,8 +5,8 @@ import {
   syncIndex,
   wrapDelta,
 } from '../../src/carousel.js'
-import { createRaid } from '../../src/raid.js'
 import { STARTING_INVENTORY } from '../../src/inventory.js'
+import { createRaid } from '../../src/raid.js'
 
 const kinds = (items) => items.map((item) => item.kind)
 const empty = { ...STARTING_INVENTORY, marlboro: 0, joints: 0 }

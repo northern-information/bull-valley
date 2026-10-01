@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import { mulberry32 } from '../../src/rng.js'
 import {
   buildRoadGraph,
+  createWalker,
   nearestRoadPoint,
   planRoute,
   wanderRoute,
-  createWalker,
 } from '../../src/roadgraph.js'
-import { mulberry32 } from '../../src/rng.js'
 
 // A cross with a spur, in unit coordinates over a 1000x1000 m frame:
 //

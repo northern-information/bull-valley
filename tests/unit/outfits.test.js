@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   ADDONS,
   BODY_SLOTS,
-  OUTFITS,
   OUTFIT_IDS,
   outfitById,
+  OUTFITS,
 } from '../../src/outfits.js'
 import { JOINTS } from '../../src/poses.js'
 

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
-  KINDS,
-  STARTING_INVENTORY,
   addItem,
+  KINDS,
   loadInventory,
   saveInventory,
+  STARTING_INVENTORY,
   useItem,
 } from '../../src/inventory.js'
 

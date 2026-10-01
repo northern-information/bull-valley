@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import {
-  STATES,
-  EVENTS,
-  createRaid,
-  advance,
-  carryLimit,
-  summary,
-} from '../../src/raid.js'
 import { CONFIG } from '../../src/config.js'
 import { itemById } from '../../src/items.js'
+import {
+  advance,
+  carryLimit,
+  createRaid,
+  EVENTS,
+  STATES,
+  summary,
+} from '../../src/raid.js'
 
 describe('raid state machine', () => {
   it('starts in LOADOUT with the truck timer set', () => {

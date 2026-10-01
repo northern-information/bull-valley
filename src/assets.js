@@ -1,10 +1,10 @@
 import * as THREE from 'three'
+import { paintDrink } from './canart.js'
+import { CONTAINERS } from './drinks.js'
+import { isCigarette, isDrink, itemById, ITEMS } from './items.js'
+import { paintPack } from './packart.js'
 import { applyPS1 } from './ps1.js'
 import { mulberry32, range } from './rng.js'
-import { ITEMS, isCigarette, isDrink, itemById } from './items.js'
-import { paintPack } from './packart.js'
-import { CONTAINERS } from './drinks.js'
-import { paintDrink } from './canart.js'
 
 // Every placed 3D asset in Bull Valley, defined once in asset-local space.
 // world.js instances these parts across the valley; the Akashic dev page

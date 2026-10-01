@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'vitest'
+import { CONFIG } from '../../src/config.js'
+import { CONTAINERS } from '../../src/drinks.js'
 import {
   CIGARETTE_IDS,
-  INVENTORY_KINDS,
-  ITEMS,
-  ITEM_IDS,
   cigaretteToSmoke,
+  INVENTORY_KINDS,
   isCigarette,
   isDrink,
   isUsable,
+  ITEM_IDS,
   itemById,
+  ITEMS,
   shopStock,
 } from '../../src/items.js'
-import { CONFIG } from '../../src/config.js'
-import { CONTAINERS } from '../../src/drinks.js'
 
 describe('items', () => {
   it('has unique ids and a known category', () => {

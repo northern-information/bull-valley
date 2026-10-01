@@ -10,7 +10,7 @@
 //          flat on a square one.
 //   neck   a band around a bottle neck.
 
-import { canvas, text, SANS, SERIF } from './packart.js'
+import { canvas, SANS, SERIF, text } from './packart.js'
 import { mulberry32 } from './rng.js'
 
 const CAN = [224, 160]

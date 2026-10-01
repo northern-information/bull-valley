@@ -8,7 +8,7 @@
 // Body space: origin at the feet, facing +Z, left side +X.
 
 import * as THREE from 'three'
-import { lambert, makeGlowTexture, makeGlowSprite } from './assets.js'
+import { lambert, makeGlowSprite, makeGlowTexture } from './assets.js'
 import { ADDONS, outfitById } from './outfits.js'
 import { JOINTS } from './poses.js'
 

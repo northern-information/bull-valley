@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { CONFIG } from '../../src/config.js'
 import {
-  SPLASH_STATES,
   createSplashMachine,
+  SPLASH_STATES,
   splashAlpha,
 } from '../../src/splash.js'
-import { CONFIG } from '../../src/config.js'
 
 const cfg = CONFIG.splash
 

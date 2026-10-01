@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { CONFIG } from './config.js'
 import { compassBearing } from './coords.js'
-import { mulberry32, range, pick } from './rng.js'
+import { mulberry32, pick, range } from './rng.js'
 
 // The shadowmen. They are not fought — they are noticed too late. State
 // machine per entity: dormant (drifting far off) → stalking (keeping distance,

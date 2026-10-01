@@ -6,15 +6,15 @@
 
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+import { meshBounds, WORLD_ASSETS } from './assets.js'
 import { CONFIG } from './config.js'
+import { applyPose, attachCigarette, buildFigure } from './figure.js'
+import { OUTFIT_IDS, OUTFITS } from './outfits.js'
+import { samplePose } from './poses.js'
 import { setSnapResolution } from './ps1.js'
 import { mulberry32 } from './rng.js'
-import { WORLD_ASSETS, meshBounds } from './assets.js'
+import { buildShadowmanFigure, makeSilhouetteTexture } from './shadowmen.js'
 import { buildTruckMesh } from './truck.js'
-import { makeSilhouetteTexture, buildShadowmanFigure } from './shadowmen.js'
-import { buildFigure, applyPose, attachCigarette } from './figure.js'
-import { OUTFITS, OUTFIT_IDS } from './outfits.js'
-import { samplePose } from './poses.js'
 
 function sampleFigure(outfitId) {
   const figure = buildFigure(outfitId)

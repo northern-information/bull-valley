@@ -1,42 +1,42 @@
 import * as THREE from 'three'
 import './styles.css'
-import { CONFIG } from './config.js'
-import { loadTerrain, createHeightField, buildTerrainMesh } from './terrain.js'
-import { buildWorld } from './world.js'
-import { Player } from './player.js'
-import { Scope } from './scope.js'
-import { Hud } from './hud.js'
 import { BvAudio } from './audio.js'
-import { showSplash } from './splash.js'
-import { Truck } from './truck.js'
-import { PlayerBody } from './playerbody.js'
+import { ringItems, stepIndex, syncIndex } from './carousel.js'
+import { CONFIG } from './config.js'
+import { unitToWorld } from './coords.js'
+import { Hud } from './hud.js'
+import { addItem, loadInventory, saveInventory, useItem } from './inventory.js'
+import { createInventoryView } from './inventoryview.js'
 import {
-  STATES,
-  EVENTS,
-  createRaid,
+  cigaretteToSmoke,
+  shopStock as freshShopStock,
+  isCigarette,
+  itemById,
+} from './items.js'
+import { KEEP } from './landmarks.js'
+import { Player } from './player.js'
+import { PlayerBody } from './playerbody.js'
+import { setSnapResolution } from './ps1.js'
+import {
   advance,
   carryLimit,
+  createRaid,
+  EVENTS,
+  STATES,
   summary,
 } from './raid.js'
+import { mulberry32 } from './rng.js'
 import {
   buildRoadGraph,
   nearestRoadPoint,
   planRoute,
   wanderRoute,
 } from './roadgraph.js'
-import { KEEP } from './landmarks.js'
-import { addItem, useItem, loadInventory, saveInventory } from './inventory.js'
-import {
-  cigaretteToSmoke,
-  isCigarette,
-  itemById,
-  shopStock as freshShopStock,
-} from './items.js'
-import { ringItems, stepIndex, syncIndex } from './carousel.js'
-import { createInventoryView } from './inventoryview.js'
-import { unitToWorld } from './coords.js'
-import { setSnapResolution } from './ps1.js'
-import { mulberry32 } from './rng.js'
+import { Scope } from './scope.js'
+import { showSplash } from './splash.js'
+import { buildTerrainMesh, createHeightField, loadTerrain } from './terrain.js'
+import { Truck } from './truck.js'
+import { buildWorld } from './world.js'
 
 // Same files the Scaduscope reads; baked by scripts/fetch_bull_valley.cjs.
 const DATA_BASE = '/data/bull-valley'
