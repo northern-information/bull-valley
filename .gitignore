@@ -7,3 +7,5 @@ dist/
 test-results/
 playwright-report/
 coverage/
+# Left behind only when fetch:data stops between its write and rename.
+public/data/**/*.tmp
