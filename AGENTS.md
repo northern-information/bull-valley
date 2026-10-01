@@ -22,6 +22,8 @@ Spawn at a gas station → 5-minute loadout before Matthew Marx's white Chevy le
 - `src/roadgraph.js` — pure road-network graph, Dijkstra, arc-length walker
 - `src/truck.js` — the white Chevy: mesh, drive/board/ride/call
 - `src/cabbages.js` — pure seeded cabbage placement
+- `src/brands.js` — pure: the five cigarette brands (each its own inventory kind); tuning and shop caps live in `CONFIG`
+- `src/packart.js` — canvas trade-dress art for the cigarette packs
 - `src/landmarks.js` — consented landmark coordinates + projection
 - `src/assets.js` — every placed 3D asset in asset-local space (instanced parts + one-off builders) and the Akashic registry; new assets go here
 - `src/world.js` — places terrain features, Citgo stations, pickups, beacons from geo.json using `assets.js`

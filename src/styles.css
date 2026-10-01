@@ -230,7 +230,7 @@
 
 .bv-inventory li {
   display: grid;
-  grid-template-columns: 1.4rem 1fr 2rem;
+  grid-template-columns: 1.9rem 1fr 2rem;
   gap: 0.2rem 0.5rem;
   align-items: baseline;
 }
@@ -245,6 +245,18 @@
   font-style: normal;
   color: var(--fi-slate);
   font-size: 0.6rem;
+}
+
+[data-bv='shop'] h2 {
+  margin-top: 1rem;
+}
+
+/* The brand a bare 1 smokes. */
+.bv-inventory li[aria-current='true'] .bv-item-key::before {
+  content: '▸';
+  position: absolute;
+  margin-left: -0.9rem;
+  color: var(--fi-amber);
 }
 
 .bv-item-key {

@@ -180,8 +180,9 @@ export class BvAudio {
     })
   }
 
-  use(kind) {
-    // Lighter flick ×2, then the joint gets a longer crackle.
+  use(kind, { crackle = false } = {}) {
+    // Lighter flick ×2, then the joint gets a longer crackle and a clove
+    // kretek a run of short pops.
     this.burst({
       duration: 0.03,
       filterType: 'highpass',
@@ -198,6 +199,20 @@ export class BvAudio {
         }),
       120
     )
+    if (crackle) {
+      for (const at of [380, 470, 600, 690, 850]) {
+        setTimeout(
+          () =>
+            this.burst({
+              duration: 0.02,
+              filterType: 'highpass',
+              frequency: 3200,
+              gain: 0.14,
+            }),
+          at
+        )
+      }
+    }
     if (kind === 'joints') {
       setTimeout(
         () =>

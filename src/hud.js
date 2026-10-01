@@ -2,6 +2,8 @@
 // the intro/pause overlay, and the strike static. Markup is generated here so
 // the Eleventy page and the dev harness stay a bare #bv-root.
 
+import { BRANDS } from './brands.js'
+
 function el(tag, className, html) {
   const node = document.createElement(tag)
   if (className) node.className = className
@@ -68,17 +70,24 @@ export class Hud {
     this.inventory.innerHTML = `
       <h2>Inventory</h2>
       <ul>
-        <li><span class="bv-item-key">1</span> Cigarettes <b data-bv="cigarettes">0</b><i>Steadies the nerves. The ember gives you away.</i></li>
-        <li><span class="bv-item-key">2</span> Joints <b data-bv="joints">0</b><i>You will see them. You will feel less.</i></li>
+${BRANDS.map(
+  (b, i) =>
+    `        <li data-bv="row-${b.id}"><span class="bv-item-key">${i + 1}</span> ${b.label} <b data-bv="${b.id}">0</b><i>${b.blurb}</i></li>`
+).join('\n')}
+        <li><span class="bv-item-key">${BRANDS.length + 1}</span> Joints <b data-bv="joints">0</b><i>You will see them. You will feel less.</i></li>
       </ul>
+      <p class="bv-inventory-hint">Every pack steadies the nerves. The ember gives you away. Closed: 1 smokes your pick (▸), 2 lights a joint.</p>
       <div data-bv="shop" hidden>
         <h2>Marx's Tailgate</h2>
         <ul>
-          <li><span class="bv-item-key">3</span> Buy Cigarettes <b data-bv="shop-cigarettes">0</b><i>Left on the tailgate. Take what you need.</i></li>
-          <li><span class="bv-item-key">4</span> Buy Joints <b data-bv="shop-joints">0</b><i>Grown in the reserves. Probably.</i></li>
-          <li><span class="bv-item-key">5</span> Buy Burlap Sack <b data-bv="shop-sack">1</b><i>Carries five cabbages instead of three.</i></li>
+${BRANDS.map(
+  (b, i) =>
+    `          <li><span class="bv-item-key">⇧${i + 1}</span> Buy ${b.label} <b data-bv="shop-${b.id}">0</b></li>`
+).join('\n')}
+          <li><span class="bv-item-key">⇧${BRANDS.length + 1}</span> Buy Joints <b data-bv="shop-joints">0</b><i>Grown in the reserves. Probably.</i></li>
+          <li><span class="bv-item-key">⇧${BRANDS.length + 2}</span> Buy Burlap Sack <b data-bv="shop-sack">1</b><i>Carries five cabbages instead of three.</i></li>
         </ul>
-        <p class="bv-inventory-hint">No money in Bull Valley. Stock is per raid.</p>
+        <p class="bv-inventory-hint">Left on the tailgate. No money in Bull Valley. Stock is per raid.</p>
       </div>
       <p class="bv-inventory-hint">Tab closes. Found at fuel stations and in the reserves.</p>`
     ui.appendChild(this.inventory)
@@ -156,8 +165,14 @@ export class Hud {
     setTimeout(() => node.remove(), 4400)
   }
 
-  setInventory(inv) {
-    this.fields.cigarettes.textContent = String(inv.cigarettes)
+  // selected: the brand a bare 1 smokes, marked in the list.
+  setInventory(inv, selected) {
+    for (const b of BRANDS) {
+      this.fields[b.id].textContent = String(inv[b.id])
+      const row = this.fields[`row-${b.id}`]
+      if (b.id === selected) row.setAttribute('aria-current', 'true')
+      else row.removeAttribute('aria-current')
+    }
     this.fields.joints.textContent = String(inv.joints)
   }
 
@@ -172,7 +187,9 @@ export class Hud {
   }
 
   setShop({ cigarettes, joints, sack }) {
-    this.fields['shop-cigarettes'].textContent = String(cigarettes)
+    for (const b of BRANDS) {
+      this.fields[`shop-${b.id}`].textContent = String(cigarettes[b.id])
+    }
     this.fields['shop-joints'].textContent = String(joints)
     this.fields['shop-sack'].textContent = String(sack)
   }

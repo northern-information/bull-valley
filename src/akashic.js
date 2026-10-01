@@ -174,7 +174,8 @@ function triangleCount(object) {
   object.traverse((o) => {
     if (!o.isMesh) return
     const g = o.geometry
-    n += (g.index ? g.index.count : g.attributes.position.count) / 3
+    const tris = (g.index ? g.index.count : g.attributes.position.count) / 3
+    n += tris * (o.isInstancedMesh ? o.count : 1)
   })
   return n
 }
@@ -197,7 +198,7 @@ function selectAsset(id) {
   person.position.set(box.min.x - 0.6, 0, center.z)
 
   // Frame the bounding sphere, three-quarter view from the front.
-  const radius = Math.max(size.length() / 2, 0.25)
+  const radius = Math.max(size.length() / 2, 0.02)
   const dist =
     (radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2))) * 1.1
   controls.target.copy(center)

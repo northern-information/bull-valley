@@ -1,6 +1,8 @@
 import * as THREE from 'three'
 import { applyPS1 } from './ps1.js'
 import { mulberry32, range } from './rng.js'
+import { BRANDS, isBrand } from './brands.js'
+import { paintPack } from './packart.js'
 
 // Every placed 3D asset in Bull Valley, defined once in asset-local space.
 // world.js instances these parts across the valley; the Akashic dev page
@@ -315,13 +317,178 @@ export function buildLandmarkBeacon(color) {
   return group
 }
 
+// --- Cigarette packs -----------------------------------------------------
+
+// A real king-size flip-top: 55 × 88 × 22 mm, lid open about 110° so the
+// filter tips show. Origin at ground level under the middle, art facing +Z.
+export const PACK = {
+  width: 0.055,
+  depth: 0.022,
+  bodyHeight: 0.066,
+  lidHeight: 0.022,
+  lidOpen: THREE.MathUtils.degToRad(110),
+  stickRadius: 0.0036,
+  filterLength: 0.021,
+  glowScale: 0.9,
+}
+
+function packTexture({ c }) {
+  const texture = new THREE.CanvasTexture(c)
+  texture.colorSpace = THREE.SRGBColorSpace
+  return texture
+}
+
+// Art that glows through its own emissiveMap, so it reads in the dark; the
+// pickup pulse drives emissiveIntensity.
+function packFace(texture) {
+  return lambert({
+    map: texture,
+    emissive: new THREE.Color('#ffffff'),
+    emissiveMap: texture,
+    emissiveIntensity: 0.45,
+  })
+}
+
+function packFlat(color) {
+  return lambert({
+    color,
+    emissive: new THREE.Color(color),
+    emissiveIntensity: 0.45,
+  })
+}
+
+// Twenty sticks in three staggered rows of 7, 6, 7. Returns tip heights
+// above the collar top: most sit flush, a few ride up out of the pack.
+function stickLayout(rng) {
+  const d = PACK.stickRadius * 2
+  const rowGap = PACK.stickRadius * Math.sqrt(3)
+  const spots = []
+  for (const [row, n] of [
+    [-1, 7],
+    [0, 6],
+    [1, 7],
+  ]) {
+    for (let i = 0; i < n; i++) {
+      const raised =
+        rng() < 0.2 ? range(rng, 0.006, 0.02) : range(rng, 0, 0.002)
+      spots.push({ x: (i - (n - 1) / 2) * d, z: row * rowGap, raised })
+    }
+  }
+  return spots
+}
+
+export function buildCigarettePack(brandId, seed = 0x5ac) {
+  const art = paintPack(brandId)
+  const { width: W, depth: D, bodyHeight: BH, lidHeight: LH } = PACK
+  const pack = new THREE.Group()
+  pack.name = `pack-${brandId}`
+  const pulse = []
+  const face = (canvasArt) => {
+    const m = packFace(packTexture(canvasArt))
+    pulse.push(m)
+    return m
+  }
+  const flat = (color) => {
+    const m = packFlat(color)
+    pulse.push(m)
+    return m
+  }
+  const hidden = new THREE.MeshBasicMaterial({ visible: false })
+
+  // Body. BoxGeometry face order: +x, -x, +y, -y, +z, -z. The top is the
+  // floor the filters stand on.
+  const front = face(art.front)
+  const side = face(art.side)
+  const body = new THREE.Mesh(new THREE.BoxGeometry(W, BH, D), [
+    side,
+    side,
+    flat(art.inner),
+    flat(art.edge),
+    front,
+    front,
+  ])
+  body.position.y = BH / 2
+  pack.add(body)
+
+  // The inner collar: an open-topped band standing proud of the body rim.
+  const collarH = 0.012
+  const collarMat = flat(art.collar)
+  collarMat.side = THREE.DoubleSide
+  const collar = new THREE.Mesh(
+    new THREE.BoxGeometry(W - 0.002, collarH, D - 0.002),
+    [collarMat, collarMat, hidden, hidden, collarMat, collarMat]
+  )
+  collar.position.y = BH - 0.002 + collarH / 2
+  pack.add(collar)
+
+  // Cigarettes, filter up: instanced paper and filter, tip on the top cap.
+  const collarTop = BH - 0.002 + collarH
+  const spots = stickLayout(mulberry32(seed))
+  const r = PACK.stickRadius
+  const paperLen = 0.03
+  const paperGeo = new THREE.CylinderGeometry(r, r, paperLen, 6)
+  paperGeo.translate(0, -paperLen / 2, 0)
+  const filterGeo = new THREE.CylinderGeometry(r, r, PACK.filterLength, 6)
+  filterGeo.translate(0, -PACK.filterLength / 2, 0)
+  // CylinderGeometry groups: side, top cap, bottom cap.
+  const tip = flat(art.stick.tip)
+  const parts = [
+    [paperGeo, flat(art.stick.paper), -PACK.filterLength],
+    [filterGeo, [flat(art.stick.filter), tip, tip], 0],
+  ]
+  if (art.stick.band) {
+    const bandGeo = new THREE.CylinderGeometry(r * 1.03, r * 1.03, 0.0018, 6)
+    parts.push([bandGeo, flat(art.stick.band), -PACK.filterLength])
+  }
+  const dummy = new THREE.Object3D()
+  for (const [geometry, material, offset] of parts) {
+    const sticks = new THREE.InstancedMesh(geometry, material, spots.length)
+    spots.forEach((spot, i) => {
+      dummy.position.set(spot.x, collarTop + spot.raised + offset, spot.z)
+      dummy.updateMatrix()
+      sticks.setMatrixAt(i, dummy.matrix)
+    })
+    sticks.instanceMatrix.needsUpdate = true
+    pack.add(sticks)
+  }
+
+  // The lid, hinged on the back top edge and swung open over the back.
+  const hinge = new THREE.Group()
+  hinge.position.set(0, BH, -D / 2)
+  hinge.rotation.x = -PACK.lidOpen
+  const lidSide = flat(art.edge)
+  const lid = new THREE.Mesh(new THREE.BoxGeometry(W, LH, D), [
+    lidSide,
+    lidSide,
+    face(art.lidTop),
+    flat(art.inner),
+    face(art.lidFront),
+    lidSide,
+  ])
+  lid.position.set(0, LH / 2, D / 2)
+  hinge.add(lid)
+  pack.add(hinge)
+
+  // A brand-colored halo so a 9 cm pack can be found in the fog.
+  const glow = makeGlowSprite(makeGlowTexture(art.glow), PACK.glowScale)
+  glow.position.y = BH * 0.6
+  pack.add(glow)
+
+  pack.userData.pulseMaterials = pulse
+  return pack
+}
+
 // --- Pickups -------------------------------------------------------------
 
-export function buildPickup(kind) {
+// Every pickup lists the materials the game loop pulses in
+// userData.pulseMaterials. Kinds: 'cabbage', 'joints', or a brand id.
+export function buildPickup(kind, seed) {
+  if (isBrand(kind)) return buildCigarettePack(kind, seed)
+  let mesh
   if (kind === 'cabbage') {
     const sphere = new THREE.SphereGeometry(0.35, 6, 5)
     sphere.translate(0, 0.35, 0)
-    return new THREE.Mesh(
+    mesh = new THREE.Mesh(
       sphere,
       new THREE.MeshLambertMaterial({
         color: '#1c2a16',
@@ -329,18 +496,22 @@ export function buildPickup(kind) {
         emissiveIntensity: 0.5,
       })
     )
+  } else if (kind === 'joints') {
+    const box = new THREE.BoxGeometry(0.5, 0.35, 0.35)
+    box.translate(0, 0.4, 0)
+    mesh = new THREE.Mesh(
+      box,
+      new THREE.MeshLambertMaterial({
+        color: '#101216',
+        emissive: new THREE.Color('#4ade80'),
+        emissiveIntensity: 0.5,
+      })
+    )
+  } else {
+    throw new Error(`Unknown pickup kind "${kind}"`)
   }
-  const box = new THREE.BoxGeometry(0.5, 0.35, 0.35)
-  box.translate(0, 0.4, 0)
-  const emissive = kind === 'cigarettes' ? '#fbbf24' : '#4ade80'
-  return new THREE.Mesh(
-    box,
-    new THREE.MeshLambertMaterial({
-      color: '#101216',
-      emissive: new THREE.Color(emissive),
-      emissiveIntensity: 0.5,
-    })
-  )
+  mesh.userData.pulseMaterials = [mesh.material]
+  return mesh
 }
 
 // --- Assembly ------------------------------------------------------------
@@ -383,10 +554,10 @@ export const WORLD_ASSETS = [
     build: () => buildLandmarkBeacon('#e879f9'),
   },
   { id: 'cabbage', label: 'Cabbage', build: () => buildPickup('cabbage') },
-  {
-    id: 'cigarettes',
-    label: 'Cigarettes',
-    build: () => buildPickup('cigarettes'),
-  },
+  ...BRANDS.map((b) => ({
+    id: `pack-${b.id}`,
+    label: `Pack: ${b.label}`,
+    build: () => buildCigarettePack(b.id),
+  })),
   { id: 'joints', label: 'Joints', build: () => buildPickup('joints') },
 ]
