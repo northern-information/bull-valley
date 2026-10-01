@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Akashic · Bull Valley Shadow Wars</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <style>
+      @font-face {
+        font-family: "Space Mono";
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url("/fonts/space-mono-400-normal-latin.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Space Mono";
+        font-style: normal;
+        font-weight: 700;
+        font-display: swap;
+        src: url("/fonts/space-mono-700-normal-latin.woff2") format("woff2");
+      }
+      :root {
+        color-scheme: dark;
+        --fi-bg: #000000;
+        --fi-surface-82: rgb(2 6 23 / 0.82);
+        --fi-cyan: #22d3ee;
+        --fi-green: #4ade80;
+        --fi-slate: #94a3b8;
+        --fi-paper-light: #f7f4ef;
+        --bv-mono: "Space Mono", ui-monospace, monospace;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: var(--fi-bg);
+        color: var(--fi-paper-light);
+        font: 12px/1.5 var(--bv-mono);
+      }
+      .ak-canvas {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        image-rendering: pixelated;
+      }
+      .ak-panel {
+        position: fixed;
+        top: 16px;
+        left: 16px;
+        max-width: calc(100vw - 32px);
+        box-sizing: border-box;
+        padding: 12px 14px;
+        background: var(--fi-surface-82);
+        border: 1px solid var(--fi-cyan);
+        box-shadow: 4px 4px 0 rgb(0 0 0 / 0.58);
+      }
+      .ak-panel h1 {
+        margin: 0 0 8px;
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--fi-cyan);
+      }
+      .ak-row {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+      .ak-panel button,
+      .ak-panel select {
+        font: inherit;
+        color: inherit;
+        background: #020617;
+        border: 1px solid var(--fi-slate);
+        padding: 2px 8px;
+      }
+      .ak-panel select {
+        flex: 1;
+        min-width: 0;
+      }
+      .ak-panel :focus-visible {
+        outline: 3px solid var(--fi-cyan);
+        outline-offset: 1px;
+      }
+      .ak-toggles {
+        display: grid;
+        grid-template-columns: repeat(2, auto);
+        gap: 2px 14px;
+        margin-bottom: 8px;
+      }
+      .ak-toggles label {
+        white-space: nowrap;
+      }
+      .ak-stats {
+        margin: 0;
+        color: var(--fi-green);
+        white-space: pre;
+      }
+      .ak-hint {
+        position: fixed;
+        left: 16px;
+        right: 16px;
+        bottom: 12px;
+        color: var(--fi-slate);
+      }
+    </style>
+  </head>
+  <body>
+    <canvas class="ak-canvas" aria-hidden="true"></canvas>
+    <section class="ak-panel" aria-label="Asset viewer">
+      <h1>Akashic</h1>
+      <div class="ak-row">
+        <button type="button" data-step="-1" aria-label="Previous asset">
+          ←
+        </button>
+        <select name="asset" aria-label="Asset"></select>
+        <button type="button" data-step="1" aria-label="Next asset">→</button>
+      </div>
+      <div class="ak-toggles"></div>
+      <p class="ak-stats" aria-live="polite"></p>
+    </section>
+    <p class="ak-hint">
+      drag orbit · scroll zoom · right-drag pan · ←/→ cycle · keys toggle
+    </p>
+    <script type="module" src="/src/akashic.js"></script>
+  </body>
+</html>

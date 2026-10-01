@@ -5,28 +5,12 @@
 
 import * as THREE from 'three'
 import { applyPS1 } from './ps1.js'
+import { lambert, makeGlowTexture, makeGlowSprite } from './assets.js'
 import { createWalker } from './roadgraph.js'
 import { CONFIG } from './config.js'
 
-function lambert(opts) {
-  return applyPS1(new THREE.MeshLambertMaterial(opts))
-}
-
-function makeGlowTexture(color) {
-  const canvas = document.createElement('canvas')
-  canvas.width = 64
-  canvas.height = 64
-  const ctx = canvas.getContext('2d')
-  const grad = ctx.createRadialGradient(32, 32, 2, 32, 32, 30)
-  grad.addColorStop(0, color)
-  grad.addColorStop(1, 'rgba(0, 0, 0, 0)')
-  ctx.fillStyle = grad
-  ctx.fillRect(0, 0, 64, 64)
-  return new THREE.CanvasTexture(canvas)
-}
-
 // Local space: the truck faces +Z, origin at ground level under the middle.
-function buildMesh() {
+export function buildTruckMesh() {
   const group = new THREE.Group()
   group.name = 'truck'
   const white = lambert({ color: '#c8ccd2' })
@@ -72,16 +56,8 @@ function buildMesh() {
   add(new THREE.BoxGeometry(0.3, 0.18, 0.08), lightMat, -0.62, 1.05, 2.78)
   const glow = makeGlowTexture('rgba(251, 231, 163, 0.55)')
   for (const gx of [0.62, -0.62]) {
-    const sprite = new THREE.Sprite(
-      new THREE.SpriteMaterial({
-        map: glow,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        transparent: true,
-      })
-    )
+    const sprite = makeGlowSprite(glow, 1.6)
     sprite.position.set(gx, 1.05, 2.85)
-    sprite.scale.setScalar(1.6)
     group.add(sprite)
   }
   return group
@@ -90,7 +66,7 @@ function buildMesh() {
 export class Truck {
   constructor({ scene, heightAt }) {
     this.heightAt = heightAt
-    this.group = buildMesh()
+    this.group = buildTruckMesh()
     scene.add(this.group)
     this.walker = null
     this.speed = CONFIG.truck.speed

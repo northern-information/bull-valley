@@ -5,6 +5,7 @@ An extraction adventure RPG set in a hauntological Bull Valley, Illinois. 3D fir
 ## Commands
 
 - `npm run dev` — Vite dev server on port 5174
+- `localhost:5174/akashic` — dev-only asset viewer (`akashic.html`, not in the build): one asset at a time through the game's PS1 pipeline, ←/→ to cycle, `#<id>` deep links, hook `window.__akashic` (ids, select, setView). Check asset edits here before a raid.
 - `npm run build` / `npm run preview` — production bundle
 - `npm test` / `npm run test:watch` — vitest unit tests (`tests/unit/`)
 - `npm run pretty` — prettier; run before every commit
@@ -23,7 +24,9 @@ Spawn at a gas station → 5-minute loadout before Matthew Marx's white Chevy le
 - `src/cabbages.js` — pure seeded cabbage placement
 - `src/landmarks.js` — consented landmark coordinates + projection
 - `src/splash.js` — Northern Information colophon splash: pure triangle-wave machine + DOM overlay
-- `src/world.js` — builds terrain features, Citgo stations, pickups, beacons from geo.json
+- `src/assets.js` — every placed 3D asset in asset-local space (instanced parts + one-off builders) and the Akashic registry; new assets go here
+- `src/world.js` — places terrain features, Citgo stations, pickups, beacons from geo.json using `assets.js`
+- `src/akashic.js` — the Akashic asset viewer
 - `src/terrain.js` `src/player.js` `src/coords.js` `src/ps1.js` `src/rng.js` `src/config.js` `src/inventory.js` `src/hud.js` `src/audio.js` `src/scope.js` — ported engine
 - `src/shadowmen.js` `src/nerves.js` — parked, unwired; they return post-MVP
 
