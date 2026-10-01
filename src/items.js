@@ -232,6 +232,16 @@ export const ITEMS = [
     container: 'can12',
   },
   {
+    id: 'high-life',
+    category: 'drink',
+    label: 'Miller High Life',
+    blurb: 'The Champagne of Beers. Clear glass, the girl in the moon.',
+    bought: 'One Miller High Life, pocketed.',
+    start: 0,
+    shopCap: 3,
+    container: 'longneck',
+  },
+  {
     id: 'modelo',
     category: 'drink',
     label: 'Modelo Especial',

@@ -47,7 +47,7 @@ describe('items', () => {
 
   it('gives every drink a known container and a shop cap, and no use', () => {
     const drinks = ITEMS.filter((item) => item.category === 'drink')
-    expect(drinks).toHaveLength(16)
+    expect(drinks).toHaveLength(17)
     for (const item of drinks) {
       expect(CONTAINERS[item.container], item.id).toBeTruthy()
       expect(item.shopCap, item.id).toBeGreaterThan(0)
