@@ -9,7 +9,6 @@ import {
   isCigarette,
   isDrink,
   isUsable,
-  ITEM_IDS,
   itemById,
   ITEMS,
   shopStock,
@@ -18,7 +17,7 @@ import type { Item } from '../../src/interfaces.ts'
 
 describe('items', () => {
   it('has unique ids and a known category', () => {
-    expect(new Set(ITEM_IDS).size).toBe(ITEMS.length)
+    expect(new Set(ITEMS.map((item) => item.id)).size).toBe(ITEMS.length)
     for (const item of ITEMS) {
       expect(['cigarette', 'joint', 'drink', 'gear']).toContain(item.category)
     }
