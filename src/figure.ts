@@ -11,7 +11,8 @@ import * as THREE from 'three'
 import { lambert, makeGlowSprite, makeGlowTexture } from './assets.ts'
 import { ADDONS, outfitById } from './outfits.ts'
 import { JOINTS } from './poses.ts'
-import type { LoftRing, OutfitId, Vec3 } from './outfits.ts'
+import type { Vec3 } from './interfaces.ts'
+import type { LoftRing, OutfitId } from './outfits.ts'
 import type { JointName, PoseSample } from './poses.ts'
 
 // A built body: its root group, one pivot per joint, and the hip height

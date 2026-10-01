@@ -8,7 +8,7 @@ import { applyPS1 } from './ps1.ts'
 import { mulberry32, range } from './rng.ts'
 import type { DrinkArt } from './canart.ts'
 import type { CanvasArt } from './canvas.ts'
-import type { Container, ContainerKey } from './interfaces.ts'
+import type { Container, ContainerKey, Vec3 } from './interfaces.ts'
 import type { Rng } from './rng.ts'
 
 // Every placed 3D asset in Bull Valley, defined once in asset-local space.
@@ -18,15 +18,13 @@ import type { Rng } from './rng.ts'
 // assets export parts; one-off assets export a builder that returns an
 // Object3D. Building parts consumes no rng, so placement seeds stay put.
 
-export type Vec3Tuple = [number, number, number]
-
 export interface Part {
   name: string
   geometry: THREE.BufferGeometry
   material: THREE.Material | THREE.Material[]
-  position?: Vec3Tuple
-  rotation?: Vec3Tuple
-  scale?: Vec3Tuple
+  position?: Vec3
+  rotation?: Vec3
+  scale?: Vec3
 }
 
 // glow: false leaves out the halo, for close-up views like the inventory.
