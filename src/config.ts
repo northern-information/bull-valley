@@ -69,7 +69,6 @@ export const CONFIG = {
   truck: {
     speed: 12, // m/s, about 27 mph — right for gravel-adjacent Bull Valley
     boardRange: 4,
-    arriveRange: 30, // called truck stops this close to the player's road point
     bedEye: 1.6, // camera height above the bed
     wanderMetres: 6000, // how far the outbound joyride runs
   },

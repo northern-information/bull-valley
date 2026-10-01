@@ -291,8 +291,6 @@ type ItemEntry = (typeof ITEMS)[number]
 // Every item id, as a type: a typo in a literal id fails the type check.
 export type ItemId = ItemEntry['id']
 
-export const ITEM_IDS: readonly ItemId[] = ITEMS.map((item) => item.id)
-
 // ITEMS widened to the plain Item shape, for code that reads optional
 // fields (shopCap, container) across every entry.
 export const ITEM_LIST: readonly Item[] = ITEMS

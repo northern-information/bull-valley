@@ -2,55 +2,22 @@ import { describe, expect, it } from 'vitest'
 import {
   bilinearHeight,
   compassBearing,
-  formatLatLon,
   pointInPolygon,
   pointSegmentDistance,
-  unitToLatLon,
   unitToWorld,
-  worldToUnit,
 } from '../../src/coords.ts'
-import type { Bbox, Metres, UnitPoint } from '../../src/interfaces.ts'
+import type { Metres, UnitPoint } from '../../src/interfaces.ts'
 
 // Illustrative fixtures for the pure math, deliberately NOT pinned to the
-// current public/data/bull-valley/geo.json — the game reads bbox and metres
-// at runtime, so the survey frame can change without touching these.
+// current public/data/bull-valley/geo.json — the game reads metres at
+// runtime, so the survey frame can change without touching these.
 const METRES: Metres = { width: 9300, height: 10670 }
-const BBOX: Bbox = {
-  south: 42.2775,
-  west: -88.4225,
-  north: 42.374,
-  east: -88.3095,
-}
 
 describe('coords', () => {
   it('centres the unit square on the world origin', () => {
     expect(unitToWorld(0.5, 0.5, METRES)).toEqual({ x: 0, z: 0 })
     expect(unitToWorld(0, 0, METRES)).toEqual({ x: -4650, z: -5335 })
     expect(unitToWorld(1, 1, METRES)).toEqual({ x: 4650, z: 5335 })
-  })
-
-  it('round-trips world to unit coordinates', () => {
-    const { u, v } = worldToUnit(1234, -987, METRES)
-    const { x, z } = unitToWorld(u, v, METRES)
-    expect(x).toBeCloseTo(1234, 6)
-    expect(z).toBeCloseTo(-987, 6)
-  })
-
-  it('maps unit coordinates to the bbox corners (y down = south)', () => {
-    expect(unitToLatLon(0, 0, BBOX)).toEqual({
-      lat: BBOX.north,
-      lon: BBOX.west,
-    })
-    expect(unitToLatLon(1, 1, BBOX)).toEqual({
-      lat: BBOX.south,
-      lon: BBOX.east,
-    })
-  })
-
-  it('formats western-hemisphere positions', () => {
-    expect(formatLatLon({ lat: 42.32, lon: -88.36 })).toBe(
-      '42.3200° N 88.3600° W'
-    )
   })
 
   it('samples a height grid bilinearly', () => {

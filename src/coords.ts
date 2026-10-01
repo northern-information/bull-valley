@@ -3,12 +3,7 @@
 // writes into geo.json). No three.js imports: tests/unit/coords.test.ts
 // runs these directly in Node.
 
-import type { Bbox, Metres, UnitPoint } from './interfaces.ts'
-
-export interface LatLon {
-  lat: number
-  lon: number
-}
+import type { Metres, UnitPoint } from './interfaces.ts'
 
 export interface Bounds {
   minX: number
@@ -26,27 +21,6 @@ export function unitToWorld(
   metres: Metres
 ): { x: number; z: number } {
   return { x: (u - 0.5) * metres.width, z: (v - 0.5) * metres.height }
-}
-
-export function worldToUnit(
-  x: number,
-  z: number,
-  metres: Metres
-): { u: number; v: number } {
-  return { u: x / metres.width + 0.5, v: z / metres.height + 0.5 }
-}
-
-export function unitToLatLon(u: number, v: number, bbox: Bbox): LatLon {
-  return {
-    lat: bbox.north - v * (bbox.north - bbox.south),
-    lon: bbox.west + u * (bbox.east - bbox.west),
-  }
-}
-
-export function formatLatLon({ lat, lon }: LatLon): string {
-  const ns = lat >= 0 ? 'N' : 'S'
-  const ew = lon >= 0 ? 'E' : 'W'
-  return `${Math.abs(lat).toFixed(4)}° ${ns} ${Math.abs(lon).toFixed(4)}° ${ew}`
 }
 
 // Bilinear sample of a size×size height grid over the unit square. Heights are
