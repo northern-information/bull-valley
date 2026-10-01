@@ -4,7 +4,7 @@ import {
   createSplashMachine,
   SPLASH_STATES,
   splashAlpha,
-} from '../../src/splash.ts'
+} from '../../src/splashmachine.ts'
 
 const cfg = CONFIG.splash
 
