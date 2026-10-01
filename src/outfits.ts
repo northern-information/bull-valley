@@ -19,6 +19,7 @@ export type DecalId =
   | 'sleeve-tattoo'
   | 'chest-tattoo'
   | 'pantera'
+  | 'guitar-strap'
 
 // Where an outfit prints a decal over the body: across the torso front,
 // across the front of both thighs, or all round both bare arms.
@@ -63,6 +64,7 @@ export type AddonId =
   | 'long-hair'
   | 'belt'
   | 'belt-loops'
+  | 'big-beard'
 
 export type LimbGroup = 'arm' | 'leg'
 
@@ -74,11 +76,16 @@ export interface Outfit {
   // 'short' leaves the forearms bare, for a t-shirt; 'none' leaves the
   // whole arm bare, for a tank top.
   sleeves?: 'short' | 'none'
+  // true draws the hair cap in the skin color, for a shaved head.
+  shaved?: boolean
+  // A prop slung on the back; figure.ts places it.
+  onBack?: 'guitar'
   // Each part's prints, painted in order (decalart.ts paintPrints).
   prints?: Partial<Record<PrintPart, DecalId[]>>
 }
 
-export type OutfitId = 'marx' | 'player' | 'shadow' | 'coleman' | 'kvistad'
+export type OutfitId =
+  'marx' | 'player' | 'shadow' | 'coleman' | 'kvistad' | 'church'
 
 // Dreadlocks hang from a ring round the back and sides of the head, leaving
 // the face clear. Angles are around the head from +X toward +Z (the face).
@@ -109,6 +116,21 @@ export const ADDONS: Record<AddonId, Addon> = {
       [0.06, 0.045, 0.05, 0.045],
       [0.1, 0.085, 0.095, 0.02],
       [0.16, 0.093, 0.108, 0.005],
+    ],
+  },
+  // A full beard from under the nose down onto the chest, tapering to a
+  // point. The lower rings move forward, so the beard stays in front of the
+  // chest and never wraps behind the neck.
+  'big-beard': {
+    joint: 'neck',
+    slot: 'hair',
+    sides: 8,
+    rings: [
+      [0.135, 0.086, 0.097, 0.012],
+      [0.1, 0.104, 0.1, 0.035],
+      [0.03, 0.1, 0.08, 0.05],
+      [-0.06, 0.08, 0.065, 0.09],
+      [-0.15, 0.042, 0.036, 0.13],
     ],
   },
   // A chin beard only: narrow and forward, clear of the jaw line.
@@ -299,6 +321,22 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
       thigh: ['torn-jeans'],
       arm: ['sleeve-tattoo'],
     },
+  },
+  church: {
+    label: 'Kyle Church',
+    colors: {
+      skin: '#ebc8aa',
+      hair: '#3b2a1e',
+      shirt: '#141416',
+      pants: '#3f5f8a',
+      boots: '#2a2018',
+      belt: '#0c0c0e',
+    },
+    addons: ['big-beard', 'belt', 'belt-loops'],
+    sleeves: 'short',
+    shaved: true,
+    onBack: 'guitar',
+    prints: { torso: ['guitar-strap'] },
   },
 }
 

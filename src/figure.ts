@@ -10,6 +10,7 @@
 import * as THREE from 'three'
 import {
   artTexture,
+  buildGuitar,
   lambert,
   makeGlowSprite,
   makeGlowTexture,
@@ -347,7 +348,7 @@ export function buildFigure(
   const neck = pivot(spine, built, 'neck', 0, 0.48, 0)
   part(neck, loft(NECK), c.skin)
   part(neck, loft(HEAD, 8), c.skin)
-  part(neck, loft(HAIR), c.hair)
+  part(neck, loft(HAIR), outfit.shaved ? c.skin : c.hair)
   // A nose and a brow line: enough for a face to read at PS1 resolution.
   part(neck, box(0.026, 0.045, 0.03), c.skin, 0, 0.17, 0.1)
   part(neck, box(0.13, 0.014, 0.02), c.hair, 0, 0.215, 0.098)
@@ -387,6 +388,15 @@ export function buildFigure(
     const knee = pivot(hip, built, `knee${side}`, 0, -thigh, 0)
     part(knee, loft(stretch(SHIN, leg)), c.pants)
     part(knee, boot(), c.boots, 0, -shin - 0.03, 0.045)
+  }
+
+  // The guitar hangs on the back with its strings out, the body at the left
+  // hip and the neck up behind the right shoulder.
+  if (outfit.onBack === 'guitar') {
+    const guitar = buildGuitar()
+    guitar.position.set(0.07, 0.12, -0.155)
+    guitar.rotation.set(0, Math.PI, -0.45)
+    spine.add(guitar)
   }
 
   // Every joint in JOINTS now has its pivot.

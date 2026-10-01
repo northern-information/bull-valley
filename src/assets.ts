@@ -715,6 +715,113 @@ export function buildSack(seed = 0x5ac4): THREE.Group {
   return group
 }
 
+// --- Guitar --------------------------------------------------------------
+
+// A single-cutaway electric in cherry red, about a metre long. Local space:
+// the body centre at the origin, the neck up +Y, the strings facing +Z.
+// The body outline, anticlockwise from the bottom. The -X upper bout is cut
+// away to the neck, the way a single cutaway is.
+const GUITAR_OUTLINE: [number, number][] = [
+  [0, -0.21],
+  [0.1, -0.19],
+  [0.16, -0.11],
+  [0.165, -0.01],
+  [0.12, 0.09],
+  [0.13, 0.17],
+  [0.1, 0.24],
+  [0.035, 0.26],
+  [-0.03, 0.25],
+  [-0.06, 0.17],
+  [-0.1, 0.14],
+  [-0.12, 0.09],
+  [-0.165, -0.01],
+  [-0.16, -0.11],
+  [-0.1, -0.19],
+]
+const GUITAR_DEPTH = 0.05
+
+export function buildGuitar(): THREE.Group {
+  const cherry = lambert({ color: '#7a1c18' })
+  const black = lambert({ color: '#121214' })
+  const wood = lambert({ color: '#3e2616' })
+  const cream = lambert({ color: '#d9cfa6' })
+  const chrome = lambert({ color: '#a2a7ad' })
+  const gold = lambert({ color: '#c9a227' })
+
+  const shape = new THREE.Shape()
+  shape.moveTo(...GUITAR_OUTLINE[0])
+  for (const point of GUITAR_OUTLINE.slice(1)) shape.lineTo(...point)
+  shape.closePath()
+  const bodyGeo = new THREE.ExtrudeGeometry(shape, {
+    depth: GUITAR_DEPTH,
+    bevelEnabled: false,
+  })
+  bodyGeo.translate(0, 0, -GUITAR_DEPTH / 2)
+
+  const group = new THREE.Group()
+  group.name = 'guitar'
+  const add = (
+    geometry: THREE.BufferGeometry,
+    material: THREE.Material,
+    x: number,
+    y: number,
+    z: number
+  ) => {
+    const mesh = new THREE.Mesh(geometry, material)
+    mesh.position.set(x, y, z)
+    group.add(mesh)
+    return mesh
+  }
+  const face = GUITAR_DEPTH / 2
+  add(bodyGeo, cherry, 0, 0, 0)
+  // The neck and fretboard, the headstock tilted back, and the tuners.
+  add(new THREE.BoxGeometry(0.056, 0.46, 0.026), wood, 0, 0.47, face - 0.008)
+  const head = add(
+    new THREE.BoxGeometry(0.085, 0.18, 0.018),
+    black,
+    0,
+    0.79,
+    face - 0.02
+  )
+  head.rotation.x = -0.25
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 3; i++) {
+      // On the headstock's centre line, which tilts back with it.
+      const y = 0.74 + i * 0.045
+      add(
+        new THREE.BoxGeometry(0.03, 0.012, 0.012),
+        chrome,
+        side * 0.055,
+        y,
+        face - 0.02 + (y - 0.79) * Math.sin(head.rotation.x)
+      )
+    }
+  }
+  // Two cream pickups, the bridge and tailpiece, and four gold knobs.
+  for (const y of [0.11, -0.01]) {
+    add(new THREE.BoxGeometry(0.075, 0.04, 0.012), cream, 0, y, face + 0.006)
+  }
+  add(new THREE.BoxGeometry(0.08, 0.014, 0.012), chrome, 0, -0.06, face + 0.006)
+  add(new THREE.BoxGeometry(0.08, 0.016, 0.01), chrome, 0, -0.1, face + 0.005)
+  for (const [x, y] of [
+    [0.07, -0.08],
+    [0.11, -0.06],
+    [0.075, -0.14],
+    [0.115, -0.12],
+  ]) {
+    add(
+      new THREE.CylinderGeometry(0.012, 0.012, 0.016, 6),
+      gold,
+      x,
+      y,
+      face + 0.008
+    ).rotation.x = Math.PI / 2
+  }
+  // The strings, as one pale strip from the tailpiece to the nut.
+  add(new THREE.BoxGeometry(0.03, 0.8, 0.003), chrome, 0, 0.3, face + 0.005)
+  return group
+}
+
 // --- Drinks --------------------------------------------------------------
 
 // The drinks, circa 2008: cans (slim, 12 oz, tall), the NOS bottle, three
@@ -1530,6 +1637,7 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     build: () => buildDrink(d.id),
   })),
   { id: 'sack', label: 'Burlap sack', build: () => buildSack() },
+  { id: 'guitar', label: 'Guitar', build: buildGuitar },
 ]
 
 // Bounds from meshes only: glow sprites are unit planes scaled up, and would

@@ -9,6 +9,8 @@
 // at the top to the elbow or wrist at the bottom.
 //   suicide-silence  the band tee print, on the chest. Torso, 123×150.
 //   pantera          the band logo, on the chest. Torso, 123×150.
+//   guitar-strap     a strap from the right shoulder to the left hip.
+//                    Torso, 123×150.
 //   torn-tank        a black tank top's cut and its tears: the neck scoop,
 //                    the arm holes, rips, and a ragged hem. Torso, 123×150.
 //   torn-jeans       a ripped knee and a frayed thigh. Thigh, 51×138; the
@@ -267,6 +269,25 @@ function chestTattoo(): CanvasArt {
 
 // The band logo across the chest, in pale grey on the black shirt: tall
 // capitals with the first and last letters drawn larger.
+// A leather guitar strap across the chest, from the right shoulder down to
+// the left hip. The canvas left edge is the body's right side.
+function guitarStrap(): CanvasArt {
+  const art = canvas(TORSO)
+  const { ctx, w, h } = art
+  for (const [color, width] of [
+    ['#22170f', 13],
+    ['#4a3222', 10],
+  ] as const) {
+    ctx.strokeStyle = color
+    ctx.lineWidth = width
+    ctx.beginPath()
+    ctx.moveTo(w * 0.18, -4)
+    ctx.lineTo(w * 0.88, h + 4)
+    ctx.stroke()
+  }
+  return art
+}
+
 function pantera(): CanvasArt {
   const art = canvas(TORSO)
   const { ctx, w } = art
@@ -305,6 +326,7 @@ export const DECAL_PAINTERS: Record<DecalId, DecalPainter> = {
   'sleeve-tattoo': sleeveTattoo,
   'chest-tattoo': chestTattoo,
   pantera,
+  'guitar-strap': guitarStrap,
 }
 
 // Tattoos ink only onto skin a layer below already painted.
