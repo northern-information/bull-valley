@@ -541,7 +541,7 @@ export function buildCigarettePack(
     pack.add(halo)
   }
 
-  pack.userData.pulseMaterials = pulse
+  setPulseMaterials(pack, pulse)
   return pack
 }
 
@@ -678,7 +678,7 @@ export function buildJoints({ glow = true }: PickupOptions = {}): THREE.Group {
     halo.position.y = 0.02
     group.add(halo)
   }
-  group.userData.pulseMaterials = pulse
+  setPulseMaterials(group, pulse)
   return group
 }
 
@@ -1248,15 +1248,31 @@ export function buildDrink(
     halo.position.y = size.height * 0.5
     group.add(halo)
   }
-  group.userData.pulseMaterials = pulse
+  setPulseMaterials(group, pulse)
   return group
 }
 
 // --- Pickups -------------------------------------------------------------
 
-// Every pickup lists the materials the game loop pulses in
-// userData.pulseMaterials. Kinds: 'cabbage', or an item id from items.ts.
-// glow: false leaves out the halo on packs, joints, and drinks.
+// The materials the game loop pulses on each pickup. A WeakMap keeps the
+// list typed; Object3D.userData is `any`.
+const PULSE = new WeakMap<THREE.Object3D, THREE.MeshLambertMaterial[]>()
+
+function setPulseMaterials(
+  object: THREE.Object3D,
+  materials: THREE.MeshLambertMaterial[]
+): void {
+  PULSE.set(object, materials)
+}
+
+export function pulseMaterials(
+  object: THREE.Object3D
+): THREE.MeshLambertMaterial[] {
+  return PULSE.get(object) ?? []
+}
+
+// Kinds: 'cabbage', or an item id from items.ts. glow: false leaves out the
+// halo on packs, joints, and drinks.
 export function buildPickup(
   kind: string,
   seed?: number,
@@ -1280,7 +1296,7 @@ export function buildPickup(
   } else {
     throw new Error(`Unknown pickup kind "${kind}"`)
   }
-  mesh.userData.pulseMaterials = [mesh.material]
+  setPulseMaterials(mesh, [mesh.material])
   return mesh
 }
 

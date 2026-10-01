@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import './styles.css'
+import { pulseMaterials } from './assets.ts'
 import { BvAudio } from './audio.ts'
 import { ringItems, stepIndex, syncIndex } from './carousel.ts'
 import { CONFIG } from './config.ts'
@@ -699,6 +700,13 @@ async function boot() {
       perception,
     })
 
+    // Pickups pulse every frame, whatever the prompt says.
+    const pulse = 0.35 + Math.sin(time * 3) * 0.2
+    for (const pickup of world.pickups) {
+      if (pickup.taken) continue
+      for (const m of pulseMaterials(pickup.mesh)) m.emissiveIntensity = pulse
+    }
+
     // --- Interactions: what E would do right now -------------------------
     canBoard = false
     canBoardExtract = false
@@ -755,14 +763,10 @@ async function boot() {
         }
       }
       if (!prompt) {
-        // Pickups: pulse, and offer the nearest within reach.
+        // Pickups: offer the nearest within reach.
         let bestPickup = 2.6
         for (const pickup of world.pickups) {
           if (pickup.taken) continue
-          const pulse = 0.35 + Math.sin(time * 3) * 0.2
-          for (const m of pickup.mesh.userData.pulseMaterials) {
-            m.emissiveIntensity = pulse
-          }
           const d = Math.hypot(pickup.x - player.pos.x, pickup.z - player.pos.z)
           if (d < bestPickup) {
             bestPickup = d
