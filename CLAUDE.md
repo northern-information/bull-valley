@@ -12,7 +12,7 @@ An extraction adventure RPG set in a hauntological Bull Valley, Illinois. 3D fir
 - `npm test` / `npm run test:watch` / `npm run test:unit:coverage` — vitest unit tests (`tests/unit/`); coverage lists every file in `src`
 - `npm run test:e2e` — Playwright (`tests/e2e/`) against its own Vite dev server on port 5175; never against `preview`, since the dev hooks exist only in dev builds. First run: `npx playwright install chromium`
 - `npm run pretty` — prettier (sorts imports too); run before every commit. `npm run format:check` checks without writing
-- CI (`.github/workflows/ci.yml`) runs on every PR to `main` and every push to `main`: format, lint, types, unit tests with coverage, build, and e2e
+- CI (`.github/workflows/ci.yml`) runs on every PR to `main` and every push to `main`: format, lint, types, unit tests with coverage (the pure modules have a per-file floor in `vitest.config.ts`), build, and e2e. The e2e job runs in the Playwright Docker image as two parallel jobs: the `@raid` group, and every other spec
 - `npm run fetch:data` — regenerate `public/data/bull-valley/` (network: Nominatim, Overpass, AWS terrain tiles; `--reuse-traffic` skips IDOT)
 
 ## The MVP loop
