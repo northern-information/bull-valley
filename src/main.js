@@ -381,12 +381,14 @@ async function boot() {
     // makes turning around impossible.
     if (!import.meta.env.DEV || !navigator.webdriver) return
     player.locked = true
+    hud.setLocked(true)
     started = true
     hud.showIntro(false)
   }
   // Pointer lock can be refused (browser quirk, gesture rules, the cooldown
   // after Esc). When it is, drop the intro and hand the player a direct
   // click-the-view retry — a gesture on the canvas itself always qualifies.
+  // An open inventory hides the prompt and shows its own resume line.
   const lockRefused = () => {
     if (import.meta.env.DEV && navigator.webdriver) {
       startWithoutLock()
@@ -394,7 +396,7 @@ async function boot() {
     }
     started = true
     hud.showIntro(false)
-    hud.prompt('Click the View to Take the Controls')
+    if (!inventoryOpen) hud.prompt('Click the View to Take the Controls')
   }
   const engagePointer = () => {
     try {
@@ -412,9 +414,16 @@ async function boot() {
   })
   document.addEventListener('pointerlockerror', lockRefused)
 
+  // The browser drops pointer lock on Esc and whenever the window loses focus
+  // (Alt+Tab, Cmd+number). Neither can be blocked, and the page cannot tell
+  // them apart, so every drop is a pause. An open inventory stays open and
+  // waits for a click; otherwise the pause overlay shows.
   document.addEventListener('pointerlockchange', () => {
     const locked = document.pointerLockElement === hud.canvas
     player.locked = locked
+    hud.setLocked(locked)
+    // Keys held when focus left never send keyup.
+    if (!locked) player.keys.clear()
     if (locked) {
       started = true
       hud.showIntro(false)
@@ -422,11 +431,11 @@ async function boot() {
         greeted = true
         hud.toast('Matthew Marx keeps the engine running.')
       }
-    } else if (started && !ended) {
-      closeInventory()
+    } else if (started && !ended && !inventoryOpen) {
       hud.showIntro(true, true)
     }
   })
+  window.addEventListener('blur', () => player.keys.clear())
   document.addEventListener('mousemove', (e) => {
     if (!inventoryOpen) player.handleMouse(e.movementX, e.movementY)
   })
@@ -521,7 +530,7 @@ async function boot() {
 
   // With the inventory open the keys drive the carousel and never reach the
   // player: ←/→ or A/D cycle, E or Enter uses, B buys at the tailgate,
-  // 1 and 2 still smoke and spark. Esc drops pointer lock, which closes it.
+  // 1 and 2 still smoke and spark. Esc drops pointer lock, which pauses it.
   const inventoryKey = (e) => {
     const item = ring[ringIndex]
     if (e.code === 'Tab') {
