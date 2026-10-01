@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { context2d } from './canvas.ts'
 import { bilinearHeight } from './coords.ts'
 import { applyPS1 } from './ps1.ts'
 import type { Geo } from './interfaces.ts'
@@ -19,15 +20,6 @@ export interface HeightField {
   grid: Float32Array
   relief: number
   sample: HeightAt
-}
-
-function context2d(
-  canvas: HTMLCanvasElement,
-  settings?: CanvasRenderingContext2DSettings
-): CanvasRenderingContext2D {
-  const ctx = canvas.getContext('2d', settings)
-  if (!ctx) throw new Error('Canvas 2D context is not available')
-  return ctx
 }
 
 // The committed heightmap: square, 16 bits of normalized elevation packed as

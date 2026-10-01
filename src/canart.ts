@@ -10,9 +10,9 @@
 //          flat on a square one.
 //   neck   a band around a bottle neck.
 
-import { canvas, SANS, SERIF, text } from './packart.ts'
+import { canvas, SANS, SERIF, text } from './canvas.ts'
 import { mulberry32 } from './rng.ts'
-import type { CanvasArt, CanvasSize } from './packart.ts'
+import type { CanvasArt, CanvasSize } from './canvas.ts'
 
 // Everything one drink's painter returns. Which fields are present depends
 // on the container: cans have wrap, metal and tab; bottles have label, cap

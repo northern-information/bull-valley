@@ -6,6 +6,20 @@ import * as THREE from 'three'
 
 const snap = new THREE.Vector2(160, 120)
 
+// The game's renderer: no antialiasing and one pixel per pixel, so the
+// downscaled frame stays crisp when CSS scales it up.
+export function createPS1Renderer(
+  canvas: HTMLCanvasElement
+): THREE.WebGLRenderer {
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: false,
+    powerPreference: 'high-performance',
+  })
+  renderer.setPixelRatio(1)
+  return renderer
+}
+
 export function setSnapResolution(width: number, height: number): void {
   // Half the internal render resolution reads as classic hardware; full
   // resolution barely wobbles at all.

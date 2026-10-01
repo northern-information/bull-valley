@@ -28,13 +28,14 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 - `src/main.ts` — boot, scene, input wiring, render loop, raid orchestration
 - `src/raid.ts` — pure raid state machine (LOADOUT → RIDING → ON_FOOT → EXTRACTED)
 - `src/roadgraph.ts` — pure road-network graph, Dijkstra, arc-length walker
-- `src/truck.ts` — the white Chevy: mesh, drive/board/ride/call
+- `src/truck.ts` — the white Chevy: seats the driver in the `assets.ts` body; drive/board/ride/call
 - `src/figure.ts` — the shared character body: rigid low-poly parts on joint pivots, built per outfit; `applyPose` drives it
 - `src/outfits.ts` — pure: every character outfit in one table (colors by slot, add-on parts, limb proportions); edit characters here
 - `src/poses.ts` — pure: the body's joints, the poses (stand, sit, lean, crouch, walk cycle) and `samplePose`
 - `src/playerbody.ts` — the player's own legs in first person: the player outfit, torso hidden, posed from the move speed
 - `src/cabbages.ts` — pure seeded cabbage placement
 - `src/items.ts` — pure: every item in one table (label, blurb, toasts, tuning, starting count, shop cap); edit items here. Meshes stay in `assets.ts`, keyed by id
+- `src/canvas.ts` — shared 2D canvas helpers (`context2d`, `canvas`, `text`, fonts) for the painted art
 - `src/packart.ts` — canvas trade-dress art for the cigarette packs
 - `src/drinks.ts` — pure: drink container sizes and the per-family fit height; the drinks themselves (circa 2008, for sale at the tailgate, no effect yet) are entries in `items.ts`
 - `src/canart.ts` — canvas trade-dress art for the drink labels, as they looked circa 2008
@@ -42,8 +43,8 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 - `src/inventoryview.ts` — the inventory carousel in 3D: its own scene and camera, drawn by the game renderer in place of the world while the inventory is open (the player freezes; the raid clock does not)
 - `src/landmarks.ts` — consented landmark coordinates + projection
 - `src/splash.ts` — Northern Information colophon splash: pure triangle-wave machine + DOM overlay
-- `src/assets.ts` — every placed 3D asset in asset-local space (instanced parts + one-off builders) and the Akashic registry; new assets go here
-- `src/world.ts` — places terrain features, Citgo stations, pickups, beacons from geo.json using `assets.ts`
+- `src/assets.ts` — every 3D asset in asset-local space (instanced parts, one-off builders, the truck body, the sky, the road/water/fence/boundary materials) and the Akashic registry; new assets go here
+- `src/world.ts` — places terrain features, Citgo stations, pickups, beacons from geo.json using `assets.ts`; builds no materials of its own
 - `src/akashic.ts` — the Akashic asset viewer
 - `src/terrain.ts` `src/player.ts` `src/coords.ts` `src/ps1.ts` `src/rng.ts` `src/config.ts` `src/inventory.ts` `src/hud.ts` `src/audio.ts` `src/scope.ts` — ported engine
 - `src/shadowmen.ts` `src/nerves.ts` — parked, unwired; they return post-MVP

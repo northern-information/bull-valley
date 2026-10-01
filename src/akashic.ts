@@ -11,7 +11,7 @@ import { CONFIG } from './config.ts'
 import { applyPose, attachCigarette, buildFigure } from './figure.ts'
 import { OUTFIT_IDS, OUTFITS } from './outfits.ts'
 import { samplePose } from './poses.ts'
-import { setSnapResolution } from './ps1.ts'
+import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import { mulberry32 } from './rng.ts'
 import { buildShadowmanFigure, makeSilhouetteTexture } from './shadowmen.ts'
 import { buildTruckMesh } from './truck.ts'
@@ -73,12 +73,7 @@ function requireElement<T extends Element>(selector: string): T {
 }
 
 const canvas = requireElement<HTMLCanvasElement>('.ak-canvas')
-const renderer = new THREE.WebGLRenderer({
-  canvas,
-  antialias: false,
-  powerPreference: 'high-performance',
-})
-renderer.setPixelRatio(1)
+const renderer = createPS1Renderer(canvas)
 
 const BACKGROUND = '#0b1018'
 const scene = new THREE.Scene()
