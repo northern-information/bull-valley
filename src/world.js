@@ -28,7 +28,7 @@ import {
   buildLandmarkBeacon,
   buildPickup,
 } from './assets.js'
-import { BRAND_IDS } from './brands.js'
+import { CIGARETTE_IDS } from './items.js'
 
 const PACK_SEED = 0xc16a7e
 
@@ -677,7 +677,7 @@ function buildPickups(geo, metres, heightAt, fuelPoints, rng) {
     place(
       station.x + range(rng, -4, 4),
       station.z + range(rng, -4, 4),
-      BRAND_IDS[Math.floor(packRng() * BRAND_IDS.length)],
+      CIGARETTE_IDS[Math.floor(packRng() * CIGARETTE_IDS.length)],
       3,
       Math.floor(packRng() * 0xffffffff),
       packRng() * Math.PI * 2

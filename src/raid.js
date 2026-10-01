@@ -3,6 +3,7 @@
 // reference so callers can detect the rejection. No three.js, no DOM.
 
 import { CONFIG } from './config.js'
+import { itemById } from './items.js'
 
 export const STATES = {
   LOADOUT: 'LOADOUT',
@@ -39,7 +40,7 @@ export function createRaid(now) {
 }
 
 export function carryLimit(raid) {
-  return raid.sack ? CONFIG.cabbage.sackCarryLimit : CONFIG.cabbage.carryLimit
+  return raid.sack ? itemById('sack').carryLimit : CONFIG.cabbage.carryLimit
 }
 
 // detail: EXTRACT_FUEL passes the station name; BOARD_TRUCK from ON_FOOT

@@ -2,39 +2,24 @@
 // and how the selection moves. No three.js, no DOM. inventoryview.js turns
 // the ring into models; hud.js turns the selected item into text.
 
-import { BRANDS } from './brands.js'
-import { DRINKS, isDrink } from './drinks.js'
+import { ITEMS, isUsable, itemById } from './items.js'
 import { carryLimit } from './raid.js'
 
-const JOINTS = {
-  label: 'Joints',
-  blurb: 'You will see them. You will feel less.',
-}
-
-// Fixed ring order. Cargo rides at the end.
-const ORDER = [
-  ...BRANDS.map((b) => ({ kind: b.id, label: b.label, blurb: b.blurb })),
-  { kind: 'joints', ...JOINTS },
-  ...DRINKS.map((d) => ({ kind: d.id, label: d.label, blurb: d.blurb })),
-]
-
-// Tailgate stock for one kind.
-function tailgateStock(shop, kind) {
-  if (kind === 'joints') return shop.joints
-  if (isDrink(kind)) return shop.drinks[kind]
-  return shop.cigarettes[kind]
-}
+// Fixed ring order: counted items in ITEMS order. Cargo and gear ride at
+// the end.
+const ORDER = ITEMS.filter((item) => item.category !== 'gear')
 
 // inv: the inventory; raid: the raid state; shop: the tailgate stock
-// ({ cigarettes, joints, drinks, sack }) while the tailgate is open, else
-// null. A kind rides the ring when the player carries it, or when the
-// tailgate has it for sale. Drinks have no use yet. Each entry: { kind, label, blurb, stock, tailgate,
+// (item id -> count, from shopStock() in items.js) while the tailgate is
+// open, else null.
+// A kind rides the ring when the player carries it, or when the tailgate
+// has it for sale. Each entry: { kind, label, blurb, stock, tailgate,
 // canUse, canBuy }; tailgate is null away from the tailgate.
 export function ringItems(inv, raid, shop) {
   const items = []
-  for (const { kind, label, blurb } of ORDER) {
+  for (const { id: kind, label, blurb } of ORDER) {
     const stock = inv[kind] || 0
-    const tailgate = shop ? tailgateStock(shop, kind) || 0 : null
+    const tailgate = shop ? shop[kind] || 0 : null
     if (stock < 1 && !(tailgate > 0)) continue
     items.push({
       kind,
@@ -42,7 +27,7 @@ export function ringItems(inv, raid, shop) {
       blurb,
       stock,
       tailgate,
-      canUse: stock > 0 && !isDrink(kind),
+      canUse: stock > 0 && isUsable(kind),
       canBuy: tailgate > 0,
     })
   }
@@ -57,12 +42,13 @@ export function ringItems(inv, raid, shop) {
       canBuy: false,
     })
   }
+  const sack = itemById('sack')
   const sackForSale = !raid.sack && shop && shop.sack > 0
   if (raid.sack || sackForSale) {
     items.push({
       kind: 'sack',
-      label: 'Burlap Sack',
-      blurb: 'Carries five cabbages instead of three.',
+      label: sack.label,
+      blurb: sack.blurb,
       stock: raid.sack ? 1 : 0,
       tailgate: shop ? shop.sack : null,
       canUse: false,

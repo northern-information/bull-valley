@@ -22,9 +22,9 @@ Spawn at a gas station → 5-minute loadout before Matthew Marx's white Chevy le
 - `src/roadgraph.js` — pure road-network graph, Dijkstra, arc-length walker
 - `src/truck.js` — the white Chevy: mesh, drive/board/ride/call
 - `src/cabbages.js` — pure seeded cabbage placement
-- `src/brands.js` — pure: the five cigarette brands (each its own inventory kind); tuning and shop caps live in `CONFIG`
+- `src/items.js` — pure: every item in one table (label, blurb, toasts, tuning, starting count, shop cap); edit items here. Meshes stay in `assets.js`, keyed by id
 - `src/packart.js` — canvas trade-dress art for the cigarette packs
-- `src/drinks.js` — pure: the drinks circa 2008 (energy drinks, liquor, beer, water; each its own inventory kind) and their containers; for sale at the tailgate, no effect yet
+- `src/drinks.js` — pure: drink container sizes and the per-family fit height; the drinks themselves (circa 2008, for sale at the tailgate, no effect yet) are entries in `items.js`
 - `src/canart.js` — canvas trade-dress art for the drink labels, as they looked circa 2008
 - `src/carousel.js` — pure: which items ride the inventory ring (carried, tailgate stock, cargo) and how the selection steps and wraps
 - `src/inventoryview.js` — the inventory carousel in 3D: its own scene and camera, drawn by the game renderer in place of the world while the inventory is open (the player freezes; the raid clock does not)

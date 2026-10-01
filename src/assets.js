@@ -1,9 +1,9 @@
 import * as THREE from 'three'
 import { applyPS1 } from './ps1.js'
 import { mulberry32, range } from './rng.js'
-import { BRANDS, isBrand } from './brands.js'
+import { ITEMS, isCigarette, isDrink, itemById } from './items.js'
 import { paintPack } from './packart.js'
-import { CONTAINERS, DRINKS, drinkById, isDrink } from './drinks.js'
+import { CONTAINERS } from './drinks.js'
 import { paintDrink } from './canart.js'
 
 // Every placed 3D asset in Bull Valley, defined once in asset-local space.
@@ -1019,7 +1019,7 @@ const DRINK_PARTS = {
 
 // glow: false leaves out the halo, for close-up views like the inventory.
 export function buildDrink(drinkId, { glow = true } = {}) {
-  const drink = drinkById(drinkId)
+  const drink = isDrink(drinkId) ? itemById(drinkId) : null
   if (!drink) throw new Error(`Unknown drink "${drinkId}"`)
   const art = paintDrink(drinkId)
   const size = CONTAINERS[drink.container]
@@ -1057,10 +1057,10 @@ export function buildDrink(drinkId, { glow = true } = {}) {
 // --- Pickups -------------------------------------------------------------
 
 // Every pickup lists the materials the game loop pulses in
-// userData.pulseMaterials. Kinds: 'cabbage', 'joints', a brand id, or a
-// drink id. glow: false leaves out the halo on packs, joints, and drinks.
+// userData.pulseMaterials. Kinds: 'cabbage', or an item id from items.js.
+// glow: false leaves out the halo on packs, joints, and drinks.
 export function buildPickup(kind, seed, { glow = true } = {}) {
-  if (isBrand(kind)) return buildCigarettePack(kind, seed, { glow })
+  if (isCigarette(kind)) return buildCigarettePack(kind, seed, { glow })
   if (kind === 'joints') return buildJoints({ glow })
   if (isDrink(kind)) return buildDrink(kind, { glow })
   let mesh
@@ -1122,13 +1122,13 @@ export const WORLD_ASSETS = [
     build: () => buildLandmarkBeacon('#e879f9'),
   },
   { id: 'cabbage', label: 'Cabbage', build: () => buildPickup('cabbage') },
-  ...BRANDS.map((b) => ({
-    id: `pack-${b.id}`,
-    label: `Pack: ${b.label}`,
-    build: () => buildCigarettePack(b.id),
+  ...ITEMS.filter((item) => item.category === 'cigarette').map((item) => ({
+    id: `pack-${item.id}`,
+    label: `Pack: ${item.label}`,
+    build: () => buildCigarettePack(item.id),
   })),
   { id: 'joints', label: 'Joints', build: () => buildPickup('joints') },
-  ...DRINKS.map((d) => ({
+  ...ITEMS.filter((item) => item.category === 'drink').map((d) => ({
     id: `drink-${d.id}`,
     label: `Drink: ${d.label}`,
     build: () => buildDrink(d.id),
