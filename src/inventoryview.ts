@@ -83,6 +83,7 @@ export function createInventoryView(): InventoryView {
   scene.add(ring)
   const slots = new Map<string, InventorySlot>() // kind -> slot, cached across opens
   let kinds = ''
+  let lastItems: readonly RingItem[] | null = null
   let position = 0 // continuous ring position, in slots
 
   function slotFor(kind: string): InventorySlot {
@@ -105,11 +106,16 @@ export function createInventoryView(): InventoryView {
   }
 
   function update(dt: number, items: readonly RingItem[], index: number): void {
-    const list = items.map((item) => item.kind).join(',')
-    if (list !== kinds) {
-      kinds = list
-      ring.clear()
-      for (const item of items) ring.add(slotFor(item.kind).holder)
+    // main.ts replaces the ring array only when the ring changes, so the
+    // kinds key is rebuilt only for a new array.
+    if (items !== lastItems) {
+      lastItems = items
+      const list = items.map((item) => item.kind).join(',')
+      if (list !== kinds) {
+        kinds = list
+        ring.clear()
+        for (const item of items) ring.add(slotFor(item.kind).holder)
+      }
     }
     const count = items.length
     if (count < 1) return

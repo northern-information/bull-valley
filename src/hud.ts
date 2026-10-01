@@ -41,6 +41,7 @@ export class Hud {
   nerves: HTMLDivElement
   nervesFill: HTMLElement
   timers: HTMLDivElement
+  timersHtml = ''
   phone: HTMLDivElement
   scopeCanvas: HTMLCanvasElement
   promptEl: HTMLParagraphElement
@@ -202,15 +203,22 @@ export class Hud {
     this.nerves.classList.toggle('bv-nerves--fuzzy', !!fuzzy)
   }
 
+  // The loop calls this every frame; the DOM changes only when a line does.
   setTimers(lines: string[]): void {
-    this.timers.innerHTML = lines
+    const html = lines
       .map((line) => `<span class="bv-timer">${line}</span>`)
       .join('')
+    if (html !== this.timersHtml) {
+      this.timersHtml = html
+      this.timers.innerHTML = html
+    }
   }
 
   prompt(text: string | null): void {
     this.promptEl.hidden = !text
-    if (text) this.promptEl.textContent = text
+    if (text && this.promptEl.textContent !== text) {
+      this.promptEl.textContent = text
+    }
   }
 
   toast(text: string): void {
