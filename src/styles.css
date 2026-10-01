@@ -9,6 +9,7 @@
   inset: 0;
   overflow: hidden;
   font-family: var(--bv-font, 'Inter', system-ui, sans-serif);
+  font-size: var(--bv-text-size, 0.66rem);
   font-variant-numeric: tabular-nums;
   color: var(--bv-eggshell);
   background: var(--fi-bg);
@@ -52,7 +53,6 @@
   background: var(--fi-surface-82);
   border: 1px solid var(--fi-green);
   box-shadow: 4px 4px 0 var(--fi-black-shadow);
-  font-size: 0.62rem;
   letter-spacing: 0.06em;
   max-width: 18rem;
 }
@@ -86,7 +86,6 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.62rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -129,7 +128,6 @@
 }
 
 .bv-timer {
-  font-size: 0.58rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   background: var(--fi-surface-82);
@@ -163,7 +161,6 @@
   padding: 0.3rem 0.7rem;
   background: var(--fi-surface-82);
   border: 1px solid var(--fi-cyan);
-  font-size: 0.66rem;
   letter-spacing: 0.08em;
 }
 
@@ -183,7 +180,6 @@
   padding: 0.3rem 0.7rem;
   background: var(--fi-surface-82);
   border: 1px solid var(--fi-green);
-  font-size: 0.66rem;
   letter-spacing: 0.08em;
   transition: opacity 0.8s;
 }
@@ -203,7 +199,6 @@
   background: var(--fi-surface-82);
   border: 1px solid var(--fi-paper-light);
   box-shadow: 6px 6px 0 var(--fi-black-shadow);
-  font-size: 0.68rem;
 }
 
 .bv-inventory h2 {
@@ -236,7 +231,6 @@
 .bv-inventory li i {
   grid-column: 2 / 4;
   font-style: normal;
-  font-size: 0.6rem;
 }
 
 [data-bv='shop'] h2 {
@@ -258,7 +252,6 @@
 
 .bv-inventory-hint {
   margin: 0.7rem 0 0;
-  font-size: 0.58rem;
   letter-spacing: 0.06em;
 }
 
@@ -326,18 +319,15 @@
 .bv-intro-note {
   margin: 0;
   max-width: 30rem;
-  font-size: 0.66rem;
   letter-spacing: 0.06em;
   line-height: 1.7;
 }
 
 .bv-intro-fine {
-  font-size: 0.58rem;
 }
 
 .bv-controls {
   border-collapse: collapse;
-  font-size: 0.62rem;
   letter-spacing: 0.06em;
 }
 
@@ -360,8 +350,7 @@
 }
 
 .bv-btn {
-  font-family: inherit;
-  font-size: 0.7rem;
+  font: inherit;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   padding: 0.55rem 1.1rem;
@@ -385,7 +374,6 @@
 @media (max-width: 900px) {
   .bv-head {
     max-width: 12rem;
-    font-size: 0.55rem;
   }
   .bv-scope {
     width: 10rem;
@@ -428,7 +416,7 @@
 
 .bv-splash-hint {
   font-family: var(--bv-font, 'Inter', system-ui, sans-serif);
-  font-size: 0.875rem;
+  font-size: var(--bv-text-size, 0.66rem);
   color: var(--bv-eggshell);
   opacity: 0.6;
   user-select: none;
