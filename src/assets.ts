@@ -717,36 +717,31 @@ export function buildSack(seed = 0x5ac4): THREE.Group {
 
 // --- Guitar --------------------------------------------------------------
 
-// A single-cutaway electric in cherry red, about a metre long. Local space:
-// the body centre at the origin, the neck up +Y, the strings facing +Z.
-// The body outline, anticlockwise from the bottom. The -X upper bout is cut
-// away to the neck, the way a single cutaway is.
+// A white Flying V, about a metre long. Local space: the body centre at the
+// origin, the neck up +Y, the strings facing +Z. The body outline runs
+// anticlockwise from the neck joint: down the -X wing to its tip, up into
+// the notch, and down the +X wing.
 const GUITAR_OUTLINE: [number, number][] = [
-  [0, -0.21],
-  [0.1, -0.19],
-  [0.16, -0.11],
-  [0.165, -0.01],
-  [0.12, 0.09],
-  [0.13, 0.17],
-  [0.1, 0.24],
-  [0.035, 0.26],
-  [-0.03, 0.25],
-  [-0.06, 0.17],
-  [-0.1, 0.14],
-  [-0.12, 0.09],
-  [-0.165, -0.01],
-  [-0.16, -0.11],
-  [-0.1, -0.19],
+  [0.045, 0.22],
+  [-0.045, 0.22],
+  [-0.13, 0.02],
+  [-0.22, -0.27],
+  [-0.17, -0.31],
+  [0, -0.12],
+  [0.17, -0.31],
+  [0.22, -0.27],
+  [0.13, 0.02],
 ]
-const GUITAR_DEPTH = 0.05
+const GUITAR_DEPTH = 0.045
+// The headstock's centre and its tilt back from the neck.
+const GUITAR_HEAD_Y = 0.77
+const GUITAR_HEAD_TILT = -0.25
 
 export function buildGuitar(): THREE.Group {
-  const cherry = lambert({ color: '#7a1c18' })
+  const white = lambert({ color: '#ebe9e3' })
   const black = lambert({ color: '#121214' })
   const wood = lambert({ color: '#3e2616' })
-  const cream = lambert({ color: '#d9cfa6' })
   const chrome = lambert({ color: '#a2a7ad' })
-  const gold = lambert({ color: '#c9a227' })
 
   const shape = new THREE.Shape()
   shape.moveTo(...GUITAR_OUTLINE[0])
@@ -773,52 +768,61 @@ export function buildGuitar(): THREE.Group {
     return mesh
   }
   const face = GUITAR_DEPTH / 2
-  add(bodyGeo, cherry, 0, 0, 0)
+  add(bodyGeo, white, 0, 0, 0)
   // The neck and fretboard, the headstock tilted back, and the tuners.
-  add(new THREE.BoxGeometry(0.056, 0.46, 0.026), wood, 0, 0.47, face - 0.008)
+  add(new THREE.BoxGeometry(0.056, 0.46, 0.026), wood, 0, 0.45, face - 0.008)
   const head = add(
     new THREE.BoxGeometry(0.085, 0.18, 0.018),
-    black,
+    white,
     0,
-    0.79,
+    GUITAR_HEAD_Y,
     face - 0.02
   )
-  head.rotation.x = -0.25
+  head.rotation.x = GUITAR_HEAD_TILT
   for (const side of [-1, 1]) {
     for (let i = 0; i < 3; i++) {
       // On the headstock's centre line, which tilts back with it.
-      const y = 0.74 + i * 0.045
+      const y = GUITAR_HEAD_Y - 0.05 + i * 0.045
       add(
         new THREE.BoxGeometry(0.03, 0.012, 0.012),
         chrome,
         side * 0.055,
         y,
-        face - 0.02 + (y - 0.79) * Math.sin(head.rotation.x)
+        face - 0.02 + (y - GUITAR_HEAD_Y) * Math.sin(GUITAR_HEAD_TILT)
       )
     }
   }
-  // Two cream pickups, the bridge and tailpiece, and four gold knobs.
-  for (const y of [0.11, -0.01]) {
-    add(new THREE.BoxGeometry(0.075, 0.04, 0.012), cream, 0, y, face + 0.006)
+  // Two black pickups, the bridge, the tailpiece, and three black knobs in
+  // a line down the +X wing.
+  for (const y of [0.13, 0.02]) {
+    add(new THREE.BoxGeometry(0.075, 0.04, 0.012), black, 0, y, face + 0.006)
   }
-  add(new THREE.BoxGeometry(0.08, 0.014, 0.012), chrome, 0, -0.06, face + 0.006)
-  add(new THREE.BoxGeometry(0.08, 0.016, 0.01), chrome, 0, -0.1, face + 0.005)
+  add(new THREE.BoxGeometry(0.08, 0.014, 0.012), chrome, 0, -0.03, face + 0.006)
+  add(new THREE.BoxGeometry(0.07, 0.02, 0.008), chrome, 0, -0.08, face + 0.004)
   for (const [x, y] of [
-    [0.07, -0.08],
-    [0.11, -0.06],
-    [0.075, -0.14],
-    [0.115, -0.12],
+    [0.1, -0.12],
+    [0.13, -0.18],
+    [0.16, -0.24],
   ]) {
     add(
-      new THREE.CylinderGeometry(0.012, 0.012, 0.016, 6),
-      gold,
+      new THREE.CylinderGeometry(0.012, 0.014, 0.016, 6),
+      black,
       x,
       y,
       face + 0.008
     ).rotation.x = Math.PI / 2
   }
   // The strings, as one pale strip from the tailpiece to the nut.
-  add(new THREE.BoxGeometry(0.03, 0.8, 0.003), chrome, 0, 0.3, face + 0.005)
+  add(new THREE.BoxGeometry(0.03, 0.76, 0.003), chrome, 0, 0.3, face + 0.005)
+  return group
+}
+
+// The guitar standing on its wing tips, for Akashic.
+function sampleGuitar(): THREE.Group {
+  const guitar = buildGuitar()
+  guitar.position.y = -Math.min(...GUITAR_OUTLINE.map(([, y]) => y))
+  const group = new THREE.Group()
+  group.add(guitar)
   return group
 }
 
@@ -1637,7 +1641,7 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     build: () => buildDrink(d.id),
   })),
   { id: 'sack', label: 'Burlap sack', build: () => buildSack() },
-  { id: 'guitar', label: 'Guitar', build: buildGuitar },
+  { id: 'guitar', label: 'Guitar: white Flying V', build: sampleGuitar },
 ]
 
 // Bounds from meshes only: glow sprites are unit planes scaled up, and would
