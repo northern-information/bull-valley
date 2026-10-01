@@ -1,15 +1,16 @@
 // Inventory state: pure transforms plus a localStorage adapter. The storage
 // handle is injected so tests can pass a stub and the browser can pass
 // window.localStorage; every touch of real storage is wrapped in try/catch
-// (private windows, blocked site data). Kinds are the brand ids from
-// brands.js, joints, and the drink ids from drinks.js.
+// (private windows, blocked site data). Kinds and starting counts come
+// from items.js.
 
-import { BRAND_IDS } from './brands.js'
-import { DRINK_IDS } from './drinks.js'
+import { INVENTORY_KINDS, itemById } from './items.js'
 
-export const KINDS = [...BRAND_IDS, 'joints', ...DRINK_IDS]
+export const KINDS = INVENTORY_KINDS
 
-export const STARTING_INVENTORY = normalize({ marlboro: 2, joints: 1 })
+export const STARTING_INVENTORY = normalize(
+  Object.fromEntries(KINDS.map((kind) => [kind, itemById(kind).start]))
+)
 
 const KEY = 'bull-valley-shadow-wars:v1:inventory'
 

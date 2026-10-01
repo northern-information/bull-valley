@@ -25,8 +25,12 @@ import {
 } from './roadgraph.js'
 import { KEEP } from './landmarks.js'
 import { addItem, useItem, loadInventory, saveInventory } from './inventory.js'
-import { brandById, brandToSmoke, isBrand } from './brands.js'
-import { drinkById, isDrink } from './drinks.js'
+import {
+  cigaretteToSmoke,
+  isCigarette,
+  itemById,
+  shopStock as freshShopStock,
+} from './items.js'
 import { ringItems, stepIndex, syncIndex } from './carousel.js'
 import { createInventoryView } from './inventoryview.js'
 import {
@@ -44,12 +48,7 @@ const DATA_BASE = '/data/bull-valley'
 
 function pickupLabel({ kind, count }) {
   if (kind === 'cabbage') return 'Cabbage'
-  const name = isBrand(kind)
-    ? brandById(kind).label
-    : isDrink(kind)
-      ? drinkById(kind).label
-      : 'Joints'
-  return `${name} ×${count}`
+  return `${itemById(kind).label} ×${count}`
 }
 
 async function boot() {
@@ -228,16 +227,11 @@ async function boot() {
 
   // --- Game state ----------------------------------------------------------
   let inventory = loadInventory(window.localStorage)
-  // The brand a bare 1 smokes: the last one picked in the inventory.
-  let selectedBrand = null
+  // The cigarette a bare 1 smokes: the last one picked in the inventory.
+  let selectedCigarette = null
   let raid = createRaid(0)
   let raidClock = 0 // advances only while the pointer is locked
-  const shopStock = {
-    cigarettes: { ...CONFIG.shop.cigarettes },
-    joints: CONFIG.shop.joints,
-    drinks: { ...CONFIG.shop.drinks },
-    sack: 1,
-  }
+  const shopStock = freshShopStock()
   // The carousel: ring entries from carousel.js, the selected slot, and
   // its kind so the selection survives the ring changing.
   const inventoryView = createInventoryView()
@@ -304,7 +298,7 @@ async function boot() {
     if (ring.length < 2) return
     ringIndex = stepIndex(ringIndex, ring.length, dir)
     ringKind = ring[ringIndex].kind
-    if (isBrand(ringKind)) selectedBrand = ringKind
+    if (isCigarette(ringKind)) selectedCigarette = ringKind
     refreshRing()
   }
 
@@ -363,29 +357,18 @@ async function boot() {
       raid = next
       shopStock.sack = 0
       refreshRing()
-      hud.toast('The burlap sack. Room for five.')
+      hud.toast(itemById('sack').bought)
       return
     }
-    const stock = isBrand(kind)
-      ? shopStock.cigarettes
-      : isDrink(kind)
-        ? shopStock.drinks
-        : shopStock
-    if (stock[kind] < 1) {
+    if (!(shopStock[kind] > 0)) {
       hud.toast('The tailgate is bare.')
       return
     }
-    stock[kind] -= 1
+    shopStock[kind] -= 1
     inventory = addItem(inventory, kind, 1)
     saveInventory(window.localStorage, inventory)
     refreshRing()
-    hud.toast(
-      isBrand(kind)
-        ? `One pack of ${brandById(kind).label}, pocketed.`
-        : isDrink(kind)
-          ? `One ${drinkById(kind).label}, pocketed.`
-          : 'One joint, pocketed.'
-    )
+    hud.toast(itemById(kind).bought)
   }
 
   // --- Input ---------------------------------------------------------------
@@ -448,36 +431,34 @@ async function boot() {
     if (!inventoryOpen) player.handleMouse(e.movementX, e.movementY)
   })
 
-  // kind: a brand id, 'joints', or 'smoke' for the selected brand.
+  // kind: a cigarette id, 'joints', or 'smoke' for the selected cigarette.
   const useKind = (kind) => {
     if (kind === 'smoke') {
-      kind = brandToSmoke(inventory, selectedBrand)
+      kind = cigaretteToSmoke(inventory, selectedCigarette)
       if (!kind) {
         hud.toast('No cigarettes left.')
         return
       }
     }
-    if (isBrand(kind) && time < smokingUntil) return
+    const item = itemById(kind)
+    const smoke = item.category === 'cigarette'
+    if (smoke && time < smokingUntil) return
     const result = useItem(inventory, kind)
     if (!result.used) {
-      hud.toast(
-        isBrand(kind) ? `No ${brandById(kind).label} left.` : 'No joints left.'
-      )
+      hud.toast(item.empty)
       return
     }
     inventory = result.inv
-    if (isBrand(kind)) selectedBrand = kind
+    if (smoke) selectedCigarette = kind
     saveInventory(window.localStorage, inventory)
     refreshRing()
-    if (isBrand(kind)) {
-      const tune = CONFIG.items.cigarettes[kind]
-      smokingUntil = time + tune.smokeSeconds
-      emberUntil = smokingUntil + tune.emberSeconds
-      hud.toast(brandById(kind).lit)
+    if (smoke) {
+      smokingUntil = time + item.smokeSeconds
+      emberUntil = smokingUntil + item.emberSeconds
     } else {
-      perceptionUntil = time + CONFIG.items.perceptionSeconds
-      hud.toast('You spark the joint. The valley sharpens.')
+      perceptionUntil = time + item.perceptionSeconds
     }
+    hud.toast(item.used)
   }
 
   const takePickup = () => {

@@ -11,21 +11,23 @@ import { STARTING_INVENTORY } from '../../src/inventory.js'
 const kinds = (items) => items.map((item) => item.kind)
 const empty = { ...STARTING_INVENTORY, marlboro: 0, joints: 0 }
 const shop = {
-  cigarettes: { marlboro: 2, camel: 0, parliament: 1, newport: 0, djarum: 0 },
+  marlboro: 2,
+  camel: 0,
+  parliament: 1,
+  newport: 0,
+  djarum: 0,
   joints: 2,
-  drinks: {
-    monster: 0,
-    'monster-ultra': 0,
-    'red-bull': 2,
-    'rip-it': 0,
-    rockstar: 0,
-    nos: 0,
-  },
+  monster: 0,
+  'monster-ultra': 0,
+  'red-bull': 2,
+  'rip-it': 0,
+  rockstar: 0,
+  nos: 0,
   sack: 1,
 }
 
 describe('ringItems', () => {
-  it('shows only what the player carries, in brand order then joints', () => {
+  it('shows only what the player carries, in item order', () => {
     const inv = { ...empty, newport: 1, camel: 3, joints: 1 }
     expect(kinds(ringItems(inv, createRaid(0), null))).toEqual([
       'camel',

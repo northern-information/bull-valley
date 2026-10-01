@@ -7,7 +7,8 @@
 import * as THREE from 'three'
 import { buildPickup, buildSack, meshBounds } from './assets.js'
 import { wrapDelta } from './carousel.js'
-import { drinkFitHeight, isDrink } from './drinks.js'
+import { drinkFitHeight } from './drinks.js'
+import { isDrink } from './items.js'
 
 // Ring radii (x across the screen, z toward the camera), the size every
 // model is fitted to, and how fast things move.

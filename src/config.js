@@ -36,21 +36,10 @@ export const CONFIG = {
     detectThreshold: 6,
   },
   items: {
-    // Cigarettes: nerves drain hard while smoking, but the ember raises the
-    // shadowmen's detection range while lit and for emberSeconds after.
-    // Per brand (ids from brands.js); crackle adds the kretek's clove pop.
-    cigarettes: {
-      marlboro: { smokeSeconds: 12, emberSeconds: 20 },
-      camel: { smokeSeconds: 14, emberSeconds: 20 },
-      parliament: { smokeSeconds: 13, emberSeconds: 16 },
-      newport: { smokeSeconds: 9, emberSeconds: 14 },
-      djarum: { smokeSeconds: 18, emberSeconds: 26, crackle: true },
-    },
+    // Per-item tuning lives in src/items.js. Cigarettes: nerves drain hard
+    // while smoking, but the ember scales the shadowmen's detection range
+    // by this while lit and for emberSeconds after.
     emberDetectScale: 1.5,
-    // Joint: two minutes of perception — shadowmen resolve through the murk —
-    // but the nerves meter reads soft and slow the whole time.
-    jointSeconds: 15,
-    perceptionSeconds: 120,
   },
   scope: {
     rangeMetres: 250,
@@ -86,42 +75,12 @@ export const CONFIG = {
   },
   cabbage: {
     count: 48,
+    // Arms only; the sack's limit is in src/items.js.
     carryLimit: 3,
-    sackCarryLimit: 5,
     dropRadius: 12,
   },
   extract: {
     fuelRadius: 12,
     keepRadius: 25,
-  },
-  shop: {
-    // Per-raid purchase caps; there is no currency yet. Packs per brand.
-    cigarettes: {
-      marlboro: 2,
-      camel: 2,
-      parliament: 2,
-      newport: 2,
-      djarum: 2,
-    },
-    joints: 2,
-    // Cans and bottles per drink.
-    drinks: {
-      monster: 2,
-      'monster-ultra': 2,
-      'red-bull': 2,
-      'rip-it': 2,
-      rockstar: 2,
-      nos: 1,
-      'four-loko-blue': 1,
-      'four-loko-punch': 1,
-      'four-loko-lemon': 1,
-      'wild-turkey': 1,
-      'jim-beam': 1,
-      'grey-goose': 1,
-      pbr: 3,
-      modelo: 3,
-      'md-2020': 1,
-      'ice-mountain': 3,
-    },
   },
 }

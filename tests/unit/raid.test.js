@@ -8,6 +8,7 @@ import {
   summary,
 } from '../../src/raid.js'
 import { CONFIG } from '../../src/config.js'
+import { itemById } from '../../src/items.js'
 
 describe('raid state machine', () => {
   it('starts in LOADOUT with the truck timer set', () => {
@@ -63,11 +64,11 @@ describe('raid state machine', () => {
     let sacked = createRaid(0)
     sacked = advance(sacked, EVENTS.BUY_SACK, 10)
     expect(sacked.sack).toBe(true)
-    expect(carryLimit(sacked)).toBe(CONFIG.cabbage.sackCarryLimit)
+    expect(carryLimit(sacked)).toBe(itemById('sack').carryLimit)
     sacked = advance(sacked, EVENTS.TIMER_EXPIRED, 300)
     for (let i = 0; i < 10; i++)
       sacked = advance(sacked, EVENTS.PICK_CABBAGE, 310)
-    expect(sacked.carrying).toBe(CONFIG.cabbage.sackCarryLimit)
+    expect(sacked.carrying).toBe(itemById('sack').carryLimit)
   })
 
   it('only sells the sack during loadout, once', () => {
