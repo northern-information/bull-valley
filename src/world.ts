@@ -39,6 +39,7 @@ import type {
   UnitPoint,
   XZ,
 } from './interfaces.ts'
+import type { PickupKind } from './items.ts'
 import type { Rng } from './rng.ts'
 
 const PACK_SEED = 0xc16a7e
@@ -69,8 +70,7 @@ export interface LandmarkPoint extends XZ {
 }
 
 export interface Pickup extends XZ {
-  // 'cabbage', or an item id from items.ts.
-  kind: string
+  kind: PickupKind
   count: number
   mesh: THREE.Object3D
   taken: boolean
@@ -763,7 +763,7 @@ function buildPickups(
   const place = (
     x: number,
     z: number,
-    kind: string,
+    kind: PickupKind,
     count: number,
     seed?: number,
     yaw = 0
