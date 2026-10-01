@@ -376,7 +376,8 @@ export const PACK = {
   glowScale: 0.9,
 }
 
-function packTexture({ c }: CanvasArt): THREE.CanvasTexture {
+// A painted canvas as a texture, in sRGB like the CSS colors it was drawn in.
+export function artTexture({ c }: CanvasArt): THREE.CanvasTexture {
   const texture = new THREE.CanvasTexture(c)
   texture.colorSpace = THREE.SRGBColorSpace
   return texture
@@ -439,7 +440,7 @@ export function buildCigarettePack(
   pack.name = `pack-${brandId}`
   const pulse: THREE.MeshLambertMaterial[] = []
   const face = (canvasArt: CanvasArt): THREE.MeshLambertMaterial => {
-    const m = packFace(packTexture(canvasArt))
+    const m = packFace(artTexture(canvasArt))
     pulse.push(m)
     return m
   }
@@ -1220,7 +1221,7 @@ export function buildDrink(
   const pulse: THREE.MeshLambertMaterial[] = []
   const mats: DrinkMaterials = {
     face(canvasArt) {
-      const m = packFace(packTexture(need(canvasArt, 'label canvas')))
+      const m = packFace(artTexture(need(canvasArt, 'label canvas')))
       pulse.push(m)
       return m
     },

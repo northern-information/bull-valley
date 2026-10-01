@@ -8,7 +8,10 @@ import type { JointName } from './poses.ts'
 export const BODY_SLOTS = ['skin', 'hair', 'shirt', 'pants', 'boots'] as const
 
 export type BodySlot = (typeof BODY_SLOTS)[number]
-export type ColorSlot = BodySlot | 'coat' | 'glasses'
+export type ColorSlot = BodySlot | 'coat' | 'glasses' | 'buckle'
+
+// Painted art printed on a part; decalart.ts paints each one.
+export type DecalId = 'suicide-silence' | 'russ'
 
 export type Vec3 = [number, number, number]
 
@@ -30,12 +33,22 @@ export interface LoftAddon extends AddonBase {
 
 export interface BoxAddon extends AddonBase {
   box: Vec3
+  // Painted on the front (+Z) face; the other faces take the slot color.
+  decal?: DecalId
 }
 
 export type Addon = LoftAddon | BoxAddon
 
 export type AddonId =
-  'beard' | 'dreadlocks' | 'glasses' | 'glasses-arms' | 'coat-hem' | 'hood'
+  | 'beard'
+  | 'goatee'
+  | 'mustache'
+  | 'dreadlocks'
+  | 'glasses'
+  | 'glasses-arms'
+  | 'coat-hem'
+  | 'hood'
+  | 'buckle'
 
 export type LimbGroup = 'arm' | 'leg'
 
@@ -44,9 +57,13 @@ export interface Outfit {
   colors: Record<BodySlot, string> & Partial<Record<ColorSlot, string>>
   addons: AddonId[]
   proportions?: Partial<Record<LimbGroup, number>>
+  // 'short' leaves the forearms bare, for a t-shirt.
+  sleeves?: 'short'
+  // Printed across the shirt front, on the chest.
+  shirtPrint?: DecalId
 }
 
-export type OutfitId = 'marx' | 'player' | 'shadow'
+export type OutfitId = 'marx' | 'player' | 'shadow' | 'coleman'
 
 // Dreadlocks hang from a ring round the back and sides of the head, leaving
 // the face clear. Angles are around the head from +X toward +Z (the face).
@@ -70,6 +87,23 @@ export const ADDONS: Record<AddonId, Addon> = {
       [0.1, 0.085, 0.095, 0.02],
       [0.16, 0.093, 0.108, 0.005],
     ],
+  },
+  // A chin beard only: narrow and forward, clear of the jaw line.
+  goatee: {
+    joint: 'neck',
+    slot: 'hair',
+    rings: [
+      [0.055, 0.022, 0.03, 0.068],
+      [0.085, 0.036, 0.04, 0.07],
+      [0.125, 0.034, 0.035, 0.074],
+    ],
+  },
+  // The goatee's upper lip, under the nose.
+  mustache: {
+    joint: 'neck',
+    slot: 'hair',
+    box: [0.06, 0.014, 0.02],
+    offset: [0, 0.137, 0.1],
   },
   dreadlocks: {
     joint: 'neck',
@@ -108,6 +142,14 @@ export const ADDONS: Record<AddonId, Addon> = {
       [-0.12, 0.2, 0.14, 0],
       [-0.3, 0.215, 0.155, -0.01],
     ],
+  },
+  // A belt buckle on the front of the waistband.
+  buckle: {
+    joint: 'pelvis',
+    slot: 'buckle',
+    box: [0.075, 0.048, 0.012],
+    offset: [0, 0.035, 0.108],
+    decal: 'russ',
   },
   hood: {
     joint: 'neck',
@@ -160,6 +202,21 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     addons: ['hood'],
     // "Arms: too long" — the silhouette cards in shadowmen.ts.
     proportions: { arm: 1.4, leg: 1.12 },
+  },
+  coleman: {
+    label: 'David Coleman',
+    colors: {
+      skin: '#efcfb4',
+      // A buzz cut: the short hair cap, in light brown.
+      hair: '#9c7a58',
+      shirt: '#ecebe6',
+      pants: '#16161a',
+      boots: '#060607',
+      buckle: '#c9a227',
+    },
+    addons: ['goatee', 'mustache', 'buckle'],
+    sleeves: 'short',
+    shirtPrint: 'suicide-silence',
   },
 }
 

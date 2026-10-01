@@ -8,10 +8,16 @@
 // Body space: origin at the feet, facing +Z, left side +X.
 
 import * as THREE from 'three'
-import { lambert, makeGlowSprite, makeGlowTexture } from './assets.ts'
+import {
+  artTexture,
+  lambert,
+  makeGlowSprite,
+  makeGlowTexture,
+} from './assets.ts'
+import { DECAL_PAINTERS, SHIRT_FRONT } from './decalart.ts'
 import { ADDONS, outfitById } from './outfits.ts'
 import { JOINTS } from './poses.ts'
-import type { LoftRing, OutfitId, Vec3 } from './outfits.ts'
+import type { DecalId, LoftRing, OutfitId, Vec3 } from './outfits.ts'
 import type { JointName, PoseSample } from './poses.ts'
 
 // A built body: its root group, one pivot per joint, and the hip height
@@ -42,6 +48,27 @@ function material(color: string): THREE.MeshLambertMaterial {
   if (!found) {
     found = lambert({ color })
     materials.set(color, found)
+  }
+  return found
+}
+
+// One material per decal. A print is a transparent overlay: alphaTest keeps
+// only the painted pixels, and the polygon offset pulls it in front of the
+// shirt it lies on, vertex for vertex.
+const decals = new Map<DecalId, THREE.MeshLambertMaterial>()
+function decalMaterial(id: DecalId, print = false): THREE.MeshLambertMaterial {
+  let found = decals.get(id)
+  if (!found) {
+    found = lambert({
+      map: artTexture(DECAL_PAINTERS[id]()),
+      ...(print && {
+        alphaTest: 0.5,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -4,
+      }),
+    })
+    decals.set(id, found)
   }
   return found
 }
@@ -102,6 +129,51 @@ export function loft(
     geometry.computeVertexNormals()
     return geometry
   })
+}
+
+// The front half of loft(rings, sides), from +X round to -X, with no caps
+// and with UVs projected straight on from the front over a width x height
+// area centred on x = 0 from y = 0: a print follows the body's facets.
+function frontLoft(
+  rings: readonly RingInput[],
+  sides: number,
+  width: number,
+  height: number
+): THREE.BufferGeometry {
+  return cached(
+    `front|${sides}|${width}|${height}|${JSON.stringify(rings)}`,
+    () => {
+      const sorted = [...rings].sort((a, b) => a[0] - b[0])
+      const around = sides / 2 + 1
+      const positions: number[] = []
+      const uvs: number[] = []
+      const index: number[] = []
+      for (const [y, rx, rz, cz = 0] of sorted) {
+        for (let k = 0; k < around; k++) {
+          const a = (k / sides) * Math.PI * 2
+          const x = Math.cos(a) * rx
+          positions.push(x, y, Math.sin(a) * rz + cz)
+          uvs.push(0.5 + x / width, y / height)
+        }
+      }
+      const at = (i: number, k: number) => i * around + k
+      for (let i = 0; i < sorted.length - 1; i++) {
+        for (let k = 0; k < around - 1; k++) {
+          index.push(at(i, k), at(i + 1, k), at(i + 1, k + 1))
+          index.push(at(i, k), at(i + 1, k + 1), at(i, k + 1))
+        }
+      }
+      const geometry = new THREE.BufferGeometry()
+      geometry.setAttribute(
+        'position',
+        new THREE.Float32BufferAttribute(positions, 3)
+      )
+      geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2))
+      geometry.setIndex(index)
+      geometry.computeVertexNormals()
+      return geometry
+    }
+  )
 }
 
 function box(w: number, h: number, d: number): THREE.BufferGeometry {
@@ -242,6 +314,15 @@ export function buildFigure(
 
   const spine = pivot(pelvis, built, 'spine', 0, 0.07, 0)
   part(spine, loft(TORSO, 8), c.shirt)
+  if (outfit.shirtPrint) {
+    const { width, height } = SHIRT_FRONT
+    spine.add(
+      new THREE.Mesh(
+        frontLoft(TORSO, 8, width, height),
+        decalMaterial(outfit.shirtPrint, true)
+      )
+    )
+  }
 
   const neck = pivot(spine, built, 'neck', 0, 0.48, 0)
   part(neck, loft(NECK), c.skin)
@@ -267,7 +348,8 @@ export function buildFigure(
     )
     part(shoulder, loft(stretch(UPPER_ARM, arm)), c.shirt)
     const elbow = pivot(shoulder, built, `elbow${side}`, 0, -upperArm, 0)
-    part(elbow, loft(stretch(FOREARM, arm)), c.shirt)
+    const sleeve = outfit.sleeves === 'short' ? c.skin : c.shirt
+    part(elbow, loft(stretch(FOREARM, arm)), sleeve)
     part(elbow, loft(HAND), c.skin, 0, -foreArm, 0)
     part(elbow, box(0.025, 0.05, 0.025), c.skin, 0, -foreArm - 0.035, 0.04)
 
@@ -288,7 +370,24 @@ export function buildFigure(
     const spots: Vec3[] = addon.offsets || [addon.offset || [0, 0, 0]]
     for (const at of spots) {
       // An add-on slot the outfit leaves out has no color, as before.
-      part(joints[addon.joint], geometry, c[addon.slot] as string, ...at)
+      const mesh = part(
+        joints[addon.joint],
+        geometry,
+        c[addon.slot] as string,
+        ...at
+      )
+      // BoxGeometry faces run +X, -X, +Y, -Y, +Z, -Z; the decal takes +Z.
+      if ('decal' in addon && addon.decal) {
+        const plain = mesh.material as THREE.MeshLambertMaterial
+        mesh.material = [
+          plain,
+          plain,
+          plain,
+          plain,
+          decalMaterial(addon.decal),
+          plain,
+        ]
+      }
     }
   }
 
