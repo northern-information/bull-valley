@@ -21,7 +21,7 @@
 // and buildings are never requested, so no output of this script can point at
 // a private home. Hand-placed landmarks, including the one private home
 // (Mt. Coleman's Keep, added with its owner's consent), live in
-// src/landmarks.js and are not fetched here.
+// src/landmarks.ts and are not fetched here.
 //
 // Outputs (public/data/bull-valley/):
 //   geo.json     boundary, roads, water, reserves, and AADT segments, projected
@@ -59,7 +59,7 @@ const UA = 'bull-valley-shadow-wars/0.1 (+https://forgottenindustries.org)'
 // to bring the perimeter stations inside the playable square: the west cluster
 // (BP, Shell, Mobil, Murphy USA, Casey's at 5-6.5 km W), the east cluster
 // (Marathon, Citgo, Mobil at 6.3-6.8 km E), and the north BP. Mt. Coleman's
-// Keep (src/landmarks.js) and the Cabbage Stand sit comfortably interior.
+// Keep (src/landmarks.ts) and the Cabbage Stand sit comfortably interior.
 const BBOX = { south: 42.2655, west: -88.4575, north: 42.4015, east: -88.2745 }
 // With the wider frame the stations are inside it; fuel searches the same box.
 const FUEL_BBOX = BBOX
@@ -68,6 +68,11 @@ const TERRAIN_SIZE = 1024
 const TERRAIN_ZOOM = 13
 // How long to wait on IDOT before treating it as unreachable.
 const IDOT_TIMEOUT_MS = 60_000
+// How long to wait on any other request. Overpass gets [timeout:60] in the
+// query itself, so this leaves it room to answer.
+const REQUEST_TIMEOUT_MS = 90_000
+// Tries per terrain tile when S3 is unreachable.
+const TILE_TRIES = 3
 
 const OVERPASS = [
   'https://overpass-api.de/api/interpreter',
@@ -105,6 +110,7 @@ const project = (lon, lat) => [
 
 async function fetchJson(url, init = {}) {
   const res = await fetch(url, {
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     ...init,
     headers: { 'User-Agent': UA, ...(init.headers || {}) },
   })
@@ -204,6 +210,9 @@ out tags center;`
     }
     const line = el.geometry.map((p) => project(p.lon, p.lat))
     if (t.highway) {
+      // The query asks only for public classes, but the reply can come from
+      // a third-party mirror. Never keep a driveway or service road.
+      if (!ROAD_CLASSES.includes(t.highway)) continue
       roads.push({
         c: t.highway.replace('_link', ''),
         n: t.name || '',
@@ -263,7 +272,18 @@ async function fetchTraffic() {
 // and projected into the current one, plus estimates for major roads north of
 // the envelope IDOT was queried with. See --reuse-traffic in the header.
 function reuseTraffic(roads) {
-  const prev = JSON.parse(fs.readFileSync(path.join(OUT, 'geo.json'), 'utf8'))
+  const file = path.join(OUT, 'geo.json')
+  let prev
+  try {
+    prev = JSON.parse(fs.readFileSync(file, 'utf8'))
+  } catch (err) {
+    throw new Error(`cannot reuse traffic: ${file} is unreadable`, {
+      cause: err,
+    })
+  }
+  if (!prev?.bbox || !Array.isArray(prev.traffic)) {
+    throw new Error(`cannot reuse traffic: ${file} has no bbox or traffic`)
+  }
   const b = prev.bbox
   const envelope = prev.trafficBbox || prev.bbox
   const measured = prev.traffic
@@ -362,6 +382,28 @@ function estimateTraffic(roads, measured, envelope) {
   return out
 }
 
+// One terrain tile as PNG bytes. Retries an unreachable S3; any other
+// failure stops the run.
+async function fetchTile(url) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const res = await fetch(url, {
+        headers: { 'User-Agent': UA },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      })
+      if (!res.ok) {
+        const err = new Error(`${res.status} for ${url}`)
+        err.status = res.status
+        throw err
+      }
+      return Buffer.from(await res.arrayBuffer())
+    } catch (err) {
+      if (attempt >= TILE_TRIES || !isUnreachable(err)) throw err
+      console.warn(`[terrain] ${url} failed (${err.message}); retrying`)
+    }
+  }
+}
+
 // Web Mercator tile maths.
 const lonToTileX = (lon, z) => ((lon + 180) / 360) * 2 ** z
 const latToTileY = (lat, z) => {
@@ -384,9 +426,8 @@ async function fetchTerrain() {
   for (let ty = y0; ty <= y1; ty++) {
     for (let tx = x0; tx <= x1; tx++) {
       const url = `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${tx}/${ty}.png`
-      const res = await fetch(url, { headers: { 'User-Agent': UA } })
-      if (!res.ok) throw new Error(`${res.status} for ${url}`)
-      const { data, info } = await sharp(Buffer.from(await res.arrayBuffer()))
+      const png = await fetchTile(url)
+      const { data, info } = await sharp(png)
         .removeAlpha()
         .raw()
         .toBuffer({ resolveWithObject: true })
@@ -449,14 +490,33 @@ async function fetchTerrain() {
     pixels[k * 3] = v >> 8
     pixels[k * 3 + 1] = v & 255
   }
-  await sharp(pixels, { raw: { width: N, height: N, channels: 3 } })
+  const png = await sharp(pixels, { raw: { width: N, height: N, channels: 3 } })
     .png({ compressionLevel: 9 })
-    .toFile(path.join(OUT, 'terrain.png'))
+    .toBuffer()
 
   return {
-    size: N,
-    min: Math.round(min * 10) / 10,
-    max: Math.round(max * 10) / 10,
+    range: {
+      size: N,
+      min: Math.round(min * 10) / 10,
+      max: Math.round(max * 10) / 10,
+    },
+    png,
+  }
+}
+
+// geo.json holds the range that decodes terrain.png, so the two files must
+// change together. Both go to temporary files first; the renames run only
+// after both writes succeed.
+function writeOutputs(geo, terrainPng) {
+  const files = [
+    ['geo.json', JSON.stringify(geo)],
+    ['terrain.png', terrainPng],
+  ]
+  for (const [name, data] of files) {
+    fs.writeFileSync(path.join(OUT, `${name}.tmp`), data)
+  }
+  for (const [name] of files) {
+    fs.renameSync(path.join(OUT, `${name}.tmp`), path.join(OUT, name))
   }
 }
 
@@ -490,7 +550,7 @@ async function main() {
     }
   }
   const { traffic, trafficFetched, trafficBbox } = result
-  const terrain = await fetchTerrain()
+  const { range: terrain, png: terrainPng } = await fetchTerrain()
   const geo = {
     fetched: today,
     trafficFetched,
@@ -507,7 +567,7 @@ async function main() {
       terrain: 'AWS Terrain Tiles (Terrarium), USGS 3DEP',
     },
   }
-  fs.writeFileSync(path.join(OUT, 'geo.json'), JSON.stringify(geo))
+  writeOutputs(geo, terrainPng)
   console.log(
     `boundary rings ${boundary.length}, roads ${osm.roads.length}, water ${osm.water.length}, ` +
       `wetland ${osm.wetland.length}, reserves ${osm.reserves.length}, graveyards ${osm.graveyards.length}, ` +
@@ -517,7 +577,9 @@ async function main() {
   console.log(`traffic source: ${trafficSource}, counts from ${trafficFetched}`)
 }
 
-module.exports = { isUnreachable }
+// fetchTerrain is exported so the terrain step can be checked alone against
+// the committed terrain.png, without Overpass or IDOT.
+module.exports = { isUnreachable, fetchTerrain }
 
 if (require.main === module) {
   main().catch((err) => {
