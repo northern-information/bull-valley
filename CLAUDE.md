@@ -4,13 +4,14 @@ An extraction adventure RPG set in a hauntological Bull Valley, Illinois. 3D fir
 
 ## Commands
 
-- `npm run dev` — Vite dev server on port 5174
+- `npm run dev` — Vite dev server on port 5174. The Cloudflare Worker and its Durable Object run beside it in workerd (`@cloudflare/vite-plugin`), so this is the whole stack: open two windows and they meet in the valley. Dev state lives in `.wrangler/state`
 - `localhost:5174/akashic` — dev-only asset viewer (`akashic.html`, not in the build): one asset at a time through the game's PS1 pipeline, ←/→ to cycle, `#<id>` deep links, hook `window.__akashic` (ids, select, setView). Check asset edits here before a raid.
-- `npm run build` / `npm run preview` — type check, then production bundle
-- `npm run typecheck` — strict `tsc -b` over `src`, `tests`, and the TS configs
+- `npm run build` / `npm run preview` — type check, then production bundle: `dist/client/` and the Worker bundle with its generated `wrangler.json`, which `wrangler deploy` is pointed at through `.wrangler/deploy/config.json`
+- `npm run typecheck` — `wrangler types` (writes the gitignored `worker-configuration.d.ts`), then strict `tsc -b` over `src`, `tests`, the TS configs, and `worker/`
+- `npm run deploy` — build, then `wrangler deploy` to the `workers.dev` URL. CI does this from `.github/workflows/deploy.yml` after a green CI run on `main` (secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`); a `workflow_dispatch` from `main` also deploys
 - `npm run lint` / `npm run lint:css` — ESLint (typescript-eslint, type-aware: mark a fire-and-forget promise with `void`) and Stylelint
-- `npm test` / `npm run test:watch` / `npm run test:unit:coverage` — vitest unit tests (`tests/unit/`); coverage lists every file in `src`
-- `npm run test:e2e` — Playwright (`tests/e2e/`) against its own Vite dev server on port 5175; never against `preview`, since the dev hooks exist only in dev builds. First run: `npx playwright install chromium`
+- `npm test` / `npm run test:watch` / `npm run test:unit:coverage` — vitest unit tests (`tests/unit/`) and the Worker tests (`tests/worker/`, mock sockets and a stub `cloudflare:workers`); coverage lists every file in `src` and `worker`
+- `npm run test:e2e` — Playwright (`tests/e2e/`) against its own Vite dev server on port 5175 in `--mode test` (valley state in memory); never against `preview`, since the dev hooks exist only in dev builds. First run: `npx playwright install chromium`
 - `npm run pretty` — prettier (sorts imports too); run before every commit. `npm run format:check` checks without writing
 - CI (`.github/workflows/ci.yml`) runs on every PR to `main` and every push to `main`: format, lint, types, unit tests with coverage (the pure modules have a per-file floor in `vitest.config.ts`), build, and e2e. The e2e job runs in the Playwright Docker image as two parallel jobs: the `@raid` group, and every other spec
 - `npm run fetch:data` — regenerate `public/data/bull-valley/` (network: Nominatim, Overpass, AWS terrain tiles; `--reuse-traffic` skips IDOT)
@@ -19,11 +20,23 @@ An extraction adventure RPG set in a hauntological Bull Valley, Illinois. 3D fir
 
 Spawn at a gas station → 5-minute loadout before Matthew Marx's white Chevy leaves → ride the bed, hop out anywhere → find cabbages in the wilderness → drop them at the Bull Valley Cabbage Stand → extract at another station, Mt. Coleman's Keep, or call the truck (`T`). Shadowmen cross the valley around you and show on the scope (`Q`); one that passes close rushes, and its touch puts you back at the spawn Citgo with everything you had.
 
+## Multiplayer
+
+One Cloudflare Worker serves the bundle and routes `/ws` to one Durable Object, `ValleyDO`, named `bull-valley`: everyone online is in the same valley. Each socket's player lives in its attachment (WebSocket Hibernation API); nothing is stored yet. The client sends a state frame (`x y z yaw pose riding`) at most `CONFIG.net.sendHz` a second and only when it changed; peers are drawn `CONFIG.net.interpolateMs` behind the present, between their last two frames. Same origin, no CORS. If the socket never answers, the game plays alone.
+
+Dev only: `?valley=<id>` picks another Durable Object, so parallel e2e specs never meet; `beginRaid` in `tests/e2e/fixtures.ts` gives every page a fresh one unless a spec passes its own. Production ignores the parameter.
+
 ## Module map
 
 Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stays plain JS on purpose (testing a rewrite means refetching the survey). Shapes that cross modules (world points and heights, geo.json, items, the raid, ring entries) live in `src/interfaces.ts`; types one module owns stay in that module.
 
 - `src/interfaces.ts` — shared types only, no runtime code
+- `src/protocol.ts` — pure: the wire protocol, imported by the client and the Worker (frames, close codes, name rules, `parseClientMessage`)
+- `src/clock.ts` — pure: the server-clock offset from ping round trips
+- `src/presence.ts` — pure: the peer table, two-frame interpolation, Scaduscope contacts
+- `src/net.ts` — the WebSocket client: hello, reconnect with backoff, pings; `ready` resolves online or offline
+- `src/peers.ts` — the other players in Three: one `figure.ts` body per peer and a pixelated name sprite
+- `worker/index.ts` — the Worker router (`/ws` to the valley, everything else to the assets binding); `worker/ValleyDO.ts` — the Durable Object. Checked by `worker/tsconfig.json` with Workers types, so the Worker tests live in `tests/worker/`, not `tests/unit/`
 
 - `src/main.ts` — boot, scene, input wiring, render loop, raid orchestration; game rules go in the pure modules
 - `src/raid.ts` — pure raid state machine (LOADOUT → RIDING → ON_FOOT → EXTRACTED) and the loadout clock
@@ -60,7 +73,7 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 - `src/nerves.ts` — parked, unwired; it returns with the nerves meter
 - The sound effects are parked too: the `BvAudio` methods other than the title-card cues (`init`, `step`, `use`, `pickup`, `strike`, `setPresence`, `setHeartbeat`, `update`) have no caller, and the item `crackle` field is for them.
 
-Pure logic stays Three-free (like `coords.ts`); Three/DOM glue lives in `truck.ts`/`world.ts`/`hud.ts`. Dev introspection hook: `window.__bv` (raid, truck, graph, shadowmen, teleport, hurryTruck).
+Pure logic stays Three-free (like `coords.ts`); Three/DOM glue lives in `truck.ts`/`world.ts`/`hud.ts`. Dev introspection hook: `window.__bv` (raid, truck, graph, shadowmen, net, teleport, hurryTruck).
 
 ## Testing in a browser
 

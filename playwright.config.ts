@@ -34,7 +34,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npx vite --port ${PORT} --strictPort`,
+    // --mode test keeps the valley server's state in memory, so every
+    // run starts from an empty valley. Dev hooks stay on in any dev mode.
+    command: `npx vite --port ${PORT} --strictPort --mode test`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !CI,
   },

@@ -1,0 +1,23 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "bull-valley-shadow-wars",
+  // The Worker is bundled by @cloudflare/vite-plugin; `vite build` writes
+  // the deployable config under dist/ and points `wrangler deploy` at it.
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+  },
+  // The client bundle. The plugin fills in the directory from the build.
+  "assets": {
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+  },
+  // One valley for everyone; see src/protocol.ts VALLEY_NAME.
+  "durable_objects": {
+    "bindings": [{ "name": "VALLEY", "class_name": "ValleyDO" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ValleyDO"] }],
+}

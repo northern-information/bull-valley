@@ -57,6 +57,15 @@ function buildTruck(): TruckModel {
 // A working vector for bedSeat(); its value never leaves the method.
 const SCRATCH = new THREE.Vector3()
 
+// Rider spots in the bed, truck-local [x, z]: the middle first, then the
+// corners. CONFIG.net.seats riders fit before they double up.
+const BED_SEATS: readonly [number, number][] = [
+  [0, -1.45],
+  [-0.45, -1.0],
+  [0.45, -1.9],
+  [-0.45, -1.9],
+]
+
 // Matthew Marx is full scale, like every figure. 'cab' seats him at the
 // wheel with his hips at 1.0 m: the sit pose folds his shins so his boots
 // stay inside the lower cab (floor at 0.55 m) and his head stops inside the
@@ -164,10 +173,13 @@ export class Truck {
     this.group.updateMatrixWorld()
   }
 
-  // Where the rider's eyes sit: middle of the bed, CONFIG.truck.bedEye up.
-  // The loop calls this every frame of the ride, so it reuses one vector.
-  bedSeat(): { x: number; y: number; z: number } {
-    const seat = SCRATCH.set(0, 0.85 + CONFIG.truck.bedEye, -1.45)
+  // Where a rider's eyes sit: a spot in the bed, CONFIG.truck.bedEye up.
+  // Seat 0 is the middle of the bed; the others pair up along the sides
+  // for a full truck, and a fifth rider shares the first seat again. The
+  // loop calls this every frame of the ride, so it reuses one vector.
+  bedSeat(slot = 0): { x: number; y: number; z: number } {
+    const [sx, sz] = BED_SEATS[slot % BED_SEATS.length]
+    const seat = SCRATCH.set(sx, 0.85 + CONFIG.truck.bedEye, sz)
     this.group.localToWorld(seat)
     return { x: seat.x, y: seat.y, z: seat.z }
   }

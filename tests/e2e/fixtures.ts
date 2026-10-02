@@ -53,16 +53,35 @@ export async function passTitles(page: Page, steps = 0): Promise<void> {
   await expect(page.locator('.bv-select')).toHaveCount(0)
 }
 
+export interface BeginOptions {
+  // The valley (Durable Object) to join. Specs run in parallel against one
+  // dev server, so each page gets a valley of its own unless a spec wants
+  // two pages to meet.
+  valley?: string
+}
+
+export function freshValley(prefix = 'spec'): string {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+}
+
 // Load the game, pass the titles, and begin the raid. Under webdriver the
 // dev build starts without pointer lock.
-export async function beginRaid(page: Page, steps = 0): Promise<void> {
-  await page.goto('/')
+export async function beginRaid(
+  page: Page,
+  steps = 0,
+  { valley = freshValley() }: BeginOptions = {}
+): Promise<void> {
+  await page.goto(`/?valley=${encodeURIComponent(valley)}`)
   await passTitles(page, steps)
   // boot() sets the dev hook last, after the input listeners; the button
   // reads "Click to Play" before boot starts, so its text is not a signal.
   await expect
     .poll(() => page.evaluate(() => !!window.__bv), { timeout: 30_000 })
     .toBe(true)
+  // The valley answers (or does not) within CONFIG.net.connectTimeoutMs.
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.net.status))
+    .not.toBe('connecting')
   const begin = page.locator('[data-bv="begin"]')
   await expect(begin).toBeEnabled()
   await begin.click()

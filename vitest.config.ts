@@ -1,19 +1,29 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      // The Durable Object extends a class from the Workers runtime; the
+      // unit tests run in Node with a stub base class and mock sockets.
+      'cloudflare:workers': fileURLToPath(
+        new URL('./tests/worker/stubs/cloudflare-workers.ts', import.meta.url)
+      ),
+    },
+  },
   test: {
     environment: 'node',
-    include: ['tests/unit/**/*.test.ts'],
+    include: ['tests/unit/**/*.test.ts', 'tests/worker/**/*.test.ts'],
     exclude: ['node_modules/**', 'dist/**'],
     coverage: {
       // Report every source file, not only the ones a test imports, so the
       // Three and DOM modules show up at 0% instead of not at all.
-      include: ['src/**/*.ts'],
+      include: ['src/**/*.ts', 'worker/**/*.ts'],
       // The pure modules carry the game rules and run in Node, so each one
       // must stay well covered. The Three and DOM modules are covered by
       // the e2e specs instead, and have no threshold here.
       thresholds: {
-        'src/{cabbages,carousel,characters,coords,drinks,ground,interactions,inventory,items,outfits,poses,raid,rng,roadgraph,shadowmen,shop,splashmachine}.ts':
+        'src/{cabbages,carousel,characters,clock,coords,drinks,ground,interactions,inventory,items,outfits,poses,presence,protocol,raid,rng,roadgraph,shadowmen,shop,splashmachine}.ts':
           {
             perFile: true,
             statements: 85,
