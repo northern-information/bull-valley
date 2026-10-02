@@ -828,6 +828,44 @@ export function buildSack(seed = 0x5ac4): THREE.Group {
   return group
 }
 
+// --- Baseball bat --------------------------------------------------------
+
+// A 33-inch ash bat, turned on a lathe: knob, thin handle, a long taper,
+// and the barrel, cupped a little at the end. Local space: the grip (where
+// a hand closes, just above the knob) at the origin, the bat hanging down
+// -Y to the barrel end.
+// [radius, y] from the barrel end up to the knob: LatheGeometry faces
+// outward for a profile that rises.
+const BAT_PROFILE: [number, number][] = [
+  [0, -0.765],
+  [0.03, -0.77],
+  [0.033, -0.74],
+  [0.032, -0.62],
+  [0.022, -0.45],
+  [0.012, -0.22],
+  [0.012, 0.03],
+  [0.02, 0.04],
+  [0.02, 0.055],
+  [0, 0.06],
+]
+
+export function buildBat(): THREE.Group {
+  const ash = lambert({ color: '#c9a46a' })
+  const tape = lambert({ color: '#141416' })
+  const profile = BAT_PROFILE.map(([r, y]) => new THREE.Vector2(r, y))
+  const body = new THREE.Mesh(new THREE.LatheGeometry(profile, 8), ash)
+  // Grip tape over the handle, a hair proud of the wood.
+  const grip = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.0135, 0.0135, 0.2, 8),
+    tape
+  )
+  grip.position.y = -0.07
+  const group = new THREE.Group()
+  group.name = 'bat'
+  group.add(body, grip)
+  return group
+}
+
 // --- Guitar --------------------------------------------------------------
 
 // An LTD EX-400: an Explorer body, about a metre long, in the finish
@@ -1829,6 +1867,7 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   })),
   { id: 'sack', label: 'Burlap sack', build: () => buildSack() },
   { id: 'guitar', label: 'Guitar: black LTD EX-400', build: sampleGuitar },
+  { id: 'bat', label: 'Baseball bat', build: buildBat },
 ]
 
 // Bounds from meshes only: glow sprites are unit planes scaled up, and would

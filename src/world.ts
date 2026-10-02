@@ -27,6 +27,7 @@ import {
   projectOnSegment,
   unitToWorld,
 } from './coords.ts'
+import { applyPose, buildFigure } from './figure.ts'
 import { Ground } from './ground.ts'
 import { CIGARETTE_IDS } from './items.ts'
 import {
@@ -34,6 +35,7 @@ import {
   landmarkWorldPositions,
   CABBAGE_STAND as STAND_NAME,
 } from './landmarks.ts'
+import { samplePose } from './poses.ts'
 import { mulberry32, range } from './rng.ts'
 import {
   STORE_LAYOUT,
@@ -864,10 +866,17 @@ function buildFuelStations(
 // units would cost thousands of draw calls, and the walls and the fog hide
 // every store but the one you are near, so the one display follows you:
 // it parks at the store nearest the player and hides the units that store
-// has sold. Each kind sells from its last unit back.
+// has sold. Each kind sells from its last unit back. David Carlsten rides
+// along behind the counter, so every Citgo has its clerk.
 function buildShelves(points: readonly FuelPoint[]): ShelfDisplay {
   const { group, slots } = buildShelfDisplay()
   group.visible = false
+  const clerk = buildFigure('carlsten')
+  applyPose(clerk, samplePose('stand'))
+  const spot = STORE_LAYOUT.clerk
+  clerk.group.position.set(spot.x, STORE_LAYOUT.floor, spot.z)
+  clerk.group.rotation.y = spot.yaw
+  group.add(clerk.group)
   const centers = points.map(storeCenter)
   const facings = STORE_LAYOUT.facings
   return {

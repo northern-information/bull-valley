@@ -10,6 +10,7 @@
 import * as THREE from 'three'
 import {
   artTexture,
+  buildBat,
   buildGuitar,
   lambert,
   makeGlowSprite,
@@ -295,6 +296,11 @@ function stretch(rings: readonly RingInput[], s: number): LoftRing[] {
   return rings.map(([y, rx, rz, cz = 0]): LoftRing => [y * s, rx, rz, cz])
 }
 
+// Rings fattened by s across and front to back, for baggy pants.
+function widen(rings: readonly RingInput[], s: number): LoftRing[] {
+  return rings.map(([y, rx, rz, cz = 0]): LoftRing => [y, rx * s, rz * s, cz])
+}
+
 function part(
   parent: THREE.Object3D,
   geometry: THREE.BufferGeometry,
@@ -406,6 +412,7 @@ export function buildFigure(
   const foreArm = 0.28 * arm
   const thigh = 0.44 * leg
   const shin = 0.38 * leg
+  const baggy = outfit.baggy ?? 1
   const hipY = 0.08 + shin + thigh + 0.05
 
   const group = new THREE.Group()
@@ -415,15 +422,25 @@ export function buildFigure(
   const pelvis = pivot(group, built, 'pelvis', 0, hipY, 0)
   part(pelvis, loft(PELVIS, 8), c.pants)
 
-  // A part, with the outfit's print for it laid over the top.
+  // A part, with the outfit's pattern wrapped round it when it is shirt
+  // cloth, and the outfit's print for it laid over the top.
   const printed = (
     parent: THREE.Object3D,
     rings: readonly RingInput[],
     sides: number,
     color: string,
-    at: PrintPart | null
+    at: PrintPart | null,
+    shirt = false
   ) => {
     part(parent, loft(rings, sides), color)
+    if (shirt && outfit.pattern) {
+      parent.add(
+        new THREE.Mesh(
+          printLoft(rings, sides, true),
+          decalMaterial(outfitId, [outfit.pattern], true)
+        )
+      )
+    }
     const layers = at && outfit.prints?.[at]
     if (!layers?.length) return
     parent.add(
@@ -435,7 +452,7 @@ export function buildFigure(
   }
 
   const spine = pivot(pelvis, built, 'spine', 0, 0.07, 0)
-  printed(spine, TORSO, 8, c.shirt, 'torso')
+  printed(spine, TORSO, 8, c.shirt, 'torso', true)
 
   const neck = pivot(spine, built, 'neck', 0, 0.48, 0)
   part(neck, loft(NECK), c.skin)
@@ -470,20 +487,36 @@ export function buildFigure(
       stretch(UPPER_ARM, arm),
       6,
       skinOrShirt,
-      bare ? 'arm' : null
+      bare ? 'arm' : null,
+      !bare
     )
     if (outfit.sleeves === 'short') {
       part(shoulder, loft(stretch(SHORT_SLEEVE, arm)), c.shirt)
     }
     const elbow = pivot(shoulder, built, `elbow${side}`, 0, -upperArm, 0)
-    printed(elbow, stretch(FOREARM, arm), 6, skinOrShirt, bare ? 'arm' : null)
+    printed(
+      elbow,
+      stretch(FOREARM, arm),
+      6,
+      skinOrShirt,
+      bare ? 'arm' : null,
+      !bare
+    )
     part(elbow, loft(HAND), c.skin, 0, -foreArm, 0)
     part(elbow, box(0.025, 0.05, 0.025), c.skin, 0, -foreArm - 0.035, 0.04)
+    // The bat hangs from the right hand, gripped just above the knob, its
+    // barrel swung a little forward of the leg.
+    if (side === 'R' && outfit.inHand === 'bat') {
+      const bat = buildBat()
+      bat.position.set(0, -foreArm - 0.075, 0.01)
+      bat.rotation.set(-0.18, 0, 0)
+      elbow.add(bat)
+    }
 
     const hip = pivot(pelvis, built, `hip${side}`, 0.09 * sign, -0.05, 0)
-    printed(hip, stretch(THIGH, leg), 6, c.pants, 'thigh')
+    printed(hip, widen(stretch(THIGH, leg), baggy), 6, c.pants, 'thigh')
     const knee = pivot(hip, built, `knee${side}`, 0, -thigh, 0)
-    part(knee, loft(stretch(SHIN, leg)), c.pants)
+    part(knee, loft(widen(stretch(SHIN, leg), baggy)), c.pants)
     part(knee, boot(), c.boots, 0, -shin - 0.03, 0.045)
   }
 
