@@ -485,7 +485,7 @@ export function buildFigure(
   // hip and the neck up behind the right shoulder.
   if (outfit.onBack === 'guitar') {
     const guitar = buildGuitar()
-    guitar.position.set(0.07, 0.02, -0.155)
+    guitar.position.set(0.07, -0.03, -0.155)
     guitar.rotation.set(0, Math.PI, -0.45)
     spine.add(guitar)
   }

@@ -715,31 +715,34 @@ export function buildSack(seed = 0x5ac4): THREE.Group {
 
 // --- Guitar --------------------------------------------------------------
 
-// A black LTD EX-400: an Explorer body, about 1.1 m long, with black
-// hardware, traced from the catalogue photo. Local space: the neck up +Y,
-// the strings facing +Z, the origin on the string line a little below the
-// bridge. The body outline runs anticlockwise from the neck joint: down the
-// bass edge, closing in on the pickups, out along the long diagonal to the
-// horn tip at the bottom, back along the horn's underside to the rear
-// corner, up the treble edge, leaning in toward the neck, to the wing tip
-// above the neck joint, and into the notch at the heel.
+// A black LTD EX-400: an Explorer body, about a metre long, with black
+// hardware. The outline is measured from the catalogue photo: the body's
+// silhouette thresholded and read column by column, then turned onto the
+// neck axis. Local space: the neck up +Y, the strings facing +Z, the
+// origin on the string line below the tailpiece. The outline runs
+// anticlockwise from the neck joint: down the bass edge, closing in on the
+// pickups, out along the long diagonal to the horn tip at the bottom, back
+// along the horn's underside to the rear corner, in to the waist beside
+// the bridge, out again along the wing to its tip above the neck joint,
+// and into the notch at the heel.
 const GUITAR_OUTLINE: [number, number][] = [
-  [0.032, 0.253],
-  [-0.072, 0.232],
-  [-0.045, 0.09],
-  [-0.208, -0.211],
-  [0.036, -0.101],
-  [0.21, -0.07],
-  [0.14, 0.356],
-  [0.053, 0.262],
+  [0.025, 0.3],
+  [-0.085, 0.252],
+  [-0.067, 0.131],
+  [-0.209, -0.155],
+  [-0.001, -0.071],
+  [0.154, -0.015],
+  [0.093, 0.124],
+  [0.17, 0.359],
+  [0.048, 0.269],
 ]
 // The pointed headstock, in its own space: the nut at y = 0, the tip up +Y
 // and over to the treble side, the six tuners down the long bass diagonal.
 const GUITAR_HEAD_OUTLINE: [number, number][] = [
   [0.025, 0],
-  [0.036, 0.05],
-  [0.038, 0.185],
-  [-0.053, 0.035],
+  [0.045, 0.128],
+  [0.035, 0.17],
+  [-0.044, 0.046],
   [-0.025, 0],
 ]
 const GUITAR_DEPTH = 0.045
@@ -818,34 +821,28 @@ export function buildGuitar(): THREE.Group {
       new THREE.BoxGeometry(0.026, 0.011, 0.011),
       hardware
     )
-    post.position.set(-0.053 + t * 0.091, 0.035 + t * 0.15, 0)
+    post.position.set(-0.044 + t * 0.079, 0.046 + t * 0.124, 0)
     head.add(post)
   }
   // Two blank EMG pickups, the Tune-o-matic bridge and its tailpiece, the
-  // volume and tone knobs in a row below the bridge on the treble side,
-  // and the toggle between them and the bridge pickup.
-  for (const y of [0.207, 0.11]) {
+  // volume and tone knobs in a row below the tailpiece on the treble side,
+  // and the toggle between them and the waist.
+  for (const y of [0.23, 0.15]) {
     add(new THREE.BoxGeometry(0.075, 0.04, 0.012), hardware, 0, y, face + 0.006)
   }
-  add(
-    new THREE.BoxGeometry(0.08, 0.014, 0.012),
-    hardware,
-    0,
-    0.064,
-    face + 0.006
-  )
+  add(new THREE.BoxGeometry(0.08, 0.014, 0.012), hardware, 0, 0.1, face + 0.006)
   add(
     new THREE.BoxGeometry(0.07, 0.02, 0.008),
     hardware,
     0,
-    0.021,
+    0.065,
     face + 0.004
   )
-  for (const y of [0.02, -0.03]) {
+  for (const y of [0.05, 0.005]) {
     add(
       new THREE.CylinderGeometry(0.012, 0.014, 0.016, 6),
       hardware,
-      0.12,
+      0.1,
       y,
       face + 0.008
     ).rotation.x = Math.PI / 2
@@ -853,12 +850,18 @@ export function buildGuitar(): THREE.Group {
   add(
     new THREE.BoxGeometry(0.008, 0.03, 0.008),
     hardware,
-    0.09,
-    0.06,
+    0.074,
+    0.091,
     face + 0.006
   )
   // The strings, as one pale strip from the tailpiece to the nut.
-  add(new THREE.BoxGeometry(0.03, 0.66, 0.003), chrome, 0, 0.35, face + 0.005)
+  add(
+    new THREE.BoxGeometry(0.03, 0.615, 0.003),
+    chrome,
+    0,
+    0.3725,
+    face + 0.005
+  )
   return group
 }
 
