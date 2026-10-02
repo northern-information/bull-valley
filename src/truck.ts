@@ -16,7 +16,8 @@ import type { RoadPoint, Walker } from './roadgraph.ts'
 
 export interface TruckOptions {
   scene: THREE.Object3D
-  heightAt: HeightAt
+  // What the truck stands on: world.ground.at, never the bare terrain.
+  groundAt: HeightAt
 }
 
 // What update() returns each frame.
@@ -75,7 +76,7 @@ function placeDriver(driver: Figure, post: DriverPost): void {
 }
 
 export class Truck {
-  heightAt: HeightAt
+  groundAt: HeightAt
   group: THREE.Group
   walker: Walker | null
   speed: number
@@ -88,8 +89,8 @@ export class Truck {
   cigarette: CigaretteRig
   time: number
 
-  constructor({ scene, heightAt }: TruckOptions) {
-    this.heightAt = heightAt
+  constructor({ scene, groundAt }: TruckOptions) {
+    this.groundAt = groundAt
     const model = buildTruck()
     this.group = model.group
     scene.add(this.group)
@@ -158,7 +159,7 @@ export class Truck {
   }
 
   pose() {
-    this.group.position.set(this.x, this.heightAt(this.x, this.z), this.z)
+    this.group.position.set(this.x, this.groundAt(this.x, this.z), this.z)
     this.group.rotation.y = Math.atan2(this.dirX, this.dirZ)
     this.group.updateMatrixWorld()
   }

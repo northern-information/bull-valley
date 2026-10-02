@@ -168,7 +168,7 @@ async function boot() {
   const graph = buildRoadGraph(geo.roads, geo.metres)
   // The truck and the player stand on the ground (roads and lots included),
   // never on the bare terrain.
-  const truck = new Truck({ scene, heightAt: world.ground.at })
+  const truck = new Truck({ scene, groundAt: world.ground.at })
 
   // Park Matthew Marx's Chevy at the road nearest the spawn station, already
   // pointed down tonight's joyride.
@@ -205,7 +205,7 @@ async function boot() {
 
   const player = new Player({
     camera,
-    heightAt: world.ground.at,
+    groundAt: world.ground.at,
     metres: geo.metres,
     spawn: world.spawn,
   })
