@@ -32,10 +32,17 @@ export class PlayerBody {
   figure: Figure
   cycle: number
 
-  constructor(scene: THREE.Object3D, outfitId: OutfitId) {
-    this.figure = buildFigure(outfitId, { head: false })
+  // guitarFinish colors the guitar on the back, for an outfit with one; it
+  // rides along unseen in first person, the same body as the select showed.
+  constructor(
+    scene: THREE.Object3D,
+    outfitId: OutfitId,
+    guitarFinish?: string
+  ) {
+    this.figure = buildFigure(outfitId, { head: false, guitarFinish })
     this.figure.group.name = 'player-body'
     this.figure.group.userData.outfit = outfitId
+    this.figure.group.userData.guitarFinish = guitarFinish
     // The arms hang off the spine, so this hides the torso and both arms.
     this.figure.joints.spine.visible = false
     scene.add(this.figure.group)

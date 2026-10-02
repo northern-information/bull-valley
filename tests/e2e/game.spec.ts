@@ -109,3 +109,46 @@ test('a name is required at the character select, and remembered', async ({
     )
   ).toBe('Dave Coleman')
 })
+
+test('the guitar finish is picked with Church and remembered', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await toCharacterSelect(page)
+  const row = page.locator('.bv-select-finish')
+  const finish = page.locator('.bv-select-finish-name')
+  const checked = page.locator('.bv-swatch[aria-checked="true"]')
+  // A fresh context starts in the name field; a name and Escape hand the
+  // keys back to the turntable. Typing the name must not touch the finish.
+  const field = page.locator('[data-bv="select-player-name"]')
+  await field.fill('Russ Warner')
+  await page.keyboard.press('Escape')
+  // The player carries no guitar, so there is no row to show.
+  await expect(row).toBeHidden()
+  // Three steps right of the player: Church, with the EX-400 on his back.
+  for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight')
+  await expect(page.locator('.bv-select-name')).toHaveText('Kyle Church')
+  await expect(row).toBeVisible()
+  await expect(finish).toHaveText('Black')
+  await expect(checked).toHaveAttribute('aria-label', 'Black')
+
+  // ↓ steps to the next finish; R lands on any other one; letters typed
+  // in the field stay in the field.
+  await page.keyboard.press('ArrowDown')
+  await expect(finish).toHaveText('Olympic White')
+  await field.focus()
+  await field.pressSequentially(' Sr')
+  await page.keyboard.press('Escape')
+  await expect(finish).toHaveText('Olympic White')
+  await page.keyboard.press('KeyR')
+  await expect(finish).not.toHaveText('Olympic White')
+  const picked = (await finish.textContent()) ?? ''
+  await expect(checked).toHaveAttribute('aria-label', picked)
+
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.bv-select')).toHaveCount(0)
+  await page.reload()
+  await toCharacterSelect(page)
+  await expect(page.locator('.bv-select-name')).toHaveText('Kyle Church')
+  await expect(finish).toHaveText(picked)
+})

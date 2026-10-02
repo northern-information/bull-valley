@@ -721,3 +721,56 @@
   letter-spacing: 0.05em;
   opacity: 0.6;
 }
+
+/* The guitar finish row, shown for a character with a guitar on their
+   back: the finish name, then one swatch per finish beside Randomize. */
+.bv-select-finish {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.bv-select-finish-name {
+  margin: 0;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  text-shadow: 4px 4px 0 var(--fi-black-shadow);
+}
+
+.bv-select-finish-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+}
+
+.bv-select-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  max-width: 28rem;
+}
+
+/* Each swatch paints its finish from --swatch, set inline per button. */
+.bv-swatch {
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  background: var(--swatch);
+  border: 1px solid var(--fi-paper-light);
+  box-shadow: 3px 3px 0 var(--fi-black-shadow);
+  cursor: pointer;
+}
+
+.bv-swatch:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 var(--fi-black-shadow);
+}
+
+.bv-swatch[aria-checked='true'] {
+  outline: 3px solid var(--bv-eggshell);
+  outline-offset: 2px;
+}
