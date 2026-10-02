@@ -500,6 +500,7 @@
 .bv-controls td {
   border-right: 1px solid var(--fi-surface);
   border-bottom: 1px solid var(--fi-surface);
+  white-space: nowrap;
 }
 
 .bv-controls th {
