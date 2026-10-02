@@ -167,6 +167,7 @@ export type RaidEvent =
   | 'BUY_SACK'
   | 'EXTRACT_FUEL'
   | 'EXTRACT_KEEP'
+  | 'STRUCK'
 
 export type ExtractKind = 'truck' | 'fuel' | 'keep'
 
@@ -182,6 +183,8 @@ export interface Raid {
   // Station name for a 'fuel' extract.
   extractName: string | null
   endedAt: number | null
+  // Times a shadowman's touch put you back at the Citgo.
+  deaths: number
 }
 
 export interface RaidSummary {
@@ -190,6 +193,18 @@ export interface RaidSummary {
   durationSeconds: number | null
   extract: ExtractKind | null
   extractName: string | null
+  deaths: number
+}
+
+// ---------------------------------------------------------------------------
+// The scope (src/scope.ts), fed by the shadowmen (src/shadowmen.ts).
+
+// A shadowman on the scope: compass bearing in degrees, distance in metres.
+// hunting draws it magenta: it is coming for you.
+export interface ScopeContact {
+  dist: number
+  bearing: number
+  hunting: boolean
 }
 
 // ---------------------------------------------------------------------------

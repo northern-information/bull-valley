@@ -26,25 +26,34 @@ export const CONFIG = {
     pickupReach: 2.6,
   },
   shadowmen: {
-    count: 14,
-    // Beyond this they drift dormant; inside it they start working on you.
-    activateRange: 150,
-    stalkDistance: 34,
-    stalkSpeed: 3.4,
-    huntSpeed: 8,
-    strikeRange: 2.4,
-    escapeRange: 70,
-    escapeSeconds: 8,
-    // Staring at one this long provokes it.
-    stareSeconds: 4,
-    detectRange: 45,
-    detectThreshold: 6,
+    // Crossings: this many shadowmen at once in a bubble around the player.
+    count: 12,
+    // They spawn on this ring, just past scope range so blips enter from the
+    // rim, cross toward a point within crossRadius of the player, and are
+    // dropped past despawnRadius.
+    spawnRadius: 300,
+    crossRadius: 120,
+    despawnRadius: 360,
+    // m/s, around player.sprintSpeed: some can be outrun, some cannot.
+    speedMin: 7,
+    speedMax: 10,
+    // Respawns are spaced at least this far apart, in seconds.
+    spawnInterval: 0.75,
+    // Shadowmen stay this far inside the survey edge.
+    edgeInset: 30,
+    // One that crosses within rushRadius of you turns and comes at rushSpeed,
+    // faster than a sprint; touching you at touchRadius is a strike.
+    rushRadius: 25,
+    rushSpeed: 12,
+    touchRadius: 1.4,
+    // Citgo forecourts are havens: shadowmen vanish at the lights and nothing
+    // can touch you inside.
+    havenRadius: 60,
+    // The static after a strike, in seconds.
+    strikeSeconds: 1.6,
   },
   items: {
-    // Per-item tuning lives in src/items.ts. Cigarettes: nerves drain hard
-    // while smoking, but the ember scales the shadowmen's detection range
-    // by this while lit and for emberSeconds after.
-    emberDetectScale: 1.5,
+    // Per-item tuning lives in src/items.ts.
     // Walking speed while a cigarette burns.
     smokingSpeedScale: 0.85,
     // Camera drift while perception is on.

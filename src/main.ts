@@ -42,6 +42,7 @@ import {
   wanderRoute,
 } from './roadgraph.ts'
 import { Scope } from './scope.ts'
+import { ShadowCards } from './shadowcards.ts'
 import { buy as buyItem } from './shop.ts'
 import { mountCard, showSplash, skipTitles } from './splash.ts'
 import { buildTerrainMesh, createHeightField, loadTerrain } from './terrain.ts'
@@ -63,6 +64,7 @@ interface BvHook {
   world: World
   truck: Truck
   graph: RoadGraph
+  shadowmen: ShadowCards
   readonly raid: Raid
   teleport(u: number, v: number): void
   hurryTruck(seconds?: number): void
@@ -163,8 +165,6 @@ async function boot() {
   scene.add(sky)
 
   // --- Systems -----------------------------------------------------------
-  // The shadowmen are parked until after the MVP loop; src/shadowmen.ts and
-  // src/nerves.ts stay in the tree, unwired.
   const graph = buildRoadGraph(geo.roads, geo.metres)
   // The truck and the player stand on the ground (roads and lots included),
   // never on the bare terrain.
@@ -211,6 +211,15 @@ async function boot() {
   })
   const playerBody = new PlayerBody(scene, await titles)
   const scope = new Scope(hud.scopeCanvas, hud.phone)
+  // The shadowmen feed the scope; nerves and the audio static stay parked
+  // (src/nerves.ts is in the tree, unwired).
+  const shadowmen = new ShadowCards({
+    scene,
+    groundAt: world.ground.at,
+    metres: geo.metres,
+    havens: world.fuelPoints,
+    player: player.pos,
+  })
 
   const keep = world.landmarks.find((l) => l.n === KEEP)
   const stand = world.landmarks.find((l) => l.n !== KEEP)
@@ -232,6 +241,8 @@ async function boot() {
   let smokingUntil = 0
   let emberUntil = 0
   let perceptionUntil = 0
+  // The static after a shadowman's touch runs until this time.
+  let strikeUntil = 0
   let started = false
   let greeted = false
   let ended = false
@@ -317,6 +328,19 @@ async function boot() {
     const spot = truck.hopOutSpot()
     player.relocate(spot.x, spot.z, player.yaw)
     if (toastText) hud.toast(toastText)
+  }
+
+  // A shadowman touched you. Static, then you come to on the forecourt.
+  const strike = () => {
+    const next = advance(raid, EVENTS.STRUCK, raidClock)
+    if (next === raid) return
+    raid = next
+    strikeUntil = time + CONFIG.shadowmen.strikeSeconds
+    hud.showStatic(true)
+    closeInventory()
+    player.keys.clear()
+    player.relocate(world.spawn.x, world.spawn.z, world.spawn.yaw)
+    hud.toast('You are somewhere else. Time is missing.')
   }
 
   const callTruck = () => {
@@ -634,6 +658,20 @@ async function boot() {
       truck.update(dt)
     }
 
+    // The shadowmen cross whatever the raid is doing, but only rush and touch
+    // a player on foot who is not already coming to from the last strike.
+    const vulnerable =
+      started && !ended && raid.state === STATES.ON_FOOT && time >= strikeUntil
+    const swarm = shadowmen.update({
+      dt,
+      player: player.pos,
+      vulnerable,
+      perception,
+    })
+    if (swarm.struck) strike()
+    if (time < strikeUntil) hud.drawStatic()
+    else if (!hud.staticWrap.hidden) hud.showStatic(false)
+
     hud.setCountdown(
       raid.state === STATES.LOADOUT ? loadoutClock(raid, raidClock) : null
     )
@@ -646,7 +684,7 @@ async function boot() {
     hud.setTimers(timers)
 
     scope.draw(dt, {
-      contacts: [],
+      contacts: swarm.contacts,
       forward,
       nerves: 0,
       perception,
@@ -676,7 +714,7 @@ async function boot() {
     })
     const prompt = interaction ? interactionPrompt(interaction) : null
     if (player.locked) {
-      hud.prompt(!ended ? prompt : null)
+      hud.prompt(!ended && time >= strikeUntil ? prompt : null)
     } else if (started && !ended) {
       hud.prompt('Click to Resume')
     } else {
@@ -708,6 +746,7 @@ async function boot() {
       world,
       truck,
       graph,
+      shadowmen,
       get raid() {
         return raid
       },
