@@ -45,9 +45,18 @@ export async function toCharacterSelect(page: Page): Promise<void> {
 }
 
 // From a fresh load to the intro dialog, choosing at the character select
-// after `steps` presses of →.
-export async function passTitles(page: Page, steps = 0): Promise<void> {
+// after `steps` presses of →, as `name`. A fresh context has no saved
+// name, so the field starts focused and empty; Escape hands the arrows
+// back to the turntable.
+export async function passTitles(
+  page: Page,
+  steps = 0,
+  name = 'Raider'
+): Promise<void> {
   await toCharacterSelect(page)
+  const field = page.locator('[data-bv="select-player-name"]')
+  await field.fill(name)
+  await page.keyboard.press('Escape')
   for (let i = 0; i < steps; i++) await page.keyboard.press('ArrowRight')
   await page.keyboard.press('Enter')
   await expect(page.locator('.bv-select')).toHaveCount(0)
@@ -58,6 +67,8 @@ export interface BeginOptions {
   // dev server, so each page gets a valley of its own unless a spec wants
   // two pages to meet.
   valley?: string
+  // The name typed at the character select.
+  name?: string
 }
 
 export function freshValley(prefix = 'spec'): string {
@@ -69,10 +80,10 @@ export function freshValley(prefix = 'spec'): string {
 export async function beginRaid(
   page: Page,
   steps = 0,
-  { valley = freshValley() }: BeginOptions = {}
+  { valley = freshValley(), name = 'Raider' }: BeginOptions = {}
 ): Promise<void> {
   await page.goto(`/?valley=${encodeURIComponent(valley)}`)
-  await passTitles(page, steps)
+  await passTitles(page, steps, name)
   // boot() sets the dev hook last, after the input listeners; the button
   // reads "Click to Play" before boot starts, so its text is not a signal.
   await expect

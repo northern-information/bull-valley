@@ -71,7 +71,41 @@ test('the chosen character is the body you raid in, and is remembered', async ({
   await page.reload()
   await toCharacterSelect(page)
   await expect(page.locator('.bv-select-name')).toHaveText('David Kvistad')
+  await expect(page.locator('[data-bv="select-player-name"]')).toHaveValue(
+    'Raider'
+  )
   // ← wraps from the first character to the last.
   for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowLeft')
   await expect(page.locator('.bv-select-name')).toHaveText('Justin Hanson')
+})
+
+test('a name is required at the character select, and remembered', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await toCharacterSelect(page)
+  const field = page.locator('[data-bv="select-player-name"]')
+  const choose = page.locator('[data-bv="select-choose"]')
+  // A fresh context has no name: the field is focused, Choose is off, and
+  // Enter does nothing.
+  await expect(field).toBeFocused()
+  await expect(choose).toBeDisabled()
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.bv-select')).toHaveCount(1)
+  // Spaces alone are not a name; the first letter is.
+  await field.fill('   ')
+  await expect(choose).toBeDisabled()
+  await field.fill('  Dave   Coleman ')
+  await expect(choose).toBeEnabled()
+  // The field clips at the wire's limit.
+  await field.fill('x'.repeat(30))
+  await expect(field).toHaveValue('x'.repeat(16))
+  await field.fill('Dave  Coleman')
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.bv-select')).toHaveCount(0)
+  expect(
+    await page.evaluate(() =>
+      localStorage.getItem('bull-valley-shadow-wars:v1:name')
+    )
+  ).toBe('Dave Coleman')
 })

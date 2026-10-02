@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_CHARACTER,
+  FALLBACK_NAME,
   isSelectable,
   loadCharacter,
+  loadName,
   saveCharacter,
+  saveName,
   SELECTABLE,
 } from '../../src/characters.ts'
 import { OUTFITS } from '../../src/outfits.ts'
@@ -72,5 +75,36 @@ describe('characters', () => {
   it('survives storage that throws', () => {
     expect(loadCharacter(throwing)).toBe(DEFAULT_CHARACTER)
     expect(() => saveCharacter(throwing, 'hanson')).not.toThrow()
+  })
+})
+
+describe('the saved name', () => {
+  it('is empty with nothing saved', () => {
+    expect(loadName(memoryStorage())).toBe('')
+  })
+
+  it('remembers the last name', () => {
+    const storage = memoryStorage()
+    saveName(storage, 'Dave Coleman')
+    expect(loadName(storage)).toBe('Dave Coleman')
+  })
+
+  it('normalizes what it finds and drops what no longer passes', () => {
+    const storage = memoryStorage()
+    storage.data.set('bull-valley-shadow-wars:v1:name', '  Dave   Coleman ')
+    expect(loadName(storage)).toBe('Dave Coleman')
+    for (const value of ['', '   ', 'x'.repeat(17)]) {
+      storage.data.set('bull-valley-shadow-wars:v1:name', value)
+      expect(loadName(storage)).toBe('')
+    }
+  })
+
+  it('survives storage that throws', () => {
+    expect(loadName(throwing)).toBe('')
+    expect(() => saveName(throwing, 'Dave')).not.toThrow()
+  })
+
+  it('has a fallback for skipped titles that passes the rules', () => {
+    expect(FALLBACK_NAME).toBe('Raider')
   })
 })
