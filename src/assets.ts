@@ -746,41 +746,68 @@ export function buildSack(seed = 0x5ac4): THREE.Group {
 
 // --- Guitar --------------------------------------------------------------
 
-// A white Flying V, about a metre long. Local space: the body centre at the
-// origin, the neck up +Y, the strings facing +Z. The body outline runs
-// anticlockwise from the neck joint: down the -X wing to its tip, up into
-// the notch, and down the +X wing.
+// A black LTD EX-400: an Explorer body, about a metre long, with black
+// hardware. The outline is measured from the catalogue photo: the body's
+// silhouette thresholded and read column by column, then turned onto the
+// neck axis. Local space: the neck up +Y, the strings facing +Z, the
+// origin on the string line below the tailpiece. The outline runs
+// anticlockwise from the neck joint: down the bass edge, closing in on the
+// pickups, out along the long diagonal to the horn tip at the bottom, back
+// along the horn's underside to the rear corner, in to the waist beside
+// the bridge, out again along the wing to its tip above the neck joint,
+// and into the notch at the heel.
 const GUITAR_OUTLINE: [number, number][] = [
-  [0.045, 0.22],
-  [-0.045, 0.22],
-  [-0.13, 0.02],
-  [-0.22, -0.27],
-  [-0.17, -0.31],
-  [0, -0.12],
-  [0.17, -0.31],
-  [0.22, -0.27],
-  [0.13, 0.02],
+  [0.025, 0.3],
+  [-0.085, 0.252],
+  [-0.067, 0.131],
+  [-0.209, -0.155],
+  [-0.001, -0.071],
+  [0.154, -0.015],
+  [0.093, 0.124],
+  [0.17, 0.359],
+  [0.048, 0.269],
+]
+// The pointed headstock, in its own space: the nut at y = 0, the tip up +Y
+// and over to the treble side, the six tuners down the long bass diagonal.
+const GUITAR_HEAD_OUTLINE: [number, number][] = [
+  [0.025, 0],
+  [0.045, 0.128],
+  [0.035, 0.17],
+  [-0.044, 0.046],
+  [-0.025, 0],
 ]
 const GUITAR_DEPTH = 0.045
-// The headstock's centre and its tilt back from the neck.
-const GUITAR_HEAD_Y = 0.77
+// The nut, where the headstock leaves the neck, and the headstock's tilt
+// back from the neck.
+const GUITAR_NUT_Y = 0.68
 const GUITAR_HEAD_TILT = -0.25
+// The dot inlays, between the frets of a 24.75" scale: 3, 5, 7, 9, 15, 17,
+// 19 and 21. The 12th fret carries the model plate instead.
+const GUITAR_DOTS = [0.596, 0.536, 0.484, 0.438, 0.323, 0.293, 0.267, 0.244]
+const GUITAR_PLATE_Y = 0.375
 
-export function buildGuitar(): THREE.Group {
-  const white = lambert({ color: '#ebe9e3' })
-  const black = lambert({ color: '#121214' })
-  const wood = lambert({ color: '#3e2616' })
-  const chrome = lambert({ color: '#a2a7ad' })
-
+function outlineGeometry(
+  outline: [number, number][],
+  depth: number
+): THREE.ExtrudeGeometry {
   const shape = new THREE.Shape()
-  shape.moveTo(...GUITAR_OUTLINE[0])
-  for (const point of GUITAR_OUTLINE.slice(1)) shape.lineTo(...point)
+  shape.moveTo(...outline[0])
+  for (const point of outline.slice(1)) shape.lineTo(...point)
   shape.closePath()
-  const bodyGeo = new THREE.ExtrudeGeometry(shape, {
-    depth: GUITAR_DEPTH,
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth,
     bevelEnabled: false,
   })
-  bodyGeo.translate(0, 0, -GUITAR_DEPTH / 2)
+  geometry.translate(0, 0, -depth / 2)
+  return geometry
+}
+
+export function buildGuitar(): THREE.Group {
+  const gloss = lambert({ color: '#121214' })
+  const hardware = lambert({ color: '#26262b' })
+  const rosewood = lambert({ color: '#2c1a10' })
+  const pearl = lambert({ color: '#d9d6cc' })
+  const chrome = lambert({ color: '#a2a7ad' })
 
   const group = new THREE.Group()
   group.name = 'guitar'
@@ -797,56 +824,79 @@ export function buildGuitar(): THREE.Group {
     return mesh
   }
   const face = GUITAR_DEPTH / 2
-  add(bodyGeo, white, 0, 0, 0)
-  // The neck and fretboard, the headstock tilted back, and the tuners.
-  add(new THREE.BoxGeometry(0.056, 0.46, 0.026), wood, 0, 0.45, face - 0.008)
-  const head = add(
-    new THREE.BoxGeometry(0.085, 0.18, 0.018),
-    white,
+  add(outlineGeometry(GUITAR_OUTLINE, GUITAR_DEPTH), gloss, 0, 0, 0)
+  // The set neck in the body's black, the rosewood fretboard over it with
+  // its dots and the model plate, and the pointed headstock tilted back
+  // from the nut.
+  add(new THREE.BoxGeometry(0.05, 0.46, 0.022), gloss, 0, 0.45, face - 0.011)
+  add(new THREE.BoxGeometry(0.05, 0.44, 0.008), rosewood, 0, 0.46, face)
+  for (const y of GUITAR_DOTS) {
+    add(new THREE.BoxGeometry(0.01, 0.01, 0.003), pearl, 0, y, face + 0.005)
+  }
+  add(
+    new THREE.BoxGeometry(0.022, 0.008, 0.003),
+    pearl,
     0,
-    GUITAR_HEAD_Y,
-    face - 0.02
+    GUITAR_PLATE_Y,
+    face + 0.005
   )
+  const head = new THREE.Group()
+  head.position.set(0, GUITAR_NUT_Y, face - 0.02)
   head.rotation.x = GUITAR_HEAD_TILT
-  for (const side of [-1, 1]) {
-    for (let i = 0; i < 3; i++) {
-      // On the headstock's centre line, which tilts back with it.
-      const y = GUITAR_HEAD_Y - 0.05 + i * 0.045
-      add(
-        new THREE.BoxGeometry(0.03, 0.012, 0.012),
-        chrome,
-        side * 0.055,
-        y,
-        face - 0.02 + (y - GUITAR_HEAD_Y) * Math.sin(GUITAR_HEAD_TILT)
-      )
-    }
+  group.add(head)
+  head.add(new THREE.Mesh(outlineGeometry(GUITAR_HEAD_OUTLINE, 0.016), gloss))
+  for (let i = 0; i < 6; i++) {
+    // Spaced along the bass diagonal, from its corner toward the tip.
+    const t = 0.1 + i * 0.15
+    const post = new THREE.Mesh(
+      new THREE.BoxGeometry(0.026, 0.011, 0.011),
+      hardware
+    )
+    post.position.set(-0.044 + t * 0.079, 0.046 + t * 0.124, 0)
+    head.add(post)
   }
-  // Two black pickups, the bridge, the tailpiece, and three black knobs in
-  // a line down the +X wing.
-  for (const y of [0.13, 0.02]) {
-    add(new THREE.BoxGeometry(0.075, 0.04, 0.012), black, 0, y, face + 0.006)
+  // Two blank EMG pickups, the Tune-o-matic bridge and its tailpiece, the
+  // volume and tone knobs in a row below the tailpiece on the treble side,
+  // and the toggle between them and the waist.
+  for (const y of [0.23, 0.15]) {
+    add(new THREE.BoxGeometry(0.075, 0.04, 0.012), hardware, 0, y, face + 0.006)
   }
-  add(new THREE.BoxGeometry(0.08, 0.014, 0.012), chrome, 0, -0.03, face + 0.006)
-  add(new THREE.BoxGeometry(0.07, 0.02, 0.008), chrome, 0, -0.08, face + 0.004)
-  for (const [x, y] of [
-    [0.1, -0.12],
-    [0.13, -0.18],
-    [0.16, -0.24],
-  ]) {
+  add(new THREE.BoxGeometry(0.08, 0.014, 0.012), hardware, 0, 0.1, face + 0.006)
+  add(
+    new THREE.BoxGeometry(0.07, 0.02, 0.008),
+    hardware,
+    0,
+    0.065,
+    face + 0.004
+  )
+  for (const y of [0.05, 0.005]) {
     add(
       new THREE.CylinderGeometry(0.012, 0.014, 0.016, 6),
-      black,
-      x,
+      hardware,
+      0.1,
       y,
       face + 0.008
     ).rotation.x = Math.PI / 2
   }
+  add(
+    new THREE.BoxGeometry(0.008, 0.03, 0.008),
+    hardware,
+    0.074,
+    0.091,
+    face + 0.006
+  )
   // The strings, as one pale strip from the tailpiece to the nut.
-  add(new THREE.BoxGeometry(0.03, 0.76, 0.003), chrome, 0, 0.3, face + 0.005)
+  add(
+    new THREE.BoxGeometry(0.03, 0.615, 0.003),
+    chrome,
+    0,
+    0.3725,
+    face + 0.005
+  )
   return group
 }
 
-// The guitar standing on its wing tips, for Akashic.
+// The guitar standing on its horn, for Akashic.
 function sampleGuitar(): THREE.Group {
   const guitar = buildGuitar()
   guitar.position.y = -Math.min(...GUITAR_OUTLINE.map(([, y]) => y))
@@ -1674,7 +1724,7 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     build: () => buildDrink(d.id),
   })),
   { id: 'sack', label: 'Burlap sack', build: () => buildSack() },
-  { id: 'guitar', label: 'Guitar: white Flying V', build: sampleGuitar },
+  { id: 'guitar', label: 'Guitar: black LTD EX-400', build: sampleGuitar },
 ]
 
 // Bounds from meshes only: glow sprites are unit planes scaled up, and would

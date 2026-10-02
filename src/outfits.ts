@@ -426,17 +426,18 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
       'belt-loops',
     ],
   },
+  // Androgynous, black on black: the bare body with no add-ons, in three
+  // near-blacks that still shade apart from each other.
   player: {
     label: 'Player',
     colors: {
       skin: '#f2dccb',
-      hair: '#3a2c22',
-      shirt: '#1e293b',
-      pants: '#2d3340',
-      boots: '#1f1a16',
-      coat: '#1e293b',
+      hair: '#17120f',
+      shirt: '#0e0e10',
+      pants: '#141416',
+      boots: '#060607',
     },
-    addons: ['coat-hem'],
+    addons: [],
   },
   shadow: {
     label: 'Shadowman',
