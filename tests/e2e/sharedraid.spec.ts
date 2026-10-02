@@ -59,8 +59,10 @@ base.describe('a shared raid', { tag: '@valley' }, () => {
       expect(sharedA?.departReason).toBe('all-aboard')
       expect(sharedA?.riders).toHaveLength(2)
       // Both ride the same truck: the two clients agree where it is, once
-      // the seconds between the two samples (slow on CI) are allowed for at
-      // the truck's speed.
+      // two things about the slow runner are allowed for at the truck's
+      // speed: the seconds between the two samples, and that each page
+      // moves its truck once a frame, so a sample can be most of a second
+      // stale on each side.
       const sample = (page: Page) =>
         page.evaluate(() => {
           const { truck } = window.__bv!
@@ -70,7 +72,8 @@ base.describe('a shared raid', { tag: '@valley' }, () => {
       const truckB = await sample(b)
       const apart = Math.hypot(truckA.x - truckB.x, truckA.z - truckB.z)
       const drift = (12 * Math.abs(truckA.t - truckB.t)) / 1000
-      expect(apart).toBeLessThan(drift + 10)
+      const stale = 12 * 2
+      expect(apart).toBeLessThan(drift + stale + 10)
 
       // A hops out and takes a cabbage; B sees it go and cannot take it.
       await a.keyboard.press('KeyE')
