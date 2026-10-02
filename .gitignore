@@ -9,3 +9,6 @@ playwright-report/
 coverage/
 # Left behind only when fetch:data stops between its write and rename.
 public/data/**/*.tmp
+# Wrangler state and the generated runtime types (npm run types).
+.wrangler/
+worker-configuration.d.ts

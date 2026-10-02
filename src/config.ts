@@ -117,6 +117,19 @@ export const CONFIG = {
     bedEye: 1.6, // camera height above the bed
     wanderMetres: 6000, // how far the outbound joyride runs
   },
+  net: {
+    // The valley server. State frames go out at most this often, and only
+    // when something changed; peers are drawn this far behind the present
+    // so two frames always bracket the moment being drawn.
+    sendHz: 10,
+    interpolateMs: 150,
+    // Give the first connection this long before playing offline.
+    connectTimeoutMs: 2000,
+    // Clock-offset pings once online.
+    pingMs: 10000,
+    // Bed seats before riders double up.
+    seats: 4,
+  },
   cabbage: {
     count: 48,
     // Arms only; the sack's limit is in src/items.ts.

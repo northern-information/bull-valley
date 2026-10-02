@@ -22,8 +22,11 @@ import {
   itemById,
 } from './items.ts'
 import { KEEP } from './landmarks.ts'
+import { NetClient, socketUrl } from './net.ts'
+import { Peers } from './peers.ts'
 import { Player } from './player.ts'
 import { PlayerBody } from './playerbody.ts'
+import { poseOf, stateChanged } from './presence.ts'
 import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import {
   advance,
@@ -50,7 +53,10 @@ import { Truck } from './truck.ts'
 import { buildWorld } from './world.ts'
 import type { Interaction } from './interactions.ts'
 import type { Geo, Raid, RingItem } from './interfaces.ts'
+import type { NetStatus } from './net.ts'
 import type { OutfitId } from './outfits.ts'
+import type { Peer } from './presence.ts'
+import type { PeerStateWire } from './protocol.ts'
 import type { RoadGraph } from './roadgraph.ts'
 import type { TerrainData } from './terrain.ts'
 import type { Pickup, World } from './world.ts'
@@ -66,6 +72,11 @@ interface BvHook {
   graph: RoadGraph
   shadowmen: ShadowCards
   readonly raid: Raid
+  net: {
+    readonly status: NetStatus
+    readonly id: string | null
+    peers(): Peer[]
+  }
   teleport(u: number, v: number): void
   hurryTruck(seconds?: number): void
 }
@@ -209,7 +220,8 @@ async function boot() {
     metres: geo.metres,
     spawn: world.spawn,
   })
-  const playerBody = new PlayerBody(scene, await titles)
+  const outfit = await titles
+  const playerBody = new PlayerBody(scene, outfit)
   const scope = new Scope(hud.scopeCanvas, hud.phone)
   // The shadowmen feed the scope; nerves and the audio static stay parked
   // (src/nerves.ts is in the tree, unwired).
@@ -220,6 +232,62 @@ async function boot() {
     havens: world.fuelPoints,
     player: player.pos,
   })
+
+  // --- The valley server -------------------------------------------------
+  // Everyone online shares one valley. The socket is same-origin; if the
+  // server is down or unreachable the valley is simply empty, and the raid
+  // plays as it always has.
+  const peers = new Peers(scene)
+  const net = new NetClient({
+    url: socketUrl(window.location, import.meta.env.DEV),
+    config: CONFIG.net,
+  })
+  net.on((msg) => {
+    const now = performance.now()
+    switch (msg.type) {
+      case 'welcome': {
+        peers.welcome(msg.peers, now)
+        const n = msg.peers.length
+        if (n > 0) {
+          hud.toast(
+            n === 1 ? 'One other in the valley.' : `${n} others in the valley.`
+          )
+        }
+        return
+      }
+      case 'peer-joined':
+        peers.joined(msg.peer, now)
+        hud.toast(`${msg.peer.name} is in the valley.`)
+        return
+      case 'peer-state': {
+        const { x, y, z, yaw, pose, riding } = msg
+        peers.state(msg.id, { x, y, z, yaw, pose, riding }, now)
+        return
+      }
+      case 'peer-left': {
+        const name = peers.table.get(msg.id)?.name
+        peers.left(msg.id)
+        if (name) hud.toast(`${name} is gone.`)
+        return
+      }
+      case 'error':
+        console.warn('Valley:', msg.code, msg.message)
+        return
+      case 'pong':
+        return
+    }
+  })
+  let wasOnline = false
+  net.onStatus((status) => {
+    if (status === 'online') {
+      wasOnline = true
+    } else if (status === 'offline') {
+      peers.clear()
+      if (wasOnline) hud.toast('Signal lost. The valley goes quiet.')
+    }
+  })
+  // Not awaited: the game never waits on the network.
+  void net.connect({ name: 'Raider', outfit })
 
   const keep = world.landmarks.find((l) => l.n === KEEP)
   const stand = world.landmarks.find((l) => l.n !== KEEP)
@@ -249,6 +317,9 @@ async function boot() {
   let inventoryOpen = false
   // What E would do right now; resolved every frame in the loop.
   let interaction: Interaction<Pickup> | null = null
+  // The last state frame sent to the valley, and time since.
+  let lastSent: PeerStateWire | null = null
+  let sinceSent = 0
   const ridingForward = new THREE.Vector3(0, 0, -1)
 
   player.onEdge = () => hud.toast('The valley ends here.')
@@ -617,6 +688,10 @@ async function boot() {
     }
 
     let forward = ridingForward
+    // Where the feet stand and how, for the body and for the wire.
+    let feetY: number
+    let moveSpeed = 0
+    let crouching = false
     if (raid.state === STATES.RIDING) {
       // The one place the camera leaves player.update(): ride the bed with
       // free look, keeping player.pos honest for the scope.
@@ -627,9 +702,10 @@ async function boot() {
       camera.rotation.set(player.pitch, player.yaw, 0)
       ridingForward.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw))
       // Standing in the bed.
+      feetY = seat.y - CONFIG.truck.bedEye
       playerBody.update(dt, {
         x: seat.x,
-        ground: seat.y - CONFIG.truck.bedEye,
+        ground: feetY,
         z: seat.z,
         yaw: player.yaw,
         speed: 0,
@@ -647,13 +723,16 @@ async function boot() {
         driftAmp: perception ? CONFIG.items.perceptionDrift : 0,
       })
       forward = playerState.forward
+      feetY = player.groundY
+      moveSpeed = playerState.speed
+      crouching = playerState.crouching
       playerBody.update(dt, {
         x: player.pos.x,
-        ground: player.groundY,
+        ground: feetY,
         z: player.pos.z,
         yaw: player.yaw,
-        speed: playerState.speed,
-        crouching: playerState.crouching,
+        speed: moveSpeed,
+        crouching,
       })
       truck.update(dt)
     }
@@ -672,6 +751,28 @@ async function boot() {
     if (time < strikeUntil) hud.drawStatic()
     else if (!hud.staticWrap.hidden) hud.showStatic(false)
 
+    // The others are drawn a beat behind the present, so two of their
+    // frames always bracket the moment. Ours goes out on a fixed cadence,
+    // and only when it changed.
+    const renderAt = now - CONFIG.net.interpolateMs
+    peers.update(dt, renderAt)
+    sinceSent += dt
+    if (net.online && !ended && sinceSent >= 1 / CONFIG.net.sendHz) {
+      sinceSent = 0
+      const state: PeerStateWire = {
+        x: player.pos.x,
+        y: feetY,
+        z: player.pos.z,
+        yaw: player.yaw,
+        pose: poseOf(moveSpeed, crouching),
+        riding: raid.state === STATES.RIDING,
+      }
+      if (stateChanged(lastSent, state)) {
+        lastSent = state
+        net.sendState(state)
+      }
+    }
+
     hud.setCountdown(
       raid.state === STATES.LOADOUT ? loadoutClock(raid, raidClock) : null
     )
@@ -684,7 +785,10 @@ async function boot() {
     hud.setTimers(timers)
 
     scope.draw(dt, {
-      contacts: swarm.contacts,
+      contacts: [
+        ...swarm.contacts,
+        ...peers.contacts(player.pos, CONFIG.scope.rangeMetres, renderAt),
+      ],
       forward,
       nerves: 0,
       perception,
@@ -749,6 +853,15 @@ async function boot() {
       shadowmen,
       get raid() {
         return raid
+      },
+      net: {
+        get status() {
+          return net.status
+        },
+        get id() {
+          return net.id
+        },
+        peers: () => peers.list(),
       },
       teleport(u: number, v: number) {
         const { x, z } = unitToWorld(u, v, geo.metres)

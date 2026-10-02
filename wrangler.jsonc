@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "bull-valley-shadow-wars",
+  // The Northern Information account. Pinned so local wrangler commands
+  // reach it when the login can see several accounts, and so CI needs only
+  // the organization's CLOUDFLARE_API_TOKEN.
+  "account_id": "cbe8e84757316e274a5960cf13836119",
+  // The Worker is bundled by @cloudflare/vite-plugin; `vite build` writes
+  // the deployable config under dist/ and points `wrangler deploy` at it.
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+  },
+  // The client bundle. The plugin fills in the directory from the build.
+  "assets": {
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+  },
+  // One valley for everyone; see src/protocol.ts VALLEY_NAME.
+  "durable_objects": {
+    "bindings": [{ "name": "VALLEY", "class_name": "ValleyDO" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ValleyDO"] }],
+}
