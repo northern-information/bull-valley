@@ -25,10 +25,6 @@ test('shadowmen cross the valley and show on the scope', async ({ page }) => {
 })
 
 test("a shadowman's touch puts you back at the Citgo", async ({ page }) => {
-  // The static lasts strikeSeconds of game time, which advances at most
-  // CONFIG.render.maxStep a frame; on the GPU-less runner that is well over
-  // thirty wall seconds.
-  test.slow()
   await beginRaid(page)
   await page.evaluate(() => window.__bv?.hurryTruck(0))
   const state = () => page.evaluate(() => window.__bv?.raid.state)
@@ -49,7 +45,11 @@ test("a shadowman's touch puts you back at the Citgo", async ({ page }) => {
   })
   await expect.poll(() => page.evaluate(() => window.__bv?.raid.deaths)).toBe(1)
   await expect(page.locator('.bv-static')).toBeVisible()
-  await expect(page.locator('.bv-static')).toBeHidden({ timeout: 120_000 })
+  // The static lasts strikeSeconds by the wall clock, at any frame rate, so
+  // the default wait covers it with room to spare. A longer wait here would
+  // hide it going back to frame-capped game time, where a slow machine
+  // stretches 1.6 s into half a minute.
+  await expect(page.locator('.bv-static')).toBeHidden()
   const fromSpawn = await page.evaluate(() => {
     const bv = window.__bv
     if (!bv) return null

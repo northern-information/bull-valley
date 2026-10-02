@@ -51,7 +51,8 @@ export const CONFIG = {
     // Citgo forecourts are havens: shadowmen vanish at the lights and nothing
     // can touch you inside.
     havenRadius: 60,
-    // The static after a strike, in seconds.
+    // The static after a strike, in real seconds (main.ts times it by the
+    // wall clock, never the frame-capped game time).
     strikeSeconds: 1.6,
   },
   items: {
