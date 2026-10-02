@@ -1,7 +1,8 @@
 // Procedural WebAudio: wind, radio static that scales with presence,
 // Geiger-style contact ticks, footsteps, a heartbeat that arrives with the
-// nerves, and item sounds. One exception to the no-audio-files rule ships
-// with the game: the Northern Information splash mp3, played via playOneShot.
+// nerves, and item sounds. The exceptions to the no-audio-files rule are
+// the title-card cues (the Northern Information colophon and the Bull
+// Valley Shadow Wars logo), played via playOneShot.
 
 // Older Safari has only the prefixed constructor.
 interface WebkitAudioWindow {

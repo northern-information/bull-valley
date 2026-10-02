@@ -3,6 +3,8 @@ import './styles.css'
 import { buildSky, pulseMaterials } from './assets.ts'
 import { BvAudio } from './audio.ts'
 import { ringItems, stepIndex, syncIndex } from './carousel.ts'
+import { loadCharacter } from './characters.ts'
+import { mountCharacterSelect } from './characterselect.ts'
 import { CONFIG } from './config.ts'
 import { unitToWorld } from './coords.ts'
 import { Hud } from './hud.ts'
@@ -41,12 +43,13 @@ import {
 } from './roadgraph.ts'
 import { Scope } from './scope.ts'
 import { buy as buyItem } from './shop.ts'
-import { showSplash } from './splash.ts'
+import { mountCard, showSplash, skipTitles } from './splash.ts'
 import { buildTerrainMesh, createHeightField, loadTerrain } from './terrain.ts'
 import { Truck } from './truck.ts'
 import { buildWorld } from './world.ts'
 import type { Interaction } from './interactions.ts'
 import type { Geo, Raid, RingItem } from './interfaces.ts'
+import type { OutfitId } from './outfits.ts'
 import type { RoadGraph } from './roadgraph.ts'
 import type { TerrainData } from './terrain.ts'
 import type { Pickup, World } from './world.ts'
@@ -74,6 +77,26 @@ declare global {
 // Same files the Scaduscope reads; baked by scripts/fetch_bull_valley.cjs.
 const DATA_BASE = '/data/bull-valley'
 
+// Colophon → logo → character select; resolves with the chosen outfit.
+// The select and the logo mount first, black and inert, so the cards
+// above them stack in DOM order and each reveal uncovers the next.
+async function showTitles(audio: BvAudio): Promise<OutfitId> {
+  if (skipTitles()) return loadCharacter(window.localStorage)
+  const select = mountCharacterSelect({
+    storage: window.localStorage,
+    config: { ...CONFIG.select, downscale: CONFIG.render.downscale },
+  })
+  const logo = mountCard({
+    audio,
+    config: CONFIG.logo,
+    fog: { downscale: CONFIG.render.downscale },
+  })
+  await showSplash({ audio, config: CONFIG.splash })
+  logo.start()
+  await logo.done
+  return select.run()
+}
+
 async function boot() {
   const root = document.getElementById('bv-root')
   if (!root) throw new Error('Missing #bv-root')
@@ -82,10 +105,12 @@ async function boot() {
   // Sound effects are off for now; the splash cue is the only audio, and
   // dev builds mute it too.
   if (import.meta.env.DEV) audio.setMuted(true)
-  // The colophon threshold covers the terrain resolve. Not awaited — the scene builds underneath while it plays, the
-  // backdrop stays opaque through the whole logo envelope, and the final
-  // reveal tween discloses the intro dialog already waiting beneath.
-  void showSplash({ audio, config: CONFIG.splash })
+  // The titles cover the terrain resolve: colophon, logo, then the
+  // character select, each a black layer stacked over the next, so every
+  // reveal uncovers the one beneath and the last discloses the intro
+  // dialog already waiting. Not awaited until the player body needs the
+  // pick; the scene builds underneath.
+  const titles = showTitles(audio)
   hud.showIntro(true, false)
   hud.beginBtn.disabled = true
   hud.beginBtn.textContent = 'Resolving Terrain…'
@@ -182,7 +207,7 @@ async function boot() {
     metres: geo.metres,
     spawn: world.spawn,
   })
-  const playerBody = new PlayerBody(scene)
+  const playerBody = new PlayerBody(scene, await titles)
   const scope = new Scope(hud.scopeCanvas, hud.phone)
 
   const keep = world.landmarks.find((l) => l.n === KEEP)

@@ -72,12 +72,34 @@ export const CONFIG = {
     // instant; audio tails slightly longer than the visual.
     skipFadeMs: 200,
     skipAudioFadeMs: 300,
-    // After the logo resolves, the black backdrop lifts to reveal the intro.
+    // After the colophon resolves, the black backdrop lifts to reveal the
+    // logo card.
     revealFadeMs: 400,
     imageSrc:
       '/applied-sciences-and-phantasms-working-division-flourescent.png',
+    alt: 'Northern Information',
     audioSrc: '/sfx/northern-information.mp3',
     hint: 'Click to Play',
+  },
+  logo: {
+    // The game's own title card, straight after the colophon: the same
+    // envelope shape, sized to its cue (~14s) so the cue ends at silence.
+    fadeInMs: 2000,
+    holdMs: 10400,
+    fadeOutMs: 1600,
+    skipFadeMs: 200,
+    skipAudioFadeMs: 300,
+    // The backdrop lifts to reveal the character select.
+    revealFadeMs: 400,
+    imageSrc: '/bull-valley-shadow-wars.png',
+    alt: 'Bull Valley Shadow Wars',
+    audioSrc: '/sfx/bull-valley-shadow-wars-intro.mp3',
+  },
+  select: {
+    // The character turntable: spin speed and the fade that reveals the
+    // intro once a character is chosen.
+    spinPerSecond: 0.7,
+    revealFadeMs: 400,
   },
   truck: {
     speed: 12, // m/s, about 27 mph — right for gravel-adjacent Bull Valley
