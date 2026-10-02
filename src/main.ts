@@ -187,7 +187,7 @@ async function boot() {
     truck.parkAt(truckPoint.x, truckPoint.z, dx / len, dz / len)
     truck.setDriverPost('tailgate')
   }
-  // Spawn on the forecourt between the station and the truck, facing the
+  // Spawn on the lot between the pump island and the truck, facing the
   // truck — clear of the building, which sits behind the pumps.
   {
     const dx = truck.x - spawnStation.x

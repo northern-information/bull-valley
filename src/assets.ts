@@ -222,21 +222,34 @@ function makeCitgoSignTexture(): THREE.CanvasTexture {
   return new THREE.CanvasTexture(canvas)
 }
 
-// Station-local layout: the fuel point at the origin, local +X toward the
-// road sign, the building set back along -X. `along` offsets run on the
-// local Z axis (the pump island's long side). The sign sits on its own
-// ground sample in the world, so `sign` gives a ground offset plus height.
+// Station-local layout: the pump island at the origin, local +X toward the
+// road, the building set back along -X. `along` offsets run on the local Z
+// axis (the pump island's long side, parallel to the road). world.ts turns
+// every station to face its nearest road and sets the island
+// `roadEdgeDistance` back from the road's edge, so the sign stands just
+// inside the lot's road frontage. The lot is the asphalt from the building
+// front to the frontage. The sign sits on its own ground sample in the
+// world, so `sign` gives a ground offset plus height.
 export const FUEL_LAYOUT = {
-  buildingSetback: 7,
+  buildingSetback: 9,
   canopyPoleOffset: 2.6,
   pumpOffset: 2.6 * 0.55,
+  roadEdgeDistance: 12,
+  // The sign stands at the lot's road-side corner, off the pump island's
+  // axis, so it never blocks the view from the island to the road.
   signDistance: 10,
+  signAlong: 8,
   signHeight: 7,
   glowScale: 9,
+  // Along local X, from the building front to just short of the road edge;
+  // halfWidth spans local Z.
+  lot: { back: -6.5, front: 11.5, halfWidth: 11 },
+  lotColor: '#262a30',
 }
 
 export function fuelStationParts() {
-  const building = new THREE.BoxGeometry(7, 3.4, 5)
+  // Wide along the lot (local Z), shallow toward the road (local X).
+  const building = new THREE.BoxGeometry(5, 3.4, 9)
   building.translate(0, 1.7, 0)
   const canopy = new THREE.BoxGeometry(9, 0.45, 6.5)
   canopy.translate(0, 4.6, 0)
@@ -298,15 +311,32 @@ export function fuelStationParts() {
   }
 }
 
-// One station at yaw 0, laid out exactly as world.ts places them.
+// One station at yaw 0, laid out exactly as world.ts places them. The lot
+// is a flat slab here; in the world it follows the ground like a road.
 function sampleFuelStation(): THREE.Group {
   const p = fuelStationParts()
   const L = FUEL_LAYOUT
+  const lot = new THREE.PlaneGeometry(
+    L.lot.front - L.lot.back,
+    L.lot.halfWidth * 2
+  )
+  lot.rotateX(-Math.PI / 2)
   const parts: Part[] = [
+    {
+      name: 'lot',
+      geometry: lot,
+      material: applyPS1(
+        new THREE.MeshBasicMaterial({
+          color: L.lotColor,
+          side: THREE.DoubleSide,
+        })
+      ),
+      position: [(L.lot.front + L.lot.back) / 2, 0.02, 0],
+    },
     { ...p.building, position: [-L.buildingSetback, 0, 0] },
     p.canopy,
-    { ...p.signPole, position: [L.signDistance, 0, 0] },
-    { ...p.sign, position: [L.signDistance, L.signHeight, 0] },
+    { ...p.signPole, position: [L.signDistance, 0, L.signAlong] },
+    { ...p.sign, position: [L.signDistance, L.signHeight, L.signAlong] },
   ]
   for (const off of [L.canopyPoleOffset, -L.canopyPoleOffset]) {
     parts.push({ ...p.canopyPole, position: [0, 0, off] })
@@ -316,7 +346,7 @@ function sampleFuelStation(): THREE.Group {
   }
   const group = assembleParts(parts)
   const sprite = makeGlowSprite(p.glow, L.glowScale)
-  sprite.position.set(L.signDistance, L.signHeight, 0)
+  sprite.position.set(L.signDistance, L.signHeight, L.signAlong)
   group.add(sprite)
   return group
 }
@@ -1430,30 +1460,32 @@ export function buildTruckBody(): THREE.Group {
     return mesh
   }
 
+  // Half-ton proportions, so a 1.8 m figure stands head and shoulders over
+  // the bed rail (1.45 m) and just under the roof (1.95 m).
   // Hood, lower cab, bed floor.
-  add(new THREE.BoxGeometry(1.9, 0.7, 1.5), white, 0, 1.15, 2.0)
-  add(new THREE.BoxGeometry(1.9, 0.65, 1.7), white, 0, 1.125, 0.75)
+  add(new THREE.BoxGeometry(1.9, 0.55, 1.5), white, 0, 0.975, 2.0)
+  add(new THREE.BoxGeometry(1.9, 0.8, 1.7), white, 0, 0.95, 0.75)
   // Cab greenhouse: roof on four pillars, glass all round.
-  add(new THREE.BoxGeometry(1.9, 0.1, 1.7), white, 0, 2.05, 0.75)
+  add(new THREE.BoxGeometry(1.9, 0.1, 1.7), white, 0, 1.9, 0.75)
   for (const [px, pz] of [
     [0.9, -0.05],
     [-0.9, -0.05],
     [0.9, 1.55],
     [-0.9, 1.55],
   ]) {
-    add(new THREE.BoxGeometry(0.1, 0.55, 0.1), white, px, 1.725, pz)
+    add(new THREE.BoxGeometry(0.1, 0.5, 0.1), white, px, 1.6, pz)
   }
-  add(new THREE.BoxGeometry(1.7, 0.55, 0.04), glass, 0, 1.725, 1.58) // windshield
-  add(new THREE.BoxGeometry(1.7, 0.55, 0.04), glass, 0, 1.725, -0.08) // rear
-  add(new THREE.BoxGeometry(0.04, 0.55, 1.5), glass, 0.92, 1.725, 0.75)
-  add(new THREE.BoxGeometry(0.04, 0.55, 1.5), glass, -0.92, 1.725, 0.75)
+  add(new THREE.BoxGeometry(1.7, 0.5, 0.04), glass, 0, 1.6, 1.58) // windshield
+  add(new THREE.BoxGeometry(1.7, 0.5, 0.04), glass, 0, 1.6, -0.08) // rear
+  add(new THREE.BoxGeometry(0.04, 0.5, 1.5), glass, 0.92, 1.6, 0.75)
+  add(new THREE.BoxGeometry(0.04, 0.5, 1.5), glass, -0.92, 1.6, 0.75)
   add(new THREE.BoxGeometry(1.9, 0.3, 2.7), white, 0, 0.85, -1.45)
   // Bed walls and tailgate.
-  add(new THREE.BoxGeometry(0.12, 0.5, 2.7), white, 0.9, 1.25, -1.45)
-  add(new THREE.BoxGeometry(0.12, 0.5, 2.7), white, -0.9, 1.25, -1.45)
-  add(new THREE.BoxGeometry(1.9, 0.5, 0.12), white, 0, 1.25, -2.75)
+  add(new THREE.BoxGeometry(0.12, 0.45, 2.7), white, 0.9, 1.225, -1.45)
+  add(new THREE.BoxGeometry(0.12, 0.45, 2.7), white, -0.9, 1.225, -1.45)
+  add(new THREE.BoxGeometry(1.9, 0.45, 0.12), white, 0, 1.225, -2.75)
   // Wheels: cylinders rolling on the x axis.
-  const wheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.3, 7)
+  const wheelGeo = new THREE.CylinderGeometry(0.39, 0.39, 0.3, 7)
   wheelGeo.rotateZ(Math.PI / 2)
   for (const [wx, wz] of [
     [0.85, 1.7],
@@ -1461,7 +1493,7 @@ export function buildTruckBody(): THREE.Group {
     [0.85, -1.7],
     [-0.85, -1.7],
   ]) {
-    add(wheelGeo, dark, wx, 0.42, wz)
+    add(wheelGeo, dark, wx, 0.39, wz)
   }
   // Headlights: emissive stubs plus a warm glow.
   const lightMat = applyPS1(
@@ -1471,18 +1503,19 @@ export function buildTruckBody(): THREE.Group {
       emissiveIntensity: 0.9,
     })
   )
-  add(new THREE.BoxGeometry(0.3, 0.18, 0.08), lightMat, 0.62, 1.05, 2.78)
-  add(new THREE.BoxGeometry(0.3, 0.18, 0.08), lightMat, -0.62, 1.05, 2.78)
+  add(new THREE.BoxGeometry(0.3, 0.18, 0.08), lightMat, 0.62, 0.95, 2.78)
+  add(new THREE.BoxGeometry(0.3, 0.18, 0.08), lightMat, -0.62, 0.95, 2.78)
   const glow = makeGlowTexture('rgba(251, 231, 163, 0.55)')
   for (const gx of [0.62, -0.62]) {
     const sprite = makeGlowSprite(glow, 1.6)
-    sprite.position.set(gx, 1.05, 2.85)
+    sprite.position.set(gx, 0.95, 2.85)
     group.add(sprite)
   }
 
-  // The steering wheel, in front of the driver seat (left side, +X).
+  // The steering wheel, in front of the driver seat (left side, +X), where
+  // the sit pose puts the hands.
   const steeringGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.04, 8)
-  const wheel = add(steeringGeo, dark, 0.45, 1.46, 1.06)
+  const wheel = add(steeringGeo, dark, 0.45, 1.2, 1.06)
   wheel.rotation.x = Math.PI / 2 - 0.35
   return group
 }

@@ -59,7 +59,8 @@ const ARMS_DOWN: Partial<Record<JointName, Rotation>> = {
 // `seconds` and loops.
 export const POSES = {
   stand: { keys: [{ lift: 0, joints: { ...ARMS_DOWN } }] },
-  // Driving: thighs forward, shins down, hands on a wheel.
+  // Driving: thighs forward, shins angled down to a low floor, hands on a
+  // wheel.
   sit: {
     keys: [
       {
@@ -67,8 +68,8 @@ export const POSES = {
         joints: {
           hipL: [-1.5, 0, 0.04],
           hipR: [-1.5, 0, -0.04],
-          kneeL: [1.45, 0, 0],
-          kneeR: [1.45, 0, 0],
+          kneeL: [1.0, 0, 0],
+          kneeR: [1.0, 0, 0],
           shoulderL: [-0.95, 0, 0.12],
           shoulderR: [-0.95, 0, -0.12],
           elbowL: [-0.55, 0, 0],

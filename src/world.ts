@@ -609,14 +609,47 @@ function buildGraveyards(
   return { group, anchors }
 }
 
-// Low-poly Citgo stations at every fuel point inside the frame: flat-roofed
-// building, canopy over a pump island, tall lit road sign. The data keeps the
-// real OSM names for the HUD; the visual is uniformly Citgo for now.
-function buildFuelStations(
-  geo: Pick<Geo, 'fuel'>,
+// The closest point on any road centreline to (x, z), with that road's
+// paved width. Null when the survey has no roads.
+function nearestRoadside(
+  roads: readonly Road[],
   metres: Metres,
-  heightAt: HeightAt,
-  rng: Rng
+  x: number,
+  z: number
+): { x: number; z: number; dist: number; width: number } | null {
+  let best: { x: number; z: number; dist: number; width: number } | null = null
+  for (const road of roads) {
+    const width = (ROAD_STYLE[road.c] || ROAD_DEFAULT).width
+    for (let i = 0; i < road.p.length - 1; i++) {
+      const a = unitToWorld(road.p[i][0], road.p[i][1], metres)
+      const b = unitToWorld(road.p[i + 1][0], road.p[i + 1][1], metres)
+      const dist = pointSegmentDistance(x, z, a.x, a.z, b.x, b.z)
+      if (best && dist >= best.dist) continue
+      const dx = b.x - a.x
+      const dz = b.z - a.z
+      const len2 = dx * dx + dz * dz
+      const t =
+        len2 === 0
+          ? 0
+          : Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / len2))
+      best = { x: a.x + dx * t, z: a.z + dz * t, dist, width }
+    }
+  }
+  return best
+}
+
+// Low-poly Citgo stations at every fuel point inside the frame: flat-roofed
+// building, canopy over a pump island, tall lit road sign, and an asphalt
+// lot between them and the road. Each station faces its nearest road, with
+// the pump island FUEL_LAYOUT.roadEdgeDistance back from the road's edge
+// and the building behind it: the OSM fuel point only says which road and
+// roughly where along it. The returned points are the pump islands, where
+// the truck parks nearby and a raid extracts. The data keeps the real OSM
+// names for the HUD; the visual is uniformly Citgo for now.
+function buildFuelStations(
+  geo: Pick<Geo, 'fuel' | 'roads'>,
+  metres: Metres,
+  heightAt: HeightAt
 ): { group: THREE.Group; points: FuelPoint[] } {
   const group = new THREE.Group()
   group.name = 'fuel'
@@ -635,16 +668,41 @@ function buildFuelStations(
   const pumps = instanced(parts.pump, count * 2)
   const signPoles = instanced(parts.signPole, count)
   const signs = instanced(parts.sign, count)
+  const lots = makeRibbonAccumulator()
 
   const dummy = new THREE.Object3D()
   const points: FuelPoint[] = []
   for (let i = 0; i < count; i++) {
-    const { x, z } = unitToWorld(stations[i].p[0], stations[i].p[1], metres)
+    const at = unitToWorld(stations[i].p[0], stations[i].p[1], metres)
+    const road = nearestRoadside(geo.roads, metres, at.x, at.z)
+    // Local +X points at the road. With no road to face, the station stays
+    // on its fuel point facing +X.
+    let yaw = 0
+    let x = at.x
+    let z = at.z
+    if (road && road.dist > 0) {
+      yaw = Math.atan2(road.z - at.z, road.x - at.x)
+      const setback = road.width / 2 + L.roadEdgeDistance
+      x = road.x - Math.cos(yaw) * setback
+      z = road.z - Math.sin(yaw) * setback
+    }
     const y = heightAt(x, z)
-    const yaw = rng() * Math.PI * 2
     const cos = Math.cos(yaw)
     const sin = Math.sin(yaw)
     points.push({ x, z, name: stations[i].n })
+
+    // The lot: a wide ribbon along local X that follows the ground, from
+    // the building front to the road frontage, drawn just under the roads.
+    const lotPoints: WorldPoint[] = []
+    for (let d = L.lot.back; d < L.lot.front; d += 3) {
+      const lx = x + cos * d
+      const lz = z + sin * d
+      lotPoints.push({ x: lx, y: heightAt(lx, lz), z: lz })
+    }
+    const fx = x + cos * L.lot.front
+    const fz = z + sin * L.lot.front
+    lotPoints.push({ x: fx, y: heightAt(fx, fz), z: fz })
+    lots.add(lotPoints, L.lot.halfWidth * 2, L.lotColor, 0.28)
 
     // Building set back behind the pumps.
     dummy.position.set(
@@ -672,9 +730,9 @@ function buildFuelStations(
       pumps.setMatrixAt(i * 2 + p, dummy.matrix)
     }
 
-    // Tall road sign out front.
-    const sx = x + cos * L.signDistance
-    const sz = z + sin * L.signDistance
+    // Tall road sign out front, at the lot's corner.
+    const sx = x + cos * L.signDistance - sin * L.signAlong
+    const sz = z + sin * L.signDistance + cos * L.signAlong
     const sy = heightAt(sx, sz)
     dummy.position.set(sx, sy, sz)
     dummy.updateMatrix()
@@ -697,6 +755,7 @@ function buildFuelStations(
     mesh.instanceMatrix.needsUpdate = true
     group.add(mesh)
   }
+  group.add(lots.build('lots'))
   return { group, points }
 }
 
@@ -864,7 +923,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   group.add(buildReeds(geo, metres, heightAt, rng))
   const graveyards = buildGraveyards(geo, metres, heightAt, rng)
   group.add(graveyards.group)
-  const fuel = buildFuelStations(geo, metres, heightAt, rng)
+  const fuel = buildFuelStations(geo, metres, heightAt)
   group.add(fuel.group)
   const landmarks = buildLandmarks(geo, metres, heightAt)
   group.add(landmarks.group)
