@@ -1,20 +1,27 @@
 // The character select: a black overlay with one figure on a PS1
-// turntable, its name, and Previous / Next / Choose. It is mounted at boot
-// beneath the title cards, so the logo's reveal uncovers it, and run()
-// arms it once it is showing. The game's renderer does not exist until the
-// terrain resolves, so the turntable draws with its own small renderer,
-// disposed once a character is chosen. The roster and the saved pick come
-// from characters.ts; the bodies from figure.ts.
+// turntable, its name, a field for yours, and Previous / Next / Choose. It
+// is mounted at boot beneath the title cards, so the logo's reveal uncovers
+// it, and run() arms it once it is showing. The game's renderer does not
+// exist until the terrain resolves, so the turntable draws with its own
+// small renderer, disposed once a character is chosen. The roster and the
+// saved pick and name come from characters.ts; the bodies from figure.ts;
+// the name rules from protocol.ts, since the valley server applies them too.
 
 import * as THREE from 'three'
 import { stepIndex } from './carousel.ts'
-import { loadCharacter, saveCharacter, SELECTABLE } from './characters.ts'
+import {
+  loadCharacter,
+  loadName,
+  saveCharacter,
+  saveName,
+  SELECTABLE,
+} from './characters.ts'
 import { applyPose, buildFigure } from './figure.ts'
 import { outfitById } from './outfits.ts'
 import { samplePose } from './poses.ts'
+import { isValidName, NAME_MAX, normalizeName } from './protocol.ts'
 import { createPS1Renderer, setSnapResolution } from './ps1.ts'
-import type { CharacterStorage } from './characters.ts'
-import type { OutfitId } from './outfits.ts'
+import type { CharacterPick, CharacterStorage } from './characters.ts'
 
 export interface CharacterSelectConfig {
   spinPerSecond: number
@@ -29,9 +36,9 @@ export interface CharacterSelectOptions {
 }
 
 export interface CharacterSelect {
-  // Arms the screen and resolves with the chosen outfit once the overlay
-  // has faded out and removed itself.
-  run(): Promise<OutfitId>
+  // Arms the screen and resolves with the chosen outfit and name once the
+  // overlay has faded out and removed itself.
+  run(): Promise<CharacterPick>
 }
 
 // Mounts the overlay as the last child of <body>, black and inert until
@@ -50,9 +57,13 @@ export function mountCharacterSelect({
     <div class="bv-select-ui" hidden>
       <h2 id="bv-select-title">Choose Your Character</h2>
       <p class="bv-select-name" aria-live="polite"></p>
+      <label class="bv-select-field">
+        <span>Your Name</span>
+        <input type="text" data-bv="select-player-name" maxlength="${NAME_MAX}" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="go">
+      </label>
       <div class="bv-select-actions">
         <button type="button" class="bv-btn" data-bv="select-prev">Previous</button>
-        <button type="button" class="bv-btn bv-btn--primary" data-bv="select-choose">Choose</button>
+        <button type="button" class="bv-btn bv-btn--primary" data-bv="select-choose" disabled>Choose</button>
         <button type="button" class="bv-btn" data-bv="select-next">Next</button>
       </div>
       <p class="bv-select-hint">&lt; &gt; Cycle · Enter Choose</p>
@@ -67,12 +78,13 @@ export function mountCharacterSelect({
   const canvas = find<HTMLCanvasElement>('.bv-select-canvas')
   const ui = find<HTMLDivElement>('.bv-select-ui')
   const nameEl = find<HTMLParagraphElement>('.bv-select-name')
+  const nameInput = find<HTMLInputElement>('[data-bv="select-player-name"]')
   const prevBtn = find<HTMLButtonElement>('[data-bv="select-prev"]')
   const nextBtn = find<HTMLButtonElement>('[data-bv="select-next"]')
   const chooseBtn = find<HTMLButtonElement>('[data-bv="select-choose"]')
 
-  function run(): Promise<OutfitId> {
-    return new Promise<OutfitId>((resolve) => {
+  function run(): Promise<CharacterPick> {
+    return new Promise<CharacterPick>((resolve) => {
       const renderer = createPS1Renderer(canvas)
       const scene = new THREE.Scene()
       scene.background = new THREE.Color('#000000')
@@ -104,6 +116,13 @@ export function mountCharacterSelect({
       let chosen = false
       let fadeStart: number | null = null
 
+      // The name as it would go over the wire. Choose waits for a valid one.
+      nameInput.value = loadName(storage)
+      const playerName = () => normalizeName(nameInput.value)
+      const checkName = () => {
+        chooseBtn.disabled = chosen || !isValidName(playerName())
+      }
+
       const show = () => {
         figures.forEach((group, i) => {
           group.visible = i === index
@@ -121,8 +140,16 @@ export function mountCharacterSelect({
 
       const choose = () => {
         if (chosen) return
+        const name = playerName()
+        if (!isValidName(name)) {
+          nameInput.focus()
+          return
+        }
         chosen = true
+        chooseBtn.disabled = true
+        nameInput.disabled = true
         saveCharacter(storage, SELECTABLE[index])
+        saveName(storage, name)
         fadeStart = performance.now()
       }
 
@@ -138,6 +165,17 @@ export function mountCharacterSelect({
       }
 
       const onKey = (e: KeyboardEvent) => {
+        // In the field the keys type; Enter there chooses when the name
+        // is good, and Escape hands the arrows back to the turntable.
+        if (e.target === nameInput) {
+          if (e.code === 'Enter') {
+            e.preventDefault()
+            choose()
+          } else if (e.code === 'Escape') {
+            nameInput.blur()
+          }
+          return
+        }
         if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
           e.preventDefault()
           step(-1)
@@ -160,17 +198,22 @@ export function mountCharacterSelect({
         renderer.dispose()
         renderer.forceContextLoss()
         root.remove()
-        resolve(SELECTABLE[index])
+        resolve({ outfit: SELECTABLE[index], name: playerName() })
       }
 
       prevBtn.addEventListener('click', () => step(-1))
       nextBtn.addEventListener('click', () => step(1))
       chooseBtn.addEventListener('click', choose)
+      nameInput.addEventListener('input', checkName)
       document.addEventListener('keydown', onKey)
       window.addEventListener('resize', resize)
       resize()
       show()
+      checkName()
       ui.hidden = false
+      // A first visit starts in the field; a return visit has its name and
+      // can go straight to the turntable keys.
+      if (!nameInput.value) nameInput.focus()
 
       let last = performance.now()
       renderer.setAnimationLoop(() => {

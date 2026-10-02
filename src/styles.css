@@ -662,6 +662,38 @@
   text-shadow: 4px 4px 0 var(--fi-black-shadow);
 }
 
+/* The name field: the same face as the buttons, so the row reads as one
+   instrument; the label sits in the small caps of the hints. */
+.bv-select-field {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.75em;
+}
+
+.bv-select-field input {
+  box-sizing: border-box;
+  width: 16ch;
+  min-width: 11rem;
+  font: inherit;
+  font-size: calc(var(--bv-text-size, 1rem) * 1.1);
+  letter-spacing: 0.08em;
+  text-transform: none;
+  text-align: center;
+  color: var(--bv-eggshell);
+  background: var(--fi-surface);
+  border: 1px solid var(--fi-paper-light);
+  box-shadow: 4px 4px 0 var(--fi-black-shadow);
+  padding: 0.45rem 0.6rem;
+}
+
+.bv-select-field input:disabled {
+  opacity: 0.6;
+}
+
 .bv-select-actions {
   display: flex;
   flex-wrap: wrap;
@@ -675,6 +707,13 @@
 
 .bv-select .bv-btn--primary {
   color: var(--fi-bg);
+}
+
+.bv-select .bv-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 4px 4px 0 var(--fi-black-shadow);
 }
 
 .bv-select-hint {
