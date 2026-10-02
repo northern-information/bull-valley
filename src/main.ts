@@ -935,20 +935,27 @@ async function boot() {
   let last = performance.now()
   renderer.setAnimationLoop(() => {
     const now = performance.now()
-    const dt = Math.min(CONFIG.render.maxStep, (now - last) / 1000)
+    // Real seconds since the last frame, and the same capped at maxStep: the
+    // capped step moves the player, the item timers, and the animation, so
+    // a stalled frame never jumps them ahead.
+    const elapsed = (now - last) / 1000
+    const dt = Math.min(CONFIG.render.maxStep, elapsed)
     last = now
     time += dt
     // The valley is persistent: once the raid begins, the clock never pauses —
     // not for the intro overlay, not for a dropped pointer lock. The truck
     // keeps its own schedule. In the shared valley the clock is the
     // server's, read through the offset, so every player counts together.
+    // Alone it is the wall clock too, never the capped step: at a few frames
+    // a second the capped step would stretch the five-minute loadout into
+    // half an hour.
     if (shared) {
       raidClock = Math.max(
         0,
         (net.clock.serverNow(now) - shared.startedAt) / 1000
       )
     } else if (started && !ended) {
-      raidClock += dt
+      raidClock += elapsed
     }
 
     const smoking = time < smokingUntil
