@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { VALLEY_NAME } from '../../src/protocol.ts'
-import worker, { isDevHost, valleyFor } from '../../worker/index.ts'
+import worker, { DEV_HEADER, isDevHost, valleyFor } from '../../worker/index.ts'
 
 function env(): Env & { calls: string[]; fetched: Request[] } {
   const calls: string[] = []
@@ -68,6 +68,23 @@ describe('router', () => {
     expect(await res.text()).toBe('upgraded')
     expect(e.calls).toEqual([VALLEY_NAME])
     expect(e.fetched).toHaveLength(1)
+    // Only a dev host gets the dev stamp, and never from the client.
+    expect(e.fetched[0].headers.get(DEV_HEADER)).toBeNull()
+    await worker.fetch(
+      new Request('http://localhost:5174/ws?valley=spec-9', {
+        headers: { Upgrade: 'websocket' },
+      }),
+      e
+    )
+    expect(e.calls.at(-1)).toBe('spec-9')
+    expect(e.fetched[1].headers.get(DEV_HEADER)).toBe('1')
+    await worker.fetch(
+      new Request('https://example.workers.dev/ws', {
+        headers: { Upgrade: 'websocket', [DEV_HEADER]: '1' },
+      }),
+      e
+    )
+    expect(e.fetched[2].headers.get(DEV_HEADER)).toBeNull()
   })
 
   it('hands everything else to the assets', async () => {

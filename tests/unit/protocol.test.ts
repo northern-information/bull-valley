@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { OUTFIT_IDS } from '../../src/outfits.ts'
 import {
   CLOSE,
+  isExtractKind,
   isOutfitId,
   isValidName,
   MAX_COORD,
@@ -15,6 +16,15 @@ import {
 } from '../../src/protocol.ts'
 
 const state = { x: 1.5, y: 0.25, z: -2, yaw: 0.3, pose: 'walk', riding: false }
+const hello = {
+  type: 'hello',
+  v: PROTOCOL_VERSION,
+  name: 'Dave',
+  outfit: 'coleman',
+  pickups: 70,
+}
+
+const parse = (value: unknown) => parseClientMessage(JSON.stringify(value))
 
 describe('names', () => {
   it('normalizes to composed, single-spaced, trimmed text', () => {
@@ -43,7 +53,7 @@ describe('names', () => {
   })
 })
 
-describe('outfits and poses', () => {
+describe('outfits, poses and extracts', () => {
   it('knows every outfit and nothing else', () => {
     for (const id of OUTFIT_IDS) expect(isOutfitId(id)).toBe(true)
     expect(isOutfitId('tuxedo')).toBe(false)
@@ -52,6 +62,13 @@ describe('outfits and poses', () => {
 
   it('has no seated pose yet', () => {
     expect(PEER_POSES).toEqual(['stand', 'walk', 'crouch'])
+  })
+
+  it('knows the three ways out', () => {
+    for (const kind of ['truck', 'fuel', 'keep']) {
+      expect(isExtractKind(kind)).toBe(true)
+    }
+    expect(isExtractKind('tunnel')).toBe(false)
   })
 })
 
@@ -78,58 +95,82 @@ describe('parsePeerState', () => {
 
 describe('parseClientMessage', () => {
   it('parses hello, state and ping', () => {
-    expect(
-      parseClientMessage(
-        JSON.stringify({
-          type: 'hello',
-          v: PROTOCOL_VERSION,
-          name: 'Dave',
-          outfit: 'coleman',
-        })
-      )
-    ).toEqual({ type: 'hello', v: 1, name: 'Dave', outfit: 'coleman' })
-    expect(
-      parseClientMessage(JSON.stringify({ type: 'state', ...state }))
-    ).toEqual({ type: 'state', ...state })
-    expect(
-      parseClientMessage(JSON.stringify({ type: 'ping', t: 12.5 }))
-    ).toEqual({
-      type: 'ping',
-      t: 12.5,
+    expect(parse(hello)).toEqual({ ...hello, v: 1 })
+    expect(parse({ type: 'state', ...state })).toEqual({
+      type: 'state',
+      ...state,
     })
+    expect(parse({ type: 'ping', t: 12.5 })).toEqual({ type: 'ping', t: 12.5 })
   })
 
   it('lets the server judge a bad name or outfit in a hello', () => {
-    const hello = parseClientMessage(
-      JSON.stringify({ type: 'hello', v: 1, name: '', outfit: 'tuxedo' })
-    )
-    expect(hello?.type).toBe('hello')
+    const judged = parse({ ...hello, name: '', outfit: 'tuxedo' })
+    expect(judged?.type).toBe('hello')
+  })
+
+  it('parses the raid frames', () => {
+    for (const type of ['board', 'unboard', 'hop-out']) {
+      expect(parse({ type })).toEqual({ type })
+    }
+    expect(parse({ type: 'take', index: 3 })).toEqual({
+      type: 'take',
+      index: 3,
+    })
+    expect(
+      parse({
+        type: 'call',
+        from: { x: 1, z: 2, extra: true },
+        to: { x: 3, z: 4 },
+      })
+    ).toEqual({ type: 'call', from: { x: 1, z: 2 }, to: { x: 3, z: 4 } })
+    expect(parse({ type: 'extract', kind: 'keep' })).toEqual({
+      type: 'extract',
+      kind: 'keep',
+    })
+    expect(parse({ type: 'dev', op: 'hurry', seconds: 2 })).toEqual({
+      type: 'dev',
+      op: 'hurry',
+      seconds: 2,
+    })
+    expect(parse({ type: 'dev', op: 'reset' })).toEqual({
+      type: 'dev',
+      op: 'reset',
+    })
+  })
+
+  it('rejects malformed raid frames', () => {
+    expect(parse({ type: 'take', index: -1 })).toBeNull()
+    expect(parse({ type: 'take', index: 1.5 })).toBeNull()
+    expect(parse({ type: 'take' })).toBeNull()
+    expect(
+      parse({ type: 'call', from: { x: 1 }, to: { x: 3, z: 4 } })
+    ).toBeNull()
+    expect(
+      parse({
+        type: 'call',
+        from: { x: 1, z: 2 },
+        to: { x: MAX_COORD + 1, z: 4 },
+      })
+    ).toBeNull()
+    expect(parse({ type: 'extract', kind: 'tunnel' })).toBeNull()
+    expect(parse({ type: 'dev', op: 'hurry' })).toBeNull()
+    expect(parse({ type: 'dev', op: 'hurry', seconds: NaN })).toBeNull()
+    expect(parse({ type: 'dev', op: 'explode' })).toBeNull()
   })
 
   it('returns null for anything malformed', () => {
     expect(parseClientMessage('not json')).toBeNull()
     expect(parseClientMessage('42')).toBeNull()
     expect(parseClientMessage('null')).toBeNull()
-    expect(parseClientMessage(JSON.stringify({ type: 'dance' }))).toBeNull()
-    expect(
-      parseClientMessage(JSON.stringify({ type: 'hello', v: '1' }))
-    ).toBeNull()
-    expect(
-      parseClientMessage(
-        JSON.stringify({ type: 'hello', v: 1.5, name: 'a', outfit: 'player' })
-      )
-    ).toBeNull()
-    expect(
-      parseClientMessage(
-        JSON.stringify({ type: 'hello', v: 1, name: 7, outfit: 'player' })
-      )
-    ).toBeNull()
-    expect(
-      parseClientMessage(JSON.stringify({ type: 'state', ...state, x: NaN }))
-    ).toBeNull()
-    expect(
-      parseClientMessage(JSON.stringify({ type: 'ping', t: 'now' }))
-    ).toBeNull()
+    expect(parse({ type: 'dance' })).toBeNull()
+    expect(parse({ type: 'hello', v: '1' })).toBeNull()
+    expect(parse({ ...hello, v: 1.5 })).toBeNull()
+    expect(parse({ ...hello, name: 7 })).toBeNull()
+    expect(parse({ ...hello, pickups: undefined })).toBeNull()
+    expect(parse({ ...hello, pickups: -1 })).toBeNull()
+    expect(parse({ ...hello, pickups: 1.5 })).toBeNull()
+    expect(parse({ type: 'state', ...state, x: NaN })).toBeNull()
+    expect(parse({ type: 'ping', t: 'now' })).toBeNull()
   })
 })
 
@@ -137,10 +178,7 @@ describe('parseServerMessage', () => {
   it('passes typed frames through and drops garbage', () => {
     expect(
       parseServerMessage(JSON.stringify({ type: 'peer-left', id: 'a' }))
-    ).toEqual({
-      type: 'peer-left',
-      id: 'a',
-    })
+    ).toEqual({ type: 'peer-left', id: 'a' })
     expect(parseServerMessage('{')).toBeNull()
     expect(parseServerMessage('[]')).toBeNull()
     expect(parseServerMessage(JSON.stringify({ id: 'a' }))).toBeNull()

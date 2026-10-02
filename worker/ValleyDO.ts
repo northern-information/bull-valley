@@ -1,8 +1,10 @@
-// The valley server: one Durable Object holding everyone who is online.
-// Each socket's player lives in its attachment (WebSocket Hibernation API),
-// so the object can sleep between frames and wake with the roster intact.
-// Nothing is stored yet beyond the sockets themselves; the shared raid comes
-// next and will live in ctx.storage. The rules live in src/protocol.ts.
+// The valley server: one Durable Object holding everyone who is online and
+// the one raid they share. Each socket's player lives in its attachment
+// (WebSocket Hibernation API), so the object can sleep between frames and
+// wake with the roster intact; the raid lives in storage and survives a
+// restart. Every rule is in src/sharedraid.ts; this is the plumbing that
+// reads a frame, runs the reducer, persists, arms the lobby alarm, and
+// sends what came back.
 
 import { DurableObject } from 'cloudflare:workers'
 import {
@@ -13,22 +15,28 @@ import {
   parseClientMessage,
   PROTOCOL_VERSION,
 } from '../src/protocol.ts'
+import { createValley, reduce, toWire } from '../src/sharedraid.ts'
 import type {
   HelloMessage,
   PeerStateWire,
   PeerWire,
   ServerMessage,
 } from '../src/protocol.ts'
+import type { Reduced, Valley, ValleyAction } from '../src/sharedraid.ts'
 
 // Per-socket state, serialized into the socket's attachment (16 KB cap;
-// this is well under 1 KB).
-interface Attachment extends PeerWire {
-  joinedAt: number
+// this is well under 1 KB). `me` is null until the hello. `dev` is set by
+// the Worker for a dev server, and unlocks the dev frames.
+interface Attachment {
+  dev: boolean
+  me: PeerWire | null
 }
 
 // State frames per second one socket may send before the rest are dropped.
 // The client sends at most CONFIG.net.sendHz; three times that is a flood.
 const MAX_STATE_PER_SECOND = 30
+
+const VALLEY_KEY = 'valley'
 
 interface RateWindow {
   startedAt: number
@@ -36,9 +44,19 @@ interface RateWindow {
 }
 
 export class ValleyDO extends DurableObject<Env> {
+  private valley: Valley = createValley()
   // Rate windows live in memory only; a wake from hibernation starts them
   // fresh, which only ever lets a few extra frames through.
   private rate = new WeakMap<WebSocket, RateWindow>()
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env)
+    // The raid is read once per wake, before any frame is handled.
+    void this.ctx.blockConcurrencyWhile(async () => {
+      const stored = await this.ctx.storage.get<Valley>(VALLEY_KEY)
+      if (stored) this.valley = stored
+    })
+  }
 
   fetch(request: Request): Response {
     if (request.headers.get('Upgrade') !== 'websocket') {
@@ -47,10 +65,18 @@ export class ValleyDO extends DurableObject<Env> {
     const pair = new WebSocketPair()
     const [client, server] = [pair[0], pair[1]]
     this.ctx.acceptWebSocket(server)
+    const attachment: Attachment = {
+      dev: request.headers.get('x-bv-dev') === '1',
+      me: null,
+    }
+    server.serializeAttachment(attachment)
     return new Response(null, { status: 101, webSocket: client })
   }
 
-  webSocketMessage(ws: WebSocket, data: string | ArrayBuffer): void {
+  async webSocketMessage(
+    ws: WebSocket,
+    data: string | ArrayBuffer
+  ): Promise<void> {
     if (typeof data !== 'string') {
       ws.close(CLOSE.malformed, 'Text frames only')
       return
@@ -60,13 +86,14 @@ export class ValleyDO extends DurableObject<Env> {
       ws.close(CLOSE.malformed, 'Malformed frame')
       return
     }
-    const me = this.attachment(ws)
+    const attachment = this.attachment(ws)
+    const me = attachment.me
     if (!me) {
       if (msg.type !== 'hello') {
         ws.close(CLOSE.malformed, 'Expected hello first')
         return
       }
-      this.hello(ws, msg)
+      await this.hello(ws, attachment, msg)
       return
     }
     switch (msg.type) {
@@ -74,27 +101,78 @@ export class ValleyDO extends DurableObject<Env> {
         ws.close(CLOSE.malformed, 'Already said hello')
         return
       case 'state':
-        this.state(ws, me, msg)
+        this.state(ws, attachment, me, msg)
         return
       case 'ping':
         send(ws, { type: 'pong', t: msg.t, serverNow: Date.now() })
         return
+      case 'board':
+      case 'unboard':
+      case 'hop-out':
+        await this.act(ws, { type: msg.type, id: me.id })
+        return
+      case 'take':
+        await this.act(ws, { type: 'take', id: me.id, index: msg.index })
+        return
+      case 'call':
+        await this.act(ws, {
+          type: 'call',
+          id: me.id,
+          from: msg.from,
+          to: msg.to,
+        })
+        return
+      case 'extract':
+        await this.act(ws, { type: 'extract', id: me.id, kind: msg.kind })
+        return
+      case 'dev':
+        if (!attachment.dev) {
+          send(ws, { type: 'nack', re: 'dev', reason: 'not-a-dev-server' })
+          return
+        }
+        await this.act(
+          ws,
+          msg.op === 'hurry'
+            ? { type: 'hurry', seconds: msg.seconds }
+            : { type: 'reset' }
+        )
+        return
     }
   }
 
-  webSocketClose(ws: WebSocket): void {
-    this.left(ws)
+  async webSocketClose(ws: WebSocket): Promise<void> {
+    await this.left(ws)
   }
 
-  webSocketError(ws: WebSocket): void {
-    this.left(ws)
+  async webSocketError(ws: WebSocket): Promise<void> {
+    await this.left(ws)
   }
 
-  private attachment(ws: WebSocket): Attachment | null {
-    return (ws.deserializeAttachment() as Attachment | null) ?? null
+  // The lobby clock ran out: the truck leaves with whoever is aboard.
+  async alarm(): Promise<void> {
+    const reduced = reduce(this.valley, { type: 'clock' }, this.context())
+    await this.apply(reduced)
+    for (const msg of reduced.broadcast) this.broadcast(msg, null)
   }
 
-  private hello(ws: WebSocket, hello: HelloMessage): void {
+  private attachment(ws: WebSocket): Attachment {
+    return (
+      (ws.deserializeAttachment() as Attachment | null) ?? {
+        dev: false,
+        me: null,
+      }
+    )
+  }
+
+  private context() {
+    return { now: Date.now(), present: this.presentIds(null) }
+  }
+
+  private async hello(
+    ws: WebSocket,
+    attachment: Attachment,
+    hello: HelloMessage
+  ): Promise<void> {
     if (hello.v !== PROTOCOL_VERSION) {
       ws.close(CLOSE.badVersion, `Protocol ${PROTOCOL_VERSION} required`)
       return
@@ -108,55 +186,109 @@ export class ValleyDO extends DurableObject<Env> {
       ws.close(CLOSE.badOutfit, 'Unknown outfit')
       return
     }
-    const me: Attachment = {
-      id: crypto.randomUUID(),
-      name,
-      outfit: hello.outfit,
-      at: null,
-      joinedAt: Date.now(),
+    const id = crypto.randomUUID()
+    const reduced = reduce(
+      this.valley,
+      { type: 'join', id, name, outfit: hello.outfit, pickups: hello.pickups },
+      { now: Date.now(), present: this.presentIds(ws) }
+    )
+    if (reduced.reject) {
+      ws.close(CLOSE.staleBuild, 'This build placed a different valley')
+      return
     }
-    ws.serializeAttachment(me)
+    await this.apply(reduced)
+    const me: PeerWire = { id, name, outfit: hello.outfit, at: null }
+    ws.serializeAttachment({ ...attachment, me } satisfies Attachment)
+    const raid = toWire(this.valley)
+    const member = this.valley.members[id]
+    if (!raid || !member) {
+      ws.close(CLOSE.serverError, 'The valley lost the raid')
+      return
+    }
     send(ws, {
       type: 'welcome',
-      id: me.id,
+      id,
       serverNow: Date.now(),
       peers: this.roster(ws),
+      raid,
+      phase: member.phase,
     })
-    this.broadcast({ type: 'peer-joined', peer: wire(me) }, ws)
+    this.broadcast({ type: 'peer-joined', peer: me }, ws)
+    for (const msg of reduced.broadcast) this.broadcast(msg, ws)
   }
 
-  private state(ws: WebSocket, me: Attachment, state: PeerStateWire): void {
+  private state(
+    ws: WebSocket,
+    attachment: Attachment,
+    me: PeerWire,
+    state: PeerStateWire
+  ): void {
     if (!this.allow(ws)) return
     const { x, y, z, yaw, pose, riding } = state
-    me.at = { x, y, z, yaw, pose, riding }
-    ws.serializeAttachment(me)
-    this.broadcast({ type: 'peer-state', id: me.id, ...me.at }, ws)
+    const next: PeerWire = { ...me, at: { x, y, z, yaw, pose, riding } }
+    ws.serializeAttachment({ ...attachment, me: next } satisfies Attachment)
+    this.broadcast(
+      { type: 'peer-state', id: me.id, x, y, z, yaw, pose, riding },
+      ws
+    )
   }
 
-  private left(ws: WebSocket): void {
-    const me = this.attachment(ws)
+  // A raid action from one player: run it, persist, answer, tell everyone.
+  private async act(ws: WebSocket, action: ValleyAction): Promise<void> {
+    const reduced = reduce(this.valley, action, this.context())
+    await this.apply(reduced)
+    if (reduced.reply) send(ws, reduced.reply)
+    for (const msg of reduced.broadcast) this.broadcast(msg, null)
+  }
+
+  private async left(ws: WebSocket): Promise<void> {
+    const attachment = this.attachment(ws)
+    const me = attachment.me
     if (!me) return
     // Clear the attachment first so a close that fires twice (close after
     // error) announces the departure once.
-    ws.serializeAttachment(null)
+    ws.serializeAttachment({ ...attachment, me: null } satisfies Attachment)
     this.broadcast({ type: 'peer-left', id: me.id }, ws)
+    const reduced = reduce(
+      this.valley,
+      { type: 'leave', id: me.id },
+      this.context()
+    )
+    await this.apply(reduced)
+    for (const msg of reduced.broadcast) this.broadcast(msg, ws)
   }
 
-  // Everyone who has said hello, except the socket asking.
-  private roster(exclude: WebSocket): PeerWire[] {
+  // Persist the valley and arm, clear, or keep the lobby alarm.
+  private async apply(reduced: Reduced): Promise<void> {
+    this.valley = reduced.valley
+    await this.ctx.storage.put(VALLEY_KEY, this.valley)
+    if (reduced.alarm === null) {
+      await this.ctx.storage.deleteAlarm()
+    } else if (reduced.alarm !== undefined) {
+      await this.ctx.storage.setAlarm(reduced.alarm)
+    }
+  }
+
+  // Ids of everyone who has said hello, except the socket given.
+  private presentIds(exclude: WebSocket | null): string[] {
+    return this.roster(exclude).map((peer) => peer.id)
+  }
+
+  // Everyone who has said hello, except the socket given.
+  private roster(exclude: WebSocket | null): PeerWire[] {
     const peers: PeerWire[] = []
     for (const socket of this.ctx.getWebSockets()) {
       if (socket === exclude) continue
-      const other = this.attachment(socket)
-      if (other) peers.push(wire(other))
+      const other = this.attachment(socket).me
+      if (other) peers.push(other)
     }
     return peers
   }
 
-  private broadcast(msg: ServerMessage, exclude: WebSocket): void {
+  private broadcast(msg: ServerMessage, exclude: WebSocket | null): void {
     const text = JSON.stringify(msg)
     for (const socket of this.ctx.getWebSockets()) {
-      if (socket === exclude || !this.attachment(socket)) continue
+      if (socket === exclude || !this.attachment(socket).me) continue
       try {
         socket.send(text)
       } catch {
@@ -176,10 +308,6 @@ export class ValleyDO extends DurableObject<Env> {
     window.count += 1
     return window.count <= MAX_STATE_PER_SECOND
   }
-}
-
-function wire({ id, name, outfit, at }: Attachment): PeerWire {
-  return { id, name, outfit, at }
 }
 
 function send(ws: WebSocket, msg: ServerMessage): void {

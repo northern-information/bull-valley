@@ -8,6 +8,9 @@ import { ValleyDO } from './ValleyDO.ts'
 
 export { ValleyDO }
 
+// Set on the upgrade request for a dev server; ValleyDO reads it.
+export const DEV_HEADER = 'x-bv-dev'
+
 // Only a dev server may pick a valley by name; in production everyone
 // shares the one valley whatever the query string says.
 export function isDevHost(hostname: string): boolean {
@@ -29,7 +32,12 @@ export default {
         return new Response('Expected a WebSocket upgrade', { status: 426 })
       }
       const id = env.VALLEY.idFromName(valleyFor(url))
-      return env.VALLEY.get(id).fetch(request)
+      // The dev stamp unlocks the dev frames (hurry the clock, reset the
+      // valley) and is never taken from the client.
+      const headers = new Headers(request.headers)
+      headers.delete(DEV_HEADER)
+      if (isDevHost(url.hostname)) headers.set(DEV_HEADER, '1')
+      return env.VALLEY.get(id).fetch(new Request(request, { headers }))
     }
     return env.ASSETS.fetch(request)
   },

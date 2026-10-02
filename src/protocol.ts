@@ -4,6 +4,7 @@
 // JSON text; every number the server stores is checked here first.
 
 import { OUTFIT_IDS } from './outfits.ts'
+import type { ExtractKind, XZ } from './interfaces.ts'
 import type { OutfitId } from './outfits.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
@@ -50,6 +51,65 @@ export interface PeerWire {
   at: PeerStateWire | null
 }
 
+// --- The shared raid -------------------------------------------------------
+// One truck, one clock, shared pickups. The server owns this state; the
+// rules are in sharedraid.ts and every change comes down as a RaidMessage.
+
+// Where a player is in the raid, as the server tracks it.
+export type MemberPhase = 'LOBBY' | 'RIDING' | 'ON_FOOT' | 'EXTRACTED'
+
+export interface MemberWire {
+  id: string
+  name: string
+  phase: MemberPhase
+  // Standing in the bed during the lobby, waiting on the others.
+  boarded: boolean
+}
+
+// A whistle for the truck: who, from where the truck was, to where they
+// stood, and when. Every client plans the same road between the two.
+export interface TruckCall {
+  by: string
+  from: XZ
+  to: XZ
+  at: number
+}
+
+export type DepartReason = 'all-aboard' | 'clock'
+
+export interface RaidWire {
+  // Counts up with every fresh lobby.
+  epoch: number
+  phase: 'LOBBY' | 'OUT'
+  // Server ms. The clients derive the countdown and the truck's position
+  // from these, never from their own frame time.
+  startedAt: number
+  loadoutEndsAt: number
+  departedAt: number | null
+  departReason: DepartReason | null
+  // Who was in the bed when it left, in seat order.
+  riders: string[]
+  // Indices into world.pickups, in the order they were taken.
+  taken: number[]
+  call: TruckCall | null
+  members: MemberWire[]
+}
+
+// Why a raid frame was sent; the client's toasts hang off it.
+export type RaidReason =
+  | 'joined'
+  | 'left'
+  | 'boarded'
+  | 'unboarded'
+  | 'depart'
+  | 'hop-out'
+  | 'taken'
+  | 'call'
+  | 'truck-free'
+  | 'extracted'
+  | 'hurry'
+  | 'reset'
+
 // --- Client → server -------------------------------------------------------
 
 export interface HelloMessage {
@@ -57,7 +117,43 @@ export interface HelloMessage {
   v: number
   name: string
   outfit: OutfitId
+  // How many pickups this build placed. A raid is shared by index, so a
+  // client built from a different placement is turned away.
+  pickups: number
 }
+
+export interface BoardMessage {
+  type: 'board'
+}
+
+export interface UnboardMessage {
+  type: 'unboard'
+}
+
+export interface HopOutMessage {
+  type: 'hop-out'
+}
+
+export interface TakeMessage {
+  type: 'take'
+  index: number
+}
+
+export interface CallMessage {
+  type: 'call'
+  from: XZ
+  to: XZ
+}
+
+export interface ExtractMessage {
+  type: 'extract'
+  kind: ExtractKind
+}
+
+// Dev-server only: the Worker stamps the socket, and production ignores
+// these. hurry rewrites the lobby clock; reset empties the valley.
+export type DevMessage =
+  { type: 'dev'; op: 'hurry'; seconds: number } | { type: 'dev'; op: 'reset' }
 
 export interface StateMessage extends PeerStateWire {
   type: 'state'
@@ -69,7 +165,20 @@ export interface PingMessage {
   t: number
 }
 
-export type ClientMessage = HelloMessage | StateMessage | PingMessage
+export type ClientMessage =
+  | HelloMessage
+  | StateMessage
+  | PingMessage
+  | BoardMessage
+  | UnboardMessage
+  | HopOutMessage
+  | TakeMessage
+  | CallMessage
+  | ExtractMessage
+  | DevMessage
+
+// What a client may be refused for.
+export type NackRe = Exclude<ClientMessage['type'], 'hello' | 'state' | 'ping'>
 
 // --- Server → client -------------------------------------------------------
 
@@ -80,6 +189,30 @@ export interface WelcomeMessage {
   // offset from it.
   serverNow: number
   peers: PeerWire[]
+  raid: RaidWire
+  phase: MemberPhase
+}
+
+// The whole shared raid after a change, and why. raid is null only after a
+// reset, when the valley is waiting for its next player.
+export interface RaidMessage {
+  type: 'raid'
+  reason: RaidReason
+  raid: RaidWire | null
+  // Who did it, for 'joined', 'left', 'boarded', 'unboarded', 'hop-out',
+  // 'taken', 'call', 'extracted'.
+  by?: string
+  // For 'taken'.
+  index?: number
+  // For 'extracted'.
+  kind?: ExtractKind
+}
+
+export interface NackMessage {
+  type: 'nack'
+  re: NackRe
+  reason: string
+  index?: number
 }
 
 export interface PeerJoinedMessage {
@@ -114,6 +247,8 @@ export type ServerMessage =
   | PeerJoinedMessage
   | PeerStateMessage
   | PeerLeftMessage
+  | RaidMessage
+  | NackMessage
   | PongMessage
   | ErrorMessage
 
@@ -161,6 +296,12 @@ export function isPeerPose(value: unknown): value is PeerPose {
   return PEER_POSES.some((pose) => pose === value)
 }
 
+const EXTRACT_KINDS: readonly ExtractKind[] = ['truck', 'fuel', 'keep']
+
+export function isExtractKind(value: unknown): value is ExtractKind {
+  return EXTRACT_KINDS.some((kind) => kind === value)
+}
+
 function isCoord(value: unknown): value is number {
   return (
     typeof value === 'number' &&
@@ -171,6 +312,12 @@ function isCoord(value: unknown): value is number {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
+}
+
+function parseXZ(value: unknown): XZ | null {
+  if (!isRecord(value)) return null
+  const { x, z } = value
+  return isCoord(x) && isCoord(z) ? { x, z } : null
 }
 
 // A state as a client may send it: finite coordinates within the survey, a
@@ -199,12 +346,44 @@ export function parseClientMessage(text: string): ClientMessage | null {
   if (!isRecord(value)) return null
   switch (value.type) {
     case 'hello': {
-      const { v, name, outfit } = value
+      const { v, name, outfit, pickups } = value
       if (typeof v !== 'number' || !Number.isInteger(v)) return null
       if (typeof name !== 'string' || typeof outfit !== 'string') return null
+      if (typeof pickups !== 'number' || !Number.isInteger(pickups)) return null
+      if (pickups < 0) return null
       // The outfit is checked by the server with isOutfitId; the type here
       // is widened deliberately so a bad id reaches that check.
-      return { type: 'hello', v, name, outfit: outfit as OutfitId }
+      return { type: 'hello', v, name, outfit: outfit as OutfitId, pickups }
+    }
+    case 'board':
+    case 'unboard':
+    case 'hop-out':
+      return { type: value.type }
+    case 'take': {
+      const { index } = value
+      if (typeof index !== 'number' || !Number.isInteger(index)) return null
+      if (index < 0) return null
+      return { type: 'take', index }
+    }
+    case 'call': {
+      const from = parseXZ(value.from)
+      const to = parseXZ(value.to)
+      return from && to ? { type: 'call', from, to } : null
+    }
+    case 'extract': {
+      const { kind } = value
+      return isExtractKind(kind) ? { type: 'extract', kind } : null
+    }
+    case 'dev': {
+      if (value.op === 'reset') return { type: 'dev', op: 'reset' }
+      if (value.op === 'hurry') {
+        const { seconds } = value
+        if (typeof seconds !== 'number' || !Number.isFinite(seconds)) {
+          return null
+        }
+        return { type: 'dev', op: 'hurry', seconds }
+      }
+      return null
     }
     case 'state': {
       const state = parsePeerState(value)

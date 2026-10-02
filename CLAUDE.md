@@ -13,7 +13,7 @@ An extraction adventure RPG set in a hauntological Bull Valley, Illinois. 3D fir
 - `npm test` / `npm run test:watch` / `npm run test:unit:coverage` — vitest unit tests (`tests/unit/`) and the Worker tests (`tests/worker/`, mock sockets and a stub `cloudflare:workers`); coverage lists every file in `src` and `worker`
 - `npm run test:e2e` — Playwright (`tests/e2e/`) against its own Vite dev server on port 5175 in `--mode test` (valley state in memory); never against `preview`, since the dev hooks exist only in dev builds. First run: `npx playwright install chromium`
 - `npm run pretty` — prettier (sorts imports too); run before every commit. `npm run format:check` checks without writing
-- CI (`.github/workflows/ci.yml`) runs on every PR to `main` and every push to `main`: format, lint, types, unit tests with coverage (the pure modules have a per-file floor in `vitest.config.ts`), build, and e2e. The e2e job runs in the Playwright Docker image as two parallel jobs: the `@raid` group, and every other spec
+- CI (`.github/workflows/ci.yml`) runs on every PR to `main` and every push to `main`: format, lint, types, unit tests with coverage (the pure modules have a per-file floor in `vitest.config.ts`), build, and e2e. The e2e job runs in the Playwright Docker image as three parallel jobs: the `@raid` group, the `@valley` group (the two-page specs, which boot two games each), and every other spec
 - `npm run fetch:data` — regenerate `public/data/bull-valley/` (network: Nominatim, Overpass, AWS terrain tiles; `--reuse-traffic` skips IDOT)
 
 ## The MVP loop
@@ -22,9 +22,11 @@ Spawn at a gas station → 5-minute loadout before Matthew Marx's white Chevy le
 
 ## Multiplayer
 
-One Cloudflare Worker serves the bundle and routes `/ws` to one Durable Object, `ValleyDO`, named `bull-valley`: everyone online is in the same valley. Each socket's player lives in its attachment (WebSocket Hibernation API); nothing is stored yet. The client sends a state frame (`x y z yaw pose riding`) at most `CONFIG.net.sendHz` a second and only when it changed; peers are drawn `CONFIG.net.interpolateMs` behind the present, between their last two frames. Same origin, no CORS. If the socket never answers, the game plays alone.
+One Cloudflare Worker serves the bundle and routes `/ws` to one Durable Object, `ValleyDO`, named `bull-valley`: everyone online is in the same valley and shares one raid. Each socket's player lives in its attachment (WebSocket Hibernation API); the raid lives in the object's storage, and the lobby clock is a storage alarm. The client sends a state frame (`x y z yaw pose riding`) at most `CONFIG.net.sendHz` a second and only when it changed; peers are drawn `CONFIG.net.interpolateMs` behind the present, between their last two frames. Same origin, no CORS. If the socket never answers, the game plays alone and the raid is the player's own.
 
-Dev only: `?valley=<id>` picks another Durable Object, so parallel e2e specs never meet; `beginRaid` in `tests/e2e/fixtures.ts` gives every page a fresh one unless a spec passes its own. Production ignores the parameter.
+The shared raid's rules are `src/sharedraid.ts`, a pure reducer the Worker runs and `tests/unit/sharedraid.test.ts` pins: the gas station is a lobby, and the truck leaves when everyone in it is aboard or when the clock runs out, with whoever is aboard (no invisible walls: walking off just means not boarding); one truck, one clock; pickups are shared by index into `world.pickups`, first to ask wins; `T` is one whistle at a time, and the called truck is the caller's until they extract or leave; the valley resets once no one is left in the raid. Every change comes to every client as a whole `RaidWire` snapshot with a reason; `main.ts` moves its own `Raid` machine from those (the arms, the deliveries and the sack stay local). Shared moments are server timestamps read through `clock.ts`: `raidClock` is derived from `startedAt`, and the truck drives against `departedAt` or the call's `at` (`Truck.driveRouteAt`), so every client agrees where it is. A client whose `world.pickups` count differs from the raid's is turned away (4005): bump `PROTOCOL_VERSION` when placement changes.
+
+Dev only: `?valley=<id>` picks another Durable Object, so parallel e2e specs never meet; `beginRaid` in `tests/e2e/fixtures.ts` gives every page a fresh one unless a spec passes its own. The Worker stamps dev-server sockets, which unlocks the `dev` frames (`hurryTruck` moves the shared clock; `reset` empties the valley). Production ignores the parameter and the frames.
 
 ## Module map
 
@@ -32,11 +34,12 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 
 - `src/interfaces.ts` — shared types only, no runtime code
 - `src/protocol.ts` — pure: the wire protocol, imported by the client and the Worker (frames, close codes, name rules, `parseClientMessage`)
+- `src/sharedraid.ts` — pure: the shared raid's rules as a reducer over the valley (lobby, departure, pickups, the whistle, reset)
 - `src/clock.ts` — pure: the server-clock offset from ping round trips
 - `src/presence.ts` — pure: the peer table, two-frame interpolation, Scaduscope contacts
 - `src/net.ts` — the WebSocket client: hello, reconnect with backoff, pings; `ready` resolves online or offline
 - `src/peers.ts` — the other players in Three: one `figure.ts` body per peer and a pixelated name sprite
-- `worker/index.ts` — the Worker router (`/ws` to the valley, everything else to the assets binding); `worker/ValleyDO.ts` — the Durable Object. Checked by `worker/tsconfig.json` with Workers types, so the Worker tests live in `tests/worker/`, not `tests/unit/`
+- `worker/index.ts` — the Worker router (`/ws` to the valley, everything else to the assets binding, the dev stamp); `worker/ValleyDO.ts` — the Durable Object: sockets, storage, the alarm, and the reducer. Checked by `worker/tsconfig.json` with Workers types, so the Worker tests live in `tests/worker/`, not `tests/unit/`
 
 - `src/main.ts` — boot, scene, input wiring, render loop, raid orchestration; game rules go in the pure modules
 - `src/raid.ts` — pure raid state machine (LOADOUT → RIDING → ON_FOOT → EXTRACTED) and the loadout clock
@@ -44,7 +47,7 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 - `src/shop.ts` — pure: one purchase at the tailgate, returning new raid, stock, and inventory
 - `src/roadgraph.ts` — pure road-network graph, Dijkstra, arc-length walker
 - `src/ground.ts` — pure: what to stand on at any point. The terrain is a heightfield and the roads and station lots float a little over it; `world.ts` registers those surfaces on a `Ground`, and `world.ground.at(x, z)` returns the terrain or the surface deck, whichever is higher. The player, the truck, and every placed thing stand on `ground.at`; only the terrain mesh and the surfaces themselves sample the raw `heightAt`
-- `src/truck.ts` — the white Chevy: seats the driver in the `assets.ts` body; drive/board/ride/call
+- `src/truck.ts` — the white Chevy: seats the driver in the `assets.ts` body; drive/board/ride/call; `driveRouteAt` drives against a shared clock, and the bed has numbered seats
 - `src/figure.ts` — the shared character body: rigid low-poly parts on joint pivots, built per outfit; `applyPose` drives it
 - `src/outfits.ts` — pure: every character outfit in one table (colors by slot, add-on parts, limb proportions); edit characters here
 - `src/poses.ts` — pure: the body's joints, the poses (stand, sit, lean, crouch, walk cycle) and `samplePose`
@@ -91,3 +94,4 @@ Pure logic stays Three-free (like `coords.ts`); Three/DOM glue lives in `truck.t
 5. `public/data` is intentionally minified; it is in `.prettierignore`.
 6. It's a raid, not a run — in code, copy, commits, and docs.
 7. Nothing stands on the raw terrain. Place and move things with `world.ground.at`, and register any new walkable surface (a floor, a deck, a lot) on the `Ground` in `world.ts` before placing on it.
+8. One truck, one clock, shared pickups. A rule of the shared raid belongs in `src/sharedraid.ts` with a test, never in the Worker or in `main.ts`.
