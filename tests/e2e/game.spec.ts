@@ -29,6 +29,26 @@ test("a shadowman's touch puts you back at the Citgo", async ({ page }) => {
   await page.evaluate(() => window.__bv?.hurryTruck(0))
   const state = () => page.evaluate(() => window.__bv?.raid.state)
   await expect.poll(state).toBe('ON_FOOT')
+  // The static is up for strikeSeconds of wall clock. On a runner at a frame
+  // a second that can come and go between two polls, so the page records
+  // when it shows and when it clears instead of the spec trying to catch it.
+  await page.evaluate(() => {
+    const el = document.querySelector('.bv-static')
+    if (!el) throw new Error('no static overlay')
+    const marks: { shownAt?: number; hiddenAt?: number } = {}
+    Object.assign(window, { staticMarks: marks })
+    new MutationObserver(() => {
+      const hidden = el.hasAttribute('hidden')
+      if (!hidden) marks.shownAt ??= performance.now()
+      else if (marks.shownAt !== undefined) marks.hiddenAt ??= performance.now()
+    }).observe(el, { attributes: true, attributeFilter: ['hidden'] })
+  })
+  const marks = () =>
+    page.evaluate(
+      () =>
+        (window as { staticMarks?: { shownAt?: number; hiddenAt?: number } })
+          .staticMarks
+    )
   // Out of the forecourt haven, then a rushing shadowman on top of you.
   await page.evaluate(() => {
     const bv = window.__bv
@@ -44,12 +64,14 @@ test("a shadowman's touch puts you back at the Citgo", async ({ page }) => {
     }
   })
   await expect.poll(() => page.evaluate(() => window.__bv?.raid.deaths)).toBe(1)
-  await expect(page.locator('.bv-static')).toBeVisible()
-  // The static lasts strikeSeconds by the wall clock, at any frame rate, so
-  // the default wait covers it with room to spare. A longer wait here would
-  // hide it going back to frame-capped game time, where a slow machine
-  // stretches 1.6 s into half a minute.
+  // It showed, then cleared.
+  await expect.poll(async () => (await marks())?.hiddenAt).toBeDefined()
   await expect(page.locator('.bv-static')).toBeHidden()
+  // It lasted strikeSeconds (1.6 s) of wall clock, give or take a frame. On
+  // frame-capped game time it would stretch to half a minute on a slow
+  // runner, so this bound catches that coming back.
+  const { shownAt = 0, hiddenAt = 0 } = (await marks()) ?? {}
+  expect(hiddenAt - shownAt).toBeLessThan(10_000)
   const fromSpawn = await page.evaluate(() => {
     const bv = window.__bv
     if (!bv) return null
