@@ -120,6 +120,10 @@ const ROAD_STYLE: Partial<Record<string, RoadStyle>> = {
   track: { width: 3, color: '#363023' },
 }
 const ROAD_DEFAULT: RoadStyle = { width: 4.5, color: '#2a2f35' }
+// Roads float ROAD_LIFT over the terrain to stay clear of it; a station lot
+// sits a hair lower so the road covers their overlap.
+const ROAD_LIFT = 0.3
+const LOT_LIFT = 0.28
 
 // Accumulates flat ribbons (roads, streams) into one non-indexed geometry.
 function makeRibbonAccumulator() {
@@ -167,6 +171,48 @@ function makeRibbonAccumulator() {
         ]) {
           positions.push(v.x, v.y, v.z)
           colors.push(c.r, c.g, c.b)
+        }
+      }
+    },
+    // A rectangular patch (a lot) draped on the ground: `along` runs from
+    // x0 to x1 on the local axis (cos, sin) through (x, z), `halfWidth`
+    // spans the perpendicular, and every grid vertex samples its own
+    // height, so the patch follows a slope both ways.
+    addPatch(
+      x: number,
+      z: number,
+      cos: number,
+      sin: number,
+      x0: number,
+      x1: number,
+      halfWidth: number,
+      step: number,
+      heightAt: HeightAt,
+      color: THREE.ColorRepresentation,
+      lift: number
+    ) {
+      const c = new THREE.Color(color)
+      const nx = Math.max(1, Math.ceil((x1 - x0) / step))
+      const nz = Math.max(1, Math.ceil((halfWidth * 2) / step))
+      const vertex = (i: number, j: number): WorldPoint => {
+        const a = x0 + ((x1 - x0) * i) / nx
+        const b = -halfWidth + (halfWidth * 2 * j) / nz
+        const px = x + cos * a - sin * b
+        const pz = z + sin * a + cos * b
+        return { x: px, y: heightAt(px, pz) + lift, z: pz }
+      }
+      for (let i = 0; i < nx; i++) {
+        for (let j = 0; j < nz; j++) {
+          const q = [
+            vertex(i, j),
+            vertex(i + 1, j),
+            vertex(i, j + 1),
+            vertex(i + 1, j + 1),
+          ]
+          for (const v of [q[0], q[2], q[1], q[1], q[2], q[3]]) {
+            positions.push(v.x, v.y, v.z)
+            colors.push(c.r, c.g, c.b)
+          }
         }
       }
     },
@@ -278,7 +324,7 @@ function buildRoads(
       toWorldPoints(road.p, metres, heightAt),
       style.width,
       style.color,
-      0.3
+      ROAD_LIFT
     )
   }
   return ribbons.build('roads')
@@ -680,29 +726,36 @@ function buildFuelStations(
     let yaw = 0
     let x = at.x
     let z = at.z
+    // From the pump island to the road centreline.
+    let setback = L.roadEdgeDistance
     if (road && road.dist > 0) {
       yaw = Math.atan2(road.z - at.z, road.x - at.x)
-      const setback = road.width / 2 + L.roadEdgeDistance
+      setback = road.width / 2 + L.roadEdgeDistance
       x = road.x - Math.cos(yaw) * setback
       z = road.z - Math.sin(yaw) * setback
     }
-    const y = heightAt(x, z)
     const cos = Math.cos(yaw)
     const sin = Math.sin(yaw)
     points.push({ x, z, name: stations[i].n })
 
-    // The lot: a wide ribbon along local X that follows the ground, from
-    // the building front to the road frontage, drawn just under the roads.
-    const lotPoints: WorldPoint[] = []
-    for (let d = L.lot.back; d < L.lot.front; d += 3) {
-      const lx = x + cos * d
-      const lz = z + sin * d
-      lotPoints.push({ x: lx, y: heightAt(lx, lz), z: lz })
-    }
-    const fx = x + cos * L.lot.front
-    const fz = z + sin * L.lot.front
-    lotPoints.push({ x: fx, y: heightAt(fx, fz), z: fz })
-    lots.add(lotPoints, L.lot.halfWidth * 2, L.lotColor, 0.28)
+    // The lot: asphalt draped on the ground from the building front to the
+    // road centreline, just under the road ribbon, so the two meet with the
+    // seam hidden under the road. Everything on the lot stands on its
+    // surface, LOT_LIFT above the ground.
+    lots.addPatch(
+      x,
+      z,
+      cos,
+      sin,
+      L.lot.back,
+      setback,
+      L.lot.halfWidth,
+      3,
+      heightAt,
+      L.lotColor,
+      LOT_LIFT
+    )
+    const y = heightAt(x, z) + LOT_LIFT
 
     // Building set back behind the pumps.
     dummy.position.set(
@@ -733,7 +786,7 @@ function buildFuelStations(
     // Tall road sign out front, at the lot's corner.
     const sx = x + cos * L.signDistance - sin * L.signAlong
     const sz = z + sin * L.signDistance + cos * L.signAlong
-    const sy = heightAt(sx, sz)
+    const sy = heightAt(sx, sz) + LOT_LIFT
     dummy.position.set(sx, sy, sz)
     dummy.updateMatrix()
     signPoles.setMatrixAt(i, dummy.matrix)

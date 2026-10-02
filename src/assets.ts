@@ -241,9 +241,9 @@ export const FUEL_LAYOUT = {
   signAlong: 8,
   signHeight: 7,
   glowScale: 9,
-  // Along local X, from the building front to just short of the road edge;
-  // halfWidth spans local Z.
-  lot: { back: -6.5, front: 11.5, halfWidth: 11 },
+  // Along local X from the building front to the road centreline (the
+  // sample stops at the road edge); halfWidth spans local Z.
+  lot: { back: -6.5, halfWidth: 11 },
   lotColor: '#262a30',
 }
 
@@ -316,8 +316,9 @@ export function fuelStationParts() {
 function sampleFuelStation(): THREE.Group {
   const p = fuelStationParts()
   const L = FUEL_LAYOUT
+  const lotFront = L.roadEdgeDistance
   const lot = new THREE.PlaneGeometry(
-    L.lot.front - L.lot.back,
+    lotFront - L.lot.back,
     L.lot.halfWidth * 2
   )
   lot.rotateX(-Math.PI / 2)
@@ -331,7 +332,7 @@ function sampleFuelStation(): THREE.Group {
           side: THREE.DoubleSide,
         })
       ),
-      position: [(L.lot.front + L.lot.back) / 2, 0.02, 0],
+      position: [(lotFront + L.lot.back) / 2, 0.02, 0],
     },
     { ...p.building, position: [-L.buildingSetback, 0, 0] },
     p.canopy,
