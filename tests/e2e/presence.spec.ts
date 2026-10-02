@@ -22,14 +22,19 @@ base('two players see each other in the valley', async ({ browser }) => {
   const errorsB = watchErrors(b)
 
   // One step right of the player: Coleman.
-  await Promise.all([beginRaid(a, 0, { valley }), beginRaid(b, 1, { valley })])
+  await Promise.all([
+    beginRaid(a, 0, { valley, name: 'Able' }),
+    beginRaid(b, 1, { valley, name: 'Baker' }),
+  ])
   expect(await a.evaluate(() => window.__bv?.net.status)).toBe('online')
   expect(await b.evaluate(() => window.__bv?.net.status)).toBe('online')
 
   await expect.poll(() => peers(a)).toHaveLength(1)
   await expect.poll(() => peers(b)).toHaveLength(1)
   const [seenByA] = await peers(a)
-  expect(seenByA).toMatchObject({ name: 'Raider', outfit: 'coleman' })
+  expect(seenByA).toMatchObject({ name: 'Baker', outfit: 'coleman' })
+  const [seenByB] = await peers(b)
+  expect(seenByB).toMatchObject({ name: 'Able', outfit: 'player' })
   const idB = await b.evaluate(() => window.__bv?.net.id)
   expect(seenByA.id).toBe(idB)
 

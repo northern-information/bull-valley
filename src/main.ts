@@ -3,7 +3,7 @@ import './styles.css'
 import { buildSky, pulseMaterials } from './assets.ts'
 import { BvAudio } from './audio.ts'
 import { ringItems, stepIndex, syncIndex } from './carousel.ts'
-import { loadCharacter } from './characters.ts'
+import { FALLBACK_NAME, loadCharacter, loadName } from './characters.ts'
 import { mountCharacterSelect } from './characterselect.ts'
 import { CONFIG } from './config.ts'
 import { unitToWorld } from './coords.ts'
@@ -51,10 +51,10 @@ import { mountCard, showSplash, skipTitles } from './splash.ts'
 import { buildTerrainMesh, createHeightField, loadTerrain } from './terrain.ts'
 import { Truck } from './truck.ts'
 import { buildWorld } from './world.ts'
+import type { CharacterPick } from './characters.ts'
 import type { Interaction } from './interactions.ts'
 import type { Geo, Raid, RingItem } from './interfaces.ts'
 import type { NetStatus } from './net.ts'
-import type { OutfitId } from './outfits.ts'
 import type { Peer } from './presence.ts'
 import type { PeerStateWire } from './protocol.ts'
 import type { RoadGraph } from './roadgraph.ts'
@@ -90,11 +90,16 @@ declare global {
 // Same files the Scaduscope reads; baked by scripts/fetch_bull_valley.cjs.
 const DATA_BASE = '/data/bull-valley'
 
-// Colophon → logo → character select; resolves with the chosen outfit.
-// The select and the logo mount first, black and inert, so the cards
-// above them stack in DOM order and each reveal uncovers the next.
-async function showTitles(audio: BvAudio): Promise<OutfitId> {
-  if (skipTitles()) return loadCharacter(window.localStorage)
+// Colophon → logo → character select; resolves with the chosen outfit
+// and name. The select and the logo mount first, black and inert, so the
+// cards above them stack in DOM order and each reveal uncovers the next.
+async function showTitles(audio: BvAudio): Promise<CharacterPick> {
+  if (skipTitles()) {
+    return {
+      outfit: loadCharacter(window.localStorage),
+      name: loadName(window.localStorage) || FALLBACK_NAME,
+    }
+  }
   const select = mountCharacterSelect({
     storage: window.localStorage,
     config: { ...CONFIG.select, downscale: CONFIG.render.downscale },
@@ -220,8 +225,8 @@ async function boot() {
     metres: geo.metres,
     spawn: world.spawn,
   })
-  const outfit = await titles
-  const playerBody = new PlayerBody(scene, outfit)
+  const pick = await titles
+  const playerBody = new PlayerBody(scene, pick.outfit)
   const scope = new Scope(hud.scopeCanvas, hud.phone)
   // The shadowmen feed the scope; nerves and the audio static stay parked
   // (src/nerves.ts is in the tree, unwired).
@@ -287,7 +292,7 @@ async function boot() {
     }
   })
   // Not awaited: the game never waits on the network.
-  void net.connect({ name: 'Raider', outfit })
+  void net.connect({ name: pick.name, outfit: pick.outfit })
 
   const keep = world.landmarks.find((l) => l.n === KEEP)
   const stand = world.landmarks.find((l) => l.n !== KEEP)
