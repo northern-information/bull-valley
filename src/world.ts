@@ -129,8 +129,11 @@ const ROAD_DEFAULT: RoadStyle = { width: 4.5, color: '#2a2f35' }
 const ROAD_LIFT = 0.3
 const LOT_LIFT = 0.28
 
-// Accumulates flat ribbons (roads, streams) into one non-indexed geometry.
-function makeRibbonAccumulator() {
+// Accumulates flat ribbons (roads, streams) and patches (lots) into one
+// non-indexed geometry. Every surface it draws also registers on `ground`,
+// so what is drawn and what things stand on can never drift apart. Pass
+// null only for a surface nobody stands on, like a stream.
+function makeRibbonAccumulator(ground: Ground | null) {
   const positions: number[] = []
   const colors: number[] = []
   return {
@@ -141,6 +144,7 @@ function makeRibbonAccumulator() {
       lift: number
     ) {
       if (points.length < 2) return
+      ground?.addRibbon(points, width, lift)
       const c = new THREE.Color(color)
       const half = width / 2
       // Per-point direction averaged over neighbouring segments (naive miter).
@@ -196,6 +200,7 @@ function makeRibbonAccumulator() {
       lift: number
     ) {
       const c = new THREE.Color(color)
+      ground?.addPatch(x, z, cos, sin, x0, x1, halfWidth, lift)
       const nx = Math.max(1, Math.ceil((x1 - x0) / step))
       const nz = Math.max(1, Math.ceil((halfWidth * 2) / step))
       const vertex = (i: number, j: number): WorldPoint => {
@@ -324,12 +329,11 @@ function buildRoads(
   heightAt: HeightAt,
   ground: Ground
 ): THREE.Mesh {
-  const ribbons = makeRibbonAccumulator()
+  const ribbons = makeRibbonAccumulator(ground)
   for (const road of geo.roads) {
     const style = ROAD_STYLE[road.c] || ROAD_DEFAULT
     const points = toWorldPoints(road.p, metres, heightAt)
     ribbons.add(points, style.width, style.color, ROAD_LIFT)
-    ground.addRibbon(points, style.width, ROAD_LIFT)
   }
   return ribbons.build('roads')
 }
@@ -364,7 +368,8 @@ function buildWater(
       }
     }
   }
-  const streams = makeRibbonAccumulator()
+  // Nobody stands on a stream, so it stays off the ground.
+  const streams = makeRibbonAccumulator(null)
   for (const water of geo.water) {
     if (water.k === 'area' || water.p.length < 2) continue
     streams.add(toWorldPoints(water.p, metres, heightAt), 2.5, '#0c1a24', 0.15)
@@ -712,7 +717,7 @@ function buildFuelStations(
   const pumps = instanced(parts.pump, count * 2)
   const signPoles = instanced(parts.signPole, count)
   const signs = instanced(parts.sign, count)
-  const lots = makeRibbonAccumulator()
+  const lots = makeRibbonAccumulator(ground)
 
   const dummy = new THREE.Object3D()
   const points: FuelPoint[] = []
@@ -738,8 +743,8 @@ function buildFuelStations(
 
     // The lot: asphalt draped on the terrain from the building front to the
     // road centreline, just under the road ribbon, so the two meet with the
-    // seam hidden under the road. It registers on the ground first, so
-    // everything on it stands on its surface.
+    // seam hidden under the road. Drawing it registers it on the ground,
+    // so everything placed after stands on its surface.
     lots.addPatch(
       x,
       z,
@@ -751,16 +756,6 @@ function buildFuelStations(
       3,
       heightAt,
       L.lotColor,
-      LOT_LIFT
-    )
-    ground.addPatch(
-      x,
-      z,
-      cos,
-      sin,
-      L.lot.back,
-      setback,
-      L.lot.halfWidth,
       LOT_LIFT
     )
     const y = ground.at(x, z)
