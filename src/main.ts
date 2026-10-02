@@ -328,7 +328,10 @@ async function boot() {
   let smokingUntil = 0
   let emberUntil = 0
   let perceptionUntil = 0
-  // The static after a shadowman's touch runs until this time.
+  // The static after a shadowman's touch runs until this local ms
+  // (performance.now). It is wall-clock, not `time`: `time` advances at most
+  // CONFIG.render.maxStep a frame, so on a slow machine 1.6 s of it can take
+  // half a minute, and the player would sit in static the whole while.
   let strikeUntil = 0
   let started = false
   let greeted = false
@@ -470,7 +473,7 @@ async function boot() {
     const next = advance(raid, EVENTS.STRUCK, raidClock)
     if (next === raid) return
     raid = next
-    strikeUntil = time + CONFIG.shadowmen.strikeSeconds
+    strikeUntil = performance.now() + CONFIG.shadowmen.strikeSeconds * 1000
     hud.showStatic(true)
     closeInventory()
     player.keys.clear()
@@ -1017,7 +1020,7 @@ async function boot() {
     // The shadowmen cross whatever the raid is doing, but only rush and touch
     // a player on foot who is not already coming to from the last strike.
     const vulnerable =
-      started && !ended && raid.state === STATES.ON_FOOT && time >= strikeUntil
+      started && !ended && raid.state === STATES.ON_FOOT && now >= strikeUntil
     const swarm = shadowmen.update({
       dt,
       player: player.pos,
@@ -1025,7 +1028,7 @@ async function boot() {
       perception,
     })
     if (swarm.struck) strike()
-    if (time < strikeUntil) hud.drawStatic()
+    if (now < strikeUntil) hud.drawStatic()
     else if (!hud.staticWrap.hidden) hud.showStatic(false)
 
     // The others are drawn a beat behind the present, so two of their
@@ -1101,7 +1104,7 @@ async function boot() {
         })
     const prompt = interaction ? interactionPrompt(interaction) : null
     if (player.locked) {
-      hud.prompt(!ended && time >= strikeUntil ? prompt : null)
+      hud.prompt(!ended && now >= strikeUntil ? prompt : null)
     } else if (started && !ended) {
       hud.prompt('Click to Resume')
     } else {

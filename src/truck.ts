@@ -102,6 +102,9 @@ export class Truck {
   // departure time agrees where the truck is. Null drives by frame time.
   startedAt: number | null
   travelled: number
+  // The local ms (performance.now) of the last update(): x and z are where
+  // the truck was then, which can be a whole frame ago on a slow machine.
+  updatedAt: number
 
   constructor({ scene, groundAt }: TruckOptions) {
     this.groundAt = groundAt
@@ -120,6 +123,7 @@ export class Truck {
     this.time = 0
     this.startedAt = null
     this.travelled = 0
+    this.updatedAt = 0
   }
 
   parkAt(x: number, z: number, dirX = 0, dirZ = 1) {
@@ -166,6 +170,7 @@ export class Truck {
   // Advances the current route. Returns { x, z, moving, done } — done is true
   // on the frame the route finishes and stays true until the next route.
   update(dt: number, nowMs: number = performance.now()): TruckState {
+    this.updatedAt = nowMs
     // Matthew Marx glances about now and then, and smokes.
     this.time += dt
     this.cigarette.update(this.time)

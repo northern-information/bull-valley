@@ -59,21 +59,27 @@ base.describe('a shared raid', { tag: '@valley' }, () => {
       expect(sharedA?.departReason).toBe('all-aboard')
       expect(sharedA?.riders).toHaveLength(2)
       // Both ride the same truck: the two clients agree where it is, once
-      // two things about the slow runner are allowed for at the truck's
-      // speed: the seconds between the two samples, and that each page
-      // moves its truck once a frame, so a sample can be most of a second
-      // stale on each side.
+      // the time between the two positions is allowed for at the truck's
+      // speed. A position is from the page's last frame, which on a slow CI
+      // runner can be seconds before the sample is read, so each one is
+      // stamped with the wall-clock time of the frame that computed it
+      // (both pages share this machine's clock), not the time of reading.
       const sample = (page: Page) =>
         page.evaluate(() => {
           const { truck } = window.__bv!
-          return { x: truck.x, z: truck.z, t: Date.now() }
+          const t = Date.now() - (performance.now() - truck.updatedAt)
+          return { x: truck.x, z: truck.z, t }
         })
       const truckA = await sample(a)
       const truckB = await sample(b)
       const apart = Math.hypot(truckA.x - truckB.x, truckA.z - truckB.z)
       const drift = (12 * Math.abs(truckA.t - truckB.t)) / 1000
-      const stale = 12 * 2
-      expect(apart).toBeLessThan(drift + stale + 10)
+      // Each page drives the truck from its own estimate of the server clock
+      // (clock.ts), good to about half its round trip; on a runner at a
+      // frame a second a reply can wait most of a frame to be read, so allow
+      // two seconds of travel for the two estimates disagreeing.
+      const sync = 12 * 2
+      expect(apart).toBeLessThan(drift + sync + 10)
 
       // A hops out and takes a cabbage; B sees it go and cannot take it.
       await a.keyboard.press('KeyE')
