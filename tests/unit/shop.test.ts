@@ -3,7 +3,7 @@ import { CONFIG } from '../../src/config.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { getItem } from '../../src/items.ts'
 import { advance, createRaid, EVENTS } from '../../src/raid.ts'
-import { buy } from '../../src/shop.ts'
+import { buy, settle } from '../../src/shop.ts'
 import { freshStock } from '../../src/store.ts'
 import type { ShopState } from '../../src/shop.ts'
 
@@ -75,5 +75,27 @@ describe('buy', () => {
   it('ignores an unknown station or item', () => {
     expect(buy(fresh(), 9, 'marlboro', 5)).toEqual({ next: null, toast: null })
     expect(buy(fresh(), 0, 'nope', 5)).toEqual({ next: null, toast: null })
+  })
+})
+
+describe('settle', () => {
+  it('pays and pockets without touching any shelf', () => {
+    const state = fresh()
+    const { next, toast } = settle(state, 'marlboro', 5)
+    expect(next?.inventory.marlboro).toBe(state.inventory.marlboro + 1)
+    expect(next?.cash).toBe(state.cash - getItem('marlboro').price)
+    expect(next?.raid).toBe(state.raid)
+    expect(next && 'stock' in next).toBe(false)
+    expect(toast).toBe(getItem('marlboro').bought)
+  })
+
+  it('refuses short cash, a second sack, and an unknown kind', () => {
+    expect(settle(fresh({ cash: 1 }), 'pbr', 5).next).toBeNull()
+    const sacked = advance(createRaid(0), EVENTS.BUY_SACK, 1)
+    expect(settle(fresh({ raid: sacked }), 'sack', 5)).toEqual({
+      next: null,
+      toast: 'You already have a sack.',
+    })
+    expect(settle(fresh(), 'moonrock', 5)).toEqual({ next: null, toast: null })
   })
 })

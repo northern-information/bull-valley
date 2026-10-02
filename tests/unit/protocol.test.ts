@@ -22,6 +22,7 @@ const hello = {
   name: 'Dave',
   outfit: 'coleman',
   pickups: 70,
+  stations: 5,
 }
 
 const parse = (value: unknown) => parseClientMessage(JSON.stringify(value))
@@ -95,7 +96,7 @@ describe('parsePeerState', () => {
 
 describe('parseClientMessage', () => {
   it('parses hello, state and ping', () => {
-    expect(parse(hello)).toEqual({ ...hello, v: 1 })
+    expect(parse(hello)).toEqual(hello)
     expect(parse({ type: 'state', ...state })).toEqual({
       type: 'state',
       ...state,
@@ -112,6 +113,11 @@ describe('parseClientMessage', () => {
     for (const type of ['board', 'unboard', 'hop-out']) {
       expect(parse({ type })).toEqual({ type })
     }
+    expect(parse({ type: 'buy', station: 2, kind: 'pbr' })).toEqual({
+      type: 'buy',
+      station: 2,
+      kind: 'pbr',
+    })
     expect(parse({ type: 'take', index: 3 })).toEqual({
       type: 'take',
       index: 3,
@@ -142,6 +148,11 @@ describe('parseClientMessage', () => {
     expect(parse({ type: 'take', index: -1 })).toBeNull()
     expect(parse({ type: 'take', index: 1.5 })).toBeNull()
     expect(parse({ type: 'take' })).toBeNull()
+    expect(parse({ type: 'buy', station: -1, kind: 'pbr' })).toBeNull()
+    expect(parse({ type: 'buy', station: 1.5, kind: 'pbr' })).toBeNull()
+    expect(parse({ type: 'buy', station: 1, kind: '' })).toBeNull()
+    expect(parse({ type: 'buy', station: 1, kind: 7 })).toBeNull()
+    expect(parse({ type: 'buy', station: 1 })).toBeNull()
     expect(
       parse({ type: 'call', from: { x: 1 }, to: { x: 3, z: 4 } })
     ).toBeNull()
@@ -169,6 +180,8 @@ describe('parseClientMessage', () => {
     expect(parse({ ...hello, pickups: undefined })).toBeNull()
     expect(parse({ ...hello, pickups: -1 })).toBeNull()
     expect(parse({ ...hello, pickups: 1.5 })).toBeNull()
+    expect(parse({ ...hello, stations: undefined })).toBeNull()
+    expect(parse({ ...hello, stations: -1 })).toBeNull()
     expect(parse({ type: 'state', ...state, x: NaN })).toBeNull()
     expect(parse({ type: 'ping', t: 'now' })).toBeNull()
   })

@@ -1,7 +1,10 @@
 // Pure: one purchase off a Citgo shelf. Like raid.ts and inventory.ts, it
 // returns new state and never changes its input. main.ts finds the facing
 // the player is looking at (store.ts), saves the inventory, and shows the
-// toast.
+// toast. In the shared valley the shelf itself belongs to the server:
+// buy() still judges the sale here (stock as last heard, cash, the sack),
+// and settle() applies the sale once the valley confirms the unit was
+// still there.
 
 import { addItem } from './inventory.ts'
 import { getItem, itemById } from './items.ts'
@@ -24,20 +27,22 @@ export interface Purchase {
   toast: string | null
 }
 
-// One unit of `kind` off station `station`'s shelves, paid for in cash.
-// The sack is gear: buying it changes the raid (a bigger carry limit), not
-// the inventory. Every other kind goes into the inventory.
-export function buy(
-  state: ShopState,
-  station: number,
-  kind: string,
-  now: number
-): Purchase {
-  const { raid, stock, inventory, cash } = state
-  const shelf = stock[station] as ShopStock | undefined
+// The buyer's side of a sale: the cash, and the raid (for the sack) or the
+// inventory (for everything else). Nothing about the shelf.
+export type Purse = Pick<ShopState, 'raid' | 'inventory' | 'cash'>
+
+export interface Settled {
+  next: Purse | null
+  toast: string | null
+}
+
+// Pays for one unit of `kind` and puts it away. The sack is gear: buying
+// it changes the raid (a bigger carry limit), not the inventory. Every
+// other kind goes into the inventory. Refuses a second sack or short cash.
+export function settle(purse: Purse, kind: string, now: number): Settled {
+  const { raid, inventory, cash } = purse
   const item = itemById(kind)
-  if (!shelf || !item) return { next: null, toast: null }
-  if (!(shelf[kind] > 0)) return { next: null, toast: 'Sold out.' }
+  if (!item) return { next: null, toast: null }
   if (kind === 'sack' && raid.sack) {
     return { next: null, toast: 'You already have a sack.' }
   }
@@ -55,16 +60,27 @@ export function buy(
   } else {
     nextInventory = addItem(inventory, kind, 1)
   }
+  return {
+    next: { raid: nextRaid, inventory: nextInventory, cash: cash - item.price },
+    toast: kind === 'sack' ? getItem('sack').bought : item.bought,
+  }
+}
+
+// One unit of `kind` off station `station`'s shelves, paid for in cash.
+export function buy(
+  state: ShopState,
+  station: number,
+  kind: string,
+  now: number
+): Purchase {
+  const { stock } = state
+  const shelf = stock[station] as ShopStock | undefined
+  if (!shelf || !itemById(kind)) return { next: null, toast: null }
+  if (!(shelf[kind] > 0)) return { next: null, toast: 'Sold out.' }
+  const { next, toast } = settle(state, kind, now)
+  if (!next) return { next: null, toast }
   const nextStock = stock.map((s, i) =>
     i === station ? { ...s, [kind]: s[kind] - 1 } : s
   )
-  return {
-    next: {
-      raid: nextRaid,
-      stock: nextStock,
-      inventory: nextInventory,
-      cash: cash - item.price,
-    },
-    toast: kind === 'sack' ? getItem('sack').bought : item.bought,
-  }
+  return { next: { ...next, stock: nextStock }, toast }
 }

@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
 import { createValley, reduce, toWire } from '../../src/sharedraid.ts'
+import { freshStock } from '../../src/store.ts'
 import type { RaidMessage } from '../../src/protocol.ts'
 import type { Valley, ValleyAction } from '../../src/sharedraid.ts'
 
 const PICKUPS = 70
+const STATIONS = 3
 const T0 = 1_000_000
 
 // A little harness: applies actions in order, remembering who is present.
@@ -47,6 +49,7 @@ const join = (id: string): ValleyAction => ({
   name: id.toUpperCase(),
   outfit: 'coleman',
   pickups: PICKUPS,
+  stations: STATIONS,
 })
 
 const reasons = (reduced: { broadcast: RaidMessage[] }) =>
@@ -87,12 +90,25 @@ describe('rule 1: a lobby forms for the first arrival', () => {
     expect(Object.keys(r.valley.members)).toEqual(['b'])
   })
 
-  it('turns away a build whose pickups differ', () => {
+  it('turns away a build whose pickups or stations differ', () => {
     const v = valleyWith(join('a'))
     const r = v.step({ ...join('b'), pickups: PICKUPS + 1 } as ValleyAction)
     expect(r.reject).toBe('stale-build')
     expect(r.valley).toBe(v.valley)
     expect(Object.keys(v.valley.members)).toEqual(['a'])
+    const moved = v.step({
+      ...join('c'),
+      stations: STATIONS + 1,
+    } as ValleyAction)
+    expect(moved.reject).toBe('stale-build')
+  })
+
+  it("stocks every station's shelves for the lobby", () => {
+    const v = valleyWith(join('a'))
+    const shelves = v.valley.raid?.shelves
+    expect(shelves).toHaveLength(STATIONS)
+    expect(shelves?.[0]).toEqual(freshStock(1)[0])
+    expect(shelves?.[0].pbr).toBe(CONFIG.store.perItem)
   })
 })
 
@@ -244,6 +260,67 @@ describe('rule 4: pickups go to the first to ask', () => {
     expect(v.step({ type: 'take', id: 'a', index: 1 }).reply?.reason).toBe(
       'not-in-raid'
     )
+  })
+})
+
+describe('rule 8: the shelves are shared', () => {
+  const buy = (id: string, station = 0, kind = 'pbr'): ValleyAction => ({
+    type: 'buy',
+    id,
+    station,
+    kind,
+  })
+
+  it("takes one unit off that station's shelf and tells everyone who bought it", () => {
+    const v = valleyWith(join('a'), join('b'))
+    const r = v.step(buy('a', 1, 'marlboro'))
+    expect(r.broadcast).toHaveLength(1)
+    expect(r.broadcast[0]).toMatchObject({
+      reason: 'bought',
+      by: 'a',
+      station: 1,
+      item: 'marlboro',
+    })
+    expect(v.valley.raid?.shelves[1].marlboro).toBe(CONFIG.store.perItem - 1)
+    expect(v.valley.raid?.shelves[0].marlboro).toBe(CONFIG.store.perItem)
+    expect(r.broadcast[0].raid?.shelves[1].marlboro).toBe(
+      CONFIG.store.perItem - 1
+    )
+  })
+
+  it('says sold out to whoever comes once the shelf is bare', () => {
+    const v = valleyWith(join('a'), join('b'))
+    for (let i = 0; i < CONFIG.store.perItem; i++) v.step(buy('a'))
+    const r = v.step(buy('b'))
+    expect(r.broadcast).toEqual([])
+    expect(r.reply).toEqual({
+      type: 'nack',
+      re: 'buy',
+      reason: 'sold-out',
+      station: 0,
+      item: 'pbr',
+    })
+  })
+
+  it('refuses a shelf that does not exist and a player out of the raid', () => {
+    const v = valleyWith(join('a'), join('b'))
+    expect(v.step(buy('a', STATIONS)).reply?.reason).toBe('no-such-shelf')
+    expect(v.step(buy('a', 0, 'cabbage')).reply?.reason).toBe('no-such-shelf')
+    v.step({ type: 'extract', id: 'a', kind: 'fuel' })
+    expect(v.step(buy('a')).reply?.reason).toBe('not-in-raid')
+  })
+
+  it('sells during the lobby and out in the valley alike', () => {
+    const v = valleyWith(join('a'), { type: 'board', id: 'a' })
+    v.step(join('b'))
+    expect(v.step(buy('b', 2, 'sack')).broadcast[0].reason).toBe('bought')
+  })
+
+  it('fills the shelves again with the next lobby', () => {
+    const v = valleyWith(join('a'), buy('a'))
+    v.step({ type: 'leave', id: 'a' })
+    v.step(join('b'))
+    expect(v.valley.raid?.shelves[0].pbr).toBe(CONFIG.store.perItem)
   })
 })
 
@@ -415,11 +492,13 @@ describe('the wire', () => {
       taken: [],
       call: null,
     })
+    expect(wire?.shelves).toHaveLength(STATIONS)
     expect(wire?.members).toEqual([
       { id: 'a', name: 'A', phase: 'LOBBY', boarded: true },
       { id: 'b', name: 'B', phase: 'LOBBY', boarded: false },
     ])
     expect(wire && 'pickups' in wire).toBe(false)
+    expect(wire && 'stations' in wire).toBe(false)
     expect(toWire(createValley())).toBeNull()
   })
 

@@ -114,6 +114,14 @@ export class ValleyDO extends DurableObject<Env> {
       case 'take':
         await this.act(ws, { type: 'take', id: me.id, index: msg.index })
         return
+      case 'buy':
+        await this.act(ws, {
+          type: 'buy',
+          id: me.id,
+          station: msg.station,
+          kind: msg.kind,
+        })
+        return
       case 'call':
         await this.act(ws, {
           type: 'call',
@@ -189,7 +197,14 @@ export class ValleyDO extends DurableObject<Env> {
     const id = crypto.randomUUID()
     const reduced = reduce(
       this.valley,
-      { type: 'join', id, name, outfit: hello.outfit, pickups: hello.pickups },
+      {
+        type: 'join',
+        id,
+        name,
+        outfit: hello.outfit,
+        pickups: hello.pickups,
+        stations: hello.stations,
+      },
       { now: Date.now(), present: this.presentIds(ws) }
     )
     if (reduced.reject) {

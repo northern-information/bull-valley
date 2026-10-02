@@ -17,9 +17,13 @@
 //    extract or leave.
 // 6. Extracting takes you out of the raid; your figure goes with you.
 // 7. When no one is left in the raid, the valley resets for the next one.
+// 8. The Citgo shelves are shared: a unit one player buys is off the shelf
+//    for everyone, and the shelves fill again with the next lobby. Cash is
+//    each player's own; the valley only keeps count of what is left.
 
 import { CONFIG } from './config.ts'
-import type { ExtractKind, XZ } from './interfaces.ts'
+import { freshStock } from './store.ts'
+import type { ExtractKind, ShopStock, XZ } from './interfaces.ts'
 import type { OutfitId } from './outfits.ts'
 import type {
   DepartReason,
@@ -50,9 +54,11 @@ export interface SharedRaid {
   departReason: DepartReason | null
   riders: string[]
   taken: number[]
+  shelves: ShopStock[]
   call: TruckCall | null
-  // How many pickups the build that opened this raid placed.
+  // How many pickups and stations the build that opened this raid placed.
   pickups: number
+  stations: number
 }
 
 // Everything the server persists.
@@ -69,12 +75,14 @@ export type ValleyAction =
       name: string
       outfit: OutfitId
       pickups: number
+      stations: number
     }
   | { type: 'leave'; id: string }
   | { type: 'board'; id: string }
   | { type: 'unboard'; id: string }
   | { type: 'hop-out'; id: string }
   | { type: 'take'; id: string; index: number }
+  | { type: 'buy'; id: string; station: number; kind: string }
   | { type: 'call'; id: string; from: XZ; to: XZ }
   | { type: 'extract'; id: string; kind: ExtractKind }
   // The lobby clock ran out.
@@ -117,14 +125,16 @@ export function toWire(valley: Valley): RaidWire | null {
   const members: MemberWire[] = Object.values(valley.members).map(
     ({ id, name, phase, boarded }) => ({ id, name, phase, boarded })
   )
-  const { pickups: _pickups, ...rest } = raid
+  const { pickups: _pickups, stations: _stations, ...rest } = raid
   return { ...rest, members }
 }
 
 function frame(
   valley: Valley,
   reason: RaidReason,
-  detail: Partial<Pick<RaidMessage, 'by' | 'index' | 'kind'>> = {}
+  detail: Partial<
+    Pick<RaidMessage, 'by' | 'index' | 'kind' | 'station' | 'item'>
+  > = {}
 ): RaidMessage {
   return { type: 'raid', reason, raid: toWire(valley), ...detail }
 }
@@ -245,12 +255,17 @@ export function reduce(
             departReason: null,
             riders: [],
             taken: [],
+            shelves: freshStock(action.stations),
             call: null,
             pickups: action.pickups,
+            stations: action.stations,
           },
         }
         alarm = loadoutEndsAt
-      } else if (next.raid.pickups !== action.pickups) {
+      } else if (
+        next.raid.pickups !== action.pickups ||
+        next.raid.stations !== action.stations
+      ) {
         return { valley, broadcast: [], reject: 'stale-build' }
       }
       const raid = next.raid
@@ -385,6 +400,34 @@ export function reduce(
         valley: next,
         broadcast: [
           frame(next, 'taken', { by: action.id, index: action.index }),
+        ],
+      }
+    }
+
+    case 'buy': {
+      const member = valley.members[action.id]
+      const raid = valley.raid
+      const { station, kind } = action
+      const refuse = (reason: string): Reduced => ({
+        valley,
+        broadcast: [],
+        reply: { type: 'nack', re: 'buy', reason, station, item: kind },
+      })
+      if (!member || !raid || member.phase === 'EXTRACTED') {
+        return refuse('not-in-raid')
+      }
+      const shelf = raid.shelves[station] as ShopStock | undefined
+      if (!shelf || !Object.hasOwn(shelf, kind)) return refuse('no-such-shelf')
+      // Rule 8.
+      if (!(shelf[kind] > 0)) return refuse('sold-out')
+      const shelves = raid.shelves.map((s, i) =>
+        i === station ? { ...s, [kind]: s[kind] - 1 } : s
+      )
+      const next = withRaid(valley, { ...raid, shelves })
+      return {
+        valley: next,
+        broadcast: [
+          frame(next, 'bought', { by: action.id, station, item: kind }),
         ],
       }
     }
