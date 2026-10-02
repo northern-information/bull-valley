@@ -2,6 +2,7 @@ import { context2d } from './canvas.ts'
 import { CONFIG } from './config.ts'
 import { compassBearing } from './coords.ts'
 import { outfitById } from './outfits.ts'
+import type { ScopeContact } from './interfaces.ts'
 
 // The handheld Scaduscope: a north-up sweep radar in the SYSOUT voice, run as
 // an app on a phone. Blips light as the sweep passes and decay until it comes
@@ -91,13 +92,6 @@ function clockText() {
     hour12: false,
     timeZone: 'America/Chicago',
   })
-}
-
-// A shadowman on the scope: compass bearing in degrees, distance in metres.
-export interface ScopeContact {
-  dist: number
-  bearing: number
-  hunting: boolean
 }
 
 // A direction on the ground plane. A THREE.Vector3 fits.

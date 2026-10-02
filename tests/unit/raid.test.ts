@@ -107,7 +107,24 @@ describe('raid state machine', () => {
       durationSeconds: 390,
       extract: 'keep',
       extractName: null,
+      deaths: 0,
     })
+  })
+
+  it("counts a shadowman's touch and takes nothing else", () => {
+    let raid = createRaid(0)
+    expect(advance(raid, EVENTS.STRUCK, 1)).toBe(raid)
+    raid = advance(raid, EVENTS.BOARD_TRUCK, 10)
+    expect(advance(raid, EVENTS.STRUCK, 11)).toBe(raid)
+    raid = advance(raid, EVENTS.HOP_OUT, 60)
+    raid = advance(raid, EVENTS.PICK_CABBAGE, 100)
+    raid = advance(raid, EVENTS.CALL_TRUCK, 110)
+    const struck = advance(raid, EVENTS.STRUCK, 120)
+    expect(struck).toEqual({ ...raid, deaths: 1 })
+    expect(advance(struck, EVENTS.STRUCK, 130).deaths).toBe(2)
+    const out = advance(struck, EVENTS.EXTRACT_KEEP, 200)
+    expect(advance(out, EVENTS.STRUCK, 201)).toBe(out)
+    expect(summary(out).deaths).toBe(1)
   })
 
   it('shows the loadout countdown as m:ss, rounded up, never below 0:00', () => {

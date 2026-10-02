@@ -74,8 +74,8 @@ export class Hud {
     this.countdown.hidden = true
     ui.appendChild(this.countdown)
 
-    // Nerves meter. Hidden while the shadowmen are parked; setNerves still
-    // works for when they return.
+    // Nerves meter. Hidden while nerves are parked; setNerves still works
+    // for when they return.
     this.nerves = el('div', 'bv-nerves')
     this.nerves.innerHTML = `
       <span class="bv-nerves-label">Nerves</span>
@@ -275,6 +275,7 @@ export class Hud {
     durationSeconds,
     extract,
     extractName,
+    deaths,
   }: RaidSummary): void {
     const minutes = Math.floor((durationSeconds || 0) / 60)
     const seconds = String(Math.floor((durationSeconds || 0) % 60)).padStart(
@@ -289,12 +290,13 @@ export class Hud {
           : `You walked out at ${extractName || 'the station'}.`
     const carried =
       carrying > 0 ? `<br>${carrying} more left to rot in the truck bed.` : ''
+    const taken = deaths > 0 ? `<br>Times the valley took you: ${deaths}.` : ''
     const summary = el('div', 'bv-intro')
     summary.setAttribute('role', 'dialog')
     summary.setAttribute('aria-modal', 'true')
     summary.innerHTML = `
       <h2>RAID COMPLETE</h2>
-      <p class="bv-intro-note">${how}<br>Cabbages delivered: ${delivered}.${carried}<br>Time in the valley: ${minutes}:${seconds}.</p>
+      <p class="bv-intro-note">${how}<br>Cabbages delivered: ${delivered}.${carried}${taken}<br>Time in the valley: ${minutes}:${seconds}.</p>
       <div class="bv-intro-actions">
         <button type="button" class="bv-btn bv-btn--primary" data-bv="again">Raid Again</button>
       </div>`

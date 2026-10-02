@@ -439,7 +439,7 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     addons: ['coat-hem'],
   },
   shadow: {
-    label: 'Shadowman (parked)',
+    label: 'Shadowman',
     colors: {
       skin: '#07080c',
       hair: '#07080c',

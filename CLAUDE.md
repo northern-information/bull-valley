@@ -17,7 +17,7 @@ An extraction adventure RPG set in a hauntological Bull Valley, Illinois. 3D fir
 
 ## The MVP loop
 
-Spawn at a gas station → 5-minute loadout before Matthew Marx's white Chevy leaves → ride the bed, hop out anywhere → find cabbages in the wilderness → drop them at the Bull Valley Cabbage Stand → extract at another station, Mt. Coleman's Keep, or call the truck (`T`).
+Spawn at a gas station → 5-minute loadout before Matthew Marx's white Chevy leaves → ride the bed, hop out anywhere → find cabbages in the wilderness → drop them at the Bull Valley Cabbage Stand → extract at another station, Mt. Coleman's Keep, or call the truck (`T`). Shadowmen cross the valley around you and show on the scope (`Q`); one that passes close rushes, and its touch puts you back at the spawn Citgo with everything you had.
 
 ## Module map
 
@@ -55,10 +55,12 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 - `src/world.ts` — places terrain features, Citgo stations, pickups, beacons from geo.json using `assets.ts`; builds no materials of its own
 - `src/akashic.ts` — the Akashic asset viewer
 - `src/terrain.ts` `src/player.ts` `src/coords.ts` `src/ps1.ts` `src/rng.ts` `src/config.ts` `src/inventory.ts` `src/hud.ts` `src/audio.ts` `src/scope.ts` — ported engine
-- `src/shadowmen.ts` `src/nerves.ts` — parked, unwired; they return post-MVP
-- The sound effects are parked too: the `BvAudio` methods other than the title-card cues (`init`, `step`, `use`, `pickup`, `strike`, `setPresence`, `setHeartbeat`, `update`) have no caller, and the item `crackle` field is for them. `CONFIG.shadowmen` and `CONFIG.items.emberDetectScale` are read only by `shadowmen.ts`.
+- `src/shadowmen.ts` — pure: the shadowmen as crossings in a bubble that follows the player (spawned on a ring past scope range, dropped past `despawnRadius`), the rush when one passes close to a player on foot, the touch that is a strike, and the Citgo havens; feeds the scope. Tune them in `CONFIG.shadowmen`
+- `src/shadowcards.ts` — the silhouette cards that show `shadowmen.ts` (textures, aura, flicker), one card per field slot
+- `src/nerves.ts` — parked, unwired; it returns with the nerves meter
+- The sound effects are parked too: the `BvAudio` methods other than the title-card cues (`init`, `step`, `use`, `pickup`, `strike`, `setPresence`, `setHeartbeat`, `update`) have no caller, and the item `crackle` field is for them.
 
-Pure logic stays Three-free (like `coords.ts`); Three/DOM glue lives in `truck.ts`/`world.ts`/`hud.ts`. Dev introspection hook: `window.__bv` (raid, truck, graph, teleport, hurryTruck).
+Pure logic stays Three-free (like `coords.ts`); Three/DOM glue lives in `truck.ts`/`world.ts`/`hud.ts`. Dev introspection hook: `window.__bv` (raid, truck, graph, shadowmen, teleport, hurryTruck).
 
 ## Testing in a browser
 

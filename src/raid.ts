@@ -23,6 +23,7 @@ export const EVENTS = {
   BUY_SACK: 'BUY_SACK',
   EXTRACT_FUEL: 'EXTRACT_FUEL',
   EXTRACT_KEEP: 'EXTRACT_KEEP',
+  STRUCK: 'STRUCK',
 } as const satisfies Record<RaidEvent, RaidEvent>
 
 export function createRaid(now: number): Raid {
@@ -37,6 +38,7 @@ export function createRaid(now: number): Raid {
     extract: null, // 'truck' | 'fuel' | 'keep'
     extractName: null, // station name for 'fuel'
     endedAt: null,
+    deaths: 0,
   }
 }
 
@@ -103,6 +105,11 @@ export function advance(
     case EVENTS.EXTRACT_KEEP:
       if (state !== STATES.ON_FOOT) return raid
       return { ...raid, state: STATES.EXTRACTED, extract: 'keep', endedAt: now }
+    case EVENTS.STRUCK:
+      // A shadowman's touch. It costs the walk back from the Citgo and
+      // nothing else: cargo, pockets and the truck call all survive.
+      if (state !== STATES.ON_FOOT) return raid
+      return { ...raid, deaths: raid.deaths + 1 }
     default:
       return raid
   }
@@ -123,5 +130,6 @@ export function summary(raid: Raid): RaidSummary {
       raid.endedAt === null ? null : Math.round(raid.endedAt - raid.startedAt),
     extract: raid.extract,
     extractName: raid.extractName,
+    deaths: raid.deaths,
   }
 }

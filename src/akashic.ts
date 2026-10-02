@@ -13,7 +13,7 @@ import { OUTFIT_IDS, OUTFITS } from './outfits.ts'
 import { samplePose } from './poses.ts'
 import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import { mulberry32 } from './rng.ts'
-import { buildShadowmanFigure, makeSilhouetteTexture } from './shadowmen.ts'
+import { buildShadowmanFigure, makeSilhouetteTexture } from './shadowcards.ts'
 import { buildTruckMesh } from './truck.ts'
 import type { AkashicAsset } from './assets.ts'
 import type { OutfitId } from './outfits.ts'
@@ -60,7 +60,7 @@ const ASSETS: AkashicAsset[] = [
     build: () => sampleFigure(id),
   })),
   ...WORLD_ASSETS,
-  { id: 'shadowman', label: 'Shadowman (parked)', build: sampleShadowman },
+  { id: 'shadowman', label: 'Shadowman', build: sampleShadowman },
 ]
 
 // --- Scene ---------------------------------------------------------------

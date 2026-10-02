@@ -8,7 +8,8 @@ import type { OutfitId } from './outfits.ts'
 // The slice of the Storage API the adapter needs, so tests can stub it.
 export type CharacterStorage = Pick<Storage, 'getItem' | 'setItem'>
 
-// In select-screen order. Marx drives the truck; the shadowmen are parked.
+// In select-screen order. Marx drives the truck; the shadowmen are not
+// selectable.
 export const SELECTABLE: readonly OutfitId[] = [
   'player',
   'coleman',
