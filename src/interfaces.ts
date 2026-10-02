@@ -133,7 +133,8 @@ export interface Item {
   bought: string
   empty?: string
   start?: number
-  shopCap?: number
+  // Shelf price at every Citgo, in cents.
+  price: number
   // Cigarettes.
   smokeSeconds?: number
   emberSeconds?: number
@@ -149,7 +150,7 @@ export interface Item {
 // Item id -> count. Every inventory kind is present.
 export type Inventory = Record<string, number>
 
-// Item id -> tailgate stock for this raid.
+// Item id -> units left on one Citgo's shelves this raid.
 export type ShopStock = Record<string, number>
 
 // ---------------------------------------------------------------------------
@@ -216,8 +217,5 @@ export interface RingItem {
   label: string
   blurb: string
   stock: number
-  // Tailgate stock, or null away from the tailgate.
-  tailgate: number | null
   canUse: boolean
-  canBuy: boolean
 }

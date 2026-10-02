@@ -8,13 +8,14 @@ import type { RaidSummary, RingItem } from './interfaces.ts'
 export interface CarouselView {
   items: RingItem[]
   index: number
-  shopOpen: boolean
 }
 
 export interface InventoryStatus {
   carry: string
   delivered: number
   truck: string
+  // Formatted, like "$40.00".
+  cash: string
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -119,10 +120,10 @@ export class Hud {
         <dt>Cabbages</dt><dd data-bv="inv-carry">0 / 3</dd>
         <dt>Delivered</dt><dd data-bv="inv-delivered">0</dd>
         <dt>Truck</dt><dd data-bv="inv-truck">—</dd>
+        <dt>Cash</dt><dd data-bv="inv-cash">—</dd>
       </dl>
       <ul class="bv-inv-commands" aria-label="Commands">
         <li data-bv="cmd-use"><kbd>E</kbd> Use</li>
-        <li data-bv="cmd-buy"><kbd>B</kbd> Buy</li>
       </ul>
       <div class="bv-inv-frame" data-bv="inv-frame" aria-hidden="true">
         <span class="bv-inv-arrow bv-inv-arrow--prev">&lt;&lt;</span>
@@ -133,7 +134,6 @@ export class Hud {
         <p class="bv-inv-line">
           <span>Name:</span> <b class="bv-inv-name" data-bv="inv-name">—</b>
           <span>Stock:</span> <b data-bv="inv-stock">0</b>
-          <span data-bv="inv-tailgate-wrap"><span>Tailgate:</span> <b data-bv="inv-tailgate">0</b></span>
         </p>
         <p class="bv-inv-desc" data-bv="inv-desc"></p>
       </div>
@@ -169,7 +169,7 @@ export class Hud {
         <tr><th>WASD</th><td>Move</td><th>Shift</th><td>Sprint</td></tr>
         <tr><th>Mouse</th><td>Look</td><th>C</th><td>Crouch</td></tr>
         <tr><th>Q</th><td>Scaduscope</td><th>Tab</th><td>Inventory</td></tr>
-        <tr><th>E</th><td>Board / Hop Out / Take / Unload / Extract</td><th>T</th><td>Call the Truck</td></tr>
+        <tr><th>E</th><td>Board / Hop Out / Take / Buy / Unload / Extract</td><th>T</th><td>Call the Truck</td></tr>
         <tr><th>1 / 2</th><td>Smoke / Spark</td><th>&lt; &gt; / A D</th><td>Cycle Inventory</td></tr>
         <tr><th>Esc</th><td colspan="3">Pause</td></tr>
       </table>
@@ -230,9 +230,8 @@ export class Hud {
   }
 
   // The selected ring item (carousel.ts entry) in text; items[index] may be
-  // missing on an empty ring. shopOpen shows the Buy command and tailgate
-  // stock.
-  setCarousel({ items, index, shopOpen }: CarouselView): void {
+  // missing on an empty ring.
+  setCarousel({ items, index }: CarouselView): void {
     const item: RingItem | undefined = items[index]
     const f = this.fields
     f['inv-no'].textContent = item ? String(index + 1) : '—'
@@ -241,19 +240,16 @@ export class Hud {
     f['inv-desc'].textContent = item
       ? item.blurb
       : 'Empty pockets. Nothing between you and the valley.'
-    f['inv-tailgate-wrap'].hidden = !shopOpen || !item || item.tailgate === null
-    f['inv-tailgate'].textContent = item ? String(item.tailgate ?? 0) : '0'
-    f['cmd-buy'].hidden = !shopOpen
     f['cmd-use'].classList.toggle('bv-inv-cmd--dim', !item?.canUse)
-    f['cmd-buy'].classList.toggle('bv-inv-cmd--dim', !item?.canBuy)
     f['inv-frame'].classList.toggle('bv-inv-frame--single', items.length < 2)
   }
 
-  setInventoryStatus({ carry, delivered, truck }: InventoryStatus): void {
+  setInventoryStatus({ carry, delivered, truck, cash }: InventoryStatus): void {
     const f = this.fields
     if (f['inv-carry'].textContent !== carry) f['inv-carry'].textContent = carry
     f['inv-delivered'].textContent = String(delivered)
     if (f['inv-truck'].textContent !== truck) f['inv-truck'].textContent = truck
+    if (f['inv-cash'].textContent !== cash) f['inv-cash'].textContent = cash
   }
 
   showInventory(show: boolean): boolean {

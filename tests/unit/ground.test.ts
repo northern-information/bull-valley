@@ -108,4 +108,18 @@ describe('Ground', () => {
     expect(ground.at(1, 1)).toBeCloseTo(1.1)
     expect(ground.at(3, 0)).toBe(0)
   })
+
+  it('stands on a floor at one height, wherever the slope is', () => {
+    const ground = new Ground(slope)
+    // From x = -5 to 5, 3 either side, at 101.
+    ground.addFloor(0, 0, 1, 0, -5, 5, 3, 101)
+    expect(ground.at(-4, 2)).toBe(101)
+    expect(ground.at(4, -2)).toBe(101)
+    // Outside it, the terrain.
+    expect(ground.at(6, 0)).toBeCloseTo(100.6)
+    // Where the terrain rises over the floor, the terrain.
+    const low = new Ground(slope)
+    low.addFloor(0, 0, 1, 0, -5, 5, 3, 100)
+    expect(low.at(4, 0)).toBeCloseTo(100.4)
+  })
 })

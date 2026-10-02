@@ -4,37 +4,20 @@
 
 import { getItem, isUsable, ITEM_LIST } from './items.ts'
 import { carryLimit } from './raid.ts'
-import type { Inventory, Raid, RingItem, ShopStock } from './interfaces.ts'
+import type { Inventory, Raid, RingItem } from './interfaces.ts'
 
 // Fixed ring order: counted items in ITEMS order. Cargo and gear ride at
 // the end.
 const ORDER = ITEM_LIST.filter((item) => item.category !== 'gear')
 
-// inv: the inventory; raid: the raid state; shop: the tailgate stock
-// (item id -> count, from shopStock() in items.ts) while the tailgate is
-// open, else null.
-// A kind rides the ring when the player carries it, or when the tailgate
-// has it for sale. Each entry: { kind, label, blurb, stock, tailgate,
-// canUse, canBuy }; tailgate is null away from the tailgate.
-export function ringItems(
-  inv: Inventory,
-  raid: Raid,
-  shop: ShopStock | null
-): RingItem[] {
+// inv: the inventory; raid: the raid state. A kind rides the ring when the
+// player carries it. Each entry: { kind, label, blurb, stock, canUse }.
+export function ringItems(inv: Inventory, raid: Raid): RingItem[] {
   const items: RingItem[] = []
   for (const { id: kind, label, blurb } of ORDER) {
     const stock = inv[kind] || 0
-    const tailgate = shop ? shop[kind] || 0 : null
-    if (stock < 1 && !(tailgate !== null && tailgate > 0)) continue
-    items.push({
-      kind,
-      label,
-      blurb,
-      stock,
-      tailgate,
-      canUse: stock > 0 && isUsable(kind),
-      canBuy: tailgate !== null && tailgate > 0,
-    })
+    if (stock < 1) continue
+    items.push({ kind, label, blurb, stock, canUse: isUsable(kind) })
   }
   if (raid.carrying > 0) {
     items.push({
@@ -42,22 +25,17 @@ export function ringItems(
       label: 'Cabbages',
       blurb: `Cold and heavy. The stand wants them. Room for ${carryLimit(raid)}.`,
       stock: raid.carrying,
-      tailgate: null,
       canUse: false,
-      canBuy: false,
     })
   }
-  const sack = getItem('sack')
-  const sackForSale = !raid.sack && !!shop && shop.sack > 0
-  if (raid.sack || sackForSale) {
+  if (raid.sack) {
+    const sack = getItem('sack')
     items.push({
       kind: 'sack',
       label: sack.label,
       blurb: sack.blurb,
-      stock: raid.sack ? 1 : 0,
-      tailgate: shop ? shop.sack : null,
+      stock: 1,
       canUse: false,
-      canBuy: sackForSale,
     })
   }
   return items

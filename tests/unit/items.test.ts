@@ -11,7 +11,6 @@ import {
   isUsable,
   itemById,
   ITEMS,
-  shopStock,
 } from '../../src/items.ts'
 import type { Item } from '../../src/interfaces.ts'
 
@@ -23,14 +22,13 @@ describe('items', () => {
     }
   })
 
-  it('has five cigarettes, each with tuning and a shop cap', () => {
+  it('has five cigarettes, each with tuning', () => {
     expect(CIGARETTE_IDS).toHaveLength(5)
     for (const id of CIGARETTE_IDS) {
       const item = itemById(id)
       if (!item) throw new Error(`no item ${id}`)
       expect(item.smokeSeconds).toBeGreaterThan(0)
       expect(item.emberSeconds).toBeGreaterThan(0)
-      expect(item.shopCap).toBeGreaterThan(0)
     }
   })
 
@@ -48,12 +46,11 @@ describe('items', () => {
     expect(getItem('joints').perceptionSeconds).toBeGreaterThan(0)
   })
 
-  it('gives every drink a known container and a shop cap, and no use', () => {
+  it('gives every drink a known container, and no use', () => {
     const drinks = ITEMS.filter((item) => item.category === 'drink')
     expect(drinks).toHaveLength(17)
     for (const item of drinks) {
       expect(CONTAINERS[item.container], item.id).toBeTruthy()
-      expect(item.shopCap, item.id).toBeGreaterThan(0)
       expect(isDrink(item.id)).toBe(true)
       expect(isUsable(item.id)).toBe(false)
     }
@@ -74,11 +71,12 @@ describe('items', () => {
     expect(itemById('nope')).toBeNull()
   })
 
-  it('stocks a fresh tailgate at each cap', () => {
-    const stock = shopStock()
-    expect(stock).toMatchObject({ marlboro: 2, joints: 2, sack: 1 })
-    stock.marlboro = 0
-    expect(shopStock().marlboro).toBe(2)
+  it('prices every item in whole cents', () => {
+    for (const item of ITEMS) {
+      expect(Number.isInteger(item.price), item.id).toBe(true)
+      expect(item.price, item.id).toBeGreaterThan(0)
+    }
+    expect(getItem('marlboro').price).toBe(549)
   })
 
   it('smokes the selected cigarette, else the first one carried', () => {

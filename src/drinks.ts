@@ -1,5 +1,5 @@
 // Drink containers and how views size them. The drinks themselves (names,
-// flavor text, shop caps, which container) are entries in items.ts.
+// flavor text, prices, which container) are entries in items.ts.
 // Pure, no Three.
 
 import { itemById } from './items.ts'

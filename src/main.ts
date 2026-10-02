@@ -16,12 +16,7 @@ import {
 } from './interactions.ts'
 import { addItem, loadInventory, saveInventory, useItem } from './inventory.ts'
 import { createInventoryView } from './inventoryview.ts'
-import {
-  cigaretteToSmoke,
-  shopStock as freshShopStock,
-  isCigarette,
-  itemById,
-} from './items.ts'
+import { cigaretteToSmoke, isCigarette, itemById } from './items.ts'
 import { KEEP } from './landmarks.ts'
 import { NetClient, socketUrl } from './net.ts'
 import { Peers } from './peers.ts'
@@ -49,12 +44,13 @@ import { Scope } from './scope.ts'
 import { ShadowCards } from './shadowcards.ts'
 import { buy as buyItem } from './shop.ts'
 import { mountCard, showSplash, skipTitles } from './splash.ts'
+import { facingInView, formatCash, freshStock, insideStore } from './store.ts'
 import { buildTerrainMesh, createHeightField, loadTerrain } from './terrain.ts'
 import { Truck } from './truck.ts'
 import { buildWorld } from './world.ts'
 import type { CharacterPick } from './characters.ts'
-import type { Interaction } from './interactions.ts'
-import type { Geo, Raid, RingItem } from './interfaces.ts'
+import type { Interaction, ShelfSpot } from './interactions.ts'
+import type { Geo, Raid, RingItem, Vec3 } from './interfaces.ts'
 import type { NetStatus } from './net.ts'
 import type { Peer } from './presence.ts'
 import type { PeerStateWire, RaidMessage, RaidWire } from './protocol.ts'
@@ -81,6 +77,8 @@ interface BvHook {
   // The shared raid as the valley last sent it; null offline.
   readonly shared: RaidWire | null
   readonly aboard: boolean
+  // In cents.
+  readonly cash: number
   teleport(u: number, v: number): void
   hurryTruck(seconds?: number): void
 }
@@ -226,6 +224,7 @@ async function boot() {
   const player = new Player({
     camera,
     groundAt: world.ground.at,
+    collide: world.walls.resolve,
     metres: geo.metres,
     spawn: world.spawn,
   })
@@ -315,7 +314,10 @@ async function boot() {
   let selectedCigarette: string | null = null
   let raid = createRaid(0)
   let raidClock = 0 // advances only while the pointer is locked
-  let shopStock = freshShopStock()
+  // Every player starts every raid with the same cash, in cents, and every
+  // Citgo with full shelves (one stock per station, like world.fuelPoints).
+  let cash = CONFIG.store.startingCash
+  let storeStock = freshStock(world.fuelPoints.length)
   // The carousel: ring entries from carousel.ts, the selected slot, and
   // its kind so the selection survives the ring changing.
   const inventoryView = createInventoryView()
@@ -348,19 +350,13 @@ async function boot() {
 
   player.onEdge = () => hud.toast('The valley ends here.')
 
-  const nearSpawnStation = () =>
-    Math.hypot(spawnStation.x - player.pos.x, spawnStation.z - player.pos.z) <
-    CONFIG.raid.shopRadius
-  const shopOpen = () => raid.state === STATES.LOADOUT && nearSpawnStation()
-
-  // Rebuild the ring after anything that changes what you carry or what the
-  // tailgate holds, keeping the selection on the same kind.
+  // Rebuild the ring after anything that changes what you carry, keeping
+  // the selection on the same kind.
   const refreshRing = () => {
-    const open = shopOpen()
-    ring = ringItems(inventory, raid, open ? shopStock : null)
+    ring = ringItems(inventory, raid)
     ringIndex = syncIndex(ring, ringKind, ringIndex)
     ringKind = ring[ringIndex]?.kind ?? null
-    hud.setCarousel({ items: ring, index: ringIndex, shopOpen: open })
+    hud.setCarousel({ items: ring, index: ringIndex })
   }
 
   // The countdown, with the lobby's headcount when others are in it.
@@ -509,20 +505,55 @@ async function boot() {
     hud.toast('You whistle into the dark. An engine turns over, far off.')
   }
 
-  const buy = (kind: string) => {
-    if (!shopOpen()) return
+  const buy = (shelf: ShelfSpot) => {
     const { next, toast } = buyItem(
-      { raid, stock: shopStock, inventory },
-      kind,
+      { raid, stock: storeStock, inventory, cash },
+      shelf.station,
+      shelf.item,
       raidClock
     )
     if (next) {
       const inventoryChanged = next.inventory !== inventory
-      ;({ raid, stock: shopStock, inventory } = next)
+      raid = next.raid
+      storeStock = [...next.stock]
+      inventory = next.inventory
+      cash = next.cash
       if (inventoryChanged) saveInventory(window.localStorage, inventory)
       refreshRing()
     }
     if (toast) hud.toast(toast)
+  }
+
+  // The store the player stands inside, as an index into world.fuelPoints,
+  // or -1 outside every one.
+  const storeIndex = () =>
+    world.fuelPoints.findIndex((station) =>
+      insideStore(station, player.pos.x, player.pos.z)
+    )
+
+  // The shelf facing in view inside a store, for the interaction resolver.
+  const look = new THREE.Vector3()
+  const shelfInView = (station: number): ShelfSpot | null => {
+    if (station < 0) return null
+    camera.getWorldDirection(look)
+    const eye: Vec3 = [camera.position.x, camera.position.y, camera.position.z]
+    // A sack in hand is one too many: the shelf stops offering it.
+    const stock = raid.sack
+      ? { ...storeStock[station], sack: 0 }
+      : storeStock[station]
+    const facing = facingInView(world.facings[station], stock, eye, [
+      look.x,
+      look.y,
+      look.z,
+    ])
+    const item = facing ? itemById(facing.kind) : null
+    if (!item) return null
+    return {
+      item: item.id,
+      station,
+      price: item.price,
+      affordable: cash >= item.price,
+    }
   }
 
   // --- Input ---------------------------------------------------------------
@@ -832,12 +863,15 @@ async function boot() {
       case 'pickup':
         takePickup(interaction.pickup)
         return
+      case 'buy':
+        buy(interaction)
+        return
     }
   }
 
   // With the inventory open the keys drive the carousel and never reach the
-  // player: ←/→ or A/D cycle, E or Enter uses, B buys at the tailgate,
-  // 1 and 2 still smoke and spark. Esc drops pointer lock, which pauses it.
+  // player: ←/→ or A/D cycle, E or Enter uses, 1 and 2 still smoke and
+  // spark. Esc drops pointer lock, which pauses it.
   const inventoryKey = (e: KeyboardEvent) => {
     const item = ring[ringIndex]
     if (e.code === 'Tab') {
@@ -849,8 +883,6 @@ async function boot() {
       cycleRing(1)
     } else if (e.code === 'KeyE' || e.code === 'Enter') {
       if (item?.canUse) useKind(item.kind)
-    } else if (e.code === 'KeyB') {
-      if (item?.canBuy) buy(item.kind)
     } else if (e.code === 'Digit1') {
       useKind('smoke')
     } else if (e.code === 'Digit2') {
@@ -930,7 +962,6 @@ async function boot() {
       raid = advance(raid, EVENTS.TIMER_EXPIRED, raidClock)
       truckLeaves()
       hud.toast('Taillights. The truck leaves without you.')
-      refreshRing()
     }
 
     let forward = ridingForward
@@ -1045,7 +1076,11 @@ async function boot() {
       for (const m of pulseMaterials(pickup.mesh)) m.emissiveIntensity = pulse
     }
 
+    // The stocked shelves follow the player to the nearest store.
+    world.shelves.update(player.pos.x, player.pos.z, storeStock)
+
     // --- Interactions: what E would do right now -------------------------
+    const inStore = storeIndex()
     interaction = aboard
       ? { kind: 'hopOut' }
       : resolveInteraction({
@@ -1061,6 +1096,8 @@ async function boot() {
           stations: world.fuelPoints,
           spawnStation,
           pickups: world.pickups,
+          shelf: shelfInView(inStore),
+          insideStore: inStore >= 0,
         })
     const prompt = interaction ? interactionPrompt(interaction) : null
     if (player.locked) {
@@ -1078,6 +1115,7 @@ async function boot() {
         carry: `${raid.carrying} / ${carryLimit(raid)}`,
         delivered: raid.delivered,
         truck: truckStatus(),
+        cash: formatCash(cash),
       })
       inventoryView.update(dt, ring, ringIndex)
       renderer.render(inventoryView.scene, inventoryView.camera)
@@ -1114,6 +1152,9 @@ async function boot() {
       },
       get aboard() {
         return aboard
+      },
+      get cash() {
+        return cash
       },
       teleport(u: number, v: number) {
         const { x, z } = unitToWorld(u, v, geo.metres)

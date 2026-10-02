@@ -18,13 +18,13 @@ An extraction adventure RPG set in a hauntological Bull Valley, Illinois. 3D fir
 
 ## The MVP loop
 
-Spawn at a gas station → 5-minute loadout before Matthew Marx's white Chevy leaves → ride the bed, hop out anywhere → find cabbages in the wilderness → drop them at the Bull Valley Cabbage Stand → extract at another station, Mt. Coleman's Keep, or call the truck (`T`). Shadowmen cross the valley around you and show on the scope (`Q`); one that passes close rushes, and its touch puts you back at the spawn Citgo with everything you had.
+Spawn at a gas station with $40 → 5-minute loadout (shop the Citgo) before Matthew Marx's white Chevy leaves → ride the bed, hop out anywhere → find cabbages in the wilderness → drop them at the Bull Valley Cabbage Stand → extract at another station, Mt. Coleman's Keep, or call the truck (`T`). Shadowmen cross the valley around you and show on the scope (`Q`); one that passes close rushes, and its touch puts you back at the spawn Citgo with everything you had.
 
 ## Multiplayer
 
 One Cloudflare Worker serves the bundle and routes `/ws` to one Durable Object, `ValleyDO`, named `bull-valley`: everyone online is in the same valley and shares one raid. Each socket's player lives in its attachment (WebSocket Hibernation API); the raid lives in the object's storage, and the lobby clock is a storage alarm. The client sends a state frame (`x y z yaw pose riding`) at most `CONFIG.net.sendHz` a second and only when it changed; peers are drawn `CONFIG.net.interpolateMs` behind the present, between their last two frames. Same origin, no CORS. If the socket never answers, the game plays alone and the raid is the player's own.
 
-The shared raid's rules are `src/sharedraid.ts`, a pure reducer the Worker runs and `tests/unit/sharedraid.test.ts` pins: the gas station is a lobby, and the truck leaves when everyone in it is aboard or when the clock runs out, with whoever is aboard (no invisible walls: walking off just means not boarding); one truck, one clock; pickups are shared by index into `world.pickups`, first to ask wins; `T` is one whistle at a time, and the called truck is the caller's until they extract or leave; the valley resets once no one is left in the raid. Every change comes to every client as a whole `RaidWire` snapshot with a reason; `main.ts` moves its own `Raid` machine from those (the arms, the deliveries and the sack stay local). Shared moments are server timestamps read through `clock.ts`: `raidClock` is derived from `startedAt`, and the truck drives against `departedAt` or the call's `at` (`Truck.driveRouteAt`), so every client agrees where it is. A client whose `world.pickups` count differs from the raid's is turned away (4005): bump `PROTOCOL_VERSION` when placement changes.
+The shared raid's rules are `src/sharedraid.ts`, a pure reducer the Worker runs and `tests/unit/sharedraid.test.ts` pins: the gas station is a lobby, and the truck leaves when everyone in it is aboard or when the clock runs out, with whoever is aboard (no invisible walls: walking off just means not boarding); one truck, one clock; pickups are shared by index into `world.pickups`, first to ask wins; `T` is one whistle at a time, and the called truck is the caller's until they extract or leave; the valley resets once no one is left in the raid. Every change comes to every client as a whole `RaidWire` snapshot with a reason; `main.ts` moves its own `Raid` machine from those (the arms, the deliveries and the sack stay local). The Citgo shelves and cash are local too: each client keeps its own shelf stock per station and its own $40, and shelf items are not pickups, so they never touch the pickup count. Shared moments are server timestamps read through `clock.ts`: `raidClock` is derived from `startedAt`, and the truck drives against `departedAt` or the call's `at` (`Truck.driveRouteAt`), so every client agrees where it is. A client whose `world.pickups` count differs from the raid's is turned away (4005): bump `PROTOCOL_VERSION` when placement changes.
 
 Dev only: `?valley=<id>` picks another Durable Object, so parallel e2e specs never meet; `beginRaid` in `tests/e2e/fixtures.ts` gives every page a fresh one unless a spec passes its own. The Worker stamps dev-server sockets, which unlocks the `dev` frames (`hurryTruck` moves the shared clock; `reset` empties the valley). Production ignores the parameter and the frames.
 
@@ -44,7 +44,9 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 - `src/main.ts` — boot, scene, input wiring, render loop, raid orchestration; game rules go in the pure modules
 - `src/raid.ts` — pure raid state machine (LOADOUT → RIDING → ON_FOOT → EXTRACTED) and the loadout clock
 - `src/interactions.ts` — pure: what E would do right now (board, hop out, unload, extract, take a pickup) and its prompt; `main.ts` resolves it each frame
-- `src/shop.ts` — pure: one purchase at the tailgate, returning new raid, stock, and inventory
+- `src/shop.ts` — pure: one purchase off a Citgo shelf, returning new raid, stock, inventory, and cash
+- `src/store.ts` — pure: the walk-in Citgo every station shares — `STORE_LAYOUT` (shell, fixtures, and shelf facings in station-local space, read by `assets.ts` and `world.ts`), fresh shelf stock, which facing the player is looking at, `formatCash`. Every station sells 3 of every item; cash is $40 per raid
+- `src/walls.ts` — pure: the only things that stop you (the store walls and fixtures), as capsules on a spatial hash; `Player` resolves against `world.walls` after every move
 - `src/roadgraph.ts` — pure road-network graph, Dijkstra, arc-length walker
 - `src/ground.ts` — pure: what to stand on at any point. The terrain is a heightfield and the roads and station lots float a little over it; `world.ts` registers those surfaces on a `Ground`, and `world.ground.at(x, z)` returns the terrain or the surface deck, whichever is higher. The player, the truck, and every placed thing stand on `ground.at`; only the terrain mesh and the surfaces themselves sample the raw `heightAt`
 - `src/truck.ts` — the white Chevy: seats the driver in the `assets.ts` body; drive/board/ride/call; `driveRouteAt` drives against a shared clock, and the bed has numbered seats
@@ -56,20 +58,20 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 - `src/characterselect.ts` — the character select: one figure on a PS1 turntable with its own small renderer (the game's does not exist yet) and the name field, mounted at boot beneath the title cards. A name is required (the rules are `protocol.ts`'s, 1 to 16 characters); Choose stays disabled without one
 - `src/finishes.ts` — pure: the guitar finishes in one table, the saved pick in localStorage, and the random draw; the select shows the row for any character with a guitar on their back
 - `src/cabbages.ts` — pure seeded cabbage placement
-- `src/items.ts` — pure: every item in one table (label, blurb, toasts, tuning, starting count, shop cap); edit items here. Meshes stay in `assets.ts`, keyed by id
+- `src/items.ts` — pure: every item in one table (label, blurb, toasts, tuning, starting count, price in cents); edit items here. Meshes stay in `assets.ts`, keyed by id
 - `src/canvas.ts` — shared 2D canvas helpers (`context2d`, `canvas`, `text`, fonts) for the painted art
 - `src/packart.ts` — canvas trade-dress art for the cigarette packs
-- `src/drinks.ts` — pure: drink container sizes and the per-family fit height; the drinks themselves (circa 2008, for sale at the tailgate, no effect yet) are entries in `items.ts`
+- `src/drinks.ts` — pure: drink container sizes and the per-family fit height; the drinks themselves (circa 2008, for sale at every Citgo, no effect yet) are entries in `items.ts`
 - `src/canart.ts` — canvas trade-dress art for the drink labels, as they looked circa 2008
 - `src/decalart.ts` — canvas art for the decals on character parts (prints over the torso, thighs and arms; the buckle face); outfits name them by `DecalId`
-- `src/carousel.ts` — pure: which items ride the inventory ring (carried, tailgate stock, cargo) and how the selection steps and wraps
+- `src/carousel.ts` — pure: which items ride the inventory ring (carried items, cargo, the sack) and how the selection steps and wraps
 - `src/inventoryview.ts` — the inventory carousel in 3D: its own scene and camera, drawn by the game renderer in place of the world while the inventory is open (the player freezes; the raid clock does not)
 - `src/landmarks.ts` — consented landmark coordinates + projection
 - `src/splashmachine.ts` — pure: the title-card state machine (triangle-wave fade, gesture and skip latches)
 - `src/splash.ts` — the title-card DOM overlays (the Northern Information colophon, then the logo), driven by `splashmachine.ts`
 - `src/fog.ts` — the logo card's black fog: one plain-WebGL fragment shader (fbm noise in rolling waves) at the game's downscale
 - `src/assets.ts` — every 3D asset in asset-local space (instanced parts, one-off builders, the truck body, the sky, the road/water/fence/boundary materials) and the Akashic registry; new assets go here
-- `src/world.ts` — places terrain features, Citgo stations, pickups, beacons from geo.json using `assets.ts`; builds no materials of its own
+- `src/world.ts` — places terrain features, Citgo stations, pickups, beacons from geo.json using `assets.ts`; builds no materials of its own. Each store stands level over its slope on a foundation (`storeBase`), registers its floor on the `Ground` and its walls on `Walls`; one stocked shelf display follows the player to the nearest store
 - `src/akashic.ts` — the Akashic asset viewer
 - `src/terrain.ts` `src/player.ts` `src/coords.ts` `src/ps1.ts` `src/rng.ts` `src/config.ts` `src/inventory.ts` `src/hud.ts` `src/audio.ts` `src/scope.ts` — ported engine
 - `src/shadowmen.ts` — pure: the shadowmen as crossings in a bubble that follows the player (spawned on a ring past scope range, dropped past `despawnRadius`), the rush when one passes close to a player on foot, the touch that is a strike, and the Citgo havens; feeds the scope. Tune them in `CONFIG.shadowmen`

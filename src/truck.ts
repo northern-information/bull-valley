@@ -29,7 +29,7 @@ export interface TruckState {
   done: boolean
 }
 
-// Where Matthew Marx is: at the wheel, or working the tailgate shop.
+// Where Matthew Marx is: at the wheel, or leaning on the tailgate.
 export type DriverPost = 'cab' | 'tailgate'
 
 // The truck mesh and the driver inside it.
@@ -69,8 +69,8 @@ const BED_SEATS: readonly [number, number][] = [
 // Matthew Marx is full scale, like every figure. 'cab' seats him at the
 // wheel with his hips at 1.0 m: the sit pose folds his shins so his boots
 // stay inside the lower cab (floor at 0.55 m) and his head stops inside the
-// roof slab. 'tailgate' leans him by the open tailgate, facing the customers
-// behind the truck.
+// roof slab. 'tailgate' leans him by the open tailgate, facing whoever
+// comes out of the Citgo.
 const SEAT_HIP_Y = 1.0
 function placeDriver(driver: Figure, post: DriverPost): void {
   if (post === 'tailgate') {
@@ -132,7 +132,7 @@ export class Truck {
     this.pose()
   }
 
-  // Matthew Marx works the tailgate shop while the truck is parked for the
+  // Matthew Marx waits at the tailgate while the truck is parked for the
   // loadout; any drive puts him back at the wheel.
   setDriverPost(post: DriverPost): void {
     placeDriver(this.driver, post)
