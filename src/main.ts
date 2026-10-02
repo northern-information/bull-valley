@@ -166,7 +166,9 @@ async function boot() {
   // The shadowmen are parked until after the MVP loop; src/shadowmen.ts and
   // src/nerves.ts stay in the tree, unwired.
   const graph = buildRoadGraph(geo.roads, geo.metres)
-  const truck = new Truck({ scene, heightAt })
+  // The truck and the player stand on the ground (roads and lots included),
+  // never on the bare terrain.
+  const truck = new Truck({ scene, heightAt: world.ground.at })
 
   // Park Matthew Marx's Chevy at the road nearest the spawn station, already
   // pointed down tonight's joyride.
@@ -203,7 +205,7 @@ async function boot() {
 
   const player = new Player({
     camera,
-    heightAt,
+    heightAt: world.ground.at,
     metres: geo.metres,
     spawn: world.spawn,
   })
@@ -623,7 +625,7 @@ async function boot() {
       forward = playerState.forward
       playerBody.update(dt, {
         x: player.pos.x,
-        ground: heightAt(player.pos.x, player.pos.z),
+        ground: player.groundY,
         z: player.pos.z,
         yaw: player.yaw,
         speed: playerState.speed,

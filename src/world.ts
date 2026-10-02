@@ -24,6 +24,7 @@ import {
   polygonBounds,
   unitToWorld,
 } from './coords.ts'
+import { Ground } from './ground.ts'
 import { CIGARETTE_IDS } from './items.ts'
 import {
   KEEP,
@@ -90,6 +91,8 @@ export interface World {
   // Null only when the survey has no fuel point inside the frame.
   spawnStation: FuelPoint | null
   spawn: Spawn
+  // What to stand on anywhere: the terrain, or the road or lot over it.
+  ground: Ground
 }
 
 interface RoadStyle {
@@ -312,20 +315,20 @@ function buildMask(
   }
 }
 
+// Roads ride the terrain at their centreline heights; each one registers
+// on the ground so things stand on the road deck, not the terrain under it.
 function buildRoads(
   geo: Pick<Geo, 'roads'>,
   metres: Metres,
-  heightAt: HeightAt
+  heightAt: HeightAt,
+  ground: Ground
 ): THREE.Mesh {
   const ribbons = makeRibbonAccumulator()
   for (const road of geo.roads) {
     const style = ROAD_STYLE[road.c] || ROAD_DEFAULT
-    ribbons.add(
-      toWorldPoints(road.p, metres, heightAt),
-      style.width,
-      style.color,
-      ROAD_LIFT
-    )
+    const points = toWorldPoints(road.p, metres, heightAt)
+    ribbons.add(points, style.width, style.color, ROAD_LIFT)
+    ground.addRibbon(points, style.width, ROAD_LIFT)
   }
   return ribbons.build('roads')
 }
@@ -695,7 +698,8 @@ function nearestRoadside(
 function buildFuelStations(
   geo: Pick<Geo, 'fuel' | 'roads'>,
   metres: Metres,
-  heightAt: HeightAt
+  heightAt: HeightAt,
+  ground: Ground
 ): { group: THREE.Group; points: FuelPoint[] } {
   const group = new THREE.Group()
   group.name = 'fuel'
@@ -738,10 +742,10 @@ function buildFuelStations(
     const sin = Math.sin(yaw)
     points.push({ x, z, name: stations[i].n })
 
-    // The lot: asphalt draped on the ground from the building front to the
+    // The lot: asphalt draped on the terrain from the building front to the
     // road centreline, just under the road ribbon, so the two meet with the
-    // seam hidden under the road. Everything on the lot stands on its
-    // surface, LOT_LIFT above the ground.
+    // seam hidden under the road. It registers on the ground first, so
+    // everything on it stands on its surface.
     lots.addPatch(
       x,
       z,
@@ -755,7 +759,17 @@ function buildFuelStations(
       L.lotColor,
       LOT_LIFT
     )
-    const y = heightAt(x, z) + LOT_LIFT
+    ground.addPatch(
+      x,
+      z,
+      cos,
+      sin,
+      L.lot.back,
+      setback,
+      L.lot.halfWidth,
+      LOT_LIFT
+    )
+    const y = ground.at(x, z)
 
     // Building set back behind the pumps.
     dummy.position.set(
@@ -786,7 +800,7 @@ function buildFuelStations(
     // Tall road sign out front, at the lot's corner.
     const sx = x + cos * L.signDistance - sin * L.signAlong
     const sz = z + sin * L.signDistance + cos * L.signAlong
-    const sy = heightAt(sx, sz) + LOT_LIFT
+    const sy = ground.at(sx, sz)
     dummy.position.set(sx, sy, sz)
     dummy.updateMatrix()
     signPoles.setMatrixAt(i, dummy.matrix)
@@ -969,19 +983,22 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   const group = new THREE.Group()
   group.name = 'bull-valley'
 
-  group.add(buildRoads(geo, metres, heightAt))
+  // The roads and lots lay their surfaces over the terrain and register
+  // them on the ground; from there on, everything stands on ground.at.
+  const ground = new Ground(heightAt)
+  group.add(buildRoads(geo, metres, heightAt, ground))
   group.add(buildWater(geo, metres, heightAt))
-  group.add(buildTrees(geo, metres, heightAt, mask, rng))
-  group.add(buildPoles(geo, metres, heightAt, rng))
-  group.add(buildReeds(geo, metres, heightAt, rng))
-  const graveyards = buildGraveyards(geo, metres, heightAt, rng)
+  const fuel = buildFuelStations(geo, metres, heightAt, ground)
+  group.add(buildTrees(geo, metres, ground.at, mask, rng))
+  group.add(buildPoles(geo, metres, ground.at, rng))
+  group.add(buildReeds(geo, metres, ground.at, rng))
+  const graveyards = buildGraveyards(geo, metres, ground.at, rng)
   group.add(graveyards.group)
-  const fuel = buildFuelStations(geo, metres, heightAt)
   group.add(fuel.group)
-  const landmarks = buildLandmarks(geo, metres, heightAt)
+  const landmarks = buildLandmarks(geo, metres, ground.at)
   group.add(landmarks.group)
-  group.add(buildBoundary(geo, metres, heightAt))
-  const pickupSet = buildPickups(geo, metres, heightAt, fuel.points, rng)
+  group.add(buildBoundary(geo, metres, ground.at))
+  const pickupSet = buildPickups(geo, metres, ground.at, fuel.points, rng)
   group.add(pickupSet.group)
 
   const spawnStation = chooseSpawnStation(geo, metres, fuel.points)
@@ -997,5 +1014,6 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     landmarks: landmarks.points,
     spawnStation,
     spawn,
+    ground,
   }
 }

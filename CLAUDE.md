@@ -30,6 +30,7 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 - `src/interactions.ts` — pure: what E would do right now (board, hop out, unload, extract, take a pickup) and its prompt; `main.ts` resolves it each frame
 - `src/shop.ts` — pure: one purchase at the tailgate, returning new raid, stock, and inventory
 - `src/roadgraph.ts` — pure road-network graph, Dijkstra, arc-length walker
+- `src/ground.ts` — pure: what to stand on at any point. The terrain is a heightfield and the roads and station lots float a little over it; `world.ts` registers those surfaces on a `Ground`, and `world.ground.at(x, z)` returns the terrain or the surface deck, whichever is higher. The player, the truck, and every placed thing stand on `ground.at`; only the terrain mesh and the surfaces themselves sample the raw `heightAt`
 - `src/truck.ts` — the white Chevy: seats the driver in the `assets.ts` body; drive/board/ride/call
 - `src/figure.ts` — the shared character body: rigid low-poly parts on joint pivots, built per outfit; `applyPose` drives it
 - `src/outfits.ts` — pure: every character outfit in one table (colors by slot, add-on parts, limb proportions); edit characters here
@@ -74,3 +75,4 @@ Pure logic stays Three-free (like `coords.ts`); Three/DOM glue lives in `truck.t
 4. The `three`/`vite` pins are deliberate: `ps1.ts` patches Three shader chunks via `onBeforeCompile`, and Three minors rename chunks. Upgrading is its own task.
 5. `public/data` is intentionally minified; it is in `.prettierignore`.
 6. It's a raid, not a run — in code, copy, commits, and docs.
+7. Nothing stands on the raw terrain. Place and move things with `world.ground.at`, and register any new walkable surface (a floor, a deck, a lot) on the `Ground` in `world.ts` before placing on it.
