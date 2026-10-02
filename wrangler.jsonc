@@ -1,6 +1,10 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "bull-valley-shadow-wars",
+  // The Northern Information account. Pinned so local wrangler commands
+  // reach it when the login can see several accounts, and so CI needs only
+  // the organization's CLOUDFLARE_API_TOKEN.
+  "account_id": "cbe8e84757316e274a5960cf13836119",
   // The Worker is bundled by @cloudflare/vite-plugin; `vite build` writes
   // the deployable config under dist/ and points `wrangler deploy` at it.
   "main": "worker/index.ts",

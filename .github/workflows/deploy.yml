@@ -45,8 +45,9 @@ jobs:
       # Bundles the client and the Worker; the plugin writes the deployable
       # wrangler config under dist/ and points `wrangler deploy` at it.
       - run: npm run build
+      # CLOUDFLARE_API_TOKEN is the northern-information organization secret;
+      # the account is pinned in wrangler.jsonc.
       - uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
