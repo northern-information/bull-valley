@@ -164,13 +164,14 @@ export class Hud {
     this.intro.setAttribute('aria-modal', 'true')
     this.intro.innerHTML = `
       <h2>BULL VALLEY SHADOW WARS</h2>
-      <p class="bv-intro-note">Matthew Marx leaves in five minutes.<br>Ride the bed. Find cabbages. Extract.</p>
+      <p class="bv-intro-note">Matthew Marx leaves in five minutes.<br>Ride the bed. Find cabbages.<br>Drop them at the Stand. Get out.</p>
       <table class="bv-controls" aria-label="Controls">
         <tr><th>WASD</th><td>Move</td><th>Shift</th><td>Sprint</td></tr>
         <tr><th>Mouse</th><td>Look</td><th>C</th><td>Crouch</td></tr>
         <tr><th>Q</th><td>Scaduscope</td><th>Tab</th><td>Inventory</td></tr>
-        <tr><th>E</th><td>Board / Take / Unload</td><th>T</th><td>Call the Truck</td></tr>
-        <tr><th>1 / 2</th><td>Smoke / Spark</td><th>&lt; &gt;</th><td>Cycle Inventory</td></tr>
+        <tr><th>E</th><td>Board / Hop Out / Take / Unload / Extract</td><th>T</th><td>Call the Truck</td></tr>
+        <tr><th>1 / 2</th><td>Smoke / Spark</td><th>&lt; &gt; / A D</th><td>Cycle Inventory</td></tr>
+        <tr><th>Esc</th><td colspan="3">Pause</td></tr>
       </table>
       <div class="bv-intro-actions">
         <button type="button" class="bv-btn bv-btn--primary" data-bv="begin">Click to Play</button>
