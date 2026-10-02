@@ -50,6 +50,7 @@ base.describe('a shared raid', () => {
 
       // B climbs in: everyone is aboard, and the truck leaves for both.
       await moveToTruck(b)
+      await expect(prompt(b)).toHaveText('E — Climb into the Bed')
       await b.keyboard.press('KeyE')
       await expect.poll(async () => (await raid(a))?.state).toBe('RIDING')
       await expect.poll(async () => (await raid(b))?.state).toBe('RIDING')
@@ -115,6 +116,8 @@ base.describe('a shared raid', () => {
     await expect.poll(async () => (await shared(b))?.members.length).toBe(2)
 
     await moveToTruck(a)
+    // The interaction is resolved once a frame; wait for the prompt.
+    await expect(prompt(a)).toHaveText('E — Climb into the Bed')
     await a.keyboard.press('KeyE')
     await expect.poll(() => a.evaluate(() => window.__bv?.aboard)).toBe(true)
     // A dev server lets a spec hurry the shared clock.
