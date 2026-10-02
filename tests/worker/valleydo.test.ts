@@ -94,8 +94,9 @@ const hello = (
   name = 'Dave',
   outfit = 'coleman',
   v = PROTOCOL_VERSION,
-  pickups = 70
-) => JSON.stringify({ type: 'hello', v, name, outfit, pickups })
+  pickups = 70,
+  stations = 5
+) => JSON.stringify({ type: 'hello', v, name, outfit, pickups, stations })
 
 const state = (x: number, z: number) =>
   JSON.stringify({
@@ -177,6 +178,14 @@ describe('ValleyDO', () => {
     await join(v, s, 'First')
     const stale = await join(v, s, 'Second', { pickups: 71 })
     expect(stale.closeCode).toBe(CLOSE.staleBuild)
+    const moved = new MockSocket()
+    moved.serializeAttachment({ dev: false, me: null })
+    s.acceptWebSocket(moved)
+    await v.webSocketMessage(
+      ws(moved),
+      hello('Third', 'coleman', PROTOCOL_VERSION, 70, 6)
+    )
+    expect(moved.closeCode).toBe(CLOSE.staleBuild)
   })
 
   it('welcomes a player with the roster and the raid, and tells the others', async () => {
@@ -299,6 +308,34 @@ describe('ValleyDO', () => {
     // The raid is persisted.
     const stored = s.storage.map.get('valley') as { raid: { taken: number[] } }
     expect(stored.raid.taken).toEqual([4])
+  })
+
+  it('sells a shelf unit once, to the first to ask', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    expect(a.last<WelcomeMessage>().raid.shelves).toHaveLength(5)
+    const perItem = a.last<WelcomeMessage>().raid.shelves[0].pbr
+    for (let i = 0; i < perItem; i++) {
+      await v.webSocketMessage(ws(a), '{"type":"buy","station":0,"kind":"pbr"}')
+    }
+    const bought = b.last<RaidMessage>()
+    expect(bought).toMatchObject({
+      reason: 'bought',
+      by: idOf(a),
+      station: 0,
+      item: 'pbr',
+    })
+    expect(bought.raid?.shelves[0].pbr).toBe(0)
+    expect(bought.raid?.shelves[1].pbr).toBe(perItem)
+    await v.webSocketMessage(ws(b), '{"type":"buy","station":0,"kind":"pbr"}')
+    expect(b.last<NackMessage>()).toEqual({
+      type: 'nack',
+      re: 'buy',
+      reason: 'sold-out',
+      station: 0,
+      item: 'pbr',
+    })
   })
 
   it('keeps the dev frames for dev sockets', async () => {

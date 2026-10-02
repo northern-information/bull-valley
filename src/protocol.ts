@@ -4,12 +4,12 @@
 // JSON text; every number the server stores is checked here first.
 
 import { OUTFIT_IDS } from './outfits.ts'
-import type { ExtractKind, XZ } from './interfaces.ts'
+import type { ExtractKind, ShopStock, XZ } from './interfaces.ts'
 import type { OutfitId } from './outfits.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and reloads.
-export const PROTOCOL_VERSION = 1
+export const PROTOCOL_VERSION = 2
 
 // The one WebSocket route; everything else on the Worker is a static asset.
 export const WS_PATH = '/ws'
@@ -91,6 +91,9 @@ export interface RaidWire {
   riders: string[]
   // Indices into world.pickups, in the order they were taken.
   taken: number[]
+  // Every Citgo's shelf stock, indexed like world.fuelPoints. A unit one
+  // player buys is off the shelf for everyone.
+  shelves: ShopStock[]
   call: TruckCall | null
   members: MemberWire[]
 }
@@ -104,6 +107,7 @@ export type RaidReason =
   | 'depart'
   | 'hop-out'
   | 'taken'
+  | 'bought'
   | 'call'
   | 'truck-free'
   | 'extracted'
@@ -117,9 +121,11 @@ export interface HelloMessage {
   v: number
   name: string
   outfit: OutfitId
-  // How many pickups this build placed. A raid is shared by index, so a
-  // client built from a different placement is turned away.
+  // How many pickups this build placed, and how many stations. A raid is
+  // shared by index into both, so a client built from a different
+  // placement is turned away.
   pickups: number
+  stations: number
 }
 
 export interface BoardMessage {
@@ -137,6 +143,14 @@ export interface HopOutMessage {
 export interface TakeMessage {
   type: 'take'
   index: number
+}
+
+// One unit of `kind` off station `station`'s shelf. Cash is the buyer's
+// own; the valley only says whether the unit was still there.
+export interface BuyMessage {
+  type: 'buy'
+  station: number
+  kind: string
 }
 
 export interface CallMessage {
@@ -173,6 +187,7 @@ export type ClientMessage =
   | UnboardMessage
   | HopOutMessage
   | TakeMessage
+  | BuyMessage
   | CallMessage
   | ExtractMessage
   | DevMessage
@@ -204,6 +219,9 @@ export interface RaidMessage {
   by?: string
   // For 'taken'.
   index?: number
+  // For 'bought'.
+  station?: number
+  item?: string
   // For 'extracted'.
   kind?: ExtractKind
 }
@@ -212,7 +230,11 @@ export interface NackMessage {
   type: 'nack'
   re: NackRe
   reason: string
+  // For 'take'.
   index?: number
+  // For 'buy'.
+  station?: number
+  item?: string
 }
 
 export interface PeerJoinedMessage {
@@ -310,6 +332,11 @@ function isCoord(value: unknown): value is number {
   )
 }
 
+// A non-negative integer: an index or a count.
+function isCount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
@@ -346,14 +373,20 @@ export function parseClientMessage(text: string): ClientMessage | null {
   if (!isRecord(value)) return null
   switch (value.type) {
     case 'hello': {
-      const { v, name, outfit, pickups } = value
+      const { v, name, outfit, pickups, stations } = value
       if (typeof v !== 'number' || !Number.isInteger(v)) return null
       if (typeof name !== 'string' || typeof outfit !== 'string') return null
-      if (typeof pickups !== 'number' || !Number.isInteger(pickups)) return null
-      if (pickups < 0) return null
+      if (!isCount(pickups) || !isCount(stations)) return null
       // The outfit is checked by the server with isOutfitId; the type here
       // is widened deliberately so a bad id reaches that check.
-      return { type: 'hello', v, name, outfit: outfit as OutfitId, pickups }
+      return {
+        type: 'hello',
+        v,
+        name,
+        outfit: outfit as OutfitId,
+        pickups,
+        stations,
+      }
     }
     case 'board':
     case 'unboard':
@@ -361,9 +394,14 @@ export function parseClientMessage(text: string): ClientMessage | null {
       return { type: value.type }
     case 'take': {
       const { index } = value
-      if (typeof index !== 'number' || !Number.isInteger(index)) return null
-      if (index < 0) return null
+      if (!isCount(index)) return null
       return { type: 'take', index }
+    }
+    case 'buy': {
+      const { station, kind } = value
+      if (!isCount(station) || typeof kind !== 'string') return null
+      if (kind.length === 0 || kind.length > 64) return null
+      return { type: 'buy', station, kind }
     }
     case 'call': {
       const from = parseXZ(value.from)

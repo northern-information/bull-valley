@@ -12,6 +12,37 @@ const raid = (page: Page) => page.evaluate(() => window.__bv?.raid)
 const shared = (page: Page) => page.evaluate(() => window.__bv?.shared)
 const prompt = (page: Page) => page.locator('.bv-prompt')
 
+// Stand inside the spawn station's Citgo, `back` metres off a facing of
+// `kind`, looking straight at it. Mirrors raid.spec.ts.
+async function aimAt(
+  page: Page,
+  kind: string,
+  back: [number, number]
+): Promise<void> {
+  await page.evaluate(
+    ([target, [bx, bz]]) => {
+      const bv = window.__bv
+      if (!bv) throw new Error('no dev hook')
+      const { world, player } = bv
+      const station = world.spawnStation
+      if (!station) throw new Error('no spawn station')
+      const i = world.fuelPoints.indexOf(station)
+      const facing = world.facings[i].find((f) => f.kind === target)
+      if (!facing) throw new Error(`no facing: ${target}`)
+      const cos = Math.cos(station.yaw)
+      const sin = Math.sin(station.yaw)
+      const [fx, fy, fz] = facing.center
+      player.relocate(fx + cos * bx - sin * bz, fz + sin * bx + cos * bz)
+      const eyeY = player.groundY + player.eye
+      const dx = fx - player.pos.x
+      const dz = fz - player.pos.z
+      player.yaw = Math.atan2(-dx, -dz)
+      player.pitch = Math.atan2(fy - eyeY, Math.hypot(dx, dz))
+    },
+    [kind, back] as const
+  )
+}
+
 async function moveToTruck(page: Page): Promise<void> {
   await page.evaluate(() => {
     const bv = window.__bv
@@ -37,6 +68,24 @@ base.describe('a shared raid', { tag: '@valley' }, () => {
         beginRaid(b, 1, { valley, name: 'Baker' }),
       ])
       await expect.poll(async () => (await shared(a))?.members.length).toBe(2)
+
+      // The shelves are shared: A buys a drink at the spawn Citgo, and B's
+      // shelf there is one short. Cash stays each player's own.
+      const spawnIndex = await a.evaluate(() => {
+        const { world } = window.__bv!
+        return world.fuelPoints.indexOf(world.spawnStation!)
+      })
+      const perItem = (await shared(a))!.shelves[spawnIndex].pbr
+      await aimAt(a, 'pbr', [1.3, 0])
+      await expect(prompt(a)).toHaveText('E — Buy Pabst Blue Ribbon for $0.99')
+      await a.keyboard.press('KeyE')
+      await expect
+        .poll(() => a.evaluate(() => window.__bv?.cash))
+        .toBe(4000 - 99)
+      await expect
+        .poll(async () => (await shared(b))?.shelves[spawnIndex].pbr)
+        .toBe(perItem - 1)
+      expect(await b.evaluate(() => window.__bv?.cash)).toBe(4000)
 
       // A climbs in and waits; the lobby shows the headcount.
       await moveToTruck(a)

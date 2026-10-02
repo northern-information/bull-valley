@@ -33,8 +33,9 @@ export interface NetOptions {
 export interface NetIdentity {
   name: string
   outfit: OutfitId
-  // How many pickups this build placed; see HelloMessage.
+  // How many pickups and stations this build placed; see HelloMessage.
   pickups: number
+  stations: number
 }
 
 // Reconnect schedule, then give up: the valley is gone.
@@ -151,6 +152,7 @@ export class NetClient {
           name: identity.name,
           outfit: identity.outfit,
           pickups: identity.pickups,
+          stations: identity.stations,
         } satisfies ClientMessage)
       )
     })

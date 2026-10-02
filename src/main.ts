@@ -42,7 +42,7 @@ import {
 } from './roadgraph.ts'
 import { Scope } from './scope.ts'
 import { ShadowCards } from './shadowcards.ts'
-import { buy as buyItem } from './shop.ts'
+import { buy as buyItem, settle } from './shop.ts'
 import { mountCard, showSplash, skipTitles } from './splash.ts'
 import { facingInView, formatCash, freshStock, insideStore } from './store.ts'
 import { buildTerrainMesh, createHeightField, loadTerrain } from './terrain.ts'
@@ -53,7 +53,12 @@ import type { Interaction, ShelfSpot } from './interactions.ts'
 import type { Geo, Raid, RingItem, Vec3 } from './interfaces.ts'
 import type { NetStatus } from './net.ts'
 import type { Peer } from './presence.ts'
-import type { PeerStateWire, RaidMessage, RaidWire } from './protocol.ts'
+import type {
+  NackMessage,
+  PeerStateWire,
+  RaidMessage,
+  RaidWire,
+} from './protocol.ts'
 import type { RoadGraph } from './roadgraph.ts'
 import type { TerrainData } from './terrain.ts'
 import type { Pickup, World } from './world.ts'
@@ -303,6 +308,7 @@ async function boot() {
     name: pick.name,
     outfit: pick.outfit,
     pickups: world.pickups.length,
+    stations: world.fuelPoints.length,
   })
 
   const keep = world.landmarks.find((l) => l.n === KEEP)
@@ -349,6 +355,8 @@ async function boot() {
   let aboard = false
   // Pickups asked of the valley and not yet answered.
   const pendingTakes = new Set<number>()
+  // Shelf units asked of the valley and not yet answered, as station:kind.
+  const pendingBuys = new Set<string>()
   const ridingForward = new THREE.Vector3(0, 0, -1)
 
   player.onEdge = () => hud.toast('The valley ends here.')
@@ -508,6 +516,20 @@ async function boot() {
     hud.toast('You whistle into the dark. An engine turns over, far off.')
   }
 
+  // The buyer's side of a sale, once the unit is ours.
+  const pocket = (kind: string) => {
+    const { next, toast } = settle({ raid, inventory, cash }, kind, raidClock)
+    if (next) {
+      const inventoryChanged = next.inventory !== inventory
+      raid = next.raid
+      inventory = next.inventory
+      cash = next.cash
+      if (inventoryChanged) saveInventory(window.localStorage, inventory)
+      refreshRing()
+    }
+    if (toast) hud.toast(toast)
+  }
+
   const buy = (shelf: ShelfSpot) => {
     const { next, toast } = buyItem(
       { raid, stock: storeStock, inventory, cash },
@@ -515,15 +537,27 @@ async function boot() {
       shelf.item,
       raidClock
     )
-    if (next) {
-      const inventoryChanged = next.inventory !== inventory
-      raid = next.raid
-      storeStock = [...next.stock]
-      inventory = next.inventory
-      cash = next.cash
-      if (inventoryChanged) saveInventory(window.localStorage, inventory)
-      refreshRing()
+    if (!next) {
+      if (toast) hud.toast(toast)
+      return
     }
+    if (shared) {
+      // The shelf is the valley's: ask, and pocket the unit when the
+      // valley says it was still there. The judgement above (stock as
+      // last heard, cash, the sack) stands; the valley settles the race.
+      const key = `${shelf.station}:${shelf.item}`
+      if (pendingBuys.has(key)) return
+      pendingBuys.add(key)
+      net.send({ type: 'buy', station: shelf.station, kind: shelf.item })
+      return
+    }
+    const inventoryChanged = next.inventory !== inventory
+    raid = next.raid
+    storeStock = [...next.stock]
+    inventory = next.inventory
+    cash = next.cash
+    if (inventoryChanged) saveInventory(window.localStorage, inventory)
+    refreshRing()
     if (toast) hud.toast(toast)
   }
 
@@ -716,9 +750,9 @@ async function boot() {
   const applyRaid = (
     wire: RaidWire | null,
     reason: RaidMessage['reason'],
-    by?: string,
-    index?: number
+    detail: Pick<RaidMessage, 'by' | 'index' | 'station' | 'item'> = {}
   ) => {
+    const { by, index, station, item } = detail
     const previous = shared
     shared = wire
     if (!wire) return
@@ -743,6 +777,13 @@ async function boot() {
       const pickup = world.pickups[i]
       if (pickup && !pickup.taken) markTaken(pickup)
     }
+
+    // The shelves are the valley's; a unit it sold us goes in the pocket.
+    if (reason === 'bought' && station !== undefined && item) {
+      pendingBuys.delete(`${station}:${item}`)
+      if (by === me) pocket(item)
+    }
+    storeStock = wire.shelves
 
     // The truck left: with us, or without us, or before we got here.
     const justLeft =
@@ -797,26 +838,33 @@ async function boot() {
     }
   }
 
-  const applyNack = (re: string, index?: number) => {
-    if (re === 'take') {
-      if (index !== undefined) {
-        pendingTakes.delete(index)
-        const pickup = world.pickups[index]
+  const applyNack = (msg: NackMessage) => {
+    if (msg.re === 'take') {
+      if (msg.index !== undefined) {
+        pendingTakes.delete(msg.index)
+        const pickup = world.pickups[msg.index]
         if (pickup) markTaken(pickup)
       }
       hud.toast('Someone got there first.')
-    } else if (re === 'call') {
+    } else if (msg.re === 'buy') {
+      if (msg.station !== undefined && msg.item) {
+        pendingBuys.delete(`${msg.station}:${msg.item}`)
+      }
+      hud.toast(
+        msg.reason === 'sold-out' ? 'Sold out.' : 'The clerk shakes his head.'
+      )
+    } else if (msg.re === 'call') {
       hud.toast('Marx is already on a call.')
     }
   }
 
   net.on((msg) => {
     if (msg.type === 'welcome') {
-      applyRaid(msg.raid, 'joined', msg.id)
+      applyRaid(msg.raid, 'joined', { by: msg.id })
     } else if (msg.type === 'raid') {
-      applyRaid(msg.raid, msg.reason, msg.by, msg.index)
+      applyRaid(msg.raid, msg.reason, msg)
     } else if (msg.type === 'nack') {
-      applyNack(msg.re, msg.index)
+      applyNack(msg)
     }
   })
   net.onStatus((status) => {
@@ -826,6 +874,7 @@ async function boot() {
       shared = null
       aboard = false
       pendingTakes.clear()
+      pendingBuys.clear()
     }
   })
 
