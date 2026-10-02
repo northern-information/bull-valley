@@ -10,7 +10,7 @@
 // cells keeps a query to the few surfaces near the point, so the player and
 // the truck can ask every frame.
 
-import { pointSegmentDistance } from './coords.ts'
+import { projectOnSegment } from './coords.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
 
 // A point with its height, as a ribbon's centreline carries it.
@@ -136,15 +136,9 @@ export class Ground {
   private deck(surface: Surface, x: number, z: number): number | null {
     if (surface.kind === 'segment') {
       const { a, b, half, lift } = surface
-      if (pointSegmentDistance(x, z, a.x, a.z, b.x, b.z) > half) return null
-      const dx = b.x - a.x
-      const dz = b.z - a.z
-      const len2 = dx * dx + dz * dz
-      const t =
-        len2 === 0
-          ? 0
-          : Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / len2))
-      return a.y + (b.y - a.y) * t + lift
+      const p = projectOnSegment(x, z, a.x, a.z, b.x, b.z)
+      if (p.dist > half) return null
+      return a.y + (b.y - a.y) * p.t + lift
     }
     const dx = x - surface.x
     const dz = z - surface.z

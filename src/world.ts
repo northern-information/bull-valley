@@ -22,6 +22,7 @@ import {
   pointInPolygon,
   pointSegmentDistance,
   polygonBounds,
+  projectOnSegment,
   unitToWorld,
 } from './coords.ts'
 import { Ground } from './ground.ts'
@@ -672,16 +673,9 @@ function nearestRoadside(
     for (let i = 0; i < road.p.length - 1; i++) {
       const a = unitToWorld(road.p[i][0], road.p[i][1], metres)
       const b = unitToWorld(road.p[i + 1][0], road.p[i + 1][1], metres)
-      const dist = pointSegmentDistance(x, z, a.x, a.z, b.x, b.z)
-      if (best && dist >= best.dist) continue
-      const dx = b.x - a.x
-      const dz = b.z - a.z
-      const len2 = dx * dx + dz * dz
-      const t =
-        len2 === 0
-          ? 0
-          : Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / len2))
-      best = { x: a.x + dx * t, z: a.z + dz * t, dist, width }
+      const p = projectOnSegment(x, z, a.x, a.z, b.x, b.z)
+      if (best && p.dist >= best.dist) continue
+      best = { x: p.x, z: p.y, dist: p.dist, width }
     }
   }
   return best

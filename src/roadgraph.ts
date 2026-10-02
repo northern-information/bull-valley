@@ -6,7 +6,7 @@
 // Nodes are polyline endpoints plus any vertex used more than once; runs of
 // interior vertices collapse into edges that keep their full point lists.
 
-import { pointSegmentDistance, unitToWorld } from './coords.ts'
+import { projectOnSegment, unitToWorld } from './coords.ts'
 import { pick } from './rng.ts'
 import type { Metres, Road, XZ } from './interfaces.ts'
 import type { Rng } from './rng.ts'
@@ -176,7 +176,7 @@ export function nearestRoadPoint(
   for (let e = 0; e < graph.edges.length; e++) {
     const { points, cum } = graph.edges[e]
     for (let i = 0; i < points.length - 1; i++) {
-      const d = pointSegmentDistance(
+      const p = projectOnSegment(
         x,
         z,
         points[i].x,
@@ -184,26 +184,13 @@ export function nearestRoadPoint(
         points[i + 1].x,
         points[i + 1].z
       )
-      if (!best || d < best.dist) {
-        const dx = points[i + 1].x - points[i].x
-        const dz = points[i + 1].z - points[i].z
-        const len2 = dx * dx + dz * dz
-        const t =
-          len2 === 0
-            ? 0
-            : Math.max(
-                0,
-                Math.min(
-                  1,
-                  ((x - points[i].x) * dx + (z - points[i].z) * dz) / len2
-                )
-              )
+      if (!best || p.dist < best.dist) {
         best = {
-          x: points[i].x + dx * t,
-          z: points[i].z + dz * t,
+          x: p.x,
+          z: p.y,
           edge: e,
-          s: cum[i] + (cum[i + 1] - cum[i]) * t,
-          dist: d,
+          s: cum[i] + (cum[i + 1] - cum[i]) * p.t,
+          dist: p.dist,
         }
       }
     }

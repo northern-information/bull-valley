@@ -4,6 +4,7 @@ import {
   compassBearing,
   pointInPolygon,
   pointSegmentDistance,
+  projectOnSegment,
   unitToWorld,
 } from '../../src/coords.ts'
 import type { Metres, UnitPoint } from '../../src/interfaces.ts'
@@ -39,6 +40,24 @@ describe('coords', () => {
     ]
     expect(pointInPolygon(0.5, 0.5, square)).toBe(true)
     expect(pointInPolygon(1.5, 0.5, square)).toBe(false)
+  })
+
+  it('projects a point onto a segment, clamped to its ends', () => {
+    // Beside the middle: lands at the middle, halfway along.
+    expect(projectOnSegment(0, 1, -1, 0, 1, 0)).toEqual({
+      x: 0,
+      y: 0,
+      t: 0.5,
+      dist: 1,
+    })
+    // Past the end: clamps to b.
+    const past = projectOnSegment(3, 0, -1, 0, 1, 0)
+    expect(past).toMatchObject({ x: 1, y: 0, t: 1 })
+    expect(past.dist).toBeCloseTo(2, 6)
+    // A zero-length segment projects onto its one point.
+    const point = projectOnSegment(5, 5, 2, 2, 2, 2)
+    expect(point).toMatchObject({ x: 2, y: 2, t: 0 })
+    expect(point.dist).toBeCloseTo(Math.hypot(3, 3), 6)
   })
 
   it('measures point-to-segment distance including endpoints', () => {
