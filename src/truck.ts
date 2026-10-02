@@ -97,6 +97,11 @@ export class Truck {
   driver: Figure
   cigarette: CigaretteRig
   time: number
+  // When set, the route is driven against the clock: the distance covered
+  // is speed × seconds since this local ms, so every client that knows the
+  // departure time agrees where the truck is. Null drives by frame time.
+  startedAt: number | null
+  travelled: number
 
   constructor({ scene, groundAt }: TruckOptions) {
     this.groundAt = groundAt
@@ -113,6 +118,8 @@ export class Truck {
     this.driver = model.driver
     this.cigarette = model.cigarette
     this.time = 0
+    this.startedAt = null
+    this.travelled = 0
   }
 
   parkAt(x: number, z: number, dirX = 0, dirZ = 1) {
@@ -140,18 +147,38 @@ export class Truck {
     this.walker = createWalker(points)
     this.speed = speed
     this.moving = true
+    this.startedAt = null
+    this.travelled = 0
+  }
+
+  // Drives a route that left at startedAt (local ms, from clock.ts). A
+  // start in the past puts the truck where it already is; one in the
+  // future holds it until then.
+  driveRouteAt(
+    points: readonly RoadPoint[] | null,
+    startedAt: number,
+    speed: number = CONFIG.truck.speed
+  ) {
+    this.driveRoute(points, speed)
+    if (this.walker) this.startedAt = startedAt
   }
 
   // Advances the current route. Returns { x, z, moving, done } — done is true
   // on the frame the route finishes and stays true until the next route.
-  update(dt: number): TruckState {
+  update(dt: number, nowMs: number = performance.now()): TruckState {
     // Matthew Marx glances about now and then, and smokes.
     this.time += dt
     this.cigarette.update(this.time)
     this.driver.joints.neck.rotation.y =
       Math.sin(this.time * 0.35) * Math.max(0, Math.sin(this.time * 0.11)) * 0.6
     if (this.walker && this.moving) {
-      const s = this.walker.advance(this.speed * dt)
+      let metres = this.speed * dt
+      if (this.startedAt !== null) {
+        const due = (this.speed * (nowMs - this.startedAt)) / 1000
+        metres = Math.max(0, due - this.travelled)
+      }
+      this.travelled += metres
+      const s = this.walker.advance(metres)
       this.x = s.x
       this.z = s.z
       this.dirX = s.dirX

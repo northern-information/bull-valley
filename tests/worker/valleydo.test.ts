@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { CLOSE, PROTOCOL_VERSION } from '../../src/protocol.ts'
 import { ValleyDO } from '../../worker/ValleyDO.ts'
 import type {
+  NackMessage,
   PeerJoinedMessage,
   PeerLeftMessage,
   PeerStateMessage,
+  RaidMessage,
   ServerMessage,
   WelcomeMessage,
 } from '../../src/protocol.ts'
@@ -30,16 +32,42 @@ class MockSocket {
   deserializeAttachment(): unknown {
     return this.attachment
   }
-  // Parsed frames, newest last.
   frames(): ServerMessage[] {
     return this.sent.map((text) => JSON.parse(text) as ServerMessage)
   }
   last<T extends ServerMessage>(): T {
     return this.frames().at(-1) as T
   }
+  // Every raid frame's reason, in order.
+  reasons(): string[] {
+    return this.frames()
+      .filter((m): m is RaidMessage => m.type === 'raid')
+      .map((m) => m.reason)
+  }
+}
+
+class MockStorage {
+  map = new Map<string, unknown>()
+  alarm: number | null = null
+  get<T>(key: string): Promise<T | undefined> {
+    return Promise.resolve(this.map.get(key) as T | undefined)
+  }
+  put<T>(key: string, value: T): Promise<void> {
+    this.map.set(key, value)
+    return Promise.resolve()
+  }
+  setAlarm(at: number): Promise<void> {
+    this.alarm = at
+    return Promise.resolve()
+  }
+  deleteAlarm(): Promise<void> {
+    this.alarm = null
+    return Promise.resolve()
+  }
 }
 
 class MockState {
+  storage = new MockStorage()
   sockets: MockSocket[] = []
   acceptWebSocket(ws: MockSocket): void {
     this.sockets.push(ws)
@@ -47,19 +75,27 @@ class MockState {
   getWebSockets(): MockSocket[] {
     return this.sockets
   }
+  blockConcurrencyWhile<T>(fn: () => Promise<T>): Promise<T> {
+    return fn()
+  }
 }
 
 const ws = (s: MockSocket) => s as unknown as WebSocket
+const asState = (s: MockState) => s as unknown as DurableObjectState
 
-function valley(): { valley: ValleyDO; state: MockState } {
-  const state = new MockState()
-  const env = {} as Env
-  const v = new ValleyDO(state as unknown as DurableObjectState, env)
+async function valley(state = new MockState()) {
+  const v = new ValleyDO(asState(state), {} as Env)
+  // Let the constructor's storage read settle.
+  await Promise.resolve()
   return { valley: v, state }
 }
 
-const hello = (name = 'Dave', outfit = 'coleman', v = PROTOCOL_VERSION) =>
-  JSON.stringify({ type: 'hello', v, name, outfit })
+const hello = (
+  name = 'Dave',
+  outfit = 'coleman',
+  v = PROTOCOL_VERSION,
+  pickups = 70
+) => JSON.stringify({ type: 'hello', v, name, outfit, pickups })
 
 const state = (x: number, z: number) =>
   JSON.stringify({
@@ -72,70 +108,94 @@ const state = (x: number, z: number) =>
     riding: false,
   })
 
-// A socket that has said hello.
-function join(v: ValleyDO, s: MockState, name: string, outfit = 'coleman') {
+// A socket that has connected (dev or not) and said hello.
+async function join(
+  v: ValleyDO,
+  s: MockState,
+  name: string,
+  { outfit = 'coleman', dev = false, pickups = 70 } = {}
+) {
   const socket = new MockSocket()
+  socket.serializeAttachment({ dev, me: null })
   s.acceptWebSocket(socket)
-  v.webSocketMessage(ws(socket), hello(name, outfit))
+  await v.webSocketMessage(
+    ws(socket),
+    hello(name, outfit, PROTOCOL_VERSION, pickups)
+  )
   return socket
 }
 
+const idOf = (socket: MockSocket) =>
+  (socket.attachment as { me: { id: string } }).me.id
+
 describe('ValleyDO', () => {
-  it('refuses a plain HTTP request', () => {
-    const { valley: v } = valley()
+  it('refuses a plain HTTP request', async () => {
+    const { valley: v } = await valley()
     const res = v.fetch(new Request('https://do/ws'))
     expect(res.status).toBe(426)
   })
 
-  it('closes binary and malformed frames', () => {
-    const { valley: v, state: s } = valley()
+  it('closes binary and malformed frames', async () => {
+    const { valley: v, state: s } = await valley()
     const a = new MockSocket()
     s.acceptWebSocket(a)
-    v.webSocketMessage(ws(a), new ArrayBuffer(4))
+    await v.webSocketMessage(ws(a), new ArrayBuffer(4))
     expect(a.closeCode).toBe(CLOSE.malformed)
     const b = new MockSocket()
     s.acceptWebSocket(b)
-    v.webSocketMessage(ws(b), '{"type":"dance"}')
+    await v.webSocketMessage(ws(b), '{"type":"dance"}')
     expect(b.closeCode).toBe(CLOSE.malformed)
   })
 
-  it('wants a hello first, and only once', () => {
-    const { valley: v, state: s } = valley()
+  it('wants a hello first, and only once', async () => {
+    const { valley: v, state: s } = await valley()
     const a = new MockSocket()
     s.acceptWebSocket(a)
-    v.webSocketMessage(ws(a), state(1, 1))
+    await v.webSocketMessage(ws(a), state(1, 1))
     expect(a.closeCode).toBe(CLOSE.malformed)
-    const b = join(v, s, 'Dave')
-    v.webSocketMessage(ws(b), hello('Dave again'))
+    const b = await join(v, s, 'Dave')
+    await v.webSocketMessage(ws(b), hello('Dave again'))
     expect(b.closeCode).toBe(CLOSE.malformed)
   })
 
-  it('turns away the wrong protocol, a bad name, and an unknown outfit', () => {
-    const { valley: v, state: s } = valley()
+  it('turns away the wrong protocol, a bad name, an unknown outfit, and a stale build', async () => {
+    const { valley: v, state: s } = await valley()
     const old = new MockSocket()
     s.acceptWebSocket(old)
-    v.webSocketMessage(ws(old), hello('Dave', 'coleman', PROTOCOL_VERSION + 1))
+    await v.webSocketMessage(
+      ws(old),
+      hello('Dave', 'coleman', PROTOCOL_VERSION + 1)
+    )
     expect(old.closeCode).toBe(CLOSE.badVersion)
-    const blank = join(v, s, '   ')
+    const blank = await join(v, s, '   ')
     expect(blank.closeCode).toBe(CLOSE.badName)
-    const long = join(v, s, 'x'.repeat(17))
+    const long = await join(v, s, 'x'.repeat(17))
     expect(long.closeCode).toBe(CLOSE.badName)
-    const tuxedo = join(v, s, 'Dave', 'tuxedo')
+    const tuxedo = await join(v, s, 'Dave', { outfit: 'tuxedo' })
     expect(tuxedo.closeCode).toBe(CLOSE.badOutfit)
-    expect(tuxedo.attachment).toBeNull()
+    expect((tuxedo.attachment as { me: unknown }).me).toBeNull()
+    await join(v, s, 'First')
+    const stale = await join(v, s, 'Second', { pickups: 71 })
+    expect(stale.closeCode).toBe(CLOSE.staleBuild)
   })
 
-  it('welcomes a player with the roster and tells the others', () => {
-    const { valley: v, state: s } = valley()
-    const a = join(v, s, '  Dave  Coleman ')
+  it('welcomes a player with the roster and the raid, and tells the others', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, '  Dave  Coleman ')
     const welcomeA = a.last<WelcomeMessage>()
     expect(welcomeA.type).toBe('welcome')
     expect(welcomeA.peers).toEqual([])
     expect(typeof welcomeA.serverNow).toBe('number')
-    expect(a.attachment).toMatchObject({ name: 'Dave Coleman', at: null })
+    expect(welcomeA.phase).toBe('LOBBY')
+    expect(welcomeA.raid.phase).toBe('LOBBY')
+    expect(welcomeA.raid.members).toEqual([
+      { id: welcomeA.id, name: 'Dave Coleman', phase: 'LOBBY', boarded: false },
+    ])
+    // The lobby clock is armed.
+    expect(s.storage.alarm).toBe(welcomeA.raid.loadoutEndsAt)
 
-    v.webSocketMessage(ws(a), state(5, 6))
-    const b = join(v, s, 'Kvistad', 'kvistad')
+    await v.webSocketMessage(ws(a), state(5, 6))
+    const b = await join(v, s, 'Kvistad', { outfit: 'kvistad' })
     const welcomeB = b.last<WelcomeMessage>()
     expect(welcomeB.peers).toHaveLength(1)
     expect(welcomeB.peers[0]).toMatchObject({
@@ -144,76 +204,154 @@ describe('ValleyDO', () => {
       outfit: 'coleman',
       at: { x: 5, z: 6, pose: 'walk' },
     })
-    const joined = a.last<PeerJoinedMessage>()
+    expect(welcomeB.raid.members.map((m) => m.name)).toEqual([
+      'Dave Coleman',
+      'Kvistad',
+    ])
+    const [joined, raid] = a.frames().slice(-2) as [
+      PeerJoinedMessage,
+      RaidMessage,
+    ]
     expect(joined.type).toBe('peer-joined')
     expect(joined.peer).toMatchObject({
       id: welcomeB.id,
       name: 'Kvistad',
-      outfit: 'kvistad',
       at: null,
+    })
+    expect(raid).toMatchObject({
+      type: 'raid',
+      reason: 'joined',
+      by: welcomeB.id,
     })
     expect(welcomeA.id).not.toBe(welcomeB.id)
   })
 
-  it('fans a state out to everyone else, not the sender', () => {
-    const { valley: v, state: s } = valley()
-    const a = join(v, s, 'A')
-    const b = join(v, s, 'B')
+  it('fans a state out to everyone else, not the sender', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
     const stranger = new MockSocket()
     s.acceptWebSocket(stranger)
     const beforeA = a.sent.length
-    v.webSocketMessage(ws(a), state(7, 8))
+    await v.webSocketMessage(ws(a), state(7, 8))
     expect(a.sent.length).toBe(beforeA)
     const fanned = b.last<PeerStateMessage>()
     expect(fanned).toMatchObject({ type: 'peer-state', x: 7, z: 8, yaw: 0.5 })
-    expect(fanned.id).toBe((a.attachment as { id: string }).id)
-    // A socket that never said hello hears nothing.
+    expect(fanned.id).toBe(idOf(a))
     expect(stranger.sent).toEqual([])
   })
 
-  it('drops a flood of state frames', () => {
-    const { valley: v, state: s } = valley()
-    const a = join(v, s, 'A')
-    const b = join(v, s, 'B')
+  it('drops a flood of state frames', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
     const before = b.sent.length
-    for (let i = 0; i < 100; i++) v.webSocketMessage(ws(a), state(i, 0))
+    for (let i = 0; i < 100; i++) await v.webSocketMessage(ws(a), state(i, 0))
     expect(b.sent.length - before).toBe(30)
     expect(a.closeCode).toBeNull()
   })
 
-  it('answers pings with the server clock', () => {
-    const { valley: v, state: s } = valley()
-    const a = join(v, s, 'A')
-    v.webSocketMessage(ws(a), JSON.stringify({ type: 'ping', t: 42 }))
+  it('answers pings with the server clock', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    await v.webSocketMessage(ws(a), JSON.stringify({ type: 'ping', t: 42 }))
     expect(a.last()).toMatchObject({ type: 'pong', t: 42 })
   })
 
-  it('announces a departure once', () => {
-    const { valley: v, state: s } = valley()
-    const a = join(v, s, 'A')
-    const b = join(v, s, 'B')
-    const idB = (b.attachment as { id: string }).id
-    const before = a.sent.length
-    v.webSocketError(ws(b))
-    v.webSocketClose(ws(b))
-    expect(a.sent.length).toBe(before + 1)
-    expect(a.last<PeerLeftMessage>()).toEqual({ type: 'peer-left', id: idB })
+  it('runs the raid: boarding, the alarm, pickups, and extraction', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    await v.webSocketMessage(ws(a), '{"type":"board"}')
+    expect(a.last<RaidMessage>()).toMatchObject({
+      reason: 'boarded',
+      by: idOf(a),
+    })
+    expect(b.last<RaidMessage>().reason).toBe('boarded')
+    // The clock runs out with A aboard.
+    await v.alarm()
+    const depart = a.last<RaidMessage>()
+    expect(depart.reason).toBe('depart')
+    expect(depart.raid?.riders).toEqual([idOf(a)])
+    expect(s.storage.alarm).toBeNull()
+    // B is on foot and takes a pickup; A is told; B's second try is refused.
+    await v.webSocketMessage(ws(b), '{"type":"take","index":4}')
+    expect(a.last<RaidMessage>()).toMatchObject({
+      reason: 'taken',
+      by: idOf(b),
+      index: 4,
+    })
+    await v.webSocketMessage(ws(b), '{"type":"take","index":4}')
+    expect(b.last<NackMessage>()).toEqual({
+      type: 'nack',
+      re: 'take',
+      reason: 'gone',
+      index: 4,
+    })
+    // A hops out and extracts; B is told.
+    await v.webSocketMessage(ws(a), '{"type":"hop-out"}')
+    await v.webSocketMessage(ws(a), '{"type":"extract","kind":"keep"}')
+    expect(b.last<RaidMessage>()).toMatchObject({
+      reason: 'extracted',
+      by: idOf(a),
+      kind: 'keep',
+    })
+    // The raid is persisted.
+    const stored = s.storage.map.get('valley') as { raid: { taken: number[] } }
+    expect(stored.raid.taken).toEqual([4])
   })
 
-  it('rebuilds the roster from attachments after waking', () => {
+  it('keeps the dev frames for dev sockets', async () => {
+    const { valley: v, state: s } = await valley()
+    const plain = await join(v, s, 'A')
+    await v.webSocketMessage(
+      ws(plain),
+      '{"type":"dev","op":"hurry","seconds":1}'
+    )
+    expect(plain.last<NackMessage>()).toMatchObject({
+      re: 'dev',
+      reason: 'not-a-dev-server',
+    })
+    const dev = await join(v, s, 'B', { dev: true })
+    await v.webSocketMessage(ws(dev), '{"type":"dev","op":"hurry","seconds":1}')
+    expect(dev.last<RaidMessage>().reason).toBe('hurry')
+    expect(s.storage.alarm).toBe(dev.last<RaidMessage>().raid?.loadoutEndsAt)
+  })
+
+  it('announces a departure once and settles the raid', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    const before = a.sent.length
+    const idB = idOf(b)
+    await v.webSocketError(ws(b))
+    await v.webSocketClose(ws(b))
+    const frames = a.frames().slice(before)
+    expect(frames.map((m) => m.type)).toEqual(['peer-left', 'raid'])
+    expect((frames[0] as PeerLeftMessage).id).toBe(idB)
+    expect((frames[1] as RaidMessage).reason).toBe('left')
+    // The last one out resets the valley.
+    await v.webSocketClose(ws(a))
+    const stored = s.storage.map.get('valley') as { raid: unknown }
+    expect(stored.raid).toBeNull()
+    expect(s.storage.alarm).toBeNull()
+  })
+
+  it('wakes with the raid from storage and the roster from attachments', async () => {
     const shared = new MockState()
-    const first = new ValleyDO(
-      shared as unknown as DurableObjectState,
-      {} as Env
-    )
-    const a = join(first, shared, 'A')
-    // Hibernation: a new object over the same sockets and attachments.
-    const woken = new ValleyDO(
-      shared as unknown as DurableObjectState,
-      {} as Env
-    )
-    const b = join(woken, shared, 'B')
-    expect(b.last<WelcomeMessage>().peers.map((p) => p.name)).toEqual(['A'])
-    expect(a.last<PeerJoinedMessage>().peer.name).toBe('B')
+    const first = (await valley(shared)).valley
+    const a = await join(first, shared, 'A')
+    await first.webSocketMessage(ws(a), '{"type":"take","index":9}')
+    // Hibernation: a new object over the same storage and sockets.
+    const woken = (await valley(shared)).valley
+    const b = await join(woken, shared, 'B')
+    const welcome = b.last<WelcomeMessage>()
+    expect(welcome.peers.map((p) => p.name)).toEqual(['A'])
+    expect(welcome.raid.taken).toEqual([9])
+    expect(welcome.raid.members.map((m) => m.name)).toEqual(['A', 'B'])
+    expect(a.last<RaidMessage>()).toMatchObject({
+      reason: 'joined',
+      by: idOf(b),
+    })
   })
 })

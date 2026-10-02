@@ -56,7 +56,7 @@ import type { Interaction } from './interactions.ts'
 import type { Geo, Raid, RingItem } from './interfaces.ts'
 import type { NetStatus } from './net.ts'
 import type { Peer } from './presence.ts'
-import type { PeerStateWire } from './protocol.ts'
+import type { PeerStateWire, RaidMessage, RaidWire } from './protocol.ts'
 import type { RoadGraph } from './roadgraph.ts'
 import type { TerrainData } from './terrain.ts'
 import type { Pickup, World } from './world.ts'
@@ -77,6 +77,9 @@ interface BvHook {
     readonly id: string | null
     peers(): Peer[]
   }
+  // The shared raid as the valley last sent it; null offline.
+  readonly shared: RaidWire | null
+  readonly aboard: boolean
   teleport(u: number, v: number): void
   hurryTruck(seconds?: number): void
 }
@@ -292,7 +295,11 @@ async function boot() {
     }
   })
   // Not awaited: the game never waits on the network.
-  void net.connect({ name: pick.name, outfit: pick.outfit })
+  void net.connect({
+    name: pick.name,
+    outfit: pick.outfit,
+    pickups: world.pickups.length,
+  })
 
   const keep = world.landmarks.find((l) => l.n === KEEP)
   const stand = world.landmarks.find((l) => l.n !== KEEP)
@@ -325,6 +332,13 @@ async function boot() {
   // The last state frame sent to the valley, and time since.
   let lastSent: PeerStateWire | null = null
   let sinceSent = 0
+  // The shared raid, once the valley has answered. Null offline, where the
+  // raid is this player's alone and runs as it always has.
+  let shared: RaidWire | null = null
+  // Standing in the bed during the lobby, waiting on the others.
+  let aboard = false
+  // Pickups asked of the valley and not yet answered.
+  const pendingTakes = new Set<number>()
   const ridingForward = new THREE.Vector3(0, 0, -1)
 
   player.onEdge = () => hud.toast('The valley ends here.')
@@ -344,12 +358,33 @@ async function boot() {
     hud.setCarousel({ items: ring, index: ringIndex, shopOpen: open })
   }
 
+  // The countdown, with the lobby's headcount when others are in it.
+  const lobbyLine = () => {
+    const clock = loadoutClock(raid, raidClock)
+    if (!shared) return clock
+    const lobby = shared.members.filter((m) => m.phase === 'LOBBY')
+    if (lobby.length < 2) return clock
+    const boarded = lobby.filter((m) => m.boarded).length
+    return `${clock} · ${boarded} of ${lobby.length} aboard`
+  }
+
   const truckStatus = () => {
-    if (raid.state === STATES.LOADOUT) {
-      return `Leaves in ${loadoutClock(raid, raidClock)}`
-    }
+    if (raid.state === STATES.LOADOUT) return `Leaves in ${lobbyLine()}`
     if (raid.state === STATES.RIDING) return 'Riding the bed'
-    return raid.truckCalled ? 'On its way' : 'Gone'
+    if (raid.truckCalled) return 'On its way'
+    return shared?.call ? 'On a call' : 'Gone'
+  }
+
+  // Which bed seat is ours: by boarding order in the lobby, by the
+  // valley's rider order once it has left.
+  const mySeat = () => {
+    const me = net.id
+    if (!shared || me === null) return 0
+    const order =
+      shared.phase === 'LOBBY'
+        ? shared.members.filter((m) => m.boarded).map((m) => m.id)
+        : shared.riders
+    return Math.max(0, order.indexOf(me))
   }
 
   // The player freezes while the inventory is open; the valley does not.
@@ -381,6 +416,8 @@ async function boot() {
     player.locked = false
     hud.showIntro(false)
     hud.showSummary(summary(raid))
+    if (shared && raid.extract)
+      net.send({ type: 'extract', kind: raid.extract })
   }
 
   const truckLeaves = () => {
@@ -388,6 +425,17 @@ async function boot() {
   }
 
   const boardTruck = () => {
+    if (shared) {
+      // In the valley the truck waits for everyone in the lobby, or for
+      // the clock. Boarding is a word to the server; the raid frame that
+      // comes back moves the raid.
+      if (aboard || raid.state !== STATES.LOADOUT) return
+      aboard = true
+      net.send({ type: 'board' })
+      hud.toast('You climb into the bed.')
+      closeInventory()
+      return
+    }
     const next = advance(raid, EVENTS.BOARD_TRUCK, raidClock)
     if (next === raid) return
     raid = next
@@ -398,12 +446,22 @@ async function boot() {
   }
 
   const hopOut = (toastText?: string) => {
+    if (aboard) {
+      // Back off the bed before it leaves.
+      aboard = false
+      net.send({ type: 'unboard' })
+      const spot = truck.hopOutSpot()
+      player.relocate(spot.x, spot.z, player.yaw)
+      if (toastText) hud.toast(toastText)
+      return
+    }
     const next = advance(raid, EVENTS.HOP_OUT, raidClock)
     if (next === raid) return
     raid = next
     const spot = truck.hopOutSpot()
     player.relocate(spot.x, spot.z, player.yaw)
     if (toastText) hud.toast(toastText)
+    if (shared) net.send({ type: 'hop-out' })
   }
 
   // A shadowman touched you. Static, then you come to on the forecourt.
@@ -421,11 +479,24 @@ async function boot() {
 
   const callTruck = () => {
     if (raid.state !== STATES.ON_FOOT || raid.truckCalled) return
+    if (shared?.call) {
+      hud.toast('Marx is already on a call.')
+      return
+    }
     const from = nearestRoadPoint(graph, truck.x, truck.z)
     const to = nearestRoadPoint(graph, player.pos.x, player.pos.z)
     const route = from && to ? planRoute(graph, from, to) : null
-    if (!route || route.length < 2) {
+    if (!from || !to || !route || route.length < 2) {
       hud.toast('You whistle into the dark. Nothing turns over.')
+      return
+    }
+    if (shared) {
+      // One whistle for the whole valley; the raid frame drives the truck.
+      net.send({
+        type: 'call',
+        from: { x: from.x, z: from.z },
+        to: { x: to.x, z: to.z },
+      })
       return
     }
     raid = advance(raid, EVENTS.CALL_TRUCK, raidClock)
@@ -549,7 +620,8 @@ async function boot() {
     if (item.used) hud.toast(item.used)
   }
 
-  const takePickup = (pickup: Pickup) => {
+  // The pickup is ours: into the arms or the pack.
+  const applyTake = (pickup: Pickup) => {
     if (pickup.kind === 'cabbage') {
       const next = advance(raid, EVENTS.PICK_CABBAGE, raidClock)
       if (next === raid) {
@@ -571,8 +643,159 @@ async function boot() {
     hud.prompt(null)
   }
 
+  // Someone else got it.
+  const markTaken = (pickup: Pickup) => {
+    pickup.taken = true
+    pickup.mesh.visible = false
+  }
+
+  const takePickup = (pickup: Pickup) => {
+    if (!shared) {
+      applyTake(pickup)
+      return
+    }
+    // Pickups are shared by index: ask, and take it when the valley says
+    // it is ours. A full pair of arms is refused here, not there.
+    const index = world.pickups.indexOf(pickup)
+    if (index < 0 || pendingTakes.has(index)) return
+    if (
+      pickup.kind === 'cabbage' &&
+      advance(raid, EVENTS.PICK_CABBAGE, raidClock) === raid
+    ) {
+      hud.toast('Your arms are full.')
+      return
+    }
+    pendingTakes.add(index)
+    net.send({ type: 'take', index })
+  }
+
+  // --- The shared raid -----------------------------------------------------
+  // Every change to the valley's raid arrives as a whole snapshot and a
+  // reason. The local raid machine still holds what is ours (the arms, the
+  // deliveries, the sack); the snapshot moves it through the shared
+  // moments: the truck leaving, a pickup going, a whistle answered.
+  const applyRaid = (
+    wire: RaidWire | null,
+    reason: RaidMessage['reason'],
+    by?: string,
+    index?: number
+  ) => {
+    const previous = shared
+    shared = wire
+    if (!wire) return
+    const me = net.id
+
+    // The lobby clock, in raidClock seconds.
+    raid = {
+      ...raid,
+      loadoutEndsAt: (wire.loadoutEndsAt - wire.startedAt) / 1000,
+    }
+
+    if (reason === 'taken' && index !== undefined) {
+      pendingTakes.delete(index)
+      const pickup = world.pickups[index]
+      if (pickup && !pickup.taken) {
+        if (by === me) applyTake(pickup)
+        else markTaken(pickup)
+      }
+    }
+    // Whatever else is gone, is gone.
+    for (const i of wire.taken) {
+      const pickup = world.pickups[i]
+      if (pickup && !pickup.taken) markTaken(pickup)
+    }
+
+    // The truck left: with us, or without us, or before we got here.
+    const justLeft =
+      wire.phase === 'OUT' &&
+      (previous === null ||
+        previous.epoch !== wire.epoch ||
+        previous.phase === 'LOBBY')
+    if (justLeft) {
+      const rider = me !== null && wire.riders.includes(me)
+      aboard = false
+      if (raid.state === STATES.LOADOUT) {
+        raid = advance(
+          raid,
+          rider ? EVENTS.BOARD_TRUCK : EVENTS.TIMER_EXPIRED,
+          raidClock
+        )
+        if (rider) {
+          hud.toast('Marx pulls out.')
+          hud.toast('E hops out. Anywhere you like.')
+        } else if (reason === 'depart') {
+          hud.toast('Taillights. The truck leaves without you.')
+        } else {
+          hud.toast('The truck is long gone. You are on foot.')
+        }
+        refreshRing()
+      }
+      if (wire.departedAt !== null) {
+        truck.driveRouteAt(departRoute, net.clock.toLocalMs(wire.departedAt))
+      }
+    }
+
+    // A whistle, answered for everyone.
+    const call = wire.call
+    if (call && (!previous?.call || previous.call.at !== call.at)) {
+      const from = nearestRoadPoint(graph, call.from.x, call.from.z)
+      const to = nearestRoadPoint(graph, call.to.x, call.to.z)
+      const route = from && to ? planRoute(graph, from, to) : null
+      truck.parkAt(call.from.x, call.from.z, truck.dirX, truck.dirZ)
+      truck.driveRouteAt(route, net.clock.toLocalMs(call.at))
+      if (call.by === me) {
+        raid = advance(raid, EVENTS.CALL_TRUCK, raidClock)
+        hud.toast('You whistle into the dark. An engine turns over, far off.')
+      } else {
+        hud.toast('Far off, an engine turns over. Someone whistled.')
+      }
+    }
+
+    if (reason === 'extracted' && by && by !== me) {
+      const name = peers.table.get(by)?.name
+      peers.left(by)
+      if (name) hud.toast(`${name} made it out.`)
+    }
+  }
+
+  const applyNack = (re: string, index?: number) => {
+    if (re === 'take') {
+      if (index !== undefined) {
+        pendingTakes.delete(index)
+        const pickup = world.pickups[index]
+        if (pickup) markTaken(pickup)
+      }
+      hud.toast('Someone got there first.')
+    } else if (re === 'call') {
+      hud.toast('Marx is already on a call.')
+    }
+  }
+
+  net.on((msg) => {
+    if (msg.type === 'welcome') {
+      applyRaid(msg.raid, 'joined', msg.id)
+    } else if (msg.type === 'raid') {
+      applyRaid(msg.raid, msg.reason, msg.by, msg.index)
+    } else if (msg.type === 'nack') {
+      applyNack(msg.re, msg.index)
+    }
+  })
+  net.onStatus((status) => {
+    // The line dropped: the valley's raid is no longer ours to follow, and
+    // what we hold plays on alone.
+    if (status === 'offline') {
+      shared = null
+      aboard = false
+      pendingTakes.clear()
+    }
+  })
+
   const interact = () => {
     // The raid state is live; the interaction is from the last frame.
+    if (aboard) {
+      hopOut('Boots on gravel. Marx waits.')
+      return
+    }
     if (raid.state === STATES.RIDING) {
       hopOut('Boots on gravel. The truck rolls on.')
       return
@@ -677,15 +900,28 @@ async function boot() {
     time += dt
     // The valley is persistent: once the raid begins, the clock never pauses —
     // not for the intro overlay, not for a dropped pointer lock. The truck
-    // keeps its own schedule.
-    if (started && !ended) raidClock += dt
+    // keeps its own schedule. In the shared valley the clock is the
+    // server's, read through the offset, so every player counts together.
+    if (shared) {
+      raidClock = Math.max(
+        0,
+        (net.clock.serverNow(now) - shared.startedAt) / 1000
+      )
+    } else if (started && !ended) {
+      raidClock += dt
+    }
 
     const smoking = time < smokingUntil
     const ember = time < emberUntil
     const perception = time < perceptionUntil
 
-    // The truck leaves on the timer whether you're aboard or not.
-    if (raid.state === STATES.LOADOUT && raidClock > raid.loadoutEndsAt) {
+    // The truck leaves on the timer whether you're aboard or not. In the
+    // shared valley the server's clock says when.
+    if (
+      !shared &&
+      raid.state === STATES.LOADOUT &&
+      raidClock > raid.loadoutEndsAt
+    ) {
       raid = advance(raid, EVENTS.TIMER_EXPIRED, raidClock)
       truckLeaves()
       hud.toast('Taillights. The truck leaves without you.')
@@ -697,11 +933,11 @@ async function boot() {
     let feetY: number
     let moveSpeed = 0
     let crouching = false
-    if (raid.state === STATES.RIDING) {
+    if (raid.state === STATES.RIDING || aboard) {
       // The one place the camera leaves player.update(): ride the bed with
       // free look, keeping player.pos honest for the scope.
-      const truckState = truck.update(dt)
-      const seat = truck.bedSeat()
+      const truckState = truck.update(dt, now)
+      const seat = truck.bedSeat(mySeat())
       player.relocate(seat.x, seat.z, player.yaw)
       camera.position.set(seat.x, seat.y, seat.z)
       camera.rotation.set(player.pitch, player.yaw, 0)
@@ -716,7 +952,7 @@ async function boot() {
         speed: 0,
         crouching: false,
       })
-      if (truckState.done) {
+      if (truckState.done && raid.state === STATES.RIDING) {
         hopOut('End of the line. Marx lights a cigarette.')
       }
     } else {
@@ -739,7 +975,7 @@ async function boot() {
         speed: moveSpeed,
         crouching,
       })
-      truck.update(dt)
+      truck.update(dt, now)
     }
 
     // The shadowmen cross whatever the raid is doing, but only rush and touch
@@ -770,7 +1006,7 @@ async function boot() {
         z: player.pos.z,
         yaw: player.yaw,
         pose: poseOf(moveSpeed, crouching),
-        riding: raid.state === STATES.RIDING,
+        riding: raid.state === STATES.RIDING || aboard,
       }
       if (stateChanged(lastSent, state)) {
         lastSent = state
@@ -778,9 +1014,7 @@ async function boot() {
       }
     }
 
-    hud.setCountdown(
-      raid.state === STATES.LOADOUT ? loadoutClock(raid, raidClock) : null
-    )
+    hud.setCountdown(raid.state === STATES.LOADOUT ? lobbyLine() : null)
 
     const timers: string[] = []
     if (smoking) timers.push(`Smoking ${Math.ceil(smokingUntil - time)}s`)
@@ -807,20 +1041,22 @@ async function boot() {
     }
 
     // --- Interactions: what E would do right now -------------------------
-    interaction = resolveInteraction({
-      raid,
-      ended,
-      player: player.pos,
-      truck: {
-        distance: truck.distanceTo(player.pos.x, player.pos.z),
-        moving: truck.moving,
-      },
-      stand: stand ?? null,
-      keep: keep ?? null,
-      stations: world.fuelPoints,
-      spawnStation,
-      pickups: world.pickups,
-    })
+    interaction = aboard
+      ? { kind: 'hopOut' }
+      : resolveInteraction({
+          raid,
+          ended,
+          player: player.pos,
+          truck: {
+            distance: truck.distanceTo(player.pos.x, player.pos.z),
+            moving: truck.moving,
+          },
+          stand: stand ?? null,
+          keep: keep ?? null,
+          stations: world.fuelPoints,
+          spawnStation,
+          pickups: world.pickups,
+        })
     const prompt = interaction ? interactionPrompt(interaction) : null
     if (player.locked) {
       hud.prompt(!ended && time >= strikeUntil ? prompt : null)
@@ -868,12 +1104,21 @@ async function boot() {
         },
         peers: () => peers.list(),
       },
+      get shared() {
+        return shared
+      },
+      get aboard() {
+        return aboard
+      },
       teleport(u: number, v: number) {
         const { x, z } = unitToWorld(u, v, geo.metres)
         player.relocate(x, z)
       },
       hurryTruck(seconds = 5) {
-        raid = { ...raid, loadoutEndsAt: raidClock + seconds }
+        // In the shared valley the server holds the clock; a dev server
+        // lets a spec move it.
+        if (shared) net.send({ type: 'dev', op: 'hurry', seconds })
+        else raid = { ...raid, loadoutEndsAt: raidClock + seconds }
       },
     }
   }
