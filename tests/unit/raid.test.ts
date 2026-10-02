@@ -72,12 +72,14 @@ describe('raid state machine', () => {
     expect(sacked.carrying).toBe(getItem('sack').carryLimit)
   })
 
-  it('only sells the sack during loadout, once', () => {
+  it('sells the sack once, at the loadout or on foot', () => {
     let raid = createRaid(0)
     raid = advance(raid, EVENTS.BUY_SACK, 1)
     expect(advance(raid, EVENTS.BUY_SACK, 2)).toBe(raid)
     const onFoot = advance(createRaid(0), EVENTS.TIMER_EXPIRED, 300)
-    expect(advance(onFoot, EVENTS.BUY_SACK, 301)).toBe(onFoot)
+    expect(advance(onFoot, EVENTS.BUY_SACK, 301).sack).toBe(true)
+    const riding = advance(createRaid(0), EVENTS.BOARD_TRUCK, 10)
+    expect(advance(riding, EVENTS.BUY_SACK, 11)).toBe(riding)
   })
 
   it('extracts by called truck only after it arrives', () => {

@@ -7,10 +7,12 @@ import { isCigarette, isDrink, itemById, ITEMS } from './items.ts'
 import { paintPack } from './packart.ts'
 import { applyPS1 } from './ps1.ts'
 import { mulberry32, range } from './rng.ts'
+import { STORE_LAYOUT } from './store.ts'
 import type { DrinkArt } from './canart.ts'
 import type { CanvasArt } from './canvas.ts'
 import type { Container, ContainerKey, Vec3 } from './interfaces.ts'
 import type { Rng } from './rng.ts'
+import type { StoreFinish } from './store.ts'
 
 // Every placed 3D asset in Bull Valley, defined once in asset-local space.
 // world.ts instances these parts across the valley; the Akashic dev page
@@ -224,15 +226,15 @@ function makeCitgoSignTexture(): THREE.CanvasTexture {
 }
 
 // Station-local layout: the pump island at the origin, local +X toward the
-// road, the building set back along -X. `along` offsets run on the local Z
+// road, the store behind it along -X (its shell and shelves are laid out in
+// STORE_LAYOUT, store.ts). `along` offsets run on the local Z
 // axis (the pump island's long side, parallel to the road). world.ts turns
 // every station to face its nearest road and sets the island
 // `roadEdgeDistance` back from the road's edge, so the sign stands just
-// inside the lot's road frontage. The lot is the asphalt from the building
+// inside the lot's road frontage. The lot is the asphalt from the store
 // front to the frontage. The sign sits on its own ground sample in the
 // world, so `sign` gives a ground offset plus height.
 export const FUEL_LAYOUT = {
-  buildingSetback: 9,
   canopyPoleOffset: 2.6,
   pumpOffset: 2.6 * 0.55,
   roadEdgeDistance: 12,
@@ -242,16 +244,88 @@ export const FUEL_LAYOUT = {
   signAlong: 8,
   signHeight: 7,
   glowScale: 9,
-  // Along local X from the building front to the road centreline (the
-  // sample stops at the road edge); halfWidth spans local Z.
-  lot: { back: -6.5, halfWidth: 11 },
+  // Along local X from the store front to the road centreline (the sample
+  // stops at the road edge); halfWidth spans local Z.
+  lot: { back: STORE_LAYOUT.front, halfWidth: 11 },
   lotColor: '#262a30',
 }
 
+// The store's colors, by finish. The walls and floor carry a little
+// emissive, the fluorescent tubes nobody turns off.
+const STORE_FINISH: Record<StoreFinish, () => THREE.MeshLambertMaterial> = {
+  floor: () =>
+    lambert({
+      color: '#77736a',
+      emissive: new THREE.Color('#3a3832'),
+      emissiveIntensity: 0.5,
+    }),
+  wall: () =>
+    lambert({
+      color: '#8d8a80',
+      emissive: new THREE.Color('#2e2c27'),
+      emissiveIntensity: 0.5,
+    }),
+  roof: () => lambert({ color: '#6c6961' }),
+  shelf: () => lambert({ color: '#3e434a' }),
+  counter: () => lambert({ color: '#5a3426' }),
+}
+
+// The store shell and fixtures from STORE_LAYOUT, one part per box, each
+// geometry already in station-local space: place it at the pump island
+// with the station's yaw. One material per finish, shared across boxes.
+export function storeParts(): Part[] {
+  const materials = new Map<StoreFinish, THREE.MeshLambertMaterial>()
+  return STORE_LAYOUT.boxes.map((b) => {
+    let material = materials.get(b.finish)
+    if (!material) {
+      material = STORE_FINISH[b.finish]()
+      materials.set(b.finish, material)
+    }
+    const geometry = new THREE.BoxGeometry(...b.size)
+    geometry.translate(...b.center)
+    return { name: `store-${b.name}`, geometry, material }
+  })
+}
+
+// One shelf unit: what the carousel shows, without the halo.
+function buildShelfItem(kind: string): THREE.Object3D {
+  if (kind === 'sack') return buildSack()
+  return buildPickup(kind, 0x5ac, { glow: false })
+}
+
+// A unit on the shelves: which facing (an index into
+// STORE_LAYOUT.facings) and which of its slots.
+export interface ShelfSlot {
+  facing: number
+  unit: number
+  object: THREE.Object3D
+}
+
+// Every shelf unit of one store, in station-local space, each standing at
+// its slot facing the aisle. One model per kind, cloned per unit, so the
+// clones share its geometry and materials. world.ts moves this one display
+// to whichever store the player is nearest and hides sold units.
+export function buildShelfDisplay(): {
+  group: THREE.Group
+  slots: ShelfSlot[]
+} {
+  const group = new THREE.Group()
+  group.name = 'shelf-display'
+  const slots: ShelfSlot[] = []
+  STORE_LAYOUT.facings.forEach((facing, f) => {
+    const model = buildShelfItem(facing.kind)
+    facing.slots.forEach((at, unit) => {
+      const object = unit === 0 ? model : model.clone()
+      object.position.set(...at)
+      object.rotation.y = facing.yaw
+      group.add(object)
+      slots.push({ facing: f, unit, object })
+    })
+  })
+  return { group, slots }
+}
+
 export function fuelStationParts() {
-  // Wide along the lot (local Z), shallow toward the road (local X).
-  const building = new THREE.BoxGeometry(5, 3.4, 9)
-  building.translate(0, 1.7, 0)
   const canopy = new THREE.BoxGeometry(9, 0.45, 6.5)
   canopy.translate(0, 4.6, 0)
   const canopyPole = new THREE.CylinderGeometry(0.12, 0.12, 4.6, 5)
@@ -261,11 +335,7 @@ export function fuelStationParts() {
   const signPole = new THREE.CylinderGeometry(0.14, 0.14, 7, 5)
   signPole.translate(0, 3.5, 0)
   return {
-    building: {
-      name: 'building',
-      geometry: building,
-      material: lambert({ color: '#8d8a80' }),
-    },
+    store: storeParts(),
     canopy: {
       name: 'canopy',
       geometry: canopy,
@@ -312,8 +382,9 @@ export function fuelStationParts() {
   }
 }
 
-// One station at yaw 0, laid out exactly as world.ts places them. The lot
-// is a flat slab here; in the world it follows the ground like a road.
+// One station at yaw 0, laid out exactly as world.ts places them, with
+// full shelves. The lot is a flat slab here; in the world it follows the
+// ground like a road.
 function sampleFuelStation(): THREE.Group {
   const p = fuelStationParts()
   const L = FUEL_LAYOUT
@@ -335,7 +406,7 @@ function sampleFuelStation(): THREE.Group {
       ),
       position: [(lotFront + L.lot.back) / 2, 0.02, 0],
     },
-    { ...p.building, position: [-L.buildingSetback, 0, 0] },
+    ...p.store,
     p.canopy,
     { ...p.signPole, position: [L.signDistance, 0, L.signAlong] },
     { ...p.sign, position: [L.signDistance, L.signHeight, L.signAlong] },
@@ -350,6 +421,17 @@ function sampleFuelStation(): THREE.Group {
   const sprite = makeGlowSprite(p.glow, L.glowScale)
   sprite.position.set(L.signDistance, L.signHeight, L.signAlong)
   group.add(sprite)
+  group.add(buildShelfDisplay().group)
+  return group
+}
+
+// The store with its roof off and its shelves full, for looking down into
+// it in the Akashic.
+function sampleStoreInterior(): THREE.Group {
+  const group = assembleParts(
+    storeParts().filter((part) => part.name !== 'store-roof')
+  )
+  group.add(buildShelfDisplay().group)
   return group
 }
 
@@ -709,8 +791,9 @@ function buildJoints({ glow = true }: PickupOptions = {}): THREE.Group {
 
 // --- Burlap sack ---------------------------------------------------------
 
-// The tailgate's burlap sack, filled out a little, gathered and tied at the
-// neck. Origin at ground level under the middle. Only seen in the inventory.
+// The Citgo's burlap sack, filled out a little, gathered and tied at the
+// neck. Origin at ground level under the middle. Seen on the store's sack
+// shelf and in the inventory.
 export function buildSack(seed = 0x5ac4): THREE.Group {
   const rng = mulberry32(seed)
   const burlap = lambert({ color: '#8a6d42' })
@@ -1709,6 +1792,11 @@ function assembleParts(parts: Part[]): THREE.Group {
 // need figure or game code; see src/akashic.ts.
 export const WORLD_ASSETS: AkashicAsset[] = [
   { id: 'citgo-station', label: 'Citgo station', build: sampleFuelStation },
+  {
+    id: 'citgo-interior',
+    label: 'Citgo interior',
+    build: sampleStoreInterior,
+  },
   { id: 'tree', label: 'Tree', build: sampleTree },
   { id: 'pole', label: 'Utility pole', build: samplePole },
   { id: 'reeds', label: 'Reeds (clump of 12)', build: sampleReeds },

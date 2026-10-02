@@ -85,20 +85,56 @@ base.describe('one raid', { tag: '@raid' }, () => {
     }
   )
 
-  base('buy an item and the sack from the tailgate', async () => {
+  const cash = () => page.evaluate(() => window.__bv?.cash)
+
+  // Stand inside the spawn station's Citgo, `back` metres off a facing of
+  // `kind` (station-local: +X from the back wall, +Z from the sack shelf),
+  // and look straight at it.
+  async function aimAt(kind: string, back: [number, number]): Promise<void> {
+    await page.evaluate(
+      ([target, [bx, bz]]) => {
+        const bv = window.__bv
+        if (!bv) throw new Error('no dev hook')
+        const { world, player } = bv
+        const station = world.spawnStation
+        if (!station) throw new Error('no spawn station')
+        const i = world.fuelPoints.indexOf(station)
+        const facing = world.facings[i].find((f) => f.kind === target)
+        if (!facing) throw new Error(`no facing: ${target}`)
+        const cos = Math.cos(station.yaw)
+        const sin = Math.sin(station.yaw)
+        const [fx, fy, fz] = facing.center
+        player.relocate(fx + cos * bx - sin * bz, fz + sin * bx + cos * bz)
+        // relocate() snaps the feet to the floor; the eye stands over them.
+        const eyeY = player.groundY + player.eye
+        const dx = fx - player.pos.x
+        const dz = fz - player.pos.z
+        player.yaw = Math.atan2(-dx, -dz)
+        player.pitch = Math.atan2(fy - eyeY, Math.hypot(dx, dz))
+      },
+      [kind, back] as const
+    )
+  }
+
+  base('buy a drink and the sack inside the Citgo', async () => {
     expect(await savedInventory()).toBeNull()
-    // B buys the selected item when the tailgate sells it. Step round the
-    // ring, buying, until both an item and the sack are bought.
-    await page.keyboard.press('Tab')
-    for (let i = 0; i < 40; i++) {
-      const sack = (await raid())?.sack
-      if (sack && (await savedInventory()) !== null) break
-      await page.keyboard.press('KeyB')
-      await page.keyboard.press('ArrowRight')
-    }
-    await page.keyboard.press('Tab')
-    expect((await raid())?.sack).toBe(true)
+    expect(await cash()).toBe(4000)
+
+    await aimAt('pbr', [1.3, 0])
+    await expect(prompt()).toHaveText('E — Buy Pabst Blue Ribbon for $0.99')
+    await page.keyboard.press('KeyE')
+    await expect.poll(cash).toBe(4000 - 99)
     expect(await savedInventory()).not.toBeNull()
+
+    await aimAt('sack', [0, 1.3])
+    await expect(prompt()).toHaveText('E — Buy Burlap Sack for $3.00')
+    await page.keyboard.press('KeyE')
+    await expect.poll(async () => (await raid())?.sack).toBe(true)
+    expect(await cash()).toBe(4000 - 99 - 300)
+
+    await page.keyboard.press('Tab')
+    await expect(page.locator('[data-bv="inv-cash"]')).toHaveText('$36.01')
+    await page.keyboard.press('Tab')
   })
 
   base('board the truck, ride, and hop out', async () => {

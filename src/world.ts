@@ -3,6 +3,7 @@ import {
   boundaryMaterial,
   buildLandmarkBeacon,
   buildPickup,
+  buildShelfDisplay,
   fenceMaterial,
   FUEL_LAYOUT,
   fuelStationParts,
@@ -18,6 +19,7 @@ import {
   waterMaterial,
 } from './assets.ts'
 import { CABBAGE_SEED, placeCabbages } from './cabbages.ts'
+import { CONFIG } from './config.ts'
 import {
   pointInPolygon,
   pointSegmentDistance,
@@ -33,16 +35,26 @@ import {
   CABBAGE_STAND as STAND_NAME,
 } from './landmarks.ts'
 import { mulberry32, range } from './rng.ts'
+import {
+  STORE_LAYOUT,
+  storeBase,
+  storeCenter,
+  storeWalls,
+  worldFacings,
+} from './store.ts'
+import { Walls } from './walls.ts'
 import type {
   Geo,
   HeightAt,
   Metres,
   Road,
+  ShopStock,
   UnitPoint,
   XZ,
 } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
 import type { Rng } from './rng.ts'
+import type { StoreOrigin, WorldFacing } from './store.ts'
 
 const PACK_SEED = 0xc16a7e
 
@@ -63,8 +75,20 @@ export interface GraveAnchor extends XZ {
   name: string
 }
 
-export interface FuelPoint extends XZ {
+// A station's pump island, which way it faces (local +X toward the road),
+// and the height its store stands on (store.ts storeBase).
+export interface FuelPoint extends StoreOrigin {
   name: string
+}
+
+// The one set of stocked shelves (assets.ts buildShelfDisplay), parked at
+// whichever store the player is nearest.
+export interface ShelfDisplay {
+  group: THREE.Group
+  // Move the display to the store nearest (x, z), inside
+  // CONFIG.store.displayRange, and show what is left on its shelves.
+  // stocks: one per station, indexed like fuelPoints.
+  update(x: number, z: number, stocks: readonly ShopStock[]): void
 }
 
 export interface LandmarkPoint extends XZ {
@@ -94,6 +118,11 @@ export interface World {
   spawn: Spawn
   // What to stand on anywhere: the terrain, or the road or lot over it.
   ground: Ground
+  // What stops you: the store walls and fixtures.
+  walls: Walls
+  // Every station's shelf facings in the world, indexed like fuelPoints.
+  facings: WorldFacing[][]
+  shelves: ShelfDisplay
 }
 
 interface RoadStyle {
@@ -686,19 +715,21 @@ function nearestRoadside(
   return best
 }
 
-// Low-poly Citgo stations at every fuel point inside the frame: flat-roofed
-// building, canopy over a pump island, tall lit road sign, and an asphalt
-// lot between them and the road. Each station faces its nearest road, with
-// the pump island FUEL_LAYOUT.roadEdgeDistance back from the road's edge
-// and the building behind it: the OSM fuel point only says which road and
-// roughly where along it. The returned points are the pump islands, where
-// the truck parks nearby and a raid extracts. The data keeps the real OSM
-// names for the HUD; the visual is uniformly Citgo for now.
+// Low-poly Citgo stations at every fuel point inside the frame: a walk-in
+// store, canopy over a pump island, tall lit road sign, and an asphalt lot
+// between them and the road. Each station faces its nearest road, with the
+// pump island FUEL_LAYOUT.roadEdgeDistance back from the road's edge and
+// the store behind it: the OSM fuel point only says which road and roughly
+// where along it. Each store's floor registers on the ground and its walls
+// on `walls`. The returned points are the pump islands, where the truck
+// parks nearby and a raid extracts. The data keeps the real OSM names for
+// the HUD; the visual is uniformly Citgo for now.
 function buildFuelStations(
   geo: Pick<Geo, 'fuel' | 'roads'>,
   metres: Metres,
   heightAt: HeightAt,
-  ground: Ground
+  ground: Ground,
+  walls: Walls
 ): { group: THREE.Group; points: FuelPoint[] } {
   const group = new THREE.Group()
   group.name = 'fuel'
@@ -711,7 +742,7 @@ function buildFuelStations(
   const L = FUEL_LAYOUT
   const instanced = (part: MeshPart, n: number) =>
     new THREE.InstancedMesh(part.geometry, part.material, n)
-  const buildings = instanced(parts.building, count)
+  const store = parts.store.map((part) => instanced(part, count))
   const canopies = instanced(parts.canopy, count)
   const canopyPoles = instanced(parts.canopyPole, count * 2)
   const pumps = instanced(parts.pump, count * 2)
@@ -739,7 +770,6 @@ function buildFuelStations(
     }
     const cos = Math.cos(yaw)
     const sin = Math.sin(yaw)
-    points.push({ x, z, name: stations[i].n })
 
     // The lot: asphalt draped on the terrain from the building front to the
     // road centreline, just under the road ribbon, so the two meet with the
@@ -759,19 +789,34 @@ function buildFuelStations(
       LOT_LIFT
     )
     const y = ground.at(x, z)
+    const storeY = storeBase({ x, z, yaw }, y, heightAt)
+    const origin: FuelPoint = { x, z, yaw, y: storeY, name: stations[i].n }
+    points.push(origin)
 
-    // Building set back behind the pumps.
-    dummy.position.set(
-      x - cos * L.buildingSetback,
-      y,
-      z - sin * L.buildingSetback
-    )
+    // The store behind the pumps: its parts are already in station-local
+    // space, so every one takes the pump island's matrix, raised to stand
+    // level over the slope. Its floor is a flat deck at the slab top, and
+    // its walls and fixtures block.
+    dummy.position.set(x, storeY, z)
     dummy.rotation.set(0, -yaw, 0)
     dummy.scale.setScalar(1)
     dummy.updateMatrix()
-    buildings.setMatrixAt(i, dummy.matrix)
+    for (const mesh of store) mesh.setMatrixAt(i, dummy.matrix)
+    ground.addFloor(
+      x,
+      z,
+      cos,
+      sin,
+      STORE_LAYOUT.back,
+      STORE_LAYOUT.front,
+      STORE_LAYOUT.halfWidth,
+      storeY + STORE_LAYOUT.floor
+    )
+    for (const wall of storeWalls(origin)) {
+      walls.addWall(wall.a, wall.b, wall.half)
+    }
 
-    // Canopy and pump island at the fuel point itself.
+    // Canopy and pump island at the fuel point itself, on the lot.
     dummy.position.set(x, y, z)
     dummy.updateMatrix()
     canopies.setMatrixAt(i, dummy.matrix)
@@ -801,7 +846,7 @@ function buildFuelStations(
     group.add(sprite)
   }
   for (const mesh of [
-    buildings,
+    ...store,
     canopies,
     canopyPoles,
     pumps,
@@ -813,6 +858,42 @@ function buildFuelStations(
   }
   group.add(lots.build('lots'))
   return { group, points }
+}
+
+// One stocked display for every store. Building 15 stores' worth of shelf
+// units would cost thousands of draw calls, and the walls and the fog hide
+// every store but the one you are near, so the one display follows you:
+// it parks at the store nearest the player and hides the units that store
+// has sold. Each kind sells from its last unit back.
+function buildShelves(points: readonly FuelPoint[]): ShelfDisplay {
+  const { group, slots } = buildShelfDisplay()
+  group.visible = false
+  const centers = points.map(storeCenter)
+  const facings = STORE_LAYOUT.facings
+  return {
+    group,
+    update(x, z, stocks) {
+      let best = -1
+      let bestD = CONFIG.store.displayRange
+      centers.forEach((c, i) => {
+        const d = Math.hypot(c.x - x, c.z - z)
+        if (d < bestD) {
+          bestD = d
+          best = i
+        }
+      })
+      group.visible = best >= 0
+      if (best < 0) return
+      const at = points[best]
+      group.position.set(at.x, at.y, at.z)
+      group.rotation.set(0, -at.yaw, 0)
+      const stock = stocks[best] ?? {}
+      for (const slot of slots) {
+        const left = stock[facings[slot.facing].kind] ?? 0
+        slot.object.visible = slot.unit < left
+      }
+    },
+  }
 }
 
 // Beacon markers for the hand-placed landmarks, color-coded so they read
@@ -975,9 +1056,12 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   // The roads and lots lay their surfaces over the terrain and register
   // them on the ground; from there on, everything stands on ground.at.
   const ground = new Ground(heightAt)
+  const walls = new Walls()
   group.add(buildRoads(geo, metres, heightAt, ground))
   group.add(buildWater(geo, metres, heightAt))
-  const fuel = buildFuelStations(geo, metres, heightAt, ground)
+  const fuel = buildFuelStations(geo, metres, heightAt, ground, walls)
+  const shelves = buildShelves(fuel.points)
+  group.add(shelves.group)
   group.add(buildTrees(geo, metres, ground.at, mask, rng))
   group.add(buildPoles(geo, metres, ground.at, rng))
   group.add(buildReeds(geo, metres, ground.at, rng))
@@ -1004,5 +1088,8 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     spawnStation,
     spawn,
     ground,
+    walls,
+    facings: fuel.points.map(worldFacings),
+    shelves,
   }
 }

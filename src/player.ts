@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { CONFIG } from './config.ts'
-import type { HeightAt, Metres } from './interfaces.ts'
+import type { HeightAt, Metres, XZ } from './interfaces.ts'
 
 // First-person controller: WASD relative to yaw, Shift sprint, C crouch,
 // pointer-lock mouse look, feet glued to the heightfield. The camera never
@@ -16,6 +16,8 @@ export interface PlayerOptions {
   camera: THREE.Camera
   // What the player stands on: world.ground.at, never the bare terrain.
   groundAt: HeightAt
+  // What stops the player: world.walls.resolve. Omitted, nothing does.
+  collide?: (x: number, z: number, radius: number) => XZ
   metres: Metres
   spawn: PlayerSpawn
 }
@@ -40,6 +42,7 @@ export interface PlayerState {
 export class Player {
   camera: THREE.Camera
   groundAt: HeightAt
+  collide: ((x: number, z: number, radius: number) => XZ) | null
   metres: Metres
   pos: THREE.Vector3
   yaw: number
@@ -60,10 +63,11 @@ export class Player {
   edgeCooldown: number
   time: number
 
-  constructor({ camera, groundAt, metres, spawn }: PlayerOptions) {
+  constructor({ camera, groundAt, collide, metres, spawn }: PlayerOptions) {
     this.camera = camera
     this.camera.rotation.order = 'YXZ'
     this.groundAt = groundAt
+    this.collide = collide ?? null
     this.metres = metres
     this.pos = new THREE.Vector3(spawn.x, 0, spawn.z)
     this.yaw = spawn.yaw || 0
@@ -131,6 +135,11 @@ export class Player {
     this.vel.z += (targetZ - this.vel.z) * blend
     this.pos.x += this.vel.x * dt
     this.pos.z += this.vel.z * dt
+    if (this.collide) {
+      const out = this.collide(this.pos.x, this.pos.z, CONFIG.player.radius)
+      this.pos.x = out.x
+      this.pos.z = out.z
+    }
 
     // The survey square has edges; the fog just pretends it doesn't.
     const mx = this.metres.width / 2 - 8

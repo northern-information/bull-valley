@@ -9,6 +9,7 @@ import { advance, createRaid, EVENTS } from '../../src/raid.ts'
 import type {
   InteractionInput,
   PickupSpot,
+  ShelfSpot,
   StationSpot,
 } from '../../src/interactions.ts'
 import type { Raid } from '../../src/interfaces.ts'
@@ -17,6 +18,12 @@ const spawnStation: StationSpot = { x: 0, z: 0, name: 'Spawn Citgo' }
 const farStation: StationSpot = { x: 500, z: 0, name: 'Far Citgo' }
 const stand = { x: 0, z: 500 }
 const keep = { x: -500, z: 0 }
+const shelf: ShelfSpot = {
+  item: 'marlboro',
+  station: 1,
+  price: 549,
+  affordable: true,
+}
 
 function onFoot(): Raid {
   return advance(
@@ -41,6 +48,8 @@ function input(
     stations: [spawnStation, farStation],
     spawnStation,
     pickups: [],
+    shelf: null,
+    insideStore: false,
     ...over,
   }
 }
@@ -98,6 +107,24 @@ describe('resolveInteraction', () => {
     expect(
       resolveInteraction(input({ player: { x: keep.x, z: keep.z } }))
     ).toEqual({ kind: 'extractKeep' })
+  })
+
+  it('buys off the shelf in view, ahead of the station extract', () => {
+    const atFar = { player: { x: farStation.x, z: 1 } }
+    expect(
+      resolveInteraction(input({ ...atFar, shelf, insideStore: true }))
+    ).toEqual({ kind: 'buy', ...shelf })
+    expect(
+      resolveInteraction(input({ raid: createRaid(0), shelf }))
+    ).toMatchObject({ kind: 'buy', item: 'marlboro' })
+  })
+
+  it('never offers the station extract from inside its store', () => {
+    expect(
+      resolveInteraction(
+        input({ player: { x: farStation.x, z: 1 }, insideStore: true })
+      )
+    ).toBeNull()
   })
 
   it('offers the nearest untaken pickup within reach', () => {
@@ -170,6 +197,12 @@ describe('interactionPrompt', () => {
         pickup: { x: 0, z: 0, kind: 'joints', count: 2, taken: false },
       })
     ).toBe('E — Take Joints x2')
+    expect(interactionPrompt({ kind: 'buy', ...shelf })).toBe(
+      'E — Buy Marlboro Reds for $5.49'
+    )
+    expect(
+      interactionPrompt({ kind: 'buy', ...shelf, affordable: false })
+    ).toBe('Marlboro Reds — $5.49 (Not Enough Cash)')
   })
 
   it('labels a cabbage without a count', () => {

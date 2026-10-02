@@ -91,7 +91,9 @@ export function advance(
       if (state !== STATES.ON_FOOT || raid.truckCalled) return raid
       return { ...raid, truckCalled: true }
     case EVENTS.BUY_SACK:
-      if (state !== STATES.LOADOUT || raid.sack) return raid
+      // Any Citgo sells it, before the truck leaves or on foot after.
+      if (state !== STATES.LOADOUT && state !== STATES.ON_FOOT) return raid
+      if (raid.sack) return raid
       return { ...raid, sack: true }
     case EVENTS.EXTRACT_FUEL:
       if (state !== STATES.ON_FOOT) return raid

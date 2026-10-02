@@ -5,6 +5,7 @@
 import { CONFIG } from './config.ts'
 import { itemById } from './items.ts'
 import { STATES } from './raid.ts'
+import { formatCash } from './store.ts'
 import type { Raid, XZ } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
 
@@ -20,6 +21,16 @@ export interface StationSpot extends XZ {
   name: string
 }
 
+// A shelf facing the player is looking at, from store.ts facingInView.
+export interface ShelfSpot {
+  item: string
+  // Index into the stations, and into the store stock.
+  station: number
+  // In cents.
+  price: number
+  affordable: boolean
+}
+
 export type Interaction<P extends PickupSpot = PickupSpot> =
   | { kind: 'hopOut' }
   | { kind: 'board' }
@@ -28,6 +39,7 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   | { kind: 'extractFuel'; name: string }
   | { kind: 'extractKeep' }
   | { kind: 'pickup'; pickup: P }
+  | ({ kind: 'buy' } & ShelfSpot)
 
 export interface InteractionInput<P extends PickupSpot> {
   raid: Raid
@@ -40,6 +52,11 @@ export interface InteractionInput<P extends PickupSpot> {
   stations: readonly StationSpot[]
   spawnStation: StationSpot
   pickups: readonly P[]
+  // The facing in view inside a store, or null.
+  shelf: ShelfSpot | null
+  // Whether the player stands inside a store's walls: no station extract
+  // from in there.
+  insideStore: boolean
 }
 
 function near(a: XZ, b: XZ, radius: number): boolean {
@@ -47,8 +64,9 @@ function near(a: XZ, b: XZ, radius: number): boolean {
 }
 
 // The first match wins, in this order: hop out while riding; board the
-// waiting truck; board the called truck to end the raid; unload at the
-// stand; extract at a station or the Keep; take the nearest pickup.
+// waiting truck; buy off a shelf; board the called truck to end the raid;
+// unload at the stand; extract at a station (never from inside its store)
+// or the Keep; take the nearest pickup.
 export function resolveInteraction<P extends PickupSpot>(
   input: InteractionInput<P>
 ): Interaction<P> | null {
@@ -58,6 +76,7 @@ export function resolveInteraction<P extends PickupSpot>(
 
   const truckClose = input.truck.distance < CONFIG.truck.boardRange
   if (raid.state === STATES.LOADOUT && truckClose) return { kind: 'board' }
+  if (input.shelf) return { kind: 'buy', ...input.shelf }
   if (raid.state === STATES.ON_FOOT) {
     if (raid.truckCalled && !input.truck.moving && truckClose) {
       return { kind: 'boardExtract' }
@@ -70,6 +89,7 @@ export function resolveInteraction<P extends PickupSpot>(
       return { kind: 'unload', count: raid.carrying }
     }
     for (const station of input.stations) {
+      if (input.insideStore) break
       if (station === input.spawnStation) continue
       if (near(station, player, CONFIG.extract.fuelRadius)) {
         return { kind: 'extractFuel', name: station.name }
@@ -117,5 +137,12 @@ export function interactionPrompt(interaction: Interaction): string {
       return "E — End the Raid at Mt. Coleman's Keep"
     case 'pickup':
       return `E — Take ${pickupLabel(interaction.pickup)}`
+    case 'buy': {
+      const label = itemById(interaction.item)?.label ?? interaction.item
+      const price = formatCash(interaction.price)
+      return interaction.affordable
+        ? `E — Buy ${label} for ${price}`
+        : `${label} — ${price} (Not Enough Cash)`
+    }
   }
 }

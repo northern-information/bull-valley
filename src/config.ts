@@ -24,6 +24,8 @@ export const CONFIG = {
     mouseSensitivity: 0.0023,
     // How close a pickup must be for E to take it.
     pickupReach: 2.6,
+    // The body's radius, for the store walls.
+    radius: 0.3,
   },
   shadowmen: {
     // Crossings: this many shadowmen at once in a bubble around the player.
@@ -69,8 +71,19 @@ export const CONFIG = {
     // The spawn sits this far from the pump island, toward the truck: on
     // the lot, between the pumps and the road sign.
     spawnOffset: 5,
-    // The tailgate shop is open within this distance of the spawn station.
-    shopRadius: 25,
+  },
+  store: {
+    // Every player starts every raid with this much, in cents.
+    startingCash: 4000,
+    // Units of every item on each Citgo's shelves at the start of a raid.
+    perItem: 3,
+    // How close a shelf facing must be, from the eye, for E to buy it.
+    reach: 2.2,
+    // How far off the view ray, in radians, a facing can sit and still be
+    // the one you are looking at.
+    aimCone: 0.5,
+    // The shelf display moves to the store nearest the player inside this.
+    displayRange: 60,
   },
   splash: {
     // Northern Information colophon: triangle-wave fade sized to the

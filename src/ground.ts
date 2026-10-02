@@ -1,10 +1,10 @@
 // Pure: the ground under any point. The terrain is a heightfield, and the
-// roads and station lots are surfaces laid over it a little above the
-// ground, so anything stood at the terrain height sinks into them. Ground
-// answers "what does something stand on here": the terrain, or the surface
-// covering the point, whichever is higher. Everything placed or moved in
-// the world asks Ground; only the terrain mesh and the surfaces themselves
-// sample the terrain directly.
+// roads, station lots, and store floors are surfaces laid over it a little
+// above the ground, so anything stood at the terrain height sinks into them.
+// Ground answers "what does something stand on here": the terrain, or the
+// surface covering the point, whichever is higher. Everything placed or
+// moved in the world asks Ground; only the terrain mesh and the surfaces
+// themselves sample the terrain directly.
 //
 // Surfaces register once as the world is built. A spatial hash of square
 // cells keeps a query to the few surfaces near the point, so the player and
@@ -44,7 +44,21 @@ interface Patch {
   lift: number
 }
 
-type Surface = Segment | Patch
+// A flat rectangle at a fixed height, like a store floor: laid out as a
+// patch, but its deck is `y` everywhere, the way the floor slab draws it.
+interface Floor {
+  kind: 'floor'
+  x: number
+  z: number
+  cos: number
+  sin: number
+  x0: number
+  x1: number
+  halfWidth: number
+  y: number
+}
+
+type Surface = Segment | Patch | Floor
 
 export class Ground {
   // The height to stand on at (x, z). Bound, so it passes as a HeightAt.
@@ -98,21 +112,31 @@ export class Ground {
       halfWidth,
       lift,
     }
-    const xs: number[] = []
-    const zs: number[] = []
-    for (const a of [x0, x1]) {
-      for (const b of [-halfWidth, halfWidth]) {
-        xs.push(x + cos * a - sin * b)
-        zs.push(z + sin * a + cos * b)
-      }
-    }
-    this.register(
-      patch,
-      Math.min(...xs),
-      Math.min(...zs),
-      Math.max(...xs),
-      Math.max(...zs)
-    )
+    this.registerRect(patch)
+  }
+
+  // A flat floor at height `y`, laid out like a patch.
+  addFloor(
+    x: number,
+    z: number,
+    cos: number,
+    sin: number,
+    x0: number,
+    x1: number,
+    halfWidth: number,
+    y: number
+  ) {
+    this.registerRect({
+      kind: 'floor',
+      x,
+      z,
+      cos,
+      sin,
+      x0,
+      x1,
+      halfWidth,
+      y,
+    })
   }
 
   // The highest surface deck covering (x, z), or null on bare terrain.
@@ -146,7 +170,28 @@ export class Ground {
     const across = -dx * surface.sin + dz * surface.cos
     if (along < surface.x0 || along > surface.x1) return null
     if (Math.abs(across) > surface.halfWidth) return null
+    if (surface.kind === 'floor') return surface.y
     return this.terrain(x, z) + surface.lift
+  }
+
+  // File a patch or floor under the bounds of its four corners.
+  private registerRect(rect: Patch | Floor) {
+    const { x, z, cos, sin, x0, x1, halfWidth } = rect
+    const xs: number[] = []
+    const zs: number[] = []
+    for (const a of [x0, x1]) {
+      for (const b of [-halfWidth, halfWidth]) {
+        xs.push(x + cos * a - sin * b)
+        zs.push(z + sin * a + cos * b)
+      }
+    }
+    this.register(
+      rect,
+      Math.min(...xs),
+      Math.min(...zs),
+      Math.max(...xs),
+      Math.max(...zs)
+    )
   }
 
   private key(x: number, z: number): string {

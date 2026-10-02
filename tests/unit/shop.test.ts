@@ -1,58 +1,79 @@
 import { describe, expect, it } from 'vitest'
+import { CONFIG } from '../../src/config.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
-import { getItem, shopStock } from '../../src/items.ts'
-import { createRaid, STATES } from '../../src/raid.ts'
+import { getItem } from '../../src/items.ts'
+import { advance, createRaid, EVENTS } from '../../src/raid.ts'
 import { buy } from '../../src/shop.ts'
+import { freshStock } from '../../src/store.ts'
 import type { ShopState } from '../../src/shop.ts'
 
-function fresh(): ShopState {
+function fresh(over: Partial<ShopState> = {}): ShopState {
   return {
     raid: createRaid(0),
-    stock: shopStock(),
+    stock: freshStock(2),
     inventory: { ...STARTING_INVENTORY },
+    cash: CONFIG.store.startingCash,
+    ...over,
   }
 }
 
 describe('buy', () => {
-  it('moves one item from the tailgate to the inventory', () => {
+  it('moves one unit off that station’s shelf, for its price', () => {
     const state = fresh()
-    const before = Object.freeze({ ...state.stock })
-    const { next, toast } = buy(state, 'marlboro', 5)
-    expect(next?.stock.marlboro).toBe(before.marlboro - 1)
+    const before = state.stock.map((s) => Object.freeze({ ...s }))
+    const { next, toast } = buy(state, 1, 'marlboro', 5)
+    expect(next?.stock[1].marlboro).toBe(CONFIG.store.perItem - 1)
+    expect(next?.stock[0].marlboro).toBe(CONFIG.store.perItem)
     expect(next?.inventory.marlboro).toBe(state.inventory.marlboro + 1)
+    expect(next?.cash).toBe(state.cash - getItem('marlboro').price)
     expect(next?.raid).toBe(state.raid)
     expect(toast).toBe(getItem('marlboro').bought)
     // The input is never changed.
     expect(state.stock).toEqual(before)
   })
 
-  it('says the tailgate is bare once the stock runs out', () => {
+  it('says sold out once the shelf is bare', () => {
     let state = fresh()
-    for (let i = 0; i < getItem('marlboro').shopCap; i++) {
-      const { next } = buy(state, 'marlboro', 5)
+    for (let i = 0; i < CONFIG.store.perItem; i++) {
+      const { next } = buy(state, 0, 'pbr', 5)
       if (!next) throw new Error('expected a sale')
       state = next
     }
-    expect(buy(state, 'marlboro', 5)).toEqual({
+    expect(buy(state, 0, 'pbr', 5)).toEqual({ next: null, toast: 'Sold out.' })
+  })
+
+  it('refuses a sale the cash cannot cover, saying by how much', () => {
+    const state = fresh({ cash: 2000 })
+    expect(buy(state, 0, 'grey-goose', 5)).toEqual({
       next: null,
-      toast: 'The tailgate is bare.',
+      toast: "You're $9.99 short.",
     })
   })
 
-  it('sells the sack once, into the raid and not the inventory', () => {
-    const state = fresh()
-    const { next, toast } = buy(state, 'sack', 5)
+  it('sells the sack as gear, on foot too, and only once', () => {
+    const onFoot = advance(createRaid(0), EVENTS.TIMER_EXPIRED, 300)
+    const { next, toast } = buy(fresh({ raid: onFoot }), 0, 'sack', 301)
     expect(next?.raid.sack).toBe(true)
-    expect(next?.stock.sack).toBe(0)
-    expect(next?.inventory).toBe(state.inventory)
+    expect(next?.inventory).toEqual(STARTING_INVENTORY)
+    expect(next?.cash).toBe(CONFIG.store.startingCash - getItem('sack').price)
     expect(toast).toBe(getItem('sack').bought)
     if (!next) throw new Error('expected a sale')
-    expect(buy(next, 'sack', 6)).toEqual({ next: null, toast: null })
+    expect(buy(next, 0, 'sack', 302)).toEqual({
+      next: null,
+      toast: 'You already have a sack.',
+    })
   })
 
-  it('sells no sack after the loadout', () => {
-    const state = fresh()
-    const riding = { ...state, raid: { ...state.raid, state: STATES.RIDING } }
-    expect(buy(riding, 'sack', 5)).toEqual({ next: null, toast: null })
+  it('sells no sack while riding the bed', () => {
+    const riding = advance(createRaid(0), EVENTS.BOARD_TRUCK, 1)
+    expect(buy(fresh({ raid: riding }), 0, 'sack', 2)).toEqual({
+      next: null,
+      toast: null,
+    })
+  })
+
+  it('ignores an unknown station or item', () => {
+    expect(buy(fresh(), 9, 'marlboro', 5)).toEqual({ next: null, toast: null })
+    expect(buy(fresh(), 0, 'nope', 5)).toEqual({ next: null, toast: null })
   })
 })

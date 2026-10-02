@@ -11,26 +11,10 @@ import type { RingItem } from '../../src/interfaces.ts'
 
 const kinds = (items: RingItem[]) => items.map((item) => item.kind)
 const empty = { ...STARTING_INVENTORY, marlboro: 0, joints: 0 }
-const shop = {
-  marlboro: 2,
-  camel: 0,
-  parliament: 1,
-  newport: 0,
-  djarum: 0,
-  joints: 2,
-  monster: 0,
-  'monster-ultra': 0,
-  'red-bull': 2,
-  'rip-it': 0,
-  rockstar: 0,
-  nos: 0,
-  sack: 1,
-}
-
 describe('ringItems', () => {
   it('shows only what the player carries, in item order', () => {
     const inv = { ...empty, newport: 1, camel: 3, joints: 1 }
-    expect(kinds(ringItems(inv, createRaid(0), null))).toEqual([
+    expect(kinds(ringItems(inv, createRaid(0)))).toEqual([
       'camel',
       'newport',
       'joints',
@@ -38,77 +22,37 @@ describe('ringItems', () => {
   })
 
   it('is empty when the pockets are', () => {
-    expect(ringItems(empty, createRaid(0), null)).toEqual([])
+    expect(ringItems(empty, createRaid(0))).toEqual([])
   })
 
-  it('adds tailgate stock the player does not carry, buyable not usable', () => {
-    const items = ringItems({ ...empty, camel: 1 }, createRaid(0), shop)
-    expect(kinds(items)).toEqual([
-      'marlboro',
-      'camel',
-      'parliament',
-      'joints',
-      'red-bull',
-      'sack',
-    ])
-    const marlboro = items[0]
-    expect(marlboro).toMatchObject({
-      stock: 0,
-      tailgate: 2,
-      canUse: false,
-      canBuy: true,
-    })
-    expect(items[1]).toMatchObject({ stock: 1, tailgate: 0, canBuy: false })
+  it('lets cigarettes be used', () => {
+    const [item] = ringItems({ ...empty, djarum: 1 }, createRaid(0))
+    expect(item).toMatchObject({ kind: 'djarum', stock: 1, canUse: true })
   })
 
-  it('leaves tailgate null away from the tailgate', () => {
-    const [item] = ringItems({ ...empty, djarum: 1 }, createRaid(0), null)
-    expect(item).toMatchObject({ tailgate: null, canUse: true, canBuy: false })
-  })
-
-  it('carries drinks after joints, buyable but never usable', () => {
+  it('carries drinks after joints, never usable', () => {
     const inv = { ...empty, nos: 1, joints: 1 }
-    const items = ringItems(inv, createRaid(0), shop)
-    expect(kinds(items).slice(-4)).toEqual([
-      'joints',
-      'red-bull',
-      'nos',
-      'sack',
-    ])
-    expect(items.find((item) => item.kind === 'nos')).toMatchObject({
-      stock: 1,
-      tailgate: 0,
-      canUse: false,
-      canBuy: false,
-    })
-    expect(items.find((item) => item.kind === 'red-bull')).toMatchObject({
-      stock: 0,
-      tailgate: 2,
-      canUse: false,
-      canBuy: true,
-    })
+    const items = ringItems(inv, createRaid(0))
+    expect(kinds(items)).toEqual(['joints', 'nos'])
+    expect(items[1]).toMatchObject({ stock: 1, canUse: false })
   })
 
   it('carries cabbages as read-only cargo', () => {
     const raid = { ...createRaid(0), carrying: 2 }
-    const items = ringItems(empty, raid, null)
+    const items = ringItems(empty, raid)
     expect(items).toHaveLength(1)
     expect(items[0]).toMatchObject({
       kind: 'cabbage',
       stock: 2,
       canUse: false,
-      canBuy: false,
     })
   })
 
-  it('shows an owned sack, never for sale twice', () => {
+  it('shows the sack only once it is owned', () => {
+    expect(kinds(ringItems(empty, createRaid(0)))).not.toContain('sack')
     const raid = { ...createRaid(0), sack: true }
-    const items = ringItems(empty, raid, { ...shop, sack: 0 })
-    const sack = items.find((item) => item.kind === 'sack')
-    expect(sack).toMatchObject({ stock: 1, tailgate: 0, canBuy: false })
-    expect(
-      kinds(ringItems(empty, createRaid(0), { ...shop, sack: 0 }))
-    ).not.toContain('sack')
+    const sack = ringItems(empty, raid).find((item) => item.kind === 'sack')
+    expect(sack).toMatchObject({ stock: 1, canUse: false })
   })
 })
 
@@ -130,9 +74,7 @@ describe('syncIndex', () => {
     label: kind,
     blurb: '',
     stock: 1,
-    tailgate: null,
     canUse: false,
-    canBuy: false,
   })
   const items = [ring('camel'), ring('joints')]
 
