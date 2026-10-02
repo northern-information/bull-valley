@@ -22,8 +22,10 @@ import {
   pointInPolygon,
   pointSegmentDistance,
   polygonBounds,
+  projectOnSegment,
   unitToWorld,
 } from './coords.ts'
+import { Ground } from './ground.ts'
 import { CIGARETTE_IDS } from './items.ts'
 import {
   KEEP,
@@ -90,6 +92,8 @@ export interface World {
   // Null only when the survey has no fuel point inside the frame.
   spawnStation: FuelPoint | null
   spawn: Spawn
+  // What to stand on anywhere: the terrain, or the road or lot over it.
+  ground: Ground
 }
 
 interface RoadStyle {
@@ -120,9 +124,16 @@ const ROAD_STYLE: Partial<Record<string, RoadStyle>> = {
   track: { width: 3, color: '#363023' },
 }
 const ROAD_DEFAULT: RoadStyle = { width: 4.5, color: '#2a2f35' }
+// Roads float ROAD_LIFT over the terrain to stay clear of it; a station lot
+// sits a hair lower so the road covers their overlap.
+const ROAD_LIFT = 0.3
+const LOT_LIFT = 0.28
 
-// Accumulates flat ribbons (roads, streams) into one non-indexed geometry.
-function makeRibbonAccumulator() {
+// Accumulates flat ribbons (roads, streams) and patches (lots) into one
+// non-indexed geometry. Every surface it draws also registers on `ground`,
+// so what is drawn and what things stand on can never drift apart. Pass
+// null only for a surface nobody stands on, like a stream.
+function makeRibbonAccumulator(ground: Ground | null) {
   const positions: number[] = []
   const colors: number[] = []
   return {
@@ -133,6 +144,7 @@ function makeRibbonAccumulator() {
       lift: number
     ) {
       if (points.length < 2) return
+      ground?.addRibbon(points, width, lift)
       const c = new THREE.Color(color)
       const half = width / 2
       // Per-point direction averaged over neighbouring segments (naive miter).
@@ -167,6 +179,49 @@ function makeRibbonAccumulator() {
         ]) {
           positions.push(v.x, v.y, v.z)
           colors.push(c.r, c.g, c.b)
+        }
+      }
+    },
+    // A rectangular patch (a lot) draped on the ground: `along` runs from
+    // x0 to x1 on the local axis (cos, sin) through (x, z), `halfWidth`
+    // spans the perpendicular, and every grid vertex samples its own
+    // height, so the patch follows a slope both ways.
+    addPatch(
+      x: number,
+      z: number,
+      cos: number,
+      sin: number,
+      x0: number,
+      x1: number,
+      halfWidth: number,
+      step: number,
+      heightAt: HeightAt,
+      color: THREE.ColorRepresentation,
+      lift: number
+    ) {
+      const c = new THREE.Color(color)
+      ground?.addPatch(x, z, cos, sin, x0, x1, halfWidth, lift)
+      const nx = Math.max(1, Math.ceil((x1 - x0) / step))
+      const nz = Math.max(1, Math.ceil((halfWidth * 2) / step))
+      const vertex = (i: number, j: number): WorldPoint => {
+        const a = x0 + ((x1 - x0) * i) / nx
+        const b = -halfWidth + (halfWidth * 2 * j) / nz
+        const px = x + cos * a - sin * b
+        const pz = z + sin * a + cos * b
+        return { x: px, y: heightAt(px, pz) + lift, z: pz }
+      }
+      for (let i = 0; i < nx; i++) {
+        for (let j = 0; j < nz; j++) {
+          const q = [
+            vertex(i, j),
+            vertex(i + 1, j),
+            vertex(i, j + 1),
+            vertex(i + 1, j + 1),
+          ]
+          for (const v of [q[0], q[2], q[1], q[1], q[2], q[3]]) {
+            positions.push(v.x, v.y, v.z)
+            colors.push(c.r, c.g, c.b)
+          }
         }
       }
     },
@@ -266,20 +321,19 @@ function buildMask(
   }
 }
 
+// Roads ride the terrain at their centreline heights; each one registers
+// on the ground so things stand on the road deck, not the terrain under it.
 function buildRoads(
   geo: Pick<Geo, 'roads'>,
   metres: Metres,
-  heightAt: HeightAt
+  heightAt: HeightAt,
+  ground: Ground
 ): THREE.Mesh {
-  const ribbons = makeRibbonAccumulator()
+  const ribbons = makeRibbonAccumulator(ground)
   for (const road of geo.roads) {
     const style = ROAD_STYLE[road.c] || ROAD_DEFAULT
-    ribbons.add(
-      toWorldPoints(road.p, metres, heightAt),
-      style.width,
-      style.color,
-      0.3
-    )
+    const points = toWorldPoints(road.p, metres, heightAt)
+    ribbons.add(points, style.width, style.color, ROAD_LIFT)
   }
   return ribbons.build('roads')
 }
@@ -314,7 +368,8 @@ function buildWater(
       }
     }
   }
-  const streams = makeRibbonAccumulator()
+  // Nobody stands on a stream, so it stays off the ground.
+  const streams = makeRibbonAccumulator(null)
   for (const water of geo.water) {
     if (water.k === 'area' || water.p.length < 2) continue
     streams.add(toWorldPoints(water.p, metres, heightAt), 2.5, '#0c1a24', 0.15)
@@ -609,14 +664,41 @@ function buildGraveyards(
   return { group, anchors }
 }
 
+// The closest point on any road centreline to (x, z), with that road's
+// paved width. Null when the survey has no roads.
+function nearestRoadside(
+  roads: readonly Road[],
+  metres: Metres,
+  x: number,
+  z: number
+): { x: number; z: number; dist: number; width: number } | null {
+  let best: { x: number; z: number; dist: number; width: number } | null = null
+  for (const road of roads) {
+    const width = (ROAD_STYLE[road.c] || ROAD_DEFAULT).width
+    for (let i = 0; i < road.p.length - 1; i++) {
+      const a = unitToWorld(road.p[i][0], road.p[i][1], metres)
+      const b = unitToWorld(road.p[i + 1][0], road.p[i + 1][1], metres)
+      const p = projectOnSegment(x, z, a.x, a.z, b.x, b.z)
+      if (best && p.dist >= best.dist) continue
+      best = { x: p.x, z: p.y, dist: p.dist, width }
+    }
+  }
+  return best
+}
+
 // Low-poly Citgo stations at every fuel point inside the frame: flat-roofed
-// building, canopy over a pump island, tall lit road sign. The data keeps the
-// real OSM names for the HUD; the visual is uniformly Citgo for now.
+// building, canopy over a pump island, tall lit road sign, and an asphalt
+// lot between them and the road. Each station faces its nearest road, with
+// the pump island FUEL_LAYOUT.roadEdgeDistance back from the road's edge
+// and the building behind it: the OSM fuel point only says which road and
+// roughly where along it. The returned points are the pump islands, where
+// the truck parks nearby and a raid extracts. The data keeps the real OSM
+// names for the HUD; the visual is uniformly Citgo for now.
 function buildFuelStations(
-  geo: Pick<Geo, 'fuel'>,
+  geo: Pick<Geo, 'fuel' | 'roads'>,
   metres: Metres,
   heightAt: HeightAt,
-  rng: Rng
+  ground: Ground
 ): { group: THREE.Group; points: FuelPoint[] } {
   const group = new THREE.Group()
   group.name = 'fuel'
@@ -635,16 +717,48 @@ function buildFuelStations(
   const pumps = instanced(parts.pump, count * 2)
   const signPoles = instanced(parts.signPole, count)
   const signs = instanced(parts.sign, count)
+  const lots = makeRibbonAccumulator(ground)
 
   const dummy = new THREE.Object3D()
   const points: FuelPoint[] = []
   for (let i = 0; i < count; i++) {
-    const { x, z } = unitToWorld(stations[i].p[0], stations[i].p[1], metres)
-    const y = heightAt(x, z)
-    const yaw = rng() * Math.PI * 2
+    const at = unitToWorld(stations[i].p[0], stations[i].p[1], metres)
+    const road = nearestRoadside(geo.roads, metres, at.x, at.z)
+    // Local +X points at the road. With no road to face, the station stays
+    // on its fuel point facing +X.
+    let yaw = 0
+    let x = at.x
+    let z = at.z
+    // From the pump island to the road centreline.
+    let setback = L.roadEdgeDistance
+    if (road && road.dist > 0) {
+      yaw = Math.atan2(road.z - at.z, road.x - at.x)
+      setback = road.width / 2 + L.roadEdgeDistance
+      x = road.x - Math.cos(yaw) * setback
+      z = road.z - Math.sin(yaw) * setback
+    }
     const cos = Math.cos(yaw)
     const sin = Math.sin(yaw)
     points.push({ x, z, name: stations[i].n })
+
+    // The lot: asphalt draped on the terrain from the building front to the
+    // road centreline, just under the road ribbon, so the two meet with the
+    // seam hidden under the road. Drawing it registers it on the ground,
+    // so everything placed after stands on its surface.
+    lots.addPatch(
+      x,
+      z,
+      cos,
+      sin,
+      L.lot.back,
+      setback,
+      L.lot.halfWidth,
+      3,
+      heightAt,
+      L.lotColor,
+      LOT_LIFT
+    )
+    const y = ground.at(x, z)
 
     // Building set back behind the pumps.
     dummy.position.set(
@@ -672,10 +786,10 @@ function buildFuelStations(
       pumps.setMatrixAt(i * 2 + p, dummy.matrix)
     }
 
-    // Tall road sign out front.
-    const sx = x + cos * L.signDistance
-    const sz = z + sin * L.signDistance
-    const sy = heightAt(sx, sz)
+    // Tall road sign out front, at the lot's corner.
+    const sx = x + cos * L.signDistance - sin * L.signAlong
+    const sz = z + sin * L.signDistance + cos * L.signAlong
+    const sy = ground.at(sx, sz)
     dummy.position.set(sx, sy, sz)
     dummy.updateMatrix()
     signPoles.setMatrixAt(i, dummy.matrix)
@@ -697,6 +811,7 @@ function buildFuelStations(
     mesh.instanceMatrix.needsUpdate = true
     group.add(mesh)
   }
+  group.add(lots.build('lots'))
   return { group, points }
 }
 
@@ -857,19 +972,22 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   const group = new THREE.Group()
   group.name = 'bull-valley'
 
-  group.add(buildRoads(geo, metres, heightAt))
+  // The roads and lots lay their surfaces over the terrain and register
+  // them on the ground; from there on, everything stands on ground.at.
+  const ground = new Ground(heightAt)
+  group.add(buildRoads(geo, metres, heightAt, ground))
   group.add(buildWater(geo, metres, heightAt))
-  group.add(buildTrees(geo, metres, heightAt, mask, rng))
-  group.add(buildPoles(geo, metres, heightAt, rng))
-  group.add(buildReeds(geo, metres, heightAt, rng))
-  const graveyards = buildGraveyards(geo, metres, heightAt, rng)
+  const fuel = buildFuelStations(geo, metres, heightAt, ground)
+  group.add(buildTrees(geo, metres, ground.at, mask, rng))
+  group.add(buildPoles(geo, metres, ground.at, rng))
+  group.add(buildReeds(geo, metres, ground.at, rng))
+  const graveyards = buildGraveyards(geo, metres, ground.at, rng)
   group.add(graveyards.group)
-  const fuel = buildFuelStations(geo, metres, heightAt, rng)
   group.add(fuel.group)
-  const landmarks = buildLandmarks(geo, metres, heightAt)
+  const landmarks = buildLandmarks(geo, metres, ground.at)
   group.add(landmarks.group)
-  group.add(buildBoundary(geo, metres, heightAt))
-  const pickupSet = buildPickups(geo, metres, heightAt, fuel.points, rng)
+  group.add(buildBoundary(geo, metres, ground.at))
+  const pickupSet = buildPickups(geo, metres, ground.at, fuel.points, rng)
   group.add(pickupSet.group)
 
   const spawnStation = chooseSpawnStation(geo, metres, fuel.points)
@@ -885,5 +1003,6 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     landmarks: landmarks.points,
     spawnStation,
     spawn,
+    ground,
   }
 }

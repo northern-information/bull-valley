@@ -57,8 +57,9 @@ export const CONFIG = {
   raid: {
     // Pick your loadout before the pickup truck leaves.
     loadoutSeconds: 300,
-    // The spawn sits this far from the station, toward the truck.
-    spawnOffset: 12,
+    // The spawn sits this far from the pump island, toward the truck: on
+    // the lot, between the pumps and the road sign.
+    spawnOffset: 5,
     // The tailgate shop is open within this distance of the spawn station.
     shopRadius: 25,
   },

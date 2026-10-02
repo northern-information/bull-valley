@@ -16,7 +16,8 @@ import type { RoadPoint, Walker } from './roadgraph.ts'
 
 export interface TruckOptions {
   scene: THREE.Object3D
-  heightAt: HeightAt
+  // What the truck stands on: world.ground.at, never the bare terrain.
+  groundAt: HeightAt
 }
 
 // What update() returns each frame.
@@ -47,23 +48,21 @@ function buildTruck(): TruckModel {
   const group = buildTruckBody()
   // Matthew Marx in the driver seat (left side, +X), hands on the wheel.
   const driver = buildFigure('marx')
-  driver.group.scale.setScalar(DRIVER_SCALE)
   group.add(driver.group)
   const cigarette = attachCigarette(driver)
   placeDriver(driver, 'cab')
   return { group, driver, cigarette }
 }
 
-// The low-poly cab is short for a full-size body, so Matthew Marx is a
-// little under scale everywhere: in the cab his head clears the roof and
-// his boots stay inside.
-const DRIVER_SCALE = 0.85
-
 // A working vector for bedSeat(); its value never leaves the method.
 const SCRATCH = new THREE.Vector3()
 
-// 'cab' puts him at the wheel with his hips at 1.18 m; 'tailgate' leans him
-// by the open tailgate, facing the customers behind the truck.
+// Matthew Marx is full scale, like every figure. 'cab' seats him at the
+// wheel with his hips at 1.0 m: the sit pose folds his shins so his boots
+// stay inside the lower cab (floor at 0.55 m) and his head stops inside the
+// roof slab. 'tailgate' leans him by the open tailgate, facing the customers
+// behind the truck.
+const SEAT_HIP_Y = 1.0
 function placeDriver(driver: Figure, post: DriverPost): void {
   if (post === 'tailgate') {
     applyPose(driver, samplePose('lean'))
@@ -71,13 +70,13 @@ function placeDriver(driver: Figure, post: DriverPost): void {
     driver.group.rotation.y = Math.PI - 0.5
   } else {
     applyPose(driver, samplePose('sit'))
-    driver.group.position.set(0.45, 1.18 - driver.hipY * DRIVER_SCALE, 0.55)
+    driver.group.position.set(0.45, SEAT_HIP_Y - driver.hipY, 0.55)
     driver.group.rotation.y = 0
   }
 }
 
 export class Truck {
-  heightAt: HeightAt
+  groundAt: HeightAt
   group: THREE.Group
   walker: Walker | null
   speed: number
@@ -90,8 +89,8 @@ export class Truck {
   cigarette: CigaretteRig
   time: number
 
-  constructor({ scene, heightAt }: TruckOptions) {
-    this.heightAt = heightAt
+  constructor({ scene, groundAt }: TruckOptions) {
+    this.groundAt = groundAt
     const model = buildTruck()
     this.group = model.group
     scene.add(this.group)
@@ -160,7 +159,7 @@ export class Truck {
   }
 
   pose() {
-    this.group.position.set(this.x, this.heightAt(this.x, this.z), this.z)
+    this.group.position.set(this.x, this.groundAt(this.x, this.z), this.z)
     this.group.rotation.y = Math.atan2(this.dirX, this.dirZ)
     this.group.updateMatrixWorld()
   }

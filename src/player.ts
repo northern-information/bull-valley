@@ -14,7 +14,8 @@ export interface PlayerSpawn {
 
 export interface PlayerOptions {
   camera: THREE.Camera
-  heightAt: HeightAt
+  // What the player stands on: world.ground.at, never the bare terrain.
+  groundAt: HeightAt
   metres: Metres
   spawn: PlayerSpawn
 }
@@ -38,7 +39,7 @@ export interface PlayerState {
 
 export class Player {
   camera: THREE.Camera
-  heightAt: HeightAt
+  groundAt: HeightAt
   metres: Metres
   pos: THREE.Vector3
   yaw: number
@@ -49,16 +50,20 @@ export class Player {
   bobPhase: number
   prevBobSin: number
   eye: number
+  // The ground height the feet stand on this frame. It follows groundAt
+  // with a short lag, so stepping onto a road or a lot is a step up, not a
+  // jolt; a teleport snaps it.
+  groundY: number
   forward: THREE.Vector3
   onStep: ((sprinting: boolean) => void) | null
   onEdge: (() => void) | null
   edgeCooldown: number
   time: number
 
-  constructor({ camera, heightAt, metres, spawn }: PlayerOptions) {
+  constructor({ camera, groundAt, metres, spawn }: PlayerOptions) {
     this.camera = camera
     this.camera.rotation.order = 'YXZ'
-    this.heightAt = heightAt
+    this.groundAt = groundAt
     this.metres = metres
     this.pos = new THREE.Vector3(spawn.x, 0, spawn.z)
     this.yaw = spawn.yaw || 0
@@ -69,6 +74,7 @@ export class Player {
     this.bobPhase = 0
     this.prevBobSin = 0
     this.eye = CONFIG.player.eyeHeight
+    this.groundY = groundAt(spawn.x, spawn.z)
     this.forward = new THREE.Vector3(0, 0, -1)
     this.onStep = null
     this.onEdge = null
@@ -80,6 +86,7 @@ export class Player {
     this.pos.set(x, 0, z)
     if (yaw !== undefined) this.yaw = yaw
     this.vel.set(0, 0, 0)
+    this.groundY = this.groundAt(x, z)
   }
 
   handleKey(code: string, down: boolean) {
@@ -151,7 +158,9 @@ export class Player {
 
     const targetEye = crouching ? cfg.crouchEyeHeight : cfg.eyeHeight
     this.eye += (targetEye - this.eye) * Math.min(1, 8 * dt)
-    const ground = this.heightAt(this.pos.x, this.pos.z)
+    const target = this.groundAt(this.pos.x, this.pos.z)
+    this.groundY += (target - this.groundY) * Math.min(1, 10 * dt)
+    const ground = this.groundY
     const bob = bobSin * 0.05 * Math.min(1, speedNow / 4)
 
     // Nerves sway (roll + pitch flutter) and weed drift (slow yaw wander).

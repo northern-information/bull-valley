@@ -80,6 +80,36 @@ export function polygonBounds(poly: readonly UnitPoint[]): Bounds {
   return { minX, minY, maxX, maxY }
 }
 
+// The closest point on the segment a-b to p: where it is, how far along
+// the segment it sits (t from 0 at a to 1 at b), and the distance to p. A
+// zero-length segment projects onto a.
+export interface SegmentProjection {
+  x: number
+  y: number
+  t: number
+  dist: number
+}
+
+export function projectOnSegment(
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number
+): SegmentProjection {
+  const dx = bx - ax
+  const dy = by - ay
+  const len2 = dx * dx + dy * dy
+  const t =
+    len2 === 0
+      ? 0
+      : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2))
+  const x = ax + t * dx
+  const y = ay + t * dy
+  return { x, y, t, dist: Math.hypot(px - x, py - y) }
+}
+
 export function pointSegmentDistance(
   px: number,
   py: number,
@@ -88,16 +118,7 @@ export function pointSegmentDistance(
   bx: number,
   by: number
 ): number {
-  const dx = bx - ax
-  const dy = by - ay
-  const len2 = dx * dx + dy * dy
-  const t =
-    len2 === 0
-      ? 0
-      : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2))
-  const cx = ax + t * dx
-  const cy = ay + t * dy
-  return Math.hypot(px - cx, py - cy)
+  return projectOnSegment(px, py, ax, ay, bx, by).dist
 }
 
 // Compass bearing of a world-space offset: north (-z) is 0°, east (+x) is 90°.

@@ -60,6 +60,31 @@ base.describe('one raid', { tag: '@raid' }, () => {
       localStorage.getItem('bull-valley-shadow-wars:v1:inventory')
     )
 
+  // The roads and lots float over the terrain, so standing at the terrain
+  // height sinks into them. The truck parks on a road and the player spawns
+  // on the station lot; both must stand on a surface deck.
+  base(
+    'the truck and the spawn stand on a surface, not the terrain',
+    async () => {
+      const standing = await page.evaluate(() => {
+        const bv = window.__bv
+        if (!bv) throw new Error('no dev hook')
+        const { world, truck, player } = bv
+        const { ground, spawn } = world
+        return {
+          truckDeck: ground.surfaceAt(truck.x, truck.z),
+          spawnDeck: ground.surfaceAt(spawn.x, spawn.z),
+          truckStands: truck.group.position.y - ground.at(truck.x, truck.z),
+          playerStands: player.groundY - ground.at(spawn.x, spawn.z),
+        }
+      })
+      expect(standing.truckDeck).not.toBeNull()
+      expect(standing.spawnDeck).not.toBeNull()
+      expect(standing.truckStands).toBeCloseTo(0, 6)
+      expect(standing.playerStands).toBeCloseTo(0, 6)
+    }
+  )
+
   base('buy an item and the sack from the tailgate', async () => {
     expect(await savedInventory()).toBeNull()
     // B buys the selected item when the tailgate sells it. Step round the
