@@ -1,6 +1,6 @@
 /* Bull Valley Shadow Wars HUD. Tokens (--fi-*, --bv-*) are declared by the
    host page (index.html). One face, one size, one ink: every HUD text is
-   Inter at --bv-text-size in --bv-eggshell, set once on .bv-shell and
+   Small Pixel 7 at --bv-text-size in --bv-eggshell, set once on .bv-shell and
    inherited. Role colors stay on borders, fills, and focus rings only.
    Dark field, hard edges, offset shadows, 3px cyan focus. */
 
@@ -8,7 +8,7 @@
   position: fixed;
   inset: 0;
   overflow: hidden;
-  font-family: var(--bv-font, 'Inter', system-ui, sans-serif);
+  font-family: var(--bv-font, 'Small Pixel 7', system-ui, sans-serif);
   font-size: var(--bv-text-size, 1rem);
   font-variant-numeric: tabular-nums;
   color: var(--bv-eggshell);
@@ -588,7 +588,7 @@
 }
 
 .bv-splash-hint {
-  font-family: var(--bv-font, 'Inter', system-ui, sans-serif);
+  font-family: var(--bv-font, 'Small Pixel 7', system-ui, sans-serif);
   font-size: var(--bv-text-size, 1rem);
   color: var(--bv-eggshell);
   opacity: 0.6;
@@ -604,7 +604,7 @@
   inset: 0;
   z-index: 9;
   background: #000;
-  font-family: var(--bv-font, 'Inter', system-ui, sans-serif);
+  font-family: var(--bv-font, 'Small Pixel 7', system-ui, sans-serif);
   font-size: var(--bv-text-size, 1rem);
   color: var(--bv-eggshell);
 }
