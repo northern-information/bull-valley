@@ -98,7 +98,7 @@ export function pickupLabel({
   count,
 }: Pick<PickupSpot, 'kind' | 'count'>): string {
   if (kind === 'cabbage') return 'Cabbage'
-  return `${itemById(kind)?.label ?? kind} ×${count}`
+  return `${itemById(kind)?.label ?? kind} x${count}`
 }
 
 export function interactionPrompt(interaction: Interaction): string {

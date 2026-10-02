@@ -169,7 +169,7 @@ describe('interactionPrompt', () => {
         kind: 'pickup',
         pickup: { x: 0, z: 0, kind: 'joints', count: 2, taken: false },
       })
-    ).toBe('E — Take Joints ×2')
+    ).toBe('E — Take Joints x2')
   })
 
   it('labels a cabbage without a count', () => {

@@ -9,11 +9,11 @@
     />
     <style>
       @font-face {
-        font-family: "Inter";
+        font-family: "Small Pixel 7";
         font-style: normal;
-        font-weight: 100 900;
+        font-weight: 400;
         font-display: swap;
-        src: url("/fonts/inter-latin-wght-normal.woff2") format("woff2");
+        src: url("/fonts/small-pixel-7.ttf") format("truetype");
       }
       :root {
         color-scheme: dark;
@@ -22,7 +22,7 @@
         --fi-cyan: #22d3ee;
         --fi-slate: #94a3b8;
         --bv-eggshell: #f0ead6;
-        --bv-font: "Inter", system-ui, sans-serif;
+        --bv-font: "Small Pixel 7", system-ui, sans-serif;
       }
       html,
       body {
@@ -31,7 +31,8 @@
         overflow: hidden;
         background: var(--fi-bg);
         color: var(--bv-eggshell);
-        font: 12px/1.5 var(--bv-font);
+        font: 20px/1.5 var(--bv-font);
+        font-synthesis: none;
         font-variant-numeric: tabular-nums;
       }
       .ak-canvas {
@@ -54,8 +55,7 @@
       }
       .ak-panel h1 {
         margin: 0 0 8px;
-        font-size: 12px;
-        letter-spacing: 0.12em;
+        letter-spacing: 0.1em;
         text-transform: uppercase;
       }
       .ak-row {
@@ -107,16 +107,18 @@
       <h1>Akashic</h1>
       <div class="ak-row">
         <button type="button" data-step="-1" aria-label="Previous asset">
-          ←
+          &lt;
         </button>
         <select name="asset" aria-label="Asset"></select>
-        <button type="button" data-step="1" aria-label="Next asset">→</button>
+        <button type="button" data-step="1" aria-label="Next asset">
+          &gt;
+        </button>
       </div>
       <div class="ak-toggles"></div>
       <p class="ak-stats" aria-live="polite"></p>
     </section>
     <p class="ak-hint">
-      drag orbit · scroll zoom · right-drag pan · ←/→ cycle · keys toggle
+      drag orbit · scroll zoom · right-drag pan · &lt;/&gt; cycle · keys toggle
     </p>
     <script type="module" src="/src/akashic.ts"></script>
   </body>

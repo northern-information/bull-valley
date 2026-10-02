@@ -125,8 +125,8 @@ export class Hud {
         <li data-bv="cmd-buy"><kbd>B</kbd> Buy</li>
       </ul>
       <div class="bv-inv-frame" data-bv="inv-frame" aria-hidden="true">
-        <span class="bv-inv-arrow bv-inv-arrow--prev">◀◀</span>
-        <span class="bv-inv-arrow bv-inv-arrow--next">▶▶</span>
+        <span class="bv-inv-arrow bv-inv-arrow--prev">&lt;&lt;</span>
+        <span class="bv-inv-arrow bv-inv-arrow--next">&gt;&gt;</span>
       </div>
       <div class="bv-inv-info" aria-live="polite">
         <p class="bv-inv-line"><span>No.</span> <b data-bv="inv-no">—</b></p>
@@ -138,7 +138,7 @@ export class Hud {
         <p class="bv-inv-desc" data-bv="inv-desc"></p>
       </div>
       <p class="bv-inv-resume" data-bv="inv-resume" hidden>Click to Resume</p>
-      <div class="bv-inv-bars bv-inv-bars--foot" aria-hidden="true"><span>← → Cycle</span><span>Tab Exit</span><span>1 Smoke · 2 Spark</span></div>`
+      <div class="bv-inv-bars bv-inv-bars--foot" aria-hidden="true"><span>&lt; &gt; Cycle</span><span>Tab Exit</span><span>1 Smoke · 2 Spark</span></div>`
     ui.appendChild(this.inventory)
 
     // Vignette + strike static.
@@ -170,7 +170,7 @@ export class Hud {
         <tr><th>Mouse</th><td>Look</td><th>C</th><td>Crouch</td></tr>
         <tr><th>Q</th><td>Scaduscope</td><th>Tab</th><td>Inventory</td></tr>
         <tr><th>E</th><td>Board / Take / Unload</td><th>T</th><td>Call the Truck</td></tr>
-        <tr><th>1 / 2</th><td>Smoke / Spark</td><th>← →</th><td>Cycle Inventory</td></tr>
+        <tr><th>1 / 2</th><td>Smoke / Spark</td><th>&lt; &gt;</th><td>Cycle Inventory</td></tr>
       </table>
       <div class="bv-intro-actions">
         <button type="button" class="bv-btn bv-btn--primary" data-bv="begin">Click to Play</button>
