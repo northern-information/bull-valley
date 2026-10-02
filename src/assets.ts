@@ -721,16 +721,16 @@ export function buildSack(seed = 0x5ac4): THREE.Group {
 // bridge. The body outline runs anticlockwise from the neck joint: down the
 // bass edge, closing in on the pickups, out along the long diagonal to the
 // horn tip at the bottom, back along the horn's underside to the rear
-// corner, up the treble edge to the wing tip above the neck joint, and into
-// the notch at the heel.
+// corner, up the treble edge, leaning in toward the neck, to the wing tip
+// above the neck joint, and into the notch at the heel.
 const GUITAR_OUTLINE: [number, number][] = [
   [0.032, 0.253],
   [-0.072, 0.232],
   [-0.045, 0.09],
   [-0.208, -0.211],
   [0.036, -0.101],
-  [0.174, -0.058],
-  [0.195, 0.356],
+  [0.21, -0.07],
+  [0.14, 0.356],
   [0.053, 0.262],
 ]
 // The pointed headstock, in its own space: the nut at y = 0, the tip up +Y
