@@ -719,14 +719,14 @@ export function buildSack(seed = 0x5ac4): THREE.Group {
 // hardware, traced from the catalogue photo. Local space: the neck up +Y,
 // the strings facing +Z, the origin on the string line a little below the
 // bridge. The body outline runs anticlockwise from the neck joint: down the
-// bass edge beside the pickups, out along the long diagonal to the horn tip
-// at the bottom, back along the horn's underside to the rear corner, up
-// the treble edge to the wing tip above the neck joint, and into the notch
-// at the heel.
+// bass edge, closing in on the pickups, out along the long diagonal to the
+// horn tip at the bottom, back along the horn's underside to the rear
+// corner, up the treble edge to the wing tip above the neck joint, and into
+// the notch at the heel.
 const GUITAR_OUTLINE: [number, number][] = [
   [0.032, 0.253],
   [-0.072, 0.232],
-  [-0.06, 0.095],
+  [-0.045, 0.09],
   [-0.208, -0.211],
   [0.036, -0.101],
   [0.174, -0.058],
