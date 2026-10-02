@@ -4,10 +4,9 @@
 // and Three-free; peers.ts draws it, net.ts feeds it.
 
 import { compassBearing } from './coords.ts'
-import type { XZ } from './interfaces.ts'
+import type { ScopeContact, XZ } from './interfaces.ts'
 import type { OutfitId } from './outfits.ts'
 import type { PeerPose, PeerStateWire, PeerWire } from './protocol.ts'
-import type { ScopeContact } from './scope.ts'
 
 // A state stamped with the local time it arrived.
 export interface PeerSnapshot extends PeerStateWire {

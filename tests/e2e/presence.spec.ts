@@ -22,10 +22,7 @@ base('two players see each other in the valley', async ({ browser }) => {
   const errorsB = watchErrors(b)
 
   // One step right of the player: Coleman.
-  await Promise.all([
-    beginRaid(a, 0, { valley }),
-    beginRaid(b, 1, { valley }),
-  ])
+  await Promise.all([beginRaid(a, 0, { valley }), beginRaid(b, 1, { valley })])
   expect(await a.evaluate(() => window.__bv?.net.status)).toBe('online')
   expect(await b.evaluate(() => window.__bv?.net.status)).toBe('online')
 

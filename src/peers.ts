@@ -17,10 +17,9 @@ import {
   samplePeer,
 } from './presence.ts'
 import type { Figure } from './figure.ts'
-import type { XZ } from './interfaces.ts'
+import type { ScopeContact, XZ } from './interfaces.ts'
 import type { Peer, PeerTable } from './presence.ts'
 import type { PeerStateWire, PeerWire } from './protocol.ts'
-import type { ScopeContact } from './scope.ts'
 
 // Metres covered by one full walk cycle; the same stride as playerbody.ts.
 const STRIDE = 1.5
