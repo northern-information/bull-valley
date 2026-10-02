@@ -18,6 +18,7 @@ import {
 import { paintPrints } from './decalart.ts'
 import { ADDONS, outfitById } from './outfits.ts'
 import { JOINTS } from './poses.ts'
+import type { Guitar } from './assets.ts'
 import type { Vec3 } from './interfaces.ts'
 import type {
   Crescent,
@@ -34,11 +35,16 @@ export interface Figure {
   group: THREE.Group
   joints: Record<JointName, THREE.Group>
   hipY: number
+  // The guitar on the back, when the outfit carries one; setFinish
+  // recolors it in place.
+  guitar?: Guitar
 }
 
 export interface FigureOptions {
   // false hides the head and everything on the neck.
   head?: boolean
+  // The guitar's gloss color, for an outfit with one on its back.
+  guitarFinish?: string
 }
 
 // The lit cigarette; call update(t) every frame with a running time.
@@ -390,7 +396,7 @@ const SHIN: RingInput[] = [
 // first-person player body.
 export function buildFigure(
   outfitId: OutfitId,
-  { head = true }: FigureOptions = {}
+  { head = true, guitarFinish }: FigureOptions = {}
 ): Figure {
   const outfit = outfitById(outfitId)
   const c = outfit.colors
@@ -483,11 +489,12 @@ export function buildFigure(
 
   // The guitar hangs on the back with its strings out, the body at the left
   // hip and the neck up behind the right shoulder.
+  let guitar: Guitar | undefined
   if (outfit.onBack === 'guitar') {
-    const guitar = buildGuitar()
-    guitar.position.set(0.07, -0.03, -0.155)
-    guitar.rotation.set(0, Math.PI, -0.45)
-    spine.add(guitar)
+    guitar = buildGuitar(guitarFinish)
+    guitar.group.position.set(0.07, -0.03, -0.155)
+    guitar.group.rotation.set(0, Math.PI, -0.45)
+    spine.add(guitar.group)
   }
 
   // Every joint in JOINTS now has its pivot.
@@ -528,7 +535,7 @@ export function buildFigure(
     }
   }
 
-  return { group, joints, hipY }
+  return { group, joints, hipY, guitar }
 }
 
 // Copy a samplePose() result onto a figure's pivots.

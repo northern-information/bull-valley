@@ -7,6 +7,7 @@ import { FALLBACK_NAME, loadCharacter, loadName } from './characters.ts'
 import { mountCharacterSelect } from './characterselect.ts'
 import { CONFIG } from './config.ts'
 import { unitToWorld } from './coords.ts'
+import { finishById, loadFinish } from './finishes.ts'
 import { Hud } from './hud.ts'
 import {
   interactionPrompt,
@@ -229,7 +230,11 @@ async function boot() {
     spawn: world.spawn,
   })
   const pick = await titles
-  const playerBody = new PlayerBody(scene, pick.outfit)
+  const playerBody = new PlayerBody(
+    scene,
+    pick.outfit,
+    finishById(loadFinish(window.localStorage)).color
+  )
   const scope = new Scope(hud.scopeCanvas, hud.phone)
   // The shadowmen feed the scope; nerves and the audio static stay parked
   // (src/nerves.ts is in the tree, unwired).

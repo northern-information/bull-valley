@@ -54,6 +54,7 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 - `src/playerbody.ts` — the player's own legs in first person: the outfit picked at the character select, torso hidden, posed from the move speed
 - `src/characters.ts` — pure: the selectable roster (in select-screen order) and the saved pick and name in localStorage
 - `src/characterselect.ts` — the character select: one figure on a PS1 turntable with its own small renderer (the game's does not exist yet) and the name field, mounted at boot beneath the title cards. A name is required (the rules are `protocol.ts`'s, 1 to 16 characters); Choose stays disabled without one
+- `src/finishes.ts` — pure: the guitar finishes in one table, the saved pick in localStorage, and the random draw; the select shows the row for any character with a guitar on their back
 - `src/cabbages.ts` — pure seeded cabbage placement
 - `src/items.ts` — pure: every item in one table (label, blurb, toasts, tuning, starting count, shop cap); edit items here. Meshes stay in `assets.ts`, keyed by id
 - `src/canvas.ts` — shared 2D canvas helpers (`context2d`, `canvas`, `text`, fonts) for the painted art

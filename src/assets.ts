@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { paintDrink } from './canart.ts'
 import { context2d } from './canvas.ts'
 import { CONTAINERS } from './drinks.ts'
+import { DEFAULT_FINISH, finishById } from './finishes.ts'
 import { isCigarette, isDrink, itemById, ITEMS } from './items.ts'
 import { paintPack } from './packart.ts'
 import { applyPS1 } from './ps1.ts'
@@ -746,7 +747,8 @@ export function buildSack(seed = 0x5ac4): THREE.Group {
 
 // --- Guitar --------------------------------------------------------------
 
-// A black LTD EX-400: an Explorer body, about a metre long, with black
+// An LTD EX-400: an Explorer body, about a metre long, in the finish
+// passed in (black by default; finishes.ts has the table) with black
 // hardware. The outline is measured from the catalogue photo: the body's
 // silhouette thresholded and read column by column, then turned onto the
 // neck axis. Local space: the neck up +Y, the strings facing +Z, the
@@ -802,8 +804,17 @@ function outlineGeometry(
   return geometry
 }
 
-export function buildGuitar(): THREE.Group {
-  const gloss = lambert({ color: '#121214' })
+// A built guitar: its group, and setFinish to recolor the gloss (the
+// body, the neck and the headstock) in place.
+export interface Guitar {
+  group: THREE.Group
+  setFinish(color: string): void
+}
+
+export function buildGuitar(
+  finish: string = finishById(DEFAULT_FINISH).color
+): Guitar {
+  const gloss = lambert({ color: finish })
   const hardware = lambert({ color: '#26262b' })
   const rosewood = lambert({ color: '#2c1a10' })
   const pearl = lambert({ color: '#d9d6cc' })
@@ -893,12 +904,17 @@ export function buildGuitar(): THREE.Group {
     0.3725,
     face + 0.005
   )
-  return group
+  return {
+    group,
+    setFinish: (color) => {
+      gloss.color.set(color)
+    },
+  }
 }
 
 // The guitar standing on its horn, for Akashic.
 function sampleGuitar(): THREE.Group {
-  const guitar = buildGuitar()
+  const guitar = buildGuitar().group
   guitar.position.y = -Math.min(...GUITAR_OUTLINE.map(([, y]) => y))
   const group = new THREE.Group()
   group.add(guitar)
