@@ -10,69 +10,73 @@ import type { Page } from '@playwright/test'
 const peers = (page: Page) =>
   page.evaluate(() => window.__bv?.net.peers() ?? [])
 
-base('two players see each other in the valley', async ({ browser }) => {
-  // Two valleys to boot; on CI each takes most of a minute in software GL.
-  base.slow()
-  const valley = freshValley('presence')
-  const contextA = await browser.newContext()
-  const contextB = await browser.newContext()
-  const a = await contextA.newPage()
-  const b = await contextB.newPage()
-  const errorsA = watchErrors(a)
-  const errorsB = watchErrors(b)
+base(
+  'two players see each other in the valley',
+  { tag: '@valley' },
+  async ({ browser }) => {
+    // Two valleys to boot; on CI each takes most of a minute in software GL.
+    base.slow()
+    const valley = freshValley('presence')
+    const contextA = await browser.newContext()
+    const contextB = await browser.newContext()
+    const a = await contextA.newPage()
+    const b = await contextB.newPage()
+    const errorsA = watchErrors(a)
+    const errorsB = watchErrors(b)
 
-  // One step right of the player: Coleman.
-  await Promise.all([
-    beginRaid(a, 0, { valley, name: 'Able' }),
-    beginRaid(b, 1, { valley, name: 'Baker' }),
-  ])
-  expect(await a.evaluate(() => window.__bv?.net.status)).toBe('online')
-  expect(await b.evaluate(() => window.__bv?.net.status)).toBe('online')
+    // One step right of the player: Coleman.
+    await Promise.all([
+      beginRaid(a, 0, { valley, name: 'Able' }),
+      beginRaid(b, 1, { valley, name: 'Baker' }),
+    ])
+    expect(await a.evaluate(() => window.__bv?.net.status)).toBe('online')
+    expect(await b.evaluate(() => window.__bv?.net.status)).toBe('online')
 
-  await expect.poll(() => peers(a)).toHaveLength(1)
-  await expect.poll(() => peers(b)).toHaveLength(1)
-  const [seenByA] = await peers(a)
-  expect(seenByA).toMatchObject({ name: 'Baker', outfit: 'coleman' })
-  const [seenByB] = await peers(b)
-  expect(seenByB).toMatchObject({ name: 'Able', outfit: 'player' })
-  const idB = await b.evaluate(() => window.__bv?.net.id)
-  expect(seenByA.id).toBe(idB)
+    await expect.poll(() => peers(a)).toHaveLength(1)
+    await expect.poll(() => peers(b)).toHaveLength(1)
+    const [seenByA] = await peers(a)
+    expect(seenByA).toMatchObject({ name: 'Baker', outfit: 'coleman' })
+    const [seenByB] = await peers(b)
+    expect(seenByB).toMatchObject({ name: 'Able', outfit: 'player' })
+    const idB = await b.evaluate(() => window.__bv?.net.id)
+    expect(seenByA.id).toBe(idB)
 
-  // B's figure stands in A's scene once B's first frame lands.
-  const figureVisible = () =>
-    a.evaluate((id) => {
-      const group = window.__bv?.scene.getObjectByName(`peer-${id}`)
-      return group ? group.visible : null
-    }, idB)
-  await expect.poll(figureVisible).toBe(true)
-
-  // B steps 20 m east; A's copy of B follows, and the scope hears it.
-  const start = await b.evaluate(() => {
-    const { x, z } = window.__bv!.player.pos
-    return { x, z }
-  })
-  await b.evaluate(({ x, z }) => {
-    const bv = window.__bv!
-    bv.player.relocate(x + 20, z, bv.player.yaw)
-  }, start)
-  await expect
-    .poll(async () => (await peers(a))[0]?.next?.x ?? null)
-    .toBeCloseTo(start.x + 20, 0)
-  await expect
-    .poll(() =>
+    // B's figure stands in A's scene once B's first frame lands.
+    const figureVisible = () =>
       a.evaluate((id) => {
         const group = window.__bv?.scene.getObjectByName(`peer-${id}`)
-        return group ? group.position.x : null
+        return group ? group.visible : null
       }, idB)
-    )
-    .toBeCloseTo(start.x + 20, 0)
+    await expect.poll(figureVisible).toBe(true)
 
-  // B leaves; A's valley empties.
-  await contextB.close()
-  await expect.poll(() => peers(a)).toHaveLength(0)
-  await expect.poll(figureVisible).toBeNull()
+    // B steps 20 m east; A's copy of B follows, and the scope hears it.
+    const start = await b.evaluate(() => {
+      const { x, z } = window.__bv!.player.pos
+      return { x, z }
+    })
+    await b.evaluate(({ x, z }) => {
+      const bv = window.__bv!
+      bv.player.relocate(x + 20, z, bv.player.yaw)
+    }, start)
+    await expect
+      .poll(async () => (await peers(a))[0]?.next?.x ?? null)
+      .toBeCloseTo(start.x + 20, 0)
+    await expect
+      .poll(() =>
+        a.evaluate((id) => {
+          const group = window.__bv?.scene.getObjectByName(`peer-${id}`)
+          return group ? group.position.x : null
+        }, idB)
+      )
+      .toBeCloseTo(start.x + 20, 0)
 
-  expect(errorsA).toEqual([])
-  expect(errorsB).toEqual([])
-  await contextA.close()
-})
+    // B leaves; A's valley empties.
+    await contextB.close()
+    await expect.poll(() => peers(a)).toHaveLength(0)
+    await expect.poll(figureVisible).toBeNull()
+
+    expect(errorsA).toEqual([])
+    expect(errorsB).toEqual([])
+    await contextA.close()
+  }
+)

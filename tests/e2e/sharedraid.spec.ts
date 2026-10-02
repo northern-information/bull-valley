@@ -20,7 +20,7 @@ async function moveToTruck(page: Page): Promise<void> {
   })
 }
 
-base.describe('a shared raid', () => {
+base.describe('a shared raid', { tag: '@valley' }, () => {
   base(
     'the truck waits for everyone, then leaves for both',
     async ({ browser }) => {

@@ -68,18 +68,21 @@ jobs:
     container:
       image: mcr.microsoft.com/playwright:v1.63.0-noble
       options: --user 1001
-    # The runner draws WebGL in software, so each spec is slow; two jobs run
-    # at the same time. --shard cannot split here: it keeps the serial raid
-    # group whole and put every test in shard 1. The grep pair covers every
-    # spec exactly once, and a new spec lands in "others" by default.
+    # The runner draws WebGL in software, so each spec is slow; three jobs
+    # run at the same time. --shard cannot split here: it keeps the serial
+    # raid group whole and put every test in shard 1. The grep trio covers
+    # every spec exactly once, and a new spec lands in "others" by default.
+    # The two-page specs (@valley) boot two games each and get their own job.
     strategy:
       fail-fast: false
       matrix:
         include:
           - group: raid
             filter: --grep @raid
+          - group: valley
+            filter: --grep @valley
           - group: others
-            filter: --grep-invert @raid
+            filter: --grep-invert "@raid|@valley"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
