@@ -55,7 +55,7 @@ export function mountCharacterSelect({
         <button type="button" class="bv-btn bv-btn--primary" data-bv="select-choose">Choose</button>
         <button type="button" class="bv-btn" data-bv="select-next">Next</button>
       </div>
-      <p class="bv-select-hint">← → Cycle · Enter Choose</p>
+      <p class="bv-select-hint">&lt; &gt; Cycle · Enter Choose</p>
     </div>`
   document.body.appendChild(root)
 

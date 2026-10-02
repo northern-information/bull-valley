@@ -2,14 +2,19 @@
    host page (index.html). One face, one size, one ink: every HUD text is
    Small Pixel 7 at --bv-text-size in --bv-eggshell, set once on .bv-shell and
    inherited. Role colors stay on borders, fills, and focus rings only.
-   Dark field, hard edges, offset shadows, 3px cyan focus. */
+   Dark field, hard edges, offset shadows, 3px cyan focus.
+   Small Pixel 7 is drawn on a 1/20em grid, so it is pixel-crisp only at
+   multiples of 20px: --bv-text-size is 20px, and anything larger is a
+   whole multiple of it. Text must also start on a whole pixel, so every
+   length near text is whole px (not rem), letter-spacing is a multiple
+   of 0.05em (one font pixel), and %/vh/vw offsets go through round(). */
 
 .bv-shell {
   position: fixed;
   inset: 0;
   overflow: hidden;
   font-family: var(--bv-font, 'Small Pixel 7', system-ui, sans-serif);
-  font-size: var(--bv-text-size, 1rem);
+  font-size: var(--bv-text-size, 20px);
   font-variant-numeric: tabular-nums;
   color: var(--bv-eggshell);
   background: var(--fi-bg);
@@ -54,11 +59,11 @@
    on snow and on night sky. */
 .bv-countdown {
   position: absolute;
-  top: 0.9rem;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 14px;
+  left: round(50%, 1px);
+  transform: translateX(round(-50%, 1px));
   margin: 0;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-shadow:
     0 0 3px rgb(0 0 0 / 90%),
     1px 1px 0 rgb(0 0 0 / 80%);
@@ -67,19 +72,19 @@
 /* Nerves */
 .bv-nerves {
   position: absolute;
-  left: 1rem;
-  bottom: 1rem;
+  left: 16px;
+  bottom: 16px;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  letter-spacing: 0.12em;
+  gap: 8px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
 .bv-nerves-track {
   display: inline-block;
-  width: 11rem;
-  height: 0.55rem;
+  width: 176px;
+  height: 9px;
   background: var(--fi-surface-82);
   border: 1px solid var(--fi-slate);
   box-shadow: 3px 3px 0 var(--fi-black-shadow);
@@ -106,11 +111,11 @@
 /* Effect timers */
 .bv-timers {
   position: absolute;
-  left: 1rem;
-  bottom: 2.6rem;
+  left: 16px;
+  bottom: 42px;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 4px;
 }
 
 .bv-timer {
@@ -118,7 +123,7 @@
   text-transform: uppercase;
   background: var(--fi-surface-82);
   border: 1px solid var(--fi-amber);
-  padding: 0.15rem 0.4rem;
+  padding: 2px 6px;
   width: max-content;
 }
 
@@ -153,33 +158,33 @@
 /* Prompt + toasts */
 .bv-prompt {
   position: absolute;
-  left: 50%;
-  bottom: 22%;
-  transform: translateX(-50%);
+  left: round(50%, 1px);
+  bottom: round(22%, 1px);
+  transform: translateX(round(-50%, 1px));
   margin: 0;
-  padding: 0.3rem 0.7rem;
+  padding: 5px 11px;
   background: var(--fi-surface-82);
   border: 1px solid var(--fi-cyan);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
 }
 
 .bv-toasts {
   position: absolute;
-  left: 50%;
-  top: 14%;
-  transform: translateX(-50%);
+  left: round(50%, 1px);
+  top: round(14%, 1px);
+  transform: translateX(round(-50%, 1px));
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.3rem;
+  gap: 5px;
 }
 
 .bv-toast {
   margin: 0;
-  padding: 0.3rem 0.7rem;
+  padding: 5px 11px;
   background: var(--fi-surface-82);
   border: 1px solid var(--fi-green);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   transition: opacity 0.8s;
 }
 
@@ -208,14 +213,13 @@
   --bv-inv-dim: #4d4b52;
   --bv-inv-purple: #7a1fd6;
   --bv-inv-frame: #6f74ff;
-  --bv-inv-cell: min(34vh, 40vw);
+  --bv-inv-cell: round(min(34vh, 40vw), 2px);
 
   position: absolute;
   inset: 0;
-  font-family: 'Times New Roman', Times, Georgia, serif;
-  font-weight: 700;
-  font-size: clamp(0.85rem, 3.2vh, 1.6rem);
-  letter-spacing: 0.06em;
+
+  /* One font pixel apart. */
+  letter-spacing: 0.05em;
   color: var(--bv-inv-ink);
 
   /* A pressed-metal bevel: light from the top left. */
@@ -226,19 +230,19 @@
 
 .bv-inv-bars {
   position: absolute;
-  top: 5vh;
-  left: 6vw;
-  right: 6vw;
+  top: round(5vh, 1px);
+  left: round(6vw, 1px);
+  right: round(6vw, 1px);
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 2.5vw;
-  font-size: clamp(0.9rem, 4.2vh, 2.2rem);
+  gap: round(2.5vw, 1px);
+  font-size: calc(2 * var(--bv-text-size, 20px));
 }
 
 .bv-inv-bars--foot {
   top: auto;
-  bottom: 4vh;
-  font-size: clamp(0.75rem, 3.2vh, 1.6rem);
+  bottom: round(4vh, 1px);
+  font-size: var(--bv-text-size, 20px);
 }
 
 .bv-inv-bars span {
@@ -268,13 +272,12 @@
 
 .bv-inv-status {
   position: absolute;
-  top: 14vh;
-  left: 8vw;
+  top: round(14vh, 1px);
+  left: round(8vw, 1px);
   margin: 0;
   display: grid;
   grid-template-columns: auto auto;
   gap: 0.3em 0.9em;
-  font-size: 0.8em;
 }
 
 .bv-inv-status dt {
@@ -287,21 +290,19 @@
 
 .bv-inv-commands {
   position: absolute;
-  top: 14vh;
-  right: 9vw;
+  top: round(14vh, 1px);
+  right: round(9vw, 1px);
   margin: 0;
   padding: 0;
   list-style: none;
   display: flex;
   flex-direction: column;
   gap: 0.4em;
-  font-size: 1.15em;
 }
 
 .bv-inv-commands kbd {
   font-family: inherit;
-  font-size: 0.6em;
-  vertical-align: middle;
+  vertical-align: baseline;
   padding: 0 0.3em;
   border: 1px solid currentcolor;
 }
@@ -314,11 +315,11 @@
 /* The frame: one hard rectangle, a second offset up-left and broken. */
 .bv-inv-frame {
   position: absolute;
-  left: 50%;
-  top: 50%;
+  left: round(50%, 1px);
+  top: round(50%, 1px);
   width: var(--bv-inv-cell);
   height: var(--bv-inv-cell);
-  transform: translate(-50%, -50%);
+  transform: translate(round(-50%, 1px), round(-50%, 1px));
   border: 2px solid var(--bv-inv-frame);
 }
 
@@ -343,11 +344,9 @@
 
 .bv-inv-arrow {
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
+  top: round(50%, 1px);
+  transform: translateY(round(-50%, 1px));
   color: #d8d8e0;
-  font-size: 1.1em;
-  letter-spacing: -0.2em;
 }
 
 .bv-inv-arrow--prev {
@@ -364,9 +363,9 @@
 
 .bv-inv-info {
   position: absolute;
-  top: calc(50% + var(--bv-inv-cell) / 2 + 2.5vh);
-  left: 6vw;
-  right: 6vw;
+  top: round(50% + var(--bv-inv-cell) / 2 + 2.5vh, 1px);
+  left: round(6vw, 1px);
+  right: round(6vw, 1px);
 }
 
 .bv-inv-line {
@@ -384,8 +383,7 @@
 .bv-inv-desc {
   margin: 0.7em 0 0 1.4em;
   max-width: 34em;
-  font-size: 0.9em;
-  line-height: 1.35;
+  line-height: 1.5;
 }
 
 /* Lock dropped with the inventory open: dim the carousel, wait for a click. */
@@ -395,9 +393,9 @@
 
 .bv-inv-resume {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  top: round(50%, 1px);
+  left: round(50%, 1px);
+  transform: translate(round(-50%, 1px), round(-50%, 1px));
   margin: 0;
   padding: 0.3em 0.8em;
   background: rgb(0 0 0 / 70%);
@@ -456,7 +454,7 @@
   margin: 0;
   background: var(--fi-bg);
   border: 1px solid var(--fi-maroon);
-  padding: 0.4rem 1rem;
+  padding: 6px 16px;
   letter-spacing: 0.3em;
 }
 
@@ -468,54 +466,62 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1.1rem;
+  gap: 18px;
   text-align: center;
   background: rgb(0 0 0 / 78%);
   pointer-events: auto;
-  padding: 1rem;
+  padding: 16px;
 }
 
 .bv-intro h2 {
   margin: 0;
-  letter-spacing: 0.28em;
+  letter-spacing: 0.3em;
   text-shadow: 4px 4px 0 var(--fi-black-shadow);
 }
 
 .bv-intro-note {
   margin: 0;
-  max-width: 30rem;
-  letter-spacing: 0.06em;
+  max-width: 480px;
+  letter-spacing: 0.05em;
   line-height: 1.7;
 }
 
+/* A 1px grid without border-collapse, which splits each border across two
+   cells and leaves the text half a pixel off. */
 .bv-controls {
-  border-collapse: collapse;
-  letter-spacing: 0.06em;
+  border-collapse: separate;
+  border-spacing: 0;
+  border-top: 1px solid var(--fi-surface);
+  border-left: 1px solid var(--fi-surface);
+  letter-spacing: 0.05em;
+}
+
+.bv-controls th,
+.bv-controls td {
+  border-right: 1px solid var(--fi-surface);
+  border-bottom: 1px solid var(--fi-surface);
 }
 
 .bv-controls th {
-  border: 1px solid var(--fi-surface);
-  padding: 0.25rem 0.6rem;
+  padding: 4px 10px;
   text-align: right;
-  font-weight: 700;
 }
 
 .bv-controls td {
-  border: 1px solid var(--fi-surface);
-  padding: 0.25rem 0.9rem 0.25rem 0.4rem;
+  padding: 4px 14px 4px 6px;
   text-align: left;
 }
 
 .bv-intro-actions {
   display: flex;
-  gap: 0.8rem;
+  gap: 13px;
 }
 
 .bv-btn {
   font: inherit;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  padding: 0.55rem 1.1rem;
+  padding: 9px 18px;
   background: var(--fi-surface);
   border: 1px solid var(--fi-paper-light);
   box-shadow: 4px 4px 0 var(--fi-black-shadow);
@@ -589,7 +595,7 @@
 
 .bv-splash-hint {
   font-family: var(--bv-font, 'Small Pixel 7', system-ui, sans-serif);
-  font-size: var(--bv-text-size, 1rem);
+  font-size: var(--bv-text-size, 20px);
   color: var(--bv-eggshell);
   opacity: 0.6;
   user-select: none;
@@ -605,7 +611,7 @@
   z-index: 9;
   background: #000;
   font-family: var(--bv-font, 'Small Pixel 7', system-ui, sans-serif);
-  font-size: var(--bv-text-size, 1rem);
+  font-size: var(--bv-text-size, 20px);
   color: var(--bv-eggshell);
 }
 
@@ -632,26 +638,26 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.9rem;
-  padding: 1rem 1rem 2rem;
+  gap: 14px;
+  padding: 16px 16px 32px;
   text-align: center;
 }
 
 .bv-select-ui h2 {
   position: fixed;
-  top: 2rem;
+  top: 32px;
   left: 0;
   right: 0;
   margin: 0;
   font-size: inherit;
-  letter-spacing: 0.28em;
+  letter-spacing: 0.3em;
   text-transform: uppercase;
   text-shadow: 4px 4px 0 var(--fi-black-shadow);
 }
 
 .bv-select-name {
   margin: 0;
-  letter-spacing: 0.28em;
+  letter-spacing: 0.3em;
   text-transform: uppercase;
   text-shadow: 4px 4px 0 var(--fi-black-shadow);
 }
@@ -660,7 +666,7 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 0.8rem;
+  gap: 13px;
 }
 
 .bv-select .bv-btn {
@@ -673,6 +679,6 @@
 
 .bv-select-hint {
   margin: 0;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   opacity: 0.6;
 }

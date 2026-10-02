@@ -31,7 +31,8 @@
         overflow: hidden;
         background: var(--fi-bg);
         color: var(--bv-eggshell);
-        font: 12px/1.5 var(--bv-font);
+        font: 20px/1.5 var(--bv-font);
+        font-synthesis: none;
         font-variant-numeric: tabular-nums;
       }
       .ak-canvas {
@@ -54,8 +55,7 @@
       }
       .ak-panel h1 {
         margin: 0 0 8px;
-        font-size: 12px;
-        letter-spacing: 0.12em;
+        letter-spacing: 0.1em;
         text-transform: uppercase;
       }
       .ak-row {
@@ -107,16 +107,18 @@
       <h1>Akashic</h1>
       <div class="ak-row">
         <button type="button" data-step="-1" aria-label="Previous asset">
-          ←
+          &lt;
         </button>
         <select name="asset" aria-label="Asset"></select>
-        <button type="button" data-step="1" aria-label="Next asset">→</button>
+        <button type="button" data-step="1" aria-label="Next asset">
+          &gt;
+        </button>
       </div>
       <div class="ak-toggles"></div>
       <p class="ak-stats" aria-live="polite"></p>
     </section>
     <p class="ak-hint">
-      drag orbit · scroll zoom · right-drag pan · ←/→ cycle · keys toggle
+      drag orbit · scroll zoom · right-drag pan · &lt;/&gt; cycle · keys toggle
     </p>
     <script type="module" src="/src/akashic.ts"></script>
   </body>
