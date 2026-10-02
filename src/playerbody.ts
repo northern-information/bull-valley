@@ -1,5 +1,5 @@
 // The player's own body, seen in first person: the shared figure in the
-// player outfit, legs and coat hem only, under the camera. Look down and
+// outfit picked at the character select, legs only, under the camera. Look down and
 // there are legs. The torso and arms stay hidden: that close to the camera
 // they fill the view as big blocks. It stands, walks with the move speed, and crouches; it switches pose
 // without blending, the way PS1 characters snapped between animations.
@@ -7,6 +7,7 @@
 import { applyPose, buildFigure } from './figure.ts'
 import { POSES, samplePose } from './poses.ts'
 import type { Figure } from './figure.ts'
+import type { OutfitId } from './outfits.ts'
 import type { PoseSample } from './poses.ts'
 import type * as THREE from 'three'
 
@@ -31,9 +32,10 @@ export class PlayerBody {
   figure: Figure
   cycle: number
 
-  constructor(scene: THREE.Object3D) {
-    this.figure = buildFigure('player', { head: false })
+  constructor(scene: THREE.Object3D, outfitId: OutfitId) {
+    this.figure = buildFigure(outfitId, { head: false })
     this.figure.group.name = 'player-body'
+    this.figure.group.userData.outfit = outfitId
     // The arms hang off the spine, so this hides the torso and both arms.
     this.figure.joints.spine.visible = false
     scene.add(this.figure.group)

@@ -32,11 +32,32 @@ export const test = base.extend<{ errors: string[] }>({
 
 export { expect }
 
-// Load the game, skip the colophon splash, and begin the raid. Under
-// webdriver the dev build starts without pointer lock.
-export async function beginRaid(page: Page): Promise<void> {
-  await page.goto('/')
+// From a fresh load to the character select: start and skip the
+// colophon, then skip the logo.
+export async function toCharacterSelect(page: Page): Promise<void> {
+  // The first press starts the colophon, the second skips it.
   await page.keyboard.press('Space')
+  await page.keyboard.press('Space')
+  // The logo arms once the colophon has lifted.
+  await expect(page.getByAltText('Bull Valley Shadow Wars')).toBeVisible()
+  await page.keyboard.press('Space')
+  await expect(page.locator('.bv-select-ui')).toBeVisible()
+}
+
+// From a fresh load to the intro dialog, choosing at the character select
+// after `steps` presses of →.
+export async function passTitles(page: Page, steps = 0): Promise<void> {
+  await toCharacterSelect(page)
+  for (let i = 0; i < steps; i++) await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.bv-select')).toHaveCount(0)
+}
+
+// Load the game, pass the titles, and begin the raid. Under webdriver the
+// dev build starts without pointer lock.
+export async function beginRaid(page: Page, steps = 0): Promise<void> {
+  await page.goto('/')
+  await passTitles(page, steps)
   // boot() sets the dev hook last, after the input listeners; the button
   // reads "Click to Play" before boot starts, so its text is not a signal.
   await expect
