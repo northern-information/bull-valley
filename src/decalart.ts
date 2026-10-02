@@ -20,6 +20,10 @@
 //                    crossbones. Arm, 64×64.
 //   chest-tattoo     the same work across the chest. Torso, 123×150; lay
 //                    it over an open shirt (see paintPrints).
+// A pattern (outfits.ts pattern) is opaque and wraps once round every shirt
+// part, torso and long sleeves alike:
+//   plaid            white and grey flannel checks over the shirt color.
+//                    96×48: six checks round, three up.
 // A face (a box add-on's decal) is opaque and covers the box's front face:
 //   russ             the belt buckle face: gold letters on a dark plate.
 
@@ -36,6 +40,7 @@ const TORSO: CanvasSize = [123, 150]
 const THIGH: CanvasSize = [51, 138]
 const ARM: CanvasSize = [64, 64]
 const BUCKLE: CanvasSize = [75, 48]
+const PATTERN: CanvasSize = [96, 48]
 
 // Tall, tight capitals: the nearest a browser font gets to a band logo.
 const CONDENSED =
@@ -329,6 +334,24 @@ function russ(): CanvasArt {
   return art
 }
 
+// Flannel: a grey band across and a grey band down every check, darker
+// where they cross, with a thin charcoal line through the middle of each
+// band and a white thread between them.
+function plaid(colors: Outfit['colors']): CanvasArt {
+  const art = canvas(PATTERN, colors.shirt)
+  const { ctx, w, h } = art
+  const check = 16
+  ctx.fillStyle = 'rgba(96, 99, 106, 0.55)'
+  for (let x = 0; x < w; x += check) ctx.fillRect(x, 0, 7, h)
+  for (let y = 0; y < h; y += check) ctx.fillRect(0, y, w, 7)
+  ctx.fillStyle = 'rgba(52, 54, 60, 0.8)'
+  for (let x = 0; x < w; x += check) ctx.fillRect(x + 3, 0, 1, h)
+  for (let y = 0; y < h; y += check) ctx.fillRect(0, y + 3, w, 1)
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'
+  for (let x = 0; x < w; x += check) ctx.fillRect(x + 11, 0, 1, h)
+  return art
+}
+
 export const DECAL_PAINTERS: Record<DecalId, DecalPainter> = {
   'suicide-silence': suicideSilence,
   russ,
@@ -339,6 +362,7 @@ export const DECAL_PAINTERS: Record<DecalId, DecalPainter> = {
   pantera,
   'guitar-strap': guitarStrap,
   'as-i-lay-dying': asILayDying,
+  plaid,
 }
 
 // Tattoos ink only onto skin a layer below already painted.

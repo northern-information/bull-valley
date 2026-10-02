@@ -9,7 +9,7 @@ import {
 import { JOINTS } from '../../src/poses.ts'
 
 describe('outfits', () => {
-  it('has the seven characters', () => {
+  it('has the eight characters', () => {
     expect(OUTFIT_IDS).toEqual([
       'marx',
       'player',
@@ -18,7 +18,27 @@ describe('outfits', () => {
       'kvistad',
       'church',
       'hanson',
+      'carlsten',
     ])
+  })
+
+  it('dresses David Carlsten for the counter', () => {
+    const clerk = OUTFITS.carlsten
+    expect(clerk.label).toBe('David Carlsten')
+    expect(clerk.addons).toEqual(
+      expect.arrayContaining([
+        'long-hair',
+        'goatee',
+        'glasses',
+        'glasses-arms',
+        'beret',
+      ])
+    )
+    expect(clerk.pattern).toBe('plaid')
+    expect(clerk.baggy).toBeGreaterThan(1)
+    expect(clerk.inHand).toBe('bat')
+    // Long sleeves: the plaid wraps the arms too.
+    expect(clerk.sleeves).toBeUndefined()
   })
 
   it('colors every body slot with a hex color', () => {

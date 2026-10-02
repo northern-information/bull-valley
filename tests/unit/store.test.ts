@@ -70,7 +70,10 @@ describe('space', () => {
 
   it('turns blocking boxes into walls, leaving the door open', () => {
     const walls = storeWalls(origin)
-    expect(walls.length).toBe(STORE_LAYOUT.boxes.filter((b) => b.blocks).length)
+    // Every blocking box, and the clerk.
+    expect(walls.length).toBe(
+      STORE_LAYOUT.boxes.filter((b) => b.blocks).length + 1
+    )
     for (const wall of walls) expect(wall.half).toBeGreaterThan(0)
     // Nothing blocks the middle of the doorway.
     const [dx, , dz] = toWorld(origin, [STORE_LAYOUT.front - 0.1, 0, 0])

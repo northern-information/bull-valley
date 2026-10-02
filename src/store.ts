@@ -72,6 +72,16 @@ const SHELF_TOPS = [0.6, 1.3]
 const SHELF_BOARD = 0.04
 // The counter by the door: cigarettes and joints on top.
 const COUNTER = { x: -8.6, z0: 1.4, z1: 5.0, depth: 0.6, height: 1.0 }
+// Where David Carlsten stands: behind the counter, between it and the
+// front wall, facing across it into the room (-X). Yaw turns a figure's
+// +Z face that way.
+const CLERK = {
+  x: -7.6,
+  z: (COUNTER.z0 + COUNTER.z1) / 2,
+  yaw: -Math.PI / 2,
+  // He blocks like a post this wide.
+  radius: 0.25,
+}
 // The low shelf by the -Z wall: sacks.
 const SACK_SHELF = { x0: -11.0, x1: -8.6, height: 0.3, depth: 0.6 }
 
@@ -269,6 +279,7 @@ export const STORE_LAYOUT = {
   doorWidth: DOOR_WIDTH,
   boxes: buildBoxes(),
   facings: buildFacings(),
+  clerk: CLERK,
 } as const
 
 // --- Space ---------------------------------------------------------------
@@ -359,6 +370,9 @@ export function storeWalls(origin: StoreOrigin): WallSegment[] {
     const [ex, , ez] = toWorld(origin, e)
     walls.push({ a: { x: ax, z: az }, b: { x: ex, z: ez }, half })
   }
+  // The clerk: a zero-length wall is a disc.
+  const [cx, , cz] = toWorld(origin, [CLERK.x, 0, CLERK.z])
+  walls.push({ a: { x: cx, z: cz }, b: { x: cx, z: cz }, half: CLERK.radius })
   return walls
 }
 

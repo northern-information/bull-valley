@@ -10,7 +10,7 @@ export const BODY_SLOTS = ['skin', 'hair', 'shirt', 'pants', 'boots'] as const
 
 export type BodySlot = (typeof BODY_SLOTS)[number]
 export type ColorSlot =
-  BodySlot | 'coat' | 'glasses' | 'buckle' | 'belt' | 'stubble'
+  BodySlot | 'coat' | 'glasses' | 'buckle' | 'belt' | 'stubble' | 'hat'
 
 // Painted art printed on a part; decalart.ts paints each one.
 export type DecalId =
@@ -23,6 +23,7 @@ export type DecalId =
   | 'pantera'
   | 'guitar-strap'
   | 'as-i-lay-dying'
+  | 'plaid'
 
 // Where an outfit prints a decal over the body: across the torso front,
 // across the front of both thighs, or all round both bare arms.
@@ -94,6 +95,7 @@ export type AddonId =
   | 'fringe-fill'
   | 'hair-spikes-long'
   | 'hair-spikes-short'
+  | 'beret'
 
 export type LimbGroup = 'arm' | 'leg'
 
@@ -109,12 +111,26 @@ export interface Outfit {
   shaved?: boolean
   // A prop slung on the back; figure.ts places it.
   onBack?: 'guitar'
+  // A prop held in the right hand; figure.ts places it.
+  inHand?: 'bat'
+  // A pattern wrapped all round every shirt part: the torso, and the arms
+  // when the sleeves are long. Painted under the prints.
+  pattern?: DecalId
+  // Widens the legs of the pants (1 = the base body), for baggy jeans.
+  baggy?: number
   // Each part's prints, painted in order (decalart.ts paintPrints).
   prints?: Partial<Record<PrintPart, DecalId[]>>
 }
 
 export type OutfitId =
-  'marx' | 'player' | 'shadow' | 'coleman' | 'kvistad' | 'church' | 'hanson'
+  | 'marx'
+  | 'player'
+  | 'shadow'
+  | 'coleman'
+  | 'kvistad'
+  | 'church'
+  | 'hanson'
+  | 'carlsten'
 
 // Dreadlocks hang from a ring round the back and sides of the head, leaving
 // the face clear. Angles are around the head from +X toward +Z (the face).
@@ -392,6 +408,22 @@ export const ADDONS: Record<AddonId, Addon> = {
       [-0.06, 0.112, 0.07, -0.055],
     ],
   },
+  // A beret: a soft disc wider than the head, cocked to one side and a
+  // little back. The rings are about the crown; offset and rotation set it
+  // there, low enough that its brim meets the hair all round.
+  beret: {
+    joint: 'neck',
+    slot: 'hat',
+    sides: 8,
+    rings: [
+      [-0.02, 0.098, 0.11, 0],
+      [0.02, 0.126, 0.132, 0],
+      [0.045, 0.12, 0.126, 0],
+      [0.062, 0.055, 0.06, 0],
+    ],
+    offset: [0, 0.27, -0.012],
+    rotation: [-0.12, 0, 0.2],
+  },
   hood: {
     joint: 'neck',
     slot: 'coat',
@@ -526,6 +558,24 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     ],
     sleeves: 'short',
     prints: { torso: ['as-i-lay-dying'] },
+  },
+  // The Citgo clerk, behind every counter. Not on the select roster.
+  carlsten: {
+    label: 'David Carlsten',
+    colors: {
+      skin: '#eccaae',
+      hair: '#4a3626',
+      // The plaid's ground; the pattern paints the white and grey checks.
+      shirt: '#dcdad4',
+      pants: '#4d6a92',
+      boots: '#5a3b24',
+      glasses: '#16181c',
+      hat: '#1c1c20',
+    },
+    addons: ['long-hair', 'goatee', 'glasses', 'glasses-arms', 'beret'],
+    pattern: 'plaid',
+    baggy: 1.3,
+    inHand: 'bat',
   },
 }
 
