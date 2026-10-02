@@ -11,6 +11,8 @@ const peers = (page: Page) =>
   page.evaluate(() => window.__bv?.net.peers() ?? [])
 
 base('two players see each other in the valley', async ({ browser }) => {
+  // Two valleys to boot; on CI each takes most of a minute in software GL.
+  base.slow()
   const valley = freshValley('presence')
   const contextA = await browser.newContext()
   const contextB = await browser.newContext()
@@ -19,10 +21,12 @@ base('two players see each other in the valley', async ({ browser }) => {
   const errorsA = watchErrors(a)
   const errorsB = watchErrors(b)
 
-  await beginRaid(a, 0, { valley })
-  expect(await a.evaluate(() => window.__bv?.net.status)).toBe('online')
   // One step right of the player: Coleman.
-  await beginRaid(b, 1, { valley })
+  await Promise.all([
+    beginRaid(a, 0, { valley }),
+    beginRaid(b, 1, { valley }),
+  ])
+  expect(await a.evaluate(() => window.__bv?.net.status)).toBe('online')
   expect(await b.evaluate(() => window.__bv?.net.status)).toBe('online')
 
   await expect.poll(() => peers(a)).toHaveLength(1)
