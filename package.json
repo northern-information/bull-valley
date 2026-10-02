@@ -13,7 +13,7 @@
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
     "typecheck": "npm run types && tsc -b",
-    "lint": "eslint .",
+    "lint": "npm run types && eslint .",
     "lint:css": "stylelint 'src/**/*.css'",
     "test": "vitest run",
     "test:unit": "vitest run",

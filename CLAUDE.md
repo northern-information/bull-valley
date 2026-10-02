@@ -9,7 +9,7 @@ An extraction adventure RPG set in a hauntological Bull Valley, Illinois. 3D fir
 - `npm run build` / `npm run preview` — type check, then production bundle: `dist/client/` and the Worker bundle with its generated `wrangler.json`, which `wrangler deploy` is pointed at through `.wrangler/deploy/config.json`
 - `npm run typecheck` — `wrangler types` (writes the gitignored `worker-configuration.d.ts`), then strict `tsc -b` over `src`, `tests`, the TS configs, and `worker/`
 - `npm run deploy` — build, then `wrangler deploy` to the `workers.dev` URL. CI does this from `.github/workflows/deploy.yml` after a green CI run on `main` (secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`); a `workflow_dispatch` from `main` also deploys
-- `npm run lint` / `npm run lint:css` — ESLint (typescript-eslint, type-aware: mark a fire-and-forget promise with `void`) and Stylelint
+- `npm run lint` / `npm run lint:css` — ESLint (typescript-eslint, type-aware: mark a fire-and-forget promise with `void`; it generates the Workers types first, since the Worker files need them) and Stylelint
 - `npm test` / `npm run test:watch` / `npm run test:unit:coverage` — vitest unit tests (`tests/unit/`) and the Worker tests (`tests/worker/`, mock sockets and a stub `cloudflare:workers`); coverage lists every file in `src` and `worker`
 - `npm run test:e2e` — Playwright (`tests/e2e/`) against its own Vite dev server on port 5175 in `--mode test` (valley state in memory); never against `preview`, since the dev hooks exist only in dev builds. First run: `npx playwright install chromium`
 - `npm run pretty` — prettier (sorts imports too); run before every commit. `npm run format:check` checks without writing
