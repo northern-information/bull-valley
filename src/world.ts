@@ -898,21 +898,20 @@ function buildFuelStations(
   return { group, points }
 }
 
-// One stocked display for every store. Building 15 stores' worth of shelf
-// units would cost thousands of draw calls, and the walls and the fog hide
-// every store but the one you are near, so the one display follows you:
-// it parks at the store nearest the player and hides the units that store
-// has sold. Each kind sells from its last unit back. David Carlsten rides
-// along behind the counter, so every Citgo has its clerk.
-// The station lights, in station-local space: one spot per row of ceiling
-// tubes in the store and one under the canopy, all pointing down and all
-// throwing shadows. Like the shelf display they ride to the nearest
-// station, because a spotlight at every Citgo would cost a shadow pass
-// each, every frame. Intensities are candela (Three's lights are physical).
+// The station lights, in station-local space: one spot under every
+// fluorescent panel, the four in the store and the two under the canopy,
+// all pointing down and all throwing shadows. A panel is an area light,
+// so each spot is wide and firm-edged and the neighbours overlap into an
+// even ceiling glow instead of pools. Like the shelf display they ride to
+// the nearest station, because a spotlight at every Citgo would cost a
+// shadow pass each, every frame. Intensities are candela (Three's lights
+// are physical).
 const STATION_LIGHTS = {
-  store: { color: '#e6eef0', intensity: 60, distance: 10, angle: 1.1 },
-  canopy: { color: '#eef4f0', intensity: 140, distance: 14, angle: 1.0 },
-  penumbra: 0.6,
+  store: { color: '#e6eef0', intensity: 32, distance: 10, angle: 1.2 },
+  canopy: { color: '#eef4f0', intensity: 80, distance: 14, angle: 1.05 },
+  // How far below the panel's face the spot sits.
+  drop: 0.08,
+  penumbra: 0.3,
   shadowMap: 512,
 }
 
@@ -955,19 +954,20 @@ function buildStationLights(): StationLights {
     group.add(spot, spot.target)
     spots.push(spot)
   }
-  // One spot per row of tubes, between the row's two panels.
-  const rows = new Set(
-    STORE_LAYOUT.boxes
-      .filter((b) => b.finish === 'light')
-      .map((b) => b.center[0])
-  )
-  for (const x of rows) {
-    hang([x, STORE_LAYOUT.height - 0.15, 0], STATION_LIGHTS.store)
+  // One spot under each panel in the store.
+  for (const panel of STORE_LAYOUT.boxes) {
+    if (panel.finish !== 'light') continue
+    const [x, y, z] = panel.center
+    hang(
+      [x, y - panel.size[1] / 2 - STATION_LIGHTS.drop, z],
+      STATION_LIGHTS.store
+    )
   }
-  hang(
-    [0, CANOPY.height - CANOPY.thickness / 2 - 0.1, 0],
-    STATION_LIGHTS.canopy
-  )
+  // One under each canopy tube, over its pump.
+  const tubeY = CANOPY.height - CANOPY.thickness / 2 - STATION_LIGHTS.drop
+  for (const z of [FUEL_LAYOUT.pumpOffset, -FUEL_LAYOUT.pumpOffset]) {
+    hang([0, tubeY, z], STATION_LIGHTS.canopy)
+  }
   return {
     group,
     setOn(on) {
@@ -978,6 +978,13 @@ function buildStationLights(): StationLights {
   }
 }
 
+// One stocked display for every store. Building 15 stores' worth of shelf
+// units would cost thousands of draw calls, and the walls and the fog hide
+// every store but the one you are near, so the one display follows you:
+// it parks at the store nearest the player and hides the units that store
+// has sold. Each kind sells from its last unit back. David Carlsten rides
+// along behind the counter, so every Citgo has its clerk, and the station
+// lights ride with it.
 function buildShelves(points: readonly FuelPoint[]): ShelfDisplay {
   const { group: display, slots } = buildShelfDisplay()
   display.visible = false
