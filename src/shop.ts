@@ -42,7 +42,8 @@ export interface Settled {
 export function settle(purse: Purse, kind: string, now: number): Settled {
   const { raid, inventory, cash } = purse
   const item = itemById(kind)
-  if (!item) return { next: null, toast: null }
+  // Nothing without a price is on a shelf: forage is the bush's to give.
+  if (!item || item.price === undefined) return { next: null, toast: null }
   if (kind === 'sack' && raid.sack) {
     return { next: null, toast: 'You already have a sack.' }
   }
@@ -62,7 +63,7 @@ export function settle(purse: Purse, kind: string, now: number): Settled {
   }
   return {
     next: { raid: nextRaid, inventory: nextInventory, cash: cash - item.price },
-    toast: kind === 'sack' ? getItem('sack').bought : item.bought,
+    toast: kind === 'sack' ? getItem('sack').bought : (item.bought ?? null),
   }
 }
 
@@ -75,7 +76,10 @@ export function buy(
 ): Purchase {
   const { stock } = state
   const shelf = stock[station] as ShopStock | undefined
-  if (!shelf || !itemById(kind)) return { next: null, toast: null }
+  const item = itemById(kind)
+  if (!shelf || !item || item.price === undefined) {
+    return { next: null, toast: null }
+  }
   if (!(shelf[kind] > 0)) return { next: null, toast: 'Sold out.' }
   const { next, toast } = settle(state, kind, now)
   if (!next) return { next: null, toast }

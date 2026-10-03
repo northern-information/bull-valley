@@ -8,7 +8,10 @@ import {
   INVENTORY_KINDS,
   isCigarette,
   isDrink,
+  isForage,
+  isForSale,
   isUsable,
+  ITEM_LIST,
   itemById,
   ITEMS,
 } from '../../src/items.ts'
@@ -18,7 +21,9 @@ describe('items', () => {
   it('has unique ids and a known category', () => {
     expect(new Set(ITEMS.map((item) => item.id)).size).toBe(ITEMS.length)
     for (const item of ITEMS) {
-      expect(['cigarette', 'joint', 'drink', 'gear']).toContain(item.category)
+      expect(['cigarette', 'joint', 'drink', 'forage', 'gear']).toContain(
+        item.category
+      )
     }
   })
 
@@ -36,7 +41,9 @@ describe('items', () => {
     for (const id of INVENTORY_KINDS) {
       const item = itemById(id)
       if (!item) throw new Error(`no item ${id}`)
-      const keys: (keyof Item)[] = ['label', 'blurb', 'bought']
+      const keys: (keyof Item)[] = ['label', 'blurb']
+      // Shelf items are bought; forage is collected off the bush.
+      keys.push(isForSale(id) ? 'bought' : 'collected')
       if (isUsable(id)) keys.push('used', 'empty')
       for (const key of keys) {
         expect(item[key], `${id}.${key}`).toBeTruthy()
@@ -71,12 +78,28 @@ describe('items', () => {
     expect(itemById('nope')).toBeNull()
   })
 
-  it('prices every item in whole cents', () => {
-    for (const item of ITEMS) {
+  it('prices every shelf item in whole cents', () => {
+    const forSale = ITEM_LIST.filter((item) => isForSale(item.id))
+    expect(forSale.length).toBe(ITEMS.length - 1)
+    for (const item of forSale) {
       expect(Number.isInteger(item.price), item.id).toBe(true)
       expect(item.price, item.id).toBeGreaterThan(0)
     }
     expect(getItem('marlboro').price).toBe(549)
+  })
+
+  it('keeps the berries off the shelves and in the inventory, with no use yet', () => {
+    const berries = getItem('berries')
+    expect(berries.category).toBe('forage')
+    expect(isForage('berries')).toBe(true)
+    expect(isForage('pbr')).toBe(false)
+    expect(isForSale('berries')).toBe(false)
+    expect('price' in berries).toBe(false)
+    expect('bought' in berries).toBe(false)
+    expect(berries.collected).toBeTruthy()
+    expect(berries.start).toBe(0)
+    expect(INVENTORY_KINDS).toContain('berries')
+    expect(isUsable('berries')).toBe(false)
   })
 
   it('smokes the selected cigarette, else the first one carried', () => {

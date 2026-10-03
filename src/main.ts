@@ -16,7 +16,7 @@ import {
 } from './interactions.ts'
 import { addItem, loadInventory, saveInventory, useItem } from './inventory.ts'
 import { createInventoryView } from './inventoryview.ts'
-import { cigaretteToSmoke, isCigarette, itemById } from './items.ts'
+import { cigaretteToSmoke, getItem, isCigarette, itemById } from './items.ts'
 import { KEEP } from './landmarks.ts'
 import { MistCards } from './mistcards.ts'
 import { NetClient, socketUrl } from './net.ts'
@@ -50,11 +50,13 @@ import { buildTerrainMesh, createHeightField, loadTerrain } from './terrain.ts'
 import { Truck } from './truck.ts'
 import { buildWorld } from './world.ts'
 import type { CharacterPick } from './characters.ts'
-import type { Interaction, ShelfSpot } from './interactions.ts'
+import type { DailyStatus, Interaction, ShelfSpot } from './interactions.ts'
 import type { Geo, Raid, RingItem, Vec3 } from './interfaces.ts'
 import type { NetStatus } from './net.ts'
 import type { Peer } from './presence.ts'
 import type {
+  DailyMessage,
+  DailyWire,
   NackMessage,
   PeerStateWire,
   RaidMessage,
@@ -83,6 +85,8 @@ interface BvHook {
   }
   // The shared raid as the valley last sent it; null offline.
   readonly shared: RaidWire | null
+  // The berry bush as the valley last described it; null offline.
+  readonly daily: DailyWire | null
   readonly aboard: boolean
   // In cents.
   readonly cash: number
@@ -367,6 +371,11 @@ async function boot() {
   const pendingTakes = new Set<number>()
   // Shelf units asked of the valley and not yet answered, as station:kind.
   const pendingBuys = new Set<string>()
+  // The berry bush as the valley last described it (the welcome, then
+  // every daily frame); null offline. The day's berry is the valley's.
+  let daily: DailyWire | null = null
+  // A berry asked of the valley and not yet answered.
+  let pendingCollect = false
   const ridingForward = new THREE.Vector3(0, 0, -1)
 
   player.onEdge = () => hud.toast('The valley ends here.')
@@ -571,6 +580,44 @@ async function boot() {
     if (toast) hud.toast(toast)
   }
 
+  // How the bush stands for this player right now. The valley's word is
+  // read against the valley's clock, so once midnight Central passes the
+  // berry is back before the valley is asked again.
+  const dailyStatus = (): DailyStatus => {
+    if (!net.online || !daily) return 'offline'
+    const now = net.clock.serverNow(performance.now())
+    return daily.collected && now < daily.resetsAt ? 'picked' : 'ready'
+  }
+
+  // E at the bush: ask the valley for today's berry, or say why not.
+  const collectBerry = (status: DailyStatus) => {
+    if (status === 'offline') {
+      hud.toast('No signal. The bush keeps its berries.')
+      return
+    }
+    if (status === 'picked') {
+      hud.toast('Picked clean. The bush fills again at midnight.')
+      return
+    }
+    if (pendingCollect) return
+    pendingCollect = true
+    net.send({ type: 'collect' })
+  }
+
+  // The valley's answer: a berry into the pack, or not today.
+  const applyDaily = (msg: DailyMessage) => {
+    pendingCollect = false
+    daily = msg.daily
+    if (!msg.picked) {
+      hud.toast('Picked clean. The bush fills again at midnight.')
+      return
+    }
+    inventory = addItem(inventory, 'berries', 1)
+    saveInventory(window.localStorage, inventory)
+    refreshRing()
+    hud.toast(getItem('berries').collected)
+  }
+
   // The store the player stands inside, as an index into world.fuelPoints,
   // or -1 outside every one.
   const storeIndex = () =>
@@ -594,7 +641,7 @@ async function boot() {
       look.z,
     ])
     const item = facing ? itemById(facing.kind) : null
-    if (!item) return null
+    if (!item || item.price === undefined) return null
     return {
       item: item.id,
       station,
@@ -865,16 +912,22 @@ async function boot() {
       )
     } else if (msg.re === 'call') {
       hud.toast('Marx is already on a call.')
+    } else if (msg.re === 'collect') {
+      pendingCollect = false
+      hud.toast('The bush gives you nothing.')
     }
   }
 
   net.on((msg) => {
     if (msg.type === 'welcome') {
       applyRaid(msg.raid, 'joined', { by: msg.id })
+      daily = msg.daily
     } else if (msg.type === 'raid') {
       applyRaid(msg.raid, msg.reason, msg)
     } else if (msg.type === 'nack') {
       applyNack(msg)
+    } else if (msg.type === 'daily') {
+      applyDaily(msg)
     }
   })
   net.onStatus((status) => {
@@ -883,6 +936,8 @@ async function boot() {
     if (status === 'offline') {
       shared = null
       aboard = false
+      daily = null
+      pendingCollect = false
       pendingTakes.clear()
       pendingBuys.clear()
     }
@@ -927,6 +982,9 @@ async function boot() {
         return
       case 'buy':
         buy(interaction)
+        return
+      case 'collect':
+        collectBerry(interaction.status)
         return
     }
   }
@@ -1168,6 +1226,8 @@ async function boot() {
           pickups: world.pickups,
           shelf: shelfInView(inStore),
           insideStore: inStore >= 0,
+          bush: world.bush,
+          daily: dailyStatus(),
         })
     const prompt = interaction ? interactionPrompt(interaction) : null
     if (player.locked) {
@@ -1220,6 +1280,9 @@ async function boot() {
       },
       get shared() {
         return shared
+      },
+      get daily() {
+        return daily
       },
       get aboard() {
         return aboard

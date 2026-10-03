@@ -15,7 +15,7 @@ import {
   parseClientMessage,
   PROTOCOL_VERSION,
 } from '../src/protocol.ts'
-import { createValley, reduce, toWire } from '../src/sharedraid.ts'
+import { createValley, dailyFor, reduce, toWire } from '../src/sharedraid.ts'
 import type {
   HelloMessage,
   PeerStateWire,
@@ -54,7 +54,9 @@ export class ValleyDO extends DurableObject<Env> {
     // The raid is read once per wake, before any frame is handled.
     void this.ctx.blockConcurrencyWhile(async () => {
       const stored = await this.ctx.storage.get<Valley>(VALLEY_KEY)
-      if (stored) this.valley = stored
+      // A valley stored by an older build lacks the newer fields; the
+      // fresh one fills them in.
+      if (stored) this.valley = { ...createValley(), ...stored }
     })
   }
 
@@ -132,6 +134,9 @@ export class ValleyDO extends DurableObject<Env> {
         return
       case 'extract':
         await this.act(ws, { type: 'extract', id: me.id, kind: msg.kind })
+        return
+      case 'collect':
+        await this.act(ws, { type: 'collect', id: me.id })
         return
       case 'dev':
         if (!attachment.dev) {
@@ -220,13 +225,15 @@ export class ValleyDO extends DurableObject<Env> {
       ws.close(CLOSE.serverError, 'The valley lost the raid')
       return
     }
+    const now = Date.now()
     send(ws, {
       type: 'welcome',
       id,
-      serverNow: Date.now(),
+      serverNow: now,
       peers: this.roster(ws),
       raid,
       phase: member.phase,
+      daily: dailyFor(this.valley, name, now),
     })
     this.broadcast({ type: 'peer-joined', peer: me }, ws)
     for (const msg of reduced.broadcast) this.broadcast(msg, ws)
@@ -253,6 +260,7 @@ export class ValleyDO extends DurableObject<Env> {
     const reduced = reduce(this.valley, action, this.context())
     await this.apply(reduced)
     if (reduced.reply) send(ws, reduced.reply)
+    if (reduced.daily) send(ws, reduced.daily)
     for (const msg of reduced.broadcast) this.broadcast(msg, null)
   }
 

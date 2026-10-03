@@ -76,6 +76,11 @@ describe('buy', () => {
     expect(buy(fresh(), 9, 'marlboro', 5)).toEqual({ next: null, toast: null })
     expect(buy(fresh(), 0, 'nope', 5)).toEqual({ next: null, toast: null })
   })
+
+  it('sells no forage: the berries are the bush’s to give', () => {
+    expect(buy(fresh(), 0, 'berries', 5)).toEqual({ next: null, toast: null })
+    expect(settle(fresh(), 'berries', 5)).toEqual({ next: null, toast: null })
+  })
 })
 
 describe('settle', () => {

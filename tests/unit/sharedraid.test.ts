@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
-import { createValley, reduce, toWire } from '../../src/sharedraid.ts'
+import { dayKey, nextMidnight } from '../../src/daily.ts'
+import { createValley, dailyFor, reduce, toWire } from '../../src/sharedraid.ts'
 import { freshStock } from '../../src/store.ts'
-import type { RaidMessage } from '../../src/protocol.ts'
+import type { DailyMessage, RaidMessage } from '../../src/protocol.ts'
 import type { Valley, ValleyAction } from '../../src/sharedraid.ts'
 
 const PICKUPS = 70
@@ -456,6 +457,94 @@ describe('rules 6 and 7: extracting, and the valley resetting', () => {
   })
 })
 
+describe('rule 9: one berry a day per name', () => {
+  const collect = (id: string): ValleyAction => ({ type: 'collect', id })
+  const daily = (r: ReturnType<typeof reduce>) => r.daily as DailyMessage
+
+  it('gives the first ask of the day a berry, to the asker alone', () => {
+    const v = valleyWith(join('a'))
+    const r = v.step(collect('a'))
+    expect(r.broadcast).toEqual([])
+    expect(r.alarm).toBeUndefined()
+    expect(daily(r)).toEqual({
+      type: 'daily',
+      picked: true,
+      daily: { collected: true, resetsAt: nextMidnight(v.now) },
+    })
+    expect(v.valley.dailies).toEqual({ A: dayKey(v.now) })
+  })
+
+  it('refuses the second ask of the day without touching the valley', () => {
+    const v = valleyWith(join('a'), collect('a'))
+    const before = v.valley
+    v.tick(60_000)
+    const r = v.step(collect('a'))
+    expect(r.valley).toBe(before)
+    expect(daily(r)).toEqual({
+      type: 'daily',
+      picked: false,
+      daily: { collected: true, resetsAt: nextMidnight(v.now) },
+    })
+  })
+
+  it('shares the berry between raiders under one name, not across names', () => {
+    const v = valleyWith(join('a'), collect('a'))
+    // The same name on another socket.
+    v.step({ ...join('a2'), name: 'A' } as ValleyAction)
+    expect(daily(v.step(collect('a2'))).picked).toBe(false)
+    v.step(join('b'))
+    expect(daily(v.step(collect('b'))).picked).toBe(true)
+    expect(Object.keys(v.valley.dailies).sort()).toEqual(['A', 'B'])
+  })
+
+  it('has the berry back at midnight Central, and forgets yesterday', () => {
+    const v = valleyWith(join('a'), collect('a'), join('b'))
+    expect(dailyFor(v.valley, 'A', v.now).collected).toBe(true)
+    v.tick(nextMidnight(v.now) - v.now - 1)
+    expect(dailyFor(v.valley, 'A', v.now).collected).toBe(true)
+    v.tick(1)
+    expect(dailyFor(v.valley, 'A', v.now)).toEqual({
+      collected: false,
+      resetsAt: nextMidnight(v.now),
+    })
+    // B's pick on the new day drops A's record from the old one.
+    expect(daily(v.step(collect('b'))).picked).toBe(true)
+    expect(v.valley.dailies).toEqual({ B: dayKey(v.now) })
+    expect(daily(v.step(collect('a'))).picked).toBe(true)
+  })
+
+  it('keeps the record through a reset and a fresh lobby', () => {
+    const v = valleyWith(join('a'), collect('a'))
+    v.step({ type: 'reset' })
+    expect(v.valley.raid).toBeNull()
+    expect(v.valley.dailies).toEqual({ A: dayKey(v.now) })
+    // Everyone leaves; the next arrival opens a new lobby.
+    v.step({ type: 'leave', id: 'a' })
+    v.step(join('a'))
+    expect(v.valley.raid?.epoch).toBe(2)
+    expect(daily(v.step(collect('a'))).picked).toBe(false)
+  })
+
+  it('answers a stranger with a nack', () => {
+    const v = valleyWith(join('a'))
+    const r = v.step(collect('nobody'))
+    expect(r.reply).toEqual({
+      type: 'nack',
+      re: 'collect',
+      reason: 'not-in-valley',
+    })
+    expect(r.valley).toBe(v.valley)
+  })
+
+  it('starts every valley with an empty record', () => {
+    expect(createValley().dailies).toEqual({})
+    expect(dailyFor(createValley(), 'A', T0)).toEqual({
+      collected: false,
+      resetsAt: nextMidnight(T0),
+    })
+  })
+})
+
 describe('dev frames', () => {
   it('hurries the lobby clock and re-arms the alarm', () => {
     const v = valleyWith(join('a'))
@@ -499,6 +588,8 @@ describe('the wire', () => {
     ])
     expect(wire && 'pickups' in wire).toBe(false)
     expect(wire && 'stations' in wire).toBe(false)
+    // The bush's record is per name and goes out in the daily frames.
+    expect(wire && 'dailies' in wire).toBe(false)
     expect(toWire(createValley())).toBeNull()
   })
 

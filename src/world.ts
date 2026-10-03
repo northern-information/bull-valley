@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import {
   boundaryMaterial,
+  buildBerryBush,
   buildLandmarkBeacon,
   buildPickup,
   buildShelfDisplay,
@@ -42,6 +43,7 @@ import {
   storeBase,
   storeCenter,
   storeWalls,
+  toWorld,
   worldFacings,
 } from './store.ts'
 import { Walls } from './walls.ts'
@@ -118,6 +120,9 @@ export interface World {
   // Null only when the survey has no fuel point inside the frame.
   spawnStation: FuelPoint | null
   spawn: Spawn
+  // The berry bush on the spawn station's lot (one berry a day per name,
+  // sharedraid.ts rule 9); null without a spawn station.
+  bush: XZ | null
   // What to stand on anywhere: the terrain, or the road or lot over it.
   ground: Ground
   // What stops you: the store walls and fixtures.
@@ -1088,6 +1093,24 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     ? { x: spawnStation.x + 5, z: spawnStation.z + 5, yaw: 0 }
     : { x: 0, z: 0, yaw: 0 }
 
+  // The berry bush, on the spawn station's lot by the store's corner
+  // (CONFIG.daily.bush, station-local). It stands on the lot deck and
+  // blocks like a post; the day's berry is the valley's to give.
+  let bush: XZ | null = null
+  if (spawnStation) {
+    const [bx, , bz] = toWorld(spawnStation, [
+      CONFIG.daily.bush.x,
+      0,
+      CONFIG.daily.bush.z,
+    ])
+    const mesh = buildBerryBush()
+    mesh.position.set(bx, ground.at(bx, bz), bz)
+    mesh.rotation.y = -spawnStation.yaw
+    group.add(mesh)
+    walls.addWall({ x: bx, z: bz }, { x: bx, z: bz }, CONFIG.daily.bushRadius)
+    bush = { x: bx, z: bz }
+  }
+
   return {
     group,
     pickups: pickupSet.pickups,
@@ -1096,6 +1119,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     landmarks: landmarks.points,
     spawnStation,
     spawn,
+    bush,
     ground,
     walls,
     facings: fuel.points.map(worldFacings),

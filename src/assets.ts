@@ -828,6 +828,97 @@ export function buildSack(seed = 0x5ac4): THREE.Group {
   return group
 }
 
+// --- Berry bush ----------------------------------------------------------
+
+// The berries' skin: near black, with a little light in them so they read
+// through the fog at the lot's edge.
+function berryMaterial(): THREE.MeshLambertMaterial {
+  return lambert({
+    color: '#22101f',
+    emissive: new THREE.Color('#b0407a'),
+    emissiveIntensity: 0.45,
+  })
+}
+
+// The bush by the spawn Citgo that gives one berry a day (sharedraid.ts
+// rule 9): a low mound of dark lumps on a stub of trunk, berries set on
+// the lumps' skins. Origin at ground level under the middle; about 1.4 m
+// across and 1 m high.
+export function buildBerryBush(seed = 0xbe221): THREE.Group {
+  const rng = mulberry32(seed)
+  const group = new THREE.Group()
+  group.name = 'berry-bush'
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.08, 0.3, 5),
+    lambert({ color: '#33271a' })
+  )
+  trunk.position.y = 0.15
+  group.add(trunk)
+  // A shade over the tree canopies, so it reads as a bush and not a rock.
+  const leaf = lambert({ color: '#2a4529' })
+  const lumps: { at: THREE.Vector3; r: number }[] = []
+  const count = 7
+  for (let i = 0; i < count; i++) {
+    const r = i === 0 ? 0.5 : range(rng, 0.3, 0.42)
+    const a = (i / count) * Math.PI * 2 + range(rng, -0.3, 0.3)
+    const d = i === 0 ? 0 : range(rng, 0.3, 0.42)
+    const at = new THREE.Vector3(
+      Math.cos(a) * d,
+      r * 0.9 + range(rng, 0.05, 0.3),
+      Math.sin(a) * d
+    )
+    const lump = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 0), leaf)
+    lump.position.copy(at)
+    lump.rotation.set(range(rng, 0, Math.PI), range(rng, 0, Math.PI), 0)
+    group.add(lump)
+    lumps.push({ at, r })
+  }
+  const berry = berryMaterial()
+  const berryGeo = new THREE.SphereGeometry(0.045, 5, 4)
+  for (let i = 0; i < 16; i++) {
+    const lump = lumps[Math.floor(range(rng, 0, lumps.length)) % lumps.length]
+    // On the skin, above the equator so none sit in the dirt.
+    const yaw = range(rng, 0, Math.PI * 2)
+    const pitch = range(rng, 0.1, 1.2)
+    const mesh = new THREE.Mesh(berryGeo, berry)
+    mesh.position.set(
+      lump.at.x + Math.cos(yaw) * Math.cos(pitch) * lump.r,
+      lump.at.y + Math.sin(pitch) * lump.r,
+      lump.at.z + Math.sin(yaw) * Math.cos(pitch) * lump.r
+    )
+    group.add(mesh)
+  }
+  return group
+}
+
+// A handful of berries, as the inventory shows them: five in a loose pile.
+// Origin at ground level under the middle.
+export function buildBerries({ glow = true }: PickupOptions = {}): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'berries'
+  const material = berryMaterial()
+  const geo = new THREE.SphereGeometry(0.06, 5, 4)
+  const pile: Vec3[] = [
+    [0, 0.06, 0],
+    [0.1, 0.06, 0.04],
+    [-0.08, 0.06, 0.07],
+    [0.02, 0.06, -0.1],
+    [0.01, 0.16, 0.01],
+  ]
+  for (const [x, y, z] of pile) {
+    const mesh = new THREE.Mesh(geo, material)
+    mesh.position.set(x, y, z)
+    group.add(mesh)
+  }
+  if (glow) {
+    const halo = makeGlowSprite(makeGlowTexture('rgba(176, 64, 122, 0.5)'), 0.8)
+    halo.position.y = 0.1
+    group.add(halo)
+  }
+  setPulseMaterials(group, [material])
+  return group
+}
+
 // --- Baseball bat --------------------------------------------------------
 
 // A 33-inch ash bat, turned on a lathe: knob, thin handle, a long taper,
@@ -1604,6 +1695,7 @@ export function buildPickup(
   if (isCigarette(kind)) return buildCigarettePack(kind, seed, { glow })
   if (kind === 'joints') return buildJoints({ glow })
   if (isDrink(kind)) return buildDrink(kind, { glow })
+  if (kind === 'berries') return buildBerries({ glow })
   let mesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshLambertMaterial>
   if (kind === 'cabbage') {
     const sphere = new THREE.SphereGeometry(0.35, 6, 5)
@@ -1865,6 +1957,8 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     label: `Drink: ${d.label}`,
     build: () => buildDrink(d.id),
   })),
+  { id: 'berries', label: 'Berries', build: () => buildPickup('berries') },
+  { id: 'berry-bush', label: 'Berry bush', build: () => buildBerryBush() },
   { id: 'sack', label: 'Burlap sack', build: () => buildSack() },
   { id: 'guitar', label: 'Guitar: black LTD EX-400', build: sampleGuitar },
   { id: 'bat', label: 'Baseball bat', build: buildBat },
