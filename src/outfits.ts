@@ -24,10 +24,16 @@ export type DecalId =
   | 'guitar-strap'
   | 'as-i-lay-dying'
   | 'plaid'
+  | 'nin'
+  | 'camo'
 
 // Where an outfit prints a decal over the body: across the torso front,
 // across the front of both thighs, or all round both bare arms.
 export type PrintPart = 'torso' | 'thigh' | 'arm'
+
+// Cloth a pattern wraps: every shirt part (the torso, long sleeves, a
+// loose hem) or every pants part (the pelvis, the thighs, the shins).
+export type PatternPart = 'shirt' | 'pants'
 
 // One loft ring: [y, rx, rz, cz] — height, half-width, half-depth and
 // forward shift, in metres.
@@ -96,6 +102,11 @@ export type AddonId =
   | 'hair-spikes-long'
   | 'hair-spikes-short'
   | 'beret'
+  | 'bandana'
+  | 'bandana-knot'
+  | 'bandana-tails'
+  | 'hood-down'
+  | 'kangaroo-pocket'
 
 export type LimbGroup = 'arm' | 'leg'
 
@@ -113,11 +124,14 @@ export interface Outfit {
   onBack?: 'guitar'
   // A prop held in the right hand; figure.ts places it.
   inHand?: 'bat'
-  // A pattern wrapped all round every shirt part: the torso, and the arms
-  // when the sleeves are long. Painted under the prints.
-  pattern?: DecalId
+  // A pattern per cloth, wrapped all round every part of it and painted
+  // under the prints.
+  patterns?: Partial<Record<PatternPart, DecalId>>
   // Widens the legs of the pants (1 = the base body), for baggy jeans.
   baggy?: number
+  // Widens the torso and any long sleeves (1 = the base body) and drops
+  // the hem over the hips, for an oversized tee or hoodie.
+  loose?: number
   // Each part's prints, painted in order (decalart.ts paintPrints).
   prints?: Partial<Record<PrintPart, DecalId[]>>
 }
@@ -130,6 +144,7 @@ export type OutfitId =
   | 'kvistad'
   | 'church'
   | 'hanson'
+  | 'halatek'
   | 'carlsten'
 
 // Dreadlocks hang from a ring round the back and sides of the head, leaving
@@ -424,6 +439,62 @@ export const ADDONS: Record<AddonId, Addon> = {
     offset: [0, 0.27, -0.012],
     rotation: [-0.12, 0, 0.2],
   },
+  // A bandana tied round the head: a band over the forehead and round the
+  // hair cap, just above the brow line, with the hair spilling over its
+  // top. Each ring sits a little proud of the head and the cap.
+  bandana: {
+    joint: 'neck',
+    slot: 'hat',
+    sides: 8,
+    rings: [
+      [0.225, 0.102, 0.118, -0.006],
+      [0.268, 0.1, 0.114, -0.006],
+    ],
+  },
+  // The knot at the back of the band.
+  'bandana-knot': {
+    joint: 'neck',
+    slot: 'hat',
+    box: [0.04, 0.03, 0.03],
+    offset: [0, 0.245, -0.125],
+  },
+  // Two tails hanging from the knot, down the back of the head.
+  'bandana-tails': {
+    joint: 'neck',
+    slot: 'hat',
+    sides: 4,
+    rings: [
+      [0.01, 0.02, 0.006, 0],
+      [-0.1, 0.016, 0.004, 0],
+      [-0.17, 0.006, 0.002, 0],
+    ],
+    offsets: [
+      [0.018, 0.235, -0.118],
+      [-0.018, 0.235, -0.118],
+    ],
+  },
+  // A hoodie's hood, down: bunched at the nape and drooping over the
+  // upper back, behind the torso. In the spine's space, in the shirt's
+  // color, so it is the same cloth as the body.
+  'hood-down': {
+    joint: 'spine',
+    slot: 'shirt',
+    sides: 8,
+    rings: [
+      [0.34, 0.09, 0.03, -0.15],
+      [0.42, 0.14, 0.055, -0.165],
+      [0.49, 0.15, 0.06, -0.15],
+      [0.55, 0.11, 0.05, -0.1],
+      [0.59, 0.06, 0.035, -0.07],
+    ],
+  },
+  // The kangaroo pocket across the belly, just proud of the torso.
+  'kangaroo-pocket': {
+    joint: 'spine',
+    slot: 'shirt',
+    box: [0.24, 0.11, 0.03],
+    offset: [0, 0.1, 0.115],
+  },
   hood: {
     joint: 'neck',
     slot: 'coat',
@@ -559,6 +630,36 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     sleeves: 'short',
     prints: { torso: ['as-i-lay-dying'] },
   },
+  // Blonde dreadlocks under a white bandana, a five o'clock shadow, an
+  // oversized black NIN hoodie with the hood down, baggy camo pants and
+  // black boots.
+  halatek: {
+    label: 'Chris Halatek',
+    colors: {
+      skin: '#eccaae',
+      hair: '#d4b26a',
+      shirt: '#141416',
+      // The camo's ground; the pattern paints the dark green, brown and
+      // black blots.
+      pants: '#5e6a44',
+      boots: '#0a0a0c',
+      hat: '#e8e6e0',
+      stubble: '#c4a67c',
+    },
+    addons: [
+      'dreadlocks',
+      'bandana',
+      'bandana-knot',
+      'bandana-tails',
+      'stubble',
+      'hood-down',
+      'kangaroo-pocket',
+    ],
+    loose: 1.15,
+    baggy: 1.25,
+    patterns: { pants: 'camo' },
+    prints: { torso: ['nin'] },
+  },
   // The Citgo clerk, behind every counter. Not on the select roster.
   carlsten: {
     label: 'David Carlsten',
@@ -573,7 +674,7 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
       hat: '#1c1c20',
     },
     addons: ['long-hair', 'goatee', 'glasses', 'glasses-arms', 'beret'],
-    pattern: 'plaid',
+    patterns: { shirt: 'plaid' },
     baggy: 1.3,
     inHand: 'bat',
   },

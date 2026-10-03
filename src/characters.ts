@@ -18,6 +18,7 @@ export const SELECTABLE: readonly OutfitId[] = [
   'kvistad',
   'church',
   'hanson',
+  'halatek',
 ]
 
 export const DEFAULT_CHARACTER: OutfitId = 'player'

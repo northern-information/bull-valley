@@ -102,7 +102,7 @@ test('the chosen character is the body you raid in, and is remembered', async ({
   )
   // ← wraps from the first character to the last.
   for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowLeft')
-  await expect(page.locator('.bv-select-name')).toHaveText('Justin Hanson')
+  await expect(page.locator('.bv-select-name')).toHaveText('Chris Halatek')
 })
 
 test('a name is required at the character select, and remembered', async ({

@@ -10,6 +10,7 @@
 //   suicide-silence  the band tee print, on the chest. Torso, 123×150.
 //   pantera          the band logo, on the chest. Torso, 123×150.
 //   as-i-lay-dying   the band name, on the chest. Torso, 123×150.
+//   nin              the band's box logo, on the chest. Torso, 123×150.
 //   guitar-strap     a strap from the right shoulder to the left hip.
 //                    Torso, 123×150.
 //   torn-tank        a black tank top's cut and its tears: the neck scoop,
@@ -20,10 +21,12 @@
 //                    crossbones. Arm, 64×64.
 //   chest-tattoo     the same work across the chest. Torso, 123×150; lay
 //                    it over an open shirt (see paintPrints).
-// A pattern (outfits.ts pattern) is opaque and wraps once round every shirt
-// part, torso and long sleeves alike:
+// A pattern (outfits.ts patterns) is opaque and wraps once round every part
+// of its cloth, the shirt (torso and long sleeves alike) or the pants:
 //   plaid            white and grey flannel checks over the shirt color.
 //                    96×48: six checks round, three up.
+//   camo             woodland blots over the pants color. 96×48, tiling
+//                    round the seam.
 // A face (a box add-on's decal) is opaque and covers the box's front face:
 //   russ             the belt buckle face: gold letters on a dark plate.
 
@@ -304,6 +307,31 @@ function asILayDying(): CanvasArt {
   return art
 }
 
+// The band's box logo on the chest, in pale grey on the black hoodie: NIN
+// in a thin frame, each letter in its own third, the last N mirrored.
+function nin(): CanvasArt {
+  const art = canvas(TORSO)
+  const { ctx, w } = art
+  const grey = '#d6d6d4'
+  const boxW = 78
+  const boxH = 36
+  const left = (w - boxW) / 2
+  const top = 28
+  const mid = top + boxH / 2
+  ctx.strokeStyle = grey
+  ctx.lineWidth = 3
+  ctx.strokeRect(left + 1.5, top + 1.5, boxW - 3, boxH - 3)
+  const cell = boxW / 3
+  text(ctx, 'N', left + cell * 0.5, mid, cell - 4, 32, CONDENSED, grey)
+  text(ctx, 'I', left + cell * 1.5, mid, cell - 4, 32, CONDENSED, grey)
+  ctx.save()
+  ctx.translate(left + cell * 2.5, 0)
+  ctx.scale(-1, 1)
+  text(ctx, 'N', 0, mid, cell - 4, 32, CONDENSED, grey)
+  ctx.restore()
+  return art
+}
+
 function pantera(): CanvasArt {
   const art = canvas(TORSO)
   const { ctx, w } = art
@@ -352,6 +380,27 @@ function plaid(colors: Outfit['colors']): CanvasArt {
   return art
 }
 
+// Woodland camouflage: dark green, brown and black blots over the pants
+// color. Each blot is drawn again a canvas-width to either side, so the
+// pattern meets itself at the seam where the wrap closes.
+function camo(colors: Outfit['colors']): CanvasArt {
+  const art = canvas(PATTERN, colors.pants)
+  const { ctx, w, h } = art
+  const rng = mulberry32(0xca30)
+  const inks = ['#3a4a2c', '#5c4a30', '#1c2018']
+  for (const ink of inks) {
+    ctx.fillStyle = ink
+    for (let i = 0; i < 9; i++) {
+      const x = rng() * w
+      const y = rng() * h
+      const rx = 7 + rng() * 9
+      const ry = 4 + rng() * 6
+      for (const dx of [-w, 0, w]) rip(ctx, rng, x + dx, y, rx, ry)
+    }
+  }
+  return art
+}
+
 export const DECAL_PAINTERS: Record<DecalId, DecalPainter> = {
   'suicide-silence': suicideSilence,
   russ,
@@ -363,6 +412,8 @@ export const DECAL_PAINTERS: Record<DecalId, DecalPainter> = {
   'guitar-strap': guitarStrap,
   'as-i-lay-dying': asILayDying,
   plaid,
+  nin,
+  camo,
 }
 
 // Tattoos ink only onto skin a layer below already painted.
