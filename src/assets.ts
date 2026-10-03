@@ -305,6 +305,26 @@ const STORE_FINISH: Record<StoreFinish, () => THREE.Material> = {
     ),
 }
 
+// A photograph under public/ as a texture, in sRGB like the file. The
+// loader hands the texture back at once and fills it in when the file
+// arrives, so the part is built without waiting.
+function photoTexture(url: string): THREE.Texture {
+  const texture = new THREE.TextureLoader().load(url)
+  texture.colorSpace = THREE.SRGBColorSpace
+  return texture
+}
+
+// A sign's art as a texture: painted by adart.ts, or loaded from a file.
+function signTexture(sign: StoreSign): THREE.Texture {
+  if (typeof sign.art === 'string') return artTexture(paintAd(sign.art))
+  return photoTexture(sign.art.photo)
+}
+
+// A sign's short name for the Akashic: 'sign-smokes' is `ad-smokes`.
+function signId(sign: StoreSign): string {
+  return sign.name.replace(/^sign-/, '')
+}
+
 // One wall sign as a thin box, its art on the +Z face and a dark frame on
 // the rest, in asset space: centred on the origin, facing +Z. The art
 // glows through its own emissiveMap, so it reads under the store's dim
@@ -312,7 +332,7 @@ const STORE_FINISH: Record<StoreFinish, () => THREE.Material> = {
 function adSignPart(sign: StoreSign): Part {
   const [w, h] = sign.size
   const geometry = new THREE.BoxGeometry(w, h, STORE_LAYOUT.signDepth)
-  const texture = artTexture(paintAd(sign.art))
+  const texture = signTexture(sign)
   const face = lambert({
     map: texture,
     emissive: new THREE.Color('#ffffff'),
@@ -2353,8 +2373,8 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     build: sampleStoreInterior,
   },
   ...STORE_LAYOUT.signs.map((sign) => ({
-    id: `ad-${sign.art}`,
-    label: `Citgo sign: ${sign.art}`,
+    id: `ad-${signId(sign)}`,
+    label: `Citgo sign: ${signId(sign)}`,
     build: () =>
       assembleParts([{ ...adSignPart(sign), position: [0, sign.size[1], 0] }]),
   })),
