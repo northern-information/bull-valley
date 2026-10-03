@@ -51,12 +51,18 @@ export interface WorldFacing {
 // The advertisements on the walls; adart.ts paints each by id.
 export type AdId = 'smokes' | 'thanks' | 'beer' | 'energy'
 
+// A photograph pinned to a wall: the path of an image under public/.
+export interface Photo {
+  photo: string
+}
+
 // One sign on a wall: a flat panel `size` wide and tall, centred at
 // `center` just off the wall face, turned by `yaw` so its art (asset +Z)
-// faces into the room. Decoration only: it neither blocks nor sells.
+// faces into the room. The art is an advertisement adart.ts paints or a
+// photograph. Decoration only: it neither blocks nor sells.
 export interface StoreSign {
   name: string
-  art: AdId
+  art: AdId | Photo
   center: Vec3
   size: [number, number]
   yaw: number
@@ -292,13 +298,23 @@ function buildBoxes(): StoreBox[] {
   return boxes
 }
 
-// The advertisements, each hung on an inside wall face. The front wall's
-// inside face is at FRONT - WALL and the side walls' at ±(HALF_WIDTH -
-// WALL); a sign's centre sits half its depth inside that.
+// The signs, each hung on an inside wall face. The front wall's inside
+// face is at FRONT - WALL, the back wall's at BACK + WALL, and the side
+// walls' at ±(HALF_WIDTH - WALL); a sign's centre sits half its depth
+// inside that.
 function buildSigns(): StoreSign[] {
   const frontX = FRONT - WALL - SIGN_DEPTH / 2
+  const backX = BACK + WALL + SIGN_DEPTH / 2
   const sideZ = HALF_WIDTH - WALL - SIGN_DEPTH / 2
   return [
+    // The photo on the back wall, over the drinks.
+    {
+      name: 'sign-mind',
+      art: { photo: '/textures/mind.jpg' },
+      center: [backX, 2.35, 0],
+      size: [1.25, 1.12],
+      yaw: Math.PI / 2,
+    },
     // The cigarette price board behind the counter, over the clerk's head.
     {
       name: 'sign-smokes',

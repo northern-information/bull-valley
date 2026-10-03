@@ -89,9 +89,15 @@ describe('STORE_LAYOUT', () => {
       // hangs on, and it hangs just off that wall.
       const nx = Math.sin(sign.yaw)
       const nz = Math.cos(sign.yaw)
-      if (Math.abs(nx) > 0.5) {
-        expect(nx).toBeLessThan(0)
+      if (nx > 0.5) {
+        // On the back wall, facing the door.
+        expect(x - half).toBeGreaterThan(STORE_LAYOUT.back)
+        expect(x - half).toBeLessThan(STORE_LAYOUT.back + 0.3)
+        expect(Math.abs(z) + w / 2).toBeLessThan(STORE_LAYOUT.halfWidth)
+      } else if (nx < -0.5) {
+        // On the front wall, facing the room.
         expect(x + half).toBeLessThan(STORE_LAYOUT.front)
+        expect(x + half).toBeGreaterThan(STORE_LAYOUT.front - 0.3)
         expect(Math.abs(z) + w / 2).toBeLessThan(STORE_LAYOUT.halfWidth)
       } else {
         expect(Math.sign(nz)).toBe(-Math.sign(z))
