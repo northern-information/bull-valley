@@ -249,6 +249,13 @@ export const FUEL_LAYOUT = {
   // stops at the road edge); halfWidth spans local Z.
   lot: { back: STORE_LAYOUT.front, halfWidth: 11 },
   lotColor: '#262a30',
+  // Trash cans, station-local: one at each end of the pump island past the
+  // canopy poles, one beside the store door on the lot.
+  trashCans: [
+    [0, 0, 3.3],
+    [0, 0, -3.3],
+    [STORE_LAYOUT.front + 0.5, 0, -1.6],
+  ] as readonly Vec3[],
 }
 
 // The store's colors, by finish. The walls and floor carry a little
@@ -394,26 +401,24 @@ const PUMP = {
 }
 
 // The cabinet face, 90×130 for the 0.9 × 1.3 m side: orange band and
-// wordmark up top, an amber readout, three grade buttons, the lower door.
+// wordmark up top, a dark readout showing nothing, three big grade
+// buttons, the lower door.
 function makePumpFaceTexture(): THREE.CanvasTexture {
   const art = canvas([90, 130], '#d9d5cb')
   const { ctx, w } = art
   ctx.fillStyle = '#f26522'
   ctx.fillRect(0, 0, w, 20)
   text(ctx, 'CITGO', w / 2, 10, w - 10, 13, SANS, '#f4f1ea')
-  // The readout: sale, gallons, price a gallon, in seven-segment amber.
+  // The readout, dark glass, off.
   ctx.fillStyle = '#12171b'
-  ctx.fillRect(8, 28, w - 16, 44)
-  text(ctx, '$ 23.86', w / 2, 38, w - 24, 11, SANS, '#f5b342')
-  text(ctx, '6.845 GAL', w / 2, 52, w - 24, 9, SANS, '#f5b342')
-  text(ctx, '3.489', w / 2, 65, w - 24, 9, SANS, '#f5b342')
+  ctx.fillRect(8, 28, w - 16, 22)
   // Grade buttons.
   const grades = ['87', '89', '93']
   grades.forEach((grade, i) => {
-    const x = 12 + i * 24
+    const x = 7 + i * 26
     ctx.fillStyle = '#1f3a93'
-    ctx.fillRect(x, 80, 18, 14)
-    text(ctx, grade, x + 9, 87, 16, 8, SANS, '#f4f1ea')
+    ctx.fillRect(x, 58, 24, 36)
+    text(ctx, grade, x + 12, 76, 22, 16, SANS, '#f4f1ea')
   })
   // The lower door, a shade darker, with its lock.
   ctx.fillStyle = '#9d9a91'
@@ -504,8 +509,32 @@ export function pumpParts(): Part[] {
   return parts
 }
 
-// The canopy's dimensions, shared by the slab and the tubes under it.
-const CANOPY = { width: 9, thickness: 0.45, depth: 6.5, height: 4.6 }
+// --- Trash can -----------------------------------------------------------
+
+// The green drum with a black lid every forecourt has. Origin at ground
+// level under the middle.
+export function trashCanParts(): Part[] {
+  const body = new THREE.CylinderGeometry(0.26, 0.24, 0.8, 8)
+  body.translate(0, 0.4, 0)
+  const lid = new THREE.CylinderGeometry(0.29, 0.29, 0.1, 8)
+  lid.translate(0, 0.85, 0)
+  return [
+    {
+      name: 'trash-body',
+      geometry: body,
+      material: lambert({ color: '#2f4a3a' }),
+    },
+    {
+      name: 'trash-lid',
+      geometry: lid,
+      material: lambert({ color: '#1c1e22' }),
+    },
+  ]
+}
+
+// The canopy's dimensions, shared by the slab, the tubes under it, and the
+// light world.ts hangs there.
+export const CANOPY = { width: 9, thickness: 0.45, depth: 6.5, height: 4.6 }
 
 export function fuelStationParts() {
   const canopy = new THREE.BoxGeometry(
@@ -545,6 +574,8 @@ export function fuelStationParts() {
     },
     // Placed at the pump's spot on the island, with the station's yaw.
     pump: pumpParts(),
+    // Placed at each FUEL_LAYOUT.trashCans spot.
+    trashCan: trashCanParts(),
     signPole: {
       name: 'sign-pole',
       geometry: signPole,
@@ -603,6 +634,9 @@ function sampleFuelStation(): THREE.Group {
   for (const off of [L.pumpOffset, -L.pumpOffset]) {
     for (const part of p.pump) parts.push({ ...part, position: [0, 0, off] })
     parts.push({ ...p.canopyLight, position: [0, 0, off] })
+  }
+  for (const at of L.trashCans) {
+    for (const part of p.trashCan) parts.push({ ...part, position: at })
   }
   const group = assembleParts(parts)
   const sprite = makeGlowSprite(p.glow, L.glowScale)
@@ -1970,6 +2004,28 @@ export function roadMaterial(): THREE.MeshBasicMaterial {
   )
 }
 
+// The station lots: like the roads, but lit, so the canopy light falls on
+// the forecourt and the pumps throw shadows across it. The night light
+// barely reaches asphalt this dark, so the emissive carries the lot's own
+// color and keeps it about as dark as the unlit road it meets.
+export function lotMaterial(): THREE.MeshLambertMaterial {
+  return lambert({
+    vertexColors: true,
+    emissive: new THREE.Color(FUEL_LAYOUT.lotColor),
+    emissiveIntensity: 0.8,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    side: THREE.DoubleSide,
+  })
+}
+
+// Every mesh under `root` throws a shadow under the station lights.
+export function castShadows(root: THREE.Object3D): void {
+  root.traverse((o) => {
+    if (isMesh(o)) o.castShadow = true
+  })
+}
+
 export function waterMaterial(): THREE.MeshLambertMaterial {
   return lambert({
     vertexColors: true,
@@ -2029,6 +2085,11 @@ export const WORLD_ASSETS: AkashicAsset[] = [
       assembleParts([{ ...adSignPart(sign), position: [0, sign.size[1], 0] }]),
   })),
   { id: 'pump', label: 'Gas pump', build: () => assembleParts(pumpParts()) },
+  {
+    id: 'trash-can',
+    label: 'Trash can',
+    build: () => assembleParts(trashCanParts()),
+  },
   { id: 'tree', label: 'Tree', build: sampleTree },
   { id: 'pole', label: 'Utility pole', build: samplePole },
   { id: 'reeds', label: 'Reeds (clump of 12)', build: sampleReeds },
