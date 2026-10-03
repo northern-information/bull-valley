@@ -2,9 +2,9 @@
 // station-local space (the pump island at the origin, local +X toward the
 // road, local Z along it, y up from the lot), plus what it takes to shop
 // there: shelf stock, cash, and which shelf facing the player is looking
-// at. assets.ts builds the shell and shelves from STORE_LAYOUT, world.ts
-// registers its floor and walls, so what is drawn, what blocks, and what
-// E buys can never drift apart. No three.js, no DOM.
+// at. assets.ts builds the shell, shelves, lights and signs from
+// STORE_LAYOUT, world.ts registers its floor and walls, so what is drawn,
+// what blocks, and what E buys can never drift apart. No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
 import { ITEMS } from './items.ts'
@@ -19,8 +19,10 @@ export interface StoreOrigin extends XZ {
   y: number
 }
 
-// What a box is drawn in; assets.ts maps each to a material.
-export type StoreFinish = 'floor' | 'wall' | 'roof' | 'shelf' | 'counter'
+// What a box is drawn in; assets.ts maps each to a material. `light` is a
+// lit fluorescent panel, `glass` a storefront window.
+export type StoreFinish =
+  'floor' | 'wall' | 'roof' | 'shelf' | 'counter' | 'light' | 'glass'
 
 // One box of the building or its fixtures, centred at `center` with full
 // `size`, both station-local. `blocks` boxes are walls to the player.
@@ -46,6 +48,20 @@ export interface WorldFacing {
   center: Vec3
 }
 
+// The advertisements on the walls; adart.ts paints each by id.
+export type AdId = 'smokes' | 'thanks' | 'beer' | 'energy'
+
+// One sign on a wall: a flat panel `size` wide and tall, centred at
+// `center` just off the wall face, turned by `yaw` so its art (asset +Z)
+// faces into the room. Decoration only: it neither blocks nor sells.
+export interface StoreSign {
+  name: string
+  art: AdId
+  center: Vec3
+  size: [number, number]
+  yaw: number
+}
+
 // --- The layout ----------------------------------------------------------
 
 // The building: back to front along local X, side to side along local Z.
@@ -59,6 +75,11 @@ const WALL = 0.2
 const FLOOR = 0.1
 const DOOR_WIDTH = 1.8
 const DOOR_HEIGHT = 2.3
+// The storefront windows either side of the door: glass from sill to
+// header, a jamb's width from the door and a post's width from the
+// corner, with one mullion down the middle.
+const WINDOW = { sill: 0.9, head: 2.6, jamb: 0.3, post: 0.4, mullion: 0.08 }
+const GLASS = 0.04
 // The building stands level on a slope: a foundation this deep under the
 // floor fills whatever gap the terrain leaves, and the floor clears the
 // highest terrain under it by FLOOR_CLEARANCE.
@@ -84,6 +105,15 @@ const CLERK = {
 }
 // The low shelf by the -Z wall: sacks.
 const SACK_SHELF = { x0: -11.0, x1: -8.6, height: 0.3, depth: 0.6 }
+// The fluorescent troffers on the ceiling: two rows across the room, two
+// panels each, long side along Z like the aisle, hung flush under the roof.
+const LIGHT = {
+  rows: [-11.75, -8.25],
+  along: [-2.75, 2.75],
+  size: [0.3, 0.06, 2.4] as Vec3,
+}
+// The signs stand this far off their wall, so they never z-fight with it.
+const SIGN_DEPTH = 0.04
 
 const BOARD_LENGTH = HALF_WIDTH * 2 - WALL * 2
 
@@ -103,10 +133,60 @@ function buildBoxes(): StoreBox[] {
   const wallY = FLOOR + (HEIGHT - FLOOR) / 2
   const wallH = HEIGHT - FLOOR
   // The front wall either side of the door, and the lintel over it.
-  const sideLen = HALF_WIDTH - DOOR_WIDTH / 2
-  const sideZ = DOOR_WIDTH / 2 + sideLen / 2
   const frontX = FRONT - WALL / 2
   const lintelH = HEIGHT - DOOR_HEIGHT
+  // One side of the storefront, from the door jamb to the corner post:
+  // the jamb, the post, and between them a sill, a header, the glass, and
+  // a mullion. The jamb, post and glass block, and together cover the
+  // side's whole footprint; the rest stand over the glass.
+  const frontWall = (name: string, dir: 1 | -1): StoreBox[] => {
+    const inner = DOOR_WIDTH / 2
+    const outer = HALF_WIDTH
+    const glass0 = inner + WINDOW.jamb
+    const glass1 = outer - WINDOW.post
+    const glassLen = glass1 - glass0
+    const glassZ = dir * ((glass0 + glass1) / 2)
+    const glassH = WINDOW.head - WINDOW.sill
+    const sillH = WINDOW.sill - FLOOR
+    const headH = HEIGHT - WINDOW.head
+    const vertical = (
+      part: string,
+      z: number,
+      len: number,
+      blocks: boolean
+    ): StoreBox =>
+      box(
+        `wall-front-${name}-${part}`,
+        [frontX, wallY, z],
+        [WALL, wallH, len],
+        'wall',
+        blocks
+      )
+    return [
+      vertical('jamb', dir * (inner + WINDOW.jamb / 2), WINDOW.jamb, true),
+      vertical('post', dir * (outer - WINDOW.post / 2), WINDOW.post, true),
+      vertical('mullion', glassZ, WINDOW.mullion, false),
+      box(
+        `wall-front-${name}-sill`,
+        [frontX, FLOOR + sillH / 2, glassZ],
+        [WALL, sillH, glassLen],
+        'wall'
+      ),
+      box(
+        `wall-front-${name}-header`,
+        [frontX, HEIGHT - headH / 2, glassZ],
+        [WALL, headH, glassLen],
+        'wall'
+      ),
+      box(
+        `window-${name}`,
+        [frontX, WINDOW.sill + glassH / 2, glassZ],
+        [GLASS, glassH, glassLen],
+        'glass',
+        true
+      ),
+    ]
+  }
   const boxes = [
     box(
       'foundation',
@@ -137,20 +217,8 @@ function buildBoxes(): StoreBox[] {
       'wall',
       true
     ),
-    box(
-      'wall-front-left',
-      [frontX, wallY, -sideZ],
-      [WALL, wallH, sideLen],
-      'wall',
-      true
-    ),
-    box(
-      'wall-front-right',
-      [frontX, wallY, sideZ],
-      [WALL, wallH, sideLen],
-      'wall',
-      true
-    ),
+    ...frontWall('left', -1),
+    ...frontWall('right', 1),
     box(
       'lintel',
       [frontX, HEIGHT - lintelH / 2, 0],
@@ -158,13 +226,6 @@ function buildBoxes(): StoreBox[] {
       'wall'
     ),
     // The shelving unit's footprint blocks; the boards are drawn on it.
-    box(
-      'shelf-back',
-      [SHELF_X - SHELF_DEPTH / 2 + 0.02, wallY, 0],
-      [0.04, wallH, BOARD_LENGTH],
-      'shelf',
-      false
-    ),
     box(
       'shelf-unit',
       [SHELF_X, FLOOR + 0.02, 0],
@@ -201,7 +262,61 @@ function buildBoxes(): StoreBox[] {
       )
     )
   })
+  LIGHT.rows.forEach((x, r) => {
+    LIGHT.along.forEach((z, a) => {
+      boxes.push(
+        box(
+          `light-${r}-${a}`,
+          [x, HEIGHT - LIGHT.size[1] / 2, z],
+          LIGHT.size,
+          'light'
+        )
+      )
+    })
+  })
   return boxes
+}
+
+// The advertisements, each hung on an inside wall face. The front wall's
+// inside face is at FRONT - WALL and the side walls' at ±(HALF_WIDTH -
+// WALL); a sign's centre sits half its depth inside that.
+function buildSigns(): StoreSign[] {
+  const frontX = FRONT - WALL - SIGN_DEPTH / 2
+  const sideZ = HALF_WIDTH - WALL - SIGN_DEPTH / 2
+  return [
+    // The cigarette price board behind the counter, over the clerk's head.
+    {
+      name: 'sign-smokes',
+      art: 'smokes',
+      center: [frontX, 2.45, (COUNTER.z0 + COUNTER.z1) / 2],
+      size: [1.4, 1.0],
+      yaw: -Math.PI / 2,
+    },
+    // Over the door on the way out.
+    {
+      name: 'sign-thanks',
+      art: 'thanks',
+      center: [frontX, 2.85, 0],
+      size: [1.2, 0.5],
+      yaw: -Math.PI / 2,
+    },
+    // Over the sack shelf on the -Z wall.
+    {
+      name: 'sign-beer',
+      art: 'beer',
+      center: [(SACK_SHELF.x0 + SACK_SHELF.x1) / 2, 2.0, -sideZ],
+      size: [1.6, 1.0],
+      yaw: 0,
+    },
+    // On the +Z wall, across from it.
+    {
+      name: 'sign-energy',
+      art: 'energy',
+      center: [-10.5, 2.0, sideZ],
+      size: [1.6, 1.0],
+      yaw: Math.PI,
+    },
+  ]
 }
 
 // Units of one kind sit this far apart along their run.
@@ -279,6 +394,8 @@ export const STORE_LAYOUT = {
   doorWidth: DOOR_WIDTH,
   boxes: buildBoxes(),
   facings: buildFacings(),
+  signs: buildSigns(),
+  signDepth: SIGN_DEPTH,
   clerk: CLERK,
 } as const
 

@@ -5,7 +5,7 @@
 // this class just consumes a walker.
 
 import * as THREE from 'three'
-import { buildTruckBody } from './assets.ts'
+import { buildTruckBody, castShadows } from './assets.ts'
 import { CONFIG } from './config.ts'
 import { applyPose, attachCigarette, buildFigure } from './figure.ts'
 import { samplePose } from './poses.ts'
@@ -110,6 +110,7 @@ export class Truck {
     this.groundAt = groundAt
     const model = buildTruck()
     this.group = model.group
+    castShadows(this.group)
     scene.add(this.group)
     this.walker = null
     this.speed = CONFIG.truck.speed

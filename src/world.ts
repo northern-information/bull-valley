@@ -4,10 +4,13 @@ import {
   buildLandmarkBeacon,
   buildPickup,
   buildShelfDisplay,
+  CANOPY,
+  castShadows,
   fenceMaterial,
   FUEL_LAYOUT,
   fuelStationParts,
   gravestonePart,
+  lotMaterial,
   makeGlowSprite,
   POLE_ARM_DROP,
   poleParts,
@@ -52,6 +55,7 @@ import type {
   Road,
   ShopStock,
   UnitPoint,
+  Vec3,
   XZ,
 } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
@@ -134,6 +138,7 @@ interface RoadStyle {
 
 // A geometry and material pair from assets.ts, ready to instance.
 interface MeshPart {
+  name: string
   geometry: THREE.BufferGeometry
   material: THREE.Material | THREE.Material[]
 }
@@ -256,7 +261,7 @@ function makeRibbonAccumulator(ground: Ground | null) {
         }
       }
     },
-    build(name: string): THREE.Mesh {
+    build(name: string, material: THREE.Material = roadMaterial()): THREE.Mesh {
       const geometry = new THREE.BufferGeometry()
       geometry.setAttribute(
         'position',
@@ -269,7 +274,7 @@ function makeRibbonAccumulator(ground: Ground | null) {
       const normals = new Float32Array(positions.length)
       for (let i = 0; i < normals.length; i += 3) normals[i + 1] = 1
       geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3))
-      const mesh = new THREE.Mesh(geometry, roadMaterial())
+      const mesh = new THREE.Mesh(geometry, material)
       mesh.name = name
       return mesh
     },
@@ -742,12 +747,20 @@ function buildFuelStations(
 
   const parts = fuelStationParts()
   const L = FUEL_LAYOUT
-  const instanced = (part: MeshPart, n: number) =>
-    new THREE.InstancedMesh(part.geometry, part.material, n)
+  const instanced = (part: MeshPart, n: number) => {
+    const mesh = new THREE.InstancedMesh(part.geometry, part.material, n)
+    mesh.name = part.name
+    return mesh
+  }
   const store = parts.store.map((part) => instanced(part, count))
   const canopies = instanced(parts.canopy, count)
   const canopyPoles = instanced(parts.canopyPole, count * 2)
-  const pumps = instanced(parts.pump, count * 2)
+  const pumps = parts.pump.map((part) => instanced(part, count * 2))
+  const canopyLights = instanced(parts.canopyLight, count * 2)
+  const cansPer = L.trashCans.length
+  const trashCans = parts.trashCan.map((part) =>
+    instanced(part, count * cansPer)
+  )
   const signPoles = instanced(parts.signPole, count)
   const signs = instanced(parts.sign, count)
   const lots = makeRibbonAccumulator(ground)
@@ -830,8 +843,19 @@ function buildFuelStations(
       const pumpOff = p === 0 ? L.pumpOffset : -L.pumpOffset
       dummy.position.set(x - sin * pumpOff, y, z + cos * pumpOff)
       dummy.updateMatrix()
-      pumps.setMatrixAt(i * 2 + p, dummy.matrix)
+      for (const mesh of pumps) mesh.setMatrixAt(i * 2 + p, dummy.matrix)
+      canopyLights.setMatrixAt(i * 2 + p, dummy.matrix)
     }
+    // Trash cans, each on its own ground sample.
+    L.trashCans.forEach(([tx, , tz], t) => {
+      const cx = x + cos * tx - sin * tz
+      const cz = z + sin * tx + cos * tz
+      dummy.position.set(cx, ground.at(cx, cz), cz)
+      dummy.updateMatrix()
+      for (const mesh of trashCans) {
+        mesh.setMatrixAt(i * cansPer + t, dummy.matrix)
+      }
+    })
 
     // Tall road sign out front, at the lot's corner.
     const sx = x + cos * L.signDistance - sin * L.signAlong
@@ -851,15 +875,107 @@ function buildFuelStations(
     ...store,
     canopies,
     canopyPoles,
-    pumps,
+    canopyLights,
+    ...pumps,
+    ...trashCans,
     signPoles,
     signs,
   ]) {
     mesh.instanceMatrix.needsUpdate = true
     group.add(mesh)
   }
-  group.add(lots.build('lots'))
+  // Under the station lights (buildShelves) the solid parts throw shadows
+  // and the building, the pumps, the cans and the lot catch them. The
+  // floor, the roof, the glass and the tubes throw none.
+  const noShadow = /floor|foundation|roof|window|light/
+  for (const mesh of [...store, canopyPoles, ...pumps, ...trashCans]) {
+    mesh.castShadow = !noShadow.test(mesh.name)
+    mesh.receiveShadow = true
+  }
+  const lotMesh = lots.build('lots', lotMaterial())
+  lotMesh.receiveShadow = true
+  group.add(lotMesh)
   return { group, points }
+}
+
+// The station lights, in station-local space: one spot under every
+// fluorescent panel, the four in the store and the two under the canopy,
+// all pointing down and all throwing shadows. A panel is an area light,
+// so each spot is wide and firm-edged and the neighbours overlap into an
+// even ceiling glow instead of pools. Like the shelf display they ride to
+// the nearest station, because a spotlight at every Citgo would cost a
+// shadow pass each, every frame. Intensities are candela (Three's lights
+// are physical).
+const STATION_LIGHTS = {
+  store: { color: '#e6eef0', intensity: 32, distance: 10, angle: 1.2 },
+  canopy: { color: '#eef4f0', intensity: 80, distance: 14, angle: 1.05 },
+  // How far below the panel's face the spot sits.
+  drop: 0.08,
+  penumbra: 0.3,
+  shadowMap: 512,
+}
+
+interface StationLights {
+  group: THREE.Group
+  // Off (zero intensity) away from every store. The lights stay in the
+  // scene either way, so the shaders never recompile for a changed count.
+  setOn(on: boolean): void
+}
+
+function buildStationLights(): StationLights {
+  const group = new THREE.Group()
+  group.name = 'station-lights'
+  const spots: THREE.SpotLight[] = []
+  const hang = (
+    at: Vec3,
+    tuning: {
+      color: string
+      intensity: number
+      distance: number
+      angle: number
+    }
+  ) => {
+    const spot = new THREE.SpotLight(
+      tuning.color,
+      tuning.intensity,
+      tuning.distance,
+      tuning.angle,
+      STATION_LIGHTS.penumbra
+    )
+    spot.position.set(...at)
+    spot.target.position.set(at[0], 0, at[2])
+    spot.castShadow = true
+    spot.shadow.mapSize.set(STATION_LIGHTS.shadowMap, STATION_LIGHTS.shadowMap)
+    spot.shadow.camera.near = 0.2
+    spot.shadow.camera.far = tuning.distance
+    spot.shadow.bias = -0.001
+    spot.shadow.normalBias = 0.03
+    spot.userData.intensity = tuning.intensity
+    group.add(spot, spot.target)
+    spots.push(spot)
+  }
+  // One spot under each panel in the store.
+  for (const panel of STORE_LAYOUT.boxes) {
+    if (panel.finish !== 'light') continue
+    const [x, y, z] = panel.center
+    hang(
+      [x, y - panel.size[1] / 2 - STATION_LIGHTS.drop, z],
+      STATION_LIGHTS.store
+    )
+  }
+  // One under each canopy tube, over its pump.
+  const tubeY = CANOPY.height - CANOPY.thickness / 2 - STATION_LIGHTS.drop
+  for (const z of [FUEL_LAYOUT.pumpOffset, -FUEL_LAYOUT.pumpOffset]) {
+    hang([0, tubeY, z], STATION_LIGHTS.canopy)
+  }
+  return {
+    group,
+    setOn(on) {
+      for (const spot of spots) {
+        spot.intensity = on ? (spot.userData.intensity as number) : 0
+      }
+    },
+  }
 }
 
 // One stocked display for every store. Building 15 stores' worth of shelf
@@ -867,16 +983,23 @@ function buildFuelStations(
 // every store but the one you are near, so the one display follows you:
 // it parks at the store nearest the player and hides the units that store
 // has sold. Each kind sells from its last unit back. David Carlsten rides
-// along behind the counter, so every Citgo has its clerk.
+// along behind the counter, so every Citgo has its clerk, and the station
+// lights ride with it.
 function buildShelves(points: readonly FuelPoint[]): ShelfDisplay {
-  const { group, slots } = buildShelfDisplay()
-  group.visible = false
+  const { group: display, slots } = buildShelfDisplay()
+  display.visible = false
   const clerk = buildFigure('carlsten')
   applyPose(clerk, samplePose('stand'))
   const spot = STORE_LAYOUT.clerk
   clerk.group.position.set(spot.x, STORE_LAYOUT.floor, spot.z)
   clerk.group.rotation.y = spot.yaw
-  group.add(clerk.group)
+  display.add(clerk.group)
+  castShadows(display)
+  // The display and the lights park together at the nearest station.
+  const lights = buildStationLights()
+  const group = new THREE.Group()
+  group.name = 'nearest-station'
+  group.add(display, lights.group)
   const centers = points.map(storeCenter)
   const facings = STORE_LAYOUT.facings
   return {
@@ -891,7 +1014,8 @@ function buildShelves(points: readonly FuelPoint[]): ShelfDisplay {
           best = i
         }
       })
-      group.visible = best >= 0
+      display.visible = best >= 0
+      lights.setOn(best >= 0)
       if (best < 0) return
       const at = points[best]
       group.position.set(at.x, at.y, at.z)

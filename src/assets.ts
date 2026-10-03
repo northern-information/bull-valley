@@ -1,6 +1,7 @@
 import * as THREE from 'three'
+import { paintAd } from './adart.ts'
 import { paintDrink } from './canart.ts'
-import { context2d } from './canvas.ts'
+import { canvas, context2d, SANS, text } from './canvas.ts'
 import { CONTAINERS } from './drinks.ts'
 import { DEFAULT_FINISH, finishById } from './finishes.ts'
 import { isCigarette, isDrink, itemById, ITEMS } from './items.ts'
@@ -12,7 +13,7 @@ import type { DrinkArt } from './canart.ts'
 import type { CanvasArt } from './canvas.ts'
 import type { Container, ContainerKey, Vec3 } from './interfaces.ts'
 import type { Rng } from './rng.ts'
-import type { StoreFinish } from './store.ts'
+import type { StoreFinish, StoreSign } from './store.ts'
 
 // Every placed 3D asset in Bull Valley, defined once in asset-local space.
 // world.ts instances these parts across the valley; the Akashic dev page
@@ -248,11 +249,19 @@ export const FUEL_LAYOUT = {
   // stops at the road edge); halfWidth spans local Z.
   lot: { back: STORE_LAYOUT.front, halfWidth: 11 },
   lotColor: '#262a30',
+  // Trash cans, station-local: one at each end of the pump island past the
+  // canopy poles, one beside the store door on the lot.
+  trashCans: [
+    [0, 0, 3.3],
+    [0, 0, -3.3],
+    [STORE_LAYOUT.front + 0.5, 0, -1.6],
+  ] as readonly Vec3[],
 }
 
 // The store's colors, by finish. The walls and floor carry a little
-// emissive, the fluorescent tubes nobody turns off.
-const STORE_FINISH: Record<StoreFinish, () => THREE.MeshLambertMaterial> = {
+// emissive, the fluorescent tubes nobody turns off; the tubes themselves
+// are basic, so they read as lit from any angle at night.
+const STORE_FINISH: Record<StoreFinish, () => THREE.Material> = {
   floor: () =>
     lambert({
       color: '#77736a',
@@ -265,17 +274,59 @@ const STORE_FINISH: Record<StoreFinish, () => THREE.MeshLambertMaterial> = {
       emissive: new THREE.Color('#2e2c27'),
       emissiveIntensity: 0.5,
     }),
-  roof: () => lambert({ color: '#6c6961' }),
+  // The ceiling is the roof's underside; without emissive it is a black void
+  // the tubes float in.
+  roof: () =>
+    lambert({
+      color: '#7a776e',
+      emissive: new THREE.Color('#2e2c27'),
+      emissiveIntensity: 0.5,
+    }),
   shelf: () => lambert({ color: '#3e434a' }),
   counter: () => lambert({ color: '#5a3426' }),
+  light: () => applyPS1(new THREE.MeshBasicMaterial({ color: '#eaf1ee' })),
+  // Storefront glass: a cool tint you see the lot through. No depth write,
+  // so the shelves and the pumps show through from either side.
+  glass: () =>
+    applyPS1(
+      new THREE.MeshBasicMaterial({
+        color: '#a9c4d6',
+        transparent: true,
+        opacity: 0.22,
+        depthWrite: false,
+      })
+    ),
 }
 
-// The store shell and fixtures from STORE_LAYOUT, one part per box, each
-// geometry already in station-local space: place it at the pump island
-// with the station's yaw. One material per finish, shared across boxes.
+// One wall sign as a thin box, its art on the +Z face and a dark frame on
+// the rest, in asset space: centred on the origin, facing +Z. The art
+// glows through its own emissiveMap, so it reads under the store's dim
+// light. BoxGeometry face order is +x, -x, +y, -y, +z, -z.
+function adSignPart(sign: StoreSign): Part {
+  const [w, h] = sign.size
+  const geometry = new THREE.BoxGeometry(w, h, STORE_LAYOUT.signDepth)
+  const texture = artTexture(paintAd(sign.art))
+  const face = lambert({
+    map: texture,
+    emissive: new THREE.Color('#ffffff'),
+    emissiveMap: texture,
+    emissiveIntensity: 0.55,
+  })
+  const edge = lambert({ color: '#23262b' })
+  return {
+    name: `store-${sign.name}`,
+    geometry,
+    material: [edge, edge, edge, edge, face, edge],
+  }
+}
+
+// The store shell, fixtures, lights and signs from STORE_LAYOUT, one part
+// per box or sign, each geometry already in station-local space: place it
+// at the pump island with the station's yaw. One material per finish,
+// shared across boxes.
 export function storeParts(): Part[] {
-  const materials = new Map<StoreFinish, THREE.MeshLambertMaterial>()
-  return STORE_LAYOUT.boxes.map((b) => {
+  const materials = new Map<StoreFinish, THREE.Material>()
+  const boxes = STORE_LAYOUT.boxes.map((b) => {
     let material = materials.get(b.finish)
     if (!material) {
       material = STORE_FINISH[b.finish]()
@@ -285,6 +336,13 @@ export function storeParts(): Part[] {
     geometry.translate(...b.center)
     return { name: `store-${b.name}`, geometry, material }
   })
+  const signs = STORE_LAYOUT.signs.map((sign) => {
+    const part = adSignPart(sign)
+    part.geometry.rotateY(sign.yaw)
+    part.geometry.translate(...sign.center)
+    return part
+  })
+  return [...boxes, ...signs]
 }
 
 // One shelf unit: what the carousel shows, without the halo.
@@ -325,13 +383,172 @@ export function buildShelfDisplay(): {
   return { group, slots }
 }
 
+// --- Gas pump ------------------------------------------------------------
+
+// A two-sided dispenser circa 2008 on a concrete curb: a pale cabinet with
+// a painted face on each side (the brand band, the display, the grade
+// buttons, the lower door), a dark cap, and a hose and nozzle hung on each
+// side. Origin at ground level under the middle; the faces look along ±X
+// (toward the road and the store), the sides along the island.
+const PUMP = {
+  width: 0.9,
+  depth: 0.5,
+  height: 1.3,
+  curb: { width: 1.4, height: 0.16, depth: 0.9 },
+  cap: 0.1,
+  hose: { radius: 0.022, length: 0.7, x: 0.28 },
+  nozzle: { width: 0.1, height: 0.22, depth: 0.06 },
+}
+
+// The cabinet face, 90×130 for the 0.9 × 1.3 m side: orange band and
+// wordmark up top, a dark readout showing nothing, three big grade
+// buttons, the lower door.
+function makePumpFaceTexture(): THREE.CanvasTexture {
+  const art = canvas([90, 130], '#d9d5cb')
+  const { ctx, w } = art
+  ctx.fillStyle = '#f26522'
+  ctx.fillRect(0, 0, w, 20)
+  text(ctx, 'CITGO', w / 2, 10, w - 10, 13, SANS, '#f4f1ea')
+  // The readout, dark glass, off.
+  ctx.fillStyle = '#12171b'
+  ctx.fillRect(8, 28, w - 16, 22)
+  // Grade buttons.
+  const grades = ['87', '89', '93']
+  grades.forEach((grade, i) => {
+    const x = 7 + i * 26
+    ctx.fillStyle = '#1f3a93'
+    ctx.fillRect(x, 58, 24, 36)
+    text(ctx, grade, x + 12, 76, 22, 16, SANS, '#f4f1ea')
+  })
+  // The lower door, a shade darker, with its lock.
+  ctx.fillStyle = '#9d9a91'
+  ctx.fillRect(4, 104, w - 8, 22)
+  ctx.fillStyle = '#3a3d42'
+  ctx.fillRect(w / 2 - 2, 113, 4, 4)
+  return artTexture(art)
+}
+
+// The pump's parts in pump-local space. One material per part, shared by
+// every pump in the valley through instancing.
+export function pumpParts(): Part[] {
+  const { width, depth, height, curb, cap, hose, nozzle } = PUMP
+  const curbGeometry = new THREE.BoxGeometry(
+    curb.width,
+    curb.height,
+    curb.depth
+  )
+  curbGeometry.translate(0, curb.height / 2, 0)
+  const cabinet = new THREE.BoxGeometry(width, height, depth)
+  cabinet.translate(0, curb.height + height / 2, 0)
+  const capGeometry = new THREE.BoxGeometry(width + 0.1, cap, depth + 0.1)
+  capGeometry.translate(0, curb.height + height + cap / 2, 0)
+  // BoxGeometry face order is +x, -x, +y, -y, +z, -z: the art goes on the
+  // two X faces, with a little emissive so it reads under the canopy.
+  const faceTexture = makePumpFaceTexture()
+  const face = lambert({
+    map: faceTexture,
+    emissive: new THREE.Color('#ffffff'),
+    emissiveMap: faceTexture,
+    emissiveIntensity: 0.4,
+  })
+  const shell = lambert({
+    color: '#d9d5cb',
+    emissive: new THREE.Color('#5a564c'),
+    emissiveIntensity: 0.35,
+  })
+  const dark = lambert({ color: '#2b2f36' })
+  const parts: Part[] = [
+    {
+      name: 'pump-curb',
+      geometry: curbGeometry,
+      material: lambert({
+        color: '#8f8c84',
+        emissive: new THREE.Color('#3a3832'),
+        emissiveIntensity: 0.3,
+      }),
+    },
+    {
+      name: 'pump-cabinet',
+      geometry: cabinet,
+      material: [face, face, shell, shell, shell, shell],
+    },
+    { name: 'pump-cap', geometry: capGeometry, material: dark },
+  ]
+  // A hose and the nozzle it ends in for each face, hung on the cabinet's
+  // narrow end (+Z, the island's one end) toward that face, so neither
+  // crosses the art.
+  for (const [side, sx] of [
+    ['road', 1],
+    ['store', -1],
+  ] as const) {
+    const x = sx * hose.x
+    const z = depth / 2 + hose.radius + 0.01
+    const hoseGeometry = new THREE.CylinderGeometry(
+      hose.radius,
+      hose.radius,
+      hose.length,
+      5
+    )
+    const hoseTop = curb.height + height - 0.05
+    hoseGeometry.translate(x, hoseTop - hose.length / 2, z)
+    const nozzleGeometry = new THREE.BoxGeometry(
+      nozzle.width,
+      nozzle.height,
+      nozzle.depth
+    )
+    nozzleGeometry.translate(
+      x,
+      hoseTop - hose.length - nozzle.height / 2 + 0.04,
+      depth / 2 + nozzle.depth / 2
+    )
+    parts.push(
+      { name: `pump-hose-${side}`, geometry: hoseGeometry, material: dark },
+      { name: `pump-nozzle-${side}`, geometry: nozzleGeometry, material: dark }
+    )
+  }
+  return parts
+}
+
+// --- Trash can -----------------------------------------------------------
+
+// The green drum with a black lid every forecourt has. Origin at ground
+// level under the middle.
+export function trashCanParts(): Part[] {
+  const body = new THREE.CylinderGeometry(0.26, 0.24, 0.8, 8)
+  body.translate(0, 0.4, 0)
+  const lid = new THREE.CylinderGeometry(0.29, 0.29, 0.1, 8)
+  lid.translate(0, 0.85, 0)
+  return [
+    {
+      name: 'trash-body',
+      geometry: body,
+      material: lambert({ color: '#2f4a3a' }),
+    },
+    {
+      name: 'trash-lid',
+      geometry: lid,
+      material: lambert({ color: '#1c1e22' }),
+    },
+  ]
+}
+
+// The canopy's dimensions, shared by the slab, the tubes under it, and the
+// light world.ts hangs there.
+export const CANOPY = { width: 9, thickness: 0.45, depth: 6.5, height: 4.6 }
+
 export function fuelStationParts() {
-  const canopy = new THREE.BoxGeometry(9, 0.45, 6.5)
-  canopy.translate(0, 4.6, 0)
+  const canopy = new THREE.BoxGeometry(
+    CANOPY.width,
+    CANOPY.thickness,
+    CANOPY.depth
+  )
+  canopy.translate(0, CANOPY.height, 0)
   const canopyPole = new THREE.CylinderGeometry(0.12, 0.12, 4.6, 5)
   canopyPole.translate(0, 2.3, 0)
-  const pump = new THREE.BoxGeometry(0.9, 1.3, 0.5)
-  pump.translate(0, 0.65, 0)
+  // One fluorescent tube under the canopy over each pump, flush with the
+  // slab's underside, long side along the canopy's.
+  const canopyLight = new THREE.BoxGeometry(3.6, 0.06, 0.4)
+  canopyLight.translate(0, CANOPY.height - CANOPY.thickness / 2 - 0.03, 0)
   const signPole = new THREE.CylinderGeometry(0.14, 0.14, 7, 5)
   signPole.translate(0, 3.5, 0)
   return {
@@ -350,15 +567,15 @@ export function fuelStationParts() {
       geometry: canopyPole,
       material: lambert({ color: '#454b54' }),
     },
-    pump: {
-      name: 'pump',
-      geometry: pump,
-      material: lambert({
-        color: '#7a1d1d',
-        emissive: new THREE.Color('#40100f'),
-        emissiveIntensity: 0.4,
-      }),
+    canopyLight: {
+      name: 'canopy-light',
+      geometry: canopyLight,
+      material: applyPS1(new THREE.MeshBasicMaterial({ color: '#eaf1ee' })),
     },
+    // Placed at the pump's spot on the island, with the station's yaw.
+    pump: pumpParts(),
+    // Placed at each FUEL_LAYOUT.trashCans spot.
+    trashCan: trashCanParts(),
     signPole: {
       name: 'sign-pole',
       geometry: signPole,
@@ -415,7 +632,11 @@ function sampleFuelStation(): THREE.Group {
     parts.push({ ...p.canopyPole, position: [0, 0, off] })
   }
   for (const off of [L.pumpOffset, -L.pumpOffset]) {
-    parts.push({ ...p.pump, position: [0, 0, off] })
+    for (const part of p.pump) parts.push({ ...part, position: [0, 0, off] })
+    parts.push({ ...p.canopyLight, position: [0, 0, off] })
+  }
+  for (const at of L.trashCans) {
+    for (const part of p.trashCan) parts.push({ ...part, position: at })
   }
   const group = assembleParts(parts)
   const sprite = makeGlowSprite(p.glow, L.glowScale)
@@ -1783,6 +2004,28 @@ export function roadMaterial(): THREE.MeshBasicMaterial {
   )
 }
 
+// The station lots: like the roads, but lit, so the canopy light falls on
+// the forecourt and the pumps throw shadows across it. The night light
+// barely reaches asphalt this dark, so the emissive carries the lot's own
+// color and keeps it about as dark as the unlit road it meets.
+export function lotMaterial(): THREE.MeshLambertMaterial {
+  return lambert({
+    vertexColors: true,
+    emissive: new THREE.Color(FUEL_LAYOUT.lotColor),
+    emissiveIntensity: 0.8,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    side: THREE.DoubleSide,
+  })
+}
+
+// Every mesh under `root` throws a shadow under the station lights.
+export function castShadows(root: THREE.Object3D): void {
+  root.traverse((o) => {
+    if (isMesh(o)) o.castShadow = true
+  })
+}
+
 export function waterMaterial(): THREE.MeshLambertMaterial {
   return lambert({
     vertexColors: true,
@@ -1834,6 +2077,18 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     id: 'citgo-interior',
     label: 'Citgo interior',
     build: sampleStoreInterior,
+  },
+  ...STORE_LAYOUT.signs.map((sign) => ({
+    id: `ad-${sign.art}`,
+    label: `Citgo sign: ${sign.art}`,
+    build: () =>
+      assembleParts([{ ...adSignPart(sign), position: [0, sign.size[1], 0] }]),
+  })),
+  { id: 'pump', label: 'Gas pump', build: () => assembleParts(pumpParts()) },
+  {
+    id: 'trash-can',
+    label: 'Trash can',
+    build: () => assembleParts(trashCanParts()),
   },
   { id: 'tree', label: 'Tree', build: sampleTree },
   { id: 'pole', label: 'Utility pole', build: samplePole },

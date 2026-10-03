@@ -12,6 +12,7 @@ import {
   artTexture,
   buildBat,
   buildGuitar,
+  castShadows,
   lambert,
   makeGlowSprite,
   makeGlowTexture,
@@ -590,6 +591,8 @@ export function buildFigure(
     }
   }
 
+  // Every figure throws a shadow under the station lights.
+  castShadows(group)
   return { group, joints, hipY, guitar }
 }
 

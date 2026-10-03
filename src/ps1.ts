@@ -7,7 +7,11 @@ import * as THREE from 'three'
 const snap = new THREE.Vector2(160, 120)
 
 // The game's renderer: no antialiasing and one pixel per pixel, so the
-// downscaled frame stays crisp when CSS scales it up.
+// downscaled frame stays crisp when CSS scales it up. Shadow maps are on
+// for the station lights (world.ts), unfiltered: hard, stepped shadows
+// are the period look. Not in `--mode test`, the e2e build: CI draws
+// WebGL in software at about a frame a second, the six shadow passes a
+// frame cost it a third of that, and no spec looks at a shadow.
 export function createPS1Renderer(
   canvas: HTMLCanvasElement
 ): THREE.WebGLRenderer {
@@ -17,6 +21,8 @@ export function createPS1Renderer(
     powerPreference: 'high-performance',
   })
   renderer.setPixelRatio(1)
+  renderer.shadowMap.enabled = import.meta.env.MODE !== 'test'
+  renderer.shadowMap.type = THREE.BasicShadowMap
   return renderer
 }
 

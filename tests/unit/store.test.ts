@@ -38,6 +38,67 @@ describe('STORE_LAYOUT', () => {
       }
     }
   })
+
+  it('glazes the front wall either side of the door', () => {
+    const panes = STORE_LAYOUT.boxes.filter((b) => b.finish === 'glass')
+    expect(panes).toHaveLength(2)
+    for (const pane of panes) {
+      const [x, y, z] = pane.center
+      const [, sy, sz] = pane.size
+      // In the front wall, off the floor, under the roof, clear of the door
+      // and the corner.
+      expect(pane.blocks).toBe(true)
+      expect(Math.abs(x - STORE_LAYOUT.front)).toBeLessThan(0.2)
+      expect(y - sy / 2).toBeGreaterThan(STORE_LAYOUT.floor)
+      expect(y + sy / 2).toBeLessThan(STORE_LAYOUT.height)
+      expect(Math.abs(z) - sz / 2).toBeGreaterThan(STORE_LAYOUT.doorWidth / 2)
+      expect(Math.abs(z) + sz / 2).toBeLessThan(STORE_LAYOUT.halfWidth)
+    }
+    // Nothing dark stands in front of the back wall any more.
+    expect(STORE_LAYOUT.boxes.find((b) => b.name === 'shelf-back')).toBe(
+      undefined
+    )
+  })
+
+  it('hangs the lights flush under the ceiling, inside the walls', () => {
+    const lights = STORE_LAYOUT.boxes.filter((b) => b.finish === 'light')
+    expect(lights).toHaveLength(4)
+    for (const light of lights) {
+      const [x, y, z] = light.center
+      const [sx, sy, sz] = light.size
+      expect(light.blocks).toBe(false)
+      expect(y + sy / 2).toBeCloseTo(STORE_LAYOUT.height)
+      expect(x - sx / 2).toBeGreaterThan(STORE_LAYOUT.back)
+      expect(x + sx / 2).toBeLessThan(STORE_LAYOUT.front)
+      expect(Math.abs(z) + sz / 2).toBeLessThan(STORE_LAYOUT.halfWidth)
+    }
+  })
+
+  it('hangs every sign on a wall, facing into the room', () => {
+    expect(STORE_LAYOUT.signs.length).toBeGreaterThan(0)
+    const half = STORE_LAYOUT.signDepth / 2
+    for (const sign of STORE_LAYOUT.signs) {
+      const [x, y, z] = sign.center
+      const [w, h] = sign.size
+      // Off the floor and under the ceiling.
+      expect(y - h / 2).toBeGreaterThan(STORE_LAYOUT.floor)
+      expect(y + h / 2).toBeLessThan(STORE_LAYOUT.height)
+      // Its art (asset +Z turned by yaw) points away from the wall it
+      // hangs on, and it hangs just off that wall.
+      const nx = Math.sin(sign.yaw)
+      const nz = Math.cos(sign.yaw)
+      if (Math.abs(nx) > 0.5) {
+        expect(nx).toBeLessThan(0)
+        expect(x + half).toBeLessThan(STORE_LAYOUT.front)
+        expect(Math.abs(z) + w / 2).toBeLessThan(STORE_LAYOUT.halfWidth)
+      } else {
+        expect(Math.sign(nz)).toBe(-Math.sign(z))
+        expect(Math.abs(z) + half).toBeLessThan(STORE_LAYOUT.halfWidth)
+        expect(x - w / 2).toBeGreaterThan(STORE_LAYOUT.back)
+        expect(x + w / 2).toBeLessThan(STORE_LAYOUT.front)
+      }
+    }
+  })
 })
 
 describe('space', () => {
