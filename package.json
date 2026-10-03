@@ -22,7 +22,8 @@
     "test:e2e": "playwright test",
     "pretty": "prettier --write .",
     "format:check": "prettier --check .",
-    "fetch:data": "node scripts/fetch_bull_valley.cjs"
+    "fetch:data": "node scripts/fetch_bull_valley.cjs",
+    "icons": "scripts/favicons.sh"
   },
   "dependencies": {
     "three": "0.186.1"
