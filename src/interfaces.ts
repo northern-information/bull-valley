@@ -102,7 +102,7 @@ export interface Geo {
 // ---------------------------------------------------------------------------
 // Items (src/items.ts) and drink containers (src/drinks.ts).
 
-export type ItemCategory = 'cigarette' | 'joint' | 'drink' | 'gear'
+export type ItemCategory = 'cigarette' | 'joint' | 'drink' | 'forage' | 'gear'
 
 export type ContainerKey =
   | 'tall'
@@ -130,11 +130,14 @@ export interface Item {
   label: string
   blurb: string
   used?: string
-  bought: string
+  // Items on the Citgo shelves have a price and a bought toast; forage
+  // has neither, and a collected toast instead.
+  bought?: string
+  collected?: string
   empty?: string
   start?: number
   // Shelf price at every Citgo, in cents.
-  price: number
+  price?: number
   // Cigarettes.
   smokeSeconds?: number
   emberSeconds?: number

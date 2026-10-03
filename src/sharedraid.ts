@@ -20,12 +20,20 @@
 // 8. The Citgo shelves are shared: a unit one player buys is off the shelf
 //    for everyone, and the shelves fill again with the next lobby. Cash is
 //    each player's own; the valley only keeps count of what is left.
+// 9. The berry bush gives each name one berry a day, the day turning at
+//    midnight Central (daily.ts), whatever the raid is doing. The valley
+//    remembers only the names that have had today's berry. Until player
+//    accounts arrive the name is the account, so two raiders under one
+//    name share one berry.
 
 import { CONFIG } from './config.ts'
+import { collectedToday, dayKey, nextMidnight } from './daily.ts'
 import { freshStock } from './store.ts'
 import type { ExtractKind, ShopStock, XZ } from './interfaces.ts'
 import type { OutfitId } from './outfits.ts'
 import type {
+  DailyMessage,
+  DailyWire,
   DepartReason,
   MemberPhase,
   MemberWire,
@@ -66,6 +74,9 @@ export interface Valley {
   epoch: number
   raid: SharedRaid | null
   members: Record<string, Member>
+  // Name -> the Central day (daily.ts dayKey) that name last took a berry.
+  // Pruned to today's names on every pick, so it never grows.
+  dailies: Record<string, string>
 }
 
 export type ValleyAction =
@@ -85,6 +96,7 @@ export type ValleyAction =
   | { type: 'buy'; id: string; station: number; kind: string }
   | { type: 'call'; id: string; from: XZ; to: XZ }
   | { type: 'extract'; id: string; kind: ExtractKind }
+  | { type: 'collect'; id: string }
   // The lobby clock ran out.
   | { type: 'clock' }
   | { type: 'hurry'; seconds: number }
@@ -103,8 +115,10 @@ export interface Reduced {
   valley: Valley
   // To everyone in the valley, the actor included.
   broadcast: RaidMessage[]
-  // To the actor alone.
+  // A refusal, to the actor alone.
   reply?: NackMessage
+  // The bush's answer to a collect, to the actor alone.
+  daily?: DailyMessage
   // The lobby alarm: a server time to arm, null to clear, undefined to
   // leave as it is.
   alarm?: number | null
@@ -114,7 +128,16 @@ export interface Reduced {
 }
 
 export function createValley(): Valley {
-  return { epoch: 0, raid: null, members: {} }
+  return { epoch: 0, raid: null, members: {}, dailies: {} }
+}
+
+// The bush as `name` finds it at `now`: whether today's berry is gone, and
+// when the next day begins.
+export function dailyFor(valley: Valley, name: string, now: number): DailyWire {
+  return {
+    collected: collectedToday(valley.dailies[name], now),
+    resetsAt: nextMidnight(now),
+  }
 }
 
 const ACTIVE: readonly MemberPhase[] = ['LOBBY', 'RIDING', 'ON_FOOT']
@@ -246,6 +269,8 @@ export function reduce(
         next = {
           epoch: valley.epoch + 1,
           members: {},
+          // The bush keeps its day across raids.
+          dailies: valley.dailies,
           raid: {
             epoch: valley.epoch + 1,
             phase: 'LOBBY',
@@ -489,6 +514,42 @@ export function reduce(
       if (settled.reset) reduced.alarm = null
       else if (alarm !== undefined) reduced.alarm = alarm
       return reduced
+    }
+
+    case 'collect': {
+      const member = valley.members[action.id]
+      if (!member) {
+        return {
+          valley,
+          broadcast: [],
+          reply: nack('collect', 'not-in-valley'),
+        }
+      }
+      // Rule 9.
+      const daily = dailyFor(valley, member.name, now)
+      if (daily.collected) {
+        return {
+          valley,
+          broadcast: [],
+          daily: { type: 'daily', daily, picked: false },
+        }
+      }
+      const today = dayKey(now)
+      const dailies: Record<string, string> = {}
+      for (const [name, day] of Object.entries(valley.dailies)) {
+        if (day === today) dailies[name] = day
+      }
+      dailies[member.name] = today
+      const next: Valley = { ...valley, dailies }
+      return {
+        valley: next,
+        broadcast: [],
+        daily: {
+          type: 'daily',
+          daily: dailyFor(next, member.name, now),
+          picked: true,
+        },
+      }
     }
 
     case 'hurry': {

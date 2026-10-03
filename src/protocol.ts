@@ -9,7 +9,7 @@ import type { OutfitId } from './outfits.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and reloads.
-export const PROTOCOL_VERSION = 2
+export const PROTOCOL_VERSION = 3
 
 // The one WebSocket route; everything else on the Worker is a static asset.
 export const WS_PATH = '/ws'
@@ -98,6 +98,16 @@ export interface RaidWire {
   members: MemberWire[]
 }
 
+// The berry bush at the spawn Citgo: one berry a day per name, the day
+// turning at midnight Central (daily.ts). The server decides; the client
+// reads this, in the welcome and in every DailyMessage.
+export interface DailyWire {
+  // Whether this name has had today's berry.
+  collected: boolean
+  // Server ms of the next midnight Central, when the bush fills again.
+  resetsAt: number
+}
+
 // Why a raid frame was sent; the client's toasts hang off it.
 export type RaidReason =
   | 'joined'
@@ -164,6 +174,12 @@ export interface ExtractMessage {
   kind: ExtractKind
 }
 
+// Today's berry off the bush, please. The valley answers with a
+// DailyMessage either way.
+export interface CollectMessage {
+  type: 'collect'
+}
+
 // Dev-server only: the Worker stamps the socket, and production ignores
 // these. hurry rewrites the lobby clock; reset empties the valley.
 export type DevMessage =
@@ -190,6 +206,7 @@ export type ClientMessage =
   | BuyMessage
   | CallMessage
   | ExtractMessage
+  | CollectMessage
   | DevMessage
 
 // What a client may be refused for.
@@ -206,6 +223,17 @@ export interface WelcomeMessage {
   peers: PeerWire[]
   raid: RaidWire
   phase: MemberPhase
+  // Whether the bush has a berry for this name today.
+  daily: DailyWire
+}
+
+// The answer to a collect: `picked` when a berry came off the bush, false
+// when this name already had today's. `daily` is the bush as it stands
+// after the answer.
+export interface DailyMessage {
+  type: 'daily'
+  daily: DailyWire
+  picked: boolean
 }
 
 // The whole shared raid after a change, and why. raid is null only after a
@@ -271,6 +299,7 @@ export type ServerMessage =
   | PeerLeftMessage
   | RaidMessage
   | NackMessage
+  | DailyMessage
   | PongMessage
   | ErrorMessage
 
@@ -391,6 +420,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
     case 'board':
     case 'unboard':
     case 'hop-out':
+    case 'collect':
       return { type: value.type }
     case 'take': {
       const { index } = value

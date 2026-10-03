@@ -110,7 +110,7 @@ describe('parseClientMessage', () => {
   })
 
   it('parses the raid frames', () => {
-    for (const type of ['board', 'unboard', 'hop-out']) {
+    for (const type of ['board', 'unboard', 'hop-out', 'collect']) {
       expect(parse({ type })).toEqual({ type })
     }
     expect(parse({ type: 'buy', station: 2, kind: 'pbr' })).toEqual({

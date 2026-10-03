@@ -31,6 +31,10 @@ export interface ShelfSpot {
   affordable: boolean
 }
 
+// The berry bush as this player finds it: a berry waiting, today's already
+// taken, or no valley to ask (the bush is the valley's; see daily.ts).
+export type DailyStatus = 'ready' | 'picked' | 'offline'
+
 export type Interaction<P extends PickupSpot = PickupSpot> =
   | { kind: 'hopOut' }
   | { kind: 'board' }
@@ -40,6 +44,7 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   | { kind: 'extractKeep' }
   | { kind: 'pickup'; pickup: P }
   | ({ kind: 'buy' } & ShelfSpot)
+  | { kind: 'collect'; status: DailyStatus }
 
 export interface InteractionInput<P extends PickupSpot> {
   raid: Raid
@@ -57,6 +62,10 @@ export interface InteractionInput<P extends PickupSpot> {
   // Whether the player stands inside a store's walls: no station extract
   // from in there.
   insideStore: boolean
+  // The berry bush at the spawn Citgo, or null, and how it stands for
+  // this player today.
+  bush: XZ | null
+  daily: DailyStatus
 }
 
 function near(a: XZ, b: XZ, radius: number): boolean {
@@ -66,7 +75,7 @@ function near(a: XZ, b: XZ, radius: number): boolean {
 // The first match wins, in this order: hop out while riding; board the
 // waiting truck; buy off a shelf; board the called truck to end the raid;
 // unload at the stand; extract at a station (never from inside its store)
-// or the Keep; take the nearest pickup.
+// or the Keep; the berry bush; take the nearest pickup.
 export function resolveInteraction<P extends PickupSpot>(
   input: InteractionInput<P>
 ): Interaction<P> | null {
@@ -98,6 +107,12 @@ export function resolveInteraction<P extends PickupSpot>(
     if (input.keep && near(input.keep, player, CONFIG.extract.keepRadius)) {
       return { kind: 'extractKeep' }
     }
+  }
+
+  // The bush stands at the spawn Citgo, so it is there before the truck
+  // leaves and after a strike brings you back.
+  if (input.bush && near(input.bush, player, CONFIG.daily.reach)) {
+    return { kind: 'collect', status: input.daily }
   }
 
   let best = CONFIG.player.pickupReach
@@ -144,5 +159,14 @@ export function interactionPrompt(interaction: Interaction): string {
         ? `E — Buy ${label} for ${price}`
         : `${label} — ${price} (Not Enough Cash)`
     }
+    case 'collect':
+      switch (interaction.status) {
+        case 'ready':
+          return 'E — Pick a Berry'
+        case 'picked':
+          return 'Berry Bush — Picked Clean Until Midnight'
+        case 'offline':
+          return 'Berry Bush — No Signal'
+      }
   }
 }

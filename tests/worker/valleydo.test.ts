@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { CLOSE, PROTOCOL_VERSION } from '../../src/protocol.ts'
 import { ValleyDO } from '../../worker/ValleyDO.ts'
 import type {
+  DailyMessage,
   NackMessage,
   PeerJoinedMessage,
   PeerLeftMessage,
@@ -336,6 +337,53 @@ describe('ValleyDO', () => {
       station: 0,
       item: 'pbr',
     })
+  })
+
+  it('hands out one berry a day per name, and says so in the welcome', async () => {
+    const { valley: v, state: s } = await valley()
+    const before = Date.now()
+    const a = await join(v, s, 'Dave')
+    const welcome = a.last<WelcomeMessage>()
+    expect(welcome.daily.collected).toBe(false)
+    expect(welcome.daily.resetsAt).toBeGreaterThan(before)
+    await v.webSocketMessage(ws(a), '{"type":"collect"}')
+    const picked = a.last<DailyMessage>()
+    expect(picked).toMatchObject({
+      type: 'daily',
+      picked: true,
+      daily: { collected: true },
+    })
+    expect(picked.daily.resetsAt).toBe(welcome.daily.resetsAt)
+    await v.webSocketMessage(ws(a), '{"type":"collect"}')
+    expect(a.last<DailyMessage>()).toMatchObject({
+      type: 'daily',
+      picked: false,
+    })
+    // The same name on another socket already had today's.
+    const twin = await join(v, s, ' Dave ')
+    expect(twin.last<WelcomeMessage>().daily.collected).toBe(true)
+    await v.webSocketMessage(ws(twin), '{"type":"collect"}')
+    expect(twin.last<DailyMessage>().picked).toBe(false)
+    // Another name has its own.
+    const b = await join(v, s, 'Kvistad')
+    expect(b.last<WelcomeMessage>().daily.collected).toBe(false)
+    // Nobody else heard a thing.
+    expect(b.frames().some((m) => m.type === 'daily')).toBe(false)
+    // The record is persisted with the valley.
+    const stored = s.storage.map.get('valley') as {
+      dailies: Record<string, string>
+    }
+    expect(Object.keys(stored.dailies)).toEqual(['Dave'])
+  })
+
+  it('wakes a valley stored before the bush existed', async () => {
+    const shared = new MockState()
+    shared.storage.map.set('valley', { epoch: 3, raid: null, members: {} })
+    const { valley: v } = await valley(shared)
+    const a = await join(v, shared, 'Dave')
+    expect(a.last<WelcomeMessage>().daily.collected).toBe(false)
+    await v.webSocketMessage(ws(a), '{"type":"collect"}')
+    expect(a.last<DailyMessage>().picked).toBe(true)
   })
 
   it('keeps the dev frames for dev sockets', async () => {

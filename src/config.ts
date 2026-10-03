@@ -181,4 +181,14 @@ export const CONFIG = {
     fuelRadius: 12,
     keepRadius: 25,
   },
+  daily: {
+    // The berry bush at the spawn Citgo: how close E must be to pick.
+    reach: 2.6,
+    // Where it stands, station-local (local +X toward the road, Z along
+    // it): in the grass beside the store, a stride off its side wall and
+    // just behind the lot's edge, on the side away from the sign.
+    bush: { x: -8.5, z: -8.5 },
+    // It blocks like a post this wide.
+    bushRadius: 0.55,
+  },
 }

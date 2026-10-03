@@ -18,6 +18,7 @@ const spawnStation: StationSpot = { x: 0, z: 0, name: 'Spawn Citgo' }
 const farStation: StationSpot = { x: 500, z: 0, name: 'Far Citgo' }
 const stand = { x: 0, z: 500 }
 const keep = { x: -500, z: 0 }
+const bush = { x: -8, z: -8 }
 const shelf: ShelfSpot = {
   item: 'marlboro',
   station: 1,
@@ -33,8 +34,8 @@ function onFoot(): Raid {
   )
 }
 
-// Defaults put the player in open country: no truck, stand, extract, or
-// pickup in reach.
+// Defaults put the player in open country: no truck, stand, extract, bush,
+// or pickup in reach, with the valley answering.
 function input(
   over: Partial<InteractionInput<PickupSpot>> = {}
 ): InteractionInput<PickupSpot> {
@@ -50,6 +51,8 @@ function input(
     pickups: [],
     shelf: null,
     insideStore: false,
+    bush,
+    daily: 'ready',
     ...over,
   }
 }
@@ -165,6 +168,49 @@ describe('resolveInteraction', () => {
     ).toEqual({ kind: 'pickup', pickup })
   })
 
+  it('offers the bush within reach, as the valley has it today', () => {
+    const atBush = { player: { x: bush.x + 1, z: bush.z } }
+    expect(resolveInteraction(input(atBush))).toEqual({
+      kind: 'collect',
+      status: 'ready',
+    })
+    expect(resolveInteraction(input({ ...atBush, daily: 'picked' }))).toEqual({
+      kind: 'collect',
+      status: 'picked',
+    })
+    expect(resolveInteraction(input({ ...atBush, daily: 'offline' }))).toEqual({
+      kind: 'collect',
+      status: 'offline',
+    })
+    // During the loadout too: the bush stands on the spawn lot.
+    expect(
+      resolveInteraction(input({ ...atBush, raid: createRaid(0) }))
+    ).toEqual({ kind: 'collect', status: 'ready' })
+    const outOfReach = {
+      player: { x: bush.x + CONFIG.daily.reach + 0.1, z: bush.z },
+    }
+    expect(resolveInteraction(input(outOfReach))).toBeNull()
+    expect(resolveInteraction(input({ ...atBush, bush: null }))).toBeNull()
+  })
+
+  it('puts the bush ahead of a pickup beside it, and the truck ahead of the bush', () => {
+    const pickup: PickupSpot = {
+      ...bush,
+      kind: 'cabbage',
+      count: 1,
+      taken: false,
+    }
+    const atBush = { player: { x: bush.x + 1, z: bush.z }, pickups: [pickup] }
+    expect(resolveInteraction(input(atBush))).toEqual({
+      kind: 'collect',
+      status: 'ready',
+    })
+    const truck = { distance: CONFIG.truck.boardRange - 0.1, moving: false }
+    expect(
+      resolveInteraction(input({ ...atBush, raid: createRaid(0), truck }))
+    ).toEqual({ kind: 'board' })
+  })
+
   it('puts the stand ahead of a pickup at the same spot', () => {
     const raid = advance(onFoot(), EVENTS.PICK_CABBAGE, 3)
     const pickup: PickupSpot = {
@@ -203,6 +249,15 @@ describe('interactionPrompt', () => {
     expect(
       interactionPrompt({ kind: 'buy', ...shelf, affordable: false })
     ).toBe('Marlboro Reds — $5.49 (Not Enough Cash)')
+    expect(interactionPrompt({ kind: 'collect', status: 'ready' })).toBe(
+      'E — Pick a Berry'
+    )
+    expect(interactionPrompt({ kind: 'collect', status: 'picked' })).toBe(
+      'Berry Bush — Picked Clean Until Midnight'
+    )
+    expect(interactionPrompt({ kind: 'collect', status: 'offline' })).toBe(
+      'Berry Bush — No Signal'
+    )
   })
 
   it('labels a cabbage without a count', () => {

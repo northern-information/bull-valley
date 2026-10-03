@@ -20,10 +20,12 @@ import type { StoreOrigin, WorldFacing } from '../../src/store.ts'
 const origin: StoreOrigin = { x: 100, z: -40, yaw: 0.7, y: 12 }
 
 describe('STORE_LAYOUT', () => {
-  it('shelves every item once, three units each', () => {
+  it('shelves every priced item once, three units each, and no forage', () => {
     const kinds = STORE_LAYOUT.facings.map((f) => f.kind)
-    expect(new Set(kinds).size).toBe(ITEMS.length)
-    expect(kinds).toHaveLength(ITEMS.length)
+    const forSale = ITEMS.filter((item) => 'price' in item)
+    expect(new Set(kinds).size).toBe(forSale.length)
+    expect(kinds).toHaveLength(forSale.length)
+    expect(kinds).not.toContain('berries')
     for (const facing of STORE_LAYOUT.facings) {
       expect(facing.slots).toHaveLength(CONFIG.store.perItem)
     }

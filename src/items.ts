@@ -5,18 +5,21 @@
 //
 // Fields:
 //   id        inventory kind and mesh key
-//   category  'cigarette' | 'joint' | 'drink' | 'gear'
+//   category  'cigarette' | 'joint' | 'drink' | 'forage' | 'gear'
 //   label     name in the carousel and pickup prompts
 //   blurb     description in the carousel
 //   used      toast when the player uses it
-//   bought    toast when the player buys it at a Citgo
+//   bought    toast when the player buys it at a Citgo (shelf items only)
+//   collected toast when the player picks it off the berry bush (forage)
 //   empty     toast when the player tries to use it with none left
 //   start     count in a new inventory (counted items only)
-//   price     shelf price at every Citgo, in cents
+//   price     shelf price at every Citgo, in cents (shelf items only)
 //
 // Gear is not counted in the inventory: the sack is raid state
 // (raid.sack), so it has no start, used, or empty text. Drinks cannot be
-// used yet, so they have no used or empty text.
+// used yet, so they have no used or empty text. Forage is never on a
+// shelf, so it has no price or bought text; the valley hands it out
+// (sharedraid.ts rule 9).
 
 import type { Inventory, Item } from './interfaces.ts'
 
@@ -274,6 +277,16 @@ export const ITEMS = [
     price: 119,
     container: 'water',
   },
+  // Forage. Not for sale: the berry bush at the spawn Citgo gives every
+  // name one a day, the day turning at midnight Central. No effect yet.
+  {
+    id: 'berries',
+    category: 'forage',
+    label: 'Berries',
+    blurb: 'Dark and cold, off the bush by the Citgo. One a day.',
+    collected: 'A berry off the bush. The rest are for tomorrow.',
+    start: 0,
+  },
   {
     id: 'sack',
     category: 'gear',
@@ -326,6 +339,15 @@ export function isCigarette(id: string): boolean {
 
 export function isDrink(id: string): boolean {
   return itemById(id)?.category === 'drink'
+}
+
+export function isForage(id: string): boolean {
+  return itemById(id)?.category === 'forage'
+}
+
+// Whether a Citgo shelf carries the item: everything with a price.
+export function isForSale(id: string): boolean {
+  return itemById(id)?.price !== undefined
 }
 
 // Whether the player can use a carried item (E in the carousel).
