@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# Regenerate the raster favicons from public/favicon.svg with ImageMagick 7.
+# Regenerate the derived brand images with ImageMagick 7.
 #
 #   public/favicon.ico        16, 32 and 48 px frames, transparent, for
 #                             browsers without SVG favicon support (Safari)
 #   public/apple-touch-icon.png  180 px on the game's black, since iOS fills
 #                             transparency with black and rounds the corners
+#   public/og.png             1200 x 630 link preview (Open Graph), the logo
+#                             centered on black
 #
 # Each frame is rendered from the vector at its own size (-density), never
-# scaled from another raster. Run after editing favicon.svg.
+# scaled from another raster. Run after editing favicon.svg or the logo.
 set -euo pipefail
 
 cd "$(dirname "$0")/.." > /dev/null
@@ -33,4 +35,9 @@ SVG
 magick -density 96 "$tmp/touch.svg" -resize 180x180 -depth 8 -strip \
   public/apple-touch-icon.png
 
-magick identify public/favicon.ico public/apple-touch-icon.png
+# The logo centered on a 1200 x 630 black card, the size every unfurler takes.
+magick -size 1200x630 xc:"#000000" \
+  \( public/bull-valley-shadow-wars.png -resize 1080x \) \
+  -gravity center -composite -depth 8 -strip public/og.png
+
+magick identify public/favicon.ico public/apple-touch-icon.png public/og.png

@@ -15,7 +15,7 @@ An extraction adventure RPG set in a hauntological Bull Valley, Illinois. 3D fir
 - `npm run pretty` — prettier (sorts imports too); run before every commit. `npm run format:check` checks without writing
 - CI (`.github/workflows/ci.yml`) runs on every PR to `main` and every push to `main`: format, lint, types, unit tests with coverage (the pure modules have a per-file floor in `vitest.config.ts`), build, and e2e. The e2e job runs in the Playwright Docker image as three parallel jobs: the `@raid` group, the `@valley` group (the two-page specs, which boot two games each), and every other spec
 - `npm run fetch:data` — regenerate `public/data/bull-valley/` (network: Nominatim, Overpass, AWS terrain tiles; `--reuse-traffic` skips IDOT)
-- `npm run icons` — regenerate `public/favicon.ico` and `public/apple-touch-icon.png` from `public/favicon.svg` (needs ImageMagick 7, `brew install imagemagick`)
+- `npm run images` — regenerate `public/favicon.ico` and `public/apple-touch-icon.png` from `public/favicon.svg`, and the link-preview card `public/og.png` from the logo (needs ImageMagick 7, `brew install imagemagick`)
 
 ## The MVP loop
 
