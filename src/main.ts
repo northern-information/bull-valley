@@ -18,6 +18,7 @@ import { addItem, loadInventory, saveInventory, useItem } from './inventory.ts'
 import { createInventoryView } from './inventoryview.ts'
 import { cigaretteToSmoke, isCigarette, itemById } from './items.ts'
 import { KEEP } from './landmarks.ts'
+import { MistCards } from './mistcards.ts'
 import { NetClient, socketUrl } from './net.ts'
 import { Peers } from './peers.ts'
 import { Player } from './player.ts'
@@ -73,6 +74,7 @@ interface BvHook {
   truck: Truck
   graph: RoadGraph
   shadowmen: ShadowCards
+  mist: MistCards
   readonly raid: Raid
   net: {
     readonly status: NetStatus
@@ -248,6 +250,14 @@ async function boot() {
     metres: geo.metres,
     havens: world.fuelPoints,
     player: player.pos,
+  })
+  // Ground mist drifts around the player; under prefers-reduced-motion it
+  // holds still, like the logo card's fog.
+  const mist = new MistCards({
+    scene,
+    groundAt: world.ground.at,
+    player: player.pos,
+    still: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   })
 
   // --- The valley server -------------------------------------------------
@@ -1084,6 +1094,7 @@ async function boot() {
       perception,
     })
     if (swarm.struck) strike()
+    mist.update({ dt, player: player.pos })
     if (now < strikeUntil) hud.drawStatic()
     else if (!hud.staticWrap.hidden) hud.showStatic(false)
 
@@ -1194,6 +1205,7 @@ async function boot() {
       truck,
       graph,
       shadowmen,
+      mist,
       get raid() {
         return raid
       },

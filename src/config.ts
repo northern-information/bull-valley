@@ -55,6 +55,33 @@ export const CONFIG = {
     // wall clock, never the frame-capped game time).
     strikeSeconds: 1.6,
   },
+  mist: {
+    // Ground mist: this many banks drift in a square bubble, radius metres
+    // to a side from the player, wrapping to the far side as they leave it.
+    // The radius sits where the scene fog has all but swallowed a card.
+    count: 56,
+    radius: 110,
+    // The wind in metres per second, world axes (+x east, +z south); each
+    // bank adds its own drift of up to this much on top.
+    wind: { x: 0.7, z: -0.4 },
+    drift: 0.25,
+    // A bank is this many metres across and aspect of that tall, with lift
+    // of its height over the ground and the rest sunk into the terrain.
+    widthMin: 14,
+    widthMax: 30,
+    aspect: 0.26,
+    lift: 0.3,
+    // Each bank swells and thins once per period, seconds.
+    periodMin: 14,
+    periodMax: 36,
+    // Peak opacity; the metres over which a bank dissolves as the player
+    // walks into it, and over which it thins at the bubble's edge.
+    opacity: 0.6,
+    nearFade: 8,
+    edgeFade: 20,
+    // How many painted textures the banks share.
+    looks: 4,
+  },
   items: {
     // Per-item tuning lives in src/items.ts.
     // Walking speed while a cigarette burns.

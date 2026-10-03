@@ -9,6 +9,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { isMesh, meshBounds, WORLD_ASSETS } from './assets.ts'
 import { CONFIG } from './config.ts'
 import { applyPose, attachCigarette, buildFigure } from './figure.ts'
+import { buildMistCard, makeMistTexture } from './mistcards.ts'
 import { OUTFIT_IDS, OUTFITS } from './outfits.ts'
 import { samplePose } from './poses.ts'
 import { createPS1Renderer, setSnapResolution } from './ps1.ts'
@@ -52,6 +53,15 @@ function sampleShadowman(): THREE.Group {
   return group
 }
 
+// One bank of ground mist at full opacity, its skirt sunk into the ground.
+function sampleMist(): THREE.Group {
+  const group = new THREE.Group()
+  group.add(
+    buildMistCard(makeMistTexture(mulberry32(0x3157)), 16, CONFIG.mist.opacity)
+  )
+  return group
+}
+
 const ASSETS: AkashicAsset[] = [
   { id: 'truck', label: "Matthew Marx's white Chevy", build: buildTruckMesh },
   ...OUTFIT_IDS.map((id) => ({
@@ -61,6 +71,7 @@ const ASSETS: AkashicAsset[] = [
   })),
   ...WORLD_ASSETS,
   { id: 'shadowman', label: 'Shadowman', build: sampleShadowman },
+  { id: 'mist', label: 'Ground mist', build: sampleMist },
 ]
 
 // --- Scene ---------------------------------------------------------------
