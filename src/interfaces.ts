@@ -100,9 +100,15 @@ export interface Geo {
 }
 
 // ---------------------------------------------------------------------------
-// Items (src/items.ts) and drink containers (src/drinks.ts).
+// Items (src/items.ts), drink containers (src/drinks.ts), and medicine
+// packaging (src/assets.ts).
 
-export type ItemCategory = 'cigarette' | 'joint' | 'drink' | 'forage' | 'gear'
+export type ItemCategory =
+  'cigarette' | 'joint' | 'drink' | 'medicine' | 'forage' | 'gear'
+
+// How a medicine is packed: a pill bottle, a folding carton, or a dropper
+// bottle. assets.ts builds one shape per form; medart.ts paints its labels.
+export type MedicineForm = 'pills' | 'carton' | 'dropper'
 
 export type ContainerKey =
   | 'tall'
@@ -146,6 +152,8 @@ export interface Item {
   perceptionSeconds?: number
   // Drinks.
   container?: ContainerKey
+  // Medicine.
+  form?: MedicineForm
   // Gear.
   carryLimit?: number
 }

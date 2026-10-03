@@ -114,6 +114,9 @@ const LIGHT = {
 }
 // The signs stand this far off their wall, so they never z-fight with it.
 const SIGN_DEPTH = 0.04
+// The rack on the +Z wall beside the counter: medicine, at eye height.
+const MED_RACK = { x0: -12.6, x1: -9.6, height: 1.15, depth: 0.3 }
+const MED_RACK_Z = HALF_WIDTH - WALL - MED_RACK.depth / 2
 
 const BOARD_LENGTH = HALF_WIDTH * 2 - WALL * 2
 
@@ -251,6 +254,18 @@ function buildBoxes(): StoreBox[] {
       'shelf',
       true
     ),
+    // One board on the wall; the units stand on its top.
+    box(
+      'med-rack',
+      [
+        (MED_RACK.x0 + MED_RACK.x1) / 2,
+        MED_RACK.height - SHELF_BOARD / 2,
+        MED_RACK_Z,
+      ],
+      [MED_RACK.x1 - MED_RACK.x0, SHELF_BOARD, MED_RACK.depth],
+      'shelf',
+      true
+    ),
   ]
   SHELF_TOPS.forEach((top, i) => {
     boxes.push(
@@ -320,10 +335,10 @@ function buildSigns(): StoreSign[] {
 }
 
 // Units of one kind sit this far apart along their run.
-const UNIT_GAP = { drink: 0.26, counter: 0.12, sack: 0.6 }
+const UNIT_GAP = { drink: 0.26, counter: 0.12, sack: 0.6, medicine: 0.11 }
 
 // `count` units centred on `at`, spread along local Z (or local X for the
-// sack shelf, which runs along the side wall).
+// sack shelf and the medicine rack, which run along the side walls).
 function row(at: Vec3, gap: number, axis: 'x' | 'z'): Vec3[] {
   const slots: Vec3[] = []
   const n = CONFIG.store.perItem
@@ -366,6 +381,18 @@ function buildFacings(): Facing[] {
       kind: item.id,
       slots: row([COUNTER.x, COUNTER.height, z], UNIT_GAP.counter, 'z'),
       yaw: -Math.PI / 2,
+    })
+  })
+  // The rack: medicine in ITEMS order from the back wall toward the door,
+  // art facing across the room (-Z).
+  const medicine = ITEMS.filter((item) => item.category === 'medicine')
+  const rackPitch = (MED_RACK.x1 - MED_RACK.x0) / medicine.length
+  medicine.forEach((item, i) => {
+    const x = MED_RACK.x0 + rackPitch * (i + 0.5)
+    facings.push({
+      kind: item.id,
+      slots: row([x, MED_RACK.height, MED_RACK_Z], UNIT_GAP.medicine, 'x'),
+      yaw: Math.PI,
     })
   })
   // The sacks on their low shelf, facing across the room (+Z).
