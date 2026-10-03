@@ -45,6 +45,7 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 
 - `src/main.ts` — boot, scene, input wiring, render loop, raid orchestration; game rules go in the pure modules
 - `src/raid.ts` — pure raid state machine (LOADOUT → RIDING → ON_FOOT → EXTRACTED) and the loadout clock
+- `src/bindings.ts` — pure: every key in one table (`WORLD` in the valley, `PACK` with the inventory open), each with its codes, the key label, and the action label. `main.ts` and `player.ts` look actions up here (`actionOf`, `moveAxis`, `isHeld`); `hud.ts` draws the intro controls table and the pack footer from it. Rebind or relabel a key here and nowhere else
 - `src/interactions.ts` — pure: what E would do right now (board, hop out, unload, extract, take a pickup, pick the day's berry) and its prompt; `main.ts` resolves it each frame
 - `src/shop.ts` — pure: one purchase off a Citgo shelf (`buy`, returning new raid, stock, inventory, and cash) and the buyer's side alone (`settle`), which the shared valley applies once a sale is confirmed
 - `src/store.ts` — pure: the walk-in Citgo every station shares — `STORE_LAYOUT` (shell, fixtures, fluorescent lights, shelf facings, and the wall signs in station-local space, read by `assets.ts` and `world.ts`), fresh shelf stock, which facing the player is looking at, `formatCash`. Every station sells 3 of every item; cash is $40 per raid

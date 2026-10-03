@@ -2,6 +2,8 @@
 // the intro/pause overlay, and the strike static. Markup is generated here so
 // the Eleventy page and the dev harness stay a bare #bv-root.
 
+import { PACK, WORLD } from './bindings.ts'
+import type { Binding } from './bindings.ts'
 import type { RaidSummary, RingItem } from './interfaces.ts'
 
 // The inventory ring as setCarousel draws it.
@@ -27,6 +29,33 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (className) node.className = className
   if (html !== undefined) node.innerHTML = html
   return node
+}
+
+// An element holding text as text: a key label like "< >" is not markup.
+function text<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  content: string
+): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag)
+  node.textContent = content
+  return node
+}
+
+// The controls table: two bindings a row, key then action; an odd last
+// one gets the whole row.
+function controlRows(bindings: readonly Binding[]): HTMLTableRowElement[] {
+  const rows: HTMLTableRowElement[] = []
+  for (let i = 0; i < bindings.length; i += 2) {
+    const row = document.createElement('tr')
+    const pair = bindings.slice(i, i + 2)
+    for (const [j, { key, label }] of pair.entries()) {
+      const action = text('td', label)
+      if (pair.length === 1 && j === 0) action.colSpan = 3
+      row.append(text('th', key), action)
+    }
+    rows.push(row)
+  }
+  return rows
 }
 
 // The HUD builds its own markup, so a missing node or context is a bug here.
@@ -123,7 +152,7 @@ export class Hud {
         <dt>Cash</dt><dd data-bv="inv-cash">—</dd>
       </dl>
       <ul class="bv-inv-commands" aria-label="Commands">
-        <li data-bv="cmd-use"><kbd>E</kbd> Use</li>
+        <li data-bv="cmd-use"></li>
       </ul>
       <div class="bv-inv-frame" data-bv="inv-frame" aria-hidden="true">
         <span class="bv-inv-arrow bv-inv-arrow--prev">&lt;&lt;</span>
@@ -138,7 +167,22 @@ export class Hud {
         <p class="bv-inv-desc" data-bv="inv-desc"></p>
       </div>
       <p class="bv-inv-resume" data-bv="inv-resume" hidden>Click to Resume</p>
-      <div class="bv-inv-bars bv-inv-bars--foot" aria-hidden="true"><span>&lt; &gt; Cycle</span><span>Tab Exit</span><span>1 Smoke · 2 Spark</span></div>`
+      <div class="bv-inv-bars bv-inv-bars--foot" data-bv="inv-keys" aria-hidden="true"></div>`
+    // The pack's keys: E Use is the command column, dimmed when the item
+    // cannot be used; the rest line the footer.
+    const { use, ...footer } = PACK
+    required(
+      this.inventory.querySelector<HTMLElement>('[data-bv="cmd-use"]'),
+      'use command'
+    ).replaceChildren(text('kbd', use.key), ` ${use.label}`)
+    required(
+      this.inventory.querySelector<HTMLElement>('[data-bv="inv-keys"]'),
+      'pack keys'
+    ).replaceChildren(
+      ...Object.values(footer).map(({ key, label }) =>
+        text('span', `${key} ${label}`)
+      )
+    )
     ui.appendChild(this.inventory)
 
     // Vignette + strike static.
@@ -165,18 +209,15 @@ export class Hud {
     this.intro.innerHTML = `
       <h2>BULL VALLEY SHADOW WARS</h2>
       <p class="bv-intro-note">Matthew Marx leaves in five minutes.<br>Ride the bed. Find cabbages.<br>Drop them at the Stand. Get out.</p>
-      <table class="bv-controls" aria-label="Controls">
-        <tr><th>WASD</th><td>Move</td><th>Shift</th><td>Sprint</td></tr>
-        <tr><th>Mouse</th><td>Look</td><th>C</th><td>Crouch</td></tr>
-        <tr><th>Q</th><td>Scaduscope</td><th>Tab</th><td>Inventory</td></tr>
-        <tr><th>E</th><td>Board / Hop Out / Take / Buy / Unload / Extract</td><th>T</th><td>Call the Truck</td></tr>
-        <tr><th>1 / 2</th><td>Smoke / Spark</td><th>&lt; &gt; / A D</th><td>Cycle Inventory</td></tr>
-        <tr><th>Esc</th><td colspan="3">Pause</td></tr>
-      </table>
+      <table class="bv-controls" aria-label="Controls" data-bv="controls"></table>
       <div class="bv-intro-actions">
         <button type="button" class="bv-btn bv-btn--primary" data-bv="begin">Click to Play</button>
       </div>
       <p class="bv-intro-note bv-intro-fine">Requires a keyboard and mouse.</p>`
+    required(
+      this.intro.querySelector<HTMLTableElement>('[data-bv="controls"]'),
+      'controls table'
+    ).replaceChildren(...controlRows(Object.values(WORLD)))
     ui.appendChild(this.intro)
     this.beginBtn = required(
       this.intro.querySelector<HTMLButtonElement>('[data-bv="begin"]'),

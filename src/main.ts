@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import './styles.css'
 import { buildSky, pulseMaterials } from './assets.ts'
 import { BvAudio } from './audio.ts'
+import { actionOf, cycleStep, PACK, WORLD } from './bindings.ts'
 import { ringItems, stepIndex, syncIndex } from './carousel.ts'
 import { FALLBACK_NAME, loadCharacter, loadName } from './characters.ts'
 import { mountCharacterSelect } from './characterselect.ts'
@@ -989,27 +990,33 @@ async function boot() {
     }
   }
 
-  // With the inventory open the keys drive the carousel and never reach the
-  // player: ←/→ or A/D cycle, E or Enter uses, 1 and 2 still smoke and
-  // spark. Esc drops pointer lock, which pauses it.
+  // With the inventory open the keys drive the carousel (PACK in
+  // bindings.ts) and never reach the player. Esc drops pointer lock, which
+  // pauses it.
   const inventoryKey = (e: KeyboardEvent) => {
     const item = ring[ringIndex]
-    if (e.code === 'Tab') {
-      e.preventDefault()
-      closeInventory()
-    } else if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
-      cycleRing(-1)
-    } else if (e.code === 'ArrowRight' || e.code === 'KeyD') {
-      cycleRing(1)
-    } else if (e.code === 'KeyE' || e.code === 'Enter') {
-      if (item?.canUse) useKind(item.kind)
-    } else if (e.code === 'Digit1') {
-      useKind('smoke')
-    } else if (e.code === 'Digit2') {
-      useKind('joints')
+    switch (actionOf(PACK, e.code)) {
+      case 'close':
+        e.preventDefault()
+        closeInventory()
+        return
+      case 'cycle':
+        cycleRing(cycleStep(e.code))
+        return
+      case 'use':
+        if (item?.canUse) useKind(item.kind)
+        return
+      case 'smoke':
+        useKind('smoke')
+        return
+      case 'spark':
+        useKind('joints')
+        return
     }
   }
 
+  // In the valley the keys are WORLD in bindings.ts; the movement keys go
+  // to the player as held state.
   document.addEventListener('keydown', (e) => {
     if (!player.locked || ended) return
     if (inventoryOpen) {
@@ -1017,19 +1024,26 @@ async function boot() {
       return
     }
     player.handleKey(e.code, true)
-    if (e.code === 'Tab') {
-      e.preventDefault()
-      openInventory()
-    } else if (e.code === 'KeyQ') {
-      scope.toggle()
-    } else if (e.code === 'Digit1') {
-      useKind('smoke')
-    } else if (e.code === 'Digit2') {
-      useKind('joints')
-    } else if (e.code === 'KeyT') {
-      callTruck()
-    } else if (e.code === 'KeyE') {
-      interact()
+    switch (actionOf(WORLD, e.code)) {
+      case 'inventory':
+        e.preventDefault()
+        openInventory()
+        return
+      case 'scope':
+        scope.toggle()
+        return
+      case 'smoke':
+        useKind('smoke')
+        return
+      case 'spark':
+        useKind('joints')
+        return
+      case 'callTruck':
+        callTruck()
+        return
+      case 'interact':
+        interact()
+        return
     }
   })
   document.addEventListener('keyup', (e) => player.handleKey(e.code, false))
