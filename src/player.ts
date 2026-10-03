@@ -1,10 +1,12 @@
 import * as THREE from 'three'
+import { isHeld, moveAxis, WORLD } from './bindings.ts'
 import { CONFIG } from './config.ts'
 import type { HeightAt, Metres, XZ } from './interfaces.ts'
 
-// First-person controller: WASD relative to yaw, Shift sprint, C crouch,
-// pointer-lock mouse look, feet glued to the heightfield. The camera never
-// leaves this class; main.ts only reads the returned state.
+// First-person controller: the movement keys (bindings.ts) relative to
+// yaw, sprint and crouch, pointer-lock mouse look, feet glued to the
+// heightfield. The camera never leaves this class; main.ts only reads the
+// returned state.
 
 export interface PlayerSpawn {
   x: number
@@ -108,10 +110,9 @@ export class Player {
   update(dt: number, mods: PlayerMods = {}): PlayerState {
     const cfg = CONFIG.player
     this.time += dt
-    const sprinting = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')
-    const crouching = this.keys.has('KeyC')
-    const ix = (this.keys.has('KeyD') ? 1 : 0) - (this.keys.has('KeyA') ? 1 : 0)
-    const iz = (this.keys.has('KeyW') ? 1 : 0) - (this.keys.has('KeyS') ? 1 : 0)
+    const sprinting = isHeld(this.keys, WORLD.sprint)
+    const crouching = isHeld(this.keys, WORLD.crouch)
+    const { x: ix, z: iz } = moveAxis(this.keys)
 
     let speed = crouching
       ? cfg.crouchSpeed

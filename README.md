@@ -12,7 +12,7 @@ npm install
 npm run dev
 ```
 
-Vite serves on http://localhost:5174. WASD moves, mouse looks, Shift sprints, C crouches, E interacts, T calls the truck, Q toggles the scope, Tab opens the pack.
+Vite serves on http://localhost:5174. The keys are in `src/bindings.ts`, which also draws the controls table on the intro card.
 
 ## Data provenance
 
