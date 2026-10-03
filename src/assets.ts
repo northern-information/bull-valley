@@ -278,6 +278,17 @@ const STORE_FINISH: Record<StoreFinish, () => THREE.Material> = {
   shelf: () => lambert({ color: '#3e434a' }),
   counter: () => lambert({ color: '#5a3426' }),
   light: () => applyPS1(new THREE.MeshBasicMaterial({ color: '#eaf1ee' })),
+  // Storefront glass: a cool tint you see the lot through. No depth write,
+  // so the shelves and the pumps show through from either side.
+  glass: () =>
+    applyPS1(
+      new THREE.MeshBasicMaterial({
+        color: '#a9c4d6',
+        transparent: true,
+        opacity: 0.22,
+        depthWrite: false,
+      })
+    ),
 }
 
 // One wall sign as a thin box, its art on the +Z face and a dark frame on

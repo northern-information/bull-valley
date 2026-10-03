@@ -39,6 +39,27 @@ describe('STORE_LAYOUT', () => {
     }
   })
 
+  it('glazes the front wall either side of the door', () => {
+    const panes = STORE_LAYOUT.boxes.filter((b) => b.finish === 'glass')
+    expect(panes).toHaveLength(2)
+    for (const pane of panes) {
+      const [x, y, z] = pane.center
+      const [, sy, sz] = pane.size
+      // In the front wall, off the floor, under the roof, clear of the door
+      // and the corner.
+      expect(pane.blocks).toBe(true)
+      expect(Math.abs(x - STORE_LAYOUT.front)).toBeLessThan(0.2)
+      expect(y - sy / 2).toBeGreaterThan(STORE_LAYOUT.floor)
+      expect(y + sy / 2).toBeLessThan(STORE_LAYOUT.height)
+      expect(Math.abs(z) - sz / 2).toBeGreaterThan(STORE_LAYOUT.doorWidth / 2)
+      expect(Math.abs(z) + sz / 2).toBeLessThan(STORE_LAYOUT.halfWidth)
+    }
+    // Nothing dark stands in front of the back wall any more.
+    expect(STORE_LAYOUT.boxes.find((b) => b.name === 'shelf-back')).toBe(
+      undefined
+    )
+  })
+
   it('hangs the lights flush under the ceiling, inside the walls', () => {
     const lights = STORE_LAYOUT.boxes.filter((b) => b.finish === 'light')
     expect(lights).toHaveLength(4)

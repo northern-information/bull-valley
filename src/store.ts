@@ -20,9 +20,9 @@ export interface StoreOrigin extends XZ {
 }
 
 // What a box is drawn in; assets.ts maps each to a material. `light` is a
-// lit fluorescent panel.
+// lit fluorescent panel, `glass` a storefront window.
 export type StoreFinish =
-  'floor' | 'wall' | 'roof' | 'shelf' | 'counter' | 'light'
+  'floor' | 'wall' | 'roof' | 'shelf' | 'counter' | 'light' | 'glass'
 
 // One box of the building or its fixtures, centred at `center` with full
 // `size`, both station-local. `blocks` boxes are walls to the player.
@@ -75,6 +75,11 @@ const WALL = 0.2
 const FLOOR = 0.1
 const DOOR_WIDTH = 1.8
 const DOOR_HEIGHT = 2.3
+// The storefront windows either side of the door: glass from sill to
+// header, a jamb's width from the door and a post's width from the
+// corner, with one mullion down the middle.
+const WINDOW = { sill: 0.9, head: 2.6, jamb: 0.3, post: 0.4, mullion: 0.08 }
+const GLASS = 0.04
 // The building stands level on a slope: a foundation this deep under the
 // floor fills whatever gap the terrain leaves, and the floor clears the
 // highest terrain under it by FLOOR_CLEARANCE.
@@ -128,10 +133,60 @@ function buildBoxes(): StoreBox[] {
   const wallY = FLOOR + (HEIGHT - FLOOR) / 2
   const wallH = HEIGHT - FLOOR
   // The front wall either side of the door, and the lintel over it.
-  const sideLen = HALF_WIDTH - DOOR_WIDTH / 2
-  const sideZ = DOOR_WIDTH / 2 + sideLen / 2
   const frontX = FRONT - WALL / 2
   const lintelH = HEIGHT - DOOR_HEIGHT
+  // One side of the storefront, from the door jamb to the corner post:
+  // the jamb, the post, and between them a sill, a header, the glass, and
+  // a mullion. The jamb, post and glass block, and together cover the
+  // side's whole footprint; the rest stand over the glass.
+  const frontWall = (name: string, dir: 1 | -1): StoreBox[] => {
+    const inner = DOOR_WIDTH / 2
+    const outer = HALF_WIDTH
+    const glass0 = inner + WINDOW.jamb
+    const glass1 = outer - WINDOW.post
+    const glassLen = glass1 - glass0
+    const glassZ = dir * ((glass0 + glass1) / 2)
+    const glassH = WINDOW.head - WINDOW.sill
+    const sillH = WINDOW.sill - FLOOR
+    const headH = HEIGHT - WINDOW.head
+    const vertical = (
+      part: string,
+      z: number,
+      len: number,
+      blocks: boolean
+    ): StoreBox =>
+      box(
+        `wall-front-${name}-${part}`,
+        [frontX, wallY, z],
+        [WALL, wallH, len],
+        'wall',
+        blocks
+      )
+    return [
+      vertical('jamb', dir * (inner + WINDOW.jamb / 2), WINDOW.jamb, true),
+      vertical('post', dir * (outer - WINDOW.post / 2), WINDOW.post, true),
+      vertical('mullion', glassZ, WINDOW.mullion, false),
+      box(
+        `wall-front-${name}-sill`,
+        [frontX, FLOOR + sillH / 2, glassZ],
+        [WALL, sillH, glassLen],
+        'wall'
+      ),
+      box(
+        `wall-front-${name}-header`,
+        [frontX, HEIGHT - headH / 2, glassZ],
+        [WALL, headH, glassLen],
+        'wall'
+      ),
+      box(
+        `window-${name}`,
+        [frontX, WINDOW.sill + glassH / 2, glassZ],
+        [GLASS, glassH, glassLen],
+        'glass',
+        true
+      ),
+    ]
+  }
   const boxes = [
     box(
       'foundation',
@@ -162,20 +217,8 @@ function buildBoxes(): StoreBox[] {
       'wall',
       true
     ),
-    box(
-      'wall-front-left',
-      [frontX, wallY, -sideZ],
-      [WALL, wallH, sideLen],
-      'wall',
-      true
-    ),
-    box(
-      'wall-front-right',
-      [frontX, wallY, sideZ],
-      [WALL, wallH, sideLen],
-      'wall',
-      true
-    ),
+    ...frontWall('left', -1),
+    ...frontWall('right', 1),
     box(
       'lintel',
       [frontX, HEIGHT - lintelH / 2, 0],
@@ -183,13 +226,6 @@ function buildBoxes(): StoreBox[] {
       'wall'
     ),
     // The shelving unit's footprint blocks; the boards are drawn on it.
-    box(
-      'shelf-back',
-      [SHELF_X - SHELF_DEPTH / 2 + 0.02, wallY, 0],
-      [0.04, wallH, BOARD_LENGTH],
-      'shelf',
-      false
-    ),
     box(
       'shelf-unit',
       [SHELF_X, FLOOR + 0.02, 0],
