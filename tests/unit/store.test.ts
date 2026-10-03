@@ -76,32 +76,33 @@ describe('STORE_LAYOUT', () => {
     }
   })
 
-  it('hangs every sign on a wall, facing into the room', () => {
+  it('hangs every sign flat on a wall face, art pointing off it', () => {
     expect(STORE_LAYOUT.signs.length).toBeGreaterThan(0)
     const half = STORE_LAYOUT.signDepth / 2
+    // A wall face lies within a wall's thickness of one of the wall's
+    // lines, inside or out.
+    const wall = 0.3
+    const near = (at: number, lines: number[]) =>
+      expect(
+        Math.min(...lines.map((line) => Math.abs(at - line)))
+      ).toBeLessThan(wall)
     for (const sign of STORE_LAYOUT.signs) {
       const [x, y, z] = sign.center
       const [w, h] = sign.size
-      // Off the floor and under the ceiling.
+      // Off the floor and under the roof.
       expect(y - h / 2).toBeGreaterThan(STORE_LAYOUT.floor)
       expect(y + h / 2).toBeLessThan(STORE_LAYOUT.height)
       // Its art (asset +Z turned by yaw) points away from the wall it
-      // hangs on, and it hangs just off that wall.
+      // hangs on: its back, half its depth behind its centre, meets a
+      // front or back wall face (for art facing along X) or a side wall
+      // face (along Z), and it fits within that wall's run.
       const nx = Math.sin(sign.yaw)
       const nz = Math.cos(sign.yaw)
-      if (nx > 0.5) {
-        // On the back wall, facing the door.
-        expect(x - half).toBeGreaterThan(STORE_LAYOUT.back)
-        expect(x - half).toBeLessThan(STORE_LAYOUT.back + 0.3)
-        expect(Math.abs(z) + w / 2).toBeLessThan(STORE_LAYOUT.halfWidth)
-      } else if (nx < -0.5) {
-        // On the front wall, facing the room.
-        expect(x + half).toBeLessThan(STORE_LAYOUT.front)
-        expect(x + half).toBeGreaterThan(STORE_LAYOUT.front - 0.3)
+      if (Math.abs(nx) > 0.5) {
+        near(x - nx * half, [STORE_LAYOUT.front, STORE_LAYOUT.back])
         expect(Math.abs(z) + w / 2).toBeLessThan(STORE_LAYOUT.halfWidth)
       } else {
-        expect(Math.sign(nz)).toBe(-Math.sign(z))
-        expect(Math.abs(z) + half).toBeLessThan(STORE_LAYOUT.halfWidth)
+        near(z - nz * half, [STORE_LAYOUT.halfWidth, -STORE_LAYOUT.halfWidth])
         expect(x - w / 2).toBeGreaterThan(STORE_LAYOUT.back)
         expect(x + w / 2).toBeLessThan(STORE_LAYOUT.front)
       }
