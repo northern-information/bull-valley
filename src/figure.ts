@@ -26,6 +26,7 @@ import type {
   DecalId,
   LoftRing,
   OutfitId,
+  PatternPart,
   PrintPart,
 } from './outfits.ts'
 import type { JointName, PoseSample } from './poses.ts'
@@ -296,7 +297,8 @@ function stretch(rings: readonly RingInput[], s: number): LoftRing[] {
   return rings.map(([y, rx, rz, cz = 0]): LoftRing => [y * s, rx, rz, cz])
 }
 
-// Rings fattened by s across and front to back, for baggy pants.
+// Rings fattened by s across and front to back, for baggy pants and a
+// loose shirt.
 function widen(rings: readonly RingInput[], s: number): LoftRing[] {
   return rings.map(([y, rx, rz, cz = 0]): LoftRing => [y, rx * s, rz * s, cz])
 }
@@ -376,6 +378,14 @@ const SHORT_SLEEVE: RingInput[] = [
   [-0.06, 0.056, 0.061],
   [-0.12, 0.055, 0.06],
 ]
+// An oversized top's hem, in the pelvis's space: shirt cloth from the
+// waist (the torso's lowest ring) down over the hips and the seat, boxy
+// enough that baggy thighs stay inside it through the walk cycle.
+const LOOSE_HEM: RingInput[] = [
+  [0.07, 0.145, 0.095],
+  [-0.04, 0.185, 0.12, 0],
+  [-0.14, 0.195, 0.145, 0],
+]
 const FOREARM: RingInput[] = [
   [0.01, 0.04, 0.042],
   [-0.08, 0.045, 0.047],
@@ -413,6 +423,7 @@ export function buildFigure(
   const thigh = 0.44 * leg
   const shin = 0.38 * leg
   const baggy = outfit.baggy ?? 1
+  const loose = outfit.loose ?? 1
   const hipY = 0.08 + shin + thigh + 0.05
 
   const group = new THREE.Group()
@@ -420,24 +431,24 @@ export function buildFigure(
   const built: Partial<Record<JointName, THREE.Group>> = {}
 
   const pelvis = pivot(group, built, 'pelvis', 0, hipY, 0)
-  part(pelvis, loft(PELVIS, 8), c.pants)
 
-  // A part, with the outfit's pattern wrapped round it when it is shirt
-  // cloth, and the outfit's print for it laid over the top.
+  // A part, with the outfit's pattern for its cloth wrapped round it, and
+  // the outfit's print for it laid over the top.
   const printed = (
     parent: THREE.Object3D,
     rings: readonly RingInput[],
     sides: number,
     color: string,
     at: PrintPart | null,
-    shirt = false
+    cloth: PatternPart | null = null
   ) => {
     part(parent, loft(rings, sides), color)
-    if (shirt && outfit.pattern) {
+    const pattern = cloth && outfit.patterns?.[cloth]
+    if (pattern) {
       parent.add(
         new THREE.Mesh(
           printLoft(rings, sides, true),
-          decalMaterial(outfitId, [outfit.pattern], true)
+          decalMaterial(outfitId, [pattern], true)
         )
       )
     }
@@ -451,8 +462,15 @@ export function buildFigure(
     )
   }
 
+  printed(pelvis, PELVIS, 8, c.pants, null, 'pants')
+
   const spine = pivot(pelvis, built, 'spine', 0, 0.07, 0)
-  printed(spine, TORSO, 8, c.shirt, 'torso', true)
+  printed(spine, widen(TORSO, loose), 8, c.shirt, 'torso', 'shirt')
+  // A loose top hangs over the hips, on the pelvis so it stays with the
+  // seat; it takes the shirt's pattern, like every shirt part.
+  if (outfit.loose) {
+    printed(pelvis, widen(LOOSE_HEM, loose), 8, c.shirt, null, 'shirt')
+  }
 
   const neck = pivot(spine, built, 'neck', 0, 0.48, 0)
   part(neck, loft(NECK), c.skin)
@@ -479,16 +497,18 @@ export function buildFigure(
       0
     )
     // Bare arm parts take the skin color, and an arm print. A short sleeve
-    // covers the top of a bare upper arm, the way a t-shirt does.
+    // covers the top of a bare upper arm, the way a t-shirt does. Long
+    // sleeves are the arm parts themselves, so a loose top widens them.
     const bare = Boolean(outfit.sleeves)
     const skinOrShirt = bare ? c.skin : c.shirt
+    const sleeve = bare ? 1 : loose
     printed(
       shoulder,
-      stretch(UPPER_ARM, arm),
+      widen(stretch(UPPER_ARM, arm), sleeve),
       6,
       skinOrShirt,
       bare ? 'arm' : null,
-      !bare
+      bare ? null : 'shirt'
     )
     if (outfit.sleeves === 'short') {
       part(shoulder, loft(stretch(SHORT_SLEEVE, arm)), c.shirt)
@@ -496,11 +516,11 @@ export function buildFigure(
     const elbow = pivot(shoulder, built, `elbow${side}`, 0, -upperArm, 0)
     printed(
       elbow,
-      stretch(FOREARM, arm),
+      widen(stretch(FOREARM, arm), sleeve),
       6,
       skinOrShirt,
       bare ? 'arm' : null,
-      !bare
+      bare ? null : 'shirt'
     )
     part(elbow, loft(HAND), c.skin, 0, -foreArm, 0)
     part(elbow, box(0.025, 0.05, 0.025), c.skin, 0, -foreArm - 0.035, 0.04)
@@ -514,9 +534,11 @@ export function buildFigure(
     }
 
     const hip = pivot(pelvis, built, `hip${side}`, 0.09 * sign, -0.05, 0)
-    printed(hip, widen(stretch(THIGH, leg), baggy), 6, c.pants, 'thigh')
+    const thighRings = widen(stretch(THIGH, leg), baggy)
+    printed(hip, thighRings, 6, c.pants, 'thigh', 'pants')
     const knee = pivot(hip, built, `knee${side}`, 0, -thigh, 0)
-    part(knee, loft(widen(stretch(SHIN, leg), baggy)), c.pants)
+    const shinRings = widen(stretch(SHIN, leg), baggy)
+    printed(knee, shinRings, 6, c.pants, null, 'pants')
     part(knee, boot(), c.boots, 0, -shin - 0.03, 0.045)
   }
 

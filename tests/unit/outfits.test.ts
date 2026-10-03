@@ -9,7 +9,7 @@ import {
 import { JOINTS } from '../../src/poses.ts'
 
 describe('outfits', () => {
-  it('has the eight characters', () => {
+  it('has the nine characters', () => {
     expect(OUTFIT_IDS).toEqual([
       'marx',
       'player',
@@ -18,8 +18,32 @@ describe('outfits', () => {
       'kvistad',
       'church',
       'hanson',
+      'halatek',
       'carlsten',
     ])
+  })
+
+  it('dresses Chris Halatek in the oversized NIN hoodie', () => {
+    const chris = OUTFITS.halatek
+    expect(chris.label).toBe('Chris Halatek')
+    expect(chris.addons).toEqual(
+      expect.arrayContaining([
+        'dreadlocks',
+        'bandana',
+        'bandana-knot',
+        'bandana-tails',
+        'stubble',
+        'hood-down',
+        'kangaroo-pocket',
+      ])
+    )
+    expect(chris.addons).not.toContain('goatee')
+    expect(chris.prints?.torso).toEqual(['nin'])
+    expect(chris.patterns?.pants).toBe('camo')
+    // Long sleeves: a hoodie.
+    expect(chris.sleeves).toBeUndefined()
+    expect(chris.loose).toBeGreaterThan(1)
+    expect(chris.baggy).toBeGreaterThan(1)
   })
 
   it('dresses David Carlsten for the counter', () => {
@@ -34,7 +58,7 @@ describe('outfits', () => {
         'beret',
       ])
     )
-    expect(clerk.pattern).toBe('plaid')
+    expect(clerk.patterns?.shirt).toBe('plaid')
     expect(clerk.baggy).toBeGreaterThan(1)
     expect(clerk.inHand).toBe('bat')
     // Long sleeves: the plaid wraps the arms too.
