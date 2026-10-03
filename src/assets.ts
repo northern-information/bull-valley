@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { paintAd } from './adart.ts'
 import { paintDrink } from './canart.ts'
-import { context2d } from './canvas.ts'
+import { canvas, context2d, SANS, text } from './canvas.ts'
 import { CONTAINERS } from './drinks.ts'
 import { DEFAULT_FINISH, finishById } from './finishes.ts'
 import { isCigarette, isDrink, itemById, ITEMS } from './items.ts'
@@ -376,13 +376,150 @@ export function buildShelfDisplay(): {
   return { group, slots }
 }
 
+// --- Gas pump ------------------------------------------------------------
+
+// A two-sided dispenser circa 2008 on a concrete curb: a pale cabinet with
+// a painted face on each side (the brand band, the display, the grade
+// buttons, the lower door), a dark cap, and a hose and nozzle hung on each
+// side. Origin at ground level under the middle; the faces look along ±X
+// (toward the road and the store), the sides along the island.
+const PUMP = {
+  width: 0.9,
+  depth: 0.5,
+  height: 1.3,
+  curb: { width: 1.4, height: 0.16, depth: 0.9 },
+  cap: 0.1,
+  hose: { radius: 0.022, length: 0.7, x: 0.28 },
+  nozzle: { width: 0.1, height: 0.22, depth: 0.06 },
+}
+
+// The cabinet face, 90×130 for the 0.9 × 1.3 m side: orange band and
+// wordmark up top, an amber readout, three grade buttons, the lower door.
+function makePumpFaceTexture(): THREE.CanvasTexture {
+  const art = canvas([90, 130], '#d9d5cb')
+  const { ctx, w } = art
+  ctx.fillStyle = '#f26522'
+  ctx.fillRect(0, 0, w, 20)
+  text(ctx, 'CITGO', w / 2, 10, w - 10, 13, SANS, '#f4f1ea')
+  // The readout: sale, gallons, price a gallon, in seven-segment amber.
+  ctx.fillStyle = '#12171b'
+  ctx.fillRect(8, 28, w - 16, 44)
+  text(ctx, '$ 23.86', w / 2, 38, w - 24, 11, SANS, '#f5b342')
+  text(ctx, '6.845 GAL', w / 2, 52, w - 24, 9, SANS, '#f5b342')
+  text(ctx, '3.489', w / 2, 65, w - 24, 9, SANS, '#f5b342')
+  // Grade buttons.
+  const grades = ['87', '89', '93']
+  grades.forEach((grade, i) => {
+    const x = 12 + i * 24
+    ctx.fillStyle = '#1f3a93'
+    ctx.fillRect(x, 80, 18, 14)
+    text(ctx, grade, x + 9, 87, 16, 8, SANS, '#f4f1ea')
+  })
+  // The lower door, a shade darker, with its lock.
+  ctx.fillStyle = '#9d9a91'
+  ctx.fillRect(4, 104, w - 8, 22)
+  ctx.fillStyle = '#3a3d42'
+  ctx.fillRect(w / 2 - 2, 113, 4, 4)
+  return artTexture(art)
+}
+
+// The pump's parts in pump-local space. One material per part, shared by
+// every pump in the valley through instancing.
+export function pumpParts(): Part[] {
+  const { width, depth, height, curb, cap, hose, nozzle } = PUMP
+  const curbGeometry = new THREE.BoxGeometry(
+    curb.width,
+    curb.height,
+    curb.depth
+  )
+  curbGeometry.translate(0, curb.height / 2, 0)
+  const cabinet = new THREE.BoxGeometry(width, height, depth)
+  cabinet.translate(0, curb.height + height / 2, 0)
+  const capGeometry = new THREE.BoxGeometry(width + 0.1, cap, depth + 0.1)
+  capGeometry.translate(0, curb.height + height + cap / 2, 0)
+  // BoxGeometry face order is +x, -x, +y, -y, +z, -z: the art goes on the
+  // two X faces, with a little emissive so it reads under the canopy.
+  const faceTexture = makePumpFaceTexture()
+  const face = lambert({
+    map: faceTexture,
+    emissive: new THREE.Color('#ffffff'),
+    emissiveMap: faceTexture,
+    emissiveIntensity: 0.4,
+  })
+  const shell = lambert({
+    color: '#d9d5cb',
+    emissive: new THREE.Color('#5a564c'),
+    emissiveIntensity: 0.35,
+  })
+  const dark = lambert({ color: '#2b2f36' })
+  const parts: Part[] = [
+    {
+      name: 'pump-curb',
+      geometry: curbGeometry,
+      material: lambert({
+        color: '#8f8c84',
+        emissive: new THREE.Color('#3a3832'),
+        emissiveIntensity: 0.3,
+      }),
+    },
+    {
+      name: 'pump-cabinet',
+      geometry: cabinet,
+      material: [face, face, shell, shell, shell, shell],
+    },
+    { name: 'pump-cap', geometry: capGeometry, material: dark },
+  ]
+  // A hose and the nozzle it ends in for each face, hung on the cabinet's
+  // narrow end (+Z, the island's one end) toward that face, so neither
+  // crosses the art.
+  for (const [side, sx] of [
+    ['road', 1],
+    ['store', -1],
+  ] as const) {
+    const x = sx * hose.x
+    const z = depth / 2 + hose.radius + 0.01
+    const hoseGeometry = new THREE.CylinderGeometry(
+      hose.radius,
+      hose.radius,
+      hose.length,
+      5
+    )
+    const hoseTop = curb.height + height - 0.05
+    hoseGeometry.translate(x, hoseTop - hose.length / 2, z)
+    const nozzleGeometry = new THREE.BoxGeometry(
+      nozzle.width,
+      nozzle.height,
+      nozzle.depth
+    )
+    nozzleGeometry.translate(
+      x,
+      hoseTop - hose.length - nozzle.height / 2 + 0.04,
+      depth / 2 + nozzle.depth / 2
+    )
+    parts.push(
+      { name: `pump-hose-${side}`, geometry: hoseGeometry, material: dark },
+      { name: `pump-nozzle-${side}`, geometry: nozzleGeometry, material: dark }
+    )
+  }
+  return parts
+}
+
+// The canopy's dimensions, shared by the slab and the tubes under it.
+const CANOPY = { width: 9, thickness: 0.45, depth: 6.5, height: 4.6 }
+
 export function fuelStationParts() {
-  const canopy = new THREE.BoxGeometry(9, 0.45, 6.5)
-  canopy.translate(0, 4.6, 0)
+  const canopy = new THREE.BoxGeometry(
+    CANOPY.width,
+    CANOPY.thickness,
+    CANOPY.depth
+  )
+  canopy.translate(0, CANOPY.height, 0)
   const canopyPole = new THREE.CylinderGeometry(0.12, 0.12, 4.6, 5)
   canopyPole.translate(0, 2.3, 0)
-  const pump = new THREE.BoxGeometry(0.9, 1.3, 0.5)
-  pump.translate(0, 0.65, 0)
+  // One fluorescent tube under the canopy over each pump, flush with the
+  // slab's underside, long side along the canopy's.
+  const canopyLight = new THREE.BoxGeometry(3.6, 0.06, 0.4)
+  canopyLight.translate(0, CANOPY.height - CANOPY.thickness / 2 - 0.03, 0)
   const signPole = new THREE.CylinderGeometry(0.14, 0.14, 7, 5)
   signPole.translate(0, 3.5, 0)
   return {
@@ -401,15 +538,13 @@ export function fuelStationParts() {
       geometry: canopyPole,
       material: lambert({ color: '#454b54' }),
     },
-    pump: {
-      name: 'pump',
-      geometry: pump,
-      material: lambert({
-        color: '#7a1d1d',
-        emissive: new THREE.Color('#40100f'),
-        emissiveIntensity: 0.4,
-      }),
+    canopyLight: {
+      name: 'canopy-light',
+      geometry: canopyLight,
+      material: applyPS1(new THREE.MeshBasicMaterial({ color: '#eaf1ee' })),
     },
+    // Placed at the pump's spot on the island, with the station's yaw.
+    pump: pumpParts(),
     signPole: {
       name: 'sign-pole',
       geometry: signPole,
@@ -466,7 +601,8 @@ function sampleFuelStation(): THREE.Group {
     parts.push({ ...p.canopyPole, position: [0, 0, off] })
   }
   for (const off of [L.pumpOffset, -L.pumpOffset]) {
-    parts.push({ ...p.pump, position: [0, 0, off] })
+    for (const part of p.pump) parts.push({ ...part, position: [0, 0, off] })
+    parts.push({ ...p.canopyLight, position: [0, 0, off] })
   }
   const group = assembleParts(parts)
   const sprite = makeGlowSprite(p.glow, L.glowScale)
@@ -1892,6 +2028,7 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     build: () =>
       assembleParts([{ ...adSignPart(sign), position: [0, sign.size[1], 0] }]),
   })),
+  { id: 'pump', label: 'Gas pump', build: () => assembleParts(pumpParts()) },
   { id: 'tree', label: 'Tree', build: sampleTree },
   { id: 'pole', label: 'Utility pole', build: samplePole },
   { id: 'reeds', label: 'Reeds (clump of 12)', build: sampleReeds },

@@ -747,7 +747,8 @@ function buildFuelStations(
   const store = parts.store.map((part) => instanced(part, count))
   const canopies = instanced(parts.canopy, count)
   const canopyPoles = instanced(parts.canopyPole, count * 2)
-  const pumps = instanced(parts.pump, count * 2)
+  const pumps = parts.pump.map((part) => instanced(part, count * 2))
+  const canopyLights = instanced(parts.canopyLight, count * 2)
   const signPoles = instanced(parts.signPole, count)
   const signs = instanced(parts.sign, count)
   const lots = makeRibbonAccumulator(ground)
@@ -830,7 +831,8 @@ function buildFuelStations(
       const pumpOff = p === 0 ? L.pumpOffset : -L.pumpOffset
       dummy.position.set(x - sin * pumpOff, y, z + cos * pumpOff)
       dummy.updateMatrix()
-      pumps.setMatrixAt(i * 2 + p, dummy.matrix)
+      for (const mesh of pumps) mesh.setMatrixAt(i * 2 + p, dummy.matrix)
+      canopyLights.setMatrixAt(i * 2 + p, dummy.matrix)
     }
 
     // Tall road sign out front, at the lot's corner.
@@ -851,7 +853,8 @@ function buildFuelStations(
     ...store,
     canopies,
     canopyPoles,
-    pumps,
+    canopyLights,
+    ...pumps,
     signPoles,
     signs,
   ]) {
