@@ -10,6 +10,7 @@ import {
   isDrink,
   isForage,
   isForSale,
+  isMedicine,
   isUsable,
   ITEM_LIST,
   itemById,
@@ -21,9 +22,14 @@ describe('items', () => {
   it('has unique ids and a known category', () => {
     expect(new Set(ITEMS.map((item) => item.id)).size).toBe(ITEMS.length)
     for (const item of ITEMS) {
-      expect(['cigarette', 'joint', 'drink', 'forage', 'gear']).toContain(
-        item.category
-      )
+      expect([
+        'cigarette',
+        'joint',
+        'drink',
+        'medicine',
+        'forage',
+        'gear',
+      ]).toContain(item.category)
     }
   })
 
@@ -61,6 +67,23 @@ describe('items', () => {
       expect(isDrink(item.id)).toBe(true)
       expect(isUsable(item.id)).toBe(false)
     }
+  })
+
+  it('gives every medicine a known form, and no use', () => {
+    const medicine = ITEMS.filter((item) => item.category === 'medicine')
+    expect(medicine.map((item) => item.id)).toEqual([
+      'aspirin',
+      'ibuprofen',
+      'benadryl',
+      'eye-drops',
+    ])
+    for (const item of medicine) {
+      expect(['pills', 'carton', 'dropper'], item.id).toContain(item.form)
+      expect(isMedicine(item.id)).toBe(true)
+      expect(isDrink(item.id)).toBe(false)
+      expect(isUsable(item.id)).toBe(false)
+    }
+    expect(isMedicine('pbr')).toBe(false)
   })
 
   it('keeps gear out of the inventory', () => {

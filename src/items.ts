@@ -5,7 +5,7 @@
 //
 // Fields:
 //   id        inventory kind and mesh key
-//   category  'cigarette' | 'joint' | 'drink' | 'forage' | 'gear'
+//   category  'cigarette' | 'joint' | 'drink' | 'medicine' | 'forage' | 'gear'
 //   label     name in the carousel and pickup prompts
 //   blurb     description in the carousel
 //   used      toast when the player uses it
@@ -16,9 +16,9 @@
 //   price     shelf price at every Citgo, in cents (shelf items only)
 //
 // Gear is not counted in the inventory: the sack is raid state
-// (raid.sack), so it has no start, used, or empty text. Drinks cannot be
-// used yet, so they have no used or empty text. Forage is never on a
-// shelf, so it has no price or bought text; the valley hands it out
+// (raid.sack), so it has no start, used, or empty text. Drinks and medicine
+// cannot be used yet, so they have no used or empty text. Forage is never
+// on a shelf, so it has no price or bought text; the valley hands it out
 // (sharedraid.ts rule 9).
 
 import type { Inventory, Item } from './interfaces.ts'
@@ -277,6 +277,49 @@ export const ITEMS = [
     price: 119,
     container: 'water',
   },
+  // Medicine, off the rack by the register. No effect yet: the player can
+  // buy and carry it, not take it. form is a MedicineForm (interfaces.ts),
+  // the shape assets.ts builds.
+  {
+    id: 'aspirin',
+    category: 'medicine',
+    label: 'Aspirin',
+    blurb: 'Yellow label, 24 tablets. For the head you woke up with.',
+    bought: 'One bottle of aspirin, pocketed.',
+    start: 0,
+    price: 449,
+    form: 'pills',
+  },
+  {
+    id: 'ibuprofen',
+    category: 'medicine',
+    label: 'Ibuprofen',
+    blurb: 'Blue label, 200 mg. The gas station kind, two to a dose.',
+    bought: 'One bottle of ibuprofen, pocketed.',
+    start: 0,
+    price: 499,
+    form: 'pills',
+  },
+  {
+    id: 'benadryl',
+    category: 'medicine',
+    label: 'Benadryl',
+    blurb: 'The pink box. Allergies, or a few hours of nothing.',
+    bought: 'One box of Benadryl, pocketed.',
+    start: 0,
+    price: 699,
+    form: 'carton',
+  },
+  {
+    id: 'eye-drops',
+    category: 'medicine',
+    label: 'Eye Drops',
+    blurb: 'Half an ounce, red cap. Gets the red out.',
+    bought: 'One bottle of eye drops, pocketed.',
+    start: 0,
+    price: 549,
+    form: 'dropper',
+  },
   // Forage. Not for sale: the berry bush at the spawn Citgo gives every
   // name one a day, the day turning at midnight Central. No effect yet.
   {
@@ -348,6 +391,10 @@ export function isForage(id: string): boolean {
 // Whether a Citgo shelf carries the item: everything with a price.
 export function isForSale(id: string): boolean {
   return itemById(id)?.price !== undefined
+}
+
+export function isMedicine(id: string): boolean {
+  return itemById(id)?.category === 'medicine'
 }
 
 // Whether the player can use a carried item (E in the carousel).

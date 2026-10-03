@@ -66,6 +66,7 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 - `src/packart.ts` — canvas trade-dress art for the cigarette packs
 - `src/drinks.ts` — pure: drink container sizes and the per-family fit height; the drinks themselves (circa 2008, for sale at every Citgo, no effect yet) are entries in `items.ts`
 - `src/canart.ts` — canvas trade-dress art for the drink labels, as they looked circa 2008
+- `src/medart.ts` — canvas art for the medicine labels (a pill bottle, a carton, a dropper bottle); the medicine itself (aspirin, ibuprofen, Benadryl, eye drops, on the rack by the register, no effect yet) is entries in `items.ts`, and `assets.ts` builds one shape per `MedicineForm`
 - `src/decalart.ts` — canvas art for the decals on character parts (prints over the torso, thighs and arms; the buckle face); outfits name them by `DecalId`
 - `src/carousel.ts` — pure: which items ride the inventory ring (carried items, cargo, the sack) and how the selection steps and wraps
 - `src/inventoryview.ts` — the inventory carousel in 3D: its own scene and camera, drawn by the game renderer in place of the world while the inventory is open (the player freezes; the raid clock does not)

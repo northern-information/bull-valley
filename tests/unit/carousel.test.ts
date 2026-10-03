@@ -37,6 +37,13 @@ describe('ringItems', () => {
     expect(items[1]).toMatchObject({ stock: 1, canUse: false })
   })
 
+  it('carries medicine after drinks, never usable', () => {
+    const inv = { ...empty, benadryl: 2, 'ice-mountain': 1, aspirin: 1 }
+    const items = ringItems(inv, createRaid(0))
+    expect(kinds(items)).toEqual(['ice-mountain', 'aspirin', 'benadryl'])
+    expect(items[2]).toMatchObject({ stock: 2, canUse: false })
+  })
+
   it('carries cabbages as read-only cargo', () => {
     const raid = { ...createRaid(0), carrying: 2 }
     const items = ringItems(empty, raid)
