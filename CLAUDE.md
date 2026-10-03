@@ -52,10 +52,10 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 - `src/walls.ts` — pure: the only things that stop you (the store walls and fixtures), as capsules on a spatial hash; `Player` resolves against `world.walls` after every move
 - `src/roadgraph.ts` — pure road-network graph, Dijkstra, arc-length walker
 - `src/ground.ts` — pure: what to stand on at any point. The terrain is a heightfield and the roads and station lots float a little over it; `world.ts` registers those surfaces on a `Ground`, and `world.ground.at(x, z)` returns the terrain or the surface deck, whichever is higher. The player, the truck, and every placed thing stand on `ground.at`; only the terrain mesh and the surfaces themselves sample the raw `heightAt`
-- `src/truck.ts` — the white Chevy: seats the driver in the `assets.ts` body; drive/board/ride/call; `driveRouteAt` drives against a shared clock, and the bed has numbered seats
+- `src/truck.ts` — the white Chevy: seats the driver in the `assets.ts` body (he reads a paperback by the tailgate through the lobby); drive/board/ride/call; `driveRouteAt` drives against a shared clock, and the bed has numbered seats
 - `src/figure.ts` — the shared character body: rigid low-poly parts on joint pivots, built per outfit; `applyPose` drives it
 - `src/outfits.ts` — pure: every character outfit in one table (colors by slot, add-on parts, limb proportions); edit characters here
-- `src/poses.ts` — pure: the body's joints, the poses (stand, sit, lean, crouch, walk cycle) and `samplePose`
+- `src/poses.ts` — pure: the body's joints, the poses (stand, sit, lean, read, crouch, walk cycle) and `samplePose`
 - `src/playerbody.ts` — the player's own legs in first person: the outfit picked at the character select, torso hidden, posed from the move speed
 - `src/characters.ts` — pure: the selectable roster (in select-screen order) and the saved pick and name in localStorage
 - `src/characterselect.ts` — the character select: one figure on a PS1 turntable with its own small renderer (the game's does not exist yet) and the name field, mounted at boot beneath the title cards. A name is required (the rules are `protocol.ts`'s, 1 to 16 characters); Choose stays disabled without one

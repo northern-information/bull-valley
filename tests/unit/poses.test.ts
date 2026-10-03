@@ -41,6 +41,21 @@ describe('poses', () => {
     )
   })
 
+  it('reads with the head down and both hands raised to the book', () => {
+    const { joints } = samplePose('read')
+    const lean = samplePose('lean').joints
+    // The head nods forward (a positive x rotation) toward the page.
+    expect(joints.neck[0]).toBeGreaterThan(0.3)
+    // Both forearms swing forward, as far as the lean's folded arms.
+    expect(joints.elbowL[0]).toBeLessThan(-1.5)
+    expect(joints.elbowR[0]).toBeLessThan(-1.5)
+    // Mirrored across the body, over the lean's stance.
+    expect(joints.shoulderL[2]).toBeCloseTo(-joints.shoulderR[2], 6)
+    expect(joints.elbowL[2]).toBeCloseTo(-joints.elbowR[2], 6)
+    expect(joints.hipR).toEqual(lean.hipR)
+    expect(joints.kneeR).toEqual(lean.kneeR)
+  })
+
   it('throws on an unknown pose', () => {
     // An id from outside the table, on purpose.
     expect(() => samplePose('moonwalk' as PoseName)).toThrow()

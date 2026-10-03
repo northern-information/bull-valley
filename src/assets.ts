@@ -1178,6 +1178,36 @@ export function buildBat(): THREE.Group {
   return group
 }
 
+// --- Paperback -----------------------------------------------------------
+
+// An open mass-market paperback, held for reading: two covers hinged at
+// the spine, each with its half of the page block on the inside, the
+// covers folded a little back so the pages lie open in a shallow V.
+// Local space: the spine up +Y, the origin at its middle, the pages
+// facing +Z (toward the reader). A cover is 11 by 18 cm; the page block
+// is 2 cm in all.
+const BOOK_COVER: [number, number, number] = [0.11, 0.178, 0.004]
+const BOOK_PAGES: [number, number, number] = [0.104, 0.17, 0.01]
+const BOOK_OPEN = 0.5
+export function buildBook(): THREE.Group {
+  const cover = lambert({ color: '#5a1f1a' })
+  const pages = lambert({ color: '#e7dcc3' })
+  const group = new THREE.Group()
+  group.name = 'book'
+  for (const side of [1, -1]) {
+    // Each half hinges at the spine and swings back by BOOK_OPEN.
+    const hinge = new THREE.Group()
+    hinge.rotation.y = -side * BOOK_OPEN
+    const back = new THREE.Mesh(new THREE.BoxGeometry(...BOOK_COVER), cover)
+    back.position.set((side * BOOK_COVER[0]) / 2, 0, -BOOK_COVER[2] / 2)
+    const block = new THREE.Mesh(new THREE.BoxGeometry(...BOOK_PAGES), pages)
+    block.position.set((side * BOOK_PAGES[0]) / 2, 0, BOOK_PAGES[2] / 2)
+    hinge.add(back, block)
+    group.add(hinge)
+  }
+  return group
+}
+
 // --- Guitar --------------------------------------------------------------
 
 // An LTD EX-400: an Explorer body, about a metre long, in the finish
@@ -2217,6 +2247,7 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   { id: 'sack', label: 'Burlap sack', build: () => buildSack() },
   { id: 'guitar', label: 'Guitar: black LTD EX-400', build: sampleGuitar },
   { id: 'bat', label: 'Baseball bat', build: buildBat },
+  { id: 'book', label: 'Paperback', build: buildBook },
 ]
 
 // Bounds from meshes only: glow sprites are unit planes scaled up, and would

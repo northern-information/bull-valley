@@ -8,7 +8,12 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { isMesh, meshBounds, WORLD_ASSETS } from './assets.ts'
 import { CONFIG } from './config.ts'
-import { applyPose, attachCigarette, buildFigure } from './figure.ts'
+import {
+  applyPose,
+  attachBook,
+  attachCigarette,
+  buildFigure,
+} from './figure.ts'
 import { buildMistCard, makeMistTexture } from './mistcards.ts'
 import { OUTFIT_IDS, OUTFITS } from './outfits.ts'
 import { samplePose } from './poses.ts'
@@ -36,8 +41,13 @@ declare global {
 function sampleFigure(outfitId: OutfitId): THREE.Group {
   const figure = buildFigure(outfitId)
   applyPose(figure, samplePose('stand'))
-  // Marx smokes; freeze his cigarette mid-drag with smoke in the air.
-  if (outfitId === 'marx') attachCigarette(figure).update(0.4)
+  // Marx reads at the tailgate and smokes; show him as the lobby does,
+  // with the cigarette frozen mid-drag and smoke in the air.
+  if (outfitId === 'marx') {
+    applyPose(figure, samplePose('read'))
+    attachBook(figure)
+    attachCigarette(figure).update(0.4)
+  }
   return figure.group
 }
 
