@@ -2,9 +2,9 @@
 // station-local space (the pump island at the origin, local +X toward the
 // road, local Z along it, y up from the lot), plus what it takes to shop
 // there: shelf stock, cash, and which shelf facing the player is looking
-// at. assets.ts builds the shell and shelves from STORE_LAYOUT, world.ts
-// registers its floor and walls, so what is drawn, what blocks, and what
-// E buys can never drift apart. No three.js, no DOM.
+// at. assets.ts builds the shell, shelves, lights and signs from
+// STORE_LAYOUT, world.ts registers its floor and walls, so what is drawn,
+// what blocks, and what E buys can never drift apart. No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
 import { ITEMS } from './items.ts'
@@ -19,8 +19,10 @@ export interface StoreOrigin extends XZ {
   y: number
 }
 
-// What a box is drawn in; assets.ts maps each to a material.
-export type StoreFinish = 'floor' | 'wall' | 'roof' | 'shelf' | 'counter'
+// What a box is drawn in; assets.ts maps each to a material. `light` is a
+// lit fluorescent panel.
+export type StoreFinish =
+  'floor' | 'wall' | 'roof' | 'shelf' | 'counter' | 'light'
 
 // One box of the building or its fixtures, centred at `center` with full
 // `size`, both station-local. `blocks` boxes are walls to the player.
@@ -44,6 +46,20 @@ export interface Facing {
 export interface WorldFacing {
   kind: ItemId
   center: Vec3
+}
+
+// The advertisements on the walls; adart.ts paints each by id.
+export type AdId = 'smokes' | 'thanks' | 'beer' | 'energy'
+
+// One sign on a wall: a flat panel `size` wide and tall, centred at
+// `center` just off the wall face, turned by `yaw` so its art (asset +Z)
+// faces into the room. Decoration only: it neither blocks nor sells.
+export interface StoreSign {
+  name: string
+  art: AdId
+  center: Vec3
+  size: [number, number]
+  yaw: number
 }
 
 // --- The layout ----------------------------------------------------------
@@ -84,6 +100,15 @@ const CLERK = {
 }
 // The low shelf by the -Z wall: sacks.
 const SACK_SHELF = { x0: -11.0, x1: -8.6, height: 0.3, depth: 0.6 }
+// The fluorescent troffers on the ceiling: two rows across the room, two
+// panels each, long side along Z like the aisle, hung flush under the roof.
+const LIGHT = {
+  rows: [-11.75, -8.25],
+  along: [-2.75, 2.75],
+  size: [0.3, 0.06, 2.4] as Vec3,
+}
+// The signs stand this far off their wall, so they never z-fight with it.
+const SIGN_DEPTH = 0.04
 
 const BOARD_LENGTH = HALF_WIDTH * 2 - WALL * 2
 
@@ -201,7 +226,61 @@ function buildBoxes(): StoreBox[] {
       )
     )
   })
+  LIGHT.rows.forEach((x, r) => {
+    LIGHT.along.forEach((z, a) => {
+      boxes.push(
+        box(
+          `light-${r}-${a}`,
+          [x, HEIGHT - LIGHT.size[1] / 2, z],
+          LIGHT.size,
+          'light'
+        )
+      )
+    })
+  })
   return boxes
+}
+
+// The advertisements, each hung on an inside wall face. The front wall's
+// inside face is at FRONT - WALL and the side walls' at ±(HALF_WIDTH -
+// WALL); a sign's centre sits half its depth inside that.
+function buildSigns(): StoreSign[] {
+  const frontX = FRONT - WALL - SIGN_DEPTH / 2
+  const sideZ = HALF_WIDTH - WALL - SIGN_DEPTH / 2
+  return [
+    // The cigarette price board behind the counter, over the clerk's head.
+    {
+      name: 'sign-smokes',
+      art: 'smokes',
+      center: [frontX, 2.45, (COUNTER.z0 + COUNTER.z1) / 2],
+      size: [1.4, 1.0],
+      yaw: -Math.PI / 2,
+    },
+    // Over the door on the way out.
+    {
+      name: 'sign-thanks',
+      art: 'thanks',
+      center: [frontX, 2.85, 0],
+      size: [1.2, 0.5],
+      yaw: -Math.PI / 2,
+    },
+    // Over the sack shelf on the -Z wall.
+    {
+      name: 'sign-beer',
+      art: 'beer',
+      center: [(SACK_SHELF.x0 + SACK_SHELF.x1) / 2, 2.0, -sideZ],
+      size: [1.6, 1.0],
+      yaw: 0,
+    },
+    // On the +Z wall, across from it.
+    {
+      name: 'sign-energy',
+      art: 'energy',
+      center: [-10.5, 2.0, sideZ],
+      size: [1.6, 1.0],
+      yaw: Math.PI,
+    },
+  ]
 }
 
 // Units of one kind sit this far apart along their run.
@@ -279,6 +358,8 @@ export const STORE_LAYOUT = {
   doorWidth: DOOR_WIDTH,
   boxes: buildBoxes(),
   facings: buildFacings(),
+  signs: buildSigns(),
+  signDepth: SIGN_DEPTH,
   clerk: CLERK,
 } as const
 

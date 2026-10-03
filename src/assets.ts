@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { paintAd } from './adart.ts'
 import { paintDrink } from './canart.ts'
 import { context2d } from './canvas.ts'
 import { CONTAINERS } from './drinks.ts'
@@ -12,7 +13,7 @@ import type { DrinkArt } from './canart.ts'
 import type { CanvasArt } from './canvas.ts'
 import type { Container, ContainerKey, Vec3 } from './interfaces.ts'
 import type { Rng } from './rng.ts'
-import type { StoreFinish } from './store.ts'
+import type { StoreFinish, StoreSign } from './store.ts'
 
 // Every placed 3D asset in Bull Valley, defined once in asset-local space.
 // world.ts instances these parts across the valley; the Akashic dev page
@@ -251,8 +252,9 @@ export const FUEL_LAYOUT = {
 }
 
 // The store's colors, by finish. The walls and floor carry a little
-// emissive, the fluorescent tubes nobody turns off.
-const STORE_FINISH: Record<StoreFinish, () => THREE.MeshLambertMaterial> = {
+// emissive, the fluorescent tubes nobody turns off; the tubes themselves
+// are basic, so they read as lit from any angle at night.
+const STORE_FINISH: Record<StoreFinish, () => THREE.Material> = {
   floor: () =>
     lambert({
       color: '#77736a',
@@ -265,17 +267,48 @@ const STORE_FINISH: Record<StoreFinish, () => THREE.MeshLambertMaterial> = {
       emissive: new THREE.Color('#2e2c27'),
       emissiveIntensity: 0.5,
     }),
-  roof: () => lambert({ color: '#6c6961' }),
+  // The ceiling is the roof's underside; without emissive it is a black void
+  // the tubes float in.
+  roof: () =>
+    lambert({
+      color: '#7a776e',
+      emissive: new THREE.Color('#2e2c27'),
+      emissiveIntensity: 0.5,
+    }),
   shelf: () => lambert({ color: '#3e434a' }),
   counter: () => lambert({ color: '#5a3426' }),
+  light: () => applyPS1(new THREE.MeshBasicMaterial({ color: '#eaf1ee' })),
 }
 
-// The store shell and fixtures from STORE_LAYOUT, one part per box, each
-// geometry already in station-local space: place it at the pump island
-// with the station's yaw. One material per finish, shared across boxes.
+// One wall sign as a thin box, its art on the +Z face and a dark frame on
+// the rest, in asset space: centred on the origin, facing +Z. The art
+// glows through its own emissiveMap, so it reads under the store's dim
+// light. BoxGeometry face order is +x, -x, +y, -y, +z, -z.
+function adSignPart(sign: StoreSign): Part {
+  const [w, h] = sign.size
+  const geometry = new THREE.BoxGeometry(w, h, STORE_LAYOUT.signDepth)
+  const texture = artTexture(paintAd(sign.art))
+  const face = lambert({
+    map: texture,
+    emissive: new THREE.Color('#ffffff'),
+    emissiveMap: texture,
+    emissiveIntensity: 0.55,
+  })
+  const edge = lambert({ color: '#23262b' })
+  return {
+    name: `store-${sign.name}`,
+    geometry,
+    material: [edge, edge, edge, edge, face, edge],
+  }
+}
+
+// The store shell, fixtures, lights and signs from STORE_LAYOUT, one part
+// per box or sign, each geometry already in station-local space: place it
+// at the pump island with the station's yaw. One material per finish,
+// shared across boxes.
 export function storeParts(): Part[] {
-  const materials = new Map<StoreFinish, THREE.MeshLambertMaterial>()
-  return STORE_LAYOUT.boxes.map((b) => {
+  const materials = new Map<StoreFinish, THREE.Material>()
+  const boxes = STORE_LAYOUT.boxes.map((b) => {
     let material = materials.get(b.finish)
     if (!material) {
       material = STORE_FINISH[b.finish]()
@@ -285,6 +318,13 @@ export function storeParts(): Part[] {
     geometry.translate(...b.center)
     return { name: `store-${b.name}`, geometry, material }
   })
+  const signs = STORE_LAYOUT.signs.map((sign) => {
+    const part = adSignPart(sign)
+    part.geometry.rotateY(sign.yaw)
+    part.geometry.translate(...sign.center)
+    return part
+  })
+  return [...boxes, ...signs]
 }
 
 // One shelf unit: what the carousel shows, without the halo.
@@ -1835,6 +1875,12 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     label: 'Citgo interior',
     build: sampleStoreInterior,
   },
+  ...STORE_LAYOUT.signs.map((sign) => ({
+    id: `ad-${sign.art}`,
+    label: `Citgo sign: ${sign.art}`,
+    build: () =>
+      assembleParts([{ ...adSignPart(sign), position: [0, sign.size[1], 0] }]),
+  })),
   { id: 'tree', label: 'Tree', build: sampleTree },
   { id: 'pole', label: 'Utility pole', build: samplePole },
   { id: 'reeds', label: 'Reeds (clump of 12)', build: sampleReeds },
