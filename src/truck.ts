@@ -7,7 +7,12 @@
 import * as THREE from 'three'
 import { buildTruckBody, castShadows } from './assets.ts'
 import { CONFIG } from './config.ts'
-import { applyPose, attachCigarette, buildFigure } from './figure.ts'
+import {
+  applyPose,
+  attachBook,
+  attachCigarette,
+  buildFigure,
+} from './figure.ts'
 import { samplePose } from './poses.ts'
 import { createWalker } from './roadgraph.ts'
 import type { CigaretteRig, Figure } from './figure.ts'
@@ -29,7 +34,7 @@ export interface TruckState {
   done: boolean
 }
 
-// Where Matthew Marx is: at the wheel, or leaning on the tailgate.
+// Where Matthew Marx is: at the wheel, or reading by the tailgate.
 export type DriverPost = 'cab' | 'tailgate'
 
 // The truck mesh and the driver inside it.
@@ -37,6 +42,8 @@ interface TruckModel {
   group: THREE.Group
   driver: Figure
   cigarette: CigaretteRig
+  // His paperback, out only at the tailgate.
+  book: THREE.Group
 }
 
 // Local space: the truck faces +Z, origin at ground level under the middle.
@@ -50,8 +57,9 @@ function buildTruck(): TruckModel {
   const driver = buildFigure('marx')
   group.add(driver.group)
   const cigarette = attachCigarette(driver)
-  placeDriver(driver, 'cab')
-  return { group, driver, cigarette }
+  const book = attachBook(driver)
+  placeDriver(driver, book, 'cab')
+  return { group, driver, cigarette, book }
 }
 
 // A working vector for bedSeat(); its value never leaves the method.
@@ -69,12 +77,18 @@ const BED_SEATS: readonly [number, number][] = [
 // Matthew Marx is full scale, like every figure. 'cab' seats him at the
 // wheel with his hips at 1.0 m: the sit pose folds his shins so his boots
 // stay inside the lower cab (floor at 0.55 m) and his head stops inside the
-// roof slab. 'tailgate' leans him by the open tailgate, facing whoever
-// comes out of the Citgo.
+// roof slab. 'tailgate' stands him by the open tailgate, facing whoever
+// comes out of the Citgo, reading his paperback; the book goes away when
+// he takes the wheel.
 const SEAT_HIP_Y = 1.0
-function placeDriver(driver: Figure, post: DriverPost): void {
+function placeDriver(
+  driver: Figure,
+  book: THREE.Group,
+  post: DriverPost
+): void {
+  book.visible = post === 'tailgate'
   if (post === 'tailgate') {
-    applyPose(driver, samplePose('lean'))
+    applyPose(driver, samplePose('read'))
     driver.group.position.set(0.8, 0, -3.2)
     driver.group.rotation.y = Math.PI - 0.5
   } else {
@@ -96,6 +110,7 @@ export class Truck {
   moving: boolean
   driver: Figure
   cigarette: CigaretteRig
+  book: THREE.Group
   time: number
   // When set, the route is driven against the clock: the distance covered
   // is speed × seconds since this local ms, so every client that knows the
@@ -121,6 +136,7 @@ export class Truck {
     this.moving = false
     this.driver = model.driver
     this.cigarette = model.cigarette
+    this.book = model.book
     this.time = 0
     this.startedAt = null
     this.travelled = 0
@@ -137,10 +153,10 @@ export class Truck {
     this.pose()
   }
 
-  // Matthew Marx waits at the tailgate while the truck is parked for the
+  // Matthew Marx reads at the tailgate while the truck is parked for the
   // loadout; any drive puts him back at the wheel.
   setDriverPost(post: DriverPost): void {
-    placeDriver(this.driver, post)
+    placeDriver(this.driver, this.book, post)
   }
 
   driveRoute(
@@ -148,7 +164,7 @@ export class Truck {
     speed: number = CONFIG.truck.speed
   ) {
     if (!points || points.length < 2) return
-    placeDriver(this.driver, 'cab')
+    placeDriver(this.driver, this.book, 'cab')
     this.walker = createWalker(points)
     this.speed = speed
     this.moving = true
@@ -172,7 +188,8 @@ export class Truck {
   // on the frame the route finishes and stays true until the next route.
   update(dt: number, nowMs: number = performance.now()): TruckState {
     this.updatedAt = nowMs
-    // Matthew Marx glances about now and then, and smokes.
+    // Matthew Marx glances about now and then (up from the page, when he
+    // is reading), and smokes.
     this.time += dt
     this.cigarette.update(this.time)
     this.driver.joints.neck.rotation.y =

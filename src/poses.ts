@@ -40,7 +40,7 @@ export interface Pose {
   seconds?: number
 }
 
-export type PoseName = 'stand' | 'sit' | 'lean' | 'crouch' | 'walk'
+export type PoseName = 'stand' | 'sit' | 'lean' | 'read' | 'crouch' | 'walk'
 
 // A sampled pose: every joint present.
 export interface PoseSample {
@@ -93,6 +93,27 @@ export const POSES = {
           shoulderR: [-0.55, 0, 0.35],
           elbowL: [-1.7, 0, 0],
           elbowR: [-1.7, 0, 0],
+        },
+      },
+    ],
+  },
+  // Reading: the lean's stance, the head down, both hands up in front of
+  // the chest holding an open book (attachBook in figure.ts).
+  read: {
+    keys: [
+      {
+        lift: 0,
+        joints: {
+          pelvis: [0, 0, 0.05],
+          spine: [0.1, 0, -0.07],
+          neck: [0.55, 0, 0],
+          hipL: [0, 0, -0.06],
+          hipR: [-0.12, 0, -0.1],
+          kneeR: [0.2, 0, 0],
+          shoulderL: [-0.3, 0, -0.1],
+          shoulderR: [-0.3, 0, 0.1],
+          elbowL: [-1.65, 0, -0.2],
+          elbowR: [-1.65, 0, 0.2],
         },
       },
     ],
