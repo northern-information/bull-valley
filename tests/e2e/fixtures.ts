@@ -10,7 +10,8 @@ export function watchErrors(page: Page): string[] {
     if (msg.type() === 'error') errors.push(msg.text())
   })
   page.on('response', (res) => {
-    // The site has no favicon; Chromium asks for one anyway.
+    // The favicon is /favicon.svg; browsers without SVG favicon support ask
+    // for /favicon.ico anyway.
     if (new URL(res.url()).pathname === '/favicon.ico') return
     if (res.status() >= 400) errors.push(`${res.status()} ${res.url()}`)
   })
