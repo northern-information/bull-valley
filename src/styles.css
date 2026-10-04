@@ -239,9 +239,14 @@
   font-size: calc(2 * var(--bv-text-size, 20px));
 }
 
+/* The footer holds one cell per pack key (bindings.ts), however many, in
+   one row. */
 .bv-inv-bars--foot {
   top: auto;
   bottom: round(4vh, 1px);
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   font-size: var(--bv-text-size, 20px);
 }
 
