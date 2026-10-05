@@ -20,6 +20,8 @@ const farStation: StationSpot = { x: 500, z: 0, name: 'Far Citgo' }
 const stand = { x: 0, z: 500 }
 const keep = { x: -500, z: 0 }
 const bush = { x: -8, z: -8 }
+// A few strides from the bush, like CONFIG.gron.at from CONFIG.daily.bush.
+const gron = { x: -5.6, z: -9 }
 const shelf: ShelfSpot = {
   item: 'marlboro',
   station: 1,
@@ -54,6 +56,7 @@ function input(
     insideStore: false,
     bush,
     daily: 'ready',
+    gron,
     ...over,
   }
 }
@@ -187,11 +190,44 @@ describe('resolveInteraction', () => {
     expect(
       resolveInteraction(input({ ...atBush, raid: createRaid(0) }))
     ).toEqual({ kind: 'collect', status: 'ready' })
+    // Gron stands off this way; leave him out of the bush's own reach.
     const outOfReach = {
       player: { x: bush.x + CONFIG.daily.reach + 0.1, z: bush.z },
+      gron: null,
     }
     expect(resolveInteraction(input(outOfReach))).toBeNull()
-    expect(resolveInteraction(input({ ...atBush, bush: null }))).toBeNull()
+    expect(
+      resolveInteraction(input({ ...atBush, bush: null, gron: null }))
+    ).toBeNull()
+  })
+
+  it('talks to Gron within reach, whatever the raid is doing', () => {
+    const atGron = { player: { x: gron.x + 1, z: gron.z } }
+    expect(resolveInteraction(input(atGron))).toEqual({ kind: 'talk' })
+    expect(
+      resolveInteraction(input({ ...atGron, raid: createRaid(0) }))
+    ).toEqual({ kind: 'talk' })
+    // Offline too: he changes your character without the valley.
+    expect(resolveInteraction(input({ ...atGron, daily: 'offline' }))).toEqual({
+      kind: 'talk',
+    })
+    const outOfReach = {
+      player: { x: gron.x + CONFIG.gron.reach + 0.1, z: gron.z },
+    }
+    expect(resolveInteraction(input(outOfReach))).toBeNull()
+    expect(resolveInteraction(input({ ...atGron, gron: null }))).toBeNull()
+  })
+
+  it('answers with the nearer of Gron and the bush when both are in reach', () => {
+    // Between them, nearer the bush.
+    const nearBush = { player: { x: -7.0, z: -8.4 } }
+    expect(resolveInteraction(input(nearBush))).toEqual({
+      kind: 'collect',
+      status: 'ready',
+    })
+    // Between them, nearer Gron.
+    const nearGron = { player: { x: -6.4, z: -8.8 } }
+    expect(resolveInteraction(input(nearGron))).toEqual({ kind: 'talk' })
   })
 
   it('puts the bush ahead of a pickup beside it, and the truck ahead of the bush', () => {
@@ -274,6 +310,7 @@ describe('interactionPrompt', () => {
     expect(interactionPrompt({ kind: 'collect', status: 'offline' })).toBe(
       copy('prompts.berry_offline')
     )
+    expect(interactionPrompt({ kind: 'talk' })).toBe(copy('prompts.talk'))
   })
 
   it('labels a cabbage without a count', () => {

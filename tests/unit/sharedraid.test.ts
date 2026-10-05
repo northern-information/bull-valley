@@ -553,6 +553,43 @@ describe('rule 9: one berry a day per account', () => {
   })
 })
 
+describe('rule 10: Gron changes how a raider is shown', () => {
+  it('renames and restyles a member without touching their place', () => {
+    const v = valleyWith(join('a'), join('b'), { type: 'board', id: 'a' })
+    const before = v.valley.members.a
+    const r = v.step({ type: 'appearance', id: 'a', name: 'Renamed' })
+    expect(r.broadcast).toEqual([])
+    expect(r.alarm).toBeUndefined()
+    expect(v.valley.members.a).toEqual({ ...before, name: 'Renamed' })
+    expect(toWire(v.valley)?.members.find((m) => m.id === 'a')?.name).toBe(
+      'Renamed'
+    )
+    v.step({ type: 'appearance', id: 'a', outfit: 'church' })
+    expect(v.valley.members.a).toEqual({
+      ...before,
+      name: 'Renamed',
+      outfit: 'church',
+    })
+    // Still aboard, still in the lobby.
+    expect(v.valley.members.a.boarded).toBe(true)
+    expect(v.valley.members.a.phase).toBe('LOBBY')
+  })
+
+  it('keeps the berry with the account through a rename', () => {
+    const v = valleyWith(join('a'), { type: 'collect', id: 'a' })
+    v.step({ type: 'appearance', id: 'a', name: 'Someone_Else' })
+    const r = v.step({ type: 'collect', id: 'a' })
+    expect((r.daily as DailyMessage).picked).toBe(false)
+  })
+
+  it('ignores a stranger', () => {
+    const v = valleyWith(join('a'))
+    const r = v.step({ type: 'appearance', id: 'nobody', name: 'X' })
+    expect(r.valley).toBe(v.valley)
+    expect(r.broadcast).toEqual([])
+  })
+})
+
 describe('dev frames', () => {
   it('hurries the lobby clock and re-arms the alarm', () => {
     const v = valleyWith(join('a'))

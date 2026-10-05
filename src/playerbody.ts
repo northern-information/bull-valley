@@ -31,6 +31,7 @@ const BACKSET = 0.2
 export class PlayerBody {
   figure: Figure
   cycle: number
+  private scene: THREE.Object3D
 
   // guitarFinish colors the guitar on the back, for an outfit with one; it
   // rides along unseen in first person, the same body as the select showed.
@@ -39,14 +40,29 @@ export class PlayerBody {
     outfitId: OutfitId,
     guitarFinish?: string
   ) {
-    this.figure = buildFigure(outfitId, { head: false, guitarFinish })
-    this.figure.group.name = 'player-body'
-    this.figure.group.userData.outfit = outfitId
-    this.figure.group.userData.guitarFinish = guitarFinish
-    // The arms hang off the spine, so this hides the torso and both arms.
-    this.figure.joints.spine.visible = false
+    this.scene = scene
+    this.figure = PlayerBody.build(outfitId, guitarFinish)
     scene.add(this.figure.group)
     this.cycle = 0
+  }
+
+  // A new body in place of the old, for a new character from Gron. The
+  // next update() puts it where the old one stood. The old body's geometry
+  // and materials are shared with every figure, so nothing is disposed.
+  restyle(outfitId: OutfitId, guitarFinish?: string): void {
+    this.scene.remove(this.figure.group)
+    this.figure = PlayerBody.build(outfitId, guitarFinish)
+    this.scene.add(this.figure.group)
+  }
+
+  private static build(outfitId: OutfitId, guitarFinish?: string): Figure {
+    const figure = buildFigure(outfitId, { head: false, guitarFinish })
+    figure.group.name = 'player-body'
+    figure.group.userData.outfit = outfitId
+    figure.group.userData.guitarFinish = guitarFinish
+    // The arms hang off the spine, so this hides the torso and both arms.
+    figure.joints.spine.visible = false
+    return figure
   }
 
   update(

@@ -40,7 +40,8 @@ export interface Pose {
   seconds?: number
 }
 
-export type PoseName = 'stand' | 'sit' | 'lean' | 'read' | 'crouch' | 'walk'
+export type PoseName =
+  'stand' | 'sit' | 'lean' | 'read' | 'crouch' | 'walk' | 'hunch'
 
 // A sampled pose: every joint present.
 export interface PoseSample {
@@ -129,6 +130,27 @@ export const POSES = {
           kneeL: [1.9, 0, 0],
           kneeR: [1.9, 0, 0],
           ...ARMS_DOWN,
+        },
+      },
+    ],
+  },
+  // Gron's stoop: bent at the back under his hump, the head craned up to
+  // look ahead, knees soft, hands hanging forward of the hips.
+  hunch: {
+    keys: [
+      {
+        lift: -0.06,
+        joints: {
+          spine: [0.55, 0, 0],
+          neck: [-0.5, 0, 0],
+          hipL: [-0.18, 0, 0.04],
+          hipR: [-0.18, 0, -0.04],
+          kneeL: [0.32, 0, 0],
+          kneeR: [0.32, 0, 0],
+          shoulderL: [-0.3, 0, 0.12],
+          shoulderR: [-0.3, 0, -0.12],
+          elbowL: [-0.5, 0, 0],
+          elbowR: [-0.5, 0, 0],
         },
       },
     ],

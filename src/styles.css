@@ -980,6 +980,67 @@
   opacity: 0.6;
 }
 
+/* Gron's dialog (grondialog.ts): the account step's look over the valley,
+   your name and your character side by side, stacked on a narrow screen. */
+.bv-gron {
+  /* Auto margins on the dialog centre it when it fits and start it at the
+     top when it does not, so a short window scrolls to all of it; flex
+     centring would push the top out of reach. */
+  align-items: flex-start;
+  background: rgb(0 0 0 / 96%);
+  overflow-y: auto;
+}
+
+.bv-gron-ui {
+  display: grid;
+  grid-template-columns: minmax(0, 18rem) minmax(0, 26rem);
+  align-items: start;
+  gap: 20px 36px;
+  max-width: none;
+  margin: auto;
+}
+
+.bv-gron-ui > h2,
+.bv-gron-ui > .bv-gron-says,
+.bv-gron-ui > [data-bv='gron-close'] {
+  grid-column: 1 / -1;
+  justify-self: center;
+}
+
+.bv-gron-ui > .bv-gron-says {
+  font-style: italic;
+}
+
+.bv-gron-part {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+}
+
+.bv-gron-part h3 {
+  margin: 0;
+  font-size: 0.75em;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+/* The turntable, drawn small and scaled up crisp. */
+.bv-gron-preview {
+  width: 160px;
+  height: 160px;
+  image-rendering: pixelated;
+  border: 1px solid var(--fi-paper-light);
+}
+
+@media (width <= 700px) {
+  .bv-gron-ui {
+    grid-template-columns: minmax(0, 20rem);
+  }
+}
+
 /* The terms, read in place over the account step. */
 .bv-terms {
   position: fixed;

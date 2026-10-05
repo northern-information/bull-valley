@@ -110,6 +110,8 @@ export type AddonId =
   | 'hood-down'
   | 'kangaroo-pocket'
   | 'chin-wisps'
+  | 'hump'
+  | 'cloak-hem'
 
 export type LimbGroup = 'arm' | 'leg'
 
@@ -150,6 +152,7 @@ export type OutfitId =
   | 'halatek'
   | 'jdogg'
   | 'carlsten'
+  | 'gron'
 
 // Dreadlocks hang from a ring round the back and sides of the head, leaving
 // the face clear. Angles are around the head from +X toward +Z (the face).
@@ -529,6 +532,33 @@ export const ADDONS: Record<AddonId, Addon> = {
       [0.33, 0.07, 0.085, -0.01],
     ],
   },
+  // A hunchback: a lump of cloak over the upper back, behind the torso and
+  // highest between the shoulder blades. In the spine's space, so it bends
+  // with the stoop.
+  hump: {
+    joint: 'spine',
+    slot: 'coat',
+    sides: 8,
+    rings: [
+      [0.16, 0.09, 0.05, -0.1],
+      [0.28, 0.17, 0.13, -0.17],
+      [0.4, 0.19, 0.16, -0.2],
+      [0.51, 0.16, 0.13, -0.19],
+      [0.6, 0.08, 0.06, -0.13],
+    ],
+  },
+  // A cloak's skirt, from the waist to the shins, flaring as it falls.
+  'cloak-hem': {
+    joint: 'pelvis',
+    slot: 'coat',
+    sides: 8,
+    rings: [
+      [0.06, 0.175, 0.125, 0],
+      [-0.2, 0.215, 0.155, 0],
+      [-0.5, 0.245, 0.175, -0.01],
+      [-0.74, 0.27, 0.19, -0.02],
+    ],
+  },
 }
 
 // proportions scale the length of each limb group (1 = the base body).
@@ -729,6 +759,22 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     patterns: { shirt: 'plaid' },
     baggy: 1.3,
     inHand: 'bat',
+  },
+  // By the berry bush, under his own raincloud: bald, hunched, in a brown
+  // cloak with the hood down. He changes who you are. Not on the select
+  // roster.
+  gron: {
+    label: copy('outfits.gron'),
+    colors: {
+      skin: '#cbb497',
+      hair: '#cbb497',
+      shirt: '#5b3f26',
+      pants: '#4b3420',
+      boots: '#2b1f15',
+      coat: '#5b3f26',
+    },
+    addons: ['hood-down', 'hump', 'cloak-hem'],
+    shaved: true,
   },
 }
 

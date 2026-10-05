@@ -127,6 +127,28 @@ export async function setUsername(
   }
 }
 
+// A new username for an account that has one: Gron's doing. Same rules and
+// outcomes as choosing the first; the session cookie is reissued with it.
+export async function renameUsername(
+  username: string,
+  fetchImpl: Fetch = fetch
+): Promise<UsernameOutcome> {
+  try {
+    const res = await fetchImpl(`${AUTH_PATH}/username`, {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username }),
+    })
+    if (res.ok) return { ok: true }
+    const error = await errorOf(res, copy('auth.rename_failed'))
+    if (res.status === 409) return { ok: false, taken: true, error }
+    return { ok: false, error, limited: res.status === TOO_MANY }
+  } catch {
+    return { ok: false, error: 'The valley cannot be reached' }
+  }
+}
+
 // Null when the server cannot be asked.
 export async function usernameAvailable(
   username: string,

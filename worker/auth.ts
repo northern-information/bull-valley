@@ -183,7 +183,7 @@ class AuthHandler {
 
     // SameSite=Lax keeps the cookies off cross-site POSTs already; the
     // Origin check is belt and braces for the mutations.
-    if (method === 'POST' || method === 'DELETE') {
+    if (method === 'POST' || method === 'PUT' || method === 'DELETE') {
       const origin = this.request.headers.get('Origin')
       if (origin !== null && origin !== this.url.origin) {
         return json({ error: copy('auth.cross_origin') }, 403)
@@ -204,6 +204,9 @@ class AuthHandler {
         return this.confirmSignup()
       }
       if (first === 'username' && method === 'POST') return this.setUsername()
+      if (first === 'username' && method === 'PUT') {
+        return this.setUsername(true)
+      }
     }
     if (parts.length === 3 && first === 'username' && third === 'available') {
       if (method === 'GET') return this.available(second)
@@ -640,7 +643,9 @@ class AuthHandler {
     ])
   }
 
-  private async setUsername(): Promise<Response> {
+  // POST chooses the first username, once; PUT (`rename`, from Gron)
+  // changes it, any time.
+  private async setUsername(rename = false): Promise<Response> {
     const claims = await this.access()
     if (!claims) return json({ error: copy('auth.sign_in_first') }, 401)
     const body = (await this.request.json().catch(() => null)) as Record<
@@ -651,7 +656,9 @@ class AuthHandler {
     if (!isValidUsername(username)) {
       return json({ error: copy('auth.username_rule') }, 400)
     }
-    const result = await this.store.setUsername(claims.accountId, username)
+    const result = rename
+      ? await this.store.renameUsername(claims.accountId, username)
+      : await this.store.setUsername(claims.accountId, username)
     switch (result) {
       case 'ok': {
         // The access cookie carries the username; reissue it.

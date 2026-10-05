@@ -370,6 +370,52 @@ describe('confirm-signup and username', () => {
     expect(s.accounts.size).toBe(1)
   })
 
+  it('changes a username at Gron, and the session names the new one', async () => {
+    const s = new MemoryAccountStore()
+    const jar = new Jar()
+    await signIn(jar, { id: 41, login: 'fortyone' }, s)
+    await call('/auth/confirm-signup', { method: 'POST', jar, store: s })
+    await call('/auth/username', {
+      method: 'POST',
+      jar,
+      store: s,
+      body: { username: 'First' },
+    })
+    const other = new Jar()
+    await signIn(other, { id: 42, login: 'fortytwo' }, s)
+    await call('/auth/confirm-signup', { method: 'POST', jar: other, store: s })
+    await call('/auth/username', {
+      method: 'POST',
+      jar: other,
+      store: s,
+      body: { username: 'Taken' },
+    })
+    const put = (username: string) =>
+      call('/auth/username', {
+        method: 'PUT',
+        jar,
+        store: s,
+        body: { username },
+      })
+    expect((await put('taken')).res.status).toBe(409)
+    expect((await put('no spaces')).res.status).toBe(400)
+    expect((await put('Second')).res.status).toBe(200)
+    expect((await me(jar, s)).account?.username).toBe('Second')
+    const upgrade = new Request(`${PROD}/ws`, {
+      headers: { Cookie: jar.header() },
+    })
+    expect((await identityFor(upgrade, env(), () => T0))?.name).toBe('Second')
+    expect(
+      (
+        await call('/auth/username', {
+          method: 'PUT',
+          store: s,
+          body: { username: 'Nobody' },
+        })
+      ).res.status
+    ).toBe(401)
+  })
+
   it('answers whether a handle is free', async () => {
     const s = new MemoryAccountStore()
     const jar = new Jar()

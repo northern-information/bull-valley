@@ -40,7 +40,7 @@ import {
   projectOnSegment,
   unitToWorld,
 } from './coords.ts'
-import { applyPose, buildFigure } from './figure.ts'
+import { applyPose, buildFigure, buildGron } from './figure.ts'
 import { Ground } from './ground.ts'
 import { CIGARETTE_IDS } from './items.ts'
 import {
@@ -60,6 +60,7 @@ import {
   worldFacings,
 } from './store.ts'
 import { Walls } from './walls.ts'
+import type { GronRig } from './figure.ts'
 import type {
   Geo,
   HeightAt,
@@ -138,12 +139,16 @@ export interface World {
   // Null only when the survey has no fuel point inside the frame.
   spawnStation: FuelPoint | null
   spawn: Spawn
-  // The berry bush on the spawn station's lot (one berry a day per name,
-  // sharedraid.ts rule 9); null without a spawn station.
+  // The berry bush on the spawn station's lot (one berry a day per
+  // account, sharedraid.ts rule 9); null without a spawn station.
   bush: XZ | null
   // The bush itself, for the glow, and its berries shown or picked clean.
   bushObject: THREE.Object3D | null
   setBerries(visible: boolean): void
+  // Gron, beside the bush (sharedraid.ts rule 10), and his rig: the body
+  // for the glow, update(t) for his rain. Null without a spawn station.
+  gron: XZ | null
+  gronRig: GronRig | null
   // What to stand on anywhere: the terrain, or the road or lot over it.
   ground: Ground
   // What stops you: the store walls and fixtures, the poles and lamps.
@@ -1509,6 +1514,28 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   }
   const berries = bushObject?.getObjectByName('berries') ?? null
 
+  // Gron, a couple of strides from the bush (CONFIG.gron, station-local),
+  // under his raincloud and turned to the pumps. He blocks like a post.
+  let gron: XZ | null = null
+  let gronRig: GronRig | null = null
+  if (spawnStation) {
+    const [gx, , gz] = toWorld(spawnStation, [
+      CONFIG.gron.at.x,
+      0,
+      CONFIG.gron.at.z,
+    ])
+    gronRig = buildGron()
+    gronRig.group.position.set(gx, ground.at(gx, gz), gz)
+    // The figure faces +Z; turn it to the pump island at the origin.
+    gronRig.group.rotation.y = Math.atan2(
+      spawnStation.x - gx,
+      spawnStation.z - gz
+    )
+    group.add(gronRig.group)
+    walls.addWall({ x: gx, z: gz }, { x: gx, z: gz }, CONFIG.gron.radius)
+    gron = { x: gx, z: gz }
+  }
+
   return {
     group,
     pickups: pickupSet.pickups,
@@ -1522,6 +1549,8 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     setBerries(visible) {
       if (berries) berries.visible = visible
     },
+    gron,
+    gronRig,
     ground,
     walls,
     facings: fuel.points.map(worldFacings),
