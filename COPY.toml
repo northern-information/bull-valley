@@ -73,7 +73,7 @@ rules = { text = "3 to 16 letters, digits, or underscores.", by = "tyler" }
 [username]
 title = { text = "What is your name?", by = "tyler" }
 lede = { text = "The one known as Gron can rename you.", by = "tyler" }
-lede_as = { text = "Welcome to Bull Valley Shadow Wars, {who}.", by = "tyler" }
+lede_as = { text = "Welcome to Bull Valley Shadow Wars, {who} of {provider}.", by = "tyler" }
 field = { text = "Username", by = "tyler" }
 checking = { text = "Checking...", by = "tyler" }
 limited = { text = "Too many checks. Wait a moment, then try again.", by = "tyler" }
@@ -283,6 +283,8 @@ sign_in_first = { text = "Sign in first", by = "ai" }
 username_rule = { text = "A username is 3 to 16 letters, digits or underscores", by = "ai" }
 username_taken = { text = "That username is taken", by = "ai" }
 username_set = { text = "Your username is already set", by = "ai" }
+look_rule = { text = "Pick a character and a finish from the select", by = "ai" }
+look_failed = { text = "Your character could not be saved", by = "ai" }
 account_not_found = { text = "Account not found", by = "ai" }
 unlink_last = { text = "You cannot unlink your only way to sign in", by = "ai" }
 not_linked = { text = "{provider} is not linked to your account", by = "ai" }

@@ -4,16 +4,16 @@ import { authReturnOf, devSignInUrl, stripAuthQuery } from './account.ts'
 import { openAccountPanel } from './accountpanel.ts'
 import { buildSky, pulseMaterials } from './assets.ts'
 import { BvAudio } from './audio.ts'
-import { fetchMe, refreshSession, signOut } from './auth.ts'
+import { fetchMe, refreshSession, saveLook, signOut } from './auth.ts'
 import { actionOf, cycleStep, PACK, WORLD } from './bindings.ts'
 import { ringItems, stepIndex, syncIndex } from './carousel.ts'
-import { loadCharacter, saveCharacter } from './characters.ts'
+import { pickOf } from './characters.ts'
 import { mountCharacterSelect } from './characterselect.ts'
 import { CHAT_COPY } from './chat.ts'
 import { CONFIG } from './config.ts'
 import { unitToWorld } from './coords.ts'
 import { copy } from './copy.ts'
-import { finishById, loadFinish, saveFinish } from './finishes.ts'
+import { finishById } from './finishes.ts'
 import { createGlow } from './glow.ts'
 import { openGronDialog } from './grondialog.ts'
 import { Hud } from './hud.ts'
@@ -22,7 +22,12 @@ import {
   pickupLabel,
   resolveInteraction,
 } from './interactions.ts'
-import { addItem, loadInventory, saveInventory, useItem } from './inventory.ts'
+import {
+  addItem,
+  STARTING_INVENTORY,
+  toInventory,
+  useItem,
+} from './inventory.ts'
 import { createInventoryView } from './inventoryview.ts'
 import { cigaretteToSmoke, getItem, isCigarette, itemById } from './items.ts'
 import { KEEP } from './landmarks.ts'
@@ -62,7 +67,7 @@ import { buildWorld } from './world.ts'
 import type { CharacterPick } from './characters.ts'
 import type { ChatLine } from './chat.ts'
 import type { DailyStatus, Interaction, ShelfSpot } from './interactions.ts'
-import type { Geo, Raid, RingItem, Vec3 } from './interfaces.ts'
+import type { Geo, Inventory, Raid, RingItem, Vec3 } from './interfaces.ts'
 import type { NetStatus } from './net.ts'
 import type { Peer } from './presence.ts'
 import type {
@@ -103,6 +108,8 @@ interface BvHook {
   readonly glow: THREE.Object3D | null
   // In cents.
   readonly cash: number
+  // The pack as this client holds it: the valley's last word, plus guesses.
+  readonly inventory: Inventory
   // The chat log, oldest first.
   readonly chat: readonly ChatLine[]
   teleport(u: number, v: number): void
@@ -153,7 +160,7 @@ async function showTitles(audio: BvAudio): Promise<Titles> {
     const username = known?.account?.username
     if (username) {
       return {
-        outfit: loadCharacter(window.localStorage),
+        ...pickOf(known.account?.look),
         username,
         notice: noticeFor(true),
       }
@@ -172,7 +179,6 @@ async function showTitles(audio: BvAudio): Promise<Titles> {
     }
   }
   const select = mountCharacterSelect({
-    storage: window.localStorage,
     config: { ...CONFIG.select, downscale: CONFIG.render.downscale },
     onAccount: () => {
       void openAccountPanel({ onSignOut: signOutAndReload })
@@ -196,10 +202,13 @@ async function showTitles(audio: BvAudio): Promise<Titles> {
     known,
     !signedIn && returned && 'error' in returned ? returned.error : null
   )
+  const chosen = await select.run(username, pickOf(known?.account?.look))
+  // The pick is the account's, so it follows the raider to any browser.
+  const saved = await saveLook(chosen)
   return {
-    ...(await select.run(username)),
+    ...chosen,
     username,
-    notice: noticeFor(signedIn),
+    notice: saved.ok ? noticeFor(signedIn) : saved.error,
   }
 }
 
@@ -350,7 +359,7 @@ async function boot() {
   const playerBody = new PlayerBody(
     scene,
     pick.outfit,
-    finishById(loadFinish(window.localStorage)).color
+    finishById(pick.finish).color
   )
   const scope = new Scope(hud.scopeCanvas, hud.phone)
   // The shadowmen feed the scope; nerves and the audio static stay parked
@@ -461,7 +470,7 @@ async function boot() {
   // Not awaited: the game never waits on the network.
   void net.connect({
     outfit: pick.outfit,
-    pickups: world.pickups.length,
+    pickups: world.pickups.map(({ kind, count }) => ({ kind, count })),
     stations: world.fuelPoints.length,
   })
 
@@ -469,13 +478,18 @@ async function boot() {
   const stand = world.landmarks.find((l) => l.n !== KEEP)
 
   // --- Game state ----------------------------------------------------------
-  let inventory = loadInventory(window.localStorage)
+  // The account's pack as the valley last sent it (the welcome, then every
+  // pack frame), with this client's own changes applied in the meantime.
+  // Alone, the starting pack, and nothing is kept.
+  let inventory = { ...STARTING_INVENTORY }
   // The cigarette a bare 1 smokes: the last one picked in the inventory.
   let selectedCigarette: string | null = null
   let raid = createRaid(0)
   let raidClock = 0 // advances only while the pointer is locked
-  // Every player starts every raid with the same cash, in cents, and every
-  // Citgo with full shelves (one stock per station, like world.fuelPoints).
+  // The account's wallet in cents, as the valley last sent it (with this
+  // client's own spending applied in the meantime); alone, a fresh one,
+  // and nothing is kept. Every Citgo starts with full shelves (one stock
+  // per station, like world.fuelPoints).
   let cash = CONFIG.store.startingCash
   let storeStock = freshStock(world.fuelPoints.length)
   // The carousel: ring entries from carousel.ts, the selected slot, and
@@ -691,8 +705,7 @@ async function boot() {
       raid = next.raid
       inventory = next.inventory
       cash = next.cash
-      if (inventoryChanged) saveInventory(window.localStorage, inventory)
-      refreshRing()
+      if (inventoryChanged) refreshRing()
     }
     if (toast) hud.toast(toast)
   }
@@ -729,8 +742,7 @@ async function boot() {
     storeStock = [...next.stock]
     inventory = next.inventory
     cash = next.cash
-    if (inventoryChanged) saveInventory(window.localStorage, inventory)
-    refreshRing()
+    if (inventoryChanged) refreshRing()
     if (toast) hud.toast(toast)
   }
 
@@ -767,7 +779,6 @@ async function boot() {
       return
     }
     inventory = addItem(inventory, 'berries', 1)
-    saveInventory(window.localStorage, inventory)
     refreshRing()
     hud.toast(getItem('berries').collected)
   }
@@ -919,7 +930,8 @@ async function boot() {
     }
     inventory = result.inv
     if (smoke) selectedCigarette = kind
-    saveInventory(window.localStorage, inventory)
+    // The unit is the account's: the valley takes it out of the pack.
+    net.send({ type: 'use', kind })
     refreshRing()
     if (smoke) {
       smokingUntil = time + (item.smokeSeconds ?? 0)
@@ -946,7 +958,6 @@ async function boot() {
       pickup.taken = true
       pickup.mesh.visible = false
       inventory = addItem(inventory, pickup.kind, pickup.count)
-      saveInventory(window.localStorage, inventory)
       hud.toast(copy('toasts.taken', { item: pickupLabel(pickup) }))
     }
     interaction = null
@@ -1022,6 +1033,18 @@ async function boot() {
     }
     storeStock = wire.shelves
 
+    // The haul is the valley's: what is in our arms, at the stand, and
+    // whether we have the sack, whatever we guessed in the meantime.
+    const mine = wire.members.find((m) => m.id === me)
+    if (mine) {
+      raid = {
+        ...raid,
+        carrying: mine.carrying,
+        delivered: mine.delivered,
+        sack: mine.sack,
+      }
+    }
+
     // The truck left: with us, or without us, or before we got here.
     const justLeft =
       wire.phase === 'OUT' &&
@@ -1079,21 +1102,31 @@ async function boot() {
 
   const applyNack = (msg: NackMessage) => {
     if (msg.re === 'take') {
-      if (msg.index !== undefined) {
-        pendingTakes.delete(msg.index)
-        const pickup = world.pickups[msg.index]
-        if (pickup) markTaken(pickup)
+      if (msg.index !== undefined) pendingTakes.delete(msg.index)
+      // Still there, but not for us yet.
+      if (msg.reason === 'arms-full') {
+        hud.toast(copy('toasts.arms_full'))
+        return
       }
+      if (msg.reason !== 'gone') return
+      const pickup =
+        msg.index === undefined ? undefined : world.pickups[msg.index]
+      if (pickup) markTaken(pickup)
       hud.toast(copy('toasts.taken_first'))
     } else if (msg.re === 'buy') {
       if (msg.station !== undefined && msg.item) {
         pendingBuys.delete(`${msg.station}:${msg.item}`)
       }
-      hud.toast(
-        msg.reason === 'sold-out'
-          ? copy('toasts.sold_out')
-          : copy('toasts.refused')
-      )
+      const price = msg.item ? itemById(msg.item)?.price : undefined
+      if (msg.reason === 'sold-out') hud.toast(copy('toasts.sold_out'))
+      else if (msg.reason === 'have-sack') hud.toast(copy('toasts.have_sack'))
+      else if (msg.reason === 'short' && price !== undefined) {
+        hud.toast(
+          copy('toasts.short', {
+            amount: formatCash(Math.max(0, price - cash)),
+          })
+        )
+      } else hud.toast(copy('toasts.refused'))
     } else if (msg.re === 'call') {
       hud.toast(copy('toasts.truck_busy'))
     } else if (msg.re === 'collect') {
@@ -1107,10 +1140,21 @@ async function boot() {
     }
   }
 
+  // The valley's word on the pack and the wallet replaces this client's
+  // guesses.
+  const applyPack = (pack: Inventory, wallet: number) => {
+    inventory = toInventory(pack)
+    cash = wallet
+    refreshRing()
+  }
+
   net.on((msg) => {
     if (msg.type === 'welcome') {
       applyRaid(msg.raid, 'joined', { by: msg.id })
       daily = msg.daily
+      applyPack(msg.pack, msg.cash)
+    } else if (msg.type === 'pack') {
+      applyPack(msg.pack, msg.cash)
     } else if (msg.type === 'raid') {
       applyRaid(msg.raid, msg.reason, msg)
     } else if (msg.type === 'nack') {
@@ -1143,14 +1187,16 @@ async function boot() {
     void openGronDialog({
       username: pick.username,
       outfit: pick.outfit,
-      finish: loadFinish(window.localStorage),
+      finish: pick.finish,
       onRenamed: (name) => {
         pick.username = name
         net.send({ type: 'rename' })
       },
       onBecome: (outfit, finish) => {
-        saveCharacter(window.localStorage, outfit)
-        saveFinish(window.localStorage, finish)
+        void saveLook({ outfit, finish }).then((saved) => {
+          if (!saved.ok) hud.toast(saved.error)
+        })
+        pick.finish = finish
         playerBody.restyle(outfit, finishById(finish).color)
         pick.outfit = outfit
         // A reconnect says hello in the new body too.
@@ -1184,6 +1230,7 @@ async function boot() {
       case 'unload': {
         const count = raid.carrying
         raid = advance(raid, EVENTS.DELIVER, raidClock)
+        if (shared) net.send({ type: 'deliver' })
         hud.toast(
           count === 1
             ? copy('toasts.unload_one')
@@ -1587,6 +1634,9 @@ async function boot() {
       },
       get cash() {
         return cash
+      },
+      get inventory() {
+        return inventory
       },
       get chat() {
         return hud.chatLines

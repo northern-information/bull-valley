@@ -4,31 +4,8 @@ import {
   finishById,
   FINISHES,
   isFinish,
-  loadFinish,
   randomFinish,
-  saveFinish,
 } from '../../src/finishes.ts'
-import type { CharacterStorage } from '../../src/characters.ts'
-
-function memoryStorage(): CharacterStorage & { data: Map<string, string> } {
-  const data = new Map<string, string>()
-  return {
-    data,
-    getItem: (key) => data.get(key) ?? null,
-    setItem: (key, value) => {
-      data.set(key, value)
-    },
-  }
-}
-
-const throwing: CharacterStorage = {
-  getItem: () => {
-    throw new Error('blocked')
-  },
-  setItem: () => {
-    throw new Error('blocked')
-  },
-}
 
 describe('finishes', () => {
   it('lists a row of finishes with unique ids and hex colors', () => {
@@ -52,30 +29,6 @@ describe('finishes', () => {
 
   it('throws on an unknown finish', () => {
     expect(() => finishById('snake' as never)).toThrow()
-  })
-
-  it('defaults with nothing saved', () => {
-    expect(loadFinish(memoryStorage())).toBe(DEFAULT_FINISH)
-  })
-
-  it('remembers the last pick', () => {
-    const storage = memoryStorage()
-    saveFinish(storage, 'cherry')
-    expect(loadFinish(storage)).toBe('cherry')
-    expect(storage.data.size).toBe(1)
-  })
-
-  it('falls back on a saved id that is not in the table', () => {
-    const storage = memoryStorage()
-    for (const value of ['#ff0000', 'nobody', '', '{"id":"cherry"}']) {
-      storage.data.set('bull-valley-shadow-wars:v1:guitar-finish', value)
-      expect(loadFinish(storage)).toBe(DEFAULT_FINISH)
-    }
-  })
-
-  it('survives storage that throws', () => {
-    expect(loadFinish(throwing)).toBe(DEFAULT_FINISH)
-    expect(() => saveFinish(throwing, 'grape')).not.toThrow()
   })
 
   it('randomizes to a different finish and can reach every other one', () => {

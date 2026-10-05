@@ -74,11 +74,18 @@ test('Gron changes your name and your character', async ({ page }) => {
       )
     )
     .toBe('coleman')
-  expect(
-    await page.evaluate(() =>
-      localStorage.getItem('bull-valley-shadow-wars:v1:character')
+  // The account keeps it, so it follows the raider to any browser.
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const res = await fetch('/auth/me')
+        const me = (await res.json()) as {
+          account: { look: { outfit: string | null } } | null
+        }
+        return me.account?.look.outfit
+      })
     )
-  ).toBe('coleman')
+    .toBe('coleman')
 
   // Escape sends him away, and the valley knows the new name: a chat line
   // comes back from it under the name the valley read from the account.

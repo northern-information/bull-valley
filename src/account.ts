@@ -1,7 +1,12 @@
 // The account protocol between the game and the Worker's /auth routes:
 // one file, imported by the client (auth.ts) and the Worker (worker/auth.ts),
 // so the two can never drift. Pure: no DOM, no Workers types, no Three.
-// The WebSocket frames are protocol.ts's; this is the HTTP side.
+// The WebSocket frames are protocol.ts's; this is the HTTP side. Type
+// imports only: the e2e specs import this file, and Playwright cannot load
+// copy.ts.
+
+import type { FinishId } from './finishes.ts'
+import type { OutfitId } from './outfits.ts'
 
 // The sign-in providers a raider may use. `dev` exists only on a dev
 // server, where it stands in for a real provider so nothing needs a secret.
@@ -50,6 +55,14 @@ export const AUTH_PATH = '/auth'
 
 // --- Wire shapes -----------------------------------------------------------
 
+// How the account looks: the character and guitar finish chosen at the
+// select or at Gron (PUT /auth/look). Null until first chosen, when the
+// client shows the defaults (characters.ts, finishes.ts).
+export interface LookWire {
+  outfit: OutfitId | null
+  finish: FinishId | null
+}
+
 // A provider as it shows on the account panel.
 export interface ProviderWire {
   provider: Provider
@@ -68,6 +81,7 @@ export interface AccountWire {
   displayName: string
   avatarUrl: string | null
   providers: ProviderWire[]
+  look: LookWire
 }
 
 // The profile a new raider arrived with, held until the gates are passed.

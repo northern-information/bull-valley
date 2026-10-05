@@ -14,6 +14,7 @@ describe('tierFor', () => {
   it('holds what a page calls as it goes to loose', () => {
     expect(tierFor('GET', ['username', 'Dave', 'available'])).toBe('loose')
     expect(tierFor('POST', ['refresh'])).toBe('loose')
+    expect(tierFor('PUT', ['look'])).toBe('loose')
   })
 
   it('leaves reading, signing out, callbacks, and the dev provider alone', () => {

@@ -1,10 +1,10 @@
 // Pure: one purchase off a Citgo shelf. Like raid.ts and inventory.ts, it
 // returns new state and never changes its input. main.ts finds the facing
-// the player is looking at (store.ts), saves the inventory, and shows the
-// toast. In the shared valley the shelf itself belongs to the server:
-// buy() still judges the sale here (stock as last heard, cash, the sack),
-// and settle() applies the sale once the valley confirms the unit was
-// still there.
+// the player is looking at (store.ts) and shows the toast. In the shared
+// valley the shelf, the wallet and the sack belong to the server
+// (sharedraid.ts rules 8 and 12): buy() still judges the sale here (stock,
+// cash and the sack as last heard), settle() applies it once the valley
+// confirms it, and the valley's next word replaces both guesses.
 
 import { copy } from './copy.ts'
 import { addItem } from './inventory.ts'

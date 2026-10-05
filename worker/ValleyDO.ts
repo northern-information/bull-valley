@@ -4,7 +4,10 @@
 // wake with the roster intact; the raid lives in storage and survives a
 // restart. Every rule is in src/sharedraid.ts; this is the plumbing that
 // reads a frame, runs the reducer, persists, arms the lobby alarm, and
-// sends what came back.
+// sends what came back. Each account's pack and wallet are in D1
+// (d1packs.ts): the reducer says what goes in or out, and this writes it
+// and tells the account's sockets. A buy runs alone (blockConcurrencyWhile),
+// so the wallet it was judged against is the wallet it is paid from.
 
 import { DurableObject } from 'cloudflare:workers'
 import {
@@ -24,13 +27,20 @@ import {
 } from '../src/sharedraid.ts'
 import { ACCOUNT_HEADER, NAME_HEADER } from './auth.ts'
 import { D1AccountStore } from './d1accounts.ts'
+import { D1PackStore } from './d1packs.ts'
 import type {
   HelloMessage,
   PeerStateWire,
   PeerWire,
   ServerMessage,
 } from '../src/protocol.ts'
-import type { Reduced, Valley, ValleyAction } from '../src/sharedraid.ts'
+import type {
+  PackChange,
+  Reduced,
+  Valley,
+  ValleyAction,
+} from '../src/sharedraid.ts'
+import type { Holdings, PackStore } from './packs.ts'
 
 // Per-socket state, serialized into the socket's attachment (16 KB cap;
 // this is well under 1 KB). `me` is null until the hello. The Worker sets
@@ -144,13 +154,16 @@ export class ValleyDO extends DurableObject<Env> {
         await this.act(ws, { type: 'take', id: me.id, index: msg.index })
         return
       case 'buy':
-        await this.act(ws, {
+        await this.purchase(ws, attachment, {
           type: 'buy',
           id: me.id,
           station: msg.station,
           kind: msg.kind,
           unit: msg.unit,
         })
+        return
+      case 'deliver':
+        await this.act(ws, { type: 'deliver', id: me.id })
         return
       case 'call':
         await this.act(ws, {
@@ -165,6 +178,9 @@ export class ValleyDO extends DurableObject<Env> {
         return
       case 'collect':
         await this.act(ws, { type: 'collect', id: me.id })
+        return
+      case 'use':
+        await this.act(ws, { type: 'use', id: me.id, kind: msg.kind })
         return
       case 'chat':
         this.chat(ws, me, msg.text)
@@ -203,6 +219,11 @@ export class ValleyDO extends DurableObject<Env> {
     const reduced = reduce(this.valley, { type: 'clock' }, this.context())
     await this.apply(reduced)
     for (const msg of reduced.broadcast) this.broadcast(msg, null)
+  }
+
+  // Where the packs are kept; the Worker tests hand in a memory store.
+  protected packs(): PackStore {
+    return new D1PackStore(this.env.DB)
   }
 
   private attachment(ws: WebSocket): Attachment {
@@ -246,6 +267,16 @@ export class ValleyDO extends DurableObject<Env> {
       ws.close(CLOSE.badOutfit, 'Unknown outfit')
       return
     }
+    // The pack first: a valley that cannot read it lets no one in to change
+    // it.
+    let holdings: Holdings
+    try {
+      holdings = await this.packs().open(account)
+    } catch (err) {
+      console.error('The pack could not be opened', err)
+      ws.close(CLOSE.serverError, 'The valley lost the pack')
+      return
+    }
     const id = crypto.randomUUID()
     const reduced = reduce(
       this.valley,
@@ -282,6 +313,8 @@ export class ValleyDO extends DurableObject<Env> {
       raid,
       phase: member.phase,
       daily: dailyFor(this.valley, account, now),
+      pack: holdings.pack,
+      cash: holdings.cash,
     })
     this.broadcast({ type: 'peer-joined', peer: me }, ws)
     for (const msg of reduced.broadcast) this.broadcast(msg, ws)
@@ -381,6 +414,88 @@ export class ValleyDO extends DurableObject<Env> {
     if (reduced.reply) send(ws, reduced.reply)
     if (reduced.daily) send(ws, reduced.daily)
     for (const msg of reduced.broadcast) this.broadcast(msg, null)
+    if (reduced.pack) await this.repack(ws, reduced.pack)
+  }
+
+  // A buy, alone: no other frame runs between reading the wallet, judging
+  // the sale against it, and paying. A wallet that cannot be read or that
+  // does not cover the sale leaves the valley as it was.
+  private async purchase(
+    ws: WebSocket,
+    attachment: Attachment,
+    action: Extract<ValleyAction, { type: 'buy' }>
+  ): Promise<void> {
+    const { account } = attachment
+    if (!account) return
+    const refuse = (reason: string) => {
+      send(ws, {
+        type: 'nack',
+        re: 'buy',
+        reason,
+        station: action.station,
+        item: action.kind,
+      })
+    }
+    await this.ctx.blockConcurrencyWhile(async () => {
+      const packs = this.packs()
+      let cash: number
+      try {
+        cash = (await packs.get(account)).cash
+      } catch (err) {
+        console.error('The wallet could not be read', err)
+        refuse('unavailable')
+        return
+      }
+      const reduced = reduce(this.valley, action, { ...this.context(), cash })
+      if (reduced.spend) {
+        let paid = false
+        try {
+          paid = await packs.spend(account, reduced.spend.amount)
+        } catch (err) {
+          console.error('The wallet could not be charged', err)
+        }
+        if (!paid) {
+          refuse('short')
+          return
+        }
+      }
+      await this.apply(reduced)
+      if (reduced.reply) send(ws, reduced.reply)
+      for (const msg of reduced.broadcast) this.broadcast(msg, null)
+      if (reduced.pack) await this.repack(ws, reduced.pack)
+      else if (reduced.spend) await this.repack(ws, null, account)
+    })
+  }
+
+  // Writes a pack change, if there is one, and sends the account's pack and
+  // wallet to every socket signed in to it. A use the pack cannot cover is
+  // refused to the actor, who gets the pack too, so a guess made in the
+  // meantime is put right.
+  private async repack(
+    ws: WebSocket,
+    change: PackChange | null,
+    account = change?.account
+  ): Promise<void> {
+    if (!account) return
+    try {
+      const packs = this.packs()
+      if (change) {
+        const done = await packs.change(account, change.kind, change.delta)
+        if (!done) send(ws, { type: 'nack', re: 'use', reason: 'none-left' })
+      }
+      const { pack, cash } = await packs.get(account)
+      for (const socket of this.ctx.getWebSockets()) {
+        const attachment = this.attachment(socket)
+        if (attachment.account !== account || !attachment.me) continue
+        try {
+          send(socket, { type: 'pack', pack, cash })
+        } catch {
+          // Closing sockets throw; their close handler follows.
+        }
+      }
+    } catch (err) {
+      console.error('The pack could not be changed', change, err)
+    }
   }
 
   private async left(ws: WebSocket): Promise<void> {

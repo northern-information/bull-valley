@@ -6,27 +6,21 @@
 // beneath the title cards, so the logo's reveal uncovers it, and run() arms
 // it once it is showing. The game's renderer does not exist until the
 // terrain resolves, so the turntable draws with its own small renderer,
-// disposed once a character is chosen. The roster and the saved pick come
-// from characters.ts; the finishes and theirs from finishes.ts; the bodies
-// from figure.ts. The username is the account's, settled by the account
+// disposed once a character is chosen. The roster comes from
+// characters.ts, the finishes from finishes.ts, the bodies from figure.ts;
+// the pick it opens on is the account's, and main.ts saves the new one. The username is the account's, settled by the account
 // step (signin.ts) before this runs.
 
 import * as THREE from 'three'
 import { stepIndex } from './carousel.ts'
-import { loadCharacter, saveCharacter, SELECTABLE } from './characters.ts'
+import { SELECTABLE } from './characters.ts'
 import { copy } from './copy.ts'
 import { applyPose, buildFigure } from './figure.ts'
-import {
-  FINISHES,
-  isFinish,
-  loadFinish,
-  randomFinish,
-  saveFinish,
-} from './finishes.ts'
+import { FINISHES, isFinish, randomFinish } from './finishes.ts'
 import { outfitById } from './outfits.ts'
 import { samplePose } from './poses.ts'
 import { createPS1Renderer, setSnapResolution } from './ps1.ts'
-import type { CharacterPick, CharacterStorage } from './characters.ts'
+import type { CharacterPick } from './characters.ts'
 
 export interface CharacterSelectConfig {
   spinPerSecond: number
@@ -36,7 +30,6 @@ export interface CharacterSelectConfig {
 }
 
 export interface CharacterSelectOptions {
-  storage: CharacterStorage
   config: CharacterSelectConfig
   // Account was pressed: the panel (accountpanel.ts) opens over the select.
   onAccount: () => void
@@ -45,15 +38,15 @@ export interface CharacterSelectOptions {
 }
 
 export interface CharacterSelect {
-  // Arms the screen for `username` and resolves with the chosen outfit once
+  // Arms the screen for `username`, opening on the account's `pick`, and
+  // resolves with the chosen outfit and finish once
   // the overlay has faded out and removed itself.
-  run(username: string): Promise<CharacterPick>
+  run(username: string, pick: CharacterPick): Promise<CharacterPick>
 }
 
 // Mounts the overlay as the last child of <body>, black and inert until
 // run(). Mount it before the title cards so they stack above it.
 export function mountCharacterSelect({
-  storage,
   config,
   onAccount,
   onSignOut,
@@ -118,7 +111,7 @@ export function mountCharacterSelect({
   const nextBtn = find<HTMLButtonElement>('[data-bv="select-next"]')
   const chooseBtn = find<HTMLButtonElement>('[data-bv="select-choose"]')
 
-  function run(username: string): Promise<CharacterPick> {
+  function run(username: string, pick: CharacterPick): Promise<CharacterPick> {
     usernameEl.textContent = username
     return new Promise<CharacterPick>((resolve) => {
       const renderer = createPS1Renderer(canvas)
@@ -135,10 +128,10 @@ export function mountCharacterSelect({
       camera.position.set(0, 1.1, 6.6)
       camera.lookAt(0, 0.4, 0)
 
-      let index = Math.max(0, SELECTABLE.indexOf(loadCharacter(storage)))
+      let index = Math.max(0, SELECTABLE.indexOf(pick.outfit))
       let finishIndex = Math.max(
         0,
-        FINISHES.findIndex((finish) => finish.id === loadFinish(storage))
+        FINISHES.findIndex((finish) => finish.id === pick.finish)
       )
       let chosen = false
       let fadeStart: number | null = null
@@ -212,8 +205,6 @@ export function mountCharacterSelect({
         chooseBtn.disabled = true
         signOutBtn.disabled = true
         accountBtn.disabled = true
-        saveCharacter(storage, SELECTABLE[index])
-        saveFinish(storage, FINISHES[finishIndex].id)
         fadeStart = performance.now()
       }
 
@@ -284,7 +275,10 @@ export function mountCharacterSelect({
         renderer.dispose()
         renderer.forceContextLoss()
         root.remove()
-        resolve({ outfit: SELECTABLE[index] })
+        resolve({
+          outfit: SELECTABLE[index],
+          finish: FINISHES[finishIndex].id,
+        })
       }
 
       prevBtn.addEventListener('click', () => step(-1))

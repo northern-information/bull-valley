@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
 import { dayKey, nextMidnight } from '../../src/daily.ts'
+import { getItem } from '../../src/items.ts'
 import {
   createValley,
   dailyFor,
@@ -9,21 +10,33 @@ import {
   toWire,
 } from '../../src/sharedraid.ts'
 import { freshStock, unitsLeft } from '../../src/store.ts'
-import type { DailyMessage, RaidMessage } from '../../src/protocol.ts'
+import type {
+  DailyMessage,
+  PickupSpec,
+  RaidMessage,
+} from '../../src/protocol.ts'
 import type { Valley, ValleyAction } from '../../src/sharedraid.ts'
 
-const PICKUPS = 70
+// What a build placed: a pack of Marlboros, two joints, then cabbages.
+const PICKUPS: PickupSpec[] = [
+  { kind: 'marlboro', count: 3 },
+  { kind: 'joints', count: 2 },
+  ...Array.from({ length: 68 }, () => ({ kind: 'cabbage', count: 1 })),
+]
 const STATIONS = 3
 const T0 = 1_000_000
+const NO_HAUL = { carrying: 0, delivered: 0, sack: false }
 
 // A little harness: applies actions in order, remembering who is present.
 function valleyWith(...actions: ValleyAction[]) {
   let valley = createValley()
   const present: string[] = []
   let now = T0
+  // Every buyer's wallet, as the valley would read it.
+  let cash = 100_00
   const out: ReturnType<typeof reduce>[] = []
   const step = (action: ValleyAction) => {
-    const ctx = { now, present: [...present] }
+    const ctx = { now, present: [...present], cash }
     const reduced = reduce(valley, action, ctx)
     valley = reduced.valley
     if (action.type === 'join' && !reduced.reject) present.push(action.id)
@@ -42,6 +55,9 @@ function valleyWith(...actions: ValleyAction[]) {
     step,
     tick(ms: number) {
       now += ms
+    },
+    setCash(cents: number) {
+      cash = cents
     },
     get now() {
       return now
@@ -101,8 +117,17 @@ describe('rule 1: a lobby forms for the first arrival', () => {
 
   it('turns away a build whose pickups or stations differ', () => {
     const v = valleyWith(join('a'))
-    const r = v.step({ ...join('b'), pickups: PICKUPS + 1 } as ValleyAction)
+    const r = v.step({
+      ...join('b'),
+      pickups: [...PICKUPS, { kind: 'cabbage', count: 1 }],
+    } as ValleyAction)
     expect(r.reject).toBe('stale-build')
+    // As many pickups, but something else lies at one of them.
+    const swapped = v.step({
+      ...join('d'),
+      pickups: [{ kind: 'joints', count: 3 }, ...PICKUPS.slice(1)],
+    } as ValleyAction)
+    expect(swapped.reject).toBe('stale-build')
     expect(r.valley).toBe(v.valley)
     expect(Object.keys(v.valley.members)).toEqual(['a'])
     const moved = v.step({
@@ -234,36 +259,36 @@ describe('rule 3: when the truck leaves', () => {
 describe('rule 4: pickups go to the first to ask', () => {
   it('records a take and tells everyone who got it', () => {
     const v = valleyWith(join('a'), join('b'))
-    const r = v.step({ type: 'take', id: 'a', index: 12 })
+    const r = v.step({ type: 'take', id: 'a', index: 0 })
     expect(r.broadcast).toHaveLength(1)
     expect(r.broadcast[0]).toMatchObject({
       reason: 'taken',
       by: 'a',
-      index: 12,
+      index: 0,
     })
-    expect(v.valley.raid?.taken).toEqual([12])
+    expect(v.valley.raid?.taken).toEqual([0])
   })
 
   it('tells the loser it is gone', () => {
     const v = valleyWith(join('a'), join('b'), {
       type: 'take',
       id: 'a',
-      index: 12,
+      index: 0,
     })
-    const r = v.step({ type: 'take', id: 'b', index: 12 })
+    const r = v.step({ type: 'take', id: 'b', index: 0 })
     expect(r.broadcast).toEqual([])
     expect(r.reply).toEqual({
       type: 'nack',
       re: 'take',
       reason: 'gone',
-      index: 12,
+      index: 0,
     })
   })
 
   it('refuses an index off the end and a player who has left the raid', () => {
     const v = valleyWith(join('a'), join('b'))
     expect(
-      v.step({ type: 'take', id: 'a', index: PICKUPS }).reply?.reason
+      v.step({ type: 'take', id: 'a', index: PICKUPS.length }).reply?.reason
     ).toBe('no-such-pickup')
     v.step({ type: 'extract', id: 'a', kind: 'fuel' })
     expect(v.step({ type: 'take', id: 'a', index: 1 }).reply?.reason).toBe(
@@ -661,8 +686,8 @@ describe('the wire', () => {
     })
     expect(wire?.shelves).toHaveLength(STATIONS)
     expect(wire?.members).toEqual([
-      { id: 'a', name: 'A', phase: 'LOBBY', boarded: true },
-      { id: 'b', name: 'B', phase: 'LOBBY', boarded: false },
+      { id: 'a', name: 'A', phase: 'LOBBY', boarded: true, ...NO_HAUL },
+      { id: 'b', name: 'B', phase: 'LOBBY', boarded: false, ...NO_HAUL },
     ])
     expect(wire && 'pickups' in wire).toBe(false)
     expect(wire && 'stations' in wire).toBe(false)
@@ -675,5 +700,178 @@ describe('the wire', () => {
     const v = valleyWith(join('a'))
     const r = v.step({ type: 'leave', id: 'nobody' })
     expect(r.broadcast).toEqual([])
+  })
+})
+
+describe("rule 11: the pack is the account's", () => {
+  it("puts a pickup that is not a cabbage into the taker's pack", () => {
+    const v = valleyWith(join('a'))
+    expect(v.step({ type: 'take', id: 'a', index: 0 }).pack).toEqual({
+      account: 'acct-a',
+      kind: 'marlboro',
+      delta: 3,
+    })
+    expect(v.step({ type: 'take', id: 'a', index: 1 }).pack).toEqual({
+      account: 'acct-a',
+      kind: 'joints',
+      delta: 2,
+    })
+    // A cabbage rides in the arms.
+    expect(v.step({ type: 'take', id: 'a', index: 12 }).pack).toBeUndefined()
+    // A take refused moves nothing.
+    expect(v.step({ type: 'take', id: 'a', index: 0 }).pack).toBeUndefined()
+  })
+
+  it('puts a unit bought into the pack, but not the sack', () => {
+    const v = valleyWith(join('a'))
+    expect(
+      v.step({ type: 'buy', id: 'a', station: 0, kind: 'red-bull', unit: 0 })
+        .pack
+    ).toEqual({ account: 'acct-a', kind: 'red-bull', delta: 1 })
+    expect(
+      v.step({ type: 'buy', id: 'a', station: 0, kind: 'sack', unit: 0 }).pack
+    ).toBeUndefined()
+  })
+
+  it("puts the day's berry into the pack, once", () => {
+    const v = valleyWith(join('a'))
+    expect(v.step({ type: 'collect', id: 'a' }).pack).toEqual({
+      account: 'acct-a',
+      kind: 'berries',
+      delta: 1,
+    })
+    expect(v.step({ type: 'collect', id: 'a' }).pack).toBeUndefined()
+  })
+
+  it('takes a used unit out of the pack, whatever the raid is doing', () => {
+    const v = valleyWith(join('a'), { type: 'extract', id: 'a', kind: 'fuel' })
+    const r = v.step({ type: 'use', id: 'a', kind: 'joints' })
+    expect(r.pack).toEqual({ account: 'acct-a', kind: 'joints', delta: -1 })
+    expect(r.broadcast).toEqual([])
+    expect(r.valley).toBe(v.valley)
+  })
+
+  it('refuses a use of something no pack holds, or from a stranger', () => {
+    const v = valleyWith(join('a'))
+    expect(v.step({ type: 'use', id: 'a', kind: 'cabbage' }).reply).toEqual({
+      type: 'nack',
+      re: 'use',
+      reason: 'not-an-item',
+    })
+    expect(
+      v.step({ type: 'use', id: 'nobody', kind: 'joints' }).reply?.reason
+    ).toBe('not-in-valley')
+  })
+})
+
+describe('rule 8: the wallet pays', () => {
+  const buy = (kind: string, unit = 0): ValleyAction => ({
+    type: 'buy',
+    id: 'a',
+    station: 0,
+    kind,
+    unit,
+  })
+
+  it('charges the price to the buyer and refuses a sale it does not cover', () => {
+    const v = valleyWith(join('a'))
+    const price = getItem('pbr').price ?? 0
+    expect(v.step(buy('pbr')).spend).toEqual({
+      account: 'acct-a',
+      amount: price,
+    })
+    v.setCash(price - 1)
+    const short = v.step(buy('pbr', 1))
+    expect(short.reply).toMatchObject({ re: 'buy', reason: 'short' })
+    expect(short.spend).toBeUndefined()
+    expect(short.valley).toBe(v.valley)
+    expect(v.valley.raid?.shelves[0].pbr).toEqual([false, true, true])
+  })
+
+  it('refuses a sale when the wallet was not read', () => {
+    const v = valleyWith(join('a'))
+    const r = reduce(v.valley, buy('pbr'), { now: v.now, present: ['a'] })
+    expect(r.reply?.reason).toBe('short')
+  })
+})
+
+describe("rule 12: the haul is the valley's", () => {
+  // a rides out alone and hops out on foot; pickups 2 on are cabbages.
+  const onFoot = () =>
+    valleyWith(
+      join('a'),
+      { type: 'board', id: 'a' },
+      { type: 'hop-out', id: 'a' }
+    )
+  const take = (index: number, id = 'a'): ValleyAction => ({
+    type: 'take',
+    id,
+    index,
+  })
+  const mine = (v: ReturnType<typeof valleyWith>, id = 'a') =>
+    toWire(v.valley)?.members.find((m) => m.id === id)
+
+  it('takes a cabbage only on foot, and only while the arms have room', () => {
+    const lobby = valleyWith(join('a'))
+    expect(lobby.step(take(2)).reply?.reason).toBe('not-on-foot')
+    const v = onFoot()
+    const limit = CONFIG.cabbage.carryLimit
+    for (let i = 0; i < limit; i++) {
+      expect(v.step(take(2 + i)).broadcast[0].reason).toBe('taken')
+    }
+    expect(mine(v)?.carrying).toBe(limit)
+    const full = v.step(take(2 + limit))
+    expect(full.reply).toEqual({
+      type: 'nack',
+      re: 'take',
+      reason: 'arms-full',
+      index: 2 + limit,
+    })
+    // Still there for someone with room.
+    expect(v.valley.raid?.taken).not.toContain(2 + limit)
+  })
+
+  it('carries more with the sack, bought once', () => {
+    const v = onFoot()
+    const sack = (unit: number): ValleyAction => ({
+      type: 'buy',
+      id: 'a',
+      station: 0,
+      kind: 'sack',
+      unit,
+    })
+    expect(v.step(sack(0)).spend?.amount).toBe(getItem('sack').price)
+    expect(mine(v)?.sack).toBe(true)
+    expect(v.step(sack(1)).reply?.reason).toBe('have-sack')
+    const limit = getItem('sack').carryLimit ?? 0
+    for (let i = 0; i < limit; i++) v.step(take(2 + i))
+    expect(mine(v)?.carrying).toBe(limit)
+  })
+
+  it('leaves everything in the arms at the stand', () => {
+    const v = onFoot()
+    expect(v.step({ type: 'deliver', id: 'a' }).reply?.reason).toBe(
+      'empty-handed'
+    )
+    v.step(take(2))
+    v.step(take(3))
+    const r = v.step({ type: 'deliver', id: 'a' })
+    expect(r.broadcast[0]).toMatchObject({ reason: 'delivered', by: 'a' })
+    expect(mine(v)).toMatchObject({ carrying: 0, delivered: 2 })
+  })
+
+  it('keeps the haul for the account across a reload, until the reset', () => {
+    const v = onFoot()
+    v.step(join('b'))
+    v.step(take(2))
+    v.step({ type: 'leave', id: 'a' })
+    // The same account, a new socket.
+    v.step({ ...join('a2'), account: 'acct-a' } as ValleyAction)
+    expect(mine(v, 'a2')).toMatchObject({ carrying: 1 })
+    expect(mine(v, 'b')).toMatchObject({ carrying: 0 })
+    v.step({ type: 'leave', id: 'a2' })
+    v.step({ type: 'leave', id: 'b' })
+    v.step(join('a3'))
+    expect(v.valley.raid?.cargo).toEqual({})
   })
 })
