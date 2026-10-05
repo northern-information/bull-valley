@@ -314,36 +314,36 @@ stanza_1 = { text = """
 O, whistle, and I'll come to you, my lad;
   O, whistle, and I'll come to you, my lad;
   The' father, and mother, and a' should gae mad,
-  O, whistle, and I'll come to you, my lad.""", by = "ai" }
+  O, whistle, and I'll come to you, my lad.""", by = "tyler" }
 stanza_2 = { text = """
 But warily tent, when you come to court me,
 And come na unless the back-yett be a jee;
 Syne up the back-stile, and let nae body see,
 And come as ye were na comin' to me,
 And come as ye were na comin' to me.
-  O, whistle, etc.""", by = "ai" }
+  O, whistle, etc.""", by = "tyler" }
 stanza_3 = { text = """
 At kirk or at market, whene'er ye meet me,
 Gang by me as though that ye cared na a flie;
 But steal me a blink o' your bonnie black e'e,
 Yet look as ye were na lookin' at me,
 Yet look as ye were na lookin' at me.
-  O, whistle, etc.""", by = "ai" }
+  O, whistle, etc.""", by = "tyler" }
 stanza_4 = { text = """
 Aye vow and protest that ye care na for me,
 And whyles ye may lichtly my beauty a wee;
 But court na anither, though jokin' ye be,
 For fear that she wyle your fancy frae me,
 For fear that she wyle your fancy frae me.
-  O, whistle, etc.""", by = "ai" }
+  O, whistle, etc.""", by = "tyler" }
 
 # David Carlsten behind every Citgo counter (src/npcs.ts), one line each
 # time, in turn.
 
 [carlsten]
-says_1 = { text = "Howdy. Welcome in.", by = "ai" }
-says_2 = { text = "Shadowmen are out tonight.", by = "ai" }
-says_3 = { text = "Heard there's been some rolling power outages.", by = "ai" }
+says_1 = { text = "Howdy. Welcome in.", by = "tyler" }
+says_2 = { text = "Shadowmen are out tonight.", by = "tyler" }
+says_3 = { text = "Heard there's been some rolling power outages.", by = "tyler" }
 
 # Talking to Gron by the berry bush (src/grondialog.ts). One of the says_
 # lines greets you at random; the field, the checks and the Previous / Next
