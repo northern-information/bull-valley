@@ -103,7 +103,8 @@ export const CONFIG = {
     spawnOffset: 5,
   },
   store: {
-    // Every player starts every raid with this much, in cents.
+    // A new account's wallet, in cents (worker/packs.ts); it carries from
+    // raid to raid. Played alone, every raid starts with this much.
     startingCash: 4000,
     // Units of every item on each Citgo's shelves at the start of a raid.
     perItem: 3,

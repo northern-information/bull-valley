@@ -17,7 +17,12 @@ import {
 } from './protocol.ts'
 import type { ClockSync } from './clock.ts'
 import type { OutfitId } from './outfits.ts'
-import type { ClientMessage, PeerStateWire, ServerMessage } from './protocol.ts'
+import type {
+  ClientMessage,
+  PeerStateWire,
+  PickupSpec,
+  ServerMessage,
+} from './protocol.ts'
 
 export type NetStatus = 'connecting' | 'online' | 'offline'
 
@@ -39,8 +44,9 @@ export interface NetOptions {
 
 export interface NetIdentity {
   outfit: OutfitId
-  // How many pickups and stations this build placed; see HelloMessage.
-  pickups: number
+  // Every pickup this build placed, and how many stations; see
+  // HelloMessage.
+  pickups: PickupSpec[]
   stations: number
 }
 

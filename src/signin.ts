@@ -215,11 +215,9 @@ export function mountAccountStep(): AccountStep {
         usernameFace.hidden = false
         gates.hidden = !pending
         const who = me?.account?.displayName ?? me?.pending?.displayName
-        const via = me?.pending?.provider ?? me?.account?.providers[0]?.provider
-        lede.textContent =
-          who && via
-            ? copy('username.lede_as', { provider: PROVIDER_LABELS[via], who })
-            : copy('username.lede')
+        lede.textContent = who
+          ? copy('username.lede_as', { who })
+          : copy('username.lede')
         check()
         input.focus()
       }

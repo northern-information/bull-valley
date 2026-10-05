@@ -41,6 +41,8 @@ export function tierFor(method: string, parts: readonly string[]): Tier | null {
       return 'strict'
     }
     if (method === 'POST' && first === 'refresh') return 'loose'
+    // The character and finish, at the select and at Gron.
+    if (method === 'PUT' && first === 'look') return 'loose'
     return null
   }
   if (parts.length === 2) {

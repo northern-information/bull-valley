@@ -10,6 +10,7 @@
 // GET  /auth/me                             who is signed in (always 200)
 // POST /auth/confirm-signup                 pass the gates; create the account
 // POST /auth/username                       choose the username, once
+// PUT  /auth/look                           the character and guitar finish
 // GET  /auth/username/:username/available   is this handle free
 // POST /auth/refresh                        a fresh access cookie (always 200)
 // POST /auth/logout                         clear the session
@@ -27,6 +28,7 @@ import {
   PROVIDER_LABELS,
   validateRedirect,
 } from '../src/account.ts'
+import { isSelectable } from '../src/characters.ts'
 import {
   clearCookie,
   COOKIE,
@@ -34,6 +36,7 @@ import {
   serializeCookie,
 } from '../src/cookies.ts'
 import { copy } from '../src/copy.ts'
+import { isFinish } from '../src/finishes.ts'
 import { appOrigin, isDevHost, jwtSecret } from './env.ts'
 import {
   authorizeUrl,
@@ -207,6 +210,7 @@ class AuthHandler {
       if (first === 'username' && method === 'PUT') {
         return this.setUsername(true)
       }
+      if (first === 'look' && method === 'PUT') return this.setLook()
     }
     if (parts.length === 3 && first === 'username' && third === 'available') {
       if (method === 'GET') return this.available(second)
@@ -350,6 +354,7 @@ class AuthHandler {
         avatarUrl: p.avatarUrl,
         linkedAt: p.linkedAt,
       })),
+      look: await this.store.lookOf(account.accountId),
     }
   }
 
@@ -680,6 +685,29 @@ class AuthHandler {
           this.clearSession()
         )
     }
+  }
+
+  // The character and guitar finish chosen at the select or at Gron.
+  private async setLook(): Promise<Response> {
+    const claims = await this.access()
+    if (!claims) return json({ error: copy('auth.sign_in_first') }, 401)
+    const body = (await this.request.json().catch(() => null)) as Record<
+      string,
+      unknown
+    > | null
+    const outfit = body?.outfit
+    const finish = body?.finish
+    if (!isSelectable(outfit) || !isFinish(finish)) {
+      return json({ error: copy('auth.look_rule') }, 400)
+    }
+    if (!(await this.store.setLook(claims.accountId, { outfit, finish }))) {
+      return json(
+        { error: copy('auth.account_not_found') },
+        401,
+        this.clearSession()
+      )
+    }
+    return json({ look: { outfit, finish } })
   }
 
   private async available(username: string): Promise<Response> {

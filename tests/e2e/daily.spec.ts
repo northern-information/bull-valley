@@ -12,18 +12,16 @@ import type { Page } from '@playwright/test'
 // valley keeps the record, so a second arrival on the same account finds
 // the bush picked clean. Both tests join one valley as one raider, in
 // order, each on a fresh page: booting the game takes most of a minute on
-// CI, so a test boots once. A fresh browser context starts with no saved
-// inventory, so a saved one with a berry in it proves the pick landed.
+// CI, so a test boots once. The pack is the account's too: a fresh raider
+// has no berries, and the second arrival's welcome carries the one picked.
 
 test.describe.configure({ mode: 'serial' })
 
 const valley = freshValley('daily')
 const raider = freshRaider('Daily')
 
-const savedInventory = (page: Page) =>
-  page.evaluate(() =>
-    localStorage.getItem('bull-valley-shadow-wars:v1:inventory')
-  )
+const berries = (page: Page) =>
+  page.evaluate(() => window.__bv?.inventory.berries)
 
 // Whether the glow rings the bush, and whether its berries show.
 const bushGlows = (page: Page) =>
@@ -51,17 +49,17 @@ test('the berry bush gives one berry, then is picked clean', async ({
 }) => {
   await beginRaid(page, 0, { valley, raider })
   const prompt = page.locator('.bv-prompt')
-  expect(await savedInventory(page)).toBeNull()
   expect(await page.evaluate(() => window.__bv?.daily)).toMatchObject({
     collected: false,
   })
+  expect(await berries(page)).toBe(0)
 
   await standAtBush(page)
   await expect(prompt).toHaveText(copy('prompts.berry_ready'))
   await expect.poll(() => bushGlows(page)).toBe(true)
   expect(await berriesShown(page)).toBe(true)
   await page.keyboard.press('KeyE')
-  await expect.poll(() => savedInventory(page)).toContain('"berries":1')
+  await expect.poll(() => berries(page)).toBe(1)
   await expect(prompt).toHaveText(copy('prompts.berry_picked'))
   await expect
     .poll(() => page.evaluate(() => window.__bv?.daily?.collected))
@@ -73,7 +71,7 @@ test('the berry bush gives one berry, then is picked clean', async ({
   // A second press changes nothing.
   await page.keyboard.press('KeyE')
   await expect(prompt).toHaveText(copy('prompts.berry_picked'))
-  expect(await savedInventory(page)).toContain('"berries":1')
+  expect(await berries(page)).toBe(1)
 })
 
 test('the valley remembers the account on the next arrival', async ({
@@ -83,6 +81,8 @@ test('the valley remembers the account on the next arrival', async ({
   expect(await page.evaluate(() => window.__bv?.daily)).toMatchObject({
     collected: true,
   })
+  // A new page, and the berry is still in the pack.
+  expect(await berries(page)).toBe(1)
   await standAtBush(page)
   await expect(page.locator('.bv-prompt')).toHaveText(
     copy('prompts.berry_picked')

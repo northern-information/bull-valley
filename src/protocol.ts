@@ -4,12 +4,12 @@
 // JSON text; every number the server stores is checked here first.
 
 import { OUTFIT_IDS } from './outfits.ts'
-import type { ExtractKind, ShopStock, XZ } from './interfaces.ts'
+import type { ExtractKind, Inventory, ShopStock, XZ } from './interfaces.ts'
 import type { OutfitId } from './outfits.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and reloads.
-export const PROTOCOL_VERSION = 5
+export const PROTOCOL_VERSION = 7
 
 // The one WebSocket route; everything else on the Worker is a static asset.
 export const WS_PATH = '/ws'
@@ -26,6 +26,12 @@ export const NAME_MAX = 16
 
 // A chat line: 1 to CHAT_MAX characters after normalizeChat().
 export const CHAT_MAX = 120
+
+// More pickups than any build places; a longer hello is refused.
+export const PICKUPS_MAX = 1000
+
+// An item id or a pickup kind on the wire: items.ts ids are short.
+const KIND_MAX = 64
 
 // The survey is about 5 km across; nothing legitimate is this far out.
 export const MAX_COORD = 20_000
@@ -56,6 +62,14 @@ export interface PeerWire {
   at: PeerStateWire | null
 }
 
+// One pickup as this build placed it: what lies there and how many. The
+// hello carries every one, in world.pickups order, so the valley knows what
+// a take puts in the pack.
+export interface PickupSpec {
+  kind: string
+  count: number
+}
+
 // --- The shared raid -------------------------------------------------------
 // One truck, one clock, shared pickups. The server owns this state; the
 // rules are in sharedraid.ts and every change comes down as a RaidMessage.
@@ -69,6 +83,11 @@ export interface MemberWire {
   phase: MemberPhase
   // Standing in the bed during the lobby, waiting on the others.
   boarded: boolean
+  // The account's cargo this raid (sharedraid.ts Cargo): cabbages in the
+  // arms, cabbages left at the stand, and whether they bought the sack.
+  carrying: number
+  delivered: number
+  sack: boolean
 }
 
 // A whistle for the truck: who, from where the truck was, to where they
@@ -122,6 +141,7 @@ export type RaidReason =
   | 'depart'
   | 'hop-out'
   | 'taken'
+  | 'delivered'
   | 'bought'
   | 'call'
   | 'truck-free'
@@ -137,10 +157,10 @@ export interface HelloMessage {
   type: 'hello'
   v: number
   outfit: OutfitId
-  // How many pickups this build placed, and how many stations. A raid is
-  // shared by index into both, so a client built from a different
-  // placement is turned away.
-  pickups: number
+  // Every pickup this build placed, in world.pickups order, and how many
+  // stations. A raid is shared by index into both, so a client built from
+  // a different placement is turned away.
+  pickups: PickupSpec[]
   stations: number
 }
 
@@ -161,12 +181,18 @@ export interface TakeMessage {
   index: number
 }
 
-// One unit of `kind` off station `station`'s shelf. Cash is the buyer's
-// own; the valley only says whether the unit was still there.
+// One unit of `kind` off station `station`'s shelf, paid for out of the
+// account's wallet. The valley says whether the unit was still there and
+// whether the wallet covers it.
 export interface BuyMessage {
   type: 'buy'
   station: number
   kind: string
+}
+
+// Every cabbage in the arms, left at the Bull Valley Cabbage Stand.
+export interface DeliverMessage {
+  type: 'deliver'
 }
 
 export interface CallMessage {
@@ -178,6 +204,14 @@ export interface CallMessage {
 export interface ExtractMessage {
   type: 'extract'
   kind: ExtractKind
+}
+
+// One unit of `kind` out of the pack, used. The valley takes it off the
+// account's pack and answers with a PackMessage, or a nack when there is
+// none to use.
+export interface UseMessage {
+  type: 'use'
+  kind: string
 }
 
 // Today's berry off the bush, please. The valley answers with a
@@ -231,9 +265,11 @@ export type ClientMessage =
   | HopOutMessage
   | TakeMessage
   | BuyMessage
+  | DeliverMessage
   | CallMessage
   | ExtractMessage
   | CollectMessage
+  | UseMessage
   | ChatMessage
   | AppearanceMessage
   | RenameMessage
@@ -255,6 +291,18 @@ export interface WelcomeMessage {
   phase: MemberPhase
   // Whether the bush has a berry for this name today.
   daily: DailyWire
+  // The account's pack and wallet, as the valley keeps them.
+  pack: Inventory
+  cash: number
+}
+
+// The account's pack and wallet (cents) after a change: a berry, a pickup,
+// a purchase, a use. Sent to every socket signed in to the account. The
+// client's pack and cash are these, whatever it guessed in the meantime.
+export interface PackMessage {
+  type: 'pack'
+  pack: Inventory
+  cash: number
 }
 
 // The answer to a collect: `picked` when a berry came off the bush, false
@@ -348,6 +396,7 @@ export type ServerMessage =
   | RaidMessage
   | NackMessage
   | DailyMessage
+  | PackMessage
   | PeerChatMessage
   | PongMessage
   | ErrorMessage
@@ -433,6 +482,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
+function isKind(value: unknown): value is string {
+  return (
+    typeof value === 'string' && value.length > 0 && value.length <= KIND_MAX
+  )
+}
+
+// A hello's pickups: at most PICKUPS_MAX, each a kind and a count.
+function parsePickups(value: unknown): PickupSpec[] | null {
+  if (!Array.isArray(value) || value.length > PICKUPS_MAX) return null
+  const specs: PickupSpec[] = []
+  for (const entry of value as unknown[]) {
+    if (!isRecord(entry)) return null
+    const { kind, count } = entry
+    if (!isKind(kind) || !isCount(count)) return null
+    specs.push({ kind, count })
+  }
+  return specs
+}
+
 function parseXZ(value: unknown): XZ | null {
   if (!isRecord(value)) return null
   const { x, z } = value
@@ -468,7 +536,9 @@ export function parseClientMessage(text: string): ClientMessage | null {
       const { v, outfit, pickups, stations } = value
       if (typeof v !== 'number' || !Number.isInteger(v)) return null
       if (typeof outfit !== 'string') return null
-      if (!isCount(pickups) || !isCount(stations)) return null
+      if (!isCount(stations)) return null
+      const specs = parsePickups(pickups)
+      if (!specs) return null
       // The outfit is checked by the server with isOutfitId; the type here
       // is widened deliberately so a bad id reaches that check. An older
       // build's hello still parses (its name is ignored), so it is told its
@@ -477,13 +547,14 @@ export function parseClientMessage(text: string): ClientMessage | null {
         type: 'hello',
         v,
         outfit: outfit as OutfitId,
-        pickups,
+        pickups: specs,
         stations,
       }
     }
     case 'board':
     case 'unboard':
     case 'hop-out':
+    case 'deliver':
     case 'collect':
     case 'rename':
       return { type: value.type }
@@ -501,9 +572,12 @@ export function parseClientMessage(text: string): ClientMessage | null {
     }
     case 'buy': {
       const { station, kind } = value
-      if (!isCount(station) || typeof kind !== 'string') return null
-      if (kind.length === 0 || kind.length > 64) return null
+      if (!isCount(station) || !isKind(kind)) return null
       return { type: 'buy', station, kind }
+    }
+    case 'use': {
+      const { kind } = value
+      return isKind(kind) ? { type: 'use', kind } : null
     }
     case 'call': {
       const from = parseXZ(value.from)

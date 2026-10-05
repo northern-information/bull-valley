@@ -1,12 +1,13 @@
 // The game's side of the /auth routes (worker/auth.ts): who is signed in,
 // keeping the session fresh, confirming a new account, choosing a username,
-// unlinking a provider, signing out. Same origin, so the session cookies ride along on every call
+// saving the character, unlinking a provider, signing out. Same origin, so the session cookies ride along on every call
 // and the page never sees a token. The shapes are account.ts's.
 
 import { AUTH_PATH } from './account.ts'
 import { copy } from './copy.ts'
 import type {
   AvailableResponse,
+  LookWire,
   MeResponse,
   Provider,
   ProvidersResponse,
@@ -146,6 +147,30 @@ export async function renameUsername(
     return { ok: false, error, limited: res.status === TOO_MANY }
   } catch {
     return { ok: false, error: 'The valley cannot be reached' }
+  }
+}
+
+// The character and guitar finish, kept on the account so they follow the
+// raider to any browser.
+export async function saveLook(
+  look: LookWire,
+  fetchImpl: Fetch = fetch
+): Promise<Outcome> {
+  try {
+    const res = await fetchImpl(`${AUTH_PATH}/look`, {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(look),
+    })
+    if (res.ok) return { ok: true }
+    return {
+      ok: false,
+      error: await errorOf(res, copy('auth.look_failed')),
+      limited: res.status === TOO_MANY,
+    }
+  } catch {
+    return { ok: false, error: copy('auth.unreachable') }
   }
 }
 

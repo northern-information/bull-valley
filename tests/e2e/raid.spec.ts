@@ -53,13 +53,10 @@ base.describe('one raid', { tag: '@raid' }, () => {
     }, find)
   }
 
-  // The inventory is saved only when it changes, so in a fresh context a
-  // saved inventory means a purchase went through. Toasts are no proof: they
-  // leave the DOM after 4.4 seconds, which a slow CI runner can outlast.
-  const savedInventory = () =>
-    page.evaluate(() =>
-      localStorage.getItem('bull-valley-shadow-wars:v1:inventory')
-    )
+  // How many PBRs the pack holds, as the valley last said (a fresh
+  // raider's pack has none). Toasts are no proof: they leave the DOM after
+  // 4.4 seconds, which a slow CI runner can outlast.
+  const pbrs = () => page.evaluate(() => window.__bv?.inventory.pbr)
 
   // The roads and lots float over the terrain, so standing at the terrain
   // height sinks into them. The truck parks on a road and the player spawns
@@ -133,7 +130,7 @@ base.describe('one raid', { tag: '@raid' }, () => {
   }
 
   base('buy a drink and the sack inside the Citgo', async () => {
-    expect(await savedInventory()).toBeNull()
+    expect(await pbrs()).toBe(0)
     expect(await cash()).toBe(4000)
 
     await aimAt('pbr', [1.3, 0])
@@ -150,7 +147,7 @@ base.describe('one raid', { tag: '@raid' }, () => {
     await expect.poll(cash).toBe(4000 - 99)
     await expect.poll(glowShelfUnit).not.toBe(unit)
     expect(await glowShelfUnit()).not.toBeNull()
-    expect(await savedInventory()).not.toBeNull()
+    await expect.poll(pbrs).toBe(1)
 
     await aimAt('sack', [0, 1.3])
     await expect(prompt()).toHaveText(

@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest'
+import { CONFIG } from '../../src/config.ts'
+import { STARTING_INVENTORY } from '../../src/inventory.ts'
+import { getItem } from '../../src/items.ts'
 import { CLOSE, PROTOCOL_VERSION } from '../../src/protocol.ts'
+import { MemoryPackStore, STARTING_CASH } from '../../worker/packs.ts'
 import { ValleyDO } from '../../worker/ValleyDO.ts'
 import type {
   DailyMessage,
   NackMessage,
+  PackMessage,
   PeerChatMessage,
   PeerJoinedMessage,
   PeerLeftMessage,
@@ -13,6 +18,7 @@ import type {
   ServerMessage,
   WelcomeMessage,
 } from '../../src/protocol.ts'
+import type { PackStore } from '../../worker/packs.ts'
 
 // Mocks for the slice of the Workers runtime the object touches.
 
@@ -86,19 +92,53 @@ class MockState {
 const ws = (s: MockSocket) => s as unknown as WebSocket
 const asState = (s: MockState) => s as unknown as DurableObjectState
 
+// The valley with its packs in memory instead of D1.
+class TestValley extends ValleyDO {
+  packStore: PackStore = new MemoryPackStore()
+  protected override packs(): PackStore {
+    return this.packStore
+  }
+}
+
 async function valley(state = new MockState(), env: Partial<Env> = {}) {
-  const v = new ValleyDO(asState(state), env as Env)
+  const v = new TestValley(asState(state), env as Env)
   // Let the constructor's storage read settle.
   await Promise.resolve()
   return { valley: v, state }
 }
+
+// What a build placed: two joints first, then `n - 1` cabbages.
+const placed = (n: number) => [
+  { kind: 'joints', count: 2 },
+  ...Array.from({ length: n - 1 }, () => ({ kind: 'cabbage', count: 1 })),
+]
 
 const hello = (
   outfit = 'coleman',
   v = PROTOCOL_VERSION,
   pickups = 70,
   stations = 5
-) => JSON.stringify({ type: 'hello', v, outfit, pickups, stations })
+) =>
+  JSON.stringify({
+    type: 'hello',
+    v,
+    outfit,
+    pickups: placed(pickups),
+    stations,
+  })
+
+// The last pack frame a socket was sent.
+const lastPack = (socket: MockSocket) =>
+  socket.frames().findLast((m): m is PackMessage => m.type === 'pack')?.pack
+
+// The last daily frame; a berry picked is followed by a pack frame.
+function lastDaily(socket: MockSocket): DailyMessage {
+  const daily = socket
+    .frames()
+    .findLast((m): m is DailyMessage => m.type === 'daily')
+  if (!daily) throw new Error('no daily frame')
+  return daily
+}
 
 const state = (x: number, z: number) =>
   JSON.stringify({
@@ -274,7 +314,15 @@ describe('ValleyDO', () => {
     expect(welcomeA.phase).toBe('LOBBY')
     expect(welcomeA.raid.phase).toBe('LOBBY')
     expect(welcomeA.raid.members).toEqual([
-      { id: welcomeA.id, name: 'Dave Coleman', phase: 'LOBBY', boarded: false },
+      {
+        id: welcomeA.id,
+        name: 'Dave Coleman',
+        phase: 'LOBBY',
+        boarded: false,
+        carrying: 0,
+        delivered: 0,
+        sack: false,
+      },
     ])
     // The lobby clock is armed.
     expect(s.storage.alarm).toBe(welcomeA.raid.loadoutEndsAt)
@@ -456,7 +504,7 @@ describe('ValleyDO', () => {
     expect(welcome.daily.collected).toBe(false)
     expect(welcome.daily.resetsAt).toBeGreaterThan(before)
     await v.webSocketMessage(ws(a), '{"type":"collect"}')
-    const picked = a.last<DailyMessage>()
+    const picked = lastDaily(a)
     expect(picked).toMatchObject({
       type: 'daily',
       picked: true,
@@ -464,7 +512,7 @@ describe('ValleyDO', () => {
     })
     expect(picked.daily.resetsAt).toBe(welcome.daily.resetsAt)
     await v.webSocketMessage(ws(a), '{"type":"collect"}')
-    expect(a.last<DailyMessage>()).toMatchObject({
+    expect(lastDaily(a)).toMatchObject({
       type: 'daily',
       picked: false,
     })
@@ -472,7 +520,7 @@ describe('ValleyDO', () => {
     const twin = await join(v, s, 'Dave')
     expect(twin.last<WelcomeMessage>().daily.collected).toBe(true)
     await v.webSocketMessage(ws(twin), '{"type":"collect"}')
-    expect(twin.last<DailyMessage>().picked).toBe(false)
+    expect(lastDaily(twin).picked).toBe(false)
     // Another account has its own, even under a name that looks the same.
     const b = await join(v, s, 'Dave', { account: 'acct-other' })
     expect(b.last<WelcomeMessage>().daily.collected).toBe(false)
@@ -492,7 +540,7 @@ describe('ValleyDO', () => {
     const a = await join(v, shared, 'Dave')
     expect(a.last<WelcomeMessage>().daily.collected).toBe(false)
     await v.webSocketMessage(ws(a), '{"type":"collect"}')
-    expect(a.last<DailyMessage>().picked).toBe(true)
+    expect(lastDaily(a).picked).toBe(true)
   })
 
   it('keeps the dev frames for dev sockets', async () => {
@@ -535,13 +583,13 @@ describe('ValleyDO', () => {
     const shared = new MockState()
     const first = (await valley(shared)).valley
     const a = await join(first, shared, 'A')
-    await first.webSocketMessage(ws(a), '{"type":"take","index":9}')
+    await first.webSocketMessage(ws(a), '{"type":"take","index":0}')
     // Hibernation: a new object over the same storage and sockets.
     const woken = (await valley(shared)).valley
     const b = await join(woken, shared, 'B')
     const welcome = b.last<WelcomeMessage>()
     expect(welcome.peers.map((p) => p.name)).toEqual(['A'])
-    expect(welcome.raid.taken).toEqual([9])
+    expect(welcome.raid.taken).toEqual([0])
     expect(welcome.raid.members.map((m) => m.name)).toEqual(['A', 'B'])
     expect(a.last<RaidMessage>()).toMatchObject({
       reason: 'joined',
@@ -644,5 +692,99 @@ describe('ValleyDO', () => {
       re: 'rename',
       reason: 'no-username',
     })
+  })
+
+  it("keeps the account's pack: the welcome, a berry, a pickup, a use", async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    // A second socket on the same account shares the pack.
+    const a2 = await join(v, s, 'A2', { account: 'acct-A' })
+    const b = await join(v, s, 'B')
+    expect(a.frames()[0]).toMatchObject({
+      type: 'welcome',
+      pack: STARTING_INVENTORY,
+    })
+    await v.webSocketMessage(ws(a), '{"type":"collect"}')
+    expect(lastPack(a)?.berries).toBe(1)
+    expect(lastPack(a2)?.berries).toBe(1)
+    expect(lastPack(b)).toBeUndefined()
+    // Pickup 0 is two joints.
+    await v.webSocketMessage(ws(a), '{"type":"take","index":0}')
+    expect(lastPack(a)?.joints).toBe(STARTING_INVENTORY.joints + 2)
+    await v.webSocketMessage(ws(a2), '{"type":"use","kind":"berries"}')
+    expect(lastPack(a)?.berries).toBe(0)
+    // Nothing left to use: refused, and the pack put right.
+    await v.webSocketMessage(ws(a2), '{"type":"use","kind":"berries"}')
+    expect(a2.frames().at(-2)).toEqual({
+      type: 'nack',
+      re: 'use',
+      reason: 'none-left',
+    })
+    expect(lastPack(a2)?.berries).toBe(0)
+    // The pack outlives the socket: a new one opens on it.
+    await v.webSocketClose(ws(a))
+    await v.webSocketClose(ws(a2))
+    const back = await join(v, s, 'A', { account: 'acct-A' })
+    expect(back.frames()[0]).toMatchObject({
+      type: 'welcome',
+      pack: { joints: STARTING_INVENTORY.joints + 2, berries: 0 },
+    })
+  })
+
+  it('closes a hello whose pack cannot be read', async () => {
+    const { valley: v, state: s } = await valley()
+    v.packStore = {
+      open: () => Promise.reject(new Error('D1 is down')),
+      get: () => Promise.reject(new Error('D1 is down')),
+      change: () => Promise.reject(new Error('D1 is down')),
+      spend: () => Promise.reject(new Error('D1 is down')),
+    }
+    const errors: unknown[] = []
+    const error = console.error
+    console.error = (...args: unknown[]) => errors.push(args)
+    try {
+      const a = await join(v, s, 'A')
+      expect(a.closeCode).toBe(CLOSE.serverError)
+      expect(errors).toHaveLength(1)
+    } finally {
+      console.error = error
+    }
+  })
+
+  it("pays for a sale out of the account's wallet, and refuses one it cannot", async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    expect(a.frames()[0]).toMatchObject({
+      type: 'welcome',
+      cash: STARTING_CASH,
+    })
+    const price = getItem('pbr').price ?? 0
+    await v.webSocketMessage(ws(a), '{"type":"buy","station":0,"kind":"pbr"}')
+    expect(b.last<RaidMessage>()).toMatchObject({ reason: 'bought' })
+    expect(a.last<PackMessage>()).toMatchObject({
+      type: 'pack',
+      cash: STARTING_CASH - price,
+    })
+    expect(lastPack(a)?.pbr).toBe(1)
+    // The wallet is the account's: spent down, it stays spent.
+    v.packStore = new MemoryPackStore()
+    await v.packStore.open('acct-A')
+    await v.packStore.spend('acct-A', STARTING_CASH - price + 1)
+    const before = b.frames().length
+    await v.webSocketMessage(ws(a), '{"type":"buy","station":0,"kind":"pbr"}')
+    expect(a.last<NackMessage>()).toEqual({
+      type: 'nack',
+      re: 'buy',
+      reason: 'short',
+      station: 0,
+      item: 'pbr',
+    })
+    // Nobody heard of a sale, and the unit is still on the shelf.
+    expect(b.frames()).toHaveLength(before)
+    const stored = s.storage.map.get('valley') as {
+      raid: { shelves: Record<string, number>[] }
+    }
+    expect(stored.raid.shelves[0].pbr).toBe(CONFIG.store.perItem - 1)
   })
 })
