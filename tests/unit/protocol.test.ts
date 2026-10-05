@@ -170,10 +170,11 @@ describe('parseClientMessage', () => {
       type: 'use',
       kind: 'joints',
     })
-    expect(parse({ type: 'buy', station: 2, kind: 'pbr' })).toEqual({
+    expect(parse({ type: 'buy', station: 2, kind: 'pbr', unit: 1 })).toEqual({
       type: 'buy',
       station: 2,
       kind: 'pbr',
+      unit: 1,
     })
     expect(parse({ type: 'take', index: 3 })).toEqual({
       type: 'take',
@@ -205,11 +206,15 @@ describe('parseClientMessage', () => {
     expect(parse({ type: 'take', index: -1 })).toBeNull()
     expect(parse({ type: 'take', index: 1.5 })).toBeNull()
     expect(parse({ type: 'take' })).toBeNull()
-    expect(parse({ type: 'buy', station: -1, kind: 'pbr' })).toBeNull()
-    expect(parse({ type: 'buy', station: 1.5, kind: 'pbr' })).toBeNull()
-    expect(parse({ type: 'buy', station: 1, kind: '' })).toBeNull()
-    expect(parse({ type: 'buy', station: 1, kind: 7 })).toBeNull()
-    expect(parse({ type: 'buy', station: 1 })).toBeNull()
+    expect(parse({ type: 'buy', station: -1, kind: 'pbr', unit: 0 })).toBeNull()
+    expect(
+      parse({ type: 'buy', station: 1.5, kind: 'pbr', unit: 0 })
+    ).toBeNull()
+    expect(parse({ type: 'buy', station: 1, kind: '', unit: 0 })).toBeNull()
+    expect(parse({ type: 'buy', station: 1, kind: 7, unit: 0 })).toBeNull()
+    expect(parse({ type: 'buy', station: 1, unit: 0 })).toBeNull()
+    expect(parse({ type: 'buy', station: 1, kind: 'pbr' })).toBeNull()
+    expect(parse({ type: 'buy', station: 1, kind: 'pbr', unit: -1 })).toBeNull()
     expect(parse({ type: 'use', kind: '' })).toBeNull()
     expect(parse({ type: 'use', kind: 7 })).toBeNull()
     expect(parse({ type: 'use' })).toBeNull()

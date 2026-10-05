@@ -61,7 +61,7 @@ import { ShadowCards } from './shadowcards.ts'
 import { buy as buyItem, settle } from './shop.ts'
 import { mountAccountStep } from './signin.ts'
 import { mountCard, showSplash, skipTitles } from './splash.ts'
-import { facingInView, formatCash, freshStock, insideStore } from './store.ts'
+import { formatCash, freshStock, insideStore, unitInView } from './store.ts'
 import { buildTerrainMesh, createHeightField, loadTerrain } from './terrain.ts'
 import { Truck } from './truck.ts'
 import { buildWorld } from './world.ts'
@@ -720,6 +720,7 @@ async function boot() {
       { raid, stock: storeStock, inventory, cash },
       shelf.station,
       shelf.item,
+      shelf.unit,
       raidClock
     )
     if (!next) {
@@ -733,7 +734,12 @@ async function boot() {
       const key = `${shelf.station}:${shelf.item}`
       if (pendingBuys.has(key)) return
       pendingBuys.add(key)
-      net.send({ type: 'buy', station: shelf.station, kind: shelf.item })
+      net.send({
+        type: 'buy',
+        station: shelf.station,
+        kind: shelf.item,
+        unit: shelf.unit,
+      })
       return
     }
     const inventoryChanged = next.inventory !== inventory
@@ -789,7 +795,7 @@ async function boot() {
       insideStore(station, player.pos.x, player.pos.z)
     )
 
-  // The shelf facing in view inside a store, for the interaction resolver.
+  // The shelf unit in view inside a store, for the interaction resolver.
   const look = new THREE.Vector3()
   const shelfInView = (station: number): ShelfSpot | null => {
     if (station < 0) return null
@@ -797,18 +803,19 @@ async function boot() {
     const eye: Vec3 = [camera.position.x, camera.position.y, camera.position.z]
     // A sack in hand is one too many: the shelf stops offering it.
     const stock = raid.sack
-      ? { ...storeStock[station], sack: 0 }
+      ? { ...storeStock[station], sack: [] }
       : storeStock[station]
-    const facing = facingInView(world.facings[station], stock, eye, [
+    const seen = unitInView(world.facings[station], stock, eye, [
       look.x,
       look.y,
       look.z,
     ])
-    const item = facing ? itemById(facing.kind) : null
-    if (!item || item.price === undefined) return null
+    const item = seen ? itemById(seen.facing.kind) : null
+    if (!seen || !item || item.price === undefined) return null
     return {
       item: item.id,
       station,
+      unit: seen.unit,
       price: item.price,
       affordable: cash >= item.price,
     }
@@ -824,11 +831,7 @@ async function boot() {
       case 'pickup':
         return action.pickup.mesh
       case 'buy':
-        return world.shelves.unitFor(
-          action.station,
-          action.item,
-          storeStock[action.station]?.[action.item] ?? 0
-        )
+        return world.shelves.unitFor(action.station, action.item, action.unit)
       case 'collect':
         return action.status === 'ready' ? world.bushObject : null
       case 'talk':

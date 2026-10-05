@@ -9,7 +9,7 @@ import type { OutfitId } from './outfits.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and reloads.
-export const PROTOCOL_VERSION = 7
+export const PROTOCOL_VERSION = 8
 
 // The one WebSocket route; everything else on the Worker is a static asset.
 export const WS_PATH = '/ws'
@@ -181,13 +181,14 @@ export interface TakeMessage {
   index: number
 }
 
-// One unit of `kind` off station `station`'s shelf, paid for out of the
-// account's wallet. The valley says whether the unit was still there and
-// whether the wallet covers it.
+// Unit `unit` of `kind` (its slot on the facing) off station `station`'s
+// shelf, paid for out of the account's wallet. The valley says whether
+// that unit was still there and whether the wallet covers it.
 export interface BuyMessage {
   type: 'buy'
   station: number
   kind: string
+  unit: number
 }
 
 // Every cabbage in the arms, left at the Bull Valley Cabbage Stand.
@@ -571,9 +572,9 @@ export function parseClientMessage(text: string): ClientMessage | null {
       return { type: 'take', index }
     }
     case 'buy': {
-      const { station, kind } = value
-      if (!isCount(station) || !isKind(kind)) return null
-      return { type: 'buy', station, kind }
+      const { station, kind, unit } = value
+      if (!isCount(station) || !isCount(unit) || !isKind(kind)) return null
+      return { type: 'buy', station, kind, unit }
     }
     case 'use': {
       const { kind } = value

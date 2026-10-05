@@ -10,7 +10,7 @@ import { copy } from './copy.ts'
 import { addItem } from './inventory.ts'
 import { getItem, itemById } from './items.ts'
 import { advance, EVENTS } from './raid.ts'
-import { formatCash } from './store.ts'
+import { formatCash, onShelf, takeUnit } from './store.ts'
 import type { Inventory, Raid, ShopStock } from './interfaces.ts'
 
 export interface ShopState {
@@ -68,11 +68,12 @@ export function settle(purse: Purse, kind: string, now: number): Settled {
   }
 }
 
-// One unit of `kind` off station `station`'s shelves, paid for in cash.
+// Unit `unit` of `kind` off station `station`'s shelves, paid for in cash.
 export function buy(
   state: ShopState,
   station: number,
   kind: string,
+  unit: number,
   now: number
 ): Purchase {
   const { stock } = state
@@ -81,11 +82,13 @@ export function buy(
   if (!shelf || !item || item.price === undefined) {
     return { next: null, toast: null }
   }
-  if (!(shelf[kind] > 0)) return { next: null, toast: copy('toasts.sold_out') }
+  if (!onShelf(shelf, kind, unit)) {
+    return { next: null, toast: copy('toasts.sold_out') }
+  }
   const { next, toast } = settle(state, kind, now)
   if (!next) return { next: null, toast }
   const nextStock = stock.map((s, i) =>
-    i === station ? { ...s, [kind]: s[kind] - 1 } : s
+    i === station ? takeUnit(s, kind, unit) : s
   )
   return { next: { ...next, stock: nextStock }, toast }
 }

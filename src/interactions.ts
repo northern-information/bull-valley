@@ -23,11 +23,13 @@ export interface StationSpot extends XZ {
   name: string
 }
 
-// A shelf facing the player is looking at, from store.ts facingInView.
+// The shelf unit the player is looking at, from store.ts unitInView.
 export interface ShelfSpot {
   item: string
   // Index into the stations, and into the store stock.
   station: number
+  // Its slot on the facing.
+  unit: number
   // In cents.
   price: number
   affordable: boolean

@@ -31,6 +31,7 @@ const moabs = [spawnStation, farStation].map((station) => ({
 const shelf: ShelfSpot = {
   item: 'marlboro',
   station: 1,
+  unit: 0,
   price: 549,
   affordable: true,
 }

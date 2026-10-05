@@ -2,8 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
 import { dayKey, nextMidnight } from '../../src/daily.ts'
 import { getItem } from '../../src/items.ts'
-import { createValley, dailyFor, reduce, toWire } from '../../src/sharedraid.ts'
-import { freshStock } from '../../src/store.ts'
+import {
+  createValley,
+  dailyFor,
+  reduce,
+  restoreValley,
+  toWire,
+} from '../../src/sharedraid.ts'
+import { freshStock, unitsLeft } from '../../src/store.ts'
 import type {
   DailyMessage,
   PickupSpec,
@@ -136,7 +142,7 @@ describe('rule 1: a lobby forms for the first arrival', () => {
     const shelves = v.valley.raid?.shelves
     expect(shelves).toHaveLength(STATIONS)
     expect(shelves?.[0]).toEqual(freshStock(1)[0])
-    expect(shelves?.[0].pbr).toBe(CONFIG.store.perItem)
+    expect(unitsLeft(shelves?.[0], 'pbr')).toBe(CONFIG.store.perItem)
   })
 })
 
@@ -292,16 +298,16 @@ describe('rule 4: pickups go to the first to ask', () => {
 })
 
 describe('rule 8: the shelves are shared', () => {
-  const buy = (id: string, station = 0, kind = 'pbr'): ValleyAction => ({
-    type: 'buy',
-    id,
-    station,
-    kind,
-  })
+  const buy = (
+    id: string,
+    station = 0,
+    kind = 'pbr',
+    unit = 0
+  ): ValleyAction => ({ type: 'buy', id, station, kind, unit })
 
-  it("takes one unit off that station's shelf and tells everyone who bought it", () => {
+  it("takes the unit picked off that station's shelf and tells everyone who bought it", () => {
     const v = valleyWith(join('a'), join('b'))
-    const r = v.step(buy('a', 1, 'marlboro'))
+    const r = v.step(buy('a', 1, 'marlboro', 2))
     expect(r.broadcast).toHaveLength(1)
     expect(r.broadcast[0]).toMatchObject({
       reason: 'bought',
@@ -309,16 +315,21 @@ describe('rule 8: the shelves are shared', () => {
       station: 1,
       item: 'marlboro',
     })
-    expect(v.valley.raid?.shelves[1].marlboro).toBe(CONFIG.store.perItem - 1)
-    expect(v.valley.raid?.shelves[0].marlboro).toBe(CONFIG.store.perItem)
-    expect(r.broadcast[0].raid?.shelves[1].marlboro).toBe(
-      CONFIG.store.perItem - 1
+    expect(v.valley.raid?.shelves[1].marlboro).toEqual([true, true, false])
+    expect(unitsLeft(v.valley.raid?.shelves[0], 'marlboro')).toBe(
+      CONFIG.store.perItem
     )
+    expect(r.broadcast[0].raid?.shelves[1].marlboro).toEqual([
+      true,
+      true,
+      false,
+    ])
   })
 
-  it('says sold out to whoever comes once the shelf is bare', () => {
+  it('says sold out to whoever asks for a unit already gone', () => {
     const v = valleyWith(join('a'), join('b'))
-    for (let i = 0; i < CONFIG.store.perItem; i++) v.step(buy('a'))
+    v.step(buy('a'))
+    expect(v.step(buy('b', 0, 'pbr', 1)).broadcast[0].reason).toBe('bought')
     const r = v.step(buy('b'))
     expect(r.broadcast).toEqual([])
     expect(r.reply).toEqual({
@@ -332,6 +343,9 @@ describe('rule 8: the shelves are shared', () => {
 
   it('refuses a shelf that does not exist and a player out of the raid', () => {
     const v = valleyWith(join('a'), join('b'))
+    expect(v.step(buy('a', 0, 'pbr', CONFIG.store.perItem)).reply?.reason).toBe(
+      'sold-out'
+    )
     expect(v.step(buy('a', STATIONS)).reply?.reason).toBe('no-such-shelf')
     expect(v.step(buy('a', 0, 'cabbage')).reply?.reason).toBe('no-such-shelf')
     v.step({ type: 'extract', id: 'a', kind: 'fuel' })
@@ -348,7 +362,26 @@ describe('rule 8: the shelves are shared', () => {
     const v = valleyWith(join('a'), buy('a'))
     v.step({ type: 'leave', id: 'a' })
     v.step(join('b'))
-    expect(v.valley.raid?.shelves[0].pbr).toBe(CONFIG.store.perItem)
+    expect(unitsLeft(v.valley.raid?.shelves[0], 'pbr')).toBe(
+      CONFIG.store.perItem
+    )
+  })
+
+  it('drops a raid stored with counted shelves, keeping the bush', () => {
+    const v = valleyWith(join('a'))
+    const raid = v.valley.raid
+    if (!raid) throw new Error('expected a raid')
+    const counted = {
+      ...v.valley,
+      dailies: { acct: '2026-10-05' },
+      raid: { ...raid, shelves: [{ pbr: 3 }] },
+    } as unknown as Valley
+    expect(restoreValley(counted)).toMatchObject({
+      raid: null,
+      dailies: { acct: '2026-10-05' },
+    })
+    expect(restoreValley(v.valley).raid).toEqual(raid)
+    expect(restoreValley({ epoch: 2 })).toEqual({ ...createValley(), epoch: 2 })
   })
 })
 
@@ -692,10 +725,11 @@ describe("rule 11: the pack is the account's", () => {
   it('puts a unit bought into the pack, but not the sack', () => {
     const v = valleyWith(join('a'))
     expect(
-      v.step({ type: 'buy', id: 'a', station: 0, kind: 'red-bull' }).pack
+      v.step({ type: 'buy', id: 'a', station: 0, kind: 'red-bull', unit: 0 })
+        .pack
     ).toEqual({ account: 'acct-a', kind: 'red-bull', delta: 1 })
     expect(
-      v.step({ type: 'buy', id: 'a', station: 0, kind: 'sack' }).pack
+      v.step({ type: 'buy', id: 'a', station: 0, kind: 'sack', unit: 0 }).pack
     ).toBeUndefined()
   })
 
@@ -731,11 +765,12 @@ describe("rule 11: the pack is the account's", () => {
 })
 
 describe('rule 8: the wallet pays', () => {
-  const buy = (kind: string): ValleyAction => ({
+  const buy = (kind: string, unit = 0): ValleyAction => ({
     type: 'buy',
     id: 'a',
     station: 0,
     kind,
+    unit,
   })
 
   it('charges the price to the buyer and refuses a sale it does not cover', () => {
@@ -746,11 +781,11 @@ describe('rule 8: the wallet pays', () => {
       amount: price,
     })
     v.setCash(price - 1)
-    const short = v.step(buy('pbr'))
+    const short = v.step(buy('pbr', 1))
     expect(short.reply).toMatchObject({ re: 'buy', reason: 'short' })
     expect(short.spend).toBeUndefined()
     expect(short.valley).toBe(v.valley)
-    expect(v.valley.raid?.shelves[0].pbr).toBe(CONFIG.store.perItem - 1)
+    expect(v.valley.raid?.shelves[0].pbr).toEqual([false, true, true])
   })
 
   it('refuses a sale when the wallet was not read', () => {
@@ -798,15 +833,16 @@ describe("rule 12: the haul is the valley's", () => {
 
   it('carries more with the sack, bought once', () => {
     const v = onFoot()
-    const sack: ValleyAction = {
+    const sack = (unit: number): ValleyAction => ({
       type: 'buy',
       id: 'a',
       station: 0,
       kind: 'sack',
-    }
-    expect(v.step(sack).spend?.amount).toBe(getItem('sack').price)
+      unit,
+    })
+    expect(v.step(sack(0)).spend?.amount).toBe(getItem('sack').price)
     expect(mine(v)?.sack).toBe(true)
-    expect(v.step(sack).reply?.reason).toBe('have-sack')
+    expect(v.step(sack(1)).reply?.reason).toBe('have-sack')
     const limit = getItem('sack').carryLimit ?? 0
     for (let i = 0; i < limit; i++) v.step(take(2 + i))
     expect(mine(v)?.carrying).toBe(limit)

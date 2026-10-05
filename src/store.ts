@@ -42,10 +42,16 @@ export interface Facing {
   yaw: number
 }
 
-// A facing in the world, for aiming at it.
+// A facing in the world, for aiming at it: each unit's slot, in order.
 export interface WorldFacing {
   kind: ItemId
-  center: Vec3
+  units: Vec3[]
+}
+
+// The unit the player is looking at: its facing, and its slot there.
+export interface UnitInView<F extends WorldFacing> {
+  facing: F
+  unit: number
 }
 
 // The advertisements on the walls; adart.ts paints each by id.
@@ -537,50 +543,82 @@ export function storeWalls(origin: StoreOrigin): WallSegment[] {
   return walls
 }
 
-// Every facing at one station, in the world, aimed at by its middle unit.
+// Every facing at one station, in the world, each unit aimed at by its
+// own slot.
 export function worldFacings(origin: StoreOrigin): WorldFacing[] {
-  return STORE_LAYOUT.facings.map((facing) => {
-    const mid = facing.slots[Math.floor(facing.slots.length / 2)]
-    return { kind: facing.kind, center: toWorld(origin, mid) }
-  })
+  return STORE_LAYOUT.facings.map((facing) => ({
+    kind: facing.kind,
+    units: facing.slots.map((slot) => toWorld(origin, slot)),
+  }))
 }
 
 // --- Shopping ------------------------------------------------------------
 
 // Full shelves at every station, for a new raid.
 export function freshStock(stationCount: number): ShopStock[] {
-  const full: ShopStock = {}
-  for (const facing of STORE_LAYOUT.facings) {
-    full[facing.kind] = CONFIG.store.perItem
-  }
-  return Array.from({ length: stationCount }, () => ({ ...full }))
+  return Array.from({ length: stationCount }, () => {
+    const full: ShopStock = {}
+    for (const facing of STORE_LAYOUT.facings) {
+      full[facing.kind] = Array.from(
+        { length: CONFIG.store.perItem },
+        () => true
+      )
+    }
+    return full
+  })
 }
 
-// The facing the player is looking at: in stock, within reach of the eye,
-// inside the aim cone, and the closest to the view ray among those. `dir`
-// is the unit look direction, pitch included, so looking at a board picks
-// it. Null when nothing qualifies.
-export function facingInView<F extends WorldFacing>(
+// How many units of `kind` are still on the shelf.
+export function unitsLeft(shelf: ShopStock | undefined, kind: string): number {
+  return shelf?.[kind]?.filter(Boolean).length ?? 0
+}
+
+// Whether unit `unit` of `kind` is still on the shelf.
+export function onShelf(
+  shelf: ShopStock | undefined,
+  kind: string,
+  unit: number
+): boolean {
+  return shelf?.[kind]?.[unit] === true
+}
+
+// A shelf with one unit gone, as a new value.
+export function takeUnit(
+  shelf: ShopStock,
+  kind: string,
+  unit: number
+): ShopStock {
+  return { ...shelf, [kind]: shelf[kind].map((on, i) => on && i !== unit) }
+}
+
+// The unit the player is looking at: still on the shelf, within reach of
+// the eye, inside the aim cone, and the closest to the view ray among
+// those. Units sit a hand's width apart, so the one under the crosshair
+// wins. `dir` is the unit look direction, pitch included, so looking at a
+// board picks it. Null when nothing qualifies.
+export function unitInView<F extends WorldFacing>(
   facings: readonly F[],
   stock: ShopStock,
   eye: Vec3,
   dir: Vec3
-): F | null {
+): UnitInView<F> | null {
   const { reach, aimCone } = CONFIG.store
-  let best: F | null = null
+  let best: UnitInView<F> | null = null
   let bestAngle = aimCone
   for (const facing of facings) {
-    if (!(stock[facing.kind] > 0)) continue
-    const dx = facing.center[0] - eye[0]
-    const dy = facing.center[1] - eye[1]
-    const dz = facing.center[2] - eye[2]
-    const d = Math.hypot(dx, dy, dz)
-    if (d > reach || d < 1e-6) continue
-    const cos = (dx * dir[0] + dy * dir[1] + dz * dir[2]) / d
-    const angle = Math.acos(Math.max(-1, Math.min(1, cos)))
-    if (angle <= bestAngle) {
-      bestAngle = angle
-      best = facing
+    for (const [unit, at] of facing.units.entries()) {
+      if (!onShelf(stock, facing.kind, unit)) continue
+      const dx = at[0] - eye[0]
+      const dy = at[1] - eye[1]
+      const dz = at[2] - eye[2]
+      const d = Math.hypot(dx, dy, dz)
+      if (d > reach || d < 1e-6) continue
+      const cos = (dx * dir[0] + dy * dir[1] + dz * dir[2]) / d
+      const angle = Math.acos(Math.max(-1, Math.min(1, cos)))
+      if (angle <= bestAngle) {
+        bestAngle = angle
+        best = { facing, unit }
+      }
     }
   }
   return best

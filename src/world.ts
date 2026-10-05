@@ -58,6 +58,7 @@ import { samplePose } from './poses.ts'
 import { mulberry32, range } from './rng.ts'
 import { placeRoadside, roadWidth } from './roadside.ts'
 import {
+  onShelf,
   STORE_LAYOUT,
   storeBase,
   storeCenter,
@@ -115,9 +116,9 @@ export interface ShelfDisplay {
   // CONFIG.store.displayRange, and show what is left on its shelves.
   // stocks: one per station, indexed like fuelPoints.
   update(x: number, z: number, stocks: readonly ShopStock[]): void
-  // The unit a buy of `kind` would take at `station` with `left` in stock
-  // (the last one standing), or null when the display is parked elsewhere.
-  unitFor(station: number, kind: string, left: number): THREE.Object3D | null
+  // Unit `unit` of `kind` at `station` (its slot on the facing), or null
+  // when the display is parked elsewhere.
+  unitFor(station: number, kind: string, unit: number): THREE.Object3D | null
 }
 
 export interface LandmarkPoint extends XZ {
@@ -1281,10 +1282,10 @@ function buildShelves(points: readonly FuelPoint[]): ShelfDisplay {
   let parked = -1
   return {
     group,
-    unitFor(station, kind, left) {
+    unitFor(station, kind, unit) {
       if (station !== parked) return null
       const slot = slots.find(
-        (s) => facings[s.facing].kind === kind && s.unit === left - 1
+        (s) => facings[s.facing].kind === kind && s.unit === unit
       )
       return slot?.object ?? null
     },
@@ -1307,8 +1308,8 @@ function buildShelves(points: readonly FuelPoint[]): ShelfDisplay {
       group.rotation.set(0, -at.yaw, 0)
       const stock = stocks[best] ?? {}
       for (const slot of slots) {
-        const left = stock[facings[slot.facing].kind] ?? 0
-        slot.object.visible = slot.unit < left
+        const kind = facings[slot.facing].kind
+        slot.object.visible = onShelf(stock, kind, slot.unit)
       }
     },
   }
