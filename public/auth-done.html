@@ -20,11 +20,23 @@
   </head>
   <body>
     <!-- Where a sign-in round trip lands when it was opened as a popup (Link
-         Another Account): the popup closes and the game, polling it, reads
-         the account again. Opened any other way, it only says so. -->
+         Another Account): it tells the game how the round trip went (the
+         ?auth= flags, src/account.ts LINK_MESSAGE), then closes, and the
+         game reads the account again. Opened any other way, it only says
+         so. -->
     <p>Signed in. You can close this window.</p>
     <script>
-      if (window.opener) window.close()
+      if (window.opener) {
+        try {
+          window.opener.postMessage(
+            { type: "bv-auth", search: window.location.search },
+            window.location.origin
+          )
+        } catch {
+          // The game reads the account again either way.
+        }
+        window.close()
+      }
     </script>
   </body>
 </html>

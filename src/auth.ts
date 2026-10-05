@@ -1,6 +1,6 @@
 // The game's side of the /auth routes (worker/auth.ts): who is signed in,
 // keeping the session fresh, confirming a new account, choosing a username,
-// signing out. Same origin, so the session cookies ride along on every call
+// unlinking a provider, signing out. Same origin, so the session cookies ride along on every call
 // and the page never sees a token. The shapes are account.ts's.
 
 import { AUTH_PATH } from './account.ts'
@@ -128,6 +128,26 @@ export async function usernameAvailable(
     return (await res.json()) as AvailableResponse
   } catch {
     return null
+  }
+}
+
+// Take a provider off the account. The server refuses the last one.
+export async function unlinkProvider(
+  provider: Provider,
+  fetchImpl: Fetch = fetch
+): Promise<Outcome> {
+  try {
+    const res = await fetchImpl(
+      `${AUTH_PATH}/providers/${encodeURIComponent(provider)}`,
+      { method: 'DELETE', credentials: 'same-origin' }
+    )
+    if (res.ok) return { ok: true }
+    return {
+      ok: false,
+      error: await errorOf(res, 'That could not be unlinked'),
+    }
+  } catch {
+    return { ok: false, error: 'The valley cannot be reached' }
   }
 }
 

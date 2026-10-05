@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import './styles.css'
 import { authReturnOf, devSignInUrl, stripAuthQuery } from './account.ts'
+import { openAccountPanel } from './accountpanel.ts'
 import { buildSky, pulseMaterials } from './assets.ts'
 import { BvAudio } from './audio.ts'
 import { fetchMe, refreshSession, signOut } from './auth.ts'
@@ -118,9 +119,10 @@ const DATA_BASE = '/data/bull-valley'
 // The username a dev build signs in under when ?skipSplash finds no session.
 const DEV_USERNAME = 'Raider'
 
-// What the titles settle: the outfit chosen at the select, and the username
-// of the account it raids under.
-type Titles = CharacterPick & { username: string }
+// What the titles settle: the outfit chosen at the select, the username of
+// the account it raids under, and word of a link round trip that landed on
+// the page (a blocked popup falls back to one), to show once in the valley.
+type Titles = CharacterPick & { username: string; notice: string | null }
 
 // Colophon → logo → account step → character select; resolves with the
 // chosen outfit and the username. The select, the account step, and the logo mount first,
@@ -137,11 +139,22 @@ async function showTitles(audio: BvAudio): Promise<Titles> {
   }
   const me = fetchMe()
   const skip = skipTitles()
+  // A signed-in raider's round trip was a link; a signed-out one's error
+  // belongs on the sign-in card instead.
+  const noticeFor = (signedIn: boolean): string | null => {
+    if (!returned || !signedIn) return null
+    if ('error' in returned) return returned.error
+    return returned.auth === 'linked' ? 'Linked.' : null
+  }
   if (skip) {
     const known = await me
     const username = known?.account?.username
     if (username) {
-      return { outfit: loadCharacter(window.localStorage), username }
+      return {
+        outfit: loadCharacter(window.localStorage),
+        username,
+        notice: noticeFor(true),
+      }
     }
     // Sign a dev raider in and come back, once; a second miss (the name
     // taken by another dev account) falls through to the account step.
@@ -159,9 +172,10 @@ async function showTitles(audio: BvAudio): Promise<Titles> {
   const select = mountCharacterSelect({
     storage: window.localStorage,
     config: { ...CONFIG.select, downscale: CONFIG.render.downscale },
-    onSignOut: () => {
-      void signOut().then(() => window.location.reload())
+    onAccount: () => {
+      void openAccountPanel({ onSignOut: signOutAndReload })
     },
+    onSignOut: signOutAndReload,
   })
   const account = mountAccountStep()
   if (!skip && !returned) {
@@ -174,11 +188,22 @@ async function showTitles(audio: BvAudio): Promise<Titles> {
     logo.start()
     await logo.done
   }
+  const known = await me
+  const signedIn = !!known?.account?.username
   const username = await account.run(
-    await me,
-    returned && 'error' in returned ? returned.error : null
+    known,
+    !signedIn && returned && 'error' in returned ? returned.error : null
   )
-  return { ...(await select.run(username)), username }
+  return {
+    ...(await select.run(username)),
+    username,
+    notice: noticeFor(signedIn),
+  }
+}
+
+// Sign out, then start over at the sign-in card.
+function signOutAndReload(): void {
+  void signOut().then(() => window.location.reload())
 }
 
 async function boot() {
@@ -293,6 +318,7 @@ async function boot() {
     spawn: world.spawn,
   })
   const pick = await titles
+  if (pick.notice) hud.toast(pick.notice)
   const playerBody = new PlayerBody(
     scene,
     pick.outfit,

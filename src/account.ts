@@ -197,3 +197,37 @@ export function devSignInUrl({
   })
   return `${AUTH_PATH}/dev/login?${query.toString()}`
 }
+
+// The page a link round trip lands on when it runs in a popup: it closes
+// itself, and the opener reads the account again.
+export const LINK_DONE_PATH = '/auth-done.html'
+
+// The message auth-done.html posts to the page that opened it, carrying the
+// round trip's ?auth= flags, before it closes.
+export const LINK_MESSAGE = 'bv-auth'
+
+// Where Link Another Account sends its popup, landing on `redirect` (the
+// closing page; the game itself when a blocked popup falls back to a full
+// redirect). The dev provider links a fresh dev identity each time, named
+// by `devUserId`.
+export function linkUrl(
+  provider: Provider,
+  devUserId?: string,
+  redirect: string = LINK_DONE_PATH
+): string {
+  const query = new URLSearchParams({ redirect })
+  if (provider === 'dev' && devUserId) query.set('userId', devUserId)
+  return `${AUTH_PATH}/link/${provider}/login?${query.toString()}`
+}
+
+// The providers a signed-in raider can still link: every one the server
+// offers that the account lacks. A dev server always offers Dev, since
+// each dev link is a new identity.
+export function linkable(
+  offered: readonly Provider[],
+  linked: readonly Provider[]
+): Provider[] {
+  return offered.filter(
+    (provider) => provider === 'dev' || !linked.includes(provider)
+  )
+}

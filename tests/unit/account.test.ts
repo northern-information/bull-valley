@@ -6,6 +6,8 @@ import {
   isProvider,
   isValidUsername,
   landingUrl,
+  linkable,
+  linkUrl,
   OAUTH_PROVIDERS,
   PROVIDER_COLORS,
   PROVIDER_LABELS,
@@ -13,6 +15,34 @@ import {
   stripAuthQuery,
   validateRedirect,
 } from '../../src/account.ts'
+
+describe('linking', () => {
+  it('sends the popup to the link login, landing on the closing page', () => {
+    expect(linkUrl('github')).toBe(
+      '/auth/link/github/login?redirect=%2Fauth-done.html'
+    )
+    expect(linkUrl('dev', 'dev-x1')).toBe(
+      '/auth/link/dev/login?redirect=%2Fauth-done.html&userId=dev-x1'
+    )
+    // Only the dev provider takes an identity from the page.
+    expect(linkUrl('google', 'dev-x1')).toBe(
+      '/auth/link/google/login?redirect=%2Fauth-done.html'
+    )
+    // A blocked popup lands back on the game instead.
+    expect(linkUrl('github', undefined, '/?valley=a')).toBe(
+      '/auth/link/github/login?redirect=%2F%3Fvalley%3Da'
+    )
+  })
+
+  it('offers what the account lacks, and Dev always', () => {
+    expect(linkable(['google', 'discord', 'github'], ['github'])).toEqual([
+      'google',
+      'discord',
+    ])
+    expect(linkable(['dev', 'github'], ['dev'])).toEqual(['dev', 'github'])
+    expect(linkable(['github'], ['github'])).toEqual([])
+  })
+})
 
 describe('the client side of a round trip', () => {
   it('reads how the round trip went', () => {

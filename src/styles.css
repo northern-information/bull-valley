@@ -888,6 +888,75 @@
   color: var(--fi-cyan);
 }
 
+/* The account panel (accountpanel.ts): the account step's look, over the
+   character select. Mounted after it, so DOM order stacks it on top. */
+.bv-panel {
+  background: rgb(0 0 0 / 94%);
+}
+
+.bv-panel h3 {
+  margin: 8px 0 0;
+  font-size: 0.75em;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.bv-panel-who {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.bv-avatar {
+  width: 48px;
+  height: 48px;
+  image-rendering: pixelated;
+  border: 1px solid var(--fi-paper-light);
+  box-shadow: 4px 4px 0 var(--fi-black-shadow);
+}
+
+.bv-panel-username {
+  margin: 0;
+  color: var(--fi-green);
+  letter-spacing: 0.08em;
+}
+
+.bv-panel-linked {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bv-panel-linked li {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.8em;
+}
+
+/* A provider's name in its own color's edge, like its sign-in button. */
+.bv-chip {
+  padding: 2px 8px;
+  font-size: 0.75em;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-left: 4px solid var(--provider, var(--fi-paper-light));
+  background: var(--fi-surface);
+}
+
+.bv-panel-as {
+  opacity: 0.85;
+}
+
+.bv-panel-only {
+  font-size: 0.75em;
+  opacity: 0.6;
+}
+
 /* The terms, read in place over the account step. */
 .bv-terms {
   position: fixed;

@@ -1,4 +1,11 @@
-import { expect, freshRaider, freshValley, signIn, test } from './fixtures.ts'
+import {
+  expect,
+  freshRaider,
+  freshValley,
+  signIn,
+  test,
+  toCharacterSelect,
+} from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
 // The account step between the logo and the character select. A visitor
@@ -96,4 +103,51 @@ test('Cancel at Choose Your Username signs out', async ({ page }) => {
   expect(
     await page.evaluate(() => fetch('/auth/me').then((r) => r.json()))
   ).toEqual({ account: null, pending: null })
+})
+
+test('the account panel links a second identity and unlinks one', async ({
+  page,
+}) => {
+  const raider = await signIn(page)
+  await page.goto(`/?valley=${freshValley('panel')}`)
+  await toCharacterSelect(page)
+  await page.locator('[data-bv="select-account"]').click()
+  const panel = page.getByRole('dialog', { name: 'Account', exact: true })
+  const linked = panel.locator('[data-bv="panel-linked"] li')
+  const status = panel.locator('[data-bv="panel-status"]')
+  await expect(panel.locator('[data-bv="panel-username"]')).toHaveText(
+    raider.username
+  )
+  // One provider is the only way in, so it cannot be unlinked.
+  await expect(linked).toHaveCount(1)
+  await expect(linked).toContainText('Only Way In')
+  await expect(panel.getByRole('button', { name: /^Unlink/ })).toHaveCount(0)
+
+  // While the panel is open, the select's keys do nothing.
+  const character = page.locator('.bv-select-name')
+  const before = await character.textContent()
+  await page.keyboard.press('ArrowRight')
+  await expect(character).toHaveText(before ?? '')
+
+  // Linking runs in a popup that reports back and closes itself.
+  const opened = page.waitForEvent('popup')
+  await panel.getByRole('button', { name: 'Link Dev' }).click()
+  const popup = await opened
+  if (!popup.isClosed()) await popup.waitForEvent('close')
+  await expect(linked).toHaveCount(2)
+  await expect(status).toHaveText('Linked.')
+
+  await panel
+    .getByRole('button', { name: /^Unlink/ })
+    .first()
+    .click()
+  await expect(status).toHaveText('Unlinked Dev.')
+  await expect(linked).toHaveCount(1)
+  await expect(linked).toContainText('Only Way In')
+
+  // Escape closes the panel and gives the select its keys back.
+  await page.keyboard.press('Escape')
+  await expect(panel).toHaveCount(0)
+  await page.keyboard.press('ArrowRight')
+  await expect(character).not.toHaveText(before ?? '')
 })
