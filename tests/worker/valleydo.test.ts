@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { CONFIG } from '../../src/config.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
+import { getItem } from '../../src/items.ts'
 import { CLOSE, PROTOCOL_VERSION } from '../../src/protocol.ts'
-import { MemoryPackStore } from '../../worker/packs.ts'
+import { MemoryPackStore, STARTING_CASH } from '../../worker/packs.ts'
 import { ValleyDO } from '../../worker/ValleyDO.ts'
 import type {
   DailyMessage,
@@ -312,7 +314,15 @@ describe('ValleyDO', () => {
     expect(welcomeA.phase).toBe('LOBBY')
     expect(welcomeA.raid.phase).toBe('LOBBY')
     expect(welcomeA.raid.members).toEqual([
-      { id: welcomeA.id, name: 'Dave Coleman', phase: 'LOBBY', boarded: false },
+      {
+        id: welcomeA.id,
+        name: 'Dave Coleman',
+        phase: 'LOBBY',
+        boarded: false,
+        carrying: 0,
+        delivered: 0,
+        sack: false,
+      },
     ])
     // The lobby clock is armed.
     expect(s.storage.alarm).toBe(welcomeA.raid.loadoutEndsAt)
@@ -573,13 +583,13 @@ describe('ValleyDO', () => {
     const shared = new MockState()
     const first = (await valley(shared)).valley
     const a = await join(first, shared, 'A')
-    await first.webSocketMessage(ws(a), '{"type":"take","index":9}')
+    await first.webSocketMessage(ws(a), '{"type":"take","index":0}')
     // Hibernation: a new object over the same storage and sockets.
     const woken = (await valley(shared)).valley
     const b = await join(woken, shared, 'B')
     const welcome = b.last<WelcomeMessage>()
     expect(welcome.peers.map((p) => p.name)).toEqual(['A'])
-    expect(welcome.raid.taken).toEqual([9])
+    expect(welcome.raid.taken).toEqual([0])
     expect(welcome.raid.members.map((m) => m.name)).toEqual(['A', 'B'])
     expect(a.last<RaidMessage>()).toMatchObject({
       reason: 'joined',
@@ -727,6 +737,7 @@ describe('ValleyDO', () => {
       open: () => Promise.reject(new Error('D1 is down')),
       get: () => Promise.reject(new Error('D1 is down')),
       change: () => Promise.reject(new Error('D1 is down')),
+      spend: () => Promise.reject(new Error('D1 is down')),
     }
     const errors: unknown[] = []
     const error = console.error
@@ -738,5 +749,42 @@ describe('ValleyDO', () => {
     } finally {
       console.error = error
     }
+  })
+
+  it("pays for a sale out of the account's wallet, and refuses one it cannot", async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    expect(a.frames()[0]).toMatchObject({
+      type: 'welcome',
+      cash: STARTING_CASH,
+    })
+    const price = getItem('pbr').price ?? 0
+    await v.webSocketMessage(ws(a), '{"type":"buy","station":0,"kind":"pbr"}')
+    expect(b.last<RaidMessage>()).toMatchObject({ reason: 'bought' })
+    expect(a.last<PackMessage>()).toMatchObject({
+      type: 'pack',
+      cash: STARTING_CASH - price,
+    })
+    expect(lastPack(a)?.pbr).toBe(1)
+    // The wallet is the account's: spent down, it stays spent.
+    v.packStore = new MemoryPackStore()
+    await v.packStore.open('acct-A')
+    await v.packStore.spend('acct-A', STARTING_CASH - price + 1)
+    const before = b.frames().length
+    await v.webSocketMessage(ws(a), '{"type":"buy","station":0,"kind":"pbr"}')
+    expect(a.last<NackMessage>()).toEqual({
+      type: 'nack',
+      re: 'buy',
+      reason: 'short',
+      station: 0,
+      item: 'pbr',
+    })
+    // Nobody heard of a sale, and the unit is still on the shelf.
+    expect(b.frames()).toHaveLength(before)
+    const stored = s.storage.map.get('valley') as {
+      raid: { shelves: Record<string, number>[] }
+    }
+    expect(stored.raid.shelves[0].pbr).toBe(CONFIG.store.perItem - 1)
   })
 })

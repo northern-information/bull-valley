@@ -42,8 +42,14 @@ export function createRaid(now: number): Raid {
   }
 }
 
+// How many cabbages fit in the arms, with or without the sack. The valley
+// holds a raider to the same (sharedraid.ts).
+export function carryLimitFor(sack: boolean): number {
+  return sack ? getItem('sack').carryLimit : CONFIG.cabbage.carryLimit
+}
+
 export function carryLimit(raid: Raid): number {
-  return raid.sack ? getItem('sack').carryLimit : CONFIG.cabbage.carryLimit
+  return carryLimitFor(raid.sack)
 }
 
 type AdvanceDetail = string | { arrived: boolean }

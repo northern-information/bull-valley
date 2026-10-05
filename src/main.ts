@@ -486,8 +486,10 @@ async function boot() {
   let selectedCigarette: string | null = null
   let raid = createRaid(0)
   let raidClock = 0 // advances only while the pointer is locked
-  // Every player starts every raid with the same cash, in cents, and every
-  // Citgo with full shelves (one stock per station, like world.fuelPoints).
+  // The account's wallet in cents, as the valley last sent it (with this
+  // client's own spending applied in the meantime); alone, a fresh one,
+  // and nothing is kept. Every Citgo starts with full shelves (one stock
+  // per station, like world.fuelPoints).
   let cash = CONFIG.store.startingCash
   let storeStock = freshStock(world.fuelPoints.length)
   // The carousel: ring entries from carousel.ts, the selected slot, and
@@ -1028,6 +1030,18 @@ async function boot() {
     }
     storeStock = wire.shelves
 
+    // The haul is the valley's: what is in our arms, at the stand, and
+    // whether we have the sack, whatever we guessed in the meantime.
+    const mine = wire.members.find((m) => m.id === me)
+    if (mine) {
+      raid = {
+        ...raid,
+        carrying: mine.carrying,
+        delivered: mine.delivered,
+        sack: mine.sack,
+      }
+    }
+
     // The truck left: with us, or without us, or before we got here.
     const justLeft =
       wire.phase === 'OUT' &&
@@ -1085,21 +1099,31 @@ async function boot() {
 
   const applyNack = (msg: NackMessage) => {
     if (msg.re === 'take') {
-      if (msg.index !== undefined) {
-        pendingTakes.delete(msg.index)
-        const pickup = world.pickups[msg.index]
-        if (pickup) markTaken(pickup)
+      if (msg.index !== undefined) pendingTakes.delete(msg.index)
+      // Still there, but not for us yet.
+      if (msg.reason === 'arms-full') {
+        hud.toast(copy('toasts.arms_full'))
+        return
       }
+      if (msg.reason !== 'gone') return
+      const pickup =
+        msg.index === undefined ? undefined : world.pickups[msg.index]
+      if (pickup) markTaken(pickup)
       hud.toast(copy('toasts.taken_first'))
     } else if (msg.re === 'buy') {
       if (msg.station !== undefined && msg.item) {
         pendingBuys.delete(`${msg.station}:${msg.item}`)
       }
-      hud.toast(
-        msg.reason === 'sold-out'
-          ? copy('toasts.sold_out')
-          : copy('toasts.refused')
-      )
+      const price = msg.item ? itemById(msg.item)?.price : undefined
+      if (msg.reason === 'sold-out') hud.toast(copy('toasts.sold_out'))
+      else if (msg.reason === 'have-sack') hud.toast(copy('toasts.have_sack'))
+      else if (msg.reason === 'short' && price !== undefined) {
+        hud.toast(
+          copy('toasts.short', {
+            amount: formatCash(Math.max(0, price - cash)),
+          })
+        )
+      } else hud.toast(copy('toasts.refused'))
     } else if (msg.re === 'call') {
       hud.toast(copy('toasts.truck_busy'))
     } else if (msg.re === 'collect') {
@@ -1113,9 +1137,11 @@ async function boot() {
     }
   }
 
-  // The valley's word on the pack replaces this client's guesses.
-  const applyPack = (pack: Inventory) => {
+  // The valley's word on the pack and the wallet replaces this client's
+  // guesses.
+  const applyPack = (pack: Inventory, wallet: number) => {
     inventory = toInventory(pack)
+    cash = wallet
     refreshRing()
   }
 
@@ -1123,9 +1149,9 @@ async function boot() {
     if (msg.type === 'welcome') {
       applyRaid(msg.raid, 'joined', { by: msg.id })
       daily = msg.daily
-      applyPack(msg.pack)
+      applyPack(msg.pack, msg.cash)
     } else if (msg.type === 'pack') {
-      applyPack(msg.pack)
+      applyPack(msg.pack, msg.cash)
     } else if (msg.type === 'raid') {
       applyRaid(msg.raid, msg.reason, msg)
     } else if (msg.type === 'nack') {
@@ -1201,6 +1227,7 @@ async function boot() {
       case 'unload': {
         const count = raid.carrying
         raid = advance(raid, EVENTS.DELIVER, raidClock)
+        if (shared) net.send({ type: 'deliver' })
         hud.toast(
           count === 1
             ? copy('toasts.unload_one')

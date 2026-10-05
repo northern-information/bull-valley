@@ -9,7 +9,7 @@ import type { OutfitId } from './outfits.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and reloads.
-export const PROTOCOL_VERSION = 6
+export const PROTOCOL_VERSION = 7
 
 // The one WebSocket route; everything else on the Worker is a static asset.
 export const WS_PATH = '/ws'
@@ -83,6 +83,11 @@ export interface MemberWire {
   phase: MemberPhase
   // Standing in the bed during the lobby, waiting on the others.
   boarded: boolean
+  // The account's cargo this raid (sharedraid.ts Cargo): cabbages in the
+  // arms, cabbages left at the stand, and whether they bought the sack.
+  carrying: number
+  delivered: number
+  sack: boolean
 }
 
 // A whistle for the truck: who, from where the truck was, to where they
@@ -136,6 +141,7 @@ export type RaidReason =
   | 'depart'
   | 'hop-out'
   | 'taken'
+  | 'delivered'
   | 'bought'
   | 'call'
   | 'truck-free'
@@ -175,12 +181,18 @@ export interface TakeMessage {
   index: number
 }
 
-// One unit of `kind` off station `station`'s shelf. Cash is the buyer's
-// own; the valley only says whether the unit was still there.
+// One unit of `kind` off station `station`'s shelf, paid for out of the
+// account's wallet. The valley says whether the unit was still there and
+// whether the wallet covers it.
 export interface BuyMessage {
   type: 'buy'
   station: number
   kind: string
+}
+
+// Every cabbage in the arms, left at the Bull Valley Cabbage Stand.
+export interface DeliverMessage {
+  type: 'deliver'
 }
 
 export interface CallMessage {
@@ -253,6 +265,7 @@ export type ClientMessage =
   | HopOutMessage
   | TakeMessage
   | BuyMessage
+  | DeliverMessage
   | CallMessage
   | ExtractMessage
   | CollectMessage
@@ -278,16 +291,18 @@ export interface WelcomeMessage {
   phase: MemberPhase
   // Whether the bush has a berry for this name today.
   daily: DailyWire
-  // The account's pack, as the valley keeps it.
+  // The account's pack and wallet, as the valley keeps them.
   pack: Inventory
+  cash: number
 }
 
-// The account's pack after a change: a berry, a pickup, a purchase, a use.
-// Sent to every socket signed in to the account. The client's pack is
-// this, whatever it guessed in the meantime.
+// The account's pack and wallet (cents) after a change: a berry, a pickup,
+// a purchase, a use. Sent to every socket signed in to the account. The
+// client's pack and cash are these, whatever it guessed in the meantime.
 export interface PackMessage {
   type: 'pack'
   pack: Inventory
+  cash: number
 }
 
 // The answer to a collect: `picked` when a berry came off the bush, false
@@ -539,6 +554,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
     case 'board':
     case 'unboard':
     case 'hop-out':
+    case 'deliver':
     case 'collect':
     case 'rename':
       return { type: value.type }
