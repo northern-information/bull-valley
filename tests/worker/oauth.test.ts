@@ -85,7 +85,7 @@ describe('tokens and PKCE', () => {
 describe('authorizeUrl', () => {
   const params = {
     clientId: 'cid',
-    redirectUri: 'https://bvsw.gay/auth/google/callback',
+    redirectUri: 'https://bvsw.net/auth/google/callback',
     state: 'st',
     challenge: 'ch',
   }
@@ -95,7 +95,7 @@ describe('authorizeUrl', () => {
     expect(url.origin + url.pathname).toBe(OAUTH.google.authorizeUrl)
     expect(Object.fromEntries(url.searchParams)).toEqual({
       client_id: 'cid',
-      redirect_uri: 'https://bvsw.gay/auth/google/callback',
+      redirect_uri: 'https://bvsw.net/auth/google/callback',
       response_type: 'code',
       scope: 'openid profile',
       state: 'st',
@@ -117,7 +117,7 @@ describe('authorizeUrl', () => {
 describe('exchangeCode', () => {
   const exchange = {
     code: 'the-code',
-    redirectUri: 'https://bvsw.gay/auth/github/callback',
+    redirectUri: 'https://bvsw.net/auth/github/callback',
     verifier: 'the-verifier',
     credentials: creds,
   }
@@ -142,7 +142,7 @@ describe('exchangeCode', () => {
       client_id: 'cid',
       client_secret: 'csec',
       code: 'the-code',
-      redirect_uri: 'https://bvsw.gay/auth/github/callback',
+      redirect_uri: 'https://bvsw.net/auth/github/callback',
       grant_type: 'authorization_code',
       code_verifier: 'the-verifier',
     })

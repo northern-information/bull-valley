@@ -9,11 +9,11 @@
   // the deployable config under dist/ and points `wrangler deploy` at it.
   "main": "worker/index.ts",
   "compatibility_date": "2026-10-01",
-  // The game lives at https://bvsw.gay, a Workers Custom Domain on the
+  // The game lives at https://bvsw.net, a Workers Custom Domain on the
   // zone in the same account: deploying creates the DNS record and the
   // certificate, and a deploy from CI (no TTY) replaces whatever record is
   // on the hostname. The workers.dev URL stays on as a fallback.
-  "routes": [{ "pattern": "bvsw.gay", "custom_domain": true }],
+  "routes": [{ "pattern": "bvsw.net", "custom_domain": true }],
   "workers_dev": true,
   "preview_urls": false,
   "observability": {
@@ -32,7 +32,7 @@
   // Where sign-in round trips land and what the OAuth providers redirect
   // back to. A dev server uses its own origin instead (worker/env.ts).
   "vars": {
-    "APP_ORIGIN": "https://bvsw.gay",
+    "APP_ORIGIN": "https://bvsw.net",
   },
   // Accounts, linked providers and usernames (worker/d1accounts.ts). The
   // schema is migrations/*.sql; the deploy workflow applies it before each
