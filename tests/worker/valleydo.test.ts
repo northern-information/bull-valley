@@ -4,6 +4,7 @@ import { ValleyDO } from '../../worker/ValleyDO.ts'
 import type {
   DailyMessage,
   NackMessage,
+  PeerChatMessage,
   PeerJoinedMessage,
   PeerLeftMessage,
   PeerStateMessage,
@@ -109,6 +110,8 @@ const state = (x: number, z: number) =>
     pose: 'walk',
     riding: false,
   })
+
+const chat = (text: string) => JSON.stringify({ type: 'chat', text })
 
 // A socket that has connected (dev or not) and said hello.
 async function join(
@@ -259,6 +262,40 @@ describe('ValleyDO', () => {
     for (let i = 0; i < 100; i++) await v.webSocketMessage(ws(a), state(i, 0))
     expect(b.sent.length - before).toBe(30)
     expect(a.closeCode).toBeNull()
+  })
+
+  it('says a chat line to everyone, the sender too, under the held name', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, '  Dave  Coleman ')
+    const b = await join(v, s, 'B')
+    const stranger = new MockSocket()
+    s.acceptWebSocket(stranger)
+    await v.webSocketMessage(ws(a), chat('cabbages by the keep'))
+    for (const socket of [a, b]) {
+      expect(socket.last()).toMatchObject({
+        type: 'chat',
+        id: idOf(a),
+        name: 'Dave Coleman',
+        text: 'cabbages by the keep',
+      })
+    }
+    expect(typeof b.last<PeerChatMessage>().at).toBe('number')
+    expect(stranger.sent).toEqual([])
+  })
+
+  it('nacks a flood of chat lines and refuses chat before hello', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    const before = b.sent.length
+    for (let i = 0; i < 8; i++) await v.webSocketMessage(ws(a), chat(`${i}`))
+    expect(b.sent.length - before).toBe(5)
+    expect(a.last()).toMatchObject({ type: 'nack', re: 'chat' })
+    expect(a.closeCode).toBeNull()
+    const early = new MockSocket()
+    s.acceptWebSocket(early)
+    await v.webSocketMessage(ws(early), chat('hi'))
+    expect(early.closeCode).toBe(CLOSE.malformed)
   })
 
   it('answers pings with the server clock', async () => {

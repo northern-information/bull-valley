@@ -9,7 +9,7 @@ import type { OutfitId } from './outfits.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and reloads.
-export const PROTOCOL_VERSION = 3
+export const PROTOCOL_VERSION = 4
 
 // The one WebSocket route; everything else on the Worker is a static asset.
 export const WS_PATH = '/ws'
@@ -21,6 +21,9 @@ export const VALLEY_PARAM = 'valley'
 
 // A player's name: 1 to NAME_MAX characters after normalizeName().
 export const NAME_MAX = 16
+
+// A chat line: 1 to CHAT_MAX characters after normalizeChat().
+export const CHAT_MAX = 120
 
 // The survey is about 5 km across; nothing legitimate is this far out.
 export const MAX_COORD = 20_000
@@ -185,6 +188,13 @@ export interface CollectMessage {
 export type DevMessage =
   { type: 'dev'; op: 'hurry'; seconds: number } | { type: 'dev'; op: 'reset' }
 
+// One line to everyone in the valley. The valley echoes it back to the
+// sender too, so every client shows the server's copy.
+export interface ChatMessage {
+  type: 'chat'
+  text: string
+}
+
 export interface StateMessage extends PeerStateWire {
   type: 'state'
 }
@@ -207,6 +217,7 @@ export type ClientMessage =
   | CallMessage
   | ExtractMessage
   | CollectMessage
+  | ChatMessage
   | DevMessage
 
 // What a client may be refused for.
@@ -280,6 +291,16 @@ export interface PeerLeftMessage {
   id: string
 }
 
+// A chat line as the valley says it: the sender's id and name as the
+// server holds them, and the server's clock when it arrived.
+export interface PeerChatMessage {
+  type: 'chat'
+  id: string
+  name: string
+  text: string
+  at: number
+}
+
 export interface PongMessage {
   type: 'pong'
   t: number
@@ -300,6 +321,7 @@ export type ServerMessage =
   | RaidMessage
   | NackMessage
   | DailyMessage
+  | PeerChatMessage
   | PongMessage
   | ErrorMessage
 
@@ -315,12 +337,12 @@ export const CLOSE = {
   serverError: 4500,
 } as const
 
-// --- Names -----------------------------------------------------------------
+// --- Names and chat --------------------------------------------------------
 
-// Canonical form of a typed name: composed Unicode, no control or format
-// characters, single spaces, trimmed. Length is not clamped here; a name
-// that is too long after this is invalid, not truncated.
-export function normalizeName(raw: string): string {
+// Canonical form of typed text: composed Unicode, no control or format
+// characters, single spaces, trimmed. Length is not clamped here; text that
+// is too long after this is invalid, not truncated.
+function normalizeText(raw: string): string {
   return raw
     .normalize('NFC')
     .replace(/[\p{Cc}\p{Cf}\p{Cs}\p{Co}\p{Cn}]/gu, '')
@@ -328,13 +350,24 @@ export function normalizeName(raw: string): string {
     .trim()
 }
 
-// Valid names are already normalized and within length, counted in code
-// points so a name of sixteen accented letters passes.
+// Normalized and within 1..max, counted in code points so a line of
+// accented letters is not cut short.
+function isValidText(text: unknown, max: number): text is string {
+  if (typeof text !== 'string') return false
+  if (text !== normalizeText(text)) return false
+  const length = Array.from(text).length
+  return length >= 1 && length <= max
+}
+
+export const normalizeName = normalizeText
+export const normalizeChat = normalizeText
+
 export function isValidName(name: unknown): name is string {
-  if (typeof name !== 'string') return false
-  if (name !== normalizeName(name)) return false
-  const length = Array.from(name).length
-  return length >= 1 && length <= NAME_MAX
+  return isValidText(name, NAME_MAX)
+}
+
+export function isValidChat(text: unknown): text is string {
+  return isValidText(text, CHAT_MAX)
 }
 
 // --- Validation ------------------------------------------------------------
@@ -452,6 +485,10 @@ export function parseClientMessage(text: string): ClientMessage | null {
         return { type: 'dev', op: 'hurry', seconds }
       }
       return null
+    }
+    case 'chat': {
+      const { text } = value
+      return isValidChat(text) ? { type: 'chat', text } : null
     }
     case 'state': {
       const state = parsePeerState(value)

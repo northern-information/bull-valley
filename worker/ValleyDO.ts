@@ -34,7 +34,10 @@ interface Attachment {
 
 // State frames per second one socket may send before the rest are dropped.
 // The client sends at most CONFIG.net.sendHz; three times that is a flood.
-const MAX_STATE_PER_SECOND = 30
+const STATE_LIMIT: RateLimit = { count: 30, ms: 1000 }
+
+// Chat lines one socket may send in ten seconds; the rest are nacked.
+const CHAT_LIMIT: RateLimit = { count: 5, ms: 10_000 }
 
 const VALLEY_KEY = 'valley'
 
@@ -43,11 +46,17 @@ interface RateWindow {
   count: number
 }
 
+interface RateLimit {
+  count: number
+  ms: number
+}
+
 export class ValleyDO extends DurableObject<Env> {
   private valley: Valley = createValley()
   // Rate windows live in memory only; a wake from hibernation starts them
   // fresh, which only ever lets a few extra frames through.
-  private rate = new WeakMap<WebSocket, RateWindow>()
+  private stateRate = new WeakMap<WebSocket, RateWindow>()
+  private chatRate = new WeakMap<WebSocket, RateWindow>()
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
@@ -137,6 +146,9 @@ export class ValleyDO extends DurableObject<Env> {
         return
       case 'collect':
         await this.act(ws, { type: 'collect', id: me.id })
+        return
+      case 'chat':
+        this.chat(ws, me, msg.text)
         return
       case 'dev':
         if (!attachment.dev) {
@@ -245,13 +257,25 @@ export class ValleyDO extends DurableObject<Env> {
     me: PeerWire,
     state: PeerStateWire
   ): void {
-    if (!this.allow(ws)) return
+    if (!allow(this.stateRate, ws, STATE_LIMIT)) return
     const { x, y, z, yaw, pose, riding } = state
     const next: PeerWire = { ...me, at: { x, y, z, yaw, pose, riding } }
     ws.serializeAttachment({ ...attachment, me: next } satisfies Attachment)
     this.broadcast(
       { type: 'peer-state', id: me.id, x, y, z, yaw, pose, riding },
       ws
+    )
+  }
+
+  // A chat line to everyone, the sender included. Nothing is stored.
+  private chat(ws: WebSocket, me: PeerWire, text: string): void {
+    if (!allow(this.chatRate, ws, CHAT_LIMIT)) {
+      send(ws, { type: 'nack', re: 'chat', reason: 'too-fast' })
+      return
+    }
+    this.broadcast(
+      { type: 'chat', id: me.id, name: me.name, text, at: Date.now() },
+      null
     )
   }
 
@@ -319,18 +343,22 @@ export class ValleyDO extends DurableObject<Env> {
       }
     }
   }
+}
 
-  // A one-second window per socket. Returns false for frames over the cap.
-  private allow(ws: WebSocket): boolean {
-    const now = Date.now()
-    const window = this.rate.get(ws)
-    if (!window || now - window.startedAt >= 1000) {
-      this.rate.set(ws, { startedAt: now, count: 1 })
-      return true
-    }
-    window.count += 1
-    return window.count <= MAX_STATE_PER_SECOND
+// A fixed window per socket. Returns false for frames over the cap.
+function allow(
+  windows: WeakMap<WebSocket, RateWindow>,
+  ws: WebSocket,
+  limit: RateLimit
+): boolean {
+  const now = Date.now()
+  const window = windows.get(ws)
+  if (!window || now - window.startedAt >= limit.ms) {
+    windows.set(ws, { startedAt: now, count: 1 })
+    return true
   }
+  window.count += 1
+  return window.count <= limit.count
 }
 
 function send(ws: WebSocket, msg: ServerMessage): void {
