@@ -2392,21 +2392,41 @@ export function buildTruckBody(): THREE.Group {
   ]) {
     add(wheelGeo, dark, wx, 0.39, wz)
   }
-  // Headlights: emissive stubs plus a warm glow.
-  const lightMat = applyPS1(
-    new THREE.MeshLambertMaterial({
-      color: '#241a05',
-      emissive: new THREE.Color('#fbe7a3'),
-      emissiveIntensity: 0.9,
-    })
-  )
-  add(new THREE.BoxGeometry(0.3, 0.18, 0.08), lightMat, 0.62, 0.95, 2.78)
-  add(new THREE.BoxGeometry(0.3, 0.18, 0.08), lightMat, -0.62, 0.95, 2.78)
-  const glow = makeGlowTexture('rgba(251, 231, 163, 0.55)')
-  for (const gx of [0.62, -0.62]) {
-    const sprite = makeGlowSprite(glow, 1.6)
-    sprite.position.set(gx, 0.95, 2.85)
-    group.add(sprite)
+  // Headlights and taillights: emissive lenses plus a glow each. The light
+  // they throw is truck.ts's.
+  const lens = (color: string, intensity: number) =>
+    applyPS1(
+      new THREE.MeshLambertMaterial({
+        color: '#241a05',
+        emissive: new THREE.Color(color),
+        emissiveIntensity: intensity,
+      })
+    )
+  const headMat = lens('#fbe7a3', 1.6)
+  const tailMat = lens('#ff2a1a', 1.4)
+  const headGlow = makeGlowTexture('rgba(251, 231, 163, 0.8)')
+  const tailGlow = makeGlowTexture('rgba(255, 42, 26, 0.7)')
+  for (const side of [1, -1]) {
+    add(
+      new THREE.BoxGeometry(0.3, 0.18, 0.08),
+      headMat,
+      side * 0.62,
+      0.95,
+      2.78
+    )
+    const head = makeGlowSprite(headGlow, 2.4)
+    head.position.set(side * 0.62, 0.95, 2.85)
+    // Upright lenses at the bed's rear corners, beside the tailgate.
+    add(
+      new THREE.BoxGeometry(0.12, 0.26, 0.04),
+      tailMat,
+      side * 0.86,
+      1.15,
+      -2.83
+    )
+    const tail = makeGlowSprite(tailGlow, 1.1)
+    tail.position.set(side * 0.86, 1.15, -2.88)
+    group.add(head, tail)
   }
 
   // The steering wheel, in front of the driver seat (left side, +X), where
@@ -2481,15 +2501,29 @@ export function buildSky(): THREE.Group {
 // was digitized in, so lighting by face normal would render half the roads
 // unlit. Flat night asphalt wants a constant tone anyway; fog still applies.
 // DoubleSide keeps the flipped half visible.
-export function roadMaterial(): THREE.MeshBasicMaterial {
-  return applyPS1(
-    new THREE.MeshBasicMaterial({
-      vertexColors: true,
-      polygonOffset: true,
-      polygonOffsetFactor: -1,
-      side: THREE.DoubleSide,
-    })
-  )
+// The roads (and the streams): lit, so the headlights and the station
+// lights fall on them and what stands in a beam throws a shadow down the
+// road. The emissive is each vertex's own tone, which keeps a road as dark
+// as it was unlit, at the lot's strength (lotMaterial) so the two meet.
+export function roadMaterial(): THREE.MeshLambertMaterial {
+  const material = lambert({
+    vertexColors: true,
+    emissive: new THREE.Color('#ffffff'),
+    emissiveIntensity: 0.8,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    side: THREE.DoubleSide,
+  })
+  const ps1 = material.onBeforeCompile.bind(material)
+  material.onBeforeCompile = (shader, renderer) => {
+    ps1(shader, renderer)
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <emissivemap_fragment>',
+      '#include <emissivemap_fragment>\ntotalEmissiveRadiance *= vColor.rgb;'
+    )
+  }
+  material.customProgramCacheKey = () => 'road-vertex-emissive'
+  return material
 }
 
 // The station lots: like the roads, but lit, so the canopy light falls on

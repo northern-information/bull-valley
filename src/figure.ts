@@ -609,11 +609,12 @@ export function applyPose(figure: Figure, pose: PoseSample): void {
 // An open paperback held in front of the chest, where the read pose
 // (poses.ts) brings both hands and the eyes. It rides the spine, so it
 // stays level with the chest and the hands reach it; hide it when the
-// figure is not reading.
+// figure is not reading. Turned about the spine so its pages face the
+// figure, then tipped back, top away and pages up toward the eyes.
 export function attachBook(figure: Figure): THREE.Group {
   const book = buildBook()
   book.position.set(0, 0.2, 0.37)
-  book.rotation.set(-0.7, 0, 0)
+  book.rotation.set(0.8, Math.PI, 0)
   castShadows(book)
   figure.joints.spine.add(book)
   return book

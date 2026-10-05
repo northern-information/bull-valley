@@ -170,8 +170,8 @@ interface OccupancyMask {
   blocked(u: number, v: number): boolean
 }
 
-// Unlit (MeshBasicMaterial) tones — these render exactly as written, then
-// fog. Widths are roadside.ts's, which the poles and lamps stand clear of.
+// The road tones: unlit, these render exactly as written, then fog; the
+// lights add over them (roadMaterial in assets.ts). Widths are roadside.ts's, which the poles and lamps stand clear of.
 const ROAD_COLOR: Partial<Record<string, string>> = {
   motorway: '#343a41',
   trunk: '#343a41',
@@ -227,15 +227,17 @@ function makeRibbonAccumulator(ground: Ground | null) {
         y: pt.y + lift,
         z: pt.z - dirs[i].x * half,
       }))
+      // Wound anticlockwise from above, so each face's front is up and a
+      // lit material (roadMaterial) takes the light from above.
       for (let i = 0; i < points.length - 1; i++) {
         const quad = [left[i], left[i + 1], right[i], right[i + 1]]
         for (const v of [
           quad[0],
-          quad[2],
-          quad[1],
           quad[1],
           quad[2],
+          quad[1],
           quad[3],
+          quad[2],
         ]) {
           positions.push(v.x, v.y, v.z)
           colors.push(c.r, c.g, c.b)
@@ -1462,7 +1464,9 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   // them on the ground; from there on, everything stands on ground.at.
   const ground = new Ground(heightAt)
   const walls = new Walls()
-  group.add(buildRoads(geo, metres, heightAt, ground))
+  const roads = buildRoads(geo, metres, heightAt, ground)
+  roads.receiveShadow = true
+  group.add(roads)
   group.add(buildWater(geo, metres, heightAt))
   const fuel = buildFuelStations(geo, metres, heightAt, ground, walls)
   const shelves = buildShelves(fuel.points)

@@ -135,7 +135,6 @@ peer_extracted = { text = "{name} made it out.", by = "ai" }
 signal_lost = { text = "Signal lost. The valley goes quiet.", by = "ai" }
 signed_out = { text = "Signed out. Sign in again to raid.", by = "ai" }
 board = { text = "You climb into the bed.", by = "ai" }
-board_leave = { text = "You climb into the bed. Marx pulls out.", by = "ai" }
 hop_out_hint = { text = "E hops out. Anywhere you like.", by = "ai" }
 truck_leaves = { text = "Marx pulls out.", by = "ai" }
 left_behind = { text = "Taillights. The truck leaves without you.", by = "ai" }
