@@ -114,9 +114,6 @@ export interface ShelfDisplay {
   unitFor(station: number, kind: string, left: number): THREE.Object3D | null
   // David Carlsten behind the counter, riding with the display.
   clerk: THREE.Object3D
-  // Where to look to talk to him: his neck, in the world, at `station`; null
-  // when the display is parked elsewhere.
-  clerkAim(station: number): Vec3 | null
 }
 
 export interface LandmarkPoint extends XZ {
@@ -154,6 +151,9 @@ export interface World {
   // for the glow, update(t) for his rain. Null without a spawn station.
   gron: XZ | null
   gronRig: GronRig | null
+  // Where David Carlsten stands behind each counter, indexed like
+  // fuelPoints; the shelf display carries his body to the nearest one.
+  clerks: XZ[]
   // What to stand on anywhere: the terrain, or the road or lot over it.
   ground: Ground
   // What stops you: the store walls and fixtures, the poles and lamps.
@@ -1273,15 +1273,9 @@ function buildShelves(points: readonly FuelPoint[]): ShelfDisplay {
   const centers = points.map(storeCenter)
   const facings = STORE_LAYOUT.facings
   let parked = -1
-  const aim = new THREE.Vector3()
   return {
     group,
     clerk: clerk.group,
-    clerkAim(station) {
-      if (station !== parked) return null
-      const { x, y, z } = clerk.joints.neck.getWorldPosition(aim)
-      return [x, y, z]
-    },
     unitFor(station, kind, left) {
       if (station !== parked) return null
       const slot = slots.find(
@@ -1567,6 +1561,11 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     },
     gron,
     gronRig,
+    clerks: fuel.points.map((point) => {
+      const { x, z } = STORE_LAYOUT.clerk
+      const [cx, , cz] = toWorld(point, [x, 0, z])
+      return { x: cx, z: cz }
+    }),
     ground,
     walls,
     facings: fuel.points.map(worldFacings),

@@ -198,8 +198,6 @@ buy_short = { text = "{item} — {price} (Not Enough Cash)", by = "ai" }
 berry_ready = { text = "E — Pick a Berry", by = "ai" }
 berry_picked = { text = "Berry Bush — Picked Clean Until Midnight", by = "ai" }
 berry_offline = { text = "Berry Bush — No Signal", by = "ai" }
-talk = { text = "E — Talk to Gron", by = "ai" }
-speak = { text = "E — Talk to {name}", by = "ai" }
 
 # Lines the game says to the player in the chat log (src/chat.ts).
 

@@ -208,11 +208,10 @@ export const CONFIG = {
     radius: 0.4,
   },
   npcs: {
-    // Matthew Marx and David Carlsten answer E when you look at them: the
-    // eye within this of the aim point (the neck)...
-    reach: 3,
-    // ...and the aim point within this of the view ray, in radians: at
-    // arm's length it takes in the head and the chest.
-    aimCone: 0.35,
+    // How close you must stand for Matthew Marx or David Carlsten to glow
+    // and answer E. Marx reads by the tailgate, in boarding range, so this
+    // stays small: step off him and E boards. Carlsten stands behind the
+    // counter, which keeps you about 1.3 m from him.
+    reach: 1.8,
   },
 }

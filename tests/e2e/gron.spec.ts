@@ -33,7 +33,15 @@ const playerAt = (page: Page) =>
 test('Gron changes your name and your character', async ({ page }) => {
   await beginRaid(page)
   await standAtGron(page)
-  await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.talk'))
+  // He glows, and that is the only sign: no prompt.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => window.__bv!.glow === window.__bv!.world.gronRig?.figure.group
+      )
+    )
+    .toBe(true)
+  await expect(page.locator('.bv-prompt')).toBeHidden()
   await page.keyboard.press('KeyE')
   const dialog = page.getByRole('dialog', {
     name: copy('outfits.gron'),

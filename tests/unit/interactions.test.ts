@@ -14,6 +14,7 @@ import type {
   StationSpot,
 } from '../../src/interactions.ts'
 import type { Raid } from '../../src/interfaces.ts'
+import type { NpcSpot } from '../../src/npcs.ts'
 
 const spawnStation: StationSpot = { x: 0, z: 0, name: 'Spawn Citgo' }
 const farStation: StationSpot = { x: 500, z: 0, name: 'Far Citgo' }
@@ -57,7 +58,7 @@ function input(
     bush,
     daily: 'ready',
     gron,
-    npc: null,
+    npcs: [],
     ...over,
   }
 }
@@ -219,33 +220,48 @@ describe('resolveInteraction', () => {
     expect(resolveInteraction(input({ ...atGron, gron: null }))).toBeNull()
   })
 
-  it('speaks to the NPC in view ahead of boarding and buying', () => {
+  it('speaks to the nearest NPC in reach, ahead of boarding', () => {
     const lobby = createRaid(0)
+    const player = { x: 250, z: 250 }
+    const marx: NpcSpot = { id: 'marx', x: 251, z: 250 }
+    const truck = { distance: 1, moving: false }
+    expect(resolveInteraction(input({ raid: lobby, truck }))).toEqual({
+      kind: 'board',
+    })
+    expect(
+      resolveInteraction(input({ raid: lobby, truck, player, npcs: [marx] }))
+    ).toEqual({ kind: 'speak', npc: 'marx' })
+    // A step past his reach, E boards again.
+    const away = { x: 251 + CONFIG.npcs.reach + 0.1, z: 250 }
     expect(
       resolveInteraction(
-        input({ raid: lobby, truck: { distance: 1, moving: false } })
+        input({ raid: lobby, truck, player: away, npcs: [marx] })
       )
     ).toEqual({ kind: 'board' })
+    const carlsten: NpcSpot = { id: 'carlsten', x: 250, z: 250.5 }
+    expect(resolveInteraction(input({ npcs: [marx, carlsten] }))).toEqual({
+      kind: 'speak',
+      npc: 'carlsten',
+    })
+  })
+
+  it('sells the shelf in view ahead of the clerk', () => {
+    const carlsten: NpcSpot = { id: 'carlsten', x: 251, z: 250 }
     expect(
-      resolveInteraction(
-        input({
-          raid: lobby,
-          truck: { distance: 1, moving: false },
-          npc: 'marx',
-        })
-      )
-    ).toEqual({ kind: 'speak', npc: 'marx' })
+      resolveInteraction(input({ shelf, insideStore: true, npcs: [carlsten] }))
+    ).toEqual({ kind: 'buy', ...shelf })
     expect(
-      resolveInteraction(input({ shelf, insideStore: true, npc: 'carlsten' }))
+      resolveInteraction(input({ insideStore: true, npcs: [carlsten] }))
     ).toEqual({ kind: 'speak', npc: 'carlsten' })
   })
 
   it('never speaks while riding or once the raid is over', () => {
+    const npcs: NpcSpot[] = [{ id: 'marx', x: 250, z: 250 }]
     const riding = advance(createRaid(0), EVENTS.BOARD_TRUCK, 1)
-    expect(resolveInteraction(input({ raid: riding, npc: 'marx' }))).toEqual({
+    expect(resolveInteraction(input({ raid: riding, npcs }))).toEqual({
       kind: 'hopOut',
     })
-    expect(resolveInteraction(input({ ended: true, npc: 'marx' }))).toBeNull()
+    expect(resolveInteraction(input({ ended: true, npcs }))).toBeNull()
   })
 
   it('answers with the nearer of Gron and the bush when both are in reach', () => {
@@ -340,10 +356,11 @@ describe('interactionPrompt', () => {
     expect(interactionPrompt({ kind: 'collect', status: 'offline' })).toBe(
       copy('prompts.berry_offline')
     )
-    expect(interactionPrompt({ kind: 'talk' })).toBe(copy('prompts.talk'))
-    expect(interactionPrompt({ kind: 'speak', npc: 'carlsten' })).toBe(
-      copy('prompts.speak', { name: copy('outfits.carlsten') })
-    )
+  })
+
+  it('leaves the people you talk to to the glow, with no prompt', () => {
+    expect(interactionPrompt({ kind: 'talk' })).toBeNull()
+    expect(interactionPrompt({ kind: 'speak', npc: 'carlsten' })).toBeNull()
   })
 
   it('labels a cabbage without a count', () => {

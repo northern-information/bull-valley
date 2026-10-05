@@ -2,30 +2,28 @@ import { copy } from './copy.ts'
 import { beginRaid, expect, test } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
-// Matthew Marx and David Carlsten answer E when you look at them, each with
-// his next line in the chat log: Marx a stanza of Burns, Carlsten small
-// talk.
+// Walk up to Matthew Marx or David Carlsten and he glows, with no prompt;
+// E has him say his next line in the chat log: Marx a stanza of Burns,
+// Carlsten small talk.
 
 type Who = 'marx' | 'carlsten'
 
-// Stands the player a stride or two from him and looks at his neck. Marx is
-// faced from beside the tailgate; Carlsten from the room side of the
-// counter, the way he faces.
-async function lookAt(page: Page, who: Who): Promise<void> {
-  const place = (who: Who) => {
+// Stands the player a stride from him: beside Marx, square to the truck,
+// so the truck is in boarding range too; in front of Carlsten, the way he
+// faces across the counter.
+async function approach(page: Page, who: Who): Promise<void> {
+  await page.evaluate((who: Who) => {
     const bv = window.__bv
     if (!bv) throw new Error('no dev hook')
     const { world, truck, player } = bv
     const station = world.fuelPoints.indexOf(world.spawnStation!)
-    const aim =
-      who === 'marx' ? truck.driverAim() : world.shelves.clerkAim(station)
-    if (!aim) throw new Error(`no ${who} to look at`)
+    const at = who === 'marx' ? truck.driverAt() : world.clerks[station]
+    if (!at) throw new Error(`no ${who} to approach`)
     let dx: number
     let dz: number
     if (who === 'marx') {
-      // Beside him rather than behind, so the truck is in boarding range.
-      dx = -(aim[2] - truck.z)
-      dz = aim[0] - truck.x
+      dx = -(at.z - truck.z)
+      dz = at.x - truck.x
     } else {
       const facing = world.shelves.clerk.getWorldDirection(
         bv.camera.position.clone()
@@ -34,27 +32,18 @@ async function lookAt(page: Page, who: Who): Promise<void> {
       dz = facing.z
     }
     const d = Math.hypot(dx, dz)
-    player.relocate(aim[0] + (dx / d) * 1.5, aim[2] + (dz / d) * 1.5)
-  }
-  const aimCamera = (who: Who) => {
-    const bv = window.__bv!
-    const { world, truck, player, camera } = bv
-    const station = world.fuelPoints.indexOf(world.spawnStation!)
-    const aim =
-      who === 'marx' ? truck.driverAim() : world.shelves.clerkAim(station)
-    if (!aim) throw new Error(`no ${who} to look at`)
-    const dx = aim[0] - camera.position.x
-    const dy = aim[1] - camera.position.y
-    const dz = aim[2] - camera.position.z
-    // The camera looks down -Z, turned by yaw, then tipped by pitch.
-    player.yaw = Math.atan2(-dx, -dz)
-    player.pitch = Math.atan2(dy, Math.hypot(dx, dz))
-  }
-  await page.evaluate(place, who)
-  // A frame puts the camera at the new eye before the aim is worked out.
-  await page.waitForTimeout(200)
-  await page.evaluate(aimCamera, who)
+    // Looking up, past the shelves, so no facing is in view.
+    player.pitch = 1.2
+    player.relocate(at.x + (dx / d) * 1.4, at.z + (dz / d) * 1.4)
+  }, who)
 }
+
+const glowsOn = (page: Page, who: Who) =>
+  page.evaluate((who: Who) => {
+    const bv = window.__bv!
+    const body = who === 'marx' ? bv.truck.driver.group : bv.world.shelves.clerk
+    return bv.glow === body
+  }, who)
 
 const lastLine = (page: Page) =>
   page
@@ -62,15 +51,14 @@ const lastLine = (page: Page) =>
     .last()
     .evaluate((p) => p.textContent)
 
-test('Marx recites a stanza at a time, and E elsewhere still boards', async ({
+test('Marx glows when you come near and recites a stanza at a time', async ({
   page,
 }) => {
   await beginRaid(page)
-  await lookAt(page, 'marx')
+  await approach(page, 'marx')
+  await expect.poll(() => glowsOn(page, 'marx')).toBe(true)
+  await expect(page.locator('.bv-prompt')).toBeHidden()
   const name = copy('outfits.marx')
-  await expect(page.locator('.bv-prompt')).toHaveText(
-    copy('prompts.speak', { name })
-  )
   await page.keyboard.press('KeyE')
   await expect
     .poll(() => lastLine(page))
@@ -80,20 +68,23 @@ test('Marx recites a stanza at a time, and E elsewhere still boards', async ({
     .poll(() => lastLine(page))
     .toBe(`${name}: ${copy('marx.stanza_2')}`)
 
-  // Looking away from him, at the same spot, E boards the truck.
+  // A step past his reach, still beside the truck, E boards.
   await page.evaluate(() => {
-    window.__bv!.player.pitch = 1.2
+    const { truck, player } = window.__bv!
+    player.relocate(truck.x, truck.z)
   })
   await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.board'))
+  await expect.poll(() => glowsOn(page, 'marx')).toBe(false)
 })
 
-test('Carlsten cycles through his lines', async ({ page }) => {
+test('Carlsten glows when you come near and cycles through his lines', async ({
+  page,
+}) => {
   await beginRaid(page)
-  await lookAt(page, 'carlsten')
+  await approach(page, 'carlsten')
+  await expect.poll(() => glowsOn(page, 'carlsten')).toBe(true)
+  await expect(page.locator('.bv-prompt')).toBeHidden()
   const name = copy('outfits.carlsten')
-  await expect(page.locator('.bv-prompt')).toHaveText(
-    copy('prompts.speak', { name })
-  )
   for (const key of ['says_1', 'says_2', 'says_3', 'says_1']) {
     await page.keyboard.press('KeyE')
     await expect

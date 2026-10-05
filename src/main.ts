@@ -28,7 +28,7 @@ import { cigaretteToSmoke, getItem, isCigarette, itemById } from './items.ts'
 import { KEEP } from './landmarks.ts'
 import { MistCards } from './mistcards.ts'
 import { NetClient, socketUrl } from './net.ts'
-import { npcInView, npcLine } from './npcs.ts'
+import { npcLine } from './npcs.ts'
 import { outfitById } from './outfits.ts'
 import { Peers } from './peers.ts'
 import { Player } from './player.ts'
@@ -57,13 +57,7 @@ import { ShadowCards } from './shadowcards.ts'
 import { buy as buyItem, settle } from './shop.ts'
 import { mountAccountStep } from './signin.ts'
 import { mountCard, showSplash, skipTitles } from './splash.ts'
-import {
-  aimAngle,
-  facingInView,
-  formatCash,
-  freshStock,
-  insideStore,
-} from './store.ts'
+import { facingInView, formatCash, freshStock, insideStore } from './store.ts'
 import { buildTerrainMesh, createHeightField, loadTerrain } from './terrain.ts'
 import { Truck } from './truck.ts'
 import { buildWorld } from './world.ts'
@@ -782,42 +776,40 @@ async function boot() {
       insideStore(station, player.pos.x, player.pos.z)
     )
 
-  // What the player is looking at, for the interaction resolver: the shelf
-  // facing in view inside a store, or Marx or Carlsten when he sits nearer
-  // the view ray than that facing.
+  // The shelf facing in view inside a store, for the interaction resolver.
   const look = new THREE.Vector3()
-  const lookAt = (
-    station: number
-  ): { shelf: ShelfSpot | null; npc: NpcId | null } => {
+  const shelfInView = (station: number): ShelfSpot | null => {
+    if (station < 0) return null
     camera.getWorldDirection(look)
     const eye: Vec3 = [camera.position.x, camera.position.y, camera.position.z]
-    const dir: Vec3 = [look.x, look.y, look.z]
-    let shelf: ShelfSpot | null = null
-    let shelfAngle: number | null = null
-    if (station >= 0) {
-      // A sack in hand is one too many: the shelf stops offering it.
-      const stock = raid.sack
-        ? { ...storeStock[station], sack: 0 }
-        : storeStock[station]
-      const facing = facingInView(world.facings[station], stock, eye, dir)
-      const item = facing ? itemById(facing.kind) : null
-      if (facing && item && item.price !== undefined) {
-        shelfAngle = aimAngle(facing.center, eye, dir, Infinity)
-        shelf = {
-          item: item.id,
-          station,
-          price: item.price,
-          affordable: cash >= item.price,
-        }
-      }
+    // A sack in hand is one too many: the shelf stops offering it.
+    const stock = raid.sack
+      ? { ...storeStock[station], sack: 0 }
+      : storeStock[station]
+    const facing = facingInView(world.facings[station], stock, eye, [
+      look.x,
+      look.y,
+      look.z,
+    ])
+    const item = facing ? itemById(facing.kind) : null
+    if (!item || item.price === undefined) return null
+    return {
+      item: item.id,
+      station,
+      price: item.price,
+      affordable: cash >= item.price,
     }
+  }
+
+  // Marx while his truck stands still, and Carlsten in the store the
+  // player stands in, for the resolver to weigh by distance.
+  const npcSpots = (station: number): NpcSpot[] => {
     const spots: NpcSpot[] = []
-    const marx = truck.driverAim()
-    if (marx) spots.push({ id: 'marx', at: marx })
-    const carlsten = station >= 0 ? world.shelves.clerkAim(station) : null
-    if (carlsten) spots.push({ id: 'carlsten', at: carlsten })
-    const npc = npcInView(spots, eye, dir, shelfAngle)
-    return { shelf: npc ? null : shelf, npc }
+    const marx = truck.driverAt()
+    if (marx) spots.push({ id: 'marx', ...marx })
+    const carlsten = world.clerks[station]
+    if (carlsten) spots.push({ id: 'carlsten', ...carlsten })
+    return spots
   }
 
   // Marx and Carlsten each say their next line into this player's chat log.
@@ -1531,7 +1523,6 @@ async function boot() {
 
     // --- Interactions: what E would do right now -------------------------
     const inStore = storeIndex()
-    const view = lookAt(inStore)
     interaction = aboard
       ? { kind: 'hopOut' }
       : resolveInteraction({
@@ -1547,12 +1538,12 @@ async function boot() {
           stations: world.fuelPoints,
           spawnStation,
           pickups: world.pickups,
-          shelf: view.shelf,
+          shelf: shelfInView(inStore),
           insideStore: inStore >= 0,
           bush: world.bush,
           daily: dailyStatus(),
           gron: world.gron,
-          npc: view.npc,
+          npcs: npcSpots(inStore),
         })
     const prompt = interaction ? interactionPrompt(interaction) : null
     glow.setTarget(glowTarget(interaction))

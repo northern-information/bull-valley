@@ -6,12 +6,11 @@ import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { itemById } from './items.ts'
 import { KEEP } from './landmarks.ts'
-import { outfitById } from './outfits.ts'
 import { STATES } from './raid.ts'
 import { formatCash } from './store.ts'
 import type { Raid, XZ } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
-import type { NpcId } from './npcs.ts'
+import type { NpcId, NpcSpot } from './npcs.ts'
 
 // A pickup as the resolver sees it.
 export interface PickupSpot extends XZ {
@@ -74,9 +73,8 @@ export interface InteractionInput<P extends PickupSpot> {
   daily: DailyStatus
   // Gron, beside the bush, or null.
   gron: XZ | null
-  // Marx or Carlsten, when the player is looking at him (npcs.ts
-  // npcInView, which has already weighed him against the shelf in view).
-  npc: NpcId | null
+  // Marx and Carlsten, where each stands while he can be talked to.
+  npcs: readonly NpcSpot[]
 }
 
 function near(a: XZ, b: XZ, radius: number): boolean {
@@ -84,7 +82,8 @@ function near(a: XZ, b: XZ, radius: number): boolean {
 }
 
 // The first match wins, in this order: hop out while riding; speak to the
-// NPC in view; board the waiting truck; buy off a shelf; board the called truck to end the raid;
+// nearest NPC in reach, unless a shelf is in view; board the waiting truck;
+// buy off a shelf; board the called truck to end the raid;
 // unload at the stand; extract at a station (never from inside its store)
 // or the Keep; Gron or the berry bush, whichever is nearer; take the
 // nearest pickup.
@@ -94,9 +93,21 @@ export function resolveInteraction<P extends PickupSpot>(
   const { raid, ended, player } = input
   if (ended || raid.state === STATES.EXTRACTED) return null
   if (raid.state === STATES.RIDING) return { kind: 'hopOut' }
-  // Marx reads by the tailgate, in boarding range: looking at him talks,
-  // looking anywhere else boards.
-  if (input.npc) return { kind: 'speak', npc: input.npc }
+  // Marx reads by the tailgate, in boarding range: beside him E talks, a
+  // step away it boards. Carlsten stands behind the counter of goods, so
+  // the facing in view sells first.
+  if (!input.shelf) {
+    let best = CONFIG.npcs.reach
+    let npc: NpcId | null = null
+    for (const spot of input.npcs) {
+      const d = Math.hypot(spot.x - player.x, spot.z - player.z)
+      if (d < best) {
+        best = d
+        npc = spot.id
+      }
+    }
+    if (npc) return { kind: 'speak', npc }
+  }
 
   const truckClose = input.truck.distance < CONFIG.truck.boardRange
   if (raid.state === STATES.LOADOUT && truckClose) return { kind: 'board' }
@@ -160,7 +171,9 @@ export function pickupLabel({
   })
 }
 
-export function interactionPrompt(interaction: Interaction): string {
+// What the prompt says, or null where the glow is the only signal: the
+// people you talk to.
+export function interactionPrompt(interaction: Interaction): string | null {
   switch (interaction.kind) {
     case 'hopOut':
       return copy('prompts.hop_out')
@@ -198,8 +211,7 @@ export function interactionPrompt(interaction: Interaction): string {
       }
       break
     case 'talk':
-      return copy('prompts.talk')
     case 'speak':
-      return copy('prompts.speak', { name: outfitById(interaction.npc).label })
+      return null
   }
 }

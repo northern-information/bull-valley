@@ -571,30 +571,19 @@ export function facingInView<F extends WorldFacing>(
   let bestAngle = aimCone
   for (const facing of facings) {
     if (!(stock[facing.kind] > 0)) continue
-    const angle = aimAngle(facing.center, eye, dir, reach)
-    if (angle !== null && angle <= bestAngle) {
+    const dx = facing.center[0] - eye[0]
+    const dy = facing.center[1] - eye[1]
+    const dz = facing.center[2] - eye[2]
+    const d = Math.hypot(dx, dy, dz)
+    if (d > reach || d < 1e-6) continue
+    const cos = (dx * dir[0] + dy * dir[1] + dz * dir[2]) / d
+    const angle = Math.acos(Math.max(-1, Math.min(1, cos)))
+    if (angle <= bestAngle) {
       bestAngle = angle
       best = facing
     }
   }
   return best
-}
-
-// How far off the view ray `target` sits, in radians, seen from `eye`
-// along the unit direction `dir`; null past `reach` of the eye.
-export function aimAngle(
-  target: Vec3,
-  eye: Vec3,
-  dir: Vec3,
-  reach: number
-): number | null {
-  const dx = target[0] - eye[0]
-  const dy = target[1] - eye[1]
-  const dz = target[2] - eye[2]
-  const d = Math.hypot(dx, dy, dz)
-  if (d > reach || d < 1e-6) return null
-  const cos = (dx * dir[0] + dy * dir[1] + dz * dir[2]) / d
-  return Math.acos(Math.max(-1, Math.min(1, cos)))
 }
 
 // Cents as dollars: 549 -> "$5.49".
