@@ -57,6 +57,7 @@ function input(
     bush,
     daily: 'ready',
     gron,
+    npc: null,
     ...over,
   }
 }
@@ -218,6 +219,35 @@ describe('resolveInteraction', () => {
     expect(resolveInteraction(input({ ...atGron, gron: null }))).toBeNull()
   })
 
+  it('speaks to the NPC in view ahead of boarding and buying', () => {
+    const lobby = createRaid(0)
+    expect(
+      resolveInteraction(
+        input({ raid: lobby, truck: { distance: 1, moving: false } })
+      )
+    ).toEqual({ kind: 'board' })
+    expect(
+      resolveInteraction(
+        input({
+          raid: lobby,
+          truck: { distance: 1, moving: false },
+          npc: 'marx',
+        })
+      )
+    ).toEqual({ kind: 'speak', npc: 'marx' })
+    expect(
+      resolveInteraction(input({ shelf, insideStore: true, npc: 'carlsten' }))
+    ).toEqual({ kind: 'speak', npc: 'carlsten' })
+  })
+
+  it('never speaks while riding or once the raid is over', () => {
+    const riding = advance(createRaid(0), EVENTS.BOARD_TRUCK, 1)
+    expect(resolveInteraction(input({ raid: riding, npc: 'marx' }))).toEqual({
+      kind: 'hopOut',
+    })
+    expect(resolveInteraction(input({ ended: true, npc: 'marx' }))).toBeNull()
+  })
+
   it('answers with the nearer of Gron and the bush when both are in reach', () => {
     // Between them, nearer the bush.
     const nearBush = { player: { x: -7.0, z: -8.4 } }
@@ -311,6 +341,9 @@ describe('interactionPrompt', () => {
       copy('prompts.berry_offline')
     )
     expect(interactionPrompt({ kind: 'talk' })).toBe(copy('prompts.talk'))
+    expect(interactionPrompt({ kind: 'speak', npc: 'carlsten' })).toBe(
+      copy('prompts.speak', { name: copy('outfits.carlsten') })
+    )
   })
 
   it('labels a cabbage without a count', () => {

@@ -112,6 +112,11 @@ export interface ShelfDisplay {
   // The unit a buy of `kind` would take at `station` with `left` in stock
   // (the last one standing), or null when the display is parked elsewhere.
   unitFor(station: number, kind: string, left: number): THREE.Object3D | null
+  // David Carlsten behind the counter, riding with the display.
+  clerk: THREE.Object3D
+  // Where to look to talk to him: his neck, in the world, at `station`; null
+  // when the display is parked elsewhere.
+  clerkAim(station: number): Vec3 | null
 }
 
 export interface LandmarkPoint extends XZ {
@@ -1268,8 +1273,15 @@ function buildShelves(points: readonly FuelPoint[]): ShelfDisplay {
   const centers = points.map(storeCenter)
   const facings = STORE_LAYOUT.facings
   let parked = -1
+  const aim = new THREE.Vector3()
   return {
     group,
+    clerk: clerk.group,
+    clerkAim(station) {
+      if (station !== parked) return null
+      const { x, y, z } = clerk.joints.neck.getWorldPosition(aim)
+      return [x, y, z]
+    },
     unitFor(station, kind, left) {
       if (station !== parked) return null
       const slot = slots.find(

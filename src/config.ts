@@ -207,4 +207,12 @@ export const CONFIG = {
     // He blocks like a post this wide.
     radius: 0.4,
   },
+  npcs: {
+    // Matthew Marx and David Carlsten answer E when you look at them: the
+    // eye within this of the aim point (the neck)...
+    reach: 3,
+    // ...and the aim point within this of the view ray, in radians: at
+    // arm's length it takes in the head and the chest.
+    aimCone: 0.35,
+  },
 }

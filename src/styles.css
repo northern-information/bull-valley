@@ -142,6 +142,9 @@
   margin: 0;
   line-height: 1.25rem;
   overflow-wrap: anywhere;
+
+  /* Marx's stanzas keep their line breaks and indents. */
+  white-space: pre-wrap;
 }
 
 .bv-chat-input {

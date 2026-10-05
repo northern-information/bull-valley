@@ -6,10 +6,12 @@ import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { itemById } from './items.ts'
 import { KEEP } from './landmarks.ts'
+import { outfitById } from './outfits.ts'
 import { STATES } from './raid.ts'
 import { formatCash } from './store.ts'
 import type { Raid, XZ } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
+import type { NpcId } from './npcs.ts'
 
 // A pickup as the resolver sees it.
 export interface PickupSpot extends XZ {
@@ -48,6 +50,7 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   | ({ kind: 'buy' } & ShelfSpot)
   | { kind: 'collect'; status: DailyStatus }
   | { kind: 'talk' }
+  | { kind: 'speak'; npc: NpcId }
 
 export interface InteractionInput<P extends PickupSpot> {
   raid: Raid
@@ -71,14 +74,17 @@ export interface InteractionInput<P extends PickupSpot> {
   daily: DailyStatus
   // Gron, beside the bush, or null.
   gron: XZ | null
+  // Marx or Carlsten, when the player is looking at him (npcs.ts
+  // npcInView, which has already weighed him against the shelf in view).
+  npc: NpcId | null
 }
 
 function near(a: XZ, b: XZ, radius: number): boolean {
   return Math.hypot(a.x - b.x, a.z - b.z) < radius
 }
 
-// The first match wins, in this order: hop out while riding; board the
-// waiting truck; buy off a shelf; board the called truck to end the raid;
+// The first match wins, in this order: hop out while riding; speak to the
+// NPC in view; board the waiting truck; buy off a shelf; board the called truck to end the raid;
 // unload at the stand; extract at a station (never from inside its store)
 // or the Keep; Gron or the berry bush, whichever is nearer; take the
 // nearest pickup.
@@ -88,6 +94,9 @@ export function resolveInteraction<P extends PickupSpot>(
   const { raid, ended, player } = input
   if (ended || raid.state === STATES.EXTRACTED) return null
   if (raid.state === STATES.RIDING) return { kind: 'hopOut' }
+  // Marx reads by the tailgate, in boarding range: looking at him talks,
+  // looking anywhere else boards.
+  if (input.npc) return { kind: 'speak', npc: input.npc }
 
   const truckClose = input.truck.distance < CONFIG.truck.boardRange
   if (raid.state === STATES.LOADOUT && truckClose) return { kind: 'board' }
@@ -190,5 +199,7 @@ export function interactionPrompt(interaction: Interaction): string {
       break
     case 'talk':
       return copy('prompts.talk')
+    case 'speak':
+      return copy('prompts.speak', { name: outfitById(interaction.npc).label })
   }
 }

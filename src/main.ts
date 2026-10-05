@@ -28,6 +28,8 @@ import { cigaretteToSmoke, getItem, isCigarette, itemById } from './items.ts'
 import { KEEP } from './landmarks.ts'
 import { MistCards } from './mistcards.ts'
 import { NetClient, socketUrl } from './net.ts'
+import { npcInView, npcLine } from './npcs.ts'
+import { outfitById } from './outfits.ts'
 import { Peers } from './peers.ts'
 import { Player } from './player.ts'
 import { PlayerBody } from './playerbody.ts'
@@ -55,7 +57,13 @@ import { ShadowCards } from './shadowcards.ts'
 import { buy as buyItem, settle } from './shop.ts'
 import { mountAccountStep } from './signin.ts'
 import { mountCard, showSplash, skipTitles } from './splash.ts'
-import { facingInView, formatCash, freshStock, insideStore } from './store.ts'
+import {
+  aimAngle,
+  facingInView,
+  formatCash,
+  freshStock,
+  insideStore,
+} from './store.ts'
 import { buildTerrainMesh, createHeightField, loadTerrain } from './terrain.ts'
 import { Truck } from './truck.ts'
 import { buildWorld } from './world.ts'
@@ -64,6 +72,7 @@ import type { ChatLine } from './chat.ts'
 import type { DailyStatus, Interaction, ShelfSpot } from './interactions.ts'
 import type { Geo, Raid, RingItem, Vec3 } from './interfaces.ts'
 import type { NetStatus } from './net.ts'
+import type { NpcId, NpcSpot } from './npcs.ts'
 import type { Peer } from './presence.ts'
 import type {
   DailyMessage,
@@ -773,29 +782,55 @@ async function boot() {
       insideStore(station, player.pos.x, player.pos.z)
     )
 
-  // The shelf facing in view inside a store, for the interaction resolver.
+  // What the player is looking at, for the interaction resolver: the shelf
+  // facing in view inside a store, or Marx or Carlsten when he sits nearer
+  // the view ray than that facing.
   const look = new THREE.Vector3()
-  const shelfInView = (station: number): ShelfSpot | null => {
-    if (station < 0) return null
+  const lookAt = (
+    station: number
+  ): { shelf: ShelfSpot | null; npc: NpcId | null } => {
     camera.getWorldDirection(look)
     const eye: Vec3 = [camera.position.x, camera.position.y, camera.position.z]
-    // A sack in hand is one too many: the shelf stops offering it.
-    const stock = raid.sack
-      ? { ...storeStock[station], sack: 0 }
-      : storeStock[station]
-    const facing = facingInView(world.facings[station], stock, eye, [
-      look.x,
-      look.y,
-      look.z,
-    ])
-    const item = facing ? itemById(facing.kind) : null
-    if (!item || item.price === undefined) return null
-    return {
-      item: item.id,
-      station,
-      price: item.price,
-      affordable: cash >= item.price,
+    const dir: Vec3 = [look.x, look.y, look.z]
+    let shelf: ShelfSpot | null = null
+    let shelfAngle: number | null = null
+    if (station >= 0) {
+      // A sack in hand is one too many: the shelf stops offering it.
+      const stock = raid.sack
+        ? { ...storeStock[station], sack: 0 }
+        : storeStock[station]
+      const facing = facingInView(world.facings[station], stock, eye, dir)
+      const item = facing ? itemById(facing.kind) : null
+      if (facing && item && item.price !== undefined) {
+        shelfAngle = aimAngle(facing.center, eye, dir, Infinity)
+        shelf = {
+          item: item.id,
+          station,
+          price: item.price,
+          affordable: cash >= item.price,
+        }
+      }
     }
+    const spots: NpcSpot[] = []
+    const marx = truck.driverAim()
+    if (marx) spots.push({ id: 'marx', at: marx })
+    const carlsten = station >= 0 ? world.shelves.clerkAim(station) : null
+    if (carlsten) spots.push({ id: 'carlsten', at: carlsten })
+    const npc = npcInView(spots, eye, dir, shelfAngle)
+    return { shelf: npc ? null : shelf, npc }
+  }
+
+  // Marx and Carlsten each say their next line into this player's chat log.
+  const npcSaid: Record<NpcId, number> = { marx: 0, carlsten: 0 }
+  const speakTo = (npc: NpcId) => {
+    hud.chatLine(
+      {
+        kind: 'say',
+        name: outfitById(npc).label,
+        text: npcLine(npc, npcSaid[npc]++),
+      },
+      performance.now()
+    )
   }
 
   // What the glow rings for an interaction: the pickup, the shelf unit a
@@ -817,6 +852,8 @@ async function boot() {
         return action.status === 'ready' ? world.bushObject : null
       case 'talk':
         return world.gronRig?.figure.group ?? null
+      case 'speak':
+        return action.npc === 'marx' ? truck.driver.group : world.shelves.clerk
       default:
         return null
     }
@@ -1208,6 +1245,9 @@ async function boot() {
       case 'talk':
         talkToGron()
         return
+      case 'speak':
+        speakTo(interaction.npc)
+        return
     }
   }
 
@@ -1491,6 +1531,7 @@ async function boot() {
 
     // --- Interactions: what E would do right now -------------------------
     const inStore = storeIndex()
+    const view = lookAt(inStore)
     interaction = aboard
       ? { kind: 'hopOut' }
       : resolveInteraction({
@@ -1506,11 +1547,12 @@ async function boot() {
           stations: world.fuelPoints,
           spawnStation,
           pickups: world.pickups,
-          shelf: shelfInView(inStore),
+          shelf: view.shelf,
           insideStore: inStore >= 0,
           bush: world.bush,
           daily: dailyStatus(),
           gron: world.gron,
+          npc: view.npc,
         })
     const prompt = interaction ? interactionPrompt(interaction) : null
     glow.setTarget(glowTarget(interaction))
