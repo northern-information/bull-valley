@@ -43,7 +43,7 @@
     {
       "binding": "DB",
       "database_name": "bull-valley-accounts",
-      "database_id": "REPLACE-WITH-THE-ID-FROM-wrangler-d1-create",
+      "database_id": "a2737917-2dbe-441a-84c6-9cee6446ea6d",
       "migrations_dir": "migrations",
     },
   ],
