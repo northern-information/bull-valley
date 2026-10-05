@@ -3,6 +3,7 @@ import { CONFIG } from '../../src/config.ts'
 import { copy } from '../../src/copy.ts'
 import {
   interactionPrompt,
+  itemLabel,
   pickupLabel,
   resolveInteraction,
 } from '../../src/interactions.ts'
@@ -319,51 +320,79 @@ describe('interactionPrompt', () => {
     expect(interactionPrompt({ kind: 'extractFuel', name: '' })).toBe(
       copy('prompts.extract_station')
     )
-    expect(
-      interactionPrompt({
-        kind: 'pickup',
-        pickup: { x: 0, z: 0, kind: 'joints', count: 2, taken: false },
-      })
-    ).toBe(
-      copy('prompts.take', {
-        item: copy('prompts.pickup_count', {
-          item: copy('items.joints.label'),
-          count: 2,
-        }),
-      })
-    )
-    expect(interactionPrompt({ kind: 'buy', ...shelf })).toBe(
-      copy('prompts.buy', {
-        item: copy('items.marlboro.label'),
-        price: '$5.49',
-      })
-    )
-    expect(
-      interactionPrompt({ kind: 'buy', ...shelf, affordable: false })
-    ).toBe(
-      copy('prompts.buy_short', {
-        item: copy('items.marlboro.label'),
-        price: '$5.49',
-      })
-    )
-    expect(interactionPrompt({ kind: 'collect', status: 'ready' })).toBe(
-      copy('prompts.berry_ready')
-    )
-    expect(interactionPrompt({ kind: 'collect', status: 'picked' })).toBe(
-      copy('prompts.berry_picked')
-    )
-    expect(interactionPrompt({ kind: 'collect', status: 'offline' })).toBe(
-      copy('prompts.berry_offline')
-    )
     expect(interactionPrompt({ kind: 'talk' })).toBe(copy('prompts.talk'))
     expect(interactionPrompt({ kind: 'moab', station: 0 })).toBe(
       copy('prompts.moab')
     )
   })
 
+  it('leaves items to their labels', () => {
+    const pickup = {
+      x: 0,
+      z: 0,
+      kind: 'joints' as const,
+      count: 2,
+      taken: false,
+    }
+    expect(interactionPrompt({ kind: 'pickup', pickup })).toBeNull()
+    expect(interactionPrompt({ kind: 'buy', ...shelf })).toBeNull()
+    expect(interactionPrompt({ kind: 'collect', status: 'ready' })).toBeNull()
+  })
+})
+
+describe('itemLabel', () => {
+  it('names a pickup, with its count', () => {
+    const pickup = {
+      x: 0,
+      z: 0,
+      kind: 'joints' as const,
+      count: 2,
+      taken: false,
+    }
+    expect(itemLabel({ kind: 'pickup', pickup })).toEqual({
+      text: copy('labels.pickup_count', {
+        item: copy('items.joints.label'),
+        count: 2,
+      }),
+      dim: false,
+    })
+  })
+
+  it('names a shelf unit with its price, dim when the cash falls short', () => {
+    const text = copy('labels.price', {
+      item: copy('items.marlboro.label'),
+      price: '$5.49',
+    })
+    expect(itemLabel({ kind: 'buy', ...shelf })).toEqual({ text, dim: false })
+    expect(itemLabel({ kind: 'buy', ...shelf, affordable: false })).toEqual({
+      text,
+      dim: true,
+    })
+  })
+
+  it('names the bush by how it stands today', () => {
+    expect(itemLabel({ kind: 'collect', status: 'ready' })).toEqual({
+      text: copy('labels.berries'),
+      dim: false,
+    })
+    expect(itemLabel({ kind: 'collect', status: 'picked' })).toEqual({
+      text: copy('labels.berry_picked'),
+      dim: true,
+    })
+    expect(itemLabel({ kind: 'collect', status: 'offline' })).toEqual({
+      text: copy('labels.berry_offline'),
+      dim: true,
+    })
+  })
+
+  it('labels nothing that is not an item', () => {
+    expect(itemLabel({ kind: 'board' })).toBeNull()
+    expect(itemLabel({ kind: 'talk' })).toBeNull()
+  })
+
   it('labels a cabbage without a count', () => {
     expect(pickupLabel({ kind: 'cabbage', count: 1 })).toBe(
-      copy('prompts.cabbage')
+      copy('labels.cabbage')
     )
   })
 })

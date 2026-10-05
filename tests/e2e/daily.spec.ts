@@ -48,19 +48,20 @@ test('the berry bush gives one berry, then is picked clean', async ({
   page,
 }) => {
   await beginRaid(page, 0, { valley, raider })
-  const prompt = page.locator('.bv-prompt')
+  // The bush's own label says how it stands.
+  const label = page.locator('.bv-item-label')
   expect(await page.evaluate(() => window.__bv?.daily)).toMatchObject({
     collected: false,
   })
   expect(await berries(page)).toBe(0)
 
   await standAtBush(page)
-  await expect(prompt).toHaveText(copy('prompts.berry_ready'))
+  await expect(label).toHaveText(copy('labels.berries'))
   await expect.poll(() => bushGlows(page)).toBe(true)
   expect(await berriesShown(page)).toBe(true)
   await page.keyboard.press('KeyE')
   await expect.poll(() => berries(page)).toBe(1)
-  await expect(prompt).toHaveText(copy('prompts.berry_picked'))
+  await expect(label).toHaveText(copy('labels.berry_picked'))
   await expect
     .poll(() => page.evaluate(() => window.__bv?.daily?.collected))
     .toBe(true)
@@ -70,7 +71,7 @@ test('the berry bush gives one berry, then is picked clean', async ({
 
   // A second press changes nothing.
   await page.keyboard.press('KeyE')
-  await expect(prompt).toHaveText(copy('prompts.berry_picked'))
+  await expect(label).toHaveText(copy('labels.berry_picked'))
   expect(await berries(page)).toBe(1)
 })
 
@@ -84,8 +85,8 @@ test('the valley remembers the account on the next arrival', async ({
   // A new page, and the berry is still in the pack.
   expect(await berries(page)).toBe(1)
   await standAtBush(page)
-  await expect(page.locator('.bv-prompt')).toHaveText(
-    copy('prompts.berry_picked')
+  await expect(page.locator('.bv-item-label')).toHaveText(
+    copy('labels.berry_picked')
   )
   expect(await berriesShown(page)).toBe(false)
 })

@@ -13,8 +13,12 @@ import type { Page } from '@playwright/test'
 // instead of walking, Enter sends, and both logs show the line under the
 // sender's name.
 
+// What players said; the game's own lines share the log.
 const lines = (page: Page) =>
-  page.evaluate(() => window.__bv?.chat.map((l) => l.text) ?? [])
+  page.evaluate(
+    () =>
+      window.__bv?.chat.filter((l) => l.kind === 'say').map((l) => l.text) ?? []
+  )
 
 base(
   'a chat line reaches everyone in the valley',

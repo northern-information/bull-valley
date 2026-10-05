@@ -18,6 +18,8 @@ import type { Page } from '@playwright/test'
 const raid = (page: Page) => page.evaluate(() => window.__bv?.raid)
 const shared = (page: Page) => page.evaluate(() => window.__bv?.shared)
 const prompt = (page: Page) => page.locator('.bv-prompt')
+// The name over the item E would act on.
+const label = (page: Page) => page.locator('.bv-item-label')
 
 // Stand inside the spawn station's Citgo, `back` metres off a facing of
 // `kind`, looking straight at it. Mirrors raid.spec.ts.
@@ -84,8 +86,8 @@ base.describe('a shared raid', { tag: '@valley' }, () => {
       })
       const perItem = (await shared(a))!.shelves[spawnIndex].pbr
       await aimAt(a, 'pbr', [1.3, 0])
-      await expect(prompt(a)).toHaveText(
-        copy('prompts.buy', {
+      await expect(label(a)).toHaveText(
+        copy('labels.price', {
           item: copy('items.pbr.label'),
           price: '$0.99',
         })
@@ -151,12 +153,13 @@ base.describe('a shared raid', { tag: '@valley' }, () => {
           (p) => p.kind === 'cabbage' && !p.taken
         )
         const spot = bv.world.pickups[i]
-        bv.player.relocate(spot.x + 1, spot.z + 1, bv.player.yaw)
+        // A stride off it, facing it and looking down at it, so its label
+        // is in view.
+        bv.player.relocate(spot.x + 1, spot.z + 1, Math.atan2(1, 1))
+        bv.player.pitch = -0.5
         return i
       })
-      await expect(prompt(a)).toHaveText(
-        copy('prompts.take', { item: copy('prompts.cabbage') })
-      )
+      await expect(label(a)).toHaveText(copy('labels.cabbage'))
       await a.keyboard.press('KeyE')
       await expect.poll(async () => (await raid(a))?.carrying).toBe(1)
       await expect

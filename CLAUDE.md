@@ -60,7 +60,7 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 - `src/main.ts` — boot, scene, input wiring, render loop, raid orchestration; game rules go in the pure modules
 - `src/raid.ts` — pure raid state machine (LOADOUT → RIDING → ON_FOOT → EXTRACTED) and the loadout clock
 - `src/bindings.ts` — pure: every key in one table (`WORLD` in the valley, `PACK` with the inventory open), each with its codes, the key label, and the `COPY.toml` key of the action label (`labelKey`). `main.ts` and `player.ts` look actions up here (`actionOf`, `moveAxis`, `isHeld`); `hud.ts` draws the intro controls table and the pack footer from it. Rebind a key here and nowhere else; reword it in `COPY.toml` `[keys]`
-- `src/interactions.ts` — pure: what E would do right now (board, hop out, unload, extract, take a pickup, pick the day's berry) and its prompt; `main.ts` resolves it each frame
+- `src/interactions.ts` — pure: what E would do right now (board, hop out, unload, extract, take a pickup, pick the day's berry) and what says so: an item (a pickup, the shelf unit a buy takes, the berry bush) gets just its name floating over it (`itemLabel`, drawn by `hud.ts` `itemLabel` at the item's projected top), everything else the bottom prompt (`interactionPrompt`); `main.ts` resolves it each frame
 - `src/shop.ts` — pure: one purchase off a Citgo shelf (`buy`, returning new raid, stock, inventory, and cash) and the buyer's side alone (`settle`), which the shared valley applies once a sale is confirmed
 - `src/store.ts` — pure: the walk-in Citgo every station shares — `STORE_LAYOUT` (shell, fixtures, fluorescent lights, shelf facings, and the wall signs in station-local space, read by `assets.ts` and `world.ts`), fresh shelf stock, which facing the player is looking at, `formatCash`. Every station sells 3 of every item; a new account's wallet starts at $40 and carries from raid to raid
 - `src/adart.ts` — canvas art for the advertisements on the Citgo walls, keyed by `AdId`; prices on them come from `items.ts`
@@ -84,7 +84,7 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 - `src/canart.ts` — canvas trade-dress art for the drink labels, as they looked circa 2008
 - `src/medart.ts` — canvas art for the medicine labels (a pill bottle, a carton, a dropper bottle); the medicine itself (aspirin, ibuprofen, Benadryl, eye drops, on the rack by the register, no effect yet) is entries in `items.ts`, and `assets.ts` builds one shape per `MedicineForm`
 - `src/decalart.ts` — canvas art for the decals on character parts (prints over the torso, thighs and arms; the buckle face); outfits name them by `DecalId`
-- `src/chat.ts` — pure: the chat log (the lines it keeps, when it fades) and the game's own lines to the player; `hud.ts` draws it
+- `src/chat.ts` — pure: the chat log (the lines it keeps, when it fades) and the game's own lines to the player; `hud.ts` draws it. There are no toasts: everything the game tells the player goes into the log as a system line (`hud.tell`)
 - `src/inventory.ts` — pure: the pack's transforms (`addItem`, `useItem`, `toInventory`) and the starting pack; the pack itself is the account's (sharedraid rule 11)
 - `src/carousel.ts` — pure: which items ride the inventory ring (carried items, cargo, the sack) and how the selection steps and wraps
 - `src/inventoryview.ts` — the inventory carousel in 3D: its own scene and camera, drawn by the game renderer in place of the world while the inventory is open (the player freezes; the raid clock does not)
