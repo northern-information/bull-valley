@@ -92,6 +92,10 @@ export function makeGlowSprite(
   return sprite
 }
 
+// The ring around whatever E would act on (glow.ts): the Citgo sign's
+// red-orange.
+export const CITGO_RED = '#ff4a1c'
+
 // --- Trees ---------------------------------------------------------------
 
 // Unit-height trunk and canopy, scaled per instance. TREE_SAMPLE is a
@@ -1121,6 +1125,10 @@ export function buildBerryBush(seed = 0xbe221): THREE.Group {
     group.add(lump)
     lumps.push({ at, r })
   }
+  // The berries in one group, so the bush can show itself picked clean.
+  const berries = new THREE.Group()
+  berries.name = 'berries'
+  group.add(berries)
   const berry = berryMaterial()
   const berryGeo = new THREE.SphereGeometry(0.045, 5, 4)
   for (let i = 0; i < 16; i++) {
@@ -1134,7 +1142,7 @@ export function buildBerryBush(seed = 0xbe221): THREE.Group {
       lump.at.y + Math.sin(pitch) * lump.r,
       lump.at.z + Math.sin(yaw) * Math.cos(pitch) * lump.r
     )
-    group.add(mesh)
+    berries.add(mesh)
   }
   return group
 }

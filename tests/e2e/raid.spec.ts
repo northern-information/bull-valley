@@ -87,6 +87,21 @@ base.describe('one raid', { tag: '@raid' }, () => {
 
   const cash = () => page.evaluate(() => window.__bv?.cash)
 
+  // What the glow rings: the shelf unit's uuid when it is one, else
+  // whether it is the nearest untaken cabbage, or null for nothing.
+  const glowShelfUnit = () =>
+    page.evaluate(() => {
+      const target = window.__bv?.glow
+      return target?.parent?.name === 'shelf-display' ? target.uuid : null
+    })
+  const glowCabbage = () =>
+    page.evaluate(() => {
+      const bv = window.__bv
+      const target = bv?.glow
+      if (!bv || !target) return null
+      return bv.world.pickups.find((p) => p.mesh === target)?.kind ?? 'other'
+    })
+
   // Stand inside the spawn station's Citgo, `back` metres off a facing of
   // `kind` (station-local: +X from the back wall, +Z from the sack shelf),
   // and look straight at it.
@@ -122,8 +137,13 @@ base.describe('one raid', { tag: '@raid' }, () => {
 
     await aimAt('pbr', [1.3, 0])
     await expect(prompt()).toHaveText('E — Buy Pabst Blue Ribbon for $0.99')
+    // The glow rings the unit a buy takes, then the next one back.
+    const unit = await glowShelfUnit()
+    expect(unit).not.toBeNull()
     await page.keyboard.press('KeyE')
     await expect.poll(cash).toBe(4000 - 99)
+    await expect.poll(glowShelfUnit).not.toBe(unit)
+    expect(await glowShelfUnit()).not.toBeNull()
     expect(await savedInventory()).not.toBeNull()
 
     await aimAt('sack', [0, 1.3])
@@ -140,6 +160,8 @@ base.describe('one raid', { tag: '@raid' }, () => {
   base('board the truck, ride, and hop out', async () => {
     await moveTo('truck')
     await expect(prompt()).toHaveText('E — Climb into the Bed')
+    // The truck is no item: nothing glows.
+    expect(await page.evaluate(() => window.__bv?.glow ?? null)).toBeNull()
     await page.keyboard.press('KeyE')
     await expect.poll(async () => (await raid())?.state).toBe('RIDING')
     await expect(prompt()).toHaveText('E — Hop Out')
@@ -150,6 +172,7 @@ base.describe('one raid', { tag: '@raid' }, () => {
   base('take a cabbage and unload it at the stand', async () => {
     await moveTo('cabbage')
     await expect(prompt()).toHaveText('E — Take Cabbage')
+    await expect.poll(glowCabbage).toBe('cabbage')
     await page.keyboard.press('KeyE')
     await expect.poll(async () => (await raid())?.carrying).toBe(1)
 

@@ -17,6 +17,17 @@ const savedInventory = (page: Page) =>
     localStorage.getItem('bull-valley-shadow-wars:v1:inventory')
   )
 
+// Whether the glow rings the bush, and whether its berries show.
+const bushGlows = (page: Page) =>
+  page.evaluate(() => {
+    const bv = window.__bv
+    return !!bv && bv.glow !== null && bv.glow === bv.world.bushObject
+  })
+const berriesShown = (page: Page) =>
+  page.evaluate(
+    () => window.__bv?.world.bushObject?.getObjectByName('berries')?.visible
+  )
+
 async function standAtBush(page: Page): Promise<void> {
   await page.evaluate(() => {
     const bv = window.__bv
@@ -39,12 +50,17 @@ test('the berry bush gives one berry, then is picked clean', async ({
 
   await standAtBush(page)
   await expect(prompt).toHaveText('E — Pick a Berry')
+  await expect.poll(() => bushGlows(page)).toBe(true)
+  expect(await berriesShown(page)).toBe(true)
   await page.keyboard.press('KeyE')
   await expect.poll(() => savedInventory(page)).toContain('"berries":1')
   await expect(prompt).toHaveText('Berry Bush — Picked Clean Until Midnight')
   await expect
     .poll(() => page.evaluate(() => window.__bv?.daily?.collected))
     .toBe(true)
+  // Picked clean: no berries, and nothing left to glow for.
+  await expect.poll(() => berriesShown(page)).toBe(false)
+  expect(await bushGlows(page)).toBe(false)
 
   // A second press changes nothing.
   await page.keyboard.press('KeyE')
@@ -61,4 +77,5 @@ test('the valley remembers the name on the next arrival', async ({ page }) => {
   await expect(page.locator('.bv-prompt')).toHaveText(
     'Berry Bush — Picked Clean Until Midnight'
   )
+  expect(await berriesShown(page)).toBe(false)
 })

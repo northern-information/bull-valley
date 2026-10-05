@@ -9,6 +9,7 @@ import { mountCharacterSelect } from './characterselect.ts'
 import { CONFIG } from './config.ts'
 import { unitToWorld } from './coords.ts'
 import { finishById, loadFinish } from './finishes.ts'
+import { createGlow } from './glow.ts'
 import { Hud } from './hud.ts'
 import {
   interactionPrompt,
@@ -89,6 +90,8 @@ interface BvHook {
   // The berry bush as the valley last described it; null offline.
   readonly daily: DailyWire | null
   readonly aboard: boolean
+  // What the glow rings right now (glow.ts); null for nothing.
+  readonly glow: THREE.Object3D | null
   // In cents.
   readonly cash: number
   teleport(u: number, v: number): void
@@ -264,6 +267,13 @@ async function boot() {
     player: player.pos,
     still: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   })
+  // The ring around whatever E would act on; it holds its pulse still
+  // under prefers-reduced-motion too.
+  const glow = createGlow(
+    renderer,
+    scene,
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  )
 
   // --- The valley server -------------------------------------------------
   // Everyone online shares one valley. The socket is same-origin; if the
@@ -648,6 +658,28 @@ async function boot() {
       station,
       price: item.price,
       affordable: cash >= item.price,
+    }
+  }
+
+  // What the glow rings for an interaction: the pickup, the shelf unit a
+  // buy would take, or the bush while today's berry is on it. Nothing for
+  // the truck, the stand, or an extraction.
+  const glowTarget = (
+    action: Interaction<Pickup> | null
+  ): THREE.Object3D | null => {
+    switch (action?.kind) {
+      case 'pickup':
+        return action.pickup.mesh
+      case 'buy':
+        return world.shelves.unitFor(
+          action.station,
+          action.item,
+          storeStock[action.station]?.[action.item] ?? 0
+        )
+      case 'collect':
+        return action.status === 'ready' ? world.bushObject : null
+      default:
+        return null
     }
   }
 
@@ -1054,6 +1086,7 @@ async function boot() {
     const iw = Math.max(2, Math.floor(w / CONFIG.render.downscale))
     const ih = Math.max(2, Math.floor(h / CONFIG.render.downscale))
     renderer.setSize(iw, ih, false)
+    glow.setSize(iw, ih)
     camera.aspect = w / h
     camera.updateProjectionMatrix()
     inventoryView.setAspect(w / h)
@@ -1244,6 +1277,9 @@ async function boot() {
           daily: dailyStatus(),
         })
     const prompt = interaction ? interactionPrompt(interaction) : null
+    glow.setTarget(glowTarget(interaction))
+    // Today's berry picked, the bush stands bare until midnight Central.
+    world.setBerries(dailyStatus() !== 'picked')
     if (player.locked) {
       hud.prompt(!ended && now >= strikeUntil ? prompt : null)
     } else if (started && !ended) {
@@ -1265,6 +1301,7 @@ async function boot() {
       renderer.render(inventoryView.scene, inventoryView.camera)
     } else {
       renderer.render(scene, camera)
+      if (player.locked && !ended) glow.render(scene, camera, time)
     }
   })
 
@@ -1300,6 +1337,9 @@ async function boot() {
       },
       get aboard() {
         return aboard
+      },
+      get glow() {
+        return glow.target
       },
       get cash() {
         return cash
