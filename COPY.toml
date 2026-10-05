@@ -73,7 +73,7 @@ rules = { text = "3 to 16 letters, digits, or underscores.", by = "tyler" }
 [username]
 title = { text = "What is your name?", by = "tyler" }
 lede = { text = "The one known as Gron can rename you.", by = "tyler" }
-lede_as = { text = "Welcome to Bull Valley Shadow Wars, {who}.", by = "tyler" }
+lede_as = { text = "Welcome to Bull Valley Shadow Wars, {who} of {provider}.", by = "tyler" }
 field = { text = "Username", by = "tyler" }
 checking = { text = "Checking...", by = "tyler" }
 limited = { text = "Too many checks. Wait a moment, then try again.", by = "tyler" }
