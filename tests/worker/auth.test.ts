@@ -12,7 +12,7 @@ import type { Limiter, Tier } from '../../worker/ratelimit.ts'
 
 const SECRET = 'auth-test-secret'
 const T0 = Date.parse('2026-10-03T12:00:00Z')
-const PROD = 'https://bvsw.gay'
+const PROD = 'https://bvsw.net'
 const DEV = 'http://localhost:5174'
 
 function env(overrides: Partial<WorkerEnv> = {}): WorkerEnv {

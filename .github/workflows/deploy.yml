@@ -32,7 +32,7 @@ jobs:
     timeout-minutes: 20
     environment:
       name: production
-      url: https://bvsw.gay
+      url: https://bvsw.net
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -61,3 +61,9 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           command: deploy
+      # The www redirect, a Worker of its own (worker/www.ts). The explicit
+      # config skips the redirect to the game's generated config.
+      - uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: deploy -c wrangler.www.jsonc

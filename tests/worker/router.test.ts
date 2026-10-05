@@ -20,7 +20,7 @@ function env(): WorkerEnv & { calls: string[]; fetched: Request[] } {
   return {
     calls,
     fetched,
-    APP_ORIGIN: 'https://bvsw.gay',
+    APP_ORIGIN: 'https://bvsw.net',
     JWT_SECRET: SECRET,
     // The account routes that touch the database are tested in auth.test.ts
     // against the in-memory store; the router never reaches it here.
@@ -105,7 +105,7 @@ describe('router', () => {
       role: 'user',
     })
     await worker.fetch(
-      upgrade('https://bvsw.gay/ws', { Cookie: `${COOKIE.token}=${token}` }),
+      upgrade('https://bvsw.net/ws', { Cookie: `${COOKIE.token}=${token}` }),
       e
     )
     expect(e.fetched[0].headers.get(ACCOUNT_HEADER)).toBe('acct-1')
@@ -115,7 +115,7 @@ describe('router', () => {
   it('never takes the identity stamps from the client', async () => {
     const e = env()
     await worker.fetch(
-      upgrade('https://bvsw.gay/ws', {
+      upgrade('https://bvsw.net/ws', {
         [ACCOUNT_HEADER]: 'acct-9',
         [NAME_HEADER]: 'Mallory',
       }),
@@ -125,7 +125,7 @@ describe('router', () => {
     expect(e.fetched[0].headers.get(NAME_HEADER)).toBeNull()
     // A forged or stale token stamps nothing either.
     await worker.fetch(
-      upgrade('https://bvsw.gay/ws', { Cookie: `${COOKIE.token}=not.a.jwt` }),
+      upgrade('https://bvsw.net/ws', { Cookie: `${COOKIE.token}=not.a.jwt` }),
       e
     )
     expect(e.fetched[1].headers.get(ACCOUNT_HEADER)).toBeNull()
@@ -136,7 +136,7 @@ describe('router', () => {
       role: 'user',
     })
     await worker.fetch(
-      upgrade('https://bvsw.gay/ws', { Cookie: `${COOKIE.token}=${token}` }),
+      upgrade('https://bvsw.net/ws', { Cookie: `${COOKIE.token}=${token}` }),
       e
     )
     expect(e.fetched[2].headers.get(ACCOUNT_HEADER)).toBeNull()
@@ -145,13 +145,13 @@ describe('router', () => {
   it('answers the account routes itself', async () => {
     const e = env()
     const res = await worker.fetch(
-      new Request('https://bvsw.gay/auth/providers'),
+      new Request('https://bvsw.net/auth/providers'),
       e
     )
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ providers: [] })
     const missing = await worker.fetch(
-      new Request('https://bvsw.gay/auth/nothing'),
+      new Request('https://bvsw.net/auth/nothing'),
       e
     )
     expect(missing.status).toBe(404)
