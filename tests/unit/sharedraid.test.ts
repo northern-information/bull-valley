@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
 import { dayKey, nextMidnight } from '../../src/daily.ts'
-import { createValley, dailyFor, reduce, toWire } from '../../src/sharedraid.ts'
-import { freshStock } from '../../src/store.ts'
+import {
+  createValley,
+  dailyFor,
+  reduce,
+  restoreValley,
+  toWire,
+} from '../../src/sharedraid.ts'
+import { freshStock, unitsLeft } from '../../src/store.ts'
 import type { DailyMessage, RaidMessage } from '../../src/protocol.ts'
 import type { Valley, ValleyAction } from '../../src/sharedraid.ts'
 
@@ -111,7 +117,7 @@ describe('rule 1: a lobby forms for the first arrival', () => {
     const shelves = v.valley.raid?.shelves
     expect(shelves).toHaveLength(STATIONS)
     expect(shelves?.[0]).toEqual(freshStock(1)[0])
-    expect(shelves?.[0].pbr).toBe(CONFIG.store.perItem)
+    expect(unitsLeft(shelves?.[0], 'pbr')).toBe(CONFIG.store.perItem)
   })
 })
 
@@ -267,16 +273,16 @@ describe('rule 4: pickups go to the first to ask', () => {
 })
 
 describe('rule 8: the shelves are shared', () => {
-  const buy = (id: string, station = 0, kind = 'pbr'): ValleyAction => ({
-    type: 'buy',
-    id,
-    station,
-    kind,
-  })
+  const buy = (
+    id: string,
+    station = 0,
+    kind = 'pbr',
+    unit = 0
+  ): ValleyAction => ({ type: 'buy', id, station, kind, unit })
 
-  it("takes one unit off that station's shelf and tells everyone who bought it", () => {
+  it("takes the unit picked off that station's shelf and tells everyone who bought it", () => {
     const v = valleyWith(join('a'), join('b'))
-    const r = v.step(buy('a', 1, 'marlboro'))
+    const r = v.step(buy('a', 1, 'marlboro', 2))
     expect(r.broadcast).toHaveLength(1)
     expect(r.broadcast[0]).toMatchObject({
       reason: 'bought',
@@ -284,16 +290,21 @@ describe('rule 8: the shelves are shared', () => {
       station: 1,
       item: 'marlboro',
     })
-    expect(v.valley.raid?.shelves[1].marlboro).toBe(CONFIG.store.perItem - 1)
-    expect(v.valley.raid?.shelves[0].marlboro).toBe(CONFIG.store.perItem)
-    expect(r.broadcast[0].raid?.shelves[1].marlboro).toBe(
-      CONFIG.store.perItem - 1
+    expect(v.valley.raid?.shelves[1].marlboro).toEqual([true, true, false])
+    expect(unitsLeft(v.valley.raid?.shelves[0], 'marlboro')).toBe(
+      CONFIG.store.perItem
     )
+    expect(r.broadcast[0].raid?.shelves[1].marlboro).toEqual([
+      true,
+      true,
+      false,
+    ])
   })
 
-  it('says sold out to whoever comes once the shelf is bare', () => {
+  it('says sold out to whoever asks for a unit already gone', () => {
     const v = valleyWith(join('a'), join('b'))
-    for (let i = 0; i < CONFIG.store.perItem; i++) v.step(buy('a'))
+    v.step(buy('a'))
+    expect(v.step(buy('b', 0, 'pbr', 1)).broadcast[0].reason).toBe('bought')
     const r = v.step(buy('b'))
     expect(r.broadcast).toEqual([])
     expect(r.reply).toEqual({
@@ -307,6 +318,9 @@ describe('rule 8: the shelves are shared', () => {
 
   it('refuses a shelf that does not exist and a player out of the raid', () => {
     const v = valleyWith(join('a'), join('b'))
+    expect(v.step(buy('a', 0, 'pbr', CONFIG.store.perItem)).reply?.reason).toBe(
+      'sold-out'
+    )
     expect(v.step(buy('a', STATIONS)).reply?.reason).toBe('no-such-shelf')
     expect(v.step(buy('a', 0, 'cabbage')).reply?.reason).toBe('no-such-shelf')
     v.step({ type: 'extract', id: 'a', kind: 'fuel' })
@@ -323,7 +337,26 @@ describe('rule 8: the shelves are shared', () => {
     const v = valleyWith(join('a'), buy('a'))
     v.step({ type: 'leave', id: 'a' })
     v.step(join('b'))
-    expect(v.valley.raid?.shelves[0].pbr).toBe(CONFIG.store.perItem)
+    expect(unitsLeft(v.valley.raid?.shelves[0], 'pbr')).toBe(
+      CONFIG.store.perItem
+    )
+  })
+
+  it('drops a raid stored with counted shelves, keeping the bush', () => {
+    const v = valleyWith(join('a'))
+    const raid = v.valley.raid
+    if (!raid) throw new Error('expected a raid')
+    const counted = {
+      ...v.valley,
+      dailies: { acct: '2026-10-05' },
+      raid: { ...raid, shelves: [{ pbr: 3 }] },
+    } as unknown as Valley
+    expect(restoreValley(counted)).toMatchObject({
+      raid: null,
+      dailies: { acct: '2026-10-05' },
+    })
+    expect(restoreValley(v.valley).raid).toEqual(raid)
+    expect(restoreValley({ epoch: 2 })).toEqual({ ...createValley(), epoch: 2 })
   })
 })
 

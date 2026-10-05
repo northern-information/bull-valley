@@ -15,7 +15,13 @@ import {
   parseClientMessage,
   PROTOCOL_VERSION,
 } from '../src/protocol.ts'
-import { createValley, dailyFor, reduce, toWire } from '../src/sharedraid.ts'
+import {
+  createValley,
+  dailyFor,
+  reduce,
+  restoreValley,
+  toWire,
+} from '../src/sharedraid.ts'
 import { ACCOUNT_HEADER, NAME_HEADER } from './auth.ts'
 import { D1AccountStore } from './d1accounts.ts'
 import type {
@@ -74,9 +80,8 @@ export class ValleyDO extends DurableObject<Env> {
     // The raid is read once per wake, before any frame is handled.
     void this.ctx.blockConcurrencyWhile(async () => {
       const stored = await this.ctx.storage.get<Valley>(VALLEY_KEY)
-      // A valley stored by an older build lacks the newer fields; the
-      // fresh one fills them in.
-      if (stored) this.valley = { ...createValley(), ...stored }
+      // A valley stored by an older build is made current (sharedraid.ts).
+      if (stored) this.valley = restoreValley(stored)
     })
   }
 
@@ -144,6 +149,7 @@ export class ValleyDO extends DurableObject<Env> {
           id: me.id,
           station: msg.station,
           kind: msg.kind,
+          unit: msg.unit,
         })
         return
       case 'call':

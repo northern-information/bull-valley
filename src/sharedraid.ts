@@ -18,8 +18,9 @@
 // 6. Extracting takes you out of the raid; your figure goes with you.
 // 7. When no one is left in the raid, the valley resets for the next one.
 // 8. The Citgo shelves are shared: a unit one player buys is off the shelf
-//    for everyone, and the shelves fill again with the next lobby. Cash is
-//    each player's own; the valley only keeps count of what is left.
+//    for everyone, and the shelves fill again with the next lobby. The
+//    buyer picks the unit, so the valley keeps which units are left. Cash
+//    is each player's own.
 // 9. The berry bush gives each account one berry a day, the day turning at
 //    midnight Central (daily.ts), whatever the raid is doing. The valley
 //    remembers only the accounts that have had today's berry. Two sockets
@@ -31,7 +32,7 @@
 
 import { CONFIG } from './config.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
-import { freshStock } from './store.ts'
+import { freshStock, onShelf, takeUnit } from './store.ts'
 import type { ExtractKind, ShopStock, XZ } from './interfaces.ts'
 import type { OutfitId } from './outfits.ts'
 import type {
@@ -99,7 +100,7 @@ export type ValleyAction =
   | { type: 'unboard'; id: string }
   | { type: 'hop-out'; id: string }
   | { type: 'take'; id: string; index: number }
-  | { type: 'buy'; id: string; station: number; kind: string }
+  | { type: 'buy'; id: string; station: number; kind: string; unit: number }
   | { type: 'call'; id: string; from: XZ; to: XZ }
   | { type: 'extract'; id: string; kind: ExtractKind }
   | { type: 'collect'; id: string }
@@ -137,6 +138,21 @@ export interface Reduced {
 
 export function createValley(): Valley {
   return { epoch: 0, raid: null, members: {}, dailies: {} }
+}
+
+// The valley as an older build stored it, made current: the fresh one
+// fills in newer fields, and a raid whose shelves still hold counts
+// rather than units is dropped, so the next lobby stocks them afresh.
+export function restoreValley(stored: Partial<Valley>): Valley {
+  const valley = { ...createValley(), ...stored }
+  const shelves: unknown[] = valley.raid?.shelves ?? []
+  const counted = shelves.some(
+    (shelf) =>
+      typeof shelf !== 'object' ||
+      shelf === null ||
+      Object.values(shelf).some((units) => !Array.isArray(units))
+  )
+  return counted ? { ...valley, raid: null } : valley
 }
 
 // The bush as `account` finds it at `now`: whether today's berry is gone,
@@ -445,7 +461,7 @@ export function reduce(
     case 'buy': {
       const member = valley.members[action.id]
       const raid = valley.raid
-      const { station, kind } = action
+      const { station, kind, unit } = action
       const refuse = (reason: string): Reduced => ({
         valley,
         broadcast: [],
@@ -457,9 +473,9 @@ export function reduce(
       const shelf = raid.shelves[station] as ShopStock | undefined
       if (!shelf || !Object.hasOwn(shelf, kind)) return refuse('no-such-shelf')
       // Rule 8.
-      if (!(shelf[kind] > 0)) return refuse('sold-out')
+      if (!onShelf(shelf, kind, unit)) return refuse('sold-out')
       const shelves = raid.shelves.map((s, i) =>
-        i === station ? { ...s, [kind]: s[kind] - 1 } : s
+        i === station ? takeUnit(s, kind, unit) : s
       )
       const next = withRaid(valley, { ...raid, shelves })
       return {

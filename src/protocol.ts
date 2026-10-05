@@ -9,7 +9,7 @@ import type { OutfitId } from './outfits.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and reloads.
-export const PROTOCOL_VERSION = 5
+export const PROTOCOL_VERSION = 6
 
 // The one WebSocket route; everything else on the Worker is a static asset.
 export const WS_PATH = '/ws'
@@ -161,12 +161,14 @@ export interface TakeMessage {
   index: number
 }
 
-// One unit of `kind` off station `station`'s shelf. Cash is the buyer's
-// own; the valley only says whether the unit was still there.
+// Unit `unit` of `kind` (its slot on the facing) off station `station`'s
+// shelf. Cash is the buyer's own; the valley only says whether that unit
+// was still there.
 export interface BuyMessage {
   type: 'buy'
   station: number
   kind: string
+  unit: number
 }
 
 export interface CallMessage {
@@ -500,10 +502,11 @@ export function parseClientMessage(text: string): ClientMessage | null {
       return { type: 'take', index }
     }
     case 'buy': {
-      const { station, kind } = value
-      if (!isCount(station) || typeof kind !== 'string') return null
+      const { station, kind, unit } = value
+      if (!isCount(station) || !isCount(unit)) return null
+      if (typeof kind !== 'string') return null
       if (kind.length === 0 || kind.length > 64) return null
-      return { type: 'buy', station, kind }
+      return { type: 'buy', station, kind, unit }
     }
     case 'call': {
       const from = parseXZ(value.from)

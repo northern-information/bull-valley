@@ -425,9 +425,12 @@ describe('ValleyDO', () => {
     const a = await join(v, s, 'A')
     const b = await join(v, s, 'B')
     expect(a.last<WelcomeMessage>().raid.shelves).toHaveLength(5)
-    const perItem = a.last<WelcomeMessage>().raid.shelves[0].pbr
-    for (let i = 0; i < perItem; i++) {
-      await v.webSocketMessage(ws(a), '{"type":"buy","station":0,"kind":"pbr"}')
+    const perItem = a.last<WelcomeMessage>().raid.shelves[0].pbr.length
+    for (let unit = 0; unit < perItem; unit++) {
+      await v.webSocketMessage(
+        ws(a),
+        JSON.stringify({ type: 'buy', station: 0, kind: 'pbr', unit })
+      )
     }
     const bought = b.last<RaidMessage>()
     expect(bought).toMatchObject({
@@ -436,9 +439,12 @@ describe('ValleyDO', () => {
       station: 0,
       item: 'pbr',
     })
-    expect(bought.raid?.shelves[0].pbr).toBe(0)
-    expect(bought.raid?.shelves[1].pbr).toBe(perItem)
-    await v.webSocketMessage(ws(b), '{"type":"buy","station":0,"kind":"pbr"}')
+    expect(bought.raid?.shelves[0].pbr).toEqual(Array(perItem).fill(false))
+    expect(bought.raid?.shelves[1].pbr).toEqual(Array(perItem).fill(true))
+    await v.webSocketMessage(
+      ws(b),
+      '{"type":"buy","station":0,"kind":"pbr","unit":0}'
+    )
     expect(b.last<NackMessage>()).toEqual({
       type: 'nack',
       re: 'buy',
