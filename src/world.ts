@@ -97,6 +97,9 @@ export interface ShelfDisplay {
   // CONFIG.store.displayRange, and show what is left on its shelves.
   // stocks: one per station, indexed like fuelPoints.
   update(x: number, z: number, stocks: readonly ShopStock[]): void
+  // The unit a buy of `kind` would take at `station` with `left` in stock
+  // (the last one standing), or null when the display is parked elsewhere.
+  unitFor(station: number, kind: string, left: number): THREE.Object3D | null
 }
 
 export interface LandmarkPoint extends XZ {
@@ -127,6 +130,9 @@ export interface World {
   // The berry bush on the spawn station's lot (one berry a day per name,
   // sharedraid.ts rule 9); null without a spawn station.
   bush: XZ | null
+  // The bush itself, for the glow, and its berries shown or picked clean.
+  bushObject: THREE.Object3D | null
+  setBerries(visible: boolean): void
   // What to stand on anywhere: the terrain, or the road or lot over it.
   ground: Ground
   // What stops you: the store walls and fixtures.
@@ -1007,8 +1013,16 @@ function buildShelves(points: readonly FuelPoint[]): ShelfDisplay {
   group.add(display, lights.group)
   const centers = points.map(storeCenter)
   const facings = STORE_LAYOUT.facings
+  let parked = -1
   return {
     group,
+    unitFor(station, kind, left) {
+      if (station !== parked) return null
+      const slot = slots.find(
+        (s) => facings[s.facing].kind === kind && s.unit === left - 1
+      )
+      return slot?.object ?? null
+    },
     update(x, z, stocks) {
       let best = -1
       let bestD = CONFIG.store.displayRange
@@ -1019,6 +1033,7 @@ function buildShelves(points: readonly FuelPoint[]): ShelfDisplay {
           best = i
         }
       })
+      parked = best
       display.visible = best >= 0
       lights.setOn(best >= 0)
       if (best < 0) return
@@ -1221,6 +1236,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   // (CONFIG.daily.bush, station-local). It stands on the lot deck and
   // blocks like a post; the day's berry is the valley's to give.
   let bush: XZ | null = null
+  let bushObject: THREE.Object3D | null = null
   if (spawnStation) {
     const [bx, , bz] = toWorld(spawnStation, [
       CONFIG.daily.bush.x,
@@ -1233,7 +1249,9 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     group.add(mesh)
     walls.addWall({ x: bx, z: bz }, { x: bx, z: bz }, CONFIG.daily.bushRadius)
     bush = { x: bx, z: bz }
+    bushObject = mesh
   }
+  const berries = bushObject?.getObjectByName('berries') ?? null
 
   return {
     group,
@@ -1244,6 +1262,10 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     spawnStation,
     spawn,
     bush,
+    bushObject,
+    setBerries(visible) {
+      if (berries) berries.visible = visible
+    },
     ground,
     walls,
     facings: fuel.points.map(worldFacings),
