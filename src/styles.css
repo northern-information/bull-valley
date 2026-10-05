@@ -1,20 +1,17 @@
 /* Bull Valley Shadow Wars HUD. Tokens (--fi-*, --bv-*) are declared by the
    host page (index.html). One face, one size, one ink: every HUD text is
-   Small Pixel 7 at --bv-text-size in --bv-eggshell, set once on .bv-shell and
-   inherited. Role colors stay on borders, fills, and focus rings only.
-   Dark field, hard edges, offset shadows, 3px cyan focus.
-   Small Pixel 7 is drawn on a 1/20em grid, so it is pixel-crisp only at
-   multiples of 20px: --bv-text-size is 20px, and anything larger is a
-   whole multiple of it. Text must also start on a whole pixel, so every
-   length near text is whole px (not rem), letter-spacing is a multiple
-   of 0.05em (one font pixel), and %/vh/vw offsets go through round(). */
+   Inter at --bv-text-size in --bv-eggshell, set once on .bv-shell and
+   inherited. The one exception is the inventory, set in bold Times
+   (--bv-serif) like Silent Hill's. Role colors stay on borders, fills, and
+   focus rings only. Dark field, hard edges, offset shadows, 3px cyan
+   focus. */
 
 .bv-shell {
   position: fixed;
   inset: 0;
   overflow: hidden;
-  font-family: var(--bv-font, 'Small Pixel 7', system-ui, sans-serif);
-  font-size: var(--bv-text-size, 20px);
+  font-family: var(--bv-font, 'Inter', system-ui, sans-serif);
+  font-size: var(--bv-text-size, 1rem);
   font-variant-numeric: tabular-nums;
   color: var(--bv-eggshell);
   background: var(--fi-bg);
@@ -59,11 +56,11 @@
    on snow and on night sky. */
 .bv-countdown {
   position: absolute;
-  top: 14px;
-  left: round(50%, 1px);
-  transform: translateX(round(-50%, 1px));
+  top: 0.9rem;
+  left: 50%;
+  transform: translateX(-50%);
   margin: 0;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-shadow:
     0 0 3px rgb(0 0 0 / 90%),
     1px 1px 0 rgb(0 0 0 / 80%);
@@ -72,19 +69,19 @@
 /* Nerves */
 .bv-nerves {
   position: absolute;
-  left: 16px;
-  bottom: 16px;
+  left: 1rem;
+  bottom: 1rem;
   display: flex;
   align-items: center;
-  gap: 8px;
-  letter-spacing: 0.1em;
+  gap: 0.5rem;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
 .bv-nerves-track {
   display: inline-block;
-  width: 176px;
-  height: 9px;
+  width: 11rem;
+  height: 0.55rem;
   background: var(--fi-surface-82);
   border: 1px solid var(--fi-slate);
   box-shadow: 3px 3px 0 var(--fi-black-shadow);
@@ -111,12 +108,12 @@
 /* The lower-left column: chat over the effect timers. */
 .bv-dock {
   position: absolute;
-  left: 16px;
-  bottom: 42px;
+  left: 1rem;
+  bottom: 2.6rem;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  width: min(560px, calc(100% - 32px));
+  gap: 0.5rem;
+  width: min(35rem, calc(100% - 2rem));
 }
 
 /* Chat: a quiet log that fades out a while after the last line, and a
@@ -124,7 +121,7 @@
 .bv-chat {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.25rem;
   transition: opacity 0.8s;
 }
 
@@ -133,9 +130,9 @@
 }
 
 .bv-chat-log {
-  max-height: 160px;
+  max-height: 10rem;
   overflow: hidden;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.02em;
   text-shadow:
     0 0 3px rgb(0 0 0 / 90%),
     1px 1px 0 rgb(0 0 0 / 80%);
@@ -143,7 +140,7 @@
 
 .bv-chat-log p {
   margin: 0;
-  line-height: 20px;
+  line-height: 1.25rem;
   overflow-wrap: anywhere;
 }
 
@@ -151,9 +148,9 @@
   box-sizing: border-box;
   width: 100%;
   margin: 0;
-  padding: 2px 6px;
+  padding: 0.15rem 0.4rem;
   font: inherit;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.02em;
   color: inherit;
   background: var(--fi-surface-82);
   border: 1px solid var(--fi-green);
@@ -165,7 +162,7 @@
 .bv-timers {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.25rem;
 }
 
 .bv-timer {
@@ -173,7 +170,7 @@
   text-transform: uppercase;
   background: var(--fi-surface-82);
   border: 1px solid var(--fi-amber);
-  padding: 2px 6px;
+  padding: 0.15rem 0.4rem;
   width: max-content;
 }
 
@@ -208,33 +205,33 @@
 /* Prompt + toasts */
 .bv-prompt {
   position: absolute;
-  left: round(50%, 1px);
-  bottom: round(22%, 1px);
-  transform: translateX(round(-50%, 1px));
+  left: 50%;
+  bottom: 22%;
+  transform: translateX(-50%);
   margin: 0;
-  padding: 5px 11px;
+  padding: 0.3rem 0.7rem;
   background: var(--fi-surface-82);
   border: 1px solid var(--fi-cyan);
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
 }
 
 .bv-toasts {
   position: absolute;
-  left: round(50%, 1px);
-  top: round(14%, 1px);
-  transform: translateX(round(-50%, 1px));
+  left: 50%;
+  top: 14%;
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
+  gap: 0.3rem;
 }
 
 .bv-toast {
   margin: 0;
-  padding: 5px 11px;
+  padding: 0.3rem 0.7rem;
   background: var(--fi-surface-82);
   border: 1px solid var(--fi-green);
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   transition: opacity 0.8s;
 }
 
@@ -264,13 +261,14 @@
   --bv-inv-dim: #4d4b52;
   --bv-inv-purple: #7a1fd6;
   --bv-inv-frame: #6f74ff;
-  --bv-inv-cell: round(min(34vh, 40vw), 2px);
+  --bv-inv-cell: min(34vh, 40vw);
 
   position: absolute;
   inset: 0;
-
-  /* One font pixel apart. */
-  letter-spacing: 0.05em;
+  font-family: var(--bv-serif, 'Times New Roman', Times, serif);
+  font-weight: 700;
+  font-size: clamp(0.85rem, 3.2vh, 1.6rem);
+  letter-spacing: 0.06em;
   color: var(--bv-inv-ink);
 
   /* A pressed-metal bevel: light from the top left. */
@@ -281,24 +279,24 @@
 
 .bv-inv-bars {
   position: absolute;
-  top: round(5vh, 1px);
-  left: round(6vw, 1px);
-  right: round(6vw, 1px);
+  top: 5vh;
+  left: 6vw;
+  right: 6vw;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: round(2.5vw, 1px);
-  font-size: calc(2 * var(--bv-text-size, 20px));
+  gap: 2.5vw;
+  font-size: clamp(0.9rem, 4.2vh, 2.2rem);
 }
 
 /* The footer holds one cell per pack key (bindings.ts), however many, in
    one row. */
 .bv-inv-bars--foot {
   top: auto;
-  bottom: round(4vh, 1px);
+  bottom: 4vh;
   grid-template-columns: none;
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
-  font-size: var(--bv-text-size, 20px);
+  font-size: clamp(0.75rem, 3.2vh, 1.6rem);
 }
 
 .bv-inv-bars span {
@@ -328,12 +326,13 @@
 
 .bv-inv-status {
   position: absolute;
-  top: round(14vh, 1px);
-  left: round(8vw, 1px);
+  top: 14vh;
+  left: 8vw;
   margin: 0;
   display: grid;
   grid-template-columns: auto auto;
   gap: 0.3em 0.9em;
+  font-size: 0.8em;
 }
 
 .bv-inv-status dt {
@@ -346,19 +345,21 @@
 
 .bv-inv-commands {
   position: absolute;
-  top: round(14vh, 1px);
-  right: round(9vw, 1px);
+  top: 14vh;
+  right: 9vw;
   margin: 0;
   padding: 0;
   list-style: none;
   display: flex;
   flex-direction: column;
   gap: 0.4em;
+  font-size: 1.15em;
 }
 
 .bv-inv-commands kbd {
   font-family: inherit;
-  vertical-align: baseline;
+  font-size: 0.6em;
+  vertical-align: middle;
   padding: 0 0.3em;
   border: 1px solid currentcolor;
 }
@@ -371,11 +372,11 @@
 /* The frame: one hard rectangle, a second offset up-left and broken. */
 .bv-inv-frame {
   position: absolute;
-  left: round(50%, 1px);
-  top: round(50%, 1px);
+  left: 50%;
+  top: 50%;
   width: var(--bv-inv-cell);
   height: var(--bv-inv-cell);
-  transform: translate(round(-50%, 1px), round(-50%, 1px));
+  transform: translate(-50%, -50%);
   border: 2px solid var(--bv-inv-frame);
 }
 
@@ -400,9 +401,11 @@
 
 .bv-inv-arrow {
   position: absolute;
-  top: round(50%, 1px);
-  transform: translateY(round(-50%, 1px));
+  top: 50%;
+  transform: translateY(-50%);
   color: #d8d8e0;
+  font-size: 1.1em;
+  letter-spacing: -0.2em;
 }
 
 .bv-inv-arrow--prev {
@@ -419,9 +422,9 @@
 
 .bv-inv-info {
   position: absolute;
-  top: round(50% + var(--bv-inv-cell) / 2 + 2.5vh, 1px);
-  left: round(6vw, 1px);
-  right: round(6vw, 1px);
+  top: calc(50% + var(--bv-inv-cell) / 2 + 2.5vh);
+  left: 6vw;
+  right: 6vw;
 }
 
 .bv-inv-line {
@@ -439,7 +442,8 @@
 .bv-inv-desc {
   margin: 0.7em 0 0 1.4em;
   max-width: 34em;
-  line-height: 1.5;
+  font-size: 0.9em;
+  line-height: 1.35;
 }
 
 /* Lock dropped with the inventory open: dim the carousel, wait for a click. */
@@ -449,9 +453,9 @@
 
 .bv-inv-resume {
   position: absolute;
-  top: round(50%, 1px);
-  left: round(50%, 1px);
-  transform: translate(round(-50%, 1px), round(-50%, 1px));
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   margin: 0;
   padding: 0.3em 0.8em;
   background: rgb(0 0 0 / 70%);
@@ -510,7 +514,7 @@
   margin: 0;
   background: var(--fi-bg);
   border: 1px solid var(--fi-maroon);
-  padding: 6px 16px;
+  padding: 0.4rem 1rem;
   letter-spacing: 0.3em;
 }
 
@@ -522,63 +526,59 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 18px;
+  gap: 1.1rem;
   text-align: center;
   background: rgb(0 0 0 / 78%);
   pointer-events: auto;
-  padding: 16px;
+  padding: 1rem;
 }
 
 .bv-intro h2 {
   margin: 0;
-  letter-spacing: 0.3em;
+  letter-spacing: 0.28em;
   text-shadow: 4px 4px 0 var(--fi-black-shadow);
 }
 
 .bv-intro-note {
   margin: 0;
-  max-width: 480px;
-  letter-spacing: 0.05em;
+  max-width: 30rem;
+  letter-spacing: 0.06em;
   line-height: 1.7;
 }
 
-/* A 1px grid without border-collapse, which splits each border across two
-   cells and leaves the text half a pixel off. */
 .bv-controls {
-  border-collapse: separate;
-  border-spacing: 0;
-  border-top: 1px solid var(--fi-surface);
-  border-left: 1px solid var(--fi-surface);
-  letter-spacing: 0.05em;
+  border-collapse: collapse;
+  letter-spacing: 0.06em;
 }
 
 .bv-controls th,
 .bv-controls td {
-  border-right: 1px solid var(--fi-surface);
-  border-bottom: 1px solid var(--fi-surface);
   white-space: nowrap;
 }
 
 .bv-controls th {
-  padding: 4px 10px;
+  border: 1px solid var(--fi-surface);
+  padding: 0.25rem 0.6rem;
   text-align: right;
+  font-weight: 700;
 }
 
 .bv-controls td {
-  padding: 4px 14px 4px 6px;
+  border: 1px solid var(--fi-surface);
+  padding: 0.25rem 0.9rem 0.25rem 0.4rem;
   text-align: left;
 }
 
 .bv-intro-actions {
   display: flex;
-  gap: 13px;
+  gap: 0.8rem;
 }
 
 .bv-btn {
   font: inherit;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  padding: 9px 18px;
+  padding: 0.55rem 1.1rem;
   background: var(--fi-surface);
   border: 1px solid var(--fi-paper-light);
   box-shadow: 4px 4px 0 var(--fi-black-shadow);
@@ -589,6 +589,22 @@
   background: var(--fi-green);
   color: var(--fi-bg);
   border-color: var(--fi-green);
+}
+
+/* A button whose label changes (hud.ts setBegin) holds every label in one
+   grid cell, the inactive ones invisible, so it keeps the width of the
+   longest and never jumps. */
+.bv-btn--stack {
+  display: inline-grid;
+  justify-items: center;
+}
+
+.bv-btn--stack > * {
+  grid-area: 1 / 1;
+}
+
+.bv-btn-label--off {
+  visibility: hidden;
 }
 
 .bv-btn:hover {
@@ -651,8 +667,8 @@
 }
 
 .bv-splash-hint {
-  font-family: var(--bv-font, 'Small Pixel 7', system-ui, sans-serif);
-  font-size: var(--bv-text-size, 20px);
+  font-family: var(--bv-font, 'Inter', system-ui, sans-serif);
+  font-size: var(--bv-text-size, 1rem);
   color: var(--bv-eggshell);
   opacity: 0.6;
   user-select: none;
@@ -667,8 +683,8 @@
   inset: 0;
   z-index: 9;
   background: #000;
-  font-family: var(--bv-font, 'Small Pixel 7', system-ui, sans-serif);
-  font-size: var(--bv-text-size, 20px);
+  font-family: var(--bv-font, 'Inter', system-ui, sans-serif);
+  font-size: var(--bv-text-size, 1rem);
   color: var(--bv-eggshell);
 }
 
@@ -695,26 +711,26 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
-  padding: 16px 16px 32px;
+  gap: 0.9rem;
+  padding: 1rem 1rem 2rem;
   text-align: center;
 }
 
 .bv-select-ui h2 {
   position: fixed;
-  top: 32px;
+  top: 2rem;
   left: 0;
   right: 0;
   margin: 0;
   font-size: inherit;
-  letter-spacing: 0.3em;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
   text-shadow: 4px 4px 0 var(--fi-black-shadow);
 }
 
 .bv-select-name {
   margin: 0;
-  letter-spacing: 0.3em;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
   text-shadow: 4px 4px 0 var(--fi-black-shadow);
 }
@@ -722,7 +738,7 @@
 /* Who you raid as, under the character's name, with a way out. */
 .bv-select-as {
   margin: 0;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
 }
 
 .bv-select-as b {
@@ -789,10 +805,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  padding: 1rem;
   background: #000;
-  font-family: var(--bv-font, 'Small Pixel 7', system-ui, sans-serif);
-  font-size: var(--bv-text-size, 20px);
+  font-family: var(--bv-font, 'Inter', system-ui, sans-serif);
+  font-size: var(--bv-text-size, 1rem);
   color: var(--bv-eggshell);
 }
 
@@ -809,16 +825,16 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 1rem;
   max-width: 34rem;
   margin: 0;
   text-align: center;
 }
 
 .bv-account-ui h2 {
-  margin: 0 0 8px;
+  margin: 0 0 0.5rem;
   font-size: inherit;
-  letter-spacing: 0.3em;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
   text-shadow: 4px 4px 0 var(--fi-black-shadow);
 }
@@ -832,7 +848,7 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 13px;
+  gap: 0.8rem;
   min-width: min(18rem, 100%);
 }
 
@@ -844,8 +860,12 @@
 .bv-account-status {
   margin: 0;
   font-size: 0.75em;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   opacity: 0.8;
+
+  /* One line held even when empty, so a status coming and going never
+     moves the panel. */
+  min-height: 1lh;
 }
 
 .bv-account-status[data-tone='ok'] {
@@ -867,7 +887,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 10px;
+  gap: 0.6rem;
 }
 
 .bv-gate {
@@ -895,7 +915,7 @@
 }
 
 .bv-panel h3 {
-  margin: 8px 0 0;
+  margin: 0.5rem 0 0;
   font-size: 0.75em;
   letter-spacing: 0.2em;
   text-transform: uppercase;
@@ -905,7 +925,7 @@
 .bv-panel-who {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 0.9rem;
 }
 
 .bv-avatar {
@@ -925,7 +945,7 @@
 .bv-panel-linked {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0.6rem;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -940,7 +960,7 @@
 
 /* A provider's name in its own color's edge, like its sign-in button. */
 .bv-chip {
-  padding: 2px 8px;
+  padding: 0.15rem 0.5rem;
   font-size: 0.75em;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -964,8 +984,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 13px;
-  padding: 24px 16px;
+  gap: 0.8rem;
+  padding: 1.5rem 1rem;
   background: rgb(0 0 0 / 92%);
 }
 
@@ -980,7 +1000,7 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 13px;
+  gap: 0.8rem;
 }
 
 /* The select's buttons, and the account step's above it. */
@@ -1004,7 +1024,7 @@
 
 .bv-select-hint {
   margin: 0;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   opacity: 0.6;
 }
 

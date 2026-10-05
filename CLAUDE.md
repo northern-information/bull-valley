@@ -74,7 +74,7 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 - `src/finishes.ts` — pure: the guitar finishes in one table, the saved pick in localStorage, and the random draw; the select shows the row for any character with a guitar on their back
 - `src/cabbages.ts` — pure seeded cabbage placement
 - `src/items.ts` — pure: every item in one table (label, blurb, toasts, tuning, starting count, price in cents); edit items here. Meshes stay in `assets.ts`, keyed by id
-- `src/canvas.ts` — shared 2D canvas helpers (`context2d`, `canvas`, `text`, fonts) for the painted art
+- `src/canvas.ts` — shared 2D canvas helpers (`context2d`, `canvas`, `text`, fonts: `INTER` for UI text, `SERIF`/`SANS` for trade dress) for the painted art
 - `src/packart.ts` — canvas trade-dress art for the cigarette packs
 - `src/drinks.ts` — pure: drink container sizes and the per-family fit height; the drinks themselves (circa 2008, for sale at every Citgo, no effect yet) are entries in `items.ts`
 - `src/canart.ts` — canvas trade-dress art for the drink labels, as they looked circa 2008
@@ -100,6 +100,10 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 - The sound effects are parked too: the `BvAudio` methods other than the title-card cues (`init`, `step`, `use`, `pickup`, `strike`, `setPresence`, `setHeartbeat`, `update`) have no caller, and the item `crackle` field is for them.
 
 Pure logic stays Three-free (like `coords.ts`); Three/DOM glue lives in `truck.ts`/`world.ts`/`hud.ts`. Dev introspection hook: `window.__bv` (raid, truck, graph, shadowmen, mist, net, chat, teleport, hurryTruck).
+
+## Typography
+
+Inter everywhere (`public/fonts/InterVariable.woff2`, one variable file for every weight), self-hosted and preloaded by every page; the tokens are `--bv-font` and `--bv-text-size` (1rem) in `index.html`. The Tab inventory is the one exception: bold Times (`--bv-serif`), after Silent Hill. `boot()` awaits `fontsReady()` before it builds any DOM, and the face is `font-display: block`, so no text ever paints in a fallback and reflows; canvas UI text (the scope, peer name tags) uses `INTER` from `canvas.ts` and draws after the gate. The trade dress on packs, cans, medicine and the Citgo signs keeps its own period faces. A label that changes in place must not resize its box: the Begin button stacks every label in one grid cell (`bv-btn--stack`, `Hud.setBegin`), and the account status holds one line even when empty.
 
 ## Testing in a browser
 

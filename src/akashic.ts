@@ -295,7 +295,7 @@ function selectAsset(id: string): void {
   statsEl.textContent =
     `${asset.id}\n` +
     `${triangleCount(object)} tris\n` +
-    `${m(size.x)} x ${m(size.y)} x ${m(size.z)} m (x, y, z)`
+    `${m(size.x)} × ${m(size.y)} × ${m(size.z)} m (x × y × z)`
 }
 
 function step(delta: number): void {

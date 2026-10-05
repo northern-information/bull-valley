@@ -201,6 +201,26 @@ async function showTitles(audio: BvAudio): Promise<Titles> {
   }
 }
 
+// How long boot waits for Inter before it draws in the fallback face.
+const FONT_TIMEOUT_MS = 3000
+
+// Inter, loaded before any text exists, so nothing paints in a fallback and
+// then reflows when the face lands (index.html preloads it). Canvas text
+// (the scope, name tags) is drawn after boot, so it gets Inter too. A font
+// that never arrives must not hold the game: past the timeout, boot goes on.
+async function fontsReady(): Promise<void> {
+  const timeout = new Promise<void>((resolve) => {
+    setTimeout(resolve, FONT_TIMEOUT_MS)
+  })
+  const load = document.fonts.load('1em Inter').then(
+    () => undefined,
+    (err: unknown) => {
+      console.error('Inter failed to load:', err)
+    }
+  )
+  await Promise.race([load, timeout])
+}
+
 // Sign out, then start over at the sign-in card.
 function signOutAndReload(): void {
   void signOut().then(() => window.location.reload())
@@ -209,6 +229,7 @@ function signOutAndReload(): void {
 async function boot() {
   const root = document.getElementById('bv-root')
   if (!root) throw new Error('Missing #bv-root')
+  await fontsReady()
   const hud = new Hud(root)
   const audio = new BvAudio()
   // Sound effects are off for now; the splash cue is the only audio, and
@@ -221,8 +242,7 @@ async function boot() {
   // pick; the scene builds underneath.
   const titles = showTitles(audio)
   hud.showIntro(true, false)
-  hud.beginBtn.disabled = true
-  hud.beginBtn.textContent = 'Resolving Terrain…'
+  hud.setBegin('loading')
 
   let geo: Geo
   let terrain: TerrainData
@@ -237,7 +257,7 @@ async function boot() {
     ])
   } catch (err) {
     console.error('Shadow Wars failed to load its terrain data:', err)
-    hud.beginBtn.textContent = 'The Valley Will Not Resolve'
+    hud.setBegin('failed')
     return
   }
 
@@ -768,8 +788,7 @@ async function boot() {
   }
 
   // --- Input ---------------------------------------------------------------
-  hud.beginBtn.disabled = false
-  hud.beginBtn.textContent = 'Click to Play'
+  hud.setBegin('play')
   const startWithoutLock = () => {
     // Automation-only: headless browsers refuse pointer lock and the valley is
     // unwalkable without it. Never engages for a human — a silent no-lock
@@ -1404,7 +1423,9 @@ async function boot() {
     world.setBerries(dailyStatus() !== 'picked')
     if (player.locked) {
       hud.prompt(!ended && now >= strikeUntil ? prompt : null)
-    } else if (started && !ended) {
+    } else if (started && !ended && !hud.introShown) {
+      // Lock refused with the pause card down: the view itself is the way
+      // back. While the card shows, its own button says it.
       hud.prompt('Click to Resume')
     } else {
       hud.prompt(null)

@@ -57,7 +57,7 @@ export const PACK = {
   use: { codes: ['KeyE', 'Enter'], key: 'E', label: 'Use' },
   cycle: {
     codes: [...CYCLE_BACK, ...CYCLE_FORWARD],
-    key: '< > / A D',
+    key: '← → / A D',
     label: 'Cycle',
   },
   close: { codes: ['Tab'], key: 'Tab', label: 'Exit' },

@@ -180,8 +180,8 @@ export function mountCharacterSelect({
         // The finish row and its keys belong to a character with a guitar.
         finishRow.hidden = outfit.onBack !== 'guitar'
         hintEl.textContent = finishRow.hidden
-          ? '< > Cycle · Enter Choose'
-          : '< > Cycle · Up / Down Finish · R Randomize · Enter Choose'
+          ? '← → Cycle · Enter Choose'
+          : '← → Cycle · Up / Down Finish · R Randomize · Enter Choose'
       }
 
       const step = (dir: number) => {
