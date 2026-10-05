@@ -43,6 +43,15 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # Brings the accounts database up to the schema in migrations/ before
+      # the Worker that expects it ships. Migrations only add, so the Worker
+      # still running meanwhile is unaffected. Runs against the root config:
+      # after the build, wrangler is redirected to the generated one under
+      # dist/, where the relative migrations_dir would not resolve.
+      - uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: d1 migrations apply bull-valley-accounts --remote -c wrangler.jsonc
       # Bundles the client and the Worker; the plugin writes the deployable
       # wrangler config under dist/ and points `wrangler deploy` at it.
       - run: npm run build
