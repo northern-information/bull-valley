@@ -26,6 +26,7 @@ export type DecalId =
   | 'plaid'
   | 'nin'
   | 'camo'
+  | 'baja'
 
 // Where an outfit prints a decal over the body: across the torso front,
 // across the front of both thighs, or all round both bare arms.
@@ -107,6 +108,7 @@ export type AddonId =
   | 'bandana-tails'
   | 'hood-down'
   | 'kangaroo-pocket'
+  | 'chin-wisps'
 
 export type LimbGroup = 'arm' | 'leg'
 
@@ -145,6 +147,7 @@ export type OutfitId =
   | 'church'
   | 'hanson'
   | 'halatek'
+  | 'jdogg'
   | 'carlsten'
 
 // Dreadlocks hang from a ring round the back and sides of the head, leaving
@@ -173,6 +176,15 @@ const hemSpots = (angles: number[]) =>
   })
 const LONG_SPIKE_SPOTS = hemSpots([-10, 30, 150, 190, 220, 250, 280, 310, 340])
 const SHORT_SPIKE_SPOTS = hemSpots([10, 170, 205, 235, 265, 295, 325])
+
+// Wisps hang from under the jaw in an uneven row, a few too far apart to
+// meet: the beard that never filled in.
+const WISP_SPOTS: Vec3[] = [
+  [-0.05, 0.05, 0.05],
+  [-0.018, 0.04, 0.066],
+  [0.012, 0.038, 0.068],
+  [0.052, 0.048, 0.048],
+]
 
 // Extra parts on the body. joint names a pivot from poses.ts JOINTS; slot
 // picks the color. A part is either a loft (rings of [y, rx, rz, cz]: height,
@@ -495,6 +507,17 @@ export const ADDONS: Record<AddonId, Addon> = {
     box: [0.24, 0.11, 0.03],
     offset: [0, 0.1, 0.115],
   },
+  // Thin, uneven wisps under the chin, in the hair color.
+  'chin-wisps': {
+    joint: 'neck',
+    slot: 'hair',
+    sides: 4,
+    rings: [
+      [0.012, 0.013, 0.011, 0],
+      [-0.055, 0.003, 0.003, 0.012],
+    ],
+    offsets: WISP_SPOTS,
+  },
   hood: {
     joint: 'neck',
     slot: 'coat',
@@ -659,6 +682,34 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     baggy: 1.25,
     patterns: { pants: 'camo' },
     prints: { torso: ['nin'] },
+  },
+  // A stoner: greasy hair to the shoulders, glasses, a beard that never
+  // filled in, a Baja hoodie with the hood down, and baggy jeans.
+  jdogg: {
+    label: 'Jdogg',
+    colors: {
+      skin: '#ebcbb0',
+      hair: '#5a4630',
+      // The Baja's ground; the pattern paints the stripes.
+      shirt: '#d9cfb8',
+      pants: '#4a6286',
+      boots: '#3a3630',
+      glasses: '#16181c',
+      // Barely darker than the skin: a shadow that never grew in.
+      stubble: '#c9a587',
+    },
+    addons: [
+      'long-hair',
+      'glasses',
+      'glasses-arms',
+      'stubble',
+      'chin-wisps',
+      'hood-down',
+      'kangaroo-pocket',
+    ],
+    loose: 1.2,
+    baggy: 1.2,
+    patterns: { shirt: 'baja' },
   },
   // The Citgo clerk, behind every counter. Not on the select roster.
   carlsten: {

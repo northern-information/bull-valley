@@ -9,7 +9,7 @@ import {
 import { JOINTS } from '../../src/poses.ts'
 
 describe('outfits', () => {
-  it('has the nine characters', () => {
+  it('has the ten characters', () => {
     expect(OUTFIT_IDS).toEqual([
       'marx',
       'player',
@@ -19,6 +19,7 @@ describe('outfits', () => {
       'church',
       'hanson',
       'halatek',
+      'jdogg',
       'carlsten',
     ])
   })
@@ -44,6 +45,25 @@ describe('outfits', () => {
     expect(chris.sleeves).toBeUndefined()
     expect(chris.loose).toBeGreaterThan(1)
     expect(chris.baggy).toBeGreaterThan(1)
+  })
+
+  it('dresses Jdogg in a Baja hoodie and a beard that never filled in', () => {
+    const jdogg = OUTFITS.jdogg
+    expect(jdogg.label).toBe('Jdogg')
+    expect(jdogg.addons).toEqual(
+      expect.arrayContaining([
+        'long-hair',
+        'glasses',
+        'glasses-arms',
+        'stubble',
+        'chin-wisps',
+        'hood-down',
+      ])
+    )
+    expect(jdogg.addons).not.toContain('beard')
+    expect(jdogg.patterns?.shirt).toBe('baja')
+    expect(jdogg.sleeves).toBeUndefined()
+    expect(jdogg.loose).toBeGreaterThan(1)
   })
 
   it('dresses David Carlsten for the counter', () => {
