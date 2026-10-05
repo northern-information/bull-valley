@@ -23,9 +23,11 @@
     "pretty": "prettier --write .",
     "format:check": "prettier --check .",
     "fetch:data": "node scripts/fetch_bull_valley.cjs",
+    "db:migrate": "wrangler d1 migrations apply bull-valley-accounts --local -c wrangler.jsonc",
     "images": "scripts/images.sh"
   },
   "dependencies": {
+    "jose": "6.2.12",
     "three": "0.186.1"
   },
   "devDependencies": {

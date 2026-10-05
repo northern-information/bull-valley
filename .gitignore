@@ -12,3 +12,7 @@ public/data/**/*.tmp
 # Wrangler state and the generated runtime types (npm run types).
 .wrangler/
 worker-configuration.d.ts
+# Local secrets for the Worker (see .dev.vars.example).
+.dev.vars
+.dev.vars.*
+!.dev.vars.example

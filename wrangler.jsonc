@@ -29,4 +29,22 @@
     "bindings": [{ "name": "VALLEY", "class_name": "ValleyDO" }],
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ValleyDO"] }],
+  // Where sign-in round trips land and what the OAuth providers redirect
+  // back to. A dev server uses its own origin instead (worker/env.ts).
+  "vars": {
+    "APP_ORIGIN": "https://bvsw.gay",
+  },
+  // Accounts, linked providers and usernames (worker/d1accounts.ts). The
+  // schema is migrations/*.sql; the deploy workflow applies it before each
+  // deploy, and `npm run db:migrate` applies it to the dev server's copy.
+  // The secrets beside it (JWT_SECRET and each provider's client id and
+  // secret) are set with `wrangler secret put`, never written here.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bull-valley-accounts",
+      "database_id": "REPLACE-WITH-THE-ID-FROM-wrangler-d1-create",
+      "migrations_dir": "migrations",
+    },
+  ],
 }
