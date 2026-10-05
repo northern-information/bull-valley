@@ -158,8 +158,8 @@ describe('validateRedirect', () => {
 describe('landingUrl', () => {
   it('adds the auth flag to the kept query', () => {
     expect(
-      landingUrl('https://bvsw.gay', '/?valley=a', { auth: 'success' })
-    ).toBe('https://bvsw.gay/?valley=a&auth=success')
+      landingUrl('https://bvsw.net', '/?valley=a', { auth: 'success' })
+    ).toBe('https://bvsw.net/?valley=a&auth=success')
     expect(landingUrl('http://localhost:5174', null, { auth: 'linked' })).toBe(
       'http://localhost:5174/?auth=linked'
     )
@@ -167,7 +167,7 @@ describe('landingUrl', () => {
 
   it('carries an error message', () => {
     expect(
-      landingUrl('https://bvsw.gay', '/auth-done.html', { error: 'no go' })
-    ).toBe('https://bvsw.gay/auth-done.html?auth_error=no+go')
+      landingUrl('https://bvsw.net', '/auth-done.html', { error: 'no go' })
+    ).toBe('https://bvsw.net/auth-done.html?auth_error=no+go')
   })
 })
