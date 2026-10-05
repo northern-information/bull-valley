@@ -13,7 +13,7 @@ import {
   attachCigarette,
   buildFigure,
 } from './figure.ts'
-import { samplePose } from './poses.ts'
+import { POSES, samplePose } from './poses.ts'
 import { createWalker } from './roadgraph.ts'
 import type { CigaretteRig, Figure } from './figure.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
@@ -81,6 +81,7 @@ const BED_SEATS: readonly [number, number][] = [
 // comes out of the Citgo, reading his paperback; the book goes away when
 // he takes the wheel.
 const SEAT_HIP_Y = 1.0
+const TAILGATE: XZ = { x: 0.8, z: -3.2 }
 function placeDriver(
   driver: Figure,
   book: THREE.Group,
@@ -89,7 +90,7 @@ function placeDriver(
   book.visible = post === 'tailgate'
   if (post === 'tailgate') {
     applyPose(driver, samplePose('read'))
-    driver.group.position.set(0.8, 0, -3.2)
+    driver.group.position.set(TAILGATE.x, 0, TAILGATE.z)
     driver.group.rotation.y = Math.PI - 0.5
   } else {
     applyPose(driver, samplePose('sit'))
@@ -97,6 +98,23 @@ function placeDriver(
     driver.group.rotation.y = 0
   }
 }
+
+// When the truck leaves from the lobby, Matthew Marx puts the book away
+// and walks from the tailgate round the rear corner and up the driver
+// side to his door, truck-local, and the truck holds until he is in.
+const TO_DOOR: readonly XZ[] = [
+  TAILGATE,
+  { x: 1.4, z: -3.0 },
+  { x: 1.4, z: 0.7 },
+]
+const WALK_SPEED = 1.4 // m/s, an easy stroll
+// Metres covered by one full walk cycle; the stride in playerbody.ts.
+const STRIDE = 1.5
+const TO_DOOR_SECONDS =
+  TO_DOOR.slice(1).reduce(
+    (sum, p, i) => sum + Math.hypot(p.x - TO_DOOR[i].x, p.z - TO_DOOR[i].z),
+    0
+  ) / WALK_SPEED
 
 export class Truck {
   groundAt: HeightAt
@@ -111,7 +129,14 @@ export class Truck {
   driver: Figure
   cigarette: CigaretteRig
   book: THREE.Group
+  post: DriverPost
+  // Matthew Marx's walk to the door before this route, or null when he
+  // is already at the wheel; the route holds for TO_DOOR_SECONDS.
+  toDoor: Walker | null
+  toDoorWalked: number
   time: number
+  // Seconds since the current route started; negative before it does.
+  elapsed: number
   // When set, the route is driven against the clock: the distance covered
   // is speed × seconds since this local ms, so every client that knows the
   // departure time agrees where the truck is. Null drives by frame time.
@@ -137,7 +162,11 @@ export class Truck {
     this.driver = model.driver
     this.cigarette = model.cigarette
     this.book = model.book
+    this.post = 'cab'
+    this.toDoor = null
+    this.toDoorWalked = 0
     this.time = 0
+    this.elapsed = 0
     this.startedAt = null
     this.travelled = 0
     this.updatedAt = 0
@@ -156,6 +185,7 @@ export class Truck {
   // Matthew Marx reads at the tailgate while the truck is parked for the
   // loadout; any drive puts him back at the wheel.
   setDriverPost(post: DriverPost): void {
+    this.post = post
     placeDriver(this.driver, this.book, post)
   }
 
@@ -164,11 +194,19 @@ export class Truck {
     speed: number = CONFIG.truck.speed
   ) {
     if (!points || points.length < 2) return
-    placeDriver(this.driver, this.book, 'cab')
+    if (this.post === 'tailgate') {
+      this.toDoor = createWalker(TO_DOOR)
+      this.toDoorWalked = 0
+      this.book.visible = false
+    } else {
+      this.toDoor = null
+      this.setDriverPost('cab')
+    }
     this.walker = createWalker(points)
     this.speed = speed
     this.moving = true
     this.startedAt = null
+    this.elapsed = 0
     this.travelled = 0
   }
 
@@ -195,11 +233,18 @@ export class Truck {
     this.driver.joints.neck.rotation.y =
       Math.sin(this.time * 0.35) * Math.max(0, Math.sin(this.time * 0.11)) * 0.6
     if (this.walker && this.moving) {
-      let metres = this.speed * dt
-      if (this.startedAt !== null) {
-        const due = (this.speed * (nowMs - this.startedAt)) / 1000
-        metres = Math.max(0, due - this.travelled)
+      this.elapsed =
+        this.startedAt === null
+          ? this.elapsed + dt
+          : (nowMs - this.startedAt) / 1000
+      let hold = 0
+      if (this.post === 'tailgate' && this.toDoor) {
+        hold = TO_DOOR_SECONDS
+        if (this.elapsed < hold) this.walkToDoor(this.elapsed)
+        else this.setDriverPost('cab')
       }
+      const due = this.speed * Math.max(0, this.elapsed - hold)
+      const metres = Math.max(0, due - this.travelled)
       this.travelled += metres
       const s = this.walker.advance(metres)
       this.x = s.x
@@ -215,6 +260,20 @@ export class Truck {
       moving: this.moving,
       done: !!this.walker && !this.moving,
     }
+  }
+
+  // Matthew Marx some seconds into his walk to the door.
+  walkToDoor(seconds: number): void {
+    if (!this.toDoor) return
+    const metres = WALK_SPEED * Math.max(0, seconds)
+    const s = this.toDoor.advance(metres - this.toDoorWalked)
+    this.toDoorWalked = metres
+    applyPose(
+      this.driver,
+      samplePose('walk', (metres / STRIDE) * POSES.walk.seconds)
+    )
+    this.driver.group.position.set(s.x, 0, s.z)
+    this.driver.group.rotation.y = Math.atan2(s.dirX, s.dirZ)
   }
 
   pose() {
