@@ -16,7 +16,7 @@ import {
 import { POSES, samplePose } from './poses.ts'
 import { createWalker } from './roadgraph.ts'
 import type { CigaretteRig, Figure } from './figure.ts'
-import type { HeightAt, XZ } from './interfaces.ts'
+import type { HeightAt, Vec3, XZ } from './interfaces.ts'
 import type { RoadPoint, Walker } from './roadgraph.ts'
 
 export interface TruckOptions {
@@ -60,6 +60,61 @@ function buildTruck(): TruckModel {
   const book = attachBook(driver)
   placeDriver(driver, book, 'cab')
   return { group, driver, cigarette, book }
+}
+
+// The light the lamps throw, truck-local: one shadow-casting spot for the
+// pair of headlights, low and down the road ahead, and one red spot for
+// the taillights, back over the ground behind. One spot per pair keeps it
+// to two shadow passes a frame. Physical units, like the station lights.
+interface Lamp {
+  color: string
+  intensity: number
+  distance: number
+  angle: number
+  penumbra: number
+  at: Vec3
+  aim: Vec3
+}
+const LAMPS: readonly Lamp[] = [
+  {
+    color: '#fbe7a3',
+    intensity: 900,
+    distance: 60,
+    angle: 0.55,
+    penumbra: 0.45,
+    at: [0, 0.95, 2.95],
+    aim: [0, 0.4, 30],
+  },
+  {
+    color: '#ff2a1a',
+    intensity: 60,
+    distance: 12,
+    angle: 1.0,
+    penumbra: 0.6,
+    at: [0, 1.15, -2.95],
+    aim: [0, 0, -7],
+  },
+]
+const LAMP_SHADOW_MAP = 512
+function attachLamps(group: THREE.Group): void {
+  for (const lamp of LAMPS) {
+    const spot = new THREE.SpotLight(
+      lamp.color,
+      lamp.intensity,
+      lamp.distance,
+      lamp.angle,
+      lamp.penumbra
+    )
+    spot.position.set(...lamp.at)
+    spot.target.position.set(...lamp.aim)
+    spot.castShadow = true
+    spot.shadow.mapSize.set(LAMP_SHADOW_MAP, LAMP_SHADOW_MAP)
+    spot.shadow.camera.near = 0.2
+    spot.shadow.camera.far = lamp.distance
+    spot.shadow.bias = -0.001
+    spot.shadow.normalBias = 0.03
+    group.add(spot, spot.target)
+  }
 }
 
 // A working vector for bedSeat(); its value never leaves the method.
@@ -151,6 +206,7 @@ export class Truck {
     const model = buildTruck()
     this.group = model.group
     castShadows(this.group)
+    attachLamps(this.group)
     scene.add(this.group)
     this.walker = null
     this.speed = CONFIG.truck.speed
@@ -274,6 +330,12 @@ export class Truck {
     )
     this.driver.group.position.set(s.x, 0, s.z)
     this.driver.group.rotation.y = Math.atan2(s.dirX, s.dirZ)
+  }
+
+  // True once the current route covers ground: after Matthew Marx's walk
+  // to the door, if he had one.
+  rolling(): boolean {
+    return this.walker !== null && this.travelled > 0
   }
 
   pose() {

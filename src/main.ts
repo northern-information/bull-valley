@@ -566,6 +566,10 @@ async function boot() {
       net.send({ type: 'extract', kind: raid.extract })
   }
 
+  // Lines that wait for the truck to roll: Matthew Marx walks from the
+  // tailgate to his door first, and the truck holds until he is in.
+  let onTruckRolls: string[] = []
+
   const truckLeaves = () => {
     truck.driveRoute(departRoute)
   }
@@ -586,8 +590,8 @@ async function boot() {
     if (next === raid) return
     raid = next
     truckLeaves()
-    hud.toast('You climb into the bed. Marx pulls out.')
-    hud.toast('E hops out. Anywhere you like.')
+    hud.toast('You climb into the bed.')
+    onTruckRolls = ['Marx pulls out.', 'E hops out. Anywhere you like.']
     closeInventory()
   }
 
@@ -998,10 +1002,9 @@ async function boot() {
           raidClock
         )
         if (rider) {
-          hud.toast('Marx pulls out.')
-          hud.toast('E hops out. Anywhere you like.')
+          onTruckRolls = ['Marx pulls out.', 'E hops out. Anywhere you like.']
         } else if (reason === 'depart') {
-          hud.toast('Taillights. The truck leaves without you.')
+          onTruckRolls = ['Taillights. The truck leaves without you.']
         } else {
           hud.toast('The truck is long gone. You are on foot.')
         }
@@ -1275,7 +1278,7 @@ async function boot() {
     ) {
       raid = advance(raid, EVENTS.TIMER_EXPIRED, raidClock)
       truckLeaves()
-      hud.toast('Taillights. The truck leaves without you.')
+      onTruckRolls = ['Taillights. The truck leaves without you.']
     }
 
     let forward = ridingForward
@@ -1326,6 +1329,10 @@ async function boot() {
         crouching,
       })
       truck.update(dt, now)
+    }
+    if (onTruckRolls.length && truck.rolling()) {
+      for (const line of onTruckRolls) hud.toast(line)
+      onTruckRolls = []
     }
 
     // The shadowmen cross whatever the raid is doing, but only rush and touch

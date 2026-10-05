@@ -146,5 +146,7 @@ export function buildTerrainMesh(
   )
   const mesh = new THREE.Mesh(geometry, material)
   mesh.name = 'terrain'
+  // The truck's headlights throw shadows across the fields too.
+  mesh.receiveShadow = true
   return mesh
 }
