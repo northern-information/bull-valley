@@ -27,6 +27,8 @@
 //                    96×48: six checks round, three up.
 //   camo             woodland blots over the pants color. 96×48, tiling
 //                    round the seam.
+//   baja             a Baja hoodie's woven stripes, running up the body
+//                    over the shirt color. 96×48: four repeats round.
 // A face (a box add-on's decal) is opaque and covers the box's front face:
 //   russ             the belt buckle face: gold letters on a dark plate.
 
@@ -401,6 +403,29 @@ function camo(colors: Outfit['colors']): CanvasArt {
   return art
 }
 
+// A Baja hoodie: a band of stripes up the body every quarter of the way
+// round (maroon, black, teal, black, maroon) on the woven ground. 96 is four
+// repeats of 24, so the wrap closes clean.
+function baja(colors: Outfit['colors']): CanvasArt {
+  const art = canvas(PATTERN, colors.shirt)
+  const { ctx, w, h } = art
+  const repeat = 24
+  const band: [number, number, string][] = [
+    [0, 3, '#7a2430'],
+    [3, 1, '#16141a'],
+    [4, 3, '#2f6f74'],
+    [7, 1, '#16141a'],
+    [8, 3, '#7a2430'],
+  ]
+  for (let x = 0; x < w; x += repeat) {
+    for (const [at, width, ink] of band) {
+      ctx.fillStyle = ink
+      ctx.fillRect(x + at, 0, width, h)
+    }
+  }
+  return art
+}
+
 export const DECAL_PAINTERS: Record<DecalId, DecalPainter> = {
   'suicide-silence': suicideSilence,
   russ,
@@ -414,6 +439,7 @@ export const DECAL_PAINTERS: Record<DecalId, DecalPainter> = {
   plaid,
   nin,
   camo,
+  baja,
 }
 
 // Tattoos ink only onto skin a layer below already painted.

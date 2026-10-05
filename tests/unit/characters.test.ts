@@ -30,7 +30,7 @@ const throwing: CharacterStorage = {
 }
 
 describe('characters', () => {
-  it('offers the player and the five named characters', () => {
+  it('offers the player and the six named characters', () => {
     expect(SELECTABLE).toEqual([
       'player',
       'coleman',
@@ -38,6 +38,7 @@ describe('characters', () => {
       'church',
       'hanson',
       'halatek',
+      'jdogg',
     ])
   })
 
