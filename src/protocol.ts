@@ -19,7 +19,9 @@ export const WS_PATH = '/ws'
 export const VALLEY_NAME = 'bull-valley'
 export const VALLEY_PARAM = 'valley'
 
-// A player's name: 1 to NAME_MAX characters after normalizeName().
+// A player's name: 1 to NAME_MAX characters after normalizeName(). It is
+// the account's username (account.ts isValidUsername, narrower still),
+// stamped on the socket by the Worker; the client never sends one.
 export const NAME_MAX = 16
 
 // A chat line: 1 to CHAT_MAX characters after normalizeChat().
@@ -129,10 +131,11 @@ export type RaidReason =
 
 // --- Client → server -------------------------------------------------------
 
+// Who is saying hello comes from the session cookie on the upgrade, not
+// from the frame.
 export interface HelloMessage {
   type: 'hello'
   v: number
-  name: string
   outfit: OutfitId
   // How many pickups this build placed, and how many stations. A raid is
   // shared by index into both, so a client built from a different
@@ -334,6 +337,9 @@ export const CLOSE = {
   badVersion: 4004,
   staleBuild: 4005,
   replaced: 4006,
+  // No signed-in account with a username on the upgrade: the client sends
+  // the player back to sign in.
+  unauthenticated: 4007,
   serverError: 4500,
 } as const
 
@@ -435,16 +441,17 @@ export function parseClientMessage(text: string): ClientMessage | null {
   if (!isRecord(value)) return null
   switch (value.type) {
     case 'hello': {
-      const { v, name, outfit, pickups, stations } = value
+      const { v, outfit, pickups, stations } = value
       if (typeof v !== 'number' || !Number.isInteger(v)) return null
-      if (typeof name !== 'string' || typeof outfit !== 'string') return null
+      if (typeof outfit !== 'string') return null
       if (!isCount(pickups) || !isCount(stations)) return null
       // The outfit is checked by the server with isOutfitId; the type here
-      // is widened deliberately so a bad id reaches that check.
+      // is widened deliberately so a bad id reaches that check. An older
+      // build's hello still parses (its name is ignored), so it is told its
+      // version is stale rather than that the frame is malformed.
       return {
         type: 'hello',
         v,
-        name,
         outfit: outfit as OutfitId,
         pickups,
         stations,

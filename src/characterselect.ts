@@ -1,24 +1,19 @@
 // The character select: a black overlay with one figure on a PS1
-// turntable, its name, a field for yours, and Previous / Next / Choose. A
+// turntable, its name, the username you raid as (with Sign Out), and
+// Previous / Next / Choose. A
 // character with a guitar on their back also gets the finish row: the
 // finish name, one swatch per finish, and Randomize. It is mounted at boot
 // beneath the title cards, so the logo's reveal uncovers it, and run() arms
 // it once it is showing. The game's renderer does not exist until the
 // terrain resolves, so the turntable draws with its own small renderer,
-// disposed once a character is chosen. The roster and the saved pick and
-// name come from characters.ts; the finishes and theirs from finishes.ts;
-// the bodies from figure.ts; the name rules from protocol.ts, since the
-// valley server applies them too.
+// disposed once a character is chosen. The roster and the saved pick come
+// from characters.ts; the finishes and theirs from finishes.ts; the bodies
+// from figure.ts. The username is the account's, settled by the account
+// step (signin.ts) before this runs.
 
 import * as THREE from 'three'
 import { stepIndex } from './carousel.ts'
-import {
-  loadCharacter,
-  loadName,
-  saveCharacter,
-  saveName,
-  SELECTABLE,
-} from './characters.ts'
+import { loadCharacter, saveCharacter, SELECTABLE } from './characters.ts'
 import { applyPose, buildFigure } from './figure.ts'
 import {
   FINISHES,
@@ -29,7 +24,6 @@ import {
 } from './finishes.ts'
 import { outfitById } from './outfits.ts'
 import { samplePose } from './poses.ts'
-import { isValidName, NAME_MAX, normalizeName } from './protocol.ts'
 import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import type { CharacterPick, CharacterStorage } from './characters.ts'
 
@@ -43,12 +37,14 @@ export interface CharacterSelectConfig {
 export interface CharacterSelectOptions {
   storage: CharacterStorage
   config: CharacterSelectConfig
+  // Sign Out was pressed.
+  onSignOut: () => void
 }
 
 export interface CharacterSelect {
-  // Arms the screen and resolves with the chosen outfit and name once the
-  // overlay has faded out and removed itself.
-  run(): Promise<CharacterPick>
+  // Arms the screen for `username` and resolves with the chosen outfit once
+  // the overlay has faded out and removed itself.
+  run(username: string): Promise<CharacterPick>
 }
 
 // Mounts the overlay as the last child of <body>, black and inert until
@@ -56,6 +52,7 @@ export interface CharacterSelect {
 export function mountCharacterSelect({
   storage,
   config,
+  onSignOut,
 }: CharacterSelectOptions): CharacterSelect {
   const root = document.createElement('div')
   root.className = 'bv-select'
@@ -80,13 +77,13 @@ export function mountCharacterSelect({
           <button type="button" class="bv-btn" data-bv="select-randomize">Randomize</button>
         </div>
       </div>
-      <label class="bv-select-field">
-        <span>Your Name</span>
-        <input type="text" data-bv="select-player-name" maxlength="${NAME_MAX}" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="go">
-      </label>
+      <p class="bv-select-as">
+        Raiding as <b data-bv="select-username"></b>
+        <button type="button" class="bv-link" data-bv="select-sign-out">Sign Out</button>
+      </p>
       <div class="bv-select-actions">
         <button type="button" class="bv-btn" data-bv="select-prev">Previous</button>
-        <button type="button" class="bv-btn bv-btn--primary" data-bv="select-choose" disabled>Choose</button>
+        <button type="button" class="bv-btn bv-btn--primary" data-bv="select-choose">Choose</button>
         <button type="button" class="bv-btn" data-bv="select-next">Next</button>
       </div>
       <p class="bv-select-hint"></p>
@@ -109,12 +106,14 @@ export function mountCharacterSelect({
     swatchRow.querySelectorAll<HTMLButtonElement>('[data-finish]')
   )
   const randomizeBtn = find<HTMLButtonElement>('[data-bv="select-randomize"]')
-  const nameInput = find<HTMLInputElement>('[data-bv="select-player-name"]')
+  const usernameEl = find<HTMLElement>('[data-bv="select-username"]')
+  const signOutBtn = find<HTMLButtonElement>('[data-bv="select-sign-out"]')
   const prevBtn = find<HTMLButtonElement>('[data-bv="select-prev"]')
   const nextBtn = find<HTMLButtonElement>('[data-bv="select-next"]')
   const chooseBtn = find<HTMLButtonElement>('[data-bv="select-choose"]')
 
-  function run(): Promise<CharacterPick> {
+  function run(username: string): Promise<CharacterPick> {
+    usernameEl.textContent = username
     return new Promise<CharacterPick>((resolve) => {
       const renderer = createPS1Renderer(canvas)
       const scene = new THREE.Scene()
@@ -152,13 +151,6 @@ export function mountCharacterSelect({
         turntable.add(figure.group)
         return figure
       })
-
-      // The name as it would go over the wire. Choose waits for a valid one.
-      nameInput.value = loadName(storage)
-      const playerName = () => normalizeName(nameInput.value)
-      const checkName = () => {
-        chooseBtn.disabled = chosen || !isValidName(playerName())
-      }
 
       const showFinish = () => {
         const finish = FINISHES[finishIndex]
@@ -210,18 +202,20 @@ export function mountCharacterSelect({
 
       const choose = () => {
         if (chosen) return
-        const name = playerName()
-        if (!isValidName(name)) {
-          nameInput.focus()
-          return
-        }
         chosen = true
         chooseBtn.disabled = true
-        nameInput.disabled = true
+        signOutBtn.disabled = true
         saveCharacter(storage, SELECTABLE[index])
         saveFinish(storage, FINISHES[finishIndex].id)
-        saveName(storage, name)
         fadeStart = performance.now()
+      }
+
+      const signOut = () => {
+        if (chosen) return
+        chosen = true
+        signOutBtn.disabled = true
+        chooseBtn.disabled = true
+        onSignOut()
       }
 
       const resize = () => {
@@ -236,17 +230,6 @@ export function mountCharacterSelect({
       }
 
       const onKey = (e: KeyboardEvent) => {
-        // In the field the keys type; Enter there chooses when the name
-        // is good, and Escape hands the turntable and finish keys back.
-        if (e.target === nameInput) {
-          if (e.code === 'Enter') {
-            e.preventDefault()
-            choose()
-          } else if (e.code === 'Escape') {
-            nameInput.blur()
-          }
-          return
-        }
         if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
           e.preventDefault()
           step(-1)
@@ -288,7 +271,7 @@ export function mountCharacterSelect({
         renderer.dispose()
         renderer.forceContextLoss()
         root.remove()
-        resolve({ outfit: SELECTABLE[index], name: playerName() })
+        resolve({ outfit: SELECTABLE[index] })
       }
 
       prevBtn.addEventListener('click', () => step(-1))
@@ -296,17 +279,13 @@ export function mountCharacterSelect({
       chooseBtn.addEventListener('click', choose)
       randomizeBtn.addEventListener('click', randomize)
       swatchRow.addEventListener('click', onSwatch)
-      nameInput.addEventListener('input', checkName)
+      signOutBtn.addEventListener('click', signOut)
       document.addEventListener('keydown', onKey)
       window.addEventListener('resize', resize)
       resize()
       showFinish()
       show()
-      checkName()
       ui.hidden = false
-      // A first visit starts in the field; a return visit has its name and
-      // can go straight to the turntable keys.
-      if (!nameInput.value) nameInput.focus()
 
       let last = performance.now()
       renderer.setAnimationLoop(() => {

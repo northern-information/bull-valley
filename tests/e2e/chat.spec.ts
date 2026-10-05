@@ -1,5 +1,11 @@
 import { test as base } from '@playwright/test'
-import { beginRaid, expect, freshValley, watchErrors } from './fixtures.ts'
+import {
+  beginRaid,
+  expect,
+  freshRaider,
+  freshValley,
+  watchErrors,
+} from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
 // Two browsers in one valley: Enter opens the chat field, the keys type
@@ -22,9 +28,9 @@ base(
     const errorsA = watchErrors(a)
     const errorsB = watchErrors(b)
 
-    await Promise.all([
-      beginRaid(a, 0, { valley, name: 'Able' }),
-      beginRaid(b, 1, { valley, name: 'Baker' }),
+    const [able] = await Promise.all([
+      beginRaid(a, 0, { valley, raider: freshRaider('Able') }),
+      beginRaid(b, 1, { valley, raider: freshRaider('Baker') }),
     ])
     await expect
       .poll(() => b.evaluate(() => window.__bv?.net.peers().length))
@@ -55,7 +61,7 @@ base(
     await expect.poll(() => lines(b)).toEqual(['wwww cabbages by the keep'])
     await expect.poll(() => lines(a)).toEqual(['wwww cabbages by the keep'])
     await expect(b.getByRole('log', { name: 'Chat' })).toContainText(
-      'Able: wwww cabbages by the keep'
+      `${able.username}: wwww cabbages by the keep`
     )
 
     expect(errorsA).toEqual([])

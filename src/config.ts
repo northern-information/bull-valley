@@ -168,6 +168,9 @@ export const CONFIG = {
     connectTimeoutMs: 2000,
     // Clock-offset pings once online.
     pingMs: 10000,
+    // How long the "signed out" toast shows before the page reloads to the
+    // sign-in card.
+    signedOutReloadMs: 2500,
     // Bed seats before riders double up.
     seats: 4,
   },

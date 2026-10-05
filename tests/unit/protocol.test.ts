@@ -22,7 +22,6 @@ const state = { x: 1.5, y: 0.25, z: -2, yaw: 0.3, pose: 'walk', riding: false }
 const hello = {
   type: 'hello',
   v: PROTOCOL_VERSION,
-  name: 'Dave',
   outfit: 'coleman',
   pickups: 70,
   stations: 5,
@@ -137,9 +136,14 @@ describe('parseClientMessage', () => {
     expect(parse({ type: 'ping', t: 12.5 })).toEqual({ type: 'ping', t: 12.5 })
   })
 
-  it('lets the server judge a bad name or outfit in a hello', () => {
-    const judged = parse({ ...hello, name: '', outfit: 'tuxedo' })
+  it('lets the server judge a bad outfit in a hello', () => {
+    const judged = parse({ ...hello, outfit: 'tuxedo' })
     expect(judged?.type).toBe('hello')
+  })
+
+  it("ignores an older build's name, so its stale version is what is judged", () => {
+    expect(parse({ ...hello, v: 3, name: 'Dave' })).toEqual({ ...hello, v: 3 })
+    expect(parse({ ...hello, name: 7 })).toEqual(hello)
   })
 
   it('parses the raid frames', () => {
@@ -209,7 +213,7 @@ describe('parseClientMessage', () => {
     expect(parse({ type: 'dance' })).toBeNull()
     expect(parse({ type: 'hello', v: '1' })).toBeNull()
     expect(parse({ ...hello, v: 1.5 })).toBeNull()
-    expect(parse({ ...hello, name: 7 })).toBeNull()
+    expect(parse({ ...hello, outfit: 7 })).toBeNull()
     expect(parse({ ...hello, pickups: undefined })).toBeNull()
     expect(parse({ ...hello, pickups: -1 })).toBeNull()
     expect(parse({ ...hello, pickups: 1.5 })).toBeNull()

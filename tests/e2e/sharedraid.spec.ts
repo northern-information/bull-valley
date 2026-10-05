@@ -1,5 +1,11 @@
 import { test as base } from '@playwright/test'
-import { beginRaid, expect, freshValley, watchErrors } from './fixtures.ts'
+import {
+  beginRaid,
+  expect,
+  freshRaider,
+  freshValley,
+  watchErrors,
+} from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
 // Two players in one valley share the raid: the truck waits at the station
@@ -64,8 +70,8 @@ base.describe('a shared raid', { tag: '@valley' }, () => {
       const errorsA = watchErrors(a)
       const errorsB = watchErrors(b)
       await Promise.all([
-        beginRaid(a, 0, { valley, name: 'Able' }),
-        beginRaid(b, 1, { valley, name: 'Baker' }),
+        beginRaid(a, 0, { valley, raider: freshRaider('Able') }),
+        beginRaid(b, 1, { valley, raider: freshRaider('Baker') }),
       ])
       await expect.poll(async () => (await shared(a))?.members.length).toBe(2)
 
@@ -169,8 +175,8 @@ base.describe('a shared raid', { tag: '@valley' }, () => {
     const errorsA = watchErrors(a)
     const errorsB = watchErrors(b)
     await Promise.all([
-      beginRaid(a, 0, { valley, name: 'Able' }),
-      beginRaid(b, 1, { valley, name: 'Baker' }),
+      beginRaid(a, 0, { valley, raider: freshRaider('Able') }),
+      beginRaid(b, 1, { valley, raider: freshRaider('Baker') }),
     ])
     await expect.poll(async () => (await shared(b))?.members.length).toBe(2)
 

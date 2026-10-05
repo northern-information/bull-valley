@@ -1,4 +1,10 @@
-import { beginRaid, expect, test, toCharacterSelect } from './fixtures.ts'
+import {
+  beginRaid,
+  expect,
+  signIn,
+  test,
+  toCharacterSelect,
+} from './fixtures.ts'
 
 test('a raid starts in loadout and the truck leaves on time', async ({
   page,
@@ -86,7 +92,7 @@ test('the chosen character is the body you raid in, and is remembered', async ({
   page,
 }) => {
   // Two steps right of the player: Kvistad.
-  await beginRaid(page, 2)
+  const raider = await beginRaid(page, 2)
   const outfit = () =>
     page.evaluate((): unknown => {
       const body = window.__bv?.scene.getObjectByName('player-body')
@@ -94,61 +100,27 @@ test('the chosen character is the body you raid in, and is remembered', async ({
     })
   expect(await outfit()).toBe('kvistad')
 
+  // Still signed in after a reload, raiding under the account's username.
   await page.reload()
   await toCharacterSelect(page)
   await expect(page.locator('.bv-select-name')).toHaveText('David Kvistad')
-  await expect(page.locator('[data-bv="select-player-name"]')).toHaveValue(
-    'Raider'
+  await expect(page.locator('[data-bv="select-username"]')).toHaveText(
+    raider.username
   )
   // ← wraps from the first character to the last.
   for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowLeft')
   await expect(page.locator('.bv-select-name')).toHaveText('Chris Halatek')
 })
 
-test('a name is required at the character select, and remembered', async ({
-  page,
-}) => {
-  await page.goto('/')
-  await toCharacterSelect(page)
-  const field = page.locator('[data-bv="select-player-name"]')
-  const choose = page.locator('[data-bv="select-choose"]')
-  // A fresh context has no name: the field is focused, Choose is off, and
-  // Enter does nothing.
-  await expect(field).toBeFocused()
-  await expect(choose).toBeDisabled()
-  await page.keyboard.press('Enter')
-  await expect(page.locator('.bv-select')).toHaveCount(1)
-  // Spaces alone are not a name; the first letter is.
-  await field.fill('   ')
-  await expect(choose).toBeDisabled()
-  await field.fill('  Dave   Coleman ')
-  await expect(choose).toBeEnabled()
-  // The field clips at the wire's limit.
-  await field.fill('x'.repeat(30))
-  await expect(field).toHaveValue('x'.repeat(16))
-  await field.fill('Dave  Coleman')
-  await page.keyboard.press('Enter')
-  await expect(page.locator('.bv-select')).toHaveCount(0)
-  expect(
-    await page.evaluate(() =>
-      localStorage.getItem('bull-valley-shadow-wars:v1:name')
-    )
-  ).toBe('Dave Coleman')
-})
-
 test('the guitar finish is picked with Church and remembered', async ({
   page,
 }) => {
+  await signIn(page)
   await page.goto('/')
   await toCharacterSelect(page)
   const row = page.locator('.bv-select-finish')
   const finish = page.locator('.bv-select-finish-name')
   const checked = page.locator('.bv-swatch[aria-checked="true"]')
-  // A fresh context starts in the name field; a name and Escape hand the
-  // keys back to the turntable. Typing the name must not touch the finish.
-  const field = page.locator('[data-bv="select-player-name"]')
-  await field.fill('Russ Warner')
-  await page.keyboard.press('Escape')
   // The player carries no guitar, so there is no row to show.
   await expect(row).toBeHidden()
   // Three steps right of the player: Church, with the EX-400 on his back.
@@ -158,13 +130,8 @@ test('the guitar finish is picked with Church and remembered', async ({
   await expect(finish).toHaveText('Black')
   await expect(checked).toHaveAttribute('aria-label', 'Black')
 
-  // ↓ steps to the next finish; R lands on any other one; letters typed
-  // in the field stay in the field.
+  // ↓ steps to the next finish; R lands on any other one.
   await page.keyboard.press('ArrowDown')
-  await expect(finish).toHaveText('Olympic White')
-  await field.focus()
-  await field.pressSequentially(' Sr')
-  await page.keyboard.press('Escape')
   await expect(finish).toHaveText('Olympic White')
   await page.keyboard.press('KeyR')
   await expect(finish).not.toHaveText('Olympic White')

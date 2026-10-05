@@ -1,16 +1,23 @@
-import { beginRaid, expect, freshValley, test } from './fixtures.ts'
+import {
+  beginRaid,
+  expect,
+  freshRaider,
+  freshValley,
+  test,
+} from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
-// The berry bush on the spawn lot gives each name one berry a day. The
-// valley keeps the record, so a second arrival under the same name finds
-// the bush picked clean. Both tests join one valley, in order, each on a
-// fresh page: booting the game takes most of a minute on CI, so a test
-// boots once. A fresh browser context starts with no saved inventory, so
-// a saved one with a berry in it proves the pick landed.
+// The berry bush on the spawn lot gives each account one berry a day. The
+// valley keeps the record, so a second arrival on the same account finds
+// the bush picked clean. Both tests join one valley as one raider, in
+// order, each on a fresh page: booting the game takes most of a minute on
+// CI, so a test boots once. A fresh browser context starts with no saved
+// inventory, so a saved one with a berry in it proves the pick landed.
 
 test.describe.configure({ mode: 'serial' })
 
 const valley = freshValley('daily')
+const raider = freshRaider('Daily')
 
 const savedInventory = (page: Page) =>
   page.evaluate(() =>
@@ -41,7 +48,7 @@ async function standAtBush(page: Page): Promise<void> {
 test('the berry bush gives one berry, then is picked clean', async ({
   page,
 }) => {
-  await beginRaid(page, 0, { valley })
+  await beginRaid(page, 0, { valley, raider })
   const prompt = page.locator('.bv-prompt')
   expect(await savedInventory(page)).toBeNull()
   expect(await page.evaluate(() => window.__bv?.daily)).toMatchObject({
@@ -68,8 +75,10 @@ test('the berry bush gives one berry, then is picked clean', async ({
   expect(await savedInventory(page)).toContain('"berries":1')
 })
 
-test('the valley remembers the name on the next arrival', async ({ page }) => {
-  await beginRaid(page, 0, { valley })
+test('the valley remembers the account on the next arrival', async ({
+  page,
+}) => {
+  await beginRaid(page, 0, { valley, raider })
   expect(await page.evaluate(() => window.__bv?.daily)).toMatchObject({
     collected: true,
   })
