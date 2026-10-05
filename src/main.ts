@@ -1521,10 +1521,13 @@ async function boot() {
       })
       inventoryView.update(dt, ring, ringIndex)
       renderer.render(inventoryView.scene, inventoryView.camera)
-    } else {
+    } else if (!talking) {
       renderer.render(scene, camera)
       if (player.locked && !ended) glow.render(scene, camera, time)
     }
+    // While Gron talks, his dialog covers the view and draws its own
+    // turntable; the valley runs on behind it undrawn, holding its last
+    // frame, so the page is not drawing two scenes at once.
   })
 
   if (import.meta.env.DEV) {

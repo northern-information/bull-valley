@@ -983,6 +983,10 @@
 /* Gron's dialog (grondialog.ts): the account step's look over the valley,
    your name and your character side by side, stacked on a narrow screen. */
 .bv-gron {
+  /* Auto margins on the dialog centre it when it fits and start it at the
+     top when it does not, so a short window scrolls to all of it; flex
+     centring would push the top out of reach. */
+  align-items: flex-start;
   background: rgb(0 0 0 / 96%);
   overflow-y: auto;
 }
@@ -993,6 +997,7 @@
   align-items: start;
   gap: 20px 36px;
   max-width: none;
+  margin: auto;
 }
 
 .bv-gron-ui > h2,
