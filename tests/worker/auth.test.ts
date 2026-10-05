@@ -416,6 +416,38 @@ describe('confirm-signup and username', () => {
     ).toBe(401)
   })
 
+  it('keeps the character and finish on the account', async () => {
+    const s = new MemoryAccountStore()
+    const jar = new Jar()
+    await signIn(jar, { id: 43, login: 'fortythree' }, s)
+    await call('/auth/confirm-signup', { method: 'POST', jar, store: s })
+    expect((await me(jar, s)).account?.look).toEqual({
+      outfit: null,
+      finish: null,
+    })
+    const put = (body: unknown, j: Jar | undefined = jar) =>
+      call('/auth/look', { method: 'PUT', jar: j, store: s, body })
+    expect((await put({ outfit: 'church', finish: 'cherry' })).res.status).toBe(
+      200
+    )
+    expect((await me(jar, s)).account?.look).toEqual({
+      outfit: 'church',
+      finish: 'cherry',
+    })
+    // Off the roster, out of the table, or missing: refused, nothing moves.
+    expect((await put({ outfit: 'marx', finish: 'cherry' })).res.status).toBe(
+      400
+    )
+    expect((await put({ outfit: 'church', finish: 'plaid' })).res.status).toBe(
+      400
+    )
+    expect((await put({ outfit: 'church' })).res.status).toBe(400)
+    expect((await me(jar, s)).account?.look.outfit).toBe('church')
+    expect(
+      (await put({ outfit: 'church', finish: 'cherry' }, new Jar())).res.status
+    ).toBe(401)
+  })
+
   it('answers whether a handle is free', async () => {
     const s = new MemoryAccountStore()
     const jar = new Jar()

@@ -18,16 +18,19 @@ import type { Page } from '@playwright/test'
 const raid = (page: Page) => page.evaluate(() => window.__bv?.raid)
 const shared = (page: Page) => page.evaluate(() => window.__bv?.shared)
 const prompt = (page: Page) => page.locator('.bv-prompt')
+// The name over the item E would act on.
+const label = (page: Page) => page.locator('.bv-item-label')
 
-// Stand inside the spawn station's Citgo, `back` metres off a facing of
-// `kind`, looking straight at it. Mirrors raid.spec.ts.
+// Stand inside the spawn station's Citgo, `back` metres off unit `unit` of
+// the facing of `kind`, looking straight at it. Mirrors raid.spec.ts.
 async function aimAt(
   page: Page,
   kind: string,
-  back: [number, number]
+  back: [number, number],
+  unit = 1
 ): Promise<void> {
   await page.evaluate(
-    ([target, [bx, bz]]) => {
+    ([target, [bx, bz], slot]) => {
       const bv = window.__bv
       if (!bv) throw new Error('no dev hook')
       const { world, player } = bv
@@ -38,7 +41,7 @@ async function aimAt(
       if (!facing) throw new Error(`no facing: ${target}`)
       const cos = Math.cos(station.yaw)
       const sin = Math.sin(station.yaw)
-      const [fx, fy, fz] = facing.center
+      const [fx, fy, fz] = facing.units[slot]
       player.relocate(fx + cos * bx - sin * bz, fz + sin * bx + cos * bz)
       const eyeY = player.groundY + player.eye
       const dx = fx - player.pos.x
@@ -46,7 +49,7 @@ async function aimAt(
       player.yaw = Math.atan2(-dx, -dz)
       player.pitch = Math.atan2(fy - eyeY, Math.hypot(dx, dz))
     },
-    [kind, back] as const
+    [kind, back, unit] as const
   )
 }
 
@@ -76,16 +79,17 @@ base.describe('a shared raid', { tag: '@valley' }, () => {
       ])
       await expect.poll(async () => (await shared(a))?.members.length).toBe(2)
 
-      // The shelves are shared: A buys a drink at the spawn Citgo, and B's
-      // shelf there is one short. Cash stays each player's own.
+      // The shelves are shared: A buys the first drink of three at the
+      // spawn Citgo, and B's shelf there is short that one. Cash stays each
+      // player's own.
       const spawnIndex = await a.evaluate(() => {
         const { world } = window.__bv!
         return world.fuelPoints.indexOf(world.spawnStation!)
       })
-      const perItem = (await shared(a))!.shelves[spawnIndex].pbr
-      await aimAt(a, 'pbr', [1.3, 0])
-      await expect(prompt(a)).toHaveText(
-        copy('prompts.buy', {
+      const perItem = (await shared(a))!.shelves[spawnIndex].pbr.length
+      await aimAt(a, 'pbr', [1.3, 0], 0)
+      await expect(label(a)).toHaveText(
+        copy('labels.price', {
           item: copy('items.pbr.label'),
           price: '$0.99',
         })
@@ -96,7 +100,7 @@ base.describe('a shared raid', { tag: '@valley' }, () => {
         .toBe(4000 - 99)
       await expect
         .poll(async () => (await shared(b))?.shelves[spawnIndex].pbr)
-        .toBe(perItem - 1)
+        .toEqual([false, ...Array<boolean>(perItem - 1).fill(true)])
       expect(await b.evaluate(() => window.__bv?.cash)).toBe(4000)
 
       // A climbs in and waits; the lobby shows the headcount.
@@ -151,12 +155,13 @@ base.describe('a shared raid', { tag: '@valley' }, () => {
           (p) => p.kind === 'cabbage' && !p.taken
         )
         const spot = bv.world.pickups[i]
-        bv.player.relocate(spot.x + 1, spot.z + 1, bv.player.yaw)
+        // A stride off it, facing it and looking down at it, so its label
+        // is in view.
+        bv.player.relocate(spot.x + 1, spot.z + 1, Math.atan2(1, 1))
+        bv.player.pitch = -0.5
         return i
       })
-      await expect(prompt(a)).toHaveText(
-        copy('prompts.take', { item: copy('prompts.cabbage') })
-      )
+      await expect(label(a)).toHaveText(copy('labels.cabbage'))
       await a.keyboard.press('KeyE')
       await expect.poll(async () => (await raid(a))?.carrying).toBe(1)
       await expect

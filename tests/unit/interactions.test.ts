@@ -3,6 +3,7 @@ import { CONFIG } from '../../src/config.ts'
 import { copy } from '../../src/copy.ts'
 import {
   interactionPrompt,
+  itemLabel,
   pickupLabel,
   resolveInteraction,
 } from '../../src/interactions.ts'
@@ -23,9 +24,17 @@ const keep = { x: -500, z: 0 }
 const bush = { x: -8, z: -8 }
 // A few strides from the bush, like CONFIG.gron.at from CONFIG.daily.bush.
 const gron = { x: -5.6, z: -9 }
+// Moab under each station's sign, station-local CONFIG.moab.at at yaw 0.
+const moabs: NpcSpot[] = [spawnStation, farStation].map((station, i) => ({
+  id: 'moab',
+  x: station.x + CONFIG.moab.at.x,
+  z: station.z + CONFIG.moab.at.z,
+  station: i,
+}))
 const shelf: ShelfSpot = {
   item: 'marlboro',
   station: 1,
+  unit: 0,
   price: 549,
   affordable: true,
 }
@@ -294,6 +303,51 @@ describe('resolveInteraction', () => {
     ).toEqual({ kind: 'board' })
   })
 
+  it('talks to Moab at whichever station he stands, whatever the raid is doing', () => {
+    const atFar = { player: { x: moabs[1].x + 1, z: moabs[1].z } }
+    expect(resolveInteraction(input({ ...atFar, npcs: moabs }))).toEqual({
+      kind: 'speak',
+      npc: 'moab',
+      station: 1,
+    })
+    const atSpawn = { player: { x: moabs[0].x, z: moabs[0].z + 1 } }
+    expect(
+      resolveInteraction(
+        input({ ...atSpawn, npcs: moabs, raid: createRaid(0) })
+      )
+    ).toEqual({ kind: 'speak', npc: 'moab', station: 0 })
+    // Riding past him, E still hops out.
+    const riding = advance(createRaid(0), EVENTS.BOARD_TRUCK, 1)
+    expect(
+      resolveInteraction(input({ ...atFar, npcs: moabs, raid: riding }))
+    ).toEqual({
+      kind: 'hopOut',
+    })
+    expect(resolveInteraction(input(atFar))).toEqual({
+      kind: 'extractFuel',
+      name: farStation.name,
+    })
+  })
+
+  it('puts Moab ahead of the station extract he stands inside', () => {
+    const atMoab = { player: { x: moabs[1].x - 1, z: moabs[1].z } }
+    expect(
+      Math.hypot(atMoab.player.x - farStation.x, atMoab.player.z - farStation.z)
+    ).toBeLessThan(CONFIG.extract.fuelRadius)
+    expect(resolveInteraction(input({ ...atMoab, npcs: moabs }))).toEqual({
+      kind: 'speak',
+      npc: 'moab',
+      station: 1,
+    })
+    const pastReach = {
+      player: { x: moabs[1].x - CONFIG.moab.reach - 0.1, z: moabs[1].z },
+    }
+    expect(resolveInteraction(input({ ...pastReach, npcs: moabs }))).toEqual({
+      kind: 'extractFuel',
+      name: farStation.name,
+    })
+  })
+
   it('puts the stand ahead of a pickup at the same spot', () => {
     const raid = advance(onFoot(), EVENTS.PICK_CABBAGE, 3)
     const pickup: PickupSpot = {
@@ -320,52 +374,83 @@ describe('interactionPrompt', () => {
     expect(interactionPrompt({ kind: 'extractFuel', name: '' })).toBe(
       copy('prompts.extract_station')
     )
-    expect(
-      interactionPrompt({
-        kind: 'pickup',
-        pickup: { x: 0, z: 0, kind: 'joints', count: 2, taken: false },
-      })
-    ).toBe(
-      copy('prompts.take', {
-        item: copy('prompts.pickup_count', {
-          item: copy('items.joints.label'),
-          count: 2,
-        }),
-      })
-    )
-    expect(interactionPrompt({ kind: 'buy', ...shelf })).toBe(
-      copy('prompts.buy', {
-        item: copy('items.marlboro.label'),
-        price: '$5.49',
-      })
-    )
-    expect(
-      interactionPrompt({ kind: 'buy', ...shelf, affordable: false })
-    ).toBe(
-      copy('prompts.buy_short', {
-        item: copy('items.marlboro.label'),
-        price: '$5.49',
-      })
-    )
-    expect(interactionPrompt({ kind: 'collect', status: 'ready' })).toBe(
-      copy('prompts.berry_ready')
-    )
-    expect(interactionPrompt({ kind: 'collect', status: 'picked' })).toBe(
-      copy('prompts.berry_picked')
-    )
-    expect(interactionPrompt({ kind: 'collect', status: 'offline' })).toBe(
-      copy('prompts.berry_offline')
-    )
   })
 
   it('leaves the people you talk to to the glow, with no prompt', () => {
     expect(interactionPrompt({ kind: 'talk' })).toBeNull()
     expect(interactionPrompt({ kind: 'speak', npc: 'carlsten' })).toBeNull()
+    expect(
+      interactionPrompt({ kind: 'speak', npc: 'moab', station: 0 })
+    ).toBeNull()
+  })
+
+  it('leaves items to their labels', () => {
+    const pickup = {
+      x: 0,
+      z: 0,
+      kind: 'joints' as const,
+      count: 2,
+      taken: false,
+    }
+    expect(interactionPrompt({ kind: 'pickup', pickup })).toBeNull()
+    expect(interactionPrompt({ kind: 'buy', ...shelf })).toBeNull()
+    expect(interactionPrompt({ kind: 'collect', status: 'ready' })).toBeNull()
+  })
+})
+
+describe('itemLabel', () => {
+  it('names a pickup, with its count', () => {
+    const pickup = {
+      x: 0,
+      z: 0,
+      kind: 'joints' as const,
+      count: 2,
+      taken: false,
+    }
+    expect(itemLabel({ kind: 'pickup', pickup })).toEqual({
+      text: copy('labels.pickup_count', {
+        item: copy('items.joints.label'),
+        count: 2,
+      }),
+      dim: false,
+    })
+  })
+
+  it('names a shelf unit with its price, dim when the cash falls short', () => {
+    const text = copy('labels.price', {
+      item: copy('items.marlboro.label'),
+      price: '$5.49',
+    })
+    expect(itemLabel({ kind: 'buy', ...shelf })).toEqual({ text, dim: false })
+    expect(itemLabel({ kind: 'buy', ...shelf, affordable: false })).toEqual({
+      text,
+      dim: true,
+    })
+  })
+
+  it('names the bush by how it stands today', () => {
+    expect(itemLabel({ kind: 'collect', status: 'ready' })).toEqual({
+      text: copy('labels.berries'),
+      dim: false,
+    })
+    expect(itemLabel({ kind: 'collect', status: 'picked' })).toEqual({
+      text: copy('labels.berry_picked'),
+      dim: true,
+    })
+    expect(itemLabel({ kind: 'collect', status: 'offline' })).toEqual({
+      text: copy('labels.berry_offline'),
+      dim: true,
+    })
+  })
+
+  it('labels nothing that is not an item', () => {
+    expect(itemLabel({ kind: 'board' })).toBeNull()
+    expect(itemLabel({ kind: 'talk' })).toBeNull()
   })
 
   it('labels a cabbage without a count', () => {
     expect(pickupLabel({ kind: 'cabbage', count: 1 })).toBe(
-      copy('prompts.cabbage')
+      copy('labels.cabbage')
     )
   })
 })

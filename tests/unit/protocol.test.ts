@@ -15,6 +15,7 @@ import {
   parsePeerState,
   parseServerMessage,
   PEER_POSES,
+  PICKUPS_MAX,
   PROTOCOL_VERSION,
 } from '../../src/protocol.ts'
 
@@ -23,7 +24,10 @@ const hello = {
   type: 'hello',
   v: PROTOCOL_VERSION,
   outfit: 'coleman',
-  pickups: 70,
+  pickups: [
+    { kind: 'marlboro', count: 3 },
+    { kind: 'cabbage', count: 1 },
+  ],
   stations: 5,
 }
 
@@ -162,10 +166,15 @@ describe('parseClientMessage', () => {
     expect(parse({ type: 'appearance', outfit: 'tuxedo' })?.type).toBe(
       'appearance'
     )
-    expect(parse({ type: 'buy', station: 2, kind: 'pbr' })).toEqual({
+    expect(parse({ type: 'use', kind: 'joints' })).toEqual({
+      type: 'use',
+      kind: 'joints',
+    })
+    expect(parse({ type: 'buy', station: 2, kind: 'pbr', unit: 1 })).toEqual({
       type: 'buy',
       station: 2,
       kind: 'pbr',
+      unit: 1,
     })
     expect(parse({ type: 'take', index: 3 })).toEqual({
       type: 'take',
@@ -197,11 +206,18 @@ describe('parseClientMessage', () => {
     expect(parse({ type: 'take', index: -1 })).toBeNull()
     expect(parse({ type: 'take', index: 1.5 })).toBeNull()
     expect(parse({ type: 'take' })).toBeNull()
-    expect(parse({ type: 'buy', station: -1, kind: 'pbr' })).toBeNull()
-    expect(parse({ type: 'buy', station: 1.5, kind: 'pbr' })).toBeNull()
-    expect(parse({ type: 'buy', station: 1, kind: '' })).toBeNull()
-    expect(parse({ type: 'buy', station: 1, kind: 7 })).toBeNull()
-    expect(parse({ type: 'buy', station: 1 })).toBeNull()
+    expect(parse({ type: 'buy', station: -1, kind: 'pbr', unit: 0 })).toBeNull()
+    expect(
+      parse({ type: 'buy', station: 1.5, kind: 'pbr', unit: 0 })
+    ).toBeNull()
+    expect(parse({ type: 'buy', station: 1, kind: '', unit: 0 })).toBeNull()
+    expect(parse({ type: 'buy', station: 1, kind: 7, unit: 0 })).toBeNull()
+    expect(parse({ type: 'buy', station: 1, unit: 0 })).toBeNull()
+    expect(parse({ type: 'buy', station: 1, kind: 'pbr' })).toBeNull()
+    expect(parse({ type: 'buy', station: 1, kind: 'pbr', unit: -1 })).toBeNull()
+    expect(parse({ type: 'use', kind: '' })).toBeNull()
+    expect(parse({ type: 'use', kind: 7 })).toBeNull()
+    expect(parse({ type: 'use' })).toBeNull()
     expect(
       parse({ type: 'call', from: { x: 1 }, to: { x: 3, z: 4 } })
     ).toBeNull()
@@ -229,8 +245,22 @@ describe('parseClientMessage', () => {
     expect(parse({ ...hello, v: 1.5 })).toBeNull()
     expect(parse({ ...hello, outfit: 7 })).toBeNull()
     expect(parse({ ...hello, pickups: undefined })).toBeNull()
-    expect(parse({ ...hello, pickups: -1 })).toBeNull()
-    expect(parse({ ...hello, pickups: 1.5 })).toBeNull()
+    expect(parse({ ...hello, pickups: 70 })).toBeNull()
+    expect(parse({ ...hello, pickups: [{ kind: 'joints' }] })).toBeNull()
+    expect(parse({ ...hello, pickups: [{ kind: '', count: 1 }] })).toBeNull()
+    expect(
+      parse({ ...hello, pickups: [{ kind: 'joints', count: 1.5 }] })
+    ).toBeNull()
+    expect(parse({ ...hello, pickups: [null] })).toBeNull()
+    expect(
+      parse({
+        ...hello,
+        pickups: Array.from({ length: PICKUPS_MAX + 1 }, () => ({
+          kind: 'cabbage',
+          count: 1,
+        })),
+      })
+    ).toBeNull()
     expect(parse({ ...hello, stations: undefined })).toBeNull()
     expect(parse({ ...hello, stations: -1 })).toBeNull()
     expect(parse({ type: 'state', ...state, x: NaN })).toBeNull()

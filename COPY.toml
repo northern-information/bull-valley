@@ -3,7 +3,7 @@
 # Each line is a table: the text, and who wrote it.
 #
 #   by = "ai"     an AI wrote it, and no one has revised or approved it yet
-#   by = "tyler"  Tyler wrote it or signed off on it
+#   by = "tyler"  tyler wrote it or signed off on it
 #
 # Edit a text freely; flip `by` to "tyler" when a line is yours. {name} is a
 # placeholder the game fills in: keep the braces and the name. A text in
@@ -20,11 +20,12 @@
 # note keeps its line breaks.
 
 [intro]
-title = { text = "BULL VALLEY SHADOW WARS", by = "ai" }
+title = { text = "BULL VALLEY SHADOW WARS", by = "tyler" }
 note = { text = """
-Matthew Marx leaves in five minutes.
-Ride the bed. Find cabbages.
-Drop them at the Stand. Get out.""", by = "ai" }
+Every night the kingdom crumbles.
+Seek Castle Entropy.
+Find Empress.
+And beware the shadowmen.""", by = "tyler" }
 controls_label = { text = "Controls", by = "ai" }
 fine = { text = "Requires a keyboard and mouse.", by = "ai" }
 
@@ -60,67 +61,67 @@ again = { text = "Raid Again", by = "ai" }
 # The sign-in card (src/signin.ts).
 
 [signin]
-title = { text = "Sign In", by = "ai" }
-lede = { text = "Sign in to raid the valley.", by = "ai" }
-provider = { text = "Sign In with {provider}", by = "ai" }
-unavailable = { text = "Sign-in is not available right now. Try again soon.", by = "ai" }
-unreachable = { text = "The valley cannot be reached. Try again soon.", by = "ai" }
-rules = { text = "3 to 16 letters, digits or underscores", by = "ai" }
+title = { text = "Sign In", by = "tyler" }
+lede = { text = "Sign in to raid the valley.", by = "tyler" }
+provider = { text = "Sign In with {provider}", by = "tyler" }
+unavailable = { text = "Sign-in is not available right now. Try again soon.", by = "tyler" }
+unreachable = { text = "The valley cannot be reached. Try again soon.", by = "tyler" }
+rules = { text = "3 to 16 letters, digits, or underscores.", by = "tyler" }
 
 # Choose Your Username, with the age and terms gates (src/signin.ts).
 
 [username]
-title = { text = "Choose Your Username", by = "ai" }
-lede = { text = "Choose the name the valley will know you by. Gron, by the berry bush, can change it later.", by = "ai" }
-lede_as = { text = "Signed in with {provider} as {who}. Choose the name the valley will know you by. Gron, by the berry bush, can change it later.", by = "ai" }
-field = { text = "Username", by = "ai" }
-checking = { text = "Checking…", by = "ai" }
-limited = { text = "Too many checks. Wait a moment, then type again.", by = "ai" }
-available = { text = "Available", by = "ai" }
-taken = { text = "Taken", by = "ai" }
-age_gate = { text = "I am 13 years or older", by = "ai" }
-terms_gate = { text = "I agree to the", by = "ai" }
-terms_link = { text = "Terms of Service", by = "ai" }
-terms_close = { text = "Close", by = "ai" }
-cancel = { text = "Cancel", by = "ai" }
-confirm = { text = "Confirm", by = "ai" }
-hint = { text = "Enter Confirm · Escape Cancel", by = "ai" }
+title = { text = "What is your name?", by = "tyler" }
+lede = { text = "The one known as Gron can rename you.", by = "tyler" }
+lede_as = { text = "Welcome to Bull Valley Shadow Wars, {who} of {provider}.", by = "tyler" }
+field = { text = "Username", by = "tyler" }
+checking = { text = "Checking...", by = "tyler" }
+limited = { text = "Too many checks. Wait a moment, then try again.", by = "tyler" }
+available = { text = "Available", by = "tyler" }
+taken = { text = "Taken", by = "tyler" }
+age_gate = { text = "I am 13 years or older", by = "tyler" }
+terms_gate = { text = "I agree to the", by = "tyler" }
+terms_link = { text = "Terms of Service", by = "tyler" }
+terms_close = { text = "Close", by = "tyler" }
+cancel = { text = "Cancel", by = "tyler" }
+confirm = { text = "Confirm", by = "tyler" }
+hint = { text = "Enter Confirm · Escape Cancel", by = "tyler" }
 
 # The account panel, opened from the select's Account link
 # (src/accountpanel.ts).
 
 [panel]
-title = { text = "Account", by = "ai" }
-linked = { text = "Linked Accounts", by = "ai" }
-link_another = { text = "Link Another Account", by = "ai" }
-only_way_in = { text = "Only Way In", by = "ai" }
-unlink = { text = "Unlink", by = "ai" }
-unlink_label = { text = "Unlink {provider} ({who})", by = "ai" }
-link = { text = "Link {provider}", by = "ai" }
-linking = { text = "Linking {provider}…", by = "ai" }
-linked_ok = { text = "Linked.", by = "ai" }
-unlinking = { text = "Unlinking…", by = "ai" }
-unlinked = { text = "Unlinked {provider}.", by = "ai" }
-loading = { text = "Loading…", by = "ai" }
-session_ended = { text = "Your session has ended. Sign in again.", by = "ai" }
-sign_out = { text = "Sign Out", by = "ai" }
-close = { text = "Close", by = "ai" }
+title = { text = "Account", by = "tyler" }
+linked = { text = "Linked Accounts", by = "tyler" }
+link_another = { text = "Link Another Account", by = "tyler" }
+only_way_in = { text = "Only Way In", by = "tyler" }
+unlink = { text = "Unlink", by = "tyler" }
+unlink_label = { text = "Unlink {provider} ({who})", by = "tyler" }
+link = { text = "Link {provider}", by = "tyler" }
+linking = { text = "Linking {provider}…", by = "tyler" }
+linked_ok = { text = "Linked.", by = "tyler" }
+unlinking = { text = "Unlinking…", by = "tyler" }
+unlinked = { text = "Unlinked {provider}.", by = "tyler" }
+loading = { text = "Loading…", by = "tyler" }
+session_ended = { text = "Your session has ended. Sign in again.", by = "tyler" }
+sign_out = { text = "Sign Out", by = "tyler" }
+close = { text = "Close", by = "tyler" }
 
 # The character select (src/characterselect.ts). Character and finish names
 # are under [outfits] and [finishes].
 
 [select]
-title = { text = "Choose Your Character", by = "ai" }
-finish = { text = "Guitar Finish", by = "ai" }
-randomize = { text = "Randomize", by = "ai" }
-raiding_as = { text = "Raiding as", by = "ai" }
-account = { text = "Account", by = "ai" }
-sign_out = { text = "Sign Out", by = "ai" }
-previous = { text = "Previous", by = "ai" }
-choose = { text = "Choose", by = "ai" }
-next = { text = "Next", by = "ai" }
-hint = { text = "← → Cycle · Enter Choose", by = "ai" }
-hint_finish = { text = "← → Cycle · Up / Down Finish · R Randomize · Enter Choose", by = "ai" }
+title = { text = "Choose Your Character", by = "tyler" }
+finish = { text = "Guitar Finish", by = "tyler" }
+randomize = { text = "Randomize", by = "tyler" }
+raiding_as = { text = "Raiding as", by = "tyler" }
+account = { text = "Account", by = "tyler" }
+sign_out = { text = "Sign Out", by = "tyler" }
+previous = { text = "Previous", by = "tyler" }
+choose = { text = "Choose", by = "tyler" }
+next = { text = "Next", by = "tyler" }
+hint = { text = "← → Cycle · Enter Choose", by = "tyler" }
+hint_finish = { text = "← → Cycle · Up / Down Finish · R Randomize · Enter Choose", by = "tyler" }
 
 # Toasts: the lines that drift up over the valley (src/main.ts, src/shop.ts).
 
@@ -190,14 +191,6 @@ unload_many = { text = "E — Unload {count} Cabbages", by = "ai" }
 extract_at = { text = "E — End the Raid at {station}", by = "ai" }
 extract_station = { text = "E — End the Raid at the Station", by = "ai" }
 extract_keep = { text = "E — End the Raid at {keep}", by = "ai" }
-take = { text = "E — Take {item}", by = "ai" }
-cabbage = { text = "Cabbage", by = "ai" }
-pickup_count = { text = "{item} ×{count}", by = "ai" }
-buy = { text = "E — Buy {item} for {price}", by = "ai" }
-buy_short = { text = "{item} — {price} (Not Enough Cash)", by = "ai" }
-berry_ready = { text = "E — Pick a Berry", by = "ai" }
-berry_picked = { text = "Berry Bush — Picked Clean Until Midnight", by = "ai" }
-berry_offline = { text = "Berry Bush — No Signal", by = "ai" }
 
 # Lines the game says to the player in the chat log (src/chat.ts).
 
@@ -281,27 +274,41 @@ sign_in_first = { text = "Sign in first", by = "ai" }
 username_rule = { text = "A username is 3 to 16 letters, digits or underscores", by = "ai" }
 username_taken = { text = "That username is taken", by = "ai" }
 username_set = { text = "Your username is already set", by = "ai" }
+look_rule = { text = "Pick a character and a finish from the select", by = "ai" }
+look_failed = { text = "Your character could not be saved", by = "ai" }
 account_not_found = { text = "Account not found", by = "ai" }
 unlink_last = { text = "You cannot unlink your only way to sign in", by = "ai" }
 not_linked = { text = "{provider} is not linked to your account", by = "ai" }
 limited = { text = "Too many tries. Wait a minute and try again.", by = "ai" }
 limited_short = { text = "Too many tries. Wait a minute.", by = "ai" }
 
+# The name over the item E would act on: a pickup, a shelf unit, or the
+# berry bush (src/interactions.ts itemLabel).
+
+[labels]
+cabbage = { text = "Cabbage", by = "ai" }
+pickup_count = { text = "{item} ×{count}", by = "ai" }
+price = { text = "{item} {price}", by = "ai" }
+berries = { text = "Berries", by = "ai" }
+berry_picked = { text = "Picked Clean Until Midnight", by = "ai" }
+berry_offline = { text = "No Signal", by = "ai" }
+
 # Character names, as the select and the name tags show them. Keys
 # match src/outfits.ts.
 
 [outfits]
-marx = { text = "Matthew Marx", by = "ai" }
-player = { text = "Player", by = "ai" }
-shadow = { text = "Shadowman", by = "ai" }
-coleman = { text = "David Coleman", by = "ai" }
-kvistad = { text = "David Kvistad", by = "ai" }
-church = { text = "Kyle Church", by = "ai" }
-hanson = { text = "Justin Hanson", by = "ai" }
-halatek = { text = "Chris Halatek", by = "ai" }
-carlsten = { text = "David Carlsten", by = "ai" }
-jdogg = { text = "Jdogg", by = "ai" }
-gron = { text = "Gron", by = "ai" }
+marx = { text = "Matthew Marx", by = "tyler" }
+player = { text = "Player", by = "tyler" }
+shadow = { text = "Shadowman", by = "tyler" }
+coleman = { text = "David Coleman", by = "tyler" }
+kvistad = { text = "David Kvistad", by = "tyler" }
+church = { text = "Kyle Church", by = "tyler" }
+hanson = { text = "Justin Hanson", by = "tyler" }
+halatek = { text = "Chris Halatek", by = "tyler" }
+carlsten = { text = "David Carlsten", by = "tyler" }
+jdogg = { text = "Jdogg", by = "tyler" }
+gron = { text = "Gron", by = "tyler" }
+moab = { text = "Moab Coldë", by = "ai" }
 
 # Matthew Marx, looked at and spoken to (src/npcs.ts): "O, Whistle an' I'll
 # Come to Ye, My Lad" by Robert Burns, a stanza each time, into the chat log.
@@ -348,35 +355,40 @@ says_3 = { text = "Heard there's been some rolling power outages.", by = "tyler"
 # buttons share their lines with [username] and [select].
 
 [gron]
-says_1 = { text = "Gron sees you. Gron can make you someone else.", by = "ai" }
-says_2 = { text = "The rain follows Gron. Nothing else does. Who will you be?", by = "ai" }
-says_3 = { text = "A new name, a new face. Gron asks nothing for it.", by = "ai" }
-your_name = { text = "Your Name", by = "ai" }
-change_name = { text = "Change Name", by = "ai" }
-name_now = { text = "That is your name now", by = "ai" }
-renamed = { text = "You are {name} now.", by = "ai" }
-your_character = { text = "Your Character", by = "ai" }
-become = { text = "Become", by = "ai" }
-character_now = { text = "This is you now", by = "ai" }
-became = { text = "You are {name} now.", by = "ai" }
-close = { text = "Close", by = "ai" }
+says_1 = { text = "I can make you anything you want.", by = "tyler" }
+says_2 = { text = "Castle Entropy is over yonder tonight.", by = "tyler" }
+says_3 = { text = "Every night the kingdom crumbles...", by = "tyler" }
+your_name = { text = "Your Name", by = "tyler" }
+change_name = { text = "Change Name", by = "tyler" }
+name_now = { text = "That is your name now", by = "tyler" }
+renamed = { text = "You are {name} now.", by = "tyler" }
+your_character = { text = "Your Character", by = "tyler" }
+become = { text = "Become", by = "tyler" }
+character_now = { text = "This is you now", by = "tyler" }
+became = { text = "You are {name} now.", by = "tyler" }
+close = { text = "Close", by = "tyler" }
+
+# What Moab Coldë says under the Citgo sign when you press E beside him.
+
+[moab]
+says = { text = "Gold bullion.", by = "ai" }
 
 # Guitar finishes on the character select. Keys match src/finishes.ts.
 
 [finishes]
-black = { text = "Black", by = "ai" }
-olympic-white = { text = "Olympic White", by = "ai" }
-blood-red = { text = "Blood Red", by = "ai" }
-cherry = { text = "Cherry", by = "ai" }
-tangerine = { text = "Tangerine", by = "ai" }
-gold-top = { text = "Gold Top", by = "ai" }
-forest = { text = "Forest Green", by = "ai" }
-seafoam = { text = "Seafoam", by = "ai" }
-pelham-blue = { text = "Pelham Blue", by = "ai" }
-midnight = { text = "Midnight Blue", by = "ai" }
-grape = { text = "Grape", by = "ai" }
-hot-pink = { text = "Hot Pink", by = "ai" }
-gunmetal = { text = "Gunmetal", by = "ai" }
+black = { text = "Black", by = "tyler" }
+olympic-white = { text = "Olympic White", by = "tyler" }
+blood-red = { text = "Blood Red", by = "tyler" }
+cherry = { text = "Cherry", by = "tyler" }
+tangerine = { text = "Tangerine", by = "tyler" }
+gold-top = { text = "Gold Top", by = "tyler" }
+forest = { text = "Forest Green", by = "tyler" }
+seafoam = { text = "Seafoam", by = "tyler" }
+pelham-blue = { text = "Pelham Blue", by = "tyler" }
+midnight = { text = "Midnight Blue", by = "tyler" }
+grape = { text = "Grape", by = "tyler" }
+hot-pink = { text = "Hot Pink", by = "tyler" }
+gunmetal = { text = "Gunmetal", by = "tyler" }
 
 # Items: the carousel name and description, and the toasts for using,
 # buying, picking, and running out. Ids match src/items.ts.

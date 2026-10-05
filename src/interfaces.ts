@@ -161,8 +161,10 @@ export interface Item {
 // Item id -> count. Every inventory kind is present.
 export type Inventory = Record<string, number>
 
-// Item id -> units left on one Citgo's shelves this raid.
-export type ShopStock = Record<string, number>
+// Item id -> each unit's place on one Citgo's shelf this raid, by slot
+// (store.ts Facing.slots): true while the unit is still there. A buyer
+// picks the unit, so which ones are gone matters, not just how many.
+export type ShopStock = Record<string, boolean[]>
 
 // ---------------------------------------------------------------------------
 // The raid (src/raid.ts).

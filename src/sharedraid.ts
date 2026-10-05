@@ -18,8 +18,11 @@
 // 6. Extracting takes you out of the raid; your figure goes with you.
 // 7. When no one is left in the raid, the valley resets for the next one.
 // 8. The Citgo shelves are shared: a unit one player buys is off the shelf
-//    for everyone, and the shelves fill again with the next lobby. Cash is
-//    each player's own; the valley only keeps count of what is left.
+//    for everyone, and the shelves fill again with the next lobby. The
+//    buyer picks the unit, so the valley keeps which units are left. A
+//    unit is paid for out of the buyer's wallet, which is their account's
+//    and carries from raid to raid; the valley refuses a sale it does not
+//    cover (ValleyContext.cash in, Reduced.spend out).
 // 9. The berry bush gives each account one berry a day, the day turning at
 //    midnight Central (daily.ts), whatever the raid is doing. The valley
 //    remembers only the accounts that have had today's berry. Two sockets
@@ -28,10 +31,21 @@
 // 10. Gron, by the berry bush, changes a raider's name and character at any
 //    time. The change touches only how they are shown: their place in the
 //    raid, their berry and their whistle stay theirs.
+// 11. Every item a raider carries is their account's (the pack), kept by
+//    the valley and never by the client: the day's berry, a pickup that is
+//    not a cabbage, and a unit bought off a shelf go into it, and a use
+//    takes one out. The valley holds the pack; this reducer says what
+//    changes (Reduced.pack) and worker/ValleyDO.ts writes it.
+// 12. What a raider hauls this raid is the valley's too, kept per account
+//    so a reload keeps it: the cabbages in their arms (up to the carry
+//    limit, more with the sack), the cabbages left at the stand, and the
+//    sack. It lasts until the valley resets.
 
 import { CONFIG } from './config.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
-import { freshStock } from './store.ts'
+import { INVENTORY_KINDS, itemById } from './items.ts'
+import { carryLimitFor } from './raid.ts'
+import { freshStock, onShelf, takeUnit } from './store.ts'
 import type { ExtractKind, ShopStock, XZ } from './interfaces.ts'
 import type { OutfitId } from './outfits.ts'
 import type {
@@ -42,6 +56,7 @@ import type {
   MemberWire,
   NackMessage,
   NackRe,
+  PickupSpec,
   RaidMessage,
   RaidReason,
   RaidWire,
@@ -58,6 +73,15 @@ export interface Member {
   boarded: boolean
 }
 
+// Rule 12: one account's haul this raid.
+export interface Cargo {
+  carrying: number
+  delivered: number
+  sack: boolean
+}
+
+const NO_CARGO: Cargo = { carrying: 0, delivered: 0, sack: false }
+
 export interface SharedRaid {
   epoch: number
   phase: 'LOBBY' | 'OUT'
@@ -69,8 +93,12 @@ export interface SharedRaid {
   taken: number[]
   shelves: ShopStock[]
   call: TruckCall | null
-  // How many pickups and stations the build that opened this raid placed.
-  pickups: number
+  // Account -> its cargo. Never on the wire: each member carries their
+  // account's.
+  cargo: Record<string, Cargo>
+  // The pickups and the station count the build that opened this raid
+  // placed.
+  pickups: PickupSpec[]
   stations: number
 }
 
@@ -91,7 +119,7 @@ export type ValleyAction =
       account: string
       name: string
       outfit: OutfitId
-      pickups: number
+      pickups: PickupSpec[]
       stations: number
     }
   | { type: 'leave'; id: string }
@@ -99,10 +127,12 @@ export type ValleyAction =
   | { type: 'unboard'; id: string }
   | { type: 'hop-out'; id: string }
   | { type: 'take'; id: string; index: number }
-  | { type: 'buy'; id: string; station: number; kind: string }
+  | { type: 'buy'; id: string; station: number; kind: string; unit: number }
+  | { type: 'deliver'; id: string }
   | { type: 'call'; id: string; from: XZ; to: XZ }
   | { type: 'extract'; id: string; kind: ExtractKind }
   | { type: 'collect'; id: string }
+  | { type: 'use'; id: string; kind: string }
   // Rule 10: a new name, a new character, or both.
   | { type: 'appearance'; id: string; name?: string; outfit?: OutfitId }
   // The lobby clock ran out.
@@ -117,6 +147,8 @@ export interface ValleyContext {
   // heard does not hold up the truck. On a join, the joiner is not yet
   // among them.
   present: readonly string[]
+  // For a buy: the buyer's wallet in cents, as the valley just read it.
+  cash?: number
 }
 
 export interface Reduced {
@@ -133,10 +165,56 @@ export interface Reduced {
   // A join that must be refused: the client's pickups do not match the
   // raid's, so its indices mean something else.
   reject?: 'stale-build'
+  // Rule 11: what goes into or out of an account's pack. A debit is only
+  // taken when the pack holds the unit; the valley checks.
+  pack?: PackChange
+  // Rule 8: what a sale costs the buyer's wallet. The valley takes it
+  // before the sale stands.
+  spend?: { account: string; amount: number }
+}
+
+export interface PackChange {
+  account: string
+  kind: string
+  // Positive into the pack, negative out of it.
+  delta: number
+}
+
+// Whether `kind` is carried in the pack (items.ts INVENTORY_KINDS). A
+// cabbage rides in the arms and the sack is the raid's, so neither is.
+export function isPackKind(kind: string): boolean {
+  return INVENTORY_KINDS.includes(kind)
+}
+
+function samePickups(a: readonly PickupSpec[], b: readonly PickupSpec[]) {
+  return (
+    a.length === b.length &&
+    a.every((spec, i) => spec.kind === b[i].kind && spec.count === b[i].count)
+  )
 }
 
 export function createValley(): Valley {
   return { epoch: 0, raid: null, members: {}, dailies: {} }
+}
+
+// The valley as an older build stored it, made current: the fresh one
+// fills in newer fields, a raid without cargo hauls nothing, and a raid
+// whose shelves still hold counts rather than units is dropped, so the
+// next lobby stocks them afresh.
+export function restoreValley(stored: Partial<Valley>): Valley {
+  const valley = { ...createValley(), ...stored }
+  const raid = valley.raid
+  if (!raid) return valley
+  const older: Partial<SharedRaid> = raid
+  const shelves: unknown[] = older.shelves ?? []
+  const counted = shelves.some(
+    (shelf) =>
+      typeof shelf !== 'object' ||
+      shelf === null ||
+      Object.values(shelf).some((units) => !Array.isArray(units))
+  )
+  if (counted) return { ...valley, raid: null }
+  return { ...valley, raid: { ...raid, cargo: older.cargo ?? {} } }
 }
 
 // The bush as `account` finds it at `now`: whether today's berry is gone,
@@ -158,9 +236,20 @@ export function toWire(valley: Valley): RaidWire | null {
   const { raid } = valley
   if (!raid) return null
   const members: MemberWire[] = Object.values(valley.members).map(
-    ({ id, name, phase, boarded }) => ({ id, name, phase, boarded })
+    ({ id, account, name, phase, boarded }) => ({
+      id,
+      name,
+      phase,
+      boarded,
+      ...cargoOf(raid, account),
+    })
   )
-  const { pickups: _pickups, stations: _stations, ...rest } = raid
+  const {
+    pickups: _pickups,
+    stations: _stations,
+    cargo: _cargo,
+    ...rest
+  } = raid
   return { ...rest, members }
 }
 
@@ -192,6 +281,14 @@ function allAboard(valley: Valley): boolean {
 
 function withMember(valley: Valley, member: Member): Valley {
   return { ...valley, members: { ...valley.members, [member.id]: member } }
+}
+
+function cargoOf(raid: SharedRaid, account: string): Cargo {
+  return raid.cargo[account] ?? NO_CARGO
+}
+
+function withCargo(raid: SharedRaid, account: string, cargo: Cargo) {
+  return { ...raid, cargo: { ...raid.cargo, [account]: cargo } }
 }
 
 function withRaid(valley: Valley, raid: SharedRaid | null): Valley {
@@ -264,7 +361,7 @@ function freeTruck(
 export function reduce(
   valley: Valley,
   action: ValleyAction,
-  { now, present }: ValleyContext
+  { now, present, cash }: ValleyContext
 ): Reduced {
   switch (action.type) {
     case 'join': {
@@ -294,13 +391,14 @@ export function reduce(
             taken: [],
             shelves: freshStock(action.stations),
             call: null,
+            cargo: {},
             pickups: action.pickups,
             stations: action.stations,
           },
         }
         alarm = loadoutEndsAt
       } else if (
-        next.raid.pickups !== action.pickups ||
+        !samePickups(next.raid.pickups, action.pickups) ||
         next.raid.stations !== action.stations
       ) {
         return { valley, broadcast: [], reject: 'stale-build' }
@@ -415,7 +513,8 @@ export function reduce(
           reply: nack('take', 'not-in-raid', action.index),
         }
       }
-      if (action.index >= raid.pickups) {
+      const spec = raid.pickups[action.index] as PickupSpec | undefined
+      if (!spec) {
         return {
           valley,
           broadcast: [],
@@ -430,22 +529,51 @@ export function reduce(
           reply: nack('take', 'gone', action.index),
         }
       }
-      const next = withRaid(valley, {
-        ...raid,
-        taken: [...raid.taken, action.index],
-      })
-      return {
+      let taken: SharedRaid = { ...raid, taken: [...raid.taken, action.index] }
+      // Rule 12: a cabbage goes in the arms, on foot, while they have room.
+      if (spec.kind === 'cabbage') {
+        const cargo = cargoOf(raid, member.account)
+        if (member.phase !== 'ON_FOOT') {
+          return {
+            valley,
+            broadcast: [],
+            reply: nack('take', 'not-on-foot', action.index),
+          }
+        }
+        if (cargo.carrying >= carryLimitFor(cargo.sack)) {
+          return {
+            valley,
+            broadcast: [],
+            reply: nack('take', 'arms-full', action.index),
+          }
+        }
+        taken = withCargo(taken, member.account, {
+          ...cargo,
+          carrying: cargo.carrying + 1,
+        })
+      }
+      const next = withRaid(valley, taken)
+      const reduced: Reduced = {
         valley: next,
         broadcast: [
           frame(next, 'taken', { by: action.id, index: action.index }),
         ],
       }
+      // Rule 11.
+      if (isPackKind(spec.kind) && spec.count > 0) {
+        reduced.pack = {
+          account: member.account,
+          kind: spec.kind,
+          delta: spec.count,
+        }
+      }
+      return reduced
     }
 
     case 'buy': {
       const member = valley.members[action.id]
       const raid = valley.raid
-      const { station, kind } = action
+      const { station, kind, unit } = action
       const refuse = (reason: string): Reduced => ({
         valley,
         broadcast: [],
@@ -455,18 +583,66 @@ export function reduce(
         return refuse('not-in-raid')
       }
       const shelf = raid.shelves[station] as ShopStock | undefined
-      if (!shelf || !Object.hasOwn(shelf, kind)) return refuse('no-such-shelf')
+      const price = itemById(kind)?.price
+      if (!shelf || !Object.hasOwn(shelf, kind) || price === undefined) {
+        return refuse('no-such-shelf')
+      }
       // Rule 8.
-      if (!(shelf[kind] > 0)) return refuse('sold-out')
+      if (!onShelf(shelf, kind, unit)) return refuse('sold-out')
+      if (cash === undefined || cash < price) {
+        return refuse('short')
+      }
       const shelves = raid.shelves.map((s, i) =>
-        i === station ? { ...s, [kind]: s[kind] - 1 } : s
+        i === station ? takeUnit(s, kind, unit) : s
       )
-      const next = withRaid(valley, { ...raid, shelves })
-      return {
+      let bought: SharedRaid = { ...raid, shelves }
+      // Rule 12: the sack is the raid's, once, before the truck leaves or
+      // on foot after.
+      if (kind === 'sack') {
+        const cargo = cargoOf(raid, member.account)
+        if (cargo.sack) return refuse('have-sack')
+        if (member.phase !== 'LOBBY' && member.phase !== 'ON_FOOT') {
+          return refuse('not-now')
+        }
+        bought = withCargo(bought, member.account, { ...cargo, sack: true })
+      }
+      const next = withRaid(valley, bought)
+      const reduced: Reduced = {
         valley: next,
         broadcast: [
           frame(next, 'bought', { by: action.id, station, item: kind }),
         ],
+        spend: { account: member.account, amount: price },
+      }
+      // Rule 11.
+      if (isPackKind(kind)) {
+        reduced.pack = { account: member.account, kind, delta: 1 }
+      }
+      return reduced
+    }
+
+    case 'deliver': {
+      // Rule 12: everything in the arms, left at the stand.
+      const member = valley.members[action.id]
+      const raid = valley.raid
+      if (!member || !raid || member.phase !== 'ON_FOOT') {
+        return { valley, broadcast: [], reply: nack('deliver', 'not-on-foot') }
+      }
+      const cargo = cargoOf(raid, member.account)
+      if (cargo.carrying === 0) {
+        return { valley, broadcast: [], reply: nack('deliver', 'empty-handed') }
+      }
+      const next = withRaid(
+        valley,
+        withCargo(raid, member.account, {
+          ...cargo,
+          carrying: 0,
+          delivered: cargo.delivered + cargo.carrying,
+        })
+      )
+      return {
+        valley: next,
+        broadcast: [frame(next, 'delivered', { by: action.id })],
       }
     }
 
@@ -562,6 +738,24 @@ export function reduce(
           daily: dailyFor(next, member.account, now),
           picked: true,
         },
+        // Rule 11.
+        pack: { account: member.account, kind: 'berries', delta: 1 },
+      }
+    }
+
+    case 'use': {
+      // Rule 11. Whether the pack holds one is the valley's to check.
+      const member = valley.members[action.id]
+      if (!member) {
+        return { valley, broadcast: [], reply: nack('use', 'not-in-valley') }
+      }
+      if (!isPackKind(action.kind)) {
+        return { valley, broadcast: [], reply: nack('use', 'not-an-item') }
+      }
+      return {
+        valley,
+        broadcast: [],
+        pack: { account: member.account, kind: action.kind, delta: -1 },
       }
     }
 

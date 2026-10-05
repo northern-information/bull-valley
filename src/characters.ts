@@ -1,14 +1,13 @@
-// Who you raid as: the selectable roster, and a localStorage adapter for
-// the last pick. The storage handle is injected so tests can pass a stub;
-// every touch of real storage is wrapped in try/catch (private windows,
-// blocked site data). The bodies themselves are outfits in outfits.ts. The
+// Who you raid as: the selectable roster, and the pick as the account
+// keeps it (account.ts LookWire, PUT /auth/look), so it follows the raider
+// to any browser. The bodies themselves are outfits in outfits.ts. The
 // name you raid under is your account's username (account.ts), not chosen
 // here.
 
+import { DEFAULT_FINISH } from './finishes.ts'
+import type { LookWire } from './account.ts'
+import type { FinishId } from './finishes.ts'
 import type { OutfitId } from './outfits.ts'
-
-// The slice of the Storage API the adapter needs, so tests can stub it.
-export type CharacterStorage = Pick<Storage, 'getItem' | 'setItem'>
 
 // In select-screen order. Marx drives the truck; the shadowmen are not
 // selectable.
@@ -24,32 +23,20 @@ export const SELECTABLE: readonly OutfitId[] = [
 
 export const DEFAULT_CHARACTER: OutfitId = 'player'
 
-const KEY = 'bull-valley-shadow-wars:v1:character'
-
-// The outfit chosen at the select.
+// The character and guitar finish chosen at the select.
 export interface CharacterPick {
   outfit: OutfitId
+  finish: FinishId
 }
 
 export function isSelectable(id: unknown): id is OutfitId {
   return SELECTABLE.some((entry) => entry === id)
 }
 
-// The last pick, or the default when there is none, it is no longer on the
-// roster, or storage is unavailable.
-export function loadCharacter(storage: CharacterStorage): OutfitId {
-  try {
-    const raw = storage.getItem(KEY)
-    return isSelectable(raw) ? raw : DEFAULT_CHARACTER
-  } catch {
-    return DEFAULT_CHARACTER
-  }
-}
-
-export function saveCharacter(storage: CharacterStorage, id: OutfitId): void {
-  try {
-    storage.setItem(KEY, id)
-  } catch {
-    // Storage can be unavailable; the pick simply doesn't persist.
+// The account's pick, with the defaults for what it has not chosen yet.
+export function pickOf(look: LookWire | null | undefined): CharacterPick {
+  return {
+    outfit: look?.outfit ?? DEFAULT_CHARACTER,
+    finish: look?.finish ?? DEFAULT_FINISH,
   }
 }

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
 import { ITEMS } from '../../src/items.ts'
 import {
-  facingInView,
   formatCash,
   freshStock,
   insideStore,
@@ -10,8 +9,11 @@ import {
   storeBase,
   storeCenter,
   storeWalls,
+  takeUnit,
   toLocal,
   toWorld,
+  unitInView,
+  unitsLeft,
   worldFacings,
 } from '../../src/store.ts'
 import type { Vec3 } from '../../src/interfaces.ts'
@@ -169,39 +171,71 @@ describe('shopping', () => {
   it('stocks every station full, each its own copy', () => {
     const stock = freshStock(3)
     expect(stock).toHaveLength(3)
-    expect(stock[0].marlboro).toBe(CONFIG.store.perItem)
-    expect(stock[0].sack).toBe(CONFIG.store.perItem)
-    stock[0].marlboro = 0
-    expect(stock[1].marlboro).toBe(CONFIG.store.perItem)
+    expect(unitsLeft(stock[0], 'marlboro')).toBe(CONFIG.store.perItem)
+    expect(unitsLeft(stock[0], 'sack')).toBe(CONFIG.store.perItem)
+    stock[0].marlboro[0] = false
+    expect(unitsLeft(stock[1], 'marlboro')).toBe(CONFIG.store.perItem)
   })
 
-  it('picks the facing nearest the view ray, not the nearest one', () => {
+  it('takes one unit off, by its slot, as a new shelf', () => {
+    const shelf = freshStock(1)[0]
+    const next = takeUnit(shelf, 'pbr', 1)
+    expect(next.pbr).toEqual([true, false, true])
+    expect(shelf.pbr).toEqual([true, true, true])
+    expect(next.modelo).toBe(shelf.modelo)
+  })
+
+  it('picks the unit nearest the view ray, not the nearest one', () => {
     const facings: WorldFacing[] = [
-      { kind: 'pbr', center: [0.4, 1.5, -1] },
-      { kind: 'modelo', center: [0, 1.5, -2] },
+      { kind: 'pbr', units: [[0.4, 1.5, -1]] },
+      {
+        kind: 'modelo',
+        units: [
+          [-0.15, 1.5, -2],
+          [0, 1.5, -2],
+          [0.15, 1.5, -2],
+        ],
+      },
     ]
     const stock = freshStock(1)[0]
     const eye: Vec3 = [0, 1.5, 0]
     const ahead: Vec3 = [0, 0, -1]
-    expect(facingInView(facings, stock, eye, ahead)?.kind).toBe('modelo')
+    const kindAndUnit = (shelf = stock, dir = ahead) => {
+      const seen = unitInView(facings, shelf, eye, dir)
+      return seen && { kind: seen.facing.kind, unit: seen.unit }
+    }
+    expect(kindAndUnit()).toEqual({ kind: 'modelo', unit: 1 })
+    // Each unit by its own slot: a little to the left is the left one.
+    const left: Vec3 = [
+      -0.15 / Math.hypot(0.15, 2),
+      0,
+      -2 / Math.hypot(0.15, 2),
+    ]
+    expect(kindAndUnit(stock, left)).toEqual({ kind: 'modelo', unit: 0 })
+    // A unit bought off drops out; its neighbour answers.
+    expect(kindAndUnit(takeUnit(stock, 'modelo', 1))?.kind).toBe('modelo')
+    expect(kindAndUnit(takeUnit(stock, 'modelo', 1))?.unit).not.toBe(1)
     // Sold out drops out.
-    expect(
-      facingInView(facings, { ...stock, modelo: 0 }, eye, ahead)?.kind
-    ).toBe('pbr')
+    expect(kindAndUnit({ ...stock, modelo: [false, false, false] })).toEqual({
+      kind: 'pbr',
+      unit: 0,
+    })
     // Behind you, nothing.
-    expect(facingInView(facings, stock, eye, [0, 0, 1])).toBeNull()
+    expect(kindAndUnit(stock, [0, 0, 1])).toBeNull()
     // Out of reach, nothing.
     const far: WorldFacing[] = [
-      { kind: 'pbr', center: [0, 1.5, -(CONFIG.store.reach + 0.1)] },
+      { kind: 'pbr', units: [[0, 1.5, -(CONFIG.store.reach + 0.1)]] },
     ]
-    expect(facingInView(far, stock, eye, ahead)).toBeNull()
+    expect(unitInView(far, stock, eye, ahead)).toBeNull()
   })
 
-  it('places world facings at their middle unit', () => {
+  it('places each world unit at its slot', () => {
     const facings = worldFacings(origin)
     expect(facings).toHaveLength(STORE_LAYOUT.facings.length)
     const first = STORE_LAYOUT.facings[0]
-    expect(facings[0].center).toEqual(toWorld(origin, first.slots[1]))
+    expect(facings[0].units).toEqual(
+      first.slots.map((slot) => toWorld(origin, slot))
+    )
   })
 
   it('formats cents as dollars', () => {

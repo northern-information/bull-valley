@@ -218,7 +218,7 @@ export function mountAccountStep(): AccountStep {
         const via = me?.pending?.provider ?? me?.account?.providers[0]?.provider
         lede.textContent =
           who && via
-            ? copy('username.lede_as', { provider: PROVIDER_LABELS[via], who })
+            ? copy('username.lede_as', { who, provider: PROVIDER_LABELS[via] })
             : copy('username.lede')
         check()
         input.focus()

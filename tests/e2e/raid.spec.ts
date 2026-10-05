@@ -34,6 +34,8 @@ base.describe('one raid', { tag: '@raid' }, () => {
 
   const raid = () => page.evaluate(() => window.__bv?.raid)
   const prompt = () => page.locator('.bv-prompt')
+  // The name over the item E would act on.
+  const label = () => page.locator('.bv-item-label')
 
   async function moveTo(find: string): Promise<void> {
     await page.evaluate((target) => {
@@ -49,17 +51,16 @@ base.describe('one raid', { tag: '@raid' }, () => {
               ? world.landmarks.find((l) => !l.n.includes('Keep'))
               : world.fuelPoints.find((f) => f !== world.spawnStation)
       if (!spot) throw new Error(`nothing to move to: ${target}`)
-      bv.player.relocate(spot.x + 1, spot.z + 1, bv.player.yaw)
+      // A stride off it, facing it and looking down at it, so an item's
+      // label is in view. The view looks along (-sin yaw, -cos yaw).
+      bv.player.relocate(spot.x + 1, spot.z + 1, Math.atan2(1, 1))
+      bv.player.pitch = -0.5
     }, find)
   }
 
-  // The inventory is saved only when it changes, so in a fresh context a
-  // saved inventory means a purchase went through. Toasts are no proof: they
-  // leave the DOM after 4.4 seconds, which a slow CI runner can outlast.
-  const savedInventory = () =>
-    page.evaluate(() =>
-      localStorage.getItem('bull-valley-shadow-wars:v1:inventory')
-    )
+  // How many PBRs the pack holds, as the valley last said (a fresh
+  // raider's pack has none).
+  const pbrs = () => page.evaluate(() => window.__bv?.inventory.pbr)
 
   // The roads and lots float over the terrain, so standing at the terrain
   // height sinks into them. The truck parks on a road and the player spawns
@@ -103,12 +104,16 @@ base.describe('one raid', { tag: '@raid' }, () => {
       return bv.world.pickups.find((p) => p.mesh === target)?.kind ?? 'other'
     })
 
-  // Stand inside the spawn station's Citgo, `back` metres off a facing of
-  // `kind` (station-local: +X from the back wall, +Z from the sack shelf),
-  // and look straight at it.
-  async function aimAt(kind: string, back: [number, number]): Promise<void> {
+  // Stand inside the spawn station's Citgo, `back` metres off unit `unit`
+  // of the facing of `kind` (station-local: +X from the back wall, +Z from
+  // the sack shelf), and look straight at it.
+  async function aimAt(
+    kind: string,
+    back: [number, number],
+    unit = 1
+  ): Promise<void> {
     await page.evaluate(
-      ([target, [bx, bz]]) => {
+      ([target, [bx, bz], slot]) => {
         const bv = window.__bv
         if (!bv) throw new Error('no dev hook')
         const { world, player } = bv
@@ -119,7 +124,7 @@ base.describe('one raid', { tag: '@raid' }, () => {
         if (!facing) throw new Error(`no facing: ${target}`)
         const cos = Math.cos(station.yaw)
         const sin = Math.sin(station.yaw)
-        const [fx, fy, fz] = facing.center
+        const [fx, fy, fz] = facing.units[slot]
         player.relocate(fx + cos * bx - sin * bz, fz + sin * bx + cos * bz)
         // relocate() snaps the feet to the floor; the eye stands over them.
         const eyeY = player.groundY + player.eye
@@ -128,33 +133,60 @@ base.describe('one raid', { tag: '@raid' }, () => {
         player.yaw = Math.atan2(-dx, -dz)
         player.pitch = Math.atan2(fy - eyeY, Math.hypot(dx, dz))
       },
-      [kind, back] as const
+      [kind, back, unit] as const
     )
   }
 
+  // Unit `unit` of `kind` at the spawn Citgo: whether the glow rings it,
+  // and whether it still stands on the shelf.
+  const shelfUnit = (kind: string, unit: number) =>
+    page.evaluate(
+      ([target, slot]) => {
+        const { world, glow } = window.__bv!
+        const i = world.fuelPoints.indexOf(world.spawnStation!)
+        const object = world.shelves.unitFor(i, target, slot)
+        return { glows: glow === object, stands: !!object?.visible }
+      },
+      [kind, unit] as const
+    )
+
   base('buy a drink and the sack inside the Citgo', async () => {
-    expect(await savedInventory()).toBeNull()
+    expect(await pbrs()).toBe(0)
     expect(await cash()).toBe(4000)
 
-    await aimAt('pbr', [1.3, 0])
-    await expect(prompt()).toHaveText(
-      copy('prompts.buy', {
+    // The unit under the crosshair is the one the glow rings and the one a
+    // buy takes: here the first of the three, not the last.
+    await aimAt('pbr', [1.3, 0], 0)
+    await expect(label()).toHaveText(
+      copy('labels.price', {
         item: copy('items.pbr.label'),
         price: '$0.99',
       })
     )
-    // The glow rings the unit a buy takes, then the next one back.
+    await expect
+      .poll(() => shelfUnit('pbr', 0))
+      .toEqual({
+        glows: true,
+        stands: true,
+      })
     const unit = await glowShelfUnit()
-    expect(unit).not.toBeNull()
     await page.keyboard.press('KeyE')
     await expect.poll(cash).toBe(4000 - 99)
+    await expect
+      .poll(() => shelfUnit('pbr', 0))
+      .toEqual({
+        glows: false,
+        stands: false,
+      })
+    expect((await shelfUnit('pbr', 2)).stands).toBe(true)
+    // Its neighbour answers now.
     await expect.poll(glowShelfUnit).not.toBe(unit)
     expect(await glowShelfUnit()).not.toBeNull()
-    expect(await savedInventory()).not.toBeNull()
+    await expect.poll(pbrs).toBe(1)
 
     await aimAt('sack', [0, 1.3])
-    await expect(prompt()).toHaveText(
-      copy('prompts.buy', {
+    await expect(label()).toHaveText(
+      copy('labels.price', {
         item: copy('items.sack.label'),
         price: '$3.00',
       })
@@ -182,9 +214,7 @@ base.describe('one raid', { tag: '@raid' }, () => {
 
   base('take a cabbage and unload it at the stand', async () => {
     await moveTo('cabbage')
-    await expect(prompt()).toHaveText(
-      copy('prompts.take', { item: copy('prompts.cabbage') })
-    )
+    await expect(label()).toHaveText(copy('labels.cabbage'))
     await expect.poll(glowCabbage).toBe('cabbage')
     await page.keyboard.press('KeyE')
     await expect.poll(async () => (await raid())?.carrying).toBe(1)

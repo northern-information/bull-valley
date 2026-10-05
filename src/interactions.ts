@@ -6,6 +6,7 @@ import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { itemById } from './items.ts'
 import { KEEP } from './landmarks.ts'
+import { npcReach } from './npcs.ts'
 import { STATES } from './raid.ts'
 import { formatCash } from './store.ts'
 import type { Raid, XZ } from './interfaces.ts'
@@ -24,11 +25,13 @@ export interface StationSpot extends XZ {
   name: string
 }
 
-// A shelf facing the player is looking at, from store.ts facingInView.
+// The shelf unit the player is looking at, from store.ts unitInView.
 export interface ShelfSpot {
   item: string
   // Index into the stations, and into the store stock.
   station: number
+  // Its slot on the facing.
+  unit: number
   // In cents.
   price: number
   affordable: boolean
@@ -49,7 +52,9 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   | ({ kind: 'buy' } & ShelfSpot)
   | { kind: 'collect'; status: DailyStatus }
   | { kind: 'talk' }
-  | { kind: 'speak'; npc: NpcId }
+  // Marx, Carlsten, or Moab Coldë at station `station`: he says his next
+  // line.
+  | { kind: 'speak'; npc: NpcId; station?: number }
 
 export interface InteractionInput<P extends PickupSpot> {
   raid: Raid
@@ -73,7 +78,8 @@ export interface InteractionInput<P extends PickupSpot> {
   daily: DailyStatus
   // Gron, beside the bush, or null.
   gron: XZ | null
-  // Marx and Carlsten, where each stands while he can be talked to.
+  // Marx, Carlsten and every Moab, where each stands while he can be
+  // talked to.
   npcs: readonly NpcSpot[]
 }
 
@@ -82,8 +88,10 @@ function near(a: XZ, b: XZ, radius: number): boolean {
 }
 
 // The first match wins, in this order: hop out while riding; speak to the
-// nearest NPC in reach, unless a shelf is in view; board the waiting truck;
-// buy off a shelf; board the called truck to end the raid;
+// nearest NPC in his reach, unless a shelf unit is in view (Moab stands
+// inside a station's extract radius, so this comes before extracting);
+// board the waiting truck; buy off a shelf; board the called truck to end
+// the raid;
 // unload at the stand; extract at a station (never from inside its store)
 // or the Keep; Gron or the berry bush, whichever is nearer; take the
 // nearest pickup.
@@ -97,16 +105,22 @@ export function resolveInteraction<P extends PickupSpot>(
   // step away it boards. Carlsten stands behind the counter of goods, so
   // the facing in view sells first.
   if (!input.shelf) {
-    let best = CONFIG.npcs.reach
-    let npc: NpcId | null = null
+    // The nearest of those in his own reach: Moab stands beside a horse,
+    // so his reaches further.
+    let best = Infinity
+    let near: NpcSpot | null = null
     for (const spot of input.npcs) {
       const d = Math.hypot(spot.x - player.x, spot.z - player.z)
-      if (d < best) {
+      if (d < npcReach(spot.id) && d < best) {
         best = d
-        npc = spot.id
+        near = spot
       }
     }
-    if (npc) return { kind: 'speak', npc }
+    if (near) {
+      return near.station === undefined
+        ? { kind: 'speak', npc: near.id }
+        : { kind: 'speak', npc: near.id, station: near.station }
+    }
   }
 
   const truckClose = input.truck.distance < CONFIG.truck.boardRange
@@ -160,19 +174,59 @@ export function resolveInteraction<P extends PickupSpot>(
   return nearest ? { kind: 'pickup', pickup: nearest } : null
 }
 
+// What an item is called on its floating label: its name, and a count for
+// a pickup of more than one.
 export function pickupLabel({
   kind,
   count,
 }: Pick<PickupSpot, 'kind' | 'count'>): string {
-  if (kind === 'cabbage') return copy('prompts.cabbage')
-  return copy('prompts.pickup_count', {
+  if (kind === 'cabbage') return copy('labels.cabbage')
+  return copy('labels.pickup_count', {
     item: itemById(kind)?.label ?? kind,
     count,
   })
 }
 
-// What the prompt says, or null where the glow is the only signal: the
-// people you talk to.
+// The label over the item E would act on: a pickup, the shelf unit a buy
+// would take, or the berry bush. dim: true when it cannot be had (short of
+// cash, or the bush picked clean or out of reach of the valley). Null for
+// everything else.
+export interface ItemLabel {
+  text: string
+  dim: boolean
+}
+
+export function itemLabel(interaction: Interaction): ItemLabel | null {
+  switch (interaction.kind) {
+    case 'pickup':
+      return { text: pickupLabel(interaction.pickup), dim: false }
+    case 'buy':
+      return {
+        text: copy('labels.price', {
+          item: itemById(interaction.item)?.label ?? interaction.item,
+          price: formatCash(interaction.price),
+        }),
+        dim: !interaction.affordable,
+      }
+    case 'collect':
+      switch (interaction.status) {
+        case 'ready':
+          return { text: copy('labels.berries'), dim: false }
+        case 'picked':
+          return { text: copy('labels.berry_picked'), dim: true }
+        case 'offline':
+          return { text: copy('labels.berry_offline'), dim: true }
+      }
+      break
+    default:
+      return null
+  }
+  return null
+}
+
+// The bottom prompt for what E would do, or null where something else
+// says it: an item's own label (itemLabel), or the glow on the people you
+// talk to.
 export function interactionPrompt(interaction: Interaction): string | null {
   switch (interaction.kind) {
     case 'hopOut':
@@ -192,24 +246,9 @@ export function interactionPrompt(interaction: Interaction): string | null {
     case 'extractKeep':
       return copy('prompts.extract_keep', { keep: KEEP })
     case 'pickup':
-      return copy('prompts.take', { item: pickupLabel(interaction.pickup) })
-    case 'buy': {
-      const label = itemById(interaction.item)?.label ?? interaction.item
-      const price = formatCash(interaction.price)
-      return interaction.affordable
-        ? copy('prompts.buy', { item: label, price })
-        : copy('prompts.buy_short', { item: label, price })
-    }
+    case 'buy':
     case 'collect':
-      switch (interaction.status) {
-        case 'ready':
-          return copy('prompts.berry_ready')
-        case 'picked':
-          return copy('prompts.berry_picked')
-        case 'offline':
-          return copy('prompts.berry_offline')
-      }
-      break
+      return null
     case 'talk':
     case 'speak':
       return null
