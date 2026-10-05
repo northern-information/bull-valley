@@ -1,11 +1,15 @@
 // The socket to the valley server: DOM glue around src/protocol.ts. Opens
 // one WebSocket, says hello, hands every server frame to a listener, and
 // reconnects with backoff when the line drops. A 4xxx close is the server
-// turning us away, and is final. If the server never answers, the game
-// plays alone: `ready` resolves 'offline' and nothing else changes.
+// turning us away, and is final; onRefused hears why (no session, a stale
+// build). If the server never answers, the game plays alone: `ready`
+// resolves 'offline' and nothing else changes. Who we are rides on the
+// session cookie, not in the hello, so every open first refreshes the
+// session (beforeOpen); an access cookie lapses in minutes.
 
 import { createClockSync } from './clock.ts'
 import {
+  CLOSE,
   parseServerMessage,
   PROTOCOL_VERSION,
   VALLEY_PARAM,
@@ -28,10 +32,12 @@ export interface NetOptions {
   url: string
   config: NetConfig
   clock?: ClockSync
+  // Run before every open; false means there is no session to open with,
+  // which is a refusal like CLOSE.unauthenticated.
+  beforeOpen?: () => Promise<boolean>
 }
 
 export interface NetIdentity {
-  name: string
   outfit: OutfitId
   // How many pickups and stations this build placed; see HelloMessage.
   pickups: number
@@ -44,6 +50,7 @@ const MAX_ATTEMPTS = BACKOFF_MS.length + 6
 
 type Listener = (msg: ServerMessage) => void
 type StatusListener = (status: NetStatus) => void
+type RefusedListener = (code: number, reason: string) => void
 
 // The socket URL for this page: same origin, ws or wss to match. Dev
 // builds forward ?valley=<id> so e2e specs each get their own valley.
@@ -75,15 +82,18 @@ export class NetClient {
   private attempt = 0
   private listeners: Listener[] = []
   private statusListeners: StatusListener[] = []
+  private refusedListeners: RefusedListener[] = []
+  private beforeOpen: (() => Promise<boolean>) | null
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private pingTimer: ReturnType<typeof setInterval> | null = null
   private connectTimer: ReturnType<typeof setTimeout> | null = null
   private closed = false
   private resolveReady: (status: NetStatus) => void = () => {}
 
-  constructor({ url, config, clock }: NetOptions) {
+  constructor({ url, config, clock, beforeOpen }: NetOptions) {
     this.url = url
     this.config = config
+    this.beforeOpen = beforeOpen ?? null
     this.clock = clock ?? createClockSync()
     this.ready = new Promise<NetStatus>((resolve) => {
       this.resolveReady = resolve
@@ -98,11 +108,7 @@ export class NetClient {
     this.identity = identity
     this.closed = false
     this.attempt = 0
-    this.connectTimer = setTimeout(() => {
-      this.connectTimer = null
-      if (this.status !== 'online') this.resolveReady('offline')
-    }, this.config.connectTimeoutMs)
-    this.open()
+    void this.open(true)
     return this.ready
   }
 
@@ -122,6 +128,12 @@ export class NetClient {
     this.statusListeners.push(listener)
   }
 
+  // The server turned us away (a 4xxx close), or beforeOpen found no
+  // session. Heard before the status goes offline.
+  onRefused(listener: RefusedListener): void {
+    this.refusedListeners.push(listener)
+  }
+
   send(msg: ClientMessage): void {
     if (this.status !== 'online' || !this.ws) return
     this.ws.send(JSON.stringify(msg))
@@ -131,9 +143,25 @@ export class NetClient {
     this.send({ type: 'state', ...state })
   }
 
-  private open(): void {
+  private async open(first = false): Promise<void> {
+    if (!this.identity || this.closed) return
+    if (this.beforeOpen) {
+      const ok = await this.beforeOpen()
+      if (this.closed) return
+      if (!ok) {
+        this.refuse(CLOSE.unauthenticated, 'No session')
+        return
+      }
+    }
+    // The first connection's deadline starts once the session is fresh,
+    // so a slow refresh does not eat into it.
+    if (first) {
+      this.connectTimer = setTimeout(() => {
+        this.connectTimer = null
+        if (this.status !== 'online') this.resolveReady('offline')
+      }, this.config.connectTimeoutMs)
+    }
     const identity = this.identity
-    if (!identity || this.closed) return
     let ws: WebSocket
     try {
       ws = new WebSocket(this.url)
@@ -149,7 +177,6 @@ export class NetClient {
         JSON.stringify({
           type: 'hello',
           v: PROTOCOL_VERSION,
-          name: identity.name,
           outfit: identity.outfit,
           pickups: identity.pickups,
           stations: identity.stations,
@@ -191,14 +218,19 @@ export class NetClient {
         console.info(
           `Valley refused the connection: ${event.code} ${event.reason}`
         )
-        this.setStatus('offline')
-        this.resolveReady('offline')
+        this.refuse(event.code, event.reason)
         return
       }
       this.scheduleReconnect()
     })
     // The close event follows every error and owns the decision.
     ws.addEventListener('error', () => {})
+  }
+
+  private refuse(code: number, reason: string): void {
+    for (const listener of this.refusedListeners) listener(code, reason)
+    this.setStatus('offline')
+    this.resolveReady('offline')
   }
 
   private scheduleReconnect(): void {
@@ -214,7 +246,7 @@ export class NetClient {
     if (this.status === 'online') this.setStatus('offline')
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
-      this.open()
+      void this.open()
     }, delay)
   }
 

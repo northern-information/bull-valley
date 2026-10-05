@@ -1,5 +1,11 @@
 import { test as base } from '@playwright/test'
-import { beginRaid, expect, freshValley, watchErrors } from './fixtures.ts'
+import {
+  beginRaid,
+  expect,
+  freshRaider,
+  freshValley,
+  watchErrors,
+} from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
 // Two browsers in one valley: each sees the other arrive as a figure in
@@ -24,10 +30,11 @@ base(
     const errorsA = watchErrors(a)
     const errorsB = watchErrors(b)
 
-    // One step right of the player: Coleman.
-    await Promise.all([
-      beginRaid(a, 0, { valley, name: 'Able' }),
-      beginRaid(b, 1, { valley, name: 'Baker' }),
+    // One step right of the player: Coleman. Each is seen by the other
+    // under the username of the account they signed in with.
+    const [able, baker] = await Promise.all([
+      beginRaid(a, 0, { valley, raider: freshRaider('Able') }),
+      beginRaid(b, 1, { valley, raider: freshRaider('Baker') }),
     ])
     expect(await a.evaluate(() => window.__bv?.net.status)).toBe('online')
     expect(await b.evaluate(() => window.__bv?.net.status)).toBe('online')
@@ -35,9 +42,9 @@ base(
     await expect.poll(() => peers(a)).toHaveLength(1)
     await expect.poll(() => peers(b)).toHaveLength(1)
     const [seenByA] = await peers(a)
-    expect(seenByA).toMatchObject({ name: 'Baker', outfit: 'coleman' })
+    expect(seenByA).toMatchObject({ name: baker.username, outfit: 'coleman' })
     const [seenByB] = await peers(b)
-    expect(seenByB).toMatchObject({ name: 'Able', outfit: 'player' })
+    expect(seenByB).toMatchObject({ name: able.username, outfit: 'player' })
     const idB = await b.evaluate(() => window.__bv?.net.id)
     expect(seenByA.id).toBe(idB)
 

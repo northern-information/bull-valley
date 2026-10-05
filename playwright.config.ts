@@ -34,9 +34,15 @@ export default defineConfig({
     },
   ],
   webServer: {
-    // --mode test keeps the valley server's state in memory, so every
-    // run starts from an empty valley. Dev hooks stay on in any dev mode.
-    command: `npx vite --port ${PORT} --strictPort --mode test`,
+    // --mode test keeps the valley server's state in .wrangler/state-test
+    // (vite.config.ts). Emptying it and applying the accounts migration
+    // first means every run starts from an empty valley and an empty
+    // accounts database. Dev hooks stay on in any dev mode.
+    command: [
+      'rm -rf .wrangler/state-test',
+      'npx wrangler d1 migrations apply bull-valley-accounts --local --persist-to .wrangler/state-test -c wrangler.jsonc',
+      `npx vite --port ${PORT} --strictPort --mode test`,
+    ].join(' && '),
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !CI,
   },

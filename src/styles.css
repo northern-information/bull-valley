@@ -719,9 +719,38 @@
   text-shadow: 4px 4px 0 var(--fi-black-shadow);
 }
 
-/* The name field: the same face as the buttons, so the row reads as one
+/* Who you raid as, under the character's name, with a way out. */
+.bv-select-as {
+  margin: 0;
+  letter-spacing: 0.05em;
+}
+
+.bv-select-as b {
+  font-weight: inherit;
+  color: var(--fi-green);
+}
+
+/* A button that reads as a link: Sign Out beside the username. */
+.bv-link {
+  font: inherit;
+  margin-left: 0.6em;
+  padding: 0;
+  color: var(--fi-cyan);
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.bv-link:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* A text field: the same face as the buttons, so a row reads as one
    instrument; the label sits in the small caps of the hints. */
-.bv-select-field {
+.bv-field {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -731,7 +760,7 @@
   font-size: 0.75em;
 }
 
-.bv-select-field input {
+.bv-field input {
   box-sizing: border-box;
   width: 16ch;
   min-width: 11rem;
@@ -747,8 +776,135 @@
   padding: 0.45rem 0.6rem;
 }
 
-.bv-select-field input:disabled {
+.bv-field input:disabled {
   opacity: 0.6;
+}
+
+/* The account step (signin.ts): black like the select, above it in DOM
+   order at the same z-index, with its own face, ink and focus ring. */
+.bv-account {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: #000;
+  font-family: var(--bv-font, 'Small Pixel 7', system-ui, sans-serif);
+  font-size: var(--bv-text-size, 20px);
+  color: var(--bv-eggshell);
+}
+
+.bv-account [hidden] {
+  display: none !important;
+}
+
+.bv-account :focus-visible {
+  outline: 3px solid var(--fi-cyan);
+  outline-offset: 3px;
+}
+
+.bv-account-ui {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  max-width: 34rem;
+  margin: 0;
+  text-align: center;
+}
+
+.bv-account-ui h2 {
+  margin: 0 0 8px;
+  font-size: inherit;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  text-shadow: 4px 4px 0 var(--fi-black-shadow);
+}
+
+.bv-account-lede {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.bv-account-providers {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 13px;
+  min-width: min(18rem, 100%);
+}
+
+/* Each provider's own color as the button's edge. */
+.bv-provider {
+  border-left: 6px solid var(--provider, var(--fi-paper-light));
+}
+
+.bv-account-status {
+  margin: 0;
+  font-size: 0.75em;
+  letter-spacing: 0.05em;
+  opacity: 0.8;
+}
+
+.bv-account-status[data-tone='ok'] {
+  color: var(--fi-green);
+  opacity: 1;
+}
+
+.bv-account-status[data-tone='bad'] {
+  color: #ff6b5b;
+  opacity: 1;
+}
+
+.bv-account-error {
+  margin: 0;
+  color: #ff6b5b;
+}
+
+.bv-account-gates {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.bv-gate {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  cursor: pointer;
+}
+
+.bv-gate input[type='checkbox'] {
+  width: 1.1em;
+  height: 1.1em;
+  margin: 0;
+  accent-color: var(--fi-green);
+}
+
+.bv-gate a {
+  color: var(--fi-cyan);
+}
+
+/* The terms, read in place over the account step. */
+.bv-terms {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 13px;
+  padding: 24px 16px;
+  background: rgb(0 0 0 / 92%);
+}
+
+.bv-terms iframe {
+  flex: 1;
+  width: min(48rem, 100%);
+  border: 1px solid var(--fi-paper-light);
+  background: #000;
 }
 
 .bv-select-actions {
@@ -758,15 +914,19 @@
   gap: 13px;
 }
 
-.bv-select .bv-btn {
+/* The select's buttons, and the account step's above it. */
+.bv-select .bv-btn,
+.bv-account .bv-btn {
   color: var(--bv-eggshell);
 }
 
-.bv-select .bv-btn--primary {
+.bv-select .bv-btn--primary,
+.bv-account .bv-btn--primary {
   color: var(--fi-bg);
 }
 
-.bv-select .bv-btn:disabled {
+.bv-select .bv-btn:disabled,
+.bv-account .bv-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
   transform: none;

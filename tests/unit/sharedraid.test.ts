@@ -44,9 +44,11 @@ function valleyWith(...actions: ValleyAction[]) {
   }
 }
 
+// Each socket id signs in as its own account unless a test says otherwise.
 const join = (id: string): ValleyAction => ({
   type: 'join',
   id,
+  account: `acct-${id}`,
   name: id.toUpperCase(),
   outfit: 'coleman',
   pickups: PICKUPS,
@@ -457,7 +459,7 @@ describe('rules 6 and 7: extracting, and the valley resetting', () => {
   })
 })
 
-describe('rule 9: one berry a day per name', () => {
+describe('rule 9: one berry a day per account', () => {
   const collect = (id: string): ValleyAction => ({ type: 'collect', id })
   const daily = (r: ReturnType<typeof reduce>) => r.daily as DailyMessage
 
@@ -471,7 +473,7 @@ describe('rule 9: one berry a day per name', () => {
       picked: true,
       daily: { collected: true, resetsAt: nextMidnight(v.now) },
     })
-    expect(v.valley.dailies).toEqual({ A: dayKey(v.now) })
+    expect(v.valley.dailies).toEqual({ 'acct-a': dayKey(v.now) })
   })
 
   it('refuses the second ask of the day without touching the valley', () => {
@@ -487,29 +489,35 @@ describe('rule 9: one berry a day per name', () => {
     })
   })
 
-  it('shares the berry between raiders under one name, not across names', () => {
+  it('shares the berry between sockets on one account, not across accounts', () => {
     const v = valleyWith(join('a'), collect('a'))
-    // The same name on another socket.
-    v.step({ ...join('a2'), name: 'A' } as ValleyAction)
+    // The same account on another socket.
+    v.step({ ...join('a2'), account: 'acct-a' } as ValleyAction)
     expect(daily(v.step(collect('a2'))).picked).toBe(false)
-    v.step(join('b'))
+    // Another account showing the same name has a berry of its own.
+    v.step({ ...join('b'), name: 'A' } as ValleyAction)
     expect(daily(v.step(collect('b'))).picked).toBe(true)
-    expect(Object.keys(v.valley.dailies).sort()).toEqual(['A', 'B'])
+    expect(Object.keys(v.valley.dailies).sort()).toEqual(['acct-a', 'acct-b'])
+  })
+
+  it('never puts the account on the wire', () => {
+    const v = valleyWith(join('a'))
+    expect(JSON.stringify(toWire(v.valley))).not.toContain('acct-a')
   })
 
   it('has the berry back at midnight Central, and forgets yesterday', () => {
     const v = valleyWith(join('a'), collect('a'), join('b'))
-    expect(dailyFor(v.valley, 'A', v.now).collected).toBe(true)
+    expect(dailyFor(v.valley, 'acct-a', v.now).collected).toBe(true)
     v.tick(nextMidnight(v.now) - v.now - 1)
-    expect(dailyFor(v.valley, 'A', v.now).collected).toBe(true)
+    expect(dailyFor(v.valley, 'acct-a', v.now).collected).toBe(true)
     v.tick(1)
-    expect(dailyFor(v.valley, 'A', v.now)).toEqual({
+    expect(dailyFor(v.valley, 'acct-a', v.now)).toEqual({
       collected: false,
       resetsAt: nextMidnight(v.now),
     })
     // B's pick on the new day drops A's record from the old one.
     expect(daily(v.step(collect('b'))).picked).toBe(true)
-    expect(v.valley.dailies).toEqual({ B: dayKey(v.now) })
+    expect(v.valley.dailies).toEqual({ 'acct-b': dayKey(v.now) })
     expect(daily(v.step(collect('a'))).picked).toBe(true)
   })
 
@@ -517,7 +525,7 @@ describe('rule 9: one berry a day per name', () => {
     const v = valleyWith(join('a'), collect('a'))
     v.step({ type: 'reset' })
     expect(v.valley.raid).toBeNull()
-    expect(v.valley.dailies).toEqual({ A: dayKey(v.now) })
+    expect(v.valley.dailies).toEqual({ 'acct-a': dayKey(v.now) })
     // Everyone leaves; the next arrival opens a new lobby.
     v.step({ type: 'leave', id: 'a' })
     v.step(join('a'))
@@ -538,7 +546,7 @@ describe('rule 9: one berry a day per name', () => {
 
   it('starts every valley with an empty record', () => {
     expect(createValley().dailies).toEqual({})
-    expect(dailyFor(createValley(), 'A', T0)).toEqual({
+    expect(dailyFor(createValley(), 'acct-a', T0)).toEqual({
       collected: false,
       resetsAt: nextMidnight(T0),
     })

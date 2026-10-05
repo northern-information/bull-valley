@@ -20,11 +20,11 @@
 // 8. The Citgo shelves are shared: a unit one player buys is off the shelf
 //    for everyone, and the shelves fill again with the next lobby. Cash is
 //    each player's own; the valley only keeps count of what is left.
-// 9. The berry bush gives each name one berry a day, the day turning at
+// 9. The berry bush gives each account one berry a day, the day turning at
 //    midnight Central (daily.ts), whatever the raid is doing. The valley
-//    remembers only the names that have had today's berry. Until player
-//    accounts arrive the name is the account, so two raiders under one
-//    name share one berry.
+//    remembers only the accounts that have had today's berry. Two sockets
+//    signed in to one account share one berry; the name shown is only the
+//    account's handle.
 
 import { CONFIG } from './config.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
@@ -47,6 +47,8 @@ import type {
 
 export interface Member {
   id: string
+  // The signed-in account (worker/auth.ts). Never on the wire.
+  account: string
   name: string
   outfit: OutfitId
   phase: MemberPhase
@@ -74,8 +76,8 @@ export interface Valley {
   epoch: number
   raid: SharedRaid | null
   members: Record<string, Member>
-  // Name -> the Central day (daily.ts dayKey) that name last took a berry.
-  // Pruned to today's names on every pick, so it never grows.
+  // Account -> the Central day (daily.ts dayKey) that account last took a
+  // berry. Pruned to today's accounts on every pick, so it never grows.
   dailies: Record<string, string>
 }
 
@@ -83,6 +85,7 @@ export type ValleyAction =
   | {
       type: 'join'
       id: string
+      account: string
       name: string
       outfit: OutfitId
       pickups: number
@@ -131,11 +134,15 @@ export function createValley(): Valley {
   return { epoch: 0, raid: null, members: {}, dailies: {} }
 }
 
-// The bush as `name` finds it at `now`: whether today's berry is gone, and
-// when the next day begins.
-export function dailyFor(valley: Valley, name: string, now: number): DailyWire {
+// The bush as `account` finds it at `now`: whether today's berry is gone,
+// and when the next day begins.
+export function dailyFor(
+  valley: Valley,
+  account: string,
+  now: number
+): DailyWire {
   return {
-    collected: collectedToday(valley.dailies[name], now),
+    collected: collectedToday(valley.dailies[account], now),
     resetsAt: nextMidnight(now),
   }
 }
@@ -298,6 +305,7 @@ export function reduce(
       // Rule 2.
       const member: Member = {
         id: action.id,
+        account: action.account,
         name: action.name,
         outfit: action.outfit,
         phase: raid.phase === 'LOBBY' ? 'LOBBY' : 'ON_FOOT',
@@ -526,7 +534,7 @@ export function reduce(
         }
       }
       // Rule 9.
-      const daily = dailyFor(valley, member.name, now)
+      const daily = dailyFor(valley, member.account, now)
       if (daily.collected) {
         return {
           valley,
@@ -536,17 +544,17 @@ export function reduce(
       }
       const today = dayKey(now)
       const dailies: Record<string, string> = {}
-      for (const [name, day] of Object.entries(valley.dailies)) {
-        if (day === today) dailies[name] = day
+      for (const [account, day] of Object.entries(valley.dailies)) {
+        if (day === today) dailies[account] = day
       }
-      dailies[member.name] = today
+      dailies[member.account] = today
       const next: Valley = { ...valley, dailies }
       return {
         valley: next,
         broadcast: [],
         daily: {
           type: 'daily',
-          daily: dailyFor(next, member.name, now),
+          daily: dailyFor(next, member.account, now),
           picked: true,
         },
       }

@@ -1,5 +1,12 @@
 import { PACK, WORLD } from '../../src/bindings.ts'
-import { beginRaid, expect, freshValley, passTitles, test } from './fixtures.ts'
+import {
+  beginRaid,
+  expect,
+  freshValley,
+  passTitles,
+  signIn,
+  test,
+} from './fixtures.ts'
 
 // The controls players read are drawn from bindings.ts, so every bound
 // action shows where it applies: the valley's on the intro card, the
@@ -8,6 +15,7 @@ import { beginRaid, expect, freshValley, passTitles, test } from './fixtures.ts'
 test('the intro card lists every key the valley answers to', async ({
   page,
 }) => {
+  await signIn(page)
   await page.goto(`/?valley=${encodeURIComponent(freshValley())}`)
   await passTitles(page)
   const table = page.getByRole('table', { name: 'Controls' })

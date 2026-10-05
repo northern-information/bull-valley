@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  authReturnOf,
+  devSignInUrl,
   isOAuthProvider,
   isProvider,
   isValidUsername,
@@ -7,8 +9,55 @@ import {
   OAUTH_PROVIDERS,
   PROVIDER_COLORS,
   PROVIDER_LABELS,
+  signInUrl,
+  stripAuthQuery,
   validateRedirect,
 } from '../../src/account.ts'
+
+describe('the client side of a round trip', () => {
+  it('reads how the round trip went', () => {
+    expect(authReturnOf('?auth=success')).toEqual({ auth: 'success' })
+    expect(authReturnOf('?valley=a&auth=pending_signup')).toEqual({
+      auth: 'pending_signup',
+    })
+    expect(authReturnOf('?auth=linked')).toEqual({ auth: 'linked' })
+    expect(authReturnOf('?auth_error=access_denied')).toEqual({
+      error: 'access_denied',
+    })
+    expect(authReturnOf('?auth_error=')).toEqual({ error: 'Sign-in failed' })
+    expect(authReturnOf('?auth=hacked')).toBeNull()
+    expect(authReturnOf('')).toBeNull()
+  })
+
+  it('strips only its own flags', () => {
+    expect(stripAuthQuery('?valley=a&auth=success&skipSplash')).toBe(
+      '?valley=a&skipSplash='
+    )
+    expect(stripAuthQuery('?auth_error=x')).toBe('')
+    expect(stripAuthQuery('')).toBe('')
+  })
+
+  it('sends each provider button to its login, with the way back', () => {
+    expect(signInUrl('github', '/?valley=a')).toBe(
+      '/auth/github/login?redirect=%2F%3Fvalley%3Da'
+    )
+    expect(signInUrl('dev', '/')).toBe('/auth/dev/form?redirect=%2F')
+  })
+
+  it('builds the one-request dev sign-in', () => {
+    const url = new URL(
+      devSignInUrl({ userId: 'u1', username: 'Raider', redirect: '/?x=1' }),
+      'http://localhost'
+    )
+    expect(url.pathname).toBe('/auth/dev/login')
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      userId: 'u1',
+      username: 'Raider',
+      accept: '1',
+      redirect: '/?x=1',
+    })
+  })
+})
 
 describe('providers', () => {
   it('knows the three OAuth providers and the dev stand-in', () => {

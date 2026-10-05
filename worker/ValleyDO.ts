@@ -16,6 +16,7 @@ import {
   PROTOCOL_VERSION,
 } from '../src/protocol.ts'
 import { createValley, dailyFor, reduce, toWire } from '../src/sharedraid.ts'
+import { ACCOUNT_HEADER, NAME_HEADER } from './auth.ts'
 import type {
   HelloMessage,
   PeerStateWire,
@@ -25,10 +26,14 @@ import type {
 import type { Reduced, Valley, ValleyAction } from '../src/sharedraid.ts'
 
 // Per-socket state, serialized into the socket's attachment (16 KB cap;
-// this is well under 1 KB). `me` is null until the hello. `dev` is set by
-// the Worker for a dev server, and unlocks the dev frames.
+// this is well under 1 KB). `me` is null until the hello. The Worker sets
+// the rest on the upgrade, never the client: `dev` for a dev server, which
+// unlocks the dev frames, and the signed-in account and its username, or
+// null when there is no session (the hello is then refused).
 interface Attachment {
   dev: boolean
+  account: string | null
+  name: string | null
   me: PeerWire | null
 }
 
@@ -78,6 +83,8 @@ export class ValleyDO extends DurableObject<Env> {
     this.ctx.acceptWebSocket(server)
     const attachment: Attachment = {
       dev: request.headers.get('x-bv-dev') === '1',
+      account: request.headers.get(ACCOUNT_HEADER),
+      name: request.headers.get(NAME_HEADER),
       me: null,
     }
     server.serializeAttachment(attachment)
@@ -182,8 +189,11 @@ export class ValleyDO extends DurableObject<Env> {
 
   private attachment(ws: WebSocket): Attachment {
     return (
+      // A socket with nothing attached has no session, so its hello fails.
       (ws.deserializeAttachment() as Attachment | null) ?? {
         dev: false,
+        account: null,
+        name: null,
         me: null,
       }
     )
@@ -202,7 +212,14 @@ export class ValleyDO extends DurableObject<Env> {
       ws.close(CLOSE.badVersion, `Protocol ${PROTOCOL_VERSION} required`)
       return
     }
-    const name = normalizeName(hello.name)
+    const { account } = attachment
+    if (!account) {
+      ws.close(CLOSE.unauthenticated, 'Sign in to raid')
+      return
+    }
+    // The username the Worker stamped; checked again, since it is shown to
+    // everyone.
+    const name = normalizeName(attachment.name ?? '')
     if (!isValidName(name)) {
       ws.close(CLOSE.badName, 'Invalid name')
       return
@@ -217,6 +234,7 @@ export class ValleyDO extends DurableObject<Env> {
       {
         type: 'join',
         id,
+        account,
         name,
         outfit: hello.outfit,
         pickups: hello.pickups,
@@ -245,7 +263,7 @@ export class ValleyDO extends DurableObject<Env> {
       peers: this.roster(ws),
       raid,
       phase: member.phase,
-      daily: dailyFor(this.valley, name, now),
+      daily: dailyFor(this.valley, account, now),
     })
     this.broadcast({ type: 'peer-joined', peer: me }, ws)
     for (const msg of reduced.broadcast) this.broadcast(msg, ws)

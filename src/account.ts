@@ -141,3 +141,59 @@ export function landingUrl(
   else url.searchParams.set(AUTH_ERROR_PARAM, flag.error)
   return url.toString()
 }
+
+// --- The client's side of a round trip ---------------------------------------
+
+// What the page URL says about a sign-in round trip that just landed: how
+// it went, or null when the page was not reached that way.
+export function authReturnOf(
+  search: string
+): { auth: AuthReturn } | { error: string } | null {
+  const params = new URLSearchParams(search)
+  const error = params.get(AUTH_ERROR_PARAM)
+  if (error !== null) return { error: error || 'Sign-in failed' }
+  const auth = params.get(AUTH_PARAM)
+  const known = AUTH_RETURNS.find((value) => value === auth)
+  return known ? { auth: known } : null
+}
+
+// The query string without the round trip's flags, so a reload does not
+// replay them. Everything else stays: a dev server's ?valley= is read
+// after boot, and ?skipSplash with it.
+export function stripAuthQuery(search: string): string {
+  const params = new URLSearchParams(search)
+  params.delete(AUTH_PARAM)
+  params.delete(AUTH_ERROR_PARAM)
+  const rest = params.toString()
+  return rest ? `?${rest}` : ''
+}
+
+// Where a provider button sends the browser. The redirect brings the round
+// trip back to this page, query and all.
+export function signInUrl(provider: Provider, redirect: string): string {
+  const query = new URLSearchParams({ redirect })
+  return provider === 'dev'
+    ? `${AUTH_PATH}/dev/form?${query.toString()}`
+    : `${AUTH_PATH}/${provider}/login?${query.toString()}`
+}
+
+// Dev servers only: one request that signs a dev raider in, past the gates
+// and with a username, then lands on `redirect`. ?skipSplash and the e2e
+// specs use it.
+export function devSignInUrl({
+  userId,
+  username,
+  redirect,
+}: {
+  userId: string
+  username: string
+  redirect: string
+}): string {
+  const query = new URLSearchParams({
+    userId,
+    username,
+    accept: '1',
+    redirect,
+  })
+  return `${AUTH_PATH}/dev/login?${query.toString()}`
+}

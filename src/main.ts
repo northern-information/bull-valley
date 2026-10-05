@@ -1,10 +1,12 @@
 import * as THREE from 'three'
 import './styles.css'
+import { authReturnOf, devSignInUrl, stripAuthQuery } from './account.ts'
 import { buildSky, pulseMaterials } from './assets.ts'
 import { BvAudio } from './audio.ts'
+import { fetchMe, refreshSession, signOut } from './auth.ts'
 import { actionOf, cycleStep, PACK, WORLD } from './bindings.ts'
 import { ringItems, stepIndex, syncIndex } from './carousel.ts'
-import { FALLBACK_NAME, loadCharacter, loadName } from './characters.ts'
+import { loadCharacter } from './characters.ts'
 import { mountCharacterSelect } from './characterselect.ts'
 import { CHAT_COPY } from './chat.ts'
 import { CONFIG } from './config.ts'
@@ -27,7 +29,7 @@ import { Peers } from './peers.ts'
 import { Player } from './player.ts'
 import { PlayerBody } from './playerbody.ts'
 import { poseOf, stateChanged } from './presence.ts'
-import { normalizeChat } from './protocol.ts'
+import { CLOSE, normalizeChat } from './protocol.ts'
 import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import {
   advance,
@@ -48,6 +50,7 @@ import {
 import { Scope } from './scope.ts'
 import { ShadowCards } from './shadowcards.ts'
 import { buy as buyItem, settle } from './shop.ts'
+import { mountAccountStep } from './signin.ts'
 import { mountCard, showSplash, skipTitles } from './splash.ts'
 import { facingInView, formatCash, freshStock, insideStore } from './store.ts'
 import { buildTerrainMesh, createHeightField, loadTerrain } from './terrain.ts'
@@ -112,29 +115,70 @@ declare global {
 // Same files the Scaduscope reads; baked by scripts/fetch_bull_valley.cjs.
 const DATA_BASE = '/data/bull-valley'
 
-// Colophon → logo → character select; resolves with the chosen outfit
-// and name. The select and the logo mount first, black and inert, so the
-// cards above them stack in DOM order and each reveal uncovers the next.
-async function showTitles(audio: BvAudio): Promise<CharacterPick> {
-  if (skipTitles()) {
-    return {
-      outfit: loadCharacter(window.localStorage),
-      name: loadName(window.localStorage) || FALLBACK_NAME,
+// The username a dev build signs in under when ?skipSplash finds no session.
+const DEV_USERNAME = 'Raider'
+
+// What the titles settle: the outfit chosen at the select, and the username
+// of the account it raids under.
+type Titles = CharacterPick & { username: string }
+
+// Colophon → logo → account step → character select; resolves with the
+// chosen outfit and the username. The select, the account step, and the logo mount first,
+// black and inert, so the cards above them stack in DOM order and each
+// reveal uncovers the next. Who is signed in is asked at once and is known
+// long before the logo lifts. A page reached from a sign-in round trip
+// (?auth=, set by the Worker) skips the colophon and the logo: the raider
+// has seen them already.
+async function showTitles(audio: BvAudio): Promise<Titles> {
+  const { pathname, search, hash } = window.location
+  const returned = authReturnOf(search)
+  if (returned) {
+    history.replaceState(null, '', pathname + stripAuthQuery(search) + hash)
+  }
+  const me = fetchMe()
+  const skip = skipTitles()
+  if (skip) {
+    const known = await me
+    const username = known?.account?.username
+    if (username) {
+      return { outfit: loadCharacter(window.localStorage), username }
+    }
+    // Sign a dev raider in and come back, once; a second miss (the name
+    // taken by another dev account) falls through to the account step.
+    if (!returned) {
+      window.location.assign(
+        devSignInUrl({
+          userId: 'dev-user',
+          username: DEV_USERNAME,
+          redirect: window.location.pathname + window.location.search,
+        })
+      )
+      return new Promise<Titles>(() => {})
     }
   }
   const select = mountCharacterSelect({
     storage: window.localStorage,
     config: { ...CONFIG.select, downscale: CONFIG.render.downscale },
+    onSignOut: () => {
+      void signOut().then(() => window.location.reload())
+    },
   })
-  const logo = mountCard({
-    audio,
-    config: CONFIG.logo,
-    fog: { downscale: CONFIG.render.downscale },
-  })
-  await showSplash({ audio, config: CONFIG.splash })
-  logo.start()
-  await logo.done
-  return select.run()
+  const account = mountAccountStep()
+  if (!skip && !returned) {
+    const logo = mountCard({
+      audio,
+      config: CONFIG.logo,
+      fog: { downscale: CONFIG.render.downscale },
+    })
+    await showSplash({ audio, config: CONFIG.splash })
+    logo.start()
+    await logo.done
+  }
+  const username = await account.run(
+    await me,
+    returned && 'error' in returned ? returned.error : null
+  )
+  return { ...(await select.run(username)), username }
 }
 
 async function boot() {
@@ -281,13 +325,20 @@ async function boot() {
   )
 
   // --- The valley server -------------------------------------------------
-  // Everyone online shares one valley. The socket is same-origin; if the
-  // server is down or unreachable the valley is simply empty, and the raid
-  // plays as it always has.
+  // Everyone online shares one valley. The socket is same-origin and the
+  // session cookie says who we are; if the server is down or unreachable
+  // the valley is simply empty, and the raid plays as it always has.
   const peers = new Peers(scene)
   const net = new NetClient({
     url: socketUrl(window.location, import.meta.env.DEV),
     config: CONFIG.net,
+    beforeOpen: () => refreshSession(),
+  })
+  // A lost session is not a lost signal: send the raider back to sign in.
+  net.onRefused((code) => {
+    if (code !== CLOSE.unauthenticated) return
+    hud.toast('Signed out. Sign in again to raid.')
+    setTimeout(() => window.location.reload(), CONFIG.net.signedOutReloadMs)
   })
   net.on((msg) => {
     const now = performance.now()
@@ -338,7 +389,6 @@ async function boot() {
   })
   // Not awaited: the game never waits on the network.
   void net.connect({
-    name: pick.name,
     outfit: pick.outfit,
     pickups: world.pickups.length,
     stations: world.fuelPoints.length,
@@ -1074,7 +1124,7 @@ async function boot() {
       return
     }
     const now = performance.now()
-    hud.chatLine({ kind: 'say', name: pick.name, text }, now)
+    hud.chatLine({ kind: 'say', name: pick.username, text }, now)
     hud.chatLine({ kind: 'system', text: CHAT_COPY.offline }, now)
   }
 

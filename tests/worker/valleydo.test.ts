@@ -93,12 +93,11 @@ async function valley(state = new MockState()) {
 }
 
 const hello = (
-  name = 'Dave',
   outfit = 'coleman',
   v = PROTOCOL_VERSION,
   pickups = 70,
   stations = 5
-) => JSON.stringify({ type: 'hello', v, name, outfit, pickups, stations })
+) => JSON.stringify({ type: 'hello', v, outfit, pickups, stations })
 
 const state = (x: number, z: number) =>
   JSON.stringify({
@@ -113,20 +112,30 @@ const state = (x: number, z: number) =>
 
 const chat = (text: string) => JSON.stringify({ type: 'chat', text })
 
-// A socket that has connected (dev or not) and said hello.
+// A socket the Worker stamped as a signed-in raider, as the upgrade would
+// (see fetch): the account, and the username the valley shows.
+function stamped(name: string, { dev = false, account = `acct-${name}` } = {}) {
+  const socket = new MockSocket()
+  socket.serializeAttachment({ dev, account, name, me: null })
+  return socket
+}
+
+// A socket that has connected (dev or not), signed in as `name`, and said
+// hello.
 async function join(
   v: ValleyDO,
   s: MockState,
   name: string,
-  { outfit = 'coleman', dev = false, pickups = 70 } = {}
+  {
+    outfit = 'coleman',
+    dev = false,
+    pickups = 70,
+    account = `acct-${name}`,
+  } = {}
 ) {
-  const socket = new MockSocket()
-  socket.serializeAttachment({ dev, me: null })
+  const socket = stamped(name, { dev, account })
   s.acceptWebSocket(socket)
-  await v.webSocketMessage(
-    ws(socket),
-    hello(name, outfit, PROTOCOL_VERSION, pickups)
-  )
+  await v.webSocketMessage(ws(socket), hello(outfit, PROTOCOL_VERSION, pickups))
   return socket
 }
 
@@ -138,6 +147,72 @@ describe('ValleyDO', () => {
     const { valley: v } = await valley()
     const res = v.fetch(new Request('https://do/ws'))
     expect(res.status).toBe(426)
+  })
+
+  it('takes who is signed in from the Worker stamps on the upgrade', async () => {
+    const { valley: v, state: s } = await valley()
+    // Node has no WebSocketPair, and no 101 responses; stand both in.
+    const realPair = (globalThis as { WebSocketPair?: unknown }).WebSocketPair
+    Object.assign(globalThis, {
+      WebSocketPair: function () {
+        return [new MockSocket(), new MockSocket()]
+      },
+    })
+    const realResponse = globalThis.Response
+    globalThis.Response = class extends realResponse {
+      constructor(body: BodyInit | null, init?: ResponseInit) {
+        super(body, { ...init, status: 200 })
+      }
+    } as typeof Response
+    try {
+      v.fetch(
+        new Request('https://do/ws', {
+          headers: {
+            Upgrade: 'websocket',
+            'x-bv-account': 'acct-9',
+            'x-bv-name': 'Dave',
+          },
+        })
+      )
+      v.fetch(
+        new Request('https://do/ws', { headers: { Upgrade: 'websocket' } })
+      )
+    } finally {
+      globalThis.Response = realResponse
+      Object.assign(globalThis, { WebSocketPair: realPair })
+    }
+    expect(s.sockets).toHaveLength(2)
+    expect(s.sockets[0].attachment).toEqual({
+      dev: false,
+      account: 'acct-9',
+      name: 'Dave',
+      me: null,
+    })
+    expect(s.sockets[1].attachment).toEqual({
+      dev: false,
+      account: null,
+      name: null,
+      me: null,
+    })
+  })
+
+  it('turns away a hello with no signed-in account', async () => {
+    const { valley: v, state: s } = await valley()
+    const bare = new MockSocket()
+    s.acceptWebSocket(bare)
+    await v.webSocketMessage(ws(bare), hello())
+    expect(bare.closeCode).toBe(CLOSE.unauthenticated)
+    const unstamped = new MockSocket()
+    unstamped.serializeAttachment({
+      dev: true,
+      account: null,
+      name: null,
+      me: null,
+    })
+    s.acceptWebSocket(unstamped)
+    await v.webSocketMessage(ws(unstamped), hello())
+    expect(unstamped.closeCode).toBe(CLOSE.unauthenticated)
+    expect(s.storage.map.get('valley')).toBeUndefined()
   })
 
   it('closes binary and malformed frames', async () => {
@@ -154,23 +229,20 @@ describe('ValleyDO', () => {
 
   it('wants a hello first, and only once', async () => {
     const { valley: v, state: s } = await valley()
-    const a = new MockSocket()
+    const a = stamped('Dave')
     s.acceptWebSocket(a)
     await v.webSocketMessage(ws(a), state(1, 1))
     expect(a.closeCode).toBe(CLOSE.malformed)
     const b = await join(v, s, 'Dave')
-    await v.webSocketMessage(ws(b), hello('Dave again'))
+    await v.webSocketMessage(ws(b), hello())
     expect(b.closeCode).toBe(CLOSE.malformed)
   })
 
   it('turns away the wrong protocol, a bad name, an unknown outfit, and a stale build', async () => {
     const { valley: v, state: s } = await valley()
-    const old = new MockSocket()
+    const old = stamped('Dave')
     s.acceptWebSocket(old)
-    await v.webSocketMessage(
-      ws(old),
-      hello('Dave', 'coleman', PROTOCOL_VERSION + 1)
-    )
+    await v.webSocketMessage(ws(old), hello('coleman', PROTOCOL_VERSION + 1))
     expect(old.closeCode).toBe(CLOSE.badVersion)
     const blank = await join(v, s, '   ')
     expect(blank.closeCode).toBe(CLOSE.badName)
@@ -182,12 +254,11 @@ describe('ValleyDO', () => {
     await join(v, s, 'First')
     const stale = await join(v, s, 'Second', { pickups: 71 })
     expect(stale.closeCode).toBe(CLOSE.staleBuild)
-    const moved = new MockSocket()
-    moved.serializeAttachment({ dev: false, me: null })
+    const moved = stamped('Third')
     s.acceptWebSocket(moved)
     await v.webSocketMessage(
       ws(moved),
-      hello('Third', 'coleman', PROTOCOL_VERSION, 70, 6)
+      hello('coleman', PROTOCOL_VERSION, 70, 6)
     )
     expect(moved.closeCode).toBe(CLOSE.staleBuild)
   })
@@ -376,7 +447,7 @@ describe('ValleyDO', () => {
     })
   })
 
-  it('hands out one berry a day per name, and says so in the welcome', async () => {
+  it('hands out one berry a day per account, and says so in the welcome', async () => {
     const { valley: v, state: s } = await valley()
     const before = Date.now()
     const a = await join(v, s, 'Dave')
@@ -396,13 +467,13 @@ describe('ValleyDO', () => {
       type: 'daily',
       picked: false,
     })
-    // The same name on another socket already had today's.
-    const twin = await join(v, s, ' Dave ')
+    // The same account on another socket already had today's.
+    const twin = await join(v, s, 'Dave')
     expect(twin.last<WelcomeMessage>().daily.collected).toBe(true)
     await v.webSocketMessage(ws(twin), '{"type":"collect"}')
     expect(twin.last<DailyMessage>().picked).toBe(false)
-    // Another name has its own.
-    const b = await join(v, s, 'Kvistad')
+    // Another account has its own, even under a name that looks the same.
+    const b = await join(v, s, 'Dave', { account: 'acct-other' })
     expect(b.last<WelcomeMessage>().daily.collected).toBe(false)
     // Nobody else heard a thing.
     expect(b.frames().some((m) => m.type === 'daily')).toBe(false)
@@ -410,7 +481,7 @@ describe('ValleyDO', () => {
     const stored = s.storage.map.get('valley') as {
       dailies: Record<string, string>
     }
-    expect(Object.keys(stored.dailies)).toEqual(['Dave'])
+    expect(Object.keys(stored.dailies)).toEqual(['acct-Dave'])
   })
 
   it('wakes a valley stored before the bush existed', async () => {
