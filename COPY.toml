@@ -191,15 +191,8 @@ unload_many = { text = "E — Unload {count} Cabbages", by = "ai" }
 extract_at = { text = "E — End the Raid at {station}", by = "ai" }
 extract_station = { text = "E — End the Raid at the Station", by = "ai" }
 extract_keep = { text = "E — End the Raid at {keep}", by = "ai" }
-take = { text = "E — Take {item}", by = "ai" }
-cabbage = { text = "Cabbage", by = "ai" }
-pickup_count = { text = "{item} ×{count}", by = "ai" }
-buy = { text = "E — Buy {item} for {price}", by = "ai" }
-buy_short = { text = "{item} — {price} (Not Enough Cash)", by = "ai" }
-berry_ready = { text = "E — Pick a Berry", by = "ai" }
-berry_picked = { text = "Berry Bush — Picked Clean Until Midnight", by = "ai" }
-berry_offline = { text = "Berry Bush — No Signal", by = "ai" }
 talk = { text = "E — Talk to Gron", by = "ai" }
+moab = { text = "E — Talk to Moab Coldë", by = "ai" }
 
 # Lines the game says to the player in the chat log (src/chat.ts).
 
@@ -291,6 +284,17 @@ not_linked = { text = "{provider} is not linked to your account", by = "ai" }
 limited = { text = "Too many tries. Wait a minute and try again.", by = "ai" }
 limited_short = { text = "Too many tries. Wait a minute.", by = "ai" }
 
+# The name over the item E would act on: a pickup, a shelf unit, or the
+# berry bush (src/interactions.ts itemLabel).
+
+[labels]
+cabbage = { text = "Cabbage", by = "ai" }
+pickup_count = { text = "{item} ×{count}", by = "ai" }
+price = { text = "{item} {price}", by = "ai" }
+berries = { text = "Berries", by = "ai" }
+berry_picked = { text = "Picked Clean Until Midnight", by = "ai" }
+berry_offline = { text = "No Signal", by = "ai" }
+
 # Character names, as the select and the name tags show them. Keys
 # match src/outfits.ts.
 
@@ -306,6 +310,7 @@ halatek = { text = "Chris Halatek", by = "tyler" }
 carlsten = { text = "David Carlsten", by = "tyler" }
 jdogg = { text = "Jdogg", by = "tyler" }
 gron = { text = "Gron", by = "tyler" }
+moab = { text = "Moab Coldë", by = "ai" }
 
 # Talking to Gron by the berry bush (src/grondialog.ts). One of the says_
 # lines greets you at random; the field, the checks and the Previous / Next
@@ -324,6 +329,11 @@ become = { text = "Become", by = "tyler" }
 character_now = { text = "This is you now", by = "tyler" }
 became = { text = "You are {name} now.", by = "tyler" }
 close = { text = "Close", by = "tyler" }
+
+# What Moab Coldë says under the Citgo sign when you press E beside him.
+
+[moab]
+says = { text = "Gold bullion.", by = "ai" }
 
 # Guitar finishes on the character select. Keys match src/finishes.ts.
 

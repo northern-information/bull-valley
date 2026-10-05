@@ -6,7 +6,13 @@
 
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { isMesh, meshBounds, WORLD_ASSETS } from './assets.ts'
+import {
+  isMesh,
+  meshBounds,
+  motionOf,
+  setMotion,
+  WORLD_ASSETS,
+} from './assets.ts'
 import { CONFIG } from './config.ts'
 import {
   applyPose,
@@ -14,6 +20,7 @@ import {
   attachCigarette,
   buildFigure,
   buildGron,
+  buildMoab,
 } from './figure.ts'
 import { buildMistCard, makeMistTexture } from './mistcards.ts'
 import { OUTFIT_IDS, OUTFITS } from './outfits.ts'
@@ -30,6 +37,8 @@ export interface AkashicHook {
   ids: string[]
   select(id: string): void
   setView(azimuth: number, elevation: number, distance?: number): void
+  // Play or hold what moves; held, it stands at HOLD_SECONDS.
+  animate(on: boolean): void
   readonly current: string | undefined
 }
 
@@ -39,22 +48,24 @@ declare global {
   }
 }
 
+// Where a held asset stands in its motion: Marx mid-drag, the rain
+// mid-fall.
+const HOLD_SECONDS = 0.4
+
 function sampleFigure(outfitId: OutfitId): THREE.Group {
   const figure = buildFigure(outfitId)
   applyPose(figure, samplePose('stand'))
-  // Marx reads at the tailgate and smokes; show him as the lobby does,
-  // with the cigarette frozen mid-drag and smoke in the air.
+  // Marx reads at the tailgate and smokes, as the lobby shows him.
   if (outfitId === 'marx') {
     applyPose(figure, samplePose('read'))
     attachBook(figure)
-    attachCigarette(figure).update(0.4)
+    const cigarette = attachCigarette(figure)
+    setMotion(figure.group, (t) => cigarette.update(t))
   }
   // Gron stoops under his raincloud, as he stands by the bush.
-  if (outfitId === 'gron') {
-    const gron = buildGron()
-    gron.update(0.37)
-    return gron.group
-  }
+  if (outfitId === 'gron') return buildGron().group
+  // Moab burns beside his horse, as he stands under the sign.
+  if (outfitId === 'moab') return buildMoab().group
   return figure.group
 }
 
@@ -159,6 +170,7 @@ const TOGGLES = [
   { id: 'wireframe', label: 'Wireframe', key: 'KeyW', on: false },
   { id: 'rotate', label: 'Auto-rotate', key: 'KeyR', on: false },
   { id: 'person', label: '1.8 m figure', key: 'KeyH', on: true },
+  { id: 'animate', label: 'Animate', key: 'KeyA', on: true },
   { id: 'grid', label: 'Grid', key: 'KeyG', on: true },
 ]
 const state = Object.fromEntries(TOGGLES.map((t) => [t.id, t.on]))
@@ -193,6 +205,7 @@ function applyToggles(): void {
   grid.visible = state.grid
   ground.visible = state.grid
   if (current) setWireframe(current.object, state.wireframe)
+  if (!state.animate) current?.motion?.(HOLD_SECONDS)
   resize()
 }
 
@@ -243,6 +256,8 @@ const statsEl = requireElement<HTMLElement>('.ak-stats')
 interface Current {
   asset: AkashicAsset
   object: THREE.Object3D
+  // Its own motion (assets.ts setMotion), or null for a still asset.
+  motion: ((t: number) => void) | null
 }
 
 let current: Current | null = null
@@ -276,7 +291,9 @@ function selectAsset(id: string): void {
   }
   const object = asset.build()
   scene.add(object)
-  current = { asset, object }
+  const motion = motionOf(object)
+  motion?.(HOLD_SECONDS)
+  current = { asset, object, motion }
   setWireframe(object, state.wireframe)
 
   const box = meshBounds(object)
@@ -361,8 +378,10 @@ window.addEventListener('resize', resize)
 selectAsset(location.hash.slice(1))
 applyToggles()
 
+const clock = new THREE.Clock()
 renderer.setAnimationLoop(() => {
   controls.update()
+  if (state.animate) current?.motion?.(HOLD_SECONDS + clock.getElapsedTime())
   renderer.render(scene, camera)
 })
 
@@ -370,6 +389,7 @@ window.__akashic = {
   ids: ASSETS.map((a) => a.id),
   select: selectAsset,
   setView,
+  animate: (on) => setToggle('animate', on),
   get current() {
     return current?.asset.id
   },

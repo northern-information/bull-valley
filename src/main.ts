@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import './styles.css'
 import { authReturnOf, devSignInUrl, stripAuthQuery } from './account.ts'
 import { openAccountPanel } from './accountpanel.ts'
-import { buildSky, pulseMaterials } from './assets.ts'
+import { buildSky, meshBounds, pulseMaterials } from './assets.ts'
 import { BvAudio } from './audio.ts'
 import { fetchMe, refreshSession, saveLook, signOut } from './auth.ts'
 import { actionOf, cycleStep, PACK, WORLD } from './bindings.ts'
@@ -19,6 +19,7 @@ import { openGronDialog } from './grondialog.ts'
 import { Hud } from './hud.ts'
 import {
   interactionPrompt,
+  itemLabel,
   pickupLabel,
   resolveInteraction,
 } from './interactions.ts'
@@ -121,6 +122,9 @@ declare global {
     __bv?: BvHook
   }
 }
+
+// How far over the top of an item its label sits, in metres.
+const LABEL_LIFT = 0.03
 
 // Same files the Scaduscope reads; baked by scripts/fetch_bull_valley.cjs.
 const DATA_BASE = '/data/bull-valley'
@@ -355,7 +359,7 @@ async function boot() {
     spawn: world.spawn,
   })
   const pick = await titles
-  if (pick.notice) hud.toast(pick.notice)
+  if (pick.notice) hud.tell(pick.notice)
   const playerBody = new PlayerBody(
     scene,
     pick.outfit,
@@ -405,7 +409,7 @@ async function boot() {
   // A lost session is not a lost signal: send the raider back to sign in.
   net.onRefused((code) => {
     if (code !== CLOSE.unauthenticated) return
-    hud.toast(copy('toasts.signed_out'))
+    hud.tell(copy('toasts.signed_out'))
     setTimeout(() => window.location.reload(), CONFIG.net.signedOutReloadMs)
   })
   net.on((msg) => {
@@ -415,7 +419,7 @@ async function boot() {
         peers.welcome(msg.peers, now)
         const n = msg.peers.length
         if (n > 0) {
-          hud.toast(
+          hud.tell(
             n === 1
               ? copy('toasts.welcome_one')
               : copy('toasts.welcome_many', { count: n })
@@ -425,7 +429,7 @@ async function boot() {
       }
       case 'peer-joined':
         peers.joined(msg.peer, now)
-        hud.toast(copy('toasts.peer_joined', { name: msg.peer.name }))
+        hud.tell(copy('toasts.peer_joined', { name: msg.peer.name }))
         return
       case 'peer-updated': {
         // Our own comes back too; the dialog has said so already.
@@ -433,7 +437,7 @@ async function boot() {
         const was = peers.table.get(msg.peer.id)?.name
         peers.updated(msg.peer)
         if (was && was !== msg.peer.name) {
-          hud.toast(copy('toasts.peer_renamed', { was, name: msg.peer.name }))
+          hud.tell(copy('toasts.peer_renamed', { was, name: msg.peer.name }))
         }
         return
       }
@@ -445,7 +449,7 @@ async function boot() {
       case 'peer-left': {
         const name = peers.table.get(msg.id)?.name
         peers.left(msg.id)
-        if (name) hud.toast(copy('toasts.peer_left', { name }))
+        if (name) hud.tell(copy('toasts.peer_left', { name }))
         return
       }
       case 'chat':
@@ -464,7 +468,7 @@ async function boot() {
       wasOnline = true
     } else if (status === 'offline') {
       peers.clear()
-      if (wasOnline) hud.toast(copy('toasts.signal_lost'))
+      if (wasOnline) hud.tell(copy('toasts.signal_lost'))
     }
   })
   // Not awaited: the game never waits on the network.
@@ -535,7 +539,7 @@ async function boot() {
   let pendingCollect = false
   const ridingForward = new THREE.Vector3(0, 0, -1)
 
-  player.onEdge = () => hud.toast(copy('toasts.edge'))
+  player.onEdge = () => hud.tell(copy('toasts.edge'))
 
   // Rebuild the ring after anything that changes what you carry, keeping
   // the selection on the same kind.
@@ -600,6 +604,7 @@ async function boot() {
   const endRaid = () => {
     ended = true
     hud.prompt(null)
+    hud.itemLabel(null)
     closeInventory()
     if (document.pointerLockElement) document.exitPointerLock()
     player.locked = false
@@ -625,7 +630,7 @@ async function boot() {
       if (aboard || raid.state !== STATES.LOADOUT) return
       aboard = true
       net.send({ type: 'board' })
-      hud.toast(copy('toasts.board'))
+      hud.tell(copy('toasts.board'))
       closeInventory()
       return
     }
@@ -633,7 +638,7 @@ async function boot() {
     if (next === raid) return
     raid = next
     truckLeaves()
-    hud.toast(copy('toasts.board'))
+    hud.tell(copy('toasts.board'))
     onTruckRolls = [copy('toasts.truck_leaves'), copy('toasts.hop_out_hint')]
     closeInventory()
   }
@@ -645,7 +650,7 @@ async function boot() {
       net.send({ type: 'unboard' })
       const spot = truck.hopOutSpot()
       player.relocate(spot.x, spot.z, player.yaw)
-      if (toastText) hud.toast(toastText)
+      if (toastText) hud.tell(toastText)
       return
     }
     const next = advance(raid, EVENTS.HOP_OUT, raidClock)
@@ -653,7 +658,7 @@ async function boot() {
     raid = next
     const spot = truck.hopOutSpot()
     player.relocate(spot.x, spot.z, player.yaw)
-    if (toastText) hud.toast(toastText)
+    if (toastText) hud.tell(toastText)
     if (shared) net.send({ type: 'hop-out' })
   }
 
@@ -667,20 +672,20 @@ async function boot() {
     closeInventory()
     player.keys.clear()
     player.relocate(world.spawn.x, world.spawn.z, world.spawn.yaw)
-    hud.toast(copy('toasts.struck'))
+    hud.tell(copy('toasts.struck'))
   }
 
   const callTruck = () => {
     if (raid.state !== STATES.ON_FOOT || raid.truckCalled) return
     if (shared?.call) {
-      hud.toast(copy('toasts.truck_busy'))
+      hud.tell(copy('toasts.truck_busy'))
       return
     }
     const from = nearestRoadPoint(graph, truck.x, truck.z)
     const to = nearestRoadPoint(graph, player.pos.x, player.pos.z)
     const route = from && to ? planRoute(graph, from, to) : null
     if (!from || !to || !route || route.length < 2) {
-      hud.toast(copy('toasts.whistle_nothing'))
+      hud.tell(copy('toasts.whistle_nothing'))
       return
     }
     if (shared) {
@@ -694,7 +699,7 @@ async function boot() {
     }
     raid = advance(raid, EVENTS.CALL_TRUCK, raidClock)
     truck.driveRoute(route)
-    hud.toast(copy('toasts.whistle'))
+    hud.tell(copy('toasts.whistle'))
   }
 
   // The buyer's side of a sale, once the unit is ours.
@@ -707,7 +712,7 @@ async function boot() {
       cash = next.cash
       if (inventoryChanged) refreshRing()
     }
-    if (toast) hud.toast(toast)
+    if (toast) hud.tell(toast)
   }
 
   const buy = (shelf: ShelfSpot) => {
@@ -719,7 +724,7 @@ async function boot() {
       raidClock
     )
     if (!next) {
-      if (toast) hud.toast(toast)
+      if (toast) hud.tell(toast)
       return
     }
     if (shared) {
@@ -743,7 +748,7 @@ async function boot() {
     inventory = next.inventory
     cash = next.cash
     if (inventoryChanged) refreshRing()
-    if (toast) hud.toast(toast)
+    if (toast) hud.tell(toast)
   }
 
   // How the bush stands for this player right now. The valley's word is
@@ -758,11 +763,11 @@ async function boot() {
   // E at the bush: ask the valley for today's berry, or say why not.
   const collectBerry = (status: DailyStatus) => {
     if (status === 'offline') {
-      hud.toast(copy('toasts.berry_offline'))
+      hud.tell(copy('toasts.berry_offline'))
       return
     }
     if (status === 'picked') {
-      hud.toast(copy('toasts.berry_picked'))
+      hud.tell(copy('toasts.berry_picked'))
       return
     }
     if (pendingCollect) return
@@ -775,12 +780,12 @@ async function boot() {
     pendingCollect = false
     daily = msg.daily
     if (!msg.picked) {
-      hud.toast(copy('toasts.berry_picked'))
+      hud.tell(copy('toasts.berry_picked'))
       return
     }
     inventory = addItem(inventory, 'berries', 1)
     refreshRing()
-    hud.toast(getItem('berries').collected)
+    hud.tell(getItem('berries').collected)
   }
 
   // The store the player stands inside, as an index into world.fuelPoints,
@@ -831,9 +836,41 @@ async function boot() {
         return action.status === 'ready' ? world.bushObject : null
       case 'talk':
         return world.gronRig?.figure.group ?? null
+      case 'moab':
+        return world.moabRigs[action.station]?.figure.group ?? null
       default:
         return null
     }
+  }
+
+  // What an item's label floats over: the pickup, the shelf unit a buy
+  // would take, or the bush, picked or not. Null for anything else.
+  const labelTarget = (
+    action: Interaction<Pickup> | null
+  ): THREE.Object3D | null => {
+    switch (action?.kind) {
+      case 'pickup':
+      case 'buy':
+        return glowTarget(action)
+      case 'collect':
+        return world.bushObject
+      default:
+        return null
+    }
+  }
+
+  // Where the label sits: just over the top of the item's meshes (its
+  // halo would lift it into the air), in the view's 0..1 across and down.
+  // Null when the point is behind the camera.
+  const labelPoint = new THREE.Vector3()
+  const labelAt = (target: THREE.Object3D): { x: number; y: number } | null => {
+    const box = meshBounds(target)
+    if (box.isEmpty()) return null
+    box.getCenter(labelPoint)
+    labelPoint.y = box.max.y + LABEL_LIFT
+    labelPoint.project(camera)
+    if (labelPoint.z > 1) return null
+    return { x: (labelPoint.x + 1) / 2, y: (1 - labelPoint.y) / 2 }
   }
 
   // --- Input ---------------------------------------------------------------
@@ -896,7 +933,7 @@ async function boot() {
       hud.showIntro(false)
       if (!greeted) {
         greeted = true
-        hud.toast(copy('toasts.greeting'))
+        hud.tell(copy('toasts.greeting'))
       }
     } else if (started && !ended && !inventoryOpen && !talking) {
       hud.showIntro(true, true)
@@ -916,7 +953,7 @@ async function boot() {
         ? cigaretteToSmoke(inventory, selectedCigarette)
         : choice
     if (!kind) {
-      hud.toast(copy('toasts.no_cigarettes'))
+      hud.tell(copy('toasts.no_cigarettes'))
       return
     }
     const item = itemById(kind)
@@ -925,7 +962,7 @@ async function boot() {
     if (smoke && time < smokingUntil) return
     const result = useItem(inventory, kind)
     if (!result.used) {
-      if (item.empty) hud.toast(item.empty)
+      if (item.empty) hud.tell(item.empty)
       return
     }
     inventory = result.inv
@@ -939,7 +976,7 @@ async function boot() {
     } else {
       perceptionUntil = time + (item.perceptionSeconds ?? 0)
     }
-    if (item.used) hud.toast(item.used)
+    if (item.used) hud.tell(item.used)
   }
 
   // The pickup is ours: into the arms or the pack.
@@ -947,21 +984,22 @@ async function boot() {
     if (pickup.kind === 'cabbage') {
       const next = advance(raid, EVENTS.PICK_CABBAGE, raidClock)
       if (next === raid) {
-        hud.toast(copy('toasts.arms_full'))
+        hud.tell(copy('toasts.arms_full'))
         return
       }
       raid = next
       pickup.taken = true
       pickup.mesh.visible = false
-      hud.toast(copy('toasts.taken', { item: copy('prompts.cabbage') }))
+      hud.tell(copy('toasts.taken', { item: copy('labels.cabbage') }))
     } else {
       pickup.taken = true
       pickup.mesh.visible = false
       inventory = addItem(inventory, pickup.kind, pickup.count)
-      hud.toast(copy('toasts.taken', { item: pickupLabel(pickup) }))
+      hud.tell(copy('toasts.taken', { item: pickupLabel(pickup) }))
     }
     interaction = null
     hud.prompt(null)
+    hud.itemLabel(null)
   }
 
   // Someone else got it.
@@ -983,7 +1021,7 @@ async function boot() {
       pickup.kind === 'cabbage' &&
       advance(raid, EVENTS.PICK_CABBAGE, raidClock) === raid
     ) {
-      hud.toast(copy('toasts.arms_full'))
+      hud.tell(copy('toasts.arms_full'))
       return
     }
     pendingTakes.add(index)
@@ -1068,7 +1106,7 @@ async function boot() {
         } else if (reason === 'depart') {
           onTruckRolls = [copy('toasts.left_behind')]
         } else {
-          hud.toast(copy('toasts.long_gone'))
+          hud.tell(copy('toasts.long_gone'))
         }
         refreshRing()
       }
@@ -1087,16 +1125,16 @@ async function boot() {
       truck.driveRouteAt(route, net.clock.toLocalMs(call.at))
       if (call.by === me) {
         raid = advance(raid, EVENTS.CALL_TRUCK, raidClock)
-        hud.toast(copy('toasts.whistle'))
+        hud.tell(copy('toasts.whistle'))
       } else {
-        hud.toast(copy('toasts.whistle_other'))
+        hud.tell(copy('toasts.whistle_other'))
       }
     }
 
     if (reason === 'extracted' && by && by !== me) {
       const name = peers.table.get(by)?.name
       peers.left(by)
-      if (name) hud.toast(copy('toasts.peer_extracted', { name }))
+      if (name) hud.tell(copy('toasts.peer_extracted', { name }))
     }
   }
 
@@ -1105,33 +1143,33 @@ async function boot() {
       if (msg.index !== undefined) pendingTakes.delete(msg.index)
       // Still there, but not for us yet.
       if (msg.reason === 'arms-full') {
-        hud.toast(copy('toasts.arms_full'))
+        hud.tell(copy('toasts.arms_full'))
         return
       }
       if (msg.reason !== 'gone') return
       const pickup =
         msg.index === undefined ? undefined : world.pickups[msg.index]
       if (pickup) markTaken(pickup)
-      hud.toast(copy('toasts.taken_first'))
+      hud.tell(copy('toasts.taken_first'))
     } else if (msg.re === 'buy') {
       if (msg.station !== undefined && msg.item) {
         pendingBuys.delete(`${msg.station}:${msg.item}`)
       }
       const price = msg.item ? itemById(msg.item)?.price : undefined
-      if (msg.reason === 'sold-out') hud.toast(copy('toasts.sold_out'))
-      else if (msg.reason === 'have-sack') hud.toast(copy('toasts.have_sack'))
+      if (msg.reason === 'sold-out') hud.tell(copy('toasts.sold_out'))
+      else if (msg.reason === 'have-sack') hud.tell(copy('toasts.have_sack'))
       else if (msg.reason === 'short' && price !== undefined) {
-        hud.toast(
+        hud.tell(
           copy('toasts.short', {
             amount: formatCash(Math.max(0, price - cash)),
           })
         )
-      } else hud.toast(copy('toasts.refused'))
+      } else hud.tell(copy('toasts.refused'))
     } else if (msg.re === 'call') {
-      hud.toast(copy('toasts.truck_busy'))
+      hud.tell(copy('toasts.truck_busy'))
     } else if (msg.re === 'collect') {
       pendingCollect = false
-      hud.toast(copy('toasts.berry_refused'))
+      hud.tell(copy('toasts.berry_refused'))
     } else if (msg.re === 'chat') {
       hud.chatLine(
         { kind: 'system', text: CHAT_COPY.tooFast },
@@ -1194,7 +1232,7 @@ async function boot() {
       },
       onBecome: (outfit, finish) => {
         void saveLook({ outfit, finish }).then((saved) => {
-          if (!saved.ok) hud.toast(saved.error)
+          if (!saved.ok) hud.tell(saved.error)
         })
         pick.finish = finish
         playerBody.restyle(outfit, finishById(finish).color)
@@ -1231,7 +1269,7 @@ async function boot() {
         const count = raid.carrying
         raid = advance(raid, EVENTS.DELIVER, raidClock)
         if (shared) net.send({ type: 'deliver' })
-        hud.toast(
+        hud.tell(
           count === 1
             ? copy('toasts.unload_one')
             : copy('toasts.unload_many', { count })
@@ -1257,6 +1295,14 @@ async function boot() {
         return
       case 'talk':
         talkToGron()
+        return
+      case 'moab':
+        // He speaks in the chat log under his own name, to this player
+        // alone; the valley never hears it.
+        hud.chatLine(
+          { kind: 'say', name: copy('outfits.moab'), text: copy('moab.says') },
+          performance.now()
+        )
         return
     }
   }
@@ -1455,7 +1501,7 @@ async function boot() {
       truck.update(dt, now)
     }
     if (onTruckRolls.length && truck.rolling()) {
-      for (const line of onTruckRolls) hud.toast(line)
+      for (const line of onTruckRolls) hud.tell(line)
       onTruckRolls = []
     }
 
@@ -1472,6 +1518,8 @@ async function boot() {
     if (swarm.struck) strike()
     mist.update({ dt, player: player.pos })
     world.gronRig?.update(rainStill ? 0.37 : time)
+    // Moab's fire burns on the same clock, and holds still with the rain.
+    for (const rig of world.moabRigs) rig.update(rainStill ? 0.4 : time)
     if (now < strikeUntil) hud.drawStatic()
     else if (!hud.staticWrap.hidden) hud.showStatic(false)
 
@@ -1561,13 +1609,23 @@ async function boot() {
           bush: world.bush,
           daily: dailyStatus(),
           gron: world.gron,
+          moabs: world.moabs,
         })
     const prompt = interaction ? interactionPrompt(interaction) : null
+    const label = interaction ? itemLabel(interaction) : null
+    const labelTo = label ? labelTarget(interaction) : null
+    const labelSpot = labelTo ? labelAt(labelTo) : null
     glow.setTarget(glowTarget(interaction))
     // Today's berry picked, the bush stands bare until midnight Central.
     world.setBerries(dailyStatus() !== 'picked')
+    const clear = !ended && now >= strikeUntil
+    hud.itemLabel(
+      player.locked && clear && label && labelSpot
+        ? { ...label, ...labelSpot }
+        : null
+    )
     if (player.locked) {
-      hud.prompt(!ended && now >= strikeUntil ? prompt : null)
+      hud.prompt(clear ? prompt : null)
     } else if (started && !ended && !hud.introShown) {
       // Lock refused with the pause card down: the view itself is the way
       // back. While the card shows, its own button says it.

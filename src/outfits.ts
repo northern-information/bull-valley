@@ -11,7 +11,15 @@ export const BODY_SLOTS = ['skin', 'hair', 'shirt', 'pants', 'boots'] as const
 
 export type BodySlot = (typeof BODY_SLOTS)[number]
 export type ColorSlot =
-  BodySlot | 'coat' | 'glasses' | 'buckle' | 'belt' | 'stubble' | 'hat'
+  | BodySlot
+  | 'coat'
+  | 'glasses'
+  | 'buckle'
+  | 'belt'
+  | 'stubble'
+  | 'hat'
+  | 'straps'
+  | 'sockets'
 
 // Painted art printed on a part; decalart.ts paints each one.
 export type DecalId =
@@ -28,6 +36,7 @@ export type DecalId =
   | 'nin'
   | 'camo'
   | 'baja'
+  | 'tattered'
 
 // Where an outfit prints a decal over the body: across the torso front,
 // across the front of both thighs, or all round both bare arms.
@@ -112,6 +121,27 @@ export type AddonId =
   | 'chin-wisps'
   | 'hump'
   | 'cloak-hem'
+  | 'eye-sockets'
+  | 'nose-hole'
+  | 'mouth'
+  | 'teeth'
+  | 'chest-strap-high'
+  | 'chest-strap-low'
+  | 'strap-buckles'
+  | 'arm-straps-l'
+  | 'arm-straps-r'
+  | 'cuff-straps-l'
+  | 'cuff-straps-r'
+  | 'thigh-straps-l'
+  | 'thigh-straps-r'
+  | 'trench-hem'
+  | 'bandolier'
+  | 'collar-strap'
+  | 'hem-strap-high'
+  | 'hem-strap-low'
+  | 'hem-buckles'
+  | 'tatters-long'
+  | 'tatters-short'
 
 export type LimbGroup = 'arm' | 'leg'
 
@@ -153,6 +183,7 @@ export type OutfitId =
   | 'jdogg'
   | 'carlsten'
   | 'gron'
+  | 'moab'
 
 // Dreadlocks hang from a ring round the back and sides of the head, leaving
 // the face clear. Angles are around the head from +X toward +Z (the face).
@@ -189,6 +220,27 @@ const WISP_SPOTS: Vec3[] = [
   [0.012, 0.038, 0.068],
   [0.052, 0.048, 0.048],
 ]
+
+// A strap round a limb: a thin band just proud of it, placed by offsets
+// down the limb. Its rings straddle y 0, so an offset sets its height.
+const limbBand = (rx: number, rz: number): LoftRing[] => [
+  [0.015, rx, rz, 0],
+  [-0.015, rx, rz, 0],
+]
+
+// Ragged shreds of a coat's hem hang from round its bottom ring (the
+// trench-hem's, at y -0.66), long and short in turn, a little uneven.
+// Angles are around the waist from +X toward +Z (the front).
+const hemSpot = (deg: number, drop: number): Vec3 => {
+  const a = (deg * Math.PI) / 180
+  return [Math.cos(a) * 0.235, -0.64 - drop, Math.sin(a) * 0.17 - 0.02]
+}
+const LONG_TATTER_SPOTS = [10, 70, 115, 160, 215, 250, 300, 335].map((deg, i) =>
+  hemSpot(deg, (i % 3) * 0.01)
+)
+const SHORT_TATTER_SPOTS = [40, 95, 135, 190, 235, 275, 320].map((deg, i) =>
+  hemSpot(deg + 4, (i % 2) * 0.012)
+)
 
 // Extra parts on the body. joint names a pivot from poses.ts JOINTS; slot
 // picks the color. A part is either a loft (rings of [y, rx, rz, cz]: height,
@@ -559,6 +611,199 @@ export const ADDONS: Record<AddonId, Addon> = {
       [-0.74, 0.27, 0.19, -0.02],
     ],
   },
+  // A skull's face, laid on the bone-colored head: two eye sockets, the
+  // hole where the nose was, and a mouth of bare teeth.
+  'eye-sockets': {
+    joint: 'neck',
+    slot: 'sockets',
+    box: [0.038, 0.034, 0.014],
+    offsets: [
+      [0.036, 0.198, 0.101],
+      [-0.036, 0.198, 0.101],
+    ],
+  },
+  // Over the front of the nose, so the nose reads as a hole.
+  'nose-hole': {
+    joint: 'neck',
+    slot: 'sockets',
+    box: [0.03, 0.036, 0.008],
+    offset: [0, 0.165, 0.117],
+  },
+  mouth: {
+    joint: 'neck',
+    slot: 'sockets',
+    box: [0.072, 0.03, 0.012],
+    offset: [0, 0.118, 0.1],
+  },
+  // A row of teeth across the mouth, a little proud of it.
+  teeth: {
+    joint: 'neck',
+    slot: 'skin',
+    box: [0.009, 0.024, 0.006],
+    offsets: [-0.027, -0.0135, 0, 0.0135, 0.027].map((x): Vec3 => [
+      x,
+      0.118,
+      0.108,
+    ]),
+  },
+  // Straps buckled round the trench at the chest and the ribs, each just
+  // proud of the torso through its band.
+  'chest-strap-high': {
+    joint: 'spine',
+    slot: 'straps',
+    sides: 8,
+    rings: [
+      [0.305, 0.207, 0.127, 0.013],
+      [0.335, 0.209, 0.128, 0.012],
+    ],
+  },
+  'chest-strap-low': {
+    joint: 'spine',
+    slot: 'straps',
+    sides: 8,
+    rings: [
+      [0.165, 0.179, 0.119, 0.008],
+      [0.195, 0.181, 0.121, 0.008],
+    ],
+  },
+  // An iron buckle on the front of each chest strap.
+  'strap-buckles': {
+    joint: 'spine',
+    slot: 'buckle',
+    box: [0.036, 0.032, 0.012],
+    offsets: [
+      [0, 0.32, 0.141],
+      [0, 0.18, 0.13],
+    ],
+  },
+  // Two straps round each sleeve above the elbow, one at each wrist, and
+  // one round each thigh.
+  'arm-straps-l': {
+    joint: 'shoulderL',
+    slot: 'straps',
+    rings: limbBand(0.06, 0.066),
+    offsets: [
+      [0, -0.08, 0],
+      [0, -0.22, 0],
+    ],
+  },
+  'arm-straps-r': {
+    joint: 'shoulderR',
+    slot: 'straps',
+    rings: limbBand(0.06, 0.066),
+    offsets: [
+      [0, -0.08, 0],
+      [0, -0.22, 0],
+    ],
+  },
+  'cuff-straps-l': {
+    joint: 'elbowL',
+    slot: 'straps',
+    rings: limbBand(0.044, 0.046),
+    offset: [0, -0.22, 0],
+  },
+  'cuff-straps-r': {
+    joint: 'elbowR',
+    slot: 'straps',
+    rings: limbBand(0.044, 0.046),
+    offset: [0, -0.22, 0],
+  },
+  'thigh-straps-l': {
+    joint: 'hipL',
+    slot: 'straps',
+    rings: limbBand(0.092, 0.097),
+    offset: [0, -0.12, 0],
+  },
+  'thigh-straps-r': {
+    joint: 'hipR',
+    slot: 'straps',
+    rings: limbBand(0.092, 0.097),
+    offset: [0, -0.12, 0],
+  },
+  // A strap slung from one shoulder across the chest and back to the
+  // other hip: a band round the torso, tipped over.
+  bandolier: {
+    joint: 'spine',
+    slot: 'straps',
+    sides: 8,
+    rings: [
+      [0.017, 0.24, 0.138, 0.012],
+      [-0.017, 0.24, 0.138, 0.012],
+    ],
+    offset: [0, 0.25, 0],
+    rotation: [0, 0, 0.6],
+  },
+  // A strap buckled round the throat, over the bare neck bone.
+  'collar-strap': {
+    joint: 'neck',
+    slot: 'straps',
+    rings: limbBand(0.058, 0.058),
+    offset: [0, 0.02, 0],
+  },
+  // Two straps round the skirt, each just proud of the hem through its
+  // band, with an iron buckle on the front of each.
+  'hem-strap-high': {
+    joint: 'pelvis',
+    slot: 'straps',
+    sides: 8,
+    rings: [
+      [-0.185, 0.215, 0.16, 0],
+      [-0.215, 0.218, 0.162, 0],
+    ],
+  },
+  'hem-strap-low': {
+    joint: 'pelvis',
+    slot: 'straps',
+    sides: 8,
+    rings: [
+      [-0.435, 0.233, 0.173, -0.009],
+      [-0.465, 0.235, 0.175, -0.009],
+    ],
+  },
+  'hem-buckles': {
+    joint: 'pelvis',
+    slot: 'buckle',
+    box: [0.036, 0.032, 0.012],
+    offsets: [
+      [0, -0.2, 0.169],
+      [0, -0.45, 0.172],
+    ],
+  },
+  // Shreds of the hem, long and short, pointed where they tore.
+  'tatters-long': {
+    joint: 'pelvis',
+    slot: 'coat',
+    sides: 4,
+    rings: [
+      [0, 0.035, 0.012, 0],
+      [-0.1, 0.014, 0.006, 0],
+      [-0.17, 0.002, 0.002, 0],
+    ],
+    offsets: LONG_TATTER_SPOTS,
+  },
+  'tatters-short': {
+    joint: 'pelvis',
+    slot: 'coat',
+    sides: 4,
+    rings: [
+      [0, 0.03, 0.01, 0],
+      [-0.08, 0.002, 0.002, 0],
+    ],
+    offsets: SHORT_TATTER_SPOTS,
+  },
+  // A trench coat's skirt, from the waist to below the knee, flaring a
+  // little as it falls.
+  'trench-hem': {
+    joint: 'pelvis',
+    slot: 'coat',
+    sides: 8,
+    rings: [
+      [0.06, 0.175, 0.125, 0],
+      [-0.2, 0.205, 0.15, 0],
+      [-0.48, 0.225, 0.165, -0.01],
+      [-0.66, 0.24, 0.175, -0.02],
+    ],
+  },
 }
 
 // proportions scale the length of each limb group (1 = the base body).
@@ -774,6 +1019,51 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
       coat: '#5b3f26',
     },
     addons: ['hood-down', 'hump', 'cloak-hem'],
+    shaved: true,
+  },
+  // Under every Citgo sign, his back to his skeleton horse: a skeleton
+  // himself, on fire (figure.ts buildMoab lights him), in a tattered red
+  // trench coat with black straps. Not on the select roster.
+  moab: {
+    label: copy('outfits.moab'),
+    colors: {
+      skin: '#d8cfb6',
+      hair: '#d8cfb6',
+      shirt: '#8e1414',
+      pants: '#2a2a2e',
+      boots: '#0b0b0d',
+      coat: '#8e1414',
+      belt: '#0a0a0b',
+      straps: '#0a0a0b',
+      buckle: '#8a8a86',
+      sockets: '#050505',
+    },
+    addons: [
+      'eye-sockets',
+      'nose-hole',
+      'mouth',
+      'teeth',
+      'chest-strap-high',
+      'chest-strap-low',
+      'strap-buckles',
+      'arm-straps-l',
+      'arm-straps-r',
+      'cuff-straps-l',
+      'cuff-straps-r',
+      'thigh-straps-l',
+      'thigh-straps-r',
+      'belt',
+      'trench-hem',
+      'bandolier',
+      'collar-strap',
+      'hem-strap-high',
+      'hem-strap-low',
+      'hem-buckles',
+      'tatters-long',
+      'tatters-short',
+    ],
+    // Scorched, ripped through to the bone, and frayed.
+    patterns: { shirt: 'tattered' },
     shaved: true,
   },
 }

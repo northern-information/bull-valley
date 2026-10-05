@@ -34,6 +34,8 @@ base.describe('one raid', { tag: '@raid' }, () => {
 
   const raid = () => page.evaluate(() => window.__bv?.raid)
   const prompt = () => page.locator('.bv-prompt')
+  // The name over the item E would act on.
+  const label = () => page.locator('.bv-item-label')
 
   async function moveTo(find: string): Promise<void> {
     await page.evaluate((target) => {
@@ -49,13 +51,15 @@ base.describe('one raid', { tag: '@raid' }, () => {
               ? world.landmarks.find((l) => !l.n.includes('Keep'))
               : world.fuelPoints.find((f) => f !== world.spawnStation)
       if (!spot) throw new Error(`nothing to move to: ${target}`)
-      bv.player.relocate(spot.x + 1, spot.z + 1, bv.player.yaw)
+      // A stride off it, facing it and looking down at it, so an item's
+      // label is in view. The view looks along (-sin yaw, -cos yaw).
+      bv.player.relocate(spot.x + 1, spot.z + 1, Math.atan2(1, 1))
+      bv.player.pitch = -0.5
     }, find)
   }
 
   // How many PBRs the pack holds, as the valley last said (a fresh
-  // raider's pack has none). Toasts are no proof: they leave the DOM after
-  // 4.4 seconds, which a slow CI runner can outlast.
+  // raider's pack has none).
   const pbrs = () => page.evaluate(() => window.__bv?.inventory.pbr)
 
   // The roads and lots float over the terrain, so standing at the terrain
@@ -153,8 +157,8 @@ base.describe('one raid', { tag: '@raid' }, () => {
     // The unit under the crosshair is the one the glow rings and the one a
     // buy takes: here the first of the three, not the last.
     await aimAt('pbr', [1.3, 0], 0)
-    await expect(prompt()).toHaveText(
-      copy('prompts.buy', {
+    await expect(label()).toHaveText(
+      copy('labels.price', {
         item: copy('items.pbr.label'),
         price: '$0.99',
       })
@@ -181,8 +185,8 @@ base.describe('one raid', { tag: '@raid' }, () => {
     await expect.poll(pbrs).toBe(1)
 
     await aimAt('sack', [0, 1.3])
-    await expect(prompt()).toHaveText(
-      copy('prompts.buy', {
+    await expect(label()).toHaveText(
+      copy('labels.price', {
         item: copy('items.sack.label'),
         price: '$3.00',
       })
@@ -210,9 +214,7 @@ base.describe('one raid', { tag: '@raid' }, () => {
 
   base('take a cabbage and unload it at the stand', async () => {
     await moveTo('cabbage')
-    await expect(prompt()).toHaveText(
-      copy('prompts.take', { item: copy('prompts.cabbage') })
-    )
+    await expect(label()).toHaveText(copy('labels.cabbage'))
     await expect.poll(glowCabbage).toBe('cabbage')
     await page.keyboard.press('KeyE')
     await expect.poll(async () => (await raid())?.carrying).toBe(1)

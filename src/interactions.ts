@@ -50,6 +50,9 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   | ({ kind: 'buy' } & ShelfSpot)
   | { kind: 'collect'; status: DailyStatus }
   | { kind: 'talk' }
+  // Moab Coldë at station `station` (an index into the stations): he
+  // says his line.
+  | { kind: 'moab'; station: number }
 
 export interface InteractionInput<P extends PickupSpot> {
   raid: Raid
@@ -73,6 +76,8 @@ export interface InteractionInput<P extends PickupSpot> {
   daily: DailyStatus
   // Gron, beside the bush, or null.
   gron: XZ | null
+  // Moab Coldë at every station, indexed like the stations.
+  moabs: readonly XZ[]
 }
 
 function near(a: XZ, b: XZ, radius: number): boolean {
@@ -80,7 +85,9 @@ function near(a: XZ, b: XZ, radius: number): boolean {
 }
 
 // The first match wins, in this order: hop out while riding; board the
-// waiting truck; buy off a shelf; board the called truck to end the raid;
+// waiting truck; buy off a shelf; talk to Moab (before extracting, since
+// he stands inside a station's extract radius); board the called truck to
+// end the raid;
 // unload at the stand; extract at a station (never from inside its store)
 // or the Keep; Gron or the berry bush, whichever is nearer; take the
 // nearest pickup.
@@ -94,6 +101,16 @@ export function resolveInteraction<P extends PickupSpot>(
   const truckClose = input.truck.distance < CONFIG.truck.boardRange
   if (raid.state === STATES.LOADOUT && truckClose) return { kind: 'board' }
   if (input.shelf) return { kind: 'buy', ...input.shelf }
+  let moab = -1
+  let moabDist = CONFIG.moab.reach
+  input.moabs.forEach((spot, station) => {
+    const d = Math.hypot(spot.x - player.x, spot.z - player.z)
+    if (d < moabDist) {
+      moabDist = d
+      moab = station
+    }
+  })
+  if (moab >= 0) return { kind: 'moab', station: moab }
   if (raid.state === STATES.ON_FOOT) {
     if (raid.truckCalled && !input.truck.moving && truckClose) {
       return { kind: 'boardExtract' }
@@ -142,18 +159,59 @@ export function resolveInteraction<P extends PickupSpot>(
   return nearest ? { kind: 'pickup', pickup: nearest } : null
 }
 
+// What an item is called on its floating label: its name, and a count for
+// a pickup of more than one.
 export function pickupLabel({
   kind,
   count,
 }: Pick<PickupSpot, 'kind' | 'count'>): string {
-  if (kind === 'cabbage') return copy('prompts.cabbage')
-  return copy('prompts.pickup_count', {
+  if (kind === 'cabbage') return copy('labels.cabbage')
+  return copy('labels.pickup_count', {
     item: itemById(kind)?.label ?? kind,
     count,
   })
 }
 
-export function interactionPrompt(interaction: Interaction): string {
+// The label over the item E would act on: a pickup, the shelf unit a buy
+// would take, or the berry bush. dim: true when it cannot be had (short of
+// cash, or the bush picked clean or out of reach of the valley). Null for
+// everything else, which the bottom prompt names instead.
+export interface ItemLabel {
+  text: string
+  dim: boolean
+}
+
+export function itemLabel(interaction: Interaction): ItemLabel | null {
+  switch (interaction.kind) {
+    case 'pickup':
+      return { text: pickupLabel(interaction.pickup), dim: false }
+    case 'buy':
+      return {
+        text: copy('labels.price', {
+          item: itemById(interaction.item)?.label ?? interaction.item,
+          price: formatCash(interaction.price),
+        }),
+        dim: !interaction.affordable,
+      }
+    case 'collect':
+      switch (interaction.status) {
+        case 'ready':
+          return { text: copy('labels.berries'), dim: false }
+        case 'picked':
+          return { text: copy('labels.berry_picked'), dim: true }
+        case 'offline':
+          return { text: copy('labels.berry_offline'), dim: true }
+      }
+      break
+    default:
+      return null
+  }
+  return null
+}
+
+// The bottom prompt for what E would do, or null when the item's own label
+// (itemLabel) says it.
+export function interactionPrompt(interaction: Interaction): string | null {
   switch (interaction.kind) {
     case 'hopOut':
       return copy('prompts.hop_out')
@@ -172,25 +230,12 @@ export function interactionPrompt(interaction: Interaction): string {
     case 'extractKeep':
       return copy('prompts.extract_keep', { keep: KEEP })
     case 'pickup':
-      return copy('prompts.take', { item: pickupLabel(interaction.pickup) })
-    case 'buy': {
-      const label = itemById(interaction.item)?.label ?? interaction.item
-      const price = formatCash(interaction.price)
-      return interaction.affordable
-        ? copy('prompts.buy', { item: label, price })
-        : copy('prompts.buy_short', { item: label, price })
-    }
+    case 'buy':
     case 'collect':
-      switch (interaction.status) {
-        case 'ready':
-          return copy('prompts.berry_ready')
-        case 'picked':
-          return copy('prompts.berry_picked')
-        case 'offline':
-          return copy('prompts.berry_offline')
-      }
-      break
+      return null
     case 'talk':
       return copy('prompts.talk')
+    case 'moab':
+      return copy('prompts.moab')
   }
 }

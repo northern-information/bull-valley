@@ -12,17 +12,23 @@ import {
   artTexture,
   buildBat,
   buildBook,
+  buildFireRoots,
+  buildFlames,
   buildGuitar,
   buildRaincloud,
+  buildScroll,
+  buildScythe,
+  buildSkeletonHorse,
   castShadows,
   lambert,
   makeGlowSprite,
   makeGlowTexture,
+  setMotion,
 } from './assets.ts'
 import { paintPrints } from './decalart.ts'
 import { ADDONS, outfitById } from './outfits.ts'
 import { JOINTS, samplePose } from './poses.ts'
-import type { Guitar } from './assets.ts'
+import type { FlameSpot, GroundAt, Guitar } from './assets.ts'
 import type { Vec3 } from './interfaces.ts'
 import type {
   Crescent,
@@ -705,5 +711,146 @@ export function buildGron(): GronRig {
   const cloud = buildRaincloud(GRON_CLOUD_HEIGHT)
   cloud.group.position.set(0, GRON_CLOUD_HEIGHT, GRON_CLOUD_FORWARD)
   group.add(cloud.group)
-  return { group, figure, update: (t) => cloud.update(t) }
+  const update = (t: number) => cloud.update(t)
+  setMotion(group, update)
+  return { group, figure, update }
+}
+
+// Moab Coldë as he stands under every Citgo sign: a burning skeleton with
+// his back to the near flank of his burning skeleton horse, facing out
+// (rig +X), looking slowly about, with fire roots spreading over the
+// ground from his feet. His body holds still, so the fire on it
+// is placed from the posed joints in the rig's space. He holds a burning
+// scroll out in front of him for whoever walks up to read, and a scythe
+// taller than he is planted at his side. The fire on his
+// head turns with his neck but is not part of his figure, so the ring that
+// marks him as the one E trades with (glow.ts) goes round his body alone.
+// Call update(t) every frame with a running time, or once with a fixed
+// time to hold him still.
+export interface MoabRig {
+  group: THREE.Group
+  figure: Figure
+  update(t: number): void
+}
+
+// Where he stands in the rig, his back to the horse's near flank between
+// the shoulder and the stirrup: [x, z], in horse-local space. He faces
+// out from the flank, along rig +X.
+export const MOAB_BESIDE: [number, number] = [0.66, 0.2]
+const MOAB_FACING = Math.PI / 2
+
+// Where his body burns, in each joint's space, and how tall the tongue
+// is. The scythe hand burns at the end of its forearm; the scroll hand
+// does not, since the scroll burns on its own.
+const MOAB_BODY_FLAMES: { joint: JointName; at: Vec3; size: number }[] = [
+  { joint: 'shoulderL', at: [0.02, 0.06, 0], size: 0.3 },
+  { joint: 'shoulderR', at: [-0.02, 0.06, 0], size: 0.3 },
+  { joint: 'spine', at: [0, 0.38, -0.12], size: 0.34 },
+  { joint: 'elbowL', at: [0, -0.36, 0], size: 0.16 },
+]
+
+// Where his head burns, in the neck's space.
+const MOAB_HEAD_FLAMES: FlameSpot[] = [
+  { at: [0, 0.3, -0.01], size: 0.42 },
+  { at: [0.06, 0.26, -0.05], size: 0.26 },
+  { at: [-0.06, 0.26, -0.05], size: 0.26 },
+]
+
+// A fist, in its elbow's space, and how far the scythe blade turns from
+// pointing straight out to his left (toward his front).
+const MOAB_FIST: Vec3 = [0, -0.33, 0.03]
+const MOAB_SCYTHE_TURN = -0.15
+
+// His eyes burn in their sockets, in the neck's space.
+const MOAB_EYES: Vec3[] = [
+  [0.036, 0.198, 0.112],
+  [-0.036, 0.198, 0.112],
+]
+
+// How he looks about: a long slow turn of the head either way, and a
+// shorter one over it, so it never settles into a beat.
+const MOAB_LOOK = { reach: 0.6, seconds: 17, drift: 0.18, driftSeconds: 7.3 }
+
+let eyeGlow: THREE.Texture | null = null
+
+// groundAt: heights in the rig's own space, from the ground at its origin,
+// for the fire roots to lie on; flat when left out.
+export function buildMoab(groundAt: GroundAt = () => 0): MoabRig {
+  const group = new THREE.Group()
+  group.name = 'moab'
+  const horse = buildSkeletonHorse()
+  group.add(horse.group)
+  const figure = buildFigure('moab')
+  applyPose(figure, samplePose('wield'))
+  figure.group.position.set(MOAB_BESIDE[0], 0, MOAB_BESIDE[1])
+  figure.group.rotation.y = MOAB_FACING
+  group.add(figure.group)
+  // Fire roots spread over the ground from his feet.
+  const roots = buildFireRoots(undefined, (x, z) =>
+    groundAt(x + MOAB_BESIDE[0], z + MOAB_BESIDE[1])
+  )
+  roots.group.position.set(MOAB_BESIDE[0], 0, MOAB_BESIDE[1])
+  group.add(roots.group)
+  group.updateMatrixWorld(true)
+
+  // A spot on the body, carried through its posed joint into the rig.
+  const local = (joint: JointName, at: Vec3): Vec3 => {
+    const v = new THREE.Vector3(...at)
+    figure.joints[joint].localToWorld(v)
+    group.worldToLocal(v)
+    return [v.x, v.y, v.z]
+  }
+  // The scroll hangs from his right fist, held out in front, its face
+  // toward whoever stands there.
+  const scroll = buildScroll()
+  scroll.group.position.set(...local('elbowR', MOAB_FIST))
+  scroll.group.rotation.y = MOAB_FACING
+  group.add(scroll.group)
+  // The scythe stands on the ground through his left fist, its blade
+  // reaching out past his left side.
+  const scythe = buildScythe()
+  const [fx, , fz] = local('elbowL', MOAB_FIST)
+  scythe.position.set(fx, 0, fz)
+  scythe.rotation.y = MOAB_FACING + MOAB_SCYTHE_TURN
+  group.add(scythe)
+  const body = buildFlames(
+    MOAB_BODY_FLAMES.map(({ joint, at, size }) => ({
+      at: local(joint, at),
+      size,
+    }))
+  )
+  group.add(body.group)
+  // The head's fire and eyes, in a frame that sits on the neck pivot and
+  // turns with it. The neck only turns about the vertical, and the body
+  // under it stands square, so the frame's yaw is the figure's plus the
+  // neck's.
+  const neck = figure.joints.neck
+  const crown = new THREE.Group()
+  crown.name = 'moab-crown'
+  crown.position.set(...local('neck', [0, 0, 0]))
+  group.add(crown)
+  const head = buildFlames(MOAB_HEAD_FLAMES, 0x4ead)
+  crown.add(head.group)
+  eyeGlow ??= makeGlowTexture('rgba(255, 80, 24, 0.9)')
+  for (const at of MOAB_EYES) {
+    const glow = makeGlowSprite(eyeGlow, 0.12)
+    glow.position.set(...at)
+    crown.add(glow)
+  }
+
+  const L = MOAB_LOOK
+  const update = (t: number) => {
+    neck.rotation.y =
+      L.reach * Math.sin((t / L.seconds) * Math.PI * 2) +
+      L.drift * Math.sin((t / L.driftSeconds) * Math.PI * 2)
+    crown.rotation.y = MOAB_FACING + neck.rotation.y
+    body.update(t)
+    head.update(t)
+    horse.update(t)
+    roots.update(t)
+    scroll.update(t)
+  }
+  update(0)
+  setMotion(group, update)
+  return { group, figure, update }
 }

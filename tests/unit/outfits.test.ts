@@ -10,7 +10,7 @@ import {
 import { JOINTS } from '../../src/poses.ts'
 
 describe('outfits', () => {
-  it('has the eleven characters', () => {
+  it('has the twelve characters', () => {
     expect(OUTFIT_IDS).toEqual([
       'marx',
       'player',
@@ -23,7 +23,31 @@ describe('outfits', () => {
       'jdogg',
       'carlsten',
       'gron',
+      'moab',
     ])
+  })
+
+  it('dresses Moab Coldë as a skeleton in a strapped, tattered red trench coat', () => {
+    const moab = OUTFITS.moab
+    expect(moab.patterns?.shirt).toBe('tattered')
+    expect(moab.label).toBe(copy('outfits.moab'))
+    expect(moab.shaved).toBe(true)
+    expect(moab.colors.coat).toBe(moab.colors.shirt)
+    expect(moab.addons).toEqual(
+      expect.arrayContaining([
+        'eye-sockets',
+        'teeth',
+        'chest-strap-high',
+        'chest-strap-low',
+        'trench-hem',
+        'bandolier',
+        'tatters-long',
+      ])
+    )
+    // Every add-on he wears has a color to wear it in.
+    for (const id of moab.addons) {
+      expect(moab.colors[ADDONS[id].slot], id).toBeDefined()
+    }
   })
 
   it('dresses Gron bald and hunched in a brown cloak', () => {
