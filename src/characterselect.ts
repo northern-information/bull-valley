@@ -37,6 +37,8 @@ export interface CharacterSelectConfig {
 export interface CharacterSelectOptions {
   storage: CharacterStorage
   config: CharacterSelectConfig
+  // Account was pressed: the panel (accountpanel.ts) opens over the select.
+  onAccount: () => void
   // Sign Out was pressed.
   onSignOut: () => void
 }
@@ -52,6 +54,7 @@ export interface CharacterSelect {
 export function mountCharacterSelect({
   storage,
   config,
+  onAccount,
   onSignOut,
 }: CharacterSelectOptions): CharacterSelect {
   const root = document.createElement('div')
@@ -79,6 +82,7 @@ export function mountCharacterSelect({
       </div>
       <p class="bv-select-as">
         Raiding as <b data-bv="select-username"></b>
+        <button type="button" class="bv-link" data-bv="select-account">Account</button>
         <button type="button" class="bv-link" data-bv="select-sign-out">Sign Out</button>
       </p>
       <div class="bv-select-actions">
@@ -108,6 +112,7 @@ export function mountCharacterSelect({
   const randomizeBtn = find<HTMLButtonElement>('[data-bv="select-randomize"]')
   const usernameEl = find<HTMLElement>('[data-bv="select-username"]')
   const signOutBtn = find<HTMLButtonElement>('[data-bv="select-sign-out"]')
+  const accountBtn = find<HTMLButtonElement>('[data-bv="select-account"]')
   const prevBtn = find<HTMLButtonElement>('[data-bv="select-prev"]')
   const nextBtn = find<HTMLButtonElement>('[data-bv="select-next"]')
   const chooseBtn = find<HTMLButtonElement>('[data-bv="select-choose"]')
@@ -205,6 +210,7 @@ export function mountCharacterSelect({
         chosen = true
         chooseBtn.disabled = true
         signOutBtn.disabled = true
+        accountBtn.disabled = true
         saveCharacter(storage, SELECTABLE[index])
         saveFinish(storage, FINISHES[finishIndex].id)
         fadeStart = performance.now()
@@ -215,7 +221,13 @@ export function mountCharacterSelect({
         chosen = true
         signOutBtn.disabled = true
         chooseBtn.disabled = true
+        accountBtn.disabled = true
         onSignOut()
+      }
+
+      const account = () => {
+        if (chosen) return
+        onAccount()
       }
 
       const resize = () => {
@@ -280,6 +292,7 @@ export function mountCharacterSelect({
       randomizeBtn.addEventListener('click', randomize)
       swatchRow.addEventListener('click', onSwatch)
       signOutBtn.addEventListener('click', signOut)
+      accountBtn.addEventListener('click', account)
       document.addEventListener('keydown', onKey)
       window.addEventListener('resize', resize)
       resize()

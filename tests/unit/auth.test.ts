@@ -6,6 +6,7 @@ import {
   refreshSession,
   setUsername,
   signOut,
+  unlinkProvider,
   usernameAvailable,
 } from '../../src/auth.ts'
 
@@ -107,6 +108,22 @@ describe('usernameAvailable', () => {
     expect(seen[0].url).toBe('/auth/username/a%20b/available')
     expect(await usernameAvailable('x', down)).toBeNull()
     expect(await usernameAvailable('x', answer(500).impl)).toBeNull()
+  })
+})
+
+describe('unlinkProvider', () => {
+  it('deletes the provider and reports a refusal', async () => {
+    const { impl, seen } = answer(200, { ok: true })
+    expect(await unlinkProvider('github', impl)).toEqual({ ok: true })
+    expect(seen[0].url).toBe('/auth/providers/github')
+    expect(seen[0].init?.method).toBe('DELETE')
+    expect(
+      await unlinkProvider('github', answer(400, { error: 'Last one' }).impl)
+    ).toEqual({ ok: false, error: 'Last one' })
+    expect(await unlinkProvider('github', down)).toEqual({
+      ok: false,
+      error: 'The valley cannot be reached',
+    })
   })
 })
 

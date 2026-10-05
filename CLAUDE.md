@@ -49,6 +49,7 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 - `src/cookies.ts` — pure: the session cookie names, parse and serialize
 - `src/auth.ts` — the client's calls to `/auth` (who is signed in, refresh, confirm signup, username, sign out)
 - `src/signin.ts` — the account step between the logo and the select: the sign-in card, then Choose Your Username with the age and terms gates and the terms overlay (`public/terms.html`)
+- `src/accountpanel.ts` — the account panel, opened from the select's Account link: linked providers with Unlink (never the last), Link Another Account in a popup that lands on `public/auth-done.html` (which posts the result back and closes; a blocked popup falls back to a full-page round trip), and Sign Out. While it is open, the select's keys are its alone
 - `worker/auth.ts` — the `/auth` routes and the identity stamp on the upgrade; `worker/oauth.ts` the provider flow, `worker/tokens.ts` the JWTs (`jose`), `worker/accounts.ts` the store interface and an in-memory store for tests, `worker/d1accounts.ts` the D1 store, `worker/env.ts` the secrets and origins
 - `src/peers.ts` — the other players in Three: one `figure.ts` body per peer and a pixelated name sprite
 - `worker/index.ts` — the Worker router (`/ws` to the valley, everything else to the assets binding, the dev stamp); `worker/ValleyDO.ts` — the Durable Object: sockets, storage, the alarm, and the reducer. Checked by `worker/tsconfig.json` with Workers types, so the Worker tests live in `tests/worker/`, not `tests/unit/`
@@ -69,7 +70,7 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 - `src/poses.ts` — pure: the body's joints, the poses (stand, sit, lean, read, crouch, walk cycle) and `samplePose`
 - `src/playerbody.ts` — the player's own legs in first person: the outfit picked at the character select, torso hidden, posed from the move speed
 - `src/characters.ts` — pure: the selectable roster (in select-screen order) and the saved pick in localStorage
-- `src/characterselect.ts` — the character select: one figure on a PS1 turntable with its own small renderer (the game's does not exist yet), mounted at boot beneath the account step and the title cards. It shows the account's username ("Raiding as") with Sign Out
+- `src/characterselect.ts` — the character select: one figure on a PS1 turntable with its own small renderer (the game's does not exist yet), mounted at boot beneath the account step and the title cards. It shows the account's username ("Raiding as") with Account and Sign Out
 - `src/finishes.ts` — pure: the guitar finishes in one table, the saved pick in localStorage, and the random draw; the select shows the row for any character with a guitar on their back
 - `src/cabbages.ts` — pure seeded cabbage placement
 - `src/items.ts` — pure: every item in one table (label, blurb, toasts, tuning, starting count, price in cents); edit items here. Meshes stay in `assets.ts`, keyed by id
