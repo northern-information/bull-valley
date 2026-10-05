@@ -6,6 +6,7 @@
 // have agreed to be on a public map (a private home).
 
 import { unitToWorld } from './coords.ts'
+import { copy } from './copy.ts'
 import type { Bbox, Metres, UnitPoint } from './interfaces.ts'
 
 export interface Landmark {
@@ -22,19 +23,21 @@ export interface LandmarkWorld {
   v: number
 }
 
+// The names double as the landmarks' keys (world.ts finds the Keep and the
+// stand by name); the words are COPY.toml's.
+export const KEEP = copy('places.keep')
+export const CABBAGE_STAND = copy('places.stand')
+
 const LANDMARKS: readonly Landmark[] = [
   // Dave Coleman's house in Wonder Lake. A private home, placed with his
   // consent.
-  { n: "Mt. Coleman's Keep", lat: 42.3839451, lon: -88.3479778 },
+  { n: KEEP, lat: 42.3839451, lon: -88.3479778 },
   // The roadside cabbage stand on the southeast corner where Mason Hill Road
   // ends at Crystal Lake Road South. Approximate: offset ~30 m southeast of the
   // surveyed intersection (42.30627, -88.31599), since the survey has no
   // buildings to snap to.
-  { n: 'Bull Valley Cabbage Stand', lat: 42.306, lon: -88.3156 },
+  { n: CABBAGE_STAND, lat: 42.306, lon: -88.3156 },
 ]
-
-export const KEEP = "Mt. Coleman's Keep"
-export const CABBAGE_STAND = 'Bull Valley Cabbage Stand'
 
 // Project into the survey's unit square (x right, y down), the same
 // equirectangular mapping the fetch script uses. Points outside the frame keep

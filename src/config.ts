@@ -1,3 +1,5 @@
+import { copy } from './copy.ts'
+
 // Every gameplay and rendering knob in one place.
 export const CONFIG = {
   render: {
@@ -128,9 +130,9 @@ export const CONFIG = {
     revealFadeMs: 400,
     imageSrc:
       '/applied-sciences-and-phantasms-working-division-flourescent.png',
-    alt: 'Northern Information',
+    alt: copy('titles.colophon_alt'),
     audioSrc: '/sfx/northern-information.mp3',
-    hint: 'Click to Play',
+    hint: copy('titles.colophon_hint'),
   },
   logo: {
     // The game's own title card, straight after the colophon: the same
@@ -143,7 +145,7 @@ export const CONFIG = {
     // The backdrop lifts to reveal the character select.
     revealFadeMs: 400,
     imageSrc: '/bull-valley-shadow-wars.png',
-    alt: 'Bull Valley Shadow Wars',
+    alt: copy('titles.logo_alt'),
     audioSrc: '/sfx/bull-valley-shadow-wars-intro.mp3',
   },
   select: {

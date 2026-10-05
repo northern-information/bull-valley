@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { COOKIE, parseCookies } from '../../src/cookies.ts'
+import { copy } from '../../src/copy.ts'
 import { MemoryAccountStore } from '../../worker/accounts.ts'
 import { handleAuth, identityFor } from '../../worker/auth.ts'
 import { DEV_JWT_SECRET } from '../../worker/env.ts'
@@ -279,7 +280,11 @@ describe('callback', () => {
       `/auth/github/callback?code=c&state=${state}`,
       { jar, fetch: broken }
     )
-    expect(location).toBe(`${PROD}/?auth_error=Sign-in+with+github+failed`)
+    const landed = new URL(location ?? '')
+    expect(landed.origin + landed.pathname).toBe(`${PROD}/`)
+    expect(landed.searchParams.get('auth_error')).toBe(
+      copy('auth.provider_failed', { provider: 'GitHub' })
+    )
     expect(jar.cookies[COOKIE.state]).toBeUndefined()
   })
 })
@@ -690,7 +695,7 @@ describe('rate limits', () => {
     expect(confirm.res.status).toBe(429)
     expect(confirm.res.headers.get('Retry-After')).toBe('60')
     expect(await confirm.res.json()).toEqual({
-      error: 'Too many tries. Wait a minute and try again.',
+      error: copy('auth.limited'),
     })
     const check = await call('/auth/username/Dave/available', { limit })
     expect(check.res.status).toBe(429)

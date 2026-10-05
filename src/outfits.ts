@@ -2,6 +2,7 @@
 // body (figure.ts) by slot, adds optional parts from ADDONS, and can stretch
 // limbs with proportions. Edit characters here; the body stays the same.
 
+import { copy } from './copy.ts'
 import type { Vec3 } from './interfaces.ts'
 import type { JointName } from './poses.ts'
 
@@ -533,7 +534,7 @@ export const ADDONS: Record<AddonId, Addon> = {
 // proportions scale the length of each limb group (1 = the base body).
 export const OUTFITS: Record<OutfitId, Outfit> = {
   marx: {
-    label: 'Matthew Marx',
+    label: copy('outfits.marx'),
     colors: {
       skin: '#e9c9ad',
       hair: '#2a1f16',
@@ -555,7 +556,7 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
   // Androgynous, black on black: the bare body with no add-ons, in three
   // near-blacks that still shade apart from each other.
   player: {
-    label: 'Player',
+    label: copy('outfits.player'),
     colors: {
       skin: '#f2dccb',
       hair: '#17120f',
@@ -566,7 +567,7 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     addons: [],
   },
   shadow: {
-    label: 'Shadowman',
+    label: copy('outfits.shadow'),
     colors: {
       skin: '#07080c',
       hair: '#07080c',
@@ -580,7 +581,7 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     proportions: { arm: 1.4, leg: 1.12 },
   },
   coleman: {
-    label: 'David Coleman',
+    label: copy('outfits.coleman'),
     colors: {
       skin: '#efcfb4',
       // A buzz cut: the short hair cap, in light brown.
@@ -596,7 +597,7 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     prints: { torso: ['suicide-silence'] },
   },
   kvistad: {
-    label: 'David Kvistad',
+    label: copy('outfits.kvistad'),
     colors: {
       skin: '#efcfb4',
       hair: '#9c7a58',
@@ -614,7 +615,7 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     },
   },
   church: {
-    label: 'Kyle Church',
+    label: copy('outfits.church'),
     colors: {
       skin: '#ebc8aa',
       hair: '#3b2a1e',
@@ -630,7 +631,7 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     prints: { torso: ['guitar-strap'] },
   },
   hanson: {
-    label: 'Justin Hanson',
+    label: copy('outfits.hanson'),
     colors: {
       skin: '#f3d9c6',
       hair: '#a8442a',
@@ -657,7 +658,7 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
   // oversized black NIN hoodie with the hood down, baggy camo pants and
   // black boots.
   halatek: {
-    label: 'Chris Halatek',
+    label: copy('outfits.halatek'),
     colors: {
       skin: '#eccaae',
       hair: '#d4b26a',
@@ -686,7 +687,7 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
   // A stoner: greasy hair to the shoulders, glasses, a beard that never
   // filled in, a Baja hoodie with the hood down, and baggy jeans.
   jdogg: {
-    label: 'Jdogg',
+    label: copy('outfits.jdogg'),
     colors: {
       skin: '#ebcbb0',
       hair: '#5a4630',
@@ -713,7 +714,7 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
   },
   // The Citgo clerk, behind every counter. Not on the select roster.
   carlsten: {
-    label: 'David Carlsten',
+    label: copy('outfits.carlsten'),
     colors: {
       skin: '#eccaae',
       hair: '#4a3626',

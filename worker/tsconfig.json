@@ -22,5 +22,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["./**/*.ts", "../tests/worker/**/*.ts"]
+  "include": ["./**/*.ts", "../tests/worker/**/*.ts", "../src/toml.d.ts"]
 }

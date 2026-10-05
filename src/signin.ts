@@ -24,6 +24,7 @@ import {
   signOut,
   usernameAvailable,
 } from './auth.ts'
+import { copy } from './copy.ts'
 import type { MeResponse, Provider } from './account.ts'
 
 export interface AccountStep {
@@ -37,7 +38,7 @@ export interface AccountStep {
 // How long typing pauses before the handle is checked.
 const CHECK_DELAY_MS = 300
 
-const RULES = '3 to 16 letters, digits or underscores'
+const RULES = copy('signin.rules')
 
 // Mounts the overlay as the last child of <body>, black and inert until
 // run(). Mount it after the select and before the title cards.
@@ -49,33 +50,33 @@ export function mountAccountStep(): AccountStep {
   root.setAttribute('aria-labelledby', 'bv-account-title')
   root.innerHTML = `
     <div class="bv-account-ui" data-face="sign-in" hidden>
-      <h2 id="bv-account-title">Sign In</h2>
-      <p class="bv-account-lede">Sign in to raid the valley.</p>
+      <h2 id="bv-account-title">${copy('signin.title')}</h2>
+      <p class="bv-account-lede">${copy('signin.lede')}</p>
       <div class="bv-account-providers"></div>
       <p class="bv-account-error" role="alert" hidden></p>
     </div>
     <form class="bv-account-ui" data-face="username" hidden novalidate>
-      <h2>Choose Your Username</h2>
+      <h2>${copy('username.title')}</h2>
       <p class="bv-account-lede" data-bv="account-lede"></p>
       <label class="bv-field">
-        <span>Username</span>
+        <span>${copy('username.field')}</span>
         <input type="text" data-bv="account-username" maxlength="${USERNAME_MAX}" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go" aria-describedby="bv-account-status">
       </label>
       <p class="bv-account-status" id="bv-account-status" aria-live="polite">${RULES}</p>
       <div class="bv-account-gates" hidden>
-        <label class="bv-gate"><input type="checkbox" data-bv="account-age"> I am 13 years or older</label>
-        <label class="bv-gate"><input type="checkbox" data-bv="account-terms"> I agree to the <a href="/terms.html" target="_blank" rel="noopener" data-bv="account-terms-link">Terms of Service</a></label>
+        <label class="bv-gate"><input type="checkbox" data-bv="account-age"> ${copy('username.age_gate')}</label>
+        <label class="bv-gate"><input type="checkbox" data-bv="account-terms"> ${copy('username.terms_gate')} <a href="/terms.html" target="_blank" rel="noopener" data-bv="account-terms-link">${copy('username.terms_link')}</a></label>
       </div>
       <p class="bv-account-error" role="alert" hidden></p>
       <div class="bv-select-actions">
-        <button type="button" class="bv-btn" data-bv="account-cancel">Cancel</button>
-        <button type="submit" class="bv-btn bv-btn--primary" data-bv="account-confirm" disabled>Confirm</button>
+        <button type="button" class="bv-btn" data-bv="account-cancel">${copy('username.cancel')}</button>
+        <button type="submit" class="bv-btn bv-btn--primary" data-bv="account-confirm" disabled>${copy('username.confirm')}</button>
       </div>
-      <p class="bv-select-hint">Enter Confirm · Escape Cancel</p>
+      <p class="bv-select-hint">${copy('username.hint')}</p>
     </form>
-    <div class="bv-terms" role="dialog" aria-modal="true" aria-label="Terms of Service" hidden>
-      <iframe title="Terms of Service" data-bv="account-terms-frame"></iframe>
-      <button type="button" class="bv-btn" data-bv="account-terms-close">Close</button>
+    <div class="bv-terms" role="dialog" aria-modal="true" aria-label="${copy('username.terms_link')}" hidden>
+      <iframe title="${copy('username.terms_link')}" data-bv="account-terms-frame"></iframe>
+      <button type="button" class="bv-btn" data-bv="account-terms-close">${copy('username.terms_close')}</button>
     </div>`
   document.body.appendChild(root)
 
@@ -121,10 +122,7 @@ export function mountAccountStep(): AccountStep {
     const providers = await fetchProviders()
     providerRow.replaceChildren(...providers.map(providerButton))
     if (providers.length === 0) {
-      showError(
-        signInError,
-        error ?? 'Sign-in is not available right now. Try again soon.'
-      )
+      showError(signInError, error ?? copy('signin.unavailable'))
     }
     providerRow.querySelector<HTMLButtonElement>('button')?.focus()
   }
@@ -135,7 +133,9 @@ export function mountAccountStep(): AccountStep {
     button.className = 'bv-btn bv-provider'
     button.dataset.provider = provider
     button.style.setProperty('--provider', PROVIDER_COLORS[provider])
-    button.textContent = `Sign In with ${PROVIDER_LABELS[provider]}`
+    button.textContent = copy('signin.provider', {
+      provider: PROVIDER_LABELS[provider],
+    })
     button.addEventListener('click', () => {
       window.location.assign(signInUrl(provider, here()))
     })
@@ -181,7 +181,7 @@ export function mountAccountStep(): AccountStep {
         } else if (!isValidUsername(name)) {
           say(RULES, 'bad')
         } else {
-          say('Checking…')
+          say(copy('username.checking'))
           checking = setTimeout(() => {
             checking = null
             asked = name
@@ -189,16 +189,18 @@ export function mountAccountStep(): AccountStep {
               // Typing moved on while the valley answered.
               if (asked !== handle()) return
               if (!answer) {
-                say('The valley cannot be reached', 'bad')
+                say(copy('auth.unreachable'), 'bad')
                 return
               }
               if (answer.reason === 'limited') {
-                say('Too many checks. Wait a moment, then type again.', 'bad')
+                say(copy('username.limited'), 'bad')
                 return
               }
               available = answer.available
               say(
-                answer.available ? 'Available' : 'Taken',
+                copy(
+                  answer.available ? 'username.available' : 'username.taken'
+                ),
                 answer.available ? 'ok' : 'bad'
               )
               refresh()
@@ -216,8 +218,8 @@ export function mountAccountStep(): AccountStep {
         const via = me?.pending?.provider ?? me?.account?.providers[0]?.provider
         lede.textContent =
           who && via
-            ? `Signed in with ${PROVIDER_LABELS[via]} as ${who}. Choose the name the valley will know you by. It can't be changed.`
-            : "Choose the name the valley will know you by. It can't be changed."
+            ? copy('username.lede_as', { provider: PROVIDER_LABELS[via], who })
+            : copy('username.lede')
         check()
         input.focus()
       }
@@ -274,7 +276,7 @@ export function mountAccountStep(): AccountStep {
         }
         if ('taken' in set) {
           available = false
-          say('Taken', 'bad')
+          say(copy('username.taken'), 'bad')
         } else {
           showError(usernameError, set.error)
         }
@@ -334,9 +336,7 @@ export function mountAccountStep(): AccountStep {
       } else if (me?.account || pending) {
         showUsername()
       } else {
-        void showSignIn(
-          error ?? (me ? null : 'The valley cannot be reached. Try again soon.')
-        )
+        void showSignIn(error ?? (me ? null : copy('signin.unreachable')))
       }
     })
   }

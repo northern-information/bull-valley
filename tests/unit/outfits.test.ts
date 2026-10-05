@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { copy } from '../../src/copy.ts'
 import {
   ADDONS,
   BODY_SLOTS,
@@ -26,7 +27,7 @@ describe('outfits', () => {
 
   it('dresses Chris Halatek in the oversized NIN hoodie', () => {
     const chris = OUTFITS.halatek
-    expect(chris.label).toBe('Chris Halatek')
+    expect(chris.label).toBe(copy('outfits.halatek'))
     expect(chris.addons).toEqual(
       expect.arrayContaining([
         'dreadlocks',
@@ -49,7 +50,7 @@ describe('outfits', () => {
 
   it('dresses Jdogg in a Baja hoodie and a beard that never filled in', () => {
     const jdogg = OUTFITS.jdogg
-    expect(jdogg.label).toBe('Jdogg')
+    expect(jdogg.label).toBe(copy('outfits.jdogg'))
     expect(jdogg.addons).toEqual(
       expect.arrayContaining([
         'long-hair',
@@ -68,7 +69,7 @@ describe('outfits', () => {
 
   it('dresses David Carlsten for the counter', () => {
     const clerk = OUTFITS.carlsten
-    expect(clerk.label).toBe('David Carlsten')
+    expect(clerk.label).toBe(copy('outfits.carlsten'))
     expect(clerk.addons).toEqual(
       expect.arrayContaining([
         'long-hair',

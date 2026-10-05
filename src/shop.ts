@@ -6,6 +6,7 @@
 // and settle() applies the sale once the valley confirms the unit was
 // still there.
 
+import { copy } from './copy.ts'
 import { addItem } from './inventory.ts'
 import { getItem, itemById } from './items.ts'
 import { advance, EVENTS } from './raid.ts'
@@ -45,12 +46,12 @@ export function settle(purse: Purse, kind: string, now: number): Settled {
   // Nothing without a price is on a shelf: forage is the bush's to give.
   if (!item || item.price === undefined) return { next: null, toast: null }
   if (kind === 'sack' && raid.sack) {
-    return { next: null, toast: 'You already have a sack.' }
+    return { next: null, toast: copy('toasts.have_sack') }
   }
   if (cash < item.price) {
     return {
       next: null,
-      toast: `You're ${formatCash(item.price - cash)} short.`,
+      toast: copy('toasts.short', { amount: formatCash(item.price - cash) }),
     }
   }
   let nextRaid = raid
@@ -80,7 +81,7 @@ export function buy(
   if (!shelf || !item || item.price === undefined) {
     return { next: null, toast: null }
   }
-  if (!(shelf[kind] > 0)) return { next: null, toast: 'Sold out.' }
+  if (!(shelf[kind] > 0)) return { next: null, toast: copy('toasts.sold_out') }
   const { next, toast } = settle(state, kind, now)
   if (!next) return { next: null, toast }
   const nextStock = stock.map((s, i) =>

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
+import { copy } from '../../src/copy.ts'
 import {
   interactionPrompt,
   pickupLabel,
@@ -227,40 +228,57 @@ describe('resolveInteraction', () => {
 
 describe('interactionPrompt', () => {
   it('names each action', () => {
-    expect(interactionPrompt({ kind: 'hopOut' })).toBe('E — Hop Out')
+    expect(interactionPrompt({ kind: 'hopOut' })).toBe(copy('prompts.hop_out'))
     expect(interactionPrompt({ kind: 'unload', count: 1 })).toBe(
-      'E — Unload 1 Cabbage'
+      copy('prompts.unload_one')
     )
     expect(interactionPrompt({ kind: 'unload', count: 3 })).toBe(
-      'E — Unload 3 Cabbages'
+      copy('prompts.unload_many', { count: 3 })
     )
     expect(interactionPrompt({ kind: 'extractFuel', name: '' })).toBe(
-      'E — End the Raid at the Station'
+      copy('prompts.extract_station')
     )
     expect(
       interactionPrompt({
         kind: 'pickup',
         pickup: { x: 0, z: 0, kind: 'joints', count: 2, taken: false },
       })
-    ).toBe('E — Take Joints ×2')
+    ).toBe(
+      copy('prompts.take', {
+        item: copy('prompts.pickup_count', {
+          item: copy('items.joints.label'),
+          count: 2,
+        }),
+      })
+    )
     expect(interactionPrompt({ kind: 'buy', ...shelf })).toBe(
-      'E — Buy Marlboro Reds for $5.49'
+      copy('prompts.buy', {
+        item: copy('items.marlboro.label'),
+        price: '$5.49',
+      })
     )
     expect(
       interactionPrompt({ kind: 'buy', ...shelf, affordable: false })
-    ).toBe('Marlboro Reds — $5.49 (Not Enough Cash)')
+    ).toBe(
+      copy('prompts.buy_short', {
+        item: copy('items.marlboro.label'),
+        price: '$5.49',
+      })
+    )
     expect(interactionPrompt({ kind: 'collect', status: 'ready' })).toBe(
-      'E — Pick a Berry'
+      copy('prompts.berry_ready')
     )
     expect(interactionPrompt({ kind: 'collect', status: 'picked' })).toBe(
-      'Berry Bush — Picked Clean Until Midnight'
+      copy('prompts.berry_picked')
     )
     expect(interactionPrompt({ kind: 'collect', status: 'offline' })).toBe(
-      'Berry Bush — No Signal'
+      copy('prompts.berry_offline')
     )
   })
 
   it('labels a cabbage without a count', () => {
-    expect(pickupLabel({ kind: 'cabbage', count: 1 })).toBe('Cabbage')
+    expect(pickupLabel({ kind: 'cabbage', count: 1 })).toBe(
+      copy('prompts.cabbage')
+    )
   })
 })

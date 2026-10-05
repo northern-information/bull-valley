@@ -1,3 +1,4 @@
+import { copy } from './copy.ts'
 import {
   expect,
   freshRaider,
@@ -17,14 +18,18 @@ import type { Page } from '@playwright/test'
 async function toSignIn(page: Page): Promise<void> {
   await page.keyboard.press('Space')
   await page.keyboard.press('Space')
-  await expect(page.getByAltText('Bull Valley Shadow Wars')).toBeVisible()
+  await expect(page.getByAltText(copy('titles.logo_alt'))).toBeVisible()
   await page.keyboard.press('Space')
   await expect(page.locator('[data-face="sign-in"]')).toBeVisible()
 }
 
 // Through the Dev provider as a new raider, back to Choose Your Username.
 async function arriveNew(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Sign In with Dev' }).click()
+  await page
+    .getByRole('button', {
+      name: copy('signin.provider', { provider: 'Dev' }),
+    })
+    .click()
   await page.getByLabel('User ID').fill(freshRaider().userId)
   await page.getByRole('button', { name: 'Sign In' }).click()
   await expect(page.locator('[data-face="username"]')).toBeVisible()
@@ -50,7 +55,7 @@ test('a new raider signs in, passes the gates, and chooses a username', async ({
   const field = page.locator('[data-bv="account-username"]')
   const status = page.locator('.bv-account-status')
   const confirm = page.locator('[data-bv="account-confirm"]')
-  const age = page.getByLabel('I am 13 years or older')
+  const age = page.getByLabel(copy('username.age_gate'))
   const terms = page.getByLabel('I agree to the Terms of Service')
   await expect(field).toBeFocused()
   await expect(confirm).toBeDisabled()
@@ -58,10 +63,10 @@ test('a new raider signs in, passes the gates, and chooses a username', async ({
   await field.fill('ab')
   await expect(status).toHaveAttribute('data-tone', 'bad')
   await field.fill(taken.username.toUpperCase())
-  await expect(status).toHaveText('Taken')
+  await expect(status).toHaveText(copy('username.taken'))
   const mine = freshRaider('New').username
   await field.fill(mine)
-  await expect(status).toHaveText('Available')
+  await expect(status).toHaveText(copy('username.available'))
   // Both gates stand between an available name and an account.
   await expect(confirm).toBeDisabled()
   await age.check()
@@ -69,11 +74,11 @@ test('a new raider signs in, passes the gates, and chooses a username', async ({
 
   // The terms open in place, and Escape closes them, not the step.
   await page.locator('[data-bv="account-terms-link"]').click()
-  const panel = page.getByRole('dialog', { name: 'Terms of Service' })
+  const panel = page.getByRole('dialog', { name: copy('username.terms_link') })
   await expect(panel).toBeVisible()
   await expect(
     page.frameLocator('.bv-terms iframe').getByRole('heading', {
-      name: 'Terms of Service',
+      name: copy('username.terms_link'),
     })
   ).toBeVisible()
   await page.keyboard.press('Escape')
@@ -112,7 +117,10 @@ test('the account panel links a second identity and unlinks one', async ({
   await page.goto(`/?valley=${freshValley('panel')}`)
   await toCharacterSelect(page)
   await page.locator('[data-bv="select-account"]').click()
-  const panel = page.getByRole('dialog', { name: 'Account', exact: true })
+  const panel = page.getByRole('dialog', {
+    name: copy('panel.title'),
+    exact: true,
+  })
   const linked = panel.locator('[data-bv="panel-linked"] li')
   const status = panel.locator('[data-bv="panel-status"]')
   await expect(panel.locator('[data-bv="panel-username"]')).toHaveText(
@@ -120,7 +128,7 @@ test('the account panel links a second identity and unlinks one', async ({
   )
   // One provider is the only way in, so it cannot be unlinked.
   await expect(linked).toHaveCount(1)
-  await expect(linked).toContainText('Only Way In')
+  await expect(linked).toContainText(copy('panel.only_way_in'))
   await expect(panel.getByRole('button', { name: /^Unlink/ })).toHaveCount(0)
 
   // While the panel is open, the select's keys do nothing.
@@ -131,19 +139,23 @@ test('the account panel links a second identity and unlinks one', async ({
 
   // Linking runs in a popup that reports back and closes itself.
   const opened = page.waitForEvent('popup')
-  await panel.getByRole('button', { name: 'Link Dev' }).click()
+  await panel
+    .getByRole('button', {
+      name: copy('panel.link', { provider: 'Dev' }),
+    })
+    .click()
   const popup = await opened
   if (!popup.isClosed()) await popup.waitForEvent('close')
   await expect(linked).toHaveCount(2)
-  await expect(status).toHaveText('Linked.')
+  await expect(status).toHaveText(copy('panel.linked_ok'))
 
   await panel
     .getByRole('button', { name: /^Unlink/ })
     .first()
     .click()
-  await expect(status).toHaveText('Unlinked Dev.')
+  await expect(status).toHaveText(copy('panel.unlinked', { provider: 'Dev' }))
   await expect(linked).toHaveCount(1)
-  await expect(linked).toContainText('Only Way In')
+  await expect(linked).toContainText(copy('panel.only_way_in'))
 
   // Escape closes the panel and gives the select its keys back.
   await page.keyboard.press('Escape')

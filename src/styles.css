@@ -544,6 +544,9 @@
   max-width: 30rem;
   letter-spacing: 0.06em;
   line-height: 1.7;
+
+  /* Line breaks come from the copy (COPY.toml), as text. */
+  white-space: pre-line;
 }
 
 .bv-controls {

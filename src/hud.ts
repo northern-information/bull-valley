@@ -4,6 +4,8 @@
 
 import { PACK, WORLD } from './bindings.ts'
 import { CHAT_LINES, isFaded, pushLine } from './chat.ts'
+import { copy } from './copy.ts'
+import { KEEP } from './landmarks.ts'
 import { CHAT_MAX } from './protocol.ts'
 import type { Binding } from './bindings.ts'
 import type { ChatLine } from './chat.ts'
@@ -27,10 +29,10 @@ export interface InventoryStatus {
 // at once, stacked in one cell with only the current one visible, so it is
 // always as wide as the longest and never resizes when its state changes.
 const BEGIN_LABELS = {
-  loading: 'Resolving Terrain…',
-  play: 'Click to Play',
-  resume: 'Click to Resume',
-  failed: 'The Valley Will Not Resolve',
+  loading: copy('hud.begin_loading'),
+  play: copy('hud.begin_play'),
+  resume: copy('hud.begin_resume'),
+  failed: copy('hud.begin_failed'),
 } as const
 
 export type BeginState = keyof typeof BEGIN_LABELS
@@ -63,8 +65,8 @@ function controlRows(bindings: readonly Binding[]): HTMLTableRowElement[] {
   for (let i = 0; i < bindings.length; i += 2) {
     const row = document.createElement('tr')
     const pair = bindings.slice(i, i + 2)
-    for (const [j, { key, label }] of pair.entries()) {
-      const action = text('td', label)
+    for (const [j, { key, labelKey }] of pair.entries()) {
+      const action = text('td', copy(labelKey))
       if (pair.length === 1 && j === 0) action.colSpan = 3
       row.append(text('th', key), action)
     }
@@ -120,7 +122,7 @@ export class Hud {
     // Loadout countdown: bare numbers, top center.
     this.countdown = el('p', 'bv-countdown')
     this.countdown.setAttribute('role', 'timer')
-    this.countdown.setAttribute('aria-label', 'Truck leaves in')
+    this.countdown.setAttribute('aria-label', copy('hud.countdown_label'))
     this.countdown.hidden = true
     ui.appendChild(this.countdown)
 
@@ -128,7 +130,7 @@ export class Hud {
     // for when they return.
     this.nerves = el('div', 'bv-nerves')
     this.nerves.innerHTML = `
-      <span class="bv-nerves-label">Nerves</span>
+      <span class="bv-nerves-label">${copy('hud.nerves')}</span>
       <span class="bv-nerves-track"><i class="bv-nerves-fill"></i></span>`
     this.nerves.hidden = true
     ui.appendChild(this.nerves)
@@ -146,13 +148,13 @@ export class Hud {
     this.chat = el('div', 'bv-chat bv-chat--faded')
     this.chatLog = el('div', 'bv-chat-log')
     this.chatLog.setAttribute('role', 'log')
-    this.chatLog.setAttribute('aria-label', 'Chat')
+    this.chatLog.setAttribute('aria-label', copy('hud.chat_log_label'))
     this.chatInput = el('input', 'bv-chat-input')
     this.chatInput.type = 'text'
     this.chatInput.maxLength = CHAT_MAX
     this.chatInput.autocomplete = 'off'
     this.chatInput.spellcheck = false
-    this.chatInput.setAttribute('aria-label', 'Say to the valley')
+    this.chatInput.setAttribute('aria-label', copy('hud.chat_input_label'))
     this.chatInput.hidden = true
     this.chat.append(this.chatLog, this.chatInput)
     dock.appendChild(this.chat)
@@ -181,17 +183,17 @@ export class Hud {
     // renderer draws on the canvas underneath (inventoryview.ts).
     this.inventory = el('section', 'bv-inv')
     this.inventory.setAttribute('role', 'dialog')
-    this.inventory.setAttribute('aria-label', 'Inventory')
+    this.inventory.setAttribute('aria-label', copy('inventory.label'))
     this.inventory.hidden = true
     this.inventory.innerHTML = `
-      <div class="bv-inv-bars" aria-hidden="true"><span>Status</span><span>Inventory</span><span>Command</span></div>
+      <div class="bv-inv-bars" aria-hidden="true"><span>${copy('inventory.status')}</span><span>${copy('inventory.label')}</span><span>${copy('inventory.command')}</span></div>
       <dl class="bv-inv-status">
-        <dt>Cabbages</dt><dd data-bv="inv-carry">0 / 3</dd>
-        <dt>Delivered</dt><dd data-bv="inv-delivered">0</dd>
-        <dt>Truck</dt><dd data-bv="inv-truck">—</dd>
-        <dt>Cash</dt><dd data-bv="inv-cash">—</dd>
+        <dt>${copy('inventory.cabbages')}</dt><dd data-bv="inv-carry">0 / 3</dd>
+        <dt>${copy('inventory.delivered')}</dt><dd data-bv="inv-delivered">0</dd>
+        <dt>${copy('inventory.truck')}</dt><dd data-bv="inv-truck">—</dd>
+        <dt>${copy('inventory.cash')}</dt><dd data-bv="inv-cash">—</dd>
       </dl>
-      <ul class="bv-inv-commands" aria-label="Commands">
+      <ul class="bv-inv-commands" aria-label="${copy('inventory.commands_label')}">
         <li data-bv="cmd-use"></li>
       </ul>
       <div class="bv-inv-frame" data-bv="inv-frame" aria-hidden="true">
@@ -199,14 +201,14 @@ export class Hud {
         <span class="bv-inv-arrow bv-inv-arrow--next">▶▶</span>
       </div>
       <div class="bv-inv-info" aria-live="polite">
-        <p class="bv-inv-line"><span>No.</span> <b data-bv="inv-no">—</b></p>
+        <p class="bv-inv-line"><span>${copy('inventory.number')}</span> <b data-bv="inv-no">—</b></p>
         <p class="bv-inv-line">
-          <span>Name:</span> <b class="bv-inv-name" data-bv="inv-name">—</b>
-          <span>Stock:</span> <b data-bv="inv-stock">0</b>
+          <span>${copy('inventory.name')}</span> <b class="bv-inv-name" data-bv="inv-name">—</b>
+          <span>${copy('inventory.stock')}</span> <b data-bv="inv-stock">0</b>
         </p>
         <p class="bv-inv-desc" data-bv="inv-desc"></p>
       </div>
-      <p class="bv-inv-resume" data-bv="inv-resume" hidden>Click to Resume</p>
+      <p class="bv-inv-resume" data-bv="inv-resume" hidden>${copy('hud.resume')}</p>
       <div class="bv-inv-bars bv-inv-bars--foot" data-bv="inv-keys" aria-hidden="true"></div>`
     // The pack's keys: E Use is the command column, dimmed when the item
     // cannot be used; the rest line the footer.
@@ -214,13 +216,13 @@ export class Hud {
     required(
       this.inventory.querySelector<HTMLElement>('[data-bv="cmd-use"]'),
       'use command'
-    ).replaceChildren(text('kbd', use.key), ` ${use.label}`)
+    ).replaceChildren(text('kbd', use.key), ` ${copy(use.labelKey)}`)
     required(
       this.inventory.querySelector<HTMLElement>('[data-bv="inv-keys"]'),
       'pack keys'
     ).replaceChildren(
-      ...Object.values(footer).map(({ key, label }) =>
-        text('span', `${key} ${label}`)
+      ...Object.values(footer).map(({ key, labelKey }) =>
+        text('span', `${key} ${copy(labelKey)}`)
       )
     )
     ui.appendChild(this.inventory)
@@ -234,7 +236,9 @@ export class Hud {
     this.staticCanvas.width = 160
     this.staticCanvas.height = 90
     this.staticWrap.appendChild(this.staticCanvas)
-    this.staticWrap.appendChild(el('p', 'bv-static-label', 'SIGNAL LOST'))
+    const staticLabel = el('p', 'bv-static-label')
+    staticLabel.textContent = copy('hud.signal_lost')
+    this.staticWrap.appendChild(staticLabel)
     ui.appendChild(this.staticWrap)
 
     // Center dot: the aim point while the cursor is locked and hidden.
@@ -247,17 +251,21 @@ export class Hud {
     this.intro.setAttribute('role', 'dialog')
     this.intro.setAttribute('aria-modal', 'true')
     this.intro.innerHTML = `
-      <h2>BULL VALLEY SHADOW WARS</h2>
-      <p class="bv-intro-note">Matthew Marx leaves in five minutes.<br>Ride the bed. Find cabbages.<br>Drop them at the Stand. Get out.</p>
-      <table class="bv-controls" aria-label="Controls" data-bv="controls"></table>
+      <h2>${copy('intro.title')}</h2>
+      <p class="bv-intro-note" data-bv="intro-note"></p>
+      <table class="bv-controls" aria-label="${copy('intro.controls_label')}" data-bv="controls"></table>
       <div class="bv-intro-actions">
         <button type="button" class="bv-btn bv-btn--primary bv-btn--stack" data-bv="begin"></button>
       </div>
-      <p class="bv-intro-note bv-intro-fine">Requires a keyboard and mouse.</p>`
+      <p class="bv-intro-note bv-intro-fine">${copy('intro.fine')}</p>`
     required(
       this.intro.querySelector<HTMLTableElement>('[data-bv="controls"]'),
       'controls table'
     ).replaceChildren(...controlRows(Object.values(WORLD)))
+    required(
+      this.intro.querySelector<HTMLElement>('[data-bv="intro-note"]'),
+      'intro note'
+    ).textContent = copy('intro.note')
     ui.appendChild(this.intro)
     this.beginBtn = required(
       this.intro.querySelector<HTMLButtonElement>('[data-bv="begin"]'),
@@ -363,11 +371,11 @@ export class Hud {
     const item: RingItem | undefined = items[index]
     const f = this.fields
     f['inv-no'].textContent = item ? String(index + 1) : '—'
-    f['inv-name'].textContent = item ? item.label : 'Nothing'
+    f['inv-name'].textContent = item ? item.label : copy('inventory.empty_name')
     f['inv-stock'].textContent = item ? String(item.stock) : '0'
     f['inv-desc'].textContent = item
       ? item.blurb
-      : 'Empty pockets. Nothing between you and the valley.'
+      : copy('inventory.empty_blurb')
     f['cmd-use'].classList.toggle('bv-inv-cmd--dim', !item?.canUse)
     f['inv-frame'].classList.toggle('bv-inv-frame--single', items.length < 2)
   }
@@ -409,22 +417,30 @@ export class Hud {
     )
     const how =
       extract === 'truck'
-        ? 'Matthew Marx drove you out.'
+        ? copy('summary.by_truck')
         : extract === 'keep'
-          ? "You made Mt. Coleman's Keep."
-          : `You walked out at ${extractName || 'the station'}.`
-    const carried =
-      carrying > 0 ? `<br>${carrying} more left to rot in the truck bed.` : ''
-    const taken = deaths > 0 ? `<br>Times the valley took you: ${deaths}.` : ''
+          ? copy('summary.at_keep', { keep: KEEP })
+          : extractName
+            ? copy('summary.at_station', { station: extractName })
+            : copy('summary.at_a_station')
+    // One line each; the note keeps the line breaks (white-space: pre-line).
+    const lines = [how, copy('summary.delivered', { count: delivered })]
+    if (carrying > 0) lines.push(copy('summary.left', { count: carrying }))
+    if (deaths > 0) lines.push(copy('summary.deaths', { count: deaths }))
+    lines.push(copy('summary.time', { time: `${minutes}:${seconds}` }))
     const summary = el('div', 'bv-intro')
     summary.setAttribute('role', 'dialog')
     summary.setAttribute('aria-modal', 'true')
     summary.innerHTML = `
-      <h2>RAID COMPLETE</h2>
-      <p class="bv-intro-note">${how}<br>Cabbages delivered: ${delivered}.${carried}${taken}<br>Time in the valley: ${minutes}:${seconds}.</p>
+      <h2>${copy('summary.title')}</h2>
+      <p class="bv-intro-note" data-bv="summary-note"></p>
       <div class="bv-intro-actions">
-        <button type="button" class="bv-btn bv-btn--primary" data-bv="again">Raid Again</button>
+        <button type="button" class="bv-btn bv-btn--primary" data-bv="again">${copy('summary.again')}</button>
       </div>`
+    required(
+      summary.querySelector<HTMLElement>('[data-bv="summary-note"]'),
+      'summary note'
+    ).textContent = lines.join('\n')
     required(this.root.querySelector('.bv-ui'), '.bv-ui').appendChild(summary)
     required(
       summary.querySelector('[data-bv="again"]'),
