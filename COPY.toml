@@ -200,6 +200,7 @@ berry_ready = { text = "E — Pick a Berry", by = "ai" }
 berry_picked = { text = "Berry Bush — Picked Clean Until Midnight", by = "ai" }
 berry_offline = { text = "Berry Bush — No Signal", by = "ai" }
 talk = { text = "E — Talk to Gron", by = "ai" }
+moab = { text = "E — Talk to Moab Coldë", by = "ai" }
 
 # Lines the game says to the player in the chat log (src/chat.ts).
 
@@ -306,6 +307,7 @@ halatek = { text = "Chris Halatek", by = "tyler" }
 carlsten = { text = "David Carlsten", by = "tyler" }
 jdogg = { text = "Jdogg", by = "tyler" }
 gron = { text = "Gron", by = "tyler" }
+moab = { text = "Moab Coldë", by = "ai" }
 
 # Talking to Gron by the berry bush (src/grondialog.ts). One of the says_
 # lines greets you at random; the field, the checks and the Previous / Next
@@ -324,6 +326,11 @@ become = { text = "Become", by = "tyler" }
 character_now = { text = "This is you now", by = "tyler" }
 became = { text = "You are {name} now.", by = "tyler" }
 close = { text = "Close", by = "tyler" }
+
+# What Moab Coldë says under the Citgo sign when you press E beside him.
+
+[moab]
+says = { text = "Gold bullion.", by = "ai" }
 
 # Guitar finishes on the character select. Keys match src/finishes.ts.
 

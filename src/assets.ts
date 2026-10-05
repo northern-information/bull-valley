@@ -1330,6 +1330,916 @@ export function buildRaincloud(fall = 2.6, seed = 0x7a1c): Raincloud {
     }
   }
   update(0)
+  setMotion(group, update)
+  return { group, update }
+}
+
+// --- Flames --------------------------------------------------------------
+
+// Moab Coldë and his horse burn without burning down: tongues of flame
+// that stand up off them, each a pair of low-poly cones (an orange skin
+// round a yellow heart) over a soft halo, with sparks and smoke rising off
+// them. Each tongue swells slowly and flickers a little over it, and its
+// halo brightens and dims on its own phase. update(t) moves them; call it
+// every frame with a running time, or once with a fixed time to hold them
+// still.
+export interface Flames {
+  group: THREE.Group
+  update(t: number): void
+  // Stand the tongues back up when what they burn on tips by (x, z)
+  // radians, so fire always rises.
+  counter(x: number, z: number): void
+}
+
+// One tongue: its base [x, y, z] in the owner's space and its height in
+// metres.
+export interface FlameSpot {
+  at: Vec3
+  size: number
+}
+
+interface FlameParts {
+  geometry: THREE.ConeGeometry
+  skin: THREE.MeshBasicMaterial
+  heart: THREE.MeshBasicMaterial
+  halo: THREE.Texture
+  spark: THREE.Texture
+  smoke: THREE.Texture
+}
+
+// Unit cones with their base at the origin, shared by every tongue.
+let flameParts: FlameParts | null = null
+function getFlameParts(): FlameParts {
+  if (!flameParts) {
+    const geometry = new THREE.ConeGeometry(0.5, 1, 5)
+    geometry.translate(0, 0.5, 0)
+    const flame = (color: string, opacity: number) =>
+      applyPS1(
+        new THREE.MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        })
+      )
+    flameParts = {
+      geometry,
+      skin: flame('#ff4a12', 0.85),
+      heart: flame('#ffc23a', 0.9),
+      halo: makeGlowTexture('rgba(255, 96, 32, 0.55)'),
+      spark: makeGlowTexture('rgba(255, 255, 255, 1)'),
+      smoke: makeGlowTexture('rgba(255, 255, 255, 0.9)'),
+    }
+  }
+  return flameParts
+}
+
+// A tongue is this much narrower than it is tall, and its halo this many
+// times its height across.
+const FLAME_WIDTH = 0.45
+const FLAME_HALO = 2.4
+
+// What rises off a tongue, in multiples of its height: how many at once,
+// how long one takes to rise, how high and how wide it goes, how much it
+// flutters side to side, and its point size against the biggest tongue.
+interface ParticleKind {
+  perTongue: number
+  seconds: number
+  rise: number
+  spread: number
+  flutter: number
+  size: number
+  opacity: number
+}
+
+// Quick and bright: a spark flies up a few tongue heights and goes out.
+const SPARKS: ParticleKind = {
+  perTongue: 3,
+  seconds: 1.3,
+  rise: 4,
+  spread: 0.9,
+  flutter: 0.15,
+  size: 0.12,
+  opacity: 1,
+}
+
+// Slow and thin: smoke climbs higher, spreading as it thins.
+const SMOKE: ParticleKind = {
+  perTongue: 2,
+  seconds: 4,
+  rise: 7,
+  spread: 1.6,
+  flutter: 0.3,
+  size: 1.1,
+  opacity: 0.35,
+}
+
+export function buildFlames(
+  spots: readonly FlameSpot[],
+  seed = 0xf1a3
+): Flames {
+  const rng = mulberry32(seed)
+  const { geometry, skin, heart, halo, spark, smoke } = getFlameParts()
+  const group = new THREE.Group()
+  group.name = 'flames'
+  const tongues = spots.map(({ at, size }) => {
+    const root = new THREE.Group()
+    root.position.set(...at)
+    const outer = new THREE.Mesh(geometry, skin)
+    const inner = new THREE.Mesh(geometry, heart)
+    inner.scale.setScalar(0.55)
+    outer.add(inner)
+    // Each halo has its own material, so each one can dim on its own.
+    const sprite = makeGlowSprite(halo, size * FLAME_HALO)
+    sprite.position.y = size * 0.35
+    root.add(outer, sprite)
+    group.add(root)
+    return { at, root, outer, sprite, size, phase: range(rng, 0, Math.PI * 2) }
+  })
+
+  // Sparks and smoke rise off every tongue: a few of each per tongue, each
+  // on its own point in its own cycle, so they never leave together. One
+  // set of points for each, so the whole fire is two more draws.
+  const rise = (kind: ParticleKind) =>
+    tongues.flatMap((tongue) =>
+      Array.from({ length: kind.perTongue }, (_, k) => ({
+        tongue,
+        offset: (k + rng()) / kind.perTongue,
+        turn: range(rng, 0, Math.PI * 2),
+      }))
+    )
+  const sparks = rise(SPARKS)
+  const puffs = rise(SMOKE)
+  const biggest = Math.max(...spots.map((s) => s.size), 0.05)
+  const points = (
+    count: number,
+    channels: 3 | 4,
+    material: THREE.PointsMaterial,
+    name: string
+  ) => {
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute(
+      'position',
+      new THREE.BufferAttribute(new Float32Array(count * 3), 3)
+    )
+    geometry.setAttribute(
+      'color',
+      new THREE.BufferAttribute(new Float32Array(count * channels), channels)
+    )
+    const cloud = new THREE.Points(geometry, material)
+    cloud.name = name
+    // The points move every frame; their bounds would go stale.
+    cloud.frustumCulled = false
+    group.add(cloud)
+    return geometry
+  }
+  const sparkGeo = points(
+    sparks.length,
+    3,
+    new THREE.PointsMaterial({
+      map: spark,
+      size: Math.max(0.025, biggest * SPARKS.size),
+      vertexColors: true,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    }),
+    'sparks'
+  )
+  const smokeGeo = points(
+    puffs.length,
+    4,
+    new THREE.PointsMaterial({
+      map: smoke,
+      size: biggest * SMOKE.size,
+      vertexColors: true,
+      transparent: true,
+      depthWrite: false,
+    }),
+    'smoke'
+  )
+
+  // Where a particle is `life` (0 to 1) of the way up its rise: drifting
+  // round its own turn, which shifts every time it starts again.
+  const place = (
+    out: THREE.BufferAttribute,
+    i: number,
+    { tongue, turn }: { tongue: (typeof tongues)[number]; turn: number },
+    kind: ParticleKind,
+    life: number,
+    cycle: number,
+    t: number
+  ) => {
+    const { at, size } = tongue
+    const a = turn + cycle * 2.4
+    const spread = size * kind.spread * life
+    out.setXYZ(
+      i,
+      at[0] +
+        Math.cos(a) * spread +
+        Math.sin(t * 3 + turn) * size * kind.flutter,
+      at[1] + size * (0.6 + kind.rise * life),
+      at[2] + Math.sin(a) * spread
+    )
+  }
+
+  const update = (t: number) => {
+    for (const { outer, sprite, size, phase } of tongues) {
+      // A slow swell with a quicker flicker over it.
+      const swell =
+        0.84 +
+        0.08 * Math.sin(t * 2.4 + phase) +
+        0.05 * Math.sin(t * 5.3 + phase * 1.7) +
+        0.03 * Math.sin(t * 9.1 + phase * 2.3)
+      const w = size * FLAME_WIDTH * (1.1 - 0.2 * swell)
+      outer.scale.set(w, size * swell, w)
+      outer.rotation.set(0, t * 0.9 + phase, 0.12 * Math.sin(t * 1.8 + phase))
+      const glow = 0.5 + 0.5 * Math.sin(t * 1.2 + phase)
+      sprite.material.opacity = 0.45 + 0.4 * glow
+      sprite.scale.setScalar(size * FLAME_HALO * (0.9 + 0.15 * glow))
+    }
+    const sparkAt = sparkGeo.getAttribute('position') as THREE.BufferAttribute
+    const sparkColor = sparkGeo.getAttribute('color') as THREE.BufferAttribute
+    sparks.forEach((p, i) => {
+      const age = t / SPARKS.seconds + p.offset
+      const life = age - Math.floor(age)
+      place(sparkAt, i, p, SPARKS, life, Math.floor(age), t)
+      // Additive: fading to black is fading out. Yellow cools to red.
+      const heat = 1 - life
+      sparkColor.setXYZ(i, heat, heat * (0.4 + 0.4 * heat), heat * 0.15)
+    })
+    const smokeAt = smokeGeo.getAttribute('position') as THREE.BufferAttribute
+    const smokeColor = smokeGeo.getAttribute('color') as THREE.BufferAttribute
+    puffs.forEach((p, i) => {
+      const age = t / SMOKE.seconds + p.offset
+      const life = age - Math.floor(age)
+      place(smokeAt, i, p, SMOKE, life, Math.floor(age), t)
+      // Thickening as it leaves the flame, thinning as it climbs.
+      const alpha = SMOKE.opacity * Math.min(1, life * 5) * (1 - life)
+      smokeColor.setXYZW(i, 0.42, 0.4, 0.4, alpha)
+    })
+    sparkAt.needsUpdate = true
+    sparkColor.needsUpdate = true
+    smokeAt.needsUpdate = true
+    smokeColor.needsUpdate = true
+  }
+  const counter = (x: number, z: number) => {
+    for (const { root } of tongues) root.rotation.set(-x, 0, -z)
+  }
+  update(0)
+  setMotion(group, update)
+  return { group, update, counter }
+}
+
+// --- Fire roots ----------------------------------------------------------
+
+// Cracks of fire spreading out over the ground from where Moab Coldë
+// stands: roots that wander outward, fork, and thin to nothing, glowing on
+// a soft pool of light, writhing slowly, with a pulse of heat running out
+// along them.
+// Origin on the ground at the middle; everything lies a hair over the
+// ground, draped over it by `groundAt` (heights in the roots' own space;
+// flat when left out), so the roots follow a sloping lot as they writhe. update(t) moves the pulse; call it every frame with a running time,
+// or once with a fixed time to hold it still.
+export interface FireRoots {
+  group: THREE.Group
+  update(t: number): void
+}
+
+// The roots, in metres and radians: how many leave the middle, how far a
+// root runs before it gives out, its step, how much it wanders a step, how
+// wide it starts and ends, and how often it forks.
+const ROOTS = {
+  count: 8,
+  reach: [1.6, 3.0] as const,
+  step: 0.22,
+  wander: 0.35,
+  width: [0.08, 0.022] as const,
+  fork: 0.22,
+  // Over the ground, clear of the lot without floating off it.
+  lift: 0.04,
+  // The pulse: how fast it runs outward (m/s), and its wavelength.
+  pulseSpeed: 0.9,
+  pulseLength: 1.6,
+  pool: 6.5,
+  // The writhe: every point of every root turns about the middle by up to
+  // `twist` radians a metre out (so the tips swing widest), and runs a
+  // little longer and shorter by up to `stretch` of its reach, each on a
+  // slow wave that travels out along the roots. One smooth field over the
+  // ground, so a fork never comes apart from its root.
+  twist: 0.07,
+  twistSeconds: 6.5,
+  twistLength: 3.5,
+  stretch: 0.05,
+  stretchSeconds: 4.2,
+  stretchLength: 2.2,
+  // The ground under them, sampled once into a grid this many cells a
+  // side over this span (wide enough for the pool and the writhe), and
+  // read between samples as they move.
+  grid: 28,
+  span: 7.2,
+}
+
+// Heights in the roots' own space, from the origin's ground.
+export type GroundAt = (x: number, z: number) => number
+
+// `ground` sampled once on a grid round the origin; between samples, the
+// blend of the four round the point. Off the grid, the nearest edge.
+function groundGrid(ground: GroundAt): GroundAt {
+  const n = ROOTS.grid
+  const half = ROOTS.span / 2
+  const cell = ROOTS.span / n
+  const heights: number[] = []
+  for (let j = 0; j <= n; j++) {
+    for (let i = 0; i <= n; i++) {
+      heights.push(ground(-half + i * cell, -half + j * cell))
+    }
+  }
+  const at = (i: number, j: number) => heights[j * (n + 1) + i]
+  return (x, z) => {
+    const u = Math.min(n, Math.max(0, (x + half) / cell))
+    const v = Math.min(n, Math.max(0, (z + half) / cell))
+    const i = Math.min(n - 1, Math.floor(u))
+    const j = Math.min(n - 1, Math.floor(v))
+    const fu = u - i
+    const fv = v - j
+    const top = at(i, j) + (at(i + 1, j) - at(i, j)) * fu
+    const bottom = at(i, j + 1) + (at(i + 1, j + 1) - at(i, j + 1)) * fu
+    return top + (bottom - top) * fv
+  }
+}
+
+export function buildFireRoots(
+  seed = 0xf007,
+  ground: GroundAt = () => 0
+): FireRoots {
+  const heightAt = groundGrid(ground)
+  const rng = mulberry32(seed)
+  const group = new THREE.Group()
+  group.name = 'fire-roots'
+  const positions: number[] = []
+  // Each quad's distance out from the middle, for the pulse and the fade.
+  const reachOf: number[] = []
+
+  // One root: steps out from (x, z) heading `a`, `left` metres still to
+  // run, `from` metres already out; a fork is a shorter root of its own.
+  const grow = (
+    x: number,
+    z: number,
+    a: number,
+    left: number,
+    from: number
+  ) => {
+    let heading = a
+    let run = 0
+    while (run < left) {
+      heading += range(rng, -ROOTS.wander, ROOTS.wander)
+      const nx = x + Math.cos(heading) * ROOTS.step
+      const nz = z + Math.sin(heading) * ROOTS.step
+      const out = from + run
+      const total = from + left
+      const half = (t: number) =>
+        (ROOTS.width[0] + (ROOTS.width[1] - ROOTS.width[0]) * t) / 2
+      const w0 = half(out / total)
+      const w1 = half((out + ROOTS.step) / total)
+      // Square to the step, either side.
+      const px = -Math.sin(heading)
+      const pz = Math.cos(heading)
+      const y = ROOTS.lift
+      positions.push(
+        x + px * w0,
+        y,
+        z + pz * w0,
+        x - px * w0,
+        y,
+        z - pz * w0,
+        nx - px * w1,
+        y,
+        nz - pz * w1,
+        x + px * w0,
+        y,
+        z + pz * w0,
+        nx - px * w1,
+        y,
+        nz - pz * w1,
+        nx + px * w1,
+        y,
+        nz + pz * w1
+      )
+      for (let k = 0; k < 6; k++) reachOf.push(out / total)
+      if (rng() < ROOTS.fork && left - run > 0.6) {
+        const side = rng() < 0.5 ? -1 : 1
+        grow(
+          nx,
+          nz,
+          heading + side * range(rng, 0.4, 0.8),
+          (left - run) * 0.6,
+          out
+        )
+      }
+      x = nx
+      z = nz
+      run += ROOTS.step
+    }
+  }
+  for (let i = 0; i < ROOTS.count; i++) {
+    const a = (i / ROOTS.count) * Math.PI * 2 + range(rng, -0.25, 0.25)
+    grow(0, 0, a, range(rng, ...ROOTS.reach), 0)
+  }
+
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute(
+    'position',
+    new THREE.Float32BufferAttribute(positions, 3)
+  )
+  const colors = new Float32Array(positions.length)
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+  const cracks = new THREE.Mesh(
+    geometry,
+    applyPS1(
+      new THREE.MeshBasicMaterial({
+        vertexColors: true,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        // Drawn over the ground they lie on, never under it.
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -4,
+      })
+    )
+  )
+  cracks.name = 'fire-root-cracks'
+  // The points move every frame; their bounds would go stale.
+  cracks.frustumCulled = false
+  group.add(cracks)
+
+  // A soft pool of firelight on the ground under them, draped over it.
+  const poolGeo = new THREE.PlaneGeometry(ROOTS.pool, ROOTS.pool, 16, 16)
+  poolGeo.rotateX(-Math.PI / 2)
+  const poolAt = poolGeo.getAttribute('position') as THREE.BufferAttribute
+  for (let v = 0; v < poolAt.count; v++) {
+    poolAt.setY(v, heightAt(poolAt.getX(v), poolAt.getZ(v)) + ROOTS.lift - 0.01)
+  }
+  const pool = new THREE.Mesh(
+    poolGeo,
+    new THREE.MeshBasicMaterial({
+      map: makeGlowTexture('rgba(255, 90, 28, 0.35)'),
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -2,
+    })
+  )
+  pool.name = 'fire-root-pool'
+  group.add(pool)
+
+  const color = geometry.getAttribute('color') as THREE.BufferAttribute
+  const at = geometry.getAttribute('position') as THREE.BufferAttribute
+  // Where each point lies at rest, as distance and angle from the middle.
+  const rest = Array.from({ length: at.count }, (_, v) => {
+    const x = at.getX(v)
+    const z = at.getZ(v)
+    return { r: Math.hypot(x, z), a: Math.atan2(z, x) }
+  })
+  const TAU = Math.PI * 2
+  const update = (t: number) => {
+    const R = ROOTS
+    for (let v = 0; v < rest.length; v++) {
+      const { r, a } = rest[v]
+      // The angle term gives each direction its own phase, so the roots
+      // never all swing the same way at once.
+      const twist =
+        R.twist *
+        r *
+        Math.sin(TAU * (t / R.twistSeconds - r / R.twistLength) + 2 * a)
+      const stretch =
+        1 +
+        R.stretch *
+          Math.sin(TAU * (t / R.stretchSeconds - r / R.stretchLength) + 3 * a)
+      const x = Math.cos(a + twist) * r * stretch
+      const z = Math.sin(a + twist) * r * stretch
+      at.setXYZ(v, x, heightAt(x, z) + ROOTS.lift, z)
+    }
+    at.needsUpdate = true
+    const longest = ROOTS.reach[1]
+    for (let v = 0; v < reachOf.length; v++) {
+      const out = reachOf[v] * longest
+      const wave =
+        0.5 +
+        0.5 *
+          Math.sin(
+            ((out - t * ROOTS.pulseSpeed) / ROOTS.pulseLength) * Math.PI * 2
+          )
+      // Hot at the middle, dimming toward the tips; the pulse rides over.
+      const heat = (1 - reachOf[v] * 0.7) * (0.35 + 0.65 * wave)
+      color.setXYZ(v, heat, heat * 0.32, heat * 0.07)
+    }
+    color.needsUpdate = true
+    pool.material.opacity = 0.7 + 0.3 * Math.sin(t * 1.3)
+  }
+  update(0)
+  setMotion(group, update)
+  return { group, update }
+}
+
+// --- Skeleton horse ------------------------------------------------------
+
+// Moab Coldë's horse: bare bone from skull to tail, under a saddle with
+// saddlebags, burning at the mane, the tail and the hooves, its eyes lit.
+// It stands at ease: the ribs rise and fall, the head nods and looks about,
+// the tail swishes now and then, and every so often it stamps a forehoof.
+// Horse-local space: origin on the ground under the middle of the barrel,
+// facing +Z, left side +X, like a figure. Call update(t) every frame with
+// a running time, or once with a fixed time to hold it still.
+export interface SkeletonHorse {
+  group: THREE.Group
+  update(t: number): void
+}
+
+// The top of the seat, metres off the ground.
+export const HORSE_SADDLE_TOP = 1.55
+
+// The spine's height along the back, from the croup (-Z) to the withers
+// (+Z), as [z, y] stations to interpolate between.
+const HORSE_SPINE: [number, number][] = [
+  [-0.9, 1.38],
+  [-0.6, 1.4],
+  [-0.2, 1.37],
+  [0.2, 1.4],
+  [0.55, 1.47],
+]
+
+function horseSpineY(z: number): number {
+  const last = HORSE_SPINE.length - 1
+  if (z <= HORSE_SPINE[0][0]) return HORSE_SPINE[0][1]
+  if (z >= HORSE_SPINE[last][0]) return HORSE_SPINE[last][1]
+  let i = 0
+  while (HORSE_SPINE[i + 1][0] < z) i++
+  const [z0, y0] = HORSE_SPINE[i]
+  const [z1, y1] = HORSE_SPINE[i + 1]
+  return y0 + ((y1 - y0) * (z - z0)) / (z1 - z0)
+}
+
+// Ribs as [z, radius]: deepest behind the shoulder, closing toward the
+// loin.
+const HORSE_RIBS: [number, number][] = [
+  [0.4, 0.27],
+  [0.3, 0.31],
+  [0.2, 0.33],
+  [0.1, 0.33],
+  [0.0, 0.32],
+  [-0.1, 0.3],
+  [-0.2, 0.27],
+  [-0.3, 0.23],
+]
+
+// Each rib is an arch round the barrel, open at the top where the spine
+// runs: a torus arc missing this much either side of straight up.
+const RIB_GAP = 0.45
+
+// The joints the horse moves about, in horse-local space.
+const HORSE_NECK_BASE: Vec3 = [0, 1.48, 0.6]
+const HORSE_POLL: Vec3 = [0, 2.0, 1.02]
+const HORSE_CROUP: Vec3 = [0, 1.36, -0.95]
+const HORSE_CHEST: Vec3 = [0, 1.4, 0.05]
+
+// The idle, in seconds and radians. A stamp comes once a cycle, the tail
+// swishes in bouts, and the breath and the nod never stop.
+const HORSE_IDLE = {
+  breathSeconds: 4.5,
+  breathDepth: 0.025,
+  nod: 0.1,
+  nodSeconds: 13,
+  look: 0.2,
+  lookSeconds: 21,
+  swish: 0.35,
+  swishSeconds: 1.6,
+  swishBoutSeconds: 11,
+  stampSeconds: 9,
+  stampLength: 0.8,
+  stampLift: 0.35,
+}
+
+const UP = new THREE.Vector3(0, 1, 0)
+
+// A bone from a to b: a thin five-sided cylinder, narrower at b.
+function boneBetween(
+  a: Vec3,
+  b: Vec3,
+  radius: number,
+  material: THREE.Material
+): THREE.Mesh {
+  const dir = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2])
+  const length = dir.length()
+  // CylinderGeometry runs top (+Y) to bottom; the bottom is at a.
+  const mesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius * 0.8, radius, length, 5),
+    material
+  )
+  mesh.position.set((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2)
+  mesh.quaternion.setFromUnitVectors(UP, dir.normalize())
+  return mesh
+}
+
+// A knuckle of bone at a joint.
+function knob(at: Vec3, radius: number, material: THREE.Material): THREE.Mesh {
+  const mesh = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(radius, 0),
+    material
+  )
+  mesh.position.set(...at)
+  return mesh
+}
+
+function boxAt(
+  size: Vec3,
+  at: Vec3,
+  material: THREE.Material,
+  rotation?: Vec3
+): THREE.Mesh {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material)
+  mesh.position.set(...at)
+  if (rotation) mesh.rotation.set(...rotation)
+  return mesh
+}
+
+// A moving part of the horse: `pivot` turns about `at`, and everything
+// added to `body` is placed in horse-local space as if it never moved.
+function hinge(
+  parent: THREE.Object3D,
+  name: string,
+  at: Vec3
+): { pivot: THREE.Group; body: THREE.Group } {
+  const pivot = new THREE.Group()
+  pivot.name = name
+  pivot.position.set(...at)
+  const body = new THREE.Group()
+  body.position.set(-at[0], -at[1], -at[2])
+  pivot.add(body)
+  parent.add(pivot)
+  return { pivot, body }
+}
+
+// The horse's skull: a cranium and a long muzzle with the jaw under it,
+// in its own space with the poll at the origin and the nose along +Z.
+// Its eyes burn in their sockets.
+let horseEyeGlow: THREE.Texture | null = null
+function horseSkull(bone: THREE.Material, socket: THREE.Material): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'horse-skull'
+  group.add(boxAt([0.2, 0.2, 0.24], [0, 0, 0.04], bone))
+  // The muzzle narrows toward the nose.
+  const muzzle = new THREE.BoxGeometry(0.15, 0.13, 0.4)
+  const pos = muzzle.attributes.position
+  for (let i = 0; i < pos.count; i++) {
+    if (pos.getZ(i) > 0) {
+      pos.setX(i, pos.getX(i) * 0.7)
+      pos.setY(i, pos.getY(i) * 0.8)
+    }
+  }
+  muzzle.computeVertexNormals()
+  const snout = new THREE.Mesh(muzzle, bone)
+  snout.position.set(0, -0.02, 0.34)
+  group.add(snout)
+  group.add(boxAt([0.11, 0.05, 0.42], [0, -0.12, 0.3], bone, [0.12, 0, 0]))
+  // The nostril hole, and an eye socket each side with its ember.
+  group.add(boxAt([0.08, 0.04, 0.02], [0, 0.01, 0.545], socket))
+  horseEyeGlow ??= makeGlowTexture('rgba(255, 80, 24, 0.9)')
+  for (const side of [1, -1]) {
+    group.add(boxAt([0.02, 0.07, 0.08], [side * 0.1, 0.02, 0.08], socket))
+    const eye = makeGlowSprite(horseEyeGlow, 0.12)
+    eye.position.set(side * 0.115, 0.02, 0.08)
+    group.add(eye)
+  }
+  // The front teeth, in rows along the end of the jaw.
+  for (let i = 0; i < 5; i++) {
+    group.add(boxAt([0.1, 0.03, 0.016], [0, -0.085, 0.42 + i * 0.025], bone))
+  }
+  return group
+}
+
+// 0 to 1 and back to 0 across the first `length` seconds of every
+// `period`, and 0 the rest of the time.
+function pulse(t: number, period: number, length: number): number {
+  const at = ((t % period) + period) % period
+  return at < length ? Math.sin((at / length) * Math.PI) : 0
+}
+
+export function buildSkeletonHorse(): SkeletonHorse {
+  const group = new THREE.Group()
+  group.name = 'skeleton-horse'
+  const bone = lambert({ color: '#d6cfb8' })
+  const socket = lambert({ color: '#060606' })
+  const hoofMat = lambert({ color: '#2a241c' })
+  const leather = lambert({ color: '#3a2216' })
+  const bag = lambert({ color: '#4a2c1a' })
+  const strap = lambert({ color: '#0a0a0b' })
+  const iron = lambert({ color: '#8a8a86' })
+  const blanket = lambert({ color: '#5e0f0f' })
+
+  // The backbone, a vertebra every 10 cm, with the spines over the
+  // withers standing tallest.
+  for (let i = 0; i <= 14; i++) {
+    const z = -0.9 + i * 0.1
+    const y = horseSpineY(z)
+    group.add(boxAt([0.08, 0.09, 0.08], [0, y, z], bone))
+    const spine = 0.05 + Math.max(0, z - 0.1) * 0.25
+    group.add(boxAt([0.025, spine, 0.04], [0, y + 0.045 + spine / 2, z], bone))
+  }
+
+  // The ribcage, each rib a torus arc open at the top, the sternum along
+  // the bottom of it, and a girth strap round it just behind the elbows
+  // holding the saddle on. They breathe together, out from the chest.
+  const ribs = hinge(group, 'horse-ribs', HORSE_CHEST)
+  for (const [z, r] of HORSE_RIBS) {
+    const rib = new THREE.Mesh(
+      new THREE.TorusGeometry(r, 0.022, 3, 9, Math.PI * 2 - RIB_GAP * 2),
+      bone
+    )
+    rib.rotation.z = Math.PI / 2 + RIB_GAP
+    rib.position.set(0, horseSpineY(z) - r * 0.92, z)
+    ribs.body.add(rib)
+  }
+  ribs.body.add(boxAt([0.07, 0.04, 0.7], [0, 0.82, 0.08], bone, [-0.08, 0, 0]))
+  const girth = new THREE.Mesh(
+    new THREE.TorusGeometry(0.345, 0.018, 3, 12),
+    strap
+  )
+  girth.position.set(0, horseSpineY(0.15) - 0.33 * 0.92, 0.15)
+  ribs.body.add(girth)
+
+  // Shoulder blades and the pelvis.
+  for (const side of [1, -1]) {
+    group.add(
+      boxAt([0.025, 0.32, 0.12], [side * 0.25, 1.25, 0.46], bone, [
+        0.35,
+        0,
+        side * 0.12,
+      ])
+    )
+  }
+  group.add(boxAt([0.44, 0.12, 0.3], [0, 1.3, -0.75], bone, [-0.2, 0, 0]))
+  for (const side of [1, -1]) {
+    group.add(boxAt([0.08, 0.22, 0.08], [side * 0.2, 1.2, -0.7], bone))
+  }
+
+  // The legs, as [y, z] joints: shoulder or hip, knee or stifle (and the
+  // hock behind), the fetlock, the hoof. A bone between each pair, a knob
+  // at each joint below the top, and the hoof burning. Each leg swings
+  // from its top joint; only the near forehoof (+X) stamps.
+  const legFlames: Flames[] = []
+  const leg = (x: number, joints: [number, number][]) => {
+    const [topY, topZ] = joints[0]
+    const { pivot, body } = hinge(group, 'horse-leg', [x, topY, topZ])
+    for (let i = 0; i < joints.length - 1; i++) {
+      const a: Vec3 = [x, ...joints[i]]
+      const b: Vec3 = [x, ...joints[i + 1]]
+      body.add(boneBetween(a, b, i === 0 ? 0.045 : 0.03, bone))
+      if (i > 0) body.add(knob(a, 0.045, bone))
+    }
+    const [, footZ] = joints[joints.length - 1]
+    const hoof = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.055, 0.07, 0.08, 6),
+      hoofMat
+    )
+    hoof.position.set(x, 0.04, footZ + 0.02)
+    body.add(hoof)
+    const fire = buildFlames(
+      [{ at: [x, 0.06, footZ + 0.02], size: 0.22 }],
+      0x40f + legFlames.length
+    )
+    body.add(fire.group)
+    legFlames.push(fire)
+    return { pivot, fire }
+  }
+  const legs = [1, -1].flatMap((side) => {
+    const x = side * 0.17
+    return [
+      leg(x, [
+        [1.18, 0.44],
+        [0.7, 0.42],
+        [0.2, 0.42],
+        [0.08, 0.47],
+      ]),
+      leg(x, [
+        [1.25, -0.72],
+        [0.92, -0.6],
+        [0.52, -0.82],
+        [0.2, -0.8],
+        [0.08, -0.75],
+      ]),
+    ]
+  })
+  const stamper = legs[0]
+
+  // The neck, rising forward from the withers to the poll, the skull hung
+  // nose-down off the end of it, and the mane burning up its length. It
+  // nods and looks about from the withers.
+  const neck = hinge(group, 'horse-neck', HORSE_NECK_BASE)
+  const mane: FlameSpot[] = []
+  const steps = 5
+  for (let i = 0; i < steps; i++) {
+    const t = (i + 0.5) / steps
+    const y = HORSE_NECK_BASE[1] + (HORSE_POLL[1] - HORSE_NECK_BASE[1]) * t
+    const z = HORSE_NECK_BASE[2] + (HORSE_POLL[2] - HORSE_NECK_BASE[2]) * t
+    neck.body.add(boxAt([0.09, 0.08, 0.11], [0, y, z], bone, [-0.9, 0, 0]))
+    mane.push({ at: [0, y + 0.05, z - 0.04], size: 0.32 - t * 0.08 })
+  }
+  const maneFire = buildFlames(mane, 0x3a7e)
+  neck.body.add(maneFire.group)
+  const skull = horseSkull(bone, socket)
+  skull.position.set(...HORSE_POLL)
+  skull.rotation.x = 0.6
+  neck.body.add(skull)
+
+  // The tail, a string of small bones curling down off the croup, burning
+  // at the end. It swishes from the croup.
+  const tail = hinge(group, 'horse-tail', HORSE_CROUP)
+  let tip: Vec3 = HORSE_CROUP
+  for (let i = 0; i < 6; i++) {
+    const next: Vec3 = [0, tip[1] - 0.09, tip[2] - 0.05 + i * 0.012]
+    tail.body.add(boneBetween(tip, next, 0.022, bone))
+    tip = next
+  }
+  const tailFire = buildFlames([{ at: tip, size: 0.3 }], 0x7a11)
+  tail.body.add(tailFire.group)
+
+  // The saddle on a blanket over the ribs, with its pommel and cantle,
+  // and the stirrups on their leathers.
+  const seatY = HORSE_SADDLE_TOP - 0.04
+  group.add(
+    boxAt([0.62, 0.03, 0.72], [0, horseSpineY(0) + 0.05, 0.02], blanket)
+  )
+  group.add(boxAt([0.46, 0.08, 0.56], [0, seatY, 0.02], leather))
+  group.add(boxAt([0.16, 0.14, 0.07], [0, seatY + 0.08, 0.29], leather))
+  group.add(boxAt([0.34, 0.12, 0.06], [0, seatY + 0.07, -0.25], leather))
+  for (const side of [1, -1]) {
+    group.add(
+      boxAt([0.02, 0.6, 0.07], [side * 0.27, seatY - 0.32, 0.06], strap)
+    )
+    group.add(boxAt([0.1, 0.03, 0.12], [side * 0.29, seatY - 0.63, 0.08], iron))
+  }
+
+  // The saddlebags, slung over the loin behind the cantle: a strap across
+  // the spine, and a bag down each side with a flap over its top and two
+  // buckled straps down its outer face.
+  const bagZ = -0.5
+  const bagTop = horseSpineY(bagZ) + 0.04
+  group.add(boxAt([0.62, 0.025, 0.24], [0, bagTop, bagZ], leather))
+  for (const side of [1, -1]) {
+    const x = side * 0.34
+    group.add(boxAt([0.14, 0.34, 0.34], [x, bagTop - 0.19, bagZ], bag))
+    group.add(boxAt([0.155, 0.13, 0.35], [x, bagTop - 0.07, bagZ], leather))
+    for (const dz of [-0.09, 0.09]) {
+      const face = x + side * 0.074
+      group.add(
+        boxAt([0.012, 0.26, 0.03], [face, bagTop - 0.2, bagZ + dz], strap)
+      )
+      group.add(
+        boxAt(
+          [0.014, 0.03, 0.036],
+          [face + side * 0.004, bagTop - 0.15, bagZ + dz],
+          iron
+        )
+      )
+    }
+  }
+
+  castShadows(group)
+
+  const I = HORSE_IDLE
+  const update = (t: number) => {
+    const breath =
+      1 + I.breathDepth * Math.sin((t / I.breathSeconds) * Math.PI * 2)
+    ribs.pivot.scale.set(breath, breath, 1)
+    // The head sinks a little, comes up, and turns to look about.
+    const nod = I.nod * (0.5 + 0.5 * Math.sin((t / I.nodSeconds) * Math.PI * 2))
+    neck.pivot.rotation.set(
+      nod,
+      I.look * Math.sin((t / I.lookSeconds) * Math.PI * 2),
+      0
+    )
+    maneFire.counter(nod, 0)
+    maneFire.update(t)
+    // A bout of swishing, then the tail hangs still a while.
+    const bout = pulse(t, I.swishBoutSeconds, I.swishSeconds * 2)
+    const swish = I.swish * bout * Math.sin((t / I.swishSeconds) * Math.PI * 2)
+    tail.pivot.rotation.z = swish
+    tailFire.counter(0, swish)
+    tailFire.update(t)
+    // The near forehoof comes up, forward, and down.
+    const stamp = -I.stampLift * pulse(t, I.stampSeconds, I.stampLength)
+    stamper.pivot.rotation.x = stamp
+    stamper.fire.counter(stamp, 0)
+    for (const fire of legFlames) fire.update(t)
+  }
+  update(0)
+  setMotion(group, update)
   return { group, update }
 }
 
@@ -1426,6 +2336,213 @@ export function buildBook(): THREE.Group {
     hinge.add(back, block)
     group.add(hinge)
   }
+  return group
+}
+
+// --- Moab's scroll -------------------------------------------------------
+
+// A burning scroll, unrolled and held out by its top rod for whoever walks
+// up to read: old parchment covered in close black script round a sigil,
+// a dark rod at the top and a rolled stump at the bottom, the bottom edge
+// charred ragged and on fire. Local space: the middle of the top rod at
+// the origin, the sheet hanging down -Y, its face toward +Z. update(t)
+// moves the fire; call it every frame with a running time, or once with a
+// fixed time to hold it still.
+export interface Scroll {
+  group: THREE.Group
+  update(t: number): void
+}
+
+const SCROLL = { width: 0.34, height: 0.5, rod: 0.016 }
+
+// The sheet: yellowed parchment browning to char at the bottom, lines of
+// script (strokes, not words) round a ringed sigil, the charred edge torn
+// into points.
+function paintScroll(): CanvasArt {
+  const art = canvas([68, 100], '#d9c79c')
+  const { ctx, w, h } = art
+  const rng = mulberry32(0x5c7011)
+  const burn = ctx.createLinearGradient(0, h * 0.55, 0, h)
+  burn.addColorStop(0, 'rgba(90, 50, 20, 0)')
+  burn.addColorStop(1, 'rgba(40, 18, 6, 0.9)')
+  ctx.fillStyle = burn
+  ctx.fillRect(0, 0, w, h)
+  // The sigil: a ring, a triangle in it, and a dot.
+  ctx.strokeStyle = '#5a0e0a'
+  ctx.lineWidth = 1.5
+  ctx.beginPath()
+  ctx.arc(w / 2, 30, 13, 0, Math.PI * 2)
+  ctx.moveTo(w / 2, 19)
+  ctx.lineTo(w / 2 + 10, 36)
+  ctx.lineTo(w / 2 - 10, 36)
+  ctx.closePath()
+  ctx.stroke()
+  ctx.fillStyle = '#5a0e0a'
+  ctx.fillRect(w / 2 - 1, 29, 2, 2)
+  // Lines of script: runs of short dark strokes.
+  ctx.fillStyle = '#1e140e'
+  for (let y = 50; y < h - 14; y += 5) {
+    let x = 6
+    while (x < w - 6) {
+      const run = 3 + Math.floor(rng() * 7)
+      ctx.fillRect(x, y, Math.min(run, w - 6 - x), 1.5)
+      x += run + 2
+    }
+  }
+  // The charred bottom edge, torn into points.
+  ctx.fillStyle = '#120804'
+  ctx.beginPath()
+  ctx.moveTo(0, h)
+  for (let x = 0; x <= w; x += 5) {
+    ctx.lineTo(x + 2.5, h - 3 - rng() * 9)
+    ctx.lineTo(x + 5, h)
+  }
+  ctx.closePath()
+  ctx.fill()
+  return art
+}
+
+export function buildScroll(): Scroll {
+  const { width, height, rod } = SCROLL
+  const group = new THREE.Group()
+  group.name = 'scroll'
+  const wood = lambert({ color: '#2a1a12' })
+  // The sheet takes the art on both faces and stays readable in the dark:
+  // a little glow off the fire that eats it.
+  const sheet = new THREE.Mesh(
+    new THREE.PlaneGeometry(width, height),
+    lambert({
+      map: artTexture(paintScroll()),
+      emissive: new THREE.Color('#3a2410'),
+      side: THREE.DoubleSide,
+    })
+  )
+  sheet.position.y = -height / 2
+  group.add(sheet)
+  // The top rod with its knobs, and the rolled stump of what is left at
+  // the bottom.
+  const bar = new THREE.Mesh(
+    new THREE.CylinderGeometry(rod, rod, width + 0.08, 6),
+    wood
+  )
+  bar.rotation.z = Math.PI / 2
+  group.add(bar)
+  for (const side of [1, -1]) {
+    const knob = new THREE.Mesh(new THREE.IcosahedronGeometry(0.022, 0), wood)
+    knob.position.x = side * (width / 2 + 0.05)
+    group.add(knob)
+  }
+  const roll = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.022, 0.022, width * 0.9, 6),
+    lambert({ color: '#6b4a26' })
+  )
+  roll.rotation.z = Math.PI / 2
+  roll.position.set(0, -height * 0.97, 0.015)
+  group.add(roll)
+  // The fire along the charred bottom edge, and up one side.
+  const fire = buildFlames(
+    [
+      { at: [-0.12, -height - 0.01, 0.02], size: 0.12 },
+      { at: [-0.03, -height - 0.02, 0.02], size: 0.16 },
+      { at: [0.07, -height - 0.01, 0.02], size: 0.13 },
+      { at: [0.15, -height + 0.04, 0.02], size: 0.1 },
+      { at: [0.165, -height * 0.6, 0.01], size: 0.07 },
+    ],
+    0x5c7
+  )
+  group.add(fire.group)
+  castShadows(group)
+  const update = (t: number) => fire.update(t)
+  setMotion(group, update)
+  return { group, update }
+}
+
+// --- Moab's scythe -------------------------------------------------------
+
+// A war scythe taller than he is: a long black snath bound with straps, an
+// iron collar at the head, and a hooked blade, notched along its inner
+// edge, with a spike off the back. Local space: the foot of the snath on
+// the ground at the origin, the snath up +Y, the blade reaching out along
+// +X, its flat facing ±Z.
+export const SCYTHE_LENGTH = 2.5
+
+// The blade, as a flat outline in its own plane: from the collar out along
+// the back edge to the hooked point, and in along the cutting edge with
+// its notches.
+function scytheBladeShape(): THREE.Shape {
+  const shape = new THREE.Shape()
+  shape.moveTo(0, 0.1)
+  shape.quadraticCurveTo(0.62, 0.32, 1.2, -0.38)
+  shape.quadraticCurveTo(1.0, -0.06, 0.8, 0.0)
+  // The notches: saw teeth back toward the collar.
+  for (const x of [0.64, 0.48, 0.32, 0.16]) {
+    shape.lineTo(x + 0.06, 0.03)
+    shape.lineTo(x, -0.04)
+  }
+  shape.lineTo(0, -0.08)
+  shape.closePath()
+  return shape
+}
+
+export function buildScythe(): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'scythe'
+  const wood = lambert({ color: '#1c1512' })
+  const strap = lambert({ color: '#0a0a0b' })
+  const iron = lambert({ color: '#4a4c50' })
+  const steel = lambert({
+    color: '#b4b9c0',
+    emissive: new THREE.Color('#3a3c42'),
+  })
+  const snath = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.022, 0.028, SCYTHE_LENGTH, 6),
+    wood
+  )
+  snath.position.y = SCYTHE_LENGTH / 2
+  group.add(snath)
+  // The two grips, and straps wound round the snath between them.
+  for (const y of [1.05, 1.6]) {
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.16), wood)
+    grip.position.set(0, y, 0.07)
+    group.add(grip)
+  }
+  for (const y of [0.4, 0.75, 1.3, 1.95, 2.2]) {
+    const wrap = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.031, 0.031, 0.03, 6),
+      strap
+    )
+    wrap.position.y = y
+    group.add(wrap)
+  }
+  // The collar at the head, the blade off it, and the spike off the back.
+  const top = SCYTHE_LENGTH - 0.06
+  const collar = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.038, 0.038, 0.12, 6),
+    iron
+  )
+  collar.position.y = top
+  group.add(collar)
+  const blade = new THREE.Mesh(
+    new THREE.ExtrudeGeometry(scytheBladeShape(), {
+      depth: 0.012,
+      bevelEnabled: false,
+    }),
+    steel
+  )
+  blade.position.set(0.02, top, -0.006)
+  group.add(blade)
+  const spike = new THREE.Shape()
+  spike.moveTo(0, 0.04)
+  spike.lineTo(-0.26, 0.0)
+  spike.lineTo(0, -0.04)
+  spike.closePath()
+  const back = new THREE.Mesh(
+    new THREE.ExtrudeGeometry(spike, { depth: 0.012, bevelEnabled: false }),
+    steel
+  )
+  back.position.set(-0.02, top, -0.006)
+  group.add(back)
+  castShadows(group)
   return group
 }
 
@@ -2288,6 +3405,22 @@ function buildMedicine(
 // list typed; Object3D.userData is `any`.
 const PULSE = new WeakMap<THREE.Object3D, THREE.MeshLambertMaterial[]>()
 
+// Assets that move on their own (fire, rain, the horse at ease), keyed by
+// their root: the update to call with a running time in seconds. The game
+// keeps its own handle on each rig; the Akashic plays them from here.
+const MOTION = new WeakMap<THREE.Object3D, (t: number) => void>()
+
+export function setMotion(
+  object: THREE.Object3D,
+  update: (t: number) => void
+): void {
+  MOTION.set(object, update)
+}
+
+export function motionOf(object: THREE.Object3D): ((t: number) => void) | null {
+  return MOTION.get(object) ?? null
+}
+
 function setPulseMaterials(
   object: THREE.Object3D,
   materials: THREE.MeshLambertMaterial[]
@@ -2649,9 +3782,8 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     id: 'raincloud',
     label: "Gron's raincloud",
     build: () => {
-      // Mid-shower, lifted so its rain ends on the floor of the view.
+      // Lifted so its rain ends on the floor of the view.
       const cloud = buildRaincloud()
-      cloud.update(0.37)
       cloud.group.position.y = 2.6
       return cloud.group
     },
@@ -2662,9 +3794,33 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     build: () => buildMedicine(m.id),
   })),
   { id: 'sack', label: 'Burlap sack', build: () => buildSack() },
+  {
+    id: 'fire-roots',
+    label: "Moab's fire roots",
+    build: () => buildFireRoots().group,
+  },
+  {
+    id: 'skeleton-horse',
+    label: "Moab's skeleton horse",
+    build: () => buildSkeletonHorse().group,
+  },
   { id: 'guitar', label: 'Guitar: black LTD EX-400', build: sampleGuitar },
   { id: 'bat', label: 'Baseball bat', build: buildBat },
   { id: 'book', label: 'Paperback', build: buildBook },
+  {
+    id: 'scroll',
+    label: "Moab's burning scroll",
+    build: () => {
+      // Hung from its top rod, so it stands just off the floor.
+      const group = new THREE.Group()
+      const scroll = buildScroll()
+      scroll.group.position.y = 0.56
+      group.add(scroll.group)
+      setMotion(group, (t) => scroll.update(t))
+      return group
+    },
+  },
+  { id: 'scythe', label: "Moab's scythe", build: buildScythe },
 ]
 
 // Bounds from meshes only: glow sprites are unit planes scaled up, and would

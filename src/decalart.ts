@@ -29,6 +29,9 @@
 //                    round the seam.
 //   baja             a Baja hoodie's woven stripes, running up the body
 //                    over the shirt color. 96×48: four repeats round.
+//   tattered         a coat gone to rags: scorch marks, worn streaks, and
+//                    rips through to the dark, with bone (the skin color)
+//                    showing in some. 96×48, tiling round the seam.
 // A face (a box add-on's decal) is opaque and covers the box's front face:
 //   russ             the belt buckle face: gold letters on a dark plate.
 
@@ -426,6 +429,60 @@ function baja(colors: Outfit['colors']): CanvasArt {
   return art
 }
 
+// A coat gone to rags over the shirt color: worn streaks running down it,
+// scorch marks, and rips through to the dark inside, some with a rib of
+// bone (the skin color) across them, and a singed edge at the bottom.
+// Every mark is drawn again a canvas-width to either side, so the pattern
+// meets itself at the seam.
+function tattered(colors: Outfit['colors']): CanvasArt {
+  const art = canvas(PATTERN, colors.shirt)
+  const { ctx, w, h } = art
+  const rng = mulberry32(0x7a77)
+  const each = (draw: (dx: number) => void) => {
+    for (const dx of [-w, 0, w]) draw(dx)
+  }
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.18)'
+  for (let i = 0; i < 7; i++) {
+    const x = rng() * w
+    const width = 1 + Math.floor(rng() * 2)
+    each((dx) => ctx.fillRect(x + dx, 0, width, h))
+  }
+  ctx.fillStyle = 'rgba(28, 6, 4, 0.6)'
+  for (let i = 0; i < 8; i++) {
+    const x = rng() * w
+    const y = rng() * h
+    const rx = 5 + rng() * 7
+    const ry = 3 + rng() * 5
+    each((dx) => rip(ctx, rng, x + dx, y, rx, ry))
+  }
+  for (let i = 0; i < 6; i++) {
+    const x = rng() * w
+    const y = 6 + rng() * (h - 12)
+    const rx = 3 + rng() * 4
+    const ry = 2 + rng() * 3
+    const bone = i % 2 === 0
+    each((dx) => {
+      ctx.fillStyle = '#0b0807'
+      rip(ctx, rng, x + dx, y, rx, ry)
+      if (bone) {
+        ctx.fillStyle = colors.skin
+        ctx.fillRect(x + dx - rx * 0.5, y, rx, 1)
+      }
+    })
+  }
+  // The singed bottom edge, torn in points.
+  ctx.fillStyle = 'rgba(20, 4, 3, 0.85)'
+  ctx.beginPath()
+  ctx.moveTo(0, h)
+  for (let x = 0; x <= w; x += 4) {
+    ctx.lineTo(x + 2, h - 2 - rng() * 5)
+    ctx.lineTo(x + 4, h)
+  }
+  ctx.closePath()
+  ctx.fill()
+  return art
+}
+
 export const DECAL_PAINTERS: Record<DecalId, DecalPainter> = {
   'suicide-silence': suicideSilence,
   russ,
@@ -440,6 +497,7 @@ export const DECAL_PAINTERS: Record<DecalId, DecalPainter> = {
   nin,
   camo,
   baja,
+  tattered,
 }
 
 // Tattoos ink only onto skin a layer below already painted.

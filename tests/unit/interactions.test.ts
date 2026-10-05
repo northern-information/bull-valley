@@ -22,6 +22,11 @@ const keep = { x: -500, z: 0 }
 const bush = { x: -8, z: -8 }
 // A few strides from the bush, like CONFIG.gron.at from CONFIG.daily.bush.
 const gron = { x: -5.6, z: -9 }
+// Moab under each station's sign, station-local CONFIG.moab.at at yaw 0.
+const moabs = [spawnStation, farStation].map((station) => ({
+  x: station.x + CONFIG.moab.at.x,
+  z: station.z + CONFIG.moab.at.z,
+}))
 const shelf: ShelfSpot = {
   item: 'marlboro',
   station: 1,
@@ -57,6 +62,7 @@ function input(
     bush,
     daily: 'ready',
     gron,
+    moabs,
     ...over,
   }
 }
@@ -248,6 +254,45 @@ describe('resolveInteraction', () => {
     ).toEqual({ kind: 'board' })
   })
 
+  it('talks to Moab at whichever station he stands, whatever the raid is doing', () => {
+    const atFar = { player: { x: moabs[1].x + 1, z: moabs[1].z } }
+    expect(resolveInteraction(input(atFar))).toEqual({
+      kind: 'moab',
+      station: 1,
+    })
+    const atSpawn = { player: { x: moabs[0].x, z: moabs[0].z + 1 } }
+    expect(
+      resolveInteraction(input({ ...atSpawn, raid: createRaid(0) }))
+    ).toEqual({ kind: 'moab', station: 0 })
+    // Riding past him, E still hops out.
+    const riding = advance(createRaid(0), EVENTS.BOARD_TRUCK, 1)
+    expect(resolveInteraction(input({ ...atFar, raid: riding }))).toEqual({
+      kind: 'hopOut',
+    })
+    expect(resolveInteraction(input({ ...atFar, moabs: [] }))).toEqual({
+      kind: 'extractFuel',
+      name: farStation.name,
+    })
+  })
+
+  it('puts Moab ahead of the station extract he stands inside', () => {
+    const atMoab = { player: { x: moabs[1].x - 1, z: moabs[1].z } }
+    expect(
+      Math.hypot(atMoab.player.x - farStation.x, atMoab.player.z - farStation.z)
+    ).toBeLessThan(CONFIG.extract.fuelRadius)
+    expect(resolveInteraction(input(atMoab))).toEqual({
+      kind: 'moab',
+      station: 1,
+    })
+    const pastReach = {
+      player: { x: moabs[1].x - CONFIG.moab.reach - 0.1, z: moabs[1].z },
+    }
+    expect(resolveInteraction(input(pastReach))).toEqual({
+      kind: 'extractFuel',
+      name: farStation.name,
+    })
+  })
+
   it('puts the stand ahead of a pickup at the same spot', () => {
     const raid = advance(onFoot(), EVENTS.PICK_CABBAGE, 3)
     const pickup: PickupSpot = {
@@ -311,6 +356,9 @@ describe('interactionPrompt', () => {
       copy('prompts.berry_offline')
     )
     expect(interactionPrompt({ kind: 'talk' })).toBe(copy('prompts.talk'))
+    expect(interactionPrompt({ kind: 'moab', station: 0 })).toBe(
+      copy('prompts.moab')
+    )
   })
 
   it('labels a cabbage without a count', () => {
