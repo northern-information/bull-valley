@@ -1,4 +1,4 @@
-import { context2d, INTER } from './canvas.ts'
+import { context2d, MONO } from './canvas.ts'
 import { CONFIG } from './config.ts'
 import { compassBearing } from './coords.ts'
 import { outfitById } from './outfits.ts'
@@ -161,7 +161,7 @@ export class Scope {
       this.clockAge = 0
       this.clock = clockText()
     }
-    ctx.font = INTER.replace('$', String(7 * px))
+    ctx.font = MONO.replace('$', String(7 * px))
     ctx.textBaseline = 'middle'
     ctx.textAlign = 'left'
     ctx.fillStyle = EGGSHELL
