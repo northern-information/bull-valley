@@ -242,7 +242,7 @@ describe('interactionPrompt', () => {
         kind: 'pickup',
         pickup: { x: 0, z: 0, kind: 'joints', count: 2, taken: false },
       })
-    ).toBe('E — Take Joints x2')
+    ).toBe('E — Take Joints ×2')
     expect(interactionPrompt({ kind: 'buy', ...shelf })).toBe(
       'E — Buy Marlboro Reds for $5.49'
     )

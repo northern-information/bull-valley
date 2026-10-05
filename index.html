@@ -39,13 +39,22 @@
       content="An extraction adventure RPG set in a hauntological Bull Valley, Illinois. First-person, in the browser, on the real topology of the village."
     />
     <meta name="twitter:image" content="https://bvsw.gay/og.png" />
+    <!-- Inter is fetched before the module script, and boot waits for it
+         (main.ts fontsReady), so no text paints in a fallback face. -->
+    <link
+      rel="preload"
+      href="/fonts/InterVariable.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <style>
       @font-face {
-        font-family: "Small Pixel 7";
+        font-family: "Inter";
         font-style: normal;
-        font-weight: 400;
-        font-display: swap;
-        src: url("/fonts/small-pixel-7.ttf") format("truetype");
+        font-weight: 100 900;
+        font-display: block;
+        src: url("/fonts/InterVariable.woff2") format("woff2");
       }
       :root {
         color-scheme: dark;
@@ -62,8 +71,9 @@
         --fi-paper-light: #f7f4ef;
         --fi-black-shadow: rgb(0 0 0 / 0.58);
         --bv-eggshell: #f0ead6;
-        --bv-text-size: 20px;
-        --bv-font: "Small Pixel 7", system-ui, sans-serif;
+        --bv-text-size: 1rem;
+        --bv-font: "Inter", system-ui, sans-serif;
+        --bv-serif: "Times New Roman", Times, "Liberation Serif", serif;
       }
       html,
       body {

@@ -60,3 +60,6 @@ export function text(
 
 export const SERIF = 'bold $px Georgia, "Times New Roman", serif'
 export const SANS = 'bold $px "Helvetica Neue", Arial, sans-serif'
+// The game's own face, for UI drawn on canvas (the scope, name tags). Boot
+// waits for it to load (main.ts), so the first draw is already Inter.
+export const INTER = '600 $px Inter, system-ui, sans-serif'

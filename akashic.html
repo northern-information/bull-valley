@@ -10,13 +10,20 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
+    <link
+      rel="preload"
+      href="/fonts/InterVariable.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <style>
       @font-face {
-        font-family: "Small Pixel 7";
+        font-family: "Inter";
         font-style: normal;
-        font-weight: 400;
-        font-display: swap;
-        src: url("/fonts/small-pixel-7.ttf") format("truetype");
+        font-weight: 100 900;
+        font-display: block;
+        src: url("/fonts/InterVariable.woff2") format("woff2");
       }
       :root {
         color-scheme: dark;
@@ -25,7 +32,7 @@
         --fi-cyan: #22d3ee;
         --fi-slate: #94a3b8;
         --bv-eggshell: #f0ead6;
-        --bv-font: "Small Pixel 7", system-ui, sans-serif;
+        --bv-font: "Inter", system-ui, sans-serif;
       }
       html,
       body {
@@ -34,7 +41,7 @@
         overflow: hidden;
         background: var(--fi-bg);
         color: var(--bv-eggshell);
-        font: 20px/1.5 var(--bv-font);
+        font: 12px/1.5 var(--bv-font);
         font-synthesis: none;
         font-variant-numeric: tabular-nums;
       }
@@ -58,7 +65,8 @@
       }
       .ak-panel h1 {
         margin: 0 0 8px;
-        letter-spacing: 0.1em;
+        font-size: 12px;
+        letter-spacing: 0.12em;
         text-transform: uppercase;
       }
       .ak-row {
@@ -110,18 +118,16 @@
       <h1>Akashic</h1>
       <div class="ak-row">
         <button type="button" data-step="-1" aria-label="Previous asset">
-          &lt;
+          ←
         </button>
         <select name="asset" aria-label="Asset"></select>
-        <button type="button" data-step="1" aria-label="Next asset">
-          &gt;
-        </button>
+        <button type="button" data-step="1" aria-label="Next asset">→</button>
       </div>
       <div class="ak-toggles"></div>
       <p class="ak-stats" aria-live="polite"></p>
     </section>
     <p class="ak-hint">
-      drag orbit · scroll zoom · right-drag pan · &lt;/&gt; cycle · keys toggle
+      drag orbit · scroll zoom · right-drag pan · ←/→ cycle · keys toggle
     </p>
     <script type="module" src="/src/akashic.ts"></script>
   </body>

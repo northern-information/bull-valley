@@ -23,6 +23,18 @@ export interface InventoryStatus {
   cash: string
 }
 
+// The Begin button's states and their labels. The button holds every label
+// at once, stacked in one cell with only the current one visible, so it is
+// always as wide as the longest and never resizes when its state changes.
+const BEGIN_LABELS = {
+  loading: 'Resolving Terrain…',
+  play: 'Click to Play',
+  resume: 'Click to Resume',
+  failed: 'The Valley Will Not Resolve',
+} as const
+
+export type BeginState = keyof typeof BEGIN_LABELS
+
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   className?: string,
@@ -183,8 +195,8 @@ export class Hud {
         <li data-bv="cmd-use"></li>
       </ul>
       <div class="bv-inv-frame" data-bv="inv-frame" aria-hidden="true">
-        <span class="bv-inv-arrow bv-inv-arrow--prev">&lt;&lt;</span>
-        <span class="bv-inv-arrow bv-inv-arrow--next">&gt;&gt;</span>
+        <span class="bv-inv-arrow bv-inv-arrow--prev">◀◀</span>
+        <span class="bv-inv-arrow bv-inv-arrow--next">▶▶</span>
       </div>
       <div class="bv-inv-info" aria-live="polite">
         <p class="bv-inv-line"><span>No.</span> <b data-bv="inv-no">—</b></p>
@@ -239,7 +251,7 @@ export class Hud {
       <p class="bv-intro-note">Matthew Marx leaves in five minutes.<br>Ride the bed. Find cabbages.<br>Drop them at the Stand. Get out.</p>
       <table class="bv-controls" aria-label="Controls" data-bv="controls"></table>
       <div class="bv-intro-actions">
-        <button type="button" class="bv-btn bv-btn--primary" data-bv="begin">Click to Play</button>
+        <button type="button" class="bv-btn bv-btn--primary bv-btn--stack" data-bv="begin"></button>
       </div>
       <p class="bv-intro-note bv-intro-fine">Requires a keyboard and mouse.</p>`
     required(
@@ -251,6 +263,14 @@ export class Hud {
       this.intro.querySelector<HTMLButtonElement>('[data-bv="begin"]'),
       'begin button'
     )
+    this.beginBtn.replaceChildren(
+      ...Object.entries(BEGIN_LABELS).map(([state, label]) => {
+        const span = text('span', label)
+        span.dataset.state = state
+        return span
+      })
+    )
+    this.setBegin('play')
 
     this.fields = {}
     for (const dd of root.querySelectorAll<HTMLElement>('[data-bv]')) {
@@ -436,10 +456,25 @@ export class Hud {
     ctx.putImageData(img, 0, 0)
   }
 
+  // Shows one of the Begin button's labels; it is clickable only to play or
+  // resume. The others stay in the button, hidden, holding its width.
+  setBegin(state: BeginState): void {
+    for (const span of this.beginBtn.querySelectorAll<HTMLElement>(
+      '[data-state]'
+    )) {
+      const current = span.dataset.state === state
+      span.classList.toggle('bv-btn-label--off', !current)
+      span.setAttribute('aria-hidden', String(!current))
+    }
+    this.beginBtn.disabled = state === 'loading' || state === 'failed'
+  }
+
+  get introShown(): boolean {
+    return !this.intro.hidden
+  }
+
   showIntro(show: boolean, paused?: boolean): void {
     this.intro.hidden = !show
-    if (show) {
-      this.beginBtn.textContent = paused ? 'Click to Resume' : 'Click to Play'
-    }
+    if (show) this.setBegin(paused ? 'resume' : 'play')
   }
 }

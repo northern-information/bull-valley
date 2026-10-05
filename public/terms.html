@@ -6,7 +6,21 @@
     <title>Terms of Service · Bull Valley Shadow Wars</title>
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link
+      rel="preload"
+      href="/fonts/InterVariable.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <style>
+      @font-face {
+        font-family: "Inter";
+        font-style: normal;
+        font-weight: 100 900;
+        font-display: block;
+        src: url("/fonts/InterVariable.woff2") format("woff2");
+      }
       :root {
         color-scheme: dark;
       }
@@ -17,7 +31,8 @@
         background: #000;
         color: #f0ead6;
         font:
-          17px/1.65 system-ui,
+          17px/1.65 Inter,
+          system-ui,
           sans-serif;
       }
       h1 {
