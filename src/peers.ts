@@ -4,7 +4,7 @@
 // Three glue that reads it every frame.
 
 import * as THREE from 'three'
-import { canvas, INTER, text } from './canvas.ts'
+import { canvas, MONO, text } from './canvas.ts'
 import { applyPose, buildFigure } from './figure.ts'
 import { POSES, samplePose } from './poses.ts'
 import {
@@ -43,16 +43,7 @@ function buildLabel(name: string): {
   texture: THREE.CanvasTexture
 } {
   const art = canvas([LABEL_W, LABEL_H])
-  text(
-    art.ctx,
-    name,
-    LABEL_W / 2,
-    LABEL_H / 2,
-    LABEL_W - 8,
-    18,
-    INTER,
-    EGGSHELL
-  )
+  text(art.ctx, name, LABEL_W / 2, LABEL_H / 2, LABEL_W - 8, 18, MONO, EGGSHELL)
   const texture = new THREE.CanvasTexture(art.c)
   texture.magFilter = THREE.NearestFilter
   texture.minFilter = THREE.NearestFilter
