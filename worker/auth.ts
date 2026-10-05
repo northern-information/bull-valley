@@ -43,6 +43,12 @@ import {
   randomToken,
   sanitizeProfile,
 } from './oauth.ts'
+import {
+  LIMITED_MESSAGE,
+  RETRY_AFTER_SECONDS,
+  tierFor,
+  unlimited,
+} from './ratelimit.ts'
 import { ACCESS_TTL, PENDING_TTL, REFRESH_TTL, Tokens } from './tokens.ts'
 import type {
   AccountWire,
@@ -54,6 +60,7 @@ import type {
 import type { Account, AccountStore, LinkedProvider } from './accounts.ts'
 import type { WorkerEnv } from './env.ts'
 import type { Profile } from './oauth.ts'
+import type { Limiter } from './ratelimit.ts'
 import type { AccessClaims } from './tokens.ts'
 
 // Set on the socket upgrade by the Worker once the access cookie verifies;
@@ -68,6 +75,8 @@ export interface AuthDeps {
   store: AccountStore
   fetch: typeof fetch
   now?: () => number
+  // The rate limits (worker/ratelimit.ts); none when left out.
+  limit?: Limiter
 }
 
 export function isAuthPath(pathname: string): boolean {
@@ -136,6 +145,7 @@ class AuthHandler {
   private readonly origin: string
   private readonly store: AccountStore
   private readonly fetchImpl: typeof fetch
+  private readonly limit: Limiter
   private readonly now: () => number
 
   constructor(
@@ -153,6 +163,7 @@ class AuthHandler {
     this.now = deps.now ?? Date.now
     this.store = deps.store
     this.fetchImpl = deps.fetch
+    this.limit = deps.limit ?? unlimited
     this.tokens = new Tokens(secret, this.now)
     this.cookies = parseCookies(request.headers.get('Cookie'))
     this.secure = url.protocol === 'https:'
@@ -175,6 +186,11 @@ class AuthHandler {
       if (origin !== null && origin !== this.url.origin) {
         return json({ error: 'Cross-origin request refused' }, 403)
       }
+    }
+
+    const tier = tierFor(method, parts)
+    if (tier && !(await this.limit(tier, await this.limitKey()))) {
+      return this.limited(method)
     }
 
     if (parts.length === 1) {
@@ -205,6 +221,42 @@ class AuthHandler {
       if (second === 'callback') return this.callback(first)
     }
     return json({ error: 'Not found' }, 404)
+  }
+
+  // --- Rate limits -----------------------------------------------------------
+
+  // Who a request counts against: the signed-in account, else the account
+  // a refresh cookie names, else the provider identity of a pending signup,
+  // else the client address. Addresses are shared behind carrier NAT, so
+  // they are the last resort.
+  private async limitKey(): Promise<string> {
+    const claims = await this.access()
+    if (claims) return `account:${claims.accountId}`
+    const refreshed = await this.tokens.verifyRefresh(
+      this.cookies[COOKIE.refresh]
+    )
+    if (refreshed) return `account:${refreshed}`
+    const pending = await this.tokens.verifyPending(
+      this.cookies[COOKIE.pending]
+    )
+    if (pending) {
+      return `pending:${providerKey(pending.provider, pending.profile.id)}`
+    }
+    const ip = this.request.headers.get('CF-Connecting-IP') ?? 'unknown'
+    return `ip:${ip}`
+  }
+
+  // A limited request: a page navigation (a sign-in or link starting)
+  // lands back on the game with the message; a call from the page gets a
+  // 429 it can show.
+  private limited(method: string): Response {
+    if (method === 'GET' && !this.url.pathname.includes('/username/')) {
+      const back = validateRedirect(this.url.searchParams.get('redirect'))
+      return redirect(landingUrl(this.origin, back, { error: LIMITED_MESSAGE }))
+    }
+    const res = json({ error: LIMITED_MESSAGE }, 429)
+    res.headers.set('Retry-After', String(RETRY_AFTER_SECONDS))
+    return res
   }
 
   // --- Reading the session -------------------------------------------------

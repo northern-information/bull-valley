@@ -90,8 +90,9 @@ export interface ProvidersResponse {
 // GET /auth/username/:username/available.
 export interface AvailableResponse {
   available: boolean
-  // Why not, when it is not: the handle is malformed or taken.
-  reason?: 'invalid' | 'taken'
+  // Why not, when it is not: the handle is malformed or taken, or the
+  // client has asked too often to be told (a 429, read by auth.ts).
+  reason?: 'invalid' | 'taken' | 'limited'
 }
 
 // POST /auth/refresh. Always 200; `ok` false means there is no session.

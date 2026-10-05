@@ -38,13 +38,31 @@
   // schema is migrations/*.sql; the deploy workflow applies it before each
   // deploy, and `npm run db:migrate` applies it to the dev server's copy.
   // The secrets beside it (JWT_SECRET and each provider's client id and
-  // secret) are set with `wrangler secret put`, never written here.
+  // secret) are set with `wrangler versions secret put`, which adds them to
+  // a new version without deploying it; never written here.
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "bull-valley-accounts",
       "database_id": "a2737917-2dbe-441a-84c6-9cee6446ea6d",
       "migrations_dir": "migrations",
+    },
+  ],
+  // Rate limits on the account routes (worker/ratelimit.ts): approximate,
+  // counted per Cloudflare location, keyed by the account where there is
+  // one. Strict for the routes that start a sign-in or change an account,
+  // loose for the ones a page calls as it goes. The namespace ids only need
+  // to be unique within the account.
+  "ratelimits": [
+    {
+      "name": "AUTH_STRICT",
+      "namespace_id": "720101",
+      "simple": { "limit": 10, "period": 60 },
+    },
+    {
+      "name": "AUTH_LOOSE",
+      "namespace_id": "720102",
+      "simple": { "limit": 60, "period": 60 },
     },
   ],
 }

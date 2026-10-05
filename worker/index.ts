@@ -14,6 +14,7 @@ import {
 } from './auth.ts'
 import { D1AccountStore } from './d1accounts.ts'
 import { isDevHost } from './env.ts'
+import { limiterFrom } from './ratelimit.ts'
 import { ValleyDO } from './ValleyDO.ts'
 import type { WorkerEnv } from './env.ts'
 
@@ -39,6 +40,7 @@ export default {
       return handleAuth(request, env, {
         store: new D1AccountStore(env.DB),
         fetch: (input, init) => fetch(input, init),
+        limit: limiterFrom(env),
       })
     }
     if (url.pathname === WS_PATH) {

@@ -192,6 +192,10 @@ export function mountAccountStep(): AccountStep {
                 say('The valley cannot be reached', 'bad')
                 return
               }
+              if (answer.reason === 'limited') {
+                say('Too many checks. Wait a moment, then type again.', 'bad')
+                return
+              }
               available = answer.available
               say(
                 answer.available ? 'Available' : 'Taken',
@@ -245,6 +249,13 @@ export function mountAccountStep(): AccountStep {
         refresh()
         if (pending) {
           const created = await confirmSignup()
+          if (!created.ok && created.limited) {
+            // Still pending: the raider waits it out here, gates checked.
+            submitting = false
+            showError(usernameError, created.error)
+            refresh()
+            return
+          }
           if (!created.ok) {
             submitting = false
             pending = false

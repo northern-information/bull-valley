@@ -83,6 +83,12 @@ describe('confirmSignup', () => {
       error: 'The valley cannot be reached',
     })
   })
+
+  it('marks a rate limit as one to wait out', async () => {
+    expect(
+      await confirmSignup(answer(429, { error: 'Too many tries.' }).impl)
+    ).toEqual({ ok: false, limited: true, error: 'Too many tries.' })
+  })
 })
 
 describe('setUsername', () => {
@@ -108,6 +114,13 @@ describe('usernameAvailable', () => {
     expect(seen[0].url).toBe('/auth/username/a%20b/available')
     expect(await usernameAvailable('x', down)).toBeNull()
     expect(await usernameAvailable('x', answer(500).impl)).toBeNull()
+  })
+
+  it('tells a rate limit apart from an unreachable valley', async () => {
+    expect(await usernameAvailable('x', answer(429).impl)).toEqual({
+      available: false,
+      reason: 'limited',
+    })
   })
 })
 
