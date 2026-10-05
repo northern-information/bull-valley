@@ -202,7 +202,7 @@
   image-rendering: pixelated;
 }
 
-/* Prompt + toasts */
+/* Prompt, and the name over the item E would act on */
 .bv-prompt {
   position: absolute;
   left: 50%;
@@ -215,28 +215,19 @@
   letter-spacing: 0.08em;
 }
 
-.bv-toasts {
+/* Just the name, set over the item's top: its bottom middle sits on the
+   point, and it never wraps. */
+.bv-item-label {
   position: absolute;
-  left: 50%;
-  top: 14%;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.3rem;
-}
-
-.bv-toast {
+  transform: translate(-50%, -100%);
   margin: 0;
-  padding: 0.3rem 0.7rem;
-  background: var(--fi-surface-82);
-  border: 1px solid var(--fi-green);
+  white-space: nowrap;
   letter-spacing: 0.08em;
-  transition: opacity 0.8s;
+  text-shadow: 2px 2px 0 var(--fi-black-shadow);
 }
 
-.bv-toast--out {
-  opacity: 0;
+.bv-item-label--dim {
+  opacity: 0.55;
 }
 
 /* Inventory. Silent Hill 1 chrome: black field (the canvas draws the 3D
@@ -251,6 +242,7 @@
     .bv-timers,
     .bv-nerves,
     .bv-prompt,
+    .bv-item-label,
     .bv-vignette
   ) {
   visibility: hidden;

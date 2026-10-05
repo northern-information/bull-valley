@@ -1,4 +1,4 @@
-// All DOM: countdown, nerves meter, scope phone, inventory, prompts, toasts,
+// All DOM: countdown, nerves meter, scope phone, inventory, prompts, item labels,
 // the intro/pause overlay, and the strike static. Markup is generated here so
 // the Eleventy page and the dev harness stay a bare #bv-root.
 
@@ -12,6 +12,15 @@ import type { ChatLine } from './chat.ts'
 import type { RaidSummary, RingItem } from './interfaces.ts'
 
 // The inventory ring as setCarousel draws it.
+// The floating name over an item, placed by its top in the view: x and y
+// from 0 at the left and top to 1 at the right and bottom.
+export interface ItemLabelView {
+  text: string
+  dim: boolean
+  x: number
+  y: number
+}
+
 export interface CarouselView {
   items: RingItem[]
   index: number
@@ -97,7 +106,7 @@ export class Hud {
   phone: HTMLDivElement
   scopeCanvas: HTMLCanvasElement
   promptEl: HTMLParagraphElement
-  toasts: HTMLDivElement
+  itemLabelEl: HTMLParagraphElement
   inventory: HTMLElement
   vignetteEl: HTMLDivElement
   staticWrap: HTMLDivElement
@@ -171,13 +180,13 @@ export class Hud {
     this.phone.appendChild(this.scopeCanvas)
     ui.appendChild(this.phone)
 
-    // Interaction prompt + toasts.
+    // Interaction prompt, and the name over the item E would act on.
     this.promptEl = el('p', 'bv-prompt')
     this.promptEl.hidden = true
     ui.appendChild(this.promptEl)
-    this.toasts = el('div', 'bv-toasts')
-    this.toasts.setAttribute('aria-live', 'polite')
-    ui.appendChild(this.toasts)
+    this.itemLabelEl = el('p', 'bv-item-label')
+    this.itemLabelEl.hidden = true
+    ui.appendChild(this.itemLabelEl)
 
     // Inventory: Silent Hill chrome around the 3D carousel, which the game
     // renderer draws on the canvas underneath (inventoryview.ts).
@@ -319,11 +328,21 @@ export class Hud {
     }
   }
 
-  toast(text: string): void {
-    const node = el('p', 'bv-toast', text)
-    this.toasts.appendChild(node)
-    setTimeout(() => node.classList.add('bv-toast--out'), 3600)
-    setTimeout(() => node.remove(), 4400)
+  // The name over an item, or null for none. The loop calls this every
+  // frame; the text changes only when it does.
+  itemLabel(view: ItemLabelView | null): void {
+    const label = this.itemLabelEl
+    label.hidden = !view
+    if (!view) return
+    if (label.textContent !== view.text) label.textContent = view.text
+    label.classList.toggle('bv-item-label--dim', view.dim)
+    label.style.left = `${view.x * 100}%`
+    label.style.top = `${view.y * 100}%`
+  }
+
+  // A line the game says to the player alone, in the chat log.
+  tell(text: string): void {
+    this.chatLine({ kind: 'system', text }, performance.now())
   }
 
   // One line into the chat log. Text from the valley is untrusted, so it

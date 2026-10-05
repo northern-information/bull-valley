@@ -191,14 +191,6 @@ unload_many = { text = "E — Unload {count} Cabbages", by = "ai" }
 extract_at = { text = "E — End the Raid at {station}", by = "ai" }
 extract_station = { text = "E — End the Raid at the Station", by = "ai" }
 extract_keep = { text = "E — End the Raid at {keep}", by = "ai" }
-take = { text = "E — Take {item}", by = "ai" }
-cabbage = { text = "Cabbage", by = "ai" }
-pickup_count = { text = "{item} ×{count}", by = "ai" }
-buy = { text = "E — Buy {item} for {price}", by = "ai" }
-buy_short = { text = "{item} — {price} (Not Enough Cash)", by = "ai" }
-berry_ready = { text = "E — Pick a Berry", by = "ai" }
-berry_picked = { text = "Berry Bush — Picked Clean Until Midnight", by = "ai" }
-berry_offline = { text = "Berry Bush — No Signal", by = "ai" }
 talk = { text = "E — Talk to Gron", by = "ai" }
 moab = { text = "E — Talk to Moab Coldë", by = "ai" }
 
@@ -291,6 +283,17 @@ unlink_last = { text = "You cannot unlink your only way to sign in", by = "ai" }
 not_linked = { text = "{provider} is not linked to your account", by = "ai" }
 limited = { text = "Too many tries. Wait a minute and try again.", by = "ai" }
 limited_short = { text = "Too many tries. Wait a minute.", by = "ai" }
+
+# The name over the item E would act on: a pickup, a shelf unit, or the
+# berry bush (src/interactions.ts itemLabel).
+
+[labels]
+cabbage = { text = "Cabbage", by = "ai" }
+pickup_count = { text = "{item} ×{count}", by = "ai" }
+price = { text = "{item} {price}", by = "ai" }
+berries = { text = "Berries", by = "ai" }
+berry_picked = { text = "Picked Clean Until Midnight", by = "ai" }
+berry_offline = { text = "No Signal", by = "ai" }
 
 # Character names, as the select and the name tags show them. Keys
 # match src/outfits.ts.
