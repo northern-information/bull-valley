@@ -4,6 +4,7 @@ import { ValleyDO } from '../../worker/ValleyDO.ts'
 import type {
   DailyMessage,
   NackMessage,
+  PeerChatMessage,
   PeerJoinedMessage,
   PeerLeftMessage,
   PeerStateMessage,
@@ -278,7 +279,7 @@ describe('ValleyDO', () => {
         text: 'cabbages by the keep',
       })
     }
-    expect(typeof b.last<{ at: number }>().at).toBe('number')
+    expect(typeof b.last<PeerChatMessage>().at).toBe('number')
     expect(stranger.sent).toEqual([])
   })
 
