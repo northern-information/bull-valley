@@ -56,6 +56,16 @@ export function applyJoined(peers: PeerTable, wire: PeerWire, now: number) {
   return peer
 }
 
+// A known peer's new name or character, from Gron. Their place and motion
+// stay as they were. An unknown id is ignored: we have not seen them join.
+export function applyUpdated(peers: PeerTable, wire: PeerWire): Peer | null {
+  const peer = peers.get(wire.id)
+  if (!peer) return null
+  peer.name = wire.name
+  peer.outfit = wire.outfit
+  return peer
+}
+
 // Records a state for a known peer. An unknown id is ignored: the server
 // sends peer-joined first, and a late frame for someone gone means nothing.
 export function applyState(

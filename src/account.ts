@@ -33,7 +33,8 @@ export const PROVIDER_COLORS: Record<Provider, string> = {
 }
 
 // A username is the account's public handle, unique across the valley
-// (case-insensitively) and set once. Narrower than a typed name
+// (case-insensitively), chosen at sign-up and changed only at Gron (PUT
+// /auth/username). Narrower than a typed name
 // (protocol.ts isValidName), since two lookalike handles would be two
 // raiders nobody could tell apart.
 export const USERNAME_MIN = 3

@@ -11,6 +11,7 @@ import {
   applyJoined,
   applyLeft,
   applyState,
+  applyUpdated,
   applyWelcome,
   createPeerTable,
   peerContacts,
@@ -96,6 +97,15 @@ export class Peers {
   joined(wire: PeerWire, now: number): void {
     if (this.puppets.has(wire.id)) this.dispose(wire.id)
     this.build(applyJoined(this.table, wire, now))
+  }
+
+  // A peer changed their name or character at Gron: a new figure and
+  // label, where they already stand. Unknown ids are ignored.
+  updated(wire: PeerWire): void {
+    const peer = applyUpdated(this.table, wire)
+    if (!peer) return
+    this.dispose(wire.id)
+    this.build(peer)
   }
 
   state(id: string, state: PeerStateWire, now: number): void {

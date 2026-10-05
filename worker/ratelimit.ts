@@ -36,7 +36,10 @@ export function tierFor(method: string, parts: readonly string[]): Tier | null {
   if (first === 'dev') return null
   if (parts.length === 1) {
     if (method === 'POST' && first === 'confirm-signup') return 'strict'
-    if (method === 'POST' && first === 'username') return 'strict'
+    // Choosing a username, and changing it at Gron.
+    if ((method === 'POST' || method === 'PUT') && first === 'username') {
+      return 'strict'
+    }
     if (method === 'POST' && first === 'refresh') return 'loose'
     return null
   }

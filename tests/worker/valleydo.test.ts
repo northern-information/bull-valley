@@ -8,6 +8,7 @@ import type {
   PeerJoinedMessage,
   PeerLeftMessage,
   PeerStateMessage,
+  PeerUpdatedMessage,
   RaidMessage,
   ServerMessage,
   WelcomeMessage,
@@ -85,8 +86,8 @@ class MockState {
 const ws = (s: MockSocket) => s as unknown as WebSocket
 const asState = (s: MockState) => s as unknown as DurableObjectState
 
-async function valley(state = new MockState()) {
-  const v = new ValleyDO(asState(state), {} as Env)
+async function valley(state = new MockState(), env: Partial<Env> = {}) {
+  const v = new ValleyDO(asState(state), env as Env)
   // Let the constructor's storage read settle.
   await Promise.resolve()
   return { valley: v, state }
@@ -545,6 +546,103 @@ describe('ValleyDO', () => {
     expect(a.last<RaidMessage>()).toMatchObject({
       reason: 'joined',
       by: idOf(b),
+    })
+  })
+
+  it('shows a new character from Gron to everyone', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ type: 'appearance', outfit: 'church' })
+    )
+    for (const socket of [a, b]) {
+      expect(socket.last<PeerUpdatedMessage>()).toEqual({
+        type: 'peer-updated',
+        peer: { id: idOf(a), name: 'A', outfit: 'church', at: null },
+      })
+    }
+    // A raider arriving later sees the new character in the roster.
+    const c = await join(v, s, 'C')
+    expect(
+      c.last<WelcomeMessage>().peers.find((p) => p.id === idOf(a))?.outfit
+    ).toBe('church')
+    const stored = s.storage.map.get('valley') as {
+      members: Record<string, { outfit: string }>
+    }
+    expect(stored.members[idOf(a)].outfit).toBe('church')
+  })
+
+  it('refuses an unknown character and a flood of changes', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ type: 'appearance', outfit: 'tuxedo' })
+    )
+    expect(a.last<NackMessage>()).toMatchObject({
+      re: 'appearance',
+      reason: 'unknown-outfit',
+    })
+    const b = await join(v, s, 'B')
+    const before = b.sent.length
+    for (let i = 0; i < 8; i++) {
+      await v.webSocketMessage(
+        ws(b),
+        JSON.stringify({ type: 'appearance', outfit: 'church' })
+      )
+    }
+    expect(b.sent.length - before).toBe(5 + 3)
+    expect(b.last<NackMessage>()).toMatchObject({
+      re: 'appearance',
+      reason: 'too-fast',
+    })
+  })
+
+  it("renames a raider to the account's new username, read from the database", async () => {
+    // The accounts table as D1 would answer a lookup by account id.
+    const usernames: Record<string, string | null> = {
+      'acct-A': 'NewName',
+      'acct-B': null,
+    }
+    const db = {
+      prepare: () => ({
+        bind: (accountId: string) => ({
+          first: () =>
+            Promise.resolve(
+              accountId in usernames
+                ? {
+                    account_id: accountId,
+                    username: usernames[accountId],
+                    role: 'user',
+                    primary_provider: 'dev:x',
+                    created_at: 0,
+                    last_login_at: 0,
+                  }
+                : null
+            ),
+        }),
+      }),
+    } as unknown as D1Database
+    const { valley: v, state: s } = await valley(new MockState(), { DB: db })
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    await v.webSocketMessage(ws(a), JSON.stringify({ type: 'rename' }))
+    for (const socket of [a, b]) {
+      expect(socket.last<PeerUpdatedMessage>().peer).toMatchObject({
+        id: idOf(a),
+        name: 'NewName',
+      })
+    }
+    // The new name sticks: chat goes out under it.
+    await v.webSocketMessage(ws(a), chat('hello'))
+    expect(b.last<PeerChatMessage>().name).toBe('NewName')
+    // An account with no username has nothing to show.
+    await v.webSocketMessage(ws(b), JSON.stringify({ type: 'rename' }))
+    expect(b.last<NackMessage>()).toMatchObject({
+      re: 'rename',
+      reason: 'no-username',
     })
   })
 })

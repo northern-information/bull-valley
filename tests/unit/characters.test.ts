@@ -49,6 +49,8 @@ describe('characters', () => {
   it('keeps the driver and the shadowmen off the roster', () => {
     expect(isSelectable('marx')).toBe(false)
     expect(isSelectable('shadow')).toBe(false)
+    // Gron changes who you are; nobody raids as Gron.
+    expect(isSelectable('gron')).toBe(false)
     expect(isSelectable(null)).toBe(false)
   })
 

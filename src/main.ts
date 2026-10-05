@@ -7,14 +7,15 @@ import { BvAudio } from './audio.ts'
 import { fetchMe, refreshSession, signOut } from './auth.ts'
 import { actionOf, cycleStep, PACK, WORLD } from './bindings.ts'
 import { ringItems, stepIndex, syncIndex } from './carousel.ts'
-import { loadCharacter } from './characters.ts'
+import { loadCharacter, saveCharacter } from './characters.ts'
 import { mountCharacterSelect } from './characterselect.ts'
 import { CHAT_COPY } from './chat.ts'
 import { CONFIG } from './config.ts'
 import { unitToWorld } from './coords.ts'
 import { copy } from './copy.ts'
-import { finishById, loadFinish } from './finishes.ts'
+import { finishById, loadFinish, saveFinish } from './finishes.ts'
 import { createGlow } from './glow.ts'
+import { openGronDialog } from './grondialog.ts'
 import { Hud } from './hud.ts'
 import {
   interactionPrompt,
@@ -370,6 +371,11 @@ async function boot() {
     scene,
     window.matchMedia('(prefers-reduced-motion: reduce)').matches
   )
+  // Gron's rain falls on its own clock; under prefers-reduced-motion it
+  // hangs still under the cloud.
+  const rainStill = window.matchMedia(
+    '(prefers-reduced-motion: reduce)'
+  ).matches
 
   // --- The valley server -------------------------------------------------
   // Everyone online shares one valley. The socket is same-origin and the
@@ -406,6 +412,16 @@ async function boot() {
         peers.joined(msg.peer, now)
         hud.toast(copy('toasts.peer_joined', { name: msg.peer.name }))
         return
+      case 'peer-updated': {
+        // Our own comes back too; the dialog has said so already.
+        if (msg.peer.id === net.id) return
+        const was = peers.table.get(msg.peer.id)?.name
+        peers.updated(msg.peer)
+        if (was && was !== msg.peer.name) {
+          hud.toast(copy('toasts.peer_renamed', { was, name: msg.peer.name }))
+        }
+        return
+      }
       case 'peer-state': {
         const { x, y, z, yaw, pose, riding } = msg
         peers.state(msg.id, { x, y, z, yaw, pose, riding }, now)
@@ -475,6 +491,9 @@ async function boot() {
   let greeted = false
   let ended = false
   let inventoryOpen = false
+  // Gron's dialog is open: the pointer is free for it, and the game's keys,
+  // mouse look and pause screen stand aside until it closes.
+  let talking = false
   // What E would do right now; resolved every frame in the loop.
   let interaction: Interaction<Pickup> | null = null
   // The last state frame sent to the valley, and time since.
@@ -786,6 +805,8 @@ async function boot() {
         )
       case 'collect':
         return action.status === 'ready' ? world.bushObject : null
+      case 'talk':
+        return world.gronRig?.figure.group ?? null
       default:
         return null
     }
@@ -853,13 +874,15 @@ async function boot() {
         greeted = true
         hud.toast(copy('toasts.greeting'))
       }
-    } else if (started && !ended && !inventoryOpen) {
+    } else if (started && !ended && !inventoryOpen && !talking) {
       hud.showIntro(true, true)
     }
   })
   window.addEventListener('blur', () => player.keys.clear())
   document.addEventListener('mousemove', (e) => {
-    if (!inventoryOpen) player.handleMouse(e.movementX, e.movementY)
+    if (!inventoryOpen && !talking) {
+      player.handleMouse(e.movementX, e.movementY)
+    }
   })
 
   // kind: a cigarette id, 'joints', or 'smoke' for the selected cigarette.
@@ -1094,6 +1117,37 @@ async function boot() {
     }
   })
 
+  // Gron's dialog: the pointer comes free for it and the game stands aside
+  // (talking). He changes the name the valley knows and the body worn. The
+  // raid clock does not stop for him.
+  const talkToGron = () => {
+    if (talking) return
+    talking = true
+    player.keys.clear()
+    if (document.pointerLockElement) document.exitPointerLock()
+    void openGronDialog({
+      username: pick.username,
+      outfit: pick.outfit,
+      finish: loadFinish(window.localStorage),
+      onRenamed: (name) => {
+        pick.username = name
+        net.send({ type: 'rename' })
+      },
+      onBecome: (outfit, finish) => {
+        saveCharacter(window.localStorage, outfit)
+        saveFinish(window.localStorage, finish)
+        playerBody.restyle(outfit, finishById(finish).color)
+        pick.outfit = outfit
+        // A reconnect says hello in the new body too.
+        net.setOutfit(outfit)
+        net.send({ type: 'appearance', outfit })
+      },
+    }).then(() => {
+      talking = false
+      engagePointer()
+    })
+  }
+
   const interact = () => {
     // The raid state is live; the interaction is from the last frame.
     if (aboard) {
@@ -1138,6 +1192,9 @@ async function boot() {
         return
       case 'collect':
         collectBerry(interaction.status)
+        return
+      case 'talk':
+        talkToGron()
         return
     }
   }
@@ -1184,7 +1241,7 @@ async function boot() {
   // In the valley the keys are WORLD in bindings.ts; the movement keys go
   // to the player as held state.
   document.addEventListener('keydown', (e) => {
-    if (!player.locked || ended) return
+    if (!player.locked || ended || talking) return
     // While typing, every key belongs to the field; Enter sends.
     if (hud.chatOpen) {
       if (e.code === 'Tab') e.preventDefault()
@@ -1348,6 +1405,7 @@ async function boot() {
     })
     if (swarm.struck) strike()
     mist.update({ dt, player: player.pos })
+    world.gronRig?.update(rainStill ? 0.37 : time)
     if (now < strikeUntil) hud.drawStatic()
     else if (!hud.staticWrap.hidden) hud.showStatic(false)
 
@@ -1436,6 +1494,7 @@ async function boot() {
           insideStore: inStore >= 0,
           bush: world.bush,
           daily: dailyStatus(),
+          gron: world.gron,
         })
     const prompt = interaction ? interactionPrompt(interaction) : null
     glow.setTarget(glowTarget(interaction))

@@ -47,6 +47,7 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   | { kind: 'pickup'; pickup: P }
   | ({ kind: 'buy' } & ShelfSpot)
   | { kind: 'collect'; status: DailyStatus }
+  | { kind: 'talk' }
 
 export interface InteractionInput<P extends PickupSpot> {
   raid: Raid
@@ -68,6 +69,8 @@ export interface InteractionInput<P extends PickupSpot> {
   // this player today.
   bush: XZ | null
   daily: DailyStatus
+  // Gron, beside the bush, or null.
+  gron: XZ | null
 }
 
 function near(a: XZ, b: XZ, radius: number): boolean {
@@ -77,7 +80,8 @@ function near(a: XZ, b: XZ, radius: number): boolean {
 // The first match wins, in this order: hop out while riding; board the
 // waiting truck; buy off a shelf; board the called truck to end the raid;
 // unload at the stand; extract at a station (never from inside its store)
-// or the Keep; the berry bush; take the nearest pickup.
+// or the Keep; Gron or the berry bush, whichever is nearer; take the
+// nearest pickup.
 export function resolveInteraction<P extends PickupSpot>(
   input: InteractionInput<P>
 ): Interaction<P> | null {
@@ -111,9 +115,15 @@ export function resolveInteraction<P extends PickupSpot>(
     }
   }
 
-  // The bush stands at the spawn Citgo, so it is there before the truck
-  // leaves and after a strike brings you back.
-  if (input.bush && near(input.bush, player, CONFIG.daily.reach)) {
+  // The bush and Gron stand at the spawn Citgo, so they are there before
+  // the truck leaves and after a strike brings you back. They stand a few
+  // strides apart, so both can be in reach; the nearer one answers.
+  const dist = (spot: XZ | null) =>
+    spot ? Math.hypot(spot.x - player.x, spot.z - player.z) : Infinity
+  const toBush = dist(input.bush)
+  const toGron = dist(input.gron)
+  if (toGron < CONFIG.gron.reach && toGron <= toBush) return { kind: 'talk' }
+  if (toBush < CONFIG.daily.reach) {
     return { kind: 'collect', status: input.daily }
   }
 
@@ -177,5 +187,8 @@ export function interactionPrompt(interaction: Interaction): string {
         case 'offline':
           return copy('prompts.berry_offline')
       }
+      break
+    case 'talk':
+      return copy('prompts.talk')
   }
 }

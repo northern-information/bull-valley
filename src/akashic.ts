@@ -13,6 +13,7 @@ import {
   attachBook,
   attachCigarette,
   buildFigure,
+  buildGron,
 } from './figure.ts'
 import { buildMistCard, makeMistTexture } from './mistcards.ts'
 import { OUTFIT_IDS, OUTFITS } from './outfits.ts'
@@ -47,6 +48,12 @@ function sampleFigure(outfitId: OutfitId): THREE.Group {
     applyPose(figure, samplePose('read'))
     attachBook(figure)
     attachCigarette(figure).update(0.4)
+  }
+  // Gron stoops under his raincloud, as he stands by the bush.
+  if (outfitId === 'gron') {
+    const gron = buildGron()
+    gron.update(0.37)
+    return gron.group
   }
   return figure.group
 }

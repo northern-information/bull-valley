@@ -71,8 +71,8 @@ rules = { text = "3 to 16 letters, digits or underscores", by = "ai" }
 
 [username]
 title = { text = "Choose Your Username", by = "ai" }
-lede = { text = "Choose the name the valley will know you by. It can't be changed.", by = "ai" }
-lede_as = { text = "Signed in with {provider} as {who}. Choose the name the valley will know you by. It can't be changed.", by = "ai" }
+lede = { text = "Choose the name the valley will know you by. Gron, by the berry bush, can change it later.", by = "ai" }
+lede_as = { text = "Signed in with {provider} as {who}. Choose the name the valley will know you by. Gron, by the berry bush, can change it later.", by = "ai" }
 field = { text = "Username", by = "ai" }
 checking = { text = "Checking…", by = "ai" }
 limited = { text = "Too many checks. Wait a moment, then type again.", by = "ai" }
@@ -130,6 +130,7 @@ welcome_one = { text = "One other in the valley.", by = "ai" }
 welcome_many = { text = "{count} others in the valley.", by = "ai" }
 peer_joined = { text = "{name} is in the valley.", by = "ai" }
 peer_left = { text = "{name} is gone.", by = "ai" }
+peer_renamed = { text = "{was} is {name} now.", by = "ai" }
 peer_extracted = { text = "{name} made it out.", by = "ai" }
 signal_lost = { text = "Signal lost. The valley goes quiet.", by = "ai" }
 signed_out = { text = "Signed out. Sign in again to raid.", by = "ai" }
@@ -198,6 +199,7 @@ buy_short = { text = "{item} — {price} (Not Enough Cash)", by = "ai" }
 berry_ready = { text = "E — Pick a Berry", by = "ai" }
 berry_picked = { text = "Berry Bush — Picked Clean Until Midnight", by = "ai" }
 berry_offline = { text = "Berry Bush — No Signal", by = "ai" }
+talk = { text = "E — Talk to Gron", by = "ai" }
 
 # Lines the game says to the player in the chat log (src/chat.ts).
 
@@ -267,6 +269,7 @@ sign_in_failed = { text = "Sign-in failed", by = "ai" }
 expired = { text = "Your sign-in has expired; sign in again", by = "ai" }
 unreachable = { text = "The valley cannot be reached", by = "ai" }
 username_failed = { text = "That username could not be set", by = "ai" }
+rename_failed = { text = "That name could not be changed", by = "ai" }
 unlink_failed = { text = "That could not be unlinked", by = "ai" }
 not_configured = { text = "Accounts are not configured on this server", by = "ai" }
 cross_origin = { text = "Cross-origin request refused", by = "ai" }
@@ -300,6 +303,25 @@ hanson = { text = "Justin Hanson", by = "ai" }
 halatek = { text = "Chris Halatek", by = "ai" }
 carlsten = { text = "David Carlsten", by = "ai" }
 jdogg = { text = "Jdogg", by = "ai" }
+gron = { text = "Gron", by = "ai" }
+
+# Talking to Gron by the berry bush (src/grondialog.ts). One of the says_
+# lines greets you at random; the field, the checks and the Previous / Next
+# buttons share their lines with [username] and [select].
+
+[gron]
+says_1 = { text = "Gron sees you. Gron can make you someone else.", by = "ai" }
+says_2 = { text = "The rain follows Gron. Nothing else does. Who will you be?", by = "ai" }
+says_3 = { text = "A new name, a new face. Gron asks nothing for it.", by = "ai" }
+your_name = { text = "Your Name", by = "ai" }
+change_name = { text = "Change Name", by = "ai" }
+name_now = { text = "That is your name now", by = "ai" }
+renamed = { text = "You are {name} now.", by = "ai" }
+your_character = { text = "Your Character", by = "ai" }
+become = { text = "Become", by = "ai" }
+character_now = { text = "This is you now", by = "ai" }
+became = { text = "You are {name} now.", by = "ai" }
+close = { text = "Close", by = "ai" }
 
 # Guitar finishes on the character select. Keys match src/finishes.ts.
 

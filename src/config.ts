@@ -196,4 +196,15 @@ export const CONFIG = {
     // It blocks like a post this wide.
     bushRadius: 0.55,
   },
+  gron: {
+    // Where Gron stands, station-local like the bush: a couple of strides
+    // from it, further from the store's wall and toward the road, turned
+    // to face the pumps where raiders arrive.
+    at: { x: -6.2, z: -9.6 },
+    // How close E must be to talk to him; when the bush is in reach too,
+    // the nearer of the two answers.
+    reach: 2.4,
+    // He blocks like a post this wide.
+    radius: 0.4,
+  },
 }

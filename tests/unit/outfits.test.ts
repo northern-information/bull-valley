@@ -10,7 +10,7 @@ import {
 import { JOINTS } from '../../src/poses.ts'
 
 describe('outfits', () => {
-  it('has the ten characters', () => {
+  it('has the eleven characters', () => {
     expect(OUTFIT_IDS).toEqual([
       'marx',
       'player',
@@ -22,7 +22,16 @@ describe('outfits', () => {
       'halatek',
       'jdogg',
       'carlsten',
+      'gron',
     ])
+  })
+
+  it('dresses Gron bald and hunched in a brown cloak', () => {
+    const gron = OUTFITS.gron
+    expect(gron.label).toBe(copy('outfits.gron'))
+    expect(gron.shaved).toBe(true)
+    expect(gron.addons).toEqual(['hood-down', 'hump', 'cloak-hem'])
+    expect(gron.colors.coat).toBe(gron.colors.shirt)
   })
 
   it('dresses Chris Halatek in the oversized NIN hoodie', () => {
