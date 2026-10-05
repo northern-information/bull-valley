@@ -2,6 +2,7 @@
 // and how the selection moves. No three.js, no DOM. inventoryview.ts turns
 // the ring into models; hud.ts turns the selected item into text.
 
+import { copy } from './copy.ts'
 import { getItem, isUsable, ITEM_LIST } from './items.ts'
 import { carryLimit } from './raid.ts'
 import type { Inventory, Raid, RingItem } from './interfaces.ts'
@@ -22,8 +23,8 @@ export function ringItems(inv: Inventory, raid: Raid): RingItem[] {
   if (raid.carrying > 0) {
     items.push({
       kind: 'cabbage',
-      label: 'Cabbages',
-      blurb: `Cold and heavy. The stand wants them. Room for ${carryLimit(raid)}.`,
+      label: copy('inventory.cabbages_label'),
+      blurb: copy('inventory.cabbages_blurb', { limit: carryLimit(raid) }),
       stock: raid.carrying,
       canUse: false,
     })

@@ -1,4 +1,5 @@
 import { test as base } from '@playwright/test'
+import { copy } from './copy.ts'
 import {
   beginRaid,
   expect,
@@ -36,7 +37,7 @@ base(
       .poll(() => b.evaluate(() => window.__bv?.net.peers().length))
       .toBe(1)
 
-    const input = a.getByRole('textbox', { name: 'Say to the valley' })
+    const input = a.getByRole('textbox', { name: copy('hud.chat_input_label') })
     await expect(input).toBeHidden()
     await a.keyboard.press('Enter')
     await expect(input).toBeVisible()
@@ -60,9 +61,9 @@ base(
     await expect(input).toBeHidden()
     await expect.poll(() => lines(b)).toEqual(['wwww cabbages by the keep'])
     await expect.poll(() => lines(a)).toEqual(['wwww cabbages by the keep'])
-    await expect(b.getByRole('log', { name: 'Chat' })).toContainText(
-      `${able.username}: wwww cabbages by the keep`
-    )
+    await expect(
+      b.getByRole('log', { name: copy('hud.chat_log_label') })
+    ).toContainText(`${able.username}: wwww cabbages by the keep`)
 
     expect(errorsA).toEqual([])
     expect(errorsB).toEqual([])

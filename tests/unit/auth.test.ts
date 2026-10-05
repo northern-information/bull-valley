@@ -9,6 +9,7 @@ import {
   unlinkProvider,
   usernameAvailable,
 } from '../../src/auth.ts'
+import { copy } from '../../src/copy.ts'
 
 interface Seen {
   url: string
@@ -80,7 +81,7 @@ describe('confirmSignup', () => {
     )
     expect(await confirmSignup(down)).toEqual({
       ok: false,
-      error: 'The valley cannot be reached',
+      error: copy('auth.unreachable'),
     })
   })
 
@@ -101,7 +102,7 @@ describe('setUsername', () => {
     ).toEqual({ ok: false, taken: true, error: 'Taken' })
     expect(await setUsername('Dave', answer(400, 'not json').impl)).toEqual({
       ok: false,
-      error: 'That username could not be set',
+      error: copy('auth.username_failed'),
     })
     expect(await setUsername('Dave', down)).toMatchObject({ ok: false })
   })
@@ -135,7 +136,7 @@ describe('unlinkProvider', () => {
     ).toEqual({ ok: false, error: 'Last one' })
     expect(await unlinkProvider('github', down)).toEqual({
       ok: false,
-      error: 'The valley cannot be reached',
+      error: copy('auth.unreachable'),
     })
   })
 })

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
+import { copy } from '../../src/copy.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { getItem } from '../../src/items.ts'
 import { advance, createRaid, EVENTS } from '../../src/raid.ts'
@@ -39,7 +40,10 @@ describe('buy', () => {
       if (!next) throw new Error('expected a sale')
       state = next
     }
-    expect(buy(state, 0, 'pbr', 5)).toEqual({ next: null, toast: 'Sold out.' })
+    expect(buy(state, 0, 'pbr', 5)).toEqual({
+      next: null,
+      toast: copy('toasts.sold_out'),
+    })
   })
 
   it('refuses a sale the cash cannot cover, saying by how much', () => {
@@ -60,7 +64,7 @@ describe('buy', () => {
     if (!next) throw new Error('expected a sale')
     expect(buy(next, 0, 'sack', 302)).toEqual({
       next: null,
-      toast: 'You already have a sack.',
+      toast: copy('toasts.have_sack'),
     })
   })
 
@@ -99,7 +103,7 @@ describe('settle', () => {
     const sacked = advance(createRaid(0), EVENTS.BUY_SACK, 1)
     expect(settle(fresh({ raid: sacked }), 'sack', 5)).toEqual({
       next: null,
-      toast: 'You already have a sack.',
+      toast: copy('toasts.have_sack'),
     })
     expect(settle(fresh(), 'moonrock', 5)).toEqual({ next: null, toast: null })
   })

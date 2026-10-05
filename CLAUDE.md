@@ -16,6 +16,7 @@ An extraction adventure RPG set in a hauntological Bull Valley, Illinois. 3D fir
 - CI (`.github/workflows/ci.yml`) runs on every PR to `main` and every push to `main`: format, lint, types, unit tests with coverage (the pure modules have a per-file floor in `vitest.config.ts`), build, and e2e. The e2e job runs in the Playwright Docker image as three parallel jobs: the `@raid` group, the `@valley` group (the two-page specs, which boot two games each), and every other spec
 - `npm run db:migrate` — apply `migrations/*.sql` to the dev server's local D1 (`bull-valley-accounts`, the accounts behind `/auth`); run it once on a fresh checkout and after adding a migration. The deploy workflow applies them to production before each deploy. Local secrets go in a gitignored `.dev.vars` (see `.dev.vars.example`); none are needed, since a dev server signs sessions with a fixed dev secret and offers the Dev provider (`/auth/dev/form`). Production secrets (`JWT_SECRET`, each provider's client id and secret) are set once with `wrangler secret put`
 - `npm run fetch:data` — regenerate `public/data/bull-valley/` (network: Nominatim, Overpass, AWS terrain tiles; `--reuse-traffic` skips IDOT)
+- `npm run copy:ai` — list the lines in `COPY.toml` still marked `by = "ai"`
 - `npm run images` — regenerate `public/favicon.ico` and `public/apple-touch-icon.png` from `public/favicon.svg`, and the link-preview card `public/og.png` from the logo (needs ImageMagick 7, `brew install imagemagick`)
 
 ## The MVP loop
@@ -39,6 +40,7 @@ Dev only: `?valley=<id>` picks another Durable Object, so parallel e2e specs nev
 Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stays plain JS on purpose (testing a rewrite means refetching the survey). Shapes that cross modules (world points and heights, geo.json, items, the raid, ring entries) live in `src/interfaces.ts`; types one module owns stay in that module.
 
 - `src/interfaces.ts` — shared types only, no runtime code
+- `COPY.toml` (repo root) — every player-facing line, each with `text` and `by` (`"ai"` or `"tyler"`); `{name}` placeholders. `src/copy.ts` loads it (Vite `?raw`, so it ships in the client and the Worker) and exports `copy(key, vars)`; `src/copybook.ts` is the pure parsing and filling, shared with `tests/e2e/copy.ts`, which reads the file from disk. `tests/unit/copy.test.ts` fails on a key the code asks for that the file lacks, and on an entry nothing asks for. Modules the e2e specs import (`bindings.ts`, `account.ts`) must not import `copy.ts`: Playwright cannot load `?raw`
 - `src/protocol.ts` — pure: the wire protocol, imported by the client and the Worker (frames, close codes, the shown-name rules the stamped username must pass, `parseClientMessage`)
 - `src/sharedraid.ts` — pure: the shared raid's rules as a reducer over the valley (lobby, departure, pickups, the whistle, the berry bush, reset)
 - `src/daily.ts` — pure: the daily clock behind the berry bush (the Central calendar day of an instant, the next midnight Central, DST included); the Worker runs it against its own clock
@@ -56,7 +58,7 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 
 - `src/main.ts` — boot, scene, input wiring, render loop, raid orchestration; game rules go in the pure modules
 - `src/raid.ts` — pure raid state machine (LOADOUT → RIDING → ON_FOOT → EXTRACTED) and the loadout clock
-- `src/bindings.ts` — pure: every key in one table (`WORLD` in the valley, `PACK` with the inventory open), each with its codes, the key label, and the action label. `main.ts` and `player.ts` look actions up here (`actionOf`, `moveAxis`, `isHeld`); `hud.ts` draws the intro controls table and the pack footer from it. Rebind or relabel a key here and nowhere else
+- `src/bindings.ts` — pure: every key in one table (`WORLD` in the valley, `PACK` with the inventory open), each with its codes, the key label, and the `COPY.toml` key of the action label (`labelKey`). `main.ts` and `player.ts` look actions up here (`actionOf`, `moveAxis`, `isHeld`); `hud.ts` draws the intro controls table and the pack footer from it. Rebind a key here and nowhere else; reword it in `COPY.toml` `[keys]`
 - `src/interactions.ts` — pure: what E would do right now (board, hop out, unload, extract, take a pickup, pick the day's berry) and its prompt; `main.ts` resolves it each frame
 - `src/shop.ts` — pure: one purchase off a Citgo shelf (`buy`, returning new raid, stock, inventory, and cash) and the buyer's side alone (`settle`), which the shared valley applies once a sale is confirmed
 - `src/store.ts` — pure: the walk-in Citgo every station shares — `STORE_LAYOUT` (shell, fixtures, fluorescent lights, shelf facings, and the wall signs in station-local space, read by `assets.ts` and `world.ts`), fresh shelf stock, which facing the player is looking at, `formatCash`. Every station sells 3 of every item; cash is $40 per raid
@@ -74,7 +76,7 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 - `src/characterselect.ts` — the character select: one figure on a PS1 turntable with its own small renderer (the game's does not exist yet), mounted at boot beneath the account step and the title cards. It shows the account's username ("Raiding as") with Account and Sign Out
 - `src/finishes.ts` — pure: the guitar finishes in one table, the saved pick in localStorage, and the random draw; the select shows the row for any character with a guitar on their back
 - `src/cabbages.ts` — pure seeded cabbage placement
-- `src/items.ts` — pure: every item in one table (label, blurb, toasts, tuning, starting count, price in cents); edit items here. Meshes stay in `assets.ts`, keyed by id
+- `src/items.ts` — pure: every item in one table (tuning, starting count, price in cents; the label, blurb and toasts come from `COPY.toml` `[items.<id>]`); edit items here. Meshes stay in `assets.ts`, keyed by id
 - `src/canvas.ts` — shared 2D canvas helpers (`context2d`, `canvas`, `text`, fonts: `INTER` for UI text, `SERIF`/`SANS` for trade dress) for the painted art
 - `src/packart.ts` — canvas trade-dress art for the cigarette packs
 - `src/drinks.ts` — pure: drink container sizes and the per-family fit height; the drinks themselves (circa 2008, for sale at every Citgo, no effect yet) are entries in `items.ts`
@@ -124,3 +126,4 @@ Inter everywhere (`public/fonts/InterVariable.woff2`, one variable file for ever
 6. It's a raid, not a run — in code, copy, commits, and docs.
 7. Nothing stands on the raw terrain. Place and move things with `world.ground.at`, and register any new walkable surface (a floor, a deck, a lot) on the `Ground` in `world.ts` before placing on it.
 8. One truck, one clock, shared pickups, shared shelves, one berry a day per account. A rule of the shared raid belongs in `src/sharedraid.ts` with a test, never in the Worker or in `main.ts`.
+9. Player-facing text lives in `COPY.toml`, never inline in code: add the entry, then call `copy('section.key')`. Anything an AI writes or rewrites there is `by = "ai"`. Never set `by = "tyler"`, and never change the text of a `"tyler"` entry unless Tyler asks. Tests and specs assert copy through `copy()`, never as literals, so editing a line never breaks a test. Out of the file: `public/terms.html`, `public/auth-done.html`, the `index.html` meta tags, provider names, the Akashic page, and painted trade dress.

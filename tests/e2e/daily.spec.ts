@@ -1,3 +1,4 @@
+import { copy } from './copy.ts'
 import {
   beginRaid,
   expect,
@@ -56,12 +57,12 @@ test('the berry bush gives one berry, then is picked clean', async ({
   })
 
   await standAtBush(page)
-  await expect(prompt).toHaveText('E — Pick a Berry')
+  await expect(prompt).toHaveText(copy('prompts.berry_ready'))
   await expect.poll(() => bushGlows(page)).toBe(true)
   expect(await berriesShown(page)).toBe(true)
   await page.keyboard.press('KeyE')
   await expect.poll(() => savedInventory(page)).toContain('"berries":1')
-  await expect(prompt).toHaveText('Berry Bush — Picked Clean Until Midnight')
+  await expect(prompt).toHaveText(copy('prompts.berry_picked'))
   await expect
     .poll(() => page.evaluate(() => window.__bv?.daily?.collected))
     .toBe(true)
@@ -71,7 +72,7 @@ test('the berry bush gives one berry, then is picked clean', async ({
 
   // A second press changes nothing.
   await page.keyboard.press('KeyE')
-  await expect(prompt).toHaveText('Berry Bush — Picked Clean Until Midnight')
+  await expect(prompt).toHaveText(copy('prompts.berry_picked'))
   expect(await savedInventory(page)).toContain('"berries":1')
 })
 
@@ -84,7 +85,7 @@ test('the valley remembers the account on the next arrival', async ({
   })
   await standAtBush(page)
   await expect(page.locator('.bv-prompt')).toHaveText(
-    'Berry Bush — Picked Clean Until Midnight'
+    copy('prompts.berry_picked')
   )
   expect(await berriesShown(page)).toBe(false)
 })

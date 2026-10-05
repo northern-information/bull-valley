@@ -1,0 +1,479 @@
+# Every player-facing line in Bull Valley Shadow Wars, in one place.
+#
+# Each line is a table: the text, and who wrote it.
+#
+#   by = "ai"     an AI wrote it, and no one has revised or approved it yet
+#   by = "tyler"  Tyler wrote it or signed off on it
+#
+# Edit a text freely; flip `by` to "tyler" when a line is yours. {name} is a
+# placeholder the game fills in: keep the braces and the name. A text in
+# triple quotes keeps its line breaks.
+#
+# `npm run copy:ai` lists the lines still marked "ai".
+#
+# Not in this file: the terms (public/terms.html), the popup landing page
+# (public/auth-done.html), the link-preview tags in index.html, the
+# provider names (Google, Discord, GitHub), the Akashic dev page, and the
+# words painted on packs, cans, medicine and the Citgo signs.
+
+# The intro card, which is also the pause card on Esc (src/hud.ts). The
+# note keeps its line breaks.
+
+[intro]
+title = { text = "BULL VALLEY SHADOW WARS", by = "ai" }
+note = { text = """
+Matthew Marx leaves in five minutes.
+Ride the bed. Find cabbages.
+Drop them at the Stand. Get out.""", by = "ai" }
+controls_label = { text = "Controls", by = "ai" }
+fine = { text = "Requires a keyboard and mouse.", by = "ai" }
+
+# The rest of the HUD (src/hud.ts): the Begin button's states, the resume
+# line, the strike static, and labels read by screen readers.
+
+[hud]
+begin_loading = { text = "Resolving Terrain…", by = "ai" }
+begin_play = { text = "Click to Play", by = "ai" }
+begin_resume = { text = "Click to Resume", by = "ai" }
+begin_failed = { text = "The Valley Will Not Resolve", by = "ai" }
+resume = { text = "Click to Resume", by = "ai" }
+signal_lost = { text = "SIGNAL LOST", by = "ai" }
+nerves = { text = "Nerves", by = "ai" }
+countdown_label = { text = "Truck leaves in", by = "ai" }
+chat_log_label = { text = "Chat", by = "ai" }
+chat_input_label = { text = "Say to the valley", by = "ai" }
+
+# The end-of-raid card (src/hud.ts). One line each, in this order.
+
+[summary]
+title = { text = "RAID COMPLETE", by = "ai" }
+by_truck = { text = "Matthew Marx drove you out.", by = "ai" }
+at_keep = { text = "You made {keep}.", by = "ai" }
+at_station = { text = "You walked out at {station}.", by = "ai" }
+at_a_station = { text = "You walked out at the station.", by = "ai" }
+delivered = { text = "Cabbages delivered: {count}.", by = "ai" }
+left = { text = "{count} more left to rot in the truck bed.", by = "ai" }
+deaths = { text = "Times the valley took you: {count}.", by = "ai" }
+time = { text = "Time in the valley: {time}.", by = "ai" }
+again = { text = "Raid Again", by = "ai" }
+
+# The sign-in card (src/signin.ts).
+
+[signin]
+title = { text = "Sign In", by = "ai" }
+lede = { text = "Sign in to raid the valley.", by = "ai" }
+provider = { text = "Sign In with {provider}", by = "ai" }
+unavailable = { text = "Sign-in is not available right now. Try again soon.", by = "ai" }
+unreachable = { text = "The valley cannot be reached. Try again soon.", by = "ai" }
+rules = { text = "3 to 16 letters, digits or underscores", by = "ai" }
+
+# Choose Your Username, with the age and terms gates (src/signin.ts).
+
+[username]
+title = { text = "Choose Your Username", by = "ai" }
+lede = { text = "Choose the name the valley will know you by. It can't be changed.", by = "ai" }
+lede_as = { text = "Signed in with {provider} as {who}. Choose the name the valley will know you by. It can't be changed.", by = "ai" }
+field = { text = "Username", by = "ai" }
+checking = { text = "Checking…", by = "ai" }
+limited = { text = "Too many checks. Wait a moment, then type again.", by = "ai" }
+available = { text = "Available", by = "ai" }
+taken = { text = "Taken", by = "ai" }
+age_gate = { text = "I am 13 years or older", by = "ai" }
+terms_gate = { text = "I agree to the", by = "ai" }
+terms_link = { text = "Terms of Service", by = "ai" }
+terms_close = { text = "Close", by = "ai" }
+cancel = { text = "Cancel", by = "ai" }
+confirm = { text = "Confirm", by = "ai" }
+hint = { text = "Enter Confirm · Escape Cancel", by = "ai" }
+
+# The account panel, opened from the select's Account link
+# (src/accountpanel.ts).
+
+[panel]
+title = { text = "Account", by = "ai" }
+linked = { text = "Linked Accounts", by = "ai" }
+link_another = { text = "Link Another Account", by = "ai" }
+only_way_in = { text = "Only Way In", by = "ai" }
+unlink = { text = "Unlink", by = "ai" }
+unlink_label = { text = "Unlink {provider} ({who})", by = "ai" }
+link = { text = "Link {provider}", by = "ai" }
+linking = { text = "Linking {provider}…", by = "ai" }
+linked_ok = { text = "Linked.", by = "ai" }
+unlinking = { text = "Unlinking…", by = "ai" }
+unlinked = { text = "Unlinked {provider}.", by = "ai" }
+loading = { text = "Loading…", by = "ai" }
+session_ended = { text = "Your session has ended. Sign in again.", by = "ai" }
+sign_out = { text = "Sign Out", by = "ai" }
+close = { text = "Close", by = "ai" }
+
+# The character select (src/characterselect.ts). Character and finish names
+# are under [outfits] and [finishes].
+
+[select]
+title = { text = "Choose Your Character", by = "ai" }
+finish = { text = "Guitar Finish", by = "ai" }
+randomize = { text = "Randomize", by = "ai" }
+raiding_as = { text = "Raiding as", by = "ai" }
+account = { text = "Account", by = "ai" }
+sign_out = { text = "Sign Out", by = "ai" }
+previous = { text = "Previous", by = "ai" }
+choose = { text = "Choose", by = "ai" }
+next = { text = "Next", by = "ai" }
+hint = { text = "← → Cycle · Enter Choose", by = "ai" }
+hint_finish = { text = "← → Cycle · Up / Down Finish · R Randomize · Enter Choose", by = "ai" }
+
+# Toasts: the lines that drift up over the valley (src/main.ts, src/shop.ts).
+
+[toasts]
+greeting = { text = "Matthew Marx keeps the engine running.", by = "ai" }
+welcome_one = { text = "One other in the valley.", by = "ai" }
+welcome_many = { text = "{count} others in the valley.", by = "ai" }
+peer_joined = { text = "{name} is in the valley.", by = "ai" }
+peer_left = { text = "{name} is gone.", by = "ai" }
+peer_extracted = { text = "{name} made it out.", by = "ai" }
+signal_lost = { text = "Signal lost. The valley goes quiet.", by = "ai" }
+signed_out = { text = "Signed out. Sign in again to raid.", by = "ai" }
+board = { text = "You climb into the bed.", by = "ai" }
+board_leave = { text = "You climb into the bed. Marx pulls out.", by = "ai" }
+hop_out_hint = { text = "E hops out. Anywhere you like.", by = "ai" }
+truck_leaves = { text = "Marx pulls out.", by = "ai" }
+left_behind = { text = "Taillights. The truck leaves without you.", by = "ai" }
+long_gone = { text = "The truck is long gone. You are on foot.", by = "ai" }
+hop_out_wait = { text = "Boots on gravel. Marx waits.", by = "ai" }
+hop_out_moving = { text = "Boots on gravel. The truck rolls on.", by = "ai" }
+end_of_line = { text = "End of the line. Marx lights a cigarette.", by = "ai" }
+whistle = { text = "You whistle into the dark. An engine turns over, far off.", by = "ai" }
+whistle_nothing = { text = "You whistle into the dark. Nothing turns over.", by = "ai" }
+whistle_other = { text = "Far off, an engine turns over. Someone whistled.", by = "ai" }
+truck_busy = { text = "Marx is already on a call.", by = "ai" }
+taken = { text = "Taken: {item}", by = "ai" }
+taken_first = { text = "Someone got there first.", by = "ai" }
+arms_full = { text = "Your arms are full.", by = "ai" }
+unload_one = { text = "The stand takes your cabbage. Somewhere, gratitude.", by = "ai" }
+unload_many = { text = "The stand takes your {count} cabbages. Somewhere, gratitude.", by = "ai" }
+have_sack = { text = "You already have a sack.", by = "ai" }
+short = { text = "You're {amount} short.", by = "ai" }
+sold_out = { text = "Sold out.", by = "ai" }
+refused = { text = "The clerk shakes his head.", by = "ai" }
+no_cigarettes = { text = "No cigarettes left.", by = "ai" }
+berry_offline = { text = "No signal. The bush keeps its berries.", by = "ai" }
+berry_picked = { text = "Picked clean. The bush fills again at midnight.", by = "ai" }
+berry_refused = { text = "The bush gives you nothing.", by = "ai" }
+struck = { text = "You are somewhere else. Time is missing.", by = "ai" }
+edge = { text = "The valley ends here.", by = "ai" }
+
+# The truck's line in the inventory's Status column (src/main.ts).
+
+[truck]
+leaves = { text = "Leaves in {time}", by = "ai" }
+riding = { text = "Riding the bed", by = "ai" }
+called = { text = "On its way", by = "ai" }
+on_call = { text = "On a call", by = "ai" }
+gone = { text = "Gone", by = "ai" }
+
+# The effect timers in the lower left (src/main.ts).
+
+[timers]
+smoking = { text = "Smoking {seconds}s", by = "ai" }
+ember = { text = "Ember {seconds}s", by = "ai" }
+perception = { text = "Perception {seconds}s", by = "ai" }
+
+# The prompt over the center of the screen: what E would do right now
+# (src/interactions.ts).
+
+[prompts]
+hop_out = { text = "E — Hop Out", by = "ai" }
+board = { text = "E — Climb into the Bed", by = "ai" }
+board_extract = { text = "E — Board (End the Raid)", by = "ai" }
+unload_one = { text = "E — Unload 1 Cabbage", by = "ai" }
+unload_many = { text = "E — Unload {count} Cabbages", by = "ai" }
+extract_at = { text = "E — End the Raid at {station}", by = "ai" }
+extract_station = { text = "E — End the Raid at the Station", by = "ai" }
+extract_keep = { text = "E — End the Raid at {keep}", by = "ai" }
+take = { text = "E — Take {item}", by = "ai" }
+cabbage = { text = "Cabbage", by = "ai" }
+pickup_count = { text = "{item} ×{count}", by = "ai" }
+buy = { text = "E — Buy {item} for {price}", by = "ai" }
+buy_short = { text = "{item} — {price} (Not Enough Cash)", by = "ai" }
+berry_ready = { text = "E — Pick a Berry", by = "ai" }
+berry_picked = { text = "Berry Bush — Picked Clean Until Midnight", by = "ai" }
+berry_offline = { text = "Berry Bush — No Signal", by = "ai" }
+
+# Lines the game says to the player in the chat log (src/chat.ts).
+
+[chat]
+too_fast = { text = "You are speaking too fast.", by = "ai" }
+offline = { text = "No one can hear you.", by = "ai" }
+
+# The Tab inventory (src/hud.ts) and the cabbages' card in its carousel
+# (src/carousel.ts). Item cards are under [items].
+
+[inventory]
+label = { text = "Inventory", by = "ai" }
+status = { text = "Status", by = "ai" }
+command = { text = "Command", by = "ai" }
+commands_label = { text = "Commands", by = "ai" }
+cabbages = { text = "Cabbages", by = "ai" }
+delivered = { text = "Delivered", by = "ai" }
+truck = { text = "Truck", by = "ai" }
+cash = { text = "Cash", by = "ai" }
+number = { text = "No.", by = "ai" }
+name = { text = "Name:", by = "ai" }
+stock = { text = "Stock:", by = "ai" }
+empty_name = { text = "Nothing", by = "ai" }
+empty_blurb = { text = "Empty pockets. Nothing between you and the valley.", by = "ai" }
+cabbages_label = { text = "Cabbages", by = "ai" }
+cabbages_blurb = { text = "Cold and heavy. The stand wants them. Room for {limit}.", by = "ai" }
+
+# Place names, shown in prompts and the raid summary (src/landmarks.ts).
+
+[places]
+keep = { text = "Mt. Coleman's Keep", by = "ai" }
+stand = { text = "Bull Valley Cabbage Stand", by = "ai" }
+
+# The title cards (src/config.ts): image alt text and the colophon's hint.
+
+[titles]
+colophon_alt = { text = "Northern Information", by = "ai" }
+colophon_hint = { text = "Click to Play", by = "ai" }
+logo_alt = { text = "Bull Valley Shadow Wars", by = "ai" }
+
+# Key labels: what each key does, in the intro controls table and the
+# pack footer. The key names themselves stay in src/bindings.ts.
+
+[keys]
+smoke = { text = "Smoke", by = "ai" }
+spark = { text = "Spark", by = "ai" }
+move = { text = "Move", by = "ai" }
+sprint = { text = "Sprint", by = "ai" }
+look = { text = "Look", by = "ai" }
+crouch = { text = "Crouch", by = "ai" }
+scope = { text = "Scaduscope", by = "ai" }
+inventory = { text = "Inventory", by = "ai" }
+interact = { text = "Board / Hop Out / Take / Buy / Unload / Extract", by = "ai" }
+call_truck = { text = "Call the Truck", by = "ai" }
+chat = { text = "Chat", by = "ai" }
+pause = { text = "Pause", by = "ai" }
+use = { text = "Use", by = "ai" }
+cycle = { text = "Cycle", by = "ai" }
+close = { text = "Exit", by = "ai" }
+
+# Sign-in errors, from the Worker (worker/auth.ts) and the client's
+# fallbacks (src/auth.ts, src/account.ts). They show on the sign-in card,
+# Choose Your Username, and the account panel.
+
+[auth]
+sign_in_failed = { text = "Sign-in failed", by = "ai" }
+expired = { text = "Your sign-in has expired; sign in again", by = "ai" }
+unreachable = { text = "The valley cannot be reached", by = "ai" }
+username_failed = { text = "That username could not be set", by = "ai" }
+unlink_failed = { text = "That could not be unlinked", by = "ai" }
+not_configured = { text = "Accounts are not configured on this server", by = "ai" }
+cross_origin = { text = "Cross-origin request refused", by = "ai" }
+provider_not_configured = { text = "{provider} sign-in is not configured", by = "ai" }
+missing_code = { text = "Missing authorization code", by = "ai" }
+state_mismatch = { text = "Sign-in state did not match; try again", by = "ai" }
+provider_failed = { text = "Sign-in with {provider} failed", by = "ai" }
+already_linked = { text = "{provider} is already linked to your account", by = "ai" }
+linked_elsewhere = { text = "That {provider} account is linked to another raider", by = "ai" }
+sign_in_first = { text = "Sign in first", by = "ai" }
+username_rule = { text = "A username is 3 to 16 letters, digits or underscores", by = "ai" }
+username_taken = { text = "That username is taken", by = "ai" }
+username_set = { text = "Your username is already set", by = "ai" }
+account_not_found = { text = "Account not found", by = "ai" }
+unlink_last = { text = "You cannot unlink your only way to sign in", by = "ai" }
+not_linked = { text = "{provider} is not linked to your account", by = "ai" }
+limited = { text = "Too many tries. Wait a minute and try again.", by = "ai" }
+limited_short = { text = "Too many tries. Wait a minute.", by = "ai" }
+
+# Character names, as the select and the name tags show them. Keys
+# match src/outfits.ts.
+
+[outfits]
+marx = { text = "Matthew Marx", by = "ai" }
+player = { text = "Player", by = "ai" }
+shadow = { text = "Shadowman", by = "ai" }
+coleman = { text = "David Coleman", by = "ai" }
+kvistad = { text = "David Kvistad", by = "ai" }
+church = { text = "Kyle Church", by = "ai" }
+hanson = { text = "Justin Hanson", by = "ai" }
+halatek = { text = "Chris Halatek", by = "ai" }
+carlsten = { text = "David Carlsten", by = "ai" }
+jdogg = { text = "Jdogg", by = "ai" }
+
+# Guitar finishes on the character select. Keys match src/finishes.ts.
+
+[finishes]
+black = { text = "Black", by = "ai" }
+olympic-white = { text = "Olympic White", by = "ai" }
+blood-red = { text = "Blood Red", by = "ai" }
+cherry = { text = "Cherry", by = "ai" }
+tangerine = { text = "Tangerine", by = "ai" }
+gold-top = { text = "Gold Top", by = "ai" }
+forest = { text = "Forest Green", by = "ai" }
+seafoam = { text = "Seafoam", by = "ai" }
+pelham-blue = { text = "Pelham Blue", by = "ai" }
+midnight = { text = "Midnight Blue", by = "ai" }
+grape = { text = "Grape", by = "ai" }
+hot-pink = { text = "Hot Pink", by = "ai" }
+gunmetal = { text = "Gunmetal", by = "ai" }
+
+# Items: the carousel name and description, and the toasts for using,
+# buying, picking, and running out. Ids match src/items.ts.
+
+[items.marlboro]
+label = { text = "Marlboro Reds", by = "ai" }
+blurb = { text = "The red roof. What Marx smokes.", by = "ai" }
+used = { text = "You light a Red. The roof of the world.", by = "ai" }
+bought = { text = "One pack of Marlboro Reds, pocketed.", by = "ai" }
+empty = { text = "No Marlboro Reds left.", by = "ai" }
+
+[items.camel]
+label = { text = "Camel Turkish Royals", by = "ai" }
+blurb = { text = "Rich and mellow. Pyramids on the pack.", by = "ai" }
+used = { text = "You light a Turkish Royal. Rich, mellow, far from here.", by = "ai" }
+bought = { text = "One pack of Camel Turkish Royals, pocketed.", by = "ai" }
+empty = { text = "No Camel Turkish Royals left.", by = "ai" }
+
+[items.parliament]
+label = { text = "Parliaments", by = "ai" }
+blurb = { text = "Recessed filter. Long, clean draw.", by = "ai" }
+used = { text = "You light a Parliament. The recessed filter, the long draw.", by = "ai" }
+bought = { text = "One pack of Parliaments, pocketed.", by = "ai" }
+empty = { text = "No Parliaments left.", by = "ai" }
+
+[items.newport]
+label = { text = "Newports", by = "ai" }
+blurb = { text = "Menthol. Quick and cold.", by = "ai" }
+used = { text = "You light a Newport. Cold in the chest.", by = "ai" }
+bought = { text = "One pack of Newports, pocketed.", by = "ai" }
+empty = { text = "No Newports left.", by = "ai" }
+
+[items.djarum]
+label = { text = "Djarum Blacks", by = "ai" }
+blurb = { text = "Clove kretek. Burns long, crackles loud.", by = "ai" }
+used = { text = "You light a Djarum. The clove crackles in the dark.", by = "ai" }
+bought = { text = "One pack of Djarum Blacks, pocketed.", by = "ai" }
+empty = { text = "No Djarum Blacks left.", by = "ai" }
+
+[items.joints]
+label = { text = "Joints", by = "ai" }
+blurb = { text = "You will see them. You will feel less.", by = "ai" }
+used = { text = "You spark the joint. The valley sharpens.", by = "ai" }
+bought = { text = "One joint, pocketed.", by = "ai" }
+empty = { text = "No joints left.", by = "ai" }
+
+[items.monster]
+label = { text = "Monster Energy", by = "ai" }
+blurb = { text = "Three green claw marks. Tastes like a battery.", by = "ai" }
+bought = { text = "One Monster Energy, pocketed.", by = "ai" }
+
+[items.monster-ultra]
+label = { text = "Monster Ultra", by = "ai" }
+blurb = { text = "White can, zero sugar. A cold, thin buzz.", by = "ai" }
+bought = { text = "One Monster Ultra, pocketed.", by = "ai" }
+
+[items.red-bull]
+label = { text = "Red Bull", by = "ai" }
+blurb = { text = "Small, silver and blue. Two bulls charge.", by = "ai" }
+bought = { text = "One Red Bull, pocketed.", by = "ai" }
+
+[items.rip-it]
+label = { text = "Rip It", by = "ai" }
+blurb = { text = "Energy fuel. Sold by the case at the base.", by = "ai" }
+bought = { text = "One Rip It, pocketed.", by = "ai" }
+
+[items.rockstar]
+label = { text = "Rockstar", by = "ai" }
+blurb = { text = "Black can, gold star. Party like one.", by = "ai" }
+bought = { text = "One Rockstar, pocketed.", by = "ai" }
+
+[items.nos]
+label = { text = "NOS", by = "ai" }
+blurb = { text = "A blue plastic bottle, an orange cap. High performance.", by = "ai" }
+bought = { text = "One NOS, pocketed.", by = "ai" }
+
+[items.four-loko-blue]
+label = { text = "Four Loko Blue Raspberry", by = "ai" }
+blurb = { text = "Blue camo, 23.5 oz. Caffeine and twelve percent.", by = "ai" }
+bought = { text = "One Four Loko Blue Raspberry, pocketed.", by = "ai" }
+
+[items.four-loko-punch]
+label = { text = "Four Loko Fruit Punch", by = "ai" }
+blurb = { text = "Red camo. Blackout in a can.", by = "ai" }
+bought = { text = "One Four Loko Fruit Punch, pocketed.", by = "ai" }
+
+[items.four-loko-lemon]
+label = { text = "Four Loko Lemon Lime", by = "ai" }
+blurb = { text = "Nuclear green camo. It glows a little.", by = "ai" }
+bought = { text = "One Four Loko Lemon Lime, pocketed.", by = "ai" }
+
+[items.wild-turkey]
+label = { text = "Wild Turkey 101", by = "ai" }
+blurb = { text = "Austin Nichols. A hundred and one proof.", by = "ai" }
+bought = { text = "One Wild Turkey 101, pocketed.", by = "ai" }
+
+[items.jim-beam]
+label = { text = "Jim Beam", by = "ai" }
+blurb = { text = "White label, red seal. Kentucky straight bourbon.", by = "ai" }
+bought = { text = "One Jim Beam, pocketed.", by = "ai" }
+
+[items.grey-goose]
+label = { text = "Grey Goose", by = "ai" }
+blurb = { text = "Frosted glass, geese over the Alps. Too nice for here.", by = "ai" }
+bought = { text = "One Grey Goose, pocketed.", by = "ai" }
+
+[items.pbr]
+label = { text = "Pabst Blue Ribbon", by = "ai" }
+blurb = { text = "Milwaukee, 1844. The blue ribbon, the red sash. Cheap.", by = "ai" }
+bought = { text = "One Pabst Blue Ribbon, pocketed.", by = "ai" }
+
+[items.high-life]
+label = { text = "Miller High Life", by = "ai" }
+blurb = { text = "The Champagne of Beers. Clear glass, the girl in the moon.", by = "ai" }
+bought = { text = "One Miller High Life, pocketed.", by = "ai" }
+
+[items.modelo]
+label = { text = "Modelo Especial", by = "ai" }
+blurb = { text = "Cream and gold, two lions. Cold, if you are lucky.", by = "ai" }
+bought = { text = "One Modelo Especial, pocketed.", by = "ai" }
+
+[items.md-2020]
+label = { text = "MD 20/20 Banana Red", by = "ai" }
+blurb = { text = "Mad Dog. A flat red flask. Tastes like a candle.", by = "ai" }
+bought = { text = "One MD 20/20 Banana Red, pocketed.", by = "ai" }
+
+[items.ice-mountain]
+label = { text = "Ice Mountain", by = "ai" }
+blurb = { text = "Michigan spring water. The only clean thing for miles.", by = "ai" }
+bought = { text = "One Ice Mountain, pocketed.", by = "ai" }
+
+[items.aspirin]
+label = { text = "Aspirin", by = "ai" }
+blurb = { text = "Yellow label, 24 tablets. For the head you woke up with.", by = "ai" }
+bought = { text = "One bottle of aspirin, pocketed.", by = "ai" }
+
+[items.ibuprofen]
+label = { text = "Ibuprofen", by = "ai" }
+blurb = { text = "Blue label, 200 mg. The gas station kind, two to a dose.", by = "ai" }
+bought = { text = "One bottle of ibuprofen, pocketed.", by = "ai" }
+
+[items.benadryl]
+label = { text = "Benadryl", by = "ai" }
+blurb = { text = "The pink box. Allergies, or a few hours of nothing.", by = "ai" }
+bought = { text = "One box of Benadryl, pocketed.", by = "ai" }
+
+[items.eye-drops]
+label = { text = "Eye Drops", by = "ai" }
+blurb = { text = "Half an ounce, red cap. Gets the red out.", by = "ai" }
+bought = { text = "One bottle of eye drops, pocketed.", by = "ai" }
+
+[items.berries]
+label = { text = "Berries", by = "ai" }
+blurb = { text = "Dark and cold, off the bush by the Citgo. One a day.", by = "ai" }
+collected = { text = "A berry off the bush. The rest are for tomorrow.", by = "ai" }
+
+[items.sack]
+label = { text = "Burlap Sack", by = "ai" }
+blurb = { text = "Carries five cabbages instead of three.", by = "ai" }
+bought = { text = "The burlap sack. Room for five.", by = "ai" }
