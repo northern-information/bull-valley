@@ -3,7 +3,9 @@
 // three.js, no DOM: tests/unit/interactions.test.ts runs it in Node.
 
 import { CONFIG } from './config.ts'
+import { copy } from './copy.ts'
 import { itemById } from './items.ts'
+import { KEEP } from './landmarks.ts'
 import { STATES } from './raid.ts'
 import { formatCash } from './store.ts'
 import type { Raid, XZ } from './interfaces.ts'
@@ -45,6 +47,7 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   | { kind: 'pickup'; pickup: P }
   | ({ kind: 'buy' } & ShelfSpot)
   | { kind: 'collect'; status: DailyStatus }
+  | { kind: 'talk' }
 
 export interface InteractionInput<P extends PickupSpot> {
   raid: Raid
@@ -66,6 +69,8 @@ export interface InteractionInput<P extends PickupSpot> {
   // this player today.
   bush: XZ | null
   daily: DailyStatus
+  // Gron, beside the bush, or null.
+  gron: XZ | null
 }
 
 function near(a: XZ, b: XZ, radius: number): boolean {
@@ -75,7 +80,8 @@ function near(a: XZ, b: XZ, radius: number): boolean {
 // The first match wins, in this order: hop out while riding; board the
 // waiting truck; buy off a shelf; board the called truck to end the raid;
 // unload at the stand; extract at a station (never from inside its store)
-// or the Keep; the berry bush; take the nearest pickup.
+// or the Keep; Gron or the berry bush, whichever is nearer; take the
+// nearest pickup.
 export function resolveInteraction<P extends PickupSpot>(
   input: InteractionInput<P>
 ): Interaction<P> | null {
@@ -109,9 +115,15 @@ export function resolveInteraction<P extends PickupSpot>(
     }
   }
 
-  // The bush stands at the spawn Citgo, so it is there before the truck
-  // leaves and after a strike brings you back.
-  if (input.bush && near(input.bush, player, CONFIG.daily.reach)) {
+  // The bush and Gron stand at the spawn Citgo, so they are there before
+  // the truck leaves and after a strike brings you back. They stand a few
+  // strides apart, so both can be in reach; the nearer one answers.
+  const dist = (spot: XZ | null) =>
+    spot ? Math.hypot(spot.x - player.x, spot.z - player.z) : Infinity
+  const toBush = dist(input.bush)
+  const toGron = dist(input.gron)
+  if (toGron < CONFIG.gron.reach && toGron <= toBush) return { kind: 'talk' }
+  if (toBush < CONFIG.daily.reach) {
     return { kind: 'collect', status: input.daily }
   }
 
@@ -132,41 +144,51 @@ export function pickupLabel({
   kind,
   count,
 }: Pick<PickupSpot, 'kind' | 'count'>): string {
-  if (kind === 'cabbage') return 'Cabbage'
-  return `${itemById(kind)?.label ?? kind} ×${count}`
+  if (kind === 'cabbage') return copy('prompts.cabbage')
+  return copy('prompts.pickup_count', {
+    item: itemById(kind)?.label ?? kind,
+    count,
+  })
 }
 
 export function interactionPrompt(interaction: Interaction): string {
   switch (interaction.kind) {
     case 'hopOut':
-      return 'E — Hop Out'
+      return copy('prompts.hop_out')
     case 'board':
-      return 'E — Climb into the Bed'
+      return copy('prompts.board')
     case 'boardExtract':
-      return 'E — Board (End the Raid)'
+      return copy('prompts.board_extract')
     case 'unload':
-      return `E — Unload ${interaction.count} ${interaction.count === 1 ? 'Cabbage' : 'Cabbages'}`
+      return interaction.count === 1
+        ? copy('prompts.unload_one')
+        : copy('prompts.unload_many', { count: interaction.count })
     case 'extractFuel':
-      return `E — End the Raid at ${interaction.name || 'the Station'}`
+      return interaction.name
+        ? copy('prompts.extract_at', { station: interaction.name })
+        : copy('prompts.extract_station')
     case 'extractKeep':
-      return "E — End the Raid at Mt. Coleman's Keep"
+      return copy('prompts.extract_keep', { keep: KEEP })
     case 'pickup':
-      return `E — Take ${pickupLabel(interaction.pickup)}`
+      return copy('prompts.take', { item: pickupLabel(interaction.pickup) })
     case 'buy': {
       const label = itemById(interaction.item)?.label ?? interaction.item
       const price = formatCash(interaction.price)
       return interaction.affordable
-        ? `E — Buy ${label} for ${price}`
-        : `${label} — ${price} (Not Enough Cash)`
+        ? copy('prompts.buy', { item: label, price })
+        : copy('prompts.buy_short', { item: label, price })
     }
     case 'collect':
       switch (interaction.status) {
         case 'ready':
-          return 'E — Pick a Berry'
+          return copy('prompts.berry_ready')
         case 'picked':
-          return 'Berry Bush — Picked Clean Until Midnight'
+          return copy('prompts.berry_picked')
         case 'offline':
-          return 'Berry Bush — No Signal'
+          return copy('prompts.berry_offline')
       }
+      break
+    case 'talk':
+      return copy('prompts.talk')
   }
 }

@@ -28,6 +28,7 @@ export interface LinkedProvider {
 }
 
 export type SetUsernameResult = 'ok' | 'taken' | 'already-set' | 'missing'
+export type RenameResult = 'ok' | 'taken' | 'missing'
 export type LinkResult = 'ok' | 'already-linked' | 'linked-elsewhere'
 export type UnlinkResult = 'ok' | 'last-provider' | 'not-linked'
 
@@ -46,6 +47,10 @@ export interface AccountStore {
   providersOf(accountId: string): Promise<LinkedProvider[]>
   // Set once; `taken` is case-insensitive.
   setUsername(accountId: string, username: string): Promise<SetUsernameResult>
+  // A new username for an account that has one (Gron). `taken` is
+  // case-insensitive and never the account's own name, so a raider can
+  // change only the case of theirs.
+  renameUsername(accountId: string, username: string): Promise<RenameResult>
   usernameAvailable(username: string): Promise<boolean>
   linkProvider(provider: LinkedProvider): Promise<LinkResult>
   // Refuses to leave an account with no way to sign in. Unlinking the
@@ -108,6 +113,14 @@ export class MemoryAccountStore implements AccountStore {
     return Promise.resolve('ok')
   }
 
+  renameUsername(accountId: string, username: string): Promise<RenameResult> {
+    const account = this.accounts.get(accountId)
+    if (!account) return Promise.resolve('missing')
+    if (this.taken(username, accountId)) return Promise.resolve('taken')
+    account.username = username
+    return Promise.resolve('ok')
+  }
+
   usernameAvailable(username: string): Promise<boolean> {
     return Promise.resolve(!this.taken(username))
   }
@@ -142,9 +155,11 @@ export class MemoryAccountStore implements AccountStore {
     return 'ok'
   }
 
-  private taken(username: string): boolean {
+  // Whether another account holds the name; `except` is never counted.
+  private taken(username: string, except?: string): boolean {
     const want = username.toLowerCase()
     for (const account of this.accounts.values()) {
+      if (account.accountId === except) continue
       if (account.username?.toLowerCase() === want) return true
     }
     return false

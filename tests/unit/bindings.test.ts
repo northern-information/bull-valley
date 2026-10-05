@@ -8,6 +8,7 @@ import {
   PACK,
   WORLD,
 } from '../../src/bindings.ts'
+import { copy } from '../../src/copy.ts'
 import type { Binding } from '../../src/bindings.ts'
 
 const tables: [string, Record<string, Binding>][] = [
@@ -17,9 +18,9 @@ const tables: [string, Record<string, Binding>][] = [
 
 describe.each(tables)('%s', (_name, table) => {
   it('shows a key and a label for every binding', () => {
-    for (const { key, label } of Object.values(table)) {
+    for (const { key, labelKey } of Object.values(table)) {
       expect(key).not.toBe('')
-      expect(label).not.toBe('')
+      expect(copy(labelKey)).not.toBe('')
     }
   })
 

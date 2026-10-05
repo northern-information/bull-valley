@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { copy } from '../../src/copy.ts'
 import {
   ADDONS,
   BODY_SLOTS,
@@ -9,7 +10,7 @@ import {
 import { JOINTS } from '../../src/poses.ts'
 
 describe('outfits', () => {
-  it('has the ten characters', () => {
+  it('has the eleven characters', () => {
     expect(OUTFIT_IDS).toEqual([
       'marx',
       'player',
@@ -21,12 +22,21 @@ describe('outfits', () => {
       'halatek',
       'jdogg',
       'carlsten',
+      'gron',
     ])
+  })
+
+  it('dresses Gron bald and hunched in a brown cloak', () => {
+    const gron = OUTFITS.gron
+    expect(gron.label).toBe(copy('outfits.gron'))
+    expect(gron.shaved).toBe(true)
+    expect(gron.addons).toEqual(['hood-down', 'hump', 'cloak-hem'])
+    expect(gron.colors.coat).toBe(gron.colors.shirt)
   })
 
   it('dresses Chris Halatek in the oversized NIN hoodie', () => {
     const chris = OUTFITS.halatek
-    expect(chris.label).toBe('Chris Halatek')
+    expect(chris.label).toBe(copy('outfits.halatek'))
     expect(chris.addons).toEqual(
       expect.arrayContaining([
         'dreadlocks',
@@ -49,7 +59,7 @@ describe('outfits', () => {
 
   it('dresses Jdogg in a Baja hoodie and a beard that never filled in', () => {
     const jdogg = OUTFITS.jdogg
-    expect(jdogg.label).toBe('Jdogg')
+    expect(jdogg.label).toBe(copy('outfits.jdogg'))
     expect(jdogg.addons).toEqual(
       expect.arrayContaining([
         'long-hair',
@@ -68,7 +78,7 @@ describe('outfits', () => {
 
   it('dresses David Carlsten for the counter', () => {
     const clerk = OUTFITS.carlsten
-    expect(clerk.label).toBe('David Carlsten')
+    expect(clerk.label).toBe(copy('outfits.carlsten'))
     expect(clerk.addons).toEqual(
       expect.arrayContaining([
         'long-hair',

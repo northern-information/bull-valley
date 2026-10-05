@@ -25,6 +25,9 @@
 //    remembers only the accounts that have had today's berry. Two sockets
 //    signed in to one account share one berry; the name shown is only the
 //    account's handle.
+// 10. Gron, by the berry bush, changes a raider's name and character at any
+//    time. The change touches only how they are shown: their place in the
+//    raid, their berry and their whistle stay theirs.
 
 import { CONFIG } from './config.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
@@ -100,6 +103,8 @@ export type ValleyAction =
   | { type: 'call'; id: string; from: XZ; to: XZ }
   | { type: 'extract'; id: string; kind: ExtractKind }
   | { type: 'collect'; id: string }
+  // Rule 10: a new name, a new character, or both.
+  | { type: 'appearance'; id: string; name?: string; outfit?: OutfitId }
   // The lobby clock ran out.
   | { type: 'clock' }
   | { type: 'hurry'; seconds: number }
@@ -572,6 +577,20 @@ export function reduce(
         broadcast: [frame(next, 'hurry')],
         alarm: loadoutEndsAt,
       }
+    }
+
+    case 'appearance': {
+      // Rule 10. The raid frames carry no outfit, and the names in them are
+      // read only for who is boarded, so the change goes out to the others
+      // as a peer-updated frame (ValleyDO), not as a raid frame.
+      const member = valley.members[action.id]
+      if (!member) return { valley, broadcast: [] }
+      const next = withMember(valley, {
+        ...member,
+        name: action.name ?? member.name,
+        outfit: action.outfit ?? member.outfit,
+      })
+      return { valley: next, broadcast: [] }
     }
 
     case 'reset': {

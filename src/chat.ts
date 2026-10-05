@@ -2,6 +2,8 @@
 // the lines come from the valley's chat frames (or the player's own, when
 // offline) and hud.ts draws them. Nothing is kept past the page.
 
+import { copy } from './copy.ts'
+
 // A line someone said, or a line the game says to the player alone.
 export interface ChatLine {
   kind: 'say' | 'system'
@@ -17,8 +19,8 @@ export const CHAT_LINES = 50
 export const CHAT_FADE_MS = 10_000
 
 export const CHAT_COPY = {
-  tooFast: 'You are speaking too fast.',
-  offline: 'No one can hear you.',
+  tooFast: copy('chat.too_fast'),
+  offline: copy('chat.offline'),
 } as const
 
 // The log with one more line, keeping the newest CHAT_LINES.

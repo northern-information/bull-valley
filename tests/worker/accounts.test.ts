@@ -62,6 +62,20 @@ export function storeContract(makeStore: () => AccountStore): void {
     })
   })
 
+  it('renames to any free name, its own in another case included', async () => {
+    const store = makeStore()
+    await store.create(account('a1', 'github:1'), linked('a1', 'github', '1'))
+    await store.create(account('a2', 'github:2'), linked('a2', 'github', '2'))
+    await store.setUsername('a1', 'Dave')
+    await store.setUsername('a2', 'Other')
+    expect(await store.renameUsername('a1', 'OTHER')).toBe('taken')
+    expect(await store.renameUsername('a1', 'DAVE')).toBe('ok')
+    expect((await store.get('a1'))?.username).toBe('DAVE')
+    expect(await store.renameUsername('a1', 'Gron_Made')).toBe('ok')
+    expect(await store.usernameAvailable('dave')).toBe(true)
+    expect(await store.renameUsername('nobody', 'Who')).toBe('missing')
+  })
+
   it('sets a username once, unique whatever the case', async () => {
     const store = makeStore()
     await store.create(account('a1', 'github:1'), linked('a1', 'github', '1'))

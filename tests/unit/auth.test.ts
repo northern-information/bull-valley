@@ -4,11 +4,13 @@ import {
   fetchMe,
   fetchProviders,
   refreshSession,
+  renameUsername,
   setUsername,
   signOut,
   unlinkProvider,
   usernameAvailable,
 } from '../../src/auth.ts'
+import { copy } from '../../src/copy.ts'
 
 interface Seen {
   url: string
@@ -80,7 +82,7 @@ describe('confirmSignup', () => {
     )
     expect(await confirmSignup(down)).toEqual({
       ok: false,
-      error: 'The valley cannot be reached',
+      error: copy('auth.unreachable'),
     })
   })
 
@@ -88,6 +90,26 @@ describe('confirmSignup', () => {
     expect(
       await confirmSignup(answer(429, { error: 'Too many tries.' }).impl)
     ).toEqual({ ok: false, limited: true, error: 'Too many tries.' })
+  })
+})
+
+describe('renameUsername', () => {
+  it('puts the new name, and tells taken and limited apart', async () => {
+    const { impl, seen } = answer(200, { username: 'Gron_Made' })
+    expect(await renameUsername('Gron_Made', impl)).toEqual({ ok: true })
+    expect(seen[0]).toMatchObject({ url: '/auth/username' })
+    expect(seen[0].init?.method).toBe('PUT')
+    expect(seen[0].init?.body).toBe('{"username":"Gron_Made"}')
+    expect(
+      await renameUsername('x', answer(409, { error: 'Taken' }).impl)
+    ).toEqual({ ok: false, taken: true, error: 'Taken' })
+    expect(
+      await renameUsername('x', answer(429, { error: 'Slow' }).impl)
+    ).toEqual({ ok: false, limited: true, error: 'Slow' })
+    expect(
+      await renameUsername('x', answer(400, { error: 'Bad' }).impl)
+    ).toEqual({ ok: false, limited: false, error: 'Bad' })
+    expect(await renameUsername('x', down)).toMatchObject({ ok: false })
   })
 })
 
@@ -101,7 +123,7 @@ describe('setUsername', () => {
     ).toEqual({ ok: false, taken: true, error: 'Taken' })
     expect(await setUsername('Dave', answer(400, 'not json').impl)).toEqual({
       ok: false,
-      error: 'That username could not be set',
+      error: copy('auth.username_failed'),
     })
     expect(await setUsername('Dave', down)).toMatchObject({ ok: false })
   })
@@ -135,7 +157,7 @@ describe('unlinkProvider', () => {
     ).toEqual({ ok: false, error: 'Last one' })
     expect(await unlinkProvider('github', down)).toEqual({
       ok: false,
-      error: 'The valley cannot be reached',
+      error: copy('auth.unreachable'),
     })
   })
 })

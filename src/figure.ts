@@ -13,6 +13,7 @@ import {
   buildBat,
   buildBook,
   buildGuitar,
+  buildRaincloud,
   castShadows,
   lambert,
   makeGlowSprite,
@@ -20,7 +21,7 @@ import {
 } from './assets.ts'
 import { paintPrints } from './decalart.ts'
 import { ADDONS, outfitById } from './outfits.ts'
-import { JOINTS } from './poses.ts'
+import { JOINTS, samplePose } from './poses.ts'
 import type { Guitar } from './assets.ts'
 import type { Vec3 } from './interfaces.ts'
 import type {
@@ -677,4 +678,32 @@ export function attachCigarette(figure: Figure): CigaretteRig {
       }
     },
   }
+}
+
+// Gron as he stands by the berry bush: hunched, under his raincloud. The
+// cloud sits beside the figure, not on it, so the ring that marks him as
+// the one E talks to (glow.ts) goes round his body alone. Call update(t)
+// every frame with a running time, for the rain.
+export interface GronRig {
+  group: THREE.Group
+  figure: Figure
+  update(t: number): void
+}
+
+// The cloud's underside, metres above the ground he stands on: clear of
+// his stooped head, low enough to read as his. The stoop carries his head
+// forward of his feet, so the cloud rides forward with it.
+export const GRON_CLOUD_HEIGHT = 2.4
+const GRON_CLOUD_FORWARD = 0.3
+
+export function buildGron(): GronRig {
+  const group = new THREE.Group()
+  group.name = 'gron'
+  const figure = buildFigure('gron')
+  applyPose(figure, samplePose('hunch'))
+  group.add(figure.group)
+  const cloud = buildRaincloud(GRON_CLOUD_HEIGHT)
+  cloud.group.position.set(0, GRON_CLOUD_HEIGHT, GRON_CLOUD_FORWARD)
+  group.add(cloud.group)
+  return { group, figure, update: (t) => cloud.update(t) }
 }

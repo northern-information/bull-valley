@@ -9,12 +9,14 @@
 // limiter itself is the bindings, failing open: a limiter that errors lets
 // the request through rather than locking every raider out.
 
+import { copy } from '../src/copy.ts'
+
 export type Tier = 'strict' | 'loose'
 
 // True when the request is within its limit.
 export type Limiter = (tier: Tier, key: string) => Promise<boolean>
 
-export const LIMITED_MESSAGE = 'Too many tries. Wait a minute and try again.'
+export const LIMITED_MESSAGE = copy('auth.limited')
 
 // Seconds a limited client is told to wait: the bindings' period.
 export const RETRY_AFTER_SECONDS = 60
@@ -34,7 +36,10 @@ export function tierFor(method: string, parts: readonly string[]): Tier | null {
   if (first === 'dev') return null
   if (parts.length === 1) {
     if (method === 'POST' && first === 'confirm-signup') return 'strict'
-    if (method === 'POST' && first === 'username') return 'strict'
+    // Choosing a username, and changing it at Gron.
+    if ((method === 'POST' || method === 'PUT') && first === 'username') {
+      return 'strict'
+    }
     if (method === 'POST' && first === 'refresh') return 'loose'
     return null
   }

@@ -7,13 +7,15 @@ import { BvAudio } from './audio.ts'
 import { fetchMe, refreshSession, signOut } from './auth.ts'
 import { actionOf, cycleStep, PACK, WORLD } from './bindings.ts'
 import { ringItems, stepIndex, syncIndex } from './carousel.ts'
-import { loadCharacter } from './characters.ts'
+import { loadCharacter, saveCharacter } from './characters.ts'
 import { mountCharacterSelect } from './characterselect.ts'
 import { CHAT_COPY } from './chat.ts'
 import { CONFIG } from './config.ts'
 import { unitToWorld } from './coords.ts'
-import { finishById, loadFinish } from './finishes.ts'
+import { copy } from './copy.ts'
+import { finishById, loadFinish, saveFinish } from './finishes.ts'
 import { createGlow } from './glow.ts'
+import { openGronDialog } from './grondialog.ts'
 import { Hud } from './hud.ts'
 import {
   interactionPrompt,
@@ -133,7 +135,7 @@ type Titles = CharacterPick & { username: string; notice: string | null }
 // has seen them already.
 async function showTitles(audio: BvAudio): Promise<Titles> {
   const { pathname, search, hash } = window.location
-  const returned = authReturnOf(search)
+  const returned = authReturnOf(search, copy('auth.sign_in_failed'))
   if (returned) {
     history.replaceState(null, '', pathname + stripAuthQuery(search) + hash)
   }
@@ -144,7 +146,7 @@ async function showTitles(audio: BvAudio): Promise<Titles> {
   const noticeFor = (signedIn: boolean): string | null => {
     if (!returned || !signedIn) return null
     if ('error' in returned) return returned.error
-    return returned.auth === 'linked' ? 'Linked.' : null
+    return returned.auth === 'linked' ? copy('panel.linked_ok') : null
   }
   if (skip) {
     const known = await me
@@ -369,6 +371,11 @@ async function boot() {
     scene,
     window.matchMedia('(prefers-reduced-motion: reduce)').matches
   )
+  // Gron's rain falls on its own clock; under prefers-reduced-motion it
+  // hangs still under the cloud.
+  const rainStill = window.matchMedia(
+    '(prefers-reduced-motion: reduce)'
+  ).matches
 
   // --- The valley server -------------------------------------------------
   // Everyone online shares one valley. The socket is same-origin and the
@@ -383,7 +390,7 @@ async function boot() {
   // A lost session is not a lost signal: send the raider back to sign in.
   net.onRefused((code) => {
     if (code !== CLOSE.unauthenticated) return
-    hud.toast('Signed out. Sign in again to raid.')
+    hud.toast(copy('toasts.signed_out'))
     setTimeout(() => window.location.reload(), CONFIG.net.signedOutReloadMs)
   })
   net.on((msg) => {
@@ -394,15 +401,27 @@ async function boot() {
         const n = msg.peers.length
         if (n > 0) {
           hud.toast(
-            n === 1 ? 'One other in the valley.' : `${n} others in the valley.`
+            n === 1
+              ? copy('toasts.welcome_one')
+              : copy('toasts.welcome_many', { count: n })
           )
         }
         return
       }
       case 'peer-joined':
         peers.joined(msg.peer, now)
-        hud.toast(`${msg.peer.name} is in the valley.`)
+        hud.toast(copy('toasts.peer_joined', { name: msg.peer.name }))
         return
+      case 'peer-updated': {
+        // Our own comes back too; the dialog has said so already.
+        if (msg.peer.id === net.id) return
+        const was = peers.table.get(msg.peer.id)?.name
+        peers.updated(msg.peer)
+        if (was && was !== msg.peer.name) {
+          hud.toast(copy('toasts.peer_renamed', { was, name: msg.peer.name }))
+        }
+        return
+      }
       case 'peer-state': {
         const { x, y, z, yaw, pose, riding } = msg
         peers.state(msg.id, { x, y, z, yaw, pose, riding }, now)
@@ -411,7 +430,7 @@ async function boot() {
       case 'peer-left': {
         const name = peers.table.get(msg.id)?.name
         peers.left(msg.id)
-        if (name) hud.toast(`${name} is gone.`)
+        if (name) hud.toast(copy('toasts.peer_left', { name }))
         return
       }
       case 'chat':
@@ -430,7 +449,7 @@ async function boot() {
       wasOnline = true
     } else if (status === 'offline') {
       peers.clear()
-      if (wasOnline) hud.toast('Signal lost. The valley goes quiet.')
+      if (wasOnline) hud.toast(copy('toasts.signal_lost'))
     }
   })
   // Not awaited: the game never waits on the network.
@@ -472,6 +491,9 @@ async function boot() {
   let greeted = false
   let ended = false
   let inventoryOpen = false
+  // Gron's dialog is open: the pointer is free for it, and the game's keys,
+  // mouse look and pause screen stand aside until it closes.
+  let talking = false
   // What E would do right now; resolved every frame in the loop.
   let interaction: Interaction<Pickup> | null = null
   // The last state frame sent to the valley, and time since.
@@ -493,7 +515,7 @@ async function boot() {
   let pendingCollect = false
   const ridingForward = new THREE.Vector3(0, 0, -1)
 
-  player.onEdge = () => hud.toast('The valley ends here.')
+  player.onEdge = () => hud.toast(copy('toasts.edge'))
 
   // Rebuild the ring after anything that changes what you carry, keeping
   // the selection on the same kind.
@@ -515,10 +537,11 @@ async function boot() {
   }
 
   const truckStatus = () => {
-    if (raid.state === STATES.LOADOUT) return `Leaves in ${lobbyLine()}`
-    if (raid.state === STATES.RIDING) return 'Riding the bed'
-    if (raid.truckCalled) return 'On its way'
-    return shared?.call ? 'On a call' : 'Gone'
+    if (raid.state === STATES.LOADOUT)
+      return copy('truck.leaves', { time: lobbyLine() })
+    if (raid.state === STATES.RIDING) return copy('truck.riding')
+    if (raid.truckCalled) return copy('truck.called')
+    return shared?.call ? copy('truck.on_call') : copy('truck.gone')
   }
 
   // Which bed seat is ours: by boarding order in the lobby, by the
@@ -582,7 +605,7 @@ async function boot() {
       if (aboard || raid.state !== STATES.LOADOUT) return
       aboard = true
       net.send({ type: 'board' })
-      hud.toast('You climb into the bed.')
+      hud.toast(copy('toasts.board'))
       closeInventory()
       return
     }
@@ -590,8 +613,8 @@ async function boot() {
     if (next === raid) return
     raid = next
     truckLeaves()
-    hud.toast('You climb into the bed.')
-    onTruckRolls = ['Marx pulls out.', 'E hops out. Anywhere you like.']
+    hud.toast(copy('toasts.board'))
+    onTruckRolls = [copy('toasts.truck_leaves'), copy('toasts.hop_out_hint')]
     closeInventory()
   }
 
@@ -624,20 +647,20 @@ async function boot() {
     closeInventory()
     player.keys.clear()
     player.relocate(world.spawn.x, world.spawn.z, world.spawn.yaw)
-    hud.toast('You are somewhere else. Time is missing.')
+    hud.toast(copy('toasts.struck'))
   }
 
   const callTruck = () => {
     if (raid.state !== STATES.ON_FOOT || raid.truckCalled) return
     if (shared?.call) {
-      hud.toast('Marx is already on a call.')
+      hud.toast(copy('toasts.truck_busy'))
       return
     }
     const from = nearestRoadPoint(graph, truck.x, truck.z)
     const to = nearestRoadPoint(graph, player.pos.x, player.pos.z)
     const route = from && to ? planRoute(graph, from, to) : null
     if (!from || !to || !route || route.length < 2) {
-      hud.toast('You whistle into the dark. Nothing turns over.')
+      hud.toast(copy('toasts.whistle_nothing'))
       return
     }
     if (shared) {
@@ -651,7 +674,7 @@ async function boot() {
     }
     raid = advance(raid, EVENTS.CALL_TRUCK, raidClock)
     truck.driveRoute(route)
-    hud.toast('You whistle into the dark. An engine turns over, far off.')
+    hud.toast(copy('toasts.whistle'))
   }
 
   // The buyer's side of a sale, once the unit is ours.
@@ -711,11 +734,11 @@ async function boot() {
   // E at the bush: ask the valley for today's berry, or say why not.
   const collectBerry = (status: DailyStatus) => {
     if (status === 'offline') {
-      hud.toast('No signal. The bush keeps its berries.')
+      hud.toast(copy('toasts.berry_offline'))
       return
     }
     if (status === 'picked') {
-      hud.toast('Picked clean. The bush fills again at midnight.')
+      hud.toast(copy('toasts.berry_picked'))
       return
     }
     if (pendingCollect) return
@@ -728,7 +751,7 @@ async function boot() {
     pendingCollect = false
     daily = msg.daily
     if (!msg.picked) {
-      hud.toast('Picked clean. The bush fills again at midnight.')
+      hud.toast(copy('toasts.berry_picked'))
       return
     }
     inventory = addItem(inventory, 'berries', 1)
@@ -786,6 +809,8 @@ async function boot() {
         )
       case 'collect':
         return action.status === 'ready' ? world.bushObject : null
+      case 'talk':
+        return world.gronRig?.figure.group ?? null
       default:
         return null
     }
@@ -815,7 +840,7 @@ async function boot() {
     }
     started = true
     hud.showIntro(false)
-    if (!inventoryOpen) hud.prompt('Click to Resume')
+    if (!inventoryOpen) hud.prompt(copy('hud.resume'))
   }
   const engagePointer = () => {
     try {
@@ -851,15 +876,17 @@ async function boot() {
       hud.showIntro(false)
       if (!greeted) {
         greeted = true
-        hud.toast('Matthew Marx keeps the engine running.')
+        hud.toast(copy('toasts.greeting'))
       }
-    } else if (started && !ended && !inventoryOpen) {
+    } else if (started && !ended && !inventoryOpen && !talking) {
       hud.showIntro(true, true)
     }
   })
   window.addEventListener('blur', () => player.keys.clear())
   document.addEventListener('mousemove', (e) => {
-    if (!inventoryOpen) player.handleMouse(e.movementX, e.movementY)
+    if (!inventoryOpen && !talking) {
+      player.handleMouse(e.movementX, e.movementY)
+    }
   })
 
   // kind: a cigarette id, 'joints', or 'smoke' for the selected cigarette.
@@ -869,7 +896,7 @@ async function boot() {
         ? cigaretteToSmoke(inventory, selectedCigarette)
         : choice
     if (!kind) {
-      hud.toast('No cigarettes left.')
+      hud.toast(copy('toasts.no_cigarettes'))
       return
     }
     const item = itemById(kind)
@@ -899,19 +926,19 @@ async function boot() {
     if (pickup.kind === 'cabbage') {
       const next = advance(raid, EVENTS.PICK_CABBAGE, raidClock)
       if (next === raid) {
-        hud.toast('Your arms are full.')
+        hud.toast(copy('toasts.arms_full'))
         return
       }
       raid = next
       pickup.taken = true
       pickup.mesh.visible = false
-      hud.toast('Taken: Cabbage')
+      hud.toast(copy('toasts.taken', { item: copy('prompts.cabbage') }))
     } else {
       pickup.taken = true
       pickup.mesh.visible = false
       inventory = addItem(inventory, pickup.kind, pickup.count)
       saveInventory(window.localStorage, inventory)
-      hud.toast(`Taken: ${pickupLabel(pickup)}`)
+      hud.toast(copy('toasts.taken', { item: pickupLabel(pickup) }))
     }
     interaction = null
     hud.prompt(null)
@@ -936,7 +963,7 @@ async function boot() {
       pickup.kind === 'cabbage' &&
       advance(raid, EVENTS.PICK_CABBAGE, raidClock) === raid
     ) {
-      hud.toast('Your arms are full.')
+      hud.toast(copy('toasts.arms_full'))
       return
     }
     pendingTakes.add(index)
@@ -1002,11 +1029,14 @@ async function boot() {
           raidClock
         )
         if (rider) {
-          onTruckRolls = ['Marx pulls out.', 'E hops out. Anywhere you like.']
+          onTruckRolls = [
+            copy('toasts.truck_leaves'),
+            copy('toasts.hop_out_hint'),
+          ]
         } else if (reason === 'depart') {
-          onTruckRolls = ['Taillights. The truck leaves without you.']
+          onTruckRolls = [copy('toasts.left_behind')]
         } else {
-          hud.toast('The truck is long gone. You are on foot.')
+          hud.toast(copy('toasts.long_gone'))
         }
         refreshRing()
       }
@@ -1025,16 +1055,16 @@ async function boot() {
       truck.driveRouteAt(route, net.clock.toLocalMs(call.at))
       if (call.by === me) {
         raid = advance(raid, EVENTS.CALL_TRUCK, raidClock)
-        hud.toast('You whistle into the dark. An engine turns over, far off.')
+        hud.toast(copy('toasts.whistle'))
       } else {
-        hud.toast('Far off, an engine turns over. Someone whistled.')
+        hud.toast(copy('toasts.whistle_other'))
       }
     }
 
     if (reason === 'extracted' && by && by !== me) {
       const name = peers.table.get(by)?.name
       peers.left(by)
-      if (name) hud.toast(`${name} made it out.`)
+      if (name) hud.toast(copy('toasts.peer_extracted', { name }))
     }
   }
 
@@ -1045,19 +1075,21 @@ async function boot() {
         const pickup = world.pickups[msg.index]
         if (pickup) markTaken(pickup)
       }
-      hud.toast('Someone got there first.')
+      hud.toast(copy('toasts.taken_first'))
     } else if (msg.re === 'buy') {
       if (msg.station !== undefined && msg.item) {
         pendingBuys.delete(`${msg.station}:${msg.item}`)
       }
       hud.toast(
-        msg.reason === 'sold-out' ? 'Sold out.' : 'The clerk shakes his head.'
+        msg.reason === 'sold-out'
+          ? copy('toasts.sold_out')
+          : copy('toasts.refused')
       )
     } else if (msg.re === 'call') {
-      hud.toast('Marx is already on a call.')
+      hud.toast(copy('toasts.truck_busy'))
     } else if (msg.re === 'collect') {
       pendingCollect = false
-      hud.toast('The bush gives you nothing.')
+      hud.toast(copy('toasts.berry_refused'))
     } else if (msg.re === 'chat') {
       hud.chatLine(
         { kind: 'system', text: CHAT_COPY.tooFast },
@@ -1091,14 +1123,45 @@ async function boot() {
     }
   })
 
+  // Gron's dialog: the pointer comes free for it and the game stands aside
+  // (talking). He changes the name the valley knows and the body worn. The
+  // raid clock does not stop for him.
+  const talkToGron = () => {
+    if (talking) return
+    talking = true
+    player.keys.clear()
+    if (document.pointerLockElement) document.exitPointerLock()
+    void openGronDialog({
+      username: pick.username,
+      outfit: pick.outfit,
+      finish: loadFinish(window.localStorage),
+      onRenamed: (name) => {
+        pick.username = name
+        net.send({ type: 'rename' })
+      },
+      onBecome: (outfit, finish) => {
+        saveCharacter(window.localStorage, outfit)
+        saveFinish(window.localStorage, finish)
+        playerBody.restyle(outfit, finishById(finish).color)
+        pick.outfit = outfit
+        // A reconnect says hello in the new body too.
+        net.setOutfit(outfit)
+        net.send({ type: 'appearance', outfit })
+      },
+    }).then(() => {
+      talking = false
+      engagePointer()
+    })
+  }
+
   const interact = () => {
     // The raid state is live; the interaction is from the last frame.
     if (aboard) {
-      hopOut('Boots on gravel. Marx waits.')
+      hopOut(copy('toasts.hop_out_wait'))
       return
     }
     if (raid.state === STATES.RIDING) {
-      hopOut('Boots on gravel. The truck rolls on.')
+      hopOut(copy('toasts.hop_out_moving'))
       return
     }
     switch (interaction?.kind) {
@@ -1113,7 +1176,9 @@ async function boot() {
         const count = raid.carrying
         raid = advance(raid, EVENTS.DELIVER, raidClock)
         hud.toast(
-          `The stand takes your ${count === 1 ? 'cabbage' : `${count} cabbages`}. Somewhere, gratitude.`
+          count === 1
+            ? copy('toasts.unload_one')
+            : copy('toasts.unload_many', { count })
         )
         return
       }
@@ -1133,6 +1198,9 @@ async function boot() {
         return
       case 'collect':
         collectBerry(interaction.status)
+        return
+      case 'talk':
+        talkToGron()
         return
     }
   }
@@ -1179,7 +1247,7 @@ async function boot() {
   // In the valley the keys are WORLD in bindings.ts; the movement keys go
   // to the player as held state.
   document.addEventListener('keydown', (e) => {
-    if (!player.locked || ended) return
+    if (!player.locked || ended || talking) return
     // While typing, every key belongs to the field; Enter sends.
     if (hud.chatOpen) {
       if (e.code === 'Tab') e.preventDefault()
@@ -1278,7 +1346,7 @@ async function boot() {
     ) {
       raid = advance(raid, EVENTS.TIMER_EXPIRED, raidClock)
       truckLeaves()
-      onTruckRolls = ['Taillights. The truck leaves without you.']
+      onTruckRolls = [copy('toasts.left_behind')]
     }
 
     let forward = ridingForward
@@ -1306,7 +1374,7 @@ async function boot() {
         crouching: false,
       })
       if (truckState.done && raid.state === STATES.RIDING) {
-        hopOut('End of the line. Marx lights a cigarette.')
+        hopOut(copy('toasts.end_of_line'))
       }
     } else {
       const playerState = player.update(dt, {
@@ -1347,6 +1415,7 @@ async function boot() {
     })
     if (swarm.struck) strike()
     mist.update({ dt, player: player.pos })
+    world.gronRig?.update(rainStill ? 0.37 : time)
     if (now < strikeUntil) hud.drawStatic()
     else if (!hud.staticWrap.hidden) hud.showStatic(false)
 
@@ -1375,10 +1444,20 @@ async function boot() {
     hud.setCountdown(raid.state === STATES.LOADOUT ? lobbyLine() : null)
 
     const timers: string[] = []
-    if (smoking) timers.push(`Smoking ${Math.ceil(smokingUntil - time)}s`)
-    else if (ember) timers.push(`Ember ${Math.ceil(emberUntil - time)}s`)
+    if (smoking)
+      timers.push(
+        copy('timers.smoking', { seconds: Math.ceil(smokingUntil - time) })
+      )
+    else if (ember)
+      timers.push(
+        copy('timers.ember', { seconds: Math.ceil(emberUntil - time) })
+      )
     if (perception)
-      timers.push(`Perception ${Math.ceil(perceptionUntil - time)}s`)
+      timers.push(
+        copy('timers.perception', {
+          seconds: Math.ceil(perceptionUntil - time),
+        })
+      )
     hud.setTimers(timers)
     hud.tickChat(performance.now())
 
@@ -1425,6 +1504,7 @@ async function boot() {
           insideStore: inStore >= 0,
           bush: world.bush,
           daily: dailyStatus(),
+          gron: world.gron,
         })
     const prompt = interaction ? interactionPrompt(interaction) : null
     glow.setTarget(glowTarget(interaction))
@@ -1435,7 +1515,7 @@ async function boot() {
     } else if (started && !ended && !hud.introShown) {
       // Lock refused with the pause card down: the view itself is the way
       // back. While the card shows, its own button says it.
-      hud.prompt('Click to Resume')
+      hud.prompt(copy('hud.resume'))
     } else {
       hud.prompt(null)
     }
@@ -1451,10 +1531,13 @@ async function boot() {
       })
       inventoryView.update(dt, ring, ringIndex)
       renderer.render(inventoryView.scene, inventoryView.camera)
-    } else {
+    } else if (!talking) {
       renderer.render(scene, camera)
       if (player.locked && !ended) glow.render(scene, camera, time)
     }
+    // While Gron talks, his dialog covers the view and draws its own
+    // turntable; the valley runs on behind it undrawn, holding its last
+    // frame, so the page is not drawing two scenes at once.
   })
 
   if (import.meta.env.DEV) {

@@ -3,6 +3,7 @@ import {
   applyJoined,
   applyLeft,
   applyState,
+  applyUpdated,
   applyWelcome,
   createPeerTable,
   peerContacts,
@@ -55,6 +56,24 @@ describe('peer table', () => {
     expect(a?.next?.x).toBe(3)
     expect(applyLeft(peers, 'a')).toBe(true)
     expect(applyLeft(peers, 'a')).toBe(false)
+  })
+
+  it('takes a new name and character from Gron, keeping where they are', () => {
+    const peers = createPeerTable()
+    applyJoined(peers, wire('a', false), 0)
+    applyState(peers, 'a', at(1, 1), 100)
+    applyState(peers, 'a', at(2, 2), 200)
+    const updated = applyUpdated(peers, {
+      id: 'a',
+      name: 'Renamed',
+      outfit: 'church',
+      at: null,
+    })
+    expect(updated).toMatchObject({ name: 'Renamed', outfit: 'church' })
+    expect(peers.get('a')?.prev?.x).toBe(1)
+    expect(peers.get('a')?.next?.x).toBe(2)
+    expect(applyUpdated(peers, wire('nobody'))).toBeNull()
+    expect(peers.has('nobody')).toBe(false)
   })
 })
 

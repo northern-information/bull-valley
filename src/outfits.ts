@@ -2,6 +2,7 @@
 // body (figure.ts) by slot, adds optional parts from ADDONS, and can stretch
 // limbs with proportions. Edit characters here; the body stays the same.
 
+import { copy } from './copy.ts'
 import type { Vec3 } from './interfaces.ts'
 import type { JointName } from './poses.ts'
 
@@ -109,6 +110,8 @@ export type AddonId =
   | 'hood-down'
   | 'kangaroo-pocket'
   | 'chin-wisps'
+  | 'hump'
+  | 'cloak-hem'
 
 export type LimbGroup = 'arm' | 'leg'
 
@@ -149,6 +152,7 @@ export type OutfitId =
   | 'halatek'
   | 'jdogg'
   | 'carlsten'
+  | 'gron'
 
 // Dreadlocks hang from a ring round the back and sides of the head, leaving
 // the face clear. Angles are around the head from +X toward +Z (the face).
@@ -528,12 +532,39 @@ export const ADDONS: Record<AddonId, Addon> = {
       [0.33, 0.07, 0.085, -0.01],
     ],
   },
+  // A hunchback: a lump of cloak over the upper back, behind the torso and
+  // highest between the shoulder blades. In the spine's space, so it bends
+  // with the stoop.
+  hump: {
+    joint: 'spine',
+    slot: 'coat',
+    sides: 8,
+    rings: [
+      [0.16, 0.09, 0.05, -0.1],
+      [0.28, 0.17, 0.13, -0.17],
+      [0.4, 0.19, 0.16, -0.2],
+      [0.51, 0.16, 0.13, -0.19],
+      [0.6, 0.08, 0.06, -0.13],
+    ],
+  },
+  // A cloak's skirt, from the waist to the shins, flaring as it falls.
+  'cloak-hem': {
+    joint: 'pelvis',
+    slot: 'coat',
+    sides: 8,
+    rings: [
+      [0.06, 0.175, 0.125, 0],
+      [-0.2, 0.215, 0.155, 0],
+      [-0.5, 0.245, 0.175, -0.01],
+      [-0.74, 0.27, 0.19, -0.02],
+    ],
+  },
 }
 
 // proportions scale the length of each limb group (1 = the base body).
 export const OUTFITS: Record<OutfitId, Outfit> = {
   marx: {
-    label: 'Matthew Marx',
+    label: copy('outfits.marx'),
     colors: {
       skin: '#e9c9ad',
       hair: '#2a1f16',
@@ -555,7 +586,7 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
   // Androgynous, black on black: the bare body with no add-ons, in three
   // near-blacks that still shade apart from each other.
   player: {
-    label: 'Player',
+    label: copy('outfits.player'),
     colors: {
       skin: '#f2dccb',
       hair: '#17120f',
@@ -566,7 +597,7 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     addons: [],
   },
   shadow: {
-    label: 'Shadowman',
+    label: copy('outfits.shadow'),
     colors: {
       skin: '#07080c',
       hair: '#07080c',
@@ -580,7 +611,7 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     proportions: { arm: 1.4, leg: 1.12 },
   },
   coleman: {
-    label: 'David Coleman',
+    label: copy('outfits.coleman'),
     colors: {
       skin: '#efcfb4',
       // A buzz cut: the short hair cap, in light brown.
@@ -596,7 +627,7 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     prints: { torso: ['suicide-silence'] },
   },
   kvistad: {
-    label: 'David Kvistad',
+    label: copy('outfits.kvistad'),
     colors: {
       skin: '#efcfb4',
       hair: '#9c7a58',
@@ -614,7 +645,7 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     },
   },
   church: {
-    label: 'Kyle Church',
+    label: copy('outfits.church'),
     colors: {
       skin: '#ebc8aa',
       hair: '#3b2a1e',
@@ -630,7 +661,7 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     prints: { torso: ['guitar-strap'] },
   },
   hanson: {
-    label: 'Justin Hanson',
+    label: copy('outfits.hanson'),
     colors: {
       skin: '#f3d9c6',
       hair: '#a8442a',
@@ -657,7 +688,7 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
   // oversized black NIN hoodie with the hood down, baggy camo pants and
   // black boots.
   halatek: {
-    label: 'Chris Halatek',
+    label: copy('outfits.halatek'),
     colors: {
       skin: '#eccaae',
       hair: '#d4b26a',
@@ -686,7 +717,7 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
   // A stoner: greasy hair to the shoulders, glasses, a beard that never
   // filled in, a Baja hoodie with the hood down, and baggy jeans.
   jdogg: {
-    label: 'Jdogg',
+    label: copy('outfits.jdogg'),
     colors: {
       skin: '#ebcbb0',
       hair: '#5a4630',
@@ -713,7 +744,7 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
   },
   // The Citgo clerk, behind every counter. Not on the select roster.
   carlsten: {
-    label: 'David Carlsten',
+    label: copy('outfits.carlsten'),
     colors: {
       skin: '#eccaae',
       hair: '#4a3626',
@@ -728,6 +759,22 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     patterns: { shirt: 'plaid' },
     baggy: 1.3,
     inHand: 'bat',
+  },
+  // By the berry bush, under his own raincloud: bald, hunched, in a brown
+  // cloak with the hood down. He changes who you are. Not on the select
+  // roster.
+  gron: {
+    label: copy('outfits.gron'),
+    colors: {
+      skin: '#cbb497',
+      hair: '#cbb497',
+      shirt: '#5b3f26',
+      pants: '#4b3420',
+      boots: '#2b1f15',
+      coat: '#5b3f26',
+    },
+    addons: ['hood-down', 'hump', 'cloak-hem'],
+    shaved: true,
   },
 }
 

@@ -8,6 +8,7 @@ import type {
   AccountStore,
   LinkedProvider,
   LinkResult,
+  RenameResult,
   SetUsernameResult,
   UnlinkResult,
 } from './accounts.ts'
@@ -139,6 +140,24 @@ export class D1AccountStore implements AccountStore {
         .bind(username, accountId)
         .run()
       return result.meta.changes === 1 ? 'ok' : 'already-set'
+    } catch (err) {
+      if (isUniqueViolation(err)) return 'taken'
+      throw err
+    }
+  }
+
+  async renameUsername(
+    accountId: string,
+    username: string
+  ): Promise<RenameResult> {
+    try {
+      // The unique index compares against the other rows, so the account
+      // may change only the case of its own name.
+      const result = await this.db
+        .prepare('UPDATE accounts SET username = ? WHERE account_id = ?')
+        .bind(username, accountId)
+        .run()
+      return result.meta.changes === 1 ? 'ok' : 'missing'
     } catch (err) {
       if (isUniqueViolation(err)) return 'taken'
       throw err

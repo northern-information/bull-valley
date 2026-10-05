@@ -33,7 +33,8 @@ export const PROVIDER_COLORS: Record<Provider, string> = {
 }
 
 // A username is the account's public handle, unique across the valley
-// (case-insensitively) and set once. Narrower than a typed name
+// (case-insensitively), chosen at sign-up and changed only at Gron (PUT
+// /auth/username). Narrower than a typed name
 // (protocol.ts isValidName), since two lookalike handles would be two
 // raiders nobody could tell apart.
 export const USERNAME_MIN = 3
@@ -146,13 +147,15 @@ export function landingUrl(
 // --- The client's side of a round trip ---------------------------------------
 
 // What the page URL says about a sign-in round trip that just landed: how
-// it went, or null when the page was not reached that way.
+// it went, or null when the page was not reached that way. `failed` stands
+// in for an error that came back empty.
 export function authReturnOf(
-  search: string
+  search: string,
+  failed: string
 ): { auth: AuthReturn } | { error: string } | null {
   const params = new URLSearchParams(search)
   const error = params.get(AUTH_ERROR_PARAM)
-  if (error !== null) return { error: error || 'Sign-in failed' }
+  if (error !== null) return { error: error || failed }
   const auth = params.get(AUTH_PARAM)
   const known = AUTH_RETURNS.find((value) => value === auth)
   return known ? { auth: known } : null

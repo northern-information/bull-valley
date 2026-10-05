@@ -198,6 +198,20 @@ export interface ChatMessage {
   text: string
 }
 
+// Gron changed this raider's character. The outfit is checked by the
+// server with isOutfitId, like the hello's.
+export interface AppearanceMessage {
+  type: 'appearance'
+  outfit: OutfitId
+}
+
+// Gron changed this raider's username (PUT /auth/username). The frame names
+// nothing: the valley reads the account's new username itself, so a client
+// can never claim a name.
+export interface RenameMessage {
+  type: 'rename'
+}
+
 export interface StateMessage extends PeerStateWire {
   type: 'state'
 }
@@ -221,6 +235,8 @@ export type ClientMessage =
   | ExtractMessage
   | CollectMessage
   | ChatMessage
+  | AppearanceMessage
+  | RenameMessage
   | DevMessage
 
 // What a client may be refused for.
@@ -284,6 +300,13 @@ export interface PeerJoinedMessage {
   peer: PeerWire
 }
 
+// A raider already here changed their name or character at Gron. Sent to
+// everyone, the raider included, so their own name follows the valley's.
+export interface PeerUpdatedMessage {
+  type: 'peer-updated'
+  peer: PeerWire
+}
+
 export interface PeerStateMessage extends PeerStateWire {
   type: 'peer-state'
   id: string
@@ -319,6 +342,7 @@ export interface ErrorMessage {
 export type ServerMessage =
   | WelcomeMessage
   | PeerJoinedMessage
+  | PeerUpdatedMessage
   | PeerStateMessage
   | PeerLeftMessage
   | RaidMessage
@@ -461,7 +485,15 @@ export function parseClientMessage(text: string): ClientMessage | null {
     case 'unboard':
     case 'hop-out':
     case 'collect':
+    case 'rename':
       return { type: value.type }
+    case 'appearance': {
+      // Widened like the hello's, so a bad id reaches the server's check.
+      const { outfit } = value
+      return typeof outfit === 'string'
+        ? { type: 'appearance', outfit: outfit as OutfitId }
+        : null
+    }
     case 'take': {
       const { index } = value
       if (!isCount(index)) return null

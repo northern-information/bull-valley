@@ -18,6 +18,7 @@ import {
   PROVIDER_LABELS,
 } from './account.ts'
 import { fetchMe, fetchProviders, unlinkProvider } from './auth.ts'
+import { copy } from './copy.ts'
 import type { AccountWire, Provider, ProviderWire } from './account.ts'
 
 export interface AccountPanelOptions {
@@ -41,19 +42,19 @@ export function openAccountPanel({
   root.setAttribute('aria-labelledby', 'bv-panel-title')
   root.innerHTML = `
     <div class="bv-account-ui">
-      <h2 id="bv-panel-title">Account</h2>
+      <h2 id="bv-panel-title">${copy('panel.title')}</h2>
       <div class="bv-panel-who">
         <img class="bv-avatar" alt="" hidden>
         <p class="bv-panel-username" data-bv="panel-username"></p>
       </div>
-      <h3>Linked Accounts</h3>
+      <h3>${copy('panel.linked')}</h3>
       <ul class="bv-panel-linked" data-bv="panel-linked"></ul>
-      <h3 data-bv="panel-link-heading" hidden>Link Another Account</h3>
+      <h3 data-bv="panel-link-heading" hidden>${copy('panel.link_another')}</h3>
       <div class="bv-account-providers" data-bv="panel-link"></div>
       <p class="bv-account-status" data-bv="panel-status" aria-live="polite"></p>
       <div class="bv-select-actions">
-        <button type="button" class="bv-btn" data-bv="panel-sign-out">Sign Out</button>
-        <button type="button" class="bv-btn bv-btn--primary" data-bv="panel-close">Close</button>
+        <button type="button" class="bv-btn" data-bv="panel-sign-out">${copy('panel.sign_out')}</button>
+        <button type="button" class="bv-btn bv-btn--primary" data-bv="panel-close">${copy('panel.close')}</button>
       </div>
     </div>`
   document.body.appendChild(root)
@@ -81,7 +82,12 @@ export function openAccountPanel({
     let busy = false
     let popupTimer: ReturnType<typeof setInterval> | null = null
 
+    // Whether the status is a wait ("Linking…") that a closed popup with no
+    // word should clear.
+    let waiting = false
+
     const say = (text: string, tone: 'ok' | 'bad' | null = null) => {
+      waiting = false
       status.textContent = text
       if (tone) status.dataset.tone = tone
       else delete status.dataset.tone
@@ -109,17 +115,20 @@ export function openAccountPanel({
       if (only) {
         const note = document.createElement('span')
         note.className = 'bv-panel-only'
-        note.textContent = 'Only Way In'
+        note.textContent = copy('panel.only_way_in')
         item.append(note)
       } else {
         const unlink = document.createElement('button')
         unlink.type = 'button'
         unlink.className = 'bv-link'
         unlink.dataset.unlink = entry.provider
-        unlink.textContent = 'Unlink'
+        unlink.textContent = copy('panel.unlink')
         unlink.setAttribute(
           'aria-label',
-          `Unlink ${PROVIDER_LABELS[entry.provider]} (${entry.displayName})`
+          copy('panel.unlink_label', {
+            provider: PROVIDER_LABELS[entry.provider],
+            who: entry.displayName,
+          })
         )
         unlink.addEventListener('click', () => void unlinkOne(entry.provider))
         item.append(unlink)
@@ -133,7 +142,9 @@ export function openAccountPanel({
       button.className = 'bv-btn bv-provider'
       button.dataset.link = provider
       button.style.setProperty('--provider', PROVIDER_COLORS[provider])
-      button.textContent = `Link ${PROVIDER_LABELS[provider]}`
+      button.textContent = copy('panel.link', {
+        provider: PROVIDER_LABELS[provider],
+      })
       button.addEventListener('click', () => link(provider))
       return button
     }
@@ -163,7 +174,7 @@ export function openAccountPanel({
     const reload = async (): Promise<boolean> => {
       const me = await fetchMe()
       if (!me?.account) {
-        say('Your session has ended. Sign in again.', 'bad')
+        say(copy('panel.session_ended'), 'bad')
         return false
       }
       render(me.account)
@@ -173,11 +184,15 @@ export function openAccountPanel({
     async function unlinkOne(provider: Provider): Promise<void> {
       if (busy) return
       setBusy(true)
-      say('Unlinking…')
+      say(copy('panel.unlinking'))
       const result = await unlinkProvider(provider)
       setBusy(false)
       if (await reload()) {
-        if (result.ok) say(`Unlinked ${PROVIDER_LABELS[provider]}.`, 'ok')
+        if (result.ok)
+          say(
+            copy('panel.unlinked', { provider: PROVIDER_LABELS[provider] }),
+            'ok'
+          )
         else say(result.error, 'bad')
       }
       closeBtn.focus()
@@ -206,7 +221,8 @@ export function openAccountPanel({
         return
       }
       setBusy(true)
-      say(`Linking ${PROVIDER_LABELS[provider]}…`)
+      say(copy('panel.linking', { provider: PROVIDER_LABELS[provider] }))
+      waiting = true
       popupTimer = setInterval(() => {
         if (!popup.closed) return
         if (popupTimer !== null) clearInterval(popupTimer)
@@ -215,7 +231,7 @@ export function openAccountPanel({
         void reload().then((ok) => {
           // The popup's own message has said how it went, if it got that
           // far; a closed popup with no word is a cancelled link.
-          if (ok && status.textContent?.endsWith('…')) say('')
+          if (ok && waiting) say('')
         })
       }, POPUP_POLL_MS)
     }
@@ -227,10 +243,10 @@ export function openAccountPanel({
       if (data?.type !== LINK_MESSAGE || typeof data.search !== 'string') {
         return
       }
-      const outcome = authReturnOf(data.search)
+      const outcome = authReturnOf(data.search, copy('auth.sign_in_failed'))
       if (!outcome) return
       if ('error' in outcome) say(outcome.error, 'bad')
-      else if (outcome.auth === 'linked') say('Linked.', 'ok')
+      else if (outcome.auth === 'linked') say(copy('panel.linked_ok'), 'ok')
     }
 
     // The select underneath listens on the document too; while the panel is
@@ -262,7 +278,7 @@ export function openAccountPanel({
     closeBtn.focus()
 
     void (async () => {
-      say('Loading…')
+      say(copy('panel.loading'))
       offered = await fetchProviders()
       if (await reload()) say('')
     })()

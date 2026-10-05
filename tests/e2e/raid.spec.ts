@@ -1,4 +1,5 @@
 import { test as base } from '@playwright/test'
+import { copy, copyPattern } from './copy.ts'
 import { beginRaid, expect, watchErrors } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
@@ -136,7 +137,12 @@ base.describe('one raid', { tag: '@raid' }, () => {
     expect(await cash()).toBe(4000)
 
     await aimAt('pbr', [1.3, 0])
-    await expect(prompt()).toHaveText('E — Buy Pabst Blue Ribbon for $0.99')
+    await expect(prompt()).toHaveText(
+      copy('prompts.buy', {
+        item: copy('items.pbr.label'),
+        price: '$0.99',
+      })
+    )
     // The glow rings the unit a buy takes, then the next one back.
     const unit = await glowShelfUnit()
     expect(unit).not.toBeNull()
@@ -147,7 +153,12 @@ base.describe('one raid', { tag: '@raid' }, () => {
     expect(await savedInventory()).not.toBeNull()
 
     await aimAt('sack', [0, 1.3])
-    await expect(prompt()).toHaveText('E — Buy Burlap Sack for $3.00')
+    await expect(prompt()).toHaveText(
+      copy('prompts.buy', {
+        item: copy('items.sack.label'),
+        price: '$3.00',
+      })
+    )
     await page.keyboard.press('KeyE')
     await expect.poll(async () => (await raid())?.sack).toBe(true)
     expect(await cash()).toBe(4000 - 99 - 300)
@@ -159,32 +170,34 @@ base.describe('one raid', { tag: '@raid' }, () => {
 
   base('board the truck, ride, and hop out', async () => {
     await moveTo('truck')
-    await expect(prompt()).toHaveText('E — Climb into the Bed')
+    await expect(prompt()).toHaveText(copy('prompts.board'))
     // The truck is no item: nothing glows.
     expect(await page.evaluate(() => window.__bv?.glow ?? null)).toBeNull()
     await page.keyboard.press('KeyE')
     await expect.poll(async () => (await raid())?.state).toBe('RIDING')
-    await expect(prompt()).toHaveText('E — Hop Out')
+    await expect(prompt()).toHaveText(copy('prompts.hop_out'))
     await page.keyboard.press('KeyE')
     await expect.poll(async () => (await raid())?.state).toBe('ON_FOOT')
   })
 
   base('take a cabbage and unload it at the stand', async () => {
     await moveTo('cabbage')
-    await expect(prompt()).toHaveText('E — Take Cabbage')
+    await expect(prompt()).toHaveText(
+      copy('prompts.take', { item: copy('prompts.cabbage') })
+    )
     await expect.poll(glowCabbage).toBe('cabbage')
     await page.keyboard.press('KeyE')
     await expect.poll(async () => (await raid())?.carrying).toBe(1)
 
     await moveTo('stand')
-    await expect(prompt()).toHaveText('E — Unload 1 Cabbage')
+    await expect(prompt()).toHaveText(copy('prompts.unload_one'))
     await page.keyboard.press('KeyE')
     await expect.poll(async () => (await raid())?.delivered).toBe(1)
   })
 
   base('extract at a station other than the spawn', async () => {
     await moveTo('station')
-    await expect(prompt()).toContainText('E — End the Raid at')
+    await expect(prompt()).toHaveText(copyPattern('prompts.extract_at'))
     await page.keyboard.press('KeyE')
     await expect.poll(async () => (await raid())?.state).toBe('EXTRACTED')
     await expect(page.locator('[data-bv="again"]')).toBeVisible()

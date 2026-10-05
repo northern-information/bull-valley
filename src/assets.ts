@@ -1267,6 +1267,72 @@ export function buildBerryBush(seed = 0xbe221): THREE.Group {
   return group
 }
 
+// --- Raincloud -----------------------------------------------------------
+
+// Gron's own weather: a low grey cloud that never leaves him, raining on
+// him alone. Origin at the cloud's underside, where the rain starts; the
+// drops fall `fall` metres, to the ground under it. update(t) moves the
+// rain; call it every frame with a running time in seconds, or once with a
+// fixed time to hold it still.
+export interface Raincloud {
+  group: THREE.Group
+  update(t: number): void
+}
+
+// Metres a drop falls per second, and how many fall at once.
+const RAIN_SPEED = 4.5
+const RAIN_DROPS = 26
+
+export function buildRaincloud(fall = 2.6, seed = 0x7a1c): Raincloud {
+  const rng = mulberry32(seed)
+  const group = new THREE.Group()
+  group.name = 'raincloud'
+  const shades = [lambert({ color: '#5a6069' }), lambert({ color: '#474c55' })]
+  // A flattened cluster, wider than it is tall, its belly lowest.
+  for (let i = 0; i < 7; i++) {
+    const r = i === 0 ? 0.36 : range(rng, 0.2, 0.32)
+    const a = (i / 7) * Math.PI * 2 + range(rng, -0.4, 0.4)
+    const d = i === 0 ? 0 : range(rng, 0.22, 0.4)
+    const puff = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(r, 0),
+      shades[i % shades.length]
+    )
+    puff.position.set(
+      Math.cos(a) * d,
+      r * 0.6 + range(rng, 0, 0.12),
+      Math.sin(a) * d * 0.7
+    )
+    puff.scale.y = 0.7
+    puff.rotation.set(range(rng, 0, Math.PI), range(rng, 0, Math.PI), 0)
+    group.add(puff)
+  }
+  // The rain: thin streaks under the cloud, each starting at its own point
+  // of the fall so the sheet never empties.
+  const dropMat = new THREE.MeshBasicMaterial({
+    color: '#9fb4c8',
+    transparent: true,
+    opacity: 0.7,
+    depthWrite: false,
+  })
+  const dropGeo = new THREE.BoxGeometry(0.012, 0.18, 0.012)
+  const drops = Array.from({ length: RAIN_DROPS }, () => {
+    const mesh = new THREE.Mesh(dropGeo, dropMat)
+    const a = range(rng, 0, Math.PI * 2)
+    const d = Math.sqrt(rng()) * 0.42
+    mesh.position.set(Math.cos(a) * d, 0, Math.sin(a) * d * 0.7)
+    group.add(mesh)
+    return { mesh, phase: rng() }
+  })
+  const update = (t: number) => {
+    for (const { mesh, phase } of drops) {
+      const along = ((t * RAIN_SPEED) / fall + phase) % 1
+      mesh.position.y = -along * fall
+    }
+  }
+  update(0)
+  return { group, update }
+}
+
 // A handful of berries, as the inventory shows them: five in a loose pile.
 // Origin at ground level under the middle.
 export function buildBerries({ glow = true }: PickupOptions = {}): THREE.Group {
@@ -2579,6 +2645,17 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   })),
   { id: 'berries', label: 'Berries', build: () => buildPickup('berries') },
   { id: 'berry-bush', label: 'Berry bush', build: () => buildBerryBush() },
+  {
+    id: 'raincloud',
+    label: "Gron's raincloud",
+    build: () => {
+      // Mid-shower, lifted so its rain ends on the floor of the view.
+      const cloud = buildRaincloud()
+      cloud.update(0.37)
+      cloud.group.position.y = 2.6
+      return cloud.group
+    },
+  },
   ...ITEMS.filter((item) => item.category === 'medicine').map((m) => ({
     id: `med-${m.id}`,
     label: `Medicine: ${m.label}`,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
+import { copy } from '../../src/copy.ts'
 import { CONTAINERS } from '../../src/drinks.ts'
 import {
   CIGARETTE_IDS,
@@ -97,7 +98,7 @@ describe('items', () => {
     expect(isCigarette('djarum')).toBe(true)
     expect(isCigarette('joints')).toBe(false)
     expect(isCigarette('nope')).toBe(false)
-    expect(getItem('newport').label).toBe('Newports')
+    expect(getItem('newport').label).toBe(copy('items.newport.label'))
     expect(itemById('nope')).toBeNull()
   })
 

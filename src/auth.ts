@@ -4,6 +4,7 @@
 // and the page never sees a token. The shapes are account.ts's.
 
 import { AUTH_PATH } from './account.ts'
+import { copy } from './copy.ts'
 import type {
   AvailableResponse,
   MeResponse,
@@ -95,15 +96,15 @@ export async function confirmSignup(
       return {
         ok: false,
         limited: true,
-        error: await errorOf(res, 'Too many tries. Wait a minute.'),
+        error: await errorOf(res, copy('auth.limited_short')),
       }
     }
     return {
       ok: false,
-      error: await errorOf(res, 'Your sign-in has expired; sign in again'),
+      error: await errorOf(res, copy('auth.expired')),
     }
   } catch {
-    return { ok: false, error: 'The valley cannot be reached' }
+    return { ok: false, error: copy('auth.unreachable') }
   }
 }
 
@@ -117,10 +118,32 @@ export async function setUsername(
   try {
     const res = await post(fetchImpl, '/username', { username })
     if (res.ok) return { ok: true }
-    const error = await errorOf(res, 'That username could not be set')
+    const error = await errorOf(res, copy('auth.username_failed'))
     return res.status === 409
       ? { ok: false, taken: true, error }
       : { ok: false, error }
+  } catch {
+    return { ok: false, error: copy('auth.unreachable') }
+  }
+}
+
+// A new username for an account that has one: Gron's doing. Same rules and
+// outcomes as choosing the first; the session cookie is reissued with it.
+export async function renameUsername(
+  username: string,
+  fetchImpl: Fetch = fetch
+): Promise<UsernameOutcome> {
+  try {
+    const res = await fetchImpl(`${AUTH_PATH}/username`, {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username }),
+    })
+    if (res.ok) return { ok: true }
+    const error = await errorOf(res, copy('auth.rename_failed'))
+    if (res.status === 409) return { ok: false, taken: true, error }
+    return { ok: false, error, limited: res.status === TOO_MANY }
   } catch {
     return { ok: false, error: 'The valley cannot be reached' }
   }
@@ -157,10 +180,10 @@ export async function unlinkProvider(
     if (res.ok) return { ok: true }
     return {
       ok: false,
-      error: await errorOf(res, 'That could not be unlinked'),
+      error: await errorOf(res, copy('auth.unlink_failed')),
     }
   } catch {
-    return { ok: false, error: 'The valley cannot be reached' }
+    return { ok: false, error: copy('auth.unreachable') }
   }
 }
 

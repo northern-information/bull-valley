@@ -134,6 +134,12 @@ export class NetClient {
     this.refusedListeners.push(listener)
   }
 
+  // A new character (Gron): the next hello, after a reconnect, says it.
+  // The valley hears of it now from an appearance frame.
+  setOutfit(outfit: OutfitId): void {
+    if (this.identity) this.identity = { ...this.identity, outfit }
+  }
+
   send(msg: ClientMessage): void {
     if (this.status !== 'online' || !this.ws) return
     this.ws.send(JSON.stringify(msg))

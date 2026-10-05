@@ -147,9 +147,21 @@ describe('parseClientMessage', () => {
   })
 
   it('parses the raid frames', () => {
-    for (const type of ['board', 'unboard', 'hop-out', 'collect']) {
+    for (const type of ['board', 'unboard', 'hop-out', 'collect', 'rename']) {
       expect(parse({ type })).toEqual({ type })
     }
+    // A rename names nothing; anything it carries is dropped.
+    expect(parse({ type: 'rename', name: 'Mallory' })).toEqual({
+      type: 'rename',
+    })
+    expect(parse({ type: 'appearance', outfit: 'church' })).toEqual({
+      type: 'appearance',
+      outfit: 'church',
+    })
+    // A bad id parses, so the server can say which check it failed.
+    expect(parse({ type: 'appearance', outfit: 'tuxedo' })?.type).toBe(
+      'appearance'
+    )
     expect(parse({ type: 'buy', station: 2, kind: 'pbr' })).toEqual({
       type: 'buy',
       station: 2,
@@ -204,6 +216,8 @@ describe('parseClientMessage', () => {
     expect(parse({ type: 'dev', op: 'hurry' })).toBeNull()
     expect(parse({ type: 'dev', op: 'hurry', seconds: NaN })).toBeNull()
     expect(parse({ type: 'dev', op: 'explode' })).toBeNull()
+    expect(parse({ type: 'appearance' })).toBeNull()
+    expect(parse({ type: 'appearance', outfit: 3 })).toBeNull()
   })
 
   it('returns null for anything malformed', () => {

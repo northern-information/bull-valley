@@ -16,6 +16,8 @@ import {
   validateRedirect,
 } from '../../src/account.ts'
 
+const FAILED = 'Sign-in failed'
+
 describe('linking', () => {
   it('sends the popup to the link login, landing on the closing page', () => {
     expect(linkUrl('github')).toBe(
@@ -46,17 +48,17 @@ describe('linking', () => {
 
 describe('the client side of a round trip', () => {
   it('reads how the round trip went', () => {
-    expect(authReturnOf('?auth=success')).toEqual({ auth: 'success' })
-    expect(authReturnOf('?valley=a&auth=pending_signup')).toEqual({
+    expect(authReturnOf('?auth=success', FAILED)).toEqual({ auth: 'success' })
+    expect(authReturnOf('?valley=a&auth=pending_signup', FAILED)).toEqual({
       auth: 'pending_signup',
     })
-    expect(authReturnOf('?auth=linked')).toEqual({ auth: 'linked' })
-    expect(authReturnOf('?auth_error=access_denied')).toEqual({
+    expect(authReturnOf('?auth=linked', FAILED)).toEqual({ auth: 'linked' })
+    expect(authReturnOf('?auth_error=access_denied', FAILED)).toEqual({
       error: 'access_denied',
     })
-    expect(authReturnOf('?auth_error=')).toEqual({ error: 'Sign-in failed' })
-    expect(authReturnOf('?auth=hacked')).toBeNull()
-    expect(authReturnOf('')).toBeNull()
+    expect(authReturnOf('?auth_error=', FAILED)).toEqual({ error: FAILED })
+    expect(authReturnOf('?auth=hacked', FAILED)).toBeNull()
+    expect(authReturnOf('', FAILED)).toBeNull()
   })
 
   it('strips only its own flags', () => {

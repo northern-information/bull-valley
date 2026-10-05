@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { COOKIE, parseCookies } from '../../src/cookies.ts'
+import { copy } from '../../src/copy.ts'
 import { MemoryAccountStore } from '../../worker/accounts.ts'
 import { handleAuth, identityFor } from '../../worker/auth.ts'
 import { DEV_JWT_SECRET } from '../../worker/env.ts'
@@ -279,7 +280,11 @@ describe('callback', () => {
       `/auth/github/callback?code=c&state=${state}`,
       { jar, fetch: broken }
     )
-    expect(location).toBe(`${PROD}/?auth_error=Sign-in+with+github+failed`)
+    const landed = new URL(location ?? '')
+    expect(landed.origin + landed.pathname).toBe(`${PROD}/`)
+    expect(landed.searchParams.get('auth_error')).toBe(
+      copy('auth.provider_failed', { provider: 'GitHub' })
+    )
     expect(jar.cookies[COOKIE.state]).toBeUndefined()
   })
 })
@@ -363,6 +368,52 @@ describe('confirm-signup and username', () => {
     tab2.cookies[COOKIE.pending] = pending
     await call('/auth/confirm-signup', { method: 'POST', jar: tab2, store: s })
     expect(s.accounts.size).toBe(1)
+  })
+
+  it('changes a username at Gron, and the session names the new one', async () => {
+    const s = new MemoryAccountStore()
+    const jar = new Jar()
+    await signIn(jar, { id: 41, login: 'fortyone' }, s)
+    await call('/auth/confirm-signup', { method: 'POST', jar, store: s })
+    await call('/auth/username', {
+      method: 'POST',
+      jar,
+      store: s,
+      body: { username: 'First' },
+    })
+    const other = new Jar()
+    await signIn(other, { id: 42, login: 'fortytwo' }, s)
+    await call('/auth/confirm-signup', { method: 'POST', jar: other, store: s })
+    await call('/auth/username', {
+      method: 'POST',
+      jar: other,
+      store: s,
+      body: { username: 'Taken' },
+    })
+    const put = (username: string) =>
+      call('/auth/username', {
+        method: 'PUT',
+        jar,
+        store: s,
+        body: { username },
+      })
+    expect((await put('taken')).res.status).toBe(409)
+    expect((await put('no spaces')).res.status).toBe(400)
+    expect((await put('Second')).res.status).toBe(200)
+    expect((await me(jar, s)).account?.username).toBe('Second')
+    const upgrade = new Request(`${PROD}/ws`, {
+      headers: { Cookie: jar.header() },
+    })
+    expect((await identityFor(upgrade, env(), () => T0))?.name).toBe('Second')
+    expect(
+      (
+        await call('/auth/username', {
+          method: 'PUT',
+          store: s,
+          body: { username: 'Nobody' },
+        })
+      ).res.status
+    ).toBe(401)
   })
 
   it('answers whether a handle is free', async () => {
@@ -690,7 +741,7 @@ describe('rate limits', () => {
     expect(confirm.res.status).toBe(429)
     expect(confirm.res.headers.get('Retry-After')).toBe('60')
     expect(await confirm.res.json()).toEqual({
-      error: 'Too many tries. Wait a minute and try again.',
+      error: copy('auth.limited'),
     })
     const check = await call('/auth/username/Dave/available', { limit })
     expect(check.res.status).toBe(429)

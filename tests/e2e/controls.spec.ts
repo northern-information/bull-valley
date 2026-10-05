@@ -1,4 +1,5 @@
 import { PACK, WORLD } from '../../src/bindings.ts'
+import { copy } from './copy.ts'
 import {
   beginRaid,
   expect,
@@ -18,9 +19,10 @@ test('the intro card lists every key the valley answers to', async ({
   await signIn(page)
   await page.goto(`/?valley=${encodeURIComponent(freshValley())}`)
   await passTitles(page)
-  const table = page.getByRole('table', { name: 'Controls' })
+  const table = page.getByRole('table', { name: copy('intro.controls_label') })
   await expect(table).toBeVisible()
-  for (const { key, label } of Object.values(WORLD)) {
+  for (const { key, labelKey } of Object.values(WORLD)) {
+    const label = copy(labelKey)
     await expect(
       table.getByRole('rowheader', { name: key, exact: true })
     ).toBeVisible()
@@ -33,9 +35,10 @@ test('the intro card lists every key the valley answers to', async ({
 test('the open pack lists every key it answers to', async ({ page }) => {
   await beginRaid(page)
   await page.keyboard.press('Tab')
-  const pack = page.getByRole('dialog', { name: 'Inventory' })
+  const pack = page.getByRole('dialog', { name: copy('inventory.label') })
   await expect(pack).toBeVisible()
-  for (const { key, label } of Object.values(PACK)) {
+  for (const { key, labelKey } of Object.values(PACK)) {
+    const label = copy(labelKey)
     await expect(pack).toContainText(key)
     await expect(pack).toContainText(label)
   }

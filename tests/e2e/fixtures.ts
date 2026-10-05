@@ -1,5 +1,6 @@
 import { test as base, expect } from '@playwright/test'
 import { devSignInUrl } from '../../src/account.ts'
+import { copy } from './copy.ts'
 import type { Page } from '@playwright/test'
 
 // Collect console errors, failed responses, and uncaught page errors.
@@ -38,7 +39,7 @@ export async function toCharacterSelect(page: Page): Promise<void> {
   await page.keyboard.press('Space')
   await page.keyboard.press('Space')
   // The logo arms once the colophon has lifted.
-  await expect(page.getByAltText('Bull Valley Shadow Wars')).toBeVisible()
+  await expect(page.getByAltText(copy('titles.logo_alt'))).toBeVisible()
   await page.keyboard.press('Space')
   await expect(page.locator('.bv-select-ui')).toBeVisible()
 }

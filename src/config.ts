@@ -1,3 +1,5 @@
+import { copy } from './copy.ts'
+
 // Every gameplay and rendering knob in one place.
 export const CONFIG = {
   render: {
@@ -128,9 +130,9 @@ export const CONFIG = {
     revealFadeMs: 400,
     imageSrc:
       '/applied-sciences-and-phantasms-working-division-flourescent.png',
-    alt: 'Northern Information',
+    alt: copy('titles.colophon_alt'),
     audioSrc: '/sfx/northern-information.mp3',
-    hint: 'Click to Play',
+    hint: copy('titles.colophon_hint'),
   },
   logo: {
     // The game's own title card, straight after the colophon: the same
@@ -143,7 +145,7 @@ export const CONFIG = {
     // The backdrop lifts to reveal the character select.
     revealFadeMs: 400,
     imageSrc: '/bull-valley-shadow-wars.png',
-    alt: 'Bull Valley Shadow Wars',
+    alt: copy('titles.logo_alt'),
     audioSrc: '/sfx/bull-valley-shadow-wars-intro.mp3',
   },
   select: {
@@ -193,5 +195,16 @@ export const CONFIG = {
     bush: { x: -8.5, z: -8.5 },
     // It blocks like a post this wide.
     bushRadius: 0.55,
+  },
+  gron: {
+    // Where Gron stands, station-local like the bush: a couple of strides
+    // from it, further from the store's wall and toward the road, turned
+    // to face the pumps where raiders arrive.
+    at: { x: -6.2, z: -9.6 },
+    // How close E must be to talk to him; when the bush is in reach too,
+    // the nearer of the two answers.
+    reach: 2.4,
+    // He blocks like a post this wide.
+    radius: 0.4,
   },
 }

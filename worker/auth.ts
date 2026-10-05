@@ -24,6 +24,7 @@ import {
   isValidUsername,
   landingUrl,
   OAUTH_PROVIDERS,
+  PROVIDER_LABELS,
   validateRedirect,
 } from '../src/account.ts'
 import {
@@ -32,6 +33,7 @@ import {
   parseCookies,
   serializeCookie,
 } from '../src/cookies.ts'
+import { copy } from '../src/copy.ts'
 import { appOrigin, isDevHost, jwtSecret } from './env.ts'
 import {
   authorizeUrl,
@@ -110,7 +112,7 @@ export async function handleAuth(
   const dev = isDevHost(url.hostname)
   const secret = jwtSecret(env, dev)
   if (!secret) {
-    return json({ error: 'Accounts are not configured on this server' }, 503)
+    return json({ error: copy('auth.not_configured') }, 503)
   }
   const handler = new AuthHandler(request, url, env, deps, secret, dev)
   return handler.route()
@@ -181,10 +183,10 @@ class AuthHandler {
 
     // SameSite=Lax keeps the cookies off cross-site POSTs already; the
     // Origin check is belt and braces for the mutations.
-    if (method === 'POST' || method === 'DELETE') {
+    if (method === 'POST' || method === 'PUT' || method === 'DELETE') {
       const origin = this.request.headers.get('Origin')
       if (origin !== null && origin !== this.url.origin) {
-        return json({ error: 'Cross-origin request refused' }, 403)
+        return json({ error: copy('auth.cross_origin') }, 403)
       }
     }
 
@@ -202,6 +204,9 @@ class AuthHandler {
         return this.confirmSignup()
       }
       if (first === 'username' && method === 'POST') return this.setUsername()
+      if (first === 'username' && method === 'PUT') {
+        return this.setUsername(true)
+      }
     }
     if (parts.length === 3 && first === 'username' && third === 'available') {
       if (method === 'GET') return this.available(second)
@@ -433,7 +438,14 @@ class AuthHandler {
   private async login(provider: Exclude<Provider, 'dev'>): Promise<Response> {
     const creds = credentials(this.env, provider)
     if (!creds) {
-      return json({ error: `${provider} sign-in is not configured` }, 503)
+      return json(
+        {
+          error: copy('auth.provider_not_configured', {
+            provider: PROVIDER_LABELS[provider],
+          }),
+        },
+        503
+      )
     }
     const state = randomToken()
     const verifier = randomToken()
@@ -459,15 +471,22 @@ class AuthHandler {
     const error = query.get('error')
     if (error) return this.landing({ error })
     const code = query.get('code')
-    if (!code) return json({ error: 'Missing authorization code' }, 400)
+    if (!code) return json({ error: copy('auth.missing_code') }, 400)
     const state = this.cookies[COOKIE.state]
     if (!state || state !== query.get('state')) {
-      return json({ error: 'Sign-in state did not match; try again' }, 400)
+      return json({ error: copy('auth.state_mismatch') }, 400)
     }
     const verifier = this.cookies[COOKIE.pkce] ?? ''
     const creds = credentials(this.env, provider)
     if (!creds) {
-      return json({ error: `${provider} sign-in is not configured` }, 503)
+      return json(
+        {
+          error: copy('auth.provider_not_configured', {
+            provider: PROVIDER_LABELS[provider],
+          }),
+        },
+        503
+      )
     }
 
     // The round-trip cookies are spent either way.
@@ -498,7 +517,11 @@ class AuthHandler {
     } catch (err) {
       console.warn('Sign-in failed:', provider, err)
       return withCookies(
-        this.landing({ error: `Sign-in with ${provider} failed` }),
+        this.landing({
+          error: copy('auth.provider_failed', {
+            provider: PROVIDER_LABELS[provider],
+          }),
+        }),
         spent
       )
     }
@@ -553,8 +576,10 @@ class AuthHandler {
     return this.landing({
       error:
         result === 'already-linked'
-          ? `${provider} is already linked to your account`
-          : `That ${provider} account is linked to another raider`,
+          ? copy('auth.already_linked', { provider: PROVIDER_LABELS[provider] })
+          : copy('auth.linked_elsewhere', {
+              provider: PROVIDER_LABELS[provider],
+            }),
     })
   }
 
@@ -607,7 +632,7 @@ class AuthHandler {
       this.cookies[COOKIE.pending]
     )
     if (!pending) {
-      return json({ error: 'Your sign-in has expired; sign in again' }, 401, [
+      return json({ error: copy('auth.expired') }, 401, [
         this.clear(COOKIE.pending),
       ])
     }
@@ -618,21 +643,22 @@ class AuthHandler {
     ])
   }
 
-  private async setUsername(): Promise<Response> {
+  // POST chooses the first username, once; PUT (`rename`, from Gron)
+  // changes it, any time.
+  private async setUsername(rename = false): Promise<Response> {
     const claims = await this.access()
-    if (!claims) return json({ error: 'Sign in first' }, 401)
+    if (!claims) return json({ error: copy('auth.sign_in_first') }, 401)
     const body = (await this.request.json().catch(() => null)) as Record<
       string,
       unknown
     > | null
     const username = body?.username
     if (!isValidUsername(username)) {
-      return json(
-        { error: 'A username is 3 to 16 letters, digits or underscores' },
-        400
-      )
+      return json({ error: copy('auth.username_rule') }, 400)
     }
-    const result = await this.store.setUsername(claims.accountId, username)
+    const result = rename
+      ? await this.store.renameUsername(claims.accountId, username)
+      : await this.store.setUsername(claims.accountId, username)
     switch (result) {
       case 'ok': {
         // The access cookie carries the username; reissue it.
@@ -644,11 +670,15 @@ class AuthHandler {
         )
       }
       case 'taken':
-        return json({ error: 'That username is taken' }, 409)
+        return json({ error: copy('auth.username_taken') }, 409)
       case 'already-set':
-        return json({ error: 'Your username is already set' }, 400)
+        return json({ error: copy('auth.username_set') }, 400)
       case 'missing':
-        return json({ error: 'Account not found' }, 401, this.clearSession())
+        return json(
+          { error: copy('auth.account_not_found') },
+          401,
+          this.clearSession()
+        )
     }
   }
 
@@ -662,7 +692,7 @@ class AuthHandler {
 
   private async linkLogin(provider: string): Promise<Response> {
     const claims = await this.access()
-    if (!claims) return json({ error: 'Sign in first' }, 401)
+    if (!claims) return json({ error: copy('auth.sign_in_first') }, 401)
     if (this.dev && provider === 'dev') return this.devLink(claims)
     if (!isOAuthProvider(provider)) return json({ error: 'Not found' }, 404)
     const res = await this.login(provider)
@@ -674,19 +704,23 @@ class AuthHandler {
 
   private async unlink(provider: string): Promise<Response> {
     const claims = await this.access()
-    if (!claims) return json({ error: 'Sign in first' }, 401)
+    if (!claims) return json({ error: copy('auth.sign_in_first') }, 401)
     if (!isProvider(provider)) return json({ error: 'Not found' }, 404)
     const result = await this.store.unlinkProvider(claims.accountId, provider)
     switch (result) {
       case 'ok':
         return json({ ok: true })
       case 'last-provider':
-        return json(
-          { error: 'You cannot unlink your only way to sign in' },
-          400
-        )
+        return json({ error: copy('auth.unlink_last') }, 400)
       case 'not-linked':
-        return json({ error: `${provider} is not linked to your account` }, 404)
+        return json(
+          {
+            error: copy('auth.not_linked', {
+              provider: PROVIDER_LABELS[provider],
+            }),
+          },
+          404
+        )
     }
   }
 
@@ -746,7 +780,11 @@ class AuthHandler {
     // finishLink lands by the redirect cookie; a dev link has none.
     const flag = res.headers.get('Location')?.includes('auth=linked')
       ? ({ auth: 'linked' } as const)
-      : { error: 'That dev account is linked to another raider' }
+      : {
+          error: copy('auth.linked_elsewhere', {
+            provider: PROVIDER_LABELS.dev,
+          }),
+        }
     return redirect(landingUrl(this.origin, kept, flag))
   }
 

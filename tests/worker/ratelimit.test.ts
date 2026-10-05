@@ -7,6 +7,7 @@ describe('tierFor', () => {
     expect(tierFor('GET', ['link', 'discord', 'login'])).toBe('strict')
     expect(tierFor('POST', ['confirm-signup'])).toBe('strict')
     expect(tierFor('POST', ['username'])).toBe('strict')
+    expect(tierFor('PUT', ['username'])).toBe('strict')
     expect(tierFor('DELETE', ['providers', 'github'])).toBe('strict')
   })
 

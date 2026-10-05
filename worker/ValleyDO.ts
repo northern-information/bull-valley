@@ -17,6 +17,7 @@ import {
 } from '../src/protocol.ts'
 import { createValley, dailyFor, reduce, toWire } from '../src/sharedraid.ts'
 import { ACCOUNT_HEADER, NAME_HEADER } from './auth.ts'
+import { D1AccountStore } from './d1accounts.ts'
 import type {
   HelloMessage,
   PeerStateWire,
@@ -44,6 +45,10 @@ const STATE_LIMIT: RateLimit = { count: 30, ms: 1000 }
 // Chat lines one socket may send in ten seconds; the rest are nacked.
 const CHAT_LIMIT: RateLimit = { count: 5, ms: 10_000 }
 
+// Changes at Gron one socket may make in ten seconds; each one rebuilds a
+// figure for everyone, so the rest are nacked.
+const APPEARANCE_LIMIT: RateLimit = { count: 5, ms: 10_000 }
+
 const VALLEY_KEY = 'valley'
 
 interface RateWindow {
@@ -62,6 +67,7 @@ export class ValleyDO extends DurableObject<Env> {
   // fresh, which only ever lets a few extra frames through.
   private stateRate = new WeakMap<WebSocket, RateWindow>()
   private chatRate = new WeakMap<WebSocket, RateWindow>()
+  private appearanceRate = new WeakMap<WebSocket, RateWindow>()
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
@@ -156,6 +162,12 @@ export class ValleyDO extends DurableObject<Env> {
         return
       case 'chat':
         this.chat(ws, me, msg.text)
+        return
+      case 'appearance':
+        await this.restyle(ws, attachment, me, msg.outfit)
+        return
+      case 'rename':
+        await this.rename(ws, attachment, me)
         return
       case 'dev':
         if (!attachment.dev) {
@@ -295,6 +307,65 @@ export class ValleyDO extends DurableObject<Env> {
       { type: 'chat', id: me.id, name: me.name, text, at: Date.now() },
       null
     )
+  }
+
+  // A new character from Gron, for everyone to see.
+  private async restyle(
+    ws: WebSocket,
+    attachment: Attachment,
+    me: PeerWire,
+    outfit: string
+  ): Promise<void> {
+    if (!allow(this.appearanceRate, ws, APPEARANCE_LIMIT)) {
+      send(ws, { type: 'nack', re: 'appearance', reason: 'too-fast' })
+      return
+    }
+    if (!isOutfitId(outfit)) {
+      send(ws, { type: 'nack', re: 'appearance', reason: 'unknown-outfit' })
+      return
+    }
+    await this.reshow(ws, attachment, { ...me, outfit })
+  }
+
+  // A new username from Gron. The frame names nothing: the account's
+  // username is read from the accounts database, which PUT /auth/username
+  // has just changed, so no client can show itself under another name.
+  private async rename(
+    ws: WebSocket,
+    attachment: Attachment,
+    me: PeerWire
+  ): Promise<void> {
+    if (!allow(this.appearanceRate, ws, APPEARANCE_LIMIT)) {
+      send(ws, { type: 'nack', re: 'rename', reason: 'too-fast' })
+      return
+    }
+    const account = attachment.account
+      ? await new D1AccountStore(this.env.DB).get(attachment.account)
+      : null
+    const name = normalizeName(account?.username ?? '')
+    if (!isValidName(name)) {
+      send(ws, { type: 'nack', re: 'rename', reason: 'no-username' })
+      return
+    }
+    await this.reshow(ws, { ...attachment, name }, { ...me, name })
+  }
+
+  // Stores the raider as now shown, and shows them so to everyone,
+  // themselves included.
+  private async reshow(
+    ws: WebSocket,
+    attachment: Attachment,
+    me: PeerWire
+  ): Promise<void> {
+    ws.serializeAttachment({ ...attachment, me } satisfies Attachment)
+    await this.apply(
+      reduce(
+        this.valley,
+        { type: 'appearance', id: me.id, name: me.name, outfit: me.outfit },
+        this.context()
+      )
+    )
+    this.broadcast({ type: 'peer-updated', peer: me }, null)
   }
 
   // A raid action from one player: run it, persist, answer, tell everyone.

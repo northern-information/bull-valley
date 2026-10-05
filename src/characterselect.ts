@@ -14,6 +14,7 @@
 import * as THREE from 'three'
 import { stepIndex } from './carousel.ts'
 import { loadCharacter, saveCharacter, SELECTABLE } from './characters.ts'
+import { copy } from './copy.ts'
 import { applyPose, buildFigure } from './figure.ts'
 import {
   FINISHES,
@@ -71,24 +72,24 @@ export function mountCharacterSelect({
   root.innerHTML = `
     <canvas class="bv-select-canvas" aria-hidden="true"></canvas>
     <div class="bv-select-ui" hidden>
-      <h2 id="bv-select-title">Choose Your Character</h2>
+      <h2 id="bv-select-title">${copy('select.title')}</h2>
       <p class="bv-select-name" aria-live="polite"></p>
       <div class="bv-select-finish" hidden>
         <p class="bv-select-finish-name" aria-live="polite"></p>
         <div class="bv-select-finish-row">
-          <div class="bv-select-swatches" role="radiogroup" aria-label="Guitar Finish">${swatches}</div>
-          <button type="button" class="bv-btn" data-bv="select-randomize">Randomize</button>
+          <div class="bv-select-swatches" role="radiogroup" aria-label="${copy('select.finish')}">${swatches}</div>
+          <button type="button" class="bv-btn" data-bv="select-randomize">${copy('select.randomize')}</button>
         </div>
       </div>
       <p class="bv-select-as">
-        Raiding as <b data-bv="select-username"></b>
-        <button type="button" class="bv-link" data-bv="select-account">Account</button>
-        <button type="button" class="bv-link" data-bv="select-sign-out">Sign Out</button>
+        ${copy('select.raiding_as')} <b data-bv="select-username"></b>
+        <button type="button" class="bv-link" data-bv="select-account">${copy('select.account')}</button>
+        <button type="button" class="bv-link" data-bv="select-sign-out">${copy('select.sign_out')}</button>
       </p>
       <div class="bv-select-actions">
-        <button type="button" class="bv-btn" data-bv="select-prev">Previous</button>
-        <button type="button" class="bv-btn bv-btn--primary" data-bv="select-choose">Choose</button>
-        <button type="button" class="bv-btn" data-bv="select-next">Next</button>
+        <button type="button" class="bv-btn" data-bv="select-prev">${copy('select.previous')}</button>
+        <button type="button" class="bv-btn bv-btn--primary" data-bv="select-choose">${copy('select.choose')}</button>
+        <button type="button" class="bv-btn" data-bv="select-next">${copy('select.next')}</button>
       </div>
       <p class="bv-select-hint"></p>
     </div>`
@@ -180,8 +181,8 @@ export function mountCharacterSelect({
         // The finish row and its keys belong to a character with a guitar.
         finishRow.hidden = outfit.onBack !== 'guitar'
         hintEl.textContent = finishRow.hidden
-          ? '← → Cycle · Enter Choose'
-          : '← → Cycle · Up / Down Finish · R Randomize · Enter Choose'
+          ? copy('select.hint')
+          : copy('select.hint_finish')
       }
 
       const step = (dir: number) => {

@@ -1,3 +1,4 @@
+import { copy } from './copy.ts'
 import {
   beginRaid,
   expect,
@@ -103,13 +104,17 @@ test('the chosen character is the body you raid in, and is remembered', async ({
   // Still signed in after a reload, raiding under the account's username.
   await page.reload()
   await toCharacterSelect(page)
-  await expect(page.locator('.bv-select-name')).toHaveText('David Kvistad')
+  await expect(page.locator('.bv-select-name')).toHaveText(
+    copy('outfits.kvistad')
+  )
   await expect(page.locator('[data-bv="select-username"]')).toHaveText(
     raider.username
   )
   // ← wraps from the first character to the last.
   for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowLeft')
-  await expect(page.locator('.bv-select-name')).toHaveText('Jdogg')
+  await expect(page.locator('.bv-select-name')).toHaveText(
+    copy('outfits.jdogg')
+  )
 })
 
 test('the guitar finish is picked with Church and remembered', async ({
@@ -125,16 +130,18 @@ test('the guitar finish is picked with Church and remembered', async ({
   await expect(row).toBeHidden()
   // Three steps right of the player: Church, with the EX-400 on his back.
   for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight')
-  await expect(page.locator('.bv-select-name')).toHaveText('Kyle Church')
+  await expect(page.locator('.bv-select-name')).toHaveText(
+    copy('outfits.church')
+  )
   await expect(row).toBeVisible()
-  await expect(finish).toHaveText('Black')
-  await expect(checked).toHaveAttribute('aria-label', 'Black')
+  await expect(finish).toHaveText(copy('finishes.black'))
+  await expect(checked).toHaveAttribute('aria-label', copy('finishes.black'))
 
   // ↓ steps to the next finish; R lands on any other one.
   await page.keyboard.press('ArrowDown')
-  await expect(finish).toHaveText('Olympic White')
+  await expect(finish).toHaveText(copy('finishes.olympic-white'))
   await page.keyboard.press('KeyR')
-  await expect(finish).not.toHaveText('Olympic White')
+  await expect(finish).not.toHaveText(copy('finishes.olympic-white'))
   const picked = (await finish.textContent()) ?? ''
   await expect(checked).toHaveAttribute('aria-label', picked)
 
@@ -142,6 +149,8 @@ test('the guitar finish is picked with Church and remembered', async ({
   await expect(page.locator('.bv-select')).toHaveCount(0)
   await page.reload()
   await toCharacterSelect(page)
-  await expect(page.locator('.bv-select-name')).toHaveText('Kyle Church')
+  await expect(page.locator('.bv-select-name')).toHaveText(
+    copy('outfits.church')
+  )
   await expect(finish).toHaveText(picked)
 })

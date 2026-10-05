@@ -1,4 +1,5 @@
 import { test as base } from '@playwright/test'
+import { copy } from './copy.ts'
 import {
   beginRaid,
   expect,
@@ -83,7 +84,12 @@ base.describe('a shared raid', { tag: '@valley' }, () => {
       })
       const perItem = (await shared(a))!.shelves[spawnIndex].pbr
       await aimAt(a, 'pbr', [1.3, 0])
-      await expect(prompt(a)).toHaveText('E — Buy Pabst Blue Ribbon for $0.99')
+      await expect(prompt(a)).toHaveText(
+        copy('prompts.buy', {
+          item: copy('items.pbr.label'),
+          price: '$0.99',
+        })
+      )
       await a.keyboard.press('KeyE')
       await expect
         .poll(() => a.evaluate(() => window.__bv?.cash))
@@ -95,17 +101,17 @@ base.describe('a shared raid', { tag: '@valley' }, () => {
 
       // A climbs in and waits; the lobby shows the headcount.
       await moveToTruck(a)
-      await expect(prompt(a)).toHaveText('E — Climb into the Bed')
+      await expect(prompt(a)).toHaveText(copy('prompts.board'))
       await a.keyboard.press('KeyE')
       await expect.poll(() => a.evaluate(() => window.__bv?.aboard)).toBe(true)
       expect((await raid(a))?.state).toBe('LOADOUT')
       await expect(a.locator('.bv-countdown')).toContainText('1 of 2 aboard')
       await expect(b.locator('.bv-countdown')).toContainText('1 of 2 aboard')
-      await expect(prompt(a)).toHaveText('E — Hop Out')
+      await expect(prompt(a)).toHaveText(copy('prompts.hop_out'))
 
       // B climbs in: everyone is aboard, and the truck leaves for both.
       await moveToTruck(b)
-      await expect(prompt(b)).toHaveText('E — Climb into the Bed')
+      await expect(prompt(b)).toHaveText(copy('prompts.board'))
       await b.keyboard.press('KeyE')
       await expect.poll(async () => (await raid(a))?.state).toBe('RIDING')
       await expect.poll(async () => (await raid(b))?.state).toBe('RIDING')
@@ -148,7 +154,9 @@ base.describe('a shared raid', { tag: '@valley' }, () => {
         bv.player.relocate(spot.x + 1, spot.z + 1, bv.player.yaw)
         return i
       })
-      await expect(prompt(a)).toHaveText('E — Take Cabbage')
+      await expect(prompt(a)).toHaveText(
+        copy('prompts.take', { item: copy('prompts.cabbage') })
+      )
       await a.keyboard.press('KeyE')
       await expect.poll(async () => (await raid(a))?.carrying).toBe(1)
       await expect
@@ -182,7 +190,7 @@ base.describe('a shared raid', { tag: '@valley' }, () => {
 
     await moveToTruck(a)
     // The interaction is resolved once a frame; wait for the prompt.
-    await expect(prompt(a)).toHaveText('E — Climb into the Bed')
+    await expect(prompt(a)).toHaveText(copy('prompts.board'))
     await a.keyboard.press('KeyE')
     await expect.poll(() => a.evaluate(() => window.__bv?.aboard)).toBe(true)
     // A dev server lets a spec hurry the shared clock.
