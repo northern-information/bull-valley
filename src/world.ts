@@ -40,7 +40,13 @@ import {
   projectOnSegment,
   unitToWorld,
 } from './coords.ts'
-import { applyPose, buildFigure, buildGron } from './figure.ts'
+import {
+  applyPose,
+  buildFigure,
+  buildGron,
+  buildMoab,
+  MOAB_BESIDE,
+} from './figure.ts'
 import { Ground } from './ground.ts'
 import { CIGARETTE_IDS } from './items.ts'
 import {
@@ -60,7 +66,7 @@ import {
   worldFacings,
 } from './store.ts'
 import { Walls } from './walls.ts'
-import type { GronRig } from './figure.ts'
+import type { GronRig, MoabRig } from './figure.ts'
 import type {
   Geo,
   HeightAt,
@@ -149,6 +155,11 @@ export interface World {
   // for the glow, update(t) for his rain. Null without a spawn station.
   gron: XZ | null
   gronRig: GronRig | null
+  // Moab Coldë and his horse under each station's sign, indexed like
+  // fuelPoints: where the horse stands, and his rig, the body for the glow
+  // and update(t) for the fire.
+  moabs: XZ[]
+  moabRigs: MoabRig[]
   // What to stand on anywhere: the terrain, or the road or lot over it.
   ground: Ground
   // What stops you: the store walls and fixtures, the poles and lamps.
@@ -1540,6 +1551,45 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     gron = { x: gx, z: gz }
   }
 
+  // Moab Coldë and his horse under every station's sign (CONFIG.moab,
+  // station-local), the horse broadside to the pump island and Moab, his
+  // back to its flank, facing the island and the lot. The horse blocks
+  // along its spine, and Moab like a post beside it.
+  const moabs: XZ[] = []
+  const moabRigs: MoabRig[] = []
+  for (const station of fuel.points) {
+    const [mx, , mz] = toWorld(station, [CONFIG.moab.at.x, 0, CONFIG.moab.at.z])
+    // Turn the rig so its +X, the way Moab faces, points at the pump
+    // island at the origin: rotation.y turns +X to (cos, -sin), and +Z to
+    // (sin, cos).
+    const yaw = Math.atan2(-(station.z - mz), station.x - mx)
+    const my = ground.at(mx, mz)
+    const cos = Math.cos(yaw)
+    const sin = Math.sin(yaw)
+    // The fire roots lie on the lot: heights in the rig's own space.
+    const rig = buildMoab(
+      (x, z) => ground.at(mx + x * cos + z * sin, mz - x * sin + z * cos) - my
+    )
+    rig.group.position.set(mx, my, mz)
+    rig.group.rotation.y = yaw
+    group.add(rig.group)
+    const along = CONFIG.moab.halfLength
+    const dx = Math.sin(yaw) * along
+    const dz = Math.cos(yaw) * along
+    walls.addWall(
+      { x: mx - dx, z: mz - dz },
+      { x: mx + dx, z: mz + dz },
+      CONFIG.moab.radius
+    )
+    // The rig's yaw turns its local (x, z) to (x cos + z sin, z cos - x sin).
+    const [bx, bz] = MOAB_BESIDE
+    const sx = mx + bx * Math.cos(yaw) + bz * Math.sin(yaw)
+    const sz = mz + bz * Math.cos(yaw) - bx * Math.sin(yaw)
+    walls.addWall({ x: sx, z: sz }, { x: sx, z: sz }, CONFIG.moab.standRadius)
+    moabs.push({ x: mx, z: mz })
+    moabRigs.push(rig)
+  }
+
   return {
     group,
     pickups: pickupSet.pickups,
@@ -1555,6 +1605,8 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     },
     gron,
     gronRig,
+    moabs,
+    moabRigs,
     ground,
     walls,
     facings: fuel.points.map(worldFacings),

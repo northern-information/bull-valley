@@ -208,4 +208,20 @@ export const CONFIG = {
     // He blocks like a post this wide.
     radius: 0.4,
   },
+  moab: {
+    // Where Moab Coldë's horse stands at every Citgo, station-local like
+    // the bush: under the road sign (FUEL_LAYOUT.signDistance, signAlong in
+    // assets.ts), a stride in from its pole toward the pumps, standing
+    // broadside to the pump island. Moab stands with his back to its flank
+    // (figure.ts MOAB_BESIDE), facing the island where raiders arrive.
+    at: { x: 8.6, z: 6.2 },
+    // How close E must be to talk to him, from the middle of the horse.
+    reach: 2.8,
+    // The horse blocks as a capsule along its spine: this far either side
+    // of its middle, this wide.
+    halfLength: 0.9,
+    radius: 0.45,
+    // Moab himself blocks like a post this wide.
+    standRadius: 0.4,
+  },
 }

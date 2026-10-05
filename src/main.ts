@@ -828,6 +828,8 @@ async function boot() {
         return action.status === 'ready' ? world.bushObject : null
       case 'talk':
         return world.gronRig?.figure.group ?? null
+      case 'moab':
+        return world.moabRigs[action.station]?.figure.group ?? null
       default:
         return null
     }
@@ -1255,6 +1257,14 @@ async function boot() {
       case 'talk':
         talkToGron()
         return
+      case 'moab':
+        // He speaks in the chat log under his own name, to this player
+        // alone; the valley never hears it.
+        hud.chatLine(
+          { kind: 'say', name: copy('outfits.moab'), text: copy('moab.says') },
+          performance.now()
+        )
+        return
     }
   }
 
@@ -1469,6 +1479,8 @@ async function boot() {
     if (swarm.struck) strike()
     mist.update({ dt, player: player.pos })
     world.gronRig?.update(rainStill ? 0.37 : time)
+    // Moab's fire burns on the same clock, and holds still with the rain.
+    for (const rig of world.moabRigs) rig.update(rainStill ? 0.4 : time)
     if (now < strikeUntil) hud.drawStatic()
     else if (!hud.staticWrap.hidden) hud.showStatic(false)
 
@@ -1558,6 +1570,7 @@ async function boot() {
           bush: world.bush,
           daily: dailyStatus(),
           gron: world.gron,
+          moabs: world.moabs,
         })
     const prompt = interaction ? interactionPrompt(interaction) : null
     glow.setTarget(glowTarget(interaction))

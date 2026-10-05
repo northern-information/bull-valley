@@ -41,7 +41,7 @@ export interface Pose {
 }
 
 export type PoseName =
-  'stand' | 'sit' | 'lean' | 'read' | 'crouch' | 'walk' | 'hunch'
+  'stand' | 'sit' | 'lean' | 'read' | 'crouch' | 'walk' | 'hunch' | 'wield'
 
 // A sampled pose: every joint present.
 export interface PoseSample {
@@ -151,6 +151,23 @@ export const POSES = {
           shoulderR: [-0.3, 0, -0.12],
           elbowL: [-0.5, 0, 0],
           elbowR: [-0.5, 0, 0],
+        },
+      },
+    ],
+  },
+  // Moab's stance: the left fist out at his side round the snath of a
+  // scythe planted beside him, the right arm held straight out in front
+  // with a scroll hanging from the fist for whoever stands there to read
+  // (figure.ts buildMoab places both).
+  wield: {
+    keys: [
+      {
+        lift: 0,
+        joints: {
+          shoulderL: [-0.35, 0, 0.2],
+          elbowL: [-1.05, 0, 0],
+          shoulderR: [-1.3, 0, 0.05],
+          elbowR: [-0.15, 0, 0],
         },
       },
     ],
