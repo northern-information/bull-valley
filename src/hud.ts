@@ -3,7 +3,10 @@
 // the Eleventy page and the dev harness stay a bare #bv-root.
 
 import { PACK, WORLD } from './bindings.ts'
+import { CHAT_LINES, isFaded, pushLine } from './chat.ts'
+import { CHAT_MAX } from './protocol.ts'
 import type { Binding } from './bindings.ts'
+import type { ChatLine } from './chat.ts'
 import type { RaidSummary, RingItem } from './interfaces.ts'
 
 // The inventory ring as setCarousel draws it.
@@ -72,6 +75,11 @@ export class Hud {
   nervesFill: HTMLElement
   timers: HTMLDivElement
   timersHtml = ''
+  chat: HTMLDivElement
+  chatLog: HTMLDivElement
+  chatInput: HTMLInputElement
+  chatLines: ChatLine[] = []
+  chatLastAt: number | null = null
   phone: HTMLDivElement
   scopeCanvas: HTMLCanvasElement
   promptEl: HTMLParagraphElement
@@ -117,9 +125,29 @@ export class Hud {
       '.bv-nerves-fill'
     )
 
+    // The lower-left column: the chat log over the effect timers, so the
+    // log rides up as timers stack under it.
+    const dock = el('div', 'bv-dock')
+    ui.appendChild(dock)
+
+    // Chat: the valley's lines, and a field that shows while typing.
+    this.chat = el('div', 'bv-chat bv-chat--faded')
+    this.chatLog = el('div', 'bv-chat-log')
+    this.chatLog.setAttribute('role', 'log')
+    this.chatLog.setAttribute('aria-label', 'Chat')
+    this.chatInput = el('input', 'bv-chat-input')
+    this.chatInput.type = 'text'
+    this.chatInput.maxLength = CHAT_MAX
+    this.chatInput.autocomplete = 'off'
+    this.chatInput.spellcheck = false
+    this.chatInput.setAttribute('aria-label', 'Say to the valley')
+    this.chatInput.hidden = true
+    this.chat.append(this.chatLog, this.chatInput)
+    dock.appendChild(this.chat)
+
     // Active effect timers.
     this.timers = el('div', 'bv-timers')
-    ui.appendChild(this.timers)
+    dock.appendChild(this.timers)
 
     // The scope: a phone held in a PS1-style flipper hand. scope.js draws the
     // hand, the phone and the screen into this one low-res canvas.
@@ -268,6 +296,45 @@ export class Hud {
     this.toasts.appendChild(node)
     setTimeout(() => node.classList.add('bv-toast--out'), 3600)
     setTimeout(() => node.remove(), 4400)
+  }
+
+  // One line into the chat log. Text from the valley is untrusted, so it
+  // goes in as text, never markup.
+  chatLine(line: ChatLine, now: number): void {
+    this.chatLines = pushLine(this.chatLines, line)
+    this.chatLastAt = now
+    this.chatLog.appendChild(
+      text('p', line.name ? `${line.name}: ${line.text}` : line.text)
+    )
+    while (this.chatLog.childElementCount > CHAT_LINES) {
+      this.chatLog.firstElementChild?.remove()
+    }
+    this.chatLog.scrollTop = this.chatLog.scrollHeight
+  }
+
+  get chatOpen(): boolean {
+    return !this.chatInput.hidden
+  }
+
+  openChat(): void {
+    this.chatInput.value = ''
+    this.chatInput.hidden = false
+    this.chatInput.focus()
+  }
+
+  // Closes the field and returns what was typed.
+  closeChat(): string {
+    const typed = this.chatInput.value
+    this.chatInput.value = ''
+    this.chatInput.hidden = true
+    this.chatInput.blur()
+    return typed
+  }
+
+  // The loop calls this every frame: the log fades once it goes quiet.
+  tickChat(now: number): void {
+    const faded = isFaded(this.chatLastAt, now, this.chatOpen)
+    this.chat.classList.toggle('bv-chat--faded', faded)
   }
 
   // The selected ring item (carousel.ts entry) in text; items[index] may be

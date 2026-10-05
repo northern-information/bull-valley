@@ -108,11 +108,61 @@
   transition: width 1.6s linear;
 }
 
-/* Effect timers */
-.bv-timers {
+/* The lower-left column: chat over the effect timers. */
+.bv-dock {
   position: absolute;
   left: 16px;
   bottom: 42px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(560px, calc(100% - 32px));
+}
+
+/* Chat: a quiet log that fades out a while after the last line, and a
+   field under it while typing. Eight lines show; older ones scroll. */
+.bv-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: opacity 0.8s;
+}
+
+.bv-chat--faded {
+  opacity: 0;
+}
+
+.bv-chat-log {
+  max-height: 160px;
+  overflow: hidden;
+  letter-spacing: 0.05em;
+  text-shadow:
+    0 0 3px rgb(0 0 0 / 90%),
+    1px 1px 0 rgb(0 0 0 / 80%);
+}
+
+.bv-chat-log p {
+  margin: 0;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.bv-chat-input {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 2px 6px;
+  font: inherit;
+  letter-spacing: 0.05em;
+  color: inherit;
+  background: var(--fi-surface-82);
+  border: 1px solid var(--fi-green);
+  border-radius: 0;
+  box-shadow: 3px 3px 0 var(--fi-black-shadow);
+}
+
+/* Effect timers */
+.bv-timers {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -200,6 +250,7 @@
   :is(
     .bv-countdown,
     .bv-phone,
+    .bv-chat,
     .bv-timers,
     .bv-nerves,
     .bv-prompt,

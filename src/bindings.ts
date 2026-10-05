@@ -47,6 +47,7 @@ export const WORLD = {
   callTruck: { codes: ['KeyT'], key: 'T', label: 'Call the Truck' },
   smoke,
   spark,
+  chat: { codes: ['Enter', 'NumpadEnter'], key: 'Enter', label: 'Chat' },
   pause: { codes: [], key: 'Esc', label: 'Pause' },
 } as const satisfies Record<string, Binding>
 

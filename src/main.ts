@@ -6,6 +6,7 @@ import { actionOf, cycleStep, PACK, WORLD } from './bindings.ts'
 import { ringItems, stepIndex, syncIndex } from './carousel.ts'
 import { FALLBACK_NAME, loadCharacter, loadName } from './characters.ts'
 import { mountCharacterSelect } from './characterselect.ts'
+import { CHAT_COPY } from './chat.ts'
 import { CONFIG } from './config.ts'
 import { unitToWorld } from './coords.ts'
 import { finishById, loadFinish } from './finishes.ts'
@@ -26,6 +27,7 @@ import { Peers } from './peers.ts'
 import { Player } from './player.ts'
 import { PlayerBody } from './playerbody.ts'
 import { poseOf, stateChanged } from './presence.ts'
+import { normalizeChat } from './protocol.ts'
 import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import {
   advance,
@@ -52,6 +54,7 @@ import { buildTerrainMesh, createHeightField, loadTerrain } from './terrain.ts'
 import { Truck } from './truck.ts'
 import { buildWorld } from './world.ts'
 import type { CharacterPick } from './characters.ts'
+import type { ChatLine } from './chat.ts'
 import type { DailyStatus, Interaction, ShelfSpot } from './interactions.ts'
 import type { Geo, Raid, RingItem, Vec3 } from './interfaces.ts'
 import type { NetStatus } from './net.ts'
@@ -94,6 +97,8 @@ interface BvHook {
   readonly glow: THREE.Object3D | null
   // In cents.
   readonly cash: number
+  // The chat log, oldest first.
+  readonly chat: readonly ChatLine[]
   teleport(u: number, v: number): void
   hurryTruck(seconds?: number): void
 }
@@ -312,6 +317,9 @@ async function boot() {
         if (name) hud.toast(`${name} is gone.`)
         return
       }
+      case 'chat':
+        hud.chatLine({ kind: 'say', name: msg.name, text: msg.text }, now)
+        return
       case 'error':
         console.warn('Valley:', msg.code, msg.message)
         return
@@ -733,8 +741,12 @@ async function boot() {
     const locked = document.pointerLockElement === hud.canvas
     player.locked = locked
     hud.setLocked(locked)
-    // Keys held when focus left never send keyup.
-    if (!locked) player.keys.clear()
+    // Keys held when focus left never send keyup. Esc while typing drops
+    // the lock too, and the draft with it.
+    if (!locked) {
+      player.keys.clear()
+      hud.closeChat()
+    }
     if (locked) {
       started = true
       hud.showIntro(false)
@@ -948,6 +960,11 @@ async function boot() {
     } else if (msg.re === 'collect') {
       pendingCollect = false
       hud.toast('The bush gives you nothing.')
+    } else if (msg.re === 'chat') {
+      hud.chatLine(
+        { kind: 'system', text: CHAT_COPY.tooFast },
+        performance.now()
+      )
     }
   }
 
@@ -1047,10 +1064,33 @@ async function boot() {
     }
   }
 
+  // One line to the valley, which echoes it back to everyone. Offline the
+  // line still shows, to no one else.
+  const say = (typed: string) => {
+    const text = normalizeChat(typed)
+    if (!text) return
+    if (net.online) {
+      net.send({ type: 'chat', text })
+      return
+    }
+    const now = performance.now()
+    hud.chatLine({ kind: 'say', name: pick.name, text }, now)
+    hud.chatLine({ kind: 'system', text: CHAT_COPY.offline }, now)
+  }
+
   // In the valley the keys are WORLD in bindings.ts; the movement keys go
   // to the player as held state.
   document.addEventListener('keydown', (e) => {
     if (!player.locked || ended) return
+    // While typing, every key belongs to the field; Enter sends.
+    if (hud.chatOpen) {
+      if (e.code === 'Tab') e.preventDefault()
+      if (actionOf(WORLD, e.code) === 'chat' && !e.isComposing) {
+        e.preventDefault()
+        say(hud.closeChat())
+      }
+      return
+    }
     if (inventoryOpen) {
       inventoryKey(e)
       return
@@ -1075,6 +1115,11 @@ async function boot() {
         return
       case 'interact':
         interact()
+        return
+      case 'chat':
+        e.preventDefault()
+        player.keys.clear()
+        hud.openChat()
         return
     }
   })
@@ -1233,6 +1278,7 @@ async function boot() {
     if (perception)
       timers.push(`Perception ${Math.ceil(perceptionUntil - time)}s`)
     hud.setTimers(timers)
+    hud.tickChat(performance.now())
 
     scope.draw(dt, {
       contacts: [
@@ -1343,6 +1389,9 @@ async function boot() {
       },
       get cash() {
         return cash
+      },
+      get chat() {
+        return hud.chatLines
       },
       teleport(u: number, v: number) {
         const { x, z } = unitToWorld(u, v, geo.metres)

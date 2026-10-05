@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { OUTFIT_IDS } from '../../src/outfits.ts'
 import {
+  CHAT_MAX,
   CLOSE,
   isExtractKind,
   isOutfitId,
+  isValidChat,
   isValidName,
   MAX_COORD,
   NAME_MAX,
+  normalizeChat,
   normalizeName,
   parseClientMessage,
   parsePeerState,
@@ -91,6 +94,36 @@ describe('parsePeerState', () => {
     expect(parsePeerState({ ...state, riding: 'yes' })).toBeNull()
     expect(parsePeerState(null)).toBeNull()
     expect(parsePeerState('state')).toBeNull()
+  })
+})
+
+describe('chat', () => {
+  it('normalizes like a name', () => {
+    expect(normalizeChat('  hello   valley\n')).toBe('hello valley')
+    expect(normalizeChat('a\u0000b​c')).toBe('abc')
+    expect(normalizeChat(' \t ')).toBe('')
+  })
+
+  it('accepts one to CHAT_MAX code points of normalized text', () => {
+    expect(isValidChat('hi')).toBe(true)
+    expect(isValidChat('x'.repeat(CHAT_MAX))).toBe(true)
+    expect(isValidChat('é'.repeat(CHAT_MAX))).toBe(true)
+    expect(isValidChat('x'.repeat(CHAT_MAX + 1))).toBe(false)
+    expect(isValidChat('')).toBe(false)
+    expect(isValidChat(' padded')).toBe(false)
+    expect(isValidChat('bell\u0007')).toBe(false)
+    expect(isValidChat(7)).toBe(false)
+  })
+
+  it('parses a chat frame and refuses a bad one', () => {
+    expect(parse({ type: 'chat', text: 'hi', extra: 1 })).toEqual({
+      type: 'chat',
+      text: 'hi',
+    })
+    expect(parse({ type: 'chat', text: '' })).toBeNull()
+    expect(parse({ type: 'chat', text: 'x'.repeat(CHAT_MAX + 1) })).toBeNull()
+    expect(parse({ type: 'chat', text: '  unnormalized ' })).toBeNull()
+    expect(parse({ type: 'chat' })).toBeNull()
   })
 })
 
