@@ -4,7 +4,9 @@
 // wake with the roster intact; the raid lives in storage and survives a
 // restart. Every rule is in src/sharedraid.ts; this is the plumbing that
 // reads a frame, runs the reducer, persists, arms the lobby alarm, and
-// sends what came back.
+// sends what came back. Each account's pack is in D1 (d1packs.ts): the
+// reducer says what goes in or out, and this writes it and tells the
+// account's sockets.
 
 import { DurableObject } from 'cloudflare:workers'
 import {
@@ -18,13 +20,21 @@ import {
 import { createValley, dailyFor, reduce, toWire } from '../src/sharedraid.ts'
 import { ACCOUNT_HEADER, NAME_HEADER } from './auth.ts'
 import { D1AccountStore } from './d1accounts.ts'
+import { D1PackStore } from './d1packs.ts'
+import type { Inventory } from '../src/interfaces.ts'
 import type {
   HelloMessage,
   PeerStateWire,
   PeerWire,
   ServerMessage,
 } from '../src/protocol.ts'
-import type { Reduced, Valley, ValleyAction } from '../src/sharedraid.ts'
+import type {
+  PackChange,
+  Reduced,
+  Valley,
+  ValleyAction,
+} from '../src/sharedraid.ts'
+import type { PackStore } from './packs.ts'
 
 // Per-socket state, serialized into the socket's attachment (16 KB cap;
 // this is well under 1 KB). `me` is null until the hello. The Worker sets
@@ -160,6 +170,9 @@ export class ValleyDO extends DurableObject<Env> {
       case 'collect':
         await this.act(ws, { type: 'collect', id: me.id })
         return
+      case 'use':
+        await this.act(ws, { type: 'use', id: me.id, kind: msg.kind })
+        return
       case 'chat':
         this.chat(ws, me, msg.text)
         return
@@ -197,6 +210,11 @@ export class ValleyDO extends DurableObject<Env> {
     const reduced = reduce(this.valley, { type: 'clock' }, this.context())
     await this.apply(reduced)
     for (const msg of reduced.broadcast) this.broadcast(msg, null)
+  }
+
+  // Where the packs are kept; the Worker tests hand in a memory store.
+  protected packs(): PackStore {
+    return new D1PackStore(this.env.DB)
   }
 
   private attachment(ws: WebSocket): Attachment {
@@ -240,6 +258,16 @@ export class ValleyDO extends DurableObject<Env> {
       ws.close(CLOSE.badOutfit, 'Unknown outfit')
       return
     }
+    // The pack first: a valley that cannot read it lets no one in to change
+    // it.
+    let pack: Inventory
+    try {
+      pack = await this.packs().open(account)
+    } catch (err) {
+      console.error('The pack could not be opened', err)
+      ws.close(CLOSE.serverError, 'The valley lost the pack')
+      return
+    }
     const id = crypto.randomUUID()
     const reduced = reduce(
       this.valley,
@@ -276,6 +304,7 @@ export class ValleyDO extends DurableObject<Env> {
       raid,
       phase: member.phase,
       daily: dailyFor(this.valley, account, now),
+      pack,
     })
     this.broadcast({ type: 'peer-joined', peer: me }, ws)
     for (const msg of reduced.broadcast) this.broadcast(msg, ws)
@@ -375,6 +404,31 @@ export class ValleyDO extends DurableObject<Env> {
     if (reduced.reply) send(ws, reduced.reply)
     if (reduced.daily) send(ws, reduced.daily)
     for (const msg of reduced.broadcast) this.broadcast(msg, null)
+    if (reduced.pack) await this.repack(ws, reduced.pack)
+  }
+
+  // Writes a pack change and sends the pack to every socket signed in to
+  // the account. A use the pack cannot cover is refused to the actor, who
+  // gets the pack too, so a guess made in the meantime is put right.
+  private async repack(ws: WebSocket, change: PackChange): Promise<void> {
+    const { account, kind, delta } = change
+    try {
+      const packs = this.packs()
+      const done = await packs.change(account, kind, delta)
+      if (!done) send(ws, { type: 'nack', re: 'use', reason: 'none-left' })
+      const pack = await packs.get(account)
+      for (const socket of this.ctx.getWebSockets()) {
+        const attachment = this.attachment(socket)
+        if (attachment.account !== account || !attachment.me) continue
+        try {
+          send(socket, { type: 'pack', pack })
+        } catch {
+          // Closing sockets throw; their close handler follows.
+        }
+      }
+    } catch (err) {
+      console.error('The pack could not be changed', change, err)
+    }
   }
 
   private async left(ws: WebSocket): Promise<void> {

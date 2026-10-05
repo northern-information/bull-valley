@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { CLOSE, PROTOCOL_VERSION } from '../../src/protocol.ts'
+import { MemoryPackStore } from '../../worker/packs.ts'
 import { ValleyDO } from '../../worker/ValleyDO.ts'
 import type {
   DailyMessage,
   NackMessage,
+  PackMessage,
   PeerChatMessage,
   PeerJoinedMessage,
   PeerLeftMessage,
@@ -13,6 +16,7 @@ import type {
   ServerMessage,
   WelcomeMessage,
 } from '../../src/protocol.ts'
+import type { PackStore } from '../../worker/packs.ts'
 
 // Mocks for the slice of the Workers runtime the object touches.
 
@@ -86,19 +90,53 @@ class MockState {
 const ws = (s: MockSocket) => s as unknown as WebSocket
 const asState = (s: MockState) => s as unknown as DurableObjectState
 
+// The valley with its packs in memory instead of D1.
+class TestValley extends ValleyDO {
+  packStore: PackStore = new MemoryPackStore()
+  protected override packs(): PackStore {
+    return this.packStore
+  }
+}
+
 async function valley(state = new MockState(), env: Partial<Env> = {}) {
-  const v = new ValleyDO(asState(state), env as Env)
+  const v = new TestValley(asState(state), env as Env)
   // Let the constructor's storage read settle.
   await Promise.resolve()
   return { valley: v, state }
 }
+
+// What a build placed: two joints first, then `n - 1` cabbages.
+const placed = (n: number) => [
+  { kind: 'joints', count: 2 },
+  ...Array.from({ length: n - 1 }, () => ({ kind: 'cabbage', count: 1 })),
+]
 
 const hello = (
   outfit = 'coleman',
   v = PROTOCOL_VERSION,
   pickups = 70,
   stations = 5
-) => JSON.stringify({ type: 'hello', v, outfit, pickups, stations })
+) =>
+  JSON.stringify({
+    type: 'hello',
+    v,
+    outfit,
+    pickups: placed(pickups),
+    stations,
+  })
+
+// The last pack frame a socket was sent.
+const lastPack = (socket: MockSocket) =>
+  socket.frames().findLast((m): m is PackMessage => m.type === 'pack')?.pack
+
+// The last daily frame; a berry picked is followed by a pack frame.
+function lastDaily(socket: MockSocket): DailyMessage {
+  const daily = socket
+    .frames()
+    .findLast((m): m is DailyMessage => m.type === 'daily')
+  if (!daily) throw new Error('no daily frame')
+  return daily
+}
 
 const state = (x: number, z: number) =>
   JSON.stringify({
@@ -456,7 +494,7 @@ describe('ValleyDO', () => {
     expect(welcome.daily.collected).toBe(false)
     expect(welcome.daily.resetsAt).toBeGreaterThan(before)
     await v.webSocketMessage(ws(a), '{"type":"collect"}')
-    const picked = a.last<DailyMessage>()
+    const picked = lastDaily(a)
     expect(picked).toMatchObject({
       type: 'daily',
       picked: true,
@@ -464,7 +502,7 @@ describe('ValleyDO', () => {
     })
     expect(picked.daily.resetsAt).toBe(welcome.daily.resetsAt)
     await v.webSocketMessage(ws(a), '{"type":"collect"}')
-    expect(a.last<DailyMessage>()).toMatchObject({
+    expect(lastDaily(a)).toMatchObject({
       type: 'daily',
       picked: false,
     })
@@ -472,7 +510,7 @@ describe('ValleyDO', () => {
     const twin = await join(v, s, 'Dave')
     expect(twin.last<WelcomeMessage>().daily.collected).toBe(true)
     await v.webSocketMessage(ws(twin), '{"type":"collect"}')
-    expect(twin.last<DailyMessage>().picked).toBe(false)
+    expect(lastDaily(twin).picked).toBe(false)
     // Another account has its own, even under a name that looks the same.
     const b = await join(v, s, 'Dave', { account: 'acct-other' })
     expect(b.last<WelcomeMessage>().daily.collected).toBe(false)
@@ -492,7 +530,7 @@ describe('ValleyDO', () => {
     const a = await join(v, shared, 'Dave')
     expect(a.last<WelcomeMessage>().daily.collected).toBe(false)
     await v.webSocketMessage(ws(a), '{"type":"collect"}')
-    expect(a.last<DailyMessage>().picked).toBe(true)
+    expect(lastDaily(a).picked).toBe(true)
   })
 
   it('keeps the dev frames for dev sockets', async () => {
@@ -644,5 +682,61 @@ describe('ValleyDO', () => {
       re: 'rename',
       reason: 'no-username',
     })
+  })
+
+  it("keeps the account's pack: the welcome, a berry, a pickup, a use", async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    // A second socket on the same account shares the pack.
+    const a2 = await join(v, s, 'A2', { account: 'acct-A' })
+    const b = await join(v, s, 'B')
+    expect(a.frames()[0]).toMatchObject({
+      type: 'welcome',
+      pack: STARTING_INVENTORY,
+    })
+    await v.webSocketMessage(ws(a), '{"type":"collect"}')
+    expect(lastPack(a)?.berries).toBe(1)
+    expect(lastPack(a2)?.berries).toBe(1)
+    expect(lastPack(b)).toBeUndefined()
+    // Pickup 0 is two joints.
+    await v.webSocketMessage(ws(a), '{"type":"take","index":0}')
+    expect(lastPack(a)?.joints).toBe(STARTING_INVENTORY.joints + 2)
+    await v.webSocketMessage(ws(a2), '{"type":"use","kind":"berries"}')
+    expect(lastPack(a)?.berries).toBe(0)
+    // Nothing left to use: refused, and the pack put right.
+    await v.webSocketMessage(ws(a2), '{"type":"use","kind":"berries"}')
+    expect(a2.frames().at(-2)).toEqual({
+      type: 'nack',
+      re: 'use',
+      reason: 'none-left',
+    })
+    expect(lastPack(a2)?.berries).toBe(0)
+    // The pack outlives the socket: a new one opens on it.
+    await v.webSocketClose(ws(a))
+    await v.webSocketClose(ws(a2))
+    const back = await join(v, s, 'A', { account: 'acct-A' })
+    expect(back.frames()[0]).toMatchObject({
+      type: 'welcome',
+      pack: { joints: STARTING_INVENTORY.joints + 2, berries: 0 },
+    })
+  })
+
+  it('closes a hello whose pack cannot be read', async () => {
+    const { valley: v, state: s } = await valley()
+    v.packStore = {
+      open: () => Promise.reject(new Error('D1 is down')),
+      get: () => Promise.reject(new Error('D1 is down')),
+      change: () => Promise.reject(new Error('D1 is down')),
+    }
+    const errors: unknown[] = []
+    const error = console.error
+    console.error = (...args: unknown[]) => errors.push(args)
+    try {
+      const a = await join(v, s, 'A')
+      expect(a.closeCode).toBe(CLOSE.serverError)
+      expect(errors).toHaveLength(1)
+    } finally {
+      console.error = error
+    }
   })
 })

@@ -1,11 +1,10 @@
-// Pure: the guitar finishes in one table, the saved pick, and the random
-// draw. A finish colors the guitar's gloss (assets.ts buildGuitar); the
-// character select offers the row for any character with a guitar on their
-// back and remembers the pick through the same injected storage as
-// characters.ts. Edit finishes here.
+// Pure: the guitar finishes in one table and the random draw. A finish
+// colors the guitar's gloss (assets.ts buildGuitar); the character select
+// offers the row for any character with a guitar on their back, and the
+// account keeps the pick with the character (characters.ts pickOf). Edit
+// finishes here.
 
 import { copy } from './copy.ts'
-import type { CharacterStorage } from './characters.ts'
 
 export interface Finish {
   id: string
@@ -40,8 +39,6 @@ export type FinishId = (typeof FINISHES)[number]['id']
 
 export const DEFAULT_FINISH: FinishId = 'black'
 
-const KEY = 'bull-valley-shadow-wars:v1:guitar-finish'
-
 export function isFinish(id: unknown): id is FinishId {
   return FINISHES.some((finish) => finish.id === id)
 }
@@ -50,25 +47,6 @@ export function finishById(id: FinishId): Finish {
   const found: Finish | undefined = FINISHES.find((finish) => finish.id === id)
   if (!found) throw new Error(`Unknown finish: ${id}`)
   return found
-}
-
-// The last pick, or the default when there is none, it is no longer in
-// the table, or storage is unavailable.
-export function loadFinish(storage: CharacterStorage): FinishId {
-  try {
-    const raw = storage.getItem(KEY)
-    return isFinish(raw) ? raw : DEFAULT_FINISH
-  } catch {
-    return DEFAULT_FINISH
-  }
-}
-
-export function saveFinish(storage: CharacterStorage, id: FinishId): void {
-  try {
-    storage.setItem(KEY, id)
-  } catch {
-    // Storage can be unavailable; the pick simply doesn't persist.
-  }
 }
 
 // A finish other than `current`, chosen by `roll` in [0, 1): the caller

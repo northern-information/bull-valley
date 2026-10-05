@@ -2,7 +2,9 @@
 // the SQL (the unique username index, the foreign key) or in auth.ts. The
 // Worker tests use the in-memory store; this one is exercised end to end.
 
-import type { Provider } from '../src/account.ts'
+import { isSelectable } from '../src/characters.ts'
+import { isFinish } from '../src/finishes.ts'
+import type { LookWire, Provider } from '../src/account.ts'
 import type {
   Account,
   AccountStore,
@@ -211,6 +213,30 @@ export class D1AccountStore implements AccountStore {
         .bind(next?.providerKey ?? null, accountId, target.providerKey),
     ])
     return 'ok'
+  }
+
+  async lookOf(accountId: string): Promise<LookWire> {
+    const row = await this.db
+      .prepare('SELECT outfit, finish FROM accounts WHERE account_id = ?')
+      .bind(accountId)
+      .first<{ outfit: string | null; finish: string | null }>()
+    // A pick since dropped from the roster or the table reads as unchosen.
+    const outfit = row?.outfit
+    const finish = row?.finish
+    return {
+      outfit: isSelectable(outfit) ? outfit : null,
+      finish: isFinish(finish) ? finish : null,
+    }
+  }
+
+  async setLook(accountId: string, look: LookWire): Promise<boolean> {
+    const result = await this.db
+      .prepare(
+        'UPDATE accounts SET outfit = ?, finish = ? WHERE account_id = ?'
+      )
+      .bind(look.outfit, look.finish, accountId)
+      .run()
+    return result.meta.changes === 1
   }
 
   private insertProvider(provider: LinkedProvider): D1PreparedStatement {

@@ -3,7 +3,7 @@
 // interface is here with an in-memory store for the tests and dev tools;
 // production is the D1 store in d1accounts.ts.
 
-import type { Provider } from '../src/account.ts'
+import type { LookWire, Provider } from '../src/account.ts'
 
 export interface Account {
   accountId: string
@@ -56,11 +56,16 @@ export interface AccountStore {
   // Refuses to leave an account with no way to sign in. Unlinking the
   // primary provider promotes another.
   unlinkProvider(accountId: string, provider: Provider): Promise<UnlinkResult>
+  // The character and guitar finish; both null until first chosen.
+  lookOf(accountId: string): Promise<LookWire>
+  // False when there is no such account.
+  setLook(accountId: string, look: LookWire): Promise<boolean>
 }
 
 export class MemoryAccountStore implements AccountStore {
   readonly accounts = new Map<string, Account>()
   readonly providers = new Map<string, LinkedProvider>()
+  readonly looks = new Map<string, LookWire>()
 
   findByProvider(providerKey: string): Promise<LinkedProvider | null> {
     return Promise.resolve(this.providers.get(providerKey) ?? null)
@@ -153,6 +158,18 @@ export class MemoryAccountStore implements AccountStore {
       if (next) account.primaryProvider = next.providerKey
     }
     return 'ok'
+  }
+
+  lookOf(accountId: string): Promise<LookWire> {
+    return Promise.resolve(
+      this.looks.get(accountId) ?? { outfit: null, finish: null }
+    )
+  }
+
+  setLook(accountId: string, look: LookWire): Promise<boolean> {
+    if (!this.accounts.has(accountId)) return Promise.resolve(false)
+    this.looks.set(accountId, { ...look })
+    return Promise.resolve(true)
   }
 
   // Whether another account holds the name; `except` is never counted.

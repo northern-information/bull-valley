@@ -2,23 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   addItem,
   KINDS,
-  loadInventory,
-  saveInventory,
   STARTING_INVENTORY,
+  toInventory,
   useItem,
 } from '../../src/inventory.ts'
 import type { Inventory } from '../../src/interfaces.ts'
-
-function stubStorage() {
-  const store = new Map<string, string>()
-  return {
-    store,
-    getItem: (k: string) => store.get(k) ?? null,
-    setItem: (k: string, value: string) => {
-      store.set(k, value)
-    },
-  }
-}
 
 describe('inventory', () => {
   it('adds and uses items without going negative', () => {
@@ -38,27 +26,14 @@ describe('inventory', () => {
     expect(STARTING_INVENTORY).toMatchObject({ marlboro: 2, joints: 1 })
   })
 
-  it('round-trips through a storage stub and survives junk', () => {
-    const storage = stubStorage()
-    expect(loadInventory(storage)).toEqual(STARTING_INVENTORY)
-    const inv = { ...STARTING_INVENTORY, djarum: 4, newport: 1, joints: 3 }
-    saveInventory(storage, inv)
-    expect(loadInventory(storage)).toEqual(inv)
-    for (const [k] of storage.store) storage.store.set(k, '{not json')
-    expect(loadInventory(storage)).toEqual(STARTING_INVENTORY)
-    for (const [k] of storage.store) storage.store.set(k, 'null')
-    expect(loadInventory(storage)).toEqual(STARTING_INVENTORY)
-  })
-
-  it('fills missing kinds and clamps bad counts', () => {
-    const storage = stubStorage()
-    // Junk on purpose: what a stale or hand-edited save could hold.
-    const junk = { camel: -3, parliament: 'x', joints: 2.9 }
-    saveInventory(storage, junk as unknown as Inventory)
-    const inv = loadInventory(storage)
+  it('fills missing kinds, clamps bad counts, and drops strangers', () => {
+    // Junk on purpose: what a garbled frame or a stale row could hold.
+    const inv = toInventory({ camel: -3, parliament: 'x', joints: 2.9, x: 4 })
     expect(inv.camel).toBe(0)
     expect(inv.parliament).toBe(0)
     expect(inv.joints).toBe(2)
     expect(inv.djarum).toBe(0)
+    expect(inv).not.toHaveProperty('x')
+    expect(toInventory(null)).toEqual(toInventory({}))
   })
 })

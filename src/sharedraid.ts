@@ -28,9 +28,15 @@
 // 10. Gron, by the berry bush, changes a raider's name and character at any
 //    time. The change touches only how they are shown: their place in the
 //    raid, their berry and their whistle stay theirs.
+// 11. Every item a raider carries is their account's (the pack), kept by
+//    the valley and never by the client: the day's berry, a pickup that is
+//    not a cabbage, and a unit bought off a shelf go into it, and a use
+//    takes one out. The valley holds the pack; this reducer says what
+//    changes (Reduced.pack) and worker/ValleyDO.ts writes it.
 
 import { CONFIG } from './config.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
+import { INVENTORY_KINDS } from './items.ts'
 import { freshStock } from './store.ts'
 import type { ExtractKind, ShopStock, XZ } from './interfaces.ts'
 import type { OutfitId } from './outfits.ts'
@@ -42,6 +48,7 @@ import type {
   MemberWire,
   NackMessage,
   NackRe,
+  PickupSpec,
   RaidMessage,
   RaidReason,
   RaidWire,
@@ -69,8 +76,9 @@ export interface SharedRaid {
   taken: number[]
   shelves: ShopStock[]
   call: TruckCall | null
-  // How many pickups and stations the build that opened this raid placed.
-  pickups: number
+  // The pickups and the station count the build that opened this raid
+  // placed.
+  pickups: PickupSpec[]
   stations: number
 }
 
@@ -91,7 +99,7 @@ export type ValleyAction =
       account: string
       name: string
       outfit: OutfitId
-      pickups: number
+      pickups: PickupSpec[]
       stations: number
     }
   | { type: 'leave'; id: string }
@@ -103,6 +111,7 @@ export type ValleyAction =
   | { type: 'call'; id: string; from: XZ; to: XZ }
   | { type: 'extract'; id: string; kind: ExtractKind }
   | { type: 'collect'; id: string }
+  | { type: 'use'; id: string; kind: string }
   // Rule 10: a new name, a new character, or both.
   | { type: 'appearance'; id: string; name?: string; outfit?: OutfitId }
   // The lobby clock ran out.
@@ -133,6 +142,29 @@ export interface Reduced {
   // A join that must be refused: the client's pickups do not match the
   // raid's, so its indices mean something else.
   reject?: 'stale-build'
+  // Rule 11: what goes into or out of an account's pack. A debit is only
+  // taken when the pack holds the unit; the valley checks.
+  pack?: PackChange
+}
+
+export interface PackChange {
+  account: string
+  kind: string
+  // Positive into the pack, negative out of it.
+  delta: number
+}
+
+// Whether `kind` is carried in the pack (items.ts INVENTORY_KINDS). A
+// cabbage rides in the arms and the sack is the raid's, so neither is.
+export function isPackKind(kind: string): boolean {
+  return INVENTORY_KINDS.includes(kind)
+}
+
+function samePickups(a: readonly PickupSpec[], b: readonly PickupSpec[]) {
+  return (
+    a.length === b.length &&
+    a.every((spec, i) => spec.kind === b[i].kind && spec.count === b[i].count)
+  )
 }
 
 export function createValley(): Valley {
@@ -300,7 +332,7 @@ export function reduce(
         }
         alarm = loadoutEndsAt
       } else if (
-        next.raid.pickups !== action.pickups ||
+        !samePickups(next.raid.pickups, action.pickups) ||
         next.raid.stations !== action.stations
       ) {
         return { valley, broadcast: [], reject: 'stale-build' }
@@ -415,7 +447,8 @@ export function reduce(
           reply: nack('take', 'not-in-raid', action.index),
         }
       }
-      if (action.index >= raid.pickups) {
+      const spec = raid.pickups[action.index] as PickupSpec | undefined
+      if (!spec) {
         return {
           valley,
           broadcast: [],
@@ -434,12 +467,21 @@ export function reduce(
         ...raid,
         taken: [...raid.taken, action.index],
       })
-      return {
+      const reduced: Reduced = {
         valley: next,
         broadcast: [
           frame(next, 'taken', { by: action.id, index: action.index }),
         ],
       }
+      // Rule 11.
+      if (isPackKind(spec.kind) && spec.count > 0) {
+        reduced.pack = {
+          account: member.account,
+          kind: spec.kind,
+          delta: spec.count,
+        }
+      }
+      return reduced
     }
 
     case 'buy': {
@@ -462,12 +504,17 @@ export function reduce(
         i === station ? { ...s, [kind]: s[kind] - 1 } : s
       )
       const next = withRaid(valley, { ...raid, shelves })
-      return {
+      const reduced: Reduced = {
         valley: next,
         broadcast: [
           frame(next, 'bought', { by: action.id, station, item: kind }),
         ],
       }
+      // Rule 11.
+      if (isPackKind(kind)) {
+        reduced.pack = { account: member.account, kind, delta: 1 }
+      }
+      return reduced
     }
 
     case 'call': {
@@ -562,6 +609,24 @@ export function reduce(
           daily: dailyFor(next, member.account, now),
           picked: true,
         },
+        // Rule 11.
+        pack: { account: member.account, kind: 'berries', delta: 1 },
+      }
+    }
+
+    case 'use': {
+      // Rule 11. Whether the pack holds one is the valley's to check.
+      const member = valley.members[action.id]
+      if (!member) {
+        return { valley, broadcast: [], reply: nack('use', 'not-in-valley') }
+      }
+      if (!isPackKind(action.kind)) {
+        return { valley, broadcast: [], reply: nack('use', 'not-an-item') }
+      }
+      return {
+        valley,
+        broadcast: [],
+        pack: { account: member.account, kind: action.kind, delta: -1 },
       }
     }
 
