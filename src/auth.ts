@@ -77,7 +77,12 @@ export async function refreshSession(
   }
 }
 
-export type Outcome = { ok: true } | { ok: false; error: string }
+// `limited` is a refusal to wait out (worker/ratelimit.ts), not a failure.
+export type Outcome =
+  { ok: true } | { ok: false; error: string; limited?: boolean }
+
+// The status the /auth routes answer a rate-limited call with.
+const TOO_MANY = 429
 
 // Pass the age and terms gates: the account is created and signed in.
 export async function confirmSignup(
@@ -86,6 +91,13 @@ export async function confirmSignup(
   try {
     const res = await post(fetchImpl, '/confirm-signup')
     if (res.ok) return { ok: true }
+    if (res.status === TOO_MANY) {
+      return {
+        ok: false,
+        limited: true,
+        error: await errorOf(res, 'Too many tries. Wait a minute.'),
+      }
+    }
     return {
       ok: false,
       error: await errorOf(res, 'Your sign-in has expired; sign in again'),
@@ -124,6 +136,7 @@ export async function usernameAvailable(
       fetchImpl,
       `/username/${encodeURIComponent(username)}/available`
     )
+    if (res.status === TOO_MANY) return { available: false, reason: 'limited' }
     if (!res.ok) return null
     return (await res.json()) as AvailableResponse
   } catch {

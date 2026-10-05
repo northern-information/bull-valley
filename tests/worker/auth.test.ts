@@ -7,6 +7,7 @@ import { OAUTH } from '../../worker/oauth.ts'
 import { ACCESS_TTL, Tokens } from '../../worker/tokens.ts'
 import type { MeResponse } from '../../src/account.ts'
 import type { WorkerEnv } from '../../worker/env.ts'
+import type { Limiter, Tier } from '../../worker/ratelimit.ts'
 
 const SECRET = 'auth-test-secret'
 const T0 = Date.parse('2026-10-03T12:00:00Z')
@@ -20,6 +21,9 @@ function env(overrides: Partial<WorkerEnv> = {}): WorkerEnv {
     GITHUB_CLIENT_ID: 'gh-id',
     GITHUB_CLIENT_SECRET: 'gh-secret',
     DB: {} as unknown as D1Database,
+    // The limits are injected per call (`limit`); these are never reached.
+    AUTH_STRICT: {} as unknown as RateLimit,
+    AUTH_LOOSE: {} as unknown as RateLimit,
     VALLEY: {} as unknown as Env['VALLEY'],
     ASSETS: {} as unknown as Fetcher,
     ...overrides,
@@ -81,6 +85,7 @@ interface Call {
   store?: MemoryAccountStore
   fetch?: typeof fetch
   now?: number
+  limit?: Limiter
 }
 
 const store = new MemoryAccountStore()
@@ -100,6 +105,7 @@ async function call(path: string, opts: Call = {}) {
     store: opts.store ?? store,
     fetch: opts.fetch ?? (() => Promise.reject(new Error('no fetch'))),
     now: () => opts.now ?? T0,
+    limit: opts.limit,
   })
   jar.take(res)
   return { res, jar, location: res.headers.get('Location') }
@@ -624,5 +630,103 @@ describe('dev provider', () => {
       origin: DEV,
     })
     expect((await me(clash, s)).account?.username).toBeNull()
+  })
+})
+
+describe('rate limits', () => {
+  // A limiter that records what it was asked and answers `allow`.
+  function recorder(allow: boolean) {
+    const asked: { tier: Tier; key: string }[] = []
+    const limit: Limiter = (tier, key) => {
+      asked.push({ tier, key })
+      return Promise.resolve(allow)
+    }
+    return { limit, asked }
+  }
+
+  it('counts a request against the most specific identity it has', async () => {
+    const s = new MemoryAccountStore()
+    const { limit, asked } = recorder(true)
+    // Nobody yet: the client address.
+    await call('/auth/username/Dave/available', {
+      store: s,
+      limit,
+      headers: { 'CF-Connecting-IP': '203.0.113.7' },
+    })
+    expect(asked.at(-1)).toEqual({ tier: 'loose', key: 'ip:203.0.113.7' })
+    // A pending signup: its provider identity.
+    const jar = new Jar()
+    await signIn(jar, { id: 31, login: 'thirtyone' }, s)
+    await call('/auth/confirm-signup', { method: 'POST', jar, store: s, limit })
+    expect(asked.at(-1)).toEqual({ tier: 'strict', key: 'pending:github:31' })
+    // Signed in: the account.
+    const accountId = (await me(jar, s)).account?.accountId
+    await call('/auth/username', {
+      method: 'POST',
+      jar,
+      store: s,
+      limit,
+      body: { username: 'ThirtyOne' },
+    })
+    expect(asked.at(-1)).toEqual({
+      tier: 'strict',
+      key: `account:${accountId}`,
+    })
+    // A lapsed access cookie still counts against the account it refreshes.
+    delete jar.cookies[COOKIE.token]
+    await call('/auth/refresh', { method: 'POST', jar, store: s, limit })
+    expect(asked.at(-1)).toEqual({
+      tier: 'loose',
+      key: `account:${accountId}`,
+    })
+  })
+
+  it('answers a limited call from the page with a 429 it can show', async () => {
+    const { limit } = recorder(false)
+    const confirm = await call('/auth/confirm-signup', {
+      method: 'POST',
+      limit,
+    })
+    expect(confirm.res.status).toBe(429)
+    expect(confirm.res.headers.get('Retry-After')).toBe('60')
+    expect(await confirm.res.json()).toEqual({
+      error: 'Too many tries. Wait a minute and try again.',
+    })
+    const check = await call('/auth/username/Dave/available', { limit })
+    expect(check.res.status).toBe(429)
+  })
+
+  it('lands a limited sign-in back on the game with the message', async () => {
+    const { limit } = recorder(false)
+    const { res, location, jar } = await call(
+      '/auth/github/login?redirect=%2F%3Fvalley%3Da',
+      { limit }
+    )
+    expect(res.status).toBe(302)
+    expect(location).toBe(
+      `${PROD}/?valley=a&auth_error=Too+many+tries.+Wait+a+minute+and+try+again.`
+    )
+    // Nothing of a round trip was started.
+    expect(jar.cookies[COOKIE.state]).toBeUndefined()
+  })
+
+  it('never limits reading, signing out, the callback, or the dev provider', async () => {
+    const { limit, asked } = recorder(false)
+    expect((await call('/auth/me', { limit })).res.status).toBe(200)
+    expect((await call('/auth/providers', { limit })).res.status).toBe(200)
+    expect(
+      (await call('/auth/logout', { method: 'POST', limit })).res.status
+    ).toBe(200)
+    expect(
+      (await call('/auth/github/callback?error=access_denied', { limit })).res
+        .status
+    ).toBe(302)
+    const dev = await call('/auth/dev/login?userId=free', {
+      origin: DEV,
+      limit,
+      store: new MemoryAccountStore(),
+    })
+    expect(dev.location).toBe(`${DEV}/?auth=pending_signup`)
+    expect(asked).toEqual([])
   })
 })

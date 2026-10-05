@@ -25,6 +25,8 @@ function env(): WorkerEnv & { calls: string[]; fetched: Request[] } {
     // The account routes that touch the database are tested in auth.test.ts
     // against the in-memory store; the router never reaches it here.
     DB: {} as unknown as D1Database,
+    AUTH_STRICT: { limit: () => Promise.resolve({ success: true }) },
+    AUTH_LOOSE: { limit: () => Promise.resolve({ success: true }) },
     VALLEY: {
       idFromName(name: string) {
         calls.push(name)
