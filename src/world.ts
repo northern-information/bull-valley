@@ -1131,6 +1131,31 @@ function buildFuelStations(
   return { group, points }
 }
 
+// Sodium lamps on every station's lot, in station-local space (local +X
+// toward the road): one at each road-side corner, its arm over the road,
+// and one at each back corner beside the store, its arm over the lot.
+// Every arm reaches along local +X.
+const STATION_LAMPS: readonly XZ[] = [
+  { x: FUEL_LAYOUT.roadEdgeDistance - 1.5, z: FUEL_LAYOUT.lot.halfWidth - 0.5 },
+  {
+    x: FUEL_LAYOUT.roadEdgeDistance - 1.5,
+    z: -(FUEL_LAYOUT.lot.halfWidth - 0.5),
+  },
+  { x: FUEL_LAYOUT.lot.back + 1, z: FUEL_LAYOUT.lot.halfWidth - 1 },
+  { x: FUEL_LAYOUT.lot.back + 1, z: -(FUEL_LAYOUT.lot.halfWidth - 1) },
+]
+
+function stationLamps(points: readonly FuelPoint[]): LampSpot[] {
+  return points.flatMap((point) =>
+    STATION_LAMPS.map(({ x, z }) => {
+      const [wx, , wz] = toWorld(point, [x, 0, z])
+      // A lamp's yaw turns its local +X to (cos, -sin); the station's
+      // turns local +X to (cos, sin).
+      return { x: wx, z: wz, yaw: -point.yaw }
+    })
+  )
+}
+
 // The station lights, in station-local space: one spot under every
 // fluorescent panel, the four in the store and the two under the canopy,
 // all pointing down and all throwing shadows. A panel is an area light,
@@ -1442,7 +1467,11 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   // the reeds, graves or pickups that draw after it.
   const roadside = placeRoadside(geo.roads, metres, { avoid: fuel.points })
   group.add(buildPoles(roadside.poles, ground.at, walls))
-  const streetlights = buildStreetlights(roadside.lamps, ground, walls)
+  const streetlights = buildStreetlights(
+    [...roadside.lamps, ...stationLamps(fuel.points)],
+    ground,
+    walls
+  )
   group.add(streetlights.group)
   group.add(buildReeds(geo, metres, ground.at, rng))
   const graveyards = buildGraveyards(geo, metres, ground.at, rng)
