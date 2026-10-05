@@ -1375,6 +1375,8 @@ async function boot() {
 
     // The stocked shelves follow the player to the nearest store.
     world.shelves.update(player.pos.x, player.pos.z, storeStock)
+    // And the streetlights' real lights to the nearest lamps.
+    world.streetlights.update(player.pos.x, player.pos.z)
 
     // --- Interactions: what E would do right now -------------------------
     const inStore = storeIndex()

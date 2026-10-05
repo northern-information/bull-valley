@@ -14,13 +14,22 @@ import {
   lotMaterial,
   makeGlowSprite,
   POLE_ARM_DROP,
+  POLE_INSULATOR_X,
   poleParts,
+  poleWireAnchors,
   reedPart,
   roadMaterial,
+  SODIUM,
+  sodiumHaloMaterial,
+  sodiumPoolMaterial,
+  STREETLIGHT,
+  streetlightParts,
   TREE_CANOPY_HIGH,
   TREE_CANOPY_LOW,
   treeParts,
   waterMaterial,
+  WIRE_SAG,
+  wireMaterial,
 } from './assets.ts'
 import { CABBAGE_SEED, placeCabbages } from './cabbages.ts'
 import { CONFIG } from './config.ts'
@@ -41,6 +50,7 @@ import {
 } from './landmarks.ts'
 import { samplePose } from './poses.ts'
 import { mulberry32, range } from './rng.ts'
+import { placeRoadside, roadWidth } from './roadside.ts'
 import {
   STORE_LAYOUT,
   storeBase,
@@ -62,6 +72,7 @@ import type {
 } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
 import type { Rng } from './rng.ts'
+import type { LampSpot, PoleSpot } from './roadside.ts'
 import type { StoreOrigin, WorldFacing } from './store.ts'
 
 const PACK_SEED = 0xc16a7e
@@ -135,16 +146,12 @@ export interface World {
   setBerries(visible: boolean): void
   // What to stand on anywhere: the terrain, or the road or lot over it.
   ground: Ground
-  // What stops you: the store walls and fixtures.
+  // What stops you: the store walls and fixtures, the poles and lamps.
   walls: Walls
   // Every station's shelf facings in the world, indexed like fuelPoints.
   facings: WorldFacing[][]
   shelves: ShelfDisplay
-}
-
-interface RoadStyle {
-  width: number
-  color: string
+  streetlights: Streetlights
 }
 
 // A geometry and material pair from assets.ts, ready to instance.
@@ -158,19 +165,20 @@ interface OccupancyMask {
   blocked(u: number, v: number): boolean
 }
 
-// Unlit (MeshBasicMaterial) tones — these render exactly as written, then fog.
-const ROAD_STYLE: Partial<Record<string, RoadStyle>> = {
-  motorway: { width: 9, color: '#343a41' },
-  trunk: { width: 9, color: '#343a41' },
-  primary: { width: 8, color: '#32383f' },
-  secondary: { width: 7, color: '#30353c' },
-  tertiary: { width: 6, color: '#2d3238' },
-  residential: { width: 5, color: '#2a2f35' },
-  unclassified: { width: 5, color: '#2a2f35' },
-  service: { width: 3.5, color: '#332e22' },
-  track: { width: 3, color: '#363023' },
+// Unlit (MeshBasicMaterial) tones — these render exactly as written, then
+// fog. Widths are roadside.ts's, which the poles and lamps stand clear of.
+const ROAD_COLOR: Partial<Record<string, string>> = {
+  motorway: '#343a41',
+  trunk: '#343a41',
+  primary: '#32383f',
+  secondary: '#30353c',
+  tertiary: '#2d3238',
+  residential: '#2a2f35',
+  unclassified: '#2a2f35',
+  service: '#332e22',
+  track: '#363023',
 }
-const ROAD_DEFAULT: RoadStyle = { width: 4.5, color: '#2a2f35' }
+const ROAD_DEFAULT_COLOR = '#2a2f35'
 // Roads float ROAD_LIFT over the terrain to stay clear of it; a station lot
 // sits a hair lower so the road covers their overlap.
 const ROAD_LIFT = 0.3
@@ -378,9 +386,13 @@ function buildRoads(
 ): THREE.Mesh {
   const ribbons = makeRibbonAccumulator(ground)
   for (const road of geo.roads) {
-    const style = ROAD_STYLE[road.c] || ROAD_DEFAULT
     const points = toWorldPoints(road.p, metres, heightAt)
-    ribbons.add(points, style.width, style.color, ROAD_LIFT)
+    ribbons.add(
+      points,
+      roadWidth(road.c),
+      ROAD_COLOR[road.c] ?? ROAD_DEFAULT_COLOR,
+      ROAD_LIFT
+    )
   }
   return ribbons.build('roads')
 }
@@ -543,79 +555,289 @@ function buildTrees(
   return group
 }
 
-// Utility poles pace the named roads — rural Illinois telegraphy.
-function buildPoles(
-  geo: Pick<Geo, 'roads'>,
-  metres: Metres,
-  heightAt: HeightAt,
-  rng: Rng
-): THREE.Group {
-  const POLE_ROADS = new Set<string>([
-    'primary',
-    'secondary',
-    'tertiary',
-    'residential',
-    'unclassified',
-  ])
-  const SPACING = 130
-  const spots: XZ[] = []
-  for (const road of geo.roads) {
-    if (!POLE_ROADS.has(road.c) || !road.n) continue
-    let carry = rng() * SPACING
-    for (let i = 0; i < road.p.length - 1 && spots.length < 4000; i++) {
-      const a = unitToWorld(road.p[i][0], road.p[i][1], metres)
-      const b = unitToWorld(road.p[i + 1][0], road.p[i + 1][1], metres)
-      const dx = b.x - a.x
-      const dz = b.z - a.z
-      const len = Math.hypot(dx, dz)
-      if (len === 0) continue
-      while (carry < len) {
-        const t = carry / len
-        // Offset to the right of travel so poles sit off the shoulder.
-        spots.push({
-          x: a.x + dx * t - (dz / len) * 6.5,
-          z: a.z + dz * t + (dx / len) * 6.5,
-        })
-        carry += SPACING
-      }
-      carry -= len
-    }
-  }
+// The poles are bucketed into square tiles, one InstancedMesh per part per
+// tile, so frustum culling (which bounds each mesh by its instances) skips
+// the tiles behind and beside you. One mesh across the whole valley would
+// draw every pole, every frame.
+const TILE = 1000
 
-  const parts = poleParts()
-  const poles = new THREE.InstancedMesh(
-    parts.pole.geometry,
-    parts.pole.material,
-    spots.length
-  )
-  const arms = new THREE.InstancedMesh(
-    parts.arm.geometry,
-    parts.arm.material,
-    spots.length
-  )
-  const dummy = new THREE.Object3D()
-  for (let i = 0; i < spots.length; i++) {
-    const { x, z } = spots[i]
-    const y = heightAt(x, z)
-    const h = range(rng, 8, 9.5)
-    const yaw = rng() * Math.PI * 2
-    dummy.position.set(x, y, z)
-    dummy.rotation.set(0, yaw, range(rng, -0.03, 0.03))
-    dummy.scale.set(1, h, 1)
-    dummy.updateMatrix()
-    poles.setMatrixAt(i, dummy.matrix)
-    dummy.position.set(x, y + h - POLE_ARM_DROP, z)
-    dummy.scale.setScalar(1)
-    dummy.updateMatrix()
-    arms.setMatrixAt(i, dummy.matrix)
+function byTile<T>(items: readonly T[], at: (item: T) => XZ): T[][] {
+  const tiles = new Map<string, T[]>()
+  for (const item of items) {
+    const { x, z } = at(item)
+    const key = `${Math.floor(x / TILE)},${Math.floor(z / TILE)}`
+    let list = tiles.get(key)
+    if (!list) {
+      list = []
+      tiles.set(key, list)
+    }
+    list.push(item)
   }
-  poles.instanceMatrix.needsUpdate = true
-  arms.instanceMatrix.needsUpdate = true
+  return [...tiles.values()]
+}
+
+// Utility poles in lines along the named roads (roadside.ts), crossarms
+// square to the road, three wires sagging from one pole to the next: two
+// on the insulators, the telephone cable lower down. Each pole is a post
+// on `walls`.
+const WIRE_SEGMENTS = 4
+const POLE_RADIUS = 0.25
+
+function buildPoles(
+  spots: readonly PoleSpot[],
+  heightAt: HeightAt,
+  walls: Walls
+): THREE.Group {
   const group = new THREE.Group()
   group.name = 'poles'
-  group.add(poles)
-  group.add(arms)
+  const parts = poleParts()
+  const wire = wireMaterial()
+  const local = new THREE.Matrix4()
+  const m = new THREE.Matrix4()
+  const q = new THREE.Quaternion()
+  const euler = new THREE.Euler()
+  const pos = new THREE.Vector3()
+  const one = new THREE.Vector3(1, 1, 1)
+  // A pole's frame: standing on the ground, turned and tilted.
+  const frameOf = (spot: PoleSpot, out: THREE.Matrix4) =>
+    out.compose(
+      pos.set(spot.x, heightAt(spot.x, spot.z), spot.z),
+      q.setFromEuler(euler.set(0, spot.yaw, spot.tilt)),
+      one
+    )
+  const frame = new THREE.Matrix4()
+  const nextFrame = new THREE.Matrix4()
+  const anchorsOf = (spot: PoleSpot, f: THREE.Matrix4) =>
+    poleWireAnchors(spot.height).map((a) =>
+      new THREE.Vector3(...a).applyMatrix4(f)
+    )
+
+  const indexed = spots.map((spot, i) => ({ spot, i }))
+  for (const tile of byTile(indexed, (e) => e.spot)) {
+    const poles = new THREE.InstancedMesh(
+      parts.pole.geometry,
+      parts.pole.material,
+      tile.length
+    )
+    const arms = new THREE.InstancedMesh(
+      parts.arm.geometry,
+      parts.arm.material,
+      tile.length
+    )
+    const insulators = new THREE.InstancedMesh(
+      parts.insulator.geometry,
+      parts.insulator.material,
+      tile.length * POLE_INSULATOR_X.length
+    )
+    const wirePoints: number[] = []
+    tile.forEach(({ spot, i }, n) => {
+      const { x, z, height: h } = spot
+      frameOf(spot, frame)
+      poles.setMatrixAt(n, m.copy(frame).multiply(local.makeScale(1, h, 1)))
+      const armY = h - POLE_ARM_DROP
+      arms.setMatrixAt(
+        n,
+        m.copy(frame).multiply(local.makeTranslation(0, armY, 0))
+      )
+      POLE_INSULATOR_X.forEach((ix, k) => {
+        insulators.setMatrixAt(
+          n * POLE_INSULATOR_X.length + k,
+          m.copy(frame).multiply(local.makeTranslation(ix, armY, 0))
+        )
+      })
+      walls.addWall({ x, z }, { x, z }, POLE_RADIUS)
+      // The span to the next pole of the same line, filed with this pole.
+      if (i + 1 >= spots.length) return
+      const next = spots[i + 1]
+      if (next.line !== spot.line) return
+      const from = anchorsOf(spot, frame)
+      const to = anchorsOf(next, frameOf(next, nextFrame))
+      for (let w = 0; w < from.length; w++) {
+        const a = from[w]
+        const b = to[w]
+        const sag = WIRE_SAG * a.distanceTo(b)
+        for (let s = 0; s < WIRE_SEGMENTS; s++) {
+          for (const t of [s / WIRE_SEGMENTS, (s + 1) / WIRE_SEGMENTS]) {
+            wirePoints.push(
+              a.x + (b.x - a.x) * t,
+              a.y + (b.y - a.y) * t - 4 * sag * t * (1 - t),
+              a.z + (b.z - a.z) * t
+            )
+          }
+        }
+      }
+    })
+    poles.instanceMatrix.needsUpdate = true
+    arms.instanceMatrix.needsUpdate = true
+    insulators.instanceMatrix.needsUpdate = true
+    group.add(poles, arms, insulators)
+    if (wirePoints.length) {
+      const geometry = new THREE.BufferGeometry()
+      geometry.setAttribute(
+        'position',
+        new THREE.Float32BufferAttribute(wirePoints, 3)
+      )
+      const wires = new THREE.LineSegments(geometry, wire)
+      wires.name = 'wires'
+      group.add(wires)
+    }
+  }
   return group
+}
+
+// Sodium streetlights at the junctions (roadside.ts). Each lamp is four
+// instanced parts, a halo on one Points cloud, and a pool of orange light
+// drawn on the ground under it: the roads are unlit, so no real light
+// could brighten them. A few real lights ride to the lamps nearest the
+// player and light what stands under them (the player, the truck, the
+// trees). Each lamp is a post on `walls`.
+const STREETLIGHT_GLOW = {
+  // The pool on the ground: radius, rings and sectors of the fan, its
+  // strength at the centre, and how far it floats over the ground: past
+  // ROAD_LIFT, so a triangle reaching off a road edge still clears the deck.
+  pool: { radius: 13, rings: 6, sectors: 20, alpha: 0.75, lift: 0.35 },
+  halo: 7,
+  // The real lights: how many, their candela and reach, and the distances
+  // over which one fades out as the player walks away from its lamp.
+  lights: 4,
+  intensity: 60,
+  distance: 22,
+  fade: [45, 75] as const,
+}
+
+export interface Streetlights {
+  group: THREE.Group
+  // Park the real lights on the lamps nearest (x, z).
+  update(x: number, z: number): void
+}
+
+function buildStreetlights(
+  spots: readonly LampSpot[],
+  ground: Ground,
+  walls: Walls
+): Streetlights {
+  const G = STREETLIGHT_GLOW
+  const group = new THREE.Group()
+  group.name = 'streetlights'
+  const meshes = streetlightParts().map((part) => {
+    const mesh = new THREE.InstancedMesh(
+      part.geometry,
+      part.material,
+      spots.length
+    )
+    mesh.name = part.name
+    group.add(mesh)
+    return mesh
+  })
+  const dummy = new THREE.Object3D()
+  // Where each lamp's light comes from, in world space.
+  const lenses: THREE.Vector3[] = []
+  const haloPositions: number[] = []
+  const poolPositions: number[] = []
+  const poolColors: number[] = []
+  const poolIndex: number[] = []
+  const sodium = new THREE.Color(SODIUM)
+  const { radius, rings, sectors, alpha, lift } = G.pool
+  spots.forEach((spot, i) => {
+    dummy.position.set(spot.x, ground.at(spot.x, spot.z), spot.z)
+    dummy.rotation.set(0, spot.yaw, 0)
+    dummy.updateMatrix()
+    for (const mesh of meshes) mesh.setMatrixAt(i, dummy.matrix)
+    walls.addWall(
+      { x: spot.x, z: spot.z },
+      { x: spot.x, z: spot.z },
+      POLE_RADIUS
+    )
+    const lens = new THREE.Vector3(...STREETLIGHT.lens).applyMatrix4(
+      dummy.matrix
+    )
+    lenses.push(lens)
+    haloPositions.push(lens.x, lens.y - 0.1, lens.z)
+    // A fan draped on the ground under the lens, bright at the centre and
+    // gone at the rim: the centre, then `rings` rings of `sectors` vertices,
+    // each shared by every triangle that meets it.
+    const base = poolPositions.length / 3
+    const vertex = (px: number, pz: number, k: number) => {
+      poolPositions.push(px, ground.at(px, pz) + lift, pz)
+      poolColors.push(sodium.r, sodium.g, sodium.b, alpha * k * k)
+    }
+    vertex(lens.x, lens.z, 1)
+    for (let ring = 1; ring <= rings; ring++) {
+      const r = (radius * ring) / rings
+      for (let s = 0; s < sectors; s++) {
+        const a = (Math.PI * 2 * s) / sectors
+        vertex(
+          lens.x + Math.cos(a) * r,
+          lens.z + Math.sin(a) * r,
+          1 - ring / rings
+        )
+      }
+    }
+    const at = (ring: number, s: number) =>
+      ring === 0 ? base : base + 1 + (ring - 1) * sectors + (s % sectors)
+    for (let s = 0; s < sectors; s++) {
+      poolIndex.push(at(0, 0), at(1, s + 1), at(1, s))
+      for (let ring = 1; ring < rings; ring++) {
+        poolIndex.push(at(ring, s), at(ring, s + 1), at(ring + 1, s))
+        poolIndex.push(at(ring + 1, s), at(ring, s + 1), at(ring + 1, s + 1))
+      }
+    }
+  })
+  for (const mesh of meshes) mesh.instanceMatrix.needsUpdate = true
+
+  const haloGeometry = new THREE.BufferGeometry()
+  haloGeometry.setAttribute(
+    'position',
+    new THREE.Float32BufferAttribute(haloPositions, 3)
+  )
+  const halos = new THREE.Points(haloGeometry, sodiumHaloMaterial(G.halo))
+  halos.name = 'streetlight-halos'
+  group.add(halos)
+
+  const poolGeometry = new THREE.BufferGeometry()
+  poolGeometry.setAttribute(
+    'position',
+    new THREE.Float32BufferAttribute(poolPositions, 3)
+  )
+  poolGeometry.setAttribute(
+    'color',
+    new THREE.Float32BufferAttribute(poolColors, 4)
+  )
+  poolGeometry.setIndex(poolIndex)
+  const pools = new THREE.Mesh(poolGeometry, sodiumPoolMaterial())
+  pools.name = 'streetlight-pools'
+  group.add(pools)
+
+  // The real lights stay in the scene at zero when unused, so the shaders
+  // never recompile for a changed count.
+  const lights = Array.from({ length: G.lights }, () => {
+    const light = new THREE.PointLight(SODIUM, 0, G.distance)
+    group.add(light)
+    return light
+  })
+  const order = lenses.map((_, i) => i)
+  const dist = new Float32Array(lenses.length)
+  const [near, far] = G.fade
+  return {
+    group,
+    update(x, z) {
+      for (let i = 0; i < lenses.length; i++) {
+        dist[i] = Math.hypot(lenses[i].x - x, lenses[i].z - z)
+      }
+      order.sort((a, b) => dist[a] - dist[b])
+      lights.forEach((light, k) => {
+        if (k >= order.length) {
+          light.intensity = 0
+          return
+        }
+        const i = order[k]
+        light.position.copy(lenses[i])
+        light.position.y -= 0.3
+        const fade = THREE.MathUtils.clamp((far - dist[i]) / (far - near), 0, 1)
+        light.intensity = G.intensity * fade
+      })
+    },
+  }
 }
 
 function buildReeds(
@@ -721,7 +943,7 @@ function nearestRoadside(
 ): { x: number; z: number; dist: number; width: number } | null {
   let best: { x: number; z: number; dist: number; width: number } | null = null
   for (const road of roads) {
-    const width = (ROAD_STYLE[road.c] || ROAD_DEFAULT).width
+    const width = roadWidth(road.c)
     for (let i = 0; i < road.p.length - 1; i++) {
       const a = unitToWorld(road.p[i][0], road.p[i][1], metres)
       const b = unitToWorld(road.p[i + 1][0], road.p[i + 1][1], metres)
@@ -907,6 +1129,31 @@ function buildFuelStations(
   lotMesh.receiveShadow = true
   group.add(lotMesh)
   return { group, points }
+}
+
+// Sodium lamps on every station's lot, in station-local space (local +X
+// toward the road): one at each road-side corner, its arm over the road,
+// and one at each back corner beside the store, its arm over the lot.
+// Every arm reaches along local +X.
+const STATION_LAMPS: readonly XZ[] = [
+  { x: FUEL_LAYOUT.roadEdgeDistance - 1.5, z: FUEL_LAYOUT.lot.halfWidth - 0.5 },
+  {
+    x: FUEL_LAYOUT.roadEdgeDistance - 1.5,
+    z: -(FUEL_LAYOUT.lot.halfWidth - 0.5),
+  },
+  { x: FUEL_LAYOUT.lot.back + 1, z: FUEL_LAYOUT.lot.halfWidth - 1 },
+  { x: FUEL_LAYOUT.lot.back + 1, z: -(FUEL_LAYOUT.lot.halfWidth - 1) },
+]
+
+function stationLamps(points: readonly FuelPoint[]): LampSpot[] {
+  return points.flatMap((point) =>
+    STATION_LAMPS.map(({ x, z }) => {
+      const [wx, , wz] = toWorld(point, [x, 0, z])
+      // A lamp's yaw turns its local +X to (cos, -sin); the station's
+      // turns local +X to (cos, sin).
+      return { x: wx, z: wz, yaw: -point.yaw }
+    })
+  )
 }
 
 // The station lights, in station-local space: one spot under every
@@ -1216,7 +1463,16 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   const shelves = buildShelves(fuel.points)
   group.add(shelves.group)
   group.add(buildTrees(geo, metres, ground.at, mask, rng))
-  group.add(buildPoles(geo, metres, ground.at, rng))
+  // The roadside draws from its own seed, so retuning the poles never moves
+  // the reeds, graves or pickups that draw after it.
+  const roadside = placeRoadside(geo.roads, metres, { avoid: fuel.points })
+  group.add(buildPoles(roadside.poles, ground.at, walls))
+  const streetlights = buildStreetlights(
+    [...roadside.lamps, ...stationLamps(fuel.points)],
+    ground,
+    walls
+  )
+  group.add(streetlights.group)
   group.add(buildReeds(geo, metres, ground.at, rng))
   const graveyards = buildGraveyards(geo, metres, ground.at, rng)
   group.add(graveyards.group)
@@ -1270,5 +1526,6 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     walls,
     facings: fuel.points.map(worldFacings),
     shelves,
+    streetlights,
   }
 }
