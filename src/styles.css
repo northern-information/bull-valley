@@ -457,7 +457,7 @@
 }
 
 /* Center dot. Only while locked and on foot or riding; the inventory, intro
-   and summary all hide it. */
+   and summary all hide it. Half there until E would do something. */
 .bv-reticle {
   position: absolute;
   top: 50%;
@@ -469,6 +469,11 @@
   background: var(--bv-eggshell);
   box-shadow: 0 0 0 1px rgb(0 0 0 / 60%);
   visibility: hidden;
+  opacity: 0.5;
+}
+
+.bv-reticle--active {
+  opacity: 1;
 }
 
 .bv-shell--locked:not(.bv-shell--inventory) .bv-reticle {

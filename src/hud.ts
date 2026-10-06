@@ -328,6 +328,11 @@ export class Hud {
     }
   }
 
+  // The center dot, full while E would do something and half there otherwise.
+  setReticleActive(active: boolean): void {
+    this.reticle.classList.toggle('bv-reticle--active', active)
+  }
+
   // The name over an item, or null for none. The loop calls this every
   // frame; the text changes only when it does.
   itemLabel(view: ItemLabelView | null): void {
