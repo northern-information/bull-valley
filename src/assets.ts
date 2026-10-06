@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { paintAd } from './adart.ts'
 import { paintDrink } from './canart.ts'
 import { canvas, context2d, SANS, text } from './canvas.ts'
@@ -1443,20 +1444,26 @@ export function buildFlames(
   const { geometry, skin, heart, halo, spark, smoke } = getFlameParts()
   const group = new THREE.Group()
   group.name = 'flames'
+  // Every tongue's skin in one draw and every heart in another: instanced
+  // cones, each placed, turned and stretched by its own matrix.
+  const skins = new THREE.InstancedMesh(geometry, skin, spots.length)
+  const hearts = new THREE.InstancedMesh(geometry, heart, spots.length)
+  group.add(skins, hearts)
   const tongues = spots.map(({ at, size }) => {
-    const root = new THREE.Group()
-    root.position.set(...at)
-    const outer = new THREE.Mesh(geometry, skin)
-    const inner = new THREE.Mesh(geometry, heart)
-    inner.scale.setScalar(0.55)
-    outer.add(inner)
     // Each halo has its own material, so each one can dim on its own.
     const sprite = makeGlowSprite(halo, size * FLAME_HALO)
-    sprite.position.y = size * 0.35
-    root.add(outer, sprite)
-    group.add(root)
-    return { at, root, outer, sprite, size, phase: range(rng, 0, Math.PI * 2) }
+    sprite.position.set(at[0], at[1] + size * 0.35, at[2])
+    group.add(sprite)
+    return { at, sprite, size, phase: range(rng, 0, Math.PI * 2) }
   })
+  // How far what they burn on has tipped (counter), undone on every tongue.
+  const tip = new THREE.Euler()
+  const tipped = new THREE.Quaternion()
+  const turn = new THREE.Euler()
+  const turned = new THREE.Quaternion()
+  const where = new THREE.Vector3()
+  const stretch = new THREE.Vector3()
+  const matrix = new THREE.Matrix4()
 
   // Sparks and smoke rise off every tongue: a few of each per tongue, each
   // on its own point in its own cycle, so they never leave together. One
@@ -1545,7 +1552,7 @@ export function buildFlames(
   }
 
   const update = (t: number) => {
-    for (const { outer, sprite, size, phase } of tongues) {
+    tongues.forEach(({ at, sprite, size, phase }, i) => {
       // A slow swell with a quicker flicker over it.
       const swell =
         0.84 +
@@ -1553,12 +1560,26 @@ export function buildFlames(
         0.05 * Math.sin(t * 5.3 + phase * 1.7) +
         0.03 * Math.sin(t * 9.1 + phase * 2.3)
       const w = size * FLAME_WIDTH * (1.1 - 0.2 * swell)
-      outer.scale.set(w, size * swell, w)
-      outer.rotation.set(0, t * 0.9 + phase, 0.12 * Math.sin(t * 1.8 + phase))
+      turned.setFromEuler(
+        turn.set(0, t * 0.9 + phase, 0.12 * Math.sin(t * 1.8 + phase))
+      )
+      turned.premultiply(tipped)
+      where.set(...at)
+      skins.setMatrixAt(
+        i,
+        matrix.compose(where, turned, stretch.set(w, size * swell, w))
+      )
+      // The heart is the skin at a little over half the size.
+      hearts.setMatrixAt(
+        i,
+        matrix.compose(where, turned, stretch.multiplyScalar(0.55))
+      )
       const glow = 0.5 + 0.5 * Math.sin(t * 1.2 + phase)
       sprite.material.opacity = 0.45 + 0.4 * glow
       sprite.scale.setScalar(size * FLAME_HALO * (0.9 + 0.15 * glow))
-    }
+    })
+    skins.instanceMatrix.needsUpdate = true
+    hearts.instanceMatrix.needsUpdate = true
     const sparkAt = sparkGeo.getAttribute('position') as THREE.BufferAttribute
     const sparkColor = sparkGeo.getAttribute('color') as THREE.BufferAttribute
     sparks.forEach((p, i) => {
@@ -1585,9 +1606,13 @@ export function buildFlames(
     smokeColor.needsUpdate = true
   }
   const counter = (x: number, z: number) => {
-    for (const { root } of tongues) root.rotation.set(-x, 0, -z)
+    tipped.setFromEuler(tip.set(-x, 0, -z))
   }
   update(0)
+  // Culled by where the tongues stand: they swell and sway a little past
+  // these bounds, never far.
+  skins.computeBoundingSphere()
+  hearts.computeBoundingSphere()
   setMotion(group, update)
   return { group, update, counter }
 }
@@ -2030,6 +2055,69 @@ function pulse(t: number, period: number, length: number): number {
   return at < length ? Math.sin((at / length) * Math.PI) : 0
 }
 
+// Bakes every node's plain mesh children (no children of their own, one
+// material) into one mesh per material, in place: the same look in a few
+// draws instead of one per part. A mesh alone with its material stays as
+// it is, and nothing else (sprites, points, groups) is touched, so a
+// pivot's parts merge among themselves and still move with it.
+//
+// A part keeps only the attributes its material reads: position and
+// normal, and uv where the material has a map. Parts that still differ
+// (a mapped part with no uv) merge only with their like.
+export function mergeStatic(root: THREE.Object3D): void {
+  const nodes: THREE.Object3D[] = []
+  root.traverse((node) => nodes.push(node))
+  for (const node of nodes) {
+    const groups = new Map<
+      string,
+      { material: THREE.Material; meshes: THREE.Mesh[] }
+    >()
+    for (const child of node.children) {
+      if (!isMesh(child) || child.children.length > 0) continue
+      if (Array.isArray(child.material)) continue
+      const keep = keptAttributes(child.material, child.geometry)
+      const key = `${child.material.uuid}|${keep.join(',')}`
+      const group = groups.get(key) ?? { material: child.material, meshes: [] }
+      group.meshes.push(child)
+      groups.set(key, group)
+    }
+    for (const { material, meshes } of groups.values()) {
+      if (meshes.length < 2) continue
+      const parts = meshes.map((mesh) => {
+        mesh.updateMatrix()
+        const source = mesh.geometry.index
+          ? mesh.geometry.toNonIndexed()
+          : mesh.geometry.clone()
+        source.applyMatrix4(mesh.matrix)
+        const part = new THREE.BufferGeometry()
+        for (const name of keptAttributes(material, mesh.geometry)) {
+          part.setAttribute(name, source.getAttribute(name))
+        }
+        return part
+      })
+      const merged = mergeGeometries(parts) as THREE.BufferGeometry | null
+      if (!merged) continue
+      for (const mesh of meshes) {
+        node.remove(mesh)
+        mesh.geometry.dispose()
+      }
+      node.add(new THREE.Mesh(merged, material))
+    }
+  }
+}
+
+// What a part needs to draw with `material`: always position and normal,
+// and uv when the material has a map to read through it.
+function keptAttributes(
+  material: THREE.Material,
+  geometry: THREE.BufferGeometry
+): string[] {
+  const keep = ['position', 'normal']
+  const mapped = 'map' in material && material.map !== null
+  if (mapped && geometry.getAttribute('uv')) keep.push('uv')
+  return keep
+}
+
 export function buildSkeletonHorse(): SkeletonHorse {
   const group = new THREE.Group()
   group.name = 'skeleton-horse'
@@ -2210,6 +2298,8 @@ export function buildSkeletonHorse(): SkeletonHorse {
     }
   }
 
+  // Some 150 bones and fittings, a few draws per moving part.
+  mergeStatic(group)
   castShadows(group)
 
   const I = HORSE_IDLE
@@ -2451,6 +2541,7 @@ export function buildScroll(): Scroll {
     0x5c7
   )
   group.add(fire.group)
+  mergeStatic(group)
   castShadows(group)
   const update = (t: number) => fire.update(t)
   setMotion(group, update)
@@ -2542,6 +2633,7 @@ export function buildScythe(): THREE.Group {
   )
   back.position.set(-0.02, top, -0.006)
   group.add(back)
+  mergeStatic(group)
   castShadows(group)
   return group
 }
