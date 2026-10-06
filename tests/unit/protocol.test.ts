@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { OUTFIT_IDS } from '../../src/outfits.ts'
 import {
   CHAT_MAX,
   CLOSE,
   isExtractKind,
-  isOutfitId,
   isValidChat,
   isValidName,
   MAX_COORD,
@@ -72,12 +70,6 @@ describe('names', () => {
 })
 
 describe('outfits, poses and extracts', () => {
-  it('knows every outfit and nothing else', () => {
-    for (const id of OUTFIT_IDS) expect(isOutfitId(id)).toBe(true)
-    expect(isOutfitId('tuxedo')).toBe(false)
-    expect(isOutfitId(undefined)).toBe(false)
-  })
-
   it('has no seated pose yet', () => {
     expect(PEER_POSES).toEqual(['stand', 'walk', 'crouch'])
   })

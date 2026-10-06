@@ -309,6 +309,9 @@ describe('ValleyDO', () => {
     const tuxedo = await join(v, s, 'Dave', { outfit: 'tuxedo' })
     expect(tuxedo.closeCode).toBe(CLOSE.badOutfit)
     expect((tuxedo.attachment as { me: unknown }).me).toBeNull()
+    // An NPC's outfit is not on the roster.
+    const marx = await join(v, s, 'Dave', { outfit: 'marx' })
+    expect(marx.closeCode).toBe(CLOSE.badOutfit)
     await join(v, s, 'First')
     const stale = await join(v, s, 'Second', { pickups: 71 })
     expect(stale.closeCode).toBe(CLOSE.staleBuild)
@@ -660,6 +663,12 @@ describe('ValleyDO', () => {
       re: 'appearance',
       reason: 'unknown-outfit',
     })
+    // A shadowman is an outfit, but not a raider's.
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ type: 'appearance', outfit: 'shadow' })
+    )
+    expect(a.last<NackMessage>()).toMatchObject({ reason: 'unknown-outfit' })
     const b = await join(v, s, 'B')
     const before = b.sent.length
     for (let i = 0; i < 8; i++) {

@@ -4,7 +4,6 @@
 // JSON text; every number the server stores is checked here first.
 
 import { USERNAME_MAX } from './account.ts'
-import { OUTFIT_IDS } from './outfits.ts'
 import type {
   ExtractKind,
   Inventory,
@@ -250,7 +249,8 @@ export interface ChatMessage {
 }
 
 // Gron changed this raider's character. The outfit is checked by the
-// server with isOutfitId, like the hello's.
+// server against the select's roster (characters.ts isSelectable), like
+// the hello's.
 export interface AppearanceMessage {
   type: 'appearance'
   outfit: OutfitId
@@ -492,10 +492,6 @@ export function isValidChat(text: unknown): text is string {
 
 // --- Validation ------------------------------------------------------------
 
-export function isOutfitId(value: unknown): value is OutfitId {
-  return typeof value === 'string' && OUTFIT_IDS.some((id) => id === value)
-}
-
 function isPeerPose(value: unknown): value is PeerPose {
   return PEER_POSES.some((pose) => pose === value)
 }
@@ -609,7 +605,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
       // An older build sends neither; it still parses as far as its
       // version, which the server then refuses.
       if (v === PROTOCOL_VERSION && (!havens || !metres)) return null
-      // The outfit is checked by the server with isOutfitId; the type here
+      // The outfit is checked by the server (characters.ts isSelectable); the type here
       // is widened deliberately so a bad id reaches that check. An older
       // build's hello still parses (its name is ignored), so it is told its
       // version is stale rather than that the frame is malformed.

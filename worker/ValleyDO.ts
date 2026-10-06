@@ -15,10 +15,10 @@
 // left, and the object can hibernate again.
 
 import { DurableObject } from 'cloudflare:workers'
+import { isSelectable } from '../src/characters.ts'
 import { CONFIG } from '../src/config.ts'
 import {
   CLOSE,
-  isOutfitId,
   isValidName,
   normalizeName,
   parseClientMessage,
@@ -325,7 +325,9 @@ export class ValleyDO extends DurableObject<Env> {
       ws.close(CLOSE.badName, 'Invalid name')
       return
     }
-    if (!isOutfitId(hello.outfit)) {
+    // Only the select's roster: an NPC's or a shadowman's outfit is not a
+    // raider's to wear.
+    if (!isSelectable(hello.outfit)) {
       ws.close(CLOSE.badOutfit, 'Unknown outfit')
       return
     }
@@ -421,7 +423,7 @@ export class ValleyDO extends DurableObject<Env> {
       send(ws, { type: 'nack', re: 'appearance', reason: 'too-fast' })
       return
     }
-    if (!isOutfitId(outfit)) {
+    if (!isSelectable(outfit)) {
       send(ws, { type: 'nack', re: 'appearance', reason: 'unknown-outfit' })
       return
     }
