@@ -7,6 +7,73 @@
 import { canvas } from './canvas.ts'
 import { mulberry32, range } from './rng.ts'
 import type { CanvasArt } from './canvas.ts'
+import type { TrailField } from './maze.ts'
+
+// The maze's worn trail (maze.ts trailField), one pixel a sample: mud
+// within `half` metres of the middle of every path, its edge wandering a
+// little in and out, and see-through everywhere else so the material's
+// alphaTest leaves the grass. Canvas x runs along the maze (the field's
+// cols), canvas y across it (its rows).
+export function paintTrailField(
+  field: TrailField,
+  half: number,
+  seed = 0x7a1
+): CanvasArt {
+  const rng = mulberry32(seed)
+  const { cols, rows, fromMiddle } = field
+  const art = canvas([cols, rows])
+  const { ctx } = art
+  // A coarse lattice of random wobble, read smoothly, so the edge bulges
+  // and pinches over a metre or two rather than fizzing pixel by pixel.
+  const cell = 6
+  const lw = Math.ceil(cols / cell) + 2
+  const lattice = Array.from(
+    { length: lw * (Math.ceil(rows / cell) + 2) },
+    () => rng()
+  )
+  const wobble = (i: number, j: number) => {
+    const x = i / cell
+    const y = j / cell
+    const x0 = Math.floor(x)
+    const y0 = Math.floor(y)
+    const sx = x - x0
+    const sy = y - y0
+    const at = (a: number, b: number) => lattice[b * lw + a]
+    return (
+      at(x0, y0) * (1 - sx) * (1 - sy) +
+      at(x0 + 1, y0) * sx * (1 - sy) +
+      at(x0, y0 + 1) * (1 - sx) * sy +
+      at(x0 + 1, y0 + 1) * sx * sy
+    )
+  }
+  const image = ctx.createImageData(cols, rows)
+  const px = image.data
+  const shades = [
+    [58, 45, 32],
+    [44, 33, 23],
+    [74, 58, 41],
+    [36, 26, 18],
+  ]
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      const k = j * cols + i
+      const edge = half * (0.75 + 0.5 * wobble(i, j))
+      if (!(fromMiddle[k] <= edge)) continue
+      // Darker down the worn middle, patchy all over.
+      const r = rng()
+      const shade =
+        fromMiddle[k] < half * 0.3 && r < 0.5
+          ? shades[3]
+          : shades[Math.floor(r * 3)]
+      px[k * 4] = shade[0]
+      px[k * 4 + 1] = shade[1]
+      px[k * 4 + 2] = shade[2]
+      px[k * 4 + 3] = 255
+    }
+  }
+  ctx.putImageData(image, 0, 0)
+  return art
+}
 
 // How many metres of mud one copy of the canvas covers, along it.
 export const MUD_TILE_LENGTH = 6

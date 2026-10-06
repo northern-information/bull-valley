@@ -100,6 +100,40 @@ export function paintEnterSign(): CanvasArt {
   return art
 }
 
+// The portal at the maze's heart: a spiral of pale green bands on black,
+// brightest at the eye, fading to nothing at the rim. Drawn for additive
+// blending, so black is clear.
+export function paintPortalSwirl(): CanvasArt {
+  const art = canvas([64, 64], '#000000')
+  const { ctx, w, h } = art
+  const cx = w / 2
+  const cy = h / 2
+  const r = w / 2
+  for (let arm = 0; arm < 3; arm++) {
+    for (let s = 0; s < 1; s += 0.01) {
+      const a = (arm / 3) * Math.PI * 2 + s * Math.PI * 3
+      const d = s * r
+      const fade = 1 - s
+      ctx.fillStyle = `rgba(150, 255, 210, ${(0.25 + fade * 0.75).toFixed(2)})`
+      ctx.beginPath()
+      ctx.arc(
+        cx + Math.cos(a) * d,
+        cy + Math.sin(a) * d,
+        1 + s * 4,
+        0,
+        Math.PI * 2
+      )
+      ctx.fill()
+    }
+  }
+  const eye = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 0.4)
+  eye.addColorStop(0, 'rgba(230, 255, 245, 1)')
+  eye.addColorStop(1, 'rgba(60, 200, 160, 0)')
+  ctx.fillStyle = eye
+  ctx.fillRect(0, 0, w, h)
+  return art
+}
+
 // A happy clown's face centred on (x, y): orange tufts, a white face, blue
 // diamond eyes, a red nose and a wide red grin, and a little party hat.
 function paintClown(ctx: CanvasRenderingContext2D, x: number, y: number) {

@@ -12,6 +12,7 @@ import {
   paintCornMazeSign,
   paintCornStalks,
   paintEnterSign,
+  paintPortalSwirl,
   STALK_MASS_TOP,
 } from './mazeart.ts'
 import { paintMedicine } from './medart.ts'
@@ -1046,6 +1047,67 @@ function buildMazeSign(
   group.add(board)
   mergeStatic(group)
   return group
+}
+
+// The portal at the maze's heart: a standing ring of pale green light
+// round a slow spiral, a halo over it all, the ring breathing. It faces
+// +Z and -Z alike; origin at ground level under the middle. Walk into it
+// and it puts you back at the gate (main.ts, maze.ts inPortal).
+export const PORTAL = {
+  radius: 1.2,
+  tube: 0.1,
+  centre: 1.45,
+  color: '#7cf7d4',
+  glowScale: 6,
+  spin: 0.9,
+}
+
+export interface PortalRig {
+  group: THREE.Group
+  update(t: number): void
+}
+
+export function buildPortal(): PortalRig {
+  const group = new THREE.Group()
+  group.name = 'portal'
+  const { radius, tube, centre, color, glowScale, spin } = PORTAL
+  const ringMaterial = applyPS1(new THREE.MeshBasicMaterial({ color }))
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(radius, tube, 6, 24),
+    ringMaterial
+  )
+  ring.position.y = centre
+  group.add(ring)
+  const swirl = new THREE.Mesh(
+    new THREE.CircleGeometry(radius - tube / 2, 24),
+    applyPS1(
+      new THREE.MeshBasicMaterial({
+        map: artTexture(paintPortalSwirl()),
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        transparent: true,
+        side: THREE.DoubleSide,
+      })
+    )
+  )
+  swirl.position.y = centre
+  group.add(swirl)
+  const halo = makeGlowSprite(
+    makeGlowTexture('rgba(124, 247, 212, 0.55)'),
+    glowScale
+  )
+  halo.position.y = centre
+  group.add(halo)
+  const base = new THREE.Color(color)
+  return {
+    group,
+    update(t) {
+      swirl.rotation.z = -t * spin
+      const breath = 0.75 + 0.25 * Math.sin(t * 2.1)
+      ringMaterial.color.copy(base).multiplyScalar(breath)
+      halo.material.opacity = 0.6 + 0.4 * breath
+    },
+  }
 }
 
 // --- Landmark beacon -----------------------------------------------------
@@ -3988,12 +4050,15 @@ export function roadMaterial(): THREE.MeshLambertMaterial {
   return material
 }
 
-// Worn mud (mudart.ts): the corn maze's trail and every road's shoulders.
-// Lit, and glowing through its own art at the roads' strength, so the two
-// read as one at night. The art repeats along the mud (v) and frays at
-// both edges (u) through alphaTest.
-export function mudMaterial(): THREE.MeshLambertMaterial {
-  const texture = artTexture(paintMud())
+// Worn mud (mudart.ts): every road's shoulders and the trail out of the
+// corn maze by default, or other mud art, like the maze's own trail. Lit,
+// and glowing through its own art at the roads' strength, so the two read
+// as one at night. The default art repeats along the mud (v) and frays at
+// both edges (u); see-through art shows the grass through alphaTest.
+export function mudMaterial(
+  art: CanvasArt = paintMud()
+): THREE.MeshLambertMaterial {
+  const texture = artTexture(art)
   texture.wrapT = THREE.RepeatWrapping
   return lambert({
     map: texture,
@@ -4102,6 +4167,15 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     build: buildCornMazeSign,
   },
   { id: 'enter-sign', label: 'Corn maze: enter sign', build: buildEnterSign },
+  {
+    id: 'portal',
+    label: 'Corn maze: portal',
+    build: () => {
+      const portal = buildPortal()
+      setMotion(portal.group, (t) => portal.update(t))
+      return portal.group
+    },
+  },
   { id: 'pole', label: 'Utility pole', build: samplePole },
   { id: 'streetlight', label: 'Streetlight', build: sampleStreetlight },
   { id: 'reeds', label: 'Reeds (clump of 12)', build: sampleReeds },

@@ -268,5 +268,13 @@ export const CONFIG = {
     ],
     // Each sign blocks along its board, post to post, this wide.
     signRadius: 0.12,
+    // Sodium lamps all the way round the outside (maze.ts perimeterSpots):
+    // this far off the corn, about this far apart, and none within `clear`
+    // of the gate, either sign, or the trail out.
+    lamps: { out: 3, spacing: 25, clear: 5 },
+    // The portal at the maze's heart (maze.ts mazeHeart): step within
+    // `radius` of its middle and it puts you on the trail just outside the
+    // gate (`exit`, station-local), facing the gate.
+    portal: { radius: 0.9, exit: { x: 78, z: 23 } },
   },
 }

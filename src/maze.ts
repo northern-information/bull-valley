@@ -10,6 +10,8 @@
 // another's. Traced from an overhead render of the film's maze and
 // mirrored, so its one gate is on the left, the end nearest the station.
 
+import { projectOnSegment } from './coords.ts'
+
 export const SHINING_MAZE: readonly string[] = [
   '#########################################################',
   '#...........................#...........................#',
@@ -286,6 +288,170 @@ export function spanPieces(
     })
   }
   return pieces
+}
+
+// The worn trail down the middle of every path in the maze, as a field
+// over its floor: `cols` samples along the road (z) by `rows` across it
+// (x), `step` metres apart, the first at the maze's corner. Each sample
+// holds how far it lies, in metres, from the middle of the path it is on:
+// 0 on the line itself, Infinity in the corn. The middle is the ridge of
+// the distance to the nearest corn, so the line runs exactly halfway
+// between the walls of every corridor, into every dead end and across the
+// court, and a painter wears mud wherever the value is small.
+export interface TrailField {
+  cols: number
+  rows: number
+  step: number
+  fromMiddle: Float32Array
+}
+
+export function trailField(
+  grid: readonly string[],
+  size: MazeSize,
+  thickness: number,
+  step: number
+): TrailField {
+  const cols = Math.ceil(size.along / step) + 1
+  const rows = Math.ceil(size.across / step) + 1
+  const n = cols * rows
+  // The corn, as the walls.ts capsules stand it.
+  const corn = new Uint8Array(n)
+  const half = thickness / 2
+  for (const { a, b } of mazeSpans(grid, size)) {
+    const i0 = Math.max(0, Math.floor((Math.min(a.z, b.z) - half) / step))
+    const i1 = Math.min(cols - 1, Math.ceil((Math.max(a.z, b.z) + half) / step))
+    const j0 = Math.max(0, Math.floor((Math.min(a.x, b.x) - half) / step))
+    const j1 = Math.min(rows - 1, Math.ceil((Math.max(a.x, b.x) + half) / step))
+    for (let j = j0; j <= j1; j++) {
+      for (let i = i0; i <= i1; i++) {
+        const p = projectOnSegment(j * step, i * step, a.x, a.z, b.x, b.z)
+        if (p.dist <= half) corn[j * cols + i] = 1
+      }
+    }
+  }
+  // How far every sample lies from the corn, then the ridge of that: a
+  // sample at least as far as both neighbours on one axis, and further
+  // than one of them, so a corridor's middle counts and its length (flat
+  // along the corridor) does not.
+  const clear = distanceField(corn, cols, rows)
+  const ridge = new Uint8Array(n)
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      const k = j * cols + i
+      const d = clear[k]
+      if (corn[k] || d < 1) continue
+      const peak = (p: number, q: number) =>
+        d >= p && d >= q && (d > p || d > q)
+      const alongZ = i > 0 && i < cols - 1 && peak(clear[k - 1], clear[k + 1])
+      const acrossX =
+        j > 0 && j < rows - 1 && peak(clear[k - cols], clear[k + cols])
+      if (alongZ || acrossX) ridge[k] = 1
+    }
+  }
+  const toRidge = distanceField(ridge, cols, rows)
+  const fromMiddle = new Float32Array(n)
+  for (let k = 0; k < n; k++) {
+    fromMiddle[k] = corn[k] ? Infinity : toRidge[k] * step
+  }
+  return { cols, rows, step, fromMiddle }
+}
+
+// The Euclidean distance, in samples, from every sample to the nearest one
+// set in `features` (Felzenszwalb and Huttenlocher's exact transform: down
+// the columns, then along the rows). Infinity where none is set.
+export function distanceField(
+  features: Uint8Array,
+  cols: number,
+  rows: number
+): Float32Array {
+  const big = 1e20
+  const squared = new Float64Array(cols * rows)
+  for (let k = 0; k < squared.length; k++) squared[k] = features[k] ? 0 : big
+  const line = (start: number, stride: number, length: number) => {
+    const f = new Float64Array(length)
+    for (let q = 0; q < length; q++) f[q] = squared[start + q * stride]
+    const v = new Int32Array(length)
+    const z = new Float64Array(length + 1)
+    let k = 0
+    v[0] = 0
+    z[0] = -Infinity
+    z[1] = Infinity
+    for (let q = 1; q < length; q++) {
+      let s = (f[q] + q * q - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k])
+      while (s <= z[k]) {
+        k--
+        s = (f[q] + q * q - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k])
+      }
+      k++
+      v[k] = q
+      z[k] = s
+      z[k + 1] = Infinity
+    }
+    k = 0
+    for (let q = 0; q < length; q++) {
+      while (z[k + 1] < q) k++
+      squared[start + q * stride] = (q - v[k]) * (q - v[k]) + f[v[k]]
+    }
+  }
+  for (let i = 0; i < cols; i++) line(i, cols, rows)
+  for (let j = 0; j < rows; j++) line(j * cols, 1, cols)
+  const out = new Float32Array(squared.length)
+  for (let k = 0; k < out.length; k++) {
+    out[k] = squared[k] >= big ? Infinity : Math.sqrt(squared[k])
+  }
+  return out
+}
+
+// A spot just outside the maze, with the way back to the corn (inward,
+// unit length), in maze-local metres.
+export interface EdgeSpot {
+  x: number
+  z: number
+  inX: number
+  inZ: number
+}
+
+// Spots all the way round the maze, `out` metres off its edge, about
+// `spacing` apart along each side, a corner at the start of every side.
+export function perimeterSpots(
+  size: MazeSize,
+  out: number,
+  spacing: number
+): EdgeSpot[] {
+  const { across, along } = size
+  // Each side from one corner toward the next, going round, and the way
+  // in from it.
+  const sides = [
+    { x0: 0, z0: 0, x1: across, z1: 0, inX: 0, inZ: 1 },
+    { x0: across, z0: 0, x1: across, z1: along, inX: -1, inZ: 0 },
+    { x0: across, z0: along, x1: 0, z1: along, inX: 0, inZ: -1 },
+    { x0: 0, z0: along, x1: 0, z1: 0, inX: 1, inZ: 0 },
+  ]
+  const spots: EdgeSpot[] = []
+  for (const s of sides) {
+    const length = Math.hypot(s.x1 - s.x0, s.z1 - s.z0)
+    const count = Math.max(1, Math.round(length / spacing))
+    for (let i = 0; i < count; i++) {
+      const t = i / count
+      spots.push({
+        x: s.x0 + (s.x1 - s.x0) * t - s.inX * out,
+        z: s.z0 + (s.z1 - s.z0) * t - s.inZ * out,
+        inX: s.inX,
+        inZ: s.inZ,
+      })
+    }
+  }
+  return spots
+}
+
+// Whether a point stands inside the portal: within `radius` of its middle.
+export function inPortal(
+  x: number,
+  z: number,
+  portal: { x: number; z: number },
+  radius: number
+): boolean {
+  return Math.hypot(x - portal.x, z - portal.z) <= radius
 }
 
 // Whether a maze-local point lies within `margin` metres of the maze.

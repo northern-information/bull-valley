@@ -8,14 +8,18 @@ import {
 } from '../../src/coords.ts'
 import {
   cellPoint,
+  distanceField,
   inMaze,
+  inPortal,
   mazeGates,
   mazeHeart,
   mazeRuns,
   mazeSpans,
   mazeWalk,
+  perimeterSpots,
   SHINING_MAZE,
   spanPieces,
+  trailField,
 } from '../../src/maze.ts'
 import { roadWidth } from '../../src/roadside.ts'
 import type { Geo } from '../../src/interfaces.ts'
@@ -174,6 +178,93 @@ describe('mazeWalk and mazeHeart', () => {
     const grid = ['.#.']
     expect(mazeWalk(grid, { col: 0, row: 0 }, { col: 2, row: 0 })).toEqual([])
     expect(mazeWalk(grid, { col: 0, row: 0 }, { col: 1, row: 0 })).toEqual([])
+  })
+})
+
+describe('distanceField', () => {
+  it('measures straight-line samples to the nearest feature', () => {
+    const features = new Uint8Array(5 * 4)
+    features[0] = 1
+    const d = distanceField(features, 5, 4)
+    expect(d[0]).toBe(0)
+    expect(d[4]).toBe(4)
+    expect(d[3 * 5 + 4]).toBeCloseTo(5)
+  })
+
+  it('is endless with nothing to measure to', () => {
+    expect(distanceField(new Uint8Array(4), 2, 2)[3]).toBe(Infinity)
+  })
+})
+
+describe('trailField', () => {
+  // One corridor along z between two walls 4 m apart, shut at both ends.
+  const corridor = ['#####', '#...#', '#...#', '#...#', '#####']
+  const size = { along: 8, across: 4 }
+  const field = trailField(corridor, size, 0.5, 0.25)
+  const at = (x: number, z: number) =>
+    field.fromMiddle[Math.round(x / 0.25) * field.cols + Math.round(z / 0.25)]
+
+  it('runs down the middle of a corridor, halfway between its walls', () => {
+    expect(at(2, 4)).toBe(0)
+    expect(at(1.5, 4)).toBeCloseTo(0.5)
+    expect(at(2.5, 4)).toBeCloseTo(0.5)
+  })
+
+  it('never lies in the corn', () => {
+    expect(at(0, 4)).toBe(Infinity)
+    expect(at(2, 0)).toBe(Infinity)
+  })
+
+  it('reaches every path in the maze', () => {
+    const shining = trailField(
+      SHINING_MAZE,
+      SIZE,
+      CONFIG.maze.wallThickness,
+      0.25
+    )
+    const half = CONFIG.maze.trailWidth / 2
+    let unworn = 0
+    for (let row = 0; row < SHINING_MAZE.length; row++) {
+      for (let col = 0; col < SHINING_MAZE[0].length; col++) {
+        if (SHINING_MAZE[row][col] !== '.') continue
+        const p = cellPoint(SHINING_MAZE, SIZE, { col, row })
+        const i = Math.round(p.z / shining.step)
+        const j = Math.round(p.x / shining.step)
+        // The trail passes within a corridor's width of every path cell.
+        let near = Infinity
+        for (let dj = -12; dj <= 12; dj++) {
+          for (let di = -12; di <= 12; di++) {
+            const k = (j + dj) * shining.cols + (i + di)
+            if (k < 0 || k >= shining.fromMiddle.length) continue
+            near = Math.min(near, shining.fromMiddle[k])
+          }
+        }
+        if (near > half) unworn++
+      }
+    }
+    expect(unworn).toBe(0)
+  })
+})
+
+describe('perimeterSpots', () => {
+  it('rings the maze just outside it, each spot facing the corn', () => {
+    const out = 3
+    const spots = perimeterSpots(SIZE, out, 25)
+    expect(spots.length).toBeGreaterThan(16)
+    for (const s of spots) {
+      expect(inMaze(SIZE, s.x, s.z)).toBe(false)
+      expect(inMaze(SIZE, s.x, s.z, out)).toBe(true)
+      // One step in from a spot heads toward the corn.
+      expect(inMaze(SIZE, s.x + s.inX * out, s.z + s.inZ * out)).toBe(true)
+    }
+  })
+})
+
+describe('inPortal', () => {
+  it('takes a point within the radius of the middle', () => {
+    const at = { x: 10, z: -4 }
+    expect(inPortal(10.5, -4, at, 0.9)).toBe(true)
+    expect(inPortal(11, -4, at, 0.9)).toBe(false)
   })
 })
 
