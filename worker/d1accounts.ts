@@ -1,6 +1,6 @@
 // The account store on D1 (migrations/*.sql). Thin: every rule lives in
-// the SQL (the unique username index, the foreign key) or in auth.ts. The
-// Worker tests use the in-memory store; this one is exercised end to end.
+// the SQL (the unique username index, the foreign key) or in auth.ts.
+// tests/worker/accounts.test.ts runs it against the migrations on SQLite.
 
 import { isSelectable } from '../src/characters.ts'
 import { isFinish } from '../src/finishes.ts'

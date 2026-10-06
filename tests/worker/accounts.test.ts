@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { assign, EMPTY_HOTBAR } from '../../src/hotbar.ts'
 import { MemoryAccountStore } from '../../worker/accounts.ts'
+import { D1AccountStore } from '../../worker/d1accounts.ts'
+import { testD1 } from './stubs/d1.ts'
 import type {
   Account,
   AccountStore,
@@ -122,8 +125,94 @@ export function storeContract(makeStore: () => AccountStore): void {
     expect((await store.get('a1'))?.primaryProvider).toBe('discord:3')
     expect(await store.unlinkProvider('a1', 'discord')).toBe('last-provider')
   })
+
+  it('keeps the look, unchosen until the first choice', async () => {
+    const store = makeStore()
+    await store.create(account('a1', 'github:1'), linked('a1', 'github', '1'))
+    expect(await store.lookOf('a1')).toEqual({ outfit: null, finish: null })
+    const look = { outfit: 'coleman', finish: 'olympic-white' } as const
+    expect(await store.setLook('a1', look)).toBe(true)
+    expect(await store.lookOf('a1')).toEqual(look)
+    expect(await store.setLook('nobody', look)).toBe(false)
+    expect(await store.lookOf('nobody')).toEqual({
+      outfit: null,
+      finish: null,
+    })
+  })
+
+  it('keeps the hotbar, empty until the first assignment', async () => {
+    const store = makeStore()
+    await store.create(account('a1', 'github:1'), linked('a1', 'github', '1'))
+    expect(await store.hotbarOf('a1')).toEqual(EMPTY_HOTBAR)
+    const bar = assign(EMPTY_HOTBAR, 2, 'cabbage')
+    expect(await store.setHotbar('a1', bar)).toBe(true)
+    expect(await store.hotbarOf('a1')).toEqual(bar)
+    expect(await store.setHotbar('nobody', bar)).toBe(false)
+    expect(await store.hotbarOf('nobody')).toEqual(EMPTY_HOTBAR)
+  })
 }
 
 describe('MemoryAccountStore', () => {
   storeContract(() => new MemoryAccountStore())
+})
+
+describe('D1AccountStore', () => {
+  storeContract(() => new D1AccountStore(testD1().db))
+
+  const seeded = async () => {
+    const d1 = testD1()
+    const store = new D1AccountStore(d1.db)
+    await store.create(account('a1', 'github:1'), linked('a1', 'github', '1'))
+    return { ...d1, store }
+  }
+
+  it('reads a pick since dropped from the roster or the table as unchosen', async () => {
+    const { sqlite, store } = await seeded()
+    sqlite.exec(
+      "UPDATE accounts SET outfit = 'retired', finish = 'chrome' WHERE account_id = 'a1'"
+    )
+    expect(await store.lookOf('a1')).toEqual({ outfit: null, finish: null })
+  })
+
+  it('reads an unreadable hotbar as empty and clears a dropped item', async () => {
+    const { sqlite, store } = await seeded()
+    sqlite.exec(
+      "UPDATE accounts SET hotbar = '[not json' WHERE account_id = 'a1'"
+    )
+    expect(await store.hotbarOf('a1')).toEqual(EMPTY_HOTBAR)
+    const stored = JSON.stringify(['retired', ...EMPTY_HOTBAR.slice(1)])
+    sqlite
+      .prepare("UPDATE accounts SET hotbar = ? WHERE account_id = 'a1'")
+      .run(stored)
+    expect(await store.hotbarOf('a1')).toEqual(EMPTY_HOTBAR)
+  })
+
+  it('creates nothing when the first provider is already linked', async () => {
+    const { store } = await seeded()
+    await expect(
+      store.create(account('a2', 'github:1'), linked('a2', 'github', '1'))
+    ).rejects.toThrow(/UNIQUE/)
+    // The batch is one transaction: the account row went too.
+    expect(await store.get('a2')).toBeNull()
+  })
+
+  it('answers linked-elsewhere when a link loses the race to the insert', async () => {
+    const { store } = await seeded()
+    await store.create(account('a2', 'google:2'), linked('a2', 'google', '2'))
+    // Another request links it between this one's lookup and its insert.
+    const racing = Object.create(store) as D1AccountStore
+    racing.findByProvider = () => Promise.resolve(null)
+    await store.linkProvider(linked('a2', 'discord', '3'))
+    expect(await racing.linkProvider(linked('a1', 'discord', '3'))).toBe(
+      'linked-elsewhere'
+    )
+  })
+
+  it('rethrows a database error that is not a taken name', async () => {
+    const { sqlite, store } = await seeded()
+    sqlite.exec('DROP TABLE providers')
+    await expect(
+      store.linkProvider(linked('a1', 'discord', '3'))
+    ).rejects.toThrow(/no such table/)
+  })
 })
