@@ -3,7 +3,7 @@
 // strike static. Markup is generated here so
 // index.html stays a bare #bv-root.
 
-import { PACK, WORLD } from './bindings.ts'
+import { PACK, PACK_IN_MENU, WORLD } from './bindings.ts'
 import { CHAT_LINES, formatStamp, isFaded, pushLine } from './chat.ts'
 import { copy } from './copy.ts'
 import { KEEP } from './landmarks.ts'
@@ -101,13 +101,15 @@ function text<K extends keyof HTMLElementTagNameMap>(
 
 // The controls table: two bindings a row, key then action; an odd last
 // one gets the whole row.
-function controlRows(bindings: readonly Binding[]): HTMLTableRowElement[] {
+function controlRows(
+  controls: readonly { key: string; label: string }[]
+): HTMLTableRowElement[] {
   const rows: HTMLTableRowElement[] = []
-  for (let i = 0; i < bindings.length; i += 2) {
+  for (let i = 0; i < controls.length; i += 2) {
     const row = document.createElement('tr')
-    const pair = bindings.slice(i, i + 2)
-    for (const [j, { key, labelKey }] of pair.entries()) {
-      const action = text('td', copy(labelKey))
+    const pair = controls.slice(i, i + 2)
+    for (const [j, { key, label }] of pair.entries()) {
+      const action = text('td', label)
       if (pair.length === 1 && j === 0) action.colSpan = 3
       row.append(text('th', key), action)
     }
@@ -338,6 +340,7 @@ export class Hud {
     this.cardUse = keyItem(PACK.use)
     keyItem(PACK.assign)
     keyItem(PACK.drop)
+    keyItem(PACK.dropAll)
     this.card.append(
       this.cardCanvas,
       this.cardName,
@@ -390,7 +393,19 @@ export class Hud {
     required(
       this.intro.querySelector<HTMLTableElement>('[data-bv="controls"]'),
       'controls table'
-    ).replaceChildren(...controlRows(Object.values(WORLD)))
+    ).replaceChildren(
+      ...controlRows([
+        ...Object.values(WORLD).map(({ key, labelKey }) => ({
+          key,
+          label: copy(labelKey),
+        })),
+        // The pack's own keys say where they work.
+        ...PACK_IN_MENU.map(({ key, labelKey }) => ({
+          key,
+          label: copy('keys.in_pack', { action: copy(labelKey) }),
+        })),
+      ])
+    )
     required(
       this.intro.querySelector<HTMLElement>('[data-bv="intro-note"]'),
       'intro note'

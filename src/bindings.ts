@@ -8,7 +8,8 @@
 
 export interface Binding {
   // KeyboardEvent.code values. Empty for a control the browser owns (the
-  // mouse, and Esc, which drops pointer lock).
+  // mouse, and Esc, which drops pointer lock), or for another binding's
+  // key held with a modifier (Shift+X), which that binding's handler reads.
   codes: readonly string[]
   // The key, as shown to players.
   key: string
@@ -74,8 +75,9 @@ export const CHAT = {
 export const PACK = {
   use: { codes: ['KeyE', 'Enter'], key: 'E', labelKey: 'keys.use' },
   assign: { codes: HOTBAR_CODES, key: '1–9', labelKey: 'keys.assign' },
-  // One of the item; with Shift, the whole stack.
+  // One of the item; with Shift, the whole stack (input.ts reads Shift).
   drop: { codes: ['KeyX'], key: 'X', labelKey: 'keys.drop' },
+  dropAll: { codes: [], key: 'Shift+X', labelKey: 'keys.drop_all' },
   prevTab: {
     codes: ['KeyA', 'ArrowLeft'],
     key: 'A',
@@ -88,6 +90,11 @@ export const PACK = {
   },
   close: { codes: ['Tab', 'Escape'], key: 'Tab', labelKey: 'keys.close' },
 } as const satisfies Record<string, Binding>
+
+// The pack's keys the controls table lists too, under the valley's: only
+// the ones that act on an item, since the rest are the pack's own way
+// round (its tabs, closing it).
+export const PACK_IN_MENU: readonly Binding[] = [PACK.drop, PACK.dropAll]
 
 // The action a code fires in a table, or null when the table does not
 // bind it.

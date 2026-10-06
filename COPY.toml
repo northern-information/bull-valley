@@ -241,7 +241,9 @@ chat_scroll_down = { text = "Scroll Down", by = "ai" }
 pause = { text = "Pause", by = "ai" }
 use = { text = "Use", by = "ai" }
 assign = { text = "Assign", by = "ai" }
-drop = { text = "Drop (Shift: All)", by = "ai" }
+drop = { text = "Drop One", by = "ai" }
+drop_all = { text = "Drop All", by = "ai" }
+in_pack = { text = "{action} (in Pack)", by = "ai" }
 switch_tab = { text = "Switch Tab", by = "ai" }
 close = { text = "Close", by = "ai" }
 
