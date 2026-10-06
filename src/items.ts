@@ -14,6 +14,8 @@
 //   empty     chat line when the player tries to use it with none left
 //   start     count in a new inventory (counted items only)
 //   price     shelf price at every Citgo, in cents (shelf items only)
+//   contents  how many the pack, bottle or box holds (1 when absent); the
+//             inventory counts these, and a buy or a pickup adds a full one
 //
 // Drinks and medicine cannot be used yet, so they have no used or empty text. Forage is never
 // on a shelf, so it has no price or bought text; the valley hands it out
@@ -33,6 +35,7 @@ export const ITEMS = [
     empty: copy('items.marlboro.empty'),
     start: 2,
     price: 549,
+    contents: 20,
     smokeSeconds: 12,
     emberSeconds: 20,
   },
@@ -46,6 +49,7 @@ export const ITEMS = [
     empty: copy('items.camel.empty'),
     start: 0,
     price: 529,
+    contents: 20,
     smokeSeconds: 14,
     emberSeconds: 20,
   },
@@ -59,6 +63,7 @@ export const ITEMS = [
     empty: copy('items.parliament.empty'),
     start: 0,
     price: 599,
+    contents: 20,
     smokeSeconds: 13,
     emberSeconds: 16,
   },
@@ -72,6 +77,7 @@ export const ITEMS = [
     empty: copy('items.newport.empty'),
     start: 0,
     price: 549,
+    contents: 20,
     smokeSeconds: 9,
     emberSeconds: 14,
   },
@@ -85,6 +91,7 @@ export const ITEMS = [
     empty: copy('items.djarum.empty'),
     start: 0,
     price: 649,
+    contents: 20,
     smokeSeconds: 18,
     emberSeconds: 26,
   },
@@ -284,6 +291,7 @@ export const ITEMS = [
     bought: copy('items.aspirin.bought'),
     start: 0,
     price: 449,
+    contents: 24,
     form: 'pills',
   },
   {
@@ -294,6 +302,7 @@ export const ITEMS = [
     bought: copy('items.ibuprofen.bought'),
     start: 0,
     price: 499,
+    contents: 24,
     form: 'pills',
   },
   {
@@ -304,6 +313,7 @@ export const ITEMS = [
     bought: copy('items.benadryl.bought'),
     start: 0,
     price: 699,
+    contents: 24,
     form: 'carton',
   },
   {
@@ -381,3 +391,24 @@ export function isUsable(id: string): boolean {
 
 // The kinds the inventory counts: every item.
 export const INVENTORY_KINDS: readonly string[] = ITEMS.map((item) => item.id)
+
+// How many one container of `id` holds: a pack of cigarettes, a bottle or
+// box of pills. The inventory counts what is inside; everything else is
+// one to a container.
+export function contentsOf(id: string): number {
+  return itemById(id)?.contents ?? 1
+}
+
+// The containers `units` of `id` fill: every one full but the open one.
+export function containersOf(id: string, units: number): number {
+  return units > 0 ? Math.ceil(units / contentsOf(id)) : 0
+}
+
+// What is left in the open container, or null for an item that comes one
+// to a container.
+export function leftInOpen(id: string, units: number): number | null {
+  const contents = contentsOf(id)
+  if (contents === 1) return null
+  if (units < 1) return 0
+  return units - (containersOf(id, units) - 1) * contents
+}

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
 import { copy } from '../../src/copy.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
-import { getItem } from '../../src/items.ts'
+import { contentsOf, getItem } from '../../src/items.ts'
 import { buy, settle } from '../../src/shop.ts'
 import { freshStock } from '../../src/store.ts'
 import { unitsLeft } from './stock.ts'
@@ -24,7 +24,9 @@ describe('buy', () => {
     const { next, line } = buy(state, 1, 'marlboro', 0)
     expect(next?.stock[1].marlboro).toEqual([false, true, true])
     expect(unitsLeft(next?.stock[0], 'marlboro')).toBe(CONFIG.store.perItem)
-    expect(next?.inventory.marlboro).toBe(state.inventory.marlboro + 1)
+    expect(next?.inventory.marlboro).toBe(
+      state.inventory.marlboro + contentsOf('marlboro')
+    )
     expect(next?.cash).toBe(state.cash - getItem('marlboro').price)
     expect(line).toBe(getItem('marlboro').bought)
     // The input is never changed.
@@ -83,7 +85,9 @@ describe('settle', () => {
   it('pays and pockets without touching any shelf', () => {
     const state = fresh()
     const { next, line } = settle(state, 'marlboro')
-    expect(next?.inventory.marlboro).toBe(state.inventory.marlboro + 1)
+    expect(next?.inventory.marlboro).toBe(
+      state.inventory.marlboro + contentsOf('marlboro')
+    )
     expect(next?.cash).toBe(state.cash - getItem('marlboro').price)
     expect(next && 'stock' in next).toBe(false)
     expect(line).toBe(getItem('marlboro').bought)

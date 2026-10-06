@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
+import { contentsOf } from '../../src/items.ts'
 import { PACK_TABS, packItemOf, packItems } from '../../src/packgrid.ts'
 import { createRaid } from '../../src/raid.ts'
 import type { Inventory, PackItem } from '../../src/interfaces.ts'
@@ -32,6 +33,19 @@ describe('packItems', () => {
     expect(item).toMatchObject({ kind: 'djarum', stock: 1, canUse: true })
   })
 
+  it('counts packs, with what is left in the open one', () => {
+    const per = contentsOf('marlboro')
+    const [item] = consumables({ ...empty, marlboro: per * 2 + 3 })
+    expect(item).toMatchObject({ stock: 3, left: 3 })
+    const [full] = consumables({ ...empty, marlboro: per })
+    expect(full).toMatchObject({ stock: 1, left: per })
+  })
+
+  it('counts one-to-a-container items as they are', () => {
+    const [item] = consumables({ ...empty, joints: 2 })
+    expect(item).toMatchObject({ stock: 2, left: null })
+  })
+
   it('carries drinks after joints, never usable', () => {
     const items = consumables({ ...empty, nos: 1, joints: 1 })
     expect(kinds(items)).toEqual(['joints', 'nos'])
@@ -42,7 +56,7 @@ describe('packItems', () => {
     const inv = { ...empty, benadryl: 2, 'ice-mountain': 1, aspirin: 1 }
     const items = consumables(inv)
     expect(kinds(items)).toEqual(['ice-mountain', 'aspirin', 'benadryl'])
-    expect(items[2]).toMatchObject({ stock: 2, canUse: false })
+    expect(items[2]).toMatchObject({ stock: 1, left: 2, canUse: false })
   })
 
   it('keeps berries and cabbages in loot, and out of consumables', () => {

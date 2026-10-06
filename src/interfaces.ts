@@ -128,6 +128,8 @@ export interface Item {
   collected?: string
   empty?: string
   start?: number
+  // How many one container holds (items.ts contentsOf).
+  contents?: number
   // Shelf price at every Citgo, in cents.
   price?: number
   // Cigarettes.
@@ -207,7 +209,11 @@ export interface PackItem {
   kind: string
   label: string
   blurb: string
+  // Containers carried: packs, bottles, boxes, or single items.
   stock: number
+  // What is left in the open container, for an item that holds several
+  // (items.ts leftInOpen).
+  left: number | null
   canUse: boolean
 }
 

@@ -181,7 +181,7 @@
   letter-spacing: 0.02em;
   color: inherit;
   background: var(--fi-surface-82);
-  border: 1px solid var(--fi-green);
+  border: 1px solid var(--bv-citgo);
   border-radius: 0;
   box-shadow: 3px 3px 0 var(--fi-black-shadow);
 }
@@ -627,9 +627,9 @@
 }
 
 .bv-btn--primary {
-  background: var(--fi-green);
+  background: var(--bv-citgo);
   color: var(--fi-bg);
-  border-color: var(--fi-green);
+  border-color: var(--bv-citgo);
 }
 
 /* A button whose label changes (hud.ts setBegin) holds every label in one
@@ -784,7 +784,7 @@
 
 .bv-select-as b {
   font-weight: inherit;
-  color: var(--fi-green);
+  color: var(--bv-citgo);
 }
 
 .bv-intro-as {
@@ -794,7 +794,7 @@
 
 .bv-intro-as b {
   font-weight: inherit;
-  color: var(--fi-green);
+  color: var(--bv-citgo);
 }
 
 /* A button that reads as a link: Sign Out beside the username. */
@@ -920,7 +920,7 @@
 }
 
 .bv-account-status[data-tone='ok'] {
-  color: var(--fi-green);
+  color: var(--bv-citgo);
   opacity: 1;
 }
 
@@ -952,7 +952,7 @@
   width: 1.1em;
   height: 1.1em;
   margin: 0;
-  accent-color: var(--fi-green);
+  accent-color: var(--bv-citgo);
 }
 
 .bv-gate a {
@@ -989,7 +989,7 @@
 
 .bv-panel-username {
   margin: 0;
-  color: var(--fi-green);
+  color: var(--bv-citgo);
   letter-spacing: 0.08em;
 }
 
