@@ -30,8 +30,7 @@ const linked = (
   linkedAt,
 })
 
-// The contract every store keeps. The D1 store runs it end to end; the
-// in-memory store runs it here.
+// The contract every store keeps, run here against the in-memory store.
 export function storeContract(makeStore: () => AccountStore): void {
   it('creates an account with its first provider and finds it again', async () => {
     const store = makeStore()

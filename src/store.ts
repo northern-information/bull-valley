@@ -1,7 +1,7 @@
 // Pure: the walk-in Citgo. One layout every station shares, in
 // station-local space (the pump island at the origin, local +X toward the
 // road, local Z along it, y up from the lot), plus what it takes to shop
-// there: shelf stock, cash, and which shelf facing the player is looking
+// there: shelf stock, cash, and which shelf unit the player is looking
 // at. assets.ts builds the shell, shelves, lights and signs from
 // STORE_LAYOUT, world.ts registers its floor and walls, so what is drawn,
 // what blocks, and what E buys can never drift apart. No three.js, no DOM.

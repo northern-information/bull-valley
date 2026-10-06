@@ -852,7 +852,7 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
       coat: '#07080c',
     },
     addons: ['hood'],
-    // "Arms: too long" — the silhouette cards in shadowmen.ts.
+    // "Arms: too long" — the silhouette cards in shadowcards.ts.
     proportions: { arm: 1.4, leg: 1.12 },
   },
   coleman: {

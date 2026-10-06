@@ -10,6 +10,7 @@
 // GET  /auth/me                             who is signed in (always 200)
 // POST /auth/confirm-signup                 pass the gates; create the account
 // POST /auth/username                       choose the username, once
+// PUT  /auth/username                       change it (Gron)
 // PUT  /auth/look                           the character and guitar finish
 // GET  /auth/username/:username/available   is this handle free
 // POST /auth/refresh                        a fresh access cookie (always 200)

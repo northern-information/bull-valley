@@ -168,7 +168,8 @@ export interface World {
   moabRigs: MoabRig[]
   // What to stand on anywhere: the terrain, or the road or lot over it.
   ground: Ground
-  // What stops you: the store walls and fixtures, the poles and lamps.
+  // What stops you: the store walls and fixtures, the berry bush, Gron,
+  // Moab and his horse, the poles and lamps.
   walls: Walls
   // Every station's shelf facings in the world, indexed like fuelPoints.
   facings: WorldFacing[][]
@@ -711,9 +712,9 @@ function buildPoles(
 
 // Sodium streetlights at the junctions (roadside.ts). Each lamp is four
 // instanced parts, a halo on one Points cloud, and a pool of orange light
-// drawn on the ground under it: the roads are unlit, so no real light
-// could brighten them. A few real lights ride to the lamps nearest the
-// player and light what stands under them (the player, the truck, the
+// drawn on the ground under it, standing in for the light of every lamp
+// that carries no real one. A few real lights ride to the lamps nearest
+// the player and light what stands under them (the player, the truck, the
 // trees). Each lamp is a post on `walls`.
 const STREETLIGHT_GLOW = {
   // The pool on the ground: radius, rings and sectors of the fan, its
@@ -1264,7 +1265,7 @@ function buildStationLights(): StationLights {
 // units would cost thousands of draw calls, and the walls and the fog hide
 // every store but the one you are near, so the one display follows you:
 // it parks at the store nearest the player and hides the units that store
-// has sold. Each kind sells from its last unit back. David Carlsten rides
+// has sold. A buy takes the unit the buyer looks at. David Carlsten rides
 // along behind the counter, so every Citgo has its clerk, and the station
 // lights ride with it.
 function buildShelves(points: readonly FuelPoint[]): ShelfDisplay {

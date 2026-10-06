@@ -108,9 +108,9 @@ export const CONFIG = {
     startingCash: 4000,
     // Units of every item on each Citgo's shelves at the start of a raid.
     perItem: 3,
-    // How close a shelf facing must be, from the eye, for E to buy it.
+    // How close a shelf unit must be, from the eye, for E to buy it.
     reach: 2.2,
-    // How far off the view ray, in radians, a facing can sit and still be
+    // How far off the view ray, in radians, a unit can sit and still be
     // the one you are looking at.
     aimCone: 0.5,
     // The shelf display moves to the store nearest the player inside this.
@@ -171,8 +171,8 @@ export const CONFIG = {
     connectTimeoutMs: 2000,
     // Clock-offset pings once online.
     pingMs: 10000,
-    // How long the "signed out" toast shows before the page reloads to the
-    // sign-in card.
+    // How long the "signed out" line sits in the chat log before the page
+    // reloads to the sign-in card.
     signedOutReloadMs: 2500,
     // Bed seats before riders double up.
     seats: 4,
@@ -212,7 +212,7 @@ export const CONFIG = {
     // How close you must stand for Matthew Marx or David Carlsten to glow
     // and answer E. Marx reads by the tailgate, in boarding range, so this
     // stays small: step off him and E boards. Carlsten stands behind the
-    // counter, which keeps you about 1.3 m from him.
+    // counter, which keeps you about 1.6 m from him.
     reach: 1.8,
   },
   moab: {

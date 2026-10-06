@@ -1,7 +1,7 @@
 // The nerves meter, 0–100. Pure functions: tests drive them directly.
 
-// pressure is the shadowmen system's summed proximity weight (0 = alone,
-// hunting entities weigh triple). Smoking a cigarette drains the meter fast;
+// pressure is a summed proximity weight (0 = alone); nothing feeds it
+// while the nerves are parked. Smoking a cigarette drains the meter fast;
 // weed perception dulls the gain — you feel less than is true, which is the
 // trade the joint makes.
 export interface NervesStep {

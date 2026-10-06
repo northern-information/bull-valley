@@ -1,7 +1,7 @@
 // The other players, as data: a table of peers keyed by id, each holding
 // its last two states so a figure can be drawn a little behind the present
 // and glide between frames instead of teleporting ten times a second. Pure
-// and Three-free; peers.ts draws it, net.ts feeds it.
+// and Three-free; peers.ts draws it, main.ts feeds it from the net frames.
 
 import { compassBearing } from './coords.ts'
 import type { ScopeContact, XZ } from './interfaces.ts'

@@ -2,7 +2,7 @@
 // a time through the game's own render pipeline — same downscale, PS1 snap,
 // lights, and fog as main.ts — so an asset can be checked without a raid.
 // Assets come from the same builders the game places. Dev hook:
-// window.__akashic (ids, select, setView).
+// window.__akashic (ids, select, setView, animate, current).
 
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'

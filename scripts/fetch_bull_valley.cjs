@@ -483,7 +483,7 @@ async function fetchTerrain() {
   // 16 bits of normalized height packed into two 8-bit channels: R is the high
   // byte, G the low byte, B unused. WebGL uploads PNGs at 8 bits per channel,
   // so a 16-bit grayscale PNG would lose its precision on the way in; the
-  // shader reassembles height = (R*256 + G) / 65535 instead.
+  // client (terrain.ts) reassembles height = (R*256 + G) / 65535 instead.
   const pixels = Buffer.alloc(N * N * 3)
   for (let k = 0; k < heights.length; k++) {
     const v = Math.round(((heights[k] - min) / (max - min)) * 65535)

@@ -2,7 +2,8 @@ import * as THREE from 'three'
 import { CITGO_RED } from './assets.ts'
 
 // The glow around whatever E would act on: a pickup, the shelf unit a buy
-// takes, the berry bush. The target draws alone, with its own materials
+// takes, the berry bush, Gron, or Marx, Carlsten or Moab when E would talk
+// to him. The target draws alone, with its own materials
 // (so the PS1 snap matches the mesh), into a mask; a fullscreen pass then
 // rings the mask's silhouette in Citgo red over the frame. No depth from
 // the world reaches the mask, so the ring shows through what stands in

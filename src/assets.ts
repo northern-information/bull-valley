@@ -2729,7 +2729,7 @@ export function buildGuitar(
   }
   const face = GUITAR_DEPTH / 2
   add(outlineGeometry(GUITAR_OUTLINE, GUITAR_DEPTH), gloss, 0, 0, 0)
-  // The set neck in the body's black, the rosewood fretboard over it with
+  // The set neck in the body's finish, the rosewood fretboard over it with
   // its dots and the model plate, and the pointed headstock tilted back
   // from the nut.
   add(new THREE.BoxGeometry(0.05, 0.46, 0.022), gloss, 0, 0.45, face - 0.011)
@@ -2817,7 +2817,8 @@ function sampleGuitar(): THREE.Group {
 // --- Drinks --------------------------------------------------------------
 
 // The drinks, circa 2008: cans (slim, 12 oz, tall), the NOS bottle, three
-// liquor bottles, the MD 20/20 flask and the Ice Mountain water bottle.
+// liquor bottles, the MD 20/20 flask, the Miller High Life longneck and
+// the Ice Mountain water bottle.
 // Sizes come from CONTAINERS in drinks.ts; art from canart.ts. Origin at
 // ground level under the middle, label front facing +Z.
 // Even, so a label centered on the front shares vertices with the lathes.
@@ -3527,7 +3528,7 @@ export function pulseMaterials(
 }
 
 // Kinds: 'cabbage', or an item id from items.ts. glow: false leaves out the
-// halo on packs, joints, drinks, and medicine.
+// halo on packs, joints, drinks, medicine, and berries.
 export function buildPickup(
   kind: string,
   seed?: number,
@@ -3722,10 +3723,6 @@ export function buildSky(): THREE.Group {
 // world.ts builds these meshes from geo.json; the materials live here. Each
 // call returns a new material.
 
-// Basic, not lambert: ribbon winding flips with the direction each polyline
-// was digitized in, so lighting by face normal would render half the roads
-// unlit. Flat night asphalt wants a constant tone anyway; fog still applies.
-// DoubleSide keeps the flipped half visible.
 // The roads (and the streams): lit, so the headlights and the station
 // lights fall on them and what stands in a beam throws a shadow down the
 // road. The emissive is each vertex's own tone, which keeps a road as dark
@@ -3751,10 +3748,10 @@ export function roadMaterial(): THREE.MeshLambertMaterial {
   return material
 }
 
-// The station lots: like the roads, but lit, so the canopy light falls on
-// the forecourt and the pumps throw shadows across it. The night light
-// barely reaches asphalt this dark, so the emissive carries the lot's own
-// color and keeps it about as dark as the unlit road it meets.
+// The station lots, lit like the roads, so the canopy light falls on the
+// forecourt and the pumps throw shadows across it. The night light barely
+// reaches asphalt this dark, so the emissive carries the lot's own color
+// at the roads' strength, and the two meet.
 export function lotMaterial(): THREE.MeshLambertMaterial {
   return lambert({
     vertexColors: true,

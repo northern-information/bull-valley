@@ -41,7 +41,8 @@ export default defineConfig([
     files: ['*.config.ts'],
     languageOptions: { globals: globals.node },
   },
-  // The Worker and its tests run in workerd, not a browser.
+  // The Worker runs in workerd and its tests in Node with a Workers stub;
+  // neither is a browser.
   {
     files: ['worker/**/*.ts', 'tests/worker/**/*.ts'],
     languageOptions: { globals: globals.serviceworker },

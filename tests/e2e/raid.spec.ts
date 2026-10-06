@@ -4,10 +4,10 @@ import { beginRaid, expect, watchErrors } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
 // One raid, played in order on one page: shop, ride, take and unload a
-// cabbage, extract. Booting the valley takes about 30 seconds on CI, so
-// the steps share one boot instead of paying it four times. The specs move
-// the player with the dev hook instead of walking, then press the real
-// keys. A fresh browser context means the saved inventory starts empty.
+// cabbage, extract. Booting the valley is slow on CI, so the steps share
+// one boot instead of paying it five times. The specs move the player with
+// the dev hook instead of walking, then press the real keys. A fresh
+// raider means the pack starts empty.
 //
 // The @raid tag lets CI run this group in its own job (--grep @raid)
 // beside every other spec (--grep-invert @raid).

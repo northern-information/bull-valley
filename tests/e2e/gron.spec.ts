@@ -32,8 +32,8 @@ const playerAt = (page: Page) =>
 
 test('Gron changes your name and your character', async ({ page }) => {
   // One long flow (sign in, rename, change body, chat) through a full
-  // valley. On CI's software WebGL a frame can take seconds, and this spec
-  // has run anywhere from 1.1 to over 2 minutes against the 2 minute limit.
+  // valley. Before the e2e build stopped drawing the valley, this spec ran
+  // anywhere from 1.1 to over 2 minutes on CI against the 2 minute limit.
   test.slow()
   await beginRaid(page)
   await standAtGron(page)

@@ -365,7 +365,7 @@ export class Truck {
     return { x: seat.x, y: seat.y, z: seat.z }
   }
 
-  // A dismount spot just off the passenger side.
+  // A dismount spot just off the driver's side.
   hopOutSpot(): XZ {
     const spot = new THREE.Vector3(3, 0, -1.0)
     this.group.localToWorld(spot)
