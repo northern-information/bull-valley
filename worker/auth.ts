@@ -350,7 +350,7 @@ class AuthHandler {
       accountId: account.accountId,
       username: account.username,
       role: account.role,
-      displayName: primary?.displayName ?? 'Raider',
+      displayName: primary?.displayName ?? copy('auth.unnamed'),
       avatarUrl: primary?.avatarUrl ?? null,
       providers: providers.map((p) => ({
         provider: p.provider,

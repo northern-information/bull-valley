@@ -514,7 +514,7 @@ export class ValleyDO extends DurableObject<Env> {
       if (reduced.spend) {
         // The charge and the unit go in together, so a failed write never
         // takes the cash without the item.
-        let paid = false
+        let paid: boolean
         try {
           paid = await packs.purchase(
             account,
@@ -523,6 +523,8 @@ export class ValleyDO extends DurableObject<Env> {
           )
         } catch (err) {
           console.error('The sale could not be written', err)
+          refuse('unavailable')
+          return
         }
         if (!paid) {
           refuse('short')

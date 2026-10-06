@@ -159,6 +159,8 @@ refused = { text = "The clerk shakes his head.", by = "ai" }
 berry_offline = { text = "No signal. The bush keeps its berries.", by = "ai" }
 berry_picked = { text = "Picked clean. The bush fills again at midnight.", by = "ai" }
 berry_refused = { text = "The bush gives you nothing.", by = "ai" }
+none_left = { text = "You have none left.", by = "ai" }
+change_unheard = { text = "The valley missed that. Others will see it when you next join.", by = "ai" }
 struck = { text = "You are somewhere else. Time is missing.", by = "ai" }
 edge = { text = "The valley ends here.", by = "ai" }
 
@@ -271,6 +273,7 @@ unlink_last = { text = "You cannot unlink your only way to sign in", by = "ai" }
 not_linked = { text = "{provider} is not linked to your account", by = "ai" }
 limited = { text = "Too many tries. Wait a minute and try again.", by = "ai" }
 limited_short = { text = "Too many tries. Wait a minute.", by = "ai" }
+unnamed = { text = "Raider", by = "ai" }
 
 # The name over the item E would act on: a pickup, a shelf unit, or the
 # berry bush (src/interactions.ts itemLabel).

@@ -207,6 +207,12 @@ export function wireValley(game: Game, actions: Actions): void {
       hud.tell(copy('log.berry_refused'))
     } else if (msg.re === 'chat') {
       hud.tell(CHAT_COPY.tooFast)
+    } else if (msg.re === 'use') {
+      // The pack frame that follows puts the count right.
+      hud.tell(copy('log.none_left'))
+    } else if (msg.re === 'rename' || msg.re === 'appearance') {
+      // The account kept the change; only the valley's roster missed it.
+      hud.tell(copy('log.change_unheard'))
     }
   }
 

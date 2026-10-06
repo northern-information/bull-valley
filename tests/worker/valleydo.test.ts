@@ -855,7 +855,7 @@ describe('ValleyDO', () => {
         purchase: () => Promise.reject(new Error('down')),
       }
       await buy()
-      expect(a.last<NackMessage>()).toMatchObject({ reason: 'short' })
+      expect(a.last<NackMessage>()).toMatchObject({ reason: 'unavailable' })
       expect(errors).toHaveLength(2)
       // Nobody heard of a sale, the unit is still on the shelf, and the
       // wallet is whole.

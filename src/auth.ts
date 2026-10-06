@@ -147,7 +147,7 @@ export async function renameUsername(
     if (res.status === 409) return { ok: false, taken: true, error }
     return { ok: false, error, limited: res.status === TOO_MANY }
   } catch {
-    return { ok: false, error: 'The valley cannot be reached' }
+    return { ok: false, error: copy('auth.unreachable') }
   }
 }
 
