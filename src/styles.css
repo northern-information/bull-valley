@@ -24,8 +24,10 @@
 }
 
 /* While the pointer is free (the intro, the pause overlay, the pack, a
-   refused lock) a Citgo-red edge glows round the view. */
-.bv-shell::after {
+   refused lock) a Citgo-red edge glows round the view, and round the
+   colophon while it waits for its first click (splash.ts showSplash). */
+.bv-shell::after,
+.bv-splash--waiting::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -687,6 +689,11 @@
 
   /* The grain lies over everything on the card, the logo's fog included. */
   z-index: 2;
+}
+
+/* The waiting colophon's edge rides over the grain. */
+.bv-splash--waiting::before {
+  z-index: 3;
 }
 
 /* The logo's black fog (fog.ts): over the image, under the grain, at the
