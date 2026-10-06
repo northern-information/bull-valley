@@ -54,13 +54,13 @@ describe('isHotbar', () => {
   it('takes nine slots of known kinds or nothing', () => {
     expect(isHotbar(EMPTY_HOTBAR)).toBe(true)
     expect(isHotbar(assign(EMPTY_HOTBAR, 0, 'cabbage'))).toBe(true)
-    expect(isHotbar(assign(EMPTY_HOTBAR, 0, 'sack'))).toBe(true)
   })
 
   it('refuses the wrong length, an unknown kind, or not a list', () => {
     expect(isHotbar([null])).toBe(false)
     expect(isHotbar(Array(HOTBAR_SLOTS + 1).fill(null))).toBe(false)
     expect(isHotbar(assign(EMPTY_HOTBAR, 0, 'anvil'))).toBe(false)
+    expect(isHotbar(assign(EMPTY_HOTBAR, 0, 'sack'))).toBe(false)
     expect(isHotbar([1, ...EMPTY_HOTBAR.slice(1)])).toBe(false)
     expect(isHotbar('camel')).toBe(false)
     expect(isHotbar(null)).toBe(false)
@@ -68,8 +68,15 @@ describe('isHotbar', () => {
 
   it('falls back to the empty bar', () => {
     expect(toHotbar(null)).toBe(EMPTY_HOTBAR)
+    expect(toHotbar([null])).toBe(EMPTY_HOTBAR)
     const bar = assign(EMPTY_HOTBAR, 0, 'camel')
-    expect(toHotbar(bar)).toBe(bar)
+    expect(toHotbar(bar)).toEqual(bar)
+  })
+
+  it('clears a slot whose kind the game no longer has, keeping the rest', () => {
+    const bar = assign(assign(EMPTY_HOTBAR, 0, 'camel'), 1, 'cabbage')
+    const stored = bar.map((kind, i) => (i === 2 ? 'sack' : kind))
+    expect(toHotbar(stored)).toEqual(bar)
   })
 })
 

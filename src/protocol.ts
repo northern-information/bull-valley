@@ -10,7 +10,7 @@ import type { OutfitId } from './outfits.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 8
+export const PROTOCOL_VERSION = 9
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -86,10 +86,8 @@ export interface MemberWire {
   // Standing in the bed during the lobby, waiting on the others.
   boarded: boolean
   // The account's cargo this raid (sharedraid.ts Cargo): cabbages in the
-  // arms, cabbages left at the stand, and whether they bought the sack.
+  // arms.
   carrying: number
-  delivered: number
-  sack: boolean
 }
 
 // A whistle for the truck: who, from where the truck was, to where they
@@ -143,7 +141,6 @@ export type RaidReason =
   | 'depart'
   | 'hop-out'
   | 'taken'
-  | 'delivered'
   | 'bought'
   | 'call'
   | 'truck-free'
@@ -191,11 +188,6 @@ export interface BuyMessage {
   station: number
   kind: string
   unit: number
-}
-
-// Every cabbage in the arms, left at the Bull Valley Cabbage Stand.
-export interface DeliverMessage {
-  type: 'deliver'
 }
 
 export interface CallMessage {
@@ -268,7 +260,6 @@ export type ClientMessage =
   | HopOutMessage
   | TakeMessage
   | BuyMessage
-  | DeliverMessage
   | CallMessage
   | ExtractMessage
   | CollectMessage
@@ -324,7 +315,7 @@ export interface RaidMessage {
   reason: RaidReason
   raid: RaidWire | null
   // Who did it, for 'joined', 'left', 'boarded', 'unboarded', 'hop-out',
-  // 'taken', 'delivered', 'bought', 'call', 'extracted'.
+  // 'taken', 'bought', 'call', 'extracted'.
   by?: string
   // For 'taken'.
   index?: number
@@ -557,7 +548,6 @@ export function parseClientMessage(text: string): ClientMessage | null {
     case 'board':
     case 'unboard':
     case 'hop-out':
-    case 'deliver':
     case 'collect':
     case 'rename':
       return { type: value.type }

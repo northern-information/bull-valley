@@ -319,8 +319,6 @@ describe('ValleyDO', () => {
         phase: 'LOBBY',
         boarded: false,
         carrying: 0,
-        delivered: 0,
-        sack: false,
       },
     ])
     // The lobby clock is armed.

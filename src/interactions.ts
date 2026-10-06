@@ -55,7 +55,6 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   | { kind: 'hopOut' }
   | { kind: 'board' }
   | { kind: 'boardExtract' }
-  | { kind: 'unload'; count: number }
   | { kind: 'extractFuel'; name: string }
   | { kind: 'extractKeep' }
   | { kind: 'pickup'; pickup: P }
@@ -71,7 +70,6 @@ export interface InteractionInput<P extends PickupSpot> {
   ended: boolean
   player: XZ
   truck: { distance: number; moving: boolean }
-  stand: XZ | null
   keep: XZ | null
   // Every station; the spawn station is never an extract.
   stations: readonly StationSpot[]
@@ -101,9 +99,7 @@ function near(a: XZ, b: XZ, radius: number): boolean {
 // nearest NPC in his reach, unless a shelf unit is in view (Moab stands
 // inside a station's extract radius, so this comes before extracting);
 // board the waiting truck; buy off a shelf; board the called truck to end
-// the raid;
-// unload at the stand; extract at a station (never from inside its store)
-// or the Keep; Gron or the berry bush, whichever is nearer; take the
+// the raid; extract at a station (never from inside its store) or the Keep; Gron or the berry bush, whichever is nearer; take the
 // nearest pickup.
 export function resolveInteraction<P extends PickupSpot>(
   input: InteractionInput<P>
@@ -139,13 +135,6 @@ export function resolveInteraction<P extends PickupSpot>(
   if (raid.state === STATES.ON_FOOT) {
     if (raid.truckCalled && !input.truck.moving && truckClose) {
       return { kind: 'boardExtract' }
-    }
-    if (
-      raid.carrying > 0 &&
-      input.stand &&
-      near(input.stand, player, CONFIG.cabbage.dropRadius)
-    ) {
-      return { kind: 'unload', count: raid.carrying }
     }
     for (const station of input.stations) {
       if (input.insideStore) break
@@ -245,10 +234,6 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return copy('prompts.board')
     case 'boardExtract':
       return copy('prompts.board_extract')
-    case 'unload':
-      return interaction.count === 1
-        ? copy('prompts.unload_one')
-        : copy('prompts.unload_many', { count: interaction.count })
     case 'extractFuel':
       return interaction.name
         ? copy('prompts.extract_at', { station: interaction.name })

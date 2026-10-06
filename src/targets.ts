@@ -87,10 +87,7 @@ export function createTargets(game: Game): Targets {
         camera.position.y,
         camera.position.z,
       ]
-      // A sack in hand is one too many: the shelf stops offering it.
-      const stock = state.raid.sack
-        ? { ...state.storeStock[station], sack: [] }
-        : state.storeStock[station]
+      const stock = state.storeStock[station]
       const seen = unitInView(world.facings[station], stock, eye, [
         look.x,
         look.y,

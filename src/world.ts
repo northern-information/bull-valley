@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import {
   boundaryMaterial,
   buildBerryBush,
+  buildCabbageStand,
   buildCornMazeSign,
   buildCornWalls,
   buildEnterSign,
@@ -56,11 +57,7 @@ import {
 } from './figure.ts'
 import { Ground } from './ground.ts'
 import { CIGARETTE_IDS } from './items.ts'
-import {
-  KEEP,
-  landmarkWorldPositions,
-  CABBAGE_STAND as STAND_NAME,
-} from './landmarks.ts'
+import { CABBAGE_PATCH, KEEP, landmarkWorldPositions } from './landmarks.ts'
 import {
   cellPoint,
   inMaze,
@@ -1487,7 +1484,7 @@ function buildShelves(points: readonly FuelPoint[]): ShelfDisplay {
 }
 
 // Beacon markers for the hand-placed landmarks, color-coded so they read
-// across the fog — cyan for the Cabbage Stand, magenta for the Keep.
+// across the fog — magenta for the Keep.
 function buildLandmarks(
   geo: Pick<Geo, 'bbox'>,
   metres: Metres,
@@ -1500,7 +1497,6 @@ function buildLandmarks(
   )
   const COLORS: Partial<Record<string, string>> = {
     [KEEP]: '#e879f9',
-    [STAND_NAME]: '#22d3ee',
   }
   const points: LandmarkPoint[] = []
   for (const mark of marks) {
@@ -1595,11 +1591,9 @@ function buildPickups(
   }
   // Cabbages: seeded independently of the world scatter so re-tuning one
   // never reshuffles the other.
-  const stand = landmarkWorldPositions(geo.bbox, metres).find(
-    (m) => m.n === STAND_NAME
-  )
+  const [patch] = landmarkWorldPositions(geo.bbox, metres, [CABBAGE_PATCH])
   const cabbages = placeCabbages(geo, mulberry32(CABBAGE_SEED), {
-    stand: stand ? { u: stand.u, v: stand.v } : undefined,
+    patch: { u: patch.u, v: patch.v },
     metres,
   })
   for (const spot of cabbages) {
@@ -2000,6 +1994,31 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     group.add(gronRig.group)
     walls.addWall({ x: gx, z: gz }, { x: gx, z: gz }, CONFIG.gron.radius)
     gron = { x: gx, z: gz }
+  }
+
+  // The Bull Valley Cabbage Stand on the spawn station's lot
+  // (CONFIG.stand, station-local), its front to the pump island. It
+  // blocks along its table.
+  if (spawnStation) {
+    const [sx, , sz] = toWorld(spawnStation, [
+      CONFIG.stand.at.x,
+      0,
+      CONFIG.stand.at.z,
+    ])
+    const stand = buildCabbageStand()
+    stand.position.set(sx, ground.at(sx, sz), sz)
+    // The stand faces +Z; turn it to the pump island at the origin.
+    const yaw = Math.atan2(spawnStation.x - sx, spawnStation.z - sz)
+    stand.rotation.y = yaw
+    group.add(stand)
+    // rotation.y turns the stand's +X, its long side, to (cos, -sin).
+    const dx = Math.cos(yaw) * CONFIG.stand.halfLength
+    const dz = -Math.sin(yaw) * CONFIG.stand.halfLength
+    walls.addWall(
+      { x: sx - dx, z: sz - dz },
+      { x: sx + dx, z: sz + dz },
+      CONFIG.stand.radius
+    )
   }
 
   // Moab Coldë and his horse under every station's sign (CONFIG.moab,

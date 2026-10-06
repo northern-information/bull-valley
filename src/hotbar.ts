@@ -15,11 +15,7 @@ export const EMPTY_HOTBAR: Hotbar = Array.from(
 )
 
 // Every kind the grid can show, so every kind a slot can hold.
-const ASSIGNABLE: ReadonlySet<string> = new Set([
-  ...INVENTORY_KINDS,
-  'cabbage',
-  'sack',
-])
+const ASSIGNABLE: ReadonlySet<string> = new Set([...INVENTORY_KINDS, 'cabbage'])
 
 // Puts kind on slot, taking it off any other slot. Assigning a kind to the
 // slot that already holds it clears that slot.
@@ -54,9 +50,15 @@ export function isHotbar(value: unknown): value is Hotbar {
   )
 }
 
-// A stored bar, or the empty one when it is missing or no longer valid.
+// A stored bar, with any kind the game no longer has cleared from its slot;
+// the empty one when it is missing or malformed.
 export function toHotbar(value: unknown): Hotbar {
-  return isHotbar(value) ? value : EMPTY_HOTBAR
+  if (!Array.isArray(value) || value.length !== HOTBAR_SLOTS) {
+    return EMPTY_HOTBAR
+  }
+  return value.map((kind: unknown) =>
+    typeof kind === 'string' && ASSIGNABLE.has(kind) ? kind : null
+  )
 }
 
 // An effect's span on the game clock, in seconds. Inactive when end <= now.

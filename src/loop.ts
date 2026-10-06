@@ -60,14 +60,6 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     return count ? copy('truck.lobby_count', { clock, ...count }) : clock
   }
 
-  const truckStatus = () => {
-    if (s.raid.state === STATES.LOADOUT)
-      return copy('truck.leaves', { time: lobbyLine() })
-    if (s.raid.state === STATES.RIDING) return copy('truck.riding')
-    if (s.raid.truckCalled) return copy('truck.called')
-    return s.shared?.call ? copy('truck.on_call') : copy('truck.gone')
-  }
-
   // How the bush stands for this player right now.
   const daily = () =>
     dailyStatus(
@@ -268,7 +260,6 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
             distance: truck.distanceTo(player.pos.x, player.pos.z),
             moving: truck.moving,
           },
-          stand: game.stand,
           keep: game.keep,
           stations: world.fuelPoints,
           spawnStation: game.spawnStation,
@@ -300,11 +291,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
 
     sky.position.set(player.pos.x, 0, player.pos.z)
     if (s.inventoryOpen) {
-      hud.setBagStatus({
-        delivered: s.raid.delivered,
-        truck: truckStatus(),
-        cash: formatCash(s.cash),
-      })
+      hud.setBagStatus({ cash: formatCash(s.cash) })
     }
     if (!s.talking && DRAW_VALLEY) {
       renderer.render(scene, camera)

@@ -53,8 +53,7 @@ by_truck = { text = "Matthew Marx drove you out.", by = "ai" }
 at_keep = { text = "You made {keep}.", by = "ai" }
 at_station = { text = "You walked out at {station}.", by = "ai" }
 at_a_station = { text = "You walked out at the station.", by = "ai" }
-delivered = { text = "Cabbages delivered: {count}.", by = "ai" }
-left = { text = "{count} more left to rot in the truck bed.", by = "ai" }
+cabbages = { text = "Cabbages hauled out: {count}.", by = "ai" }
 deaths = { text = "Times the valley took you: {count}.", by = "ai" }
 time = { text = "Time in the valley: {time}.", by = "ai" }
 again = { text = "Raid Again", by = "ai" }
@@ -153,9 +152,6 @@ truck_busy = { text = "Marx is already on a call.", by = "ai" }
 taken = { text = "Taken: {item}", by = "ai" }
 taken_first = { text = "Someone got there first.", by = "ai" }
 arms_full = { text = "Your arms are full.", by = "ai" }
-unload_one = { text = "The stand takes your cabbage. Somewhere, gratitude.", by = "ai" }
-unload_many = { text = "The stand takes your {count} cabbages. Somewhere, gratitude.", by = "ai" }
-have_sack = { text = "You already have a sack.", by = "ai" }
 short = { text = "You're {amount} short.", by = "ai" }
 sold_out = { text = "Sold out.", by = "ai" }
 refused = { text = "The clerk shakes his head.", by = "ai" }
@@ -165,14 +161,9 @@ berry_refused = { text = "The bush gives you nothing.", by = "ai" }
 struck = { text = "You are somewhere else. Time is missing.", by = "ai" }
 edge = { text = "The valley ends here.", by = "ai" }
 
-# The truck's line in the inventory's Status column, and the lobby countdown (src/loop.ts).
+# The lobby countdown (src/loop.ts).
 
 [truck]
-leaves = { text = "Leaves in {time}", by = "ai" }
-riding = { text = "Riding the bed", by = "ai" }
-called = { text = "On its way", by = "ai" }
-on_call = { text = "On a call", by = "ai" }
-gone = { text = "Gone", by = "ai" }
 lobby_count = { text = "{clock} · {boarded} of {total} aboard", by = "ai" }
 
 # The prompt over the center of the screen: what E would do right now
@@ -182,8 +173,6 @@ lobby_count = { text = "{clock} · {boarded} of {total} aboard", by = "ai" }
 hop_out = { text = "E — Hop Out", by = "ai" }
 board = { text = "E — Climb into the Bed", by = "ai" }
 board_extract = { text = "E — Board (End the Raid)", by = "ai" }
-unload_one = { text = "E — Unload 1 Cabbage", by = "ai" }
-unload_many = { text = "E — Unload {count} Cabbages", by = "ai" }
 extract_at = { text = "E — End the Raid at {station}", by = "ai" }
 extract_station = { text = "E — End the Raid at the Station", by = "ai" }
 extract_keep = { text = "E — End the Raid at {keep}", by = "ai" }
@@ -202,17 +191,19 @@ label = { text = "Inventory", by = "ai" }
 hotbar_label = { text = "Hotbar", by = "ai" }
 quantity = { text = "Quantity: {count}", by = "ai" }
 cash = { text = "Cash", by = "ai" }
-delivered = { text = "Delivered", by = "ai" }
-truck = { text = "Truck", by = "ai" }
-empty_blurb = { text = "Empty pockets. Nothing between you and the valley.", by = "ai" }
+tab_consumables = { text = "Consumables", by = "ai" }
+tab_loot = { text = "Loot", by = "ai" }
+tab_materials = { text = "Materials", by = "ai" }
+empty_consumables = { text = "Empty pockets. Nothing between you and the valley.", by = "ai" }
+empty_loot = { text = "Nothing found yet.", by = "ai" }
+empty_materials = { text = "Nothing to build with yet.", by = "ai" }
 cabbages_label = { text = "Cabbages", by = "ai" }
-cabbages_blurb = { text = "Cold and heavy. The stand wants them. Room for {limit}.", by = "ai" }
+cabbages_blurb = { text = "Cold and heavy. Your arms hold {limit}.", by = "ai" }
 
 # Place names, shown in prompts and the raid summary (src/landmarks.ts).
 
 [places]
 keep = { text = "Mt. Coleman's Keep", by = "ai" }
-stand = { text = "Bull Valley Cabbage Stand", by = "ai" }
 
 # The title cards (src/config.ts): image alt text and the colophon's hint.
 
@@ -240,6 +231,7 @@ chat_scroll_down = { text = "Scroll Down", by = "ai" }
 pause = { text = "Pause", by = "ai" }
 use = { text = "Use", by = "ai" }
 assign = { text = "Assign", by = "ai" }
+switch_tab = { text = "Switch Tab", by = "ai" }
 close = { text = "Close", by = "ai" }
 
 # Sign-in errors, from the Worker (worker/auth.ts) and the client's
@@ -537,8 +529,3 @@ bought = { text = "One bottle of eye drops, pocketed.", by = "ai" }
 label = { text = "Berries", by = "ai" }
 blurb = { text = "Dark and cold, off the bush by the Citgo. One a day.", by = "ai" }
 collected = { text = "A berry off the bush. The rest are for tomorrow.", by = "ai" }
-
-[items.sack]
-label = { text = "Burlap Sack", by = "ai" }
-blurb = { text = "Carries five cabbages instead of three.", by = "ai" }
-bought = { text = "The burlap sack. Room for five.", by = "ai" }

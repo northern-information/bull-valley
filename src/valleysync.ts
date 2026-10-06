@@ -92,9 +92,9 @@ export function wireValley(game: Game, actions: Actions): void {
     }
   })
 
-  // The local raid machine still holds what is ours (the arms, the
-  // deliveries, the sack); the snapshot moves it through the shared
-  // moments: the truck leaving, a pickup going, a whistle answered.
+  // The local raid machine still holds what is ours (the arms); the
+  // snapshot moves it through the shared moments: the truck leaving, a
+  // pickup going, a whistle answered.
   const applyRaid = (
     wire: RaidWire | null,
     reason: RaidMessage['reason'],
@@ -193,7 +193,6 @@ export function wireValley(game: Game, actions: Actions): void {
       }
       const price = msg.item ? itemById(msg.item)?.price : undefined
       if (msg.reason === 'sold-out') hud.tell(copy('log.sold_out'))
-      else if (msg.reason === 'have-sack') hud.tell(copy('log.have_sack'))
       else if (msg.reason === 'short' && price !== undefined) {
         hud.tell(
           copy('log.short', {

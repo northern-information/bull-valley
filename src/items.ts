@@ -5,7 +5,7 @@
 //
 // Fields:
 //   id        inventory kind and mesh key
-//   category  'cigarette' | 'joint' | 'drink' | 'medicine' | 'forage' | 'gear'
+//   category  'cigarette' | 'joint' | 'drink' | 'medicine' | 'forage'
 //   label     name in the pack, and floating over a pickup or shelf unit
 //   blurb     description on the pack's item card
 //   used      chat line when the player uses it
@@ -15,9 +15,7 @@
 //   start     count in a new inventory (counted items only)
 //   price     shelf price at every Citgo, in cents (shelf items only)
 //
-// Gear is not counted in the inventory: the sack is raid state
-// (raid.sack), so it has no start, used, or empty text. Drinks and medicine
-// cannot be used yet, so they have no used or empty text. Forage is never
+// Drinks and medicine cannot be used yet, so they have no used or empty text. Forage is never
 // on a shelf, so it has no price or bought text; the valley hands it out
 // (sharedraid.ts rule 9).
 
@@ -328,17 +326,6 @@ export const ITEMS = [
     collected: copy('items.berries.collected'),
     start: 0,
   },
-  {
-    id: 'sack',
-    category: 'gear',
-    label: copy('items.sack.label'),
-    // The blurb and log line name carryLimit and CONFIG.cabbage.carryLimit in
-    // words (COPY.toml); change them together.
-    blurb: copy('items.sack.blurb'),
-    bought: copy('items.sack.bought'),
-    price: 300,
-    carryLimit: 5,
-  },
 ] as const satisfies readonly Item[]
 
 type ItemEntry = (typeof ITEMS)[number]
@@ -350,7 +337,7 @@ export type ItemId = ItemEntry['id']
 export type PickupKind = 'cabbage' | ItemId
 
 // ITEMS widened to the plain Item shape, for code that reads optional
-// fields (container, carryLimit) across every entry.
+// fields (container) across every entry.
 
 const BY_ID = new Map<string, Item>(ITEMS.map((item) => [item.id, item]))
 
@@ -361,7 +348,7 @@ export function itemById(id: string): Item | null {
 }
 
 // Look up a literal id. The return type is that exact entry, so its fields
-// (the sack's carryLimit, say) need no null checks. The cast is safe: K is
+// (a drink's container, say) need no null checks. The cast is safe: K is
 // an id in ITEMS, so find() always matches that entry.
 export function getItem<K extends ItemId>(
   id: K
@@ -392,7 +379,5 @@ export function isUsable(id: string): boolean {
   return category === 'cigarette' || category === 'joint'
 }
 
-// The kinds the inventory counts: everything except gear.
-export const INVENTORY_KINDS: readonly string[] = ITEMS.filter(
-  (item) => item.category !== 'gear'
-).map((item) => item.id)
+// The kinds the inventory counts: every item.
+export const INVENTORY_KINDS: readonly string[] = ITEMS.map((item) => item.id)

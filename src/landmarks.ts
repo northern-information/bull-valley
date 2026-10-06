@@ -1,8 +1,8 @@
 // Hand-placed landmarks, kept apart from the roads and water in geo.json.
 // Ported from the Scaduscope.
 //
-// Keep the list to places meant to be found (a roadside stand) or whose owners
-// have agreed to be on a public map (a private home).
+// Keep the list to places meant to be found (a roadside field) or whose
+// owners have agreed to be on a public map (a private home).
 
 import { unitToWorld } from './coords.ts'
 import { copy } from './copy.ts'
@@ -22,21 +22,27 @@ export interface LandmarkWorld {
   v: number
 }
 
-// The names double as the landmarks' keys (world.ts finds the Keep and the
-// stand by name); the words are COPY.toml's.
+// The names double as the landmarks' keys (world.ts finds the Keep by
+// name); the words are COPY.toml's.
 export const KEEP = copy('places.keep')
-export const CABBAGE_STAND = copy('places.stand')
 
 const LANDMARKS: readonly Landmark[] = [
   // Dave Coleman's house in Wonder Lake. A private home, placed with his
   // consent.
   { n: KEEP, lat: 42.3839451, lon: -88.3479778 },
-  // The roadside cabbage stand on the southeast corner where Mason Hill Road
-  // ends at Crystal Lake Road South. Approximate: offset ~30 m southeast of the
-  // surveyed intersection (42.30627, -88.31599), since the survey has no
-  // buildings to snap to.
-  { n: CABBAGE_STAND, lat: 42.306, lon: -88.3156 },
 ]
+
+// Where the guaranteed cabbages grow (cabbages.ts): round the southeast
+// corner where Mason Hill Road ends at Crystal Lake Road South, where a
+// roadside cabbage stand once stood. Approximate: offset ~30 m southeast of
+// the surveyed intersection (42.30627, -88.31599), since the survey has no
+// buildings to snap to. Not a beacon; the stand itself now stands at the
+// spawn Citgo (world.ts).
+export const CABBAGE_PATCH: Landmark = {
+  n: 'cabbage-patch',
+  lat: 42.306,
+  lon: -88.3156,
+}
 
 // Project into the survey's unit square (x right, y down), the same
 // equirectangular mapping the fetch script uses. Points outside the frame keep

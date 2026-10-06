@@ -174,9 +174,8 @@ export const CONFIG = {
   },
   cabbage: {
     count: 48,
-    // Arms only; the sack's limit is in src/items.ts.
+    // The cabbages the arms hold.
     carryLimit: 3,
-    dropRadius: 12,
   },
   extract: {
     fuelRadius: 12,
@@ -202,6 +201,17 @@ export const CONFIG = {
     reach: 2.4,
     // He blocks like a post this wide.
     radius: 0.4,
+  },
+  stand: {
+    // Where the Bull Valley Cabbage Stand is set up on the spawn Citgo's
+    // lot, station-local like the bush: at the lot's road-side corner on
+    // the side away from the sign, mirroring Moab across the pump island,
+    // turned to face the pumps. Scenery: it only blocks.
+    at: { x: 8.6, z: -9 },
+    // It blocks as a capsule along its table (assets.ts CABBAGE_STAND):
+    // this far either side of its middle, this wide.
+    halfLength: 1.0,
+    radius: 0.75,
   },
   npcs: {
     // How close you must stand for Matthew Marx or David Carlsten to glow

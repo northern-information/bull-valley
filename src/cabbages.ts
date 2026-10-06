@@ -1,6 +1,7 @@
 // Seeded cabbage placement, pure unit-square math. Wild cabbages grow where
 // nobody mows — the wetlands (2:1) and the nature reserves — plus a guaranteed
-// cluster near the Cabbage Stand so a short first raid is always possible.
+// cluster round the cabbage patch (landmarks.ts CABBAGE_PATCH) so a short
+// first raid is always possible.
 // Rendering happens in world.ts; this module never touches three.js.
 
 import { CONFIG } from './config.ts'
@@ -18,7 +19,7 @@ export interface CabbageSpot {
 }
 
 export interface CabbageOptions {
-  stand?: { u: number; v: number }
+  patch?: { u: number; v: number }
   metres?: Metres
   count?: number
   cluster?: number
@@ -26,28 +27,28 @@ export interface CabbageOptions {
 
 export const CABBAGE_SEED = 0xcabba6e
 
-// geo: the survey (wetland rings, reserves). stand: the Cabbage Stand in unit
-// coords { u, v }. metres: geo.metres, for the cluster radius.
+// geo: the survey (wetland rings, reserves). patch: the cabbage patch in
+// unit coords { u, v }. metres: geo.metres, for the cluster radius.
 // Returns [{ u, v, src: 'cluster' | 'wetland' | 'reserve' }].
 export function placeCabbages(
   geo: Pick<Geo, 'wetland' | 'reserves'>,
   rng: Rng,
-  { stand, metres, count, cluster }: CabbageOptions = {}
+  { patch, metres, count, cluster }: CabbageOptions = {}
 ): CabbageSpot[] {
   const wild = count ?? CONFIG.cabbage.count
   const clusterCount = cluster ?? 6
   const clusterRadius = 400
   const spots: CabbageSpot[] = []
 
-  // The guaranteed patch: within clusterRadius metres of the stand, never
-  // right on top of it.
-  if (stand && metres) {
+  // The guaranteed cluster: within clusterRadius metres of the patch,
+  // never right on top of it.
+  if (patch && metres) {
     let attempts = 0
     while (spots.length < clusterCount && attempts++ < clusterCount * 40) {
       const angle = rng() * Math.PI * 2
       const r = range(rng, 60, clusterRadius)
-      const u = stand.u + (Math.cos(angle) * r) / metres.width
-      const v = stand.v + (Math.sin(angle) * r) / metres.height
+      const u = patch.u + (Math.cos(angle) * r) / metres.width
+      const v = patch.v + (Math.sin(angle) * r) / metres.height
       if (u < 0 || u > 1 || v < 0 || v > 1) continue
       spots.push({ u, v, src: 'cluster' })
     }

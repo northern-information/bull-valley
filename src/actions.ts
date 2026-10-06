@@ -9,6 +9,7 @@ import { saveHotbar, saveLook } from './auth.ts'
 import { CHAT_COPY } from './chat.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
+import { stepIndex } from './cycle.ts'
 import { finishById } from './finishes.ts'
 import { openGronDialog } from './grondialog.ts'
 import { assign } from './hotbar.ts'
@@ -17,7 +18,7 @@ import { addItem, consume } from './inventory.ts'
 import { getItem, itemById } from './items.ts'
 import { npcLine } from './npcs.ts'
 import { outfitById } from './outfits.ts'
-import { packItems } from './packgrid.ts'
+import { PACK_TABS, packItems } from './packgrid.ts'
 import { normalizeChat } from './protocol.ts'
 import { advance, canPick, EVENTS, STATES, summary } from './raid.ts'
 import { nearestRoadPoint, planRoute } from './roadgraph.ts'
@@ -25,6 +26,7 @@ import { buy as buyItem, settle } from './shop.ts'
 import type { Game } from './game.ts'
 import type { DailyStatus, ShelfSpot } from './interactions.ts'
 import type { NpcId } from './npcs.ts'
+import type { PackTab } from './packgrid.ts'
 import type { DailyMessage } from './protocol.ts'
 import type { Pickup } from './world.ts'
 
@@ -37,6 +39,8 @@ export interface Actions {
   // lock the pointer again. Closed by the raid (a strike, the truck, the
   // end), the pointer stays free and the resume prompt shows.
   closeInventory(relock?: boolean): void
+  // A or D in the pack: the tab to the left (-1) or right (+1), wrapping.
+  stepBagTab(step: number): void
   // A number key over an item in the pack puts it on that slot, or takes
   // it off when it is there already.
   assignSlot(slot: number, kind: string): void
@@ -68,18 +72,24 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   const refreshBag = () => {
     if (s.inventoryOpen) {
-      hud.setBag(packItems(s.inventory, s.raid), (kind) =>
+      hud.setBag(packItems(s.inventory, s.raid, hud.bagTab), (kind) =>
         game.thumbs.icon(kind)
       )
     }
   }
 
+  const showBagTab = (tab: PackTab) => {
+    hud.selectBagTab(tab)
+    refreshBag()
+  }
+  hud.onBagTab = showBagTab
+
   // The pack opens over the valley with the pointer free for it, as Gron's
-  // dialog does; the player freezes, the valley does not.
+  // dialog does, on its first tab; the player freezes, the valley does not.
   const openInventory = () => {
     player.keys.clear()
     s.inventoryOpen = hud.showBag(true)
-    refreshBag()
+    showBagTab(PACK_TABS[0])
     if (document.pointerLockElement) document.exitPointerLock()
   }
 
@@ -87,6 +97,12 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (!s.inventoryOpen) return
     s.inventoryOpen = hud.showBag(false)
     if (relock && !s.ended) engagePointer()
+  }
+
+  // The tab `step` places from the shown one, wrapping.
+  const stepBagTab = (step: number) => {
+    const at = PACK_TABS.indexOf(hud.bagTab)
+    showBagTab(PACK_TABS[stepIndex(at, PACK_TABS.length, step)])
   }
 
   const assignSlot = (slot: number, kind: string) => {
@@ -198,13 +214,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   const pocket = (kind: string) => {
     const { next, line } = settle(
-      { raid: s.raid, inventory: s.inventory, cash: s.cash },
-      kind,
-      s.raidClock
+      { inventory: s.inventory, cash: s.cash },
+      kind
     )
     if (next) {
       const inventoryChanged = next.inventory !== s.inventory
-      s.raid = next.raid
       s.inventory = next.inventory
       s.cash = next.cash
       if (inventoryChanged) refreshBag()
@@ -214,16 +228,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   const buy = (shelf: ShelfSpot) => {
     const { next, line } = buyItem(
-      {
-        raid: s.raid,
-        stock: s.storeStock,
-        inventory: s.inventory,
-        cash: s.cash,
-      },
+      { stock: s.storeStock, inventory: s.inventory, cash: s.cash },
       shelf.station,
       shelf.item,
-      shelf.unit,
-      s.raidClock
+      shelf.unit
     )
     if (!next) {
       if (line) hud.tell(line)
@@ -232,7 +240,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (s.shared) {
       // The shelf is the valley's: ask, and pocket the unit when the
       // valley says it was still there. The judgement above (stock as
-      // last heard, cash, the sack) stands; the valley settles the race.
+      // last heard, cash) stands; the valley settles the race.
       const key = `${shelf.station}:${shelf.item}`
       if (s.pendingBuys.has(key)) return
       s.pendingBuys.add(key)
@@ -245,7 +253,6 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       return
     }
     const inventoryChanged = next.inventory !== s.inventory
-    s.raid = next.raid
     s.storeStock = [...next.stock]
     s.inventory = next.inventory
     s.cash = next.cash
@@ -410,17 +417,6 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         })
         if (s.raid.state === STATES.EXTRACTED) endRaid()
         return
-      case 'unload': {
-        const count = s.raid.carrying
-        s.raid = advance(s.raid, EVENTS.DELIVER, s.raidClock)
-        if (s.shared) net.send({ type: 'deliver' })
-        hud.tell(
-          count === 1
-            ? copy('log.unload_one')
-            : copy('log.unload_many', { count })
-        )
-        return
-      }
       case 'extractFuel':
         s.raid = advance(
           s.raid,
@@ -472,6 +468,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     refreshBag,
     openInventory,
     closeInventory,
+    stepBagTab,
     assignSlot,
     truckLeaves,
     hopOut,

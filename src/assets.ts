@@ -20,6 +20,7 @@ import { paintMud } from './mudart.ts'
 import { paintPack } from './packart.ts'
 import { applyPS1 } from './ps1.ts'
 import { mulberry32, range } from './rng.ts'
+import { paintStandSign } from './standart.ts'
 import { STORE_LAYOUT } from './store.ts'
 import type { DrinkArt } from './canart.ts'
 import type { CanvasArt } from './canvas.ts'
@@ -511,7 +512,6 @@ function storeParts(): Part[] {
 
 // One shelf unit: what the pack shows, without the halo.
 function buildShelfItem(kind: string): THREE.Object3D {
-  if (kind === 'sack') return buildSack()
   return buildPickup(kind, 0x5ac, { glow: false })
 }
 
@@ -1464,45 +1464,6 @@ function buildJoints({ glow = true }: PickupOptions = {}): THREE.Group {
   return group
 }
 
-// --- Burlap sack ---------------------------------------------------------
-
-// The Citgo's burlap sack, filled out a little, gathered and tied at the
-// neck. Origin at ground level under the middle. Seen on the store's sack
-// shelf and in the inventory.
-export function buildSack(seed = 0x5ac4): THREE.Group {
-  const rng = mulberry32(seed)
-  const burlap = lambert({ color: '#8a6d42' })
-  const twine = lambert({ color: '#5a4426' })
-  const bodyGeo = new THREE.BoxGeometry(0.42, 0.46, 0.28, 3, 3, 2)
-  const pos = bodyGeo.attributes.position
-  for (let i = 0; i < pos.count; i++) {
-    const y = pos.getY(i)
-    // Taper toward the neck, bulge at the belly, lump everything a bit.
-    const t = (y + 0.23) / 0.46
-    const squeeze = 1 - 0.45 * t * t
-    pos.setX(i, pos.getX(i) * squeeze + range(rng, -0.012, 0.012))
-    pos.setZ(i, pos.getZ(i) * squeeze + range(rng, -0.012, 0.012))
-    pos.setY(i, y + range(rng, -0.01, 0.01))
-  }
-  bodyGeo.computeVertexNormals()
-  const body = new THREE.Mesh(bodyGeo, burlap)
-  body.position.y = 0.23
-  const neck = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.035, 0.06, 0.05, 6),
-    twine
-  )
-  neck.position.y = 0.48
-  const flare = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.09, 0.03, 0.08, 6),
-    burlap
-  )
-  flare.position.y = 0.54
-  const group = new THREE.Group()
-  group.name = 'sack'
-  group.add(body, neck, flare)
-  return group
-}
-
 // --- Berry bush ----------------------------------------------------------
 
 // The berries' skin: near black, with a little light in them so they read
@@ -1567,6 +1528,108 @@ export function buildBerryBush(seed = 0xbe221): THREE.Group {
     )
     berries.add(mesh)
   }
+  return group
+}
+
+// --- Cabbage stand -------------------------------------------------------
+
+// The Bull Valley Cabbage Stand, set up on the spawn Citgo's lot: a
+// weathered plank table under a lean-to roof, the painted board on the
+// roof's lip, cabbages on the table and a crate of them on the ground.
+// Scenery: the heads are not pickups. Faces +Z, long side along X; origin
+// at ground level under the middle. CONFIG.stand places it and sizes its
+// wall.
+export const CABBAGE_STAND = {
+  width: 2.4,
+  depth: 1.1,
+  table: 0.85,
+  // The roof's back and front edges, over the table's back and front.
+  roofBack: 2.3,
+  roofFront: 2.0,
+}
+
+export function buildCabbageStand(seed = 0xcab5): THREE.Group {
+  const rng = mulberry32(seed)
+  const { width, depth, table, roofBack, roofFront } = CABBAGE_STAND
+  const group = new THREE.Group()
+  group.name = 'cabbage-stand'
+  const wood = lambert({ color: '#6b5236' })
+  const plank = lambert({ color: '#8a6d48' })
+  const box = (
+    size: [number, number, number],
+    at: [number, number, number],
+    material: THREE.Material
+  ) => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material)
+    mesh.position.set(...at)
+    group.add(mesh)
+    return mesh
+  }
+  // Four posts: the back pair carry the roof's high edge, the front pair
+  // its low one.
+  const postX = width / 2 - 0.06
+  const postZ = depth / 2 - 0.06
+  for (const x of [-postX, postX]) {
+    box([0.09, roofBack, 0.09], [x, roofBack / 2, -postZ], wood)
+    box([0.09, roofFront, 0.09], [x, roofFront / 2, postZ], wood)
+  }
+  // The table: a plank top on a skirt, a shelf low down.
+  box([width, 0.05, depth], [0, table, 0], plank)
+  box([width - 0.1, 0.18, 0.03], [0, table - 0.12, postZ], wood)
+  box([width - 0.1, 0.03, depth - 0.15], [0, 0.25, 0], plank)
+  // The roof: boards sloping from back to front, overhanging both.
+  const rise = roofBack - roofFront
+  const run = depth + 0.3
+  const roof = box(
+    [width + 0.3, 0.04, Math.hypot(run, rise)],
+    [0, (roofBack + roofFront) / 2 + 0.04, 0],
+    lambert({ color: '#5a4a3a' })
+  )
+  roof.rotation.x = Math.atan2(rise, run)
+  // Plain heads, the color of the field ones but unlit: nothing to take.
+  const leaf = lambert({ color: '#4f7a3a' })
+  const head = new THREE.SphereGeometry(0.16, 6, 5)
+  const lay = (x: number, y: number, z: number) => {
+    const mesh = new THREE.Mesh(head, leaf)
+    mesh.position.set(x, y, z)
+    mesh.rotation.set(range(rng, 0, Math.PI), range(rng, 0, Math.PI), 0)
+    mesh.scale.y = 0.85
+    group.add(mesh)
+  }
+  for (let i = 0; i < 7; i++) {
+    lay(
+      -width / 2 + 0.3 + (i / 6) * (width - 0.6) + range(rng, -0.05, 0.05),
+      table + 0.15,
+      range(rng, -0.25, 0.2)
+    )
+  }
+  // The crate at the table's foot, heads heaped in it.
+  const crateX = width / 2 - 0.35
+  const crateZ = depth / 2 + 0.35
+  box([0.5, 0.3, 0.4], [crateX, 0.15, crateZ], plank)
+  for (let i = 0; i < 4; i++) {
+    lay(
+      crateX + range(rng, -0.12, 0.12),
+      0.38 + range(rng, 0, 0.06),
+      crateZ + range(rng, -0.08, 0.08)
+    )
+  }
+  mergeStatic(group)
+  // The painted board, hung under the roof's front lip.
+  const texture = artTexture(paintStandSign())
+  const face = lambert({
+    map: texture,
+    emissive: new THREE.Color('#ffffff'),
+    emissiveMap: texture,
+    emissiveIntensity: 0.4,
+  })
+  // BoxGeometry face order is +x, -x, +y, -y, +z, -z.
+  const sign = new THREE.Mesh(
+    new THREE.BoxGeometry(width * 0.8, (width * 0.8) / 4, 0.03),
+    [wood, wood, wood, wood, face, wood]
+  )
+  sign.position.set(0, roofFront - 0.25, postZ + 0.07)
+  group.add(sign)
   return group
 }
 
@@ -4185,11 +4248,6 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     build: () => assembleParts([gravestonePart()]),
   },
   {
-    id: 'beacon-stand',
-    label: 'Beacon: Cabbage Stand',
-    build: () => buildLandmarkBeacon('#22d3ee'),
-  },
-  {
     id: 'beacon-keep',
     label: "Beacon: Mt. Coleman's Keep",
     build: () => buildLandmarkBeacon('#e879f9'),
@@ -4209,6 +4267,11 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   { id: 'berries', label: 'Berries', build: () => buildPickup('berries') },
   { id: 'berry-bush', label: 'Berry bush', build: () => buildBerryBush() },
   {
+    id: 'cabbage-stand',
+    label: 'Bull Valley Cabbage Stand',
+    build: () => buildCabbageStand(),
+  },
+  {
     id: 'raincloud',
     label: "Gron's raincloud",
     build: () => {
@@ -4223,7 +4286,6 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     label: `Medicine: ${m.label}`,
     build: () => buildMedicine(m.id),
   })),
-  { id: 'sack', label: 'Burlap sack', build: () => buildSack() },
   {
     id: 'fire-roots',
     label: "Moab's fire roots",

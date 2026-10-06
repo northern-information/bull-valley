@@ -3,7 +3,6 @@
 // reference so callers can detect the rejection. No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
-import { getItem } from './items.ts'
 import type { Raid, RaidEvent, RaidState, RaidSummary } from './interfaces.ts'
 
 export const STATES = {
@@ -18,9 +17,7 @@ export const EVENTS = {
   TIMER_EXPIRED: 'TIMER_EXPIRED',
   HOP_OUT: 'HOP_OUT',
   PICK_CABBAGE: 'PICK_CABBAGE',
-  DELIVER: 'DELIVER',
   CALL_TRUCK: 'CALL_TRUCK',
-  BUY_SACK: 'BUY_SACK',
   EXTRACT_FUEL: 'EXTRACT_FUEL',
   EXTRACT_KEEP: 'EXTRACT_KEEP',
   STRUCK: 'STRUCK',
@@ -32,8 +29,6 @@ export function createRaid(now: number): Raid {
     startedAt: now,
     loadoutEndsAt: now + CONFIG.raid.loadoutSeconds,
     carrying: 0,
-    delivered: 0,
-    sack: false,
     truckCalled: false,
     extract: null, // 'truck' | 'fuel' | 'keep'
     extractName: null, // station name for 'fuel'
@@ -42,19 +37,12 @@ export function createRaid(now: number): Raid {
   }
 }
 
-// How many cabbages fit in the arms, with or without the sack. The valley
-// holds a raider to the same (sharedraid.ts).
-export function carryLimitFor(sack: boolean): number {
-  return sack ? getItem('sack').carryLimit : CONFIG.cabbage.carryLimit
-}
-
-export function carryLimit(raid: Raid): number {
-  return carryLimitFor(raid.sack)
-}
-
-// Whether the arms can take another cabbage: on foot, with room.
+// Whether the arms can take another cabbage: on foot, with room. The valley
+// holds a raider to the same limit (sharedraid.ts).
 export function canPick(raid: Raid): boolean {
-  return raid.state === STATES.ON_FOOT && raid.carrying < carryLimit(raid)
+  return (
+    raid.state === STATES.ON_FOOT && raid.carrying < CONFIG.cabbage.carryLimit
+  )
 }
 
 // Whether the lobby clock has run out on a truck still waiting. Played
@@ -101,17 +89,9 @@ export function advance(
     case EVENTS.PICK_CABBAGE:
       if (!canPick(raid)) return raid
       return { ...raid, carrying: raid.carrying + 1 }
-    case EVENTS.DELIVER:
-      if (state !== STATES.ON_FOOT || raid.carrying === 0) return raid
-      return { ...raid, delivered: raid.delivered + raid.carrying, carrying: 0 }
     case EVENTS.CALL_TRUCK:
       if (state !== STATES.ON_FOOT || raid.truckCalled) return raid
       return { ...raid, truckCalled: true }
-    case EVENTS.BUY_SACK:
-      // Any Citgo sells it, before the truck leaves or on foot after.
-      if (state !== STATES.LOADOUT && state !== STATES.ON_FOOT) return raid
-      if (raid.sack) return raid
-      return { ...raid, sack: true }
     case EVENTS.EXTRACT_FUEL:
       if (state !== STATES.ON_FOOT) return raid
       return {
@@ -143,7 +123,6 @@ export function loadoutClock(raid: Raid, now: number): string {
 
 export function summary(raid: Raid): RaidSummary {
   return {
-    delivered: raid.delivered,
     carrying: raid.carrying,
     durationSeconds:
       raid.endedAt === null ? null : Math.round(raid.endedAt - raid.startedAt),
