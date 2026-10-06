@@ -1664,6 +1664,7 @@ async function boot() {
     // Today's berry picked, the bush stands bare until midnight Central.
     world.setBerries(dailyStatus() !== 'picked')
     const clear = !ended && now >= strikeUntil
+    hud.setReticleActive(clear && interaction !== null)
     hud.itemLabel(
       player.locked && clear && label && labelSpot
         ? { ...label, ...labelSpot }
