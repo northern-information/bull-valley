@@ -1,6 +1,5 @@
 // Pure coordinate and geometry helpers for the Bull Valley unit square
-// (x right/east, y down/south — the projection scripts/fetch_bull_valley.cjs
-// writes into geo.json). No three.js imports: tests/unit/coords.test.ts
+// (x right/east, y down/south — the projection geo.json is in). No three.js imports: tests/unit/coords.test.ts
 // runs these directly in Node.
 
 import type { Metres, UnitPoint } from './interfaces.ts'

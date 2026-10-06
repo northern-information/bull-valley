@@ -15,7 +15,6 @@ An extraction adventure RPG set in a hauntological Bull Valley, Illinois. 3D fir
 - `npm run pretty` — prettier (sorts imports too); run before every commit. `npm run format:check` checks without writing
 - CI (`.github/workflows/ci.yml`) runs on every PR to `main` and every push to `main`: format, lint, types, unit tests with coverage (the pure modules have a per-file floor in `vitest.config.ts`), build, and e2e. The e2e job runs in the Playwright Docker image as three parallel jobs: the `@raid` group, the `@valley` group (the two-page specs, which boot two games each), and every other spec
 - `npm run db:migrate` — apply `migrations/*.sql` to the dev server's local D1 (`bull-valley-accounts`, the accounts behind `/auth`); run it once on a fresh checkout and after adding a migration. The deploy workflow applies them to production before each deploy. Local secrets go in a gitignored `.dev.vars` (see `.dev.vars.example`); none are needed, since a dev server signs sessions with a fixed dev secret and offers the Dev provider (`/auth/dev/form`). Production secrets (`JWT_SECRET`, each provider's client id and secret) are set once with `wrangler versions secret put`
-- `npm run fetch:data` — regenerate `public/data/bull-valley/` (network: Nominatim, Overpass, AWS terrain tiles)
 - `npm run copy:ai` — list the lines in `COPY.toml` still marked `by = "ai"`
 - `npm run images` — regenerate `public/favicon.ico` and `public/apple-touch-icon.png` from `public/favicon.svg`, and the link-preview card `public/og.png` from the logo (needs ImageMagick 7, `brew install imagemagick`)
 
@@ -37,7 +36,7 @@ Dev only: `?valley=<id>` picks another Durable Object, so parallel e2e specs nev
 
 ## Module map
 
-Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stays plain JS on purpose (testing a rewrite means refetching the survey). Shapes that cross modules (world points and heights, geo.json, items, the raid, pack grid entries) live in `src/interfaces.ts`; types one module owns stay in that module.
+Strict TypeScript throughout. The map (`public/data/bull-valley/`: `geo.json` and the `terrain.png` heightmap) is the game's own, committed and edited by hand; nothing fetches or regenerates it. Shapes that cross modules (world points and heights, geo.json, items, the raid, pack grid entries) live in `src/interfaces.ts`; types one module owns stay in that module.
 
 - `src/interfaces.ts` — shared types only, no runtime code
 - `COPY.toml` (repo root) — every player-facing line, each with `text` and `by` (`"ai"` or `"tyler"`); `{name}` placeholders. `src/copy.ts` loads it (Vite `?raw`, so it ships in the client and the Worker) and exports `copy(key, vars)`; `src/copybook.ts` is the pure parsing and filling, shared with `tests/e2e/copy.ts`, which reads the file from disk. `tests/unit/copy.test.ts` fails on a key the code asks for that the file lacks, and on an entry nothing asks for. Modules the e2e specs import (`bindings.ts`, `account.ts`) must not import `copy.ts`: Playwright cannot load `?raw`
@@ -134,7 +133,7 @@ IBM Plex Mono everywhere (`public/fonts/IBMPlexMono-*.woff2`: regular, italic, s
 
 ## Standing rules
 
-1. Geo data never includes driveways, private service roads, or buildings. Regenerate only via `scripts/fetch_bull_valley.cjs`, which enforces this.
+1. The map never includes driveways, private service roads, or buildings. Edit `public/data/bull-valley/` by hand, and bump `PROTOCOL_VERSION` whenever a change moves where things are placed.
 2. No GPS EXIF in any media added to the repo.
 3. Landmarks are consented or public places only. Keep the consent comments in `src/landmarks.ts`.
 4. The `three`/`vite` pins are deliberate: `ps1.ts` patches Three shader chunks via `onBeforeCompile`, and Three minors rename chunks. Upgrading is its own task.

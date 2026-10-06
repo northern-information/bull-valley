@@ -22,7 +22,6 @@
     "test:e2e": "playwright test",
     "pretty": "prettier --write .",
     "format:check": "prettier --check .",
-    "fetch:data": "node scripts/fetch_bull_valley.cjs",
     "db:migrate": "wrangler d1 migrations apply bull-valley-accounts --local -c wrangler.jsonc",
     "images": "scripts/images.sh",
     "copy:ai": "node scripts/copy-ai.mjs"
@@ -43,7 +42,6 @@
     "eslint": "10.11.0",
     "globals": "17.13.0",
     "prettier": "3.9.9",
-    "sharp": "0.35.4",
     "stylelint": "17.16.0",
     "stylelint-config-standard": "40.0.0",
     "typescript": "6.0.3",
