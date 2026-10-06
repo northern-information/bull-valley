@@ -23,6 +23,7 @@ import {
   lambert,
   makeGlowSprite,
   makeGlowTexture,
+  mergeStatic,
   setMotion,
 } from './assets.ts'
 import { paintPrints } from './decalart.ts'
@@ -784,6 +785,9 @@ export function buildMoab(groundAt: GroundAt = () => 0): MoabRig {
   applyPose(figure, samplePose('wield'))
   figure.group.position.set(MOAB_BESIDE[0], 0, MOAB_BESIDE[1])
   figure.group.rotation.y = MOAB_FACING
+  // Each joint's parts in a few draws: they share their colors' materials,
+  // and only the neck ever turns.
+  mergeStatic(figure.group)
   group.add(figure.group)
   // Fire roots spread over the ground from his feet.
   const roots = buildFireRoots(undefined, (x, z) =>
