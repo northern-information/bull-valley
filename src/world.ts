@@ -4,12 +4,14 @@ import {
   buildBerryBush,
   buildCornMazeSign,
   buildCornWalls,
+  buildEnterSign,
   buildLandmarkBeacon,
   buildPickup,
   buildShelfDisplay,
   CANOPY,
   castShadows,
   CORN_SIGN,
+  ENTER_SIGN,
   fenceMaterial,
   FUEL_LAYOUT,
   fuelStationParts,
@@ -71,7 +73,7 @@ import {
   worldFacings,
 } from './store.ts'
 import { Walls } from './walls.ts'
-import type { CornPiece } from './assets.ts'
+import type { CornPiece, MazeSignSize } from './assets.ts'
 import type { GronRig, MoabRig } from './figure.ts'
 import type {
   Geo,
@@ -1519,8 +1521,8 @@ function mazeFrame(station: StoreOrigin): MazeFrame {
 // The corn maze across the road from the spawn Citgo, after the hedge
 // maze in The Shining (maze.ts). Each wall stands on the ground in pieces
 // short enough to follow it and blocks as one capsule along its
-// centreline; the CORN MAZE! sign stands on the verge by the near corner,
-// facing the pump island, and blocks along its board.
+// centreline. The CORN MAZE! sign stands on the verge by the near corner
+// and the ENTER! sign beside the gate; each blocks along its board.
 function buildCornMaze(
   frame: MazeFrame,
   station: StoreOrigin,
@@ -1550,25 +1552,40 @@ function buildCornMaze(
     sink: wallSink,
   })
 
-  const [sx, , sz] = toWorld(station, [
-    CONFIG.maze.sign.x,
-    0,
-    CONFIG.maze.sign.z,
-  ])
-  const sign = buildCornMazeSign()
-  sign.position.set(sx, ground.at(sx, sz), sz)
-  // The board faces +Z; turn it to the pump island at the origin.
-  const yaw = Math.atan2(station.x - sx, station.z - sz)
-  sign.rotation.y = yaw
-  group.add(sign)
-  // Its local +X, along the board, after the turn.
-  const dx = Math.cos(yaw) * CORN_SIGN.postX
-  const dz = -Math.sin(yaw) * CORN_SIGN.postX
-  walls.addWall(
-    { x: sx - dx, z: sz - dz },
-    { x: sx + dx, z: sz + dz },
-    CONFIG.maze.signRadius
-  )
+  // A sign at a station-local spot, its board (which faces +Z) turned to
+  // the world direction `face` gives from where it stands, blocking post
+  // to post.
+  const plant = (
+    sign: THREE.Group,
+    size: MazeSignSize,
+    at: { x: number; z: number },
+    face: (x: number, z: number) => XZ
+  ) => {
+    const [x, , z] = toWorld(station, [at.x, 0, at.z])
+    const f = face(x, z)
+    const yaw = Math.atan2(f.x, f.z)
+    sign.position.set(x, ground.at(x, z), z)
+    sign.rotation.y = yaw
+    group.add(sign)
+    // Its local +X, along the board, after the turn.
+    const dx = Math.cos(yaw) * size.postX
+    const dz = -Math.sin(yaw) * size.postX
+    walls.addWall(
+      { x: x - dx, z: z - dz },
+      { x: x + dx, z: z + dz },
+      CONFIG.maze.signRadius
+    )
+  }
+  // CORN MAZE! faces the pump island at the origin; ENTER! faces back down
+  // the road (station-local -Z), toward the end raiders come from.
+  plant(buildCornMazeSign(), CORN_SIGN, CONFIG.maze.sign, (x, z) => ({
+    x: station.x - x,
+    z: station.z - z,
+  }))
+  plant(buildEnterSign(), ENTER_SIGN, CONFIG.maze.enterSign, () => ({
+    x: Math.sin(station.yaw),
+    z: -Math.cos(station.yaw),
+  }))
   return group
 }
 

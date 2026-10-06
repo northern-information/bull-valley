@@ -70,6 +70,36 @@ export function paintCornMazeSign(): CanvasArt {
   return art
 }
 
+// The small board at the gate, painted like the big one: ENTER! over a
+// fat arrow pointing right, at the gate.
+export const ENTER_SIGN_SIZE: [number, number] = [160, 100]
+
+export function paintEnterSign(): CanvasArt {
+  const art = canvas(ENTER_SIGN_SIZE, '#c8202a')
+  const { ctx, w, h } = art
+  ctx.fillStyle = '#f3ead2'
+  ctx.fillRect(5, 5, w - 10, h - 10)
+  text(ctx, 'ENTER!', w / 2 + 2, 28, w - 24, 30, SANS, '#2a1a12')
+  text(ctx, 'ENTER!', w / 2, 26, w - 24, 30, SANS, '#d42a1e')
+  // The arrow: a shaft and a head, with the same dark drop under it.
+  const arrow = (dx: number, dy: number, color: string) => {
+    ctx.fillStyle = color
+    ctx.beginPath()
+    ctx.moveTo(24 + dx, 58 + dy)
+    ctx.lineTo(100 + dx, 58 + dy)
+    ctx.lineTo(100 + dx, 46 + dy)
+    ctx.lineTo(136 + dx, 68 + dy)
+    ctx.lineTo(100 + dx, 90 + dy)
+    ctx.lineTo(100 + dx, 78 + dy)
+    ctx.lineTo(24 + dx, 78 + dy)
+    ctx.closePath()
+    ctx.fill()
+  }
+  arrow(2, 2, '#2a1a12')
+  arrow(0, 0, '#d42a1e')
+  return art
+}
+
 // A happy clown's face centred on (x, y): orange tufts, a white face, blue
 // diamond eyes, a red nose and a wide red grin, and a little party hat.
 function paintClown(ctx: CanvasRenderingContext2D, x: number, y: number) {

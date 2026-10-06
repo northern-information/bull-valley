@@ -11,6 +11,7 @@ import { mazeSpans, SHINING_MAZE, spanPieces } from './maze.ts'
 import {
   paintCornMazeSign,
   paintCornStalks,
+  paintEnterSign,
   STALK_MASS_TOP,
 } from './mazeart.ts'
 import { paintMedicine } from './medart.ts'
@@ -963,31 +964,66 @@ function sampleCornMaze(): THREE.Group {
   return buildCornWalls(flatCornPieces(spans), cornWallSize())
 }
 
-// The CORN MAZE! sign: a painted plywood board on two posts, its art on
+// The corn maze's signs: painted plywood boards on two posts, their art on
 // the +Z face and glowing a little through its own emissiveMap so it reads
 // by headlight. Origin at ground level under the middle; the posts sink
-// into the ground.
-export const CORN_SIGN = {
+// into the ground. The big CORN MAZE! board stands on the verge, the small
+// ENTER! board by the gate.
+export interface MazeSignSize {
+  width: number
+  height: number
+  bottom: number
+  // Each post's distance from the middle.
+  postX: number
+}
+
+export const CORN_SIGN: MazeSignSize = {
   width: 3,
   height: 2,
   bottom: 0.7,
   postX: 1.25,
-  post: 0.1,
-  sink: 0.5,
 }
 
+export const ENTER_SIGN: MazeSignSize = {
+  width: 2,
+  height: 1.25,
+  bottom: 0.6,
+  postX: 0.8,
+}
+
+const SIGN_POST = 0.1
+const SIGN_SINK = 0.5
+
 export function buildCornMazeSign(): THREE.Group {
+  return buildMazeSign('corn-maze-sign', paintCornMazeSign(), CORN_SIGN)
+}
+
+export function buildEnterSign(): THREE.Group {
+  return buildMazeSign('enter-sign', paintEnterSign(), ENTER_SIGN)
+}
+
+function buildMazeSign(
+  name: string,
+  art: CanvasArt,
+  { width, height, bottom, postX }: MazeSignSize
+): THREE.Group {
   const group = new THREE.Group()
-  group.name = 'corn-maze-sign'
-  const { width, height, bottom, postX, post, sink } = CORN_SIGN
+  group.name = name
   const wood = lambert({ color: '#5a4630' })
-  const postH = bottom + height + sink
+  const postH = bottom + height + SIGN_SINK
   for (const side of [-1, 1]) {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(post, postH, post), wood)
-    mesh.position.set(side * postX, postH / 2 - sink, -post / 2 - 0.02)
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(SIGN_POST, postH, SIGN_POST),
+      wood
+    )
+    mesh.position.set(
+      side * postX,
+      postH / 2 - SIGN_SINK,
+      -SIGN_POST / 2 - 0.02
+    )
     group.add(mesh)
   }
-  const texture = artTexture(paintCornMazeSign())
+  const texture = artTexture(art)
   const face = lambert({
     map: texture,
     emissive: new THREE.Color('#ffffff'),
@@ -4044,6 +4080,7 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     label: 'Corn maze: sign',
     build: buildCornMazeSign,
   },
+  { id: 'enter-sign', label: 'Corn maze: enter sign', build: buildEnterSign },
   { id: 'pole', label: 'Utility pole', build: samplePole },
   { id: 'streetlight', label: 'Streetlight', build: sampleStreetlight },
   { id: 'reeds', label: 'Reeds (clump of 12)', build: sampleReeds },
