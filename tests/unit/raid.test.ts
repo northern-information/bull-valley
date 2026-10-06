@@ -51,6 +51,20 @@ describe('raid state machine', () => {
     expect(advance(raid, EVENTS.CALL_TRUCK, 1)).toBe(raid)
   })
 
+  it('sets carried cabbages down on foot, never more than are held', () => {
+    let raid = advance(createRaid(0), EVENTS.TIMER_EXPIRED, 300)
+    raid = advance(raid, EVENTS.PICK_CABBAGE, 301)
+    raid = advance(raid, EVENTS.PICK_CABBAGE, 302)
+    expect(advance(raid, EVENTS.DROP_CABBAGE, 303, { count: 3 })).toBe(raid)
+    expect(advance(raid, EVENTS.DROP_CABBAGE, 303, { count: 0 })).toBe(raid)
+    expect(advance(raid, EVENTS.DROP_CABBAGE, 303)).toBe(raid)
+    expect(advance(raid, EVENTS.DROP_CABBAGE, 303, { count: 2 }).carrying).toBe(
+      0
+    )
+    const riding = advance(createRaid(0), EVENTS.BOARD_TRUCK, 10)
+    expect(advance(riding, EVENTS.DROP_CABBAGE, 11, { count: 1 })).toBe(riding)
+  })
+
   it('lets the timer expire only in LOADOUT', () => {
     let raid = createRaid(0)
     raid = advance(raid, EVENTS.BOARD_TRUCK, 10)

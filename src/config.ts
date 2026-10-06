@@ -217,6 +217,13 @@ export const CONFIG = {
     // The cabbages the arms hold.
     carryLimit: 3,
   },
+  // Items dropped from the pack or the arms (drops.ts).
+  drops: {
+    // How far ahead of the raider a drop lands, in metres.
+    ahead: 1.2,
+    // The circle drops from one spot are spread round, in metres.
+    scatter: 0.35,
+  },
   extract: {
     fuelRadius: 12,
     keepRadius: 25,

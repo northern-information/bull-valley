@@ -31,6 +31,7 @@ function wire(extra: Partial<RaidWire> = {}): RaidWire {
     riders: [],
     taken: [],
     shelves: [],
+    drops: [],
     call: null,
     members: [member('a'), member('b')],
     ...extra,

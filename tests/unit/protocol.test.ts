@@ -208,6 +208,15 @@ describe('parseClientMessage', () => {
       type: 'use',
       kind: 'joints',
     })
+    expect(parse({ type: 'drop', kind: 'cabbage', count: 2 })).toEqual({
+      type: 'drop',
+      kind: 'cabbage',
+      count: 2,
+    })
+    expect(parse({ type: 'take-drop', drop: 4 })).toEqual({
+      type: 'take-drop',
+      drop: 4,
+    })
     expect(parse({ type: 'buy', station: 2, kind: 'pbr', unit: 1 })).toEqual({
       type: 'buy',
       station: 2,
@@ -256,6 +265,11 @@ describe('parseClientMessage', () => {
     expect(parse({ type: 'use', kind: '' })).toBeNull()
     expect(parse({ type: 'use', kind: 7 })).toBeNull()
     expect(parse({ type: 'use' })).toBeNull()
+    expect(parse({ type: 'drop', kind: 'joints', count: 0 })).toBeNull()
+    expect(parse({ type: 'drop', kind: 'joints', count: 1.5 })).toBeNull()
+    expect(parse({ type: 'drop', kind: '', count: 1 })).toBeNull()
+    expect(parse({ type: 'take-drop', drop: -1 })).toBeNull()
+    expect(parse({ type: 'take-drop' })).toBeNull()
     expect(
       parse({ type: 'call', from: { x: 1 }, to: { x: 3, z: 4 } })
     ).toBeNull()

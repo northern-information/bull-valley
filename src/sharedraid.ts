@@ -47,9 +47,17 @@
 //    the field (stepShadows) and keeps it in memory only: the shadowmen
 //    are gone whenever no one is in the raid. The raid keeps where the
 //    havens are and the survey's size, from the build that opened it.
+// 14. A raider out of the bed can drop what they carry: out of the pack
+//    (the valley takes it off the account's pack first, and the drop
+//    stands only once it has) or a cabbage out of the arms. It lands a
+//    little ahead of where their last state frame put them (drops.ts).
+//    Anyone can take a drop up, first to ask wins, a cabbage only on
+//    foot and only as many as the arms have room for. Drops last until
+//    the valley resets.
 
 import { CONFIG } from './config.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
+import { dropSpot, takeUp } from './drops.ts'
 import { contentsOf, INVENTORY_KINDS, itemById } from './items.ts'
 import {
   beamFrom,
@@ -58,6 +66,7 @@ import {
   stepShadowmen,
 } from './shadowmen.ts'
 import { freshStock, onShelf, takeUnit } from './store.ts'
+import type { Drop, Facing } from './drops.ts'
 import type { ExtractKind, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { OutfitId } from './outfits.ts'
 import type {
@@ -106,6 +115,9 @@ export interface SharedRaid {
   riders: string[]
   taken: number[]
   shelves: ShopStock[]
+  // Rule 14: what lies dropped, and the id the next drop gets.
+  drops: Drop[]
+  nextDrop: number
   call: TruckCall | null
   // Account -> its cargo. Never on the wire: each member carries their
   // account's.
@@ -151,6 +163,10 @@ export type ValleyAction =
   | { type: 'extract'; id: string; kind: ExtractKind }
   | { type: 'collect'; id: string }
   | { type: 'use'; id: string; kind: string }
+  // Rule 14. at: where the raider's last state frame put them, or null
+  // when the valley has not heard one.
+  | { type: 'drop'; id: string; kind: string; count: number; at: Facing | null }
+  | { type: 'take-drop'; id: string; drop: number }
   // Rule 10: a new name, a new character, or both.
   | { type: 'appearance'; id: string; name?: string; outfit?: OutfitId }
   // The lobby clock ran out.
@@ -216,7 +232,8 @@ export function createValley(): Valley {
 }
 
 // The valley as an older build stored it, made current: the fresh one
-// fills in newer fields, a raid without cargo hauls nothing, and a raid
+// fills in newer fields, a raid without cargo hauls nothing, a raid
+// without drops has none lying about, and a raid
 // with no shelves, or whose shelves still hold counts rather than units, or an item no longer
 // sold, or from before the shadowmen were the valley's (no havens), is
 // dropped, so the next lobby stocks them afresh.
@@ -237,7 +254,15 @@ export function restoreValley(stored: Partial<Valley>): Valley {
   if (counted || !older.havens || !older.metres) {
     return { ...valley, raid: null }
   }
-  return { ...valley, raid: { ...raid, cargo: older.cargo ?? {} } }
+  return {
+    ...valley,
+    raid: {
+      ...raid,
+      cargo: older.cargo ?? {},
+      drops: older.drops ?? [],
+      nextDrop: older.nextDrop ?? 0,
+    },
+  }
 }
 
 // The bush as `account` finds it at `now`: whether today's berry is gone,
@@ -273,6 +298,7 @@ export function toWire(valley: Valley): RaidWire | null {
     cargo: _cargo,
     havens: _havens,
     metres: _metres,
+    nextDrop: _nextDrop,
     ...rest
   } = raid
   return { ...rest, members }
@@ -282,7 +308,10 @@ function frame(
   valley: Valley,
   reason: RaidReason,
   detail: Partial<
-    Pick<RaidMessage, 'by' | 'index' | 'kind' | 'station' | 'item'>
+    Pick<
+      RaidMessage,
+      'by' | 'index' | 'kind' | 'station' | 'item' | 'drop' | 'count'
+    >
   > = {}
 ): RaidMessage {
   return { type: 'raid', reason, raid: toWire(valley), ...detail }
@@ -415,6 +444,8 @@ export function reduce(
             riders: [],
             taken: [],
             shelves: freshStock(action.stations),
+            drops: [],
+            nextDrop: 0,
             call: null,
             cargo: {},
             pickups: action.pickups,
@@ -752,6 +783,117 @@ export function reduce(
         broadcast: [],
         pack: { account: member.account, kind: action.kind, delta: -1 },
       }
+    }
+
+    case 'drop': {
+      // Rule 14.
+      const member = valley.members[action.id]
+      const raid = valley.raid
+      const { kind, count } = action
+      const refuse = (reason: string): Reduced => ({
+        valley,
+        broadcast: [],
+        reply: { type: 'nack', re: 'drop', reason },
+      })
+      if (!member || !raid || member.phase === 'EXTRACTED') {
+        return refuse('not-in-raid')
+      }
+      // Nothing goes over the side of the truck, moving or parked.
+      if (member.phase === 'RIDING' || member.boarded) return refuse('aboard')
+      if (!action.at) return refuse('no-position')
+      const cabbage = kind === 'cabbage'
+      if (!cabbage && !isPackKind(kind)) return refuse('not-an-item')
+      if (count < 1) return refuse('nothing')
+      let next: SharedRaid = raid
+      if (cabbage) {
+        const cargo = cargoOf(raid, member.account)
+        if (count > cargo.carrying) return refuse('none-left')
+        next = withCargo(raid, member.account, {
+          ...cargo,
+          carrying: cargo.carrying - count,
+        })
+      }
+      const id = raid.nextDrop
+      const drop: Drop = { id, kind, count, ...dropSpot(action.at, id) }
+      next = { ...next, drops: [...raid.drops, drop], nextDrop: id + 1 }
+      const after = withRaid(valley, next)
+      const reduced: Reduced = {
+        valley: after,
+        broadcast: [
+          frame(after, 'dropped', {
+            by: action.id,
+            item: kind,
+            drop: id,
+            count,
+          }),
+        ],
+      }
+      // Rule 11: out of the pack first; the valley lets the drop stand
+      // only once the pack has given it up.
+      if (!cabbage) {
+        reduced.pack = { account: member.account, kind, delta: -count }
+      }
+      return reduced
+    }
+
+    case 'take-drop': {
+      // Rule 14: first to ask wins.
+      const member = valley.members[action.id]
+      const raid = valley.raid
+      const refuse = (reason: string): Reduced => ({
+        valley,
+        broadcast: [],
+        reply: { type: 'nack', re: 'take-drop', reason, drop: action.drop },
+      })
+      if (!member || !raid || member.phase === 'EXTRACTED') {
+        return refuse('not-in-raid')
+      }
+      const drop = raid.drops.find((d) => d.id === action.drop)
+      if (!drop) return refuse('gone')
+      const cabbage = drop.kind === 'cabbage'
+      let room = Infinity
+      let cargo = NO_CARGO
+      if (cabbage) {
+        // Rule 12: on foot, and only what the arms have room for.
+        if (member.phase !== 'ON_FOOT') return refuse('not-on-foot')
+        cargo = cargoOf(raid, member.account)
+        room = CONFIG.cabbage.carryLimit - cargo.carrying
+        if (room < 1) return refuse('arms-full')
+      }
+      const { taken, left } = takeUp(drop, room)
+      let next: SharedRaid = {
+        ...raid,
+        drops: left
+          ? raid.drops.map((d) => (d.id === drop.id ? left : d))
+          : raid.drops.filter((d) => d.id !== drop.id),
+      }
+      if (cabbage) {
+        next = withCargo(next, member.account, {
+          ...cargo,
+          carrying: cargo.carrying + taken,
+        })
+      }
+      const after = withRaid(valley, next)
+      const reduced: Reduced = {
+        valley: after,
+        broadcast: [
+          frame(after, 'drop-taken', {
+            by: action.id,
+            item: drop.kind,
+            drop: drop.id,
+            count: taken,
+          }),
+        ],
+      }
+      // Rule 11.
+      if (!cabbage) {
+        reduced.pack = {
+          account: member.account,
+          kind: drop.kind,
+          delta: taken,
+        }
+      }
+      return reduced
     }
 
     case 'hurry': {

@@ -76,6 +76,10 @@ const CHAT_LIMIT: RateLimit = { count: 5, ms: 10_000 }
 // figure for everyone, so the rest are nacked.
 const APPEARANCE_LIMIT: RateLimit = { count: 5, ms: 10_000 }
 
+// Drops one socket may make in ten seconds; each sends the whole raid to
+// everyone, so the rest are nacked.
+const DROP_LIMIT: RateLimit = { count: 20, ms: 10_000 }
+
 const VALLEY_KEY = 'valley'
 
 interface RateWindow {
@@ -95,6 +99,7 @@ export class ValleyDO extends DurableObject<Env> {
   private stateRate = new WeakMap<WebSocket, RateWindow>()
   private chatRate = new WeakMap<WebSocket, RateWindow>()
   private appearanceRate = new WeakMap<WebSocket, RateWindow>()
+  private dropRate = new WeakMap<WebSocket, RateWindow>()
   // Rule 13, in memory only: gone whenever the object sleeps.
   private shadows = createShadows()
   private shadowRng = mulberry32(Math.floor(Math.random() * 2 ** 32))
@@ -194,6 +199,22 @@ export class ValleyDO extends DurableObject<Env> {
         return
       case 'use':
         await this.act(ws, { type: 'use', id: me.id, kind: msg.kind })
+        return
+      case 'drop': {
+        // Where the raider's own last state frame put them, never the
+        // drop frame's word.
+        const at = me.at ? { x: me.at.x, z: me.at.z, yaw: me.at.yaw } : null
+        await this.setDown(ws, {
+          type: 'drop',
+          id: me.id,
+          kind: msg.kind,
+          count: msg.count,
+          at,
+        })
+        return
+      }
+      case 'take-drop':
+        await this.act(ws, { type: 'take-drop', id: me.id, drop: msg.drop })
         return
       case 'chat':
         this.chat(ws, me, msg.text)
@@ -542,6 +563,50 @@ export class ValleyDO extends DurableObject<Env> {
       for (const msg of reduced.broadcast) this.broadcast(msg, null)
       if (reduced.spend) await this.repack(ws, null, account)
       else if (reduced.pack) await this.repack(ws, reduced.pack)
+    })
+  }
+
+  // A drop, alone (rule 14): the pack gives the units up before the drop
+  // stands, so nothing is set down that the pack did not hold. A cabbage
+  // comes out of the arms, which are the valley's, and needs no write.
+  private async setDown(
+    ws: WebSocket,
+    action: Extract<ValleyAction, { type: 'drop' }>
+  ): Promise<void> {
+    const refuse = (reason: string) => {
+      send(ws, { type: 'nack', re: 'drop', reason })
+    }
+    if (!allow(this.dropRate, ws, DROP_LIMIT)) {
+      refuse('too-fast')
+      return
+    }
+    await this.ctx.blockConcurrencyWhile(async () => {
+      const reduced = reduce(this.valley, action, this.context())
+      const change = reduced.pack
+      if (change) {
+        let given: boolean
+        try {
+          given = await this.packs().change(
+            change.account,
+            change.kind,
+            change.delta
+          )
+        } catch (err) {
+          console.error('The drop could not be written', err)
+          refuse('unavailable')
+          return
+        }
+        if (!given) {
+          refuse('none-left')
+          // The pack as it is puts right any guess made in the meantime.
+          await this.repack(ws, null, change.account)
+          return
+        }
+      }
+      await this.apply(reduced)
+      if (reduced.reply) send(ws, reduced.reply)
+      for (const msg of reduced.broadcast) this.broadcast(msg, null)
+      if (change) await this.repack(ws, null, change.account)
     })
   }
 

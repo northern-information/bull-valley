@@ -4,6 +4,7 @@
 // JSON text; every number the server stores is checked here first.
 
 import { USERNAME_MAX } from './account.ts'
+import type { Drop } from './drops.ts'
 import type {
   ExtractKind,
   Inventory,
@@ -16,7 +17,7 @@ import type { Burst } from './shadowmen.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 12
+export const PROTOCOL_VERSION = 13
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -131,6 +132,8 @@ export interface RaidWire {
   // Every Citgo's shelf stock, indexed like world.fuelPoints. A unit one
   // player buys is off the shelf for everyone.
   shelves: ShopStock[]
+  // What raiders have dropped and nobody has taken up yet (rule 14).
+  drops: Drop[]
   call: TruckCall | null
   members: MemberWire[]
 }
@@ -155,6 +158,8 @@ export type RaidReason =
   | 'hop-out'
   | 'taken'
   | 'bought'
+  | 'dropped'
+  | 'drop-taken'
   | 'call'
   | 'truck-free'
   | 'extracted'
@@ -227,6 +232,22 @@ export interface UseMessage {
   kind: string
 }
 
+// `count` of `kind` set down a little ahead of the raider: out of the
+// pack, or a cabbage out of the arms. The valley places it where the
+// raider's last state frame put them, and refuses a drop the pack or the
+// arms cannot cover.
+export interface DropMessage {
+  type: 'drop'
+  kind: string
+  count: number
+}
+
+// Drop `drop` (its id), taken up. First to ask wins, as with a pickup.
+export interface TakeDropMessage {
+  type: 'take-drop'
+  drop: number
+}
+
 // Today's berry off the bush, please. The valley answers with a
 // DailyMessage either way.
 export interface CollectMessage {
@@ -286,6 +307,8 @@ export type ClientMessage =
   | ExtractMessage
   | CollectMessage
   | UseMessage
+  | DropMessage
+  | TakeDropMessage
   | ChatMessage
   | AppearanceMessage
   | RenameMessage
@@ -337,13 +360,18 @@ export interface RaidMessage {
   reason: RaidReason
   raid: RaidWire | null
   // Who did it, for 'joined', 'left', 'boarded', 'unboarded', 'hop-out',
-  // 'taken', 'bought', 'call', 'extracted'.
+  // 'taken', 'bought', 'dropped', 'drop-taken', 'call', 'extracted'.
   by?: string
   // For 'taken'.
   index?: number
   // For 'bought'.
   station?: number
+  // For 'bought', 'dropped' and 'drop-taken': the kind.
   item?: string
+  // For 'dropped' and 'drop-taken': the drop's id, and how many were set
+  // down or taken up.
+  drop?: number
+  count?: number
   // For 'extracted'.
   kind?: ExtractKind
 }
@@ -357,6 +385,8 @@ export interface NackMessage {
   // For 'buy'.
   station?: number
   item?: string
+  // For 'take-drop'.
+  drop?: number
 }
 
 export interface PeerJoinedMessage {
@@ -645,6 +675,15 @@ export function parseClientMessage(text: string): ClientMessage | null {
     case 'use': {
       const { kind } = value
       return isKind(kind) ? { type: 'use', kind } : null
+    }
+    case 'drop': {
+      const { kind, count } = value
+      if (!isKind(kind) || !isCount(count) || count < 1) return null
+      return { type: 'drop', kind, count }
+    }
+    case 'take-drop': {
+      const { drop } = value
+      return isCount(drop) ? { type: 'take-drop', drop } : null
     }
     case 'call': {
       const from = parseXZ(value.from)
