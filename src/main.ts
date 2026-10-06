@@ -126,6 +126,13 @@ declare global {
   }
 }
 
+// Under e2e (--mode test) the valley runs but is never drawn. The specs
+// read the game through window.__bv, never its pixels, and CI draws WebGL
+// in software, where one frame of the whole valley can take seconds.
+// ps1.ts turns shadows off there too. The inventory, the dialogs and the
+// title cards still draw.
+const DRAW_VALLEY = import.meta.env.MODE !== 'test'
+
 // How far over the top of an item its label sits, in metres.
 const LABEL_LIFT = 0.03
 
@@ -1682,9 +1689,15 @@ async function boot() {
       })
       inventoryView.update(dt, ring, ringIndex)
       renderer.render(inventoryView.scene, inventoryView.camera)
-    } else if (!talking) {
+    } else if (!talking && DRAW_VALLEY) {
       renderer.render(scene, camera)
       if (player.locked && !ended) glow.render(scene, camera, time)
+    } else if (!talking) {
+      // Undrawn, the matrices that drawing brings up to date still are:
+      // the item labels project through the camera, and the glow and the
+      // shelves read where things stand.
+      scene.updateMatrixWorld()
+      camera.updateMatrixWorld()
     }
     // While Gron talks, his dialog covers the view and draws its own
     // turntable; the valley runs on behind it undrawn, holding its last
