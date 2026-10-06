@@ -116,6 +116,14 @@ function controlRows(bindings: readonly Binding[]): HTMLTableRowElement[] {
   return rows
 }
 
+// How many of an item the pack holds, and what is left in the open pack or
+// bottle when it holds several.
+function quantity({ stock, left }: PackItem): string {
+  return left === null
+    ? copy('inventory.quantity', { count: stock })
+    : copy('inventory.quantity_left', { count: stock, left })
+}
+
 // The HUD builds its own markup, so a missing node or context is a bug here.
 function required<T>(value: T | null, what: string): T {
   if (value === null) throw new Error(`Hud: missing ${what}`)
@@ -547,7 +555,7 @@ export class Hud {
   setBag(items: PackItem[], iconOf: (kind: string) => string): void {
     const key = [
       this.bagTab,
-      ...items.map((item) => `${item.kind}:${item.stock}`),
+      ...items.map((item) => `${item.kind}:${item.stock}:${item.left}`),
     ].join(',')
     if (key === this.bagKey) return
     this.bagKey = key
@@ -562,10 +570,7 @@ export class Hud {
         const cell = el('button', 'bv-bag-cell')
         cell.type = 'button'
         cell.dataset.kind = item.kind
-        cell.setAttribute(
-          'aria-label',
-          `${item.label}, ${copy('inventory.quantity', { count: item.stock })}`
-        )
+        cell.setAttribute('aria-label', `${item.label}, ${quantity(item)}`)
         const img = el('img')
         img.src = iconOf(item.kind)
         img.alt = ''
@@ -617,9 +622,7 @@ export class Hud {
     if (cell && item) {
       this.cardName.textContent = item.label
       this.cardBlurb.textContent = item.blurb
-      this.cardQuantity.textContent = copy('inventory.quantity', {
-        count: item.stock,
-      })
+      this.cardQuantity.textContent = quantity(item)
       this.cardUse.classList.toggle('bv-bag-card-key--dim', !item.canUse)
       const at = cell.getBoundingClientRect()
       const box = this.bag.getBoundingClientRect()
@@ -659,7 +662,9 @@ export class Hud {
   // they hold changes; the cooldown sweeps are touched only when they move.
   setHotbar(slots: HotbarSlotView[]): void {
     const key = slots
-      .map(({ slot, item }) => `${slot}:${item.kind}:${item.stock}`)
+      .map(
+        ({ slot, item }) => `${slot}:${item.kind}:${item.stock}:${item.left}`
+      )
       .join(',')
     if (key !== this.hotbarKey) {
       this.hotbarKey = key
@@ -668,7 +673,7 @@ export class Hud {
         li.classList.toggle('bv-hot-slot--out', item.stock < 1)
         li.setAttribute(
           'aria-label',
-          `${slot + 1}: ${item.label}, ${copy('inventory.quantity', { count: item.stock })}`
+          `${slot + 1}: ${item.label}, ${quantity(item)}`
         )
         const img = el('img')
         img.src = icon

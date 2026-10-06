@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
 import { dayKey, nextMidnight } from '../../src/daily.ts'
-import { getItem } from '../../src/items.ts'
+import { contentsOf, getItem } from '../../src/items.ts'
 import {
   createValley,
   dailyFor,
@@ -734,6 +734,13 @@ describe("rule 11: the pack is the account's", () => {
       v.step({ type: 'buy', id: 'a', station: 0, kind: 'red-bull', unit: 0 })
         .pack
     ).toEqual({ account: 'acct-a', kind: 'red-bull', delta: 1 })
+  })
+
+  it('puts a pack bought into the pack full', () => {
+    const v = valleyWith(join('a'))
+    expect(
+      v.step({ type: 'buy', id: 'a', station: 0, kind: 'camel', unit: 0 }).pack
+    ).toEqual({ account: 'acct-a', kind: 'camel', delta: contentsOf('camel') })
   })
 
   it("puts the day's berry into the pack, once", () => {

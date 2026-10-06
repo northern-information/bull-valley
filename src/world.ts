@@ -56,7 +56,7 @@ import {
   MOAB_BESIDE,
 } from './figure.ts'
 import { Ground } from './ground.ts'
-import { CIGARETTE_IDS } from './items.ts'
+import { CIGARETTE_IDS, contentsOf } from './items.ts'
 import { CABBAGE_PATCH, KEEP, landmarkWorldPositions } from './landmarks.ts'
 import {
   cellPoint,
@@ -1556,16 +1556,17 @@ function buildPickups(
     group.add(mesh)
     pickups.push({ kind, count, mesh, x, z, taken: false })
   }
-  // A pack waits at every fuel station inside the survey square. Brand, yaw,
-  // and stick layout draw from their own seed so the world scatter after
-  // this loop never shifts.
+  // A full pack waits at every fuel station inside the survey square.
+  // Brand, yaw, and stick layout draw from their own seed so the world
+  // scatter after this loop never shifts.
   const packRng = mulberry32(PACK_SEED)
   for (const station of fuelPoints) {
+    const kind = CIGARETTE_IDS[Math.floor(packRng() * CIGARETTE_IDS.length)]
     place(
       station.x + range(rng, -4, 4),
       station.z + range(rng, -4, 4),
-      CIGARETTE_IDS[Math.floor(packRng() * CIGARETTE_IDS.length)],
-      3,
+      kind,
+      contentsOf(kind),
       Math.floor(packRng() * 0xffffffff),
       packRng() * Math.PI * 2
     )

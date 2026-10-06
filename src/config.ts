@@ -204,10 +204,10 @@ export const CONFIG = {
   },
   stand: {
     // Where the Bull Valley Cabbage Stand is set up on the spawn Citgo's
-    // lot, station-local like the bush: at the lot's road-side corner on
-    // the side away from the sign, mirroring Moab across the pump island,
-    // turned to face the pumps. Scenery: it only blocks.
-    at: { x: 8.6, z: -9 },
+    // lot, station-local like the bush: on Gron's side, beside the lot lamp
+    // at the store's back corner (world.ts STATION_LAMPS), toward the
+    // pumps, turned to face them. Scenery: it only blocks.
+    at: { x: -3.6, z: -17.2 },
     // It blocks as a capsule along its table (assets.ts CABBAGE_STAND):
     // this far either side of its middle, this wide.
     halfLength: 1.0,

@@ -178,9 +178,12 @@ export function showSplash({
   hint.className = 'bv-splash-hint'
   hint.textContent = config.hint
   card.root.appendChild(hint)
-  // The first gesture is the start; the hint goes with it.
+  // While it waits for a click the card glows the free-pointer edge.
+  card.root.classList.add('bv-splash--waiting')
+  // The first gesture is the start; the hint and the edge go with it.
   const removeHint = () => {
     hint.remove()
+    card.root.classList.remove('bv-splash--waiting')
     card.root.removeEventListener('click', removeHint)
     document.removeEventListener('keydown', removeHint)
   }

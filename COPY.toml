@@ -190,6 +190,7 @@ offline = { text = "No one can hear you.", by = "ai" }
 label = { text = "Inventory", by = "ai" }
 hotbar_label = { text = "Hotbar", by = "ai" }
 quantity = { text = "Quantity: {count}", by = "ai" }
+quantity_left = { text = "Quantity: {count}, {left} left in the open one", by = "ai" }
 cash = { text = "Cash", by = "ai" }
 tab_consumables = { text = "Consumables", by = "ai" }
 tab_loot = { text = "Loot", by = "ai" }

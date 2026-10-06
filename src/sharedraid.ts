@@ -33,8 +33,8 @@
 //    raid, their berry and their whistle stay theirs.
 // 11. Every item a raider carries is their account's (the pack), kept by
 //    the valley and never by the client: the day's berry, a pickup that is
-//    not a cabbage, and a unit bought off a shelf go into it, and a use
-//    takes one out. The valley holds the pack; this reducer says what
+//    not a cabbage, and a unit bought off a shelf go into it (a pack or
+//    a bottle goes in full: items.ts contentsOf), and a use takes one out. The valley holds the pack; this reducer says what
 //    changes (Reduced.pack) and worker/ValleyDO.ts writes it.
 // 12. What a raider hauls this raid is the valley's too, kept per account
 //    so a reload keeps it: the cabbages in their arms, up to the carry
@@ -42,7 +42,7 @@
 
 import { CONFIG } from './config.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
-import { INVENTORY_KINDS, itemById } from './items.ts'
+import { contentsOf, INVENTORY_KINDS, itemById } from './items.ts'
 import { freshStock, onShelf, takeUnit } from './store.ts'
 import type { ExtractKind, ShopStock, XZ } from './interfaces.ts'
 import type { OutfitId } from './outfits.ts'
@@ -601,7 +601,11 @@ export function reduce(
       }
       // Rule 11.
       if (isPackKind(kind)) {
-        reduced.pack = { account: member.account, kind, delta: 1 }
+        reduced.pack = {
+          account: member.account,
+          kind,
+          delta: contentsOf(kind),
+        }
       }
       return reduced
     }

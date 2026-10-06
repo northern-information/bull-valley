@@ -3,6 +3,8 @@ import { copy } from '../../src/copy.ts'
 import { CONTAINERS } from '../../src/drinks.ts'
 import {
   CIGARETTE_IDS,
+  containersOf,
+  contentsOf,
   getItem,
   INVENTORY_KINDS,
   isCigarette,
@@ -11,6 +13,7 @@ import {
   isUsable,
   itemById,
   ITEMS,
+  leftInOpen,
 } from '../../src/items.ts'
 import type { Item } from '../../src/interfaces.ts'
 
@@ -109,5 +112,30 @@ describe('items', () => {
     expect(berries.start).toBe(0)
     expect(INVENTORY_KINDS).toContain('berries')
     expect(isUsable('berries')).toBe(false)
+  })
+})
+
+describe('containers', () => {
+  it('holds a pack of cigarettes and a bottle of pills', () => {
+    for (const id of CIGARETTE_IDS) expect(contentsOf(id)).toBe(20)
+    expect(contentsOf('aspirin')).toBe(24)
+    expect(contentsOf('joints')).toBe(1)
+    expect(contentsOf('nope')).toBe(1)
+  })
+
+  it('counts full containers and the open one', () => {
+    expect(containersOf('marlboro', 0)).toBe(0)
+    expect(containersOf('marlboro', 1)).toBe(1)
+    expect(containersOf('marlboro', 20)).toBe(1)
+    expect(containersOf('marlboro', 21)).toBe(2)
+    expect(containersOf('joints', 3)).toBe(3)
+  })
+
+  it('says what is left in the open one', () => {
+    expect(leftInOpen('marlboro', 0)).toBe(0)
+    expect(leftInOpen('marlboro', 18)).toBe(18)
+    expect(leftInOpen('marlboro', 20)).toBe(20)
+    expect(leftInOpen('marlboro', 23)).toBe(3)
+    expect(leftInOpen('joints', 2)).toBeNull()
   })
 })

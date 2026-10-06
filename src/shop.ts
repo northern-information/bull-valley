@@ -9,7 +9,7 @@
 
 import { copy } from './copy.ts'
 import { addItem } from './inventory.ts'
-import { itemById } from './items.ts'
+import { contentsOf, itemById } from './items.ts'
 import { formatCash, onShelf, takeUnit } from './store.ts'
 import type { Inventory, ShopStock } from './interfaces.ts'
 
@@ -36,7 +36,7 @@ export interface Settled {
   line: string | null
 }
 
-// Pays for one unit of `kind` and puts it in the inventory. Refuses short
+// Pays for one unit of `kind` and puts it, full, in the inventory. Refuses short
 // cash.
 export function settle(purse: Purse, kind: string): Settled {
   const { inventory, cash } = purse
@@ -51,7 +51,7 @@ export function settle(purse: Purse, kind: string): Settled {
   }
   return {
     next: {
-      inventory: addItem(inventory, kind, 1),
+      inventory: addItem(inventory, kind, contentsOf(kind)),
       cash: cash - item.price,
     },
     line: item.bought ?? null,

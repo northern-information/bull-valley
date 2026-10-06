@@ -24,8 +24,10 @@
 }
 
 /* While the pointer is free (the intro, the pause overlay, the pack, a
-   refused lock) a Citgo-red edge glows round the view. */
-.bv-shell::after {
+   refused lock) a Citgo-red edge glows round the view, and round the
+   colophon while it waits for its first click (splash.ts showSplash). */
+.bv-shell::after,
+.bv-splash--waiting::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -113,9 +115,11 @@
 }
 
 /* Chat: a quiet log that fades out a while after the last line, and a
-   field under it while typing. Eight lines show; older ones scroll, and
-   thin out toward the top. Held (typing, or the cursor over it), the log
-   stays up and the old lines read clearer. */
+   field under it while typing. Eight lines show; older ones scroll, with
+   no scrollbar (the wheel and PageUp/PageDown move it). Each line dims by
+   its place from the newest, so the log thins out toward the top whatever
+   its height. Held (typing, or the cursor over it), the log stays up on a
+   pane and every line reads at full strength. */
 .bv-chat {
   display: flex;
   flex-direction: column;
@@ -131,19 +135,24 @@
   max-height: 10rem;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--fi-surface-82) transparent;
+  scrollbar-width: none;
+  padding: 0.15rem 0.4rem;
+  background: transparent;
+  transition: background-color 0.2s;
   pointer-events: auto;
   line-height: 1.25rem;
   letter-spacing: 0.02em;
   text-shadow:
     0 0 3px rgb(0 0 0 / 90%),
     1px 1px 0 rgb(0 0 0 / 80%);
-  mask-image: linear-gradient(to bottom, transparent, #000 65%);
+}
+
+.bv-chat-log::-webkit-scrollbar {
+  display: none;
 }
 
 .bv-chat--held .bv-chat-log {
-  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 35%), #000 65%);
+  background: var(--bv-pane);
 }
 
 /* A hanging indent: wrapped and stanza lines start past the stamp (five
@@ -156,6 +165,20 @@
 
   /* Marx's stanzas keep their line breaks and indents. */
   white-space: pre-wrap;
+  transition: opacity 0.2s;
+}
+
+/* Older lines step down: the newest four full, then dimmer, then faint. */
+.bv-chat-line:nth-last-child(n + 5) {
+  opacity: 0.7;
+}
+
+.bv-chat-line:nth-last-child(n + 7) {
+  opacity: 0.4;
+}
+
+.bv-chat--held .bv-chat-line {
+  opacity: 1;
 }
 
 .bv-chat-line--say {
@@ -181,9 +204,15 @@
   letter-spacing: 0.02em;
   color: inherit;
   background: var(--fi-surface-82);
-  border: 1px solid var(--fi-green);
+  border: 1px solid var(--bv-citgo);
   border-radius: 0;
   box-shadow: 3px 3px 0 var(--fi-black-shadow);
+}
+
+/* The field shows only while it has focus, and its red border says so;
+   the shell's focus ring round it would draw a second edge. */
+.bv-chat-input:focus-visible {
+  outline: none;
 }
 
 /* Scope: a phone in a low-poly hand, tilted and cut off by the bottom edge.
@@ -627,9 +656,9 @@
 }
 
 .bv-btn--primary {
-  background: var(--fi-green);
+  background: var(--bv-citgo);
   color: var(--fi-bg);
-  border-color: var(--fi-green);
+  border-color: var(--bv-citgo);
 }
 
 /* A button whose label changes (hud.ts setBegin) holds every label in one
@@ -687,6 +716,11 @@
 
   /* The grain lies over everything on the card, the logo's fog included. */
   z-index: 2;
+}
+
+/* The waiting colophon's edge rides over the grain. */
+.bv-splash--waiting::before {
+  z-index: 3;
 }
 
 /* The logo's black fog (fog.ts): over the image, under the grain, at the
@@ -784,7 +818,7 @@
 
 .bv-select-as b {
   font-weight: inherit;
-  color: var(--fi-green);
+  color: var(--bv-citgo);
 }
 
 .bv-intro-as {
@@ -794,7 +828,7 @@
 
 .bv-intro-as b {
   font-weight: inherit;
-  color: var(--fi-green);
+  color: var(--bv-citgo);
 }
 
 /* A button that reads as a link: Sign Out beside the username. */
@@ -920,7 +954,7 @@
 }
 
 .bv-account-status[data-tone='ok'] {
-  color: var(--fi-green);
+  color: var(--bv-citgo);
   opacity: 1;
 }
 
@@ -952,7 +986,7 @@
   width: 1.1em;
   height: 1.1em;
   margin: 0;
-  accent-color: var(--fi-green);
+  accent-color: var(--bv-citgo);
 }
 
 .bv-gate a {
@@ -989,7 +1023,7 @@
 
 .bv-panel-username {
   margin: 0;
-  color: var(--fi-green);
+  color: var(--bv-citgo);
   letter-spacing: 0.08em;
 }
 
