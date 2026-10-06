@@ -116,6 +116,22 @@ export interface BeginOptions {
   raider?: Raider
 }
 
+// After a teleport, until the valley has been told where the raider now
+// stands: its shadowmen cross round the place it last heard, and one placed
+// far from every raider it knows is gone in its next step.
+export async function heardWhere(page: Page): Promise<void> {
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const bv = window.__bv
+        if (!bv?.sent) return Infinity
+        const { x, z } = bv.player.pos
+        return Math.hypot(bv.sent.x - x, bv.sent.z - z)
+      })
+    )
+    .toBeLessThan(1)
+}
+
 export function freshValley(prefix = 'spec'): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }

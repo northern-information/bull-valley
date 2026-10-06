@@ -6,6 +6,7 @@ import * as THREE from 'three'
 import { pulseMaterials } from './assets.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
+import { ease, stepHand, useLift, useSeconds } from './hands.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
 import {
   dailyStatus,
@@ -18,6 +19,7 @@ import { packItemOf } from './packgrid.ts'
 import { poseOf, stateChanged } from './presence.ts'
 import { advance, EVENTS, loadoutClock, STATES, timedOut } from './raid.ts'
 import { lobbyCount, seatOf } from './raidsync.ts'
+import { beamFrom } from './shadowmen.ts'
 import { formatCash } from './store.ts'
 import type { Actions } from './actions.ts'
 import type { Game } from './game.ts'
@@ -44,8 +46,10 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     truck,
     player,
     playerBody,
+    hands,
     scope,
     shadowmen,
+    bursts,
     mist,
     glow,
     thumbs,
@@ -158,20 +162,60 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       s.onTruckRolls = []
     }
 
+    // The hands: the flashlight lit once it is all the way up, and the
+    // item just used brought up once. Under prefers-reduced-motion they
+    // are up or down, never between.
+    s.flashlight = stepHand(s.flashlight, dt)
+    if (s.using && time - s.using.at >= useSeconds()) s.using = null
+    const lit = s.flashlight.up && s.flashlight.lift >= 1
+    const using = s.using ? useLift(s.using.at, time) : 0
+    hands.update({
+      left: game.still ? Number(s.flashlight.up) : ease(s.flashlight.lift),
+      right: game.still ? Number(using > 0) : ease(using),
+      kind: s.using?.kind ?? null,
+      on: lit,
+    })
+    // The others are drawn a beat behind the present, so two of their
+    // frames always bracket the moment: the peers, and the valley's
+    // shadowmen.
+    const renderAt = now - CONFIG.net.interpolateMs
+
     // The shadowmen cross whatever the raid is doing, but only rush and touch
     // a player on foot who is not already coming to from the last strike.
-    const vulnerable =
-      s.started &&
-      !s.ended &&
-      s.raid.state === STATES.ON_FOOT &&
-      now >= s.strikeUntil
+    // In the shared valley they are the valley's, and it says when one
+    // touches you; played alone, this client steps them.
+    const alone = net.online
+      ? null
+      : {
+          vulnerable:
+            s.started &&
+            !s.ended &&
+            s.raid.state === STATES.ON_FOOT &&
+            now >= s.strikeUntil,
+          // The same beam the valley would aim from this raider's frame.
+          beam: lit
+            ? beamFrom(
+                { x: player.pos.x, y: feetY, z: player.pos.z },
+                player.yaw,
+                player.pitch,
+                crouching
+              )
+            : null,
+        }
     const swarm = shadowmen.update({
       dt,
       player: player.pos,
-      vulnerable,
       perception,
+      alone,
+      renderAt,
+      myId: net.id,
     })
     if (swarm.struck) actions.strike()
+    for (const at of swarm.bursts) {
+      const y = world.ground.at(at.x, at.z) + CONFIG.shadowmen.chestHeight
+      bursts.spawn(at.x, y, at.z)
+    }
+    bursts.update(dt)
     mist.update({ dt, player: player.pos })
     // Gron's rain falls on its own clock; under prefers-reduced-motion it
     // hangs still under the cloud.
@@ -192,10 +236,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     if (now < s.strikeUntil) hud.drawStatic()
     else if (!hud.staticWrap.hidden) hud.showStatic(false)
 
-    // The others are drawn a beat behind the present, so two of their
-    // frames always bracket the moment. Ours goes out on a fixed cadence,
-    // and only when it changed.
-    const renderAt = now - CONFIG.net.interpolateMs
+    // Ours goes out on a fixed cadence, and only when it changed.
     peers.update(dt, renderAt)
     s.sinceSent += dt
     if (net.online && !s.ended && s.sinceSent >= 1 / CONFIG.net.sendHz) {
@@ -205,8 +246,10 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         y: feetY,
         z: player.pos.z,
         yaw: player.yaw,
+        pitch: player.pitch,
         pose: poseOf(moveSpeed, crouching),
         riding: s.raid.state === STATES.RIDING || s.aboard,
+        light: lit,
       }
       if (stateChanged(s.lastSent, state)) {
         s.lastSent = state

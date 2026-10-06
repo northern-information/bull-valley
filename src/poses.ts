@@ -56,6 +56,17 @@ const ARMS_DOWN: Partial<Record<JointName, Rotation>> = {
   elbowR: [-0.12, 0, 0],
 }
 
+// The left arm held out ahead with the flashlight on, over any pose: the
+// wield pose's sword arm, mirrored, raised or lowered with the raider's
+// pitch (up positive) so the beam goes where they look. figure.ts
+// applyJoints lays it on.
+export function flashlightArm(pitch = 0): Partial<Record<JointName, Rotation>> {
+  return {
+    shoulderL: [-1.3 - pitch, 0, -0.05],
+    elbowL: [-0.15, 0, 0],
+  }
+}
+
 // Each entry is a list of keys; a cycle spreads its keys evenly over
 // `seconds` and loops.
 export const POSES = {

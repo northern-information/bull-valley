@@ -54,6 +54,33 @@ export const CONFIG = {
     // The static after a strike, in real seconds (actions.ts times it by the
     // wall clock, never the frame-capped game time).
     strikeSeconds: 1.6,
+    // A shadowman held this many seconds in the flashlight's beam bursts;
+    // out of the beam the count runs back down at the same rate. The beam
+    // is aimed at a point this far over the ground it stands on.
+    burnSeconds: 0.5,
+    chestHeight: 1.4,
+    // In the shared valley the server steps them this many times a second
+    // and sends each step; clients draw them between the last two.
+    tickHz: 10,
+  },
+  // The flashlight in the left hand: the beam that burns shadowmen reaches
+  // range metres, halfAngle radians off the line of sight. The light itself
+  // is one physical spot, in candela, like the truck's lamps.
+  flashlight: {
+    range: 30,
+    halfAngle: 0.3,
+    color: '#fff1c8',
+    intensity: 1400,
+    distance: 40,
+    angle: 0.42,
+    penumbra: 0.5,
+  },
+  // Both first-person hands come up and go down over raiseSeconds; an item
+  // used from the pack or the hotbar is held up in the right hand for
+  // holdSeconds between.
+  hands: {
+    raiseSeconds: 0.22,
+    holdSeconds: 0.9,
   },
   mist: {
     // Ground mist: this many banks drift in a square bubble, radius metres

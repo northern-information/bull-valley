@@ -98,6 +98,13 @@ export function wireKeys(
     if (s.inventoryOpen) actions.closeInventory(true)
     else if (s.started && !player.locked && !s.ended) engagePointer()
   })
+  // The left button raises the flashlight or puts it down, only with the
+  // pointer locked: the click that takes the pointer back never does.
+  document.addEventListener('mousedown', (e) => {
+    if (e.button !== 0 || !player.locked) return
+    if (s.ended || s.inventoryOpen || s.talking || hud.chatOpen) return
+    actions.toggleFlashlight()
+  })
 
   // With the pack open the keys act on the item under the cursor (PACK in
   // bindings.ts) and never reach the player.

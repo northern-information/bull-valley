@@ -14,6 +14,7 @@ import {
   buildBook,
   buildFireRoots,
   buildFlames,
+  buildFlashlight,
   buildGuitar,
   buildRaincloud,
   buildScroll,
@@ -29,7 +30,7 @@ import {
 import { paintPrints } from './decalart.ts'
 import { ADDONS, outfitById } from './outfits.ts'
 import { JOINTS, samplePose } from './poses.ts'
-import type { FlameSpot, GroundAt, Guitar } from './assets.ts'
+import type { FlameSpot, Flashlight, GroundAt, Guitar } from './assets.ts'
 import type { Vec3 } from './interfaces.ts'
 import type {
   Crescent,
@@ -39,7 +40,7 @@ import type {
   PatternPart,
   PrintPart,
 } from './outfits.ts'
-import type { JointName, PoseSample } from './poses.ts'
+import type { JointName, PoseSample, Rotation } from './poses.ts'
 
 // A built body: its root group, one pivot per joint, and the hip height
 // that poses lift from.
@@ -47,6 +48,8 @@ export interface Figure {
   group: THREE.Group
   joints: Record<JointName, THREE.Group>
   hipY: number
+  // Where each hand grips, on its elbow pivot: a prop added here is held.
+  fists: Record<'L' | 'R', THREE.Group>
   // The guitar on the back, when the outfit carries one; setFinish
   // recolors it in place.
   guitar?: Guitar
@@ -436,6 +439,7 @@ export function buildFigure(
   const group = new THREE.Group()
   group.name = `figure-${outfitId}`
   const built: Partial<Record<JointName, THREE.Group>> = {}
+  const fists: Partial<Record<'L' | 'R', THREE.Group>> = {}
 
   const pelvis = pivot(group, built, 'pelvis', 0, hipY, 0)
 
@@ -531,6 +535,11 @@ export function buildFigure(
     )
     part(elbow, loft(HAND), c.skin, 0, -foreArm, 0)
     part(elbow, box(0.025, 0.05, 0.025), c.skin, 0, -foreArm - 0.035, 0.04)
+    const fist = new THREE.Group()
+    fist.name = `fist${side}`
+    fist.position.set(0, -foreArm - 0.075, 0.01)
+    elbow.add(fist)
+    fists[side] = fist
     // The bat hangs from the right hand, gripped just above the knob, its
     // barrel swung a little forward of the leg.
     if (side === 'R' && outfit.inHand === 'bat') {
@@ -599,7 +608,64 @@ export function buildFigure(
 
   // Every figure throws a shadow under the station lights.
   castShadows(group)
-  return { group, joints, hipY, guitar }
+  return {
+    group,
+    joints,
+    hipY,
+    fists: fists as Record<'L' | 'R', THREE.Group>,
+    guitar,
+  }
+}
+
+// One outfit's forearm and hand on their own: the elbow at the origin, the
+// forearm hanging down -Y, in the same sleeve and skin as the body. The
+// first-person hands (fphands.ts) hold things up into the view with it.
+export function buildForearm(outfitId: OutfitId): {
+  group: THREE.Group
+  fist: THREE.Group
+} {
+  const outfit = outfitById(outfitId)
+  const c = outfit.colors
+  const arm = outfit.proportions?.arm ?? 1
+  const foreArm = 0.28 * arm
+  const bare = Boolean(outfit.sleeves)
+  const group = new THREE.Group()
+  group.name = `forearm-${outfitId}`
+  part(
+    group,
+    loft(widen(stretch(FOREARM, arm), bare ? 1 : (outfit.loose ?? 1))),
+    bare ? c.skin : c.shirt
+  )
+  part(group, loft(HAND), c.skin, 0, -foreArm, 0)
+  part(group, box(0.025, 0.05, 0.025), c.skin, 0, -foreArm - 0.035, 0.04)
+  const fist = new THREE.Group()
+  fist.position.set(0, -foreArm - 0.075, 0.01)
+  group.add(fist)
+  return { group, fist }
+}
+
+// Some joints set over a pose already applied: an arm held up through
+// whatever the legs are doing.
+export function applyJoints(
+  figure: Figure,
+  joints: Partial<Record<JointName, Rotation>>
+): void {
+  for (const joint of JOINTS) {
+    const rotation = joints[joint]
+    if (rotation) figure.joints[joint].rotation.set(...rotation)
+  }
+}
+
+// The flashlight every raider carries, in the left fist with the lens out
+// past the knuckles, and its fake beam (assets.ts buildFlashlight). With
+// the arm raised (poses.ts flashlightArm) it points ahead and a little
+// down.
+export function attachFlashlight(figure: Figure, beam = 7): Flashlight {
+  const flashlight = buildFlashlight({ beam })
+  // The barrel's +Z down the forearm's -Y.
+  flashlight.group.rotation.x = Math.PI / 2
+  figure.fists.L.add(flashlight.group)
+  return flashlight
 }
 
 // Copy a samplePose() result onto a figure's pivots.

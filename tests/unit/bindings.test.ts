@@ -51,6 +51,7 @@ describe.each(tables)('%s', (_name, table) => {
 describe('WORLD', () => {
   it('leaves the mouse and Esc to the browser', () => {
     expect(WORLD.look.codes).toEqual([])
+    expect(WORLD.flashlight.codes).toEqual([])
     expect(WORLD.pause.codes).toEqual([])
   })
 

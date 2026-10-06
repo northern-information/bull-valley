@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { JOINTS, POSES, samplePose } from '../../src/poses.ts'
+import { flashlightArm, JOINTS, POSES, samplePose } from '../../src/poses.ts'
 import type { PoseName } from '../../src/poses.ts'
 
 describe('poses', () => {
@@ -59,5 +59,15 @@ describe('poses', () => {
   it('throws on an unknown pose', () => {
     // An id from outside the table, on purpose.
     expect(() => samplePose('moonwalk' as PoseName)).toThrow()
+  })
+})
+
+describe('flashlightArm', () => {
+  it('holds the left arm out ahead, raised with the pitch', () => {
+    const level = flashlightArm()
+    expect(Object.keys(level).sort()).toEqual(['elbowL', 'shoulderL'])
+    expect(level.shoulderL?.[0]).toBeCloseTo(-1.3, 9)
+    // Looking up swings it further forward and up.
+    expect(flashlightArm(0.4).shoulderL?.[0]).toBeCloseTo(-1.7, 9)
   })
 })

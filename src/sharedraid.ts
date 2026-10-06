@@ -39,12 +39,26 @@
 // 12. What a raider hauls this raid is the valley's too, kept per account
 //    so a reload keeps it: the cabbages in their arms, up to the carry
 //    limit. It lasts until the valley resets.
+// 13. The shadowmen are the valley's: one field everyone sees, crossing
+//    the bubble round every raider still in the raid (shadowmen.ts). A
+//    raider on foot, out of the bed, and not coming to from a strike can
+//    be rushed; a touch strikes them alone, and they are left alone for
+//    the strike's length after. Anyone's beam burns them. The valley steps
+//    the field (stepShadows) and keeps it in memory only: the shadowmen
+//    are gone whenever no one is in the raid. The raid keeps where the
+//    havens are and the survey's size, from the build that opened it.
 
 import { CONFIG } from './config.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
 import { contentsOf, INVENTORY_KINDS, itemById } from './items.ts'
+import {
+  beamFrom,
+  createShadowmen,
+  placeStill,
+  stepShadowmen,
+} from './shadowmen.ts'
 import { freshStock, onShelf, takeUnit } from './store.ts'
-import type { ExtractKind, ShopStock, XZ } from './interfaces.ts'
+import type { ExtractKind, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { OutfitId } from './outfits.ts'
 import type {
   DailyMessage,
@@ -54,12 +68,16 @@ import type {
   MemberWire,
   NackMessage,
   NackRe,
+  PeerStateWire,
   PickupSpec,
   RaidMessage,
   RaidReason,
   RaidWire,
+  ShadowmenMessage,
   TruckCall,
 } from './protocol.ts'
+import type { Rng } from './rng.ts'
+import type { Raider, ShadowmenField } from './shadowmen.ts'
 
 export interface Member {
   id: string
@@ -96,6 +114,9 @@ export interface SharedRaid {
   // placed.
   pickups: PickupSpec[]
   stations: number
+  // Rule 13: each station's forecourt and the survey's size.
+  havens: XZ[]
+  metres: Metres
 }
 
 // Everything the server persists.
@@ -117,6 +138,8 @@ export type ValleyAction =
       outfit: OutfitId
       pickups: PickupSpec[]
       stations: number
+      havens: XZ[]
+      metres: Metres
     }
   | { type: 'leave'; id: string }
   | { type: 'board'; id: string }
@@ -195,7 +218,8 @@ export function createValley(): Valley {
 // The valley as an older build stored it, made current: the fresh one
 // fills in newer fields, a raid without cargo hauls nothing, and a raid
 // whose shelves still hold counts rather than units, or an item no longer
-// sold, is dropped, so the next lobby stocks them afresh.
+// sold, or from before the shadowmen were the valley's (no havens), is
+// dropped, so the next lobby stocks them afresh.
 export function restoreValley(stored: Partial<Valley>): Valley {
   const valley = { ...createValley(), ...stored }
   const raid = valley.raid
@@ -209,7 +233,9 @@ export function restoreValley(stored: Partial<Valley>): Valley {
       Object.values(shelf).some((units) => !Array.isArray(units)) ||
       Object.keys(shelf).some((kind) => itemById(kind)?.price === undefined)
   )
-  if (counted) return { ...valley, raid: null }
+  if (counted || !older.havens || !older.metres) {
+    return { ...valley, raid: null }
+  }
   return { ...valley, raid: { ...raid, cargo: older.cargo ?? {} } }
 }
 
@@ -244,6 +270,8 @@ export function toWire(valley: Valley): RaidWire | null {
     pickups: _pickups,
     stations: _stations,
     cargo: _cargo,
+    havens: _havens,
+    metres: _metres,
     ...rest
   } = raid
   return { ...rest, members }
@@ -390,6 +418,8 @@ export function reduce(
             cargo: {},
             pickups: action.pickups,
             stations: action.stations,
+            havens: action.havens,
+            metres: action.metres,
           },
         }
         alarm = loadoutEndsAt
@@ -756,4 +786,110 @@ export function reduce(
       return { valley: next, broadcast: [frame(next, 'reset')], alarm: null }
     }
   }
+}
+
+// --- Rule 13: the shadowmen ------------------------------------------------
+
+// The valley's shadowmen, in the server's memory: the field, and each
+// raider who was struck with the server ms until which they are left
+// alone.
+export interface Shadows {
+  field: ShadowmenField
+  recovering: Record<string, number>
+}
+
+export function createShadows(): Shadows {
+  return { field: createShadowmen(), recovering: {} }
+}
+
+// One raider in the shadowmen's field: their socket id, and their last
+// state frame (null until they send one).
+export interface Placed {
+  id: string
+  at: PeerStateWire | null
+}
+
+// The raiders the shadowmen cross round: every placed member still in the
+// raid.
+export function shadowRaiders(
+  valley: Valley,
+  shadows: Shadows,
+  placed: readonly Placed[],
+  now: number
+): Raider[] {
+  const raiders: Raider[] = []
+  for (const { id, at } of placed) {
+    const member = valley.members[id]
+    if (!at || !member || member.phase === 'EXTRACTED') continue
+    raiders.push({
+      id,
+      x: at.x,
+      z: at.z,
+      vulnerable:
+        member.phase === 'ON_FOOT' &&
+        !at.riding &&
+        now >= (shadows.recovering[id] ?? 0),
+      beam: at.light
+        ? beamFrom(at, at.yaw, at.pitch, at.pose === 'crouch')
+        : null,
+    })
+  }
+  return raiders
+}
+
+// Where the wire rounds a shadowman: centimetres, and hundredths of a burn.
+const round = (n: number, places: number) =>
+  Math.round(n * 10 ** places) / 10 ** places
+
+// One step of the valley's shadowmen, dt seconds on: the frame for
+// everyone and the raiders struck. Null when there is nothing to step (no
+// raid, or no one in it), and the field is emptied, so the valley stops
+// stepping until someone is placed again. Mutates shadows.
+export function stepShadows(
+  valley: Valley,
+  shadows: Shadows,
+  placed: readonly Placed[],
+  rng: Rng,
+  { now, dt }: { now: number; dt: number },
+  cfg = CONFIG.shadowmen
+): { message: ShadowmenMessage; struck: string[] } | null {
+  const raid = valley.raid
+  const raiders = raid ? shadowRaiders(valley, shadows, placed, now) : []
+  if (!raid || raiders.length === 0) {
+    shadows.field = createShadowmen()
+    shadows.recovering = {}
+    return null
+  }
+  const { struck, bursts } = stepShadowmen(
+    shadows.field,
+    rng,
+    { dt, raiders, metres: raid.metres, havens: raid.havens },
+    cfg
+  )
+  const recovering: Record<string, number> = {}
+  for (const r of raiders) {
+    const until = shadows.recovering[r.id]
+    if (until !== undefined && until > now) recovering[r.id] = until
+  }
+  for (const id of struck) recovering[id] = now + cfg.strikeSeconds * 1000
+  shadows.recovering = recovering
+  return {
+    message: {
+      type: 'shadowmen',
+      shadowmen: shadows.field.shadowmen.map((s) => ({
+        id: s.id,
+        x: round(s.x, 2),
+        z: round(s.z, 2),
+        burn: round(Math.min(1, s.burn / cfg.burnSeconds), 2),
+        target: s.target,
+      })),
+      bursts: bursts.map((b) => ({ ...b, x: round(b.x, 2), z: round(b.z, 2) })),
+    },
+    struck,
+  }
+}
+
+// A dev server's shadowman standing still at (x, z), for the specs.
+export function placeShadowman(shadows: Shadows, x: number, z: number): void {
+  placeStill(shadows.field, x, z)
 }

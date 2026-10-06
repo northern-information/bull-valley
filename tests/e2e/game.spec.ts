@@ -2,6 +2,7 @@ import { copy } from './copy.ts'
 import {
   beginRaid,
   expect,
+  heardWhere,
   passReturning,
   signIn,
   test,
@@ -46,10 +47,12 @@ test('an empty truck does donuts in the field until whistled', async ({
 
 test('shadowmen cross the valley and show on the scope', async ({ page }) => {
   await beginRaid(page)
-  const slots = await page.evaluate(
-    () => window.__bv?.shadowmen.field.slots.length
-  )
-  expect(slots).toBe(12)
+  // They are the valley's: it sends them every step.
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.__bv?.shadowmen.table.next?.shadowmen.length)
+    )
+    .toBeGreaterThan(0)
   await page.keyboard.press('q')
   await expect(page.locator('.bv-phone')).toHaveClass(/bv-phone--raised/)
   // The bubble is populated from the first frame, so blips are already in.
@@ -83,19 +86,14 @@ test("a shadowman's touch puts you back at the Citgo", async ({ page }) => {
         (window as { staticMarks?: { shownAt?: number; hiddenAt?: number } })
           .staticMarks
     )
-  // Out of the forecourt haven, then a rushing shadowman on top of you.
+  // Out of the forecourt haven, then a shadowman beside you: the valley
+  // has it rush you, and says it touched you.
+  await page.evaluate(() => window.__bv?.teleport(0.5, 0.5))
+  await heardWhere(page)
   await page.evaluate(() => {
     const bv = window.__bv
     if (!bv) return
-    bv.teleport(0.5, 0.5)
-    bv.shadowmen.field.slots[0] = {
-      x: bv.player.pos.x,
-      z: bv.player.pos.z,
-      dirX: 0,
-      dirZ: 1,
-      speed: 0,
-      rushing: true,
-    }
+    bv.placeShadowman(bv.player.pos.x, bv.player.pos.z + 3)
   })
   await expect.poll(() => page.evaluate(() => window.__bv?.raid.deaths)).toBe(1)
   // It showed, then cleared.

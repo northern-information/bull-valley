@@ -77,6 +77,42 @@ base(
       )
       .toBeCloseTo(start.x + 20, 0)
 
+    // The shadowmen are the valley's: both see the same ones.
+    const shadowIds = (page: Page) =>
+      page.evaluate(() =>
+        (window.__bv?.shadowmen.table.next?.shadowmen ?? [])
+          .map((s) => s.id)
+          .sort((x, y) => x - y)
+          .join()
+      )
+    await expect
+      .poll(async () => {
+        const [seenByA, seenByB] = await Promise.all([
+          shadowIds(a),
+          shadowIds(b),
+        ])
+        return seenByA !== '' && seenByA === seenByB
+      })
+      .toBe(true)
+
+    // B raises the flashlight; A sees the beam come on in B's hand, and go
+    // off again.
+    const beamOn = () =>
+      a.evaluate((id) => {
+        const group = window.__bv?.scene.getObjectByName(`peer-${id}`)
+        return group?.getObjectByName('beam')?.visible ?? null
+      }, idB)
+    expect(await beamOn()).toBe(false)
+    await b.mouse.down()
+    await b.mouse.up()
+    await expect
+      .poll(async () => (await peers(a))[0]?.next?.light ?? null)
+      .toBe(true)
+    await expect.poll(beamOn).toBe(true)
+    await b.mouse.down()
+    await b.mouse.up()
+    await expect.poll(beamOn).toBe(false)
+
     // B leaves; A's valley empties.
     await contextB.close()
     await expect.poll(() => peers(a)).toHaveLength(0)

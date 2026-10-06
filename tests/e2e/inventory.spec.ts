@@ -54,6 +54,8 @@ test('Tab opens the pack, a number key assigns, the hotbar uses and is kept', as
   const before = await marlboros()
   await page.keyboard.press('Digit3')
   await expect.poll(marlboros).toBe(before - 1)
+  // The right hand brings the pack up.
+  expect(await page.evaluate(() => window.__bv?.using?.kind)).toBe('marlboro')
   await expect
     .poll(() =>
       page.evaluate(() => window.__bv?.chat.map((line) => line.text) ?? [])

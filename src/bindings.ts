@@ -42,6 +42,7 @@ export const WORLD = {
     labelKey: 'keys.sprint',
   },
   look: { codes: [], key: 'Mouse', labelKey: 'keys.look' },
+  flashlight: { codes: [], key: 'Left Click', labelKey: 'keys.flashlight' },
   crouch: { codes: ['KeyC'], key: 'C', labelKey: 'keys.crouch' },
   scope: { codes: ['KeyQ'], key: 'Q', labelKey: 'keys.scope' },
   inventory: { codes: ['Tab'], key: 'Tab', labelKey: 'keys.inventory' },
