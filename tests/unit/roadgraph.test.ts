@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mulberry32 } from '../../src/rng.ts'
 import {
   buildRoadGraph,
+  callRoute,
   createWalker,
   nearestRoadPoint,
   planRoute,
@@ -136,6 +137,25 @@ describe('planRoute', () => {
     const route = must(planRoute(graph, from, to), 'route')
     // West arm 400 + east arm 400 + spur 200.
     expect(polylineLength(route)).toBeCloseTo(1000, 4)
+  })
+})
+
+describe('callRoute', () => {
+  it('starts on the road when the truck is on it', () => {
+    const route = must(
+      callRoute(graph, { x: 0, z: -200 }, { x: 200, z: 0 }),
+      'route'
+    )
+    expect(polylineLength(route)).toBeCloseTo(400, 4)
+  })
+
+  it('drives onto the road first from off it', () => {
+    const route = must(
+      callRoute(graph, { x: 30, z: -200 }, { x: 200, z: 0 }),
+      'route'
+    )
+    expect(route[0]).toEqual({ x: 30, z: -200 })
+    expect(polylineLength(route)).toBeCloseTo(430, 4)
   })
 })
 

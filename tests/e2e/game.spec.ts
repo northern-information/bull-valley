@@ -18,6 +18,32 @@ test('a raid starts in loadout and the truck leaves on time', async ({
   await expect.poll(state).not.toBe('LOADOUT')
 })
 
+test('an empty truck does donuts in the field until whistled', async ({
+  page,
+}) => {
+  await beginRaid(page)
+  await page.evaluate(() => window.__bv?.hurryTruck(0))
+  const truck = () =>
+    page.evaluate(() => {
+      const bv = window.__bv
+      const field = bv?.world.donutField
+      if (!bv || !field) return null
+      return {
+        drifting: bv.truck.drifting,
+        inField:
+          Math.hypot(bv.truck.x - field.x, bv.truck.z - field.z) < field.radius,
+      }
+    })
+  await expect
+    .poll(truck, { timeout: 30_000 })
+    .toEqual({ drifting: true, inField: true })
+  await page.keyboard.press('t')
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.raid.truckCalled))
+    .toBe(true)
+  await expect.poll(truck).toMatchObject({ drifting: false })
+})
+
 test('shadowmen cross the valley and show on the scope', async ({ page }) => {
   await beginRaid(page)
   const slots = await page.evaluate(
