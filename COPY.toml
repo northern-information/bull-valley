@@ -28,16 +28,18 @@ Find Empress.
 And beware the shadowmen.""", by = "tyler" }
 controls_label = { text = "Controls", by = "ai" }
 fine = { text = "Requires a keyboard and mouse.", by = "ai" }
+raiding_as = { text = "Raiding as", by = "ai" }
+account = { text = "Account", by = "ai" }
+sign_out = { text = "Sign Out", by = "ai" }
 
-# The rest of the HUD (src/hud.ts): the Begin button's states, the resume
-# line, the strike static, and labels read by screen readers.
+# The rest of the HUD (src/hud.ts): the Begin button's states, the strike
+# static, and labels read by screen readers.
 
 [hud]
 begin_loading = { text = "Resolving Terrain…", by = "ai" }
 begin_play = { text = "Click to Play", by = "ai" }
 begin_resume = { text = "Click to Resume", by = "ai" }
 begin_failed = { text = "The Valley Will Not Resolve", by = "ai" }
-resume = { text = "Click to Resume", by = "ai" }
 signal_lost = { text = "SIGNAL LOST", by = "ai" }
 countdown_label = { text = "Truck leaves in", by = "ai" }
 chat_log_label = { text = "Chat", by = "ai" }
@@ -229,7 +231,7 @@ look = { text = "Look", by = "ai" }
 crouch = { text = "Crouch", by = "ai" }
 scope = { text = "Scaduscope", by = "ai" }
 inventory = { text = "Inventory", by = "ai" }
-interact = { text = "Board / Hop Out / Take / Buy / Unload / Extract", by = "ai" }
+interact = { text = "Interact", by = "ai" }
 call_truck = { text = "Call the Truck", by = "ai" }
 hotbar = { text = "Use Hotbar Item", by = "ai" }
 chat = { text = "Chat", by = "ai" }

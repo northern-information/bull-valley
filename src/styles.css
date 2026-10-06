@@ -23,6 +23,24 @@
   background: var(--fi-bg);
 }
 
+/* While the pointer is free (the intro, the pause overlay, the pack, a
+   refused lock) a Citgo-red edge glows round the view. */
+.bv-shell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  border: 10px solid var(--bv-citgo);
+  box-shadow:
+    inset 0 0 18px var(--bv-citgo),
+    0 0 18px var(--bv-citgo);
+}
+
+.bv-shell--locked::after {
+  display: none;
+}
+
 /* Headings take the one size too, not the UA's 2em / 1.5em. */
 .bv-shell h1,
 .bv-shell h2 {
@@ -718,6 +736,16 @@
 }
 
 .bv-select-as b {
+  font-weight: inherit;
+  color: var(--fi-green);
+}
+
+.bv-intro-as {
+  margin: 0;
+  letter-spacing: 0.06em;
+}
+
+.bv-intro-as b {
   font-weight: inherit;
   color: var(--fi-green);
 }

@@ -42,6 +42,9 @@ export interface CharacterSelect {
   // resolves with the chosen outfit and finish once
   // the overlay has faded out and removed itself.
   run(username: string, pick: CharacterPick): Promise<CharacterPick>
+  // Removes the overlay unshown, for a raider who has chosen before
+  // (titles.ts): Gron changes the character from then on.
+  remove(): void
 }
 
 // Mounts the overlay as the last child of <body>, black and inert until
@@ -311,5 +314,5 @@ export function mountCharacterSelect({
     })
   }
 
-  return { run }
+  return { run, remove: () => root.remove() }
 }

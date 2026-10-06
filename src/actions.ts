@@ -369,6 +369,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       finish: pick.finish,
       onRenamed: (name) => {
         pick.username = name
+        hud.setRaider(name)
         net.send({ type: 'rename' })
       },
       onBecome: (outfit, finish) => {

@@ -32,23 +32,45 @@ export const test = base.extend<{ errors: string[] }>({
 
 export { expect }
 
-// From a fresh load to the character select: start and skip the
-// colophon, then skip the logo.
-export async function toCharacterSelect(page: Page): Promise<void> {
+// Start and skip the colophon, then skip the logo.
+async function skipCards(page: Page): Promise<void> {
   // The first press starts the colophon, the second skips it.
   await page.keyboard.press('Space')
   await page.keyboard.press('Space')
   // The logo arms once the colophon has lifted.
   await expect(page.getByAltText(copy('titles.logo_alt'))).toBeVisible()
   await page.keyboard.press('Space')
+}
+
+// From a fresh load to the character select.
+export async function toCharacterSelect(page: Page): Promise<void> {
+  await skipCards(page)
   await expect(page.locator('.bv-select-ui')).toBeVisible()
+}
+
+// From a load by a raider who has chosen before to the intro dialog: the
+// select never shows.
+export async function passReturning(page: Page): Promise<void> {
+  await skipCards(page)
+  await expect(page.locator('.bv-select')).toHaveCount(0)
+  await expect(page.locator('[data-bv="begin"]')).toBeVisible()
 }
 
 // From a signed-in load to the intro dialog, choosing at the character
 // select after `steps` presses of →. Signed in with a username, the account
-// step never shows.
+// step never shows; a raider who has chosen before never sees the select,
+// so `steps` must be 0 for them.
 export async function passTitles(page: Page, steps = 0): Promise<void> {
-  await toCharacterSelect(page)
+  await skipCards(page)
+  const select = page.locator('.bv-select')
+  const ui = page.locator('.bv-select-ui')
+  await expect
+    .poll(async () => (await select.count()) === 0 || (await ui.isVisible()))
+    .toBe(true)
+  if ((await select.count()) === 0) {
+    if (steps) throw new Error('A returning raider never sees the select')
+    return
+  }
   for (let i = 0; i < steps; i++) await page.keyboard.press('ArrowRight')
   await page.keyboard.press('Enter')
   await expect(page.locator('.bv-select')).toHaveCount(0)

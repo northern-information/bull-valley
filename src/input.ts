@@ -24,9 +24,9 @@ export function wirePointer(game: Game): () => void {
     hud.showIntro(false)
   }
   // Pointer lock can be refused (browser quirk, gesture rules, the cooldown
-  // after Esc). When it is, drop the intro and hand the player a direct
-  // click-the-view retry — a gesture on the canvas itself always qualifies.
-  // An open inventory hides the prompt and shows its own resume line.
+  // after Esc). When it is, drop the intro and leave a click on the view as
+  // the retry — a gesture on the canvas itself always qualifies. The red
+  // edge round the view (hud.ts) says the pointer is free.
   const lockRefused = () => {
     if (import.meta.env.DEV && navigator.webdriver) {
       startWithoutLock()
@@ -34,7 +34,6 @@ export function wirePointer(game: Game): () => void {
     }
     s.started = true
     hud.showIntro(false)
-    if (!s.inventoryOpen) hud.prompt(copy('hud.resume'))
   }
   const engagePointer = () => {
     try {

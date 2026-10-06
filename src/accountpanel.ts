@@ -1,6 +1,7 @@
-// The account panel, opened from the character select: who you are, the
-// providers that sign you in, Link Another Account, and Sign Out. A black
-// overlay over the select, mounted on open and removed on close.
+// The account panel, opened from the character select or the pause
+// overlay: who you are, the providers that sign you in, Link Another
+// Account, and Sign Out. A black overlay over everything, mounted on open
+// and removed on close.
 //
 // Linking runs in a popup so the select underneath keeps its state: the
 // popup walks the provider round trip and lands on auth-done.html, which

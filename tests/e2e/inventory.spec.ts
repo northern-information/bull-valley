@@ -1,5 +1,11 @@
 import { copy } from './copy.ts'
-import { beginRaid, expect, freshValley, passTitles, test } from './fixtures.ts'
+import {
+  beginRaid,
+  expect,
+  freshValley,
+  passReturning,
+  test,
+} from './fixtures.ts'
 
 test('Tab opens the pack, a number key assigns, the hotbar uses and is kept', async ({
   page,
@@ -56,7 +62,7 @@ test('Tab opens the pack, a number key assigns, the hotbar uses and is kept', as
 
   // A reload brings the bar back from the account.
   await page.reload()
-  await passTitles(page)
+  await passReturning(page)
   await expect
     .poll(() => page.evaluate(() => !!window.__bv), { timeout: 30_000 })
     .toBe(true)
