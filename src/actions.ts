@@ -6,7 +6,7 @@
 // modules'; this is the glue that applies them and says so.
 
 import { saveHotbar, saveLook } from './auth.ts'
-import { CHAT_COPY } from './chat.ts'
+import { CHAT_COPY, chatCommand, onlineLine } from './chat.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { stepIndex } from './cycle.ts'
@@ -68,7 +68,7 @@ export interface Actions {
 
 // engagePointer takes the pointer back once Gron's dialog closes.
 export function createActions(game: Game, engagePointer: () => void): Actions {
-  const { state: s, hud, net, player, truck, world, graph } = game
+  const { state: s, hud, net, peers, player, truck, world, graph } = game
 
   const refreshBag = () => {
     if (s.inventoryOpen) {
@@ -451,9 +451,32 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   // The valley echoes the line back to everyone. Offline the line still
   // shows, to no one else.
+  // /online: who is in the valley, by name.
+  const tellOnline = () => {
+    if (!net.online) {
+      hud.tell(CHAT_COPY.offline)
+      return
+    }
+    hud.tell(
+      onlineLine(
+        game.pick.username,
+        peers.list().map((peer) => peer.name)
+      )
+    )
+  }
+
   const say = (typed: string) => {
     const text = normalizeChat(typed)
     if (!text) return
+    const command = chatCommand(text)
+    if (command === 'online') {
+      tellOnline()
+      return
+    }
+    if (command === 'unknown') {
+      hud.tell(copy('chat.unknown_command'))
+      return
+    }
     if (net.online) {
       net.send({ type: 'chat', text })
       return
