@@ -1,6 +1,6 @@
 // Pure: every key the game answers to, in one place. Each binding carries
 // the KeyboardEvent.code values that fire it, the key as players see it,
-// and the COPY.toml key for what it does ([keys]). main.ts and player.ts
+// and the COPY.toml key for what it does ([keys]). input.ts and player.ts
 // look actions up here instead of comparing raw codes; hud.ts draws the
 // intro table and the pack card's keys from the same entries, so the copy
 // cannot drift from the dispatcher. The words stay in COPY.toml, not here,

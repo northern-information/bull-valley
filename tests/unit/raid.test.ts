@@ -3,12 +3,14 @@ import { CONFIG } from '../../src/config.ts'
 import { getItem } from '../../src/items.ts'
 import {
   advance,
+  canPick,
   carryLimit,
   createRaid,
   EVENTS,
   loadoutClock,
   STATES,
   summary,
+  timedOut,
 } from '../../src/raid.ts'
 
 describe('raid state machine', () => {
@@ -135,5 +137,28 @@ describe('raid state machine', () => {
     expect(loadoutClock(raid, end - 65)).toBe('1:05')
     expect(loadoutClock(raid, end - 9.2)).toBe('0:10')
     expect(loadoutClock(raid, end + 3)).toBe('0:00')
+  })
+})
+
+describe('canPick', () => {
+  it('takes a cabbage only on foot with room in the arms', () => {
+    let raid = createRaid(0)
+    expect(canPick(raid)).toBe(false)
+    raid = advance(raid, EVENTS.TIMER_EXPIRED, 1)
+    for (let i = 0; i < carryLimit(raid); i++) {
+      expect(canPick(raid)).toBe(true)
+      raid = advance(raid, EVENTS.PICK_CABBAGE, 2)
+    }
+    expect(canPick(raid)).toBe(false)
+  })
+})
+
+describe('timedOut', () => {
+  it('runs out only past the lobby clock, and only in the lobby', () => {
+    const raid = createRaid(0)
+    expect(timedOut(raid, raid.loadoutEndsAt)).toBe(false)
+    expect(timedOut(raid, raid.loadoutEndsAt + 0.01)).toBe(true)
+    const riding = advance(raid, EVENTS.BOARD_TRUCK, 1)
+    expect(timedOut(riding, riding.loadoutEndsAt + 1)).toBe(false)
   })
 })

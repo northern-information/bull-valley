@@ -122,7 +122,7 @@ next = { text = "Next", by = "tyler" }
 hint = { text = "← → Cycle · Enter Choose", by = "tyler" }
 hint_finish = { text = "← → Cycle · Up / Down Finish · R Randomize · Enter Choose", by = "tyler" }
 
-# Toasts: the lines that drift up over the valley (src/main.ts, src/shop.ts).
+# Toasts: the game's own lines in the chat log (src/actions.ts, src/valleysync.ts, src/shop.ts).
 
 [toasts]
 greeting = { text = "Matthew Marx keeps the engine running.", by = "ai" }
@@ -162,7 +162,7 @@ berry_refused = { text = "The bush gives you nothing.", by = "ai" }
 struck = { text = "You are somewhere else. Time is missing.", by = "ai" }
 edge = { text = "The valley ends here.", by = "ai" }
 
-# The truck's line in the inventory's Status column (src/main.ts).
+# The truck's line in the inventory's Status column, and the lobby countdown (src/loop.ts).
 
 [truck]
 leaves = { text = "Leaves in {time}", by = "ai" }
@@ -170,6 +170,7 @@ riding = { text = "Riding the bed", by = "ai" }
 called = { text = "On its way", by = "ai" }
 on_call = { text = "On a call", by = "ai" }
 gone = { text = "Gone", by = "ai" }
+lobby_count = { text = "{clock} · {boarded} of {total} aboard", by = "ai" }
 
 # The prompt over the center of the screen: what E would do right now
 # (src/interactions.ts).

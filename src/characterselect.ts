@@ -8,7 +8,7 @@
 // terrain resolves, so the turntable draws with its own small renderer,
 // disposed once a character is chosen. The roster comes from
 // characters.ts, the finishes from finishes.ts, the bodies from figure.ts;
-// the pick it opens on is the account's, and main.ts saves the new one. The username is the account's, settled by the account
+// the pick it opens on is the account's, and titles.ts saves the new one. The username is the account's, settled by the account
 // step (signin.ts) before this runs.
 
 import * as THREE from 'three'

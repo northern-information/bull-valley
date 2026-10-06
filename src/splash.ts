@@ -9,13 +9,15 @@
 // moment the colophon lifts. The timings and latches live in the pure
 // machine, splashmachine.ts; this file is the DOM glue.
 
+import { CONFIG } from './config.ts'
+import { copy } from './copy.ts'
 import { createFog } from './fog.ts'
 import { createSplashMachine } from './splashmachine.ts'
 import type { BvAudio } from './audio.ts'
 import type { FogLayer } from './fog.ts'
 import type { SplashTiming } from './splashmachine.ts'
 
-// CONFIG.logo: the timings plus what a card mounts and plays.
+// A card's timings plus what it mounts and plays.
 export interface CardConfig extends SplashTiming {
   skipAudioFadeMs: number
   imageSrc: string
@@ -23,9 +25,23 @@ export interface CardConfig extends SplashTiming {
   audioSrc: string
 }
 
-// CONFIG.splash: a card that waits for a gesture behind a hint.
+// A card that waits for a gesture behind a hint.
 export interface SplashConfig extends CardConfig {
   hint: string
+}
+
+// The Northern Information colophon and the game's own logo: CONFIG's
+// timings and files, with their words from COPY.toml. The words stay out of
+// config.ts so the pure modules that read CONFIG never load the copy book.
+export const COLOPHON: SplashConfig = {
+  ...CONFIG.splash,
+  alt: copy('titles.colophon_alt'),
+  hint: copy('titles.colophon_hint'),
+}
+
+export const LOGO: CardConfig = {
+  ...CONFIG.logo,
+  alt: copy('titles.logo_alt'),
 }
 
 export interface CardOptions<C extends CardConfig = CardConfig> {

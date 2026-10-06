@@ -1052,7 +1052,7 @@ function buildMazeSign(
 // The portal at the maze's heart: a standing ring of pale green light
 // round a slow spiral, a halo over it all, the ring breathing. It faces
 // +Z and -Z alike; origin at ground level under the middle. Walk into it
-// and it puts you back at the gate (main.ts, maze.ts inPortal).
+// and it puts you back at the gate (loop.ts, maze.ts inPortal).
 export const PORTAL = {
   radius: 1.2,
   tube: 0.1,
@@ -3967,7 +3967,7 @@ export function buildTruckBody(): THREE.Group {
 
 // --- Sky -----------------------------------------------------------------
 
-// Stars and the moon. main.ts moves the group with the player so the sky
+// Stars and the moon. loop.ts moves the group with the player so the sky
 // never recedes into fog.
 export function buildSky(): THREE.Group {
   const sky = new THREE.Group()

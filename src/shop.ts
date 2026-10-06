@@ -1,5 +1,5 @@
 // Pure: one purchase off a Citgo shelf. Like raid.ts and inventory.ts, it
-// returns new state and never changes its input. main.ts finds the shelf
+// returns new state and never changes its input. targets.ts finds the shelf
 // unit the player is looking at (store.ts) and tells the player in the
 // chat log. In the shared
 // valley the shelf, the wallet and the sack belong to the server
