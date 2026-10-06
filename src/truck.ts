@@ -173,6 +173,9 @@ const TO_DOOR_SECONDS =
     0
   ) / WALK_SPEED
 
+// How long the donut slide averages the turn over.
+const DRIFT_SECONDS = 0.5
+
 export class Truck {
   groundAt: HeightAt
   group: THREE.Group
@@ -202,6 +205,14 @@ export class Truck {
   // The local ms (performance.now) of the last update(): x and z are where
   // the truck was then, which can be a whole frame ago on a slow machine.
   updatedAt: number
+  // Doing donuts (driveDonuts): the nose swings into the turn by `drift`
+  // radians, from the turn rate averaged over the last moments, so the bed
+  // slides out the way a real donut throws it.
+  drifting: boolean
+  drift: number
+  heading: number
+  turnAvg: number
+  metresAvg: number
 
   constructor({ scene, groundAt }: TruckOptions) {
     this.groundAt = groundAt
@@ -228,6 +239,11 @@ export class Truck {
     this.startedAt = null
     this.travelled = 0
     this.updatedAt = 0
+    this.drifting = false
+    this.drift = 0
+    this.heading = 0
+    this.turnAvg = 0
+    this.metresAvg = 0
   }
 
   parkAt(x: number, z: number, dirX = 0, dirZ = 1) {
@@ -270,6 +286,8 @@ export class Truck {
     }
     this.walker = createWalker(points)
     this.speed = speed
+    this.drifting = false
+    this.drift = 0
     this.moving = true
     this.startedAt = null
     this.elapsed = 0
@@ -286,6 +304,19 @@ export class Truck {
   ) {
     this.driveRoute(points, speed)
     if (this.walker) this.startedAt = startedAt
+  }
+
+  // Matthew Marx's donuts (donuts.ts), driven against the clock like
+  // driveRouteAt when startedAt is set, drifting all the way.
+  driveDonuts(points: readonly RoadPoint[], startedAt: number | null) {
+    const { speed } = CONFIG.truck.donuts
+    if (startedAt === null) this.driveRoute(points, speed)
+    else this.driveRouteAt(points, startedAt, speed)
+    if (!this.walker) return
+    this.drifting = true
+    this.heading = Math.atan2(this.dirX, this.dirZ)
+    this.turnAvg = 0
+    this.metresAvg = 0
   }
 
   // Advances the current route. Returns { x, z, moving, done } — done is true
@@ -318,6 +349,7 @@ export class Truck {
       this.dirX = s.dirX
       this.dirZ = s.dirZ
       if (s.done) this.moving = false
+      if (this.drifting) this.slide(dt, metres)
       this.pose()
     }
     return {
@@ -348,9 +380,28 @@ export class Truck {
     return this.walker !== null && this.travelled > 0
   }
 
+  // The nose into the turn: the turn per metre, both averaged over about
+  // DRIFT_SECONDS so the route's corners blur into one steady slide, up to
+  // CONFIG.truck.donuts.drift at the tightest loop.
+  slide(dt: number, metres: number): void {
+    const heading = Math.atan2(this.dirX, this.dirZ)
+    const turn = Math.atan2(
+      Math.sin(heading - this.heading),
+      Math.cos(heading - this.heading)
+    )
+    this.heading = heading
+    const k = Math.min(1, dt / DRIFT_SECONDS)
+    this.turnAvg += (turn - this.turnAvg) * k
+    this.metresAvg += (metres - this.metresAvg) * k
+    const { drift, loop } = CONFIG.truck.donuts
+    const curvature = this.metresAvg > 1e-4 ? this.turnAvg / this.metresAvg : 0
+    this.drift = Math.max(-drift, Math.min(drift, curvature * loop.min * drift))
+  }
+
   pose() {
     this.group.position.set(this.x, this.groundAt(this.x, this.z), this.z)
-    this.group.rotation.y = Math.atan2(this.dirX, this.dirZ)
+    this.group.rotation.y =
+      Math.atan2(this.dirX, this.dirZ) + (this.drifting ? this.drift : 0)
     this.group.updateMatrixWorld()
   }
 

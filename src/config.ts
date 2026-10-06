@@ -155,6 +155,21 @@ export const CONFIG = {
     boardRange: 4,
     bedEye: 1.6, // camera height above the bed
     wanderMetres: 6000, // how far the outbound joyride runs
+    // When the clock runs out with nobody aboard, Matthew Marx crosses Lake
+    // Avenue to the field between the road and the corn maze and does
+    // donuts there (donuts.ts) until someone whistles. `field` is
+    // station-local like CONFIG.maze.at: across the road from the lot, short
+    // of the maze's near end and its mud trail out.
+    donuts: {
+      field: { x: 60, z: -5 },
+      radius: 22,
+      speed: 9, // m/s
+      metres: 12000, // about 20 minutes of donuts, then he parks
+      // Each loop's radius, drawn per set.
+      loop: { min: 5, max: 10 },
+      // How far the nose swings into the turn at the tightest loop.
+      drift: 0.6,
+    },
   },
   net: {
     // The valley server. State frames go out at most this often, and only
