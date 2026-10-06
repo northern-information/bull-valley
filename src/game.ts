@@ -3,11 +3,14 @@
 // valleysync.ts, input.ts, targets.ts and loop.ts each take the Game.
 
 import { CONFIG } from './config.ts'
+import { HAND_DOWN } from './hands.ts'
 import { NO_EFFECTS } from './hotbar.ts'
 import { STARTING_INVENTORY } from './inventory.ts'
 import { createRaid } from './raid.ts'
 import { freshStock } from './store.ts'
+import type { FirstPersonHands } from './fphands.ts'
 import type { Glow } from './glow.ts'
+import type { Hand } from './hands.ts'
 import type { Effects, Hotbar } from './hotbar.ts'
 import type { Hud } from './hud.ts'
 import type { Interaction } from './interactions.ts'
@@ -22,6 +25,7 @@ import type { PlayerBody } from './playerbody.ts'
 import type { DailyWire, PeerStateWire, RaidWire } from './protocol.ts'
 import type { RoadGraph, Route } from './roadgraph.ts'
 import type { Scope } from './scope.ts'
+import type { ShadowBursts } from './shadowburst.ts'
 import type { ShadowCards } from './shadowcards.ts'
 import type { Titles } from './titles.ts'
 import type { Truck } from './truck.ts'
@@ -50,6 +54,10 @@ export interface GameState {
   time: number
   // A cigarette burning, its ember, the joint's perception, on `time`.
   effects: Effects
+  // The flashlight in the left hand: up and on, or down and off.
+  flashlight: Hand
+  // The item the right hand last brought up, and when, on `time`.
+  using: { kind: string; at: number } | null
   // The static after a shadowman's touch runs until this local ms
   // (performance.now). It is wall-clock, not `time`: `time` advances at
   // most CONFIG.render.maxStep a frame, so on a slow machine 1.6 s of it
@@ -100,6 +108,8 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     hotbarSaved: Promise.resolve(),
     time: 0,
     effects: NO_EFFECTS,
+    flashlight: HAND_DOWN,
+    using: null,
     strikeUntil: 0,
     started: false,
     greeted: false,
@@ -139,10 +149,14 @@ export interface Game {
   keep: LandmarkPoint | null
   player: Player
   playerBody: PlayerBody
+  // The hands in first person, and the flashlight's light.
+  hands: FirstPersonHands
   // The account and outfit from the titles; Gron changes them.
   pick: Titles
   scope: Scope
   shadowmen: ShadowCards
+  // Shadowmen bursting in the beam.
+  bursts: ShadowBursts
   mist: MistCards
   glow: Glow
   // The items as the pack grid and the hotbar draw them.

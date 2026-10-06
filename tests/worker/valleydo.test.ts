@@ -139,7 +139,7 @@ function lastDaily(socket: MockSocket): DailyMessage {
   return daily
 }
 
-const state = (x: number, z: number) =>
+const state = (x: number, z: number, light = false) =>
   JSON.stringify({
     type: 'state',
     x,
@@ -148,6 +148,7 @@ const state = (x: number, z: number) =>
     yaw: 0.5,
     pose: 'walk',
     riding: false,
+    light,
   })
 
 const chat = (text: string) => JSON.stringify({ type: 'chat', text })
@@ -363,10 +364,16 @@ describe('ValleyDO', () => {
     const stranger = new MockSocket()
     s.acceptWebSocket(stranger)
     const beforeA = a.sent.length
-    await v.webSocketMessage(ws(a), state(7, 8))
+    await v.webSocketMessage(ws(a), state(7, 8, true))
     expect(a.sent.length).toBe(beforeA)
     const fanned = b.last<PeerStateMessage>()
-    expect(fanned).toMatchObject({ type: 'peer-state', x: 7, z: 8, yaw: 0.5 })
+    expect(fanned).toMatchObject({
+      type: 'peer-state',
+      x: 7,
+      z: 8,
+      yaw: 0.5,
+      light: true,
+    })
     expect(fanned.id).toBe(idOf(a))
     expect(stranger.sent).toEqual([])
   })

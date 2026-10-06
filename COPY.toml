@@ -220,6 +220,7 @@ logo_alt = { text = "Bull Valley Shadow Wars", by = "ai" }
 move = { text = "Move", by = "ai" }
 sprint = { text = "Sprint", by = "ai" }
 look = { text = "Look", by = "ai" }
+flashlight = { text = "Flashlight", by = "ai" }
 crouch = { text = "Crouch", by = "ai" }
 scope = { text = "Scaduscope", by = "ai" }
 inventory = { text = "Inventory", by = "ai" }

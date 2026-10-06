@@ -69,6 +69,7 @@ test("a shadowman's touch puts you back at the Citgo", async ({ page }) => {
       dirZ: 1,
       speed: 0,
       rushing: true,
+      burn: 0,
     }
   })
   await expect.poll(() => page.evaluate(() => window.__bv?.raid.deaths)).toBe(1)

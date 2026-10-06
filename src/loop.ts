@@ -6,6 +6,7 @@ import * as THREE from 'three'
 import { pulseMaterials } from './assets.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
+import { ease, stepHand, useLift, useSeconds } from './hands.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
 import {
   dailyStatus,
@@ -22,6 +23,7 @@ import { formatCash } from './store.ts'
 import type { Actions } from './actions.ts'
 import type { Game } from './game.ts'
 import type { PeerStateWire } from './protocol.ts'
+import type { Beam } from './shadowmen.ts'
 import type { Targets } from './targets.ts'
 
 // Under e2e (--mode test) the valley runs but is never drawn. The specs
@@ -44,14 +46,18 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     truck,
     player,
     playerBody,
+    hands,
     scope,
     shadowmen,
+    bursts,
     mist,
     glow,
     thumbs,
     peers,
   } = game
   const ridingForward = new THREE.Vector3(0, 0, -1)
+  // Where the eye looks, for the flashlight's beam.
+  const sight = new THREE.Vector3()
 
   // The countdown, with the lobby's headcount when others are in it.
   const lobbyLine = () => {
@@ -158,6 +164,30 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       s.onTruckRolls = []
     }
 
+    // The hands: the flashlight lit once it is all the way up, and the
+    // item just used brought up once. Under prefers-reduced-motion they
+    // are up or down, never between.
+    s.flashlight = stepHand(s.flashlight, dt)
+    if (s.using && time - s.using.at >= useSeconds()) s.using = null
+    const lit = s.flashlight.up && s.flashlight.lift >= 1
+    const using = s.using ? useLift(s.using.at, time) : 0
+    hands.update({
+      left: game.still ? Number(s.flashlight.up) : ease(s.flashlight.lift),
+      right: game.still ? Number(using > 0) : ease(using),
+      kind: s.using?.kind ?? null,
+      on: lit,
+    })
+    let beam: Beam | null = null
+    if (lit) {
+      camera.getWorldDirection(sight)
+      beam = {
+        origin: camera.position,
+        dir: sight,
+        range: CONFIG.flashlight.range,
+        halfAngle: CONFIG.flashlight.halfAngle,
+      }
+    }
+
     // The shadowmen cross whatever the raid is doing, but only rush and touch
     // a player on foot who is not already coming to from the last strike.
     const vulnerable =
@@ -170,8 +200,14 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       player: player.pos,
       vulnerable,
       perception,
+      beam,
     })
     if (swarm.struck) actions.strike()
+    for (const at of swarm.bursts) {
+      const y = world.ground.at(at.x, at.z) + CONFIG.shadowmen.chestHeight
+      bursts.spawn(at.x, y, at.z)
+    }
+    bursts.update(dt)
     mist.update({ dt, player: player.pos })
     // Gron's rain falls on its own clock; under prefers-reduced-motion it
     // hangs still under the cloud.
@@ -207,6 +243,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         yaw: player.yaw,
         pose: poseOf(moveSpeed, crouching),
         riding: s.raid.state === STATES.RIDING || s.aboard,
+        light: s.flashlight.up,
       }
       if (stateChanged(s.lastSent, state)) {
         s.lastSent = state

@@ -3,6 +3,7 @@ import { CONFIG } from '../../src/config.ts'
 import { mulberry32 } from '../../src/rng.ts'
 import {
   createShadowmen,
+  inBeam,
   inBounds,
   inHaven,
   spawnShadowman,
@@ -10,6 +11,7 @@ import {
 } from '../../src/shadowmen.ts'
 import type { Metres, XZ } from '../../src/interfaces.ts'
 import type {
+  Beam,
   Shadowman,
   ShadowmenConfig,
   ShadowmenField,
@@ -31,6 +33,8 @@ const CFG: ShadowmenConfig = {
   touchRadius: 1.4,
   havenRadius: 60,
   strikeSeconds: 1.6,
+  burnSeconds: 0.5,
+  chestHeight: 1.4,
 }
 const METRES: Metres = { width: 15059, height: 15038 }
 const ORIGIN: XZ = { x: 0, z: 0 }
@@ -59,7 +63,16 @@ const step = (
 // A field with one hand-placed shadowman and no respawns for the duration.
 const one = (over: Partial<Shadowman> = {}): ShadowmenField => ({
   slots: [
-    { x: 0, z: -100, dirX: 0, dirZ: 1, speed: 8, rushing: false, ...over },
+    {
+      x: 0,
+      z: -100,
+      dirX: 0,
+      dirZ: 1,
+      speed: 8,
+      rushing: false,
+      burn: 0,
+      ...over,
+    },
   ],
   cooldown: 1e9,
 })
@@ -272,5 +285,98 @@ describe('stepShadowmen', () => {
     const miss = step(brush)
     expect(miss.struck).toBe(false)
     expect(brush.slots[0]).not.toBeNull()
+  })
+})
+
+// The player's eye at the origin, 1.7 m up, looking down -Z along the
+// ground at a shadowman's chest height.
+const BEAM: Beam = {
+  origin: { x: 0, y: 1.7, z: 0 },
+  dir: { x: 0, y: 0, z: -1 },
+  range: 30,
+  halfAngle: 0.3,
+}
+
+describe('inBeam', () => {
+  it('takes a point inside the range and the cone', () => {
+    expect(inBeam(BEAM, { x: 0, y: 1.4, z: -20 })).toBe(true)
+    expect(inBeam(BEAM, { x: 4, y: 1.4, z: -20 })).toBe(true)
+  })
+
+  it('refuses a point past the range, off the cone, or behind', () => {
+    expect(inBeam(BEAM, { x: 0, y: 1.4, z: -31 })).toBe(false)
+    expect(inBeam(BEAM, { x: 8, y: 1.4, z: -20 })).toBe(false)
+    expect(inBeam(BEAM, { x: 0, y: 1.4, z: 5 })).toBe(false)
+  })
+})
+
+describe('the flashlight', () => {
+  // Standing still in the beam, so only the burn moves.
+  const held = (over: Partial<Shadowman> = {}) =>
+    one({ z: -20, speed: 0, ...over })
+
+  it('bursts a shadowman held burnSeconds in the beam, and says where', () => {
+    const field = held()
+    let steps = 0
+    let bursts: XZ[] = []
+    while (field.slots[0] && steps < 100) {
+      bursts = step(field, undefined, { beam: BEAM }).bursts
+      steps++
+    }
+    expect(steps * DT).toBeGreaterThanOrEqual(CFG.burnSeconds - 1e-9)
+    expect(steps * DT).toBeLessThanOrEqual(CFG.burnSeconds + DT + 1e-9)
+    expect(bursts).toEqual([{ x: 0, z: -20 }])
+  })
+
+  it('never burns one past the range or off the cone', () => {
+    const far = held({ z: -40 })
+    const wide = held({ x: 12 })
+    for (let i = 0; i < 40; i++) {
+      step(far, undefined, { beam: BEAM })
+      step(wide, undefined, { beam: BEAM })
+    }
+    expect(far.slots[0]?.burn).toBe(0)
+    expect(wide.slots[0]?.burn).toBe(0)
+  })
+
+  it('aims at the chest over the ground the shadowman stands on', () => {
+    // On a rise 10 m up, the level beam passes under it.
+    const high = held()
+    for (let i = 0; i < 20; i++) {
+      step(high, undefined, { beam: BEAM, groundAt: () => 10 })
+    }
+    expect(high.slots[0]?.burn).toBe(0)
+  })
+
+  it('lets the burn run back down out of the beam', () => {
+    const field = held()
+    for (let i = 0; i < 6; i++) step(field, undefined, { beam: BEAM })
+    expect(field.slots[0]?.burn).toBeCloseTo(6 * DT, 9)
+    for (let i = 0; i < 4; i++) step(field)
+    expect(field.slots[0]?.burn).toBeCloseTo(2 * DT, 9)
+    for (let i = 0; i < 4; i++) step(field)
+    expect(field.slots[0]?.burn).toBe(0)
+  })
+
+  it('bursts a rushing shadowman too', () => {
+    const field = one({ z: -20, rushing: true, speed: CFG.rushSpeed })
+    let bursts = 0
+    for (let i = 0; i < 20 && field.slots[0]; i++) {
+      bursts += step(field, undefined, { beam: BEAM, vulnerable: true }).bursts
+        .length
+    }
+    expect(bursts).toBe(1)
+  })
+
+  it('refills a burst slot on the spawn interval', () => {
+    const field = held()
+    field.cooldown = CFG.spawnInterval
+    for (let i = 0; i < 20 && field.slots[0]; i++) {
+      step(field, undefined, { beam: BEAM })
+    }
+    expect(field.slots[0]).toBeNull()
+    for (let i = 0; i < Math.ceil(CFG.spawnInterval / DT) + 1; i++) step(field)
+    expect(field.slots[0]).not.toBeNull()
+    expect(field.slots[0]?.burn).toBe(0)
   })
 })

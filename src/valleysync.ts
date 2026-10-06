@@ -59,8 +59,8 @@ export function wireValley(game: Game, actions: Actions): void {
         return
       }
       case 'peer-state': {
-        const { x, y, z, yaw, pose, riding } = msg
-        peers.state(msg.id, { x, y, z, yaw, pose, riding }, now)
+        const { x, y, z, yaw, pose, riding, light } = msg
+        peers.state(msg.id, { x, y, z, yaw, pose, riding, light }, now)
         return
       }
       case 'peer-left': {

@@ -56,6 +56,8 @@ export interface Actions {
   applyDaily(msg: DailyMessage): void
   // One of an item, used: E over it in the pack, or its hotbar key.
   useKind(kind: string): void
+  // The left button: the flashlight up and on, or down and off.
+  toggleFlashlight(): void
   // The pickup is ours: into the arms or the pack.
   applyTake(pickup: Pickup): void
   // Someone else got it.
@@ -313,11 +315,19 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     }
     s.inventory = result.inv
     s.effects = result.effects
+    // The right hand brings it up (fphands.ts).
+    s.using = { kind, at: s.time }
     // The unit is the account's: the valley takes it out of the pack.
     net.send({ type: 'use', kind })
     refreshBag()
     const used = itemById(kind)?.used
     if (used) hud.tell(used)
+  }
+
+  // The light comes on once the hand is up, and goes off as it goes down;
+  // the valley hears it with the next state frame.
+  const toggleFlashlight = () => {
+    s.flashlight = { ...s.flashlight, up: !s.flashlight.up }
   }
 
   const applyTake = (pickup: Pickup) => {
@@ -385,6 +395,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         })
         pick.finish = finish
         game.playerBody.restyle(outfit, finishById(finish).color)
+        game.hands.restyle(outfit)
         pick.outfit = outfit
         // A reconnect says hello in the new body too.
         net.setOutfit(outfit)
@@ -477,6 +488,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     pocket,
     applyDaily,
     useKind,
+    toggleFlashlight,
     applyTake,
     markTaken,
     interact,

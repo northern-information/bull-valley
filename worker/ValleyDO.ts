@@ -324,11 +324,11 @@ export class ValleyDO extends DurableObject<Env> {
     state: PeerStateWire
   ): void {
     if (!allow(this.stateRate, ws, STATE_LIMIT)) return
-    const { x, y, z, yaw, pose, riding } = state
-    const next: PeerWire = { ...me, at: { x, y, z, yaw, pose, riding } }
+    const { x, y, z, yaw, pose, riding, light } = state
+    const next: PeerWire = { ...me, at: { x, y, z, yaw, pose, riding, light } }
     ws.serializeAttachment({ ...attachment, me: next } satisfies Attachment)
     this.broadcast(
-      { type: 'peer-state', id: me.id, x, y, z, yaw, pose, riding },
+      { type: 'peer-state', id: me.id, x, y, z, yaw, pose, riding, light },
       ws
     )
   }

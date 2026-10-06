@@ -3,8 +3,10 @@
 // dev builds, so production bundles never carry it.
 
 import { unitToWorld } from './coords.ts'
+import type { Actions } from './actions.ts'
 import type { ChatLine } from './chat.ts'
 import type { Game } from './game.ts'
+import type { Hand } from './hands.ts'
 import type { Hotbar } from './hotbar.ts'
 import type { Inventory, Raid } from './interfaces.ts'
 import type { MistCards } from './mistcards.ts'
@@ -49,7 +51,12 @@ interface BvHook {
   readonly hotbar: Hotbar
   // The chat log, oldest first.
   readonly chat: readonly ChatLine[]
+  // The flashlight in the left hand, and the item the right last raised.
+  readonly flashlight: Hand
+  readonly using: { kind: string; at: number } | null
   teleport(u: number, v: number): void
+  // The left button, for a page without pointer lock.
+  toggleFlashlight(): void
   hurryTruck(seconds?: number): void
 }
 
@@ -59,7 +66,7 @@ declare global {
   }
 }
 
-export function installDevHook(game: Game): void {
+export function installDevHook(game: Game, actions: Actions): void {
   const { state: s, net, peers, hud, glow, player } = game
   window.__bv = {
     scene: game.scene,
@@ -107,10 +114,17 @@ export function installDevHook(game: Game): void {
     get chat() {
       return hud.chatLines
     },
+    get flashlight() {
+      return s.flashlight
+    },
+    get using() {
+      return s.using
+    },
     teleport(u: number, v: number) {
       const { x, z } = unitToWorld(u, v, game.geo.metres)
       player.relocate(x, z)
     },
+    toggleFlashlight: () => actions.toggleFlashlight(),
     hurryTruck(seconds = 5) {
       // In the shared valley the server holds the clock; a dev server
       // lets a spec move it.

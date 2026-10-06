@@ -12,8 +12,9 @@ import { CITGO_RED } from './assets.ts'
 // Reserved for the glow: only the target's meshes and the scene's lights
 // sit on it. The lights ride along so the mask pass sees the same light
 // set as the frame, or Three would rebuild every lit material's program
-// state twice a frame.
-const GLOW_LAYER = 1
+// state twice a frame. A light made after createGlow (the flashlight's, in
+// fphands.ts) puts itself on it.
+export const GLOW_LAYER = 1
 
 // The ring's reach in internal pixels: the inner ring full, the outer one
 // fainter, stepped rather than smooth.

@@ -10,7 +10,7 @@ import type { OutfitId } from './outfits.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 10
+export const PROTOCOL_VERSION = 11
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -45,7 +45,8 @@ export type PeerPose = (typeof PEER_POSES)[number]
 
 // Where a player is and how they stand. y is the height the feet stand on
 // (the ground, or the truck bed), so a peer needs no terrain to place a
-// figure. yaw follows the player: 0 faces -Z.
+// figure. yaw follows the player: 0 faces -Z. light: the flashlight is up
+// and on.
 export interface PeerStateWire {
   x: number
   y: number
@@ -53,6 +54,7 @@ export interface PeerStateWire {
   yaw: number
   pose: PeerPose
   riding: boolean
+  light: boolean
 }
 
 // A player as the server knows them. `at` is null until their first state
@@ -502,15 +504,16 @@ function parseXZ(value: unknown): XZ | null {
 }
 
 // A state as a client may send it: finite coordinates within the survey, a
-// known pose, a boolean riding flag.
+// known pose, boolean riding and light flags.
 export function parsePeerState(value: unknown): PeerStateWire | null {
   if (!isRecord(value)) return null
-  const { x, y, z, yaw, pose, riding } = value
+  const { x, y, z, yaw, pose, riding, light } = value
   if (!isCoord(x) || !isCoord(y) || !isCoord(z)) return null
   if (typeof yaw !== 'number' || !Number.isFinite(yaw)) return null
   if (!isPeerPose(pose)) return null
   if (typeof riding !== 'boolean') return null
-  return { x, y, z, yaw, pose, riding }
+  if (typeof light !== 'boolean') return null
+  return { x, y, z, yaw, pose, riding, light }
 }
 
 // Parses one text frame from a client. Returns null for anything that is

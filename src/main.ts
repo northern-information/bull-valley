@@ -8,6 +8,7 @@ import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { installDevHook } from './devhook.ts'
 import { finishById } from './finishes.ts'
+import { FirstPersonHands } from './fphands.ts'
 import { createGameState } from './game.ts'
 import { createGlow } from './glow.ts'
 import { Hud } from './hud.ts'
@@ -24,6 +25,7 @@ import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import { mulberry32 } from './rng.ts'
 import { buildRoadGraph, nearestRoadPoint, wanderRoute } from './roadgraph.ts'
 import { Scope } from './scope.ts'
+import { ShadowBursts } from './shadowburst.ts'
 import { ShadowCards } from './shadowcards.ts'
 import { createTargets } from './targets.ts'
 import { buildTerrainMesh, createHeightField, loadTerrain } from './terrain.ts'
@@ -192,6 +194,9 @@ async function boot() {
     pick.outfit,
     finishById(pick.finish).color
   )
+  // The hands hang off the camera, so the camera joins the scene.
+  scene.add(camera)
+  const hands = new FirstPersonHands(camera, pick.outfit)
   // Under prefers-reduced-motion the mist, the glow's pulse, Gron's rain
   // and Moab's fire all hold still, like the logo card's fog.
   const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -222,6 +227,7 @@ async function boot() {
     keep: world.landmarks.find((l) => l.n === KEEP) ?? null,
     player,
     playerBody,
+    hands,
     pick,
     scope: new Scope(hud.scopeCanvas, hud.phone),
     // The shadowmen feed the scope.
@@ -232,6 +238,7 @@ async function boot() {
       havens: world.fuelPoints,
       player: player.pos,
     }),
+    bursts: new ShadowBursts(scene),
     // Ground mist drifts around the player.
     mist: new MistCards({
       scene,
@@ -284,7 +291,7 @@ async function boot() {
   startLoop(game, actions, createTargets(game))
 
   // Dev-only introspection hook; stripped from production bundles.
-  if (import.meta.env.DEV) installDevHook(game)
+  if (import.meta.env.DEV) installDevHook(game, actions)
 }
 
 boot().catch((err: unknown) => {

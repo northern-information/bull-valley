@@ -4,6 +4,7 @@ import { paintAd } from './adart.ts'
 import { paintDrink } from './canart.ts'
 import { canvas, context2d, SANS, text } from './canvas.ts'
 import { CONFIG } from './config.ts'
+import { skull } from './decalart.ts'
 import { CONTAINERS } from './drinks.ts'
 import { DEFAULT_FINISH, finishById } from './finishes.ts'
 import { isCigarette, isDrink, isMedicine, itemById, ITEMS } from './items.ts'
@@ -2764,6 +2765,267 @@ export function buildBat(): THREE.Group {
   return group
 }
 
+// --- Flashlight ----------------------------------------------------------
+
+// A two-D-cell flashlight in dull yellow plastic, the kind kept in a kitchen
+// drawer: a ribbed barrel, a black head flared round the lens, a black
+// slide switch on top. Local space: the barrel along +Z, the lens at the
+// +Z end, the origin in the middle of the grip. setOn lights the lens.
+// beam: a fake cone of light this many metres long out of the lens, for a
+// flashlight seen from outside (peers); the player's own throws a real
+// spot instead (fphands.ts).
+export interface Flashlight {
+  group: THREE.Group
+  // The middle of the lens, in the group's space.
+  lens: THREE.Vector3
+  setOn(on: boolean): void
+}
+
+export const FLASHLIGHT = {
+  barrel: { radius: 0.019, length: 0.17 },
+  head: { radius: 0.03, length: 0.06 },
+}
+
+const LENS_OFF = '#3a3b36'
+const LENS_ON = '#fff4d6'
+let lensGlow: THREE.Texture | null = null
+
+export function buildFlashlight({ beam = 0 } = {}): Flashlight {
+  const { barrel, head } = FLASHLIGHT
+  const plastic = lambert({ color: '#c9a227' })
+  const black = lambert({ color: '#18181a' })
+  const group = new THREE.Group()
+  group.name = 'flashlight'
+
+  // A cylinder along +Z, centred at z.
+  const along = (
+    top: number,
+    bottom: number,
+    length: number,
+    z: number,
+    material: THREE.Material
+  ) => {
+    const mesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(top, bottom, length, 8),
+      material
+    )
+    mesh.rotation.x = Math.PI / 2
+    mesh.position.z = z
+    group.add(mesh)
+    return mesh
+  }
+  along(barrel.radius, barrel.radius, barrel.length, 0, plastic)
+  // Three grip ribs, a hair proud of the barrel.
+  const rib = barrel.radius + 0.002
+  for (const z of [-0.05, -0.025, 0]) along(rib, rib, 0.008, z, black)
+  // The end cap, and the head flaring out to the lens. A cylinder's top
+  // turns to +Z, toward the lens.
+  along(barrel.radius, barrel.radius * 0.9, 0.012, -barrel.length / 2, black)
+  along(
+    head.radius,
+    barrel.radius,
+    head.length,
+    barrel.length / 2 + head.length / 2,
+    black
+  )
+  const slide = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.008, 0.03), black)
+  slide.position.set(0, barrel.radius + 0.003, 0.04)
+  group.add(slide)
+
+  const lensZ = barrel.length / 2 + head.length + 0.001
+  const lensMaterial = new THREE.MeshBasicMaterial({ color: LENS_OFF })
+  const lens = new THREE.Mesh(
+    new THREE.CircleGeometry(head.radius * 0.85, 8),
+    lensMaterial
+  )
+  lens.position.z = lensZ
+  group.add(lens)
+  castShadows(group)
+
+  lensGlow ??= makeGlowTexture('rgba(255, 240, 200, 0.85)')
+  const glow = makeGlowSprite(lensGlow, 0.1)
+  glow.position.z = lensZ + 0.01
+  glow.visible = false
+  group.add(glow)
+
+  // The cone fades from the lens to nothing at its far end; additive, so
+  // black is no light at all.
+  let cone: THREE.Mesh | null = null
+  if (beam > 0) {
+    const geometry = new THREE.ConeGeometry(
+      Math.tan(CONFIG.flashlight.halfAngle) * beam,
+      beam,
+      12,
+      1,
+      true
+    )
+    // Brightest at the apex (+Y, before it turns), none at the open end.
+    const pos = geometry.attributes.position
+    const colors: number[] = []
+    const warm = new THREE.Color(CONFIG.flashlight.color)
+    for (let i = 0; i < pos.count; i++) {
+      const fade = (pos.getY(i) / beam + 0.5) * 0.05
+      colors.push(warm.r * fade, warm.g * fade, warm.b * fade)
+    }
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+    // The apex to the lens, the open end out along +Z.
+    geometry.rotateX(-Math.PI / 2)
+    geometry.translate(0, 0, beam / 2)
+    cone = new THREE.Mesh(
+      geometry,
+      new THREE.MeshBasicMaterial({
+        vertexColors: true,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      })
+    )
+    cone.name = 'beam'
+    cone.position.z = lensZ
+    cone.visible = false
+    group.add(cone)
+  }
+
+  return {
+    group,
+    lens: new THREE.Vector3(0, 0, lensZ),
+    setOn(on: boolean) {
+      lensMaterial.color.set(on ? LENS_ON : LENS_OFF)
+      glow.visible = on
+      if (cone) cone.visible = on
+    },
+  }
+}
+
+// --- Shadow burst --------------------------------------------------------
+
+// A shadowman caught in the flashlight: a black cloud thrown out from his
+// chest, and skulls flung up out of it, spinning, that fall back and fade.
+// draw(age) poses the burst age seconds after it went off, from its seed
+// alone, so the pool in shadowburst.ts and the Akashic both just pick an
+// age. Local space: the chest at the origin.
+export interface ShadowBurst {
+  group: THREE.Group
+  start(seed: number): void
+  draw(age: number): void
+}
+
+export const SHADOW_BURST = {
+  seconds: 1.8,
+  mist: 36,
+  skulls: 5,
+  gravity: 9,
+}
+
+let burstMist: THREE.Texture | null = null
+let burstSkull: THREE.Texture | null = null
+
+function makeSkullTexture(): THREE.Texture {
+  const art = canvas([32, 32])
+  skull(art.ctx, 16, 12, 9)
+  const texture = artTexture(art)
+  texture.magFilter = THREE.NearestFilter
+  texture.minFilter = THREE.NearestFilter
+  return texture
+}
+
+interface Flung {
+  velocity: THREE.Vector3
+  spin: number
+  size: number
+}
+
+export function buildShadowBurst(): ShadowBurst {
+  const { mist, skulls } = SHADOW_BURST
+  const group = new THREE.Group()
+  group.name = 'shadow-burst'
+
+  burstMist ??= makeGlowTexture('rgba(6, 6, 10, 0.95)')
+  const cloudMaterial = new THREE.PointsMaterial({
+    map: burstMist,
+    color: '#000000',
+    size: 1.4,
+    transparent: true,
+    depthWrite: false,
+  })
+  const positions = new Float32Array(mist * 3)
+  const cloudGeometry = new THREE.BufferGeometry()
+  cloudGeometry.setAttribute(
+    'position',
+    new THREE.BufferAttribute(positions, 3)
+  )
+  const cloud = new THREE.Points(cloudGeometry, cloudMaterial)
+  cloud.frustumCulled = false
+  group.add(cloud)
+
+  burstSkull ??= makeSkullTexture()
+  const sprites: THREE.Sprite[] = []
+  for (let i = 0; i < skulls; i++) {
+    const sprite = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: burstSkull, transparent: true })
+    )
+    group.add(sprite)
+    sprites.push(sprite)
+  }
+
+  let puffs: THREE.Vector3[] = []
+  let flung: Flung[] = []
+  const start = (seed: number) => {
+    const rng = mulberry32(seed)
+    // A direction on the upper half of the sphere, mostly sideways.
+    const out = () => {
+      const a = rng() * Math.PI * 2
+      const up = range(rng, -0.2, 0.7)
+      const flat = Math.sqrt(1 - up * up)
+      return new THREE.Vector3(Math.cos(a) * flat, up, Math.sin(a) * flat)
+    }
+    puffs = Array.from({ length: mist }, () =>
+      out().multiplyScalar(range(rng, 1.2, 3.4))
+    )
+    flung = Array.from({ length: skulls }, () => {
+      const velocity = out().multiplyScalar(range(rng, 1.5, 3.5))
+      velocity.y = range(rng, 3.5, 6)
+      return { velocity, spin: range(rng, -9, 9), size: range(rng, 0.6, 0.85) }
+    })
+  }
+
+  const draw = (age: number) => {
+    const t = Math.max(0, age)
+    const life = Math.min(1, t / SHADOW_BURST.seconds)
+    group.visible = t < SHADOW_BURST.seconds
+    // The cloud: out fast, slowing, rising a little, and thinning.
+    const spread = 1 - Math.exp(-t * 3.5)
+    for (let i = 0; i < puffs.length; i++) {
+      const p = puffs[i]
+      positions[i * 3] = p.x * spread
+      positions[i * 3 + 1] = p.y * spread + t * 0.4
+      positions[i * 3 + 2] = p.z * spread
+    }
+    cloudGeometry.attributes.position.needsUpdate = true
+    cloudMaterial.size = 1.1 + spread * 1.4
+    cloudMaterial.opacity = 0.9 * (1 - life) ** 1.5
+    // The skulls: thrown, falling, spinning, gone over the last third.
+    const g = SHADOW_BURST.gravity
+    for (let i = 0; i < sprites.length; i++) {
+      const sprite = sprites[i]
+      const f = flung[i]
+      sprite.position.set(
+        f.velocity.x * t,
+        f.velocity.y * t - 0.5 * g * t * t,
+        f.velocity.z * t
+      )
+      sprite.scale.setScalar(f.size * Math.min(1, t * 8))
+      sprite.material.rotation = f.spin * t
+      sprite.material.opacity = Math.min(1, 3 * (1 - life))
+    }
+  }
+
+  start(0x5c011)
+  draw(SHADOW_BURST.seconds)
+  return { group, start, draw }
+}
+
 // --- Paperback -----------------------------------------------------------
 
 // An open mass-market paperback, held for reading: two covers hinged at
@@ -4298,6 +4560,32 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   },
   { id: 'guitar', label: 'Guitar: black LTD EX-400', build: sampleGuitar },
   { id: 'bat', label: 'Baseball bat', build: buildBat },
+  {
+    id: 'flashlight',
+    label: 'Flashlight',
+    build: () => {
+      const flashlight = buildFlashlight()
+      flashlight.setOn(true)
+      return flashlight.group
+    },
+  },
+  {
+    id: 'shadow-burst',
+    label: 'Shadowman burst',
+    build: () => {
+      // Chest high, going off again every few seconds with a new throw.
+      const group = new THREE.Group()
+      const burst = buildShadowBurst()
+      burst.group.position.y = CONFIG.shadowmen.chestHeight
+      group.add(burst.group)
+      const every = SHADOW_BURST.seconds + 0.6
+      setMotion(group, (t) => {
+        burst.start(0x5c011 + Math.floor(t / every))
+        burst.draw(t % every)
+      })
+      return group
+    },
+  },
   { id: 'book', label: 'Paperback', build: buildBook },
   {
     id: 'scroll',

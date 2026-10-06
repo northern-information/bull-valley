@@ -114,6 +114,7 @@ export function samplePeer(peer: Peer, renderAt: number): PeerSample | null {
     yaw: lerpAngle(prev.yaw, next.yaw, t),
     pose: t < 0.5 ? prev.pose : next.pose,
     riding: next.riding,
+    light: next.light,
     speed,
   }
 }
@@ -159,6 +160,7 @@ export function stateChanged(
     Math.abs(last.z - next.z) > 0.01 ||
     Math.abs(last.yaw - next.yaw) > 0.01 ||
     last.pose !== next.pose ||
-    last.riding !== next.riding
+    last.riding !== next.riding ||
+    last.light !== next.light
   )
 }

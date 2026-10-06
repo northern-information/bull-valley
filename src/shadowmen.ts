@@ -3,7 +3,8 @@
 // point near the player, out past the despawn radius, in a straight line at
 // a sprint. One that passes close to a player on foot turns and rushes, and
 // a touch is a strike. Citgo forecourts are havens: a shadowman vanishes at
-// the lights, and nothing can touch you inside.
+// the lights, and nothing can touch you inside. A flashlight beam held on
+// one for burnSeconds bursts it.
 //
 // Pure, no three.js. The silhouette cards that show them are in
 // src/shadowcards.ts; the field here is the whole truth about where they are.
@@ -11,7 +12,7 @@
 import { CONFIG } from './config.ts'
 import { compassBearing } from './coords.ts'
 import { range } from './rng.ts'
-import type { Metres, ScopeContact, XZ } from './interfaces.ts'
+import type { HeightAt, Metres, ScopeContact, XZ } from './interfaces.ts'
 import type { Rng } from './rng.ts'
 
 export type ShadowmenConfig = typeof CONFIG.shadowmen
@@ -26,6 +27,23 @@ export interface Shadowman {
   // Metres per second.
   speed: number
   rushing: boolean
+  // Seconds it has been held in the beam, running back down out of it.
+  burn: number
+}
+
+export interface XYZ {
+  x: number
+  y: number
+  z: number
+}
+
+// The flashlight's beam: a cone from the eye along dir (a unit vector),
+// range metres long, halfAngle radians off its axis.
+export interface Beam {
+  origin: XYZ
+  dir: XYZ
+  range: number
+  halfAngle: number
 }
 
 export interface ShadowmenField {
@@ -45,6 +63,10 @@ export interface ShadowmenStep {
   // False while in loadout or riding the truck: no rushes, no touches.
   vulnerable: boolean
   scopeRange?: number
+  // The player's flashlight while it is up and on, and what the
+  // shadowmen stand on, for aiming the beam at their chests.
+  beam?: Beam | null
+  groundAt?: HeightAt
 }
 
 export interface ShadowmenUpdate {
@@ -52,6 +74,8 @@ export interface ShadowmenUpdate {
   contacts: ScopeContact[]
   // A shadowman touched the player.
   struck: boolean
+  // Where shadowmen burst in the beam this step.
+  bursts: XZ[]
 }
 
 export function inBounds(p: XZ, metres: Metres, inset: number): boolean {
@@ -63,6 +87,19 @@ export function inBounds(p: XZ, metres: Metres, inset: number): boolean {
 
 export function inHaven(p: XZ, havens: readonly XZ[], radius: number): boolean {
   return havens.some((h) => Math.hypot(h.x - p.x, h.z - p.z) < radius)
+}
+
+// Whether p is inside the beam's cone: no further than its range from the
+// eye, and no more than halfAngle off its axis.
+export function inBeam(beam: Beam, p: XYZ): boolean {
+  const dx = p.x - beam.origin.x
+  const dy = p.y - beam.origin.y
+  const dz = p.z - beam.origin.z
+  const d = Math.hypot(dx, dy, dz)
+  if (d > beam.range) return false
+  if (d === 0) return true
+  const along = (dx * beam.dir.x + dy * beam.dir.y + dz * beam.dir.z) / d
+  return along >= Math.cos(beam.halfAngle)
 }
 
 // Ring points to try before settling for a clamped one.
@@ -116,6 +153,7 @@ export function spawnShadowman(
     dirZ,
     speed: range(rng, cfg.speedMin, cfg.speedMax),
     rushing: false,
+    burn: 0,
   }
 }
 
@@ -149,8 +187,9 @@ export function createShadowmen(
   return { slots, cooldown: 0 }
 }
 
-// Advance every shadowman, drop the ones that have left the bubble, fill at
-// most one empty slot, and report what the scope sees. Mutates field.
+// Advance every shadowman, burst the ones held long enough in the beam,
+// drop the ones that have left the bubble, fill at most one empty slot, and
+// report what the scope sees. Mutates field.
 export function stepShadowmen(
   field: ShadowmenField,
   rng: Rng,
@@ -161,10 +200,13 @@ export function stepShadowmen(
     havens,
     vulnerable,
     scopeRange = CONFIG.scope.rangeMetres,
+    beam = null,
+    groundAt = () => 0,
   }: ShadowmenStep,
   cfg: ShadowmenConfig = CONFIG.shadowmen
 ): ShadowmenUpdate {
   const contacts: ScopeContact[] = []
+  const bursts: XZ[] = []
   let struck = false
   // Inside a haven nothing rushes you, and a rush already on breaks off.
   const exposed = vulnerable && !inHaven(player, havens, cfg.havenRadius)
@@ -209,6 +251,14 @@ export function stepShadowmen(
       field.slots[i] = null
       continue
     }
+    const chest = { x: s.x, y: groundAt(s.x, s.z) + cfg.chestHeight, z: s.z }
+    s.burn =
+      beam && inBeam(beam, chest) ? s.burn + dt : Math.max(0, s.burn - dt)
+    if (s.burn >= cfg.burnSeconds) {
+      bursts.push({ x: s.x, z: s.z })
+      field.slots[i] = null
+      continue
+    }
     if (d < scopeRange) {
       contacts.push({
         dist: d,
@@ -227,5 +277,5 @@ export function stepShadowmen(
     }
   }
 
-  return { contacts, struck }
+  return { contacts, struck, bursts }
 }

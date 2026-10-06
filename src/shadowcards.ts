@@ -1,6 +1,7 @@
 // The shadowmen as seen: flat ragged silhouette cards that turn to face the
 // player, flicker, and jitter, with a violet aura that only shows while a
-// joint is working. One card per slot of the field in src/shadowmen.ts, so
+// joint is working. One held in the flashlight's beam pales and shakes
+// before it bursts. One card per slot of the field in src/shadowmen.ts, so
 // cards[i] always shows slots[i] and never hops between shadowmen.
 
 import * as THREE from 'three'
@@ -10,7 +11,7 @@ import { mulberry32, pick, range } from './rng.ts'
 import { createShadowmen, stepShadowmen } from './shadowmen.ts'
 import type { HeightAt, Metres, ScopeContact, XZ } from './interfaces.ts'
 import type { Rng } from './rng.ts'
-import type { ShadowmenField, ShadowmenUpdate } from './shadowmen.ts'
+import type { Beam, ShadowmenField, ShadowmenUpdate } from './shadowmen.ts'
 
 export function makeSilhouetteTexture(rng: Rng): THREE.CanvasTexture {
   const canvas = document.createElement('canvas')
@@ -86,6 +87,9 @@ export function buildShadowmanFigure(
   )
 }
 
+const BODY = new THREE.Color('#07080c')
+const BURNING = new THREE.Color('#6b6e78')
+
 export interface ShadowCardsOptions {
   scene: THREE.Object3D
   // What the cards stand on: world.ground.at, never the bare terrain.
@@ -101,10 +105,13 @@ export interface ShadowCardsFrame {
   player: XZ
   vulnerable: boolean
   perception: boolean
+  // The flashlight, while it is up and on.
+  beam: Beam | null
 }
 
 interface Card {
   node: THREE.Group
+  body: THREE.MeshBasicMaterial
   aura: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>
   halfHeight: number
   flickerTimer: number
@@ -164,6 +171,7 @@ export class ShadowCards {
       this.group.add(node)
       this.cards.push({
         node,
+        body: main.material,
         aura,
         halfHeight: height / 2,
         flickerTimer: range(this.rng, 0.3, 1.2),
@@ -179,6 +187,7 @@ export class ShadowCards {
     player,
     vulnerable,
     perception,
+    beam,
   }: ShadowCardsFrame): ShadowmenUpdate {
     const update = stepShadowmen(this.field, this.rng, {
       dt,
@@ -186,6 +195,8 @@ export class ShadowCards {
       metres: this.metres,
       havens: this.havens,
       vulnerable,
+      beam,
+      groundAt: this.groundAt,
     })
     this.contacts = update.contacts
 
@@ -205,11 +216,15 @@ export class ShadowCards {
       card.hidden = Math.max(0, card.hidden - dt)
       card.node.visible = card.hidden <= 0
       const y = this.groundAt(s.x, s.z) + card.halfHeight
+      // In the beam: paler and shaking harder the nearer it is to bursting.
+      const burn = Math.min(1, s.burn / CONFIG.shadowmen.burnSeconds)
+      const shake = 0.03 + burn * 0.12
       card.node.position.set(
-        s.x + range(this.rng, -0.03, 0.03),
+        s.x + range(this.rng, -shake, shake),
         y + range(this.rng, -0.02, 0.02),
-        s.z + range(this.rng, -0.03, 0.03)
+        s.z + range(this.rng, -shake, shake)
       )
+      card.body.color.lerpColors(BODY, BURNING, burn)
       card.node.rotation.y = Math.atan2(player.x - s.x, player.z - s.z)
       card.aura.material.opacity = perception ? 0.5 : 0
     }

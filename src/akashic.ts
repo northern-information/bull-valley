@@ -15,16 +15,18 @@ import {
 } from './assets.ts'
 import { CONFIG } from './config.ts'
 import {
+  applyJoints,
   applyPose,
   attachBook,
   attachCigarette,
+  attachFlashlight,
   buildFigure,
   buildGron,
   buildMoab,
 } from './figure.ts'
 import { buildMistCard, makeMistTexture } from './mistcards.ts'
 import { OUTFIT_IDS, OUTFITS } from './outfits.ts'
-import { samplePose } from './poses.ts'
+import { FLASHLIGHT_ARM, samplePose } from './poses.ts'
 import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import { mulberry32 } from './rng.ts'
 import { buildShadowmanFigure, makeSilhouetteTexture } from './shadowcards.ts'
@@ -81,6 +83,16 @@ function sampleShadowman(): THREE.Group {
   return group
 }
 
+// A raider as the others see them with the flashlight up: the arm held
+// out over the stand pose, the lens lit and the fake beam on.
+function sampleFlashlightUp(): THREE.Group {
+  const figure = buildFigure(OUTFIT_IDS[0])
+  applyPose(figure, samplePose('stand'))
+  applyJoints(figure, FLASHLIGHT_ARM)
+  attachFlashlight(figure).setOn(true)
+  return figure.group
+}
+
 // One bank of ground mist at full opacity, its skirt sunk into the ground.
 function sampleMist(): THREE.Group {
   const group = new THREE.Group()
@@ -98,6 +110,11 @@ const ASSETS: AkashicAsset[] = [
     build: () => sampleFigure(id),
   })),
   ...WORLD_ASSETS,
+  {
+    id: 'flashlight-up',
+    label: 'Raider with the flashlight up',
+    build: sampleFlashlightUp,
+  },
   { id: 'shadowman', label: 'Shadowman', build: sampleShadowman },
   { id: 'mist', label: 'Ground mist', build: sampleMist },
 ]
@@ -275,6 +292,8 @@ function dispose(object: THREE.Object3D): void {
 function triangleCount(object: THREE.Object3D): number {
   let n = 0
   object.traverse((o) => {
+    // A sprite is one quad (the skulls of the shadow burst).
+    if (o instanceof THREE.Sprite) n += 2
     if (!isMesh(o)) return
     const g = o.geometry
     const tris = (g.index ? g.index.count : g.attributes.position.count) / 3
@@ -296,7 +315,10 @@ function selectAsset(id: string): void {
   current = { asset, object, motion }
   setWireframe(object, state.wireframe)
 
-  const box = meshBounds(object)
+  // An asset of points and sprites alone (the shadow burst) has no mesh
+  // to frame, so it frames whatever it draws.
+  let box = meshBounds(object)
+  if (box.isEmpty()) box = new THREE.Box3().setFromObject(object)
   const size = box.getSize(new THREE.Vector3())
   const center = box.getCenter(new THREE.Vector3())
   // Far side from the default camera, so perspective does not inflate it.

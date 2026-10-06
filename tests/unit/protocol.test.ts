@@ -19,7 +19,15 @@ import {
   PROTOCOL_VERSION,
 } from '../../src/protocol.ts'
 
-const state = { x: 1.5, y: 0.25, z: -2, yaw: 0.3, pose: 'walk', riding: false }
+const state = {
+  x: 1.5,
+  y: 0.25,
+  z: -2,
+  yaw: 0.3,
+  pose: 'walk',
+  riding: false,
+  light: true,
+}
 const hello = {
   type: 'hello',
   v: PROTOCOL_VERSION,
@@ -95,6 +103,8 @@ describe('parsePeerState', () => {
   it('rejects unknown poses and non-boolean riding', () => {
     expect(parsePeerState({ ...state, pose: 'fly' })).toBeNull()
     expect(parsePeerState({ ...state, riding: 'yes' })).toBeNull()
+    expect(parsePeerState({ ...state, light: 1 })).toBeNull()
+    expect(parsePeerState({ ...state, light: undefined })).toBeNull()
     expect(parsePeerState(null)).toBeNull()
     expect(parsePeerState('state')).toBeNull()
   })

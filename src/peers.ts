@@ -4,9 +4,15 @@
 // Three glue that reads it every frame.
 
 import * as THREE from 'three'
+import { isMesh } from './assets.ts'
 import { canvas, MONO, text } from './canvas.ts'
-import { applyPose, buildFigure } from './figure.ts'
-import { POSES, samplePose } from './poses.ts'
+import {
+  applyJoints,
+  applyPose,
+  attachFlashlight,
+  buildFigure,
+} from './figure.ts'
+import { FLASHLIGHT_ARM, POSES, samplePose } from './poses.ts'
 import {
   applyJoined,
   applyLeft,
@@ -17,6 +23,7 @@ import {
   peerContacts,
   samplePeer,
 } from './presence.ts'
+import type { Flashlight } from './assets.ts'
 import type { Figure } from './figure.ts'
 import type { ScopeContact, XZ } from './interfaces.ts'
 import type { Peer, PeerTable } from './presence.ts'
@@ -33,6 +40,8 @@ const EGGSHELL = '#f0ead6' // --bv-eggshell; canvas cannot read CSS vars
 
 interface Puppet {
   figure: Figure
+  // In the left hand, its own materials: disposed with the label.
+  flashlight: Flashlight
   label: THREE.Sprite
   texture: THREE.CanvasTexture
   cycle: number
@@ -138,6 +147,9 @@ export class Peers {
       } else {
         applyPose(puppet.figure, samplePose('stand'))
       }
+      // The flashlight up and on, whatever the legs are doing.
+      if (at.light) applyJoints(puppet.figure, FLASHLIGHT_ARM)
+      puppet.flashlight.setOn(at.light)
     }
   }
 
@@ -151,18 +163,35 @@ export class Peers {
     figure.group.userData.peer = peer.id
     figure.group.userData.playerName = peer.name
     figure.group.visible = false
+    const flashlight = attachFlashlight(figure)
     const { sprite, texture } = buildLabel(peer.name)
     figure.group.add(sprite)
     this.scene.add(figure.group)
-    this.puppets.set(peer.id, { figure, label: sprite, texture, cycle: 0 })
+    this.puppets.set(peer.id, {
+      figure,
+      flashlight,
+      label: sprite,
+      texture,
+      cycle: 0,
+    })
   }
 
   // The figure's geometry and materials are shared with every other figure
-  // in the game and are never disposed; the label is this peer's alone.
+  // in the game and are never disposed; the label and the flashlight are
+  // this peer's alone.
   private dispose(id: string): void {
     const puppet = this.puppets.get(id)
     if (!puppet) return
     this.scene.remove(puppet.figure.group)
+    // The flashlight's lens glow texture is shared; nothing else of it is.
+    puppet.flashlight.group.traverse((o) => {
+      if (isMesh(o)) {
+        o.geometry.dispose()
+        for (const m of [o.material].flat()) m.dispose()
+      } else if (o instanceof THREE.Sprite) {
+        o.material.dispose()
+      }
+    })
     puppet.label.material.dispose()
     puppet.texture.dispose()
     this.puppets.delete(id)
