@@ -15,6 +15,7 @@ import type {
   PeerUpdatedMessage,
   RaidMessage,
   ServerMessage,
+  ShadowmenMessage,
   WelcomeMessage,
 } from '../../src/protocol.ts'
 import type { PackStore } from '../../worker/packs.ts'
@@ -94,8 +95,21 @@ const asState = (s: MockState) => s as unknown as DurableObjectState
 // The valley with its packs in memory instead of D1.
 class TestValley extends ValleyDO {
   packStore: PackStore = new MemoryPackStore()
+  // The shadowmen's clock, stepped by hand: ticking says whether the
+  // valley has it running.
+  ticking = false
   protected override packs(): PackStore {
     return this.packStore
+  }
+  protected override startTicker(): unknown {
+    this.ticking = true
+    return 1
+  }
+  protected override stopTicker(): void {
+    this.ticking = false
+  }
+  tick(): void {
+    this.tickShadows()
   }
 }
 
@@ -124,6 +138,8 @@ const hello = (
     outfit,
     pickups: placed(pickups),
     stations,
+    havens: Array.from({ length: stations }, (_, i) => ({ x: i * 1000, z: 0 })),
+    metres: { width: 15059, height: 15038 },
   })
 
 // The last pack frame a socket was sent.
@@ -146,6 +162,7 @@ const state = (x: number, z: number, light = false) =>
     y: 0,
     z,
     yaw: 0.5,
+    pitch: 0,
     pose: 'walk',
     riding: false,
     light,
@@ -802,5 +819,58 @@ describe('ValleyDO', () => {
       raid: { shelves: Record<string, number>[] }
     }
     expect(stored.raid.shelves[0].pbr).toEqual([false, true, true])
+  })
+})
+
+describe('ValleyDO: the shadowmen', () => {
+  const shadowFrames = (socket: MockSocket) =>
+    socket.frames().filter((m): m is ShadowmenMessage => m.type === 'shadowmen')
+
+  it('steps them for everyone once someone is placed, and stops with no one left', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    expect(v.ticking).toBe(false)
+    await v.webSocketMessage(ws(a), state(0, 0))
+    expect(v.ticking).toBe(true)
+    v.tick()
+    const [seenByA] = shadowFrames(a)
+    expect(seenByA.shadowmen.length).toBeGreaterThan(0)
+    expect(shadowFrames(b)).toEqual([seenByA])
+    await v.webSocketClose(ws(a))
+    await v.webSocketClose(ws(b))
+    v.tick()
+    expect(v.ticking).toBe(false)
+  })
+
+  it('strikes the raider a shadowman touches, and no one else', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const b = await join(v, s, 'B')
+    // The truck leaves without them: both are on foot.
+    await v.alarm()
+    await v.webSocketMessage(ws(a), state(500, 500))
+    await v.webSocketMessage(ws(b), state(900, 900))
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"shadowman","x":500,"z":501}'
+    )
+    v.tick()
+    expect(a.frames().some((m) => m.type === 'struck')).toBe(true)
+    expect(b.frames().some((m) => m.type === 'struck')).toBe(false)
+  })
+
+  it('places a shadowman only for a dev socket', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    await v.webSocketMessage(ws(a), state(0, 0))
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"shadowman","x":0,"z":1}'
+    )
+    expect(a.last<NackMessage>()).toMatchObject({
+      re: 'dev',
+      reason: 'not-a-dev-server',
+    })
   })
 })

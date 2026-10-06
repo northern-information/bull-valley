@@ -5,12 +5,19 @@
 
 import { USERNAME_MAX } from './account.ts'
 import { OUTFIT_IDS } from './outfits.ts'
-import type { ExtractKind, Inventory, ShopStock, XZ } from './interfaces.ts'
+import type {
+  ExtractKind,
+  Inventory,
+  Metres,
+  ShopStock,
+  XZ,
+} from './interfaces.ts'
 import type { OutfitId } from './outfits.ts'
+import type { Burst } from './shadowmen.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 11
+export const PROTOCOL_VERSION = 12
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -32,6 +39,9 @@ export const CHAT_MAX = 120
 // More pickups than any build places; a longer hello is refused.
 export const PICKUPS_MAX = 1000
 
+// More Citgo stations than any build places.
+export const STATIONS_MAX = 64
+
 // An item id or a pickup kind on the wire: items.ts ids are short.
 const KIND_MAX = 64
 
@@ -45,13 +55,15 @@ export type PeerPose = (typeof PEER_POSES)[number]
 
 // Where a player is and how they stand. y is the height the feet stand on
 // (the ground, or the truck bed), so a peer needs no terrain to place a
-// figure. yaw follows the player: 0 faces -Z. light: the flashlight is up
-// and on.
+// figure. yaw follows the player: 0 faces -Z; pitch is up positive. light:
+// the flashlight is up and on. The valley aims each raider's beam from
+// these (shadowmen.ts beamFrom).
 export interface PeerStateWire {
   x: number
   y: number
   z: number
   yaw: number
+  pitch: number
   pose: PeerPose
   riding: boolean
   light: boolean
@@ -163,6 +175,11 @@ export interface HelloMessage {
   // a different placement is turned away.
   pickups: PickupSpec[]
   stations: number
+  // Where each station stands, in world.fuelPoints order (its forecourt is
+  // a haven from the shadowmen), and the survey's size: the valley steps
+  // the shadowmen with them (sharedraid.ts rule 13).
+  havens: XZ[]
+  metres: Metres
 }
 
 export interface BoardMessage {
@@ -220,7 +237,10 @@ export interface CollectMessage {
 // Dev-server only: the Worker stamps the socket, and production ignores
 // these. hurry rewrites the lobby clock; reset empties the valley.
 export type DevMessage =
-  { type: 'dev'; op: 'hurry'; seconds: number } | { type: 'dev'; op: 'reset' }
+  | { type: 'dev'; op: 'hurry'; seconds: number }
+  | { type: 'dev'; op: 'reset' }
+  // A shadowman standing still at (x, z), for the specs.
+  | { type: 'dev'; op: 'shadowman'; x: number; z: number }
 
 // One line to everyone in the valley. The valley echoes it back to the
 // sender too, so every client shows the server's copy.
@@ -371,6 +391,29 @@ export interface PeerChatMessage {
   at: number
 }
 
+// One shadowman as the valley sends it: where it is, how far through
+// bursting in a beam (0 to 1), and the raider it is rushing.
+export interface ShadowmanWire {
+  id: number
+  x: number
+  z: number
+  burn: number
+  target: string | null
+}
+
+// Every step of the valley's shadowmen (CONFIG.shadowmen.tickHz a second),
+// to everyone: all of them, and the ones that burst this step.
+export interface ShadowmenMessage {
+  type: 'shadowmen'
+  shadowmen: ShadowmanWire[]
+  bursts: Burst[]
+}
+
+// A shadowman touched this raider.
+export interface StruckMessage {
+  type: 'struck'
+}
+
 export interface PongMessage {
   type: 'pong'
   t: number
@@ -396,6 +439,8 @@ export type ServerMessage =
   | PeerChatMessage
   | PongMessage
   | ErrorMessage
+  | ShadowmenMessage
+  | StruckMessage
 
 // Application close codes (the 4xxx range is ours per RFC 6455). The client
 // treats every 4xxx close as final and does not reconnect.
@@ -503,17 +548,40 @@ function parseXZ(value: unknown): XZ | null {
   return isCoord(x) && isCoord(z) ? { x, z } : null
 }
 
+// A hello's havens: one place per station.
+function parseHavens(value: unknown, stations: number): XZ[] | null {
+  if (!Array.isArray(value) || value.length !== stations) return null
+  const havens: XZ[] = []
+  for (const entry of value as unknown[]) {
+    const at = parseXZ(entry)
+    if (!at) return null
+    havens.push(at)
+  }
+  return havens
+}
+
+function parseMetres(value: unknown): Metres | null {
+  if (!isRecord(value)) return null
+  const { width, height } = value
+  const ok = (n: unknown): n is number =>
+    typeof n === 'number' && Number.isFinite(n) && n > 0 && n <= 2 * MAX_COORD
+  return ok(width) && ok(height) ? { width, height } : null
+}
+
 // A state as a client may send it: finite coordinates within the survey, a
 // known pose, boolean riding and light flags.
 export function parsePeerState(value: unknown): PeerStateWire | null {
   if (!isRecord(value)) return null
-  const { x, y, z, yaw, pose, riding, light } = value
+  const { x, y, z, yaw, pitch, pose, riding, light } = value
   if (!isCoord(x) || !isCoord(y) || !isCoord(z)) return null
   if (typeof yaw !== 'number' || !Number.isFinite(yaw)) return null
+  if (typeof pitch !== 'number' || !(Math.abs(pitch) <= Math.PI / 2)) {
+    return null
+  }
   if (!isPeerPose(pose)) return null
   if (typeof riding !== 'boolean') return null
   if (typeof light !== 'boolean') return null
-  return { x, y, z, yaw, pose, riding, light }
+  return { x, y, z, yaw, pitch, pose, riding, light }
 }
 
 // Parses one text frame from a client. Returns null for anything that is
@@ -533,9 +601,14 @@ export function parseClientMessage(text: string): ClientMessage | null {
       const { v, outfit, pickups, stations } = value
       if (typeof v !== 'number' || !Number.isInteger(v)) return null
       if (typeof outfit !== 'string') return null
-      if (!isCount(stations)) return null
+      if (!isCount(stations) || stations > STATIONS_MAX) return null
       const specs = parsePickups(pickups)
       if (!specs) return null
+      const havens = parseHavens(value.havens, stations)
+      const metres = parseMetres(value.metres)
+      // An older build sends neither; it still parses as far as its
+      // version, which the server then refuses.
+      if (v === PROTOCOL_VERSION && (!havens || !metres)) return null
       // The outfit is checked by the server with isOutfitId; the type here
       // is widened deliberately so a bad id reaches that check. An older
       // build's hello still parses (its name is ignored), so it is told its
@@ -546,6 +619,8 @@ export function parseClientMessage(text: string): ClientMessage | null {
         outfit: outfit as OutfitId,
         pickups: specs,
         stations,
+        havens: havens ?? [],
+        metres: metres ?? { width: 0, height: 0 },
       }
     }
     case 'board':
@@ -592,6 +667,10 @@ export function parseClientMessage(text: string): ClientMessage | null {
           return null
         }
         return { type: 'dev', op: 'hurry', seconds }
+      }
+      if (value.op === 'shadowman') {
+        const at = parseXZ(value)
+        return at ? { type: 'dev', op: 'shadowman', ...at } : null
       }
       return null
     }

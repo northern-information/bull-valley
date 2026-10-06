@@ -22,6 +22,7 @@ const at = (
   y: 0,
   z,
   yaw: 0,
+  pitch: 0,
   pose: 'stand',
   riding: false,
   light: false,
@@ -164,5 +165,6 @@ describe('wire helpers', () => {
     expect(stateChanged(base, { ...base, pose: 'crouch' })).toBe(true)
     expect(stateChanged(base, { ...base, riding: true })).toBe(true)
     expect(stateChanged(base, { ...base, light: true })).toBe(true)
+    expect(stateChanged(base, { ...base, pitch: 0.05 })).toBe(true)
   })
 })

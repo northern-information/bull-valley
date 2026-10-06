@@ -59,6 +59,9 @@ export const CONFIG = {
     // is aimed at a point this far over the ground it stands on.
     burnSeconds: 0.5,
     chestHeight: 1.4,
+    // In the shared valley the server steps them this many times a second
+    // and sends each step; clients draw them between the last two.
+    tickHz: 10,
   },
   // The flashlight in the left hand: the beam that burns shadowmen reaches
   // range metres, halfAngle radians off the line of sight. The light itself

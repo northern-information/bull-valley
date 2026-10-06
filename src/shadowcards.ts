@@ -1,17 +1,33 @@
 // The shadowmen as seen: flat ragged silhouette cards that turn to face the
 // player, flicker, and jitter, with a violet aura that only shows while a
-// joint is working. One held in the flashlight's beam pales and shakes
-// before it bursts. One card per slot of the field in src/shadowmen.ts, so
-// cards[i] always shows slots[i] and never hops between shadowmen.
+// joint is working. One held in a flashlight's beam pales and shakes
+// before it bursts. In the shared valley they are the valley's
+// (sharedraid.ts rule 13): the frames it sends land here and are drawn a
+// beat behind the present (shadowsync.ts). Played alone, this steps its own
+// field with the player as the one raider. One card per shadowman id, and
+// each id looks the same on every client.
 
 import * as THREE from 'three'
+import { isMesh } from './assets.ts'
 import { context2d } from './canvas.ts'
 import { CONFIG } from './config.ts'
-import { mulberry32, pick, range } from './rng.ts'
-import { createShadowmen, stepShadowmen } from './shadowmen.ts'
+import { mulberry32, range } from './rng.ts'
+import {
+  contactsOf,
+  createShadowmen,
+  placeStill,
+  stepShadowmen,
+} from './shadowmen.ts'
+import {
+  applyShadowFrame,
+  createShadowTable,
+  sampleShadowmen,
+} from './shadowsync.ts'
 import type { HeightAt, Metres, ScopeContact, XZ } from './interfaces.ts'
+import type { ShadowmanWire, ShadowmenMessage } from './protocol.ts'
 import type { Rng } from './rng.ts'
-import type { Beam, ShadowmenField, ShadowmenUpdate } from './shadowmen.ts'
+import type { Beam, Burst, ShadowmenField } from './shadowmen.ts'
+import type { ShadowTable } from './shadowsync.ts'
 
 export function makeSilhouetteTexture(rng: Rng): THREE.CanvasTexture {
   const canvas = document.createElement('canvas')
@@ -89,6 +105,10 @@ export function buildShadowmanFigure(
 
 const BODY = new THREE.Color('#07080c')
 const BURNING = new THREE.Color('#6b6e78')
+// How many silhouettes the cards share; a shadowman's id picks one.
+const LOOKS = 5
+// The player's id in a field of their own.
+const ALONE = 'me'
 
 export interface ShadowCardsOptions {
   scene: THREE.Object3D
@@ -96,17 +116,33 @@ export interface ShadowCardsOptions {
   groundAt: HeightAt
   metres: Metres
   havens: readonly XZ[]
-  // Where the first bubble is centred.
-  player: XZ
+}
+
+// Played alone: the player as the field's one raider.
+export interface AloneFrame {
+  vulnerable: boolean
+  // The flashlight, while it is up and on.
+  beam: Beam | null
 }
 
 export interface ShadowCardsFrame {
   dt: number
   player: XZ
-  vulnerable: boolean
   perception: boolean
-  // The flashlight, while it is up and on.
-  beam: Beam | null
+  // Null in the shared valley, which steps them itself.
+  alone: AloneFrame | null
+  // The shared valley's moment to draw (local ms), and this raider's id.
+  renderAt: number
+  myId: string | null
+}
+
+export interface ShadowCardsUpdate {
+  // A shadowman touched the player, played alone; in the shared valley the
+  // valley says so (a struck frame).
+  struck: boolean
+  // Where shadowmen burst since the last update.
+  bursts: Burst[]
+  contacts: ScopeContact[]
 }
 
 interface Card {
@@ -122,91 +158,100 @@ export class ShadowCards {
   groundAt: HeightAt
   metres: Metres
   havens: readonly XZ[]
-  // Textures and heights first, then the simulation.
-  rng: Rng
+  // Played alone: the field this client steps.
   field: ShadowmenField
-  cards: Card[]
+  // In the shared valley: the last two frames the valley sent.
+  table: ShadowTable
   // The last update's contacts, for the dev hook.
   contacts: ScopeContact[]
   group: THREE.Group
+  private rng: Rng
+  private textures: THREE.CanvasTexture[]
+  private cards = new Map<number, Card>()
+  private pending: Burst[] = []
 
-  constructor({ scene, groundAt, metres, havens, player }: ShadowCardsOptions) {
+  constructor({ scene, groundAt, metres, havens }: ShadowCardsOptions) {
     this.groundAt = groundAt
     this.metres = metres
     this.havens = havens
+    // The silhouettes come first off a fixed seed, so every client paints
+    // the same ones.
     this.rng = mulberry32(0xd06)
-    this.cards = []
+    this.textures = []
+    for (let i = 0; i < LOOKS; i++) {
+      this.textures.push(makeSilhouetteTexture(this.rng))
+    }
     this.contacts = []
     this.group = new THREE.Group()
     this.group.name = 'shadowmen'
     scene.add(this.group)
+    this.field = createShadowmen()
+    this.table = createShadowTable()
+  }
 
-    const textures: THREE.CanvasTexture[] = []
-    for (let i = 0; i < 5; i++) textures.push(makeSilhouetteTexture(this.rng))
+  // A frame from the valley, landed at `at` (local ms).
+  receive(msg: ShadowmenMessage, at: number): void {
+    applyShadowFrame(this.table, msg.shadowmen, at)
+    this.pending.push(...msg.bursts)
+  }
 
-    for (let i = 0; i < CONFIG.shadowmen.count; i++) {
-      const texture = pick(this.rng, textures)
-      const height = range(this.rng, 2.4, 3.2)
-      const main = buildShadowmanFigure(texture, height)
-      // Perception aura: the same figure, additive violet, fog-proof, only
-      // visible while the joint is working.
-      const aura = new THREE.Mesh(
-        new THREE.PlaneGeometry(height / 2 + 0.3, height + 0.5),
-        new THREE.MeshBasicMaterial({
-          map: texture,
-          transparent: true,
-          opacity: 0,
-          color: new THREE.Color('#8b5cf6'),
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-          fog: false,
-          side: THREE.DoubleSide,
-        })
-      )
-      aura.position.z = -0.02
-      const node = new THREE.Group()
-      node.add(main)
-      node.add(aura)
-      node.visible = false
-      this.group.add(node)
-      this.cards.push({
-        node,
-        body: main.material,
-        aura,
-        halfHeight: height / 2,
-        flickerTimer: range(this.rng, 0.3, 1.2),
-        hidden: 0,
-      })
-    }
-
-    this.field = createShadowmen(this.rng, player, metres, havens)
+  // A dev shadowman standing still at (x, z), played alone.
+  place(x: number, z: number): void {
+    placeStill(this.field, x, z)
   }
 
   update({
     dt,
     player,
-    vulnerable,
     perception,
-    beam,
-  }: ShadowCardsFrame): ShadowmenUpdate {
-    const update = stepShadowmen(this.field, this.rng, {
-      dt,
-      player,
-      metres: this.metres,
-      havens: this.havens,
-      vulnerable,
-      beam,
-      groundAt: this.groundAt,
-    })
-    this.contacts = update.contacts
+    alone,
+    renderAt,
+    myId,
+  }: ShadowCardsFrame): ShadowCardsUpdate {
+    let struck = false
+    let shown: readonly Pick<
+      ShadowmanWire,
+      'id' | 'x' | 'z' | 'burn' | 'target'
+    >[]
+    let me: string
+    if (alone) {
+      // Played alone the valley's frames are stale: start them afresh.
+      this.table = createShadowTable()
+      const out = stepShadowmen(this.field, this.rng, {
+        dt,
+        raiders: [{ id: ALONE, x: player.x, z: player.z, ...alone }],
+        metres: this.metres,
+        havens: this.havens,
+      })
+      struck = out.struck.length > 0
+      this.pending.push(...out.bursts)
+      const full = CONFIG.shadowmen.burnSeconds
+      shown = this.field.shadowmen.map((s) => ({ ...s, burn: s.burn / full }))
+      me = ALONE
+    } else {
+      // In the shared valley the field this client stepped is not the
+      // valley's: drop it, so a fall back to playing alone starts fresh.
+      if (this.field.shadowmen.length) this.field = createShadowmen()
+      shown = sampleShadowmen(this.table, renderAt)
+      me = myId ?? ''
+    }
+    this.contacts = contactsOf(shown, player, me)
+    const bursts = this.pending
+    this.pending = []
+    this.draw(shown, player, perception, dt)
+    return { struck, bursts, contacts: this.contacts }
+  }
 
-    for (let i = 0; i < this.cards.length; i++) {
-      const card = this.cards[i]
-      const s = this.field.slots[i]
-      if (!s) {
-        card.node.visible = false
-        continue
-      }
+  private draw(
+    shown: readonly Pick<ShadowmanWire, 'id' | 'x' | 'z' | 'burn'>[],
+    player: XZ,
+    perception: boolean,
+    dt: number
+  ): void {
+    const seen = new Set<number>()
+    for (const s of shown) {
+      seen.add(s.id)
+      const card = this.cardFor(s.id)
       // Flicker: gone for a frame or two every second or so.
       card.flickerTimer -= dt
       if (card.flickerTimer <= 0) {
@@ -216,8 +261,8 @@ export class ShadowCards {
       card.hidden = Math.max(0, card.hidden - dt)
       card.node.visible = card.hidden <= 0
       const y = this.groundAt(s.x, s.z) + card.halfHeight
-      // In the beam: paler and shaking harder the nearer it is to bursting.
-      const burn = Math.min(1, s.burn / CONFIG.shadowmen.burnSeconds)
+      // In a beam: paler and shaking harder the nearer it is to bursting.
+      const burn = Math.min(1, s.burn)
       const shake = 0.03 + burn * 0.12
       card.node.position.set(
         s.x + range(this.rng, -shake, shake),
@@ -228,7 +273,57 @@ export class ShadowCards {
       card.node.rotation.y = Math.atan2(player.x - s.x, player.z - s.z)
       card.aura.material.opacity = perception ? 0.5 : 0
     }
+    // A shadowman gone frees its card for the next.
+    for (const [id, card] of this.cards) {
+      if (seen.has(id)) continue
+      this.group.remove(card.node)
+      card.body.dispose()
+      card.aura.material.dispose()
+      for (const child of card.node.children) {
+        if (isMesh(child)) child.geometry.dispose()
+      }
+      this.cards.delete(id)
+    }
+  }
 
-    return update
+  // The card for a shadowman, built the first time it shows: its
+  // silhouette and height come from its id, so it looks the same to all.
+  private cardFor(id: number): Card {
+    const found = this.cards.get(id)
+    if (found) return found
+    const look = mulberry32(id)
+    const texture = this.textures[Math.floor(look() * LOOKS)]
+    const height = range(look, 2.4, 3.2)
+    const main = buildShadowmanFigure(texture, height)
+    // Perception aura: the same figure, additive violet, fog-proof, only
+    // visible while the joint is working.
+    const aura = new THREE.Mesh(
+      new THREE.PlaneGeometry(height / 2 + 0.3, height + 0.5),
+      new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        opacity: 0,
+        color: new THREE.Color('#8b5cf6'),
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        fog: false,
+        side: THREE.DoubleSide,
+      })
+    )
+    aura.position.z = -0.02
+    const node = new THREE.Group()
+    node.add(main)
+    node.add(aura)
+    this.group.add(node)
+    const card: Card = {
+      node,
+      body: main.material,
+      aura,
+      halfHeight: height / 2,
+      flickerTimer: range(this.rng, 0.3, 1.2),
+      hidden: 0,
+    }
+    this.cards.set(id, card)
+    return card
   }
 }

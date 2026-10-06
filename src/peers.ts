@@ -12,7 +12,7 @@ import {
   attachFlashlight,
   buildFigure,
 } from './figure.ts'
-import { FLASHLIGHT_ARM, POSES, samplePose } from './poses.ts'
+import { flashlightArm, POSES, samplePose } from './poses.ts'
 import {
   applyJoined,
   applyLeft,
@@ -148,7 +148,7 @@ export class Peers {
         applyPose(puppet.figure, samplePose('stand'))
       }
       // The flashlight up and on, whatever the legs are doing.
-      if (at.light) applyJoints(puppet.figure, FLASHLIGHT_ARM)
+      if (at.light) applyJoints(puppet.figure, flashlightArm(at.pitch))
       puppet.flashlight.setOn(at.light)
     }
   }

@@ -1,4 +1,4 @@
-import { beginRaid, expect, test } from './fixtures.ts'
+import { beginRaid, expect, heardWhere, test } from './fixtures.ts'
 
 // The flashlight in the left hand: the left button raises it and lights
 // it, and a shadowman held in the beam bursts.
@@ -49,27 +49,18 @@ test('a shadowman held in the beam bursts', async ({ page }) => {
     bv.teleport(0.5, 0.5)
     bv.player.pitch = 0
   })
+  await heardWhere(page)
   await page.evaluate(() => {
     const bv = window.__bv
     if (!bv) return
     const { yaw } = bv.player
-    bv.shadowmen.field.slots[0] = {
-      x: bv.player.pos.x - Math.sin(yaw) * 6,
-      z: bv.player.pos.z - Math.cos(yaw) * 6,
-      dirX: 0,
-      dirZ: 1,
-      speed: 0,
-      rushing: false,
-      burn: 0,
-    }
-  })
-  // Gone (the slot may already hold a newcomer, who is never standing
-  // still), and the burst plays where it stood.
-  await expect
-    .poll(() =>
-      page.evaluate(() => window.__bv?.shadowmen.field.slots[0]?.speed ?? -1)
+    bv.placeShadowman(
+      bv.player.pos.x - Math.sin(yaw) * 6,
+      bv.player.pos.z - Math.cos(yaw) * 6
     )
-    .not.toBe(0)
+  })
+  // The valley burns it in this raider's beam, and the burst plays where
+  // it stood.
   await expect
     .poll(() =>
       page.evaluate(() =>

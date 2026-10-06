@@ -26,7 +26,7 @@ import {
 } from './figure.ts'
 import { buildMistCard, makeMistTexture } from './mistcards.ts'
 import { OUTFIT_IDS, OUTFITS } from './outfits.ts'
-import { FLASHLIGHT_ARM, samplePose } from './poses.ts'
+import { flashlightArm, samplePose } from './poses.ts'
 import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import { mulberry32 } from './rng.ts'
 import { buildShadowmanFigure, makeSilhouetteTexture } from './shadowcards.ts'
@@ -88,7 +88,7 @@ function sampleShadowman(): THREE.Group {
 function sampleFlashlightUp(): THREE.Group {
   const figure = buildFigure(OUTFIT_IDS[0])
   applyPose(figure, samplePose('stand'))
-  applyJoints(figure, FLASHLIGHT_ARM)
+  applyJoints(figure, flashlightArm())
   attachFlashlight(figure).setOn(true)
   return figure.group
 }

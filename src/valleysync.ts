@@ -59,8 +59,8 @@ export function wireValley(game: Game, actions: Actions): void {
         return
       }
       case 'peer-state': {
-        const { x, y, z, yaw, pose, riding, light } = msg
-        peers.state(msg.id, { x, y, z, yaw, pose, riding, light }, now)
+        const { x, y, z, yaw, pitch, pose, riding, light } = msg
+        peers.state(msg.id, { x, y, z, yaw, pitch, pose, riding, light }, now)
         return
       }
       case 'peer-left': {
@@ -79,6 +79,13 @@ export function wireValley(game: Game, actions: Actions): void {
         console.warn('Valley:', msg.code, msg.message)
         return
       case 'pong':
+        return
+      // Rule 13: the valley's shadowmen, every step, and a touch.
+      case 'shadowmen':
+        game.shadowmen.receive(msg, now)
+        return
+      case 'struck':
+        actions.strike()
         return
     }
   })

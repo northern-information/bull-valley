@@ -24,6 +24,7 @@ const state = {
   y: 0.25,
   z: -2,
   yaw: 0.3,
+  pitch: -0.2,
   pose: 'walk',
   riding: false,
   light: true,
@@ -37,6 +38,8 @@ const hello = {
     { kind: 'cabbage', count: 1 },
   ],
   stations: 5,
+  havens: [0, 1, 2, 3, 4].map((i) => ({ x: i * 100, z: i })),
+  metres: { width: 15059, height: 15038 },
 }
 
 const parse = (value: unknown) => parseClientMessage(JSON.stringify(value))
@@ -104,6 +107,8 @@ describe('parsePeerState', () => {
     expect(parsePeerState({ ...state, pose: 'fly' })).toBeNull()
     expect(parsePeerState({ ...state, riding: 'yes' })).toBeNull()
     expect(parsePeerState({ ...state, light: 1 })).toBeNull()
+    expect(parsePeerState({ ...state, pitch: 2 })).toBeNull()
+    expect(parsePeerState({ ...state, pitch: NaN })).toBeNull()
     expect(parsePeerState({ ...state, light: undefined })).toBeNull()
     expect(parsePeerState(null)).toBeNull()
     expect(parsePeerState('state')).toBeNull()
@@ -158,6 +163,16 @@ describe('parseClientMessage', () => {
   it("ignores an older build's name, so its stale version is what is judged", () => {
     expect(parse({ ...hello, v: 3, name: 'Dave' })).toEqual({ ...hello, v: 3 })
     expect(parse({ ...hello, name: 7 })).toEqual(hello)
+  })
+
+  it('parses the dev frame that places a shadowman', () => {
+    expect(parse({ type: 'dev', op: 'shadowman', x: 1, z: -2 })).toEqual({
+      type: 'dev',
+      op: 'shadowman',
+      x: 1,
+      z: -2,
+    })
+    expect(parse({ type: 'dev', op: 'shadowman', x: 1 })).toBeNull()
   })
 
   it('parses the raid frames', () => {
@@ -273,6 +288,17 @@ describe('parseClientMessage', () => {
     ).toBeNull()
     expect(parse({ ...hello, stations: undefined })).toBeNull()
     expect(parse({ ...hello, stations: -1 })).toBeNull()
+    // One haven per station, each a place in the valley; a survey size.
+    expect(parse({ ...hello, havens: undefined })).toBeNull()
+    expect(parse({ ...hello, havens: hello.havens.slice(1) })).toBeNull()
+    expect(
+      parse({ ...hello, havens: [...hello.havens.slice(1), 'pumps'] })
+    ).toBeNull()
+    expect(parse({ ...hello, metres: undefined })).toBeNull()
+    expect(parse({ ...hello, metres: { width: 0, height: 10 } })).toBeNull()
+    expect(
+      parse({ ...hello, metres: { width: 10, height: 'tall' } })
+    ).toBeNull()
     expect(parse({ type: 'state', ...state, x: NaN })).toBeNull()
     expect(parse({ type: 'ping', t: 'now' })).toBeNull()
   })

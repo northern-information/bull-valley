@@ -236,7 +236,6 @@ async function boot() {
       groundAt: world.ground.at,
       metres: geo.metres,
       havens: world.fuelPoints,
-      player: player.pos,
     }),
     bursts: new ShadowBursts(scene),
     // Ground mist drifts around the player.
@@ -271,6 +270,8 @@ async function boot() {
     outfit: pick.outfit,
     pickups: world.pickups.map(({ kind, count }) => ({ kind, count })),
     stations: world.fuelPoints.length,
+    havens: world.fuelPoints.map(({ x, z }) => ({ x, z })),
+    metres: geo.metres,
   })
   wireKeys(game, actions, engagePointer)
 

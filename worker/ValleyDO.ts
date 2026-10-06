@@ -8,8 +8,14 @@
 // (d1packs.ts): the reducer says what goes in or out, and this writes it
 // and tells the account's sockets. A buy runs alone (blockConcurrencyWhile),
 // so the wallet it was judged against is the wallet it is paid from.
+//
+// The shadowmen (rule 13) are stepped here CONFIG.shadowmen.tickHz times a
+// second while anyone is placed in the raid, and live in memory only. The
+// ticking timer keeps the object awake; it stops itself once no one is
+// left, and the object can hibernate again.
 
 import { DurableObject } from 'cloudflare:workers'
+import { CONFIG } from '../src/config.ts'
 import {
   CLOSE,
   isOutfitId,
@@ -18,11 +24,15 @@ import {
   parseClientMessage,
   PROTOCOL_VERSION,
 } from '../src/protocol.ts'
+import { mulberry32 } from '../src/rng.ts'
 import {
+  createShadows,
   createValley,
   dailyFor,
+  placeShadowman,
   reduce,
   restoreValley,
+  stepShadows,
   toWire,
 } from '../src/sharedraid.ts'
 import { ACCOUNT_HEADER, NAME_HEADER } from './auth.ts'
@@ -84,6 +94,10 @@ export class ValleyDO extends DurableObject<Env> {
   private stateRate = new WeakMap<WebSocket, RateWindow>()
   private chatRate = new WeakMap<WebSocket, RateWindow>()
   private appearanceRate = new WeakMap<WebSocket, RateWindow>()
+  // Rule 13, in memory only: gone whenever the object sleeps.
+  private shadows = createShadows()
+  private shadowRng = mulberry32(Math.floor(Math.random() * 2 ** 32))
+  private ticker: unknown = null
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
@@ -141,6 +155,7 @@ export class ValleyDO extends DurableObject<Env> {
         return
       case 'state':
         this.state(ws, attachment, me, msg)
+        this.startShadows()
         return
       case 'ping':
         send(ws, { type: 'pong', t: msg.t, serverNow: Date.now() })
@@ -193,6 +208,12 @@ export class ValleyDO extends DurableObject<Env> {
           send(ws, { type: 'nack', re: 'dev', reason: 'not-a-dev-server' })
           return
         }
+        if (msg.op === 'shadowman') {
+          placeShadowman(this.shadows, msg.x, msg.z)
+          this.startShadows()
+          return
+        }
+        if (msg.op === 'reset') this.shadows = createShadows()
         await this.act(
           ws,
           msg.op === 'hurry'
@@ -221,6 +242,50 @@ export class ValleyDO extends DurableObject<Env> {
   // Where the packs are kept; the Worker tests hand in a memory store.
   protected packs(): PackStore {
     return new D1PackStore(this.env.DB)
+  }
+
+  // The shadowmen's clock; the Worker tests step them by hand instead.
+  protected startTicker(step: () => void, ms: number): unknown {
+    return setInterval(step, ms)
+  }
+
+  protected stopTicker(ticker: unknown): void {
+    clearInterval(ticker as ReturnType<typeof setInterval>)
+  }
+
+  // Rule 13: step the shadowmen while anyone is placed in the raid.
+  private startShadows(): void {
+    if (this.ticker !== null) return
+    this.ticker = this.startTicker(
+      () => this.tickShadows(),
+      1000 / CONFIG.shadowmen.tickHz
+    )
+  }
+
+  // One step of the shadowmen: the frame to everyone, a strike to each
+  // raider touched. Stops the clock when there is no one to step round.
+  protected tickShadows(): void {
+    const placed = this.roster(null).map(({ id, at }) => ({ id, at }))
+    const out = stepShadows(this.valley, this.shadows, placed, this.shadowRng, {
+      now: Date.now(),
+      dt: 1 / CONFIG.shadowmen.tickHz,
+    })
+    if (!out) {
+      if (this.ticker !== null) this.stopTicker(this.ticker)
+      this.ticker = null
+      return
+    }
+    this.broadcast(out.message, null)
+    if (out.struck.length === 0) return
+    for (const socket of this.ctx.getWebSockets()) {
+      const me = this.attachment(socket).me
+      if (!me || !out.struck.includes(me.id)) continue
+      try {
+        send(socket, { type: 'struck' })
+      } catch {
+        // Closing sockets throw; their close handler follows.
+      }
+    }
   }
 
   private attachment(ws: WebSocket): Attachment {
@@ -285,6 +350,8 @@ export class ValleyDO extends DurableObject<Env> {
         outfit: hello.outfit,
         pickups: hello.pickups,
         stations: hello.stations,
+        havens: hello.havens,
+        metres: hello.metres,
       },
       { now: Date.now(), present: this.presentIds(ws) }
     )
@@ -324,13 +391,11 @@ export class ValleyDO extends DurableObject<Env> {
     state: PeerStateWire
   ): void {
     if (!allow(this.stateRate, ws, STATE_LIMIT)) return
-    const { x, y, z, yaw, pose, riding, light } = state
-    const next: PeerWire = { ...me, at: { x, y, z, yaw, pose, riding, light } }
+    const { x, y, z, yaw, pitch, pose, riding, light } = state
+    const at = { x, y, z, yaw, pitch, pose, riding, light }
+    const next: PeerWire = { ...me, at }
     ws.serializeAttachment({ ...attachment, me: next } satisfies Attachment)
-    this.broadcast(
-      { type: 'peer-state', id: me.id, x, y, z, yaw, pose, riding, light },
-      ws
-    )
+    this.broadcast({ type: 'peer-state', id: me.id, ...at }, ws)
   }
 
   // A chat line to everyone, the sender included. Nothing is stored.

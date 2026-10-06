@@ -19,11 +19,11 @@ import { packItemOf } from './packgrid.ts'
 import { poseOf, stateChanged } from './presence.ts'
 import { advance, EVENTS, loadoutClock, STATES, timedOut } from './raid.ts'
 import { lobbyCount, seatOf } from './raidsync.ts'
+import { beamFrom } from './shadowmen.ts'
 import { formatCash } from './store.ts'
 import type { Actions } from './actions.ts'
 import type { Game } from './game.ts'
 import type { PeerStateWire } from './protocol.ts'
-import type { Beam } from './shadowmen.ts'
 import type { Targets } from './targets.ts'
 
 // Under e2e (--mode test) the valley runs but is never drawn. The specs
@@ -56,8 +56,6 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     peers,
   } = game
   const ridingForward = new THREE.Vector3(0, 0, -1)
-  // Where the eye looks, for the flashlight's beam.
-  const sight = new THREE.Vector3()
 
   // The countdown, with the lobby's headcount when others are in it.
   const lobbyLine = () => {
@@ -177,30 +175,40 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       kind: s.using?.kind ?? null,
       on: lit,
     })
-    let beam: Beam | null = null
-    if (lit) {
-      camera.getWorldDirection(sight)
-      beam = {
-        origin: camera.position,
-        dir: sight,
-        range: CONFIG.flashlight.range,
-        halfAngle: CONFIG.flashlight.halfAngle,
-      }
-    }
+    // The others are drawn a beat behind the present, so two of their
+    // frames always bracket the moment: the peers, and the valley's
+    // shadowmen.
+    const renderAt = now - CONFIG.net.interpolateMs
 
     // The shadowmen cross whatever the raid is doing, but only rush and touch
     // a player on foot who is not already coming to from the last strike.
-    const vulnerable =
-      s.started &&
-      !s.ended &&
-      s.raid.state === STATES.ON_FOOT &&
-      now >= s.strikeUntil
+    // In the shared valley they are the valley's, and it says when one
+    // touches you; played alone, this client steps them.
+    const alone = net.online
+      ? null
+      : {
+          vulnerable:
+            s.started &&
+            !s.ended &&
+            s.raid.state === STATES.ON_FOOT &&
+            now >= s.strikeUntil,
+          // The same beam the valley would aim from this raider's frame.
+          beam: lit
+            ? beamFrom(
+                { x: player.pos.x, y: feetY, z: player.pos.z },
+                player.yaw,
+                player.pitch,
+                crouching
+              )
+            : null,
+        }
     const swarm = shadowmen.update({
       dt,
       player: player.pos,
-      vulnerable,
       perception,
-      beam,
+      alone,
+      renderAt,
+      myId: net.id,
     })
     if (swarm.struck) actions.strike()
     for (const at of swarm.bursts) {
@@ -228,10 +236,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     if (now < s.strikeUntil) hud.drawStatic()
     else if (!hud.staticWrap.hidden) hud.showStatic(false)
 
-    // The others are drawn a beat behind the present, so two of their
-    // frames always bracket the moment. Ours goes out on a fixed cadence,
-    // and only when it changed.
-    const renderAt = now - CONFIG.net.interpolateMs
+    // Ours goes out on a fixed cadence, and only when it changed.
     peers.update(dt, renderAt)
     s.sinceSent += dt
     if (net.online && !s.ended && s.sinceSent >= 1 / CONFIG.net.sendHz) {
@@ -241,9 +246,10 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         y: feetY,
         z: player.pos.z,
         yaw: player.yaw,
+        pitch: player.pitch,
         pose: poseOf(moveSpeed, crouching),
         riding: s.raid.state === STATES.RIDING || s.aboard,
-        light: s.flashlight.up,
+        light: lit,
       }
       if (stateChanged(s.lastSent, state)) {
         s.lastSent = state

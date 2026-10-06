@@ -658,7 +658,7 @@ export function applyJoints(
 
 // The flashlight every raider carries, in the left fist with the lens out
 // past the knuckles, and its fake beam (assets.ts buildFlashlight). With
-// the arm raised (poses.ts FLASHLIGHT_ARM) it points ahead and a little
+// the arm raised (poses.ts flashlightArm) it points ahead and a little
 // down.
 export function attachFlashlight(figure: Figure, beam = 7): Flashlight {
   const flashlight = buildFlashlight({ beam })

@@ -13,7 +13,7 @@ import type { MistCards } from './mistcards.ts'
 import type { NetStatus } from './net.ts'
 import type { Player } from './player.ts'
 import type { Peer } from './presence.ts'
-import type { DailyWire, RaidWire } from './protocol.ts'
+import type { DailyWire, PeerStateWire, RaidWire } from './protocol.ts'
 import type { RoadGraph } from './roadgraph.ts'
 import type { ShadowCards } from './shadowcards.ts'
 import type { Truck } from './truck.ts'
@@ -53,10 +53,15 @@ interface BvHook {
   readonly chat: readonly ChatLine[]
   // The flashlight in the left hand, and the item the right last raised.
   readonly flashlight: Hand
+  // The last state frame sent to the valley: where it last heard we are.
+  readonly sent: PeerStateWire | null
   readonly using: { kind: string; at: number } | null
   teleport(u: number, v: number): void
   // The left button, for a page without pointer lock.
   toggleFlashlight(): void
+  // A shadowman standing still at world (x, z): the valley's, through a
+  // dev frame, or this client's own, played alone.
+  placeShadowman(x: number, z: number): void
   hurryTruck(seconds?: number): void
 }
 
@@ -117,6 +122,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     get flashlight() {
       return s.flashlight
     },
+    get sent() {
+      return s.lastSent
+    },
     get using() {
       return s.using
     },
@@ -125,6 +133,10 @@ export function installDevHook(game: Game, actions: Actions): void {
       player.relocate(x, z)
     },
     toggleFlashlight: () => actions.toggleFlashlight(),
+    placeShadowman(x: number, z: number) {
+      if (net.online) net.send({ type: 'dev', op: 'shadowman', x, z })
+      else game.shadowmen.place(x, z)
+    },
     hurryTruck(seconds = 5) {
       // In the shared valley the server holds the clock; a dev server
       // lets a spec move it.

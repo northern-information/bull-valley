@@ -2,21 +2,27 @@ import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
 import { dayKey, nextMidnight } from '../../src/daily.ts'
 import { contentsOf, getItem } from '../../src/items.ts'
+import { mulberry32 } from '../../src/rng.ts'
 import {
+  createShadows,
   createValley,
   dailyFor,
+  placeShadowman,
   reduce,
   restoreValley,
+  shadowRaiders,
+  stepShadows,
   toWire,
 } from '../../src/sharedraid.ts'
 import { freshStock } from '../../src/store.ts'
 import { unitsLeft } from './stock.ts'
 import type {
   DailyMessage,
+  PeerStateWire,
   PickupSpec,
   RaidMessage,
 } from '../../src/protocol.ts'
-import type { Valley, ValleyAction } from '../../src/sharedraid.ts'
+import type { Placed, Valley, ValleyAction } from '../../src/sharedraid.ts'
 
 // What a build placed: a pack of Marlboros, two joints, then cabbages.
 const PICKUPS: PickupSpec[] = [
@@ -25,6 +31,12 @@ const PICKUPS: PickupSpec[] = [
   ...Array.from({ length: 68 }, () => ({ kind: 'cabbage', count: 1 })),
 ]
 const STATIONS = 3
+const HAVENS = [
+  { x: 0, z: 0 },
+  { x: 2000, z: 0 },
+  { x: 0, z: 2000 },
+]
+const METRES = { width: 15059, height: 15038 }
 const T0 = 1_000_000
 const NO_HAUL = { carrying: 0 }
 
@@ -76,6 +88,8 @@ const join = (id: string): ValleyAction => ({
   outfit: 'coleman',
   pickups: PICKUPS,
   stations: STATIONS,
+  havens: HAVENS,
+  metres: METRES,
 })
 
 const reasons = (reduced: { broadcast: RaidMessage[] }) =>
@@ -386,6 +400,11 @@ describe('rule 8: the shelves are shared', () => {
       raid: { ...raid, shelves: [{ ...raid.shelves[0], sack: [true] }] },
     } as unknown as Valley
     expect(restoreValley(unsold).raid).toBeNull()
+    // From before the shadowmen were the valley's.
+    const { havens: _havens, ...unhavened } = raid
+    expect(
+      restoreValley({ ...v.valley, raid: unhavened } as Valley).raid
+    ).toBeNull()
     expect(restoreValley(v.valley).raid).toEqual(raid)
     expect(restoreValley({ epoch: 2 })).toEqual({ ...createValley(), epoch: 2 })
   })
@@ -854,5 +873,189 @@ describe("rule 12: the haul is the valley's", () => {
     v.step({ type: 'leave', id: 'b' })
     v.step(join('a3'))
     expect(v.valley.raid?.cargo).toEqual({})
+  })
+})
+
+describe("rule 13: the shadowmen are the valley's", () => {
+  // Out past every haven, on foot, looking north with nothing in hand.
+  const state = (over: Partial<PeerStateWire> = {}): PeerStateWire => ({
+    x: 500,
+    y: 0,
+    z: 500,
+    yaw: 0,
+    pitch: 0,
+    pose: 'stand',
+    riding: false,
+    light: false,
+    ...over,
+  })
+  // 'a' joined the lobby; 'b' joined after the truck left, on foot.
+  const valley = () => {
+    const v = valleyWith(join('a'))
+    v.step({ type: 'clock' })
+    v.step(join('b'))
+    return v.valley
+  }
+
+  it('is in the raid it opened: the havens and the survey, never on the wire', () => {
+    const raid = valleyWith(join('a')).valley.raid
+    expect(raid?.havens).toEqual(HAVENS)
+    expect(raid?.metres).toEqual(METRES)
+    const wire = toWire(valleyWith(join('a')).valley)
+    expect(wire && ('havens' in wire || 'metres' in wire)).toBe(false)
+  })
+
+  it('crosses round every placed raider still in the raid', () => {
+    const v = valley()
+    const placed: Placed[] = [
+      { id: 'a', at: state() },
+      { id: 'b', at: state({ x: 900 }) },
+      { id: 'c', at: state() },
+      { id: 'd', at: null },
+    ]
+    const raiders = shadowRaiders(v, createShadows(), placed, T0)
+    expect(raiders.map((r) => r.id)).toEqual(['a', 'b'])
+    const gone = {
+      ...v,
+      members: {
+        ...v.members,
+        b: { ...v.members.b, phase: 'EXTRACTED' as const },
+      },
+    }
+    expect(
+      shadowRaiders(gone, createShadows(), placed, T0).map((r) => r.id)
+    ).toEqual(['a'])
+  })
+
+  it('rushes only a raider on foot, out of the bed, not coming to', () => {
+    const v = valley()
+    const shadows = createShadows()
+    const vulnerable = (at: PeerStateWire, id = 'b') =>
+      shadowRaiders(v, shadows, [{ id, at }], T0)[0].vulnerable
+    expect(vulnerable(state())).toBe(true)
+    // In the lobby.
+    const lobby = valleyWith(join('a')).valley
+    expect(
+      shadowRaiders(lobby, shadows, [{ id: 'a', at: state() }], T0)[0]
+        .vulnerable
+    ).toBe(false)
+    expect(vulnerable(state({ riding: true }))).toBe(false)
+    shadows.recovering.b = T0 + 1
+    expect(vulnerable(state())).toBe(false)
+  })
+
+  it('aims a beam only for a raider whose light is on', () => {
+    const v = valley()
+    const [dark, lit] = shadowRaiders(
+      v,
+      createShadows(),
+      [
+        { id: 'a', at: state() },
+        { id: 'b', at: state({ light: true, pose: 'crouch' }) },
+      ],
+      T0
+    )
+    expect(dark.beam).toBeNull()
+    expect(lit.beam?.origin.y).toBe(CONFIG.player.crouchEyeHeight)
+    expect(lit.beam?.floor).toBe(0)
+  })
+
+  it('steps the field and sends all of it, rounded', () => {
+    const v = valley()
+    const shadows = createShadows()
+    const out = stepShadows(
+      v,
+      shadows,
+      [{ id: 'b', at: state() }],
+      mulberry32(1),
+      {
+        now: T0,
+        dt: 0.1,
+      }
+    )
+    expect(out?.message.type).toBe('shadowmen')
+    expect(out?.message.shadowmen.length).toBe(CONFIG.shadowmen.count)
+    for (const s of out?.message.shadowmen ?? []) {
+      expect(Math.round(s.x * 100) / 100).toBe(s.x)
+      expect(s.burn).toBe(0)
+    }
+    expect(out?.struck).toEqual([])
+  })
+
+  it('strikes the raider touched, then leaves them alone for the strike', () => {
+    const v = valley()
+    const shadows = createShadows()
+    const placed = [{ id: 'b', at: state() }]
+    stepShadows(v, shadows, placed, mulberry32(1), { now: T0, dt: 0 })
+    shadows.field.shadowmen = []
+    placeShadowman(shadows, 500, 501)
+    const out = stepShadows(v, shadows, placed, mulberry32(1), {
+      now: T0,
+      dt: 0.1,
+    })
+    expect(out?.struck).toEqual(['b'])
+    const until = T0 + CONFIG.shadowmen.strikeSeconds * 1000
+    expect(shadows.recovering).toEqual({ b: until })
+    // Still coming to: not rushed.
+    placeShadowman(shadows, 500, 501)
+    expect(
+      stepShadows(v, shadows, placed, mulberry32(1), { now: T0 + 1, dt: 0.1 })
+        ?.struck
+    ).toEqual([])
+    // Come to.
+    shadows.field.shadowmen = []
+    stepShadows(v, shadows, placed, mulberry32(1), { now: until, dt: 0 })
+    expect(shadows.recovering).toEqual({})
+  })
+
+  it('bursts in a beam, and sends where', () => {
+    const v = valley()
+    const shadows = createShadows()
+    // From the bed, so it stands still to burn rather than rushing.
+    const placed = [{ id: 'b', at: state({ light: true, riding: true }) }]
+    stepShadows(v, shadows, placed, mulberry32(1), { now: T0, dt: 0 })
+    shadows.field.shadowmen = []
+    const id = shadows.field.nextId
+    placeShadowman(shadows, 500, 490)
+    const out = stepShadows(v, shadows, placed, mulberry32(1), {
+      now: T0,
+      dt: CONFIG.shadowmen.burnSeconds,
+    })
+    expect(out?.message.bursts).toEqual([{ id, x: 500, z: 490 }])
+  })
+
+  it('places a still shadowman with a new id', () => {
+    const shadows = createShadows()
+    placeShadowman(shadows, 3, 4)
+    placeShadowman(shadows, 5, 6)
+    expect(
+      shadows.field.shadowmen.map((s) => [s.id, s.x, s.z, s.speed])
+    ).toEqual([
+      [1, 3, 4, 0],
+      [2, 5, 6, 0],
+    ])
+  })
+
+  it('empties, and stops, with no raid or no one placed in it', () => {
+    const v = valley()
+    const shadows = createShadows()
+    placeShadowman(shadows, 3, 4)
+    shadows.recovering.b = T0 + 5
+    expect(
+      stepShadows(v, shadows, [], mulberry32(1), { now: T0, dt: 0.1 })
+    ).toBeNull()
+    expect(shadows).toEqual(createShadows())
+    expect(
+      stepShadows(
+        createValley(),
+        shadows,
+        [{ id: 'b', at: state() }],
+        mulberry32(1),
+        {
+          now: T0,
+          dt: 0.1,
+        }
+      )
+    ).toBeNull()
   })
 })
