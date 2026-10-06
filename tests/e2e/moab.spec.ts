@@ -46,9 +46,10 @@ test('Moab Coldë says his line', async ({ page }) => {
   await expect
     .poll(() => page.evaluate(() => window.__bv?.chat.at(-1)))
     .toEqual({
-      kind: 'say',
+      kind: 'npc',
       name: copy('outfits.moab'),
       text: copy('moab.says'),
+      at: expect.any(Number),
     })
   await expect(
     page.getByRole('log', { name: copy('hud.chat_log_label') })
