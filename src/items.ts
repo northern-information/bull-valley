@@ -1,17 +1,17 @@
 // Every item in Bull Valley, in one table: identity and tuning, with its
-// words from COPY.toml ([items.<id>]). Edit an item here and the carousel,
-// the Citgo shelves, pickups, and toasts follow.
+// words from COPY.toml ([items.<id>]). Edit an item here and the pack grid,
+// the Citgo shelves, pickups, and chat lines follow.
 // Pure, no Three. Meshes stay in assets.ts, keyed by id.
 //
 // Fields:
 //   id        inventory kind and mesh key
 //   category  'cigarette' | 'joint' | 'drink' | 'medicine' | 'forage' | 'gear'
-//   label     name in the carousel and floating over a pickup or shelf unit
-//   blurb     description in the carousel
-//   used      toast when the player uses it
-//   bought    toast when the player buys it at a Citgo (shelf items only)
-//   collected toast when the player picks it off the berry bush (forage)
-//   empty     toast when the player tries to use it with none left
+//   label     name in the pack, and floating over a pickup or shelf unit
+//   blurb     description on the pack's item card
+//   used      chat line when the player uses it
+//   bought    chat line when the player buys it at a Citgo (shelf items only)
+//   collected chat line when the player picks it off the berry bush (forage)
+//   empty     chat line when the player tries to use it with none left
 //   start     count in a new inventory (counted items only)
 //   price     shelf price at every Citgo, in cents (shelf items only)
 //
@@ -22,7 +22,7 @@
 // (sharedraid.ts rule 9).
 
 import { copy } from './copy.ts'
-import type { Inventory, Item } from './interfaces.ts'
+import type { Item } from './interfaces.ts'
 
 export const ITEMS = [
   {
@@ -398,7 +398,8 @@ export function isMedicine(id: string): boolean {
   return itemById(id)?.category === 'medicine'
 }
 
-// Whether the player can use a carried item (E in the carousel).
+// Whether the player can use a carried item (E in the pack, or its hotbar
+// key).
 export function isUsable(id: string): boolean {
   const category = itemById(id)?.category
   return category === 'cigarette' || category === 'joint'
@@ -408,14 +409,3 @@ export function isUsable(id: string): boolean {
 export const INVENTORY_KINDS: readonly string[] = ITEMS.filter(
   (item) => item.category !== 'gear'
 ).map((item) => item.id)
-
-// The cigarette that a bare "smoke" press lights: the selected one when the
-// player still carries it, else the first one in ITEMS order they carry.
-// Null when they carry none.
-export function cigaretteToSmoke(
-  inv: Inventory,
-  selected: string | null
-): string | null {
-  if (selected && isCigarette(selected) && inv[selected] > 0) return selected
-  return CIGARETTE_IDS.find((id) => inv[id] > 0) || null
-}

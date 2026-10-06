@@ -63,6 +63,11 @@ export interface LookWire {
   finish: FinishId | null
 }
 
+// The hotbar: nine slots, one per number key, each an item kind or null
+// (PUT /auth/hotbar). All null until first assigned. src/hotbar.ts holds
+// the rules; this module stays free of the item table.
+export type HotbarWire = readonly (string | null)[]
+
 // A provider as it shows on the account panel.
 export interface ProviderWire {
   provider: Provider
@@ -82,6 +87,7 @@ export interface AccountWire {
   avatarUrl: string | null
   providers: ProviderWire[]
   look: LookWire
+  hotbar: HotbarWire
 }
 
 // The profile a new raider arrived with, held until the gates are passed.

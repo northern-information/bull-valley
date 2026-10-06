@@ -15,6 +15,7 @@ describe('tierFor', () => {
     expect(tierFor('GET', ['username', 'Dave', 'available'])).toBe('loose')
     expect(tierFor('POST', ['refresh'])).toBe('loose')
     expect(tierFor('PUT', ['look'])).toBe('loose')
+    expect(tierFor('PUT', ['hotbar'])).toBe('loose')
   })
 
   it('leaves reading, signing out, callbacks, and the dev provider alone', () => {

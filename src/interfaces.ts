@@ -222,9 +222,9 @@ export interface ScopeContact {
 }
 
 // ---------------------------------------------------------------------------
-// The inventory carousel (src/carousel.ts).
+// The pack grid (src/packgrid.ts).
 
-export interface RingItem {
+export interface PackItem {
   // An item id, or 'cabbage' for carried cargo.
   kind: string
   label: string

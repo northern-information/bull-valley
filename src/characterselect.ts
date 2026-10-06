@@ -12,9 +12,9 @@
 // step (signin.ts) before this runs.
 
 import * as THREE from 'three'
-import { stepIndex } from './carousel.ts'
 import { SELECTABLE } from './characters.ts'
 import { copy } from './copy.ts'
+import { stepIndex } from './cycle.ts'
 import { applyPose, buildFigure } from './figure.ts'
 import { FINISHES, isFinish, randomFinish } from './finishes.ts'
 import { outfitById } from './outfits.ts'

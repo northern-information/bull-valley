@@ -4,7 +4,8 @@
 
 import { isSelectable } from '../src/characters.ts'
 import { isFinish } from '../src/finishes.ts'
-import type { LookWire, Provider } from '../src/account.ts'
+import { toHotbar } from '../src/hotbar.ts'
+import type { HotbarWire, LookWire, Provider } from '../src/account.ts'
 import type {
   Account,
   AccountStore,
@@ -235,6 +236,28 @@ export class D1AccountStore implements AccountStore {
         'UPDATE accounts SET outfit = ?, finish = ? WHERE account_id = ?'
       )
       .bind(look.outfit, look.finish, accountId)
+      .run()
+    return result.meta.changes === 1
+  }
+
+  async hotbarOf(accountId: string): Promise<HotbarWire> {
+    const row = await this.db
+      .prepare('SELECT hotbar FROM accounts WHERE account_id = ?')
+      .bind(accountId)
+      .first<{ hotbar: string | null }>()
+    // Unset, unreadable, or naming an item since dropped: an empty bar.
+    if (!row?.hotbar) return toHotbar(null)
+    try {
+      return toHotbar(JSON.parse(row.hotbar))
+    } catch {
+      return toHotbar(null)
+    }
+  }
+
+  async setHotbar(accountId: string, hotbar: HotbarWire): Promise<boolean> {
+    const result = await this.db
+      .prepare('UPDATE accounts SET hotbar = ? WHERE account_id = ?')
+      .bind(JSON.stringify(hotbar), accountId)
       .run()
     return result.meta.changes === 1
   }

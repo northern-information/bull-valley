@@ -12,6 +12,7 @@
 // POST /auth/username                       choose the username, once
 // PUT  /auth/username                       change it (Gron)
 // PUT  /auth/look                           the character and guitar finish
+// PUT  /auth/hotbar                         the number keys' items
 // GET  /auth/username/:username/available   is this handle free
 // POST /auth/refresh                        a fresh access cookie (always 200)
 // POST /auth/logout                         clear the session
@@ -38,6 +39,7 @@ import {
 } from '../src/cookies.ts'
 import { copy } from '../src/copy.ts'
 import { isFinish } from '../src/finishes.ts'
+import { isHotbar } from '../src/hotbar.ts'
 import { appOrigin, isDevHost, jwtSecret } from './env.ts'
 import {
   authorizeUrl,
@@ -212,6 +214,7 @@ class AuthHandler {
         return this.setUsername(true)
       }
       if (first === 'look' && method === 'PUT') return this.setLook()
+      if (first === 'hotbar' && method === 'PUT') return this.setHotbar()
     }
     if (parts.length === 3 && first === 'username' && third === 'available') {
       if (method === 'GET') return this.available(second)
@@ -356,6 +359,7 @@ class AuthHandler {
         linkedAt: p.linkedAt,
       })),
       look: await this.store.lookOf(account.accountId),
+      hotbar: await this.store.hotbarOf(account.accountId),
     }
   }
 
@@ -709,6 +713,28 @@ class AuthHandler {
       )
     }
     return json({ look: { outfit, finish } })
+  }
+
+  // The item on each number key, assigned in the Tab pack.
+  private async setHotbar(): Promise<Response> {
+    const claims = await this.access()
+    if (!claims) return json({ error: copy('auth.sign_in_first') }, 401)
+    const body = (await this.request.json().catch(() => null)) as Record<
+      string,
+      unknown
+    > | null
+    const hotbar = body?.hotbar
+    if (!isHotbar(hotbar)) {
+      return json({ error: copy('auth.hotbar_rule') }, 400)
+    }
+    if (!(await this.store.setHotbar(claims.accountId, hotbar))) {
+      return json(
+        { error: copy('auth.account_not_found') },
+        401,
+        this.clearSession()
+      )
+    }
+    return json({ hotbar })
   }
 
   private async available(username: string): Promise<Response> {

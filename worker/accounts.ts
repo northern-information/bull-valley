@@ -3,7 +3,8 @@
 // interface is here with an in-memory store for the tests and dev tools;
 // production is the D1 store in d1accounts.ts.
 
-import type { LookWire, Provider } from '../src/account.ts'
+import { EMPTY_HOTBAR } from '../src/hotbar.ts'
+import type { HotbarWire, LookWire, Provider } from '../src/account.ts'
 
 export interface Account {
   accountId: string
@@ -60,12 +61,17 @@ export interface AccountStore {
   lookOf(accountId: string): Promise<LookWire>
   // False when there is no such account.
   setLook(accountId: string, look: LookWire): Promise<boolean>
+  // The number keys' items; all null until first assigned.
+  hotbarOf(accountId: string): Promise<HotbarWire>
+  // False when there is no such account.
+  setHotbar(accountId: string, hotbar: HotbarWire): Promise<boolean>
 }
 
 export class MemoryAccountStore implements AccountStore {
   readonly accounts = new Map<string, Account>()
   readonly providers = new Map<string, LinkedProvider>()
   readonly looks = new Map<string, LookWire>()
+  readonly hotbars = new Map<string, HotbarWire>()
 
   findByProvider(providerKey: string): Promise<LinkedProvider | null> {
     return Promise.resolve(this.providers.get(providerKey) ?? null)
@@ -169,6 +175,16 @@ export class MemoryAccountStore implements AccountStore {
   setLook(accountId: string, look: LookWire): Promise<boolean> {
     if (!this.accounts.has(accountId)) return Promise.resolve(false)
     this.looks.set(accountId, { ...look })
+    return Promise.resolve(true)
+  }
+
+  hotbarOf(accountId: string): Promise<HotbarWire> {
+    return Promise.resolve(this.hotbars.get(accountId) ?? EMPTY_HOTBAR)
+  }
+
+  setHotbar(accountId: string, hotbar: HotbarWire): Promise<boolean> {
+    if (!this.accounts.has(accountId)) return Promise.resolve(false)
+    this.hotbars.set(accountId, [...hotbar])
     return Promise.resolve(true)
   }
 

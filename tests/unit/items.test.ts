@@ -4,7 +4,6 @@ import { copy } from '../../src/copy.ts'
 import { CONTAINERS } from '../../src/drinks.ts'
 import {
   CIGARETTE_IDS,
-  cigaretteToSmoke,
   getItem,
   INVENTORY_KINDS,
   isCigarette,
@@ -124,16 +123,5 @@ describe('items', () => {
     expect(berries.start).toBe(0)
     expect(INVENTORY_KINDS).toContain('berries')
     expect(isUsable('berries')).toBe(false)
-  })
-
-  it('smokes the selected cigarette, else the first one carried', () => {
-    const inv = { marlboro: 0, camel: 1, parliament: 0, newport: 2, djarum: 0 }
-    expect(cigaretteToSmoke(inv, 'newport')).toBe('newport')
-    expect(cigaretteToSmoke(inv, 'marlboro')).toBe('camel')
-    expect(cigaretteToSmoke(inv, null)).toBe('camel')
-    expect(cigaretteToSmoke({ ...inv, joints: 3 }, 'joints')).toBe('camel')
-    expect(
-      cigaretteToSmoke({ ...inv, camel: 0, newport: 0 }, 'camel')
-    ).toBeNull()
   })
 })

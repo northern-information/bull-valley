@@ -5,12 +5,15 @@ import {
   fetchProviders,
   refreshSession,
   renameUsername,
+  saveHotbar,
+  saveLook,
   setUsername,
   signOut,
   unlinkProvider,
   usernameAvailable,
 } from '../../src/auth.ts'
 import { copy } from '../../src/copy.ts'
+import { assign, EMPTY_HOTBAR } from '../../src/hotbar.ts'
 
 interface Seen {
   url: string
@@ -90,6 +93,49 @@ describe('confirmSignup', () => {
     expect(
       await confirmSignup(answer(429, { error: 'Too many tries.' }).impl)
     ).toEqual({ ok: false, limited: true, error: 'Too many tries.' })
+  })
+})
+
+describe('saveLook', () => {
+  it('puts the look, and falls back to its own message', async () => {
+    const { impl, seen } = answer(200)
+    const look = { outfit: 'church', finish: 'cherry' } as const
+    expect(await saveLook(look, impl)).toEqual({ ok: true })
+    expect(seen[0].url).toBe('/auth/look')
+    expect(seen[0].init?.method).toBe('PUT')
+    expect(JSON.parse(seen[0].init?.body as string)).toEqual(look)
+    expect(await saveLook(look, answer(500).impl)).toEqual({
+      ok: false,
+      limited: false,
+      error: copy('auth.look_failed'),
+    })
+    expect(await saveLook(look, down)).toEqual({
+      ok: false,
+      error: copy('auth.unreachable'),
+    })
+  })
+})
+
+describe('saveHotbar', () => {
+  it('puts the bar, and tells a rate limit apart', async () => {
+    const { impl, seen } = answer(200)
+    const bar = assign(EMPTY_HOTBAR, 0, 'camel')
+    expect(await saveHotbar(bar, impl)).toEqual({ ok: true })
+    expect(seen[0].url).toBe('/auth/hotbar')
+    expect(seen[0].init?.method).toBe('PUT')
+    expect(JSON.parse(seen[0].init?.body as string)).toEqual({ hotbar: bar })
+    expect(await saveHotbar(bar, answer(500).impl)).toEqual({
+      ok: false,
+      limited: false,
+      error: copy('auth.hotbar_failed'),
+    })
+    expect(
+      await saveHotbar(bar, answer(429, { error: 'Slow down.' }).impl)
+    ).toEqual({ ok: false, limited: true, error: 'Slow down.' })
+    expect(await saveHotbar(bar, down)).toEqual({
+      ok: false,
+      error: copy('auth.unreachable'),
+    })
   })
 })
 

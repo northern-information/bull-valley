@@ -1,5 +1,6 @@
-// All DOM: countdown, nerves meter, scope phone, inventory, prompts, item labels,
-// the intro/pause overlay, and the strike static. Markup is generated here so
+// All DOM: countdown, nerves meter, scope phone, the pack grid and its item
+// card, the hotbar, prompts, item labels, the intro/pause overlay, and the
+// strike static. Markup is generated here so
 // index.html stays a bare #bv-root.
 
 import { PACK, WORLD } from './bindings.ts'
@@ -9,7 +10,8 @@ import { KEEP } from './landmarks.ts'
 import { CHAT_MAX } from './protocol.ts'
 import type { Binding } from './bindings.ts'
 import type { ChatLine } from './chat.ts'
-import type { RaidSummary, RingItem } from './interfaces.ts'
+import type { Cooldown } from './hotbar.ts'
+import type { PackItem, RaidSummary } from './interfaces.ts'
 
 // The floating name over an item, placed by its top in the view: x and y
 // from 0 at the left and top to 1 at the right and bottom.
@@ -20,19 +22,31 @@ export interface ItemLabelView {
   y: number
 }
 
-// The inventory ring as setCarousel draws it.
-export interface CarouselView {
-  items: RingItem[]
-  index: number
+// One hotbar slot as setHotbar draws it: slot 0 is key 1. icon is the
+// item's still (itemthumbs.ts).
+export interface HotbarSlotView {
+  slot: number
+  item: PackItem
+  icon: string
+  cooldown: Cooldown | null
 }
 
-export interface InventoryStatus {
-  carry: string
+// The line along the foot of the pack grid.
+export interface BagStatus {
   delivered: number
   truck: string
   // Formatted, like "$40.00".
   cash: string
 }
+
+// The gap between a grid cell and the item card beside it, and the card's
+// least distance from the edge of the screen, in CSS pixels.
+const CARD_GAP = 8
+// The card's turntable, in CSS pixels; styles.css sizes it to match.
+const CARD_VIEW_PX = 144
+// Cells a row in the pack grid (styles.css .bv-bag-grid); the last row is
+// filled out with empty slots.
+const BAG_COLUMNS = 8
 
 // The Begin button's states and their labels. The button holds every label
 // at once, stacked in one cell with only the current one visible, so it is
@@ -60,9 +74,11 @@ function el<K extends keyof HTMLElementTagNameMap>(
 // An element holding text as text: a key label like "< >" is not markup.
 function text<K extends keyof HTMLElementTagNameMap>(
   tag: K,
-  content: string
+  content: string,
+  className?: string
 ): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag)
+  if (className) node.className = className
   node.textContent = content
   return node
 }
@@ -96,8 +112,6 @@ export class Hud {
   countdown: HTMLParagraphElement
   nerves: HTMLDivElement
   nervesFill: HTMLElement
-  timers: HTMLDivElement
-  timersHtml = ''
   chat: HTMLDivElement
   chatLog: HTMLDivElement
   chatInput: HTMLInputElement
@@ -108,15 +122,33 @@ export class Hud {
   scopeCanvas: HTMLCanvasElement
   promptEl: HTMLParagraphElement
   itemLabelEl: HTMLParagraphElement
-  inventory: HTMLElement
+  bag: HTMLElement
+  bagGrid: HTMLDivElement
+  bagEmpty: HTMLParagraphElement
+  bagCash: HTMLElement
+  bagDelivered: HTMLElement
+  bagTruck: HTMLElement
+  bagItems: PackItem[] = []
+  bagKey = ''
+  // The item under the cursor (or focus) in the grid, whose card shows.
+  bagHovered: PackItem | null = null
+  // Told whenever the hovered item changes, to spin it on the card.
+  onBagHover: ((item: PackItem | null) => void) | null = null
+  card: HTMLDivElement
+  cardCanvas: HTMLCanvasElement
+  cardName: HTMLElement
+  cardBlurb: HTMLElement
+  cardQuantity: HTMLElement
+  cardUse: HTMLElement
+  hotbar: HTMLOListElement
+  hotbarKey = ''
+  hotbarSlots: { li: HTMLLIElement; cd: HTMLElement; view: string }[] = []
   vignetteEl: HTMLDivElement
   staticWrap: HTMLDivElement
   staticCanvas: HTMLCanvasElement
   reticle: HTMLDivElement
   intro: HTMLDivElement
   beginBtn: HTMLButtonElement
-  // Every [data-bv] node under the root, keyed by its data-bv value.
-  fields: Record<string, HTMLElement>
 
   constructor(root: HTMLElement) {
     this.root = root
@@ -149,8 +181,7 @@ export class Hud {
       '.bv-nerves-fill'
     )
 
-    // The lower-left column: the chat log over the effect timers, so the
-    // log rides up as timers stack under it.
+    // The lower-left column: the chat log.
     const dock = el('div', 'bv-dock')
     ui.appendChild(dock)
 
@@ -177,10 +208,6 @@ export class Hud {
     this.chat.append(this.chatLog, this.chatInput)
     dock.appendChild(this.chat)
 
-    // Active effect timers.
-    this.timers = el('div', 'bv-timers')
-    dock.appendChild(this.timers)
-
     // The scope: a phone held in a PS1-style flipper hand. scope.ts draws the
     // hand, the phone and the screen into this one low-res canvas.
     this.phone = el('div', 'bv-phone')
@@ -197,53 +224,90 @@ export class Hud {
     this.itemLabelEl.hidden = true
     ui.appendChild(this.itemLabelEl)
 
-    // Inventory: Silent Hill chrome around the 3D carousel, which the game
-    // renderer draws on the canvas underneath (inventoryview.ts).
-    this.inventory = el('section', 'bv-inv')
-    this.inventory.setAttribute('role', 'dialog')
-    this.inventory.setAttribute('aria-label', copy('inventory.label'))
-    this.inventory.hidden = true
-    this.inventory.innerHTML = `
-      <div class="bv-inv-bars" aria-hidden="true"><span>${copy('inventory.status')}</span><span>${copy('inventory.label')}</span><span>${copy('inventory.command')}</span></div>
-      <dl class="bv-inv-status">
-        <dt>${copy('inventory.cabbages')}</dt><dd data-bv="inv-carry">0 / 3</dd>
-        <dt>${copy('inventory.delivered')}</dt><dd data-bv="inv-delivered">0</dd>
-        <dt>${copy('inventory.truck')}</dt><dd data-bv="inv-truck">—</dd>
-        <dt>${copy('inventory.cash')}</dt><dd data-bv="inv-cash">—</dd>
-      </dl>
-      <ul class="bv-inv-commands" aria-label="${copy('inventory.commands_label')}">
-        <li data-bv="cmd-use"></li>
-      </ul>
-      <div class="bv-inv-frame" data-bv="inv-frame" aria-hidden="true">
-        <span class="bv-inv-arrow bv-inv-arrow--prev">◀◀</span>
-        <span class="bv-inv-arrow bv-inv-arrow--next">▶▶</span>
-      </div>
-      <div class="bv-inv-info" aria-live="polite">
-        <p class="bv-inv-line"><span>${copy('inventory.number')}</span> <b data-bv="inv-no">—</b></p>
-        <p class="bv-inv-line">
-          <span>${copy('inventory.name')}</span> <b class="bv-inv-name" data-bv="inv-name">—</b>
-          <span>${copy('inventory.stock')}</span> <b data-bv="inv-stock">0</b>
-        </p>
-        <p class="bv-inv-desc" data-bv="inv-desc"></p>
-      </div>
-      <p class="bv-inv-resume" data-bv="inv-resume" hidden>${copy('hud.resume')}</p>
-      <div class="bv-inv-bars bv-inv-bars--foot" data-bv="inv-keys" aria-hidden="true"></div>`
-    // The pack's keys: E Use is the command column, dimmed when the item
-    // cannot be used; the rest line the footer.
-    const { use, ...footer } = PACK
-    required(
-      this.inventory.querySelector<HTMLElement>('[data-bv="cmd-use"]'),
-      'use command'
-    ).replaceChildren(text('kbd', use.key), ` ${copy(use.labelKey)}`)
-    required(
-      this.inventory.querySelector<HTMLElement>('[data-bv="inv-keys"]'),
-      'pack keys'
-    ).replaceChildren(
-      ...Object.values(footer).map(({ key, labelKey }) =>
-        text('span', `${key} ${copy(labelKey)}`)
-      )
+    // The pack: a grid of items over the valley, with the pointer free. The
+    // card beside the hovered cell spins the item on a canvas of its own
+    // (itemthumbs.ts draws it).
+    this.bag = el('section', 'bv-bag')
+    this.bag.setAttribute('role', 'dialog')
+    this.bag.setAttribute('aria-label', copy('inventory.label'))
+    this.bag.hidden = true
+    this.bagGrid = el('div', 'bv-bag-grid')
+    this.bagEmpty = text('p', copy('inventory.empty_blurb'), 'bv-bag-empty')
+    const status = el('dl', 'bv-bag-status')
+    const stat = (label: string) => {
+      const dd = document.createElement('dd')
+      const pair = el('div')
+      pair.append(text('dt', label), dd)
+      status.appendChild(pair)
+      return dd
+    }
+    this.bagCash = stat(copy('inventory.cash'))
+    this.bagCash.dataset.bv = 'inv-cash'
+    this.bagDelivered = stat(copy('inventory.delivered'))
+    this.bagTruck = stat(copy('inventory.truck'))
+    // Along the foot: the status, and the key that closes the pack.
+    const foot = el('div', 'bv-bag-foot')
+    const close = el('p', 'bv-bag-close')
+    close.append(text('kbd', PACK.close.key), ` ${copy(PACK.close.labelKey)}`)
+    foot.append(status, close)
+    this.bag.append(this.bagGrid, this.bagEmpty, foot)
+    // Moving across the gaps between cells keeps the card; leaving the
+    // grid drops it.
+    const hoverFrom = (target: EventTarget | null) => {
+      const cell =
+        target instanceof Element
+          ? target.closest<HTMLElement>('.bv-bag-cell')
+          : null
+      if (cell) this.hoverCell(cell)
+    }
+    this.bagGrid.addEventListener('pointerover', (e) => hoverFrom(e.target))
+    this.bagGrid.addEventListener('focusin', (e) => hoverFrom(e.target))
+    this.bagGrid.addEventListener('pointerleave', () => {
+      if (!this.bagGrid.contains(document.activeElement)) this.hoverCell(null)
+    })
+    this.bagGrid.addEventListener('focusout', (e) => {
+      if (!this.bagGrid.contains(e.relatedTarget as Node | null)) {
+        this.hoverCell(null)
+      }
+    })
+    ui.appendChild(this.bag)
+
+    // The card lives in the pack, so it reads as part of the dialog; it is
+    // placed against the pack's own box.
+    this.card = el('div', 'bv-bag-card')
+    this.card.hidden = true
+    this.cardCanvas = el('canvas', 'bv-bag-card-view')
+    // Drawn at the screen's own density; the stylesheet sets its CSS size.
+    this.cardCanvas.width = this.cardCanvas.height = Math.round(
+      CARD_VIEW_PX * window.devicePixelRatio
     )
-    ui.appendChild(this.inventory)
+    this.cardCanvas.setAttribute('aria-hidden', 'true')
+    this.cardName = el('h3', 'bv-bag-card-name')
+    this.cardBlurb = el('p', 'bv-bag-card-blurb')
+    this.cardQuantity = el('p', 'bv-bag-card-quantity')
+    const keys = el('ul', 'bv-bag-card-keys')
+    const keyItem = ({ key, labelKey }: Binding) => {
+      const li = document.createElement('li')
+      li.append(text('kbd', key), ` ${copy(labelKey)}`)
+      keys.appendChild(li)
+      return li
+    }
+    this.cardUse = keyItem(PACK.use)
+    keyItem(PACK.assign)
+    this.card.append(
+      this.cardCanvas,
+      this.cardName,
+      this.cardBlurb,
+      this.cardQuantity,
+      keys
+    )
+    this.bag.appendChild(this.card)
+
+    // The hotbar: the assigned slots, in number order, along the bottom.
+    this.hotbar = el('ol', 'bv-hotbar')
+    this.hotbar.setAttribute('aria-label', copy('inventory.hotbar_label'))
+    this.hotbar.hidden = true
+    ui.appendChild(this.hotbar)
 
     // Vignette + strike static.
     this.vignetteEl = el('div', 'bv-vignette')
@@ -297,12 +361,6 @@ export class Hud {
       })
     )
     this.setBegin('play')
-
-    this.fields = {}
-    for (const dd of root.querySelectorAll<HTMLElement>('[data-bv]')) {
-      const key = dd.dataset.bv
-      if (key !== undefined) this.fields[key] = dd
-    }
   }
 
   // A null text hides the countdown.
@@ -317,17 +375,6 @@ export class Hud {
     this.nervesFill.style.width = `${value.toFixed(0)}%`
     this.nervesFill.classList.toggle('bv-nerves-fill--high', value > 70)
     this.nerves.classList.toggle('bv-nerves--fuzzy', !!fuzzy)
-  }
-
-  // The loop calls this every frame; the DOM changes only when a line does.
-  setTimers(lines: string[]): void {
-    const html = lines
-      .map((line) => `<span class="bv-timer">${line}</span>`)
-      .join('')
-    if (html !== this.timersHtml) {
-      this.timersHtml = html
-      this.timers.innerHTML = html
-    }
   }
 
   prompt(text: string | null): void {
@@ -428,42 +475,172 @@ export class Hud {
     this.chat.classList.toggle('bv-chat--held', held)
   }
 
-  // The selected ring item (carousel.ts entry) in text; items[index] may be
-  // missing on an empty ring.
-  setCarousel({ items, index }: CarouselView): void {
-    const item: RingItem | undefined = items[index]
-    const f = this.fields
-    f['inv-no'].textContent = item ? String(index + 1) : '—'
-    f['inv-name'].textContent = item ? item.label : copy('inventory.empty_name')
-    f['inv-stock'].textContent = item ? String(item.stock) : '0'
-    f['inv-desc'].textContent = item
-      ? item.blurb
-      : copy('inventory.empty_blurb')
-    f['cmd-use'].classList.toggle('bv-inv-cmd--dim', !item?.canUse)
-    f['inv-frame'].classList.toggle('bv-inv-frame--single', items.length < 2)
+  // The pack's items (packgrid.ts entries) as grid cells. The cells are
+  // rebuilt only when a kind or a count changes; the card follows.
+  setBag(items: PackItem[], iconOf: (kind: string) => string): void {
+    const key = items.map((item) => `${item.kind}:${item.stock}`).join(',')
+    if (key === this.bagKey) return
+    this.bagKey = key
+    this.bagItems = items
+    const hovered = this.bagHovered?.kind
+    const focused =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement.dataset.kind
+        : undefined
+    this.bagGrid.replaceChildren(
+      ...items.map((item) => {
+        const cell = el('button', 'bv-bag-cell')
+        cell.type = 'button'
+        cell.dataset.kind = item.kind
+        cell.setAttribute(
+          'aria-label',
+          `${item.label}, ${copy('inventory.quantity', { count: item.stock })}`
+        )
+        const img = el('img')
+        img.src = iconOf(item.kind)
+        img.alt = ''
+        img.draggable = false
+        cell.appendChild(img)
+        if (item.stock > 1) {
+          cell.appendChild(text('span', String(item.stock), 'bv-bag-count'))
+        }
+        return cell
+      }),
+      ...Array.from(
+        {
+          length:
+            Math.max(
+              BAG_COLUMNS,
+              Math.ceil(items.length / BAG_COLUMNS) * BAG_COLUMNS
+            ) - items.length,
+        },
+        () => {
+          const slot = el('span', 'bv-bag-cell bv-bag-cell--empty')
+          slot.setAttribute('aria-hidden', 'true')
+          return slot
+        }
+      )
+    )
+    this.bagEmpty.hidden = items.length > 0
+    if (focused) this.cellOf(focused)?.focus()
+    const again = hovered ? this.cellOf(hovered) : null
+    this.hoverCell(again)
   }
 
-  setInventoryStatus({ carry, delivered, truck, cash }: InventoryStatus): void {
-    const f = this.fields
-    if (f['inv-carry'].textContent !== carry) f['inv-carry'].textContent = carry
-    f['inv-delivered'].textContent = String(delivered)
-    if (f['inv-truck'].textContent !== truck) f['inv-truck'].textContent = truck
-    if (f['inv-cash'].textContent !== cash) f['inv-cash'].textContent = cash
+  private cellOf(kind: string): HTMLElement | null {
+    return (
+      [...this.bagGrid.querySelectorAll<HTMLElement>('.bv-bag-cell')].find(
+        (cell) => cell.dataset.kind === kind
+      ) ?? null
+    )
   }
 
-  showInventory(show: boolean): boolean {
-    this.inventory.hidden = !show
+  // The card beside a cell, or none. It sits to the right of the cell, or
+  // to the left where the right would run off the screen.
+  private hoverCell(cell: HTMLElement | null): void {
+    const item = cell
+      ? (this.bagItems.find((one) => one.kind === cell.dataset.kind) ?? null)
+      : null
+    const changed = item?.kind !== this.bagHovered?.kind
+    this.bagHovered = item
+    this.card.hidden = !item
+    if (cell && item) {
+      this.cardName.textContent = item.label
+      this.cardBlurb.textContent = item.blurb
+      this.cardQuantity.textContent = copy('inventory.quantity', {
+        count: item.stock,
+      })
+      this.cardUse.classList.toggle('bv-bag-card-key--dim', !item.canUse)
+      const at = cell.getBoundingClientRect()
+      const box = this.bag.getBoundingClientRect()
+      const width = this.card.offsetWidth
+      const height = this.card.offsetHeight
+      const right = at.right + CARD_GAP
+      const left =
+        right + width <= window.innerWidth - CARD_GAP
+          ? right
+          : Math.max(CARD_GAP, at.left - CARD_GAP - width)
+      const top = Math.max(
+        CARD_GAP,
+        Math.min(at.top, window.innerHeight - height - CARD_GAP)
+      )
+      this.card.style.left = `${left - box.left}px`
+      this.card.style.top = `${top - box.top}px`
+    }
+    if (changed) this.onBagHover?.(item)
+  }
+
+  setBagStatus({ delivered, truck, cash }: BagStatus): void {
+    const set = (node: HTMLElement, value: string) => {
+      if (node.textContent !== value) node.textContent = value
+    }
+    set(this.bagCash, cash)
+    set(this.bagDelivered, String(delivered))
+    set(this.bagTruck, truck)
+  }
+
+  get bagShown(): boolean {
+    return !this.bag.hidden
+  }
+
+  showBag(show: boolean): boolean {
+    this.bag.hidden = !show
     this.root.classList.toggle('bv-shell--inventory', show)
+    if (!show) this.hoverCell(null)
     return show
   }
 
-  // Pointer lock drives the center dot, and the inventory's resume line
-  // while it is open without lock.
+  // The loop calls this every frame. The slots are rebuilt only when what
+  // they hold changes; the cooldown sweeps are touched only when they move.
+  setHotbar(slots: HotbarSlotView[]): void {
+    const key = slots
+      .map(({ slot, item }) => `${slot}:${item.kind}:${item.stock}`)
+      .join(',')
+    if (key !== this.hotbarKey) {
+      this.hotbarKey = key
+      this.hotbarSlots = slots.map(({ slot, item, icon }) => {
+        const li = el('li', 'bv-hot-slot')
+        li.classList.toggle('bv-hot-slot--out', item.stock < 1)
+        li.setAttribute(
+          'aria-label',
+          `${slot + 1}: ${item.label}, ${copy('inventory.quantity', { count: item.stock })}`
+        )
+        const img = el('img')
+        img.src = icon
+        img.alt = ''
+        img.draggable = false
+        const cd = el('span', 'bv-hot-cd')
+        cd.setAttribute('aria-hidden', 'true')
+        li.append(
+          img,
+          cd,
+          text('span', String(slot + 1), 'bv-hot-key'),
+          text('span', String(item.stock), 'bv-hot-count')
+        )
+        return { li, cd, view: '' }
+      })
+      this.hotbar.replaceChildren(...this.hotbarSlots.map(({ li }) => li))
+      this.hotbar.hidden = slots.length < 1
+      this.root.classList.toggle('bv-shell--hotbar', slots.length > 0)
+    }
+    slots.forEach(({ cooldown }, i) => {
+      const shown = this.hotbarSlots[i]
+      const view = cooldown
+        ? `${cooldown.phase}:${cooldown.fraction.toFixed(3)}:${cooldown.seconds}`
+        : ''
+      if (view === shown.view) return
+      shown.view = view
+      shown.li.dataset.cooldown = cooldown?.phase ?? ''
+      shown.li.style.setProperty('--cd', cooldown ? view.split(':')[1] : '0')
+      shown.cd.textContent = cooldown ? String(cooldown.seconds) : ''
+    })
+  }
+
+  // Pointer lock drives the center dot.
   setLocked(locked: boolean): void {
     this.root.classList.toggle('bv-shell--locked', locked)
     // A locked cursor hovers nothing, and pointerleave never comes.
     if (locked) this.chatHovered = false
-    this.fields['inv-resume'].hidden = locked
   }
 
   // End-of-raid overlay, styled like the intro dialog.

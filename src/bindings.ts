@@ -2,7 +2,7 @@
 // the KeyboardEvent.code values that fire it, the key as players see it,
 // and the COPY.toml key for what it does ([keys]). main.ts and player.ts
 // look actions up here instead of comparing raw codes; hud.ts draws the
-// intro table and the pack footer from the same entries, so the copy
+// intro table and the pack card's keys from the same entries, so the copy
 // cannot drift from the dispatcher. The words stay in COPY.toml, not here,
 // so this table stays importable anywhere (the e2e specs read it).
 
@@ -25,20 +25,12 @@ export const MOVE = {
   right: 'KeyD',
 } as const
 
-// Which way a cycle key turns the pack's ring.
-const CYCLE_BACK: readonly string[] = ['ArrowLeft', 'KeyA']
-const CYCLE_FORWARD: readonly string[] = ['ArrowRight', 'KeyD']
-
-const smoke: Binding = {
-  codes: ['Digit1'],
-  key: '1',
-  labelKey: 'keys.smoke',
-}
-const spark: Binding = {
-  codes: ['Digit2'],
-  key: '2',
-  labelKey: 'keys.spark',
-}
+// The number keys, slot 0 first: each one fires its hotbar slot in the
+// valley and assigns to it in the pack.
+const HOTBAR_CODES: readonly string[] = Array.from(
+  { length: 9 }, // hotbar.ts HOTBAR_SLOTS; that module reads copy, this one cannot
+  (_, i) => `Digit${i + 1}`
+)
 
 // In the valley, with the pointer locked and the pack closed. Listed in
 // the order the intro table reads them, two to a row.
@@ -55,8 +47,7 @@ export const WORLD = {
   inventory: { codes: ['Tab'], key: 'Tab', labelKey: 'keys.inventory' },
   interact: { codes: ['KeyE'], key: 'E', labelKey: 'keys.interact' },
   callTruck: { codes: ['KeyT'], key: 'T', labelKey: 'keys.call_truck' },
-  smoke,
-  spark,
+  hotbar: { codes: HOTBAR_CODES, key: '1–9', labelKey: 'keys.hotbar' },
   chat: {
     codes: ['Enter', 'NumpadEnter'],
     key: 'Enter',
@@ -75,18 +66,13 @@ export const CHAT = {
   },
 } as const satisfies Record<string, Binding>
 
-// With the pack open: these drive the carousel and nothing reaches the
-// player. Enter is a quiet alias for E.
+// With the pack open: these act on the item under the cursor and nothing
+// reaches the player. Enter is a quiet alias for E, and Esc for Tab, since
+// the pointer is free and Esc no longer drops a lock.
 export const PACK = {
   use: { codes: ['KeyE', 'Enter'], key: 'E', labelKey: 'keys.use' },
-  cycle: {
-    codes: [...CYCLE_BACK, ...CYCLE_FORWARD],
-    key: '← → / A D',
-    labelKey: 'keys.cycle',
-  },
-  close: { codes: ['Tab'], key: 'Tab', labelKey: 'keys.close' },
-  smoke,
-  spark,
+  assign: { codes: HOTBAR_CODES, key: '1–9', labelKey: 'keys.assign' },
+  close: { codes: ['Tab', 'Escape'], key: 'Tab', labelKey: 'keys.close' },
 } as const satisfies Record<string, Binding>
 
 export type WorldAction = keyof typeof WORLD
@@ -117,10 +103,9 @@ export function moveAxis(held: ReadonlySet<string>): { x: number; z: number } {
   return { x, z }
 }
 
-// Which way a cycle key steps the ring: -1 back, 1 forward, 0 for a key
-// that is not one.
-export function cycleStep(code: string): -1 | 0 | 1 {
-  if (CYCLE_BACK.includes(code)) return -1
-  if (CYCLE_FORWARD.includes(code)) return 1
-  return 0
+// The hotbar slot a number key stands for, 0 for 1 through 8 for 9; null
+// for any other key.
+export function hotbarSlot(code: string): number | null {
+  const slot = HOTBAR_CODES.indexOf(code)
+  return slot < 0 ? null : slot
 }

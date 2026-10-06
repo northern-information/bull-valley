@@ -7,6 +7,7 @@ import { AUTH_PATH } from './account.ts'
 import { copy } from './copy.ts'
 import type {
   AvailableResponse,
+  HotbarWire,
   LookWire,
   MeResponse,
   Provider,
@@ -167,6 +168,29 @@ export async function saveLook(
     return {
       ok: false,
       error: await errorOf(res, copy('auth.look_failed')),
+      limited: res.status === TOO_MANY,
+    }
+  } catch {
+    return { ok: false, error: copy('auth.unreachable') }
+  }
+}
+
+// The item on each number key, kept on the account like the look.
+export async function saveHotbar(
+  hotbar: HotbarWire,
+  fetchImpl: Fetch = fetch
+): Promise<Outcome> {
+  try {
+    const res = await fetchImpl(`${AUTH_PATH}/hotbar`, {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hotbar }),
+    })
+    if (res.ok) return { ok: true }
+    return {
+      ok: false,
+      error: await errorOf(res, copy('auth.hotbar_failed')),
       limited: res.status === TOO_MANY,
     }
   } catch {
