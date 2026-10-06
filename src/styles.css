@@ -115,9 +115,11 @@
 }
 
 /* Chat: a quiet log that fades out a while after the last line, and a
-   field under it while typing. Eight lines show; older ones scroll, and
-   thin out toward the top. Held (typing, or the cursor over it), the log
-   stays up and the old lines read clearer. */
+   field under it while typing. Eight lines show; older ones scroll, with
+   no scrollbar (the wheel and PageUp/PageDown move it). Each line dims by
+   its place from the newest, so the log thins out toward the top whatever
+   its height. Held (typing, or the cursor over it), the log stays up on a
+   pane and every line reads at full strength. */
 .bv-chat {
   display: flex;
   flex-direction: column;
@@ -133,19 +135,24 @@
   max-height: 10rem;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--fi-surface-82) transparent;
+  scrollbar-width: none;
+  padding: 0.15rem 0.4rem;
+  background: transparent;
+  transition: background-color 0.2s;
   pointer-events: auto;
   line-height: 1.25rem;
   letter-spacing: 0.02em;
   text-shadow:
     0 0 3px rgb(0 0 0 / 90%),
     1px 1px 0 rgb(0 0 0 / 80%);
-  mask-image: linear-gradient(to bottom, transparent, #000 65%);
+}
+
+.bv-chat-log::-webkit-scrollbar {
+  display: none;
 }
 
 .bv-chat--held .bv-chat-log {
-  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 35%), #000 65%);
+  background: var(--bv-pane);
 }
 
 /* A hanging indent: wrapped and stanza lines start past the stamp (five
@@ -158,6 +165,20 @@
 
   /* Marx's stanzas keep their line breaks and indents. */
   white-space: pre-wrap;
+  transition: opacity 0.2s;
+}
+
+/* Older lines step down: the newest four full, then dimmer, then faint. */
+.bv-chat-line:nth-last-child(n + 5) {
+  opacity: 0.7;
+}
+
+.bv-chat-line:nth-last-child(n + 7) {
+  opacity: 0.4;
+}
+
+.bv-chat--held .bv-chat-line {
+  opacity: 1;
 }
 
 .bv-chat-line--say {
@@ -186,6 +207,12 @@
   border: 1px solid var(--bv-citgo);
   border-radius: 0;
   box-shadow: 3px 3px 0 var(--fi-black-shadow);
+}
+
+/* The field shows only while it has focus, and its red border says so;
+   the shell's focus ring round it would draw a second edge. */
+.bv-chat-input:focus-visible {
+  outline: none;
 }
 
 /* Scope: a phone in a low-poly hand, tilted and cut off by the bottom edge.
