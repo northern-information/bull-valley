@@ -26,7 +26,7 @@ export interface ShopState {
 export interface Purchase {
   // The new state, or null when nothing was sold.
   next: ShopState | null
-  toast: string | null
+  line: string | null
 }
 
 // The buyer's side of a sale: the cash, and the raid (for the sack) or the
@@ -35,7 +35,7 @@ export type Purse = Pick<ShopState, 'raid' | 'inventory' | 'cash'>
 
 export interface Settled {
   next: Purse | null
-  toast: string | null
+  line: string | null
 }
 
 // Pays for one unit of `kind` and puts it away. The sack is gear: buying
@@ -45,27 +45,27 @@ export function settle(purse: Purse, kind: string, now: number): Settled {
   const { raid, inventory, cash } = purse
   const item = itemById(kind)
   // Nothing without a price is on a shelf: forage is the bush's to give.
-  if (!item || item.price === undefined) return { next: null, toast: null }
+  if (!item || item.price === undefined) return { next: null, line: null }
   if (kind === 'sack' && raid.sack) {
-    return { next: null, toast: copy('toasts.have_sack') }
+    return { next: null, line: copy('log.have_sack') }
   }
   if (cash < item.price) {
     return {
       next: null,
-      toast: copy('toasts.short', { amount: formatCash(item.price - cash) }),
+      line: copy('log.short', { amount: formatCash(item.price - cash) }),
     }
   }
   let nextRaid = raid
   let nextInventory = inventory
   if (kind === 'sack') {
     nextRaid = advance(raid, EVENTS.BUY_SACK, now)
-    if (nextRaid === raid) return { next: null, toast: null }
+    if (nextRaid === raid) return { next: null, line: null }
   } else {
     nextInventory = addItem(inventory, kind, 1)
   }
   return {
     next: { raid: nextRaid, inventory: nextInventory, cash: cash - item.price },
-    toast: kind === 'sack' ? getItem('sack').bought : (item.bought ?? null),
+    line: kind === 'sack' ? getItem('sack').bought : (item.bought ?? null),
   }
 }
 
@@ -81,15 +81,15 @@ export function buy(
   const shelf = stock[station] as ShopStock | undefined
   const item = itemById(kind)
   if (!shelf || !item || item.price === undefined) {
-    return { next: null, toast: null }
+    return { next: null, line: null }
   }
   if (!onShelf(shelf, kind, unit)) {
-    return { next: null, toast: copy('toasts.sold_out') }
+    return { next: null, line: copy('log.sold_out') }
   }
-  const { next, toast } = settle(state, kind, now)
-  if (!next) return { next: null, toast }
+  const { next, line } = settle(state, kind, now)
+  if (!next) return { next: null, line }
   const nextStock = stock.map((s, i) =>
     i === station ? takeUnit(s, kind, unit) : s
   )
-  return { next: { ...next, stock: nextStock }, toast }
+  return { next: { ...next, stock: nextStock }, line }
 }

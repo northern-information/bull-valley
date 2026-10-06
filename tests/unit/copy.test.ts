@@ -58,8 +58,8 @@ describe('COPY.toml', () => {
 
 describe('copy', () => {
   it('fills placeholders', () => {
-    expect(copy('toasts.peer_joined', { name: 'Dave' })).toBe(
-      COPY.get('toasts.peer_joined')?.text.replace('{name}', 'Dave')
+    expect(copy('log.peer_joined', { name: 'Dave' })).toBe(
+      COPY.get('log.peer_joined')?.text.replace('{name}', 'Dave')
     )
   })
 
@@ -68,11 +68,11 @@ describe('copy', () => {
   })
 
   it('throws on a missing var', () => {
-    expect(() => copy('toasts.peer_joined')).toThrow('missing {name}')
+    expect(() => copy('log.peer_joined')).toThrow('missing {name}')
   })
 
   it('throws on a var the text never names', () => {
-    expect(() => copy('toasts.greeting', { name: 'Dave' })).toThrow(
+    expect(() => copy('log.greeting', { name: 'Dave' })).toThrow(
       'has no {name}'
     )
   })

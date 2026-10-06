@@ -24,7 +24,7 @@ export function wireValley(game: Game, actions: Actions): void {
   // A lost session is not a lost signal: send the raider back to sign in.
   net.onRefused((code) => {
     if (code !== CLOSE.unauthenticated) return
-    hud.tell(copy('toasts.signed_out'))
+    hud.tell(copy('log.signed_out'))
     setTimeout(() => window.location.reload(), CONFIG.net.signedOutReloadMs)
   })
 
@@ -38,15 +38,15 @@ export function wireValley(game: Game, actions: Actions): void {
         if (n > 0) {
           hud.tell(
             n === 1
-              ? copy('toasts.welcome_one')
-              : copy('toasts.welcome_many', { count: n })
+              ? copy('log.welcome_one')
+              : copy('log.welcome_many', { count: n })
           )
         }
         return
       }
       case 'peer-joined':
         peers.joined(msg.peer, now)
-        hud.tell(copy('toasts.peer_joined', { name: msg.peer.name }))
+        hud.tell(copy('log.peer_joined', { name: msg.peer.name }))
         return
       case 'peer-updated': {
         // Our own comes back too; the dialog has said so already.
@@ -54,7 +54,7 @@ export function wireValley(game: Game, actions: Actions): void {
         const was = peers.table.get(msg.peer.id)?.name
         peers.updated(msg.peer)
         if (was && was !== msg.peer.name) {
-          hud.tell(copy('toasts.peer_renamed', { was, name: msg.peer.name }))
+          hud.tell(copy('log.peer_renamed', { was, name: msg.peer.name }))
         }
         return
       }
@@ -66,7 +66,7 @@ export function wireValley(game: Game, actions: Actions): void {
       case 'peer-left': {
         const name = peers.table.get(msg.id)?.name
         peers.left(msg.id)
-        if (name) hud.tell(copy('toasts.peer_left', { name }))
+        if (name) hud.tell(copy('log.peer_left', { name }))
         return
       }
       case 'chat':
@@ -88,7 +88,7 @@ export function wireValley(game: Game, actions: Actions): void {
       wasOnline = true
     } else if (status === 'offline') {
       peers.clear()
-      if (wasOnline) hud.tell(copy('toasts.signal_lost'))
+      if (wasOnline) hud.tell(copy('log.signal_lost'))
     }
   })
 
@@ -140,14 +140,11 @@ export function wireValley(game: Game, actions: Actions): void {
     if (departed) {
       s.aboard = false
       if (departure === 'rider') {
-        s.onTruckRolls = [
-          copy('toasts.truck_leaves'),
-          copy('toasts.hop_out_hint'),
-        ]
+        s.onTruckRolls = [copy('log.truck_leaves'), copy('log.hop_out_hint')]
       } else if (departure === 'left-behind') {
-        s.onTruckRolls = [copy('toasts.left_behind')]
+        s.onTruckRolls = [copy('log.left_behind')]
       } else if (departure === 'long-gone') {
-        hud.tell(copy('toasts.long_gone'))
+        hud.tell(copy('log.long_gone'))
       }
       if (departure) actions.refreshBag()
       if (wire.departedAt !== null) {
@@ -166,16 +163,14 @@ export function wireValley(game: Game, actions: Actions): void {
       truck.parkAt(call.from.x, call.from.z, truck.dirX, truck.dirZ)
       truck.driveRouteAt(route, net.clock.toLocalMs(call.at))
       hud.tell(
-        whistle === 'mine'
-          ? copy('toasts.whistle')
-          : copy('toasts.whistle_other')
+        whistle === 'mine' ? copy('log.whistle') : copy('log.whistle_other')
       )
     }
 
     if (reason === 'extracted' && by && by !== me) {
       const name = peers.table.get(by)?.name
       peers.left(by)
-      if (name) hud.tell(copy('toasts.peer_extracted', { name }))
+      if (name) hud.tell(copy('log.peer_extracted', { name }))
     }
   }
 
@@ -184,33 +179,33 @@ export function wireValley(game: Game, actions: Actions): void {
       if (msg.index !== undefined) s.pendingTakes.delete(msg.index)
       // Still there, but not for us yet.
       if (msg.reason === 'arms-full') {
-        hud.tell(copy('toasts.arms_full'))
+        hud.tell(copy('log.arms_full'))
         return
       }
       if (msg.reason !== 'gone') return
       const pickup =
         msg.index === undefined ? undefined : world.pickups[msg.index]
       if (pickup) actions.markTaken(pickup)
-      hud.tell(copy('toasts.taken_first'))
+      hud.tell(copy('log.taken_first'))
     } else if (msg.re === 'buy') {
       if (msg.station !== undefined && msg.item) {
         s.pendingBuys.delete(`${msg.station}:${msg.item}`)
       }
       const price = msg.item ? itemById(msg.item)?.price : undefined
-      if (msg.reason === 'sold-out') hud.tell(copy('toasts.sold_out'))
-      else if (msg.reason === 'have-sack') hud.tell(copy('toasts.have_sack'))
+      if (msg.reason === 'sold-out') hud.tell(copy('log.sold_out'))
+      else if (msg.reason === 'have-sack') hud.tell(copy('log.have_sack'))
       else if (msg.reason === 'short' && price !== undefined) {
         hud.tell(
-          copy('toasts.short', {
+          copy('log.short', {
             amount: formatCash(Math.max(0, price - s.cash)),
           })
         )
-      } else hud.tell(copy('toasts.refused'))
+      } else hud.tell(copy('log.refused'))
     } else if (msg.re === 'call') {
-      hud.tell(copy('toasts.truck_busy'))
+      hud.tell(copy('log.truck_busy'))
     } else if (msg.re === 'collect') {
       s.pendingCollect = false
-      hud.tell(copy('toasts.berry_refused'))
+      hud.tell(copy('log.berry_refused'))
     } else if (msg.re === 'chat') {
       hud.tell(CHAT_COPY.tooFast)
     }

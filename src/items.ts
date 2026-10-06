@@ -332,7 +332,7 @@ export const ITEMS = [
     id: 'sack',
     category: 'gear',
     label: copy('items.sack.label'),
-    // The blurb and toast name carryLimit and CONFIG.cabbage.carryLimit in
+    // The blurb and log line name carryLimit and CONFIG.cabbage.carryLimit in
     // words (COPY.toml); change them together.
     blurb: copy('items.sack.blurb'),
     bought: copy('items.sack.bought'),

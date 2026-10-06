@@ -110,7 +110,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     if (!s.shared && timedOut(s.raid, s.raidClock)) {
       s.raid = advance(s.raid, EVENTS.TIMER_EXPIRED, s.raidClock)
       actions.truckLeaves()
-      s.onTruckRolls = [copy('toasts.left_behind')]
+      s.onTruckRolls = [copy('log.left_behind')]
     }
 
     let forward = ridingForward
@@ -138,7 +138,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         crouching: false,
       })
       if (truckState.done && s.raid.state === STATES.RIDING) {
-        actions.hopOut(copy('toasts.end_of_line'))
+        actions.hopOut(copy('log.end_of_line'))
       }
     } else {
       const playerState = player.update(dt, {
@@ -194,7 +194,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       const { x, z } = player.pos
       if (!s.aboard && inPortal(x, z, portal.at, CONFIG.maze.portal.radius)) {
         player.relocate(portal.exit.x, portal.exit.z, portal.exit.yaw)
-        hud.tell(copy('toasts.portal'))
+        hud.tell(copy('log.portal'))
       }
     }
     if (now < s.strikeUntil) hud.drawStatic()
