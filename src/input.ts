@@ -115,6 +115,14 @@ export function wireKeys(
         if (item && slot !== null) actions.assignSlot(slot, item.kind)
         return
       }
+      case 'prevTab':
+        e.preventDefault()
+        actions.stepBagTab(-1)
+        return
+      case 'nextTab':
+        e.preventDefault()
+        actions.stepBagTab(1)
+        return
     }
   }
 

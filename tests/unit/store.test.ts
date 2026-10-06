@@ -172,7 +172,7 @@ describe('shopping', () => {
     const stock = freshStock(3)
     expect(stock).toHaveLength(3)
     expect(unitsLeft(stock[0], 'marlboro')).toBe(CONFIG.store.perItem)
-    expect(unitsLeft(stock[0], 'sack')).toBe(CONFIG.store.perItem)
+    expect(unitsLeft(stock[0], 'pbr')).toBe(CONFIG.store.perItem)
     stock[0].marlboro[0] = false
     expect(unitsLeft(stock[1], 'marlboro')).toBe(CONFIG.store.perItem)
   })

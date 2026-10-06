@@ -2,20 +2,18 @@
 // returns new state and never changes its input. targets.ts finds the shelf
 // unit the player is looking at (store.ts) and tells the player in the
 // chat log. In the shared
-// valley the shelf, the wallet and the sack belong to the server
-// (sharedraid.ts rules 8 and 12): buy() still judges the sale here (stock,
-// cash and the sack as last heard), settle() applies it once the valley
-// confirms it, and the valley's next word replaces both guesses.
+// valley the shelf and the wallet belong to the server (sharedraid.ts rule
+// 8): buy() still judges the sale here (stock and cash as last heard),
+// settle() applies it once the valley confirms it, and the valley's next
+// word replaces both guesses.
 
 import { copy } from './copy.ts'
 import { addItem } from './inventory.ts'
-import { getItem, itemById } from './items.ts'
-import { advance, EVENTS } from './raid.ts'
+import { itemById } from './items.ts'
 import { formatCash, onShelf, takeUnit } from './store.ts'
-import type { Inventory, Raid, ShopStock } from './interfaces.ts'
+import type { Inventory, ShopStock } from './interfaces.ts'
 
 export interface ShopState {
-  raid: Raid
   // One entry per station, indexed like world.fuelPoints.
   stock: readonly ShopStock[]
   inventory: Inventory
@@ -29,43 +27,34 @@ export interface Purchase {
   line: string | null
 }
 
-// The buyer's side of a sale: the cash, and the raid (for the sack) or the
-// inventory (for everything else). Nothing about the shelf.
-export type Purse = Pick<ShopState, 'raid' | 'inventory' | 'cash'>
+// The buyer's side of a sale: the cash and the inventory. Nothing about
+// the shelf.
+export type Purse = Pick<ShopState, 'inventory' | 'cash'>
 
 export interface Settled {
   next: Purse | null
   line: string | null
 }
 
-// Pays for one unit of `kind` and puts it away. The sack is gear: buying
-// it changes the raid (a bigger carry limit), not the inventory. Every
-// other kind goes into the inventory. Refuses a second sack or short cash.
-export function settle(purse: Purse, kind: string, now: number): Settled {
-  const { raid, inventory, cash } = purse
+// Pays for one unit of `kind` and puts it in the inventory. Refuses short
+// cash.
+export function settle(purse: Purse, kind: string): Settled {
+  const { inventory, cash } = purse
   const item = itemById(kind)
   // Nothing without a price is on a shelf: forage is the bush's to give.
   if (!item || item.price === undefined) return { next: null, line: null }
-  if (kind === 'sack' && raid.sack) {
-    return { next: null, line: copy('log.have_sack') }
-  }
   if (cash < item.price) {
     return {
       next: null,
       line: copy('log.short', { amount: formatCash(item.price - cash) }),
     }
   }
-  let nextRaid = raid
-  let nextInventory = inventory
-  if (kind === 'sack') {
-    nextRaid = advance(raid, EVENTS.BUY_SACK, now)
-    if (nextRaid === raid) return { next: null, line: null }
-  } else {
-    nextInventory = addItem(inventory, kind, 1)
-  }
   return {
-    next: { raid: nextRaid, inventory: nextInventory, cash: cash - item.price },
-    line: kind === 'sack' ? getItem('sack').bought : (item.bought ?? null),
+    next: {
+      inventory: addItem(inventory, kind, 1),
+      cash: cash - item.price,
+    },
+    line: item.bought ?? null,
   }
 }
 
@@ -74,8 +63,7 @@ export function buy(
   state: ShopState,
   station: number,
   kind: string,
-  unit: number,
-  now: number
+  unit: number
 ): Purchase {
   const { stock } = state
   const shelf = stock[station] as ShopStock | undefined
@@ -86,7 +74,7 @@ export function buy(
   if (!onShelf(shelf, kind, unit)) {
     return { next: null, line: copy('log.sold_out') }
   }
-  const { next, line } = settle(state, kind, now)
+  const { next, line } = settle(state, kind)
   if (!next) return { next: null, line }
   const nextStock = stock.map((s, i) =>
     i === station ? takeUnit(s, kind, unit) : s

@@ -262,6 +262,35 @@
   pointer-events: auto;
 }
 
+/* The tabs over the grid: plain words, the shown one underlined in Citgo
+   red. */
+.bv-bag-tabs {
+  display: flex;
+  gap: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.bv-bag-tab {
+  margin: 0;
+  padding: 0 0 0.25rem;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+.bv-bag-tab:hover {
+  opacity: 1;
+}
+
+.bv-bag-tab[aria-selected='true'] {
+  border-bottom-color: var(--bv-citgo);
+  opacity: 1;
+}
+
 /* Eight cells a row, fewer where the screen is narrower. */
 .bv-bag-grid {
   display: grid;
@@ -328,9 +357,27 @@
   left: 3px;
 }
 
+.bv-bag-panel {
+  position: relative;
+}
+
+/* Over the first row of empty cells, which hold its place. */
 .bv-bag-empty {
-  max-width: 24rem;
+  position: absolute;
+  inset: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--bv-cell);
   margin: 0;
+  padding: 0 0.75rem;
+  text-align: center;
+  text-shadow: 0 0 3px rgb(0 0 0 / 90%);
+  pointer-events: none;
+}
+
+.bv-bag-empty[hidden] {
+  display: none;
 }
 
 .bv-bag-foot {
@@ -348,7 +395,7 @@
   margin: 0;
 }
 
-.bv-bag-close {
+.bv-bag-keys {
   margin: 0;
   opacity: 0.6;
 }
@@ -408,7 +455,7 @@
   list-style: none;
 }
 
-:is(.bv-bag-card-keys, .bv-bag-close) kbd {
+:is(.bv-bag-card-keys, .bv-bag-keys) kbd {
   padding: 0 0.3em;
   font: inherit;
   border: 1px solid currentcolor;

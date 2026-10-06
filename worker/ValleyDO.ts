@@ -162,9 +162,6 @@ export class ValleyDO extends DurableObject<Env> {
           unit: msg.unit,
         })
         return
-      case 'deliver':
-        await this.act(ws, { type: 'deliver', id: me.id })
-        return
       case 'call':
         await this.act(ws, {
           type: 'call',

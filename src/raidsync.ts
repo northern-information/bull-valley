@@ -23,8 +23,8 @@ export interface Reconciled {
 
 // Move `raid` through `wire`, the snapshot after `previous` (null for the
 // first). `me` is this socket's id, `clock` the raid clock in seconds.
-// What the raider carries, has delivered, and whether they have the sack
-// are the valley's word, whatever this client guessed in the meantime.
+// What the raider carries is the valley's word, whatever this client
+// guessed in the meantime.
 export function reconcile(
   raid: Raid,
   previous: RaidWire | null,
@@ -41,12 +41,7 @@ export function reconcile(
 
   const mine = wire.members.find((m) => m.id === me)
   if (mine) {
-    next = {
-      ...next,
-      carrying: mine.carrying,
-      delivered: mine.delivered,
-      sack: mine.sack,
-    }
+    next = { ...next, carrying: mine.carrying }
   }
 
   // The truck left: with us, or without us, or before we got here.

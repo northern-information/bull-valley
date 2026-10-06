@@ -219,7 +219,6 @@ async function boot() {
     truck,
     departRoute,
     spawnStation,
-    stand: world.landmarks.find((l) => l.n !== KEEP) ?? null,
     keep: world.landmarks.find((l) => l.n === KEEP) ?? null,
     player,
     playerBody,

@@ -20,7 +20,6 @@ import type { NpcSpot } from '../../src/npcs.ts'
 
 const spawnStation: StationSpot = { x: 0, z: 0, name: 'Spawn Citgo' }
 const farStation: StationSpot = { x: 500, z: 0, name: 'Far Citgo' }
-const stand = { x: 0, z: 500 }
 const keep = { x: -500, z: 0 }
 const bush = { x: -8, z: -8 }
 // A few strides from the bush, like CONFIG.gron.at from CONFIG.daily.bush.
@@ -48,7 +47,7 @@ function onFoot(): Raid {
   )
 }
 
-// Defaults put the player in open country: no truck, stand, extract, bush,
+// Defaults put the player in open country: no truck, extract, bush,
 // or pickup in reach, with the valley answering.
 function input(
   over: Partial<InteractionInput<PickupSpot>> = {}
@@ -58,7 +57,6 @@ function input(
     ended: false,
     player: { x: 250, z: 250 },
     truck: { distance: 1000, moving: false },
-    stand,
     keep,
     stations: [spawnStation, farStation],
     spawnStation,
@@ -106,16 +104,6 @@ describe('resolveInteraction', () => {
     })
     const rolling = { distance: 1, moving: true }
     expect(resolveInteraction(input({ raid, truck: rolling }))).toBeNull()
-  })
-
-  it('unloads at the stand only while carrying', () => {
-    const atStand = { player: { x: stand.x, z: stand.z } }
-    expect(resolveInteraction(input(atStand))).toBeNull()
-    const raid = advance(onFoot(), EVENTS.PICK_CABBAGE, 3)
-    expect(resolveInteraction(input({ ...atStand, raid }))).toEqual({
-      kind: 'unload',
-      count: 1,
-    })
   })
 
   it('extracts at any station but the spawn, and at the Keep', () => {
@@ -348,30 +336,11 @@ describe('resolveInteraction', () => {
       name: farStation.name,
     })
   })
-
-  it('puts the stand ahead of a pickup at the same spot', () => {
-    const raid = advance(onFoot(), EVENTS.PICK_CABBAGE, 3)
-    const pickup: PickupSpot = {
-      ...stand,
-      kind: 'cabbage',
-      count: 1,
-      taken: false,
-    }
-    expect(
-      resolveInteraction(input({ raid, player: stand, pickups: [pickup] }))
-    ).toEqual({ kind: 'unload', count: 1 })
-  })
 })
 
 describe('interactionPrompt', () => {
   it('names each action', () => {
     expect(interactionPrompt({ kind: 'hopOut' })).toBe(copy('prompts.hop_out'))
-    expect(interactionPrompt({ kind: 'unload', count: 1 })).toBe(
-      copy('prompts.unload_one')
-    )
-    expect(interactionPrompt({ kind: 'unload', count: 3 })).toBe(
-      copy('prompts.unload_many', { count: 3 })
-    )
     expect(interactionPrompt({ kind: 'extractFuel', name: '' })).toBe(
       copy('prompts.extract_station')
     )

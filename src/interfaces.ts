@@ -90,7 +90,7 @@ export interface Geo {
 // packaging (src/assets.ts).
 
 export type ItemCategory =
-  'cigarette' | 'joint' | 'drink' | 'medicine' | 'forage' | 'gear'
+  'cigarette' | 'joint' | 'drink' | 'medicine' | 'forage'
 
 // How a medicine is packed: a pill bottle, a folding carton, or a dropper
 // bottle. assets.ts builds one shape per form; medart.ts paints its labels.
@@ -139,8 +139,6 @@ export interface Item {
   container?: ContainerKey
   // Medicine.
   form?: MedicineForm
-  // Gear.
-  carryLimit?: number
 }
 
 // Item id -> count. Every inventory kind is present.
@@ -161,9 +159,7 @@ export type RaidEvent =
   | 'TIMER_EXPIRED'
   | 'HOP_OUT'
   | 'PICK_CABBAGE'
-  | 'DELIVER'
   | 'CALL_TRUCK'
-  | 'BUY_SACK'
   | 'EXTRACT_FUEL'
   | 'EXTRACT_KEEP'
   | 'STRUCK'
@@ -175,8 +171,6 @@ export interface Raid {
   startedAt: number
   loadoutEndsAt: number
   carrying: number
-  delivered: number
-  sack: boolean
   truckCalled: boolean
   extract: ExtractKind | null
   // Station name for a 'fuel' extract.
@@ -187,7 +181,6 @@ export interface Raid {
 }
 
 export interface RaidSummary {
-  delivered: number
   carrying: number
   durationSeconds: number | null
   extract: ExtractKind | null

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CABBAGE_SEED, placeCabbages } from '../../src/cabbages.ts'
 import { pointInPolygon } from '../../src/coords.ts'
-import { CABBAGE_STAND, landmarkWorldPositions } from '../../src/landmarks.ts'
+import { CABBAGE_PATCH, landmarkWorldPositions } from '../../src/landmarks.ts'
 import { mulberry32 } from '../../src/rng.ts'
 import type { Bbox, Geo, Metres } from '../../src/interfaces.ts'
 
@@ -29,16 +29,16 @@ const GEO: Pick<Geo, 'metres' | 'wetland' | 'reserves'> = {
     },
   ],
 }
-const STAND = { u: 0.5, v: 0.5 }
+const PATCH = { u: 0.5, v: 0.5 }
 
 describe('placeCabbages', () => {
   it('is deterministic for a fixed seed', () => {
     const a = placeCabbages(GEO, mulberry32(CABBAGE_SEED), {
-      stand: STAND,
+      patch: PATCH,
       metres: METRES,
     })
     const b = placeCabbages(GEO, mulberry32(CABBAGE_SEED), {
-      stand: STAND,
+      patch: PATCH,
       metres: METRES,
     })
     expect(a).toEqual(b)
@@ -47,7 +47,7 @@ describe('placeCabbages', () => {
 
   it('respects the requested counts', () => {
     const spots = placeCabbages(GEO, mulberry32(1), {
-      stand: STAND,
+      patch: PATCH,
       metres: METRES,
       count: 20,
       cluster: 6,
@@ -56,21 +56,21 @@ describe('placeCabbages', () => {
     expect(spots.filter((s) => s.src === 'cluster').length).toBe(6)
   })
 
-  it('grows the guaranteed cluster within 400 m of the stand', () => {
+  it('grows the guaranteed cluster within 400 m of the patch', () => {
     const spots = placeCabbages(GEO, mulberry32(2), {
-      stand: STAND,
+      patch: PATCH,
       metres: METRES,
     })
     for (const s of spots.filter((c) => c.src === 'cluster')) {
-      const dx = (s.u - STAND.u) * METRES.width
-      const dz = (s.v - STAND.v) * METRES.height
+      const dx = (s.u - PATCH.u) * METRES.width
+      const dz = (s.v - PATCH.v) * METRES.height
       expect(Math.hypot(dx, dz)).toBeLessThanOrEqual(400)
     }
   })
 
   it('keeps wild cabbages inside their source polygons', () => {
     const spots = placeCabbages(GEO, mulberry32(3), {
-      stand: STAND,
+      patch: PATCH,
       metres: METRES,
       count: 30,
     })
@@ -88,7 +88,7 @@ describe('placeCabbages', () => {
 })
 
 describe('landmarks', () => {
-  it('projects both landmarks inside the current survey frame', () => {
+  it('projects the landmarks and the cabbage patch inside the current survey frame', () => {
     // The survey's frame; keep in sync with geo.json bbox.
     const bbox: Bbox = {
       south: 42.2655,
@@ -98,16 +98,15 @@ describe('landmarks', () => {
     }
     const metres = { width: 15059, height: 15038 }
     const marks = landmarkWorldPositions(bbox, metres)
-    expect(marks.length).toBe(2)
-    for (const mark of marks) {
+    expect(marks.length).toBe(1)
+    const [patch] = landmarkWorldPositions(bbox, metres, [CABBAGE_PATCH])
+    for (const mark of [...marks, patch]) {
       expect(mark.u).toBeGreaterThan(0)
       expect(mark.u).toBeLessThan(1)
       expect(mark.v).toBeGreaterThan(0)
       expect(mark.v).toBeLessThan(1)
     }
-    const stand = marks.find((m) => m.n === CABBAGE_STAND)
-    if (!stand) throw new Error('No Cabbage Stand landmark')
-    expect(stand.u).toBeCloseTo(0.775, 2)
-    expect(stand.v).toBeCloseTo(0.702, 2)
+    expect(patch.u).toBeCloseTo(0.775, 2)
+    expect(patch.v).toBeCloseTo(0.702, 2)
   })
 })

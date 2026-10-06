@@ -3,8 +3,8 @@ import { copy, copyPattern } from './copy.ts'
 import { beginRaid, expect, watchErrors } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
-// One raid, played in order on one page: shop, ride, take and unload a
-// cabbage, extract. Booting the valley is slow on CI, so the steps share
+// One raid, played in order on one page: shop, ride, take a cabbage into
+// the pack's loot, extract. Booting the valley is slow on CI, so the steps share
 // one boot instead of paying it five times. The specs move the player with
 // the dev hook instead of walking, then press the real keys. A fresh
 // raider means the pack starts empty.
@@ -47,9 +47,7 @@ base.describe('one raid', { tag: '@raid' }, () => {
           ? { x: truck.x, z: truck.z }
           : target === 'cabbage'
             ? world.pickups.find((p) => p.kind === 'cabbage' && !p.taken)
-            : target === 'stand'
-              ? world.landmarks.find((l) => !l.n.includes('Keep'))
-              : world.fuelPoints.find((f) => f !== world.spawnStation)
+            : world.fuelPoints.find((f) => f !== world.spawnStation)
       if (!spot) throw new Error(`nothing to move to: ${target}`)
       // A stride off it, facing it and looking down at it, so an item's
       // label is in view. The view looks along (-sin yaw, -cos yaw).
@@ -105,8 +103,8 @@ base.describe('one raid', { tag: '@raid' }, () => {
     })
 
   // Stand inside the spawn station's Citgo, `back` metres off unit `unit`
-  // of the facing of `kind` (station-local: +X from the back wall, +Z from
-  // the sack shelf), and look straight at it.
+  // of the facing of `kind` (station-local: +X from the back wall, +Z
+  // across the room), and look straight at it.
   async function aimAt(
     kind: string,
     back: [number, number],
@@ -150,7 +148,17 @@ base.describe('one raid', { tag: '@raid' }, () => {
       [kind, unit] as const
     )
 
-  base('buy a drink and the sack inside the Citgo', async () => {
+  // The pack's tabs, and the kinds in the grid the shown one fills.
+  const bagTab = () =>
+    page.locator('.bv-bag-tab[aria-selected="true"]').textContent()
+  const bagKinds = () =>
+    page
+      .locator('.bv-bag-cell[data-kind]')
+      .evaluateAll((cells) =>
+        cells.map((cell) => cell.getAttribute('data-kind'))
+      )
+
+  base('buy a drink inside the Citgo', async () => {
     expect(await pbrs()).toBe(0)
     expect(await cash()).toBe(4000)
 
@@ -184,19 +192,15 @@ base.describe('one raid', { tag: '@raid' }, () => {
     expect(await glowShelfUnit()).not.toBeNull()
     await expect.poll(pbrs).toBe(1)
 
-    await aimAt('sack', [0, 1.3])
-    await expect(label()).toHaveText(
-      copy('labels.price', {
-        item: copy('items.sack.label'),
-        price: '$3.00',
-      })
-    )
-    await page.keyboard.press('KeyE')
-    await expect.poll(async () => (await raid())?.sack).toBe(true)
-    expect(await cash()).toBe(4000 - 99 - 300)
-
+    // The pack opens on Consumables, where the drink is; Loot beside it
+    // is empty.
     await page.keyboard.press('Tab')
-    await expect(page.locator('[data-bv="inv-cash"]')).toHaveText('$36.01')
+    await expect(page.locator('[data-bv="inv-cash"]')).toHaveText('$39.01')
+    expect(await bagTab()).toBe(copy('inventory.tab_consumables'))
+    expect(await bagKinds()).toContain('pbr')
+    await page.keyboard.press('KeyD')
+    expect(await bagTab()).toBe(copy('inventory.tab_loot'))
+    expect(await bagKinds()).toEqual([])
     await page.keyboard.press('Tab')
   })
 
@@ -212,17 +216,20 @@ base.describe('one raid', { tag: '@raid' }, () => {
     await expect.poll(async () => (await raid())?.state).toBe('ON_FOOT')
   })
 
-  base('take a cabbage and unload it at the stand', async () => {
+  base('take a cabbage into the loot', async () => {
     await moveTo('cabbage')
     await expect(label()).toHaveText(copy('labels.cabbage'))
     await expect.poll(glowCabbage).toBe('cabbage')
     await page.keyboard.press('KeyE')
     await expect.poll(async () => (await raid())?.carrying).toBe(1)
 
-    await moveTo('stand')
-    await expect(prompt()).toHaveText(copy('prompts.unload_one'))
-    await page.keyboard.press('KeyE')
-    await expect.poll(async () => (await raid())?.delivered).toBe(1)
+    // The pack opens on Consumables again; the cabbage is one tab over.
+    await page.keyboard.press('Tab')
+    expect(await bagTab()).toBe(copy('inventory.tab_consumables'))
+    expect(await bagKinds()).not.toContain('cabbage')
+    await page.keyboard.press('KeyD')
+    expect(await bagKinds()).toEqual(['cabbage'])
+    await page.keyboard.press('Tab')
   })
 
   base('extract at a station other than the spawn', async () => {

@@ -135,8 +135,7 @@ export interface Game {
   // The joyride the truck leaves on, from the spawn station.
   departRoute: Route
   spawnStation: FuelPoint
-  // The cabbage stand and Mt. Coleman's Keep, if the survey has them.
-  stand: LandmarkPoint | null
+  // Mt. Coleman's Keep, if the survey has it.
   keep: LandmarkPoint | null
   player: Player
   playerBody: PlayerBody

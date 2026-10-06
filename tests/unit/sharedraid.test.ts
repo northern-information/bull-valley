@@ -26,7 +26,7 @@ const PICKUPS: PickupSpec[] = [
 ]
 const STATIONS = 3
 const T0 = 1_000_000
-const NO_HAUL = { carrying: 0, delivered: 0, sack: false }
+const NO_HAUL = { carrying: 0 }
 
 // A little harness: applies actions in order, remembering who is present.
 function valleyWith(...actions: ValleyAction[]) {
@@ -356,7 +356,7 @@ describe('rule 8: the shelves are shared', () => {
   it('sells during the lobby and out in the valley alike', () => {
     const v = valleyWith(join('a'), { type: 'board', id: 'a' })
     v.step(join('b'))
-    expect(v.step(buy('b', 2, 'sack')).broadcast[0].reason).toBe('bought')
+    expect(v.step(buy('b', 2, 'red-bull')).broadcast[0].reason).toBe('bought')
   })
 
   it('fills the shelves again with the next lobby', () => {
@@ -368,7 +368,7 @@ describe('rule 8: the shelves are shared', () => {
     )
   })
 
-  it('drops a raid stored with counted shelves, keeping the bush', () => {
+  it('drops a raid stored with counted shelves or an item no longer sold, keeping the bush', () => {
     const v = valleyWith(join('a'))
     const raid = v.valley.raid
     if (!raid) throw new Error('expected a raid')
@@ -381,6 +381,11 @@ describe('rule 8: the shelves are shared', () => {
       raid: null,
       dailies: { acct: '2026-10-05' },
     })
+    const unsold = {
+      ...v.valley,
+      raid: { ...raid, shelves: [{ ...raid.shelves[0], sack: [true] }] },
+    } as unknown as Valley
+    expect(restoreValley(unsold).raid).toBeNull()
     expect(restoreValley(v.valley).raid).toEqual(raid)
     expect(restoreValley({ epoch: 2 })).toEqual({ ...createValley(), epoch: 2 })
   })
@@ -723,15 +728,12 @@ describe("rule 11: the pack is the account's", () => {
     expect(v.step({ type: 'take', id: 'a', index: 0 }).pack).toBeUndefined()
   })
 
-  it('puts a unit bought into the pack, but not the sack', () => {
+  it('puts a unit bought into the pack', () => {
     const v = valleyWith(join('a'))
     expect(
       v.step({ type: 'buy', id: 'a', station: 0, kind: 'red-bull', unit: 0 })
         .pack
     ).toEqual({ account: 'acct-a', kind: 'red-bull', delta: 1 })
-    expect(
-      v.step({ type: 'buy', id: 'a', station: 0, kind: 'sack', unit: 0 }).pack
-    ).toBeUndefined()
   })
 
   it("puts the day's berry into the pack, once", () => {
@@ -830,35 +832,6 @@ describe("rule 12: the haul is the valley's", () => {
     })
     // Still there for someone with room.
     expect(v.valley.raid?.taken).not.toContain(2 + limit)
-  })
-
-  it('carries more with the sack, bought once', () => {
-    const v = onFoot()
-    const sack = (unit: number): ValleyAction => ({
-      type: 'buy',
-      id: 'a',
-      station: 0,
-      kind: 'sack',
-      unit,
-    })
-    expect(v.step(sack(0)).spend?.amount).toBe(getItem('sack').price)
-    expect(mine(v)?.sack).toBe(true)
-    expect(v.step(sack(1)).reply?.reason).toBe('have-sack')
-    const limit = getItem('sack').carryLimit ?? 0
-    for (let i = 0; i < limit; i++) v.step(take(2 + i))
-    expect(mine(v)?.carrying).toBe(limit)
-  })
-
-  it('leaves everything in the arms at the stand', () => {
-    const v = onFoot()
-    expect(v.step({ type: 'deliver', id: 'a' }).reply?.reason).toBe(
-      'empty-handed'
-    )
-    v.step(take(2))
-    v.step(take(3))
-    const r = v.step({ type: 'deliver', id: 'a' })
-    expect(r.broadcast[0]).toMatchObject({ reason: 'delivered', by: 'a' })
-    expect(mine(v)).toMatchObject({ carrying: 0, delivered: 2 })
   })
 
   it('keeps the haul for the account across a reload, until the reset', () => {

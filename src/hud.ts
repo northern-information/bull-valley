@@ -7,11 +7,13 @@ import { PACK, WORLD } from './bindings.ts'
 import { CHAT_LINES, formatStamp, isFaded, pushLine } from './chat.ts'
 import { copy } from './copy.ts'
 import { KEEP } from './landmarks.ts'
+import { PACK_TABS } from './packgrid.ts'
 import { CHAT_MAX } from './protocol.ts'
 import type { Binding } from './bindings.ts'
 import type { ChatLine } from './chat.ts'
 import type { Cooldown } from './hotbar.ts'
 import type { PackItem, RaidSummary } from './interfaces.ts'
+import type { PackTab } from './packgrid.ts'
 
 // The floating name over an item, placed by its top in the view: x and y
 // from 0 at the left and top to 1 at the right and bottom.
@@ -33,8 +35,6 @@ export interface HotbarSlotView {
 
 // The line along the foot of the pack grid.
 export interface BagStatus {
-  delivered: number
-  truck: string
   // Formatted, like "$40.00".
   cash: string
 }
@@ -47,6 +47,22 @@ const CARD_VIEW_PX = 144
 // Cells a row in the pack grid (styles.css .bv-bag-grid); the last row is
 // filled out with empty slots.
 const BAG_COLUMNS = 8
+
+// Each pack tab's label, and the line its grid shows when empty.
+const BAG_TABS: Record<PackTab, { label: string; empty: string }> = {
+  consumables: {
+    label: copy('inventory.tab_consumables'),
+    empty: copy('inventory.empty_consumables'),
+  },
+  loot: {
+    label: copy('inventory.tab_loot'),
+    empty: copy('inventory.empty_loot'),
+  },
+  materials: {
+    label: copy('inventory.tab_materials'),
+    empty: copy('inventory.empty_materials'),
+  },
+}
 
 // The Begin button's states and their labels. The button holds every label
 // at once, stacked in one cell with only the current one visible, so it is
@@ -121,11 +137,14 @@ export class Hud {
   promptEl: HTMLParagraphElement
   itemLabelEl: HTMLParagraphElement
   bag: HTMLElement
+  bagTabs: Map<PackTab, HTMLButtonElement>
   bagGrid: HTMLDivElement
   bagEmpty: HTMLParagraphElement
   bagCash: HTMLElement
-  bagDelivered: HTMLElement
-  bagTruck: HTMLElement
+  // The tab the grid shows.
+  bagTab: PackTab = PACK_TABS[0]
+  // Told when a tab is clicked, to fill the grid with it.
+  onBagTab: ((tab: PackTab) => void) | null = null
   bagItems: PackItem[] = []
   bagKey = ''
   // The item under the cursor (or focus) in the grid, whose card shows.
@@ -218,8 +237,26 @@ export class Hud {
     this.bag.setAttribute('role', 'dialog')
     this.bag.setAttribute('aria-label', copy('inventory.label'))
     this.bag.hidden = true
+    // The tabs over the grid, which is their one panel.
+    const tabs = el('div', 'bv-bag-tabs')
+    tabs.setAttribute('role', 'tablist')
+    tabs.setAttribute('aria-label', copy('inventory.label'))
+    this.bagTabs = new Map(
+      PACK_TABS.map((tab) => {
+        const button = text('button', BAG_TABS[tab].label, 'bv-bag-tab')
+        button.type = 'button'
+        button.id = `bv-bag-tab-${tab}`
+        button.setAttribute('role', 'tab')
+        button.setAttribute('aria-controls', 'bv-bag-panel')
+        button.addEventListener('click', () => this.onBagTab?.(tab))
+        tabs.appendChild(button)
+        return [tab, button]
+      })
+    )
     this.bagGrid = el('div', 'bv-bag-grid')
-    this.bagEmpty = text('p', copy('inventory.empty_blurb'), 'bv-bag-empty')
+    this.bagGrid.id = 'bv-bag-panel'
+    this.bagGrid.setAttribute('role', 'tabpanel')
+    this.bagEmpty = el('p', 'bv-bag-empty')
     const status = el('dl', 'bv-bag-status')
     const stat = (label: string) => {
       const dd = document.createElement('dd')
@@ -230,14 +267,25 @@ export class Hud {
     }
     this.bagCash = stat(copy('inventory.cash'))
     this.bagCash.dataset.bv = 'inv-cash'
-    this.bagDelivered = stat(copy('inventory.delivered'))
-    this.bagTruck = stat(copy('inventory.truck'))
-    // Along the foot: the status, and the key that closes the pack.
+    // Along the foot: the status, and the keys that switch tabs and close
+    // the pack.
     const foot = el('div', 'bv-bag-foot')
-    const close = el('p', 'bv-bag-close')
-    close.append(text('kbd', PACK.close.key), ` ${copy(PACK.close.labelKey)}`)
-    foot.append(status, close)
-    this.bag.append(this.bagGrid, this.bagEmpty, foot)
+    const footKeys = el('p', 'bv-bag-keys')
+    footKeys.append(
+      text('kbd', PACK.prevTab.key),
+      ' ',
+      text('kbd', PACK.nextTab.key),
+      ` ${copy(PACK.nextTab.labelKey)} `,
+      text('kbd', PACK.close.key),
+      ` ${copy(PACK.close.labelKey)}`
+    )
+    foot.append(status, footKeys)
+    // The empty line lies over the grid's empty row, so switching to an
+    // empty tab never changes the pack's height.
+    const panel = el('div', 'bv-bag-panel')
+    panel.append(this.bagGrid, this.bagEmpty)
+    this.bag.append(tabs, panel, foot)
+    this.selectBagTab(this.bagTab)
     // Moving across the gaps between cells keeps the card; leaving the
     // grid drops it.
     const hoverFrom = (target: EventTarget | null) => {
@@ -481,10 +529,26 @@ export class Hud {
     this.chat.classList.toggle('bv-chat--held', held)
   }
 
-  // The pack's items (packgrid.ts entries) as grid cells. The cells are
-  // rebuilt only when a kind or a count changes; the card follows.
+  // Marks `tab` as the one the grid shows; setBag fills it.
+  selectBagTab(tab: PackTab): void {
+    this.bagTab = tab
+    for (const [one, button] of this.bagTabs) {
+      const selected = one === tab
+      button.setAttribute('aria-selected', String(selected))
+      button.tabIndex = selected ? 0 : -1
+    }
+    this.bagGrid.setAttribute('aria-labelledby', `bv-bag-tab-${tab}`)
+    this.bagEmpty.textContent = BAG_TABS[tab].empty
+  }
+
+  // The shown tab's items (packgrid.ts entries) as grid cells. The cells
+  // are rebuilt only when the tab, a kind or a count changes; the card
+  // follows.
   setBag(items: PackItem[], iconOf: (kind: string) => string): void {
-    const key = items.map((item) => `${item.kind}:${item.stock}`).join(',')
+    const key = [
+      this.bagTab,
+      ...items.map((item) => `${item.kind}:${item.stock}`),
+    ].join(',')
     if (key === this.bagKey) return
     this.bagKey = key
     this.bagItems = items
@@ -576,13 +640,8 @@ export class Hud {
     if (changed) this.onBagHover?.(item)
   }
 
-  setBagStatus({ delivered, truck, cash }: BagStatus): void {
-    const set = (node: HTMLElement, value: string) => {
-      if (node.textContent !== value) node.textContent = value
-    }
-    set(this.bagCash, cash)
-    set(this.bagDelivered, String(delivered))
-    set(this.bagTruck, truck)
+  setBagStatus({ cash }: BagStatus): void {
+    if (this.bagCash.textContent !== cash) this.bagCash.textContent = cash
   }
 
   get bagShown(): boolean {
@@ -651,7 +710,6 @@ export class Hud {
 
   // End-of-raid overlay, styled like the intro dialog.
   showSummary({
-    delivered,
     carrying,
     durationSeconds,
     extract,
@@ -672,8 +730,8 @@ export class Hud {
             ? copy('summary.at_station', { station: extractName })
             : copy('summary.at_a_station')
     // One line each; the note keeps the line breaks (white-space: pre-line).
-    const lines = [how, copy('summary.delivered', { count: delivered })]
-    if (carrying > 0) lines.push(copy('summary.left', { count: carrying }))
+    const lines = [how]
+    if (carrying > 0) lines.push(copy('summary.cabbages', { count: carrying }))
     if (deaths > 0) lines.push(copy('summary.deaths', { count: deaths }))
     lines.push(copy('summary.time', { time: `${minutes}:${seconds}` }))
     const summary = el('div', 'bv-intro')

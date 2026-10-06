@@ -4,7 +4,7 @@
 // the card. Each model is fitted to a unit cell.
 
 import * as THREE from 'three'
-import { buildPickup, buildSack, meshBounds } from './assets.ts'
+import { buildPickup, meshBounds } from './assets.ts'
 import { drinkFitHeight } from './drinks.ts'
 import { isDrink } from './items.ts'
 
@@ -24,7 +24,6 @@ export interface ItemThumbs {
 }
 
 function buildModel(kind: string): THREE.Object3D {
-  if (kind === 'sack') return buildSack()
   return buildPickup(kind, 0x5ac, { glow: false })
 }
 

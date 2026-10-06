@@ -10,8 +10,6 @@ function member(id: string, extra: Partial<MemberWire> = {}): MemberWire {
     phase: 'LOBBY',
     boarded: false,
     carrying: 0,
-    delivered: 0,
-    sack: false,
     ...extra,
   }
 }
@@ -47,10 +45,10 @@ describe('reconcile', () => {
 
   it("takes the account's haul from the valley", () => {
     const w = wire({
-      members: [member('a', { carrying: 2, delivered: 5, sack: true })],
+      members: [member('a', { carrying: 2 })],
     })
-    const r = reconcile(createRaid(0), null, w, 'a', 'delivered', 0)
-    expect(r.raid).toMatchObject({ carrying: 2, delivered: 5, sack: true })
+    const r = reconcile(createRaid(0), null, w, 'a', 'taken', 0)
+    expect(r.raid.carrying).toBe(2)
   })
 
   it('rides a raider who was aboard when the truck left', () => {

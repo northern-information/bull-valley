@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { CONFIG } from '../../src/config.ts'
 import { copy } from '../../src/copy.ts'
 import { CONTAINERS } from '../../src/drinks.ts'
 import {
@@ -19,14 +18,9 @@ describe('items', () => {
   it('has unique ids and a known category', () => {
     expect(new Set(ITEMS.map((item) => item.id)).size).toBe(ITEMS.length)
     for (const item of ITEMS) {
-      expect([
-        'cigarette',
-        'joint',
-        'drink',
-        'medicine',
-        'forage',
-        'gear',
-      ]).toContain(item.category)
+      expect(['cigarette', 'joint', 'drink', 'medicine', 'forage']).toContain(
+        item.category
+      )
     }
   })
 
@@ -83,11 +77,8 @@ describe('items', () => {
     expect(isMedicine('pbr')).toBe(false)
   })
 
-  it('keeps gear out of the inventory', () => {
-    expect(INVENTORY_KINDS).not.toContain('sack')
-    expect(getItem('sack').carryLimit).toBeGreaterThan(
-      CONFIG.cabbage.carryLimit
-    )
+  it('counts every item in the inventory', () => {
+    expect(INVENTORY_KINDS).toEqual(ITEMS.map((item) => item.id))
   })
 
   it('tells cigarettes from other kinds', () => {

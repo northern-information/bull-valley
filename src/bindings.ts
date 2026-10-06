@@ -66,12 +66,23 @@ export const CHAT = {
   },
 } as const satisfies Record<string, Binding>
 
-// With the pack open: these act on the item under the cursor and nothing
-// reaches the player. Enter is a quiet alias for E, and Esc for Tab, since
-// the pointer is free and Esc no longer drops a lock.
+// With the pack open: these act on the item under the cursor or switch
+// the tab, and nothing reaches the player. Enter is a quiet alias for E,
+// the arrows for A and D, and Esc for Tab, since the pointer is free and
+// Esc no longer drops a lock.
 export const PACK = {
   use: { codes: ['KeyE', 'Enter'], key: 'E', labelKey: 'keys.use' },
   assign: { codes: HOTBAR_CODES, key: '1–9', labelKey: 'keys.assign' },
+  prevTab: {
+    codes: ['KeyA', 'ArrowLeft'],
+    key: 'A',
+    labelKey: 'keys.switch_tab',
+  },
+  nextTab: {
+    codes: ['KeyD', 'ArrowRight'],
+    key: 'D',
+    labelKey: 'keys.switch_tab',
+  },
   close: { codes: ['Tab', 'Escape'], key: 'Tab', labelKey: 'keys.close' },
 } as const satisfies Record<string, Binding>
 

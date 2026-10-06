@@ -1,25 +1,42 @@
-// The pack grid, pure: which items fill the Tab grid, in what order. No
-// three.js, no DOM. hud.ts draws the cells; itemthumbs.ts draws the items.
+// The pack grid, pure: which items fill each of the Tab grid's tabs, in
+// what order. No three.js, no DOM. hud.ts draws the tabs and the cells;
+// itemthumbs.ts draws the items.
 
+import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
-import { getItem, isUsable, itemById, ITEMS } from './items.ts'
-import { carryLimit } from './raid.ts'
-import type { Inventory, PackItem, Raid } from './interfaces.ts'
+import { isUsable, itemById, ITEMS } from './items.ts'
+import type { Inventory, ItemCategory, PackItem, Raid } from './interfaces.ts'
 
-// Fixed grid order: counted items in ITEMS order. Cargo and gear come last.
-const ORDER = ITEMS.filter((item) => item.category !== 'gear')
+// The pack's tabs, left to right; it opens on the first.
+export const PACK_TABS = ['consumables', 'loot', 'materials'] as const
+export type PackTab = (typeof PACK_TABS)[number]
 
-// inv: the inventory; raid: the raid state. A kind is in the grid when the
-// player carries it. Each entry: { kind, label, blurb, stock, canUse }.
-export function packItems(inv: Inventory, raid: Raid): PackItem[] {
+// Which tab each item category sits in; the cabbages are loot. Nothing is
+// a material yet.
+const TAB_OF: Record<ItemCategory, PackTab> = {
+  cigarette: 'consumables',
+  joint: 'consumables',
+  drink: 'consumables',
+  medicine: 'consumables',
+  forage: 'loot',
+}
+
+// inv: the inventory; raid: the raid state. A kind is in its tab when the
+// player carries it: counted items in ITEMS order, then the cabbages.
+// Each entry: { kind, label, blurb, stock, canUse }.
+export function packItems(
+  inv: Inventory,
+  raid: Raid,
+  tab: PackTab
+): PackItem[] {
   const items: PackItem[] = []
-  for (const { id: kind, label, blurb } of ORDER) {
+  for (const { id: kind, label, blurb, category } of ITEMS) {
+    if (TAB_OF[category] !== tab) continue
     const stock = inv[kind] || 0
     if (stock < 1) continue
     items.push({ kind, label, blurb, stock, canUse: isUsable(kind) })
   }
-  if (raid.carrying > 0) items.push(cabbageItem(raid))
-  if (raid.sack) items.push(sackItem(1))
+  if (tab === 'loot' && raid.carrying > 0) items.push(cabbageItem(raid))
   return items
 }
 
@@ -27,19 +44,10 @@ function cabbageItem(raid: Raid): PackItem {
   return {
     kind: 'cabbage',
     label: copy('inventory.cabbages_label'),
-    blurb: copy('inventory.cabbages_blurb', { limit: carryLimit(raid) }),
+    blurb: copy('inventory.cabbages_blurb', {
+      limit: CONFIG.cabbage.carryLimit,
+    }),
     stock: raid.carrying,
-    canUse: false,
-  }
-}
-
-function sackItem(stock: number): PackItem {
-  const sack = getItem('sack')
-  return {
-    kind: 'sack',
-    label: sack.label,
-    blurb: sack.blurb,
-    stock,
     canUse: false,
   }
 }
@@ -52,7 +60,6 @@ export function packItemOf(
   raid: Raid
 ): PackItem | null {
   if (kind === 'cabbage') return cabbageItem(raid)
-  if (kind === 'sack') return sackItem(raid.sack ? 1 : 0)
   const item = itemById(kind)
   if (!item) return null
   const { label, blurb } = item

@@ -115,8 +115,6 @@ const CLERK = {
   // He blocks like a post this wide.
   radius: 0.25,
 }
-// The low shelf by the -Z wall: sacks.
-const SACK_SHELF = { x0: -11.0, x1: -8.6, height: 0.3, depth: 0.6 }
 // The fluorescent troffers on the ceiling: two rows across the room, two
 // panels each, long side along Z like the aisle, hung flush under the roof.
 const LIGHT = {
@@ -255,17 +253,6 @@ function buildBoxes(): StoreBox[] {
       'counter',
       true
     ),
-    box(
-      'sack-shelf',
-      [
-        (SACK_SHELF.x0 + SACK_SHELF.x1) / 2,
-        SACK_SHELF.height / 2,
-        -HALF_WIDTH + WALL + SACK_SHELF.depth / 2,
-      ],
-      [SACK_SHELF.x1 - SACK_SHELF.x0, SACK_SHELF.height, SACK_SHELF.depth],
-      'shelf',
-      true
-    ),
     // One board on the wall; the units stand on its top.
     box(
       'med-rack',
@@ -338,11 +325,11 @@ function buildSigns(): StoreSign[] {
       size: [1.2, 0.5],
       yaw: -Math.PI / 2,
     },
-    // Over the sack shelf on the -Z wall.
+    // On the -Z wall.
     {
       name: 'sign-beer',
       art: 'beer',
-      center: [(SACK_SHELF.x0 + SACK_SHELF.x1) / 2, 2.0, -sideZ],
+      center: [-9.8, 2.0, -sideZ],
       size: [1.6, 1.0],
       yaw: 0,
     },
@@ -358,10 +345,10 @@ function buildSigns(): StoreSign[] {
 }
 
 // Units of one kind sit this far apart along their run.
-const UNIT_GAP = { drink: 0.26, counter: 0.12, sack: 0.6, medicine: 0.11 }
+const UNIT_GAP = { drink: 0.26, counter: 0.12, medicine: 0.11 }
 
 // `count` units centred on `at`, spread along local Z (or local X for the
-// sack shelf and the medicine rack, which run along the side walls).
+// medicine rack, which runs along a side wall).
 function row(at: Vec3, gap: number, axis: 'x' | 'z'): Vec3[] {
   const slots: Vec3[] = []
   const n = CONFIG.store.perItem
@@ -417,20 +404,6 @@ function buildFacings(): Facing[] {
       slots: row([x, MED_RACK.height, MED_RACK_Z], UNIT_GAP.medicine, 'x'),
       yaw: Math.PI,
     })
-  })
-  // The sacks on their low shelf, facing across the room (+Z).
-  facings.push({
-    kind: 'sack',
-    slots: row(
-      [
-        (SACK_SHELF.x0 + SACK_SHELF.x1) / 2,
-        SACK_SHELF.height,
-        -HALF_WIDTH + WALL + SACK_SHELF.depth / 2,
-      ],
-      UNIT_GAP.sack,
-      'x'
-    ),
-    yaw: 0,
   })
   return facings
 }
