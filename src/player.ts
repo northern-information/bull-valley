@@ -27,7 +27,6 @@ export interface PlayerOptions {
 // Per-frame movement modifiers from items and the scope.
 export interface PlayerMods {
   speedScale?: number
-  swayAmp?: number
   driftAmp?: number
 }
 
@@ -53,14 +52,12 @@ export class Player {
   keys: Set<string>
   locked: boolean
   bobPhase: number
-  prevBobSin: number
   eye: number
   // The ground height the feet stand on this frame. It follows groundAt
   // with a short lag, so stepping onto a road or a lot is a step up, not a
   // jolt; a teleport snaps it.
   groundY: number
   forward: THREE.Vector3
-  onStep: ((sprinting: boolean) => void) | null
   onEdge: (() => void) | null
   edgeCooldown: number
   time: number
@@ -78,11 +75,9 @@ export class Player {
     this.keys = new Set()
     this.locked = false
     this.bobPhase = 0
-    this.prevBobSin = 0
     this.eye = CONFIG.player.eyeHeight
     this.groundY = groundAt(spawn.x, spawn.z)
     this.forward = new THREE.Vector3(0, 0, -1)
-    this.onStep = null
     this.onEdge = null
     this.edgeCooldown = 0
     this.time = 0
@@ -158,13 +153,9 @@ export class Player {
     const speedNow = Math.hypot(this.vel.x, this.vel.z)
     const moving = speedNow > 0.3
 
-    // Head bob, and a step event each time the sine bottoms out.
+    // Head bob.
     this.bobPhase += speedNow * dt * 1.6
     const bobSin = Math.sin(this.bobPhase)
-    if (moving && this.prevBobSin > 0 && bobSin <= 0 && this.onStep) {
-      this.onStep(sprinting)
-    }
-    this.prevBobSin = bobSin
 
     const targetEye = crouching ? cfg.crouchEyeHeight : cfg.eyeHeight
     this.eye += (targetEye - this.eye) * Math.min(1, 8 * dt)
@@ -173,17 +164,13 @@ export class Player {
     const ground = this.groundY
     const bob = bobSin * 0.05 * Math.min(1, speedNow / 4)
 
-    // Nerves sway (roll + pitch flutter) and weed drift (slow yaw wander).
-    const sway = mods.swayAmp || 0
+    // Weed drift: a slow yaw wander and roll.
     const drift = mods.driftAmp || 0
     this.yaw += Math.sin(this.time * 0.31) * drift * dt
-    const roll =
-      Math.sin(this.time * 1.7) * 0.035 * sway +
-      Math.sin(this.time * 0.47) * 0.02 * drift
-    const pitchFlutter = Math.sin(this.time * 2.3) * 0.012 * sway
+    const roll = Math.sin(this.time * 0.47) * 0.02 * drift
 
     this.camera.position.set(this.pos.x, ground + this.eye + bob, this.pos.z)
-    this.camera.rotation.set(this.pitch + pitchFlutter, this.yaw, roll)
+    this.camera.rotation.set(this.pitch, this.yaw, roll)
 
     this.forward.set(-sin, 0, -cos)
 

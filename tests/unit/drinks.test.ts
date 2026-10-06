@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { CONTAINERS, drinkFitHeight } from '../../src/drinks.ts'
-import { ITEM_LIST } from '../../src/items.ts'
+import { ITEMS } from '../../src/items.ts'
 
 describe('drinks', () => {
   it('gives every drink item a known container', () => {
-    const drinks = ITEM_LIST.filter((item) => item.category === 'drink')
+    const drinks = ITEMS.filter((item) => item.category === 'drink')
     expect(drinks.length).toBeGreaterThan(0)
     for (const drink of drinks) {
       expect(drink.container).toBeDefined()

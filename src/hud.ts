@@ -1,4 +1,4 @@
-// All DOM: countdown, nerves meter, scope phone, the pack grid and its item
+// All DOM: countdown, scope phone, the pack grid and its item
 // card, the hotbar, prompts, item labels, the intro/pause overlay, and the
 // strike static. Markup is generated here so
 // index.html stays a bare #bv-root.
@@ -110,8 +110,6 @@ export class Hud {
   root: HTMLElement
   canvas: HTMLCanvasElement
   countdown: HTMLParagraphElement
-  nerves: HTMLDivElement
-  nervesFill: HTMLElement
   chat: HTMLDivElement
   chatLog: HTMLDivElement
   chatInput: HTMLInputElement
@@ -143,7 +141,6 @@ export class Hud {
   hotbar: HTMLOListElement
   hotbarKey = ''
   hotbarSlots: { li: HTMLLIElement; cd: HTMLElement; view: string }[] = []
-  vignetteEl: HTMLDivElement
   staticWrap: HTMLDivElement
   staticCanvas: HTMLCanvasElement
   reticle: HTMLDivElement
@@ -167,19 +164,6 @@ export class Hud {
     this.countdown.setAttribute('aria-label', copy('hud.countdown_label'))
     this.countdown.hidden = true
     ui.appendChild(this.countdown)
-
-    // Nerves meter. Hidden while nerves are parked; setNerves still works
-    // for when they return.
-    this.nerves = el('div', 'bv-nerves')
-    this.nerves.innerHTML = `
-      <span class="bv-nerves-label">${copy('hud.nerves')}</span>
-      <span class="bv-nerves-track"><i class="bv-nerves-fill"></i></span>`
-    this.nerves.hidden = true
-    ui.appendChild(this.nerves)
-    this.nervesFill = required(
-      this.nerves.querySelector<HTMLElement>('.bv-nerves-fill'),
-      '.bv-nerves-fill'
-    )
 
     // The lower-left column: the chat log.
     const dock = el('div', 'bv-dock')
@@ -309,9 +293,7 @@ export class Hud {
     this.hotbar.hidden = true
     ui.appendChild(this.hotbar)
 
-    // Vignette + strike static.
-    this.vignetteEl = el('div', 'bv-vignette')
-    ui.appendChild(this.vignetteEl)
+    // Strike static.
     this.staticWrap = el('div', 'bv-static')
     this.staticWrap.hidden = true
     this.staticCanvas = el('canvas')
@@ -369,12 +351,6 @@ export class Hud {
     if (text && this.countdown.textContent !== text) {
       this.countdown.textContent = text
     }
-  }
-
-  setNerves(value: number, fuzzy?: boolean): void {
-    this.nervesFill.style.width = `${value.toFixed(0)}%`
-    this.nervesFill.classList.toggle('bv-nerves-fill--high', value > 70)
-    this.nerves.classList.toggle('bv-nerves--fuzzy', !!fuzzy)
   }
 
   prompt(text: string | null): void {
@@ -688,10 +664,6 @@ export class Hud {
       summary.querySelector('[data-bv="again"]'),
       'again button'
     ).addEventListener('click', () => window.location.reload())
-  }
-
-  setVignette(alpha: number): void {
-    this.vignetteEl.style.opacity = alpha.toFixed(3)
   }
 
   showStatic(show: boolean): void {

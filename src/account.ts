@@ -42,9 +42,11 @@ export const PROVIDER_COLORS: Record<Provider, string> = {
 // /auth/username). Narrower than a typed name
 // (protocol.ts isValidName), since two lookalike handles would be two
 // raiders nobody could tell apart.
-export const USERNAME_MIN = 3
+const USERNAME_MIN = 3
 export const USERNAME_MAX = 16
-const USERNAME_RE = /^[A-Za-z0-9_]{3,16}$/
+const USERNAME_RE = new RegExp(
+  `^[A-Za-z0-9_]{${USERNAME_MIN},${USERNAME_MAX}}$`
+)
 
 export function isValidUsername(value: unknown): value is string {
   return typeof value === 'string' && USERNAME_RE.test(value)
@@ -123,15 +125,15 @@ export interface RefreshResponse {
 
 // The flags the Worker appends to the page URL when a sign-in round trip
 // lands back on the game.
-export const AUTH_PARAM = 'auth'
-export const AUTH_ERROR_PARAM = 'auth_error'
-export const AUTH_RETURNS = ['success', 'pending_signup', 'linked'] as const
+const AUTH_PARAM = 'auth'
+const AUTH_ERROR_PARAM = 'auth_error'
+const AUTH_RETURNS = ['success', 'pending_signup', 'linked'] as const
 export type AuthReturn = (typeof AUTH_RETURNS)[number]
 
 // Where a round trip may land: the game (its query string kept, so a dev
 // server's ?valley= survives) or the popup's closing page. Anything else,
 // including a protocol-relative URL, is refused.
-export const REDIRECT_PATHS = ['/', '/auth-done.html'] as const
+const REDIRECT_PATHS = ['/', '/auth-done.html'] as const
 
 export function validateRedirect(value: unknown): string | null {
   if (typeof value !== 'string' || !value.startsWith('/')) return null
@@ -224,7 +226,7 @@ export function devSignInUrl({
 
 // The page a link round trip lands on when it runs in a popup: it closes
 // itself, and the opener reads the account again.
-export const LINK_DONE_PATH = '/auth-done.html'
+const LINK_DONE_PATH = '/auth-done.html'
 
 // The message auth-done.html posts to the page that opened it, carrying the
 // round trip's ?auth= flags, before it closes.

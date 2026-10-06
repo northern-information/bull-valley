@@ -72,45 +72,6 @@
     1px 1px 0 rgb(0 0 0 / 80%);
 }
 
-/* Nerves */
-.bv-nerves {
-  position: absolute;
-  left: 1rem;
-  bottom: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.bv-nerves-track {
-  display: inline-block;
-  width: 11rem;
-  height: 0.55rem;
-  background: var(--fi-surface-82);
-  border: 1px solid var(--fi-slate);
-  box-shadow: 3px 3px 0 var(--fi-black-shadow);
-}
-
-.bv-nerves-fill {
-  display: block;
-  height: 100%;
-  width: 0%;
-  background: var(--fi-green);
-  transition: width 0.2s steps(8);
-}
-
-.bv-nerves-fill--high {
-  background: var(--fi-magenta);
-}
-
-/* Weed dulls the meter: it reads soft and slow on purpose. */
-.bv-nerves--fuzzy .bv-nerves-fill {
-  filter: blur(2px);
-  transition: width 1.6s linear;
-}
-
 /* The lower-left column: the chat log. It rides up over the hotbar while
    the bar shows. */
 .bv-dock {
@@ -503,18 +464,7 @@
   visibility: visible;
 }
 
-/* Vignette + strike static */
-.bv-vignette {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  background: radial-gradient(
-    ellipse at center,
-    transparent 42%,
-    rgb(0 0 0 / 85%) 100%
-  );
-}
-
+/* Strike static */
 .bv-static {
   position: absolute;
   inset: 0;

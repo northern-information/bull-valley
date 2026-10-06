@@ -8,11 +8,8 @@ import {
   INVENTORY_KINDS,
   isCigarette,
   isDrink,
-  isForage,
-  isForSale,
   isMedicine,
   isUsable,
-  ITEM_LIST,
   itemById,
   ITEMS,
 } from '../../src/items.ts'
@@ -49,7 +46,7 @@ describe('items', () => {
       if (!item) throw new Error(`no item ${id}`)
       const keys: (keyof Item)[] = ['label', 'blurb']
       // Shelf items are bought; forage is collected off the bush.
-      keys.push(isForSale(id) ? 'bought' : 'collected')
+      keys.push(item.price !== undefined ? 'bought' : 'collected')
       if (isUsable(id)) keys.push('used', 'empty')
       for (const key of keys) {
         expect(item[key], `${id}.${key}`).toBeTruthy()
@@ -102,7 +99,8 @@ describe('items', () => {
   })
 
   it('prices every shelf item in whole cents', () => {
-    const forSale = ITEM_LIST.filter((item) => isForSale(item.id))
+    const items: readonly Item[] = ITEMS
+    const forSale = items.filter((item) => item.price !== undefined)
     expect(forSale.length).toBe(ITEMS.length - 1)
     for (const item of forSale) {
       expect(Number.isInteger(item.price), item.id).toBe(true)
@@ -114,9 +112,6 @@ describe('items', () => {
   it('keeps the berries off the shelves and in the inventory, with no use yet', () => {
     const berries = getItem('berries')
     expect(berries.category).toBe('forage')
-    expect(isForage('berries')).toBe(true)
-    expect(isForage('pbr')).toBe(false)
-    expect(isForSale('berries')).toBe(false)
     expect('price' in berries).toBe(false)
     expect('bought' in berries).toBe(false)
     expect(berries.collected).toBeTruthy()

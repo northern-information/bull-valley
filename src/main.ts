@@ -286,8 +286,7 @@ async function boot() {
   await fontsReady()
   const hud = new Hud(root)
   const audio = new BvAudio()
-  // Sound effects are off for now; the splash cue is the only audio, and
-  // dev builds mute it too.
+  // The title-card cues are the only sound; dev builds mute them.
   if (import.meta.env.DEV) audio.setMuted(true)
   // The titles cover the terrain resolve: colophon, logo, account step, then
   // the character select, each a black layer stacked over the next, so every
@@ -399,8 +398,7 @@ async function boot() {
     finishById(pick.finish).color
   )
   const scope = new Scope(hud.scopeCanvas, hud.phone)
-  // The shadowmen feed the scope; nerves and the audio static stay parked
-  // (src/nerves.ts is in the tree, unwired).
+  // The shadowmen feed the scope.
   const shadowmen = new ShadowCards({
     scene,
     groundAt: world.ground.at,
@@ -1580,7 +1578,6 @@ async function boot() {
         speedScale:
           (scope.raised ? CONFIG.player.scopeSpeedScale : 1) *
           (smoking ? CONFIG.items.smokingSpeedScale : 1),
-        swayAmp: 0,
         driftAmp: perception ? CONFIG.items.perceptionDrift : 0,
       })
       forward = playerState.forward
@@ -1671,7 +1668,6 @@ async function boot() {
         ...peers.contacts(player.pos, CONFIG.scope.rangeMetres, renderAt),
       ],
       forward,
-      nerves: 0,
       perception,
     })
 

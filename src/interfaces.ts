@@ -147,7 +147,6 @@ export interface Item {
   // Cigarettes.
   smokeSeconds?: number
   emberSeconds?: number
-  crackle?: boolean
   // Joints.
   perceptionSeconds?: number
   // Drinks.
@@ -231,4 +230,14 @@ export interface PackItem {
   blurb: string
   stock: number
   canUse: boolean
+}
+
+// ---------------------------------------------------------------------------
+// The title cards (src/splashmachine.ts, src/audio.ts).
+
+// Triangle gain envelope for a one-shot: 0->1, hold, 1->0.
+export interface OneShotEnvelope {
+  fadeInMs: number
+  holdMs: number
+  fadeOutMs: number
 }

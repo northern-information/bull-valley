@@ -11,7 +11,7 @@
 
 import { parse } from 'smol-toml'
 
-export const AUTHORS = ['ai', 'tyler'] as const
+const AUTHORS = ['ai', 'tyler'] as const
 
 export type Author = (typeof AUTHORS)[number]
 

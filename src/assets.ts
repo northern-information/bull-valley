@@ -223,7 +223,7 @@ function samplePole(): THREE.Group {
 // in Illinois glowed in. The lens is unlit so it reads at any distance;
 // world.ts adds the halo, the pool on the road, and the real lights.
 export const SODIUM = '#ff9a3c'
-export const SODIUM_HALO = 'rgba(255, 150, 60, 0.75)'
+const SODIUM_HALO = 'rgba(255, 150, 60, 0.75)'
 
 // A cobra-head streetlight in lamp-local space: the pole at the origin,
 // the mast arm reaching out along +X to the head. `lens` is the centre of
@@ -488,7 +488,7 @@ function adSignPart(sign: StoreSign): Part {
 // per box or sign, each geometry already in station-local space: place it
 // at the pump island with the station's yaw. One material per finish,
 // shared across boxes.
-export function storeParts(): Part[] {
+function storeParts(): Part[] {
   const materials = new Map<StoreFinish, THREE.Material>()
   const boxes = STORE_LAYOUT.boxes.map((b) => {
     let material = materials.get(b.finish)
@@ -594,7 +594,7 @@ function makePumpFaceTexture(): THREE.CanvasTexture {
 
 // The pump's parts in pump-local space. One material per part, shared by
 // every pump in the valley through instancing.
-export function pumpParts(): Part[] {
+function pumpParts(): Part[] {
   const { width, depth, height, curb, cap, hose, nozzle } = PUMP
   const curbGeometry = new THREE.BoxGeometry(
     curb.width,
@@ -677,7 +677,7 @@ export function pumpParts(): Part[] {
 
 // The green drum with a black lid every forecourt has. Origin at ground
 // level under the middle.
-export function trashCanParts(): Part[] {
+function trashCanParts(): Part[] {
   const body = new THREE.CylinderGeometry(0.26, 0.24, 0.8, 8)
   body.translate(0, 0.4, 0)
   const lid = new THREE.CylinderGeometry(0.29, 0.29, 0.1, 8)
@@ -2189,7 +2189,7 @@ export interface SkeletonHorse {
 }
 
 // The top of the seat, metres off the ground.
-export const HORSE_SADDLE_TOP = 1.55
+const HORSE_SADDLE_TOP = 1.55
 
 // The spine's height along the back, from the croup (-Z) to the withers
 // (+Z), as [z, y] stations to interpolate between.
@@ -2637,7 +2637,7 @@ export function buildSkeletonHorse(): SkeletonHorse {
 
 // A handful of berries, as the inventory shows them: five in a loose pile.
 // Origin at ground level under the middle.
-export function buildBerries({ glow = true }: PickupOptions = {}): THREE.Group {
+function buildBerries({ glow = true }: PickupOptions = {}): THREE.Group {
   const group = new THREE.Group()
   group.name = 'berries'
   const material = berryMaterial()
@@ -2857,7 +2857,7 @@ export function buildScroll(): Scroll {
 // edge, with a spike off the back. Local space: the foot of the snath on
 // the ground at the origin, the snath up +Y, the blade reaching out along
 // +X, its flat facing ±Z.
-export const SCYTHE_LENGTH = 2.5
+const SCYTHE_LENGTH = 2.5
 
 // The blade, as a flat outline in its own plane: from the collar out along
 // the back edge to the hooked point, and in along the cutting edge with

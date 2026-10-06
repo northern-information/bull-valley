@@ -24,7 +24,7 @@ export function npcReach(id: NpcId): number {
 
 // Marx recites the poem a stanza at a time; Carlsten makes small talk;
 // Moab has one thing to say.
-export const NPC_LINES: Record<NpcId, readonly string[]> = {
+const NPC_LINES: Record<NpcId, readonly string[]> = {
   marx: [
     copy('marx.stanza_1'),
     copy('marx.stanza_2'),

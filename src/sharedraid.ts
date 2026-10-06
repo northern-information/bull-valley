@@ -182,7 +182,7 @@ export interface PackChange {
 
 // Whether `kind` is carried in the pack (items.ts INVENTORY_KINDS). A
 // cabbage rides in the arms and the sack is the raid's, so neither is.
-export function isPackKind(kind: string): boolean {
+function isPackKind(kind: string): boolean {
   return INVENTORY_KINDS.includes(kind)
 }
 

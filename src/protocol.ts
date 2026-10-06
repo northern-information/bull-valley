@@ -3,6 +3,7 @@
 // two can never drift. Pure: no DOM, no Workers types, no Three. Frames are
 // JSON text; every number the server stores is checked here first.
 
+import { USERNAME_MAX } from './account.ts'
 import { OUTFIT_IDS } from './outfits.ts'
 import type { ExtractKind, Inventory, ShopStock, XZ } from './interfaces.ts'
 import type { OutfitId } from './outfits.ts'
@@ -23,7 +24,7 @@ export const VALLEY_PARAM = 'valley'
 // A player's name: 1 to NAME_MAX characters after normalizeName(). It is
 // the account's username (account.ts isValidUsername, narrower still),
 // stamped on the socket by the Worker; the client never sends one.
-export const NAME_MAX = 16
+export const NAME_MAX = USERNAME_MAX
 
 // A chat line: 1 to CHAT_MAX characters after normalizeChat().
 export const CHAT_MAX = 120
@@ -457,7 +458,7 @@ export function isOutfitId(value: unknown): value is OutfitId {
   return typeof value === 'string' && OUTFIT_IDS.some((id) => id === value)
 }
 
-export function isPeerPose(value: unknown): value is PeerPose {
+function isPeerPose(value: unknown): value is PeerPose {
   return PEER_POSES.some((pose) => pose === value)
 }
 

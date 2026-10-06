@@ -10,7 +10,7 @@ import { mulberry32, range } from './rng.ts'
 import type { Metres, Road, RoadClass, XZ } from './interfaces.ts'
 import type { Rng } from './rng.ts'
 
-export const ROADSIDE_SEED = 0x9013e5
+const ROADSIDE_SEED = 0x9013e5
 
 // Carriageway widths in metres by class; world.ts draws the ribbons at
 // these widths, and the poles and lamps stand clear of them.

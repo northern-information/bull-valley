@@ -2,12 +2,12 @@
 // three.js, no DOM. hud.ts draws the cells; itemthumbs.ts draws the items.
 
 import { copy } from './copy.ts'
-import { getItem, isUsable, ITEM_LIST, itemById } from './items.ts'
+import { getItem, isUsable, itemById, ITEMS } from './items.ts'
 import { carryLimit } from './raid.ts'
 import type { Inventory, PackItem, Raid } from './interfaces.ts'
 
 // Fixed grid order: counted items in ITEMS order. Cargo and gear come last.
-const ORDER = ITEM_LIST.filter((item) => item.category !== 'gear')
+const ORDER = ITEMS.filter((item) => item.category !== 'gear')
 
 // inv: the inventory; raid: the raid state. A kind is in the grid when the
 // player carries it. Each entry: { kind, label, blurb, stock, canUse }.

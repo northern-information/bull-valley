@@ -89,8 +89,6 @@ export const ITEMS = [
     price: 649,
     smokeSeconds: 18,
     emberSeconds: 26,
-    // The kretek's clove pop, for when sound effects return.
-    crackle: true,
   },
   {
     id: 'joints',
@@ -102,8 +100,7 @@ export const ITEMS = [
     empty: copy('items.joints.empty'),
     start: 1,
     price: 1000,
-    // Shadowmen resolve through the murk, but the nerves meter reads soft
-    // and slow the whole time.
+    // Shadowmen resolve through the murk while it lasts.
     perceptionSeconds: 120,
   },
   // Drinks, circa 2008. No effect yet: the player can buy and carry them,
@@ -354,7 +351,6 @@ export type PickupKind = 'cabbage' | ItemId
 
 // ITEMS widened to the plain Item shape, for code that reads optional
 // fields (container, carryLimit) across every entry.
-export const ITEM_LIST: readonly Item[] = ITEMS
 
 const BY_ID = new Map<string, Item>(ITEMS.map((item) => [item.id, item]))
 
@@ -383,15 +379,6 @@ export function isCigarette(id: string): boolean {
 
 export function isDrink(id: string): boolean {
   return itemById(id)?.category === 'drink'
-}
-
-export function isForage(id: string): boolean {
-  return itemById(id)?.category === 'forage'
-}
-
-// Whether a Citgo shelf carries the item: everything with a price.
-export function isForSale(id: string): boolean {
-  return itemById(id)?.price !== undefined
 }
 
 export function isMedicine(id: string): boolean {
