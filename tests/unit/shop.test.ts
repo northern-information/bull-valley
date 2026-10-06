@@ -5,7 +5,8 @@ import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { getItem } from '../../src/items.ts'
 import { advance, createRaid, EVENTS } from '../../src/raid.ts'
 import { buy, settle } from '../../src/shop.ts'
-import { freshStock, unitsLeft } from '../../src/store.ts'
+import { freshStock } from '../../src/store.ts'
+import { unitsLeft } from './stock.ts'
 import type { ShopState } from '../../src/shop.ts'
 
 function fresh(over: Partial<ShopState> = {}): ShopState {

@@ -2,7 +2,7 @@
 // no Three, an injected clock. splash.ts is the DOM glue that drives it;
 // tests/unit/splashmachine.test.ts runs it in Node.
 
-import type { OneShotEnvelope } from './audio.ts'
+import type { OneShotEnvelope } from './interfaces.ts'
 
 export const SPLASH_STATES = {
   PRE_GESTURE: 'PRE_GESTURE',

@@ -483,7 +483,7 @@ function tattered(colors: Outfit['colors']): CanvasArt {
   return art
 }
 
-export const DECAL_PAINTERS: Record<DecalId, DecalPainter> = {
+const DECAL_PAINTERS: Record<DecalId, DecalPainter> = {
   'suicide-silence': suicideSilence,
   russ,
   'torn-tank': tornTank,

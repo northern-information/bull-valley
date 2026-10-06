@@ -13,9 +13,9 @@ import {
   toLocal,
   toWorld,
   unitInView,
-  unitsLeft,
   worldFacings,
 } from '../../src/store.ts'
+import { unitsLeft } from './stock.ts'
 import type { Vec3 } from '../../src/interfaces.ts'
 import type { StoreOrigin, WorldFacing } from '../../src/store.ts'
 

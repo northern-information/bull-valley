@@ -121,10 +121,7 @@ function cached(
 // A closed loft through rings of [y, rx, rz, cz]: an elliptical cross
 // section of half-width rx and half-depth rz, shifted cz forward, at height
 // y. Sides are flat facets; normals are shared, so the shading is smooth.
-export function loft(
-  rings: readonly RingInput[],
-  sides = 6
-): THREE.BufferGeometry {
+function loft(rings: readonly RingInput[], sides = 6): THREE.BufferGeometry {
   return cached(`${sides}|${JSON.stringify(rings)}`, () => {
     const sorted = [...rings].sort((a, b) => a[0] - b[0])
     const positions: number[] = []
@@ -700,7 +697,7 @@ export interface GronRig {
 // The cloud's underside, metres above the ground he stands on: clear of
 // his stooped head, low enough to read as his. The stoop carries his head
 // forward of his feet, so the cloud rides forward with it.
-export const GRON_CLOUD_HEIGHT = 2.4
+const GRON_CLOUD_HEIGHT = 2.4
 const GRON_CLOUD_FORWARD = 0.3
 
 export function buildGron(): GronRig {

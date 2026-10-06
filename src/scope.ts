@@ -104,7 +104,6 @@ export interface GroundDirection {
 export interface ScopeFrame {
   contacts: ScopeContact[]
   forward: GroundDirection
-  nerves: number
   perception: boolean
 }
 
@@ -136,10 +135,7 @@ export class Scope {
     return this.raised
   }
 
-  draw(
-    dt: number,
-    { contacts, forward, nerves, perception }: ScopeFrame
-  ): void {
+  draw(dt: number, { contacts, forward, perception }: ScopeFrame): void {
     if (!this.raised) return
     this.sweep =
       (this.sweep + (dt * Math.PI * 2) / CONFIG.scope.sweepSeconds) %
@@ -231,14 +227,6 @@ export class Scope {
     ctx.lineTo(c + Math.sin(yaw) * 4 * px, cy - Math.cos(yaw) * 4 * px)
     ctx.stroke()
 
-    // Interference climbs with nerves.
-    const flecks = Math.floor((nerves / 100) * 30)
-    ctx.fillStyle = 'rgba(74, 222, 128, 0.5)'
-    for (let i = 0; i < flecks; i++) {
-      const a = Math.random() * Math.PI * 2
-      const rr = Math.random() * r
-      ctx.fillRect(c + Math.sin(a) * rr, cy - Math.cos(a) * rr, px, px)
-    }
     ctx.restore()
 
     // Dish rim and the nearest contact.

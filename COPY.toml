@@ -39,7 +39,6 @@ begin_resume = { text = "Click to Resume", by = "ai" }
 begin_failed = { text = "The Valley Will Not Resolve", by = "ai" }
 resume = { text = "Click to Resume", by = "ai" }
 signal_lost = { text = "SIGNAL LOST", by = "ai" }
-nerves = { text = "Nerves", by = "ai" }
 countdown_label = { text = "Truck leaves in", by = "ai" }
 chat_log_label = { text = "Chat", by = "ai" }
 chat_input_label = { text = "Say to the valley", by = "ai" }

@@ -9,7 +9,8 @@ import {
   restoreValley,
   toWire,
 } from '../../src/sharedraid.ts'
-import { freshStock, unitsLeft } from '../../src/store.ts'
+import { freshStock } from '../../src/store.ts'
+import { unitsLeft } from './stock.ts'
 import type {
   DailyMessage,
   PickupSpec,

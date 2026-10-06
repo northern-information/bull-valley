@@ -13,7 +13,7 @@ import { CITGO_RED } from './assets.ts'
 // sit on it. The lights ride along so the mask pass sees the same light
 // set as the frame, or Three would rebuild every lit material's program
 // state twice a frame.
-export const GLOW_LAYER = 1
+const GLOW_LAYER = 1
 
 // The ring's reach in internal pixels: the inner ring full, the outer one
 // fainter, stepped rather than smooth.

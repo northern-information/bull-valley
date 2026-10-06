@@ -568,11 +568,6 @@ export function freshStock(stationCount: number): ShopStock[] {
   })
 }
 
-// How many units of `kind` are still on the shelf.
-export function unitsLeft(shelf: ShopStock | undefined, kind: string): number {
-  return shelf?.[kind]?.filter(Boolean).length ?? 0
-}
-
 // Whether unit `unit` of `kind` is still on the shelf.
 export function onShelf(
   shelf: ShopStock | undefined,

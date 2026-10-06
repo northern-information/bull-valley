@@ -9,7 +9,7 @@ import { jwtVerify, SignJWT } from 'jose'
 import type { Provider } from '../src/account.ts'
 import type { Profile } from './oauth.ts'
 
-export const ISSUER = 'bull-valley-shadow-wars'
+const ISSUER = 'bull-valley-shadow-wars'
 
 // Lifetimes in seconds. The access token is short so a sign-out or a role
 // change takes effect within minutes; the refresh token carries the month.

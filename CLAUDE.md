@@ -101,14 +101,13 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 - `src/assets.ts` — every 3D asset in asset-local space (instanced parts, one-off builders, the truck body, the sky, the road/water/fence/boundary materials) and the Akashic registry; new assets go here
 - `src/world.ts` — places terrain features, Citgo stations, pickups, beacons from geo.json using `assets.ts`; builds no materials of its own. Each store stands level over its slope on a foundation (`store.ts` `storeBase`), registers its floor on the `Ground` and its walls on `Walls`; one stocked shelf display, with David Carlsten (the `carlsten` outfit, not on the select roster) behind the counter, follows the player to the nearest store
 - `src/akashic.ts` — the Akashic asset viewer
-- `src/terrain.ts` `src/player.ts` `src/coords.ts` `src/ps1.ts` `src/rng.ts` `src/config.ts` `src/hud.ts` `src/audio.ts` `src/scope.ts` — ported engine
+- `src/terrain.ts` `src/player.ts` `src/coords.ts` `src/ps1.ts` `src/rng.ts` `src/config.ts` `src/hud.ts` `src/scope.ts` — ported engine
+- `src/audio.ts` — the title-card cues (`playOneShot`); the game has no other sound
 - `src/glow.ts` — the Citgo-red ring around whatever E would act on (a pickup, the shelf unit a buy takes, the bush while today's berry is on it, Gron, Marx, Carlsten or Moab when E would talk to him; never players, the truck, or an extraction): the target alone into a mask with its own materials, then a dilated outline over the frame, x-ray through what stands in front. `GLOW_LAYER` (1) is reserved for it; the scene's lights sit on it too, so the mask pass sees the same light set
 - `src/shadowmen.ts` — pure: the shadowmen as crossings in a bubble that follows the player (spawned on a ring past scope range, dropped past `despawnRadius`), the rush when one passes close to a player on foot, the touch that is a strike, and the Citgo havens; feeds the scope. Tune them in `CONFIG.shadowmen`
 - `src/shadowcards.ts` — the silhouette cards that show `shadowmen.ts` (textures, aura, flicker), one card per field slot
 - `src/mist.ts` — pure: the ground mist as banks drifting on the wind through a square bubble that follows the player (wrapping to the far side), each swelling and thinning on its own period; atmosphere only, it hides nothing. Tune it in `CONFIG.mist`
 - `src/mistcards.ts` — the soft posterized cards that show `mist.ts`, standing on `ground.at` with their skirts sunk into the terrain, one card per bank; they take the scene fog, and hold still under prefers-reduced-motion
-- `src/nerves.ts` — parked, unwired; it returns with the nerves meter
-- The sound effects are parked too: the `BvAudio` methods other than the title-card cues (`init`, `step`, `use`, `pickup`, `strike`, `setPresence`, `setHeartbeat`, `update`) have no caller, and the item `crackle` field is for them.
 
 Pure logic stays Three-free (like `coords.ts`); Three/DOM glue lives in `truck.ts`/`world.ts`/`hud.ts`. Dev introspection hook: `window.__bv` (scene, camera, renderer, player, world, truck, graph, shadowmen, mist, raid, net, shared, daily, aboard, glow, cash, inventory, hotbar, chat, teleport, hurryTruck).
 
