@@ -510,11 +510,17 @@ export class ValleyDO extends DurableObject<Env> {
       }
       const reduced = reduce(this.valley, action, { ...this.context(), cash })
       if (reduced.spend) {
+        // The charge and the unit go in together, so a failed write never
+        // takes the cash without the item.
         let paid = false
         try {
-          paid = await packs.spend(account, reduced.spend.amount)
+          paid = await packs.purchase(
+            account,
+            reduced.spend.amount,
+            reduced.pack ?? null
+          )
         } catch (err) {
-          console.error('The wallet could not be charged', err)
+          console.error('The sale could not be written', err)
         }
         if (!paid) {
           refuse('short')
@@ -524,8 +530,8 @@ export class ValleyDO extends DurableObject<Env> {
       await this.apply(reduced)
       if (reduced.reply) send(ws, reduced.reply)
       for (const msg of reduced.broadcast) this.broadcast(msg, null)
-      if (reduced.pack) await this.repack(ws, reduced.pack)
-      else if (reduced.spend) await this.repack(ws, null, account)
+      if (reduced.spend) await this.repack(ws, null, account)
+      else if (reduced.pack) await this.repack(ws, reduced.pack)
     })
   }
 

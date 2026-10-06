@@ -19,7 +19,7 @@ function packContract(makeStore: () => PackStore): void {
     expect(
       await store.change('a1', STARTER, -STARTING_INVENTORY[STARTER])
     ).toBe(true)
-    expect(await store.spend('a1', STARTING_CASH)).toBe(true)
+    expect(await store.purchase('a1', STARTING_CASH, null)).toBe(true)
     // Used down to nothing and spent out, it is never refilled.
     expect(await store.open('a1')).toEqual({
       pack: { ...STARTING_INVENTORY, [STARTER]: 0 },
@@ -53,18 +53,25 @@ function packContract(makeStore: () => PackStore): void {
     expect((await store.get('a1')).pack[OTHER]).toBe(0)
   })
 
-  it('spends only what the wallet covers', async () => {
+  it('sells only what the wallet covers, the item and the charge together', async () => {
     const store = makeStore()
     await store.open('a1')
-    expect(await store.spend('a1', STARTING_CASH + 1)).toBe(false)
-    expect((await store.get('a1')).cash).toBe(STARTING_CASH)
-    expect(await store.spend('a1', 150)).toBe(true)
-    expect((await store.get('a1')).cash).toBe(STARTING_CASH - 150)
+    const item = { kind: OTHER, delta: 2 }
+    expect(await store.purchase('a1', STARTING_CASH + 1, item)).toBe(false)
+    expect(await store.get('a1')).toMatchObject({ cash: STARTING_CASH })
+    expect((await store.get('a1')).pack[OTHER]).toBe(0)
+    expect(await store.purchase('a1', 150, item)).toBe(true)
+    expect(await store.purchase('a1', 50, item)).toBe(true)
+    expect((await store.get('a1')).cash).toBe(STARTING_CASH - 200)
+    expect((await store.get('a1')).pack[OTHER]).toBe(4)
+    expect(await store.purchase('a1', STARTING_CASH - 200, null)).toBe(true)
+    expect((await store.get('a1')).cash).toBe(0)
   })
 
-  it('spends nothing from a wallet never opened', async () => {
+  it('sells nothing from a wallet never opened', async () => {
     const store = makeStore()
-    expect(await store.spend('a1', 1)).toBe(false)
+    expect(await store.purchase('a1', 1, { kind: OTHER, delta: 1 })).toBe(false)
+    expect((await store.get('a1')).pack[OTHER]).toBe(0)
   })
 }
 
@@ -79,6 +86,20 @@ describe('D1PackStore', () => {
       "INSERT INTO accounts (account_id, primary_provider, created_at, last_login_at) VALUES ('a1', 'dev:1', 0, 0)"
     )
     return new D1PackStore(db)
+  })
+
+  it('charges nothing when the item cannot go in', async () => {
+    const { db, sqlite } = testD1()
+    sqlite.exec(
+      "INSERT INTO accounts (account_id, primary_provider, created_at, last_login_at) VALUES ('a1', 'dev:1', 0, 0)"
+    )
+    const store = new D1PackStore(db)
+    await store.open('a1')
+    // A negative count breaks the pack's CHECK, so the batch rolls back.
+    await expect(
+      store.purchase('a1', 100, { kind: OTHER, delta: -1 })
+    ).rejects.toThrow(/CHECK/)
+    expect((await store.get('a1')).cash).toBe(STARTING_CASH)
   })
 
   it('keeps no pack or wallet for an account that does not exist', async () => {

@@ -764,7 +764,7 @@ describe('ValleyDO', () => {
       open: () => Promise.reject(new Error('D1 is down')),
       get: () => Promise.reject(new Error('D1 is down')),
       change: () => Promise.reject(new Error('D1 is down')),
-      spend: () => Promise.reject(new Error('D1 is down')),
+      purchase: () => Promise.reject(new Error('D1 is down')),
     }
     const errors: unknown[] = []
     const error = console.error
@@ -800,7 +800,7 @@ describe('ValleyDO', () => {
     // The wallet is the account's: spent down, it stays spent.
     v.packStore = new MemoryPackStore()
     await v.packStore.open('acct-A')
-    await v.packStore.spend('acct-A', STARTING_CASH - price + 1)
+    await v.packStore.purchase('acct-A', STARTING_CASH - price + 1, null)
     const before = b.frames().length
     await v.webSocketMessage(
       ws(a),
@@ -819,6 +819,46 @@ describe('ValleyDO', () => {
       raid: { shelves: Record<string, number>[] }
     }
     expect(stored.raid.shelves[0].pbr).toEqual([false, true, true])
+  })
+
+  it('sells nothing when the wallet cannot be read or the sale cannot be written', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    const store = v.packStore
+    const errors: unknown[] = []
+    const error = console.error
+    console.error = (...args: unknown[]) => errors.push(args)
+    const buy = () =>
+      v.webSocketMessage(
+        ws(a),
+        '{"type":"buy","station":0,"kind":"pbr","unit":0}'
+      )
+    try {
+      const before = b.frames().length
+      v.packStore = { ...store, get: () => Promise.reject(new Error('down')) }
+      await buy()
+      expect(a.last<NackMessage>()).toMatchObject({ reason: 'unavailable' })
+      v.packStore = {
+        open: (id) => store.open(id),
+        get: (id) => store.get(id),
+        change: (id, kind, delta) => store.change(id, kind, delta),
+        purchase: () => Promise.reject(new Error('down')),
+      }
+      await buy()
+      expect(a.last<NackMessage>()).toMatchObject({ reason: 'short' })
+      expect(errors).toHaveLength(2)
+      // Nobody heard of a sale, the unit is still on the shelf, and the
+      // wallet is whole.
+      expect(b.frames()).toHaveLength(before)
+      const stored = s.storage.map.get('valley') as {
+        raid: { shelves: Record<string, boolean[]>[] }
+      }
+      expect(stored.raid.shelves[0].pbr).toEqual([true, true, true])
+      expect((await store.get('acct-A')).cash).toBe(STARTING_CASH)
+    } finally {
+      console.error = error
+    }
   })
 })
 
