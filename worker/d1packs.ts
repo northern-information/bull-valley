@@ -5,7 +5,7 @@
 
 import { STARTING_INVENTORY, toInventory } from '../src/inventory.ts'
 import { STARTING_CASH } from './packs.ts'
-import type { Holdings, PackStore } from './packs.ts'
+import type { Holdings, PackItem, PackStore } from './packs.ts'
 
 interface PackRow {
   kind: string
@@ -85,13 +85,30 @@ export class D1PackStore implements PackStore {
     return result.meta.changes > 0
   }
 
-  async spend(accountId: string, amount: number): Promise<boolean> {
-    const result = await this.db
+  // One batch is one transaction. The item goes in first, and only while
+  // the wallet still covers the sale; the charge after it checks the same,
+  // so the two land together or not at all.
+  async purchase(
+    accountId: string,
+    amount: number,
+    item: PackItem | null
+  ): Promise<boolean> {
+    const charge = this.db
       .prepare(
         'UPDATE wallets SET cash = cash - ? WHERE account_id = ? AND cash >= ?'
       )
       .bind(amount, accountId, amount)
-      .run()
-    return result.meta.changes > 0
+    if (!item) return (await charge.run()).meta.changes > 0
+    const results = await this.db.batch([
+      this.db
+        .prepare(
+          'INSERT INTO packs (account_id, kind, count) ' +
+            'SELECT ?, ?, ? WHERE (SELECT cash FROM wallets WHERE account_id = ?) >= ? ' +
+            'ON CONFLICT (account_id, kind) DO UPDATE SET count = count + excluded.count'
+        )
+        .bind(accountId, item.kind, item.delta, accountId, amount),
+      charge,
+    ])
+    return (results[1]?.meta.changes ?? 0) > 0
   }
 }

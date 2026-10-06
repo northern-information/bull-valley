@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { copy } from '../../src/copy.ts'
 import {
   authorizeUrl,
   credentials,
@@ -270,6 +271,6 @@ describe('sanitizeProfile', () => {
     expect(
       sanitizeProfile({ id: '1', displayName: '  ', avatarUrl: null })
         .displayName
-    ).toBe('Raider')
+    ).toBe(copy('auth.unnamed'))
   })
 })

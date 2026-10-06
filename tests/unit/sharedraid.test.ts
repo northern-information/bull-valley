@@ -408,6 +408,27 @@ describe('rule 8: the shelves are shared', () => {
     expect(restoreValley(v.valley).raid).toEqual(raid)
     expect(restoreValley({ epoch: 2 })).toEqual({ ...createValley(), epoch: 2 })
   })
+
+  it('gives a raid stored before the haul was kept an empty one', () => {
+    const v = valleyWith(join('a'))
+    const raid = v.valley.raid
+    if (!raid) throw new Error('expected a raid')
+    const { cargo: _cargo, ...uncarried } = raid
+    const restored = restoreValley({ ...v.valley, raid: uncarried } as Valley)
+    expect(restored.raid).toEqual({ ...raid, cargo: {} })
+  })
+
+  it('drops a raid stored from before the shelves were shared', () => {
+    const v = valleyWith(join('a'))
+    const raid = v.valley.raid
+    if (!raid) throw new Error('expected a raid')
+    // Even with the havens and metres of a newer build, a raid with no
+    // shelves cannot be sold from, so it goes.
+    const { shelves: _shelves, ...older } = raid
+    expect(
+      restoreValley({ ...v.valley, raid: older } as Valley).raid
+    ).toBeNull()
+  })
 })
 
 describe('rule 5: one whistle at a time', () => {

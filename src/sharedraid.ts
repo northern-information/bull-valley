@@ -217,7 +217,7 @@ export function createValley(): Valley {
 
 // The valley as an older build stored it, made current: the fresh one
 // fills in newer fields, a raid without cargo hauls nothing, and a raid
-// whose shelves still hold counts rather than units, or an item no longer
+// with no shelves, or whose shelves still hold counts rather than units, or an item no longer
 // sold, or from before the shadowmen were the valley's (no havens), is
 // dropped, so the next lobby stocks them afresh.
 export function restoreValley(stored: Partial<Valley>): Valley {
@@ -225,7 +225,8 @@ export function restoreValley(stored: Partial<Valley>): Valley {
   const raid = valley.raid
   if (!raid) return valley
   const older: Partial<SharedRaid> = raid
-  const shelves: unknown[] = older.shelves ?? []
+  if (!older.shelves) return { ...valley, raid: null }
+  const shelves: unknown[] = older.shelves
   const counted = shelves.some(
     (shelf) =>
       typeof shelf !== 'object' ||

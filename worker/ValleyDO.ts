@@ -15,10 +15,10 @@
 // left, and the object can hibernate again.
 
 import { DurableObject } from 'cloudflare:workers'
+import { isSelectable } from '../src/characters.ts'
 import { CONFIG } from '../src/config.ts'
 import {
   CLOSE,
-  isOutfitId,
   isValidName,
   normalizeName,
   parseClientMessage,
@@ -50,6 +50,7 @@ import type {
   Valley,
   ValleyAction,
 } from '../src/sharedraid.ts'
+import type { AccountStore } from './accounts.ts'
 import type { Holdings, PackStore } from './packs.ts'
 
 // Per-socket state, serialized into the socket's attachment (16 KB cap;
@@ -239,6 +240,11 @@ export class ValleyDO extends DurableObject<Env> {
     for (const msg of reduced.broadcast) this.broadcast(msg, null)
   }
 
+  // Where the accounts are kept; the Worker tests hand in a memory store.
+  protected accounts(): AccountStore {
+    return new D1AccountStore(this.env.DB)
+  }
+
   // Where the packs are kept; the Worker tests hand in a memory store.
   protected packs(): PackStore {
     return new D1PackStore(this.env.DB)
@@ -325,7 +331,9 @@ export class ValleyDO extends DurableObject<Env> {
       ws.close(CLOSE.badName, 'Invalid name')
       return
     }
-    if (!isOutfitId(hello.outfit)) {
+    // Only the select's roster: an NPC's or a shadowman's outfit is not a
+    // raider's to wear.
+    if (!isSelectable(hello.outfit)) {
       ws.close(CLOSE.badOutfit, 'Unknown outfit')
       return
     }
@@ -421,7 +429,7 @@ export class ValleyDO extends DurableObject<Env> {
       send(ws, { type: 'nack', re: 'appearance', reason: 'too-fast' })
       return
     }
-    if (!isOutfitId(outfit)) {
+    if (!isSelectable(outfit)) {
       send(ws, { type: 'nack', re: 'appearance', reason: 'unknown-outfit' })
       return
     }
@@ -441,7 +449,7 @@ export class ValleyDO extends DurableObject<Env> {
       return
     }
     const account = attachment.account
-      ? await new D1AccountStore(this.env.DB).get(attachment.account)
+      ? await this.accounts().get(attachment.account)
       : null
     const name = normalizeName(account?.username ?? '')
     if (!isValidName(name)) {
@@ -510,11 +518,19 @@ export class ValleyDO extends DurableObject<Env> {
       }
       const reduced = reduce(this.valley, action, { ...this.context(), cash })
       if (reduced.spend) {
-        let paid = false
+        // The charge and the unit go in together, so a failed write never
+        // takes the cash without the item.
+        let paid: boolean
         try {
-          paid = await packs.spend(account, reduced.spend.amount)
+          paid = await packs.purchase(
+            account,
+            reduced.spend.amount,
+            reduced.pack ?? null
+          )
         } catch (err) {
-          console.error('The wallet could not be charged', err)
+          console.error('The sale could not be written', err)
+          refuse('unavailable')
+          return
         }
         if (!paid) {
           refuse('short')
@@ -524,8 +540,8 @@ export class ValleyDO extends DurableObject<Env> {
       await this.apply(reduced)
       if (reduced.reply) send(ws, reduced.reply)
       for (const msg of reduced.broadcast) this.broadcast(msg, null)
-      if (reduced.pack) await this.repack(ws, reduced.pack)
-      else if (reduced.spend) await this.repack(ws, null, account)
+      if (reduced.spend) await this.repack(ws, null, account)
+      else if (reduced.pack) await this.repack(ws, reduced.pack)
     })
   }
 

@@ -12,7 +12,7 @@
 
 import * as THREE from 'three'
 import { isValidUsername, USERNAME_MAX } from './account.ts'
-import { renameUsername, usernameAvailable } from './auth.ts'
+import { availabilityOf, renameUsername, usernameAvailable } from './auth.ts'
 import { SELECTABLE } from './characters.ts'
 import { copy } from './copy.ts'
 import { stepIndex } from './cycle.ts'
@@ -170,20 +170,9 @@ export function openGronDialog({
           checking = null
           void usernameAvailable(name).then((answer) => {
             if (handle() !== name) return
-            if (!answer) {
-              tone(nameStatus, copy('auth.unreachable'), 'bad')
-            } else if (answer.reason === 'limited') {
-              tone(nameStatus, copy('username.limited'), 'bad')
-            } else {
-              available = answer.available
-              tone(
-                nameStatus,
-                copy(
-                  answer.available ? 'username.available' : 'username.taken'
-                ),
-                answer.available ? 'ok' : 'bad'
-              )
-            }
+            const said = availabilityOf(answer)
+            available = said.available
+            tone(nameStatus, said.line, said.tone)
             refreshName()
           })
         }, CHECK_DELAY_MS)

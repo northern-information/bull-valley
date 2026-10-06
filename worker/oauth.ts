@@ -3,6 +3,7 @@
 // profile the valley keeps. Pure apart from the `fetch` the caller hands in,
 // so the tests run against canned provider answers.
 
+import { copy } from '../src/copy.ts'
 import type { OAuthProvider } from '../src/account.ts'
 import type { AuthSecrets } from './env.ts'
 
@@ -236,7 +237,8 @@ export function sanitizeProfile(profile: Profile): Profile {
   return {
     id: clean(profile.id).slice(0, ID_MAX),
     displayName:
-      clean(profile.displayName).slice(0, DISPLAY_NAME_MAX) || 'Raider',
+      clean(profile.displayName).slice(0, DISPLAY_NAME_MAX) ||
+      copy('auth.unnamed'),
     avatarUrl,
   }
 }

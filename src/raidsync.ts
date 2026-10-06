@@ -5,7 +5,7 @@
 
 import { advance, EVENTS, STATES } from './raid.ts'
 import type { Raid } from './interfaces.ts'
-import type { RaidReason, RaidWire } from './protocol.ts'
+import type { RaidMessage, RaidReason, RaidWire } from './protocol.ts'
 
 // How a raider still in the lobby saw the truck go: aboard, left behind as
 // it pulled out, or arriving after it had already gone.
@@ -74,6 +74,31 @@ export function reconcile(
   }
 
   return { raid: next, departed, departure, whistle }
+}
+
+// What a 'taken' or 'bought' snapshot settled, and whether it went to
+// this raider: a pickup taken (into our arms, or gone from the valley) or
+// a shelf unit sold (into our pocket, or only off the shelf).
+export interface Settled {
+  take: { index: number; mine: boolean } | null
+  sale: { station: number; item: string; mine: boolean } | null
+}
+
+export function settledBy(
+  msg: Pick<RaidMessage, 'reason' | 'by' | 'index' | 'station' | 'item'>,
+  me: string | null
+): Settled {
+  const mine = me !== null && msg.by === me
+  return {
+    take:
+      msg.reason === 'taken' && msg.index !== undefined
+        ? { index: msg.index, mine }
+        : null,
+    sale:
+      msg.reason === 'bought' && msg.station !== undefined && msg.item
+        ? { station: msg.station, item: msg.item, mine }
+        : null,
+  }
 }
 
 // Which bed seat is this raider's: by boarding order in the lobby, by the

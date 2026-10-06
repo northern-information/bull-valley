@@ -36,8 +36,9 @@ export type UnlinkResult = 'ok' | 'last-provider' | 'not-linked'
 export interface AccountStore {
   findByProvider(providerKey: string): Promise<LinkedProvider | null>
   get(accountId: string): Promise<Account | null>
-  // A new account and its first provider, together.
-  create(account: Account, provider: LinkedProvider): Promise<void>
+  // A new account and its first provider, together; false, and nothing
+  // created, when another account has linked the provider meanwhile.
+  create(account: Account, provider: LinkedProvider): Promise<boolean>
   touchLogin(accountId: string, now: number): Promise<void>
   // The provider's display name and avatar as of this sign-in.
   updateProfile(
@@ -81,10 +82,11 @@ export class MemoryAccountStore implements AccountStore {
     return Promise.resolve(this.accounts.get(accountId) ?? null)
   }
 
-  create(account: Account, provider: LinkedProvider): Promise<void> {
+  create(account: Account, provider: LinkedProvider): Promise<boolean> {
+    if (this.providers.has(provider.providerKey)) return Promise.resolve(false)
     this.accounts.set(account.accountId, { ...account })
     this.providers.set(provider.providerKey, { ...provider })
-    return Promise.resolve()
+    return Promise.resolve(true)
   }
 
   touchLogin(accountId: string, now: number): Promise<void> {

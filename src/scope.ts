@@ -1,4 +1,4 @@
-import { context2d, MONO } from './canvas.ts'
+import { context2d, EGGSHELL, MONO } from './canvas.ts'
 import { CONFIG } from './config.ts'
 import { compassBearing } from './coords.ts'
 import { outfitById } from './outfits.ts'
@@ -17,7 +17,6 @@ import type { ScopeContact } from './interfaces.ts'
 
 const GREEN = '#4ade80'
 const MAGENTA = '#e879f9'
-const EGGSHELL = '#f0ead6' // --bv-eggshell; canvas cannot read CSS vars
 const SLATE = '#94a3b8'
 // The hand is the player's: same skin and sleeve as the player outfit, with
 // the shadow facet a darker tone of the skin.

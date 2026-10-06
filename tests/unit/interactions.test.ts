@@ -10,6 +10,7 @@ import {
 } from '../../src/interactions.ts'
 import { advance, createRaid, EVENTS } from '../../src/raid.ts'
 import type {
+  DailyStatus,
   InteractionInput,
   PickupSpot,
   ShelfSpot,
@@ -344,6 +345,16 @@ describe('interactionPrompt', () => {
     expect(interactionPrompt({ kind: 'extractFuel', name: '' })).toBe(
       copy('prompts.extract_station')
     )
+    expect(interactionPrompt({ kind: 'board' })).toBe(copy('prompts.board'))
+    expect(interactionPrompt({ kind: 'boardExtract' })).toBe(
+      copy('prompts.board_extract')
+    )
+    expect(interactionPrompt({ kind: 'extractFuel', name: 'Citgo' })).toBe(
+      copy('prompts.extract_at', { station: 'Citgo' })
+    )
+    expect(interactionPrompt({ kind: 'extractKeep' })).toBe(
+      copy('prompts.extract_keep', { keep: copy('places.keep') })
+    )
   })
 
   it('leaves the people you talk to to the glow, with no prompt', () => {
@@ -416,6 +427,23 @@ describe('itemLabel', () => {
   it('labels nothing that is not an item', () => {
     expect(itemLabel({ kind: 'board' })).toBeNull()
     expect(itemLabel({ kind: 'talk' })).toBeNull()
+  })
+
+  it('falls back to the id for a kind the table does not know', () => {
+    // A stale or foreign id, as one might arrive from outside the table.
+    const kind = 'mystery' as unknown as PickupSpot['kind']
+    expect(pickupLabel({ kind, count: 3 })).toBe(
+      copy('labels.pickup_count', { item: 'mystery', count: 3 })
+    )
+    expect(itemLabel({ kind: 'buy', ...shelf, item: 'mystery' })).toEqual({
+      text: copy('labels.price', { item: 'mystery', price: '$5.49' }),
+      dim: false,
+    })
+  })
+
+  it('labels nothing for a bush status it does not know', () => {
+    const status = 'withered' as unknown as DailyStatus
+    expect(itemLabel({ kind: 'collect', status })).toBeNull()
   })
 
   it('labels a cabbage without a count', () => {

@@ -10,7 +10,7 @@ import { copy } from './copy.ts'
 import { toInventory } from './inventory.ts'
 import { itemById } from './items.ts'
 import { CLOSE } from './protocol.ts'
-import { departureKind, reconcile } from './raidsync.ts'
+import { departureKind, reconcile, settledBy } from './raidsync.ts'
 import { callRoute } from './roadgraph.ts'
 import { formatCash } from './store.ts'
 import type { Actions } from './actions.ts'
@@ -101,17 +101,18 @@ export function wireValley(game: Game, actions: Actions): void {
     reason: RaidMessage['reason'],
     detail: Pick<RaidMessage, 'by' | 'index' | 'station' | 'item'> = {}
   ) => {
-    const { by, index, station, item } = detail
+    const { by } = detail
     const previous = s.shared
     s.shared = wire
     if (!wire) return
     const me = net.id
+    const { take, sale } = settledBy({ reason, ...detail }, me)
 
-    if (reason === 'taken' && index !== undefined) {
-      s.pendingTakes.delete(index)
-      const pickup = world.pickups[index]
+    if (take) {
+      s.pendingTakes.delete(take.index)
+      const pickup = world.pickups[take.index]
       if (pickup && !pickup.taken) {
-        if (by === me) actions.applyTake(pickup)
+        if (take.mine) actions.applyTake(pickup)
         else actions.markTaken(pickup)
       }
     }
@@ -122,9 +123,9 @@ export function wireValley(game: Game, actions: Actions): void {
     }
 
     // The shelves are the valley's; a unit it sold us goes in the pocket.
-    if (reason === 'bought' && station !== undefined && item) {
-      s.pendingBuys.delete(`${station}:${item}`)
-      if (by === me) actions.pocket(item)
+    if (sale) {
+      s.pendingBuys.delete(`${sale.station}:${sale.item}`)
+      if (sale.mine) actions.pocket(sale.item)
     }
     s.storeStock = wire.shelves
 
@@ -207,6 +208,12 @@ export function wireValley(game: Game, actions: Actions): void {
       hud.tell(copy('log.berry_refused'))
     } else if (msg.re === 'chat') {
       hud.tell(CHAT_COPY.tooFast)
+    } else if (msg.re === 'use') {
+      // The pack frame that follows puts the count right.
+      hud.tell(copy('log.none_left'))
+    } else if (msg.re === 'rename' || msg.re === 'appearance') {
+      // The account kept the change; only the valley's roster missed it.
+      hud.tell(copy('log.change_unheard'))
     }
   }
 

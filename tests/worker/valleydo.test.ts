@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { getItem } from '../../src/items.ts'
 import { CLOSE, PROTOCOL_VERSION } from '../../src/protocol.ts'
+import { MemoryAccountStore } from '../../worker/accounts.ts'
 import { MemoryPackStore, STARTING_CASH } from '../../worker/packs.ts'
 import { ValleyDO } from '../../worker/ValleyDO.ts'
 import type {
@@ -18,6 +19,7 @@ import type {
   ShadowmenMessage,
   WelcomeMessage,
 } from '../../src/protocol.ts'
+import type { AccountStore } from '../../worker/accounts.ts'
 import type { PackStore } from '../../worker/packs.ts'
 
 // Mocks for the slice of the Workers runtime the object touches.
@@ -92,12 +94,16 @@ class MockState {
 const ws = (s: MockSocket) => s as unknown as WebSocket
 const asState = (s: MockState) => s as unknown as DurableObjectState
 
-// The valley with its packs in memory instead of D1.
+// The valley with its accounts and packs in memory instead of D1.
 class TestValley extends ValleyDO {
+  accountStore = new MemoryAccountStore()
   packStore: PackStore = new MemoryPackStore()
   // The shadowmen's clock, stepped by hand: ticking says whether the
   // valley has it running.
   ticking = false
+  protected override accounts(): AccountStore {
+    return this.accountStore
+  }
   protected override packs(): PackStore {
     return this.packStore
   }
@@ -309,6 +315,9 @@ describe('ValleyDO', () => {
     const tuxedo = await join(v, s, 'Dave', { outfit: 'tuxedo' })
     expect(tuxedo.closeCode).toBe(CLOSE.badOutfit)
     expect((tuxedo.attachment as { me: unknown }).me).toBeNull()
+    // An NPC's outfit is not on the roster.
+    const marx = await join(v, s, 'Dave', { outfit: 'marx' })
+    expect(marx.closeCode).toBe(CLOSE.badOutfit)
     await join(v, s, 'First')
     const stale = await join(v, s, 'Second', { pickups: 71 })
     expect(stale.closeCode).toBe(CLOSE.staleBuild)
@@ -660,6 +669,12 @@ describe('ValleyDO', () => {
       re: 'appearance',
       reason: 'unknown-outfit',
     })
+    // A shadowman is an outfit, but not a raider's.
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ type: 'appearance', outfit: 'shadow' })
+    )
+    expect(a.last<NackMessage>()).toMatchObject({ reason: 'unknown-outfit' })
     const b = await join(v, s, 'B')
     const before = b.sent.length
     for (let i = 0; i < 8; i++) {
@@ -676,31 +691,31 @@ describe('ValleyDO', () => {
   })
 
   it("renames a raider to the account's new username, read from the database", async () => {
-    // The accounts table as D1 would answer a lookup by account id.
-    const usernames: Record<string, string | null> = {
-      'acct-A': 'NewName',
-      'acct-B': null,
+    const { valley: v, state: s } = await valley()
+    for (const [id, username] of [
+      ['acct-A', 'NewName'],
+      ['acct-B', null],
+    ] as const) {
+      await v.accountStore.create(
+        {
+          accountId: id,
+          username,
+          role: 'user',
+          primaryProvider: `dev:${id}`,
+          createdAt: 0,
+          lastLoginAt: 0,
+        },
+        {
+          providerKey: `dev:${id}`,
+          accountId: id,
+          provider: 'dev',
+          providerId: id,
+          displayName: id,
+          avatarUrl: null,
+          linkedAt: 0,
+        }
+      )
     }
-    const db = {
-      prepare: () => ({
-        bind: (accountId: string) => ({
-          first: () =>
-            Promise.resolve(
-              accountId in usernames
-                ? {
-                    account_id: accountId,
-                    username: usernames[accountId],
-                    role: 'user',
-                    primary_provider: 'dev:x',
-                    created_at: 0,
-                    last_login_at: 0,
-                  }
-                : null
-            ),
-        }),
-      }),
-    } as unknown as D1Database
-    const { valley: v, state: s } = await valley(new MockState(), { DB: db })
     const a = await join(v, s, 'A')
     const b = await join(v, s, 'B')
     await v.webSocketMessage(ws(a), JSON.stringify({ type: 'rename' }))
@@ -764,7 +779,7 @@ describe('ValleyDO', () => {
       open: () => Promise.reject(new Error('D1 is down')),
       get: () => Promise.reject(new Error('D1 is down')),
       change: () => Promise.reject(new Error('D1 is down')),
-      spend: () => Promise.reject(new Error('D1 is down')),
+      purchase: () => Promise.reject(new Error('D1 is down')),
     }
     const errors: unknown[] = []
     const error = console.error
@@ -800,7 +815,7 @@ describe('ValleyDO', () => {
     // The wallet is the account's: spent down, it stays spent.
     v.packStore = new MemoryPackStore()
     await v.packStore.open('acct-A')
-    await v.packStore.spend('acct-A', STARTING_CASH - price + 1)
+    await v.packStore.purchase('acct-A', STARTING_CASH - price + 1, null)
     const before = b.frames().length
     await v.webSocketMessage(
       ws(a),
@@ -819,6 +834,46 @@ describe('ValleyDO', () => {
       raid: { shelves: Record<string, number>[] }
     }
     expect(stored.raid.shelves[0].pbr).toEqual([false, true, true])
+  })
+
+  it('sells nothing when the wallet cannot be read or the sale cannot be written', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    const store = v.packStore
+    const errors: unknown[] = []
+    const error = console.error
+    console.error = (...args: unknown[]) => errors.push(args)
+    const buy = () =>
+      v.webSocketMessage(
+        ws(a),
+        '{"type":"buy","station":0,"kind":"pbr","unit":0}'
+      )
+    try {
+      const before = b.frames().length
+      v.packStore = { ...store, get: () => Promise.reject(new Error('down')) }
+      await buy()
+      expect(a.last<NackMessage>()).toMatchObject({ reason: 'unavailable' })
+      v.packStore = {
+        open: (id) => store.open(id),
+        get: (id) => store.get(id),
+        change: (id, kind, delta) => store.change(id, kind, delta),
+        purchase: () => Promise.reject(new Error('down')),
+      }
+      await buy()
+      expect(a.last<NackMessage>()).toMatchObject({ reason: 'unavailable' })
+      expect(errors).toHaveLength(2)
+      // Nobody heard of a sale, the unit is still on the shelf, and the
+      // wallet is whole.
+      expect(b.frames()).toHaveLength(before)
+      const stored = s.storage.map.get('valley') as {
+        raid: { shelves: Record<string, boolean[]>[] }
+      }
+      expect(stored.raid.shelves[0].pbr).toEqual([true, true, true])
+      expect((await store.get('acct-A')).cash).toBe(STARTING_CASH)
+    } finally {
+      console.error = error
+    }
   })
 })
 

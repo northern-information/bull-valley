@@ -24,8 +24,6 @@ export const COOKIE = {
   redirect: 'bv_redirect',
 } as const
 
-export type CookieName = (typeof COOKIE)[keyof typeof COOKIE]
-
 export interface CookieOptions {
   // Lifetime in seconds. 0 clears the cookie.
   maxAge: number

@@ -56,7 +56,7 @@ export function paintCornStalks(seed = 0xc022): CanvasArt {
 
 // The sign's board, about 80 pixels a metre: white paint inside a red
 // border, CORN MAZE! across the top and a grinning clown under it.
-export const MAZE_SIGN_SIZE: [number, number] = [240, 160]
+const MAZE_SIGN_SIZE: [number, number] = [240, 160]
 
 export function paintCornMazeSign(): CanvasArt {
   const art = canvas(MAZE_SIGN_SIZE, '#c8202a')
@@ -72,7 +72,7 @@ export function paintCornMazeSign(): CanvasArt {
 
 // The small board at the gate, painted like the big one: ENTER! over a
 // fat arrow pointing right, at the gate.
-export const ENTER_SIGN_SIZE: [number, number] = [160, 100]
+const ENTER_SIGN_SIZE: [number, number] = [160, 100]
 
 export function paintEnterSign(): CanvasArt {
   const art = canvas(ENTER_SIGN_SIZE, '#c8202a')

@@ -63,3 +63,7 @@ export const SANS = 'bold $px "Helvetica Neue", Arial, sans-serif'
 // The game's own face, for UI drawn on canvas (the scope, name tags). Boot
 // waits for it to load (main.ts), so the first draw is already IBM Plex Mono.
 export const MONO = '600 $px "IBM Plex Mono", ui-monospace, monospace'
+
+// The UI's text color, --bv-eggshell in index.html; a canvas cannot read
+// CSS variables.
+export const EGGSHELL = '#f0ead6'

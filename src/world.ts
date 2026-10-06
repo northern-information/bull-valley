@@ -118,10 +118,6 @@ export interface WorldPoint {
   z: number
 }
 
-export interface GraveAnchor extends XZ {
-  name: string
-}
-
 // A station's pump island, which way it faces (local +X toward the road),
 // and the height its store stands on (store.ts storeBase).
 export interface FuelPoint extends StoreOrigin {
@@ -162,7 +158,6 @@ export interface Spawn extends XZ {
 export interface World {
   group: THREE.Group
   pickups: Pickup[]
-  graveAnchors: GraveAnchor[]
   fuelPoints: FuelPoint[]
   landmarks: LandmarkPoint[]
   // Null only when the survey has no fuel point inside the frame.
@@ -1069,14 +1064,11 @@ function buildGraveyards(
   metres: Metres,
   heightAt: HeightAt,
   rng: Rng
-): { group: THREE.Group; anchors: GraveAnchor[] } {
+): THREE.Group {
   const group = new THREE.Group()
   group.name = 'graveyards'
-  const anchors: GraveAnchor[] = []
   const stones: UnitPoint[] = []
   for (const yard of geo.graveyards) {
-    const { x, z } = unitToWorld(yard.c[0], yard.c[1], metres)
-    anchors.push({ x, z, name: yard.n })
     const b = polygonBounds(yard.p)
     let placed = 0
     for (let i = 0; i < 90 && placed < 24; i++) {
@@ -1120,7 +1112,7 @@ function buildGraveyards(
   }
   mesh.instanceMatrix.needsUpdate = true
   group.add(mesh)
-  return { group, anchors }
+  return group
 }
 
 // The closest point on any road centreline to (x, z), with that road's
@@ -1959,8 +1951,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   )
   group.add(streetlights.group)
   group.add(buildReeds(geo, metres, ground.at, rng))
-  const graveyards = buildGraveyards(geo, metres, ground.at, rng)
-  group.add(graveyards.group)
+  group.add(buildGraveyards(geo, metres, ground.at, rng))
   group.add(fuel.group)
   const landmarks = buildLandmarks(geo, metres, ground.at)
   group.add(landmarks.group)
@@ -2088,7 +2079,6 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   return {
     group,
     pickups: pickupSet.pickups,
-    graveAnchors: graveyards.anchors,
     fuelPoints: fuel.points,
     landmarks: landmarks.points,
     spawnStation,

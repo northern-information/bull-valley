@@ -833,7 +833,7 @@ const CORN_CORE_TOP = 1 - STALK_MASS_TOP - 0.02
 const CORN_TINT_LOW = '#c2b682'
 const CORN_TINT_HIGH = '#ffffff'
 
-export function cornWallParts() {
+function cornWallParts() {
   const core = new THREE.BoxGeometry(1, CORN_CORE_TOP, 1)
   core.translate(0, CORN_CORE_TOP / 2, 0)
   const front = new THREE.PlaneGeometry(1, 1)
@@ -1054,7 +1054,7 @@ function buildMazeSign(
 // round a slow spiral, a halo over it all, the ring breathing. It faces
 // +Z and -Z alike; origin at ground level under the middle. Walk into it
 // and it puts you back at the gate (loop.ts, maze.ts inPortal).
-export const PORTAL = {
+const PORTAL = {
   radius: 1.2,
   tube: 0.1,
   centre: 1.45,
@@ -1540,7 +1540,7 @@ export function buildBerryBush(seed = 0xbe221): THREE.Group {
 // Scenery: the heads are not pickups. Faces +Z, long side along X; origin
 // at ground level under the middle. CONFIG.stand places it and sizes its
 // wall.
-export const CABBAGE_STAND = {
+const CABBAGE_STAND = {
   width: 2.4,
   depth: 1.1,
   table: 0.85,
@@ -2781,7 +2781,7 @@ export interface Flashlight {
   setOn(on: boolean): void
 }
 
-export const FLASHLIGHT = {
+const FLASHLIGHT = {
   barrel: { radius: 0.019, length: 0.17 },
   head: { radius: 0.03, length: 0.06 },
 }

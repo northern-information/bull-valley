@@ -25,9 +25,19 @@ export interface PackStore {
   // Adds `delta` of `kind`. A negative delta is taken only when the pack
   // holds that many; false when it does not.
   change(accountId: string, kind: string, delta: number): Promise<boolean>
-  // Takes `amount` cents out of the wallet; false when it does not cover
-  // it.
-  spend(accountId: string, amount: number): Promise<boolean>
+  // A sale: takes `amount` cents and adds `item`, if there is one, both or
+  // neither; false when the wallet does not cover it.
+  purchase(
+    accountId: string,
+    amount: number,
+    item: PackItem | null
+  ): Promise<boolean>
+}
+
+// Units of one kind going into a pack.
+export interface PackItem {
+  kind: string
+  delta: number
 }
 
 export class MemoryPackStore implements PackStore {
@@ -65,10 +75,15 @@ export class MemoryPackStore implements PackStore {
     return Promise.resolve(true)
   }
 
-  spend(accountId: string, amount: number): Promise<boolean> {
+  async purchase(
+    accountId: string,
+    amount: number,
+    item: PackItem | null
+  ): Promise<boolean> {
     const cash = this.wallets.get(accountId) ?? 0
-    if (cash < amount) return Promise.resolve(false)
+    if (cash < amount) return false
     this.wallets.set(accountId, cash - amount)
-    return Promise.resolve(true)
+    if (item) await this.change(accountId, item.kind, item.delta)
+    return true
   }
 }

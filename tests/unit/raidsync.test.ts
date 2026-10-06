@@ -5,6 +5,7 @@ import {
   lobbyCount,
   reconcile,
   seatOf,
+  settledBy,
 } from '../../src/raidsync.ts'
 import type { MemberWire, RaidWire } from '../../src/protocol.ts'
 
@@ -54,6 +55,13 @@ describe('reconcile', () => {
     })
     const r = reconcile(createRaid(0), null, w, 'a', 'taken', 0)
     expect(r.raid.carrying).toBe(2)
+  })
+
+  it('keeps the haul it had when the snapshot does not list the raider', () => {
+    const raid = { ...createRaid(0), carrying: 3 }
+    const w = wire({ members: [member('b', { carrying: 1 })] })
+    expect(reconcile(raid, null, w, 'a', 'taken', 0).raid.carrying).toBe(3)
+    expect(reconcile(raid, null, w, null, 'taken', 0).raid.carrying).toBe(3)
   })
 
   it('rides a raider who was aboard when the truck left', () => {
@@ -179,6 +187,37 @@ describe('departureKind', () => {
   it('does donuts when the clock ran out on an empty bed', () => {
     expect(departureKind(out({ riders: [], departReason: 'clock' }))).toBe(
       'donuts'
+    )
+  })
+})
+
+describe('settledBy', () => {
+  it("says what a take or a sale settled, and whether it was this raider's", () => {
+    expect(settledBy({ reason: 'taken', by: 'a', index: 3 }, 'a')).toEqual({
+      take: { index: 3, mine: true },
+      sale: null,
+    })
+    expect(settledBy({ reason: 'taken', by: 'b', index: 3 }, 'a').take).toEqual(
+      { index: 3, mine: false }
+    )
+    expect(
+      settledBy({ reason: 'bought', by: 'a', station: 1, item: 'pbr' }, 'a')
+    ).toEqual({ take: null, sale: { station: 1, item: 'pbr', mine: true } })
+    // Played alone there is no id, and nothing the valley settled is ours.
+    expect(
+      settledBy({ reason: 'bought', by: 'a', station: 1, item: 'pbr' }, null)
+        .sale?.mine
+    ).toBe(false)
+  })
+
+  it('settles nothing without the detail, or for any other reason', () => {
+    const none = { take: null, sale: null }
+    expect(settledBy({ reason: 'taken', by: 'a' }, 'a')).toEqual(none)
+    expect(settledBy({ reason: 'bought', by: 'a', station: 0 }, 'a')).toEqual(
+      none
+    )
+    expect(settledBy({ reason: 'joined', by: 'a', index: 2 }, 'a')).toEqual(
+      none
     )
   })
 })

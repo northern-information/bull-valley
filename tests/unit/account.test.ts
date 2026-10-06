@@ -153,6 +153,17 @@ describe('validateRedirect', () => {
     expect(validateRedirect('')).toBeNull()
     expect(validateRedirect(undefined)).toBeNull()
   })
+
+  it('refuses a path the URL parser reads as another host', () => {
+    // The parser strips tabs and newlines, so these become //evil.example/.
+    expect(validateRedirect('/\t/evil.example/')).toBeNull()
+    expect(validateRedirect('/\n/evil.example/')).toBeNull()
+  })
+
+  it('refuses a path the URL parser cannot read', () => {
+    // Read as //[ once the tab is stripped: a host that does not parse.
+    expect(validateRedirect('/\t/[')).toBeNull()
+  })
 })
 
 describe('landingUrl', () => {

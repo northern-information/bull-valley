@@ -87,9 +87,6 @@ export const PACK = {
   close: { codes: ['Tab', 'Escape'], key: 'Tab', labelKey: 'keys.close' },
 } as const satisfies Record<string, Binding>
 
-export type WorldAction = keyof typeof WORLD
-export type PackAction = keyof typeof PACK
-
 // The action a code fires in a table, or null when the table does not
 // bind it.
 export function actionOf<T extends Record<string, Binding>>(

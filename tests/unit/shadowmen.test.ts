@@ -124,6 +124,13 @@ describe('spawnShadowman', () => {
     expect(b.z).toBeCloseTo(a.z + a.dirZ * 50, 9)
   })
 
+  it('stands still rather than divide by zero when it spawns on its crossing point', () => {
+    // A ring and a crossing disc of no size put both ends on the raider.
+    const cfg = { ...CFG, spawnRadius: 0, crossRadius: 0 }
+    const s = spawnShadowman(mulberry32(5), 1, ORIGIN, METRES, NONE, cfg, 50)
+    expect(s).toMatchObject({ x: 0, z: 0, dirX: 0, dirZ: 0 })
+  })
+
   it('never comes in through a haven on the ring', () => {
     const havens = [{ x: CFG.spawnRadius, z: 0 }]
     const rng = mulberry32(9)
@@ -282,6 +289,25 @@ describe('stepShadowmen: rushes', () => {
     step(field, undefined, { raiders: [raider({ vulnerable: true })] })
     expect(first(field)?.dirX).toBeCloseTo(-Math.SQRT1_2, 9)
     expect(first(field)?.dirZ).toBeCloseTo(Math.SQRT1_2, 9)
+  })
+
+  it('keeps its heading when it stands right on its raider', () => {
+    // No direction to the raider from on top of them: it runs on as it was,
+    // and a long step carries it out past the touch.
+    const field = one({
+      z: 0,
+      dirX: 0,
+      dirZ: 1,
+      target: 'a',
+      speed: CFG.rushSpeed,
+    })
+    const r = step(field, undefined, {
+      dt: 0.2,
+      raiders: [raider({ vulnerable: true })],
+    })
+    expect(r.struck).toEqual([])
+    expect(first(field)).toMatchObject({ x: 0, dirX: 0, dirZ: 1 })
+    expect(first(field)?.z).toBeCloseTo(CFG.rushSpeed * 0.2, 9)
   })
 
   it('breaks off when its raider is riding, in a haven, or gone', () => {

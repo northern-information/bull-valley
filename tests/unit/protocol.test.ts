@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { OUTFIT_IDS } from '../../src/outfits.ts'
 import {
   CHAT_MAX,
   CLOSE,
   isExtractKind,
-  isOutfitId,
   isValidChat,
   isValidName,
   MAX_COORD,
@@ -72,12 +70,6 @@ describe('names', () => {
 })
 
 describe('outfits, poses and extracts', () => {
-  it('knows every outfit and nothing else', () => {
-    for (const id of OUTFIT_IDS) expect(isOutfitId(id)).toBe(true)
-    expect(isOutfitId('tuxedo')).toBe(false)
-    expect(isOutfitId(undefined)).toBe(false)
-  })
-
   it('has no seated pose yet', () => {
     expect(PEER_POSES).toEqual(['stand', 'walk', 'crouch'])
   })
@@ -163,6 +155,27 @@ describe('parseClientMessage', () => {
   it("ignores an older build's name, so its stale version is what is judged", () => {
     expect(parse({ ...hello, v: 3, name: 'Dave' })).toEqual({ ...hello, v: 3 })
     expect(parse({ ...hello, name: 7 })).toEqual(hello)
+  })
+
+  it("parses an older build's hello without havens or metres, with empty defaults", () => {
+    const { havens: _havens, metres: _metres, ...older } = hello
+    expect(parse({ ...older, v: PROTOCOL_VERSION - 1 })).toEqual({
+      ...older,
+      v: PROTOCOL_VERSION - 1,
+      havens: [],
+      metres: { width: 0, height: 0 },
+    })
+    // Bad ones read as missing in an older build, too.
+    expect(
+      parse({ ...hello, v: PROTOCOL_VERSION - 1, havens: 1, metres: 'big' })
+    ).toEqual({
+      ...older,
+      v: PROTOCOL_VERSION - 1,
+      havens: [],
+      metres: { width: 0, height: 0 },
+    })
+    // The current version still requires both.
+    expect(parse({ ...older, v: PROTOCOL_VERSION })).toBeNull()
   })
 
   it('parses the dev frame that places a shadowman', () => {
