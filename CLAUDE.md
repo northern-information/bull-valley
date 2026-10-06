@@ -15,7 +15,7 @@ An extraction adventure RPG set in a hauntological Bull Valley, Illinois. 3D fir
 - `npm run pretty` — prettier (sorts imports too); run before every commit. `npm run format:check` checks without writing
 - CI (`.github/workflows/ci.yml`) runs on every PR to `main` and every push to `main`: format, lint, types, unit tests with coverage (the pure modules have a per-file floor in `vitest.config.ts`), build, and e2e. The e2e job runs in the Playwright Docker image as three parallel jobs: the `@raid` group, the `@valley` group (the two-page specs, which boot two games each), and every other spec
 - `npm run db:migrate` — apply `migrations/*.sql` to the dev server's local D1 (`bull-valley-accounts`, the accounts behind `/auth`); run it once on a fresh checkout and after adding a migration. The deploy workflow applies them to production before each deploy. Local secrets go in a gitignored `.dev.vars` (see `.dev.vars.example`); none are needed, since a dev server signs sessions with a fixed dev secret and offers the Dev provider (`/auth/dev/form`). Production secrets (`JWT_SECRET`, each provider's client id and secret) are set once with `wrangler versions secret put`
-- `npm run fetch:data` — regenerate `public/data/bull-valley/` (network: Nominatim, Overpass, AWS terrain tiles; `--reuse-traffic` skips IDOT)
+- `npm run fetch:data` — regenerate `public/data/bull-valley/` (network: Nominatim, Overpass, AWS terrain tiles)
 - `npm run copy:ai` — list the lines in `COPY.toml` still marked `by = "ai"`
 - `npm run images` — regenerate `public/favicon.ico` and `public/apple-touch-icon.png` from `public/favicon.svg`, and the link-preview card `public/og.png` from the logo (needs ImageMagick 7, `brew install imagemagick`)
 

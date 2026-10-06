@@ -73,18 +73,8 @@ export interface FuelStation {
   p: UnitPoint
 }
 
-export interface TrafficCount {
-  n: string
-  v: number
-  y: number
-  h: number
-  p: Ring
-}
-
 export interface Geo {
   fetched: string
-  trafficFetched: string
-  trafficBbox: Bbox
   bbox: Bbox
   metres: Metres
   terrain: TerrainRange
@@ -95,8 +85,7 @@ export interface Geo {
   reserves: Reserve[]
   graveyards: Graveyard[]
   fuel: FuelStation[]
-  traffic: TrafficCount[]
-  sources: { osm: string; traffic: string; terrain: string }
+  sources: { osm: string; terrain: string }
 }
 
 // ---------------------------------------------------------------------------
