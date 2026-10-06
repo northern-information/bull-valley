@@ -105,7 +105,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     // shared valley the server's clock says when.
     if (!s.shared && timedOut(s.raid, s.raidClock)) {
       s.raid = advance(s.raid, EVENTS.TIMER_EXPIRED, s.raidClock)
-      actions.truckLeaves()
+      actions.truckLeaves(false)
       s.onTruckRolls = [copy('log.left_behind')]
     }
 

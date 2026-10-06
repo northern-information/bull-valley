@@ -85,6 +85,7 @@ import {
 } from './store.ts'
 import { Walls } from './walls.ts'
 import type { CornPiece, MazeSignSize, PortalRig } from './assets.ts'
+import type { DonutField } from './donuts.ts'
 import type { GronRig, MoabRig } from './figure.ts'
 import type {
   Geo,
@@ -196,6 +197,9 @@ export interface World {
   streetlights: Streetlights
   // The portal at the corn maze's heart; null without a spawn station.
   portal: MazePortal | null
+  // The field across the road where Matthew Marx does donuts when nobody
+  // boards (donuts.ts); null without a spawn station.
+  donutField: DonutField | null
 }
 
 // The portal at the corn maze's heart: where it stands, where it puts you
@@ -1631,6 +1635,15 @@ function chooseSpawnStation(
   return best ? best.station : null
 }
 
+// The donut field (CONFIG.truck.donuts, station-local) in the world. Trees
+// keep DONUT_TREE_CLEAR past its edge, since the truck's tail swings out.
+const DONUT_TREE_CLEAR = 4
+function donutFieldOf(station: StoreOrigin): DonutField {
+  const { field, radius } = CONFIG.truck.donuts
+  const [x, , z] = toWorld(station, [field.x, 0, field.z])
+  return { x, z, radius }
+}
+
 // Where the corn maze lies: maze-local metres (maze.ts, x away from the
 // road and z along it) to the world through the spawn station's frame
 // (CONFIG.maze.at, station-local), and back.
@@ -1915,9 +1928,20 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   group.add(shelves.group)
   const spawnStation = chooseSpawnStation(geo, metres, fuel.points)
   const maze = spawnStation ? mazeFrame(spawnStation) : null
+  const donutField = spawnStation ? donutFieldOf(spawnStation) : null
   group.add(
-    buildTrees(geo, metres, ground.at, mask, rng, (x, z) =>
-      maze ? maze.covers(x, z, CONFIG.maze.treeClear) : false
+    buildTrees(
+      geo,
+      metres,
+      ground.at,
+      mask,
+      rng,
+      (x, z) =>
+        (maze ? maze.covers(x, z, CONFIG.maze.treeClear) : false) ||
+        (donutField
+          ? Math.hypot(x - donutField.x, z - donutField.z) <
+            donutField.radius + DONUT_TREE_CLEAR
+          : false)
     )
   )
   // The roadside draws from its own seed, so retuning the poles never moves
@@ -2089,5 +2113,6 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     shelves,
     streetlights,
     portal,
+    donutField,
   }
 }

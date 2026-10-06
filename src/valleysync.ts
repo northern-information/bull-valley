@@ -4,14 +4,14 @@
 // raid, and this file does what that means (the truck, the pickups, the
 // shelves, the lines in the log).
 
-import { CHAT_COPY } from './chat.ts'
+import { CHAT_COPY, othersLine } from './chat.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { toInventory } from './inventory.ts'
 import { itemById } from './items.ts'
 import { CLOSE } from './protocol.ts'
-import { reconcile } from './raidsync.ts'
-import { nearestRoadPoint, planRoute } from './roadgraph.ts'
+import { departureKind, reconcile } from './raidsync.ts'
+import { callRoute } from './roadgraph.ts'
 import { formatCash } from './store.ts'
 import type { Actions } from './actions.ts'
 import type { Game } from './game.ts'
@@ -34,14 +34,8 @@ export function wireValley(game: Game, actions: Actions): void {
     switch (msg.type) {
       case 'welcome': {
         peers.welcome(msg.peers, now)
-        const n = msg.peers.length
-        if (n > 0) {
-          hud.tell(
-            n === 1
-              ? copy('log.welcome_one')
-              : copy('log.welcome_many', { count: n })
-          )
-        }
+        // Before Begin, the greeting says it; after, a reconnect does.
+        if (s.greeted) hud.tell(othersLine(peers.count))
         return
       }
       case 'peer-joined':
@@ -155,18 +149,17 @@ export function wireValley(game: Game, actions: Actions): void {
       }
       if (departure) actions.refreshBag()
       if (wire.departedAt !== null) {
-        truck.driveRouteAt(
-          game.departRoute,
-          net.clock.toLocalMs(wire.departedAt)
-        )
+        const at = net.clock.toLocalMs(wire.departedAt)
+        const donuts =
+          departureKind(wire) === 'donuts' ? game.donutRoute(wire.epoch) : null
+        if (donuts) truck.driveDonuts(donuts, at)
+        else truck.driveRouteAt(game.departRoute, at)
       }
     }
 
     const call = wire.call
     if (call && whistle) {
-      const from = nearestRoadPoint(graph, call.from.x, call.from.z)
-      const to = nearestRoadPoint(graph, call.to.x, call.to.z)
-      const route = from && to ? planRoute(graph, from, to) : null
+      const route = callRoute(graph, call.from, call.to)
       truck.parkAt(call.from.x, call.from.z, truck.dirX, truck.dirZ)
       truck.driveRouteAt(route, net.clock.toLocalMs(call.at))
       hud.tell(

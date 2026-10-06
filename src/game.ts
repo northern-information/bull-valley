@@ -144,6 +144,10 @@ export interface Game {
   truck: Truck
   // The joyride the truck leaves on, from the spawn station.
   departRoute: Route
+  // Matthew Marx's donuts in the field by the maze when the truck leaves
+  // with nobody aboard, drawn from `seed` (the raid's epoch in the valley,
+  // so everyone draws the same); null with no field.
+  donutRoute(seed: number): Route | null
   spawnStation: FuelPoint
   // Mt. Coleman's Keep, if the survey has it.
   keep: LandmarkPoint | null

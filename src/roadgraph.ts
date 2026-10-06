@@ -368,6 +368,20 @@ export function wanderRoute(
   return points
 }
 
+// Past this far off the road, a whistled truck drives onto it first.
+const OFF_ROAD = 1
+
+// The whistle's route: from wherever the truck is (on the road, or off it in
+// the donut field) onto the nearest road, then along the roads to the point
+// nearest `to`. Null when either end has no road or the two are not joined.
+export function callRoute(graph: RoadGraph, from: XZ, to: XZ): Route | null {
+  const start = nearestRoadPoint(graph, from.x, from.z)
+  const end = nearestRoadPoint(graph, to.x, to.z)
+  const route = start && end ? planRoute(graph, start, end) : null
+  if (!start || !route) return null
+  return start.dist > OFF_ROAD ? [{ x: from.x, z: from.z }, ...route] : route
+}
+
 // Arc-length walker over a route polyline. advance(metres) moves the cursor
 // and reports position, direction of travel, and completion.
 export function createWalker(points: readonly RoadPoint[]): Walker {

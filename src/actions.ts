@@ -6,7 +6,7 @@
 // modules'; this is the glue that applies them and says so.
 
 import { saveHotbar, saveLook } from './auth.ts'
-import { CHAT_COPY } from './chat.ts'
+import { CHAT_COPY, chatCommand, onlineLine } from './chat.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { stepIndex } from './cycle.ts'
@@ -21,7 +21,7 @@ import { outfitById } from './outfits.ts'
 import { PACK_TABS, packItems } from './packgrid.ts'
 import { normalizeChat } from './protocol.ts'
 import { advance, canPick, EVENTS, STATES, summary } from './raid.ts'
-import { nearestRoadPoint, planRoute } from './roadgraph.ts'
+import { callRoute } from './roadgraph.ts'
 import { buy as buyItem, settle } from './shop.ts'
 import type { Game } from './game.ts'
 import type { DailyStatus, ShelfSpot } from './interactions.ts'
@@ -44,8 +44,8 @@ export interface Actions {
   // A number key over an item in the pack puts it on that slot, or takes
   // it off when it is there already.
   assignSlot(slot: number, kind: string): void
-  // The truck leaves on its joyride from the spawn station.
-  truckLeaves(): void
+  // The truck leaves from the spawn station: the joyride, or donuts.
+  truckLeaves(aboard: boolean): void
   hopOut(line?: string): void
   // A shadowman touched you.
   strike(): void
@@ -70,7 +70,7 @@ export interface Actions {
 
 // engagePointer takes the pointer back once Gron's dialog closes.
 export function createActions(game: Game, engagePointer: () => void): Actions {
-  const { state: s, hud, net, player, truck, world, graph } = game
+  const { state: s, hud, net, peers, player, truck, world, graph } = game
 
   const refreshBag = () => {
     if (s.inventoryOpen) {
@@ -130,8 +130,12 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       net.send({ type: 'extract', kind: s.raid.extract })
   }
 
-  const truckLeaves = () => {
-    truck.driveRoute(game.departRoute)
+  // Played alone the truck leaves on the joyride with the player aboard,
+  // or, when the clock runs out on an empty bed, for Matthew Marx's donuts.
+  const truckLeaves = (aboard: boolean) => {
+    const donuts = aboard ? null : game.donutRoute(Date.now())
+    if (donuts) truck.driveDonuts(donuts, null)
+    else truck.driveRoute(game.departRoute)
   }
 
   const boardTruck = () => {
@@ -149,7 +153,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     const next = advance(s.raid, EVENTS.BOARD_TRUCK, s.raidClock)
     if (next === s.raid) return
     s.raid = next
-    truckLeaves()
+    truckLeaves(true)
     hud.tell(copy('log.board'))
     s.onTruckRolls = [copy('log.truck_leaves'), copy('log.hop_out_hint')]
     closeInventory()
@@ -193,20 +197,17 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       hud.tell(copy('log.truck_busy'))
       return
     }
-    const from = nearestRoadPoint(graph, truck.x, truck.z)
-    const to = nearestRoadPoint(graph, player.pos.x, player.pos.z)
-    const route = from && to ? planRoute(graph, from, to) : null
-    if (!from || !to || !route || route.length < 2) {
+    // From wherever the truck is, the donut field included.
+    const from = { x: truck.x, z: truck.z }
+    const to = { x: player.pos.x, z: player.pos.z }
+    const route = callRoute(graph, from, to)
+    if (!route || route.length < 2) {
       hud.tell(copy('log.whistle_nothing'))
       return
     }
     if (s.shared) {
       // One whistle for the whole valley; the raid frame drives the truck.
-      net.send({
-        type: 'call',
-        from: { x: from.x, z: from.z },
-        to: { x: to.x, z: to.z },
-      })
+      net.send({ type: 'call', from, to })
       return
     }
     s.raid = advance(s.raid, EVENTS.CALL_TRUCK, s.raidClock)
@@ -461,9 +462,32 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   // The valley echoes the line back to everyone. Offline the line still
   // shows, to no one else.
+  // /online: who is in the valley, by name.
+  const tellOnline = () => {
+    if (!net.online) {
+      hud.tell(CHAT_COPY.offline)
+      return
+    }
+    hud.tell(
+      onlineLine(
+        game.pick.username,
+        peers.list().map((peer) => peer.name)
+      )
+    )
+  }
+
   const say = (typed: string) => {
     const text = normalizeChat(typed)
     if (!text) return
+    const command = chatCommand(text)
+    if (command === 'online') {
+      tellOnline()
+      return
+    }
+    if (command === 'unknown') {
+      hud.tell(copy('chat.unknown_command'))
+      return
+    }
     if (net.online) {
       net.send({ type: 'chat', text })
       return

@@ -128,6 +128,7 @@ hint_finish = { text = "← → Cycle · Up / Down Finish · R Randomize · Ente
 
 [log]
 greeting = { text = "Matthew Marx keeps the engine running.", by = "ai" }
+welcome_none = { text = "No one else in the valley.", by = "ai" }
 welcome_one = { text = "One other in the valley.", by = "ai" }
 welcome_many = { text = "{count} others in the valley.", by = "ai" }
 peer_joined = { text = "{name} is in the valley.", by = "ai" }
@@ -182,6 +183,8 @@ extract_keep = { text = "E — End the Raid at {keep}", by = "ai" }
 [chat]
 too_fast = { text = "You are speaking too fast.", by = "ai" }
 offline = { text = "No one can hear you.", by = "ai" }
+online = { text = "In the valley: {names}.", by = "ai" }
+unknown_command = { text = "No such command. Try /online.", by = "ai" }
 
 # The Tab pack grid and the hotbar (src/hud.ts), and the cabbages' card in
 # the grid (src/packgrid.ts). Item cards are under [items].

@@ -33,7 +33,7 @@ base(
     const errorsA = watchErrors(a)
     const errorsB = watchErrors(b)
 
-    const [able] = await Promise.all([
+    const [able, baker] = await Promise.all([
       beginRaid(a, 0, { valley, raider: freshRaider('Able') }),
       beginRaid(b, 1, { valley, raider: freshRaider('Baker') }),
     ])
@@ -68,6 +68,18 @@ base(
     await expect(
       b.getByRole('log', { name: copy('hud.chat_log_label') })
     ).toContainText(`${able.username}: wwww cabbages by the keep`)
+
+    // /online answers in the asker's log alone; the valley never hears it.
+    await b.keyboard.press('Enter')
+    await b.keyboard.type('/online')
+    await b.keyboard.press('Enter')
+    await expect(
+      b.getByRole('log', { name: copy('hud.chat_log_label') })
+    ).toContainText(
+      copy('chat.online', { names: `${baker.username}, ${able.username}` })
+    )
+    await a.waitForTimeout(500)
+    expect(await lines(a)).toEqual(['wwww cabbages by the keep'])
 
     expect(errorsA).toEqual([])
     expect(errorsB).toEqual([])

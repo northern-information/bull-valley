@@ -3,6 +3,7 @@
 // CHAT while typing), and what they do is actions.ts's.
 
 import { actionOf, CHAT, hotbarSlot, PACK, WORLD } from './bindings.ts'
+import { othersLine } from './chat.ts'
 import { copy } from './copy.ts'
 import type { Actions } from './actions.ts'
 import type { Game } from './game.ts'
@@ -10,7 +11,7 @@ import type { Game } from './game.ts'
 // Wire pointer lock to the Begin button and the canvas; returns the call
 // that asks for it again.
 export function wirePointer(game: Game): () => void {
-  const { state: s, hud, player } = game
+  const { state: s, hud, net, peers, player } = game
 
   const startWithoutLock = () => {
     // Automation-only: headless browsers refuse pointer lock and the valley is
@@ -67,6 +68,8 @@ export function wirePointer(game: Game): () => void {
       if (!s.greeted) {
         s.greeted = true
         hud.tell(copy('log.greeting'))
+        // How many others, once the valley has said; a late welcome says it.
+        if (net.online) hud.tell(othersLine(peers.count))
       }
     } else if (s.started && !s.ended && !s.inventoryOpen && !s.talking) {
       hud.showIntro(true, true)

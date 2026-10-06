@@ -27,6 +27,32 @@ export const CHAT_COPY = {
   offline: copy('chat.offline'),
 } as const
 
+// A line typed with a leading slash is a command: answered in this
+// player's log alone, never sent to the valley.
+export type ChatCommand = 'online' | 'unknown'
+
+export function chatCommand(text: string): ChatCommand | null {
+  if (!text.startsWith('/')) return null
+  const [name] = text.slice(1).trim().toLowerCase().split(/\s+/)
+  return name === 'online' ? 'online' : 'unknown'
+}
+
+// How many others are in the valley, as the log says it.
+export function othersLine(count: number): string {
+  if (count === 0) return copy('log.welcome_none')
+  if (count === 1) return copy('log.welcome_one')
+  return copy('log.welcome_many', { count })
+}
+
+// Who is in the valley, for /online: this raider first, then the others
+// by name.
+export function onlineLine(self: string, others: readonly string[]): string {
+  const sorted = [...others].sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: 'base' })
+  )
+  return copy('chat.online', { names: [self, ...sorted].join(', ') })
+}
+
 // The log with one more line, keeping the newest CHAT_LINES.
 export function pushLine(
   lines: readonly ChatLine[],

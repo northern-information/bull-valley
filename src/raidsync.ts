@@ -100,3 +100,10 @@ export function lobbyCount(
     total: lobby.length,
   }
 }
+
+// Where the truck goes once it has left: the joyride with whoever is
+// aboard, or, when the clock ran out on an empty bed, Matthew Marx's donuts
+// in the field by the corn maze (donuts.ts) until someone whistles.
+export function departureKind(wire: RaidWire): 'joyride' | 'donuts' {
+  return wire.riders.length === 0 ? 'donuts' : 'joyride'
+}

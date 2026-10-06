@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { advance, createRaid, EVENTS, STATES } from '../../src/raid.ts'
-import { lobbyCount, reconcile, seatOf } from '../../src/raidsync.ts'
+import {
+  departureKind,
+  lobbyCount,
+  reconcile,
+  seatOf,
+} from '../../src/raidsync.ts'
 import type { MemberWire, RaidWire } from '../../src/protocol.ts'
 
 function member(id: string, extra: Partial<MemberWire> = {}): MemberWire {
@@ -163,5 +168,17 @@ describe('lobbyCount', () => {
   it('says nothing for one raider or none', () => {
     expect(lobbyCount(null)).toBeNull()
     expect(lobbyCount(wire({ members: [member('a')] }))).toBeNull()
+  })
+})
+
+describe('departureKind', () => {
+  it('drives the joyride with anyone aboard', () => {
+    expect(departureKind(out())).toBe('joyride')
+  })
+
+  it('does donuts when the clock ran out on an empty bed', () => {
+    expect(departureKind(out({ riders: [], departReason: 'clock' }))).toBe(
+      'donuts'
+    )
   })
 })

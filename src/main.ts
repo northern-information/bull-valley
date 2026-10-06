@@ -7,6 +7,7 @@ import { refreshSession } from './auth.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { installDevHook } from './devhook.ts'
+import { donutRoute } from './donuts.ts'
 import { finishById } from './finishes.ts'
 import { FirstPersonHands } from './fphands.ts'
 import { createGameState } from './game.ts'
@@ -223,6 +224,19 @@ async function boot() {
     graph,
     truck,
     departRoute,
+    donutRoute: (seed) =>
+      world.donutField
+        ? donutRoute(
+            truckPoint,
+            {
+              x: departRoute[1].x - departRoute[0].x,
+              z: departRoute[1].z - departRoute[0].z,
+            },
+            world.donutField,
+            mulberry32(seed),
+            CONFIG.truck.donuts
+          )
+        : null,
     spawnStation,
     keep: world.landmarks.find((l) => l.n === KEEP) ?? null,
     player,
