@@ -16,14 +16,16 @@ export default defineConfig({
     include: ['tests/unit/**/*.test.ts', 'tests/worker/**/*.test.ts'],
     exclude: ['node_modules/**', 'dist/**'],
     coverage: {
-      // Report every source file, not only the ones a test imports, so the
-      // Three and DOM modules show up at 0% instead of not at all.
+      // Report every source file, not only the ones a test imports. A file
+      // no test imports is listed with 0 of 0 statements, which reads as
+      // 100%, so a floor below says nothing of a module no test loads:
+      // give every module listed there a test.
       include: ['src/**/*.ts', 'worker/**/*.ts'],
       // The pure modules carry the game rules and run in Node, so each one
       // must stay well covered. The Three and DOM modules are covered by
       // the e2e specs instead, and have no threshold here.
       thresholds: {
-        'src/{account,auth,bindings,cabbages,characters,chat,clock,cookies,coords,copy,copybook,cycle,daily,donuts,drinks,finishes,ground,hands,hotbar,interactions,inventory,items,maze,mist,outfits,packgrid,poses,presence,protocol,raid,raidsync,rng,roadgraph,roadside,shadowmen,shadowsync,shop,splashmachine,store,walls}.ts':
+        'src/{account,auth,bindings,cabbages,characters,chat,clock,cookies,coords,copy,copybook,cycle,daily,donuts,drinks,finishes,ground,hands,hotbar,interactions,inventory,items,landmarks,maze,mist,npcs,outfits,packgrid,poses,presence,protocol,raid,raidsync,rng,roadgraph,roadside,shadowmen,shadowsync,sharedraid,shop,splashmachine,store,walls}.ts':
           {
             perFile: true,
             statements: 85,
@@ -31,6 +33,14 @@ export default defineConfig({
             functions: 90,
             branches: 50,
           },
+        // The Worker: the valley, the accounts and the money.
+        'worker/*.ts': {
+          perFile: true,
+          statements: 85,
+          lines: 90,
+          functions: 85,
+          branches: 75,
+        },
       },
     },
   },

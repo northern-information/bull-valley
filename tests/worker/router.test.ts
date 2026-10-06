@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { COOKIE } from '../../src/cookies.ts'
 import { VALLEY_NAME } from '../../src/protocol.ts'
 import { ACCOUNT_HEADER, NAME_HEADER } from '../../worker/auth.ts'
@@ -156,6 +156,41 @@ describe('router', () => {
     )
     expect(missing.status).toBe(404)
     expect(e.calls).toEqual([])
+  })
+
+  it("calls the providers through the Worker's own fetch", async () => {
+    const e = { ...env(), GITHUB_CLIENT_ID: 'id', GITHUB_CLIENT_SECRET: 'x' }
+    const login = await worker.fetch(
+      new Request('https://bvsw.net/auth/github/login'),
+      e
+    )
+    const state = new URL(login.headers.get('Location') ?? '').searchParams.get(
+      'state'
+    )
+    const cookie = login.headers
+      .getSetCookie()
+      .map((line) => line.split(';')[0])
+      .join('; ')
+    const asked: string[] = []
+    vi.stubGlobal('fetch', (input: string) => {
+      asked.push(input)
+      return Promise.resolve(new Response('down', { status: 500 }))
+    })
+    try {
+      const back = await worker.fetch(
+        new Request(
+          `https://bvsw.net/auth/github/callback?code=c&state=${state}`,
+          { headers: { Cookie: cookie } }
+        ),
+        e
+      )
+      // The token exchange failed, so the sign-in did too, before any
+      // account was looked up.
+      expect(back.status).toBe(302)
+      expect(asked).toEqual(['https://github.com/login/oauth/access_token'])
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('hands everything else to the assets', async () => {
