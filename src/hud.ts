@@ -337,6 +337,7 @@ export class Hud {
     }
     this.cardUse = keyItem(PACK.use)
     keyItem(PACK.assign)
+    keyItem(PACK.drop)
     this.card.append(
       this.cardCanvas,
       this.cardName,

@@ -280,7 +280,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
 
     // Pickups pulse every frame, whatever the prompt says.
     const pulse = 0.35 + Math.sin(time * 3) * 0.2
-    for (const pickup of world.pickups) {
+    for (const pickup of [...world.pickups, ...game.drops.pickups]) {
       if (pickup.taken) continue
       for (const m of pulseMaterials(pickup.mesh)) m.emissiveIntensity = pulse
     }
@@ -306,7 +306,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
           keep: game.keep,
           stations: world.fuelPoints,
           spawnStation: game.spawnStation,
-          pickups: world.pickups,
+          // What lies dropped answers to E like any pickup.
+          pickups: [...world.pickups, ...game.drops.pickups],
           shelf: targets.shelfInView(inStore),
           insideStore: inStore >= 0,
           bush: world.bush,

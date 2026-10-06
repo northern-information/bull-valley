@@ -204,7 +204,7 @@ export class ValleyDO extends DurableObject<Env> {
         // Where the raider's own last state frame put them, never the
         // drop frame's word.
         const at = me.at ? { x: me.at.x, z: me.at.z, yaw: me.at.yaw } : null
-        await this.setDown(ws, {
+        await this.setDown(ws, attachment.account, {
           type: 'drop',
           id: me.id,
           kind: msg.kind,
@@ -568,20 +568,28 @@ export class ValleyDO extends DurableObject<Env> {
 
   // A drop, alone (rule 14): the pack gives the units up before the drop
   // stands, so nothing is set down that the pack did not hold. A cabbage
-  // comes out of the arms, which are the valley's, and needs no write.
+  // comes out of the arms, which are the valley's, and needs no write. The
+  // client took the units out of its own pack at once, so every refusal
+  // sends the pack as it is to put that right.
   private async setDown(
     ws: WebSocket,
+    account: string | null,
     action: Extract<ValleyAction, { type: 'drop' }>
   ): Promise<void> {
-    const refuse = (reason: string) => {
+    const refuse = async (reason: string) => {
       send(ws, { type: 'nack', re: 'drop', reason })
+      await this.repack(ws, null, account ?? undefined)
     }
     if (!allow(this.dropRate, ws, DROP_LIMIT)) {
-      refuse('too-fast')
+      await refuse('too-fast')
       return
     }
     await this.ctx.blockConcurrencyWhile(async () => {
       const reduced = reduce(this.valley, action, this.context())
+      if (reduced.reply) {
+        await refuse(reduced.reply.reason)
+        return
+      }
       const change = reduced.pack
       if (change) {
         let given: boolean
@@ -593,18 +601,15 @@ export class ValleyDO extends DurableObject<Env> {
           )
         } catch (err) {
           console.error('The drop could not be written', err)
-          refuse('unavailable')
+          await refuse('unavailable')
           return
         }
         if (!given) {
-          refuse('none-left')
-          // The pack as it is puts right any guess made in the meantime.
-          await this.repack(ws, null, change.account)
+          await refuse('none-left')
           return
         }
       }
       await this.apply(reduced)
-      if (reduced.reply) send(ws, reduced.reply)
       for (const msg of reduced.broadcast) this.broadcast(msg, null)
       if (change) await this.repack(ws, null, change.account)
     })

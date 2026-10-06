@@ -76,27 +76,46 @@ export function reconcile(
   return { raid: next, departed, departure, whistle }
 }
 
-// What a 'taken' or 'bought' snapshot settled, and whether it went to
-// this raider: a pickup taken (into our arms, or gone from the valley) or
-// a shelf unit sold (into our pocket, or only off the shelf).
+// What a 'taken', 'bought', 'dropped' or 'drop-taken' snapshot settled,
+// and whether it was this raider's: a pickup taken (into our arms, or gone
+// from the valley), a shelf unit sold (into our pocket, or only off the
+// shelf), something set down, or a drop taken up (sharedraid.ts rule 14).
 export interface Settled {
   take: { index: number; mine: boolean } | null
   sale: { station: number; item: string; mine: boolean } | null
+  dropped: { kind: string; count: number; mine: boolean } | null
+  dropTaken: {
+    drop: number
+    kind: string
+    count: number
+    mine: boolean
+  } | null
 }
 
 export function settledBy(
-  msg: Pick<RaidMessage, 'reason' | 'by' | 'index' | 'station' | 'item'>,
+  msg: Pick<
+    RaidMessage,
+    'reason' | 'by' | 'index' | 'station' | 'item' | 'drop' | 'count'
+  >,
   me: string | null
 ): Settled {
   const mine = me !== null && msg.by === me
+  const { item, drop, count } = msg
+  const aDrop = item !== undefined && drop !== undefined && count !== undefined
   return {
     take:
       msg.reason === 'taken' && msg.index !== undefined
         ? { index: msg.index, mine }
         : null,
     sale:
-      msg.reason === 'bought' && msg.station !== undefined && msg.item
-        ? { station: msg.station, item: msg.item, mine }
+      msg.reason === 'bought' && msg.station !== undefined && item
+        ? { station: msg.station, item, mine }
+        : null,
+    dropped:
+      msg.reason === 'dropped' && aDrop ? { kind: item, count, mine } : null,
+    dropTaken:
+      msg.reason === 'drop-taken' && aDrop
+        ? { drop, kind: item, count, mine }
         : null,
   }
 }

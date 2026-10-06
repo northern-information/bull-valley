@@ -74,6 +74,8 @@ export const CHAT = {
 export const PACK = {
   use: { codes: ['KeyE', 'Enter'], key: 'E', labelKey: 'keys.use' },
   assign: { codes: HOTBAR_CODES, key: '1–9', labelKey: 'keys.assign' },
+  // One of the item; with Shift, the whole stack.
+  drop: { codes: ['KeyX'], key: 'X', labelKey: 'keys.drop' },
   prevTab: {
     codes: ['KeyA', 'ArrowLeft'],
     key: 'A',

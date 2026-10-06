@@ -78,6 +78,11 @@ describe('PACK', () => {
     expect(actionOf(PACK, 'Tab')).toBe('close')
     expect(actionOf(PACK, 'Escape')).toBe('close')
   })
+
+  it('drops on X', () => {
+    expect(actionOf(PACK, 'KeyX')).toBe('drop')
+    expect(actionOf(WORLD, 'KeyX')).toBeNull()
+  })
 })
 
 describe('isHeld', () => {

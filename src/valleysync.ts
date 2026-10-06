@@ -7,6 +7,7 @@
 import { CHAT_COPY, othersLine } from './chat.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
+import { pickupLabel } from './interactions.ts'
 import { toInventory } from './inventory.ts'
 import { itemById } from './items.ts'
 import { CLOSE } from './protocol.ts'
@@ -99,14 +100,20 @@ export function wireValley(game: Game, actions: Actions): void {
   const applyRaid = (
     wire: RaidWire | null,
     reason: RaidMessage['reason'],
-    detail: Pick<RaidMessage, 'by' | 'index' | 'station' | 'item'> = {}
+    detail: Pick<
+      RaidMessage,
+      'by' | 'index' | 'station' | 'item' | 'drop' | 'count'
+    > = {}
   ) => {
     const { by } = detail
     const previous = s.shared
     s.shared = wire
     if (!wire) return
     const me = net.id
-    const { take, sale } = settledBy({ reason, ...detail }, me)
+    const { take, sale, dropped, dropTaken } = settledBy(
+      { reason, ...detail },
+      me
+    )
 
     if (take) {
       s.pendingTakes.delete(take.index)
@@ -128,6 +135,19 @@ export function wireValley(game: Game, actions: Actions): void {
       if (sale.mine) actions.pocket(sale.item)
     }
     s.storeStock = wire.shelves
+
+    // Rule 14: what lies dropped is the valley's word. A drop of ours is
+    // said so; one taken up by us goes into the pack (the arms follow the
+    // snapshot, below).
+    s.drops = wire.drops
+    game.drops.sync(s.drops)
+    for (const id of s.pendingDrops) {
+      if (!wire.drops.some((d) => d.id === id)) s.pendingDrops.delete(id)
+    }
+    if (dropped?.mine) {
+      hud.tell(copy('log.dropped', { item: pickupLabel(dropped) }))
+    }
+    if (dropTaken?.mine) actions.applyDropTaken(dropTaken.kind, dropTaken.count)
 
     const { raid, departed, departure, whistle } = reconcile(
       s.raid,
@@ -208,6 +228,16 @@ export function wireValley(game: Game, actions: Actions): void {
       hud.tell(copy('log.berry_refused'))
     } else if (msg.re === 'chat') {
       hud.tell(CHAT_COPY.tooFast)
+    } else if (msg.re === 'drop') {
+      // The pack frame that follows a refused drop puts the count right.
+      hud.tell(
+        copy(msg.reason === 'aboard' ? 'log.drop_aboard' : 'log.drop_refused')
+      )
+    } else if (msg.re === 'take-drop') {
+      if (msg.drop !== undefined) s.pendingDrops.delete(msg.drop)
+      if (msg.reason === 'gone') hud.tell(copy('log.taken_first'))
+      else if (msg.reason === 'arms-full') hud.tell(copy('log.arms_full'))
+      else hud.tell(copy('log.drop_refused'))
     } else if (msg.re === 'use') {
       // The pack frame that follows puts the count right.
       hud.tell(copy('log.none_left'))

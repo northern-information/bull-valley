@@ -160,6 +160,9 @@ berry_offline = { text = "No signal. The bush keeps its berries.", by = "ai" }
 berry_picked = { text = "Picked clean. The bush fills again at midnight.", by = "ai" }
 berry_refused = { text = "The bush gives you nothing.", by = "ai" }
 none_left = { text = "You have none left.", by = "ai" }
+dropped = { text = "Dropped: {item}", by = "ai" }
+drop_aboard = { text = "Not from the truck.", by = "ai" }
+drop_refused = { text = "It won't come loose.", by = "ai" }
 change_unheard = { text = "The valley missed that. Others will see it when you next join.", by = "ai" }
 struck = { text = "You are somewhere else. Time is missing.", by = "ai" }
 edge = { text = "The valley ends here.", by = "ai" }
@@ -238,6 +241,7 @@ chat_scroll_down = { text = "Scroll Down", by = "ai" }
 pause = { text = "Pause", by = "ai" }
 use = { text = "Use", by = "ai" }
 assign = { text = "Assign", by = "ai" }
+drop = { text = "Drop (Shift: All)", by = "ai" }
 switch_tab = { text = "Switch Tab", by = "ai" }
 close = { text = "Close", by = "ai" }
 

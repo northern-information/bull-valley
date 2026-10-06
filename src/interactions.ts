@@ -178,7 +178,10 @@ export function resolveInteraction<P extends PickupSpot>(
 export function pickupLabel({
   kind,
   count,
-}: Pick<PickupSpot, 'kind' | 'count'>): string {
+}: {
+  kind: string
+  count: number
+}): string {
   if (kind === 'cabbage') return copy('labels.cabbage')
   return copy('labels.pickup_count', {
     item: itemById(kind)?.label ?? kind,

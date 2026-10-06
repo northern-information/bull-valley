@@ -915,11 +915,13 @@ describe('ValleyDO: drops', () => {
     const a = await join(v, s, 'A')
     const b = await join(v, s, 'B')
     await v.webSocketMessage(ws(a), drop('joints'))
-    expect(a.last<NackMessage>()).toEqual({
+    expect(a.frames().at(-2)).toEqual({
       type: 'nack',
       re: 'drop',
       reason: 'no-position',
     })
+    // Every refusal sends the pack, to put the client's guess right.
+    expect(lastPack(a)?.joints).toBe(STARTING_INVENTORY.joints)
     await v.webSocketMessage(ws(a), state(40, 60))
     const before = b.frames().length
     await v.webSocketMessage(
@@ -956,10 +958,9 @@ describe('ValleyDO: drops', () => {
     } finally {
       console.error = error
     }
-    expect(a.last<NackMessage>()).toMatchObject({
-      re: 'drop',
-      reason: 'unavailable',
-    })
+    expect(
+      a.frames().findLast((m): m is NackMessage => m.type === 'nack')
+    ).toMatchObject({ re: 'drop', reason: 'unavailable' })
     expect(
       (s.storage.map.get('valley') as { raid: { drops: unknown[] } }).raid.drops
     ).toEqual([])
@@ -973,10 +974,11 @@ describe('ValleyDO: drops', () => {
     for (let i = 0; i < 21; i++) {
       await v.webSocketMessage(ws(a), drop('joints'))
     }
-    expect(a.last<NackMessage>()).toMatchObject({
+    expect(a.frames().at(-2)).toMatchObject({
       re: 'drop',
       reason: 'too-fast',
     })
+    expect(a.last<PackMessage>().type).toBe('pack')
     const stored = s.storage.map.get('valley') as { raid: { drops: unknown[] } }
     expect(stored.raid.drops).toHaveLength(20)
   })

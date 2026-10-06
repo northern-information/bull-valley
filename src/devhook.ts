@@ -5,6 +5,7 @@
 import { unitToWorld } from './coords.ts'
 import type { Actions } from './actions.ts'
 import type { ChatLine } from './chat.ts'
+import type { Drop } from './drops.ts'
 import type { Game } from './game.ts'
 import type { Hand } from './hands.ts'
 import type { Hotbar } from './hotbar.ts'
@@ -47,6 +48,8 @@ interface BvHook {
   readonly cash: number
   // The pack as this client holds it: the valley's last word, plus guesses.
   readonly inventory: Inventory
+  // What lies dropped: the valley's, or this raider's alone.
+  readonly drops: readonly Drop[]
   // The item on each number key, slot 0 for 1.
   readonly hotbar: Hotbar
   // The chat log, oldest first.
@@ -112,6 +115,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     },
     get inventory() {
       return s.inventory
+    },
+    get drops() {
+      return s.drops
     },
     get hotbar() {
       return s.hotbar

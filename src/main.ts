@@ -8,6 +8,7 @@ import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { installDevHook } from './devhook.ts'
 import { donutRoute } from './donuts.ts'
+import { createDropMeshes } from './dropmeshes.ts'
 import { finishById } from './finishes.ts'
 import { FirstPersonHands } from './fphands.ts'
 import { createGameState } from './game.ts'
@@ -131,6 +132,8 @@ async function boot() {
   scene.add(buildTerrainMesh(field, geo))
   const world = buildWorld(geo, heightAt)
   scene.add(world.group)
+  const drops = createDropMeshes(world.ground.at)
+  scene.add(drops.group)
 
   // Sky furniture rides along with the player so it never recedes into fog.
   const sky = buildSky()
@@ -221,6 +224,7 @@ async function boot() {
     camera,
     sky,
     world,
+    drops,
     graph,
     truck,
     departRoute,
