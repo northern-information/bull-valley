@@ -2,8 +2,9 @@ import { copy } from './copy.ts'
 import { beginRaid, expect, test } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
-// Moab Coldë stands by his burning horse under every Citgo sign. E beside
-// him and he says his one line, in the chat log under his own name.
+// Moab Coldë stands by his burning horse under every Citgo sign. Come near
+// and he glows, with no prompt; E and he says his one line, in the chat log
+// under his own name.
 
 async function standAtMoab(page: Page): Promise<void> {
   await page.evaluate(() => {
@@ -28,7 +29,19 @@ async function standAtMoab(page: Page): Promise<void> {
 test('Moab Coldë says his line', async ({ page }) => {
   await beginRaid(page)
   await standAtMoab(page)
-  await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.moab'))
+  // The spawn station's Moab glows, and nothing else says so.
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const bv = window.__bv
+        const station = bv?.world.spawnStation
+        if (!bv || !station) return false
+        const rig = bv.world.moabRigs[bv.world.fuelPoints.indexOf(station)]
+        return bv.glow === rig?.figure.group
+      })
+    )
+    .toBe(true)
+  await expect(page.locator('.bv-prompt')).toBeHidden()
   await page.keyboard.press('KeyE')
   await expect
     .poll(() => page.evaluate(() => window.__bv?.chat.at(-1)))

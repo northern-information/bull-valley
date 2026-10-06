@@ -117,8 +117,10 @@ function attachLamps(group: THREE.Group): void {
   }
 }
 
-// A working vector for bedSeat(); its value never leaves the method.
+// Working vectors for bedSeat() and driverAt(); their values never leave
+// the method.
 const SCRATCH = new THREE.Vector3()
+const AT = new THREE.Vector3()
 
 // Rider spots in the bed, truck-local [x, z]: the middle first, then the
 // corners. CONFIG.net.seats riders fit before they double up.
@@ -243,6 +245,14 @@ export class Truck {
   setDriverPost(post: DriverPost): void {
     this.post = post
     placeDriver(this.driver, this.book, post)
+  }
+
+  // Where Matthew Marx stands (or sits) to be talked to, in the world.
+  // Null while the truck is on the move, the walk to the door included.
+  driverAt(): XZ | null {
+    if (this.moving) return null
+    const { x, z } = this.driver.group.getWorldPosition(AT)
+    return { x, z }
   }
 
   driveRoute(

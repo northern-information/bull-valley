@@ -34,6 +34,8 @@ import { cigaretteToSmoke, getItem, isCigarette, itemById } from './items.ts'
 import { KEEP } from './landmarks.ts'
 import { MistCards } from './mistcards.ts'
 import { NetClient, socketUrl } from './net.ts'
+import { npcLine } from './npcs.ts'
+import { outfitById } from './outfits.ts'
 import { Peers } from './peers.ts'
 import { Player } from './player.ts'
 import { PlayerBody } from './playerbody.ts'
@@ -70,6 +72,7 @@ import type { ChatLine } from './chat.ts'
 import type { DailyStatus, Interaction, ShelfSpot } from './interactions.ts'
 import type { Geo, Inventory, Raid, RingItem, Vec3 } from './interfaces.ts'
 import type { NetStatus } from './net.ts'
+import type { NpcId, NpcSpot } from './npcs.ts'
 import type { Peer } from './presence.ts'
 import type {
   DailyMessage,
@@ -821,6 +824,35 @@ async function boot() {
     }
   }
 
+  // Marx while his truck stands still, and Carlsten in the store the
+  // player stands in, for the resolver to weigh by distance.
+  const npcSpots = (station: number): NpcSpot[] => {
+    const spots: NpcSpot[] = []
+    const marx = truck.driverAt()
+    if (marx) spots.push({ id: 'marx', ...marx })
+    const carlsten = world.clerks[station]
+    if (carlsten) spots.push({ id: 'carlsten', ...carlsten })
+    // A Moab under every station's sign.
+    world.moabs.forEach((moab, i) => {
+      spots.push({ id: 'moab', ...moab, station: i })
+    })
+    return spots
+  }
+
+  // Marx, Carlsten and Moab each say their next line into this player's
+  // chat log alone; the valley never hears it.
+  const npcSaid: Record<NpcId, number> = { marx: 0, carlsten: 0, moab: 0 }
+  const speakTo = (npc: NpcId) => {
+    hud.chatLine(
+      {
+        kind: 'say',
+        name: outfitById(npc).label,
+        text: npcLine(npc, npcSaid[npc]++),
+      },
+      performance.now()
+    )
+  }
+
   // What the glow rings for an interaction: the pickup, the shelf unit a
   // buy would take, or the bush while today's berry is on it. Nothing for
   // the truck, the stand, or an extraction.
@@ -836,8 +868,18 @@ async function boot() {
         return action.status === 'ready' ? world.bushObject : null
       case 'talk':
         return world.gronRig?.figure.group ?? null
-      case 'moab':
-        return world.moabRigs[action.station]?.figure.group ?? null
+      case 'speak':
+        switch (action.npc) {
+          case 'marx':
+            return truck.driver.group
+          case 'carlsten':
+            return world.shelves.clerk
+          case 'moab':
+            return action.station === undefined
+              ? null
+              : (world.moabRigs[action.station]?.figure.group ?? null)
+        }
+        break
       default:
         return null
     }
@@ -1296,13 +1338,8 @@ async function boot() {
       case 'talk':
         talkToGron()
         return
-      case 'moab':
-        // He speaks in the chat log under his own name, to this player
-        // alone; the valley never hears it.
-        hud.chatLine(
-          { kind: 'say', name: copy('outfits.moab'), text: copy('moab.says') },
-          performance.now()
-        )
+      case 'speak':
+        speakTo(interaction.npc)
         return
     }
   }
@@ -1609,7 +1646,7 @@ async function boot() {
           bush: world.bush,
           daily: dailyStatus(),
           gron: world.gron,
-          moabs: world.moabs,
+          npcs: npcSpots(inStore),
         })
     const prompt = interaction ? interactionPrompt(interaction) : null
     const label = interaction ? itemLabel(interaction) : null

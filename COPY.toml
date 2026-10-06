@@ -191,8 +191,6 @@ unload_many = { text = "E — Unload {count} Cabbages", by = "ai" }
 extract_at = { text = "E — End the Raid at {station}", by = "ai" }
 extract_station = { text = "E — End the Raid at the Station", by = "ai" }
 extract_keep = { text = "E — End the Raid at {keep}", by = "ai" }
-talk = { text = "E — Talk to Gron", by = "ai" }
-moab = { text = "E — Talk to Moab Coldë", by = "ai" }
 
 # Lines the game says to the player in the chat log (src/chat.ts).
 
@@ -311,6 +309,46 @@ carlsten = { text = "David Carlsten", by = "tyler" }
 jdogg = { text = "Jdogg", by = "tyler" }
 gron = { text = "Gron", by = "tyler" }
 moab = { text = "Moab Coldë", by = "ai" }
+
+# Matthew Marx, looked at and spoken to (src/npcs.ts): "O, Whistle an' I'll
+# Come to Ye, My Lad" by Robert Burns, a stanza each time, into the chat log.
+# The texts keep their line breaks.
+
+[marx]
+stanza_1 = { text = """
+O, whistle, and I'll come to you, my lad;
+  O, whistle, and I'll come to you, my lad;
+  The' father, and mother, and a' should gae mad,
+  O, whistle, and I'll come to you, my lad.""", by = "tyler" }
+stanza_2 = { text = """
+But warily tent, when you come to court me,
+And come na unless the back-yett be a jee;
+Syne up the back-stile, and let nae body see,
+And come as ye were na comin' to me,
+And come as ye were na comin' to me.
+  O, whistle, etc.""", by = "tyler" }
+stanza_3 = { text = """
+At kirk or at market, whene'er ye meet me,
+Gang by me as though that ye cared na a flie;
+But steal me a blink o' your bonnie black e'e,
+Yet look as ye were na lookin' at me,
+Yet look as ye were na lookin' at me.
+  O, whistle, etc.""", by = "tyler" }
+stanza_4 = { text = """
+Aye vow and protest that ye care na for me,
+And whyles ye may lichtly my beauty a wee;
+But court na anither, though jokin' ye be,
+For fear that she wyle your fancy frae me,
+For fear that she wyle your fancy frae me.
+  O, whistle, etc.""", by = "tyler" }
+
+# David Carlsten behind every Citgo counter (src/npcs.ts), one line each
+# time, in turn.
+
+[carlsten]
+says_1 = { text = "Howdy. Welcome in.", by = "tyler" }
+says_2 = { text = "Shadowmen are out tonight.", by = "tyler" }
+says_3 = { text = "Heard there's been some rolling power outages.", by = "tyler" }
 
 # Talking to Gron by the berry bush (src/grondialog.ts). One of the says_
 # lines greets you at random; the field, the checks and the Previous / Next

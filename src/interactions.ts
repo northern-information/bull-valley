@@ -6,10 +6,12 @@ import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { itemById } from './items.ts'
 import { KEEP } from './landmarks.ts'
+import { npcReach } from './npcs.ts'
 import { STATES } from './raid.ts'
 import { formatCash } from './store.ts'
 import type { Raid, XZ } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
+import type { NpcId, NpcSpot } from './npcs.ts'
 
 // A pickup as the resolver sees it.
 export interface PickupSpot extends XZ {
@@ -50,9 +52,9 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   | ({ kind: 'buy' } & ShelfSpot)
   | { kind: 'collect'; status: DailyStatus }
   | { kind: 'talk' }
-  // Moab Coldë at station `station` (an index into the stations): he
-  // says his line.
-  | { kind: 'moab'; station: number }
+  // Marx, Carlsten, or Moab Coldë at station `station`: he says his next
+  // line.
+  | { kind: 'speak'; npc: NpcId; station?: number }
 
 export interface InteractionInput<P extends PickupSpot> {
   raid: Raid
@@ -76,18 +78,20 @@ export interface InteractionInput<P extends PickupSpot> {
   daily: DailyStatus
   // Gron, beside the bush, or null.
   gron: XZ | null
-  // Moab Coldë at every station, indexed like the stations.
-  moabs: readonly XZ[]
+  // Marx, Carlsten and every Moab, where each stands while he can be
+  // talked to.
+  npcs: readonly NpcSpot[]
 }
 
 function near(a: XZ, b: XZ, radius: number): boolean {
   return Math.hypot(a.x - b.x, a.z - b.z) < radius
 }
 
-// The first match wins, in this order: hop out while riding; board the
-// waiting truck; buy off a shelf; talk to Moab (before extracting, since
-// he stands inside a station's extract radius); board the called truck to
-// end the raid;
+// The first match wins, in this order: hop out while riding; speak to the
+// nearest NPC in his reach, unless a shelf unit is in view (Moab stands
+// inside a station's extract radius, so this comes before extracting);
+// board the waiting truck; buy off a shelf; board the called truck to end
+// the raid;
 // unload at the stand; extract at a station (never from inside its store)
 // or the Keep; Gron or the berry bush, whichever is nearer; take the
 // nearest pickup.
@@ -97,20 +101,31 @@ export function resolveInteraction<P extends PickupSpot>(
   const { raid, ended, player } = input
   if (ended || raid.state === STATES.EXTRACTED) return null
   if (raid.state === STATES.RIDING) return { kind: 'hopOut' }
+  // Marx reads by the tailgate, in boarding range: beside him E talks, a
+  // step away it boards. Carlsten stands behind the counter of goods, so
+  // the facing in view sells first.
+  if (!input.shelf) {
+    // The nearest of those in his own reach: Moab stands beside a horse,
+    // so his reaches further.
+    let best = Infinity
+    let near: NpcSpot | null = null
+    for (const spot of input.npcs) {
+      const d = Math.hypot(spot.x - player.x, spot.z - player.z)
+      if (d < npcReach(spot.id) && d < best) {
+        best = d
+        near = spot
+      }
+    }
+    if (near) {
+      return near.station === undefined
+        ? { kind: 'speak', npc: near.id }
+        : { kind: 'speak', npc: near.id, station: near.station }
+    }
+  }
 
   const truckClose = input.truck.distance < CONFIG.truck.boardRange
   if (raid.state === STATES.LOADOUT && truckClose) return { kind: 'board' }
   if (input.shelf) return { kind: 'buy', ...input.shelf }
-  let moab = -1
-  let moabDist = CONFIG.moab.reach
-  input.moabs.forEach((spot, station) => {
-    const d = Math.hypot(spot.x - player.x, spot.z - player.z)
-    if (d < moabDist) {
-      moabDist = d
-      moab = station
-    }
-  })
-  if (moab >= 0) return { kind: 'moab', station: moab }
   if (raid.state === STATES.ON_FOOT) {
     if (raid.truckCalled && !input.truck.moving && truckClose) {
       return { kind: 'boardExtract' }
@@ -175,7 +190,7 @@ export function pickupLabel({
 // The label over the item E would act on: a pickup, the shelf unit a buy
 // would take, or the berry bush. dim: true when it cannot be had (short of
 // cash, or the bush picked clean or out of reach of the valley). Null for
-// everything else, which the bottom prompt names instead.
+// everything else.
 export interface ItemLabel {
   text: string
   dim: boolean
@@ -209,8 +224,9 @@ export function itemLabel(interaction: Interaction): ItemLabel | null {
   return null
 }
 
-// The bottom prompt for what E would do, or null when the item's own label
-// (itemLabel) says it.
+// The bottom prompt for what E would do, or null where something else
+// says it: an item's own label (itemLabel), or the glow on the people you
+// talk to.
 export function interactionPrompt(interaction: Interaction): string | null {
   switch (interaction.kind) {
     case 'hopOut':
@@ -234,8 +250,7 @@ export function interactionPrompt(interaction: Interaction): string | null {
     case 'collect':
       return null
     case 'talk':
-      return copy('prompts.talk')
-    case 'moab':
-      return copy('prompts.moab')
+    case 'speak':
+      return null
   }
 }

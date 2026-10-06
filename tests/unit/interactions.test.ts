@@ -15,6 +15,7 @@ import type {
   StationSpot,
 } from '../../src/interactions.ts'
 import type { Raid } from '../../src/interfaces.ts'
+import type { NpcSpot } from '../../src/npcs.ts'
 
 const spawnStation: StationSpot = { x: 0, z: 0, name: 'Spawn Citgo' }
 const farStation: StationSpot = { x: 500, z: 0, name: 'Far Citgo' }
@@ -24,9 +25,11 @@ const bush = { x: -8, z: -8 }
 // A few strides from the bush, like CONFIG.gron.at from CONFIG.daily.bush.
 const gron = { x: -5.6, z: -9 }
 // Moab under each station's sign, station-local CONFIG.moab.at at yaw 0.
-const moabs = [spawnStation, farStation].map((station) => ({
+const moabs: NpcSpot[] = [spawnStation, farStation].map((station, i) => ({
+  id: 'moab',
   x: station.x + CONFIG.moab.at.x,
   z: station.z + CONFIG.moab.at.z,
+  station: i,
 }))
 const shelf: ShelfSpot = {
   item: 'marlboro',
@@ -64,7 +67,7 @@ function input(
     bush,
     daily: 'ready',
     gron,
-    moabs,
+    npcs: [],
     ...over,
   }
 }
@@ -226,6 +229,50 @@ describe('resolveInteraction', () => {
     expect(resolveInteraction(input({ ...atGron, gron: null }))).toBeNull()
   })
 
+  it('speaks to the nearest NPC in reach, ahead of boarding', () => {
+    const lobby = createRaid(0)
+    const player = { x: 250, z: 250 }
+    const marx: NpcSpot = { id: 'marx', x: 251, z: 250 }
+    const truck = { distance: 1, moving: false }
+    expect(resolveInteraction(input({ raid: lobby, truck }))).toEqual({
+      kind: 'board',
+    })
+    expect(
+      resolveInteraction(input({ raid: lobby, truck, player, npcs: [marx] }))
+    ).toEqual({ kind: 'speak', npc: 'marx' })
+    // A step past his reach, E boards again.
+    const away = { x: 251 + CONFIG.npcs.reach + 0.1, z: 250 }
+    expect(
+      resolveInteraction(
+        input({ raid: lobby, truck, player: away, npcs: [marx] })
+      )
+    ).toEqual({ kind: 'board' })
+    const carlsten: NpcSpot = { id: 'carlsten', x: 250, z: 250.5 }
+    expect(resolveInteraction(input({ npcs: [marx, carlsten] }))).toEqual({
+      kind: 'speak',
+      npc: 'carlsten',
+    })
+  })
+
+  it('sells the shelf in view ahead of the clerk', () => {
+    const carlsten: NpcSpot = { id: 'carlsten', x: 251, z: 250 }
+    expect(
+      resolveInteraction(input({ shelf, insideStore: true, npcs: [carlsten] }))
+    ).toEqual({ kind: 'buy', ...shelf })
+    expect(
+      resolveInteraction(input({ insideStore: true, npcs: [carlsten] }))
+    ).toEqual({ kind: 'speak', npc: 'carlsten' })
+  })
+
+  it('never speaks while riding or once the raid is over', () => {
+    const npcs: NpcSpot[] = [{ id: 'marx', x: 250, z: 250 }]
+    const riding = advance(createRaid(0), EVENTS.BOARD_TRUCK, 1)
+    expect(resolveInteraction(input({ raid: riding, npcs }))).toEqual({
+      kind: 'hopOut',
+    })
+    expect(resolveInteraction(input({ ended: true, npcs }))).toBeNull()
+  })
+
   it('answers with the nearer of Gron and the bush when both are in reach', () => {
     // Between them, nearer the bush.
     const nearBush = { player: { x: -7.0, z: -8.4 } }
@@ -258,20 +305,25 @@ describe('resolveInteraction', () => {
 
   it('talks to Moab at whichever station he stands, whatever the raid is doing', () => {
     const atFar = { player: { x: moabs[1].x + 1, z: moabs[1].z } }
-    expect(resolveInteraction(input(atFar))).toEqual({
-      kind: 'moab',
+    expect(resolveInteraction(input({ ...atFar, npcs: moabs }))).toEqual({
+      kind: 'speak',
+      npc: 'moab',
       station: 1,
     })
     const atSpawn = { player: { x: moabs[0].x, z: moabs[0].z + 1 } }
     expect(
-      resolveInteraction(input({ ...atSpawn, raid: createRaid(0) }))
-    ).toEqual({ kind: 'moab', station: 0 })
+      resolveInteraction(
+        input({ ...atSpawn, npcs: moabs, raid: createRaid(0) })
+      )
+    ).toEqual({ kind: 'speak', npc: 'moab', station: 0 })
     // Riding past him, E still hops out.
     const riding = advance(createRaid(0), EVENTS.BOARD_TRUCK, 1)
-    expect(resolveInteraction(input({ ...atFar, raid: riding }))).toEqual({
+    expect(
+      resolveInteraction(input({ ...atFar, npcs: moabs, raid: riding }))
+    ).toEqual({
       kind: 'hopOut',
     })
-    expect(resolveInteraction(input({ ...atFar, moabs: [] }))).toEqual({
+    expect(resolveInteraction(input(atFar))).toEqual({
       kind: 'extractFuel',
       name: farStation.name,
     })
@@ -282,14 +334,15 @@ describe('resolveInteraction', () => {
     expect(
       Math.hypot(atMoab.player.x - farStation.x, atMoab.player.z - farStation.z)
     ).toBeLessThan(CONFIG.extract.fuelRadius)
-    expect(resolveInteraction(input(atMoab))).toEqual({
-      kind: 'moab',
+    expect(resolveInteraction(input({ ...atMoab, npcs: moabs }))).toEqual({
+      kind: 'speak',
+      npc: 'moab',
       station: 1,
     })
     const pastReach = {
       player: { x: moabs[1].x - CONFIG.moab.reach - 0.1, z: moabs[1].z },
     }
-    expect(resolveInteraction(input(pastReach))).toEqual({
+    expect(resolveInteraction(input({ ...pastReach, npcs: moabs }))).toEqual({
       kind: 'extractFuel',
       name: farStation.name,
     })
@@ -321,10 +374,14 @@ describe('interactionPrompt', () => {
     expect(interactionPrompt({ kind: 'extractFuel', name: '' })).toBe(
       copy('prompts.extract_station')
     )
-    expect(interactionPrompt({ kind: 'talk' })).toBe(copy('prompts.talk'))
-    expect(interactionPrompt({ kind: 'moab', station: 0 })).toBe(
-      copy('prompts.moab')
-    )
+  })
+
+  it('leaves the people you talk to to the glow, with no prompt', () => {
+    expect(interactionPrompt({ kind: 'talk' })).toBeNull()
+    expect(interactionPrompt({ kind: 'speak', npc: 'carlsten' })).toBeNull()
+    expect(
+      interactionPrompt({ kind: 'speak', npc: 'moab', station: 0 })
+    ).toBeNull()
   })
 
   it('leaves items to their labels', () => {

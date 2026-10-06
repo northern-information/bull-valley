@@ -119,6 +119,8 @@ export interface ShelfDisplay {
   // Unit `unit` of `kind` at `station` (its slot on the facing), or null
   // when the display is parked elsewhere.
   unitFor(station: number, kind: string, unit: number): THREE.Object3D | null
+  // David Carlsten behind the counter, riding with the display.
+  clerk: THREE.Object3D
 }
 
 export interface LandmarkPoint extends XZ {
@@ -156,6 +158,9 @@ export interface World {
   // for the glow, update(t) for his rain. Null without a spawn station.
   gron: XZ | null
   gronRig: GronRig | null
+  // Where David Carlsten stands behind each counter, indexed like
+  // fuelPoints; the shelf display carries his body to the nearest one.
+  clerks: XZ[]
   // Moab Coldë and his horse under each station's sign, indexed like
   // fuelPoints: where the horse stands, and his rig, the body for the glow
   // and update(t) for the fire.
@@ -1282,6 +1287,7 @@ function buildShelves(points: readonly FuelPoint[]): ShelfDisplay {
   let parked = -1
   return {
     group,
+    clerk: clerk.group,
     unitFor(station, kind, unit) {
       if (station !== parked) return null
       const slot = slots.find(
@@ -1606,6 +1612,11 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     },
     gron,
     gronRig,
+    clerks: fuel.points.map((point) => {
+      const { x, z } = STORE_LAYOUT.clerk
+      const [cx, , cz] = toWorld(point, [x, 0, z])
+      return { x: cx, z: cz }
+    }),
     moabs,
     moabRigs,
     ground,

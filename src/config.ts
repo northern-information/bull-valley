@@ -208,6 +208,13 @@ export const CONFIG = {
     // He blocks like a post this wide.
     radius: 0.4,
   },
+  npcs: {
+    // How close you must stand for Matthew Marx or David Carlsten to glow
+    // and answer E. Marx reads by the tailgate, in boarding range, so this
+    // stays small: step off him and E boards. Carlsten stands behind the
+    // counter, which keeps you about 1.3 m from him.
+    reach: 1.8,
+  },
   moab: {
     // Where Moab Coldë's horse stands at every Citgo, station-local like
     // the bush: under the road sign (FUEL_LAYOUT.signDistance, signAlong in
