@@ -44,6 +44,7 @@ import {
 import { getItem, isUsable, itemById } from './items.ts'
 import { createItemThumbs } from './itemthumbs.ts'
 import { KEEP } from './landmarks.ts'
+import { inPortal } from './maze.ts'
 import { MistCards } from './mistcards.ts'
 import { NetClient, socketUrl } from './net.ts'
 import { npcLine } from './npcs.ts'
@@ -1616,6 +1617,17 @@ async function boot() {
     world.gronRig?.update(rainStill ? 0.37 : time)
     // Moab's fire burns on the same clock, and holds still with the rain.
     for (const rig of world.moabRigs) rig.update(rainStill ? 0.4 : time)
+    // The portal at the maze's heart swirls, and anyone on foot who walks
+    // into it comes out on the trail outside the gate.
+    const portal = world.portal
+    if (portal) {
+      portal.rig.update(rainStill ? 0.5 : time)
+      const { x, z } = player.pos
+      if (!aboard && inPortal(x, z, portal.at, CONFIG.maze.portal.radius)) {
+        player.relocate(portal.exit.x, portal.exit.z, portal.exit.yaw)
+        hud.tell(copy('toasts.portal'))
+      }
+    }
     if (now < strikeUntil) hud.drawStatic()
     else if (!hud.staticWrap.hidden) hud.showStatic(false)
 

@@ -64,6 +64,23 @@ describe('Ground', () => {
     expect(ground.at(10, 9)).toBe(slope(10))
   })
 
+  it('stands on a trail, draped on the terrain within its width', () => {
+    const ground = new Ground(slope)
+    ground.addTrail(
+      [
+        { x: 0, z: 0 },
+        { x: 40, z: 0 },
+        { x: 40, z: 30 },
+      ],
+      2,
+      0.24
+    )
+    expect(ground.at(20, 0.9)).toBeCloseTo(slope(20) + 0.24)
+    expect(ground.at(40.5, 15)).toBeCloseTo(slope(40.5) + 0.24)
+    expect(ground.at(20, 1.5)).toBe(slope(20))
+    expect(ground.at(20, 10)).toBe(slope(20))
+  })
+
   it('takes the highest deck where surfaces overlap', () => {
     const ground = new Ground(() => 0)
     ground.addPatch(0, 0, 1, 0, -10, 10, 10, 0.28)

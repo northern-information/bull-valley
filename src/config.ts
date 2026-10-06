@@ -231,4 +231,50 @@ export const CONFIG = {
     // Moab himself blocks like a post this wide.
     standRadius: 0.4,
   },
+  maze: {
+    // The corn maze across Lake Avenue from the spawn Citgo, station-local
+    // like the bush: its corner nearest the station, 20 m past the road's
+    // centreline and a little down the road, clear of the two ponds behind
+    // it. maze.ts SHINING_MAZE is the layout, stretched to `size` (along
+    // the road, and away from it).
+    at: { x: 35, z: 30 },
+    size: { along: 200, across: 86 },
+    // Corn over a raider's head, and over the truck bed's eye.
+    wallHeight: 3.6,
+    // How thick each wall stands (thin enough that the walls drawn half a
+    // pitch apart still leave a path between them), and how far its
+    // stalks sink into the ground so a slope never shows daylight under it.
+    wallThickness: 1,
+    wallSink: 0.5,
+    // No wall piece runs longer than this, so the corn follows the ground.
+    pieceLength: 3,
+    // Trees keep this far off the corn.
+    treeClear: 6,
+    // The CORN MAZE! sign, station-local: on the verge by the maze's near
+    // corner, turned to face back across the road to the pump island.
+    sign: { x: 26, z: 24 },
+    // The ENTER! sign, station-local: just out from the gate (maze.ts
+    // mazeGates, halfway along the near end), beside it on the side away
+    // from the road, facing back down the road with its arrow at the gate.
+    enterSign: { x: 82, z: 25 },
+    // The worn mud trail, this wide: from the maze's heart out through the
+    // gate (maze.ts mazeWalk), then on through these station-local points,
+    // past the ENTER! sign and the CORN MAZE! sign, to tuck under the road.
+    trailWidth: 1.2,
+    trailOut: [
+      { x: 78, z: 22 },
+      { x: 40, z: 23 },
+      { x: 17, z: 31 },
+    ],
+    // Each sign blocks along its board, post to post, this wide.
+    signRadius: 0.12,
+    // Sodium lamps all the way round the outside (maze.ts perimeterSpots):
+    // this far off the corn, about this far apart, and none within `clear`
+    // of the gate, either sign, or the trail out.
+    lamps: { out: 3, spacing: 25, clear: 5 },
+    // The portal at the maze's heart (maze.ts mazeHeart): step within
+    // `radius` of its middle and it puts you on the trail just outside the
+    // gate (`exit`, station-local), facing the gate.
+    portal: { radius: 0.9, exit: { x: 78, z: 23 } },
+  },
 }
