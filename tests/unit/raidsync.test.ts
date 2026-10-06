@@ -57,6 +57,13 @@ describe('reconcile', () => {
     expect(r.raid.carrying).toBe(2)
   })
 
+  it('keeps the haul it had when the snapshot does not list the raider', () => {
+    const raid = { ...createRaid(0), carrying: 3 }
+    const w = wire({ members: [member('b', { carrying: 1 })] })
+    expect(reconcile(raid, null, w, 'a', 'taken', 0).raid.carrying).toBe(3)
+    expect(reconcile(raid, null, w, null, 'taken', 0).raid.carrying).toBe(3)
+  })
+
   it('rides a raider who was aboard when the truck left', () => {
     const r = reconcile(createRaid(0), wire(), out(), 'a', 'depart', 200)
     expect(r.departed).toBe(true)

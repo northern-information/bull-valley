@@ -51,6 +51,38 @@ describe('raid state machine', () => {
     expect(advance(raid, EVENTS.CALL_TRUCK, 1)).toBe(raid)
   })
 
+  it('lets the timer expire only in LOADOUT', () => {
+    let raid = createRaid(0)
+    raid = advance(raid, EVENTS.BOARD_TRUCK, 10)
+    expect(advance(raid, EVENTS.TIMER_EXPIRED, 300)).toBe(raid)
+    raid = advance(raid, EVENTS.HOP_OUT, 60)
+    expect(advance(raid, EVENTS.TIMER_EXPIRED, 300)).toBe(raid)
+  })
+
+  it('extracts at the Keep only on foot', () => {
+    let raid = createRaid(0)
+    expect(advance(raid, EVENTS.EXTRACT_KEEP, 1)).toBe(raid)
+    raid = advance(raid, EVENTS.BOARD_TRUCK, 10)
+    expect(advance(raid, EVENTS.EXTRACT_KEEP, 11)).toBe(raid)
+  })
+
+  it('extracts at a station with no name when the detail is not a name', () => {
+    let raid = createRaid(0)
+    raid = advance(raid, EVENTS.TIMER_EXPIRED, 300)
+    const out = advance(raid, EVENTS.EXTRACT_FUEL, 400, { arrived: true })
+    expect(out.state).toBe(STATES.EXTRACTED)
+    expect(out.extract).toBe('fuel')
+    expect(out.extractName).toBeNull()
+    expect(advance(raid, EVENTS.EXTRACT_FUEL, 400).extractName).toBeNull()
+  })
+
+  it('ignores an event it does not know', () => {
+    const raid = createRaid(0)
+    // An event from outside the table, as a stale or corrupt caller might send.
+    const unknown = 'DANCE' as unknown as Parameters<typeof advance>[1]
+    expect(advance(raid, unknown, 1)).toBe(raid)
+  })
+
   it('rejects cabbages past the carry limit', () => {
     let raid = createRaid(0)
     raid = advance(raid, EVENTS.TIMER_EXPIRED, 300)
@@ -81,6 +113,18 @@ describe('raid state machine', () => {
       carrying: 2,
       durationSeconds: 390,
       extract: 'keep',
+      extractName: null,
+      deaths: 0,
+    })
+  })
+
+  it('gives no duration for a raid still under way', () => {
+    let raid = createRaid(10)
+    raid = advance(raid, EVENTS.TIMER_EXPIRED, 300)
+    expect(summary(raid)).toEqual({
+      carrying: 0,
+      durationSeconds: null,
+      extract: null,
       extractName: null,
       deaths: 0,
     })

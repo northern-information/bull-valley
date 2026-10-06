@@ -123,6 +123,17 @@ describe('samplePeer', () => {
     // Halfway between +179° and -179° is ±180°, not 0°.
     expect(Math.abs(Math.abs(yaw) - Math.PI)).toBeLessThan(1e-9)
   })
+
+  it('turns the short way round the other way too', () => {
+    const peers = createPeerTable()
+    const peer = applyJoined(peers, wire('a', false), 0)
+    applyState(peers, 'a', at(0, 0, { yaw: -Math.PI + 0.1 }), 0)
+    applyState(peers, 'a', at(0, 0, { yaw: Math.PI - 0.1 }), 100)
+    // A quarter of the 0.2 rad turn backwards across the seam, not
+    // forwards through 0.
+    const yaw = samplePeer(peer, 25)?.yaw ?? 0
+    expect(yaw).toBeCloseTo(-Math.PI + 0.05, 9)
+  })
 })
 
 describe('peerContacts', () => {
