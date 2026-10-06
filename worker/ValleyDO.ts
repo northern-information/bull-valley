@@ -50,6 +50,7 @@ import type {
   Valley,
   ValleyAction,
 } from '../src/sharedraid.ts'
+import type { AccountStore } from './accounts.ts'
 import type { Holdings, PackStore } from './packs.ts'
 
 // Per-socket state, serialized into the socket's attachment (16 KB cap;
@@ -237,6 +238,11 @@ export class ValleyDO extends DurableObject<Env> {
     const reduced = reduce(this.valley, { type: 'clock' }, this.context())
     await this.apply(reduced)
     for (const msg of reduced.broadcast) this.broadcast(msg, null)
+  }
+
+  // Where the accounts are kept; the Worker tests hand in a memory store.
+  protected accounts(): AccountStore {
+    return new D1AccountStore(this.env.DB)
   }
 
   // Where the packs are kept; the Worker tests hand in a memory store.
@@ -443,7 +449,7 @@ export class ValleyDO extends DurableObject<Env> {
       return
     }
     const account = attachment.account
-      ? await new D1AccountStore(this.env.DB).get(attachment.account)
+      ? await this.accounts().get(attachment.account)
       : null
     const name = normalizeName(account?.username ?? '')
     if (!isValidName(name)) {

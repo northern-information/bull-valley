@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { getItem } from '../../src/items.ts'
 import { CLOSE, PROTOCOL_VERSION } from '../../src/protocol.ts'
+import { MemoryAccountStore } from '../../worker/accounts.ts'
 import { MemoryPackStore, STARTING_CASH } from '../../worker/packs.ts'
 import { ValleyDO } from '../../worker/ValleyDO.ts'
 import type {
@@ -18,6 +19,7 @@ import type {
   ShadowmenMessage,
   WelcomeMessage,
 } from '../../src/protocol.ts'
+import type { AccountStore } from '../../worker/accounts.ts'
 import type { PackStore } from '../../worker/packs.ts'
 
 // Mocks for the slice of the Workers runtime the object touches.
@@ -92,12 +94,16 @@ class MockState {
 const ws = (s: MockSocket) => s as unknown as WebSocket
 const asState = (s: MockState) => s as unknown as DurableObjectState
 
-// The valley with its packs in memory instead of D1.
+// The valley with its accounts and packs in memory instead of D1.
 class TestValley extends ValleyDO {
+  accountStore = new MemoryAccountStore()
   packStore: PackStore = new MemoryPackStore()
   // The shadowmen's clock, stepped by hand: ticking says whether the
   // valley has it running.
   ticking = false
+  protected override accounts(): AccountStore {
+    return this.accountStore
+  }
   protected override packs(): PackStore {
     return this.packStore
   }
@@ -685,31 +691,31 @@ describe('ValleyDO', () => {
   })
 
   it("renames a raider to the account's new username, read from the database", async () => {
-    // The accounts table as D1 would answer a lookup by account id.
-    const usernames: Record<string, string | null> = {
-      'acct-A': 'NewName',
-      'acct-B': null,
+    const { valley: v, state: s } = await valley()
+    for (const [id, username] of [
+      ['acct-A', 'NewName'],
+      ['acct-B', null],
+    ] as const) {
+      await v.accountStore.create(
+        {
+          accountId: id,
+          username,
+          role: 'user',
+          primaryProvider: `dev:${id}`,
+          createdAt: 0,
+          lastLoginAt: 0,
+        },
+        {
+          providerKey: `dev:${id}`,
+          accountId: id,
+          provider: 'dev',
+          providerId: id,
+          displayName: id,
+          avatarUrl: null,
+          linkedAt: 0,
+        }
+      )
     }
-    const db = {
-      prepare: () => ({
-        bind: (accountId: string) => ({
-          first: () =>
-            Promise.resolve(
-              accountId in usernames
-                ? {
-                    account_id: accountId,
-                    username: usernames[accountId],
-                    role: 'user',
-                    primary_provider: 'dev:x',
-                    created_at: 0,
-                    last_login_at: 0,
-                  }
-                : null
-            ),
-        }),
-      }),
-    } as unknown as D1Database
-    const { valley: v, state: s } = await valley(new MockState(), { DB: db })
     const a = await join(v, s, 'A')
     const b = await join(v, s, 'B')
     await v.webSocketMessage(ws(a), JSON.stringify({ type: 'rename' }))
