@@ -3,7 +3,8 @@
 // the copy the valley last sent and applies its own changes in the meantime.
 // Kinds and starting counts come from items.ts.
 
-import { INVENTORY_KINDS, itemById } from './items.ts'
+import { INVENTORY_KINDS, isUsable, itemById } from './items.ts'
+import type { Effects } from './hotbar.ts'
 import type { Inventory } from './interfaces.ts'
 
 export const KINDS = INVENTORY_KINDS
@@ -28,6 +29,53 @@ export const STARTING_INVENTORY = toInventory(
 
 export function addItem(inv: Inventory, kind: string, count = 1): Inventory {
   return { ...inv, [kind]: (inv[kind] || 0) + count }
+}
+
+// What using one unit came to: the pack and the effects after it, or why
+// nothing happened.
+export type Consumed =
+  | { used: true; inv: Inventory; effects: Effects }
+  | { used: false; reason: 'unusable' | 'smoking' | 'empty' }
+
+// One unit of `kind` out of the pack at `time` (game seconds), and the
+// effect it starts (hotbar.ts Effects). An item with no effect yet is not
+// used. A cigarette waits until the one burning is out, then smokes for
+// smokeSeconds and smoulders for emberSeconds after; the joint starts
+// perception.
+export function consume(
+  inv: Inventory,
+  kind: string,
+  effects: Effects,
+  time: number
+): Consumed {
+  const item = itemById(kind)
+  if (!item || !isUsable(kind)) return { used: false, reason: 'unusable' }
+  const smoke = item.category === 'cigarette'
+  if (smoke && time < effects.smoking.end) {
+    return { used: false, reason: 'smoking' }
+  }
+  const result = useItem(inv, kind)
+  if (!result.used) return { used: false, reason: 'empty' }
+  if (smoke) {
+    const end = time + (item.smokeSeconds ?? 0)
+    return {
+      used: true,
+      inv: result.inv,
+      effects: {
+        ...effects,
+        smoking: { start: time, end },
+        ember: { start: end, end: end + (item.emberSeconds ?? 0) },
+      },
+    }
+  }
+  return {
+    used: true,
+    inv: result.inv,
+    effects: {
+      ...effects,
+      perception: { start: time, end: time + (item.perceptionSeconds ?? 0) },
+    },
+  }
 }
 
 export function useItem(

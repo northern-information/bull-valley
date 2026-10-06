@@ -1,5 +1,3 @@
-import { copy } from './copy.ts'
-
 // Every gameplay and rendering knob in one place.
 export const CONFIG = {
   render: {
@@ -53,7 +51,7 @@ export const CONFIG = {
     // Citgo forecourts are havens: shadowmen vanish at the lights and nothing
     // can touch you inside.
     havenRadius: 60,
-    // The static after a strike, in real seconds (main.ts times it by the
+    // The static after a strike, in real seconds (actions.ts times it by the
     // wall clock, never the frame-capped game time).
     strikeSeconds: 1.6,
   },
@@ -131,9 +129,7 @@ export const CONFIG = {
     revealFadeMs: 400,
     imageSrc:
       '/applied-sciences-and-phantasms-working-division-flourescent.png',
-    alt: copy('titles.colophon_alt'),
     audioSrc: '/sfx/northern-information.mp3',
-    hint: copy('titles.colophon_hint'),
   },
   logo: {
     // The game's own title card, straight after the colophon: the same
@@ -146,7 +142,6 @@ export const CONFIG = {
     // The backdrop lifts to reveal the character select.
     revealFadeMs: 400,
     imageSrc: '/bull-valley-shadow-wars.png',
-    alt: copy('titles.logo_alt'),
     audioSrc: '/sfx/bull-valley-shadow-wars-intro.mp3',
   },
   select: {

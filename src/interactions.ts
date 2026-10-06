@@ -1,4 +1,4 @@
-// Pure: what E would do right now, and the prompt that says so. main.ts
+// Pure: what E would do right now, and the prompt that says so. loop.ts
 // resolves this once per frame and acts on it when E is pressed. No
 // three.js, no DOM: tests/unit/interactions.test.ts runs it in Node.
 
@@ -12,6 +12,7 @@ import { formatCash } from './store.ts'
 import type { Raid, XZ } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
 import type { NpcId, NpcSpot } from './npcs.ts'
+import type { DailyWire } from './protocol.ts'
 
 // A pickup as the resolver sees it.
 export interface PickupSpot extends XZ {
@@ -40,6 +41,15 @@ export interface ShelfSpot {
 // The berry bush as this player finds it: a berry waiting, today's already
 // taken, or no valley to ask (the bush is the valley's; see daily.ts).
 export type DailyStatus = 'ready' | 'picked' | 'offline'
+
+// How the bush stands at server time `now`, given the valley's last word
+// on it (null with no valley). The word is read against the valley's
+// clock, so once midnight Central passes the berry is back before the
+// valley is asked again.
+export function dailyStatus(daily: DailyWire | null, now: number): DailyStatus {
+  if (!daily) return 'offline'
+  return daily.collected && now < daily.resetsAt ? 'picked' : 'ready'
+}
 
 export type Interaction<P extends PickupSpot = PickupSpot> =
   | { kind: 'hopOut' }

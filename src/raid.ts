@@ -1,4 +1,4 @@
-// The raid state machine, pure and immutable. main.ts holds a single `raid`
+// The raid state machine, pure and immutable. game.ts holds a single `raid`
 // value and replaces it through advance(); an illegal event returns the same
 // reference so callers can detect the rejection. No three.js, no DOM.
 
@@ -52,6 +52,18 @@ export function carryLimit(raid: Raid): number {
   return carryLimitFor(raid.sack)
 }
 
+// Whether the arms can take another cabbage: on foot, with room.
+export function canPick(raid: Raid): boolean {
+  return raid.state === STATES.ON_FOOT && raid.carrying < carryLimit(raid)
+}
+
+// Whether the lobby clock has run out on a truck still waiting. Played
+// alone, the client asks this every frame; in the shared valley the server
+// decides when the truck leaves.
+export function timedOut(raid: Raid, clock: number): boolean {
+  return raid.state === STATES.LOADOUT && clock > raid.loadoutEndsAt
+}
+
 type AdvanceDetail = string | { arrived: boolean }
 
 // detail: EXTRACT_FUEL passes the station name; BOARD_TRUCK from ON_FOOT
@@ -87,8 +99,7 @@ export function advance(
       if (state !== STATES.RIDING) return raid
       return { ...raid, state: STATES.ON_FOOT }
     case EVENTS.PICK_CABBAGE:
-      if (state !== STATES.ON_FOOT) return raid
-      if (raid.carrying >= carryLimit(raid)) return raid
+      if (!canPick(raid)) return raid
       return { ...raid, carrying: raid.carrying + 1 }
     case EVENTS.DELIVER:
       if (state !== STATES.ON_FOOT || raid.carrying === 0) return raid

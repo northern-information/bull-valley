@@ -2,7 +2,7 @@
 // truck, one clock, shared pickups. Pure and Three-free: a reducer over a
 // Valley value that returns the next value, the frames to send, and the
 // alarm to arm. worker/ValleyDO.ts is the plumbing around it; the client
-// reads the resulting RaidWire in main.ts. tests/unit/sharedraid.test.ts
+// reads the resulting RaidWire in raidsync.ts. tests/unit/sharedraid.test.ts
 // holds every rule.
 //
 // The rules:

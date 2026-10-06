@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
 import { copy } from '../../src/copy.ts'
 import {
+  dailyStatus,
   interactionPrompt,
   itemLabel,
   pickupLabel,
@@ -452,5 +453,22 @@ describe('itemLabel', () => {
     expect(pickupLabel({ kind: 'cabbage', count: 1 })).toBe(
       copy('labels.cabbage')
     )
+  })
+})
+
+describe('dailyStatus', () => {
+  const daily = { collected: true, resetsAt: 1000 }
+
+  it('is offline with no valley to ask', () => {
+    expect(dailyStatus(null, 0)).toBe('offline')
+  })
+
+  it("is picked until midnight Central, by the valley's clock", () => {
+    expect(dailyStatus(daily, 999)).toBe('picked')
+    expect(dailyStatus(daily, 1000)).toBe('ready')
+  })
+
+  it('is ready while the berry is on the bush', () => {
+    expect(dailyStatus({ ...daily, collected: false }, 0)).toBe('ready')
   })
 })
