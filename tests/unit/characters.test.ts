@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_CHARACTER,
+  hasChosen,
   isSelectable,
   pickOf,
   SELECTABLE,
@@ -46,5 +47,13 @@ describe('characters', () => {
       outfit: 'hanson',
       finish: DEFAULT_FINISH,
     })
+  })
+
+  it('knows a returning raider by the character they chose', () => {
+    expect(hasChosen(null)).toBe(false)
+    expect(hasChosen(undefined)).toBe(false)
+    expect(hasChosen({ outfit: null, finish: null })).toBe(false)
+    expect(hasChosen({ outfit: null, finish: 'cherry' })).toBe(false)
+    expect(hasChosen({ outfit: 'player', finish: null })).toBe(true)
   })
 })

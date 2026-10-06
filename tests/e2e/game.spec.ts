@@ -2,6 +2,7 @@ import { copy } from './copy.ts'
 import {
   beginRaid,
   expect,
+  passReturning,
   signIn,
   test,
   toCharacterSelect,
@@ -101,19 +102,26 @@ test('the chosen character is the body you raid in, and is remembered', async ({
     })
   expect(await outfit()).toBe('kvistad')
 
-  // Still signed in after a reload, raiding under the account's username.
+  // Still signed in after a reload, raiding under the account's username
+  // in the same body, past the select.
   await page.reload()
-  await toCharacterSelect(page)
-  await expect(page.locator('.bv-select-name')).toHaveText(
-    copy('outfits.kvistad')
-  )
-  await expect(page.locator('[data-bv="select-username"]')).toHaveText(
+  await passReturning(page)
+  await expect(page.locator('[data-bv="intro-username"]')).toHaveText(
     raider.username
   )
-  // ← wraps from the first character to the last.
-  for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowLeft')
-  await expect(page.locator('.bv-select-name')).toHaveText(
-    copy('outfits.jdogg')
+  await expect
+    .poll(() => page.evaluate(() => !!window.__bv), { timeout: 30_000 })
+    .toBe(true)
+  expect(await outfit()).toBe('kvistad')
+
+  // The pause overlay opens the account panel.
+  await page.locator('[data-bv="intro-account"]').click()
+  const panel = page.getByRole('dialog', {
+    name: copy('panel.title'),
+    exact: true,
+  })
+  await expect(panel.locator('[data-bv="panel-username"]')).toHaveText(
+    raider.username
   )
 })
 
@@ -128,6 +136,12 @@ test('the guitar finish is picked with Church and remembered', async ({
   const checked = page.locator('.bv-swatch[aria-checked="true"]')
   // The player carries no guitar, so there is no row to show.
   await expect(row).toBeHidden()
+  // ← wraps from the first character to the last.
+  await page.keyboard.press('ArrowLeft')
+  await expect(page.locator('.bv-select-name')).toHaveText(
+    copy('outfits.jdogg')
+  )
+  await page.keyboard.press('ArrowRight')
   // Three steps right of the player: Church, with the EX-400 on his back.
   for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight')
   await expect(page.locator('.bv-select-name')).toHaveText(
@@ -145,12 +159,20 @@ test('the guitar finish is picked with Church and remembered', async ({
   const picked = (await finish.textContent()) ?? ''
   await expect(checked).toHaveAttribute('aria-label', picked)
 
+  // The swatch wears the finish's color, and so does the guitar.
+  const color = await checked.evaluate((el) =>
+    (el as HTMLElement).style.getPropertyValue('--swatch').trim()
+  )
   await page.keyboard.press('Enter')
   await expect(page.locator('.bv-select')).toHaveCount(0)
   await page.reload()
-  await toCharacterSelect(page)
-  await expect(page.locator('.bv-select-name')).toHaveText(
-    copy('outfits.church')
-  )
-  await expect(finish).toHaveText(picked)
+  await passReturning(page)
+  await expect
+    .poll(() => page.evaluate(() => !!window.__bv), { timeout: 30_000 })
+    .toBe(true)
+  const body = await page.evaluate((): unknown => {
+    const found = window.__bv?.scene.getObjectByName('player-body')
+    return found ? { ...found.userData } : null
+  })
+  expect(body).toMatchObject({ outfit: 'church', guitarFinish: color })
 })

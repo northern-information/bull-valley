@@ -27,7 +27,7 @@ import { Scope } from './scope.ts'
 import { ShadowCards } from './shadowcards.ts'
 import { createTargets } from './targets.ts'
 import { buildTerrainMesh, createHeightField, loadTerrain } from './terrain.ts'
-import { showTitles } from './titles.ts'
+import { openAccount, showTitles, signOutAndReload } from './titles.ts'
 import { Truck } from './truck.ts'
 import { wireValley } from './valleysync.ts'
 import { buildWorld } from './world.ts'
@@ -181,6 +181,12 @@ async function boot() {
   })
   const pick = await titles
   if (pick.notice) hud.tell(pick.notice)
+  hud.setRaider(pick.username)
+  hud.accountBtn.addEventListener('click', openAccount)
+  hud.signOutBtn.addEventListener('click', () => {
+    hud.signOutBtn.disabled = true
+    signOutAndReload()
+  })
   const playerBody = new PlayerBody(
     scene,
     pick.outfit,

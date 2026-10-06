@@ -295,15 +295,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         ? { ...label, ...labelSpot }
         : null
     )
-    if (player.locked) {
-      hud.prompt(clear ? prompt : null)
-    } else if (s.started && !s.ended && !hud.introShown && !s.inventoryOpen) {
-      // Lock refused with the pause card down: the view itself is the way
-      // back. While the card shows, its own button says it.
-      hud.prompt(copy('hud.resume'))
-    } else {
-      hud.prompt(null)
-    }
+    // With the pointer free, the red edge round the view says so (hud.ts).
+    hud.prompt(player.locked && clear ? prompt : null)
 
     sky.position.set(player.pos.x, 0, player.pos.z)
     if (s.inventoryOpen) {

@@ -146,6 +146,9 @@ export class Hud {
   reticle: HTMLDivElement
   intro: HTMLDivElement
   beginBtn: HTMLButtonElement
+  accountBtn: HTMLButtonElement
+  signOutBtn: HTMLButtonElement
+  raiderEl: HTMLElement
 
   constructor(root: HTMLElement) {
     this.root = root
@@ -321,6 +324,11 @@ export class Hud {
       <div class="bv-intro-actions">
         <button type="button" class="bv-btn bv-btn--primary bv-btn--stack" data-bv="begin"></button>
       </div>
+      <p class="bv-intro-as" data-bv="intro-as" hidden>
+        ${copy('intro.raiding_as')} <b data-bv="intro-username"></b>
+        <button type="button" class="bv-link" data-bv="intro-account">${copy('intro.account')}</button>
+        <button type="button" class="bv-link" data-bv="intro-sign-out">${copy('intro.sign_out')}</button>
+      </p>
       <p class="bv-intro-note bv-intro-fine">${copy('intro.fine')}</p>`
     required(
       this.intro.querySelector<HTMLTableElement>('[data-bv="controls"]'),
@@ -343,6 +351,28 @@ export class Hud {
       })
     )
     this.setBegin('play')
+    this.raiderEl = required(
+      this.intro.querySelector<HTMLElement>('[data-bv="intro-username"]'),
+      'intro username'
+    )
+    this.accountBtn = required(
+      this.intro.querySelector<HTMLButtonElement>('[data-bv="intro-account"]'),
+      'intro account'
+    )
+    this.signOutBtn = required(
+      this.intro.querySelector<HTMLButtonElement>('[data-bv="intro-sign-out"]'),
+      'intro sign out'
+    )
+  }
+
+  // Who the pause overlay says is raiding, with Account and Sign Out beside
+  // it; hidden until the titles settle a username.
+  setRaider(username: string): void {
+    this.raiderEl.textContent = username
+    required(
+      this.intro.querySelector<HTMLElement>('[data-bv="intro-as"]'),
+      'intro raider'
+    ).hidden = false
   }
 
   // A null text hides the countdown.

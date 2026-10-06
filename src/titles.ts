@@ -5,7 +5,7 @@
 import { authReturnOf, devSignInUrl, stripAuthQuery } from './account.ts'
 import { openAccountPanel } from './accountpanel.ts'
 import { fetchMe, saveLook, signOut } from './auth.ts'
-import { pickOf } from './characters.ts'
+import { hasChosen, pickOf } from './characters.ts'
 import { mountCharacterSelect } from './characterselect.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
@@ -30,12 +30,19 @@ export type Titles = CharacterPick & {
 }
 
 // Sign out, then start over at the sign-in card.
-function signOutAndReload(): void {
+export function signOutAndReload(): void {
   void signOut().then(() => window.location.reload())
 }
 
+// The account panel, from the select or the pause overlay.
+export function openAccount(): void {
+  void openAccountPanel({ onSignOut: signOutAndReload })
+}
+
 // Colophon → logo → account step → character select; resolves with the
-// chosen outfit and the username. The select, the account step, and the
+// chosen outfit and the username. A raider who has chosen a character
+// before skips the select and raids as the account's pick; the Account
+// link and Sign Out are on the pause overlay too (hud.ts). The select, the account step, and the
 // logo mount first, black and inert, so the cards above them stack in DOM
 // order and each reveal uncovers the next. Who is signed in is asked at
 // once and is known long before the logo lifts. A page reached from a
@@ -82,12 +89,18 @@ export async function showTitles(audio: BvAudio): Promise<Titles> {
   }
   const select = mountCharacterSelect({
     config: { ...CONFIG.select, downscale: CONFIG.render.downscale },
-    onAccount: () => {
-      void openAccountPanel({ onSignOut: signOutAndReload })
-    },
+    onAccount: openAccount,
     onSignOut: signOutAndReload,
   })
   const account = mountAccountStep()
+  // Who is signed in is known long before the logo lifts, so a returning
+  // raider's select comes down while the cards still cover it.
+  const returning = me.then(
+    (known) => !!known?.account?.username && hasChosen(known.account.look)
+  )
+  void returning.then((back) => {
+    if (back) select.remove()
+  })
   if (!skip && !returned) {
     const logo = mountCard({
       audio,
@@ -104,13 +117,22 @@ export async function showTitles(audio: BvAudio): Promise<Titles> {
     known,
     !signedIn && returned && 'error' in returned ? returned.error : null
   )
+  const hotbar = toHotbar(known?.account?.hotbar)
+  if (await returning) {
+    return {
+      ...pickOf(known?.account?.look),
+      username,
+      hotbar,
+      notice: noticeFor(signedIn),
+    }
+  }
   const chosen = await select.run(username, pickOf(known?.account?.look))
   // The pick is the account's, so it follows the raider to any browser.
   const saved = await saveLook(chosen)
   return {
     ...chosen,
     username,
-    hotbar: toHotbar(known?.account?.hotbar),
+    hotbar,
     notice: saved.ok ? noticeFor(signedIn) : saved.error,
   }
 }
