@@ -12,8 +12,8 @@ const snap = new THREE.Vector2(160, 120)
 // unfiltered: hard, stepped shadows are the period look. Not in `--mode
 // test`, the e2e build: CI draws WebGL in software at about a frame a
 // second, the shadow passes cost it a third of that, and no spec looks at
-// a shadow. The
-// stencil buffer keeps the streetlight pools to one layer (world.ts).
+// a shadow (main.ts skips drawing the valley there too). The stencil
+// buffer keeps the streetlight pools to one layer (world.ts).
 export function createPS1Renderer(
   canvas: HTMLCanvasElement
 ): THREE.WebGLRenderer {
