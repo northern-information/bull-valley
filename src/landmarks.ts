@@ -1,6 +1,5 @@
-// Hand-placed landmarks that are not part of the public-infrastructure survey
-// (scripts/fetch_bull_valley.cjs), so they live here rather than in geo.json,
-// which every survey refresh rewrites. Ported from the Scaduscope.
+// Hand-placed landmarks, kept apart from the roads and water in geo.json.
+// Ported from the Scaduscope.
 //
 // Keep the list to places meant to be found (a roadside stand) or whose owners
 // have agreed to be on a public map (a private home).

@@ -21,7 +21,6 @@ export interface HeightField {
 
 // The committed heightmap: square, 16 bits of normalized elevation packed as
 // R (high byte) + G (low byte), range in geo.json.terrain.
-// See scripts/fetch_bull_valley.cjs.
 export async function loadTerrain(url: string): Promise<TerrainData> {
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image()

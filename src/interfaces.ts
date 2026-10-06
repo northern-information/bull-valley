@@ -17,9 +17,8 @@ export type HeightAt = (x: number, z: number) => number
 export type Vec3 = [number, number, number]
 
 // ---------------------------------------------------------------------------
-// The survey (public/data/bull-valley/geo.json), written by
-// scripts/fetch_bull_valley.cjs. Points are in the unit square: x right/east,
-// y down/south.
+// The survey (public/data/bull-valley/geo.json): the game's own map, edited
+// by hand. Points are in the unit square: x right/east, y down/south.
 
 export type UnitPoint = [number, number]
 export type Ring = UnitPoint[]
@@ -74,7 +73,6 @@ export interface FuelStation {
 }
 
 export interface Geo {
-  fetched: string
   bbox: Bbox
   metres: Metres
   terrain: TerrainRange
@@ -85,7 +83,6 @@ export interface Geo {
   reserves: Reserve[]
   graveyards: Graveyard[]
   fuel: FuelStation[]
-  sources: { osm: string; terrain: string }
 }
 
 // ---------------------------------------------------------------------------

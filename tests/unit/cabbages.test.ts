@@ -89,7 +89,7 @@ describe('placeCabbages', () => {
 
 describe('landmarks', () => {
   it('projects both landmarks inside the current survey frame', () => {
-    // The regenerated wide frame; keep in sync with scripts/fetch_bull_valley.cjs.
+    // The survey's frame; keep in sync with geo.json bbox.
     const bbox: Bbox = {
       south: 42.2655,
       west: -88.4575,

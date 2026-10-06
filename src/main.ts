@@ -40,7 +40,7 @@ import type { TerrainData } from './terrain.ts'
 // (what the valley says), input.ts (the pointer and the keys), targets.ts
 // (what E is aimed at) and loop.ts (the frame).
 
-// The survey and terrain; baked by scripts/fetch_bull_valley.cjs.
+// The survey and terrain: the game's own map, committed in public/data.
 const DATA_BASE = '/data/bull-valley'
 
 // How long boot waits for IBM Plex Mono before it draws in the fallback face.
@@ -92,7 +92,7 @@ async function boot() {
     ;[geo, terrain] = await Promise.all([
       fetch(`${DATA_BASE}/geo.json`).then((r) => {
         if (!r.ok) throw new Error(`geo.json ${r.status}`)
-        // Our own survey, written by scripts/fetch_bull_valley.cjs.
+        // Our own survey (public/data/bull-valley/geo.json).
         return r.json() as Promise<Geo>
       }),
       loadTerrain(`${DATA_BASE}/terrain.png`),
