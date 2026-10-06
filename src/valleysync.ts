@@ -4,7 +4,7 @@
 // raid, and this file does what that means (the truck, the pickups, the
 // shelves, the lines in the log).
 
-import { CHAT_COPY } from './chat.ts'
+import { CHAT_COPY, othersLine } from './chat.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { toInventory } from './inventory.ts'
@@ -34,14 +34,8 @@ export function wireValley(game: Game, actions: Actions): void {
     switch (msg.type) {
       case 'welcome': {
         peers.welcome(msg.peers, now)
-        const n = msg.peers.length
-        if (n > 0) {
-          hud.tell(
-            n === 1
-              ? copy('log.welcome_one')
-              : copy('log.welcome_many', { count: n })
-          )
-        }
+        // Before Begin, the greeting says it; after, a reconnect does.
+        if (s.greeted) hud.tell(othersLine(peers.count))
         return
       }
       case 'peer-joined':
