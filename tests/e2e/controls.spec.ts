@@ -37,6 +37,9 @@ test('the open pack lists every key it answers to', async ({ page }) => {
   await page.keyboard.press('Tab')
   const pack = page.getByRole('dialog', { name: copy('inventory.label') })
   await expect(pack).toBeVisible()
+  // E and the number keys are on the card of the item under the cursor.
+  await pack.locator('.bv-bag-cell').first().hover()
+  await expect(pack.locator('.bv-bag-card')).toBeVisible()
   for (const { key, labelKey } of Object.values(PACK)) {
     const label = copy(labelKey)
     await expect(pack).toContainText(key)

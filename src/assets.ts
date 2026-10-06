@@ -497,7 +497,7 @@ export function storeParts(): Part[] {
   return [...boxes, ...signs]
 }
 
-// One shelf unit: what the carousel shows, without the halo.
+// One shelf unit: what the pack shows, without the halo.
 function buildShelfItem(kind: string): THREE.Object3D {
   if (kind === 'sack') return buildSack()
   return buildPickup(kind, 0x5ac, { glow: false })

@@ -4,9 +4,14 @@ import { authReturnOf, devSignInUrl, stripAuthQuery } from './account.ts'
 import { openAccountPanel } from './accountpanel.ts'
 import { buildSky, meshBounds, pulseMaterials } from './assets.ts'
 import { BvAudio } from './audio.ts'
-import { fetchMe, refreshSession, saveLook, signOut } from './auth.ts'
-import { actionOf, CHAT, cycleStep, PACK, WORLD } from './bindings.ts'
-import { ringItems, stepIndex, syncIndex } from './carousel.ts'
+import {
+  fetchMe,
+  refreshSession,
+  saveHotbar,
+  saveLook,
+  signOut,
+} from './auth.ts'
+import { actionOf, CHAT, hotbarSlot, PACK, WORLD } from './bindings.ts'
 import { pickOf } from './characters.ts'
 import { mountCharacterSelect } from './characterselect.ts'
 import { CHAT_COPY } from './chat.ts'
@@ -16,6 +21,13 @@ import { copy } from './copy.ts'
 import { finishById } from './finishes.ts'
 import { createGlow } from './glow.ts'
 import { openGronDialog } from './grondialog.ts'
+import {
+  assign,
+  cooldownOf,
+  NO_EFFECTS,
+  shownSlots,
+  toHotbar,
+} from './hotbar.ts'
 import { Hud } from './hud.ts'
 import {
   interactionPrompt,
@@ -29,13 +41,14 @@ import {
   toInventory,
   useItem,
 } from './inventory.ts'
-import { createInventoryView } from './inventoryview.ts'
-import { cigaretteToSmoke, getItem, isCigarette, itemById } from './items.ts'
+import { getItem, isUsable, itemById } from './items.ts'
+import { createItemThumbs } from './itemthumbs.ts'
 import { KEEP } from './landmarks.ts'
 import { MistCards } from './mistcards.ts'
 import { NetClient, socketUrl } from './net.ts'
 import { npcLine } from './npcs.ts'
 import { outfitById } from './outfits.ts'
+import { packItemOf, packItems } from './packgrid.ts'
 import { Peers } from './peers.ts'
 import { Player } from './player.ts'
 import { PlayerBody } from './playerbody.ts'
@@ -44,7 +57,6 @@ import { CLOSE, normalizeChat } from './protocol.ts'
 import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import {
   advance,
-  carryLimit,
   createRaid,
   EVENTS,
   loadoutClock,
@@ -69,8 +81,9 @@ import { Truck } from './truck.ts'
 import { buildWorld } from './world.ts'
 import type { CharacterPick } from './characters.ts'
 import type { ChatLine } from './chat.ts'
+import type { Effects, Hotbar } from './hotbar.ts'
 import type { DailyStatus, Interaction, ShelfSpot } from './interactions.ts'
-import type { Geo, Inventory, Raid, RingItem, Vec3 } from './interfaces.ts'
+import type { Geo, Inventory, Raid, Vec3 } from './interfaces.ts'
 import type { NetStatus } from './net.ts'
 import type { NpcId, NpcSpot } from './npcs.ts'
 import type { Peer } from './presence.ts'
@@ -114,6 +127,8 @@ interface BvHook {
   readonly cash: number
   // The pack as this client holds it: the valley's last word, plus guesses.
   readonly inventory: Inventory
+  // The item on each number key, slot 0 for 1.
+  readonly hotbar: Hotbar
   // The chat log, oldest first.
   readonly chat: readonly ChatLine[]
   teleport(u: number, v: number): void
@@ -143,9 +158,14 @@ const DATA_BASE = '/data/bull-valley'
 const DEV_USERNAME = 'Raider'
 
 // What the titles settle: the outfit chosen at the select, the username of
-// the account it raids under, and word of a link round trip that landed on
-// the page (a blocked popup falls back to one), to show once in the valley.
-type Titles = CharacterPick & { username: string; notice: string | null }
+// the account it raids under, its hotbar, and word of a link round trip
+// that landed on the page (a blocked popup falls back to one), to show once
+// in the valley.
+type Titles = CharacterPick & {
+  username: string
+  hotbar: Hotbar
+  notice: string | null
+}
 
 // Colophon → logo → account step → character select; resolves with the
 // chosen outfit and the username. The select, the account step, and the logo mount first,
@@ -176,6 +196,7 @@ async function showTitles(audio: BvAudio): Promise<Titles> {
       return {
         ...pickOf(known.account?.look),
         username,
+        hotbar: toHotbar(known.account?.hotbar),
         notice: noticeFor(true),
       }
     }
@@ -222,6 +243,7 @@ async function showTitles(audio: BvAudio): Promise<Titles> {
   return {
     ...chosen,
     username,
+    hotbar: toHotbar(known?.account?.hotbar),
     notice: saved.ok ? noticeFor(signedIn) : saved.error,
   }
 }
@@ -499,8 +521,6 @@ async function boot() {
   // pack frame), with this client's own changes applied in the meantime.
   // Alone, the starting pack, and nothing is kept.
   let inventory = { ...STARTING_INVENTORY }
-  // The cigarette a bare 1 smokes: the last one picked in the inventory.
-  let selectedCigarette: string | null = null
   let raid = createRaid(0)
   let raidClock = 0 // seconds since the raid began; never pauses
   // The account's wallet in cents, as the valley last sent it (with this
@@ -509,16 +529,14 @@ async function boot() {
   // per station, like world.fuelPoints).
   let cash = CONFIG.store.startingCash
   let storeStock = freshStock(world.fuelPoints.length)
-  // The carousel: ring entries from carousel.ts, the selected slot, and
-  // its kind so the selection survives the ring changing.
-  const inventoryView = createInventoryView()
-  let ring: RingItem[] = []
-  let ringIndex = 0
-  let ringKind: string | null = null
+  // The items as the pack grid and the hotbar show them, and the item on
+  // each number key: the account's, saved one change at a time, in order.
+  const thumbs = createItemThumbs()
+  let hotbar = pick.hotbar
+  let hotbarSaved = Promise.resolve()
   let time = 0
-  let smokingUntil = 0
-  let emberUntil = 0
-  let perceptionUntil = 0
+  // A cigarette burning, its ember, the joint's perception, on `time`.
+  let effects: Effects = NO_EFFECTS
   // The static after a shadowman's touch runs until this local ms
   // (performance.now). It is wall-clock, not `time`: `time` advances at most
   // CONFIG.render.maxStep a frame, so on a slow machine 1.6 s of it can take
@@ -554,13 +572,16 @@ async function boot() {
 
   player.onEdge = () => hud.tell(copy('toasts.edge'))
 
-  // Rebuild the ring after anything that changes what you carry, keeping
-  // the selection on the same kind.
-  const refreshRing = () => {
-    ring = ringItems(inventory, raid)
-    ringIndex = syncIndex(ring, ringKind, ringIndex)
-    ringKind = ring[ringIndex]?.kind ?? null
-    hud.setCarousel({ items: ring, index: ringIndex })
+  // Redraw the open pack after anything that changes what you carry. The
+  // hotbar follows on its own, every frame.
+  const refreshBag = () => {
+    if (inventoryOpen)
+      hud.setBag(packItems(inventory, raid), (kind) => thumbs.icon(kind))
+  }
+  // The hovered item spins on its card.
+  hud.onBagHover = (item) => {
+    if (item) thumbs.spin(hud.cardCanvas, item.kind)
+    else thumbs.stop()
   }
 
   // The countdown, with the lobby's headcount when others are in it.
@@ -593,25 +614,34 @@ async function boot() {
     return Math.max(0, order.indexOf(me))
   }
 
-  // The player freezes while the inventory is open; the valley does not.
+  // The pack opens over the valley with the pointer free for it, as Gron's
+  // dialog does; the player freezes, the valley does not.
   const openInventory = () => {
     player.keys.clear()
-    refreshRing()
-    inventoryView.snapTo(ringIndex)
-    inventoryOpen = hud.showInventory(true)
+    inventoryOpen = hud.showBag(true)
+    refreshBag()
+    if (document.pointerLockElement) document.exitPointerLock()
   }
 
-  const closeInventory = () => {
-    inventoryOpen = hud.showInventory(false)
+  // relock: closed by the player's own key or click, a gesture that may
+  // lock the pointer again. Closed by the raid (a strike, the truck, the
+  // end), the pointer stays free and the resume prompt shows.
+  const closeInventory = (relock = false) => {
+    if (!inventoryOpen) return
+    inventoryOpen = hud.showBag(false)
+    if (relock && !ended) engagePointer()
   }
 
-  const cycleRing = (dir: number) => {
-    if (ring.length < 2) return
-    ringIndex = stepIndex(ringIndex, ring.length, dir)
-    const kind = ring[ringIndex].kind
-    ringKind = kind
-    if (isCigarette(kind)) selectedCigarette = kind
-    refreshRing()
+  // A number key over an item in the pack puts it on that slot, or takes
+  // it off when it is there already.
+  const assignSlot = (slot: number, kind: string) => {
+    const bar = assign(hotbar, slot, kind)
+    hotbar = bar
+    hotbarSaved = hotbarSaved
+      .then(() => saveHotbar(bar))
+      .then((saved) => {
+        if (!saved.ok) hud.tell(saved.error)
+      })
   }
 
   const endRaid = () => {
@@ -723,7 +753,7 @@ async function boot() {
       raid = next.raid
       inventory = next.inventory
       cash = next.cash
-      if (inventoryChanged) refreshRing()
+      if (inventoryChanged) refreshBag()
     }
     if (toast) hud.tell(toast)
   }
@@ -760,7 +790,7 @@ async function boot() {
     storeStock = [...next.stock]
     inventory = next.inventory
     cash = next.cash
-    if (inventoryChanged) refreshRing()
+    if (inventoryChanged) refreshBag()
     if (toast) hud.tell(toast)
   }
 
@@ -797,7 +827,7 @@ async function boot() {
       return
     }
     inventory = addItem(inventory, 'berries', 1)
-    refreshRing()
+    refreshBag()
     hud.tell(getItem('berries').collected)
   }
 
@@ -963,8 +993,10 @@ async function boot() {
     }
   }
   hud.beginBtn.addEventListener('click', engagePointer)
+  // A click past the pack closes it.
   hud.canvas.addEventListener('click', () => {
-    if (started && !player.locked && !ended) engagePointer()
+    if (inventoryOpen) closeInventory(true)
+    else if (started && !player.locked && !ended) engagePointer()
   })
   document.addEventListener('pointerlockerror', lockRefused)
 
@@ -1000,35 +1032,38 @@ async function boot() {
     }
   })
 
-  // choice: a usable item's kind, or 'smoke' for the selected cigarette.
-  const useKind = (choice: string) => {
-    const kind =
-      choice === 'smoke'
-        ? cigaretteToSmoke(inventory, selectedCigarette)
-        : choice
-    if (!kind) {
-      hud.tell(copy('toasts.no_cigarettes'))
-      return
-    }
+  // One of an item, used: E over it in the pack, or its hotbar key. An
+  // item with no effect yet does nothing, and a cigarette waits for the
+  // one burning.
+  const useKind = (kind: string) => {
     const item = itemById(kind)
-    if (!item) return
+    if (!item || !isUsable(kind)) return
     const smoke = item.category === 'cigarette'
-    if (smoke && time < smokingUntil) return
+    if (smoke && time < effects.smoking.end) return
     const result = useItem(inventory, kind)
     if (!result.used) {
       if (item.empty) hud.tell(item.empty)
       return
     }
     inventory = result.inv
-    if (smoke) selectedCigarette = kind
     // The unit is the account's: the valley takes it out of the pack.
     net.send({ type: 'use', kind })
-    refreshRing()
+    refreshBag()
     if (smoke) {
-      smokingUntil = time + (item.smokeSeconds ?? 0)
-      emberUntil = smokingUntil + (item.emberSeconds ?? 0)
+      const end = time + (item.smokeSeconds ?? 0)
+      effects = {
+        ...effects,
+        smoking: { start: time, end },
+        ember: { start: end, end: end + (item.emberSeconds ?? 0) },
+      }
     } else {
-      perceptionUntil = time + (item.perceptionSeconds ?? 0)
+      effects = {
+        ...effects,
+        perception: {
+          start: time,
+          end: time + (item.perceptionSeconds ?? 0),
+        },
+      }
     }
     if (item.used) hud.tell(item.used)
   }
@@ -1162,7 +1197,7 @@ async function boot() {
         } else {
           hud.tell(copy('toasts.long_gone'))
         }
-        refreshRing()
+        refreshBag()
       }
       if (wire.departedAt !== null) {
         truck.driveRouteAt(departRoute, net.clock.toLocalMs(wire.departedAt))
@@ -1234,7 +1269,7 @@ async function boot() {
   const applyPack = (pack: Inventory, wallet: number) => {
     inventory = toInventory(pack)
     cash = wallet
-    refreshRing()
+    refreshBag()
   }
 
   net.on((msg) => {
@@ -1353,28 +1388,25 @@ async function boot() {
     }
   }
 
-  // With the inventory open the keys drive the carousel (PACK in
-  // bindings.ts) and never reach the player. Esc drops pointer lock, which
-  // pauses it.
+  // With the pack open the keys act on the item under the cursor (PACK in
+  // bindings.ts) and never reach the player.
   const inventoryKey = (e: KeyboardEvent) => {
-    const item = ring[ringIndex]
+    const item = hud.bagHovered
     switch (actionOf(PACK, e.code)) {
       case 'close':
         e.preventDefault()
-        closeInventory()
-        return
-      case 'cycle':
-        cycleRing(cycleStep(e.code))
+        closeInventory(true)
         return
       case 'use':
+        // Enter would also click a focused cell.
+        e.preventDefault()
         if (item?.canUse) useKind(item.kind)
         return
-      case 'smoke':
-        useKind('smoke')
+      case 'assign': {
+        const slot = hotbarSlot(e.code)
+        if (item && slot !== null) assignSlot(slot, item.kind)
         return
-      case 'spark':
-        useKind('joints')
-        return
+      }
     }
   }
 
@@ -1397,6 +1429,11 @@ async function boot() {
   // In the valley the keys are WORLD in bindings.ts; the movement keys go
   // to the player as held state.
   document.addEventListener('keydown', (e) => {
+    // The pack frees the pointer, so its keys come first.
+    if (inventoryOpen && !ended) {
+      inventoryKey(e)
+      return
+    }
     if (!player.locked || ended || talking) return
     // While typing, every key belongs to the field; Enter sends, and
     // PageUp/PageDown scroll the log.
@@ -1413,10 +1450,6 @@ async function boot() {
       }
       return
     }
-    if (inventoryOpen) {
-      inventoryKey(e)
-      return
-    }
     player.handleKey(e.code, true)
     switch (actionOf(WORLD, e.code)) {
       case 'inventory':
@@ -1426,12 +1459,12 @@ async function boot() {
       case 'scope':
         scope.toggle()
         return
-      case 'smoke':
-        useKind('smoke')
+      case 'hotbar': {
+        const slot = hotbarSlot(e.code)
+        const kind = slot === null ? null : hotbar[slot]
+        if (kind) useKind(kind)
         return
-      case 'spark':
-        useKind('joints')
-        return
+      }
       case 'callTruck':
         callTruck()
         return
@@ -1467,7 +1500,6 @@ async function boot() {
     glow.setSize(iw, ih)
     camera.aspect = w / h
     camera.updateProjectionMatrix()
-    inventoryView.setAspect(w / h)
     setSnapResolution(iw, ih)
   }
   window.addEventListener('resize', resize)
@@ -1500,9 +1532,8 @@ async function boot() {
       raidClock += elapsed
     }
 
-    const smoking = time < smokingUntil
-    const ember = time < emberUntil
-    const perception = time < perceptionUntil
+    const smoking = time < effects.smoking.end
+    const perception = time < effects.perception.end
 
     // The truck leaves on the timer whether you're aboard or not. In the
     // shared valley the server's clock says when.
@@ -1612,22 +1643,14 @@ async function boot() {
 
     hud.setCountdown(raid.state === STATES.LOADOUT ? lobbyLine() : null)
 
-    const timers: string[] = []
-    if (smoking)
-      timers.push(
-        copy('timers.smoking', { seconds: Math.ceil(smokingUntil - time) })
-      )
-    else if (ember)
-      timers.push(
-        copy('timers.ember', { seconds: Math.ceil(emberUntil - time) })
-      )
-    if (perception)
-      timers.push(
-        copy('timers.perception', {
-          seconds: Math.ceil(perceptionUntil - time),
-        })
-      )
-    hud.setTimers(timers)
+    hud.setHotbar(
+      shownSlots(hotbar).flatMap(({ slot, kind }) => {
+        const item = packItemOf(kind, inventory, raid)
+        if (!item) return []
+        const cooldown = cooldownOf(kind, effects, time)
+        return [{ slot, item, icon: thumbs.icon(kind), cooldown }]
+      })
+    )
     hud.tickChat(performance.now())
 
     scope.draw(dt, {
@@ -1692,7 +1715,7 @@ async function boot() {
     )
     if (player.locked) {
       hud.prompt(clear ? prompt : null)
-    } else if (started && !ended && !hud.introShown) {
+    } else if (started && !ended && !hud.introShown && !inventoryOpen) {
       // Lock refused with the pause card down: the view itself is the way
       // back. While the card shows, its own button says it.
       hud.prompt(copy('hud.resume'))
@@ -1702,18 +1725,17 @@ async function boot() {
 
     sky.position.set(player.pos.x, 0, player.pos.z)
     if (inventoryOpen) {
-      // The carousel replaces the view; the world keeps running behind it.
-      hud.setInventoryStatus({
-        carry: `${raid.carrying} / ${carryLimit(raid)}`,
+      hud.setBagStatus({
         delivered: raid.delivered,
         truck: truckStatus(),
         cash: formatCash(cash),
       })
-      inventoryView.update(dt, ring, ringIndex)
-      renderer.render(inventoryView.scene, inventoryView.camera)
-    } else if (!talking && DRAW_VALLEY) {
+    }
+    if (!talking && DRAW_VALLEY) {
       renderer.render(scene, camera)
-      if (player.locked && !ended) glow.render(scene, camera, time)
+      if (player.locked && !ended && !inventoryOpen) {
+        glow.render(scene, camera, time)
+      }
     } else if (!talking) {
       // Undrawn, the matrices that drawing brings up to date still are:
       // the item labels project through the camera, and the glow and the
@@ -1767,6 +1789,9 @@ async function boot() {
       },
       get inventory() {
         return inventory
+      },
+      get hotbar() {
+        return hotbar
       },
       get chat() {
         return hud.chatLines

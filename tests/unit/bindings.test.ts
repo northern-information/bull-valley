@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   actionOf,
   CHAT,
-  cycleStep,
+  hotbarSlot,
   isHeld,
   MOVE,
   moveAxis,
@@ -58,23 +58,24 @@ describe('WORLD', () => {
     expect([...WORLD.move.codes].sort()).toEqual(Object.values(MOVE).sort())
   })
 
-  it('smokes and sparks on the same keys as the pack', () => {
-    expect(PACK.smoke).toBe(WORLD.smoke)
-    expect(PACK.spark).toBe(WORLD.spark)
+  it('fires the hotbar on the same keys the pack assigns with', () => {
+    expect(PACK.assign.codes).toEqual(WORLD.hotbar.codes)
   })
 })
 
 describe('PACK', () => {
-  it('cycles on the arrows and on A and D', () => {
-    for (const code of ['ArrowLeft', 'KeyA', 'ArrowRight', 'KeyD']) {
-      expect(actionOf(PACK, code)).toBe('cycle')
+  it('assigns on 1 through 9', () => {
+    for (let n = 1; n <= 9; n++) {
+      expect(actionOf(PACK, `Digit${n}`)).toBe('assign')
     }
+    expect(actionOf(PACK, 'Digit0')).toBeNull()
   })
 
-  it('uses on E or Enter and closes on Tab', () => {
+  it('uses on E or Enter and closes on Tab or Esc', () => {
     expect(actionOf(PACK, 'KeyE')).toBe('use')
     expect(actionOf(PACK, 'Enter')).toBe('use')
     expect(actionOf(PACK, 'Tab')).toBe('close')
+    expect(actionOf(PACK, 'Escape')).toBe('close')
   })
 })
 
@@ -111,15 +112,14 @@ describe('moveAxis', () => {
   })
 })
 
-describe('cycleStep', () => {
-  it('steps back on the left keys and forward on the right', () => {
-    expect(cycleStep('ArrowLeft')).toBe(-1)
-    expect(cycleStep('KeyA')).toBe(-1)
-    expect(cycleStep('ArrowRight')).toBe(1)
-    expect(cycleStep('KeyD')).toBe(1)
+describe('hotbarSlot', () => {
+  it('maps 1 through 9 to slots 0 through 8', () => {
+    expect(hotbarSlot('Digit1')).toBe(0)
+    expect(hotbarSlot('Digit9')).toBe(8)
   })
 
-  it('is zero for any other key', () => {
-    expect(cycleStep('KeyE')).toBe(0)
+  it('is null for any other key', () => {
+    expect(hotbarSlot('Digit0')).toBeNull()
+    expect(hotbarSlot('KeyE')).toBeNull()
   })
 })

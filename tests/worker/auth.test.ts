@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { COOKIE, parseCookies } from '../../src/cookies.ts'
 import { copy } from '../../src/copy.ts'
+import { assign, EMPTY_HOTBAR } from '../../src/hotbar.ts'
 import { MemoryAccountStore } from '../../worker/accounts.ts'
 import { handleAuth, identityFor } from '../../worker/auth.ts'
 import { DEV_JWT_SECRET } from '../../worker/env.ts'
@@ -446,6 +447,27 @@ describe('confirm-signup and username', () => {
     expect(
       (await put({ outfit: 'church', finish: 'cherry' }, new Jar())).res.status
     ).toBe(401)
+  })
+
+  it('keeps the hotbar on the account', async () => {
+    const s = new MemoryAccountStore()
+    const jar = new Jar()
+    await signIn(jar, { id: 44, login: 'fortyfour' }, s)
+    await call('/auth/confirm-signup', { method: 'POST', jar, store: s })
+    expect((await me(jar, s)).account?.hotbar).toEqual(EMPTY_HOTBAR)
+    const put = (body: unknown, j: Jar | undefined = jar) =>
+      call('/auth/hotbar', { method: 'PUT', jar: j, store: s, body })
+    const bar = assign(EMPTY_HOTBAR, 2, 'camel')
+    expect((await put({ hotbar: bar })).res.status).toBe(200)
+    expect((await me(jar, s)).account?.hotbar).toEqual(bar)
+    // An unknown item, the wrong length, or missing: refused, nothing moves.
+    expect(
+      (await put({ hotbar: assign(EMPTY_HOTBAR, 0, 'anvil') })).res.status
+    ).toBe(400)
+    expect((await put({ hotbar: ['camel'] })).res.status).toBe(400)
+    expect((await put({})).res.status).toBe(400)
+    expect((await me(jar, s)).account?.hotbar).toEqual(bar)
+    expect((await put({ hotbar: bar }, new Jar())).res.status).toBe(401)
   })
 
   it('answers whether a handle is free', async () => {

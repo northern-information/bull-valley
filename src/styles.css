@@ -1,12 +1,18 @@
 /* Bull Valley Shadow Wars HUD. Tokens (--fi-*, --bv-*) are declared by the
    host page (index.html). One face, one size, one ink: every HUD text is
    IBM Plex Mono at --bv-text-size in --bv-eggshell, set once on .bv-shell and
-   inherited. The one exception is the inventory, set in bold Times
-   (--bv-serif) like Silent Hill's. Role colors stay on borders, fills, and
-   focus rings, except in the chat log, where speech is inked by speaker. Dark field, hard edges, offset shadows, 3px cyan
-   focus. */
+   inherited. Role colors stay on borders, fills, and focus rings, except in
+   the chat log, where speech is inked by speaker. Dark field, hard edges,
+   offset shadows, 3px cyan focus. The pack grid and the hotbar are the
+   quieter exception: translucent black, thin cells, Citgo red on hover. */
 
 .bv-shell {
+  /* The pack grid's and the hotbar's cells. */
+  --bv-cell: 50px;
+  --bv-cell-gap: 4px;
+  --bv-pane: rgb(0 0 0 / 60%);
+  --bv-cell-edge: rgb(255 255 255 / 12%);
+
   position: fixed;
   inset: 0;
   overflow: hidden;
@@ -105,7 +111,8 @@
   transition: width 1.6s linear;
 }
 
-/* The lower-left column: chat over the effect timers. */
+/* The lower-left column: the chat log. It rides up over the hotbar while
+   the bar shows. */
 .bv-dock {
   position: absolute;
   left: 1rem;
@@ -114,6 +121,10 @@
   flex-direction: column;
   gap: 0.5rem;
   width: min(50rem, calc(100% - 2rem));
+}
+
+.bv-shell--hotbar .bv-dock {
+  bottom: calc(1rem + var(--bv-cell) + 8px + 0.75rem);
 }
 
 /* Paused, the dock sits over the pause overlay so the cursor can find the
@@ -196,22 +207,6 @@
   box-shadow: 3px 3px 0 var(--fi-black-shadow);
 }
 
-/* Effect timers */
-.bv-timers {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.bv-timer {
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  background: var(--fi-surface-82);
-  border: 1px solid var(--fi-amber);
-  padding: 0.15rem 0.4rem;
-  width: max-content;
-}
-
 /* Scope: a phone in a low-poly hand, tilted and cut off by the bottom edge.
    scope.ts draws it all into one small canvas; pixelated upscaling gives it
    the same coarse pixels as the world render. */
@@ -268,227 +263,220 @@
   opacity: 0.55;
 }
 
-/* Inventory. Silent Hill 1 chrome: black field (the canvas draws the 3D
-   carousel underneath), beveled serif type over purple bars, a blue double
-   frame around the selected item at screen center. The rest of the HUD
-   steps aside while it is open. */
-.bv-shell--inventory
-  :is(
-    .bv-countdown,
-    .bv-phone,
-    .bv-chat,
-    .bv-timers,
-    .bv-nerves,
-    .bv-prompt,
-    .bv-item-label,
-    .bv-vignette
-  ) {
+/* The pack: a grid of 50px cells on translucent black at the middle of
+   the screen, over the valley, which keeps drawing. The pointer is free
+   while it is open; the hovered cell lights Citgo red and its card shows
+   beside it. The aiming HUD steps aside. */
+.bv-shell--inventory :is(.bv-phone, .bv-prompt, .bv-item-label) {
   visibility: hidden;
 }
 
-.bv-inv {
-  --bv-inv-ink: #e6e3dc;
-  --bv-inv-dim: #4d4b52;
-  --bv-inv-purple: #7a1fd6;
-  --bv-inv-frame: #6f74ff;
-  --bv-inv-cell: min(34vh, 40vw);
-
+.bv-bag {
   position: absolute;
-  inset: 0;
-  font-family: var(--bv-serif, 'Times New Roman', Times, serif);
-  font-weight: 700;
-  font-size: clamp(0.85rem, 3.2vh, 1.6rem);
-  letter-spacing: 0.06em;
-  color: var(--bv-inv-ink);
-
-  /* A pressed-metal bevel: light from the top left. */
-  text-shadow:
-    -1px -1px 0 #fff5,
-    2px 2px 0 #000;
+  top: 50%;
+  left: 50%;
+  box-sizing: border-box;
+  max-width: calc(100% - 2rem);
+  padding: 0.75rem;
+  transform: translate(-50%, -50%);
+  background: var(--bv-pane);
+  pointer-events: auto;
 }
 
-.bv-inv-bars {
-  position: absolute;
-  top: 5vh;
-  left: 6vw;
-  right: 6vw;
+/* Eight cells a row, fewer where the screen is narrower. */
+.bv-bag-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 2.5vw;
-  font-size: clamp(0.9rem, 4.2vh, 2.2rem);
+  grid-template-columns: repeat(auto-fill, var(--bv-cell));
+  gap: var(--bv-cell-gap);
+  width: calc(8 * var(--bv-cell) + 7 * var(--bv-cell-gap));
+  max-width: 100%;
 }
 
-/* The footer holds one cell per pack key (bindings.ts), however many, in
-   one row. */
-.bv-inv-bars--foot {
-  top: auto;
-  bottom: 4vh;
-  grid-template-columns: none;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  font-size: clamp(0.75rem, 3.2vh, 1.6rem);
-}
-
-.bv-inv-bars span {
+.bv-bag-cell,
+.bv-hot-slot {
   position: relative;
-  isolation: isolate;
-  text-align: center;
-  white-space: nowrap;
+  box-sizing: border-box;
+  width: var(--bv-cell);
+  height: var(--bv-cell);
+  padding: 3px;
+  border: 1px solid var(--bv-cell-edge);
+  background: rgb(255 255 255 / 4%);
 }
 
-.bv-inv-bars span::before {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  left: 0;
-  right: 0;
-  top: 32%;
-  height: 42%;
-  background: linear-gradient(
-    to right,
-    #1a0033,
-    var(--bv-inv-purple) 12%,
-    var(--bv-inv-purple) 88%,
-    #1a0033
-  );
-  box-shadow: inset 0 2px 0 #c9a2ff66;
-}
-
-.bv-inv-status {
-  position: absolute;
-  top: 14vh;
-  left: 8vw;
+.bv-bag-cell {
   margin: 0;
-  display: grid;
-  grid-template-columns: auto auto;
-  gap: 0.3em 0.9em;
-  font-size: 0.8em;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
 }
 
-.bv-inv-status dt {
-  color: #9a97a3;
+.bv-bag-cell--empty {
+  cursor: default;
 }
 
-.bv-inv-status dd {
+.bv-bag-cell:not(.bv-bag-cell--empty):is(:hover, :focus-visible) {
+  outline: none;
+  border-color: var(--bv-citgo);
+  box-shadow:
+    inset 0 0 0 1px var(--bv-citgo),
+    0 0 8px var(--bv-citgo);
+}
+
+.bv-bag-cell img,
+.bv-hot-slot img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Counts in the lower right, the hotbar's key in the upper left. */
+:is(.bv-bag-count, .bv-hot-count, .bv-hot-key) {
+  position: absolute;
+  line-height: 1;
+  text-shadow:
+    0 0 3px rgb(0 0 0 / 90%),
+    1px 1px 0 rgb(0 0 0 / 80%);
+}
+
+:is(.bv-bag-count, .bv-hot-count) {
+  right: 3px;
+  bottom: 2px;
+}
+
+.bv-hot-key {
+  top: 2px;
+  left: 3px;
+}
+
+.bv-bag-empty {
+  max-width: 24rem;
   margin: 0;
 }
 
-.bv-inv-commands {
+.bv-bag-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 1.25rem;
+  margin-top: 0.75rem;
+}
+
+.bv-bag-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 0;
+}
+
+.bv-bag-close {
+  margin: 0;
+  opacity: 0.6;
+}
+
+.bv-bag-status div {
+  display: flex;
+  gap: 1ch;
+}
+
+.bv-bag-status dt {
+  opacity: 0.6;
+}
+
+.bv-bag-status dd {
+  margin: 0;
+}
+
+/* The item card beside the hovered cell, inside the pack's box; hud.ts
+   places it against the screen. */
+.bv-bag-card {
   position: absolute;
-  top: 14vh;
-  right: 9vw;
+  box-sizing: border-box;
+  width: 18rem;
+  padding: 0.75rem;
+  background: rgb(0 0 0 / 85%);
+  border: 1px solid var(--bv-citgo);
+  pointer-events: none;
+}
+
+.bv-bag-card-view {
+  display: block;
+  width: 144px;
+  height: 144px;
+  margin: 0 auto 0.5rem;
+}
+
+.bv-bag-card-name {
+  margin: 0 0 0.25rem;
+  font-weight: 600;
+}
+
+.bv-bag-card-blurb,
+.bv-bag-card-quantity {
+  margin: 0 0 0.5rem;
+}
+
+.bv-bag-card-blurb {
+  opacity: 0.8;
+}
+
+.bv-bag-card-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
   margin: 0;
   padding: 0;
   list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4em;
-  font-size: 1.15em;
 }
 
-.bv-inv-commands kbd {
-  font-family: inherit;
-  font-size: 0.6em;
-  vertical-align: middle;
+:is(.bv-bag-card-keys, .bv-bag-close) kbd {
   padding: 0 0.3em;
+  font: inherit;
   border: 1px solid currentcolor;
 }
 
-.bv-inv-cmd--dim {
-  color: var(--bv-inv-dim);
-  text-shadow: 1px 1px 0 #000;
+.bv-bag-card-key--dim {
+  opacity: 0.35;
 }
 
-/* The frame: one hard rectangle, a second offset up-left and broken. */
-.bv-inv-frame {
+/* The hotbar: the assigned slots along the bottom, in number order. */
+.bv-hotbar {
   position: absolute;
+  bottom: 1rem;
   left: 50%;
-  top: 50%;
-  width: var(--bv-inv-cell);
-  height: var(--bv-inv-cell);
-  transform: translate(-50%, -50%);
-  border: 2px solid var(--bv-inv-frame);
-}
-
-.bv-inv-frame::before,
-.bv-inv-frame::after {
-  content: '';
-  position: absolute;
-  border: 2px solid var(--bv-inv-frame);
-}
-
-.bv-inv-frame::before {
-  inset: -10px 40% 55% -10px;
-  border-right: 0;
-  border-bottom: 0;
-}
-
-.bv-inv-frame::after {
-  inset: 60% -10px -10px 25%;
-  border-left: 0;
-  border-top: 0;
-}
-
-.bv-inv-arrow {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #d8d8e0;
-  font-size: 1.1em;
-  letter-spacing: -0.2em;
-}
-
-.bv-inv-arrow--prev {
-  left: -2.4em;
-}
-
-.bv-inv-arrow--next {
-  right: -2.4em;
-}
-
-.bv-inv-frame--single .bv-inv-arrow {
-  visibility: hidden;
-}
-
-.bv-inv-info {
-  position: absolute;
-  top: calc(50% + var(--bv-inv-cell) / 2 + 2.5vh);
-  left: 6vw;
-  right: 6vw;
-}
-
-.bv-inv-line {
-  margin: 0;
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0 0.6em;
-}
-
-.bv-inv-name {
-  margin-right: auto;
-}
-
-.bv-inv-desc {
-  margin: 0.7em 0 0 1.4em;
-  max-width: 34em;
-  font-size: 0.9em;
-  line-height: 1.35;
-}
-
-/* Lock dropped with the inventory open: dim the carousel, wait for a click. */
-.bv-shell--inventory:not(.bv-shell--locked) .bv-inv-frame {
-  opacity: 0.5;
-}
-
-.bv-inv-resume {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  gap: var(--bv-cell-gap);
   margin: 0;
-  padding: 0.3em 0.8em;
-  background: rgb(0 0 0 / 70%);
+  padding: var(--bv-cell-gap);
+  list-style: none;
+  transform: translateX(-50%);
+  background: var(--bv-pane);
+}
+
+.bv-hot-slot--out img {
+  opacity: 0.3;
+}
+
+/* A cooldown: the dark wedge shrinks clockwise from the top as it runs
+   out, the seconds left at its middle. The ember after a smoke is a
+   lighter wedge. */
+.bv-hot-cd {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: conic-gradient(
+    rgb(0 0 0 / 65%) calc(var(--cd, 0) * 1turn),
+    transparent 0
+  );
+  text-shadow: 1px 1px 0 rgb(0 0 0 / 80%);
+}
+
+.bv-hot-slot[data-cooldown='ember'] .bv-hot-cd {
+  background: conic-gradient(
+    rgb(0 0 0 / 35%) calc(var(--cd, 0) * 1turn),
+    transparent 0
+  );
 }
 
 /* Center dot. Only while locked and on foot or riding; the inventory, intro

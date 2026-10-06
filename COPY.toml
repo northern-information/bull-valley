@@ -156,7 +156,6 @@ have_sack = { text = "You already have a sack.", by = "ai" }
 short = { text = "You're {amount} short.", by = "ai" }
 sold_out = { text = "Sold out.", by = "ai" }
 refused = { text = "The clerk shakes his head.", by = "ai" }
-no_cigarettes = { text = "No cigarettes left.", by = "ai" }
 berry_offline = { text = "No signal. The bush keeps its berries.", by = "ai" }
 berry_picked = { text = "Picked clean. The bush fills again at midnight.", by = "ai" }
 berry_refused = { text = "The bush gives you nothing.", by = "ai" }
@@ -171,13 +170,6 @@ riding = { text = "Riding the bed", by = "ai" }
 called = { text = "On its way", by = "ai" }
 on_call = { text = "On a call", by = "ai" }
 gone = { text = "Gone", by = "ai" }
-
-# The effect timers in the lower left (src/main.ts).
-
-[timers]
-smoking = { text = "Smoking {seconds}s", by = "ai" }
-ember = { text = "Ember {seconds}s", by = "ai" }
-perception = { text = "Perception {seconds}s", by = "ai" }
 
 # The prompt over the center of the screen: what E would do right now
 # (src/interactions.ts).
@@ -198,22 +190,16 @@ extract_keep = { text = "E — End the Raid at {keep}", by = "ai" }
 too_fast = { text = "You are speaking too fast.", by = "ai" }
 offline = { text = "No one can hear you.", by = "ai" }
 
-# The Tab inventory (src/hud.ts) and the cabbages' card in its carousel
-# (src/carousel.ts). Item cards are under [items].
+# The Tab pack grid and the hotbar (src/hud.ts), and the cabbages' card in
+# the grid (src/packgrid.ts). Item cards are under [items].
 
 [inventory]
 label = { text = "Inventory", by = "ai" }
-status = { text = "Status", by = "ai" }
-command = { text = "Command", by = "ai" }
-commands_label = { text = "Commands", by = "ai" }
-cabbages = { text = "Cabbages", by = "ai" }
+hotbar_label = { text = "Hotbar", by = "ai" }
+quantity = { text = "Quantity: {count}", by = "ai" }
+cash = { text = "Cash", by = "ai" }
 delivered = { text = "Delivered", by = "ai" }
 truck = { text = "Truck", by = "ai" }
-cash = { text = "Cash", by = "ai" }
-number = { text = "No.", by = "ai" }
-name = { text = "Name:", by = "ai" }
-stock = { text = "Stock:", by = "ai" }
-empty_name = { text = "Nothing", by = "ai" }
 empty_blurb = { text = "Empty pockets. Nothing between you and the valley.", by = "ai" }
 cabbages_label = { text = "Cabbages", by = "ai" }
 cabbages_blurb = { text = "Cold and heavy. The stand wants them. Room for {limit}.", by = "ai" }
@@ -232,11 +218,9 @@ colophon_hint = { text = "Click to Play", by = "ai" }
 logo_alt = { text = "Bull Valley Shadow Wars", by = "ai" }
 
 # Key labels: what each key does, in the intro controls table and the
-# pack footer. The key names themselves stay in src/bindings.ts.
+# pack's item card. The key names themselves stay in src/bindings.ts.
 
 [keys]
-smoke = { text = "Smoke", by = "ai" }
-spark = { text = "Spark", by = "ai" }
 move = { text = "Move", by = "ai" }
 sprint = { text = "Sprint", by = "ai" }
 look = { text = "Look", by = "ai" }
@@ -245,13 +229,14 @@ scope = { text = "Scaduscope", by = "ai" }
 inventory = { text = "Inventory", by = "ai" }
 interact = { text = "Board / Hop Out / Take / Buy / Unload / Extract", by = "ai" }
 call_truck = { text = "Call the Truck", by = "ai" }
+hotbar = { text = "Use Hotbar Item", by = "ai" }
 chat = { text = "Chat", by = "ai" }
 chat_scroll_up = { text = "Scroll Up", by = "ai" }
 chat_scroll_down = { text = "Scroll Down", by = "ai" }
 pause = { text = "Pause", by = "ai" }
 use = { text = "Use", by = "ai" }
-cycle = { text = "Cycle", by = "ai" }
-close = { text = "Exit", by = "ai" }
+assign = { text = "Assign", by = "ai" }
+close = { text = "Close", by = "ai" }
 
 # Sign-in errors, from the Worker (worker/auth.ts) and the client's
 # fallbacks (src/auth.ts, src/account.ts). They show on the sign-in card,
@@ -278,6 +263,8 @@ username_taken = { text = "That username is taken", by = "ai" }
 username_set = { text = "Your username is already set", by = "ai" }
 look_rule = { text = "Pick a character and a finish from the select", by = "ai" }
 look_failed = { text = "Your character could not be saved", by = "ai" }
+hotbar_rule = { text = "Each number key holds one item from your pack, or nothing", by = "ai" }
+hotbar_failed = { text = "Your hotbar could not be saved", by = "ai" }
 account_not_found = { text = "Account not found", by = "ai" }
 unlink_last = { text = "You cannot unlink your only way to sign in", by = "ai" }
 not_linked = { text = "{provider} is not linked to your account", by = "ai" }
