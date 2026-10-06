@@ -281,8 +281,6 @@ function chestTattoo(): CanvasArt {
   return art
 }
 
-// The band logo across the chest, in pale grey on the black shirt: tall
-// capitals with the first and last letters drawn larger.
 // A leather guitar strap across the chest, from the right shoulder down to
 // the left hip. The canvas left edge is the body's right side.
 function guitarStrap(): CanvasArt {
@@ -337,6 +335,8 @@ function nin(): CanvasArt {
   return art
 }
 
+// The band logo across the chest, in pale grey on the black shirt: tall
+// capitals with the first and last letters drawn larger.
 function pantera(): CanvasArt {
   const art = canvas(TORSO)
   const { ctx, w } = art

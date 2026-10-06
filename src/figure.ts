@@ -725,7 +725,7 @@ export function buildGron(): GronRig {
 // scroll out in front of him for whoever walks up to read, and a scythe
 // taller than he is planted at his side. The fire on his
 // head turns with his neck but is not part of his figure, so the ring that
-// marks him as the one E trades with (glow.ts) goes round his body alone.
+// marks him as the one E talks to (glow.ts) goes round his body alone.
 // Call update(t) every frame with a running time, or once with a fixed
 // time to hold him still.
 export interface MoabRig {

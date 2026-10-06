@@ -8,10 +8,11 @@ import type { ExtractKind, Inventory, ShopStock, XZ } from './interfaces.ts'
 import type { OutfitId } from './outfits.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
-// closed with CLOSE.badVersion and reloads.
+// closed with CLOSE.badVersion and does not knock again.
 export const PROTOCOL_VERSION = 8
 
-// The one WebSocket route; everything else on the Worker is a static asset.
+// The one WebSocket route; the Worker also answers /auth, and everything
+// else is a static asset.
 export const WS_PATH = '/ws'
 
 // One valley for everyone: the Durable Object's name. Dev builds may pick
@@ -122,17 +123,17 @@ export interface RaidWire {
   members: MemberWire[]
 }
 
-// The berry bush at the spawn Citgo: one berry a day per name, the day
+// The berry bush at the spawn Citgo: one berry a day per account, the day
 // turning at midnight Central (daily.ts). The server decides; the client
 // reads this, in the welcome and in every DailyMessage.
 export interface DailyWire {
-  // Whether this name has had today's berry.
+  // Whether this account has had today's berry.
   collected: boolean
   // Server ms of the next midnight Central, when the bush fills again.
   resetsAt: number
 }
 
-// Why a raid frame was sent; the client's toasts hang off it.
+// Why a raid frame was sent; the client's chat-log lines hang off it.
 export type RaidReason =
   | 'joined'
   | 'left'
@@ -290,7 +291,7 @@ export interface WelcomeMessage {
   peers: PeerWire[]
   raid: RaidWire
   phase: MemberPhase
-  // Whether the bush has a berry for this name today.
+  // Whether the bush has a berry for this account today.
   daily: DailyWire
   // The account's pack and wallet, as the valley keeps them.
   pack: Inventory
@@ -307,7 +308,7 @@ export interface PackMessage {
 }
 
 // The answer to a collect: `picked` when a berry came off the bush, false
-// when this name already had today's. `daily` is the bush as it stands
+// when this account already had today's. `daily` is the bush as it stands
 // after the answer.
 export interface DailyMessage {
   type: 'daily'
@@ -322,7 +323,7 @@ export interface RaidMessage {
   reason: RaidReason
   raid: RaidWire | null
   // Who did it, for 'joined', 'left', 'boarded', 'unboarded', 'hop-out',
-  // 'taken', 'call', 'extracted'.
+  // 'taken', 'delivered', 'bought', 'call', 'extracted'.
   by?: string
   // For 'taken'.
   index?: number
@@ -522,7 +523,7 @@ export function parsePeerState(value: unknown): PeerStateWire | null {
 
 // Parses one text frame from a client. Returns null for anything that is
 // not a well-formed message, so the server never stores an unchecked value.
-// A hello with a bad name or outfit still parses; the server decides which
+// A hello with a bad outfit still parses; the server decides which
 // close code those deserve.
 export function parseClientMessage(text: string): ClientMessage | null {
   let value: unknown

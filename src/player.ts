@@ -4,8 +4,8 @@ import { CONFIG } from './config.ts'
 import type { HeightAt, Metres, XZ } from './interfaces.ts'
 
 // First-person controller: the movement keys (bindings.ts) relative to
-// yaw, sprint and crouch, pointer-lock mouse look, feet glued to the
-// heightfield. The camera never leaves this class; main.ts only reads the
+// yaw, sprint and crouch, pointer-lock mouse look, feet on world.ground.at.
+// The camera never leaves this class; main.ts only reads the
 // returned state.
 
 export interface PlayerSpawn {

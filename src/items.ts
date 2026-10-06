@@ -6,7 +6,7 @@
 // Fields:
 //   id        inventory kind and mesh key
 //   category  'cigarette' | 'joint' | 'drink' | 'medicine' | 'forage' | 'gear'
-//   label     name in the carousel and pickup prompts
+//   label     name in the carousel and floating over a pickup or shelf unit
 //   blurb     description in the carousel
 //   used      toast when the player uses it
 //   bought    toast when the player buys it at a Citgo (shelf items only)
@@ -322,7 +322,7 @@ export const ITEMS = [
     form: 'dropper',
   },
   // Forage. Not for sale: the berry bush at the spawn Citgo gives every
-  // name one a day, the day turning at midnight Central. No effect yet.
+  // account one a day, the day turning at midnight Central. No effect yet.
   {
     id: 'berries',
     category: 'forage',

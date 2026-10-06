@@ -691,7 +691,7 @@ describe('the wire', () => {
     ])
     expect(wire && 'pickups' in wire).toBe(false)
     expect(wire && 'stations' in wire).toBe(false)
-    // The bush's record is per name and goes out in the daily frames.
+    // The bush's record is per account and goes out in the daily frames.
     expect(wire && 'dailies' in wire).toBe(false)
     expect(toWire(createValley())).toBeNull()
   })

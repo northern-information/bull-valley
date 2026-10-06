@@ -10,8 +10,8 @@ import type { Page } from '@playwright/test'
 
 // Two browsers in one valley: each sees the other arrive as a figure in
 // their outfit, follows them as they move, hears them on the Scaduscope,
-// and sees them go. Each context has its own localStorage, so the two
-// are strangers to the saved picks.
+// and sees them go. Each context signs in its own raider, so each has its
+// own pick.
 
 const peers = (page: Page) =>
   page.evaluate(() => window.__bv?.net.peers() ?? [])

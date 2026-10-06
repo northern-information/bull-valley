@@ -1,6 +1,7 @@
 // Pure: the few things in the valley that stop you: the Citgo walls and
-// fixtures (store.ts), the berry bush, and the utility poles and
-// streetlights (roadside.ts), each a post (a capsule of zero length);
+// fixtures (store.ts), the berry bush, Gron, Moab and his horse (a capsule
+// along its spine), and the utility poles and streetlights (roadside.ts),
+// each a post (a capsule of zero length) unless noted;
 // trees, the truck, and everything else stay walk-through. A wall is a
 // capsule: a segment on the ground plane, `half` its thickness either side.
 // The player asks resolve() after every move and is pushed back out of any

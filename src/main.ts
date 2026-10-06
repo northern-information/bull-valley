@@ -136,7 +136,7 @@ const DRAW_VALLEY = import.meta.env.MODE !== 'test'
 // How far over the top of an item its label sits, in metres.
 const LABEL_LIFT = 0.03
 
-// Same files the Scaduscope reads; baked by scripts/fetch_bull_valley.cjs.
+// The survey and terrain; baked by scripts/fetch_bull_valley.cjs.
 const DATA_BASE = '/data/bull-valley'
 
 // The username a dev build signs in under when ?skipSplash finds no session.
@@ -266,8 +266,8 @@ async function boot() {
   // Sound effects are off for now; the splash cue is the only audio, and
   // dev builds mute it too.
   if (import.meta.env.DEV) audio.setMuted(true)
-  // The titles cover the terrain resolve: colophon, logo, then the
-  // character select, each a black layer stacked over the next, so every
+  // The titles cover the terrain resolve: colophon, logo, account step, then
+  // the character select, each a black layer stacked over the next, so every
   // reveal uncovers the one beneath and the last discloses the intro
   // dialog already waiting. Not awaited until the player body needs the
   // pick; the scene builds underneath.
@@ -499,7 +499,7 @@ async function boot() {
   // The cigarette a bare 1 smokes: the last one picked in the inventory.
   let selectedCigarette: string | null = null
   let raid = createRaid(0)
-  let raidClock = 0 // advances only while the pointer is locked
+  let raidClock = 0 // seconds since the raid began; never pauses
   // The account's wallet in cents, as the valley last sent it (with this
   // client's own spending applied in the meantime); alone, a fresh one,
   // and nothing is kept. Every Citgo starts with full shelves (one stock
@@ -861,8 +861,9 @@ async function boot() {
   }
 
   // What the glow rings for an interaction: the pickup, the shelf unit a
-  // buy would take, or the bush while today's berry is on it. Nothing for
-  // the truck, the stand, or an extraction.
+  // buy would take, the bush while today's berry is on it, Gron, or Marx,
+  // Carlsten or Moab when E would talk to him. Nothing for the truck, the
+  // stand, or an extraction.
   const glowTarget = (
     action: Interaction<Pickup> | null
   ): THREE.Object3D | null => {
@@ -995,7 +996,7 @@ async function boot() {
     }
   })
 
-  // kind: a cigarette id, 'joints', or 'smoke' for the selected cigarette.
+  // choice: a usable item's kind, or 'smoke' for the selected cigarette.
   const useKind = (choice: string) => {
     const kind =
       choice === 'smoke'

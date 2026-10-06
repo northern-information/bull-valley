@@ -1,6 +1,6 @@
 // All DOM: countdown, nerves meter, scope phone, inventory, prompts, item labels,
 // the intro/pause overlay, and the strike static. Markup is generated here so
-// the Eleventy page and the dev harness stay a bare #bv-root.
+// index.html stays a bare #bv-root.
 
 import { PACK, WORLD } from './bindings.ts'
 import { CHAT_LINES, isFaded, pushLine } from './chat.ts'
@@ -11,7 +11,6 @@ import type { Binding } from './bindings.ts'
 import type { ChatLine } from './chat.ts'
 import type { RaidSummary, RingItem } from './interfaces.ts'
 
-// The inventory ring as setCarousel draws it.
 // The floating name over an item, placed by its top in the view: x and y
 // from 0 at the left and top to 1 at the right and bottom.
 export interface ItemLabelView {
@@ -21,6 +20,7 @@ export interface ItemLabelView {
   y: number
 }
 
+// The inventory ring as setCarousel draws it.
 export interface CarouselView {
   items: RingItem[]
   index: number
@@ -172,7 +172,7 @@ export class Hud {
     this.timers = el('div', 'bv-timers')
     dock.appendChild(this.timers)
 
-    // The scope: a phone held in a PS1-style flipper hand. scope.js draws the
+    // The scope: a phone held in a PS1-style flipper hand. scope.ts draws the
     // hand, the phone and the screen into this one low-res canvas.
     this.phone = el('div', 'bv-phone')
     this.phone.setAttribute('aria-hidden', 'true')

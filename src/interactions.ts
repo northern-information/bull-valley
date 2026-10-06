@@ -67,7 +67,7 @@ export interface InteractionInput<P extends PickupSpot> {
   stations: readonly StationSpot[]
   spawnStation: StationSpot
   pickups: readonly P[]
-  // The facing in view inside a store, or null.
+  // The shelf unit in view inside a store, or null.
   shelf: ShelfSpot | null
   // Whether the player stands inside a store's walls: no station extract
   // from in there.

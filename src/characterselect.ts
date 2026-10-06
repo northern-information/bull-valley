@@ -3,8 +3,8 @@
 // Previous / Next / Choose. A
 // character with a guitar on their back also gets the finish row: the
 // finish name, one swatch per finish, and Randomize. It is mounted at boot
-// beneath the title cards, so the logo's reveal uncovers it, and run() arms
-// it once it is showing. The game's renderer does not exist until the
+// beneath the account step and the title cards, so it shows once they
+// lift, and run() arms it once it is showing. The game's renderer does not exist until the
 // terrain resolves, so the turntable draws with its own small renderer,
 // disposed once a character is chosen. The roster comes from
 // characters.ts, the finishes from finishes.ts, the bodies from figure.ts;

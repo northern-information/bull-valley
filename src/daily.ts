@@ -1,4 +1,4 @@
-// Pure: the daily clock. The berry bush at the spawn Citgo gives each name
+// Pure: the daily clock. The berry bush at the spawn Citgo gives each account
 // one berry per calendar day in Bull Valley's own time zone, and the day
 // turns at midnight Central, whatever clock the player's machine keeps.
 // The Worker runs this against its own Date.now(); the client only reads

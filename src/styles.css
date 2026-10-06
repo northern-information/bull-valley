@@ -178,7 +178,7 @@
 }
 
 /* Scope: a phone in a low-poly hand, tilted and cut off by the bottom edge.
-   scope.js draws it all into one small canvas; pixelated upscaling gives it
+   scope.ts draws it all into one small canvas; pixelated upscaling gives it
    the same coarse pixels as the world render. */
 .bv-phone {
   --bv-phone-w: 17rem;

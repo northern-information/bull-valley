@@ -7,7 +7,7 @@ import type { LookWire, Provider } from '../src/account.ts'
 
 export interface Account {
   accountId: string
-  // Null until chosen; set once.
+  // Null until chosen; changed only at Gron.
   username: string | null
   role: string
   // The providerKey whose display name and avatar stand for the account.
