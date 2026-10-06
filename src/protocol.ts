@@ -39,7 +39,7 @@ export const CHAT_MAX = 120
 export const PICKUPS_MAX = 1000
 
 // More Citgo stations than any build places.
-export const STATIONS_MAX = 64
+const STATIONS_MAX = 64
 
 // An item id or a pickup kind on the wire: items.ts ids are short.
 const KIND_MAX = 64

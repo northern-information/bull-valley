@@ -216,6 +216,27 @@ export async function usernameAvailable(
   }
 }
 
+// What to say of a username check: whether the name is free (null when
+// the valley could not say), the status line, and its tone. The sign-in
+// step and Gron's dialog show the same lines.
+export interface Availability {
+  available: boolean | null
+  line: string
+  tone: 'ok' | 'bad'
+}
+
+export function availabilityOf(answer: AvailableResponse | null): Availability {
+  if (!answer) {
+    return { available: null, line: copy('auth.unreachable'), tone: 'bad' }
+  }
+  if (answer.reason === 'limited') {
+    return { available: null, line: copy('username.limited'), tone: 'bad' }
+  }
+  return answer.available
+    ? { available: true, line: copy('username.available'), tone: 'ok' }
+    : { available: false, line: copy('username.taken'), tone: 'bad' }
+}
+
 // Take a provider off the account. The server refuses the last one.
 export async function unlinkProvider(
   provider: Provider,

@@ -5,7 +5,7 @@
 import { canvas, SANS, text } from './canvas.ts'
 import type { CanvasArt } from './canvas.ts'
 
-export const STAND_SIGN_SIZE: [number, number] = [256, 64]
+const STAND_SIGN_SIZE: [number, number] = [256, 64]
 
 // White house paint on weathered green, the words brushed on twice.
 export function paintStandSign(): CanvasArt {

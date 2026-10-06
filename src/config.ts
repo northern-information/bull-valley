@@ -211,8 +211,6 @@ export const CONFIG = {
     // How long the "signed out" line sits in the chat log before the page
     // reloads to the sign-in card.
     signedOutReloadMs: 2500,
-    // Bed seats before riders double up.
-    seats: 4,
   },
   cabbage: {
     count: 48,

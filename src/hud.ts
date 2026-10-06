@@ -647,10 +647,6 @@ export class Hud {
     if (this.bagCash.textContent !== cash) this.bagCash.textContent = cash
   }
 
-  get bagShown(): boolean {
-    return !this.bag.hidden
-  }
-
   showBag(show: boolean): boolean {
     this.bag.hidden = !show
     this.root.classList.toggle('bv-shell--inventory', show)
@@ -790,10 +786,6 @@ export class Hud {
       span.setAttribute('aria-hidden', String(!current))
     }
     this.beginBtn.disabled = state === 'loading' || state === 'failed'
-  }
-
-  get introShown(): boolean {
-    return !this.intro.hidden
   }
 
   showIntro(show: boolean, paused?: boolean): void {

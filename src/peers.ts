@@ -5,7 +5,7 @@
 
 import * as THREE from 'three'
 import { isMesh } from './assets.ts'
-import { canvas, MONO, text } from './canvas.ts'
+import { canvas, EGGSHELL, MONO, text } from './canvas.ts'
 import {
   applyJoints,
   applyPose,
@@ -36,7 +36,6 @@ const LABEL_HEIGHT = 2.0
 // The label canvas: power-of-two sides, drawn once per peer.
 const LABEL_W = 128
 const LABEL_H = 32
-const EGGSHELL = '#f0ead6' // --bv-eggshell; canvas cannot read CSS vars
 
 interface Puppet {
   figure: Figure

@@ -18,6 +18,7 @@ import {
   USERNAME_MAX,
 } from './account.ts'
 import {
+  availabilityOf,
   confirmSignup,
   fetchProviders,
   setUsername,
@@ -188,21 +189,9 @@ export function mountAccountStep(): AccountStep {
             void usernameAvailable(name).then((answer) => {
               // Typing moved on while the valley answered.
               if (asked !== handle()) return
-              if (!answer) {
-                say(copy('auth.unreachable'), 'bad')
-                return
-              }
-              if (answer.reason === 'limited') {
-                say(copy('username.limited'), 'bad')
-                return
-              }
-              available = answer.available
-              say(
-                copy(
-                  answer.available ? 'username.available' : 'username.taken'
-                ),
-                answer.available ? 'ok' : 'bad'
-              )
+              const said = availabilityOf(answer)
+              available = said.available
+              say(said.line, said.tone)
               refresh()
             })
           }, CHECK_DELAY_MS)

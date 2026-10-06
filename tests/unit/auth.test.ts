@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  availabilityOf,
   confirmSignup,
   fetchMe,
   fetchProviders,
@@ -214,5 +215,30 @@ describe('signOut', () => {
     await signOut(impl)
     expect(seen[0]).toMatchObject({ url: '/auth/logout' })
     await expect(signOut(down)).resolves.toBeUndefined()
+  })
+})
+
+describe('availabilityOf', () => {
+  it('says what the valley answered, and when it could not', () => {
+    expect(availabilityOf({ available: true })).toEqual({
+      available: true,
+      line: copy('username.available'),
+      tone: 'ok',
+    })
+    expect(availabilityOf({ available: false })).toEqual({
+      available: false,
+      line: copy('username.taken'),
+      tone: 'bad',
+    })
+    expect(availabilityOf({ available: false, reason: 'limited' })).toEqual({
+      available: null,
+      line: copy('username.limited'),
+      tone: 'bad',
+    })
+    expect(availabilityOf(null)).toEqual({
+      available: null,
+      line: copy('auth.unreachable'),
+      tone: 'bad',
+    })
   })
 })

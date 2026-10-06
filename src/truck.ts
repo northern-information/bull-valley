@@ -123,7 +123,7 @@ const SCRATCH = new THREE.Vector3()
 const AT = new THREE.Vector3()
 
 // Rider spots in the bed, truck-local [x, z]: the middle first, then the
-// corners. CONFIG.net.seats riders fit before they double up.
+// corners. Riders past the last seat double up.
 const BED_SEATS: readonly [number, number][] = [
   [0, -1.45],
   [-0.45, -1.0],
