@@ -5,7 +5,7 @@ import { openAccountPanel } from './accountpanel.ts'
 import { buildSky, meshBounds, pulseMaterials } from './assets.ts'
 import { BvAudio } from './audio.ts'
 import { fetchMe, refreshSession, saveLook, signOut } from './auth.ts'
-import { actionOf, cycleStep, PACK, WORLD } from './bindings.ts'
+import { actionOf, CHAT, cycleStep, PACK, WORLD } from './bindings.ts'
 import { ringItems, stepIndex, syncIndex } from './carousel.ts'
 import { pickOf } from './characters.ts'
 import { mountCharacterSelect } from './characterselect.ts'
@@ -463,7 +463,10 @@ async function boot() {
         return
       }
       case 'chat':
-        hud.chatLine({ kind: 'say', name: msg.name, text: msg.text }, now)
+        hud.chatLine(
+          { kind: 'say', name: msg.name, text: msg.text, at: msg.at },
+          now
+        )
         return
       case 'error':
         console.warn('Valley:', msg.code, msg.message)
@@ -852,9 +855,10 @@ async function boot() {
   const speakTo = (npc: NpcId) => {
     hud.chatLine(
       {
-        kind: 'say',
+        kind: 'npc',
         name: outfitById(npc).label,
         text: npcLine(npc, npcSaid[npc]++),
+        at: Date.now(),
       },
       performance.now()
     )
@@ -1221,10 +1225,7 @@ async function boot() {
       pendingCollect = false
       hud.tell(copy('toasts.berry_refused'))
     } else if (msg.re === 'chat') {
-      hud.chatLine(
-        { kind: 'system', text: CHAT_COPY.tooFast },
-        performance.now()
-      )
+      hud.tell(CHAT_COPY.tooFast)
     }
   }
 
@@ -1386,21 +1387,29 @@ async function boot() {
       net.send({ type: 'chat', text })
       return
     }
-    const now = performance.now()
-    hud.chatLine({ kind: 'say', name: pick.username, text }, now)
-    hud.chatLine({ kind: 'system', text: CHAT_COPY.offline }, now)
+    hud.chatLine(
+      { kind: 'say', name: pick.username, text, at: Date.now() },
+      performance.now()
+    )
+    hud.tell(CHAT_COPY.offline)
   }
 
   // In the valley the keys are WORLD in bindings.ts; the movement keys go
   // to the player as held state.
   document.addEventListener('keydown', (e) => {
     if (!player.locked || ended || talking) return
-    // While typing, every key belongs to the field; Enter sends.
+    // While typing, every key belongs to the field; Enter sends, and
+    // PageUp/PageDown scroll the log.
     if (hud.chatOpen) {
       if (e.code === 'Tab') e.preventDefault()
       if (actionOf(WORLD, e.code) === 'chat' && !e.isComposing) {
         e.preventDefault()
         say(hud.closeChat())
+      }
+      const scroll = actionOf(CHAT, e.code)
+      if (scroll) {
+        e.preventDefault()
+        hud.pageChat(scroll === 'scrollUp' ? -1 : 1)
       }
       return
     }
@@ -1437,6 +1446,17 @@ async function boot() {
     }
   })
   document.addEventListener('keyup', (e) => player.handleKey(e.code, false))
+  // Under pointer lock the wheel lands on the canvas, never the log, so
+  // while typing it is passed along.
+  document.addEventListener(
+    'wheel',
+    (e) => {
+      if (!hud.chatOpen) return
+      e.preventDefault()
+      hud.wheelChat(e)
+    },
+    { passive: false }
+  )
 
   const resize = () => {
     const w = window.innerWidth

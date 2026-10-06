@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   actionOf,
+  CHAT,
   cycleStep,
   isHeld,
   MOVE,
@@ -14,6 +15,7 @@ import type { Binding } from '../../src/bindings.ts'
 const tables: [string, Record<string, Binding>][] = [
   ['WORLD', WORLD],
   ['PACK', PACK],
+  ['CHAT', CHAT],
 ]
 
 describe.each(tables)('%s', (_name, table) => {

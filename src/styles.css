@@ -3,7 +3,7 @@
    IBM Plex Mono at --bv-text-size in --bv-eggshell, set once on .bv-shell and
    inherited. The one exception is the inventory, set in bold Times
    (--bv-serif) like Silent Hill's. Role colors stay on borders, fills, and
-   focus rings only. Dark field, hard edges, offset shadows, 3px cyan
+   focus rings, except in the chat log, where speech is inked by speaker. Dark field, hard edges, offset shadows, 3px cyan
    focus. */
 
 .bv-shell {
@@ -113,11 +113,19 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  width: min(35rem, calc(100% - 2rem));
+  width: min(50rem, calc(100% - 2rem));
+}
+
+/* Paused, the dock sits over the pause overlay so the cursor can find the
+   log: hovering brings it back and the wheel scrolls it. */
+.bv-shell--intro .bv-dock {
+  z-index: 1;
 }
 
 /* Chat: a quiet log that fades out a while after the last line, and a
-   field under it while typing. Eight lines show; older ones scroll. */
+   field under it while typing. Eight lines show; older ones scroll, and
+   thin out toward the top. Held (typing, or the cursor over it), the log
+   stays up and the old lines read clearer. */
 .bv-chat {
   display: flex;
   flex-direction: column;
@@ -131,20 +139,47 @@
 
 .bv-chat-log {
   max-height: 10rem;
-  overflow: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--fi-surface-82) transparent;
+  pointer-events: auto;
+  line-height: 1.25rem;
   letter-spacing: 0.02em;
   text-shadow:
     0 0 3px rgb(0 0 0 / 90%),
     1px 1px 0 rgb(0 0 0 / 80%);
+  mask-image: linear-gradient(to bottom, transparent, #000 65%);
 }
 
-.bv-chat-log p {
+.bv-chat--held .bv-chat-log {
+  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 35%), #000 65%);
+}
+
+/* A hanging indent: wrapped and stanza lines start past the stamp (five
+   characters and its margin). */
+.bv-chat-line {
   margin: 0;
-  line-height: 1.25rem;
+  padding-left: 6ch;
+  text-indent: -6ch;
   overflow-wrap: anywhere;
 
   /* Marx's stanzas keep their line breaks and indents. */
   white-space: pre-wrap;
+}
+
+.bv-chat-line--say {
+  color: var(--fi-blue);
+}
+
+.bv-chat-line--npc {
+  color: var(--fi-gold);
+}
+
+.bv-chat-stamp {
+  margin-right: 1ch;
+  color: var(--bv-eggshell);
+  opacity: 0.6;
 }
 
 .bv-chat-input {

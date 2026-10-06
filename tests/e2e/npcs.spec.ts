@@ -45,11 +45,12 @@ const glowsOn = (page: Page, who: Who) =>
     return bv.glow === body
   }, who)
 
+// The newest NPC line in the log, after its timestamp.
 const lastLine = (page: Page) =>
   page
-    .locator('.bv-chat-log p')
+    .locator('.bv-chat-line--npc')
     .last()
-    .evaluate((p) => p.textContent)
+    .evaluate((p) => p.lastChild?.textContent)
 
 test('Marx glows when you come near and recites a stanza at a time', async ({
   page,

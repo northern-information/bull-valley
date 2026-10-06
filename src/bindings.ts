@@ -65,6 +65,16 @@ export const WORLD = {
   pause: { codes: [], key: 'Esc', labelKey: 'keys.pause' },
 } as const satisfies Record<string, Binding>
 
+// With the chat field open every other key types; these scroll the log.
+export const CHAT = {
+  scrollUp: { codes: ['PageUp'], key: 'PgUp', labelKey: 'keys.chat_scroll_up' },
+  scrollDown: {
+    codes: ['PageDown'],
+    key: 'PgDn',
+    labelKey: 'keys.chat_scroll_down',
+  },
+} as const satisfies Record<string, Binding>
+
 // With the pack open: these drive the carousel and nothing reaches the
 // player. Enter is a quiet alias for E.
 export const PACK = {

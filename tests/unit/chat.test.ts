@@ -1,8 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { CHAT_FADE_MS, CHAT_LINES, isFaded, pushLine } from '../../src/chat.ts'
+import {
+  CHAT_FADE_MS,
+  CHAT_LINES,
+  formatStamp,
+  isFaded,
+  pushLine,
+} from '../../src/chat.ts'
 import type { ChatLine } from '../../src/chat.ts'
 
-const line = (text: string): ChatLine => ({ kind: 'say', name: 'Dave', text })
+const line = (text: string): ChatLine => ({
+  kind: 'say',
+  name: 'Dave',
+  text,
+  at: 0,
+})
 
 describe('pushLine', () => {
   it('appends without touching the old log', () => {
@@ -31,8 +42,18 @@ describe('isFaded', () => {
     expect(isFaded(1000, 1000 + CHAT_FADE_MS, false)).toBe(true)
   })
 
-  it('never fades while typing', () => {
+  it('never fades while held', () => {
     expect(isFaded(null, 0, true)).toBe(false)
     expect(isFaded(0, CHAT_FADE_MS * 10, true)).toBe(false)
+  })
+})
+
+describe('formatStamp', () => {
+  it('reads local 24-hour time, zero-padded', () => {
+    expect(formatStamp(new Date(2026, 9, 6, 9, 5).getTime())).toBe('09:05')
+    expect(formatStamp(new Date(2026, 9, 6, 23, 59, 59).getTime())).toBe(
+      '23:59'
+    )
+    expect(formatStamp(new Date(2026, 9, 6, 0, 0).getTime())).toBe('00:00')
   })
 })

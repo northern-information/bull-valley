@@ -3,7 +3,7 @@
 // index.html stays a bare #bv-root.
 
 import { PACK, WORLD } from './bindings.ts'
-import { CHAT_LINES, isFaded, pushLine } from './chat.ts'
+import { CHAT_LINES, formatStamp, isFaded, pushLine } from './chat.ts'
 import { copy } from './copy.ts'
 import { KEEP } from './landmarks.ts'
 import { CHAT_MAX } from './protocol.ts'
@@ -103,6 +103,7 @@ export class Hud {
   chatInput: HTMLInputElement
   chatLines: ChatLine[] = []
   chatLastAt: number | null = null
+  chatHovered = false
   phone: HTMLDivElement
   scopeCanvas: HTMLCanvasElement
   promptEl: HTMLParagraphElement
@@ -158,6 +159,14 @@ export class Hud {
     this.chatLog = el('div', 'bv-chat-log')
     this.chatLog.setAttribute('role', 'log')
     this.chatLog.setAttribute('aria-label', copy('hud.chat_log_label'))
+    // Paused, with the cursor free, hovering holds the log up and the
+    // wheel scrolls it.
+    this.chatLog.addEventListener('pointerenter', () => {
+      this.chatHovered = true
+    })
+    this.chatLog.addEventListener('pointerleave', () => {
+      this.chatHovered = false
+    })
     this.chatInput = el('input', 'bv-chat-input')
     this.chatInput.type = 'text'
     this.chatInput.maxLength = CHAT_MAX
@@ -347,21 +356,46 @@ export class Hud {
 
   // A line the game says to the player alone, in the chat log.
   tell(text: string): void {
-    this.chatLine({ kind: 'system', text }, performance.now())
+    this.chatLine({ kind: 'system', text, at: Date.now() }, performance.now())
   }
 
-  // One line into the chat log. Text from the valley is untrusted, so it
-  // goes in as text, never markup.
+  // One line into the chat log, stamped and colored by who said it. Text
+  // from the valley is untrusted, so it goes in as text, never markup. A
+  // reader scrolled back through the log stays where they are.
   chatLine(line: ChatLine, now: number): void {
     this.chatLines = pushLine(this.chatLines, line)
     this.chatLastAt = now
-    this.chatLog.appendChild(
-      text('p', line.name ? `${line.name}: ${line.text}` : line.text)
-    )
-    while (this.chatLog.childElementCount > CHAT_LINES) {
-      this.chatLog.firstElementChild?.remove()
-    }
-    this.chatLog.scrollTop = this.chatLog.scrollHeight
+    const log = this.chatLog
+    const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 2
+    const stamp = el('span', 'bv-chat-stamp')
+    stamp.textContent = formatStamp(line.at)
+    const p = el('p', `bv-chat-line bv-chat-line--${line.kind}`)
+    p.append(stamp, line.name ? `${line.name}: ${line.text}` : line.text)
+    log.appendChild(p)
+    while (log.childElementCount > CHAT_LINES) log.firstElementChild?.remove()
+    if (atBottom) log.scrollTop = log.scrollHeight
+  }
+
+  private get chatLineHeight(): number {
+    return parseFloat(getComputedStyle(this.chatLog).lineHeight) || 20
+  }
+
+  // The wheel while typing, in pixels whatever unit the browser counts in.
+  wheelChat(e: WheelEvent): void {
+    const unit =
+      e.deltaMode === WheelEvent.DOM_DELTA_LINE
+        ? this.chatLineHeight
+        : e.deltaMode === WheelEvent.DOM_DELTA_PAGE
+          ? this.chatLog.clientHeight
+          : 1
+    this.chatLog.scrollTop += e.deltaY * unit
+  }
+
+  // Scroll the log a page up (-1) or down (1), keeping one line in view.
+  pageChat(dir: 1 | -1): void {
+    const line = this.chatLineHeight
+    this.chatLog.scrollTop +=
+      dir * Math.max(line, this.chatLog.clientHeight - line)
   }
 
   get chatOpen(): boolean {
@@ -374,19 +408,24 @@ export class Hud {
     this.chatInput.focus()
   }
 
-  // Closes the field and returns what was typed.
+  // Closes the field and returns what was typed; the log goes back to the
+  // newest line.
   closeChat(): string {
     const typed = this.chatInput.value
     this.chatInput.value = ''
     this.chatInput.hidden = true
     this.chatInput.blur()
+    this.chatLog.scrollTop = this.chatLog.scrollHeight
     return typed
   }
 
-  // The loop calls this every frame: the log fades once it goes quiet.
+  // The loop calls this every frame: the log fades once it goes quiet,
+  // unless it is held by typing or the cursor.
   tickChat(now: number): void {
-    const faded = isFaded(this.chatLastAt, now, this.chatOpen)
+    const held = this.chatOpen || this.chatHovered
+    const faded = isFaded(this.chatLastAt, now, held)
     this.chat.classList.toggle('bv-chat--faded', faded)
+    this.chat.classList.toggle('bv-chat--held', held)
   }
 
   // The selected ring item (carousel.ts entry) in text; items[index] may be
@@ -422,6 +461,8 @@ export class Hud {
   // while it is open without lock.
   setLocked(locked: boolean): void {
     this.root.classList.toggle('bv-shell--locked', locked)
+    // A locked cursor hovers nothing, and pointerleave never comes.
+    if (locked) this.chatHovered = false
     this.fields['inv-resume'].hidden = locked
   }
 
@@ -515,6 +556,7 @@ export class Hud {
 
   showIntro(show: boolean, paused?: boolean): void {
     this.intro.hidden = !show
+    this.root.classList.toggle('bv-shell--intro', show)
     if (show) this.setBegin(paused ? 'resume' : 'play')
   }
 }

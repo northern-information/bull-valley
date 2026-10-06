@@ -246,6 +246,8 @@ inventory = { text = "Inventory", by = "ai" }
 interact = { text = "Board / Hop Out / Take / Buy / Unload / Extract", by = "ai" }
 call_truck = { text = "Call the Truck", by = "ai" }
 chat = { text = "Chat", by = "ai" }
+chat_scroll_up = { text = "Scroll Up", by = "ai" }
+chat_scroll_down = { text = "Scroll Down", by = "ai" }
 pause = { text = "Pause", by = "ai" }
 use = { text = "Use", by = "ai" }
 cycle = { text = "Cycle", by = "ai" }
