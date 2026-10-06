@@ -122,9 +122,10 @@ next = { text = "Next", by = "tyler" }
 hint = { text = "← → Cycle · Enter Choose", by = "tyler" }
 hint_finish = { text = "← → Cycle · Up / Down Finish · R Randomize · Enter Choose", by = "tyler" }
 
-# Toasts: the game's own lines in the chat log (src/actions.ts, src/valleysync.ts, src/shop.ts).
+# The game's own lines in the chat log (src/actions.ts, src/valleysync.ts,
+# src/loop.ts, src/shop.ts).
 
-[toasts]
+[log]
 greeting = { text = "Matthew Marx keeps the engine running.", by = "ai" }
 welcome_one = { text = "One other in the valley.", by = "ai" }
 welcome_many = { text = "{count} others in the valley.", by = "ai" }
@@ -380,7 +381,7 @@ grape = { text = "Grape", by = "tyler" }
 hot-pink = { text = "Hot Pink", by = "tyler" }
 gunmetal = { text = "Gunmetal", by = "tyler" }
 
-# Items: the carousel name and description, and the toasts for using,
+# Items: the carousel name and description, and the log lines for using,
 # buying, picking, and running out. Ids match src/items.ts.
 
 [items.marlboro]

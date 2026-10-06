@@ -67,7 +67,7 @@ export function wirePointer(game: Game): () => void {
       hud.showIntro(false)
       if (!s.greeted) {
         s.greeted = true
-        hud.tell(copy('toasts.greeting'))
+        hud.tell(copy('log.greeting'))
       }
     } else if (s.started && !s.ended && !s.inventoryOpen && !s.talking) {
       hud.showIntro(true, true)

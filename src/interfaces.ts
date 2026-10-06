@@ -136,8 +136,8 @@ export interface Item {
   label: string
   blurb: string
   used?: string
-  // Items on the Citgo shelves have a price and a bought toast; forage
-  // has neither, and a collected toast instead.
+  // Items on the Citgo shelves have a price and a bought line; forage
+  // has neither, and a collected line instead.
   bought?: string
   collected?: string
   empty?: string

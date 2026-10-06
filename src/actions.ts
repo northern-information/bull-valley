@@ -124,7 +124,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       if (s.aboard || s.raid.state !== STATES.LOADOUT) return
       s.aboard = true
       net.send({ type: 'board' })
-      hud.tell(copy('toasts.board'))
+      hud.tell(copy('log.board'))
       closeInventory()
       return
     }
@@ -132,8 +132,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (next === s.raid) return
     s.raid = next
     truckLeaves()
-    hud.tell(copy('toasts.board'))
-    s.onTruckRolls = [copy('toasts.truck_leaves'), copy('toasts.hop_out_hint')]
+    hud.tell(copy('log.board'))
+    s.onTruckRolls = [copy('log.truck_leaves'), copy('log.hop_out_hint')]
     closeInventory()
   }
 
@@ -166,20 +166,20 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     closeInventory()
     player.keys.clear()
     player.relocate(world.spawn.x, world.spawn.z, world.spawn.yaw)
-    hud.tell(copy('toasts.struck'))
+    hud.tell(copy('log.struck'))
   }
 
   const callTruck = () => {
     if (s.raid.state !== STATES.ON_FOOT || s.raid.truckCalled) return
     if (s.shared?.call) {
-      hud.tell(copy('toasts.truck_busy'))
+      hud.tell(copy('log.truck_busy'))
       return
     }
     const from = nearestRoadPoint(graph, truck.x, truck.z)
     const to = nearestRoadPoint(graph, player.pos.x, player.pos.z)
     const route = from && to ? planRoute(graph, from, to) : null
     if (!from || !to || !route || route.length < 2) {
-      hud.tell(copy('toasts.whistle_nothing'))
+      hud.tell(copy('log.whistle_nothing'))
       return
     }
     if (s.shared) {
@@ -193,11 +193,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     }
     s.raid = advance(s.raid, EVENTS.CALL_TRUCK, s.raidClock)
     truck.driveRoute(route)
-    hud.tell(copy('toasts.whistle'))
+    hud.tell(copy('log.whistle'))
   }
 
   const pocket = (kind: string) => {
-    const { next, toast } = settle(
+    const { next, line } = settle(
       { raid: s.raid, inventory: s.inventory, cash: s.cash },
       kind,
       s.raidClock
@@ -209,11 +209,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       s.cash = next.cash
       if (inventoryChanged) refreshBag()
     }
-    if (toast) hud.tell(toast)
+    if (line) hud.tell(line)
   }
 
   const buy = (shelf: ShelfSpot) => {
-    const { next, toast } = buyItem(
+    const { next, line } = buyItem(
       {
         raid: s.raid,
         stock: s.storeStock,
@@ -226,7 +226,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       s.raidClock
     )
     if (!next) {
-      if (toast) hud.tell(toast)
+      if (line) hud.tell(line)
       return
     }
     if (s.shared) {
@@ -250,17 +250,17 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     s.inventory = next.inventory
     s.cash = next.cash
     if (inventoryChanged) refreshBag()
-    if (toast) hud.tell(toast)
+    if (line) hud.tell(line)
   }
 
   // E at the bush: ask the valley for today's berry, or say why not.
   const collectBerry = (status: DailyStatus) => {
     if (status === 'offline') {
-      hud.tell(copy('toasts.berry_offline'))
+      hud.tell(copy('log.berry_offline'))
       return
     }
     if (status === 'picked') {
-      hud.tell(copy('toasts.berry_picked'))
+      hud.tell(copy('log.berry_picked'))
       return
     }
     if (s.pendingCollect) return
@@ -273,7 +273,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     s.pendingCollect = false
     s.daily = msg.daily
     if (!msg.picked) {
-      hud.tell(copy('toasts.berry_picked'))
+      hud.tell(copy('log.berry_picked'))
       return
     }
     s.inventory = addItem(s.inventory, 'berries', 1)
@@ -316,16 +316,16 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   const applyTake = (pickup: Pickup) => {
     if (pickup.kind === 'cabbage') {
       if (!canPick(s.raid)) {
-        hud.tell(copy('toasts.arms_full'))
+        hud.tell(copy('log.arms_full'))
         return
       }
       s.raid = advance(s.raid, EVENTS.PICK_CABBAGE, s.raidClock)
       markTaken(pickup)
-      hud.tell(copy('toasts.taken', { item: copy('labels.cabbage') }))
+      hud.tell(copy('log.taken', { item: copy('labels.cabbage') }))
     } else {
       markTaken(pickup)
       s.inventory = addItem(s.inventory, pickup.kind, pickup.count)
-      hud.tell(copy('toasts.taken', { item: pickupLabel(pickup) }))
+      hud.tell(copy('log.taken', { item: pickupLabel(pickup) }))
     }
     s.interaction = null
     hud.prompt(null)
@@ -347,7 +347,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     const index = world.pickups.indexOf(pickup)
     if (index < 0 || s.pendingTakes.has(index)) return
     if (pickup.kind === 'cabbage' && !canPick(s.raid)) {
-      hud.tell(copy('toasts.arms_full'))
+      hud.tell(copy('log.arms_full'))
       return
     }
     s.pendingTakes.add(index)
@@ -391,11 +391,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   const interact = () => {
     // The raid state is live; the interaction is from the last frame.
     if (s.aboard) {
-      hopOut(copy('toasts.hop_out_wait'))
+      hopOut(copy('log.hop_out_wait'))
       return
     }
     if (s.raid.state === STATES.RIDING) {
-      hopOut(copy('toasts.hop_out_moving'))
+      hopOut(copy('log.hop_out_moving'))
       return
     }
     const interaction = s.interaction
@@ -415,8 +415,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         if (s.shared) net.send({ type: 'deliver' })
         hud.tell(
           count === 1
-            ? copy('toasts.unload_one')
-            : copy('toasts.unload_many', { count })
+            ? copy('log.unload_one')
+            : copy('log.unload_many', { count })
         )
         return
       }

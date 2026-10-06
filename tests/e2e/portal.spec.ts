@@ -30,5 +30,5 @@ test('the portal at the heart of the maze puts you back at the gate', async ({
   )
   await expect
     .poll(() => page.evaluate(() => window.__bv?.chat.at(-1)?.text))
-    .toBe(copy('toasts.portal'))
+    .toBe(copy('log.portal'))
 })
