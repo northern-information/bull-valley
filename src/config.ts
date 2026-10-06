@@ -231,4 +231,28 @@ export const CONFIG = {
     // Moab himself blocks like a post this wide.
     standRadius: 0.4,
   },
+  maze: {
+    // The corn maze across Lake Avenue from the spawn Citgo, station-local
+    // like the bush: its corner nearest the station, 20 m past the road's
+    // centreline and a little down the road, so it clears the two ponds
+    // opposite the store. maze.ts SHINING_MAZE is the layout, stretched to
+    // `size` (along the road, and away from it).
+    at: { x: 35, z: 30 },
+    size: { along: 400, across: 172 },
+    // Corn over a raider's head, and over the truck bed's eye.
+    wallHeight: 3.6,
+    // How thick each wall stands, and how far its stalks sink into the
+    // ground so a slope never shows daylight under it.
+    wallThickness: 2.2,
+    wallSink: 0.5,
+    // No wall piece runs longer than this, so the corn follows the ground.
+    pieceLength: 3,
+    // Trees keep this far off the corn.
+    treeClear: 6,
+    // The CORN MAZE! sign, station-local: on the verge by the maze's near
+    // corner, turned to face back across the road to the pump island.
+    sign: { x: 26, z: 24 },
+    // It blocks along its board, post to post, this wide.
+    signRadius: 0.12,
+  },
 }

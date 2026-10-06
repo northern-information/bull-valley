@@ -78,6 +78,7 @@ Strict TypeScript throughout, except `scripts/fetch_bull_valley.cjs`, which stay
 - `src/characterselect.ts` — the character select: one figure on a PS1 turntable with its own small renderer (the game's does not exist yet), mounted at boot beneath the account step and the title cards. It shows the account's username ("Raiding as") with Account and Sign Out
 - `src/finishes.ts` — pure: the guitar finishes in one table and the random draw; the select shows the row for any character with a guitar on their back
 - `src/cabbages.ts` — pure seeded cabbage placement
+- `src/maze.ts` — pure: the corn maze across Lake Avenue from the spawn Citgo, The Shining's hedge maze traced as a character grid (`SHINING_MAZE`), its walls as straight runs, and the pieces they are drawn in. `world.ts` plants it at `CONFIG.maze` (station-local) on `ground.at`, one `Walls` capsule per run, and keeps the trees out; scenery only, and shadowmen still walk through the corn. `src/mazeart.ts` paints the stalks and the CORN MAZE! sign
 - `src/items.ts` — pure: every item in one table (tuning, starting count, price in cents; the label, blurb and toasts come from `COPY.toml` `[items.<id>]`); edit items here. Meshes stay in `assets.ts`, keyed by id
 - `src/canvas.ts` — shared 2D canvas helpers (`context2d`, `canvas`, `text`, fonts: `MONO` for UI text, `SERIF`/`SANS` for trade dress) for the painted art
 - `src/packart.ts` — canvas trade-dress art for the cigarette packs

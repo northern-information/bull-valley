@@ -3,9 +3,16 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { paintAd } from './adart.ts'
 import { paintDrink } from './canart.ts'
 import { canvas, context2d, SANS, text } from './canvas.ts'
+import { CONFIG } from './config.ts'
 import { CONTAINERS } from './drinks.ts'
 import { DEFAULT_FINISH, finishById } from './finishes.ts'
 import { isCigarette, isDrink, isMedicine, itemById, ITEMS } from './items.ts'
+import { mazeSpans, SHINING_MAZE, spanPieces } from './maze.ts'
+import {
+  paintCornMazeSign,
+  paintCornStalks,
+  STALK_MASS_TOP,
+} from './mazeart.ts'
 import { paintMedicine } from './medart.ts'
 import { paintPack } from './packart.ts'
 import { applyPS1 } from './ps1.ts'
@@ -19,6 +26,7 @@ import type {
   MedicineForm,
   Vec3,
 } from './interfaces.ts'
+import type { Span } from './maze.ts'
 import type { MedicineArt } from './medart.ts'
 import type { Rng } from './rng.ts'
 import type { StoreFinish, StoreSign } from './store.ts'
@@ -805,6 +813,200 @@ function sampleStoreInterior(): THREE.Group {
     storeParts().filter((part) => part.name !== 'store-roof')
   )
   group.add(buildShelfDisplay().group)
+  return group
+}
+
+// --- Corn maze -----------------------------------------------------------
+
+// One piece of corn wall, a unit long (local X, centred), a unit thick
+// (local Z, centred) and a unit tall from its base, scaled per instance: a
+// dark opaque core, so nothing shows through, under a card of painted
+// stalks on each face whose tassels stand past the core's top for a ragged
+// skyline. The core stops under the painted mass so its flat top never
+// shows. Each piece's stalks carry their own tint.
+const CORN_CORE_TOP = 1 - STALK_MASS_TOP - 0.02
+const CORN_TINT_LOW = '#c2b682'
+const CORN_TINT_HIGH = '#ffffff'
+
+export function cornWallParts() {
+  const core = new THREE.BoxGeometry(1, CORN_CORE_TOP, 1)
+  core.translate(0, CORN_CORE_TOP / 2, 0)
+  const front = new THREE.PlaneGeometry(1, 1)
+  front.translate(0, 0.5, 0.51)
+  const back = new THREE.PlaneGeometry(1, 1)
+  back.rotateY(Math.PI)
+  back.translate(0, 0.5, -0.51)
+  const stalks = mergeGeometries([front, back])
+  return {
+    core: {
+      name: 'corn-core',
+      geometry: core,
+      material: lambert({ color: '#2c2e16' }),
+    },
+    // White under the art: each instance carries its own tint.
+    stalks: {
+      name: 'corn-stalks',
+      geometry: stalks,
+      material: lambert({
+        map: artTexture(paintCornStalks()),
+        alphaTest: 0.5,
+      }),
+    },
+  }
+}
+
+// A stretch of corn wall from a to b, both on the ground at its foot.
+export interface CornPiece {
+  a: Vec3
+  b: Vec3
+}
+
+export interface CornWallSize {
+  height: number
+  thickness: number
+  // How far the foot sinks under the ground, so a slope across the
+  // wall's thickness never shows daylight under it.
+  sink: number
+}
+
+// The pieces are bucketed into square tiles, one InstancedMesh per part
+// per tile, so frustum culling skips the stretches of corn out of view.
+const CORN_TILE = 100
+
+// Corn wall pieces as instances: each piece pitched along its slope, its
+// foot sunk under the ground, its tint drawn from its own seed.
+export function buildCornWalls(
+  pieces: readonly CornPiece[],
+  { height, thickness, sink }: CornWallSize
+): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'corn-maze'
+  const parts = cornWallParts()
+  const tiles = new Map<string, CornPiece[]>()
+  for (const piece of pieces) {
+    const x = (piece.a[0] + piece.b[0]) / 2
+    const z = (piece.a[2] + piece.b[2]) / 2
+    const key = `${Math.floor(x / CORN_TILE)},${Math.floor(z / CORN_TILE)}`
+    const list = tiles.get(key) ?? []
+    list.push(piece)
+    tiles.set(key, list)
+  }
+  const rng = mulberry32(0xc022)
+  const low = new THREE.Color(CORN_TINT_LOW)
+  const high = new THREE.Color(CORN_TINT_HIGH)
+  const tint = new THREE.Color()
+  const m = new THREE.Matrix4()
+  const q = new THREE.Quaternion()
+  const euler = new THREE.Euler(0, 0, 0, 'YXZ')
+  const pos = new THREE.Vector3()
+  const scale = new THREE.Vector3()
+  for (const tile of tiles.values()) {
+    const cores = new THREE.InstancedMesh(
+      parts.core.geometry,
+      parts.core.material,
+      tile.length
+    )
+    const stalks = new THREE.InstancedMesh(
+      parts.stalks.geometry,
+      parts.stalks.material,
+      tile.length
+    )
+    tile.forEach(({ a, b }, i) => {
+      const dx = b[0] - a[0]
+      const dy = b[1] - a[1]
+      const dz = b[2] - a[2]
+      const run = Math.hypot(dx, dz)
+      // Turn local +X along the piece, then tip it up its slope.
+      euler.set(0, Math.atan2(-dz, dx), Math.atan2(dy, run))
+      m.compose(
+        pos.set((a[0] + b[0]) / 2, (a[1] + b[1]) / 2 - sink, (a[2] + b[2]) / 2),
+        q.setFromEuler(euler),
+        scale.set(Math.hypot(run, dy), height + sink, thickness)
+      )
+      cores.setMatrixAt(i, m)
+      stalks.setMatrixAt(i, m)
+      stalks.setColorAt(i, tint.copy(low).lerp(high, rng()))
+    })
+    cores.instanceMatrix.needsUpdate = true
+    stalks.instanceMatrix.needsUpdate = true
+    if (stalks.instanceColor) stalks.instanceColor.needsUpdate = true
+    group.add(cores, stalks)
+  }
+  return group
+}
+
+// The maze's pieces on flat ground, in maze-local metres.
+function flatCornPieces(spans: readonly Span[]): CornPiece[] {
+  const { wallThickness, pieceLength } = CONFIG.maze
+  return spans
+    .flatMap((span) => spanPieces(span, wallThickness / 2, pieceLength))
+    .map(({ a, b }) => ({ a: [a.x, 0, a.z], b: [b.x, 0, b.z] }))
+}
+
+function cornWallSize(): CornWallSize {
+  const { wallHeight, wallThickness, wallSink } = CONFIG.maze
+  return { height: wallHeight, thickness: wallThickness, sink: wallSink }
+}
+
+// A corner of corn for the Akashic page: two walls meeting square.
+function sampleCornWall(): THREE.Group {
+  const spans: Span[] = [
+    { a: { x: 0, z: 0 }, b: { x: 8, z: 0 } },
+    { a: { x: 0, z: 0 }, b: { x: 0, z: 6 } },
+  ]
+  return buildCornWalls(flatCornPieces(spans), cornWallSize())
+}
+
+// The whole maze on flat ground, to hold against the film's.
+function sampleCornMaze(): THREE.Group {
+  const spans = mazeSpans(SHINING_MAZE, CONFIG.maze.size)
+  return buildCornWalls(flatCornPieces(spans), cornWallSize())
+}
+
+// The CORN MAZE! sign: a painted plywood board on two posts, its art on
+// the +Z face and glowing a little through its own emissiveMap so it reads
+// by headlight. Origin at ground level under the middle; the posts sink
+// into the ground.
+export const CORN_SIGN = {
+  width: 3,
+  height: 2,
+  bottom: 0.7,
+  postX: 1.25,
+  post: 0.1,
+  sink: 0.5,
+}
+
+export function buildCornMazeSign(): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'corn-maze-sign'
+  const { width, height, bottom, postX, post, sink } = CORN_SIGN
+  const wood = lambert({ color: '#5a4630' })
+  const postH = bottom + height + sink
+  for (const side of [-1, 1]) {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(post, postH, post), wood)
+    mesh.position.set(side * postX, postH / 2 - sink, -post / 2 - 0.02)
+    group.add(mesh)
+  }
+  const texture = artTexture(paintCornMazeSign())
+  const face = lambert({
+    map: texture,
+    emissive: new THREE.Color('#ffffff'),
+    emissiveMap: texture,
+    emissiveIntensity: 0.45,
+  })
+  const back = lambert({ color: '#8a7552' })
+  // BoxGeometry face order is +x, -x, +y, -y, +z, -z.
+  const board = new THREE.Mesh(new THREE.BoxGeometry(width, height, 0.04), [
+    back,
+    back,
+    back,
+    back,
+    face,
+    back,
+  ])
+  board.position.y = bottom + height / 2
+  group.add(board)
+  mergeStatic(group)
   return group
 }
 
@@ -3835,6 +4037,13 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     build: () => assembleParts(trashCanParts()),
   },
   { id: 'tree', label: 'Tree', build: sampleTree },
+  { id: 'corn-wall', label: 'Corn maze: wall corner', build: sampleCornWall },
+  { id: 'corn-maze', label: 'Corn maze: whole layout', build: sampleCornMaze },
+  {
+    id: 'corn-maze-sign',
+    label: 'Corn maze: sign',
+    build: buildCornMazeSign,
+  },
   { id: 'pole', label: 'Utility pole', build: samplePole },
   { id: 'streetlight', label: 'Streetlight', build: sampleStreetlight },
   { id: 'reeds', label: 'Reeds (clump of 12)', build: sampleReeds },

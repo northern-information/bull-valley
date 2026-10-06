@@ -2,11 +2,14 @@ import * as THREE from 'three'
 import {
   boundaryMaterial,
   buildBerryBush,
+  buildCornMazeSign,
+  buildCornWalls,
   buildLandmarkBeacon,
   buildPickup,
   buildShelfDisplay,
   CANOPY,
   castShadows,
+  CORN_SIGN,
   fenceMaterial,
   FUEL_LAYOUT,
   fuelStationParts,
@@ -54,6 +57,7 @@ import {
   landmarkWorldPositions,
   CABBAGE_STAND as STAND_NAME,
 } from './landmarks.ts'
+import { inMaze, mazeSpans, SHINING_MAZE, spanPieces } from './maze.ts'
 import { samplePose } from './poses.ts'
 import { mulberry32, range } from './rng.ts'
 import { placeRoadside, roadWidth } from './roadside.ts'
@@ -67,6 +71,7 @@ import {
   worldFacings,
 } from './store.ts'
 import { Walls } from './walls.ts'
+import type { CornPiece } from './assets.ts'
 import type { GronRig, MoabRig } from './figure.ts'
 import type {
   Geo,
@@ -509,7 +514,8 @@ function buildTrees(
   metres: Metres,
   heightAt: HeightAt,
   mask: OccupancyMask,
-  rng: Rng
+  rng: Rng,
+  keepOut: (x: number, z: number) => boolean
 ): THREE.Group {
   const candidates: UnitPoint[] = []
   // Caps scaled for the ~15 km frame (2.6x the original survey's area).
@@ -535,7 +541,22 @@ function buildTrees(
     }
   }
 
-  const count = candidates.length
+  // Every candidate draws its shape, kept or not, so the rng reaches the
+  // reeds, graves and pickups after it in the same state either way.
+  const trees = candidates.flatMap(([u, v]) => {
+    const { x, z } = unitToWorld(u, v, metres)
+    const tree = {
+      x,
+      z,
+      trunkH: range(rng, 2.2, 4.2),
+      canopyH: range(rng, 4, 8),
+      canopyR: range(rng, 1.5, 3),
+      yaw: rng() * Math.PI * 2,
+      tint: rng(),
+    }
+    return keepOut(x, z) ? [] : [tree]
+  })
+  const count = trees.length
   const parts = treeParts()
   const trunks = new THREE.InstancedMesh(
     parts.trunk.geometry,
@@ -551,15 +572,10 @@ function buildTrees(
   const canopyLow = new THREE.Color(TREE_CANOPY_LOW)
   const canopyHigh = new THREE.Color(TREE_CANOPY_HIGH)
   const tint = new THREE.Color()
-  for (let i = 0; i < count; i++) {
-    const [u, v] = candidates[i]
-    const { x, z } = unitToWorld(u, v, metres)
+  trees.forEach(({ x, z, trunkH, canopyH, canopyR, yaw, tint: t }, i) => {
     const y = heightAt(x, z)
-    const trunkH = range(rng, 2.2, 4.2)
-    const canopyH = range(rng, 4, 8)
-    const canopyR = range(rng, 1.5, 3)
     dummy.position.set(x, y, z)
-    dummy.rotation.set(0, rng() * Math.PI * 2, 0)
+    dummy.rotation.set(0, yaw, 0)
     dummy.scale.set(1, trunkH, 1)
     dummy.updateMatrix()
     trunks.setMatrixAt(i, dummy.matrix)
@@ -567,8 +583,8 @@ function buildTrees(
     dummy.scale.set(canopyR, canopyH, canopyR)
     dummy.updateMatrix()
     canopies.setMatrixAt(i, dummy.matrix)
-    canopies.setColorAt(i, tint.copy(canopyLow).lerp(canopyHigh, rng()))
-  }
+    canopies.setColorAt(i, tint.copy(canopyLow).lerp(canopyHigh, t))
+  })
   trunks.instanceMatrix.needsUpdate = true
   canopies.instanceMatrix.needsUpdate = true
   if (canopies.instanceColor) canopies.instanceColor.needsUpdate = true
@@ -1472,6 +1488,90 @@ function chooseSpawnStation(
   return best ? best.station : null
 }
 
+// Where the corn maze lies: maze-local metres (maze.ts, x away from the
+// road and z along it) to the world through the spawn station's frame
+// (CONFIG.maze.at, station-local), and back.
+interface MazeFrame {
+  toWorld(x: number, z: number): XZ
+  covers(x: number, z: number, margin: number): boolean
+}
+
+function mazeFrame(station: StoreOrigin): MazeFrame {
+  const { at, size } = CONFIG.maze
+  const cos = Math.cos(station.yaw)
+  const sin = Math.sin(station.yaw)
+  return {
+    toWorld(x, z) {
+      const [wx, , wz] = toWorld(station, [at.x + x, 0, at.z + z])
+      return { x: wx, z: wz }
+    },
+    covers(x, z, margin) {
+      // toWorld's turn, undone.
+      const dx = x - station.x
+      const dz = z - station.z
+      const lx = cos * dx + sin * dz
+      const lz = -sin * dx + cos * dz
+      return inMaze(size, lx - at.x, lz - at.z, margin)
+    },
+  }
+}
+
+// The corn maze across the road from the spawn Citgo, after the hedge
+// maze in The Shining (maze.ts). Each wall stands on the ground in pieces
+// short enough to follow it and blocks as one capsule along its
+// centreline; the CORN MAZE! sign stands on the verge by the near corner,
+// facing the pump island, and blocks along its board.
+function buildCornMaze(
+  frame: MazeFrame,
+  station: StoreOrigin,
+  ground: Ground,
+  walls: Walls
+): THREE.Group {
+  const { size, wallHeight, wallThickness, wallSink, pieceLength } = CONFIG.maze
+  const half = wallThickness / 2
+  const spans = mazeSpans(SHINING_MAZE, size)
+  const pieces: CornPiece[] = []
+  for (const span of spans) {
+    const a = frame.toWorld(span.a.x, span.a.z)
+    const b = frame.toWorld(span.b.x, span.b.z)
+    walls.addWall(a, b, half)
+    for (const piece of spanPieces(span, half, pieceLength)) {
+      const pa = frame.toWorld(piece.a.x, piece.a.z)
+      const pb = frame.toWorld(piece.b.x, piece.b.z)
+      pieces.push({
+        a: [pa.x, ground.at(pa.x, pa.z), pa.z],
+        b: [pb.x, ground.at(pb.x, pb.z), pb.z],
+      })
+    }
+  }
+  const group = buildCornWalls(pieces, {
+    height: wallHeight,
+    thickness: wallThickness,
+    sink: wallSink,
+  })
+
+  const [sx, , sz] = toWorld(station, [
+    CONFIG.maze.sign.x,
+    0,
+    CONFIG.maze.sign.z,
+  ])
+  const sign = buildCornMazeSign()
+  sign.position.set(sx, ground.at(sx, sz), sz)
+  // The board faces +Z; turn it to the pump island at the origin.
+  const yaw = Math.atan2(station.x - sx, station.z - sz)
+  sign.rotation.y = yaw
+  group.add(sign)
+  // Its local +X, along the board, after the turn.
+  const dx = Math.cos(yaw) * CORN_SIGN.postX
+  const dz = -Math.sin(yaw) * CORN_SIGN.postX
+  walls.addWall(
+    { x: sx - dx, z: sz - dz },
+    { x: sx + dx, z: sz + dz },
+    CONFIG.maze.signRadius
+  )
+  return group
+}
+
 export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   const metres = geo.metres
   const rng = mulberry32(0x5cad0)
@@ -1490,7 +1590,13 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   const fuel = buildFuelStations(geo, metres, heightAt, ground, walls)
   const shelves = buildShelves(fuel.points)
   group.add(shelves.group)
-  group.add(buildTrees(geo, metres, ground.at, mask, rng))
+  const spawnStation = chooseSpawnStation(geo, metres, fuel.points)
+  const maze = spawnStation ? mazeFrame(spawnStation) : null
+  group.add(
+    buildTrees(geo, metres, ground.at, mask, rng, (x, z) =>
+      maze ? maze.covers(x, z, CONFIG.maze.treeClear) : false
+    )
+  )
   // The roadside draws from its own seed, so retuning the poles never moves
   // the reeds, graves or pickups that draw after it.
   const roadside = placeRoadside(geo.roads, metres, { avoid: fuel.points })
@@ -1510,8 +1616,10 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   group.add(buildBoundary(geo, metres, ground.at))
   const pickupSet = buildPickups(geo, metres, ground.at, fuel.points, rng)
   group.add(pickupSet.group)
+  if (spawnStation && maze) {
+    group.add(buildCornMaze(maze, spawnStation, ground, walls))
+  }
 
-  const spawnStation = chooseSpawnStation(geo, metres, fuel.points)
   const spawn: Spawn = spawnStation
     ? { x: spawnStation.x + 5, z: spawnStation.z + 5, yaw: 0 }
     : { x: 0, z: 0, yaw: 0 }
