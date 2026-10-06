@@ -616,11 +616,12 @@ class AuthHandler {
     profile: Profile
   ): Promise<Account> {
     const key = providerKey(provider, profile.id)
-    const existing = await this.store.findByProvider(key)
-    if (existing) {
-      const account = await this.store.get(existing.accountId)
-      if (account) return account
+    const claimed = async (): Promise<Account | null> => {
+      const existing = await this.store.findByProvider(key)
+      return existing ? this.store.get(existing.accountId) : null
     }
+    const existing = await claimed()
+    if (existing) return existing
     const now = this.now()
     const account: Account = {
       accountId: crypto.randomUUID(),
@@ -630,11 +631,15 @@ class AuthHandler {
       createdAt: now,
       lastLoginAt: now,
     }
-    await this.store.create(
+    const created = await this.store.create(
       account,
       this.linked(account.accountId, provider, profile)
     )
-    return account
+    if (created) return account
+    // A second confirm raced this one and claimed the provider first.
+    const winner = await claimed()
+    if (!winner) throw new Error(`${key} is linked to no account`)
+    return winner
   }
 
   private async confirmSignup(): Promise<Response> {

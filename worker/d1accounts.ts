@@ -80,22 +80,30 @@ export class D1AccountStore implements AccountStore {
     return row ? toAccount(row) : null
   }
 
-  async create(account: Account, provider: LinkedProvider): Promise<void> {
-    await this.db.batch([
-      this.db
-        .prepare(
-          'INSERT INTO accounts (account_id, username, role, primary_provider, created_at, last_login_at) VALUES (?, ?, ?, ?, ?, ?)'
-        )
-        .bind(
-          account.accountId,
-          account.username,
-          account.role,
-          account.primaryProvider,
-          account.createdAt,
-          account.lastLoginAt
-        ),
-      this.insertProvider(provider),
-    ])
+  async create(account: Account, provider: LinkedProvider): Promise<boolean> {
+    try {
+      await this.db.batch([
+        this.db
+          .prepare(
+            'INSERT INTO accounts (account_id, username, role, primary_provider, created_at, last_login_at) VALUES (?, ?, ?, ?, ?, ?)'
+          )
+          .bind(
+            account.accountId,
+            account.username,
+            account.role,
+            account.primaryProvider,
+            account.createdAt,
+            account.lastLoginAt
+          ),
+        this.insertProvider(provider),
+      ])
+    } catch (err) {
+      // Linked by another request since the caller looked; the batch is one
+      // transaction, so the account row went too.
+      if (isUniqueViolation(err)) return false
+      throw err
+    }
+    return true
   }
 
   async touchLogin(accountId: string, now: number): Promise<void> {
@@ -202,18 +210,26 @@ export class D1AccountStore implements AccountStore {
     if (linked.length <= 1) return 'last-provider'
     const target = linked.find((p) => p.provider === provider)
     if (!target) return 'not-linked'
-    const next = linked.find((p) => p.providerKey !== target.providerKey)
-    await this.db.batch([
-      this.db
-        .prepare('DELETE FROM providers WHERE provider_key = ?')
-        .bind(target.providerKey),
+    // The delete counts the providers itself, so two unlinks at once can
+    // never take the last one; the primary then moves to the oldest left.
+    const [removed] = await this.db.batch([
       this.db
         .prepare(
-          'UPDATE accounts SET primary_provider = ? WHERE account_id = ? AND primary_provider = ?'
+          'DELETE FROM providers WHERE provider_key = ? AND ' +
+            '(SELECT COUNT(*) FROM providers WHERE account_id = ?) > 1'
         )
-        .bind(next?.providerKey ?? null, accountId, target.providerKey),
+        .bind(target.providerKey, accountId),
+      this.db
+        .prepare(
+          'UPDATE accounts SET primary_provider = (' +
+            'SELECT provider_key FROM providers WHERE account_id = ?1 ' +
+            'ORDER BY linked_at, provider_key LIMIT 1' +
+            ') WHERE account_id = ?1 AND primary_provider NOT IN (' +
+            'SELECT provider_key FROM providers WHERE account_id = ?1)'
+        )
+        .bind(accountId),
     ])
-    return 'ok'
+    return (removed?.meta.changes ?? 0) > 0 ? 'ok' : 'last-provider'
   }
 
   async lookOf(accountId: string): Promise<LookWire> {

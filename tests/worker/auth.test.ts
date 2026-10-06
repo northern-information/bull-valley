@@ -371,6 +371,31 @@ describe('confirm-signup and username', () => {
     expect(s.accounts.size).toBe(1)
   })
 
+  it('a confirm that loses the race to the insert signs in to the winner', async () => {
+    const s = new MemoryAccountStore()
+    const jar = new Jar()
+    await signIn(jar, { id: 5, login: 'five' }, s)
+    const pending = jar.cookies[COOKIE.pending]
+    await call('/auth/confirm-signup', { method: 'POST', jar, store: s })
+    const [winner] = s.accounts.keys()
+    // The second tab looks before the first one's insert lands.
+    const find = s.findByProvider.bind(s)
+    let misses = 1
+    s.findByProvider = (key) =>
+      misses-- > 0 ? Promise.resolve(null) : find(key)
+    const tab2 = new Jar()
+    tab2.cookies[COOKIE.pending] = pending
+    const { res } = await call('/auth/confirm-signup', {
+      method: 'POST',
+      jar: tab2,
+      store: s,
+    })
+    expect(res.status).toBe(200)
+    expect(s.accounts.size).toBe(1)
+    const body = await res.json<{ account: { accountId: string } }>()
+    expect(body.account).toMatchObject({ accountId: winner })
+  })
+
   it('changes a username at Gron, and the session names the new one', async () => {
     const s = new MemoryAccountStore()
     const jar = new Jar()

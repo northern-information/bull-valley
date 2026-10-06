@@ -52,6 +52,18 @@ export function storeContract(makeStore: () => AccountStore): void {
     expect(await store.findByProvider('github:9')).toBeNull()
   })
 
+  it('creates nothing when the first provider is already linked', async () => {
+    const store = makeStore()
+    expect(
+      await store.create(account('a1', 'github:1'), linked('a1', 'github', '1'))
+    ).toBe(true)
+    expect(
+      await store.create(account('a2', 'github:1'), linked('a2', 'github', '1'))
+    ).toBe(false)
+    expect(await store.get('a2')).toBeNull()
+    expect((await store.findByProvider('github:1'))?.accountId).toBe('a1')
+  })
+
   it('records the latest login and profile', async () => {
     const store = makeStore()
     await store.create(account('a1', 'github:1'), linked('a1', 'github', '1'))
@@ -187,15 +199,6 @@ describe('D1AccountStore', () => {
     expect(await store.hotbarOf('a1')).toEqual(EMPTY_HOTBAR)
   })
 
-  it('creates nothing when the first provider is already linked', async () => {
-    const { store } = await seeded()
-    await expect(
-      store.create(account('a2', 'github:1'), linked('a2', 'github', '1'))
-    ).rejects.toThrow(/UNIQUE/)
-    // The batch is one transaction: the account row went too.
-    expect(await store.get('a2')).toBeNull()
-  })
-
   it('answers linked-elsewhere when a link loses the race to the insert', async () => {
     const { store } = await seeded()
     await store.create(account('a2', 'google:2'), linked('a2', 'google', '2'))
@@ -206,6 +209,19 @@ describe('D1AccountStore', () => {
     expect(await racing.linkProvider(linked('a1', 'discord', '3'))).toBe(
       'linked-elsewhere'
     )
+  })
+
+  it('never unlinks the last provider, even two unlinks at once', async () => {
+    const { store } = await seeded()
+    await store.linkProvider(linked('a1', 'discord', '3', 2000))
+    const [first, second] = await Promise.all([
+      store.unlinkProvider('a1', 'github'),
+      store.unlinkProvider('a1', 'discord'),
+    ])
+    expect([first, second].sort()).toEqual(['last-provider', 'ok'])
+    const left = await store.providersOf('a1')
+    expect(left).toHaveLength(1)
+    expect((await store.get('a1'))?.primaryProvider).toBe(left[0].providerKey)
   })
 
   it('rethrows a database error that is not a taken name', async () => {
