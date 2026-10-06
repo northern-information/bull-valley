@@ -18,6 +18,7 @@ import {
   gravestonePart,
   lotMaterial,
   makeGlowSprite,
+  mudMaterial,
   POLE_ARM_DROP,
   POLE_INSULATOR_X,
   poleParts,
@@ -59,7 +60,17 @@ import {
   landmarkWorldPositions,
   CABBAGE_STAND as STAND_NAME,
 } from './landmarks.ts'
-import { inMaze, mazeSpans, SHINING_MAZE, spanPieces } from './maze.ts'
+import {
+  cellPoint,
+  inMaze,
+  mazeGates,
+  mazeHeart,
+  mazeSpans,
+  mazeWalk,
+  SHINING_MAZE,
+  spanPieces,
+} from './maze.ts'
+import { MUD_TILE_LENGTH } from './mudart.ts'
 import { samplePose } from './poses.ts'
 import { mulberry32, range } from './rng.ts'
 import { placeRoadside, roadWidth } from './roadside.ts'
@@ -406,6 +417,127 @@ function buildMask(
       return mask[j * N + k] === 1
     },
   }
+}
+
+// Worn mud (mudMaterial): strips draped on the terrain, every row of the
+// strip at most MUD_STEP along from the last so it follows the ground, and
+// gathered into one mesh. u runs across a strip from one edge to the
+// other and v along it, a tile every MUD_TILE_LENGTH metres. Mud sits
+// under the lots and the roads, so they cover it where they meet.
+const MUD_LIFT = 0.24
+const MUD_STEP = 15
+// A road's muddy shoulder: this wide off each edge, its inner edge tucked
+// this far under the road so the fray never shows a gap.
+const SHOULDER_WIDTH = 1.8
+const SHOULDER_TUCK = 0.5
+
+function makeMudAccumulator(terrain: HeightAt) {
+  const positions: number[] = []
+  const uvs: number[] = []
+  const index: number[] = []
+  return {
+    // A strip along `line`, its two edges at signed offsets `from` and
+    // `to` off the line (positive to the line's right, looking along it).
+    strip(line: readonly XZ[], from: number, to: number) {
+      const points: XZ[] = []
+      for (let i = 0; i < line.length - 1; i++) {
+        const a = line[i]
+        const b = line[i + 1]
+        const n = Math.max(
+          1,
+          Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / MUD_STEP)
+        )
+        for (let k = 0; k < n; k++) {
+          points.push({
+            x: a.x + ((b.x - a.x) * k) / n,
+            z: a.z + ((b.z - a.z) * k) / n,
+          })
+        }
+      }
+      points.push(line[line.length - 1])
+      if (points.length < 2) return
+      let along = 0
+      for (let i = 0; i < points.length; i++) {
+        const a = points[Math.max(0, i - 1)]
+        const b = points[Math.min(points.length - 1, i + 1)]
+        const len = Math.hypot(b.x - a.x, b.z - a.z) || 1
+        // The right-hand normal, looking along the line.
+        const rx = -(b.z - a.z) / len
+        const rz = (b.x - a.x) / len
+        if (i > 0) {
+          const p = points[i - 1]
+          along += Math.hypot(points[i].x - p.x, points[i].z - p.z)
+        }
+        for (const [offset, u] of [
+          [from, 0],
+          [to, 1],
+        ]) {
+          const x = points[i].x + rx * offset
+          const z = points[i].z + rz * offset
+          positions.push(x, terrain(x, z) + MUD_LIFT, z)
+          uvs.push(u, along / MUD_TILE_LENGTH)
+        }
+        if (i === 0) continue
+        const v = positions.length / 3 - 4
+        index.push(v, v + 2, v + 1, v + 1, v + 2, v + 3)
+      }
+    },
+    build(name: string): THREE.Mesh {
+      const geometry = new THREE.BufferGeometry()
+      geometry.setAttribute(
+        'position',
+        new THREE.BufferAttribute(new Float32Array(positions), 3)
+      )
+      geometry.setAttribute(
+        'uv',
+        new THREE.BufferAttribute(new Float32Array(uvs), 2)
+      )
+      const normals = new Float32Array(positions.length)
+      for (let i = 0; i < normals.length; i += 3) normals[i + 1] = 1
+      geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3))
+      geometry.setIndex(index)
+      const mesh = new THREE.Mesh(geometry, mudMaterial())
+      mesh.name = name
+      return mesh
+    },
+  }
+}
+
+// A line moved `offset` to its right (looking along it), each point along
+// the average of its neighbouring segments' normals.
+function offsetLine(line: readonly XZ[], offset: number): XZ[] {
+  return line.map((p, i) => {
+    const a = line[Math.max(0, i - 1)]
+    const b = line[Math.min(line.length - 1, i + 1)]
+    const len = Math.hypot(b.x - a.x, b.z - a.z) || 1
+    return {
+      x: p.x - ((b.z - a.z) / len) * offset,
+      z: p.z + ((b.x - a.x) / len) * offset,
+    }
+  })
+}
+
+// A muddy shoulder off both edges of every road, registered on the ground
+// as a trail either side, clear of the road deck itself.
+function buildShoulders(
+  geo: Pick<Geo, 'roads'>,
+  metres: Metres,
+  terrain: HeightAt,
+  ground: Ground
+): THREE.Mesh {
+  const mud = makeMudAccumulator(terrain)
+  for (const road of geo.roads) {
+    if (road.p.length < 2) continue
+    const line = road.p.map(([u, v]) => unitToWorld(u, v, metres))
+    const half = roadWidth(road.c) / 2
+    const middle = half + SHOULDER_WIDTH / 2
+    mud.strip(line, half - SHOULDER_TUCK, half + SHOULDER_WIDTH)
+    mud.strip(line, -half - SHOULDER_WIDTH, -half + SHOULDER_TUCK)
+    for (const side of [-1, 1]) {
+      ground.addTrail(offsetLine(line, side * middle), SHOULDER_WIDTH, MUD_LIFT)
+    }
+  }
+  return mud.build('shoulders')
 }
 
 // Roads ride the terrain at their centreline heights; each one registers
@@ -1526,6 +1658,7 @@ function mazeFrame(station: StoreOrigin): MazeFrame {
 function buildCornMaze(
   frame: MazeFrame,
   station: StoreOrigin,
+  terrain: HeightAt,
   ground: Ground,
   walls: Walls
 ): THREE.Group {
@@ -1551,6 +1684,42 @@ function buildCornMaze(
     thickness: wallThickness,
     sink: wallSink,
   })
+
+  // The worn trail: from the heart of the maze out through the gate by the
+  // shortest walk, then across the verge to the road by the sign. Each leg
+  // is its own strip, pushed out half a width at both ends so the corners
+  // close; the whole trail registers on the ground.
+  const [gate] = mazeGates(SHINING_MAZE)
+  const walk = mazeWalk(SHINING_MAZE, mazeHeart(SHINING_MAZE), gate)
+  const trail = [
+    ...walk.map((cell) => {
+      const p = cellPoint(SHINING_MAZE, size, cell)
+      return frame.toWorld(p.x, p.z)
+    }),
+    ...CONFIG.maze.trailOut.map((p) => {
+      const [x, , z] = toWorld(station, [p.x, 0, p.z])
+      return { x, z }
+    }),
+  ]
+  const width = CONFIG.maze.trailWidth
+  const mud = makeMudAccumulator(terrain)
+  for (let i = 0; i < trail.length - 1; i++) {
+    const a = trail[i]
+    const b = trail[i + 1]
+    const len = Math.hypot(b.x - a.x, b.z - a.z) || 1
+    const ux = ((b.x - a.x) / len) * (width / 2)
+    const uz = ((b.z - a.z) / len) * (width / 2)
+    mud.strip(
+      [
+        { x: a.x - ux, z: a.z - uz },
+        { x: b.x + ux, z: b.z + uz },
+      ],
+      -width / 2,
+      width / 2
+    )
+  }
+  ground.addTrail(trail, width, MUD_LIFT)
+  group.add(mud.build('maze-trail'))
 
   // A sign at a station-local spot, its board (which faces +Z) turned to
   // the world direction `face` gives from where it stands, blocking post
@@ -1603,6 +1772,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   const roads = buildRoads(geo, metres, heightAt, ground)
   roads.receiveShadow = true
   group.add(roads)
+  group.add(buildShoulders(geo, metres, heightAt, ground))
   group.add(buildWater(geo, metres, heightAt))
   const fuel = buildFuelStations(geo, metres, heightAt, ground, walls)
   const shelves = buildShelves(fuel.points)
@@ -1634,7 +1804,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   const pickupSet = buildPickups(geo, metres, ground.at, fuel.points, rng)
   group.add(pickupSet.group)
   if (spawnStation && maze) {
-    group.add(buildCornMaze(maze, spawnStation, ground, walls))
+    group.add(buildCornMaze(maze, spawnStation, heightAt, ground, walls))
   }
 
   const spawn: Spawn = spawnStation

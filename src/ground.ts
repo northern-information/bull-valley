@@ -29,6 +29,17 @@ interface Segment {
   lift: number
 }
 
+// A run of trail between two points, half a width either side: draped on
+// the terrain and lifted off it, the way a mud trail or a road's muddy
+// shoulder is drawn, so its deck follows the ground both ways.
+interface TrailSegment {
+  kind: 'trail'
+  a: XZ
+  b: XZ
+  half: number
+  lift: number
+}
+
 // A rectangle draped on the terrain and lifted off it: `along` runs from
 // x0 to x1 on the axis (cos, sin) through (x, z); halfWidth spans the
 // perpendicular.
@@ -58,7 +69,7 @@ interface Floor {
   y: number
 }
 
-type Surface = Segment | Patch | Floor
+type Surface = Segment | TrailSegment | Patch | Floor
 
 export class Ground {
   // The height to stand on at (x, z). Bound, so it passes as a HeightAt.
@@ -82,6 +93,23 @@ export class Ground {
       const b = points[i + 1]
       this.register(
         { kind: 'segment', a, b, half, lift },
+        Math.min(a.x, b.x) - half,
+        Math.min(a.z, b.z) - half,
+        Math.max(a.x, b.x) + half,
+        Math.max(a.z, b.z) + half
+      )
+    }
+  }
+
+  // A trail along a line of points, `width` across, draped `lift` above
+  // the terrain.
+  addTrail(points: readonly XZ[], width: number, lift: number) {
+    const half = width / 2
+    for (let i = 0; i < points.length - 1; i++) {
+      const a = points[i]
+      const b = points[i + 1]
+      this.register(
+        { kind: 'trail', a, b, half, lift },
         Math.min(a.x, b.x) - half,
         Math.min(a.z, b.z) - half,
         Math.max(a.x, b.x) + half,
@@ -163,6 +191,11 @@ export class Ground {
       const p = projectOnSegment(x, z, a.x, a.z, b.x, b.z)
       if (p.dist > half) return null
       return a.y + (b.y - a.y) * p.t + lift
+    }
+    if (surface.kind === 'trail') {
+      const { a, b, half, lift } = surface
+      const p = projectOnSegment(x, z, a.x, a.z, b.x, b.z)
+      return p.dist > half ? null : this.terrain(x, z) + lift
     }
     const dx = x - surface.x
     const dz = z - surface.z

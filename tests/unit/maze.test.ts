@@ -10,8 +10,10 @@ import {
   cellPoint,
   inMaze,
   mazeGates,
+  mazeHeart,
   mazeRuns,
   mazeSpans,
+  mazeWalk,
   SHINING_MAZE,
   spanPieces,
 } from '../../src/maze.ts'
@@ -134,6 +136,44 @@ describe('spanPieces', () => {
     )
     expect(rest).toHaveLength(0)
     expect(piece).toEqual({ a: { x: 1, z: 5 }, b: { x: 3, z: 5 } })
+  })
+})
+
+describe('mazeWalk and mazeHeart', () => {
+  it('walks from the gate to the heart in straight legs on the paths', () => {
+    const [gate] = mazeGates(SHINING_MAZE)
+    const heart = mazeHeart(SHINING_MAZE)
+    expect(SHINING_MAZE[heart.row][heart.col]).toBe('.')
+    const turns = mazeWalk(SHINING_MAZE, gate, heart)
+    expect(turns[0]).toEqual(gate)
+    expect(turns[turns.length - 1]).toEqual(heart)
+    for (let i = 0; i < turns.length - 1; i++) {
+      const a = turns[i]
+      const b = turns[i + 1]
+      expect(a.col === b.col || a.row === b.row).toBe(true)
+      const steps = Math.abs(b.col - a.col) + Math.abs(b.row - a.row)
+      for (let s = 0; s <= steps; s++) {
+        const col = a.col + Math.sign(b.col - a.col) * s
+        const row = a.row + Math.sign(b.row - a.row) * s
+        expect(SHINING_MAZE[row][col]).toBe('.')
+      }
+    }
+  })
+
+  it('keeps only the ends and the turns', () => {
+    const grid = ['.....', '####.', '.....']
+    expect(mazeWalk(grid, { col: 0, row: 0 }, { col: 0, row: 2 })).toEqual([
+      { col: 0, row: 0 },
+      { col: 4, row: 0 },
+      { col: 4, row: 2 },
+      { col: 0, row: 2 },
+    ])
+  })
+
+  it('finds no walk into the corn or between sealed paths', () => {
+    const grid = ['.#.']
+    expect(mazeWalk(grid, { col: 0, row: 0 }, { col: 2, row: 0 })).toEqual([])
+    expect(mazeWalk(grid, { col: 0, row: 0 }, { col: 1, row: 0 })).toEqual([])
   })
 })
 

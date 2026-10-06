@@ -257,6 +257,15 @@ export const CONFIG = {
     // mazeGates, halfway along the near end), beside it on the side away
     // from the road, facing back down the road with its arrow at the gate.
     enterSign: { x: 82, z: 25 },
+    // The worn mud trail, this wide: from the maze's heart out through the
+    // gate (maze.ts mazeWalk), then on through these station-local points,
+    // past the ENTER! sign and the CORN MAZE! sign, to tuck under the road.
+    trailWidth: 1.2,
+    trailOut: [
+      { x: 78, z: 22 },
+      { x: 40, z: 23 },
+      { x: 17, z: 31 },
+    ],
     // Each sign blocks along its board, post to post, this wide.
     signRadius: 0.12,
   },

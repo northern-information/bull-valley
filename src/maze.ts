@@ -162,6 +162,72 @@ export function mazeGates(grid: readonly string[]): Cell[] {
   return gates
 }
 
+// The path cell nearest the middle of the grid: the court at the maze's
+// heart, where the worn trail leads.
+export function mazeHeart(grid: readonly string[]): Cell {
+  const rows = grid.length
+  const cols = grid[0]?.length ?? 0
+  const mid = { col: (cols - 1) / 2, row: (rows - 1) / 2 }
+  let best: Cell = { col: 0, row: 0 }
+  let bestD = Infinity
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      if (isCorn(grid, row, col)) continue
+      const d = Math.hypot(col - mid.col, row - mid.row)
+      if (d < bestD) {
+        bestD = d
+        best = { col, row }
+      }
+    }
+  }
+  return best
+}
+
+// The shortest walk along the paths from one cell to another, as the
+// cells where it turns, both ends included; empty when the two never meet.
+export function mazeWalk(
+  grid: readonly string[],
+  from: Cell,
+  to: Cell
+): Cell[] {
+  const cols = grid[0]?.length ?? 0
+  const id = ({ col, row }: Cell) => row * cols + col
+  const open = (c: Cell) =>
+    c.col >= 0 &&
+    c.col < cols &&
+    c.row >= 0 &&
+    c.row < grid.length &&
+    !isCorn(grid, c.row, c.col)
+  if (!open(from) || !open(to)) return []
+  const came = new Map<number, Cell | null>([[id(from), null]])
+  const queue: Cell[] = [from]
+  for (let i = 0; i < queue.length && !came.has(id(to)); i++) {
+    const cell = queue[i]
+    for (const [dc, dr] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ]) {
+      const next = { col: cell.col + dc, row: cell.row + dr }
+      if (!open(next) || came.has(id(next))) continue
+      came.set(id(next), cell)
+      queue.push(next)
+    }
+  }
+  if (!came.has(id(to))) return []
+  const steps: Cell[] = []
+  for (let c: Cell | null = to; c; c = came.get(id(c)) ?? null) steps.push(c)
+  steps.reverse()
+  // Keep the ends and every cell where the walk turns.
+  return steps.filter((cell, i) => {
+    if (i === 0 || i === steps.length - 1) return true
+    const prev = steps[i - 1]
+    const next = steps[i + 1]
+    return prev.col - cell.col !== cell.col - next.col
+  })
+}
+
 // A cell's centre in maze-local metres: x away from the road, from the
 // near edge, and z along it, from the gate end. The first and last
 // characters sit on the maze's outer edges.

@@ -15,6 +15,7 @@ import {
   STALK_MASS_TOP,
 } from './mazeart.ts'
 import { paintMedicine } from './medart.ts'
+import { paintMud } from './mudart.ts'
 import { paintPack } from './packart.ts'
 import { applyPS1 } from './ps1.ts'
 import { mulberry32, range } from './rng.ts'
@@ -387,8 +388,9 @@ export const FUEL_LAYOUT = {
   signHeight: 7,
   glowScale: 9,
   // Along local X from the store front to the road centreline (the sample
-  // stops at the road edge); halfWidth spans local Z.
-  lot: { back: STORE_LAYOUT.front, halfWidth: 11 },
+  // stops at the road edge); halfWidth spans local Z, room to park either
+  // side of the pumps.
+  lot: { back: STORE_LAYOUT.front, halfWidth: 20 },
   lotColor: '#262a30',
   // Trash cans, station-local: one at each end of the pump island past the
   // canopy poles, one beside the store door on the lot.
@@ -3984,6 +3986,25 @@ export function roadMaterial(): THREE.MeshLambertMaterial {
   }
   material.customProgramCacheKey = () => 'road-vertex-emissive'
   return material
+}
+
+// Worn mud (mudart.ts): the corn maze's trail and every road's shoulders.
+// Lit, and glowing through its own art at the roads' strength, so the two
+// read as one at night. The art repeats along the mud (v) and frays at
+// both edges (u) through alphaTest.
+export function mudMaterial(): THREE.MeshLambertMaterial {
+  const texture = artTexture(paintMud())
+  texture.wrapT = THREE.RepeatWrapping
+  return lambert({
+    map: texture,
+    alphaTest: 0.5,
+    emissive: new THREE.Color('#ffffff'),
+    emissiveMap: texture,
+    emissiveIntensity: 0.8,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    side: THREE.DoubleSide,
+  })
 }
 
 // The station lots, lit like the roads, so the canopy light falls on the
