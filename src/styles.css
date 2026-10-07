@@ -627,14 +627,12 @@
 }
 
 .bv-controls th {
-  border: 1px solid var(--fi-surface);
   padding: 0.25rem 0.6rem;
   text-align: right;
   font-weight: 700;
 }
 
 .bv-controls td {
-  border: 1px solid var(--fi-surface);
   padding: 0.25rem 0.9rem 0.25rem 0.4rem;
   text-align: left;
 }
