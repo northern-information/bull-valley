@@ -10,7 +10,7 @@ import {
 import { JOINTS } from '../../src/poses.ts'
 
 describe('outfits', () => {
-  it('has the twelve characters', () => {
+  it('has the thirteen characters', () => {
     expect(OUTFIT_IDS).toEqual([
       'marx',
       'player',
@@ -21,10 +21,21 @@ describe('outfits', () => {
       'hanson',
       'halatek',
       'jdogg',
+      'mathiesen',
       'carlsten',
       'gron',
       'moab',
     ])
+  })
+
+  it('dresses Alex Mathiesen in an open red flannel over a black tee, with an axe', () => {
+    const alex = OUTFITS.mathiesen
+    expect(alex.label).toBe(copy('outfits.mathiesen'))
+    expect(alex.addons).toContain('long-hair')
+    expect(alex.patterns?.shirt).toBe('flannel')
+    expect(alex.prints?.torso).toEqual(['open-shirt'])
+    expect(alex.sleeves).toBeUndefined()
+    expect(alex.inHand).toBe('axe')
   })
 
   it('dresses Moab Coldë as a skeleton in a strapped, tattered red trench coat', () => {
