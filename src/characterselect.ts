@@ -3,8 +3,8 @@
 // Previous / Next / Choose. A
 // character with a guitar on their back also gets the finish row: the
 // finish name, one swatch per finish, and Randomize. It is mounted at boot
-// beneath the account step and the title cards, so it shows once they
-// lift, and run() arms it once it is showing. The game's renderer does not exist until the
+// beneath the account step and the main menu, so it shows once Die is
+// pressed, and run() arms it once it is showing. The game's renderer does not exist until the
 // terrain resolves, so the turntable draws with its own small renderer,
 // disposed once a character is chosen. The roster comes from
 // characters.ts, the finishes from finishes.ts, the bodies from figure.ts;
@@ -42,9 +42,6 @@ export interface CharacterSelect {
   // resolves with the chosen outfit and finish once
   // the overlay has faded out and removed itself.
   run(username: string, pick: CharacterPick): Promise<CharacterPick>
-  // Removes the overlay unshown, for a raider who has chosen before
-  // (titles.ts): Gron changes the character from then on.
-  remove(): void
 }
 
 // Mounts the overlay as the last child of <body>, black and inert until
@@ -314,5 +311,5 @@ export function mountCharacterSelect({
     })
   }
 
-  return { run, remove: () => root.remove() }
+  return { run }
 }

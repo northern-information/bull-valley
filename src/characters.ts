@@ -33,12 +33,6 @@ export function isSelectable(id: unknown): id is OutfitId {
   return SELECTABLE.some((entry) => entry === id)
 }
 
-// Whether the account has chosen a character, at the select or at Gron. A
-// raider who has comes back past the select; Gron changes it from then on.
-export function hasChosen(look: LookWire | null | undefined): boolean {
-  return !!look?.outfit
-}
-
 // The account's pick, with the defaults for what it has not chosen yet.
 export function pickOf(look: LookWire | null | undefined): CharacterPick {
   return {
