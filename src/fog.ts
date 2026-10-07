@@ -1,6 +1,6 @@
-// Black fog for the logo card: a full-card canvas with one fragment shader.
-// fbm noise drifts sideways while slow bands of density roll across it,
-// so the fog comes in waves, thickening over the logo and thinning off it.
+// Black fog over the main menu's logo: a full-screen canvas with one
+// fragment shader. fbm noise drifts sideways while slow bands of density
+// roll across it, so the fog comes in waves, thickening over the logo and thinning off it.
 // Drawn at the game's downscale with image-rendering: pixelated, so it has
 // the same grain as the valley. Plain WebGL: Three would be a whole second
 // renderer for one quad.

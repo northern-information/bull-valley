@@ -202,6 +202,19 @@ colophon_alt = { text = "Northern Information", by = "ai" }
 colophon_hint = { text = "Click to Die", by = "ai" }
 logo_alt = { text = "Bull Valley Shadow Wars", by = "ai" }
 
+# The main menu under the logo (src/mainmenu.ts), and the sign-in card's
+# way back to it (src/signin.ts).
+
+[menu]
+create_account = { text = "Create Account", by = "ai" }
+die = { text = "Die", by = "ai" }
+settings = { text = "Settings", by = "ai" }
+quit = { text = "Quit", by = "ai" }
+account = { text = "Account", by = "ai" }
+sign_out = { text = "Sign Out", by = "ai" }
+back = { text = "Back", by = "ai" }
+quit_blocked = { text = "The valley lets you go. Close this tab.", by = "ai" }
+
 # Key labels: what each key does, in the intro controls table and the
 # pack's item card. The key names themselves stay in src/bindings.ts.
 
