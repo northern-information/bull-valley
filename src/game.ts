@@ -17,6 +17,8 @@ import type { Drop } from './drops.ts'
 import type { FirstPersonHands } from './fphands.ts'
 import type { Geometrie } from './geometrie.ts'
 import type { Glow } from './glow.ts'
+import type { Grave } from './graves.ts'
+import type { Gravestones } from './gravestones.ts'
 import type { Hand } from './hands.ts'
 import type { Effects, Hotbar } from './hotbar.ts'
 import type { Hud } from './hud.ts'
@@ -122,6 +124,11 @@ export interface GameState {
   drops: Drop[]
   nextDrop: number
   pendingDrops: Set<number>
+  // The shadowmen's tombstones (rule 16): the valley's, from every
+  // snapshot, or this raider's own when played alone, numbered from
+  // nextGrave.
+  graves: Grave[]
+  nextGrave: number
   // Shelf units asked of the valley and not yet answered, as station:kind.
   pendingBuys: Set<string>
   // The berry bushes as the valley last described them (the welcome, then
@@ -172,6 +179,8 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     drops: [],
     nextDrop: 0,
     pendingDrops: new Set(),
+    graves: [],
+    nextGrave: 0,
     pendingBuys: new Set(),
     daily: null,
     pendingCollect: false,
@@ -192,6 +201,8 @@ export interface Game {
   world: World
   // The drops' meshes, kept in step with state.drops.
   drops: DropMeshes
+  // The tombstones, kept in step with state.graves.
+  graves: Gravestones
   graph: RoadGraph
   truck: Truck
   // The roads Matthew Marx drives (truckplan.ts): where he parks, the

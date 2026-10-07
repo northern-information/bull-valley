@@ -685,6 +685,63 @@ describe('rule 12: raiders drop what they carry', () => {
   })
 })
 
+describe('rule 16: a burst shadowman leaves its tombstone', () => {
+  it('stands a named tombstone a step from where each one burst', () => {
+    const v = valleyWith(join('a'))
+    const r = v.step({
+      type: 'spill',
+      spills: [{ x: 10, z: 20, kind: 'dimes', count: 7 }],
+      burials: [
+        { x: 10, z: 20, name: 'Mother Ostend' },
+        { x: 30, z: 40, name: '' },
+        { x: 50, z: 60, name: 'The Boone Creek Sexton' },
+      ],
+    })
+    expect(reasons(r)).toEqual(['spilled'])
+    const graves = v.valley.world?.graves ?? []
+    expect(graves.map(({ id, name }) => ({ id, name }))).toEqual([
+      { id: 0, name: 'Mother Ostend' },
+      { id: 1, name: 'The Boone Creek Sexton' },
+    ])
+    expect(Math.hypot(graves[0].x - 10, graves[0].z - 20)).toBeCloseTo(
+      CONFIG.graves.offset
+    )
+    expect(v.valley.world?.nextGrave).toBe(2)
+    expect(r.broadcast[0].world?.graves).toEqual(graves)
+  })
+
+  it('buries without dimes, and does nothing with neither', () => {
+    const v = valleyWith(join('a'))
+    expect(
+      reasons(
+        v.step({
+          type: 'spill',
+          spills: [],
+          burials: [{ x: 1, z: 2, name: 'Pale Draper' }],
+        })
+      )
+    ).toEqual(['spilled'])
+    expect(v.valley.world?.graves).toHaveLength(1)
+    expect(
+      v.step({ type: 'spill', spills: [], burials: [] }).broadcast
+    ).toEqual([])
+  })
+
+  it('keeps the tombstones when the day turns', () => {
+    const v = valleyWith(join('a'))
+    v.step({
+      type: 'spill',
+      spills: [{ x: 1, z: 2, kind: 'dimes', count: 3 }],
+      burials: [{ x: 1, z: 2, name: 'Widow Mason' }],
+    })
+    v.tick(25 * 60 * 60 * 1000)
+    const r = v.step({ type: 'clock' })
+    expect(reasons(r)).toContain('refill')
+    expect(v.valley.world?.drops).toEqual([])
+    expect(v.valley.world?.graves.map((g) => g.name)).toEqual(['Widow Mason'])
+  })
+})
+
 describe('rule 11: a burst shadowman leaves dimes', () => {
   it('spills a drop of dimes where each one burst', () => {
     const v = valleyWith(join('a'))

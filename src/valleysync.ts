@@ -150,6 +150,9 @@ export function wireValley(game: Game, actions: Actions): void {
     // said so; one taken up by us goes into the pack.
     s.drops = wire.drops
     game.drops.sync(s.drops)
+    // Rule 16: the tombstones too.
+    s.graves = wire.graves
+    game.graves.sync(s.graves)
     for (const id of s.pendingDrops) {
       if (!wire.drops.some((d) => d.id === id)) s.pendingDrops.delete(id)
     }

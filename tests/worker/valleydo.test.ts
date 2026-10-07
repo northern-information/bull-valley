@@ -1199,8 +1199,18 @@ describe('ValleyDO: the shadowmen', () => {
       .findLast((m): m is WorldMessage => m.type === 'world')
     expect(spilled?.reason).toBe('spilled')
     const [dimes] = spilled?.world?.drops ?? []
-    return { v, b, dimes, x, z }
+    const [grave] = spilled?.world?.graves ?? []
+    return { v, b, dimes, grave, x, z }
   }
+
+  it('leaves a named tombstone a step from where one burst', async () => {
+    const { grave, x, z } = await burst()
+    expect(grave.name.length).toBeGreaterThan(0)
+    expect(Math.hypot(grave.x - x, grave.z - z)).toBeCloseTo(
+      CONFIG.graves.offset,
+      1
+    )
+  })
 
   it('leaves dimes where one burst, paid into the wallet of whoever takes them up', async () => {
     const { v, b, dimes, x, z } = await burst()

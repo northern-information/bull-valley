@@ -22,6 +22,7 @@ import { isSelectable } from '../src/characters.ts'
 import { CONFIG } from '../src/config.ts'
 import { toCosmetics } from '../src/cosmetics.ts'
 import { spillsOf } from '../src/drops.ts'
+import { burialsOf } from '../src/graves.ts'
 import {
   CLOSE,
   isValidName,
@@ -577,13 +578,15 @@ export class ValleyDO extends DurableObject<Env> {
   }
 
   // Each shadowman that burst leaves its dimes where it was (sharedworld.ts
-  // rule 11), how many drawn here, so the reducer stays pure, and the
-  // Caretaker unmade its gold bullion (rule 13).
+  // rule 11), how many drawn here, so the reducer stays pure, and its
+  // tombstone, its name drawn here too (rule 16); the Caretaker unmade
+  // leaves its gold bullion (rule 13).
   private async spill(bursts: readonly XZ[], unmade: XZ | null): Promise<void> {
     const spills = spillsOf(bursts, unmade, this.shadowRng)
+    const burials = burialsOf(bursts, this.shadowRng)
     const reduced = reduce(
       this.valley,
-      { type: 'spill', spills },
+      { type: 'spill', spills, burials },
       this.context()
     )
     await this.apply(reduced)

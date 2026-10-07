@@ -6,6 +6,7 @@
 import { USERNAME_MAX } from './account.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { Drop } from './drops.ts'
+import type { Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
@@ -14,7 +15,7 @@ import type { Burst } from './shadowmen.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 18
+export const PROTOCOL_VERSION = 19
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -108,6 +109,9 @@ export interface WorldWire {
   shelves: ShopStock[]
   // What raiders have dropped and nobody has taken up yet.
   drops: Drop[]
+  // A tombstone for every shadowman burnt, carved with its name; they stay
+  // when the day turns.
+  graves: Grave[]
   // Matthew Marx's truck: its leg, stamped with server ms, and who is in
   // the bed (marx.ts). Every client drives the same leg (truckplan.ts).
   truck: TruckState
