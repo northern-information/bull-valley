@@ -5,6 +5,8 @@
 import { actionOf, CHAT, hotbarSlot, PACK, WORLD } from './bindings.ts'
 import { othersLine } from './chat.ts'
 import { copy } from './copy.ts'
+import { SEASON } from './season.ts'
+import { formatCash } from './store.ts'
 import type { Actions } from './actions.ts'
 import type { Game } from './game.ts'
 
@@ -68,6 +70,14 @@ export function wirePointer(game: Game): () => void {
       if (!s.greeted) {
         s.greeted = true
         hud.tell(copy('log.greeting'))
+        // The season, announced once a page.
+        hud.season.live()
+        hud.tell(
+          copy('log.season_live', {
+            goal: SEASON.goal,
+            cash: formatCash(SEASON.reward.cash),
+          })
+        )
         // How many others, once the valley has said; a late welcome says it.
         if (net.online) hud.tell(othersLine(peers.count))
       }

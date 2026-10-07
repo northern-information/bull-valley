@@ -5,6 +5,7 @@ import { DIME_CENTS } from '../../src/drops.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { getItem } from '../../src/items.ts'
 import { CLOSE, PROTOCOL_VERSION } from '../../src/protocol.ts'
+import { SEASON } from '../../src/season.ts'
 import { MemoryAccountStore } from '../../worker/accounts.ts'
 import { MemoryPackStore, STARTING_CASH } from '../../worker/packs.ts'
 import { ValleyDO } from '../../worker/ValleyDO.ts'
@@ -17,6 +18,7 @@ import type {
   PeerLeftMessage,
   PeerStateMessage,
   PeerUpdatedMessage,
+  SeasonMessage,
   ServerMessage,
   ShadowmenMessage,
   WelcomeMessage,
@@ -840,6 +842,8 @@ describe('ValleyDO', () => {
       purchase: () => Promise.reject(new Error('D1 is down')),
       earn: () => Promise.reject(new Error('D1 is down')),
       trade: () => Promise.reject(new Error('D1 is down')),
+      season: () => Promise.reject(new Error('D1 is down')),
+      score: () => Promise.reject(new Error('D1 is down')),
     }
     const errors: unknown[] = []
     const error = console.error
@@ -921,6 +925,9 @@ describe('ValleyDO', () => {
         purchase: () => Promise.reject(new Error('down')),
         earn: (id, amount) => store.earn(id, amount),
         trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
+        season: (id, season) => store.season(id, season),
+        score: (id, season, progress, reward) =>
+          store.score(id, season, progress, reward),
       }
       await buy()
       expect(a.last<NackMessage>()).toMatchObject({ reason: 'unavailable' })
@@ -1014,6 +1021,9 @@ describe('ValleyDO: drops', () => {
       get: (id) => store.get(id),
       purchase: (id, amount, item) => store.purchase(id, amount, item),
       trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
+      season: (id, season) => store.season(id, season),
+      score: (id, season, progress, reward) =>
+        store.score(id, season, progress, reward),
       change: () => Promise.reject(new Error('down')),
       earn: (id, amount) => store.earn(id, amount),
     }
@@ -1219,6 +1229,9 @@ describe('ValleyDO: the shadowmen', () => {
       purchase: (id, amount, item) => store.purchase(id, amount, item),
       earn: () => Promise.reject(new Error('down')),
       trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
+      season: (id, season) => store.season(id, season),
+      score: (id, season, progress, reward) =>
+        store.score(id, season, progress, reward),
     }
     const error = console.error
     console.error = () => {}
@@ -1228,6 +1241,141 @@ describe('ValleyDO: the shadowmen', () => {
       console.error = error
     }
     expect(b.last<PackMessage>()).toMatchObject({ cash: STARTING_CASH })
+  })
+
+  it('credits both beams with unmaking the Caretaker, and pays the season out once', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const b = await join(v, s, 'B')
+    // A second socket on A's account, standing far off.
+    const a2 = await join(v, s, 'A2', { account: 'acct-A' })
+    expect(a.frames()[0]).toMatchObject({
+      type: 'welcome',
+      season: { season: SEASON.id, kills: 0, claimed: false },
+    })
+    await v.alarm()
+    const heart = heartPoint(theMaze())
+    const hx = MAZE.x + heart.x
+    const hz = MAZE.z + heart.z
+    // Down the court from it, looking at it (+z is yaw pi), from the bed
+    // so it never comes for them.
+    const lit = (dx: number) =>
+      JSON.stringify({
+        type: 'state',
+        x: hx + dx,
+        y: 0,
+        z: hz - 8,
+        yaw: Math.PI,
+        pitch: 0,
+        pose: 'stand',
+        riding: true,
+        light: true,
+      })
+    await v.webSocketMessage(ws(a2), state(900, 900))
+    const seasonFrames = (socket: MockSocket) =>
+      socket.frames().filter((m): m is SeasonMessage => m.type === 'season')
+    const unmake = async () => {
+      await v.webSocketMessage(ws(a), lit(0))
+      await v.webSocketMessage(ws(b), lit(0.5))
+      await v.webSocketMessage(
+        ws(a),
+        `{"type":"dev","op":"caretaker","x":${hx},"z":${hz}}`
+      )
+      const ticks = Math.ceil(
+        CONFIG.caretaker.burnSeconds * CONFIG.shadowmen.tickHz
+      )
+      for (let i = 0; i <= ticks; i++) v.tick()
+      // The tally runs after the tick, alone.
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+    const wallet = (await v.packStore.get('acct-A')).cash
+    const reds = (await v.packStore.get('acct-A')).pack.marlboro
+    for (let n = 1; n <= SEASON.goal; n++) {
+      await unmake()
+      expect(seasonFrames(a)).toHaveLength(n)
+      expect(seasonFrames(b)).toHaveLength(n)
+    }
+    // Every socket on the account hears it, the far one too.
+    expect(seasonFrames(a2)).toEqual(seasonFrames(a))
+    expect(seasonFrames(a).map((m) => m.rewarded)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      true,
+    ])
+    expect(a.last<PackMessage>()).toMatchObject({
+      type: 'pack',
+      cash: wallet + SEASON.reward.cash,
+    })
+    expect((await v.packStore.get('acct-A')).pack.marlboro).toBe(
+      reds + SEASON.reward.count
+    )
+    // Once: a sixth unmaking counts, and pays nothing.
+    await unmake()
+    expect(seasonFrames(a).at(-1)).toEqual({
+      type: 'season',
+      season: { season: SEASON.id, kills: SEASON.goal + 1, claimed: true },
+      rewarded: false,
+    })
+    expect((await v.packStore.get('acct-A')).cash).toBe(
+      wallet + SEASON.reward.cash
+    )
+    // And the progress comes back in the next welcome.
+    const back = await join(v, s, 'B2', { account: 'acct-B' })
+    expect(back.frames()[0]).toMatchObject({
+      season: { kills: SEASON.goal + 1, claimed: true },
+    })
+  })
+
+  it('tallies nothing when the season cannot be written', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const b = await join(v, s, 'B')
+    await v.alarm()
+    const store = v.packStore
+    v.packStore = {
+      open: (id) => store.open(id),
+      get: (id) => store.get(id),
+      change: (id, kind, delta) => store.change(id, kind, delta),
+      purchase: (id, amount, item) => store.purchase(id, amount, item),
+      earn: (id, amount) => store.earn(id, amount),
+      trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
+      season: (id, season) => store.season(id, season),
+      score: () => Promise.reject(new Error('down')),
+    }
+    const heart = heartPoint(theMaze())
+    const hx = MAZE.x + heart.x
+    const hz = MAZE.z + heart.z
+    const lit = (dx: number) =>
+      JSON.stringify({
+        type: 'state',
+        x: hx + dx,
+        y: 0,
+        z: hz - 8,
+        yaw: Math.PI,
+        pitch: 0,
+        pose: 'stand',
+        riding: true,
+        light: true,
+      })
+    await v.webSocketMessage(ws(a), lit(0))
+    await v.webSocketMessage(ws(b), lit(0.5))
+    await v.webSocketMessage(
+      ws(a),
+      `{"type":"dev","op":"caretaker","x":${hx},"z":${hz}}`
+    )
+    const errors: unknown[] = []
+    const error = console.error
+    console.error = (...args: unknown[]) => errors.push(args)
+    try {
+      for (let i = 0; i <= 20; i++) v.tick()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    } finally {
+      console.error = error
+    }
+    expect(errors).toHaveLength(2)
+    expect(a.frames().some((m) => m.type === 'season')).toBe(false)
   })
 
   it('places a shadowman only for a dev socket', async () => {
@@ -1325,6 +1473,9 @@ describe("ValleyDO: Moab's trade", () => {
         purchase: (id, amount, item) => store.purchase(id, amount, item),
         earn: (id, amount) => store.earn(id, amount),
         trade: () => Promise.reject(new Error('down')),
+        season: (id, season) => store.season(id, season),
+        score: (id, season, progress, reward) =>
+          store.score(id, season, progress, reward),
       }
       await v.webSocketMessage(ws(a), trade())
       expect(a.last<NackMessage>()).toMatchObject({ reason: 'unavailable' })

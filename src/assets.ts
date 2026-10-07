@@ -3517,6 +3517,38 @@ export function buildBat(): THREE.Group {
   return group
 }
 
+// --- Axe -----------------------------------------------------------------
+
+// A felling axe: a 28-inch hickory haft and a grey steel head with a
+// bright ground edge. Local space like the bat: the grip at the origin,
+// the haft hanging down -Y to the head, the edge facing +Z.
+export function buildAxe(): THREE.Group {
+  const hickory = lambert({ color: '#b48a56' })
+  const steel = lambert({ color: '#5d6066' })
+  const edge = lambert({ color: '#c9ccd2' })
+  const haft = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.015, 0.017, 0.72, 6),
+    hickory
+  )
+  haft.position.y = -0.3
+  // The knob at the grip end, swelled so the hand cannot slip off it.
+  const knob = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.05), hickory)
+  knob.position.y = 0.06
+  // The eye round the haft, the bit out front and the poll behind.
+  const eye = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.1, 0.07), steel)
+  eye.position.set(0, -0.62, 0)
+  const bit = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.09, 0.1), steel)
+  bit.position.set(0, -0.62, 0.08)
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.16, 0.03), edge)
+  blade.position.set(0, -0.62, 0.14)
+  const poll = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.08, 0.04), steel)
+  poll.position.set(0, -0.62, -0.05)
+  const group = new THREE.Group()
+  group.name = 'axe'
+  group.add(haft, knob, eye, bit, blade, poll)
+  return group
+}
+
 // --- Flashlight ----------------------------------------------------------
 
 // A two-D-cell flashlight in dull yellow plastic, the kind kept in a kitchen
@@ -5527,6 +5559,7 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   },
   { id: 'guitar', label: 'Guitar: black LTD EX-400', build: sampleGuitar },
   { id: 'bat', label: 'Baseball bat', build: buildBat },
+  { id: 'axe', label: 'Axe', build: buildAxe },
   {
     id: 'flashlight',
     label: 'Flashlight',

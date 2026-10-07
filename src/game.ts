@@ -8,6 +8,7 @@ import { HAND_DOWN } from './hands.ts'
 import { NO_EFFECTS } from './hotbar.ts'
 import { STARTING_INVENTORY } from './inventory.ts'
 import { createTruck } from './marx.ts'
+import { NO_PROGRESS } from './season.ts'
 import { freshStock } from './store.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -32,6 +33,7 @@ import type { PlayerBody } from './playerbody.ts'
 import type { DailyWire, PeerStateWire, WorldWire } from './protocol.ts'
 import type { RoadGraph } from './roadgraph.ts'
 import type { Scope } from './scope.ts'
+import type { SeasonProgress } from './season.ts'
 import type { ShadowBursts } from './shadowburst.ts'
 import type { ShadowCards } from './shadowcards.ts'
 import type { Titles } from './titles.ts'
@@ -58,6 +60,9 @@ export interface GameState {
   // The station whose Moab last made this raider his offer, while they
   // stay in his reach; null otherwise. He says it once each time.
   offeredBy: number | null
+  // The account's progress through the season (season.ts) as the valley
+  // last sent it; alone, none, and nothing is kept.
+  season: SeasonProgress
   // Every Citgo's shelves, one stock per station like world.fuelPoints.
   storeStock: ShopStock[]
   // The item on each number key: the account's, saved one change at a
@@ -138,6 +143,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     cosmetics: [],
     pendingTrade: false,
     offeredBy: null,
+    season: NO_PROGRESS,
     storeStock: freshStock(stations),
     hotbar,
     hotbarSaved: Promise.resolve(),

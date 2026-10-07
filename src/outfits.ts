@@ -37,6 +37,8 @@ export type DecalId =
   | 'camo'
   | 'baja'
   | 'tattered'
+  | 'flannel'
+  | 'open-shirt'
 
 // Where an outfit prints a decal over the body: across the torso front,
 // across the front of both thighs, or all round both bare arms.
@@ -158,7 +160,7 @@ export interface Outfit {
   // A prop slung on the back; figure.ts places it.
   onBack?: 'guitar'
   // A prop held in the right hand; figure.ts places it.
-  inHand?: 'bat'
+  inHand?: 'bat' | 'axe'
   // A pattern per cloth, wrapped all round every part of it and painted
   // under the prints.
   patterns?: Partial<Record<PatternPart, DecalId>>
@@ -181,6 +183,7 @@ export type OutfitId =
   | 'hanson'
   | 'halatek'
   | 'jdogg'
+  | 'mathiesen'
   | 'carlsten'
   | 'gron'
   | 'moab'
@@ -986,6 +989,25 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     loose: 1.2,
     baggy: 1.2,
     patterns: { shirt: 'baja' },
+  },
+  // Long dark hair, a red flannel worn open over a black tee, jeans, and
+  // an axe in his right hand.
+  mathiesen: {
+    label: copy('outfits.mathiesen'),
+    colors: {
+      skin: '#ecc9ab',
+      hair: '#1e1611',
+      // The flannel's ground; the pattern paints the black checks, and the
+      // open front shows the tee.
+      shirt: '#a3231d',
+      pants: '#3f5f8a',
+      boots: '#2a2018',
+      belt: '#0c0c0e',
+    },
+    addons: ['long-hair', 'belt', 'belt-loops'],
+    patterns: { shirt: 'flannel' },
+    prints: { torso: ['open-shirt'] },
+    inHand: 'axe',
   },
   // The Citgo clerk, behind every counter. Not on the select roster.
   carlsten: {

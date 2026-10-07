@@ -10,6 +10,7 @@
 import * as THREE from 'three'
 import {
   artTexture,
+  buildAxe,
   buildBat,
   buildBook,
   buildFireRoots,
@@ -550,11 +551,12 @@ export function buildFigure(
     fists[side] = fist
     // The bat hangs from the right hand, gripped just above the knob, its
     // barrel swung a little forward of the leg.
-    if (side === 'R' && outfit.inHand === 'bat') {
-      const bat = buildBat()
-      bat.position.set(0, -foreArm - 0.075, 0.01)
-      bat.rotation.set(-0.18, 0, 0)
-      elbow.add(bat)
+    // The axe hangs the same way, its edge forward.
+    if (side === 'R' && outfit.inHand) {
+      const held = outfit.inHand === 'bat' ? buildBat() : buildAxe()
+      held.position.set(0, -foreArm - 0.075, 0.01)
+      held.rotation.set(-0.18, 0, 0)
+      elbow.add(held)
     }
 
     const hip = pivot(pelvis, built, `hip${side}`, 0.09 * sign, -0.05, 0)

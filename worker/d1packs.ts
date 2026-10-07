@@ -6,8 +6,10 @@
 
 import { toCosmetics } from '../src/cosmetics.ts'
 import { STARTING_INVENTORY, toInventory } from '../src/inventory.ts'
+import { NO_PROGRESS } from '../src/season.ts'
 import { STARTING_CASH } from './packs.ts'
 import type { CosmeticId } from '../src/cosmetics.ts'
+import type { SeasonProgress, SeasonReward } from '../src/season.ts'
 import type { Holdings, PackItem, PackStore } from './packs.ts'
 
 interface PackRow {
@@ -174,5 +176,49 @@ export class D1PackStore implements PackStore {
         ),
     ])
     return (results[1]?.meta.changes ?? 0) > 0
+  }
+
+  async season(accountId: string, season: string): Promise<SeasonProgress> {
+    const row = await this.db
+      .prepare(
+        'SELECT kills, claimed FROM seasons WHERE account_id = ? AND season = ?'
+      )
+      .bind(accountId, season)
+      .first<{ kills: number; claimed: number }>()
+    return row ? { kills: row.kills, claimed: row.claimed === 1 } : NO_PROGRESS
+  }
+
+  // One batch is one transaction: the progress and the reward it paid land
+  // together or not at all.
+  async score(
+    accountId: string,
+    season: string,
+    progress: SeasonProgress,
+    reward: SeasonReward | null
+  ): Promise<void> {
+    const claimed = progress.claimed ? 1 : 0
+    await this.db.batch([
+      this.db
+        .prepare(
+          'INSERT INTO seasons (account_id, season, kills, claimed) VALUES (?, ?, ?, ?) ' +
+            'ON CONFLICT (account_id, season) DO UPDATE SET kills = excluded.kills, claimed = excluded.claimed'
+        )
+        .bind(accountId, season, progress.kills, claimed),
+      ...(reward
+        ? [
+            this.db
+              .prepare(
+                'UPDATE wallets SET cash = cash + ? WHERE account_id = ?'
+              )
+              .bind(reward.cash, accountId),
+            this.db
+              .prepare(
+                'INSERT INTO packs (account_id, kind, count) VALUES (?, ?, ?) ' +
+                  'ON CONFLICT (account_id, kind) DO UPDATE SET count = count + excluded.count'
+              )
+              .bind(accountId, reward.kind, reward.count),
+          ]
+        : []),
+    ])
   }
 }

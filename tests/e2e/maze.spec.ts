@@ -147,6 +147,15 @@ test.describe('two flashlights', { tag: '@valley' }, () => {
         )
       )
       .toBe(true)
+    // Season One: both beams count toward it.
+    for (const page of [a, b]) {
+      await expect
+        .poll(() => page.evaluate(() => window.__bv?.season.kills))
+        .toBe(1)
+      // The tracker and the overlay's card (Season One asks for five).
+      const count = copy('season.progress', { kills: 1, goal: 5 })
+      await expect(page.locator('.bv-season-count')).toHaveText([count, count])
+    }
     expect(errorsA).toEqual([])
     expect(errorsB).toEqual([])
   })

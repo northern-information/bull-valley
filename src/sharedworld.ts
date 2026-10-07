@@ -69,6 +69,11 @@
 //    account's for good, so he never sells one twice; the valley refuses a
 //    trade the pack does not cover (ValleyContext.holdings in,
 //    Reduced.trade out) and writes the price and the cosmetic together.
+// 15. The season (season.ts): every raider whose beam was on the
+//    Caretaker when it came apart is credited with the unmaking, once per
+//    account however many of its sockets held a beam on it. The progress
+//    is the account's, kept by the valley in D1 beside the wallet, and the
+//    unmaking that finishes the season pays its reward once.
 
 import { caretakerAt, createCaretaker, stepCaretaker } from './caretaker.ts'
 import { CONFIG } from './config.ts'
@@ -934,7 +939,13 @@ export function stepShadows(
   rng: Rng,
   { now, dt, calm = false }: { now: number; dt: number; calm?: boolean },
   cfg = CONFIG.shadowmen
-): { message: ShadowmenMessage; struck: string[]; caught: string[] } | null {
+): {
+  message: ShadowmenMessage
+  struck: string[]
+  caught: string[]
+  // Rule 15: the accounts credited with unmaking the Caretaker this step.
+  credited: string[]
+} | null {
   const world = valley.world
   const raiders = world ? shadowRaiders(valley, shadows, placed, now) : []
   if (!world || raiders.length === 0) {
@@ -951,6 +962,7 @@ export function stepShadows(
   let caretaker: CaretakerWire | null = null
   let unmade: XZ | null = null
   const caught: string[] = []
+  let credited: string[] = []
   if (world.maze) {
     const out = stepCaretaker(shadows.caretaker, rng, {
       dt,
@@ -958,6 +970,7 @@ export function stepShadows(
       place: world.maze,
     })
     caught.push(...out.struck)
+    credited = creditedWith(valley, out.unmadeBy)
     for (const id of out.struck) if (!struck.includes(id)) struck.push(id)
     unmade = out.burst && {
       x: round(out.burst.x, 2),
@@ -999,7 +1012,19 @@ export function stepShadows(
     },
     struck,
     caught,
+    credited,
   }
+}
+
+// Rule 15: the accounts behind the sockets whose beams unmade the
+// Caretaker, each once, in the order their beams were counted.
+export function creditedWith(valley: Valley, ids: readonly string[]): string[] {
+  const accounts: string[] = []
+  for (const id of ids) {
+    const account = valley.members[id]?.account
+    if (account && !accounts.includes(account)) accounts.push(account)
+  }
+  return accounts
 }
 
 // A dev server's shadowman standing still at (x, z), for the specs.
