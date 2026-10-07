@@ -12,12 +12,18 @@ import { toInventory } from './inventory.ts'
 import { itemById } from './items.ts'
 import { createTruck } from './marx.ts'
 import { CLOSE } from './protocol.ts'
+import { SEASON } from './season.ts'
 import { formatCash } from './store.ts'
 import { aboard, newLeg, settledBy } from './worldsync.ts'
 import type { Actions } from './actions.ts'
 import type { Game } from './game.ts'
 import type { Inventory } from './interfaces.ts'
-import type { NackMessage, WorldMessage, WorldWire } from './protocol.ts'
+import type {
+  NackMessage,
+  SeasonWire,
+  WorldMessage,
+  WorldWire,
+} from './protocol.ts'
 
 export function wireValley(game: Game, actions: Actions): void {
   const { state: s, hud, net, peers, world, player } = game
@@ -236,6 +242,15 @@ export function wireValley(game: Game, actions: Actions): void {
     actions.refreshBag()
   }
 
+  // The account's progress through the season, when it is this season's;
+  // false for another's.
+  const applySeason = (wire: SeasonWire): boolean => {
+    if (wire.season !== SEASON.id) return false
+    s.season = { kills: wire.kills, claimed: wire.claimed }
+    hud.season.set(s.season)
+    return true
+  }
+
   net.on((msg) => {
     if (msg.type === 'welcome') {
       // Back where the account last stood on foot, the first time.
@@ -246,6 +261,13 @@ export function wireValley(game: Game, actions: Actions): void {
       applyWorld(msg.world, 'joined', { by: msg.id })
       s.daily = msg.daily
       applyPack(msg.pack, msg.cash)
+      applySeason(msg.season)
+    } else if (msg.type === 'season') {
+      // Rule 14: credited with unmaking the Caretaker. A reward's pack
+      // frame follows.
+      if (applySeason(msg.season)) {
+        hud.tell(hud.season.unmade(s.season, msg.rewarded))
+      }
     } else if (msg.type === 'pack') {
       applyPack(msg.pack, msg.cash)
     } else if (msg.type === 'world') {

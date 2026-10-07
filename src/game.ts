@@ -8,6 +8,7 @@ import { HAND_DOWN } from './hands.ts'
 import { NO_EFFECTS } from './hotbar.ts'
 import { STARTING_INVENTORY } from './inventory.ts'
 import { createTruck } from './marx.ts'
+import { NO_PROGRESS } from './season.ts'
 import { freshStock } from './store.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
 import type { DropMeshes } from './dropmeshes.ts'
@@ -31,6 +32,7 @@ import type { PlayerBody } from './playerbody.ts'
 import type { DailyWire, PeerStateWire, WorldWire } from './protocol.ts'
 import type { RoadGraph } from './roadgraph.ts'
 import type { Scope } from './scope.ts'
+import type { SeasonProgress } from './season.ts'
 import type { ShadowBursts } from './shadowburst.ts'
 import type { ShadowCards } from './shadowcards.ts'
 import type { Titles } from './titles.ts'
@@ -49,6 +51,9 @@ export interface GameState {
   // client's own spending applied in the meantime); alone, a fresh one,
   // and nothing is kept.
   cash: number
+  // The account's progress through the season (season.ts) as the valley
+  // last sent it; alone, none, and nothing is kept.
+  season: SeasonProgress
   // Every Citgo's shelves, one stock per station like world.fuelPoints.
   storeStock: ShopStock[]
   // The item on each number key: the account's, saved one change at a
@@ -126,6 +131,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
   return {
     inventory: { ...STARTING_INVENTORY },
     cash: CONFIG.store.startingCash,
+    season: NO_PROGRESS,
     storeStock: freshStock(stations),
     hotbar,
     hotbarSaved: Promise.resolve(),

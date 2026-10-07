@@ -92,6 +92,223 @@
     1px 1px 0 rgb(0 0 0 / 80%);
 }
 
+/* The season (seasonhud.ts). The tracker sits in the upper right: the
+   season over a row of pips, one lit for each time the Caretaker came
+   apart in the raider's beam. */
+.bv-season {
+  position: absolute;
+  top: 0.9rem;
+  right: 1rem;
+  padding: 0.45rem 0.7rem;
+  background: var(--bv-pane);
+  border-left: 3px solid var(--bv-citgo);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-shadow: 1px 1px 0 rgb(0 0 0 / 80%);
+}
+
+.bv-season-head,
+.bv-season-progress {
+  margin: 0;
+}
+
+.bv-season-kicker {
+  color: var(--bv-citgo);
+}
+
+.bv-season-title {
+  font-weight: 700;
+}
+
+.bv-season-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.3rem;
+}
+
+.bv-season-pips {
+  display: flex;
+  gap: 4px;
+}
+
+.bv-season-pip {
+  width: 1.1rem;
+  height: 0.55rem;
+  border: 1px solid var(--bv-citgo);
+  transform: skewX(-20deg);
+}
+
+.bv-season-pip--lit {
+  background: var(--bv-citgo);
+  box-shadow: 0 0 6px var(--bv-citgo);
+}
+
+.bv-season--done,
+.bv-season-card--done {
+  border-color: var(--fi-gold);
+}
+
+.bv-season--done .bv-season-pip,
+.bv-season-card--done .bv-season-pip {
+  border-color: var(--fi-gold);
+  background: var(--fi-gold);
+  box-shadow: 0 0 6px var(--fi-gold);
+}
+
+/* The season's card on the intro and pause overlay. */
+.bv-season-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  width: min(30rem, 100%);
+  padding: 0 0 0.8rem;
+  border: 1px solid var(--bv-citgo);
+  background: rgb(0 0 0 / 55%);
+  box-shadow:
+    4px 4px 0 var(--fi-black-shadow),
+    0 0 18px rgb(255 74 28 / 35%);
+  letter-spacing: 0.06em;
+}
+
+.bv-season-card-strip {
+  display: flex;
+  justify-content: space-between;
+  align-self: stretch;
+  margin: 0;
+  padding: 0.3rem 0.7rem;
+  background: var(--bv-citgo);
+  color: var(--fi-bg);
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.bv-season-card-live {
+  animation: bv-live 1.2s steps(2, jump-none) infinite;
+}
+
+@keyframes bv-live {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0.35;
+  }
+}
+
+.bv-season-card-title {
+  margin: 0.2rem 0 0;
+  font-size: inherit;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  text-shadow: 3px 3px 0 var(--fi-maroon);
+}
+
+.bv-season-card-text,
+.bv-season-card-reward {
+  margin: 0;
+  padding: 0 1rem;
+  line-height: 1.5;
+}
+
+.bv-season-card-reward {
+  color: var(--fi-gold);
+}
+
+/* A banner swept across the upper view: in, held, out, BANNER_MS long. */
+.bv-banner {
+  position: absolute;
+  top: 18%;
+  left: 0;
+  right: 0;
+  padding: 0.7rem 1rem;
+  text-align: center;
+  text-transform: uppercase;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(0 0 0 / 82%) 18%,
+    rgb(0 0 0 / 82%) 82%,
+    transparent
+  );
+  border-block: 2px solid var(--bv-citgo);
+  border-image: linear-gradient(
+      90deg,
+      transparent,
+      var(--bv-citgo) 18%,
+      var(--bv-citgo) 82%,
+      transparent
+    )
+    1;
+  opacity: 0;
+}
+
+.bv-banner--gold {
+  border-image: linear-gradient(
+      90deg,
+      transparent,
+      var(--fi-gold) 18%,
+      var(--fi-gold) 82%,
+      transparent
+    )
+    1;
+}
+
+.bv-banner--on {
+  animation: bv-banner 5.2s ease-out both;
+}
+
+@keyframes bv-banner {
+  0% {
+    opacity: 0;
+    transform: scaleY(0.1);
+    letter-spacing: 0.9em;
+  }
+
+  8% {
+    opacity: 1;
+    transform: scaleY(1);
+    letter-spacing: 0.24em;
+  }
+
+  85% {
+    opacity: 1;
+    transform: scaleY(1);
+    letter-spacing: 0.3em;
+  }
+
+  100% {
+    opacity: 0;
+    transform: scaleY(1);
+    letter-spacing: 0.3em;
+  }
+}
+
+.bv-banner p {
+  margin: 0;
+}
+
+.bv-banner-kicker {
+  color: var(--bv-citgo);
+}
+
+.bv-banner--gold .bv-banner-kicker,
+.bv-banner-detail {
+  color: var(--fi-gold);
+}
+
+.bv-banner-headline {
+  margin: 0.25rem 0 !important;
+  font-weight: 700;
+  text-shadow:
+    3px 3px 0 var(--fi-maroon),
+    0 0 12px rgb(255 74 28 / 60%);
+}
+
 /* The lower-left column: the chat log. It rides up over the hotbar while
    the bar shows. */
 .bv-dock {

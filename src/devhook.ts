@@ -20,6 +20,7 @@ import type { Player } from './player.ts'
 import type { Peer } from './presence.ts'
 import type { DailyWire, PeerStateWire, WorldWire } from './protocol.ts'
 import type { RoadGraph } from './roadgraph.ts'
+import type { SeasonProgress } from './season.ts'
 import type { ShadowCards } from './shadowcards.ts'
 import type { Truck } from './truck.ts'
 import type { World } from './world.ts'
@@ -54,6 +55,8 @@ interface BvHook {
   readonly glow: THREE.Object3D | null
   // In cents.
   readonly cash: number
+  // The account's progress through the season, as the valley last said.
+  readonly season: SeasonProgress
   // The pack as this client holds it: the valley's last word, plus guesses.
   readonly inventory: Inventory
   // What lies dropped: the valley's, or this raider's alone.
@@ -133,6 +136,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     },
     get cash() {
       return s.cash
+    },
+    get season() {
+      return s.season
     },
     get inventory() {
       return s.inventory

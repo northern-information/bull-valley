@@ -6,7 +6,9 @@
 
 import { CONFIG } from '../src/config.ts'
 import { STARTING_INVENTORY, toInventory } from '../src/inventory.ts'
+import { NO_PROGRESS } from '../src/season.ts'
 import type { Inventory } from '../src/interfaces.ts'
+import type { SeasonProgress, SeasonReward } from '../src/season.ts'
 
 // A new account's wallet, in cents.
 export const STARTING_CASH = CONFIG.store.startingCash
@@ -32,6 +34,18 @@ export interface PackStore {
     amount: number,
     item: PackItem | null
   ): Promise<boolean>
+  // The account's progress through `season`, nothing done before the first
+  // unmaking.
+  season(accountId: string, season: string): Promise<SeasonProgress>
+  // Writes the progress after an unmaking (season.ts tally) and, with it,
+  // the reward that unmaking paid, if any: the cash into the wallet and the
+  // units into the pack, all or nothing.
+  score(
+    accountId: string,
+    season: string,
+    progress: SeasonProgress,
+    reward: SeasonReward | null
+  ): Promise<void>
 }
 
 // Units of one kind going into a pack.
@@ -43,6 +57,8 @@ export interface PackItem {
 export class MemoryPackStore implements PackStore {
   readonly packs = new Map<string, Map<string, number>>()
   readonly wallets = new Map<string, number>()
+  // `${account}/${season}` -> progress.
+  readonly seasons = new Map<string, SeasonProgress>()
 
   open(accountId: string): Promise<Holdings> {
     if (!this.packs.has(accountId)) {
@@ -85,5 +101,26 @@ export class MemoryPackStore implements PackStore {
     this.wallets.set(accountId, cash - amount)
     if (item) await this.change(accountId, item.kind, item.delta)
     return true
+  }
+
+  season(accountId: string, season: string): Promise<SeasonProgress> {
+    return Promise.resolve(
+      this.seasons.get(`${accountId}/${season}`) ?? NO_PROGRESS
+    )
+  }
+
+  async score(
+    accountId: string,
+    season: string,
+    progress: SeasonProgress,
+    reward: SeasonReward | null
+  ): Promise<void> {
+    this.seasons.set(`${accountId}/${season}`, progress)
+    if (!reward) return
+    this.wallets.set(
+      accountId,
+      (this.wallets.get(accountId) ?? 0) + reward.cash
+    )
+    await this.change(accountId, reward.kind, reward.count)
   }
 }

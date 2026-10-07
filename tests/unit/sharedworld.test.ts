@@ -9,6 +9,7 @@ import {
   BUSHES,
   createShadows,
   createValley,
+  creditedWith,
   dailyFor,
   placeCaretaker,
   placeOf,
@@ -805,6 +806,20 @@ describe("rule 11: the shadowmen are the valley's", () => {
   })
 })
 
+describe('rule 14: the season', () => {
+  it('credits each account behind the beams once, and no stranger', () => {
+    const v = valleyWith(join('a'), join('b'), {
+      ...join('c'),
+      account: 'acct-a',
+    } as ValleyAction).valley
+    expect(creditedWith(v, ['a', 'c', 'b', 'gone'])).toEqual([
+      'acct-a',
+      'acct-b',
+    ])
+    expect(creditedWith(v, [])).toEqual([])
+  })
+})
+
 describe('rule 13: the Caretaker keeps the maze', () => {
   const heart = heartPoint(theMaze())
   // The heart of the maze in the world, MAZE turned by nothing.
@@ -911,10 +926,13 @@ describe('rule 13: the Caretaker keeps the maze', () => {
     out = step(one, CONFIG.caretaker.burnSeconds / 2)
     expect(out?.message.caretaker?.burn).toBe(0.5)
     expect(out?.message.unmade).toBeNull()
-    // Unmade where it floated, wandering as it was.
+    expect(out?.credited).toEqual([])
+    // Unmade where it floated, wandering as it was, and both accounts
+    // credited with it (rule 14).
     const last = out?.message.caretaker
     out = step(one, CONFIG.caretaker.burnSeconds / 2)
     expect(out?.message.unmade).toEqual({ x: last?.x, z: last?.z })
+    expect(out?.credited).toEqual(['acct-a', 'acct-b'])
     expect(out?.message.caretaker).toBeNull()
     out = step(one, CONFIG.caretaker.respawnSeconds - 1)
     expect(out?.message.caretaker).toBeNull()

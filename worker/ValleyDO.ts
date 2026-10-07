@@ -7,7 +7,9 @@
 // for Marx's truck and the day's turn, and sends what came back. Each account's pack and wallet are in D1
 // (d1packs.ts): the reducer says what goes in or out, and this writes it
 // and tells the account's sockets. A buy runs alone (blockConcurrencyWhile),
-// so the wallet it was judged against is the wallet it is paid from.
+// so the wallet it was judged against is the wallet it is paid from. So
+// does the season's tally (rule 14), so an unmaking is counted once and
+// its reward paid once.
 //
 // The shadowmen (rule 11) and the Caretaker (rule 13) are stepped here
 // CONFIG.shadowmen.tickHz times a second while anyone is placed in the
@@ -26,6 +28,7 @@ import {
   PROTOCOL_VERSION,
 } from '../src/protocol.ts'
 import { mulberry32 } from '../src/rng.ts'
+import { SEASON, tally } from '../src/season.ts'
 import {
   createShadows,
   createValley,
@@ -45,8 +48,10 @@ import type {
   HelloMessage,
   PeerStateWire,
   PeerWire,
+  SeasonWire,
   ServerMessage,
 } from '../src/protocol.ts'
+import type { SeasonProgress } from '../src/season.ts'
 import type {
   PackChange,
   Reduced,
@@ -314,6 +319,7 @@ export class ValleyDO extends DurableObject<Env> {
       return
     }
     this.broadcast(out.message, null)
+    if (out.credited.length > 0) void this.credit(out.credited)
     if (out.struck.length === 0) return
     for (const socket of this.ctx.getWebSockets()) {
       const me = this.attachment(socket).me
@@ -377,8 +383,11 @@ export class ValleyDO extends DurableObject<Env> {
     // The pack first: a valley that cannot read it lets no one in to change
     // it.
     let holdings: Holdings
+    let season: SeasonProgress
     try {
-      holdings = await this.packs().open(account)
+      const packs = this.packs()
+      holdings = await packs.open(account)
+      season = await packs.season(account, SEASON.id)
     } catch (err) {
       console.error('The pack could not be opened', err)
       ws.close(CLOSE.serverError, 'The valley lost the pack')
@@ -425,6 +434,7 @@ export class ValleyDO extends DurableObject<Env> {
       daily: dailyFor(this.valley, account, now),
       pack: holdings.pack,
       cash: holdings.cash,
+      season: seasonWire(season),
     })
     this.broadcast({ type: 'peer-joined', peer: me }, ws)
     for (const msg of reduced.broadcast) this.broadcast(msg, ws)
@@ -649,17 +659,51 @@ export class ValleyDO extends DurableObject<Env> {
         if (!done) send(ws, { type: 'nack', re: 'use', reason: 'none-left' })
       }
       const { pack, cash } = await packs.get(account)
-      for (const socket of this.ctx.getWebSockets()) {
-        const attachment = this.attachment(socket)
-        if (attachment.account !== account || !attachment.me) continue
-        try {
-          send(socket, { type: 'pack', pack, cash })
-        } catch {
-          // Closing sockets throw; their close handler follows.
-        }
-      }
+      this.toAccount(account, { type: 'pack', pack, cash })
     } catch (err) {
       console.error('The pack could not be changed', change, err)
+    }
+  }
+
+  // Rule 14: each account credited with unmaking the Caretaker, tallied
+  // alone, so two unmakings never read the same progress. Every socket on
+  // the account hears the new count, and the pack and wallet when the
+  // tally paid the reward.
+  private async credit(accounts: readonly string[]): Promise<void> {
+    await this.ctx.blockConcurrencyWhile(async () => {
+      const packs = this.packs()
+      for (const account of accounts) {
+        try {
+          const { progress, reward } = tally(
+            await packs.season(account, SEASON.id)
+          )
+          await packs.score(account, SEASON.id, progress, reward)
+          this.toAccount(account, {
+            type: 'season',
+            season: seasonWire(progress),
+            rewarded: reward !== null,
+          })
+          if (reward) {
+            const { pack, cash } = await packs.get(account)
+            this.toAccount(account, { type: 'pack', pack, cash })
+          }
+        } catch (err) {
+          console.error('The season could not be tallied', account, err)
+        }
+      }
+    })
+  }
+
+  // To every socket signed in to `account` that has said hello.
+  private toAccount(account: string, msg: ServerMessage): void {
+    for (const socket of this.ctx.getWebSockets()) {
+      const attachment = this.attachment(socket)
+      if (attachment.account !== account || !attachment.me) continue
+      try {
+        send(socket, msg)
+      } catch {
+        // Closing sockets throw; their close handler follows.
+      }
     }
   }
 
@@ -737,6 +781,10 @@ function allow(
   }
   window.count += 1
   return window.count <= limit.count
+}
+
+function seasonWire(progress: SeasonProgress): SeasonWire {
+  return { season: SEASON.id, ...progress }
 }
 
 function send(ws: WebSocket, msg: ServerMessage): void {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
+import { NO_PROGRESS } from '../../src/season.ts'
 import { D1PackStore } from '../../worker/d1packs.ts'
 import { MemoryPackStore, STARTING_CASH } from '../../worker/packs.ts'
 import { testD1 } from './stubs/d1.ts'
@@ -66,6 +67,26 @@ function packContract(makeStore: () => PackStore): void {
     expect((await store.get('a1')).pack[OTHER]).toBe(4)
     expect(await store.purchase('a1', STARTING_CASH - 200, null)).toBe(true)
     expect((await store.get('a1')).cash).toBe(0)
+  })
+
+  it('keeps season progress, paying a reward with it', async () => {
+    const store = makeStore()
+    await store.open('a1')
+    expect(await store.season('a1', 's')).toEqual(NO_PROGRESS)
+    await store.score('a1', 's', { kills: 1, claimed: false }, null)
+    expect(await store.season('a1', 's')).toEqual({ kills: 1, claimed: false })
+    expect(await store.season('a1', 'other')).toEqual(NO_PROGRESS)
+    const before = await store.get('a1')
+    await store.score(
+      'a1',
+      's',
+      { kills: 2, claimed: true },
+      { cash: 100_00, kind: OTHER, count: 200 }
+    )
+    expect(await store.season('a1', 's')).toEqual({ kills: 2, claimed: true })
+    const after = await store.get('a1')
+    expect(after.cash).toBe(before.cash + 100_00)
+    expect(after.pack[OTHER]).toBe(before.pack[OTHER] + 200)
   })
 
   it('sells nothing from a wallet never opened', async () => {
