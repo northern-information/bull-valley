@@ -51,7 +51,7 @@ export interface Actions {
   truckLeaves(aboard: boolean): void
   hopOut(line?: string): void
   // A shadowman touched you.
-  strike(): void
+  strike(by?: 'shadowman' | 'caretaker'): void
   callTruck(): void
   // The buyer's side of a sale, once the valley says the unit is ours.
   pocket(kind: string): void
@@ -186,8 +186,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (s.shared) net.send({ type: 'hop-out' })
   }
 
-  // Static, then you come to on the forecourt.
-  const strike = () => {
+  // Static, then you come to on the forecourt: a shadowman's touch, or
+  // the Caretaker's.
+  const strike = (by: 'shadowman' | 'caretaker' = 'shadowman') => {
     const next = advance(s.raid, EVENTS.STRUCK, s.raidClock)
     if (next === s.raid) return
     s.raid = next
@@ -196,7 +197,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     closeInventory()
     player.keys.clear()
     player.relocate(world.spawn.x, world.spawn.z, world.spawn.yaw)
-    hud.tell(copy('log.struck'))
+    hud.tell(copy(by === 'caretaker' ? 'log.caught' : 'log.struck'))
   }
 
   const callTruck = () => {
@@ -271,8 +272,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (line) hud.tell(line)
   }
 
-  // E at the bush: ask the valley for today's berry, or say why not.
-  const collectBerry = (status: DailyStatus) => {
+  // E at a bush: ask the valley for today's berry off it, or say why not.
+  const collectBerry = (bush: number, status: DailyStatus) => {
     if (status === 'offline') {
       hud.tell(copy('log.berry_offline'))
       return
@@ -283,7 +284,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     }
     if (s.pendingCollect) return
     s.pendingCollect = true
-    net.send({ type: 'collect' })
+    net.send({ type: 'collect', bush })
   }
 
   // A berry into the pack, or not today.
@@ -543,7 +544,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         buy(interaction)
         return
       case 'collect':
-        collectBerry(interaction.status)
+        collectBerry(interaction.bush, interaction.status)
         return
       case 'talk':
         talkToGron()

@@ -38,17 +38,29 @@ export interface ShelfSpot {
   affordable: boolean
 }
 
-// The berry bush as this player finds it: a berry waiting, today's already
-// taken, or no valley to ask (the bush is the valley's; see daily.ts).
+// A berry bush as this player finds it: a berry waiting, today's already
+// taken, or no valley to ask (the bushes are the valley's; see daily.ts).
 export type DailyStatus = 'ready' | 'picked' | 'offline'
 
-// How the bush stands at server time `now`, given the valley's last word
-// on it (null with no valley). The word is read against the valley's
-// clock, so once midnight Central passes the berry is back before the
-// valley is asked again.
-export function dailyStatus(daily: DailyWire | null, now: number): DailyStatus {
+// How bush `bush` stands at server time `now`, given the valley's last
+// word on the bushes (null with no valley). The word is read against the
+// valley's clock, so once midnight Central passes the berry is back
+// before the valley is asked again.
+export function dailyStatus(
+  daily: DailyWire | null,
+  bush: number,
+  now: number
+): DailyStatus {
   if (!daily) return 'offline'
-  return daily.collected && now < daily.resetsAt ? 'picked' : 'ready'
+  return daily.collected.includes(bush) && now < daily.resetsAt
+    ? 'picked'
+    : 'ready'
+}
+
+// A berry bush as the resolver sees it: its id and how it stands.
+export interface BushSpot extends XZ {
+  id: number
+  status: DailyStatus
 }
 
 export type Interaction<P extends PickupSpot = PickupSpot> =
@@ -59,7 +71,7 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   | { kind: 'extractKeep' }
   | { kind: 'pickup'; pickup: P }
   | ({ kind: 'buy' } & ShelfSpot)
-  | { kind: 'collect'; status: DailyStatus }
+  | { kind: 'collect'; bush: number; status: DailyStatus }
   | { kind: 'talk' }
   // Marx, Carlsten, or Moab Coldë at station `station`: he says his next
   // line.
@@ -80,11 +92,10 @@ export interface InteractionInput<P extends PickupSpot> {
   // Whether the player stands inside a store's walls: no station extract
   // from in there.
   insideStore: boolean
-  // The berry bush at the spawn Citgo, or null, and how it stands for
-  // this player today.
-  bush: XZ | null
-  daily: DailyStatus
-  // Gron, beside the bush, or null.
+  // The berry bushes (the spawn Citgo's and the maze's), and how each
+  // stands for this player today.
+  bushes: readonly BushSpot[]
+  // Gron, beside the spawn Citgo's bush, or null.
   gron: XZ | null
   // Marx, Carlsten and every Moab, where each stands while he can be
   // talked to.
@@ -99,7 +110,8 @@ function near(a: XZ, b: XZ, radius: number): boolean {
 // nearest NPC in his reach, unless a shelf unit is in view (Moab stands
 // inside a station's extract radius, so this comes before extracting);
 // board the waiting truck; buy off a shelf; board the called truck to end
-// the raid; extract at a station (never from inside its store) or the Keep; Gron or the berry bush, whichever is nearer; take the
+// the raid; extract at a station (never from inside its store) or the
+// Keep; Gron or the nearest berry bush, whichever is nearer; take the
 // nearest pickup.
 export function resolveInteraction<P extends PickupSpot>(
   input: InteractionInput<P>
@@ -148,16 +160,20 @@ export function resolveInteraction<P extends PickupSpot>(
     }
   }
 
-  // The bush and Gron stand at the spawn Citgo, so they are there before
-  // the truck leaves and after a strike brings you back. They stand a few
-  // strides apart, so both can be in reach; the nearer one answers.
+  // Gron and the first bush stand at the spawn Citgo, so they are there
+  // before the truck leaves and after a strike brings you back. They stand
+  // a few strides apart, so both can be in reach; the nearer one answers.
   const dist = (spot: XZ | null) =>
     spot ? Math.hypot(spot.x - player.x, spot.z - player.z) : Infinity
-  const toBush = dist(input.bush)
+  let bush: BushSpot | null = null
+  for (const spot of input.bushes) {
+    if (dist(spot) < dist(bush)) bush = spot
+  }
+  const toBush = dist(bush)
   const toGron = dist(input.gron)
   if (toGron < CONFIG.gron.reach && toGron <= toBush) return { kind: 'talk' }
-  if (toBush < CONFIG.daily.reach) {
-    return { kind: 'collect', status: input.daily }
+  if (bush && toBush < CONFIG.daily.reach) {
+    return { kind: 'collect', bush: bush.id, status: bush.status }
   }
 
   let best = CONFIG.player.pickupReach
@@ -190,7 +206,7 @@ export function pickupLabel({
 }
 
 // The label over the item E would act on: a pickup, the shelf unit a buy
-// would take, or the berry bush. dim: true when it cannot be had (short of
+// would take, or a berry bush. dim: true when it cannot be had (short of
 // cash, or the bush picked clean or out of reach of the valley). Null for
 // everything else.
 export interface ItemLabel {

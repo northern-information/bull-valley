@@ -468,3 +468,52 @@ export function inMaze(
     z <= size.along + margin
   )
 }
+
+// Where the maze lies in the world: the world point of its maze-local
+// origin (the corner nearest the station, CONFIG.maze.at), and the turn
+// that carries maze-local +x to (cos yaw, sin yaw), as store.ts toWorld
+// turns a station's own parts. The hello carries it, so the valley can
+// step the Caretaker (caretaker.ts) in the maze's own metres.
+export interface MazePlace {
+  x: number
+  z: number
+  yaw: number
+}
+
+export function mazeToWorld(place: MazePlace, p: { x: number; z: number }) {
+  const cos = Math.cos(place.yaw)
+  const sin = Math.sin(place.yaw)
+  return {
+    x: place.x + cos * p.x - sin * p.z,
+    z: place.z + sin * p.x + cos * p.z,
+  }
+}
+
+export function worldToMaze(place: MazePlace, p: { x: number; z: number }) {
+  const cos = Math.cos(place.yaw)
+  const sin = Math.sin(place.yaw)
+  const dx = p.x - place.x
+  const dz = p.z - place.z
+  return { x: cos * dx + sin * dz, z: -sin * dx + cos * dz }
+}
+
+// `count` spots on an ellipse round `centre` in maze-local metres, `across`
+// and `along` its radii, the first straight across from it: the berry
+// bushes round the portal at the heart. With an even count none stands
+// square in the court's length, the way the walk comes in.
+export function ringSpots(
+  centre: { x: number; z: number },
+  count: number,
+  across: number,
+  along: number
+): { x: number; z: number }[] {
+  const spots: { x: number; z: number }[] = []
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * Math.PI * 2
+    spots.push({
+      x: centre.x + Math.cos(a) * across,
+      z: centre.z + Math.sin(a) * along,
+    })
+  }
+  return spots
+}

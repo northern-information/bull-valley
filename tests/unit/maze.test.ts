@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
 import {
   pointInPolygon,
+  pointSegmentDistance,
   projectOnSegment,
   unitToWorld,
 } from '../../src/coords.ts'
@@ -15,13 +16,17 @@ import {
   mazeHeart,
   mazeRuns,
   mazeSpans,
+  mazeToWorld,
   mazeWalk,
   perimeterSpots,
+  ringSpots,
   SHINING_MAZE,
   spanPieces,
   trailField,
+  worldToMaze,
 } from '../../src/maze.ts'
 import { roadWidth } from '../../src/roadside.ts'
+import { toWorld } from '../../src/store.ts'
 import type { Geo } from '../../src/interfaces.ts'
 import type { Cell } from '../../src/maze.ts'
 
@@ -368,5 +373,64 @@ describe('the maze in Bull Valley', () => {
       }
     }
     expect(wet).toBe(0)
+  })
+})
+
+describe('where the maze lies', () => {
+  const place = { x: 120, z: -40, yaw: 0.9 }
+
+  it('carries maze-local metres into the world and back', () => {
+    const p = { x: 12.5, z: 80 }
+    const w = mazeToWorld(place, p)
+    const back = worldToMaze(place, w)
+    expect(back.x).toBeCloseTo(p.x)
+    expect(back.z).toBeCloseTo(p.z)
+    // As store.ts turns a station's own parts.
+    const [sx, , sz] = toWorld(
+      { x: 120, z: -40, yaw: 0.9, y: 0 },
+      [12.5, 0, 80]
+    )
+    expect(w.x).toBeCloseTo(sx)
+    expect(w.z).toBeCloseTo(sz)
+  })
+})
+
+describe('the berry bushes at the heart', () => {
+  const { size, wallThickness } = CONFIG.maze
+  const { count, across, along } = CONFIG.maze.bushes
+  const heart = cellPoint(SHINING_MAZE, size, mazeHeart(SHINING_MAZE))
+  const spots = ringSpots(heart, count, across, along)
+
+  it('rings the portal, clear of it and of the corn', () => {
+    expect(spots).toHaveLength(count)
+    for (const spot of spots) {
+      const d = Math.hypot(spot.x - heart.x, spot.z - heart.z)
+      expect(d).toBeGreaterThan(
+        CONFIG.maze.portal.radius + CONFIG.daily.bushRadius + 1
+      )
+      for (const { a, b } of mazeSpans(SHINING_MAZE, size)) {
+        const gap = pointSegmentDistance(spot.x, spot.z, a.x, a.z, b.x, b.z)
+        expect(gap).toBeGreaterThan(wallThickness / 2 + CONFIG.daily.bushRadius)
+      }
+    }
+  })
+
+  it('stands none square in the way the walk to the gate comes in', () => {
+    const [gate] = mazeGates(SHINING_MAZE)
+    const walk = mazeWalk(SHINING_MAZE, mazeHeart(SHINING_MAZE), gate)
+    const next = cellPoint(SHINING_MAZE, size, walk[1])
+    for (const spot of spots) {
+      // Off the line from the heart to the walk's first turn by more than
+      // a bush and a raider.
+      const off = pointSegmentDistance(
+        spot.x,
+        spot.z,
+        heart.x,
+        heart.z,
+        next.x,
+        next.z
+      )
+      expect(off).toBeGreaterThan(CONFIG.daily.bushRadius + 0.5)
+    }
   })
 })

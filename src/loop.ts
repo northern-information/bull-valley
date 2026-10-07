@@ -49,6 +49,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     hands,
     scope,
     shadowmen,
+    caretaker,
     bursts,
     mist,
     glow,
@@ -64,12 +65,17 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     return count ? copy('truck.lobby_count', { clock, ...count }) : clock
   }
 
-  // How the bush stands for this player right now.
-  const daily = () =>
-    dailyStatus(
-      net.online ? s.daily : null,
-      net.clock.serverNow(performance.now())
-    )
+  // How each bush stands for this player right now.
+  const bushSpots = () => {
+    const daily = net.online ? s.daily : null
+    const now = net.clock.serverNow(performance.now())
+    return world.bushes.map(({ id, x, z }) => ({
+      id,
+      x,
+      z,
+      status: dailyStatus(daily, id, now),
+    }))
+  }
 
   let last = performance.now()
   renderer.setAnimationLoop(() => {
@@ -215,6 +221,21 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       const y = world.ground.at(at.x, at.z) + CONFIG.shadowmen.chestHeight
       bursts.spawn(at.x, y, at.z)
     }
+    // The Caretaker walks the maze on the same terms; played alone, one
+    // beam is never enough to unmake it.
+    const keeper = caretaker.update({
+      dt,
+      time: game.still ? 0.3 : time,
+      player: player.pos,
+      alone,
+      renderAt,
+      myId: net.id,
+    })
+    if (keeper.struck) actions.strike('caretaker')
+    for (const at of keeper.unmade) {
+      const y = world.ground.at(at.x, at.z) + CONFIG.caretaker.chestHeight
+      bursts.spawn(at.x, y, at.z)
+    }
     bursts.update(dt)
     mist.update({ dt, player: player.pos })
     // Gron's rain falls on its own clock; under prefers-reduced-motion it
@@ -272,6 +293,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     scope.draw(dt, {
       contacts: [
         ...swarm.contacts,
+        ...(keeper.contact ? [keeper.contact] : []),
         ...peers.contacts(player.pos, CONFIG.scope.rangeMetres, renderAt),
       ],
       forward,
@@ -292,7 +314,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
 
     // --- Interactions: what E would do right now -------------------------
     const inStore = targets.storeIndex()
-    const bush = daily()
+    const bushes = bushSpots()
     s.interaction = s.aboard
       ? { kind: 'hopOut' }
       : resolveInteraction({
@@ -310,8 +332,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
           pickups: [...world.pickups, ...game.drops.pickups],
           shelf: targets.shelfInView(inStore),
           insideStore: inStore >= 0,
-          bush: world.bush,
-          daily: bush,
+          bushes,
           gron: world.gron,
           npcs: targets.npcSpots(inStore),
         })
@@ -321,8 +342,10 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     const labelTo = label ? targets.labelTarget(interaction) : null
     const labelSpot = labelTo ? targets.labelAt(labelTo) : null
     glow.setTarget(targets.glowTarget(interaction))
-    // Today's berry picked, the bush stands bare until midnight Central.
-    world.setBerries(bush !== 'picked')
+    // Today's berry picked, a bush stands bare until midnight Central.
+    for (const [i, bush] of world.bushes.entries()) {
+      bush.setBerries(bushes[i].status !== 'picked')
+    }
     const clear = !s.ended && now >= s.strikeUntil
     hud.setReticleActive(clear && interaction !== null)
     hud.itemLabel(

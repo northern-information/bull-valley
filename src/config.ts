@@ -328,5 +328,36 @@ export const CONFIG = {
     // `radius` of its middle and it puts you on the trail just outside the
     // gate (`exit`, station-local), facing the gate.
     portal: { radius: 0.9, exit: { x: 78, z: 23 } },
+    // Berry bushes round the portal, on an ellipse this many metres across
+    // the court and along it (maze.ts ringSpots). Each gives every account
+    // one berry a day, like the bush at the spawn Citgo (CONFIG.daily).
+    bushes: { count: 6, across: 2.6, along: 5 },
+  },
+  // The Caretaker: one floating shade that walks the corn maze's paths
+  // (caretaker.ts, sharedraid.ts rule 15). It patrols out to a random
+  // corner of the maze and back to the heart, by turns, at patrolSpeed.
+  // A raider on foot in the maze it can see within sightRange, or one
+  // within senseRadius whether it can see them or not, it hunts at
+  // huntSpeed (faster than a walk, slower than a sprint), and gives up
+  // forgetSeconds after it last saw them. Its touch at touchRadius is a
+  // strike, as a shadowman's. Two raiders' beams on it at once for
+  // burnSeconds unmake it, and it forms again at the heart respawnSeconds
+  // later; one beam alone does nothing. It floats hover metres over the
+  // paths, and a beam is aimed at chestHeight over the holder's feet.
+  caretaker: {
+    patrolSpeed: 2.2,
+    huntSpeed: 6.5,
+    sightRange: 18,
+    senseRadius: 3,
+    forgetSeconds: 4,
+    touchRadius: 1.1,
+    burnSeconds: 1.2,
+    respawnSeconds: 180,
+    hover: 0.5,
+    chestHeight: 1.6,
+    // How far its body keeps off the corn when it cuts a corner, and how
+    // often a hunt works out its way through the paths again, in seconds.
+    clearance: 0.45,
+    rethinkSeconds: 0.5,
   },
 }

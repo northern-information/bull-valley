@@ -38,6 +38,7 @@ const hello = {
   stations: 5,
   havens: [0, 1, 2, 3, 4].map((i) => ({ x: i * 100, z: i })),
   metres: { width: 15059, height: 15038 },
+  maze: { x: 120, z: -40, yaw: 0.5 },
 }
 
 const parse = (value: unknown) => parseClientMessage(JSON.stringify(value))
@@ -157,22 +158,30 @@ describe('parseClientMessage', () => {
     expect(parse({ ...hello, name: 7 })).toEqual(hello)
   })
 
-  it("parses an older build's hello without havens or metres, with empty defaults", () => {
-    const { havens: _havens, metres: _metres, ...older } = hello
+  it("parses an older build's hello without havens, metres or a maze, with empty defaults", () => {
+    const { havens: _havens, metres: _metres, maze: _maze, ...older } = hello
     expect(parse({ ...older, v: PROTOCOL_VERSION - 1 })).toEqual({
       ...older,
       v: PROTOCOL_VERSION - 1,
       havens: [],
       metres: { width: 0, height: 0 },
+      maze: null,
     })
     // Bad ones read as missing in an older build, too.
     expect(
-      parse({ ...hello, v: PROTOCOL_VERSION - 1, havens: 1, metres: 'big' })
+      parse({
+        ...hello,
+        v: PROTOCOL_VERSION - 1,
+        havens: 1,
+        metres: 'big',
+        maze: 'corn',
+      })
     ).toEqual({
       ...older,
       v: PROTOCOL_VERSION - 1,
       havens: [],
       metres: { width: 0, height: 0 },
+      maze: null,
     })
     // The current version still requires both.
     expect(parse({ ...older, v: PROTOCOL_VERSION })).toBeNull()
@@ -186,12 +195,26 @@ describe('parseClientMessage', () => {
       z: -2,
     })
     expect(parse({ type: 'dev', op: 'shadowman', x: 1 })).toBeNull()
+    expect(parse({ type: 'dev', op: 'caretaker', x: 1, z: -2 })).toEqual({
+      type: 'dev',
+      op: 'caretaker',
+      x: 1,
+      z: -2,
+    })
   })
 
   it('parses the raid frames', () => {
-    for (const type of ['board', 'unboard', 'hop-out', 'collect', 'rename']) {
+    for (const type of ['board', 'unboard', 'hop-out', 'rename']) {
       expect(parse({ type })).toEqual({ type })
     }
+    // A collect names its bush.
+    expect(parse({ type: 'collect', bush: 3 })).toEqual({
+      type: 'collect',
+      bush: 3,
+    })
+    expect(parse({ type: 'collect' })).toBeNull()
+    expect(parse({ type: 'collect', bush: -1 })).toBeNull()
+    expect(parse({ type: 'collect', bush: 'big one' })).toBeNull()
     // A rename names nothing; anything it carries is dropped.
     expect(parse({ type: 'rename', name: 'Mallory' })).toEqual({
       type: 'rename',
@@ -321,6 +344,11 @@ describe('parseClientMessage', () => {
     expect(
       parse({ ...hello, havens: [...hello.havens.slice(1), 'pumps'] })
     ).toBeNull()
+    // Where the maze lies, or null for a build without one.
+    expect(parse({ ...hello, maze: null })).toEqual({ ...hello, maze: null })
+    expect(parse({ ...hello, maze: undefined })).toBeNull()
+    expect(parse({ ...hello, maze: { x: 1, z: 2 } })).toBeNull()
+    expect(parse({ ...hello, maze: { x: 1, z: 2, yaw: 'east' } })).toBeNull()
     expect(parse({ ...hello, metres: undefined })).toBeNull()
     expect(parse({ ...hello, metres: { width: 0, height: 10 } })).toBeNull()
     expect(

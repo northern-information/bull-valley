@@ -9,8 +9,9 @@
 // and tells the account's sockets. A buy runs alone (blockConcurrencyWhile),
 // so the wallet it was judged against is the wallet it is paid from.
 //
-// The shadowmen (rule 13) are stepped here CONFIG.shadowmen.tickHz times a
-// second while anyone is placed in the raid, and live in memory only. The
+// The shadowmen (rule 13) and the Caretaker (rule 15) are stepped here
+// CONFIG.shadowmen.tickHz times a second while anyone is placed in the
+// raid, and live in memory only. The
 // ticking timer keeps the object awake; it stops itself once no one is
 // left, and the object can hibernate again.
 
@@ -29,6 +30,7 @@ import {
   createShadows,
   createValley,
   dailyFor,
+  placeCaretaker,
   placeShadowman,
   reduce,
   restoreValley,
@@ -195,7 +197,7 @@ export class ValleyDO extends DurableObject<Env> {
         await this.act(ws, { type: 'extract', id: me.id, kind: msg.kind })
         return
       case 'collect':
-        await this.act(ws, { type: 'collect', id: me.id })
+        await this.act(ws, { type: 'collect', id: me.id, bush: msg.bush })
         return
       case 'use':
         await this.act(ws, { type: 'use', id: me.id, kind: msg.kind })
@@ -232,6 +234,11 @@ export class ValleyDO extends DurableObject<Env> {
         }
         if (msg.op === 'shadowman') {
           placeShadowman(this.shadows, msg.x, msg.z)
+          this.startShadows()
+          return
+        }
+        if (msg.op === 'caretaker') {
+          placeCaretaker(this.valley, this.shadows, msg.x, msg.z)
           this.startShadows()
           return
         }
@@ -289,8 +296,8 @@ export class ValleyDO extends DurableObject<Env> {
     )
   }
 
-  // One step of the shadowmen: the frame to everyone, a strike to each
-  // raider touched. Stops the clock when there is no one to step round.
+  // One step of the shadowmen and the Caretaker: the frame to everyone, a
+  // strike to each raider touched, saying when it was the Caretaker. Stops the clock when there is no one to step round.
   protected tickShadows(): void {
     const placed = this.roster(null).map(({ id, at }) => ({ id, at }))
     const out = stepShadows(this.valley, this.shadows, placed, this.shadowRng, {
@@ -308,7 +315,12 @@ export class ValleyDO extends DurableObject<Env> {
       const me = this.attachment(socket).me
       if (!me || !out.struck.includes(me.id)) continue
       try {
-        send(socket, { type: 'struck' })
+        send(
+          socket,
+          out.caught.includes(me.id)
+            ? { type: 'struck', by: 'caretaker' }
+            : { type: 'struck' }
+        )
       } catch {
         // Closing sockets throw; their close handler follows.
       }
@@ -381,6 +393,7 @@ export class ValleyDO extends DurableObject<Env> {
         stations: hello.stations,
         havens: hello.havens,
         metres: hello.metres,
+        maze: hello.maze,
       },
       { now: Date.now(), present: this.presentIds(ws) }
     )

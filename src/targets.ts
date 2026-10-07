@@ -26,12 +26,12 @@ export interface Targets {
   // every Moab, for the resolver to weigh by distance.
   npcSpots(station: number): NpcSpot[]
   // What the glow rings for an interaction: the pickup, the shelf unit a
-  // buy would take, the bush while today's berry is on it, Gron, or Marx,
+  // buy would take, a bush while today's berry is on it, Gron, or Marx,
   // Carlsten or Moab when E would talk to him. Nothing for the truck, the
   // stand, or an extraction.
   glowTarget(action: Interaction<Pickup> | null): THREE.Object3D | null
   // What an item's label floats over: the pickup, the shelf unit a buy
-  // would take, or the bush, picked or not. Null for anything else.
+  // would take, or a bush, picked or not. Null for anything else.
   labelTarget(action: Interaction<Pickup> | null): THREE.Object3D | null
   // Where the label sits: just over the top of the item's meshes (its
   // halo would lift it into the air), in the view's 0..1 across and down.
@@ -43,6 +43,8 @@ export function createTargets(game: Game): Targets {
   const { camera, world, truck, player, state } = game
   const look = new THREE.Vector3()
   const labelPoint = new THREE.Vector3()
+  const bushObject = (id: number) =>
+    world.bushes.find((b) => b.id === id)?.object ?? null
 
   const glowTarget = (
     action: Interaction<Pickup> | null
@@ -53,7 +55,7 @@ export function createTargets(game: Game): Targets {
       case 'buy':
         return world.shelves.unitFor(action.station, action.item, action.unit)
       case 'collect':
-        return action.status === 'ready' ? world.bushObject : null
+        return action.status === 'ready' ? bushObject(action.bush) : null
       case 'talk':
         return world.gronRig?.figure.group ?? null
       case 'speak':
@@ -125,7 +127,7 @@ export function createTargets(game: Game): Targets {
         case 'buy':
           return glowTarget(action)
         case 'collect':
-          return world.bushObject
+          return bushObject(action.bush)
         default:
           return null
       }

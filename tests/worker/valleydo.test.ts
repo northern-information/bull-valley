@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { heartPoint, theMaze } from '../../src/caretaker.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { getItem } from '../../src/items.ts'
 import { CLOSE, PROTOCOL_VERSION } from '../../src/protocol.ts'
@@ -126,6 +127,10 @@ async function valley(state = new MockState(), env: Partial<Env> = {}) {
   return { valley: v, state }
 }
 
+// Where a build puts its corn maze: far from where the specs stand, so
+// the Caretaker keeps to itself unless a test goes looking for it.
+const MAZE = { x: 5000, z: 5000, yaw: 0 }
+
 // What a build placed: two joints first, then `n - 1` cabbages.
 const placed = (n: number) => [
   { kind: 'joints', count: 2 },
@@ -146,6 +151,7 @@ const hello = (
     stations,
     havens: Array.from({ length: stations }, (_, i) => ({ x: i * 1000, z: 0 })),
     metres: { width: 15059, height: 15038 },
+    maze: MAZE,
   })
 
 // The last pack frame a socket was sent.
@@ -537,36 +543,44 @@ describe('ValleyDO', () => {
     const before = Date.now()
     const a = await join(v, s, 'Dave')
     const welcome = a.last<WelcomeMessage>()
-    expect(welcome.daily.collected).toBe(false)
+    expect(welcome.daily.collected).toEqual([])
     expect(welcome.daily.resetsAt).toBeGreaterThan(before)
-    await v.webSocketMessage(ws(a), '{"type":"collect"}')
+    await v.webSocketMessage(ws(a), '{"type":"collect","bush":0}')
     const picked = lastDaily(a)
     expect(picked).toMatchObject({
       type: 'daily',
+      bush: 0,
       picked: true,
-      daily: { collected: true },
+      daily: { collected: [0] },
     })
     expect(picked.daily.resetsAt).toBe(welcome.daily.resetsAt)
-    await v.webSocketMessage(ws(a), '{"type":"collect"}')
+    await v.webSocketMessage(ws(a), '{"type":"collect","bush":0}')
     expect(lastDaily(a)).toMatchObject({
       type: 'daily',
       picked: false,
     })
     // The same account on another socket already had today's.
     const twin = await join(v, s, 'Dave')
-    expect(twin.last<WelcomeMessage>().daily.collected).toBe(true)
-    await v.webSocketMessage(ws(twin), '{"type":"collect"}')
+    expect(twin.last<WelcomeMessage>().daily.collected).toEqual([0])
+    await v.webSocketMessage(ws(twin), '{"type":"collect","bush":0}')
     expect(lastDaily(twin).picked).toBe(false)
+    // A maze bush has a berry of its own.
+    await v.webSocketMessage(ws(twin), '{"type":"collect","bush":4}')
+    expect(lastDaily(twin)).toMatchObject({
+      bush: 4,
+      picked: true,
+      daily: { collected: [0, 4] },
+    })
     // Another account has its own, even under a name that looks the same.
     const b = await join(v, s, 'Dave', { account: 'acct-other' })
-    expect(b.last<WelcomeMessage>().daily.collected).toBe(false)
+    expect(b.last<WelcomeMessage>().daily.collected).toEqual([])
     // Nobody else heard a thing.
     expect(b.frames().some((m) => m.type === 'daily')).toBe(false)
     // The record is persisted with the valley.
     const stored = s.storage.map.get('valley') as {
       dailies: Record<string, string>
     }
-    expect(Object.keys(stored.dailies)).toEqual(['acct-Dave'])
+    expect(Object.keys(stored.dailies)).toEqual(['acct-Dave', 'acct-Dave/4'])
   })
 
   it('wakes a valley stored before the bush existed', async () => {
@@ -574,8 +588,8 @@ describe('ValleyDO', () => {
     shared.storage.map.set('valley', { epoch: 3, raid: null, members: {} })
     const { valley: v } = await valley(shared)
     const a = await join(v, shared, 'Dave')
-    expect(a.last<WelcomeMessage>().daily.collected).toBe(false)
-    await v.webSocketMessage(ws(a), '{"type":"collect"}')
+    expect(a.last<WelcomeMessage>().daily.collected).toEqual([])
+    await v.webSocketMessage(ws(a), '{"type":"collect","bush":0}')
     expect(lastDaily(a).picked).toBe(true)
   })
 
@@ -746,7 +760,7 @@ describe('ValleyDO', () => {
       type: 'welcome',
       pack: STARTING_INVENTORY,
     })
-    await v.webSocketMessage(ws(a), '{"type":"collect"}')
+    await v.webSocketMessage(ws(a), '{"type":"collect","bush":0}')
     expect(lastPack(a)?.berries).toBe(1)
     expect(lastPack(a2)?.berries).toBe(1)
     expect(lastPack(b)).toBeUndefined()
@@ -1019,6 +1033,30 @@ describe('ValleyDO: the shadowmen', () => {
     )
     v.tick()
     expect(a.frames().some((m) => m.type === 'struck')).toBe(true)
+    expect(b.frames().some((m) => m.type === 'struck')).toBe(false)
+  })
+
+  it("says when it was the Caretaker's touch, and sends where it floats", async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const b = await join(v, s, 'B')
+    await v.alarm()
+    // A stands in the court at the maze's heart; B far off.
+    const heart = heartPoint(theMaze())
+    const hx = MAZE.x + heart.x
+    const hz = MAZE.z + heart.z
+    await v.webSocketMessage(ws(a), state(hx, hz + 2))
+    await v.webSocketMessage(ws(b), state(900, 900))
+    await v.webSocketMessage(
+      ws(a),
+      `{"type":"dev","op":"caretaker","x":${hx},"z":${hz}}`
+    )
+    v.tick()
+    const frame = a.last<ShadowmenMessage>()
+    expect(frame.type).toBe('shadowmen')
+    expect(frame.caretaker).toMatchObject({ target: idOf(a) })
+    for (let i = 0; i < 10; i++) v.tick()
+    expect(a.frames()).toContainEqual({ type: 'struck', by: 'caretaker' })
     expect(b.frames().some((m) => m.type === 'struck')).toBe(false)
   })
 

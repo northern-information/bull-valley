@@ -4,6 +4,7 @@
 
 import { unitToWorld } from './coords.ts'
 import type { Actions } from './actions.ts'
+import type { CaretakerShade } from './caretakerrig.ts'
 import type { ChatLine } from './chat.ts'
 import type { Drop } from './drops.ts'
 import type { Game } from './game.ts'
@@ -30,6 +31,7 @@ interface BvHook {
   truck: Truck
   graph: RoadGraph
   shadowmen: ShadowCards
+  caretaker: CaretakerShade
   mist: MistCards
   readonly raid: Raid
   net: {
@@ -39,7 +41,7 @@ interface BvHook {
   }
   // The shared raid as the valley last sent it; null offline.
   readonly shared: RaidWire | null
-  // The berry bush as the valley last described it; null offline.
+  // The berry bushes as the valley last described them; null offline.
   readonly daily: DailyWire | null
   readonly aboard: boolean
   // What the glow rings right now (glow.ts); null for nothing.
@@ -65,6 +67,10 @@ interface BvHook {
   // A shadowman standing still at world (x, z): the valley's, through a
   // dev frame, or this client's own, played alone.
   placeShadowman(x: number, z: number): void
+  // The Caretaker moved to world (x, z), formed, its hunt forgotten,
+  // floating still until it has someone to hunt: the valley's, through a
+  // dev frame, or this client's own, played alone.
+  placeCaretaker(x: number, z: number): void
   hurryTruck(seconds?: number): void
 }
 
@@ -85,6 +91,7 @@ export function installDevHook(game: Game, actions: Actions): void {
     truck: game.truck,
     graph: game.graph,
     shadowmen: game.shadowmen,
+    caretaker: game.caretaker,
     mist: game.mist,
     get raid() {
       return s.raid
@@ -142,6 +149,10 @@ export function installDevHook(game: Game, actions: Actions): void {
     placeShadowman(x: number, z: number) {
       if (net.online) net.send({ type: 'dev', op: 'shadowman', x, z })
       else game.shadowmen.place(x, z)
+    },
+    placeCaretaker(x: number, z: number) {
+      if (net.online) net.send({ type: 'dev', op: 'caretaker', x, z })
+      else game.caretaker.place(x, z)
     },
     hurryTruck(seconds = 5) {
       // In the shared valley the server holds the clock; a dev server

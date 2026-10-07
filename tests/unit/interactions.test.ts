@@ -23,6 +23,8 @@ const spawnStation: StationSpot = { x: 0, z: 0, name: 'Spawn Citgo' }
 const farStation: StationSpot = { x: 500, z: 0, name: 'Far Citgo' }
 const keep = { x: -500, z: 0 }
 const bush = { x: -8, z: -8 }
+// The spawn Citgo's bush, as it stands today.
+const bushesAt = (status: DailyStatus) => [{ id: 0, ...bush, status }]
 // A few strides from the bush, like CONFIG.gron.at from CONFIG.daily.bush.
 const gron = { x: -5.6, z: -9 }
 // Moab under each station's sign, station-local CONFIG.moab.at at yaw 0.
@@ -64,8 +66,7 @@ function input(
     pickups: [],
     shelf: null,
     insideStore: false,
-    bush,
-    daily: 'ready',
+    bushes: bushesAt('ready'),
     gron,
     npcs: [],
     ...over,
@@ -177,20 +178,27 @@ describe('resolveInteraction', () => {
     const atBush = { player: { x: bush.x + 1, z: bush.z } }
     expect(resolveInteraction(input(atBush))).toEqual({
       kind: 'collect',
+      bush: 0,
       status: 'ready',
     })
-    expect(resolveInteraction(input({ ...atBush, daily: 'picked' }))).toEqual({
+    expect(
+      resolveInteraction(input({ ...atBush, bushes: bushesAt('picked') }))
+    ).toEqual({
       kind: 'collect',
+      bush: 0,
       status: 'picked',
     })
-    expect(resolveInteraction(input({ ...atBush, daily: 'offline' }))).toEqual({
+    expect(
+      resolveInteraction(input({ ...atBush, bushes: bushesAt('offline') }))
+    ).toEqual({
       kind: 'collect',
+      bush: 0,
       status: 'offline',
     })
     // During the loadout too: the bush stands on the spawn lot.
     expect(
       resolveInteraction(input({ ...atBush, raid: createRaid(0) }))
-    ).toEqual({ kind: 'collect', status: 'ready' })
+    ).toEqual({ kind: 'collect', bush: 0, status: 'ready' })
     // Gron stands off this way; leave him out of the bush's own reach.
     const outOfReach = {
       player: { x: bush.x + CONFIG.daily.reach + 0.1, z: bush.z },
@@ -198,8 +206,22 @@ describe('resolveInteraction', () => {
     }
     expect(resolveInteraction(input(outOfReach))).toBeNull()
     expect(
-      resolveInteraction(input({ ...atBush, bush: null, gron: null }))
+      resolveInteraction(input({ ...atBush, bushes: [], gron: null }))
     ).toBeNull()
+  })
+
+  it('offers the nearest of several bushes, by its own id and day', () => {
+    const ring = [
+      { id: 1, x: 100, z: 100, status: 'picked' as const },
+      { id: 2, x: 103, z: 100, status: 'ready' as const },
+    ]
+    const bushes = [...bushesAt('ready'), ...ring]
+    expect(
+      resolveInteraction(input({ bushes, player: { x: 102.4, z: 100 } }))
+    ).toEqual({ kind: 'collect', bush: 2, status: 'ready' })
+    expect(
+      resolveInteraction(input({ bushes, player: { x: 100.6, z: 100 } }))
+    ).toEqual({ kind: 'collect', bush: 1, status: 'picked' })
   })
 
   it('talks to Gron within reach, whatever the raid is doing', () => {
@@ -209,7 +231,9 @@ describe('resolveInteraction', () => {
       resolveInteraction(input({ ...atGron, raid: createRaid(0) }))
     ).toEqual({ kind: 'talk' })
     // Offline too: he changes your character without the valley.
-    expect(resolveInteraction(input({ ...atGron, daily: 'offline' }))).toEqual({
+    expect(
+      resolveInteraction(input({ ...atGron, bushes: bushesAt('offline') }))
+    ).toEqual({
       kind: 'talk',
     })
     const outOfReach = {
@@ -268,6 +292,7 @@ describe('resolveInteraction', () => {
     const nearBush = { player: { x: -7.0, z: -8.4 } }
     expect(resolveInteraction(input(nearBush))).toEqual({
       kind: 'collect',
+      bush: 0,
       status: 'ready',
     })
     // Between them, nearer Gron.
@@ -285,6 +310,7 @@ describe('resolveInteraction', () => {
     const atBush = { player: { x: bush.x + 1, z: bush.z }, pickups: [pickup] }
     expect(resolveInteraction(input(atBush))).toEqual({
       kind: 'collect',
+      bush: 0,
       status: 'ready',
     })
     const truck = { distance: CONFIG.truck.boardRange - 0.1, moving: false }
@@ -375,7 +401,9 @@ describe('interactionPrompt', () => {
     }
     expect(interactionPrompt({ kind: 'pickup', pickup })).toBeNull()
     expect(interactionPrompt({ kind: 'buy', ...shelf })).toBeNull()
-    expect(interactionPrompt({ kind: 'collect', status: 'ready' })).toBeNull()
+    expect(
+      interactionPrompt({ kind: 'collect', bush: 0, status: 'ready' })
+    ).toBeNull()
   })
 })
 
@@ -410,15 +438,15 @@ describe('itemLabel', () => {
   })
 
   it('names the bush by how it stands today', () => {
-    expect(itemLabel({ kind: 'collect', status: 'ready' })).toEqual({
+    expect(itemLabel({ kind: 'collect', bush: 0, status: 'ready' })).toEqual({
       text: copy('labels.berries'),
       dim: false,
     })
-    expect(itemLabel({ kind: 'collect', status: 'picked' })).toEqual({
+    expect(itemLabel({ kind: 'collect', bush: 0, status: 'picked' })).toEqual({
       text: copy('labels.berry_picked'),
       dim: true,
     })
-    expect(itemLabel({ kind: 'collect', status: 'offline' })).toEqual({
+    expect(itemLabel({ kind: 'collect', bush: 0, status: 'offline' })).toEqual({
       text: copy('labels.berry_offline'),
       dim: true,
     })
@@ -443,7 +471,7 @@ describe('itemLabel', () => {
 
   it('labels nothing for a bush status it does not know', () => {
     const status = 'withered' as unknown as DailyStatus
-    expect(itemLabel({ kind: 'collect', status })).toBeNull()
+    expect(itemLabel({ kind: 'collect', bush: 0, status })).toBeNull()
   })
 
   it('labels a cabbage without a count', () => {
@@ -454,18 +482,19 @@ describe('itemLabel', () => {
 })
 
 describe('dailyStatus', () => {
-  const daily = { collected: true, resetsAt: 1000 }
+  const daily = { collected: [0, 3], resetsAt: 1000 }
 
   it('is offline with no valley to ask', () => {
-    expect(dailyStatus(null, 0)).toBe('offline')
+    expect(dailyStatus(null, 0, 0)).toBe('offline')
   })
 
   it("is picked until midnight Central, by the valley's clock", () => {
-    expect(dailyStatus(daily, 999)).toBe('picked')
-    expect(dailyStatus(daily, 1000)).toBe('ready')
+    expect(dailyStatus(daily, 3, 999)).toBe('picked')
+    expect(dailyStatus(daily, 3, 1000)).toBe('ready')
   })
 
-  it('is ready while the berry is on the bush', () => {
-    expect(dailyStatus({ ...daily, collected: false }, 0)).toBe('ready')
+  it('is ready while the berry is on that bush', () => {
+    expect(dailyStatus(daily, 1, 0)).toBe('ready')
+    expect(dailyStatus({ ...daily, collected: [] }, 0, 0)).toBe('ready')
   })
 })
