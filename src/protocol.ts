@@ -14,7 +14,7 @@ import type { Burst } from './shadowmen.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 17
+export const PROTOCOL_VERSION = 18
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -334,6 +334,26 @@ export interface WelcomeMessage {
   pack: Inventory
   cash: number
   cosmetics: CosmeticId[]
+  // The account's progress through the season (season.ts).
+  season: SeasonWire
+}
+
+// An account's progress through the season (sharedworld.ts rule 15): the
+// season's id (season.ts SEASON.id), how many times the account has had a
+// beam on the Caretaker as it came apart, and whether the reward is paid.
+export interface SeasonWire {
+  season: string
+  kills: number
+  claimed: boolean
+}
+
+// The account was credited with unmaking the Caretaker. Sent to every
+// socket signed in to it; `rewarded` when this unmaking finished the
+// season and paid its reward (a pack frame follows with it).
+export interface SeasonMessage {
+  type: 'season'
+  season: SeasonWire
+  rewarded: boolean
 }
 
 // The account's pack, wallet (cents) and cosmetics after a change: a
@@ -486,6 +506,7 @@ export type ServerMessage =
   | ErrorMessage
   | ShadowmenMessage
   | StruckMessage
+  | SeasonMessage
 
 // Application close codes (the 4xxx range is ours per RFC 6455). The client
 // treats every 4xxx close as final and does not reconnect.

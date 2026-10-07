@@ -48,6 +48,23 @@ geometrie_label = { text = "Geometrie: high {high}%, stimulated {stimulated}%, d
 
 # The sign-in card (src/signin.ts).
 
+# The season (src/seasonhud.ts): the card on the intro and pause overlay,
+# the tracker in the upper right, and the banners.
+
+[season]
+kicker = { text = "Season One", by = "ai" }
+title = { text = "The Caretaker", by = "ai" }
+live = { text = "Now Live", by = "ai" }
+challenge = { text = "Unmake the Caretaker {goal} times. It takes two flashlights on him at once, held, in the corn maze.", by = "ai" }
+reward = { text = "Reward: {cash} and a carton of Marlboro Reds", by = "ai" }
+progress = { text = "{kills}/{goal}", by = "ai" }
+complete = { text = "Complete", by = "ai" }
+tracker_label = { text = "Season One: the Caretaker unmade {kills} of {goal} times", by = "ai" }
+banner_unmade = { text = "Caretaker Unmade {kills}/{goal}", by = "ai" }
+banner_unmade_again = { text = "Caretaker Unmade", by = "ai" }
+banner_complete = { text = "Season Complete", by = "ai" }
+banner_paid = { text = "+{cash} · Carton of Marlboro Reds", by = "ai" }
+
 [signin]
 title = { text = "Sign In", by = "tyler" }
 lede = { text = "Sign in to raid the valley.", by = "tyler" }
@@ -137,6 +154,10 @@ trade_owned = { text = "You already wear the {cosmetic}.", by = "ai" }
 trade_refused = { text = "Moab turns the scroll in the fire. Not now.", by = "ai" }
 marx_donuts = { text = "Somewhere across the road, tires tear up a field.", by = "ai" }
 marx_back = { text = "Marx comes back across the road and picks up his book.", by = "ai" }
+season_live = { text = "Season One: The Caretaker is live. Unmake him {goal} times for {cash} and a carton of Marlboro Reds.", by = "ai" }
+season_unmade = { text = "You helped unmake the Caretaker. {kills} of {goal} for Season One.", by = "ai" }
+season_unmade_again = { text = "You helped unmake the Caretaker again.", by = "ai" }
+season_reward = { text = "Season One complete. {cash} and a carton of Marlboro Reds are in your pack.", by = "ai" }
 whistle = { text = "You whistle into the dark. An engine turns over, far off.", by = "ai" }
 whistle_nothing = { text = "You whistle into the dark. Nothing turns over.", by = "ai" }
 whistle_other = { text = "Far off, an engine turns over. Someone whistled.", by = "ai" }
