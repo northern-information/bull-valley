@@ -31,6 +31,7 @@ import type { Scope } from './scope.ts'
 import type { ShadowBursts } from './shadowburst.ts'
 import type { ShadowCards } from './shadowcards.ts'
 import type { Titles } from './titles.ts'
+import type { Trails } from './trails.ts'
 import type { Truck } from './truck.ts'
 import type { FuelPoint, LandmarkPoint, Pickup, World } from './world.ts'
 import type * as THREE from 'three'
@@ -179,6 +180,8 @@ export interface Game {
   bursts: ShadowBursts
   mist: MistCards
   glow: Glow
+  // The view on a trip: the blur and the trails (trails.ts).
+  trails: Trails
   // The items as the pack grid and the hotbar draw them.
   thumbs: ItemThumbs
   peers: Peers

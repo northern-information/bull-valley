@@ -17,7 +17,10 @@
 //   contents  how many the pack, bottle or box holds (1 when absent); the
 //             inventory counts these, and a buy or a pickup adds a full one
 //
-// Drinks and medicine cannot be used yet, so they have no used or empty text. Forage is never
+//   tripSeconds  how long a drink's trails last (CONFIG.trip); a cigarette's
+//             last while it smokes, the joint's while perception does
+//
+// Medicine cannot be used yet, so it has no used or empty text. Forage is never
 // on a shelf, so it has no price or bought text; the valley hands it out
 // (sharedraid.ts rule 9).
 
@@ -108,17 +111,21 @@ export const ITEMS = [
     // Shadowmen resolve through the murk while it lasts.
     perceptionSeconds: 120,
   },
-  // Drinks, circa 2008. No effect yet: the player can buy and carry them,
-  // not drink them. container is a key into CONTAINERS in drinks.ts.
+  // Drinks, circa 2008. Drinking one blurs the view and trails it for
+  // tripSeconds (trip.ts); the water only blurs. container is a key into
+  // CONTAINERS in drinks.ts.
   {
     id: 'monster',
     category: 'drink',
     label: copy('items.monster.label'),
     blurb: copy('items.monster.blurb'),
     bought: copy('items.monster.bought'),
+    used: copy('items.monster.used'),
+    empty: copy('items.monster.empty'),
     start: 0,
     price: 219,
     container: 'tall',
+    tripSeconds: 30,
   },
   {
     id: 'monster-ultra',
@@ -126,9 +133,12 @@ export const ITEMS = [
     label: copy('items.monster-ultra.label'),
     blurb: copy('items.monster-ultra.blurb'),
     bought: copy('items.monster-ultra.bought'),
+    used: copy('items.monster-ultra.used'),
+    empty: copy('items.monster-ultra.empty'),
     start: 0,
     price: 219,
     container: 'tall',
+    tripSeconds: 30,
   },
   {
     id: 'red-bull',
@@ -136,9 +146,12 @@ export const ITEMS = [
     label: copy('items.red-bull.label'),
     blurb: copy('items.red-bull.blurb'),
     bought: copy('items.red-bull.bought'),
+    used: copy('items.red-bull.used'),
+    empty: copy('items.red-bull.empty'),
     start: 0,
     price: 199,
     container: 'slim',
+    tripSeconds: 30,
   },
   {
     id: 'rip-it',
@@ -146,9 +159,12 @@ export const ITEMS = [
     label: copy('items.rip-it.label'),
     blurb: copy('items.rip-it.blurb'),
     bought: copy('items.rip-it.bought'),
+    used: copy('items.rip-it.used'),
+    empty: copy('items.rip-it.empty'),
     start: 0,
     price: 99,
     container: 'tall',
+    tripSeconds: 30,
   },
   {
     id: 'rockstar',
@@ -156,9 +172,12 @@ export const ITEMS = [
     label: copy('items.rockstar.label'),
     blurb: copy('items.rockstar.blurb'),
     bought: copy('items.rockstar.bought'),
+    used: copy('items.rockstar.used'),
+    empty: copy('items.rockstar.empty'),
     start: 0,
     price: 199,
     container: 'tall',
+    tripSeconds: 30,
   },
   {
     id: 'nos',
@@ -166,9 +185,12 @@ export const ITEMS = [
     label: copy('items.nos.label'),
     blurb: copy('items.nos.blurb'),
     bought: copy('items.nos.bought'),
+    used: copy('items.nos.used'),
+    empty: copy('items.nos.empty'),
     start: 0,
     price: 229,
     container: 'nos',
+    tripSeconds: 30,
   },
   {
     id: 'four-loko-blue',
@@ -176,9 +198,12 @@ export const ITEMS = [
     label: copy('items.four-loko-blue.label'),
     blurb: copy('items.four-loko-blue.blurb'),
     bought: copy('items.four-loko-blue.bought'),
+    used: copy('items.four-loko-blue.used'),
+    empty: copy('items.four-loko-blue.empty'),
     start: 0,
     price: 249,
     container: 'tall',
+    tripSeconds: 120,
   },
   {
     id: 'four-loko-punch',
@@ -186,9 +211,12 @@ export const ITEMS = [
     label: copy('items.four-loko-punch.label'),
     blurb: copy('items.four-loko-punch.blurb'),
     bought: copy('items.four-loko-punch.bought'),
+    used: copy('items.four-loko-punch.used'),
+    empty: copy('items.four-loko-punch.empty'),
     start: 0,
     price: 249,
     container: 'tall',
+    tripSeconds: 120,
   },
   {
     id: 'four-loko-lemon',
@@ -196,9 +224,12 @@ export const ITEMS = [
     label: copy('items.four-loko-lemon.label'),
     blurb: copy('items.four-loko-lemon.blurb'),
     bought: copy('items.four-loko-lemon.bought'),
+    used: copy('items.four-loko-lemon.used'),
+    empty: copy('items.four-loko-lemon.empty'),
     start: 0,
     price: 249,
     container: 'tall',
+    tripSeconds: 120,
   },
   {
     id: 'wild-turkey',
@@ -206,9 +237,12 @@ export const ITEMS = [
     label: copy('items.wild-turkey.label'),
     blurb: copy('items.wild-turkey.blurb'),
     bought: copy('items.wild-turkey.bought'),
+    used: copy('items.wild-turkey.used'),
+    empty: copy('items.wild-turkey.empty'),
     start: 0,
     price: 2199,
     container: 'bourbon',
+    tripSeconds: 90,
   },
   {
     id: 'jim-beam',
@@ -216,9 +250,12 @@ export const ITEMS = [
     label: copy('items.jim-beam.label'),
     blurb: copy('items.jim-beam.blurb'),
     bought: copy('items.jim-beam.bought'),
+    used: copy('items.jim-beam.used'),
+    empty: copy('items.jim-beam.empty'),
     start: 0,
     price: 1599,
     container: 'square',
+    tripSeconds: 90,
   },
   {
     id: 'grey-goose',
@@ -226,9 +263,12 @@ export const ITEMS = [
     label: copy('items.grey-goose.label'),
     blurb: copy('items.grey-goose.blurb'),
     bought: copy('items.grey-goose.bought'),
+    used: copy('items.grey-goose.used'),
+    empty: copy('items.grey-goose.empty'),
     start: 0,
     price: 2999,
     container: 'goose',
+    tripSeconds: 90,
   },
   {
     id: 'pbr',
@@ -236,9 +276,12 @@ export const ITEMS = [
     label: copy('items.pbr.label'),
     blurb: copy('items.pbr.blurb'),
     bought: copy('items.pbr.bought'),
+    used: copy('items.pbr.used'),
+    empty: copy('items.pbr.empty'),
     start: 0,
     price: 99,
     container: 'can12',
+    tripSeconds: 60,
   },
   {
     id: 'high-life',
@@ -246,9 +289,12 @@ export const ITEMS = [
     label: copy('items.high-life.label'),
     blurb: copy('items.high-life.blurb'),
     bought: copy('items.high-life.bought'),
+    used: copy('items.high-life.used'),
+    empty: copy('items.high-life.empty'),
     start: 0,
     price: 129,
     container: 'longneck',
+    tripSeconds: 60,
   },
   {
     id: 'modelo',
@@ -256,9 +302,12 @@ export const ITEMS = [
     label: copy('items.modelo.label'),
     blurb: copy('items.modelo.blurb'),
     bought: copy('items.modelo.bought'),
+    used: copy('items.modelo.used'),
+    empty: copy('items.modelo.empty'),
     start: 0,
     price: 149,
     container: 'can12',
+    tripSeconds: 60,
   },
   {
     id: 'md-2020',
@@ -266,9 +315,12 @@ export const ITEMS = [
     label: copy('items.md-2020.label'),
     blurb: copy('items.md-2020.blurb'),
     bought: copy('items.md-2020.bought'),
+    used: copy('items.md-2020.used'),
+    empty: copy('items.md-2020.empty'),
     start: 0,
     price: 299,
     container: 'flask',
+    tripSeconds: 90,
   },
   {
     id: 'ice-mountain',
@@ -276,9 +328,12 @@ export const ITEMS = [
     label: copy('items.ice-mountain.label'),
     blurb: copy('items.ice-mountain.blurb'),
     bought: copy('items.ice-mountain.bought'),
+    used: copy('items.ice-mountain.used'),
+    empty: copy('items.ice-mountain.empty'),
     start: 0,
     price: 119,
     container: 'water',
+    tripSeconds: 1,
   },
   // Medicine, off the rack by the register. No effect yet: the player can
   // buy and carry it, not take it. form is a MedicineForm (interfaces.ts),
@@ -386,7 +441,20 @@ export function isMedicine(id: string): boolean {
 // key).
 export function isUsable(id: string): boolean {
   const category = itemById(id)?.category
-  return category === 'cigarette' || category === 'joint'
+  return (
+    category === 'cigarette' || category === 'joint' || category === 'drink'
+  )
+}
+
+// How long using one unit of `id` puts trails on the view (trip.ts): a
+// cigarette while it smokes, the joint while perception lasts, a drink its
+// own tripSeconds. Zero for anything else.
+export function tripSecondsOf(id: string): number {
+  const item = itemById(id)
+  if (!item) return 0
+  if (item.category === 'cigarette') return item.smokeSeconds ?? 0
+  if (item.category === 'joint') return item.perceptionSeconds ?? 0
+  return item.tripSeconds ?? 0
 }
 
 // The kinds the inventory counts: every item.

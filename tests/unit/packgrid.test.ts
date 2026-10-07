@@ -46,10 +46,10 @@ describe('packItems', () => {
     expect(item).toMatchObject({ stock: 2, left: null })
   })
 
-  it('carries drinks after joints, never usable', () => {
+  it('carries drinks after joints, to be drunk', () => {
     const items = consumables({ ...empty, nos: 1, joints: 1 })
     expect(kinds(items)).toEqual(['joints', 'nos'])
-    expect(items[1]).toMatchObject({ stock: 1, canUse: false })
+    expect(items[1]).toMatchObject({ stock: 1, canUse: true })
   })
 
   it('carries medicine after drinks, never usable', () => {

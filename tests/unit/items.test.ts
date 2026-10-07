@@ -14,6 +14,7 @@ import {
   itemById,
   ITEMS,
   leftInOpen,
+  tripSecondsOf,
 } from '../../src/items.ts'
 import type { Item } from '../../src/interfaces.ts'
 
@@ -53,14 +54,19 @@ describe('items', () => {
     expect(getItem('joints').perceptionSeconds).toBeGreaterThan(0)
   })
 
-  it('gives every drink a known container, and no use', () => {
+  it('gives every drink a known container, a use and its trip', () => {
     const drinks = ITEMS.filter((item) => item.category === 'drink')
     expect(drinks).toHaveLength(17)
     for (const item of drinks) {
       expect(CONTAINERS[item.container], item.id).toBeTruthy()
       expect(isDrink(item.id)).toBe(true)
-      expect(isUsable(item.id)).toBe(false)
+      expect(isUsable(item.id)).toBe(true)
+      expect(tripSecondsOf(item.id), item.id).toBeGreaterThan(0)
     }
+    expect(tripSecondsOf('marlboro')).toBe(getItem('marlboro').smokeSeconds)
+    expect(tripSecondsOf('joints')).toBe(getItem('joints').perceptionSeconds)
+    expect(tripSecondsOf('aspirin')).toBe(0)
+    expect(tripSecondsOf('nope')).toBe(0)
   })
 
   it('gives every medicine a known form, and no use', () => {

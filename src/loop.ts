@@ -21,6 +21,7 @@ import { advance, EVENTS, loadoutClock, STATES, timedOut } from './raid.ts'
 import { lobbyCount, seatOf } from './raidsync.ts'
 import { beamFrom } from './shadowmen.ts'
 import { formatCash } from './store.ts'
+import { tripLevel } from './trip.ts'
 import type { Actions } from './actions.ts'
 import type { Game } from './game.ts'
 import type { PeerStateWire } from './protocol.ts'
@@ -53,6 +54,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     bursts,
     mist,
     glow,
+    trails,
     thumbs,
     peers,
   } = game
@@ -147,7 +149,6 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         speedScale:
           (scope.raised ? CONFIG.player.scopeSpeedScale : 1) *
           (smoking ? CONFIG.items.smokingSpeedScale : 1),
-        driftAmp: perception ? CONFIG.items.perceptionDrift : 0,
       })
       forward = playerState.forward
       feetY = player.groundY
@@ -361,7 +362,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       hud.setBagStatus({ cash: formatCash(s.cash) })
     }
     if (!s.talking && DRAW_VALLEY) {
-      renderer.render(scene, camera)
+      trails.render(scene, camera, tripLevel(s.effects.trip, time))
       if (player.locked && !s.ended && !s.inventoryOpen) {
         glow.render(scene, camera, time)
       }

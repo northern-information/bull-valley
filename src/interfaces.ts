@@ -139,6 +139,7 @@ export interface Item {
   perceptionSeconds?: number
   // Drinks.
   container?: ContainerKey
+  tripSeconds?: number
   // Medicine.
   form?: MedicineForm
 }

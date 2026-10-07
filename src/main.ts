@@ -33,6 +33,7 @@ import { ShadowCards } from './shadowcards.ts'
 import { createTargets } from './targets.ts'
 import { buildTerrainMesh, createHeightField, loadTerrain } from './terrain.ts'
 import { openAccount, showTitles, signOutAndReload } from './titles.ts'
+import { createTrails } from './trails.ts'
 import { Truck } from './truck.ts'
 import { wireValley } from './valleysync.ts'
 import { buildWorld } from './world.ts'
@@ -271,6 +272,7 @@ async function boot() {
     }),
     // The ring around whatever E would act on.
     glow: createGlow(renderer, scene, still),
+    trails: createTrails(renderer, still),
     thumbs: createItemThumbs(),
     peers: new Peers(scene),
     net,
@@ -307,6 +309,7 @@ async function boot() {
     const ih = Math.max(2, Math.floor(h / CONFIG.render.downscale))
     renderer.setSize(iw, ih, false)
     game.glow.setSize(iw, ih)
+    game.trails.setSize(iw, ih)
     camera.aspect = w / h
     camera.updateProjectionMatrix()
     setSnapResolution(iw, ih)

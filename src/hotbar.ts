@@ -68,17 +68,20 @@ export interface EffectSpan {
 }
 
 // What the player has going: a cigarette lit (every cigarette waits on it),
-// its ember after, and the joint's perception.
+// its ember after, the joint's perception, and the trails anything smoked
+// or drunk puts on the view (trip.ts).
 export interface Effects {
   smoking: EffectSpan
   ember: EffectSpan
   perception: EffectSpan
+  trip: EffectSpan
 }
 
 export const NO_EFFECTS: Effects = {
   smoking: { start: 0, end: 0 },
   ember: { start: 0, end: 0 },
   perception: { start: 0, end: 0 },
+  trip: { start: 0, end: 0 },
 }
 
 export interface Cooldown {
