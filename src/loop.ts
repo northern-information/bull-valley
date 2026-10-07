@@ -46,6 +46,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     sky,
     world,
     truck,
+    radio,
     player,
     playerBody,
     hands,
@@ -170,6 +171,14 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       })
       truck.update(dt, now)
     }
+    // Marx's radio, at the valley's moment: the valley's clock online, the
+    // wall clock alone, as his day is.
+    radio?.update({
+      serverMs: s.world ? net.clock.serverNow(now) : Date.now(),
+      distance: truck.distanceTo(player.pos.x, player.pos.z),
+      riding: s.aboard,
+      started: s.started,
+    })
     if (s.onTruckRolls.length && truck.rolling()) {
       for (const line of s.onTruckRolls) hud.tell(line)
       s.onTruckRolls = []

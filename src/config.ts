@@ -142,6 +142,21 @@ export const CONFIG = {
     // the lot, between the pumps and the road sign.
     offset: 5,
   },
+  radio: {
+    // The radio in Marx's cab (radio.ts): full this close, in metres,
+    // silent past `far`, and muffled toward the edge.
+    volume: 0.9,
+    near: 6,
+    far: 45,
+    openHz: 9000,
+    muffledHz: 700,
+    // In the bed, through the back glass.
+    bedHz: 2400,
+    // The stream pauses past `far` plus this, so no one far off downloads it.
+    pauseBeyond: 15,
+    // A player this far from the valley's moment, in seconds, seeks back.
+    driftSeconds: 2,
+  },
   store: {
     // A new account's wallet, in cents (worker/packs.ts). Played alone,
     // every visit starts with this much.

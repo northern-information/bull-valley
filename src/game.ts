@@ -29,6 +29,7 @@ import type { Peers } from './peers.ts'
 import type { Player } from './player.ts'
 import type { PlayerBody } from './playerbody.ts'
 import type { DailyWire, PeerStateWire, WorldWire } from './protocol.ts'
+import type { Radio } from './radiorig.ts'
 import type { RoadGraph } from './roadgraph.ts'
 import type { Scope } from './scope.ts'
 import type { ShadowBursts } from './shadowburst.ts'
@@ -176,6 +177,8 @@ export interface Game {
   drops: DropMeshes
   graph: RoadGraph
   truck: Truck
+  // The radio in Marx's cab; none under e2e, which never plays sound.
+  radio: Radio | null
   // The roads Matthew Marx drives (truckplan.ts): where he parks, the
   // joyride, his donuts for a seed; and what the valley is told of them.
   truckContext: TruckContext
