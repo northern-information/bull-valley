@@ -33,6 +33,7 @@ const wire = (id: string, placed = true): PeerWire => ({
   id,
   name: id.toUpperCase(),
   outfit: 'coleman',
+  cosmetics: [],
   at: placed ? at(0, 0) : null,
 })
 
@@ -69,9 +70,14 @@ describe('peer table', () => {
       id: 'a',
       name: 'Renamed',
       outfit: 'church',
+      cosmetics: ['flaming-halo'],
       at: null,
     })
-    expect(updated).toMatchObject({ name: 'Renamed', outfit: 'church' })
+    expect(updated).toMatchObject({
+      name: 'Renamed',
+      outfit: 'church',
+      cosmetics: ['flaming-halo'],
+    })
     expect(peers.get('a')?.prev?.x).toBe(1)
     expect(peers.get('a')?.next?.x).toBe(2)
     expect(applyUpdated(peers, wire('nobody'))).toBeNull()

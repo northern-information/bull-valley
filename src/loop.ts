@@ -6,6 +6,7 @@ import * as THREE from 'three'
 import { pulseMaterials } from './assets.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
+import { moabOffer } from './cosmetics.ts'
 import { levelsAt } from './geometrie.ts'
 import { ease, stepHand, useLift, useSeconds } from './hands.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
@@ -331,8 +332,13 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       bushes,
       gron: world.gron,
       npcs: targets.npcSpots(inStore),
+      moabOffer: s.pendingTrade ? null : moabOffer(s.inventory, s.cosmetics),
     })
     const interaction = s.interaction
+    // Rule 14: Moab makes his offer as you come into his reach.
+    const offering = interaction?.kind === 'trade' ? interaction.station : null
+    if (offering !== null && offering !== s.offeredBy) actions.offerTrade()
+    s.offeredBy = offering
     const prompt = interaction ? interactionPrompt(interaction) : null
     const label = interaction ? itemLabel(interaction) : null
     const labelTo = label ? targets.labelTarget(interaction) : null

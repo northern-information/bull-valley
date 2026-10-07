@@ -4,9 +4,11 @@
 
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
+import { cosmeticById } from './cosmetics.ts'
 import { itemById } from './items.ts'
 import { npcReach } from './npcs.ts'
 import { formatCash } from './store.ts'
+import type { CosmeticId } from './cosmetics.ts'
 import type { XZ } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
 import type { NpcId, NpcSpot } from './npcs.ts'
@@ -66,6 +68,9 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // Marx, Carlsten, or Moab Coldë at station `station`: he says his next
   // line.
   | { kind: 'speak'; npc: NpcId; station?: number }
+  // Moab Coldë at station `station` offers cosmetic `offer` for what the
+  // pack holds (cosmetics.ts moabOffer).
+  | { kind: 'trade'; offer: CosmeticId; station: number }
 
 export interface InteractionInput<P extends PickupSpot> {
   // In the bed of the truck.
@@ -85,6 +90,9 @@ export interface InteractionInput<P extends PickupSpot> {
   // Marx, Carlsten and every Moab, where each stands while he can be
   // talked to.
   npcs: readonly NpcSpot[]
+  // What Moab offers this raider (cosmetics.ts moabOffer), or null: E
+  // beside him trades for it instead of hearing his line.
+  moabOffer?: CosmeticId | null
 }
 
 // The first match wins, in this order: hop out while riding; speak to the
@@ -113,6 +121,9 @@ export function resolveInteraction<P extends PickupSpot>(
       }
     }
     if (near) {
+      if (near.id === 'moab' && input.moabOffer && near.station !== undefined) {
+        return { kind: 'trade', offer: input.moabOffer, station: near.station }
+      }
       return near.station === undefined
         ? { kind: 'speak', npc: near.id }
         : { kind: 'speak', npc: near.id, station: near.station }
@@ -225,5 +236,16 @@ export function interactionPrompt(interaction: Interaction): string | null {
     case 'talk':
     case 'speak':
       return null
+    // Moab's offer is said, since the glow alone cannot say what he wants.
+    case 'trade': {
+      const cosmetic = cosmeticById(interaction.offer)
+      const price = cosmetic ? itemById(cosmetic.price.kind) : null
+      if (!cosmetic || !price) return null
+      return copy('prompts.trade', {
+        cosmetic: cosmetic.label,
+        count: cosmetic.price.count,
+        price: price.label,
+      })
+    }
   }
 }
