@@ -1,8 +1,9 @@
-// A Worker of its own on www.bvsw.net, bvsw.gay and www.bvsw.gay
-// (wrangler.www.jsonc) that sends every request to the same path on the apex. It is not the game's Worker:
-// that one serves static assets before its code runs, so it never sees a
-// request for a file, and matching on the hostname there would mean running
-// it first on every asset request.
+// A Worker of its own on www.bvsw.net and on bvsw.gay and bsvw.gay with
+// their www hosts (wrangler.www.jsonc) that sends every request to the same
+// path on the apex. It is not the game's Worker: that one serves static
+// assets before its code runs, so it never sees a request for a file, and
+// matching on the hostname there would mean running it first on every asset
+// request.
 
 export interface WwwEnv {
   APP_ORIGIN: string

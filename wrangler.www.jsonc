@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  // The redirect (worker/www.ts): www.bvsw.net, bvsw.gay and www.bvsw.gay
-  // answer 301 to the same path on https://bvsw.net. Deployed beside the game by the deploy workflow with
+  // The redirect (worker/www.ts): www.bvsw.net, bvsw.gay, www.bvsw.gay,
+  // bsvw.gay and www.bsvw.gay answer 301 to the same path on https://bvsw.net. Deployed beside the game by the deploy workflow with
   // `wrangler deploy -c wrangler.www.jsonc`; an explicit config skips the
   // redirect to the game's generated config under dist/.
   "name": "bull-valley-shadow-wars-www",
@@ -12,6 +12,8 @@
     { "pattern": "www.bvsw.net", "custom_domain": true },
     { "pattern": "bvsw.gay", "custom_domain": true },
     { "pattern": "www.bvsw.gay", "custom_domain": true },
+    { "pattern": "bsvw.gay", "custom_domain": true },
+    { "pattern": "www.bsvw.gay", "custom_domain": true },
   ],
   "workers_dev": false,
   "preview_urls": false,

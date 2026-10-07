@@ -61,9 +61,9 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           command: deploy
-      # The redirect from www.bvsw.net and bvsw.gay, a Worker of its own
-      # (worker/www.ts). The explicit config skips the redirect to the game's
-      # generated config.
+      # The redirect from www.bvsw.net, bvsw.gay and bsvw.gay, a Worker of its
+      # own (worker/www.ts). The explicit config skips the redirect to the
+      # game's generated config.
       - uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
