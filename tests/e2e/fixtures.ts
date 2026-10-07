@@ -92,7 +92,7 @@ export function freshRaider(name = 'Raider'): Raider {
   }
 }
 
-// Sign a raider in through the dev provider, past the age and terms gates
+// Sign a raider in through the dev provider, past the magic word
 // and with a username, landing on the page a sign-in popup closes. The
 // cookies are the browser context's, so the next load of the game is
 // signed in. Signing the same raider in again finds the same account.

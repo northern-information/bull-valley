@@ -7,7 +7,7 @@ import { CITGO_RED } from './assets.ts'
 // (so the PS1 snap matches the mesh), into a mask; a fullscreen pass then
 // rings the mask's silhouette in Citgo red over the frame. No depth from
 // the world reaches the mask, so the ring shows through what stands in
-// front of the target. Prefers-reduced-motion holds the pulse still.
+// front of the target.
 
 // Reserved for the glow: only the target's meshes and the scene's lights
 // sit on it. The lights ride along so the mask pass sees the same light
@@ -65,8 +65,7 @@ export interface Glow {
 
 export function createGlow(
   renderer: THREE.WebGLRenderer,
-  scene: THREE.Scene,
-  still: boolean
+  scene: THREE.Scene
 ): Glow {
   scene.traverse((o) => {
     if (o instanceof THREE.Light) o.layers.enable(GLOW_LAYER)
@@ -151,7 +150,7 @@ export function createGlow(
       renderer.shadowMap.autoUpdate = shadows
       renderer.setClearColor(clear, clearAlpha)
       // The ring, added over the frame.
-      strength.value = still ? 0.9 : 0.75 + Math.sin(time * 4) * 0.25
+      strength.value = 0.75 + Math.sin(time * 4) * 0.25
       renderer.setRenderTarget(null)
       renderer.render(overlay, overlayCamera)
       renderer.autoClear = autoClear

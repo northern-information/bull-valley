@@ -14,6 +14,7 @@ import {
   itemById,
   ITEMS,
   leftInOpen,
+  tripSecondsOf,
 } from '../../src/items.ts'
 import type { Item } from '../../src/interfaces.ts'
 
@@ -59,14 +60,39 @@ describe('items', () => {
     expect(getItem('joints').perceptionSeconds).toBeGreaterThan(0)
   })
 
-  it('gives every drink a known container, and no use', () => {
+  it('gives every drink a known container and a dose of geometrie', () => {
     const drinks = ITEMS.filter((item) => item.category === 'drink')
     expect(drinks).toHaveLength(17)
     for (const item of drinks) {
       expect(CONTAINERS[item.container], item.id).toBeTruthy()
       expect(isDrink(item.id)).toBe(true)
-      expect(isUsable(item.id)).toBe(false)
+      expect(isUsable(item.id)).toBe(true)
+      expect(Object.keys(item.geometrie).length, item.id).toBeGreaterThan(0)
     }
+    // The energy drinks stimulate, the beer gets you drunk, Four Loko does
+    // both, and water sobers you.
+    expect(getItem('red-bull').geometrie).toEqual({ stimulated: 0.25 })
+    expect(getItem('pbr').geometrie).toEqual({ drunk: 0.15 })
+    expect(getItem('four-loko-blue').geometrie.stimulated).toBeGreaterThan(0)
+    expect(getItem('four-loko-blue').geometrie.drunk).toBeGreaterThan(0)
+    expect(getItem('ice-mountain').geometrie.drunk).toBeLessThan(0)
+  })
+
+  it('gets you high off a joint and stimulated off a cigarette', () => {
+    expect(getItem('joints').geometrie.high).toBeGreaterThan(0)
+    for (const id of CIGARETTE_IDS) {
+      expect(itemById(id)?.geometrie?.stimulated, id).toBeGreaterThan(0)
+    }
+  })
+
+  it('trips on anything smoked or drunk, for as long as it lasts', () => {
+    for (const item of ITEMS.filter((i) => i.category === 'drink')) {
+      expect(tripSecondsOf(item.id), item.id).toBeGreaterThan(0)
+    }
+    expect(tripSecondsOf('marlboro')).toBe(getItem('marlboro').smokeSeconds)
+    expect(tripSecondsOf('joints')).toBe(getItem('joints').perceptionSeconds)
+    expect(tripSecondsOf('aspirin')).toBe(0)
+    expect(tripSecondsOf('nope')).toBe(0)
   })
 
   it('gives every medicine a known form, and no use', () => {

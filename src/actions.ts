@@ -21,6 +21,7 @@ import {
   isCash,
 } from './drops.ts'
 import { finishById } from './finishes.ts'
+import { dose } from './geometrie.ts'
 import { openGronDialog } from './grondialog.ts'
 import { assign } from './hotbar.ts'
 import { pickupLabel } from './interactions.ts'
@@ -349,6 +350,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     }
     s.inventory = result.inv
     s.effects = result.effects
+    s.geometrie = dose(s.geometrie, itemById(kind)?.geometrie, s.time)
     // The right hand brings it up (fphands.ts).
     s.using = { kind, at: s.time }
     // The unit is the account's: the valley takes it out of the pack.

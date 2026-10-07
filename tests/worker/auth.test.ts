@@ -15,6 +15,8 @@ const SECRET = 'auth-test-secret'
 const T0 = Date.parse('2026-10-03T12:00:00Z')
 const PROD = 'https://bvsw.net'
 const DEV = 'http://localhost:5174'
+// The magic word a new account takes.
+const WORD = { magicWord: 'berries' }
 
 function env(overrides: Partial<WorkerEnv> = {}): WorkerEnv {
   return {
@@ -253,7 +255,12 @@ describe('callback', () => {
     const s = new MemoryAccountStore()
     const first = new Jar()
     await signIn(first, { id: 7, login: 'ret' }, s)
-    await call('/auth/confirm-signup', { method: 'POST', jar: first, store: s })
+    await call('/auth/confirm-signup', {
+      body: WORD,
+      method: 'POST',
+      jar: first,
+      store: s,
+    })
     const again = new Jar()
     const { location } = await signIn(
       again,
@@ -296,9 +303,11 @@ describe('confirm-signup and username', () => {
     const jar = new Jar()
     await signIn(jar, { id: 2, login: 'two' }, s)
     expect(
-      (await call('/auth/confirm-signup', { method: 'POST' })).res.status
+      (await call('/auth/confirm-signup', { body: WORD, method: 'POST' })).res
+        .status
     ).toBe(401)
     const confirm = await call('/auth/confirm-signup', {
+      body: WORD,
       method: 'POST',
       jar,
       store: s,
@@ -349,7 +358,12 @@ describe('confirm-signup and username', () => {
 
     const other = new Jar()
     await signIn(other, { id: 3, login: 'three' }, s)
-    await call('/auth/confirm-signup', { method: 'POST', jar: other, store: s })
+    await call('/auth/confirm-signup', {
+      body: WORD,
+      method: 'POST',
+      jar: other,
+      store: s,
+    })
     const clash = await call('/auth/username', {
       method: 'POST',
       jar: other,
@@ -359,15 +373,54 @@ describe('confirm-signup and username', () => {
     expect(clash.res.status).toBe(409)
   })
 
+  it('creates the account only for the magic word', async () => {
+    const s = new MemoryAccountStore()
+    const jar = new Jar()
+    await signIn(jar, { id: 6, login: 'six' }, s)
+    for (const body of [undefined, {}, { magicWord: 'cabbages' }]) {
+      const wrong = await call('/auth/confirm-signup', {
+        method: 'POST',
+        jar,
+        store: s,
+        body,
+      })
+      expect(wrong.res.status).toBe(403)
+      expect(await wrong.res.json()).toEqual({
+        error: copy('auth.magic_word_wrong'),
+      })
+    }
+    // A wrong word keeps the pending signup, for another try.
+    expect(jar.cookies[COOKIE.pending]).toBeDefined()
+    expect(s.accounts.size).toBe(0)
+    const right = await call('/auth/confirm-signup', {
+      method: 'POST',
+      jar,
+      store: s,
+      body: { magicWord: '  Berries ' },
+    })
+    expect(right.res.status).toBe(200)
+    expect(s.accounts.size).toBe(1)
+  })
+
   it('confirming twice (two tabs) lands on the same account', async () => {
     const s = new MemoryAccountStore()
     const jar = new Jar()
     await signIn(jar, { id: 4, login: 'four' }, s)
     const pending = jar.cookies[COOKIE.pending]
-    await call('/auth/confirm-signup', { method: 'POST', jar, store: s })
+    await call('/auth/confirm-signup', {
+      body: WORD,
+      method: 'POST',
+      jar,
+      store: s,
+    })
     const tab2 = new Jar()
     tab2.cookies[COOKIE.pending] = pending
-    await call('/auth/confirm-signup', { method: 'POST', jar: tab2, store: s })
+    await call('/auth/confirm-signup', {
+      body: WORD,
+      method: 'POST',
+      jar: tab2,
+      store: s,
+    })
     expect(s.accounts.size).toBe(1)
   })
 
@@ -376,7 +429,12 @@ describe('confirm-signup and username', () => {
     const jar = new Jar()
     await signIn(jar, { id: 5, login: 'five' }, s)
     const pending = jar.cookies[COOKIE.pending]
-    await call('/auth/confirm-signup', { method: 'POST', jar, store: s })
+    await call('/auth/confirm-signup', {
+      body: WORD,
+      method: 'POST',
+      jar,
+      store: s,
+    })
     const [winner] = s.accounts.keys()
     // The second tab looks before the first one's insert lands.
     const find = s.findByProvider.bind(s)
@@ -386,6 +444,7 @@ describe('confirm-signup and username', () => {
     const tab2 = new Jar()
     tab2.cookies[COOKIE.pending] = pending
     const { res } = await call('/auth/confirm-signup', {
+      body: WORD,
       method: 'POST',
       jar: tab2,
       store: s,
@@ -400,7 +459,12 @@ describe('confirm-signup and username', () => {
     const s = new MemoryAccountStore()
     const jar = new Jar()
     await signIn(jar, { id: 41, login: 'fortyone' }, s)
-    await call('/auth/confirm-signup', { method: 'POST', jar, store: s })
+    await call('/auth/confirm-signup', {
+      body: WORD,
+      method: 'POST',
+      jar,
+      store: s,
+    })
     await call('/auth/username', {
       method: 'POST',
       jar,
@@ -409,7 +473,12 @@ describe('confirm-signup and username', () => {
     })
     const other = new Jar()
     await signIn(other, { id: 42, login: 'fortytwo' }, s)
-    await call('/auth/confirm-signup', { method: 'POST', jar: other, store: s })
+    await call('/auth/confirm-signup', {
+      body: WORD,
+      method: 'POST',
+      jar: other,
+      store: s,
+    })
     await call('/auth/username', {
       method: 'POST',
       jar: other,
@@ -446,7 +515,12 @@ describe('confirm-signup and username', () => {
     const s = new MemoryAccountStore()
     const jar = new Jar()
     await signIn(jar, { id: 43, login: 'fortythree' }, s)
-    await call('/auth/confirm-signup', { method: 'POST', jar, store: s })
+    await call('/auth/confirm-signup', {
+      body: WORD,
+      method: 'POST',
+      jar,
+      store: s,
+    })
     expect((await me(jar, s)).account?.look).toEqual({
       outfit: null,
       finish: null,
@@ -478,7 +552,12 @@ describe('confirm-signup and username', () => {
     const s = new MemoryAccountStore()
     const jar = new Jar()
     await signIn(jar, { id: 44, login: 'fortyfour' }, s)
-    await call('/auth/confirm-signup', { method: 'POST', jar, store: s })
+    await call('/auth/confirm-signup', {
+      body: WORD,
+      method: 'POST',
+      jar,
+      store: s,
+    })
     expect((await me(jar, s)).account?.hotbar).toEqual(EMPTY_HOTBAR)
     const put = (body: unknown, j: Jar | undefined = jar) =>
       call('/auth/hotbar', { method: 'PUT', jar: j, store: s, body })
@@ -499,7 +578,12 @@ describe('confirm-signup and username', () => {
     const s = new MemoryAccountStore()
     const jar = new Jar()
     await signIn(jar, { id: 5, login: 'five' }, s)
-    await call('/auth/confirm-signup', { method: 'POST', jar, store: s })
+    await call('/auth/confirm-signup', {
+      body: WORD,
+      method: 'POST',
+      jar,
+      store: s,
+    })
     await call('/auth/username', {
       method: 'POST',
       jar,
@@ -526,7 +610,12 @@ describe('session', () => {
   async function signedIn(s = new MemoryAccountStore()) {
     const jar = new Jar()
     await signIn(jar, { id: 6, login: 'six' }, s)
-    await call('/auth/confirm-signup', { method: 'POST', jar, store: s })
+    await call('/auth/confirm-signup', {
+      body: WORD,
+      method: 'POST',
+      jar,
+      store: s,
+    })
     return { jar, s }
   }
 
@@ -593,7 +682,12 @@ describe('linking', () => {
   async function withAccount(id: number, s: MemoryAccountStore) {
     const jar = new Jar()
     await signIn(jar, { id, login: `user${id}` }, s)
-    await call('/auth/confirm-signup', { method: 'POST', jar, store: s })
+    await call('/auth/confirm-signup', {
+      body: WORD,
+      method: 'POST',
+      jar,
+      store: s,
+    })
     return jar
   }
 
@@ -663,6 +757,88 @@ describe('linking', () => {
       { jar, store: s, fetch: provider({ id: 16, login: 'sixteen' }).impl }
     )
     expect(location).toBe(`${PROD}/?auth=pending_signup`)
+  })
+
+  it('signs one raider in under one username through all three providers', async () => {
+    const s = new MemoryAccountStore()
+    const all = env({
+      GOOGLE_CLIENT_ID: 'g-id',
+      GOOGLE_CLIENT_SECRET: 'g-secret',
+      DISCORD_CLIENT_ID: 'd-id',
+      DISCORD_CLIENT_SECRET: 'd-secret',
+    })
+    const profiles = {
+      github: { id: 21, login: 'octo' },
+      google: { id: 'g-21', name: 'Goo' },
+      discord: { id: 'd-21', username: 'dis' },
+    } as const
+    // Any provider's token and profile, for the one being asked.
+    const fetchAll = ((input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : (input as Request).url
+      for (const [name, spec] of Object.entries(OAUTH)) {
+        if (url === spec.tokenUrl) {
+          return Promise.resolve(Response.json({ access_token: 't' }))
+        }
+        if (url === spec.profileUrl) {
+          return Promise.resolve(
+            Response.json(profiles[name as keyof typeof profiles])
+          )
+        }
+      }
+      return Promise.resolve(new Response('nope', { status: 404 }))
+    }) as typeof fetch
+    // A round trip through a provider: a sign-in, or a link from `jar`.
+    const trip = async (
+      jar: Jar,
+      name: keyof typeof profiles,
+      linking = false
+    ) => {
+      const start = await call(
+        linking ? `/auth/link/${name}/login` : `/auth/${name}/login`,
+        { jar, store: s, env: all }
+      )
+      const state = new URL(start.location ?? '').searchParams.get('state')
+      return call(`/auth/${name}/callback?code=c&state=${state}`, {
+        jar,
+        store: s,
+        env: all,
+        fetch: fetchAll,
+      })
+    }
+
+    const jar = new Jar()
+    await trip(jar, 'github')
+    await call('/auth/confirm-signup', {
+      body: WORD,
+      method: 'POST',
+      jar,
+      store: s,
+      env: all,
+    })
+    await call('/auth/username', {
+      method: 'POST',
+      jar,
+      store: s,
+      env: all,
+      body: { username: 'Triple' },
+    })
+    expect((await trip(jar, 'google', true)).location).toContain('auth=linked')
+    expect((await trip(jar, 'discord', true)).location).toContain('auth=linked')
+    const accountId = (await me(jar, s)).account?.accountId
+    expect(
+      (await me(jar, s)).account?.providers.map((p) => p.provider)
+    ).toEqual(['github', 'google', 'discord'])
+
+    // A fresh browser through any of the three lands on the same raider,
+    // with no magic word asked: only a new account takes it.
+    for (const name of ['github', 'google', 'discord'] as const) {
+      const fresh = new Jar()
+      expect((await trip(fresh, name)).location).toBe(`${PROD}/?auth=success`)
+      const who = await me(fresh, s)
+      expect(who.account?.accountId).toBe(accountId)
+      expect(who.account?.username).toBe('Triple')
+    }
+    expect(s.accounts.size).toBe(1)
   })
 
   it('unlinks any provider but the last', async () => {
@@ -787,7 +963,13 @@ describe('rate limits', () => {
     // A pending signup: its provider identity.
     const jar = new Jar()
     await signIn(jar, { id: 31, login: 'thirtyone' }, s)
-    await call('/auth/confirm-signup', { method: 'POST', jar, store: s, limit })
+    await call('/auth/confirm-signup', {
+      body: WORD,
+      method: 'POST',
+      jar,
+      store: s,
+      limit,
+    })
     expect(asked.at(-1)).toEqual({ tier: 'strict', key: 'pending:github:31' })
     // Signed in: the account.
     const accountId = (await me(jar, s)).account?.accountId
@@ -814,6 +996,7 @@ describe('rate limits', () => {
   it('answers a limited call from the page with a 429 it can show', async () => {
     const { limit } = recorder(false)
     const confirm = await call('/auth/confirm-signup', {
+      body: WORD,
       method: 'POST',
       limit,
     })

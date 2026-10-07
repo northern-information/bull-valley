@@ -116,8 +116,25 @@ export const CONFIG = {
     // Per-item tuning lives in src/items.ts.
     // Walking speed while a cigarette burns.
     smokingSpeedScale: 0.85,
-    // Camera drift while perception is on.
-    perceptionDrift: 0.5,
+  },
+  // What anything smoked or drunk does to the view (trip.ts, trails.ts).
+  trip: {
+    // The blur each use starts with, fading out over this long.
+    blurSeconds: 1,
+    // The blur's reach at its height, in internal pixels.
+    blurRadius: 3,
+    // How much of the last frame each frame keeps while trails are full:
+    // nearer 1, longer trails.
+    persistence: 0.86,
+    // The trails thin out over the last this-many seconds of the trip.
+    fadeSeconds: 4,
+  },
+  geometrie: {
+    // Each level fades this much a second (a level runs from 0 to 1), so
+    // a full one fades out in 1 / rate seconds: high in four minutes,
+    // stimulated in three, drunk in five. Per-item doses live in
+    // src/items.ts.
+    fadePerSecond: { high: 1 / 240, stimulated: 1 / 180, drunk: 1 / 300 },
   },
   scope: {
     rangeMetres: 250,

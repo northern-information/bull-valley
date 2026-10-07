@@ -17,9 +17,12 @@
 //   price     shelf price at every Citgo, in cents (shelf items only)
 //   contents  how many the pack, bottle or box holds (1 when absent); the
 //             inventory counts these, and a buy or a pickup adds a full one
+//   geometrie how far one use moves each geometrie level (geometrie.ts)
+//   tripSeconds  how long a drink's trails last (trip.ts); a cigarette's
+//             last while it smokes, the joint's while perception does
 //
-// Drinks and medicine cannot be used yet, so they have no used or empty text. Forage is never
-// on a shelf, so it has no price or bought text; the valley hands it out
+// Medicine cannot be used yet, so it has no used or empty text. Forage is
+// never on a shelf, so it has no price or bought text; the valley hands it out
 // (sharedworld.ts rules 4 and 8).
 
 import { copy } from './copy.ts'
@@ -39,6 +42,7 @@ export const ITEMS = [
     contents: 20,
     smokeSeconds: 12,
     emberSeconds: 20,
+    geometrie: { stimulated: 0.12 },
   },
   {
     id: 'camel',
@@ -53,6 +57,7 @@ export const ITEMS = [
     contents: 20,
     smokeSeconds: 14,
     emberSeconds: 20,
+    geometrie: { stimulated: 0.12 },
   },
   {
     id: 'parliament',
@@ -67,6 +72,7 @@ export const ITEMS = [
     contents: 20,
     smokeSeconds: 13,
     emberSeconds: 16,
+    geometrie: { stimulated: 0.1 },
   },
   {
     id: 'newport',
@@ -81,6 +87,7 @@ export const ITEMS = [
     contents: 20,
     smokeSeconds: 9,
     emberSeconds: 14,
+    geometrie: { stimulated: 0.1 },
   },
   {
     id: 'djarum',
@@ -95,6 +102,7 @@ export const ITEMS = [
     contents: 20,
     smokeSeconds: 18,
     emberSeconds: 26,
+    geometrie: { stimulated: 0.15 },
   },
   {
     id: 'joints',
@@ -108,178 +116,250 @@ export const ITEMS = [
     price: 1000,
     // Shadowmen resolve through the murk while it lasts.
     perceptionSeconds: 120,
+    geometrie: { high: 0.5 },
   },
-  // Drinks, circa 2008. No effect yet: the player can buy and carry them,
-  // not drink them. container is a key into CONTAINERS in drinks.ts.
+  // Drinks, circa 2008. Drinking one moves geometrie (geometrie.ts): the
+  // energy drinks stimulate, the beer and the liquor get you drunk, Four
+  // Loko does both, and water sobers you a little. Each blurs the view and
+  // trails it for tripSeconds (trip.ts); the water only blurs. container is a key into
+  // CONTAINERS in drinks.ts.
   {
     id: 'monster',
     category: 'drink',
     label: copy('items.monster.label'),
     blurb: copy('items.monster.blurb'),
+    used: copy('items.monster.used'),
     bought: copy('items.monster.bought'),
+    empty: copy('items.monster.empty'),
     start: 0,
     price: 219,
     container: 'tall',
+    tripSeconds: 30,
+    geometrie: { stimulated: 0.3 },
   },
   {
     id: 'monster-ultra',
     category: 'drink',
     label: copy('items.monster-ultra.label'),
     blurb: copy('items.monster-ultra.blurb'),
+    used: copy('items.monster-ultra.used'),
     bought: copy('items.monster-ultra.bought'),
+    empty: copy('items.monster-ultra.empty'),
     start: 0,
     price: 219,
     container: 'tall',
+    tripSeconds: 30,
+    geometrie: { stimulated: 0.25 },
   },
   {
     id: 'red-bull',
     category: 'drink',
     label: copy('items.red-bull.label'),
     blurb: copy('items.red-bull.blurb'),
+    used: copy('items.red-bull.used'),
     bought: copy('items.red-bull.bought'),
+    empty: copy('items.red-bull.empty'),
     start: 0,
     price: 199,
     container: 'slim',
+    tripSeconds: 30,
+    geometrie: { stimulated: 0.25 },
   },
   {
     id: 'rip-it',
     category: 'drink',
     label: copy('items.rip-it.label'),
     blurb: copy('items.rip-it.blurb'),
+    used: copy('items.rip-it.used'),
     bought: copy('items.rip-it.bought'),
+    empty: copy('items.rip-it.empty'),
     start: 0,
     price: 99,
     container: 'tall',
+    tripSeconds: 30,
+    geometrie: { stimulated: 0.3 },
   },
   {
     id: 'rockstar',
     category: 'drink',
     label: copy('items.rockstar.label'),
     blurb: copy('items.rockstar.blurb'),
+    used: copy('items.rockstar.used'),
     bought: copy('items.rockstar.bought'),
+    empty: copy('items.rockstar.empty'),
     start: 0,
     price: 199,
     container: 'tall',
+    tripSeconds: 30,
+    geometrie: { stimulated: 0.3 },
   },
   {
     id: 'nos',
     category: 'drink',
     label: copy('items.nos.label'),
     blurb: copy('items.nos.blurb'),
+    used: copy('items.nos.used'),
     bought: copy('items.nos.bought'),
+    empty: copy('items.nos.empty'),
     start: 0,
     price: 229,
     container: 'nos',
+    tripSeconds: 30,
+    geometrie: { stimulated: 0.35 },
   },
   {
     id: 'four-loko-blue',
     category: 'drink',
     label: copy('items.four-loko-blue.label'),
     blurb: copy('items.four-loko-blue.blurb'),
+    used: copy('items.four-loko-blue.used'),
     bought: copy('items.four-loko-blue.bought'),
+    empty: copy('items.four-loko-blue.empty'),
     start: 0,
     price: 249,
     container: 'tall',
+    tripSeconds: 120,
+    geometrie: { stimulated: 0.3, drunk: 0.35 },
   },
   {
     id: 'four-loko-punch',
     category: 'drink',
     label: copy('items.four-loko-punch.label'),
     blurb: copy('items.four-loko-punch.blurb'),
+    used: copy('items.four-loko-punch.used'),
     bought: copy('items.four-loko-punch.bought'),
+    empty: copy('items.four-loko-punch.empty'),
     start: 0,
     price: 249,
     container: 'tall',
+    tripSeconds: 120,
+    geometrie: { stimulated: 0.3, drunk: 0.35 },
   },
   {
     id: 'four-loko-lemon',
     category: 'drink',
     label: copy('items.four-loko-lemon.label'),
     blurb: copy('items.four-loko-lemon.blurb'),
+    used: copy('items.four-loko-lemon.used'),
     bought: copy('items.four-loko-lemon.bought'),
+    empty: copy('items.four-loko-lemon.empty'),
     start: 0,
     price: 249,
     container: 'tall',
+    tripSeconds: 120,
+    geometrie: { stimulated: 0.3, drunk: 0.35 },
   },
   {
     id: 'wild-turkey',
     category: 'drink',
     label: copy('items.wild-turkey.label'),
     blurb: copy('items.wild-turkey.blurb'),
+    used: copy('items.wild-turkey.used'),
     bought: copy('items.wild-turkey.bought'),
+    empty: copy('items.wild-turkey.empty'),
     start: 0,
     price: 2199,
     container: 'bourbon',
+    tripSeconds: 90,
+    geometrie: { drunk: 0.5 },
   },
   {
     id: 'jim-beam',
     category: 'drink',
     label: copy('items.jim-beam.label'),
     blurb: copy('items.jim-beam.blurb'),
+    used: copy('items.jim-beam.used'),
     bought: copy('items.jim-beam.bought'),
+    empty: copy('items.jim-beam.empty'),
     start: 0,
     price: 1599,
     container: 'square',
+    tripSeconds: 90,
+    geometrie: { drunk: 0.45 },
   },
   {
     id: 'grey-goose',
     category: 'drink',
     label: copy('items.grey-goose.label'),
     blurb: copy('items.grey-goose.blurb'),
+    used: copy('items.grey-goose.used'),
     bought: copy('items.grey-goose.bought'),
+    empty: copy('items.grey-goose.empty'),
     start: 0,
     price: 2999,
     container: 'goose',
+    tripSeconds: 90,
+    geometrie: { drunk: 0.45 },
   },
   {
     id: 'pbr',
     category: 'drink',
     label: copy('items.pbr.label'),
     blurb: copy('items.pbr.blurb'),
+    used: copy('items.pbr.used'),
     bought: copy('items.pbr.bought'),
+    empty: copy('items.pbr.empty'),
     start: 0,
     price: 99,
     container: 'can12',
+    tripSeconds: 60,
+    geometrie: { drunk: 0.15 },
   },
   {
     id: 'high-life',
     category: 'drink',
     label: copy('items.high-life.label'),
     blurb: copy('items.high-life.blurb'),
+    used: copy('items.high-life.used'),
     bought: copy('items.high-life.bought'),
+    empty: copy('items.high-life.empty'),
     start: 0,
     price: 129,
     container: 'longneck',
+    tripSeconds: 60,
+    geometrie: { drunk: 0.15 },
   },
   {
     id: 'modelo',
     category: 'drink',
     label: copy('items.modelo.label'),
     blurb: copy('items.modelo.blurb'),
+    used: copy('items.modelo.used'),
     bought: copy('items.modelo.bought'),
+    empty: copy('items.modelo.empty'),
     start: 0,
     price: 149,
     container: 'can12',
+    tripSeconds: 60,
+    geometrie: { drunk: 0.15 },
   },
   {
     id: 'md-2020',
     category: 'drink',
     label: copy('items.md-2020.label'),
     blurb: copy('items.md-2020.blurb'),
+    used: copy('items.md-2020.used'),
     bought: copy('items.md-2020.bought'),
+    empty: copy('items.md-2020.empty'),
     start: 0,
     price: 299,
     container: 'flask',
+    tripSeconds: 90,
+    geometrie: { drunk: 0.3 },
   },
   {
     id: 'ice-mountain',
     category: 'drink',
     label: copy('items.ice-mountain.label'),
     blurb: copy('items.ice-mountain.blurb'),
+    used: copy('items.ice-mountain.used'),
     bought: copy('items.ice-mountain.bought'),
+    empty: copy('items.ice-mountain.empty'),
     start: 0,
     price: 119,
     container: 'water',
+    tripSeconds: 1,
+    geometrie: { drunk: -0.1 },
   },
   // Medicine, off the rack by the register. No effect yet: the player can
   // buy and carry it, not take it. form is a MedicineForm (interfaces.ts),
@@ -406,7 +486,20 @@ export function isMedicine(id: string): boolean {
 // key).
 export function isUsable(id: string): boolean {
   const category = itemById(id)?.category
-  return category === 'cigarette' || category === 'joint'
+  return (
+    category === 'cigarette' || category === 'joint' || category === 'drink'
+  )
+}
+
+// How long using one unit of `id` puts trails on the view (trip.ts): a
+// cigarette while it smokes, the joint while perception lasts, a drink its
+// own tripSeconds. Zero for anything else.
+export function tripSecondsOf(id: string): number {
+  const item = itemById(id)
+  if (!item) return 0
+  if (item.category === 'cigarette') return item.smokeSeconds ?? 0
+  if (item.category === 'joint') return item.perceptionSeconds ?? 0
+  return item.tripSeconds ?? 0
 }
 
 // The kinds the inventory counts: every item.

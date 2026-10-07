@@ -6,6 +6,7 @@ import * as THREE from 'three'
 import { pulseMaterials } from './assets.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
+import { levelsAt } from './geometrie.ts'
 import { ease, stepHand, useLift, useSeconds } from './hands.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
 import {
@@ -20,6 +21,7 @@ import { packItemOf } from './packgrid.ts'
 import { poseOf, stateChanged } from './presence.ts'
 import { beamFrom } from './shadowmen.ts'
 import { formatCash } from './store.ts'
+import { tripLevel } from './trip.ts'
 import { boardable, clockText, countdown, seatOf } from './worldsync.ts'
 import type { Actions } from './actions.ts'
 import type { Game } from './game.ts'
@@ -53,6 +55,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     bursts,
     mist,
     glow,
+    trails,
     thumbs,
     peers,
   } = game
@@ -152,7 +155,6 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         speedScale:
           (scope.raised ? CONFIG.player.scopeSpeedScale : 1) *
           (smoking ? CONFIG.items.smokingSpeedScale : 1),
-        driftAmp: perception ? CONFIG.items.perceptionDrift : 0,
       })
       forward = playerState.forward
       feetY = player.groundY
@@ -174,15 +176,14 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     }
 
     // The hands: the flashlight lit once it is all the way up, and the
-    // item just used brought up once. Under prefers-reduced-motion they
-    // are up or down, never between.
+    // item just used brought up once.
     s.flashlight = stepHand(s.flashlight, dt)
     if (s.using && time - s.using.at >= useSeconds()) s.using = null
     const lit = s.flashlight.up && s.flashlight.lift >= 1
     const using = s.using ? useLift(s.using.at, time) : 0
     hands.update({
-      left: game.still ? Number(s.flashlight.up) : ease(s.flashlight.lift),
-      right: game.still ? Number(using > 0) : ease(using),
+      left: ease(s.flashlight.lift),
+      right: ease(using),
       kind: s.using?.kind ?? null,
       on: lit,
     })
@@ -228,7 +229,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     // beam is never enough to unmake it.
     const keeper = caretaker.update({
       dt,
-      time: game.still ? 0.3 : time,
+      time,
       player: player.pos,
       alone,
       renderAt,
@@ -241,16 +242,14 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     }
     bursts.update(dt)
     mist.update({ dt, player: player.pos })
-    // Gron's rain falls on its own clock; under prefers-reduced-motion it
-    // hangs still under the cloud.
-    world.gronRig?.update(game.still ? 0.37 : time)
-    // Moab's fire burns on the same clock, and holds still with the rain.
-    for (const rig of world.moabRigs) rig.update(game.still ? 0.4 : time)
+    // Gron's rain falls on its own clock, and Moab's fire burns on it too.
+    world.gronRig?.update(time)
+    for (const rig of world.moabRigs) rig.update(time)
     // The portal at the maze's heart swirls, and anyone on foot who walks
     // into it comes out on the trail outside the gate.
     const portal = world.portal
     if (portal) {
-      portal.rig.update(game.still ? 0.5 : time)
+      portal.rig.update(time)
       const { x, z } = player.pos
       if (!s.aboard && inPortal(x, z, portal.at, CONFIG.maze.portal.radius)) {
         player.relocate(portal.exit.x, portal.exit.z, portal.exit.yaw)
@@ -291,6 +290,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         return [{ slot, item, icon: thumbs.icon(kind), cooldown }]
       })
     )
+    hud.setGeometrie(levelsAt(s.geometrie, time))
     hud.tickChat(performance.now())
 
     scope.draw(dt, {
@@ -359,7 +359,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       hud.setBagStatus({ cash: formatCash(s.cash) })
     }
     if (!s.talking && DRAW_VALLEY) {
-      renderer.render(scene, camera)
+      trails.render(scene, camera, tripLevel(s.effects.trip, time))
       if (player.locked && !s.inventoryOpen) {
         glow.render(scene, camera, time)
       }

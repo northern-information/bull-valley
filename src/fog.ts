@@ -3,7 +3,7 @@
 // so the fog comes in waves, thickening over the logo and thinning off it.
 // Drawn at the game's downscale with image-rendering: pixelated, so it has
 // the same grain as the valley. Plain WebGL: Three would be a whole second
-// renderer for one quad. Prefers-reduced-motion freezes it in place.
+// renderer for one quad.
 
 const VERTEX = `
 attribute vec2 aPos;
@@ -117,15 +117,13 @@ export function createFog(downscale: number): FogLayer | null {
   resize()
   window.addEventListener('resize', resize)
 
-  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const t0 = performance.now()
   let rafId: number | null = null
   const frame = () => {
-    // A frozen fog starts partway in, so it is not uniform.
-    const t = still ? 12 : (performance.now() - t0) / 1000
+    const t = (performance.now() - t0) / 1000
     gl.uniform1f(uTime, t)
     gl.drawArrays(gl.TRIANGLES, 0, 3)
-    rafId = still ? null : requestAnimationFrame(frame)
+    rafId = requestAnimationFrame(frame)
   }
   frame()
 

@@ -196,6 +196,13 @@ base.describe('one visit', { tag: '@raid' }, () => {
     await expect(page.locator('[data-bv="inv-cash"]')).toHaveText('$39.01')
     expect(await bagTab()).toBe(copy('inventory.tab_consumables'))
     expect(await bagKinds()).toContain('pbr')
+    // Drinking it gets you a little drunk: geometrie's lower left.
+    await page.locator('.bv-bag-cell[data-kind="pbr"]').hover()
+    await page.keyboard.press('KeyE')
+    await expect.poll(pbrs).toBe(0)
+    await expect
+      .poll(() => page.evaluate(() => window.__bv?.geometrie.drunk ?? 0))
+      .toBeGreaterThan(0)
     await page.keyboard.press('KeyD')
     expect(await bagTab()).toBe(copy('inventory.tab_loot'))
     expect(await bagKinds()).toEqual([])

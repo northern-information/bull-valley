@@ -8,7 +8,7 @@ import {
   toInventory,
   useItem,
 } from '../../src/inventory.ts'
-import { getItem } from '../../src/items.ts'
+import { getItem, tripSecondsOf } from '../../src/items.ts'
 import type { Inventory } from '../../src/interfaces.ts'
 
 describe('inventory', () => {
@@ -42,7 +42,27 @@ describe('inventory', () => {
 })
 
 describe('consume', () => {
-  const pack: Inventory = { ...STARTING_INVENTORY, marlboro: 2, joints: 1 }
+  const pack: Inventory = {
+    ...STARTING_INVENTORY,
+    marlboro: 2,
+    joints: 1,
+    pbr: 1,
+    aspirin: 24,
+  }
+
+  it('drinks a drink into a trip, and nothing else timed', () => {
+    const r = consume(pack, 'pbr', NO_EFFECTS, 10)
+    if (!r.used) throw new Error('not used')
+    expect(r.inv.pbr).toBe(0)
+    expect(r.effects).toEqual({
+      ...NO_EFFECTS,
+      trip: { start: 10, end: 10 + tripSecondsOf('pbr') },
+    })
+    expect(consume(r.inv, 'pbr', NO_EFFECTS, 11)).toEqual({
+      used: false,
+      reason: 'empty',
+    })
+  })
 
   it('smokes a cigarette, then lets it smoulder', () => {
     const r = consume(pack, 'marlboro', NO_EFFECTS, 10)
@@ -78,12 +98,28 @@ describe('consume', () => {
     expect(r.effects.smoking).toEqual({ start: 0, end: 50 })
   })
 
+  it('starts each trip afresh, keeping a longer one going', () => {
+    const r = consume(pack, 'joints', NO_EFFECTS, 10)
+    if (!r.used) throw new Error('not used')
+    const end = 10 + tripSecondsOf('joints')
+    expect(r.effects.trip).toEqual({ start: 10, end })
+    const lit = consume(r.inv, 'marlboro', r.effects, 20)
+    if (!lit.used) throw new Error('not used')
+    expect(lit.effects.trip).toEqual({ start: 20, end })
+    const later = consume(lit.inv, 'marlboro', lit.effects, end + 100)
+    if (!later.used) throw new Error('not used')
+    expect(later.effects.trip).toEqual({
+      start: end + 100,
+      end: end + 100 + tripSecondsOf('marlboro'),
+    })
+  })
+
   it('says why nothing happened', () => {
     expect(consume({ ...pack, joints: 0 }, 'joints', NO_EFFECTS, 0)).toEqual({
       used: false,
       reason: 'empty',
     })
-    expect(consume(pack, 'pbr', NO_EFFECTS, 0)).toEqual({
+    expect(consume(pack, 'aspirin', NO_EFFECTS, 0)).toEqual({
       used: false,
       reason: 'unusable',
     })

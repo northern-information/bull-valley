@@ -3,7 +3,7 @@
 // the copy the valley last sent and applies its own changes in the meantime.
 // Kinds and starting counts come from items.ts.
 
-import { INVENTORY_KINDS, isUsable, itemById } from './items.ts'
+import { INVENTORY_KINDS, isUsable, itemById, tripSecondsOf } from './items.ts'
 import type { Effects } from './hotbar.ts'
 import type { Inventory } from './interfaces.ts'
 
@@ -41,7 +41,9 @@ export type Consumed =
 // effect it starts (hotbar.ts Effects). An item with no effect yet is not
 // used. A cigarette waits until the one burning is out, then smokes for
 // smokeSeconds and smoulders for emberSeconds after; the joint starts
-// perception.
+// perception. Each use blurs the view afresh and runs its trails at least
+// tripSecondsOf on (trip.ts); a longer trip already going keeps its end.
+// What it does to geometrie is the item's `geometrie` dose (geometrie.ts).
 export function consume(
   inv: Inventory,
   kind: string,
@@ -56,6 +58,10 @@ export function consume(
   }
   const result = useItem(inv, kind)
   if (!result.used) return { used: false, reason: 'empty' }
+  const trip = {
+    start: time,
+    end: Math.max(effects.trip.end, time + tripSecondsOf(kind)),
+  }
   if (smoke) {
     const end = time + (item.smokeSeconds ?? 0)
     return {
@@ -65,17 +71,22 @@ export function consume(
         ...effects,
         smoking: { start: time, end },
         ember: { start: end, end: end + (item.emberSeconds ?? 0) },
+        trip,
       },
     }
   }
-  return {
-    used: true,
-    inv: result.inv,
-    effects: {
-      ...effects,
-      perception: { start: time, end: time + (item.perceptionSeconds ?? 0) },
-    },
+  if (item.category === 'joint') {
+    return {
+      used: true,
+      inv: result.inv,
+      effects: {
+        ...effects,
+        perception: { start: time, end: time + (item.perceptionSeconds ?? 0) },
+        trip,
+      },
+    }
   }
+  return { used: true, inv: result.inv, effects: { ...effects, trip } }
 }
 
 export function useItem(
