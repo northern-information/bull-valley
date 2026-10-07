@@ -6,20 +6,24 @@ import {
   signIn,
   test,
   toCharacterSelect,
+  toMenu,
 } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
-// The account step between the logo and the character select. A visitor
-// with no session meets the sign-in card; the Dev provider stands in for a
-// real one and walks the new-raider path: the round trip lands back past
-// the titles, on Choose Your Username, behind the magic word.
+// The main menu and the account step behind it. A visitor with no session
+// is offered Create Account alone, which opens the sign-in card; the Dev
+// provider stands in for a real one and walks the new-raider path: the
+// round trip lands back past the colophon, on Choose Your Username, behind
+// the magic word, and then on the menu with Die.
 
-// Colophon, then logo, then the account step's sign-in face.
+const menuButton = (page: Page, key: string) =>
+  page.getByRole('button', { name: copy(key), exact: true })
+
+// Colophon, then the menu, then Create Account to the sign-in face.
 async function toSignIn(page: Page): Promise<void> {
-  await page.keyboard.press('Space')
-  await page.keyboard.press('Space')
-  await expect(page.getByAltText(copy('titles.logo_alt'))).toBeVisible()
-  await page.keyboard.press('Space')
+  await toMenu(page)
+  await expect(menuButton(page, 'menu.die')).toBeHidden()
+  await menuButton(page, 'menu.create_account').click()
   await expect(page.locator('[data-face="sign-in"]')).toBeVisible()
 }
 
@@ -86,6 +90,9 @@ test('a new raider signs in, says the magic word, and chooses a username', async
   await expect(confirm).toBeEnabled()
   await field.press('Enter')
   await expect(page.locator('.bv-account')).toHaveCount(0)
+  // Back on the menu, signed in: Die goes on to the select.
+  await expect(menuButton(page, 'menu.create_account')).toBeHidden()
+  await menuButton(page, 'menu.die').click()
   await expect(page.locator('[data-bv="select-username"]')).toHaveText(mine)
 
   // Sign Out at the select starts over at the sign-in card.
@@ -94,6 +101,49 @@ test('a new raider signs in, says the magic word, and chooses a username', async
     page.locator('[data-bv="select-sign-out"]').click(),
   ])
   await toSignIn(page)
+})
+
+test('Back on the sign-in card returns to the menu', async ({ page }) => {
+  await page.goto('/')
+  await toSignIn(page)
+  await page.keyboard.press('Escape')
+  await expect(menuButton(page, 'menu.create_account')).toBeFocused()
+  await menuButton(page, 'menu.create_account').click()
+  await expect(page.locator('[data-face="sign-in"]')).toBeVisible()
+  await menuButton(page, 'menu.back').click()
+  await expect(menuButton(page, 'menu.create_account')).toBeVisible()
+})
+
+test('Settings opens the account panel and steps back', async ({ page }) => {
+  const raider = await signIn(page)
+  await page.goto('/')
+  await toMenu(page)
+  await expect(menuButton(page, 'menu.die')).toBeFocused()
+  // ↓ walks the options.
+  await page.keyboard.press('ArrowDown')
+  await expect(menuButton(page, 'menu.settings')).toBeFocused()
+  await page.keyboard.press('Enter')
+  await menuButton(page, 'menu.account').click()
+  const panel = page.getByRole('dialog', {
+    name: copy('panel.title'),
+    exact: true,
+  })
+  await expect(panel.locator('[data-bv="panel-username"]')).toHaveText(
+    raider.username
+  )
+  // Escape closes the panel first, then steps back out of Settings.
+  await page.keyboard.press('Escape')
+  await expect(panel).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(menuButton(page, 'menu.die')).toBeFocused()
+})
+
+test('Quit says to close a tab the page cannot close', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/')
+  await toMenu(page)
+  await menuButton(page, 'menu.quit').click()
+  await expect(page.getByText(copy('menu.quit_blocked'))).toBeVisible()
 })
 
 test('Cancel at Choose Your Username signs out', async ({ page }) => {

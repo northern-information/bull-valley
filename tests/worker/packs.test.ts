@@ -15,7 +15,11 @@ function packContract(makeStore: () => PackStore): void {
   it('gives the starting pack and wallet once', async () => {
     const store = makeStore()
     const opened = await store.open('a1')
-    expect(opened).toEqual({ pack: STARTING_INVENTORY, cash: STARTING_CASH })
+    expect(opened).toEqual({
+      pack: STARTING_INVENTORY,
+      cash: STARTING_CASH,
+      cosmetics: [],
+    })
     expect(
       await store.change('a1', STARTER, -STARTING_INVENTORY[STARTER])
     ).toBe(true)
@@ -24,6 +28,7 @@ function packContract(makeStore: () => PackStore): void {
     expect(await store.open('a1')).toEqual({
       pack: { ...STARTING_INVENTORY, [STARTER]: 0 },
       cash: 0,
+      cosmetics: [],
     })
   })
 
@@ -66,6 +71,23 @@ function packContract(makeStore: () => PackStore): void {
     expect((await store.get('a1')).pack[OTHER]).toBe(4)
     expect(await store.purchase('a1', STARTING_CASH - 200, null)).toBe(true)
     expect((await store.get('a1')).cash).toBe(0)
+  })
+
+  it('trades only what the pack covers, the price and the cosmetic together', async () => {
+    const store = makeStore()
+    await store.open('a1')
+    const price = { kind: 'gold-bullion', count: 1 }
+    expect(await store.trade('a1', price, 'flaming-halo')).toBe(false)
+    expect((await store.get('a1')).cosmetics).toEqual([])
+    expect(await store.change('a1', 'gold-bullion', 2)).toBe(true)
+    expect(await store.trade('a1', price, 'flaming-halo')).toBe(true)
+    expect(await store.get('a1')).toMatchObject({
+      pack: { 'gold-bullion': 1 },
+      cosmetics: ['flaming-halo'],
+    })
+    // Had for good: never sold twice, and never paid for twice.
+    expect(await store.trade('a1', price, 'flaming-halo')).toBe(false)
+    expect((await store.get('a1')).pack['gold-bullion']).toBe(1)
   })
 
   it('sells nothing from a wallet never opened', async () => {

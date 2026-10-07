@@ -728,9 +728,9 @@
   }
 }
 
-/* Title cards: the Northern Information colophon, then the logo. Each
-   lives on <body>, after the shell, so DOM order stacks it on top; the
-   z-index documents the intent (the character select sits at 9, beneath). Opacity is driven inline by the
+/* The title card: the Northern Information colophon. It lives on <body>,
+   after the shell, so DOM order stacks it on top; the z-index documents
+   the intent (the main menu and the select sit at 9, beneath). Opacity is driven inline by the
    splash's RAF loop — never via [hidden] — and the grain ::after rides
    the parent's opacity tween. */
 .bv-splash {
@@ -763,8 +763,8 @@
   z-index: 3;
 }
 
-/* The logo's black fog (fog.ts): over the image, under the grain, at the
-   game's downscale. Clicks pass through to the card, which skips. */
+/* The menu logo's black fog (fog.ts): over the image, under the grain and
+   the options, at the game's downscale. Clicks pass through. */
 .bv-fog {
   position: absolute;
   inset: 0;
@@ -787,6 +787,98 @@
   color: var(--bv-eggshell);
   opacity: 0.6;
   user-select: none;
+}
+
+/* The main menu (mainmenu.ts): the logo under its fog, the options below.
+   A title card's black, grain and fog, mounted above the account step and
+   the select at their z-index, so hiding it uncovers them. The first
+   showing fades the logo and the options up over the logo's fadeInMs. */
+.bv-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2.5rem;
+  padding: 1rem;
+  background: #000;
+  font-family: var(--bv-font, 'IBM Plex Mono', ui-monospace, monospace);
+  font-size: var(--bv-text-size, 1rem);
+  color: var(--bv-eggshell);
+}
+
+.bv-menu[hidden],
+.bv-menu [hidden] {
+  display: none !important;
+}
+
+/* The card's grain over everything but the options. */
+.bv-menu::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background-image: url('/textures/000973910004.jpg');
+  background-repeat: repeat;
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.bv-menu :focus-visible {
+  outline: 3px solid var(--fi-cyan);
+  outline-offset: 3px;
+}
+
+.bv-menu-logo {
+  max-height: 50vh;
+  max-width: 80vw;
+  object-fit: contain;
+  opacity: 0;
+  transition: opacity var(--bv-menu-fade, 2s) linear;
+}
+
+.bv-menu-ui {
+  position: relative;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity calc(var(--bv-menu-fade, 2s) / 2) linear
+    calc(var(--bv-menu-fade, 2s) / 2);
+}
+
+.bv-menu--up .bv-menu-logo,
+.bv-menu--up .bv-menu-ui {
+  opacity: 1;
+}
+
+.bv-menu-options {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.8rem;
+  min-width: min(16rem, 100%);
+}
+
+.bv-menu-options h2 {
+  margin: 0 0 0.5rem;
+  font-size: inherit;
+  letter-spacing: 0.28em;
+  text-align: center;
+  text-transform: uppercase;
+  text-shadow: 4px 4px 0 var(--fi-black-shadow);
+}
+
+.bv-menu-quit {
+  margin: 0;
+  letter-spacing: 0.06em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bv-menu-logo,
+  .bv-menu-ui {
+    transition: none;
+  }
 }
 
 /* Character select. Lives on <body> like the title cards, mounted before
@@ -1145,19 +1237,22 @@
   gap: 0.8rem;
 }
 
-/* The select's buttons, and the account step's above it. */
+/* The select's buttons, the account step's above it, and the menu's. */
 .bv-select .bv-btn,
-.bv-account .bv-btn {
+.bv-account .bv-btn,
+.bv-menu .bv-btn {
   color: var(--bv-eggshell);
 }
 
 .bv-select .bv-btn--primary,
-.bv-account .bv-btn--primary {
+.bv-account .bv-btn--primary,
+.bv-menu .bv-btn--primary {
   color: var(--fi-bg);
 }
 
 .bv-select .bv-btn:disabled,
-.bv-account .bv-btn:disabled {
+.bv-account .bv-btn:disabled,
+.bv-menu .bv-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
   transform: none;

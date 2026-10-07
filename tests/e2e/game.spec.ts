@@ -3,7 +3,7 @@ import {
   beginRaid,
   expect,
   heardWhere,
-  passReturning,
+  passTitles,
   signIn,
   test,
   toCharacterSelect,
@@ -147,9 +147,13 @@ test('the chosen character is the body you raid in, and is remembered', async ({
   expect(await outfit()).toBe('kvistad')
 
   // Still signed in after a reload, raiding under the account's username
-  // in the same body, past the select.
+  // in the same body: Die opens the select on it.
   await page.reload()
-  await passReturning(page)
+  await toCharacterSelect(page)
+  await expect(page.locator('.bv-select-name')).toHaveText(
+    copy('outfits.kvistad')
+  )
+  await page.keyboard.press('Enter')
   await expect(page.locator('[data-bv="intro-username"]')).toHaveText(
     raider.username
   )
@@ -210,7 +214,7 @@ test('the guitar finish is picked with Church and remembered', async ({
   await page.keyboard.press('Enter')
   await expect(page.locator('.bv-select')).toHaveCount(0)
   await page.reload()
-  await passReturning(page)
+  await passTitles(page)
   await expect
     .poll(() => page.evaluate(() => !!window.__bv), { timeout: 30_000 })
     .toBe(true)
