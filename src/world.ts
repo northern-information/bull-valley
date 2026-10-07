@@ -10,6 +10,7 @@ import {
   buildPickup,
   buildPortal,
   buildShelfDisplay,
+  buildWreck,
   CANOPY,
   castShadows,
   CORN_SIGN,
@@ -38,6 +39,7 @@ import {
   waterMaterial,
   WIRE_SAG,
   wireMaterial,
+  WRECK,
 } from './assets.ts'
 import { CABBAGE_SEED, placeCabbages } from './cabbages.ts'
 import { CONFIG } from './config.ts'
@@ -86,7 +88,7 @@ import {
   worldFacings,
 } from './store.ts'
 import { Walls } from './walls.ts'
-import type { CornPiece, MazeSignSize, PortalRig } from './assets.ts'
+import type { CornPiece, MazeSignSize, PortalRig, Wreck } from './assets.ts'
 import type { DonutField } from './donuts.ts'
 import type { GronRig, MoabRig } from './figure.ts'
 import type {
@@ -181,10 +183,13 @@ export interface World {
   // and update(t) for the fire.
   moabs: XZ[]
   moabRigs: MoabRig[]
+  // The green BMW in a tree by the spawn station, update(t) for its smoke
+  // and hazards; null without a spawn station.
+  wreck: Wreck | null
   // What to stand on anywhere: the terrain, or the road or lot over it.
   ground: Ground
   // What stops you: the store walls and fixtures, the berry bush, Gron,
-  // Moab and his horse, the poles and lamps.
+  // Moab and his horse, the wreck and its tree, the poles and lamps.
   walls: Walls
   // Every station's shelf facings in the world, indexed like fuelPoints.
   facings: WorldFacing[][]
@@ -1933,6 +1938,9 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   const spawnStation = chooseSpawnStation(geo, metres, fuel.points)
   const maze = spawnStation ? mazeFrame(spawnStation) : null
   const donutField = spawnStation ? donutFieldOf(spawnStation) : null
+  const wreckAt = spawnStation
+    ? toWorld(spawnStation, [CONFIG.wreck.at.x, 0, CONFIG.wreck.at.z])
+    : null
   group.add(
     buildTrees(
       geo,
@@ -1945,6 +1953,9 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
         (donutField
           ? Math.hypot(x - donutField.x, z - donutField.z) <
             donutField.radius + DONUT_TREE_CLEAR
+          : false) ||
+        (wreckAt
+          ? Math.hypot(x - wreckAt[0], z - wreckAt[2]) < CONFIG.wreck.treeClear
           : false)
     )
   )
@@ -2078,6 +2089,40 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     )
   }
 
+  // The green BMW in its tree beside the spawn station (CONFIG.wreck,
+  // station-local), its nose turned to `toward` and tipped to the slope
+  // under it. The car blocks down its length, the tree like a post.
+  let wreck: Wreck | null = null
+  if (spawnStation && wreckAt) {
+    const [wx, , wz] = wreckAt
+    const [tx, , tz] = toWorld(spawnStation, [
+      CONFIG.wreck.toward.x,
+      0,
+      CONFIG.wreck.toward.z,
+    ])
+    // The wreck faces +Z: rotation.y turns +Z to (sin, cos).
+    const yaw = Math.atan2(tx - wx, tz - wz)
+    const fx = Math.sin(yaw)
+    const fz = Math.cos(yaw)
+    const half = WRECK.length / 2
+    const nose = ground.at(wx + fx * half, wz + fz * half)
+    const tail = ground.at(wx - fx * half, wz - fz * half)
+    wreck = buildWreck()
+    wreck.group.position.set(wx, ground.at(wx, wz), wz)
+    wreck.group.rotation.order = 'YXZ'
+    wreck.group.rotation.set(Math.atan2(tail - nose, WRECK.length), yaw, 0)
+    group.add(wreck.group)
+    const dx = fx * CONFIG.wreck.halfLength
+    const dz = fz * CONFIG.wreck.halfLength
+    walls.addWall(
+      { x: wx - dx, z: wz - dz },
+      { x: wx + dx, z: wz + dz },
+      CONFIG.wreck.radius
+    )
+    const tree = { x: wx + fx * WRECK.treeAhead, z: wz + fz * WRECK.treeAhead }
+    walls.addWall(tree, tree, WRECK.treeRadius)
+  }
+
   // Moab Coldë and his horse under every station's sign (CONFIG.moab,
   // station-local), the horse broadside to the pump island and Moab, his
   // back to its flank, facing the island and the lot. The horse blocks
@@ -2134,6 +2179,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     }),
     moabs,
     moabRigs,
+    wreck,
     ground,
     walls,
     facings: fuel.points.map(worldFacings),
