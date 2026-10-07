@@ -3,6 +3,7 @@
 // valleysync.ts, input.ts, targets.ts and loop.ts each take the Game.
 
 import { CONFIG } from './config.ts'
+import { SOBER } from './geometrie.ts'
 import { HAND_DOWN } from './hands.ts'
 import { NO_EFFECTS } from './hotbar.ts'
 import { STARTING_INVENTORY } from './inventory.ts'
@@ -12,6 +13,7 @@ import type { CaretakerShade } from './caretakerrig.ts'
 import type { DropMeshes } from './dropmeshes.ts'
 import type { Drop } from './drops.ts'
 import type { FirstPersonHands } from './fphands.ts'
+import type { Geometrie } from './geometrie.ts'
 import type { Glow } from './glow.ts'
 import type { Hand } from './hands.ts'
 import type { Effects, Hotbar } from './hotbar.ts'
@@ -56,6 +58,8 @@ export interface GameState {
   time: number
   // A cigarette burning, its ember, the joint's perception, on `time`.
   effects: Effects
+  // How high, stimulated and drunk, on `time` (geometrie.ts).
+  geometrie: Geometrie
   // The flashlight in the left hand: up and on, or down and off.
   flashlight: Hand
   // The item the right hand last brought up, and when, on `time`.
@@ -126,6 +130,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     hotbarSaved: Promise.resolve(),
     time: 0,
     effects: NO_EFFECTS,
+    geometrie: SOBER,
     flashlight: HAND_DOWN,
     using: null,
     strikeUntil: 0,

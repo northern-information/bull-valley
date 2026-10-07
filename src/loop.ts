@@ -6,6 +6,7 @@ import * as THREE from 'three'
 import { pulseMaterials } from './assets.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
+import { levelsAt } from './geometrie.ts'
 import { ease, stepHand, useLift, useSeconds } from './hands.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
 import {
@@ -289,6 +290,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         return [{ slot, item, icon: thumbs.icon(kind), cooldown }]
       })
     )
+    hud.setGeometrie(levelsAt(s.geometrie, time))
     hud.tickChat(performance.now())
 
     scope.draw(dt, {

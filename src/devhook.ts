@@ -3,6 +3,7 @@
 // dev builds, so production bundles never carry it.
 
 import { unitToWorld } from './coords.ts'
+import { levelsAt } from './geometrie.ts'
 import { hurry } from './marx.ts'
 import type { Actions } from './actions.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
@@ -11,7 +12,7 @@ import type { Drop } from './drops.ts'
 import type { Game } from './game.ts'
 import type { Hand } from './hands.ts'
 import type { Hotbar } from './hotbar.ts'
-import type { Inventory } from './interfaces.ts'
+import type { GeometrieAxis, Inventory } from './interfaces.ts'
 import type { TruckState } from './marx.ts'
 import type { MistCards } from './mistcards.ts'
 import type { NetStatus } from './net.ts'
@@ -59,6 +60,8 @@ interface BvHook {
   readonly drops: readonly Drop[]
   // The item on each number key, slot 0 for 1.
   readonly hotbar: Hotbar
+  // How high, stimulated and drunk right now, each 0 to 1.
+  readonly geometrie: Record<GeometrieAxis, number>
   // The chat log, oldest first.
   readonly chat: readonly ChatLine[]
   // The flashlight in the left hand, and the item the right last raised.
@@ -139,6 +142,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     },
     get hotbar() {
       return s.hotbar
+    },
+    get geometrie() {
+      return levelsAt(s.geometrie, s.time)
     },
     get chat() {
       return hud.chatLines

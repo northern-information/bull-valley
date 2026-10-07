@@ -44,6 +44,7 @@ signal_lost = { text = "SIGNAL LOST", by = "ai" }
 countdown_label = { text = "Truck leaves in", by = "ai" }
 chat_log_label = { text = "Chat", by = "ai" }
 chat_input_label = { text = "Say to the valley", by = "ai" }
+geometrie_label = { text = "Geometrie: high {high}%, stimulated {stimulated}%, drunk {drunk}%", by = "ai" }
 
 # The sign-in card (src/signin.ts).
 
@@ -419,87 +420,121 @@ empty = { text = "No joints left.", by = "ai" }
 [items.monster]
 label = { text = "Monster Energy", by = "ai" }
 blurb = { text = "Three green claw marks. Tastes like a battery.", by = "ai" }
+used = { text = "You crack the Monster and drink it down. Your teeth hum.", by = "ai" }
 bought = { text = "One Monster Energy, pocketed.", by = "ai" }
+empty = { text = "No Monster Energy left.", by = "ai" }
 
 [items.monster-ultra]
 label = { text = "Monster Ultra", by = "ai" }
 blurb = { text = "White can, zero sugar. A cold, thin buzz.", by = "ai" }
+used = { text = "You drink the Monster Ultra. Thin, cold, awake.", by = "ai" }
 bought = { text = "One Monster Ultra, pocketed.", by = "ai" }
+empty = { text = "No Monster Ultra left.", by = "ai" }
 
 [items.red-bull]
 label = { text = "Red Bull", by = "ai" }
 blurb = { text = "Small, silver and blue. Two bulls charge.", by = "ai" }
+used = { text = "You knock back the Red Bull. Your heart picks up.", by = "ai" }
 bought = { text = "One Red Bull, pocketed.", by = "ai" }
+empty = { text = "No Red Bull left.", by = "ai" }
 
 [items.rip-it]
 label = { text = "Rip It", by = "ai" }
 blurb = { text = "Energy fuel. Sold by the case at the base.", by = "ai" }
+used = { text = "You shotgun the Rip It. Everything gets louder.", by = "ai" }
 bought = { text = "One Rip It, pocketed.", by = "ai" }
+empty = { text = "No Rip It left.", by = "ai" }
 
 [items.rockstar]
 label = { text = "Rockstar", by = "ai" }
 blurb = { text = "Black can, gold star. Party like one.", by = "ai" }
+used = { text = "You drink the Rockstar. Your hands want something to do.", by = "ai" }
 bought = { text = "One Rockstar, pocketed.", by = "ai" }
+empty = { text = "No Rockstar left.", by = "ai" }
 
 [items.nos]
 label = { text = "NOS", by = "ai" }
 blurb = { text = "A blue plastic bottle, an orange cap. High performance.", by = "ai" }
+used = { text = "You drain the NOS. The valley tilts forward.", by = "ai" }
 bought = { text = "One NOS, pocketed.", by = "ai" }
+empty = { text = "No NOS left.", by = "ai" }
 
 [items.four-loko-blue]
 label = { text = "Four Loko Blue Raspberry", by = "ai" }
 blurb = { text = "Blue camo, 23.5 oz. Caffeine and twelve percent.", by = "ai" }
+used = { text = "You drink the Four Loko. Wide awake and going under.", by = "ai" }
 bought = { text = "One Four Loko Blue Raspberry, pocketed.", by = "ai" }
+empty = { text = "No Four Loko Blue Raspberry left.", by = "ai" }
 
 [items.four-loko-punch]
 label = { text = "Four Loko Fruit Punch", by = "ai" }
 blurb = { text = "Red camo. Blackout in a can.", by = "ai" }
+used = { text = "You drink the Four Loko. The night comes apart at the seams.", by = "ai" }
 bought = { text = "One Four Loko Fruit Punch, pocketed.", by = "ai" }
+empty = { text = "No Four Loko Fruit Punch left.", by = "ai" }
 
 [items.four-loko-lemon]
 label = { text = "Four Loko Lemon Lime", by = "ai" }
 blurb = { text = "Nuclear green camo. It glows a little.", by = "ai" }
+used = { text = "You drink the Four Loko. Your pulse races, your feet wander.", by = "ai" }
 bought = { text = "One Four Loko Lemon Lime, pocketed.", by = "ai" }
+empty = { text = "No Four Loko Lemon Lime left.", by = "ai" }
 
 [items.wild-turkey]
 label = { text = "Wild Turkey 101", by = "ai" }
 blurb = { text = "Austin Nichols. A hundred and one proof.", by = "ai" }
+used = { text = "You pull hard on the Wild Turkey. It burns all the way down.", by = "ai" }
 bought = { text = "One Wild Turkey 101, pocketed.", by = "ai" }
+empty = { text = "No Wild Turkey 101 left.", by = "ai" }
 
 [items.jim-beam]
 label = { text = "Jim Beam", by = "ai" }
 blurb = { text = "White label, red seal. Kentucky straight bourbon.", by = "ai" }
+used = { text = "You drink from the Jim Beam. The cold goes somewhere else.", by = "ai" }
 bought = { text = "One Jim Beam, pocketed.", by = "ai" }
+empty = { text = "No Jim Beam left.", by = "ai" }
 
 [items.grey-goose]
 label = { text = "Grey Goose", by = "ai" }
 blurb = { text = "Frosted glass, geese over the Alps. Too nice for here.", by = "ai" }
+used = { text = "You drink the Grey Goose. Clean, then not.", by = "ai" }
 bought = { text = "One Grey Goose, pocketed.", by = "ai" }
+empty = { text = "No Grey Goose left.", by = "ai" }
 
 [items.pbr]
 label = { text = "Pabst Blue Ribbon", by = "ai" }
 blurb = { text = "Milwaukee, 1844. The blue ribbon, the red sash. Cheap.", by = "ai" }
+used = { text = "You crack a PBR and drink it.", by = "ai" }
 bought = { text = "One Pabst Blue Ribbon, pocketed.", by = "ai" }
+empty = { text = "No Pabst Blue Ribbon left.", by = "ai" }
 
 [items.high-life]
 label = { text = "Miller High Life", by = "ai" }
 blurb = { text = "The Champagne of Beers. Clear glass, the girl in the moon.", by = "ai" }
+used = { text = "You drink the High Life. The champagne of nothing.", by = "ai" }
 bought = { text = "One Miller High Life, pocketed.", by = "ai" }
+empty = { text = "No Miller High Life left.", by = "ai" }
 
 [items.modelo]
 label = { text = "Modelo Especial", by = "ai" }
 blurb = { text = "Cream and gold, two lions. Cold, if you are lucky.", by = "ai" }
+used = { text = "You drink the Modelo. Warm, of course.", by = "ai" }
 bought = { text = "One Modelo Especial, pocketed.", by = "ai" }
+empty = { text = "No Modelo Especial left.", by = "ai" }
 
 [items.md-2020]
 label = { text = "MD 20/20 Banana Red", by = "ai" }
 blurb = { text = "Mad Dog. A flat red flask. Tastes like a candle.", by = "ai" }
+used = { text = "You drink the Mad Dog. Banana, then fire.", by = "ai" }
 bought = { text = "One MD 20/20 Banana Red, pocketed.", by = "ai" }
+empty = { text = "No MD 20/20 left.", by = "ai" }
 
 [items.ice-mountain]
 label = { text = "Ice Mountain", by = "ai" }
 blurb = { text = "Michigan spring water. The only clean thing for miles.", by = "ai" }
+used = { text = "You drink the Ice Mountain. Your head clears a little.", by = "ai" }
 bought = { text = "One Ice Mountain, pocketed.", by = "ai" }
+empty = { text = "No Ice Mountain left.", by = "ai" }
 
 [items.aspirin]
 label = { text = "Aspirin", by = "ai" }

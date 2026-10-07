@@ -215,6 +215,48 @@
   outline: none;
 }
 
+/* Geometrie: a red triangle in the lower right, a dim face whose corners
+   light with their levels: the top with high, the lower right with
+   stimulated, the lower left with drunk. Under the phone when it is
+   raised. */
+.bv-geometrie {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  width: 5rem;
+  aspect-ratio: 100 / 90;
+  filter: drop-shadow(3px 3px 0 var(--fi-black-shadow));
+}
+
+.bv-geometrie svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.bv-geo-face {
+  fill: rgb(90 10 4 / 70%);
+}
+
+.bv-geo-glow {
+  opacity: 0;
+}
+
+.bv-geo-hot {
+  stop-color: #ffe2c8;
+}
+
+.bv-geo-lit {
+  stop-color: var(--bv-citgo);
+}
+
+.bv-geo-edge {
+  fill: none;
+  stroke: var(--bv-citgo);
+  stroke-width: 3;
+  stroke-linejoin: miter;
+}
+
 /* Scope: a phone in a low-poly hand, tilted and cut off by the bottom edge.
    scope.ts draws it all into one small canvas; pixelated upscaling gives it
    the same coarse pixels as the world render. */
