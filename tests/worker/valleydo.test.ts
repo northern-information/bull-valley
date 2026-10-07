@@ -1106,7 +1106,7 @@ describe('ValleyDO: the shadowmen', () => {
     expect(b.frames().some((m) => m.type === 'struck')).toBe(false)
   })
 
-  it('leaves 2 troy ounces of gold bullion where two beams unmade the Caretaker', async () => {
+  it('leaves two 1 troy ounce gold bars where two beams unmade the Caretaker', async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A', { dev: true })
     const b = await join(v, s, 'B')
@@ -1136,12 +1136,17 @@ describe('ValleyDO: the shadowmen', () => {
       .frames()
       .findLast((m): m is WorldMessage => m.type === 'world')
     expect(spilled?.reason).toBe('spilled')
-    const gold = spilled?.world?.drops.find((d) => d.kind === 'gold-bullion')
-    expect(gold).toMatchObject({ count: 2 })
-    expect(Math.hypot((gold?.x ?? 0) - hx, (gold?.z ?? 0) - hz)).toBeLessThan(
-      0.1
+    const bars = (spilled?.world?.drops ?? []).filter(
+      (d) => d.kind === 'gold-bullion'
     )
-    await v.webSocketMessage(ws(b), `{"type":"take-drop","drop":${gold?.id}}`)
+    expect(bars).toHaveLength(2)
+    for (const bar of bars) {
+      expect(bar.count).toBe(1)
+      expect(Math.hypot(bar.x - hx, bar.z - hz)).toBeLessThan(0.5)
+    }
+    for (const bar of bars) {
+      await v.webSocketMessage(ws(b), `{"type":"take-drop","drop":${bar.id}}`)
+    }
     expect(b.last<PackMessage>().pack).toMatchObject({ 'gold-bullion': 2 })
   })
 

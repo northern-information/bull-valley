@@ -25,8 +25,8 @@ export function dimesFor(rng: Rng, cfg = CONFIG): number {
   return min + Math.floor(rng() * (max - min + 1))
 }
 
-// The kind of the drop the Caretaker leaves where it was unmade: gold
-// bullion, an item, counted by the troy ounce.
+// The kind of the drops the Caretaker leaves where it was unmade: gold
+// bullion, an item, each one a 1 troy ounce bar.
 export const GOLD_BULLION: ItemId = 'gold-bullion'
 
 // One drop the valley sets down of its own accord: what, how many, where.
@@ -35,8 +35,13 @@ export interface Spill extends XZ {
   count: number
 }
 
+// How far each of the Caretaker's bars lies from where it was unmade, in
+// metres.
+const BAR_SPREAD = 0.25
+
 // What one step leaves lying: dimes where each shadowman burst, and the
-// Caretaker's gold bullion where it was unmade.
+// Caretaker's gold bullion where it was unmade: its bars, one troy ounce
+// each, as drops of their own, side by side.
 export function spillsOf(
   bursts: readonly XZ[],
   unmade: XZ | null,
@@ -50,8 +55,17 @@ export function spillsOf(
     count: dimesFor(rng, cfg),
   }))
   if (unmade) {
-    const { x, z } = unmade
-    spills.push({ x, z, kind: GOLD_BULLION, count: cfg.caretaker.bullion })
+    const bars = cfg.caretaker.bullion
+    for (let i = 0; i < bars; i++) {
+      const turn = (i / bars) * Math.PI * 2
+      const r = bars > 1 ? BAR_SPREAD : 0
+      spills.push({
+        x: unmade.x + Math.cos(turn) * r,
+        z: unmade.z + Math.sin(turn) * r,
+        kind: GOLD_BULLION,
+        count: 1,
+      })
+    }
   }
   return spills
 }

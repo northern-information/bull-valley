@@ -61,9 +61,9 @@
 //    could be rushed by a shadowman, and its touch strikes them the same
 //    way. One beam does nothing to it; two raiders' beams on it at once,
 //    held, unmake it, and it forms again at the heart minutes later.
-//    Unmade, it leaves 2 troy ounces of gold bullion lying where it was
-//    (drops.ts spillsOf), a drop like any other (rule 12) that goes into
-//    the taker's pack.
+//    Unmade, it leaves two 1 troy ounce bars of gold bullion lying where
+//    it was (drops.ts spillsOf), each a drop like any other (rule 12) that
+//    goes into the taker's pack.
 
 import { caretakerAt, createCaretaker, stepCaretaker } from './caretaker.ts'
 import { CONFIG } from './config.ts'

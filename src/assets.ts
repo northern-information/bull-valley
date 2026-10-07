@@ -2769,9 +2769,9 @@ export function buildDimes(
   return group
 }
 
-// Gold bullion the Caretaker leaves where it was unmade: one small cast
-// bar per troy ounce (a little over life size, to read at PS1
-// resolution), lying in a loose stack. Local space: on the ground at the
+// Gold bullion the Caretaker leaves where it was unmade: small cast bars
+// of one troy ounce each (a little over life size, to read at PS1
+// resolution), one per unit in the drop, lying in a loose stack. Local space: on the ground at the
 // origin.
 export function buildGoldBullion(
   ounces: number,
@@ -4431,7 +4431,7 @@ export function buildPickup(
   if (isDrink(kind)) return buildDrink(kind, { glow })
   if (kind === 'berries') return buildBerries({ glow })
   if (kind === 'dimes') return buildDimes(12, seed, { glow })
-  if (kind === 'gold-bullion') return buildGoldBullion(2, seed, { glow })
+  if (kind === 'gold-bullion') return buildGoldBullion(1, seed, { glow })
   if (isMedicine(kind)) return buildMedicine(kind, { glow })
   let mesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshLambertMaterial>
   if (kind === 'cabbage') {
@@ -4797,8 +4797,8 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   { id: 'dimes', label: 'Dimes (12)', build: () => buildDimes(12) },
   {
     id: 'gold-bullion',
-    label: 'Gold bullion (2 troy oz)',
-    build: () => buildGoldBullion(2),
+    label: 'Gold bullion (1 troy oz bar)',
+    build: () => buildGoldBullion(1),
   },
   { id: 'berry-bush', label: 'Berry bush', build: () => buildBerryBush() },
   {

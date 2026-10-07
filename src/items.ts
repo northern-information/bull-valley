@@ -346,7 +346,7 @@ export const ITEMS = [
     start: 0,
   },
   // Materials. Not for sale: the Caretaker leaves gold bullion where two
-  // beams unmade it (sharedworld.ts rule 13), counted by the troy ounce.
+  // beams unmade it (sharedworld.ts rule 13). One is a 1 troy ounce bar.
   // No use yet.
   {
     id: 'gold-bullion',

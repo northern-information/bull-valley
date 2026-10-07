@@ -31,13 +31,20 @@ describe('dimes', () => {
 })
 
 describe('spillsOf', () => {
-  it('leaves dimes at each burst, and 2 troy ounces of gold where the Caretaker was unmade', () => {
+  it('leaves dimes at each burst, and two 1 troy ounce bars where the Caretaker was unmade', () => {
     const rng = mulberry32(3)
     const spills = spillsOf([{ x: 1, z: 2 }], { x: 5, z: 6 }, rng)
-    expect(spills).toHaveLength(2)
+    expect(spills).toHaveLength(3)
     expect(spills[0]).toMatchObject({ x: 1, z: 2, kind: DIMES })
-    expect(spills[1]).toEqual({ x: 5, z: 6, kind: GOLD_BULLION, count: 2 })
+    const bars = spills.slice(1)
     expect(CONFIG.caretaker.bullion).toBe(2)
+    for (const bar of bars) {
+      expect(bar).toMatchObject({ kind: GOLD_BULLION, count: 1 })
+      expect(Math.hypot(bar.x - 5, bar.z - 6)).toBeLessThan(0.5)
+    }
+    // Side by side, never on top of each other.
+    const [one, two] = bars
+    expect(Math.hypot(one.x - two.x, one.z - two.z)).toBeGreaterThan(0.2)
     expect(isCash(GOLD_BULLION)).toBe(false)
   })
 

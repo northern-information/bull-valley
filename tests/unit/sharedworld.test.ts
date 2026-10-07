@@ -691,16 +691,20 @@ describe('rule 11: a burst shadowman leaves dimes', () => {
     const v = valleyWith(join('a'))
     v.step({
       type: 'spill',
-      spills: [{ x: 1, z: 2, kind: 'gold-bullion', count: 2 }],
+      spills: [
+        { x: 1, z: 2, kind: 'gold-bullion', count: 1 },
+        { x: 1.5, z: 2, kind: 'gold-bullion', count: 1 },
+      ],
     })
     expect(v.valley.world?.drops).toEqual([
-      { id: 0, kind: 'gold-bullion', count: 2, x: 1, z: 2 },
+      { id: 0, kind: 'gold-bullion', count: 1, x: 1, z: 2 },
+      { id: 1, kind: 'gold-bullion', count: 1, x: 1.5, z: 2 },
     ])
     const r = v.step({ type: 'take-drop', id: 'a', drop: 0 })
     expect(r.pack).toEqual({
       account: 'acct-a',
       kind: 'gold-bullion',
-      delta: 2,
+      delta: 1,
     })
     expect(r.earn).toBeUndefined()
   })

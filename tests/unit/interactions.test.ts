@@ -390,9 +390,11 @@ describe('itemLabel', () => {
     )
   })
 
-  it('labels gold bullion by the troy ounce', () => {
-    expect(pickupLabel({ kind: 'gold-bullion', count: 2 })).toBe(
-      copy('labels.gold_bullion', { count: 2 })
+  it('labels a gold bar by its name alone, a stack of them with a count', () => {
+    const label = copy('items.gold-bullion.label')
+    expect(pickupLabel({ kind: 'gold-bullion', count: 1 })).toBe(label)
+    expect(pickupLabel({ kind: 'gold-bullion', count: 3 })).toBe(
+      copy('labels.pickup_count', { item: label, count: 3 })
     )
   })
 })
