@@ -220,6 +220,24 @@ describe('trailField', () => {
     expect(at(2, 0)).toBe(Infinity)
   })
 
+  it('turns a corner down the middle, never out into the corner', () => {
+    // An L: a corridor along z from a dead end, turning at the corner
+    // (0, 0) to run across, the two meeting round the wall end at (4, 4).
+    const ell = ['#####', '#...#', '#.###', '#.###', '#####']
+    const turn = trailField(ell, { along: 8, across: 8 }, 0.5, 0.25)
+    const on = (x: number, z: number) =>
+      turn.fromMiddle[Math.round(x / 0.25) * turn.cols + Math.round(z / 0.25)]
+    // Down the middle of both legs.
+    expect(on(2, 5)).toBe(0)
+    expect(on(5, 2)).toBe(0)
+    // The diagonal into the corner, halfway between the two walls that
+    // meet there, is not worn.
+    for (const d of [0.6, 0.9, 1.2]) expect(on(d, d)).toBeGreaterThan(1)
+    // Nor are the forks into the dead end's two corners.
+    expect(on(7.3, 1.3)).toBeGreaterThan(0.6)
+    expect(on(7.3, 2.7)).toBeGreaterThan(0.6)
+  })
+
   it('reaches every path in the maze', () => {
     const shining = trailField(
       SHINING_MAZE,
