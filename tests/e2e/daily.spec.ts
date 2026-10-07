@@ -23,22 +23,24 @@ const raider = freshRaider('Daily')
 const berries = (page: Page) =>
   page.evaluate(() => window.__bv?.inventory.berries)
 
-// Whether the glow rings the bush, and whether its berries show.
+// Whether the glow rings the spawn lot's bush, and whether its berries
+// show.
 const bushGlows = (page: Page) =>
   page.evaluate(() => {
     const bv = window.__bv
-    return !!bv && bv.glow !== null && bv.glow === bv.world.bushObject
+    return !!bv && bv.glow !== null && bv.glow === bv.world.bushes[0]?.object
   })
 const berriesShown = (page: Page) =>
   page.evaluate(
-    () => window.__bv?.world.bushObject?.getObjectByName('berries')?.visible
+    () =>
+      window.__bv?.world.bushes[0]?.object.getObjectByName('berries')?.visible
   )
 
 async function standAtBush(page: Page): Promise<void> {
   await page.evaluate(() => {
     const bv = window.__bv
     if (!bv) throw new Error('no dev hook')
-    const { bush } = bv.world
+    const [bush] = bv.world.bushes
     if (!bush) throw new Error('no berry bush')
     bv.player.relocate(bush.x + 1, bush.z + 1, bv.player.yaw)
   })
@@ -51,7 +53,7 @@ test('the berry bush gives one berry, then is picked clean', async ({
   // The bush's own label says how it stands.
   const label = page.locator('.bv-item-label')
   expect(await page.evaluate(() => window.__bv?.daily)).toMatchObject({
-    collected: false,
+    collected: [],
   })
   expect(await berries(page)).toBe(0)
 
@@ -64,7 +66,7 @@ test('the berry bush gives one berry, then is picked clean', async ({
   await expect(label).toHaveText(copy('labels.berry_picked'))
   await expect
     .poll(() => page.evaluate(() => window.__bv?.daily?.collected))
-    .toBe(true)
+    .toEqual([0])
   // Picked clean: no berries, and nothing left to glow for.
   await expect.poll(() => berriesShown(page)).toBe(false)
   expect(await bushGlows(page)).toBe(false)
@@ -80,7 +82,7 @@ test('the valley remembers the account on the next arrival', async ({
 }) => {
   await beginRaid(page, 0, { valley, raider })
   expect(await page.evaluate(() => window.__bv?.daily)).toMatchObject({
-    collected: true,
+    collected: [0],
   })
   // A new page, and the berry is still in the pack.
   expect(await berries(page)).toBe(1)

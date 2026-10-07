@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest'
+import { heartPoint, theMaze } from '../../src/caretaker.ts'
 import { CONFIG } from '../../src/config.ts'
 import { dayKey, nextMidnight } from '../../src/daily.ts'
 import { contentsOf, getItem } from '../../src/items.ts'
 import { mulberry32 } from '../../src/rng.ts'
 import {
+  BUSHES,
   createShadows,
   createValley,
   dailyFor,
+  placeCaretaker,
   placeShadowman,
   reduce,
   restoreValley,
@@ -37,6 +40,9 @@ const HAVENS = [
   { x: 0, z: 2000 },
 ]
 const METRES = { width: 15059, height: 15038 }
+// Where a build with a corn maze puts it (rule 15). The default join's
+// build has none, so the shadowmen's tests step only shadowmen.
+const MAZE = { x: 3000, z: 3000, yaw: 0 }
 const T0 = 1_000_000
 const NO_HAUL = { carrying: 0 }
 
@@ -90,6 +96,7 @@ const join = (id: string): ValleyAction => ({
   stations: STATIONS,
   havens: HAVENS,
   metres: METRES,
+  maze: null,
 })
 
 const reasons = (reduced: { broadcast: RaidMessage[] }) =>
@@ -563,8 +570,12 @@ describe('rules 6 and 7: extracting, and the valley resetting', () => {
   })
 })
 
-describe('rule 9: one berry a day per account', () => {
-  const collect = (id: string): ValleyAction => ({ type: 'collect', id })
+describe('rule 9: one berry a day per account, at each bush', () => {
+  const collect = (id: string, bush = 0): ValleyAction => ({
+    type: 'collect',
+    id,
+    bush,
+  })
   const daily = (r: ReturnType<typeof reduce>) => r.daily as DailyMessage
 
   it('gives the first ask of the day a berry, to the asker alone', () => {
@@ -574,8 +585,9 @@ describe('rule 9: one berry a day per account', () => {
     expect(r.alarm).toBeUndefined()
     expect(daily(r)).toEqual({
       type: 'daily',
+      bush: 0,
       picked: true,
-      daily: { collected: true, resetsAt: nextMidnight(v.now) },
+      daily: { collected: [0], resetsAt: nextMidnight(v.now) },
     })
     expect(v.valley.dailies).toEqual({ 'acct-a': dayKey(v.now) })
   })
@@ -588,8 +600,9 @@ describe('rule 9: one berry a day per account', () => {
     expect(r.valley).toBe(before)
     expect(daily(r)).toEqual({
       type: 'daily',
+      bush: 0,
       picked: false,
-      daily: { collected: true, resetsAt: nextMidnight(v.now) },
+      daily: { collected: [0], resetsAt: nextMidnight(v.now) },
     })
   })
 
@@ -611,12 +624,12 @@ describe('rule 9: one berry a day per account', () => {
 
   it('has the berry back at midnight Central, and forgets yesterday', () => {
     const v = valleyWith(join('a'), collect('a'), join('b'))
-    expect(dailyFor(v.valley, 'acct-a', v.now).collected).toBe(true)
+    expect(dailyFor(v.valley, 'acct-a', v.now).collected).toEqual([0])
     v.tick(nextMidnight(v.now) - v.now - 1)
-    expect(dailyFor(v.valley, 'acct-a', v.now).collected).toBe(true)
+    expect(dailyFor(v.valley, 'acct-a', v.now).collected).toEqual([0])
     v.tick(1)
     expect(dailyFor(v.valley, 'acct-a', v.now)).toEqual({
-      collected: false,
+      collected: [],
       resetsAt: nextMidnight(v.now),
     })
     // B's pick on the new day drops A's record from the old one.
@@ -648,10 +661,44 @@ describe('rule 9: one berry a day per account', () => {
     expect(r.valley).toBe(v.valley)
   })
 
+  it("gives a berry off each of the maze's bushes too, each once a day", () => {
+    const v = valleyWith(join('a'), collect('a'))
+    expect(BUSHES).toBe(1 + CONFIG.maze.bushes.count)
+    for (let bush = 1; bush < BUSHES; bush++) {
+      expect(daily(v.step(collect('a', bush))).picked).toBe(true)
+      expect(v.last().pack).toEqual({
+        account: 'acct-a',
+        kind: 'berries',
+        delta: 1,
+      })
+    }
+    expect(daily(v.step(collect('a', 2))).picked).toBe(false)
+    expect(dailyFor(v.valley, 'acct-a', v.now).collected).toEqual(
+      Array.from({ length: BUSHES }, (_, i) => i)
+    )
+    // Another account has every bush to itself.
+    v.step(join('b'))
+    expect(daily(v.step(collect('b', 3))).picked).toBe(true)
+    expect(dailyFor(v.valley, 'acct-b', v.now).collected).toEqual([3])
+  })
+
+  it('refuses a bush that does not grow', () => {
+    const v = valleyWith(join('a'))
+    for (const bush of [BUSHES, -1, 1.5]) {
+      const r = v.step(collect('a', bush))
+      expect(r.reply).toEqual({
+        type: 'nack',
+        re: 'collect',
+        reason: 'no-such-bush',
+      })
+      expect(r.valley).toBe(v.valley)
+    }
+  })
+
   it('starts every valley with an empty record', () => {
     expect(createValley().dailies).toEqual({})
     expect(dailyFor(createValley(), 'acct-a', T0)).toEqual({
-      collected: false,
+      collected: [],
       resetsAt: nextMidnight(T0),
     })
   })
@@ -680,9 +727,9 @@ describe('rule 10: Gron changes how a raider is shown', () => {
   })
 
   it('keeps the berry with the account through a rename', () => {
-    const v = valleyWith(join('a'), { type: 'collect', id: 'a' })
+    const v = valleyWith(join('a'), { type: 'collect', id: 'a', bush: 0 })
     v.step({ type: 'appearance', id: 'a', name: 'Someone_Else' })
-    const r = v.step({ type: 'collect', id: 'a' })
+    const r = v.step({ type: 'collect', id: 'a', bush: 0 })
     expect((r.daily as DailyMessage).picked).toBe(false)
   })
 
@@ -785,12 +832,12 @@ describe("rule 11: the pack is the account's", () => {
 
   it("puts the day's berry into the pack, once", () => {
     const v = valleyWith(join('a'))
-    expect(v.step({ type: 'collect', id: 'a' }).pack).toEqual({
+    expect(v.step({ type: 'collect', id: 'a', bush: 0 }).pack).toEqual({
       account: 'acct-a',
       kind: 'berries',
       delta: 1,
     })
-    expect(v.step({ type: 'collect', id: 'a' }).pack).toBeUndefined()
+    expect(v.step({ type: 'collect', id: 'a', bush: 0 }).pack).toBeUndefined()
   })
 
   it('takes a used unit out of the pack, whatever the raid is doing', () => {
@@ -1258,5 +1305,143 @@ describe("rule 13: the shadowmen are the valley's", () => {
         }
       )
     ).toBeNull()
+  })
+})
+
+describe('rule 15: the Caretaker keeps the maze', () => {
+  const heart = heartPoint(theMaze())
+  // The heart of the maze in the world, MAZE turned by nothing.
+  const at = (dx = 0, dz = 0) => ({
+    x: MAZE.x + heart.x + dx,
+    z: MAZE.z + heart.z + dz,
+  })
+  const state = (over: Partial<PeerStateWire> = {}): PeerStateWire => ({
+    ...at(),
+    y: 0,
+    yaw: 0,
+    pitch: 0,
+    pose: 'stand',
+    riding: false,
+    light: false,
+    ...over,
+  })
+  // 'a' joined the lobby of a build with a maze; 'b' after the truck left.
+  const valley = () => {
+    const v = valleyWith({ ...join('a'), maze: MAZE } as ValleyAction)
+    v.step({ type: 'clock' })
+    v.step({ ...join('b'), maze: MAZE } as ValleyAction)
+    return v.valley
+  }
+
+  it('keeps where the maze lies in the raid it opened, never on the wire', () => {
+    const v = valley()
+    expect(v.raid?.maze).toEqual(MAZE)
+    expect(JSON.stringify(toWire(v))).not.toContain('maze')
+    // A raid stored before the maze was the valley's has no Caretaker.
+    const older = { ...v, raid: { ...v.raid, maze: undefined } }
+    expect(restoreValley(older as unknown as Valley).raid?.maze).toBeNull()
+  })
+
+  it('floats in every frame, and catches a raider on foot in the maze', () => {
+    const v = valley()
+    const shadows = createShadows()
+    placeCaretaker(v, shadows, at().x, at().z)
+    const placed = [{ id: 'b', at: state({ ...at(0, 2) }) }]
+    let out = stepShadows(v, shadows, placed, mulberry32(1), {
+      now: T0,
+      dt: 0,
+    })
+    expect(out?.message.caretaker).toEqual({
+      ...at(),
+      burn: 0,
+      target: 'b',
+    })
+    for (let i = 0; i < 10 && !out?.caught.length; i++) {
+      shadows.field.shadowmen = []
+      out = stepShadows(v, shadows, placed, mulberry32(1), {
+        now: T0,
+        dt: 0.1,
+      })
+    }
+    expect(out?.caught).toEqual(['b'])
+    expect(out?.struck).toEqual(['b'])
+    expect(shadows.recovering.b).toBe(
+      T0 + CONFIG.shadowmen.strikeSeconds * 1000
+    )
+    // Coming to, they are let be.
+    expect(shadows.caretaker.target).toBeNull()
+  })
+
+  it('never hunts a raider in the bed, or outside the corn', () => {
+    const v = valley()
+    for (const where of [
+      state({ ...at(0, 2), riding: true }),
+      state({ x: MAZE.x - 5, z: MAZE.z - 5 }),
+    ]) {
+      const shadows = createShadows()
+      placeCaretaker(v, shadows, at().x, at().z)
+      const out = stepShadows(
+        v,
+        shadows,
+        [{ id: 'b', at: where }],
+        mulberry32(1),
+        {
+          now: T0,
+          dt: 0.1,
+        }
+      )
+      expect(out?.caught).toEqual([])
+      expect(shadows.caretaker.target).toBeNull()
+    }
+  })
+
+  it('shrugs off one beam, is unmade by two, and forms again at the heart', () => {
+    const v = valley()
+    const shadows = createShadows()
+    placeCaretaker(v, shadows, at().x, at().z)
+    // Down the court from it, looking at it (+z is yaw pi), from the bed so
+    // it never comes for them.
+    const lit = (dx: number) =>
+      state({ ...at(dx, -8), yaw: Math.PI, light: true, riding: true })
+    const step = (placed: Placed[], dt: number) => {
+      shadows.field.shadowmen = []
+      return stepShadows(v, shadows, placed, mulberry32(1), { now: T0, dt })
+    }
+    const one = [
+      { id: 'a', at: lit(0) },
+      { id: 'b', at: lit(0.5) },
+    ]
+    // One alone, however long.
+    let out = step([{ id: 'a', at: lit(0) }], CONFIG.caretaker.burnSeconds * 2)
+    expect(out?.message.caretaker?.burn).toBe(0)
+    // Two at once, halfway.
+    out = step(one, CONFIG.caretaker.burnSeconds / 2)
+    expect(out?.message.caretaker?.burn).toBe(0.5)
+    expect(out?.message.unmade).toBeNull()
+    // Unmade where it floated, wandering as it was.
+    const last = out?.message.caretaker
+    out = step(one, CONFIG.caretaker.burnSeconds / 2)
+    expect(out?.message.unmade).toEqual({ x: last?.x, z: last?.z })
+    expect(out?.message.caretaker).toBeNull()
+    out = step(one, CONFIG.caretaker.respawnSeconds - 1)
+    expect(out?.message.caretaker).toBeNull()
+    out = step(one, 1)
+    expect(out?.message.caretaker).toMatchObject({ ...at(), burn: 0 })
+  })
+
+  it('is not there in a raid without a maze', () => {
+    const v = valleyWith(join('a'))
+    const shadows = createShadows()
+    placeCaretaker(v.valley, shadows, 0, 0)
+    expect(shadows.caretaker).toEqual(createShadows().caretaker)
+    const out = stepShadows(
+      v.valley,
+      shadows,
+      [{ id: 'a', at: state() }],
+      mulberry32(1),
+      { now: T0, dt: 0.1 }
+    )
+    expect(out?.message.caretaker).toBeNull()
+    expect(out?.message.unmade).toBeNull()
   })
 })

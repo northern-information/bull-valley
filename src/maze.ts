@@ -296,8 +296,12 @@ export function spanPieces(
 // holds how far it lies, in metres, from the middle of the path it is on:
 // 0 on the line itself, Infinity in the corn. The middle is the ridge of
 // the distance to the nearest corn, so the line runs exactly halfway
-// between the walls of every corridor, into every dead end and across the
-// court, and a painter wears mud wherever the value is small.
+// between the walls of every corridor, round every turn, up every dead end
+// as far as its middle goes, and across the court, and a painter wears mud
+// wherever the value is small. The ridge also runs a diagonal into every
+// inside corner, halfway between two walls that meet there; those are not
+// the middle of anything, so only ridge between walls on opposite sides of
+// it is kept (middleOf).
 export interface TrailField {
   cols: number
   rows: number
@@ -317,7 +321,8 @@ export function trailField(
   // The corn, as the walls.ts capsules stand it.
   const corn = new Uint8Array(n)
   const half = thickness / 2
-  for (const { a, b } of mazeSpans(grid, size)) {
+  const spans = mazeSpans(grid, size)
+  for (const { a, b } of spans) {
     const i0 = Math.max(0, Math.floor((Math.min(a.z, b.z) - half) / step))
     const i1 = Math.min(cols - 1, Math.ceil((Math.max(a.z, b.z) + half) / step))
     const j0 = Math.max(0, Math.floor((Math.min(a.x, b.x) - half) / step))
@@ -345,15 +350,107 @@ export function trailField(
       const alongZ = i > 0 && i < cols - 1 && peak(clear[k - 1], clear[k + 1])
       const acrossX =
         j > 0 && j < rows - 1 && peak(clear[k - cols], clear[k + cols])
-      if (alongZ || acrossX) ridge[k] = 1
+      const reach = (d + 2) * step + half
+      if (
+        (alongZ || acrossX) &&
+        middleOf(spans, j * step, i * step, step, reach)
+      ) {
+        ridge[k] = 1
+      }
     }
   }
+  dropSpecks(ridge, cols, rows, Math.round(2 / step))
   const toRidge = distanceField(ridge, cols, rows)
   const fromMiddle = new Float32Array(n)
   for (let k = 0; k < n; k++) {
     fromMiddle[k] = corn[k] ? Infinity : toRidge[k] * step
   }
   return { cols, rows, step, fromMiddle }
+}
+
+// Clears every piece of `set` (samples touching, corners included) of
+// fewer than `min` samples: what is left of the ridge by a wall's end once
+// its diagonals are gone is a speck, not a trail.
+function dropSpecks(
+  set: Uint8Array,
+  cols: number,
+  rows: number,
+  min: number
+): void {
+  const seen = new Uint8Array(set.length)
+  for (let start = 0; start < set.length; start++) {
+    if (!set[start] || seen[start]) continue
+    const piece = [start]
+    seen[start] = 1
+    for (let p = 0; p < piece.length; p++) {
+      const i = piece[p] % cols
+      const j = Math.floor(piece[p] / cols)
+      for (let dj = -1; dj <= 1; dj++) {
+        for (let di = -1; di <= 1; di++) {
+          const ni = i + di
+          const nj = j + dj
+          if (ni < 0 || ni >= cols || nj < 0 || nj >= rows) continue
+          const k = nj * cols + ni
+          if (set[k] && !seen[k]) {
+            seen[k] = 1
+            piece.push(k)
+          }
+        }
+      }
+    }
+    if (piece.length < min) for (const k of piece) set[k] = 0
+  }
+}
+
+// Whether a point on the ridge lies in the middle of a path, rather than
+// on a diagonal into an inside corner. Among the walls nearest it (within
+// a sample and a half of the nearest, the ridge being only as exact as its
+// samples), a diagonal has just the walls that make the corner, about
+// square to each other as seen from the point (60 to 105 degrees: two
+// sides, or where a corridor jogs a side and the end of the wall it jogs
+// round), and none across from either. The jog's own middle sees that end
+// and side wider apart, past 105. A corridor's middle has its walls straight across (180 degrees),
+// the curve round a wall's end has the end on one side and the outside
+// walls on the other (135 at the turn's middle), and the line across a
+// side path's mouth sees the ends of the walls either side of the mouth,
+// not their sides: all of those are kept.
+function middleOf(
+  spans: readonly Span[],
+  x: number,
+  z: number,
+  step: number,
+  // No wall further than this matters: past the nearest, and then some.
+  reach: number
+): boolean {
+  const near: { dx: number; dz: number; dist: number; side: boolean }[] = []
+  let nearest = Infinity
+  for (const { a, b } of spans) {
+    if (
+      Math.min(a.x, b.x) - reach > x ||
+      Math.max(a.x, b.x) + reach < x ||
+      Math.min(a.z, b.z) - reach > z ||
+      Math.max(a.z, b.z) + reach < z
+    ) {
+      continue
+    }
+    const p = projectOnSegment(x, z, a.x, a.z, b.x, b.z)
+    nearest = Math.min(nearest, p.dist)
+    // Its side, not its end: what a wall into an inside corner shows.
+    const side = p.t > 0 && p.t < 1
+    near.push({ dx: p.x - x, dz: p.y - z, dist: p.dist, side })
+  }
+  const within = near.filter((w) => w.dist <= nearest + step * 1.5)
+  let square = false
+  for (let i = 0; i < within.length; i++) {
+    for (let k = i + 1; k < within.length; k++) {
+      const u = within[i]
+      const v = within[k]
+      const cos = (u.dx * v.dx + u.dz * v.dz) / (u.dist * v.dist || 1)
+      if (cos < -0.5) return true
+      if (cos < 0.5 && cos > -0.25 && (u.side || v.side)) square = true
+    }
+  }
+  return !square
 }
 
 // The Euclidean distance, in samples, from every sample to the nearest one
@@ -467,4 +564,53 @@ export function inMaze(
     z >= -margin &&
     z <= size.along + margin
   )
+}
+
+// Where the maze lies in the world: the world point of its maze-local
+// origin (the corner nearest the station, CONFIG.maze.at), and the turn
+// that carries maze-local +x to (cos yaw, sin yaw), as store.ts toWorld
+// turns a station's own parts. The hello carries it, so the valley can
+// step the Caretaker (caretaker.ts) in the maze's own metres.
+export interface MazePlace {
+  x: number
+  z: number
+  yaw: number
+}
+
+export function mazeToWorld(place: MazePlace, p: { x: number; z: number }) {
+  const cos = Math.cos(place.yaw)
+  const sin = Math.sin(place.yaw)
+  return {
+    x: place.x + cos * p.x - sin * p.z,
+    z: place.z + sin * p.x + cos * p.z,
+  }
+}
+
+export function worldToMaze(place: MazePlace, p: { x: number; z: number }) {
+  const cos = Math.cos(place.yaw)
+  const sin = Math.sin(place.yaw)
+  const dx = p.x - place.x
+  const dz = p.z - place.z
+  return { x: cos * dx + sin * dz, z: -sin * dx + cos * dz }
+}
+
+// `count` spots on an ellipse round `centre` in maze-local metres, `across`
+// and `along` its radii, the first straight across from it: the berry
+// bushes round the portal at the heart. With an even count none stands
+// square in the court's length, the way the walk comes in.
+export function ringSpots(
+  centre: { x: number; z: number },
+  count: number,
+  across: number,
+  along: number
+): { x: number; z: number }[] {
+  const spots: { x: number; z: number }[] = []
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * Math.PI * 2
+    spots.push({
+      x: centre.x + Math.cos(a) * across,
+      z: centre.z + Math.sin(a) * along,
+    })
+  }
+  return spots
 }

@@ -165,6 +165,7 @@ drop_aboard = { text = "Not from the truck.", by = "ai" }
 drop_refused = { text = "It won't come loose.", by = "ai" }
 change_unheard = { text = "The valley missed that. Others will see it when you next join.", by = "ai" }
 struck = { text = "You are somewhere else. Time is missing.", by = "ai" }
+caught = { text = "A lantern, very close. Then the forecourt, and the smell of cold corn.", by = "ai" }
 edge = { text = "The valley ends here.", by = "ai" }
 
 # The lobby countdown (src/loop.ts).

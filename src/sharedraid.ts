@@ -23,10 +23,12 @@
 //    unit is paid for out of the buyer's wallet, which is their account's
 //    and carries from raid to raid; the valley refuses a sale it does not
 //    cover (ValleyContext.cash in, Reduced.spend out).
-// 9. The berry bush gives each account one berry a day, the day turning at
-//    midnight Central (daily.ts), whatever the raid is doing. The valley
-//    remembers only the accounts that have had today's berry. Two sockets
-//    signed in to one account share one berry; the name shown is only the
+// 9. Each berry bush gives each account one berry a day, the day turning
+//    at midnight Central (daily.ts), whatever the raid is doing: the one at
+//    the spawn Citgo (bush 0) and the ring round the portal at the maze's
+//    heart (1 to CONFIG.maze.bushes.count). The valley remembers only the
+//    accounts that have had today's berry off each. Two sockets signed in
+//    to one account share one berry a bush; the name shown is only the
 //    account's handle.
 // 10. Gron, by the berry bush, changes a raider's name and character at any
 //    time. The change touches only how they are shown: their place in the
@@ -54,11 +56,20 @@
 //    Anyone can take a drop up, first to ask wins, a cabbage only on
 //    foot and only as many as the arms have room for. Drops last until
 //    the valley resets.
+// 15. The Caretaker keeps the corn maze (caretaker.ts): one for the whole
+//    valley, stepped with the shadowmen and, like them, in memory only.
+//    It walks the maze's paths, hunts a raider in the maze it sees who
+//    could be rushed by a shadowman, and its touch strikes them the same
+//    way. One beam does nothing to it; two raiders' beams on it at once,
+//    held, unmake it, and it forms again at the heart minutes later. The
+//    raid keeps where the maze lies, from the build that opened it.
 
+import { caretakerAt, createCaretaker, stepCaretaker } from './caretaker.ts'
 import { CONFIG } from './config.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
 import { dropSpot, takeUp } from './drops.ts'
 import { contentsOf, INVENTORY_KINDS, itemById } from './items.ts'
+import { worldToMaze } from './maze.ts'
 import {
   beamFrom,
   createShadowmen,
@@ -66,10 +77,13 @@ import {
   stepShadowmen,
 } from './shadowmen.ts'
 import { freshStock, onShelf, takeUnit } from './store.ts'
+import type { Caretaker } from './caretaker.ts'
 import type { Drop, Facing } from './drops.ts'
 import type { ExtractKind, Metres, ShopStock, XZ } from './interfaces.ts'
+import type { MazePlace } from './maze.ts'
 import type { OutfitId } from './outfits.ts'
 import type {
+  CaretakerWire,
   DailyMessage,
   DailyWire,
   DepartReason,
@@ -129,6 +143,17 @@ export interface SharedRaid {
   // Rule 13: each station's forecourt and the survey's size.
   havens: XZ[]
   metres: Metres
+  // Rule 15: where the corn maze lies, or null for a build without one.
+  maze: MazePlace | null
+}
+
+// Rule 9: how many berry bushes there are (the spawn Citgo's, then the
+// maze's), and the key the valley remembers one account's day at one bush
+// under. Bush 0's is the bare account, as it was when it was the only one.
+export const BUSHES = 1 + CONFIG.maze.bushes.count
+
+export function bushKey(account: string, bush: number): string {
+  return bush === 0 ? account : `${account}/${bush}`
 }
 
 // Everything the server persists.
@@ -136,8 +161,9 @@ export interface Valley {
   epoch: number
   raid: SharedRaid | null
   members: Record<string, Member>
-  // Account -> the Central day (daily.ts dayKey) that account last took a
-  // berry. Pruned to today's accounts on every pick, so it never grows.
+  // An account at a bush (bushKey) -> the Central day (daily.ts dayKey)
+  // that account last took a berry off it. Pruned to today's on every
+  // pick, so it never grows.
   dailies: Record<string, string>
 }
 
@@ -152,6 +178,7 @@ export type ValleyAction =
       stations: number
       havens: XZ[]
       metres: Metres
+      maze: MazePlace | null
     }
   | { type: 'leave'; id: string }
   | { type: 'board'; id: string }
@@ -161,7 +188,7 @@ export type ValleyAction =
   | { type: 'buy'; id: string; station: number; kind: string; unit: number }
   | { type: 'call'; id: string; from: XZ; to: XZ }
   | { type: 'extract'; id: string; kind: ExtractKind }
-  | { type: 'collect'; id: string }
+  | { type: 'collect'; id: string; bush: number }
   | { type: 'use'; id: string; kind: string }
   // Rule 14. at: where the raider's last state frame put them, or null
   // when the valley has not heard one.
@@ -233,7 +260,8 @@ export function createValley(): Valley {
 
 // The valley as an older build stored it, made current: the fresh one
 // fills in newer fields, a raid without cargo hauls nothing, a raid
-// without drops has none lying about, and a raid
+// without drops has none lying about, a raid that never heard where the
+// maze lies has no Caretaker, and a raid
 // with no shelves, or whose shelves still hold counts rather than units, or an item no longer
 // sold, or from before the shadowmen were the valley's (no havens), is
 // dropped, so the next lobby stocks them afresh.
@@ -261,21 +289,24 @@ export function restoreValley(stored: Partial<Valley>): Valley {
       cargo: older.cargo ?? {},
       drops: older.drops ?? [],
       nextDrop: older.nextDrop ?? 0,
+      maze: older.maze ?? null,
     },
   }
 }
 
-// The bush as `account` finds it at `now`: whether today's berry is gone,
-// and when the next day begins.
+// The bushes as `account` finds them at `now`: which have given up
+// today's berry, and when the next day begins.
 export function dailyFor(
   valley: Valley,
   account: string,
   now: number
 ): DailyWire {
-  return {
-    collected: collectedToday(valley.dailies[account], now),
-    resetsAt: nextMidnight(now),
+  const collected: number[] = []
+  for (let bush = 0; bush < BUSHES; bush++) {
+    const day = valley.dailies[bushKey(account, bush)]
+    if (collectedToday(day, now)) collected.push(bush)
   }
+  return { collected, resetsAt: nextMidnight(now) }
 }
 
 const ACTIVE: readonly MemberPhase[] = ['LOBBY', 'RIDING', 'ON_FOOT']
@@ -298,6 +329,7 @@ export function toWire(valley: Valley): RaidWire | null {
     cargo: _cargo,
     havens: _havens,
     metres: _metres,
+    maze: _maze,
     nextDrop: _nextDrop,
     ...rest
   } = raid
@@ -452,6 +484,7 @@ export function reduce(
             stations: action.stations,
             havens: action.havens,
             metres: action.metres,
+            maze: action.maze,
           },
         }
         alarm = loadoutEndsAt
@@ -741,26 +774,31 @@ export function reduce(
         }
       }
       // Rule 9.
+      const { bush } = action
+      if (!Number.isInteger(bush) || bush < 0 || bush >= BUSHES) {
+        return { valley, broadcast: [], reply: nack('collect', 'no-such-bush') }
+      }
       const daily = dailyFor(valley, member.account, now)
-      if (daily.collected) {
+      if (daily.collected.includes(bush)) {
         return {
           valley,
           broadcast: [],
-          daily: { type: 'daily', daily, picked: false },
+          daily: { type: 'daily', bush, daily, picked: false },
         }
       }
       const today = dayKey(now)
       const dailies: Record<string, string> = {}
-      for (const [account, day] of Object.entries(valley.dailies)) {
-        if (day === today) dailies[account] = day
+      for (const [key, day] of Object.entries(valley.dailies)) {
+        if (day === today) dailies[key] = day
       }
-      dailies[member.account] = today
+      dailies[bushKey(member.account, bush)] = today
       const next: Valley = { ...valley, dailies }
       return {
         valley: next,
         broadcast: [],
         daily: {
           type: 'daily',
+          bush,
           daily: dailyFor(next, member.account, now),
           picked: true,
         },
@@ -933,16 +971,21 @@ export function reduce(
 
 // --- Rule 13: the shadowmen ------------------------------------------------
 
-// The valley's shadowmen, in the server's memory: the field, and each
-// raider who was struck with the server ms until which they are left
-// alone.
+// The valley's shadowmen, in the server's memory: the field, the
+// Caretaker (rule 15), and each raider who was struck with the server ms
+// until which they are left alone.
 export interface Shadows {
   field: ShadowmenField
+  caretaker: Caretaker
   recovering: Record<string, number>
 }
 
 export function createShadows(): Shadows {
-  return { field: createShadowmen(), recovering: {} }
+  return {
+    field: createShadowmen(),
+    caretaker: createCaretaker(),
+    recovering: {},
+  }
 }
 
 // One raider in the shadowmen's field: their socket id, and their last
@@ -984,8 +1027,9 @@ export function shadowRaiders(
 const round = (n: number, places: number) =>
   Math.round(n * 10 ** places) / 10 ** places
 
-// One step of the valley's shadowmen, dt seconds on: the frame for
-// everyone and the raiders struck. Null when there is nothing to step (no
+// One step of the valley's shadowmen and its Caretaker, dt seconds on: the
+// frame for everyone, the raiders struck, and which of them the Caretaker
+// caught. Null when there is nothing to step (no
 // raid, or no one in it), and the field is emptied, so the valley stops
 // stepping until someone is placed again. Mutates shadows.
 export function stepShadows(
@@ -995,12 +1039,11 @@ export function stepShadows(
   rng: Rng,
   { now, dt }: { now: number; dt: number },
   cfg = CONFIG.shadowmen
-): { message: ShadowmenMessage; struck: string[] } | null {
+): { message: ShadowmenMessage; struck: string[]; caught: string[] } | null {
   const raid = valley.raid
   const raiders = raid ? shadowRaiders(valley, shadows, placed, now) : []
   if (!raid || raiders.length === 0) {
-    shadows.field = createShadowmen()
-    shadows.recovering = {}
+    Object.assign(shadows, createShadows())
     return null
   }
   const { struck, bursts } = stepShadowmen(
@@ -1009,6 +1052,32 @@ export function stepShadows(
     { dt, raiders, metres: raid.metres, havens: raid.havens },
     cfg
   )
+  // Rule 15: the Caretaker, in the maze the raid was opened with.
+  let caretaker: CaretakerWire | null = null
+  const caught: string[] = []
+  let unmade: XZ | null = null
+  if (raid.maze) {
+    const out = stepCaretaker(shadows.caretaker, rng, {
+      dt,
+      raiders,
+      place: raid.maze,
+    })
+    caught.push(...out.struck)
+    for (const id of out.struck) if (!struck.includes(id)) struck.push(id)
+    unmade = out.burst && { x: round(out.burst.x, 2), z: round(out.burst.z, 2) }
+    const at = caretakerAt(shadows.caretaker, raid.maze)
+    if (at) {
+      caretaker = {
+        x: round(at.x, 2),
+        z: round(at.z, 2),
+        burn: round(
+          Math.min(1, shadows.caretaker.burn / CONFIG.caretaker.burnSeconds),
+          2
+        ),
+        target: shadows.caretaker.target,
+      }
+    }
+  }
   const recovering: Record<string, number> = {}
   for (const r of raiders) {
     const until = shadows.recovering[r.id]
@@ -1027,12 +1096,33 @@ export function stepShadows(
         target: s.target,
       })),
       bursts: bursts.map((b) => ({ ...b, x: round(b.x, 2), z: round(b.z, 2) })),
+      caretaker,
+      unmade,
     },
     struck,
+    caught,
   }
 }
 
 // A dev server's shadowman standing still at (x, z), for the specs.
 export function placeShadowman(shadows: Shadows, x: number, z: number): void {
   placeStill(shadows.field, x, z)
+}
+
+// A dev server's Caretaker moved to (x, z) in the world, formed if it was
+// unmade, with its mind wiped, floating still there until it has someone
+// to hunt, for the specs. Nothing without a maze.
+export function placeCaretaker(
+  valley: Valley,
+  shadows: Shadows,
+  x: number,
+  z: number
+): void {
+  const place = valley.raid?.maze
+  if (!place) return
+  shadows.caretaker = {
+    ...createCaretaker(),
+    ...worldToMaze(place, { x, z }),
+    held: true,
+  }
 }

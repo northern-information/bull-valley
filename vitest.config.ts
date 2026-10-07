@@ -25,7 +25,7 @@ export default defineConfig({
       // must stay well covered. The Three and DOM modules are covered by
       // the e2e specs instead, and have no threshold here.
       thresholds: {
-        'src/{account,auth,bindings,cabbages,characters,chat,clock,cookies,coords,copy,copybook,cycle,daily,donuts,drinks,drops,finishes,ground,hands,hotbar,interactions,inventory,items,landmarks,maze,mist,npcs,outfits,packgrid,poses,presence,protocol,raid,raidsync,rng,roadgraph,roadside,shadowmen,shadowsync,sharedraid,shop,splashmachine,store,walls}.ts':
+        'src/{account,auth,bindings,cabbages,caretaker,characters,chat,clock,cookies,coords,copy,copybook,cycle,daily,donuts,drinks,drops,finishes,ground,hands,hotbar,interactions,inventory,items,landmarks,maze,mist,npcs,outfits,packgrid,poses,presence,protocol,raid,raidsync,rng,roadgraph,roadside,shadowmen,shadowsync,sharedraid,shop,splashmachine,store,walls}.ts':
           {
             perFile: true,
             statements: 85,

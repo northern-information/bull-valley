@@ -10,7 +10,8 @@ async function standAtGron(page: Page): Promise<void> {
   await page.evaluate(() => {
     const bv = window.__bv
     if (!bv) throw new Error('no dev hook')
-    const { gron, bush } = bv.world
+    const { gron } = bv.world
+    const [bush] = bv.world.bushes
     if (!gron || !bush) throw new Error('no Gron')
     // On the far side of him from the bush, so he is the nearer.
     const dx = gron.x - bush.x

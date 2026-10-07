@@ -8,6 +8,7 @@ import { NO_EFFECTS } from './hotbar.ts'
 import { STARTING_INVENTORY } from './inventory.ts'
 import { createRaid } from './raid.ts'
 import { freshStock } from './store.ts'
+import type { CaretakerShade } from './caretakerrig.ts'
 import type { DropMeshes } from './dropmeshes.ts'
 import type { Drop } from './drops.ts'
 import type { FirstPersonHands } from './fphands.ts'
@@ -93,8 +94,8 @@ export interface GameState {
   pendingDrops: Set<number>
   // Shelf units asked of the valley and not yet answered, as station:kind.
   pendingBuys: Set<string>
-  // The berry bush as the valley last described it (the welcome, then
-  // every daily frame); null offline. The day's berry is the valley's.
+  // The berry bushes as the valley last described them (the welcome, then
+  // every daily frame); null offline. The day's berries are the valley's.
   daily: DailyWire | null
   // A berry asked of the valley and not yet answered.
   pendingCollect: boolean
@@ -172,6 +173,8 @@ export interface Game {
   pick: Titles
   scope: Scope
   shadowmen: ShadowCards
+  // The Caretaker in the corn maze.
+  caretaker: CaretakerShade
   // Shadowmen bursting in the beam.
   bursts: ShadowBursts
   mist: MistCards

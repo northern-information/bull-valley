@@ -64,8 +64,10 @@ import {
   mazeGates,
   mazeHeart,
   mazeSpans,
+  mazeToWorld,
   mazeWalk,
   perimeterSpots,
+  ringSpots,
   SHINING_MAZE,
   spanPieces,
   trailField,
@@ -98,7 +100,7 @@ import type {
   XZ,
 } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
-import type { Cell, TrailField } from './maze.ts'
+import type { Cell, MazePlace, TrailField } from './maze.ts'
 import type { Rng } from './rng.ts'
 import type { LampSpot, PoleSpot } from './roadside.ts'
 import type { StoreOrigin, WorldFacing } from './store.ts'
@@ -163,12 +165,10 @@ export interface World {
   // Null only when the survey has no fuel point inside the frame.
   spawnStation: FuelPoint | null
   spawn: Spawn
-  // The berry bush on the spawn station's lot (one berry a day per
-  // account, sharedraid.ts rule 9); null without a spawn station.
-  bush: XZ | null
-  // The bush itself, for the glow, and its berries shown or picked clean.
-  bushObject: THREE.Object3D | null
-  setBerries(visible: boolean): void
+  // The berry bushes (one berry a day each per account, sharedraid.ts rule
+  // 9): the one on the spawn station's lot, then the ring round the portal
+  // at the maze's heart. None without a spawn station.
+  bushes: BerryBush[]
   // Gron, beside the bush (sharedraid.ts rule 10), and his rig: the body
   // for the glow, update(t) for his rain. Null without a spawn station.
   gron: XZ | null
@@ -192,9 +192,21 @@ export interface World {
   streetlights: Streetlights
   // The portal at the corn maze's heart; null without a spawn station.
   portal: MazePortal | null
+  // Where the corn maze lies, for the Caretaker (caretaker.ts); null
+  // without a spawn station.
+  mazePlace: MazePlace | null
   // The field across the road where Matthew Marx does donuts when nobody
   // boards (donuts.ts); null without a spawn station.
   donutField: DonutField | null
+}
+
+// One berry bush: its id (sharedraid.ts BUSHES: 0 at the spawn Citgo, then
+// the maze's), where it stands, the bush itself for the glow and the
+// label, and its berries shown or picked clean.
+export interface BerryBush extends XZ {
+  id: number
+  object: THREE.Object3D
+  setBerries(visible: boolean): void
 }
 
 // The portal at the corn maze's heart: where it stands, where it puts you
@@ -1969,26 +1981,55 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     ? { x: spawnStation.x + 5, z: spawnStation.z + 5, yaw: 0 }
     : { x: 0, z: 0, yaw: 0 }
 
-  // The berry bush, on the spawn station's lot by the store's corner
-  // (CONFIG.daily.bush, station-local). It stands on the lot deck and
-  // blocks like a post; the day's berry is the valley's to give.
-  let bush: XZ | null = null
-  let bushObject: THREE.Object3D | null = null
+  // The berry bushes: one on the spawn station's lot by the store's corner
+  // (CONFIG.daily.bush, station-local), standing on the lot deck, then the
+  // ring round the portal at the maze's heart (CONFIG.maze.bushes), each
+  // its own seed so no two grow alike. Each blocks like a post; the day's
+  // berries are the valley's to give.
+  const bushes: BerryBush[] = []
+  const plantBush = (x: number, z: number, yaw: number, seed?: number) => {
+    const mesh = buildBerryBush(seed)
+    mesh.position.set(x, ground.at(x, z), z)
+    mesh.rotation.y = yaw
+    group.add(mesh)
+    walls.addWall({ x, z }, { x, z }, CONFIG.daily.bushRadius)
+    const berries = mesh.getObjectByName('berries')
+    bushes.push({
+      id: bushes.length,
+      x,
+      z,
+      object: mesh,
+      setBerries(visible) {
+        if (berries) berries.visible = visible
+      },
+    })
+  }
+  let mazePlace: MazePlace | null = null
   if (spawnStation) {
     const [bx, , bz] = toWorld(spawnStation, [
       CONFIG.daily.bush.x,
       0,
       CONFIG.daily.bush.z,
     ])
-    const mesh = buildBerryBush()
-    mesh.position.set(bx, ground.at(bx, bz), bz)
-    mesh.rotation.y = -spawnStation.yaw
-    group.add(mesh)
-    walls.addWall({ x: bx, z: bz }, { x: bx, z: bz }, CONFIG.daily.bushRadius)
-    bush = { x: bx, z: bz }
-    bushObject = mesh
+    plantBush(bx, bz, -spawnStation.yaw)
+    const [mx, , mz] = toWorld(spawnStation, [
+      CONFIG.maze.at.x,
+      0,
+      CONFIG.maze.at.z,
+    ])
+    const place = { x: mx, z: mz, yaw: spawnStation.yaw }
+    mazePlace = place
+    const { count, across, along } = CONFIG.maze.bushes
+    const heart = cellPoint(
+      SHINING_MAZE,
+      CONFIG.maze.size,
+      mazeHeart(SHINING_MAZE)
+    )
+    ringSpots(heart, count, across, along).forEach((spot, i) => {
+      const at = mazeToWorld(place, spot)
+      plantBush(at.x, at.z, i * 2.1, 0xbe221 + i + 1)
+    })
   }
-  const berries = bushObject?.getObjectByName('berries') ?? null
 
   // Gron, a couple of strides from the bush (CONFIG.gron, station-local),
   // under his raincloud and turned to the pumps. He blocks like a post.
@@ -2083,11 +2124,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     landmarks: landmarks.points,
     spawnStation,
     spawn,
-    bush,
-    bushObject,
-    setBerries(visible) {
-      if (berries) berries.visible = visible
-    },
+    bushes,
     gron,
     gronRig,
     clerks: fuel.points.map((point) => {
@@ -2103,6 +2140,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     shelves,
     streetlights,
     portal,
+    mazePlace,
     donutField,
   }
 }

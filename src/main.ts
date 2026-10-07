@@ -4,6 +4,7 @@ import { createActions } from './actions.ts'
 import { buildSky } from './assets.ts'
 import { BvAudio } from './audio.ts'
 import { refreshSession } from './auth.ts'
+import { CaretakerShade } from './caretakerrig.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { installDevHook } from './devhook.ts'
@@ -255,6 +256,11 @@ async function boot() {
       metres: geo.metres,
       havens: world.fuelPoints,
     }),
+    caretaker: new CaretakerShade({
+      scene,
+      groundAt: world.ground.at,
+      place: world.mazePlace,
+    }),
     bursts: new ShadowBursts(scene),
     // Ground mist drifts around the player.
     mist: new MistCards({
@@ -290,6 +296,7 @@ async function boot() {
     stations: world.fuelPoints.length,
     havens: world.fuelPoints.map(({ x, z }) => ({ x, z })),
     metres: geo.metres,
+    maze: world.mazePlace,
   })
   wireKeys(game, actions, engagePointer)
 

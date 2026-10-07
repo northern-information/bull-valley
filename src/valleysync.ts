@@ -78,9 +78,10 @@ export function wireValley(game: Game, actions: Actions): void {
       // Rule 13: the valley's shadowmen, every step, and a touch.
       case 'shadowmen':
         game.shadowmen.receive(msg, now)
+        game.caretaker.receive(msg, now)
         return
       case 'struck':
-        actions.strike()
+        actions.strike(msg.by ?? 'shadowman')
         return
     }
   })

@@ -17,6 +17,7 @@ import {
 } from './protocol.ts'
 import type { ClockSync } from './clock.ts'
 import type { Metres, XZ } from './interfaces.ts'
+import type { MazePlace } from './maze.ts'
 import type { OutfitId } from './outfits.ts'
 import type {
   ClientMessage,
@@ -52,6 +53,8 @@ export interface NetIdentity {
   // Each station's forecourt and the survey's size; see HelloMessage.
   havens: XZ[]
   metres: Metres
+  // Where the corn maze lies (the Caretaker's, rule 15), or null.
+  maze: MazePlace | null
 }
 
 // Reconnect schedule, then give up: the valley is gone.
@@ -198,6 +201,7 @@ export class NetClient {
           stations: identity.stations,
           havens: identity.havens,
           metres: identity.metres,
+          maze: identity.maze,
         } satisfies ClientMessage)
       )
     })

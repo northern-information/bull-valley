@@ -12,12 +12,13 @@ import type {
   ShopStock,
   XZ,
 } from './interfaces.ts'
+import type { MazePlace } from './maze.ts'
 import type { OutfitId } from './outfits.ts'
 import type { Burst } from './shadowmen.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 13
+export const PROTOCOL_VERSION = 14
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -138,13 +139,14 @@ export interface RaidWire {
   members: MemberWire[]
 }
 
-// The berry bush at the spawn Citgo: one berry a day per account, the day
-// turning at midnight Central (daily.ts). The server decides; the client
-// reads this, in the welcome and in every DailyMessage.
+// The berry bushes: the one at the spawn Citgo (0) and the ring at the
+// maze's heart (1 on), one berry a day each per account, the day turning
+// at midnight Central (daily.ts). The server decides; the client reads
+// this, in the welcome and in every DailyMessage.
 export interface DailyWire {
-  // Whether this account has had today's berry.
-  collected: boolean
-  // Server ms of the next midnight Central, when the bush fills again.
+  // The bushes this account has had today's berry off.
+  collected: number[]
+  // Server ms of the next midnight Central, when the bushes fill again.
   resetsAt: number
 }
 
@@ -184,6 +186,9 @@ export interface HelloMessage {
   // the shadowmen with them (sharedraid.ts rule 13).
   havens: XZ[]
   metres: Metres
+  // Where the corn maze lies, or null: the valley steps the Caretaker in
+  // it (rule 15).
+  maze: MazePlace | null
 }
 
 export interface BoardMessage {
@@ -248,10 +253,11 @@ export interface TakeDropMessage {
   drop: number
 }
 
-// Today's berry off the bush, please. The valley answers with a
+// Today's berry off bush `bush`, please. The valley answers with a
 // DailyMessage either way.
 export interface CollectMessage {
   type: 'collect'
+  bush: number
 }
 
 // Dev-server only: the Worker stamps the socket, and production ignores
@@ -261,6 +267,8 @@ export type DevMessage =
   | { type: 'dev'; op: 'reset' }
   // A shadowman standing still at (x, z), for the specs.
   | { type: 'dev'; op: 'shadowman'; x: number; z: number }
+  // The Caretaker moved to (x, z), for the specs.
+  | { type: 'dev'; op: 'caretaker'; x: number; z: number }
 
 // One line to everyone in the valley. The valley echoes it back to the
 // sender too, so every client shows the server's copy.
@@ -328,7 +336,7 @@ export interface WelcomeMessage {
   peers: PeerWire[]
   raid: RaidWire
   phase: MemberPhase
-  // Whether the bush has a berry for this account today.
+  // Which bushes still have a berry for this account today.
   daily: DailyWire
   // The account's pack and wallet, as the valley keeps them.
   pack: Inventory
@@ -344,11 +352,12 @@ export interface PackMessage {
   cash: number
 }
 
-// The answer to a collect: `picked` when a berry came off the bush, false
-// when this account already had today's. `daily` is the bush as it stands
-// after the answer.
+// The answer to a collect at bush `bush`: `picked` when a berry came off
+// it, false when this account already had today's. `daily` is the bushes
+// as they stand after the answer.
 export interface DailyMessage {
   type: 'daily'
+  bush: number
   daily: DailyWire
   picked: boolean
 }
@@ -431,17 +440,30 @@ export interface ShadowmanWire {
   target: string | null
 }
 
+// The Caretaker as the valley sends it (rule 15): where it floats, how
+// far through being unmade by two beams (0 to 1), and the raider it hunts.
+export interface CaretakerWire {
+  x: number
+  z: number
+  burn: number
+  target: string | null
+}
+
 // Every step of the valley's shadowmen (CONFIG.shadowmen.tickHz a second),
-// to everyone: all of them, and the ones that burst this step.
+// to everyone: all of them, and the ones that burst this step; the
+// Caretaker, null while it is unmade, and where it was unmade this step.
 export interface ShadowmenMessage {
   type: 'shadowmen'
   shadowmen: ShadowmanWire[]
   bursts: Burst[]
+  caretaker: CaretakerWire | null
+  unmade: XZ | null
 }
 
-// A shadowman touched this raider.
+// A shadowman, or the Caretaker, touched this raider.
 export interface StruckMessage {
   type: 'struck'
+  by?: 'caretaker'
 }
 
 export interface PongMessage {
@@ -586,6 +608,16 @@ function parseHavens(value: unknown, stations: number): XZ[] | null {
   return havens
 }
 
+// A hello's maze: a place in the survey and a finite turn. Undefined for
+// anything else, so a null (no maze) stays apart from a bad one.
+function parseMazePlace(value: unknown): MazePlace | undefined {
+  const at = parseXZ(value)
+  if (!at || !isRecord(value)) return undefined
+  const { yaw } = value
+  if (typeof yaw !== 'number' || !Number.isFinite(yaw)) return undefined
+  return { ...at, yaw }
+}
+
 function parseMetres(value: unknown): Metres | null {
   if (!isRecord(value)) return null
   const { width, height } = value
@@ -632,9 +664,15 @@ export function parseClientMessage(text: string): ClientMessage | null {
       if (!specs) return null
       const havens = parseHavens(value.havens, stations)
       const metres = parseMetres(value.metres)
-      // An older build sends neither; it still parses as far as its
+      const maze = value.maze === null ? null : parseMazePlace(value.maze)
+      // An older build sends none of them; it still parses as far as its
       // version, which the server then refuses.
-      if (v === PROTOCOL_VERSION && (!havens || !metres)) return null
+      if (
+        v === PROTOCOL_VERSION &&
+        (!havens || !metres || maze === undefined)
+      ) {
+        return null
+      }
       // The outfit is checked by the server (characters.ts isSelectable); the type here
       // is widened deliberately so a bad id reaches that check. An older
       // build's hello still parses (its name is ignored), so it is told its
@@ -647,14 +685,18 @@ export function parseClientMessage(text: string): ClientMessage | null {
         stations,
         havens: havens ?? [],
         metres: metres ?? { width: 0, height: 0 },
+        maze: maze ?? null,
       }
     }
     case 'board':
     case 'unboard':
     case 'hop-out':
-    case 'collect':
     case 'rename':
       return { type: value.type }
+    case 'collect': {
+      const { bush } = value
+      return isCount(bush) ? { type: 'collect', bush } : null
+    }
     case 'appearance': {
       // Widened like the hello's, so a bad id reaches the server's check.
       const { outfit } = value
@@ -703,9 +745,9 @@ export function parseClientMessage(text: string): ClientMessage | null {
         }
         return { type: 'dev', op: 'hurry', seconds }
       }
-      if (value.op === 'shadowman') {
+      if (value.op === 'shadowman' || value.op === 'caretaker') {
         const at = parseXZ(value)
-        return at ? { type: 'dev', op: 'shadowman', ...at } : null
+        return at ? { type: 'dev', op: value.op, ...at } : null
       }
       return null
     }
