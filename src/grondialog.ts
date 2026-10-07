@@ -16,11 +16,13 @@ import { availabilityOf, renameUsername, usernameAvailable } from './auth.ts'
 import { SELECTABLE } from './characters.ts'
 import { copy } from './copy.ts'
 import { stepIndex } from './cycle.ts'
-import { applyPose, buildFigure } from './figure.ts'
+import { applyPose, attachCosmetics, buildFigure } from './figure.ts'
 import { finishById, FINISHES } from './finishes.ts'
 import { outfitById } from './outfits.ts'
 import { samplePose } from './poses.ts'
 import { createPS1Renderer } from './ps1.ts'
+import type { CosmeticId } from './cosmetics.ts'
+import type { Worn } from './figure.ts'
 import type { FinishId } from './finishes.ts'
 import type { OutfitId } from './outfits.ts'
 
@@ -28,6 +30,9 @@ export interface GronDialogOptions {
   username: string
   outfit: OutfitId
   finish: FinishId
+  // What the account wears over any character (cosmetics.ts), shown on the
+  // turntable too.
+  cosmetics: readonly CosmeticId[]
   // The new username is saved; tell the valley.
   onRenamed: (username: string) => void
   // A new character (and finish); apply and tell the valley.
@@ -53,6 +58,7 @@ export function openGronDialog({
   username,
   outfit,
   finish,
+  cosmetics,
   onRenamed,
   onBecome,
 }: GronDialogOptions): Promise<void> {
@@ -227,6 +233,7 @@ export function openGronDialog({
     const turntable = new THREE.Group()
     scene.add(turntable)
     let figure: THREE.Group | null = null
+    let wearing: Worn | null = null
 
     const showCharacter = () => {
       const id = SELECTABLE[index]
@@ -235,8 +242,10 @@ export function openGronDialog({
       finishRow.hidden = look.onBack !== 'guitar'
       const color = finishById(FINISHES[finishIndex].id).color
       if (figure) turntable.remove(figure)
+      wearing?.dispose()
       const built = buildFigure(id, { guitarFinish: color })
       applyPose(built, samplePose('stand'))
+      wearing = attachCosmetics(built, cosmetics)
       figure = built.group
       turntable.add(figure)
       for (const button of swatchButtons) {
@@ -287,6 +296,7 @@ export function openGronDialog({
       turntable.rotation.y +=
         Math.min(0.05, (now - last) / 1000) * SPIN_PER_SECOND
       last = now
+      wearing?.update(now / 1000)
       renderer.render(scene, camera)
     })
 
@@ -307,6 +317,7 @@ export function openGronDialog({
     function close(): void {
       if (checking !== null) clearTimeout(checking)
       renderer.setAnimationLoop(null)
+      wearing?.dispose()
       renderer.dispose()
       renderer.forceContextLoss()
       document.removeEventListener('keydown', onKey)

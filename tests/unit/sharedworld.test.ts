@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { heartPoint, theMaze } from '../../src/caretaker.ts'
 import { CONFIG } from '../../src/config.ts'
 import { dayKey, nextMidnight } from '../../src/daily.ts'
+import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { contentsOf, getItem } from '../../src/items.ts'
 import { PROTOCOL_VERSION } from '../../src/protocol.ts'
 import { mulberry32 } from '../../src/rng.ts'
@@ -22,6 +23,7 @@ import {
   wakeAt,
 } from '../../src/sharedworld.ts'
 import { unitsLeft } from './stock.ts'
+import type { CosmeticId } from '../../src/cosmetics.ts'
 import type {
   DailyMessage,
   PeerStateWire,
@@ -578,6 +580,52 @@ describe("rule 10: the pack is the account's", () => {
   })
 })
 
+describe('rule 14: Moab trades cosmetics for gold', () => {
+  const trade = (id: string, offer = 'flaming-halo'): ValleyAction => ({
+    type: 'trade',
+    id,
+    offer,
+  })
+  const carrying = (gold: number, cosmetics: CosmeticId[] = []) => ({
+    pack: { ...STARTING_INVENTORY, 'gold-bullion': gold },
+    cosmetics,
+  })
+  const tradeWith = (
+    v: ReturnType<typeof valleyWith>,
+    action: ValleyAction,
+    holdings?: ReturnType<typeof carrying>
+  ) => reduce(v.valley, action, { now: v.now, present: ['a'], holdings })
+
+  it('trades the Flaming Halo for one troy ounce of gold, and tells no one', () => {
+    const v = valleyWith(join('a'))
+    const r = tradeWith(v, trade('a'), carrying(1))
+    expect(r.reply).toBeUndefined()
+    expect(r.broadcast).toEqual([])
+    expect(r.trade).toEqual({
+      account: 'acct-a',
+      cosmetic: 'flaming-halo',
+      price: { kind: 'gold-bullion', count: 1 },
+    })
+    expect(r.valley).toEqual(v.valley)
+  })
+
+  it('says short, owned, no such offer, or not in the valley', () => {
+    const v = valleyWith(join('a'))
+    const reason = (action: ValleyAction, holdings = carrying(1)) =>
+      tradeWith(v, action, holdings).reply?.reason
+    expect(reason(trade('a'), carrying(0))).toBe('short')
+    expect(reason(trade('a'), carrying(3, ['flaming-halo']))).toBe('owned')
+    expect(reason(trade('a', 'golden-crown'))).toBe('no-such-offer')
+    expect(reason(trade('z'))).toBe('not-in-valley')
+    expect(tradeWith(v, trade('a')).reply).toEqual({
+      type: 'nack',
+      re: 'trade',
+      reason: 'unavailable',
+    })
+    expect(tradeWith(v, trade('a'), carrying(0)).trade).toBeUndefined()
+  })
+})
+
 describe('rule 12: raiders drop what they carry', () => {
   const at = { x: 100, z: 50, yaw: 0 }
   const drop = (
@@ -806,7 +854,7 @@ describe("rule 11: the shadowmen are the valley's", () => {
   })
 })
 
-describe('rule 14: the season', () => {
+describe('rule 15: the season', () => {
   it('credits each account behind the beams once, and no stranger', () => {
     const v = valleyWith(join('a'), join('b'), {
       ...join('c'),
@@ -928,7 +976,7 @@ describe('rule 13: the Caretaker keeps the maze', () => {
     expect(out?.message.unmade).toBeNull()
     expect(out?.credited).toEqual([])
     // Unmade where it floated, wandering as it was, and both accounts
-    // credited with it (rule 14).
+    // credited with it (rule 15).
     const last = out?.message.caretaker
     out = step(one, CONFIG.caretaker.burnSeconds / 2)
     expect(out?.message.unmade).toEqual({ x: last?.x, z: last?.z })

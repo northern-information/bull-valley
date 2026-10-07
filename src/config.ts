@@ -167,21 +167,21 @@ export const CONFIG = {
     skipFadeMs: 200,
     skipAudioFadeMs: 300,
     // After the colophon resolves, the black backdrop lifts to reveal the
-    // logo card.
+    // main menu.
     revealFadeMs: 400,
     imageSrc:
       '/applied-sciences-and-phantasms-working-division-flourescent.png',
     audioSrc: '/sfx/northern-information.mp3',
   },
   logo: {
-    // The game's own title card, straight after the colophon: the same
-    // envelope shape, sized to its cue (~14s) so the cue ends at silence.
+    // The game's own logo atop the main menu, straight after the colophon:
+    // it fades up over fadeInMs, and its cue (~14s) plays once under the
+    // same envelope shape, so it ends at silence.
     fadeInMs: 2000,
     holdMs: 10400,
     fadeOutMs: 1600,
     skipFadeMs: 200,
     skipAudioFadeMs: 300,
-    // The backdrop lifts to reveal the character select.
     revealFadeMs: 400,
     imageSrc: '/bull-valley-shadow-wars.png',
     audioSrc: '/sfx/bull-valley-shadow-wars-intro.mp3',
@@ -281,6 +281,21 @@ export const CONFIG = {
     // this far either side of its middle, this wide.
     halfLength: 1.0,
     radius: 0.75,
+  },
+  wreck: {
+    // The green BMW nosed into a tree beside the spawn Citgo, station-local
+    // like the bush: on the station's side of Lake Avenue, across the road
+    // from the corn maze's near corner, in the grass just past the lot's
+    // end, where it left the road for the tree. `toward` is the way its
+    // nose points, at the tree (assets.ts WRECK). Scenery: it only blocks.
+    at: { x: 6.5, z: 27 },
+    toward: { x: 3.5, z: 25.5 },
+    // It blocks as a capsule down its length (this far either side of its
+    // middle, this wide), and the tree like a post.
+    halfLength: 1.6,
+    radius: 0.9,
+    // Trees keep this far off its middle.
+    treeClear: 6,
   },
   npcs: {
     // How close you must stand for Matthew Marx or David Carlsten to glow

@@ -7,9 +7,9 @@
 // for Marx's truck and the day's turn, and sends what came back. Each account's pack and wallet are in D1
 // (d1packs.ts): the reducer says what goes in or out, and this writes it
 // and tells the account's sockets. A buy runs alone (blockConcurrencyWhile),
-// so the wallet it was judged against is the wallet it is paid from. So
-// does the season's tally (rule 14), so an unmaking is counted once and
-// its reward paid once.
+// so the wallet it was judged against is the wallet it is paid from; so
+// does a trade with Moab, against the pack, and the season's tally
+// (rule 15), so an unmaking is counted once and its reward paid once.
 //
 // The shadowmen (rule 11) and the Caretaker (rule 13) are stepped here
 // CONFIG.shadowmen.tickHz times a second while anyone is placed in the
@@ -20,6 +20,7 @@
 import { DurableObject } from 'cloudflare:workers'
 import { isSelectable } from '../src/characters.ts'
 import { CONFIG } from '../src/config.ts'
+import { toCosmetics } from '../src/cosmetics.ts'
 import {
   CLOSE,
   isValidName,
@@ -44,6 +45,7 @@ import {
 import { ACCOUNT_HEADER, NAME_HEADER } from './auth.ts'
 import { D1AccountStore } from './d1accounts.ts'
 import { D1PackStore } from './d1packs.ts'
+import type { CosmeticId } from '../src/cosmetics.ts'
 import type {
   HelloMessage,
   PeerStateWire,
@@ -222,6 +224,13 @@ export class ValleyDO extends DurableObject<Env> {
       case 'take-drop':
         await this.act(ws, { type: 'take-drop', id: me.id, drop: msg.drop })
         return
+      case 'trade':
+        await this.trade(ws, attachment, {
+          type: 'trade',
+          id: me.id,
+          offer: msg.offer,
+        })
+        return
       case 'chat':
         this.chat(ws, me, msg.text)
         return
@@ -243,6 +252,12 @@ export class ValleyDO extends DurableObject<Env> {
         }
         if (msg.op === 'calm') {
           this.calm = true
+          return
+        }
+        if (msg.op === 'grant') {
+          const { account } = attachment
+          if (!account) return
+          await this.repack(ws, { account, kind: msg.kind, delta: msg.count })
           return
         }
         if (msg.op === 'caretaker') {
@@ -416,7 +431,13 @@ export class ValleyDO extends DurableObject<Env> {
       return
     }
     await this.apply(reduced)
-    const me: PeerWire = { id, name, outfit: hello.outfit, at: null }
+    const me: PeerWire = {
+      id,
+      name,
+      outfit: hello.outfit,
+      cosmetics: holdings.cosmetics,
+      at: null,
+    }
     ws.serializeAttachment({ ...attachment, me } satisfies Attachment)
     const world = toWire(this.valley)
     if (!world || !this.valley.members[id]) {
@@ -434,6 +455,7 @@ export class ValleyDO extends DurableObject<Env> {
       daily: dailyFor(this.valley, account, now),
       pack: holdings.pack,
       cash: holdings.cash,
+      cosmetics: holdings.cosmetics,
       season: seasonWire(season),
     })
     this.broadcast({ type: 'peer-joined', peer: me }, ws)
@@ -593,7 +615,79 @@ export class ValleyDO extends DurableObject<Env> {
     })
   }
 
-  // A drop, alone (rule 14): the pack gives the units up before the drop
+  // A trade with Moab, alone (rule 14): no other frame runs between
+  // reading the pack, judging the trade against it, and writing it. On
+  // success the account's sockets get the pack, and everyone sees the
+  // cosmetic worn.
+  private async trade(
+    ws: WebSocket,
+    attachment: Attachment,
+    action: Extract<ValleyAction, { type: 'trade' }>
+  ): Promise<void> {
+    const { account } = attachment
+    if (!account) return
+    const refuse = (reason: string) => {
+      send(ws, { type: 'nack', re: 'trade', reason })
+    }
+    if (!allow(this.appearanceRate, ws, APPEARANCE_LIMIT)) {
+      refuse('too-fast')
+      return
+    }
+    await this.ctx.blockConcurrencyWhile(async () => {
+      const packs = this.packs()
+      let holdings: Holdings
+      try {
+        holdings = await packs.get(account)
+      } catch (err) {
+        console.error('The pack could not be read', err)
+        refuse('unavailable')
+        return
+      }
+      const reduced = reduce(this.valley, action, {
+        ...this.context(),
+        holdings,
+      })
+      if (reduced.reply) {
+        send(ws, reduced.reply)
+        return
+      }
+      const deal = reduced.trade
+      if (!deal) return
+      let traded: boolean
+      try {
+        traded = await packs.trade(account, deal.price, deal.cosmetic)
+      } catch (err) {
+        console.error('The trade could not be written', err)
+        refuse('unavailable')
+        return
+      }
+      if (!traded) {
+        refuse('short')
+        return
+      }
+      await this.apply(reduced)
+      for (const msg of reduced.broadcast) this.broadcast(msg, null)
+      await this.repack(ws, null, account)
+      this.rewear(account, [...holdings.cosmetics, deal.cosmetic])
+    })
+  }
+
+  // Every socket on `account` shown to everyone wearing `cosmetics`.
+  private rewear(account: string, cosmetics: CosmeticId[]): void {
+    for (const socket of this.ctx.getWebSockets()) {
+      const attachment = this.attachment(socket)
+      const me = attachment.me
+      if (attachment.account !== account || !me) continue
+      const next: PeerWire = { ...me, cosmetics: toCosmetics(cosmetics) }
+      socket.serializeAttachment({
+        ...attachment,
+        me: next,
+      } satisfies Attachment)
+      this.broadcast({ type: 'peer-updated', peer: next }, null)
+    }
+  }
+
+  // A drop, alone (rule 12): the pack gives the units up before the drop
   // stands, so nothing is set down that the pack did not hold. A cabbage
   // comes out of the arms, which are the valley's, and needs no write. The
   // client took the units out of its own pack at once, so every refusal
@@ -658,14 +752,14 @@ export class ValleyDO extends DurableObject<Env> {
         const done = await packs.change(account, change.kind, change.delta)
         if (!done) send(ws, { type: 'nack', re: 'use', reason: 'none-left' })
       }
-      const { pack, cash } = await packs.get(account)
-      this.toAccount(account, { type: 'pack', pack, cash })
+      const { pack, cash, cosmetics } = await packs.get(account)
+      this.toAccount(account, { type: 'pack', pack, cash, cosmetics })
     } catch (err) {
       console.error('The pack could not be changed', change, err)
     }
   }
 
-  // Rule 14: each account credited with unmaking the Caretaker, tallied
+  // Rule 15: each account credited with unmaking the Caretaker, tallied
   // alone, so two unmakings never read the same progress. Every socket on
   // the account hears the new count, and the pack and wallet when the
   // tally paid the reward.
@@ -684,8 +778,8 @@ export class ValleyDO extends DurableObject<Env> {
             rewarded: reward !== null,
           })
           if (reward) {
-            const { pack, cash } = await packs.get(account)
-            this.toAccount(account, { type: 'pack', pack, cash })
+            const { pack, cash, cosmetics } = await packs.get(account)
+            this.toAccount(account, { type: 'pack', pack, cash, cosmetics })
           }
         } catch (err) {
           console.error('The season could not be tallied', account, err)

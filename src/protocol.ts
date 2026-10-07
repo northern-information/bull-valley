@@ -4,6 +4,7 @@
 // JSON text; every number the server stores is checked here first.
 
 import { USERNAME_MAX } from './account.ts'
+import type { CosmeticId } from './cosmetics.ts'
 import type { Drop } from './drops.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckRoutes, TruckState } from './marx.ts'
@@ -13,7 +14,7 @@ import type { Burst } from './shadowmen.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 16
+export const PROTOCOL_VERSION = 17
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -66,11 +67,14 @@ export interface PeerStateWire {
 }
 
 // A player as the server knows them. `at` is null until their first state
-// frame; a figure is only drawn once it is placed.
+// frame; a figure is only drawn once it is placed. cosmetics: what they
+// wear over the outfit, as their account holds it (cosmetics.ts), never
+// the client's word.
 export interface PeerWire {
   id: string
   name: string
   outfit: OutfitId
+  cosmetics: CosmeticId[]
   at: PeerStateWire | null
 }
 
@@ -233,6 +237,14 @@ export interface CollectMessage {
   bush: number
 }
 
+// Cosmetic `offer` from Moab Coldë, paid for out of the pack
+// (sharedworld.ts rule 14). The valley answers with a PackMessage that
+// carries it, or a nack.
+export interface TradeMessage {
+  type: 'trade'
+  offer: string
+}
+
 // Dev-server only: the Worker stamps the socket, and production ignores
 // these. hurry brings the truck's next change to `seconds` from now;
 // reset opens the world afresh.
@@ -246,6 +258,8 @@ export type DevMessage =
   // A quiet valley for the specs: the crossing shadowmen never rush, and
   // only the ones a spec places do.
   | { type: 'dev'; op: 'calm' }
+  // `count` of `kind` into this raider's pack, for the specs.
+  | { type: 'dev'; op: 'grant'; kind: string; count: number }
 
 // One line to everyone in the valley. The valley echoes it back to the
 // sender too, so every client shows the server's copy.
@@ -292,6 +306,7 @@ export type ClientMessage =
   | UseMessage
   | DropMessage
   | TakeDropMessage
+  | TradeMessage
   | ChatMessage
   | AppearanceMessage
   | RenameMessage
@@ -314,14 +329,15 @@ export interface WelcomeMessage {
   place: Place | null
   // Which bushes still have a berry for this account today.
   daily: DailyWire
-  // The account's pack and wallet, as the valley keeps them.
+  // The account's pack, wallet and cosmetics, as the valley keeps them.
   pack: Inventory
   cash: number
+  cosmetics: CosmeticId[]
   // The account's progress through the season (season.ts).
   season: SeasonWire
 }
 
-// An account's progress through the season (sharedworld.ts rule 14): the
+// An account's progress through the season (sharedworld.ts rule 15): the
 // season's id (season.ts SEASON.id), how many times the account has had a
 // beam on the Caretaker as it came apart, and whether the reward is paid.
 export interface SeasonWire {
@@ -339,13 +355,15 @@ export interface SeasonMessage {
   rewarded: boolean
 }
 
-// The account's pack and wallet (cents) after a change: a berry, a pickup,
-// a purchase, a use. Sent to every socket signed in to the account. The
-// client's pack and cash are these, whatever it guessed in the meantime.
+// The account's pack, wallet (cents) and cosmetics after a change: a
+// berry, a pickup, a purchase, a use, a trade. Sent to every socket signed
+// in to the account. The client's pack and cash are these, whatever it
+// guessed in the meantime.
 export interface PackMessage {
   type: 'pack'
   pack: Inventory
   cash: number
+  cosmetics: CosmeticId[]
 }
 
 // The answer to a collect at bush `bush`: `picked` when a berry came off
@@ -731,6 +749,11 @@ export function parseClientMessage(text: string): ClientMessage | null {
       const { drop } = value
       return isCount(drop) ? { type: 'take-drop', drop } : null
     }
+    case 'trade': {
+      // Which offers there are is the valley's to check.
+      const { offer } = value
+      return isKind(offer) ? { type: 'trade', offer } : null
+    }
     case 'call': {
       const from = parseXZ(value.from)
       const to = parseXZ(value.to)
@@ -745,6 +768,11 @@ export function parseClientMessage(text: string): ClientMessage | null {
           return null
         }
         return { type: 'dev', op: 'hurry', seconds }
+      }
+      if (value.op === 'grant') {
+        const { kind, count } = value
+        if (!isKind(kind) || !isCount(count) || count < 1) return null
+        return { type: 'dev', op: 'grant', kind, count }
       }
       if (value.op === 'shadowman' || value.op === 'caretaker') {
         const at = parseXZ(value)

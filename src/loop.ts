@@ -6,6 +6,7 @@ import * as THREE from 'three'
 import { pulseMaterials } from './assets.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
+import { moabOffer } from './cosmetics.ts'
 import { levelsAt } from './geometrie.ts'
 import { ease, stepHand, useLift, useSeconds } from './hands.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
@@ -240,9 +241,11 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     }
     bursts.update(dt)
     mist.update({ dt, player: player.pos })
-    // Gron's rain falls on its own clock, and Moab's fire burns on it too.
+    // Gron's rain falls on its own clock, Moab's fire burns on it too, and
+    // the wreck smoulders and blinks on it.
     world.gronRig?.update(time)
     for (const rig of world.moabRigs) rig.update(time)
+    world.wreck?.update(time)
     // The portal at the maze's heart swirls, and anyone on foot who walks
     // into it comes out on the trail outside the gate.
     const portal = world.portal
@@ -331,8 +334,13 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       bushes,
       gron: world.gron,
       npcs: targets.npcSpots(inStore),
+      moabOffer: s.pendingTrade ? null : moabOffer(s.inventory, s.cosmetics),
     })
     const interaction = s.interaction
+    // Rule 14: Moab makes his offer as you come into his reach.
+    const offering = interaction?.kind === 'trade' ? interaction.station : null
+    if (offering !== null && offering !== s.offeredBy) actions.offerTrade()
+    s.offeredBy = offering
     const prompt = interaction ? interactionPrompt(interaction) : null
     const label = interaction ? itemLabel(interaction) : null
     const labelTo = label ? targets.labelTarget(interaction) : null

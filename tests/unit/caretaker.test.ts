@@ -253,7 +253,7 @@ describe('the Caretaker', () => {
       )
       expect(steps * 0.05).toBeCloseTo(CONFIG.caretaker.burnSeconds - 0.05, 5)
       expect(burst).not.toBeNull()
-      // Both beams that held it, for the season (sharedworld.ts rule 14).
+      // Both beams that held it, for the season (sharedworld.ts rule 15).
       expect(unmadeBy).toEqual(['a', 'b'])
       expect(ct.gone).toBe(CONFIG.caretaker.respawnSeconds)
       expect(caretakerAt(ct, place)).toBeNull()

@@ -58,7 +58,12 @@
 //    could be rushed by a shadowman, and its touch strikes them the same
 //    way. One beam does nothing to it; two raiders' beams on it at once,
 //    held, unmake it, and it forms again at the heart minutes later.
-// 14. The season (season.ts): every raider whose beam was on the
+// 14. Moab Coldë trades cosmetics for what the pack holds (cosmetics.ts):
+//    the Flaming Halo for one troy ounce of gold bullion. A cosmetic is the
+//    account's for good, so he never sells one twice; the valley refuses a
+//    trade the pack does not cover (ValleyContext.holdings in,
+//    Reduced.trade out) and writes the price and the cosmetic together.
+// 15. The season (season.ts): every raider whose beam was on the
 //    Caretaker when it came apart is credited with the unmaking, once per
 //    account however many of its sockets held a beam on it. The progress
 //    is the account's, kept by the valley in D1 beside the wallet, and the
@@ -66,6 +71,7 @@
 
 import { caretakerAt, createCaretaker, stepCaretaker } from './caretaker.ts'
 import { CONFIG } from './config.ts'
+import { affords, cosmeticById, MOAB_OFFERS } from './cosmetics.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
 import { dropSpot, takeUp } from './drops.ts'
 import { contentsOf, INVENTORY_KINDS, itemById } from './items.ts'
@@ -92,8 +98,9 @@ import {
 } from './shadowmen.ts'
 import { freshStock, onShelf, takeUnit } from './store.ts'
 import type { Caretaker } from './caretaker.ts'
+import type { CosmeticId } from './cosmetics.ts'
 import type { Drop, Facing } from './drops.ts'
-import type { Metres, ShopStock, XZ } from './interfaces.ts'
+import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckChange, TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
 import type { OutfitId } from './outfits.ts'
@@ -194,6 +201,8 @@ export type ValleyAction =
   // when the valley has not heard one.
   | { type: 'drop'; id: string; kind: string; count: number; at: Facing | null }
   | { type: 'take-drop'; id: string; drop: number }
+  // Rule 14: cosmetic `offer` from Moab.
+  | { type: 'trade'; id: string; offer: string }
   // Rule 9: a new name, a new character, or both.
   | { type: 'appearance'; id: string; name?: string; outfit?: OutfitId }
   // The valley's own clock: the truck and the day, moved on.
@@ -209,6 +218,9 @@ export interface ValleyContext {
   present: readonly string[]
   // For a buy: the buyer's wallet in cents, as the valley just read it.
   cash?: number
+  // For a trade: the trader's pack and cosmetics, as the valley just read
+  // them.
+  holdings?: { pack: Inventory; cosmetics: readonly CosmeticId[] }
 }
 
 export interface Reduced {
@@ -231,6 +243,13 @@ export interface Reduced {
   // Rule 7: what a sale costs the buyer's wallet. The valley takes it
   // before the sale stands.
   spend?: { account: string; amount: number }
+  // Rule 14: a trade that stands once the valley has taken the price out
+  // of the account's pack and given it the cosmetic, together.
+  trade?: {
+    account: string
+    cosmetic: CosmeticId
+    price: { kind: string; count: number }
+  }
 }
 
 export interface PackChange {
@@ -407,7 +426,7 @@ export function reduce(
 function act(
   valley: Valley,
   action: ValleyAction,
-  { now, present, cash }: ValleyContext
+  { now, present, cash, holdings }: ValleyContext
 ): Reduced {
   switch (action.type) {
     case 'join': {
@@ -737,6 +756,31 @@ function act(
       })
     }
 
+    case 'trade': {
+      // Rule 14.
+      const member = valley.members[action.id]
+      const refuse = (reason: string): Reduced =>
+        done(valley, now, {
+          broadcast: [],
+          reply: nack('trade', reason),
+        })
+      if (!member) return refuse('not-in-valley')
+      const offer = MOAB_OFFERS.find((id) => id === action.offer)
+      const cosmetic = offer ? cosmeticById(offer) : null
+      if (!offer || !cosmetic) return refuse('no-such-offer')
+      if (!holdings) return refuse('unavailable')
+      if (holdings.cosmetics.includes(offer)) return refuse('owned')
+      if (!affords(holdings.pack, offer)) return refuse('short')
+      return done(valley, now, {
+        broadcast: [],
+        trade: {
+          account: member.account,
+          cosmetic: offer,
+          price: { ...cosmetic.price },
+        },
+      })
+    }
+
     case 'appearance': {
       // Rule 9. The world frames carry no outfit, so the change goes out
       // to the others as a peer-updated frame (ValleyDO), not as a world
@@ -860,7 +904,7 @@ export function stepShadows(
   message: ShadowmenMessage
   struck: string[]
   caught: string[]
-  // Rule 14: the accounts credited with unmaking the Caretaker this step.
+  // Rule 15: the accounts credited with unmaking the Caretaker this step.
   credited: string[]
 } | null {
   const world = valley.world
@@ -933,7 +977,7 @@ export function stepShadows(
   }
 }
 
-// Rule 14: the accounts behind the sockets whose beams unmade the
+// Rule 15: the accounts behind the sockets whose beams unmade the
 // Caretaker, each once, in the order their beams were counted.
 export function creditedWith(valley: Valley, ids: readonly string[]): string[] {
   const accounts: string[] = []

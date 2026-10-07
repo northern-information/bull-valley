@@ -5,8 +5,10 @@
 // src/sharedworld.ts's (rules 7 and 10).
 
 import { CONFIG } from '../src/config.ts'
+import { toCosmetics } from '../src/cosmetics.ts'
 import { STARTING_INVENTORY, toInventory } from '../src/inventory.ts'
 import { NO_PROGRESS } from '../src/season.ts'
+import type { CosmeticId } from '../src/cosmetics.ts'
 import type { Inventory } from '../src/interfaces.ts'
 import type { SeasonProgress, SeasonReward } from '../src/season.ts'
 
@@ -17,6 +19,8 @@ export interface Holdings {
   pack: Inventory
   // In cents.
   cash: number
+  // Had for good (src/cosmetics.ts).
+  cosmetics: CosmeticId[]
 }
 
 export interface PackStore {
@@ -33,6 +37,14 @@ export interface PackStore {
     accountId: string,
     amount: number,
     item: PackItem | null
+  ): Promise<boolean>
+  // A trade (sharedworld.ts rule 14): `price.count` of `price.kind` out of
+  // the pack and `cosmetic` the account's, both or neither; false when the
+  // pack does not cover it or the account has it already.
+  trade(
+    accountId: string,
+    price: { kind: string; count: number },
+    cosmetic: CosmeticId
   ): Promise<boolean>
   // The account's progress through `season`, nothing done before the first
   // unmaking.
@@ -57,6 +69,7 @@ export interface PackItem {
 export class MemoryPackStore implements PackStore {
   readonly packs = new Map<string, Map<string, number>>()
   readonly wallets = new Map<string, number>()
+  readonly cosmetics = new Map<string, Set<CosmeticId>>()
   // `${account}/${season}` -> progress.
   readonly seasons = new Map<string, SeasonProgress>()
 
@@ -79,6 +92,7 @@ export class MemoryPackStore implements PackStore {
     return Promise.resolve({
       pack: toInventory(Object.fromEntries(rows)),
       cash: this.wallets.get(accountId) ?? 0,
+      cosmetics: toCosmetics([...(this.cosmetics.get(accountId) ?? [])]),
     })
   }
 
@@ -100,6 +114,18 @@ export class MemoryPackStore implements PackStore {
     if (cash < amount) return false
     this.wallets.set(accountId, cash - amount)
     if (item) await this.change(accountId, item.kind, item.delta)
+    return true
+  }
+
+  async trade(
+    accountId: string,
+    price: { kind: string; count: number },
+    cosmetic: CosmeticId
+  ): Promise<boolean> {
+    const owned = this.cosmetics.get(accountId) ?? new Set<CosmeticId>()
+    if (owned.has(cosmetic)) return false
+    if (!(await this.change(accountId, price.kind, -price.count))) return false
+    this.cosmetics.set(accountId, owned.add(cosmetic))
     return true
   }
 

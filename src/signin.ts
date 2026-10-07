@@ -1,7 +1,8 @@
-// The account step between the logo and the character select: a black
+// The account step between the main menu and the character select: a black
 // overlay that either signs you in or has you choose a username. Mounted at
 // boot like the select (black and inert until run), above it in DOM order,
-// so it covers the select until it resolves.
+// so it covers the select until it resolves, and beneath the menu
+// (mainmenu.ts), which Back on the sign-in face returns to.
 //
 // Two faces. Sign In lists the server's providers; each is a full-page
 // round trip that lands back here with ?auth= (account.ts authReturnOf).
@@ -30,8 +31,10 @@ import type { MeResponse, Provider } from './account.ts'
 
 export interface AccountStep {
   // Resolves with the username once the raider has one, removing the
-  // overlay. `error` is a failed round trip to show on the sign-in face.
-  run(me: MeResponse | null, error: string | null): Promise<string>
+  // overlay, or with null when Back on the sign-in face leaves for the
+  // menu, the overlay kept for another run. `error` is a failed round trip
+  // to show on the sign-in face.
+  run(me: MeResponse | null, error: string | null): Promise<string | null>
   // Takes the overlay down unseen, for a raider already signed in.
   remove(): void
 }
@@ -55,6 +58,7 @@ export function mountAccountStep(): AccountStep {
       <p class="bv-account-lede">${copy('signin.lede')}</p>
       <div class="bv-account-providers"></div>
       <p class="bv-account-error" role="alert" hidden></p>
+      <button type="button" class="bv-btn" data-bv="account-back">${copy('menu.back')}</button>
     </div>
     <form class="bv-account-ui" data-face="username" hidden novalidate>
       <h2>${copy('username.title')}</h2>
@@ -98,6 +102,7 @@ export function mountAccountStep(): AccountStep {
   )
   const cancelBtn = find<HTMLButtonElement>('[data-bv="account-cancel"]')
   const confirmBtn = find<HTMLButtonElement>('[data-bv="account-confirm"]')
+  const backBtn = find<HTMLButtonElement>('[data-bv="account-back"]')
 
   const showError = (el: HTMLElement, message: string | null) => {
     el.textContent = message ?? ''
@@ -134,8 +139,11 @@ export function mountAccountStep(): AccountStep {
     return button
   }
 
-  function run(me: MeResponse | null, error: string | null): Promise<string> {
-    return new Promise<string>((resolve) => {
+  function run(
+    me: MeResponse | null,
+    error: string | null
+  ): Promise<string | null> {
+    return new Promise<string | null>((resolve) => {
       // Whether the magic word still stands between this raider and an
       // account.
       let pending = me !== null && me.account === null && me.pending !== null
@@ -211,6 +219,14 @@ export function mountAccountStep(): AccountStep {
         resolve(username)
       }
 
+      // Back to the menu, signed out; the overlay waits for the next run.
+      const back = () => {
+        if (submitting) return
+        cleanup()
+        signInFace.hidden = true
+        resolve(null)
+      }
+
       const cancel = async () => {
         if (submitting) return
         submitting = true
@@ -274,6 +290,7 @@ export function mountAccountStep(): AccountStep {
         if (e.code !== 'Escape') return
         e.preventDefault()
         if (!usernameFace.hidden) void cancel()
+        else if (!signInFace.hidden) back()
       }
 
       const onCancel = () => void cancel()
@@ -289,6 +306,7 @@ export function mountAccountStep(): AccountStep {
         magicWord.removeEventListener('input', onMagic)
         usernameFace.removeEventListener('submit', onSubmit)
         cancelBtn.removeEventListener('click', onCancel)
+        backBtn.removeEventListener('click', back)
         document.removeEventListener('keydown', onKey)
       }
 
@@ -296,6 +314,7 @@ export function mountAccountStep(): AccountStep {
       magicWord.addEventListener('input', onMagic)
       usernameFace.addEventListener('submit', onSubmit)
       cancelBtn.addEventListener('click', onCancel)
+      backBtn.addEventListener('click', back)
       document.addEventListener('keydown', onKey)
 
       if (me?.account?.username) {

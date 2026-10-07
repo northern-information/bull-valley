@@ -1,11 +1,14 @@
 // The pack store on D1 (migrations/0002_packs.sql): one row per item an
-// account has held, and one wallet per account. Every change is a single
+// account has held, and one wallet per account; and the cosmetics it has
+// (0004_cosmetics.sql). Every change is a single
 // statement, so two sockets on one account can never lose a unit or a cent
 // between a read and a write.
 
+import { toCosmetics } from '../src/cosmetics.ts'
 import { STARTING_INVENTORY, toInventory } from '../src/inventory.ts'
 import { NO_PROGRESS } from '../src/season.ts'
 import { STARTING_CASH } from './packs.ts'
+import type { CosmeticId } from '../src/cosmetics.ts'
 import type { SeasonProgress, SeasonReward } from '../src/season.ts'
 import type { Holdings, PackItem, PackStore } from './packs.ts'
 
@@ -44,7 +47,7 @@ export class D1PackStore implements PackStore {
   }
 
   async get(accountId: string): Promise<Holdings> {
-    const [packs, wallet] = await Promise.all([
+    const [packs, wallet, cosmetics] = await Promise.all([
       this.db
         .prepare('SELECT kind, count FROM packs WHERE account_id = ?')
         .bind(accountId)
@@ -53,12 +56,17 @@ export class D1PackStore implements PackStore {
         .prepare('SELECT cash FROM wallets WHERE account_id = ?')
         .bind(accountId)
         .first<{ cash: number }>(),
+      this.db
+        .prepare('SELECT cosmetic FROM cosmetics WHERE account_id = ?')
+        .bind(accountId)
+        .all<{ cosmetic: string }>(),
     ])
     return {
       pack: toInventory(
         Object.fromEntries(packs.results.map((row) => [row.kind, row.count]))
       ),
       cash: wallet?.cash ?? 0,
+      cosmetics: toCosmetics(cosmetics.results.map((row) => row.cosmetic)),
     }
   }
 
@@ -110,6 +118,51 @@ export class D1PackStore implements PackStore {
         )
         .bind(accountId, item.kind, item.delta, accountId, amount),
       charge,
+    ])
+    return (results[1]?.meta.changes ?? 0) > 0
+  }
+
+  // One batch is one transaction. The cosmetic goes in first, only while
+  // the pack still covers the price and the account has none; the price
+  // comes out after it only where that row is the one just written (its
+  // trade id), so the two land together or not at all.
+  async trade(
+    accountId: string,
+    price: { kind: string; count: number },
+    cosmetic: CosmeticId
+  ): Promise<boolean> {
+    const id = crypto.randomUUID()
+    const results = await this.db.batch([
+      this.db
+        .prepare(
+          'INSERT INTO cosmetics (account_id, cosmetic, acquired_at, trade_id) ' +
+            'SELECT ?, ?, ?, ? WHERE (SELECT count FROM packs WHERE account_id = ? AND kind = ?) >= ? ' +
+            'ON CONFLICT (account_id, cosmetic) DO NOTHING'
+        )
+        .bind(
+          accountId,
+          cosmetic,
+          Date.now(),
+          id,
+          accountId,
+          price.kind,
+          price.count
+        ),
+      this.db
+        .prepare(
+          'UPDATE packs SET count = count - ? ' +
+            'WHERE account_id = ? AND kind = ? AND count >= ? ' +
+            'AND (SELECT trade_id FROM cosmetics WHERE account_id = ? AND cosmetic = ?) = ?'
+        )
+        .bind(
+          price.count,
+          accountId,
+          price.kind,
+          price.count,
+          accountId,
+          cosmetic,
+          id
+        ),
     ])
     return (results[1]?.meta.changes ?? 0) > 0
   }

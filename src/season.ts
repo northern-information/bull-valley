@@ -3,7 +3,7 @@
 // The Caretaker: unmake him (caretaker.ts, two beams at once) SEASON.goal
 // times and the wallet takes $100 and the pack a carton of Marlboro Reds.
 // Every raider whose beam was on him when he came apart is credited
-// (sharedworld.ts rule 14).
+// (sharedworld.ts rule 15).
 //
 // Pure, no Three. The progress is the account's, kept in D1 by the valley
 // (worker/packs.ts); this says what an unmaking does to it.
