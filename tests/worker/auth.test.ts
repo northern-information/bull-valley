@@ -759,6 +759,88 @@ describe('linking', () => {
     expect(location).toBe(`${PROD}/?auth=pending_signup`)
   })
 
+  it('signs one raider in under one username through all three providers', async () => {
+    const s = new MemoryAccountStore()
+    const all = env({
+      GOOGLE_CLIENT_ID: 'g-id',
+      GOOGLE_CLIENT_SECRET: 'g-secret',
+      DISCORD_CLIENT_ID: 'd-id',
+      DISCORD_CLIENT_SECRET: 'd-secret',
+    })
+    const profiles = {
+      github: { id: 21, login: 'octo' },
+      google: { id: 'g-21', name: 'Goo' },
+      discord: { id: 'd-21', username: 'dis' },
+    } as const
+    // Any provider's token and profile, for the one being asked.
+    const fetchAll = ((input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : (input as Request).url
+      for (const [name, spec] of Object.entries(OAUTH)) {
+        if (url === spec.tokenUrl) {
+          return Promise.resolve(Response.json({ access_token: 't' }))
+        }
+        if (url === spec.profileUrl) {
+          return Promise.resolve(
+            Response.json(profiles[name as keyof typeof profiles])
+          )
+        }
+      }
+      return Promise.resolve(new Response('nope', { status: 404 }))
+    }) as typeof fetch
+    // A round trip through a provider: a sign-in, or a link from `jar`.
+    const trip = async (
+      jar: Jar,
+      name: keyof typeof profiles,
+      linking = false
+    ) => {
+      const start = await call(
+        linking ? `/auth/link/${name}/login` : `/auth/${name}/login`,
+        { jar, store: s, env: all }
+      )
+      const state = new URL(start.location ?? '').searchParams.get('state')
+      return call(`/auth/${name}/callback?code=c&state=${state}`, {
+        jar,
+        store: s,
+        env: all,
+        fetch: fetchAll,
+      })
+    }
+
+    const jar = new Jar()
+    await trip(jar, 'github')
+    await call('/auth/confirm-signup', {
+      body: WORD,
+      method: 'POST',
+      jar,
+      store: s,
+      env: all,
+    })
+    await call('/auth/username', {
+      method: 'POST',
+      jar,
+      store: s,
+      env: all,
+      body: { username: 'Triple' },
+    })
+    expect((await trip(jar, 'google', true)).location).toContain('auth=linked')
+    expect((await trip(jar, 'discord', true)).location).toContain('auth=linked')
+    const accountId = (await me(jar, s)).account?.accountId
+    expect(
+      (await me(jar, s)).account?.providers.map((p) => p.provider)
+    ).toEqual(['github', 'google', 'discord'])
+
+    // A fresh browser through any of the three lands on the same raider,
+    // with no magic word asked: only a new account takes it.
+    for (const name of ['github', 'google', 'discord'] as const) {
+      const fresh = new Jar()
+      expect((await trip(fresh, name)).location).toBe(`${PROD}/?auth=success`)
+      const who = await me(fresh, s)
+      expect(who.account?.accountId).toBe(accountId)
+      expect(who.account?.username).toBe('Triple')
+    }
+    expect(s.accounts.size).toBe(1)
+  })
+
   it('unlinks any provider but the last', async () => {
     const s = new MemoryAccountStore()
     const jar = await withAccount(17, s)
