@@ -50,11 +50,14 @@ describe('consume', () => {
     aspirin: 24,
   }
 
-  it('drinks a drink, starting nothing timed', () => {
+  it('drinks a drink into a trip, and nothing else timed', () => {
     const r = consume(pack, 'pbr', NO_EFFECTS, 10)
     if (!r.used) throw new Error('not used')
     expect(r.inv.pbr).toBe(0)
-    expect(r.effects).toEqual(NO_EFFECTS)
+    expect(r.effects).toEqual({
+      ...NO_EFFECTS,
+      trip: { start: 10, end: 10 + tripSecondsOf('pbr') },
+    })
     expect(consume(r.inv, 'pbr', NO_EFFECTS, 11)).toEqual({
       used: false,
       reason: 'empty',
@@ -93,16 +96,6 @@ describe('consume', () => {
       end: 10 + (getItem('joints').perceptionSeconds ?? 0),
     })
     expect(r.effects.smoking).toEqual({ start: 0, end: 50 })
-  })
-
-  it('drinks a drink into a trip, and nothing else', () => {
-    const r = consume({ ...pack, pbr: 1 }, 'pbr', NO_EFFECTS, 10)
-    if (!r.used) throw new Error('not used')
-    expect(r.inv.pbr).toBe(0)
-    expect(r.effects).toEqual({
-      ...NO_EFFECTS,
-      trip: { start: 10, end: 10 + tripSecondsOf('pbr') },
-    })
   })
 
   it('starts each trip afresh, keeping a longer one going', () => {
