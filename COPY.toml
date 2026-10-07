@@ -37,7 +37,7 @@ sign_out = { text = "Sign Out", by = "ai" }
 
 [hud]
 begin_loading = { text = "Resolving Terrain…", by = "ai" }
-begin_play = { text = "Click to Play", by = "ai" }
+begin_play = { text = "Click to Die", by = "ai" }
 begin_resume = { text = "Click to Resume", by = "ai" }
 begin_failed = { text = "The Valley Will Not Resolve", by = "ai" }
 signal_lost = { text = "SIGNAL LOST", by = "ai" }
@@ -200,7 +200,7 @@ keep = { text = "Mt. Coleman's Keep", by = "ai" }
 
 [titles]
 colophon_alt = { text = "Northern Information", by = "ai" }
-colophon_hint = { text = "Click to Play", by = "ai" }
+colophon_hint = { text = "Click to Die", by = "ai" }
 logo_alt = { text = "Bull Valley Shadow Wars", by = "ai" }
 
 # Key labels: what each key does, in the intro controls table and the

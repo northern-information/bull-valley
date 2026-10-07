@@ -148,7 +148,7 @@ export async function beginRaid(
   await page.goto(`/?valley=${encodeURIComponent(valley)}`)
   await passTitles(page, steps)
   // boot() sets the dev hook last, after the input listeners; the button
-  // reads "Click to Play" before boot starts, so its text is not a signal.
+  // reads "Click to Die" before boot starts, so its text is not a signal.
   await expect
     .poll(() => page.evaluate(() => !!window.__bv), { timeout: 30_000 })
     .toBe(true)
