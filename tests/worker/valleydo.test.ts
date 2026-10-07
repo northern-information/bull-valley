@@ -695,7 +695,13 @@ describe('ValleyDO', () => {
     for (const socket of [a, b]) {
       expect(socket.last<PeerUpdatedMessage>()).toEqual({
         type: 'peer-updated',
-        peer: { id: idOf(a), name: 'A', outfit: 'church', at: null },
+        peer: {
+          id: idOf(a),
+          name: 'A',
+          outfit: 'church',
+          cosmetics: [],
+          at: null,
+        },
       })
     }
     // A raider arriving later sees the new character in the roster.
@@ -831,6 +837,7 @@ describe('ValleyDO', () => {
       get: () => Promise.reject(new Error('D1 is down')),
       change: () => Promise.reject(new Error('D1 is down')),
       purchase: () => Promise.reject(new Error('D1 is down')),
+      trade: () => Promise.reject(new Error('D1 is down')),
     }
     const errors: unknown[] = []
     const error = console.error
@@ -910,6 +917,7 @@ describe('ValleyDO', () => {
         get: (id) => store.get(id),
         change: (id, kind, delta) => store.change(id, kind, delta),
         purchase: () => Promise.reject(new Error('down')),
+        trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
       }
       await buy()
       expect(a.last<NackMessage>()).toMatchObject({ reason: 'unavailable' })
@@ -1002,6 +1010,7 @@ describe('ValleyDO: drops', () => {
       open: (id) => store.open(id),
       get: (id) => store.get(id),
       purchase: (id, amount, item) => store.purchase(id, amount, item),
+      trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
       change: () => Promise.reject(new Error('down')),
     }
     const error = console.error
@@ -1114,5 +1123,99 @@ describe('ValleyDO: the shadowmen', () => {
       re: 'dev',
       reason: 'not-a-dev-server',
     })
+  })
+})
+
+describe("ValleyDO: Moab's trade", () => {
+  const trade = (offer = 'flaming-halo') =>
+    JSON.stringify({ type: 'trade', offer })
+  const grant = (kind = 'gold-bullion', count = 1) =>
+    JSON.stringify({ type: 'dev', op: 'grant', kind, count })
+
+  it('trades the Flaming Halo for an ounce of gold, for everyone to see', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const b = await join(v, s, 'B')
+    expect(a.frames()[0]).toMatchObject({ type: 'welcome', cosmetics: [] })
+    await v.webSocketMessage(ws(a), trade())
+    expect(a.last<NackMessage>()).toEqual({
+      type: 'nack',
+      re: 'trade',
+      reason: 'short',
+    })
+    await v.webSocketMessage(ws(a), grant('gold-bullion', 2))
+    expect(lastPack(a)?.['gold-bullion']).toBe(2)
+    await v.webSocketMessage(ws(a), trade())
+    const pack = a.frames().findLast((m): m is PackMessage => m.type === 'pack')
+    expect(pack).toMatchObject({
+      pack: { 'gold-bullion': 1 },
+      cosmetics: ['flaming-halo'],
+    })
+    for (const socket of [a, b]) {
+      expect(socket.last<PeerUpdatedMessage>()).toMatchObject({
+        type: 'peer-updated',
+        peer: { id: idOf(a), name: 'A', cosmetics: ['flaming-halo'] },
+      })
+    }
+    // Had for good: never sold twice.
+    await v.webSocketMessage(ws(a), trade())
+    expect(a.last<NackMessage>()).toMatchObject({ reason: 'owned' })
+    expect((await v.packStore.get('acct-A')).pack['gold-bullion']).toBe(1)
+    // Anyone arriving later sees it worn, and so does the wearer's welcome.
+    const c = await join(v, s, 'C')
+    const welcome = c.frames()[0] as WelcomeMessage
+    expect(welcome.peers.find((p) => p.id === idOf(a))?.cosmetics).toEqual([
+      'flaming-halo',
+    ])
+    a.close()
+    await v.webSocketClose(ws(a))
+    const back = await join(v, s, 'A')
+    expect(back.frames()[0]).toMatchObject({ cosmetics: ['flaming-halo'] })
+  })
+
+  it('refuses an offer Moab does not make, and grants nothing off a dev server', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    await v.webSocketMessage(ws(a), trade('golden-crown'))
+    expect(a.last<NackMessage>()).toMatchObject({
+      re: 'trade',
+      reason: 'no-such-offer',
+    })
+    await v.webSocketMessage(ws(a), grant())
+    expect(a.last<NackMessage>()).toMatchObject({ re: 'dev' })
+    expect((await v.packStore.get('acct-A')).pack['gold-bullion']).toBe(0)
+  })
+
+  it('trades nothing when the pack cannot be read or the trade cannot be written', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    const store = v.packStore
+    await store.change('acct-A', 'gold-bullion', 1)
+    const error = console.error
+    console.error = () => {}
+    try {
+      const before = b.frames().length
+      v.packStore = { ...store, get: () => Promise.reject(new Error('down')) }
+      await v.webSocketMessage(ws(a), trade())
+      expect(a.last<NackMessage>()).toMatchObject({ reason: 'unavailable' })
+      v.packStore = {
+        open: (id) => store.open(id),
+        get: (id) => store.get(id),
+        change: (id, kind, delta) => store.change(id, kind, delta),
+        purchase: (id, amount, item) => store.purchase(id, amount, item),
+        trade: () => Promise.reject(new Error('down')),
+      }
+      await v.webSocketMessage(ws(a), trade())
+      expect(a.last<NackMessage>()).toMatchObject({ reason: 'unavailable' })
+      // Nobody saw a halo, and the gold is still in the pack.
+      expect(b.frames()).toHaveLength(before)
+      expect(await store.get('acct-A')).toMatchObject({
+        pack: { 'gold-bullion': 1 },
+        cosmetics: [],
+      })
+    } finally {
+      console.error = error
+    }
   })
 })

@@ -58,6 +58,8 @@ export function createTargets(game: Game): Targets {
         return action.status === 'ready' ? bushObject(action.bush) : null
       case 'talk':
         return world.gronRig?.figure.group ?? null
+      case 'trade':
+        return world.moabRigs[action.station]?.figure.group ?? null
       case 'speak':
         switch (action.npc) {
           case 'marx':

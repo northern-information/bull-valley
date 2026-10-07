@@ -5,7 +5,8 @@
 //
 // Fields:
 //   id        inventory kind and mesh key
-//   category  'cigarette' | 'joint' | 'drink' | 'medicine' | 'forage'
+//   category  'cigarette' | 'joint' | 'drink' | 'medicine' | 'forage' |
+//             'valuable'
 //   label     name in the pack, and floating over a pickup or shelf unit
 //   blurb     description on the pack's item card
 //   used      chat line when the player uses it
@@ -422,6 +423,15 @@ export const ITEMS = [
     label: copy('items.berries.label'),
     blurb: copy('items.berries.blurb'),
     collected: copy('items.berries.collected'),
+    start: 0,
+  },
+  // Valuables. Not for sale and of no use, but Moab Coldë takes them in
+  // trade (cosmetics.ts). One unit is one troy ounce.
+  {
+    id: 'gold-bullion',
+    category: 'valuable',
+    label: copy('items.gold-bullion.label'),
+    blurb: copy('items.gold-bullion.blurb'),
     start: 0,
   },
 ] as const satisfies readonly Item[]

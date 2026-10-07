@@ -8,6 +8,7 @@ import { hurry } from './marx.ts'
 import type { Actions } from './actions.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
 import type { ChatLine } from './chat.ts'
+import type { CosmeticId } from './cosmetics.ts'
 import type { Drop } from './drops.ts'
 import type { Game } from './game.ts'
 import type { Hand } from './hands.ts'
@@ -83,6 +84,11 @@ interface BvHook {
   // A quiet valley: no crossing shadowman rushes anyone, only one a spec
   // places. The valley's, through a dev frame, or this client's own.
   calm(): void
+  // What the account wears (cosmetics.ts).
+  readonly cosmetics: readonly CosmeticId[]
+  // `count` of `kind` into the pack: the valley's, through a dev frame, or
+  // this client's own. Gold bullion has no other way in yet.
+  grant(kind: string, count?: number): void
 }
 
 declare global {
@@ -174,6 +180,19 @@ export function installDevHook(game: Game, actions: Actions): void {
     calm() {
       if (net.online) net.send({ type: 'dev', op: 'calm' })
       else game.shadowmen.calm = true
+    },
+    get cosmetics() {
+      return s.cosmetics
+    },
+    grant(kind, count = 1) {
+      if (net.online) net.send({ type: 'dev', op: 'grant', kind, count })
+      else {
+        s.inventory = {
+          ...s.inventory,
+          [kind]: (s.inventory[kind] ?? 0) + count,
+        }
+        actions.refreshBag()
+      }
     },
     hurryTruck(seconds = 5) {
       // In the shared valley the server keeps Marx's day; a dev server

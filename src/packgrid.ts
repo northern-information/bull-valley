@@ -10,13 +10,15 @@ export const PACK_TABS = ['consumables', 'loot', 'materials'] as const
 export type PackTab = (typeof PACK_TABS)[number]
 
 // Which tab each item category sits in: forage (the cabbages and the
-// berries) is loot. Nothing is a material yet.
+// berries) and valuables (the gold bullion) are loot. Nothing is a material
+// yet.
 const TAB_OF: Record<ItemCategory, PackTab> = {
   cigarette: 'consumables',
   joint: 'consumables',
   drink: 'consumables',
   medicine: 'consumables',
   forage: 'loot',
+  valuable: 'loot',
 }
 
 // A kind is in its tab when the player carries it, in ITEMS order. Each
