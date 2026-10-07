@@ -17,6 +17,7 @@ export const EVENTS = {
   TIMER_EXPIRED: 'TIMER_EXPIRED',
   HOP_OUT: 'HOP_OUT',
   PICK_CABBAGE: 'PICK_CABBAGE',
+  DROP_CABBAGE: 'DROP_CABBAGE',
   CALL_TRUCK: 'CALL_TRUCK',
   EXTRACT_FUEL: 'EXTRACT_FUEL',
   EXTRACT_KEEP: 'EXTRACT_KEEP',
@@ -52,10 +53,11 @@ export function timedOut(raid: Raid, clock: number): boolean {
   return raid.state === STATES.LOADOUT && clock > raid.loadoutEndsAt
 }
 
-type AdvanceDetail = string | { arrived: boolean }
+type AdvanceDetail = string | { arrived: boolean } | { count: number }
 
 // detail: EXTRACT_FUEL passes the station name; BOARD_TRUCK from ON_FOOT
-// passes { arrived: true } once the called truck is close enough to board.
+// passes { arrived: true } once the called truck is close enough to board;
+// DROP_CABBAGE passes { count }, the cabbages set down.
 export function advance(
   raid: Raid,
   event: RaidEvent,
@@ -70,6 +72,7 @@ export function advance(
         state === STATES.ON_FOOT &&
         raid.truckCalled &&
         typeof detail === 'object' &&
+        'arrived' in detail &&
         detail.arrived
       ) {
         return {
@@ -89,6 +92,14 @@ export function advance(
     case EVENTS.PICK_CABBAGE:
       if (!canPick(raid)) return raid
       return { ...raid, carrying: raid.carrying + 1 }
+    case EVENTS.DROP_CABBAGE: {
+      const count =
+        typeof detail === 'object' && 'count' in detail ? detail.count : 0
+      if (state !== STATES.ON_FOOT || count < 1 || count > raid.carrying) {
+        return raid
+      }
+      return { ...raid, carrying: raid.carrying - count }
+    }
     case EVENTS.CALL_TRUCK:
       if (state !== STATES.ON_FOOT || raid.truckCalled) return raid
       return { ...raid, truckCalled: true }

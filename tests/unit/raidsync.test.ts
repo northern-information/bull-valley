@@ -31,6 +31,7 @@ function wire(extra: Partial<RaidWire> = {}): RaidWire {
     riders: [],
     taken: [],
     shelves: [],
+    drops: [],
     call: null,
     members: [member('a'), member('b')],
     ...extra,
@@ -192,17 +193,19 @@ describe('departureKind', () => {
 })
 
 describe('settledBy', () => {
+  const none = { take: null, sale: null, dropped: null, dropTaken: null }
+
   it("says what a take or a sale settled, and whether it was this raider's", () => {
     expect(settledBy({ reason: 'taken', by: 'a', index: 3 }, 'a')).toEqual({
+      ...none,
       take: { index: 3, mine: true },
-      sale: null,
     })
     expect(settledBy({ reason: 'taken', by: 'b', index: 3 }, 'a').take).toEqual(
       { index: 3, mine: false }
     )
     expect(
       settledBy({ reason: 'bought', by: 'a', station: 1, item: 'pbr' }, 'a')
-    ).toEqual({ take: null, sale: { station: 1, item: 'pbr', mine: true } })
+    ).toEqual({ ...none, sale: { station: 1, item: 'pbr', mine: true } })
     // Played alone there is no id, and nothing the valley settled is ours.
     expect(
       settledBy({ reason: 'bought', by: 'a', station: 1, item: 'pbr' }, null)
@@ -210,8 +213,19 @@ describe('settledBy', () => {
     ).toBe(false)
   })
 
+  it('says what was set down and what was taken up, and by whom', () => {
+    const detail = { by: 'a', item: 'cabbage', drop: 4, count: 2 }
+    expect(settledBy({ reason: 'dropped', ...detail }, 'a')).toEqual({
+      ...none,
+      dropped: { kind: 'cabbage', count: 2, mine: true },
+    })
+    expect(settledBy({ reason: 'drop-taken', ...detail }, 'b')).toEqual({
+      ...none,
+      dropTaken: { drop: 4, kind: 'cabbage', count: 2, mine: false },
+    })
+  })
+
   it('settles nothing without the detail, or for any other reason', () => {
-    const none = { take: null, sale: null }
     expect(settledBy({ reason: 'taken', by: 'a' }, 'a')).toEqual(none)
     expect(settledBy({ reason: 'bought', by: 'a', station: 0 }, 'a')).toEqual(
       none
@@ -219,5 +233,11 @@ describe('settledBy', () => {
     expect(settledBy({ reason: 'joined', by: 'a', index: 2 }, 'a')).toEqual(
       none
     )
+    expect(
+      settledBy({ reason: 'dropped', by: 'a', item: 'joints', count: 1 }, 'a')
+    ).toEqual(none)
+    expect(
+      settledBy({ reason: 'drop-taken', by: 'a', item: 'joints', drop: 1 }, 'a')
+    ).toEqual(none)
   })
 })

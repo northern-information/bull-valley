@@ -1,5 +1,6 @@
 // What the player does: board and hop out, take, buy, pick the berry, use
-// an item, whistle for the truck, talk, extract, the pack and the hotbar.
+// an item, drop one and take a drop up, whistle for the truck, talk,
+// extract, the pack and the hotbar.
 // Played alone each one moves the raid at once; in the shared valley the
 // ones that touch the valley's raid are a word to the server, and the raid
 // frame that comes back moves it (valleysync.ts). The rules are the pure
@@ -10,6 +11,8 @@ import { CHAT_COPY, chatCommand, onlineLine } from './chat.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { stepIndex } from './cycle.ts'
+import { isDropPickup } from './dropmeshes.ts'
+import { dropAmount, dropSpot, takeUp } from './drops.ts'
 import { finishById } from './finishes.ts'
 import { openGronDialog } from './grondialog.ts'
 import { assign } from './hotbar.ts'
@@ -56,6 +59,11 @@ export interface Actions {
   applyDaily(msg: DailyMessage): void
   // One of an item, used: E over it in the pack, or its hotbar key.
   useKind(kind: string): void
+  // X over an item in the pack: one of it set down (the open container,
+  // or one cabbage), or with Shift the whole stack.
+  dropKind(kind: string, all: boolean): void
+  // The valley says a drop came up into our arms or pack.
+  applyDropTaken(kind: string, count: number): void
   // The left button: the flashlight up and on, or down and off.
   toggleFlashlight(): void
   // The pickup is ours: into the arms or the pack.
@@ -325,6 +333,88 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (used) hud.tell(used)
   }
 
+  // Rule 14. In the valley the drop lands where our last state frame put
+  // us; the pack shows the units gone at once, the arms once the valley
+  // says so. Alone it lands at once.
+  const dropKind = (kind: string, all: boolean) => {
+    if (s.ended) return
+    if (s.aboard || s.raid.state === STATES.RIDING) {
+      hud.tell(copy('log.drop_aboard'))
+      return
+    }
+    const cabbage = kind === 'cabbage'
+    const held = cabbage ? s.raid.carrying : s.inventory[kind] || 0
+    const count = dropAmount(kind, held, all)
+    if (count < 1) return
+    if (s.shared) {
+      if (!cabbage) s.inventory = addItem(s.inventory, kind, -count)
+      net.send({ type: 'drop', kind, count })
+      refreshBag()
+      return
+    }
+    if (cabbage) {
+      const next = advance(s.raid, EVENTS.DROP_CABBAGE, s.raidClock, {
+        count,
+      })
+      if (next === s.raid) return
+      s.raid = next
+    } else {
+      s.inventory = addItem(s.inventory, kind, -count)
+    }
+    const id = s.nextDrop++
+    const at = { x: player.pos.x, z: player.pos.z, yaw: player.yaw }
+    s.drops = [...s.drops, { id, kind, count, ...dropSpot(at, id) }]
+    game.drops.sync(s.drops)
+    refreshBag()
+    hud.tell(copy('log.dropped', { item: pickupLabel({ kind, count }) }))
+  }
+
+  // Into the pack, or (the arms being the valley's) only said so.
+  const applyDropTaken = (kind: string, count: number) => {
+    if (kind !== 'cabbage') s.inventory = addItem(s.inventory, kind, count)
+    tookUp(kind, count)
+  }
+
+  const tookUp = (kind: string, count: number) => {
+    hud.tell(copy('log.taken', { item: pickupLabel({ kind, count }) }))
+    s.interaction = null
+    hud.prompt(null)
+    hud.itemLabel(null)
+    refreshBag()
+  }
+
+  const takeDrop = (drop: number, kind: string) => {
+    const cabbage = kind === 'cabbage'
+    if (cabbage && !canPick(s.raid)) {
+      hud.tell(copy('log.arms_full'))
+      return
+    }
+    if (s.shared) {
+      if (s.pendingDrops.has(drop)) return
+      s.pendingDrops.add(drop)
+      net.send({ type: 'take-drop', drop })
+      return
+    }
+    const lying = s.drops.find((d) => d.id === drop)
+    if (!lying) return
+    const room = cabbage
+      ? CONFIG.cabbage.carryLimit - s.raid.carrying
+      : Infinity
+    const { taken, left } = takeUp(lying, room)
+    s.drops = left
+      ? s.drops.map((d) => (d.id === drop ? left : d))
+      : s.drops.filter((d) => d.id !== drop)
+    game.drops.sync(s.drops)
+    if (cabbage) {
+      for (let i = 0; i < taken; i++) {
+        s.raid = advance(s.raid, EVENTS.PICK_CABBAGE, s.raidClock)
+      }
+      tookUp(kind, taken)
+    } else {
+      applyDropTaken(kind, taken)
+    }
+  }
+
   // The light comes on once the hand is up, and goes off as it goes down;
   // the valley hears it with the next state frame.
   const toggleFlashlight = () => {
@@ -356,6 +446,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
 
   const takePickup = (pickup: Pickup) => {
+    if (isDropPickup(pickup)) {
+      takeDrop(pickup.drop, pickup.kind)
+      return
+    }
     if (!s.shared) {
       applyTake(pickup)
       return
@@ -512,6 +606,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     pocket,
     applyDaily,
     useKind,
+    dropKind,
+    applyDropTaken,
     toggleFlashlight,
     applyTake,
     markTaken,

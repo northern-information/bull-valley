@@ -897,6 +897,186 @@ describe("rule 12: the haul is the valley's", () => {
   })
 })
 
+describe('rule 14: raiders drop what they carry', () => {
+  const AT = { x: 100, z: 200, yaw: 0 }
+  const drop = (
+    kind: string,
+    count = 1,
+    id = 'a',
+    at: typeof AT | null = AT
+  ): ValleyAction => ({ type: 'drop', id, kind, count, at })
+  const takeDrop = (drop: number, id = 'b'): ValleyAction => ({
+    type: 'take-drop',
+    id,
+    drop,
+  })
+  // a and b ride out together and hop out on foot.
+  const onFoot = () =>
+    valleyWith(
+      join('a'),
+      join('b'),
+      { type: 'board', id: 'a' },
+      { type: 'board', id: 'b' },
+      { type: 'hop-out', id: 'a' },
+      { type: 'hop-out', id: 'b' }
+    )
+  const carrying = (v: ReturnType<typeof valleyWith>, id: string) =>
+    toWire(v.valley)?.members.find((m) => m.id === id)?.carrying
+
+  it('sets an item down ahead of the raider and takes it out of the pack', () => {
+    const v = onFoot()
+    const r = v.step(drop('marlboro', 7))
+    expect(r.pack).toEqual({ account: 'acct-a', kind: 'marlboro', delta: -7 })
+    expect(r.broadcast[0]).toMatchObject({
+      reason: 'dropped',
+      by: 'a',
+      item: 'marlboro',
+      drop: 0,
+      count: 7,
+    })
+    const [lying] = toWire(v.valley)?.drops ?? []
+    expect(lying).toMatchObject({ id: 0, kind: 'marlboro', count: 7 })
+    // Ahead is -z at yaw 0, within the scatter.
+    expect(lying.z).toBeLessThan(AT.z)
+    expect(Math.hypot(lying.x - AT.x, lying.z - AT.z)).toBeLessThan(
+      CONFIG.drops.ahead + CONFIG.drops.scatter + 1e-9
+    )
+  })
+
+  it('drops in the lobby too, but never from the bed', () => {
+    const lobby = valleyWith(join('a'), join('b'))
+    expect(lobby.step(drop('joints')).broadcast[0].reason).toBe('dropped')
+    lobby.step({ type: 'board', id: 'a' })
+    expect(lobby.step(drop('joints')).reply?.reason).toBe('aboard')
+    const riding = valleyWith(join('a'), { type: 'board', id: 'a' })
+    expect(riding.valley.members.a.phase).toBe('RIDING')
+    expect(riding.step(drop('joints')).reply?.reason).toBe('aboard')
+  })
+
+  it('refuses a drop it cannot place or that is not an item', () => {
+    const v = onFoot()
+    expect(v.step(drop('joints', 1, 'a', null)).reply).toEqual({
+      type: 'nack',
+      re: 'drop',
+      reason: 'no-position',
+    })
+    expect(v.step(drop('sack')).reply?.reason).toBe('not-an-item')
+    expect(v.step(drop('joints', 0)).reply?.reason).toBe('nothing')
+    expect(v.step(drop('joints', 1, 'nobody')).reply?.reason).toBe(
+      'not-in-raid'
+    )
+    expect(v.valley.raid?.drops).toEqual([])
+  })
+
+  it('sets cabbages down out of the arms, never more than they hold', () => {
+    const v = onFoot()
+    v.step({ type: 'take', id: 'a', index: 2 })
+    v.step({ type: 'take', id: 'a', index: 3 })
+    expect(v.step(drop('cabbage', 3)).reply?.reason).toBe('none-left')
+    const r = v.step(drop('cabbage', 2))
+    // The arms are the valley's, so nothing touches the pack.
+    expect(r.pack).toBeUndefined()
+    expect(carrying(v, 'a')).toBe(0)
+    expect(toWire(v.valley)?.drops[0]).toMatchObject({
+      kind: 'cabbage',
+      count: 2,
+    })
+  })
+
+  it('gives each drop its own id and spot, and anyone can take one up', () => {
+    const v = onFoot()
+    v.step(drop('joints', 2))
+    v.step(drop('joints', 1))
+    const [first, second] = toWire(v.valley)?.drops ?? []
+    expect([first.id, second.id]).toEqual([0, 1])
+    expect(first.x === second.x && first.z === second.z).toBe(false)
+    const r = v.step(takeDrop(0))
+    expect(r.pack).toEqual({ account: 'acct-b', kind: 'joints', delta: 2 })
+    expect(r.broadcast[0]).toMatchObject({
+      reason: 'drop-taken',
+      by: 'b',
+      item: 'joints',
+      drop: 0,
+      count: 2,
+    })
+    expect(toWire(v.valley)?.drops.map((d) => d.id)).toEqual([1])
+  })
+
+  it('tells the second to ask that the drop is gone', () => {
+    const v = onFoot()
+    v.step(drop('joints'))
+    v.step(takeDrop(0, 'b'))
+    const late = v.step(takeDrop(0, 'a'))
+    expect(late.broadcast).toEqual([])
+    expect(late.pack).toBeUndefined()
+    expect(late.reply).toEqual({
+      type: 'nack',
+      re: 'take-drop',
+      reason: 'gone',
+      drop: 0,
+    })
+  })
+
+  it('takes up cabbages on foot, only as many as the arms have room for', () => {
+    const v = onFoot()
+    for (let i = 0; i < CONFIG.cabbage.carryLimit; i++) {
+      v.step({ type: 'take', id: 'a', index: 2 + i })
+    }
+    v.step(drop('cabbage', CONFIG.cabbage.carryLimit))
+    // b already holds all but one.
+    for (let i = 0; i < CONFIG.cabbage.carryLimit - 1; i++) {
+      v.step({ type: 'take', id: 'b', index: 10 + i })
+    }
+    const r = v.step(takeDrop(0, 'b'))
+    expect(r.broadcast[0]).toMatchObject({ reason: 'drop-taken', count: 1 })
+    expect(carrying(v, 'b')).toBe(CONFIG.cabbage.carryLimit)
+    // The rest still lie there.
+    expect(toWire(v.valley)?.drops[0]).toMatchObject({
+      id: 0,
+      count: CONFIG.cabbage.carryLimit - 1,
+    })
+    expect(v.step(takeDrop(0, 'b')).reply?.reason).toBe('arms-full')
+  })
+
+  it('takes up no cabbage from the bed', () => {
+    // b stays in the bed while a hops out, takes one, and sets it down.
+    const v = valleyWith(
+      join('a'),
+      join('b'),
+      { type: 'board', id: 'a' },
+      { type: 'board', id: 'b' },
+      { type: 'hop-out', id: 'a' },
+      { type: 'take', id: 'a', index: 2 },
+      drop('cabbage')
+    )
+    expect(v.valley.members.b.phase).toBe('RIDING')
+    expect(v.step(takeDrop(0, 'b')).reply?.reason).toBe('not-on-foot')
+    // A pack item comes up from anywhere in the raid.
+    v.step(drop('joints'))
+    expect(v.step(takeDrop(1, 'b')).pack?.delta).toBe(1)
+  })
+
+  it('keeps drops through the raid and clears them when the valley resets', () => {
+    const v = onFoot()
+    v.step(drop('joints'))
+    v.step({ type: 'leave', id: 'a' })
+    expect(v.valley.raid?.drops).toHaveLength(1)
+    v.step({ type: 'leave', id: 'b' })
+    v.step(join('c'))
+    expect(v.valley.raid?.drops).toEqual([])
+    expect(v.valley.raid?.nextDrop).toBe(0)
+  })
+
+  it('gives a raid stored before drops none lying about', () => {
+    const v = onFoot()
+    const raid = v.valley.raid
+    if (!raid) throw new Error('expected a raid')
+    const { drops: _drops, nextDrop: _next, ...older } = raid
+    const restored = restoreValley({ ...v.valley, raid: older } as Valley)
+    expect(restored.raid).toMatchObject({ drops: [], nextDrop: 0 })
+  })
+})
+
 describe("rule 13: the shadowmen are the valley's", () => {
   // Out past every haven, on foot, looking north with nothing in hand.
   const state = (over: Partial<PeerStateWire> = {}): PeerStateWire => ({

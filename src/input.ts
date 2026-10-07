@@ -125,6 +125,9 @@ export function wireKeys(
         if (item && slot !== null) actions.assignSlot(slot, item.kind)
         return
       }
+      case 'drop':
+        if (item) actions.dropKind(item.kind, e.shiftKey)
+        return
       case 'prevTab':
         e.preventDefault()
         actions.stepBagTab(-1)

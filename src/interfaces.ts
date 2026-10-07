@@ -161,6 +161,7 @@ export type RaidEvent =
   | 'TIMER_EXPIRED'
   | 'HOP_OUT'
   | 'PICK_CABBAGE'
+  | 'DROP_CABBAGE'
   | 'CALL_TRUCK'
   | 'EXTRACT_FUEL'
   | 'EXTRACT_KEEP'

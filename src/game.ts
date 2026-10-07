@@ -8,6 +8,8 @@ import { NO_EFFECTS } from './hotbar.ts'
 import { STARTING_INVENTORY } from './inventory.ts'
 import { createRaid } from './raid.ts'
 import { freshStock } from './store.ts'
+import type { DropMeshes } from './dropmeshes.ts'
+import type { Drop } from './drops.ts'
 import type { FirstPersonHands } from './fphands.ts'
 import type { Glow } from './glow.ts'
 import type { Hand } from './hands.ts'
@@ -83,6 +85,12 @@ export interface GameState {
   aboard: boolean
   // Pickups asked of the valley and not yet answered.
   pendingTakes: Set<number>
+  // What lies dropped (sharedraid.ts rule 14): the valley's, from every
+  // snapshot, or this raider's own when played alone, numbered from
+  // nextDrop. Drops asked of the valley and not yet answered, by id.
+  drops: Drop[]
+  nextDrop: number
+  pendingDrops: Set<number>
   // Shelf units asked of the valley and not yet answered, as station:kind.
   pendingBuys: Set<string>
   // The berry bush as the valley last described it (the welcome, then
@@ -122,6 +130,9 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     shared: null,
     aboard: false,
     pendingTakes: new Set(),
+    drops: [],
+    nextDrop: 0,
+    pendingDrops: new Set(),
     pendingBuys: new Set(),
     daily: null,
     pendingCollect: false,
@@ -140,6 +151,8 @@ export interface Game {
   camera: THREE.PerspectiveCamera
   sky: THREE.Object3D
   world: World
+  // The drops' meshes, kept in step with state.drops.
+  drops: DropMeshes
   graph: RoadGraph
   truck: Truck
   // The joyride the truck leaves on, from the spawn station.

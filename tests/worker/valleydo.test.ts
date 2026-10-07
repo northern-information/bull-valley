@@ -877,6 +877,113 @@ describe('ValleyDO', () => {
   })
 })
 
+describe('ValleyDO: drops', () => {
+  const drop = (kind: string, count = 1) =>
+    JSON.stringify({ type: 'drop', kind, count })
+  const raidFrames = (socket: MockSocket) =>
+    socket.frames().filter((m): m is RaidMessage => m.type === 'raid')
+
+  it('sets an item down out of the pack, and anyone can take it up', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    await v.webSocketMessage(ws(a), state(40, 60))
+    await v.webSocketMessage(ws(a), drop('joints'))
+    expect(lastPack(a)?.joints).toBe(STARTING_INVENTORY.joints - 1)
+    const dropped = raidFrames(b).at(-1)
+    expect(dropped).toMatchObject({
+      reason: 'dropped',
+      by: idOf(a),
+      item: 'joints',
+      drop: 0,
+      count: 1,
+    })
+    const [lying] = dropped?.raid?.drops ?? []
+    // Where A's own state frame put them, not anywhere the frame said.
+    expect(Math.hypot(lying.x - 40, lying.z - 60)).toBeLessThan(2)
+    await v.webSocketMessage(ws(b), '{"type":"take-drop","drop":0}')
+    expect(lastPack(b)?.joints).toBe(STARTING_INVENTORY.joints + 1)
+    expect(raidFrames(a).at(-1)).toMatchObject({
+      reason: 'drop-taken',
+      by: idOf(b),
+      raid: { drops: [] },
+    })
+  })
+
+  it('sets down nothing the pack does not hold, or with no place to put it', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    await v.webSocketMessage(ws(a), drop('joints'))
+    expect(a.frames().at(-2)).toEqual({
+      type: 'nack',
+      re: 'drop',
+      reason: 'no-position',
+    })
+    // Every refusal sends the pack, to put the client's guess right.
+    expect(lastPack(a)?.joints).toBe(STARTING_INVENTORY.joints)
+    await v.webSocketMessage(ws(a), state(40, 60))
+    const before = b.frames().length
+    await v.webSocketMessage(
+      ws(a),
+      drop('joints', STARTING_INVENTORY.joints + 1)
+    )
+    expect(a.frames().at(-2)).toEqual({
+      type: 'nack',
+      re: 'drop',
+      reason: 'none-left',
+    })
+    // The pack, as it is, puts the guess right; nobody saw a drop.
+    expect(lastPack(a)?.joints).toBe(STARTING_INVENTORY.joints)
+    expect(b.frames()).toHaveLength(before)
+    const stored = s.storage.map.get('valley') as { raid: { drops: unknown[] } }
+    expect(stored.raid.drops).toEqual([])
+  })
+
+  it('sets down nothing when the pack cannot be written', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    await v.webSocketMessage(ws(a), state(40, 60))
+    const store = v.packStore
+    v.packStore = {
+      open: (id) => store.open(id),
+      get: (id) => store.get(id),
+      purchase: (id, amount, item) => store.purchase(id, amount, item),
+      change: () => Promise.reject(new Error('down')),
+    }
+    const error = console.error
+    console.error = () => {}
+    try {
+      await v.webSocketMessage(ws(a), drop('joints'))
+    } finally {
+      console.error = error
+    }
+    expect(
+      a.frames().findLast((m): m is NackMessage => m.type === 'nack')
+    ).toMatchObject({ re: 'drop', reason: 'unavailable' })
+    expect(
+      (s.storage.map.get('valley') as { raid: { drops: unknown[] } }).raid.drops
+    ).toEqual([])
+  })
+
+  it('refuses a flood of drops', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    await v.webSocketMessage(ws(a), state(40, 60))
+    await v.packStore.change('acct-A', 'joints', 50)
+    for (let i = 0; i < 21; i++) {
+      await v.webSocketMessage(ws(a), drop('joints'))
+    }
+    expect(a.frames().at(-2)).toMatchObject({
+      re: 'drop',
+      reason: 'too-fast',
+    })
+    expect(a.last<PackMessage>().type).toBe('pack')
+    const stored = s.storage.map.get('valley') as { raid: { drops: unknown[] } }
+    expect(stored.raid.drops).toHaveLength(20)
+  })
+})
+
 describe('ValleyDO: the shadowmen', () => {
   const shadowFrames = (socket: MockSocket) =>
     socket.frames().filter((m): m is ShadowmenMessage => m.type === 'shadowmen')

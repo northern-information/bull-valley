@@ -7,6 +7,7 @@ import {
   MOVE,
   moveAxis,
   PACK,
+  PACK_IN_MENU,
   WORLD,
 } from '../../src/bindings.ts'
 import { copy } from '../../src/copy.ts'
@@ -77,6 +78,13 @@ describe('PACK', () => {
     expect(actionOf(PACK, 'Enter')).toBe('use')
     expect(actionOf(PACK, 'Tab')).toBe('close')
     expect(actionOf(PACK, 'Escape')).toBe('close')
+  })
+
+  it('drops on X, and Shift+X is only its label', () => {
+    expect(actionOf(PACK, 'KeyX')).toBe('drop')
+    expect(actionOf(WORLD, 'KeyX')).toBeNull()
+    expect(PACK.dropAll.codes).toEqual([])
+    expect(PACK_IN_MENU).toEqual([PACK.drop, PACK.dropAll])
   })
 })
 
