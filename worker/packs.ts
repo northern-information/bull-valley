@@ -5,7 +5,9 @@
 // src/sharedworld.ts's (rules 7 and 10).
 
 import { CONFIG } from '../src/config.ts'
+import { toCosmetics } from '../src/cosmetics.ts'
 import { STARTING_INVENTORY, toInventory } from '../src/inventory.ts'
+import type { CosmeticId } from '../src/cosmetics.ts'
 import type { Inventory } from '../src/interfaces.ts'
 
 // A new account's wallet, in cents.
@@ -15,6 +17,8 @@ export interface Holdings {
   pack: Inventory
   // In cents.
   cash: number
+  // Had for good (src/cosmetics.ts).
+  cosmetics: CosmeticId[]
 }
 
 export interface PackStore {
@@ -34,6 +38,14 @@ export interface PackStore {
   ): Promise<boolean>
   // Pays `amount` cents into the wallet (dimes taken up).
   earn(accountId: string, amount: number): Promise<void>
+  // A trade (sharedworld.ts rule 14): `price.count` of `price.kind` out of
+  // the pack and `cosmetic` the account's, both or neither; false when the
+  // pack does not cover it or the account has it already.
+  trade(
+    accountId: string,
+    price: { kind: string; count: number },
+    cosmetic: CosmeticId
+  ): Promise<boolean>
 }
 
 // Units of one kind going into a pack.
@@ -45,6 +57,7 @@ export interface PackItem {
 export class MemoryPackStore implements PackStore {
   readonly packs = new Map<string, Map<string, number>>()
   readonly wallets = new Map<string, number>()
+  readonly cosmetics = new Map<string, Set<CosmeticId>>()
 
   open(accountId: string): Promise<Holdings> {
     if (!this.packs.has(accountId)) {
@@ -65,6 +78,7 @@ export class MemoryPackStore implements PackStore {
     return Promise.resolve({
       pack: toInventory(Object.fromEntries(rows)),
       cash: this.wallets.get(accountId) ?? 0,
+      cosmetics: toCosmetics([...(this.cosmetics.get(accountId) ?? [])]),
     })
   }
 
@@ -93,5 +107,17 @@ export class MemoryPackStore implements PackStore {
     const cash = this.wallets.get(accountId) ?? STARTING_CASH
     this.wallets.set(accountId, cash + amount)
     return Promise.resolve()
+  }
+
+  async trade(
+    accountId: string,
+    price: { kind: string; count: number },
+    cosmetic: CosmeticId
+  ): Promise<boolean> {
+    const owned = this.cosmetics.get(accountId) ?? new Set<CosmeticId>()
+    if (owned.has(cosmetic)) return false
+    if (!(await this.change(accountId, price.kind, -price.count))) return false
+    this.cosmetics.set(accountId, owned.add(cosmetic))
+    return true
   }
 }

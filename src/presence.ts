@@ -4,6 +4,8 @@
 // and Three-free; peers.ts draws it, valleysync.ts feeds it from the net frames.
 
 import { compassBearing } from './coords.ts'
+import { toCosmetics } from './cosmetics.ts'
+import type { CosmeticId } from './cosmetics.ts'
 import type { ScopeContact, XZ } from './interfaces.ts'
 import type { OutfitId } from './outfits.ts'
 import type { PeerPose, PeerStateWire, PeerWire } from './protocol.ts'
@@ -17,6 +19,8 @@ export interface Peer {
   id: string
   name: string
   outfit: OutfitId
+  // What they wear over it (cosmetics.ts).
+  cosmetics: CosmeticId[]
   // The two most recent states; prev is null until the second arrives, and
   // both are null until the peer is placed.
   prev: PeerSnapshot | null
@@ -49,6 +53,7 @@ export function applyJoined(peers: PeerTable, wire: PeerWire, now: number) {
     id: wire.id,
     name: wire.name,
     outfit: wire.outfit,
+    cosmetics: toCosmetics(wire.cosmetics),
     prev: null,
     next: wire.at ? { ...wire.at, at: now } : null,
   }
@@ -56,13 +61,14 @@ export function applyJoined(peers: PeerTable, wire: PeerWire, now: number) {
   return peer
 }
 
-// A known peer's new name or character, from Gron. Their place and motion
-// stay as they were. An unknown id is ignored: we have not seen them join.
+// A known peer's new name or character, from Gron, or a cosmetic from
+// Moab. Their place and motion stay as they were. An unknown id is ignored: we have not seen them join.
 export function applyUpdated(peers: PeerTable, wire: PeerWire): Peer | null {
   const peer = peers.get(wire.id)
   if (!peer) return null
   peer.name = wire.name
   peer.outfit = wire.outfit
+  peer.cosmetics = toCosmetics(wire.cosmetics)
   return peer
 }
 

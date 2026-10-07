@@ -2769,52 +2769,95 @@ export function buildDimes(
   return group
 }
 
-// Gold bullion the Caretaker leaves where it was unmade: small cast bars
-// of one troy ounce each (a little over life size, to read at PS1
-// resolution), one per unit in the drop, lying in a loose stack. Local space: on the ground at the
-// origin.
-export function buildGoldBullion(
-  ounces: number,
-  seed = 0x601d,
-  { glow = true }: PickupOptions = {}
-): THREE.Group {
+// --- Gold bullion --------------------------------------------------------
+
+// One troy ounce of gold: a small minted bar (about 50 x 29 x 2 mm, so it
+// can be seen at all it is drawn half again as big), lying flat with a
+// raised stamp on its face. Origin at the bottom of the bar.
+function buildGoldBullion({ glow = true }: PickupOptions = {}): THREE.Group {
   const group = new THREE.Group()
   group.name = 'gold-bullion'
-  const material = lambert({
-    color: '#b8862a',
-    emissive: new THREE.Color('#ffd36a'),
-    emissiveIntensity: 0.35,
+  const gold = lambert({
+    color: '#8a6514',
+    emissive: new THREE.Color('#f2b632'),
+    emissiveIntensity: 0.45,
   })
-  // A cast bar: wider at the foot than the top.
-  const geo = new THREE.CylinderGeometry(0.05, 0.062, 0.022, 4, 1)
-  geo.rotateY(Math.PI / 4)
-  geo.scale(1.3, 1, 0.75)
-  geo.translate(0, 0.011, 0)
-  const rng = mulberry32(seed)
-  const bars = Math.max(1, Math.min(ounces, 10))
-  for (let i = 0; i < bars; i++) {
-    const bar = new THREE.Mesh(geo, material)
-    // Two to a layer, crossed a little, each layer on the last.
-    const layer = Math.floor(i / 2)
-    const side = i % 2 === 0 ? -1 : 1
-    bar.position.set(
-      side * 0.045 + range(rng, -0.01, 0.01),
-      layer * 0.022,
-      range(rng, -0.012, 0.012)
-    )
-    bar.rotation.y = Math.PI / 2 + range(rng, -0.25, 0.25)
-    group.add(bar)
-  }
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.006, 0.045), gold)
+  bar.position.y = 0.003
+  group.add(bar)
+  const stamp = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.002, 0.026), gold)
+  stamp.position.y = 0.007
+  group.add(stamp)
   if (glow) {
-    const halo = makeGlowSprite(
-      makeGlowTexture('rgba(255, 214, 120, 0.5)'),
-      0.9
-    )
-    halo.position.y = 0.06
+    const halo = makeGlowSprite(makeGlowTexture('rgba(255, 196, 64, 0.5)'), 0.6)
+    halo.position.y = 0.02
     group.add(halo)
   }
-  setPulseMaterials(group, [material])
+  setPulseMaterials(group, [gold])
   return group
+}
+
+// --- The Flaming Halo -----------------------------------------------------
+
+// A cosmetic Moab Coldë trades for gold (cosmetics.ts): a ring of gold
+// floating level over the head, burning all the way round with Moab's own
+// fire. Origin at the middle of the ring. update(t) moves the fire and
+// turns the ring slowly; dispose() frees what this halo alone owns (the
+// ring's geometry and material are shared by every halo).
+export interface FlamingHalo {
+  group: THREE.Group
+  update: (t: number) => void
+  dispose: () => void
+}
+
+const HALO = { radius: 0.15, tube: 0.012, tongues: 9, flame: 0.085 }
+
+let haloRing: {
+  geometry: THREE.TorusGeometry
+  material: THREE.Material
+} | null = null
+
+export function buildFlamingHalo(): FlamingHalo {
+  haloRing ??= {
+    geometry: new THREE.TorusGeometry(HALO.radius, HALO.tube, 4, 18),
+    material: lambert({
+      color: '#a07818',
+      emissive: new THREE.Color('#ffc23a'),
+      emissiveIntensity: 0.8,
+    }),
+  }
+  const group = new THREE.Group()
+  group.name = 'flaming-halo'
+  const ring = new THREE.Mesh(haloRing.geometry, haloRing.material)
+  ring.rotation.x = Math.PI / 2
+  group.add(ring)
+  const spots: FlameSpot[] = Array.from({ length: HALO.tongues }, (_, i) => {
+    const a = (i / HALO.tongues) * Math.PI * 2
+    // Every other tongue a little shorter, so the crown is never even.
+    const size = HALO.flame * (i % 2 === 0 ? 1 : 0.7)
+    return {
+      at: [Math.cos(a) * HALO.radius, 0, Math.sin(a) * HALO.radius],
+      size,
+    }
+  })
+  const flames = buildFlames(spots, 0x4a10)
+  group.add(flames.group)
+  const update = (t: number) => {
+    group.rotation.y = t * 0.4
+    flames.update(t)
+  }
+  update(0)
+  const dispose = () => {
+    flames.group.traverse((o) => {
+      if (o instanceof THREE.InstancedMesh) o.dispose()
+      else if (o instanceof THREE.Points) {
+        const points = o as THREE.Points<THREE.BufferGeometry, THREE.Material>
+        points.geometry.dispose()
+        points.material.dispose()
+      } else if (o instanceof THREE.Sprite) o.material.dispose()
+    })
+  }
+  return { group, update, dispose }
 }
 
 // --- Baseball bat --------------------------------------------------------
@@ -4431,7 +4474,7 @@ export function buildPickup(
   if (isDrink(kind)) return buildDrink(kind, { glow })
   if (kind === 'berries') return buildBerries({ glow })
   if (kind === 'dimes') return buildDimes(12, seed, { glow })
-  if (kind === 'gold-bullion') return buildGoldBullion(1, seed, { glow })
+  if (kind === 'gold-bullion') return buildGoldBullion({ glow })
   if (isMedicine(kind)) return buildMedicine(kind, { glow })
   let mesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshLambertMaterial>
   if (kind === 'cabbage') {
@@ -4797,8 +4840,21 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   { id: 'dimes', label: 'Dimes (12)', build: () => buildDimes(12) },
   {
     id: 'gold-bullion',
-    label: 'Gold bullion (1 troy oz bar)',
-    build: () => buildGoldBullion(1),
+    label: 'Gold bullion (1 troy oz)',
+    build: () => buildPickup('gold-bullion'),
+  },
+  {
+    id: 'flaming-halo',
+    label: 'The Flaming Halo',
+    build: () => {
+      // At a head's height, where it is worn.
+      const group = new THREE.Group()
+      const halo = buildFlamingHalo()
+      halo.group.position.y = 1.85
+      group.add(halo.group)
+      setMotion(group, halo.update)
+      return group
+    },
   },
   { id: 'berry-bush', label: 'Berry bush', build: () => buildBerryBush() },
   {

@@ -57,3 +57,48 @@ test('Moab Coldë says his line', async ({ page }) => {
   // He opens nothing: the game keeps the pointer.
   expect(await page.evaluate(() => window.__bv?.player.locked)).toBe(true)
 })
+
+test('Moab Coldë trades the Flaming Halo for an ounce of gold', async ({
+  page,
+}) => {
+  await beginRaid(page)
+  // Gold bullion has no way into the pack yet but the dev hook.
+  await page.evaluate(() => window.__bv?.grant('gold-bullion'))
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.inventory['gold-bullion']))
+    .toBe(1)
+  await standAtMoab(page)
+  // In his reach he makes his offer, and the prompt says what he wants.
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.chat.at(-1)?.text))
+    .toBe(copy('moab.offer'))
+  await expect(page.locator('.bv-prompt')).toHaveText(
+    copy('prompts.trade', {
+      count: 1,
+      price: copy('items.gold-bullion.label'),
+      cosmetic: copy('cosmetics.flaming-halo.label'),
+    })
+  )
+  await page.keyboard.press('KeyE')
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.cosmetics))
+    .toEqual(['flaming-halo'])
+  expect(
+    await page.evaluate(() => window.__bv?.inventory['gold-bullion'])
+  ).toBe(0)
+  const lines = await page.evaluate(() =>
+    window.__bv?.chat.slice(-2).map((line) => line.text)
+  )
+  expect(lines).toEqual([
+    copy('moab.traded'),
+    copy('log.cosmetic_worn', {
+      cosmetic: copy('cosmetics.flaming-halo.label'),
+    }),
+  ])
+  // Worn for good, he has nothing more to offer: E hears his line again.
+  await expect(page.locator('.bv-prompt')).toBeHidden()
+  await page.keyboard.press('KeyE')
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.chat.at(-1)?.text))
+    .toBe(copy('moab.says'))
+})

@@ -170,21 +170,21 @@ export const CONFIG = {
     skipFadeMs: 200,
     skipAudioFadeMs: 300,
     // After the colophon resolves, the black backdrop lifts to reveal the
-    // logo card.
+    // main menu.
     revealFadeMs: 400,
     imageSrc:
       '/applied-sciences-and-phantasms-working-division-flourescent.png',
     audioSrc: '/sfx/northern-information.mp3',
   },
   logo: {
-    // The game's own title card, straight after the colophon: the same
-    // envelope shape, sized to its cue (~14s) so the cue ends at silence.
+    // The game's own logo atop the main menu, straight after the colophon:
+    // it fades up over fadeInMs, and its cue (~14s) plays once under the
+    // same envelope shape, so it ends at silence.
     fadeInMs: 2000,
     holdMs: 10400,
     fadeOutMs: 1600,
     skipFadeMs: 200,
     skipAudioFadeMs: 300,
-    // The backdrop lifts to reveal the character select.
     revealFadeMs: 400,
     imageSrc: '/bull-valley-shadow-wars.png',
     audioSrc: '/sfx/bull-valley-shadow-wars-intro.mp3',

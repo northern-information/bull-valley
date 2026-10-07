@@ -131,6 +131,10 @@ hop_out_moving = { text = "Boots on gravel. The truck rolls on.", by = "ai" }
 end_of_line = { text = "Back at the Citgo. Marx lights a cigarette.", by = "ai" }
 ride_home = { text = "Marx turns for home.", by = "ai" }
 board_refused = { text = "Marx shakes his head. Not now.", by = "ai" }
+cosmetic_worn = { text = "You wear the {cosmetic}. The whole valley can see it burn.", by = "ai" }
+trade_short = { text = "Moab wants {count} oz of {price}. You do not have it.", by = "ai" }
+trade_owned = { text = "You already wear the {cosmetic}.", by = "ai" }
+trade_refused = { text = "Moab turns the scroll in the fire. Not now.", by = "ai" }
 marx_donuts = { text = "Somewhere across the road, tires tear up a field.", by = "ai" }
 marx_back = { text = "Marx comes back across the road and picks up his book.", by = "ai" }
 whistle = { text = "You whistle into the dark. An engine turns over, far off.", by = "ai" }
@@ -166,6 +170,7 @@ leaves_in = { text = "Marx leaves in {clock}", by = "ai" }
 [prompts]
 hop_out = { text = "E — Hop Out", by = "ai" }
 board = { text = "E — Climb into the Bed", by = "ai" }
+trade = { text = "E — Trade {count} oz of {price} for the {cosmetic}", by = "ai" }
 
 # Lines the game says to the player in the chat log (src/chat.ts).
 
@@ -202,6 +207,19 @@ keep = { text = "Mt. Coleman's Keep", by = "ai" }
 colophon_alt = { text = "Northern Information", by = "ai" }
 colophon_hint = { text = "Click to Die", by = "ai" }
 logo_alt = { text = "Bull Valley Shadow Wars", by = "ai" }
+
+# The main menu under the logo (src/mainmenu.ts), and the sign-in card's
+# way back to it (src/signin.ts).
+
+[menu]
+create_account = { text = "Create Account", by = "ai" }
+die = { text = "Die", by = "ai" }
+settings = { text = "Settings", by = "ai" }
+quit = { text = "Quit", by = "ai" }
+account = { text = "Account", by = "ai" }
+sign_out = { text = "Sign Out", by = "ai" }
+back = { text = "Back", by = "ai" }
+quit_blocked = { text = "The valley lets you go. Close this tab.", by = "ai" }
 
 # Key labels: what each key does, in the intro controls table and the
 # pack's item card. The key names themselves stay in src/bindings.ts.
@@ -275,6 +293,11 @@ berries = { text = "Berries", by = "ai" }
 dimes = { text = "{count} Dimes", by = "ai" }
 berry_picked = { text = "Picked Clean Until Midnight", by = "ai" }
 berry_offline = { text = "No Signal", by = "ai" }
+
+# Cosmetics, worn over a character (src/cosmetics.ts). Keys match its ids.
+
+[cosmetics.flaming-halo]
+label = { text = "Flaming Halo", by = "ai" }
 
 # Character names, as the select and the name tags show them. Keys
 # match src/outfits.ts.
@@ -355,6 +378,8 @@ close = { text = "Close", by = "tyler" }
 
 [moab]
 says = { text = "Gold bullion.", by = "ai" }
+offer = { text = "Gold bullion. One troy ounce, and the halo is yours to burn under.", by = "ai" }
+traded = { text = "It will never go out. Neither will you.", by = "ai" }
 
 # Guitar finishes on the character select. Keys match src/finishes.ts.
 
@@ -567,5 +592,5 @@ blurb = { text = "Dark and cold, off the bush by the Citgo. One a day.", by = "a
 collected = { text = "A berry off the bush. The rest are for tomorrow.", by = "ai" }
 
 [items.gold-bullion]
-label = { text = "Gold Bullion, 1 Troy Oz", by = "ai" }
-blurb = { text = "One troy ounce, still cold from the lantern. What the Caretaker kept.", by = "ai" }
+label = { text = "Gold Bullion", by = "ai" }
+blurb = { text = "One troy ounce, stamped .9999 fine. Moab Coldë has a use for it.", by = "ai" }
