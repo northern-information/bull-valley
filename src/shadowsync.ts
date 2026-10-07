@@ -1,5 +1,5 @@
 // Pure: the valley's shadowmen as this client draws them. The valley sends
-// every step (sharedraid.ts rule 13); the client keeps the last two and
+// every step (sharedworld.ts rule 11); the client keeps the last two and
 // draws a beat behind the present, between them, the way it draws peers
 // (presence.ts). One in the newer frame only has just come in, and shows
 // where it is; one in the older only has gone (out of the bubble, or

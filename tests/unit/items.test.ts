@@ -42,8 +42,9 @@ describe('items', () => {
       const item = itemById(id)
       if (!item) throw new Error(`no item ${id}`)
       const keys: (keyof Item)[] = ['label', 'blurb']
-      // Shelf items are bought; forage is collected off the bush.
-      keys.push(item.price !== undefined ? 'bought' : 'collected')
+      // Shelf items are bought; berries are collected off a bush.
+      if (item.price !== undefined) keys.push('bought')
+      if (id === 'berries') keys.push('collected')
       if (isUsable(id)) keys.push('used', 'empty')
       for (const key of keys) {
         expect(item[key], `${id}.${key}`).toBeTruthy()
@@ -95,7 +96,8 @@ describe('items', () => {
   it('prices every shelf item in whole cents', () => {
     const items: readonly Item[] = ITEMS
     const forSale = items.filter((item) => item.price !== undefined)
-    expect(forSale.length).toBe(ITEMS.length - 1)
+    // All but the forage: the berries and the cabbages.
+    expect(forSale.length).toBe(ITEMS.length - 2)
     for (const item of forSale) {
       expect(Number.isInteger(item.price), item.id).toBe(true)
       expect(item.price, item.id).toBeGreaterThan(0)
@@ -112,6 +114,14 @@ describe('items', () => {
     expect(berries.start).toBe(0)
     expect(INVENTORY_KINDS).toContain('berries')
     expect(isUsable('berries')).toBe(false)
+  })
+
+  it('carries cabbages in the pack like any forage, never for sale', () => {
+    const cabbage = getItem('cabbage')
+    expect(cabbage.category).toBe('forage')
+    expect('price' in cabbage).toBe(false)
+    expect(INVENTORY_KINDS).toContain('cabbage')
+    expect(isUsable('cabbage')).toBe(false)
   })
 })
 

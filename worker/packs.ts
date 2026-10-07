@@ -2,7 +2,7 @@
 // kept by the valley so they follow the raider to any browser. The
 // interface is here with an in-memory store for the tests; production is
 // the D1 store in d1packs.ts. The rules of what goes in and out are
-// src/sharedraid.ts's (rules 8 and 11).
+// src/sharedworld.ts's (rules 7 and 10).
 
 import { CONFIG } from '../src/config.ts'
 import { STARTING_INVENTORY, toInventory } from '../src/inventory.ts'

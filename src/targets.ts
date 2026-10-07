@@ -27,8 +27,8 @@ export interface Targets {
   npcSpots(station: number): NpcSpot[]
   // What the glow rings for an interaction: the pickup, the shelf unit a
   // buy would take, a bush while today's berry is on it, Gron, or Marx,
-  // Carlsten or Moab when E would talk to him. Nothing for the truck, the
-  // stand, or an extraction.
+  // Carlsten or Moab when E would talk to him. Nothing for the truck or the
+  // stand.
   glowTarget(action: Interaction<Pickup> | null): THREE.Object3D | null
   // What an item's label floats over: the pickup, the shelf unit a buy
   // would take, or a bush, picked or not. Null for anything else.

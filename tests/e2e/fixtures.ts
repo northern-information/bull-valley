@@ -156,6 +156,9 @@ export async function beginRaid(
   await expect
     .poll(() => page.evaluate(() => window.__bv?.net.status))
     .not.toBe('connecting')
+  // Raiders are on foot from the start: a quiet valley, where only the
+  // shadowmen a spec places come for anyone.
+  await page.evaluate(() => window.__bv?.calm())
   const begin = page.locator('[data-bv="begin"]')
   await expect(begin).toBeEnabled()
   await begin.click()

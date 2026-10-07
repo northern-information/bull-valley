@@ -5,20 +5,15 @@
 
 import { USERNAME_MAX } from './account.ts'
 import type { Drop } from './drops.ts'
-import type {
-  ExtractKind,
-  Inventory,
-  Metres,
-  ShopStock,
-  XZ,
-} from './interfaces.ts'
+import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
+import type { TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
 import type { OutfitId } from './outfits.ts'
 import type { Burst } from './shadowmen.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 14
+export const PROTOCOL_VERSION = 15
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -87,56 +82,39 @@ export interface PickupSpec {
   count: number
 }
 
-// --- The shared raid -------------------------------------------------------
-// One truck, one clock, shared pickups. The server owns this state; the
-// rules are in sharedraid.ts and every change comes down as a RaidMessage.
+// --- The shared world ------------------------------------------------------
+// One persistent valley: Matthew Marx's truck, shared pickups, shelves and
+// drops. The server owns this state; the rules are in sharedworld.ts and
+// every change comes down as a WorldMessage.
 
-// Where a player is in the raid, as the server tracks it.
-export type MemberPhase = 'LOBBY' | 'RIDING' | 'ON_FOOT' | 'EXTRACTED'
-
+// A raider in the valley, as the others see them.
 export interface MemberWire {
   id: string
   name: string
-  phase: MemberPhase
-  // Standing in the bed during the lobby, waiting on the others.
-  boarded: boolean
-  // The account's cargo this raid (sharedraid.ts Cargo): cabbages in the
-  // arms.
-  carrying: number
 }
 
-// A whistle for the truck: who, from where the truck was, to where they
-// stood, and when. Every client plans the same road between the two.
-export interface TruckCall {
-  by: string
-  from: XZ
-  to: XZ
-  at: number
-}
-
-export type DepartReason = 'all-aboard' | 'clock'
-
-export interface RaidWire {
-  // Counts up with every fresh lobby.
-  epoch: number
-  phase: 'LOBBY' | 'OUT'
-  // Server ms. The clients derive the countdown and the truck's position
-  // from these, never from their own frame time.
-  startedAt: number
-  loadoutEndsAt: number
-  departedAt: number | null
-  departReason: DepartReason | null
-  // Who was in the bed when it left, in seat order.
-  riders: string[]
-  // Indices into world.pickups, in the order they were taken.
+export interface WorldWire {
+  // The Central day the pickups, shelves and drops belong to; they all
+  // come back when it turns.
+  day: string
+  // Indices into world.pickups taken today, in the order they went.
   taken: number[]
   // Every Citgo's shelf stock, indexed like world.fuelPoints. A unit one
-  // player buys is off the shelf for everyone.
+  // raider buys is off the shelf for everyone.
   shelves: ShopStock[]
-  // What raiders have dropped and nobody has taken up yet (rule 14).
+  // What raiders have dropped and nobody has taken up yet.
   drops: Drop[]
-  call: TruckCall | null
+  // Matthew Marx's truck: its leg, stamped with server ms, and who is in
+  // the bed (marx.ts). Every client drives the same leg (truckplan.ts).
+  truck: TruckState
   members: MemberWire[]
+}
+
+// Where an account last stood on foot, to come back to.
+export interface Place {
+  x: number
+  z: number
+  yaw: number
 }
 
 // The berry bushes: the one at the spawn Citgo (0) and the ring at the
@@ -150,21 +128,23 @@ export interface DailyWire {
   resetsAt: number
 }
 
-// Why a raid frame was sent; the client's chat-log lines hang off it.
-export type RaidReason =
+// Why a world frame was sent; the client's chat-log lines hang off it.
+export type WorldReason =
   | 'joined'
   | 'left'
   | 'boarded'
-  | 'unboarded'
+  | 'hopped-out'
+  | 'called'
+  | 'ferry'
   | 'depart'
-  | 'hop-out'
+  | 'home'
+  | 'donuts'
+  | 'back'
   | 'taken'
   | 'bought'
   | 'dropped'
   | 'drop-taken'
-  | 'call'
-  | 'truck-free'
-  | 'extracted'
+  | 'refill'
   | 'hurry'
   | 'reset'
 
@@ -177,26 +157,25 @@ export interface HelloMessage {
   v: number
   outfit: OutfitId
   // Every pickup this build placed, in world.pickups order, and how many
-  // stations. A raid is shared by index into both, so a client built from
-  // a different placement is turned away.
+  // stations. The world is shared by index into both, so a client built
+  // from a different placement is turned away.
   pickups: PickupSpec[]
   stations: number
   // Where each station stands, in world.fuelPoints order (its forecourt is
   // a haven from the shadowmen), and the survey's size: the valley steps
-  // the shadowmen with them (sharedraid.ts rule 13).
+  // the shadowmen with them (sharedworld.ts rule 11).
   havens: XZ[]
   metres: Metres
   // Where the corn maze lies, or null: the valley steps the Caretaker in
-  // it (rule 15).
+  // it (rule 13).
   maze: MazePlace | null
+  // Where Marx parks and how long his joyride takes: the valley never
+  // knows the roads (marx.ts).
+  truck: TruckRoutes
 }
 
 export interface BoardMessage {
   type: 'board'
-}
-
-export interface UnboardMessage {
-  type: 'unboard'
 }
 
 export interface HopOutMessage {
@@ -224,11 +203,6 @@ export interface CallMessage {
   to: XZ
 }
 
-export interface ExtractMessage {
-  type: 'extract'
-  kind: ExtractKind
-}
-
 // One unit of `kind` out of the pack, used. The valley takes it off the
 // account's pack and answers with a PackMessage, or a nack when there is
 // none to use.
@@ -237,10 +211,9 @@ export interface UseMessage {
   kind: string
 }
 
-// `count` of `kind` set down a little ahead of the raider: out of the
-// pack, or a cabbage out of the arms. The valley places it where the
-// raider's last state frame put them, and refuses a drop the pack or the
-// arms cannot cover.
+// `count` of `kind` set down a little ahead of the raider, out of the
+// pack. The valley places it where the raider's last state frame put
+// them, and refuses a drop the pack cannot cover.
 export interface DropMessage {
   type: 'drop'
   kind: string
@@ -261,7 +234,8 @@ export interface CollectMessage {
 }
 
 // Dev-server only: the Worker stamps the socket, and production ignores
-// these. hurry rewrites the lobby clock; reset empties the valley.
+// these. hurry brings the truck's next change to `seconds` from now;
+// reset opens the world afresh.
 export type DevMessage =
   | { type: 'dev'; op: 'hurry'; seconds: number }
   | { type: 'dev'; op: 'reset' }
@@ -269,6 +243,9 @@ export type DevMessage =
   | { type: 'dev'; op: 'shadowman'; x: number; z: number }
   // The Caretaker moved to (x, z), for the specs.
   | { type: 'dev'; op: 'caretaker'; x: number; z: number }
+  // A quiet valley for the specs: the crossing shadowmen never rush, and
+  // only the ones a spec places do.
+  | { type: 'dev'; op: 'calm' }
 
 // One line to everyone in the valley. The valley echoes it back to the
 // sender too, so every client shows the server's copy.
@@ -307,12 +284,10 @@ export type ClientMessage =
   | StateMessage
   | PingMessage
   | BoardMessage
-  | UnboardMessage
   | HopOutMessage
   | TakeMessage
   | BuyMessage
   | CallMessage
-  | ExtractMessage
   | CollectMessage
   | UseMessage
   | DropMessage
@@ -334,8 +309,9 @@ export interface WelcomeMessage {
   // offset from it.
   serverNow: number
   peers: PeerWire[]
-  raid: RaidWire
-  phase: MemberPhase
+  world: WorldWire
+  // Where this account last stood on foot, or null for the spawn Citgo.
+  place: Place | null
   // Which bushes still have a berry for this account today.
   daily: DailyWire
   // The account's pack and wallet, as the valley keeps them.
@@ -362,14 +338,14 @@ export interface DailyMessage {
   picked: boolean
 }
 
-// The whole shared raid after a change, and why. raid is null only after a
-// reset, when the valley is waiting for its next player.
-export interface RaidMessage {
-  type: 'raid'
-  reason: RaidReason
-  raid: RaidWire | null
-  // Who did it, for 'joined', 'left', 'boarded', 'unboarded', 'hop-out',
-  // 'taken', 'bought', 'dropped', 'drop-taken', 'call', 'extracted'.
+// The whole shared world after a change, and why. world is null only
+// after a dev reset, until the next arrival opens it again.
+export interface WorldMessage {
+  type: 'world'
+  reason: WorldReason
+  world: WorldWire | null
+  // Who did it, for 'joined', 'left', 'boarded', 'hopped-out', 'called',
+  // 'ferry', 'taken', 'bought', 'dropped', 'drop-taken'.
   by?: string
   // For 'taken'.
   index?: number
@@ -381,8 +357,6 @@ export interface RaidMessage {
   // down or taken up.
   drop?: number
   count?: number
-  // For 'extracted'.
-  kind?: ExtractKind
 }
 
 export interface NackMessage {
@@ -484,7 +458,7 @@ export type ServerMessage =
   | PeerUpdatedMessage
   | PeerStateMessage
   | PeerLeftMessage
-  | RaidMessage
+  | WorldMessage
   | NackMessage
   | DailyMessage
   | PackMessage
@@ -548,12 +522,6 @@ function isPeerPose(value: unknown): value is PeerPose {
   return PEER_POSES.some((pose) => pose === value)
 }
 
-const EXTRACT_KINDS: readonly ExtractKind[] = ['truck', 'fuel', 'keep']
-
-export function isExtractKind(value: unknown): value is ExtractKind {
-  return EXTRACT_KINDS.some((kind) => kind === value)
-}
-
 function isCoord(value: unknown): value is number {
   return (
     typeof value === 'number' &&
@@ -606,6 +574,20 @@ function parseHavens(value: unknown, stations: number): XZ[] | null {
     havens.push(at)
   }
   return havens
+}
+
+// The longest joyride the valley believes: a day.
+const JOYRIDE_MS_MAX = 24 * 60 * 60 * 1000
+
+// A hello's truck: where it parks, and how long its joyride takes.
+function parseRoutes(value: unknown): TruckRoutes | null {
+  if (!isRecord(value)) return null
+  const home = parseXZ(value.home)
+  const { joyrideMs } = value
+  if (!home || typeof joyrideMs !== 'number') return null
+  if (!Number.isFinite(joyrideMs) || joyrideMs < 0) return null
+  if (joyrideMs > JOYRIDE_MS_MAX) return null
+  return { home, joyrideMs }
 }
 
 // A hello's maze: a place in the survey and a finite turn. Undefined for
@@ -665,11 +647,12 @@ export function parseClientMessage(text: string): ClientMessage | null {
       const havens = parseHavens(value.havens, stations)
       const metres = parseMetres(value.metres)
       const maze = value.maze === null ? null : parseMazePlace(value.maze)
+      const truck = parseRoutes(value.truck)
       // An older build sends none of them; it still parses as far as its
       // version, which the server then refuses.
       if (
         v === PROTOCOL_VERSION &&
-        (!havens || !metres || maze === undefined)
+        (!havens || !metres || maze === undefined || !truck)
       ) {
         return null
       }
@@ -686,10 +669,10 @@ export function parseClientMessage(text: string): ClientMessage | null {
         havens: havens ?? [],
         metres: metres ?? { width: 0, height: 0 },
         maze: maze ?? null,
+        truck: truck ?? { home: { x: 0, z: 0 }, joyrideMs: 0 },
       }
     }
     case 'board':
-    case 'unboard':
     case 'hop-out':
     case 'rename':
       return { type: value.type }
@@ -732,12 +715,9 @@ export function parseClientMessage(text: string): ClientMessage | null {
       const to = parseXZ(value.to)
       return from && to ? { type: 'call', from, to } : null
     }
-    case 'extract': {
-      const { kind } = value
-      return isExtractKind(kind) ? { type: 'extract', kind } : null
-    }
     case 'dev': {
       if (value.op === 'reset') return { type: 'dev', op: 'reset' }
+      if (value.op === 'calm') return { type: 'dev', op: 'calm' }
       if (value.op === 'hurry') {
         const { seconds } = value
         if (typeof seconds !== 'number' || !Number.isFinite(seconds)) {

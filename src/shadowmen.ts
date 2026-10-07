@@ -9,7 +9,7 @@
 // one for burnSeconds bursts it.
 //
 // Pure, no three.js. In the shared valley the server steps the one field
-// everyone sees (worker/ValleyDO.ts, sharedraid.ts rule 13) and clients
+// everyone sees (worker/ValleyDO.ts, sharedworld.ts rule 11) and clients
 // draw it (shadowsync.ts); played alone, the client steps its own field
 // with one raider. The silhouette cards that show them are in
 // src/shadowcards.ts.
@@ -37,6 +37,8 @@ export interface Shadowman {
   target: string | null
   // Seconds it has been held in a beam, running back down out of it.
   burn: number
+  // Stood somewhere by a spec (placeStill), not crossing.
+  placed?: boolean
 }
 
 export interface XYZ {
@@ -82,6 +84,9 @@ export interface ShadowmenStep {
   metres: Metres
   // Citgo forecourts: shadowmen never enter, and a raider is safe inside.
   havens: readonly XZ[]
+  // A dev server's quiet valley, for the specs: the crossings never rush
+  // anyone, and only a shadowman a spec placed does.
+  calm?: boolean
 }
 
 // Where one burst, by which shadowman.
@@ -253,7 +258,7 @@ function fill(
 export function stepShadowmen(
   field: ShadowmenField,
   rng: Rng,
-  { dt, raiders, metres, havens }: ShadowmenStep,
+  { dt, raiders, metres, havens, calm = false }: ShadowmenStep,
   cfg: ShadowmenConfig = CONFIG.shadowmen
 ): ShadowmenUpdate {
   const struck: string[] = []
@@ -283,7 +288,7 @@ export function stepShadowmen(
       s.target = null
       s.speed = range(rng, cfg.speedMin, cfg.speedMax)
     }
-    if (!s.target) {
+    if (!s.target && (!calm || s.placed)) {
       // The nearest exposed raider inside the rush radius.
       let best = cfg.rushRadius
       for (const r of exposed) {
@@ -366,6 +371,7 @@ export function placeStill(field: ShadowmenField, x: number, z: number): void {
     speed: 0,
     target: null,
     burn: 0,
+    placed: true,
   })
 }
 

@@ -1,10 +1,10 @@
-// What the player does: board and hop out, take, buy, pick the berry, use
-// an item, drop one and take a drop up, whistle for the truck, talk,
-// extract, the pack and the hotbar.
-// Played alone each one moves the raid at once; in the shared valley the
-// ones that touch the valley's raid are a word to the server, and the raid
-// frame that comes back moves it (valleysync.ts). The rules are the pure
-// modules'; this is the glue that applies them and says so.
+// What the player does: climb into the truck and out, take, buy, pick a
+// berry, use an item, drop one and take a drop up, whistle for the truck,
+// talk, the pack and the hotbar.
+// Played alone each one moves the valley at once; in the shared valley the
+// ones that touch the valley's world are a word to the server, and the
+// world frame that comes back moves it (valleysync.ts). The rules are the
+// pure modules'; this is the glue that applies them and says so.
 
 import { saveHotbar, saveLook } from './auth.ts'
 import { CHAT_COPY, chatCommand, onlineLine } from './chat.ts'
@@ -12,22 +12,24 @@ import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { stepIndex } from './cycle.ts'
 import { isDropPickup } from './dropmeshes.ts'
-import { dropAmount, dropSpot, takeUp } from './drops.ts'
+import { dropAmount, dropSpot } from './drops.ts'
 import { finishById } from './finishes.ts'
 import { openGronDialog } from './grondialog.ts'
 import { assign } from './hotbar.ts'
 import { pickupLabel } from './interactions.ts'
 import { addItem, consume } from './inventory.ts'
 import { getItem, itemById } from './items.ts'
+import { board, call, hopOut as hopOutOf, refused } from './marx.ts'
 import { npcLine } from './npcs.ts'
 import { outfitById } from './outfits.ts'
 import { PACK_TABS, packItems } from './packgrid.ts'
 import { normalizeChat } from './protocol.ts'
-import { advance, canPick, EVENTS, STATES, summary } from './raid.ts'
 import { callRoute } from './roadgraph.ts'
 import { buy as buyItem, settle } from './shop.ts'
+import { planLeg } from './truckplan.ts'
 import type { Game } from './game.ts'
 import type { DailyStatus, ShelfSpot } from './interactions.ts'
+import type { Leg, TruckState } from './marx.ts'
 import type { NpcId } from './npcs.ts'
 import type { PackTab } from './packgrid.ts'
 import type { DailyMessage } from './protocol.ts'
@@ -39,17 +41,23 @@ export interface Actions {
   refreshBag(): void
   openInventory(): void
   // relock: closed by the player's own key or click, a gesture that may
-  // lock the pointer again. Closed by the raid (a strike, the truck, the
-  // end), the pointer stays free and the resume prompt shows.
+  // lock the pointer again. Closed by the valley (a strike, the truck),
+  // the pointer stays free and the resume prompt shows.
   closeInventory(relock?: boolean): void
   // A or D in the pack: the tab to the left (-1) or right (+1), wrapping.
   stepBagTab(step: number): void
   // A number key over an item in the pack puts it on that slot, or takes
   // it off when it is there already.
   assignSlot(slot: number, kind: string): void
-  // The truck leaves from the spawn station: the joyride, or donuts.
-  truckLeaves(aboard: boolean): void
+  // The truck drives `leg` (marx.ts): the valley's, or our own alone.
+  followLeg(leg: Leg): void
+  // Played alone, the truck as it now stands: its leg followed when it
+  // changed, and off the bed when it lets us off.
+  setAloneTruck(truck: TruckState): void
   hopOut(line?: string): void
+  // Off the bed beside the truck, with no word to the valley: it let us
+  // off.
+  leaveBed(line?: string): void
   // A shadowman touched you.
   strike(by?: 'shadowman' | 'caretaker'): void
   callTruck(): void
@@ -60,16 +68,18 @@ export interface Actions {
   // One of an item, used: E over it in the pack, or its hotbar key.
   useKind(kind: string): void
   // X over an item in the pack: one of it set down (the open container,
-  // or one cabbage), or with Shift the whole stack.
+  // or one of anything else), or with Shift the whole stack.
   dropKind(kind: string, all: boolean): void
-  // The valley says a drop came up into our arms or pack.
+  // The valley says a drop came up into our pack.
   applyDropTaken(kind: string, count: number): void
   // The left button: the flashlight up and on, or down and off.
   toggleFlashlight(): void
-  // The pickup is ours: into the arms or the pack.
+  // The pickup is ours: into the pack.
   applyTake(pickup: Pickup): void
   // Someone else got it.
   markTaken(pickup: Pickup): void
+  // It came back with the day.
+  markUntaken(pickup: Pickup): void
   // E: whatever the loop last resolved E to do.
   interact(): void
   // One line to the valley.
@@ -82,7 +92,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   const refreshBag = () => {
     if (s.inventoryOpen) {
-      hud.setBag(packItems(s.inventory, s.raid, hud.bagTab), (kind) =>
+      hud.setBag(packItems(s.inventory, hud.bagTab), (kind) =>
         game.thumbs.icon(kind)
       )
     }
@@ -106,7 +116,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   const closeInventory = (relock = false) => {
     if (!s.inventoryOpen) return
     s.inventoryOpen = hud.showBag(false)
-    if (relock && !s.ended) engagePointer()
+    if (relock) engagePointer()
   }
 
   // The tab `step` places from the shown one, wrapping.
@@ -125,73 +135,72 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       })
   }
 
-  const endRaid = () => {
-    s.ended = true
-    hud.prompt(null)
-    hud.itemLabel(null)
-    closeInventory()
-    if (document.pointerLockElement) document.exitPointerLock()
-    player.locked = false
-    hud.showIntro(false)
-    hud.showSummary(summary(s.raid))
-    if (s.shared && s.raid.extract)
-      net.send({ type: 'extract', kind: s.raid.extract })
+  // Played alone, this raider's id in the truck's bed.
+  const ALONE = 'me'
+  const me = () => (s.world ? net.id : ALONE)
+
+  // The truck drives `leg`, against the valley's clock or, alone, the
+  // wall clock.
+  const followLeg = (leg: Leg) => {
+    s.truckLeg = leg
+    s.truckPlan = planLeg(leg, game.truckContext)
+    const toLocal = s.world
+      ? (ms: number) => net.clock.toLocalMs(ms)
+      : (ms: number) => performance.now() + (ms - Date.now())
+    truck.follow(s.truckPlan, toLocal)
   }
 
-  // Played alone the truck leaves on the joyride with the player aboard,
-  // or, when the clock runs out on an empty bed, for Matthew Marx's donuts.
-  const truckLeaves = (aboard: boolean) => {
-    const donuts = aboard ? null : game.donutRoute(Date.now())
-    if (donuts) truck.driveDonuts(donuts, null)
-    else truck.driveRoute(game.departRoute)
+  const setAloneTruck = (next: TruckState) => {
+    const before = s.aloneTruck
+    s.aloneTruck = next
+    if (s.world) return
+    if (next.leg !== before.leg) followLeg(next.leg)
+    if (s.aboard && !next.riders.includes(ALONE)) leaveBed()
   }
 
+  // Into the bed: of the truck at the Citgo, where the countdown starts,
+  // or of the truck we whistled, which drives us home.
   const boardTruck = () => {
-    if (s.shared) {
-      // In the valley the truck waits for everyone in the lobby, or for
-      // the clock. Boarding is a word to the server; the raid frame that
-      // comes back moves the raid.
-      if (s.aboard || s.raid.state !== STATES.LOADOUT) return
+    if (s.aboard) return
+    closeInventory()
+    if (s.world) {
       s.aboard = true
+      s.pendingBoard = true
       net.send({ type: 'board' })
       hud.tell(copy('log.board'))
-      closeInventory()
       return
     }
-    const next = advance(s.raid, EVENTS.BOARD_TRUCK, s.raidClock)
-    if (next === s.raid) return
-    s.raid = next
-    truckLeaves(true)
+    const next = board(s.aloneTruck, ALONE, Date.now())
+    if (refused(next)) return
+    s.aboard = true
     hud.tell(copy('log.board'))
-    s.onTruckRolls = [copy('log.truck_leaves'), copy('log.hop_out_hint')]
-    closeInventory()
+    setAloneTruck(next)
   }
 
-  const hopOut = (line?: string) => {
-    if (s.aboard) {
-      // Back off the bed before it leaves.
-      s.aboard = false
-      net.send({ type: 'unboard' })
-      const spot = truck.hopOutSpot()
-      player.relocate(spot.x, spot.z, player.yaw)
-      if (line) hud.tell(line)
-      return
-    }
-    const next = advance(s.raid, EVENTS.HOP_OUT, s.raidClock)
-    if (next === s.raid) return
-    s.raid = next
+  // Off the bed, beside the truck.
+  const leaveBed = (line?: string) => {
+    s.aboard = false
     const spot = truck.hopOutSpot()
     player.relocate(spot.x, spot.z, player.yaw)
     if (line) hud.tell(line)
-    if (s.shared) net.send({ type: 'hop-out' })
+  }
+
+  const hopOut = (line?: string) => {
+    if (!s.aboard) return
+    leaveBed(line)
+    if (s.world) {
+      net.send({ type: 'hop-out' })
+      return
+    }
+    const next = hopOutOf(s.aloneTruck, ALONE)
+    if (!refused(next)) setAloneTruck(next)
   }
 
   // Static, then you come to on the forecourt: a shadowman's touch, or
   // the Caretaker's.
   const strike = (by: 'shadowman' | 'caretaker' = 'shadowman') => {
-    const next = advance(s.raid, EVENTS.STRUCK, s.raidClock)
-    if (next === s.raid) return
-    s.raid = next
+    if (s.aboard) return
+    s.strikes += 1
     s.strikeUntil = performance.now() + CONFIG.shadowmen.strikeSeconds * 1000
     hud.showStatic(true)
     closeInventory()
@@ -200,28 +209,32 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     hud.tell(copy(by === 'caretaker' ? 'log.caught' : 'log.struck'))
   }
 
+  // T: Marx comes to us, if he is free, and drives us home.
   const callTruck = () => {
-    if (s.raid.state !== STATES.ON_FOOT || s.raid.truckCalled) return
-    if (s.shared?.call) {
-      hud.tell(copy('log.truck_busy'))
-      return
-    }
+    if (s.aboard) return
+    const now = Date.now()
+    const current = s.world?.truck ?? s.aloneTruck
+    const id = me() ?? ''
     // From wherever the truck is, the donut field included.
     const from = { x: truck.x, z: truck.z }
     const to = { x: player.pos.x, z: player.pos.z }
+    const next = call(current, id, from, to, now)
+    if (refused(next)) {
+      hud.tell(copy('log.truck_busy'))
+      return
+    }
     const route = callRoute(graph, from, to)
     if (!route || route.length < 2) {
       hud.tell(copy('log.whistle_nothing'))
       return
     }
-    if (s.shared) {
-      // One whistle for the whole valley; the raid frame drives the truck.
+    if (s.world) {
+      // One whistle for the whole valley; the world frame drives the truck.
       net.send({ type: 'call', from, to })
       return
     }
-    s.raid = advance(s.raid, EVENTS.CALL_TRUCK, s.raidClock)
-    truck.driveRoute(route)
     hud.tell(copy('log.whistle'))
+    setAloneTruck(next)
   }
 
   const pocket = (kind: string) => {
@@ -249,7 +262,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       if (line) hud.tell(line)
       return
     }
-    if (s.shared) {
+    if (s.world) {
       // The shelf is the valley's: ask, and pocket the unit when the
       // valley says it was still there. The judgement above (stock as
       // last heard, cash) stands; the valley settles the race.
@@ -334,33 +347,20 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (used) hud.tell(used)
   }
 
-  // Rule 14. In the valley the drop lands where our last state frame put
-  // us; the pack shows the units gone at once, the arms once the valley
-  // says so. Alone it lands at once.
+  // Rule 12. In the valley the drop lands where our last state frame put
+  // us; the pack shows the units gone at once. Alone it lands at once.
   const dropKind = (kind: string, all: boolean) => {
-    if (s.ended) return
-    if (s.aboard || s.raid.state === STATES.RIDING) {
+    if (s.aboard) {
       hud.tell(copy('log.drop_aboard'))
       return
     }
-    const cabbage = kind === 'cabbage'
-    const held = cabbage ? s.raid.carrying : s.inventory[kind] || 0
-    const count = dropAmount(kind, held, all)
+    const count = dropAmount(kind, s.inventory[kind] || 0, all)
     if (count < 1) return
-    if (s.shared) {
-      if (!cabbage) s.inventory = addItem(s.inventory, kind, -count)
+    s.inventory = addItem(s.inventory, kind, -count)
+    if (s.world) {
       net.send({ type: 'drop', kind, count })
       refreshBag()
       return
-    }
-    if (cabbage) {
-      const next = advance(s.raid, EVENTS.DROP_CABBAGE, s.raidClock, {
-        count,
-      })
-      if (next === s.raid) return
-      s.raid = next
-    } else {
-      s.inventory = addItem(s.inventory, kind, -count)
     }
     const id = s.nextDrop++
     const at = { x: player.pos.x, z: player.pos.z, yaw: player.yaw }
@@ -370,13 +370,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     hud.tell(copy('log.dropped', { item: pickupLabel({ kind, count }) }))
   }
 
-  // Into the pack, or (the arms being the valley's) only said so.
+  // Into the pack.
   const applyDropTaken = (kind: string, count: number) => {
-    if (kind !== 'cabbage') s.inventory = addItem(s.inventory, kind, count)
-    tookUp(kind, count)
-  }
-
-  const tookUp = (kind: string, count: number) => {
+    s.inventory = addItem(s.inventory, kind, count)
     hud.tell(copy('log.taken', { item: pickupLabel({ kind, count }) }))
     s.interaction = null
     hud.prompt(null)
@@ -384,13 +380,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     refreshBag()
   }
 
-  const takeDrop = (drop: number, kind: string) => {
-    const cabbage = kind === 'cabbage'
-    if (cabbage && !canPick(s.raid)) {
-      hud.tell(copy('log.arms_full'))
-      return
-    }
-    if (s.shared) {
+  const takeDrop = (drop: number) => {
+    if (s.world) {
       if (s.pendingDrops.has(drop)) return
       s.pendingDrops.add(drop)
       net.send({ type: 'take-drop', drop })
@@ -398,22 +389,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     }
     const lying = s.drops.find((d) => d.id === drop)
     if (!lying) return
-    const room = cabbage
-      ? CONFIG.cabbage.carryLimit - s.raid.carrying
-      : Infinity
-    const { taken, left } = takeUp(lying, room)
-    s.drops = left
-      ? s.drops.map((d) => (d.id === drop ? left : d))
-      : s.drops.filter((d) => d.id !== drop)
+    s.drops = s.drops.filter((d) => d.id !== drop)
     game.drops.sync(s.drops)
-    if (cabbage) {
-      for (let i = 0; i < taken; i++) {
-        s.raid = advance(s.raid, EVENTS.PICK_CABBAGE, s.raidClock)
-      }
-      tookUp(kind, taken)
-    } else {
-      applyDropTaken(kind, taken)
-    }
+    applyDropTaken(lying.kind, lying.count)
   }
 
   // The light comes on once the hand is up, and goes off as it goes down;
@@ -423,19 +401,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
 
   const applyTake = (pickup: Pickup) => {
-    if (pickup.kind === 'cabbage') {
-      if (!canPick(s.raid)) {
-        hud.tell(copy('log.arms_full'))
-        return
-      }
-      s.raid = advance(s.raid, EVENTS.PICK_CABBAGE, s.raidClock)
-      markTaken(pickup)
-      hud.tell(copy('log.taken', { item: copy('labels.cabbage') }))
-    } else {
-      markTaken(pickup)
-      s.inventory = addItem(s.inventory, pickup.kind, pickup.count)
-      hud.tell(copy('log.taken', { item: pickupLabel(pickup) }))
-    }
+    markTaken(pickup)
+    s.inventory = addItem(s.inventory, pickup.kind, pickup.count)
+    hud.tell(copy('log.taken', { item: pickupLabel(pickup) }))
+    refreshBag()
     s.interaction = null
     hud.prompt(null)
     hud.itemLabel(null)
@@ -446,30 +415,31 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     pickup.mesh.visible = false
   }
 
+  const markUntaken = (pickup: Pickup) => {
+    pickup.taken = false
+    pickup.mesh.visible = true
+  }
+
   const takePickup = (pickup: Pickup) => {
     if (isDropPickup(pickup)) {
-      takeDrop(pickup.drop, pickup.kind)
+      takeDrop(pickup.drop)
       return
     }
-    if (!s.shared) {
+    if (!s.world) {
       applyTake(pickup)
       return
     }
     // Pickups are shared by index: ask, and take it when the valley says
-    // it is ours. A full pair of arms is refused here, not there.
+    // it is ours.
     const index = world.pickups.indexOf(pickup)
     if (index < 0 || s.pendingTakes.has(index)) return
-    if (pickup.kind === 'cabbage' && !canPick(s.raid)) {
-      hud.tell(copy('log.arms_full'))
-      return
-    }
     s.pendingTakes.add(index)
     net.send({ type: 'take', index })
   }
 
   // Gron's dialog: the pointer comes free for it and the game stands aside
   // (talking). He changes the name the valley knows and the body worn. The
-  // raid clock does not stop for him.
+  // valley does not stop for him.
   const talkToGron = () => {
     if (s.talking) return
     s.talking = true
@@ -504,38 +474,15 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
 
   const interact = () => {
-    // The raid state is live; the interaction is from the last frame.
+    // Whether we are aboard is live; the interaction is from the last frame.
     if (s.aboard) {
-      hopOut(copy('log.hop_out_wait'))
-      return
-    }
-    if (s.raid.state === STATES.RIDING) {
-      hopOut(copy('log.hop_out_moving'))
+      hopOut(copy(truck.moving ? 'log.hop_out_moving' : 'log.hop_out_wait'))
       return
     }
     const interaction = s.interaction
     switch (interaction?.kind) {
       case 'board':
         boardTruck()
-        return
-      case 'boardExtract':
-        s.raid = advance(s.raid, EVENTS.BOARD_TRUCK, s.raidClock, {
-          arrived: true,
-        })
-        if (s.raid.state === STATES.EXTRACTED) endRaid()
-        return
-      case 'extractFuel':
-        s.raid = advance(
-          s.raid,
-          EVENTS.EXTRACT_FUEL,
-          s.raidClock,
-          interaction.name
-        )
-        if (s.raid.state === STATES.EXTRACTED) endRaid()
-        return
-      case 'extractKeep':
-        s.raid = advance(s.raid, EVENTS.EXTRACT_KEEP, s.raidClock)
-        if (s.raid.state === STATES.EXTRACTED) endRaid()
         return
       case 'pickup':
         takePickup(interaction.pickup)
@@ -600,8 +547,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     closeInventory,
     stepBagTab,
     assignSlot,
-    truckLeaves,
+    followLeg,
+    setAloneTruck,
     hopOut,
+    leaveBed,
     strike,
     callTruck,
     pocket,
@@ -612,6 +561,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     toggleFlashlight,
     applyTake,
     markTaken,
+    markUntaken,
     interact,
     say,
   }

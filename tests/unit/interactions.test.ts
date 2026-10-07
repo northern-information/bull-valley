@@ -8,20 +8,16 @@ import {
   pickupLabel,
   resolveInteraction,
 } from '../../src/interactions.ts'
-import { advance, createRaid, EVENTS } from '../../src/raid.ts'
 import type {
   DailyStatus,
   InteractionInput,
   PickupSpot,
   ShelfSpot,
-  StationSpot,
 } from '../../src/interactions.ts'
-import type { Raid } from '../../src/interfaces.ts'
 import type { NpcSpot } from '../../src/npcs.ts'
 
-const spawnStation: StationSpot = { x: 0, z: 0, name: 'Spawn Citgo' }
-const farStation: StationSpot = { x: 500, z: 0, name: 'Far Citgo' }
-const keep = { x: -500, z: 0 }
+const spawnStation = { x: 0, z: 0 }
+const farStation = { x: 500, z: 0 }
 const bush = { x: -8, z: -8 }
 // The spawn Citgo's bush, as it stands today.
 const bushesAt = (status: DailyStatus) => [{ id: 0, ...bush, status }]
@@ -41,31 +37,24 @@ const shelf: ShelfSpot = {
   price: 549,
   affordable: true,
 }
-
-function onFoot(): Raid {
-  return advance(
-    advance(createRaid(0), EVENTS.BOARD_TRUCK, 1),
-    EVENTS.HOP_OUT,
-    2
-  )
+// The truck parked beside the player, theirs to climb into.
+const besideTruck = {
+  distance: CONFIG.truck.boardRange - 0.1,
+  moving: false,
+  boardable: true,
 }
 
-// Defaults put the player in open country: no truck, extract, bush,
-// or pickup in reach, with the valley answering.
+// Defaults put the player in open country on foot: no truck, bush, or
+// pickup in reach, with the valley answering.
 function input(
   over: Partial<InteractionInput<PickupSpot>> = {}
 ): InteractionInput<PickupSpot> {
   return {
-    raid: onFoot(),
-    ended: false,
+    riding: false,
     player: { x: 250, z: 250 },
-    truck: { distance: 1000, moving: false },
-    keep,
-    stations: [spawnStation, farStation],
-    spawnStation,
+    truck: { distance: 1000, moving: false, boardable: true },
     pickups: [],
     shelf: null,
-    insideStore: false,
     bushes: bushesAt('ready'),
     gron,
     npcs: [],
@@ -74,66 +63,36 @@ function input(
 }
 
 describe('resolveInteraction', () => {
-  it('offers nothing in open country, or after the raid ends', () => {
+  it('offers nothing in open country', () => {
     expect(resolveInteraction(input())).toBeNull()
-    expect(
-      resolveInteraction(input({ ended: true, raid: createRaid(0) }))
-    ).toBeNull()
   })
 
   it('hops out while riding, wherever the truck is', () => {
-    const riding = advance(createRaid(0), EVENTS.BOARD_TRUCK, 1)
-    expect(resolveInteraction(input({ raid: riding }))).toEqual({
+    expect(resolveInteraction(input({ riding: true }))).toEqual({
       kind: 'hopOut',
     })
+    expect(
+      resolveInteraction(input({ riding: true, truck: besideTruck }))
+    ).toEqual({ kind: 'hopOut' })
   })
 
-  it('boards during the loadout only within board range', () => {
-    const near = { distance: CONFIG.truck.boardRange - 0.1, moving: false }
-    const far = { distance: CONFIG.truck.boardRange + 0.1, moving: false }
-    const raid = createRaid(0)
-    expect(resolveInteraction(input({ raid, truck: near }))).toEqual({
+  it('climbs in only beside a truck standing still that is ours to board', () => {
+    expect(resolveInteraction(input({ truck: besideTruck }))).toEqual({
       kind: 'board',
     })
-    expect(resolveInteraction(input({ raid, truck: far }))).toBeNull()
+    const far = { ...besideTruck, distance: CONFIG.truck.boardRange + 0.1 }
+    expect(resolveInteraction(input({ truck: far }))).toBeNull()
+    const rolling = { ...besideTruck, moving: true }
+    expect(resolveInteraction(input({ truck: rolling }))).toBeNull()
+    const notOurs = { ...besideTruck, boardable: false }
+    expect(resolveInteraction(input({ truck: notOurs }))).toBeNull()
   })
 
-  it('boards the called truck to end the raid once it stops', () => {
-    const raid = advance(onFoot(), EVENTS.CALL_TRUCK, 3)
-    const stopped = { distance: 1, moving: false }
-    expect(resolveInteraction(input({ raid, truck: stopped }))).toEqual({
-      kind: 'boardExtract',
+  it('buys off the shelf in view', () => {
+    expect(resolveInteraction(input({ shelf }))).toEqual({
+      kind: 'buy',
+      ...shelf,
     })
-    const rolling = { distance: 1, moving: true }
-    expect(resolveInteraction(input({ raid, truck: rolling }))).toBeNull()
-  })
-
-  it('extracts at any station but the spawn, and at the Keep', () => {
-    expect(
-      resolveInteraction(input({ player: { x: farStation.x, z: 1 } }))
-    ).toEqual({ kind: 'extractFuel', name: 'Far Citgo' })
-    expect(resolveInteraction(input({ player: { x: 0, z: 1 } }))).toBeNull()
-    expect(
-      resolveInteraction(input({ player: { x: keep.x, z: keep.z } }))
-    ).toEqual({ kind: 'extractKeep' })
-  })
-
-  it('buys off the shelf in view, ahead of the station extract', () => {
-    const atFar = { player: { x: farStation.x, z: 1 } }
-    expect(
-      resolveInteraction(input({ ...atFar, shelf, insideStore: true }))
-    ).toEqual({ kind: 'buy', ...shelf })
-    expect(
-      resolveInteraction(input({ raid: createRaid(0), shelf }))
-    ).toMatchObject({ kind: 'buy', item: 'marlboro' })
-  })
-
-  it('never offers the station extract from inside its store', () => {
-    expect(
-      resolveInteraction(
-        input({ player: { x: farStation.x, z: 1 }, insideStore: true })
-      )
-    ).toBeNull()
   })
 
   it('offers the nearest untaken pickup within reach', () => {
@@ -161,19 +120,6 @@ describe('resolveInteraction', () => {
     expect(resolveInteraction(input({ pickups: [outOfReach] }))).toBeNull()
   })
 
-  it('offers pickups during the loadout away from the truck', () => {
-    const pickup: PickupSpot = {
-      x: 250,
-      z: 250,
-      kind: 'cabbage',
-      count: 1,
-      taken: false,
-    }
-    expect(
-      resolveInteraction(input({ raid: createRaid(0), pickups: [pickup] }))
-    ).toEqual({ kind: 'pickup', pickup })
-  })
-
   it('offers the bush within reach, as the valley has it today', () => {
     const atBush = { player: { x: bush.x + 1, z: bush.z } }
     expect(resolveInteraction(input(atBush))).toEqual({
@@ -195,10 +141,6 @@ describe('resolveInteraction', () => {
       bush: 0,
       status: 'offline',
     })
-    // During the loadout too: the bush stands on the spawn lot.
-    expect(
-      resolveInteraction(input({ ...atBush, raid: createRaid(0) }))
-    ).toEqual({ kind: 'collect', bush: 0, status: 'ready' })
     // Gron stands off this way; leave him out of the bush's own reach.
     const outOfReach = {
       player: { x: bush.x + CONFIG.daily.reach + 0.1, z: bush.z },
@@ -224,12 +166,9 @@ describe('resolveInteraction', () => {
     ).toEqual({ kind: 'collect', bush: 1, status: 'picked' })
   })
 
-  it('talks to Gron within reach, whatever the raid is doing', () => {
+  it('talks to Gron within reach', () => {
     const atGron = { player: { x: gron.x + 1, z: gron.z } }
     expect(resolveInteraction(input(atGron))).toEqual({ kind: 'talk' })
-    expect(
-      resolveInteraction(input({ ...atGron, raid: createRaid(0) }))
-    ).toEqual({ kind: 'talk' })
     // Offline too: he changes your character without the valley.
     expect(
       resolveInteraction(input({ ...atGron, bushes: bushesAt('offline') }))
@@ -244,21 +183,19 @@ describe('resolveInteraction', () => {
   })
 
   it('speaks to the nearest NPC in reach, ahead of boarding', () => {
-    const lobby = createRaid(0)
     const player = { x: 250, z: 250 }
     const marx: NpcSpot = { id: 'marx', x: 251, z: 250 }
-    const truck = { distance: 1, moving: false }
-    expect(resolveInteraction(input({ raid: lobby, truck }))).toEqual({
+    expect(resolveInteraction(input({ truck: besideTruck }))).toEqual({
       kind: 'board',
     })
     expect(
-      resolveInteraction(input({ raid: lobby, truck, player, npcs: [marx] }))
+      resolveInteraction(input({ truck: besideTruck, player, npcs: [marx] }))
     ).toEqual({ kind: 'speak', npc: 'marx' })
     // A step past his reach, E boards again.
     const away = { x: 251 + CONFIG.npcs.reach + 0.1, z: 250 }
     expect(
       resolveInteraction(
-        input({ raid: lobby, truck, player: away, npcs: [marx] })
+        input({ truck: besideTruck, player: away, npcs: [marx] })
       )
     ).toEqual({ kind: 'board' })
     const carlsten: NpcSpot = { id: 'carlsten', x: 250, z: 250.5 }
@@ -270,21 +207,21 @@ describe('resolveInteraction', () => {
 
   it('sells the shelf in view ahead of the clerk', () => {
     const carlsten: NpcSpot = { id: 'carlsten', x: 251, z: 250 }
-    expect(
-      resolveInteraction(input({ shelf, insideStore: true, npcs: [carlsten] }))
-    ).toEqual({ kind: 'buy', ...shelf })
-    expect(
-      resolveInteraction(input({ insideStore: true, npcs: [carlsten] }))
-    ).toEqual({ kind: 'speak', npc: 'carlsten' })
+    expect(resolveInteraction(input({ shelf, npcs: [carlsten] }))).toEqual({
+      kind: 'buy',
+      ...shelf,
+    })
+    expect(resolveInteraction(input({ npcs: [carlsten] }))).toEqual({
+      kind: 'speak',
+      npc: 'carlsten',
+    })
   })
 
-  it('never speaks while riding or once the raid is over', () => {
+  it('never speaks while riding', () => {
     const npcs: NpcSpot[] = [{ id: 'marx', x: 250, z: 250 }]
-    const riding = advance(createRaid(0), EVENTS.BOARD_TRUCK, 1)
-    expect(resolveInteraction(input({ raid: riding, npcs }))).toEqual({
+    expect(resolveInteraction(input({ riding: true, npcs }))).toEqual({
       kind: 'hopOut',
     })
-    expect(resolveInteraction(input({ ended: true, npcs }))).toBeNull()
   })
 
   it('answers with the nearer of Gron and the bush when both are in reach', () => {
@@ -313,13 +250,12 @@ describe('resolveInteraction', () => {
       bush: 0,
       status: 'ready',
     })
-    const truck = { distance: CONFIG.truck.boardRange - 0.1, moving: false }
     expect(
-      resolveInteraction(input({ ...atBush, raid: createRaid(0), truck }))
+      resolveInteraction(input({ ...atBush, truck: besideTruck }))
     ).toEqual({ kind: 'board' })
   })
 
-  it('talks to Moab at whichever station he stands, whatever the raid is doing', () => {
+  it('talks to Moab at whichever station he stands', () => {
     const atFar = { player: { x: moabs[1].x + 1, z: moabs[1].z } }
     expect(resolveInteraction(input({ ...atFar, npcs: moabs }))).toEqual({
       kind: 'speak',
@@ -327,60 +263,28 @@ describe('resolveInteraction', () => {
       station: 1,
     })
     const atSpawn = { player: { x: moabs[0].x, z: moabs[0].z + 1 } }
-    expect(
-      resolveInteraction(
-        input({ ...atSpawn, npcs: moabs, raid: createRaid(0) })
-      )
-    ).toEqual({ kind: 'speak', npc: 'moab', station: 0 })
-    // Riding past him, E still hops out.
-    const riding = advance(createRaid(0), EVENTS.BOARD_TRUCK, 1)
-    expect(
-      resolveInteraction(input({ ...atFar, npcs: moabs, raid: riding }))
-    ).toEqual({
-      kind: 'hopOut',
-    })
-    expect(resolveInteraction(input(atFar))).toEqual({
-      kind: 'extractFuel',
-      name: farStation.name,
-    })
-  })
-
-  it('puts Moab ahead of the station extract he stands inside', () => {
-    const atMoab = { player: { x: moabs[1].x - 1, z: moabs[1].z } }
-    expect(
-      Math.hypot(atMoab.player.x - farStation.x, atMoab.player.z - farStation.z)
-    ).toBeLessThan(CONFIG.extract.fuelRadius)
-    expect(resolveInteraction(input({ ...atMoab, npcs: moabs }))).toEqual({
+    expect(resolveInteraction(input({ ...atSpawn, npcs: moabs }))).toEqual({
       kind: 'speak',
       npc: 'moab',
-      station: 1,
+      station: 0,
+    })
+    // Riding past him, E still hops out.
+    expect(
+      resolveInteraction(input({ ...atFar, npcs: moabs, riding: true }))
+    ).toEqual({
+      kind: 'hopOut',
     })
     const pastReach = {
       player: { x: moabs[1].x - CONFIG.moab.reach - 0.1, z: moabs[1].z },
     }
-    expect(resolveInteraction(input({ ...pastReach, npcs: moabs }))).toEqual({
-      kind: 'extractFuel',
-      name: farStation.name,
-    })
+    expect(resolveInteraction(input({ ...pastReach, npcs: moabs }))).toBeNull()
   })
 })
 
 describe('interactionPrompt', () => {
   it('names each action', () => {
     expect(interactionPrompt({ kind: 'hopOut' })).toBe(copy('prompts.hop_out'))
-    expect(interactionPrompt({ kind: 'extractFuel', name: '' })).toBe(
-      copy('prompts.extract_station')
-    )
     expect(interactionPrompt({ kind: 'board' })).toBe(copy('prompts.board'))
-    expect(interactionPrompt({ kind: 'boardExtract' })).toBe(
-      copy('prompts.board_extract')
-    )
-    expect(interactionPrompt({ kind: 'extractFuel', name: 'Citgo' })).toBe(
-      copy('prompts.extract_at', { station: 'Citgo' })
-    )
-    expect(interactionPrompt({ kind: 'extractKeep' })).toBe(
-      copy('prompts.extract_keep', { keep: copy('places.keep') })
-    )
   })
 
   it('leaves the people you talk to to the glow, with no prompt', () => {

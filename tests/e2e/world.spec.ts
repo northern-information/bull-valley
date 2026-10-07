@@ -1,18 +1,18 @@
 import { test as base } from '@playwright/test'
-import { copy, copyPattern } from './copy.ts'
+import { copy } from './copy.ts'
 import { beginRaid, expect, watchErrors } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
-// One raid, played in order on one page: shop, ride, take a cabbage into
-// the pack's loot, extract. Booting the valley is slow on CI, so the steps share
-// one boot instead of paying it five times. The specs move the player with
-// the dev hook instead of walking, then press the real keys. A fresh
-// raider means the pack starts empty.
+// A visit to the valley, played in order on one page: shop, climb into the
+// truck and out, take a cabbage into the pack's loot. Booting the valley is
+// slow on CI, so the steps share one boot instead of paying it each time.
+// The specs move the player with the dev hook instead of walking, then
+// press the real keys. A fresh raider means the pack starts empty.
 //
 // The @raid tag lets CI run this group in its own job (--grep @raid)
-// beside every other spec (--grep-invert @raid).
+// beside every other spec (--grep-invert @raid); the job keeps its name.
 
-base.describe('one raid', { tag: '@raid' }, () => {
+base.describe('one visit', { tag: '@raid' }, () => {
   base.describe.configure({ mode: 'serial' })
 
   let page: Page
@@ -32,7 +32,7 @@ base.describe('one raid', { tag: '@raid' }, () => {
     await page.close()
   })
 
-  const raid = () => page.evaluate(() => window.__bv?.raid)
+  const aboard = () => page.evaluate(() => window.__bv?.aboard)
   const prompt = () => page.locator('.bv-prompt')
   // The name over the item E would act on.
   const label = () => page.locator('.bv-item-label')
@@ -45,9 +45,7 @@ base.describe('one raid', { tag: '@raid' }, () => {
       const spot =
         target === 'truck'
           ? { x: truck.x, z: truck.z }
-          : target === 'cabbage'
-            ? world.pickups.find((p) => p.kind === 'cabbage' && !p.taken)
-            : world.fuelPoints.find((f) => f !== world.spawnStation)
+          : world.pickups.find((p) => p.kind === 'cabbage' && !p.taken)
       if (!spot) throw new Error(`nothing to move to: ${target}`)
       // A stride off it, facing it and looking down at it, so an item's
       // label is in view. The view looks along (-sin yaw, -cos yaw).
@@ -204,16 +202,29 @@ base.describe('one raid', { tag: '@raid' }, () => {
     await page.keyboard.press('Tab')
   })
 
-  base('board the truck, ride, and hop out', async () => {
+  base('climb into the bed, see the countdown, and hop out', async () => {
     await moveTo('truck')
     await expect(prompt()).toHaveText(copy('prompts.board'))
     // The truck is no item: nothing glows.
     expect(await page.evaluate(() => window.__bv?.glow ?? null)).toBeNull()
     await page.keyboard.press('KeyE')
-    await expect.poll(async () => (await raid())?.state).toBe('RIDING')
+    await expect.poll(aboard).toBe(true)
+    // Climbing in starts Marx's countdown.
+    await expect(page.locator('.bv-countdown')).toContainText(
+      copy('truck.leaves_in', { clock: '' }).trim()
+    )
     await expect(prompt()).toHaveText(copy('prompts.hop_out'))
     await page.keyboard.press('KeyE')
-    await expect.poll(async () => (await raid())?.state).toBe('ON_FOOT')
+    await expect.poll(aboard).toBe(false)
+    // An empty bed stops it.
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const leg = window.__bv?.marx.leg
+          return leg?.kind === 'parked' ? leg.leavesAt : 'away'
+        })
+      )
+      .toBeNull()
   })
 
   base('take a cabbage into the loot', async () => {
@@ -221,7 +232,9 @@ base.describe('one raid', { tag: '@raid' }, () => {
     await expect(label()).toHaveText(copy('labels.cabbage'))
     await expect.poll(glowCabbage).toBe('cabbage')
     await page.keyboard.press('KeyE')
-    await expect.poll(async () => (await raid())?.carrying).toBe(1)
+    await expect
+      .poll(() => page.evaluate(() => window.__bv?.inventory.cabbage))
+      .toBe(1)
 
     // The pack opens on Consumables again; the cabbage is one tab over.
     await page.keyboard.press('Tab')
@@ -230,13 +243,5 @@ base.describe('one raid', { tag: '@raid' }, () => {
     await page.keyboard.press('KeyD')
     expect(await bagKinds()).toEqual(['cabbage'])
     await page.keyboard.press('Tab')
-  })
-
-  base('extract at a station other than the spawn', async () => {
-    await moveTo('station')
-    await expect(prompt()).toHaveText(copyPattern('prompts.extract_at'))
-    await page.keyboard.press('KeyE')
-    await expect.poll(async () => (await raid())?.state).toBe('EXTRACTED')
-    await expect(page.locator('[data-bv="again"]')).toBeVisible()
   })
 })

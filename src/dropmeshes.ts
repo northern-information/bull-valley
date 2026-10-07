@@ -1,4 +1,4 @@
-// The drops as they lie in the valley (sharedraid.ts rule 14): one
+// The drops as they lie in the valley (sharedworld.ts rule 12): one
 // assets.ts buildPickup mesh per drop, standing on ground.at, kept in step
 // with the drop list, the valley's or this raider's alone. Each comes back
 // as a Pickup, so E, the glow and the floating label treat a drop like any

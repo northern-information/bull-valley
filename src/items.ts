@@ -10,7 +10,7 @@
 //   blurb     description on the pack's item card
 //   used      chat line when the player uses it
 //   bought    chat line when the player buys it at a Citgo (shelf items only)
-//   collected chat line when the player picks it off the berry bush (forage)
+//   collected chat line when the player picks it off a berry bush
 //   empty     chat line when the player tries to use it with none left
 //   start     count in a new inventory (counted items only)
 //   price     shelf price at every Citgo, in cents (shelf items only)
@@ -19,7 +19,7 @@
 //
 // Drinks and medicine cannot be used yet, so they have no used or empty text. Forage is never
 // on a shelf, so it has no price or bought text; the valley hands it out
-// (sharedraid.ts rule 9).
+// (sharedworld.ts rules 4 and 8).
 
 import { copy } from './copy.ts'
 import type { Item } from './interfaces.ts'
@@ -326,8 +326,16 @@ export const ITEMS = [
     price: 549,
     form: 'dropper',
   },
-  // Forage. Not for sale: the berry bush at the spawn Citgo gives every
-  // account one a day, the day turning at midnight Central. No effect yet.
+  // Forage. Not for sale: cabbages grow wild across the valley and come
+  // back with the day, and the berry bushes give every account one berry
+  // each a day, the day turning at midnight Central. No effect yet.
+  {
+    id: 'cabbage',
+    category: 'forage',
+    label: copy('items.cabbage.label'),
+    blurb: copy('items.cabbage.blurb'),
+    start: 0,
+  },
   {
     id: 'berries',
     category: 'forage',
@@ -343,8 +351,8 @@ type ItemEntry = (typeof ITEMS)[number]
 // Every item id, as a type: a typo in a literal id fails the type check.
 export type ItemId = ItemEntry['id']
 
-// What a pickup in the valley can be: a cabbage, or an item.
-export type PickupKind = 'cabbage' | ItemId
+// What a pickup in the valley can be: an item.
+export type PickupKind = ItemId
 
 // ITEMS widened to the plain Item shape, for code that reads optional
 // fields (container) across every entry.

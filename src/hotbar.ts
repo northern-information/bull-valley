@@ -15,7 +15,7 @@ export const EMPTY_HOTBAR: Hotbar = Array.from(
 )
 
 // Every kind the grid can show, so every kind a slot can hold.
-const ASSIGNABLE: ReadonlySet<string> = new Set([...INVENTORY_KINDS, 'cabbage'])
+const ASSIGNABLE: ReadonlySet<string> = new Set(INVENTORY_KINDS)
 
 // Puts kind on slot, taking it off any other slot. Assigning a kind to the
 // slot that already holds it clears that slot.

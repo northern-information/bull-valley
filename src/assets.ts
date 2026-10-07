@@ -1477,8 +1477,8 @@ function berryMaterial(): THREE.MeshLambertMaterial {
   })
 }
 
-// The bush by the spawn Citgo that gives one berry a day (sharedraid.ts
-// rule 9): a low mound of dark lumps on a stub of trunk, berries set on
+// The bush by the spawn Citgo that gives one berry a day (sharedworld.ts
+// rule 8): a low mound of dark lumps on a stub of trunk, berries set on
 // the lumps' skins. Origin at ground level under the middle; about 1.4 m
 // across and 1 m high.
 export function buildBerryBush(seed = 0xbe221): THREE.Group {

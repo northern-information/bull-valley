@@ -1,4 +1,4 @@
-// The pointer and the keys. Pointer lock starts and pauses the raid; the
+// The pointer and the keys. Pointer lock starts and pauses the game; the
 // keys are bindings.ts's (WORLD in the valley, PACK with the pack open,
 // CHAT while typing), and what they do is actions.ts's.
 
@@ -71,7 +71,7 @@ export function wirePointer(game: Game): () => void {
         // How many others, once the valley has said; a late welcome says it.
         if (net.online) hud.tell(othersLine(peers.count))
       }
-    } else if (s.started && !s.ended && !s.inventoryOpen && !s.talking) {
+    } else if (s.started && !s.inventoryOpen && !s.talking) {
       hud.showIntro(true, true)
     }
   })
@@ -96,13 +96,13 @@ export function wireKeys(
   // click on the view takes it back.
   hud.canvas.addEventListener('click', () => {
     if (s.inventoryOpen) actions.closeInventory(true)
-    else if (s.started && !player.locked && !s.ended) engagePointer()
+    else if (s.started && !player.locked) engagePointer()
   })
   // The left button raises the flashlight or puts it down, only with the
   // pointer locked: the click that takes the pointer back never does.
   document.addEventListener('mousedown', (e) => {
     if (e.button !== 0 || !player.locked) return
-    if (s.ended || s.inventoryOpen || s.talking || hud.chatOpen) return
+    if (s.inventoryOpen || s.talking || hud.chatOpen) return
     actions.toggleFlashlight()
   })
 
@@ -143,11 +143,11 @@ export function wireKeys(
   // to the player as held state.
   document.addEventListener('keydown', (e) => {
     // The pack frees the pointer, so its keys come first.
-    if (s.inventoryOpen && !s.ended) {
+    if (s.inventoryOpen) {
       inventoryKey(e)
       return
     }
-    if (!player.locked || s.ended || s.talking) return
+    if (!player.locked || s.talking) return
     // While typing, every key belongs to the field; Enter sends, and
     // PageUp/PageDown scroll the log.
     if (hud.chatOpen) {

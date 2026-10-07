@@ -1,7 +1,7 @@
 // The Caretaker as seen (caretaker.ts): its body (assets.ts buildCaretaker)
 // floating over the maze's paths, turned to face the player, shaking and
 // paling as two beams unmake it. In the shared valley it is the valley's
-// (sharedraid.ts rule 15): it rides in the shadowmen frames and is drawn a
+// (sharedworld.ts rule 13): it rides in the shadowmen frames and is drawn a
 // beat behind the present, between the last two. Played alone, this steps
 // a Caretaker of its own with the player as the one raider, and one
 // flashlight can never unmake it.
