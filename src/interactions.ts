@@ -5,7 +5,8 @@
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { cosmeticById } from './cosmetics.ts'
-import { itemById } from './items.ts'
+import { GOLD_BULLION, isCash } from './drops.ts'
+import { getItem, itemById } from './items.ts'
 import { npcReach } from './npcs.ts'
 import { formatCash } from './store.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -177,6 +178,9 @@ export function pickupLabel({
   count: number
 }): string {
   if (kind === 'cabbage') return copy('labels.cabbage')
+  if (isCash(kind)) return copy('labels.dimes', { count })
+  // A bar is one troy ounce, and its name says so.
+  if (kind === GOLD_BULLION && count === 1) return getItem(GOLD_BULLION).label
   return copy('labels.pickup_count', {
     item: itemById(kind)?.label ?? kind,
     count,

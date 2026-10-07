@@ -164,6 +164,7 @@ whistle_other = { text = "Far off, an engine turns over. Someone whistled.", by 
 truck_busy = { text = "Marx is already on a call.", by = "ai" }
 taken = { text = "Taken: {item}", by = "ai" }
 taken_first = { text = "Someone got there first.", by = "ai" }
+dimes = { text = "You scoop up {count} dimes. +{amount}", by = "ai" }
 short = { text = "You're {amount} short.", by = "ai" }
 sold_out = { text = "Sold out.", by = "ai" }
 refused = { text = "The clerk shakes his head.", by = "ai" }
@@ -310,6 +311,7 @@ cabbage = { text = "Cabbage", by = "ai" }
 pickup_count = { text = "{item} ×{count}", by = "ai" }
 price = { text = "{item} {price}", by = "ai" }
 berries = { text = "Berries", by = "ai" }
+dimes = { text = "{count} Dimes", by = "ai" }
 berry_picked = { text = "Picked Clean Until Midnight", by = "ai" }
 berry_offline = { text = "No Signal", by = "ai" }
 

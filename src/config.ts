@@ -59,6 +59,9 @@ export const CONFIG = {
     // is aimed at a point this far over the ground it stands on.
     burnSeconds: 0.5,
     chestHeight: 1.4,
+    // One that bursts leaves this many dimes (10¢ each) lying where it
+    // was, drawn evenly between the two (drops.ts dimesFor).
+    dimes: { min: 3, max: 20 },
     // In the shared valley the server steps them this many times a second
     // and sends each step; clients draw them between the last two.
     tickHz: 10,
@@ -396,5 +399,8 @@ export const CONFIG = {
     // often a hunt works out its way through the paths again, in seconds.
     clearance: 0.45,
     rethinkSeconds: 0.5,
+    // Unmade, it leaves this many 1 troy ounce bars of gold bullion lying
+    // where it was, each a drop of its own (drops.ts spillsOf).
+    bullion: 2,
   },
 }

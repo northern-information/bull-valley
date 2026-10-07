@@ -19,6 +19,12 @@ describe('the www redirect', () => {
     )
   })
 
+  it('sends bvsw.gay to the same path on bvsw.net', () => {
+    expect(
+      apexUrl(new Request('https://bvsw.gay/akashic?x=2'), env.APP_ORIGIN)
+    ).toBe('https://bvsw.net/akashic?x=2')
+  })
+
   it('answers every request with a permanent redirect', () => {
     const res = www.fetch(
       new Request('https://www.bvsw.net/auth/me', { method: 'POST' }),
