@@ -10,9 +10,17 @@ import { saveHotbar, saveLook } from './auth.ts'
 import { CHAT_COPY, chatCommand, onlineLine } from './chat.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
+import { affords, cosmeticById } from './cosmetics.ts'
 import { stepIndex } from './cycle.ts'
 import { isDropPickup } from './dropmeshes.ts'
-import { dropAmount, dropSpot } from './drops.ts'
+import {
+  DIME_CENTS,
+  DIMES,
+  dimesFor,
+  dropAmount,
+  dropSpot,
+  isCash,
+} from './drops.ts'
 import { finishById } from './finishes.ts'
 import { dose } from './geometrie.ts'
 import { openGronDialog } from './grondialog.ts'
@@ -27,9 +35,12 @@ import { PACK_TABS, packItems } from './packgrid.ts'
 import { normalizeChat } from './protocol.ts'
 import { callRoute } from './roadgraph.ts'
 import { buy as buyItem, settle } from './shop.ts'
+import { formatCash } from './store.ts'
 import { planLeg } from './truckplan.ts'
+import type { CosmeticId } from './cosmetics.ts'
 import type { Game } from './game.ts'
 import type { DailyStatus, ShelfSpot } from './interactions.ts'
+import type { XZ } from './interfaces.ts'
 import type { Leg, TruckState } from './marx.ts'
 import type { NpcId } from './npcs.ts'
 import type { PackTab } from './packgrid.ts'
@@ -66,6 +77,13 @@ export interface Actions {
   pocket(kind: string): void
   // The valley's answer at the bush.
   applyDaily(msg: DailyMessage): void
+  // Moab, within reach, makes his offer (once per approach).
+  offerTrade(): void
+  // The account's cosmetics as the valley has them now; a new one is
+  // Moab's trade landing.
+  wear(cosmetics: CosmeticId[]): void
+  // The valley refused the trade.
+  tradeRefused(reason: string): void
   // One of an item, used: E over it in the pack, or its hotbar key.
   useKind(kind: string): void
   // X over an item in the pack: one of it set down (the open container,
@@ -73,6 +91,8 @@ export interface Actions {
   dropKind(kind: string, all: boolean): void
   // The valley says a drop came up into our pack.
   applyDropTaken(kind: string, count: number): void
+  // Shadowmen burst: played alone, their dimes fall where they were.
+  spillDimes(bursts: readonly XZ[]): void
   // The left button: the flashlight up and on, or down and off.
   toggleFlashlight(): void
   // The pickup is ours: into the pack.
@@ -314,18 +334,71 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     hud.tell(getItem('berries').collected)
   }
 
-  // Marx, Carlsten and Moab each say their next line into this player's
-  // chat log alone; the valley never hears it.
-  const speakTo = (npc: NpcId) => {
+  // A line from an NPC into this player's chat log alone; the valley never
+  // hears it.
+  const npcSays = (npc: NpcId, text: string) => {
     hud.chatLine(
-      {
-        kind: 'npc',
-        name: outfitById(npc).label,
-        text: npcLine(npc, s.npcSaid[npc]++),
-        at: Date.now(),
-      },
+      { kind: 'npc', name: outfitById(npc).label, text, at: Date.now() },
       performance.now()
     )
+  }
+
+  // Marx, Carlsten and Moab each say their next line.
+  const speakTo = (npc: NpcId) => {
+    npcSays(npc, npcLine(npc, s.npcSaid[npc]++))
+  }
+
+  // Rule 14: Moab's offer, taken. In the shared valley the valley trades
+  // and the pack frame that follows says it landed (wear); alone, the pack
+  // pays at once.
+  const offerTrade = () => {
+    npcSays('moab', copy('moab.offer'))
+  }
+
+  const wear = (cosmetics: CosmeticId[]) => {
+    const gained = cosmetics.filter((id) => !s.cosmetics.includes(id))
+    s.cosmetics = cosmetics
+    s.pendingTrade = false
+    for (const id of gained) {
+      npcSays('moab', copy('moab.traded'))
+      const label = cosmeticById(id)?.label ?? id
+      hud.tell(copy('log.cosmetic_worn', { cosmetic: label }))
+    }
+  }
+
+  const tradeRefused = (reason: string) => {
+    s.pendingTrade = false
+    const cosmetic =
+      s.interaction?.kind === 'trade' ? cosmeticById(s.interaction.offer) : null
+    if (reason === 'short' && cosmetic) {
+      hud.tell(
+        copy('log.trade_short', {
+          count: cosmetic.price.count,
+          price: itemById(cosmetic.price.kind)?.label ?? cosmetic.price.kind,
+        })
+      )
+    } else if (reason === 'owned' && cosmetic) {
+      hud.tell(copy('log.trade_owned', { cosmetic: cosmetic.label }))
+    } else hud.tell(copy('log.trade_refused'))
+  }
+
+  const trade = (offer: CosmeticId) => {
+    if (s.pendingTrade) return
+    const cosmetic = cosmeticById(offer)
+    if (!cosmetic || s.cosmetics.includes(offer)) return
+    if (!affords(s.inventory, offer)) {
+      tradeRefused('short')
+      return
+    }
+    if (s.world) {
+      s.pendingTrade = true
+      net.send({ type: 'trade', offer })
+      return
+    }
+    const { kind, count } = cosmetic.price
+    s.inventory = { ...s.inventory, [kind]: (s.inventory[kind] ?? 0) - count }
+    refreshBag()
+    wear([...s.cosmetics, offer])
   }
 
   // An item with no effect yet does nothing, and a cigarette waits for the
@@ -372,14 +445,37 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     hud.tell(copy('log.dropped', { item: pickupLabel({ kind, count }) }))
   }
 
-  // Into the pack.
+  // Into the pack, or dimes into the wallet; the valley's pack frame has
+  // the last word on both.
   const applyDropTaken = (kind: string, count: number) => {
-    s.inventory = addItem(s.inventory, kind, count)
-    hud.tell(copy('log.taken', { item: pickupLabel({ kind, count }) }))
+    if (isCash(kind)) {
+      const amount = count * DIME_CENTS
+      s.cash += amount
+      hud.tell(copy('log.dimes', { count, amount: formatCash(amount) }))
+    } else {
+      s.inventory = addItem(s.inventory, kind, count)
+      hud.tell(copy('log.taken', { item: pickupLabel({ kind, count }) }))
+    }
     s.interaction = null
     hud.prompt(null)
     hud.itemLabel(null)
     refreshBag()
+  }
+
+  // Shadowmen burst where `bursts` say: played alone each leaves its dimes
+  // lying there (sharedworld.ts rule 11). In the valley the valley spills
+  // them.
+  const spillDimes = (bursts: readonly XZ[]) => {
+    if (s.world || bursts.length === 0) return
+    const dimes = bursts.map(({ x, z }) => ({
+      id: s.nextDrop++,
+      kind: DIMES,
+      count: dimesFor(Math.random),
+      x,
+      z,
+    }))
+    s.drops = [...s.drops, ...dimes]
+    game.drops.sync(s.drops)
   }
 
   const takeDrop = (drop: number) => {
@@ -452,6 +548,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       username: pick.username,
       outfit: pick.outfit,
       finish: pick.finish,
+      cosmetics: s.cosmetics,
       onRenamed: (name) => {
         pick.username = name
         hud.setRaider(name)
@@ -500,6 +597,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         return
       case 'speak':
         speakTo(interaction.npc)
+        return
+      case 'trade':
+        trade(interaction.offer)
         return
     }
   }
@@ -557,9 +657,13 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     callTruck,
     pocket,
     applyDaily,
+    offerTrade,
+    wear,
+    tradeRefused,
     useKind,
     dropKind,
     applyDropTaken,
+    spillDimes,
     toggleFlashlight,
     applyTake,
     markTaken,

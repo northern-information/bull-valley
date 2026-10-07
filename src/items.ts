@@ -5,7 +5,8 @@
 //
 // Fields:
 //   id        inventory kind and mesh key
-//   category  'cigarette' | 'joint' | 'drink' | 'medicine' | 'forage'
+//   category  'cigarette' | 'joint' | 'drink' | 'medicine' | 'forage' |
+//             'valuable'
 //   label     name in the pack, and floating over a pickup or shelf unit
 //   blurb     description on the pack's item card
 //   used      chat line when the player uses it
@@ -424,6 +425,15 @@ export const ITEMS = [
     collected: copy('items.berries.collected'),
     start: 0,
   },
+  // Valuables. Not for sale and of no use, but Moab Coldë takes them in
+  // trade (cosmetics.ts). One unit is one troy ounce.
+  {
+    id: 'gold-bullion',
+    category: 'valuable',
+    label: copy('items.gold-bullion.label'),
+    blurb: copy('items.gold-bullion.blurb'),
+    start: 0,
+  },
 ] as const satisfies readonly Item[]
 
 type ItemEntry = (typeof ITEMS)[number]
@@ -431,8 +441,9 @@ type ItemEntry = (typeof ITEMS)[number]
 // Every item id, as a type: a typo in a literal id fails the type check.
 export type ItemId = ItemEntry['id']
 
-// What a pickup in the valley can be: an item.
-export type PickupKind = ItemId
+// What a pickup in the valley can be: an item, or the dimes a shadowman
+// bursts into (drops.ts DIMES), which are cash and never an item.
+export type PickupKind = ItemId | 'dimes'
 
 // ITEMS widened to the plain Item shape, for code that reads optional
 // fields (container) across every entry.

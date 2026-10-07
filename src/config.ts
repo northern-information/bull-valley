@@ -59,6 +59,9 @@ export const CONFIG = {
     // is aimed at a point this far over the ground it stands on.
     burnSeconds: 0.5,
     chestHeight: 1.4,
+    // One that bursts leaves this many dimes (10¢ each) lying where it
+    // was, drawn evenly between the two (drops.ts dimesFor).
+    dimes: { min: 3, max: 20 },
     // In the shared valley the server steps them this many times a second
     // and sends each step; clients draw them between the last two.
     tickHz: 10,
@@ -297,6 +300,21 @@ export const CONFIG = {
     halfLength: 1.0,
     radius: 0.75,
   },
+  wreck: {
+    // The green BMW nosed into a tree beside the spawn Citgo, station-local
+    // like the bush: on the station's side of Lake Avenue, across the road
+    // from the corn maze's near corner, in the grass just past the lot's
+    // end, where it left the road for the tree. `toward` is the way its
+    // nose points, at the tree (assets.ts WRECK). Scenery: it only blocks.
+    at: { x: 6.5, z: 27 },
+    toward: { x: 3.5, z: 25.5 },
+    // It blocks as a capsule down its length (this far either side of its
+    // middle, this wide), and the tree like a post.
+    halfLength: 1.6,
+    radius: 0.9,
+    // Trees keep this far off its middle.
+    treeClear: 6,
+  },
   npcs: {
     // How close you must stand for Matthew Marx or David Carlsten to glow
     // and answer E. Marx reads by the tailgate, in boarding range, so this
@@ -396,5 +414,8 @@ export const CONFIG = {
     // often a hunt works out its way through the paths again, in seconds.
     clearance: 0.45,
     rethinkSeconds: 0.5,
+    // Unmade, it leaves this many 1 troy ounce bars of gold bullion lying
+    // where it was, each a drop of its own (drops.ts spillsOf).
+    bullion: 2,
   },
 }

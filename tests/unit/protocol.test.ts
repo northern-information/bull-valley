@@ -246,6 +246,13 @@ describe('parseClientMessage', () => {
       type: 'take-drop',
       drop: 4,
     })
+    expect(parse({ type: 'trade', offer: 'flaming-halo', extra: 1 })).toEqual({
+      type: 'trade',
+      offer: 'flaming-halo',
+    })
+    expect(
+      parse({ type: 'dev', op: 'grant', kind: 'gold-bullion', count: 2 })
+    ).toEqual({ type: 'dev', op: 'grant', kind: 'gold-bullion', count: 2 })
     expect(parse({ type: 'buy', station: 2, kind: 'pbr', unit: 1 })).toEqual({
       type: 'buy',
       station: 2,
@@ -295,6 +302,13 @@ describe('parseClientMessage', () => {
     expect(parse({ type: 'drop', kind: '', count: 1 })).toBeNull()
     expect(parse({ type: 'take-drop', drop: -1 })).toBeNull()
     expect(parse({ type: 'take-drop' })).toBeNull()
+    expect(parse({ type: 'trade', offer: '' })).toBeNull()
+    expect(parse({ type: 'trade' })).toBeNull()
+    expect(parse({ type: 'dev', op: 'grant', kind: 'gold-bullion' })).toBeNull()
+    expect(
+      parse({ type: 'dev', op: 'grant', kind: 'gold-bullion', count: 0 })
+    ).toBeNull()
+    expect(parse({ type: 'dev', op: 'grant', kind: '', count: 1 })).toBeNull()
     expect(
       parse({ type: 'call', from: { x: 1 }, to: { x: 3, z: 4 } })
     ).toBeNull()

@@ -279,12 +279,49 @@ describe('resolveInteraction', () => {
     }
     expect(resolveInteraction(input({ ...pastReach, npcs: moabs }))).toBeNull()
   })
+
+  it('trades with Moab when he has an offer, and only with Moab', () => {
+    const atFar = { player: { x: moabs[1].x + 1, z: moabs[1].z } }
+    const offer = { npcs: moabs, moabOffer: 'flaming-halo' as const }
+    expect(resolveInteraction(input({ ...atFar, ...offer }))).toEqual({
+      kind: 'trade',
+      offer: 'flaming-halo',
+      station: 1,
+    })
+    // Gron's and Carlsten's ears are not Moab's.
+    const clerk: NpcSpot = { id: 'carlsten', x: 300, z: 300 }
+    expect(
+      resolveInteraction(
+        input({
+          player: { x: 300.5, z: 300 },
+          npcs: [clerk],
+          moabOffer: 'flaming-halo',
+        })
+      )
+    ).toEqual({ kind: 'speak', npc: 'carlsten' })
+    // With no offer he says his line.
+    expect(
+      resolveInteraction(input({ ...atFar, npcs: moabs, moabOffer: null }))
+    ).toMatchObject({ kind: 'speak', npc: 'moab' })
+  })
 })
 
 describe('interactionPrompt', () => {
   it('names each action', () => {
     expect(interactionPrompt({ kind: 'hopOut' })).toBe(copy('prompts.hop_out'))
     expect(interactionPrompt({ kind: 'board' })).toBe(copy('prompts.board'))
+  })
+
+  it("says Moab's offer: what he wants for what", () => {
+    expect(
+      interactionPrompt({ kind: 'trade', offer: 'flaming-halo', station: 0 })
+    ).toBe(
+      copy('prompts.trade', {
+        count: 1,
+        price: copy('items.gold-bullion.label'),
+        cosmetic: copy('cosmetics.flaming-halo.label'),
+      })
+    )
   })
 
   it('leaves the people you talk to to the glow, with no prompt', () => {
@@ -381,6 +418,20 @@ describe('itemLabel', () => {
   it('labels a cabbage without a count', () => {
     expect(pickupLabel({ kind: 'cabbage', count: 1 })).toBe(
       copy('labels.cabbage')
+    )
+  })
+
+  it('labels dimes by how many', () => {
+    expect(pickupLabel({ kind: 'dimes', count: 7 })).toBe(
+      copy('labels.dimes', { count: 7 })
+    )
+  })
+
+  it('labels a gold bar by its name alone, a stack of them with a count', () => {
+    const label = copy('items.gold-bullion.label')
+    expect(pickupLabel({ kind: 'gold-bullion', count: 1 })).toBe(label)
+    expect(pickupLabel({ kind: 'gold-bullion', count: 3 })).toBe(
+      copy('labels.pickup_count', { item: label, count: 3 })
     )
   })
 })

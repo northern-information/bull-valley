@@ -1,9 +1,11 @@
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { heartPoint, theMaze } from '../../src/caretaker.ts'
 import { CONFIG } from '../../src/config.ts'
+import { DIME_CENTS } from '../../src/drops.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { getItem } from '../../src/items.ts'
 import { CLOSE, PROTOCOL_VERSION } from '../../src/protocol.ts'
+import { SEASON } from '../../src/season.ts'
 import { MemoryAccountStore } from '../../worker/accounts.ts'
 import { MemoryPackStore, STARTING_CASH } from '../../worker/packs.ts'
 import { ValleyDO } from '../../worker/ValleyDO.ts'
@@ -16,6 +18,7 @@ import type {
   PeerLeftMessage,
   PeerStateMessage,
   PeerUpdatedMessage,
+  SeasonMessage,
   ServerMessage,
   ShadowmenMessage,
   WelcomeMessage,
@@ -695,7 +698,13 @@ describe('ValleyDO', () => {
     for (const socket of [a, b]) {
       expect(socket.last<PeerUpdatedMessage>()).toEqual({
         type: 'peer-updated',
-        peer: { id: idOf(a), name: 'A', outfit: 'church', at: null },
+        peer: {
+          id: idOf(a),
+          name: 'A',
+          outfit: 'church',
+          cosmetics: [],
+          at: null,
+        },
       })
     }
     // A raider arriving later sees the new character in the roster.
@@ -831,6 +840,10 @@ describe('ValleyDO', () => {
       get: () => Promise.reject(new Error('D1 is down')),
       change: () => Promise.reject(new Error('D1 is down')),
       purchase: () => Promise.reject(new Error('D1 is down')),
+      earn: () => Promise.reject(new Error('D1 is down')),
+      trade: () => Promise.reject(new Error('D1 is down')),
+      season: () => Promise.reject(new Error('D1 is down')),
+      score: () => Promise.reject(new Error('D1 is down')),
     }
     const errors: unknown[] = []
     const error = console.error
@@ -910,6 +923,11 @@ describe('ValleyDO', () => {
         get: (id) => store.get(id),
         change: (id, kind, delta) => store.change(id, kind, delta),
         purchase: () => Promise.reject(new Error('down')),
+        earn: (id, amount) => store.earn(id, amount),
+        trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
+        season: (id, season) => store.season(id, season),
+        score: (id, season, progress, reward) =>
+          store.score(id, season, progress, reward),
       }
       await buy()
       expect(a.last<NackMessage>()).toMatchObject({ reason: 'unavailable' })
@@ -1002,7 +1020,12 @@ describe('ValleyDO: drops', () => {
       open: (id) => store.open(id),
       get: (id) => store.get(id),
       purchase: (id, amount, item) => store.purchase(id, amount, item),
+      trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
+      season: (id, season) => store.season(id, season),
+      score: (id, season, progress, reward) =>
+        store.score(id, season, progress, reward),
       change: () => Promise.reject(new Error('down')),
+      earn: (id, amount) => store.earn(id, amount),
     }
     const error = console.error
     console.error = () => {}
@@ -1069,6 +1092,8 @@ describe('ValleyDO: the shadowmen', () => {
     await v.alarm()
     await v.webSocketMessage(ws(a), state(500, 500))
     await v.webSocketMessage(ws(b), state(900, 900))
+    // Only the shadowman placed here rushes anyone.
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"calm"}')
     await v.webSocketMessage(
       ws(a),
       '{"type":"dev","op":"shadowman","x":500,"z":501}'
@@ -1089,6 +1114,8 @@ describe('ValleyDO: the shadowmen', () => {
     const hz = MAZE.z + heart.z
     await v.webSocketMessage(ws(a), state(hx, hz + 2))
     await v.webSocketMessage(ws(b), state(900, 900))
+    // No crossing shadowman rushes anyone: only the Caretaker strikes.
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"calm"}')
     await v.webSocketMessage(
       ws(a),
       `{"type":"dev","op":"caretaker","x":${hx},"z":${hz}}`
@@ -1100,6 +1127,255 @@ describe('ValleyDO: the shadowmen', () => {
     for (let i = 0; i < 10; i++) v.tick()
     expect(a.frames()).toContainEqual({ type: 'struck', by: 'caretaker' })
     expect(b.frames().some((m) => m.type === 'struck')).toBe(false)
+  })
+
+  it('leaves two 1 troy ounce gold bars where two beams unmade the Caretaker', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const b = await join(v, s, 'B')
+    const heart = heartPoint(theMaze())
+    const hx = MAZE.x + heart.x
+    const hz = MAZE.z + heart.z
+    // Both down the court from it, looking at it (+z is yaw pi), from the
+    // bed so it never comes for them.
+    const lit = (dx: number) =>
+      JSON.stringify({
+        ...JSON.parse(state(hx + dx, hz - 8, true)),
+        yaw: Math.PI,
+        riding: true,
+      })
+    await v.webSocketMessage(ws(a), lit(0))
+    await v.webSocketMessage(ws(b), lit(0.5))
+    await v.webSocketMessage(
+      ws(a),
+      `{"type":"dev","op":"caretaker","x":${hx},"z":${hz}}`
+    )
+    const ticks =
+      Math.ceil(CONFIG.caretaker.burnSeconds * CONFIG.shadowmen.tickHz) + 2
+    for (let i = 0; i < ticks; i++) v.tick()
+    // The spill is written after the step.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const spilled = b
+      .frames()
+      .findLast((m): m is WorldMessage => m.type === 'world')
+    expect(spilled?.reason).toBe('spilled')
+    const bars = (spilled?.world?.drops ?? []).filter(
+      (d) => d.kind === 'gold-bullion'
+    )
+    expect(bars).toHaveLength(2)
+    for (const bar of bars) {
+      expect(bar.count).toBe(1)
+      expect(Math.hypot(bar.x - hx, bar.z - hz)).toBeLessThan(0.5)
+    }
+    for (const bar of bars) {
+      await v.webSocketMessage(ws(b), `{"type":"take-drop","drop":${bar.id}}`)
+    }
+    expect(b.last<PackMessage>().pack).toMatchObject({ 'gold-bullion': 2 })
+  })
+
+  // A, light on, burns a shadowman standing in the beam 5 m ahead (riding,
+  // so it stands to burn rather than rushing them); B stands far off. The
+  // dimes it left, as B was told.
+  async function burst() {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const b = await join(v, s, 'B')
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ ...JSON.parse(state(500, 500, true)), riding: true })
+    )
+    await v.webSocketMessage(ws(b), state(900, 900))
+    const x = 500 - Math.sin(0.5) * 5
+    const z = 500 - Math.cos(0.5) * 5
+    await v.webSocketMessage(
+      ws(a),
+      `{"type":"dev","op":"shadowman","x":${x},"z":${z}}`
+    )
+    for (let i = 0; i < 10; i++) v.tick()
+    // The spill is written after the step.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const spilled = b
+      .frames()
+      .findLast((m): m is WorldMessage => m.type === 'world')
+    expect(spilled?.reason).toBe('spilled')
+    const [dimes] = spilled?.world?.drops ?? []
+    return { v, b, dimes, x, z }
+  }
+
+  it('leaves dimes where one burst, paid into the wallet of whoever takes them up', async () => {
+    const { v, b, dimes, x, z } = await burst()
+    expect(dimes).toMatchObject({ kind: 'dimes' })
+    expect(Math.hypot(dimes.x - x, dimes.z - z)).toBeLessThan(0.1)
+    const { min, max } = CONFIG.shadowmen.dimes
+    expect(dimes.count).toBeGreaterThanOrEqual(min)
+    expect(dimes.count).toBeLessThanOrEqual(max)
+    await v.webSocketMessage(ws(b), `{"type":"take-drop","drop":${dimes.id}}`)
+    const paid = b.last<PackMessage>()
+    expect(paid).toMatchObject({
+      type: 'pack',
+      cash: STARTING_CASH + dimes.count * DIME_CENTS,
+    })
+    // Dimes are never an item.
+    expect(paid.pack).not.toHaveProperty('dimes')
+  })
+
+  it('still sends the wallet when the dimes cannot be paid in', async () => {
+    const { v, b, dimes } = await burst()
+    const store = v.packStore
+    v.packStore = {
+      open: (id) => store.open(id),
+      get: (id) => store.get(id),
+      change: (id, kind, delta) => store.change(id, kind, delta),
+      purchase: (id, amount, item) => store.purchase(id, amount, item),
+      earn: () => Promise.reject(new Error('down')),
+      trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
+      season: (id, season) => store.season(id, season),
+      score: (id, season, progress, reward) =>
+        store.score(id, season, progress, reward),
+    }
+    const error = console.error
+    console.error = () => {}
+    try {
+      await v.webSocketMessage(ws(b), `{"type":"take-drop","drop":${dimes.id}}`)
+    } finally {
+      console.error = error
+    }
+    expect(b.last<PackMessage>()).toMatchObject({ cash: STARTING_CASH })
+  })
+
+  it('credits both beams with unmaking the Caretaker, and pays the season out once', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const b = await join(v, s, 'B')
+    // A second socket on A's account, standing far off.
+    const a2 = await join(v, s, 'A2', { account: 'acct-A' })
+    expect(a.frames()[0]).toMatchObject({
+      type: 'welcome',
+      season: { season: SEASON.id, kills: 0, claimed: false },
+    })
+    await v.alarm()
+    const heart = heartPoint(theMaze())
+    const hx = MAZE.x + heart.x
+    const hz = MAZE.z + heart.z
+    // Down the court from it, looking at it (+z is yaw pi), from the bed
+    // so it never comes for them.
+    const lit = (dx: number) =>
+      JSON.stringify({
+        type: 'state',
+        x: hx + dx,
+        y: 0,
+        z: hz - 8,
+        yaw: Math.PI,
+        pitch: 0,
+        pose: 'stand',
+        riding: true,
+        light: true,
+      })
+    await v.webSocketMessage(ws(a2), state(900, 900))
+    const seasonFrames = (socket: MockSocket) =>
+      socket.frames().filter((m): m is SeasonMessage => m.type === 'season')
+    const unmake = async () => {
+      await v.webSocketMessage(ws(a), lit(0))
+      await v.webSocketMessage(ws(b), lit(0.5))
+      await v.webSocketMessage(
+        ws(a),
+        `{"type":"dev","op":"caretaker","x":${hx},"z":${hz}}`
+      )
+      const ticks = Math.ceil(
+        CONFIG.caretaker.burnSeconds * CONFIG.shadowmen.tickHz
+      )
+      for (let i = 0; i <= ticks; i++) v.tick()
+      // The tally runs after the tick, alone.
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+    const wallet = (await v.packStore.get('acct-A')).cash
+    const reds = (await v.packStore.get('acct-A')).pack.marlboro
+    for (let n = 1; n <= SEASON.goal; n++) {
+      await unmake()
+      expect(seasonFrames(a)).toHaveLength(n)
+      expect(seasonFrames(b)).toHaveLength(n)
+    }
+    // Every socket on the account hears it, the far one too.
+    expect(seasonFrames(a2)).toEqual(seasonFrames(a))
+    expect(seasonFrames(a).map((m) => m.rewarded)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      true,
+    ])
+    expect(a.last<PackMessage>()).toMatchObject({
+      type: 'pack',
+      cash: wallet + SEASON.reward.cash,
+    })
+    expect((await v.packStore.get('acct-A')).pack.marlboro).toBe(
+      reds + SEASON.reward.count
+    )
+    // Once: a sixth unmaking counts, and pays nothing.
+    await unmake()
+    expect(seasonFrames(a).at(-1)).toEqual({
+      type: 'season',
+      season: { season: SEASON.id, kills: SEASON.goal + 1, claimed: true },
+      rewarded: false,
+    })
+    expect((await v.packStore.get('acct-A')).cash).toBe(
+      wallet + SEASON.reward.cash
+    )
+    // And the progress comes back in the next welcome.
+    const back = await join(v, s, 'B2', { account: 'acct-B' })
+    expect(back.frames()[0]).toMatchObject({
+      season: { kills: SEASON.goal + 1, claimed: true },
+    })
+  })
+
+  it('tallies nothing when the season cannot be written', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const b = await join(v, s, 'B')
+    await v.alarm()
+    const store = v.packStore
+    v.packStore = {
+      open: (id) => store.open(id),
+      get: (id) => store.get(id),
+      change: (id, kind, delta) => store.change(id, kind, delta),
+      purchase: (id, amount, item) => store.purchase(id, amount, item),
+      earn: (id, amount) => store.earn(id, amount),
+      trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
+      season: (id, season) => store.season(id, season),
+      score: () => Promise.reject(new Error('down')),
+    }
+    const heart = heartPoint(theMaze())
+    const hx = MAZE.x + heart.x
+    const hz = MAZE.z + heart.z
+    const lit = (dx: number) =>
+      JSON.stringify({
+        type: 'state',
+        x: hx + dx,
+        y: 0,
+        z: hz - 8,
+        yaw: Math.PI,
+        pitch: 0,
+        pose: 'stand',
+        riding: true,
+        light: true,
+      })
+    await v.webSocketMessage(ws(a), lit(0))
+    await v.webSocketMessage(ws(b), lit(0.5))
+    await v.webSocketMessage(
+      ws(a),
+      `{"type":"dev","op":"caretaker","x":${hx},"z":${hz}}`
+    )
+    const errors: unknown[] = []
+    const error = console.error
+    console.error = (...args: unknown[]) => errors.push(args)
+    try {
+      for (let i = 0; i <= 20; i++) v.tick()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    } finally {
+      console.error = error
+    }
+    expect(errors).toHaveLength(2)
+    expect(a.frames().some((m) => m.type === 'season')).toBe(false)
   })
 
   it('places a shadowman only for a dev socket', async () => {
@@ -1114,5 +1390,103 @@ describe('ValleyDO: the shadowmen', () => {
       re: 'dev',
       reason: 'not-a-dev-server',
     })
+  })
+})
+
+describe("ValleyDO: Moab's trade", () => {
+  const trade = (offer = 'flaming-halo') =>
+    JSON.stringify({ type: 'trade', offer })
+  const grant = (kind = 'gold-bullion', count = 1) =>
+    JSON.stringify({ type: 'dev', op: 'grant', kind, count })
+
+  it('trades the Flaming Halo for an ounce of gold, for everyone to see', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const b = await join(v, s, 'B')
+    expect(a.frames()[0]).toMatchObject({ type: 'welcome', cosmetics: [] })
+    await v.webSocketMessage(ws(a), trade())
+    expect(a.last<NackMessage>()).toEqual({
+      type: 'nack',
+      re: 'trade',
+      reason: 'short',
+    })
+    await v.webSocketMessage(ws(a), grant('gold-bullion', 2))
+    expect(lastPack(a)?.['gold-bullion']).toBe(2)
+    await v.webSocketMessage(ws(a), trade())
+    const pack = a.frames().findLast((m): m is PackMessage => m.type === 'pack')
+    expect(pack).toMatchObject({
+      pack: { 'gold-bullion': 1 },
+      cosmetics: ['flaming-halo'],
+    })
+    for (const socket of [a, b]) {
+      expect(socket.last<PeerUpdatedMessage>()).toMatchObject({
+        type: 'peer-updated',
+        peer: { id: idOf(a), name: 'A', cosmetics: ['flaming-halo'] },
+      })
+    }
+    // Had for good: never sold twice.
+    await v.webSocketMessage(ws(a), trade())
+    expect(a.last<NackMessage>()).toMatchObject({ reason: 'owned' })
+    expect((await v.packStore.get('acct-A')).pack['gold-bullion']).toBe(1)
+    // Anyone arriving later sees it worn, and so does the wearer's welcome.
+    const c = await join(v, s, 'C')
+    const welcome = c.frames()[0] as WelcomeMessage
+    expect(welcome.peers.find((p) => p.id === idOf(a))?.cosmetics).toEqual([
+      'flaming-halo',
+    ])
+    a.close()
+    await v.webSocketClose(ws(a))
+    const back = await join(v, s, 'A')
+    expect(back.frames()[0]).toMatchObject({ cosmetics: ['flaming-halo'] })
+  })
+
+  it('refuses an offer Moab does not make, and grants nothing off a dev server', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    await v.webSocketMessage(ws(a), trade('golden-crown'))
+    expect(a.last<NackMessage>()).toMatchObject({
+      re: 'trade',
+      reason: 'no-such-offer',
+    })
+    await v.webSocketMessage(ws(a), grant())
+    expect(a.last<NackMessage>()).toMatchObject({ re: 'dev' })
+    expect((await v.packStore.get('acct-A')).pack['gold-bullion']).toBe(0)
+  })
+
+  it('trades nothing when the pack cannot be read or the trade cannot be written', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    const store = v.packStore
+    await store.change('acct-A', 'gold-bullion', 1)
+    const error = console.error
+    console.error = () => {}
+    try {
+      const before = b.frames().length
+      v.packStore = { ...store, get: () => Promise.reject(new Error('down')) }
+      await v.webSocketMessage(ws(a), trade())
+      expect(a.last<NackMessage>()).toMatchObject({ reason: 'unavailable' })
+      v.packStore = {
+        open: (id) => store.open(id),
+        get: (id) => store.get(id),
+        change: (id, kind, delta) => store.change(id, kind, delta),
+        purchase: (id, amount, item) => store.purchase(id, amount, item),
+        earn: (id, amount) => store.earn(id, amount),
+        trade: () => Promise.reject(new Error('down')),
+        season: (id, season) => store.season(id, season),
+        score: (id, season, progress, reward) =>
+          store.score(id, season, progress, reward),
+      }
+      await v.webSocketMessage(ws(a), trade())
+      expect(a.last<NackMessage>()).toMatchObject({ reason: 'unavailable' })
+      // Nobody saw a halo, and the gold is still in the pack.
+      expect(b.frames()).toHaveLength(before)
+      expect(await store.get('acct-A')).toMatchObject({
+        pack: { 'gold-bullion': 1 },
+        cosmetics: [],
+      })
+    } finally {
+      console.error = error
+    }
   })
 })

@@ -21,6 +21,7 @@ import {
   applyPose,
   attachBook,
   attachCigarette,
+  attachCosmetics,
   attachFlashlight,
   buildFigure,
   buildGron,
@@ -102,6 +103,15 @@ function sampleFlashlightUp(): THREE.Group {
   return figure.group
 }
 
+// A raider as the others see them in the Flaming Halo, Moab's trade.
+function sampleHaloWorn(): THREE.Group {
+  const figure = buildFigure(OUTFIT_IDS[0])
+  applyPose(figure, samplePose('stand'))
+  const worn = attachCosmetics(figure, ['flaming-halo'])
+  setMotion(figure.group, worn.update)
+  return figure.group
+}
+
 // One bank of ground mist at full opacity, its skirt sunk into the ground.
 function sampleMist(): THREE.Group {
   const group = new THREE.Group()
@@ -123,6 +133,11 @@ const ASSETS: AkashicAsset[] = [
     id: 'flashlight-up',
     label: 'Raider with the flashlight up',
     build: sampleFlashlightUp,
+  },
+  {
+    id: 'halo-worn',
+    label: 'Raider wearing the Flaming Halo',
+    build: sampleHaloWorn,
   },
   { id: 'shadowman', label: 'Shadowman', build: sampleShadowman },
   { id: 'mist', label: 'Ground mist', build: sampleMist },

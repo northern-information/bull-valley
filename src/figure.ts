@@ -10,10 +10,12 @@
 import * as THREE from 'three'
 import {
   artTexture,
+  buildAxe,
   buildBat,
   buildBook,
   buildFireRoots,
   buildFlames,
+  buildFlamingHalo,
   buildFlashlight,
   buildGuitar,
   buildRaincloud,
@@ -30,7 +32,14 @@ import {
 import { paintPrints } from './decalart.ts'
 import { ADDONS, outfitById } from './outfits.ts'
 import { JOINTS, samplePose } from './poses.ts'
-import type { FlameSpot, Flashlight, GroundAt, Guitar } from './assets.ts'
+import type {
+  FlameSpot,
+  FlamingHalo,
+  Flashlight,
+  GroundAt,
+  Guitar,
+} from './assets.ts'
+import type { CosmeticId } from './cosmetics.ts'
 import type { Vec3 } from './interfaces.ts'
 import type {
   Crescent,
@@ -542,11 +551,12 @@ export function buildFigure(
     fists[side] = fist
     // The bat hangs from the right hand, gripped just above the knob, its
     // barrel swung a little forward of the leg.
-    if (side === 'R' && outfit.inHand === 'bat') {
-      const bat = buildBat()
-      bat.position.set(0, -foreArm - 0.075, 0.01)
-      bat.rotation.set(-0.18, 0, 0)
-      elbow.add(bat)
+    // The axe hangs the same way, its edge forward.
+    if (side === 'R' && outfit.inHand) {
+      const held = outfit.inHand === 'bat' ? buildBat() : buildAxe()
+      held.position.set(0, -foreArm - 0.075, 0.01)
+      held.rotation.set(-0.18, 0, 0)
+      elbow.add(held)
     }
 
     const hip = pivot(pelvis, built, `hip${side}`, 0.09 * sign, -0.05, 0)
@@ -666,6 +676,41 @@ export function attachFlashlight(figure: Figure, beam = 7): Flashlight {
   flashlight.group.rotation.x = Math.PI / 2
   figure.fists.L.add(flashlight.group)
   return flashlight
+}
+
+// The Flaming Halo floats this far over the neck pivot, clear of the head
+// and any hair or hat on it, and turns with the head.
+const HALO_OVER_NECK = 0.34
+
+// What a figure wears over its outfit (cosmetics.ts), on the joints that
+// carry it. update(t) moves them; dispose() frees what is theirs alone.
+export interface Worn {
+  update: (t: number) => void
+  dispose: () => void
+}
+
+export function attachCosmetics(
+  figure: Figure,
+  cosmetics: readonly CosmeticId[]
+): Worn {
+  const halos: FlamingHalo[] = []
+  if (cosmetics.includes('flaming-halo')) {
+    const halo = buildFlamingHalo()
+    halo.group.position.y = HALO_OVER_NECK
+    figure.joints.neck.add(halo.group)
+    halos.push(halo)
+  }
+  return {
+    update: (t) => {
+      for (const halo of halos) halo.update(t)
+    },
+    dispose: () => {
+      for (const halo of halos) {
+        halo.group.removeFromParent()
+        halo.dispose()
+      }
+    },
+  }
 }
 
 // Copy a samplePose() result onto a figure's pivots.

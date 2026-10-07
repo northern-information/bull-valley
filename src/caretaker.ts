@@ -273,8 +273,10 @@ export interface CaretakerStep {
 export interface CaretakerUpdate {
   // The raider it touched this step, if any.
   struck: string[]
-  // Where it was unmade this step, in world metres.
+  // Where it was unmade this step, in world metres, and the raiders whose
+  // beams were on it when it came apart.
   burst: XZ | null
+  unmadeBy: string[]
 }
 
 // One step of the Caretaker, dt seconds on. Mutates ct.
@@ -285,7 +287,7 @@ export function stepCaretaker(
   cfg: CaretakerConfig = CONFIG.caretaker,
   map: MazeMap = theMaze()
 ): CaretakerUpdate {
-  const none: CaretakerUpdate = { struck: [], burst: null }
+  const none: CaretakerUpdate = { struck: [], burst: null, unmadeBy: [] }
   if (ct.gone > 0) {
     ct.gone = Math.max(0, ct.gone - dt)
     if (ct.gone === 0) Object.assign(ct, createCaretaker(map))
@@ -295,18 +297,20 @@ export function stepCaretaker(
 
   // Two raiders' beams at once, each with the corn out of the way.
   const world = mazeToWorld(place, ct)
-  let holders = 0
+  const holders: string[] = []
   for (const { r, at } of local) {
     if (!r.beam) continue
     const chest = { ...world, y: r.beam.floor + cfg.chestHeight }
-    if (inBeam(r.beam, chest) && clearBetween(map, at, ct, 0)) holders++
+    if (inBeam(r.beam, chest) && clearBetween(map, at, ct, 0)) {
+      holders.push(r.id)
+    }
   }
-  ct.burn = holders >= 2 ? ct.burn + dt : Math.max(0, ct.burn - dt)
+  ct.burn = holders.length >= 2 ? ct.burn + dt : Math.max(0, ct.burn - dt)
   if (ct.burn >= cfg.burnSeconds) {
     giveUp(ct)
     ct.burn = 0
     ct.gone = cfg.respawnSeconds
-    return { struck: [], burst: world }
+    return { struck: [], burst: world, unmadeBy: holders }
   }
 
   // Only a raider who can be struck, and only in the maze.
@@ -365,7 +369,7 @@ export function stepCaretaker(
     ) {
       const struck = [quarry.r.id]
       giveUp(ct)
-      return { struck, burst: null }
+      return { struck, burst: null, unmadeBy: [] }
     }
     return none
   }

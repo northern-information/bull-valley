@@ -7,17 +7,25 @@
 import { CHAT_COPY, othersLine } from './chat.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
+import { toCosmetics } from './cosmetics.ts'
 import { pickupLabel } from './interactions.ts'
 import { toInventory } from './inventory.ts'
 import { itemById } from './items.ts'
 import { createTruck } from './marx.ts'
 import { CLOSE } from './protocol.ts'
+import { SEASON } from './season.ts'
 import { formatCash } from './store.ts'
 import { aboard, newLeg, settledBy } from './worldsync.ts'
 import type { Actions } from './actions.ts'
+import type { CosmeticId } from './cosmetics.ts'
 import type { Game } from './game.ts'
 import type { Inventory } from './interfaces.ts'
-import type { NackMessage, WorldMessage, WorldWire } from './protocol.ts'
+import type {
+  NackMessage,
+  SeasonWire,
+  WorldMessage,
+  WorldWire,
+} from './protocol.ts'
 
 export function wireValley(game: Game, actions: Actions): void {
   const { state: s, hud, net, peers, world, player } = game
@@ -222,6 +230,8 @@ export function wireValley(game: Game, actions: Actions): void {
     } else if (msg.re === 'use') {
       // The pack frame that follows puts the count right.
       hud.tell(copy('log.none_left'))
+    } else if (msg.re === 'trade') {
+      actions.tradeRefused(msg.reason)
     } else if (msg.re === 'rename' || msg.re === 'appearance') {
       // The account kept the change; only the valley's roster missed it.
       hud.tell(copy('log.change_unheard'))
@@ -230,10 +240,24 @@ export function wireValley(game: Game, actions: Actions): void {
 
   // The valley's word on the pack and the wallet replaces this client's
   // guesses.
-  const applyPack = (pack: Inventory, wallet: number) => {
+  const applyPack = (
+    pack: Inventory,
+    wallet: number,
+    cosmetics: CosmeticId[]
+  ) => {
     s.inventory = toInventory(pack)
     s.cash = wallet
     actions.refreshBag()
+    actions.wear(toCosmetics(cosmetics))
+  }
+
+  // The account's progress through the season, when it is this season's;
+  // false for another's.
+  const applySeason = (wire: SeasonWire): boolean => {
+    if (wire.season !== SEASON.id) return false
+    s.season = { kills: wire.kills, claimed: wire.claimed }
+    hud.season.set(s.season)
+    return true
   }
 
   net.on((msg) => {
@@ -245,9 +269,18 @@ export function wireValley(game: Game, actions: Actions): void {
       s.placed = true
       applyWorld(msg.world, 'joined', { by: msg.id })
       s.daily = msg.daily
-      applyPack(msg.pack, msg.cash)
+      // What the account already wears is no news.
+      s.cosmetics = toCosmetics(msg.cosmetics)
+      applyPack(msg.pack, msg.cash, msg.cosmetics)
+      applySeason(msg.season)
+    } else if (msg.type === 'season') {
+      // Rule 15: credited with unmaking the Caretaker. A reward's pack
+      // frame follows.
+      if (applySeason(msg.season)) {
+        hud.tell(hud.season.unmade(s.season, msg.rewarded))
+      }
     } else if (msg.type === 'pack') {
-      applyPack(msg.pack, msg.cash)
+      applyPack(msg.pack, msg.cash, msg.cosmetics)
     } else if (msg.type === 'world') {
       applyWorld(msg.world, msg.reason, msg)
     } else if (msg.type === 'nack') {
@@ -269,6 +302,7 @@ export function wireValley(game: Game, actions: Actions): void {
       s.pendingCollect = false
       s.pendingTakes.clear()
       s.pendingBuys.clear()
+      s.pendingTrade = false
     }
   })
 }

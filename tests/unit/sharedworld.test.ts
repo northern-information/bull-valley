@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { heartPoint, theMaze } from '../../src/caretaker.ts'
 import { CONFIG } from '../../src/config.ts'
 import { dayKey, nextMidnight } from '../../src/daily.ts'
+import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { contentsOf, getItem } from '../../src/items.ts'
 import { PROTOCOL_VERSION } from '../../src/protocol.ts'
 import { mulberry32 } from '../../src/rng.ts'
@@ -9,6 +10,7 @@ import {
   BUSHES,
   createShadows,
   createValley,
+  creditedWith,
   dailyFor,
   placeCaretaker,
   placeOf,
@@ -21,6 +23,7 @@ import {
   wakeAt,
 } from '../../src/sharedworld.ts'
 import { unitsLeft } from './stock.ts'
+import type { CosmeticId } from '../../src/cosmetics.ts'
 import type {
   DailyMessage,
   PeerStateWire,
@@ -577,6 +580,52 @@ describe("rule 10: the pack is the account's", () => {
   })
 })
 
+describe('rule 14: Moab trades cosmetics for gold', () => {
+  const trade = (id: string, offer = 'flaming-halo'): ValleyAction => ({
+    type: 'trade',
+    id,
+    offer,
+  })
+  const carrying = (gold: number, cosmetics: CosmeticId[] = []) => ({
+    pack: { ...STARTING_INVENTORY, 'gold-bullion': gold },
+    cosmetics,
+  })
+  const tradeWith = (
+    v: ReturnType<typeof valleyWith>,
+    action: ValleyAction,
+    holdings?: ReturnType<typeof carrying>
+  ) => reduce(v.valley, action, { now: v.now, present: ['a'], holdings })
+
+  it('trades the Flaming Halo for one troy ounce of gold, and tells no one', () => {
+    const v = valleyWith(join('a'))
+    const r = tradeWith(v, trade('a'), carrying(1))
+    expect(r.reply).toBeUndefined()
+    expect(r.broadcast).toEqual([])
+    expect(r.trade).toEqual({
+      account: 'acct-a',
+      cosmetic: 'flaming-halo',
+      price: { kind: 'gold-bullion', count: 1 },
+    })
+    expect(r.valley).toEqual(v.valley)
+  })
+
+  it('says short, owned, no such offer, or not in the valley', () => {
+    const v = valleyWith(join('a'))
+    const reason = (action: ValleyAction, holdings = carrying(1)) =>
+      tradeWith(v, action, holdings).reply?.reason
+    expect(reason(trade('a'), carrying(0))).toBe('short')
+    expect(reason(trade('a'), carrying(3, ['flaming-halo']))).toBe('owned')
+    expect(reason(trade('a', 'golden-crown'))).toBe('no-such-offer')
+    expect(reason(trade('z'))).toBe('not-in-valley')
+    expect(tradeWith(v, trade('a')).reply).toEqual({
+      type: 'nack',
+      re: 'trade',
+      reason: 'unavailable',
+    })
+    expect(tradeWith(v, trade('a'), carrying(0)).trade).toBeUndefined()
+  })
+})
+
 describe('rule 12: raiders drop what they carry', () => {
   const at = { x: 100, z: 50, yaw: 0 }
   const drop = (
@@ -633,6 +682,89 @@ describe('rule 12: raiders drop what they carry', () => {
       reason: 'gone',
       drop: 0,
     })
+  })
+})
+
+describe('rule 11: a burst shadowman leaves dimes', () => {
+  it('spills a drop of dimes where each one burst', () => {
+    const v = valleyWith(join('a'))
+    const r = v.step({
+      type: 'spill',
+      spills: [
+        { x: 10, z: 20, kind: 'dimes', count: 7 },
+        { x: 30, z: 40, kind: 'dimes', count: 0 },
+        { x: 50, z: 60, kind: 'dimes', count: 3 },
+        { x: 70, z: 80, kind: 'not-a-thing', count: 1 },
+      ],
+    })
+    expect(reasons(r)).toEqual(['spilled'])
+    expect(v.valley.world?.drops).toEqual([
+      { id: 0, kind: 'dimes', count: 7, x: 10, z: 20 },
+      { id: 1, kind: 'dimes', count: 3, x: 50, z: 60 },
+    ])
+    expect(v.valley.world?.nextDrop).toBe(2)
+  })
+
+  it('spills nothing with no world, or no dimes', () => {
+    const v = valleyWith()
+    expect(
+      v.step({
+        type: 'spill',
+        spills: [{ x: 0, z: 0, kind: 'dimes', count: 5 }],
+      }).broadcast
+    ).toEqual([])
+    expect(v.valley.world).toBeNull()
+    const w = valleyWith(join('a'))
+    expect(w.step({ type: 'spill', spills: [] }).broadcast).toEqual([])
+  })
+
+  it('pays dimes taken up into the wallet, never the pack', () => {
+    const v = valleyWith(join('a'), join('b'))
+    v.step({
+      type: 'spill',
+      spills: [{ x: 1, z: 2, kind: 'dimes', count: 12 }],
+    })
+    const r = v.step({ type: 'take-drop', id: 'b', drop: 0 })
+    expect(r.broadcast[0]).toMatchObject({
+      reason: 'drop-taken',
+      by: 'b',
+      item: 'dimes',
+      count: 12,
+    })
+    expect(r.earn).toEqual({ account: 'acct-b', amount: 120 })
+    expect(r.pack).toBeUndefined()
+    expect(v.valley.world?.drops).toEqual([])
+  })
+
+  it('puts the gold bullion the Caretaker leaves into the taker’s pack', () => {
+    const v = valleyWith(join('a'))
+    v.step({
+      type: 'spill',
+      spills: [
+        { x: 1, z: 2, kind: 'gold-bullion', count: 1 },
+        { x: 1.5, z: 2, kind: 'gold-bullion', count: 1 },
+      ],
+    })
+    expect(v.valley.world?.drops).toEqual([
+      { id: 0, kind: 'gold-bullion', count: 1, x: 1, z: 2 },
+      { id: 1, kind: 'gold-bullion', count: 1, x: 1.5, z: 2 },
+    ])
+    const r = v.step({ type: 'take-drop', id: 'a', drop: 0 })
+    expect(r.pack).toEqual({
+      account: 'acct-a',
+      kind: 'gold-bullion',
+      delta: 1,
+    })
+    expect(r.earn).toBeUndefined()
+  })
+
+  it('never lets dimes be dropped from a pack', () => {
+    const v = valleyWith(join('a'))
+    const at = { x: 0, z: 0, yaw: 0 }
+    expect(
+      v.step({ type: 'drop', id: 'a', kind: 'dimes', count: 3, at }).reply
+        ?.reason
+    ).toBe('not-an-item')
   })
 })
 
@@ -805,6 +937,20 @@ describe("rule 11: the shadowmen are the valley's", () => {
   })
 })
 
+describe('rule 15: the season', () => {
+  it('credits each account behind the beams once, and no stranger', () => {
+    const v = valleyWith(join('a'), join('b'), {
+      ...join('c'),
+      account: 'acct-a',
+    } as ValleyAction).valley
+    expect(creditedWith(v, ['a', 'c', 'b', 'gone'])).toEqual([
+      'acct-a',
+      'acct-b',
+    ])
+    expect(creditedWith(v, [])).toEqual([])
+  })
+})
+
 describe('rule 13: the Caretaker keeps the maze', () => {
   const heart = heartPoint(theMaze())
   // The heart of the maze in the world, MAZE turned by nothing.
@@ -911,10 +1057,13 @@ describe('rule 13: the Caretaker keeps the maze', () => {
     out = step(one, CONFIG.caretaker.burnSeconds / 2)
     expect(out?.message.caretaker?.burn).toBe(0.5)
     expect(out?.message.unmade).toBeNull()
-    // Unmade where it floated, wandering as it was.
+    expect(out?.credited).toEqual([])
+    // Unmade where it floated, wandering as it was, and both accounts
+    // credited with it (rule 15).
     const last = out?.message.caretaker
     out = step(one, CONFIG.caretaker.burnSeconds / 2)
     expect(out?.message.unmade).toEqual({ x: last?.x, z: last?.z })
+    expect(out?.credited).toEqual(['acct-a', 'acct-b'])
     expect(out?.message.caretaker).toBeNull()
     out = step(one, CONFIG.caretaker.respawnSeconds - 1)
     expect(out?.message.caretaker).toBeNull()

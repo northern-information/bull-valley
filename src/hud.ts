@@ -1,4 +1,4 @@
-// All DOM: countdown, scope phone, geometrie's triangle, the pack grid and
+// All DOM: countdown, the season (seasonhud.ts), scope phone, geometrie's triangle, the pack grid and
 // its item card, the hotbar, prompts, item labels, the intro/pause overlay, and the
 // strike static. Markup is generated here so
 // index.html stays a bare #bv-root.
@@ -8,6 +8,7 @@ import { CHAT_LINES, formatStamp, isFaded, pushLine } from './chat.ts'
 import { copy } from './copy.ts'
 import { PACK_TABS } from './packgrid.ts'
 import { CHAT_MAX } from './protocol.ts'
+import { SeasonHud } from './seasonhud.ts'
 import type { Binding } from './bindings.ts'
 import type { ChatLine } from './chat.ts'
 import type { Cooldown } from './hotbar.ts'
@@ -218,6 +219,8 @@ export class Hud {
   accountBtn: HTMLButtonElement
   signOutBtn: HTMLButtonElement
   raiderEl: HTMLElement
+  // The season's tracker, its card on the overlay, and its banners.
+  season: SeasonHud
 
   constructor(root: HTMLElement) {
     this.root = root
@@ -229,6 +232,9 @@ export class Hud {
 
     const ui = el('div', 'bv-ui')
     root.appendChild(ui)
+
+    // The season: the tracker in the upper right and the banners.
+    this.season = new SeasonHud(ui)
 
     // Loadout countdown: bare numbers, top center.
     this.countdown = el('p', 'bv-countdown')
@@ -463,6 +469,11 @@ export class Hud {
       this.intro.querySelector<HTMLElement>('[data-bv="intro-note"]'),
       'intro note'
     ).textContent = copy('intro.note')
+    // What the season asks and pays, under the note.
+    required(
+      this.intro.querySelector<HTMLElement>('[data-bv="intro-note"]'),
+      'intro note'
+    ).after(this.season.card)
     ui.appendChild(this.intro)
     this.beginBtn = required(
       this.intro.querySelector<HTMLButtonElement>('[data-bv="begin"]'),

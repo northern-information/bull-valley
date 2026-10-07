@@ -9,6 +9,7 @@ import { canvas, EGGSHELL, MONO, text } from './canvas.ts'
 import {
   applyJoints,
   applyPose,
+  attachCosmetics,
   attachFlashlight,
   buildFigure,
 } from './figure.ts'
@@ -24,15 +25,17 @@ import {
   samplePeer,
 } from './presence.ts'
 import type { Flashlight } from './assets.ts'
-import type { Figure } from './figure.ts'
+import type { Figure, Worn } from './figure.ts'
 import type { ScopeContact, XZ } from './interfaces.ts'
 import type { Peer, PeerTable } from './presence.ts'
 import type { PeerStateWire, PeerWire } from './protocol.ts'
 
 // Metres covered by one full walk cycle; the same stride as playerbody.ts.
 const STRIDE = 1.5
-// The name floats this far above the feet. A figure stands about 1.8 m.
+// The name floats this far above the feet. A figure stands about 1.8 m;
+// in the Flaming Halo, the name floats over the fire.
 const LABEL_HEIGHT = 2.0
+const LABEL_OVER_HALO = 2.25
 // The label canvas: power-of-two sides, drawn once per peer.
 const LABEL_W = 128
 const LABEL_H = 32
@@ -41,6 +44,8 @@ interface Puppet {
   figure: Figure
   // In the left hand, its own materials: disposed with the label.
   flashlight: Flashlight
+  // Their cosmetics, their own too.
+  worn: Worn
   label: THREE.Sprite
   texture: THREE.CanvasTexture
   cycle: number
@@ -72,6 +77,8 @@ export class Peers {
   table: PeerTable
   private scene: THREE.Object3D
   private puppets = new Map<string, Puppet>()
+  // Seconds of drawing, for what burns on them.
+  private time = 0
 
   constructor(scene: THREE.Object3D) {
     this.scene = scene
@@ -98,8 +105,8 @@ export class Peers {
     this.build(applyJoined(this.table, wire, now))
   }
 
-  // A peer changed their name or character at Gron: a new figure and
-  // label, where they already stand. Unknown ids are ignored.
+  // A peer changed their name or character at Gron, or took a cosmetic
+  // from Moab: a new figure and label, where they already stand. Unknown ids are ignored.
   updated(wire: PeerWire): void {
     const peer = applyUpdated(this.table, wire)
     if (!peer) return
@@ -123,6 +130,7 @@ export class Peers {
 
   // Draws every placed peer at renderAt, a moment behind the present.
   update(dt: number, renderAt: number): void {
+    this.time += dt
     for (const [id, puppet] of this.puppets) {
       const peer = this.table.get(id)
       const at = peer ? samplePeer(peer, renderAt) : null
@@ -149,6 +157,7 @@ export class Peers {
       // The flashlight up and on, whatever the legs are doing.
       if (at.light) applyJoints(puppet.figure, flashlightArm(at.pitch))
       puppet.flashlight.setOn(at.light)
+      puppet.worn.update(this.time)
     }
   }
 
@@ -163,12 +172,17 @@ export class Peers {
     figure.group.userData.playerName = peer.name
     figure.group.visible = false
     const flashlight = attachFlashlight(figure)
+    const worn = attachCosmetics(figure, peer.cosmetics)
     const { sprite, texture } = buildLabel(peer.name)
+    if (peer.cosmetics.includes('flaming-halo')) {
+      sprite.position.y = LABEL_OVER_HALO
+    }
     figure.group.add(sprite)
     this.scene.add(figure.group)
     this.puppets.set(peer.id, {
       figure,
       flashlight,
+      worn,
       label: sprite,
       texture,
       cycle: 0,
@@ -191,6 +205,7 @@ export class Peers {
         o.material.dispose()
       }
     })
+    puppet.worn.dispose()
     puppet.label.material.dispose()
     puppet.texture.dispose()
     this.puppets.delete(id)

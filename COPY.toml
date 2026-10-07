@@ -48,6 +48,23 @@ geometrie_label = { text = "Geometrie: high {high}%, stimulated {stimulated}%, d
 
 # The sign-in card (src/signin.ts).
 
+# The season (src/seasonhud.ts): the card on the intro and pause overlay,
+# the tracker in the upper right, and the banners.
+
+[season]
+kicker = { text = "Season One", by = "ai" }
+title = { text = "The Caretaker", by = "ai" }
+live = { text = "Now Live", by = "ai" }
+challenge = { text = "Unmake the Caretaker {goal} times. It takes two flashlights on him at once, held, in the corn maze.", by = "ai" }
+reward = { text = "Reward: {cash} and a carton of Marlboro Reds", by = "ai" }
+progress = { text = "{kills}/{goal}", by = "ai" }
+complete = { text = "Complete", by = "ai" }
+tracker_label = { text = "Season One: the Caretaker unmade {kills} of {goal} times", by = "ai" }
+banner_unmade = { text = "Caretaker Unmade {kills}/{goal}", by = "ai" }
+banner_unmade_again = { text = "Caretaker Unmade", by = "ai" }
+banner_complete = { text = "Season Complete", by = "ai" }
+banner_paid = { text = "+{cash} · Carton of Marlboro Reds", by = "ai" }
+
 [signin]
 title = { text = "Sign In", by = "tyler" }
 lede = { text = "Sign in to raid the valley.", by = "tyler" }
@@ -131,14 +148,23 @@ hop_out_moving = { text = "Boots on gravel. The truck rolls on.", by = "ai" }
 end_of_line = { text = "Back at the Citgo. Marx lights a cigarette.", by = "ai" }
 ride_home = { text = "Marx turns for home.", by = "ai" }
 board_refused = { text = "Marx shakes his head. Not now.", by = "ai" }
+cosmetic_worn = { text = "You wear the {cosmetic}. The whole valley can see it burn.", by = "ai" }
+trade_short = { text = "Moab wants {count} oz of {price}. You do not have it.", by = "ai" }
+trade_owned = { text = "You already wear the {cosmetic}.", by = "ai" }
+trade_refused = { text = "Moab turns the scroll in the fire. Not now.", by = "ai" }
 marx_donuts = { text = "Somewhere across the road, tires tear up a field.", by = "ai" }
 marx_back = { text = "Marx comes back across the road and picks up his book.", by = "ai" }
+season_live = { text = "Season One: The Caretaker is live. Unmake him {goal} times for {cash} and a carton of Marlboro Reds.", by = "ai" }
+season_unmade = { text = "You helped unmake the Caretaker. {kills} of {goal} for Season One.", by = "ai" }
+season_unmade_again = { text = "You helped unmake the Caretaker again.", by = "ai" }
+season_reward = { text = "Season One complete. {cash} and a carton of Marlboro Reds are in your pack.", by = "ai" }
 whistle = { text = "You whistle into the dark. An engine turns over, far off.", by = "ai" }
 whistle_nothing = { text = "You whistle into the dark. Nothing turns over.", by = "ai" }
 whistle_other = { text = "Far off, an engine turns over. Someone whistled.", by = "ai" }
 truck_busy = { text = "Marx is already on a call.", by = "ai" }
 taken = { text = "Taken: {item}", by = "ai" }
 taken_first = { text = "Someone got there first.", by = "ai" }
+dimes = { text = "You scoop up {count} dimes. +{amount}", by = "ai" }
 short = { text = "You're {amount} short.", by = "ai" }
 sold_out = { text = "Sold out.", by = "ai" }
 refused = { text = "The clerk shakes his head.", by = "ai" }
@@ -165,6 +191,7 @@ leaves_in = { text = "Marx leaves in {clock}", by = "ai" }
 [prompts]
 hop_out = { text = "E — Hop Out", by = "ai" }
 board = { text = "E — Climb into the Bed", by = "ai" }
+trade = { text = "E — Trade {count} oz of {price} for the {cosmetic}", by = "ai" }
 
 # Lines the game says to the player in the chat log (src/chat.ts).
 
@@ -284,8 +311,14 @@ cabbage = { text = "Cabbage", by = "ai" }
 pickup_count = { text = "{item} ×{count}", by = "ai" }
 price = { text = "{item} {price}", by = "ai" }
 berries = { text = "Berries", by = "ai" }
+dimes = { text = "{count} Dimes", by = "ai" }
 berry_picked = { text = "Picked Clean Until Midnight", by = "ai" }
 berry_offline = { text = "No Signal", by = "ai" }
+
+# Cosmetics, worn over a character (src/cosmetics.ts). Keys match its ids.
+
+[cosmetics.flaming-halo]
+label = { text = "Flaming Halo", by = "ai" }
 
 # Character names, as the select and the name tags show them. Keys
 # match src/outfits.ts.
@@ -301,6 +334,7 @@ hanson = { text = "Justin Hanson", by = "tyler" }
 halatek = { text = "Chris Halatek", by = "tyler" }
 carlsten = { text = "David Carlsten", by = "tyler" }
 jdogg = { text = "Jdogg", by = "tyler" }
+mathiesen = { text = "Alex Mathiesen", by = "ai" }
 gron = { text = "Gron", by = "tyler" }
 moab = { text = "Moab Coldë", by = "ai" }
 
@@ -366,6 +400,8 @@ close = { text = "Close", by = "tyler" }
 
 [moab]
 says = { text = "Gold bullion.", by = "ai" }
+offer = { text = "Gold bullion. One troy ounce, and the halo is yours to burn under.", by = "ai" }
+traded = { text = "It will never go out. Neither will you.", by = "ai" }
 
 # Guitar finishes on the character select. Keys match src/finishes.ts.
 
@@ -576,3 +612,7 @@ blurb = { text = "Cold and heavy, out of a field somewhere in the valley.", by =
 label = { text = "Berries", by = "ai" }
 blurb = { text = "Dark and cold, off the bush by the Citgo. One a day.", by = "ai" }
 collected = { text = "A berry off the bush. The rest are for tomorrow.", by = "ai" }
+
+[items.gold-bullion]
+label = { text = "Gold Bullion", by = "ai" }
+blurb = { text = "One troy ounce, stamped .9999 fine. Moab Coldë has a use for it.", by = "ai" }

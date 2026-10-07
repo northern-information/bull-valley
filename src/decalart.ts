@@ -21,10 +21,15 @@
 //                    crossbones. Arm, 64×64.
 //   chest-tattoo     the same work across the chest. Torso, 123×150; lay
 //                    it over an open shirt (see paintPrints).
+//   open-shirt       a shirt worn open over a black tee: the tee down the
+//                    middle, the two fronts' edges and the collar falling
+//                    back. Torso, 123×150; lay it over the shirt's pattern.
 // A pattern (outfits.ts patterns) is opaque and wraps once round every part
 // of its cloth, the shirt (torso and long sleeves alike) or the pants:
 //   plaid            white and grey flannel checks over the shirt color.
 //                    96×48: six checks round, three up.
+//   flannel          a lumberjack's red-and-black checks over the shirt
+//                    color. 96×48: six checks round, three up.
 //   camo             woodland blots over the pants color. 96×48, tiling
 //                    round the seam.
 //   baja             a Baja hoodie's woven stripes, running up the body
@@ -306,6 +311,45 @@ function guitarStrap(): CanvasArt {
   return art
 }
 
+// A shirt worn open: the black tee down the middle of the chest, widening
+// toward the neck where the collar falls back, with a dark edge down each
+// front and a crew neck at the top.
+function openShirt(): CanvasArt {
+  const art = canvas(TORSO)
+  const { ctx, w, h } = art
+  const tee = '#111113'
+  const mid = w / 2
+  ctx.fillStyle = tee
+  ctx.beginPath()
+  ctx.moveTo(mid - 30, 0)
+  ctx.lineTo(mid + 30, 0)
+  ctx.lineTo(mid + 15, 52)
+  ctx.lineTo(mid + 13, h)
+  ctx.lineTo(mid - 13, h)
+  ctx.lineTo(mid - 15, 52)
+  ctx.closePath()
+  ctx.fill()
+  // The crew neck of the tee.
+  ctx.fillStyle = '#26262a'
+  ctx.fillRect(mid - 16, 0, 32, 3)
+  // Each front's edge, and the collar folded back over the shoulders.
+  ctx.strokeStyle = '#3c0c0a'
+  ctx.lineWidth = 3
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.moveTo(mid + side * 31, -2)
+    ctx.lineTo(mid + side * 16, 52)
+    ctx.lineTo(mid + side * 14, h + 2)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(mid + side * 31, 0)
+    ctx.lineTo(mid + side * 44, 0)
+    ctx.lineTo(mid + side * 25, 26)
+    ctx.stroke()
+  }
+  return art
+}
+
 // The band name in pale grey serif capitals across the chest, on two lines.
 function asILayDying(): CanvasArt {
   const art = canvas(TORSO)
@@ -388,6 +432,22 @@ function plaid(colors: Outfit['colors']): CanvasArt {
   for (let y = 0; y < h; y += check) ctx.fillRect(0, y + 3, w, 1)
   ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'
   for (let x = 0; x < w; x += check) ctx.fillRect(x + 11, 0, 1, h)
+  return art
+}
+
+// A lumberjack flannel: black bands across and down every check over the
+// shirt color, solid black where they cross, and a thin dark thread
+// through the light squares.
+function flannel(colors: Outfit['colors']): CanvasArt {
+  const art = canvas(PATTERN, colors.shirt)
+  const { ctx, w, h } = art
+  const check = 16
+  ctx.fillStyle = 'rgba(12, 10, 12, 0.55)'
+  for (let x = 0; x < w; x += check) ctx.fillRect(x, 0, 8, h)
+  for (let y = 0; y < h; y += check) ctx.fillRect(0, y, w, 8)
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)'
+  for (let x = 0; x < w; x += check) ctx.fillRect(x + 12, 0, 1, h)
+  for (let y = 0; y < h; y += check) ctx.fillRect(0, y + 12, w, 1)
   return art
 }
 
@@ -504,6 +564,8 @@ const DECAL_PAINTERS: Record<DecalId, DecalPainter> = {
   camo,
   baja,
   tattered,
+  flannel,
+  'open-shirt': openShirt,
 }
 
 // Tattoos ink only onto skin a layer below already painted.
