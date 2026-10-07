@@ -135,7 +135,8 @@
       .ak-toggles label {
         white-space: nowrap;
       }
-      .ak-stats {
+      .ak-stats,
+      .ak-facts {
         margin: 0;
         white-space: pre;
       }
@@ -145,10 +146,99 @@
         right: 16px;
         bottom: 12px;
       }
+      [hidden] {
+        display: none !important;
+      }
+      .ak-modes {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        z-index: 2;
+        display: flex;
+      }
+      .ak-modes button {
+        font: inherit;
+        color: inherit;
+        background: var(--fi-surface-82);
+        border: 1px solid var(--fi-slate);
+        padding: 2px 10px;
+      }
+      .ak-modes button[aria-pressed="true"] {
+        border-color: var(--fi-cyan);
+        color: var(--fi-cyan);
+      }
+      .ak-map {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        cursor: grab;
+        touch-action: none;
+      }
+      .ak-map:focus {
+        outline: none;
+      }
+      .ak-map-panel {
+        width: 300px;
+      }
+      .ak-map-panel .ak-toggles {
+        grid-template-columns: 1fr;
+      }
+      .ak-swatch {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        vertical-align: -1px;
+      }
+      .ak-status {
+        margin: 0 0 8px;
+        min-height: 3em;
+        white-space: normal;
+      }
+      .ak-save {
+        margin-left: auto;
+      }
+      .ak-inspector {
+        top: 52px;
+        right: 16px;
+        left: auto;
+        width: 260px;
+      }
+      .ak-inspector .ak-facts {
+        margin-bottom: 8px;
+      }
+      .ak-field {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+      .ak-field input,
+      .ak-field select {
+        flex: 1;
+        min-width: 0;
+        font: inherit;
+        color: inherit;
+        background: #020617;
+        border: 1px solid var(--fi-slate);
+        padding: 2px 6px;
+      }
+      .ak-map-hint {
+        left: 332px;
+        color: var(--fi-slate);
+      }
     </style>
   </head>
   <body>
     <canvas class="ak-canvas" aria-hidden="true"></canvas>
+    <nav class="ak-modes" aria-label="Mode">
+      <button type="button" data-mode="assets" aria-pressed="true">
+        Assets
+      </button>
+      <button type="button" data-mode="map" aria-pressed="false">
+        Map [M]
+      </button>
+    </nav>
     <section class="ak-panel" aria-label="Asset viewer">
       <h1>Akashic</h1>
       <div class="ak-row">
@@ -162,7 +252,8 @@
       <p class="ak-stats" aria-live="polite"></p>
     </section>
     <p class="ak-hint">
-      drag orbit · scroll zoom · right-drag pan · ←/→ cycle · keys toggle
+      drag orbit · scroll zoom · right-drag pan · ←/→ cycle · keys toggle · M
+      map
     </p>
     <script type="module" src="/src/akashic.ts"></script>
   </body>
