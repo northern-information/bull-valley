@@ -62,7 +62,6 @@ export function createItemThumbs(): ItemThumbs {
 
   const spinners = new Map<string, THREE.Group>()
   const icons = new Map<string, string>()
-  const still = matchMedia('(prefers-reduced-motion: reduce)')
 
   function gl(): THREE.WebGLRenderer {
     if (!renderer) {
@@ -121,10 +120,8 @@ export function createItemThumbs(): ItemThumbs {
     let last = performance.now()
     const frame = () => {
       const now = performance.now()
-      if (!still.matches) {
-        spinner.rotation.y +=
-          Math.min(0.05, (now - last) / 1000) * SPIN_PER_SECOND
-      }
+      spinner.rotation.y +=
+        Math.min(0.05, (now - last) / 1000) * SPIN_PER_SECOND
       last = now
       draw(kind, canvas.width, canvas.height)
       ctx.clearRect(0, 0, canvas.width, canvas.height)

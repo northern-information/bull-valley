@@ -8,7 +8,6 @@ import type { TripLevel } from './trip.ts'
 // CONFIG.trip.persistence of the one before, so anything that moves, the
 // view included, smears behind itself), and the result is copied to the
 // screen and kept for the next frame. The glow draws over it after, crisp.
-// Prefers-reduced-motion keeps the blur and leaves out the trails.
 
 const vertexShader = /* glsl */ `
   varying vec2 vUv;
@@ -62,10 +61,7 @@ export interface Trails {
   render(scene: THREE.Scene, camera: THREE.Camera, level: TripLevel): void
 }
 
-export function createTrails(
-  renderer: THREE.WebGLRenderer,
-  still: boolean
-): Trails {
+export function createTrails(renderer: THREE.WebGLRenderer): Trails {
   const target = (depth: boolean) =>
     new THREE.WebGLRenderTarget(2, 2, {
       minFilter: THREE.LinearFilter,
@@ -134,7 +130,7 @@ export function createTrails(
 
       blend.uniforms.uHistory.value = history.texture
       blend.uniforms.uBlur.value = blur * blurRadius
-      blend.uniforms.uKeep.value = tripping && !still ? persistence * trails : 0
+      blend.uniforms.uKeep.value = tripping ? persistence * trails : 0
       quad.material = blend
       renderer.setRenderTarget(next)
       renderer.render(pass, passCamera)

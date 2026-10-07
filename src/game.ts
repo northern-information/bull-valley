@@ -186,6 +186,4 @@ export interface Game {
   thumbs: ItemThumbs
   peers: Peers
   net: NetClient
-  // prefers-reduced-motion: Gron's rain and Moab's fire hold still.
-  still: boolean
 }

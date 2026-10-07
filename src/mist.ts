@@ -38,9 +38,6 @@ export interface MistField {
 export interface MistStep {
   dt: number
   player: XZ
-  // Prefers-reduced-motion: the banks neither drift nor swell, and only
-  // wrap to follow the player.
-  still: boolean
 }
 
 // An offset folded into the bubble, [-radius, radius).
@@ -77,16 +74,13 @@ export function createMist(
 // the bubble around the player. Mutates field.
 export function stepMist(
   field: MistField,
-  { dt, player, still }: MistStep,
+  { dt, player }: MistStep,
   cfg: MistConfig = CONFIG.mist
 ): void {
   for (const bank of field.banks) {
-    if (!still) {
-      bank.x += (cfg.wind.x + bank.driftX) * dt
-      bank.z += (cfg.wind.z + bank.driftZ) * dt
-      bank.phase =
-        (bank.phase + (dt * Math.PI * 2) / bank.period) % (Math.PI * 2)
-    }
+    bank.x += (cfg.wind.x + bank.driftX) * dt
+    bank.z += (cfg.wind.z + bank.driftZ) * dt
+    bank.phase = (bank.phase + (dt * Math.PI * 2) / bank.period) % (Math.PI * 2)
     bank.x = player.x + wrapOffset(bank.x - player.x, cfg.radius)
     bank.z = player.z + wrapOffset(bank.z - player.z, cfg.radius)
   }

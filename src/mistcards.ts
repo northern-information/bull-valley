@@ -91,8 +91,6 @@ export interface MistCardsOptions {
   groundAt: HeightAt
   // Where the first bubble is centred.
   player: XZ
-  // Prefers-reduced-motion: the mist holds still.
-  still: boolean
 }
 
 export interface MistCardsFrame {
@@ -102,14 +100,12 @@ export interface MistCardsFrame {
 
 export class MistCards {
   groundAt: HeightAt
-  still: boolean
   field: MistField
   cards: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[]
   group: THREE.Group
 
-  constructor({ scene, groundAt, player, still }: MistCardsOptions) {
+  constructor({ scene, groundAt, player }: MistCardsOptions) {
     this.groundAt = groundAt
-    this.still = still
     this.cards = []
     this.group = new THREE.Group()
     this.group.name = 'mist'
@@ -133,7 +129,7 @@ export class MistCards {
   }
 
   update({ dt, player }: MistCardsFrame): void {
-    stepMist(this.field, { dt, player, still: this.still })
+    stepMist(this.field, { dt, player })
     for (let i = 0; i < this.cards.length; i++) {
       const bank = this.field.banks[i]
       const card = this.cards[i]
