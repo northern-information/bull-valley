@@ -3,6 +3,7 @@
 // valleysync.ts, input.ts, targets.ts and loop.ts each take the Game.
 
 import { CONFIG } from './config.ts'
+import { NO_TASK } from './dailytask.ts'
 import { SOBER } from './geometrie.ts'
 import { HAND_DOWN } from './hands.ts'
 import { NO_EFFECTS } from './hotbar.ts'
@@ -12,6 +13,7 @@ import { NO_PROGRESS } from './season.ts'
 import { freshStock } from './store.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
 import type { CosmeticId } from './cosmetics.ts'
+import type { TaskProgress } from './dailytask.ts'
 import type { DropMeshes } from './dropmeshes.ts'
 import type { Drop } from './drops.ts'
 import type { FirstPersonHands } from './fphands.ts'
@@ -66,6 +68,9 @@ export interface GameState {
   // The account's progress through the season (season.ts) as the valley
   // last sent it; alone, none, and nothing is kept.
   season: SeasonProgress
+  // The account's progress on the daily task (dailytask.ts) as the valley
+  // last sent it, on the day it counts; alone, none, and nothing is kept.
+  task: TaskProgress
   // Every Citgo's shelves, one stock per station like world.fuelPoints.
   storeStock: ShopStock[]
   // The item on each number key: the account's, saved one change at a
@@ -147,6 +152,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     pendingTrade: false,
     offeredBy: null,
     season: NO_PROGRESS,
+    task: NO_TASK,
     storeStock: freshStock(stations),
     hotbar,
     hotbarSaved: Promise.resolve(),
