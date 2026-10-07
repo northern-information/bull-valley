@@ -243,9 +243,11 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     }
     bursts.update(dt)
     mist.update({ dt, player: player.pos })
-    // Gron's rain falls on its own clock, and Moab's fire burns on it too.
+    // Gron's rain falls on its own clock, Moab's fire burns on it too, and
+    // the wreck smoulders and blinks on it.
     world.gronRig?.update(time)
     for (const rig of world.moabRigs) rig.update(time)
+    world.wreck?.update(time)
     // The portal at the maze's heart swirls, and anyone on foot who walks
     // into it comes out on the trail outside the gate.
     const portal = world.portal

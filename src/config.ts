@@ -285,6 +285,21 @@ export const CONFIG = {
     halfLength: 1.0,
     radius: 0.75,
   },
+  wreck: {
+    // The green BMW nosed into a tree beside the spawn Citgo, station-local
+    // like the bush: on the station's side of Lake Avenue, across the road
+    // from the corn maze's near corner, in the grass just past the lot's
+    // end, where it left the road for the tree. `toward` is the way its
+    // nose points, at the tree (assets.ts WRECK). Scenery: it only blocks.
+    at: { x: 6.5, z: 27 },
+    toward: { x: 3.5, z: 25.5 },
+    // It blocks as a capsule down its length (this far either side of its
+    // middle, this wide), and the tree like a post.
+    halfLength: 1.6,
+    radius: 0.9,
+    // Trees keep this far off its middle.
+    treeClear: 6,
+  },
   npcs: {
     // How close you must stand for Matthew Marx or David Carlsten to glow
     // and answer E. Marx reads by the tailgate, in boarding range, so this
