@@ -248,6 +248,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     world.gronRig?.update(time)
     for (const rig of world.moabRigs) rig.update(time)
     world.wreck?.update(time)
+    // The dishes slew on the valley's clock, so every raider sees them
+    // look the same way.
+    world.dishes?.update(net.clock.serverNow(now) / 1000)
     // The portal at the maze's heart swirls, and anyone on foot who walks
     // into it comes out on the trail outside the gate.
     const portal = world.portal

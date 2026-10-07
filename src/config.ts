@@ -300,6 +300,20 @@ export const CONFIG = {
     // Trees keep this far off its middle.
     treeClear: 6,
   },
+  dishes: {
+    // The dish array behind the spawn Citgo (assets.ts DISH), station-local
+    // like the bush: `rows` rows back from the store's back wall, the first
+    // `first` metres from the pump island, each `cols` dishes across,
+    // `spacing` apart, wider than a reflector so none ever touch however
+    // they turn. Scenery: each pedestal blocks like a post this wide.
+    rows: 6,
+    cols: 6,
+    first: -24,
+    spacing: 13,
+    radius: 1.4,
+    // Trees keep this far off each pedestal: clear of the reflector.
+    treeClear: 6,
+  },
   npcs: {
     // How close you must stand for Matthew Marx or David Carlsten to glow
     // and answer E. Marx reads by the tailgate, in boarding range, so this
