@@ -13,6 +13,7 @@
 // PUT  /auth/username                       change it (Gron)
 // PUT  /auth/look                           the character and guitar finish
 // PUT  /auth/hotbar                         the number keys' items
+// PUT  /auth/settings                       the music volume
 // GET  /auth/username/:username/available   is this handle free
 // POST /auth/refresh                        a fresh access cookie (always 200)
 // POST /auth/logout                         clear the session
@@ -40,6 +41,7 @@ import {
 import { copy } from '../src/copy.ts'
 import { isFinish } from '../src/finishes.ts'
 import { isHotbar } from '../src/hotbar.ts'
+import { isSettings } from '../src/settings.ts'
 import { appOrigin, isDevHost, jwtSecret } from './env.ts'
 import {
   authorizeUrl,
@@ -223,6 +225,7 @@ class AuthHandler {
       }
       if (first === 'look' && method === 'PUT') return this.setLook()
       if (first === 'hotbar' && method === 'PUT') return this.setHotbar()
+      if (first === 'settings' && method === 'PUT') return this.setSettings()
     }
     if (parts.length === 3 && first === 'username' && third === 'available') {
       if (method === 'GET') return this.available(second)
@@ -368,6 +371,7 @@ class AuthHandler {
       })),
       look: await this.store.lookOf(account.accountId),
       hotbar: await this.store.hotbarOf(account.accountId),
+      settings: await this.store.settingsOf(account.accountId),
     }
   }
 
@@ -757,6 +761,29 @@ class AuthHandler {
       )
     }
     return json({ hotbar })
+  }
+
+  // The raider's settings, from the main menu or the pause overlay.
+  private async setSettings(): Promise<Response> {
+    const claims = await this.access()
+    if (!claims) return json({ error: copy('auth.sign_in_first') }, 401)
+    const body = (await this.request.json().catch(() => null)) as Record<
+      string,
+      unknown
+    > | null
+    const settings = body?.settings
+    if (!isSettings(settings)) {
+      return json({ error: copy('auth.settings_rule') }, 400)
+    }
+    const kept = { music: settings.music }
+    if (!(await this.store.setSettings(claims.accountId, kept))) {
+      return json(
+        { error: copy('auth.account_not_found') },
+        401,
+        this.clearSession()
+      )
+    }
+    return json({ settings: kept })
   }
 
   private async available(username: string): Promise<Response> {

@@ -13,6 +13,7 @@ import type {
   Provider,
   ProvidersResponse,
   RefreshResponse,
+  SettingsWire,
 } from './account.ts'
 
 type Fetch = typeof fetch
@@ -205,6 +206,29 @@ export async function saveHotbar(
     return {
       ok: false,
       error: await errorOf(res, copy('auth.hotbar_failed')),
+      limited: res.status === TOO_MANY,
+    }
+  } catch {
+    return { ok: false, error: copy('auth.unreachable') }
+  }
+}
+
+// The raider's settings, kept on the account like the hotbar.
+export async function saveSettings(
+  settings: SettingsWire,
+  fetchImpl: Fetch = fetch
+): Promise<Outcome> {
+  try {
+    const res = await fetchImpl(`${AUTH_PATH}/settings`, {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ settings }),
+    })
+    if (res.ok) return { ok: true }
+    return {
+      ok: false,
+      error: await errorOf(res, copy('auth.settings_failed')),
       limited: res.status === TOO_MANY,
     }
   } catch {

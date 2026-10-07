@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { COOKIE, parseCookies } from '../../src/cookies.ts'
 import { copy } from '../../src/copy.ts'
 import { assign, EMPTY_HOTBAR } from '../../src/hotbar.ts'
+import { DEFAULT_SETTINGS } from '../../src/settings.ts'
 import { MemoryAccountStore } from '../../worker/accounts.ts'
 import { handleAuth, identityFor } from '../../worker/auth.ts'
 import { DEV_JWT_SECRET } from '../../worker/env.ts'
@@ -572,6 +573,33 @@ describe('confirm-signup and username', () => {
     expect((await put({})).res.status).toBe(400)
     expect((await me(jar, s)).account?.hotbar).toEqual(bar)
     expect((await put({ hotbar: bar }, new Jar())).res.status).toBe(401)
+  })
+
+  it('keeps the settings on the account', async () => {
+    const s = new MemoryAccountStore()
+    const jar = new Jar()
+    await signIn(jar, { id: 45, login: 'fortyfive' }, s)
+    await call('/auth/confirm-signup', {
+      body: WORD,
+      method: 'POST',
+      jar,
+      store: s,
+    })
+    expect((await me(jar, s)).account?.settings).toEqual(DEFAULT_SETTINGS)
+    const put = (body: unknown, j: Jar | undefined = jar) =>
+      call('/auth/settings', { method: 'PUT', jar: j, store: s, body })
+    const saved = await put({ settings: { music: 60, extra: true } })
+    expect(saved.res.status).toBe(200)
+    // Only what the game knows is kept.
+    expect((await me(jar, s)).account?.settings).toEqual({ music: 60 })
+    // Out of range, not whole, or missing: refused, nothing moves.
+    expect((await put({ settings: { music: 101 } })).res.status).toBe(400)
+    expect((await put({ settings: { music: 12.5 } })).res.status).toBe(400)
+    expect((await put({})).res.status).toBe(400)
+    expect((await me(jar, s)).account?.settings).toEqual({ music: 60 })
+    expect((await put({ settings: { music: 10 } }, new Jar())).res.status).toBe(
+      401
+    )
   })
 
   it('answers whether a handle is free', async () => {
