@@ -1078,6 +1078,8 @@ describe('ValleyDO: the shadowmen', () => {
     await v.alarm()
     await v.webSocketMessage(ws(a), state(500, 500))
     await v.webSocketMessage(ws(b), state(900, 900))
+    // Only the shadowman placed here rushes anyone.
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"calm"}')
     await v.webSocketMessage(
       ws(a),
       '{"type":"dev","op":"shadowman","x":500,"z":501}'
@@ -1098,6 +1100,8 @@ describe('ValleyDO: the shadowmen', () => {
     const hz = MAZE.z + heart.z
     await v.webSocketMessage(ws(a), state(hx, hz + 2))
     await v.webSocketMessage(ws(b), state(900, 900))
+    // No crossing shadowman rushes anyone: only the Caretaker strikes.
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"calm"}')
     await v.webSocketMessage(
       ws(a),
       `{"type":"dev","op":"caretaker","x":${hx},"z":${hz}}`
