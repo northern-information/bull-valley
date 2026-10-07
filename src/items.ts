@@ -5,7 +5,8 @@
 //
 // Fields:
 //   id        inventory kind and mesh key
-//   category  'cigarette' | 'joint' | 'drink' | 'medicine' | 'forage'
+//   category  'cigarette' | 'joint' | 'drink' | 'medicine' | 'forage' |
+//             'material'
 //   label     name in the pack, and floating over a pickup or shelf unit
 //   blurb     description on the pack's item card
 //   used      chat line when the player uses it
@@ -342,6 +343,16 @@ export const ITEMS = [
     label: copy('items.berries.label'),
     blurb: copy('items.berries.blurb'),
     collected: copy('items.berries.collected'),
+    start: 0,
+  },
+  // Materials. Not for sale: the Caretaker leaves gold bullion where two
+  // beams unmade it (sharedworld.ts rule 13), counted by the troy ounce.
+  // No use yet.
+  {
+    id: 'gold-bullion',
+    category: 'material',
+    label: copy('items.gold-bullion.label'),
+    blurb: copy('items.gold-bullion.blurb'),
     start: 0,
   },
 ] as const satisfies readonly Item[]

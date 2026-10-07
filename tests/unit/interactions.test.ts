@@ -389,6 +389,12 @@ describe('itemLabel', () => {
       copy('labels.dimes', { count: 7 })
     )
   })
+
+  it('labels gold bullion by the troy ounce', () => {
+    expect(pickupLabel({ kind: 'gold-bullion', count: 2 })).toBe(
+      copy('labels.gold_bullion', { count: 2 })
+    )
+  })
 })
 
 describe('dailyStatus', () => {

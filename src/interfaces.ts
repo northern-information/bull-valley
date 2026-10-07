@@ -90,7 +90,7 @@ export interface Geo {
 // packaging (src/assets.ts).
 
 export type ItemCategory =
-  'cigarette' | 'joint' | 'drink' | 'medicine' | 'forage'
+  'cigarette' | 'joint' | 'drink' | 'medicine' | 'forage' | 'material'
 
 // How a medicine is packed: a pill bottle, a folding carton, or a dropper
 // bottle. assets.ts builds one shape per form; medart.ts paints its labels.

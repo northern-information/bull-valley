@@ -1,12 +1,13 @@
 // Dropped items, pure: how much one drop takes out of what a raider
-// carries, where it lands, and what taking it up leaves, and the dimes a
-// shadowman bursts into. sharedworld.ts runs these for the shared valley
-// (rules 11 and 12), actions.ts for the valley played alone. No three.js,
-// no DOM.
+// carries, where it lands, and what taking it up leaves, and what the
+// shadowmen and the Caretaker leave behind. sharedworld.ts runs these for
+// the shared valley (rules 11, 12 and 13), actions.ts for the valley played
+// alone. No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
 import { leftInOpen } from './items.ts'
 import type { XZ } from './interfaces.ts'
+import type { ItemId } from './items.ts'
 import type { Rng } from './rng.ts'
 
 // The kind of the drop a shadowman bursts into: dimes, which are cash.
@@ -22,6 +23,37 @@ export function isCash(kind: string): boolean {
 export function dimesFor(rng: Rng, cfg = CONFIG): number {
   const { min, max } = cfg.shadowmen.dimes
   return min + Math.floor(rng() * (max - min + 1))
+}
+
+// The kind of the drop the Caretaker leaves where it was unmade: gold
+// bullion, an item, counted by the troy ounce.
+export const GOLD_BULLION: ItemId = 'gold-bullion'
+
+// One drop the valley sets down of its own accord: what, how many, where.
+export interface Spill extends XZ {
+  kind: string
+  count: number
+}
+
+// What one step leaves lying: dimes where each shadowman burst, and the
+// Caretaker's gold bullion where it was unmade.
+export function spillsOf(
+  bursts: readonly XZ[],
+  unmade: XZ | null,
+  rng: Rng,
+  cfg = CONFIG
+): Spill[] {
+  const spills: Spill[] = bursts.map(({ x, z }) => ({
+    x,
+    z,
+    kind: DIMES,
+    count: dimesFor(rng, cfg),
+  }))
+  if (unmade) {
+    const { x, z } = unmade
+    spills.push({ x, z, kind: GOLD_BULLION, count: cfg.caretaker.bullion })
+  }
+  return spills
 }
 
 // One drop on the ground: what lies there and how many. The id is the

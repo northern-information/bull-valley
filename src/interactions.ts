@@ -4,7 +4,7 @@
 
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
-import { isCash } from './drops.ts'
+import { GOLD_BULLION, isCash } from './drops.ts'
 import { itemById } from './items.ts'
 import { npcReach } from './npcs.ts'
 import { formatCash } from './store.ts'
@@ -168,6 +168,7 @@ export function pickupLabel({
 }): string {
   if (kind === 'cabbage') return copy('labels.cabbage')
   if (isCash(kind)) return copy('labels.dimes', { count })
+  if (kind === GOLD_BULLION) return copy('labels.gold_bullion', { count })
   return copy('labels.pickup_count', {
     item: itemById(kind)?.label ?? kind,
     count,

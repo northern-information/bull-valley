@@ -2769,6 +2769,54 @@ export function buildDimes(
   return group
 }
 
+// Gold bullion the Caretaker leaves where it was unmade: one small cast
+// bar per troy ounce (a little over life size, to read at PS1
+// resolution), lying in a loose stack. Local space: on the ground at the
+// origin.
+export function buildGoldBullion(
+  ounces: number,
+  seed = 0x601d,
+  { glow = true }: PickupOptions = {}
+): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'gold-bullion'
+  const material = lambert({
+    color: '#b8862a',
+    emissive: new THREE.Color('#ffd36a'),
+    emissiveIntensity: 0.35,
+  })
+  // A cast bar: wider at the foot than the top.
+  const geo = new THREE.CylinderGeometry(0.05, 0.062, 0.022, 4, 1)
+  geo.rotateY(Math.PI / 4)
+  geo.scale(1.3, 1, 0.75)
+  geo.translate(0, 0.011, 0)
+  const rng = mulberry32(seed)
+  const bars = Math.max(1, Math.min(ounces, 10))
+  for (let i = 0; i < bars; i++) {
+    const bar = new THREE.Mesh(geo, material)
+    // Two to a layer, crossed a little, each layer on the last.
+    const layer = Math.floor(i / 2)
+    const side = i % 2 === 0 ? -1 : 1
+    bar.position.set(
+      side * 0.045 + range(rng, -0.01, 0.01),
+      layer * 0.022,
+      range(rng, -0.012, 0.012)
+    )
+    bar.rotation.y = Math.PI / 2 + range(rng, -0.25, 0.25)
+    group.add(bar)
+  }
+  if (glow) {
+    const halo = makeGlowSprite(
+      makeGlowTexture('rgba(255, 214, 120, 0.5)'),
+      0.9
+    )
+    halo.position.y = 0.06
+    group.add(halo)
+  }
+  setPulseMaterials(group, [material])
+  return group
+}
+
 // --- Baseball bat --------------------------------------------------------
 
 // A 33-inch ash bat, turned on a lathe: knob, thin handle, a long taper,
@@ -4370,8 +4418,9 @@ export function pulseMaterials(
   return PULSE.get(object) ?? []
 }
 
-// Kinds: 'cabbage', or an item id from items.ts. glow: false leaves out the
-// halo on packs, joints, drinks, medicine, and berries.
+// Kinds: 'cabbage', 'dimes', or an item id from items.ts. glow: false
+// leaves out the halo on packs, joints, drinks, medicine, berries, dimes
+// and gold bullion.
 export function buildPickup(
   kind: string,
   seed?: number,
@@ -4382,6 +4431,7 @@ export function buildPickup(
   if (isDrink(kind)) return buildDrink(kind, { glow })
   if (kind === 'berries') return buildBerries({ glow })
   if (kind === 'dimes') return buildDimes(12, seed, { glow })
+  if (kind === 'gold-bullion') return buildGoldBullion(2, seed, { glow })
   if (isMedicine(kind)) return buildMedicine(kind, { glow })
   let mesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshLambertMaterial>
   if (kind === 'cabbage') {
@@ -4745,6 +4795,11 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   })),
   { id: 'berries', label: 'Berries', build: () => buildPickup('berries') },
   { id: 'dimes', label: 'Dimes (12)', build: () => buildDimes(12) },
+  {
+    id: 'gold-bullion',
+    label: 'Gold bullion (2 troy oz)',
+    build: () => buildGoldBullion(2),
+  },
   { id: 'berry-bush', label: 'Berry bush', build: () => buildBerryBush() },
   {
     id: 'caretaker',

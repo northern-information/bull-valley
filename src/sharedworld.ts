@@ -61,11 +61,14 @@
 //    could be rushed by a shadowman, and its touch strikes them the same
 //    way. One beam does nothing to it; two raiders' beams on it at once,
 //    held, unmake it, and it forms again at the heart minutes later.
+//    Unmade, it leaves 2 troy ounces of gold bullion lying where it was
+//    (drops.ts spillsOf), a drop like any other (rule 12) that goes into
+//    the taker's pack.
 
 import { caretakerAt, createCaretaker, stepCaretaker } from './caretaker.ts'
 import { CONFIG } from './config.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
-import { DIME_CENTS, DIMES, dropSpot, isCash, takeUp } from './drops.ts'
+import { DIME_CENTS, dropSpot, isCash, takeUp } from './drops.ts'
 import { contentsOf, INVENTORY_KINDS, itemById } from './items.ts'
 import {
   arrive,
@@ -90,7 +93,7 @@ import {
 } from './shadowmen.ts'
 import { freshStock, onShelf, takeUnit } from './store.ts'
 import type { Caretaker } from './caretaker.ts'
-import type { Drop, Facing } from './drops.ts'
+import type { Drop, Facing, Spill } from './drops.ts'
 import type { Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckChange, TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
@@ -192,8 +195,9 @@ export type ValleyAction =
   // when the valley has not heard one.
   | { type: 'drop'; id: string; kind: string; count: number; at: Facing | null }
   | { type: 'take-drop'; id: string; drop: number }
-  // Rule 11: the dimes burst shadowmen leave, each where one burst.
-  | { type: 'spill'; spills: (XZ & { count: number })[] }
+  // Rules 11 and 13: what the valley leaves lying of its own accord: the
+  // dimes burst shadowmen leave, and the Caretaker's gold bullion.
+  | { type: 'spill'; spills: Spill[] }
   // Rule 9: a new name, a new character, or both.
   | { type: 'appearance'; id: string; name?: string; outfit?: OutfitId }
   // The valley's own clock: the truck and the day, moved on.
@@ -743,23 +747,26 @@ function act(
     }
 
     case 'spill': {
-      // Rule 11: each burst leaves its dimes lying where it was.
+      // Rules 11 and 13: each burst leaves its dimes lying where it was,
+      // and the Caretaker unmade its gold bullion. Only cash or an item.
       const world = valley.world
-      const spills = action.spills.filter((one) => one.count > 0)
+      const spills = action.spills.filter(
+        (one) => one.count > 0 && (isCash(one.kind) || isPackKind(one.kind))
+      )
       if (!world || spills.length === 0) {
         return done(valley, now, { broadcast: [] })
       }
-      const dimes: Drop[] = spills.map(({ x, z, count }, i) => ({
+      const spilled: Drop[] = spills.map(({ x, z, kind, count }, i) => ({
         id: world.nextDrop + i,
-        kind: DIMES,
+        kind,
         count,
         x,
         z,
       }))
       const next = withWorld(valley, {
         ...world,
-        drops: [...world.drops, ...dimes],
-        nextDrop: world.nextDrop + dimes.length,
+        drops: [...world.drops, ...spilled],
+        nextDrop: world.nextDrop + spilled.length,
       })
       return done(next, now, { broadcast: [frame(next, 'spilled')] })
     }

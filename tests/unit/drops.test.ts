@@ -5,7 +5,9 @@ import {
   dimesFor,
   dropAmount,
   dropSpot,
+  GOLD_BULLION,
   isCash,
+  spillsOf,
   takeUp,
 } from '../../src/drops.ts'
 import { contentsOf } from '../../src/items.ts'
@@ -25,6 +27,22 @@ describe('dimes', () => {
     expect(Math.min(...seen)).toBe(min)
     expect(Math.max(...seen)).toBe(max)
     expect(seen.size).toBe(max - min + 1)
+  })
+})
+
+describe('spillsOf', () => {
+  it('leaves dimes at each burst, and 2 troy ounces of gold where the Caretaker was unmade', () => {
+    const rng = mulberry32(3)
+    const spills = spillsOf([{ x: 1, z: 2 }], { x: 5, z: 6 }, rng)
+    expect(spills).toHaveLength(2)
+    expect(spills[0]).toMatchObject({ x: 1, z: 2, kind: DIMES })
+    expect(spills[1]).toEqual({ x: 5, z: 6, kind: GOLD_BULLION, count: 2 })
+    expect(CONFIG.caretaker.bullion).toBe(2)
+    expect(isCash(GOLD_BULLION)).toBe(false)
+  })
+
+  it('leaves nothing when nothing burst or was unmade', () => {
+    expect(spillsOf([], null, mulberry32(3))).toEqual([])
   })
 })
 

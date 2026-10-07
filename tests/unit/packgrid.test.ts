@@ -64,6 +64,16 @@ describe('packItems', () => {
     expect(packItems(inv, 'materials')).toEqual([])
   })
 
+  it('keeps gold bullion in materials, counted by the troy ounce', () => {
+    const inv = { ...empty, 'gold-bullion': 2, cabbage: 1 }
+    expect(kinds(packItems(inv, 'materials'))).toEqual(['gold-bullion'])
+    expect(kinds(packItems(inv, 'loot'))).toEqual(['cabbage'])
+    expect(packItems(inv, 'materials')[0]).toMatchObject({
+      stock: 2,
+      canUse: false,
+    })
+  })
+
   it('carries cabbages, never usable', () => {
     const [item] = packItems({ ...empty, cabbage: 2 }, 'loot')
     expect(item).toMatchObject({ kind: 'cabbage', stock: 2, canUse: false })

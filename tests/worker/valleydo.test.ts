@@ -1106,6 +1106,45 @@ describe('ValleyDO: the shadowmen', () => {
     expect(b.frames().some((m) => m.type === 'struck')).toBe(false)
   })
 
+  it('leaves 2 troy ounces of gold bullion where two beams unmade the Caretaker', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const b = await join(v, s, 'B')
+    const heart = heartPoint(theMaze())
+    const hx = MAZE.x + heart.x
+    const hz = MAZE.z + heart.z
+    // Both down the court from it, looking at it (+z is yaw pi), from the
+    // bed so it never comes for them.
+    const lit = (dx: number) =>
+      JSON.stringify({
+        ...JSON.parse(state(hx + dx, hz - 8, true)),
+        yaw: Math.PI,
+        riding: true,
+      })
+    await v.webSocketMessage(ws(a), lit(0))
+    await v.webSocketMessage(ws(b), lit(0.5))
+    await v.webSocketMessage(
+      ws(a),
+      `{"type":"dev","op":"caretaker","x":${hx},"z":${hz}}`
+    )
+    const ticks =
+      Math.ceil(CONFIG.caretaker.burnSeconds * CONFIG.shadowmen.tickHz) + 2
+    for (let i = 0; i < ticks; i++) v.tick()
+    // The spill is written after the step.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const spilled = b
+      .frames()
+      .findLast((m): m is WorldMessage => m.type === 'world')
+    expect(spilled?.reason).toBe('spilled')
+    const gold = spilled?.world?.drops.find((d) => d.kind === 'gold-bullion')
+    expect(gold).toMatchObject({ count: 2 })
+    expect(Math.hypot((gold?.x ?? 0) - hx, (gold?.z ?? 0) - hz)).toBeLessThan(
+      0.1
+    )
+    await v.webSocketMessage(ws(b), `{"type":"take-drop","drop":${gold?.id}}`)
+    expect(b.last<PackMessage>().pack).toMatchObject({ 'gold-bullion': 2 })
+  })
+
   // A, light on, burns a shadowman standing in the beam 5 m ahead (riding,
   // so it stands to burn rather than rushing them); B stands far off. The
   // dimes it left, as B was told.

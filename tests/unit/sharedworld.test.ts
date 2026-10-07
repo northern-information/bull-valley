@@ -642,9 +642,10 @@ describe('rule 11: a burst shadowman leaves dimes', () => {
     const r = v.step({
       type: 'spill',
       spills: [
-        { x: 10, z: 20, count: 7 },
-        { x: 30, z: 40, count: 0 },
-        { x: 50, z: 60, count: 3 },
+        { x: 10, z: 20, kind: 'dimes', count: 7 },
+        { x: 30, z: 40, kind: 'dimes', count: 0 },
+        { x: 50, z: 60, kind: 'dimes', count: 3 },
+        { x: 70, z: 80, kind: 'not-a-thing', count: 1 },
       ],
     })
     expect(reasons(r)).toEqual(['spilled'])
@@ -658,7 +659,10 @@ describe('rule 11: a burst shadowman leaves dimes', () => {
   it('spills nothing with no world, or no dimes', () => {
     const v = valleyWith()
     expect(
-      v.step({ type: 'spill', spills: [{ x: 0, z: 0, count: 5 }] }).broadcast
+      v.step({
+        type: 'spill',
+        spills: [{ x: 0, z: 0, kind: 'dimes', count: 5 }],
+      }).broadcast
     ).toEqual([])
     expect(v.valley.world).toBeNull()
     const w = valleyWith(join('a'))
@@ -667,7 +671,10 @@ describe('rule 11: a burst shadowman leaves dimes', () => {
 
   it('pays dimes taken up into the wallet, never the pack', () => {
     const v = valleyWith(join('a'), join('b'))
-    v.step({ type: 'spill', spills: [{ x: 1, z: 2, count: 12 }] })
+    v.step({
+      type: 'spill',
+      spills: [{ x: 1, z: 2, kind: 'dimes', count: 12 }],
+    })
     const r = v.step({ type: 'take-drop', id: 'b', drop: 0 })
     expect(r.broadcast[0]).toMatchObject({
       reason: 'drop-taken',
@@ -678,6 +685,24 @@ describe('rule 11: a burst shadowman leaves dimes', () => {
     expect(r.earn).toEqual({ account: 'acct-b', amount: 120 })
     expect(r.pack).toBeUndefined()
     expect(v.valley.world?.drops).toEqual([])
+  })
+
+  it('puts the gold bullion the Caretaker leaves into the taker’s pack', () => {
+    const v = valleyWith(join('a'))
+    v.step({
+      type: 'spill',
+      spills: [{ x: 1, z: 2, kind: 'gold-bullion', count: 2 }],
+    })
+    expect(v.valley.world?.drops).toEqual([
+      { id: 0, kind: 'gold-bullion', count: 2, x: 1, z: 2 },
+    ])
+    const r = v.step({ type: 'take-drop', id: 'a', drop: 0 })
+    expect(r.pack).toEqual({
+      account: 'acct-a',
+      kind: 'gold-bullion',
+      delta: 2,
+    })
+    expect(r.earn).toBeUndefined()
   })
 
   it('never lets dimes be dropped from a pack', () => {

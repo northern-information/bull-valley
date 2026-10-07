@@ -21,9 +21,14 @@ describe('items', () => {
   it('has unique ids and a known category', () => {
     expect(new Set(ITEMS.map((item) => item.id)).size).toBe(ITEMS.length)
     for (const item of ITEMS) {
-      expect(['cigarette', 'joint', 'drink', 'medicine', 'forage']).toContain(
-        item.category
-      )
+      expect([
+        'cigarette',
+        'joint',
+        'drink',
+        'medicine',
+        'forage',
+        'material',
+      ]).toContain(item.category)
     }
   })
 
@@ -96,8 +101,9 @@ describe('items', () => {
   it('prices every shelf item in whole cents', () => {
     const items: readonly Item[] = ITEMS
     const forSale = items.filter((item) => item.price !== undefined)
-    // All but the forage: the berries and the cabbages.
-    expect(forSale.length).toBe(ITEMS.length - 2)
+    // All but the forage (the berries and the cabbages) and the gold
+    // bullion.
+    expect(forSale.length).toBe(ITEMS.length - 3)
     for (const item of forSale) {
       expect(Number.isInteger(item.price), item.id).toBe(true)
       expect(item.price, item.id).toBeGreaterThan(0)
@@ -122,6 +128,14 @@ describe('items', () => {
     expect('price' in cabbage).toBe(false)
     expect(INVENTORY_KINDS).toContain('cabbage')
     expect(isUsable('cabbage')).toBe(false)
+  })
+
+  it('carries gold bullion as a material, never for sale', () => {
+    const gold = getItem('gold-bullion')
+    expect(gold.category).toBe('material')
+    expect('price' in gold).toBe(false)
+    expect(INVENTORY_KINDS).toContain('gold-bullion')
+    expect(isUsable('gold-bullion')).toBe(false)
   })
 })
 

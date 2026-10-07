@@ -367,5 +367,8 @@ export const CONFIG = {
     // often a hunt works out its way through the paths again, in seconds.
     clearance: 0.45,
     rethinkSeconds: 0.5,
+    // Unmade, it leaves this much gold bullion lying where it was, in troy
+    // ounces (drops.ts spillsOf).
+    bullion: 2,
   },
 }

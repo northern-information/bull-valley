@@ -18,7 +18,7 @@
 import { DurableObject } from 'cloudflare:workers'
 import { isSelectable } from '../src/characters.ts'
 import { CONFIG } from '../src/config.ts'
-import { dimesFor } from '../src/drops.ts'
+import { spillsOf } from '../src/drops.ts'
 import {
   CLOSE,
   isValidName,
@@ -316,7 +316,8 @@ export class ValleyDO extends DurableObject<Env> {
       return
     }
     this.broadcast(out.message, null)
-    if (out.message.bursts.length) void this.spill(out.message.bursts)
+    const { bursts, unmade } = out.message
+    if (bursts.length || unmade) void this.spill(bursts, unmade)
     if (out.struck.length === 0) return
     for (const socket of this.ctx.getWebSockets()) {
       const me = this.attachment(socket).me
@@ -544,13 +545,10 @@ export class ValleyDO extends DurableObject<Env> {
   }
 
   // Each shadowman that burst leaves its dimes where it was (sharedworld.ts
-  // rule 11), how many drawn here, so the reducer stays pure.
-  private async spill(bursts: readonly XZ[]): Promise<void> {
-    const spills = bursts.map(({ x, z }) => ({
-      x,
-      z,
-      count: dimesFor(this.shadowRng),
-    }))
+  // rule 11), how many drawn here, so the reducer stays pure, and the
+  // Caretaker unmade its gold bullion (rule 13).
+  private async spill(bursts: readonly XZ[], unmade: XZ | null): Promise<void> {
+    const spills = spillsOf(bursts, unmade, this.shadowRng)
     const reduced = reduce(
       this.valley,
       { type: 'spill', spills },

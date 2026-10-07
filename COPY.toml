@@ -273,6 +273,7 @@ pickup_count = { text = "{item} ×{count}", by = "ai" }
 price = { text = "{item} {price}", by = "ai" }
 berries = { text = "Berries", by = "ai" }
 dimes = { text = "{count} Dimes", by = "ai" }
+gold_bullion = { text = "Gold Bullion, {count} Troy Oz", by = "ai" }
 berry_picked = { text = "Picked Clean Until Midnight", by = "ai" }
 berry_offline = { text = "No Signal", by = "ai" }
 
@@ -531,3 +532,7 @@ blurb = { text = "Cold and heavy, out of a field somewhere in the valley.", by =
 label = { text = "Berries", by = "ai" }
 blurb = { text = "Dark and cold, off the bush by the Citgo. One a day.", by = "ai" }
 collected = { text = "A berry off the bush. The rest are for tomorrow.", by = "ai" }
+
+[items.gold-bullion]
+label = { text = "Gold Bullion", by = "ai" }
+blurb = { text = "Counted by the troy ounce, still cold from the lantern. What the Caretaker kept.", by = "ai" }
