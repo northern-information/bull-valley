@@ -89,6 +89,10 @@ export interface Geo {
 // Items (src/items.ts), drink containers (src/drinks.ts), and medicine
 // packaging (src/assets.ts).
 
+// The three sides of geometrie (geometrie.ts): how high, how stimulated,
+// how drunk.
+export type GeometrieAxis = 'high' | 'stimulated' | 'drunk'
+
 export type ItemCategory =
   'cigarette' | 'joint' | 'drink' | 'medicine' | 'forage'
 
@@ -137,6 +141,8 @@ export interface Item {
   emberSeconds?: number
   // Joints.
   perceptionSeconds?: number
+  // How far one use moves each geometrie level (geometrie.ts), 0 to 1.
+  geometrie?: Partial<Record<GeometrieAxis, number>>
   // Drinks.
   container?: ContainerKey
   // Medicine.

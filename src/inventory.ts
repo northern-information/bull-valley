@@ -41,7 +41,8 @@ export type Consumed =
 // effect it starts (hotbar.ts Effects). An item with no effect yet is not
 // used. A cigarette waits until the one burning is out, then smokes for
 // smokeSeconds and smoulders for emberSeconds after; the joint starts
-// perception.
+// perception; a drink starts nothing timed. What it does to geometrie is
+// the item's `geometrie` dose (geometrie.ts).
 export function consume(
   inv: Inventory,
   kind: string,
@@ -68,14 +69,17 @@ export function consume(
       },
     }
   }
-  return {
-    used: true,
-    inv: result.inv,
-    effects: {
-      ...effects,
-      perception: { start: time, end: time + (item.perceptionSeconds ?? 0) },
-    },
+  if (item.category === 'joint') {
+    return {
+      used: true,
+      inv: result.inv,
+      effects: {
+        ...effects,
+        perception: { start: time, end: time + (item.perceptionSeconds ?? 0) },
+      },
+    }
   }
+  return { used: true, inv: result.inv, effects }
 }
 
 export function useItem(

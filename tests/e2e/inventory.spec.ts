@@ -61,6 +61,17 @@ test('Tab opens the pack, a number key assigns, the hotbar uses and is kept', as
       page.evaluate(() => window.__bv?.chat.map((line) => line.text) ?? [])
     )
     .toContain(copy('items.marlboro.used'))
+  // It stimulates: the lower right of the geometrie triangle lights.
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.geometrie.stimulated ?? 0))
+    .toBeGreaterThan(0)
+  await expect(
+    page.locator('.bv-geometrie [data-axis="stimulated"]')
+  ).not.toHaveCSS('opacity', '0')
+  await expect(page.locator('.bv-geometrie [data-axis="drunk"]')).toHaveCSS(
+    'opacity',
+    '0'
+  )
 
   // A reload brings the bar back from the account.
   await page.reload()

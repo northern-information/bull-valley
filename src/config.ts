@@ -116,6 +116,13 @@ export const CONFIG = {
     // Camera drift while perception is on.
     perceptionDrift: 0.5,
   },
+  geometrie: {
+    // Each level fades this much a second (a level runs from 0 to 1), so
+    // a full one fades out in 1 / rate seconds: high in four minutes,
+    // stimulated in three, drunk in five. Per-item doses live in
+    // src/items.ts.
+    fadePerSecond: { high: 1 / 240, stimulated: 1 / 180, drunk: 1 / 300 },
+  },
   scope: {
     rangeMetres: 250,
     sweepSeconds: 3.2,
