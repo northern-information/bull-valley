@@ -6,6 +6,7 @@ import * as THREE from 'three'
 import { pulseMaterials } from './assets.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
+import { levelsAt } from './geometrie.ts'
 import { ease, stepHand, useLift, useSeconds } from './hands.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
 import {
@@ -14,14 +15,14 @@ import {
   itemLabel,
   resolveInteraction,
 } from './interactions.ts'
+import { settleTruck } from './marx.ts'
 import { inPortal } from './maze.ts'
 import { packItemOf } from './packgrid.ts'
 import { poseOf, stateChanged } from './presence.ts'
-import { advance, EVENTS, loadoutClock, STATES, timedOut } from './raid.ts'
-import { lobbyCount, seatOf } from './raidsync.ts'
 import { beamFrom } from './shadowmen.ts'
 import { formatCash } from './store.ts'
 import { tripLevel } from './trip.ts'
+import { boardable, clockText, countdown, seatOf } from './worldsync.ts'
 import type { Actions } from './actions.ts'
 import type { Game } from './game.ts'
 import type { PeerStateWire } from './protocol.ts'
@@ -60,11 +61,16 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   } = game
   const ridingForward = new THREE.Vector3(0, 0, -1)
 
-  // The countdown, with the lobby's headcount when others are in it.
-  const lobbyLine = () => {
-    const clock = loadoutClock(s.raid, s.raidClock)
-    const count = lobbyCount(s.shared)
-    return count ? copy('truck.lobby_count', { clock, ...count }) : clock
+  // Marx's countdown, for whoever is in the bed or standing by it.
+  const countdownLine = (now: number): string | null => {
+    const left = s.world
+      ? countdown(s.world.truck, net.clock.serverNow(now))
+      : countdown(s.aloneTruck, Date.now())
+    if (left === null) return null
+    const near =
+      s.aboard ||
+      truck.distanceTo(player.pos.x, player.pos.z) < CONFIG.truck.countdownReach
+    return near ? copy('truck.leaves_in', { clock: clockText(left) }) : null
   }
 
   // How each bush stands for this player right now.
@@ -90,31 +96,28 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     last = now
     s.time += dt
     const { time } = s
-    // The valley is persistent: once the raid begins, the clock never pauses —
-    // not for the intro overlay, not for a dropped pointer lock. The truck
-    // keeps its own schedule. In the shared valley the clock is the
-    // server's, read through the offset, so every player counts together.
-    // Alone it is the wall clock too, never the capped step: at a few frames
-    // a second the capped step would stretch the five-minute loadout into
-    // half an hour.
-    if (s.shared) {
-      s.raidClock = Math.max(
-        0,
-        (net.clock.serverNow(now) - s.shared.startedAt) / 1000
-      )
-    } else if (s.started && !s.ended) {
-      s.raidClock += elapsed
-    }
 
     const smoking = time < s.effects.smoking.end
     const perception = time < s.effects.perception.end
 
-    // The truck leaves on the timer whether you're aboard or not. In the
-    // shared valley the server's clock says when.
-    if (!s.shared && timedOut(s.raid, s.raidClock)) {
-      s.raid = advance(s.raid, EVENTS.TIMER_EXPIRED, s.raidClock)
-      actions.truckLeaves(false)
-      s.onTruckRolls = [copy('log.left_behind')]
+    // Played alone, Matthew Marx keeps his day on the wall clock, never the
+    // capped step, which on a slow machine would stretch it out of shape.
+    // In the shared valley the valley keeps it and says so.
+    if (!s.world) {
+      const settled = settleTruck(s.aloneTruck, Date.now(), game.truckRoutes)
+      if (settled.changes.length > 0) {
+        actions.setAloneTruck(settled.truck)
+        for (const change of settled.changes) {
+          if (change === 'donuts') hud.tell(copy('log.marx_donuts'))
+          if (change === 'back') hud.tell(copy('log.marx_back'))
+          if (change === 'depart' && s.aboard) {
+            s.onTruckRolls = [
+              copy('log.truck_leaves'),
+              copy('log.hop_out_hint'),
+            ]
+          }
+        }
+      }
     }
 
     let forward = ridingForward
@@ -122,11 +125,15 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     let feetY: number
     let moveSpeed = 0
     let crouching = false
-    if (s.raid.state === STATES.RIDING || s.aboard) {
+    if (s.aboard) {
       // The one place the camera leaves player.update(): ride the bed with
       // free look, keeping player.pos honest for the scope.
       const truckState = truck.update(dt, now)
-      const seat = truck.bedSeat(seatOf(s.shared, net.id))
+      const seat = truck.bedSeat(
+        s.world
+          ? seatOf(s.world, net.id)
+          : Math.max(0, s.aloneTruck.riders.indexOf('me'))
+      )
       player.relocate(seat.x, seat.z, player.yaw)
       camera.position.set(seat.x, seat.y, seat.z)
       camera.rotation.set(player.pitch, player.yaw, 0)
@@ -141,9 +148,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         speed: 0,
         crouching: false,
       })
-      if (truckState.done && s.raid.state === STATES.RIDING) {
-        actions.hopOut(copy('log.end_of_line'))
-      }
+      // Home at the Citgo: everyone off.
+      if (truckState.arrived) actions.hopOut(copy('log.end_of_line'))
     } else {
       const playerState = player.update(dt, {
         speedScale:
@@ -186,18 +192,14 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     // shadowmen.
     const renderAt = now - CONFIG.net.interpolateMs
 
-    // The shadowmen cross whatever the raid is doing, but only rush and touch
+    // The shadowmen cross whatever anyone is doing, but only rush and touch
     // a player on foot who is not already coming to from the last strike.
     // In the shared valley they are the valley's, and it says when one
     // touches you; played alone, this client steps them.
     const alone = net.online
       ? null
       : {
-          vulnerable:
-            s.started &&
-            !s.ended &&
-            s.raid.state === STATES.ON_FOOT &&
-            now >= s.strikeUntil,
+          vulnerable: s.started && !s.aboard && now >= s.strikeUntil,
           // The same beam the valley would aim from this raider's frame.
           beam: lit
             ? beamFrom(
@@ -258,7 +260,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     // Ours goes out on a fixed cadence, and only when it changed.
     peers.update(dt, renderAt)
     s.sinceSent += dt
-    if (net.online && !s.ended && s.sinceSent >= 1 / CONFIG.net.sendHz) {
+    if (net.online && s.sinceSent >= 1 / CONFIG.net.sendHz) {
       s.sinceSent = 0
       const state: PeerStateWire = {
         x: player.pos.x,
@@ -267,7 +269,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         yaw: player.yaw,
         pitch: player.pitch,
         pose: poseOf(moveSpeed, crouching),
-        riding: s.raid.state === STATES.RIDING || s.aboard,
+        riding: s.aboard,
         light: lit,
       }
       if (stateChanged(s.lastSent, state)) {
@@ -276,16 +278,17 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       }
     }
 
-    hud.setCountdown(s.raid.state === STATES.LOADOUT ? lobbyLine() : null)
+    hud.setCountdown(countdownLine(now))
 
     hud.setHotbar(
       shownSlots(s.hotbar).flatMap(({ slot, kind }) => {
-        const item = packItemOf(kind, s.inventory, s.raid)
+        const item = packItemOf(kind, s.inventory)
         if (!item) return []
         const cooldown = cooldownOf(kind, s.effects, time)
         return [{ slot, item, icon: thumbs.icon(kind), cooldown }]
       })
     )
+    hud.setGeometrie(levelsAt(s.geometrie, time))
     hud.tickChat(performance.now())
 
     scope.draw(dt, {
@@ -313,27 +316,22 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     // --- Interactions: what E would do right now -------------------------
     const inStore = targets.storeIndex()
     const bushes = bushSpots()
-    s.interaction = s.aboard
-      ? { kind: 'hopOut' }
-      : resolveInteraction({
-          raid: s.raid,
-          ended: s.ended,
-          player: player.pos,
-          truck: {
-            distance: truck.distanceTo(player.pos.x, player.pos.z),
-            moving: truck.moving,
-          },
-          keep: game.keep,
-          stations: world.fuelPoints,
-          spawnStation: game.spawnStation,
-          // What lies dropped answers to E like any pickup.
-          pickups: [...world.pickups, ...game.drops.pickups],
-          shelf: targets.shelfInView(inStore),
-          insideStore: inStore >= 0,
-          bushes,
-          gron: world.gron,
-          npcs: targets.npcSpots(inStore),
-        })
+    const leg = s.world?.truck.leg ?? s.aloneTruck.leg
+    s.interaction = resolveInteraction({
+      riding: s.aboard,
+      player: player.pos,
+      truck: {
+        distance: truck.distanceTo(player.pos.x, player.pos.z),
+        moving: truck.moving,
+        boardable: boardable(leg, s.world ? net.id : 'me'),
+      },
+      // What lies dropped answers to E like any pickup.
+      pickups: [...world.pickups, ...game.drops.pickups],
+      shelf: targets.shelfInView(inStore),
+      bushes,
+      gron: world.gron,
+      npcs: targets.npcSpots(inStore),
+    })
     const interaction = s.interaction
     const prompt = interaction ? interactionPrompt(interaction) : null
     const label = interaction ? itemLabel(interaction) : null
@@ -344,7 +342,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     for (const [i, bush] of world.bushes.entries()) {
       bush.setBerries(bushes[i].status !== 'picked')
     }
-    const clear = !s.ended && now >= s.strikeUntil
+    const clear = now >= s.strikeUntil
     hud.setReticleActive(clear && interaction !== null)
     hud.itemLabel(
       player.locked && clear && label && labelSpot
@@ -360,7 +358,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     }
     if (!s.talking && DRAW_VALLEY) {
       trails.render(scene, camera, tripLevel(s.effects.trip, time))
-      if (player.locked && !s.ended && !s.inventoryOpen) {
+      if (player.locked && !s.inventoryOpen) {
         glow.render(scene, camera, time)
       }
     } else if (!s.talking) {

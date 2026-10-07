@@ -17,7 +17,6 @@ import { createGlow } from './glow.ts'
 import { Hud } from './hud.ts'
 import { wireKeys, wirePointer } from './input.ts'
 import { createItemThumbs } from './itemthumbs.ts'
-import { KEEP } from './landmarks.ts'
 import { startLoop } from './loop.ts'
 import { MistCards } from './mistcards.ts'
 import { NetClient, socketUrl } from './net.ts'
@@ -35,11 +34,13 @@ import { buildTerrainMesh, createHeightField, loadTerrain } from './terrain.ts'
 import { openAccount, showTitles, signOutAndReload } from './titles.ts'
 import { createTrails } from './trails.ts'
 import { Truck } from './truck.ts'
+import { joyrideMs } from './truckplan.ts'
 import { wireValley } from './valleysync.ts'
 import { buildWorld } from './world.ts'
 import type { Game } from './game.ts'
 import type { Geo } from './interfaces.ts'
 import type { TerrainData } from './terrain.ts'
+import type { TruckContext } from './truckplan.ts'
 
 // boot() builds the scene and the systems into one Game, then hands it to
 // the modules that run it: actions.ts (what the player does), valleysync.ts
@@ -159,12 +160,35 @@ async function boot() {
     mulberry32(0xcab42),
     CONFIG.truck.wanderMetres
   )
-  {
+  const homeDir = (() => {
     const dx = departRoute[1].x - departRoute[0].x
     const dz = departRoute[1].z - departRoute[0].z
     const len = Math.hypot(dx, dz) || 1
-    truck.parkAt(truckPoint.x, truckPoint.z, dx / len, dz / len)
-    truck.setDriverPost('tailgate')
+    return { x: dx / len, z: dz / len }
+  })()
+  truck.setHome(truckPoint, homeDir)
+  truck.parkHome()
+  // The roads Matthew Marx drives: home, the joyride, his donuts.
+  const truckContext: TruckContext = {
+    graph,
+    home: { x: truckPoint.x, z: truckPoint.z },
+    homeDir,
+    departRoute,
+    donutRoute: (seed) =>
+      world.donutField
+        ? donutRoute(
+            truckPoint,
+            homeDir,
+            world.donutField,
+            mulberry32(seed),
+            CONFIG.truck.donuts
+          )
+        : null,
+  }
+  // What the valley is told of them: it never knows the roads.
+  const truckRoutes = {
+    home: truckContext.home,
+    joyrideMs: joyrideMs(truckContext),
   }
   // Spawn on the lot between the pump island and the truck, facing the
   // truck — clear of the building, which sits behind the pumps.
@@ -172,8 +196,8 @@ async function boot() {
     const dx = truck.x - spawnStation.x
     const dz = truck.z - spawnStation.z
     const len = Math.hypot(dx, dz) || 1
-    world.spawn.x = spawnStation.x + (dx / len) * CONFIG.raid.spawnOffset
-    world.spawn.z = spawnStation.z + (dz / len) * CONFIG.raid.spawnOffset
+    world.spawn.x = spawnStation.x + (dx / len) * CONFIG.spawn.offset
+    world.spawn.z = spawnStation.z + (dz / len) * CONFIG.spawn.offset
     world.spawn.yaw = Math.atan2(
       -(truck.x - world.spawn.x),
       -(truck.z - world.spawn.z)
@@ -207,7 +231,7 @@ async function boot() {
   // --- The valley server -------------------------------------------------
   // Everyone online shares one valley. The socket is same-origin and the
   // session cookie says who we are; if the server is down or unreachable
-  // the valley is simply empty, and the raid plays as it always has.
+  // the valley is simply empty, and it plays as the player's alone.
   const net = new NetClient({
     url: socketUrl(window.location, import.meta.env.DEV),
     config: CONFIG.net,
@@ -226,22 +250,9 @@ async function boot() {
     drops,
     graph,
     truck,
-    departRoute,
-    donutRoute: (seed) =>
-      world.donutField
-        ? donutRoute(
-            truckPoint,
-            {
-              x: departRoute[1].x - departRoute[0].x,
-              z: departRoute[1].z - departRoute[0].z,
-            },
-            world.donutField,
-            mulberry32(seed),
-            CONFIG.truck.donuts
-          )
-        : null,
+    truckContext,
+    truckRoutes,
     spawnStation,
-    keep: world.landmarks.find((l) => l.n === KEEP) ?? null,
     player,
     playerBody,
     hands,
@@ -294,6 +305,7 @@ async function boot() {
     havens: world.fuelPoints.map(({ x, z }) => ({ x, z })),
     metres: geo.metres,
     maze: world.mazePlace,
+    truck: truckRoutes,
   })
   wireKeys(game, actions, engagePointer)
 

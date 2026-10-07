@@ -527,7 +527,7 @@ export function worldFacings(origin: StoreOrigin): WorldFacing[] {
 
 // --- Shopping ------------------------------------------------------------
 
-// Full shelves at every station, for a new raid.
+// Full shelves at every station, for a new day.
 export function freshStock(stationCount: number): ShopStock[] {
   return Array.from({ length: stationCount }, () => {
     const full: ShopStock = {}

@@ -1,19 +1,56 @@
-// All DOM: countdown, scope phone, the pack grid and its item
-// card, the hotbar, prompts, item labels, the intro/pause overlay, and the
+// All DOM: countdown, scope phone, geometrie's triangle, the pack grid and
+// its item card, the hotbar, prompts, item labels, the intro/pause overlay, and the
 // strike static. Markup is generated here so
 // index.html stays a bare #bv-root.
 
 import { PACK, PACK_IN_MENU, WORLD } from './bindings.ts'
 import { CHAT_LINES, formatStamp, isFaded, pushLine } from './chat.ts'
 import { copy } from './copy.ts'
-import { KEEP } from './landmarks.ts'
 import { PACK_TABS } from './packgrid.ts'
 import { CHAT_MAX } from './protocol.ts'
 import type { Binding } from './bindings.ts'
 import type { ChatLine } from './chat.ts'
 import type { Cooldown } from './hotbar.ts'
-import type { PackItem, RaidSummary } from './interfaces.ts'
+import type { GeometrieAxis, PackItem } from './interfaces.ts'
 import type { PackTab } from './packgrid.ts'
+
+// Geometrie's triangle (geometrie.ts): one corner per level, each lit by
+// its own glow over the dim red face, in the triangle's own units.
+const GEOMETRIE_CORNERS: Record<GeometrieAxis, { x: number; y: number }> = {
+  high: { x: 50, y: 6 },
+  stimulated: { x: 94, y: 84 },
+  drunk: { x: 6, y: 84 },
+}
+const GEOMETRIE_POINTS = Object.values(GEOMETRIE_CORNERS)
+  .map(({ x, y }) => `${x},${y}`)
+  .join(' ')
+
+function geometrieMarkup(): string {
+  const glows = Object.entries(GEOMETRIE_CORNERS)
+  return `
+    <svg viewBox="0 0 100 90" aria-hidden="true">
+      <defs>
+        ${glows
+          .map(
+            ([axis, { x, y }]) => `
+          <radialGradient id="bv-geo-${axis}" gradientUnits="userSpaceOnUse" cx="${x}" cy="${y}" r="52">
+            <stop offset="0" class="bv-geo-hot" />
+            <stop offset="0.25" class="bv-geo-lit" />
+            <stop offset="1" class="bv-geo-lit" stop-opacity="0" />
+          </radialGradient>`
+          )
+          .join('')}
+      </defs>
+      <polygon class="bv-geo-face" points="${GEOMETRIE_POINTS}" />
+      ${glows
+        .map(
+          ([axis]) =>
+            `<polygon class="bv-geo-glow" data-axis="${axis}" points="${GEOMETRIE_POINTS}" fill="url(#bv-geo-${axis})" />`
+        )
+        .join('')}
+      <polygon class="bv-geo-edge" points="${GEOMETRIE_POINTS}" />
+    </svg>`
+}
 
 // The floating name over an item, placed by its top in the view: x and y
 // from 0 at the left and top to 1 at the right and bottom.
@@ -170,6 +207,9 @@ export class Hud {
   hotbar: HTMLOListElement
   hotbarKey = ''
   hotbarSlots: { li: HTMLLIElement; cd: HTMLElement; view: string }[] = []
+  geometrie: HTMLDivElement
+  geometrieGlows: Map<GeometrieAxis, SVGPolygonElement>
+  geometrieView = ''
   staticWrap: HTMLDivElement
   staticCanvas: HTMLCanvasElement
   reticle: HTMLDivElement
@@ -223,6 +263,19 @@ export class Hud {
     this.chatInput.hidden = true
     this.chat.append(this.chatLog, this.chatInput)
     dock.appendChild(this.chat)
+
+    // Geometrie: a red triangle in the lower right, each corner lit by its
+    // level. Before the phone, which covers it when raised.
+    this.geometrie = el('div', 'bv-geometrie')
+    this.geometrie.setAttribute('role', 'img')
+    this.geometrie.innerHTML = geometrieMarkup()
+    this.geometrieGlows = new Map(
+      [
+        ...this.geometrie.querySelectorAll<SVGPolygonElement>('[data-axis]'),
+      ].map((glow) => [glow.dataset.axis as GeometrieAxis, glow])
+    )
+    this.setGeometrie({ high: 0, stimulated: 0, drunk: 0 })
+    ui.appendChild(this.geometrie)
 
     // The scope: a phone held in a PS1-style flipper hand. scope.ts draws the
     // hand, the phone and the screen into this one low-res canvas.
@@ -718,57 +771,31 @@ export class Hud {
     })
   }
 
+  // The loop calls this every frame; the triangle is touched only when a
+  // level moves by a percent.
+  setGeometrie(levels: Record<GeometrieAxis, number>): void {
+    const percent = (axis: GeometrieAxis) => Math.round(levels[axis] * 100)
+    const view = `${percent('high')}:${percent('stimulated')}:${percent('drunk')}`
+    if (view === this.geometrieView) return
+    this.geometrieView = view
+    for (const [axis, glow] of this.geometrieGlows) {
+      glow.style.opacity = String(percent(axis) / 100)
+    }
+    this.geometrie.setAttribute(
+      'aria-label',
+      copy('hud.geometrie_label', {
+        high: String(percent('high')),
+        stimulated: String(percent('stimulated')),
+        drunk: String(percent('drunk')),
+      })
+    )
+  }
+
   // Pointer lock drives the center dot.
   setLocked(locked: boolean): void {
     this.root.classList.toggle('bv-shell--locked', locked)
     // A locked cursor hovers nothing, and pointerleave never comes.
     if (locked) this.chatHovered = false
-  }
-
-  // End-of-raid overlay, styled like the intro dialog.
-  showSummary({
-    carrying,
-    durationSeconds,
-    extract,
-    extractName,
-    deaths,
-  }: RaidSummary): void {
-    const minutes = Math.floor((durationSeconds || 0) / 60)
-    const seconds = String(Math.floor((durationSeconds || 0) % 60)).padStart(
-      2,
-      '0'
-    )
-    const how =
-      extract === 'truck'
-        ? copy('summary.by_truck')
-        : extract === 'keep'
-          ? copy('summary.at_keep', { keep: KEEP })
-          : extractName
-            ? copy('summary.at_station', { station: extractName })
-            : copy('summary.at_a_station')
-    // One line each; the note keeps the line breaks (white-space: pre-line).
-    const lines = [how]
-    if (carrying > 0) lines.push(copy('summary.cabbages', { count: carrying }))
-    if (deaths > 0) lines.push(copy('summary.deaths', { count: deaths }))
-    lines.push(copy('summary.time', { time: `${minutes}:${seconds}` }))
-    const summary = el('div', 'bv-intro')
-    summary.setAttribute('role', 'dialog')
-    summary.setAttribute('aria-modal', 'true')
-    summary.innerHTML = `
-      <h2>${copy('summary.title')}</h2>
-      <p class="bv-intro-note" data-bv="summary-note"></p>
-      <div class="bv-intro-actions">
-        <button type="button" class="bv-btn bv-btn--primary" data-bv="again">${copy('summary.again')}</button>
-      </div>`
-    required(
-      summary.querySelector<HTMLElement>('[data-bv="summary-note"]'),
-      'summary note'
-    ).textContent = lines.join('\n')
-    required(this.root.querySelector('.bv-ui'), '.bv-ui').appendChild(summary)
-    required(
-      summary.querySelector('[data-bv="again"]'),
-      'again button'
-    ).addEventListener('click', () => window.location.reload())
   }
 
   showStatic(show: boolean): void {

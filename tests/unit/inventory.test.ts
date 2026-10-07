@@ -42,7 +42,24 @@ describe('inventory', () => {
 })
 
 describe('consume', () => {
-  const pack: Inventory = { ...STARTING_INVENTORY, marlboro: 2, joints: 1 }
+  const pack: Inventory = {
+    ...STARTING_INVENTORY,
+    marlboro: 2,
+    joints: 1,
+    pbr: 1,
+    aspirin: 24,
+  }
+
+  it('drinks a drink, starting nothing timed', () => {
+    const r = consume(pack, 'pbr', NO_EFFECTS, 10)
+    if (!r.used) throw new Error('not used')
+    expect(r.inv.pbr).toBe(0)
+    expect(r.effects).toEqual(NO_EFFECTS)
+    expect(consume(r.inv, 'pbr', NO_EFFECTS, 11)).toEqual({
+      used: false,
+      reason: 'empty',
+    })
+  })
 
   it('smokes a cigarette, then lets it smoulder', () => {
     const r = consume(pack, 'marlboro', NO_EFFECTS, 10)

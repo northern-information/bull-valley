@@ -1,6 +1,6 @@
-// Matthew Marx's donuts: when the lobby clock runs out with nobody aboard,
-// he crosses the road to the field by the corn maze and tears it up until
-// someone whistles. Pure and Three-free: the path is a polyline the truck
+// Matthew Marx's donuts: when he is done reading (marx.ts) he crosses the
+// road to the field by the corn maze and tears it up until he is due home,
+// someone arrives in the valley, or someone whistles. Pure and Three-free: the path is a polyline the truck
 // drives like any route (truck.ts driveDonuts), drawn from a seed so every
 // client in the valley draws the same one and the shared clock puts the
 // truck at the same spot on it.

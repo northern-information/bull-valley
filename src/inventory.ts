@@ -1,5 +1,5 @@
 // Inventory state: pure transforms. The pack itself is the account's, kept
-// by the valley (worker/packs.ts, sharedraid.ts rule 11); the client holds
+// by the valley (worker/packs.ts, sharedworld.ts rule 10); the client holds
 // the copy the valley last sent and applies its own changes in the meantime.
 // Kinds and starting counts come from items.ts.
 
@@ -43,6 +43,7 @@ export type Consumed =
 // smokeSeconds and smoulders for emberSeconds after; the joint starts
 // perception. Each use blurs the view afresh and runs its trails at least
 // tripSecondsOf on (trip.ts); a longer trip already going keeps its end.
+// What it does to geometrie is the item's `geometrie` dose (geometrie.ts).
 export function consume(
   inv: Inventory,
   kind: string,
@@ -74,18 +75,18 @@ export function consume(
       },
     }
   }
-  if (item.category === 'drink') {
-    return { used: true, inv: result.inv, effects: { ...effects, trip } }
+  if (item.category === 'joint') {
+    return {
+      used: true,
+      inv: result.inv,
+      effects: {
+        ...effects,
+        perception: { start: time, end: time + (item.perceptionSeconds ?? 0) },
+        trip,
+      },
+    }
   }
-  return {
-    used: true,
-    inv: result.inv,
-    effects: {
-      ...effects,
-      perception: { start: time, end: time + (item.perceptionSeconds ?? 0) },
-      trip,
-    },
-  }
+  return { used: true, inv: result.inv, effects: { ...effects, trip } }
 }
 
 export function useItem(

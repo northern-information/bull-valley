@@ -43,8 +43,9 @@ describe('items', () => {
       const item = itemById(id)
       if (!item) throw new Error(`no item ${id}`)
       const keys: (keyof Item)[] = ['label', 'blurb']
-      // Shelf items are bought; forage is collected off the bush.
-      keys.push(item.price !== undefined ? 'bought' : 'collected')
+      // Shelf items are bought; berries are collected off a bush.
+      if (item.price !== undefined) keys.push('bought')
+      if (id === 'berries') keys.push('collected')
       if (isUsable(id)) keys.push('used', 'empty')
       for (const key of keys) {
         expect(item[key], `${id}.${key}`).toBeTruthy()
@@ -54,13 +55,33 @@ describe('items', () => {
     expect(getItem('joints').perceptionSeconds).toBeGreaterThan(0)
   })
 
-  it('gives every drink a known container, a use and its trip', () => {
+  it('gives every drink a known container and a dose of geometrie', () => {
     const drinks = ITEMS.filter((item) => item.category === 'drink')
     expect(drinks).toHaveLength(17)
     for (const item of drinks) {
       expect(CONTAINERS[item.container], item.id).toBeTruthy()
       expect(isDrink(item.id)).toBe(true)
       expect(isUsable(item.id)).toBe(true)
+      expect(Object.keys(item.geometrie).length, item.id).toBeGreaterThan(0)
+    }
+    // The energy drinks stimulate, the beer gets you drunk, Four Loko does
+    // both, and water sobers you.
+    expect(getItem('red-bull').geometrie).toEqual({ stimulated: 0.25 })
+    expect(getItem('pbr').geometrie).toEqual({ drunk: 0.15 })
+    expect(getItem('four-loko-blue').geometrie.stimulated).toBeGreaterThan(0)
+    expect(getItem('four-loko-blue').geometrie.drunk).toBeGreaterThan(0)
+    expect(getItem('ice-mountain').geometrie.drunk).toBeLessThan(0)
+  })
+
+  it('gets you high off a joint and stimulated off a cigarette', () => {
+    expect(getItem('joints').geometrie.high).toBeGreaterThan(0)
+    for (const id of CIGARETTE_IDS) {
+      expect(itemById(id)?.geometrie?.stimulated, id).toBeGreaterThan(0)
+    }
+  })
+
+  it('trips on anything smoked or drunk, for as long as it lasts', () => {
+    for (const item of ITEMS.filter((i) => i.category === 'drink')) {
       expect(tripSecondsOf(item.id), item.id).toBeGreaterThan(0)
     }
     expect(tripSecondsOf('marlboro')).toBe(getItem('marlboro').smokeSeconds)
@@ -101,7 +122,8 @@ describe('items', () => {
   it('prices every shelf item in whole cents', () => {
     const items: readonly Item[] = ITEMS
     const forSale = items.filter((item) => item.price !== undefined)
-    expect(forSale.length).toBe(ITEMS.length - 1)
+    // All but the forage: the berries and the cabbages.
+    expect(forSale.length).toBe(ITEMS.length - 2)
     for (const item of forSale) {
       expect(Number.isInteger(item.price), item.id).toBe(true)
       expect(item.price, item.id).toBeGreaterThan(0)
@@ -118,6 +140,14 @@ describe('items', () => {
     expect(berries.start).toBe(0)
     expect(INVENTORY_KINDS).toContain('berries')
     expect(isUsable('berries')).toBe(false)
+  })
+
+  it('carries cabbages in the pack like any forage, never for sale', () => {
+    const cabbage = getItem('cabbage')
+    expect(cabbage.category).toBe('forage')
+    expect('price' in cabbage).toBe(false)
+    expect(INVENTORY_KINDS).toContain('cabbage')
+    expect(isUsable('cabbage')).toBe(false)
   })
 })
 

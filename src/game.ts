@@ -1,39 +1,43 @@
-// One raid in the browser: the systems boot() builds (Game) and the state
-// they share and change (GameState). boot() makes one of each; actions.ts,
+// The valley in the browser: the systems boot() builds (Game) and the
+// state they share and change (GameState). boot() makes one of each; actions.ts,
 // valleysync.ts, input.ts, targets.ts and loop.ts each take the Game.
 
 import { CONFIG } from './config.ts'
+import { SOBER } from './geometrie.ts'
 import { HAND_DOWN } from './hands.ts'
 import { NO_EFFECTS } from './hotbar.ts'
 import { STARTING_INVENTORY } from './inventory.ts'
-import { createRaid } from './raid.ts'
+import { createTruck } from './marx.ts'
 import { freshStock } from './store.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
 import type { DropMeshes } from './dropmeshes.ts'
 import type { Drop } from './drops.ts'
 import type { FirstPersonHands } from './fphands.ts'
+import type { Geometrie } from './geometrie.ts'
 import type { Glow } from './glow.ts'
 import type { Hand } from './hands.ts'
 import type { Effects, Hotbar } from './hotbar.ts'
 import type { Hud } from './hud.ts'
 import type { Interaction } from './interactions.ts'
-import type { Geo, Inventory, Raid, ShopStock } from './interfaces.ts'
+import type { Geo, Inventory, ShopStock } from './interfaces.ts'
 import type { ItemThumbs } from './itemthumbs.ts'
+import type { Leg, TruckRoutes, TruckState } from './marx.ts'
 import type { MistCards } from './mistcards.ts'
 import type { NetClient } from './net.ts'
 import type { NpcId } from './npcs.ts'
 import type { Peers } from './peers.ts'
 import type { Player } from './player.ts'
 import type { PlayerBody } from './playerbody.ts'
-import type { DailyWire, PeerStateWire, RaidWire } from './protocol.ts'
-import type { RoadGraph, Route } from './roadgraph.ts'
+import type { DailyWire, PeerStateWire, WorldWire } from './protocol.ts'
+import type { RoadGraph } from './roadgraph.ts'
 import type { Scope } from './scope.ts'
 import type { ShadowBursts } from './shadowburst.ts'
 import type { ShadowCards } from './shadowcards.ts'
 import type { Titles } from './titles.ts'
 import type { Trails } from './trails.ts'
 import type { Truck } from './truck.ts'
-import type { FuelPoint, LandmarkPoint, Pickup, World } from './world.ts'
+import type { TruckContext, TruckPlan } from './truckplan.ts'
+import type { FuelPoint, Pickup, World } from './world.ts'
 import type * as THREE from 'three'
 
 export interface GameState {
@@ -41,9 +45,6 @@ export interface GameState {
   // pack frame), with this client's own changes applied in the meantime.
   // Alone, the starting pack, and nothing is kept.
   inventory: Inventory
-  raid: Raid
-  // Seconds since the raid began; never pauses.
-  raidClock: number
   // The account's wallet in cents, as the valley last sent it (with this
   // client's own spending applied in the meantime); alone, a fresh one,
   // and nothing is kept.
@@ -58,6 +59,8 @@ export interface GameState {
   time: number
   // A cigarette burning, its ember, the joint's perception, on `time`.
   effects: Effects
+  // How high, stimulated and drunk, on `time` (geometrie.ts).
+  geometrie: Geometrie
   // The flashlight in the left hand: up and on, or down and off.
   flashlight: Hand
   // The item the right hand last brought up, and when, on `time`.
@@ -70,7 +73,9 @@ export interface GameState {
   strikeUntil: number
   started: boolean
   greeted: boolean
-  ended: boolean
+  // Times a shadowman's or the Caretaker's touch put this raider back at
+  // the Citgo.
+  strikes: number
   inventoryOpen: boolean
   // Gron's dialog is open: the pointer is free for it, and the game's
   // keys, mouse look and pause screen stand aside until it closes.
@@ -80,14 +85,24 @@ export interface GameState {
   // The last state frame sent to the valley, and seconds since.
   lastSent: PeerStateWire | null
   sinceSent: number
-  // The shared raid, once the valley has answered. Null offline, where the
-  // raid is this player's alone.
-  shared: RaidWire | null
-  // Standing in the bed during the lobby, waiting on the others.
+  // The shared world, once the valley has answered. Null offline, where
+  // the valley is this player's alone.
+  world: WorldWire | null
+  // Played alone, Matthew Marx's truck this client keeps (marx.ts).
+  aloneTruck: TruckState
+  // The leg the truck is driving now, the valley's or our own, and what
+  // the truck does for it (truckplan.ts).
+  truckLeg: Leg | null
+  truckPlan: TruckPlan | null
+  // In the bed of the truck, whatever it is doing; and asked of the valley
+  // and not yet answered.
   aboard: boolean
+  pendingBoard: boolean
+  // The welcome has put us where the account last stood.
+  placed: boolean
   // Pickups asked of the valley and not yet answered.
   pendingTakes: Set<number>
-  // What lies dropped (sharedraid.ts rule 14): the valley's, from every
+  // What lies dropped (sharedworld.ts rule 12): the valley's, from every
   // snapshot, or this raider's own when played alone, numbered from
   // nextDrop. Drops asked of the valley and not yet answered, by id.
   drops: Drop[]
@@ -110,27 +125,31 @@ export interface GameState {
 export function createGameState(stations: number, hotbar: Hotbar): GameState {
   return {
     inventory: { ...STARTING_INVENTORY },
-    raid: createRaid(0),
-    raidClock: 0,
     cash: CONFIG.store.startingCash,
     storeStock: freshStock(stations),
     hotbar,
     hotbarSaved: Promise.resolve(),
     time: 0,
     effects: NO_EFFECTS,
+    geometrie: SOBER,
     flashlight: HAND_DOWN,
     using: null,
     strikeUntil: 0,
     started: false,
     greeted: false,
-    ended: false,
+    strikes: 0,
     inventoryOpen: false,
     talking: false,
     interaction: null,
     lastSent: null,
     sinceSent: 0,
-    shared: null,
+    world: null,
+    aloneTruck: createTruck(Date.now()),
+    truckLeg: null,
+    truckPlan: null,
     aboard: false,
+    pendingBoard: false,
+    placed: false,
     pendingTakes: new Set(),
     drops: [],
     nextDrop: 0,
@@ -157,15 +176,11 @@ export interface Game {
   drops: DropMeshes
   graph: RoadGraph
   truck: Truck
-  // The joyride the truck leaves on, from the spawn station.
-  departRoute: Route
-  // Matthew Marx's donuts in the field by the maze when the truck leaves
-  // with nobody aboard, drawn from `seed` (the raid's epoch in the valley,
-  // so everyone draws the same); null with no field.
-  donutRoute(seed: number): Route | null
+  // The roads Matthew Marx drives (truckplan.ts): where he parks, the
+  // joyride, his donuts for a seed; and what the valley is told of them.
+  truckContext: TruckContext
+  truckRoutes: TruckRoutes
   spawnStation: FuelPoint
-  // Mt. Coleman's Keep, if the survey has it.
-  keep: LandmarkPoint | null
   player: Player
   playerBody: PlayerBody
   // The hands in first person, and the flashlight's light.

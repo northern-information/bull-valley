@@ -126,22 +126,27 @@ export const CONFIG = {
     // The trails thin out over the last this-many seconds of the trip.
     fadeSeconds: 4,
   },
+  geometrie: {
+    // Each level fades this much a second (a level runs from 0 to 1), so
+    // a full one fades out in 1 / rate seconds: high in four minutes,
+    // stimulated in three, drunk in five. Per-item doses live in
+    // src/items.ts.
+    fadePerSecond: { high: 1 / 240, stimulated: 1 / 180, drunk: 1 / 300 },
+  },
   scope: {
     rangeMetres: 250,
     sweepSeconds: 3.2,
   },
-  raid: {
-    // Pick your loadout before the pickup truck leaves.
-    loadoutSeconds: 300,
+  spawn: {
     // The spawn sits this far from the pump island, toward the truck: on
     // the lot, between the pumps and the road sign.
-    spawnOffset: 5,
+    offset: 5,
   },
   store: {
-    // A new account's wallet, in cents (worker/packs.ts); it carries from
-    // raid to raid. Played alone, every raid starts with this much.
+    // A new account's wallet, in cents (worker/packs.ts). Played alone,
+    // every visit starts with this much.
     startingCash: 4000,
-    // Units of every item on each Citgo's shelves at the start of a raid.
+    // Units of every item on each Citgo's shelves when the day turns.
     perItem: 3,
     // How close a shelf unit must be, from the eye, for E to buy it.
     reach: 2.2,
@@ -192,16 +197,29 @@ export const CONFIG = {
     boardRange: 4,
     bedEye: 1.6, // camera height above the bed
     wanderMetres: 6000, // how far the outbound joyride runs
-    // When the clock runs out with nobody aboard, Matthew Marx crosses Lake
-    // Avenue to the field between the road and the corn maze and does
-    // donuts there (donuts.ts) until someone whistles. `field` is
-    // station-local like CONFIG.maze.at: across the road from the lot, short
-    // of the maze's near end and its mud trail out.
+    // Matthew Marx's day (marx.ts): he reads at the tailgate this long,
+    // then does donuts this long, over and over. Climbing into the bed
+    // starts a countdown this long before he leaves on the joyride.
+    readSeconds: 300,
+    donutSeconds: 300,
+    countdownSeconds: 60,
+    // The countdown shows to whoever is in the bed or this close by.
+    countdownReach: 25,
+    // The valley never knows the roads: it reckons a drive by road at most
+    // roadFactor times the straight line, plus slackSeconds, and a drive
+    // home from the donut field at donutHomeSeconds.
+    roadFactor: 2,
+    slackSeconds: 20,
+    donutHomeSeconds: 60,
+    // The donuts (donuts.ts): crossing Lake Avenue to the field between
+    // the road and the corn maze. `field` is station-local like
+    // CONFIG.maze.at: across the road from the lot, short of the maze's
+    // near end and its mud trail out.
     donuts: {
       field: { x: 60, z: -5 },
       radius: 22,
       speed: 9, // m/s
-      metres: 12000, // about 20 minutes of donuts, then he parks
+      metres: 12000, // about 20 minutes of donuts, more than he ever does
       // Each loop's radius, drawn per set.
       loop: { min: 5, max: 10 },
       // How far the nose swings into the turn at the tightest loop.
@@ -224,19 +242,13 @@ export const CONFIG = {
   },
   cabbage: {
     count: 48,
-    // The cabbages the arms hold.
-    carryLimit: 3,
   },
-  // Items dropped from the pack or the arms (drops.ts).
+  // Items dropped from the pack (drops.ts).
   drops: {
     // How far ahead of the raider a drop lands, in metres.
     ahead: 1.2,
     // The circle drops from one spot are spread round, in metres.
     scatter: 0.35,
-  },
-  extract: {
-    fuelRadius: 12,
-    keepRadius: 25,
   },
   daily: {
     // The berry bush at the spawn Citgo: how close E must be to pick.
@@ -344,7 +356,7 @@ export const CONFIG = {
     bushes: { count: 6, across: 2.6, along: 5 },
   },
   // The Caretaker: one floating shade that walks the corn maze's paths
-  // (caretaker.ts, sharedraid.ts rule 15). It patrols out to a random
+  // (caretaker.ts, sharedworld.ts rule 13). It patrols out to a random
   // corner of the maze and back to the heart, by turns, at patrolSpeed.
   // A raider on foot in the maze it can see within sightRange, or one
   // within senseRadius whether it can see them or not, it hunts at

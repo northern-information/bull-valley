@@ -1,11 +1,13 @@
 // The Akashic record: a dev-only page (/akashic) that shows one 3D asset at
 // a time through the game's own render pipeline — same downscale, PS1 snap,
-// lights, and fog as main.ts — so an asset can be checked without a raid.
-// Assets come from the same builders the game places. Dev hook:
-// window.__akashic (ids, select, setView, animate, current).
+// lights, and fog as main.ts — so an asset can be checked without a game.
+// Assets come from the same builders the game places. Map mode (#map,
+// akashicmap.ts) shows the survey from above to edit by hand. Dev hook:
+// window.__akashic (ids, select, setView, animate, current, mode, map).
 
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+import { mountMap } from './akashicmap.ts'
 import {
   isMesh,
   meshBounds,
@@ -31,6 +33,7 @@ import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import { mulberry32 } from './rng.ts'
 import { buildShadowmanFigure, makeSilhouetteTexture } from './shadowcards.ts'
 import { buildTruckMesh } from './truck.ts'
+import type { MapHook } from './akashicmap.ts'
 import type { AkashicAsset } from './assets.ts'
 import type { OutfitId } from './outfits.ts'
 
@@ -42,7 +45,13 @@ export interface AkashicHook {
   // Play or hold what moves; held, it stands at HOLD_SECONDS.
   animate(on: boolean): void
   readonly current: string | undefined
+  // Assets or the map; the map's own hook.
+  mode(mode: Mode): void
+  map: MapHook
 }
+
+type Mode = 'assets' | 'map'
+const MAP_HASH = 'map'
 
 declare global {
   interface Window {
@@ -57,7 +66,7 @@ const HOLD_SECONDS = 0.4
 function sampleFigure(outfitId: OutfitId): THREE.Group {
   const figure = buildFigure(outfitId)
   applyPose(figure, samplePose('stand'))
-  // Marx reads at the tailgate and smokes, as the lobby shows him.
+  // Marx reads at the tailgate and smokes, as he does at the Citgo.
   if (outfitId === 'marx') {
     applyPose(figure, samplePose('read'))
     attachBook(figure)
@@ -156,7 +165,7 @@ scene.add(gameLights, neutralLights)
 
 // A lamp that rides the camera, so dark assets read under the game lights
 // too. It lights whatever side faces the viewer; turn it off to see the
-// asset exactly as a raid does.
+// asset exactly as the game does.
 const lamp = new THREE.DirectionalLight('#fff4e0', 0.9)
 lamp.position.set(0, 0, 0)
 lamp.target.position.set(0, 0, -1)
@@ -334,7 +343,7 @@ function selectAsset(id: string): void {
   setView(35, 20, dist)
 
   select.value = asset.id
-  if (location.hash.slice(1) !== asset.id) {
+  if (mode === 'assets' && location.hash.slice(1) !== asset.id) {
     history.replaceState(null, '', `#${asset.id}`)
   }
   const m = (v: number): string => v.toFixed(2)
@@ -369,6 +378,12 @@ function setView(azimuth: number, elevation: number, distance?: number): void {
 
 document.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLSelectElement) return
+  if (e.target instanceof HTMLInputElement && e.target.type === 'text') return
+  if (e.code === 'KeyM' && !e.metaKey && !e.ctrlKey) {
+    setMode(mode === 'map' ? 'assets' : 'map')
+    return
+  }
+  if (mode === 'map') return
   if (e.code === 'ArrowRight' || e.code === 'BracketRight') step(1)
   else if (e.code === 'ArrowLeft' || e.code === 'BracketLeft') step(-1)
   else {
@@ -377,10 +392,52 @@ document.addEventListener('keydown', (e) => {
   }
 })
 window.addEventListener('hashchange', () => {
-  if (location.hash.slice(1) !== current?.asset.id) {
-    selectAsset(location.hash.slice(1))
+  const hash = location.hash.slice(1)
+  if (hash === MAP_HASH) setMode('map')
+  else if (hash !== current?.asset.id || mode === 'map') {
+    setMode('assets')
+    selectAsset(hash)
   }
 })
+
+// --- Modes ---------------------------------------------------------------
+
+const map = mountMap()
+const assetPanel = requireElement<HTMLElement>(
+  '.ak-panel[aria-label="Asset viewer"]'
+)
+const assetHint = requireElement<HTMLElement>('.ak-hint')
+const modeButtons = document.querySelectorAll<HTMLButtonElement>('[data-mode]')
+let mode: Mode = location.hash.slice(1) === MAP_HASH ? 'map' : 'assets'
+
+function setMode(next: Mode): void {
+  mode = next
+  const onMap = next === 'map'
+  canvas.hidden = onMap
+  assetPanel.hidden = onMap
+  assetHint.hidden = onMap
+  for (const b of modeButtons) {
+    b.setAttribute('aria-pressed', String(b.dataset.mode === next))
+  }
+  if (onMap) {
+    renderer.setAnimationLoop(null)
+    map.show()
+    if (location.hash.slice(1) !== MAP_HASH) {
+      history.replaceState(null, '', `#${MAP_HASH}`)
+    }
+  } else {
+    map.hide()
+    renderer.setAnimationLoop(frame)
+    if (current && location.hash.slice(1) !== current.asset.id) {
+      history.replaceState(null, '', `#${current.asset.id}`)
+    }
+  }
+}
+for (const b of modeButtons) {
+  b.addEventListener('click', () =>
+    setMode(b.dataset.mode === 'map' ? 'map' : 'assets')
+  )
+}
 
 function resize(): void {
   const w = window.innerWidth
@@ -401,11 +458,12 @@ selectAsset(location.hash.slice(1))
 applyToggles()
 
 const clock = new THREE.Clock()
-renderer.setAnimationLoop(() => {
+function frame(): void {
   controls.update()
   if (state.animate) current?.motion?.(HOLD_SECONDS + clock.getElapsedTime())
   renderer.render(scene, camera)
-})
+}
+setMode(mode)
 
 window.__akashic = {
   ids: ASSETS.map((a) => a.id),
@@ -415,4 +473,6 @@ window.__akashic = {
   get current() {
     return current?.asset.id
   },
+  mode: setMode,
+  map: map.hook,
 }

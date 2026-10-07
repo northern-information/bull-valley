@@ -1,7 +1,7 @@
 // Seeded cabbage placement, pure unit-square math. Wild cabbages grow where
 // nobody mows — the wetlands (2:1) and the nature reserves — plus a guaranteed
 // cluster round the cabbage patch (landmarks.ts CABBAGE_PATCH) so a short
-// first raid is always possible.
+// first walk always finds some.
 // Rendering happens in world.ts; this module never touches three.js.
 
 import { CONFIG } from './config.ts'

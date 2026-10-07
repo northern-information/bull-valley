@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { heartPoint, theMaze } from '../../src/caretaker.ts'
+import { CONFIG } from '../../src/config.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { getItem } from '../../src/items.ts'
 import { CLOSE, PROTOCOL_VERSION } from '../../src/protocol.ts'
@@ -15,10 +16,10 @@ import type {
   PeerLeftMessage,
   PeerStateMessage,
   PeerUpdatedMessage,
-  RaidMessage,
   ServerMessage,
   ShadowmenMessage,
   WelcomeMessage,
+  WorldMessage,
 } from '../../src/protocol.ts'
 import type { AccountStore } from '../../worker/accounts.ts'
 import type { PackStore } from '../../worker/packs.ts'
@@ -50,10 +51,10 @@ class MockSocket {
   last<T extends ServerMessage>(): T {
     return this.frames().at(-1) as T
   }
-  // Every raid frame's reason, in order.
+  // Every world frame's reason, in order.
   reasons(): string[] {
     return this.frames()
-      .filter((m): m is RaidMessage => m.type === 'raid')
+      .filter((m): m is WorldMessage => m.type === 'world')
       .map((m) => m.reason)
   }
 }
@@ -152,6 +153,7 @@ const hello = (
     havens: Array.from({ length: stations }, (_, i) => ({ x: i * 1000, z: 0 })),
     metres: { width: 15059, height: 15038 },
     maze: MAZE,
+    truck: { home: { x: 10, z: 10 }, joyrideMs: 600_000 },
   })
 
 // The last pack frame a socket was sent.
@@ -336,26 +338,25 @@ describe('ValleyDO', () => {
     expect(moved.closeCode).toBe(CLOSE.staleBuild)
   })
 
-  it('welcomes a player with the roster and the raid, and tells the others', async () => {
+  it('welcomes a player with the roster and the world, and tells the others', async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, '  Dave  Coleman ')
     const welcomeA = a.last<WelcomeMessage>()
     expect(welcomeA.type).toBe('welcome')
     expect(welcomeA.peers).toEqual([])
     expect(typeof welcomeA.serverNow).toBe('number')
-    expect(welcomeA.phase).toBe('LOBBY')
-    expect(welcomeA.raid.phase).toBe('LOBBY')
-    expect(welcomeA.raid.members).toEqual([
-      {
-        id: welcomeA.id,
-        name: 'Dave Coleman',
-        phase: 'LOBBY',
-        boarded: false,
-        carrying: 0,
-      },
+    expect(welcomeA.place).toBeNull()
+    expect(welcomeA.world.members).toEqual([
+      { id: welcomeA.id, name: 'Dave Coleman' },
     ])
-    // The lobby clock is armed.
-    expect(s.storage.alarm).toBe(welcomeA.raid.loadoutEndsAt)
+    expect(welcomeA.world.truck.leg).toMatchObject({
+      kind: 'parked',
+      leavesAt: null,
+    })
+    // Woken when Marx is done reading.
+    expect(s.storage.alarm).toBe(
+      welcomeA.world.truck.leg.at + CONFIG.truck.readSeconds * 1000
+    )
 
     await v.webSocketMessage(ws(a), state(5, 6))
     const b = await join(v, s, 'Kvistad', { outfit: 'kvistad' })
@@ -367,13 +368,13 @@ describe('ValleyDO', () => {
       outfit: 'coleman',
       at: { x: 5, z: 6, pose: 'walk' },
     })
-    expect(welcomeB.raid.members.map((m) => m.name)).toEqual([
+    expect(welcomeB.world.members.map((m) => m.name)).toEqual([
       'Dave Coleman',
       'Kvistad',
     ])
-    const [joined, raid] = a.frames().slice(-2) as [
+    const [joined, world] = a.frames().slice(-2) as [
       PeerJoinedMessage,
-      RaidMessage,
+      WorldMessage,
     ]
     expect(joined.type).toBe('peer-joined')
     expect(joined.peer).toMatchObject({
@@ -381,8 +382,8 @@ describe('ValleyDO', () => {
       name: 'Kvistad',
       at: null,
     })
-    expect(raid).toMatchObject({
-      type: 'raid',
+    expect(world).toMatchObject({
+      type: 'world',
       reason: 'joined',
       by: welcomeB.id,
     })
@@ -461,25 +462,36 @@ describe('ValleyDO', () => {
     expect(a.last()).toMatchObject({ type: 'pong', t: 42 })
   })
 
-  it('runs the raid: boarding, the alarm, pickups, and extraction', async () => {
+  it('runs the truck: the bed, the countdown, the joyride, and pickups', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.now() })
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A')
     const b = await join(v, s, 'B')
     await v.webSocketMessage(ws(a), '{"type":"board"}')
-    expect(a.last<RaidMessage>()).toMatchObject({
-      reason: 'boarded',
-      by: idOf(a),
-    })
-    expect(b.last<RaidMessage>().reason).toBe('boarded')
-    // The clock runs out with A aboard.
+    const boarded = a.last<WorldMessage>()
+    expect(boarded).toMatchObject({ reason: 'boarded', by: idOf(a) })
+    expect(b.last<WorldMessage>().reason).toBe('boarded')
+    // Woken when the countdown runs out.
+    const leg = boarded.world?.truck.leg
+    if (leg?.kind !== 'parked' || leg.leavesAt === null) {
+      throw new Error('no countdown')
+    }
+    expect(s.storage.alarm).toBe(leg.leavesAt)
+    // The alarm before its time changes nothing; at its time he leaves.
+    const before = a.sent.length
     await v.alarm()
-    const depart = a.last<RaidMessage>()
+    expect(a.sent.length).toBe(before)
+    vi.setSystemTime(leg.leavesAt)
+    await v.alarm()
+    const depart = a.last<WorldMessage>()
     expect(depart.reason).toBe('depart')
-    expect(depart.raid?.riders).toEqual([idOf(a)])
-    expect(s.storage.alarm).toBeNull()
-    // B is on foot and takes a pickup; A is told; B's second try is refused.
+    expect(depart.world?.truck.riders).toEqual([idOf(a)])
+    // B takes a pickup; A is told; B's second try is refused.
     await v.webSocketMessage(ws(b), '{"type":"take","index":4}')
-    expect(a.last<RaidMessage>()).toMatchObject({
+    expect(a.last<WorldMessage>()).toMatchObject({
       reason: 'taken',
       by: idOf(b),
       index: 4,
@@ -491,40 +503,38 @@ describe('ValleyDO', () => {
       reason: 'gone',
       index: 4,
     })
-    // A hops out and extracts; B is told.
+    // A goes over the side; B is told.
     await v.webSocketMessage(ws(a), '{"type":"hop-out"}')
-    await v.webSocketMessage(ws(a), '{"type":"extract","kind":"keep"}')
-    expect(b.last<RaidMessage>()).toMatchObject({
-      reason: 'extracted',
+    expect(b.last<WorldMessage>()).toMatchObject({
+      reason: 'hopped-out',
       by: idOf(a),
-      kind: 'keep',
     })
-    // The raid is persisted.
-    const stored = s.storage.map.get('valley') as { raid: { taken: number[] } }
-    expect(stored.raid.taken).toEqual([4])
+    // The world is persisted.
+    const stored = s.storage.map.get('valley') as { world: { taken: number[] } }
+    expect(stored.world.taken).toEqual([4])
   })
 
   it('sells a shelf unit once, to the first to ask', async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A')
     const b = await join(v, s, 'B')
-    expect(a.last<WelcomeMessage>().raid.shelves).toHaveLength(5)
-    const perItem = a.last<WelcomeMessage>().raid.shelves[0].pbr.length
+    expect(a.last<WelcomeMessage>().world.shelves).toHaveLength(5)
+    const perItem = a.last<WelcomeMessage>().world.shelves[0].pbr.length
     for (let unit = 0; unit < perItem; unit++) {
       await v.webSocketMessage(
         ws(a),
         JSON.stringify({ type: 'buy', station: 0, kind: 'pbr', unit })
       )
     }
-    const bought = b.last<RaidMessage>()
+    const bought = b.last<WorldMessage>()
     expect(bought).toMatchObject({
       reason: 'bought',
       by: idOf(a),
       station: 0,
       item: 'pbr',
     })
-    expect(bought.raid?.shelves[0].pbr).toEqual(Array(perItem).fill(false))
-    expect(bought.raid?.shelves[1].pbr).toEqual(Array(perItem).fill(true))
+    expect(bought.world?.shelves[0].pbr).toEqual(Array(perItem).fill(false))
+    expect(bought.world?.shelves[1].pbr).toEqual(Array(perItem).fill(true))
     await v.webSocketMessage(
       ws(b),
       '{"type":"buy","station":0,"kind":"pbr","unit":0}'
@@ -585,6 +595,7 @@ describe('ValleyDO', () => {
 
   it('wakes a valley stored before the bush existed', async () => {
     const shared = new MockState()
+    // An older build's valley: a raid, and no bushes.
     shared.storage.map.set('valley', { epoch: 3, raid: null, members: {} })
     const { valley: v } = await valley(shared)
     const a = await join(v, shared, 'Dave')
@@ -606,30 +617,56 @@ describe('ValleyDO', () => {
     })
     const dev = await join(v, s, 'B', { dev: true })
     await v.webSocketMessage(ws(dev), '{"type":"dev","op":"hurry","seconds":1}')
-    expect(dev.last<RaidMessage>().reason).toBe('hurry')
-    expect(s.storage.alarm).toBe(dev.last<RaidMessage>().raid?.loadoutEndsAt)
+    const hurried = dev.last<WorldMessage>()
+    expect(hurried.reason).toBe('hurry')
+    // Marx's reading now ends a second after the hurry.
+    const leg = hurried.world?.truck.leg
+    expect(s.storage.alarm).toBe(
+      (leg?.at ?? 0) + CONFIG.truck.readSeconds * 1000
+    )
   })
 
-  it('announces a departure once and settles the raid', async () => {
+  it('announces a departure once, and keeps the world when the last one goes', async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A')
     const b = await join(v, s, 'B')
+    await v.webSocketMessage(ws(b), '{"type":"take","index":3}')
     const before = a.sent.length
     const idB = idOf(b)
     await v.webSocketError(ws(b))
     await v.webSocketClose(ws(b))
     const frames = a.frames().slice(before)
-    expect(frames.map((m) => m.type)).toEqual(['peer-left', 'raid'])
+    expect(frames.map((m) => m.type)).toEqual(['peer-left', 'world'])
     expect((frames[0] as PeerLeftMessage).id).toBe(idB)
-    expect((frames[1] as RaidMessage).reason).toBe('left')
-    // The last one out resets the valley.
+    expect((frames[1] as WorldMessage).reason).toBe('left')
+    // The last one out leaves the world as it was, and nothing to wake for.
     await v.webSocketClose(ws(a))
-    const stored = s.storage.map.get('valley') as { raid: unknown }
-    expect(stored.raid).toBeNull()
+    const stored = s.storage.map.get('valley') as {
+      world: { taken: number[] }
+      members: object
+    }
+    expect(stored.world.taken).toEqual([3])
+    expect(stored.members).toEqual({})
     expect(s.storage.alarm).toBeNull()
   })
 
-  it('wakes with the raid from storage and the roster from attachments', async () => {
+  it('brings a raider back where they last stood on foot', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    await v.webSocketMessage(ws(a), state(321, -45))
+    await v.webSocketClose(ws(a))
+    const again = await join(v, s, 'A')
+    expect(again.last<WelcomeMessage>().place).toEqual({
+      x: 321,
+      z: -45,
+      yaw: 0.5,
+    })
+    // Another account starts at the Citgo.
+    const b = await join(v, s, 'B')
+    expect(b.last<WelcomeMessage>().place).toBeNull()
+  })
+
+  it('wakes with the world from storage and the roster from attachments', async () => {
     const shared = new MockState()
     const first = (await valley(shared)).valley
     const a = await join(first, shared, 'A')
@@ -639,9 +676,9 @@ describe('ValleyDO', () => {
     const b = await join(woken, shared, 'B')
     const welcome = b.last<WelcomeMessage>()
     expect(welcome.peers.map((p) => p.name)).toEqual(['A'])
-    expect(welcome.raid.taken).toEqual([0])
-    expect(welcome.raid.members.map((m) => m.name)).toEqual(['A', 'B'])
-    expect(a.last<RaidMessage>()).toMatchObject({
+    expect(welcome.world.taken).toEqual([0])
+    expect(welcome.world.members.map((m) => m.name)).toEqual(['A', 'B'])
+    expect(a.last<WorldMessage>()).toMatchObject({
       reason: 'joined',
       by: idOf(b),
     })
@@ -820,7 +857,7 @@ describe('ValleyDO', () => {
       ws(a),
       '{"type":"buy","station":0,"kind":"pbr","unit":0}'
     )
-    expect(b.last<RaidMessage>()).toMatchObject({ reason: 'bought' })
+    expect(b.last<WorldMessage>()).toMatchObject({ reason: 'bought' })
     expect(a.last<PackMessage>()).toMatchObject({
       type: 'pack',
       cash: STARTING_CASH - price,
@@ -845,9 +882,9 @@ describe('ValleyDO', () => {
     // Nobody heard of a sale, and the unit is still on the shelf.
     expect(b.frames()).toHaveLength(before)
     const stored = s.storage.map.get('valley') as {
-      raid: { shelves: Record<string, number>[] }
+      world: { shelves: Record<string, number>[] }
     }
-    expect(stored.raid.shelves[0].pbr).toEqual([false, true, true])
+    expect(stored.world.shelves[0].pbr).toEqual([false, true, true])
   })
 
   it('sells nothing when the wallet cannot be read or the sale cannot be written', async () => {
@@ -881,9 +918,9 @@ describe('ValleyDO', () => {
       // wallet is whole.
       expect(b.frames()).toHaveLength(before)
       const stored = s.storage.map.get('valley') as {
-        raid: { shelves: Record<string, boolean[]>[] }
+        world: { shelves: Record<string, boolean[]>[] }
       }
-      expect(stored.raid.shelves[0].pbr).toEqual([true, true, true])
+      expect(stored.world.shelves[0].pbr).toEqual([true, true, true])
       expect((await store.get('acct-A')).cash).toBe(STARTING_CASH)
     } finally {
       console.error = error
@@ -894,8 +931,8 @@ describe('ValleyDO', () => {
 describe('ValleyDO: drops', () => {
   const drop = (kind: string, count = 1) =>
     JSON.stringify({ type: 'drop', kind, count })
-  const raidFrames = (socket: MockSocket) =>
-    socket.frames().filter((m): m is RaidMessage => m.type === 'raid')
+  const worldFrames = (socket: MockSocket) =>
+    socket.frames().filter((m): m is WorldMessage => m.type === 'world')
 
   it('sets an item down out of the pack, and anyone can take it up', async () => {
     const { valley: v, state: s } = await valley()
@@ -904,7 +941,7 @@ describe('ValleyDO: drops', () => {
     await v.webSocketMessage(ws(a), state(40, 60))
     await v.webSocketMessage(ws(a), drop('joints'))
     expect(lastPack(a)?.joints).toBe(STARTING_INVENTORY.joints - 1)
-    const dropped = raidFrames(b).at(-1)
+    const dropped = worldFrames(b).at(-1)
     expect(dropped).toMatchObject({
       reason: 'dropped',
       by: idOf(a),
@@ -912,15 +949,15 @@ describe('ValleyDO: drops', () => {
       drop: 0,
       count: 1,
     })
-    const [lying] = dropped?.raid?.drops ?? []
+    const [lying] = dropped?.world?.drops ?? []
     // Where A's own state frame put them, not anywhere the frame said.
     expect(Math.hypot(lying.x - 40, lying.z - 60)).toBeLessThan(2)
     await v.webSocketMessage(ws(b), '{"type":"take-drop","drop":0}')
     expect(lastPack(b)?.joints).toBe(STARTING_INVENTORY.joints + 1)
-    expect(raidFrames(a).at(-1)).toMatchObject({
+    expect(worldFrames(a).at(-1)).toMatchObject({
       reason: 'drop-taken',
       by: idOf(b),
-      raid: { drops: [] },
+      world: { drops: [] },
     })
   })
 
@@ -950,8 +987,10 @@ describe('ValleyDO: drops', () => {
     // The pack, as it is, puts the guess right; nobody saw a drop.
     expect(lastPack(a)?.joints).toBe(STARTING_INVENTORY.joints)
     expect(b.frames()).toHaveLength(before)
-    const stored = s.storage.map.get('valley') as { raid: { drops: unknown[] } }
-    expect(stored.raid.drops).toEqual([])
+    const stored = s.storage.map.get('valley') as {
+      world: { drops: unknown[] }
+    }
+    expect(stored.world.drops).toEqual([])
   })
 
   it('sets down nothing when the pack cannot be written', async () => {
@@ -976,7 +1015,8 @@ describe('ValleyDO: drops', () => {
       a.frames().findLast((m): m is NackMessage => m.type === 'nack')
     ).toMatchObject({ re: 'drop', reason: 'unavailable' })
     expect(
-      (s.storage.map.get('valley') as { raid: { drops: unknown[] } }).raid.drops
+      (s.storage.map.get('valley') as { world: { drops: unknown[] } }).world
+        .drops
     ).toEqual([])
   })
 
@@ -993,8 +1033,10 @@ describe('ValleyDO: drops', () => {
       reason: 'too-fast',
     })
     expect(a.last<PackMessage>().type).toBe('pack')
-    const stored = s.storage.map.get('valley') as { raid: { drops: unknown[] } }
-    expect(stored.raid.drops).toHaveLength(20)
+    const stored = s.storage.map.get('valley') as {
+      world: { drops: unknown[] }
+    }
+    expect(stored.world.drops).toHaveLength(20)
   })
 })
 
