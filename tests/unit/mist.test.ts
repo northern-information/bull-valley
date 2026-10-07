@@ -101,22 +101,22 @@ describe('createMist', () => {
 describe('stepMist', () => {
   it('drifts a bank on the wind plus its own drift', () => {
     const field = { banks: [bank({ driftX: 0.5, driftZ: 0.5 })] }
-    stepMist(field, { dt: 1, player: ORIGIN, still: false }, CFG)
+    stepMist(field, { dt: 1, player: ORIGIN }, CFG)
     expect(field.banks[0].x).toBeCloseTo(1.5, 9)
     expect(field.banks[0].z).toBeCloseTo(-50, 9)
   })
 
   it('advances the swell once around per period', () => {
     const field = { banks: [bank({ phase: 0, period: 20 })] }
-    stepMist(field, { dt: 5, player: ORIGIN, still: false }, CFG)
+    stepMist(field, { dt: 5, player: ORIGIN }, CFG)
     expect(field.banks[0].phase).toBeCloseTo(Math.PI / 2, 9)
-    stepMist(field, { dt: 15, player: ORIGIN, still: false }, CFG)
+    stepMist(field, { dt: 15, player: ORIGIN }, CFG)
     expect(field.banks[0].phase).toBeCloseTo(0, 9)
   })
 
   it('wraps a bank that leaves the bubble to the far side', () => {
     const field = { banks: [bank({ x: 99.9, z: 0 })] }
-    stepMist(field, { dt: 1, player: ORIGIN, still: false }, CFG)
+    stepMist(field, { dt: 1, player: ORIGIN }, CFG)
     expect(field.banks[0].x).toBeCloseTo(-99.1, 9)
   })
 
@@ -126,7 +126,7 @@ describe('stepMist', () => {
     for (let i = 0; i < 4000; i++) {
       player.x += 2 * DT
       player.z -= 1.5 * DT
-      stepMist(field, { dt: DT, player, still: false }, CFG)
+      stepMist(field, { dt: DT, player }, CFG)
       expect(inBubble(field, player)).toBe(true)
     }
   })
@@ -134,18 +134,8 @@ describe('stepMist', () => {
   it('follows a teleport in a single step', () => {
     const field = createMist(mulberry32(4), ORIGIN, CFG)
     const far = { x: 3000, z: -2500 }
-    stepMist(field, { dt: DT, player: far, still: false }, CFG)
+    stepMist(field, { dt: DT, player: far }, CFG)
     expect(inBubble(field, far)).toBe(true)
-  })
-
-  it('holds still under reduced motion, wrapping only', () => {
-    const before = bank({ x: 20, z: -50, driftX: 0.5 })
-    const field = { banks: [{ ...before }] }
-    stepMist(field, { dt: 1, player: ORIGIN, still: true }, CFG)
-    expect(field.banks[0]).toEqual(before)
-    stepMist(field, { dt: 1, player: { x: 150, z: 0 }, still: true }, CFG)
-    expect(field.banks[0].x).toBe(220)
-    expect(field.banks[0].phase).toBe(before.phase)
   })
 })
 

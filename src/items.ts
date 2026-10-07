@@ -17,6 +17,8 @@
 //   contents  how many the pack, bottle or box holds (1 when absent); the
 //             inventory counts these, and a buy or a pickup adds a full one
 //   geometrie how far one use moves each geometrie level (geometrie.ts)
+//   tripSeconds  how long a drink's trails last (trip.ts); a cigarette's
+//             last while it smokes, the joint's while perception does
 //
 // Medicine cannot be used yet, so it has no used or empty text. Forage is
 // never on a shelf, so it has no price or bought text; the valley hands it out
@@ -117,7 +119,8 @@ export const ITEMS = [
   },
   // Drinks, circa 2008. Drinking one moves geometrie (geometrie.ts): the
   // energy drinks stimulate, the beer and the liquor get you drunk, Four
-  // Loko does both, and water sobers you a little. container is a key into
+  // Loko does both, and water sobers you a little. Each blurs the view and
+  // trails it for tripSeconds (trip.ts); the water only blurs. container is a key into
   // CONTAINERS in drinks.ts.
   {
     id: 'monster',
@@ -130,6 +133,7 @@ export const ITEMS = [
     start: 0,
     price: 219,
     container: 'tall',
+    tripSeconds: 30,
     geometrie: { stimulated: 0.3 },
   },
   {
@@ -143,6 +147,7 @@ export const ITEMS = [
     start: 0,
     price: 219,
     container: 'tall',
+    tripSeconds: 30,
     geometrie: { stimulated: 0.25 },
   },
   {
@@ -156,6 +161,7 @@ export const ITEMS = [
     start: 0,
     price: 199,
     container: 'slim',
+    tripSeconds: 30,
     geometrie: { stimulated: 0.25 },
   },
   {
@@ -169,6 +175,7 @@ export const ITEMS = [
     start: 0,
     price: 99,
     container: 'tall',
+    tripSeconds: 30,
     geometrie: { stimulated: 0.3 },
   },
   {
@@ -182,6 +189,7 @@ export const ITEMS = [
     start: 0,
     price: 199,
     container: 'tall',
+    tripSeconds: 30,
     geometrie: { stimulated: 0.3 },
   },
   {
@@ -195,6 +203,7 @@ export const ITEMS = [
     start: 0,
     price: 229,
     container: 'nos',
+    tripSeconds: 30,
     geometrie: { stimulated: 0.35 },
   },
   {
@@ -208,6 +217,7 @@ export const ITEMS = [
     start: 0,
     price: 249,
     container: 'tall',
+    tripSeconds: 120,
     geometrie: { stimulated: 0.3, drunk: 0.35 },
   },
   {
@@ -221,6 +231,7 @@ export const ITEMS = [
     start: 0,
     price: 249,
     container: 'tall',
+    tripSeconds: 120,
     geometrie: { stimulated: 0.3, drunk: 0.35 },
   },
   {
@@ -234,6 +245,7 @@ export const ITEMS = [
     start: 0,
     price: 249,
     container: 'tall',
+    tripSeconds: 120,
     geometrie: { stimulated: 0.3, drunk: 0.35 },
   },
   {
@@ -247,6 +259,7 @@ export const ITEMS = [
     start: 0,
     price: 2199,
     container: 'bourbon',
+    tripSeconds: 90,
     geometrie: { drunk: 0.5 },
   },
   {
@@ -260,6 +273,7 @@ export const ITEMS = [
     start: 0,
     price: 1599,
     container: 'square',
+    tripSeconds: 90,
     geometrie: { drunk: 0.45 },
   },
   {
@@ -273,6 +287,7 @@ export const ITEMS = [
     start: 0,
     price: 2999,
     container: 'goose',
+    tripSeconds: 90,
     geometrie: { drunk: 0.45 },
   },
   {
@@ -286,6 +301,7 @@ export const ITEMS = [
     start: 0,
     price: 99,
     container: 'can12',
+    tripSeconds: 60,
     geometrie: { drunk: 0.15 },
   },
   {
@@ -299,6 +315,7 @@ export const ITEMS = [
     start: 0,
     price: 129,
     container: 'longneck',
+    tripSeconds: 60,
     geometrie: { drunk: 0.15 },
   },
   {
@@ -312,6 +329,7 @@ export const ITEMS = [
     start: 0,
     price: 149,
     container: 'can12',
+    tripSeconds: 60,
     geometrie: { drunk: 0.15 },
   },
   {
@@ -325,6 +343,7 @@ export const ITEMS = [
     start: 0,
     price: 299,
     container: 'flask',
+    tripSeconds: 90,
     geometrie: { drunk: 0.3 },
   },
   {
@@ -338,6 +357,7 @@ export const ITEMS = [
     start: 0,
     price: 119,
     container: 'water',
+    tripSeconds: 1,
     geometrie: { drunk: -0.1 },
   },
   // Medicine, off the rack by the register. No effect yet: the player can
@@ -457,6 +477,17 @@ export function isUsable(id: string): boolean {
   return (
     category === 'cigarette' || category === 'joint' || category === 'drink'
   )
+}
+
+// How long using one unit of `id` puts trails on the view (trip.ts): a
+// cigarette while it smokes, the joint while perception lasts, a drink its
+// own tripSeconds. Zero for anything else.
+export function tripSecondsOf(id: string): number {
+  const item = itemById(id)
+  if (!item) return 0
+  if (item.category === 'cigarette') return item.smokeSeconds ?? 0
+  if (item.category === 'joint') return item.perceptionSeconds ?? 0
+  return item.tripSeconds ?? 0
 }
 
 // The kinds the inventory counts: every item.

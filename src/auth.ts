@@ -81,19 +81,33 @@ export async function refreshSession(
 }
 
 // `limited` is a refusal to wait out (worker/ratelimit.ts), not a failure.
+// `retry` is a refusal that leaves the pending signup standing: the wrong
+// magic word.
 export type Outcome =
-  { ok: true } | { ok: false; error: string; limited?: boolean }
+  | { ok: true }
+  | { ok: false; error: string; limited?: boolean; retry?: boolean }
 
 // The status the /auth routes answer a rate-limited call with.
 const TOO_MANY = 429
 
-// Pass the age and terms gates: the account is created and signed in.
+// The status the server refuses a wrong magic word with.
+const FORBIDDEN = 403
+
+// Say the magic word: the account is created and signed in.
 export async function confirmSignup(
+  magicWord: string,
   fetchImpl: Fetch = fetch
 ): Promise<Outcome> {
   try {
-    const res = await post(fetchImpl, '/confirm-signup')
+    const res = await post(fetchImpl, '/confirm-signup', { magicWord })
     if (res.ok) return { ok: true }
+    if (res.status === FORBIDDEN) {
+      return {
+        ok: false,
+        retry: true,
+        error: await errorOf(res, copy('auth.magic_word_wrong')),
+      }
+    }
     if (res.status === TOO_MANY) {
       return {
         ok: false,

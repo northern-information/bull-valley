@@ -6,9 +6,9 @@
 // Two faces. Sign In lists the server's providers; each is a full-page
 // round trip that lands back here with ?auth= (account.ts authReturnOf).
 // Choose Your Username takes the handle, checks it as you type, and, for a
-// raider who has just arrived (a pending signup), asks for the two gates
-// first: 13 or older, and the terms. The account is created only once both
-// are checked. The rules and the routes are account.ts's and auth.ts's.
+// raider who has just arrived (a pending signup), asks for the magic word:
+// the game is private, and the server creates the account only for the
+// right one. The rules and the routes are account.ts's and auth.ts's.
 
 import {
   isValidUsername,
@@ -64,21 +64,17 @@ export function mountAccountStep(): AccountStep {
         <input type="text" data-bv="account-username" maxlength="${USERNAME_MAX}" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go" aria-describedby="bv-account-status">
       </label>
       <p class="bv-account-status" id="bv-account-status" aria-live="polite">${RULES}</p>
-      <div class="bv-account-gates" hidden>
-        <label class="bv-gate"><input type="checkbox" data-bv="account-age"> ${copy('username.age_gate')}</label>
-        <label class="bv-gate"><input type="checkbox" data-bv="account-terms"> ${copy('username.terms_gate')} <a href="/terms.html" target="_blank" rel="noopener" data-bv="account-terms-link">${copy('username.terms_link')}</a></label>
-      </div>
+      <label class="bv-field" data-bv="account-magic" hidden>
+        <span>${copy('username.magic_word')}</span>
+        <input type="text" data-bv="account-magic-word" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go">
+      </label>
       <p class="bv-account-error" role="alert" hidden></p>
       <div class="bv-select-actions">
         <button type="button" class="bv-btn" data-bv="account-cancel">${copy('username.cancel')}</button>
         <button type="submit" class="bv-btn bv-btn--primary" data-bv="account-confirm" disabled>${copy('username.confirm')}</button>
       </div>
       <p class="bv-select-hint">${copy('username.hint')}</p>
-    </form>
-    <div class="bv-terms" role="dialog" aria-modal="true" aria-label="${copy('username.terms_link')}" hidden>
-      <iframe title="${copy('username.terms_link')}" data-bv="account-terms-frame"></iframe>
-      <button type="button" class="bv-btn" data-bv="account-terms-close">${copy('username.terms_close')}</button>
-    </div>`
+    </form>`
   document.body.appendChild(root)
 
   const find = <T extends Element>(selector: string): T => {
@@ -95,18 +91,13 @@ export function mountAccountStep(): AccountStep {
   const lede = find<HTMLParagraphElement>('[data-bv="account-lede"]')
   const input = find<HTMLInputElement>('[data-bv="account-username"]')
   const status = find<HTMLParagraphElement>('.bv-account-status')
-  const gates = find<HTMLDivElement>('.bv-account-gates')
-  const age = find<HTMLInputElement>('[data-bv="account-age"]')
-  const terms = find<HTMLInputElement>('[data-bv="account-terms"]')
-  const termsLink = find<HTMLAnchorElement>('[data-bv="account-terms-link"]')
+  const magic = find<HTMLLabelElement>('[data-bv="account-magic"]')
+  const magicWord = find<HTMLInputElement>('[data-bv="account-magic-word"]')
   const usernameError = find<HTMLParagraphElement>(
     '[data-face="username"] .bv-account-error'
   )
   const cancelBtn = find<HTMLButtonElement>('[data-bv="account-cancel"]')
   const confirmBtn = find<HTMLButtonElement>('[data-bv="account-confirm"]')
-  const termsPanel = find<HTMLDivElement>('.bv-terms')
-  const termsFrame = find<HTMLIFrameElement>('[data-bv="account-terms-frame"]')
-  const termsClose = find<HTMLButtonElement>('[data-bv="account-terms-close"]')
 
   const showError = (el: HTMLElement, message: string | null) => {
     el.textContent = message ?? ''
@@ -145,7 +136,8 @@ export function mountAccountStep(): AccountStep {
 
   function run(me: MeResponse | null, error: string | null): Promise<string> {
     return new Promise<string>((resolve) => {
-      // Whether the gates still stand between this raider and an account.
+      // Whether the magic word still stands between this raider and an
+      // account.
       let pending = me !== null && me.account === null && me.pending !== null
       let available: boolean | null = null
       let checking: ReturnType<typeof setTimeout> | null = null
@@ -158,7 +150,7 @@ export function mountAccountStep(): AccountStep {
         !submitting &&
         isValidUsername(handle()) &&
         available === true &&
-        (!pending || (age.checked && terms.checked))
+        (!pending || magicWord.value.trim() !== '')
 
       const refresh = () => {
         confirmBtn.disabled = !ready()
@@ -202,7 +194,7 @@ export function mountAccountStep(): AccountStep {
       const showUsername = () => {
         signInFace.hidden = true
         usernameFace.hidden = false
-        gates.hidden = !pending
+        magic.hidden = !pending
         const who = me?.account?.displayName ?? me?.pending?.displayName
         const via = me?.pending?.provider ?? me?.account?.providers[0]?.provider
         lede.textContent =
@@ -227,8 +219,7 @@ export function mountAccountStep(): AccountStep {
         submitting = false
         pending = false
         input.value = ''
-        age.checked = false
-        terms.checked = false
+        magicWord.value = ''
         await showSignIn(null)
       }
 
@@ -239,12 +230,13 @@ export function mountAccountStep(): AccountStep {
         usernameError.hidden = true
         refresh()
         if (pending) {
-          const created = await confirmSignup()
-          if (!created.ok && created.limited) {
-            // Still pending: the raider waits it out here, gates checked.
+          const created = await confirmSignup(magicWord.value)
+          if (!created.ok && (created.limited || created.retry)) {
+            // Still pending: the raider waits it out, or tries another word.
             submitting = false
             showError(usernameError, created.error)
             refresh()
+            if (created.retry) magicWord.select()
             return
           }
           if (!created.ok) {
@@ -255,7 +247,7 @@ export function mountAccountStep(): AccountStep {
           }
           // The account exists now; a failed username below keeps it.
           pending = false
-          gates.hidden = true
+          magic.hidden = true
         }
         const set = await setUsername(username)
         submitting = false
@@ -273,18 +265,6 @@ export function mountAccountStep(): AccountStep {
         input.focus()
       }
 
-      const openTerms = (e: Event) => {
-        e.preventDefault()
-        termsFrame.src = '/terms.html'
-        termsPanel.hidden = false
-        termsClose.focus()
-      }
-
-      const closeTerms = () => {
-        termsPanel.hidden = true
-        termsLink.focus()
-      }
-
       const onSubmit = (e: Event) => {
         e.preventDefault()
         void confirm()
@@ -293,29 +273,27 @@ export function mountAccountStep(): AccountStep {
       const onKey = (e: KeyboardEvent) => {
         if (e.code !== 'Escape') return
         e.preventDefault()
-        if (!termsPanel.hidden) closeTerms()
-        else if (!usernameFace.hidden) void cancel()
+        if (!usernameFace.hidden) void cancel()
       }
 
       const onCancel = () => void cancel()
 
+      const onMagic = () => {
+        usernameError.hidden = true
+        refresh()
+      }
+
       const cleanup = () => {
         if (checking !== null) clearTimeout(checking)
         input.removeEventListener('input', check)
-        age.removeEventListener('change', refresh)
-        terms.removeEventListener('change', refresh)
-        termsLink.removeEventListener('click', openTerms)
-        termsClose.removeEventListener('click', closeTerms)
+        magicWord.removeEventListener('input', onMagic)
         usernameFace.removeEventListener('submit', onSubmit)
         cancelBtn.removeEventListener('click', onCancel)
         document.removeEventListener('keydown', onKey)
       }
 
       input.addEventListener('input', check)
-      age.addEventListener('change', refresh)
-      terms.addEventListener('change', refresh)
-      termsLink.addEventListener('click', openTerms)
-      termsClose.addEventListener('click', closeTerms)
+      magicWord.addEventListener('input', onMagic)
       usernameFace.addEventListener('submit', onSubmit)
       cancelBtn.addEventListener('click', onCancel)
       document.addEventListener('keydown', onKey)

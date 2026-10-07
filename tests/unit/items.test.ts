@@ -14,6 +14,7 @@ import {
   itemById,
   ITEMS,
   leftInOpen,
+  tripSecondsOf,
 } from '../../src/items.ts'
 import type { Item } from '../../src/interfaces.ts'
 
@@ -77,6 +78,16 @@ describe('items', () => {
     for (const id of CIGARETTE_IDS) {
       expect(itemById(id)?.geometrie?.stimulated, id).toBeGreaterThan(0)
     }
+  })
+
+  it('trips on anything smoked or drunk, for as long as it lasts', () => {
+    for (const item of ITEMS.filter((i) => i.category === 'drink')) {
+      expect(tripSecondsOf(item.id), item.id).toBeGreaterThan(0)
+    }
+    expect(tripSecondsOf('marlboro')).toBe(getItem('marlboro').smokeSeconds)
+    expect(tripSecondsOf('joints')).toBe(getItem('joints').perceptionSeconds)
+    expect(tripSecondsOf('aspirin')).toBe(0)
+    expect(tripSecondsOf('nope')).toBe(0)
   })
 
   it('gives every medicine a known form, and no use', () => {

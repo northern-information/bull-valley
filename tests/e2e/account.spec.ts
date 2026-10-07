@@ -12,7 +12,7 @@ import type { Page } from '@playwright/test'
 // The account step between the logo and the character select. A visitor
 // with no session meets the sign-in card; the Dev provider stands in for a
 // real one and walks the new-raider path: the round trip lands back past
-// the titles, on Choose Your Username, behind the age and terms gates.
+// the titles, on Choose Your Username, behind the magic word.
 
 // Colophon, then logo, then the account step's sign-in face.
 async function toSignIn(page: Page): Promise<void> {
@@ -35,9 +35,10 @@ async function arriveNew(page: Page): Promise<void> {
   await expect(page.locator('[data-face="username"]')).toBeVisible()
 }
 
-test('a new raider signs in, passes the gates, and chooses a username', async ({
+test('a new raider signs in, says the magic word, and chooses a username', async ({
   page,
   browser,
+  errors,
 }) => {
   // Someone else already has a username, to find it taken.
   const other = await browser.newContext()
@@ -55,8 +56,8 @@ test('a new raider signs in, passes the gates, and chooses a username', async ({
   const field = page.locator('[data-bv="account-username"]')
   const status = page.locator('.bv-account-status')
   const confirm = page.locator('[data-bv="account-confirm"]')
-  const age = page.getByLabel(copy('username.age_gate'))
-  const terms = page.getByLabel('I agree to the Terms of Service')
+  const word = page.getByLabel(copy('username.magic_word'))
+  const error = page.locator('[data-face="username"] .bv-account-error')
   await expect(field).toBeFocused()
   await expect(confirm).toBeDisabled()
 
@@ -67,25 +68,21 @@ test('a new raider signs in, passes the gates, and chooses a username', async ({
   const mine = freshRaider('New').username
   await field.fill(mine)
   await expect(status).toHaveText(copy('username.available'))
-  // Both gates stand between an available name and an account.
+  // The magic word stands between an available name and an account.
   await expect(confirm).toBeDisabled()
-  await age.check()
-  await expect(confirm).toBeDisabled()
-
-  // The terms open in place, and Escape closes them, not the step.
-  await page.locator('[data-bv="account-terms-link"]').click()
-  const panel = page.getByRole('dialog', { name: copy('username.terms_link') })
-  await expect(panel).toBeVisible()
-  await expect(
-    page.frameLocator('.bv-terms iframe').getByRole('heading', {
-      name: copy('username.terms_link'),
-    })
-  ).toBeVisible()
-  await page.keyboard.press('Escape')
-  await expect(panel).toBeHidden()
+  await word.fill('cabbages')
+  await expect(confirm).toBeEnabled()
+  await confirm.click()
+  await expect(error).toHaveText(copy('auth.magic_word_wrong'))
+  // The refusal is the one failed request this spec expects.
+  expect(errors).toEqual([
+    expect.stringMatching(/^403 .*\/auth\/confirm-signup$/),
+  ])
+  errors.length = 0
   await expect(page.locator('[data-face="username"]')).toBeVisible()
 
-  await terms.check()
+  await word.fill('berries')
+  await expect(error).toBeHidden()
   await expect(confirm).toBeEnabled()
   await field.press('Enter')
   await expect(page.locator('.bv-account')).toHaveCount(0)

@@ -2,8 +2,8 @@
 // kinds, told apart by a `typ` claim so one can never pass for another:
 // access (names the account, short-lived, read on every request and on the
 // socket upgrade), refresh (mints new access tokens for a month), and
-// pending (a new raider's provider profile, held until the age and terms
-// gates are passed and the account is created).
+// pending (a new raider's provider profile, held until the
+// raider says the magic word and the account is created).
 
 import { jwtVerify, SignJWT } from 'jose'
 import type { Provider } from '../src/account.ts'

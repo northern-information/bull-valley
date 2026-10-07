@@ -11,7 +11,7 @@
 #
 # `npm run copy:ai` lists the lines still marked "ai".
 #
-# Not in this file: the terms (public/terms.html), the popup landing page
+# Not in this file: the popup landing page
 # (public/auth-done.html), the link-preview tags in index.html, the
 # provider names (Google, Discord, GitHub), the Akashic dev page, and the
 # words painted on packs, cans, medicine and the Citgo signs.
@@ -56,7 +56,8 @@ unavailable = { text = "Sign-in is not available right now. Try again soon.", by
 unreachable = { text = "The valley cannot be reached. Try again soon.", by = "tyler" }
 rules = { text = "3 to 16 letters, digits, or underscores.", by = "tyler" }
 
-# Choose Your Username, with the age and terms gates (src/signin.ts).
+# Choose Your Username, with the magic word for a new raider
+# (src/signin.ts).
 
 [username]
 title = { text = "What is your name?", by = "tyler" }
@@ -67,10 +68,7 @@ checking = { text = "Checking...", by = "tyler" }
 limited = { text = "Too many checks. Wait a moment, then try again.", by = "tyler" }
 available = { text = "Available", by = "tyler" }
 taken = { text = "Taken", by = "tyler" }
-age_gate = { text = "I am 13 years or older", by = "tyler" }
-terms_gate = { text = "I agree to the", by = "tyler" }
-terms_link = { text = "Terms of Service", by = "tyler" }
-terms_close = { text = "Close", by = "tyler" }
+magic_word = { text = "Magic Word", by = "ai" }
 cancel = { text = "Cancel", by = "tyler" }
 confirm = { text = "Confirm", by = "tyler" }
 hint = { text = "Enter Confirm · Escape Cancel", by = "tyler" }
@@ -263,6 +261,7 @@ not_linked = { text = "{provider} is not linked to your account", by = "ai" }
 limited = { text = "Too many tries. Wait a minute and try again.", by = "ai" }
 limited_short = { text = "Too many tries. Wait a minute.", by = "ai" }
 unnamed = { text = "Raider", by = "ai" }
+magic_word_wrong = { text = "That is not the magic word", by = "ai" }
 
 # The name over the item E would act on: a pickup, a shelf unit, or the
 # berry bush (src/interactions.ts itemLabel).

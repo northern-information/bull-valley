@@ -80,11 +80,13 @@ describe('refreshSession', () => {
 
 describe('confirmSignup', () => {
   it('reports the outcome with the server message', async () => {
-    expect(await confirmSignup(answer(200).impl)).toEqual({ ok: true })
-    expect(await confirmSignup(answer(401, { error: 'Expired' }).impl)).toEqual(
-      { ok: false, error: 'Expired' }
-    )
-    expect(await confirmSignup(down)).toEqual({
+    expect(await confirmSignup('berries', answer(200).impl)).toEqual({
+      ok: true,
+    })
+    expect(
+      await confirmSignup('berries', answer(401, { error: 'Expired' }).impl)
+    ).toEqual({ ok: false, error: 'Expired' })
+    expect(await confirmSignup('berries', down)).toEqual({
       ok: false,
       error: copy('auth.unreachable'),
     })
@@ -92,8 +94,24 @@ describe('confirmSignup', () => {
 
   it('marks a rate limit as one to wait out', async () => {
     expect(
-      await confirmSignup(answer(429, { error: 'Too many tries.' }).impl)
+      await confirmSignup(
+        'berries',
+        answer(429, { error: 'Too many tries.' }).impl
+      )
     ).toEqual({ ok: false, limited: true, error: 'Too many tries.' })
+  })
+
+  it('sends the magic word, and marks a wrong one to try again', async () => {
+    const { impl, seen } = answer(403, {})
+    expect(await confirmSignup('cabbages', impl)).toEqual({
+      ok: false,
+      retry: true,
+      error: copy('auth.magic_word_wrong'),
+    })
+    expect(seen[0].url).toBe('/auth/confirm-signup')
+    expect(JSON.parse(seen[0].init?.body as string)).toEqual({
+      magicWord: 'cabbages',
+    })
   })
 })
 

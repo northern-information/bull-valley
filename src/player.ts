@@ -27,7 +27,6 @@ export interface PlayerOptions {
 // Per-frame movement modifiers from items and the scope.
 export interface PlayerMods {
   speedScale?: number
-  driftAmp?: number
 }
 
 // What update() returns each frame.
@@ -60,7 +59,6 @@ export class Player {
   forward: THREE.Vector3
   onEdge: (() => void) | null
   edgeCooldown: number
-  time: number
 
   constructor({ camera, groundAt, collide, metres, spawn }: PlayerOptions) {
     this.camera = camera
@@ -80,7 +78,6 @@ export class Player {
     this.forward = new THREE.Vector3(0, 0, -1)
     this.onEdge = null
     this.edgeCooldown = 0
-    this.time = 0
   }
 
   relocate(x: number, z: number, yaw?: number) {
@@ -104,7 +101,6 @@ export class Player {
 
   update(dt: number, mods: PlayerMods = {}): PlayerState {
     const cfg = CONFIG.player
-    this.time += dt
     const sprinting = isHeld(this.keys, WORLD.sprint)
     const crouching = isHeld(this.keys, WORLD.crouch)
     const { x: ix, z: iz } = moveAxis(this.keys)
@@ -164,13 +160,8 @@ export class Player {
     const ground = this.groundY
     const bob = bobSin * 0.05 * Math.min(1, speedNow / 4)
 
-    // Weed drift: a slow yaw wander and roll.
-    const drift = mods.driftAmp || 0
-    this.yaw += Math.sin(this.time * 0.31) * drift * dt
-    const roll = Math.sin(this.time * 0.47) * 0.02 * drift
-
     this.camera.position.set(this.pos.x, ground + this.eye + bob, this.pos.z)
-    this.camera.rotation.set(this.pitch, this.yaw, roll)
+    this.camera.rotation.set(this.pitch, this.yaw, 0)
 
     this.forward.set(-sin, 0, -cos)
 

@@ -32,6 +32,7 @@ import { ShadowCards } from './shadowcards.ts'
 import { createTargets } from './targets.ts'
 import { buildTerrainMesh, createHeightField, loadTerrain } from './terrain.ts'
 import { openAccount, showTitles, signOutAndReload } from './titles.ts'
+import { createTrails } from './trails.ts'
 import { Truck } from './truck.ts'
 import { joyrideMs } from './truckplan.ts'
 import { wireValley } from './valleysync.ts'
@@ -226,9 +227,6 @@ async function boot() {
   // The hands hang off the camera, so the camera joins the scene.
   scene.add(camera)
   const hands = new FirstPersonHands(camera, pick.outfit)
-  // Under prefers-reduced-motion the mist, the glow's pulse, Gron's rain
-  // and Moab's fire all hold still, like the logo card's fog.
-  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
   // --- The valley server -------------------------------------------------
   // Everyone online shares one valley. The socket is same-origin and the
@@ -278,14 +276,13 @@ async function boot() {
       scene,
       groundAt: world.ground.at,
       player: player.pos,
-      still,
     }),
     // The ring around whatever E would act on.
-    glow: createGlow(renderer, scene, still),
+    glow: createGlow(renderer, scene),
+    trails: createTrails(renderer),
     thumbs: createItemThumbs(),
     peers: new Peers(scene),
     net,
-    still,
   }
 
   player.onEdge = () => hud.tell(copy('log.edge'))
@@ -319,6 +316,7 @@ async function boot() {
     const ih = Math.max(2, Math.floor(h / CONFIG.render.downscale))
     renderer.setSize(iw, ih, false)
     game.glow.setSize(iw, ih)
+    game.trails.setSize(iw, ih)
     camera.aspect = w / h
     camera.updateProjectionMatrix()
     setSnapResolution(iw, ih)

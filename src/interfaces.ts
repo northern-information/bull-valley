@@ -145,6 +145,7 @@ export interface Item {
   geometrie?: Partial<Record<GeometrieAxis, number>>
   // Drinks.
   container?: ContainerKey
+  tripSeconds?: number
   // Medicine.
   form?: MedicineForm
 }
