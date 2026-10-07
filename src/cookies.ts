@@ -12,7 +12,7 @@ export const COOKIE = {
   // Refresh token: a long-lived JWT that mints new access tokens.
   refresh: 'bv_refresh',
   // Pending signup: the provider profile of a new raider who has not yet
-  // confirmed the age and terms gates.
+  // said the magic word.
   pending: 'bv_pending',
   // OAuth CSRF state and PKCE verifier, for the five minutes a sign-in
   // round trip takes.

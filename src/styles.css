@@ -968,31 +968,6 @@
   color: #ff6b5b;
 }
 
-.bv-account-gates {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.6rem;
-}
-
-.bv-gate {
-  display: flex;
-  align-items: center;
-  gap: 0.6em;
-  cursor: pointer;
-}
-
-.bv-gate input[type='checkbox'] {
-  width: 1.1em;
-  height: 1.1em;
-  margin: 0;
-  accent-color: var(--bv-citgo);
-}
-
-.bv-gate a {
-  color: var(--fi-cyan);
-}
-
 /* The account panel (accountpanel.ts): the account step's look, over the
    character select. Mounted after it, so DOM order stacks it on top. */
 .bv-panel {
@@ -1121,25 +1096,6 @@
   .bv-gron-ui {
     grid-template-columns: minmax(0, 20rem);
   }
-}
-
-/* The terms, read in place over the account step. */
-.bv-terms {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.8rem;
-  padding: 1.5rem 1rem;
-  background: rgb(0 0 0 / 92%);
-}
-
-.bv-terms iframe {
-  flex: 1;
-  width: min(48rem, 100%);
-  border: 1px solid var(--fi-paper-light);
-  background: #000;
 }
 
 .bv-select-actions {

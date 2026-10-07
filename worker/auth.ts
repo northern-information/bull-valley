@@ -1,5 +1,5 @@
-// The /auth routes: sign in with a provider, confirm a new account through
-// the age and terms gates, choose a username, keep the session fresh, link
+// The /auth routes: sign in with a provider, confirm a new account with the
+// magic word, choose a username, keep the session fresh, link
 // and unlink providers, sign out. Cookies are the session; the client
 // never sees a token. Same origin as the game, so there is no CORS and the
 // browser sends the cookies on the socket upgrade too (identityFor).
@@ -8,7 +8,7 @@
 // GET  /auth/:provider/login                start a sign-in round trip
 // GET  /auth/:provider/callback             the provider sends the browser back
 // GET  /auth/me                             who is signed in (always 200)
-// POST /auth/confirm-signup                 pass the gates; create the account
+// POST /auth/confirm-signup                 say the magic word; create the account
 // POST /auth/username                       choose the username, once
 // PUT  /auth/username                       change it (Gron)
 // PUT  /auth/look                           the character and guitar finish
@@ -107,6 +107,14 @@ export async function identityFor(
   )
   if (!claims?.username) return null
   return { account: claims.accountId, name: claims.username }
+}
+
+// The game is private: a new account takes the magic word. It lives on the
+// server alone, never in the client bundle; case and edge spaces aside.
+const MAGIC_WORD = 'berries'
+
+export function isMagicWord(word: unknown): boolean {
+  return typeof word === 'string' && word.trim().toLowerCase() === MAGIC_WORD
 }
 
 export async function handleAuth(
@@ -650,6 +658,15 @@ class AuthHandler {
       return json({ error: copy('auth.expired') }, 401, [
         this.clear(COOKIE.pending),
       ])
+    }
+    const body = (await this.request.json().catch(() => null)) as Record<
+      string,
+      unknown
+    > | null
+    // A wrong word keeps the pending signup, so the raider can try again;
+    // the strict rate limit keeps them from guessing at speed.
+    if (!isMagicWord(body?.magicWord)) {
+      return json({ error: copy('auth.magic_word_wrong') }, 403)
     }
     const account = await this.createAccount(pending.provider, pending.profile)
     return json({ account: await this.accountWire(account) }, 200, [
