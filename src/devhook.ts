@@ -3,6 +3,7 @@
 // dev builds, so production bundles never carry it.
 
 import { unitToWorld } from './coords.ts'
+import { hurry } from './marx.ts'
 import type { Actions } from './actions.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
 import type { ChatLine } from './chat.ts'
@@ -10,12 +11,13 @@ import type { Drop } from './drops.ts'
 import type { Game } from './game.ts'
 import type { Hand } from './hands.ts'
 import type { Hotbar } from './hotbar.ts'
-import type { Inventory, Raid } from './interfaces.ts'
+import type { Inventory } from './interfaces.ts'
+import type { TruckState } from './marx.ts'
 import type { MistCards } from './mistcards.ts'
 import type { NetStatus } from './net.ts'
 import type { Player } from './player.ts'
 import type { Peer } from './presence.ts'
-import type { DailyWire, PeerStateWire, RaidWire } from './protocol.ts'
+import type { DailyWire, PeerStateWire, WorldWire } from './protocol.ts'
 import type { RoadGraph } from './roadgraph.ts'
 import type { ShadowCards } from './shadowcards.ts'
 import type { Truck } from './truck.ts'
@@ -33,14 +35,17 @@ interface BvHook {
   shadowmen: ShadowCards
   caretaker: CaretakerShade
   mist: MistCards
-  readonly raid: Raid
+  // Times a touch put this raider back at the Citgo.
+  readonly strikes: number
   net: {
     readonly status: NetStatus
     readonly id: string | null
     peers(): Peer[]
   }
-  // The shared raid as the valley last sent it; null offline.
-  readonly shared: RaidWire | null
+  // The shared world as the valley last sent it; null offline.
+  readonly valley: WorldWire | null
+  // Matthew Marx's truck: the valley's, or this client's own alone.
+  readonly marx: TruckState
   // The berry bushes as the valley last described them; null offline.
   readonly daily: DailyWire | null
   readonly aboard: boolean
@@ -72,6 +77,9 @@ interface BvHook {
   // dev frame, or this client's own, played alone.
   placeCaretaker(x: number, z: number): void
   hurryTruck(seconds?: number): void
+  // A quiet valley: no crossing shadowman rushes anyone, only one a spec
+  // places. The valley's, through a dev frame, or this client's own.
+  calm(): void
 }
 
 declare global {
@@ -93,8 +101,8 @@ export function installDevHook(game: Game, actions: Actions): void {
     shadowmen: game.shadowmen,
     caretaker: game.caretaker,
     mist: game.mist,
-    get raid() {
-      return s.raid
+    get strikes() {
+      return s.strikes
     },
     net: {
       get status() {
@@ -105,8 +113,11 @@ export function installDevHook(game: Game, actions: Actions): void {
       },
       peers: () => peers.list(),
     },
-    get shared() {
-      return s.shared
+    get valley() {
+      return s.world
+    },
+    get marx() {
+      return s.world?.truck ?? s.aloneTruck
     },
     get daily() {
       return s.daily
@@ -154,11 +165,19 @@ export function installDevHook(game: Game, actions: Actions): void {
       if (net.online) net.send({ type: 'dev', op: 'caretaker', x, z })
       else game.caretaker.place(x, z)
     },
+    calm() {
+      if (net.online) net.send({ type: 'dev', op: 'calm' })
+      else game.shadowmen.calm = true
+    },
     hurryTruck(seconds = 5) {
-      // In the shared valley the server holds the clock; a dev server
-      // lets a spec move it.
-      if (s.shared) net.send({ type: 'dev', op: 'hurry', seconds })
-      else s.raid = { ...s.raid, loadoutEndsAt: s.raidClock + seconds }
+      // In the shared valley the server keeps Marx's day; a dev server
+      // lets a spec bring his next change closer.
+      if (s.world) net.send({ type: 'dev', op: 'hurry', seconds })
+      else {
+        actions.setAloneTruck(
+          hurry(s.aloneTruck, Date.now(), seconds, game.truckRoutes)
+        )
+      }
     },
   }
 }

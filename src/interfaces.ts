@@ -146,50 +146,10 @@ export interface Item {
 // Item id -> count. Every inventory kind is present.
 export type Inventory = Record<string, number>
 
-// Item id -> each unit's place on one Citgo's shelf this raid, by slot
+// Item id -> each unit's place on one Citgo's shelf today, by slot
 // (store.ts Facing.slots): true while the unit is still there. A buyer
 // picks the unit, so which ones are gone matters, not just how many.
 export type ShopStock = Record<string, boolean[]>
-
-// ---------------------------------------------------------------------------
-// The raid (src/raid.ts).
-
-export type RaidState = 'LOADOUT' | 'RIDING' | 'ON_FOOT' | 'EXTRACTED'
-
-export type RaidEvent =
-  | 'BOARD_TRUCK'
-  | 'TIMER_EXPIRED'
-  | 'HOP_OUT'
-  | 'PICK_CABBAGE'
-  | 'DROP_CABBAGE'
-  | 'CALL_TRUCK'
-  | 'EXTRACT_FUEL'
-  | 'EXTRACT_KEEP'
-  | 'STRUCK'
-
-export type ExtractKind = 'truck' | 'fuel' | 'keep'
-
-export interface Raid {
-  state: RaidState
-  startedAt: number
-  loadoutEndsAt: number
-  carrying: number
-  truckCalled: boolean
-  extract: ExtractKind | null
-  // Station name for a 'fuel' extract.
-  extractName: string | null
-  endedAt: number | null
-  // Times a shadowman's touch put you back at the Citgo.
-  deaths: number
-}
-
-export interface RaidSummary {
-  carrying: number
-  durationSeconds: number | null
-  extract: ExtractKind | null
-  extractName: string | null
-  deaths: number
-}
 
 // ---------------------------------------------------------------------------
 // The scope (src/scope.ts), fed by the shadowmen (src/shadowmen.ts).
@@ -206,7 +166,7 @@ export interface ScopeContact {
 // The pack grid (src/packgrid.ts).
 
 export interface PackItem {
-  // An item id, or 'cabbage' for carried cargo.
+  // An item id.
   kind: string
   label: string
   blurb: string

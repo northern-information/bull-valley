@@ -6,13 +6,12 @@
 import { PACK, PACK_IN_MENU, WORLD } from './bindings.ts'
 import { CHAT_LINES, formatStamp, isFaded, pushLine } from './chat.ts'
 import { copy } from './copy.ts'
-import { KEEP } from './landmarks.ts'
 import { PACK_TABS } from './packgrid.ts'
 import { CHAT_MAX } from './protocol.ts'
 import type { Binding } from './bindings.ts'
 import type { ChatLine } from './chat.ts'
 import type { Cooldown } from './hotbar.ts'
-import type { PackItem, RaidSummary } from './interfaces.ts'
+import type { PackItem } from './interfaces.ts'
 import type { PackTab } from './packgrid.ts'
 
 // The floating name over an item, placed by its top in the view: x and y
@@ -723,52 +722,6 @@ export class Hud {
     this.root.classList.toggle('bv-shell--locked', locked)
     // A locked cursor hovers nothing, and pointerleave never comes.
     if (locked) this.chatHovered = false
-  }
-
-  // End-of-raid overlay, styled like the intro dialog.
-  showSummary({
-    carrying,
-    durationSeconds,
-    extract,
-    extractName,
-    deaths,
-  }: RaidSummary): void {
-    const minutes = Math.floor((durationSeconds || 0) / 60)
-    const seconds = String(Math.floor((durationSeconds || 0) % 60)).padStart(
-      2,
-      '0'
-    )
-    const how =
-      extract === 'truck'
-        ? copy('summary.by_truck')
-        : extract === 'keep'
-          ? copy('summary.at_keep', { keep: KEEP })
-          : extractName
-            ? copy('summary.at_station', { station: extractName })
-            : copy('summary.at_a_station')
-    // One line each; the note keeps the line breaks (white-space: pre-line).
-    const lines = [how]
-    if (carrying > 0) lines.push(copy('summary.cabbages', { count: carrying }))
-    if (deaths > 0) lines.push(copy('summary.deaths', { count: deaths }))
-    lines.push(copy('summary.time', { time: `${minutes}:${seconds}` }))
-    const summary = el('div', 'bv-intro')
-    summary.setAttribute('role', 'dialog')
-    summary.setAttribute('aria-modal', 'true')
-    summary.innerHTML = `
-      <h2>${copy('summary.title')}</h2>
-      <p class="bv-intro-note" data-bv="summary-note"></p>
-      <div class="bv-intro-actions">
-        <button type="button" class="bv-btn bv-btn--primary" data-bv="again">${copy('summary.again')}</button>
-      </div>`
-    required(
-      summary.querySelector<HTMLElement>('[data-bv="summary-note"]'),
-      'summary note'
-    ).textContent = lines.join('\n')
-    required(this.root.querySelector('.bv-ui'), '.bv-ui').appendChild(summary)
-    required(
-      summary.querySelector('[data-bv="again"]'),
-      'again button'
-    ).addEventListener('click', () => window.location.reload())
   }
 
   showStatic(show: boolean): void {

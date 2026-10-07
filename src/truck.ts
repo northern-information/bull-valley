@@ -13,11 +13,13 @@ import {
   attachCigarette,
   buildFigure,
 } from './figure.ts'
+import { TAILGATE, TO_DOOR, TO_DOOR_SECONDS, WALK_SPEED } from './marx.ts'
 import { POSES, samplePose } from './poses.ts'
 import { createWalker } from './roadgraph.ts'
 import type { CigaretteRig, Figure } from './figure.ts'
 import type { HeightAt, Vec3, XZ } from './interfaces.ts'
 import type { RoadPoint, Walker } from './roadgraph.ts'
+import type { TruckPlan } from './truckplan.ts'
 
 export interface TruckOptions {
   scene: THREE.Object3D
@@ -32,6 +34,8 @@ export interface TruckState {
   moving: boolean
   // True from the frame the route finishes until the next route.
   done: boolean
+  // True on the frame a drive home ends, parked at the Citgo.
+  arrived: boolean
 }
 
 // Where Matthew Marx is: at the wheel, or reading by the tailgate.
@@ -134,11 +138,10 @@ const BED_SEATS: readonly [number, number][] = [
 // Matthew Marx is full scale, like every figure. 'cab' seats him at the
 // wheel with his hips at 1.0 m: the sit pose folds his shins so his boots
 // stay inside the lower cab (floor at 0.55 m) and his head stops inside the
-// roof slab. 'tailgate' stands him by the open tailgate, facing whoever
-// comes out of the Citgo, reading his paperback; the book goes away when
-// he takes the wheel.
+// roof slab. 'tailgate' stands him by the open tailgate (marx.ts
+// TAILGATE), facing whoever comes out of the Citgo, reading his paperback;
+// the book goes away when he takes the wheel.
 const SEAT_HIP_Y = 1.0
-const TAILGATE: XZ = { x: 0.8, z: -3.2 }
 function placeDriver(
   driver: Figure,
   book: THREE.Group,
@@ -156,22 +159,11 @@ function placeDriver(
   }
 }
 
-// When the truck leaves from the lobby, Matthew Marx puts the book away
-// and walks from the tailgate round the rear corner and up the driver
-// side to his door, truck-local, and the truck holds until he is in.
-const TO_DOOR: readonly XZ[] = [
-  TAILGATE,
-  { x: 1.4, z: -3.0 },
-  { x: 1.4, z: 0.7 },
-]
-const WALK_SPEED = 1.4 // m/s, an easy stroll
+// When the truck leaves from where he reads, Matthew Marx puts the book
+// away and walks from the tailgate round the rear corner and up the driver
+// side to his door (marx.ts TO_DOOR), and the truck holds until he is in.
 // Metres covered by one full walk cycle; the stride in playerbody.ts.
 const STRIDE = 1.5
-const TO_DOOR_SECONDS =
-  TO_DOOR.slice(1).reduce(
-    (sum, p, i) => sum + Math.hypot(p.x - TO_DOOR[i].x, p.z - TO_DOOR[i].z),
-    0
-  ) / WALK_SPEED
 
 // How long the donut slide averages the turn over.
 const DRIFT_SECONDS = 0.5
@@ -213,6 +205,11 @@ export class Truck {
   heading: number
   turnAvg: number
   metresAvg: number
+  // Where the truck parks by the spawn Citgo and which way it faces there,
+  // and whether the drive on now ends there, parked, with Marx reading.
+  home: XZ
+  homeDir: XZ
+  homeAfter: boolean
 
   constructor({ scene, groundAt }: TruckOptions) {
     this.groundAt = groundAt
@@ -244,6 +241,45 @@ export class Truck {
     this.heading = 0
     this.turnAvg = 0
     this.metresAvg = 0
+    this.home = { x: 0, z: 0 }
+    this.homeDir = { x: 0, z: 1 }
+    this.homeAfter = false
+  }
+
+  // Where the truck parks at home, facing which way.
+  setHome(home: XZ, dir: XZ): void {
+    this.home = { x: home.x, z: home.z }
+    this.homeDir = { x: dir.x, z: dir.z }
+  }
+
+  // Parked at home, Matthew Marx reading at the tailgate.
+  parkHome(): void {
+    this.homeAfter = false
+    this.drifting = false
+    this.parkAt(this.home.x, this.home.z, this.homeDir.x, this.homeDir.z)
+    this.setDriverPost('tailgate')
+  }
+
+  // One of Matthew Marx's legs (truckplan.ts), driven against the server
+  // clock: toLocalMs turns a server ms into this page's performance.now.
+  follow(plan: TruckPlan, toLocalMs: (serverMs: number) => number): void {
+    if (plan.kind === 'park') {
+      this.parkHome()
+      return
+    }
+    const [start, next] = plan.points
+    const len = Math.hypot(next.x - start.x, next.z - start.z) || 1
+    this.parkAt(
+      start.x,
+      start.z,
+      (next.x - start.x) / len,
+      (next.z - start.z) / len
+    )
+    this.setDriverPost(plan.fromTailgate ? 'tailgate' : 'cab')
+    const at = toLocalMs(plan.at)
+    if (plan.donuts) this.driveDonuts(plan.points, at)
+    else this.driveRouteAt(plan.points, at, plan.speed)
+    this.homeAfter = plan.home
   }
 
   parkAt(x: number, z: number, dirX = 0, dirZ = 1) {
@@ -256,8 +292,8 @@ export class Truck {
     this.pose()
   }
 
-  // Matthew Marx reads at the tailgate while the truck is parked for the
-  // loadout; any drive puts him back at the wheel.
+  // Matthew Marx reads at the tailgate while the truck is parked at home;
+  // any drive puts him back at the wheel.
   setDriverPost(post: DriverPost): void {
     this.post = post
     placeDriver(this.driver, this.book, post)
@@ -319,8 +355,9 @@ export class Truck {
     this.metresAvg = 0
   }
 
-  // Advances the current route. Returns { x, z, moving, done } — done is true
-  // on the frame the route finishes and stays true until the next route.
+  // Advances the current route. Returns { x, z, moving, done, arrived }:
+  // done is true on the frame the route finishes and stays true until the
+  // next route; arrived only on the frame a drive home parks.
   update(dt: number, nowMs: number = performance.now()): TruckState {
     this.updatedAt = nowMs
     // Matthew Marx glances about now and then (up from the page, when he
@@ -329,6 +366,7 @@ export class Truck {
     this.cigarette.update(this.time)
     this.driver.joints.neck.rotation.y =
       Math.sin(this.time * 0.35) * Math.max(0, Math.sin(this.time * 0.11)) * 0.6
+    let arrived = false
     if (this.walker && this.moving) {
       this.elapsed =
         this.startedAt === null
@@ -351,12 +389,17 @@ export class Truck {
       if (s.done) this.moving = false
       if (this.drifting) this.slide(dt, metres)
       this.pose()
+      if (s.done && this.homeAfter) {
+        this.parkHome()
+        arrived = true
+      }
     }
     return {
       x: this.x,
       z: this.z,
       moving: this.moving,
       done: !!this.walker && !this.moving,
+      arrived,
     }
   }
 

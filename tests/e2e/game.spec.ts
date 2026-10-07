@@ -8,22 +8,47 @@ import {
   test,
   toCharacterSelect,
 } from './fixtures.ts'
+import type { Page } from '@playwright/test'
 
-test('a raid starts in loadout and the truck leaves on time', async ({
+// Matthew Marx's truck, as the valley has it.
+const leg = (page: Page) =>
+  page.evaluate(() => window.__bv?.marx.leg.kind ?? null)
+
+test('climbing into the bed starts the countdown, and Marx leaves with you', async ({
   page,
 }) => {
   await beginRaid(page)
-  const state = () => page.evaluate(() => window.__bv?.raid.state)
-  expect(await state()).toBe('LOADOUT')
+  expect(await leg(page)).toBe('parked')
+  await page.evaluate(() => {
+    const bv = window.__bv
+    if (!bv) throw new Error('no dev hook')
+    bv.player.relocate(bv.truck.x + 1, bv.truck.z + 1, Math.atan2(1, 1))
+  })
+  await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.board'))
+  await page.keyboard.press('KeyE')
+  await expect.poll(() => page.evaluate(() => window.__bv?.aboard)).toBe(true)
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const leg = window.__bv?.marx.leg
+        return leg?.kind === 'parked' && leg.leavesAt !== null
+      })
+    )
+    .toBe(true)
   await page.evaluate(() => window.__bv?.hurryTruck(0))
-  await expect.poll(state).not.toBe('LOADOUT')
+  await expect.poll(() => leg(page)).toBe('joyride')
+  expect(await page.evaluate(() => window.__bv?.aboard)).toBe(true)
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.truck.moving))
+    .toBe(true)
 })
 
-test('an empty truck does donuts in the field until whistled', async ({
+test('Marx does donuts in the field after reading, until whistled', async ({
   page,
 }) => {
   await beginRaid(page)
   await page.evaluate(() => window.__bv?.hurryTruck(0))
+  await expect.poll(() => leg(page)).toBe('donuts')
   const truck = () =>
     page.evaluate(() => {
       const bv = window.__bv
@@ -39,9 +64,7 @@ test('an empty truck does donuts in the field until whistled', async ({
     .poll(truck, { timeout: 30_000 })
     .toEqual({ drifting: true, inField: true })
   await page.keyboard.press('t')
-  await expect
-    .poll(() => page.evaluate(() => window.__bv?.raid.truckCalled))
-    .toBe(true)
+  await expect.poll(() => leg(page)).toBe('called')
   await expect.poll(truck).toMatchObject({ drifting: false })
 })
 
@@ -63,9 +86,6 @@ test('shadowmen cross the valley and show on the scope', async ({ page }) => {
 
 test("a shadowman's touch puts you back at the Citgo", async ({ page }) => {
   await beginRaid(page)
-  await page.evaluate(() => window.__bv?.hurryTruck(0))
-  const state = () => page.evaluate(() => window.__bv?.raid.state)
-  await expect.poll(state).toBe('ON_FOOT')
   // The static is up for strikeSeconds of wall clock. On a runner at a frame
   // a second that can come and go between two polls, so the page records
   // when it shows and when it clears instead of the spec trying to catch it.
@@ -95,7 +115,7 @@ test("a shadowman's touch puts you back at the Citgo", async ({ page }) => {
     if (!bv) return
     bv.placeShadowman(bv.player.pos.x, bv.player.pos.z + 3)
   })
-  await expect.poll(() => page.evaluate(() => window.__bv?.raid.deaths)).toBe(1)
+  await expect.poll(() => page.evaluate(() => window.__bv?.strikes)).toBe(1)
   // It showed, then cleared.
   await expect.poll(async () => (await marks())?.hiddenAt).toBeDefined()
   await expect(page.locator('.bv-static')).toBeHidden()
@@ -111,7 +131,7 @@ test("a shadowman's touch puts you back at the Citgo", async ({ page }) => {
     return Math.hypot(pos.x - bv.world.spawn.x, pos.z - bv.world.spawn.z)
   })
   expect(fromSpawn).toBeLessThan(1)
-  expect(await state()).toBe('ON_FOOT')
+  expect(await page.evaluate(() => window.__bv?.aboard)).toBe(false)
 })
 
 test('the chosen character is the body you raid in, and is remembered', async ({

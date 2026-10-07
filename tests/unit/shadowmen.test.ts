@@ -284,6 +284,16 @@ describe('stepShadowmen: rushes', () => {
     expect(first(safe)?.dirX).toBe(1)
   })
 
+  it("never rushes in a spec's calm valley, unless a spec placed it", () => {
+    const exposed = { raiders: [raider({ vulnerable: true })], calm: true }
+    const crossing = one({ z: -10 })
+    step(crossing, undefined, exposed)
+    expect(first(crossing)?.target).toBeNull()
+    const placed = one({ z: -10, speed: 0, placed: true })
+    step(placed, undefined, exposed)
+    expect(first(placed)?.target).toBe('a')
+  })
+
   it('aims at its raider every step', () => {
     const field = one({ x: 10, z: -10 })
     step(field, undefined, { raiders: [raider({ vulnerable: true })] })

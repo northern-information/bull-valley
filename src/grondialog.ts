@@ -1,4 +1,4 @@
-// Talking to Gron (sharedraid.ts rule 10): a dialog over the valley that
+// Talking to Gron (sharedworld.ts rule 9): a dialog over the valley that
 // changes who you are. Two halves. Your Name takes a new username, checked
 // as you type with the same rules as the first one (account.ts) and saved
 // with PUT /auth/username. Your Character turns the roster on a small

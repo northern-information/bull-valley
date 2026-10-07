@@ -1,6 +1,6 @@
 // Dropped items, pure: how much one drop takes out of what a raider
-// carries, where it lands, and what taking it up leaves. sharedraid.ts
-// runs these for the shared valley (rule 14), actions.ts for a raid played
+// carries, where it lands, and what taking it up leaves. sharedworld.ts
+// runs these for the shared valley (rule 12), actions.ts for the valley played
 // alone. No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
@@ -8,7 +8,7 @@ import { leftInOpen } from './items.ts'
 import type { XZ } from './interfaces.ts'
 
 // One drop on the ground: what lies there and how many. The id is the
-// valley's, never reused within a raid.
+// valley's, never reused within its world.
 export interface Drop extends XZ {
   id: number
   kind: string

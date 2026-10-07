@@ -1,5 +1,5 @@
 // Inventory state: pure transforms. The pack itself is the account's, kept
-// by the valley (worker/packs.ts, sharedraid.ts rule 11); the client holds
+// by the valley (worker/packs.ts, sharedworld.ts rule 10); the client holds
 // the copy the valley last sent and applies its own changes in the meantime.
 // Kinds and starting counts come from items.ts.
 

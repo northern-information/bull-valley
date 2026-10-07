@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   CHAT_MAX,
   CLOSE,
-  isExtractKind,
   isValidChat,
   isValidName,
   MAX_COORD,
@@ -39,6 +38,7 @@ const hello = {
   havens: [0, 1, 2, 3, 4].map((i) => ({ x: i * 100, z: i })),
   metres: { width: 15059, height: 15038 },
   maze: { x: 120, z: -40, yaw: 0.5 },
+  truck: { home: { x: 10, z: -20 }, joyrideMs: 600_000 },
 }
 
 const parse = (value: unknown) => parseClientMessage(JSON.stringify(value))
@@ -70,16 +70,9 @@ describe('names', () => {
   })
 })
 
-describe('outfits, poses and extracts', () => {
+describe('outfits and poses', () => {
   it('has no seated pose yet', () => {
     expect(PEER_POSES).toEqual(['stand', 'walk', 'crouch'])
-  })
-
-  it('knows the three ways out', () => {
-    for (const kind of ['truck', 'fuel', 'keep']) {
-      expect(isExtractKind(kind)).toBe(true)
-    }
-    expect(isExtractKind('tunnel')).toBe(false)
   })
 })
 
@@ -159,13 +152,20 @@ describe('parseClientMessage', () => {
   })
 
   it("parses an older build's hello without havens, metres or a maze, with empty defaults", () => {
-    const { havens: _havens, metres: _metres, maze: _maze, ...older } = hello
+    const {
+      havens: _havens,
+      metres: _metres,
+      maze: _maze,
+      truck: _truck,
+      ...older
+    } = hello
     expect(parse({ ...older, v: PROTOCOL_VERSION - 1 })).toEqual({
       ...older,
       v: PROTOCOL_VERSION - 1,
       havens: [],
       metres: { width: 0, height: 0 },
       maze: null,
+      truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
     })
     // Bad ones read as missing in an older build, too.
     expect(
@@ -175,6 +175,7 @@ describe('parseClientMessage', () => {
         havens: 1,
         metres: 'big',
         maze: 'corn',
+        truck: 'chevy',
       })
     ).toEqual({
       ...older,
@@ -182,6 +183,7 @@ describe('parseClientMessage', () => {
       havens: [],
       metres: { width: 0, height: 0 },
       maze: null,
+      truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
     })
     // The current version still requires both.
     expect(parse({ ...older, v: PROTOCOL_VERSION })).toBeNull()
@@ -195,6 +197,10 @@ describe('parseClientMessage', () => {
       z: -2,
     })
     expect(parse({ type: 'dev', op: 'shadowman', x: 1 })).toBeNull()
+    expect(parse({ type: 'dev', op: 'calm' })).toEqual({
+      type: 'dev',
+      op: 'calm',
+    })
     expect(parse({ type: 'dev', op: 'caretaker', x: 1, z: -2 })).toEqual({
       type: 'dev',
       op: 'caretaker',
@@ -204,7 +210,7 @@ describe('parseClientMessage', () => {
   })
 
   it('parses the raid frames', () => {
-    for (const type of ['board', 'unboard', 'hop-out', 'rename']) {
+    for (const type of ['board', 'hop-out', 'rename']) {
       expect(parse({ type })).toEqual({ type })
     }
     // A collect names its bush.
@@ -257,10 +263,6 @@ describe('parseClientMessage', () => {
         to: { x: 3, z: 4 },
       })
     ).toEqual({ type: 'call', from: { x: 1, z: 2 }, to: { x: 3, z: 4 } })
-    expect(parse({ type: 'extract', kind: 'keep' })).toEqual({
-      type: 'extract',
-      kind: 'keep',
-    })
     expect(parse({ type: 'dev', op: 'hurry', seconds: 2 })).toEqual({
       type: 'dev',
       op: 'hurry',
@@ -303,7 +305,9 @@ describe('parseClientMessage', () => {
         to: { x: MAX_COORD + 1, z: 4 },
       })
     ).toBeNull()
-    expect(parse({ type: 'extract', kind: 'tunnel' })).toBeNull()
+    // Gone with the raid.
+    expect(parse({ type: 'extract', kind: 'keep' })).toBeNull()
+    expect(parse({ type: 'unboard' })).toBeNull()
     expect(parse({ type: 'dev', op: 'hurry' })).toBeNull()
     expect(parse({ type: 'dev', op: 'hurry', seconds: NaN })).toBeNull()
     expect(parse({ type: 'dev', op: 'explode' })).toBeNull()
@@ -340,6 +344,23 @@ describe('parseClientMessage', () => {
     expect(parse({ ...hello, stations: -1 })).toBeNull()
     // One haven per station, each a place in the valley; a survey size.
     expect(parse({ ...hello, havens: undefined })).toBeNull()
+    // Where the truck parks, and a joyride no longer than a day.
+    expect(parse({ ...hello, truck: undefined })).toBeNull()
+    expect(
+      parse({ ...hello, truck: { home: { x: 1, z: 1 }, joyrideMs: -1 } })
+    ).toBeNull()
+    expect(
+      parse({
+        ...hello,
+        truck: { home: { x: 1, z: 1 }, joyrideMs: 25 * 3600 * 1000 },
+      })
+    ).toBeNull()
+    expect(
+      parse({ ...hello, truck: { home: 'citgo', joyrideMs: 1 } })
+    ).toBeNull()
+    expect(
+      parse({ ...hello, truck: { home: { x: 1, z: 1 }, joyrideMs: 'long' } })
+    ).toBeNull()
     expect(parse({ ...hello, havens: hello.havens.slice(1) })).toBeNull()
     expect(
       parse({ ...hello, havens: [...hello.havens.slice(1), 'pumps'] })

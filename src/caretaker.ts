@@ -10,7 +10,7 @@
 // x away from the road, z along it); MazePlace carries a raider's world
 // position in and the Caretaker's out. In the shared valley the server
 // steps the one Caretaker everyone sees, beside the shadowmen
-// (sharedraid.ts rule 15); played alone, the client steps its own
+// (sharedworld.ts rule 13); played alone, the client steps its own
 // (caretakerrig.ts). Tune it in CONFIG.caretaker.
 
 import { CONFIG } from './config.ts'

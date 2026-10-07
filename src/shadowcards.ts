@@ -2,7 +2,7 @@
 // player, flicker, and jitter, with a violet aura that only shows while a
 // joint is working. One held in a flashlight's beam pales and shakes
 // before it bursts. In the shared valley they are the valley's
-// (sharedraid.ts rule 13): the frames it sends land here and are drawn a
+// (sharedworld.ts rule 11): the frames it sends land here and are drawn a
 // beat behind the present (shadowsync.ts). Played alone, this steps its own
 // field with the player as the one raider. One card per shadowman id, and
 // each id looks the same on every client.
@@ -164,6 +164,8 @@ export class ShadowCards {
   table: ShadowTable
   // The last update's contacts, for the dev hook.
   contacts: ScopeContact[]
+  // Played alone, a spec's quiet valley (shadowmen.ts ShadowmenStep).
+  calm = false
   group: THREE.Group
   private rng: Rng
   private textures: THREE.CanvasTexture[]
@@ -222,6 +224,7 @@ export class ShadowCards {
         raiders: [{ id: ALONE, x: player.x, z: player.z, ...alone }],
         metres: this.metres,
         havens: this.havens,
+        calm: this.calm,
       })
       struck = out.struck.length > 0
       this.pending.push(...out.bursts)
