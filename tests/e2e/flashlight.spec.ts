@@ -1,7 +1,8 @@
+import { copy } from './copy.ts'
 import { beginRaid, expect, heardWhere, test } from './fixtures.ts'
 
 // The flashlight in the left hand: the left button raises it and lights
-// it, and a shadowman held in the beam bursts.
+// it, and a shadowman held in the beam bursts into dimes, which are cash.
 
 const flashlight = (page: import('@playwright/test').Page) =>
   page.evaluate(() => window.__bv?.flashlight)
@@ -34,7 +35,7 @@ test('the left button raises the flashlight and puts it down', async ({
   await expect.poll(intensity).toBe(0)
 })
 
-test('a shadowman held in the beam bursts', async ({ page }) => {
+test('a shadowman held in the beam bursts into dimes', async ({ page }) => {
   await beginRaid(page)
   await page.mouse.down()
   await page.mouse.up()
@@ -72,4 +73,33 @@ test('a shadowman held in the beam bursts', async ({ page }) => {
       )
     )
     .toBe(true)
+
+  // It leaves its dimes lying where it stood; E takes them up into the
+  // wallet, never the pack, and the log says so.
+  const dimes = () =>
+    page.evaluate(() =>
+      (window.__bv?.drops ?? []).filter((d) => d.kind === 'dimes')
+    )
+  await expect.poll(async () => (await dimes()).length).toBe(1)
+  const [lying] = await dimes()
+  const cash = await page.evaluate(() => window.__bv?.cash ?? 0)
+  await page.evaluate(([x, z]) => window.__bv?.player.relocate(x, z + 1, 0), [
+    lying.x,
+    lying.z,
+  ] as const)
+  await expect(page.locator('.bv-item-label')).toContainText(
+    copy('labels.dimes', { count: lying.count })
+  )
+  await page.keyboard.press('KeyE')
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.cash))
+    .toBe(cash + lying.count * 10)
+  await expect.poll(async () => (await dimes()).length).toBe(0)
+  // As store.ts formatCash has it; a spec cannot import it (it loads the
+  // copy).
+  const cents = lying.count * 10
+  const amount = `$${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, '0')}`
+  await expect(page.locator('.bv-chat')).toContainText(
+    copy('log.dimes', { count: lying.count, amount })
+  )
 })

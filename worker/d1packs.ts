@@ -120,6 +120,17 @@ export class D1PackStore implements PackStore {
     return (results[1]?.meta.changes ?? 0) > 0
   }
 
+  // A wallet never opened starts from the starting cash, as open() would.
+  async earn(accountId: string, amount: number): Promise<void> {
+    await this.db
+      .prepare(
+        'INSERT INTO wallets (account_id, cash) VALUES (?, ?) ' +
+          'ON CONFLICT (account_id) DO UPDATE SET cash = cash + ?'
+      )
+      .bind(accountId, STARTING_CASH + amount, amount)
+      .run()
+  }
+
   // One batch is one transaction. The cosmetic goes in first, only while
   // the pack still covers the price and the account has none; the price
   // comes out after it only where that row is the one just written (its

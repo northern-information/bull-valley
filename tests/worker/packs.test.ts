@@ -73,6 +73,17 @@ function packContract(makeStore: () => PackStore): void {
     expect((await store.get('a1')).cash).toBe(0)
   })
 
+  it('pays into the wallet, from the starting cash for one never opened', async () => {
+    const store = makeStore()
+    await store.open('a1')
+    await store.earn('a1', 70)
+    await store.earn('a1', 30)
+    expect((await store.get('a1')).cash).toBe(STARTING_CASH + 100)
+    const fresh = makeStore()
+    await fresh.earn('a1', 50)
+    expect((await fresh.get('a1')).cash).toBe(STARTING_CASH + 50)
+  })
+
   it('trades only what the pack covers, the price and the cosmetic together', async () => {
     const store = makeStore()
     await store.open('a1')

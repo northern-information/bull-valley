@@ -20,6 +20,7 @@ import { DurableObject } from 'cloudflare:workers'
 import { isSelectable } from '../src/characters.ts'
 import { CONFIG } from '../src/config.ts'
 import { toCosmetics } from '../src/cosmetics.ts'
+import { spillsOf } from '../src/drops.ts'
 import {
   CLOSE,
   isValidName,
@@ -44,6 +45,7 @@ import { ACCOUNT_HEADER, NAME_HEADER } from './auth.ts'
 import { D1AccountStore } from './d1accounts.ts'
 import { D1PackStore } from './d1packs.ts'
 import type { CosmeticId } from '../src/cosmetics.ts'
+import type { XZ } from '../src/interfaces.ts'
 import type {
   HelloMessage,
   PeerStateWire,
@@ -330,6 +332,8 @@ export class ValleyDO extends DurableObject<Env> {
       return
     }
     this.broadcast(out.message, null)
+    const { bursts, unmade } = out.message
+    if (bursts.length || unmade) void this.spill(bursts, unmade)
     if (out.struck.length === 0) return
     for (const socket of this.ctx.getWebSockets()) {
       const me = this.attachment(socket).me
@@ -546,6 +550,35 @@ export class ValleyDO extends DurableObject<Env> {
     if (reduced.daily) send(ws, reduced.daily)
     for (const msg of reduced.broadcast) this.broadcast(msg, null)
     if (reduced.pack) await this.repack(ws, reduced.pack)
+    if (reduced.earn) await this.pay(ws, reduced.earn)
+  }
+
+  // Dimes taken up (sharedworld.ts rule 11): into the wallet, then the
+  // pack and wallet to every socket on the account.
+  private async pay(
+    ws: WebSocket,
+    { account, amount }: { account: string; amount: number }
+  ): Promise<void> {
+    try {
+      await this.packs().earn(account, amount)
+    } catch (err) {
+      console.error('The dimes could not be paid in', account, amount, err)
+    }
+    await this.repack(ws, null, account)
+  }
+
+  // Each shadowman that burst leaves its dimes where it was (sharedworld.ts
+  // rule 11), how many drawn here, so the reducer stays pure, and the
+  // Caretaker unmade its gold bullion (rule 13).
+  private async spill(bursts: readonly XZ[], unmade: XZ | null): Promise<void> {
+    const spills = spillsOf(bursts, unmade, this.shadowRng)
+    const reduced = reduce(
+      this.valley,
+      { type: 'spill', spills },
+      this.context()
+    )
+    await this.apply(reduced)
+    for (const msg of reduced.broadcast) this.broadcast(msg, null)
   }
 
   // A buy, alone: no other frame runs between reading the wallet, judging

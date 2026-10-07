@@ -1,11 +1,74 @@
 // Dropped items, pure: how much one drop takes out of what a raider
-// carries, where it lands, and what taking it up leaves. sharedworld.ts
-// runs these for the shared valley (rule 12), actions.ts for the valley played
+// carries, where it lands, and what taking it up leaves, and what the
+// shadowmen and the Caretaker leave behind. sharedworld.ts runs these for
+// the shared valley (rules 11, 12 and 13), actions.ts for the valley played
 // alone. No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
 import { leftInOpen } from './items.ts'
 import type { XZ } from './interfaces.ts'
+import type { ItemId } from './items.ts'
+import type { Rng } from './rng.ts'
+
+// The kind of the drop a shadowman bursts into: dimes, which are cash.
+// Taken up, they go into the wallet, never the pack, at DIME_CENTS each.
+export const DIMES = 'dimes'
+export const DIME_CENTS = 10
+
+export function isCash(kind: string): boolean {
+  return kind === DIMES
+}
+
+// How many dimes one burst shadowman leaves: min to max, evenly.
+export function dimesFor(rng: Rng, cfg = CONFIG): number {
+  const { min, max } = cfg.shadowmen.dimes
+  return min + Math.floor(rng() * (max - min + 1))
+}
+
+// The kind of the drops the Caretaker leaves where it was unmade: gold
+// bullion, an item, each one a 1 troy ounce bar.
+export const GOLD_BULLION: ItemId = 'gold-bullion'
+
+// One drop the valley sets down of its own accord: what, how many, where.
+export interface Spill extends XZ {
+  kind: string
+  count: number
+}
+
+// How far each of the Caretaker's bars lies from where it was unmade, in
+// metres.
+const BAR_SPREAD = 0.25
+
+// What one step leaves lying: dimes where each shadowman burst, and the
+// Caretaker's gold bullion where it was unmade: its bars, one troy ounce
+// each, as drops of their own, side by side.
+export function spillsOf(
+  bursts: readonly XZ[],
+  unmade: XZ | null,
+  rng: Rng,
+  cfg = CONFIG
+): Spill[] {
+  const spills: Spill[] = bursts.map(({ x, z }) => ({
+    x,
+    z,
+    kind: DIMES,
+    count: dimesFor(rng, cfg),
+  }))
+  if (unmade) {
+    const bars = cfg.caretaker.bullion
+    for (let i = 0; i < bars; i++) {
+      const turn = (i / bars) * Math.PI * 2
+      const r = bars > 1 ? BAR_SPREAD : 0
+      spills.push({
+        x: unmade.x + Math.cos(turn) * r,
+        z: unmade.z + Math.sin(turn) * r,
+        kind: GOLD_BULLION,
+        count: 1,
+      })
+    }
+  }
+  return spills
+}
 
 // One drop on the ground: what lies there and how many. The id is the
 // valley's, never reused within its world.

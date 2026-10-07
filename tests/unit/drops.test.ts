@@ -1,7 +1,57 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
-import { dropAmount, dropSpot, takeUp } from '../../src/drops.ts'
+import {
+  DIMES,
+  dimesFor,
+  dropAmount,
+  dropSpot,
+  GOLD_BULLION,
+  isCash,
+  spillsOf,
+  takeUp,
+} from '../../src/drops.ts'
 import { contentsOf } from '../../src/items.ts'
+import { mulberry32 } from '../../src/rng.ts'
+
+describe('dimes', () => {
+  it('are cash, and nothing else is', () => {
+    expect(isCash(DIMES)).toBe(true)
+    expect(isCash('cabbage')).toBe(false)
+  })
+
+  it('come min to max from a burst, every count reached', () => {
+    const { min, max } = CONFIG.shadowmen.dimes
+    const rng = mulberry32(7)
+    const seen = new Set<number>()
+    for (let i = 0; i < 2000; i++) seen.add(dimesFor(rng))
+    expect(Math.min(...seen)).toBe(min)
+    expect(Math.max(...seen)).toBe(max)
+    expect(seen.size).toBe(max - min + 1)
+  })
+})
+
+describe('spillsOf', () => {
+  it('leaves dimes at each burst, and two 1 troy ounce bars where the Caretaker was unmade', () => {
+    const rng = mulberry32(3)
+    const spills = spillsOf([{ x: 1, z: 2 }], { x: 5, z: 6 }, rng)
+    expect(spills).toHaveLength(3)
+    expect(spills[0]).toMatchObject({ x: 1, z: 2, kind: DIMES })
+    const bars = spills.slice(1)
+    expect(CONFIG.caretaker.bullion).toBe(2)
+    for (const bar of bars) {
+      expect(bar).toMatchObject({ kind: GOLD_BULLION, count: 1 })
+      expect(Math.hypot(bar.x - 5, bar.z - 6)).toBeLessThan(0.5)
+    }
+    // Side by side, never on top of each other.
+    const [one, two] = bars
+    expect(Math.hypot(one.x - two.x, one.z - two.z)).toBeGreaterThan(0.2)
+    expect(isCash(GOLD_BULLION)).toBe(false)
+  })
+
+  it('leaves nothing when nothing burst or was unmade', () => {
+    expect(spillsOf([], null, mulberry32(3))).toEqual([])
+  })
+})
 
 describe('dropAmount', () => {
   it('drops the open container, or one of anything else', () => {

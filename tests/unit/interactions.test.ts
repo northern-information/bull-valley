@@ -420,6 +420,20 @@ describe('itemLabel', () => {
       copy('labels.cabbage')
     )
   })
+
+  it('labels dimes by how many', () => {
+    expect(pickupLabel({ kind: 'dimes', count: 7 })).toBe(
+      copy('labels.dimes', { count: 7 })
+    )
+  })
+
+  it('labels a gold bar by its name alone, a stack of them with a count', () => {
+    const label = copy('items.gold-bullion.label')
+    expect(pickupLabel({ kind: 'gold-bullion', count: 1 })).toBe(label)
+    expect(pickupLabel({ kind: 'gold-bullion', count: 3 })).toBe(
+      copy('labels.pickup_count', { item: label, count: 3 })
+    )
+  })
 })
 
 describe('dailyStatus', () => {

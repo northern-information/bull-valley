@@ -5,7 +5,8 @@
 // pickup; `drop` says which one it is.
 
 import * as THREE from 'three'
-import { buildPickup } from './assets.ts'
+import { buildDimes, buildPickup } from './assets.ts'
+import { isCash } from './drops.ts'
 import type { Drop } from './drops.ts'
 import type { PickupKind } from './items.ts'
 import type { Pickup } from './world.ts'
@@ -57,15 +58,18 @@ export function createDropMeshes(
           known.count = d.count
           return known
         }
-        // The id seeds the look (a pack's brand art) and turns it, so two
-        // drops side by side never lie the same way.
-        const mesh = buildPickup(d.kind, d.id)
+        // The id seeds the look (a pack's brand art, how the dimes lie) and
+        // turns it, so two drops side by side never lie the same way.
+        const mesh = isCash(d.kind)
+          ? buildDimes(d.count, d.id)
+          : buildPickup(d.kind, d.id)
         mesh.position.set(d.x, groundAt(d.x, d.z), d.z)
         mesh.rotation.y = d.id * 2.4
         group.add(mesh)
         const pickup: DropPickup = {
           drop: d.id,
-          // The valley drops only items and cabbages.
+          // The valley drops only items (the cabbage and the gold bullion
+          // among them) and dimes.
           kind: d.kind as PickupKind,
           count: d.count,
           x: d.x,

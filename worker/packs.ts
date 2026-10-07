@@ -36,6 +36,8 @@ export interface PackStore {
     amount: number,
     item: PackItem | null
   ): Promise<boolean>
+  // Pays `amount` cents into the wallet (dimes taken up).
+  earn(accountId: string, amount: number): Promise<void>
   // A trade (sharedworld.ts rule 14): `price.count` of `price.kind` out of
   // the pack and `cosmetic` the account's, both or neither; false when the
   // pack does not cover it or the account has it already.
@@ -99,6 +101,12 @@ export class MemoryPackStore implements PackStore {
     this.wallets.set(accountId, cash - amount)
     if (item) await this.change(accountId, item.kind, item.delta)
     return true
+  }
+
+  earn(accountId: string, amount: number): Promise<void> {
+    const cash = this.wallets.get(accountId) ?? STARTING_CASH
+    this.wallets.set(accountId, cash + amount)
+    return Promise.resolve()
   }
 
   async trade(
