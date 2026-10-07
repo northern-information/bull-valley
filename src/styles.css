@@ -1180,6 +1180,36 @@
   color: var(--bv-citgo);
 }
 
+/* A setting: its name, a slider, and where the slider stands, on one
+   line in the main menu's Settings and on the pause overlay. */
+.bv-setting {
+  display: grid;
+  grid-template-columns: auto 1fr 4ch;
+  gap: 0.8em;
+  align-items: center;
+  letter-spacing: 0.06em;
+}
+
+.bv-setting-level {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--bv-citgo);
+}
+
+.bv-setting-range {
+  width: 100%;
+  min-width: 8rem;
+  margin: 0;
+  accent-color: var(--bv-citgo);
+  cursor: pointer;
+}
+
+.bv-intro-settings .bv-setting {
+  display: inline-grid;
+  margin-left: 1.6em;
+  vertical-align: middle;
+}
+
 /* A button that reads as a link: Sign Out beside the username. */
 .bv-link {
   font: inherit;

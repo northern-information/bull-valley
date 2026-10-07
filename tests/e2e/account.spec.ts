@@ -103,6 +103,34 @@ test('a new raider signs in, says the magic word, and chooses a username', async
   await toSignIn(page)
 })
 
+test('the music volume is kept on the account', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/')
+  await toMenu(page)
+  await menuButton(page, 'menu.settings').click()
+  const slider = page.locator('.bv-menu [data-bv="setting-music"]')
+  await expect(slider).toBeVisible()
+  const start = Number(await slider.inputValue())
+  const saved = page.waitForRequest(
+    (r) => r.url().endsWith('/auth/settings') && r.method() === 'PUT'
+  )
+  // ← and → move the slider; letting it be saves it.
+  await slider.focus()
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('ArrowRight')
+  const want = String(start + 10)
+  await expect(slider).toHaveValue(want)
+  await expect(page.locator('.bv-menu .bv-setting-level')).toHaveText(
+    copy('menu.music_level', { percent: want })
+  )
+  await saved
+  // Another load of the page reads it back from the account.
+  await page.goto('/')
+  await toMenu(page)
+  await menuButton(page, 'menu.settings').click()
+  await expect(slider).toHaveValue(want)
+})
+
 test('Back on the sign-in card returns to the menu', async ({ page }) => {
   await page.goto('/')
   await toSignIn(page)

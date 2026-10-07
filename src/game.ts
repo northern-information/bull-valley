@@ -25,6 +25,7 @@ import type { Geo, Inventory, ShopStock } from './interfaces.ts'
 import type { ItemThumbs } from './itemthumbs.ts'
 import type { Leg, TruckRoutes, TruckState } from './marx.ts'
 import type { MistCards } from './mistcards.ts'
+import type { Music } from './musicrig.ts'
 import type { NetClient } from './net.ts'
 import type { NpcId } from './npcs.ts'
 import type { Peers } from './peers.ts'
@@ -35,6 +36,7 @@ import type { Radio } from './radiorig.ts'
 import type { RoadGraph } from './roadgraph.ts'
 import type { Scope } from './scope.ts'
 import type { SeasonProgress } from './season.ts'
+import type { SettingsStore } from './settingsui.ts'
 import type { ShadowBursts } from './shadowburst.ts'
 import type { ShadowCards } from './shadowcards.ts'
 import type { Titles } from './titles.ts'
@@ -197,6 +199,10 @@ export interface Game {
   truck: Truck
   // The radio in Marx's cab; none under e2e, which never plays sound.
   radio: Radio | null
+  // The valley's music, likewise none under e2e, and the settings that
+  // say how loud it plays.
+  music: Music | null
+  settings: SettingsStore
   // The roads Matthew Marx drives (truckplan.ts): where he parks, the
   // joyride, his donuts for a seed; and what the valley is told of them.
   truckContext: TruckContext

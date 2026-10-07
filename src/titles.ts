@@ -16,6 +16,7 @@ import { COLOPHON, LOGO, showSplash, skipTitles } from './splash.ts'
 import type { BvAudio } from './audio.ts'
 import type { CharacterPick } from './characters.ts'
 import type { Hotbar } from './hotbar.ts'
+import type { SettingsStore } from './settingsui.ts'
 
 // The username a dev build signs in under when ?skipSplash finds no session.
 const DEV_USERNAME = 'Raider'
@@ -52,13 +53,21 @@ export function openAccount(): void {
 // raider has seen it already. One still on the way to an account (a failed
 // sign-in, a pending signup, no username yet) goes straight back to the
 // account step.
-export async function showTitles(audio: BvAudio): Promise<Titles> {
+// The account's settings land in `settings` as soon as they are known, so
+// the menu's Settings shows them.
+export async function showTitles(
+  audio: BvAudio,
+  settings: SettingsStore
+): Promise<Titles> {
   const { pathname, search, hash } = window.location
   const returned = authReturnOf(search, copy('auth.sign_in_failed'))
   if (returned) {
     history.replaceState(null, '', pathname + stripAuthQuery(search) + hash)
   }
-  const me = fetchMe()
+  const me = fetchMe().then((known) => {
+    if (known?.account) settings.load(known.account.settings)
+    return known
+  })
   const skip = skipTitles()
   // A signed-in raider's round trip was a link; a signed-out one's error
   // belongs on the sign-in card instead.
@@ -101,6 +110,7 @@ export async function showTitles(audio: BvAudio): Promise<Titles> {
     audio,
     config: LOGO,
     downscale: CONFIG.render.downscale,
+    settings,
     onAccount: openAccount,
     onSignOut: signOutAndReload,
   })
@@ -123,6 +133,7 @@ export async function showTitles(audio: BvAudio): Promise<Titles> {
     // Back from the sign-in card, or on with a new account: either way the
     // menu is next, and it asks again who is signed in.
     known = (await fetchMe()) ?? known
+    if (known?.account) settings.load(known.account.settings)
     if (username && known?.account) known.account.username = username
   }
   menu.remove()

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { assign, EMPTY_HOTBAR } from '../../src/hotbar.ts'
+import { DEFAULT_SETTINGS } from '../../src/settings.ts'
 import { MemoryAccountStore } from '../../worker/accounts.ts'
 import { D1AccountStore } from '../../worker/d1accounts.ts'
 import { testD1 } from './stubs/d1.ts'
@@ -162,6 +163,16 @@ export function storeContract(makeStore: () => AccountStore): void {
     expect(await store.setHotbar('nobody', bar)).toBe(false)
     expect(await store.hotbarOf('nobody')).toEqual(EMPTY_HOTBAR)
   })
+
+  it('keeps the settings, the defaults until first changed', async () => {
+    const store = makeStore()
+    await store.create(account('a1', 'github:1'), linked('a1', 'github', '1'))
+    expect(await store.settingsOf('a1')).toEqual(DEFAULT_SETTINGS)
+    expect(await store.setSettings('a1', { music: 75 })).toBe(true)
+    expect(await store.settingsOf('a1')).toEqual({ music: 75 })
+    expect(await store.setSettings('nobody', { music: 75 })).toBe(false)
+    expect(await store.settingsOf('nobody')).toEqual(DEFAULT_SETTINGS)
+  })
 }
 
 describe('MemoryAccountStore', () => {
@@ -197,6 +208,18 @@ describe('D1AccountStore', () => {
       .prepare("UPDATE accounts SET hotbar = ? WHERE account_id = 'a1'")
       .run(stored)
     expect(await store.hotbarOf('a1')).toEqual(EMPTY_HOTBAR)
+  })
+
+  it('reads unreadable settings as the defaults', async () => {
+    const { sqlite, store } = await seeded()
+    sqlite.exec(
+      "UPDATE accounts SET settings = '{not json' WHERE account_id = 'a1'"
+    )
+    expect(await store.settingsOf('a1')).toEqual(DEFAULT_SETTINGS)
+    sqlite.exec(
+      `UPDATE accounts SET settings = '{"music":"loud"}' WHERE account_id = 'a1'`
+    )
+    expect(await store.settingsOf('a1')).toEqual(DEFAULT_SETTINGS)
   })
 
   it('answers linked-elsewhere when a link loses the race to the insert', async () => {

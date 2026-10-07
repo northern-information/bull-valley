@@ -160,6 +160,15 @@ export const CONFIG = {
     // A player this far from the valley's moment, in seconds, seeks back.
     driftSeconds: 2,
   },
+  music: {
+    // The valley's music (music.ts): the element's volume at the setting's
+    // top, kept well under the valley so it sits beneath everything.
+    volume: 0.5,
+    // How much of it Marx's radio takes away at its loudest.
+    duck: 0.85,
+    // Seconds it takes to come up from silence when it starts.
+    fadeInSeconds: 4,
+  },
   store: {
     // A new account's wallet, in cents (worker/packs.ts). Played alone,
     // every visit starts with this much.
