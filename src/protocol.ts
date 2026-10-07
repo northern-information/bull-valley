@@ -13,7 +13,7 @@ import type { Burst } from './shadowmen.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 15
+export const PROTOCOL_VERSION = 16
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -144,6 +144,7 @@ export type WorldReason =
   | 'bought'
   | 'dropped'
   | 'drop-taken'
+  | 'spilled'
   | 'refill'
   | 'hurry'
   | 'reset'

@@ -1,6 +1,7 @@
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { heartPoint, theMaze } from '../../src/caretaker.ts'
 import { CONFIG } from '../../src/config.ts'
+import { DIME_CENTS } from '../../src/drops.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { getItem } from '../../src/items.ts'
 import { CLOSE, PROTOCOL_VERSION } from '../../src/protocol.ts'
@@ -831,6 +832,7 @@ describe('ValleyDO', () => {
       get: () => Promise.reject(new Error('D1 is down')),
       change: () => Promise.reject(new Error('D1 is down')),
       purchase: () => Promise.reject(new Error('D1 is down')),
+      earn: () => Promise.reject(new Error('D1 is down')),
     }
     const errors: unknown[] = []
     const error = console.error
@@ -910,6 +912,7 @@ describe('ValleyDO', () => {
         get: (id) => store.get(id),
         change: (id, kind, delta) => store.change(id, kind, delta),
         purchase: () => Promise.reject(new Error('down')),
+        earn: (id, amount) => store.earn(id, amount),
       }
       await buy()
       expect(a.last<NackMessage>()).toMatchObject({ reason: 'unavailable' })
@@ -1003,6 +1006,7 @@ describe('ValleyDO: drops', () => {
       get: (id) => store.get(id),
       purchase: (id, amount, item) => store.purchase(id, amount, item),
       change: () => Promise.reject(new Error('down')),
+      earn: (id, amount) => store.earn(id, amount),
     }
     const error = console.error
     console.error = () => {}
@@ -1100,6 +1104,72 @@ describe('ValleyDO: the shadowmen', () => {
     for (let i = 0; i < 10; i++) v.tick()
     expect(a.frames()).toContainEqual({ type: 'struck', by: 'caretaker' })
     expect(b.frames().some((m) => m.type === 'struck')).toBe(false)
+  })
+
+  // A, light on, burns a shadowman standing in the beam 5 m ahead (riding,
+  // so it stands to burn rather than rushing them); B stands far off. The
+  // dimes it left, as B was told.
+  async function burst() {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const b = await join(v, s, 'B')
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ ...JSON.parse(state(500, 500, true)), riding: true })
+    )
+    await v.webSocketMessage(ws(b), state(900, 900))
+    const x = 500 - Math.sin(0.5) * 5
+    const z = 500 - Math.cos(0.5) * 5
+    await v.webSocketMessage(
+      ws(a),
+      `{"type":"dev","op":"shadowman","x":${x},"z":${z}}`
+    )
+    for (let i = 0; i < 10; i++) v.tick()
+    // The spill is written after the step.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const spilled = b
+      .frames()
+      .findLast((m): m is WorldMessage => m.type === 'world')
+    expect(spilled?.reason).toBe('spilled')
+    const [dimes] = spilled?.world?.drops ?? []
+    return { v, b, dimes, x, z }
+  }
+
+  it('leaves dimes where one burst, paid into the wallet of whoever takes them up', async () => {
+    const { v, b, dimes, x, z } = await burst()
+    expect(dimes).toMatchObject({ kind: 'dimes' })
+    expect(Math.hypot(dimes.x - x, dimes.z - z)).toBeLessThan(0.1)
+    const { min, max } = CONFIG.shadowmen.dimes
+    expect(dimes.count).toBeGreaterThanOrEqual(min)
+    expect(dimes.count).toBeLessThanOrEqual(max)
+    await v.webSocketMessage(ws(b), `{"type":"take-drop","drop":${dimes.id}}`)
+    const paid = b.last<PackMessage>()
+    expect(paid).toMatchObject({
+      type: 'pack',
+      cash: STARTING_CASH + dimes.count * DIME_CENTS,
+    })
+    // Dimes are never an item.
+    expect(paid.pack).not.toHaveProperty('dimes')
+  })
+
+  it('still sends the wallet when the dimes cannot be paid in', async () => {
+    const { v, b, dimes } = await burst()
+    const store = v.packStore
+    v.packStore = {
+      open: (id) => store.open(id),
+      get: (id) => store.get(id),
+      change: (id, kind, delta) => store.change(id, kind, delta),
+      purchase: (id, amount, item) => store.purchase(id, amount, item),
+      earn: () => Promise.reject(new Error('down')),
+    }
+    const error = console.error
+    console.error = () => {}
+    try {
+      await v.webSocketMessage(ws(b), `{"type":"take-drop","drop":${dimes.id}}`)
+    } finally {
+      console.error = error
+    }
+    expect(b.last<PackMessage>()).toMatchObject({ cash: STARTING_CASH })
   })
 
   it('places a shadowman only for a dev socket', async () => {

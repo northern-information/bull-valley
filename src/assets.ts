@@ -2727,6 +2727,48 @@ function buildBerries({ glow = true }: PickupOptions = {}): THREE.Group {
   return group
 }
 
+// --- Dimes ---------------------------------------------------------------
+
+// The dimes a shadowman bursts into (drops.ts DIMES), `count` of them
+// scattered flat and tipped over a patch about a metre across, the seed
+// laying them out. A dime is 18 mm; these are drawn three times that, or
+// the PS1 downscale would lose them in the grass. Origin at ground level
+// under the middle of the scatter.
+export function buildDimes(
+  count: number,
+  seed = 0xd1e,
+  { glow = true }: PickupOptions = {}
+): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'dimes'
+  const material = lambert({
+    color: '#8a8f96',
+    emissive: new THREE.Color('#dfe6ee'),
+    emissiveIntensity: 0.35,
+  })
+  const geo = new THREE.CylinderGeometry(0.027, 0.027, 0.004, 10)
+  const rng = mulberry32(seed)
+  for (let i = 0; i < Math.max(1, Math.min(count, 20)); i++) {
+    const coin = new THREE.Mesh(geo, material)
+    // Thicker toward the middle, as a spray lands.
+    const r = Math.sqrt(rng()) * 0.45
+    const a = rng() * Math.PI * 2
+    coin.position.set(Math.cos(a) * r, 0.004 + rng() * 0.01, Math.sin(a) * r)
+    coin.rotation.set(range(rng, -0.35, 0.35), 0, range(rng, -0.35, 0.35))
+    group.add(coin)
+  }
+  if (glow) {
+    const halo = makeGlowSprite(
+      makeGlowTexture('rgba(214, 226, 238, 0.45)'),
+      1.1
+    )
+    halo.position.y = 0.08
+    group.add(halo)
+  }
+  setPulseMaterials(group, [material])
+  return group
+}
+
 // --- Baseball bat --------------------------------------------------------
 
 // A 33-inch ash bat, turned on a lathe: knob, thin handle, a long taper,
@@ -4339,6 +4381,7 @@ export function buildPickup(
   if (kind === 'joints') return buildJoints({ glow })
   if (isDrink(kind)) return buildDrink(kind, { glow })
   if (kind === 'berries') return buildBerries({ glow })
+  if (kind === 'dimes') return buildDimes(12, seed, { glow })
   if (isMedicine(kind)) return buildMedicine(kind, { glow })
   let mesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshLambertMaterial>
   if (kind === 'cabbage') {
@@ -4701,6 +4744,7 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     build: () => buildDrink(d.id),
   })),
   { id: 'berries', label: 'Berries', build: () => buildPickup('berries') },
+  { id: 'dimes', label: 'Dimes (12)', build: () => buildDimes(12) },
   { id: 'berry-bush', label: 'Berry bush', build: () => buildBerryBush() },
   {
     id: 'caretaker',

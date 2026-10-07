@@ -4,6 +4,7 @@
 
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
+import { isCash } from './drops.ts'
 import { itemById } from './items.ts'
 import { npcReach } from './npcs.ts'
 import { formatCash } from './store.ts'
@@ -166,6 +167,7 @@ export function pickupLabel({
   count: number
 }): string {
   if (kind === 'cabbage') return copy('labels.cabbage')
+  if (isCash(kind)) return copy('labels.dimes', { count })
   return copy('labels.pickup_count', {
     item: itemById(kind)?.label ?? kind,
     count,

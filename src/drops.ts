@@ -1,11 +1,28 @@
 // Dropped items, pure: how much one drop takes out of what a raider
-// carries, where it lands, and what taking it up leaves. sharedworld.ts
-// runs these for the shared valley (rule 12), actions.ts for the valley played
-// alone. No three.js, no DOM.
+// carries, where it lands, and what taking it up leaves, and the dimes a
+// shadowman bursts into. sharedworld.ts runs these for the shared valley
+// (rules 11 and 12), actions.ts for the valley played alone. No three.js,
+// no DOM.
 
 import { CONFIG } from './config.ts'
 import { leftInOpen } from './items.ts'
 import type { XZ } from './interfaces.ts'
+import type { Rng } from './rng.ts'
+
+// The kind of the drop a shadowman bursts into: dimes, which are cash.
+// Taken up, they go into the wallet, never the pack, at DIME_CENTS each.
+export const DIMES = 'dimes'
+export const DIME_CENTS = 10
+
+export function isCash(kind: string): boolean {
+  return kind === DIMES
+}
+
+// How many dimes one burst shadowman leaves: min to max, evenly.
+export function dimesFor(rng: Rng, cfg = CONFIG): number {
+  const { min, max } = cfg.shadowmen.dimes
+  return min + Math.floor(rng() * (max - min + 1))
+}
 
 // One drop on the ground: what lies there and how many. The id is the
 // valley's, never reused within its world.

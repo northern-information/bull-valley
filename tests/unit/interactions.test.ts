@@ -383,6 +383,12 @@ describe('itemLabel', () => {
       copy('labels.cabbage')
     )
   })
+
+  it('labels dimes by how many', () => {
+    expect(pickupLabel({ kind: 'dimes', count: 7 })).toBe(
+      copy('labels.dimes', { count: 7 })
+    )
+  })
 })
 
 describe('dailyStatus', () => {

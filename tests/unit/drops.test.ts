@@ -1,7 +1,32 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
-import { dropAmount, dropSpot, takeUp } from '../../src/drops.ts'
+import {
+  DIMES,
+  dimesFor,
+  dropAmount,
+  dropSpot,
+  isCash,
+  takeUp,
+} from '../../src/drops.ts'
 import { contentsOf } from '../../src/items.ts'
+import { mulberry32 } from '../../src/rng.ts'
+
+describe('dimes', () => {
+  it('are cash, and nothing else is', () => {
+    expect(isCash(DIMES)).toBe(true)
+    expect(isCash('cabbage')).toBe(false)
+  })
+
+  it('come min to max from a burst, every count reached', () => {
+    const { min, max } = CONFIG.shadowmen.dimes
+    const rng = mulberry32(7)
+    const seen = new Set<number>()
+    for (let i = 0; i < 2000; i++) seen.add(dimesFor(rng))
+    expect(Math.min(...seen)).toBe(min)
+    expect(Math.max(...seen)).toBe(max)
+    expect(seen.size).toBe(max - min + 1)
+  })
+})
 
 describe('dropAmount', () => {
   it('drops the open container, or one of anything else', () => {

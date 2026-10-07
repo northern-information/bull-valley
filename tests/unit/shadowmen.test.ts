@@ -24,6 +24,7 @@ import type {
 // Pinned so the tests do not move when CONFIG.shadowmen is retuned.
 const CFG: ShadowmenConfig = {
   count: 6,
+  dimes: { min: 3, max: 20 },
   spawnRadius: 300,
   crossRadius: 120,
   despawnRadius: 360,

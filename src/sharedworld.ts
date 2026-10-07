@@ -44,9 +44,12 @@
 //    bubble round every raider (shadowmen.ts). A raider on foot, out of the
 //    bed, and not coming to from a strike can be rushed; a touch strikes
 //    them alone, and they are left alone for the strike's length after.
-//    Anyone's beam burns them. The valley steps the field (stepShadows)
-//    and keeps it in memory only: the shadowmen are gone whenever no one
-//    is placed in the valley.
+//    Anyone's beam burns them, and one that bursts leaves a drop of dimes
+//    where it was (drops.ts dimesFor), lying like any drop (rule 12);
+//    dimes taken up are cash, into the taker's wallet (Reduced.earn), never
+//    the pack. The valley steps the field (stepShadows) and keeps it in
+//    memory only: the shadowmen are gone whenever no one is placed in the
+//    valley.
 // 12. A raider out of the bed can drop what their pack holds (the valley
 //    takes it off the account's pack first, and the drop stands only once
 //    it has). It lands a little ahead of where their last state frame put
@@ -62,7 +65,7 @@
 import { caretakerAt, createCaretaker, stepCaretaker } from './caretaker.ts'
 import { CONFIG } from './config.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
-import { dropSpot, takeUp } from './drops.ts'
+import { DIME_CENTS, DIMES, dropSpot, isCash, takeUp } from './drops.ts'
 import { contentsOf, INVENTORY_KINDS, itemById } from './items.ts'
 import {
   arrive,
@@ -189,6 +192,8 @@ export type ValleyAction =
   // when the valley has not heard one.
   | { type: 'drop'; id: string; kind: string; count: number; at: Facing | null }
   | { type: 'take-drop'; id: string; drop: number }
+  // Rule 11: the dimes burst shadowmen leave, each where one burst.
+  | { type: 'spill'; spills: (XZ & { count: number })[] }
   // Rule 9: a new name, a new character, or both.
   | { type: 'appearance'; id: string; name?: string; outfit?: OutfitId }
   // The valley's own clock: the truck and the day, moved on.
@@ -226,6 +231,8 @@ export interface Reduced {
   // Rule 7: what a sale costs the buyer's wallet. The valley takes it
   // before the sale stands.
   spend?: { account: string; amount: number }
+  // Rule 11: what dimes taken up pay into the taker's wallet, in cents.
+  earn?: { account: string; amount: number }
 }
 
 export interface PackChange {
@@ -718,6 +725,7 @@ function act(
         ...world,
         drops: world.drops.filter((d) => d.id !== drop.id),
       })
+      const account = member.account
       return done(next, now, {
         broadcast: [
           frame(next, 'drop-taken', {
@@ -727,9 +735,33 @@ function act(
             count: taken,
           }),
         ],
-        // Rule 10.
-        pack: { account: member.account, kind: drop.kind, delta: taken },
+        // Rule 11: dimes are cash; rule 10: anything else, the pack.
+        ...(isCash(drop.kind)
+          ? { earn: { account, amount: taken * DIME_CENTS } }
+          : { pack: { account, kind: drop.kind, delta: taken } }),
       })
+    }
+
+    case 'spill': {
+      // Rule 11: each burst leaves its dimes lying where it was.
+      const world = valley.world
+      const spills = action.spills.filter((one) => one.count > 0)
+      if (!world || spills.length === 0) {
+        return done(valley, now, { broadcast: [] })
+      }
+      const dimes: Drop[] = spills.map(({ x, z, count }, i) => ({
+        id: world.nextDrop + i,
+        kind: DIMES,
+        count,
+        x,
+        z,
+      }))
+      const next = withWorld(valley, {
+        ...world,
+        drops: [...world.drops, ...dimes],
+        nextDrop: world.nextDrop + dimes.length,
+      })
+      return done(next, now, { broadcast: [frame(next, 'spilled')] })
     }
 
     case 'appearance': {

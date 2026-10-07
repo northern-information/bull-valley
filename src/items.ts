@@ -351,8 +351,9 @@ type ItemEntry = (typeof ITEMS)[number]
 // Every item id, as a type: a typo in a literal id fails the type check.
 export type ItemId = ItemEntry['id']
 
-// What a pickup in the valley can be: an item.
-export type PickupKind = ItemId
+// What a pickup in the valley can be: an item, or the dimes a shadowman
+// bursts into (drops.ts DIMES), which are cash and never an item.
+export type PickupKind = ItemId | 'dimes'
 
 // ITEMS widened to the plain Item shape, for code that reads optional
 // fields (container) across every entry.

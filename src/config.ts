@@ -59,6 +59,9 @@ export const CONFIG = {
     // is aimed at a point this far over the ground it stands on.
     burnSeconds: 0.5,
     chestHeight: 1.4,
+    // One that bursts leaves this many dimes (10¢ each) lying where it
+    // was, drawn evenly between the two (drops.ts dimesFor).
+    dimes: { min: 3, max: 20 },
     // In the shared valley the server steps them this many times a second
     // and sends each step; clients draw them between the last two.
     tickHz: 10,
