@@ -55,7 +55,7 @@ base.describe('drops', { tag: '@valley' }, () => {
         beginRaid(b, 1, { valley, raider: freshRaider('Baker') }),
       ])
       await expect
-        .poll(() => a.evaluate(() => window.__bv?.shared?.members.length))
+        .poll(() => a.evaluate(() => window.__bv?.valley?.members.length))
         .toBe(2)
       await standInTheOpen(a, 0)
       await standInTheOpen(b, 4)

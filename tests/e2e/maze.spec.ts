@@ -85,16 +85,12 @@ test('a bush at the heart gives a berry of its own', async ({ page }) => {
 
 test("the Caretaker's touch puts you back at the Citgo", async ({ page }) => {
   await beginRaid(page)
-  await page.evaluate(() => window.__bv?.hurryTruck(0))
-  await expect
-    .poll(() => page.evaluate(() => window.__bv?.raid.state))
-    .toBe('ON_FOOT')
   // In the court, and the Caretaker a few strides down it.
   const me = await court(page, 2)
   const there = await court(page, -3)
   await standLooking(page, me, there)
   await page.evaluate(({ x, z }) => window.__bv?.placeCaretaker(x, z), there)
-  await expect.poll(() => page.evaluate(() => window.__bv?.raid.deaths)).toBe(1)
+  await expect.poll(() => page.evaluate(() => window.__bv?.strikes)).toBe(1)
   await expect
     .poll(() => page.evaluate(() => window.__bv?.chat.at(-1)?.text))
     .toBe(copy('log.caught'))
@@ -121,12 +117,12 @@ test.describe('two flashlights', { tag: '@valley' }, () => {
       beginRaid(a, 0, { valley, raider: freshRaider('Lamp') }),
       beginRaid(b, 1, { valley, raider: freshRaider('Wick') }),
     ])
-    // Both still in the lobby, so it never comes for them: down the court
-    // from the heart, side by side, looking at where it is put to float
-    // still.
+    // Down the court from where it is put to float still, side by side,
+    // looking at it: past its sight (CONFIG.caretaker.sightRange), so it
+    // never comes for them, and well inside a flashlight's reach.
     const there = await court(a, -2)
-    await standLooking(a, await court(a, -9, -0.6), there)
-    await standLooking(b, await court(b, -9, 0.6), there)
+    await standLooking(a, await court(a, -24, -0.6), there)
+    await standLooking(b, await court(b, -24, 0.6), there)
     await a.evaluate(({ x, z }) => window.__bv?.placeCaretaker(x, z), there)
     await expect.poll(() => shown(a)).not.toBeNull()
 

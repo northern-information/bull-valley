@@ -1,6 +1,6 @@
 // The Akashic record: a dev-only page (/akashic) that shows one 3D asset at
 // a time through the game's own render pipeline — same downscale, PS1 snap,
-// lights, and fog as main.ts — so an asset can be checked without a raid.
+// lights, and fog as main.ts — so an asset can be checked without a game.
 // Assets come from the same builders the game places. Dev hook:
 // window.__akashic (ids, select, setView, animate, current).
 
@@ -57,7 +57,7 @@ const HOLD_SECONDS = 0.4
 function sampleFigure(outfitId: OutfitId): THREE.Group {
   const figure = buildFigure(outfitId)
   applyPose(figure, samplePose('stand'))
-  // Marx reads at the tailgate and smokes, as the lobby shows him.
+  // Marx reads at the tailgate and smokes, as he does at the Citgo.
   if (outfitId === 'marx') {
     applyPose(figure, samplePose('read'))
     attachBook(figure)
@@ -156,7 +156,7 @@ scene.add(gameLights, neutralLights)
 
 // A lamp that rides the camera, so dark assets read under the game lights
 // too. It lights whatever side faces the viewer; turn it off to see the
-// asset exactly as a raid does.
+// asset exactly as the game does.
 const lamp = new THREE.DirectionalLight('#fff4e0', 0.9)
 lamp.position.set(0, 0, 0)
 lamp.target.position.set(0, 0, -1)

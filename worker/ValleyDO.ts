@@ -1,17 +1,17 @@
 // The valley server: one Durable Object holding everyone who is online and
-// the one raid they share. Each socket's player lives in its attachment
-// (WebSocket Hibernation API), so the object can sleep between frames and
-// wake with the roster intact; the raid lives in storage and survives a
-// restart. Every rule is in src/sharedraid.ts; this is the plumbing that
-// reads a frame, runs the reducer, persists, arms the lobby alarm, and
-// sends what came back. Each account's pack and wallet are in D1
+// the one persistent world they share. Each socket's player lives in its
+// attachment (WebSocket Hibernation API), so the object can sleep between
+// frames and wake with the roster intact; the world lives in storage and
+// survives a restart. Every rule is in src/sharedworld.ts; this is the
+// plumbing that reads a frame, runs the reducer, persists, arms the alarm
+// for Marx's truck and the day's turn, and sends what came back. Each account's pack and wallet are in D1
 // (d1packs.ts): the reducer says what goes in or out, and this writes it
 // and tells the account's sockets. A buy runs alone (blockConcurrencyWhile),
 // so the wallet it was judged against is the wallet it is paid from.
 //
-// The shadowmen (rule 13) and the Caretaker (rule 15) are stepped here
+// The shadowmen (rule 11) and the Caretaker (rule 13) are stepped here
 // CONFIG.shadowmen.tickHz times a second while anyone is placed in the
-// raid, and live in memory only. The
+// valley, and live in memory only. The
 // ticking timer keeps the object awake; it stops itself once no one is
 // left, and the object can hibernate again.
 
@@ -31,12 +31,13 @@ import {
   createValley,
   dailyFor,
   placeCaretaker,
+  placeOf,
   placeShadowman,
   reduce,
   restoreValley,
   stepShadows,
   toWire,
-} from '../src/sharedraid.ts'
+} from '../src/sharedworld.ts'
 import { ACCOUNT_HEADER, NAME_HEADER } from './auth.ts'
 import { D1AccountStore } from './d1accounts.ts'
 import { D1PackStore } from './d1packs.ts'
@@ -51,7 +52,7 @@ import type {
   Reduced,
   Valley,
   ValleyAction,
-} from '../src/sharedraid.ts'
+} from '../src/sharedworld.ts'
 import type { AccountStore } from './accounts.ts'
 import type { Holdings, PackStore } from './packs.ts'
 
@@ -78,7 +79,7 @@ const CHAT_LIMIT: RateLimit = { count: 5, ms: 10_000 }
 // figure for everyone, so the rest are nacked.
 const APPEARANCE_LIMIT: RateLimit = { count: 5, ms: 10_000 }
 
-// Drops one socket may make in ten seconds; each sends the whole raid to
+// Drops one socket may make in ten seconds; each sends the whole world to
 // everyone, so the rest are nacked.
 const DROP_LIMIT: RateLimit = { count: 20, ms: 10_000 }
 
@@ -105,14 +106,16 @@ export class ValleyDO extends DurableObject<Env> {
   // Rule 13, in memory only: gone whenever the object sleeps.
   private shadows = createShadows()
   private shadowRng = mulberry32(Math.floor(Math.random() * 2 ** 32))
+  // A dev server's quiet valley (the specs'): no crossing shadowman rushes.
+  private calm = false
   private ticker: unknown = null
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
-    // The raid is read once per wake, before any frame is handled.
+    // The world is read once per wake, before any frame is handled.
     void this.ctx.blockConcurrencyWhile(async () => {
       const stored = await this.ctx.storage.get<Valley>(VALLEY_KEY)
-      // A valley stored by an older build is made current (sharedraid.ts).
+      // A valley stored by an older build is made current (sharedworld.ts).
       if (stored) this.valley = restoreValley(stored)
     })
   }
@@ -169,7 +172,6 @@ export class ValleyDO extends DurableObject<Env> {
         send(ws, { type: 'pong', t: msg.t, serverNow: Date.now() })
         return
       case 'board':
-      case 'unboard':
       case 'hop-out':
         await this.act(ws, { type: msg.type, id: me.id })
         return
@@ -192,9 +194,6 @@ export class ValleyDO extends DurableObject<Env> {
           from: msg.from,
           to: msg.to,
         })
-        return
-      case 'extract':
-        await this.act(ws, { type: 'extract', id: me.id, kind: msg.kind })
         return
       case 'collect':
         await this.act(ws, { type: 'collect', id: me.id, bush: msg.bush })
@@ -237,6 +236,10 @@ export class ValleyDO extends DurableObject<Env> {
           this.startShadows()
           return
         }
+        if (msg.op === 'calm') {
+          this.calm = true
+          return
+        }
         if (msg.op === 'caretaker') {
           placeCaretaker(this.valley, this.shadows, msg.x, msg.z)
           this.startShadows()
@@ -261,7 +264,7 @@ export class ValleyDO extends DurableObject<Env> {
     await this.left(ws)
   }
 
-  // The lobby clock ran out: the truck leaves with whoever is aboard.
+  // Marx's truck or the day is due to move on.
   async alarm(): Promise<void> {
     const reduced = reduce(this.valley, { type: 'clock' }, this.context())
     await this.apply(reduced)
@@ -287,7 +290,7 @@ export class ValleyDO extends DurableObject<Env> {
     clearInterval(ticker as ReturnType<typeof setInterval>)
   }
 
-  // Rule 13: step the shadowmen while anyone is placed in the raid.
+  // Rule 11: step the shadowmen while anyone is placed in the valley.
   private startShadows(): void {
     if (this.ticker !== null) return
     this.ticker = this.startTicker(
@@ -303,6 +306,7 @@ export class ValleyDO extends DurableObject<Env> {
     const out = stepShadows(this.valley, this.shadows, placed, this.shadowRng, {
       now: Date.now(),
       dt: 1 / CONFIG.shadowmen.tickHz,
+      calm: this.calm,
     })
     if (!out) {
       if (this.ticker !== null) this.stopTicker(this.ticker)
@@ -394,6 +398,7 @@ export class ValleyDO extends DurableObject<Env> {
         havens: hello.havens,
         metres: hello.metres,
         maze: hello.maze,
+        routes: hello.truck,
       },
       { now: Date.now(), present: this.presentIds(ws) }
     )
@@ -404,10 +409,9 @@ export class ValleyDO extends DurableObject<Env> {
     await this.apply(reduced)
     const me: PeerWire = { id, name, outfit: hello.outfit, at: null }
     ws.serializeAttachment({ ...attachment, me } satisfies Attachment)
-    const raid = toWire(this.valley)
-    const member = this.valley.members[id]
-    if (!raid || !member) {
-      ws.close(CLOSE.serverError, 'The valley lost the raid')
+    const world = toWire(this.valley)
+    if (!world || !this.valley.members[id]) {
+      ws.close(CLOSE.serverError, 'The valley lost the world')
       return
     }
     const now = Date.now()
@@ -416,8 +420,8 @@ export class ValleyDO extends DurableObject<Env> {
       id,
       serverNow: now,
       peers: this.roster(ws),
-      raid,
-      phase: member.phase,
+      world,
+      place: placeOf(this.valley, account),
       daily: dailyFor(this.valley, account, now),
       pack: holdings.pack,
       cash: holdings.cash,
@@ -511,7 +515,7 @@ export class ValleyDO extends DurableObject<Env> {
     this.broadcast({ type: 'peer-updated', peer: me }, null)
   }
 
-  // A raid action from one player: run it, persist, answer, tell everyone.
+  // A world action from one player: run it, persist, answer, tell everyone.
   private async act(ws: WebSocket, action: ValleyAction): Promise<void> {
     const reduced = reduce(this.valley, action, this.context())
     await this.apply(reduced)
@@ -667,22 +671,25 @@ export class ValleyDO extends DurableObject<Env> {
     // error) announces the departure once.
     ws.serializeAttachment({ ...attachment, me: null } satisfies Attachment)
     this.broadcast({ type: 'peer-left', id: me.id }, ws)
+    // Where they last stood is where they come back (sharedworld.ts
+    // rule 2).
     const reduced = reduce(
       this.valley,
-      { type: 'leave', id: me.id },
+      { type: 'leave', id: me.id, at: me.at },
       this.context()
     )
     await this.apply(reduced)
     for (const msg of reduced.broadcast) this.broadcast(msg, ws)
   }
 
-  // Persist the valley and arm, clear, or keep the lobby alarm.
+  // Persist the valley and arm the alarm for its next change, or clear it
+  // with nobody here to see one.
   private async apply(reduced: Reduced): Promise<void> {
     this.valley = reduced.valley
     await this.ctx.storage.put(VALLEY_KEY, this.valley)
     if (reduced.alarm === null) {
       await this.ctx.storage.deleteAlarm()
-    } else if (reduced.alarm !== undefined) {
+    } else {
       await this.ctx.storage.setAlarm(reduced.alarm)
     }
   }

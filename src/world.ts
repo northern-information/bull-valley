@@ -165,11 +165,11 @@ export interface World {
   // Null only when the survey has no fuel point inside the frame.
   spawnStation: FuelPoint | null
   spawn: Spawn
-  // The berry bushes (one berry a day each per account, sharedraid.ts rule
-  // 9): the one on the spawn station's lot, then the ring round the portal
+  // The berry bushes (one berry a day each per account, sharedworld.ts rule
+  // 8): the one on the spawn station's lot, then the ring round the portal
   // at the maze's heart. None without a spawn station.
   bushes: BerryBush[]
-  // Gron, beside the bush (sharedraid.ts rule 10), and his rig: the body
+  // Gron, beside the bush (sharedworld.ts rule 9), and his rig: the body
   // for the glow, update(t) for his rain. Null without a spawn station.
   gron: XZ | null
   gronRig: GronRig | null
@@ -200,7 +200,7 @@ export interface World {
   donutField: DonutField | null
 }
 
-// One berry bush: its id (sharedraid.ts BUSHES: 0 at the spawn Citgo, then
+// One berry bush: its id (sharedworld.ts BUSHES: 0 at the spawn Citgo, then
 // the maze's), where it stands, the bush itself for the glow and the
 // label, and its berries shown or picked clean.
 export interface BerryBush extends XZ {
@@ -1156,7 +1156,7 @@ function nearestRoadside(
 // the store behind it: the OSM fuel point only says which road and roughly
 // where along it. Each store's floor registers on the ground and its walls
 // on `walls`. The returned points are the pump islands, where the truck
-// parks nearby and a raid extracts. The data keeps the real OSM names for
+// parks nearby. The data keeps the real OSM names for
 // the HUD; the visual is uniformly Citgo for now.
 function buildFuelStations(
   geo: Pick<Geo, 'fuel' | 'roads'>,
@@ -1612,7 +1612,7 @@ function buildPickups(
   return { group, pickups }
 }
 
-// The raid starts at a gas station: deterministically, the fuel point nearest
+// The valley starts at a gas station: deterministically, the fuel point nearest
 // the midpoint of the longest road named for Bull Valley, which keeps the
 // spawn in the old survey's neighborhood. Falls back to the point nearest the
 // frame center.

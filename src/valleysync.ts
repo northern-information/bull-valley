@@ -1,8 +1,8 @@
 // What the valley says, applied: who else is here, the chat, and the
-// shared raid. Every change to the valley's raid arrives as a whole
-// snapshot and a reason; raidsync.ts says how it moves this raider's own
-// raid, and this file does what that means (the truck, the pickups, the
-// shelves, the lines in the log).
+// shared world. Every change to the valley's world arrives as a whole
+// snapshot and a reason; worldsync.ts says what it means for this raider,
+// and this file does it (the truck, the bed, the pickups, the shelves,
+// the drops, the lines in the log).
 
 import { CHAT_COPY, othersLine } from './chat.ts'
 import { CONFIG } from './config.ts'
@@ -10,17 +10,17 @@ import { copy } from './copy.ts'
 import { pickupLabel } from './interactions.ts'
 import { toInventory } from './inventory.ts'
 import { itemById } from './items.ts'
+import { createTruck } from './marx.ts'
 import { CLOSE } from './protocol.ts'
-import { departureKind, reconcile, settledBy } from './raidsync.ts'
-import { callRoute } from './roadgraph.ts'
 import { formatCash } from './store.ts'
+import { aboard, newLeg, settledBy } from './worldsync.ts'
 import type { Actions } from './actions.ts'
 import type { Game } from './game.ts'
 import type { Inventory } from './interfaces.ts'
-import type { NackMessage, RaidMessage, RaidWire } from './protocol.ts'
+import type { NackMessage, WorldMessage, WorldWire } from './protocol.ts'
 
 export function wireValley(game: Game, actions: Actions): void {
-  const { state: s, hud, net, peers, world, truck, graph } = game
+  const { state: s, hud, net, peers, world, player } = game
 
   // A lost session is not a lost signal: send the raider back to sign in.
   net.onRefused((code) => {
@@ -95,20 +95,16 @@ export function wireValley(game: Game, actions: Actions): void {
     }
   })
 
-  // The local raid machine still holds what is ours (the arms); the
-  // snapshot moves it through the shared moments: the truck leaving, a
-  // pickup going, a whistle answered.
-  const applyRaid = (
-    wire: RaidWire | null,
-    reason: RaidMessage['reason'],
+  // The world as the valley has it now. Every snapshot is the whole of it.
+  const applyWorld = (
+    wire: WorldWire | null,
+    reason: WorldMessage['reason'],
     detail: Pick<
-      RaidMessage,
+      WorldMessage,
       'by' | 'index' | 'station' | 'item' | 'drop' | 'count'
     > = {}
   ) => {
-    const { by } = detail
-    const previous = s.shared
-    s.shared = wire
+    s.world = wire
     if (!wire) return
     const me = net.id
     const { take, sale, dropped, dropTaken } = settledBy(
@@ -124,11 +120,16 @@ export function wireValley(game: Game, actions: Actions): void {
         else actions.markTaken(pickup)
       }
     }
-    // Whatever else is gone, is gone.
-    for (const i of wire.taken) {
-      const pickup = world.pickups[i]
-      if (pickup && !pickup.taken) actions.markTaken(pickup)
-    }
+    // Whatever is gone today is gone; whatever came back with the day is
+    // back.
+    const taken = new Set(wire.taken)
+    world.pickups.forEach((pickup, i) => {
+      if (taken.has(i)) {
+        if (!pickup.taken) actions.markTaken(pickup)
+      } else if (pickup.taken && !s.pendingTakes.has(i)) {
+        actions.markUntaken(pickup)
+      }
+    })
 
     // The shelves are the valley's; a unit it sold us goes in the pocket.
     if (sale) {
@@ -137,9 +138,8 @@ export function wireValley(game: Game, actions: Actions): void {
     }
     s.storeStock = wire.shelves
 
-    // Rule 14: what lies dropped is the valley's word. A drop of ours is
-    // said so; one taken up by us goes into the pack (the arms follow the
-    // snapshot, below).
+    // Rule 12: what lies dropped is the valley's word. A drop of ours is
+    // said so; one taken up by us goes into the pack.
     s.drops = wire.drops
     game.drops.sync(s.drops)
     for (const id of s.pendingDrops) {
@@ -150,60 +150,34 @@ export function wireValley(game: Game, actions: Actions): void {
     }
     if (dropTaken?.mine) actions.applyDropTaken(dropTaken.kind, dropTaken.count)
 
-    const { raid, departed, departure, whistle } = reconcile(
-      s.raid,
-      previous,
-      wire,
-      me,
-      reason,
-      s.raidClock
-    )
-    s.raid = raid
-
-    if (departed) {
-      s.aboard = false
-      if (departure === 'rider') {
-        s.onTruckRolls = [copy('log.truck_leaves'), copy('log.hop_out_hint')]
-      } else if (departure === 'left-behind') {
-        s.onTruckRolls = [copy('log.left_behind')]
-      } else if (departure === 'long-gone') {
-        hud.tell(copy('log.long_gone'))
-      }
-      if (departure) actions.refreshBag()
-      if (wire.departedAt !== null) {
-        const at = net.clock.toLocalMs(wire.departedAt)
-        const donuts =
-          departureKind(wire) === 'donuts' ? game.donutRoute(wire.epoch) : null
-        if (donuts) truck.driveDonuts(donuts, at)
-        else truck.driveRouteAt(game.departRoute, at)
-      }
+    // Rule 3: the truck drives the valley's leg, and the bed is the
+    // valley's word on who is in it.
+    const leg = wire.truck.leg
+    if (newLeg(s.truckLeg, leg)) actions.followLeg(leg)
+    const inBed = aboard(wire, me)
+    if (inBed) s.pendingBoard = false
+    if (s.aboard && !inBed && !s.pendingBoard) {
+      // Let off at the Citgo.
+      actions.leaveBed(reason === 'home' ? copy('log.end_of_line') : undefined)
     }
-
-    const call = wire.call
-    if (call && whistle) {
-      const route = callRoute(graph, call.from, call.to)
-      truck.parkAt(call.from.x, call.from.z, truck.dirX, truck.dirZ)
-      truck.driveRouteAt(route, net.clock.toLocalMs(call.at))
+    if (!s.pendingBoard) s.aboard = inBed
+    if (reason === 'depart' && inBed) {
+      s.onTruckRolls = [copy('log.truck_leaves'), copy('log.hop_out_hint')]
+    }
+    if (reason === 'ferry' && detail.by === me) hud.tell(copy('log.ride_home'))
+    if (reason === 'called') {
       hud.tell(
-        whistle === 'mine' ? copy('log.whistle') : copy('log.whistle_other')
+        detail.by === me ? copy('log.whistle') : copy('log.whistle_other')
       )
     }
-
-    if (reason === 'extracted' && by && by !== me) {
-      const name = peers.table.get(by)?.name
-      peers.left(by)
-      if (name) hud.tell(copy('log.peer_extracted', { name }))
-    }
+    // His comings and goings, for everyone.
+    if (reason === 'donuts') hud.tell(copy('log.marx_donuts'))
+    if (reason === 'back') hud.tell(copy('log.marx_back'))
   }
 
   const applyNack = (msg: NackMessage) => {
     if (msg.re === 'take') {
       if (msg.index !== undefined) s.pendingTakes.delete(msg.index)
-      // Still there, but not for us yet.
-      if (msg.reason === 'arms-full') {
-        hud.tell(copy('log.arms_full'))
-        return
-      }
       if (msg.reason !== 'gone') return
       const pickup =
         msg.index === undefined ? undefined : world.pickups[msg.index]
@@ -237,8 +211,14 @@ export function wireValley(game: Game, actions: Actions): void {
     } else if (msg.re === 'take-drop') {
       if (msg.drop !== undefined) s.pendingDrops.delete(msg.drop)
       if (msg.reason === 'gone') hud.tell(copy('log.taken_first'))
-      else if (msg.reason === 'arms-full') hud.tell(copy('log.arms_full'))
       else hud.tell(copy('log.drop_refused'))
+    } else if (msg.re === 'board') {
+      // The bed is not ours after all.
+      s.pendingBoard = false
+      s.aboard = false
+      hud.tell(copy('log.board_refused'))
+    } else if (msg.re === 'hop-out') {
+      s.aboard = false
     } else if (msg.re === 'use') {
       // The pack frame that follows puts the count right.
       hud.tell(copy('log.none_left'))
@@ -258,13 +238,18 @@ export function wireValley(game: Game, actions: Actions): void {
 
   net.on((msg) => {
     if (msg.type === 'welcome') {
-      applyRaid(msg.raid, 'joined', { by: msg.id })
+      // Back where the account last stood on foot, the first time.
+      if (!s.placed && msg.place && !s.aboard) {
+        player.relocate(msg.place.x, msg.place.z, msg.place.yaw)
+      }
+      s.placed = true
+      applyWorld(msg.world, 'joined', { by: msg.id })
       s.daily = msg.daily
       applyPack(msg.pack, msg.cash)
     } else if (msg.type === 'pack') {
       applyPack(msg.pack, msg.cash)
-    } else if (msg.type === 'raid') {
-      applyRaid(msg.raid, msg.reason, msg)
+    } else if (msg.type === 'world') {
+      applyWorld(msg.world, msg.reason, msg)
     } else if (msg.type === 'nack') {
       applyNack(msg)
     } else if (msg.type === 'daily') {
@@ -272,11 +257,14 @@ export function wireValley(game: Game, actions: Actions): void {
     }
   })
   net.onStatus((status) => {
-    // The line dropped: the valley's raid is no longer ours to follow, and
-    // what we hold plays on alone.
+    // The line dropped: the valley's world is no longer ours to follow,
+    // and what we hold plays on alone, the truck from where it stands.
     if (status === 'offline') {
-      s.shared = null
-      s.aboard = false
+      s.world = null
+      s.pendingBoard = false
+      if (s.aboard) actions.leaveBed()
+      actions.setAloneTruck(createTruck(Date.now()))
+      actions.followLeg(s.aloneTruck.leg)
       s.daily = null
       s.pendingCollect = false
       s.pendingTakes.clear()

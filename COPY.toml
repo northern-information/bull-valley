@@ -37,26 +37,13 @@ sign_out = { text = "Sign Out", by = "ai" }
 
 [hud]
 begin_loading = { text = "Resolving Terrain…", by = "ai" }
-begin_play = { text = "Click to Play", by = "ai" }
+begin_play = { text = "Click to Die", by = "ai" }
 begin_resume = { text = "Click to Resume", by = "ai" }
 begin_failed = { text = "The Valley Will Not Resolve", by = "ai" }
 signal_lost = { text = "SIGNAL LOST", by = "ai" }
 countdown_label = { text = "Truck leaves in", by = "ai" }
 chat_log_label = { text = "Chat", by = "ai" }
 chat_input_label = { text = "Say to the valley", by = "ai" }
-
-# The end-of-raid card (src/hud.ts). One line each, in this order.
-
-[summary]
-title = { text = "RAID COMPLETE", by = "ai" }
-by_truck = { text = "Matthew Marx drove you out.", by = "ai" }
-at_keep = { text = "You made {keep}.", by = "ai" }
-at_station = { text = "You walked out at {station}.", by = "ai" }
-at_a_station = { text = "You walked out at the station.", by = "ai" }
-cabbages = { text = "Cabbages hauled out: {count}.", by = "ai" }
-deaths = { text = "Times the valley took you: {count}.", by = "ai" }
-time = { text = "Time in the valley: {time}.", by = "ai" }
-again = { text = "Raid Again", by = "ai" }
 
 # The sign-in card (src/signin.ts).
 
@@ -134,25 +121,25 @@ welcome_many = { text = "{count} others in the valley.", by = "ai" }
 peer_joined = { text = "{name} is in the valley.", by = "ai" }
 peer_left = { text = "{name} is gone.", by = "ai" }
 peer_renamed = { text = "{was} is {name} now.", by = "ai" }
-peer_extracted = { text = "{name} made it out.", by = "ai" }
 signal_lost = { text = "Signal lost. The valley goes quiet.", by = "ai" }
 signed_out = { text = "Signed out. Sign in again to raid.", by = "ai" }
 board = { text = "You climb into the bed.", by = "ai" }
 hop_out_hint = { text = "E hops out. Anywhere you like.", by = "ai" }
 truck_leaves = { text = "Marx pulls out.", by = "ai" }
 portal = { text = "The light lets go of you at the gate.", by = "ai" }
-left_behind = { text = "Taillights. The truck leaves without you.", by = "ai" }
-long_gone = { text = "The truck is long gone. You are on foot.", by = "ai" }
 hop_out_wait = { text = "Boots on gravel. Marx waits.", by = "ai" }
 hop_out_moving = { text = "Boots on gravel. The truck rolls on.", by = "ai" }
-end_of_line = { text = "End of the line. Marx lights a cigarette.", by = "ai" }
+end_of_line = { text = "Back at the Citgo. Marx lights a cigarette.", by = "ai" }
+ride_home = { text = "Marx turns for home.", by = "ai" }
+board_refused = { text = "Marx shakes his head. Not now.", by = "ai" }
+marx_donuts = { text = "Somewhere across the road, tires tear up a field.", by = "ai" }
+marx_back = { text = "Marx comes back across the road and picks up his book.", by = "ai" }
 whistle = { text = "You whistle into the dark. An engine turns over, far off.", by = "ai" }
 whistle_nothing = { text = "You whistle into the dark. Nothing turns over.", by = "ai" }
 whistle_other = { text = "Far off, an engine turns over. Someone whistled.", by = "ai" }
 truck_busy = { text = "Marx is already on a call.", by = "ai" }
 taken = { text = "Taken: {item}", by = "ai" }
 taken_first = { text = "Someone got there first.", by = "ai" }
-arms_full = { text = "Your arms are full.", by = "ai" }
 short = { text = "You're {amount} short.", by = "ai" }
 sold_out = { text = "Sold out.", by = "ai" }
 refused = { text = "The clerk shakes his head.", by = "ai" }
@@ -168,10 +155,10 @@ struck = { text = "You are somewhere else. Time is missing.", by = "ai" }
 caught = { text = "A lantern, very close. Then the forecourt, and the smell of cold corn.", by = "ai" }
 edge = { text = "The valley ends here.", by = "ai" }
 
-# The lobby countdown (src/loop.ts).
+# Marx's countdown once anyone is in the bed (src/loop.ts).
 
 [truck]
-lobby_count = { text = "{clock} · {boarded} of {total} aboard", by = "ai" }
+leaves_in = { text = "Marx leaves in {clock}", by = "ai" }
 
 # The prompt over the center of the screen: what E would do right now
 # (src/interactions.ts).
@@ -179,10 +166,6 @@ lobby_count = { text = "{clock} · {boarded} of {total} aboard", by = "ai" }
 [prompts]
 hop_out = { text = "E — Hop Out", by = "ai" }
 board = { text = "E — Climb into the Bed", by = "ai" }
-board_extract = { text = "E — Board (End the Raid)", by = "ai" }
-extract_at = { text = "E — End the Raid at {station}", by = "ai" }
-extract_station = { text = "E — End the Raid at the Station", by = "ai" }
-extract_keep = { text = "E — End the Raid at {keep}", by = "ai" }
 
 # Lines the game says to the player in the chat log (src/chat.ts).
 
@@ -192,8 +175,8 @@ offline = { text = "No one can hear you.", by = "ai" }
 online = { text = "In the valley: {names}.", by = "ai" }
 unknown_command = { text = "No such command. Try /online.", by = "ai" }
 
-# The Tab pack grid and the hotbar (src/hud.ts), and the cabbages' card in
-# the grid (src/packgrid.ts). Item cards are under [items].
+# The Tab pack grid and the hotbar (src/hud.ts). Item cards are under
+# [items].
 
 [inventory]
 label = { text = "Inventory", by = "ai" }
@@ -207,8 +190,6 @@ tab_materials = { text = "Materials", by = "ai" }
 empty_consumables = { text = "Empty pockets. Nothing between you and the valley.", by = "ai" }
 empty_loot = { text = "Nothing found yet.", by = "ai" }
 empty_materials = { text = "Nothing to build with yet.", by = "ai" }
-cabbages_label = { text = "Cabbages", by = "ai" }
-cabbages_blurb = { text = "Cold and heavy. Your arms hold {limit}.", by = "ai" }
 
 # Place names, shown in prompts and the raid summary (src/landmarks.ts).
 
@@ -219,7 +200,7 @@ keep = { text = "Mt. Coleman's Keep", by = "ai" }
 
 [titles]
 colophon_alt = { text = "Northern Information", by = "ai" }
-colophon_hint = { text = "Click to Play", by = "ai" }
+colophon_hint = { text = "Click to Die", by = "ai" }
 logo_alt = { text = "Bull Valley Shadow Wars", by = "ai" }
 
 # Key labels: what each key does, in the intro controls table and the
@@ -539,6 +520,10 @@ bought = { text = "One box of Benadryl, pocketed.", by = "ai" }
 label = { text = "Eye Drops", by = "ai" }
 blurb = { text = "Half an ounce, red cap. Gets the red out.", by = "ai" }
 bought = { text = "One bottle of eye drops, pocketed.", by = "ai" }
+
+[items.cabbage]
+label = { text = "Cabbage", by = "ai" }
+blurb = { text = "Cold and heavy, out of a field somewhere in the valley.", by = "ai" }
 
 [items.berries]
 label = { text = "Berries", by = "ai" }

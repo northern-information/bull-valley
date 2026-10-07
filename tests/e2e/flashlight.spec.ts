@@ -40,9 +40,11 @@ test('a shadowman held in the beam bursts', async ({ page }) => {
   await page.mouse.up()
   await expect.poll(() => flashlight(page)).toEqual({ up: true, lift: 1 })
 
-  // Out past the Citgo's haven, then one standing still six metres down
-  // the line of sight, close enough that a slope cannot lift it out of
-  // the level beam.
+  // Out past the Citgo's haven, then one standing still down the line of
+  // sight: past the distance it would rush from (CONFIG.shadowmen
+  // rushRadius), inside the beam's reach (CONFIG.flashlight.range). The
+  // beam is aimed at its chest over the holder's own feet, so no slope
+  // lifts it out.
   await page.evaluate(() => {
     const bv = window.__bv
     if (!bv) return
@@ -55,8 +57,8 @@ test('a shadowman held in the beam bursts', async ({ page }) => {
     if (!bv) return
     const { yaw } = bv.player
     bv.placeShadowman(
-      bv.player.pos.x - Math.sin(yaw) * 6,
-      bv.player.pos.z - Math.cos(yaw) * 6
+      bv.player.pos.x - Math.sin(yaw) * 27,
+      bv.player.pos.z - Math.cos(yaw) * 27
     )
   })
   // The valley burns it in this raider's beam, and the burst plays where

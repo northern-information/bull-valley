@@ -5,11 +5,9 @@
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { itemById } from './items.ts'
-import { KEEP } from './landmarks.ts'
 import { npcReach } from './npcs.ts'
-import { STATES } from './raid.ts'
 import { formatCash } from './store.ts'
-import type { Raid, XZ } from './interfaces.ts'
+import type { XZ } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
 import type { NpcId, NpcSpot } from './npcs.ts'
 import type { DailyWire } from './protocol.ts'
@@ -19,11 +17,6 @@ export interface PickupSpot extends XZ {
   kind: PickupKind
   count: number
   taken: boolean
-}
-
-// A fuel station as the resolver sees it.
-export interface StationSpot extends XZ {
-  name: string
 }
 
 // The shelf unit the player is looking at, from store.ts unitInView.
@@ -66,9 +59,6 @@ export interface BushSpot extends XZ {
 export type Interaction<P extends PickupSpot = PickupSpot> =
   | { kind: 'hopOut' }
   | { kind: 'board' }
-  | { kind: 'boardExtract' }
-  | { kind: 'extractFuel'; name: string }
-  | { kind: 'extractKeep' }
   | { kind: 'pickup'; pickup: P }
   | ({ kind: 'buy' } & ShelfSpot)
   | { kind: 'collect'; bush: number; status: DailyStatus }
@@ -78,20 +68,15 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   | { kind: 'speak'; npc: NpcId; station?: number }
 
 export interface InteractionInput<P extends PickupSpot> {
-  raid: Raid
-  ended: boolean
+  // In the bed of the truck.
+  riding: boolean
   player: XZ
-  truck: { distance: number; moving: boolean }
-  keep: XZ | null
-  // Every station; the spawn station is never an extract.
-  stations: readonly StationSpot[]
-  spawnStation: StationSpot
+  // How far off the truck is, whether it is moving, and whether this
+  // raider may climb in (worldsync.ts boardable).
+  truck: { distance: number; moving: boolean; boardable: boolean }
   pickups: readonly P[]
   // The shelf unit in view inside a store, or null.
   shelf: ShelfSpot | null
-  // Whether the player stands inside a store's walls: no station extract
-  // from in there.
-  insideStore: boolean
   // The berry bushes (the spawn Citgo's and the maze's), and how each
   // stands for this player today.
   bushes: readonly BushSpot[]
@@ -102,23 +87,16 @@ export interface InteractionInput<P extends PickupSpot> {
   npcs: readonly NpcSpot[]
 }
 
-function near(a: XZ, b: XZ, radius: number): boolean {
-  return Math.hypot(a.x - b.x, a.z - b.z) < radius
-}
-
 // The first match wins, in this order: hop out while riding; speak to the
-// nearest NPC in his reach, unless a shelf unit is in view (Moab stands
-// inside a station's extract radius, so this comes before extracting);
-// board the waiting truck; buy off a shelf; board the called truck to end
-// the raid; extract at a station (never from inside its store) or the
-// Keep; Gron or the nearest berry bush, whichever is nearer; take the
+// nearest NPC in his reach, unless a shelf unit is in view; climb into the
+// truck standing still beside you, when it is yours to climb into; buy off
+// a shelf; Gron or the nearest berry bush, whichever is nearer; take the
 // nearest pickup.
 export function resolveInteraction<P extends PickupSpot>(
   input: InteractionInput<P>
 ): Interaction<P> | null {
-  const { raid, ended, player } = input
-  if (ended || raid.state === STATES.EXTRACTED) return null
-  if (raid.state === STATES.RIDING) return { kind: 'hopOut' }
+  const { player, truck } = input
+  if (input.riding) return { kind: 'hopOut' }
   // Marx reads by the tailgate, in boarding range: beside him E talks, a
   // step away it boards. Carlsten stands behind the counter of goods, so
   // the facing in view sells first.
@@ -141,28 +119,17 @@ export function resolveInteraction<P extends PickupSpot>(
     }
   }
 
-  const truckClose = input.truck.distance < CONFIG.truck.boardRange
-  if (raid.state === STATES.LOADOUT && truckClose) return { kind: 'board' }
-  if (input.shelf) return { kind: 'buy', ...input.shelf }
-  if (raid.state === STATES.ON_FOOT) {
-    if (raid.truckCalled && !input.truck.moving && truckClose) {
-      return { kind: 'boardExtract' }
-    }
-    for (const station of input.stations) {
-      if (input.insideStore) break
-      if (station === input.spawnStation) continue
-      if (near(station, player, CONFIG.extract.fuelRadius)) {
-        return { kind: 'extractFuel', name: station.name }
-      }
-    }
-    if (input.keep && near(input.keep, player, CONFIG.extract.keepRadius)) {
-      return { kind: 'extractKeep' }
-    }
+  if (
+    truck.boardable &&
+    !truck.moving &&
+    truck.distance < CONFIG.truck.boardRange
+  ) {
+    return { kind: 'board' }
   }
+  if (input.shelf) return { kind: 'buy', ...input.shelf }
 
-  // Gron and the first bush stand at the spawn Citgo, so they are there
-  // before the truck leaves and after a strike brings you back. They stand
-  // a few strides apart, so both can be in reach; the nearer one answers.
+  // Gron and the first bush stand at the spawn Citgo a few strides apart,
+  // so both can be in reach; the nearer one answers.
   const dist = (spot: XZ | null) =>
     spot ? Math.hypot(spot.x - player.x, spot.z - player.z) : Infinity
   let bush: BushSpot | null = null
@@ -251,14 +218,6 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return copy('prompts.hop_out')
     case 'board':
       return copy('prompts.board')
-    case 'boardExtract':
-      return copy('prompts.board_extract')
-    case 'extractFuel':
-      return interaction.name
-        ? copy('prompts.extract_at', { station: interaction.name })
-        : copy('prompts.extract_station')
-    case 'extractKeep':
-      return copy('prompts.extract_keep', { keep: KEEP })
     case 'pickup':
     case 'buy':
     case 'collect':
