@@ -202,8 +202,10 @@ base.describe('a shared world', { tag: '@valley' }, () => {
       await beginRaid(a, 0, { valley, raider: able })
       await expect.poll(async () => (await shared(a))?.members.length).toBe(1)
 
-      // A takes a cabbage, walks off a way, and leaves the valley.
+      // A takes a cabbage, walks off a way, and leaves the valley. E acts on
+      // what the last frame aimed at, so wait for the cabbage's label first.
       const index = await moveToCabbage(a)
+      await expect(label(a)).toHaveText(copy('labels.cabbage'))
       await a.keyboard.press('KeyE')
       await expect
         .poll(() =>
