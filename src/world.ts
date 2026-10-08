@@ -8,6 +8,7 @@ import {
   buildDishArray,
   buildEnterSign,
   buildLandmarkBeacon,
+  buildLockerDoors,
   buildPickup,
   buildPortal,
   buildShelfDisplay,
@@ -80,6 +81,8 @@ import { samplePose } from './poses.ts'
 import { mulberry32, range } from './rng.ts'
 import { placeRoadside, roadWidth } from './roadside.ts'
 import {
+  insideStore,
+  lockerSpot,
   onShelf,
   STORE_LAYOUT,
   storeBase,
@@ -149,6 +152,9 @@ export interface ShelfDisplay {
   unitFor(station: number, kind: string, unit: number): THREE.Object3D | null
   // David Carlsten behind the counter, riding with the display.
   clerk: THREE.Object3D
+  // The locker doors in the back room, riding with it too: what the glow
+  // rings when E would open the stash.
+  lockers: THREE.Object3D
 }
 
 export interface LandmarkPoint extends XZ {
@@ -191,6 +197,9 @@ export interface World {
   // and update(t) for the fire.
   moabs: XZ[]
   moabRigs: MoabRig[]
+  // Where E opens the lockers in each back room (store.ts lockerSpot),
+  // indexed like fuelPoints.
+  lockers: XZ[]
   // The green BMW in a tree by the spawn station, update(t) for its smoke
   // and hazards; null without a spawn station.
   wreck: Wreck | null
@@ -1466,6 +1475,8 @@ function buildShelves(points: readonly FuelPoint[]): ShelfDisplay {
   clerk.group.position.set(spot.x, STORE_LAYOUT.floor, spot.z)
   clerk.group.rotation.y = spot.yaw
   display.add(clerk.group)
+  const lockers = buildLockerDoors()
+  display.add(lockers)
   castShadows(display)
   // The display and the lights park together at the nearest station.
   const lights = buildStationLights()
@@ -1478,6 +1489,7 @@ function buildShelves(points: readonly FuelPoint[]): ShelfDisplay {
   return {
     group,
     clerk: clerk.group,
+    lockers,
     unitFor(station, kind, unit) {
       if (station !== parked) return null
       const slot = slots.find(
@@ -1681,6 +1693,9 @@ function dishSpotsOf(station: StoreOrigin): (XZ & { yaw: number })[] {
   return spots
 }
 
+// Trees stand at least this far, in metres, off a store's walls, so a
+// canopy never pokes through its roof.
+const STORE_TREE_CLEAR = 3
 function donutFieldOf(station: StoreOrigin): DonutField {
   const { field, radius } = CONFIG.truck.donuts
   const [x, , z] = toWorld(station, [field.x, 0, field.z])
@@ -1994,7 +2009,9 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
           : false) ||
         dishSpots.some(
           (d) => Math.hypot(x - d.x, z - d.z) < CONFIG.dishes.treeClear
-        )
+        ) ||
+        // No tree grows through a store or its back room.
+        fuel.points.some((p) => insideStore(p, x, z, STORE_TREE_CLEAR))
     )
   )
   // The roadside draws from its own seed, so retuning the poles never moves
@@ -2227,6 +2244,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     }),
     moabs,
     moabRigs,
+    lockers: fuel.points.map(lockerSpot),
     wreck,
     dishes,
     ground,

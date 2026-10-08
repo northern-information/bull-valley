@@ -306,6 +306,60 @@ describe('resolveInteraction', () => {
   })
 })
 
+describe('resolveInteraction: bodies and lockers', () => {
+  const corpse = {
+    id: 4,
+    x: 250.5,
+    z: 250,
+    yaw: 0,
+    name: 'Raider',
+    outfit: 'coleman' as const,
+  }
+
+  it('takes your things back off your nearest body within reach', () => {
+    expect(resolveInteraction(input({ corpses: [corpse] }))).toEqual({
+      kind: 'loot',
+      corpse: 4,
+    })
+    const far = { ...corpse, x: 250 + CONFIG.corpses.reach + 0.1 }
+    expect(resolveInteraction(input({ corpses: [far] }))).toBeNull()
+    // A pickup lying on the body waits until the body is looted.
+    const pickup: PickupSpot = {
+      kind: 'joints',
+      count: 1,
+      taken: false,
+      x: 250,
+      z: 250,
+    }
+    expect(
+      resolveInteraction(input({ corpses: [corpse], pickups: [pickup] }))
+    ).toMatchObject({ kind: 'loot' })
+  })
+
+  it('opens the lockers within reach, after a shelf in view', () => {
+    const lockers = [{ x: 251, z: 250, station: 2 }]
+    expect(resolveInteraction(input({ lockers }))).toEqual({
+      kind: 'locker',
+      station: 2,
+    })
+    expect(
+      resolveInteraction(input({ lockers, shelf: { ...shelf, station: 2 } }))
+    ).toMatchObject({ kind: 'buy' })
+    const away = [{ x: 250 + CONFIG.stash.reach + 0.1, z: 250, station: 2 }]
+    expect(resolveInteraction(input({ lockers: away }))).toBeNull()
+  })
+
+  it('says what E does at each', () => {
+    expect(interactionPrompt({ kind: 'loot', corpse: 0 })).toBe(
+      copy('prompts.loot')
+    )
+    expect(interactionPrompt({ kind: 'locker', station: 0 })).toBe(
+      copy('prompts.locker')
+    )
+    expect(itemLabel({ kind: 'loot', corpse: 0 })).toBeNull()
+  })
+})
+
 describe('interactionPrompt', () => {
   it('names each action', () => {
     expect(interactionPrompt({ kind: 'hopOut' })).toBe(copy('prompts.hop_out'))

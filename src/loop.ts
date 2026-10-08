@@ -24,7 +24,7 @@ import { inPortal } from './maze.ts'
 import { packItemOf } from './packgrid.ts'
 import { poseOf, stateChanged } from './presence.ts'
 import { heardAt } from './radio.ts'
-import { beamFrom } from './shadowmen.ts'
+import { aimHeightOf, beamFrom } from './shadowmen.ts'
 import { formatCash } from './store.ts'
 import { tripLevel } from './trip.ts'
 import { boardable, clockText, countdown, seatOf } from './worldsync.ts'
@@ -244,11 +244,14 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     })
     if (swarm.struck) actions.strike()
     for (const at of swarm.bursts) {
-      const y = world.ground.at(at.x, at.z) + CONFIG.shadowmen.chestHeight
-      bursts.spawn(at.x, y, at.z)
+      // A spider bursts where its body hung, twice as big.
+      const spider = at.kind === 'spider'
+      const y =
+        world.ground.at(at.x, at.z) + aimHeightOf(at.kind, CONFIG.shadowmen)
+      bursts.spawn(at.x, y, at.z, spider ? 2 : 1)
     }
-    // Each leaves its dimes and its tombstone where it burst (the valley's
-    // do that itself).
+    // Each leaves its dimes (a spider its $20) and its tombstone where it
+    // burst (the valley's do that itself).
     actions.spillBursts(swarm.bursts)
     // The Caretaker walks the maze on the same terms; played alone, one
     // beam is never enough to unmake it.
@@ -390,6 +393,10 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       gron: world.gron,
       npcs: targets.npcSpots(inStore),
       moabOffer: s.pendingTrade ? null : moabOffer(s.inventory, s.cosmetics),
+      corpses: s.corpses.filter(
+        (c) => s.myCorpses.includes(c.id) && !s.pendingLoots.has(c.id)
+      ),
+      lockers: targets.lockerSpots(inStore),
     })
     const interaction = s.interaction
     // Rule 14: Moab makes his offer as you come into his reach.

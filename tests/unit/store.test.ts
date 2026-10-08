@@ -5,6 +5,7 @@ import {
   formatCash,
   freshStock,
   insideStore,
+  lockerSpot,
   STORE_LAYOUT,
   storeBase,
   storeCenter,
@@ -66,7 +67,7 @@ describe('STORE_LAYOUT', () => {
 
   it('hangs the lights flush under the ceiling, inside the walls', () => {
     const lights = STORE_LAYOUT.boxes.filter((b) => b.finish === 'light')
-    expect(lights).toHaveLength(4)
+    expect(lights).toHaveLength(5)
     for (const light of lights) {
       const [x, y, z] = light.center
       const [sx, sy, sz] = light.size
@@ -164,6 +165,66 @@ describe('space', () => {
         half + CONFIG.player.radius
       )
     }
+  })
+})
+
+describe('the back room', () => {
+  // How far a world point stands off the nearest wall's capsule.
+  const clearance = (x: number, z: number) =>
+    Math.min(
+      ...storeWalls(origin).map(({ a, b, half }) => {
+        const len = (b.x - a.x) ** 2 + (b.z - a.z) ** 2 || 1
+        const t = Math.max(
+          0,
+          Math.min(1, ((x - a.x) * (b.x - a.x) + (z - a.z) * (b.z - a.z)) / len)
+        )
+        const px = a.x + (b.x - a.x) * t
+        const pz = a.z + (b.z - a.z) * t
+        return Math.hypot(x - px, z - pz) - half
+      })
+    )
+
+  it('opens off the shop through a doorway a raider fits through', () => {
+    const partition = STORE_LAYOUT.boxes.find((b) => b.name === 'partition')
+    expect(partition?.blocks).toBe(true)
+    const [px] = partition?.center ?? [0]
+    // The doorway, against the -Z wall: clear in the partition's line.
+    const [dx, , dz] = toWorld(origin, [px, 0, -STORE_LAYOUT.halfWidth + 0.8])
+    expect(clearance(dx, dz)).toBeGreaterThan(CONFIG.player.radius)
+    // The rest of the partition is wall.
+    const [wx, , wz] = toWorld(origin, [px, 0, 1])
+    expect(clearance(wx, wz)).toBeLessThan(CONFIG.player.radius)
+    // Behind it, the back room is inside the store.
+    const [bx, , bz] = toWorld(origin, [px - 1.5, 0, 0])
+    expect(insideStore(origin, bx, bz)).toBe(true)
+  })
+
+  it('stands the lockers against the back wall, opened from in front', () => {
+    const lockers = STORE_LAYOUT.boxes.find((b) => b.name === 'lockers')
+    expect(lockers).toMatchObject({ finish: 'locker', blocks: true })
+    const [cx] = lockers?.center ?? [0]
+    const [sx, , sz] = lockers?.size ?? [0, 0, 0]
+    expect(cx - sx / 2).toBeCloseTo(STORE_LAYOUT.back + 0.2)
+    expect(cx + sx / 2).toBeCloseTo(STORE_LAYOUT.lockers.face)
+    expect(sz).toBeCloseTo(
+      STORE_LAYOUT.lockers.count * STORE_LAYOUT.lockers.width
+    )
+    // Where E opens them stands clear of every wall, inside, within reach.
+    const spot = lockerSpot(origin)
+    expect(insideStore(origin, spot.x, spot.z)).toBe(true)
+    expect(clearance(spot.x, spot.z)).toBeGreaterThan(0)
+    const local = toLocal(origin, spot.x, spot.z)
+    expect(local.x - STORE_LAYOUT.lockers.face).toBeLessThan(CONFIG.stash.reach)
+    // The back room is within the valley's reach of the pump island.
+    expect(Math.hypot(spot.x - origin.x, spot.z - origin.z)).toBeLessThan(
+      CONFIG.stash.stationReach
+    )
+  })
+
+  it('counts a margin round the walls as the store, for the trees', () => {
+    const [x, , z] = toWorld(origin, [STORE_LAYOUT.back - 1, 0, 0])
+    expect(insideStore(origin, x, z)).toBe(false)
+    expect(insideStore(origin, x, z, 2)).toBe(true)
   })
 })
 

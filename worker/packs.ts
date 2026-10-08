@@ -2,7 +2,7 @@
 // kept by the valley so they follow the raider to any browser. The
 // interface is here with an in-memory store for the tests; production is
 // the D1 store in d1packs.ts. The rules of what goes in and out are
-// src/sharedworld.ts's (rules 7 and 10).
+// src/sharedworld.ts's (rules 7, 10, 16, 18 and 19).
 
 import { newlyFound } from '../src/book.ts'
 import { CONFIG } from '../src/config.ts'
@@ -24,6 +24,8 @@ export interface Holdings {
   cash: number
   // Had for good (src/cosmetics.ts).
   cosmetics: CosmeticId[]
+  // What the account's locker holds (src/stash.ts).
+  stash: Inventory
 }
 
 export interface PackStore {
@@ -41,6 +43,17 @@ export interface PackStore {
     amount: number,
     item: PackItem | null
   ): Promise<boolean>
+  // Everything the pack holds, taken out at once and returned: a strike
+  // (sharedworld.ts rule 18). Each kind is left at zero, never removed, so
+  // the starting items are never given again.
+  strip(accountId: string): Promise<Inventory>
+  // Units back into the pack, all or none: a body looted, or a strip the
+  // valley could not lay a body for.
+  give(accountId: string, items: Inventory): Promise<void>
+  // `delta` of `kind` out of the pack into the locker (positive), or out of
+  // the locker into the pack (negative), both or neither; false when the
+  // side it comes out of holds fewer (rule 19).
+  stow(accountId: string, kind: string, delta: number): Promise<boolean>
   // Pays `amount` cents into the wallet (dimes taken up).
   earn(accountId: string, amount: number): Promise<void>
   // A trade (sharedworld.ts rule 14): `price.count` of `price.kind` out of
@@ -96,6 +109,7 @@ export class MemoryPackStore implements PackStore {
   readonly packs = new Map<string, Map<string, number>>()
   readonly wallets = new Map<string, number>()
   readonly cosmetics = new Map<string, Set<CosmeticId>>()
+  readonly stashes = new Map<string, Map<string, number>>()
   // `${account}/${season}` -> progress.
   readonly seasons = new Map<string, SeasonProgress>()
   // account -> the entries found, in order.
@@ -123,7 +137,40 @@ export class MemoryPackStore implements PackStore {
       pack: toInventory(Object.fromEntries(rows)),
       cash: this.wallets.get(accountId) ?? 0,
       cosmetics: toCosmetics([...(this.cosmetics.get(accountId) ?? [])]),
+      stash: toInventory(
+        Object.fromEntries(this.stashes.get(accountId) ?? new Map())
+      ),
     })
+  }
+
+  strip(accountId: string): Promise<Inventory> {
+    const rows = this.packs.get(accountId) ?? new Map<string, number>()
+    const taken: Inventory = {}
+    for (const [kind, count] of rows) {
+      if (count > 0) taken[kind] = count
+      rows.set(kind, 0)
+    }
+    return Promise.resolve(taken)
+  }
+
+  async give(accountId: string, items: Inventory): Promise<void> {
+    for (const [kind, count] of Object.entries(items)) {
+      if (count > 0) await this.change(accountId, kind, count)
+    }
+  }
+
+  stow(accountId: string, kind: string, delta: number): Promise<boolean> {
+    const pack = this.packs.get(accountId) ?? new Map<string, number>()
+    const stash = this.stashes.get(accountId) ?? new Map<string, number>()
+    const [from, to] = delta > 0 ? [pack, stash] : [stash, pack]
+    const count = Math.abs(delta)
+    const held = from.get(kind) ?? 0
+    if (count < 1 || held < count) return Promise.resolve(false)
+    from.set(kind, held - count)
+    to.set(kind, (to.get(kind) ?? 0) + count)
+    this.packs.set(accountId, pack)
+    this.stashes.set(accountId, stash)
+    return Promise.resolve(true)
   }
 
   change(accountId: string, kind: string, delta: number): Promise<boolean> {

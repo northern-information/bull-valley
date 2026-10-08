@@ -12,6 +12,8 @@ import { createTruck } from './marx.ts'
 import { NO_PROGRESS } from './season.ts'
 import { freshStock } from './store.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
+import type { CorpseMeshes } from './corpsemeshes.ts'
+import type { Corpse, CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { TaskProgress } from './dailytask.ts'
 import type { DropMeshes } from './dropmeshes.ts'
@@ -146,6 +148,20 @@ export interface GameState {
   // nextGrave.
   graves: Grave[]
   nextGrave: number
+  // Rule 18: the bodies lying in the valley, the valley's from every
+  // snapshot, or this raider's own when played alone (aloneCorpses, with
+  // what each holds, numbered from nextCorpse); which of them are this
+  // account's; and those asked of the valley and not yet answered.
+  corpses: CorpseWire[]
+  myCorpses: number[]
+  aloneCorpses: Corpse[]
+  nextCorpse: number
+  pendingLoots: Set<number>
+  // Rule 19: what the account's locker holds, as the valley last sent it
+  // (with this client's own moves applied in the meantime); alone, nothing.
+  // lockerOpen: the pack is open at the locker, with its Locker tab.
+  stash: Inventory
+  lockerOpen: boolean
   // Shelf units asked of the valley and not yet answered, as station:kind.
   pendingBuys: Set<string>
   // The berry bushes as the valley last described them (the welcome, then
@@ -202,6 +218,13 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     pendingDrops: new Set(),
     graves: [],
     nextGrave: 0,
+    corpses: [],
+    myCorpses: [],
+    aloneCorpses: [],
+    nextCorpse: 0,
+    pendingLoots: new Set(),
+    stash: {},
+    lockerOpen: false,
     pendingBuys: new Set(),
     daily: null,
     pendingCollect: false,
@@ -224,6 +247,8 @@ export interface Game {
   drops: DropMeshes
   // The tombstones, kept in step with state.graves.
   graves: Gravestones
+  // The bodies, kept in step with state.corpses.
+  corpses: CorpseMeshes
   graph: RoadGraph
   truck: Truck
   // The radio in Marx's cab; none under e2e, which never plays sound.

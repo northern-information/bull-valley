@@ -7,7 +7,7 @@ import { PACK, PACK_IN_MENU, WORLD } from './bindings.ts'
 import { BookHud } from './bookhud.ts'
 import { CHAT_LINES, formatStamp, isFaded, pushLine } from './chat.ts'
 import { copy } from './copy.ts'
-import { PACK_TABS } from './packgrid.ts'
+import { bagTabs, LOCKER_TAB, PACK_TABS } from './packgrid.ts'
 import { CHAT_MAX } from './protocol.ts'
 import { SeasonHud } from './seasonhud.ts'
 import { musicSlider } from './settingsui.ts'
@@ -16,7 +16,7 @@ import type { Binding } from './bindings.ts'
 import type { ChatLine } from './chat.ts'
 import type { Cooldown } from './hotbar.ts'
 import type { GeometrieAxis, PackItem } from './interfaces.ts'
-import type { PackTab } from './packgrid.ts'
+import type { BagTab } from './packgrid.ts'
 import type { SettingsStore } from './settingsui.ts'
 
 // Geometrie's triangle (geometrie.ts): one corner per level, each lit by
@@ -91,7 +91,7 @@ const CARD_VIEW_PX = 144
 const BAG_COLUMNS = 8
 
 // Each pack tab's label, and the line its grid shows when empty.
-const BAG_TABS: Record<PackTab, { label: string; empty: string }> = {
+const BAG_TABS: Record<BagTab, { label: string; empty: string }> = {
   consumables: {
     label: copy('inventory.tab_consumables'),
     empty: copy('inventory.empty_consumables'),
@@ -103,6 +103,10 @@ const BAG_TABS: Record<PackTab, { label: string; empty: string }> = {
   materials: {
     label: copy('inventory.tab_materials'),
     empty: copy('inventory.empty_materials'),
+  },
+  locker: {
+    label: copy('inventory.tab_locker'),
+    empty: copy('inventory.empty_locker'),
   },
 }
 
@@ -189,14 +193,17 @@ export class Hud {
   promptEl: HTMLParagraphElement
   itemLabelEl: HTMLParagraphElement
   bag: HTMLElement
-  bagTabs: Map<PackTab, HTMLButtonElement>
+  bagTabs: Map<BagTab, HTMLButtonElement>
   bagGrid: HTMLDivElement
   bagEmpty: HTMLParagraphElement
   bagCash: HTMLElement
   // The tab the grid shows.
-  bagTab: PackTab = PACK_TABS[0]
+  bagTab: BagTab = PACK_TABS[0]
+  // Opened at the locker: the Locker tab shows, and F moves an item into
+  // the locker or out of it.
+  atLocker = false
   // Told when a tab is clicked, to fill the grid with it.
-  onBagTab: ((tab: PackTab) => void) | null = null
+  onBagTab: ((tab: BagTab) => void) | null = null
   bagItems: PackItem[] = []
   bagKey = ''
   // The item under the cursor (or focus) in the grid, whose card shows.
@@ -209,6 +216,11 @@ export class Hud {
   cardBlurb: HTMLElement
   cardQuantity: HTMLElement
   cardUse: HTMLElement
+  // The pack's own keys on the card, and the locker's: the label beside F
+  // says which way it moves.
+  cardPackKeys: HTMLElement[]
+  cardStowKeys: HTMLElement[]
+  cardStowLabels: HTMLElement[]
   hotbar: HTMLOListElement
   hotbarKey = ''
   hotbarSlots: { li: HTMLLIElement; cd: HTMLElement; view: string }[] = []
@@ -321,13 +333,14 @@ export class Hud {
     tabs.setAttribute('role', 'tablist')
     tabs.setAttribute('aria-label', copy('inventory.label'))
     this.bagTabs = new Map(
-      PACK_TABS.map((tab) => {
+      bagTabs(true).map((tab) => {
         const button = text('button', BAG_TABS[tab].label, 'bv-bag-tab')
         button.type = 'button'
         button.id = `bv-bag-tab-${tab}`
         button.setAttribute('role', 'tab')
         button.setAttribute('aria-controls', 'bv-bag-panel')
         button.addEventListener('click', () => this.onBagTab?.(tab))
+        button.hidden = tab === LOCKER_TAB
         tabs.appendChild(button)
         return [tab, button]
       })
@@ -402,14 +415,21 @@ export class Hud {
     const keys = el('ul', 'bv-bag-card-keys')
     const keyItem = ({ key, labelKey }: Binding) => {
       const li = document.createElement('li')
-      li.append(text('kbd', key), ` ${copy(labelKey)}`)
+      const label = text('span', copy(labelKey))
+      li.append(text('kbd', key), ' ', label)
       keys.appendChild(li)
-      return li
+      return { li, label }
     }
-    this.cardUse = keyItem(PACK.use)
-    keyItem(PACK.assign)
-    keyItem(PACK.drop)
-    keyItem(PACK.dropAll)
+    this.cardUse = keyItem(PACK.use).li
+    this.cardPackKeys = [
+      this.cardUse,
+      keyItem(PACK.assign).li,
+      keyItem(PACK.drop).li,
+      keyItem(PACK.dropAll).li,
+    ]
+    const stow = [keyItem(PACK.stow), keyItem(PACK.stowAll)]
+    this.cardStowKeys = stow.map(({ li }) => li)
+    this.cardStowLabels = stow.map(({ label }) => label)
     this.card.append(
       this.cardCanvas,
       this.cardName,
@@ -637,8 +657,16 @@ export class Hud {
     this.chat.classList.toggle('bv-chat--held', held)
   }
 
+  // At the locker or not: the Locker tab shows, and the card's keys say
+  // what F does.
+  setLocker(open: boolean): void {
+    this.atLocker = open
+    const locker = this.bagTabs.get(LOCKER_TAB)
+    if (locker) locker.hidden = !open
+  }
+
   // Marks `tab` as the one the grid shows; setBag fills it.
-  selectBagTab(tab: PackTab): void {
+  selectBagTab(tab: BagTab): void {
     this.bagTab = tab
     for (const [one, button] of this.bagTabs) {
       const selected = one === tab
@@ -724,6 +752,16 @@ export class Hud {
       this.cardBlurb.textContent = item.blurb
       this.cardQuantity.textContent = quantity(item)
       this.cardUse.classList.toggle('bv-bag-card-key--dim', !item.canUse)
+      // In the locker only F moves it; at the locker F moves the pack's
+      // items in too.
+      const inLocker = this.bagTab === LOCKER_TAB
+      for (const li of this.cardPackKeys) li.hidden = inLocker
+      for (const li of this.cardStowKeys) li.hidden = !this.atLocker
+      const [one, all] = this.cardStowLabels
+      one.textContent = copy(inLocker ? 'keys.unstow' : PACK.stow.labelKey)
+      all.textContent = copy(
+        inLocker ? 'keys.unstow_all' : PACK.stowAll.labelKey
+      )
       const at = cell.getBoundingClientRect()
       const box = this.bag.getBoundingClientRect()
       const width = this.card.offsetWidth

@@ -79,6 +79,10 @@ export const PACK = {
   // One of the item; with Shift, the whole stack (input.ts reads Shift).
   drop: { codes: ['KeyX'], key: 'X', labelKey: 'keys.drop' },
   dropAll: { codes: [], key: 'Shift+X', labelKey: 'keys.drop_all' },
+  // At the locker: one into it off a pack tab, or out of it on the Locker
+  // tab; with Shift, the whole stack (input.ts reads Shift).
+  stow: { codes: ['KeyF'], key: 'F', labelKey: 'keys.stow' },
+  stowAll: { codes: [], key: 'Shift+F', labelKey: 'keys.stow_all' },
   prevTab: {
     codes: ['KeyA', 'ArrowLeft'],
     key: 'A',

@@ -5,7 +5,7 @@
 // folk by talking to them, an item by its first coming into the pack.
 //
 // Pure, no Three. What the account has found is the account's, kept in D1
-// by the valley (sharedworld.ts rule 18, worker/packs.ts); this says what
+// by the valley (sharedworld.ts rule 20, worker/packs.ts); this says what
 // the entries are and what an ask adds. The words are COPY.toml's [book]
 // (an item's are its own, [items.<id>]); the portraits are bookthumbs.ts's.
 
@@ -163,7 +163,7 @@ export function tallyOf(
 
 // What an ask adds to what is known: each named entry that is real and
 // not known yet, once, in the order asked. The valley writes these, and
-// they alone are news (sharedworld.ts rule 18).
+// they alone are news (sharedworld.ts rule 20).
 export function newlyFound(
   known: ReadonlySet<string>,
   asked: readonly unknown[]

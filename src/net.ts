@@ -26,6 +26,7 @@ import type {
   PickupSpec,
   ServerMessage,
 } from './protocol.ts'
+import type { WaterMap } from './waterside.ts'
 
 export type NetStatus = 'connecting' | 'online' | 'offline'
 
@@ -54,6 +55,8 @@ export interface NetIdentity {
   // Each station's forecourt and the survey's size; see HelloMessage.
   havens: XZ[]
   metres: Metres
+  // Where the water's edges run; see HelloMessage.
+  water: WaterMap
   // Where the corn maze lies (the Caretaker's, rule 13), or null.
   maze: MazePlace | null
   // Where Marx parks and how long his joyride takes.
@@ -204,6 +207,7 @@ export class NetClient {
           stations: identity.stations,
           havens: identity.havens,
           metres: identity.metres,
+          water: identity.water,
           maze: identity.maze,
           truck: identity.truck,
         } satisfies ClientMessage)

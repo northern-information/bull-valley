@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
 import {
+  centsOf,
   DIMES,
   dimesFor,
   dropAmount,
@@ -9,6 +10,7 @@ import {
   isCash,
   spillsOf,
   takeUp,
+  TWENTY,
 } from '../../src/drops.ts'
 import { contentsOf } from '../../src/items.ts'
 import { mulberry32 } from '../../src/rng.ts'
@@ -27,6 +29,28 @@ describe('dimes', () => {
     expect(Math.min(...seen)).toBe(min)
     expect(Math.max(...seen)).toBe(max)
     expect(seen.size).toBe(max - min + 1)
+  })
+})
+
+describe('a twenty', () => {
+  it('is cash worth $20, as dimes are worth 10 cents', () => {
+    expect(isCash(TWENTY)).toBe(true)
+    expect(centsOf(TWENTY)).toBe(2000)
+    expect(centsOf(DIMES)).toBe(10)
+    expect(centsOf('cabbage')).toBe(0)
+  })
+
+  it('is what a spider leaves, one bill where it burst', () => {
+    const spills = spillsOf(
+      [
+        { x: 1, z: 2, kind: 'spider' },
+        { x: 3, z: 4, kind: 'man' },
+      ],
+      null,
+      mulberry32(3)
+    )
+    expect(spills[0]).toEqual({ x: 1, z: 2, kind: TWENTY, count: 1 })
+    expect(spills[1]).toMatchObject({ x: 3, z: 4, kind: DIMES })
   })
 })
 

@@ -9,6 +9,17 @@ import type { Inventory, ItemCategory, PackItem } from './interfaces.ts'
 export const PACK_TABS = ['consumables', 'loot', 'materials'] as const
 export type PackTab = (typeof PACK_TABS)[number]
 
+// The tabs the pack shows: its own, and at the locker the Locker tab after
+// them (stash.ts), which holds the account's stash.
+export const LOCKER_TAB = 'locker'
+export type BagTab = PackTab | typeof LOCKER_TAB
+
+// The tabs open now, left to right: the pack's, and the Locker tab at the
+// locker.
+export function bagTabs(atLocker: boolean): BagTab[] {
+  return atLocker ? [...PACK_TABS, LOCKER_TAB] : [...PACK_TABS]
+}
+
 // Which tab each item category sits in: forage (the cabbages and the
 // berries) and valuables (the gold bullion) are loot. Nothing is a material
 // yet.
@@ -30,6 +41,17 @@ export function packItems(inv: Inventory, tab: PackTab): PackItem[] {
     if (TAB_OF[category] !== tab) continue
     if ((inv[kind] || 0) < 1) continue
     items.push(counted(kind, label, blurb, inv))
+  }
+  return items
+}
+
+// Everything the locker holds, every category together, in ITEMS order,
+// counted like the pack's.
+export function stashItems(stash: Inventory): PackItem[] {
+  const items: PackItem[] = []
+  for (const { id: kind, label, blurb } of ITEMS) {
+    if ((stash[kind] || 0) < 1) continue
+    items.push(counted(kind, label, blurb, stash))
   }
   return items
 }

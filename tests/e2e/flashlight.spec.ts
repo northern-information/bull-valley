@@ -3,7 +3,8 @@ import { beginRaid, expect, heardWhere, test } from './fixtures.ts'
 
 // The flashlight in the left hand: the left button raises it and lights
 // it, and a shadowman held in the beam bursts into dimes, which are cash,
-// and leaves its tombstone.
+// and leaves its tombstone; a shadow spider, held twice as long, bursts
+// into a $20 bill.
 
 const flashlight = (page: import('@playwright/test').Page) =>
   page.evaluate(() => window.__bv?.flashlight)
@@ -121,5 +122,71 @@ test('a shadowman held in the beam bursts into dimes', async ({ page }) => {
   const amount = `$${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, '0')}`
   await expect(page.locator('.bv-chat')).toContainText(
     copy('log.dimes', { count: lying.count, amount })
+  )
+})
+
+test('a shadow spider takes twice as long and leaves a $20 bill', async ({
+  page,
+}) => {
+  await beginRaid(page)
+  await page.mouse.down()
+  await page.mouse.up()
+  await expect.poll(() => flashlight(page)).toEqual({ up: true, lift: 1 })
+  await page.evaluate(() => {
+    const bv = window.__bv
+    if (!bv) return
+    bv.teleport(0.5, 0.5)
+    bv.player.pitch = 0.05
+  })
+  await heardWhere(page)
+  // A spider standing still down the line of sight, aimed at its body.
+  await page.evaluate(() => {
+    const bv = window.__bv
+    if (!bv) return
+    const { yaw } = bv.player
+    bv.placeShadowman(
+      bv.player.pos.x - Math.sin(yaw) * 27,
+      bv.player.pos.z - Math.cos(yaw) * 27,
+      true
+    )
+  })
+  // The valley sends it as a spider, and the client draws it as one.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          window.__bv?.shadowmen.table.next?.shadowmen.filter(
+            (s) => s.kind === 'spider'
+          ).length
+      )
+    )
+    .toBe(1)
+  await expect
+    .poll(() =>
+      page.evaluate(() => !!window.__bv?.scene.getObjectByName('shadow-spider'))
+    )
+    .toBe(true)
+  // Held in the beam, it bursts and leaves one $20 bill where it stood.
+  const twenties = () =>
+    page.evaluate(() =>
+      (window.__bv?.drops ?? []).filter((d) => d.kind === 'twenty')
+    )
+  await expect.poll(async () => (await twenties()).length).toBe(1)
+  const [bill] = await twenties()
+  expect(bill.count).toBe(1)
+  const cash = await page.evaluate(() => window.__bv?.cash ?? 0)
+  await page.evaluate(([x, z]) => window.__bv?.player.relocate(x, z + 1, 0), [
+    bill.x,
+    bill.z,
+  ] as const)
+  await expect(page.locator('.bv-item-label')).toContainText(
+    copy('labels.twenty')
+  )
+  await page.keyboard.press('KeyE')
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.cash))
+    .toBe(cash + 2000)
+  await expect(page.locator('.bv-chat')).toContainText(
+    copy('log.twenty', { amount: '$20.00' })
   )
 })

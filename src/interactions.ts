@@ -4,11 +4,13 @@
 
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
+import { nearestCorpse } from './corpses.ts'
 import { cosmeticById } from './cosmetics.ts'
-import { GOLD_BULLION, isCash } from './drops.ts'
+import { GOLD_BULLION, isCash, TWENTY } from './drops.ts'
 import { getItem, itemById } from './items.ts'
 import { npcReach } from './npcs.ts'
 import { formatCash } from './store.ts'
+import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { XZ } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
@@ -72,6 +74,18 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // Moab Coldë at station `station` offers cosmetic `offer` for what the
   // pack holds (cosmetics.ts moabOffer).
   | { kind: 'trade'; offer: CosmeticId; station: number }
+  // This raider's own body `corpse`: E takes their things back
+  // (sharedworld.ts rule 18).
+  | { kind: 'loot'; corpse: number }
+  // The lockers in the back room of station `station`: E opens the stash
+  // (rule 19).
+  | { kind: 'locker'; station: number }
+
+// A locker bank as the resolver sees it: where E opens it, and its
+// station.
+export interface LockerSpot extends XZ {
+  station: number
+}
 
 export interface InteractionInput<P extends PickupSpot> {
   // In the bed of the truck.
@@ -94,13 +108,18 @@ export interface InteractionInput<P extends PickupSpot> {
   // What Moab offers this raider (cosmetics.ts moabOffer), or null: E
   // beside him trades for it instead of hearing his line.
   moabOffer?: CosmeticId | null
+  // This raider's own bodies lying in the valley (corpses.ts), and the
+  // locker banks; others' bodies are no one else's to loot.
+  corpses?: readonly CorpseWire[]
+  lockers?: readonly LockerSpot[]
 }
 
 // The first match wins, in this order: hop out while riding; speak to the
 // nearest NPC in his reach, unless a shelf unit is in view; climb into the
 // truck standing still beside you, when it is yours to climb into; buy off
-// a shelf; Gron or the nearest berry bush, whichever is nearer; take the
-// nearest pickup.
+// a shelf; take your things back off your nearest body; open the lockers;
+// Gron or the nearest berry bush, whichever is nearer; take the nearest
+// pickup.
 export function resolveInteraction<P extends PickupSpot>(
   input: InteractionInput<P>
 ): Interaction<P> | null {
@@ -140,6 +159,21 @@ export function resolveInteraction<P extends PickupSpot>(
   }
   if (input.shelf) return { kind: 'buy', ...input.shelf }
 
+  const corpses = input.corpses ?? []
+  const body = nearestCorpse(
+    corpses,
+    corpses.map((c) => c.id),
+    player,
+    CONFIG.corpses.reach
+  )
+  if (body) return { kind: 'loot', corpse: body.id }
+  for (const locker of input.lockers ?? []) {
+    const d = Math.hypot(locker.x - player.x, locker.z - player.z)
+    if (d < CONFIG.stash.reach) {
+      return { kind: 'locker', station: locker.station }
+    }
+  }
+
   // Gron and the first bush stand at the spawn Citgo a few strides apart,
   // so both can be in reach; the nearer one answers.
   const dist = (spot: XZ | null) =>
@@ -178,6 +212,11 @@ export function pickupLabel({
   count: number
 }): string {
   if (kind === 'cabbage') return copy('labels.cabbage')
+  if (kind === TWENTY) {
+    return count === 1
+      ? copy('labels.twenty')
+      : copy('labels.twenties', { count })
+  }
   if (isCash(kind)) return copy('labels.dimes', { count })
   // A bar is one troy ounce, and its name says so.
   if (kind === GOLD_BULLION && count === 1) return getItem(GOLD_BULLION).label
@@ -240,6 +279,10 @@ export function interactionPrompt(interaction: Interaction): string | null {
     case 'talk':
     case 'speak':
       return null
+    case 'loot':
+      return copy('prompts.loot')
+    case 'locker':
+      return copy('prompts.locker')
     // Moab's offer is said, since the glow alone cannot say what he wants.
     case 'trade': {
       const cosmetic = cosmeticById(interaction.offer)

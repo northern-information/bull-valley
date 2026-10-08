@@ -48,7 +48,9 @@
 //    Anyone's beam burns them, and one that bursts leaves a drop of dimes
 //    where it was (drops.ts dimesFor), lying like any drop (rule 12);
 //    dimes taken up are cash, into the taker's wallet (Reduced.earn), never
-//    the pack. The valley steps the field (stepShadows) and keeps it in
+//    the pack. Among them come the shadow spiders, twice the height, far
+//    more often near the water the world was opened with (waterside.ts),
+//    twice as long to burn, and each leaves a $20 bill, cash the same way. The valley steps the field (stepShadows) and keeps it in
 //    memory only: the shadowmen are gone whenever no one is placed in the
 //    valley.
 // 12. A raider out of the bed can drop what their pack holds (the valley
@@ -85,7 +87,20 @@
 //    the valley) and leaves a tombstone carved with its name a step from
 //    where it burst (graves.ts). The graves outlast the day's turn; past
 //    CONFIG.graves.max the oldest goes.
-// 18. The Book of Shadows (book.ts): every entry a raider comes across (a
+// 18. Corpse runs (corpses.ts): a strike leaves everything the raider's
+//    pack held on their body, where their last state frame put them; the
+//    valley takes it all out of the account's pack first, and lays the
+//    body only once it has (Reduced.corpse), or gives it back. The wallet
+//    and the locker are untouched. Only the account that fell can take its
+//    things back (Reduced.give), and a body lies until it does: the day's
+//    turn leaves it, and so does a world opened afresh, since the bodies
+//    are the valley's (Valley.corpses), not the world's.
+// 19. The stash (stash.ts): every account has one locker, in the back room
+//    of every Citgo, the same from any of them. A raider out of the bed
+//    whose last state frame put them at a station can move what their pack
+//    holds into it, or back (Reduced.stash); the valley moves it only when
+//    the side it comes out of holds it.
+// 20. The Book of Shadows (book.ts): every entry a raider comes across (a
 //    place in reach, a shadow in sight, one of the folk spoken to, an item
 //    in the pack) is written in the account's book once, at the first
 //    time; an ask names only what the raider met, and only the real
@@ -94,9 +109,10 @@
 
 import { caretakerAt, createCaretaker, stepCaretaker } from './caretaker.ts'
 import { CONFIG } from './config.ts'
+import { corpseWire, isEmpty } from './corpses.ts'
 import { affords, cosmeticById, MOAB_OFFERS } from './cosmetics.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
-import { DIME_CENTS, dropSpot, isCash, takeUp } from './drops.ts'
+import { centsOf, dropSpot, isCash, takeUp } from './drops.ts'
 import { bury } from './graves.ts'
 import { contentsOf, INVENTORY_KINDS, itemById } from './items.ts'
 import {
@@ -116,12 +132,15 @@ import { worldToMaze } from './maze.ts'
 import { PROTOCOL_VERSION } from './protocol.ts'
 import {
   beamFrom,
+  burnSecondsOf,
   createShadowmen,
   placeStill,
   stepShadowmen,
 } from './shadowmen.ts'
+import { atLocker } from './stash.ts'
 import { freshStock, onShelf, takeUnit } from './store.ts'
 import type { Caretaker } from './caretaker.ts'
+import type { Corpse } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { Drop, Facing, Spill } from './drops.ts'
 import type { Burial, Grave } from './graves.ts'
@@ -144,7 +163,8 @@ import type {
   WorldWire,
 } from './protocol.ts'
 import type { Rng } from './rng.ts'
-import type { Raider, ShadowmenField } from './shadowmen.ts'
+import type { Raider, ShadeKind, ShadowmenField } from './shadowmen.ts'
+import type { WaterMap } from './waterside.ts'
 
 // A raider online: one socket.
 export interface Member {
@@ -177,6 +197,8 @@ export interface SharedWorld {
   stations: number
   havens: XZ[]
   metres: Metres
+  // Where the water's edges run (rule 11: the spiders).
+  water: WaterMap
   maze: MazePlace | null
   routes: TruckRoutes
 }
@@ -191,6 +213,14 @@ export interface Valley {
   dailies: Record<string, string>
   // Account -> where it last stood on foot (rule 2).
   places: Record<string, Place>
+  // Rule 18: the bodies lying in the valley, each with the account that
+  // fell (never on the wire), and the id the next one gets.
+  corpses: ValleyCorpse[]
+  nextCorpse: number
+}
+
+export interface ValleyCorpse extends Corpse {
+  account: string
 }
 
 // Rule 8: how many berry bushes there are (the spawn Citgo's, then the
@@ -213,6 +243,7 @@ export type ValleyAction =
       stations: number
       havens: XZ[]
       metres: Metres
+      water: WaterMap
       maze: MazePlace | null
       routes: TruckRoutes
     }
@@ -233,6 +264,19 @@ export type ValleyAction =
   // dimes burst shadowmen leave and their tombstones, and the Caretaker's
   // gold bullion.
   | { type: 'spill'; spills: Spill[]; burials?: Burial[] }
+  // Rule 18: struck, with `items` already out of the account's pack. at:
+  // where the raider's last state frame put them, or null.
+  | { type: 'fall'; id: string; items: Inventory; at: Facing | null }
+  | { type: 'loot'; id: string; corpse: number }
+  // Rule 19: `count` of `kind` into the locker (stow) or out of it
+  // (unstow). at: where the raider's last state frame put them, or null.
+  | {
+      type: 'stow' | 'unstow'
+      id: string
+      kind: string
+      count: number
+      at: XZ | null
+    }
   // Rule 14: cosmetic `offer` from Moab.
   | { type: 'trade'; id: string; offer: string }
   // Rule 9: a new name, a new character, or both.
@@ -284,6 +328,15 @@ export interface Reduced {
     cosmetic: CosmeticId
     price: { kind: string; count: number }
   }
+  // Rule 18: the id of the body a fall laid. A fall that lays none leaves
+  // the valley to give the items back.
+  corpse?: number
+  // Rule 18: a body's things, back into its account's pack.
+  give?: { account: string; items: Inventory }
+  // Rule 19: units of `kind` into the account's locker out of its pack
+  // (positive), or back (negative). The valley moves them only when the
+  // side they come out of holds them.
+  stash?: PackChange
 }
 
 export interface PackChange {
@@ -306,13 +359,20 @@ function samePickups(a: readonly PickupSpec[], b: readonly PickupSpec[]) {
 }
 
 export function createValley(): Valley {
-  return { world: null, members: {}, dailies: {}, places: {} }
+  return {
+    world: null,
+    members: {},
+    dailies: {},
+    places: {},
+    corpses: [],
+    nextCorpse: 0,
+  }
 }
 
 // The valley as an older build stored it, made current: the fresh one
 // fills in newer fields, and a world opened on another protocol (an older
 // build's raid included) is dropped, so the next arrival opens it afresh.
-// The berries and the places carry over.
+// The berries, the places and the bodies carry over.
 export function restoreValley(stored: Partial<Valley>): Valley {
   const valley = { ...createValley(), ...stored }
   const world: Partial<SharedWorld> | null = valley.world ?? null
@@ -337,6 +397,11 @@ export function dailyFor(
   return { collected, resetsAt: nextMidnight(now) }
 }
 
+// Rule 18: the ids of `account`'s bodies lying in the valley.
+export function corpsesOf(valley: Valley, account: string): number[] {
+  return valley.corpses.filter((c) => c.account === account).map((c) => c.id)
+}
+
 // Rule 2: where `account` comes back to, or null for the spawn Citgo.
 export function placeOf(valley: Valley, account: string): Place | null {
   return valley.places[account] ?? null
@@ -351,6 +416,7 @@ export function toWire(valley: Valley): WorldWire | null {
     shelves: world.shelves,
     drops: world.drops,
     graves: world.graves,
+    corpses: valley.corpses.map(corpseWire),
     truck: world.truck,
     members: Object.values(valley.members).map(({ id, name }) => ({
       id,
@@ -360,7 +426,10 @@ export function toWire(valley: Valley): WorldWire | null {
 }
 
 type Detail = Partial<
-  Pick<WorldMessage, 'by' | 'index' | 'station' | 'item' | 'drop' | 'count'>
+  Pick<
+    WorldMessage,
+    'by' | 'index' | 'station' | 'item' | 'drop' | 'count' | 'corpse'
+  >
 >
 
 function frame(
@@ -487,6 +556,7 @@ function act(
           stations: action.stations,
           havens: action.havens,
           metres: action.metres,
+          water: action.water,
           maze: action.maze,
           routes: action.routes,
         }
@@ -789,9 +859,10 @@ function act(
             count: taken,
           }),
         ],
-        // Rule 11: dimes are cash; rule 10: anything else, the pack.
+        // Rule 11: dimes and a spider's $20 are cash; rule 10: anything
+        // else, the pack.
         ...(isCash(drop.kind)
-          ? { earn: { account, amount: taken * DIME_CENTS } }
+          ? { earn: { account, amount: taken * centsOf(drop.kind) } }
           : { pack: { account, kind: drop.kind, delta: taken } }),
       })
     }
@@ -829,6 +900,88 @@ function act(
         nextGrave: buried.next,
       })
       return done(next, now, { broadcast: [frame(next, 'spilled')] })
+    }
+
+    case 'fall': {
+      // Rule 18. A body only where the valley heard the raider stand, and
+      // only with something on it.
+      const member = valley.members[action.id]
+      if (!member || !action.at || isEmpty(action.items)) {
+        return done(valley, now, { broadcast: [] })
+      }
+      const id = valley.nextCorpse
+      const { x, z, yaw } = action.at
+      const next: Valley = {
+        ...valley,
+        corpses: [
+          ...valley.corpses,
+          {
+            id,
+            x,
+            z,
+            yaw,
+            name: member.name,
+            outfit: member.outfit,
+            items: { ...action.items },
+            account: member.account,
+          },
+        ],
+        nextCorpse: id + 1,
+      }
+      return done(next, now, {
+        broadcast: next.world
+          ? [frame(next, 'fell', { by: action.id, corpse: id })]
+          : [],
+        corpse: id,
+      })
+    }
+
+    case 'loot': {
+      // Rule 18: the account that fell, and no one else.
+      const member = valley.members[action.id]
+      const refuse = (reason: string): Reduced =>
+        done(valley, now, {
+          broadcast: [],
+          reply: { type: 'nack', re: 'loot', reason, corpse: action.corpse },
+        })
+      if (!member || !valley.world) return refuse('not-in-valley')
+      const corpse = valley.corpses.find((c) => c.id === action.corpse)
+      if (!corpse) return refuse('gone')
+      if (corpse.account !== member.account) return refuse('not-yours')
+      if (isAboard(valley.world.truck, action.id)) return refuse('aboard')
+      const next: Valley = {
+        ...valley,
+        corpses: valley.corpses.filter((c) => c.id !== corpse.id),
+      }
+      return done(next, now, {
+        broadcast: [
+          frame(next, 'looted', { by: action.id, corpse: corpse.id }),
+        ],
+        give: { account: member.account, items: { ...corpse.items } },
+      })
+    }
+
+    case 'stow':
+    case 'unstow': {
+      // Rule 19.
+      const member = valley.members[action.id]
+      const world = valley.world
+      const re = action.type
+      const refuse = (reason: string): Reduced =>
+        done(valley, now, { broadcast: [], reply: nack(re, reason) })
+      if (!member || !world) return refuse('not-in-valley')
+      if (isAboard(world.truck, action.id)) return refuse('aboard')
+      if (!atLocker(action.at, world.havens)) return refuse('no-locker')
+      if (!isPackKind(action.kind)) return refuse('not-an-item')
+      if (action.count < 1) return refuse('nothing')
+      return done(valley, now, {
+        broadcast: [],
+        stash: {
+          account: member.account,
+          kind: action.kind,
+          delta: re === 'stow' ? action.count : -action.count,
+        },
+      })
     }
 
     case 'trade': {
@@ -994,7 +1147,14 @@ export function stepShadows(
   const { struck, bursts } = stepShadowmen(
     shadows.field,
     rng,
-    { dt, raiders, metres: world.metres, havens: world.havens, calm },
+    {
+      dt,
+      raiders,
+      metres: world.metres,
+      havens: world.havens,
+      water: world.water,
+      calm,
+    },
     cfg
   )
   // Rule 13: the Caretaker, in the maze the world was opened with.
@@ -1040,14 +1200,16 @@ export function stepShadows(
       type: 'shadowmen',
       shadowmen: shadows.field.shadowmen.map((s) => ({
         id: s.id,
+        ...(s.kind === 'spider' ? { kind: 'spider' as const } : {}),
         x: round(s.x, 2),
         z: round(s.z, 2),
-        burn: round(Math.min(1, s.burn / cfg.burnSeconds), 2),
+        burn: round(Math.min(1, s.burn / burnSecondsOf(s.kind, cfg)), 2),
         target: s.target,
       })),
       // Who burned each is the valley's to know, not the wire's.
       bursts: bursts.map((b) => ({
         id: b.id,
+        kind: b.kind,
         x: round(b.x, 2),
         z: round(b.z, 2),
       })),
@@ -1073,9 +1235,15 @@ export function creditedWith(valley: Valley, ids: readonly string[]): string[] {
   return accounts
 }
 
-// A dev server's shadowman standing still at (x, z), for the specs.
-export function placeShadowman(shadows: Shadows, x: number, z: number): void {
-  placeStill(shadows.field, x, z)
+// A dev server's shadowman (or spider) standing still at (x, z), for the
+// specs.
+export function placeShadowman(
+  shadows: Shadows,
+  x: number,
+  z: number,
+  kind: ShadeKind = 'man'
+): void {
+  placeStill(shadows.field, x, z, kind)
 }
 
 // A dev server's Caretaker moved to (x, z) in the world, formed if it was

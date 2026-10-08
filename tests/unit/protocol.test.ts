@@ -16,6 +16,7 @@ import {
   PICKUPS_MAX,
   PROTOCOL_VERSION,
 } from '../../src/protocol.ts'
+import { dryMap } from '../../src/waterside.ts'
 
 const state = {
   x: 1.5,
@@ -38,6 +39,7 @@ const hello = {
   stations: 5,
   havens: [0, 1, 2, 3, 4].map((i) => ({ x: i * 100, z: i })),
   metres: { width: 15059, height: 15038 },
+  water: dryMap({ width: 15059, height: 15038 }),
   maze: { x: 120, z: -40, yaw: 0.5 },
   truck: { home: { x: 10, z: -20 }, joyrideMs: 600_000 },
 }
@@ -156,6 +158,7 @@ describe('parseClientMessage', () => {
     const {
       havens: _havens,
       metres: _metres,
+      water: _water,
       maze: _maze,
       truck: _truck,
       ...older
@@ -165,6 +168,7 @@ describe('parseClientMessage', () => {
       v: PROTOCOL_VERSION - 1,
       havens: [],
       metres: { width: 0, height: 0 },
+      water: { cell: 100, cols: 1, rows: 1, bits: 'AA==' },
       maze: null,
       truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
     })
@@ -183,6 +187,8 @@ describe('parseClientMessage', () => {
       v: PROTOCOL_VERSION - 1,
       havens: [],
       metres: { width: 0, height: 0 },
+      // A good map parses whatever the version.
+      water: hello.water,
       maze: null,
       truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
     })
@@ -198,6 +204,13 @@ describe('parseClientMessage', () => {
       z: -2,
     })
     expect(parse({ type: 'dev', op: 'shadowman', x: 1 })).toBeNull()
+    // A spider when it says so, and only for true.
+    expect(
+      parse({ type: 'dev', op: 'shadowman', x: 1, z: -2, spider: true })
+    ).toEqual({ type: 'dev', op: 'shadowman', x: 1, z: -2, spider: true })
+    expect(
+      parse({ type: 'dev', op: 'shadowman', x: 1, z: -2, spider: 'yes' })
+    ).toEqual({ type: 'dev', op: 'shadowman', x: 1, z: -2 })
     expect(parse({ type: 'dev', op: 'calm' })).toEqual({
       type: 'dev',
       op: 'calm',
@@ -264,6 +277,20 @@ describe('parseClientMessage', () => {
       type: 'take-drop',
       drop: 4,
     })
+    expect(parse({ type: 'loot', corpse: 2, extra: 1 })).toEqual({
+      type: 'loot',
+      corpse: 2,
+    })
+    expect(parse({ type: 'stow', kind: 'joints', count: 2 })).toEqual({
+      type: 'stow',
+      kind: 'joints',
+      count: 2,
+    })
+    expect(parse({ type: 'unstow', kind: 'joints', count: 1 })).toEqual({
+      type: 'unstow',
+      kind: 'joints',
+      count: 1,
+    })
     expect(parse({ type: 'trade', offer: 'flaming-halo', extra: 1 })).toEqual({
       type: 'trade',
       offer: 'flaming-halo',
@@ -320,6 +347,11 @@ describe('parseClientMessage', () => {
     expect(parse({ type: 'drop', kind: '', count: 1 })).toBeNull()
     expect(parse({ type: 'take-drop', drop: -1 })).toBeNull()
     expect(parse({ type: 'take-drop' })).toBeNull()
+    expect(parse({ type: 'loot', corpse: -1 })).toBeNull()
+    expect(parse({ type: 'loot', corpse: 'mine' })).toBeNull()
+    expect(parse({ type: 'stow', kind: 'joints', count: 0 })).toBeNull()
+    expect(parse({ type: 'unstow', kind: '', count: 1 })).toBeNull()
+    expect(parse({ type: 'stow', kind: 'joints' })).toBeNull()
     expect(parse({ type: 'trade', offer: '' })).toBeNull()
     expect(parse({ type: 'trade' })).toBeNull()
     expect(parse({ type: 'dev', op: 'grant', kind: 'gold-bullion' })).toBeNull()
