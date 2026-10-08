@@ -5,6 +5,7 @@
 import { actionOf, CHAT, hotbarSlot, PACK, WORLD } from './bindings.ts'
 import { othersLine } from './chat.ts'
 import { copy } from './copy.ts'
+import { LOCKER_TAB } from './packgrid.ts'
 import { SEASON } from './season.ts'
 import { formatCash } from './store.ts'
 import type { Actions } from './actions.ts'
@@ -120,7 +121,14 @@ export function wireKeys(
   // bindings.ts) and never reach the player.
   const inventoryKey = (e: KeyboardEvent) => {
     const item = hud.bagHovered
-    switch (actionOf(PACK, e.code)) {
+    const action = actionOf(PACK, e.code)
+    // What the locker holds only moves, back into the pack.
+    const inLocker = hud.bagTab === LOCKER_TAB
+    if (inLocker && (action === 'use' || action === 'assign')) {
+      e.preventDefault()
+      return
+    }
+    switch (action) {
       case 'close':
         e.preventDefault()
         actions.closeInventory(true)
@@ -136,7 +144,12 @@ export function wireKeys(
         return
       }
       case 'drop':
-        if (item) actions.dropKind(item.kind, e.shiftKey)
+        if (item && !inLocker) actions.dropKind(item.kind, e.shiftKey)
+        return
+      case 'stow':
+        if (!item || !s.lockerOpen) return
+        if (inLocker) actions.unstowKind(item.kind, e.shiftKey)
+        else actions.stowKind(item.kind, e.shiftKey)
         return
       case 'prevTab':
         e.preventDefault()

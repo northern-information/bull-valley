@@ -520,6 +520,13 @@ const STORE_FINISH: Record<StoreFinish, () => THREE.Material> = {
     }),
   shelf: () => lambert({ color: '#3e434a' }),
   counter: () => lambert({ color: '#5a3426' }),
+  // The lockers' carcass, enamelled steel gone dull.
+  locker: () =>
+    lambert({
+      color: '#4f5d55',
+      emissive: new THREE.Color('#1c221f'),
+      emissiveIntensity: 0.5,
+    }),
   light: () => applyPS1(new THREE.MeshBasicMaterial({ color: '#eaf1ee' })),
   // Storefront glass: a cool tint you see the lot through. No depth write,
   // so the shelves and the pumps show through from either side.
@@ -636,6 +643,55 @@ export function buildShelfDisplay(): {
     })
   })
   return { group, slots }
+}
+
+// The locker doors over the face of the bank (STORE_LAYOUT.lockers), in
+// station-local space: one door a locker, a hair proud of the carcass, with
+// its vents, its handle and its number plate. world.ts carries them with
+// the shelf display to the nearest store, so the glow can ring them when E
+// would open the stash.
+export function buildLockerDoors(): THREE.Group {
+  const { count, width, height, face, z, floor } = STORE_LAYOUT.lockers
+  const group = new THREE.Group()
+  group.name = 'locker-doors'
+  const door = lambert({
+    color: '#5f6f66',
+    emissive: new THREE.Color('#202824'),
+    emissiveIntensity: 0.5,
+  })
+  const dark = lambert({ color: '#1d2220' })
+  const brass = lambert({ color: '#a98c4c' })
+  const plate = lambert({ color: '#d8d2bf' })
+  const inset = 0.02
+  const doorW = width - inset * 2
+  const doorH = height - 0.12
+  const doorGeometry = new THREE.BoxGeometry(0.02, doorH, doorW)
+  const ventGeometry = new THREE.BoxGeometry(0.012, 0.018, doorW * 0.6)
+  const handleGeometry = new THREE.BoxGeometry(0.03, 0.12, 0.025)
+  const plateGeometry = new THREE.BoxGeometry(0.008, 0.035, 0.07)
+  const z0 = z - (count * width) / 2
+  for (let i = 0; i < count; i++) {
+    const locker = new THREE.Group()
+    locker.position.set(
+      face + 0.01,
+      floor + 0.06 + doorH / 2,
+      z0 + width * (i + 0.5)
+    )
+    locker.add(new THREE.Mesh(doorGeometry, door))
+    for (let v = 0; v < 4; v++) {
+      const vent = new THREE.Mesh(ventGeometry, dark)
+      vent.position.set(0.012, doorH / 2 - 0.12 - v * 0.04, 0)
+      locker.add(vent)
+    }
+    const handle = new THREE.Mesh(handleGeometry, brass)
+    handle.position.set(0.022, 0.02, doorW / 2 - 0.06)
+    locker.add(handle)
+    const number = new THREE.Mesh(plateGeometry, plate)
+    number.position.set(0.012, doorH / 2 - 0.05, 0)
+    locker.add(number)
+    group.add(locker)
+  }
+  return group
 }
 
 // --- Gas pump ------------------------------------------------------------
@@ -908,6 +964,7 @@ function sampleStoreInterior(): THREE.Group {
     storeParts().filter((part) => part.name !== 'store-roof')
   )
   group.add(buildShelfDisplay().group)
+  group.add(buildLockerDoors())
   return group
 }
 

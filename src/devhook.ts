@@ -8,6 +8,7 @@ import { hurry } from './marx.ts'
 import type { Actions } from './actions.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
 import type { ChatLine } from './chat.ts'
+import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { TaskProgress } from './dailytask.ts'
 import type { Drop } from './drops.ts'
@@ -68,6 +69,13 @@ interface BvHook {
   readonly drops: readonly Drop[]
   // The shadowmen's tombstones: the valley's, or this raider's alone.
   readonly graves: readonly Grave[]
+  // The bodies lying in the valley (the valley's, or this raider's alone),
+  // and which of them are this account's.
+  readonly corpses: readonly CorpseWire[]
+  readonly myCorpses: readonly number[]
+  // What the account's locker holds, and whether the pack is open at it.
+  readonly stash: Inventory
+  readonly lockerOpen: boolean
   // The item on each number key, slot 0 for 1.
   readonly hotbar: Hotbar
   // How high, stimulated and drunk right now, each 0 to 1.
@@ -164,6 +172,18 @@ export function installDevHook(game: Game, actions: Actions): void {
     },
     get graves() {
       return s.graves
+    },
+    get corpses() {
+      return s.corpses
+    },
+    get myCorpses() {
+      return s.myCorpses
+    },
+    get stash() {
+      return s.stash
+    },
+    get lockerOpen() {
+      return s.lockerOpen
     },
     get hotbar() {
       return s.hotbar

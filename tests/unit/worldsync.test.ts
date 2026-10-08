@@ -19,6 +19,7 @@ const world = (leg: Leg, riders: string[] = []): WorldWire => ({
   shelves: [],
   drops: [],
   graves: [],
+  corpses: [],
   truck: { leg, riders },
   members: [],
 })

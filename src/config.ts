@@ -306,6 +306,21 @@ export const CONFIG = {
     // so it never covers the dimes.
     offset: 0.9,
   },
+  // What a raider struck leaves where they fell (corpses.ts).
+  corpses: {
+    // How close your body must be for E to take your things back.
+    reach: 2.2,
+  },
+  // The stash: the account's locker in the back room of every Citgo
+  // (stash.ts).
+  stash: {
+    // How close the lockers must be for E to open yours.
+    reach: 1.8,
+    // The valley opens the locker only to a raider whose last state frame
+    // put them within this of a station's pump island; the back room is
+    // about 17 m behind it.
+    stationReach: 24,
+  },
   daily: {
     // The berry bush at the spawn Citgo: how close E must be to pick.
     reach: 2.6,

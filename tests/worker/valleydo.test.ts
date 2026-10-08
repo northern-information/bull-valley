@@ -126,6 +126,14 @@ class TestValley extends ValleyDO {
   tick(): void {
     this.tickShadows()
   }
+  // A strike's fall, as the step would make it, for a socket on `account`.
+  strike(
+    account: string,
+    id: string,
+    at: { x: number; z: number; yaw: number } | null
+  ): Promise<void> {
+    return this.fall(account, id, at)
+  }
 }
 
 async function valley(state = new MockState(), env: Partial<Env> = {}) {
@@ -848,6 +856,9 @@ describe('ValleyDO', () => {
       earn: () => Promise.reject(new Error('D1 is down')),
       trade: () => Promise.reject(new Error('D1 is down')),
       season: () => Promise.reject(new Error('D1 is down')),
+      strip: () => Promise.reject(new Error('D1 is down')),
+      give: () => Promise.reject(new Error('D1 is down')),
+      stow: () => Promise.reject(new Error('D1 is down')),
       score: () => Promise.reject(new Error('D1 is down')),
       task: () => Promise.reject(new Error('D1 is down')),
       scoreTask: () => Promise.reject(new Error('D1 is down')),
@@ -933,6 +944,9 @@ describe('ValleyDO', () => {
         earn: (id, amount) => store.earn(id, amount),
         trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
         season: (id, season) => store.season(id, season),
+        strip: (id) => store.strip(id),
+        give: (id, items) => store.give(id, items),
+        stow: (id, kind, delta) => store.stow(id, kind, delta),
         score: (id, season, progress, reward) =>
           store.score(id, season, progress, reward),
         task: (id, task) => store.task(id, task),
@@ -1032,6 +1046,9 @@ describe('ValleyDO: drops', () => {
       purchase: (id, amount, item) => store.purchase(id, amount, item),
       trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
       season: (id, season) => store.season(id, season),
+      strip: (id) => store.strip(id),
+      give: (id, items) => store.give(id, items),
+      stow: (id, kind, delta) => store.stow(id, kind, delta),
       score: (id, season, progress, reward) =>
         store.score(id, season, progress, reward),
       task: (id, task) => store.task(id, task),
@@ -1073,6 +1090,219 @@ describe('ValleyDO: drops', () => {
       world: { drops: unknown[] }
     }
     expect(stored.world.drops).toHaveLength(20)
+  })
+})
+
+describe('ValleyDO: corpse runs', () => {
+  const lastFrame = (socket: MockSocket) =>
+    socket.frames().findLast((m): m is PackMessage => m.type === 'pack')
+  const worldFrames = (socket: MockSocket) =>
+    socket.frames().filter((m): m is WorldMessage => m.type === 'world')
+
+  // A, out on foot, is touched by a shadowman; B stands far off.
+  async function struck() {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const b = await join(v, s, 'B')
+    await v.alarm()
+    await v.webSocketMessage(ws(a), state(500, 500))
+    await v.webSocketMessage(ws(b), state(900, 900))
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"calm"}')
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"shadowman","x":500,"z":501}'
+    )
+    v.tick()
+    // The fall is written after the step.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    return { v, s, a, b }
+  }
+
+  it('leaves everything the pack held on a body where the raider fell', async () => {
+    const { a, b } = await struck()
+    expect(a.frames().some((m) => m.type === 'struck')).toBe(true)
+    const pack = lastFrame(a)
+    expect(Object.values(pack?.pack ?? {}).every((n) => n === 0)).toBe(true)
+    expect(pack).toMatchObject({ cash: STARTING_CASH, corpses: [0] })
+    const fell = worldFrames(b).at(-1)
+    expect(fell).toMatchObject({ reason: 'fell', by: idOf(a), corpse: 0 })
+    expect(fell?.world?.corpses).toEqual([
+      { id: 0, x: 500, z: 500, yaw: 0.5, name: 'A', outfit: 'coleman' },
+    ])
+    // B's pack never names A's body.
+    expect(lastFrame(b)?.corpses ?? []).toEqual([])
+  })
+
+  it('gives the things back to the account that fell, and no one else', async () => {
+    const { v, a, b } = await struck()
+    await v.webSocketMessage(ws(b), '{"type":"loot","corpse":0}')
+    expect(b.last<NackMessage>()).toMatchObject({
+      type: 'nack',
+      re: 'loot',
+      reason: 'not-yours',
+    })
+    await v.webSocketMessage(ws(a), '{"type":"loot","corpse":0}')
+    expect(lastFrame(a)).toMatchObject({
+      pack: STARTING_INVENTORY,
+      corpses: [],
+    })
+    expect(worldFrames(b).at(-1)).toMatchObject({
+      reason: 'looted',
+      world: { corpses: [] },
+    })
+    await v.webSocketMessage(ws(a), '{"type":"loot","corpse":0}')
+    expect(a.last<NackMessage>()).toMatchObject({ reason: 'gone' })
+  })
+
+  it('tells a raider coming back which bodies are theirs', async () => {
+    const { v, s, a } = await struck()
+    await v.webSocketClose(ws(a))
+    const back = await join(v, s, 'A')
+    expect(back.frames()[0]).toMatchObject({
+      type: 'welcome',
+      corpses: [0],
+      world: { corpses: [{ id: 0 }] },
+    })
+  })
+
+  it('leaves the pack as it was when no body can be laid or written', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    // Nowhere the valley heard them stand: the pack is given back.
+    await v.strike('acct-A', idOf(a), null)
+    expect(lastFrame(a)).toMatchObject({
+      pack: STARTING_INVENTORY,
+      corpses: [],
+    })
+    const store = v.packStore
+    v.packStore = {
+      ...store,
+      open: (id) => store.open(id),
+      get: (id) => store.get(id),
+      strip: () => Promise.reject(new Error('down')),
+    }
+    const error = console.error
+    console.error = () => {}
+    try {
+      await v.strike('acct-A', idOf(a), { x: 1, z: 2, yaw: 0 })
+      expect(lastFrame(a)).toMatchObject({ pack: STARTING_INVENTORY })
+      // A body that cannot be looted stays lying, with its things.
+      v.packStore = store
+      await v.strike('acct-A', idOf(a), { x: 1, z: 2, yaw: 0 })
+      v.packStore = {
+        open: (id) => store.open(id),
+        get: (id) => store.get(id),
+        change: (id, kind, delta) => store.change(id, kind, delta),
+        purchase: (id, amount, item) => store.purchase(id, amount, item),
+        earn: (id, amount) => store.earn(id, amount),
+        trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
+        season: (id, season) => store.season(id, season),
+        score: (id, season, progress, reward) =>
+          store.score(id, season, progress, reward),
+        strip: (id) => store.strip(id),
+        give: () => Promise.reject(new Error('down')),
+        stow: (id, kind, delta) => store.stow(id, kind, delta),
+        task: (id, task) => store.task(id, task),
+        scoreTask: (id, task, progress, reward) =>
+          store.scoreTask(id, task, progress, reward),
+      }
+      await v.webSocketMessage(ws(a), '{"type":"loot","corpse":0}')
+      expect(a.last<NackMessage>()).toMatchObject({ reason: 'unavailable' })
+      expect(lastFrame(a)?.corpses).toEqual([0])
+      // And with the store back, nothing is lost.
+      v.packStore = store
+      await v.webSocketMessage(ws(a), '{"type":"loot","corpse":0}')
+      expect(lastFrame(a)).toMatchObject({
+        pack: STARTING_INVENTORY,
+        corpses: [],
+      })
+    } finally {
+      console.error = error
+    }
+  })
+})
+
+describe('ValleyDO: the stash', () => {
+  const move = (type: 'stow' | 'unstow', kind: string, count = 1) =>
+    JSON.stringify({ type, kind, count })
+  const lastFrame = (socket: MockSocket) =>
+    socket.frames().findLast((m): m is PackMessage => m.type === 'pack')
+
+  it('moves an item into the locker at a Citgo, and back', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const other = await join(v, s, 'A2', { account: 'acct-A' })
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"grant","kind":"joints","count":2}'
+    )
+    const held = STARTING_INVENTORY.joints + 2
+    // In the back room of the second station.
+    await v.webSocketMessage(ws(a), state(1000 - 17, 2))
+    await v.webSocketMessage(ws(a), move('stow', 'joints', 2))
+    expect(lastFrame(a)).toMatchObject({
+      pack: { joints: held - 2 },
+      stash: { joints: 2 },
+    })
+    // Every socket on the account hears it.
+    expect(lastFrame(other)?.stash.joints).toBe(2)
+    await v.webSocketMessage(ws(a), move('unstow', 'joints'))
+    expect(lastFrame(a)).toMatchObject({
+      pack: { joints: held - 1 },
+      stash: { joints: 1 },
+    })
+    // Only what the side holds.
+    await v.webSocketMessage(ws(a), move('unstow', 'joints', 5))
+    expect(
+      a.frames().findLast((m): m is NackMessage => m.type === 'nack')
+    ).toMatchObject({ re: 'unstow', reason: 'none-left' })
+    expect(lastFrame(a)?.stash.joints).toBe(1)
+  })
+
+  it('keeps the locker shut away from a Citgo, or when it cannot be written', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    await v.webSocketMessage(ws(a), move('stow', 'joints'))
+    const nacks = () =>
+      a.frames().filter((m): m is NackMessage => m.type === 'nack')
+    expect(nacks().at(-1)).toMatchObject({ re: 'stow', reason: 'no-locker' })
+    await v.webSocketMessage(ws(a), state(500, 500))
+    await v.webSocketMessage(ws(a), move('stow', 'joints'))
+    expect(nacks().at(-1)).toMatchObject({ reason: 'no-locker' })
+    expect(lastFrame(a)?.pack.joints).toBe(STARTING_INVENTORY.joints)
+    await v.webSocketMessage(ws(a), state(5, 5))
+    const store = v.packStore
+    v.packStore = {
+      ...store,
+      open: (id) => store.open(id),
+      get: (id) => store.get(id),
+      stow: () => Promise.reject(new Error('down')),
+    }
+    const error = console.error
+    console.error = () => {}
+    try {
+      await v.webSocketMessage(ws(a), move('stow', 'joints'))
+    } finally {
+      console.error = error
+    }
+    expect(nacks().at(-1)).toMatchObject({ reason: 'unavailable' })
+    expect(lastFrame(a)?.stash.joints).toBe(0)
+  })
+
+  it('refuses a flood of moves', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    await v.webSocketMessage(ws(a), state(5, 5))
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"grant","kind":"joints","count":40}'
+    )
+    for (let i = 0; i < 25; i++) {
+      await v.webSocketMessage(ws(a), move('stow', 'joints'))
+    }
+    expect(
+      a.frames().findLast((m): m is NackMessage => m.type === 'nack')
+    ).toMatchObject({ re: 'stow', reason: 'too-fast' })
   })
 })
 
@@ -1201,6 +1431,8 @@ describe('ValleyDO: the shadowmen', () => {
       JSON.stringify({ ...JSON.parse(state(500, 500, true)), riding: true })
     )
     await v.webSocketMessage(ws(b), state(900, 900))
+    // No crossing shadowman rushes B: a strike would empty their pack.
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"calm"}')
     const x = 500 - Math.sin(0.5) * 5
     const z = 500 - Math.cos(0.5) * 5
     await v.webSocketMessage(
@@ -1302,6 +1534,9 @@ describe('ValleyDO: the shadowmen', () => {
       earn: () => Promise.reject(new Error('down')),
       trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
       season: (id, season) => store.season(id, season),
+      strip: (id) => store.strip(id),
+      give: (id, items) => store.give(id, items),
+      stow: (id, kind, delta) => store.stow(id, kind, delta),
       score: (id, season, progress, reward) =>
         store.score(id, season, progress, reward),
       task: (id, task) => store.task(id, task),
@@ -1347,6 +1582,9 @@ describe('ValleyDO: the shadowmen', () => {
         light: true,
       })
     await v.webSocketMessage(ws(a2), state(900, 900))
+    // No crossing shadowman rushes A2: a strike would empty the account's
+    // pack onto a body.
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"calm"}')
     const seasonFrames = (socket: MockSocket) =>
       socket.frames().filter((m): m is SeasonMessage => m.type === 'season')
     const unmake = async () => {
@@ -1417,6 +1655,9 @@ describe('ValleyDO: the shadowmen', () => {
       earn: (id, amount) => store.earn(id, amount),
       trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
       season: (id, season) => store.season(id, season),
+      strip: (id) => store.strip(id),
+      give: (id, items) => store.give(id, items),
+      stow: (id, kind, delta) => store.stow(id, kind, delta),
       score: () => Promise.reject(new Error('down')),
       task: (id, task) => store.task(id, task),
       scoreTask: (id, task, progress, reward) =>
@@ -1552,6 +1793,9 @@ describe("ValleyDO: Moab's trade", () => {
         earn: (id, amount) => store.earn(id, amount),
         trade: () => Promise.reject(new Error('down')),
         season: (id, season) => store.season(id, season),
+        strip: (id) => store.strip(id),
+        give: (id, items) => store.give(id, items),
+        stow: (id, kind, delta) => store.stow(id, kind, delta),
         score: (id, season, progress, reward) =>
           store.score(id, season, progress, reward),
         task: (id, task) => store.task(id, task),

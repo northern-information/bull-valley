@@ -7,6 +7,7 @@ import { refreshSession } from './auth.ts'
 import { CaretakerShade } from './caretakerrig.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
+import { createCorpseMeshes } from './corpsemeshes.ts'
 import { installDevHook } from './devhook.ts'
 import { donutRoute } from './donuts.ts'
 import { createDropMeshes } from './dropmeshes.ts'
@@ -147,6 +148,8 @@ async function boot() {
   scene.add(drops.group)
   const graves = createGravestones(world.ground.at)
   scene.add(graves.group)
+  const corpses = createCorpseMeshes(world.ground.at)
+  scene.add(corpses.group)
 
   // Sky furniture rides along with the player so it never recedes into fog.
   const sky = buildSky()
@@ -262,6 +265,7 @@ async function boot() {
     world,
     drops,
     graves,
+    corpses,
     graph,
     truck,
     // Under e2e the valley is never drawn and never heard.

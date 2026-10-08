@@ -62,6 +62,14 @@ test('a bush at the heart gives a berry of its own', async ({ page }) => {
   await beginRaid(page)
   const berries = () => page.evaluate(() => window.__bv?.inventory.berries)
   expect(await berries()).toBe(0)
+  // The Caretaker parked at the maze's far corner, out of sight of the
+  // heart: a strike there would leave the berry on the raider's body.
+  await page.evaluate(() => {
+    const bv = window.__bv
+    const corner = bv?.world.mazePlace
+    if (!bv || !corner) throw new Error('no maze')
+    bv.placeCaretaker(corner.x, corner.z)
+  })
   // A step in from the second bush toward the portal.
   await page.evaluate(() => {
     const bv = window.__bv
@@ -91,9 +99,12 @@ test("the Caretaker's touch puts you back at the Citgo", async ({ page }) => {
   await standLooking(page, me, there)
   await page.evaluate(({ x, z }) => window.__bv?.placeCaretaker(x, z), there)
   await expect.poll(() => page.evaluate(() => window.__bv?.strikes)).toBe(1)
+  // Caught, and then told the pack lies where it fell.
   await expect
-    .poll(() => page.evaluate(() => window.__bv?.chat.at(-1)?.text))
-    .toBe(copy('log.caught'))
+    .poll(() =>
+      page.evaluate(() => window.__bv?.chat.slice(-2).map((line) => line.text))
+    )
+    .toEqual([copy('log.caught'), copy('log.fell')])
   const fromSpawn = await page.evaluate(() => {
     const bv = window.__bv
     if (!bv) return null

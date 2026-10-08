@@ -1,6 +1,7 @@
 // The pack store on D1 (migrations/0002_packs.sql): one row per item an
-// account has held, and one wallet per account; and the cosmetics it has
-// (0004_cosmetics.sql). Every change is a single
+// account has held, and one wallet per account; the cosmetics it has
+// (0004_cosmetics.sql); and its locker (0007_stashes.sql). Every change is
+// a single statement or one batch, which is one transaction,
 // statement, so two sockets on one account can never lose a unit or a cent
 // between a read and a write.
 
@@ -11,6 +12,7 @@ import { NO_PROGRESS } from '../src/season.ts'
 import { STARTING_CASH } from './packs.ts'
 import type { CosmeticId } from '../src/cosmetics.ts'
 import type { TaskProgress } from '../src/dailytask.ts'
+import type { Inventory } from '../src/interfaces.ts'
 import type { SeasonProgress, SeasonReward } from '../src/season.ts'
 import type { Holdings, PackItem, PackStore } from './packs.ts'
 
@@ -49,7 +51,7 @@ export class D1PackStore implements PackStore {
   }
 
   async get(accountId: string): Promise<Holdings> {
-    const [packs, wallet, cosmetics] = await Promise.all([
+    const [packs, wallet, cosmetics, stash] = await Promise.all([
       this.db
         .prepare('SELECT kind, count FROM packs WHERE account_id = ?')
         .bind(accountId)
@@ -62,6 +64,10 @@ export class D1PackStore implements PackStore {
         .prepare('SELECT cosmetic FROM cosmetics WHERE account_id = ?')
         .bind(accountId)
         .all<{ cosmetic: string }>(),
+      this.db
+        .prepare('SELECT kind, count FROM stashes WHERE account_id = ?')
+        .bind(accountId)
+        .all<PackRow>(),
     ])
     return {
       pack: toInventory(
@@ -69,7 +75,69 @@ export class D1PackStore implements PackStore {
       ),
       cash: wallet?.cash ?? 0,
       cosmetics: toCosmetics(cosmetics.results.map((row) => row.cosmetic)),
+      stash: toInventory(
+        Object.fromEntries(stash.results.map((row) => [row.kind, row.count]))
+      ),
     }
+  }
+
+  // One batch is one transaction: what is read is what is zeroed.
+  async strip(accountId: string): Promise<Inventory> {
+    const [held] = await this.db.batch<PackRow>([
+      this.db
+        .prepare(
+          'SELECT kind, count FROM packs WHERE account_id = ? AND count > 0'
+        )
+        .bind(accountId),
+      this.db
+        .prepare(
+          'UPDATE packs SET count = 0 WHERE account_id = ? AND count > 0'
+        )
+        .bind(accountId),
+    ])
+    return Object.fromEntries(
+      (held?.results ?? []).map((row) => [row.kind, row.count])
+    )
+  }
+
+  async give(accountId: string, items: Inventory): Promise<void> {
+    const rows = Object.entries(items).filter(([, count]) => count > 0)
+    if (rows.length === 0) return
+    await this.db.batch(
+      rows.map(([kind, count]) =>
+        this.db
+          .prepare(
+            'INSERT INTO packs (account_id, kind, count) VALUES (?, ?, ?) ' +
+              'ON CONFLICT (account_id, kind) DO UPDATE SET count = count + excluded.count'
+          )
+          .bind(accountId, kind, count)
+      )
+    )
+  }
+
+  // One batch is one transaction. The units go into one side first, only
+  // while the other still holds them; they come out of it after, checking
+  // the same, so the two land together or not at all.
+  async stow(accountId: string, kind: string, delta: number): Promise<boolean> {
+    const count = Math.abs(delta)
+    if (count < 1) return false
+    const [from, to] = delta > 0 ? ['packs', 'stashes'] : ['stashes', 'packs']
+    const results = await this.db.batch([
+      this.db
+        .prepare(
+          `INSERT INTO ${to} (account_id, kind, count) ` +
+            `SELECT ?, ?, ? WHERE (SELECT count FROM ${from} WHERE account_id = ? AND kind = ?) >= ? ` +
+            'ON CONFLICT (account_id, kind) DO UPDATE SET count = count + excluded.count'
+        )
+        .bind(accountId, kind, count, accountId, kind, count),
+      this.db
+        .prepare(
+          `UPDATE ${from} SET count = count - ? ` +
+            'WHERE account_id = ? AND kind = ? AND count >= ?'
+        )
+        .bind(count, accountId, kind, count),
+    ])
+    return (results[1]?.meta.changes ?? 0) > 0
   }
 
   async change(

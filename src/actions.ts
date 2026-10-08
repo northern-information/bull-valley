@@ -10,6 +10,7 @@ import { saveHotbar, saveLook } from './auth.ts'
 import { CHAT_COPY, chatCommand, onlineLine } from './chat.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
+import { corpseWire, emptied, fallen, isEmpty, recover } from './corpses.ts'
 import { affords, cosmeticById } from './cosmetics.ts'
 import { stepIndex } from './cycle.ts'
 import { isDropPickup } from './dropmeshes.ts'
@@ -32,10 +33,17 @@ import { getItem, itemById } from './items.ts'
 import { board, call, hopOut as hopOutOf, refused } from './marx.ts'
 import { npcLine } from './npcs.ts'
 import { outfitById } from './outfits.ts'
-import { PACK_TABS, packItems } from './packgrid.ts'
+import {
+  bagTabs,
+  LOCKER_TAB,
+  PACK_TABS,
+  packItems,
+  stashItems,
+} from './packgrid.ts'
 import { normalizeChat } from './protocol.ts'
 import { callRoute } from './roadgraph.ts'
 import { buy as buyItem, settle } from './shop.ts'
+import { move, moveAmount } from './stash.ts'
 import { formatCash } from './store.ts'
 import { planLeg } from './truckplan.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -43,7 +51,7 @@ import type { Game } from './game.ts'
 import type { DailyStatus, ShelfSpot } from './interactions.ts'
 import type { Leg, TruckState } from './marx.ts'
 import type { NpcId } from './npcs.ts'
-import type { PackTab } from './packgrid.ts'
+import type { BagTab } from './packgrid.ts'
 import type { DailyMessage } from './protocol.ts'
 import type { Burst } from './shadowmen.ts'
 import type { Pickup } from './world.ts'
@@ -52,7 +60,8 @@ export interface Actions {
   // Redraw the open pack after anything that changes what you carry. The
   // hotbar follows on its own, every frame.
   refreshBag(): void
-  openInventory(): void
+  // The pack; at the locker, with the Locker tab after its own.
+  openInventory(atLocker?: boolean): void
   // relock: closed by the player's own key or click, a gesture that may
   // lock the pointer again. Closed by the valley (a strike, the truck),
   // the pointer stays free and the resume prompt shows.
@@ -71,8 +80,16 @@ export interface Actions {
   // Off the bed beside the truck, with no word to the valley: it let us
   // off.
   leaveBed(line?: string): void
-  // A shadowman touched you.
+  // A shadowman touched you: everything the pack held stays on your body
+  // where you fell (sharedworld.ts rule 18).
   strike(by?: 'shadowman' | 'caretaker'): void
+  // Played alone, the bodies this raider left, drawn and offered to E.
+  showAloneCorpses(): void
+  // F at the locker: one of an item (the open container, or one of
+  // anything else) into the locker off a pack tab, or out of it on the
+  // Locker tab; with Shift the whole stack (rule 19).
+  stowKind(kind: string, all: boolean): void
+  unstowKind(kind: string, all: boolean): void
   callTruck(): void
   // The buyer's side of a sale, once the valley says the unit is ours.
   pocket(kind: string): void
@@ -115,13 +132,15 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   const refreshBag = () => {
     if (s.inventoryOpen) {
-      hud.setBag(packItems(s.inventory, hud.bagTab), (kind) =>
-        game.thumbs.icon(kind)
+      const tab = hud.bagTab
+      hud.setBag(
+        tab === LOCKER_TAB ? stashItems(s.stash) : packItems(s.inventory, tab),
+        (kind) => game.thumbs.icon(kind)
       )
     }
   }
 
-  const showBagTab = (tab: PackTab) => {
+  const showBagTab = (tab: BagTab) => {
     hud.selectBagTab(tab)
     refreshBag()
   }
@@ -129,8 +148,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   // The pack opens over the valley with the pointer free for it, as Gron's
   // dialog does, on its first tab; the player freezes, the valley does not.
-  const openInventory = () => {
+  const openInventory = (atLocker = false) => {
     player.keys.clear()
+    s.lockerOpen = atLocker
+    hud.setLocker(atLocker)
     s.inventoryOpen = hud.showBag(true)
     showBagTab(PACK_TABS[0])
     if (document.pointerLockElement) document.exitPointerLock()
@@ -139,13 +160,16 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   const closeInventory = (relock = false) => {
     if (!s.inventoryOpen) return
     s.inventoryOpen = hud.showBag(false)
+    s.lockerOpen = false
+    hud.setLocker(false)
     if (relock) engagePointer()
   }
 
   // The tab `step` places from the shown one, wrapping.
   const stepBagTab = (step: number) => {
-    const at = PACK_TABS.indexOf(hud.bagTab)
-    showBagTab(PACK_TABS[stepIndex(at, PACK_TABS.length, step)])
+    const tabs = bagTabs(s.lockerOpen)
+    const at = tabs.indexOf(hud.bagTab)
+    showBagTab(tabs[stepIndex(at, tabs.length, step)])
   }
 
   const assignSlot = (slot: number, kind: string) => {
@@ -219,8 +243,18 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (!refused(next)) setAloneTruck(next)
   }
 
+  // Played alone, the bodies are ours to draw and offer.
+  const showAloneCorpses = () => {
+    if (s.world) return
+    s.corpses = s.aloneCorpses.map(corpseWire)
+    s.myCorpses = s.aloneCorpses.map((c) => c.id)
+    game.corpses.sync(s.corpses)
+  }
+
   // Static, then you come to on the forecourt: a shadowman's touch, or
-  // the Caretaker's.
+  // the Caretaker's. Everything the pack held stays on your body where you
+  // fell (rule 18): in the valley the valley lays it and its pack frame has
+  // the last word, so the pack shows empty at once; alone it lies at once.
   const strike = (by: 'shadowman' | 'caretaker' = 'shadowman') => {
     if (s.aboard) return
     s.strikes += 1
@@ -228,9 +262,83 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     hud.showStatic(true)
     closeInventory()
     player.keys.clear()
+    const items = fallen(s.inventory)
+    if (!isEmpty(items)) {
+      if (!s.world) {
+        s.aloneCorpses = [
+          ...s.aloneCorpses,
+          {
+            id: s.nextCorpse++,
+            x: player.pos.x,
+            z: player.pos.z,
+            yaw: player.yaw,
+            name: game.pick.username,
+            outfit: game.pick.outfit,
+            items,
+          },
+        ]
+        showAloneCorpses()
+      }
+      s.inventory = emptied(s.inventory)
+      refreshBag()
+    }
     player.relocate(world.spawn.x, world.spawn.z, world.spawn.yaw)
     hud.tell(copy(by === 'caretaker' ? 'log.caught' : 'log.struck'))
+    if (!isEmpty(items)) hud.tell(copy('log.fell'))
   }
+
+  // E over your own body: everything it holds back into the pack. In the
+  // valley the valley says it was still there (valleysync.ts) and its pack
+  // frame brings the things back; alone they come back at once.
+  const lootCorpse = (id: number) => {
+    if (s.world) {
+      if (s.pendingLoots.has(id)) return
+      s.pendingLoots.add(id)
+      net.send({ type: 'loot', corpse: id })
+      return
+    }
+    const corpse = s.aloneCorpses.find((c) => c.id === id)
+    if (!corpse) return
+    s.aloneCorpses = s.aloneCorpses.filter((c) => c.id !== id)
+    showAloneCorpses()
+    s.inventory = recover(s.inventory, corpse.items)
+    refreshBag()
+    hud.tell(copy('log.looted'))
+  }
+
+  // E at the lockers: the pack with the Locker tab. The stash is the
+  // account's, so played alone there is none to open.
+  const openLocker = () => {
+    if (!s.world) {
+      hud.tell(copy('log.locker_offline'))
+      return
+    }
+    openInventory(true)
+  }
+
+  // One side of the locker to the other, shown at once; the valley's pack
+  // frame has the last word.
+  const restash = (kind: string, all: boolean, stow: boolean) => {
+    if (!s.lockerOpen || !s.world) return
+    const from = stow ? s.inventory : s.stash
+    const count = moveAmount(kind, from[kind] || 0, all)
+    const moved = stow
+      ? move(s.inventory, s.stash, kind, count)
+      : move(s.stash, s.inventory, kind, count)
+    if (!moved) return
+    s.inventory = stow ? moved.from : moved.to
+    s.stash = stow ? moved.to : moved.from
+    net.send({ type: stow ? 'stow' : 'unstow', kind, count })
+    refreshBag()
+    hud.tell(
+      copy(stow ? 'log.stowed' : 'log.unstowed', {
+        item: pickupLabel({ kind, count }),
+      })
+    )
+  }
+
+  const stowKind = (kind: string, all: boolean) => restash(kind, all, true)
+  const unstowKind = (kind: string, all: boolean) => restash(kind, all, false)
 
   // T: Marx comes to us, if he is free, and drives us home.
   const callTruck = () => {
@@ -610,6 +718,12 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       case 'trade':
         trade(interaction.offer)
         return
+      case 'loot':
+        lootCorpse(interaction.corpse)
+        return
+      case 'locker':
+        openLocker()
+        return
     }
   }
 
@@ -663,6 +777,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     hopOut,
     leaveBed,
     strike,
+    showAloneCorpses,
+    stowKind,
+    unstowKind,
     callTruck,
     pocket,
     applyDaily,

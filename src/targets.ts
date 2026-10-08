@@ -8,7 +8,7 @@ import { meshBounds } from './assets.ts'
 import { itemById } from './items.ts'
 import { insideStore, unitInView } from './store.ts'
 import type { Game } from './game.ts'
-import type { Interaction, ShelfSpot } from './interactions.ts'
+import type { Interaction, LockerSpot, ShelfSpot } from './interactions.ts'
 import type { Vec3 } from './interfaces.ts'
 import type { NpcSpot } from './npcs.ts'
 import type { Pickup } from './world.ts'
@@ -25,10 +25,13 @@ export interface Targets {
   // Marx while his truck stands still, Carlsten in store `station`, and
   // every Moab, for the resolver to weigh by distance.
   npcSpots(station: number): NpcSpot[]
+  // The lockers in store `station`'s back room, for the resolver; none
+  // outside every store.
+  lockerSpots(station: number): LockerSpot[]
   // What the glow rings for an interaction: the pickup, the shelf unit a
   // buy would take, a bush while today's berry is on it, Gron, or Marx,
-  // Carlsten or Moab when E would talk to him. Nothing for the truck or the
-  // stand.
+  // Carlsten or Moab when E would talk to him, your body, the lockers.
+  // Nothing for the truck or the stand.
   glowTarget(action: Interaction<Pickup> | null): THREE.Object3D | null
   // What an item's label floats over: the pickup, the shelf unit a buy
   // would take, or a bush, picked or not. Null for anything else.
@@ -60,6 +63,10 @@ export function createTargets(game: Game): Targets {
         return world.gronRig?.figure.group ?? null
       case 'trade':
         return world.moabRigs[action.station]?.figure.group ?? null
+      case 'loot':
+        return game.corpses.objectOf(action.corpse)
+      case 'locker':
+        return world.shelves.lockers
       case 'speak':
         switch (action.npc) {
           case 'marx':
@@ -119,6 +126,11 @@ export function createTargets(game: Game): Targets {
         spots.push({ id: 'moab', ...moab, station: i })
       })
       return spots
+    },
+
+    lockerSpots(station) {
+      const spot = world.lockers[station]
+      return station >= 0 && spot ? [{ ...spot, station }] : []
     },
 
     glowTarget,

@@ -5,6 +5,7 @@
 
 import { USERNAME_MAX } from './account.ts'
 import { isWaterMap } from './waterside.ts'
+import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { Drop } from './drops.ts'
 import type { Grave } from './graves.ts'
@@ -17,7 +18,7 @@ import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 21
+export const PROTOCOL_VERSION = 22
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -114,6 +115,9 @@ export interface WorldWire {
   // A tombstone for every shadowman burnt, carved with its name; they stay
   // when the day turns.
   graves: Grave[]
+  // Where raiders fell and have not yet taken their things back
+  // (sharedworld.ts rule 18); a body lies whatever the day.
+  corpses: CorpseWire[]
   // Matthew Marx's truck: its leg, stamped with server ms, and who is in
   // the bed (marx.ts). Every client drives the same leg (truckplan.ts).
   truck: TruckState
@@ -155,6 +159,8 @@ export type WorldReason =
   | 'dropped'
   | 'drop-taken'
   | 'spilled'
+  | 'fell'
+  | 'looted'
   | 'refill'
   | 'hurry'
   | 'reset'
@@ -240,6 +246,22 @@ export interface TakeDropMessage {
   drop: number
 }
 
+// This raider's things taken back off their body `corpse` (its id), into
+// the pack (sharedworld.ts rule 18). Only the account that fell may.
+export interface LootMessage {
+  type: 'loot'
+  corpse: number
+}
+
+// `count` of `kind` out of the pack into the account's locker (stow), or
+// out of the locker into the pack (unstow), at a Citgo (rule 19). The
+// valley checks the raider's last state frame put them at one.
+export interface StowMessage {
+  type: 'stow' | 'unstow'
+  kind: string
+  count: number
+}
+
 // Today's berry off bush `bush`, please. The valley answers with a
 // DailyMessage either way.
 export interface CollectMessage {
@@ -317,6 +339,8 @@ export type ClientMessage =
   | UseMessage
   | DropMessage
   | TakeDropMessage
+  | LootMessage
+  | StowMessage
   | TradeMessage
   | ChatMessage
   | AppearanceMessage
@@ -344,6 +368,10 @@ export interface WelcomeMessage {
   pack: Inventory
   cash: number
   cosmetics: CosmeticId[]
+  // What the account's locker holds (rule 19), and the ids of its bodies
+  // lying in the valley (rule 18).
+  stash: Inventory
+  corpses: number[]
   // The account's progress through the season (season.ts).
   season: SeasonWire
   // The account's progress on the daily task (dailytask.ts).
@@ -388,15 +416,18 @@ export interface TaskMessage {
   rewarded: boolean
 }
 
-// The account's pack, wallet (cents) and cosmetics after a change: a
-// berry, a pickup, a purchase, a use, a trade. Sent to every socket signed
-// in to the account. The client's pack and cash are these, whatever it
-// guessed in the meantime.
+// The account's pack, wallet (cents), cosmetics and locker, and the ids of
+// its bodies lying in the valley, after a change: a berry, a pickup, a
+// purchase, a use, a trade, a fall, a body looted, a move to or from the
+// locker. Sent to every socket signed in to the account. The client's pack
+// and cash are these, whatever it guessed in the meantime.
 export interface PackMessage {
   type: 'pack'
   pack: Inventory
   cash: number
   cosmetics: CosmeticId[]
+  stash: Inventory
+  corpses: number[]
 }
 
 // The answer to a collect at bush `bush`: `picked` when a berry came off
@@ -416,7 +447,7 @@ export interface WorldMessage {
   reason: WorldReason
   world: WorldWire | null
   // Who did it, for 'joined', 'left', 'boarded', 'hopped-out', 'called',
-  // 'ferry', 'taken', 'bought', 'dropped', 'drop-taken'.
+  // 'ferry', 'taken', 'bought', 'dropped', 'drop-taken', 'fell', 'looted'.
   by?: string
   // For 'taken'.
   index?: number
@@ -428,6 +459,8 @@ export interface WorldMessage {
   // down or taken up.
   drop?: number
   count?: number
+  // For 'fell' and 'looted': the body's id.
+  corpse?: number
 }
 
 export interface NackMessage {
@@ -441,6 +474,8 @@ export interface NackMessage {
   item?: string
   // For 'take-drop'.
   drop?: number
+  // For 'loot'.
+  corpse?: number
 }
 
 export interface PeerJoinedMessage {
@@ -786,6 +821,16 @@ export function parseClientMessage(text: string): ClientMessage | null {
     case 'take-drop': {
       const { drop } = value
       return isCount(drop) ? { type: 'take-drop', drop } : null
+    }
+    case 'loot': {
+      const { corpse } = value
+      return isCount(corpse) ? { type: 'loot', corpse } : null
+    }
+    case 'stow':
+    case 'unstow': {
+      const { kind, count } = value
+      if (!isKind(kind) || !isCount(count) || count < 1) return null
+      return { type: value.type, kind, count }
     }
     case 'trade': {
       // Which offers there are is the valley's to check.
