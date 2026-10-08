@@ -30,12 +30,14 @@ export class ShadowBursts {
     }
   }
 
-  // One goes off at (x, y, z): the shadowman's chest.
-  spawn(x: number, y: number, z: number): void {
+  // One goes off at (x, y, z): the shadowman's chest, or a spider's body,
+  // `scale` times as big.
+  spawn(x: number, y: number, z: number, scale = 1): void {
     const oldest = this.pool.reduce((a, b) => (b.age > a.age ? b : a))
     oldest.age = 0
     oldest.burst.start(this.seed++)
     oldest.burst.group.position.set(x, y, z)
+    oldest.burst.group.scale.setScalar(scale)
     oldest.burst.draw(0)
   }
 

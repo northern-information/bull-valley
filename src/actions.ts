@@ -14,12 +14,12 @@ import { affords, cosmeticById } from './cosmetics.ts'
 import { stepIndex } from './cycle.ts'
 import { isDropPickup } from './dropmeshes.ts'
 import {
-  DIME_CENTS,
+  centsOf,
   DIMES,
-  dimesFor,
   dropAmount,
   dropSpot,
   isCash,
+  spillsOf,
 } from './drops.ts'
 import { finishById } from './finishes.ts'
 import { dose } from './geometrie.ts'
@@ -40,11 +40,11 @@ import { planLeg } from './truckplan.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { Game } from './game.ts'
 import type { DailyStatus, ShelfSpot } from './interactions.ts'
-import type { XZ } from './interfaces.ts'
 import type { Leg, TruckState } from './marx.ts'
 import type { NpcId } from './npcs.ts'
 import type { PackTab } from './packgrid.ts'
 import type { DailyMessage } from './protocol.ts'
+import type { Burst } from './shadowmen.ts'
 import type { Pickup } from './world.ts'
 
 export interface Actions {
@@ -91,8 +91,9 @@ export interface Actions {
   dropKind(kind: string, all: boolean): void
   // The valley says a drop came up into our pack.
   applyDropTaken(kind: string, count: number): void
-  // Shadowmen burst: played alone, their dimes fall where they were.
-  spillDimes(bursts: readonly XZ[]): void
+  // Shadowmen burst: played alone, their dimes (a spider's $20) fall where
+  // they were.
+  spillCash(bursts: readonly Burst[]): void
   // The left button: the flashlight up and on, or down and off.
   toggleFlashlight(): void
   // The pickup is ours: into the pack.
@@ -445,13 +446,18 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     hud.tell(copy('log.dropped', { item: pickupLabel({ kind, count }) }))
   }
 
-  // Into the pack, or dimes into the wallet; the valley's pack frame has
-  // the last word on both.
+  // Into the pack, or cash (dimes, a spider's $20) into the wallet; the
+  // valley's pack frame has the last word on both.
   const applyDropTaken = (kind: string, count: number) => {
     if (isCash(kind)) {
-      const amount = count * DIME_CENTS
+      const amount = count * centsOf(kind)
       s.cash += amount
-      hud.tell(copy('log.dimes', { count, amount: formatCash(amount) }))
+      const paid = formatCash(amount)
+      hud.tell(
+        kind === DIMES
+          ? copy('log.dimes', { count, amount: paid })
+          : copy('log.twenty', { amount: paid })
+      )
     } else {
       s.inventory = addItem(s.inventory, kind, count)
       hud.tell(copy('log.taken', { item: pickupLabel({ kind, count }) }))
@@ -463,18 +469,15 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
 
   // Shadowmen burst where `bursts` say: played alone each leaves its dimes
-  // lying there (sharedworld.ts rule 11). In the valley the valley spills
-  // them.
-  const spillDimes = (bursts: readonly XZ[]) => {
+  // lying there, and each spider its $20 (sharedworld.ts rule 11). In the
+  // valley the valley spills them.
+  const spillCash = (bursts: readonly Burst[]) => {
     if (s.world || bursts.length === 0) return
-    const dimes = bursts.map(({ x, z }) => ({
+    const cash = spillsOf(bursts, null, Math.random).map((spill) => ({
       id: s.nextDrop++,
-      kind: DIMES,
-      count: dimesFor(Math.random),
-      x,
-      z,
+      ...spill,
     }))
-    s.drops = [...s.drops, ...dimes]
+    s.drops = [...s.drops, ...cash]
     game.drops.sync(s.drops)
   }
 
@@ -663,7 +666,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     useKind,
     dropKind,
     applyDropTaken,
-    spillDimes,
+    spillCash,
     toggleFlashlight,
     applyTake,
     markTaken,

@@ -39,6 +39,7 @@ import { createTrails } from './trails.ts'
 import { Truck } from './truck.ts'
 import { joyrideMs } from './truckplan.ts'
 import { wireValley } from './valleysync.ts'
+import { waterMapOf } from './waterside.ts'
 import { buildWorld } from './world.ts'
 import type { Game } from './game.ts'
 import type { Geo } from './interfaces.ts'
@@ -245,6 +246,8 @@ async function boot() {
     beforeOpen: () => refreshSession(),
   })
 
+  // Where the water's edges run: the valley's spiders come up near them.
+  const water = waterMapOf(geo.water, geo.metres)
   const game: Game = {
     state: createGameState(world.fuelPoints.length, pick.hotbar),
     geo,
@@ -276,6 +279,7 @@ async function boot() {
       groundAt: world.ground.at,
       metres: geo.metres,
       havens: world.fuelPoints,
+      water,
     }),
     caretaker: new CaretakerShade({
       scene,
@@ -316,6 +320,7 @@ async function boot() {
     stations: world.fuelPoints.length,
     havens: world.fuelPoints.map(({ x, z }) => ({ x, z })),
     metres: geo.metres,
+    water,
     maze: world.mazePlace,
     truck: truckRoutes,
   })

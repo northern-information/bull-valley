@@ -5,14 +5,17 @@
 // (sharedworld.ts rule 11): the frames it sends land here and are drawn a
 // beat behind the present (shadowsync.ts). Played alone, this steps its own
 // field with the player as the one raider. One card per shadowman id, and
-// each id looks the same on every client.
+// each id looks the same on every client. A shadow spider is no card but a
+// body of its own (assets.ts buildShadowSpider), twice a shadowman's
+// height, walking the way it goes.
 
 import * as THREE from 'three'
-import { isMesh } from './assets.ts'
+import { buildShadowSpider, isMesh } from './assets.ts'
 import { context2d } from './canvas.ts'
 import { CONFIG } from './config.ts'
 import { mulberry32, range } from './rng.ts'
 import {
+  burnSecondsOf,
   contactsOf,
   createShadowmen,
   placeStill,
@@ -23,11 +26,13 @@ import {
   createShadowTable,
   sampleShadowmen,
 } from './shadowsync.ts'
+import type { ShadowSpider } from './assets.ts'
 import type { HeightAt, Metres, ScopeContact, XZ } from './interfaces.ts'
 import type { ShadowmanWire, ShadowmenMessage } from './protocol.ts'
 import type { Rng } from './rng.ts'
-import type { Beam, Burst, ShadowmenField } from './shadowmen.ts'
+import type { Beam, Burst, ShadeKind, ShadowmenField } from './shadowmen.ts'
 import type { ShadowTable } from './shadowsync.ts'
+import type { WaterMap } from './waterside.ts'
 
 export function makeSilhouetteTexture(rng: Rng): THREE.CanvasTexture {
   const canvas = document.createElement('canvas')
@@ -116,6 +121,21 @@ export interface ShadowCardsOptions {
   groundAt: HeightAt
   metres: Metres
   havens: readonly XZ[]
+  // Where the water's edges run: played alone, spiders come up near them.
+  water: WaterMap | null
+}
+
+// One shown, as the valley sends it (or this client steps it).
+type Shown = Pick<ShadowmanWire, 'id' | 'kind' | 'x' | 'z' | 'burn' | 'target'>
+
+// A spider as shown: its body, where it was last frame (so it faces the
+// way it goes), and how fast it was going.
+interface Spider {
+  rig: ShadowSpider
+  x: number
+  z: number
+  heading: number
+  speed: number
 }
 
 // Played alone: the player as the field's one raider.
@@ -158,6 +178,7 @@ export class ShadowCards {
   groundAt: HeightAt
   metres: Metres
   havens: readonly XZ[]
+  water: WaterMap | null
   // Played alone: the field this client steps.
   field: ShadowmenField
   // In the shared valley: the last two frames the valley sent.
@@ -170,12 +191,14 @@ export class ShadowCards {
   private rng: Rng
   private textures: THREE.CanvasTexture[]
   private cards = new Map<number, Card>()
+  private spiders = new Map<number, Spider>()
   private pending: Burst[] = []
 
-  constructor({ scene, groundAt, metres, havens }: ShadowCardsOptions) {
+  constructor({ scene, groundAt, metres, havens, water }: ShadowCardsOptions) {
     this.groundAt = groundAt
     this.metres = metres
     this.havens = havens
+    this.water = water
     // The silhouettes come first off a fixed seed, so every client paints
     // the same ones.
     this.rng = mulberry32(0xd06)
@@ -197,9 +220,9 @@ export class ShadowCards {
     this.pending.push(...msg.bursts)
   }
 
-  // A dev shadowman standing still at (x, z), played alone.
-  place(x: number, z: number): void {
-    placeStill(this.field, x, z)
+  // A dev shadowman (or spider) standing still at (x, z), played alone.
+  place(x: number, z: number, kind: ShadeKind = 'man'): void {
+    placeStill(this.field, x, z, kind)
   }
 
   update({
@@ -211,10 +234,7 @@ export class ShadowCards {
     myId,
   }: ShadowCardsFrame): ShadowCardsUpdate {
     let struck = false
-    let shown: readonly Pick<
-      ShadowmanWire,
-      'id' | 'x' | 'z' | 'burn' | 'target'
-    >[]
+    let shown: readonly Shown[]
     let me: string
     if (alone) {
       // Played alone the valley's frames are stale: start them afresh.
@@ -224,12 +244,16 @@ export class ShadowCards {
         raiders: [{ id: ALONE, x: player.x, z: player.z, ...alone }],
         metres: this.metres,
         havens: this.havens,
+        water: this.water,
         calm: this.calm,
       })
       struck = out.struck.length > 0
       this.pending.push(...out.bursts)
-      const full = CONFIG.shadowmen.burnSeconds
-      shown = this.field.shadowmen.map((s) => ({ ...s, burn: s.burn / full }))
+      shown = this.field.shadowmen.map((s) => ({
+        ...s,
+        kind: s.kind === 'spider' ? 'spider' : undefined,
+        burn: s.burn / burnSecondsOf(s.kind, CONFIG.shadowmen),
+      }))
       me = ALONE
     } else {
       // In the shared valley the field this client stepped is not the
@@ -246,7 +270,7 @@ export class ShadowCards {
   }
 
   private draw(
-    shown: readonly Pick<ShadowmanWire, 'id' | 'x' | 'z' | 'burn'>[],
+    shown: readonly Shown[],
     player: XZ,
     perception: boolean,
     dt: number
@@ -254,6 +278,10 @@ export class ShadowCards {
     const seen = new Set<number>()
     for (const s of shown) {
       seen.add(s.id)
+      if (s.kind === 'spider') {
+        this.drawSpider(s, perception, dt)
+        continue
+      }
       const card = this.cardFor(s.id)
       // Flicker: gone for a frame or two every second or so.
       card.flickerTimer -= dt
@@ -276,6 +304,13 @@ export class ShadowCards {
       card.node.rotation.y = Math.atan2(player.x - s.x, player.z - s.z)
       card.aura.material.opacity = perception ? 0.5 : 0
     }
+    // A spider gone takes its body with it.
+    for (const [id, spider] of this.spiders) {
+      if (seen.has(id)) continue
+      this.group.remove(spider.rig.group)
+      disposeTree(spider.rig.group)
+      this.spiders.delete(id)
+    }
     // A shadowman gone frees its card for the next.
     for (const [id, card] of this.cards) {
       if (seen.has(id)) continue
@@ -287,6 +322,43 @@ export class ShadowCards {
       }
       this.cards.delete(id)
     }
+  }
+
+  // A spider walks the way it goes, faced along its motion, on the ground
+  // under it; held in a beam it pales and shakes like a card.
+  private drawSpider(s: Shown, perception: boolean, dt: number): void {
+    let spider = this.spiders.get(s.id)
+    if (!spider) {
+      // Its size comes from its id, twice a shadowman's.
+      const look = mulberry32(s.id)
+      const rig = buildShadowSpider(range(look, 2.4, 3.2) * 2, s.id)
+      this.group.add(rig.group)
+      spider = { rig, x: s.x, z: s.z, heading: look() * Math.PI * 2, speed: 0 }
+      this.spiders.set(s.id, spider)
+    }
+    const dx = s.x - spider.x
+    const dz = s.z - spider.z
+    const moved = Math.hypot(dx, dz)
+    if (moved > 0.01) {
+      // Turn toward the way it went, not all at once.
+      const want = Math.atan2(dx, dz)
+      let turn = want - spider.heading
+      turn = Math.atan2(Math.sin(turn), Math.cos(turn))
+      spider.heading += turn * Math.min(1, dt * 6)
+    }
+    const speed = dt > 0 ? moved / dt : 0
+    spider.speed += (speed - spider.speed) * Math.min(1, dt * 5)
+    spider.x = s.x
+    spider.z = s.z
+    const burn = Math.min(1, s.burn)
+    const shake = burn * 0.18
+    spider.rig.group.position.set(
+      s.x + range(this.rng, -shake, shake),
+      this.groundAt(s.x, s.z),
+      s.z + range(this.rng, -shake, shake)
+    )
+    spider.rig.group.rotation.y = spider.heading
+    spider.rig.update({ dt, speed: spider.speed, burn, perception })
   }
 
   // The card for a shadowman, built the first time it shows: its
@@ -329,4 +401,20 @@ export class ShadowCards {
     this.cards.set(id, card)
     return card
   }
+}
+
+// A spider's body is its own: every geometry and material goes with it.
+function disposeTree(root: THREE.Object3D): void {
+  root.traverse((o) => {
+    if (o instanceof THREE.Mesh || o instanceof THREE.Sprite) {
+      if (o instanceof THREE.Mesh)
+        (o.geometry as THREE.BufferGeometry).dispose()
+      for (const m of [
+        o.material as THREE.Material | THREE.Material[],
+      ].flat()) {
+        if ('map' in m && m.map instanceof THREE.Texture) m.map.dispose()
+        m.dispose()
+      }
+    }
+  })
 }

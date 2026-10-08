@@ -8,6 +8,10 @@
 // vanishes at the lights, and nothing can touch you inside. A beam held on
 // one for burnSeconds bursts it.
 //
+// Among them cross the shadow spiders, twice a shadowman's height: one
+// new arrival in a bubble is a spider now and then, and far more often
+// near water (waterside.ts); a beam takes twice as long to burst one.
+//
 // Pure, no three.js. In the shared valley the server steps the one field
 // everyone sees (worker/ValleyDO.ts, sharedworld.ts rule 11) and clients
 // draw it (shadowsync.ts); played alone, the client steps its own field
@@ -17,15 +21,51 @@
 import { CONFIG } from './config.ts'
 import { compassBearing } from './coords.ts'
 import { range } from './rng.ts'
+import { nearWater } from './waterside.ts'
 import type { Metres, ScopeContact, XZ } from './interfaces.ts'
 import type { Rng } from './rng.ts'
+import type { WaterMap } from './waterside.ts'
 
 export type ShadowmenConfig = typeof CONFIG.shadowmen
+
+// What crosses: a shadowman, or a shadow spider (CONFIG.shadowmen.spider).
+export type ShadeKind = 'man' | 'spider'
+
+// How a kind crosses, rushes, touches and burns.
+export function speedRange(
+  kind: ShadeKind,
+  cfg: ShadowmenConfig
+): [number, number] {
+  return kind === 'spider'
+    ? [cfg.spider.speedMin, cfg.spider.speedMax]
+    : [cfg.speedMin, cfg.speedMax]
+}
+
+export function rushSpeedOf(kind: ShadeKind, cfg: ShadowmenConfig): number {
+  return kind === 'spider' ? cfg.spider.rushSpeed : cfg.rushSpeed
+}
+
+export function touchRadiusOf(kind: ShadeKind, cfg: ShadowmenConfig): number {
+  return kind === 'spider' ? cfg.spider.touchRadius : cfg.touchRadius
+}
+
+// Seconds in a beam until it bursts.
+export function burnSecondsOf(kind: ShadeKind, cfg: ShadowmenConfig): number {
+  return kind === 'spider'
+    ? cfg.burnSeconds * cfg.spider.burnScale
+    : cfg.burnSeconds
+}
+
+// Where over the ground a beam must find it.
+export function aimHeightOf(kind: ShadeKind, cfg: ShadowmenConfig): number {
+  return kind === 'spider' ? cfg.spider.aimHeight : cfg.chestHeight
+}
 
 // One shadowman mid-crossing, or rushing a raider.
 export interface Shadowman {
   // Unique in its field, never reused: cards and bursts follow it.
   id: number
+  kind: ShadeKind
   x: number
   z: number
   // Unit heading.
@@ -87,11 +127,15 @@ export interface ShadowmenStep {
   // A dev server's quiet valley, for the specs: the crossings never rush
   // anyone, and only a shadowman a spec placed does.
   calm?: boolean
+  // Where the water is: spiders come up more often near it. None, and
+  // they come at their plain chance.
+  water?: WaterMap | null
 }
 
-// Where one burst, by which shadowman.
+// Where one burst, by which shadowman, and what it was.
 export interface Burst {
   id: number
+  kind: ShadeKind
   x: number
   z: number
 }
@@ -162,7 +206,8 @@ export function spawnShadowman(
   metres: Metres,
   havens: readonly XZ[],
   cfg: ShadowmenConfig,
-  preroll = 0
+  preroll = 0,
+  kind: ShadeKind = 'man'
 ): Shadowman {
   // Where it is going: uniform over the crossing disc.
   const r = cfg.crossRadius * Math.sqrt(rng())
@@ -195,16 +240,66 @@ export function spawnShadowman(
   const len = Math.hypot(dx, dz) || 1
   const dirX = dx / len
   const dirZ = dz / len
+  const [slow, fast] = speedRange(kind, cfg)
   return {
     id,
+    kind,
     x: x + dirX * preroll,
     z: z + dirZ * preroll,
     dirX,
     dirZ,
-    speed: range(rng, cfg.speedMin, cfg.speedMax),
+    speed: range(rng, slow, fast),
     target: null,
     burn: 0,
   }
+}
+
+// Whether the next arrival round `raider`, coming in at `at`, is a spider:
+// by the spider's chance, or its near-water chance when either is close to
+// water, while the bubble holds fewer than maxPerBubble.
+export function spiderComes(
+  rng: Rng,
+  field: ShadowmenField,
+  raider: XZ,
+  at: XZ,
+  metres: Metres,
+  water: WaterMap | null,
+  cfg: ShadowmenConfig
+): boolean {
+  const roll = rng()
+  const { spider } = cfg
+  let spiders = 0
+  for (const s of field.shadowmen) {
+    if (
+      s.kind === 'spider' &&
+      Math.hypot(s.x - raider.x, s.z - raider.z) <= cfg.despawnRadius
+    ) {
+      spiders++
+    }
+  }
+  if (spiders >= spider.maxPerBubble) return false
+  const wet =
+    !!water &&
+    (nearWater(water, metres, raider, spider.waterRadius) ||
+      nearWater(water, metres, at, spider.waterRadius))
+  return roll < (wet ? spider.nearWaterChance : spider.chance)
+}
+
+// One new arrival round `raider`: a shadowman, or now and then a spider.
+function arrival(
+  rng: Rng,
+  field: ShadowmenField,
+  id: number,
+  raider: XZ,
+  metres: Metres,
+  havens: readonly XZ[],
+  water: WaterMap | null,
+  cfg: ShadowmenConfig
+): Shadowman {
+  const fresh = spawnShadowman(rng, id, raider, metres, havens, cfg)
+  if (!spiderComes(rng, field, raider, fresh, metres, water, cfg)) return fresh
+  const [slow, fast] = speedRange('spider', cfg)
+  return { ...fresh, kind: 'spider', speed: range(rng, slow, fast) }
 }
 
 export function createShadowmen(): ShadowmenField {
@@ -230,10 +325,11 @@ function fill(
   raider: XZ,
   metres: Metres,
   havens: readonly XZ[],
+  water: WaterMap | null,
   cfg: ShadowmenConfig
 ): void {
   for (let n = near(field, raider, cfg); n < cfg.count; n++) {
-    const fresh = spawnShadowman(rng, 0, raider, metres, havens, cfg)
+    const fresh = arrival(rng, field, 0, raider, metres, havens, water, cfg)
     // How far along its heading the crossing stays inside the spawn ring:
     // the distance to its closest approach, plus the half-chord beyond it.
     const px = raider.x - fresh.x
@@ -258,7 +354,7 @@ function fill(
 export function stepShadowmen(
   field: ShadowmenField,
   rng: Rng,
-  { dt, raiders, metres, havens, calm = false }: ShadowmenStep,
+  { dt, raiders, metres, havens, calm = false, water = null }: ShadowmenStep,
   cfg: ShadowmenConfig = CONFIG.shadowmen
 ): ShadowmenUpdate {
   const struck: string[] = []
@@ -268,7 +364,7 @@ export function stepShadowmen(
   const cooldowns: Record<string, number> = {}
   for (const raider of raiders) {
     if (!(raider.id in field.cooldowns)) {
-      fill(field, rng, raider, metres, havens, cfg)
+      fill(field, rng, raider, metres, havens, water, cfg)
     }
     cooldowns[raider.id] = field.cooldowns[raider.id] ?? 0
   }
@@ -286,7 +382,8 @@ export function stepShadowmen(
     if (s.target && !target) {
       // Breaks off: keeps its heading, back to a crossing pace.
       s.target = null
-      s.speed = range(rng, cfg.speedMin, cfg.speedMax)
+      const [slow, fast] = speedRange(s.kind, cfg)
+      s.speed = range(rng, slow, fast)
     }
     if (!s.target && (!calm || s.placed)) {
       // The nearest exposed raider inside the rush radius.
@@ -300,7 +397,7 @@ export function stepShadowmen(
       }
       if (target) {
         s.target = target.id
-        s.speed = cfg.rushSpeed
+        s.speed = rushSpeedOf(s.kind, cfg)
       }
     }
     if (target) {
@@ -318,7 +415,7 @@ export function stepShadowmen(
     // exposed.
     if (
       target &&
-      Math.hypot(target.x - s.x, target.z - s.z) < cfg.touchRadius
+      Math.hypot(target.x - s.x, target.z - s.z) < touchRadiusOf(s.kind, cfg)
     ) {
       struck.push(target.id)
       continue
@@ -334,12 +431,13 @@ export function stepShadowmen(
     ) {
       continue
     }
+    const aim = aimHeightOf(s.kind, cfg)
     const held = beams.some((beam) =>
-      inBeam(beam, { x: s.x, y: beam.floor + cfg.chestHeight, z: s.z })
+      inBeam(beam, { x: s.x, y: beam.floor + aim, z: s.z })
     )
     s.burn = held ? s.burn + dt : Math.max(0, s.burn - dt)
-    if (s.burn >= cfg.burnSeconds) {
-      bursts.push({ id: s.id, x: s.x, z: s.z })
+    if (s.burn >= burnSecondsOf(s.kind, cfg)) {
+      bursts.push({ id: s.id, kind: s.kind, x: s.x, z: s.z })
       continue
     }
     kept.push(s)
@@ -351,7 +449,7 @@ export function stepShadowmen(
     field.cooldowns[raider.id] = cooldown
     if (cooldown > 0 || near(field, raider, cfg) >= cfg.count) continue
     field.shadowmen.push(
-      spawnShadowman(rng, field.nextId++, raider, metres, havens, cfg)
+      arrival(rng, field, field.nextId++, raider, metres, havens, water, cfg)
     )
     field.cooldowns[raider.id] = cfg.spawnInterval
   }
@@ -359,11 +457,17 @@ export function stepShadowmen(
   return { struck, bursts }
 }
 
-// A shadowman standing still at (x, z), for the specs (a dev frame in the
-// shared valley, the dev hook played alone).
-export function placeStill(field: ShadowmenField, x: number, z: number): void {
+// A shadowman (or a spider) standing still at (x, z), for the specs (a dev
+// frame in the shared valley, the dev hook played alone).
+export function placeStill(
+  field: ShadowmenField,
+  x: number,
+  z: number,
+  kind: ShadeKind = 'man'
+): void {
   field.shadowmen.push({
     id: field.nextId++,
+    kind,
     x,
     z,
     dirX: 0,
