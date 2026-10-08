@@ -45,6 +45,8 @@ export function tierFor(method: string, parts: readonly string[]): Tier | null {
     if (method === 'PUT' && first === 'look') return 'loose'
     // The number keys, assigned in the pack.
     if (method === 'PUT' && first === 'hotbar') return 'loose'
+    // The settings, at the main menu and the pause overlay.
+    if (method === 'PUT' && first === 'settings') return 'loose'
     return null
   }
   if (parts.length === 2) {

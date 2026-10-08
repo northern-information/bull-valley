@@ -4,7 +4,13 @@
 // production is the D1 store in d1accounts.ts.
 
 import { EMPTY_HOTBAR } from '../src/hotbar.ts'
-import type { HotbarWire, LookWire, Provider } from '../src/account.ts'
+import { DEFAULT_SETTINGS } from '../src/settings.ts'
+import type {
+  HotbarWire,
+  LookWire,
+  Provider,
+  SettingsWire,
+} from '../src/account.ts'
 
 export interface Account {
   accountId: string
@@ -66,6 +72,10 @@ export interface AccountStore {
   hotbarOf(accountId: string): Promise<HotbarWire>
   // False when there is no such account.
   setHotbar(accountId: string, hotbar: HotbarWire): Promise<boolean>
+  // The raider's settings; the defaults until first changed.
+  settingsOf(accountId: string): Promise<SettingsWire>
+  // False when there is no such account.
+  setSettings(accountId: string, settings: SettingsWire): Promise<boolean>
 }
 
 export class MemoryAccountStore implements AccountStore {
@@ -73,6 +83,7 @@ export class MemoryAccountStore implements AccountStore {
   readonly providers = new Map<string, LinkedProvider>()
   readonly looks = new Map<string, LookWire>()
   readonly hotbars = new Map<string, HotbarWire>()
+  readonly settings = new Map<string, SettingsWire>()
 
   findByProvider(providerKey: string): Promise<LinkedProvider | null> {
     return Promise.resolve(this.providers.get(providerKey) ?? null)
@@ -187,6 +198,16 @@ export class MemoryAccountStore implements AccountStore {
   setHotbar(accountId: string, hotbar: HotbarWire): Promise<boolean> {
     if (!this.accounts.has(accountId)) return Promise.resolve(false)
     this.hotbars.set(accountId, [...hotbar])
+    return Promise.resolve(true)
+  }
+
+  settingsOf(accountId: string): Promise<SettingsWire> {
+    return Promise.resolve(this.settings.get(accountId) ?? DEFAULT_SETTINGS)
+  }
+
+  setSettings(accountId: string, settings: SettingsWire): Promise<boolean> {
+    if (!this.accounts.has(accountId)) return Promise.resolve(false)
+    this.settings.set(accountId, { ...settings })
     return Promise.resolve(true)
   }
 

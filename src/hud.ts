@@ -9,11 +9,14 @@ import { copy } from './copy.ts'
 import { PACK_TABS } from './packgrid.ts'
 import { CHAT_MAX } from './protocol.ts'
 import { SeasonHud } from './seasonhud.ts'
+import { musicSlider } from './settingsui.ts'
+import { TaskHud } from './taskhud.ts'
 import type { Binding } from './bindings.ts'
 import type { ChatLine } from './chat.ts'
 import type { Cooldown } from './hotbar.ts'
 import type { GeometrieAxis, PackItem } from './interfaces.ts'
 import type { PackTab } from './packgrid.ts'
+import type { SettingsStore } from './settingsui.ts'
 
 // Geometrie's triangle (geometrie.ts): one corner per level, each lit by
 // its own glow over the dim red face, in the triangle's own units.
@@ -221,6 +224,8 @@ export class Hud {
   raiderEl: HTMLElement
   // The season's tracker, its card on the overlay, and its banners.
   season: SeasonHud
+  // The daily task's row in the season's tracker.
+  task: TaskHud
 
   constructor(root: HTMLElement) {
     this.root = root
@@ -235,6 +240,7 @@ export class Hud {
 
     // The season: the tracker in the upper right and the banners.
     this.season = new SeasonHud(ui)
+    this.task = new TaskHud(this.season.tracker)
 
     // Loadout countdown: bare numbers, top center.
     this.countdown = el('p', 'bv-countdown')
@@ -447,6 +453,7 @@ export class Hud {
         ${copy('intro.raiding_as')} <b data-bv="intro-username"></b>
         <button type="button" class="bv-link" data-bv="intro-account">${copy('intro.account')}</button>
         <button type="button" class="bv-link" data-bv="intro-sign-out">${copy('intro.sign_out')}</button>
+        <span class="bv-intro-settings" data-bv="intro-settings"></span>
       </p>
       <p class="bv-intro-note bv-intro-fine">${copy('intro.fine')}</p>`
     required(
@@ -509,6 +516,15 @@ export class Hud {
       this.intro.querySelector<HTMLElement>('[data-bv="intro-as"]'),
       'intro raider'
     ).hidden = false
+  }
+
+  // The music slider on the Raiding As line, sharing the main menu's
+  // store; it shows with that line once the titles settle the account.
+  setSettings(store: SettingsStore): void {
+    required(
+      this.intro.querySelector<HTMLElement>('[data-bv="intro-settings"]'),
+      'intro settings'
+    ).replaceChildren(musicSlider(store))
   }
 
   // A null text hides the countdown.

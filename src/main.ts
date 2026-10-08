@@ -20,14 +20,17 @@ import { wireKeys, wirePointer } from './input.ts'
 import { createItemThumbs } from './itemthumbs.ts'
 import { startLoop } from './loop.ts'
 import { MistCards } from './mistcards.ts'
+import { createMusic } from './musicrig.ts'
 import { NetClient, socketUrl } from './net.ts'
 import { Peers } from './peers.ts'
 import { Player } from './player.ts'
 import { PlayerBody } from './playerbody.ts'
 import { createPS1Renderer, setSnapResolution } from './ps1.ts'
+import { createRadio } from './radiorig.ts'
 import { mulberry32 } from './rng.ts'
 import { buildRoadGraph, nearestRoadPoint, wanderRoute } from './roadgraph.ts'
 import { Scope } from './scope.ts'
+import { createSettingsStore } from './settingsui.ts'
 import { ShadowBursts } from './shadowburst.ts'
 import { ShadowCards } from './shadowcards.ts'
 import { createTargets } from './targets.ts'
@@ -83,14 +86,17 @@ async function boot() {
   await fontsReady()
   const hud = new Hud(root)
   const audio = new BvAudio()
-  // The title-card cues are the only sound; dev builds mute them.
+  // The title-card cues; dev builds mute them (Marx's radio plays on).
   if (import.meta.env.DEV) audio.setMuted(true)
   // The titles cover the terrain resolve: colophon, logo, account step, then
   // the character select, each a black layer stacked over the next, so every
   // reveal uncovers the one beneath and the last discloses the intro
   // dialog already waiting. Not awaited until the player body needs the
   // pick; the scene builds underneath.
-  const titles = showTitles(audio)
+  // The raider's settings: the menu's Settings and the pause overlay share
+  // them, and the music reads them every frame.
+  const settings = createSettingsStore()
+  const titles = showTitles(audio, settings)
   hud.showIntro(true, false)
   hud.setBegin('loading')
 
@@ -217,6 +223,7 @@ async function boot() {
   const pick = await titles
   if (pick.notice) hud.tell(pick.notice)
   hud.setRaider(pick.username)
+  hud.setSettings(settings)
   hud.accountBtn.addEventListener('click', openAccount)
   hud.signOutBtn.addEventListener('click', () => {
     hud.signOutBtn.disabled = true
@@ -254,6 +261,11 @@ async function boot() {
     graves,
     graph,
     truck,
+    // Under e2e the valley is never drawn and never heard.
+    radio:
+      import.meta.env.MODE === 'test' ? null : createRadio(camera, truck.group),
+    music: import.meta.env.MODE === 'test' ? null : createMusic(),
+    settings,
     truckContext,
     truckRoutes,
     spawnStation,

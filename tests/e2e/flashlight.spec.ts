@@ -75,6 +75,14 @@ test('a shadowman held in the beam bursts into dimes', async ({ page }) => {
     )
     .toBe(true)
 
+  // The burn counts toward the daily task: one of five, and the tracker
+  // under the season says so.
+  await expect.poll(() => page.evaluate(() => window.__bv?.task.count)).toBe(1)
+  await expect(page.locator('.bv-task-count')).toHaveText(
+    copy('task.progress', { count: 1, goal: 5 })
+  )
+  await expect(page.locator('.bv-task .bv-season-pip--lit')).toHaveCount(1)
+
   // It leaves its dimes lying where it stood; E takes them up into the
   // wallet, never the pack, and the log says so.
   const dimes = () =>

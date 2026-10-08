@@ -466,7 +466,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   // Shadowmen burst where `bursts` say: played alone each leaves its dimes
   // lying there (sharedworld.ts rule 11) and its tombstone, named, beside
-  // them (rule 16). In the valley the valley does both.
+  // them (rule 17). In the valley the valley does both.
   const spillBursts = (bursts: readonly XZ[]) => {
     if (s.world || bursts.length === 0) return
     const dimes = bursts.map(({ x, z }) => ({

@@ -1,6 +1,6 @@
 // Tombstones, pure: every shadowman burnt in a beam leaves one where it
 // burst, carved with the name it is given then (names.ts). sharedworld.ts
-// keeps the valley's (rule 16), actions.ts the ones a raider playing alone
+// keeps the valley's (rule 17), actions.ts the ones a raider playing alone
 // makes. No three.js, no DOM.
 
 import { CONFIG } from './config.ts'

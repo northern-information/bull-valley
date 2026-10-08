@@ -145,6 +145,30 @@ export const CONFIG = {
     // the lot, between the pumps and the road sign.
     offset: 5,
   },
+  radio: {
+    // The radio in Marx's cab (radio.ts): full this close, in metres,
+    // silent past `far`, and muffled toward the edge.
+    volume: 0.9,
+    near: 6,
+    far: 45,
+    openHz: 9000,
+    muffledHz: 700,
+    // In the bed, through the back glass.
+    bedHz: 2400,
+    // The stream pauses past `far` plus this, so no one far off downloads it.
+    pauseBeyond: 15,
+    // A player this far from the valley's moment, in seconds, seeks back.
+    driftSeconds: 2,
+  },
+  music: {
+    // The valley's music (music.ts): the element's volume at the setting's
+    // top, kept well under the valley so it sits beneath everything.
+    volume: 0.5,
+    // How much of it Marx's radio takes away at its loudest.
+    duck: 0.85,
+    // Seconds it takes to come up from silence when it starts.
+    fadeInSeconds: 4,
+  },
   store: {
     // A new account's wallet, in cents (worker/packs.ts). Played alone,
     // every visit starts with this much.
@@ -306,6 +330,20 @@ export const CONFIG = {
     halfLength: 1.6,
     radius: 0.9,
     // Trees keep this far off its middle.
+    treeClear: 6,
+  },
+  dishes: {
+    // The dish array behind the spawn Citgo (assets.ts DISH), station-local
+    // like the bush: `rows` rows back from the store's back wall, the first
+    // `first` metres from the pump island, each `cols` dishes across,
+    // `spacing` apart, wider than a reflector so none ever touch however
+    // they turn. Scenery: each pedestal blocks like a post this wide.
+    rows: 6,
+    cols: 6,
+    first: -24,
+    spacing: 13,
+    radius: 1.4,
+    // Trees keep this far off each pedestal: clear of the reflector.
     treeClear: 6,
   },
   npcs: {

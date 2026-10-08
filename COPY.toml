@@ -65,6 +65,15 @@ banner_unmade_again = { text = "Caretaker Unmade", by = "ai" }
 banner_complete = { text = "Season Complete", by = "ai" }
 banner_paid = { text = "+{cash} · Carton of Marlboro Reds", by = "ai" }
 
+[task]
+kicker = { text = "Daily", by = "ai" }
+title = { text = "Burn {goal} Shadowmen", by = "ai" }
+progress = { text = "{count}/{goal}", by = "ai" }
+complete = { text = "Done", by = "ai" }
+tracker_label = { text = "Daily task: {count} of {goal} shadowmen burned today", by = "ai" }
+banner_done = { text = "Daily Task Done", by = "ai" }
+banner_paid = { text = "+{cash}", by = "ai" }
+
 [signin]
 title = { text = "Sign In", by = "tyler" }
 lede = { text = "Sign in to raid the valley.", by = "tyler" }
@@ -157,6 +166,8 @@ marx_back = { text = "Marx comes back across the road and picks up his book.", b
 season_live = { text = "Season One: The Caretaker is live. Unmake him {goal} times for {cash} and a carton of Marlboro Reds.", by = "ai" }
 season_unmade = { text = "You helped unmake the Caretaker. {kills} of {goal} for Season One.", by = "ai" }
 season_unmade_again = { text = "You helped unmake the Caretaker again.", by = "ai" }
+task_burned = { text = "Shadowman burned: {count}/{goal} for today's task.", by = "ai" }
+task_reward = { text = "Daily task done: {goal} shadowmen burned. {cash} into your wallet.", by = "ai" }
 season_reward = { text = "Season One complete. {cash} and a carton of Marlboro Reds are in your pack.", by = "ai" }
 whistle = { text = "You whistle into the dark. An engine turns over, far off.", by = "ai" }
 whistle_nothing = { text = "You whistle into the dark. Nothing turns over.", by = "ai" }
@@ -240,6 +251,8 @@ quit = { text = "Quit", by = "ai" }
 account = { text = "Account", by = "ai" }
 sign_out = { text = "Sign Out", by = "ai" }
 back = { text = "Back", by = "ai" }
+music = { text = "Music", by = "ai" }
+music_level = { text = "{percent}%", by = "ai" }
 quit_blocked = { text = "The valley lets you go. Close this tab.", by = "ai" }
 
 # Key labels: what each key does, in the intro controls table and the
@@ -295,6 +308,8 @@ look_rule = { text = "Pick a character and a finish from the select", by = "ai" 
 look_failed = { text = "Your character could not be saved", by = "ai" }
 hotbar_rule = { text = "Each number key holds one item from your pack, or nothing", by = "ai" }
 hotbar_failed = { text = "Your hotbar could not be saved", by = "ai" }
+settings_rule = { text = "The music volume is a whole percent from 0 to 100", by = "ai" }
+settings_failed = { text = "Your settings could not be saved", by = "ai" }
 account_not_found = { text = "Account not found", by = "ai" }
 unlink_last = { text = "You cannot unlink your only way to sign in", by = "ai" }
 not_linked = { text = "{provider} is not linked to your account", by = "ai" }

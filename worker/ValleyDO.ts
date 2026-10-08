@@ -8,8 +8,10 @@
 // (d1packs.ts): the reducer says what goes in or out, and this writes it
 // and tells the account's sockets. A buy runs alone (blockConcurrencyWhile),
 // so the wallet it was judged against is the wallet it is paid from; so
-// does a trade with Moab, against the pack, and the season's tally
-// (rule 15), so an unmaking is counted once and its reward paid once.
+// does a trade with Moab, against the pack, the season's tally (rule 15),
+// so an unmaking is counted once and its reward paid once, and the daily
+// task's (rule 16), so a burn is counted once and the day's reward paid
+// once.
 //
 // The shadowmen (rule 11) and the Caretaker (rule 13) are stepped here
 // CONFIG.shadowmen.tickHz times a second while anyone is placed in the
@@ -21,6 +23,8 @@ import { DurableObject } from 'cloudflare:workers'
 import { isSelectable } from '../src/characters.ts'
 import { CONFIG } from '../src/config.ts'
 import { toCosmetics } from '../src/cosmetics.ts'
+import { dayKey } from '../src/daily.ts'
+import { DAILY_TASK, tallyTask } from '../src/dailytask.ts'
 import { spillsOf } from '../src/drops.ts'
 import { burialsOf } from '../src/graves.ts'
 import {
@@ -48,6 +52,7 @@ import { ACCOUNT_HEADER, NAME_HEADER } from './auth.ts'
 import { D1AccountStore } from './d1accounts.ts'
 import { D1PackStore } from './d1packs.ts'
 import type { CosmeticId } from '../src/cosmetics.ts'
+import type { TaskProgress } from '../src/dailytask.ts'
 import type { XZ } from '../src/interfaces.ts'
 import type {
   HelloMessage,
@@ -55,6 +60,7 @@ import type {
   PeerWire,
   SeasonWire,
   ServerMessage,
+  TaskWire,
 } from '../src/protocol.ts'
 import type { SeasonProgress } from '../src/season.ts'
 import type {
@@ -338,6 +344,7 @@ export class ValleyDO extends DurableObject<Env> {
     }
     this.broadcast(out.message, null)
     if (out.credited.length > 0) void this.credit(out.credited)
+    if (out.burned.length > 0) void this.creditBurns(out.burned)
     const { bursts, unmade } = out.message
     if (bursts.length || unmade) void this.spill(bursts, unmade)
     if (out.struck.length === 0) return
@@ -404,10 +411,12 @@ export class ValleyDO extends DurableObject<Env> {
     // it.
     let holdings: Holdings
     let season: SeasonProgress
+    let task: TaskProgress
     try {
       const packs = this.packs()
       holdings = await packs.open(account)
       season = await packs.season(account, SEASON.id)
+      task = await packs.task(account, DAILY_TASK.id)
     } catch (err) {
       console.error('The pack could not be opened', err)
       ws.close(CLOSE.serverError, 'The valley lost the pack')
@@ -462,6 +471,7 @@ export class ValleyDO extends DurableObject<Env> {
       cash: holdings.cash,
       cosmetics: holdings.cosmetics,
       season: seasonWire(season),
+      task: taskWire(task),
     })
     this.broadcast({ type: 'peer-joined', peer: me }, ws)
     for (const msg of reduced.broadcast) this.broadcast(msg, ws)
@@ -579,7 +589,7 @@ export class ValleyDO extends DurableObject<Env> {
 
   // Each shadowman that burst leaves its dimes where it was (sharedworld.ts
   // rule 11), how many drawn here, so the reducer stays pure, and its
-  // tombstone, its name drawn here too (rule 16); the Caretaker unmade
+  // tombstone, its name drawn here too (rule 17); the Caretaker unmade
   // leaves its gold bullion (rule 13).
   private async spill(bursts: readonly XZ[], unmade: XZ | null): Promise<void> {
     const spills = spillsOf(bursts, unmade, this.shadowRng)
@@ -824,6 +834,37 @@ export class ValleyDO extends DurableObject<Env> {
     })
   }
 
+  // Rule 16: each account credited with a burn, tallied alone against
+  // today's progress, so two burns never read the same count. Every socket
+  // on the account hears the new count, and the wallet when the tally paid
+  // the day's reward.
+  private async creditBurns(accounts: readonly string[]): Promise<void> {
+    await this.ctx.blockConcurrencyWhile(async () => {
+      const packs = this.packs()
+      const day = dayKey(Date.now())
+      for (const account of accounts) {
+        try {
+          const { progress, reward } = tallyTask(
+            await packs.task(account, DAILY_TASK.id),
+            day
+          )
+          await packs.scoreTask(account, DAILY_TASK.id, progress, reward)
+          this.toAccount(account, {
+            type: 'task',
+            task: taskWire(progress),
+            rewarded: reward !== null,
+          })
+          if (reward) {
+            const { pack, cash, cosmetics } = await packs.get(account)
+            this.toAccount(account, { type: 'pack', pack, cash, cosmetics })
+          }
+        } catch (err) {
+          console.error('The daily task could not be tallied', account, err)
+        }
+      }
+    })
+  }
+
   // To every socket signed in to `account` that has said hello.
   private toAccount(account: string, msg: ServerMessage): void {
     for (const socket of this.ctx.getWebSockets()) {
@@ -915,6 +956,10 @@ function allow(
 
 function seasonWire(progress: SeasonProgress): SeasonWire {
   return { season: SEASON.id, ...progress }
+}
+
+function taskWire(progress: TaskProgress): TaskWire {
+  return { task: DAILY_TASK.id, ...progress }
 }
 
 function send(ws: WebSocket, msg: ServerMessage): void {

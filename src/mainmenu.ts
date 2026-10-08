@@ -2,7 +2,8 @@
 // logo under its black fog (fog.ts), its cue playing once, and the options
 // below it. Signed out, the one option is Create Account, which hands the
 // raider to the account step (signin.ts) beneath it. Signed in: Die (on to
-// the character select), Settings (the account panel and Sign Out), and
+// the character select), Settings (the music volume, the account panel and
+// Sign Out), and
 // Quit, which closes the tab, or says to where the browser will not let a
 // page close itself. Mounted at boot above the account step and the select,
 // so hiding it uncovers them; it never removes itself until titles.ts is
@@ -10,8 +11,10 @@
 
 import { copy } from './copy.ts'
 import { createFog } from './fog.ts'
+import { musicSlider } from './settingsui.ts'
 import type { BvAudio } from './audio.ts'
 import type { FogLayer } from './fog.ts'
+import type { SettingsStore } from './settingsui.ts'
 import type { CardConfig } from './splash.ts'
 
 export interface MainMenuOptions {
@@ -20,6 +23,8 @@ export interface MainMenuOptions {
   config: CardConfig
   // The fog's render downscale, the game's.
   downscale: number
+  // The raider's settings, shared with the pause overlay.
+  settings: SettingsStore
   // Account was pressed in Settings: the panel opens over the menu.
   onAccount: () => void
   // Sign Out was pressed in Settings.
@@ -46,6 +51,7 @@ export function mountMainMenu({
   audio,
   config,
   downscale,
+  settings,
   onAccount,
   onSignOut,
 }: MainMenuOptions): MainMenu {
@@ -91,6 +97,7 @@ export function mountMainMenu({
   const accountBtn = find<HTMLButtonElement>('[data-bv="menu-account"]')
   const signOutBtn = find<HTMLButtonElement>('[data-bv="menu-sign-out"]')
   const backBtn = find<HTMLButtonElement>('[data-bv="menu-back"]')
+  find<HTMLElement>('[data-face="settings"] h2').after(musicSlider(settings))
 
   // A missing PNG must not show the broken-image glyph.
   logo.addEventListener('error', () => {
@@ -132,8 +139,9 @@ export function mountMainMenu({
     requestAnimationFrame(() => root.classList.add('bv-menu--up'))
   }
 
-  // Up and down (or W and S) walk the options; Enter and Space press the
-  // one in focus, as buttons do; Escape steps back out of Settings.
+  // Up and down (or W and S) walk the options, the music slider among
+  // them, which left and right move; Enter and Space press the one in
+  // focus, as buttons do; Escape steps back out of Settings.
   const onKey = (e: KeyboardEvent) => {
     if (root.hidden) return
     if (e.code === 'Escape' && face === 'settings') {
@@ -150,10 +158,12 @@ export function mountMainMenu({
     if (!dir) return
     e.preventDefault()
     const buttons = Array.from(
-      root.querySelectorAll<HTMLButtonElement>(`[data-face="${face}"] button`)
+      root.querySelectorAll<HTMLElement>(
+        `[data-face="${face}"] button, [data-face="${face}"] input`
+      )
     )
     if (buttons.length === 0) return
-    const at = buttons.indexOf(document.activeElement as HTMLButtonElement)
+    const at = buttons.indexOf(document.activeElement as HTMLElement)
     const next = at < 0 ? 0 : (at + dir + buttons.length) % buttons.length
     buttons[next].focus()
   }

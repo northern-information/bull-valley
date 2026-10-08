@@ -5,6 +5,7 @@ import {
   buildCabbageStand,
   buildCornMazeSign,
   buildCornWalls,
+  buildDishArray,
   buildEnterSign,
   buildLandmarkBeacon,
   buildPickup,
@@ -88,7 +89,13 @@ import {
   worldFacings,
 } from './store.ts'
 import { Walls } from './walls.ts'
-import type { CornPiece, MazeSignSize, PortalRig, Wreck } from './assets.ts'
+import type {
+  CornPiece,
+  DishArray,
+  MazeSignSize,
+  PortalRig,
+  Wreck,
+} from './assets.ts'
 import type { DonutField } from './donuts.ts'
 import type { GronRig, MoabRig } from './figure.ts'
 import type {
@@ -186,10 +193,14 @@ export interface World {
   // The green BMW in a tree by the spawn station, update(t) for its smoke
   // and hazards; null without a spawn station.
   wreck: Wreck | null
+  // The dish array behind the spawn station, update(t) to slew it; null
+  // without a spawn station.
+  dishes: DishArray | null
   // What to stand on anywhere: the terrain, or the road or lot over it.
   ground: Ground
   // What stops you: the store walls and fixtures, the berry bush, Gron,
-  // Moab and his horse, the wreck and its tree, the poles and lamps.
+  // Moab and his horse, the wreck and its tree, the dishes, the poles and
+  // lamps.
   walls: Walls
   // Every station's shelf facings in the world, indexed like fuelPoints.
   facings: WorldFacing[][]
@@ -1647,6 +1658,25 @@ function chooseSpawnStation(
 // The donut field (CONFIG.truck.donuts, station-local) in the world. Trees
 // keep DONUT_TREE_CLEAR past its edge, since the truck's tail swings out.
 const DONUT_TREE_CLEAR = 4
+// Where each dish of the array behind a station stands (CONFIG.dishes):
+// rows back from the store, columns across the lot's width, each heading
+// as the station faces.
+function dishSpotsOf(station: StoreOrigin): (XZ & { yaw: number })[] {
+  const { rows, cols, first, spacing } = CONFIG.dishes
+  const spots: (XZ & { yaw: number })[] = []
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const [x, , z] = toWorld(station, [
+        first - row * spacing,
+        0,
+        (col - (cols - 1) / 2) * spacing,
+      ])
+      spots.push({ x, z, yaw: -station.yaw })
+    }
+  }
+  return spots
+}
+
 function donutFieldOf(station: StoreOrigin): DonutField {
   const { field, radius } = CONFIG.truck.donuts
   const [x, , z] = toWorld(station, [field.x, 0, field.z])
@@ -1941,6 +1971,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   const wreckAt = spawnStation
     ? toWorld(spawnStation, [CONFIG.wreck.at.x, 0, CONFIG.wreck.at.z])
     : null
+  const dishSpots = spawnStation ? dishSpotsOf(spawnStation) : []
   group.add(
     buildTrees(
       geo,
@@ -1956,7 +1987,10 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
           : false) ||
         (wreckAt
           ? Math.hypot(x - wreckAt[0], z - wreckAt[2]) < CONFIG.wreck.treeClear
-          : false)
+          : false) ||
+        dishSpots.some(
+          (d) => Math.hypot(x - d.x, z - d.z) < CONFIG.dishes.treeClear
+        )
     )
   )
   // The roadside draws from its own seed, so retuning the poles never moves
@@ -2123,6 +2157,16 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     walls.addWall(tree, tree, WRECK.treeRadius)
   }
 
+  // The dish array behind the spawn station (CONFIG.dishes), every dish on
+  // the ground under its pedestal, its pedestal blocking like a post.
+  let dishes: DishArray | null = null
+  if (dishSpots.length > 0) {
+    const spots = dishSpots.map((d) => ({ ...d, y: ground.at(d.x, d.z) }))
+    dishes = buildDishArray(spots)
+    group.add(dishes.group)
+    for (const d of spots) walls.addWall(d, d, CONFIG.dishes.radius)
+  }
+
   // Moab Coldë and his horse under every station's sign (CONFIG.moab,
   // station-local), the horse broadside to the pump island and Moab, his
   // back to its flank, facing the island and the lot. The horse blocks
@@ -2180,6 +2224,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     moabs,
     moabRigs,
     wreck,
+    dishes,
     ground,
     walls,
     facings: fuel.points.map(worldFacings),

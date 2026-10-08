@@ -3,6 +3,7 @@
 // valleysync.ts, input.ts, targets.ts and loop.ts each take the Game.
 
 import { CONFIG } from './config.ts'
+import { NO_TASK } from './dailytask.ts'
 import { SOBER } from './geometrie.ts'
 import { HAND_DOWN } from './hands.ts'
 import { NO_EFFECTS } from './hotbar.ts'
@@ -12,6 +13,7 @@ import { NO_PROGRESS } from './season.ts'
 import { freshStock } from './store.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
 import type { CosmeticId } from './cosmetics.ts'
+import type { TaskProgress } from './dailytask.ts'
 import type { DropMeshes } from './dropmeshes.ts'
 import type { Drop } from './drops.ts'
 import type { FirstPersonHands } from './fphands.ts'
@@ -27,15 +29,18 @@ import type { Geo, Inventory, ShopStock } from './interfaces.ts'
 import type { ItemThumbs } from './itemthumbs.ts'
 import type { Leg, TruckRoutes, TruckState } from './marx.ts'
 import type { MistCards } from './mistcards.ts'
+import type { Music } from './musicrig.ts'
 import type { NetClient } from './net.ts'
 import type { NpcId } from './npcs.ts'
 import type { Peers } from './peers.ts'
 import type { Player } from './player.ts'
 import type { PlayerBody } from './playerbody.ts'
 import type { DailyWire, PeerStateWire, WorldWire } from './protocol.ts'
+import type { Radio } from './radiorig.ts'
 import type { RoadGraph } from './roadgraph.ts'
 import type { Scope } from './scope.ts'
 import type { SeasonProgress } from './season.ts'
+import type { SettingsStore } from './settingsui.ts'
 import type { ShadowBursts } from './shadowburst.ts'
 import type { ShadowCards } from './shadowcards.ts'
 import type { Titles } from './titles.ts'
@@ -65,6 +70,9 @@ export interface GameState {
   // The account's progress through the season (season.ts) as the valley
   // last sent it; alone, none, and nothing is kept.
   season: SeasonProgress
+  // The account's progress on the daily task (dailytask.ts) as the valley
+  // last sent it, on the day it counts; alone, none, and nothing is kept.
+  task: TaskProgress
   // Every Citgo's shelves, one stock per station like world.fuelPoints.
   storeStock: ShopStock[]
   // The item on each number key: the account's, saved one change at a
@@ -124,7 +132,7 @@ export interface GameState {
   drops: Drop[]
   nextDrop: number
   pendingDrops: Set<number>
-  // The shadowmen's tombstones (rule 16): the valley's, from every
+  // The shadowmen's tombstones (rule 17): the valley's, from every
   // snapshot, or this raider's own when played alone, numbered from
   // nextGrave.
   graves: Grave[]
@@ -151,6 +159,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     pendingTrade: false,
     offeredBy: null,
     season: NO_PROGRESS,
+    task: NO_TASK,
     storeStock: freshStock(stations),
     hotbar,
     hotbarSaved: Promise.resolve(),
@@ -205,6 +214,12 @@ export interface Game {
   graves: Gravestones
   graph: RoadGraph
   truck: Truck
+  // The radio in Marx's cab; none under e2e, which never plays sound.
+  radio: Radio | null
+  // The valley's music, likewise none under e2e, and the settings that
+  // say how loud it plays.
+  music: Music | null
+  settings: SettingsStore
   // The roads Matthew Marx drives (truckplan.ts): where he parks, the
   // joyride, his donuts for a seed; and what the valley is told of them.
   truckContext: TruckContext

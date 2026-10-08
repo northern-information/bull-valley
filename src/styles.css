@@ -156,6 +156,20 @@
   box-shadow: 0 0 6px var(--fi-gold);
 }
 
+/* The daily task (taskhud.ts): a row under the season in the same pane,
+   its pips lit for the shadowmen burned today, gold once it is done. */
+.bv-task {
+  margin-top: 0.45rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--bv-cell-edge);
+}
+
+.bv-task--done .bv-season-pip {
+  border-color: var(--fi-gold);
+  background: var(--fi-gold);
+  box-shadow: 0 0 6px var(--fi-gold);
+}
+
 /* The season's card on the intro and pause overlay. */
 .bv-season-card {
   display: flex;
@@ -1178,6 +1192,36 @@
 .bv-intro-as b {
   font-weight: inherit;
   color: var(--bv-citgo);
+}
+
+/* A setting: its name, a slider, and where the slider stands, on one
+   line in the main menu's Settings and on the pause overlay. */
+.bv-setting {
+  display: grid;
+  grid-template-columns: auto 1fr 4ch;
+  gap: 0.8em;
+  align-items: center;
+  letter-spacing: 0.06em;
+}
+
+.bv-setting-level {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--bv-citgo);
+}
+
+.bv-setting-range {
+  width: 100%;
+  min-width: 8rem;
+  margin: 0;
+  accent-color: var(--bv-citgo);
+  cursor: pointer;
+}
+
+.bv-intro-settings .bv-setting {
+  display: inline-grid;
+  margin-left: 1.6em;
+  vertical-align: middle;
 }
 
 /* A button that reads as a link: Sign Out beside the username. */

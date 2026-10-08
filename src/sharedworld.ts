@@ -22,7 +22,7 @@
 //    whistler who leaves sends it home empty.
 // 6. The day turns at midnight Central (daily.ts): every pickup is back,
 //    the shelves are full again, and what lay dropped is gone (the
-//    tombstones stay, rule 16).
+//    tombstones stay, rule 17).
 // 7. The Citgo shelves are shared: a unit one raider buys is off the shelf
 //    for everyone until the day turns. The buyer picks the unit, so the
 //    valley keeps which units are left. A unit is paid for out of the
@@ -75,7 +75,13 @@
 //    account however many of its sockets held a beam on it. The progress
 //    is the account's, kept by the valley in D1 beside the wallet, and the
 //    unmaking that finishes the season pays its reward once.
-// 16. Every shadowman that bursts (rule 11) is named (names.ts, drawn by
+// 16. The daily task (dailytask.ts): every raider whose beam was on a
+//    shadowman as it burst is credited with the burn, once per account
+//    however many of its sockets held a beam on it. The progress is the
+//    account's for the Central day, kept by the valley in D1 beside the
+//    wallet, and the burn that finishes the day's task pays its reward
+//    once that day.
+// 17. Every shadowman that bursts (rule 11) is named (names.ts, drawn by
 //    the valley) and leaves a tombstone carved with its name a step from
 //    where it burst (graves.ts). The graves outlast the day's turn; past
 //    CONFIG.graves.max the oldest goes.
@@ -154,7 +160,7 @@ export interface SharedWorld {
   // Rule 12: what lies dropped, and the id the next drop gets.
   drops: Drop[]
   nextDrop: number
-  // Rule 16: the tombstones, and the id the next one gets.
+  // Rule 17: the tombstones, and the id the next one gets.
   graves: Grave[]
   nextGrave: number
   truck: TruckState
@@ -217,7 +223,7 @@ export type ValleyAction =
   // when the valley has not heard one.
   | { type: 'drop'; id: string; kind: string; count: number; at: Facing | null }
   | { type: 'take-drop'; id: string; drop: number }
-  // Rules 11, 13 and 16: what the valley leaves of its own accord: the
+  // Rules 11, 13 and 17: what the valley leaves of its own accord: the
   // dimes burst shadowmen leave and their tombstones, and the Caretaker's
   // gold bullion.
   | { type: 'spill'; spills: Spill[]; burials?: Burial[] }
@@ -787,7 +793,7 @@ function act(
     case 'spill': {
       // Rules 11 and 13: each burst leaves its dimes lying where it was,
       // and the Caretaker unmade its gold bullion. Only cash or an item.
-      // Rule 16: each burst shadowman its tombstone.
+      // Rule 17: each burst shadowman its tombstone.
       const world = valley.world
       const spills = action.spills.filter(
         (one) => one.count > 0 && (isCash(one.kind) || isPackKind(one.kind))
@@ -969,6 +975,9 @@ export function stepShadows(
   caught: string[]
   // Rule 15: the accounts credited with unmaking the Caretaker this step.
   credited: string[]
+  // Rule 16: the accounts credited with a burn this step, once for each
+  // shadowman each burned.
+  burned: string[]
 } | null {
   const world = valley.world
   const raiders = world ? shadowRaiders(valley, shadows, placed, now) : []
@@ -1030,18 +1039,25 @@ export function stepShadows(
         burn: round(Math.min(1, s.burn / cfg.burnSeconds), 2),
         target: s.target,
       })),
-      bursts: bursts.map((b) => ({ ...b, x: round(b.x, 2), z: round(b.z, 2) })),
+      // Who burned each is the valley's to know, not the wire's.
+      bursts: bursts.map((b) => ({
+        id: b.id,
+        x: round(b.x, 2),
+        z: round(b.z, 2),
+      })),
       caretaker,
       unmade,
     },
     struck,
     caught,
     credited,
+    burned: bursts.flatMap((b) => creditedWith(valley, b.by)),
   }
 }
 
-// Rule 15: the accounts behind the sockets whose beams unmade the
-// Caretaker, each once, in the order their beams were counted.
+// Rules 15 and 16: the accounts behind the sockets whose beams unmade the
+// Caretaker or burst a shadowman, each once, in the order their beams were
+// counted.
 export function creditedWith(valley: Valley, ids: readonly string[]): string[] {
   const accounts: string[] = []
   for (const id of ids) {

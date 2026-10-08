@@ -1,5 +1,5 @@
 // The shadowmen's tombstones as they stand in the valley (sharedworld.ts
-// rule 16): one assets.ts buildTombstone per grave on ground.at, kept in
+// rule 17): one assets.ts buildTombstone per grave on ground.at, kept in
 // step with the grave list, the valley's or this raider's alone.
 
 import * as THREE from 'three'
