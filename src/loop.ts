@@ -346,6 +346,10 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       gron: world.gron,
       npcs: targets.npcSpots(inStore),
       moabOffer: s.pendingTrade ? null : moabOffer(s.inventory, s.cosmetics),
+      corpses: s.corpses.filter(
+        (c) => s.myCorpses.includes(c.id) && !s.pendingLoots.has(c.id)
+      ),
+      lockers: targets.lockerSpots(inStore),
     })
     const interaction = s.interaction
     // Rule 14: Moab makes his offer as you come into his reach.

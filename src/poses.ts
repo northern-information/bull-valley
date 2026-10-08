@@ -41,7 +41,15 @@ export interface Pose {
 }
 
 export type PoseName =
-  'stand' | 'sit' | 'lean' | 'read' | 'crouch' | 'walk' | 'hunch' | 'wield'
+  | 'stand'
+  | 'sit'
+  | 'lean'
+  | 'read'
+  | 'crouch'
+  | 'walk'
+  | 'hunch'
+  | 'wield'
+  | 'sprawl'
 
 // A sampled pose: every joint present.
 export interface PoseSample {
@@ -179,6 +187,26 @@ export const POSES = {
           elbowL: [-1.05, 0, 0],
           shoulderR: [-1.3, 0, 0.05],
           elbowR: [-0.15, 0, 0],
+        },
+      },
+    ],
+  },
+  // Struck down where they stood (corpses.ts): laid on the back
+  // (corpsemeshes.ts), the arms flung out, one knee up, the head lolled.
+  sprawl: {
+    keys: [
+      {
+        lift: 0,
+        joints: {
+          neck: [0, 0.55, 0.1],
+          shoulderL: [0.1, 0, 1.25],
+          shoulderR: [-0.2, 0, -0.95],
+          elbowL: [-0.35, 0, 0],
+          elbowR: [-0.8, 0, 0],
+          hipL: [-0.55, 0, 0.12],
+          hipR: [0, 0, -0.18],
+          kneeL: [1.1, 0, 0],
+          kneeR: [0.1, 0, 0],
         },
       },
     ],

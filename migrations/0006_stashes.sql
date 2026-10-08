@@ -1,0 +1,12 @@
+-- What each account keeps in its locker in the back room of every Citgo
+-- (src/stash.ts, sharedworld.ts rule 17): one row per item the account has
+-- ever stowed, beside the pack. A row taken down to zero stays. The valley
+-- (worker/ValleyDO.ts) is the only writer, and moves units between the pack
+-- and the locker in one transaction (worker/d1packs.ts stow).
+
+CREATE TABLE stashes (
+  account_id TEXT NOT NULL REFERENCES accounts (account_id),
+  kind TEXT NOT NULL,
+  count INTEGER NOT NULL CHECK (count >= 0),
+  PRIMARY KEY (account_id, kind)
+);

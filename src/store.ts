@@ -22,7 +22,7 @@ export interface StoreOrigin extends XZ {
 // What a box is drawn in; assets.ts maps each to a material. `light` is a
 // lit fluorescent panel, `glass` a storefront window.
 export type StoreFinish =
-  'floor' | 'wall' | 'roof' | 'shelf' | 'counter' | 'light' | 'glass'
+  'floor' | 'wall' | 'roof' | 'shelf' | 'counter' | 'light' | 'glass' | 'locker'
 
 // One box of the building or its fixtures, centred at `center` with full
 // `size`, both station-local. `blocks` boxes are walls to the player.
@@ -78,8 +78,11 @@ export interface StoreSign {
 
 // The building: back to front along local X, side to side along local Z.
 // The front wall faces the pumps and meets the lot's back edge
-// (FUEL_LAYOUT.lot.back in assets.ts).
-const BACK = -13.5
+// (FUEL_LAYOUT.lot.back in assets.ts). The shop runs from the partition to
+// the front; the back room, where the lockers are, from the back wall to
+// the partition.
+const BACK = -17.5
+const PARTITION = -13.5
 const FRONT = -6.5
 const HALF_WIDTH = 5.5
 const HEIGHT = 3.4
@@ -87,6 +90,10 @@ const WALL = 0.2
 const FLOOR = 0.1
 const DOOR_WIDTH = 1.8
 const DOOR_HEIGHT = 2.3
+// The doorway through the partition into the back room, at its -Z end,
+// against the side wall.
+const BACK_DOOR = { z0: -HALF_WIDTH + WALL, width: 1.2 }
+const BACK_DOOR_Z1 = BACK_DOOR.z0 + BACK_DOOR.width
 // The storefront windows either side of the door: glass from sill to
 // header, a jamb's width from the door and a post's width from the
 // corner, with one mullion down the middle.
@@ -98,9 +105,11 @@ const GLASS = 0.04
 const FOUNDATION = 1.5
 const FLOOR_CLEARANCE = 0.08
 
-// The back-wall shelving: two boards, drinks on both.
+// The shelving along the partition: two boards, drinks on both, running
+// from a step past the back doorway to the +Z wall.
 const SHELF_DEPTH = 0.5
-const SHELF_X = BACK + WALL + SHELF_DEPTH / 2
+const SHELF_X = PARTITION + WALL + SHELF_DEPTH / 2
+const BOARD = { z0: BACK_DOOR_Z1 + 0.2, z1: HALF_WIDTH - WALL }
 const SHELF_TOPS = [0.6, 1.3]
 const SHELF_BOARD = 0.04
 // The counter by the door: cigarettes and joints on top.
@@ -115,20 +124,27 @@ const CLERK = {
   // He blocks like a post this wide.
   radius: 0.25,
 }
-// The fluorescent troffers on the ceiling: two rows across the room, two
-// panels each, long side along Z like the aisle, hung flush under the roof.
+// The fluorescent troffers on the ceiling: two rows across the shop, two
+// panels each, long side along Z like the aisle, hung flush under the roof;
+// and one in the middle of the back room.
 const LIGHT = {
   rows: [-11.75, -8.25],
   along: [-2.75, 2.75],
   size: [0.3, 0.06, 2.4] as Vec3,
+  backRoom: [(BACK + PARTITION) / 2, 0] as const,
 }
+// The lockers: a bank of tall steel lockers against the back wall, facing
+// the partition (+X), centred across the room. Every raider's stash is in
+// one of them (stash.ts); E in front of the bank opens yours.
+const LOCKERS = { count: 8, width: 0.45, height: 1.85, depth: 0.5 }
 // The signs stand this far off their wall, so they never z-fight with it.
 const SIGN_DEPTH = 0.04
 // The rack on the +Z wall beside the counter: medicine, at eye height.
 const MED_RACK = { x0: -12.6, x1: -9.6, height: 1.15, depth: 0.3 }
 const MED_RACK_Z = HALF_WIDTH - WALL - MED_RACK.depth / 2
 
-const BOARD_LENGTH = HALF_WIDTH * 2 - WALL * 2
+const BOARD_LENGTH = BOARD.z1 - BOARD.z0
+const BOARD_Z = (BOARD.z0 + BOARD.z1) / 2
 
 function box(
   name: string,
@@ -216,6 +232,34 @@ function buildBoxes(): StoreBox[] {
       'wall',
       true
     ),
+    // The partition between the shop and the back room, from the doorway
+    // to the +Z wall, and the lintel over the doorway.
+    box(
+      'partition',
+      [PARTITION + WALL / 2, wallY, (BACK_DOOR_Z1 + HALF_WIDTH - WALL) / 2],
+      [WALL, wallH, HALF_WIDTH - WALL - BACK_DOOR_Z1],
+      'wall',
+      true
+    ),
+    box(
+      'partition-lintel',
+      [
+        PARTITION + WALL / 2,
+        HEIGHT - (HEIGHT - DOOR_HEIGHT) / 2,
+        BACK_DOOR.z0 + BACK_DOOR.width / 2,
+      ],
+      [WALL, HEIGHT - DOOR_HEIGHT, BACK_DOOR.width],
+      'wall'
+    ),
+    // The bank of lockers; locker doors are drawn over its face
+    // (assets.ts buildLockerDoors).
+    box(
+      'lockers',
+      [BACK + WALL + LOCKERS.depth / 2, FLOOR + LOCKERS.height / 2, 0],
+      [LOCKERS.depth, LOCKERS.height, LOCKERS.count * LOCKERS.width],
+      'locker',
+      true
+    ),
     box(
       'wall-left',
       [midX, wallY, -HALF_WIDTH + WALL / 2],
@@ -241,7 +285,7 @@ function buildBoxes(): StoreBox[] {
     // The shelving unit's footprint blocks; the boards are drawn on it.
     box(
       'shelf-unit',
-      [SHELF_X, FLOOR + 0.02, 0],
+      [SHELF_X, FLOOR + 0.02, BOARD_Z],
       [SHELF_DEPTH, 0.04, BOARD_LENGTH],
       'shelf',
       true
@@ -270,7 +314,7 @@ function buildBoxes(): StoreBox[] {
     boxes.push(
       box(
         `shelf-board-${i}`,
-        [SHELF_X, top - SHELF_BOARD / 2, 0],
+        [SHELF_X, top - SHELF_BOARD / 2, BOARD_Z],
         [SHELF_DEPTH, SHELF_BOARD, BOARD_LENGTH],
         'shelf'
       )
@@ -288,6 +332,14 @@ function buildBoxes(): StoreBox[] {
       )
     })
   })
+  boxes.push(
+    box(
+      'light-back-room',
+      [LIGHT.backRoom[0], HEIGHT - LIGHT.size[1] / 2, LIGHT.backRoom[1]],
+      LIGHT.size,
+      'light'
+    )
+  )
   return boxes
 }
 
@@ -366,12 +418,12 @@ function buildFacings(): Facing[] {
   const drinks = ITEMS.filter((item) => item.category === 'drink')
   const perBoard = Math.ceil(drinks.length / SHELF_TOPS.length)
   const pitch = BOARD_LENGTH / perBoard
-  // Back wall: drinks left to right in ITEMS order, top board first, art
-  // facing into the room (+X).
+  // Along the partition: drinks left to right in ITEMS order, top board
+  // first, art facing into the shop (+X).
   drinks.forEach((item, i) => {
     const board = Math.floor(i / perBoard)
     const col = i % perBoard
-    const z = -BOARD_LENGTH / 2 + pitch * (col + 0.5)
+    const z = BOARD.z0 + pitch * (col + 0.5)
     const top = SHELF_TOPS[SHELF_TOPS.length - 1 - board]
     facings.push({
       kind: item.id,
@@ -420,7 +472,22 @@ export const STORE_LAYOUT = {
   signs: buildSigns(),
   signDepth: SIGN_DEPTH,
   clerk: CLERK,
+  lockers: {
+    ...LOCKERS,
+    // The bank's front face, station-local, and the z it is centred on.
+    face: BACK + WALL + LOCKERS.depth,
+    z: 0,
+    floor: FLOOR,
+  },
 } as const
+
+// Where E opens the lockers at a station: in front of the middle of the
+// bank, in the world.
+export function lockerSpot(origin: StoreOrigin): XZ {
+  const { face, z } = STORE_LAYOUT.lockers
+  const [x, , wz] = toWorld(origin, [face + 0.3, 0, z])
+  return { x, z: wz }
+}
 
 // --- Space ---------------------------------------------------------------
 
@@ -469,14 +536,20 @@ export function toLocal(origin: StoreOrigin, x: number, z: number): XZ {
   return { x: dx * cos + dz * sin, z: -dx * sin + dz * cos }
 }
 
-// Whether a world point stands inside the building's walls.
+// Whether a world point stands inside the building's walls (the back room
+// included), or within `margin` metres of them.
 export function insideStore(
   origin: StoreOrigin,
   x: number,
-  z: number
+  z: number,
+  margin = 0
 ): boolean {
   const p = toLocal(origin, x, z)
-  return p.x > BACK && p.x < FRONT && Math.abs(p.z) < HALF_WIDTH
+  return (
+    p.x > BACK - margin &&
+    p.x < FRONT + margin &&
+    Math.abs(p.z) < HALF_WIDTH + margin
+  )
 }
 
 // The building's middle in the world, for "which store is nearest".

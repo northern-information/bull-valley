@@ -246,6 +246,20 @@ describe('parseClientMessage', () => {
       type: 'take-drop',
       drop: 4,
     })
+    expect(parse({ type: 'loot', corpse: 2, extra: 1 })).toEqual({
+      type: 'loot',
+      corpse: 2,
+    })
+    expect(parse({ type: 'stow', kind: 'joints', count: 2 })).toEqual({
+      type: 'stow',
+      kind: 'joints',
+      count: 2,
+    })
+    expect(parse({ type: 'unstow', kind: 'joints', count: 1 })).toEqual({
+      type: 'unstow',
+      kind: 'joints',
+      count: 1,
+    })
     expect(parse({ type: 'trade', offer: 'flaming-halo', extra: 1 })).toEqual({
       type: 'trade',
       offer: 'flaming-halo',
@@ -302,6 +316,11 @@ describe('parseClientMessage', () => {
     expect(parse({ type: 'drop', kind: '', count: 1 })).toBeNull()
     expect(parse({ type: 'take-drop', drop: -1 })).toBeNull()
     expect(parse({ type: 'take-drop' })).toBeNull()
+    expect(parse({ type: 'loot', corpse: -1 })).toBeNull()
+    expect(parse({ type: 'loot', corpse: 'mine' })).toBeNull()
+    expect(parse({ type: 'stow', kind: 'joints', count: 0 })).toBeNull()
+    expect(parse({ type: 'unstow', kind: '', count: 1 })).toBeNull()
+    expect(parse({ type: 'stow', kind: 'joints' })).toBeNull()
     expect(parse({ type: 'trade', offer: '' })).toBeNull()
     expect(parse({ type: 'trade' })).toBeNull()
     expect(parse({ type: 'dev', op: 'grant', kind: 'gold-bullion' })).toBeNull()

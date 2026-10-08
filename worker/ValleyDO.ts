@@ -9,7 +9,9 @@
 // and tells the account's sockets. A buy runs alone (blockConcurrencyWhile),
 // so the wallet it was judged against is the wallet it is paid from; so
 // does a trade with Moab, against the pack, and the season's tally
-// (rule 15), so an unmaking is counted once and its reward paid once.
+// (rule 15), so an unmaking is counted once and its reward paid once; and
+// a strike that empties the pack onto a body (rule 16), a body looted, and
+// a move to or from the locker (rule 17), so no unit is in two places.
 //
 // The shadowmen (rule 11) and the Caretaker (rule 13) are stepped here
 // CONFIG.shadowmen.tickHz times a second while anyone is placed in the
@@ -32,6 +34,7 @@ import {
 import { mulberry32 } from '../src/rng.ts'
 import { SEASON, tally } from '../src/season.ts'
 import {
+  corpsesOf,
   createShadows,
   createValley,
   dailyFor,
@@ -47,9 +50,10 @@ import { ACCOUNT_HEADER, NAME_HEADER } from './auth.ts'
 import { D1AccountStore } from './d1accounts.ts'
 import { D1PackStore } from './d1packs.ts'
 import type { CosmeticId } from '../src/cosmetics.ts'
-import type { XZ } from '../src/interfaces.ts'
+import type { Inventory, XZ } from '../src/interfaces.ts'
 import type {
   HelloMessage,
+  PackMessage,
   PeerStateWire,
   PeerWire,
   SeasonWire,
@@ -226,6 +230,26 @@ export class ValleyDO extends DurableObject<Env> {
       case 'take-drop':
         await this.act(ws, { type: 'take-drop', id: me.id, drop: msg.drop })
         return
+      case 'loot':
+        await this.loot(ws, attachment.account, {
+          type: 'loot',
+          id: me.id,
+          corpse: msg.corpse,
+        })
+        return
+      case 'stow':
+      case 'unstow': {
+        // At the locker where the raider's own last state frame put them.
+        const at = me.at ? { x: me.at.x, z: me.at.z } : null
+        await this.restash(ws, attachment.account, {
+          type: msg.type,
+          id: me.id,
+          kind: msg.kind,
+          count: msg.count,
+          at,
+        })
+        return
+      }
       case 'trade':
         await this.trade(ws, attachment, {
           type: 'trade',
@@ -340,8 +364,11 @@ export class ValleyDO extends DurableObject<Env> {
     const { bursts, unmade } = out.message
     if (bursts.length || unmade) void this.spill(bursts, unmade)
     if (out.struck.length === 0) return
+    // Rule 16: each account struck leaves what its pack held on a body, once
+    // however many of its sockets were touched.
+    const fallen = new Set<string>()
     for (const socket of this.ctx.getWebSockets()) {
-      const me = this.attachment(socket).me
+      const { account, me } = this.attachment(socket)
       if (!me || !out.struck.includes(me.id)) continue
       try {
         send(
@@ -353,7 +380,129 @@ export class ValleyDO extends DurableObject<Env> {
       } catch {
         // Closing sockets throw; their close handler follows.
       }
+      if (account && !fallen.has(account)) {
+        fallen.add(account)
+        const at = me.at ? { x: me.at.x, z: me.at.z, yaw: me.at.yaw } : null
+        void this.fall(account, me.id, at)
+      }
     }
+  }
+
+  // A strike, alone (rule 16): the pack is emptied, then a body laid where
+  // the raider fell with everything it held; a body the valley cannot lay
+  // gives it all back. Every socket on the account hears the pack after,
+  // so the client's own emptying is put right either way.
+  protected async fall(
+    account: string,
+    id: string,
+    at: { x: number; z: number; yaw: number } | null
+  ): Promise<void> {
+    await this.ctx.blockConcurrencyWhile(async () => {
+      const packs = this.packs()
+      let items: Inventory
+      try {
+        items = await packs.strip(account)
+      } catch (err) {
+        console.error('The pack could not be emptied onto a body', err)
+        await this.repack(null, null, account)
+        return
+      }
+      const reduced = reduce(
+        this.valley,
+        { type: 'fall', id, items, at },
+        this.context()
+      )
+      if (reduced.corpse === undefined) {
+        try {
+          await packs.give(account, items)
+        } catch (err) {
+          console.error('The pack could not be given back', account, err)
+        }
+      } else {
+        await this.apply(reduced)
+        for (const msg of reduced.broadcast) this.broadcast(msg, null)
+      }
+      await this.repack(null, null, account)
+    })
+  }
+
+  // A body looted, alone (rule 16): the things go back into the pack before
+  // the body is gone, so a failed write leaves it lying with them.
+  private async loot(
+    ws: WebSocket,
+    account: string | null,
+    action: Extract<ValleyAction, { type: 'loot' }>
+  ): Promise<void> {
+    await this.ctx.blockConcurrencyWhile(async () => {
+      const reduced = reduce(this.valley, action, this.context())
+      if (reduced.reply) {
+        send(ws, reduced.reply)
+        return
+      }
+      const give = reduced.give
+      if (give) {
+        try {
+          await this.packs().give(give.account, give.items)
+        } catch (err) {
+          console.error('The body could not be looted', err)
+          send(ws, {
+            type: 'nack',
+            re: 'loot',
+            reason: 'unavailable',
+            corpse: action.corpse,
+          })
+          return
+        }
+      }
+      await this.apply(reduced)
+      for (const msg of reduced.broadcast) this.broadcast(msg, null)
+      if (give) await this.repack(ws, null, give.account)
+      else if (account) await this.repack(ws, null, account)
+    })
+  }
+
+  // Into the locker or out of it, alone (rule 17). The client moved the
+  // units at once, so every refusal sends the pack and locker as they are
+  // to put that right.
+  private async restash(
+    ws: WebSocket,
+    account: string | null,
+    action: Extract<ValleyAction, { type: 'stow' | 'unstow' }>
+  ): Promise<void> {
+    const refuse = async (reason: string) => {
+      send(ws, { type: 'nack', re: action.type, reason })
+      await this.repack(ws, null, account ?? undefined)
+    }
+    if (!allow(this.dropRate, ws, DROP_LIMIT)) {
+      await refuse('too-fast')
+      return
+    }
+    await this.ctx.blockConcurrencyWhile(async () => {
+      const reduced = reduce(this.valley, action, this.context())
+      if (reduced.reply) {
+        await refuse(reduced.reply.reason)
+        return
+      }
+      const change = reduced.stash
+      if (!change) return
+      let moved: boolean
+      try {
+        moved = await this.packs().stow(
+          change.account,
+          change.kind,
+          change.delta
+        )
+      } catch (err) {
+        console.error('The locker could not be written', err)
+        await refuse('unavailable')
+        return
+      }
+      if (!moved) {
+        await refuse('none-left')
+        return
+      }
+      await this.repack(ws, null, change.account)
+    })
   }
 
   private attachment(ws: WebSocket): Attachment {
@@ -460,6 +609,8 @@ export class ValleyDO extends DurableObject<Env> {
       pack: holdings.pack,
       cash: holdings.cash,
       cosmetics: holdings.cosmetics,
+      stash: holdings.stash,
+      corpses: corpsesOf(this.valley, account),
       season: seasonWire(season),
     })
     this.broadcast({ type: 'peer-joined', peer: me }, ws)
@@ -774,7 +925,7 @@ export class ValleyDO extends DurableObject<Env> {
   // refused to the actor, who gets the pack too, so a guess made in the
   // meantime is put right.
   private async repack(
-    ws: WebSocket,
+    ws: WebSocket | null,
     change: PackChange | null,
     account = change?.account
   ): Promise<void> {
@@ -783,10 +934,11 @@ export class ValleyDO extends DurableObject<Env> {
       const packs = this.packs()
       if (change) {
         const done = await packs.change(account, change.kind, change.delta)
-        if (!done) send(ws, { type: 'nack', re: 'use', reason: 'none-left' })
+        if (!done && ws) {
+          send(ws, { type: 'nack', re: 'use', reason: 'none-left' })
+        }
       }
-      const { pack, cash, cosmetics } = await packs.get(account)
-      this.toAccount(account, { type: 'pack', pack, cash, cosmetics })
+      this.toAccount(account, this.packFrame(account, await packs.get(account)))
     } catch (err) {
       console.error('The pack could not be changed', change, err)
     }
@@ -811,14 +963,30 @@ export class ValleyDO extends DurableObject<Env> {
             rewarded: reward !== null,
           })
           if (reward) {
-            const { pack, cash, cosmetics } = await packs.get(account)
-            this.toAccount(account, { type: 'pack', pack, cash, cosmetics })
+            this.toAccount(
+              account,
+              this.packFrame(account, await packs.get(account))
+            )
           }
         } catch (err) {
           console.error('The season could not be tallied', account, err)
         }
       }
     })
+  }
+
+  // The account's pack frame: its holdings, and its bodies lying in the
+  // valley.
+  private packFrame(account: string, holdings: Holdings): PackMessage {
+    const { pack, cash, cosmetics, stash } = holdings
+    return {
+      type: 'pack',
+      pack,
+      cash,
+      cosmetics,
+      stash,
+      corpses: corpsesOf(this.valley, account),
+    }
   }
 
   // To every socket signed in to `account` that has said hello.

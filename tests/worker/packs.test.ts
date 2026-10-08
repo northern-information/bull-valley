@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { STARTING_INVENTORY } from '../../src/inventory.ts'
+import { STARTING_INVENTORY, toInventory } from '../../src/inventory.ts'
 import { NO_PROGRESS } from '../../src/season.ts'
 import { D1PackStore } from '../../worker/d1packs.ts'
 import { MemoryPackStore, STARTING_CASH } from '../../worker/packs.ts'
@@ -9,6 +9,12 @@ import type { PackStore } from '../../worker/packs.ts'
 // An item the account starts with, and one it does not.
 const [STARTER] = Object.entries(STARTING_INVENTORY).find(([, n]) => n > 0)!
 const OTHER = Object.entries(STARTING_INVENTORY).find(([, n]) => n === 0)![0]
+const EMPTY = toInventory({})
+
+// The kinds a pack holds at least one of.
+function pickHeld(pack: Record<string, number>): Record<string, number> {
+  return Object.fromEntries(Object.entries(pack).filter(([, n]) => n > 0))
+}
 
 // The contract every pack store keeps. Each store is handed an account
 // that exists (D1 checks the foreign key).
@@ -20,6 +26,7 @@ function packContract(makeStore: () => PackStore): void {
       pack: STARTING_INVENTORY,
       cash: STARTING_CASH,
       cosmetics: [],
+      stash: EMPTY,
     })
     expect(
       await store.change('a1', STARTER, -STARTING_INVENTORY[STARTER])
@@ -30,6 +37,7 @@ function packContract(makeStore: () => PackStore): void {
       pack: { ...STARTING_INVENTORY, [STARTER]: 0 },
       cash: 0,
       cosmetics: [],
+      stash: EMPTY,
     })
   })
 
@@ -120,6 +128,48 @@ function packContract(makeStore: () => PackStore): void {
     const after = await store.get('a1')
     expect(after.cash).toBe(before.cash + 100_00)
     expect(after.pack[OTHER]).toBe(before.pack[OTHER] + 200)
+  })
+
+  it('empties the whole pack onto a body, and gives it back', async () => {
+    const store = makeStore()
+    await store.open('a1')
+    await store.change('a1', OTHER, 2)
+    const taken = await store.strip('a1')
+    expect(taken).toEqual({ ...pickHeld(STARTING_INVENTORY), [OTHER]: 2 })
+    const { pack, cash } = await store.get('a1')
+    expect(Object.values(pack).every((n) => n === 0)).toBe(true)
+    expect(cash).toBe(STARTING_CASH)
+    // Emptied is not never opened: the starting pack is not given again.
+    expect((await store.open('a1')).pack).toEqual(EMPTY)
+    expect(await store.strip('a1')).toEqual({})
+    await store.give('a1', taken)
+    await store.give('a1', {})
+    expect((await store.get('a1')).pack).toEqual({
+      ...STARTING_INVENTORY,
+      [OTHER]: 2,
+    })
+  })
+
+  it('moves units into the locker and back, only what the side holds', async () => {
+    const store = makeStore()
+    await store.open('a1')
+    const held = STARTING_INVENTORY[STARTER]
+    expect(await store.stow('a1', STARTER, held + 1)).toBe(false)
+    expect(await store.stow('a1', STARTER, 0)).toBe(false)
+    expect(await store.stow('a1', STARTER, 1)).toBe(true)
+    let after = await store.get('a1')
+    expect(after.pack[STARTER]).toBe(held - 1)
+    expect(after.stash[STARTER]).toBe(1)
+    expect(await store.stow('a1', STARTER, -2)).toBe(false)
+    expect(await store.stow('a1', OTHER, -1)).toBe(false)
+    expect(await store.stow('a1', STARTER, -1)).toBe(true)
+    after = await store.get('a1')
+    expect(after.pack[STARTER]).toBe(held)
+    expect(after.stash[STARTER]).toBe(0)
+    // A strike never reaches the locker.
+    await store.stow('a1', STARTER, held)
+    expect(await store.strip('a1')).not.toHaveProperty(STARTER)
+    expect((await store.get('a1')).stash[STARTER]).toBe(held)
   })
 
   it('sells nothing from a wallet never opened', async () => {

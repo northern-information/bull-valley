@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { contentsOf } from '../../src/items.ts'
-import { PACK_TABS, packItemOf, packItems } from '../../src/packgrid.ts'
+import {
+  bagTabs,
+  LOCKER_TAB,
+  PACK_TABS,
+  packItemOf,
+  packItems,
+  stashItems,
+} from '../../src/packgrid.ts'
 import type { Inventory, PackItem } from '../../src/interfaces.ts'
 
 const kinds = (items: PackItem[]) => items.map((item) => item.kind)
@@ -11,6 +18,21 @@ const consumables = (inv: Inventory) => packItems(inv, 'consumables')
 describe('PACK_TABS', () => {
   it('opens on consumables, with loot beside it', () => {
     expect(PACK_TABS).toEqual(['consumables', 'loot', 'materials'])
+  })
+})
+
+describe('the locker', () => {
+  it("shows its tab after the pack's, only at the locker", () => {
+    expect(bagTabs(false)).toEqual([...PACK_TABS])
+    expect(bagTabs(true)).toEqual([...PACK_TABS, LOCKER_TAB])
+  })
+
+  it('holds every category together, in item order', () => {
+    const stash = { 'gold-bullion': 1, camel: 25, berries: 0, pbr: 2 }
+    const items = stashItems(stash)
+    expect(kinds(items)).toEqual(['camel', 'pbr', 'gold-bullion'])
+    expect(items[0]).toMatchObject({ stock: 2 })
+    expect(stashItems({})).toEqual([])
   })
 })
 

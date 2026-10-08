@@ -178,6 +178,13 @@ drop_refused = { text = "It won't come loose.", by = "ai" }
 change_unheard = { text = "The valley missed that. Others will see it when you next join.", by = "ai" }
 struck = { text = "You are somewhere else. Time is missing.", by = "ai" }
 caught = { text = "A lantern, very close. Then the forecourt, and the smell of cold corn.", by = "ai" }
+fell = { text = "Your pockets are empty. Everything you carried is still out there, on you, where you fell.", by = "ai" }
+looted = { text = "You take your things back off your own body.", by = "ai" }
+loot_refused = { text = "Your hands go through it. Not now.", by = "ai" }
+locker_offline = { text = "No signal. Your locker will not open.", by = "ai" }
+locker_refused = { text = "The locker sticks.", by = "ai" }
+stowed = { text = "Stowed: {item}", by = "ai" }
+unstowed = { text = "Taken out: {item}", by = "ai" }
 edge = { text = "The valley ends here.", by = "ai" }
 
 # Marx's countdown once anyone is in the bed (src/loop.ts).
@@ -192,6 +199,8 @@ leaves_in = { text = "Marx leaves in {clock}", by = "ai" }
 hop_out = { text = "E — Hop Out", by = "ai" }
 board = { text = "E — Climb into the Bed", by = "ai" }
 trade = { text = "E — Trade {count} oz of {price} for the {cosmetic}", by = "ai" }
+loot = { text = "E — Take Your Things Back", by = "ai" }
+locker = { text = "E — Open Your Locker", by = "ai" }
 
 # Lines the game says to the player in the chat log (src/chat.ts).
 
@@ -216,6 +225,8 @@ tab_materials = { text = "Materials", by = "ai" }
 empty_consumables = { text = "Empty pockets. Nothing between you and the valley.", by = "ai" }
 empty_loot = { text = "Nothing found yet.", by = "ai" }
 empty_materials = { text = "Nothing to build with yet.", by = "ai" }
+tab_locker = { text = "Locker", by = "ai" }
+empty_locker = { text = "Your locker is empty. What you leave here, no shadow takes.", by = "ai" }
 
 # Place names, shown in prompts and the raid summary (src/landmarks.ts).
 
@@ -264,6 +275,10 @@ use = { text = "Use", by = "ai" }
 assign = { text = "Assign", by = "ai" }
 drop = { text = "Drop One", by = "ai" }
 drop_all = { text = "Drop All", by = "ai" }
+stow = { text = "Stow One", by = "ai" }
+stow_all = { text = "Stow All", by = "ai" }
+unstow = { text = "Take One Out", by = "ai" }
+unstow_all = { text = "Take All Out", by = "ai" }
 in_pack = { text = "{action} (in Pack)", by = "ai" }
 switch_tab = { text = "Switch Tab", by = "ai" }
 close = { text = "Close", by = "ai" }

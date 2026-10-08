@@ -43,6 +43,20 @@ class Statement {
     const { changes } = this.db.prepare(this.sql).run(...this.values)
     return { success: true, meta: { changes: Number(changes) } }
   }
+
+  // In a batch, as D1 answers each statement: a read's rows, a write's
+  // changes.
+  batchSync(): {
+    success: true
+    meta: { changes: number }
+    results: unknown[]
+  } {
+    if (/^\s*SELECT/i.test(this.sql)) {
+      const results = this.db.prepare(this.sql).all(...this.values)
+      return { success: true, meta: { changes: 0 }, results }
+    }
+    return { ...this.runSync(), results: [] }
+  }
 }
 
 export interface TestD1 {
@@ -67,7 +81,7 @@ export function testD1(): TestD1 {
     batch: async (statements: Statement[]) => {
       sqlite.exec('BEGIN')
       try {
-        const results = statements.map((s) => s.runSync())
+        const results = statements.map((s) => s.batchSync())
         sqlite.exec('COMMIT')
         return results
       } catch (err) {

@@ -8,6 +8,7 @@ import { PROTOCOL_VERSION } from '../../src/protocol.ts'
 import { mulberry32 } from '../../src/rng.ts'
 import {
   BUSHES,
+  corpsesOf,
   createShadows,
   createValley,
   creditedWith,
@@ -681,6 +682,186 @@ describe('rule 12: raiders drop what they carry', () => {
       re: 'take-drop',
       reason: 'gone',
       drop: 0,
+    })
+  })
+})
+
+describe('rule 16: corpse runs', () => {
+  const fell = (id: string, at: { x: number; z: number; yaw: number } | null) =>
+    ({
+      type: 'fall',
+      id,
+      items: { marlboro: 12, 'gold-bullion': 1 },
+      at,
+    }) satisfies ValleyAction
+
+  it('lays a body where the raider fell, with everything the pack held', () => {
+    const v = valleyWith(join('a'), join('b'))
+    const r = v.step(fell('a', { x: 40, z: -12, yaw: 1 }))
+    expect(r.corpse).toBe(0)
+    expect(v.valley.corpses).toEqual([
+      {
+        id: 0,
+        x: 40,
+        z: -12,
+        yaw: 1,
+        name: 'A',
+        outfit: 'coleman',
+        items: { marlboro: 12, 'gold-bullion': 1 },
+        account: 'acct-a',
+      },
+    ])
+    expect(r.broadcast[0]).toMatchObject({ reason: 'fell', by: 'a', corpse: 0 })
+    // Everyone sees the body; no one sees what it holds, or whose it is.
+    expect(r.broadcast[0].world?.corpses).toEqual([
+      { id: 0, x: 40, z: -12, yaw: 1, name: 'A', outfit: 'coleman' },
+    ])
+    expect(corpsesOf(v.valley, 'acct-a')).toEqual([0])
+    expect(corpsesOf(v.valley, 'acct-b')).toEqual([])
+    // A second fall lays a second body.
+    expect(v.step(fell('a', { x: 0, z: 0, yaw: 0 })).corpse).toBe(1)
+    expect(corpsesOf(v.valley, 'acct-a')).toEqual([0, 1])
+  })
+
+  it('lays none with nothing on it, nowhere heard, or for a stranger', () => {
+    const v = valleyWith(join('a'))
+    expect(v.step(fell('a', null)).corpse).toBeUndefined()
+    expect(
+      v.step({ type: 'fall', id: 'a', items: {}, at: { x: 0, z: 0, yaw: 0 } })
+        .corpse
+    ).toBeUndefined()
+    expect(
+      v.step({
+        type: 'fall',
+        id: 'a',
+        items: { joints: 0 },
+        at: { x: 0, z: 0, yaw: 0 },
+      }).corpse
+    ).toBeUndefined()
+    expect(v.step(fell('nobody', { x: 0, z: 0, yaw: 0 })).corpse).toBe(
+      undefined
+    )
+    expect(v.valley.corpses).toEqual([])
+  })
+
+  it('gives the things back to the account that fell, and no one else', () => {
+    const v = valleyWith(join('a'), join('b'))
+    v.step(fell('a', { x: 40, z: -12, yaw: 1 }))
+    const stranger = v.step({ type: 'loot', id: 'b', corpse: 0 })
+    expect(stranger.reply).toMatchObject({
+      re: 'loot',
+      reason: 'not-yours',
+      corpse: 0,
+    })
+    expect(stranger.give).toBeUndefined()
+    expect(v.step({ type: 'loot', id: 'a', corpse: 7 }).reply).toMatchObject({
+      reason: 'gone',
+    })
+    const mine = v.step({ type: 'loot', id: 'a', corpse: 0 })
+    expect(mine.give).toEqual({
+      account: 'acct-a',
+      items: { marlboro: 12, 'gold-bullion': 1 },
+    })
+    expect(mine.broadcast[0]).toMatchObject({
+      reason: 'looted',
+      by: 'a',
+      corpse: 0,
+    })
+    expect(v.valley.corpses).toEqual([])
+    expect(v.step({ type: 'loot', id: 'a', corpse: 0 }).reply).toMatchObject({
+      reason: 'gone',
+    })
+  })
+
+  it('lets another socket on the account take it back, but not from the bed', () => {
+    const v = valleyWith(join('a'), {
+      ...join('a2'),
+      account: 'acct-a',
+    } as ValleyAction)
+    v.step(fell('a', { x: 40, z: -12, yaw: 1 }))
+    v.step({ type: 'board', id: 'a2' })
+    expect(v.step({ type: 'loot', id: 'a2', corpse: 0 }).reply).toMatchObject({
+      reason: 'aboard',
+    })
+    v.step({ type: 'hop-out', id: 'a2' })
+    expect(v.step({ type: 'loot', id: 'a2', corpse: 0 }).give).toMatchObject({
+      account: 'acct-a',
+    })
+  })
+
+  it('keeps the bodies through the day and a world opened afresh', () => {
+    const v = valleyWith(join('a'))
+    v.step(fell('a', { x: 40, z: -12, yaw: 1 }))
+    v.tick(nextMidnight(T0) - T0 + SEC)
+    v.step({ type: 'clock' })
+    expect(v.valley.corpses).toHaveLength(1)
+    const stored = { ...v.valley, world: { ...v.valley.world, version: 1 } }
+    const restored = restoreValley(stored as Valley)
+    expect(restored.world).toBeNull()
+    expect(restored.corpses).toHaveLength(1)
+    expect(restored.nextCorpse).toBe(1)
+    // A valley stored before the bodies wakes with none.
+    const older = restoreValley({ world: null, members: {} })
+    expect(older.corpses).toEqual([])
+    expect(older.nextCorpse).toBe(0)
+  })
+
+  it('refuses a loot from someone not in the valley', () => {
+    const v = valleyWith(join('a'))
+    v.step(fell('a', { x: 40, z: -12, yaw: 1 }))
+    expect(
+      v.step({ type: 'loot', id: 'nobody', corpse: 0 }).reply
+    ).toMatchObject({ reason: 'not-in-valley' })
+  })
+})
+
+describe('rule 17: the stash', () => {
+  const at = (x: number, z: number) => ({ x, z })
+  const stow = (
+    id: string,
+    where: { x: number; z: number } | null,
+    type: 'stow' | 'unstow' = 'stow',
+    kind = 'marlboro',
+    count = 2
+  ): ValleyAction => ({ type, id, kind, count, at: where })
+
+  it('moves units into the locker and back at any Citgo', () => {
+    const v = valleyWith(join('a'))
+    // The back room of the second station.
+    const r = v.step(stow('a', at(2000 - 17, 3)))
+    expect(r.reply).toBeUndefined()
+    expect(r.stash).toEqual({ account: 'acct-a', kind: 'marlboro', delta: 2 })
+    expect(r.broadcast).toEqual([])
+    expect(v.step(stow('a', at(-17, 0), 'unstow')).stash).toEqual({
+      account: 'acct-a',
+      kind: 'marlboro',
+      delta: -2,
+    })
+  })
+
+  it('opens no locker away from a Citgo, from the bed, or for a stranger', () => {
+    const v = valleyWith(join('a'))
+    const far = CONFIG.stash.stationReach + 1
+    expect(v.step(stow('a', at(far, 0))).reply).toMatchObject({
+      re: 'stow',
+      reason: 'no-locker',
+    })
+    expect(v.step(stow('a', null, 'unstow')).reply).toMatchObject({
+      re: 'unstow',
+      reason: 'no-locker',
+    })
+    expect(v.step(stow('a', at(0, 0), 'stow', 'pebbles')).reply).toMatchObject({
+      reason: 'not-an-item',
+    })
+    expect(
+      v.step(stow('a', at(0, 0), 'stow', 'marlboro', 0)).reply
+    ).toMatchObject({ reason: 'nothing' })
+    expect(v.step(stow('nobody', at(0, 0))).reply).toMatchObject({
+      reason: 'not-in-valley',
+    })
+    v.step({ type: 'board', id: 'a' })
+    expect(v.step(stow('a', at(0, 0))).reply).toMatchObject({
+      reason: 'aboard',
     })
   })
 })

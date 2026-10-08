@@ -9,6 +9,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { mountMap } from './akashicmap.ts'
 import {
+  buildLockerDoors,
   isMesh,
   meshBounds,
   motionOf,
@@ -16,6 +17,7 @@ import {
   WORLD_ASSETS,
 } from './assets.ts'
 import { CONFIG } from './config.ts'
+import { createCorpseMeshes } from './corpsemeshes.ts'
 import {
   applyJoints,
   applyPose,
@@ -112,6 +114,16 @@ function sampleHaloWorn(): THREE.Group {
   return figure.group
 }
 
+// A raider where a strike left them, laid on their back in the sprawl
+// pose (corpses.ts).
+function sampleCorpse(): THREE.Group {
+  const corpses = createCorpseMeshes(() => 0)
+  corpses.sync([
+    { id: 0, x: 0, z: 0, yaw: 0, name: 'Raider', outfit: OUTFIT_IDS[0] },
+  ])
+  return corpses.group
+}
+
 // One bank of ground mist at full opacity, its skirt sunk into the ground.
 function sampleMist(): THREE.Group {
   const group = new THREE.Group()
@@ -138,6 +150,12 @@ const ASSETS: AkashicAsset[] = [
     id: 'halo-worn',
     label: 'Raider wearing the Flaming Halo',
     build: sampleHaloWorn,
+  },
+  { id: 'corpse', label: 'A raider struck down', build: sampleCorpse },
+  {
+    id: 'locker-doors',
+    label: 'Citgo back room: locker doors',
+    build: buildLockerDoors,
   },
   { id: 'shadowman', label: 'Shadowman', build: sampleShadowman },
   { id: 'mist', label: 'Ground mist', build: sampleMist },

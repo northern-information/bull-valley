@@ -91,9 +91,12 @@ test("the Caretaker's touch puts you back at the Citgo", async ({ page }) => {
   await standLooking(page, me, there)
   await page.evaluate(({ x, z }) => window.__bv?.placeCaretaker(x, z), there)
   await expect.poll(() => page.evaluate(() => window.__bv?.strikes)).toBe(1)
+  // Caught, and then told the pack lies where it fell.
   await expect
-    .poll(() => page.evaluate(() => window.__bv?.chat.at(-1)?.text))
-    .toBe(copy('log.caught'))
+    .poll(() =>
+      page.evaluate(() => window.__bv?.chat.slice(-2).map((line) => line.text))
+    )
+    .toEqual([copy('log.caught'), copy('log.fell')])
   const fromSpawn = await page.evaluate(() => {
     const bv = window.__bv
     if (!bv) return null

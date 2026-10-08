@@ -2,7 +2,7 @@
 // shared world. Every change to the valley's world arrives as a whole
 // snapshot and a reason; worldsync.ts says what it means for this raider,
 // and this file does it (the truck, the bed, the pickups, the shelves,
-// the drops, the lines in the log).
+// the drops, the bodies, the lines in the log).
 
 import { CHAT_COPY, othersLine } from './chat.ts'
 import { CONFIG } from './config.ts'
@@ -109,7 +109,7 @@ export function wireValley(game: Game, actions: Actions): void {
     reason: WorldMessage['reason'],
     detail: Pick<
       WorldMessage,
-      'by' | 'index' | 'station' | 'item' | 'drop' | 'count'
+      'by' | 'index' | 'station' | 'item' | 'drop' | 'count' | 'corpse'
     > = {}
   ) => {
     s.world = wire
@@ -157,6 +157,16 @@ export function wireValley(game: Game, actions: Actions): void {
       hud.tell(copy('log.dropped', { item: pickupLabel(dropped) }))
     }
     if (dropTaken?.mine) actions.applyDropTaken(dropTaken.kind, dropTaken.count)
+
+    // Rule 16: the bodies are the valley's word; which are ours, its pack
+    // frames say. One we took back is said so, and its things follow in
+    // the pack frame.
+    s.corpses = wire.corpses
+    game.corpses.sync(s.corpses)
+    for (const id of s.pendingLoots) {
+      if (!wire.corpses.some((c) => c.id === id)) s.pendingLoots.delete(id)
+    }
+    if (reason === 'looted' && detail.by === me) hud.tell(copy('log.looted'))
 
     // Rule 3: the truck drives the valley's leg, and the bed is the
     // valley's word on who is in it.
@@ -232,21 +242,37 @@ export function wireValley(game: Game, actions: Actions): void {
       hud.tell(copy('log.none_left'))
     } else if (msg.re === 'trade') {
       actions.tradeRefused(msg.reason)
+    } else if (msg.re === 'loot') {
+      if (msg.corpse !== undefined) s.pendingLoots.delete(msg.corpse)
+      hud.tell(copy('log.loot_refused'))
+    } else if (msg.re === 'stow' || msg.re === 'unstow') {
+      // The pack frame that follows puts both sides right.
+      hud.tell(copy('log.locker_refused'))
     } else if (msg.re === 'rename' || msg.re === 'appearance') {
       // The account kept the change; only the valley's roster missed it.
       hud.tell(copy('log.change_unheard'))
     }
   }
 
-  // The valley's word on the pack and the wallet replaces this client's
-  // guesses.
-  const applyPack = (
-    pack: Inventory,
-    wallet: number,
+  // The valley's word on the pack, the wallet, the locker and which bodies
+  // are ours replaces this client's guesses.
+  const applyPack = ({
+    pack,
+    cash,
+    cosmetics,
+    stash,
+    corpses,
+  }: {
+    pack: Inventory
+    cash: number
     cosmetics: CosmeticId[]
-  ) => {
+    stash: Inventory
+    corpses: number[]
+  }) => {
     s.inventory = toInventory(pack)
-    s.cash = wallet
+    s.cash = cash
+    s.stash = toInventory(stash)
+    s.myCorpses = corpses
     actions.refreshBag()
     actions.wear(toCosmetics(cosmetics))
   }
@@ -271,7 +297,7 @@ export function wireValley(game: Game, actions: Actions): void {
       s.daily = msg.daily
       // What the account already wears is no news.
       s.cosmetics = toCosmetics(msg.cosmetics)
-      applyPack(msg.pack, msg.cash, msg.cosmetics)
+      applyPack(msg)
       applySeason(msg.season)
     } else if (msg.type === 'season') {
       // Rule 15: credited with unmaking the Caretaker. A reward's pack
@@ -280,7 +306,7 @@ export function wireValley(game: Game, actions: Actions): void {
         hud.tell(hud.season.unmade(s.season, msg.rewarded))
       }
     } else if (msg.type === 'pack') {
-      applyPack(msg.pack, msg.cash, msg.cosmetics)
+      applyPack(msg)
     } else if (msg.type === 'world') {
       applyWorld(msg.world, msg.reason, msg)
     } else if (msg.type === 'nack') {
@@ -303,6 +329,10 @@ export function wireValley(game: Game, actions: Actions): void {
       s.pendingTakes.clear()
       s.pendingBuys.clear()
       s.pendingTrade = false
+      s.pendingLoots.clear()
+      // The valley's bodies are out of reach; ours alone are drawn.
+      if (s.lockerOpen) actions.closeInventory()
+      actions.showAloneCorpses()
     }
   })
 }
