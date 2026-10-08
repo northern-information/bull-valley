@@ -10,6 +10,7 @@ import { PACK_TABS } from './packgrid.ts'
 import { CHAT_MAX } from './protocol.ts'
 import { SeasonHud } from './seasonhud.ts'
 import { musicSlider } from './settingsui.ts'
+import { TaskHud } from './taskhud.ts'
 import type { Binding } from './bindings.ts'
 import type { ChatLine } from './chat.ts'
 import type { Cooldown } from './hotbar.ts'
@@ -223,6 +224,8 @@ export class Hud {
   raiderEl: HTMLElement
   // The season's tracker, its card on the overlay, and its banners.
   season: SeasonHud
+  // The daily task's row in the season's tracker.
+  task: TaskHud
 
   constructor(root: HTMLElement) {
     this.root = root
@@ -237,6 +240,7 @@ export class Hud {
 
     // The season: the tracker in the upper right and the banners.
     this.season = new SeasonHud(ui)
+    this.task = new TaskHud(this.season.tracker)
 
     // Loadout countdown: bare numbers, top center.
     this.countdown = el('p', 'bv-countdown')

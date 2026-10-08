@@ -140,10 +140,17 @@ export interface Burst {
   z: number
 }
 
+// A burst as the step saw it: also the raiders whose beams were on the
+// shadowman as it burst (sharedworld.ts rule 16). The valley keeps them
+// to itself; only the Burst goes on the wire.
+export interface BurstBy extends Burst {
+  by: string[]
+}
+
 export interface ShadowmenUpdate {
   // The raiders touched this step.
   struck: string[]
-  bursts: Burst[]
+  bursts: BurstBy[]
 }
 
 export function inBounds(p: XZ, metres: Metres, inset: number): boolean {
@@ -358,7 +365,7 @@ export function stepShadowmen(
   cfg: ShadowmenConfig = CONFIG.shadowmen
 ): ShadowmenUpdate {
   const struck: string[] = []
-  const bursts: Burst[] = []
+  const bursts: BurstBy[] = []
 
   // New raiders get a full bubble; departed ones lose their cooldown.
   const cooldowns: Record<string, number> = {}
@@ -374,7 +381,7 @@ export function stepShadowmen(
   const exposed = raiders.filter(
     (r) => r.vulnerable && !inHaven(r, havens, cfg.havenRadius)
   )
-  const beams = raiders.flatMap((r) => (r.beam ? [r.beam] : []))
+  const lit = raiders.filter((r) => r.beam !== null)
 
   const kept: Shadowman[] = []
   for (const s of field.shadowmen) {
@@ -432,12 +439,14 @@ export function stepShadowmen(
       continue
     }
     const aim = aimHeightOf(s.kind, cfg)
-    const held = beams.some((beam) =>
-      inBeam(beam, { x: s.x, y: beam.floor + aim, z: s.z })
-    )
-    s.burn = held ? s.burn + dt : Math.max(0, s.burn - dt)
+    const by = lit
+      .filter(({ beam }) =>
+        beam ? inBeam(beam, { x: s.x, y: beam.floor + aim, z: s.z }) : false
+      )
+      .map((r) => r.id)
+    s.burn = by.length > 0 ? s.burn + dt : Math.max(0, s.burn - dt)
     if (s.burn >= burnSecondsOf(s.kind, cfg)) {
-      bursts.push({ id: s.id, kind: s.kind, x: s.x, z: s.z })
+      bursts.push({ id: s.id, kind: s.kind, x: s.x, z: s.z, by })
       continue
     }
     kept.push(s)

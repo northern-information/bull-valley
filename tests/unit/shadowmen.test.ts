@@ -457,7 +457,7 @@ describe('the flashlight', () => {
     }
     expect(steps * DT).toBeGreaterThanOrEqual(CFG.burnSeconds - 1e-9)
     expect(steps * DT).toBeLessThanOrEqual(CFG.burnSeconds + DT + 1e-9)
-    expect(bursts).toEqual([{ id: 1, kind: 'man', x: 0, z: -20 }])
+    expect(bursts).toEqual([{ id: 1, kind: 'man', x: 0, z: -20, by: ['a'] }])
   })
 
   it('takes twice as long to burst a spider, aimed at its body', () => {
@@ -472,7 +472,22 @@ describe('the flashlight', () => {
     expect(want).toBe(2 * CFG.burnSeconds)
     expect(steps * DT).toBeGreaterThanOrEqual(want - 1e-9)
     expect(steps * DT).toBeLessThanOrEqual(want + DT + 1e-9)
-    expect(bursts).toEqual([{ id: 1, kind: 'spider', x: 0, z: -20 }])
+    expect(bursts).toEqual([{ id: 1, kind: 'spider', x: 0, z: -20, by: ['a'] }])
+  })
+
+  it('names every raider whose beam was on it as it burst', () => {
+    const field = held()
+    const raiders = [
+      raider({ beam: BEAM }),
+      raider({ id: 'b', beam: BEAM }),
+      // Beam down, and no part in it.
+      raider({ id: 'c' }),
+    ]
+    const bursts: { id: number; by: string[] }[] = []
+    for (let i = 0; i < 100; i++) {
+      bursts.push(...step(field, undefined, { raiders }).bursts)
+    }
+    expect(bursts.find((b) => b.id === 1)?.by).toEqual(['a', 'b'])
   })
 
   it("burns in anyone's beam", () => {

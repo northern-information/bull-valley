@@ -2,8 +2,9 @@ import { copy } from './copy.ts'
 import { beginRaid, expect, heardWhere, test } from './fixtures.ts'
 
 // The flashlight in the left hand: the left button raises it and lights
-// it, and a shadowman held in the beam bursts into dimes, which are cash;
-// a shadow spider, held twice as long, into a $20 bill.
+// it, and a shadowman held in the beam bursts into dimes, which are cash,
+// and leaves its tombstone; a shadow spider, held twice as long, bursts
+// into a $20 bill.
 
 const flashlight = (page: import('@playwright/test').Page) =>
   page.evaluate(() => window.__bv?.flashlight)
@@ -75,6 +76,14 @@ test('a shadowman held in the beam bursts into dimes', async ({ page }) => {
     )
     .toBe(true)
 
+  // The burn counts toward the daily task: one of five, and the tracker
+  // under the season says so.
+  await expect.poll(() => page.evaluate(() => window.__bv?.task.count)).toBe(1)
+  await expect(page.locator('.bv-task-count')).toHaveText(
+    copy('task.progress', { count: 1, goal: 5 })
+  )
+  await expect(page.locator('.bv-task .bv-season-pip--lit')).toHaveCount(1)
+
   // It leaves its dimes lying where it stood; E takes them up into the
   // wallet, never the pack, and the log says so.
   const dimes = () =>
@@ -83,6 +92,17 @@ test('a shadowman held in the beam bursts into dimes', async ({ page }) => {
     )
   await expect.poll(async () => (await dimes()).length).toBe(1)
   const [lying] = await dimes()
+  // And its tombstone a step off, carved with the name it was given.
+  const [grave] = await page.evaluate(() => window.__bv?.graves ?? [])
+  expect(grave.name.length).toBeGreaterThan(0)
+  expect(Math.hypot(grave.x - lying.x, grave.z - lying.z)).toBeLessThan(1.5)
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => window.__bv?.scene.getObjectByName('tombstones')?.children.length
+      )
+    )
+    .toBe(1)
   const cash = await page.evaluate(() => window.__bv?.cash ?? 0)
   await page.evaluate(([x, z]) => window.__bv?.player.relocate(x, z + 1, 0), [
     lying.x,

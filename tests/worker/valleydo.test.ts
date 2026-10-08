@@ -1,6 +1,8 @@
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { heartPoint, theMaze } from '../../src/caretaker.ts'
 import { CONFIG } from '../../src/config.ts'
+import { dayKey } from '../../src/daily.ts'
+import { DAILY_TASK, NO_TASK } from '../../src/dailytask.ts'
 import { DIME_CENTS } from '../../src/drops.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { getItem } from '../../src/items.ts'
@@ -22,6 +24,7 @@ import type {
   SeasonMessage,
   ServerMessage,
   ShadowmenMessage,
+  TaskMessage,
   WelcomeMessage,
   WorldMessage,
 } from '../../src/protocol.ts'
@@ -846,6 +849,8 @@ describe('ValleyDO', () => {
       trade: () => Promise.reject(new Error('D1 is down')),
       season: () => Promise.reject(new Error('D1 is down')),
       score: () => Promise.reject(new Error('D1 is down')),
+      task: () => Promise.reject(new Error('D1 is down')),
+      scoreTask: () => Promise.reject(new Error('D1 is down')),
     }
     const errors: unknown[] = []
     const error = console.error
@@ -930,6 +935,9 @@ describe('ValleyDO', () => {
         season: (id, season) => store.season(id, season),
         score: (id, season, progress, reward) =>
           store.score(id, season, progress, reward),
+        task: (id, task) => store.task(id, task),
+        scoreTask: (id, task, progress, reward) =>
+          store.scoreTask(id, task, progress, reward),
       }
       await buy()
       expect(a.last<NackMessage>()).toMatchObject({ reason: 'unavailable' })
@@ -1026,6 +1034,9 @@ describe('ValleyDO: drops', () => {
       season: (id, season) => store.season(id, season),
       score: (id, season, progress, reward) =>
         store.score(id, season, progress, reward),
+      task: (id, task) => store.task(id, task),
+      scoreTask: (id, task, progress, reward) =>
+        store.scoreTask(id, task, progress, reward),
       change: () => Promise.reject(new Error('down')),
       earn: (id, amount) => store.earn(id, amount),
     }
@@ -1178,8 +1189,11 @@ describe('ValleyDO: the shadowmen', () => {
   // A, light on, burns a shadowman standing in the beam 5 m ahead (riding,
   // so it stands to burn rather than rushing them); B stands far off. The
   // dimes it left, as B was told.
-  async function burst() {
+  async function burst(
+    seed: (v: TestValley) => Promise<void> = async () => {}
+  ) {
     const { valley: v, state: s } = await valley()
+    await seed(v)
     const a = await join(v, s, 'A', { dev: true })
     const b = await join(v, s, 'B')
     await v.webSocketMessage(
@@ -1201,8 +1215,64 @@ describe('ValleyDO: the shadowmen', () => {
       .findLast((m): m is WorldMessage => m.type === 'world')
     expect(spilled?.reason).toBe('spilled')
     const [dimes] = spilled?.world?.drops ?? []
-    return { v, b, dimes, x, z }
+    const [grave] = spilled?.world?.graves ?? []
+    return { v, a, b, dimes, grave, x, z }
   }
+
+  it('leaves a named tombstone a step from where one burst', async () => {
+    const { grave, x, z } = await burst()
+    expect(grave.name.length).toBeGreaterThan(0)
+    expect(Math.hypot(grave.x - x, grave.z - z)).toBeCloseTo(
+      CONFIG.graves.offset,
+      1
+    )
+  })
+
+  const tasks = (socket: MockSocket) =>
+    socket.frames().filter((m): m is TaskMessage => m.type === 'task')
+
+  it("credits the account whose beam burst it with a burn toward today's task", async () => {
+    const { a, b } = await burst()
+    // The welcome said nothing was done yet.
+    expect(a.frames()[0]).toMatchObject({
+      type: 'welcome',
+      task: { task: DAILY_TASK.id, ...NO_TASK },
+    })
+    // A's beam burned it; B, far off, had no part.
+    expect(tasks(a)).toEqual([
+      {
+        type: 'task',
+        task: {
+          task: DAILY_TASK.id,
+          day: dayKey(Date.now()),
+          count: 1,
+          claimed: false,
+        },
+        rewarded: false,
+      },
+    ])
+    expect(tasks(b)).toEqual([])
+  })
+
+  it("pays the day's reward on the burn that finishes the task", async () => {
+    const store = new MemoryPackStore()
+    const { a } = await burst(async (v) => {
+      v.packStore = store
+      await store.open('acct-A')
+      await store.scoreTask(
+        'acct-A',
+        DAILY_TASK.id,
+        { day: dayKey(Date.now()), count: DAILY_TASK.goal - 1, claimed: false },
+        null
+      )
+    })
+    expect(tasks(a).at(-1)).toMatchObject({
+      task: { count: DAILY_TASK.goal, claimed: true },
+      rewarded: true,
+    })
+    const paid = a.frames().findLast((m): m is PackMessage => m.type === 'pack')
+    expect(paid?.cash).toBe(STARTING_CASH + DAILY_TASK.reward)
+  })
 
   it('leaves dimes where one burst, paid into the wallet of whoever takes them up', async () => {
     const { v, b, dimes, x, z } = await burst()
@@ -1234,6 +1304,9 @@ describe('ValleyDO: the shadowmen', () => {
       season: (id, season) => store.season(id, season),
       score: (id, season, progress, reward) =>
         store.score(id, season, progress, reward),
+      task: (id, task) => store.task(id, task),
+      scoreTask: (id, task, progress, reward) =>
+        store.scoreTask(id, task, progress, reward),
     }
     const error = console.error
     console.error = () => {}
@@ -1345,6 +1418,9 @@ describe('ValleyDO: the shadowmen', () => {
       trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
       season: (id, season) => store.season(id, season),
       score: () => Promise.reject(new Error('down')),
+      task: (id, task) => store.task(id, task),
+      scoreTask: (id, task, progress, reward) =>
+        store.scoreTask(id, task, progress, reward),
     }
     const heart = heartPoint(theMaze())
     const hx = MAZE.x + heart.x
@@ -1478,6 +1554,9 @@ describe("ValleyDO: Moab's trade", () => {
         season: (id, season) => store.season(id, season),
         score: (id, season, progress, reward) =>
           store.score(id, season, progress, reward),
+        task: (id, task) => store.task(id, task),
+        scoreTask: (id, task, progress, reward) =>
+          store.scoreTask(id, task, progress, reward),
       }
       await v.webSocketMessage(ws(a), trade())
       expect(a.last<NackMessage>()).toMatchObject({ reason: 'unavailable' })

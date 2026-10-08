@@ -65,6 +65,15 @@ banner_unmade_again = { text = "Caretaker Unmade", by = "ai" }
 banner_complete = { text = "Season Complete", by = "ai" }
 banner_paid = { text = "+{cash} · Carton of Marlboro Reds", by = "ai" }
 
+[task]
+kicker = { text = "Daily", by = "ai" }
+title = { text = "Burn {goal} Shadowmen", by = "ai" }
+progress = { text = "{count}/{goal}", by = "ai" }
+complete = { text = "Done", by = "ai" }
+tracker_label = { text = "Daily task: {count} of {goal} shadowmen burned today", by = "ai" }
+banner_done = { text = "Daily Task Done", by = "ai" }
+banner_paid = { text = "+{cash}", by = "ai" }
+
 [signin]
 title = { text = "Sign In", by = "tyler" }
 lede = { text = "Sign in to raid the valley.", by = "tyler" }
@@ -157,6 +166,8 @@ marx_back = { text = "Marx comes back across the road and picks up his book.", b
 season_live = { text = "Season One: The Caretaker is live. Unmake him {goal} times for {cash} and a carton of Marlboro Reds.", by = "ai" }
 season_unmade = { text = "You helped unmake the Caretaker. {kills} of {goal} for Season One.", by = "ai" }
 season_unmade_again = { text = "You helped unmake the Caretaker again.", by = "ai" }
+task_burned = { text = "Shadowman burned: {count}/{goal} for today's task.", by = "ai" }
+task_reward = { text = "Daily task done: {goal} shadowmen burned. {cash} into your wallet.", by = "ai" }
 season_reward = { text = "Season One complete. {cash} and a carton of Marlboro Reds are in your pack.", by = "ai" }
 whistle = { text = "You whistle into the dark. An engine turns over, far off.", by = "ai" }
 whistle_nothing = { text = "You whistle into the dark. Nothing turns over.", by = "ai" }
