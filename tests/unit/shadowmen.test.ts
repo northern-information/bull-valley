@@ -11,6 +11,7 @@ import {
   spawnShadowman,
   stepShadowmen,
 } from '../../src/shadowmen.ts'
+import { waterMapOf } from '../../src/waterside.ts'
 import type { Metres, XZ } from '../../src/interfaces.ts'
 import type {
   Beam,
@@ -20,11 +21,24 @@ import type {
   ShadowmenField,
   ShadowmenStep,
 } from '../../src/shadowmen.ts'
+import type { WaterMap } from '../../src/waterside.ts'
 
 // Pinned so the tests do not move when CONFIG.shadowmen is retuned.
 const CFG: ShadowmenConfig = {
   count: 6,
   dimes: { min: 3, max: 20 },
+  spider: {
+    chance: 0,
+    nearWaterChance: 0,
+    waterRadius: 120,
+    maxPerBubble: 3,
+    burnScale: 2,
+    aimHeight: 2.8,
+    speedMin: 5,
+    speedMax: 8,
+    rushSpeed: 13,
+    touchRadius: 2.4,
+  },
   spawnRadius: 300,
   crossRadius: 120,
   despawnRadius: 360,
@@ -74,6 +88,7 @@ const one = (over: Partial<Shadowman> = {}): ShadowmenField => ({
   shadowmen: [
     {
       id: 1,
+      kind: 'man',
       x: 0,
       z: -100,
       dirX: 0,
@@ -442,7 +457,22 @@ describe('the flashlight', () => {
     }
     expect(steps * DT).toBeGreaterThanOrEqual(CFG.burnSeconds - 1e-9)
     expect(steps * DT).toBeLessThanOrEqual(CFG.burnSeconds + DT + 1e-9)
-    expect(bursts).toEqual([{ id: 1, x: 0, z: -20, by: ['a'] }])
+    expect(bursts).toEqual([{ id: 1, kind: 'man', x: 0, z: -20, by: ['a'] }])
+  })
+
+  it('takes twice as long to burst a spider, aimed at its body', () => {
+    const field = held({ kind: 'spider' })
+    let steps = 0
+    let bursts: unknown[] = []
+    while (field.shadowmen.length && steps < 200) {
+      bursts = step(field, undefined, { raiders: lit }).bursts
+      steps++
+    }
+    const want = CFG.burnSeconds * CFG.spider.burnScale
+    expect(want).toBe(2 * CFG.burnSeconds)
+    expect(steps * DT).toBeGreaterThanOrEqual(want - 1e-9)
+    expect(steps * DT).toBeLessThanOrEqual(want + DT + 1e-9)
+    expect(bursts).toEqual([{ id: 1, kind: 'spider', x: 0, z: -20, by: ['a'] }])
   })
 
   it('names every raider whose beam was on it as it burst', () => {
@@ -507,5 +537,90 @@ describe('the flashlight', () => {
       bursts += step(field, undefined, { raiders }).bursts.length
     }
     expect(bursts).toBe(1)
+  })
+})
+
+describe('the shadow spiders', () => {
+  // Wet everywhere round the origin: a stream through the survey's middle.
+  const wet = waterMapOf(
+    [
+      {
+        k: 'line',
+        n: '',
+        p: [
+          [0.49, 0.5],
+          [0.51, 0.5],
+        ],
+      },
+    ],
+    METRES
+  )
+  const spiderCfg = (over: Partial<ShadowmenConfig['spider']>) => ({
+    ...CFG,
+    spider: { ...CFG.spider, ...over },
+  })
+  const fill = (cfg: ShadowmenConfig, water: WaterMap | null, seed: number) => {
+    const field = createShadowmen()
+    stepShadowmen(
+      field,
+      mulberry32(seed),
+      { dt: DT, raiders: [raider()], metres: METRES, havens: NONE, water },
+      cfg
+    )
+    return field.shadowmen.filter((s) => s.kind === 'spider').length
+  }
+
+  it('come by their chance, and far more often near water', () => {
+    const cfg = spiderCfg({
+      chance: 0.05,
+      nearWaterChance: 0.6,
+      maxPerBubble: 6,
+    })
+    let dry = 0
+    let damp = 0
+    for (let seed = 1; seed <= 60; seed++) {
+      dry += fill(cfg, null, seed)
+      damp += fill(cfg, wet, seed)
+    }
+    expect(damp).toBeGreaterThan(dry * 4)
+  })
+
+  it('never crowd a bubble past maxPerBubble', () => {
+    const cfg = spiderCfg({ chance: 1, nearWaterChance: 1, maxPerBubble: 2 })
+    for (let seed = 1; seed <= 10; seed++) {
+      expect(fill(cfg, wet, seed)).toBe(2)
+    }
+  })
+
+  it('never come at a chance of nothing', () => {
+    expect(fill(CFG, wet, 1)).toBe(0)
+  })
+
+  it('cross at their own pace, rush faster and touch from further off', () => {
+    const cfg = spiderCfg({ chance: 1, nearWaterChance: 1, maxPerBubble: 6 })
+    const field = createShadowmen()
+    stepShadowmen(
+      field,
+      mulberry32(4),
+      { dt: DT, raiders: [raider()], metres: METRES, havens: NONE },
+      cfg
+    )
+    for (const s of field.shadowmen.filter((m) => m.kind === 'spider')) {
+      expect(s.speed).toBeGreaterThanOrEqual(cfg.spider.speedMin)
+      expect(s.speed).toBeLessThanOrEqual(cfg.spider.speedMax)
+    }
+    // Rushing: a spider 2 m off has already touched; a shadowman has not.
+    const near = (kind: 'man' | 'spider') => {
+      const f = one({ kind, z: -2, speed: 0 })
+      return step(f, undefined, {
+        raiders: [raider({ vulnerable: true })],
+        dt: 0.001,
+      }).struck
+    }
+    expect(near('spider')).toEqual(['a'])
+    expect(near('man')).toEqual([])
+    const rusher = one({ kind: 'spider', z: -20 })
+    step(rusher, undefined, { raiders: [raider({ vulnerable: true })] })
+    expect(first(rusher)?.speed).toBe(CFG.spider.rushSpeed)
   })
 })

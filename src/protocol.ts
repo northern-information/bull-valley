@@ -4,6 +4,7 @@
 // JSON text; every number the server stores is checked here first.
 
 import { USERNAME_MAX } from './account.ts'
+import { isWaterMap } from './waterside.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { Drop } from './drops.ts'
 import type { Grave } from './graves.ts'
@@ -11,11 +12,12 @@ import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
 import type { OutfitId } from './outfits.ts'
-import type { Burst } from './shadowmen.ts'
+import type { Burst, ShadeKind } from './shadowmen.ts'
+import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 20
+export const PROTOCOL_VERSION = 21
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -175,6 +177,9 @@ export interface HelloMessage {
   // the shadowmen with them (sharedworld.ts rule 11).
   havens: XZ[]
   metres: Metres
+  // Where the water's edges run (waterside.ts): the shadow spiders come up
+  // more often near them (rule 11).
+  water: WaterMap
   // Where the corn maze lies, or null: the valley steps the Caretaker in
   // it (rule 13).
   maze: MazePlace | null
@@ -256,8 +261,9 @@ export interface TradeMessage {
 export type DevMessage =
   | { type: 'dev'; op: 'hurry'; seconds: number }
   | { type: 'dev'; op: 'reset' }
-  // A shadowman standing still at (x, z), for the specs.
-  | { type: 'dev'; op: 'shadowman'; x: number; z: number }
+  // A shadowman (or a shadow spider) standing still at (x, z), for the
+  // specs.
+  | { type: 'dev'; op: 'shadowman'; x: number; z: number; spider?: boolean }
   // The Caretaker moved to (x, z), for the specs.
   | { type: 'dev'; op: 'caretaker'; x: number; z: number }
   // A quiet valley for the specs: the crossing shadowmen never rush, and
@@ -470,9 +476,11 @@ export interface PeerChatMessage {
 }
 
 // One shadowman as the valley sends it: where it is, how far through
-// bursting in a beam (0 to 1), and the raider it is rushing.
+// bursting in a beam (0 to 1), and the raider it is rushing. A shadow
+// spider says so; a shadowman sends no kind.
 export interface ShadowmanWire {
   id: number
+  kind?: Extract<ShadeKind, 'spider'>
   x: number
   z: number
   burn: number
@@ -713,13 +721,14 @@ export function parseClientMessage(text: string): ClientMessage | null {
       if (!specs) return null
       const havens = parseHavens(value.havens, stations)
       const metres = parseMetres(value.metres)
+      const water = isWaterMap(value.water) ? value.water : null
       const maze = value.maze === null ? null : parseMazePlace(value.maze)
       const truck = parseRoutes(value.truck)
       // An older build sends none of them; it still parses as far as its
       // version, which the server then refuses.
       if (
         v === PROTOCOL_VERSION &&
-        (!havens || !metres || maze === undefined || !truck)
+        (!havens || !metres || !water || maze === undefined || !truck)
       ) {
         return null
       }
@@ -735,6 +744,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
         stations,
         havens: havens ?? [],
         metres: metres ?? { width: 0, height: 0 },
+        water: water ?? { cell: 100, cols: 1, rows: 1, bits: 'AA==' },
         maze: maze ?? null,
         truck: truck ?? { home: { x: 0, z: 0 }, joyrideMs: 0 },
       }
@@ -802,7 +812,14 @@ export function parseClientMessage(text: string): ClientMessage | null {
         if (!isKind(kind) || !isCount(count) || count < 1) return null
         return { type: 'dev', op: 'grant', kind, count }
       }
-      if (value.op === 'shadowman' || value.op === 'caretaker') {
+      if (value.op === 'shadowman') {
+        const at = parseXZ(value)
+        if (!at) return null
+        return value.spider === true
+          ? { type: 'dev', op: 'shadowman', ...at, spider: true }
+          : { type: 'dev', op: 'shadowman', ...at }
+      }
+      if (value.op === 'caretaker') {
         const at = parseXZ(value)
         return at ? { type: 'dev', op: value.op, ...at } : null
       }

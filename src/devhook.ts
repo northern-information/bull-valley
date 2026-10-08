@@ -84,7 +84,8 @@ interface BvHook {
   toggleFlashlight(): void
   // A shadowman standing still at world (x, z): the valley's, through a
   // dev frame, or this client's own, played alone.
-  placeShadowman(x: number, z: number): void
+  // A spider instead when `spider` (CONFIG.shadowmen.spider).
+  placeShadowman(x: number, z: number, spider?: boolean): void
   // The Caretaker moved to world (x, z), formed, its hunt forgotten,
   // floating still until it has someone to hunt: the valley's, through a
   // dev frame, or this client's own, played alone.
@@ -187,9 +188,14 @@ export function installDevHook(game: Game, actions: Actions): void {
       player.relocate(x, z)
     },
     toggleFlashlight: () => actions.toggleFlashlight(),
-    placeShadowman(x: number, z: number) {
-      if (net.online) net.send({ type: 'dev', op: 'shadowman', x, z })
-      else game.shadowmen.place(x, z)
+    placeShadowman(x: number, z: number, spider = false) {
+      if (net.online) {
+        net.send(
+          spider
+            ? { type: 'dev', op: 'shadowman', x, z, spider: true }
+            : { type: 'dev', op: 'shadowman', x, z }
+        )
+      } else game.shadowmen.place(x, z, spider ? 'spider' : 'man')
     },
     placeCaretaker(x: number, z: number) {
       if (net.online) net.send({ type: 'dev', op: 'caretaker', x, z })

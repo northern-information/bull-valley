@@ -9,14 +9,29 @@ import { leftInOpen } from './items.ts'
 import type { XZ } from './interfaces.ts'
 import type { ItemId } from './items.ts'
 import type { Rng } from './rng.ts'
+import type { ShadeKind } from './shadowmen.ts'
 
 // The kind of the drop a shadowman bursts into: dimes, which are cash.
 // Taken up, they go into the wallet, never the pack, at DIME_CENTS each.
 export const DIMES = 'dimes'
 export const DIME_CENTS = 10
 
+// What a shadow spider bursts into: one $20 bill, cash the same way.
+export const TWENTY = 'twenty'
+export const TWENTY_CENTS = 2000
+
+const CENTS: Readonly<Record<string, number>> = {
+  [DIMES]: DIME_CENTS,
+  [TWENTY]: TWENTY_CENTS,
+}
+
 export function isCash(kind: string): boolean {
-  return kind === DIMES
+  return kind in CENTS
+}
+
+// What one of a cash kind is worth, in cents; 0 for anything else.
+export function centsOf(kind: string): number {
+  return CENTS[kind] ?? 0
 }
 
 // How many dimes one burst shadowman leaves: min to max, evenly.
@@ -39,21 +54,21 @@ export interface Spill extends XZ {
 // metres.
 const BAR_SPREAD = 0.25
 
-// What one step leaves lying: dimes where each shadowman burst, and the
-// Caretaker's gold bullion where it was unmade: its bars, one troy ounce
-// each, as drops of their own, side by side.
+// What one step leaves lying: dimes where each shadowman burst, a $20 bill
+// where each spider did, and the Caretaker's gold bullion where it was
+// unmade: its bars, one troy ounce each, as drops of their own, side by
+// side.
 export function spillsOf(
-  bursts: readonly XZ[],
+  bursts: readonly (XZ & { kind?: ShadeKind })[],
   unmade: XZ | null,
   rng: Rng,
   cfg = CONFIG
 ): Spill[] {
-  const spills: Spill[] = bursts.map(({ x, z }) => ({
-    x,
-    z,
-    kind: DIMES,
-    count: dimesFor(rng, cfg),
-  }))
+  const spills: Spill[] = bursts.map(({ x, z, kind }) =>
+    kind === 'spider'
+      ? { x, z, kind: TWENTY, count: 1 }
+      : { x, z, kind: DIMES, count: dimesFor(rng, cfg) }
+  )
   if (unmade) {
     const bars = cfg.caretaker.bullion
     for (let i = 0; i < bars; i++) {
