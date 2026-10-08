@@ -898,7 +898,10 @@ describe("rule 11: the shadowmen are the valley's", () => {
       now: T0,
       dt: CONFIG.shadowmen.burnSeconds,
     })
+    // Who burned it stays off the wire, and their account is credited with
+    // the burn (rule 16).
     expect(out?.message.bursts).toEqual([{ id, x: 500, z: 490 }])
+    expect(out?.burned).toEqual(['acct-b'])
   })
 
   it('places a still shadowman with a new id', () => {

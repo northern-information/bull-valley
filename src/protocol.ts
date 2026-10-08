@@ -14,7 +14,7 @@ import type { Burst } from './shadowmen.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 18
+export const PROTOCOL_VERSION = 19
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -336,6 +336,8 @@ export interface WelcomeMessage {
   cosmetics: CosmeticId[]
   // The account's progress through the season (season.ts).
   season: SeasonWire
+  // The account's progress on the daily task (dailytask.ts).
+  task: TaskWire
 }
 
 // An account's progress through the season (sharedworld.ts rule 15): the
@@ -353,6 +355,26 @@ export interface SeasonWire {
 export interface SeasonMessage {
   type: 'season'
   season: SeasonWire
+  rewarded: boolean
+}
+
+// An account's progress on the daily task (sharedworld.ts rule 16): the
+// task's id (dailytask.ts DAILY_TASK.id), the Central day it counts
+// (daily.ts dayKey; empty before the first burn), how many shadowmen the
+// account has burned that day, and whether that day's reward is paid.
+export interface TaskWire {
+  task: string
+  day: string
+  count: number
+  claimed: boolean
+}
+
+// The account was credited with burning a shadowman. Sent to every socket
+// signed in to it; `rewarded` when this burn finished the day's task and
+// paid its reward (a pack frame follows with it).
+export interface TaskMessage {
+  type: 'task'
+  task: TaskWire
   rewarded: boolean
 }
 
@@ -507,6 +529,7 @@ export type ServerMessage =
   | ShadowmenMessage
   | StruckMessage
   | SeasonMessage
+  | TaskMessage
 
 // Application close codes (the 4xxx range is ours per RFC 6455). The client
 // treats every 4xxx close as final and does not reconnect.

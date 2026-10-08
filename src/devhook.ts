@@ -9,6 +9,7 @@ import type { Actions } from './actions.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
 import type { ChatLine } from './chat.ts'
 import type { CosmeticId } from './cosmetics.ts'
+import type { TaskProgress } from './dailytask.ts'
 import type { Drop } from './drops.ts'
 import type { Game } from './game.ts'
 import type { Hand } from './hands.ts'
@@ -58,6 +59,8 @@ interface BvHook {
   readonly cash: number
   // The account's progress through the season, as the valley last said.
   readonly season: SeasonProgress
+  // The account's progress on the daily task, as the valley last said.
+  readonly task: TaskProgress
   // The pack as this client holds it: the valley's last word, plus guesses.
   readonly inventory: Inventory
   // What lies dropped: the valley's, or this raider's alone.
@@ -145,6 +148,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     },
     get season() {
       return s.season
+    },
+    get task() {
+      return s.task
     },
     get inventory() {
       return s.inventory

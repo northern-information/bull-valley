@@ -7,6 +7,8 @@ import { pulseMaterials } from './assets.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { moabOffer } from './cosmetics.ts'
+import { dayKey } from './daily.ts'
+import { onDay, shownCount } from './dailytask.ts'
 import { levelsAt } from './geometrie.ts'
 import { ease, stepHand, useLift, useSeconds } from './hands.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
@@ -317,6 +319,17 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       })
     )
     hud.setGeometrie(levelsAt(s.geometrie, time))
+    // The daily task as it stands on the valley's day: a count from an
+    // earlier day reads as nothing done. Alone, nothing is kept to show.
+    if (net.online) {
+      const day = dayKey(net.clock.serverNow(now))
+      hud.task.set({
+        count: shownCount(s.task, day),
+        done: onDay(s.task, day).claimed,
+      })
+    } else {
+      hud.task.set(null)
+    }
     hud.tickChat(performance.now())
 
     scope.draw(dt, {

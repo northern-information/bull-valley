@@ -74,6 +74,12 @@
 //    account however many of its sockets held a beam on it. The progress
 //    is the account's, kept by the valley in D1 beside the wallet, and the
 //    unmaking that finishes the season pays its reward once.
+// 16. The daily task (dailytask.ts): every raider whose beam was on a
+//    shadowman as it burst is credited with the burn, once per account
+//    however many of its sockets held a beam on it. The progress is the
+//    account's for the Central day, kept by the valley in D1 beside the
+//    wallet, and the burn that finishes the day's task pays its reward
+//    once that day.
 
 import { caretakerAt, createCaretaker, stepCaretaker } from './caretaker.ts'
 import { CONFIG } from './config.ts'
@@ -945,6 +951,9 @@ export function stepShadows(
   caught: string[]
   // Rule 15: the accounts credited with unmaking the Caretaker this step.
   credited: string[]
+  // Rule 16: the accounts credited with a burn this step, once for each
+  // shadowman each burned.
+  burned: string[]
 } | null {
   const world = valley.world
   const raiders = world ? shadowRaiders(valley, shadows, placed, now) : []
@@ -1006,18 +1015,25 @@ export function stepShadows(
         burn: round(Math.min(1, s.burn / cfg.burnSeconds), 2),
         target: s.target,
       })),
-      bursts: bursts.map((b) => ({ ...b, x: round(b.x, 2), z: round(b.z, 2) })),
+      // Who burned each is the valley's to know, not the wire's.
+      bursts: bursts.map((b) => ({
+        id: b.id,
+        x: round(b.x, 2),
+        z: round(b.z, 2),
+      })),
       caretaker,
       unmade,
     },
     struck,
     caught,
     credited,
+    burned: bursts.flatMap((b) => creditedWith(valley, b.by)),
   }
 }
 
-// Rule 15: the accounts behind the sockets whose beams unmade the
-// Caretaker, each once, in the order their beams were counted.
+// Rules 15 and 16: the accounts behind the sockets whose beams unmade the
+// Caretaker or burst a shadowman, each once, in the order their beams were
+// counted.
 export function creditedWith(valley: Valley, ids: readonly string[]): string[] {
   const accounts: string[] = []
   for (const id of ids) {
