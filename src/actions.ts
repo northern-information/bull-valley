@@ -40,6 +40,7 @@ import {
   packItems,
   stashItems,
 } from './packgrid.ts'
+import { levelOf } from './progression.ts'
 import { normalizeChat } from './protocol.ts'
 import { callRoute } from './roadgraph.ts'
 import { buy as buyItem, settle } from './shop.ts'
@@ -737,8 +738,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     }
     hud.tell(
       onlineLine(
-        game.pick.username,
-        peers.list().map((peer) => peer.name)
+        { name: game.pick.username, level: levelOf(s.xp) },
+        peers.list().map(({ name, level }) => ({ name, level }))
       )
     )
   }

@@ -76,7 +76,11 @@ base(
     await expect(
       b.getByRole('log', { name: copy('hud.chat_log_label') })
     ).toContainText(
-      copy('chat.online', { names: `${baker.username}, ${able.username}` })
+      copy('chat.online', {
+        names: [baker.username, able.username]
+          .map((name) => copy('chat.online_name', { name, level: 1 }))
+          .join(', '),
+      })
     )
     await a.waitForTimeout(500)
     expect(await lines(a)).toEqual(['wwww cabbages by the keep'])

@@ -925,6 +925,88 @@ describe('rule 19: the stash', () => {
   })
 })
 
+describe('rule 20: XP for what a raider does', () => {
+  it('earns XP for a pickup, a unit bought and the day’s berry', () => {
+    const v = valleyWith(join('a'))
+    expect(v.step({ type: 'take', id: 'a', index: 2 }).xp).toEqual([
+      { account: 'acct-a', source: 'pickup' },
+    ])
+    expect(
+      v.step({ type: 'buy', id: 'a', station: 0, kind: 'pbr', unit: 0 }).xp
+    ).toEqual([{ account: 'acct-a', source: 'purchase' }])
+    expect(v.step({ type: 'collect', id: 'a', bush: 0 }).xp).toEqual([
+      { account: 'acct-a', source: 'berry' },
+    ])
+  })
+
+  it('earns nothing for what is refused, a used item, or a second berry', () => {
+    const v = valleyWith(join('a'), join('b'), {
+      type: 'take',
+      id: 'a',
+      index: 2,
+    })
+    expect(v.step({ type: 'take', id: 'b', index: 2 }).xp).toBeUndefined()
+    v.setCash(0)
+    expect(
+      v.step({ type: 'buy', id: 'a', station: 0, kind: 'pbr', unit: 0 }).xp
+    ).toBeUndefined()
+    v.step({ type: 'collect', id: 'a', bush: 0 })
+    expect(v.step({ type: 'collect', id: 'a', bush: 0 }).xp).toBeUndefined()
+    expect(v.step({ type: 'use', id: 'a', kind: 'joints' }).xp).toBeUndefined()
+  })
+
+  it('earns XP for a drop the valley left, never a raider’s own', () => {
+    const at = { x: 0, z: 0, yaw: 0 }
+    const v = valleyWith(join('a'), join('b'))
+    v.step({
+      type: 'spill',
+      spills: [{ x: 1, z: 2, kind: 'gold-bullion', count: 1 }],
+    })
+    expect(v.step({ type: 'take-drop', id: 'b', drop: 0 }).xp).toEqual([
+      { account: 'acct-b', source: 'drop' },
+    ])
+    v.step({ type: 'drop', id: 'b', kind: 'gold-bullion', count: 1, at })
+    expect(v.step({ type: 'take-drop', id: 'a', drop: 1 }).xp).toBeUndefined()
+  })
+
+  it('earns each rider XP when Marx gets home, never one who hopped out', () => {
+    const v = valleyWith(
+      join('a'),
+      join('b'),
+      join('c'),
+      { type: 'board', id: 'a' },
+      { type: 'board', id: 'b' },
+      { type: 'board', id: 'c' }
+    )
+    v.tick(CONFIG.truck.countdownSeconds * SEC)
+    expect(v.step({ type: 'clock' }).xp).toBeUndefined()
+    v.step({ type: 'hop-out', id: 'c' })
+    v.tick(ROUTES.joyrideMs)
+    // Whatever wakes the valley when he is home, a stranger's berry here.
+    const r = v.step({ type: 'collect', id: 'c', bush: 0 })
+    expect(reasons(r)).toEqual(['home'])
+    expect(r.xp).toEqual([
+      { account: 'acct-a', source: 'ride' },
+      { account: 'acct-b', source: 'ride' },
+      { account: 'acct-c', source: 'berry' },
+    ])
+    expect(v.step({ type: 'clock' }).xp).toBeUndefined()
+  })
+
+  it('earns one ride for an account however many of its sockets rode', () => {
+    const v = valleyWith(
+      join('a'),
+      { ...join('a2'), account: 'acct-a' } as ValleyAction,
+      { type: 'board', id: 'a' },
+      { type: 'board', id: 'a2' }
+    )
+    v.tick(CONFIG.truck.countdownSeconds * SEC + ROUTES.joyrideMs)
+    expect(v.step({ type: 'clock' }).xp).toEqual([
+      { account: 'acct-a', source: 'ride' },
+    ])
+  })
+})
+
 describe('rule 11: a burst shadowman leaves dimes', () => {
   it('spills a drop of dimes where each one burst', () => {
     const v = valleyWith(join('a'))
@@ -939,8 +1021,8 @@ describe('rule 11: a burst shadowman leaves dimes', () => {
     })
     expect(reasons(r)).toEqual(['spilled'])
     expect(v.valley.world?.drops).toEqual([
-      { id: 0, kind: 'dimes', count: 7, x: 10, z: 20 },
-      { id: 1, kind: 'dimes', count: 3, x: 50, z: 60 },
+      { id: 0, kind: 'dimes', count: 7, x: 10, z: 20, spilled: true },
+      { id: 1, kind: 'dimes', count: 3, x: 50, z: 60, spilled: true },
     ])
     expect(v.valley.world?.nextDrop).toBe(2)
   })
@@ -997,8 +1079,8 @@ describe('rule 11: a burst shadowman leaves dimes', () => {
       ],
     })
     expect(v.valley.world?.drops).toEqual([
-      { id: 0, kind: 'gold-bullion', count: 1, x: 1, z: 2 },
-      { id: 1, kind: 'gold-bullion', count: 1, x: 1.5, z: 2 },
+      { id: 0, kind: 'gold-bullion', count: 1, x: 1, z: 2, spilled: true },
+      { id: 1, kind: 'gold-bullion', count: 1, x: 1.5, z: 2, spilled: true },
     ])
     const r = v.step({ type: 'take-drop', id: 'a', drop: 0 })
     expect(r.pack).toEqual({
@@ -1153,6 +1235,8 @@ describe("rule 11: the shadowmen are the valley's", () => {
     // the burn (rule 16).
     expect(out?.message.bursts).toEqual([{ id, kind: 'man', x: 500, z: 490 }])
     expect(out?.burned).toEqual(['acct-b'])
+    // And earns it XP (rule 20).
+    expect(out?.xp).toEqual([{ account: 'acct-b', source: 'burn' }])
   })
 
   it('sends a spider as one, its burn against its own longer time', () => {
@@ -1176,6 +1260,8 @@ describe("rule 11: the shadowmen are the valley's", () => {
       dt: half,
     })
     expect(after?.message.bursts).toMatchObject([{ kind: 'spider' }])
+    expect(out?.xp).toEqual([])
+    expect(after?.xp).toEqual([{ account: 'acct-b', source: 'spider' }])
   })
 
   it('places a still shadowman with a new id', () => {
@@ -1341,6 +1427,11 @@ describe('rule 13: the Caretaker keeps the maze', () => {
     out = step(one, CONFIG.caretaker.burnSeconds / 2)
     expect(out?.message.unmade).toEqual({ x: last?.x, z: last?.z })
     expect(out?.credited).toEqual(['acct-a', 'acct-b'])
+    // Each earns the big jump (rule 20).
+    expect(out?.xp).toEqual([
+      { account: 'acct-a', source: 'unmake' },
+      { account: 'acct-b', source: 'unmake' },
+    ])
     expect(out?.message.caretaker).toBeNull()
     out = step(one, CONFIG.caretaker.respawnSeconds - 1)
     expect(out?.message.caretaker).toBeNull()

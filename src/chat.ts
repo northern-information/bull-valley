@@ -44,13 +44,25 @@ export function othersLine(count: number): string {
   return copy('log.welcome_many', { count })
 }
 
+// A raider as /online names them: their name and their level.
+export interface OnlineRaider {
+  name: string
+  level: number
+}
+
 // Who is in the valley, for /online: this raider first, then the others
-// by name.
-export function onlineLine(self: string, others: readonly string[]): string {
+// by name, each with their level.
+export function onlineLine(
+  self: OnlineRaider,
+  others: readonly OnlineRaider[]
+): string {
   const sorted = [...others].sort((a, b) =>
-    a.localeCompare(b, undefined, { sensitivity: 'base' })
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
   )
-  return copy('chat.online', { names: [self, ...sorted].join(', ') })
+  const names = [self, ...sorted]
+    .map((raider) => copy('chat.online_name', { ...raider }))
+    .join(', ')
+  return copy('chat.online', { names })
 }
 
 // The log with one more line, keeping the newest CHAT_LINES.

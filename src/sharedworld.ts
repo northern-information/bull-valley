@@ -100,6 +100,15 @@
 //    whose last state frame put them at a station can move what their pack
 //    holds into it, or back (Reduced.stash); the valley moves it only when
 //    the side it comes out of holds it.
+// 20. The raider's level (progression.ts): one XP bar for the account,
+//    fed by everything. A shadowman or spider burst in the raider's beam,
+//    the Caretaker unmade with it (a big jump), a ride with Marx that
+//    gets home with them in the bed, the day's berry off a bush, a pickup,
+//    a unit bought, and a drop the valley left taken up each earn the
+//    account XP (Reduced.xp, and stepShadows' xp); a raider's own drop
+//    taken up earns none. Every grant is named here, worth what
+//    progression.ts XP says; the valley adds it to the account's XP in D1
+//    and tells everyone when it reaches a new level.
 
 import { caretakerAt, createCaretaker, stepCaretaker } from './caretaker.ts'
 import { CONFIG } from './config.ts'
@@ -142,6 +151,7 @@ import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckChange, TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
 import type { OutfitId } from './outfits.ts'
+import type { XpGrant, XpSource } from './progression.ts'
 import type {
   CaretakerWire,
   DailyMessage,
@@ -331,6 +341,8 @@ export interface Reduced {
   // (positive), or back (negative). The valley moves them only when the
   // side they come out of holds them.
   stash?: PackChange
+  // Rule 20: the XP each account earned, a grant at a time.
+  xp?: XpGrant[]
 }
 
 export interface PackChange {
@@ -470,9 +482,9 @@ const TRUCK_REASONS: Record<TruckChange, WorldReason> = {
 function settle(
   valley: Valley,
   now: number
-): { valley: Valley; frames: WorldMessage[] } {
+): { valley: Valley; frames: WorldMessage[]; xp: XpGrant[] } {
   const world = valley.world
-  if (!world) return { valley, frames: [] }
+  if (!world) return { valley, frames: [], xp: [] }
   let next = valley
   const frames: WorldMessage[] = []
   const today = dayKey(now)
@@ -487,13 +499,28 @@ function settle(
     frames.push(frame(next, 'refill'))
   }
   const settled = settleTruck(world.truck, now, world.routes)
+  // Rule 20: whoever was still in the bed when Marx got home rode with
+  // him; one hopping out on the way did not.
+  const xp = settled.changes.includes('home')
+    ? grantsTo(valley, world.truck.riders, 'ride')
+    : []
   if (settled.changes.length > 0 && next.world) {
     next = withTruck(next, next.world, settled.truck)
     for (const change of settled.changes) {
       frames.push(frame(next, TRUCK_REASONS[change]))
     }
   }
-  return { valley: next, frames }
+  return { valley: next, frames, xp }
+}
+
+// Rule 20: a grant of `source` to the account behind each socket id, once
+// per account.
+function grantsTo(
+  valley: Valley,
+  ids: readonly string[],
+  source: XpSource
+): XpGrant[] {
+  return creditedWith(valley, ids).map((account) => ({ account, source }))
 }
 
 function done(
@@ -513,12 +540,12 @@ export function reduce(
   // Whatever was due has happened before anything else does.
   const settled = settle(before, now)
   const r = act(settled.valley, action, context)
-  return {
-    ...r,
-    broadcast: [...settled.frames, ...r.broadcast],
-    alarm: r.reject ? wakeAt(before, now) : r.alarm,
-    valley: r.reject ? before : r.valley,
+  const broadcast = [...settled.frames, ...r.broadcast]
+  if (r.reject) {
+    return { ...r, broadcast, alarm: wakeAt(before, now), valley: before }
   }
+  const xp = [...settled.xp, ...(r.xp ?? [])]
+  return { ...r, broadcast, ...(xp.length > 0 ? { xp } : {}) }
 }
 
 function act(
@@ -673,6 +700,8 @@ function act(
         broadcast: [
           frame(next, 'taken', { by: action.id, index: action.index }),
         ],
+        // Rule 20.
+        xp: [{ account: member.account, source: 'pickup' }],
       })
       // Rule 10.
       if (isPackKind(spec.kind) && spec.count > 0) {
@@ -712,6 +741,8 @@ function act(
           frame(next, 'bought', { by: action.id, station, item: kind }),
         ],
         spend: { account: member.account, amount: price },
+        // Rule 20.
+        xp: [{ account: member.account, source: 'purchase' }],
       })
       // Rule 10.
       if (isPackKind(kind)) {
@@ -764,6 +795,8 @@ function act(
         },
         // Rule 10.
         pack: { account: member.account, kind: 'berries', delta: 1 },
+        // Rule 20.
+        xp: [{ account: member.account, source: 'berry' }],
       })
     }
 
@@ -858,6 +891,8 @@ function act(
         ...(isCash(drop.kind)
           ? { earn: { account, amount: taken * centsOf(drop.kind) } }
           : { pack: { account, kind: drop.kind, delta: taken } }),
+        // Rule 20: only what the valley left, never a raider's own drop.
+        ...(drop.spilled ? { xp: [{ account, source: 'drop' as const }] } : {}),
       })
     }
 
@@ -885,6 +920,7 @@ function act(
         count,
         x,
         z,
+        spilled: true,
       }))
       const next = withWorld(valley, {
         ...world,
@@ -1040,6 +1076,7 @@ function act(
       const settled = settle(next, now)
       return done(settled.valley, now, {
         broadcast: [frame(next, 'hurry'), ...settled.frames],
+        ...(settled.xp.length > 0 ? { xp: settled.xp } : {}),
       })
     }
 
@@ -1131,6 +1168,8 @@ export function stepShadows(
   // Rule 16: the accounts credited with a burn this step, once for each
   // shadowman each burned.
   burned: string[]
+  // Rule 20: the XP those burns and that unmaking earned.
+  xp: XpGrant[]
 } | null {
   const world = valley.world
   const raiders = world ? shadowRaiders(valley, shadows, placed, now) : []
@@ -1214,10 +1253,16 @@ export function stepShadows(
     caught,
     credited,
     burned: bursts.flatMap((b) => creditedWith(valley, b.by)),
+    xp: [
+      ...bursts.flatMap((b) =>
+        grantsTo(valley, b.by, b.kind === 'spider' ? 'spider' : 'burn')
+      ),
+      ...credited.map((account) => ({ account, source: 'unmake' as const })),
+    ],
   }
 }
 
-// Rules 15 and 16: the accounts behind the sockets whose beams unmade the
+// Rules 15, 16 and 20: the accounts behind the sockets whose beams unmade the
 // Caretaker or burst a shadowman, each once, in the order their beams were
 // counted.
 export function creditedWith(valley: Valley, ids: readonly string[]): string[] {

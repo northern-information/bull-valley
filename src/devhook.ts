@@ -63,6 +63,8 @@ interface BvHook {
   readonly season: SeasonProgress
   // The account's progress on the daily task, as the valley last said.
   readonly task: TaskProgress
+  // The account's XP in all (progression.ts), as the valley last said.
+  readonly xp: number
   // The pack as this client holds it: the valley's last word, plus guesses.
   readonly inventory: Inventory
   // What lies dropped: the valley's, or this raider's alone.
@@ -163,6 +165,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     },
     get task() {
       return s.task
+    },
+    get xp() {
+      return s.xp
     },
     get inventory() {
       return s.inventory
