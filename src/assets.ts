@@ -7,6 +7,7 @@ import { CONFIG } from './config.ts'
 import { skull } from './decalart.ts'
 import { CONTAINERS } from './drinks.ts'
 import { DEFAULT_FINISH, finishById } from './finishes.ts'
+import { paintTombstone } from './graveart.ts'
 import { isCigarette, isDrink, isMedicine, itemById, ITEMS } from './items.ts'
 import { mazeSpans, SHINING_MAZE, spanPieces } from './maze.ts'
 import {
@@ -342,6 +343,94 @@ export function gravestonePart() {
     name: 'gravestone',
     geometry,
     material: lambert({ color: '#454b54' }),
+  }
+}
+
+// A shadowman's tombstone (graves.ts): a round-topped granite headstone on
+// a plinth, its name cut into the face (graveart.ts), over a low mound of
+// fresh earth. Faces +z; origin on the ground under the stone. The stone
+// and the earth are shared by every tombstone; dispose() frees the face.
+export interface Tombstone {
+  group: THREE.Group
+  dispose: () => void
+}
+
+const TOMBSTONE = { width: 0.5, shoulder: 0.62, depth: 0.1 }
+
+let tombstoneParts: {
+  slab: THREE.BufferGeometry
+  arch: THREE.BufferGeometry
+  plinth: THREE.BufferGeometry
+  face: THREE.BufferGeometry
+  mound: THREE.BufferGeometry
+  stone: THREE.Material
+  earth: THREE.Material
+} | null = null
+
+export function buildTombstone(name: string, seed = 0x6a7e): Tombstone {
+  const { width, shoulder, depth } = TOMBSTONE
+  tombstoneParts ??= (() => {
+    const slab = new THREE.BoxGeometry(width, shoulder, depth)
+    slab.translate(0, shoulder / 2 + 0.08, 0)
+    // A half disc standing on the slab, its flat side down.
+    const arch = new THREE.CylinderGeometry(
+      width / 2,
+      width / 2,
+      depth,
+      12,
+      1,
+      false,
+      -Math.PI / 2,
+      Math.PI
+    )
+    arch.rotateX(-Math.PI / 2)
+    arch.translate(0, shoulder + 0.08, 0)
+    const plinth = new THREE.BoxGeometry(width + 0.14, 0.08, depth + 0.12)
+    plinth.translate(0, 0.04, 0)
+    const face = new THREE.PlaneGeometry(width - 0.04, (width - 0.04) * 1.25)
+    face.translate(0, 0.08 + shoulder / 2 + 0.05, depth / 2 + 0.002)
+    const mound = new THREE.SphereGeometry(
+      1,
+      8,
+      4,
+      0,
+      Math.PI * 2,
+      0,
+      Math.PI / 2
+    )
+    mound.scale(0.32, 0.09, 0.75)
+    mound.translate(0, 0, depth / 2 + 0.85)
+    return {
+      slab,
+      arch,
+      plinth,
+      face,
+      mound,
+      stone: lambert({ color: '#80858b' }),
+      earth: lambert({ color: '#3b2c1f' }),
+    }
+  })()
+  const parts = tombstoneParts
+  const group = new THREE.Group()
+  group.name = 'tombstone'
+  const stone = new THREE.Group()
+  for (const geo of [parts.slab, parts.arch, parts.plinth]) {
+    stone.add(new THREE.Mesh(geo, parts.stone))
+  }
+  const texture = artTexture(paintTombstone(name, seed))
+  const faceMaterial = lambert({ map: texture })
+  stone.add(new THREE.Mesh(parts.face, faceMaterial))
+  // Settled a little out of true.
+  const rng = mulberry32(seed)
+  stone.rotation.set(range(rng, -0.05, 0.03), 0, range(rng, -0.06, 0.06))
+  group.add(stone)
+  group.add(new THREE.Mesh(parts.mound, parts.earth))
+  return {
+    group,
+    dispose: () => {
+      texture.dispose()
+      faceMaterial.dispose()
+    },
   }
 }
 
@@ -5489,6 +5578,11 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   })),
   { id: 'berries', label: 'Berries', build: () => buildPickup('berries') },
   { id: 'dimes', label: 'Dimes (12)', build: () => buildDimes(12) },
+  {
+    id: 'tombstone',
+    label: "Tombstone: a shadowman's",
+    build: () => buildTombstone('Hush Wren of Bull Valley Road').group,
+  },
   {
     id: 'gold-bullion',
     label: 'Gold bullion (1 troy oz)',

@@ -14,6 +14,7 @@ import { finishById } from './finishes.ts'
 import { FirstPersonHands } from './fphands.ts'
 import { createGameState } from './game.ts'
 import { createGlow } from './glow.ts'
+import { createGravestones } from './gravestones.ts'
 import { Hud } from './hud.ts'
 import { wireKeys, wirePointer } from './input.ts'
 import { createItemThumbs } from './itemthumbs.ts'
@@ -143,6 +144,8 @@ async function boot() {
   scene.add(world.group)
   const drops = createDropMeshes(world.ground.at)
   scene.add(drops.group)
+  const graves = createGravestones(world.ground.at)
+  scene.add(graves.group)
 
   // Sky furniture rides along with the player so it never recedes into fog.
   const sky = buildSky()
@@ -255,6 +258,7 @@ async function boot() {
     sky,
     world,
     drops,
+    graves,
     graph,
     truck,
     // Under e2e the valley is never drawn and never heard.

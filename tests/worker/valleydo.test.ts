@@ -1213,8 +1213,18 @@ describe('ValleyDO: the shadowmen', () => {
       .findLast((m): m is WorldMessage => m.type === 'world')
     expect(spilled?.reason).toBe('spilled')
     const [dimes] = spilled?.world?.drops ?? []
-    return { v, a, b, dimes, x, z }
+    const [grave] = spilled?.world?.graves ?? []
+    return { v, a, b, dimes, grave, x, z }
   }
+
+  it('leaves a named tombstone a step from where one burst', async () => {
+    const { grave, x, z } = await burst()
+    expect(grave.name.length).toBeGreaterThan(0)
+    expect(Math.hypot(grave.x - x, grave.z - z)).toBeCloseTo(
+      CONFIG.graves.offset,
+      1
+    )
+  })
 
   const tasks = (socket: MockSocket) =>
     socket.frames().filter((m): m is TaskMessage => m.type === 'task')

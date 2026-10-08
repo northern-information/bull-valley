@@ -246,8 +246,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       const y = world.ground.at(at.x, at.z) + CONFIG.shadowmen.chestHeight
       bursts.spawn(at.x, y, at.z)
     }
-    // Each leaves its dimes where it burst (the valley's do that itself).
-    actions.spillDimes(swarm.bursts)
+    // Each leaves its dimes and its tombstone where it burst (the valley's
+    // do that itself).
+    actions.spillBursts(swarm.bursts)
     // The Caretaker walks the maze on the same terms; played alone, one
     // beam is never enough to unmake it.
     const keeper = caretaker.update({
