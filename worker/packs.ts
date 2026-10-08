@@ -2,13 +2,15 @@
 // kept by the valley so they follow the raider to any browser. The
 // interface is here with an in-memory store for the tests; production is
 // the D1 store in d1packs.ts. The rules of what goes in and out are
-// src/sharedworld.ts's (rules 7, 10, 16 and 17).
+// src/sharedworld.ts's (rules 7, 10, 16, 18 and 19).
 
 import { CONFIG } from '../src/config.ts'
 import { toCosmetics } from '../src/cosmetics.ts'
+import { NO_TASK } from '../src/dailytask.ts'
 import { STARTING_INVENTORY, toInventory } from '../src/inventory.ts'
 import { NO_PROGRESS } from '../src/season.ts'
 import type { CosmeticId } from '../src/cosmetics.ts'
+import type { TaskProgress } from '../src/dailytask.ts'
 import type { Inventory } from '../src/interfaces.ts'
 import type { SeasonProgress, SeasonReward } from '../src/season.ts'
 
@@ -41,7 +43,7 @@ export interface PackStore {
     item: PackItem | null
   ): Promise<boolean>
   // Everything the pack holds, taken out at once and returned: a strike
-  // (sharedworld.ts rule 16). Each kind is left at zero, never removed, so
+  // (sharedworld.ts rule 18). Each kind is left at zero, never removed, so
   // the starting items are never given again.
   strip(accountId: string): Promise<Inventory>
   // Units back into the pack, all or none: a body looted, or a strip the
@@ -49,7 +51,7 @@ export interface PackStore {
   give(accountId: string, items: Inventory): Promise<void>
   // `delta` of `kind` out of the pack into the locker (positive), or out of
   // the locker into the pack (negative), both or neither; false when the
-  // side it comes out of holds fewer (rule 17).
+  // side it comes out of holds fewer (rule 19).
   stow(accountId: string, kind: string, delta: number): Promise<boolean>
   // Pays `amount` cents into the wallet (dimes taken up).
   earn(accountId: string, amount: number): Promise<void>
@@ -73,6 +75,17 @@ export interface PackStore {
     progress: SeasonProgress,
     reward: SeasonReward | null
   ): Promise<void>
+  // The account's progress on daily task `task` as last written, on
+  // whatever day that was (dailytask.ts onDay reads it for today).
+  task(accountId: string, task: string): Promise<TaskProgress>
+  // Writes the progress after a burn (dailytask.ts tallyTask) and, with
+  // it, the cents that burn paid, if any, all or nothing.
+  scoreTask(
+    accountId: string,
+    task: string,
+    progress: TaskProgress,
+    reward: number | null
+  ): Promise<void>
 }
 
 // Units of one kind going into a pack.
@@ -88,6 +101,8 @@ export class MemoryPackStore implements PackStore {
   readonly stashes = new Map<string, Map<string, number>>()
   // `${account}/${season}` -> progress.
   readonly seasons = new Map<string, SeasonProgress>()
+  // `${account}/${task}` -> progress.
+  readonly tasks = new Map<string, TaskProgress>()
 
   open(accountId: string): Promise<Holdings> {
     if (!this.packs.has(accountId)) {
@@ -203,5 +218,22 @@ export class MemoryPackStore implements PackStore {
       (this.wallets.get(accountId) ?? 0) + reward.cash
     )
     await this.change(accountId, reward.kind, reward.count)
+  }
+
+  task(accountId: string, task: string): Promise<TaskProgress> {
+    return Promise.resolve(this.tasks.get(`${accountId}/${task}`) ?? NO_TASK)
+  }
+
+  scoreTask(
+    accountId: string,
+    task: string,
+    progress: TaskProgress,
+    reward: number | null
+  ): Promise<void> {
+    this.tasks.set(`${accountId}/${task}`, progress)
+    if (reward) {
+      this.wallets.set(accountId, (this.wallets.get(accountId) ?? 0) + reward)
+    }
+    return Promise.resolve()
   }
 }

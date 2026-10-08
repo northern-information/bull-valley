@@ -15,11 +15,13 @@ import { finishById } from './finishes.ts'
 import { FirstPersonHands } from './fphands.ts'
 import { createGameState } from './game.ts'
 import { createGlow } from './glow.ts'
+import { createGravestones } from './gravestones.ts'
 import { Hud } from './hud.ts'
 import { wireKeys, wirePointer } from './input.ts'
 import { createItemThumbs } from './itemthumbs.ts'
 import { startLoop } from './loop.ts'
 import { MistCards } from './mistcards.ts'
+import { createMusic } from './musicrig.ts'
 import { NetClient, socketUrl } from './net.ts'
 import { Peers } from './peers.ts'
 import { Player } from './player.ts'
@@ -29,6 +31,7 @@ import { createRadio } from './radiorig.ts'
 import { mulberry32 } from './rng.ts'
 import { buildRoadGraph, nearestRoadPoint, wanderRoute } from './roadgraph.ts'
 import { Scope } from './scope.ts'
+import { createSettingsStore } from './settingsui.ts'
 import { ShadowBursts } from './shadowburst.ts'
 import { ShadowCards } from './shadowcards.ts'
 import { createTargets } from './targets.ts'
@@ -91,7 +94,10 @@ async function boot() {
   // reveal uncovers the one beneath and the last discloses the intro
   // dialog already waiting. Not awaited until the player body needs the
   // pick; the scene builds underneath.
-  const titles = showTitles(audio)
+  // The raider's settings: the menu's Settings and the pause overlay share
+  // them, and the music reads them every frame.
+  const settings = createSettingsStore()
+  const titles = showTitles(audio, settings)
   hud.showIntro(true, false)
   hud.setBegin('loading')
 
@@ -139,6 +145,8 @@ async function boot() {
   scene.add(world.group)
   const drops = createDropMeshes(world.ground.at)
   scene.add(drops.group)
+  const graves = createGravestones(world.ground.at)
+  scene.add(graves.group)
   const corpses = createCorpseMeshes(world.ground.at)
   scene.add(corpses.group)
 
@@ -218,6 +226,7 @@ async function boot() {
   const pick = await titles
   if (pick.notice) hud.tell(pick.notice)
   hud.setRaider(pick.username)
+  hud.setSettings(settings)
   hud.accountBtn.addEventListener('click', openAccount)
   hud.signOutBtn.addEventListener('click', () => {
     hud.signOutBtn.disabled = true
@@ -252,12 +261,15 @@ async function boot() {
     sky,
     world,
     drops,
+    graves,
     corpses,
     graph,
     truck,
     // Under e2e the valley is never drawn and never heard.
     radio:
       import.meta.env.MODE === 'test' ? null : createRadio(camera, truck.group),
+    music: import.meta.env.MODE === 'test' ? null : createMusic(),
+    settings,
     truckContext,
     truckRoutes,
     spawnStation,

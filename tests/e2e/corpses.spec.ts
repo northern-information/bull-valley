@@ -2,8 +2,8 @@ import { copy } from './copy.ts'
 import { beginRaid, expect, heardWhere, test } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
-// Rule 16: a strike leaves everything the pack held on the raider's body,
-// where they fell, and E over it takes it all back. Rule 17: the locker in
+// Rule 18: a strike leaves everything the pack held on the raider's body,
+// where they fell, and E over it takes it all back. Rule 19: the locker in
 // the back room of every Citgo keeps what is stowed there, through a
 // strike.
 

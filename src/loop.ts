@@ -7,6 +7,8 @@ import { pulseMaterials } from './assets.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { moabOffer } from './cosmetics.ts'
+import { dayKey } from './daily.ts'
+import { onDay, shownCount } from './dailytask.ts'
 import { levelsAt } from './geometrie.ts'
 import { ease, stepHand, useLift, useSeconds } from './hands.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
@@ -20,6 +22,7 @@ import { settleTruck } from './marx.ts'
 import { inPortal } from './maze.ts'
 import { packItemOf } from './packgrid.ts'
 import { poseOf, stateChanged } from './presence.ts'
+import { heardAt } from './radio.ts'
 import { beamFrom } from './shadowmen.ts'
 import { formatCash } from './store.ts'
 import { tripLevel } from './trip.ts'
@@ -48,6 +51,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     world,
     truck,
     radio,
+    music,
+    settings,
     player,
     playerBody,
     hands,
@@ -174,11 +179,19 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     }
     // Marx's radio, at the valley's moment: the valley's clock online, the
     // wall clock alone, as his day is.
+    const radioDistance = truck.distanceTo(player.pos.x, player.pos.z)
     radio?.update({
       serverMs: s.world ? net.clock.serverNow(now) : Date.now(),
-      distance: truck.distanceTo(player.pos.x, player.pos.z),
+      distance: radioDistance,
       riding: s.aboard,
       started: s.started,
+    })
+    // The valley's music, at the raider's setting, under the radio.
+    music?.update({
+      now,
+      started: s.started,
+      setting: settings.current.music,
+      radioGain: heardAt(radioDistance, s.aboard, CONFIG.radio).gain,
     })
     if (s.onTruckRolls.length && truck.rolling()) {
       for (const line of s.onTruckRolls) hud.tell(line)
@@ -233,8 +246,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       const y = world.ground.at(at.x, at.z) + CONFIG.shadowmen.chestHeight
       bursts.spawn(at.x, y, at.z)
     }
-    // Each leaves its dimes where it burst (the valley's do that itself).
-    actions.spillDimes(swarm.bursts)
+    // Each leaves its dimes and its tombstone where it burst (the valley's
+    // do that itself).
+    actions.spillBursts(swarm.bursts)
     // The Caretaker walks the maze on the same terms; played alone, one
     // beam is never enough to unmake it.
     const keeper = caretaker.update({
@@ -257,6 +271,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     world.gronRig?.update(time)
     for (const rig of world.moabRigs) rig.update(time)
     world.wreck?.update(time)
+    // The dishes slew on the valley's clock, so every raider sees them
+    // look the same way.
+    world.dishes?.update(net.clock.serverNow(now) / 1000)
     // The portal at the maze's heart swirls, and anyone on foot who walks
     // into it comes out on the trail outside the gate.
     const portal = world.portal
@@ -303,6 +320,17 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       })
     )
     hud.setGeometrie(levelsAt(s.geometrie, time))
+    // The daily task as it stands on the valley's day: a count from an
+    // earlier day reads as nothing done. Alone, nothing is kept to show.
+    if (net.online) {
+      const day = dayKey(net.clock.serverNow(now))
+      hud.task.set({
+        count: shownCount(s.task, day),
+        done: onDay(s.task, day).claimed,
+      })
+    } else {
+      hud.task.set(null)
+    }
     hud.tickChat(performance.now())
 
     scope.draw(dt, {

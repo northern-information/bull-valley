@@ -21,7 +21,8 @@
 //    to the whistler, who climbs in and is driven home to the Citgo. A
 //    whistler who leaves sends it home empty.
 // 6. The day turns at midnight Central (daily.ts): every pickup is back,
-//    the shelves are full again, and what lay dropped is gone.
+//    the shelves are full again, and what lay dropped is gone (the
+//    tombstones stay, rule 17).
 // 7. The Citgo shelves are shared: a unit one raider buys is off the shelf
 //    for everyone until the day turns. The buyer picks the unit, so the
 //    valley keeps which units are left. A unit is paid for out of the
@@ -74,7 +75,17 @@
 //    account however many of its sockets held a beam on it. The progress
 //    is the account's, kept by the valley in D1 beside the wallet, and the
 //    unmaking that finishes the season pays its reward once.
-// 16. Corpse runs (corpses.ts): a strike leaves everything the raider's
+// 16. The daily task (dailytask.ts): every raider whose beam was on a
+//    shadowman as it burst is credited with the burn, once per account
+//    however many of its sockets held a beam on it. The progress is the
+//    account's for the Central day, kept by the valley in D1 beside the
+//    wallet, and the burn that finishes the day's task pays its reward
+//    once that day.
+// 17. Every shadowman that bursts (rule 11) is named (names.ts, drawn by
+//    the valley) and leaves a tombstone carved with its name a step from
+//    where it burst (graves.ts). The graves outlast the day's turn; past
+//    CONFIG.graves.max the oldest goes.
+// 18. Corpse runs (corpses.ts): a strike leaves everything the raider's
 //    pack held on their body, where their last state frame put them; the
 //    valley takes it all out of the account's pack first, and lays the
 //    body only once it has (Reduced.corpse), or gives it back. The wallet
@@ -82,7 +93,7 @@
 //    things back (Reduced.give), and a body lies until it does: the day's
 //    turn leaves it, and so does a world opened afresh, since the bodies
 //    are the valley's (Valley.corpses), not the world's.
-// 17. The stash (stash.ts): every account has one locker, in the back room
+// 19. The stash (stash.ts): every account has one locker, in the back room
 //    of every Citgo, the same from any of them. A raider out of the bed
 //    whose last state frame put them at a station can move what their pack
 //    holds into it, or back (Reduced.stash); the valley moves it only when
@@ -94,6 +105,7 @@ import { corpseWire, isEmpty } from './corpses.ts'
 import { affords, cosmeticById, MOAB_OFFERS } from './cosmetics.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
 import { DIME_CENTS, dropSpot, isCash, takeUp } from './drops.ts'
+import { bury } from './graves.ts'
 import { contentsOf, INVENTORY_KINDS, itemById } from './items.ts'
 import {
   arrive,
@@ -122,6 +134,7 @@ import type { Caretaker } from './caretaker.ts'
 import type { Corpse } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { Drop, Facing, Spill } from './drops.ts'
+import type { Burial, Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckChange, TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
@@ -163,6 +176,9 @@ export interface SharedWorld {
   // Rule 12: what lies dropped, and the id the next drop gets.
   drops: Drop[]
   nextDrop: number
+  // Rule 17: the tombstones, and the id the next one gets.
+  graves: Grave[]
+  nextGrave: number
   truck: TruckState
   // What the build that opened it placed: the pickups, the station count,
   // each station's forecourt and the survey's size (the shadowmen's), where
@@ -185,7 +201,7 @@ export interface Valley {
   dailies: Record<string, string>
   // Account -> where it last stood on foot (rule 2).
   places: Record<string, Place>
-  // Rule 16: the bodies lying in the valley, each with the account that
+  // Rule 18: the bodies lying in the valley, each with the account that
   // fell (never on the wire), and the id the next one gets.
   corpses: ValleyCorpse[]
   nextCorpse: number
@@ -231,14 +247,15 @@ export type ValleyAction =
   // when the valley has not heard one.
   | { type: 'drop'; id: string; kind: string; count: number; at: Facing | null }
   | { type: 'take-drop'; id: string; drop: number }
-  // Rules 11 and 13: what the valley leaves lying of its own accord: the
-  // dimes burst shadowmen leave, and the Caretaker's gold bullion.
-  | { type: 'spill'; spills: Spill[] }
-  // Rule 16: struck, with `items` already out of the account's pack. at:
+  // Rules 11, 13 and 17: what the valley leaves of its own accord: the
+  // dimes burst shadowmen leave and their tombstones, and the Caretaker's
+  // gold bullion.
+  | { type: 'spill'; spills: Spill[]; burials?: Burial[] }
+  // Rule 18: struck, with `items` already out of the account's pack. at:
   // where the raider's last state frame put them, or null.
   | { type: 'fall'; id: string; items: Inventory; at: Facing | null }
   | { type: 'loot'; id: string; corpse: number }
-  // Rule 17: `count` of `kind` into the locker (stow) or out of it
+  // Rule 19: `count` of `kind` into the locker (stow) or out of it
   // (unstow). at: where the raider's last state frame put them, or null.
   | {
       type: 'stow' | 'unstow'
@@ -298,12 +315,12 @@ export interface Reduced {
     cosmetic: CosmeticId
     price: { kind: string; count: number }
   }
-  // Rule 16: the id of the body a fall laid. A fall that lays none leaves
+  // Rule 18: the id of the body a fall laid. A fall that lays none leaves
   // the valley to give the items back.
   corpse?: number
-  // Rule 16: a body's things, back into its account's pack.
+  // Rule 18: a body's things, back into its account's pack.
   give?: { account: string; items: Inventory }
-  // Rule 17: units of `kind` into the account's locker out of its pack
+  // Rule 19: units of `kind` into the account's locker out of its pack
   // (positive), or back (negative). The valley moves them only when the
   // side they come out of holds them.
   stash?: PackChange
@@ -367,7 +384,7 @@ export function dailyFor(
   return { collected, resetsAt: nextMidnight(now) }
 }
 
-// Rule 16: the ids of `account`'s bodies lying in the valley.
+// Rule 18: the ids of `account`'s bodies lying in the valley.
 export function corpsesOf(valley: Valley, account: string): number[] {
   return valley.corpses.filter((c) => c.account === account).map((c) => c.id)
 }
@@ -385,6 +402,7 @@ export function toWire(valley: Valley): WorldWire | null {
     taken: world.taken,
     shelves: world.shelves,
     drops: world.drops,
+    graves: world.graves,
     corpses: valley.corpses.map(corpseWire),
     truck: world.truck,
     members: Object.values(valley.members).map(({ id, name }) => ({
@@ -518,6 +536,8 @@ function act(
           shelves: freshStock(action.stations),
           drops: [],
           nextDrop: 0,
+          graves: [],
+          nextGrave: 0,
           truck: createTruck(now),
           pickups: action.pickups,
           stations: action.stations,
@@ -835,11 +855,19 @@ function act(
     case 'spill': {
       // Rules 11 and 13: each burst leaves its dimes lying where it was,
       // and the Caretaker unmade its gold bullion. Only cash or an item.
+      // Rule 17: each burst shadowman its tombstone.
       const world = valley.world
       const spills = action.spills.filter(
         (one) => one.count > 0 && (isCash(one.kind) || isPackKind(one.kind))
       )
-      if (!world || spills.length === 0) {
+      const buried = world
+        ? bury(world.graves, world.nextGrave, action.burials ?? [])
+        : null
+      if (
+        !world ||
+        !buried ||
+        (spills.length === 0 && buried.next === world.nextGrave)
+      ) {
         return done(valley, now, { broadcast: [] })
       }
       const spilled: Drop[] = spills.map(({ x, z, kind, count }, i) => ({
@@ -853,12 +881,14 @@ function act(
         ...world,
         drops: [...world.drops, ...spilled],
         nextDrop: world.nextDrop + spilled.length,
+        graves: buried.graves,
+        nextGrave: buried.next,
       })
       return done(next, now, { broadcast: [frame(next, 'spilled')] })
     }
 
     case 'fall': {
-      // Rule 16. A body only where the valley heard the raider stand, and
+      // Rule 18. A body only where the valley heard the raider stand, and
       // only with something on it.
       const member = valley.members[action.id]
       if (!member || !action.at || isEmpty(action.items)) {
@@ -892,7 +922,7 @@ function act(
     }
 
     case 'loot': {
-      // Rule 16: the account that fell, and no one else.
+      // Rule 18: the account that fell, and no one else.
       const member = valley.members[action.id]
       const refuse = (reason: string): Reduced =>
         done(valley, now, {
@@ -918,7 +948,7 @@ function act(
 
     case 'stow':
     case 'unstow': {
-      // Rule 17.
+      // Rule 19.
       const member = valley.members[action.id]
       const world = valley.world
       const re = action.type
@@ -1089,6 +1119,9 @@ export function stepShadows(
   caught: string[]
   // Rule 15: the accounts credited with unmaking the Caretaker this step.
   credited: string[]
+  // Rule 16: the accounts credited with a burn this step, once for each
+  // shadowman each burned.
+  burned: string[]
 } | null {
   const world = valley.world
   const raiders = world ? shadowRaiders(valley, shadows, placed, now) : []
@@ -1150,18 +1183,25 @@ export function stepShadows(
         burn: round(Math.min(1, s.burn / cfg.burnSeconds), 2),
         target: s.target,
       })),
-      bursts: bursts.map((b) => ({ ...b, x: round(b.x, 2), z: round(b.z, 2) })),
+      // Who burned each is the valley's to know, not the wire's.
+      bursts: bursts.map((b) => ({
+        id: b.id,
+        x: round(b.x, 2),
+        z: round(b.z, 2),
+      })),
       caretaker,
       unmade,
     },
     struck,
     caught,
     credited,
+    burned: bursts.flatMap((b) => creditedWith(valley, b.by)),
   }
 }
 
-// Rule 15: the accounts behind the sockets whose beams unmade the
-// Caretaker, each once, in the order their beams were counted.
+// Rules 15 and 16: the accounts behind the sockets whose beams unmade the
+// Caretaker or burst a shadowman, each once, in the order their beams were
+// counted.
 export function creditedWith(valley: Valley, ids: readonly string[]): string[] {
   const accounts: string[] = []
   for (const id of ids) {

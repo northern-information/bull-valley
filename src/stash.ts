@@ -2,7 +2,7 @@
 // (store.ts STORE_LAYOUT.lockers). What is stowed there is the account's,
 // kept by the valley beside the pack, the same from any station, and a
 // strike never touches it (corpses.ts). sharedworld.ts runs these for the
-// shared valley (rule 17); the valley played alone has no locker, since
+// shared valley (rule 19); the valley played alone has no locker, since
 // nothing is kept. No three.js, no DOM.
 
 import { CONFIG } from './config.ts'

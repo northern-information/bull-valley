@@ -5,7 +5,13 @@
 import { isSelectable } from '../src/characters.ts'
 import { isFinish } from '../src/finishes.ts'
 import { toHotbar } from '../src/hotbar.ts'
-import type { HotbarWire, LookWire, Provider } from '../src/account.ts'
+import { toSettings } from '../src/settings.ts'
+import type {
+  HotbarWire,
+  LookWire,
+  Provider,
+  SettingsWire,
+} from '../src/account.ts'
 import type {
   Account,
   AccountStore,
@@ -274,6 +280,31 @@ export class D1AccountStore implements AccountStore {
     const result = await this.db
       .prepare('UPDATE accounts SET hotbar = ? WHERE account_id = ?')
       .bind(JSON.stringify(hotbar), accountId)
+      .run()
+    return result.meta.changes === 1
+  }
+
+  async settingsOf(accountId: string): Promise<SettingsWire> {
+    const row = await this.db
+      .prepare('SELECT settings FROM accounts WHERE account_id = ?')
+      .bind(accountId)
+      .first<{ settings: string | null }>()
+    // Unset or unreadable: the defaults.
+    if (!row?.settings) return toSettings(null)
+    try {
+      return toSettings(JSON.parse(row.settings))
+    } catch {
+      return toSettings(null)
+    }
+  }
+
+  async setSettings(
+    accountId: string,
+    settings: SettingsWire
+  ): Promise<boolean> {
+    const result = await this.db
+      .prepare('UPDATE accounts SET settings = ? WHERE account_id = ?')
+      .bind(JSON.stringify(settings), accountId)
       .run()
     return result.meta.changes === 1
   }

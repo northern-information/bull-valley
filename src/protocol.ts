@@ -7,6 +7,7 @@ import { USERNAME_MAX } from './account.ts'
 import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { Drop } from './drops.ts'
+import type { Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
@@ -15,7 +16,7 @@ import type { Burst } from './shadowmen.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 19
+export const PROTOCOL_VERSION = 21
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -109,8 +110,11 @@ export interface WorldWire {
   shelves: ShopStock[]
   // What raiders have dropped and nobody has taken up yet.
   drops: Drop[]
+  // A tombstone for every shadowman burnt, carved with its name; they stay
+  // when the day turns.
+  graves: Grave[]
   // Where raiders fell and have not yet taken their things back
-  // (sharedworld.ts rule 16); a body lies whatever the day.
+  // (sharedworld.ts rule 18); a body lies whatever the day.
   corpses: CorpseWire[]
   // Matthew Marx's truck: its leg, stamped with server ms, and who is in
   // the bed (marx.ts). Every client drives the same leg (truckplan.ts).
@@ -238,14 +242,14 @@ export interface TakeDropMessage {
 }
 
 // This raider's things taken back off their body `corpse` (its id), into
-// the pack (sharedworld.ts rule 16). Only the account that fell may.
+// the pack (sharedworld.ts rule 18). Only the account that fell may.
 export interface LootMessage {
   type: 'loot'
   corpse: number
 }
 
 // `count` of `kind` out of the pack into the account's locker (stow), or
-// out of the locker into the pack (unstow), at a Citgo (rule 17). The
+// out of the locker into the pack (unstow), at a Citgo (rule 19). The
 // valley checks the raider's last state frame put them at one.
 export interface StowMessage {
   type: 'stow' | 'unstow'
@@ -358,12 +362,14 @@ export interface WelcomeMessage {
   pack: Inventory
   cash: number
   cosmetics: CosmeticId[]
-  // What the account's locker holds (rule 17), and the ids of its bodies
-  // lying in the valley (rule 16).
+  // What the account's locker holds (rule 19), and the ids of its bodies
+  // lying in the valley (rule 18).
   stash: Inventory
   corpses: number[]
   // The account's progress through the season (season.ts).
   season: SeasonWire
+  // The account's progress on the daily task (dailytask.ts).
+  task: TaskWire
 }
 
 // An account's progress through the season (sharedworld.ts rule 15): the
@@ -381,6 +387,26 @@ export interface SeasonWire {
 export interface SeasonMessage {
   type: 'season'
   season: SeasonWire
+  rewarded: boolean
+}
+
+// An account's progress on the daily task (sharedworld.ts rule 16): the
+// task's id (dailytask.ts DAILY_TASK.id), the Central day it counts
+// (daily.ts dayKey; empty before the first burn), how many shadowmen the
+// account has burned that day, and whether that day's reward is paid.
+export interface TaskWire {
+  task: string
+  day: string
+  count: number
+  claimed: boolean
+}
+
+// The account was credited with burning a shadowman. Sent to every socket
+// signed in to it; `rewarded` when this burn finished the day's task and
+// paid its reward (a pack frame follows with it).
+export interface TaskMessage {
+  type: 'task'
+  task: TaskWire
   rewarded: boolean
 }
 
@@ -542,6 +568,7 @@ export type ServerMessage =
   | ShadowmenMessage
   | StruckMessage
   | SeasonMessage
+  | TaskMessage
 
 // Application close codes (the 4xxx range is ours per RFC 6455). The client
 // treats every 4xxx close as final and does not reconnect.

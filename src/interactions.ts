@@ -75,10 +75,10 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // pack holds (cosmetics.ts moabOffer).
   | { kind: 'trade'; offer: CosmeticId; station: number }
   // This raider's own body `corpse`: E takes their things back
-  // (sharedworld.ts rule 16).
+  // (sharedworld.ts rule 18).
   | { kind: 'loot'; corpse: number }
   // The lockers in the back room of station `station`: E opens the stash
-  // (rule 17).
+  // (rule 19).
   | { kind: 'locker'; station: number }
 
 // A locker bank as the resolver sees it: where E opens it, and its

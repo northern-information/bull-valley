@@ -8,6 +8,7 @@ import { CHAT_COPY, othersLine } from './chat.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { toCosmetics } from './cosmetics.ts'
+import { DAILY_TASK, taskNews } from './dailytask.ts'
 import { pickupLabel } from './interactions.ts'
 import { toInventory } from './inventory.ts'
 import { itemById } from './items.ts'
@@ -23,6 +24,7 @@ import type { Inventory } from './interfaces.ts'
 import type {
   NackMessage,
   SeasonWire,
+  TaskWire,
   WorldMessage,
   WorldWire,
 } from './protocol.ts'
@@ -150,6 +152,9 @@ export function wireValley(game: Game, actions: Actions): void {
     // said so; one taken up by us goes into the pack.
     s.drops = wire.drops
     game.drops.sync(s.drops)
+    // Rule 17: the tombstones too.
+    s.graves = wire.graves
+    game.graves.sync(s.graves)
     for (const id of s.pendingDrops) {
       if (!wire.drops.some((d) => d.id === id)) s.pendingDrops.delete(id)
     }
@@ -158,7 +163,7 @@ export function wireValley(game: Game, actions: Actions): void {
     }
     if (dropTaken?.mine) actions.applyDropTaken(dropTaken.kind, dropTaken.count)
 
-    // Rule 16: the bodies are the valley's word; which are ours, its pack
+    // Rule 18: the bodies are the valley's word; which are ours, its pack
     // frames say. One we took back is said so, and its things follow in
     // the pack frame.
     s.corpses = wire.corpses
@@ -286,6 +291,14 @@ export function wireValley(game: Game, actions: Actions): void {
     return true
   }
 
+  // The account's progress on the daily task, when it is this task's;
+  // false for another's.
+  const applyTask = (wire: TaskWire): boolean => {
+    if (wire.task !== DAILY_TASK.id) return false
+    s.task = { day: wire.day, count: wire.count, claimed: wire.claimed }
+    return true
+  }
+
   net.on((msg) => {
     if (msg.type === 'welcome') {
       // Back where the account last stood on foot, the first time.
@@ -299,6 +312,24 @@ export function wireValley(game: Game, actions: Actions): void {
       s.cosmetics = toCosmetics(msg.cosmetics)
       applyPack(msg)
       applySeason(msg.season)
+      applyTask(msg.task)
+    } else if (msg.type === 'task') {
+      // Rule 16: credited with a burn. A reward's pack frame follows.
+      if (!applyTask(msg.task)) return
+      const { goal } = DAILY_TASK
+      const cash = formatCash(DAILY_TASK.reward)
+      const news = taskNews(s.task, msg.rewarded)
+      if (news === 'done') {
+        hud.season.announce({
+          kicker: copy('task.kicker'),
+          headline: copy('task.banner_done'),
+          detail: copy('task.banner_paid', { cash }),
+          gold: true,
+        })
+        hud.tell(copy('log.task_reward', { goal, cash }))
+      } else if (news === 'burned') {
+        hud.tell(copy('log.task_burned', { count: s.task.count, goal }))
+      }
     } else if (msg.type === 'season') {
       // Rule 15: credited with unmaking the Caretaker. A reward's pack
       // frame follows.

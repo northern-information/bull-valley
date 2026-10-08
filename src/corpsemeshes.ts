@@ -1,4 +1,4 @@
-// The bodies as they lie in the valley (sharedworld.ts rule 16): one
+// The bodies as they lie in the valley (sharedworld.ts rule 18): one
 // figure.ts body per corpse, in the outfit its raider wore, laid on its
 // back in the sprawl pose on ground.at, kept in step with the corpse list,
 // the valley's or this raider's alone. The figure's parts are shared with

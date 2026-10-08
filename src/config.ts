@@ -160,6 +160,15 @@ export const CONFIG = {
     // A player this far from the valley's moment, in seconds, seeks back.
     driftSeconds: 2,
   },
+  music: {
+    // The valley's music (music.ts): the element's volume at the setting's
+    // top, kept well under the valley so it sits beneath everything.
+    volume: 0.5,
+    // How much of it Marx's radio takes away at its loudest.
+    duck: 0.85,
+    // Seconds it takes to come up from silence when it starts.
+    fadeInSeconds: 4,
+  },
   store: {
     // A new account's wallet, in cents (worker/packs.ts). Played alone,
     // every visit starts with this much.
@@ -268,6 +277,14 @@ export const CONFIG = {
     // The circle drops from one spot are spread round, in metres.
     scatter: 0.35,
   },
+  // The tombstones burst shadowmen leave (graves.ts).
+  graves: {
+    // How many stand at once in the valley; past it the oldest goes.
+    max: 100,
+    // How far from where the shadowman burst its stone stands, in metres,
+    // so it never covers the dimes.
+    offset: 0.9,
+  },
   // What a raider struck leaves where they fell (corpses.ts).
   corpses: {
     // How close your body must be for E to take your things back.
@@ -328,6 +345,20 @@ export const CONFIG = {
     halfLength: 1.6,
     radius: 0.9,
     // Trees keep this far off its middle.
+    treeClear: 6,
+  },
+  dishes: {
+    // The dish array behind the spawn Citgo (assets.ts DISH), station-local
+    // like the bush: `rows` rows back from the store's back wall, the first
+    // `first` metres from the pump island, each `cols` dishes across,
+    // `spacing` apart, wider than a reflector so none ever touch however
+    // they turn. Scenery: each pedestal blocks like a post this wide.
+    rows: 6,
+    cols: 6,
+    first: -24,
+    spacing: 13,
+    radius: 1.4,
+    // Trees keep this far off each pedestal: clear of the reflector.
     treeClear: 6,
   },
   npcs: {

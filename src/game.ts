@@ -3,6 +3,7 @@
 // valleysync.ts, input.ts, targets.ts and loop.ts each take the Game.
 
 import { CONFIG } from './config.ts'
+import { NO_TASK } from './dailytask.ts'
 import { SOBER } from './geometrie.ts'
 import { HAND_DOWN } from './hands.ts'
 import { NO_EFFECTS } from './hotbar.ts'
@@ -14,11 +15,14 @@ import type { CaretakerShade } from './caretakerrig.ts'
 import type { CorpseMeshes } from './corpsemeshes.ts'
 import type { Corpse, CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
+import type { TaskProgress } from './dailytask.ts'
 import type { DropMeshes } from './dropmeshes.ts'
 import type { Drop } from './drops.ts'
 import type { FirstPersonHands } from './fphands.ts'
 import type { Geometrie } from './geometrie.ts'
 import type { Glow } from './glow.ts'
+import type { Grave } from './graves.ts'
+import type { Gravestones } from './gravestones.ts'
 import type { Hand } from './hands.ts'
 import type { Effects, Hotbar } from './hotbar.ts'
 import type { Hud } from './hud.ts'
@@ -27,6 +31,7 @@ import type { Geo, Inventory, ShopStock } from './interfaces.ts'
 import type { ItemThumbs } from './itemthumbs.ts'
 import type { Leg, TruckRoutes, TruckState } from './marx.ts'
 import type { MistCards } from './mistcards.ts'
+import type { Music } from './musicrig.ts'
 import type { NetClient } from './net.ts'
 import type { NpcId } from './npcs.ts'
 import type { Peers } from './peers.ts'
@@ -37,6 +42,7 @@ import type { Radio } from './radiorig.ts'
 import type { RoadGraph } from './roadgraph.ts'
 import type { Scope } from './scope.ts'
 import type { SeasonProgress } from './season.ts'
+import type { SettingsStore } from './settingsui.ts'
 import type { ShadowBursts } from './shadowburst.ts'
 import type { ShadowCards } from './shadowcards.ts'
 import type { Titles } from './titles.ts'
@@ -66,6 +72,9 @@ export interface GameState {
   // The account's progress through the season (season.ts) as the valley
   // last sent it; alone, none, and nothing is kept.
   season: SeasonProgress
+  // The account's progress on the daily task (dailytask.ts) as the valley
+  // last sent it, on the day it counts; alone, none, and nothing is kept.
+  task: TaskProgress
   // Every Citgo's shelves, one stock per station like world.fuelPoints.
   storeStock: ShopStock[]
   // The item on each number key: the account's, saved one change at a
@@ -125,7 +134,12 @@ export interface GameState {
   drops: Drop[]
   nextDrop: number
   pendingDrops: Set<number>
-  // Rule 16: the bodies lying in the valley, the valley's from every
+  // The shadowmen's tombstones (rule 17): the valley's, from every
+  // snapshot, or this raider's own when played alone, numbered from
+  // nextGrave.
+  graves: Grave[]
+  nextGrave: number
+  // Rule 18: the bodies lying in the valley, the valley's from every
   // snapshot, or this raider's own when played alone (aloneCorpses, with
   // what each holds, numbered from nextCorpse); which of them are this
   // account's; and those asked of the valley and not yet answered.
@@ -134,7 +148,7 @@ export interface GameState {
   aloneCorpses: Corpse[]
   nextCorpse: number
   pendingLoots: Set<number>
-  // Rule 17: what the account's locker holds, as the valley last sent it
+  // Rule 19: what the account's locker holds, as the valley last sent it
   // (with this client's own moves applied in the meantime); alone, nothing.
   // lockerOpen: the pack is open at the locker, with its Locker tab.
   stash: Inventory
@@ -161,6 +175,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     pendingTrade: false,
     offeredBy: null,
     season: NO_PROGRESS,
+    task: NO_TASK,
     storeStock: freshStock(stations),
     hotbar,
     hotbarSaved: Promise.resolve(),
@@ -189,6 +204,8 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     drops: [],
     nextDrop: 0,
     pendingDrops: new Set(),
+    graves: [],
+    nextGrave: 0,
     corpses: [],
     myCorpses: [],
     aloneCorpses: [],
@@ -216,12 +233,18 @@ export interface Game {
   world: World
   // The drops' meshes, kept in step with state.drops.
   drops: DropMeshes
+  // The tombstones, kept in step with state.graves.
+  graves: Gravestones
   // The bodies, kept in step with state.corpses.
   corpses: CorpseMeshes
   graph: RoadGraph
   truck: Truck
   // The radio in Marx's cab; none under e2e, which never plays sound.
   radio: Radio | null
+  // The valley's music, likewise none under e2e, and the settings that
+  // say how loud it plays.
+  music: Music | null
+  settings: SettingsStore
   // The roads Matthew Marx drives (truckplan.ts): where he parks, the
   // joyride, his donuts for a seed; and what the valley is told of them.
   truckContext: TruckContext

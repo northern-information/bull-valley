@@ -4,7 +4,7 @@
 // spawn Citgo with an empty pack and their wallet, and run back for it.
 // Only the account that fell can take its things back, and a body lies
 // until it does, whatever the day. sharedworld.ts runs these for the shared
-// valley (rule 16), actions.ts for the valley played alone. No three.js, no
+// valley (rule 18), actions.ts for the valley played alone. No three.js, no
 // DOM.
 
 import { INVENTORY_KINDS } from './items.ts'

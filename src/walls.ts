@@ -1,7 +1,7 @@
 // Pure: the few things in the valley that stop you: the Citgo walls and
 // fixtures (store.ts), the berry bush, Gron, Moab and his horse (a capsule
 // along its spine), the wreck by the spawn Citgo (a capsule down the car)
-// and the tree it hit, and the utility poles and streetlights (roadside.ts),
+// and the tree it hit, the dishes behind it, and the utility poles and streetlights (roadside.ts),
 // each a post (a capsule of zero length) unless noted;
 // trees, the truck, and everything else stay walk-through. A wall is a
 // capsule: a segment on the ground plane, `half` its thickness either side.

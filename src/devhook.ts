@@ -10,8 +10,10 @@ import type { CaretakerShade } from './caretakerrig.ts'
 import type { ChatLine } from './chat.ts'
 import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
+import type { TaskProgress } from './dailytask.ts'
 import type { Drop } from './drops.ts'
 import type { Game } from './game.ts'
+import type { Grave } from './graves.ts'
 import type { Hand } from './hands.ts'
 import type { Hotbar } from './hotbar.ts'
 import type { GeometrieAxis, Inventory } from './interfaces.ts'
@@ -59,10 +61,14 @@ interface BvHook {
   readonly cash: number
   // The account's progress through the season, as the valley last said.
   readonly season: SeasonProgress
+  // The account's progress on the daily task, as the valley last said.
+  readonly task: TaskProgress
   // The pack as this client holds it: the valley's last word, plus guesses.
   readonly inventory: Inventory
   // What lies dropped: the valley's, or this raider's alone.
   readonly drops: readonly Drop[]
+  // The shadowmen's tombstones: the valley's, or this raider's alone.
+  readonly graves: readonly Grave[]
   // The bodies lying in the valley (the valley's, or this raider's alone),
   // and which of them are this account's.
   readonly corpses: readonly CorpseWire[]
@@ -154,11 +160,17 @@ export function installDevHook(game: Game, actions: Actions): void {
     get season() {
       return s.season
     },
+    get task() {
+      return s.task
+    },
     get inventory() {
       return s.inventory
     },
     get drops() {
       return s.drops
+    },
+    get graves() {
+      return s.graves
     },
     get corpses() {
       return s.corpses
