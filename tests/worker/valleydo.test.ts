@@ -10,6 +10,7 @@ import { MemoryAccountStore } from '../../worker/accounts.ts'
 import { MemoryPackStore, STARTING_CASH } from '../../worker/packs.ts'
 import { ValleyDO } from '../../worker/ValleyDO.ts'
 import type {
+  BookMessage,
   DailyMessage,
   NackMessage,
   PackMessage,
@@ -844,6 +845,8 @@ describe('ValleyDO', () => {
       trade: () => Promise.reject(new Error('D1 is down')),
       season: () => Promise.reject(new Error('D1 is down')),
       score: () => Promise.reject(new Error('D1 is down')),
+      book: () => Promise.reject(new Error('D1 is down')),
+      discover: () => Promise.reject(new Error('D1 is down')),
     }
     const errors: unknown[] = []
     const error = console.error
@@ -926,6 +929,8 @@ describe('ValleyDO', () => {
         earn: (id, amount) => store.earn(id, amount),
         trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
         season: (id, season) => store.season(id, season),
+        book: (id) => store.book(id),
+        discover: (id, entries, now) => store.discover(id, entries, now),
         score: (id, season, progress, reward) =>
           store.score(id, season, progress, reward),
       }
@@ -1022,6 +1027,8 @@ describe('ValleyDO: drops', () => {
       purchase: (id, amount, item) => store.purchase(id, amount, item),
       trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
       season: (id, season) => store.season(id, season),
+      book: (id) => store.book(id),
+      discover: (id, entries, now) => store.discover(id, entries, now),
       score: (id, season, progress, reward) =>
         store.score(id, season, progress, reward),
       change: () => Promise.reject(new Error('down')),
@@ -1230,6 +1237,8 @@ describe('ValleyDO: the shadowmen', () => {
       earn: () => Promise.reject(new Error('down')),
       trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
       season: (id, season) => store.season(id, season),
+      book: (id) => store.book(id),
+      discover: (id, entries, now) => store.discover(id, entries, now),
       score: (id, season, progress, reward) =>
         store.score(id, season, progress, reward),
     }
@@ -1342,6 +1351,8 @@ describe('ValleyDO: the shadowmen', () => {
       earn: (id, amount) => store.earn(id, amount),
       trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
       season: (id, season) => store.season(id, season),
+      book: (id) => store.book(id),
+      discover: (id, entries, now) => store.discover(id, entries, now),
       score: () => Promise.reject(new Error('down')),
     }
     const heart = heartPoint(theMaze())
@@ -1474,6 +1485,8 @@ describe("ValleyDO: Moab's trade", () => {
         earn: (id, amount) => store.earn(id, amount),
         trade: () => Promise.reject(new Error('down')),
         season: (id, season) => store.season(id, season),
+        book: (id) => store.book(id),
+        discover: (id, entries, now) => store.discover(id, entries, now),
         score: (id, season, progress, reward) =>
           store.score(id, season, progress, reward),
       }
@@ -1488,5 +1501,78 @@ describe("ValleyDO: Moab's trade", () => {
     } finally {
       console.error = error
     }
+  })
+})
+
+describe('ValleyDO: the Book of Shadows', () => {
+  const discover = (...entries: unknown[]) =>
+    JSON.stringify({ type: 'discover', entries })
+  const books = (socket: MockSocket) =>
+    socket.frames().filter((m): m is BookMessage => m.type === 'book')
+
+  it("writes what the raider came across in the account's book, once", async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const a2 = await join(v, s, 'A2', { account: 'acct-A' })
+    const b = await join(v, s, 'B')
+    expect(a.frames()[0]).toMatchObject({ type: 'welcome', book: [] })
+    await v.webSocketMessage(ws(a), discover('citgo', 'nowhere', 'marlboro'))
+    // Every socket on the account hears it; no one else does.
+    for (const socket of [a, a2]) {
+      expect(books(socket)).toEqual([
+        { type: 'book', found: ['citgo', 'marlboro'] },
+      ])
+    }
+    expect(books(b)).toEqual([])
+    // Asked again, it is no news.
+    await v.webSocketMessage(ws(a2), discover('citgo', 'marx'))
+    expect(books(a).at(-1)).toEqual({ type: 'book', found: ['marx'] })
+    await v.webSocketMessage(ws(a), discover('marx'))
+    expect(books(a)).toHaveLength(2)
+    // The book outlives the socket.
+    await v.webSocketClose(ws(a))
+    await v.webSocketClose(ws(a2))
+    const back = await join(v, s, 'A', { account: 'acct-A' })
+    expect(back.frames()[0]).toMatchObject({
+      type: 'welcome',
+      book: ['citgo', 'marlboro', 'marx'],
+    })
+  })
+
+  it('nacks an ask too soon after the last ten, and one it cannot write', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    for (let i = 0; i < 10; i++) {
+      await v.webSocketMessage(ws(a), discover('citgo'))
+    }
+    await v.webSocketMessage(ws(a), discover('marx'))
+    expect(a.last<NackMessage>()).toEqual({
+      type: 'nack',
+      re: 'discover',
+      reason: 'too-fast',
+    })
+    const b = await join(v, s, 'B')
+    const store = v.packStore
+    v.packStore = {
+      ...store,
+      open: (id) => store.open(id),
+      get: (id) => store.get(id),
+      season: (id, season) => store.season(id, season),
+      book: (id) => store.book(id),
+      discover: () => Promise.reject(new Error('down')),
+    }
+    const error = console.error
+    console.error = () => {}
+    try {
+      await v.webSocketMessage(ws(b), discover('gron'))
+    } finally {
+      console.error = error
+    }
+    expect(b.last<NackMessage>()).toEqual({
+      type: 'nack',
+      re: 'discover',
+      reason: 'unwritten',
+    })
+    expect(books(b)).toEqual([])
   })
 })

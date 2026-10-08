@@ -122,6 +122,22 @@ function packContract(makeStore: () => PackStore): void {
     expect(after.pack[OTHER]).toBe(before.pack[OTHER] + 200)
   })
 
+  it('writes each Book of Shadows entry once, in the order found', async () => {
+    const store = makeStore()
+    await store.open('a1')
+    expect(await store.book('a1')).toEqual([])
+    expect(
+      await store.discover('a1', ['citgo', 'nowhere', 'citgo'], 1)
+    ).toEqual(['citgo'])
+    expect(await store.discover('a1', ['marx', 'citgo', 'gron'], 2)).toEqual([
+      'marx',
+      'gron',
+    ])
+    expect(await store.discover('a1', ['marx'], 3)).toEqual([])
+    expect(await store.book('a1')).toEqual(['citgo', 'marx', 'gron'])
+    expect(await store.book('a2')).toEqual([])
+  })
+
   it('sells nothing from a wallet never opened', async () => {
     const store = makeStore()
     expect(await store.purchase('a1', 1, { kind: OTHER, delta: 1 })).toBe(false)

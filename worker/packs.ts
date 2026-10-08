@@ -4,6 +4,7 @@
 // the D1 store in d1packs.ts. The rules of what goes in and out are
 // src/sharedworld.ts's (rules 7 and 10).
 
+import { newlyFound } from '../src/book.ts'
 import { CONFIG } from '../src/config.ts'
 import { toCosmetics } from '../src/cosmetics.ts'
 import { STARTING_INVENTORY, toInventory } from '../src/inventory.ts'
@@ -60,6 +61,16 @@ export interface PackStore {
     progress: SeasonProgress,
     reward: SeasonReward | null
   ): Promise<void>
+  // The Book of Shadows entries the account has found (book.ts), in the
+  // order found.
+  book(accountId: string): Promise<string[]>
+  // Writes the entries the account had not found (book.ts newlyFound), at
+  // `now`, and returns them; known and unreal ones are left out.
+  discover(
+    accountId: string,
+    entries: readonly string[],
+    now: number
+  ): Promise<string[]>
 }
 
 // Units of one kind going into a pack.
@@ -74,6 +85,8 @@ export class MemoryPackStore implements PackStore {
   readonly cosmetics = new Map<string, Set<CosmeticId>>()
   // `${account}/${season}` -> progress.
   readonly seasons = new Map<string, SeasonProgress>()
+  // account -> the entries found, in order.
+  readonly books = new Map<string, string[]>()
 
   open(accountId: string): Promise<Holdings> {
     if (!this.packs.has(accountId)) {
@@ -156,5 +169,16 @@ export class MemoryPackStore implements PackStore {
       (this.wallets.get(accountId) ?? 0) + reward.cash
     )
     await this.change(accountId, reward.kind, reward.count)
+  }
+
+  book(accountId: string): Promise<string[]> {
+    return Promise.resolve([...(this.books.get(accountId) ?? [])])
+  }
+
+  discover(accountId: string, entries: readonly string[]): Promise<string[]> {
+    const found = this.books.get(accountId) ?? []
+    const fresh = newlyFound(new Set(found), entries)
+    this.books.set(accountId, [...found, ...fresh])
+    return Promise.resolve(fresh)
   }
 }

@@ -4,6 +4,7 @@
 // index.html stays a bare #bv-root.
 
 import { PACK, PACK_IN_MENU, WORLD } from './bindings.ts'
+import { BookHud } from './bookhud.ts'
 import { CHAT_LINES, formatStamp, isFaded, pushLine } from './chat.ts'
 import { copy } from './copy.ts'
 import { PACK_TABS } from './packgrid.ts'
@@ -223,6 +224,8 @@ export class Hud {
   raiderEl: HTMLElement
   // The season's tracker, its card on the overlay, and its banners.
   season: SeasonHud
+  // The Book of Shadows, over the valley while it is open.
+  book: BookHud
 
   constructor(root: HTMLElement) {
     this.root = root
@@ -237,6 +240,7 @@ export class Hud {
 
     // The season: the tracker in the upper right and the banners.
     this.season = new SeasonHud(ui)
+    this.book = new BookHud(ui)
 
     // Loadout countdown: bare numbers, top center.
     this.countdown = el('p', 'bv-countdown')
@@ -744,6 +748,13 @@ export class Hud {
     this.root.classList.toggle('bv-shell--inventory', show)
     if (!show) this.hoverCell(null)
     return show
+  }
+
+  // The Book of Shadows opens over the valley as the pack does, and the
+  // aiming HUD steps aside for it the same way.
+  showBook(show: boolean): boolean {
+    this.root.classList.toggle('bv-shell--inventory', show)
+    return this.book.show(show)
   }
 
   // The loop calls this every frame. The slots are rebuilt only when what

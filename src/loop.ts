@@ -4,6 +4,7 @@
 
 import * as THREE from 'three'
 import { pulseMaterials } from './assets.ts'
+import { itemsHeld, sightsInReach } from './book.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { moabOffer } from './cosmetics.ts'
@@ -328,6 +329,21 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       forward,
       perception,
     })
+
+    // The Book of Shadows: the places in reach, a shadow come within
+    // sight, and whatever the pack holds, written the first time
+    // (actions.ts discover leaves out what is found or asked).
+    if (s.started) {
+      const range = CONFIG.book.sightRange
+      actions.discover([
+        ...sightsInReach(world.sights, player.pos),
+        ...(swarm.contacts.some((c) => c.dist <= range) ? ['shadowman'] : []),
+        ...(keeper.contact && keeper.contact.dist <= range
+          ? ['caretaker']
+          : []),
+        ...itemsHeld(s.inventory),
+      ])
+    }
 
     // Pickups pulse every frame, whatever the prompt says.
     const pulse = 0.35 + Math.sin(time * 3) * 0.2

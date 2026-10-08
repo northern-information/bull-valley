@@ -4,6 +4,7 @@
 // and this file does it (the truck, the bed, the pickups, the shelves,
 // the drops, the lines in the log).
 
+import { toFound } from './book.ts'
 import { CHAT_COPY, othersLine } from './chat.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
@@ -216,6 +217,8 @@ export function wireValley(game: Game, actions: Actions): void {
       hud.tell(
         copy(msg.reason === 'aboard' ? 'log.drop_aboard' : 'log.drop_refused')
       )
+    } else if (msg.re === 'discover') {
+      actions.bookRefused()
     } else if (msg.re === 'take-drop') {
       if (msg.drop !== undefined) s.pendingDrops.delete(msg.drop)
       if (msg.reason === 'gone') hud.tell(copy('log.taken_first'))
@@ -273,6 +276,11 @@ export function wireValley(game: Game, actions: Actions): void {
       s.cosmetics = toCosmetics(msg.cosmetics)
       applyPack(msg.pack, msg.cash, msg.cosmetics)
       applySeason(msg.season)
+      // What the account has found already is no news.
+      actions.setBook(toFound(msg.book))
+    } else if (msg.type === 'book') {
+      // Rule 16: written in the account's Book of Shadows.
+      actions.applyBook(msg.found)
     } else if (msg.type === 'season') {
       // Rule 15: credited with unmaking the Caretaker. A reward's pack
       // frame follows.
@@ -303,6 +311,7 @@ export function wireValley(game: Game, actions: Actions): void {
       s.pendingTakes.clear()
       s.pendingBuys.clear()
       s.pendingTrade = false
+      s.bookAsked.clear()
     }
   })
 }
