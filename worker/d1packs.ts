@@ -1,6 +1,6 @@
 // The pack store on D1 (migrations/0002_packs.sql): one row per item an
 // account has held, and one wallet per account; the cosmetics it has
-// (0004_cosmetics.sql); and its locker (0006_stashes.sql). Every change is
+// (0004_cosmetics.sql); and its locker (0007_stashes.sql). Every change is
 // a single statement or one batch, which is one transaction,
 // statement, so two sockets on one account can never lose a unit or a cent
 // between a read and a write.
