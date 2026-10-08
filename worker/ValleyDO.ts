@@ -279,7 +279,12 @@ export class ValleyDO extends DurableObject<Env> {
           return
         }
         if (msg.op === 'shadowman') {
-          placeShadowman(this.shadows, msg.x, msg.z)
+          placeShadowman(
+            this.shadows,
+            msg.x,
+            msg.z,
+            msg.spider ? 'spider' : 'man'
+          )
           this.startShadows()
           return
         }
@@ -584,6 +589,7 @@ export class ValleyDO extends DurableObject<Env> {
         stations: hello.stations,
         havens: hello.havens,
         metres: hello.metres,
+        water: hello.water,
         maze: hello.maze,
         routes: hello.truck,
       },

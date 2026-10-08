@@ -23,6 +23,7 @@ import {
   toWire,
   wakeAt,
 } from '../../src/sharedworld.ts'
+import { dryMap } from '../../src/waterside.ts'
 import { unitsLeft } from './stock.ts'
 import type { CosmeticId } from '../../src/cosmetics.ts'
 import type {
@@ -105,6 +106,7 @@ const join = (id: string): ValleyAction => ({
   stations: STATIONS,
   havens: HAVENS,
   metres: METRES,
+  water: dryMap(METRES),
   maze: null,
   routes: ROUTES,
 })
@@ -974,6 +976,17 @@ describe('rule 11: a burst shadowman leaves dimes', () => {
     expect(v.valley.world?.drops).toEqual([])
   })
 
+  it("pays a spider's $20 taken up into the wallet", () => {
+    const v = valleyWith(join('a'))
+    v.step({
+      type: 'spill',
+      spills: [{ x: 1, z: 2, kind: 'twenty', count: 1 }],
+    })
+    const r = v.step({ type: 'take-drop', id: 'a', drop: 0 })
+    expect(r.earn).toEqual({ account: 'acct-a', amount: 2000 })
+    expect(r.pack).toBeUndefined()
+  })
+
   it('puts the gold bullion the Caretaker leaves into the taker’s pack', () => {
     const v = valleyWith(join('a'))
     v.step({
@@ -1138,8 +1151,31 @@ describe("rule 11: the shadowmen are the valley's", () => {
     })
     // Who burned it stays off the wire, and their account is credited with
     // the burn (rule 16).
-    expect(out?.message.bursts).toEqual([{ id, x: 500, z: 490 }])
+    expect(out?.message.bursts).toEqual([{ id, kind: 'man', x: 500, z: 490 }])
     expect(out?.burned).toEqual(['acct-b'])
+  })
+
+  it('sends a spider as one, its burn against its own longer time', () => {
+    const v = valley()
+    const shadows = createShadows()
+    const placed = [{ id: 'b', at: state({ light: true, riding: true }) }]
+    stepShadows(v, shadows, placed, mulberry32(1), { now: T0, dt: 0 })
+    shadows.field.shadowmen = []
+    placeShadowman(shadows, 500, 490, 'spider')
+    const half = CONFIG.shadowmen.burnSeconds
+    const out = stepShadows(v, shadows, placed, mulberry32(1), {
+      now: T0,
+      dt: half,
+    })
+    // Held a shadowman's whole burn: a spider is only half way.
+    expect(out?.message.bursts).toEqual([])
+    const [wire] = out?.message.shadowmen ?? []
+    expect(wire).toMatchObject({ kind: 'spider', burn: 0.5 })
+    const after = stepShadows(v, shadows, placed, mulberry32(1), {
+      now: T0,
+      dt: half,
+    })
+    expect(after?.message.bursts).toMatchObject([{ kind: 'spider' }])
   })
 
   it('places a still shadowman with a new id', () => {

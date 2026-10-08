@@ -62,6 +62,14 @@ test('a bush at the heart gives a berry of its own', async ({ page }) => {
   await beginRaid(page)
   const berries = () => page.evaluate(() => window.__bv?.inventory.berries)
   expect(await berries()).toBe(0)
+  // The Caretaker parked at the maze's far corner, out of sight of the
+  // heart: a strike there would leave the berry on the raider's body.
+  await page.evaluate(() => {
+    const bv = window.__bv
+    const corner = bv?.world.mazePlace
+    if (!bv || !corner) throw new Error('no maze')
+    bv.placeCaretaker(corner.x, corner.z)
+  })
   // A step in from the second bush toward the portal.
   await page.evaluate(() => {
     const bv = window.__bv

@@ -48,7 +48,9 @@
 //    Anyone's beam burns them, and one that bursts leaves a drop of dimes
 //    where it was (drops.ts dimesFor), lying like any drop (rule 12);
 //    dimes taken up are cash, into the taker's wallet (Reduced.earn), never
-//    the pack. The valley steps the field (stepShadows) and keeps it in
+//    the pack. Among them come the shadow spiders, twice the height, far
+//    more often near the water the world was opened with (waterside.ts),
+//    twice as long to burn, and each leaves a $20 bill, cash the same way. The valley steps the field (stepShadows) and keeps it in
 //    memory only: the shadowmen are gone whenever no one is placed in the
 //    valley.
 // 12. A raider out of the bed can drop what their pack holds (the valley
@@ -104,7 +106,7 @@ import { CONFIG } from './config.ts'
 import { corpseWire, isEmpty } from './corpses.ts'
 import { affords, cosmeticById, MOAB_OFFERS } from './cosmetics.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
-import { DIME_CENTS, dropSpot, isCash, takeUp } from './drops.ts'
+import { centsOf, dropSpot, isCash, takeUp } from './drops.ts'
 import { bury } from './graves.ts'
 import { contentsOf, INVENTORY_KINDS, itemById } from './items.ts'
 import {
@@ -124,6 +126,7 @@ import { worldToMaze } from './maze.ts'
 import { PROTOCOL_VERSION } from './protocol.ts'
 import {
   beamFrom,
+  burnSecondsOf,
   createShadowmen,
   placeStill,
   stepShadowmen,
@@ -154,7 +157,8 @@ import type {
   WorldWire,
 } from './protocol.ts'
 import type { Rng } from './rng.ts'
-import type { Raider, ShadowmenField } from './shadowmen.ts'
+import type { Raider, ShadeKind, ShadowmenField } from './shadowmen.ts'
+import type { WaterMap } from './waterside.ts'
 
 // A raider online: one socket.
 export interface Member {
@@ -187,6 +191,8 @@ export interface SharedWorld {
   stations: number
   havens: XZ[]
   metres: Metres
+  // Where the water's edges run (rule 11: the spiders).
+  water: WaterMap
   maze: MazePlace | null
   routes: TruckRoutes
 }
@@ -231,6 +237,7 @@ export type ValleyAction =
       stations: number
       havens: XZ[]
       metres: Metres
+      water: WaterMap
       maze: MazePlace | null
       routes: TruckRoutes
     }
@@ -543,6 +550,7 @@ function act(
           stations: action.stations,
           havens: action.havens,
           metres: action.metres,
+          water: action.water,
           maze: action.maze,
           routes: action.routes,
         }
@@ -845,9 +853,10 @@ function act(
             count: taken,
           }),
         ],
-        // Rule 11: dimes are cash; rule 10: anything else, the pack.
+        // Rule 11: dimes and a spider's $20 are cash; rule 10: anything
+        // else, the pack.
         ...(isCash(drop.kind)
-          ? { earn: { account, amount: taken * DIME_CENTS } }
+          ? { earn: { account, amount: taken * centsOf(drop.kind) } }
           : { pack: { account, kind: drop.kind, delta: taken } }),
       })
     }
@@ -1132,7 +1141,14 @@ export function stepShadows(
   const { struck, bursts } = stepShadowmen(
     shadows.field,
     rng,
-    { dt, raiders, metres: world.metres, havens: world.havens, calm },
+    {
+      dt,
+      raiders,
+      metres: world.metres,
+      havens: world.havens,
+      water: world.water,
+      calm,
+    },
     cfg
   )
   // Rule 13: the Caretaker, in the maze the world was opened with.
@@ -1178,14 +1194,16 @@ export function stepShadows(
       type: 'shadowmen',
       shadowmen: shadows.field.shadowmen.map((s) => ({
         id: s.id,
+        ...(s.kind === 'spider' ? { kind: 'spider' as const } : {}),
         x: round(s.x, 2),
         z: round(s.z, 2),
-        burn: round(Math.min(1, s.burn / cfg.burnSeconds), 2),
+        burn: round(Math.min(1, s.burn / burnSecondsOf(s.kind, cfg)), 2),
         target: s.target,
       })),
       // Who burned each is the valley's to know, not the wire's.
       bursts: bursts.map((b) => ({
         id: b.id,
+        kind: b.kind,
         x: round(b.x, 2),
         z: round(b.z, 2),
       })),
@@ -1211,9 +1229,15 @@ export function creditedWith(valley: Valley, ids: readonly string[]): string[] {
   return accounts
 }
 
-// A dev server's shadowman standing still at (x, z), for the specs.
-export function placeShadowman(shadows: Shadows, x: number, z: number): void {
-  placeStill(shadows.field, x, z)
+// A dev server's shadowman (or spider) standing still at (x, z), for the
+// specs.
+export function placeShadowman(
+  shadows: Shadows,
+  x: number,
+  z: number,
+  kind: ShadeKind = 'man'
+): void {
+  placeStill(shadows.field, x, z, kind)
 }
 
 // A dev server's Caretaker moved to (x, z) in the world, formed if it was

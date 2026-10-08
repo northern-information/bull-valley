@@ -62,6 +62,27 @@ export const CONFIG = {
     // One that bursts leaves this many dimes (10¢ each) lying where it
     // was, drawn evenly between the two (drops.ts dimesFor).
     dimes: { min: 3, max: 20 },
+    // Shadow spiders: twice a shadowman's height, crossing among them as
+    // one of the crowd. Each new one in a bubble is a spider by `chance`,
+    // or by `nearWaterChance` where it comes in, or the raider stands,
+    // within waterRadius metres of water (waterside.ts), and never more
+    // than maxPerBubble round one raider. A beam takes burnScale times a
+    // shadowman's burnSeconds to burst one, aimed at aimHeight over the
+    // ground, where its body hangs. It crosses a little slower than a
+    // shadowman, rushes a little faster, touches from further off, and
+    // leaves one $20 bill (drops.ts TWENTY) where it burst.
+    spider: {
+      chance: 0.03,
+      nearWaterChance: 0.35,
+      waterRadius: 120,
+      maxPerBubble: 3,
+      burnScale: 2,
+      aimHeight: 2.8,
+      speedMin: 5,
+      speedMax: 8,
+      rushSpeed: 13,
+      touchRadius: 2.4,
+    },
     // In the shared valley the server steps them this many times a second
     // and sends each step; clients draw them between the last two.
     tickHz: 10,
