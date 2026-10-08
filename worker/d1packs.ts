@@ -7,10 +7,12 @@
 
 import { newlyFound } from '../src/book.ts'
 import { toCosmetics } from '../src/cosmetics.ts'
+import { NO_TASK } from '../src/dailytask.ts'
 import { STARTING_INVENTORY, toInventory } from '../src/inventory.ts'
 import { NO_PROGRESS } from '../src/season.ts'
 import { STARTING_CASH } from './packs.ts'
 import type { CosmeticId } from '../src/cosmetics.ts'
+import type { TaskProgress } from '../src/dailytask.ts'
 import type { SeasonProgress, SeasonReward } from '../src/season.ts'
 import type { Holdings, PackItem, PackStore } from './packs.ts'
 
@@ -253,5 +255,50 @@ export class D1PackStore implements PackStore {
       )
     )
     return fresh.filter((_, i) => (results[i]?.meta.changes ?? 0) > 0)
+  }
+
+  async task(accountId: string, task: string): Promise<TaskProgress> {
+    const row = await this.db
+      .prepare(
+        'SELECT day, count, claimed FROM tasks WHERE account_id = ? AND task = ?'
+      )
+      .bind(accountId, task)
+      .first<{ day: string; count: number; claimed: number }>()
+    return row
+      ? { day: row.day, count: row.count, claimed: row.claimed === 1 }
+      : NO_TASK
+  }
+
+  // One batch is one transaction: the progress and the cents it paid land
+  // together or not at all.
+  async scoreTask(
+    accountId: string,
+    task: string,
+    progress: TaskProgress,
+    reward: number | null
+  ): Promise<void> {
+    await this.db.batch([
+      this.db
+        .prepare(
+          'INSERT INTO tasks (account_id, task, day, count, claimed) VALUES (?, ?, ?, ?, ?) ' +
+            'ON CONFLICT (account_id, task) DO UPDATE SET day = excluded.day, count = excluded.count, claimed = excluded.claimed'
+        )
+        .bind(
+          accountId,
+          task,
+          progress.day,
+          progress.count,
+          progress.claimed ? 1 : 0
+        ),
+      ...(reward
+        ? [
+            this.db
+              .prepare(
+                'UPDATE wallets SET cash = cash + ? WHERE account_id = ?'
+              )
+              .bind(reward, accountId),
+          ]
+        : []),
+    ])
   }
 }

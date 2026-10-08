@@ -296,6 +296,14 @@ export const CONFIG = {
     // The circle drops from one spot are spread round, in metres.
     scatter: 0.35,
   },
+  // The tombstones burst shadowmen leave (graves.ts).
+  graves: {
+    // How many stand at once in the valley; past it the oldest goes.
+    max: 100,
+    // How far from where the shadowman burst its stone stands, in metres,
+    // so it never covers the dimes.
+    offset: 0.9,
+  },
   daily: {
     // The berry bush at the spawn Citgo: how close E must be to pick.
     reach: 2.6,

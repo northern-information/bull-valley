@@ -6,6 +6,7 @@
 import { USERNAME_MAX } from './account.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { Drop } from './drops.ts'
+import type { Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
@@ -14,7 +15,7 @@ import type { Burst } from './shadowmen.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 18
+export const PROTOCOL_VERSION = 20
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -112,6 +113,9 @@ export interface WorldWire {
   shelves: ShopStock[]
   // What raiders have dropped and nobody has taken up yet.
   drops: Drop[]
+  // A tombstone for every shadowman burnt, carved with its name; they stay
+  // when the day turns.
+  graves: Grave[]
   // Matthew Marx's truck: its leg, stamped with server ms, and who is in
   // the bed (marx.ts). Every client drives the same leg (truckplan.ts).
   truck: TruckState
@@ -353,6 +357,8 @@ export interface WelcomeMessage {
   season: SeasonWire
   // The Book of Shadows entries the account has found (book.ts ids).
   book: string[]
+  // The account's progress on the daily task (dailytask.ts).
+  task: TaskWire
 }
 
 // An account's progress through the season (sharedworld.ts rule 15): the
@@ -374,10 +380,30 @@ export interface SeasonMessage {
 }
 
 // Entries newly written in the account's Book of Shadows (sharedworld.ts
-// rule 16), in the order found. Sent to every socket signed in to it.
+// rule 18), in the order found. Sent to every socket signed in to it.
 export interface BookMessage {
   type: 'book'
   found: string[]
+}
+
+// An account's progress on the daily task (sharedworld.ts rule 16): the
+// task's id (dailytask.ts DAILY_TASK.id), the Central day it counts
+// (daily.ts dayKey; empty before the first burn), how many shadowmen the
+// account has burned that day, and whether that day's reward is paid.
+export interface TaskWire {
+  task: string
+  day: string
+  count: number
+  claimed: boolean
+}
+
+// The account was credited with burning a shadowman. Sent to every socket
+// signed in to it; `rewarded` when this burn finished the day's task and
+// paid its reward (a pack frame follows with it).
+export interface TaskMessage {
+  type: 'task'
+  task: TaskWire
+  rewarded: boolean
 }
 
 // The account's pack, wallet (cents) and cosmetics after a change: a
@@ -532,6 +558,7 @@ export type ServerMessage =
   | StruckMessage
   | SeasonMessage
   | BookMessage
+  | TaskMessage
 
 // Application close codes (the 4xxx range is ours per RFC 6455). The client
 // treats every 4xxx close as final and does not reconnect.

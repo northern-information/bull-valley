@@ -25,6 +25,7 @@ import {
 } from './drops.ts'
 import { finishById } from './finishes.ts'
 import { dose } from './geometrie.ts'
+import { burialsOf, bury } from './graves.ts'
 import { openGronDialog } from './grondialog.ts'
 import { assign } from './hotbar.ts'
 import { pickupLabel } from './interactions.ts'
@@ -112,8 +113,9 @@ export interface Actions {
   dropKind(kind: string, all: boolean): void
   // The valley says a drop came up into our pack.
   applyDropTaken(kind: string, count: number): void
-  // Shadowmen burst: played alone, their dimes fall where they were.
-  spillDimes(bursts: readonly XZ[]): void
+  // Shadowmen burst: played alone, their dimes fall where they were and
+  // their tombstones stand beside them.
+  spillBursts(bursts: readonly XZ[]): void
   // The left button: the flashlight up and on, or down and off.
   toggleFlashlight(): void
   // The pickup is ours: into the pack.
@@ -567,9 +569,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
 
   // Shadowmen burst where `bursts` say: played alone each leaves its dimes
-  // lying there (sharedworld.ts rule 11). In the valley the valley spills
-  // them.
-  const spillDimes = (bursts: readonly XZ[]) => {
+  // lying there (sharedworld.ts rule 11) and its tombstone, named, beside
+  // them (rule 17). In the valley the valley does both.
+  const spillBursts = (bursts: readonly XZ[]) => {
     if (s.world || bursts.length === 0) return
     const dimes = bursts.map(({ x, z }) => ({
       id: s.nextDrop++,
@@ -580,6 +582,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     }))
     s.drops = [...s.drops, ...dimes]
     game.drops.sync(s.drops)
+    const buried = bury(s.graves, s.nextGrave, burialsOf(bursts, Math.random))
+    s.graves = buried.graves
+    s.nextGrave = buried.next
+    game.graves.sync(s.graves)
   }
 
   const takeDrop = (drop: number) => {
@@ -778,7 +784,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     useKind,
     dropKind,
     applyDropTaken,
-    spillDimes,
+    spillBursts,
     toggleFlashlight,
     applyTake,
     markTaken,

@@ -7,9 +7,11 @@
 import { newlyFound } from '../src/book.ts'
 import { CONFIG } from '../src/config.ts'
 import { toCosmetics } from '../src/cosmetics.ts'
+import { NO_TASK } from '../src/dailytask.ts'
 import { STARTING_INVENTORY, toInventory } from '../src/inventory.ts'
 import { NO_PROGRESS } from '../src/season.ts'
 import type { CosmeticId } from '../src/cosmetics.ts'
+import type { TaskProgress } from '../src/dailytask.ts'
 import type { Inventory } from '../src/interfaces.ts'
 import type { SeasonProgress, SeasonReward } from '../src/season.ts'
 
@@ -71,6 +73,17 @@ export interface PackStore {
     entries: readonly string[],
     now: number
   ): Promise<string[]>
+  // The account's progress on daily task `task` as last written, on
+  // whatever day that was (dailytask.ts onDay reads it for today).
+  task(accountId: string, task: string): Promise<TaskProgress>
+  // Writes the progress after a burn (dailytask.ts tallyTask) and, with
+  // it, the cents that burn paid, if any, all or nothing.
+  scoreTask(
+    accountId: string,
+    task: string,
+    progress: TaskProgress,
+    reward: number | null
+  ): Promise<void>
 }
 
 // Units of one kind going into a pack.
@@ -87,6 +100,8 @@ export class MemoryPackStore implements PackStore {
   readonly seasons = new Map<string, SeasonProgress>()
   // account -> the entries found, in order.
   readonly books = new Map<string, string[]>()
+  // `${account}/${task}` -> progress.
+  readonly tasks = new Map<string, TaskProgress>()
 
   open(accountId: string): Promise<Holdings> {
     if (!this.packs.has(accountId)) {
@@ -180,5 +195,22 @@ export class MemoryPackStore implements PackStore {
     const fresh = newlyFound(new Set(found), entries)
     this.books.set(accountId, [...found, ...fresh])
     return Promise.resolve(fresh)
+  }
+
+  task(accountId: string, task: string): Promise<TaskProgress> {
+    return Promise.resolve(this.tasks.get(`${accountId}/${task}`) ?? NO_TASK)
+  }
+
+  scoreTask(
+    accountId: string,
+    task: string,
+    progress: TaskProgress,
+    reward: number | null
+  ): Promise<void> {
+    this.tasks.set(`${accountId}/${task}`, progress)
+    if (reward) {
+      this.wallets.set(accountId, (this.wallets.get(accountId) ?? 0) + reward)
+    }
+    return Promise.resolve()
   }
 }

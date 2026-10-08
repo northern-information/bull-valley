@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { NO_TASK } from '../../src/dailytask.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { NO_PROGRESS } from '../../src/season.ts'
 import { D1PackStore } from '../../worker/d1packs.ts'
@@ -136,6 +137,32 @@ function packContract(makeStore: () => PackStore): void {
     expect(await store.discover('a1', ['marx'], 3)).toEqual([])
     expect(await store.book('a1')).toEqual(['citgo', 'marx', 'gron'])
     expect(await store.book('a2')).toEqual([])
+  })
+
+  it('keeps daily task progress, paying its reward with it', async () => {
+    const store = makeStore()
+    await store.open('a1')
+    expect(await store.task('a1', 't')).toEqual(NO_TASK)
+    const day = '2026-10-07'
+    await store.scoreTask('a1', 't', { day, count: 4, claimed: false }, null)
+    expect(await store.task('a1', 't')).toEqual({
+      day,
+      count: 4,
+      claimed: false,
+    })
+    expect(await store.task('a1', 'other')).toEqual(NO_TASK)
+    const before = await store.get('a1')
+    await store.scoreTask('a1', 't', { day, count: 5, claimed: true }, 5_00)
+    expect(await store.task('a1', 't')).toEqual({
+      day,
+      count: 5,
+      claimed: true,
+    })
+    expect((await store.get('a1')).cash).toBe(before.cash + 5_00)
+    // A new day overwrites the old one's row.
+    const next = { day: '2026-10-08', count: 1, claimed: false }
+    await store.scoreTask('a1', 't', next, null)
+    expect(await store.task('a1', 't')).toEqual(next)
   })
 
   it('sells nothing from a wallet never opened', async () => {
