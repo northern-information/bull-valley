@@ -14,11 +14,12 @@ import type { TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
 import type { OutfitId } from './outfits.ts'
 import type { Burst, ShadeKind } from './shadowmen.ts'
+import type { StandLedger } from './stand.ts'
 import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 22
+export const PROTOCOL_VERSION = 23
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -192,6 +193,9 @@ export interface HelloMessage {
   // Where Marx parks and how long his joyride takes: the valley never
   // knows the roads (marx.ts).
   truck: TruckRoutes
+  // Where the Cabbage Stand stands, or null: the valley tends each
+  // account's stand only for a raider beside it (rule 20).
+  stand: XZ | null
 }
 
 export interface BoardMessage {
@@ -261,6 +265,16 @@ export interface StowMessage {
   kind: string
   count: number
 }
+
+// The account's Cabbage Stand, tended (sharedworld.ts rule 20): `count`
+// of `kind` out of the pack onto its table, what it has banked collected
+// into the wallet, or the next level bought. The valley checks the
+// raider's last state frame put them beside it, and answers with a
+// StandMessage and a PackMessage, or a nack.
+export type StandTendMessage =
+  | { type: 'stand-stock'; kind: string; count: number }
+  | { type: 'stand-collect' }
+  | { type: 'stand-upgrade' }
 
 // Today's berry off bush `bush`, please. The valley answers with a
 // DailyMessage either way.
@@ -341,6 +355,7 @@ export type ClientMessage =
   | TakeDropMessage
   | LootMessage
   | StowMessage
+  | StandTendMessage
   | TradeMessage
   | ChatMessage
   | AppearanceMessage
@@ -376,6 +391,19 @@ export interface WelcomeMessage {
   season: SeasonWire
   // The account's progress on the daily task (dailytask.ts).
   task: TaskWire
+  // The account's Cabbage Stand (stand.ts).
+  stand: StandLedger
+}
+
+// The account's Cabbage Stand after it was tended (rule 20), to every
+// socket signed in to it: what was done, the ledger as the valley wrote
+// it, and for a collect the cents paid into the wallet. A pack frame
+// follows with the pack and the wallet.
+export interface StandMessage {
+  type: 'stand'
+  re: 'stock' | 'collect' | 'upgrade'
+  stand: StandLedger
+  cents?: number
 }
 
 // An account's progress through the season (sharedworld.ts rule 15): the
@@ -577,6 +605,7 @@ export type ServerMessage =
   | StruckMessage
   | SeasonMessage
   | TaskMessage
+  | StandMessage
 
 // Application close codes (the 4xxx range is ours per RFC 6455). The client
 // treats every 4xxx close as final and does not reconnect.
@@ -759,11 +788,17 @@ export function parseClientMessage(text: string): ClientMessage | null {
       const water = isWaterMap(value.water) ? value.water : null
       const maze = value.maze === null ? null : parseMazePlace(value.maze)
       const truck = parseRoutes(value.truck)
+      const stand = value.stand === null ? null : parseXZ(value.stand)
       // An older build sends none of them; it still parses as far as its
       // version, which the server then refuses.
       if (
         v === PROTOCOL_VERSION &&
-        (!havens || !metres || !water || maze === undefined || !truck)
+        (!havens ||
+          !metres ||
+          !water ||
+          maze === undefined ||
+          !truck ||
+          (stand === null && value.stand !== null))
       ) {
         return null
       }
@@ -782,6 +817,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
         water: water ?? { cell: 100, cols: 1, rows: 1, bits: 'AA==' },
         maze: maze ?? null,
         truck: truck ?? { home: { x: 0, z: 0 }, joyrideMs: 0 },
+        stand,
       }
     }
     case 'board':
@@ -832,6 +868,14 @@ export function parseClientMessage(text: string): ClientMessage | null {
       if (!isKind(kind) || !isCount(count) || count < 1) return null
       return { type: value.type, kind, count }
     }
+    case 'stand-stock': {
+      const { kind, count } = value
+      if (!isKind(kind) || !isCount(count) || count < 1) return null
+      return { type: 'stand-stock', kind, count }
+    }
+    case 'stand-collect':
+    case 'stand-upgrade':
+      return { type: value.type }
     case 'trade': {
       // Which offers there are is the valley's to check.
       const { offer } = value

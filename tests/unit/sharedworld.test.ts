@@ -23,9 +23,11 @@ import {
   toWire,
   wakeAt,
 } from '../../src/sharedworld.ts'
+import { FRESH_STAND } from '../../src/stand.ts'
 import { dryMap } from '../../src/waterside.ts'
 import { unitsLeft } from './stock.ts'
 import type { CosmeticId } from '../../src/cosmetics.ts'
+import type { Inventory } from '../../src/interfaces.ts'
 import type {
   DailyMessage,
   PeerStateWire,
@@ -33,6 +35,7 @@ import type {
   WorldMessage,
 } from '../../src/protocol.ts'
 import type { Placed, Valley, ValleyAction } from '../../src/sharedworld.ts'
+import type { StandLedger } from '../../src/stand.ts'
 
 // What a build placed: a pack of Marlboros, two joints, then cabbages.
 const PICKUPS: PickupSpec[] = [
@@ -52,6 +55,8 @@ const METRES = { width: 15059, height: 15038 }
 const MAZE = { x: 3000, z: 3000, yaw: 0 }
 // Where the truck parks, and its joyride: ten minutes out and home.
 const ROUTES = { home: { x: 10, z: 10 }, joyrideMs: 600_000 }
+// Where the Cabbage Stand stands (rule 20).
+const STAND = { x: 5, z: -20 }
 // Noon, Central time, so a test has the afternoon before the day turns.
 const T0 = Date.UTC(2026, 9, 7, 17, 0, 0)
 const SEC = 1000
@@ -109,6 +114,7 @@ const join = (id: string): ValleyAction => ({
   water: dryMap(METRES),
   maze: null,
   routes: ROUTES,
+  stand: STAND,
 })
 
 const leaveAs = (
@@ -922,6 +928,176 @@ describe('rule 19: the stash', () => {
     expect(v.step(stow('a', at(0, 0))).reply).toMatchObject({
       reason: 'aboard',
     })
+  })
+})
+
+describe('rule 20: the Cabbage Stand', () => {
+  const HOUR = 60 * 60 * 1000
+  const [one, two] = CONFIG.stand.levels
+  const beside = { x: STAND.x + 1, z: STAND.z }
+  // Tends with the account's ledger, pack and wallet as the valley read
+  // them.
+  const tend = (
+    valley: Valley,
+    action: ValleyAction,
+    stand: { ledger: StandLedger; pack: Inventory; cash: number },
+    now = T0
+  ) => reduce(valley, action, { now, present: ['a'], stand })
+  const fresh = {
+    ledger: FRESH_STAND,
+    pack: { cabbage: 9, berries: 2 },
+    cash: 0,
+  }
+
+  it('keeps where the stand stands with the world', () => {
+    expect(valleyWith(join('a')).valley.world?.stand).toEqual(STAND)
+  })
+
+  it('puts goods out of the pack on the table', () => {
+    const v = valleyWith(join('a'))
+    const r = tend(
+      v.valley,
+      { type: 'stand-stock', id: 'a', kind: 'cabbage', count: 4, at: beside },
+      fresh
+    )
+    expect(r.reply).toBeUndefined()
+    expect(r.broadcast).toEqual([])
+    expect(r.stand).toEqual({
+      account: 'acct-a',
+      re: 'stock',
+      ledger: { ...FRESH_STAND, stock: { cabbage: 4 }, since: T0 },
+      items: { cabbage: 4 },
+      cash: 0,
+    })
+  })
+
+  it('refuses goods the pack lacks, the table has no room for, or that are not goods', () => {
+    const v = valleyWith(join('a'))
+    const stock = (kind: string, count: number) =>
+      tend(
+        v.valley,
+        { type: 'stand-stock', id: 'a', kind, count, at: beside },
+        fresh
+      ).reply
+    expect(stock('berries', 3)).toMatchObject({
+      re: 'stand-stock',
+      reason: 'none-left',
+    })
+    expect(stock('cabbage', 10)).toMatchObject({ reason: 'none-left' })
+    const crowded = { ...fresh, pack: { cabbage: 99 } }
+    expect(
+      tend(
+        v.valley,
+        {
+          type: 'stand-stock',
+          id: 'a',
+          kind: 'cabbage',
+          count: one.shelf + 1,
+          at: beside,
+        },
+        crowded
+      ).reply
+    ).toMatchObject({ reason: 'no-room' })
+    expect(
+      tend(
+        v.valley,
+        { type: 'stand-stock', id: 'a', kind: 'joints', count: 1, at: beside },
+        { ...fresh, pack: { joints: 2 } }
+      ).reply
+    ).toMatchObject({ reason: 'no-room' })
+  })
+
+  it('collects what it banked on the clock into the wallet', () => {
+    const v = valleyWith(join('a'))
+    const ledger = { ...FRESH_STAND, stock: { cabbage: one.shelf }, since: T0 }
+    const r = tend(
+      v.valley,
+      { type: 'stand-collect', id: 'a', at: beside },
+      { ...fresh, ledger },
+      T0 + 2 * HOUR
+    )
+    expect(r.stand).toMatchObject({
+      re: 'collect',
+      items: {},
+      cash: 2 * one.rate,
+      ledger: { since: T0 + 2 * HOUR },
+    })
+    // A day later it has stopped at its cap.
+    expect(
+      tend(
+        v.valley,
+        { type: 'stand-collect', id: 'a', at: beside },
+        { ...fresh, ledger },
+        T0 + 24 * HOUR
+      ).stand?.cash
+    ).toBe(one.rate * one.capHours)
+    expect(
+      tend(v.valley, { type: 'stand-collect', id: 'a', at: beside }, fresh)
+        .reply
+    ).toMatchObject({ re: 'stand-collect', reason: 'empty' })
+  })
+
+  it('sells the next level for its price, and none past the top', () => {
+    const v = valleyWith(join('a'))
+    const price = two.price
+    if (!price) throw new Error('priced')
+    const rich = { ...fresh, pack: { ...price.items }, cash: price.cash }
+    const r = tend(
+      v.valley,
+      { type: 'stand-upgrade', id: 'a', at: beside },
+      rich
+    )
+    expect(r.stand).toMatchObject({
+      re: 'upgrade',
+      ledger: { level: 2 },
+      items: price.items,
+      cash: -price.cash,
+    })
+    expect(
+      tend(
+        v.valley,
+        { type: 'stand-upgrade', id: 'a', at: beside },
+        { ...rich, cash: price.cash - 1 }
+      ).reply
+    ).toMatchObject({ reason: 'short' })
+    const top = { ...FRESH_STAND, level: CONFIG.stand.levels.length }
+    expect(
+      tend(
+        v.valley,
+        { type: 'stand-upgrade', id: 'a', at: beside },
+        { ...rich, ledger: top }
+      ).reply
+    ).toMatchObject({ reason: 'top' })
+  })
+
+  it('is tended only beside it, out of the bed, by a raider in the valley', () => {
+    const v = valleyWith(join('a'))
+    const collect = (id: string, at: { x: number; z: number } | null) =>
+      tend(v.valley, { type: 'stand-collect', id, at }, fresh).reply
+    const far = { x: STAND.x + CONFIG.stand.tendReach + 1, z: STAND.z }
+    expect(collect('a', far)).toMatchObject({ reason: 'no-stand' })
+    expect(collect('a', null)).toMatchObject({ reason: 'no-stand' })
+    expect(collect('nobody', beside)).toMatchObject({
+      reason: 'not-in-valley',
+    })
+    // The valley that could not read the ledger tends nothing.
+    expect(
+      reduce(
+        v.valley,
+        { type: 'stand-collect', id: 'a', at: beside },
+        { now: T0, present: ['a'] }
+      ).reply
+    ).toMatchObject({ reason: 'unavailable' })
+    v.step({ type: 'board', id: 'a' })
+    expect(collect('a', beside)).toMatchObject({ reason: 'aboard' })
+  })
+
+  it('opens no stand in a world built without one', () => {
+    const v = valleyWith({ ...join('a'), stand: null } as ValleyAction)
+    expect(
+      tend(v.valley, { type: 'stand-collect', id: 'a', at: beside }, fresh)
+        .reply
+    ).toMatchObject({ reason: 'no-stand' })
   })
 })
 

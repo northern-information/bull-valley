@@ -197,6 +197,17 @@ locker_offline = { text = "No signal. Your locker will not open.", by = "ai" }
 locker_refused = { text = "The locker sticks.", by = "ai" }
 stowed = { text = "Stowed: {item}", by = "ai" }
 unstowed = { text = "Taken out: {item}", by = "ai" }
+stand_stocked = { text = "On the stand: {item}", by = "ai" }
+stand_collected = { text = "The stand paid you {amount}.", by = "ai" }
+stand_upgraded = { text = "Your stand is level {level} now.", by = "ai" }
+stand_offline = { text = "No signal. The stand is shut.", by = "ai" }
+stand_far = { text = "You are too far from the stand.", by = "ai" }
+stand_short = { text = "You cannot cover that.", by = "ai" }
+stand_none = { text = "You have none of those to put out.", by = "ai" }
+stand_full = { text = "The table has no room for more.", by = "ai" }
+stand_empty = { text = "Not a cent to collect yet.", by = "ai" }
+stand_top = { text = "Your stand is as good as it gets.", by = "ai" }
+stand_refused = { text = "The stand will not do that right now.", by = "ai" }
 edge = { text = "The valley ends here.", by = "ai" }
 
 # Marx's countdown once anyone is in the bed (src/loop.ts).
@@ -213,6 +224,7 @@ board = { text = "E — Climb into the Bed", by = "ai" }
 trade = { text = "E — Trade {count} oz of {price} for the {cosmetic}", by = "ai" }
 loot = { text = "E — Take Your Things Back", by = "ai" }
 locker = { text = "E — Open Your Locker", by = "ai" }
+stand = { text = "E — Tend Your Stand", by = "ai" }
 
 # Lines the game says to the player in the chat log (src/chat.ts).
 
@@ -428,6 +440,30 @@ become = { text = "Become", by = "tyler" }
 character_now = { text = "This is you now", by = "tyler" }
 became = { text = "You are {name} now.", by = "tyler" }
 close = { text = "Close", by = "tyler" }
+
+# The Bull Valley Cabbage Stand as your outpost (src/standdialog.ts).
+
+[stand]
+title = { text = "Bull Valley Cabbage Stand", by = "ai" }
+says = { text = "Your stand. Leave something on the table and it sells while you are gone.", by = "ai" }
+level = { text = "Level {level} of {top}", by = "ai" }
+table = { text = "On the Table: {count} of {shelf}", by = "ai" }
+good = { text = "{item}: {out} out, {held} in your pack", by = "ai" }
+stock_one = { text = "Put Out 1 {item}", by = "ai" }
+stock_all = { text = "Put Out All", by = "ai" }
+earning = { text = "Earning {rate} an hour, banking up to {cap}", by = "ai" }
+idle = { text = "Nothing on the table, so nothing sells.", by = "ai" }
+banked = { text = "Banked: {amount}", by = "ai" }
+full_in = { text = "Full in {time}. Come back before then.", by = "ai" }
+full = { text = "Full. It has stopped earning until you collect.", by = "ai" }
+hours = { text = "{h}h {m}m", by = "ai" }
+minutes = { text = "{m}m", by = "ai" }
+collect = { text = "Collect {amount}", by = "ai" }
+next = { text = "Level {level}: holds {shelf}, earns up to {rate} an hour, banks {hours} hours.", by = "ai" }
+upgrade = { text = "Upgrade for {price}", by = "ai" }
+price_item = { text = "{count} {item}", by = "ai" }
+top = { text = "Fully Upgraded", by = "ai" }
+close = { text = "Close", by = "ai" }
 
 # What Moab Coldë says under the Citgo sign when you press E beside him.
 

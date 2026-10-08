@@ -61,6 +61,8 @@ export interface NetIdentity {
   maze: MazePlace | null
   // Where Marx parks and how long his joyride takes.
   truck: TruckRoutes
+  // Where the Cabbage Stand stands (rule 20), or null.
+  stand: XZ | null
 }
 
 // Reconnect schedule, then give up: the valley is gone.
@@ -210,6 +212,7 @@ export class NetClient {
           water: identity.water,
           maze: identity.maze,
           truck: identity.truck,
+          stand: identity.stand,
         } satisfies ClientMessage)
       )
     })

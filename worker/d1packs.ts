@@ -1,6 +1,7 @@
 // The pack store on D1 (migrations/0002_packs.sql): one row per item an
 // account has held, and one wallet per account; the cosmetics it has
-// (0004_cosmetics.sql); and its locker (0007_stashes.sql). Every change is
+// (0004_cosmetics.sql); its locker (0007_stashes.sql); and its Cabbage
+// Stand (0008_stands.sql). Every change is
 // a single statement or one batch, which is one transaction,
 // statement, so two sockets on one account can never lose a unit or a cent
 // between a read and a write.
@@ -9,11 +10,14 @@ import { toCosmetics } from '../src/cosmetics.ts'
 import { NO_TASK } from '../src/dailytask.ts'
 import { STARTING_INVENTORY, toInventory } from '../src/inventory.ts'
 import { NO_PROGRESS } from '../src/season.ts'
+import { FRESH_STAND, isStandLedger } from '../src/stand.ts'
 import { STARTING_CASH } from './packs.ts'
 import type { CosmeticId } from '../src/cosmetics.ts'
 import type { TaskProgress } from '../src/dailytask.ts'
 import type { Inventory } from '../src/interfaces.ts'
 import type { SeasonProgress, SeasonReward } from '../src/season.ts'
+import type { StandChange } from '../src/sharedworld.ts'
+import type { StandLedger } from '../src/stand.ts'
 import type { Holdings, PackItem, PackStore } from './packs.ts'
 
 interface PackRow {
@@ -336,4 +340,128 @@ export class D1PackStore implements PackStore {
         : []),
     ])
   }
+
+  // The row is made the first time, so a tend always has one to guard.
+  async stand(
+    accountId: string
+  ): Promise<{ ledger: StandLedger; rev: number }> {
+    const [, read] = await this.db.batch<StandRow>([
+      this.db
+        .prepare('INSERT OR IGNORE INTO stands (account_id) VALUES (?)')
+        .bind(accountId),
+      this.db
+        .prepare(
+          'SELECT level, stock, banked, since, rev FROM stands WHERE account_id = ?'
+        )
+        .bind(accountId),
+    ])
+    const row = read?.results[0]
+    if (!row) return { ledger: FRESH_STAND, rev: 0 }
+    let stock: unknown
+    try {
+      stock = JSON.parse(row.stock)
+    } catch {
+      stock = null
+    }
+    const ledger = {
+      level: row.level,
+      stock,
+      banked: row.banked,
+      since: row.since,
+    }
+    // A row no build could have written reads as a fresh stand, and the
+    // next tend overwrites it.
+    return {
+      ledger: isStandLedger(ledger) ? ledger : FRESH_STAND,
+      rev: row.rev,
+    }
+  }
+
+  // One batch is one transaction, and every statement in it fails rather
+  // than do nothing: the stand's write count goes negative when it is not
+  // `rev` any more, and a pack row or a wallet goes negative when it falls
+  // short, each against its CHECK, so the whole batch is rolled back. (An
+  // upsert cannot carry a negative count: SQLite checks the row it would
+  // insert before the conflict turns it into an update.)
+  async tend(
+    accountId: string,
+    rev: number,
+    { ledger, items, cash }: Pick<StandChange, 'ledger' | 'items' | 'cash'>
+  ): Promise<boolean> {
+    const statements = [
+      // The row first, so the guarded write below always finds one.
+      this.db
+        .prepare('INSERT OR IGNORE INTO stands (account_id) VALUES (?)')
+        .bind(accountId),
+      this.db
+        .prepare(
+          'UPDATE stands SET level = ?, stock = ?, banked = ?, since = ?, ' +
+            'rev = CASE WHEN rev = ? THEN rev + 1 ELSE -1 END WHERE account_id = ?'
+        )
+        .bind(
+          ledger.level,
+          JSON.stringify(ledger.stock),
+          ledger.banked,
+          ledger.since,
+          rev,
+          accountId
+        ),
+      // A pack row the account never had is made at zero first, so taking
+      // from it fails its CHECK like a short one.
+      ...Object.entries(items)
+        .filter(([, count]) => count > 0)
+        .flatMap(([kind, count]) => [
+          this.db
+            .prepare(
+              'INSERT OR IGNORE INTO packs (account_id, kind, count) VALUES (?, ?, 0)'
+            )
+            .bind(accountId, kind),
+          this.db
+            .prepare(
+              'UPDATE packs SET count = count - ? WHERE account_id = ? AND kind = ?'
+            )
+            .bind(count, accountId, kind),
+        ]),
+      ...(cash > 0
+        ? [
+            this.db
+              .prepare(
+                'INSERT INTO wallets (account_id, cash) VALUES (?, ?) ' +
+                  'ON CONFLICT (account_id) DO UPDATE SET cash = cash + ?'
+              )
+              .bind(accountId, STARTING_CASH + cash, cash),
+          ]
+        : cash < 0
+          ? [
+              this.db
+                .prepare(
+                  'INSERT OR IGNORE INTO wallets (account_id, cash) VALUES (?, 0)'
+                )
+                .bind(accountId),
+              this.db
+                .prepare(
+                  'UPDATE wallets SET cash = cash + ? WHERE account_id = ?'
+                )
+                .bind(cash, accountId),
+            ]
+          : []),
+    ]
+    try {
+      await this.db.batch(statements)
+      return true
+    } catch (err) {
+      if (err instanceof Error && /CHECK constraint failed/.test(err.message)) {
+        return false
+      }
+      throw err
+    }
+  }
+}
+
+interface StandRow {
+  level: number
+  stock: string
+  banked: number
+  since: number
+  rev: number
 }

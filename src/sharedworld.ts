@@ -100,6 +100,14 @@
 //    whose last state frame put them at a station can move what their pack
 //    holds into it, or back (Reduced.stash); the valley moves it only when
 //    the side it comes out of holds it.
+// 20. The Cabbage Stand (stand.ts): every account keeps its own ledger at
+//    the one stand on the spawn Citgo's lot, where the world was opened
+//    with it (SharedWorld.stand). A raider out of the bed whose last state
+//    frame put them beside it can put cabbages and berries out of the pack
+//    on its table, collect what it banked on the valley's clock into the
+//    wallet, or buy its next level with cash and goods (ValleyContext.stand
+//    in, Reduced.stand out); the valley writes the ledger, the pack and the
+//    wallet together, or none of them.
 
 import { caretakerAt, createCaretaker, stepCaretaker } from './caretaker.ts'
 import { CONFIG } from './config.ts'
@@ -131,6 +139,14 @@ import {
   placeStill,
   stepShadowmen,
 } from './shadowmen.ts'
+import {
+  affordsUpgrade,
+  atStand,
+  collect as collectStand,
+  stock as stockStand,
+  upgradePrice,
+  upgrade as upgradeStand,
+} from './stand.ts'
 import { atLocker } from './stash.ts'
 import { freshStock, onShelf, takeUnit } from './store.ts'
 import type { Caretaker } from './caretaker.ts'
@@ -158,6 +174,7 @@ import type {
 } from './protocol.ts'
 import type { Rng } from './rng.ts'
 import type { Raider, ShadeKind, ShadowmenField } from './shadowmen.ts'
+import type { StandLedger } from './stand.ts'
 import type { WaterMap } from './waterside.ts'
 
 // A raider online: one socket.
@@ -195,6 +212,8 @@ export interface SharedWorld {
   water: WaterMap
   maze: MazePlace | null
   routes: TruckRoutes
+  // Where the Cabbage Stand stands, or null (rule 20).
+  stand: XZ | null
 }
 
 // Everything the server persists.
@@ -240,6 +259,7 @@ export type ValleyAction =
       water: WaterMap
       maze: MazePlace | null
       routes: TruckRoutes
+      stand: XZ | null
     }
   // at: where their last state frame put them, or null.
   | { type: 'leave'; id: string; at: PeerStateWire | null }
@@ -271,6 +291,16 @@ export type ValleyAction =
       count: number
       at: XZ | null
     }
+  // Rule 20: the account's Cabbage Stand tended. at: where the raider's
+  // last state frame put them, or null.
+  | {
+      type: 'stand-stock'
+      id: string
+      kind: string
+      count: number
+      at: XZ | null
+    }
+  | { type: 'stand-collect' | 'stand-upgrade'; id: string; at: XZ | null }
   // Rule 14: cosmetic `offer` from Moab.
   | { type: 'trade'; id: string; offer: string }
   // Rule 9: a new name, a new character, or both.
@@ -291,6 +321,9 @@ export interface ValleyContext {
   // For a trade: the trader's pack and cosmetics, as the valley just read
   // them.
   holdings?: { pack: Inventory; cosmetics: readonly CosmeticId[] }
+  // For tending the stand: the account's ledger, pack and wallet (cents),
+  // as the valley just read them.
+  stand?: { ledger: StandLedger; pack: Inventory; cash: number }
 }
 
 export interface Reduced {
@@ -331,6 +364,20 @@ export interface Reduced {
   // (positive), or back (negative). The valley moves them only when the
   // side they come out of holds them.
   stash?: PackChange
+  // Rule 20: the account's stand as tended, written together with what it
+  // took out of the pack and what it paid into the wallet (or, negative,
+  // took out of it), or not at all.
+  stand?: StandChange
+}
+
+export interface StandChange {
+  account: string
+  re: 'stock' | 'collect' | 'upgrade'
+  ledger: StandLedger
+  // Units out of the pack, each count positive.
+  items: Inventory
+  // Cents into the wallet, or out of it when negative.
+  cash: number
 }
 
 export interface PackChange {
@@ -524,7 +571,7 @@ export function reduce(
 function act(
   valley: Valley,
   action: ValleyAction,
-  { now, present, cash, holdings }: ValleyContext
+  { now, present, cash, holdings, stand }: ValleyContext
 ): Reduced {
   switch (action.type) {
     case 'join': {
@@ -553,6 +600,7 @@ function act(
           water: action.water,
           maze: action.maze,
           routes: action.routes,
+          stand: action.stand,
         }
       } else if (
         !samePickups(world.pickups, action.pickups) ||
@@ -975,6 +1023,57 @@ function act(
           kind: action.kind,
           delta: re === 'stow' ? action.count : -action.count,
         },
+      })
+    }
+
+    case 'stand-stock':
+    case 'stand-collect':
+    case 'stand-upgrade': {
+      // Rule 20.
+      const member = valley.members[action.id]
+      const world = valley.world
+      const re = action.type
+      const refuse = (reason: string): Reduced =>
+        done(valley, now, { broadcast: [], reply: nack(re, reason) })
+      if (!member || !world) return refuse('not-in-valley')
+      if (isAboard(world.truck, action.id)) return refuse('aboard')
+      if (!atStand(action.at, world.stand)) return refuse('no-stand')
+      if (!stand) return refuse('unavailable')
+      const { ledger, pack } = stand
+      const tended = (change: Omit<StandChange, 'account' | 're'>): Reduced =>
+        done(valley, now, {
+          broadcast: [],
+          stand: {
+            account: member.account,
+            re:
+              re === 'stand-stock'
+                ? 'stock'
+                : re === 'stand-collect'
+                  ? 'collect'
+                  : 'upgrade',
+            ...change,
+          },
+        })
+      if (action.type === 'stand-stock') {
+        const { kind, count } = action
+        if ((pack[kind] || 0) < count) return refuse('none-left')
+        const next = stockStand(ledger, kind, count, now)
+        if (!next) return refuse('no-room')
+        return tended({ ledger: next, items: { [kind]: count }, cash: 0 })
+      }
+      if (action.type === 'stand-collect') {
+        const got = collectStand(ledger, now)
+        if (!got) return refuse('empty')
+        return tended({ ledger: got.ledger, items: {}, cash: got.cents })
+      }
+      const price = upgradePrice(ledger)
+      const next = upgradeStand(ledger, now)
+      if (!price || !next) return refuse('top')
+      if (!affordsUpgrade(ledger, stand.cash, pack)) return refuse('short')
+      return tended({
+        ledger: next,
+        items: { ...price.items },
+        cash: -price.cash,
       })
     }
 

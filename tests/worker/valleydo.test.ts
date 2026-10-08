@@ -24,6 +24,7 @@ import type {
   SeasonMessage,
   ServerMessage,
   ShadowmenMessage,
+  StandMessage,
   TaskMessage,
   WelcomeMessage,
   WorldMessage,
@@ -147,6 +148,9 @@ async function valley(state = new MockState(), env: Partial<Env> = {}) {
 // the Caretaker keeps to itself unless a test goes looking for it.
 const MAZE = { x: 5000, z: 5000, yaw: 0 }
 
+// Where a build sets up the Cabbage Stand: on the first station's lot.
+const STAND = { x: -4, z: -17 }
+
 // What a build placed: two joints first, then `n - 1` cabbages.
 const placed = (n: number) => [
   { kind: 'joints', count: 2 },
@@ -170,6 +174,7 @@ const hello = (
     water: dryMap({ width: 15059, height: 15038 }),
     maze: MAZE,
     truck: { home: { x: 10, z: 10 }, joyrideMs: 600_000 },
+    stand: STAND,
   })
 
 // The last pack frame a socket was sent.
@@ -859,6 +864,8 @@ describe('ValleyDO', () => {
       strip: () => Promise.reject(new Error('D1 is down')),
       give: () => Promise.reject(new Error('D1 is down')),
       stow: () => Promise.reject(new Error('D1 is down')),
+      stand: () => Promise.reject(new Error('D1 is down')),
+      tend: () => Promise.reject(new Error('D1 is down')),
       score: () => Promise.reject(new Error('D1 is down')),
       task: () => Promise.reject(new Error('D1 is down')),
       scoreTask: () => Promise.reject(new Error('D1 is down')),
@@ -947,6 +954,8 @@ describe('ValleyDO', () => {
         strip: (id) => store.strip(id),
         give: (id, items) => store.give(id, items),
         stow: (id, kind, delta) => store.stow(id, kind, delta),
+        stand: (id) => store.stand(id),
+        tend: (id, rev, change) => store.tend(id, rev, change),
         score: (id, season, progress, reward) =>
           store.score(id, season, progress, reward),
         task: (id, task) => store.task(id, task),
@@ -1049,6 +1058,8 @@ describe('ValleyDO: drops', () => {
       strip: (id) => store.strip(id),
       give: (id, items) => store.give(id, items),
       stow: (id, kind, delta) => store.stow(id, kind, delta),
+      stand: (id) => store.stand(id),
+      tend: (id, rev, change) => store.tend(id, rev, change),
       score: (id, season, progress, reward) =>
         store.score(id, season, progress, reward),
       task: (id, task) => store.task(id, task),
@@ -1202,6 +1213,8 @@ describe('ValleyDO: corpse runs', () => {
         strip: (id) => store.strip(id),
         give: () => Promise.reject(new Error('down')),
         stow: (id, kind, delta) => store.stow(id, kind, delta),
+        stand: (id) => store.stand(id),
+        tend: (id, rev, change) => store.tend(id, rev, change),
         task: (id, task) => store.task(id, task),
         scoreTask: (id, task, progress, reward) =>
           store.scoreTask(id, task, progress, reward),
@@ -1303,6 +1316,154 @@ describe('ValleyDO: the stash', () => {
     expect(
       a.frames().findLast((m): m is NackMessage => m.type === 'nack')
     ).toMatchObject({ re: 'stow', reason: 'too-fast' })
+  })
+})
+
+describe('ValleyDO: the Cabbage Stand', () => {
+  const HOUR = 60 * 60 * 1000
+  const [one, two] = CONFIG.stand.levels
+  const frames = (socket: MockSocket) =>
+    socket.frames().filter((m): m is StandMessage => m.type === 'stand')
+  const nack = (socket: MockSocket) =>
+    socket.frames().findLast((m): m is NackMessage => m.type === 'nack')
+  const lastFrame = (socket: MockSocket) =>
+    socket.frames().findLast((m): m is PackMessage => m.type === 'pack')
+
+  it('welcomes a raider with a fresh stand', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    expect(a.frames()[0]).toMatchObject({
+      type: 'welcome',
+      stand: { level: 1, stock: {}, banked: 0 },
+    })
+  })
+
+  it('stocks the table out of the pack, banks on the clock, and collects into the wallet', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.now() })
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const other = await join(v, s, 'A2', { account: 'acct-A' })
+    await v.webSocketMessage(
+      ws(a),
+      `{"type":"dev","op":"grant","kind":"cabbage","count":${one.shelf}}`
+    )
+    await v.webSocketMessage(ws(a), state(STAND.x + 1, STAND.z))
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ type: 'stand-stock', kind: 'cabbage', count: one.shelf })
+    )
+    expect(frames(a).at(-1)).toMatchObject({
+      re: 'stock',
+      stand: { stock: { cabbage: one.shelf } },
+    })
+    // Every socket on the account hears it, and the pack after.
+    expect(frames(other).at(-1)?.stand.stock.cabbage).toBe(one.shelf)
+    expect(lastFrame(a)?.pack.cabbage).toBe(0)
+    vi.setSystemTime(Date.now() + 2 * HOUR)
+    await v.webSocketMessage(ws(a), '{"type":"stand-collect"}')
+    expect(frames(a).at(-1)).toMatchObject({
+      re: 'collect',
+      cents: 2 * one.rate,
+    })
+    expect(lastFrame(a)?.cash).toBe(STARTING_CASH + 2 * one.rate)
+    // Nothing more to collect yet.
+    await v.webSocketMessage(ws(a), '{"type":"stand-collect"}')
+    expect(nack(a)).toMatchObject({ re: 'stand-collect', reason: 'empty' })
+  })
+
+  it('sells the next level for cash and goods, all or nothing', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const price = two.price
+    if (!price) throw new Error('priced')
+    await v.webSocketMessage(ws(a), state(STAND.x, STAND.z + 1))
+    await v.webSocketMessage(ws(a), '{"type":"stand-upgrade"}')
+    expect(nack(a)).toMatchObject({ re: 'stand-upgrade', reason: 'short' })
+    for (const [kind, count] of Object.entries(price.items)) {
+      if (count < 1) continue
+      await v.webSocketMessage(
+        ws(a),
+        JSON.stringify({ type: 'dev', op: 'grant', kind, count })
+      )
+    }
+    const store = v.packStore as MemoryPackStore
+    await store.earn('acct-A', price.cash)
+    await v.webSocketMessage(ws(a), '{"type":"stand-upgrade"}')
+    expect(frames(a).at(-1)).toMatchObject({
+      re: 'upgrade',
+      stand: { level: 2 },
+    })
+    expect(lastFrame(a)).toMatchObject({
+      cash: STARTING_CASH,
+      pack: { cabbage: 0 },
+    })
+  })
+
+  it('stays shut away from the stand, or when it cannot be read or written', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    await v.webSocketMessage(ws(a), '{"type":"stand-collect"}')
+    expect(nack(a)).toMatchObject({ re: 'stand-collect', reason: 'no-stand' })
+    await v.webSocketMessage(ws(a), state(STAND.x, STAND.z))
+    const store = v.packStore
+    const error = console.error
+    console.error = () => {}
+    try {
+      v.packStore = {
+        ...store,
+        open: (id) => store.open(id),
+        get: (id) => store.get(id),
+        stand: () => Promise.reject(new Error('down')),
+      }
+      await v.webSocketMessage(ws(a), '{"type":"stand-collect"}')
+      expect(nack(a)).toMatchObject({ reason: 'unavailable' })
+      v.packStore = {
+        ...store,
+        open: (id) => store.open(id),
+        get: (id) => store.get(id),
+        stand: (id) => store.stand(id),
+        tend: () => Promise.reject(new Error('down')),
+      }
+      await v.webSocketMessage(
+        ws(a),
+        '{"type":"stand-stock","kind":"cabbage","count":1}'
+      )
+      expect(nack(a)).toMatchObject({ reason: 'none-left' })
+      await (store as MemoryPackStore).change('acct-A', 'cabbage', 1)
+      await v.webSocketMessage(
+        ws(a),
+        '{"type":"stand-stock","kind":"cabbage","count":1}'
+      )
+      expect(nack(a)).toMatchObject({ reason: 'unavailable' })
+      v.packStore = {
+        ...store,
+        open: (id) => store.open(id),
+        get: (id) => store.get(id),
+        stand: (id) => store.stand(id),
+        tend: () => Promise.resolve(false),
+      }
+      await v.webSocketMessage(
+        ws(a),
+        '{"type":"stand-stock","kind":"cabbage","count":1}'
+      )
+      expect(nack(a)).toMatchObject({ reason: 'short' })
+    } finally {
+      console.error = error
+    }
+    expect(frames(a)).toEqual([])
+  })
+
+  it('refuses a flood of tending', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    await v.webSocketMessage(ws(a), state(STAND.x, STAND.z))
+    for (let i = 0; i < 25; i++) {
+      await v.webSocketMessage(ws(a), '{"type":"stand-collect"}')
+    }
+    expect(nack(a)).toMatchObject({ reason: 'too-fast' })
   })
 })
 
@@ -1537,6 +1698,8 @@ describe('ValleyDO: the shadowmen', () => {
       strip: (id) => store.strip(id),
       give: (id, items) => store.give(id, items),
       stow: (id, kind, delta) => store.stow(id, kind, delta),
+      stand: (id) => store.stand(id),
+      tend: (id, rev, change) => store.tend(id, rev, change),
       score: (id, season, progress, reward) =>
         store.score(id, season, progress, reward),
       task: (id, task) => store.task(id, task),
@@ -1658,6 +1821,8 @@ describe('ValleyDO: the shadowmen', () => {
       strip: (id) => store.strip(id),
       give: (id, items) => store.give(id, items),
       stow: (id, kind, delta) => store.stow(id, kind, delta),
+      stand: (id) => store.stand(id),
+      tend: (id, rev, change) => store.tend(id, rev, change),
       score: () => Promise.reject(new Error('down')),
       task: (id, task) => store.task(id, task),
       scoreTask: (id, task, progress, reward) =>
@@ -1796,6 +1961,8 @@ describe("ValleyDO: Moab's trade", () => {
         strip: (id) => store.strip(id),
         give: (id, items) => store.give(id, items),
         stow: (id, kind, delta) => store.stow(id, kind, delta),
+        stand: (id) => store.stand(id),
+        tend: (id, rev, change) => store.tend(id, rev, change),
         score: (id, season, progress, reward) =>
           store.score(id, season, progress, reward),
         task: (id, task) => store.task(id, task),

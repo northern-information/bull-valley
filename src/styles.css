@@ -1578,3 +1578,43 @@
   outline: 3px solid var(--bv-eggshell);
   outline-offset: 2px;
 }
+
+/* The Cabbage Stand's dialog (standdialog.ts): the account step's look
+   over the valley, one column. */
+.bv-stand {
+  align-items: flex-start;
+  background: rgb(0 0 0 / 92%);
+  overflow-y: auto;
+}
+
+.bv-stand-ui {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: auto;
+  text-align: center;
+}
+
+.bv-stand-ui p,
+.bv-stand-ui h3 {
+  margin: 0;
+}
+
+.bv-stand-ui h3 {
+  font-size: 0.75em;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.bv-stand-says {
+  font-style: italic;
+}
+
+.bv-stand-good {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}

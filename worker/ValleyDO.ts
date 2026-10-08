@@ -73,6 +73,7 @@ import type {
   Valley,
   ValleyAction,
 } from '../src/sharedworld.ts'
+import type { StandLedger } from '../src/stand.ts'
 import type { AccountStore } from './accounts.ts'
 import type { Holdings, PackStore } from './packs.ts'
 
@@ -255,6 +256,21 @@ export class ValleyDO extends DurableObject<Env> {
           count: msg.count,
           at,
         })
+        return
+      }
+      case 'stand-stock':
+      case 'stand-collect':
+      case 'stand-upgrade': {
+        // Beside the stand where the raider's own last state frame put
+        // them.
+        const at = me.at ? { x: me.at.x, z: me.at.z } : null
+        await this.tend(
+          ws,
+          attachment.account,
+          msg.type === 'stand-stock'
+            ? { ...msg, id: me.id, at }
+            : { type: msg.type, id: me.id, at }
+        )
         return
       }
       case 'trade':
@@ -518,6 +534,76 @@ export class ValleyDO extends DurableObject<Env> {
     })
   }
 
+  // The account's Cabbage Stand tended, alone (rule 20): no other frame
+  // runs between reading the ledger, the pack and the wallet, judging the
+  // change against them, and writing all three together. Every socket on
+  // the account hears the stand and the pack after.
+  private async tend(
+    ws: WebSocket,
+    account: string | null,
+    action: Extract<
+      ValleyAction,
+      { type: 'stand-stock' | 'stand-collect' | 'stand-upgrade' }
+    >
+  ): Promise<void> {
+    if (!account) return
+    const refuse = (reason: string) => {
+      send(ws, { type: 'nack', re: action.type, reason })
+    }
+    if (!allow(this.dropRate, ws, DROP_LIMIT)) {
+      refuse('too-fast')
+      return
+    }
+    await this.ctx.blockConcurrencyWhile(async () => {
+      const packs = this.packs()
+      let read: { ledger: StandLedger; rev: number }
+      let holdings: Holdings
+      try {
+        read = await packs.stand(account)
+        holdings = await packs.get(account)
+      } catch (err) {
+        console.error('The stand could not be read', err)
+        refuse('unavailable')
+        return
+      }
+      const reduced = reduce(this.valley, action, {
+        ...this.context(),
+        stand: {
+          ledger: read.ledger,
+          pack: holdings.pack,
+          cash: holdings.cash,
+        },
+      })
+      if (reduced.reply) {
+        send(ws, reduced.reply)
+        return
+      }
+      const change = reduced.stand
+      if (!change) return
+      let written: boolean
+      try {
+        written = await packs.tend(account, read.rev, change)
+      } catch (err) {
+        console.error('The stand could not be written', err)
+        refuse('unavailable')
+        return
+      }
+      if (!written) {
+        refuse('short')
+        return
+      }
+      await this.apply(reduced)
+      for (const msg of reduced.broadcast) this.broadcast(msg, null)
+      this.toAccount(account, {
+        type: 'stand',
+        re: change.re,
+        stand: change.ledger,
+        ...(change.re === 'collect' ? { cents: change.cash } : {}),
+      })
+      await this.repack(null, null, account)
+    })
+  }
+
   private attachment(ws: WebSocket): Attachment {
     return (
       // A socket with nothing attached has no session, so its hello fails.
@@ -566,11 +652,13 @@ export class ValleyDO extends DurableObject<Env> {
     let holdings: Holdings
     let season: SeasonProgress
     let task: TaskProgress
+    let stand: StandLedger
     try {
       const packs = this.packs()
       holdings = await packs.open(account)
       season = await packs.season(account, SEASON.id)
       task = await packs.task(account, DAILY_TASK.id)
+      stand = (await packs.stand(account)).ledger
     } catch (err) {
       console.error('The pack could not be opened', err)
       ws.close(CLOSE.serverError, 'The valley lost the pack')
@@ -592,6 +680,7 @@ export class ValleyDO extends DurableObject<Env> {
         water: hello.water,
         maze: hello.maze,
         routes: hello.truck,
+        stand: hello.stand,
       },
       { now: Date.now(), present: this.presentIds(ws) }
     )
@@ -629,6 +718,7 @@ export class ValleyDO extends DurableObject<Env> {
       corpses: corpsesOf(this.valley, account),
       season: seasonWire(season),
       task: taskWire(task),
+      stand,
     })
     this.broadcast({ type: 'peer-joined', peer: me }, ws)
     for (const msg of reduced.broadcast) this.broadcast(msg, ws)
