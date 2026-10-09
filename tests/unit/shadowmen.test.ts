@@ -246,7 +246,7 @@ describe('stepShadowmen: the bubbles', () => {
     expect(first(field)?.z).toBeCloseTo(-100 + 8 * DT, 9)
   })
 
-  it('drops one past every despawn radius, off the survey, or in a haven', () => {
+  it('drops one past every despawn radius, and only there', () => {
     const far = one({ z: -400 })
     step(far)
     expect(far.shadowmen).toEqual([])
@@ -258,19 +258,35 @@ describe('stepShadowmen: the bubbles', () => {
     })
     expect(kept.shadowmen.length).toBe(1)
 
-    const edge = one({ x: METRES.width / 2 - 30.2, z: 0, dirX: 1, dirZ: 0 })
-    step(edge)
-    expect(edge.shadowmen).toEqual([])
-
-    const lights = one({ x: 100, z: 0, dirX: -1, dirZ: 0 })
-    step(lights, undefined, { havens: [{ x: 50, z: 0 }] })
-    expect(lights.shadowmen).toEqual([])
-
     // With no raiders at all, the valley empties.
     const empty = one()
     step(empty, undefined, { raiders: [] })
     expect(empty.shadowmen).toEqual([])
     expect(empty.cooldowns).toEqual({})
+  })
+
+  it('turns aside at the survey edge instead of going', () => {
+    const x = METRES.width / 2 - 30.2
+    const edge = one({ x, z: 0, dirX: 1, dirZ: 0 })
+    const raiders = [raider({ x: x - 100 })]
+    step(edge, undefined, { raiders })
+    expect(edge.shadowmen.length).toBe(1)
+    expect(first(edge)?.dirX).toBe(-1)
+    for (let i = 0; i < 40; i++) step(edge, undefined, { raiders })
+    expect(edge.shadowmen.length).toBe(1)
+    expect(inBounds(first(edge) ?? ORIGIN, METRES, CFG.edgeInset)).toBe(true)
+  })
+
+  it('turns aside at a haven instead of vanishing at the lights', () => {
+    const havens = [{ x: 0, z: 0 }]
+    // Heading into the forecourt, a little off its centre.
+    const lights = one({ x: 10, z: -CFG.havenRadius - 0.1, dirX: 0, dirZ: 1 })
+    for (let i = 0; i < 200; i++) step(lights, undefined, { havens })
+    expect(lights.shadowmen.length).toBe(1)
+    const s = first(lights)
+    expect(s && inHaven(s, havens, CFG.havenRadius)).toBe(false)
+    // Reflected off the rim: away from the pumps, still on its way.
+    expect(s && s.x > 10).toBe(true)
   })
 
   it('refills a bubble one shadowman per spawn interval', () => {

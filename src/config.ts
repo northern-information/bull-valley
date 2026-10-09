@@ -72,8 +72,8 @@ export const CONFIG = {
     // still within reachScale times its touch. A beat to step away.
     windupSeconds: 0.35,
     reachScale: 1.25,
-    // Citgo forecourts are havens: shadowmen vanish at the lights and nothing
-    // can touch you inside.
+    // Citgo forecourts are havens: shadowmen turn aside at the lights and
+    // nothing can touch you inside.
     havenRadius: 60,
     // The static after a strike, in real seconds (actions.ts times it by the
     // wall clock, never the frame-capped game time).
