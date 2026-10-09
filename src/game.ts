@@ -20,6 +20,7 @@ import type { DropMeshes } from './dropmeshes.ts'
 import type { Drop } from './drops.ts'
 import type { Emoting } from './emotes.ts'
 import type { FirstPersonHands } from './fphands.ts'
+import type { PendingAsk } from './friends.ts'
 import type { Geometrie } from './geometrie.ts'
 import type { Glow } from './glow.ts'
 import type { Grave } from './graves.ts'
@@ -38,7 +39,12 @@ import type { NpcId } from './npcs.ts'
 import type { Peers } from './peers.ts'
 import type { Player } from './player.ts'
 import type { PlayerBody } from './playerbody.ts'
-import type { DailyWire, PeerStateWire, WorldWire } from './protocol.ts'
+import type {
+  DailyWire,
+  FriendWire,
+  PeerStateWire,
+  WorldWire,
+} from './protocol.ts'
 import type { RoadGraph } from './roadgraph.ts'
 import type { Scope } from './scope.ts'
 import type { SeasonProgress } from './season.ts'
@@ -81,6 +87,13 @@ export interface GameState {
   // The account's progress on the daily task (dailytask.ts) as the valley
   // last sent it, on the day it counts; alone, none, and nothing is kept.
   task: TaskProgress
+  // Rule 20: the account's friends list as the valley last sent it; a
+  // /friend or /unfriend waiting on it; whether a /friends is waiting to
+  // be shown; and who the last whisper went to, for a refusal's line.
+  friends: FriendWire[]
+  pendingAsk: PendingAsk | null
+  showFriends: boolean
+  whisperTo: string | null
   // Every Citgo's shelves, one stock per station like world.fuelPoints.
   storeStock: ShopStock[]
   // The item on each number key: the account's, saved one change at a
@@ -190,6 +203,10 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     book: new Set(),
     bookAsked: new Set(),
     task: NO_TASK,
+    friends: [],
+    pendingAsk: null,
+    showFriends: false,
+    whisperTo: null,
     storeStock: freshStock(stations),
     hotbar,
     hotbarSaved: Promise.resolve(),

@@ -72,21 +72,73 @@ describe('chatCommand', () => {
   })
 
   it('reads /online in any case, with anything after it', () => {
-    expect(chatCommand('/online')).toBe('online')
-    expect(chatCommand('/ONLINE')).toBe('online')
-    expect(chatCommand('/online please')).toBe('online')
+    expect(chatCommand('/online')).toEqual({ name: 'online' })
+    expect(chatCommand('/ONLINE')).toEqual({ name: 'online' })
+    expect(chatCommand('/online please')).toEqual({ name: 'online' })
+  })
+
+  it('reads a whisper: /w or /whisper, a name, and the rest', () => {
+    expect(chatCommand('/w Baker meet at the maze')).toEqual({
+      name: 'whisper',
+      to: 'Baker',
+      text: 'meet at the maze',
+    })
+    expect(chatCommand('/Whisper baker hi')).toEqual({
+      name: 'whisper',
+      to: 'baker',
+      text: 'hi',
+    })
+    expect(chatCommand('/w Baker')).toEqual({
+      name: 'usage',
+      line: copy('chat.usage_whisper'),
+    })
+    expect(chatCommand('/w')).toEqual({
+      name: 'usage',
+      line: copy('chat.usage_whisper'),
+    })
+    // A name no raider could have never goes to the valley.
+    const long = 'x'.repeat(40)
+    expect(chatCommand(`/w ${long} hi`)).toEqual({
+      name: 'usage',
+      line: copy('chat.whisper_not_here', { name: long }),
+    })
+  })
+
+  it('reads /friend, /unfriend and /friends', () => {
+    expect(chatCommand('/friend Baker')).toEqual({
+      name: 'friend',
+      who: 'Baker',
+    })
+    expect(chatCommand('/UNFRIEND baker now')).toEqual({
+      name: 'unfriend',
+      who: 'baker',
+    })
+    expect(chatCommand('/friends')).toEqual({ name: 'friends' })
+    expect(chatCommand('/friend')).toEqual({
+      name: 'usage',
+      line: copy('chat.usage_friend'),
+    })
+    expect(chatCommand('/unfriend')).toEqual({
+      name: 'usage',
+      line: copy('chat.usage_unfriend'),
+    })
+    const long = 'x'.repeat(40)
+    expect(chatCommand(`/friend ${long}`)).toEqual({
+      name: 'usage',
+      line: copy('friends.unknown', { name: long }),
+    })
   })
 
   it('reads /emotes, and an emote by its name in any case', () => {
-    expect(chatCommand('/emotes')).toBe('emotes')
-    expect(chatCommand('/wave')).toBe('wave')
-    expect(chatCommand('/Sit down')).toBe('sit')
-    expect(chatCommand('/kneel')).toBe('kneel')
+    expect(chatCommand('/emotes')).toEqual({ name: 'emotes' })
+    expect(chatCommand('/wave')).toEqual({ name: 'emote', id: 'wave' })
+    expect(chatCommand('/Sit down')).toEqual({ name: 'emote', id: 'sit' })
+    expect(chatCommand('/kneel')).toEqual({ name: 'emote', id: 'kneel' })
   })
 
   it('calls any other slash a command it does not know', () => {
-    expect(chatCommand('/who')).toBe('unknown')
-    expect(chatCommand('/')).toBe('unknown')
+    expect(chatCommand('/who')).toEqual({ name: 'unknown' })
+    expect(chatCommand('/')).toEqual({ name: 'unknown' })
   })
 })
 

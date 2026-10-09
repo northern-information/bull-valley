@@ -28,6 +28,7 @@ import { toCosmetics } from '../src/cosmetics.ts'
 import { dayKey } from '../src/daily.ts'
 import { DAILY_TASK, tallyTask } from '../src/dailytask.ts'
 import { spillsOf } from '../src/drops.ts'
+import { sameName, whereabouts } from '../src/friends.ts'
 import { burialsOf } from '../src/graves.ts'
 import {
   CLOSE,
@@ -57,6 +58,7 @@ import { D1AccountStore } from './d1accounts.ts'
 import { D1PackStore } from './d1packs.ts'
 import type { CosmeticId } from '../src/cosmetics.ts'
 import type { TaskProgress } from '../src/dailytask.ts'
+import type { FriendRow } from '../src/friends.ts'
 import type { Inventory, XZ } from '../src/interfaces.ts'
 import type {
   HelloMessage,
@@ -96,6 +98,9 @@ const STATE_LIMIT: RateLimit = { count: 30, ms: 1000 }
 // Chat lines one socket may send in ten seconds; the rest are nacked.
 const CHAT_LIMIT: RateLimit = { count: 5, ms: 10_000 }
 
+// Friend requests and removals one socket may make in ten seconds.
+const FRIEND_LIMIT: RateLimit = { count: 5, ms: 10_000 }
+
 // Changes at Gron one socket may make in ten seconds; each one rebuilds a
 // figure for everyone, so the rest are nacked.
 const APPEARANCE_LIMIT: RateLimit = { count: 5, ms: 10_000 }
@@ -128,6 +133,7 @@ export class ValleyDO extends DurableObject<Env> {
   private headlightsRate = new WeakMap<WebSocket, RateWindow>()
   private chatRate = new WeakMap<WebSocket, RateWindow>()
   private appearanceRate = new WeakMap<WebSocket, RateWindow>()
+  private friendRate = new WeakMap<WebSocket, RateWindow>()
   private dropRate = new WeakMap<WebSocket, RateWindow>()
   private discoverRate = new WeakMap<WebSocket, RateWindow>()
   // Rule 13, in memory only: gone whenever the object sleeps.
@@ -283,6 +289,16 @@ export class ValleyDO extends DurableObject<Env> {
         return
       case 'chat':
         this.chat(ws, me, msg.text)
+        return
+      case 'whisper':
+        this.whisper(ws, attachment, me, msg.to, msg.text)
+        return
+      case 'friend':
+      case 'unfriend':
+        await this.befriend(ws, attachment, me, msg.type, msg.name)
+        return
+      case 'friends':
+        if (attachment.account) await this.sendFriends(attachment.account)
         return
       case 'appearance':
         await this.restyle(ws, attachment, me, msg.outfit)
@@ -652,6 +668,7 @@ export class ValleyDO extends DurableObject<Env> {
     })
     this.broadcast({ type: 'peer-joined', peer: me }, ws)
     for (const msg of reduced.broadcast) this.broadcast(msg, ws)
+    await this.greetFriends(ws, account, name)
   }
 
   private state(
@@ -678,6 +695,174 @@ export class ValleyDO extends DurableObject<Env> {
       { type: 'chat', id: me.id, name: me.name, text, at: Date.now() },
       null
     )
+  }
+
+  // Rule 20: a whisper to the raider signed in as `to`, under the chat
+  // rules and its rate, delivered to their sockets and echoed to the
+  // sender's. Nothing is stored.
+  private whisper(
+    ws: WebSocket,
+    attachment: Attachment,
+    me: PeerWire,
+    to: string,
+    text: string
+  ): void {
+    if (!allow(this.chatRate, ws, CHAT_LIMIT)) {
+      send(ws, { type: 'nack', re: 'whisper', reason: 'too-fast' })
+      return
+    }
+    const target = this.ctx
+      .getWebSockets()
+      .map((socket) => this.attachment(socket))
+      .find((a) => a.me && a.account && sameName(a.me.name, to))
+    if (!target?.me || !target.account) {
+      send(ws, { type: 'nack', re: 'whisper', reason: 'not-here' })
+      return
+    }
+    if (target.account === attachment.account) {
+      send(ws, { type: 'nack', re: 'whisper', reason: 'self' })
+      return
+    }
+    const line = { from: me.name, to: target.me.name, text, at: Date.now() }
+    this.toAccount(target.account, {
+      type: 'whisper',
+      ...line,
+      outgoing: false,
+    })
+    if (attachment.account) {
+      this.toAccount(attachment.account, {
+        type: 'whisper',
+        ...line,
+        outgoing: true,
+      })
+    }
+  }
+
+  // Rule 20: ask `name` to be friends (or accept their asking), or no
+  // longer be friends. Both lists go to every socket on both accounts, and
+  // the news to the one it is news to.
+  private async befriend(
+    ws: WebSocket,
+    attachment: Attachment,
+    me: PeerWire,
+    op: 'friend' | 'unfriend',
+    name: string
+  ): Promise<void> {
+    const account = attachment.account
+    if (!account) return
+    if (!allow(this.friendRate, ws, FRIEND_LIMIT)) {
+      send(ws, { type: 'nack', re: op, reason: 'too-fast' })
+      return
+    }
+    try {
+      const accounts = this.accounts()
+      const other = await accounts.accountByUsername(name)
+      if (!other) {
+        send(ws, { type: 'nack', re: op, reason: 'unknown' })
+        return
+      }
+      if (op === 'unfriend') {
+        if (!(await accounts.unfriend(account, other.accountId))) {
+          send(ws, { type: 'nack', re: op, reason: 'not-friends' })
+          return
+        }
+      } else {
+        const result = await accounts.askFriend(
+          account,
+          other.accountId,
+          Date.now()
+        )
+        if (result !== 'requested' && result !== 'accepted') {
+          send(ws, { type: 'nack', re: op, reason: result })
+          return
+        }
+        this.toAccount(other.accountId, {
+          type: 'friend-news',
+          news: result === 'accepted' ? 'accepted' : 'asked',
+          name: me.name,
+        })
+      }
+      await this.sendFriends(account)
+      await this.sendFriends(other.accountId)
+    } catch (err) {
+      console.error('The friends list could not be changed', err)
+      send(ws, { type: 'nack', re: op, reason: 'server' })
+    }
+  }
+
+  // Rule 20: the account's list to every socket on it: each name, and for
+  // a friend whether they are in the valley and roughly where. A request
+  // either way says nothing of where anyone is.
+  private async sendFriends(account: string): Promise<void> {
+    if (!this.hasSocket(account)) return
+    let rows: FriendRow[]
+    try {
+      rows = await this.accounts().friendsOf(account)
+    } catch (err) {
+      console.error('The friends list could not be read', err)
+      return
+    }
+    this.listFriends(account, rows)
+  }
+
+  private listFriends(account: string, rows: readonly FriendRow[]): void {
+    const world = this.valley.world
+    this.toAccount(account, {
+      type: 'friends',
+      friends: rows.map((row) => {
+        const here =
+          row.state === 'friend' ? this.placedAs(row.accountId) : undefined
+        return {
+          name: row.username,
+          state: row.state,
+          online: here !== undefined,
+          where: here ? whereabouts(here.at, world) : null,
+        }
+      }),
+    })
+  }
+
+  // A raider coming in: their own list, when there is anything on it (the
+  // client starts with an empty one), and the news to every friend in the
+  // valley, unless this account was already here on another socket.
+  private async greetFriends(
+    ws: WebSocket,
+    account: string,
+    name: string
+  ): Promise<void> {
+    const already = this.ctx.getWebSockets().some((socket) => {
+      const a = this.attachment(socket)
+      return socket !== ws && a.account === account && a.me !== null
+    })
+    try {
+      const rows = await this.accounts().friendsOf(account)
+      if (rows.length > 0) this.listFriends(account, rows)
+      if (already) return
+      for (const row of rows) {
+        if (row.state !== 'friend') continue
+        this.toAccount(row.accountId, {
+          type: 'friend-news',
+          news: 'online',
+          name,
+        })
+      }
+    } catch (err) {
+      console.error('Friends could not be told', err)
+    }
+  }
+
+  // Whether any socket on `account` has said hello.
+  private hasSocket(account: string): boolean {
+    return this.placedAs(account) !== undefined
+  }
+
+  // The player of the first socket on `account` that has said hello.
+  private placedAs(account: string): PeerWire | undefined {
+    for (const socket of this.ctx.getWebSockets()) {
+      const a = this.attachment(socket)
+      if (a.account === account && a.me) return a.me
+    }
+    return undefined
   }
 
   // A new character from Gron, for everyone to see.

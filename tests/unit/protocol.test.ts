@@ -135,6 +135,30 @@ describe('chat', () => {
     expect(parse({ type: 'chat', text: '  unnormalized ' })).toBeNull()
     expect(parse({ type: 'chat' })).toBeNull()
   })
+
+  it('parses whispers and the friends frames, and refuses bad ones', () => {
+    expect(parse({ type: 'whisper', to: 'Baker', text: 'hi' })).toEqual({
+      type: 'whisper',
+      to: 'Baker',
+      text: 'hi',
+    })
+    expect(parse({ type: 'whisper', to: '', text: 'hi' })).toBeNull()
+    expect(parse({ type: 'whisper', to: 'Baker', text: '' })).toBeNull()
+    expect(
+      parse({ type: 'whisper', to: 'Baker', text: 'x'.repeat(CHAT_MAX + 1) })
+    ).toBeNull()
+    expect(parse({ type: 'friend', name: 'Baker' })).toEqual({
+      type: 'friend',
+      name: 'Baker',
+    })
+    expect(parse({ type: 'unfriend', name: 'Baker', extra: 1 })).toEqual({
+      type: 'unfriend',
+      name: 'Baker',
+    })
+    expect(parse({ type: 'friend', name: 7 })).toBeNull()
+    expect(parse({ type: 'unfriend' })).toBeNull()
+    expect(parse({ type: 'friends', extra: 1 })).toEqual({ type: 'friends' })
+  })
 })
 
 describe('parseClientMessage', () => {

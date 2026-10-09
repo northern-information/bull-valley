@@ -22,7 +22,12 @@ import type { MistCards } from './mistcards.ts'
 import type { NetStatus } from './net.ts'
 import type { Player } from './player.ts'
 import type { Peer } from './presence.ts'
-import type { DailyWire, PeerStateWire, WorldWire } from './protocol.ts'
+import type {
+  DailyWire,
+  FriendWire,
+  PeerStateWire,
+  WorldWire,
+} from './protocol.ts'
 import type { RoadGraph } from './roadgraph.ts'
 import type { SeasonProgress } from './season.ts'
 import type { ShadowCards } from './shadowcards.ts'
@@ -67,6 +72,8 @@ interface BvHook {
   readonly bookOpen: boolean
   // The account's progress on the daily task, as the valley last said.
   readonly task: TaskProgress
+  // The account's friends list, as the valley last sent it.
+  readonly friends: readonly FriendWire[]
   // The pack as this client holds it: the valley's last word, plus guesses.
   readonly inventory: Inventory
   // What lies dropped: the valley's, or this raider's alone.
@@ -173,6 +180,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     },
     get task() {
       return s.task
+    },
+    get friends() {
+      return s.friends
     },
     get inventory() {
       return s.inventory

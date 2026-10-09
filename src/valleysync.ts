@@ -11,6 +11,13 @@ import { copy } from './copy.ts'
 import { toCosmetics } from './cosmetics.ts'
 import { DAILY_TASK, taskNews } from './dailytask.ts'
 import { seenEmote } from './emotes.ts'
+import {
+  friendLines,
+  friendNews,
+  friendRefusal,
+  settledAsk,
+  whisperRefusal,
+} from './friends.ts'
 import { pickupLabel } from './interactions.ts'
 import { toInventory } from './inventory.ts'
 import { itemById } from './items.ts'
@@ -91,6 +98,36 @@ export function wireValley(game: Game, actions: Actions): void {
           { kind: 'say', name: msg.name, text: msg.text, at: msg.at },
           now
         )
+        return
+      // Rule 20: a whisper, to this raider or echoed from one they sent.
+      case 'whisper':
+        hud.chatLine(
+          {
+            kind: 'whisper',
+            name: msg.outgoing
+              ? copy('chat.whisper_to', { name: msg.to })
+              : copy('chat.whisper_from', { name: msg.from }),
+            text: msg.text,
+            at: msg.at,
+          },
+          now
+        )
+        return
+      case 'friends': {
+        s.friends = msg.friends
+        const settled = s.pendingAsk && settledAsk(s.pendingAsk, msg.friends)
+        if (settled) {
+          s.pendingAsk = null
+          hud.tell(settled)
+        }
+        if (s.showFriends) {
+          s.showFriends = false
+          for (const line of friendLines(msg.friends)) hud.tell(line)
+        }
+        return
+      }
+      case 'friend-news':
+        hud.tell(friendNews(msg.news, msg.name))
         return
       case 'error':
         console.warn('Valley:', msg.code, msg.message)
@@ -238,6 +275,11 @@ export function wireValley(game: Game, actions: Actions): void {
       hud.tell(copy('log.berry_refused'))
     } else if (msg.re === 'chat') {
       hud.tell(CHAT_COPY.tooFast)
+    } else if (msg.re === 'whisper') {
+      hud.tell(whisperRefusal(msg.reason, s.whisperTo ?? ''))
+    } else if (msg.re === 'friend' || msg.re === 'unfriend') {
+      hud.tell(friendRefusal(msg.reason, s.pendingAsk?.name ?? ''))
+      s.pendingAsk = null
     } else if (msg.re === 'drop') {
       // The pack frame that follows a refused drop puts the count right.
       hud.tell(

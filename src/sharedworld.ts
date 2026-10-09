@@ -109,6 +109,14 @@
 //    time; an ask names only what the raider met, and only the real
 //    entries the account had not found are news (book.ts newlyFound).
 //    The book is the account's, kept by the valley in D1.
+// 21. Friends and whispers (friends.ts): a raider asks another by name,
+//    and they are friends once the other asks back; the friendships are
+//    the accounts', in D1 beside them, and only usernames go on the wire.
+//    A friend's list says whether they are in the valley and roughly where
+//    (whereabouts, from their last state frame); a request either way says
+//    neither. A whisper goes to the sockets of the raider it names, and
+//    back to the sender's, under the chat rules and the chat rate; nothing
+//    is kept.
 
 import { caretakerAt, createCaretaker, stepCaretaker } from './caretaker.ts'
 import { CONFIG } from './config.ts'
