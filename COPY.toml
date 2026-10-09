@@ -186,7 +186,11 @@ lore = { text = "A ring of berry bushes round a door that opens back onto the ga
 lore = { text = "A light on the hill to the north. The beacon burns whether anyone is home or not.", by = "ai" }
 
 [book.shadowman]
-lore = { text = "They cross the valley round every raider, the same ones for everyone. Close enough, one rushes, and its touch sends you back to the Citgo. Hold a beam on one and it comes apart into mist and skulls, and leaves its dimes.", by = "ai" }
+lore = { text = "They cross the valley round every raider, the same ones for everyone. Close enough, one rushes, draws back, and lunges, and its touch takes a piece of you; the third sends you back to the Citgo with nothing. Hold a beam on one and it comes apart into mist and skulls, and leaves its dimes.", by = "ai" }
+
+[book.spiderling]
+name = { text = "Spiderling", by = "ai" }
+lore = { text = "Burn a shadow spider and it breaks into a brood of these: small, quick, and straight at whoever is nearest. A touch costs the same as any shadow's. A beam takes them apart in a blink, and each leaves a few dimes.", by = "ai" }
 
 [book.caretaker]
 name = { text = "The Caretaker", by = "ai" }

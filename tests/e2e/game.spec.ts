@@ -3,6 +3,7 @@ import {
   beginRaid,
   expect,
   heardWhere,
+  onLastPoint,
   passTitles,
   signIn,
   test,
@@ -84,7 +85,67 @@ test('shadowmen cross the valley and show on the scope', async ({ page }) => {
     .toBeGreaterThan(0)
 })
 
-test("a shadowman's touch puts you back at the Citgo", async ({ page }) => {
+test("a shadowman's touch takes a point, and the Citgo makes you whole", async ({
+  page,
+}) => {
+  await beginRaid(page)
+  const max = await page.evaluate(() => window.__bv?.health)
+  expect(max).toBe(3)
+  await expect(page.locator('.bv-health')).toHaveAttribute('data-health', '3')
+  await page.evaluate(() => window.__bv?.grant('marlboro', 20))
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.inventory.marlboro))
+    .toBeGreaterThan(19)
+  // Out of the forecourt haven, then a shadowman beside you.
+  await page.evaluate(() => window.__bv?.teleport(0.5, 0.5))
+  await heardWhere(page)
+  const before = await page.evaluate(() => {
+    const bv = window.__bv
+    return bv ? { x: bv.player.pos.x, z: bv.player.pos.z } : null
+  })
+  await page.evaluate(() => {
+    const bv = window.__bv
+    if (!bv) return
+    bv.placeShadowman(bv.player.pos.x, bv.player.pos.z + 3)
+  })
+  await expect.poll(() => page.evaluate(() => window.__bv?.health)).toBe(2)
+  await expect(page.locator('.bv-health')).toHaveAttribute('data-health', '2')
+  await expect(page.locator('.bv-hurt')).toHaveClass(/bv-hurt--on/)
+  await expect(page.locator('.bv-chat')).toContainText(copy('log.hit'))
+  // No static, no body: still standing where it struck, the pack whole.
+  expect(await page.evaluate(() => window.__bv?.strikes)).toBe(0)
+  await expect(page.locator('.bv-static')).toBeHidden()
+  const after = await page.evaluate(() => {
+    const bv = window.__bv
+    return bv
+      ? {
+          x: bv.player.pos.x,
+          z: bv.player.pos.z,
+          marlboro: bv.inventory.marlboro,
+          bodies: bv.myCorpses.length,
+        }
+      : null
+  })
+  expect(
+    Math.hypot(
+      (after?.x ?? 0) - (before?.x ?? 0),
+      (after?.z ?? 0) - (before?.z ?? 0)
+    )
+  ).toBeLessThan(1)
+  expect(after?.marlboro).toBeGreaterThan(19)
+  expect(after?.bodies).toBe(0)
+  // Back under the Citgo lights, whole again.
+  await page.evaluate(() => {
+    const bv = window.__bv
+    if (bv) bv.player.relocate(bv.world.spawn.x, bv.world.spawn.z)
+  })
+  await expect.poll(() => page.evaluate(() => window.__bv?.health)).toBe(3)
+  await expect(page.locator('.bv-chat')).toContainText(copy('log.mended'))
+})
+
+test("a shadowman's touch on the last point puts you back at the Citgo", async ({
+  page,
+}) => {
   await beginRaid(page)
   // The static is up for strikeSeconds of wall clock. On a runner at a frame
   // a second that can come and go between two polls, so the page records
@@ -106,10 +167,11 @@ test("a shadowman's touch puts you back at the Citgo", async ({ page }) => {
         (window as { staticMarks?: { shownAt?: number; hiddenAt?: number } })
           .staticMarks
     )
-  // Out of the forecourt haven, then a shadowman beside you: the valley
-  // has it rush you, and says it touched you.
+  // Out of the forecourt haven on the last point, then a shadowman beside
+  // you: the valley has it rush you, and says it touched you.
   await page.evaluate(() => window.__bv?.teleport(0.5, 0.5))
   await heardWhere(page)
+  await onLastPoint(page)
   await page.evaluate(() => {
     const bv = window.__bv
     if (!bv) return

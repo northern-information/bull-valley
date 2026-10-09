@@ -14,6 +14,7 @@ import {
   meshBounds,
   motionOf,
   setMotion,
+  strikeLoopAt,
   WORLD_ASSETS,
 } from './assets.ts'
 import { CONFIG } from './config.ts'
@@ -35,7 +36,11 @@ import { OUTFIT_IDS, OUTFITS } from './outfits.ts'
 import { flashlightArm, samplePose } from './poses.ts'
 import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import { mulberry32 } from './rng.ts'
-import { buildShadowmanFigure, makeSilhouetteTexture } from './shadowcards.ts'
+import {
+  buildShadowmanFigure,
+  cardStrike,
+  makeSilhouetteTexture,
+} from './shadowcards.ts'
 import { buildTruckMesh } from './truck.ts'
 import type { MapHook } from './akashicmap.ts'
 import type { AkashicAsset } from './assets.ts'
@@ -94,6 +99,20 @@ function sampleShadowman(): THREE.Group {
   figure.position.y = height / 2
   const group = new THREE.Group()
   group.add(figure)
+  return group
+}
+
+// A shadowman winding up and lunging at the view (shadowcards.ts).
+function sampleShadowmanStriking(): THREE.Group {
+  const group = sampleShadowman()
+  const [figure] = group.children
+  const height = 2.8
+  setMotion(group, (t) => {
+    const { windup, lunge } = strikeLoopAt(t)
+    const strike = cardStrike(windup, lunge)
+    figure.scale.set(strike.narrow, strike.tall, 1)
+    figure.position.set(0, (height / 2) * strike.tall, -strike.back)
+  })
   return group
 }
 
@@ -175,6 +194,11 @@ const ASSETS: AkashicAsset[] = [
     build: buildLockerDoors,
   },
   { id: 'shadowman', label: 'Shadowman', build: sampleShadowman },
+  {
+    id: 'shadowman-striking',
+    label: 'Shadowman: winding up and lunging',
+    build: sampleShadowmanStriking,
+  },
   { id: 'mist', label: 'Ground mist', build: sampleMist },
 ]
 

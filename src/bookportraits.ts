@@ -74,6 +74,7 @@ const PORTRAITS: Partial<Record<string, () => THREE.Object3D>> = {
   'maze-heart': worldAsset('portal'),
   keep: worldAsset('beacon-keep'),
   shadowman,
+  spiderling: worldAsset('spiderling'),
   caretaker: worldAsset('caretaker'),
   marx,
   carlsten: () => standing('carlsten'),

@@ -256,11 +256,12 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     })
     if (swarm.struck) actions.strike()
     for (const at of swarm.bursts) {
-      // A spider bursts where its body hung, twice as big.
-      const spider = at.kind === 'spider'
+      // A spider bursts where its body hung, twice as big; a spiderling
+      // half as big.
+      const size = at.kind === 'spider' ? 2 : at.kind === 'spiderling' ? 0.5 : 1
       const y =
         world.ground.at(at.x, at.z) + aimHeightOf(at.kind, CONFIG.shadowmen)
-      bursts.spawn(at.x, y, at.z, spider ? 2 : 1)
+      bursts.spawn(at.x, y, at.z, size)
     }
     // Each leaves its dimes (a spider its $20) and its tombstone where it
     // burst (the valley's do that itself).
@@ -392,6 +393,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       actions.discover([
         ...sightsInReach(world.sights, player.pos),
         ...(swarm.contacts.some((c) => c.dist <= range) ? ['shadowman'] : []),
+        ...(swarm.sighted.includes('spiderling') ? ['spiderling'] : []),
         ...(keeper.contact && keeper.contact.dist <= range
           ? ['caretaker']
           : []),

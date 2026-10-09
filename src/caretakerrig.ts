@@ -1,6 +1,7 @@
 // The Caretaker as seen (caretaker.ts): its body (assets.ts buildCaretaker)
 // floating over the maze's paths, turned to face the player, shaking and
-// paling as two beams unmake it. In the shared valley it is the valley's
+// paling as two beams unmake it, drawing its lantern back as it winds up
+// to strike and lurching out as it lunges. In the shared valley it is the valley's
 // (sharedworld.ts rule 13): it rides in the shadowmen frames and is drawn a
 // beat behind the present, between the last two. Played alone, this steps
 // a Caretaker of its own with the player as the one raider, and one
@@ -22,6 +23,9 @@ import type { AloneFrame } from './shadowcards.ts'
 
 // The player's id when they play alone.
 const ALONE = 'me'
+
+// How long a lunge plays, in seconds.
+const LUNGE_SECONDS = 0.35
 
 interface Frame {
   at: number
@@ -69,6 +73,8 @@ export class CaretakerShade {
   private prev: Frame | null = null
   private next: Frame | null = null
   private pending: XZ[] = []
+  // Seconds since it last lunged, while the lunge plays; null otherwise.
+  private lunging: number | null = null
 
   constructor({ scene, groundAt, place }: CaretakerShadeOptions) {
     this.maze = place
@@ -95,6 +101,7 @@ export class CaretakerShade {
     this.prev = this.next
     this.next = { at, caretaker: msg.caretaker }
     if (msg.unmade) this.pending.push(msg.unmade)
+    if (msg.caretaker?.lunge) this.lunging = 0
   }
 
   update({
@@ -119,11 +126,13 @@ export class CaretakerShade {
       })
       struck = out.struck.length > 0
       if (out.burst) this.pending.push(out.burst)
+      if (out.lunged) this.lunging = 0
       const at = caretakerAt(this.own, this.maze)
       shown = at && {
         ...at,
         burn: this.own.burn / CONFIG.caretaker.burnSeconds,
         target: this.own.target,
+        windup: this.own.windup / CONFIG.caretaker.windupSeconds,
       }
       me = ALONE
     } else if (this.maze) {
@@ -135,6 +144,10 @@ export class CaretakerShade {
       shown = this.sample(renderAt)
     }
     this.shown = shown
+    if (this.lunging !== null) {
+      this.lunging += dt
+      if (this.lunging >= LUNGE_SECONDS) this.lunging = null
+    }
     this.draw(shown, player, time)
     const unmade = this.pending
     this.pending = []
@@ -184,6 +197,10 @@ export class CaretakerShade {
     )
     group.rotation.y = Math.atan2(player.x - shown.x, player.z - shown.z)
     this.rig.setBurn(burn)
+    this.rig.setStrike(
+      shown.windup ?? 0,
+      this.lunging === null ? 0 : this.lunging / LUNGE_SECONDS
+    )
     this.rig.update(time)
   }
 }

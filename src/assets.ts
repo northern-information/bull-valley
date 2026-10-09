@@ -3887,12 +3887,15 @@ export function buildFlashlight({ beam = 0 } = {}): Flashlight {
 // lantern of cold light swinging from its right hand, so it shows down a
 // corridor before it turns the corner. A dark smudge of air hangs round
 // it. update(t) bobs it, sways it, swings the lantern and flickers the
-// eyes; setBurn(0..1) pales it as two beams unmake it. Origin on the
-// ground under it; it floats CONFIG.caretaker.hover over that.
+// eyes; setBurn(0..1) pales it as two beams unmake it; setStrike(windup,
+// lunge), each 0 to 1, draws the lantern back flaring as it winds up and
+// swings it out as it lurches forward. Origin on the ground under it; it
+// floats CONFIG.caretaker.hover over that, facing +Z.
 export interface CaretakerRig {
   group: THREE.Group
   update(t: number): void
   setBurn(burn: number): void
+  setStrike(windup: number, lunge: number): void
 }
 
 const CARETAKER_BODY = new THREE.Color('#050508')
@@ -4031,16 +4034,25 @@ export function buildCaretaker(seed = 0xca2e): CaretakerRig {
   smudge.position.y = 1.4
   body.add(smudge)
 
+  // Striking: drawn back over the windup, thrown out over the lunge.
+  let rear = 0
+  let slam = 0
   const update = (t: number) => {
     body.position.y = CONFIG.caretaker.hover + Math.sin(t * 1.3) * 0.12
+    body.position.z = -0.2 * rear + 0.7 * slam
     body.rotation.z = Math.sin(t * 0.7) * 0.04
-    lantern.rotation.x = Math.sin(t * 1.9) * 0.35
+    body.rotation.x = -0.12 * rear + 0.3 * slam
+    lantern.rotation.x = Math.sin(t * 1.9) * 0.35 * (1 - rear) - 1.3 * rear
+    lantern.rotation.x += 1.9 * slam
     lantern.rotation.z = Math.sin(t * 1.3 + 1) * 0.15
-    // The eyes go out now and then, for a blink's length.
-    eyes.visible = Math.sin(t * 0.9) * Math.sin(t * 2.3) < 0.92
+    // The eyes go out now and then, for a blink's length; never mid-strike.
+    eyes.visible =
+      rear + slam > 0 || Math.sin(t * 0.9) * Math.sin(t * 2.3) < 0.92
     const breath = 0.8 + 0.2 * Math.sin(t * 5.1) * Math.sin(t * 1.7)
     flameMaterial.color.setRGB(0.62 * breath, 0.94 * breath, 0.78 * breath)
-    lanternGlow.material.opacity = 0.7 + 0.3 * breath
+    // It flares as it winds up.
+    lanternGlow.material.opacity = Math.min(1, 0.7 + 0.3 * breath + rear)
+    lanternGlow.scale.setScalar(1.6 * (1 + 0.8 * rear + 0.5 * slam))
   }
   update(0)
   setMotion(group, update)
@@ -4049,6 +4061,10 @@ export function buildCaretaker(seed = 0xca2e): CaretakerRig {
     update,
     setBurn(burn) {
       shroud.color.lerpColors(CARETAKER_BODY, CARETAKER_PALE, burn)
+    },
+    setStrike(windup, lunge) {
+      rear = Math.min(1, Math.max(0, windup))
+      slam = Math.sin(Math.PI * Math.min(1, Math.max(0, lunge)))
     },
   }
 }
@@ -4067,11 +4083,16 @@ export function buildCaretaker(seed = 0xca2e): CaretakerRig {
 // violet aura while a joint is working.
 export interface ShadowSpider {
   group: THREE.Group
+  // windup: how far through winding up to strike (0 to 1), rearing with
+  // its front legs raised; lunge: how far through the lunge (0 to 1), the
+  // front slammed down and forward. Both 0 when it is not striking.
   update(frame: {
     dt: number
     speed: number
     burn: number
     perception: boolean
+    windup?: number
+    lunge?: number
   }): void
 }
 
@@ -4230,7 +4251,14 @@ export function buildShadowSpider(height = 5.6, seed = 0x5b1d): ShadowSpider {
 
   let phase = range(rng, 0, Math.PI * 2)
   let shown = 0
-  const update: ShadowSpider['update'] = ({ dt, speed, burn, perception }) => {
+  const update: ShadowSpider['update'] = ({
+    dt,
+    speed,
+    burn,
+    perception,
+    windup = 0,
+    lunge = 0,
+  }) => {
     // A stride a little longer the faster it goes, and steps to match.
     const pace = Math.min(1, speed / 8)
     const stride = (0.08 + 0.12 * pace) * H
@@ -4238,14 +4266,26 @@ export function buildShadowSpider(height = 5.6, seed = 0x5b1d): ShadowSpider {
     // Standing still, it settles and its legs twitch.
     shown += (pace - shown) * Math.min(1, dt * 4)
     const lift = 0.1 * H * Math.max(0.15, shown)
-    body.position.y = bodyY + Math.sin(phase * 2) * 0.012 * H * shown
+    // Striking: rearing back over the windup, then the lunge throws the
+    // front down and forward and lets it settle.
+    const rear = Math.min(1, Math.max(0, windup))
+    const slam = Math.sin(Math.PI * Math.min(1, Math.max(0, lunge)))
+    body.position.y =
+      bodyY +
+      Math.sin(phase * 2) * 0.012 * H * shown +
+      0.1 * H * rear -
+      0.05 * H * slam
+    body.position.z = -0.06 * H * rear + 0.22 * H * slam
     body.rotation.z = Math.sin(phase) * 0.04 * shown
-    body.rotation.x = Math.sin(phase * 2 + 1) * 0.02 * shown
+    body.rotation.x =
+      Math.sin(phase * 2 + 1) * 0.02 * shown - 0.5 * rear + 0.3 * slam
     body.updateMatrix()
-    for (const leg of legs) {
+    for (const [i, leg] of legs.entries()) {
       const p = phase + leg.set * Math.PI
       const swing = Math.sin(p) * stride * Math.max(0.2, shown)
-      const up = Math.max(0, Math.cos(p)) * lift
+      // The front pair raised over the windup, then struck down ahead.
+      const front = i < 2
+      const up = Math.max(0, Math.cos(p)) * lift + (front ? 0.45 * H * rear : 0)
       hip
         .set(
           Math.sin(leg.hipTurn) * 0.08 * H,
@@ -4254,9 +4294,11 @@ export function buildShadowSpider(height = 5.6, seed = 0x5b1d): ShadowSpider {
         )
         .applyMatrix4(body.matrix)
       foot.set(
-        Math.sin(leg.turn) * leg.reach,
+        Math.sin(leg.turn) * leg.reach * (front ? 1 - 0.4 * rear : 1),
         up,
-        Math.cos(leg.turn) * leg.reach + swing
+        Math.cos(leg.turn) * leg.reach +
+          swing +
+          (front ? 0.12 * H * rear + 0.35 * H * slam : 0)
       )
       // The knee high over the leg, a third of the way out; the ankle low,
       // just short of the foot.
@@ -4286,6 +4328,43 @@ function sampleShadowSpider(): THREE.Group {
     spider.update({ dt, speed: 6, burn: 0, perception: false })
   })
   return spider.group
+}
+
+// Anything that strikes, over and over in Akashic: a stride, the windup,
+// the lunge, a rest.
+export const STRIKE_LOOP = { walk: 1.2, windup: 0.35, lunge: 0.3, rest: 0.6 }
+
+// Where a strike loop is at `t` seconds: the windup and lunge progress
+// (0 to 1), and how fast it walks.
+export function strikeLoopAt(t: number): {
+  speed: number
+  windup: number
+  lunge: number
+} {
+  const { walk, windup, lunge, rest } = STRIKE_LOOP
+  const at = t % (walk + windup + lunge + rest)
+  if (at < walk) return { speed: 6, windup: 0, lunge: 0 }
+  if (at < walk + windup) {
+    return { speed: 0, windup: (at - walk) / windup, lunge: 0 }
+  }
+  if (at < walk + windup + lunge) {
+    return { speed: 0, windup: 0, lunge: (at - walk - windup) / lunge }
+  }
+  return { speed: 0, windup: 0, lunge: 0 }
+}
+
+// A spider `height` tall striking (a spiderling is a small one).
+function sampleStrikingSpider(height: number): () => THREE.Group {
+  return () => {
+    const spider = buildShadowSpider(height)
+    let last = 0
+    setMotion(spider.group, (t) => {
+      const dt = Math.max(0, Math.min(0.1, t - last))
+      last = t
+      spider.update({ dt, burn: 0, perception: false, ...strikeLoopAt(t) })
+    })
+    return spider.group
+  }
 }
 
 // --- Shadow burst --------------------------------------------------------
@@ -5973,6 +6052,29 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     id: 'shadow-spider',
     label: 'Shadow spider',
     build: sampleShadowSpider,
+  },
+  {
+    id: 'shadow-spider-striking',
+    label: 'Shadow spider: winding up and lunging',
+    build: sampleStrikingSpider(5.6),
+  },
+  {
+    id: 'spiderling',
+    label: 'Spiderling: a burst spider breaks into these',
+    build: sampleStrikingSpider(5.6 * CONFIG.shadowmen.spiderling.scale),
+  },
+  {
+    id: 'caretaker-striking',
+    label: 'The Caretaker: winding up and lunging',
+    build: () => {
+      const rig = buildCaretaker()
+      setMotion(rig.group, (t) => {
+        const { windup, lunge } = strikeLoopAt(t)
+        rig.setStrike(windup, lunge)
+        rig.update(t)
+      })
+      return rig.group
+    },
   },
   { id: 'twenty', label: '$20 bill', build: () => buildTwenty() },
   {
