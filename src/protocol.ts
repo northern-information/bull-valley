@@ -13,12 +13,12 @@ import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
 import type { OutfitId } from './outfits.ts'
-import type { Burst, ShadeKind } from './shadowmen.ts'
+import type { Burst, ShadeKind, TruckPose } from './shadowmen.ts'
 import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 22
+export const PROTOCOL_VERSION = 23
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -320,6 +320,13 @@ export interface StateMessage extends PeerStateWire {
   type: 'state'
 }
 
+// Where Marx's truck stands and faces, as this client drives its leg: sent
+// on the state frame's cadence by a client near it, so the valley can aim
+// the headlights at the shadowmen (sharedworld.ts seeHeadlights).
+export interface HeadlightsMessage extends TruckPose {
+  type: 'headlights'
+}
+
 export interface PingMessage {
   type: 'ping'
   // The sender's clock when it sent the ping; echoed in the pong.
@@ -329,6 +336,7 @@ export interface PingMessage {
 export type ClientMessage =
   | HelloMessage
   | StateMessage
+  | HeadlightsMessage
   | PingMessage
   | BoardMessage
   | HopOutMessage
@@ -348,7 +356,10 @@ export type ClientMessage =
   | DevMessage
 
 // What a client may be refused for.
-export type NackRe = Exclude<ClientMessage['type'], 'hello' | 'state' | 'ping'>
+export type NackRe = Exclude<
+  ClientMessage['type'],
+  'hello' | 'state' | 'headlights' | 'ping'
+>
 
 // --- Server → client -------------------------------------------------------
 
@@ -877,6 +888,12 @@ export function parseClientMessage(text: string): ClientMessage | null {
     case 'state': {
       const state = parsePeerState(value)
       return state ? { type: 'state', ...state } : null
+    }
+    case 'headlights': {
+      const { x, y, z, heading } = value
+      if (!isCoord(x) || !isCoord(y) || !isCoord(z)) return null
+      if (typeof heading !== 'number' || !Number.isFinite(heading)) return null
+      return { type: 'headlights', x, y, z, heading }
     }
     case 'ping': {
       const { t } = value

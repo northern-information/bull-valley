@@ -1451,6 +1451,40 @@ describe('ValleyDO: the shadowmen', () => {
     return { v, a, b, dimes, grave, x, z }
   }
 
+  it("burns one in Marx's headlights, as a raider near the truck says where it stands", async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    // In the bed, light down, so the one placed stands to burn.
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ ...JSON.parse(state(500, 500)), riding: true })
+    )
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"calm"}')
+    // The truck 20 m east, facing north (-Z), the shadowman 15 m ahead.
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({
+        type: 'headlights',
+        x: 520,
+        y: 0,
+        z: 500,
+        heading: Math.PI,
+      })
+    )
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"shadowman","x":520,"z":485}'
+    )
+    for (let i = 0; i < 10; i++) v.tick()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const spilled = a
+      .frames()
+      .findLast((m): m is WorldMessage => m.type === 'world')
+    expect(spilled?.reason).toBe('spilled')
+    // The headlights credit no one with the burn.
+    expect(tasks(a)).toEqual([])
+  })
+
   it('leaves a named tombstone a step from where one burst', async () => {
     const { grave, x, z } = await burst()
     expect(grave.name.length).toBeGreaterThan(0)

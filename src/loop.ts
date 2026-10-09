@@ -22,7 +22,7 @@ import { settleTruck } from './marx.ts'
 import { inPortal } from './maze.ts'
 import { packItemOf } from './packgrid.ts'
 import { poseOf, stateChanged } from './presence.ts'
-import { aimHeightOf, beamFrom } from './shadowmen.ts'
+import { aimHeightOf, beamFrom, headlightBeam } from './shadowmen.ts'
 import { formatCash } from './store.ts'
 import { tripLevel } from './trip.ts'
 import { boardable, clockText, countdown, seatOf } from './worldsync.ts'
@@ -220,6 +220,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
                 crouching
               )
             : null,
+          lights: [headlightBeam(truck.headlights())],
         }
     const swarm = shadowmen.update({
       dt,
@@ -297,6 +298,14 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       if (stateChanged(s.lastSent, state)) {
         s.lastSent = state
         net.sendState(state)
+      }
+      // Near Marx's truck, where it stands, so the valley can aim its
+      // headlights at the shadowmen round us.
+      if (
+        truck.distanceTo(player.pos.x, player.pos.z) <
+        CONFIG.shadowmen.despawnRadius
+      ) {
+        net.sendHeadlights(truck.headlights())
       }
     }
 

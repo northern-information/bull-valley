@@ -227,6 +227,19 @@ export const CONFIG = {
     speed: 12, // m/s, about 27 mph — right for gravel-adjacent Bull Valley
     boardRange: 4,
     bedEye: 1.6, // camera height above the bed
+    // Marx's headlights burn shadowmen like a flashlight (shadowmen.ts
+    // headlightBeam): a cone from the lamps, `nose` metres ahead of the
+    // truck's middle and `height` up, `range` long and `halfAngle` radians
+    // off its axis. The valley aims it from where a client within `reach`
+    // of the truck last said it was, and forgets a word older than staleMs.
+    headlights: {
+      reach: 400,
+      range: 30,
+      halfAngle: 0.45,
+      height: 0.95,
+      nose: 2.95,
+      staleMs: 1000,
+    },
     wanderMetres: 6000, // how far the outbound joyride runs
     // Matthew Marx's day (marx.ts): he reads at the tailgate this long,
     // then does donuts this long, over and over. Climbing into the bed

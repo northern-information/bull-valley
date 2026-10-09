@@ -13,11 +13,13 @@ import {
   createValley,
   creditedWith,
   dailyFor,
+  headlightsAt,
   placeCaretaker,
   placeOf,
   placeShadowman,
   reduce,
   restoreValley,
+  seeHeadlights,
   shadowRaiders,
   stepShadows,
   toWire,
@@ -1153,6 +1155,41 @@ describe("rule 11: the shadowmen are the valley's", () => {
     // the burn (rule 16).
     expect(out?.message.bursts).toEqual([{ id, kind: 'man', x: 500, z: 490 }])
     expect(out?.burned).toEqual(['acct-b'])
+  })
+
+  it("burns in Marx's headlights while a raider near says where they are", () => {
+    const v = valley()
+    const shadows = createShadows()
+    // From the bed, light down, so the one placed stands still to burn.
+    const placed = [{ id: 'b', at: state({ riding: true }) }]
+    stepShadows(v, shadows, placed, mulberry32(1), { now: T0, dt: 0 })
+    shadows.field.shadowmen = []
+    // The truck 20 m east of the raider, facing north (-Z), on the one placed.
+    const pose = { x: 520, y: 0, z: 500, heading: Math.PI }
+    expect(seeHeadlights(shadows, state(), pose, T0)).toBe(true)
+    const id = shadows.field.nextId
+    placeShadowman(shadows, 520, 485)
+    const out = stepShadows(v, shadows, placed, mulberry32(1), {
+      now: T0,
+      dt: CONFIG.shadowmen.burnSeconds,
+    })
+    // It bursts, and no one is credited with it.
+    expect(out?.message.bursts).toEqual([{ id, kind: 'man', x: 520, z: 485 }])
+    expect(out?.burned).toEqual([])
+  })
+
+  it('takes the headlights only fresh, and only from a raider near them', () => {
+    const shadows = createShadows()
+    const pose = { x: 520, y: 0, z: 500, heading: Math.PI }
+    const { reach, staleMs } = CONFIG.truck.headlights
+    expect(seeHeadlights(shadows, null, pose, T0)).toBe(false)
+    expect(
+      seeHeadlights(shadows, state({ x: 520 + reach + 1 }), pose, T0)
+    ).toBe(false)
+    expect(headlightsAt(shadows, T0)).toEqual([])
+    expect(seeHeadlights(shadows, state(), pose, T0)).toBe(true)
+    expect(headlightsAt(shadows, T0 + staleMs)).toHaveLength(1)
+    expect(headlightsAt(shadows, T0 + staleMs + 1)).toEqual([])
   })
 
   it('sends a spider as one, its burn against its own longer time', () => {
