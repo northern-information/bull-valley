@@ -336,6 +336,11 @@ export const CONFIG = {
     connectTimeoutMs: 2000,
     // Clock-offset pings once online.
     pingMs: 10000,
+    // The valley lets go of a socket it has heard nothing from (no ping, no
+    // state) for this long, so a tab that vanished without closing leaves
+    // no figure standing. Generous: a background tab's timers can run as
+    // seldom as once a minute, and one let go too soon only reconnects.
+    silentMs: 120_000,
     // How long the "signed out" line sits in the chat log before the page
     // reloads to the sign-in card.
     signedOutReloadMs: 2500,

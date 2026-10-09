@@ -669,6 +669,37 @@ describe('ValleyDO', () => {
     )
   })
 
+  it('lets go of a socket silent too long, so a vanished tab leaves no ghost', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.now() })
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    const idA = idOf(a)
+    v.tick()
+    // B keeps pinging; A has gone quiet.
+    vi.advanceTimersByTime(CONFIG.net.silentMs - 1000)
+    await v.webSocketMessage(ws(b), JSON.stringify({ type: 'ping', t: 1 }))
+    v.tick()
+    expect(a.closeCode).toBeNull()
+    vi.advanceTimersByTime(2000)
+    await v.webSocketMessage(ws(b), JSON.stringify({ type: 'ping', t: 2 }))
+    const before = b.sent.length
+    v.tick()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    // Not a refusal: a client that was only asleep reconnects.
+    expect(a.closeCode).toBe(1001)
+    expect(b.closeCode).toBeNull()
+    expect(
+      b
+        .frames()
+        .slice(before)
+        .find((m) => m.type === 'peer-left')
+    ).toEqual({ type: 'peer-left', id: idA })
+  })
+
   it('retires the socket a reconnect names, so no one sees a ghost', async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A')
