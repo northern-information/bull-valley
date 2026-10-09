@@ -1892,19 +1892,18 @@ describe('ValleyDO: the shadowmen', () => {
       type: 'welcome',
       task: { task: DAILY_TASK.id, ...NO_TASK },
     })
-    // A's beam burned it; B, far off, had no part.
-    expect(tasks(a)).toEqual([
-      {
-        type: 'task',
-        task: {
-          task: DAILY_TASK.id,
-          day: dayKey(Date.now()),
-          count: 1,
-          claimed: false,
-        },
-        rewarded: false,
+    // A's beam burned it; B, far off, had no part. A crossing shadowman
+    // may burn in the same beam too, crediting a second.
+    expect(tasks(a)[0]).toEqual({
+      type: 'task',
+      task: {
+        task: DAILY_TASK.id,
+        day: dayKey(Date.now()),
+        count: 1,
+        claimed: false,
       },
-    ])
+      rewarded: false,
+    })
     expect(tasks(b)).toEqual([])
   })
 

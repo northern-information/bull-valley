@@ -334,7 +334,7 @@ export class ShadowCards {
       const age = this.lunges.get(s.id)
       const lunge = age === undefined ? 0 : age / LUNGE_SECONDS
       if (s.kind === 'spider' || s.kind === 'spiderling') {
-        this.drawSpider(s, perception, dt, lunge)
+        this.drawSpider(s, perception, dt, lunge, sightOf(s, player))
         continue
       }
       const card = this.cardFor(s.id)
@@ -362,7 +362,7 @@ export class ShadowCards {
       card.node.scale.set(strike.narrow, strike.tall, 1)
       card.body.color.lerpColors(BODY, BURNING, burn)
       card.node.rotation.y = facing
-      card.aura.material.opacity = perception ? 0.5 : 0
+      card.aura.material.opacity = perception ? 0.5 * sightOf(s, player) : 0
     }
     // A spider gone takes its body with it.
     for (const [id, spider] of this.spiders) {
@@ -390,7 +390,8 @@ export class ShadowCards {
     s: Shown,
     perception: boolean,
     dt: number,
-    lunge: number
+    lunge: number,
+    sight: number
   ): void {
     let spider = this.spiders.get(s.id)
     if (!spider) {
@@ -433,6 +434,7 @@ export class ShadowCards {
       perception,
       windup: s.windup ?? 0,
       lunge,
+      sight,
     })
   }
 
@@ -476,6 +478,14 @@ export class ShadowCards {
     this.cards.set(id, card)
     return card
   }
+}
+
+// How much of what ignores the fog shows of one this far off: all of it
+// near, none by the spawn ring (CONFIG.shadowmen.glowFade).
+function sightOf(s: XZ, player: XZ): number {
+  const { near, far } = CONFIG.shadowmen.glowFade
+  const d = Math.hypot(s.x - player.x, s.z - player.z)
+  return Math.min(1, Math.max(0, (far - d) / (far - near)))
 }
 
 // A spider's body is its own: every geometry and material goes with it.

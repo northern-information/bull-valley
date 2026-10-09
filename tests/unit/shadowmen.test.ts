@@ -69,6 +69,7 @@ const CFG: ShadowmenConfig = {
   strikeSeconds: 1.6,
   burnSeconds: 0.5,
   chestHeight: 1.4,
+  glowFade: { near: 200, far: 290 },
   tickHz: 10,
 }
 const METRES: Metres = { width: 15059, height: 15038 }
