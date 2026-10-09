@@ -97,7 +97,10 @@ async function boot() {
   // The raider's settings: the menu's Settings and the pause overlay share
   // them, and the music reads them every frame.
   const settings = createSettingsStore()
-  const titles = showTitles(audio, settings)
+  // The valley's music, from the main menu on. Under e2e the valley is
+  // never heard.
+  const music = import.meta.env.MODE === 'test' ? null : createMusic()
+  const titles = showTitles(audio, settings, music)
   hud.showIntro(true, false)
   hud.setBegin('loading')
 
@@ -267,8 +270,7 @@ async function boot() {
     corpses,
     graph,
     truck,
-    // Under e2e the valley is never drawn and never heard.
-    music: import.meta.env.MODE === 'test' ? null : createMusic(),
+    music,
     settings,
     truckContext,
     truckRoutes,

@@ -16,6 +16,7 @@ import { COLOPHON, LOGO, showSplash, skipTitles } from './splash.ts'
 import type { BvAudio } from './audio.ts'
 import type { CharacterPick } from './characters.ts'
 import type { Hotbar } from './hotbar.ts'
+import type { Music } from './musicrig.ts'
 import type { SettingsStore } from './settingsui.ts'
 
 // The username a dev build signs in under when ?skipSplash finds no session.
@@ -54,10 +55,11 @@ export function openAccount(): void {
 // sign-in, a pending signup, no username yet) goes straight back to the
 // account step.
 // The account's settings land in `settings` as soon as they are known, so
-// the menu's Settings shows them.
+// the menu's Settings shows them. The menu starts the valley's music.
 export async function showTitles(
   audio: BvAudio,
-  settings: SettingsStore
+  settings: SettingsStore,
+  music: Music | null
 ): Promise<Titles> {
   const { pathname, search, hash } = window.location
   const returned = authReturnOf(search, copy('auth.sign_in_failed'))
@@ -111,6 +113,7 @@ export async function showTitles(
     config: LOGO,
     downscale: CONFIG.render.downscale,
     settings,
+    music,
     onAccount: openAccount,
     onSignOut: signOutAndReload,
   })

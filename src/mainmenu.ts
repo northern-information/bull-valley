@@ -1,6 +1,7 @@
 // The main menu, straight after the colophon: the Bull Valley Shadow Wars
-// logo under its black fog (fog.ts), its cue playing once, and the options
-// below it. Signed out, the one option is Create Account, which hands the
+// logo centered under its black fog (fog.ts), its cue playing once, the
+// valley's music starting under it (musicrig.ts), the options in the lower
+// left and the credit in the lower right. Signed out, the one option is Create Account, which hands the
 // raider to the account step (signin.ts) beneath it. Signed in: Die (on to
 // the character select), Settings (the music volume, the account panel and
 // Sign Out), and
@@ -14,6 +15,7 @@ import { createFog } from './fog.ts'
 import { musicSlider } from './settingsui.ts'
 import type { BvAudio } from './audio.ts'
 import type { FogLayer } from './fog.ts'
+import type { Music } from './musicrig.ts'
 import type { SettingsStore } from './settingsui.ts'
 import type { CardConfig } from './splash.ts'
 
@@ -25,6 +27,8 @@ export interface MainMenuOptions {
   downscale: number
   // The raider's settings, shared with the pause overlay.
   settings: SettingsStore
+  // The valley's music, started with the menu; none under e2e.
+  music: Music | null
   // Account was pressed in Settings: the panel opens over the menu.
   onAccount: () => void
   // Sign Out was pressed in Settings.
@@ -52,6 +56,7 @@ export function mountMainMenu({
   config,
   downscale,
   settings,
+  music,
   onAccount,
   onSignOut,
 }: MainMenuOptions): MainMenu {
@@ -80,7 +85,8 @@ export function mountMainMenu({
         <button type="button" class="bv-btn" data-bv="menu-back">${copy('menu.back')}</button>
       </div>
       <p class="bv-menu-quit" data-face="quit" role="status">${copy('menu.quit_blocked')}</p>
-    </nav>`
+    </nav>
+    <p class="bv-menu-credit">${copy('menu.credit')}</p>`
   document.body.appendChild(root)
 
   const find = <T extends Element>(selector: string): T => {
@@ -108,6 +114,12 @@ export function mountMainMenu({
 
   let fog: FogLayer | null = null
   let shown = false
+  // The music's frames until the menu comes down; loop.ts drives it after.
+  let musicFrame = 0
+  const playMusic = (now: number) => {
+    music?.update({ now, started: true, setting: settings.current.music })
+    musicFrame = requestAnimationFrame(playMusic)
+  }
 
   type Face = 'out' | 'in' | 'settings' | 'quit'
   let face: Face = 'out'
@@ -135,6 +147,7 @@ export function mountMainMenu({
       holdMs: config.holdMs,
       fadeOutMs: config.fadeOutMs,
     })
+    if (music) musicFrame = requestAnimationFrame(playMusic)
     // On the next frame, so the fade starts from the black.
     requestAnimationFrame(() => root.classList.add('bv-menu--up'))
   }
@@ -207,6 +220,7 @@ export function mountMainMenu({
     choose,
     remove() {
       document.removeEventListener('keydown', onKey)
+      cancelAnimationFrame(musicFrame)
       fog?.stop()
       audio.stopOneShot(config.skipAudioFadeMs)
       root.remove()

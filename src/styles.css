@@ -1,9 +1,9 @@
 /* Bull Valley Shadow Wars HUD. Tokens (--fi-*, --bv-*) are declared by the
    host page (index.html). One face, one size, one ink: every HUD text is
    IBM Plex Mono at --bv-text-size in --bv-eggshell, set once on .bv-shell and
-   inherited. Role colors stay on borders, fills, and focus rings, except in
-   the chat log, where speech is inked by speaker. Dark field, hard edges,
-   offset shadows, 3px cyan focus. The pack grid and the hotbar are the
+   inherited. Role colors stay on borders and fills, except in the chat
+   log, where speech is inked by speaker. Dark field, hard edges, offset
+   shadows, and never a focus ring. The pack grid and the hotbar are the
    quieter exception: translucent black, thin cells, Citgo red on hover. */
 
 .bv-shell {
@@ -74,9 +74,11 @@
   color: inherit;
 }
 
-.bv-ui :focus-visible {
-  outline: 3px solid var(--fi-cyan);
-  outline-offset: 3px;
+/* No focus ring anywhere, on any layer: a focused button lifts as a
+   hovered one does instead (.bv-btn:focus-visible). */
+*:focus,
+*:focus-visible {
+  outline: none;
 }
 
 /* Loadout countdown: bare numbers, no box. The dark halo keeps it legible
@@ -496,12 +498,6 @@
   box-shadow: 3px 3px 0 var(--fi-black-shadow);
 }
 
-/* The field shows only while it has focus, and its red border says so;
-   the shell's focus ring round it would draw a second edge. */
-.bv-chat-input:focus-visible {
-  outline: none;
-}
-
 /* Geometrie: a red triangle in the lower right, a dim face whose corners
    light with their levels: the top with high, the lower right with
    stimulated, the lower left with drunk. Under the phone when it is
@@ -739,7 +735,6 @@
     .bv-bag-cell--selected
   ),
 .bv-hot-slot--target {
-  outline: none;
   border-color: var(--bv-citgo);
   box-shadow:
     inset 0 0 0 1px var(--bv-citgo),
@@ -1046,7 +1041,6 @@
 }
 
 .bv-book-row:is(:hover, :focus-visible) {
-  outline: none;
   background: rgb(255 255 255 / 6%);
 }
 
@@ -1362,7 +1356,8 @@
   visibility: hidden;
 }
 
-.bv-btn:hover {
+.bv-btn:hover,
+.bv-btn:focus-visible {
   transform: translate(-1px, -1px);
   box-shadow: 5px 5px 0 var(--fi-black-shadow);
 }
@@ -1434,19 +1429,21 @@
   user-select: none;
 }
 
-/* The main menu (mainmenu.ts): the logo under its fog, the options below.
-   A title card's black, grain and fog, mounted above the account step and
-   the select at their z-index, so hiding it uncovers them. The first
-   showing fades the logo and the options up over the logo's fadeInMs. */
+/* The main menu (mainmenu.ts): the logo under its fog, centered on its
+   own whatever the options show, the options in the lower left and the
+   credit in the lower right. A title card's black, grain and fog, mounted
+   above the account step and the select at their z-index, so hiding it
+   uncovers them. The first showing fades the logo and the options up over
+   the logo's fadeInMs. */
 .bv-menu {
+  --bv-menu-edge: 2.5rem;
+
   position: fixed;
   inset: 0;
   z-index: 9;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2.5rem;
   padding: 1rem;
   background: #000;
   font-family: var(--bv-font, 'IBM Plex Mono', ui-monospace, monospace);
@@ -1471,11 +1468,6 @@
   pointer-events: none;
 }
 
-.bv-menu :focus-visible {
-  outline: 3px solid var(--fi-cyan);
-  outline-offset: 3px;
-}
-
 .bv-menu-logo {
   max-height: 50vh;
   max-width: 80vw;
@@ -1485,8 +1477,23 @@
 }
 
 .bv-menu-ui {
-  position: relative;
+  position: absolute;
+  left: var(--bv-menu-edge);
+  bottom: var(--bv-menu-edge);
   z-index: 3;
+  max-width: calc(100vw - 2 * var(--bv-menu-edge));
+  opacity: 0;
+  transition: opacity calc(var(--bv-menu-fade, 2s) / 2) linear
+    calc(var(--bv-menu-fade, 2s) / 2);
+}
+
+.bv-menu-credit {
+  position: absolute;
+  right: var(--bv-menu-edge);
+  bottom: var(--bv-menu-edge);
+  z-index: 3;
+  margin: 0;
+  letter-spacing: 0.06em;
   opacity: 0;
   transition: opacity calc(var(--bv-menu-fade, 2s) / 2) linear
     calc(var(--bv-menu-fade, 2s) / 2);
@@ -1497,19 +1504,22 @@
   opacity: 1;
 }
 
+.bv-menu--up .bv-menu-credit {
+  opacity: 0.6;
+}
+
 .bv-menu-options {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
+  align-items: flex-start;
   gap: 0.8rem;
-  min-width: min(16rem, 100%);
 }
 
 .bv-menu-options h2 {
   margin: 0 0 0.5rem;
   font-size: inherit;
   letter-spacing: 0.28em;
-  text-align: center;
+  text-align: left;
   text-transform: uppercase;
   text-shadow: 4px 4px 0 var(--fi-black-shadow);
 }
@@ -1519,16 +1529,9 @@
   letter-spacing: 0.06em;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .bv-menu-logo,
-  .bv-menu-ui {
-    transition: none;
-  }
-}
-
 /* Character select. Lives on <body> like the title cards, mounted before
    them so they stack above it; it sits outside .bv-shell, so it sets its
-   own face, ink and focus ring. The turntable canvas fills it at the
+   own face and ink. The turntable canvas fills it at the
    game's downscale. Opacity is driven inline on choose. */
 .bv-select {
   position: fixed;
@@ -1542,11 +1545,6 @@
 
 .bv-select [hidden] {
   display: none !important;
-}
-
-.bv-select :focus-visible {
-  outline: 3px solid var(--fi-cyan);
-  outline-offset: 3px;
 }
 
 .bv-select-canvas {
@@ -1689,7 +1687,7 @@
 }
 
 /* The account step (signin.ts): black like the select, above it in DOM
-   order at the same z-index, with its own face, ink and focus ring. */
+   order at the same z-index, with its own face and ink. */
 .bv-account {
   position: fixed;
   inset: 0;
@@ -1706,11 +1704,6 @@
 
 .bv-account [hidden] {
   display: none !important;
-}
-
-.bv-account :focus-visible {
-  outline: 3px solid var(--fi-cyan);
-  outline-offset: 3px;
 }
 
 .bv-account-ui {
