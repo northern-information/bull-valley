@@ -20,8 +20,11 @@
 //   geometrie how far one use moves each geometrie level (geometrie.ts)
 //   tripSeconds  how long a drink's trails last (trip.ts); a cigarette's
 //             last while it smokes, the joint's while perception does
+//   heals     health points one use gives back (health.ts, sharedworld.ts
+//             rule 22): one pill of aspirin or ibuprofen gives one back
 //
-// Medicine cannot be used yet, so it has no used or empty text. Forage is
+// Medicine that does not heal cannot be used yet, so it has no used or
+// empty text. Forage is
 // never on a shelf, so it has no price or bought text; the valley hands it out
 // (sharedworld.ts rules 4 and 8).
 
@@ -361,30 +364,37 @@ export const ITEMS = [
     tripSeconds: 1,
     geometrie: { drunk: -0.1 },
   },
-  // Medicine, off the rack by the register. No effect yet: the player can
-  // buy and carry it, not take it. form is a MedicineForm (interfaces.ts),
-  // the shape assets.ts builds.
+  // Medicine, off the rack by the register. A pill of aspirin or
+  // ibuprofen gives a health point back; the rest has no effect yet: the
+  // player can buy and carry it, not take it. form is a MedicineForm
+  // (interfaces.ts), the shape assets.ts builds.
   {
     id: 'aspirin',
     category: 'medicine',
     label: copy('items.aspirin.label'),
     blurb: copy('items.aspirin.blurb'),
+    used: copy('items.aspirin.used'),
     bought: copy('items.aspirin.bought'),
+    empty: copy('items.aspirin.empty'),
     start: 0,
     price: 449,
     contents: 24,
     form: 'pills',
+    heals: 1,
   },
   {
     id: 'ibuprofen',
     category: 'medicine',
     label: copy('items.ibuprofen.label'),
     blurb: copy('items.ibuprofen.blurb'),
+    used: copy('items.ibuprofen.used'),
     bought: copy('items.ibuprofen.bought'),
+    empty: copy('items.ibuprofen.empty'),
     start: 0,
     price: 499,
     contents: 24,
     form: 'pills',
+    heals: 1,
   },
   {
     id: 'benadryl',
@@ -482,12 +492,21 @@ export function isMedicine(id: string): boolean {
 }
 
 // Whether the player can use a carried item (E in the pack, or its hotbar
-// key).
+// key): anything smoked or drunk, and medicine that heals.
 export function isUsable(id: string): boolean {
   const category = itemById(id)?.category
   return (
-    category === 'cigarette' || category === 'joint' || category === 'drink'
+    category === 'cigarette' ||
+    category === 'joint' ||
+    category === 'drink' ||
+    healsOf(id) > 0
   )
+}
+
+// Health points one use of `id` gives back (health.ts); 0 for anything
+// that does not heal.
+export function healsOf(id: string): number {
+  return itemById(id)?.heals ?? 0
 }
 
 // How long using one unit of `id` puts trails on the view (trip.ts): a

@@ -13,7 +13,9 @@ import {
   createValley,
   creditedWith,
   dailyFor,
+  forecourtMends,
   headlightsAt,
+  healthFor,
   placeCaretaker,
   placeOf,
   placeShadowman,
@@ -112,6 +114,10 @@ const join = (id: string): ValleyAction => ({
   maze: null,
   routes: ROUTES,
 })
+
+// A join as its own action shape, so a test can sign it in elsewhere.
+const joinAs = (id: string) =>
+  join(id) as Extract<ValleyAction, { type: 'join' }>
 
 const leaveAs = (
   id: string,
@@ -1112,19 +1118,32 @@ describe("rule 11: the shadowmen are the valley's", () => {
     expect(out?.struck).toEqual([])
   })
 
-  it('strikes the raider touched, then leaves them alone for the strike', () => {
+  it('strikes the raider touched, then leaves them alone for the grace', () => {
     const v = valley()
     const shadows = createShadows()
     const placed = [{ id: 'b', at: state() }]
     stepShadows(v, shadows, placed, mulberry32(1), { now: T0, dt: 0 })
     shadows.field.shadowmen = []
     placeShadowman(shadows, 500, 501)
-    const out = stepShadows(v, shadows, placed, mulberry32(1), {
+    const id = shadows.field.shadowmen[0].id
+    let out = stepShadows(v, shadows, placed, mulberry32(1), {
       now: T0,
       dt: 0.1,
     })
+    // It winds up first, and the frame says how far.
+    expect(out?.struck).toEqual([])
+    expect(out?.message.shadowmen[0].windup).toBeGreaterThan(0)
+    for (let i = 0; i < 10 && !out?.struck.length; i++) {
+      out = stepShadows(v, shadows, placed, mulberry32(1), {
+        now: T0,
+        dt: 0.1,
+      })
+    }
     expect(out?.struck).toEqual(['b'])
-    const until = T0 + CONFIG.shadowmen.strikeSeconds * 1000
+    expect(out?.message.lunges).toEqual([id])
+    // The one that struck stays.
+    expect(out?.message.shadowmen.map((s) => s.id)).toContain(id)
+    const until = T0 + CONFIG.health.graceSeconds * 1000
     expect(shadows.recovering).toEqual({ b: until })
     // Still coming to: not rushed.
     placeShadowman(shadows, 500, 501)
@@ -1309,18 +1328,20 @@ describe('rule 13: the Caretaker keeps the maze', () => {
       burn: 0,
       target: 'b',
     })
-    for (let i = 0; i < 10 && !out?.caught.length; i++) {
+    let wound = false
+    for (let i = 0; i < 20 && !out?.caught.length; i++) {
       shadows.field.shadowmen = []
       out = stepShadows(v, shadows, placed, mulberry32(1), {
         now: T0,
         dt: 0.1,
       })
+      wound ||= (out?.message.caretaker?.windup ?? 0) > 0
     }
+    expect(wound).toBe(true)
     expect(out?.caught).toEqual(['b'])
     expect(out?.struck).toEqual(['b'])
-    expect(shadows.recovering.b).toBe(
-      T0 + CONFIG.shadowmen.strikeSeconds * 1000
-    )
+    expect(out?.message.caretaker?.lunge).toBe(true)
+    expect(shadows.recovering.b).toBe(T0 + CONFIG.health.graceSeconds * 1000)
     // Coming to, they are let be.
     expect(shadows.caretaker.target).toBeNull()
   })
@@ -1399,5 +1420,116 @@ describe('rule 13: the Caretaker keeps the maze', () => {
     )
     expect(out?.message.caretaker).toBeNull()
     expect(out?.message.unmade).toBeNull()
+  })
+})
+
+describe('rule 22: health', () => {
+  const MAX = CONFIG.health.max
+  const at = (over: Partial<PeerStateWire> = {}): PeerStateWire => ({
+    x: 500,
+    y: 0,
+    z: 500,
+    yaw: 0,
+    pitch: 0,
+    pose: 'walk',
+    riding: false,
+    light: false,
+    ...over,
+  })
+
+  it('starts every account whole, and keeps none that is', () => {
+    const v = valleyWith(join('a'))
+    expect(healthFor(v.valley, 'acct-a')).toBe(MAX)
+    expect(v.valley.health).toEqual({})
+  })
+
+  it('takes a point a touch, and the last shatters and makes whole', () => {
+    const v = valleyWith(join('a'))
+    for (let left = MAX - 1; left > 0; left--) {
+      expect(v.step({ type: 'hit', id: 'a' }).health).toEqual({
+        account: 'acct-a',
+        points: left,
+      })
+      expect(healthFor(v.valley, 'acct-a')).toBe(left)
+    }
+    expect(v.step({ type: 'hit', id: 'a' }).health).toEqual({
+      account: 'acct-a',
+      points: 0,
+      fatal: true,
+    })
+    expect(healthFor(v.valley, 'acct-a')).toBe(MAX)
+    expect(v.valley.health).toEqual({})
+  })
+
+  it("is the account's: a second socket shares it, and a stranger has none", () => {
+    const second = { ...joinAs('b'), account: 'acct-a' }
+    const v = valleyWith(join('a'), second)
+    v.step({ type: 'hit', id: 'a' })
+    expect(v.step({ type: 'hit', id: 'b' }).health?.points).toBe(MAX - 2)
+    expect(v.step({ type: 'hit', id: 'nobody' }).health).toBeUndefined()
+    expect(v.step({ type: 'mend', id: 'nobody', by: 1 }).health).toBeUndefined()
+  })
+
+  it('gives points back, never past whole, and says nothing when whole', () => {
+    const v = valleyWith(join('a'))
+    expect(v.step({ type: 'mend', id: 'a', by: 1 }).health).toBeUndefined()
+    v.step({ type: 'set-health', id: 'a', points: 1 })
+    expect(v.step({ type: 'mend', id: 'a', by: 1 }).health?.points).toBe(2)
+    expect(v.step({ type: 'mend', id: 'a', by: 9 }).health?.points).toBe(MAX)
+    v.step({ type: 'set-health', id: 'a', points: 1 })
+    // A forecourt: whole at once.
+    expect(v.step({ type: 'mend', id: 'a' }).health?.points).toBe(MAX)
+  })
+
+  it('outlasts a reconnect and a world opened afresh', () => {
+    const v = valleyWith(join('a'))
+    v.step({ type: 'hit', id: 'a' })
+    v.step(leaveAs('a'))
+    v.step({ type: 'reset' })
+    const restored = restoreValley({ ...v.valley, world: null })
+    expect(healthFor(restored, 'acct-a')).toBe(MAX - 1)
+    // An older build's valley, kept before health was, is whole.
+    const { health: _, ...older } = createValley()
+    expect(healthFor(restoreValley(older), 'acct-a')).toBe(MAX)
+  })
+
+  it('makes whole on a forecourt, on foot, one socket an account', () => {
+    const second = { ...joinAs('b'), account: 'acct-a' }
+    const v = valleyWith(join('a'), second, join('c'))
+    const yard = at({ x: 10, z: 10 })
+    // Whole: nothing to mend.
+    expect(forecourtMends(v.valley, [{ id: 'a', at: yard }])).toEqual([])
+    v.step({ type: 'set-health', id: 'a', points: 1 })
+    v.step({ type: 'set-health', id: 'c', points: 1 })
+    expect(
+      forecourtMends(v.valley, [
+        { id: 'a', at: yard },
+        { id: 'b', at: yard },
+        { id: 'c', at: at() },
+      ])
+    ).toEqual(['a'])
+    expect(
+      forecourtMends(v.valley, [{ id: 'a', at: { ...yard, riding: true } }])
+    ).toEqual([])
+    expect(forecourtMends(v.valley, [{ id: 'a', at: null }])).toEqual([])
+  })
+
+  it('counts no spiderling toward the daily task', () => {
+    const v = valleyWith(join('a'))
+    const shadows = createShadows()
+    // From the bed, lit, so the brood holds still to burn.
+    const placed = [{ id: 'a', at: at({ light: true, riding: true }) }]
+    stepShadows(v.valley, shadows, placed, mulberry32(1), { now: T0, dt: 0 })
+    shadows.field.shadowmen = []
+    placeShadowman(shadows, 500, 490, 'spiderling')
+    const out = stepShadows(v.valley, shadows, placed, mulberry32(1), {
+      now: T0,
+      dt: CONFIG.shadowmen.spiderling.burnSeconds,
+    })
+    expect(out?.message.bursts.map((b) => b.kind)).toEqual(['spiderling'])
+    expect(out?.burned).toEqual([])
+    expect(out?.message.shadowmen.some((s) => s.kind === 'spiderling')).toBe(
+      false
+    )
   })
 })

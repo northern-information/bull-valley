@@ -114,12 +114,21 @@ describe('consume', () => {
     })
   })
 
+  it('swallows a pill that heals, with no trip', () => {
+    const result = consume({ ...pack, aspirin: 24 }, 'aspirin', NO_EFFECTS, 5)
+    expect(result).toEqual({
+      used: true,
+      inv: { ...pack, aspirin: 23 },
+      effects: NO_EFFECTS,
+    })
+  })
+
   it('says why nothing happened', () => {
     expect(consume({ ...pack, joints: 0 }, 'joints', NO_EFFECTS, 0)).toEqual({
       used: false,
       reason: 'empty',
     })
-    expect(consume(pack, 'aspirin', NO_EFFECTS, 0)).toEqual({
+    expect(consume(pack, 'benadryl', NO_EFFECTS, 0)).toEqual({
       used: false,
       reason: 'unusable',
     })

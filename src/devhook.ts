@@ -31,6 +31,7 @@ import type {
 import type { RoadGraph } from './roadgraph.ts'
 import type { SeasonProgress } from './season.ts'
 import type { ShadowCards } from './shadowcards.ts'
+import type { ShadeKind } from './shadowmen.ts'
 import type { Truck } from './truck.ts'
 import type { World } from './world.ts'
 import type * as THREE from 'three'
@@ -104,7 +105,8 @@ interface BvHook {
   // A shadowman standing still at world (x, z): the valley's, through a
   // dev frame, or this client's own, played alone.
   // A spider instead when `spider` (CONFIG.shadowmen.spider).
-  placeShadowman(x: number, z: number, spider?: boolean): void
+  // true for a spider, as it always was, or the kind.
+  placeShadowman(x: number, z: number, kind?: boolean | ShadeKind): void
   // The Caretaker moved to world (x, z), formed, its hunt forgotten,
   // floating still until it has someone to hunt: the valley's, through a
   // dev frame, or this client's own, played alone.
@@ -228,14 +230,17 @@ export function installDevHook(game: Game, actions: Actions): void {
       player.relocate(x, z)
     },
     toggleFlashlight: () => actions.toggleFlashlight(),
-    placeShadowman(x: number, z: number, spider = false) {
+    placeShadowman(x: number, z: number, kind: boolean | ShadeKind = 'man') {
+      // true is a spider, as it always was.
+      const shade: ShadeKind =
+        kind === true ? 'spider' : kind === false ? 'man' : kind
       if (net.online) {
         net.send(
-          spider
-            ? { type: 'dev', op: 'shadowman', x, z, spider: true }
-            : { type: 'dev', op: 'shadowman', x, z }
+          shade === 'man'
+            ? { type: 'dev', op: 'shadowman', x, z }
+            : { type: 'dev', op: 'shadowman', x, z, kind: shade }
         )
-      } else game.shadowmen.place(x, z, spider ? 'spider' : 'man')
+      } else game.shadowmen.place(x, z, shade)
     },
     placeCaretaker(x: number, z: number) {
       if (net.online) net.send({ type: 'dev', op: 'caretaker', x, z })

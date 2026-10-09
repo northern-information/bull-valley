@@ -34,9 +34,15 @@ export function centsOf(kind: string): number {
   return CENTS[kind] ?? 0
 }
 
-// How many dimes one burst shadowman leaves: min to max, evenly.
-export function dimesFor(rng: Rng, cfg = CONFIG): number {
-  const { min, max } = cfg.shadowmen.dimes
+// How many dimes one burst shadowman (or spiderling, from its own fewer)
+// leaves: min to max, evenly.
+export function dimesFor(
+  rng: Rng,
+  cfg = CONFIG,
+  kind: ShadeKind = 'man'
+): number {
+  const { min, max } =
+    kind === 'spiderling' ? cfg.shadowmen.spiderling.dimes : cfg.shadowmen.dimes
   return min + Math.floor(rng() * (max - min + 1))
 }
 
@@ -54,8 +60,8 @@ export interface Spill extends XZ {
 // metres.
 const BAR_SPREAD = 0.25
 
-// What one step leaves lying: dimes where each shadowman burst, a $20 bill
-// where each spider did, and the Caretaker's gold bullion where it was
+// What one step leaves lying: dimes where each shadowman (or spiderling)
+// burst, a $20 bill where each spider did, and the Caretaker's gold bullion where it was
 // unmade: its bars, one troy ounce each, as drops of their own, side by
 // side.
 export function spillsOf(
@@ -67,7 +73,7 @@ export function spillsOf(
   const spills: Spill[] = bursts.map(({ x, z, kind }) =>
     kind === 'spider'
       ? { x, z, kind: TWENTY, count: 1 }
-      : { x, z, kind: DIMES, count: dimesFor(rng, cfg) }
+      : { x, z, kind: DIMES, count: dimesFor(rng, cfg, kind) }
   )
   if (unmade) {
     const bars = cfg.caretaker.bullion

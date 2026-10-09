@@ -58,6 +58,10 @@ export function consume(
   }
   const result = useItem(inv, kind)
   if (!result.used) return { used: false, reason: 'empty' }
+  // Medicine is swallowed, not smoked or drunk: no trip.
+  if (item.category === 'medicine') {
+    return { used: true, inv: result.inv, effects }
+  }
   const trip = {
     start: time,
     end: Math.max(effects.trip.end, time + tripSecondsOf(kind)),
