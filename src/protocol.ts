@@ -40,6 +40,10 @@ export const CHAT_MAX = 120
 // More pickups than any build places; a longer hello is refused.
 export const PICKUPS_MAX = 1000
 
+// More Book of Shadows entries than one discover frame may name (book.ts
+// has fewer in all).
+export const DISCOVER_MAX = 128
+
 // More Citgo stations than any build places.
 const STATIONS_MAX = 64
 
@@ -277,6 +281,16 @@ export interface TradeMessage {
   offer: string
 }
 
+// Entries of the Book of Shadows this raider has just come across
+// (book.ts ids: a place in reach, a shadow in sight, one of the folk
+// spoken to, an item in the pack). The valley writes those the account had
+// not found and answers with a BookMessage naming them; which ids are real
+// is its to check.
+export interface DiscoverMessage {
+  type: 'discover'
+  entries: string[]
+}
+
 // Dev-server only: the Worker stamps the socket, and production ignores
 // these. hurry brings the truck's next change to `seconds` from now;
 // reset opens the world afresh.
@@ -342,6 +356,7 @@ export type ClientMessage =
   | LootMessage
   | StowMessage
   | TradeMessage
+  | DiscoverMessage
   | ChatMessage
   | AppearanceMessage
   | RenameMessage
@@ -374,6 +389,8 @@ export interface WelcomeMessage {
   corpses: number[]
   // The account's progress through the season (season.ts).
   season: SeasonWire
+  // The Book of Shadows entries the account has found (book.ts ids).
+  book: string[]
   // The account's progress on the daily task (dailytask.ts).
   task: TaskWire
 }
@@ -394,6 +411,13 @@ export interface SeasonMessage {
   type: 'season'
   season: SeasonWire
   rewarded: boolean
+}
+
+// Entries newly written in the account's Book of Shadows (sharedworld.ts
+// rule 20), in the order found. Sent to every socket signed in to it.
+export interface BookMessage {
+  type: 'book'
+  found: string[]
 }
 
 // An account's progress on the daily task (sharedworld.ts rule 16): the
@@ -576,6 +600,7 @@ export type ServerMessage =
   | ShadowmenMessage
   | StruckMessage
   | SeasonMessage
+  | BookMessage
   | TaskMessage
 
 // Application close codes (the 4xxx range is ours per RFC 6455). The client
@@ -836,6 +861,12 @@ export function parseClientMessage(text: string): ClientMessage | null {
       // Which offers there are is the valley's to check.
       const { offer } = value
       return isKind(offer) ? { type: 'trade', offer } : null
+    }
+    case 'discover': {
+      const { entries } = value
+      if (!Array.isArray(entries) || entries.length < 1) return null
+      if (entries.length > DISCOVER_MAX || !entries.every(isKind)) return null
+      return { type: 'discover', entries }
     }
     case 'call': {
       const from = parseXZ(value.from)

@@ -100,6 +100,12 @@
 //    whose last state frame put them at a station can move what their pack
 //    holds into it, or back (Reduced.stash); the valley moves it only when
 //    the side it comes out of holds it.
+// 20. The Book of Shadows (book.ts): every entry a raider comes across (a
+//    place in reach, a shadow in sight, one of the folk spoken to, an item
+//    in the pack) is written in the account's book once, at the first
+//    time; an ask names only what the raider met, and only the real
+//    entries the account had not found are news (book.ts newlyFound).
+//    The book is the account's, kept by the valley in D1.
 
 import { caretakerAt, createCaretaker, stepCaretaker } from './caretaker.ts'
 import { CONFIG } from './config.ts'

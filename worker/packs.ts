@@ -4,6 +4,7 @@
 // the D1 store in d1packs.ts. The rules of what goes in and out are
 // src/sharedworld.ts's (rules 7, 10, 16, 18 and 19).
 
+import { newlyFound } from '../src/book.ts'
 import { CONFIG } from '../src/config.ts'
 import { toCosmetics } from '../src/cosmetics.ts'
 import { NO_TASK } from '../src/dailytask.ts'
@@ -75,6 +76,16 @@ export interface PackStore {
     progress: SeasonProgress,
     reward: SeasonReward | null
   ): Promise<void>
+  // The Book of Shadows entries the account has found (book.ts), in the
+  // order found.
+  book(accountId: string): Promise<string[]>
+  // Writes the entries the account had not found (book.ts newlyFound), at
+  // `now`, and returns them; known and unreal ones are left out.
+  discover(
+    accountId: string,
+    entries: readonly string[],
+    now: number
+  ): Promise<string[]>
   // The account's progress on daily task `task` as last written, on
   // whatever day that was (dailytask.ts onDay reads it for today).
   task(accountId: string, task: string): Promise<TaskProgress>
@@ -101,6 +112,8 @@ export class MemoryPackStore implements PackStore {
   readonly stashes = new Map<string, Map<string, number>>()
   // `${account}/${season}` -> progress.
   readonly seasons = new Map<string, SeasonProgress>()
+  // account -> the entries found, in order.
+  readonly books = new Map<string, string[]>()
   // `${account}/${task}` -> progress.
   readonly tasks = new Map<string, TaskProgress>()
 
@@ -218,6 +231,17 @@ export class MemoryPackStore implements PackStore {
       (this.wallets.get(accountId) ?? 0) + reward.cash
     )
     await this.change(accountId, reward.kind, reward.count)
+  }
+
+  book(accountId: string): Promise<string[]> {
+    return Promise.resolve([...(this.books.get(accountId) ?? [])])
+  }
+
+  discover(accountId: string, entries: readonly string[]): Promise<string[]> {
+    const found = this.books.get(accountId) ?? []
+    const fresh = newlyFound(new Set(found), entries)
+    this.books.set(accountId, [...found, ...fresh])
+    return Promise.resolve(fresh)
   }
 
   task(accountId: string, task: string): Promise<TaskProgress> {
