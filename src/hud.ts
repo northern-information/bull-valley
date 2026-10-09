@@ -388,6 +388,8 @@ export class Hud {
       ' ',
       text('kbd', PACK.nextTab.key),
       ` ${copy(PACK.nextTab.labelKey)} `,
+      text('kbd', PACK.clearSlot.key),
+      ` ${copy(PACK.clearSlot.labelKey)} `,
       text('kbd', PACK.close.key),
       ` ${copy(PACK.close.labelKey)}`
     )

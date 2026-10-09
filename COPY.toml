@@ -447,6 +447,7 @@ chat_scroll_down = { text = "Scroll Down", by = "ai" }
 pause = { text = "Pause", by = "ai" }
 use = { text = "Use", by = "ai" }
 assign = { text = "Assign", by = "ai" }
+clear_slot = { text = "Clear Slot", by = "ai" }
 drop = { text = "Drop One", by = "ai" }
 drop_all = { text = "Drop All", by = "ai" }
 stow = { text = "Stow One", by = "ai" }

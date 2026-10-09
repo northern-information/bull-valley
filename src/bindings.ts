@@ -76,6 +76,9 @@ export const CHAT = {
 export const PACK = {
   use: { codes: ['KeyE', 'Enter'], key: 'E', labelKey: 'keys.use' },
   assign: { codes: HOTBAR_CODES, key: '1–9', labelKey: 'keys.assign' },
+  // The same keys with nothing under the cursor empty that slot (input.ts
+  // reads the hover).
+  clearSlot: { codes: [], key: '1–9', labelKey: 'keys.clear_slot' },
   // One of the item; with Shift, the whole stack (input.ts reads Shift).
   drop: { codes: ['KeyX'], key: 'X', labelKey: 'keys.drop' },
   dropAll: { codes: [], key: 'Shift+X', labelKey: 'keys.drop_all' },

@@ -75,4 +75,21 @@ test('Tab opens the pack, a number key assigns, the hotbar uses and is kept', as
     .toBe(true)
   await expect.poll(async () => (await hotbar())?.[2]).toBe('marlboro')
   await expect(slots).toHaveCount(1)
+
+  // In the pack, 3 over nothing empties the slot, as for a kind run out.
+  await page.locator('[data-bv="begin"]').click()
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.player.locked))
+    .toBe(true)
+  await page.keyboard.press('Tab')
+  await expect(open).toHaveCount(1)
+  await page.mouse.move(2, 2)
+  await expect(card).toBeHidden()
+  const cleared = page.waitForResponse(
+    (res) => res.url().endsWith('/auth/hotbar') && res.ok()
+  )
+  await page.keyboard.press('Digit3')
+  await cleared
+  await expect.poll(async () => (await hotbar())?.[2]).toBeNull()
+  await expect(slots).toHaveCount(0)
 })

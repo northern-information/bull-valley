@@ -142,7 +142,9 @@ export function wireKeys(
         return
       case 'assign': {
         const slot = hotbarSlot(e.code)
-        if (item && slot !== null) actions.assignSlot(slot, item.kind)
+        if (slot === null) return
+        if (item) actions.assignSlot(slot, item.kind)
+        else actions.clearSlot(slot)
         return
       }
       case 'drop':

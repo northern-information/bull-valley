@@ -35,7 +35,7 @@ import { dose } from './geometrie.ts'
 import { burialsOf, bury } from './graves.ts'
 import { openGronDialog } from './grondialog.ts'
 import { hit, isWhole, MAX_HEALTH, mend } from './health.ts'
-import { assign } from './hotbar.ts'
+import { assign, clearSlot as clearHotbarSlot } from './hotbar.ts'
 import { pickupLabel } from './interactions.ts'
 import { addItem, consume } from './inventory.ts'
 import { getItem, healsOf, itemById } from './items.ts'
@@ -62,6 +62,7 @@ import type { ChatCommand } from './chat.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { EmoteId } from './emotes.ts'
 import type { Game } from './game.ts'
+import type { Hotbar } from './hotbar.ts'
 import type { DailyStatus, ShelfSpot } from './interactions.ts'
 import type { Leg, TruckState } from './marx.ts'
 import type { NpcId } from './npcs.ts'
@@ -104,6 +105,9 @@ export interface Actions {
   // A number key over an item in the pack puts it on that slot, or takes
   // it off when it is there already.
   assignSlot(slot: number, kind: string): void
+  // A number key over nothing in the pack empties that slot, as for a kind
+  // the pack has run out of.
+  clearSlot(slot: number): void
   // The truck drives `leg` (marx.ts): the valley's, or our own alone.
   followLeg(leg: Leg): void
   // Played alone, the truck as it now stands: its leg followed when it
@@ -293,8 +297,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     }
   }
 
-  const assignSlot = (slot: number, kind: string) => {
-    const bar = assign(s.hotbar, slot, kind)
+  const keepHotbar = (bar: Hotbar) => {
+    if (bar === s.hotbar) return
     s.hotbar = bar
     s.hotbarSaved = s.hotbarSaved
       .then(() => saveHotbar(bar))
@@ -302,6 +306,12 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         if (!saved.ok) hud.tell(saved.error)
       })
   }
+
+  const assignSlot = (slot: number, kind: string) =>
+    keepHotbar(assign(s.hotbar, slot, kind))
+
+  const clearSlot = (slot: number) =>
+    keepHotbar(clearHotbarSlot(s.hotbar, slot))
 
   // Played alone, this raider's id in the truck's bed.
   const ALONE = 'me'
@@ -1036,6 +1046,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     bookRefused,
     setBook,
     assignSlot,
+    clearSlot,
     followLeg,
     setAloneTruck,
     hopOut,

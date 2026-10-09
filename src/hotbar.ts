@@ -28,6 +28,13 @@ export function assign(bar: Hotbar, slot: number, kind: string): Hotbar {
   })
 }
 
+// Empties slot, whatever it held: the way off the bar for a kind the pack
+// has run out of, which the grid no longer shows to assign over.
+export function clearSlot(bar: Hotbar, slot: number): Hotbar {
+  if (slot < 0 || slot >= HOTBAR_SLOTS || bar[slot] === null) return bar
+  return bar.map((held, i) => (i === slot ? null : held))
+}
+
 // The assigned slots in number order, as the bar shows them.
 export function shownSlots(bar: Hotbar): { slot: number; kind: string }[] {
   const shown: { slot: number; kind: string }[] = []
