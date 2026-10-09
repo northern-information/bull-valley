@@ -468,6 +468,33 @@ export const CONFIG = {
     // Trees keep this far off its middle.
     treeClear: 6,
   },
+  lonePine: {
+    // The lone pine among the dishes behind the spawn Citgo, station-local
+    // like the dishes: between the second and third rows, a little off the
+    // middle. No other tree grows inside the array. Its shape is a scatter
+    // tree's (world.ts buildTrees).
+    at: { x: -44.65, z: -12.47 },
+    trunkH: 3.9,
+    canopyH: 7.5,
+    canopyR: 2.6,
+    tint: 0.4,
+    // Spunky's grave at its foot, `offset` metres off the trunk toward the
+    // station and facing it, blocking like a small post. The carving is
+    // trade dress (graveart.ts), so it lives here and not in COPY.toml.
+    grave: {
+      heading: 'HERE LIES',
+      name: 'SPUNKY',
+      seed: 0x5b0c4e,
+      offset: 2.2,
+      radius: 0.35,
+      // Cabbages keep this far off the stone and its mound.
+      clear: 1.6,
+    },
+    // The cabbage patch round it (cabbages.ts placeCabbagesAround):
+    // between `near` and `far` metres off the trunk, each at least `clear`
+    // off a dish pedestal, past its pad.
+    cabbages: { count: 14, near: 1.4, far: 5.5, clear: 2.4 },
+  },
   dishes: {
     // The dish array behind the spawn Citgo (assets.ts DISH), station-local
     // like the bush: `rows` rows back from the store's back wall, the first

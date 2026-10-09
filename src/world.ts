@@ -13,6 +13,7 @@ import {
   buildPortal,
   buildShelfDisplay,
   buildStandDressing,
+  buildTombstone,
   buildWreck,
   CANOPY,
   castShadows,
@@ -47,7 +48,9 @@ import {
 import {
   CABBAGE_SEED,
   DISH_CABBAGE_SEED,
+  PINE_CABBAGE_SEED,
   placeCabbages,
+  placeCabbagesAround,
   placeDishCabbages,
 } from './cabbages.ts'
 import { CONFIG } from './config.ts'
@@ -94,6 +97,7 @@ import {
   storeBase,
   storeCenter,
   storeWalls,
+  toLocal,
   toWorld,
   worldFacings,
 } from './store.ts'
@@ -712,13 +716,24 @@ function woodsNoise(u: number, v: number): number {
   return value(u * 13, v * 13) * 0.65 + value(u * 31 + 7, v * 31 + 3) * 0.35
 }
 
+// A tree placed by hand rather than scattered: where it stands and its
+// shape, as buildTrees draws a scatter tree.
+interface PlantedTree extends XZ {
+  trunkH: number
+  canopyH: number
+  canopyR: number
+  yaw: number
+  tint: number
+}
+
 function buildTrees(
   geo: Pick<Geo, 'reserves'>,
   metres: Metres,
   heightAt: HeightAt,
   mask: OccupancyMask,
   rng: Rng,
-  keepOut: (x: number, z: number) => boolean
+  keepOut: (x: number, z: number) => boolean,
+  planted: readonly PlantedTree[] = []
 ): THREE.Group {
   const candidates: UnitPoint[] = []
   // Caps scaled for the ~15 km frame (2.6x the original survey's area).
@@ -759,6 +774,8 @@ function buildTrees(
     }
     return keepOut(x, z) ? [] : [tree]
   })
+  // The trees placed by hand (the lone pine) draw nothing from the rng.
+  trees.push(...planted)
   const count = trees.length
   const parts = treeParts()
   const trunks = new THREE.InstancedMesh(
@@ -1596,6 +1613,7 @@ function buildPickups(
   heightAt: HeightAt,
   fuelPoints: readonly FuelPoint[],
   dishSpots: readonly XZ[],
+  pine: { at: XZ; grave: XZ } | null,
   rng: Rng
 ): { group: THREE.Group; pickups: Pickup[] } {
   const group = new THREE.Group()
@@ -1667,6 +1685,23 @@ function buildPickups(
   )) {
     place(x, z, 'cabbage', 1)
   }
+  // And a patch round the lone pine among them, clear of the pedestals and
+  // Spunky's grave.
+  if (pine) {
+    const { cabbages: patch, grave } = CONFIG.lonePine
+    const avoid = [
+      ...dishSpots.map((d) => ({ ...d, r: patch.clear })),
+      { ...pine.grave, r: grave.clear },
+    ]
+    for (const { x, z } of placeCabbagesAround(
+      pine.at,
+      mulberry32(PINE_CABBAGE_SEED),
+      patch,
+      avoid
+    )) {
+      place(x, z, 'cabbage', 1)
+    }
+  }
   return { group, pickups }
 }
 
@@ -1717,6 +1752,38 @@ function dishSpotsOf(station: StoreOrigin): (XZ & { yaw: number })[] {
     }
   }
   return spots
+}
+
+// Whether a world point stands inside the dish array behind a station
+// (CONFIG.dishes), out to its outermost pedestals.
+function insideDishArray(station: StoreOrigin, x: number, z: number): boolean {
+  const { rows, cols, first, spacing } = CONFIG.dishes
+  const local = toLocal(station, x, z)
+  return (
+    local.x <= first &&
+    local.x >= first - (rows - 1) * spacing &&
+    Math.abs(local.z) <= ((cols - 1) / 2) * spacing
+  )
+}
+
+// The lone pine among the dishes (CONFIG.lonePine), as buildTrees draws
+// it, and Spunky's grave at its foot, toward the station.
+function lonePineOf(station: StoreOrigin): {
+  at: XZ
+  tree: PlantedTree
+  grave: XZ
+} {
+  const { at, trunkH, canopyH, canopyR, tint, grave } = CONFIG.lonePine
+  const [x, , z] = toWorld(station, [at.x, 0, at.z])
+  const toStation = Math.hypot(station.x - x, station.z - z)
+  return {
+    at: { x, z },
+    tree: { x, z, trunkH, canopyH, canopyR, yaw: 0, tint },
+    grave: {
+      x: x + ((station.x - x) / toStation) * grave.offset,
+      z: z + ((station.z - z) / toStation) * grave.offset,
+    },
+  }
 }
 
 // Trees stand at least this far, in metres, off a store's walls, so a
@@ -2017,6 +2084,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     ? toWorld(spawnStation, [CONFIG.wreck.at.x, 0, CONFIG.wreck.at.z])
     : null
   const dishSpots = spawnStation ? dishSpotsOf(spawnStation) : []
+  const pine = spawnStation ? lonePineOf(spawnStation) : null
   group.add(
     buildTrees(
       geo,
@@ -2036,8 +2104,11 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
         dishSpots.some(
           (d) => Math.hypot(x - d.x, z - d.z) < CONFIG.dishes.treeClear
         ) ||
+        // The lone pine stands alone among the dishes.
+        (spawnStation ? insideDishArray(spawnStation, x, z) : false) ||
         // No tree grows through a store or its back room.
-        fuel.points.some((p) => insideStore(p, x, z, STORE_TREE_CLEAR))
+        fuel.points.some((p) => insideStore(p, x, z, STORE_TREE_CLEAR)),
+      pine ? [pine.tree] : []
     )
   )
   // The roadside draws from its own seed, so retuning the poles never moves
@@ -2066,6 +2137,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     ground.at,
     fuel.points,
     dishSpots,
+    pine,
     rng
   )
   group.add(pickupSet.group)
@@ -2234,6 +2306,20 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     dishes = buildDishArray(spots)
     group.add(dishes.group)
     for (const d of spots) walls.addWall(d, d, CONFIG.dishes.radius)
+  }
+
+  // Spunky's grave at the lone pine's foot, facing the station, blocking
+  // like a small post. Scenery: it is no shadowman's, so it is the world's
+  // and not the valley's (graves.ts).
+  if (pine && spawnStation) {
+    const { heading, name, seed, radius } = CONFIG.lonePine.grave
+    const stone = buildTombstone(name, seed, heading)
+    const { x, z } = pine.grave
+    stone.group.position.set(x, ground.at(x, z), z)
+    // The stone's face looks down +Z: rotation.y turns +Z to (sin, cos).
+    stone.group.rotation.y = Math.atan2(spawnStation.x - x, spawnStation.z - z)
+    group.add(stone.group)
+    walls.addWall(pine.grave, pine.grave, radius)
   }
 
   // Moab Coldë and his horse under every station's sign (CONFIG.moab,

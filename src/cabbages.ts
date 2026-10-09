@@ -29,6 +29,8 @@ export const CABBAGE_SEED = 0xcabba6e
 // The cabbages under the dishes draw from their own seed, so moving the
 // array never reshuffles the wild ones.
 export const DISH_CABBAGE_SEED = 0xd15ca6e
+// And the patch under the lone pine among them, its own seed again.
+export const PINE_CABBAGE_SEED = 0x5b0c4ab
 
 // geo: the survey (wetland rings, reserves). patch: the cabbage patch in
 // unit coords { u, v }. metres: geo.metres, for the cluster radius.
@@ -95,6 +97,29 @@ export function placeDishCabbages(
       x: dishes[i].x + Math.cos(angle) * r,
       z: dishes[i].z + Math.sin(angle) * r,
     })
+  }
+  return spots
+}
+
+// A patch of cabbages round `centre` (the lone pine among the dishes,
+// CONFIG.lonePine.cabbages): `count` of them between `near` and `far`
+// metres off it, none within its own `r` of anything in `avoid` (the dish
+// pedestals, Spunky's grave). Fewer if the room runs out.
+export function placeCabbagesAround(
+  centre: XZ,
+  rng: Rng,
+  { count, near, far }: { count: number; near: number; far: number },
+  avoid: readonly (XZ & { r: number })[] = []
+): XZ[] {
+  const spots: XZ[] = []
+  let attempts = 0
+  while (spots.length < count && attempts++ < count * 40) {
+    const angle = rng() * Math.PI * 2
+    const r = range(rng, near, far)
+    const x = centre.x + Math.cos(angle) * r
+    const z = centre.z + Math.sin(angle) * r
+    if (avoid.some((a) => Math.hypot(x - a.x, z - a.z) < a.r)) continue
+    spots.push({ x, z })
   }
   return spots
 }
