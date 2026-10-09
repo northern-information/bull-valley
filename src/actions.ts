@@ -378,7 +378,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     by: 'shadowman' | 'caretaker' = 'shadowman',
     health?: number
   ) => {
-    if (s.aboard) return
+    if (s.aboard) {
+      // Touched as we climbed in: the valley's count stands all the same.
+      if (health !== undefined) s.health = health > 0 ? health : MAX_HEALTH
+      return
+    }
     const now = performance.now()
     s.emoting = null
     s.health = health ?? hit(s.health).points
