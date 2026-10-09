@@ -391,6 +391,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     s.graceUntil = now + CONFIG.health.graceSeconds * 1000
     s.hurtAt = now
     hud.hurt()
+    game.sfx?.play(s.health > 0 ? 'hit' : 'shatter')
     if (s.health > 0) {
       hud.tell(copy(by === 'caretaker' ? 'log.hit_caretaker' : 'log.hit'))
       return
@@ -815,6 +816,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // the valley hears it with the next state frame.
   const toggleFlashlight = () => {
     s.flashlight = { ...s.flashlight, up: !s.flashlight.up }
+    game.sfx?.play(s.flashlight.up ? 'flashlight-on' : 'flashlight-off')
   }
 
   const applyTake = (pickup: Pickup) => {

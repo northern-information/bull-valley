@@ -424,6 +424,7 @@ sign_out = { text = "Sign Out", by = "ai" }
 back = { text = "Back", by = "ai" }
 music = { text = "Music", by = "ai" }
 music_level = { text = "{percent}%", by = "ai" }
+sfx = { text = "Sounds", by = "ai" }
 quit_blocked = { text = "The valley lets you go. Close this tab.", by = "ai" }
 
 # Key labels: what each key does, in the intro controls table and the
@@ -485,7 +486,7 @@ look_rule = { text = "Pick a character and a finish from the select", by = "ai" 
 look_failed = { text = "Your character could not be saved", by = "ai" }
 hotbar_rule = { text = "Each number key holds one item from your pack, or nothing", by = "ai" }
 hotbar_failed = { text = "Your hotbar could not be saved", by = "ai" }
-settings_rule = { text = "The music volume is a whole percent from 0 to 100", by = "ai" }
+settings_rule = { text = "Each volume is a whole percent from 0 to 100", by = "ai" }
 settings_failed = { text = "Your settings could not be saved", by = "ai" }
 account_not_found = { text = "Account not found", by = "ai" }
 unlink_last = { text = "You cannot unlink your only way to sign in", by = "ai" }
