@@ -13,6 +13,7 @@ import { onDay, shownCount } from './dailytask.ts'
 import { EMOTES, holds } from './emotes.ts'
 import { levelsAt } from './geometrie.ts'
 import { ease, stepHand, useLift, useSeconds } from './hands.ts'
+import { shakeAt } from './health.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
 import {
   dailyStatus,
@@ -24,7 +25,7 @@ import { settleTruck } from './marx.ts'
 import { inPortal } from './maze.ts'
 import { packItemOf } from './packgrid.ts'
 import { poseOf, stateChanged } from './presence.ts'
-import { aimHeightOf, beamFrom, headlightBeam } from './shadowmen.ts'
+import { aimHeightOf, beamFrom, headlightBeam, inHaven } from './shadowmen.ts'
 import { formatCash } from './store.ts'
 import { tripLevel } from './trip.ts'
 import { boardable, clockText, countdown, seatOf } from './worldsync.ts'
@@ -229,7 +230,11 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     const alone = net.online
       ? null
       : {
-          vulnerable: s.started && !s.aboard && now >= s.strikeUntil,
+          vulnerable:
+            s.started &&
+            !s.aboard &&
+            now >= s.strikeUntil &&
+            now >= s.graceUntil,
           // The same beam the valley would aim from this raider's frame.
           beam: lit
             ? beamFrom(
@@ -251,11 +256,12 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     })
     if (swarm.struck) actions.strike()
     for (const at of swarm.bursts) {
-      // A spider bursts where its body hung, twice as big.
-      const spider = at.kind === 'spider'
+      // A spider bursts where its body hung, twice as big; a spiderling
+      // half as big.
+      const size = at.kind === 'spider' ? 2 : at.kind === 'spiderling' ? 0.5 : 1
       const y =
         world.ground.at(at.x, at.z) + aimHeightOf(at.kind, CONFIG.shadowmen)
-      bursts.spawn(at.x, y, at.z, spider ? 2 : 1)
+      bursts.spawn(at.x, y, at.z, size)
     }
     // Each leaves its dimes (a spider its $20) and its tombstone where it
     // burst (the valley's do that itself).
@@ -300,6 +306,23 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     }
     if (now < s.strikeUntil) hud.drawStatic()
     else if (!hud.staticWrap.hidden) hud.showStatic(false)
+    // Rule 24: played alone, a forecourt makes whole (the valley does
+    // that itself). A touch shakes the view a moment.
+    if (
+      alone &&
+      s.started &&
+      !s.aboard &&
+      inHaven(player.pos, world.fuelPoints, CONFIG.shadowmen.havenRadius)
+    ) {
+      actions.mendAtForecourt()
+    }
+    hud.setHealth(s.health)
+    const shake = shakeAt((now - s.hurtAt) / 1000)
+    if (shake > 0) {
+      camera.position.x += (Math.random() * 2 - 1) * shake
+      camera.position.y += (Math.random() * 2 - 1) * shake
+      camera.rotation.z += (Math.random() * 2 - 1) * shake * 0.5
+    }
 
     // Ours goes out on a fixed cadence, and only when it changed.
     peers.update(dt, renderAt)
@@ -373,6 +396,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       actions.discover([
         ...sightsInReach(world.sights, player.pos),
         ...(swarm.contacts.some((c) => c.dist <= range) ? ['shadowman'] : []),
+        ...(swarm.sighted.includes('spiderling') ? ['spiderling'] : []),
         ...(keeper.contact && keeper.contact.dist <= range
           ? ['caretaker']
           : []),

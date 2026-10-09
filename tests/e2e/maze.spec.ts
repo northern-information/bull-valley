@@ -5,6 +5,7 @@ import {
   freshRaider,
   freshValley,
   heardWhere,
+  onLastPoint,
   test,
   watchErrors,
 } from './fixtures.ts'
@@ -97,6 +98,7 @@ test("the Caretaker's touch puts you back at the Citgo", async ({ page }) => {
   const me = await court(page, 2)
   const there = await court(page, -3)
   await standLooking(page, me, there)
+  await onLastPoint(page)
   await page.evaluate(({ x, z }) => window.__bv?.placeCaretaker(x, z), there)
   await expect.poll(() => page.evaluate(() => window.__bv?.strikes)).toBe(1)
   // Caught, and then told the pack lies where it fell.

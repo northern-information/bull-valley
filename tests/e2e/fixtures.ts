@@ -113,6 +113,13 @@ export async function heardWhere(page: Page): Promise<void> {
     .toBeLessThan(1)
 }
 
+// Down to the last point of health (sharedworld.ts rule 24), so the next
+// touch shatters: the valley's word, heard back.
+export async function onLastPoint(page: Page): Promise<void> {
+  await page.evaluate(() => window.__bv?.setHealth(1))
+  await expect.poll(() => page.evaluate(() => window.__bv?.health)).toBe(1)
+}
+
 export function freshValley(prefix = 'spec'): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }

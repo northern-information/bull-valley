@@ -67,6 +67,11 @@ export const CONFIG = {
     rushRadius: 25,
     rushSpeed: 12,
     touchRadius: 1.4,
+    // Nothing touches at once: one in reach stands and winds up for
+    // windupSeconds, then lunges, and the lunge lands only on a raider
+    // still within reachScale times its touch. A beat to step away.
+    windupSeconds: 0.35,
+    reachScale: 1.25,
     // Citgo forecourts are havens: shadowmen vanish at the lights and nothing
     // can touch you inside.
     havenRadius: 60,
@@ -102,9 +107,41 @@ export const CONFIG = {
       rushSpeed: 13,
       touchRadius: 2.4,
     },
+    // A spider that bursts breaks into brood.min to brood.max spiderlings,
+    // scattered up to `scatter` metres round where it burst: a quarter of
+    // a spider's size (`scale`), quicker, rushing anyone within rushRadius,
+    // touching closer, bursting in burnSeconds in a beam, aimed at
+    // aimHeight. Each leaves a few dimes (`dimes`), never a tombstone, and
+    // none breaks again.
+    spiderling: {
+      brood: { min: 3, max: 8 },
+      scatter: 2.5,
+      scale: 0.25,
+      speedMin: 8,
+      speedMax: 11,
+      rushRadius: 40,
+      rushSpeed: 14,
+      touchRadius: 0.9,
+      burnSeconds: 0.2,
+      aimHeight: 0.5,
+      dimes: { min: 1, max: 3 },
+    },
     // In the shared valley the server steps them this many times a second
     // and sends each step; clients draw them between the last two.
     tickHz: 10,
+  },
+  // Health (health.ts, sharedworld.ts rule 21): every raider has `max`
+  // points, and any shadow's touch takes one. A touch that leaves some
+  // lets the raider alone for graceSeconds where they stand; the last one
+  // shatters their geometrie (a strike: the static and the corpse run),
+  // and they come to whole. A Citgo forecourt makes them whole, and so
+  // does medicine (items.ts heals). A hit fills the view red and shakes it
+  // for shakeSeconds, up to shakeMetres off.
+  health: {
+    max: 3,
+    graceSeconds: 3,
+    shakeSeconds: 0.45,
+    shakeMetres: 0.07,
   },
   // The flashlight in the left hand: the beam that burns shadowmen reaches
   // range metres, halfAngle radians off the line of sight. The light itself
@@ -531,6 +568,10 @@ export const CONFIG = {
     senseRadius: 3,
     forgetSeconds: 4,
     touchRadius: 1.1,
+    // In reach it stops and winds up for windupSeconds, its lantern drawn
+    // back, then lunges; the lunge lands within reachScale of its touch.
+    windupSeconds: 0.45,
+    reachScale: 1.3,
     burnSeconds: 1.2,
     respawnSeconds: 180,
     hover: 0.5,

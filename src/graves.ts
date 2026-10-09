@@ -7,6 +7,7 @@ import { CONFIG } from './config.ts'
 import { generateName } from './names.ts'
 import type { XZ } from './interfaces.ts'
 import type { Rng } from './rng.ts'
+import type { ShadeKind } from './shadowmen.ts'
 
 // One tombstone: where it stands and whose it is. The id is the valley's,
 // never reused within its world, and turns the stone (gravestones.ts).
@@ -20,9 +21,15 @@ export interface Burial extends XZ {
   name: string
 }
 
-// Names for the shadowmen that burst at `bursts`, one each.
-export function burialsOf(bursts: readonly XZ[], rng: Rng): Burial[] {
-  return bursts.map(({ x, z }) => ({ x, z, name: generateName(rng) }))
+// Names for the shadowmen that burst at `bursts`, one each. A spiderling
+// is too small a thing to bury.
+export function burialsOf(
+  bursts: readonly (XZ & { kind?: ShadeKind })[],
+  rng: Rng
+): Burial[] {
+  return bursts
+    .filter(({ kind }) => kind !== 'spiderling')
+    .map(({ x, z }) => ({ x, z, name: generateName(rng) }))
 }
 
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5))

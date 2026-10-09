@@ -244,12 +244,15 @@ describe('parseClientMessage', () => {
       z: -2,
     })
     expect(parse({ type: 'dev', op: 'shadowman', x: 1 })).toBeNull()
-    // A spider when it says so, and only for true.
+    // A spider or a spiderling when it says so, and only by its kind.
     expect(
-      parse({ type: 'dev', op: 'shadowman', x: 1, z: -2, spider: true })
-    ).toEqual({ type: 'dev', op: 'shadowman', x: 1, z: -2, spider: true })
+      parse({ type: 'dev', op: 'shadowman', x: 1, z: -2, kind: 'spider' })
+    ).toEqual({ type: 'dev', op: 'shadowman', x: 1, z: -2, kind: 'spider' })
     expect(
-      parse({ type: 'dev', op: 'shadowman', x: 1, z: -2, spider: 'yes' })
+      parse({ type: 'dev', op: 'shadowman', x: 1, z: -2, kind: 'spiderling' })
+    ).toEqual({ type: 'dev', op: 'shadowman', x: 1, z: -2, kind: 'spiderling' })
+    expect(
+      parse({ type: 'dev', op: 'shadowman', x: 1, z: -2, kind: 'yes' })
     ).toEqual({ type: 'dev', op: 'shadowman', x: 1, z: -2 })
     expect(parse({ type: 'dev', op: 'calm' })).toEqual({
       type: 'dev',

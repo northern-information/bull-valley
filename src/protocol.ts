@@ -5,6 +5,7 @@
 
 import { USERNAME_MAX } from './account.ts'
 import { EMOTE_IDS } from './emotes.ts'
+import { isHealth } from './health.ts'
 import { isWaterMap } from './waterside.ts'
 import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -20,7 +21,7 @@ import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 27
+export const PROTOCOL_VERSION = 28
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -315,9 +316,15 @@ export interface DiscoverMessage {
 export type DevMessage =
   | { type: 'dev'; op: 'hurry'; seconds: number }
   | { type: 'dev'; op: 'reset' }
-  // A shadowman (or a shadow spider) standing still at (x, z), for the
-  // specs.
-  | { type: 'dev'; op: 'shadowman'; x: number; z: number; spider?: boolean }
+  // A shadowman (or a shadow spider, or a spiderling) standing still at
+  // (x, z), for the specs.
+  | {
+      type: 'dev'
+      op: 'shadowman'
+      x: number
+      z: number
+      kind?: Exclude<ShadeKind, 'man'>
+    }
   // The Caretaker moved to (x, z), for the specs.
   | { type: 'dev'; op: 'caretaker'; x: number; z: number }
   // A quiet valley for the specs: the crossing shadowmen never rush, and
@@ -325,6 +332,9 @@ export type DevMessage =
   | { type: 'dev'; op: 'calm' }
   // `count` of `kind` into this raider's pack, for the specs.
   | { type: 'dev'; op: 'grant'; kind: string; count: number }
+  // This raider's account at `points` of health (sharedworld.ts rule 24),
+  // for the specs.
+  | { type: 'dev'; op: 'health'; points: number }
 
 // One line to everyone in the valley. The valley echoes it back to the
 // sender too, so every client shows the server's copy.
@@ -458,6 +468,8 @@ export interface WelcomeMessage {
   xp: number
   // The account's Cabbage Stand (stand.ts).
   stand: StandLedger
+  // The account's health (sharedworld.ts rule 24, health.ts).
+  health: number
 }
 
 // The account's Cabbage Stand after it was tended (rule 23), to every
@@ -624,11 +636,13 @@ export interface PeerChatMessage {
 // spider says so; a shadowman sends no kind.
 export interface ShadowmanWire {
   id: number
-  kind?: Extract<ShadeKind, 'spider'>
+  kind?: Exclude<ShadeKind, 'man'>
   x: number
   z: number
   burn: number
   target: string | null
+  // How far through its windup before it lunges (0 to 1), when winding up.
+  windup?: number
 }
 
 // The Caretaker as the valley sends it (rule 15): where it floats, how
@@ -638,6 +652,10 @@ export interface CaretakerWire {
   z: number
   burn: number
   target: string | null
+  // How far through its windup (0 to 1), when winding up, and whether it
+  // lunged this step.
+  windup?: number
+  lunge?: true
 }
 
 // Every step of the valley's shadowmen (CONFIG.shadowmen.tickHz a second),
@@ -646,15 +664,27 @@ export interface CaretakerWire {
 export interface ShadowmenMessage {
   type: 'shadowmen'
   shadowmen: ShadowmanWire[]
+  // The ids of the shadowmen that lunged this step, landing or not.
+  lunges: number[]
   bursts: Burst[]
   caretaker: CaretakerWire | null
   unmade: XZ | null
 }
 
-// A shadowman, or the Caretaker, touched this raider.
+// A shadowman, or the Caretaker, touched this raider (sharedworld.ts rule
+// 22): the health the account has left, 0 when the touch shattered their
+// geometrie (the account is whole again after, rule 18's fall following).
 export interface StruckMessage {
   type: 'struck'
   by?: 'caretaker'
+  health: number
+}
+
+// The account's health, given back (sharedworld.ts rule 24): a forecourt,
+// medicine, or a dev frame. To every socket signed in to it.
+export interface HealthMessage {
+  type: 'health'
+  health: number
 }
 
 export interface PongMessage {
@@ -684,6 +714,7 @@ export type ServerMessage =
   | ErrorMessage
   | ShadowmenMessage
   | StruckMessage
+  | HealthMessage
   | SeasonMessage
   | BookMessage
   | TaskMessage
@@ -1045,11 +1076,18 @@ export function parseClientMessage(text: string): ClientMessage | null {
         if (!isKind(kind) || !isCount(count) || count < 1) return null
         return { type: 'dev', op: 'grant', kind, count }
       }
+      if (value.op === 'health') {
+        const { points } = value
+        return isHealth(points) && points > 0
+          ? { type: 'dev', op: 'health', points }
+          : null
+      }
       if (value.op === 'shadowman') {
         const at = parseXZ(value)
         if (!at) return null
-        return value.spider === true
-          ? { type: 'dev', op: 'shadowman', ...at, spider: true }
+        const { kind } = value
+        return kind === 'spider' || kind === 'spiderling'
+          ? { type: 'dev', op: 'shadowman', ...at, kind }
           : { type: 'dev', op: 'shadowman', ...at }
       }
       if (value.op === 'caretaker') {

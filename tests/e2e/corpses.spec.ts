@@ -1,5 +1,5 @@
 import { copy } from './copy.ts'
-import { beginRaid, expect, heardWhere, test } from './fixtures.ts'
+import { beginRaid, expect, heardWhere, onLastPoint, test } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
 // Rule 18: a strike leaves everything the pack held on the raider's body,
@@ -12,11 +12,13 @@ const held = (page: Page) =>
 const carrying = async (page: Page) =>
   Object.values(await held(page)).reduce((sum, n) => sum + n, 0)
 
-// Out of the forecourt haven, then a shadowman beside you: the valley has
-// it rush you, and says it touched you.
+// Out of the forecourt haven on the last point of health, then a
+// shadowman beside you: the valley has it rush you, and says it touched
+// you.
 async function struckDown(page: Page, strikes: number): Promise<void> {
   await page.evaluate(() => window.__bv?.teleport(0.5, 0.5))
   await heardWhere(page)
+  await onLastPoint(page)
   await page.evaluate(() => {
     const bv = window.__bv
     if (!bv) return

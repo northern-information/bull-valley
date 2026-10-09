@@ -17,6 +17,18 @@ describe('burialsOf', () => {
     expect(burials[0]).toMatchObject({ x: 1, z: 2 })
     for (const b of burials) expect(b.name.length).toBeGreaterThan(0)
   })
+
+  it('buries no spiderling', () => {
+    const burials = burialsOf(
+      [
+        { x: 1, z: 2, kind: 'spiderling' },
+        { x: 3, z: 4, kind: 'spider' },
+      ],
+      mulberry32(5)
+    )
+    expect(burials).toHaveLength(1)
+    expect(burials[0]).toMatchObject({ x: 3, z: 4 })
+  })
 })
 
 describe('graveSpot', () => {

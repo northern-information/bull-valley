@@ -136,6 +136,16 @@
 //    in, Reduced.stand out); the valley writes the ledger, the pack and the
 //    wallet together, or none of them. A collect earns XP by the cents it
 //    pays (stand.ts standXp, rule 22).
+// 24. Health (health.ts): every account has CONFIG.health.max points, kept
+//    by the valley (Valley.health, only the accounts below whole), so no
+//    reconnect or second tab heals. Any shadow's touch (rules 11 and 13)
+//    takes one, once a step however many of the account's sockets were
+//    touched, and lets the raider alone for CONFIG.health.graceSeconds
+//    where they stand. The touch that takes the last is the strike of rule
+//    18 (Reduced.health.fatal), and the account is whole again after. A
+//    raider on foot whose last state frame put them on a Citgo forecourt
+//    is made whole, and a use of medicine that heals (items.ts heals),
+//    once the pack has given the unit up, gives its points back.
 
 import { caretakerAt, createCaretaker, stepCaretaker } from './caretaker.ts'
 import { CONFIG } from './config.ts'
@@ -144,6 +154,14 @@ import { affords, cosmeticById, MOAB_OFFERS } from './cosmetics.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
 import { centsOf, dropSpot, isCash, takeUp } from './drops.ts'
 import { bury } from './graves.ts'
+import {
+  healthOf,
+  hit,
+  isWhole,
+  MAX_HEALTH,
+  mend,
+  withHealth,
+} from './health.ts'
 import { contentsOf, INVENTORY_KINDS, itemById } from './items.ts'
 import {
   arrive,
@@ -165,6 +183,7 @@ import {
   burnSecondsOf,
   createShadowmen,
   headlightBeam,
+  inHaven,
   placeStill,
   stepShadowmen,
 } from './shadowmen.ts'
@@ -267,6 +286,8 @@ export interface Valley {
   // fell (never on the wire), and the id the next one gets.
   corpses: ValleyCorpse[]
   nextCorpse: number
+  // Rule 24: account -> its health, while below whole.
+  health: Record<string, number>
 }
 
 export interface ValleyCorpse extends Corpse {
@@ -319,6 +340,12 @@ export type ValleyAction =
   // where the raider's last state frame put them, or null.
   | { type: 'fall'; id: string; items: Inventory; at: Facing | null }
   | { type: 'loot'; id: string; corpse: number }
+  // Rule 24: a shadow's touch; points given back (by), or made whole (no
+  // by: a forecourt).
+  | { type: 'hit'; id: string }
+  | { type: 'mend'; id: string; by?: number }
+  // A dev server's: the account at `points`, for the specs.
+  | { type: 'set-health'; id: string; points: number }
   // Rule 19: `count` of `kind` into the locker (stow) or out of it
   // (unstow). at: where the raider's last state frame put them, or null.
   | {
@@ -397,6 +424,9 @@ export interface Reduced {
   corpse?: number
   // Rule 18: a body's things, back into its account's pack.
   give?: { account: string; items: Inventory }
+  // Rule 24: an account's health after a hit or a mend, for its sockets;
+  // fatal when the hit took the last point (the account is whole again).
+  health?: { account: string; points: number; fatal?: true }
   // Rule 19: units of `kind` into the account's locker out of its pack
   // (positive), or back (negative). The valley moves them only when the
   // side they come out of holds them.
@@ -446,13 +476,14 @@ export function createValley(): Valley {
     places: {},
     corpses: [],
     nextCorpse: 0,
+    health: {},
   }
 }
 
 // The valley as an older build stored it, made current: the fresh one
 // fills in newer fields, and a world opened on another protocol (an older
 // build's raid included) is dropped, so the next arrival opens it afresh.
-// The berries, the places and the bodies carry over.
+// The berries, the places, the bodies and the health carry over.
 export function restoreValley(stored: Partial<Valley>): Valley {
   const valley = { ...createValley(), ...stored }
   const world: Partial<SharedWorld> | null = valley.world ?? null
@@ -480,6 +511,11 @@ export function dailyFor(
 // Rule 18: the ids of `account`'s bodies lying in the valley.
 export function corpsesOf(valley: Valley, account: string): number[] {
   return valley.corpses.filter((c) => c.account === account).map((c) => c.id)
+}
+
+// Rule 24: `account`'s health.
+export function healthFor(valley: Valley, account: string): number {
+  return healthOf(valley.health, account)
 }
 
 // Rule 2: where `account` comes back to, or null for the spawn Citgo.
@@ -1041,6 +1077,50 @@ function act(
       })
     }
 
+    case 'hit': {
+      // Rule 24.
+      const member = valley.members[action.id]
+      if (!member) return done(valley, now, { broadcast: [] })
+      const { account } = member
+      const { points, fatal } = hit(healthOf(valley.health, account))
+      const next: Valley = {
+        ...valley,
+        health: withHealth(valley.health, account, fatal ? MAX_HEALTH : points),
+      }
+      return done(next, now, {
+        broadcast: [],
+        health: fatal ? { account, points, fatal } : { account, points },
+      })
+    }
+
+    case 'mend': {
+      // Rule 24: a forecourt makes whole; medicine gives its points back.
+      const member = valley.members[action.id]
+      if (!member) return done(valley, now, { broadcast: [] })
+      const { account } = member
+      const before = healthOf(valley.health, account)
+      if (isWhole(before)) return done(valley, now, { broadcast: [] })
+      const points =
+        action.by === undefined ? MAX_HEALTH : mend(before, action.by)
+      return done(
+        { ...valley, health: withHealth(valley.health, account, points) },
+        now,
+        { broadcast: [], health: { account, points } }
+      )
+    }
+
+    case 'set-health': {
+      const member = valley.members[action.id]
+      if (!member) return done(valley, now, { broadcast: [] })
+      const { account } = member
+      const points = mend(0, action.points)
+      return done(
+        { ...valley, health: withHealth(valley.health, account, points) },
+        now,
+        { broadcast: [], health: { account, points } }
+      )
+    }
+
     case 'loot': {
       // Rule 18: the account that fell, and no one else.
       const member = valley.members[action.id]
@@ -1335,7 +1415,8 @@ export function stepShadows(
   // Rule 15: the accounts credited with unmaking the Caretaker this step.
   credited: string[]
   // Rule 16: the accounts credited with a burn this step, once for each
-  // shadowman each burned.
+  // shadowman each burned. A spiderling is no shadowman, and a spider's
+  // brood would all but finish the day's task on its own.
   burned: string[]
   // Rule 22: the XP those burns and that unmaking earned.
   xp: XpGrant[]
@@ -1346,7 +1427,7 @@ export function stepShadows(
     Object.assign(shadows, createShadows())
     return null
   }
-  const { struck, bursts } = stepShadowmen(
+  const { struck, lunges, bursts } = stepShadowmen(
     shadows.field,
     rng,
     {
@@ -1372,6 +1453,7 @@ export function stepShadows(
       place: world.maze,
     })
     caught.push(...out.struck)
+    const { lunged } = out
     credited = creditedWith(valley, out.unmadeBy)
     for (const id of out.struck) if (!struck.includes(id)) struck.push(id)
     unmade = out.burst && {
@@ -1380,6 +1462,10 @@ export function stepShadows(
     }
     const at = caretakerAt(shadows.caretaker, world.maze)
     if (at) {
+      const windup = round(
+        Math.min(1, shadows.caretaker.windup / CONFIG.caretaker.windupSeconds),
+        2
+      )
       caretaker = {
         x: round(at.x, 2),
         z: round(at.z, 2),
@@ -1388,6 +1474,8 @@ export function stepShadows(
           2
         ),
         target: shadows.caretaker.target,
+        ...(windup > 0 ? { windup } : {}),
+        ...(lunged ? { lunge: true as const } : {}),
       }
     }
   }
@@ -1396,19 +1484,28 @@ export function stepShadows(
     const until = shadows.recovering[r.id]
     if (until !== undefined && until > now) recovering[r.id] = until
   }
-  for (const id of struck) recovering[id] = now + cfg.strikeSeconds * 1000
+  // Rule 21: a raider struck is let alone for a little while, where they
+  // stand or where they come to.
+  for (const id of struck) {
+    recovering[id] = now + CONFIG.health.graceSeconds * 1000
+  }
   shadows.recovering = recovering
   return {
     message: {
       type: 'shadowmen',
-      shadowmen: shadows.field.shadowmen.map((s) => ({
-        id: s.id,
-        ...(s.kind === 'spider' ? { kind: 'spider' as const } : {}),
-        x: round(s.x, 2),
-        z: round(s.z, 2),
-        burn: round(Math.min(1, s.burn / burnSecondsOf(s.kind, cfg)), 2),
-        target: s.target,
-      })),
+      shadowmen: shadows.field.shadowmen.map((s) => {
+        const windup = round(Math.min(1, s.windup / cfg.windupSeconds), 2)
+        return {
+          id: s.id,
+          ...(s.kind !== 'man' ? { kind: s.kind } : {}),
+          x: round(s.x, 2),
+          z: round(s.z, 2),
+          burn: round(Math.min(1, s.burn / burnSecondsOf(s.kind, cfg)), 2),
+          target: s.target,
+          ...(windup > 0 ? { windup } : {}),
+        }
+      }),
+      lunges,
       // Who burned each is the valley's to know, not the wire's.
       bursts: bursts.map((b) => ({
         id: b.id,
@@ -1422,14 +1519,42 @@ export function stepShadows(
     struck,
     caught,
     credited,
-    burned: bursts.flatMap((b) => creditedWith(valley, b.by)),
+    burned: bursts
+      .filter((b) => b.kind !== 'spiderling')
+      .flatMap((b) => creditedWith(valley, b.by)),
+    // A spiderling earns no XP: a spider's brood would farm it.
     xp: [
-      ...bursts.flatMap((b) =>
-        grantsTo(valley, b.by, b.kind === 'spider' ? 'spider' : 'burn')
-      ),
+      ...bursts
+        .filter((b) => b.kind !== 'spiderling')
+        .flatMap((b) =>
+          grantsTo(valley, b.by, b.kind === 'spider' ? 'spider' : 'burn')
+        ),
       ...credited.map((account) => ({ account, source: 'unmake' as const })),
     ],
   }
+}
+
+// Rule 24: the placed raiders a forecourt makes whole: on foot, below
+// whole, and where their last state frame put them inside a haven. One id
+// an account.
+export function forecourtMends(
+  valley: Valley,
+  placed: readonly Placed[],
+  cfg = CONFIG.shadowmen
+): string[] {
+  const world = valley.world
+  if (!world) return []
+  const ids: string[] = []
+  const seen = new Set<string>()
+  for (const { id, at } of placed) {
+    const member = valley.members[id]
+    if (!at || !member || at.riding || seen.has(member.account)) continue
+    if (isWhole(healthOf(valley.health, member.account))) continue
+    if (!inHaven(at, world.havens, cfg.havenRadius)) continue
+    seen.add(member.account)
+    ids.push(id)
+  }
+  return ids
 }
 
 // Rules 15, 16 and 22: the accounts behind the sockets whose beams unmade the

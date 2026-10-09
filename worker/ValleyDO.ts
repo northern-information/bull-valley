@@ -31,6 +31,7 @@ import { DAILY_TASK, tallyTask } from '../src/dailytask.ts'
 import { spillsOf } from '../src/drops.ts'
 import { sameName, whereabouts } from '../src/friends.ts'
 import { burialsOf } from '../src/graves.ts'
+import { healsOf } from '../src/items.ts'
 import { levelOf, levelUp, totals } from '../src/progression.ts'
 import {
   CLOSE,
@@ -46,6 +47,8 @@ import {
   createShadows,
   createValley,
   dailyFor,
+  forecourtMends,
+  healthFor,
   placeCaretaker,
   placeOf,
   placeShadowman,
@@ -242,9 +245,18 @@ export class ValleyDO extends DurableObject<Env> {
       case 'collect':
         await this.act(ws, { type: 'collect', id: me.id, bush: msg.bush })
         return
-      case 'use':
-        await this.act(ws, { type: 'use', id: me.id, kind: msg.kind })
+      case 'use': {
+        // Rule 24: medicine that heals gives its points back once the pack
+        // has given the unit up.
+        const used = await this.act(ws, {
+          type: 'use',
+          id: me.id,
+          kind: msg.kind,
+        })
+        const heals = healsOf(msg.kind)
+        if (used && heals > 0) await this.mend(me.id, heals)
         return
+      }
       case 'drop': {
         // Where the raider's own last state frame put them, never the
         // drop frame's word.
@@ -331,12 +343,7 @@ export class ValleyDO extends DurableObject<Env> {
           return
         }
         if (msg.op === 'shadowman') {
-          placeShadowman(
-            this.shadows,
-            msg.x,
-            msg.z,
-            msg.spider ? 'spider' : 'man'
-          )
+          placeShadowman(this.shadows, msg.x, msg.z, msg.kind ?? 'man')
           this.startShadows()
           return
         }
@@ -348,6 +355,21 @@ export class ValleyDO extends DurableObject<Env> {
           const { account } = attachment
           if (!account) return
           await this.repack(ws, { account, kind: msg.kind, delta: msg.count })
+          return
+        }
+        if (msg.op === 'health') {
+          const reduced = reduce(
+            this.valley,
+            { type: 'set-health', id: me.id, points: msg.points },
+            this.context()
+          )
+          await this.apply(reduced)
+          if (reduced.health) {
+            this.toAccount(reduced.health.account, {
+              type: 'health',
+              health: reduced.health.points,
+            })
+          }
           return
         }
         if (msg.op === 'caretaker') {
@@ -429,28 +451,69 @@ export class ValleyDO extends DurableObject<Env> {
     if (out.xp.length > 0) void this.award(out.xp)
     const { bursts, unmade } = out.message
     if (bursts.length || unmade) void this.spill(bursts, unmade)
+    // Rule 24: a forecourt makes whole.
+    for (const id of forecourtMends(this.valley, placed)) {
+      void this.mend(id)
+    }
     if (out.struck.length === 0) return
-    // Rule 18: each account struck leaves what its pack held on a body, once
-    // however many of its sockets were touched.
-    const fallen = new Set<string>()
+    // Rule 24: each account struck loses one point, once however many of
+    // its sockets were touched.
+    const hit = new Map<string, { id: string; sockets: WebSocket[] }>()
     for (const socket of this.ctx.getWebSockets()) {
       const { account, me } = this.attachment(socket)
-      if (!me || !out.struck.includes(me.id)) continue
+      if (!account || !me || !out.struck.includes(me.id)) continue
+      const struck = hit.get(account)
+      if (struck) struck.sockets.push(socket)
+      else hit.set(account, { id: me.id, sockets: [socket] })
+    }
+    for (const [account, { id, sockets }] of hit) {
+      void this.strike(account, id, sockets, out.caught.includes(id))
+    }
+  }
+
+  // A touch (rule 24): one point off the account. The sockets touched hear
+  // they were struck and how much is left, the account's others its
+  // health. The last point is rule 18's strike: everything the pack held
+  // goes onto a body.
+  protected async strike(
+    account: string,
+    id: string,
+    sockets: readonly WebSocket[],
+    caught: boolean
+  ): Promise<void> {
+    const reduced = reduce(this.valley, { type: 'hit', id }, this.context())
+    await this.apply(reduced)
+    const change = reduced.health
+    if (!change) return
+    const health = change.points
+    for (const socket of this.ctx.getWebSockets()) {
+      const attachment = this.attachment(socket)
+      if (attachment.account !== account || !attachment.me) continue
       try {
-        send(
-          socket,
-          out.caught.includes(me.id)
-            ? { type: 'struck', by: 'caretaker' }
-            : { type: 'struck' }
-        )
+        if (!sockets.includes(socket)) send(socket, { type: 'health', health })
+        else if (caught)
+          send(socket, { type: 'struck', by: 'caretaker', health })
+        else send(socket, { type: 'struck', health })
       } catch {
         // Closing sockets throw; their close handler follows.
       }
-      if (account && !fallen.has(account)) {
-        fallen.add(account)
-        const at = me.at ? { x: me.at.x, z: me.at.z, yaw: me.at.yaw } : null
-        void this.fall(account, me.id, at)
-      }
+    }
+    if (!change.fatal) return
+    const me = this.attachment(sockets[0]).me
+    const at = me?.at ? { x: me.at.x, z: me.at.z, yaw: me.at.yaw } : null
+    await this.fall(account, id, at)
+  }
+
+  // Points given back (rule 24): `by` of them, or whole on a forecourt.
+  // Every socket on the account hears its health.
+  protected async mend(id: string, by?: number): Promise<void> {
+    const action: ValleyAction =
+      by === undefined ? { type: 'mend', id } : { type: 'mend', id, by }
+    const reduced = reduce(this.valley, action, this.context())
+    await this.apply(reduced)
+    const change = reduced.health
+    if (change) {
+      this.toAccount(change.account, { type: 'health', health: change.points })
     }
   }
 
@@ -761,6 +824,7 @@ export class ValleyDO extends DurableObject<Env> {
       season: seasonWire(season),
       book,
       task: taskWire(task),
+      health: healthFor(this.valley, account),
       xp,
       stand,
     })
@@ -1023,14 +1087,17 @@ export class ValleyDO extends DurableObject<Env> {
   }
 
   // A world action from one player: run it, persist, answer, tell everyone.
-  private async act(ws: WebSocket, action: ValleyAction): Promise<void> {
+  // Whether the pack change the action asked for, if any, was made.
+  private async act(ws: WebSocket, action: ValleyAction): Promise<boolean> {
     const reduced = reduce(this.valley, action, this.context())
     await this.apply(reduced)
     if (reduced.reply) send(ws, reduced.reply)
     if (reduced.daily) send(ws, reduced.daily)
     for (const msg of reduced.broadcast) this.broadcast(msg, null)
-    if (reduced.pack) await this.repack(ws, reduced.pack)
+    let changed = !reduced.reply
+    if (reduced.pack) changed = await this.repack(ws, reduced.pack)
     if (reduced.earn) await this.pay(ws, reduced.earn)
+    return changed
   }
 
   // Dimes taken up (sharedworld.ts rule 11): into the wallet, then the
@@ -1243,19 +1310,20 @@ export class ValleyDO extends DurableObject<Env> {
   }
 
   // Writes a pack change, if there is one, and sends the account's pack and
-  // wallet to every socket signed in to it. A use the pack cannot cover is
-  // refused to the actor, who gets the pack too, so a guess made in the
-  // meantime is put right.
+  // wallet to every socket signed in to it; whether the change was made. A
+  // use the pack cannot cover is refused to the actor, who gets the pack
+  // too, so a guess made in the meantime is put right.
   private async repack(
     ws: WebSocket | null,
     change: PackChange | null,
     account = change?.account
-  ): Promise<void> {
-    if (!account) return
+  ): Promise<boolean> {
+    if (!account) return false
+    let done = true
     try {
       const packs = this.packs()
       if (change) {
-        const done = await packs.change(account, change.kind, change.delta)
+        done = await packs.change(account, change.kind, change.delta)
         if (!done && ws) {
           send(ws, { type: 'nack', re: 'use', reason: 'none-left' })
         }
@@ -1263,7 +1331,9 @@ export class ValleyDO extends DurableObject<Env> {
       this.toAccount(account, this.packFrame(account, await packs.get(account)))
     } catch (err) {
       console.error('The pack could not be changed', change, err)
+      return false
     }
+    return done
   }
 
   // Rule 15: each account credited with unmaking the Caretaker, tallied
