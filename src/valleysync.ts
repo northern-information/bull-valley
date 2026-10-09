@@ -406,6 +406,7 @@ export function wireValley(game: Game, actions: Actions): void {
       const before = s.xp
       s.xp = Math.max(s.xp, msg.xp)
       const level = levelUp(before, s.xp)
+      if (s.xp > before) hud.season.flash()
       if (level !== null) {
         hud.season.announce({
           kicker: copy('level.kicker'),
@@ -439,6 +440,7 @@ export function wireValley(game: Game, actions: Actions): void {
       } else if (news === 'burned') {
         hud.tell(copy('log.task_burned', { count: s.task.count, goal }))
       }
+      if (news !== 'past') hud.season.flash()
     } else if (msg.type === 'season') {
       // Rule 15: credited with unmaking the Caretaker. A reward's pack
       // frame follows.

@@ -95,8 +95,11 @@
 
 /* The season (seasonhud.ts). The tracker sits in the upper right: the
    season over a row of pips, one lit for each time the Caretaker came
-   apart in the raider's beam. */
+   apart in the raider's beam. Out of sight until a count goes up, when
+   it shows for a few seconds and fades (SeasonHud.flash). */
 .bv-season {
+  opacity: 0;
+  pointer-events: none;
   position: absolute;
   top: 0.9rem;
   right: 1rem;
@@ -155,6 +158,30 @@
   border-color: var(--fi-gold);
   background: var(--fi-gold);
   box-shadow: 0 0 6px var(--fi-gold);
+}
+
+.bv-season--flash {
+  animation: bv-tracker 4.5s ease-out both;
+}
+
+@keyframes bv-tracker {
+  0% {
+    opacity: 0;
+    transform: translateY(-0.5rem);
+  }
+
+  8% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  70% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
 }
 
 /* The daily task (taskhud.ts): a row under the season in the same pane,
