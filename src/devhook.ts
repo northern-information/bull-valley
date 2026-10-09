@@ -31,6 +31,7 @@ import type {
 import type { RoadGraph } from './roadgraph.ts'
 import type { SeasonProgress } from './season.ts'
 import type { ShadowCards } from './shadowcards.ts'
+import type { ShadeKind } from './shadowmen.ts'
 import type { StandLedger } from './stand.ts'
 import type { Truck } from './truck.ts'
 import type { World } from './world.ts'
@@ -47,8 +48,11 @@ interface BvHook {
   shadowmen: ShadowCards
   caretaker: CaretakerShade
   mist: MistCards
-  // Times a touch put this raider back at the Citgo.
+  // Times a touch shattered this raider's geometrie and put them back at
+  // the Citgo.
   readonly strikes: number
+  // Health (health.ts): the account's as the valley last said, or our own.
+  readonly health: number
   net: {
     readonly status: NetStatus
     readonly id: string | null
@@ -111,7 +115,8 @@ interface BvHook {
   // A shadowman standing still at world (x, z): the valley's, through a
   // dev frame, or this client's own, played alone.
   // A spider instead when `spider` (CONFIG.shadowmen.spider).
-  placeShadowman(x: number, z: number, spider?: boolean): void
+  // true for a spider, as it always was, or the kind.
+  placeShadowman(x: number, z: number, kind?: boolean | ShadeKind): void
   // The Caretaker moved to world (x, z), formed, its hunt forgotten,
   // floating still until it has someone to hunt: the valley's, through a
   // dev frame, or this client's own, played alone.
@@ -125,6 +130,8 @@ interface BvHook {
   // `count` of `kind` into the pack: the valley's, through a dev frame, or
   // this client's own. Gold bullion has no other way in yet.
   grant(kind: string, count?: number): void
+  // This raider at `points` of health (1 to whole), for the specs.
+  setHealth(points: number): void
 }
 
 declare global {
@@ -148,6 +155,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     mist: game.mist,
     get strikes() {
       return s.strikes
+    },
+    get health() {
+      return s.health
     },
     net: {
       get status() {
@@ -244,14 +254,17 @@ export function installDevHook(game: Game, actions: Actions): void {
       player.relocate(x, z)
     },
     toggleFlashlight: () => actions.toggleFlashlight(),
-    placeShadowman(x: number, z: number, spider = false) {
+    placeShadowman(x: number, z: number, kind: boolean | ShadeKind = 'man') {
+      // true is a spider, as it always was.
+      const shade: ShadeKind =
+        kind === true ? 'spider' : kind === false ? 'man' : kind
       if (net.online) {
         net.send(
-          spider
-            ? { type: 'dev', op: 'shadowman', x, z, spider: true }
-            : { type: 'dev', op: 'shadowman', x, z }
+          shade === 'man'
+            ? { type: 'dev', op: 'shadowman', x, z }
+            : { type: 'dev', op: 'shadowman', x, z, kind: shade }
         )
-      } else game.shadowmen.place(x, z, spider ? 'spider' : 'man')
+      } else game.shadowmen.place(x, z, shade)
     },
     placeCaretaker(x: number, z: number) {
       if (net.online) net.send({ type: 'dev', op: 'caretaker', x, z })
@@ -273,6 +286,10 @@ export function installDevHook(game: Game, actions: Actions): void {
         }
         actions.refreshBag()
       }
+    },
+    setHealth(points) {
+      if (net.online) net.send({ type: 'dev', op: 'health', points })
+      else s.health = points
     },
     hurryTruck(seconds = 5) {
       // In the shared valley the server keeps Marx's day; a dev server

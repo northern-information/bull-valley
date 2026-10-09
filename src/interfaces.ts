@@ -148,6 +148,9 @@ export interface Item {
   tripSeconds?: number
   // Medicine.
   form?: MedicineForm
+  // Health points one use gives back (health.ts); medicine without it
+  // cannot be used yet.
+  heals?: number
 }
 
 // Item id -> count. Every inventory kind is present.

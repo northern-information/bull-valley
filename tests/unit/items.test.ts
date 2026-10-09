@@ -6,6 +6,7 @@ import {
   containersOf,
   contentsOf,
   getItem,
+  healsOf,
   INVENTORY_KINDS,
   isCigarette,
   isDrink,
@@ -95,7 +96,7 @@ describe('items', () => {
     expect(tripSecondsOf('nope')).toBe(0)
   })
 
-  it('gives every medicine a known form, and no use', () => {
+  it('gives every medicine a known form, and a use only when it heals', () => {
     const medicine = ITEMS.filter((item) => item.category === 'medicine')
     expect(medicine.map((item) => item.id)).toEqual([
       'aspirin',
@@ -107,8 +108,12 @@ describe('items', () => {
       expect(['pills', 'carton', 'dropper'], item.id).toContain(item.form)
       expect(isMedicine(item.id)).toBe(true)
       expect(isDrink(item.id)).toBe(false)
-      expect(isUsable(item.id)).toBe(false)
+      expect(isUsable(item.id)).toBe(healsOf(item.id) > 0)
     }
+    expect(healsOf('aspirin')).toBe(1)
+    expect(healsOf('ibuprofen')).toBe(1)
+    expect(healsOf('benadryl')).toBe(0)
+    expect(healsOf('pbr')).toBe(0)
     expect(isMedicine('pbr')).toBe(false)
   })
 

@@ -2,7 +2,9 @@
 // maze's paths, never through the corn: out to a random corner and home to
 // the heart, by turns, where the berry bushes ring the portal. A raider on
 // foot in the maze that it can see, or that comes very close, it hunts down
-// the paths, and its touch is a strike, as a shadowman's. One flashlight
+// the paths, and its touch is a strike, as a shadowman's: in reach it stops
+// and winds up, then lunges, and the lunge lands only on a raider still
+// within reach. One flashlight
 // does nothing to it. Two raiders' beams on it at once, held, unmake it,
 // and it forms again at the heart a few minutes later.
 //
@@ -48,6 +50,9 @@ export interface Caretaker {
   lastSeen: XZ | null
   forget: number
   rethink: number
+  // Seconds into its windup on the raider it hunts; 0 while it is not
+  // winding up. It lunges at CONFIG.caretaker.windupSeconds.
+  windup: number
   // Seconds it has been held in two beams at once, running back down
   // outside them.
   burn: number
@@ -216,6 +221,7 @@ export function createCaretaker(map: MazeMap = theMaze()): Caretaker {
     lastSeen: null,
     forget: 0,
     rethink: 0,
+    windup: 0,
     burn: 0,
     gone: 0,
     held: false,
@@ -258,6 +264,7 @@ function giveUp(ct: Caretaker): void {
   ct.lastSeen = null
   ct.forget = 0
   ct.route = []
+  ct.windup = 0
   // Back to the berries.
   ct.homeward = true
 }
@@ -273,6 +280,8 @@ export interface CaretakerStep {
 export interface CaretakerUpdate {
   // The raider it touched this step, if any.
   struck: string[]
+  // Whether it lunged this step, landing or not.
+  lunged: boolean
   // Where it was unmade this step, in world metres, and the raiders whose
   // beams were on it when it came apart.
   burst: XZ | null
@@ -287,7 +296,12 @@ export function stepCaretaker(
   cfg: CaretakerConfig = CONFIG.caretaker,
   map: MazeMap = theMaze()
 ): CaretakerUpdate {
-  const none: CaretakerUpdate = { struck: [], burst: null, unmadeBy: [] }
+  const none: CaretakerUpdate = {
+    struck: [],
+    lunged: false,
+    burst: null,
+    unmadeBy: [],
+  }
   if (ct.gone > 0) {
     ct.gone = Math.max(0, ct.gone - dt)
     if (ct.gone === 0) Object.assign(ct, createCaretaker(map))
@@ -310,7 +324,7 @@ export function stepCaretaker(
     giveUp(ct)
     ct.burn = 0
     ct.gone = cfg.respawnSeconds
-    return { struck: [], burst: world, unmadeBy: holders }
+    return { struck: [], lunged: false, burst: world, unmadeBy: holders }
   }
 
   // Only a raider who can be struck, and only in the maze.
@@ -354,6 +368,24 @@ export function stepCaretaker(
     }
   }
 
+  // In reach: it stands and winds up, then lunges. A raider still within
+  // reach is struck, and it goes home; one who stepped back is hunted on.
+  if (
+    quarry &&
+    (ct.windup > 0 ||
+      Math.hypot(quarry.at.x - ct.x, quarry.at.z - ct.z) < cfg.touchRadius)
+  ) {
+    ct.windup += dt
+    if (ct.windup < cfg.windupSeconds) return none
+    ct.windup = 0
+    const d = Math.hypot(quarry.at.x - ct.x, quarry.at.z - ct.z)
+    if (d >= cfg.touchRadius * cfg.reachScale) return { ...none, lunged: true }
+    const struck = [quarry.r.id]
+    giveUp(ct)
+    return { struck, lunged: true, burst: null, unmadeBy: [] }
+  }
+  ct.windup = 0
+
   if (ct.target && ct.lastSeen) {
     ct.rethink -= dt
     if (clearBetween(map, ct, ct.lastSeen, cfg.clearance)) {
@@ -363,14 +395,6 @@ export function stepCaretaker(
       ct.rethink = cfg.rethinkSeconds
     }
     advance(ct, cfg.huntSpeed * dt, map, cfg.clearance)
-    if (
-      quarry &&
-      Math.hypot(quarry.at.x - ct.x, quarry.at.z - ct.z) < cfg.touchRadius
-    ) {
-      const struck = [quarry.r.id]
-      giveUp(ct)
-      return { struck, burst: null, unmadeBy: [] }
-    }
     return none
   }
 

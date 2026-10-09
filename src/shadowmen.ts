@@ -4,13 +4,22 @@
 // past the despawn radius, in a straight line at a sprint. Raiders standing
 // together share their bubbles, so a group sees a few more, not one bubble
 // each. One that passes close to a raider on foot turns and rushes them,
-// and a touch is a strike. Citgo forecourts are havens: a shadowman
-// vanishes at the lights, and nothing can touch you inside. A beam held on
-// one for burnSeconds bursts it.
+// and a touch is a strike. Citgo forecourts are havens: a shadowman turns
+// aside at the lights, as it does at the survey's edge, and nothing can
+// touch you inside. None is ever gone in view: one leaves only past every
+// bubble, bursting, or striking. A beam held on one for burnSeconds
+// bursts it.
 //
 // Among them cross the shadow spiders, twice a shadowman's height: one
 // new arrival in a bubble is a spider now and then, and far more often
-// near water (waterside.ts); a beam takes twice as long to burst one.
+// near water (waterside.ts); a beam takes twice as long to burst one,
+// and one that bursts breaks into a brood of spiderlings, small and quick,
+// that rush whoever is near.
+//
+// Nothing touches at once: one in reach winds up (windupSeconds) and then
+// lunges, and the lunge lands only if its raider is still within reach.
+// A raider struck is let alone for a little while (sharedworld.ts
+// recovering, actions.ts strikeUntil); the one that struck stays.
 //
 // Pure, no three.js. In the shared valley the server steps the one field
 // everyone sees (worker/ValleyDO.ts, sharedworld.ts rule 11) and clients
@@ -28,37 +37,58 @@ import type { WaterMap } from './waterside.ts'
 
 export type ShadowmenConfig = typeof CONFIG.shadowmen
 
-// What crosses: a shadowman, or a shadow spider (CONFIG.shadowmen.spider).
-export type ShadeKind = 'man' | 'spider'
+// What crosses: a shadowman, a shadow spider (CONFIG.shadowmen.spider), or
+// one of the spiderlings a burst spider breaks into
+// (CONFIG.shadowmen.spiderling).
+export type ShadeKind = 'man' | 'spider' | 'spiderling'
+
+export const SHADE_KINDS: readonly ShadeKind[] = ['man', 'spider', 'spiderling']
+
+export function isShadeKind(value: unknown): value is ShadeKind {
+  return SHADE_KINDS.includes(value as ShadeKind)
+}
 
 // How a kind crosses, rushes, touches and burns.
 export function speedRange(
   kind: ShadeKind,
   cfg: ShadowmenConfig
 ): [number, number] {
-  return kind === 'spider'
-    ? [cfg.spider.speedMin, cfg.spider.speedMax]
-    : [cfg.speedMin, cfg.speedMax]
+  if (kind === 'spider') return [cfg.spider.speedMin, cfg.spider.speedMax]
+  if (kind === 'spiderling') {
+    return [cfg.spiderling.speedMin, cfg.spiderling.speedMax]
+  }
+  return [cfg.speedMin, cfg.speedMax]
 }
 
 export function rushSpeedOf(kind: ShadeKind, cfg: ShadowmenConfig): number {
-  return kind === 'spider' ? cfg.spider.rushSpeed : cfg.rushSpeed
+  if (kind === 'spider') return cfg.spider.rushSpeed
+  if (kind === 'spiderling') return cfg.spiderling.rushSpeed
+  return cfg.rushSpeed
+}
+
+// How close a raider must come for it to turn and rush them.
+export function rushRadiusOf(kind: ShadeKind, cfg: ShadowmenConfig): number {
+  return kind === 'spiderling' ? cfg.spiderling.rushRadius : cfg.rushRadius
 }
 
 export function touchRadiusOf(kind: ShadeKind, cfg: ShadowmenConfig): number {
-  return kind === 'spider' ? cfg.spider.touchRadius : cfg.touchRadius
+  if (kind === 'spider') return cfg.spider.touchRadius
+  if (kind === 'spiderling') return cfg.spiderling.touchRadius
+  return cfg.touchRadius
 }
 
 // Seconds in a beam until it bursts.
 export function burnSecondsOf(kind: ShadeKind, cfg: ShadowmenConfig): number {
-  return kind === 'spider'
-    ? cfg.burnSeconds * cfg.spider.burnScale
-    : cfg.burnSeconds
+  if (kind === 'spider') return cfg.burnSeconds * cfg.spider.burnScale
+  if (kind === 'spiderling') return cfg.spiderling.burnSeconds
+  return cfg.burnSeconds
 }
 
 // Where over the ground a beam must find it.
 export function aimHeightOf(kind: ShadeKind, cfg: ShadowmenConfig): number {
-  return kind === 'spider' ? cfg.spider.aimHeight : cfg.chestHeight
+  if (kind === 'spider') return cfg.spider.aimHeight
+  if (kind === 'spiderling') return cfg.spiderling.aimHeight
+  return cfg.chestHeight
 }
 
 // One shadowman mid-crossing, or rushing a raider.
@@ -77,6 +107,9 @@ export interface Shadowman {
   target: string | null
   // Seconds it has been held in a beam, running back down out of it.
   burn: number
+  // Seconds into its windup on the raider it rushes, 0 while it is not
+  // winding up; it lunges at CONFIG.shadowmen.windupSeconds.
+  windup: number
   // Stood somewhere by a spec (placeStill), not crossing.
   placed?: boolean
 }
@@ -153,6 +186,8 @@ export interface BurstBy extends Burst {
 export interface ShadowmenUpdate {
   // The raiders touched this step.
   struck: string[]
+  // The shadowmen that lunged this step, whether the lunge landed or not.
+  lunges: number[]
   bursts: BurstBy[]
 }
 
@@ -165,6 +200,44 @@ export function inBounds(p: XZ, metres: Metres, inset: number): boolean {
 
 export function inHaven(p: XZ, havens: readonly XZ[], radius: number): boolean {
   return havens.some((h) => Math.hypot(h.x - p.x, h.z - p.z) < radius)
+}
+
+// Turns s aside where its step took it into a haven or past the survey's
+// inset: back to where it was, its heading reflected off the haven's rim or
+// the edge, so it walks along and away instead of in. Mutates s.
+function turnAside(
+  s: Shadowman,
+  from: XZ,
+  metres: Metres,
+  havens: readonly XZ[],
+  cfg: ShadowmenConfig
+): void {
+  const mx = metres.width / 2 - cfg.edgeInset
+  const mz = metres.height / 2 - cfg.edgeInset
+  let turned = false
+  if (Math.abs(s.x) > mx && s.x * s.dirX > 0) {
+    s.dirX = -s.dirX
+    turned = true
+  }
+  if (Math.abs(s.z) > mz && s.z * s.dirZ > 0) {
+    s.dirZ = -s.dirZ
+    turned = true
+  }
+  for (const h of havens) {
+    const nx = s.x - h.x
+    const nz = s.z - h.z
+    const d = Math.hypot(nx, nz)
+    if (d >= cfg.havenRadius || d === 0) continue
+    const dot = (s.dirX * nx + s.dirZ * nz) / d
+    if (dot >= 0) continue
+    s.dirX -= (2 * dot * nx) / d
+    s.dirZ -= (2 * dot * nz) / d
+    turned = true
+  }
+  if (turned) {
+    s.x = from.x
+    s.z = from.z
+  }
 }
 
 // Whether p is inside the beam's cone: no further than its range from the
@@ -287,6 +360,7 @@ export function spawnShadowman(
     speed: range(rng, slow, fast),
     target: null,
     burn: 0,
+    windup: 0,
   }
 }
 
@@ -338,6 +412,38 @@ function arrival(
   return { ...fresh, kind: 'spider', speed: range(rng, slow, fast) }
 }
 
+// The spiderlings a spider bursting at `at` breaks into: brood.min to
+// brood.max of them, scattered round where it burst, each heading out from
+// it, with ids from field.nextId. They rush like any other shadow.
+export function broodOf(
+  field: ShadowmenField,
+  rng: Rng,
+  at: XZ,
+  cfg: ShadowmenConfig
+): Shadowman[] {
+  const { brood, scatter } = cfg.spiderling
+  const n = brood.min + Math.floor(rng() * (brood.max - brood.min + 1))
+  const [slow, fast] = speedRange('spiderling', cfg)
+  const out: Shadowman[] = []
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + rng() * 0.5
+    const r = scatter * (0.4 + 0.6 * rng())
+    out.push({
+      id: field.nextId++,
+      kind: 'spiderling',
+      x: at.x + Math.cos(a) * r,
+      z: at.z + Math.sin(a) * r,
+      dirX: Math.cos(a),
+      dirZ: Math.sin(a),
+      speed: range(rng, slow, fast),
+      target: null,
+      burn: 0,
+      windup: 0,
+    })
+  }
+  return out
+}
+
 export function createShadowmen(): ShadowmenField {
   return { shadowmen: [], nextId: 1, cooldowns: {} }
 }
@@ -384,8 +490,8 @@ function fill(
 }
 
 // Advance every shadowman, burst the ones held long enough in a beam,
-// strike the raiders they touch, drop the ones that have left every
-// bubble, and fill at most one place in each raider's bubble. Mutates
+// strike the raiders they touch, turn aside the ones at a haven or the
+// edge, drop the ones that have left every bubble, and fill at most one place in each raider's bubble. Mutates
 // field.
 export function stepShadowmen(
   field: ShadowmenField,
@@ -402,7 +508,9 @@ export function stepShadowmen(
   cfg: ShadowmenConfig = CONFIG.shadowmen
 ): ShadowmenUpdate {
   const struck: string[] = []
+  const lunges: number[] = []
   const bursts: BurstBy[] = []
+  const brood: Shadowman[] = []
 
   // New raiders get a full bubble; departed ones lose their cooldown.
   const cooldowns: Record<string, number> = {}
@@ -431,7 +539,7 @@ export function stepShadowmen(
     }
     if (!s.target && (!calm || s.placed)) {
       // The nearest exposed raider inside the rush radius.
-      let best = cfg.rushRadius
+      let best = rushRadiusOf(s.kind, cfg)
       for (const r of exposed) {
         const d = Math.hypot(r.x - s.x, r.z - s.z)
         if (d < best) {
@@ -452,29 +560,34 @@ export function stepShadowmen(
       }
     }
 
-    s.x += s.dirX * s.speed * dt
-    s.z += s.dirZ * s.speed * dt
-
     // Only a rush can touch, and a rush only runs while its raider is
-    // exposed.
+    // exposed. In reach it stands and winds up, then lunges; the lunge
+    // lands if its raider is still within reach (reachScale over its
+    // touch), and it stays either way.
+    const reach = touchRadiusOf(s.kind, cfg)
     if (
       target &&
-      Math.hypot(target.x - s.x, target.z - s.z) < touchRadiusOf(s.kind, cfg)
+      (s.windup > 0 || Math.hypot(target.x - s.x, target.z - s.z) < reach)
     ) {
-      struck.push(target.id)
-      continue
+      s.windup += dt
+      if (s.windup >= cfg.windupSeconds) {
+        s.windup = 0
+        lunges.push(s.id)
+        const d = Math.hypot(target.x - s.x, target.z - s.z)
+        if (d < reach * cfg.reachScale) struck.push(target.id)
+      }
+    } else {
+      s.windup = 0
+      const from = { x: s.x, z: s.z }
+      s.x += s.dirX * s.speed * dt
+      s.z += s.dirZ * s.speed * dt
+      turnAside(s, from, metres, havens, cfg)
     }
     let nearest = Infinity
     for (const r of raiders) {
       nearest = Math.min(nearest, Math.hypot(r.x - s.x, r.z - s.z))
     }
-    if (
-      nearest > cfg.despawnRadius ||
-      !inBounds(s, metres, cfg.edgeInset) ||
-      inHaven(s, havens, cfg.havenRadius)
-    ) {
-      continue
-    }
+    if (nearest > cfg.despawnRadius) continue
     const aim = aimHeightOf(s.kind, cfg)
     const by = lit
       .filter(({ beam }) =>
@@ -489,11 +602,12 @@ export function stepShadowmen(
     s.burn = held ? s.burn + dt : Math.max(0, s.burn - dt)
     if (s.burn >= burnSecondsOf(s.kind, cfg)) {
       bursts.push({ id: s.id, kind: s.kind, x: s.x, z: s.z, by })
+      if (s.kind === 'spider') brood.push(...broodOf(field, rng, s, cfg))
       continue
     }
     kept.push(s)
   }
-  field.shadowmen = kept
+  field.shadowmen = [...kept, ...brood]
 
   for (const raider of raiders) {
     const cooldown = Math.max(0, field.cooldowns[raider.id] - dt)
@@ -505,10 +619,10 @@ export function stepShadowmen(
     field.cooldowns[raider.id] = cfg.spawnInterval
   }
 
-  return { struck, bursts }
+  return { struck, lunges, bursts }
 }
 
-// A shadowman (or a spider) standing still at (x, z), for the specs (a dev
+// A shadowman (or a spider, or a spiderling) standing still at (x, z), for the specs (a dev
 // frame in the shared valley, the dev hook played alone).
 export function placeStill(
   field: ShadowmenField,
@@ -526,6 +640,7 @@ export function placeStill(
     speed: 0,
     target: null,
     burn: 0,
+    windup: 0,
     placed: true,
   })
 }

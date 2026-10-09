@@ -32,19 +32,20 @@ raiding_as = { text = "Raiding as", by = "ai" }
 account = { text = "Account", by = "ai" }
 sign_out = { text = "Sign Out", by = "ai" }
 
-# The rest of the HUD (src/hud.ts): the Begin button's states, the strike
-# static, and labels read by screen readers.
+# The rest of the HUD (src/hud.ts): the Begin button's states, the static
+# when geometrie shatters, and labels read by screen readers.
 
 [hud]
 begin_loading = { text = "Resolving Terrain…", by = "ai" }
 begin_play = { text = "Click to Die", by = "ai" }
 begin_resume = { text = "Click to Resume", by = "ai" }
 begin_failed = { text = "The Valley Will Not Resolve", by = "ai" }
-signal_lost = { text = "SIGNAL LOST", by = "ai" }
+geometrie_shattered = { text = "GEOMETRIE SHATTERED", by = "ai" }
 countdown_label = { text = "Truck leaves in", by = "ai" }
 chat_log_label = { text = "Chat", by = "ai" }
 chat_input_label = { text = "Say to the valley", by = "ai" }
 geometrie_label = { text = "Geometrie: high {high}%, stimulated {stimulated}%, drunk {drunk}%", by = "ai" }
+health_label = { text = "Health: {health} of {max}", by = "ai" }
 
 # The sign-in card (src/signin.ts).
 
@@ -197,7 +198,11 @@ lore = { text = "A ring of berry bushes round a door that opens back onto the ga
 lore = { text = "A light on the hill to the north. The beacon burns whether anyone is home or not.", by = "ai" }
 
 [book.shadowman]
-lore = { text = "They cross the valley round every raider, the same ones for everyone. Close enough, one rushes, and its touch sends you back to the Citgo. Hold a beam on one and it comes apart into mist and skulls, and leaves its dimes.", by = "ai" }
+lore = { text = "They cross the valley round every raider, the same ones for everyone. Close enough, one rushes, draws back, and lunges, and its touch takes a piece of you; the third sends you back to the Citgo with nothing. Hold a beam on one and it comes apart into mist and skulls, and leaves its dimes.", by = "ai" }
+
+[book.spiderling]
+name = { text = "Spiderling", by = "ai" }
+lore = { text = "Burn a shadow spider and it breaks into a brood of these: small, quick, and straight at whoever is nearest. A touch costs the same as any shadow's. A beam takes them apart in a blink, and each leaves a few dimes.", by = "ai" }
 
 [book.caretaker]
 name = { text = "The Caretaker", by = "ai" }
@@ -271,6 +276,10 @@ drop_aboard = { text = "Not from the truck.", by = "ai" }
 drop_refused = { text = "It won't come loose.", by = "ai" }
 change_unheard = { text = "The valley missed that. Others will see it when you next join.", by = "ai" }
 struck = { text = "You are somewhere else. Time is missing.", by = "ai" }
+hit = { text = "Something cold goes through you. It takes a piece with it.", by = "ai" }
+hit_caretaker = { text = "The lantern swings into you. A piece of you stays in the corn.", by = "ai" }
+mended = { text = "Under the Citgo lights you come back together.", by = "ai" }
+whole = { text = "You are whole. Save it.", by = "ai" }
 caught = { text = "A lantern, very close. Then the forecourt, and the smell of cold corn.", by = "ai" }
 fell = { text = "Your pockets are empty. Everything you carried is still out there, on you, where you fell.", by = "ai" }
 looted = { text = "You take your things back off your own body.", by = "ai" }
@@ -795,13 +804,17 @@ empty = { text = "No Ice Mountain left.", by = "ai" }
 
 [items.aspirin]
 label = { text = "Aspirin", by = "ai" }
-blurb = { text = "Yellow label, 24 tablets. For the head you woke up with.", by = "ai" }
+blurb = { text = "Yellow label, 24 tablets. For the head you woke up with. One gives a point of health back.", by = "ai" }
+used = { text = "You swallow an aspirin dry. Something knits back together.", by = "ai" }
 bought = { text = "One bottle of aspirin, pocketed.", by = "ai" }
+empty = { text = "The aspirin bottle rattles empty.", by = "ai" }
 
 [items.ibuprofen]
 label = { text = "Ibuprofen", by = "ai" }
-blurb = { text = "Blue label, 200 mg. The gas station kind, two to a dose.", by = "ai" }
+blurb = { text = "Blue label, 200 mg. The gas station kind. One gives a point of health back.", by = "ai" }
+used = { text = "You swallow an ibuprofen. The ache backs off a step.", by = "ai" }
 bought = { text = "One bottle of ibuprofen, pocketed.", by = "ai" }
+empty = { text = "The ibuprofen bottle rattles empty.", by = "ai" }
 
 [items.benadryl]
 label = { text = "Benadryl", by = "ai" }

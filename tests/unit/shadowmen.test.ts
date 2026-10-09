@@ -40,6 +40,19 @@ const CFG: ShadowmenConfig = {
     rushSpeed: 13,
     touchRadius: 2.4,
   },
+  spiderling: {
+    brood: { min: 3, max: 8 },
+    scatter: 2.5,
+    scale: 0.25,
+    speedMin: 8,
+    speedMax: 11,
+    rushRadius: 40,
+    rushSpeed: 14,
+    touchRadius: 0.9,
+    burnSeconds: 0.2,
+    aimHeight: 0.5,
+    dimes: { min: 1, max: 3 },
+  },
   spawnRadius: 300,
   crossRadius: 120,
   despawnRadius: 360,
@@ -50,10 +63,13 @@ const CFG: ShadowmenConfig = {
   rushRadius: 25,
   rushSpeed: 12,
   touchRadius: 1.4,
+  windupSeconds: 0.3,
+  reachScale: 1.25,
   havenRadius: 60,
   strikeSeconds: 1.6,
   burnSeconds: 0.5,
   chestHeight: 1.4,
+  glowFade: { near: 200, far: 290 },
   tickHz: 10,
 }
 const METRES: Metres = { width: 15059, height: 15038 }
@@ -97,6 +113,7 @@ const one = (over: Partial<Shadowman> = {}): ShadowmenField => ({
       speed: 8,
       target: null,
       burn: 0,
+      windup: 0,
       ...over,
     },
   ],
@@ -230,7 +247,7 @@ describe('stepShadowmen: the bubbles', () => {
     expect(first(field)?.z).toBeCloseTo(-100 + 8 * DT, 9)
   })
 
-  it('drops one past every despawn radius, off the survey, or in a haven', () => {
+  it('drops one past every despawn radius, and only there', () => {
     const far = one({ z: -400 })
     step(far)
     expect(far.shadowmen).toEqual([])
@@ -242,19 +259,35 @@ describe('stepShadowmen: the bubbles', () => {
     })
     expect(kept.shadowmen.length).toBe(1)
 
-    const edge = one({ x: METRES.width / 2 - 30.2, z: 0, dirX: 1, dirZ: 0 })
-    step(edge)
-    expect(edge.shadowmen).toEqual([])
-
-    const lights = one({ x: 100, z: 0, dirX: -1, dirZ: 0 })
-    step(lights, undefined, { havens: [{ x: 50, z: 0 }] })
-    expect(lights.shadowmen).toEqual([])
-
     // With no raiders at all, the valley empties.
     const empty = one()
     step(empty, undefined, { raiders: [] })
     expect(empty.shadowmen).toEqual([])
     expect(empty.cooldowns).toEqual({})
+  })
+
+  it('turns aside at the survey edge instead of going', () => {
+    const x = METRES.width / 2 - 30.2
+    const edge = one({ x, z: 0, dirX: 1, dirZ: 0 })
+    const raiders = [raider({ x: x - 100 })]
+    step(edge, undefined, { raiders })
+    expect(edge.shadowmen.length).toBe(1)
+    expect(first(edge)?.dirX).toBe(-1)
+    for (let i = 0; i < 40; i++) step(edge, undefined, { raiders })
+    expect(edge.shadowmen.length).toBe(1)
+    expect(inBounds(first(edge) ?? ORIGIN, METRES, CFG.edgeInset)).toBe(true)
+  })
+
+  it('turns aside at a haven instead of vanishing at the lights', () => {
+    const havens = [{ x: 0, z: 0 }]
+    // Heading into the forecourt, a little off its centre.
+    const lights = one({ x: 10, z: -CFG.havenRadius - 0.1, dirX: 0, dirZ: 1 })
+    for (let i = 0; i < 200; i++) step(lights, undefined, { havens })
+    expect(lights.shadowmen.length).toBe(1)
+    const s = first(lights)
+    expect(s && inHaven(s, havens, CFG.havenRadius)).toBe(false)
+    // Reflected off the rim: away from the pumps, still on its way.
+    expect(s && s.x > 10).toBe(true)
   })
 
   it('refills a bubble one shadowman per spawn interval', () => {
@@ -319,8 +352,8 @@ describe('stepShadowmen: rushes', () => {
   })
 
   it('keeps its heading when it stands right on its raider', () => {
-    // No direction to the raider from on top of them: it runs on as it was,
-    // and a long step carries it out past the touch.
+    // No direction to the raider from on top of them: it keeps the one it
+    // had, and stands there winding up.
     const field = one({
       z: 0,
       dirX: 0,
@@ -333,8 +366,8 @@ describe('stepShadowmen: rushes', () => {
       raiders: [raider({ vulnerable: true })],
     })
     expect(r.struck).toEqual([])
-    expect(first(field)).toMatchObject({ x: 0, dirX: 0, dirZ: 1 })
-    expect(first(field)?.z).toBeCloseTo(CFG.rushSpeed * 0.2, 9)
+    expect(first(field)).toMatchObject({ x: 0, z: 0, dirX: 0, dirZ: 1 })
+    expect(first(field)?.windup).toBeCloseTo(0.2, 9)
   })
 
   it('breaks off when its raider is riding, in a haven, or gone', () => {
@@ -356,18 +389,54 @@ describe('stepShadowmen: rushes', () => {
     expect(first(gone)?.target).toBeNull()
   })
 
-  it('strikes the raider it touches, and only while rushing them', () => {
-    const touch = one({ z: -1.8, target: 'a', speed: CFG.rushSpeed })
-    const hit = step(touch, undefined, {
-      raiders: [raider({ vulnerable: true }), raider({ id: 'b', x: 1.5 })],
-    })
+  it('winds up in reach, then lunges and strikes, and stays', () => {
+    const touch = one({ z: -1.2, target: 'a', speed: CFG.rushSpeed })
+    const raiders = [raider({ vulnerable: true }), raider({ id: 'b', x: 1.5 })]
+    const steps = Math.round(CFG.windupSeconds / DT)
+    for (let i = 1; i < steps; i++) {
+      const winding = step(touch, undefined, { raiders })
+      expect(winding.struck).toEqual([])
+      expect(winding.lunges).toEqual([])
+      // It stands while it winds up.
+      expect(first(touch)?.z).toBe(-1.2)
+    }
+    const hit = step(touch, undefined, { raiders })
     expect(hit.struck).toEqual(['a'])
-    expect(touch.shadowmen).toEqual([])
+    expect(hit.lunges).toEqual([1])
+    expect(touch.shadowmen.length).toBe(1)
+    expect(first(touch)?.windup).toBe(0)
 
-    const brush = one({ z: -1.8, target: 'a', speed: CFG.rushSpeed })
-    const miss = step(brush)
-    expect(miss.struck).toEqual([])
+    // Only while rushing them: raider 'a' here cannot be struck.
+    const brush = one({ z: -1.2, target: 'a', speed: CFG.rushSpeed })
+    for (let i = 0; i <= steps; i++) expect(step(brush).struck).toEqual([])
     expect(brush.shadowmen.length).toBe(1)
+  })
+
+  it('misses a raider who steps out of reach during the windup', () => {
+    const field = one({ z: -1.2, target: 'a', speed: CFG.rushSpeed })
+    step(field, undefined, { raiders: [raider({ vulnerable: true })] })
+    const out = CFG.touchRadius * CFG.reachScale + 0.5
+    let lunged: number[] = []
+    for (let i = 0; i < 20 && lunged.length === 0; i++) {
+      const r = step(field, undefined, {
+        raiders: [raider({ vulnerable: true, z: out })],
+      })
+      expect(r.struck).toEqual([])
+      lunged = r.lunges
+    }
+    expect(lunged).toEqual([1])
+    // And rushes on.
+    step(field, undefined, { raiders: [raider({ vulnerable: true, z: out })] })
+    expect(first(field)?.z).toBeGreaterThan(-1.2)
+  })
+
+  it('lets a windup go when its raider can no longer be struck', () => {
+    const field = one({ z: -1.2, target: 'a', speed: CFG.rushSpeed })
+    step(field, undefined, { raiders: [raider({ vulnerable: true })] })
+    expect(first(field)?.windup).toBeGreaterThan(0)
+    step(field)
+    expect(first(field)?.windup).toBe(0)
+    expect(first(field)?.target).toBeNull()
   })
 })
 
@@ -513,7 +582,7 @@ describe('the flashlight', () => {
     const field = held({ kind: 'spider' })
     let steps = 0
     let bursts: unknown[] = []
-    while (field.shadowmen.length && steps < 200) {
+    while (bursts.length === 0 && steps < 200) {
       bursts = step(field, undefined, { raiders: lit }).bursts
       steps++
     }
@@ -658,18 +727,85 @@ describe('the shadow spiders', () => {
       expect(s.speed).toBeGreaterThanOrEqual(cfg.spider.speedMin)
       expect(s.speed).toBeLessThanOrEqual(cfg.spider.speedMax)
     }
-    // Rushing: a spider 2 m off has already touched; a shadowman has not.
+    // Rushing: a spider 2 m off is already in reach, winding up; a
+    // shadowman is not.
     const near = (kind: 'man' | 'spider') => {
       const f = one({ kind, z: -2, speed: 0 })
-      return step(f, undefined, {
+      step(f, undefined, {
         raiders: [raider({ vulnerable: true })],
         dt: 0.001,
-      }).struck
+      })
+      return (first(f)?.windup ?? 0) > 0
     }
-    expect(near('spider')).toEqual(['a'])
-    expect(near('man')).toEqual([])
+    expect(near('spider')).toBe(true)
+    expect(near('man')).toBe(false)
     const rusher = one({ kind: 'spider', z: -20 })
     step(rusher, undefined, { raiders: [raider({ vulnerable: true })] })
     expect(first(rusher)?.speed).toBe(CFG.spider.rushSpeed)
+  })
+})
+
+describe('the spiderlings', () => {
+  const lit = [raider({ beam: BEAM })]
+
+  it('a burst spider breaks into brood.min to brood.max of them, with new ids', () => {
+    const counts = new Set<number>()
+    for (let seed = 1; seed <= 40; seed++) {
+      const field = one({ kind: 'spider', z: -20, speed: 0 })
+      const rng = mulberry32(seed)
+      let bursts: { kind: string }[] = []
+      for (let i = 0; i < 200 && bursts.length === 0; i++) {
+        bursts = step(field, rng, { raiders: lit }).bursts
+      }
+      expect(bursts.map((b) => b.kind)).toEqual(['spider'])
+      const brood = field.shadowmen.filter((s) => s.kind === 'spiderling')
+      expect(brood.length).toBe(field.shadowmen.length)
+      expect(brood.length).toBeGreaterThanOrEqual(CFG.spiderling.brood.min)
+      expect(brood.length).toBeLessThanOrEqual(CFG.spiderling.brood.max)
+      counts.add(brood.length)
+      const ids = brood.map((s) => s.id)
+      expect(new Set(ids).size).toBe(ids.length)
+      expect(Math.min(...ids)).toBeGreaterThan(1)
+      for (const s of brood) {
+        expect(Math.hypot(s.x, s.z + 20)).toBeLessThanOrEqual(
+          CFG.spiderling.scatter + 1e-9
+        )
+        expect(s.speed).toBeGreaterThanOrEqual(CFG.spiderling.speedMin)
+        expect(s.speed).toBeLessThanOrEqual(CFG.spiderling.speedMax)
+      }
+    }
+    expect(counts.size).toBeGreaterThan(2)
+  })
+
+  it('never break again, and burst in their own short time', () => {
+    const field = one({ kind: 'spiderling', z: -20, speed: 0 })
+    let steps = 0
+    let bursts: { kind: string }[] = []
+    while (bursts.length === 0 && steps < 100) {
+      bursts = step(field, undefined, { raiders: lit }).bursts
+      steps++
+    }
+    expect(bursts.map((b) => b.kind)).toEqual(['spiderling'])
+    expect(field.shadowmen).toEqual([])
+    expect(steps * DT).toBeLessThanOrEqual(
+      CFG.spiderling.burnSeconds + DT + 1e-9
+    )
+  })
+
+  it('rush from further off, faster, and touch closer', () => {
+    const far = one({ kind: 'spiderling', z: -35 })
+    step(far, undefined, { raiders: [raider({ vulnerable: true })] })
+    expect(first(far)?.target).toBe('a')
+    expect(first(far)?.speed).toBe(CFG.spiderling.rushSpeed)
+    const man = one({ z: -35 })
+    step(man, undefined, { raiders: [raider({ vulnerable: true })] })
+    expect(first(man)?.target).toBeNull()
+
+    const close = one({ kind: 'spiderling', z: -1.2, speed: 0 })
+    step(close, undefined, {
+      raiders: [raider({ vulnerable: true })],
+      dt: 0.001,
+    })
+    expect(first(close)?.windup).toBe(0)
   })
 })

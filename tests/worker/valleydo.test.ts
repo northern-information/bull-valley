@@ -132,12 +132,25 @@ class TestValley extends ValleyDO {
     this.tickShadows()
   }
   // A strike's fall, as the step would make it, for a socket on `account`.
-  strike(
+  fallFor(
     account: string,
     id: string,
     at: { x: number; z: number; yaw: number } | null
   ): Promise<void> {
     return this.fall(account, id, at)
+  }
+}
+
+// Lets the writes a step started (a strike, its fall, a mend) land.
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+// Steps the shadowmen by hand until `socket` hears it was struck, through
+// the windup; the strike and its fall written after.
+async function tickUntilStruck(v: TestValley, socket: MockSocket) {
+  for (let i = 0; i < 30; i++) {
+    v.tick()
+    await settle()
+    if (socket.frames().some((m) => m.type === 'struck')) return
   }
 }
 
@@ -654,6 +667,72 @@ describe('ValleyDO', () => {
     expect(s.storage.alarm).toBe(
       (leg?.at ?? 0) + CONFIG.truck.readSeconds * 1000
     )
+  })
+
+  it('lets go of a socket silent too long, so a vanished tab leaves no ghost', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.now() })
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    const idA = idOf(a)
+    v.tick()
+    // B keeps pinging; A has gone quiet.
+    vi.advanceTimersByTime(CONFIG.net.silentMs - 1000)
+    await v.webSocketMessage(ws(b), JSON.stringify({ type: 'ping', t: 1 }))
+    v.tick()
+    expect(a.closeCode).toBeNull()
+    vi.advanceTimersByTime(2000)
+    await v.webSocketMessage(ws(b), JSON.stringify({ type: 'ping', t: 2 }))
+    const before = b.sent.length
+    v.tick()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    // Not a refusal: a client that was only asleep reconnects.
+    expect(a.closeCode).toBe(1001)
+    expect(b.closeCode).toBeNull()
+    expect(
+      b
+        .frames()
+        .slice(before)
+        .find((m) => m.type === 'peer-left')
+    ).toEqual({ type: 'peer-left', id: idA })
+  })
+
+  it('retires the socket a reconnect names, so no one sees a ghost', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const twin = await join(v, s, 'A2', { account: 'acct-A' })
+    const b = await join(v, s, 'B')
+    const was = idOf(a)
+    // The line dropped; the valley has not heard the old socket close.
+    const back = stamped('A', { account: 'acct-A' })
+    s.acceptWebSocket(back)
+    const before = b.sent.length
+    const frame = JSON.parse(hello()) as object
+    await v.webSocketMessage(ws(back), JSON.stringify({ ...frame, was }))
+    expect(a.closeCode).toBe(CLOSE.replaced)
+    expect(
+      b
+        .frames()
+        .slice(before)
+        .find((m) => m.type === 'peer-left')
+    ).toEqual({ type: 'peer-left', id: was })
+    // The welcome shows the raider everyone else, and not their old self.
+    const roster = back.frames()[0] as WelcomeMessage
+    expect(roster.peers.map((p) => p.id).sort()).toEqual(
+      [idOf(twin), idOf(b)].sort()
+    )
+    // Another account cannot retire someone else's socket.
+    const c = await join(v, s, 'C')
+    const other = stamped('D', { account: 'acct-D' })
+    s.acceptWebSocket(other)
+    await v.webSocketMessage(
+      ws(other),
+      JSON.stringify({ ...frame, was: idOf(c) })
+    )
+    expect(c.closeCode).toBeNull()
   })
 
   it('announces a departure once, and keeps the world when the last one goes', async () => {
@@ -1307,7 +1386,8 @@ describe('ValleyDO: corpse runs', () => {
   const worldFrames = (socket: MockSocket) =>
     socket.frames().filter((m): m is WorldMessage => m.type === 'world')
 
-  // A, out on foot, is touched by a shadowman; B stands far off.
+  // A, out on foot with one point of health left, is touched by a
+  // shadowman; B stands far off.
   async function struck() {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A', { dev: true })
@@ -1316,13 +1396,12 @@ describe('ValleyDO: corpse runs', () => {
     await v.webSocketMessage(ws(a), state(500, 500))
     await v.webSocketMessage(ws(b), state(900, 900))
     await v.webSocketMessage(ws(a), '{"type":"dev","op":"calm"}')
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"health","points":1}')
     await v.webSocketMessage(
       ws(a),
       '{"type":"dev","op":"shadowman","x":500,"z":501}'
     )
-    v.tick()
-    // The fall is written after the step.
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await tickUntilStruck(v, a)
     return { v, s, a, b }
   }
 
@@ -1377,7 +1456,7 @@ describe('ValleyDO: corpse runs', () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A')
     // Nowhere the valley heard them stand: the pack is given back.
-    await v.strike('acct-A', idOf(a), null)
+    await v.fallFor('acct-A', idOf(a), null)
     expect(lastFrame(a)).toMatchObject({
       pack: STARTING_INVENTORY,
       corpses: [],
@@ -1392,11 +1471,11 @@ describe('ValleyDO: corpse runs', () => {
     const error = console.error
     console.error = () => {}
     try {
-      await v.strike('acct-A', idOf(a), { x: 1, z: 2, yaw: 0 })
+      await v.fallFor('acct-A', idOf(a), { x: 1, z: 2, yaw: 0 })
       expect(lastFrame(a)).toMatchObject({ pack: STARTING_INVENTORY })
       // A body that cannot be looted stays lying, with its things.
       v.packStore = store
-      await v.strike('acct-A', idOf(a), { x: 1, z: 2, yaw: 0 })
+      await v.fallFor('acct-A', idOf(a), { x: 1, z: 2, yaw: 0 })
       v.packStore = {
         open: (id) => store.open(id),
         get: (id) => store.get(id),
@@ -1712,8 +1791,8 @@ describe('ValleyDO: the shadowmen', () => {
       ws(a),
       '{"type":"dev","op":"shadowman","x":500,"z":501}'
     )
-    v.tick()
-    expect(a.frames().some((m) => m.type === 'struck')).toBe(true)
+    await tickUntilStruck(v, a)
+    expect(a.frames()).toContainEqual({ type: 'struck', health: 2 })
     expect(b.frames().some((m) => m.type === 'struck')).toBe(false)
   })
 
@@ -1738,8 +1817,12 @@ describe('ValleyDO: the shadowmen', () => {
     const frame = a.last<ShadowmenMessage>()
     expect(frame.type).toBe('shadowmen')
     expect(frame.caretaker).toMatchObject({ target: idOf(a) })
-    for (let i = 0; i < 10; i++) v.tick()
-    expect(a.frames()).toContainEqual({ type: 'struck', by: 'caretaker' })
+    await tickUntilStruck(v, a)
+    expect(a.frames()).toContainEqual({
+      type: 'struck',
+      by: 'caretaker',
+      health: 2,
+    })
     expect(b.frames().some((m) => m.type === 'struck')).toBe(false)
   })
 
@@ -1875,19 +1958,18 @@ describe('ValleyDO: the shadowmen', () => {
       type: 'welcome',
       task: { task: DAILY_TASK.id, ...NO_TASK },
     })
-    // A's beam burned it; B, far off, had no part.
-    expect(tasks(a)).toEqual([
-      {
-        type: 'task',
-        task: {
-          task: DAILY_TASK.id,
-          day: dayKey(Date.now()),
-          count: 1,
-          claimed: false,
-        },
-        rewarded: false,
+    // A's beam burned it; B, far off, had no part. A crossing shadowman
+    // may burn in the same beam too, crediting a second.
+    expect(tasks(a)[0]).toEqual({
+      type: 'task',
+      task: {
+        task: DAILY_TASK.id,
+        day: dayKey(Date.now()),
+        count: 1,
+        claimed: false,
       },
-    ])
+      rewarded: false,
+    })
     expect(tasks(b)).toEqual([])
   })
 
@@ -2342,5 +2424,130 @@ describe('ValleyDO: the Book of Shadows', () => {
       reason: 'unwritten',
     })
     expect(books(b)).toEqual([])
+  })
+})
+
+describe('ValleyDO: health', () => {
+  const healthOf = (socket: MockSocket) =>
+    socket
+      .frames()
+      .filter((m) => m.type === 'health' || m.type === 'struck')
+      .map((m) => (m as { health: number }).health)
+
+  // A, on foot far from any forecourt, with a second socket on the same
+  // account standing elsewhere; B far off.
+  async function out() {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const a2 = await join(v, s, 'A2', { account: 'acct-A' })
+    const b = await join(v, s, 'B')
+    await v.alarm()
+    await v.webSocketMessage(ws(a), state(500, 500))
+    await v.webSocketMessage(ws(a2), state(700, 700))
+    await v.webSocketMessage(ws(b), state(900, 900))
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"calm"}')
+    return { v, s, a, a2, b }
+  }
+
+  it('welcomes an account whole', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    expect(a.frames()[0]).toMatchObject({
+      type: 'welcome',
+      health: CONFIG.health.max,
+    })
+  })
+
+  it('takes one point for a touch, and leaves the pack and the raider be', async () => {
+    const { v, a, a2, b } = await out()
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"shadowman","x":500,"z":501}'
+    )
+    await tickUntilStruck(v, a)
+    expect(a.frames()).toContainEqual({
+      type: 'struck',
+      health: CONFIG.health.max - 1,
+    })
+    // The account's other socket hears its health, not a strike.
+    expect(a2.frames()).toContainEqual({
+      type: 'health',
+      health: CONFIG.health.max - 1,
+    })
+    expect(a2.frames().some((m) => m.type === 'struck')).toBe(false)
+    // No body, and the pack as it was.
+    const worlds = b
+      .frames()
+      .filter((m): m is WorldMessage => m.type === 'world')
+    expect(worlds.some((m) => m.reason === 'fell')).toBe(false)
+    expect(lastPack(a) ?? STARTING_INVENTORY).toEqual(STARTING_INVENTORY)
+  })
+
+  it('remembers the account across a reconnect', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"health","points":1}')
+    expect(healthOf(a)).toEqual([1])
+    await v.webSocketClose(ws(a))
+    const back = await join(v, s, 'A')
+    expect(back.frames()[0]).toMatchObject({ type: 'welcome', health: 1 })
+  })
+
+  it('shatters on the last point: the strike, then whole again', async () => {
+    const { v, s, a } = await out()
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"health","points":1}')
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"shadowman","x":500,"z":501}'
+    )
+    await tickUntilStruck(v, a)
+    expect(a.frames()).toContainEqual({ type: 'struck', health: 0 })
+    expect(
+      a.frames().findLast((m): m is PackMessage => m.type === 'pack')
+    ).toMatchObject({ corpses: [0] })
+    await v.webSocketClose(ws(a))
+    const back = await join(v, s, 'A')
+    expect(back.frames()[0]).toMatchObject({
+      type: 'welcome',
+      health: CONFIG.health.max,
+    })
+  })
+
+  it('makes whole on a Citgo forecourt', async () => {
+    const { v, a, a2 } = await out()
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"health","points":1}')
+    // The hello put a forecourt at the origin.
+    await v.webSocketMessage(ws(a), state(5, 5))
+    v.tick()
+    await settle()
+    expect(healthOf(a).at(-1)).toBe(CONFIG.health.max)
+    expect(healthOf(a2).at(-1)).toBe(CONFIG.health.max)
+    // Whole, it hears nothing more.
+    const heard = healthOf(a).length
+    v.tick()
+    await settle()
+    expect(healthOf(a).length).toBe(heard)
+  })
+
+  it('gives a point back for a pill that heals, once the pack gives it up', async () => {
+    const { v, a } = await out()
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"health","points":1}')
+    // None carried: refused, and no point back.
+    await v.webSocketMessage(ws(a), '{"type":"use","kind":"aspirin"}')
+    expect(healthOf(a)).toEqual([1])
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"grant","kind":"aspirin","count":24}'
+    )
+    await v.webSocketMessage(ws(a), '{"type":"use","kind":"aspirin"}')
+    expect(healthOf(a)).toEqual([1, 2])
+    expect(lastPack(a)?.aspirin).toBe(23)
+    // Medicine that does not heal gives nothing back.
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"grant","kind":"benadryl","count":24}'
+    )
+    await v.webSocketMessage(ws(a), '{"type":"use","kind":"benadryl"}')
+    expect(healthOf(a)).toEqual([1, 2])
   })
 })

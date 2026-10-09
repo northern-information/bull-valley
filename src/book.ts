@@ -88,6 +88,12 @@ const NAMED: readonly BookEntry[] = [
     lore: copy('book.shadowman.lore'),
   },
   {
+    id: 'spiderling',
+    chapter: 'shadows',
+    name: copy('book.spiderling.name'),
+    lore: copy('book.spiderling.lore'),
+  },
+  {
     id: 'caretaker',
     chapter: 'shadows',
     name: copy('book.caretaker.name'),
