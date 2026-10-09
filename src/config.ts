@@ -27,6 +27,25 @@ export const CONFIG = {
     // The body's radius, for the store walls.
     radius: 0.3,
   },
+  // The Book of Shadows (book.ts): how near a raider must come for each
+  // place to be written in it (world.ts bookSights), in metres, and how
+  // near a shadow, as the scope reads it.
+  book: {
+    reach: {
+      citgo: 25,
+      stand: 7,
+      wreck: 12,
+      // From the middle of the array, which runs some 70 m a side.
+      dishes: 45,
+      // Past the field's own edge.
+      donutField: 4,
+      // Past the corn, either side of the maze.
+      maze: 8,
+      heart: 12,
+      keep: 40,
+    },
+    sightRange: 25,
+  },
   shadowmen: {
     // Crossings: this many shadowmen at once in a bubble around the player.
     count: 12,
@@ -166,27 +185,10 @@ export const CONFIG = {
     // the lot, between the pumps and the road sign.
     offset: 5,
   },
-  radio: {
-    // The radio in Marx's cab (radio.ts): full this close, in metres,
-    // silent past `far`, and muffled toward the edge.
-    volume: 0.9,
-    near: 6,
-    far: 45,
-    openHz: 9000,
-    muffledHz: 700,
-    // In the bed, through the back glass.
-    bedHz: 2400,
-    // The stream pauses past `far` plus this, so no one far off downloads it.
-    pauseBeyond: 15,
-    // A player this far from the valley's moment, in seconds, seeks back.
-    driftSeconds: 2,
-  },
   music: {
     // The valley's music (music.ts): the element's volume at the setting's
     // top, kept well under the valley so it sits beneath everything.
     volume: 0.5,
-    // How much of it Marx's radio takes away at its loudest.
-    duck: 0.85,
     // Seconds it takes to come up from silence when it starts.
     fadeInSeconds: 4,
   },
@@ -244,6 +246,19 @@ export const CONFIG = {
     speed: 12, // m/s, about 27 mph — right for gravel-adjacent Bull Valley
     boardRange: 4,
     bedEye: 1.6, // camera height above the bed
+    // Marx's headlights burn shadowmen like a flashlight (shadowmen.ts
+    // headlightBeam): a cone from the lamps, `nose` metres ahead of the
+    // truck's middle and `height` up, `range` long and `halfAngle` radians
+    // off its axis. The valley aims it from where a client within `reach`
+    // of the truck last said it was, and forgets a word older than staleMs.
+    headlights: {
+      reach: 400,
+      range: 30,
+      halfAngle: 0.45,
+      height: 0.95,
+      nose: 2.95,
+      staleMs: 1000,
+    },
     wanderMetres: 6000, // how far the outbound joyride runs
     // Matthew Marx's day (marx.ts): he reads at the tailgate this long,
     // then does donuts this long, over and over. Climbing into the bed
@@ -417,6 +432,11 @@ export const CONFIG = {
     // Trees keep this far off each pedestal: clear of the reflector.
     treeClear: 6,
   },
+  emotes: {
+    // A raider within this many metres of one who emotes (emotes.ts) gets
+    // the quiet line in their log; anyone further off only sees it.
+    seenRadius: 40,
+  },
   npcs: {
     // How close you must stand for Matthew Marx or David Carlsten to glow
     // and answer E. Marx reads by the tailgate, in boarding range, so this
@@ -519,5 +539,14 @@ export const CONFIG = {
     // Unmade, it leaves this many 1 troy ounce bars of gold bullion lying
     // where it was, each a drop of its own (drops.ts spillsOf).
     bullion: 2,
+  },
+  // The raider's level (progression.ts): one XP bar for the account, fed
+  // by everything. Reaching level L takes base * (L - 1) ^ power XP in all,
+  // so each level asks a little more than the last; uncapped by the
+  // season, and never past maxLevel.
+  progression: {
+    base: 100,
+    power: 1.5,
+    maxLevel: 99,
   },
 }

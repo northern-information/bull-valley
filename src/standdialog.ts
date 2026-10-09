@@ -1,4 +1,4 @@
-// Tending your Cabbage Stand (sharedworld.ts rule 20): a small dialog
+// Tending your Cabbage Stand (sharedworld.ts rule 23): a small dialog
 // over the valley, opened with E beside the stand, like Gron's. It shows
 // your ledger as it stands this second (stand.ts, against the valley's
 // clock): the level, the table, what it earns and has banked, and when it

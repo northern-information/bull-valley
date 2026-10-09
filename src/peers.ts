@@ -1,11 +1,13 @@
 // The other players in the valley, drawn: one shared figure per peer in
-// their outfit, posed from the state they sent, with their name on a small
-// pixelated sprite overhead. The data lives in presence.ts; this is the
+// their outfit, posed from the state they sent, with their name and level
+// on a small pixelated sprite overhead. The data lives in presence.ts; this is the
 // Three glue that reads it every frame.
 
 import * as THREE from 'three'
 import { isMesh } from './assets.ts'
 import { canvas, EGGSHELL, MONO, text } from './canvas.ts'
+import { copy } from './copy.ts'
+import { EMOTES, isEmote } from './emotes.ts'
 import {
   applyJoints,
   applyPose,
@@ -51,12 +53,16 @@ interface Puppet {
   cycle: number
 }
 
-function buildLabel(name: string): {
+function buildLabel(
+  name: string,
+  level: number
+): {
   sprite: THREE.Sprite
   texture: THREE.CanvasTexture
 } {
   const art = canvas([LABEL_W, LABEL_H])
-  text(art.ctx, name, LABEL_W / 2, LABEL_H / 2, LABEL_W - 8, 18, MONO, EGGSHELL)
+  const tag = copy('level.tag', { name, level })
+  text(art.ctx, tag, LABEL_W / 2, LABEL_H / 2, LABEL_W - 8, 18, MONO, EGGSHELL)
   const texture = new THREE.CanvasTexture(art.c)
   texture.magFilter = THREE.NearestFilter
   texture.minFilter = THREE.NearestFilter
@@ -105,8 +111,8 @@ export class Peers {
     this.build(applyJoined(this.table, wire, now))
   }
 
-  // A peer changed their name or character at Gron, or took a cosmetic
-  // from Moab: a new figure and label, where they already stand. Unknown ids are ignored.
+  // A peer changed their name or character at Gron, took a cosmetic from
+  // Moab, or reached a new level: a new figure and label, where they already stand. Unknown ids are ignored.
   updated(wire: PeerWire): void {
     const peer = applyUpdated(this.table, wire)
     if (!peer) return
@@ -145,6 +151,9 @@ export class Peers {
       group.position.set(at.x, at.y, at.z)
       if (at.pose === 'crouch') {
         applyPose(puppet.figure, samplePose('crouch'))
+      } else if (isEmote(at.pose)) {
+        // An emote (emotes.ts), its cycle on this page's clock.
+        applyPose(puppet.figure, samplePose(EMOTES[at.pose].pose, this.time))
       } else if (at.pose === 'walk' && at.speed > 0.3) {
         puppet.cycle += (at.speed * dt) / STRIDE
         applyPose(
@@ -173,7 +182,7 @@ export class Peers {
     figure.group.visible = false
     const flashlight = attachFlashlight(figure)
     const worn = attachCosmetics(figure, peer.cosmetics)
-    const { sprite, texture } = buildLabel(peer.name)
+    const { sprite, texture } = buildLabel(peer.name, peer.level)
     if (peer.cosmetics.includes('flaming-halo')) {
       sprite.position.y = LABEL_OVER_HALO
     }

@@ -5,7 +5,7 @@
 // valley's clock until it reaches its cap; come back and collect it into
 // the wallet. Upgrades, paid in cash and goods, raise the table, the rate
 // and the cap, and dress the stand (assets.ts buildStandDressing).
-// sharedworld.ts runs these for the shared valley (rule 20), and the
+// sharedworld.ts runs these for the shared valley (rule 23), and the
 // ledger is kept in D1 beside the wallet; the valley played alone has no
 // stand, since nothing is kept. No three.js, no DOM.
 
@@ -251,7 +251,7 @@ export function isStandLedger(
 }
 
 // The line that says why the valley refused to tend the stand
-// (sharedworld.ts rule 20's nack reasons).
+// (sharedworld.ts rule 23's nack reasons).
 export function refusalLine(reason: string): string {
   switch (reason) {
     case 'no-stand':

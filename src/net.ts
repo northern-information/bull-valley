@@ -26,6 +26,7 @@ import type {
   PickupSpec,
   ServerMessage,
 } from './protocol.ts'
+import type { TruckPose } from './shadowmen.ts'
 import type { WaterMap } from './waterside.ts'
 
 export type NetStatus = 'connecting' | 'online' | 'offline'
@@ -61,7 +62,7 @@ export interface NetIdentity {
   maze: MazePlace | null
   // Where Marx parks and how long his joyride takes.
   truck: TruckRoutes
-  // Where the Cabbage Stand stands (rule 20), or null.
+  // Where the Cabbage Stand stands (rule 23), or null.
   stand: XZ | null
 }
 
@@ -168,6 +169,10 @@ export class NetClient {
 
   sendState(state: PeerStateWire): void {
     this.send({ type: 'state', ...state })
+  }
+
+  sendHeadlights(pose: TruckPose): void {
+    this.send({ type: 'headlights', ...pose })
   }
 
   private async open(first = false): Promise<void> {

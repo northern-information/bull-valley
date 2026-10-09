@@ -80,7 +80,7 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // The lockers in the back room of station `station`: E opens the stash
   // (rule 19).
   | { kind: 'locker'; station: number }
-  // The Cabbage Stand: E opens this raider's own (rule 20).
+  // The Cabbage Stand: E opens this raider's own (rule 23).
   | { kind: 'stand' }
 
 // A locker bank as the resolver sees it: where E opens it, and its

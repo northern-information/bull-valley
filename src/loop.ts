@@ -4,11 +4,13 @@
 
 import * as THREE from 'three'
 import { pulseMaterials } from './assets.ts'
+import { itemsHeld, sightsInReach } from './book.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { moabOffer } from './cosmetics.ts'
 import { dayKey } from './daily.ts'
 import { onDay, shownCount } from './dailytask.ts'
+import { EMOTES, holds } from './emotes.ts'
 import { levelsAt } from './geometrie.ts'
 import { ease, stepHand, useLift, useSeconds } from './hands.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
@@ -22,8 +24,7 @@ import { settleTruck } from './marx.ts'
 import { inPortal } from './maze.ts'
 import { packItemOf } from './packgrid.ts'
 import { poseOf, stateChanged } from './presence.ts'
-import { heardAt } from './radio.ts'
-import { aimHeightOf, beamFrom } from './shadowmen.ts'
+import { aimHeightOf, beamFrom, headlightBeam } from './shadowmen.ts'
 import { formatCash } from './store.ts'
 import { tripLevel } from './trip.ts'
 import { boardable, clockText, countdown, seatOf } from './worldsync.ts'
@@ -50,7 +51,6 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     sky,
     world,
     truck,
-    radio,
     music,
     settings,
     player,
@@ -162,11 +162,24 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         speedScale:
           (scope.raised ? CONFIG.player.scopeSpeedScale : 1) *
           (smoking ? CONFIG.items.smokingSpeedScale : 1),
+        eye: s.emoting ? EMOTES[s.emoting.id].eye : null,
       })
       forward = playerState.forward
       feetY = player.groundY
       moveSpeed = playerState.speed
       crouching = playerState.crouching
+      // An emote holds while the raider stands still; moving, crouching or
+      // its seconds running out end it.
+      const nowSeconds = now / 1000
+      if (
+        !holds(s.emoting, nowSeconds, {
+          speed: moveSpeed,
+          crouching,
+          aboard: s.aboard,
+        })
+      ) {
+        s.emoting = null
+      }
       playerBody.update(dt, {
         x: player.pos.x,
         ground: feetY,
@@ -174,24 +187,18 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         yaw: player.yaw,
         speed: moveSpeed,
         crouching,
+        emote: s.emoting && {
+          pose: EMOTES[s.emoting.id].pose,
+          seconds: nowSeconds - s.emoting.since,
+        },
       })
       truck.update(dt, now)
     }
-    // Marx's radio, at the valley's moment: the valley's clock online, the
-    // wall clock alone, as his day is.
-    const radioDistance = truck.distanceTo(player.pos.x, player.pos.z)
-    radio?.update({
-      serverMs: s.world ? net.clock.serverNow(now) : Date.now(),
-      distance: radioDistance,
-      riding: s.aboard,
-      started: s.started,
-    })
-    // The valley's music, at the raider's setting, under the radio.
+    // The valley's music, at the raider's setting.
     music?.update({
       now,
       started: s.started,
       setting: settings.current.music,
-      radioGain: heardAt(radioDistance, s.aboard, CONFIG.radio).gain,
     })
     if (s.onTruckRolls.length && truck.rolling()) {
       for (const line of s.onTruckRolls) hud.tell(line)
@@ -232,6 +239,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
                 crouching
               )
             : null,
+          lights: [headlightBeam(truck.headlights())],
         }
     const swarm = shadowmen.update({
       dt,
@@ -272,7 +280,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     // Gron's rain falls on its own clock, Moab's fire burns on it too, and
     // the wreck smoulders and blinks on it.
     world.gronRig?.update(time)
-    // The stand dressed for this raider's own level (rule 20).
+    // The stand dressed for this raider's own level (rule 23).
     world.stand?.setLevel(s.stand?.level ?? 1)
     for (const rig of world.moabRigs) rig.update(time)
     world.wreck?.update(time)
@@ -304,13 +312,21 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         z: player.pos.z,
         yaw: player.yaw,
         pitch: player.pitch,
-        pose: poseOf(moveSpeed, crouching),
+        pose: s.emoting?.id ?? poseOf(moveSpeed, crouching),
         riding: s.aboard,
         light: lit,
       }
       if (stateChanged(s.lastSent, state)) {
         s.lastSent = state
         net.sendState(state)
+      }
+      // Near Marx's truck, where it stands, so the valley can aim its
+      // headlights at the shadowmen round us.
+      if (
+        truck.distanceTo(player.pos.x, player.pos.z) <
+        CONFIG.shadowmen.despawnRadius
+      ) {
+        net.sendHeadlights(truck.headlights())
       }
     }
 
@@ -336,6 +352,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     } else {
       hud.task.set(null)
     }
+    hud.level.set(net.online ? s.xp : null)
     hud.tickChat(performance.now())
 
     scope.draw(dt, {
@@ -347,6 +364,21 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       forward,
       perception,
     })
+
+    // The Book of Shadows: the places in reach, a shadow come within
+    // sight, and whatever the pack holds, written the first time
+    // (actions.ts discover leaves out what is found or asked).
+    if (s.started) {
+      const range = CONFIG.book.sightRange
+      actions.discover([
+        ...sightsInReach(world.sights, player.pos),
+        ...(swarm.contacts.some((c) => c.dist <= range) ? ['shadowman'] : []),
+        ...(keeper.contact && keeper.contact.dist <= range
+          ? ['caretaker']
+          : []),
+        ...itemsHeld(s.inventory),
+      ])
+    }
 
     // Pickups pulse every frame, whatever the prompt says.
     const pulse = 0.35 + Math.sin(time * 3) * 0.2

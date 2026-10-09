@@ -1,4 +1,4 @@
--- Each account's Cabbage Stand (src/stand.ts, sharedworld.ts rule 20): its
+-- Each account's Cabbage Stand (src/stand.ts, sharedworld.ts rule 23): its
 -- level, what is out on its table (a JSON object of kind to count), the
 -- cents it had banked by `since` (fractional: it earns by the millisecond)
 -- and the server ms that was. `rev` counts the writes, so a write made from

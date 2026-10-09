@@ -133,6 +133,22 @@ function packContract(makeStore: () => PackStore): void {
     expect(after.pack[OTHER]).toBe(before.pack[OTHER] + 200)
   })
 
+  it('writes each Book of Shadows entry once, in the order found', async () => {
+    const store = makeStore()
+    await store.open('a1')
+    expect(await store.book('a1')).toEqual([])
+    expect(
+      await store.discover('a1', ['citgo', 'nowhere', 'citgo'], 1)
+    ).toEqual(['citgo'])
+    expect(await store.discover('a1', ['marx', 'citgo', 'gron'], 2)).toEqual([
+      'marx',
+      'gron',
+    ])
+    expect(await store.discover('a1', ['marx'], 3)).toEqual([])
+    expect(await store.book('a1')).toEqual(['citgo', 'marx', 'gron'])
+    expect(await store.book('a2')).toEqual([])
+  })
+
   it('keeps daily task progress, paying its reward with it', async () => {
     const store = makeStore()
     await store.open('a1')
@@ -157,6 +173,19 @@ function packContract(makeStore: () => PackStore): void {
     const next = { day: '2026-10-08', count: 1, claimed: false }
     await store.scoreTask('a1', 't', next, null)
     expect(await store.task('a1', 't')).toEqual(next)
+  })
+
+  it('adds XP to the account’s, none before the first', async () => {
+    const store = makeStore()
+    await store.open('a1')
+    expect(await store.xp('a1')).toBe(0)
+    expect(await store.gainXp('a1', 10)).toBe(10)
+    const [one, two] = await Promise.all([
+      store.gainXp('a1', 5),
+      store.gainXp('a1', 25),
+    ])
+    expect(Math.max(one, two)).toBe(40)
+    expect(await store.xp('a1')).toBe(40)
   })
 
   it('empties the whole pack onto a body, and gives it back', async () => {

@@ -2,7 +2,7 @@ import { copy } from './copy.ts'
 import { beginRaid, expect, heardWhere, test } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
-// Rule 20: every account keeps its own Cabbage Stand on the spawn Citgo's
+// Rule 23: every account keeps its own Cabbage Stand on the spawn Citgo's
 // lot. E beside it opens its dialog: goods go out of the pack onto its
 // table, and cash and goods buy its next level.
 
