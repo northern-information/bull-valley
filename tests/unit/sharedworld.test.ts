@@ -25,7 +25,7 @@ import {
   toWire,
   wakeAt,
 } from '../../src/sharedworld.ts'
-import { FRESH_STAND } from '../../src/stand.ts'
+import { FRESH_STAND, standXp } from '../../src/stand.ts'
 import { dryMap } from '../../src/waterside.ts'
 import { unitsLeft } from './stock.ts'
 import type { CosmeticId } from '../../src/cosmetics.ts'
@@ -1024,6 +1024,19 @@ describe('rule 23: the Cabbage Stand', () => {
       cash: 2 * one.rate,
       ledger: { since: T0 + 2 * HOUR },
     })
+    // Rule 22: XP by the cents it paid.
+    expect(r.xp).toEqual([
+      { account: 'acct-a', source: 'stand', times: standXp(2 * one.rate) },
+    ])
+    // A collect worth less than a whole step of XP earns none.
+    const little = tend(
+      v.valley,
+      { type: 'stand-collect', id: 'a', at: beside },
+      { ...fresh, ledger },
+      T0 + HOUR / one.rate
+    )
+    expect(little.stand?.cash).toBe(1)
+    expect(little.xp).toBeUndefined()
     // A day later it has stopped at its cap.
     expect(
       tend(

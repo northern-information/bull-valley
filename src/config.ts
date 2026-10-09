@@ -373,6 +373,9 @@ export const CONFIG = {
     // The valley tends a raider's stand only when their last state frame
     // put them within this of its middle: generous, since frames lag.
     tendReach: 8,
+    // A collect earns the stand's XP (progression.ts XP.stand) once for
+    // every whole this many cents it pays out.
+    xpCents: 25,
     // What goes on the table: the valley's own produce.
     goods: ['cabbage', 'berries'],
     // Each level, the first the one every account starts at: how many

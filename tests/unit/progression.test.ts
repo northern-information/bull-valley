@@ -84,6 +84,10 @@ describe('the grants', () => {
       ['a', XP.berry],
     ])
     expect(totals([]).size).toBe(0)
+    // A grant of several times its source's XP, as the stand's is.
+    expect(totals([{ account: 'a', source: 'stand', times: 7 }])).toEqual(
+      new Map([['a', 7 * XP.stand]])
+    )
   })
 
   it('says the level reached only when XP crosses into one', () => {

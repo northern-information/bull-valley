@@ -173,6 +173,14 @@ export function collect(
   return { ledger: { ...settled, banked: settled.banked - cents }, cents }
 }
 
+// How many times a collect of `cents` earns the stand's XP
+// (progression.ts XP.stand): once a whole CONFIG.stand.xpCents. What is
+// left over earns none, so many small collects never earn more than one
+// big one.
+export function standXp(cents: number, cfg = CONFIG): number {
+  return Math.max(0, Math.floor(cents / cfg.stand.xpCents))
+}
+
 // What the next level costs, or null at the top.
 export function upgradePrice(
   ledger: StandLedger,

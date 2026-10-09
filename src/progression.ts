@@ -1,7 +1,8 @@
 // The raider's level: one XP bar for the account that everything a raider
 // does feeds (sharedworld.ts rule 22). Burning a shadowman, a ride with
 // Marx, a berry, a pickup, a unit bought, a drop the valley left taken up,
-// and the Caretaker unmade (a big jump) each grant the XP below; the curve
+// what the Cabbage Stand pays out when collected, and the Caretaker
+// unmade (a big jump) each grant the XP below; the curve
 // that turns XP into a level is CONFIG.progression.
 //
 // Pure, no Three. The XP is the account's, kept in D1 by the valley
@@ -23,6 +24,7 @@ export type XpSource =
   | 'pickup'
   | 'purchase'
   | 'drop'
+  | 'stand'
 
 // The XP each grants: every grant in one table.
 export const XP: Readonly<Record<XpSource, number>> = {
@@ -45,12 +47,18 @@ export const XP: Readonly<Record<XpSource, number>> = {
   // up; never a raider's own drop, which could be set down and taken up
   // again for ever.
   drop: 2,
+  // Each whole CONFIG.stand.xpCents the Cabbage Stand pays out when
+  // collected (stand.ts standXp), so collecting often earns no more than
+  // collecting once.
+  stand: 1,
 }
 
 // XP earned by an account.
 export interface XpGrant {
   account: string
   source: XpSource
+  // How many of the source's XP, when more than one (the stand's).
+  times?: number
 }
 
 // The XP in all at which `level` begins; level 1 at none.
@@ -97,8 +105,8 @@ export function barOf(
 // accounts first earned.
 export function totals(grants: readonly XpGrant[]): Map<string, number> {
   const sums = new Map<string, number>()
-  for (const { account, source } of grants) {
-    sums.set(account, (sums.get(account) ?? 0) + XP[source])
+  for (const { account, source, times = 1 } of grants) {
+    sums.set(account, (sums.get(account) ?? 0) + XP[source] * times)
   }
   return sums
 }

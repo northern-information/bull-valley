@@ -121,7 +121,8 @@
 //    fed by everything. A shadowman or spider burst in the raider's beam,
 //    the Caretaker unmade with it (a big jump), a ride with Marx that
 //    gets home with them in the bed, the day's berry off a bush, a pickup,
-//    a unit bought, and a drop the valley left taken up each earn the
+//    a unit bought, a drop the valley left taken up, and what the Cabbage
+//    Stand pays out when collected (by the cents, rule 23) each earn the
 //    account XP (Reduced.xp, and stepShadows' xp); a raider's own drop
 //    taken up earns none. Every grant is named here, worth what
 //    progression.ts XP says; the valley adds it to the account's XP in D1
@@ -133,7 +134,8 @@
 //    on its table, collect what it banked on the valley's clock into the
 //    wallet, or buy its next level with cash and goods (ValleyContext.stand
 //    in, Reduced.stand out); the valley writes the ledger, the pack and the
-//    wallet together, or none of them.
+//    wallet together, or none of them. A collect earns XP by the cents it
+//    pays (stand.ts standXp, rule 22).
 
 import { caretakerAt, createCaretaker, stepCaretaker } from './caretaker.ts'
 import { CONFIG } from './config.ts'
@@ -170,6 +172,7 @@ import {
   affordsUpgrade,
   atStand,
   collect as collectStand,
+  standXp,
   stock as stockStand,
   upgradePrice,
   upgrade as upgradeStand,
@@ -1100,9 +1103,13 @@ function act(
       if (!atStand(action.at, world.stand)) return refuse('no-stand')
       if (!stand) return refuse('unavailable')
       const { ledger, pack } = stand
-      const tended = (change: Omit<StandChange, 'account' | 're'>): Reduced =>
+      const tended = (
+        change: Omit<StandChange, 'account' | 're'>,
+        xp?: XpGrant[]
+      ): Reduced =>
         done(valley, now, {
           broadcast: [],
+          ...(xp ? { xp } : {}),
           stand: {
             account: member.account,
             re:
@@ -1124,7 +1131,14 @@ function act(
       if (action.type === 'stand-collect') {
         const got = collectStand(ledger, now)
         if (!got) return refuse('empty')
-        return tended({ ledger: got.ledger, items: {}, cash: got.cents })
+        // Rule 22: the stand's XP, by the cents it paid.
+        const times = standXp(got.cents)
+        return tended(
+          { ledger: got.ledger, items: {}, cash: got.cents },
+          times > 0
+            ? [{ account: member.account, source: 'stand', times }]
+            : undefined
+        )
       }
       const price = upgradePrice(ledger)
       const next = upgradeStand(ledger, now)
