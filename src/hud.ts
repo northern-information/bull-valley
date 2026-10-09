@@ -7,6 +7,7 @@ import { PACK, PACK_IN_MENU, WORLD } from './bindings.ts'
 import { BookHud } from './bookhud.ts'
 import { CHAT_LINES, formatStamp, isFaded, pushLine } from './chat.ts'
 import { copy } from './copy.ts'
+import { MAX_HEALTH } from './health.ts'
 import { bagTabs, LOCKER_TAB, PACK_TABS } from './packgrid.ts'
 import { CHAT_MAX } from './protocol.ts'
 import { SeasonHud } from './seasonhud.ts'
@@ -227,6 +228,10 @@ export class Hud {
   geometrie: HTMLDivElement
   geometrieGlows: Map<GeometrieAxis, SVGPolygonElement>
   geometrieView = ''
+  health: HTMLDivElement
+  healthPips: HTMLSpanElement[]
+  healthView = -1
+  hurtWash: HTMLDivElement
   staticWrap: HTMLDivElement
   staticCanvas: HTMLCanvasElement
   reticle: HTMLDivElement
@@ -304,6 +309,17 @@ export class Hud {
     )
     this.setGeometrie({ high: 0, stimulated: 0, drunk: 0 })
     ui.appendChild(this.geometrie)
+
+    // Health (health.ts): chunky red blocks under the triangle, one a
+    // point, dark when lost.
+    this.health = el('div', 'bv-health')
+    this.health.setAttribute('role', 'img')
+    this.healthPips = Array.from({ length: MAX_HEALTH }, () =>
+      el('span', 'bv-health-pip')
+    )
+    this.health.append(...this.healthPips)
+    this.setHealth(MAX_HEALTH)
+    ui.appendChild(this.health)
 
     // The scope: a phone held in a PS1-style flipper hand. scope.ts draws the
     // hand, the phone and the screen into this one low-res canvas.
@@ -445,7 +461,12 @@ export class Hud {
     this.hotbar.hidden = true
     ui.appendChild(this.hotbar)
 
-    // Strike static.
+    // A shadow's touch: the view washed red, fading (hurt).
+    this.hurtWash = el('div', 'bv-hurt')
+    this.hurtWash.setAttribute('aria-hidden', 'true')
+    ui.appendChild(this.hurtWash)
+
+    // The static when geometrie shatters.
     this.staticWrap = el('div', 'bv-static')
     this.staticWrap.hidden = true
     this.staticCanvas = el('canvas')
@@ -453,7 +474,7 @@ export class Hud {
     this.staticCanvas.height = 90
     this.staticWrap.appendChild(this.staticCanvas)
     const staticLabel = el('p', 'bv-static-label')
-    staticLabel.textContent = copy('hud.signal_lost')
+    staticLabel.textContent = copy('hud.geometrie_shattered')
     this.staticWrap.appendChild(staticLabel)
     ui.appendChild(this.staticWrap)
 
@@ -872,6 +893,28 @@ export class Hud {
     this.root.classList.toggle('bv-shell--locked', locked)
     // A locked cursor hovers nothing, and pointerleave never comes.
     if (locked) this.chatHovered = false
+  }
+
+  // The health blocks lit to `points`.
+  setHealth(points: number): void {
+    if (points === this.healthView) return
+    this.healthView = points
+    for (const [i, pip] of this.healthPips.entries()) {
+      pip.classList.toggle('bv-health-pip--lost', i >= points)
+    }
+    this.health.dataset.health = String(points)
+    this.health.setAttribute(
+      'aria-label',
+      copy('hud.health_label', { health: points, max: MAX_HEALTH })
+    )
+  }
+
+  // A touch: the red wash over the view, from the top, again.
+  hurt(): void {
+    this.hurtWash.classList.remove('bv-hurt--on')
+    // Read layout so the animation starts over.
+    void this.hurtWash.offsetWidth
+    this.hurtWash.classList.add('bv-hurt--on')
   }
 
   showStatic(show: boolean): void {

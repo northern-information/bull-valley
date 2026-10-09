@@ -7,6 +7,7 @@ import {
   isWhole,
   MAX_HEALTH,
   mend,
+  shakeAt,
   withHealth,
 } from '../../src/health.ts'
 
@@ -52,5 +53,23 @@ describe('health', () => {
     expect(isHealth(1.5)).toBe(false)
     expect(isHealth(-1)).toBe(false)
     expect(isHealth('2')).toBe(false)
+  })
+})
+
+describe('shakeAt', () => {
+  const cfg = { ...CONFIG.health, shakeSeconds: 0.5, shakeMetres: 0.1 }
+
+  it('shakes hardest at the touch, and eases to nothing', () => {
+    expect(shakeAt(0, cfg)).toBeCloseTo(0.1, 9)
+    expect(shakeAt(0.25, cfg)).toBeCloseTo(0.025, 9)
+    expect(shakeAt(0.5, cfg)).toBe(0)
+    expect(shakeAt(3, cfg)).toBe(0)
+  })
+
+  it('never shakes before a touch, or with none', () => {
+    expect(shakeAt(-1, cfg)).toBe(0)
+    expect(shakeAt(-Infinity, cfg)).toBe(0)
+    expect(shakeAt(Infinity, cfg)).toBe(0)
+    expect(shakeAt(NaN, cfg)).toBe(0)
   })
 })

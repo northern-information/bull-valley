@@ -34,10 +34,11 @@ import { finishById } from './finishes.ts'
 import { dose } from './geometrie.ts'
 import { burialsOf, bury } from './graves.ts'
 import { openGronDialog } from './grondialog.ts'
+import { hit, isWhole, MAX_HEALTH, mend } from './health.ts'
 import { assign } from './hotbar.ts'
 import { pickupLabel } from './interactions.ts'
 import { addItem, consume } from './inventory.ts'
-import { getItem, itemById } from './items.ts'
+import { getItem, healsOf, itemById } from './items.ts'
 import { board, call, hopOut as hopOutOf, refused } from './marx.ts'
 import { npcLine } from './npcs.ts'
 import { outfitById } from './outfits.ts'
@@ -50,6 +51,7 @@ import {
 } from './packgrid.ts'
 import { normalizeChat } from './protocol.ts'
 import { callRoute } from './roadgraph.ts'
+import { inHaven } from './shadowmen.ts'
 import { buy as buyItem, settle } from './shop.ts'
 import { move, moveAmount } from './stash.ts'
 import { formatCash } from './store.ts'
@@ -109,9 +111,15 @@ export interface Actions {
   // Off the bed beside the truck, with no word to the valley: it let us
   // off.
   leaveBed(line?: string): void
-  // A shadowman touched you: everything the pack held stays on your body
-  // where you fell (sharedworld.ts rule 18).
-  strike(by?: 'shadowman' | 'caretaker'): void
+  // A shadow touched you: one point of health off (sharedworld.ts rule
+  // 22), the valley's word on what is left, or alone our own. The last one
+  // shatters your geometrie, and everything the pack held stays on your
+  // body where you fell (rule 18).
+  strike(by?: 'shadowman' | 'caretaker', health?: number): void
+  // The account's health as the valley says it (a forecourt, medicine).
+  setHealth(points: number): void
+  // Played alone, a forecourt makes whole.
+  mendAtForecourt(): void
   // Played alone, the bodies this raider left, drawn and offered to E.
   showAloneCorpses(): void
   // F at the locker: one of an item (the open container, or one of
@@ -366,11 +374,25 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // the Caretaker's. Everything the pack held stays on your body where you
   // fell (rule 18): in the valley the valley lays it and its pack frame has
   // the last word, so the pack shows empty at once; alone it lies at once.
-  const strike = (by: 'shadowman' | 'caretaker' = 'shadowman') => {
+  const strike = (
+    by: 'shadowman' | 'caretaker' = 'shadowman',
+    health?: number
+  ) => {
     if (s.aboard) return
-    s.strikes += 1
+    const now = performance.now()
     s.emoting = null
-    s.strikeUntil = performance.now() + CONFIG.shadowmen.strikeSeconds * 1000
+    s.health = health ?? hit(s.health).points
+    s.graceUntil = now + CONFIG.health.graceSeconds * 1000
+    s.hurtAt = now
+    hud.hurt()
+    if (s.health > 0) {
+      hud.tell(copy(by === 'caretaker' ? 'log.hit_caretaker' : 'log.hit'))
+      return
+    }
+    // Shattered: whole again where you come to.
+    s.health = MAX_HEALTH
+    s.strikes += 1
+    s.strikeUntil = now + CONFIG.shadowmen.strikeSeconds * 1000
     hud.showStatic(true)
     closeInventory()
     closeBook()
@@ -398,6 +420,23 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     player.relocate(world.spawn.x, world.spawn.z, world.spawn.yaw)
     hud.tell(copy(by === 'caretaker' ? 'log.caught' : 'log.struck'))
     if (!isEmpty(items)) hud.tell(copy('log.fell'))
+  }
+
+  // Made whole standing at a Citgo: the lights did it.
+  const setHealth = (points: number) => {
+    const mended =
+      isWhole(points) &&
+      !isWhole(s.health) &&
+      inHaven(player.pos, world.fuelPoints, CONFIG.shadowmen.havenRadius)
+    s.health = points
+    if (mended) hud.tell(copy('log.mended'))
+  }
+
+  // Played alone, a forecourt makes whole (rule 22).
+  const mendAtForecourt = () => {
+    if (isWhole(s.health)) return
+    s.health = MAX_HEALTH
+    hud.tell(copy('log.mended'))
   }
 
   // E over your own body: everything it holds back into the pack. In the
@@ -627,6 +666,12 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // An item with no effect yet does nothing, and a cigarette waits for the
   // one burning.
   const useKind = (kind: string) => {
+    // Medicine that heals is kept for when it is wanted.
+    const heals = healsOf(kind)
+    if (heals > 0 && isWhole(s.health) && (s.inventory[kind] ?? 0) > 0) {
+      hud.tell(copy('log.whole'))
+      return
+    }
     const result = consume(s.inventory, kind, s.effects, s.time)
     if (!result.used) {
       const empty = result.reason === 'empty' ? itemById(kind)?.empty : null
@@ -638,8 +683,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     s.geometrie = dose(s.geometrie, itemById(kind)?.geometrie, s.time)
     // The right hand brings it up (fphands.ts).
     s.using = { kind, at: s.time }
-    // The unit is the account's: the valley takes it out of the pack.
+    // The unit is the account's: the valley takes it out of the pack, and
+    // gives back what it heals; alone it heals at once.
     net.send({ type: 'use', kind })
+    if (!s.world && heals > 0) s.health = mend(s.health, heals)
     refreshBag()
     const used = itemById(kind)?.used
     if (used) hud.tell(used)
@@ -949,6 +996,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     hopOut,
     leaveBed,
     strike,
+    setHealth,
+    mendAtForecourt,
     showAloneCorpses,
     stowKind,
     unstowKind,

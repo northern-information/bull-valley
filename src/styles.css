@@ -12,6 +12,7 @@
   --bv-cell-gap: 4px;
   --bv-pane: rgb(0 0 0 / 60%);
   --bv-cell-edge: rgb(255 255 255 / 12%);
+  --bv-health-height: 1.25rem;
 
   position: fixed;
   inset: 0;
@@ -455,11 +456,11 @@
 /* Geometrie: a red triangle in the lower right, a dim face whose corners
    light with their levels: the top with high, the lower right with
    stimulated, the lower left with drunk. Under the phone when it is
-   raised. */
+   raised. Health sits under it. */
 .bv-geometrie {
   position: absolute;
   right: 1rem;
-  bottom: 1rem;
+  bottom: calc(1rem + var(--bv-health-height) + 0.5rem);
   width: 5rem;
   aspect-ratio: 100 / 90;
   filter: drop-shadow(3px 3px 0 var(--fi-black-shadow));
@@ -469,6 +470,59 @@
   display: block;
   width: 100%;
   height: 100%;
+}
+
+/* Health: chunky blocks under the triangle, one a point, dark when lost. */
+.bv-health {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 0.3rem;
+  width: 5rem;
+  height: var(--bv-health-height);
+  filter: drop-shadow(3px 3px 0 var(--fi-black-shadow));
+}
+
+.bv-health-pip {
+  background: #d4140a;
+  border: 2px solid #ffb39a;
+  box-shadow: inset 0 -0.35rem 0 rgb(90 10 4 / 55%);
+}
+
+.bv-health-pip--lost {
+  background: rgb(90 10 4 / 70%);
+  border-color: rgb(212 20 10 / 45%);
+  box-shadow: none;
+}
+
+/* A shadow's touch: the view washed red, fading out. */
+.bv-hurt {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at center,
+    rgb(200 0 0 / 22%) 30%,
+    rgb(160 0 0 / 55%) 100%
+  );
+  opacity: 0;
+}
+
+.bv-hurt--on {
+  animation: bv-hurt 0.7s ease-out forwards;
+}
+
+@keyframes bv-hurt {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
 }
 
 .bv-geo-face {

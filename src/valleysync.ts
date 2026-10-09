@@ -139,8 +139,12 @@ export function wireValley(game: Game, actions: Actions): void {
         game.shadowmen.receive(msg, now)
         game.caretaker.receive(msg, now)
         return
+      // Rule 22: a touch, and the health it left; health given back.
       case 'struck':
-        actions.strike(msg.by ?? 'shadowman')
+        actions.strike(msg.by ?? 'shadowman', msg.health)
+        return
+      case 'health':
+        actions.setHealth(msg.health)
         return
     }
   })
@@ -362,6 +366,7 @@ export function wireValley(game: Game, actions: Actions): void {
         player.relocate(msg.place.x, msg.place.z, msg.place.yaw)
       }
       s.placed = true
+      s.health = msg.health
       applyWorld(msg.world, 'joined', { by: msg.id })
       s.daily = msg.daily
       // What the account already wears is no news.

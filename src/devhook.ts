@@ -47,8 +47,11 @@ interface BvHook {
   shadowmen: ShadowCards
   caretaker: CaretakerShade
   mist: MistCards
-  // Times a touch put this raider back at the Citgo.
+  // Times a touch shattered this raider's geometrie and put them back at
+  // the Citgo.
   readonly strikes: number
+  // Health (health.ts): the account's as the valley last said, or our own.
+  readonly health: number
   net: {
     readonly status: NetStatus
     readonly id: string | null
@@ -120,6 +123,8 @@ interface BvHook {
   // `count` of `kind` into the pack: the valley's, through a dev frame, or
   // this client's own. Gold bullion has no other way in yet.
   grant(kind: string, count?: number): void
+  // This raider at `points` of health (1 to whole), for the specs.
+  setHealth(points: number): void
 }
 
 declare global {
@@ -143,6 +148,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     mist: game.mist,
     get strikes() {
       return s.strikes
+    },
+    get health() {
+      return s.health
     },
     net: {
       get status() {
@@ -262,6 +270,10 @@ export function installDevHook(game: Game, actions: Actions): void {
         }
         actions.refreshBag()
       }
+    },
+    setHealth(points) {
+      if (net.online) net.send({ type: 'dev', op: 'health', points })
+      else s.health = points
     },
     hurryTruck(seconds = 5) {
       // In the shared valley the server keeps Marx's day; a dev server

@@ -57,3 +57,11 @@ export function isHealth(value: unknown): value is number {
     value <= MAX_HEALTH
   )
 }
+
+// How far the view shakes `since` seconds after a touch, in metres: the
+// full shakeMetres at once, easing to nothing over shakeSeconds.
+export function shakeAt(since: number, cfg = CONFIG.health): number {
+  if (!(since >= 0) || since >= cfg.shakeSeconds) return 0
+  const left = 1 - since / cfg.shakeSeconds
+  return cfg.shakeMetres * left * left
+}

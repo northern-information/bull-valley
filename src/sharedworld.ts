@@ -1293,7 +1293,6 @@ export function stepShadows(
   let caretaker: CaretakerWire | null = null
   let unmade: XZ | null = null
   const caught: string[] = []
-  let lunged = false
   let credited: string[] = []
   if (world.maze) {
     const out = stepCaretaker(shadows.caretaker, rng, {
@@ -1302,7 +1301,7 @@ export function stepShadows(
       place: world.maze,
     })
     caught.push(...out.struck)
-    lunged = out.lunged
+    const { lunged } = out
     credited = creditedWith(valley, out.unmadeBy)
     for (const id of out.struck) if (!struck.includes(id)) struck.push(id)
     unmade = out.burst && {
