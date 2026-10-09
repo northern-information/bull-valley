@@ -768,6 +768,9 @@ export class ValleyDO extends DurableObject<Env> {
       ws.close(CLOSE.serverError, 'The valley lost the pack')
       return
     }
+    // A reconnect: the socket this client had may not have closed here yet.
+    // Retire it first, so the roster never shows the raider their own ghost.
+    if (hello.was) await this.retire(ws, account, hello.was)
     const id = crypto.randomUUID()
     const reduced = reduce(
       this.valley,
@@ -1481,6 +1484,26 @@ export class ValleyDO extends DurableObject<Env> {
         send(socket, msg)
       } catch {
         // Closing sockets throw; their close handler follows.
+      }
+    }
+  }
+
+  // The socket that was `id` on `account`, if it is still here, is gone:
+  // everyone hears it leave, and it is closed.
+  private async retire(
+    ws: WebSocket,
+    account: string,
+    id: string
+  ): Promise<void> {
+    for (const socket of this.ctx.getWebSockets()) {
+      if (socket === ws) continue
+      const attachment = this.attachment(socket)
+      if (attachment.account !== account || attachment.me?.id !== id) continue
+      await this.left(socket)
+      try {
+        socket.close(CLOSE.replaced, 'Reconnected')
+      } catch {
+        // Already closing.
       }
     }
   }

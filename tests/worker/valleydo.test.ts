@@ -669,6 +669,41 @@ describe('ValleyDO', () => {
     )
   })
 
+  it('retires the socket a reconnect names, so no one sees a ghost', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const twin = await join(v, s, 'A2', { account: 'acct-A' })
+    const b = await join(v, s, 'B')
+    const was = idOf(a)
+    // The line dropped; the valley has not heard the old socket close.
+    const back = stamped('A', { account: 'acct-A' })
+    s.acceptWebSocket(back)
+    const before = b.sent.length
+    const frame = JSON.parse(hello()) as object
+    await v.webSocketMessage(ws(back), JSON.stringify({ ...frame, was }))
+    expect(a.closeCode).toBe(CLOSE.replaced)
+    expect(
+      b
+        .frames()
+        .slice(before)
+        .find((m) => m.type === 'peer-left')
+    ).toEqual({ type: 'peer-left', id: was })
+    // The welcome shows the raider everyone else, and not their old self.
+    const roster = back.frames()[0] as WelcomeMessage
+    expect(roster.peers.map((p) => p.id).sort()).toEqual(
+      [idOf(twin), idOf(b)].sort()
+    )
+    // Another account cannot retire someone else's socket.
+    const c = await join(v, s, 'C')
+    const other = stamped('D', { account: 'acct-D' })
+    s.acceptWebSocket(other)
+    await v.webSocketMessage(
+      ws(other),
+      JSON.stringify({ ...frame, was: idOf(c) })
+    )
+    expect(c.closeCode).toBeNull()
+  })
+
   it('announces a departure once, and keeps the world when the last one goes', async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A')
