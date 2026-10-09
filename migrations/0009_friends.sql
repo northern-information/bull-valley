@@ -1,4 +1,4 @@
--- Friendships (src/friends.ts, sharedworld.ts rule 20). A row is one
+-- Friendships (src/friends.ts, sharedworld.ts rule 21). A row is one
 -- account's side: `accepted` 0 means account_id has asked friend_id and is
 -- waiting; a friendship is two rows, one each way, both accepted. The
 -- valley (worker/ValleyDO.ts) is the only writer. Account ids stay here;

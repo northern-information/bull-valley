@@ -1,4 +1,4 @@
-// Friends and whispers (sharedworld.ts rule 20): a raider asks another by
+// Friends and whispers (sharedworld.ts rule 21): a raider asks another by
 // name (/friend name) and they are friends once the other asks back; the
 // list says who is online and roughly where; a whisper (/w name message)
 // goes to one raider's sockets alone, under the chat rules, and is never

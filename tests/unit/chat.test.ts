@@ -3,6 +3,8 @@ import {
   CHAT_FADE_MS,
   CHAT_LINES,
   chatCommand,
+  emoteLine,
+  emotesLine,
   formatStamp,
   isFaded,
   onlineLine,
@@ -10,6 +12,7 @@ import {
   pushLine,
 } from '../../src/chat.ts'
 import { copy } from '../../src/copy.ts'
+import { EMOTE_IDS } from '../../src/emotes.ts'
 import type { ChatLine } from '../../src/chat.ts'
 
 const line = (text: string): ChatLine => ({
@@ -126,9 +129,33 @@ describe('chatCommand', () => {
     })
   })
 
+  it('reads /emotes, and an emote by its name in any case', () => {
+    expect(chatCommand('/emotes')).toEqual({ name: 'emotes' })
+    expect(chatCommand('/wave')).toEqual({ name: 'emote', id: 'wave' })
+    expect(chatCommand('/Sit down')).toEqual({ name: 'emote', id: 'sit' })
+    expect(chatCommand('/kneel')).toEqual({ name: 'emote', id: 'kneel' })
+  })
+
   it('calls any other slash a command it does not know', () => {
     expect(chatCommand('/who')).toEqual({ name: 'unknown' })
     expect(chatCommand('/')).toEqual({ name: 'unknown' })
+  })
+})
+
+describe('emoteLine', () => {
+  it('tells the raider what they did, and others what they saw', () => {
+    for (const id of EMOTE_IDS) {
+      expect(emoteLine(id, null)).toBe(copy(`emotes.${id}_self`))
+      expect(emoteLine(id, 'Dave')).toBe(
+        copy(`emotes.${id}_seen`, { name: 'Dave' })
+      )
+    }
+    expect(emoteLine('wave', 'Dave')).toContain('Dave')
+  })
+
+  it('lists every emote as it is typed', () => {
+    const line = emotesLine()
+    for (const id of EMOTE_IDS) expect(line).toContain(`/${id}`)
   })
 })
 

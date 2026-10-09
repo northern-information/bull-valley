@@ -66,6 +66,10 @@ interface BvHook {
   readonly cash: number
   // The account's progress through the season, as the valley last said.
   readonly season: SeasonProgress
+  // The Book of Shadows entries found (book.ts ids), as the valley last
+  // said; and whether the book is open.
+  readonly book: string[]
+  readonly bookOpen: boolean
   // The account's progress on the daily task, as the valley last said.
   readonly task: TaskProgress
   // The account's friends list, as the valley last sent it.
@@ -167,6 +171,12 @@ export function installDevHook(game: Game, actions: Actions): void {
     },
     get season() {
       return s.season
+    },
+    get book() {
+      return [...s.book]
+    },
+    get bookOpen() {
+      return s.bookOpen
     },
     get task() {
       return s.task

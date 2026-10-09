@@ -5,6 +5,7 @@ import {
   beamFrom,
   contactsOf,
   createShadowmen,
+  headlightBeam,
   inBeam,
   inBounds,
   inHaven,
@@ -438,6 +439,54 @@ describe('beamFrom', () => {
     expect(down.origin.y).toBe(CONFIG.player.crouchEyeHeight)
     expect(down.dir.y).toBeCloseTo(-Math.SQRT1_2, 9)
     expect(down.dir.z).toBeCloseTo(-Math.SQRT1_2, 9)
+  })
+})
+
+describe('headlightBeam', () => {
+  const cfg = {
+    reach: 400,
+    range: 30,
+    halfAngle: 0.45,
+    height: 0.95,
+    nose: 3,
+    staleMs: 1000,
+  }
+
+  it('starts at the lamps and runs level the way the truck faces', () => {
+    const north = headlightBeam({ x: 1, y: 2, z: 3, heading: 0 }, cfg)
+    expect(north.origin).toEqual({ x: 1, y: 2.95, z: 6 })
+    expect(north.floor).toBe(2)
+    expect(north.dir).toEqual({ x: 0, y: 0, z: 1 })
+    expect(north.range).toBe(30)
+    expect(north.halfAngle).toBe(0.45)
+
+    const east = headlightBeam({ ...ORIGIN_3, heading: Math.PI / 2 }, cfg)
+    expect(east.origin.x).toBeCloseTo(3, 9)
+    expect(east.dir.x).toBeCloseTo(1, 9)
+    expect(east.dir.z).toBeCloseTo(0, 9)
+  })
+})
+
+describe('the headlights', () => {
+  // The truck at the origin facing -Z, its lamps on a shadowman ahead.
+  const lights = [headlightBeam({ ...ORIGIN_3, heading: Math.PI })]
+
+  it('burst a shadowman held in them, crediting no one', () => {
+    const field = one({ z: -15, speed: 0 })
+    let bursts: unknown[] = []
+    for (let i = 0; i < 100 && field.shadowmen.length; i++) {
+      bursts = step(field, undefined, { raiders: [raider()], lights }).bursts
+    }
+    expect(field.shadowmen).toEqual([])
+    expect(bursts).toEqual([{ id: 1, kind: 'man', x: 0, z: -15, by: [] }])
+  })
+
+  it('leave one behind the truck alone', () => {
+    const field = one({ z: 15, speed: 0 })
+    for (let i = 0; i < 20; i++) {
+      step(field, undefined, { raiders: [raider()], lights })
+    }
+    expect(first(field)?.burn).toBe(0)
   })
 })
 

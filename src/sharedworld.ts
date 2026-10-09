@@ -50,7 +50,10 @@
 //    dimes taken up are cash, into the taker's wallet (Reduced.earn), never
 //    the pack. Among them come the shadow spiders, twice the height, far
 //    more often near the water the world was opened with (waterside.ts),
-//    twice as long to burn, and each leaves a $20 bill, cash the same way. The valley steps the field (stepShadows) and keeps it in
+//    twice as long to burn, and each leaves a $20 bill, cash the same way.
+//    Marx's headlights burn them too, crediting no one: the valley never
+//    knows the roads, so it aims them from where a raider near the truck
+//    last said it stood (seeHeadlights), and only while that is fresh. The valley steps the field (stepShadows) and keeps it in
 //    memory only: the shadowmen are gone whenever no one is placed in the
 //    valley.
 // 12. A raider out of the bed can drop what their pack holds (the valley
@@ -100,7 +103,13 @@
 //    whose last state frame put them at a station can move what their pack
 //    holds into it, or back (Reduced.stash); the valley moves it only when
 //    the side it comes out of holds it.
-// 20. Friends and whispers (friends.ts): a raider asks another by name,
+// 20. The Book of Shadows (book.ts): every entry a raider comes across (a
+//    place in reach, a shadow in sight, one of the folk spoken to, an item
+//    in the pack) is written in the account's book once, at the first
+//    time; an ask names only what the raider met, and only the real
+//    entries the account had not found are news (book.ts newlyFound).
+//    The book is the account's, kept by the valley in D1.
+// 21. Friends and whispers (friends.ts): a raider asks another by name,
 //    and they are friends once the other asks back; the friendships are
 //    the accounts', in D1 beside them, and only usernames go on the wire.
 //    A friend's list says whether they are in the valley and roughly where
@@ -136,6 +145,7 @@ import {
   beamFrom,
   burnSecondsOf,
   createShadowmen,
+  headlightBeam,
   placeStill,
   stepShadowmen,
 } from './shadowmen.ts'
@@ -165,7 +175,13 @@ import type {
   WorldWire,
 } from './protocol.ts'
 import type { Rng } from './rng.ts'
-import type { Raider, ShadeKind, ShadowmenField } from './shadowmen.ts'
+import type {
+  Beam,
+  Raider,
+  ShadeKind,
+  ShadowmenField,
+  TruckPose,
+} from './shadowmen.ts'
 import type { WaterMap } from './waterside.ts'
 
 // A raider online: one socket.
@@ -1063,12 +1079,14 @@ function act(
 // --- Rule 11: the shadowmen ------------------------------------------------
 
 // The valley's shadowmen, in the server's memory: the field, the
-// Caretaker (rule 13), and each raider who was struck with the server ms
-// until which they are left alone.
+// Caretaker (rule 13), each raider who was struck with the server ms
+// until which they are left alone, and where Marx's truck was last said to
+// stand, with the server ms it was said.
 export interface Shadows {
   field: ShadowmenField
   caretaker: Caretaker
   recovering: Record<string, number>
+  headlights: { pose: TruckPose; at: number } | null
 }
 
 export function createShadows(): Shadows {
@@ -1076,6 +1094,7 @@ export function createShadows(): Shadows {
     field: createShadowmen(),
     caretaker: createCaretaker(),
     recovering: {},
+    headlights: null,
   }
 }
 
@@ -1112,6 +1131,35 @@ export function shadowRaiders(
     })
   }
   return raiders
+}
+
+// A raider says where Marx's truck stands (a headlights frame). Every
+// client drives the same leg against the same clock, so any one near it
+// will do; the word of one whose last state frame is not within reach of
+// it is not taken. Whether it was. Mutates shadows.
+export function seeHeadlights(
+  shadows: Shadows,
+  from: PeerStateWire | null,
+  pose: TruckPose,
+  now: number,
+  cfg = CONFIG.truck.headlights
+): boolean {
+  if (!from || Math.hypot(from.x - pose.x, from.z - pose.z) > cfg.reach) {
+    return false
+  }
+  shadows.headlights = { pose, at: now }
+  return true
+}
+
+// The headlights' beam, while the truck's last word is fresh.
+export function headlightsAt(
+  shadows: Shadows,
+  now: number,
+  cfg = CONFIG.truck.headlights
+): Beam[] {
+  const seen = shadows.headlights
+  if (!seen || now - seen.at > cfg.staleMs) return []
+  return [headlightBeam(seen.pose, cfg)]
 }
 
 // Where the wire rounds a shadowman: centimetres, and hundredths of a burn.
@@ -1156,6 +1204,7 @@ export function stepShadows(
       havens: world.havens,
       water: world.water,
       calm,
+      lights: headlightsAt(shadows, now),
     },
     cfg
   )

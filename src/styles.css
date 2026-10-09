@@ -773,6 +773,234 @@
   opacity: 0.35;
 }
 
+/* The Book of Shadows (bookhud.ts): over the valley like the pack, its
+   chapters as tabs, the chapter's entries down the left and the open page
+   on the right, its portrait turning over the name and the lore. */
+.bv-book {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  box-sizing: border-box;
+  width: 48rem;
+  max-width: calc(100% - 2rem);
+  max-height: calc(100% - 2rem);
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem;
+  transform: translate(-50%, -50%);
+  background: var(--bv-pane);
+  pointer-events: auto;
+}
+
+.bv-book[hidden] {
+  display: none;
+}
+
+.bv-book-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.bv-book-title {
+  margin: 0;
+  font-size: inherit;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.bv-book-total {
+  margin: 0;
+  opacity: 0.6;
+}
+
+.bv-book-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.bv-book-tab {
+  margin: 0;
+  padding: 0 0 0.25rem;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+.bv-book-tab:hover {
+  opacity: 1;
+}
+
+.bv-book-tab[aria-selected='true'] {
+  border-bottom-color: var(--bv-citgo);
+  opacity: 1;
+}
+
+.bv-book-panel {
+  display: grid;
+  grid-template-columns: minmax(10rem, 16rem) 1fr;
+  gap: 1rem;
+  min-height: 0;
+}
+
+.bv-book-list {
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  height: 22rem;
+}
+
+.bv-book-row {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 0.2rem 0.5rem;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+}
+
+.bv-book-row:is(:hover, :focus-visible) {
+  outline: none;
+  background: rgb(255 255 255 / 6%);
+}
+
+.bv-book-row--dark {
+  opacity: 0.45;
+}
+
+.bv-book-row[aria-current='true'] {
+  border-left-color: var(--bv-citgo);
+  background: rgb(255 255 255 / 8%);
+  opacity: 1;
+}
+
+.bv-book-page {
+  min-width: 0;
+}
+
+.bv-book-portrait {
+  display: block;
+  width: 220px;
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  margin: 0 auto 0.5rem;
+
+  /* A pale fog behind the portrait, so a shadow or a dark shape reads. */
+  background: radial-gradient(
+    circle,
+    rgb(150 150 160 / 22%) 0%,
+    rgb(150 150 160 / 6%) 55%,
+    transparent 72%
+  );
+}
+
+.bv-book-name {
+  margin: 0 0 0.25rem;
+  font-size: inherit;
+  font-weight: 600;
+}
+
+.bv-book-lore {
+  margin: 0;
+  opacity: 0.8;
+}
+
+.bv-book-lore--dark {
+  font-style: italic;
+  opacity: 0.5;
+}
+
+.bv-book-keys {
+  margin: 0.75rem 0 0;
+  opacity: 0.6;
+}
+
+.bv-book-keys kbd {
+  padding: 0 0.3em;
+  font: inherit;
+  border: 1px solid currentcolor;
+}
+
+/* Something new written in the book: a small card under the top of the
+   view that fades in and out (bookhud.ts TOAST_MS). */
+.bv-book-toast {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  box-sizing: border-box;
+  max-width: calc(100% - 2rem);
+  padding: 0.5rem 0.9rem;
+  text-align: center;
+  background: rgb(0 0 0 / 70%);
+  border: 1px solid var(--bv-citgo);
+  transform: translateX(-50%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.bv-book-toast--on {
+  animation: bv-book-toast 4s ease both;
+}
+
+.bv-book-toast p {
+  margin: 0;
+}
+
+.bv-book-toast-kicker,
+.bv-book-toast-hint {
+  opacity: 0.6;
+}
+
+.bv-book-toast-news {
+  font-weight: 600;
+}
+
+@keyframes bv-book-toast {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -0.5rem);
+  }
+
+  10%,
+  80% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* A narrow screen stacks the page under the list. */
+@media (width <= 40rem) {
+  .bv-book-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .bv-book-list {
+    height: 9rem;
+  }
+}
+
 /* The hotbar: the assigned slots along the bottom, in number order. */
 .bv-hotbar {
   position: absolute;
