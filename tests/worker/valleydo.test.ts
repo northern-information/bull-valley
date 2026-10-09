@@ -9,6 +9,7 @@ import { getItem } from '../../src/items.ts'
 import { XP, xpToReach } from '../../src/progression.ts'
 import { CLOSE, PROTOCOL_VERSION } from '../../src/protocol.ts'
 import { SEASON } from '../../src/season.ts'
+import { standXp } from '../../src/stand.ts'
 import { dryMap } from '../../src/waterside.ts'
 import { MemoryAccountStore } from '../../worker/accounts.ts'
 import { MemoryPackStore, STARTING_CASH } from '../../worker/packs.ts'
@@ -1569,6 +1570,15 @@ describe('ValleyDO: the Cabbage Stand', () => {
       cents: 2 * one.rate,
     })
     expect(lastFrame(a)?.cash).toBe(STARTING_CASH + 2 * one.rate)
+    // Rule 22: XP by the cents it paid, to every socket on the account.
+    await vi.waitFor(() => {
+      const gained = XP.stand * standXp(2 * one.rate)
+      expect(other.frames().filter((m) => m.type === 'xp')).toContainEqual({
+        type: 'xp',
+        xp: gained,
+        gained,
+      })
+    })
     // Nothing more to collect yet.
     await v.webSocketMessage(ws(a), '{"type":"stand-collect"}')
     expect(nack(a)).toMatchObject({ re: 'stand-collect', reason: 'empty' })

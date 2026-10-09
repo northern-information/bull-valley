@@ -17,6 +17,7 @@ import {
   refusalLine,
   settle,
   shelfRoom,
+  standXp,
   stock,
   stocked,
   topLevel,
@@ -169,5 +170,17 @@ describe('the stand refused', () => {
     expect(new Set(lines).size).toBe(reasons.length)
     expect(refusalLine('aboard')).toBe(refusalLine('no-stand'))
     expect(refusalLine('not-in-valley')).toBe(copy('log.stand_offline'))
+  })
+})
+
+describe('the stand’s XP', () => {
+  it('earns once a whole xpCents paid out, the rest earning none', () => {
+    const step = CONFIG.stand.xpCents
+    expect(standXp(0)).toBe(0)
+    expect(standXp(step - 1)).toBe(0)
+    expect(standXp(step)).toBe(1)
+    expect(standXp(10 * step + step - 1)).toBe(10)
+    // Many small collects never earn more than one big one.
+    expect(4 * standXp(step - 1)).toBeLessThanOrEqual(standXp(4 * (step - 1)))
   })
 })
