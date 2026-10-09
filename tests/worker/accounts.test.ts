@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { FRIENDS_MAX } from '../../src/friends.ts'
 import { assign, EMPTY_HOTBAR } from '../../src/hotbar.ts'
 import { DEFAULT_SETTINGS } from '../../src/settings.ts'
 import { MemoryAccountStore } from '../../worker/accounts.ts'
@@ -34,8 +35,85 @@ const linked = (
   linkedAt,
 })
 
+// Three accounts with usernames, for the friends list.
+async function friendly(store: AccountStore) {
+  for (const [id, name] of [
+    ['a1', 'Able'],
+    ['a2', 'Baker'],
+    ['a3', 'Charlie'],
+  ]) {
+    await store.create(account(id, `github:${id}`), linked(id, 'github', id))
+    await store.setUsername(id, name)
+  }
+}
+
 // The contract every store keeps, run here against the in-memory store.
 export function storeContract(makeStore: () => AccountStore): void {
+  it('finds an account by its username in any case', async () => {
+    const store = makeStore()
+    await friendly(store)
+    expect(await store.accountByUsername('baker')).toEqual({
+      accountId: 'a2',
+      username: 'Baker',
+    })
+    expect(await store.accountByUsername('nobody')).toBeNull()
+  })
+
+  it('asks, accepts and unfriends, by username', async () => {
+    const store = makeStore()
+    await friendly(store)
+    expect(await store.friendsOf('a1')).toEqual([])
+    expect(await store.askFriend('a1', 'a2', 5)).toBe('requested')
+    expect(await store.askFriend('a1', 'a2', 6)).toBe('already-asked')
+    expect(await store.askFriend('a1', 'a1', 6)).toBe('self')
+    expect(await store.friendsOf('a1')).toEqual([
+      { accountId: 'a2', username: 'Baker', state: 'asked' },
+    ])
+    expect(await store.friendsOf('a2')).toEqual([
+      { accountId: 'a1', username: 'Able', state: 'asking' },
+    ])
+    // Baker asks back: friends, both ways.
+    expect(await store.askFriend('a2', 'a1', 7)).toBe('accepted')
+    expect(await store.askFriend('a2', 'a1', 8)).toBe('already-friends')
+    expect(await store.friendsOf('a1')).toEqual([
+      { accountId: 'a2', username: 'Baker', state: 'friend' },
+    ])
+    expect(await store.friendsOf('a2')).toEqual([
+      { accountId: 'a1', username: 'Able', state: 'friend' },
+    ])
+    // Charlie had no part in it.
+    expect(await store.friendsOf('a3')).toEqual([])
+    // Either side ends it, and then there is nothing to end.
+    expect(await store.unfriend('a2', 'a1')).toBe(true)
+    expect(await store.friendsOf('a1')).toEqual([])
+    expect(await store.friendsOf('a2')).toEqual([])
+    expect(await store.unfriend('a1', 'a2')).toBe(false)
+  })
+
+  it('asks no more once the list is full', async () => {
+    const store = makeStore()
+    await friendly(store)
+    for (let i = 0; i < FRIENDS_MAX; i++) {
+      const id = `x${i}`
+      await store.create(account(id, `github:${id}`), linked(id, 'github', id))
+      await store.setUsername(id, `x_${i}`)
+      expect(await store.askFriend('a1', id, i)).toBe('requested')
+    }
+    expect(await store.askFriend('a1', 'a2', 0)).toBe('full')
+    // Accepting a request already made needs no room.
+    await store.askFriend('a3', 'a1', 0)
+    expect(await store.askFriend('a1', 'a3', 0)).toBe('accepted')
+  })
+
+  it('takes back a request either way', async () => {
+    const store = makeStore()
+    await friendly(store)
+    await store.askFriend('a1', 'a3', 5)
+    expect(await store.unfriend('a3', 'a1')).toBe(true)
+    expect(await store.friendsOf('a1')).toEqual([])
+    expect(await store.friendsOf('a3')).toEqual([])
+  })
+
   it('creates an account with its first provider and finds it again', async () => {
     const store = makeStore()
     await store.create(account('a1', 'github:1'), linked('a1', 'github', '1'))

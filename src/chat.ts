@@ -3,12 +3,16 @@
 // offline) and hud.ts draws them. Nothing is kept past the page.
 
 import { copy } from './copy.ts'
+import { EMOTE_IDS, emoteOf } from './emotes.ts'
+import { isValidName } from './protocol.ts'
+import type { EmoteId } from './emotes.ts'
 
-// A line a raider said, a line an NPC said to this player, or a line the
-// game says to the player alone.
+// A line a raider said, a whisper to or from this player, a line an NPC
+// said to this player, or a line the game says to the player alone.
 export interface ChatLine {
-  kind: 'say' | 'npc' | 'system'
-  // For 'say' and 'npc'.
+  kind: 'say' | 'whisper' | 'npc' | 'system'
+  // For 'say', 'whisper' and 'npc': who said it, or for a whisper this
+  // player sent, who it went to, as the log heads the line.
   name?: string
   text: string
   // When it was said, epoch ms: the valley's clock for a raider's line,
@@ -27,14 +31,61 @@ export const CHAT_COPY = {
   offline: copy('chat.offline'),
 } as const
 
-// A line typed with a leading slash is a command: answered in this
-// player's log alone, never sent to the valley.
-export type ChatCommand = 'online' | 'unknown'
+// A line typed with a leading slash is a command, never said to the whole
+// valley: /online, /emotes and an emote's own name (/wave, emotes.ts) are
+// answered here; /w (or /whisper) sends one raider a
+// whisper; /friend asks a raider to be friends or accepts their asking,
+// /unfriend undoes it, and /friends asks for the list (friends.ts).
+// `usage` is a command missing what it needs, with the line that says how.
+export type ChatCommand =
+  | { name: 'online' }
+  | { name: 'emotes' }
+  | { name: 'emote'; id: EmoteId }
+  | { name: 'friends' }
+  | { name: 'whisper'; to: string; text: string }
+  | { name: 'friend' | 'unfriend'; who: string }
+  | { name: 'usage'; line: string }
+  | { name: 'unknown' }
 
 export function chatCommand(text: string): ChatCommand | null {
   if (!text.startsWith('/')) return null
-  const [name] = text.slice(1).trim().toLowerCase().split(/\s+/)
-  return name === 'online' ? 'online' : 'unknown'
+  const [word = '', ...rest] = text.slice(1).trim().split(/\s+/)
+  const command = word.toLowerCase()
+  if (command === 'online') return { name: 'online' }
+  if (command === 'emotes') return { name: 'emotes' }
+  if (command === 'friends') return { name: 'friends' }
+  if (command === 'w' || command === 'whisper') {
+    const [to = '', ...words] = rest
+    const said = words.join(' ')
+    if (!to || !said) return { name: 'usage', line: copy('chat.usage_whisper') }
+    // A name no raider could have never goes on the wire, where the valley
+    // would take it for a malformed frame.
+    if (!isValidName(to)) {
+      return {
+        name: 'usage',
+        line: copy('chat.whisper_not_here', { name: to }),
+      }
+    }
+    return { name: 'whisper', to, text: said }
+  }
+  if (command === 'friend' || command === 'unfriend') {
+    const [who = ''] = rest
+    if (!who) {
+      return {
+        name: 'usage',
+        line:
+          command === 'friend'
+            ? copy('chat.usage_friend')
+            : copy('chat.usage_unfriend'),
+      }
+    }
+    if (!isValidName(who)) {
+      return { name: 'usage', line: copy('friends.unknown', { name: who }) }
+    }
+    return { name: command, who }
+  }
+  const id = emoteOf(command)
+  return id ? { name: 'emote', id } : { name: 'unknown' }
 }
 
 // How many others are in the valley, as the log says it.
@@ -44,13 +95,25 @@ export function othersLine(count: number): string {
   return copy('log.welcome_many', { count })
 }
 
+// A raider as /online names them: their name and their level.
+export interface OnlineRaider {
+  name: string
+  level: number
+}
+
 // Who is in the valley, for /online: this raider first, then the others
-// by name.
-export function onlineLine(self: string, others: readonly string[]): string {
+// by name, each with their level.
+export function onlineLine(
+  self: OnlineRaider,
+  others: readonly OnlineRaider[]
+): string {
   const sorted = [...others].sort((a, b) =>
-    a.localeCompare(b, undefined, { sensitivity: 'base' })
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
   )
-  return copy('chat.online', { names: [self, ...sorted].join(', ') })
+  const names = [self, ...sorted]
+    .map((raider) => copy('chat.online_name', { ...raider }))
+    .join(', ')
+  return copy('chat.online', { names })
 }
 
 // The log with one more line, keeping the newest CHAT_LINES.
@@ -81,4 +144,50 @@ export function formatStamp(at: number): string {
   const hh = String(d.getHours()).padStart(2, '0')
   const mm = String(d.getMinutes()).padStart(2, '0')
   return `${hh}:${mm}`
+}
+
+// What the log says of an emote: to the raider who took it (name null),
+// or the quiet line a raider near enough to see it gets.
+export function emoteLine(id: EmoteId, name: string | null): string {
+  if (name === null) {
+    switch (id) {
+      case 'wave':
+        return copy('emotes.wave_self')
+      case 'sit':
+        return copy('emotes.sit_self')
+      case 'smoke':
+        return copy('emotes.smoke_self')
+      case 'dance':
+        return copy('emotes.dance_self')
+      case 'point':
+        return copy('emotes.point_self')
+      case 'shrug':
+        return copy('emotes.shrug_self')
+      case 'kneel':
+        return copy('emotes.kneel_self')
+    }
+  }
+  switch (id) {
+    case 'wave':
+      return copy('emotes.wave_seen', { name })
+    case 'sit':
+      return copy('emotes.sit_seen', { name })
+    case 'smoke':
+      return copy('emotes.smoke_seen', { name })
+    case 'dance':
+      return copy('emotes.dance_seen', { name })
+    case 'point':
+      return copy('emotes.point_seen', { name })
+    case 'shrug':
+      return copy('emotes.shrug_seen', { name })
+    case 'kneel':
+      return copy('emotes.kneel_seen', { name })
+  }
+}
+
+// The emotes, as /emotes lists them.
+export function emotesLine(): string {
+  return copy('emotes.list', {
+    list: EMOTE_IDS.map((id) => `/${id}`).join(', '),
+  })
 }

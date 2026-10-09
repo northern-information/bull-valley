@@ -74,6 +74,18 @@ tracker_label = { text = "Daily task: {count} of {goal} shadowmen burned today",
 banner_done = { text = "Daily Task Done", by = "ai" }
 banner_paid = { text = "+{cash}", by = "ai" }
 
+# The raider's level (src/progression.ts, src/levelhud.ts): a row in the
+# upper-right tracker, the banner on a new level, and the name tags.
+[level]
+kicker = { text = "Raider", by = "ai" }
+title = { text = "Level {level}", by = "ai" }
+progress = { text = "{into}/{span} XP", by = "ai" }
+max = { text = "Max", by = "ai" }
+tracker_label = { text = "Raider level {level}: {into} of {span} XP to the next", by = "ai" }
+tracker_label_max = { text = "Raider level {level}, the highest", by = "ai" }
+banner = { text = "Level {level}", by = "ai" }
+tag = { text = "{name} · {level}", by = "ai" }
+
 [signin]
 title = { text = "Sign In", by = "tyler" }
 lede = { text = "Sign in to raid the valley.", by = "tyler" }
@@ -214,6 +226,8 @@ welcome_many = { text = "{count} others in the valley.", by = "ai" }
 peer_joined = { text = "{name} is in the valley.", by = "ai" }
 peer_left = { text = "{name} is gone.", by = "ai" }
 peer_renamed = { text = "{was} is {name} now.", by = "ai" }
+peer_level = { text = "{name} reached level {level}.", by = "ai" }
+level_up = { text = "You reached raider level {level}.", by = "ai" }
 signal_lost = { text = "Signal lost. The valley goes quiet.", by = "ai" }
 signed_out = { text = "Signed out. Sign in again to raid.", by = "ai" }
 board = { text = "You climb into the bed.", by = "ai" }
@@ -265,6 +279,17 @@ locker_offline = { text = "No signal. Your locker will not open.", by = "ai" }
 locker_refused = { text = "The locker sticks.", by = "ai" }
 stowed = { text = "Stowed: {item}", by = "ai" }
 unstowed = { text = "Taken out: {item}", by = "ai" }
+stand_stocked = { text = "On the stand: {item}", by = "ai" }
+stand_collected = { text = "The stand paid you {amount}.", by = "ai" }
+stand_upgraded = { text = "Your stand is level {level} now.", by = "ai" }
+stand_offline = { text = "No signal. The stand is shut.", by = "ai" }
+stand_far = { text = "You are too far from the stand.", by = "ai" }
+stand_short = { text = "You cannot cover that.", by = "ai" }
+stand_none = { text = "You have none of those to put out.", by = "ai" }
+stand_full = { text = "The table has no room for more.", by = "ai" }
+stand_empty = { text = "Not a cent to collect yet.", by = "ai" }
+stand_top = { text = "Your stand is as good as it gets.", by = "ai" }
+stand_refused = { text = "The stand will not do that right now.", by = "ai" }
 edge = { text = "The valley ends here.", by = "ai" }
 
 # Marx's countdown once anyone is in the bed (src/loop.ts).
@@ -281,14 +306,71 @@ board = { text = "E — Climb into the Bed", by = "ai" }
 trade = { text = "E — Trade {count} oz of {price} for the {cosmetic}", by = "ai" }
 loot = { text = "E — Take Your Things Back", by = "ai" }
 locker = { text = "E — Open Your Locker", by = "ai" }
+stand = { text = "E — Tend Your Stand", by = "ai" }
 
 # Lines the game says to the player in the chat log (src/chat.ts).
+
+# The emotes (src/emotes.ts): what a raider is told doing one, and the
+# quiet line a raider near enough to see it gets.
+
+[emotes]
+list = { text = "Emotes: {list}", by = "ai" }
+in_bed = { text = "Not from the bed.", by = "ai" }
+wave_self = { text = "You wave.", by = "ai" }
+wave_seen = { text = "{name} waves.", by = "ai" }
+sit_self = { text = "You sit down in the dirt.", by = "ai" }
+sit_seen = { text = "{name} sits down.", by = "ai" }
+smoke_self = { text = "You stand and smoke a while.", by = "ai" }
+smoke_seen = { text = "{name} smokes.", by = "ai" }
+dance_self = { text = "You dance.", by = "ai" }
+dance_seen = { text = "{name} dances.", by = "ai" }
+point_self = { text = "You point.", by = "ai" }
+point_seen = { text = "{name} points.", by = "ai" }
+shrug_self = { text = "You shrug.", by = "ai" }
+shrug_seen = { text = "{name} shrugs.", by = "ai" }
+kneel_self = { text = "You kneel.", by = "ai" }
+kneel_seen = { text = "{name} kneels.", by = "ai" }
 
 [chat]
 too_fast = { text = "You are speaking too fast.", by = "ai" }
 offline = { text = "No one can hear you.", by = "ai" }
 online = { text = "In the valley: {names}.", by = "ai" }
-unknown_command = { text = "No such command. Try /online.", by = "ai" }
+online_name = { text = "{name} (level {level})", by = "ai" }
+unknown_command = { text = "No such command. Try /online, /emotes, /friends, /friend name, /unfriend name or /w name message.", by = "ai" }
+usage_whisper = { text = "To whisper: /w name message", by = "ai" }
+usage_friend = { text = "To ask a raider to be friends: /friend name", by = "ai" }
+usage_unfriend = { text = "To stop being friends: /unfriend name", by = "ai" }
+whisper_from = { text = "{name} whispers", by = "ai" }
+whisper_to = { text = "To {name}", by = "ai" }
+whisper_not_here = { text = "{name} is not in the valley.", by = "ai" }
+whisper_self = { text = "You whisper to yourself. No one hears it.", by = "ai" }
+
+# Friends (src/friends.ts): /friends lists them, /friend asks or accepts,
+# /unfriend undoes it.
+
+[friends]
+none = { text = "No friends yet. /friend name asks a raider.", by = "ai" }
+online = { text = "{name}: in the valley, {where}.", by = "ai" }
+offline = { text = "{name}: away.", by = "ai" }
+asking = { text = "{name} asks to be friends. /friend {name} to accept.", by = "ai" }
+asked = { text = "{name}: asked, waiting.", by = "ai" }
+where_riding = { text = "riding with Marx", by = "ai" }
+where_maze = { text = "in the corn maze", by = "ai" }
+where_citgo = { text = "by a Citgo", by = "ai" }
+where_valley = { text = "out in the valley", by = "ai" }
+sent = { text = "You asked {name} to be friends.", by = "ai" }
+now = { text = "You and {name} are friends.", by = "ai" }
+removed = { text = "You and {name} are no longer friends.", by = "ai" }
+unknown = { text = "No raider is called {name}.", by = "ai" }
+self = { text = "You are already your own friend.", by = "ai" }
+already_friends = { text = "You and {name} are already friends.", by = "ai" }
+already_asked = { text = "You already asked {name}.", by = "ai" }
+full = { text = "Your friends list is full.", by = "ai" }
+not_friends = { text = "You and {name} are not friends.", by = "ai" }
+failed = { text = "The friends list could not be changed. Try again soon.", by = "ai" }
+news_asked = { text = "{name} asks to be friends. /friend {name} to accept.", by = "ai" }
+news_accepted = { text = "{name} is your friend now.", by = "ai" }
+news_online = { text = "Your friend {name} is in the valley.", by = "ai" }
 
 # The Tab pack grid and the hotbar (src/hud.ts). Item cards are under
 # [items].
@@ -498,6 +580,30 @@ become = { text = "Become", by = "tyler" }
 character_now = { text = "This is you now", by = "tyler" }
 became = { text = "You are {name} now.", by = "tyler" }
 close = { text = "Close", by = "tyler" }
+
+# The Bull Valley Cabbage Stand as your outpost (src/standdialog.ts).
+
+[stand]
+title = { text = "Bull Valley Cabbage Stand", by = "ai" }
+says = { text = "Your stand. Leave something on the table and it sells while you are gone.", by = "ai" }
+level = { text = "Level {level} of {top}", by = "ai" }
+table = { text = "On the Table: {count} of {shelf}", by = "ai" }
+good = { text = "{item}: {out} out, {held} in your pack", by = "ai" }
+stock_one = { text = "Put Out 1 {item}", by = "ai" }
+stock_all = { text = "Put Out All", by = "ai" }
+earning = { text = "Earning {rate} an hour, banking up to {cap}", by = "ai" }
+idle = { text = "Nothing on the table, so nothing sells.", by = "ai" }
+banked = { text = "Banked: {amount}", by = "ai" }
+full_in = { text = "Full in {time}. Come back before then.", by = "ai" }
+full = { text = "Full. It has stopped earning until you collect.", by = "ai" }
+hours = { text = "{h}h {m}m", by = "ai" }
+minutes = { text = "{m}m", by = "ai" }
+collect = { text = "Collect {amount}", by = "ai" }
+next = { text = "Level {level}: holds {shelf}, earns up to {rate} an hour, banks {hours} hours.", by = "ai" }
+upgrade = { text = "Upgrade for {price}", by = "ai" }
+price_item = { text = "{count} {item}", by = "ai" }
+top = { text = "Fully Upgraded", by = "ai" }
+close = { text = "Close", by = "ai" }
 
 # What Moab Coldë says under the Citgo sign when you press E beside him.
 

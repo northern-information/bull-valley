@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { EMOTE_IDS } from '../../src/emotes.ts'
 import {
   CHAT_MAX,
   CLOSE,
@@ -42,6 +43,7 @@ const hello = {
   water: dryMap({ width: 15059, height: 15038 }),
   maze: { x: 120, z: -40, yaw: 0.5 },
   truck: { home: { x: 10, z: -20 }, joyrideMs: 600_000 },
+  stand: { x: 6, z: -24 },
 }
 
 const parse = (value: unknown) => parseClientMessage(JSON.stringify(value))
@@ -74,8 +76,10 @@ describe('names', () => {
 })
 
 describe('outfits and poses', () => {
-  it('has no seated pose yet', () => {
-    expect(PEER_POSES).toEqual(['stand', 'walk', 'crouch'])
+  it('carries the emotes as poses, named as they are typed', () => {
+    expect(PEER_POSES).toEqual(['stand', 'walk', 'crouch', ...EMOTE_IDS])
+    expect(parsePeerState({ ...state, pose: 'wave' })?.pose).toBe('wave')
+    expect(parsePeerState({ ...state, pose: 'moonwalk' })).toBeNull()
   })
 })
 
@@ -132,6 +136,30 @@ describe('chat', () => {
     expect(parse({ type: 'chat', text: '  unnormalized ' })).toBeNull()
     expect(parse({ type: 'chat' })).toBeNull()
   })
+
+  it('parses whispers and the friends frames, and refuses bad ones', () => {
+    expect(parse({ type: 'whisper', to: 'Baker', text: 'hi' })).toEqual({
+      type: 'whisper',
+      to: 'Baker',
+      text: 'hi',
+    })
+    expect(parse({ type: 'whisper', to: '', text: 'hi' })).toBeNull()
+    expect(parse({ type: 'whisper', to: 'Baker', text: '' })).toBeNull()
+    expect(
+      parse({ type: 'whisper', to: 'Baker', text: 'x'.repeat(CHAT_MAX + 1) })
+    ).toBeNull()
+    expect(parse({ type: 'friend', name: 'Baker' })).toEqual({
+      type: 'friend',
+      name: 'Baker',
+    })
+    expect(parse({ type: 'unfriend', name: 'Baker', extra: 1 })).toEqual({
+      type: 'unfriend',
+      name: 'Baker',
+    })
+    expect(parse({ type: 'friend', name: 7 })).toBeNull()
+    expect(parse({ type: 'unfriend' })).toBeNull()
+    expect(parse({ type: 'friends', extra: 1 })).toEqual({ type: 'friends' })
+  })
 })
 
 describe('parseClientMessage', () => {
@@ -142,6 +170,14 @@ describe('parseClientMessage', () => {
       ...state,
     })
     expect(parse({ type: 'ping', t: 12.5 })).toEqual({ type: 'ping', t: 12.5 })
+  })
+
+  it("parses where Marx's truck stands, and nothing else", () => {
+    const lights = { type: 'headlights', x: 1, y: 2, z: 3, heading: -1.5 }
+    expect(parse({ ...lights, extra: true })).toEqual(lights)
+    expect(parse({ ...lights, heading: 'north' })).toBeNull()
+    expect(parse({ ...lights, heading: Infinity })).toBeNull()
+    expect(parse({ ...lights, x: NaN })).toBeNull()
   })
 
   it('lets the server judge a bad outfit in a hello', () => {
@@ -161,6 +197,7 @@ describe('parseClientMessage', () => {
       water: _water,
       maze: _maze,
       truck: _truck,
+      stand: _stand,
       ...older
     } = hello
     expect(parse({ ...older, v: PROTOCOL_VERSION - 1 })).toEqual({
@@ -171,6 +208,7 @@ describe('parseClientMessage', () => {
       water: { cell: 100, cols: 1, rows: 1, bits: 'AA==' },
       maze: null,
       truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
+      stand: null,
     })
     // Bad ones read as missing in an older build, too.
     expect(
@@ -181,6 +219,7 @@ describe('parseClientMessage', () => {
         metres: 'big',
         maze: 'corn',
         truck: 'chevy',
+        stand: 'cabbages',
       })
     ).toEqual({
       ...older,
@@ -191,6 +230,7 @@ describe('parseClientMessage', () => {
       water: hello.water,
       maze: null,
       truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
+      stand: null,
     })
     // The current version still requires both.
     expect(parse({ ...older, v: PROTOCOL_VERSION })).toBeNull()
@@ -291,6 +331,20 @@ describe('parseClientMessage', () => {
       kind: 'joints',
       count: 1,
     })
+    expect(parse({ type: 'stand-stock', kind: 'cabbage', count: 3 })).toEqual({
+      type: 'stand-stock',
+      kind: 'cabbage',
+      count: 3,
+    })
+    expect(parse({ type: 'stand-stock', kind: 'cabbage', count: 0 })).toBeNull()
+    expect(parse({ type: 'stand-stock', kind: 7, count: 1 })).toBeNull()
+    expect(parse({ type: 'stand-collect', extra: 1 })).toEqual({
+      type: 'stand-collect',
+    })
+    expect(parse({ type: 'stand-upgrade' })).toEqual({ type: 'stand-upgrade' })
+    // A hello says where the stand stands, or that there is none.
+    expect(parse({ ...hello, stand: null })).toEqual({ ...hello, stand: null })
+    expect(parse({ ...hello, stand: { x: 'here' } })).toBeNull()
     expect(parse({ type: 'trade', offer: 'flaming-halo', extra: 1 })).toEqual({
       type: 'trade',
       offer: 'flaming-halo',

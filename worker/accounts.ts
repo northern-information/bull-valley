@@ -3,6 +3,7 @@
 // interface is here with an in-memory store for the tests and dev tools;
 // production is the D1 store in d1accounts.ts.
 
+import { askOutcome, FRIENDS_MAX } from '../src/friends.ts'
 import { EMPTY_HOTBAR } from '../src/hotbar.ts'
 import { DEFAULT_SETTINGS } from '../src/settings.ts'
 import type {
@@ -11,6 +12,7 @@ import type {
   Provider,
   SettingsWire,
 } from '../src/account.ts'
+import type { AskResult, FriendRow, FriendState } from '../src/friends.ts'
 
 export interface Account {
   accountId: string
@@ -76,6 +78,19 @@ export interface AccountStore {
   settingsOf(accountId: string): Promise<SettingsWire>
   // False when there is no such account.
   setSettings(accountId: string, settings: SettingsWire): Promise<boolean>
+  // The account signed in as `username`, in any case, or null.
+  accountByUsername(
+    username: string
+  ): Promise<{ accountId: string; username: string } | null>
+  // Every friendship and request the account is part of, by username
+  // (friends.ts FriendRow).
+  friendsOf(accountId: string): Promise<FriendRow[]>
+  // `from` asks `to` (friends.ts askOutcome): a request kept, or `to`'s
+  // own request accepted and the two made friends, all at once.
+  askFriend(from: string, to: string, now: number): Promise<AskResult>
+  // No longer friends, and no request either way; false when there was
+  // nothing between them.
+  unfriend(a: string, b: string): Promise<boolean>
 }
 
 export class MemoryAccountStore implements AccountStore {
@@ -84,6 +99,8 @@ export class MemoryAccountStore implements AccountStore {
   readonly looks = new Map<string, LookWire>()
   readonly hotbars = new Map<string, HotbarWire>()
   readonly settings = new Map<string, SettingsWire>()
+  // `${account}/${friend}` -> accepted: one account's side, as in D1.
+  readonly friends = new Map<string, boolean>()
 
   findByProvider(providerKey: string): Promise<LinkedProvider | null> {
     return Promise.resolve(this.providers.get(providerKey) ?? null)
@@ -212,6 +229,58 @@ export class MemoryAccountStore implements AccountStore {
   }
 
   // Whether another account holds the name; `except` is never counted.
+  accountByUsername(
+    username: string
+  ): Promise<{ accountId: string; username: string } | null> {
+    for (const account of this.accounts.values()) {
+      if (
+        account.username !== null &&
+        account.username.toLowerCase() === username.toLowerCase()
+      ) {
+        return Promise.resolve({
+          accountId: account.accountId,
+          username: account.username,
+        })
+      }
+    }
+    return Promise.resolve(null)
+  }
+
+  friendsOf(accountId: string): Promise<FriendRow[]> {
+    const rows: FriendRow[] = []
+    const add = (other: string, state: FriendState) => {
+      const username = this.accounts.get(other)?.username
+      if (username) rows.push({ accountId: other, username, state })
+    }
+    for (const [key, accepted] of this.friends) {
+      const [a, b] = key.split('/')
+      if (a === accountId) add(b, accepted ? 'friend' : 'asked')
+      else if (b === accountId && !accepted && !this.friends.has(`${b}/${a}`)) {
+        add(a, 'asking')
+      }
+    }
+    return Promise.resolve(rows)
+  }
+
+  async askFriend(from: string, to: string, _now: number): Promise<AskResult> {
+    const rows = await this.friendsOf(from)
+    const state = rows.find((r) => r.accountId === to)?.state ?? null
+    const outcome = askOutcome(state, from === to)
+    if (outcome === 'requested' && rows.length >= FRIENDS_MAX) return 'full'
+    if (outcome === 'requested') this.friends.set(`${from}/${to}`, false)
+    if (outcome === 'accepted') {
+      this.friends.set(`${to}/${from}`, true)
+      this.friends.set(`${from}/${to}`, true)
+    }
+    return outcome
+  }
+
+  unfriend(a: string, b: string): Promise<boolean> {
+    const one = this.friends.delete(`${a}/${b}`)
+    const other = this.friends.delete(`${b}/${a}`)
+    return Promise.resolve(one || other)
+  }
+
   private taken(username: string, except?: string): boolean {
     const want = username.toLowerCase()
     for (const account of this.accounts.values()) {

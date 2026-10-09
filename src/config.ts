@@ -185,27 +185,10 @@ export const CONFIG = {
     // the lot, between the pumps and the road sign.
     offset: 5,
   },
-  radio: {
-    // The radio in Marx's cab (radio.ts): full this close, in metres,
-    // silent past `far`, and muffled toward the edge.
-    volume: 0.9,
-    near: 6,
-    far: 45,
-    openHz: 9000,
-    muffledHz: 700,
-    // In the bed, through the back glass.
-    bedHz: 2400,
-    // The stream pauses past `far` plus this, so no one far off downloads it.
-    pauseBeyond: 15,
-    // A player this far from the valley's moment, in seconds, seeks back.
-    driftSeconds: 2,
-  },
   music: {
     // The valley's music (music.ts): the element's volume at the setting's
     // top, kept well under the valley so it sits beneath everything.
     volume: 0.5,
-    // How much of it Marx's radio takes away at its loudest.
-    duck: 0.85,
     // Seconds it takes to come up from silence when it starts.
     fadeInSeconds: 4,
   },
@@ -263,6 +246,19 @@ export const CONFIG = {
     speed: 12, // m/s, about 27 mph — right for gravel-adjacent Bull Valley
     boardRange: 4,
     bedEye: 1.6, // camera height above the bed
+    // Marx's headlights burn shadowmen like a flashlight (shadowmen.ts
+    // headlightBeam): a cone from the lamps, `nose` metres ahead of the
+    // truck's middle and `height` up, `range` long and `halfAngle` radians
+    // off its axis. The valley aims it from where a client within `reach`
+    // of the truck last said it was, and forgets a word older than staleMs.
+    headlights: {
+      reach: 400,
+      range: 30,
+      halfAngle: 0.45,
+      height: 0.95,
+      nose: 2.95,
+      staleMs: 1000,
+    },
     wanderMetres: 6000, // how far the outbound joyride runs
     // Matthew Marx's day (marx.ts): he reads at the tailgate this long,
     // then does donuts this long, over and over. Climbing into the bed
@@ -365,12 +361,50 @@ export const CONFIG = {
     // Where the Bull Valley Cabbage Stand is set up on the spawn Citgo's
     // lot, station-local like the bush: on Gron's side, beside the lot lamp
     // at the store's back corner (world.ts STATION_LAMPS), toward the
-    // pumps, turned to face them. Scenery: it only blocks.
+    // pumps, turned to face them. It blocks, and every account keeps its
+    // own outpost there (stand.ts).
     at: { x: -3.6, z: -17.2 },
     // It blocks as a capsule along its table (assets.ts CABBAGE_STAND):
     // this far either side of its middle, this wide.
     halfLength: 1.0,
     radius: 0.75,
+    // How close its middle must be for E to open it.
+    reach: 2.8,
+    // The valley tends a raider's stand only when their last state frame
+    // put them within this of its middle: generous, since frames lag.
+    tendReach: 8,
+    // A collect earns the stand's XP (progression.ts XP.stand) once for
+    // every whole this many cents it pays out.
+    xpCents: 25,
+    // What goes on the table: the valley's own produce.
+    goods: ['cabbage', 'berries'],
+    // Each level, the first the one every account starts at: how many
+    // goods the table holds (`shelf`), what it earns an hour in cents with
+    // the table full (`rate`; a part-full table earns its share), how many
+    // hours of that it banks before it stops (`capHours`), and what the
+    // upgrade to it costs (cents, and goods out of the pack). The goods put
+    // out never run down: the rate is flat for the level.
+    levels: [
+      { shelf: 6, rate: 30, capHours: 12, price: null },
+      {
+        shelf: 10,
+        rate: 60,
+        capHours: 14,
+        price: { cash: 1000, items: { cabbage: 4, berries: 0 } },
+      },
+      {
+        shelf: 16,
+        rate: 100,
+        capHours: 18,
+        price: { cash: 2500, items: { cabbage: 8, berries: 4 } },
+      },
+      {
+        shelf: 24,
+        rate: 150,
+        capHours: 24,
+        price: { cash: 6000, items: { cabbage: 12, berries: 8 } },
+      },
+    ],
   },
   wreck: {
     // The green BMW nosed into a tree beside the spawn Citgo, station-local
@@ -400,6 +434,11 @@ export const CONFIG = {
     radius: 1.4,
     // Trees keep this far off each pedestal: clear of the reflector.
     treeClear: 6,
+  },
+  emotes: {
+    // A raider within this many metres of one who emotes (emotes.ts) gets
+    // the quiet line in their log; anyone further off only sees it.
+    seenRadius: 40,
   },
   npcs: {
     // How close you must stand for Matthew Marx or David Carlsten to glow
@@ -503,5 +542,14 @@ export const CONFIG = {
     // Unmade, it leaves this many 1 troy ounce bars of gold bullion lying
     // where it was, each a drop of its own (drops.ts spillsOf).
     bullion: 2,
+  },
+  // The raider's level (progression.ts): one XP bar for the account, fed
+  // by everything. Reaching level L takes base * (L - 1) ^ power XP in all,
+  // so each level asks a little more than the last; uncapped by the
+  // season, and never past maxLevel.
+  progression: {
+    base: 100,
+    power: 1.5,
+    maxLevel: 99,
   },
 }

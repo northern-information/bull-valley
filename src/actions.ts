@@ -9,7 +9,13 @@
 import { saveHotbar, saveLook } from './auth.ts'
 import { CHAPTERS, entryOf, newlyFound } from './book.ts'
 import { portraitOf } from './bookportraits.ts'
-import { CHAT_COPY, chatCommand, onlineLine } from './chat.ts'
+import {
+  CHAT_COPY,
+  chatCommand,
+  emoteLine,
+  emotesLine,
+  onlineLine,
+} from './chat.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { corpseWire, emptied, fallen, isEmpty, recover } from './corpses.ts'
@@ -42,13 +48,17 @@ import {
   packItems,
   stashItems,
 } from './packgrid.ts'
+import { levelOf } from './progression.ts'
 import { normalizeChat } from './protocol.ts'
 import { callRoute } from './roadgraph.ts'
 import { buy as buyItem, settle } from './shop.ts'
+import { openStandDialog } from './standdialog.ts'
 import { move, moveAmount } from './stash.ts'
 import { formatCash } from './store.ts'
 import { planLeg } from './truckplan.ts'
+import type { ChatCommand } from './chat.ts'
 import type { CosmeticId } from './cosmetics.ts'
+import type { EmoteId } from './emotes.ts'
 import type { Game } from './game.ts'
 import type { DailyStatus, ShelfSpot } from './interactions.ts'
 import type { Leg, TruckState } from './marx.ts'
@@ -361,6 +371,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   const strike = (by: 'shadowman' | 'caretaker' = 'shadowman') => {
     if (s.aboard) return
     s.strikes += 1
+    s.emoting = null
     s.strikeUntil = performance.now() + CONFIG.shadowmen.strikeSeconds * 1000
     hud.showStatic(true)
     closeInventory()
@@ -439,6 +450,42 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         item: pickupLabel({ kind, count }),
       })
     )
+  }
+
+  // E at the Cabbage Stand: its dialog, the pointer free for it as for
+  // Gron's. The stand is the account's (rule 23), so played alone there is
+  // none. Every change is the valley's to make: the dialog asks, and the
+  // stand and pack frames that answer show in it as they land.
+  const tendStand = () => {
+    if (s.talking) return
+    if (!s.world || !s.stand) {
+      hud.tell(copy('log.stand_offline'))
+      return
+    }
+    s.talking = true
+    s.standSaid = null
+    player.keys.clear()
+    if (document.pointerLockElement) document.exitPointerLock()
+    const ask = (msg: Parameters<typeof net.send>[0]) => {
+      s.pendingStand = true
+      s.standSaid = null
+      net.send(msg)
+    }
+    void openStandDialog({
+      goods: CONFIG.stand.goods,
+      ledger: () => (s.world ? s.stand : null),
+      pack: () => s.inventory,
+      cash: () => s.cash,
+      now: () => net.clock.serverNow(performance.now()),
+      pending: () => s.pendingStand,
+      said: () => s.standSaid,
+      onStock: (kind, count) => ask({ type: 'stand-stock', kind, count }),
+      onCollect: () => ask({ type: 'stand-collect' }),
+      onUpgrade: () => ask({ type: 'stand-upgrade' }),
+    }).then(() => {
+      s.talking = false
+      engagePointer()
+    })
   }
 
   const stowKind = (kind: string, all: boolean) => restash(kind, all, true)
@@ -831,6 +878,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       case 'locker':
         openLocker()
         return
+      case 'stand':
+        tendStand()
+        return
     }
   }
 
@@ -844,22 +894,70 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     }
     hud.tell(
       onlineLine(
-        game.pick.username,
-        peers.list().map((peer) => peer.name)
+        { name: game.pick.username, level: levelOf(s.xp) },
+        peers.list().map(({ name, level }) => ({ name, level }))
       )
     )
+  }
+
+  // An emote (emotes.ts): the body takes its pose, which the next state
+  // frame carries to everyone; never from the bed.
+  const emote = (id: EmoteId) => {
+    if (s.aboard) {
+      hud.tell(copy('emotes.in_bed'))
+      return
+    }
+    s.emoting = { id, since: performance.now() / 1000 }
+    hud.tell(emoteLine(id, null))
+  }
+
+  // A slash command (chat.ts chatCommand). The friends' and the whisper's
+  // go to the valley (rule 21); their answers come back in valleysync.ts.
+  const runCommand = (command: ChatCommand) => {
+    switch (command.name) {
+      case 'online':
+        tellOnline()
+        return
+      case 'emotes':
+        hud.tell(emotesLine())
+        return
+      case 'emote':
+        emote(command.id)
+        return
+      case 'unknown':
+        hud.tell(copy('chat.unknown_command'))
+        return
+      case 'usage':
+        hud.tell(command.line)
+        return
+    }
+    if (!net.online) {
+      hud.tell(CHAT_COPY.offline)
+      return
+    }
+    switch (command.name) {
+      case 'friends':
+        s.showFriends = true
+        net.send({ type: 'friends' })
+        return
+      case 'whisper':
+        s.whisperTo = command.to
+        net.send({ type: 'whisper', to: command.to, text: command.text })
+        return
+      case 'friend':
+      case 'unfriend':
+        s.pendingAsk = { op: command.name, name: command.who }
+        net.send({ type: command.name, name: command.who })
+        return
+    }
   }
 
   const say = (typed: string) => {
     const text = normalizeChat(typed)
     if (!text) return
     const command = chatCommand(text)
-    if (command === 'online') {
-      tellOnline()
-      return
-    }
-    if (command === 'unknown') {
-      hud.tell(copy('chat.unknown_command'))
+    if (command) {
+      runCommand(command)
       return
     }
     if (net.online) {

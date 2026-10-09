@@ -80,6 +80,8 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // The lockers in the back room of station `station`: E opens the stash
   // (rule 19).
   | { kind: 'locker'; station: number }
+  // The Cabbage Stand: E opens this raider's own (rule 23).
+  | { kind: 'stand' }
 
 // A locker bank as the resolver sees it: where E opens it, and its
 // station.
@@ -112,13 +114,15 @@ export interface InteractionInput<P extends PickupSpot> {
   // locker banks; others' bodies are no one else's to loot.
   corpses?: readonly CorpseWire[]
   lockers?: readonly LockerSpot[]
+  // The Cabbage Stand's middle, or null.
+  stand?: XZ | null
 }
 
 // The first match wins, in this order: hop out while riding; speak to the
 // nearest NPC in his reach, unless a shelf unit is in view; climb into the
 // truck standing still beside you, when it is yours to climb into; buy off
 // a shelf; take your things back off your nearest body; open the lockers;
-// Gron or the nearest berry bush, whichever is nearer; take the nearest
+// tend the Cabbage Stand; Gron or the nearest berry bush, whichever is nearer; take the nearest
 // pickup.
 export function resolveInteraction<P extends PickupSpot>(
   input: InteractionInput<P>
@@ -172,6 +176,14 @@ export function resolveInteraction<P extends PickupSpot>(
     if (d < CONFIG.stash.reach) {
       return { kind: 'locker', station: locker.station }
     }
+  }
+
+  const stand = input.stand
+  if (
+    stand &&
+    Math.hypot(stand.x - player.x, stand.z - player.z) < CONFIG.stand.reach
+  ) {
+    return { kind: 'stand' }
   }
 
   // Gron and the first bush stand at the spawn Citgo a few strides apart,
@@ -283,6 +295,8 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return copy('prompts.loot')
     case 'locker':
       return copy('prompts.locker')
+    case 'stand':
+      return copy('prompts.stand')
     // Moab's offer is said, since the glow alone cannot say what he wants.
     case 'trade': {
       const cosmetic = cosmeticById(interaction.offer)

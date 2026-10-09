@@ -349,6 +349,17 @@ describe('resolveInteraction: bodies and lockers', () => {
     expect(resolveInteraction(input({ lockers: away }))).toBeNull()
   })
 
+  it('opens your Cabbage Stand within its reach', () => {
+    expect(resolveInteraction(input({ stand: { x: 251, z: 250 } }))).toEqual({
+      kind: 'stand',
+    })
+    const far = { x: 250 + CONFIG.stand.reach + 0.1, z: 250 }
+    expect(resolveInteraction(input({ stand: far }))).toBeNull()
+    expect(resolveInteraction(input({ stand: null }))).toBeNull()
+    expect(interactionPrompt({ kind: 'stand' })).toBe(copy('prompts.stand'))
+    expect(itemLabel({ kind: 'stand' })).toBeNull()
+  })
+
   it('says what E does at each', () => {
     expect(interactionPrompt({ kind: 'loot', corpse: 0 })).toBe(
       copy('prompts.loot')
