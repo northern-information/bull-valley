@@ -52,6 +52,8 @@ const STATIONS_MAX = 64
 
 // An item id or a pickup kind on the wire: items.ts ids are short.
 const KIND_MAX = 64
+// The longest peer id a hello may name as its last (a UUID is 36).
+const ID_MAX = 64
 
 // The survey is about 5 km across; nothing legitimate is this far out.
 export const MAX_COORD = 20_000
@@ -205,6 +207,11 @@ export interface HelloMessage {
   // Where the Cabbage Stand stands, or null: the valley tends each
   // account's stand only for a raider beside it (rule 23).
   stand: XZ | null
+  // On a reconnect, the id this client had before the line dropped. The
+  // valley may not have heard that socket close yet; it retires it if it is
+  // the same account's, so the raider is not welcomed back beside their own
+  // ghost.
+  was?: string
 }
 
 export interface BoardMessage {
@@ -772,6 +779,7 @@ export const CLOSE = {
   badOutfit: 4003,
   badVersion: 4004,
   staleBuild: 4005,
+  // A reconnect from the same client took this socket's place.
   replaced: 4006,
   // No signed-in account with a username on the upgrade: the client sends
   // the player back to sign in.
@@ -975,6 +983,9 @@ export function parseClientMessage(text: string): ClientMessage | null {
         maze: maze ?? null,
         truck: truck ?? { home: { x: 0, z: 0 }, joyrideMs: 0 },
         stand,
+        ...(typeof value.was === 'string' && value.was.length <= ID_MAX
+          ? { was: value.was }
+          : {}),
       }
     }
     case 'board':

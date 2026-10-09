@@ -180,6 +180,12 @@ describe('parseClientMessage', () => {
     expect(parse({ ...lights, x: NaN })).toBeNull()
   })
 
+  it("carries a reconnect's last id in a hello, and drops a bad one", () => {
+    expect(parse({ ...hello, was: 'abc' })).toEqual({ ...hello, was: 'abc' })
+    expect(parse({ ...hello, was: 7 })).toEqual(hello)
+    expect(parse({ ...hello, was: 'x'.repeat(65) })).toEqual(hello)
+  })
+
   it('lets the server judge a bad outfit in a hello', () => {
     const judged = parse({ ...hello, outfit: 'tuxedo' })
     expect(judged?.type).toBe('hello')

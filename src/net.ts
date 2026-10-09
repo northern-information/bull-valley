@@ -218,6 +218,8 @@ export class NetClient {
           maze: identity.maze,
           truck: identity.truck,
           stand: identity.stand,
+          // Who we were before a reconnect, so the valley drops that ghost.
+          ...(this.id ? { was: this.id } : {}),
         } satisfies ClientMessage)
       )
     })
