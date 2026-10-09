@@ -1,5 +1,5 @@
 // The daily task as the raider sees it (dailytask.ts): a row under the
-// season in the upper-right tracker, a pip lit for each shadowman burned
+// season in the upper-right tracker (seen only as it flashes up), a pip lit for each shadowman burned
 // today, Done once the day's reward is paid. Hidden played alone, where
 // nothing is kept. Hud builds it; loop.ts feeds it the count for the
 // valley's day, and valleysync.ts says the news.

@@ -149,6 +149,10 @@ export class ValleyDO extends DurableObject<Env> {
   // A dev server's quiet valley (the specs'): no crossing shadowman rushes.
   private calm = false
   private ticker: unknown = null
+  // When each socket was last heard from, in memory only: a socket missing
+  // here (after a wake) counts as heard now.
+  private heard = new WeakMap<WebSocket, number>()
+  private sweptAt = 0
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
@@ -181,6 +185,7 @@ export class ValleyDO extends DurableObject<Env> {
     ws: WebSocket,
     data: string | ArrayBuffer
   ): Promise<void> {
+    this.heard.set(ws, Date.now())
     if (typeof data !== 'string') {
       ws.close(CLOSE.malformed, 'Text frames only')
       return
@@ -434,6 +439,7 @@ export class ValleyDO extends DurableObject<Env> {
   // One step of the shadowmen and the Caretaker: the frame to everyone, a
   // strike to each raider touched, saying when it was the Caretaker. Stops the clock when there is no one to step round.
   protected tickShadows(): void {
+    this.sweep(Date.now())
     const placed = this.roster(null).map(({ id, at }) => ({ id, at }))
     const out = stepShadows(this.valley, this.shadows, placed, this.shadowRng, {
       now: Date.now(),
@@ -768,6 +774,9 @@ export class ValleyDO extends DurableObject<Env> {
       ws.close(CLOSE.serverError, 'The valley lost the pack')
       return
     }
+    // A reconnect: the socket this client had may not have closed here yet.
+    // Retire it first, so the roster never shows the raider their own ghost.
+    if (hello.was) await this.retire(ws, account, hello.was)
     const id = crypto.randomUUID()
     const reduced = reduce(
       this.valley,
@@ -1481,6 +1490,49 @@ export class ValleyDO extends DurableObject<Env> {
         send(socket, msg)
       } catch {
         // Closing sockets throw; their close handler follows.
+      }
+    }
+  }
+
+  // About once a second, lets go of every socket silent past
+  // CONFIG.net.silentMs: a tab gone without a close leaves no ghost. The
+  // close is not a refusal, so a client that was only asleep reconnects.
+  private sweep(now: number): void {
+    if (now - this.sweptAt < 1000) return
+    this.sweptAt = now
+    for (const socket of this.ctx.getWebSockets()) {
+      if (!this.attachment(socket).me) continue
+      const heard = this.heard.get(socket)
+      if (heard === undefined) {
+        this.heard.set(socket, now)
+        continue
+      }
+      if (now - heard <= CONFIG.net.silentMs) continue
+      void this.left(socket)
+      try {
+        socket.close(1001, 'Silent too long')
+      } catch {
+        // Already closing.
+      }
+    }
+  }
+
+  // The socket that was `id` on `account`, if it is still here, is gone:
+  // everyone hears it leave, and it is closed.
+  private async retire(
+    ws: WebSocket,
+    account: string,
+    id: string
+  ): Promise<void> {
+    for (const socket of this.ctx.getWebSockets()) {
+      if (socket === ws) continue
+      const attachment = this.attachment(socket)
+      if (attachment.account !== account || attachment.me?.id !== id) continue
+      await this.left(socket)
+      try {
+        socket.close(CLOSE.replaced, 'Reconnected')
+      } catch {
+        // Already closing.
       }
     }
   }
