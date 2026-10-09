@@ -280,6 +280,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     // Gron's rain falls on its own clock, Moab's fire burns on it too, and
     // the wreck smoulders and blinks on it.
     world.gronRig?.update(time)
+    // The stand dressed for this raider's own level (rule 23).
+    world.stand?.setLevel(s.stand?.level ?? 1)
     for (const rig of world.moabRigs) rig.update(time)
     world.wreck?.update(time)
     // The dishes slew on the valley's clock, so every raider sees them
@@ -413,6 +415,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         (c) => s.myCorpses.includes(c.id) && !s.pendingLoots.has(c.id)
       ),
       lockers: targets.lockerSpots(inStore),
+      stand: world.stand?.at ?? null,
     })
     const interaction = s.interaction
     // Rule 14: Moab makes his offer as you come into his reach.

@@ -30,8 +30,8 @@ export interface Targets {
   lockerSpots(station: number): LockerSpot[]
   // What the glow rings for an interaction: the pickup, the shelf unit a
   // buy would take, a bush while today's berry is on it, Gron, or Marx,
-  // Carlsten or Moab when E would talk to him, your body, the lockers.
-  // Nothing for the truck or the stand.
+  // Carlsten or Moab when E would talk to him, your body, the lockers, the
+  // Cabbage Stand. Nothing for the truck.
   glowTarget(action: Interaction<Pickup> | null): THREE.Object3D | null
   // What an item's label floats over: the pickup, the shelf unit a buy
   // would take, or a bush, picked or not. Null for anything else.
@@ -67,6 +67,8 @@ export function createTargets(game: Game): Targets {
         return game.corpses.objectOf(action.corpse)
       case 'locker':
         return world.shelves.lockers
+      case 'stand':
+        return world.stand?.group ?? null
       case 'speak':
         switch (action.npc) {
           case 'marx':

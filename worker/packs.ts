@@ -2,7 +2,7 @@
 // kept by the valley so they follow the raider to any browser. The
 // interface is here with an in-memory store for the tests; production is
 // the D1 store in d1packs.ts. The rules of what goes in and out are
-// src/sharedworld.ts's (rules 7, 10, 16, 18, 19, 20 and 22).
+// src/sharedworld.ts's (rules 7, 10, 16, 18, 19, 20, 22 and 23).
 
 import { newlyFound } from '../src/book.ts'
 import { CONFIG } from '../src/config.ts'
@@ -10,10 +10,13 @@ import { toCosmetics } from '../src/cosmetics.ts'
 import { NO_TASK } from '../src/dailytask.ts'
 import { STARTING_INVENTORY, toInventory } from '../src/inventory.ts'
 import { NO_PROGRESS } from '../src/season.ts'
+import { FRESH_STAND } from '../src/stand.ts'
 import type { CosmeticId } from '../src/cosmetics.ts'
 import type { TaskProgress } from '../src/dailytask.ts'
 import type { Inventory } from '../src/interfaces.ts'
 import type { SeasonProgress, SeasonReward } from '../src/season.ts'
+import type { StandChange } from '../src/sharedworld.ts'
+import type { StandLedger } from '../src/stand.ts'
 
 // A new account's wallet, in cents.
 export const STARTING_CASH = CONFIG.store.startingCash
@@ -97,6 +100,18 @@ export interface PackStore {
     progress: TaskProgress,
     reward: number | null
   ): Promise<void>
+  // The account's Cabbage Stand (src/stand.ts), as fresh the first time,
+  // and how many times it has been written: `tend` takes that back.
+  stand(accountId: string): Promise<{ ledger: StandLedger; rev: number }>
+  // The stand as tended (sharedworld.ts rule 23) written with the units it
+  // took out of the pack and the cents it paid into the wallet (or took
+  // out, when negative), all or none; false when the pack or the wallet
+  // falls short, or the stand was written since it was read at `rev`.
+  tend(
+    accountId: string,
+    rev: number,
+    change: Pick<StandChange, 'ledger' | 'items' | 'cash'>
+  ): Promise<boolean>
   // The account's XP in all (src/progression.ts), none before the first.
   xp(accountId: string): Promise<number>
   // Adds `amount` XP to the account's, in one step however many grants
@@ -121,6 +136,7 @@ export class MemoryPackStore implements PackStore {
   readonly books = new Map<string, string[]>()
   // `${account}/${task}` -> progress.
   readonly tasks = new Map<string, TaskProgress>()
+  readonly stands = new Map<string, { ledger: StandLedger; rev: number }>()
   readonly levels = new Map<string, number>()
 
   open(accountId: string): Promise<Holdings> {
@@ -265,6 +281,35 @@ export class MemoryPackStore implements PackStore {
       this.wallets.set(accountId, (this.wallets.get(accountId) ?? 0) + reward)
     }
     return Promise.resolve()
+  }
+
+  stand(accountId: string): Promise<{ ledger: StandLedger; rev: number }> {
+    return Promise.resolve(
+      this.stands.get(accountId) ?? { ledger: FRESH_STAND, rev: 0 }
+    )
+  }
+
+  tend(
+    accountId: string,
+    rev: number,
+    { ledger, items, cash }: Pick<StandChange, 'ledger' | 'items' | 'cash'>
+  ): Promise<boolean> {
+    const was = this.stands.get(accountId)?.rev ?? 0
+    const pack = this.packs.get(accountId) ?? new Map<string, number>()
+    const wallet = this.wallets.get(accountId) ?? 0
+    const short = Object.entries(items).some(
+      ([kind, count]) => (pack.get(kind) ?? 0) < count
+    )
+    if (was !== rev || short || wallet + cash < 0) {
+      return Promise.resolve(false)
+    }
+    for (const [kind, count] of Object.entries(items)) {
+      pack.set(kind, (pack.get(kind) ?? 0) - count)
+    }
+    this.packs.set(accountId, pack)
+    this.wallets.set(accountId, wallet + cash)
+    this.stands.set(accountId, { ledger, rev: rev + 1 })
+    return Promise.resolve(true)
   }
 
   xp(accountId: string): Promise<number> {

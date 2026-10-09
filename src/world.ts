@@ -12,6 +12,7 @@ import {
   buildPickup,
   buildPortal,
   buildShelfDisplay,
+  buildStandDressing,
   buildWreck,
   CANOPY,
   castShadows,
@@ -200,6 +201,10 @@ export interface World {
   // Where E opens the lockers in each back room (store.ts lockerSpot),
   // indexed like fuelPoints.
   lockers: XZ[]
+  // The Cabbage Stand on the spawn station's lot (sharedworld.ts rule 23):
+  // where its middle is, the stand itself for the glow, and setLevel to
+  // dress it for the raider's own level. Null without a spawn station.
+  stand: StandRig | null
   // The green BMW in a tree by the spawn station, update(t) for its smoke
   // and hazards; null without a spawn station.
   wreck: Wreck | null
@@ -236,6 +241,14 @@ export interface BerryBush extends XZ {
   id: number
   object: THREE.Object3D
   setBerries(visible: boolean): void
+}
+
+// The Cabbage Stand (sharedworld.ts rule 23), dressed for one raider's
+// level.
+export interface StandRig {
+  at: XZ
+  group: THREE.Group
+  setLevel(level: number): void
 }
 
 // The portal at the corn maze's heart: where it stands, where it puts you
@@ -2122,6 +2135,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   // The Bull Valley Cabbage Stand on the spawn station's lot
   // (CONFIG.stand, station-local), its front to the pump island. It
   // blocks along its table.
+  let standRig: StandRig | null = null
   if (spawnStation) {
     const [sx, , sz] = toWorld(spawnStation, [
       CONFIG.stand.at.x,
@@ -2134,6 +2148,20 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     const yaw = Math.atan2(spawnStation.x - sx, spawnStation.z - sz)
     stand.rotation.y = yaw
     group.add(stand)
+    let dressing = buildStandDressing(1)
+    stand.add(dressing)
+    let dressed = 1
+    standRig = {
+      at: { x: sx, z: sz },
+      group: stand,
+      setLevel(level) {
+        if (level === dressed) return
+        stand.remove(dressing)
+        dressing = buildStandDressing(level)
+        stand.add(dressing)
+        dressed = level
+      },
+    }
     // rotation.y turns the stand's +X, its long side, to (cos, -sin).
     const dx = Math.cos(yaw) * CONFIG.stand.halfLength
     const dz = -Math.sin(yaw) * CONFIG.stand.halfLength
@@ -2245,6 +2273,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     moabs,
     moabRigs,
     lockers: fuel.points.map(lockerSpot),
+    stand: standRig,
     wreck,
     dishes,
     ground,
