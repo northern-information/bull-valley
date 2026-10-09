@@ -166,27 +166,10 @@ export const CONFIG = {
     // the lot, between the pumps and the road sign.
     offset: 5,
   },
-  radio: {
-    // The radio in Marx's cab (radio.ts): full this close, in metres,
-    // silent past `far`, and muffled toward the edge.
-    volume: 0.9,
-    near: 6,
-    far: 45,
-    openHz: 9000,
-    muffledHz: 700,
-    // In the bed, through the back glass.
-    bedHz: 2400,
-    // The stream pauses past `far` plus this, so no one far off downloads it.
-    pauseBeyond: 15,
-    // A player this far from the valley's moment, in seconds, seeks back.
-    driftSeconds: 2,
-  },
   music: {
     // The valley's music (music.ts): the element's volume at the setting's
     // top, kept well under the valley so it sits beneath everything.
     volume: 0.5,
-    // How much of it Marx's radio takes away at its loudest.
-    duck: 0.85,
     // Seconds it takes to come up from silence when it starts.
     fadeInSeconds: 4,
   },
