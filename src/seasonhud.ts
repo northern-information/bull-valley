@@ -1,8 +1,9 @@
 // The season as the raider sees it (season.ts): the card on the intro and
 // pause overlay that says what the season asks and pays, the tracker in
-// the upper right, and the banners that sweep across the view when the
-// season goes live, when the raider helps unmake the Caretaker, and when
-// the season is done. Hud builds it; valleysync.ts and input.ts feed it.
+// the upper right (out of sight but for a few seconds after the season's
+// or the daily task's count goes up), and the banners that sweep across
+// the view when the season goes live, when the raider helps unmake the
+// Caretaker, and when the season is done. Hud builds it; valleysync.ts and input.ts feed it.
 
 import { copy } from './copy.ts'
 import { newsOf, SEASON, shownKills } from './season.ts'
@@ -132,6 +133,15 @@ export class SeasonHud {
     )
   }
 
+  // The tracker shows for a moment and fades out again: the count just
+  // went up. styles.css's bv-tracker animation runs the length.
+  flash(): void {
+    const t = this.tracker
+    t.classList.remove('bv-season--flash')
+    void t.offsetWidth
+    t.classList.add('bv-season--flash')
+  }
+
   // A banner across the view, after any already showing.
   announce(banner: Banner): void {
     this.queue.push(banner)
@@ -171,11 +181,14 @@ export class SeasonHud {
   }
 
   // The raider was credited with unmaking the Caretaker: the banner for it,
-  // and the line it says in the log.
+  // the tracker flashed up when the count moved, and the line it says in
+  // the log.
   unmade(progress: SeasonProgress, rewarded: boolean): string {
     const kills = shownKills(progress)
     const cash = formatCash(SEASON.reward.cash)
-    switch (newsOf(progress, rewarded)) {
+    const news = newsOf(progress, rewarded)
+    if (news !== 'again') this.flash()
+    switch (news) {
       case 'complete':
         this.announce({
           kicker: `${SEASON_COPY.kicker} · ${SEASON_COPY.title}`,

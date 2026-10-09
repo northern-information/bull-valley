@@ -338,6 +338,7 @@ export function wireValley(game: Game, actions: Actions): void {
       } else if (news === 'burned') {
         hud.tell(copy('log.task_burned', { count: s.task.count, goal }))
       }
+      if (news !== 'past') hud.season.flash()
     } else if (msg.type === 'season') {
       // Rule 15: credited with unmaking the Caretaker. A reward's pack
       // frame follows.
