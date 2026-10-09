@@ -6,6 +6,7 @@
 import * as THREE from 'three'
 import { isMesh } from './assets.ts'
 import { canvas, EGGSHELL, MONO, text } from './canvas.ts'
+import { EMOTES, isEmote } from './emotes.ts'
 import {
   applyJoints,
   applyPose,
@@ -145,6 +146,9 @@ export class Peers {
       group.position.set(at.x, at.y, at.z)
       if (at.pose === 'crouch') {
         applyPose(puppet.figure, samplePose('crouch'))
+      } else if (isEmote(at.pose)) {
+        // An emote (emotes.ts), its cycle on this page's clock.
+        applyPose(puppet.figure, samplePose(EMOTES[at.pose].pose, this.time))
       } else if (at.pose === 'walk' && at.speed > 0.3) {
         puppet.cycle += (at.speed * dt) / STRIDE
         applyPose(

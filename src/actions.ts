@@ -7,7 +7,13 @@
 // pure modules'; this is the glue that applies them and says so.
 
 import { saveHotbar, saveLook } from './auth.ts'
-import { CHAT_COPY, chatCommand, onlineLine } from './chat.ts'
+import {
+  CHAT_COPY,
+  chatCommand,
+  emoteLine,
+  emotesLine,
+  onlineLine,
+} from './chat.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { corpseWire, emptied, fallen, isEmpty, recover } from './corpses.ts'
@@ -22,6 +28,7 @@ import {
   isCash,
   spillsOf,
 } from './drops.ts'
+import { isEmote } from './emotes.ts'
 import { finishById } from './finishes.ts'
 import { dose } from './geometrie.ts'
 import { burialsOf, bury } from './graves.ts'
@@ -47,6 +54,7 @@ import { move, moveAmount } from './stash.ts'
 import { formatCash } from './store.ts'
 import { planLeg } from './truckplan.ts'
 import type { CosmeticId } from './cosmetics.ts'
+import type { EmoteId } from './emotes.ts'
 import type { Game } from './game.ts'
 import type { DailyStatus, ShelfSpot } from './interactions.ts'
 import type { Leg, TruckState } from './marx.ts'
@@ -258,6 +266,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   const strike = (by: 'shadowman' | 'caretaker' = 'shadowman') => {
     if (s.aboard) return
     s.strikes += 1
+    s.emoting = null
     s.strikeUntil = performance.now() + CONFIG.shadowmen.strikeSeconds * 1000
     hud.showStatic(true)
     closeInventory()
@@ -743,12 +752,31 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     )
   }
 
+  // An emote (emotes.ts): the body takes its pose, which the next state
+  // frame carries to everyone; never from the bed.
+  const emote = (id: EmoteId) => {
+    if (s.aboard) {
+      hud.tell(copy('emotes.in_bed'))
+      return
+    }
+    s.emoting = { id, since: performance.now() / 1000 }
+    hud.tell(emoteLine(id, null))
+  }
+
   const say = (typed: string) => {
     const text = normalizeChat(typed)
     if (!text) return
     const command = chatCommand(text)
     if (command === 'online') {
       tellOnline()
+      return
+    }
+    if (command === 'emotes') {
+      hud.tell(emotesLine())
+      return
+    }
+    if (isEmote(command)) {
+      emote(command)
       return
     }
     if (command === 'unknown') {

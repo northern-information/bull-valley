@@ -3,6 +3,8 @@
 // offline) and hud.ts draws them. Nothing is kept past the page.
 
 import { copy } from './copy.ts'
+import { EMOTE_IDS, emoteOf } from './emotes.ts'
+import type { EmoteId } from './emotes.ts'
 
 // A line a raider said, a line an NPC said to this player, or a line the
 // game says to the player alone.
@@ -28,13 +30,16 @@ export const CHAT_COPY = {
 } as const
 
 // A line typed with a leading slash is a command: answered in this
-// player's log alone, never sent to the valley.
-export type ChatCommand = 'online' | 'unknown'
+// player's log alone, never sent to the valley. /online names who is in
+// the valley, /emotes lists the emotes, and an emote's own name (/wave)
+// takes it (emotes.ts).
+export type ChatCommand = 'online' | 'emotes' | EmoteId | 'unknown'
 
 export function chatCommand(text: string): ChatCommand | null {
   if (!text.startsWith('/')) return null
   const [name] = text.slice(1).trim().toLowerCase().split(/\s+/)
-  return name === 'online' ? 'online' : 'unknown'
+  if (name === 'online' || name === 'emotes') return name
+  return emoteOf(name) ?? 'unknown'
 }
 
 // How many others are in the valley, as the log says it.
@@ -81,4 +86,50 @@ export function formatStamp(at: number): string {
   const hh = String(d.getHours()).padStart(2, '0')
   const mm = String(d.getMinutes()).padStart(2, '0')
   return `${hh}:${mm}`
+}
+
+// What the log says of an emote: to the raider who took it (name null),
+// or the quiet line a raider near enough to see it gets.
+export function emoteLine(id: EmoteId, name: string | null): string {
+  if (name === null) {
+    switch (id) {
+      case 'wave':
+        return copy('emotes.wave_self')
+      case 'sit':
+        return copy('emotes.sit_self')
+      case 'smoke':
+        return copy('emotes.smoke_self')
+      case 'dance':
+        return copy('emotes.dance_self')
+      case 'point':
+        return copy('emotes.point_self')
+      case 'shrug':
+        return copy('emotes.shrug_self')
+      case 'kneel':
+        return copy('emotes.kneel_self')
+    }
+  }
+  switch (id) {
+    case 'wave':
+      return copy('emotes.wave_seen', { name })
+    case 'sit':
+      return copy('emotes.sit_seen', { name })
+    case 'smoke':
+      return copy('emotes.smoke_seen', { name })
+    case 'dance':
+      return copy('emotes.dance_seen', { name })
+    case 'point':
+      return copy('emotes.point_seen', { name })
+    case 'shrug':
+      return copy('emotes.shrug_seen', { name })
+    case 'kneel':
+      return copy('emotes.kneel_seen', { name })
+  }
+}
+
+// The emotes, as /emotes lists them.
+export function emotesLine(): string {
+  return copy('emotes.list', {
+    list: EMOTE_IDS.map((id) => `/${id}`).join(', '),
+  })
 }

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { EMOTE_IDS } from '../../src/emotes.ts'
 import {
   CHAT_MAX,
   CLOSE,
@@ -73,8 +74,10 @@ describe('names', () => {
 })
 
 describe('outfits and poses', () => {
-  it('has no seated pose yet', () => {
-    expect(PEER_POSES).toEqual(['stand', 'walk', 'crouch'])
+  it('carries the emotes as poses, named as they are typed', () => {
+    expect(PEER_POSES).toEqual(['stand', 'walk', 'crouch', ...EMOTE_IDS])
+    expect(parsePeerState({ ...state, pose: 'wave' })?.pose).toBe('wave')
+    expect(parsePeerState({ ...state, pose: 'moonwalk' })).toBeNull()
   })
 })
 

@@ -4,6 +4,7 @@
 // JSON text; every number the server stores is checked here first.
 
 import { USERNAME_MAX } from './account.ts'
+import { EMOTE_IDS } from './emotes.ts'
 import { isWaterMap } from './waterside.ts'
 import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -18,7 +19,7 @@ import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 22
+export const PROTOCOL_VERSION = 23
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -49,9 +50,10 @@ const KIND_MAX = 64
 // The survey is about 5 km across; nothing legitimate is this far out.
 export const MAX_COORD = 20_000
 
-// How a figure stands this instant. Riders stand in the bed, so there is
-// no seated pose yet.
-export const PEER_POSES = ['stand', 'walk', 'crouch'] as const
+// How a figure stands this instant: standing, walking, crouched, or one of
+// the emotes (emotes.ts EMOTES), each named as it is typed. Riders stand
+// in the bed.
+export const PEER_POSES = ['stand', 'walk', 'crouch', ...EMOTE_IDS] as const
 export type PeerPose = (typeof PEER_POSES)[number]
 
 // Where a player is and how they stand. y is the height the feet stand on

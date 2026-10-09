@@ -18,6 +18,7 @@ import type { CosmeticId } from './cosmetics.ts'
 import type { TaskProgress } from './dailytask.ts'
 import type { DropMeshes } from './dropmeshes.ts'
 import type { Drop } from './drops.ts'
+import type { Emoting } from './emotes.ts'
 import type { FirstPersonHands } from './fphands.ts'
 import type { Geometrie } from './geometrie.ts'
 import type { Glow } from './glow.ts'
@@ -96,6 +97,9 @@ export interface GameState {
   // most CONFIG.render.maxStep a frame, so on a slow machine 1.6 s of it
   // can take half a minute, and the player would sit in static the whole
   // while.
+  // The emote under way (emotes.ts), on performance.now() seconds; null
+  // when none.
+  emoting: Emoting | null
   strikeUntil: number
   started: boolean
   greeted: boolean
@@ -185,6 +189,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     flashlight: HAND_DOWN,
     using: null,
     strikeUntil: 0,
+    emoting: null,
     started: false,
     greeted: false,
     strikes: 0,

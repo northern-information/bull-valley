@@ -9,6 +9,7 @@ import { copy } from './copy.ts'
 import { moabOffer } from './cosmetics.ts'
 import { dayKey } from './daily.ts'
 import { onDay, shownCount } from './dailytask.ts'
+import { EMOTES, holds } from './emotes.ts'
 import { levelsAt } from './geometrie.ts'
 import { ease, stepHand, useLift, useSeconds } from './hands.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
@@ -162,11 +163,24 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         speedScale:
           (scope.raised ? CONFIG.player.scopeSpeedScale : 1) *
           (smoking ? CONFIG.items.smokingSpeedScale : 1),
+        eye: s.emoting ? EMOTES[s.emoting.id].eye : null,
       })
       forward = playerState.forward
       feetY = player.groundY
       moveSpeed = playerState.speed
       crouching = playerState.crouching
+      // An emote holds while the raider stands still; moving, crouching or
+      // its seconds running out end it.
+      const nowSeconds = now / 1000
+      if (
+        !holds(s.emoting, nowSeconds, {
+          speed: moveSpeed,
+          crouching,
+          aboard: s.aboard,
+        })
+      ) {
+        s.emoting = null
+      }
       playerBody.update(dt, {
         x: player.pos.x,
         ground: feetY,
@@ -174,6 +188,10 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         yaw: player.yaw,
         speed: moveSpeed,
         crouching,
+        emote: s.emoting && {
+          pose: EMOTES[s.emoting.id].pose,
+          seconds: nowSeconds - s.emoting.since,
+        },
       })
       truck.update(dt, now)
     }
@@ -302,7 +320,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         z: player.pos.z,
         yaw: player.yaw,
         pitch: player.pitch,
-        pose: poseOf(moveSpeed, crouching),
+        pose: s.emoting?.id ?? poseOf(moveSpeed, crouching),
         riding: s.aboard,
         light: lit,
       }

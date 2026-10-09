@@ -8,7 +8,7 @@ import { applyPose, buildFigure } from './figure.ts'
 import { POSES, samplePose } from './poses.ts'
 import type { Figure } from './figure.ts'
 import type { OutfitId } from './outfits.ts'
-import type { PoseSample } from './poses.ts'
+import type { PoseName, PoseSample } from './poses.ts'
 import type * as THREE from 'three'
 
 // Where the body stands this frame. ground: the y the feet stand on. yaw:
@@ -20,6 +20,9 @@ export interface PlayerBodyFrame {
   yaw: number
   speed: number
   crouching: boolean
+  // An emote's pose (emotes.ts) and how long it has held, in seconds,
+  // over the stand and walk.
+  emote?: { pose: PoseName; seconds: number } | null
 }
 
 // Metres covered by one full walk cycle (two steps).
@@ -67,7 +70,7 @@ export class PlayerBody {
 
   update(
     dt: number,
-    { x, ground, z, yaw, speed, crouching }: PlayerBodyFrame
+    { x, ground, z, yaw, speed, crouching, emote }: PlayerBodyFrame
   ): void {
     const group = this.figure.group
     // The figure faces +Z; the player faces -Z at yaw 0.
@@ -79,6 +82,8 @@ export class PlayerBody {
     let pose: PoseSample
     if (crouching) {
       pose = samplePose('crouch')
+    } else if (emote) {
+      pose = samplePose(emote.pose, emote.seconds)
     } else if (speed > 0.3) {
       this.cycle += (speed * dt) / STRIDE
       pose = samplePose('walk', this.cycle * POSES.walk.seconds)

@@ -27,6 +27,9 @@ export interface PlayerOptions {
 // Per-frame movement modifiers from items and the scope.
 export interface PlayerMods {
   speedScale?: number
+  // The eye sunk to this height over the ground (an emote sitting or
+  // kneeling), or null for standing or crouched.
+  eye?: number | null
 }
 
 // What update() returns each frame.
@@ -153,7 +156,8 @@ export class Player {
     this.bobPhase += speedNow * dt * 1.6
     const bobSin = Math.sin(this.bobPhase)
 
-    const targetEye = crouching ? cfg.crouchEyeHeight : cfg.eyeHeight
+    const targetEye =
+      mods.eye ?? (crouching ? cfg.crouchEyeHeight : cfg.eyeHeight)
     this.eye += (targetEye - this.eye) * Math.min(1, 8 * dt)
     const target = this.groundAt(this.pos.x, this.pos.z)
     this.groundY += (target - this.groundY) * Math.min(1, 10 * dt)

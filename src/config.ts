@@ -382,6 +382,11 @@ export const CONFIG = {
     // Trees keep this far off each pedestal: clear of the reflector.
     treeClear: 6,
   },
+  emotes: {
+    // A raider within this many metres of one who emotes (emotes.ts) gets
+    // the quiet line in their log; anyone further off only sees it.
+    seenRadius: 40,
+  },
   npcs: {
     // How close you must stand for Matthew Marx or David Carlsten to glow
     // and answer E. Marx reads by the tailgate, in boarding range, so this
