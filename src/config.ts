@@ -185,27 +185,10 @@ export const CONFIG = {
     // the lot, between the pumps and the road sign.
     offset: 5,
   },
-  radio: {
-    // The radio in Marx's cab (radio.ts): full this close, in metres,
-    // silent past `far`, and muffled toward the edge.
-    volume: 0.9,
-    near: 6,
-    far: 45,
-    openHz: 9000,
-    muffledHz: 700,
-    // In the bed, through the back glass.
-    bedHz: 2400,
-    // The stream pauses past `far` plus this, so no one far off downloads it.
-    pauseBeyond: 15,
-    // A player this far from the valley's moment, in seconds, seeks back.
-    driftSeconds: 2,
-  },
   music: {
     // The valley's music (music.ts): the element's volume at the setting's
     // top, kept well under the valley so it sits beneath everything.
     volume: 0.5,
-    // How much of it Marx's radio takes away at its loudest.
-    duck: 0.85,
     // Seconds it takes to come up from silence when it starts.
     fadeInSeconds: 4,
   },
@@ -263,6 +246,19 @@ export const CONFIG = {
     speed: 12, // m/s, about 27 mph — right for gravel-adjacent Bull Valley
     boardRange: 4,
     bedEye: 1.6, // camera height above the bed
+    // Marx's headlights burn shadowmen like a flashlight (shadowmen.ts
+    // headlightBeam): a cone from the lamps, `nose` metres ahead of the
+    // truck's middle and `height` up, `range` long and `halfAngle` radians
+    // off its axis. The valley aims it from where a client within `reach`
+    // of the truck last said it was, and forgets a word older than staleMs.
+    headlights: {
+      reach: 400,
+      range: 30,
+      halfAngle: 0.45,
+      height: 0.95,
+      nose: 2.95,
+      staleMs: 1000,
+    },
     wanderMetres: 6000, // how far the outbound joyride runs
     // Matthew Marx's day (marx.ts): he reads at the tailgate this long,
     // then does donuts this long, over and over. Climbing into the bed

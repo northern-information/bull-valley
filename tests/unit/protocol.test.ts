@@ -144,6 +144,14 @@ describe('parseClientMessage', () => {
     expect(parse({ type: 'ping', t: 12.5 })).toEqual({ type: 'ping', t: 12.5 })
   })
 
+  it("parses where Marx's truck stands, and nothing else", () => {
+    const lights = { type: 'headlights', x: 1, y: 2, z: 3, heading: -1.5 }
+    expect(parse({ ...lights, extra: true })).toEqual(lights)
+    expect(parse({ ...lights, heading: 'north' })).toBeNull()
+    expect(parse({ ...lights, heading: Infinity })).toBeNull()
+    expect(parse({ ...lights, x: NaN })).toBeNull()
+  })
+
   it('lets the server judge a bad outfit in a hello', () => {
     const judged = parse({ ...hello, outfit: 'tuxedo' })
     expect(judged?.type).toBe('hello')

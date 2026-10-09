@@ -38,7 +38,6 @@ import type { Peers } from './peers.ts'
 import type { Player } from './player.ts'
 import type { PlayerBody } from './playerbody.ts'
 import type { DailyWire, PeerStateWire, WorldWire } from './protocol.ts'
-import type { Radio } from './radiorig.ts'
 import type { RoadGraph } from './roadgraph.ts'
 import type { Scope } from './scope.ts'
 import type { SeasonProgress } from './season.ts'
@@ -251,10 +250,8 @@ export interface Game {
   corpses: CorpseMeshes
   graph: RoadGraph
   truck: Truck
-  // The radio in Marx's cab; none under e2e, which never plays sound.
-  radio: Radio | null
-  // The valley's music, likewise none under e2e, and the settings that
-  // say how loud it plays.
+  // The valley's music, none under e2e, which never plays sound, and the
+  // settings that say how loud it plays.
   music: Music | null
   settings: SettingsStore
   // The roads Matthew Marx drives (truckplan.ts): where he parks, the

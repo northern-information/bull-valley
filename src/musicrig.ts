@@ -1,5 +1,5 @@
 // The music heard: one streaming <audio> on a loop (music.ts), its volume
-// set every frame from the raider's setting and the radio. Built on the
+// set every frame from the raider's setting. Built on the
 // first frame after Begin, inside the page's activation, so a raider who
 // never begins downloads nothing; none under e2e, which never plays sound.
 
@@ -13,8 +13,6 @@ export interface MusicRigFrame {
   started: boolean
   // The raider's music setting, in percent.
   setting: number
-  // How loud Marx's radio is heard now (radio.ts `heardAt`).
-  radioGain: number
 }
 
 export interface Music {
@@ -30,7 +28,7 @@ export function createMusic(): Music {
   let retryAt = 0
 
   return {
-    update({ now, started, setting, radioGain }) {
+    update({ now, started, setting }) {
       if (!started) return
       if (!element) {
         element = new Audio(MUSIC_URL)
@@ -41,8 +39,6 @@ export function createMusic(): Music {
       const volume = musicVolume(
         {
           setting,
-          radioGain,
-          radioVolume: CONFIG.radio.volume,
           playedSeconds: playing ? (now - startedAt) / 1000 : 0,
         },
         CONFIG.music

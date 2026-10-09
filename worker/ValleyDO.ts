@@ -48,6 +48,7 @@ import {
   placeShadowman,
   reduce,
   restoreValley,
+  seeHeadlights,
   stepShadows,
   toWire,
 } from '../src/sharedworld.ts'
@@ -124,6 +125,7 @@ export class ValleyDO extends DurableObject<Env> {
   // Rate windows live in memory only; a wake from hibernation starts them
   // fresh, which only ever lets a few extra frames through.
   private stateRate = new WeakMap<WebSocket, RateWindow>()
+  private headlightsRate = new WeakMap<WebSocket, RateWindow>()
   private chatRate = new WeakMap<WebSocket, RateWindow>()
   private appearanceRate = new WeakMap<WebSocket, RateWindow>()
   private dropRate = new WeakMap<WebSocket, RateWindow>()
@@ -192,6 +194,13 @@ export class ValleyDO extends DurableObject<Env> {
       case 'state':
         this.state(ws, attachment, me, msg)
         this.startShadows()
+        return
+      case 'headlights':
+        // Rule 11: where Marx's truck stands, for its headlights.
+        if (allow(this.headlightsRate, ws, STATE_LIMIT)) {
+          const { x, y, z, heading } = msg
+          seeHeadlights(this.shadows, me.at, { x, y, z, heading }, Date.now())
+        }
         return
       case 'ping':
         send(ws, { type: 'pong', t: msg.t, serverNow: Date.now() })

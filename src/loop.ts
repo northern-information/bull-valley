@@ -23,8 +23,7 @@ import { settleTruck } from './marx.ts'
 import { inPortal } from './maze.ts'
 import { packItemOf } from './packgrid.ts'
 import { poseOf, stateChanged } from './presence.ts'
-import { heardAt } from './radio.ts'
-import { aimHeightOf, beamFrom } from './shadowmen.ts'
+import { aimHeightOf, beamFrom, headlightBeam } from './shadowmen.ts'
 import { formatCash } from './store.ts'
 import { tripLevel } from './trip.ts'
 import { boardable, clockText, countdown, seatOf } from './worldsync.ts'
@@ -51,7 +50,6 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     sky,
     world,
     truck,
-    radio,
     music,
     settings,
     player,
@@ -178,21 +176,11 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       })
       truck.update(dt, now)
     }
-    // Marx's radio, at the valley's moment: the valley's clock online, the
-    // wall clock alone, as his day is.
-    const radioDistance = truck.distanceTo(player.pos.x, player.pos.z)
-    radio?.update({
-      serverMs: s.world ? net.clock.serverNow(now) : Date.now(),
-      distance: radioDistance,
-      riding: s.aboard,
-      started: s.started,
-    })
-    // The valley's music, at the raider's setting, under the radio.
+    // The valley's music, at the raider's setting.
     music?.update({
       now,
       started: s.started,
       setting: settings.current.music,
-      radioGain: heardAt(radioDistance, s.aboard, CONFIG.radio).gain,
     })
     if (s.onTruckRolls.length && truck.rolling()) {
       for (const line of s.onTruckRolls) hud.tell(line)
@@ -233,6 +221,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
                 crouching
               )
             : null,
+          lights: [headlightBeam(truck.headlights())],
         }
     const swarm = shadowmen.update({
       dt,
@@ -310,6 +299,14 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       if (stateChanged(s.lastSent, state)) {
         s.lastSent = state
         net.sendState(state)
+      }
+      // Near Marx's truck, where it stands, so the valley can aim its
+      // headlights at the shadowmen round us.
+      if (
+        truck.distanceTo(player.pos.x, player.pos.z) <
+        CONFIG.shadowmen.despawnRadius
+      ) {
+        net.sendHeadlights(truck.headlights())
       }
     }
 
