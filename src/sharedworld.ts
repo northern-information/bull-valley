@@ -100,6 +100,14 @@
 //    whose last state frame put them at a station can move what their pack
 //    holds into it, or back (Reduced.stash); the valley moves it only when
 //    the side it comes out of holds it.
+// 20. Friends and whispers (friends.ts): a raider asks another by name,
+//    and they are friends once the other asks back; the friendships are
+//    the accounts', in D1 beside them, and only usernames go on the wire.
+//    A friend's list says whether they are in the valley and roughly where
+//    (whereabouts, from their last state frame); a request either way says
+//    neither. A whisper goes to the sockets of the raider it names, and
+//    back to the sender's, under the chat rules and the chat rate; nothing
+//    is kept.
 
 import { caretakerAt, createCaretaker, stepCaretaker } from './caretaker.ts'
 import { CONFIG } from './config.ts'

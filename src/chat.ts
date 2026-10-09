@@ -3,12 +3,14 @@
 // offline) and hud.ts draws them. Nothing is kept past the page.
 
 import { copy } from './copy.ts'
+import { isValidName } from './protocol.ts'
 
-// A line a raider said, a line an NPC said to this player, or a line the
-// game says to the player alone.
+// A line a raider said, a whisper to or from this player, a line an NPC
+// said to this player, or a line the game says to the player alone.
 export interface ChatLine {
-  kind: 'say' | 'npc' | 'system'
-  // For 'say' and 'npc'.
+  kind: 'say' | 'whisper' | 'npc' | 'system'
+  // For 'say', 'whisper' and 'npc': who said it, or for a whisper this
+  // player sent, who it went to, as the log heads the line.
   name?: string
   text: string
   // When it was said, epoch ms: the valley's clock for a raider's line,
@@ -27,14 +29,56 @@ export const CHAT_COPY = {
   offline: copy('chat.offline'),
 } as const
 
-// A line typed with a leading slash is a command: answered in this
-// player's log alone, never sent to the valley.
-export type ChatCommand = 'online' | 'unknown'
+// A line typed with a leading slash is a command, never said to the whole
+// valley: /online is answered here; /w (or /whisper) sends one raider a
+// whisper; /friend asks a raider to be friends or accepts their asking,
+// /unfriend undoes it, and /friends asks for the list (friends.ts).
+// `usage` is a command missing what it needs, with the line that says how.
+export type ChatCommand =
+  | { name: 'online' }
+  | { name: 'friends' }
+  | { name: 'whisper'; to: string; text: string }
+  | { name: 'friend' | 'unfriend'; who: string }
+  | { name: 'usage'; line: string }
+  | { name: 'unknown' }
 
 export function chatCommand(text: string): ChatCommand | null {
   if (!text.startsWith('/')) return null
-  const [name] = text.slice(1).trim().toLowerCase().split(/\s+/)
-  return name === 'online' ? 'online' : 'unknown'
+  const [word = '', ...rest] = text.slice(1).trim().split(' ')
+  const command = word.toLowerCase()
+  if (command === 'online') return { name: 'online' }
+  if (command === 'friends') return { name: 'friends' }
+  if (command === 'w' || command === 'whisper') {
+    const [to = '', ...words] = rest
+    const said = words.join(' ')
+    if (!to || !said) return { name: 'usage', line: copy('chat.usage_whisper') }
+    // A name no raider could have never goes on the wire, where the valley
+    // would take it for a malformed frame.
+    if (!isValidName(to)) {
+      return {
+        name: 'usage',
+        line: copy('chat.whisper_not_here', { name: to }),
+      }
+    }
+    return { name: 'whisper', to, text: said }
+  }
+  if (command === 'friend' || command === 'unfriend') {
+    const [who = ''] = rest
+    if (!who) {
+      return {
+        name: 'usage',
+        line:
+          command === 'friend'
+            ? copy('chat.usage_friend')
+            : copy('chat.usage_unfriend'),
+      }
+    }
+    if (!isValidName(who)) {
+      return { name: 'usage', line: copy('friends.unknown', { name: who }) }
+    }
+    return { name: command, who }
+  }
+  return { name: 'unknown' }
 }
 
 // How many others are in the valley, as the log says it.

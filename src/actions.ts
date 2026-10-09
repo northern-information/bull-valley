@@ -46,6 +46,7 @@ import { buy as buyItem, settle } from './shop.ts'
 import { move, moveAmount } from './stash.ts'
 import { formatCash } from './store.ts'
 import { planLeg } from './truckplan.ts'
+import type { ChatCommand } from './chat.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { Game } from './game.ts'
 import type { DailyStatus, ShelfSpot } from './interactions.ts'
@@ -743,16 +744,47 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     )
   }
 
+  // A slash command (chat.ts chatCommand). The friends' and the whisper's
+  // go to the valley (rule 20); their answers come back in valleysync.ts.
+  const runCommand = (command: ChatCommand) => {
+    switch (command.name) {
+      case 'online':
+        tellOnline()
+        return
+      case 'unknown':
+        hud.tell(copy('chat.unknown_command'))
+        return
+      case 'usage':
+        hud.tell(command.line)
+        return
+    }
+    if (!net.online) {
+      hud.tell(CHAT_COPY.offline)
+      return
+    }
+    switch (command.name) {
+      case 'friends':
+        s.showFriends = true
+        net.send({ type: 'friends' })
+        return
+      case 'whisper':
+        s.whisperTo = command.to
+        net.send({ type: 'whisper', to: command.to, text: command.text })
+        return
+      case 'friend':
+      case 'unfriend':
+        s.pendingAsk = { op: command.name, name: command.who }
+        net.send({ type: command.name, name: command.who })
+        return
+    }
+  }
+
   const say = (typed: string) => {
     const text = normalizeChat(typed)
     if (!text) return
     const command = chatCommand(text)
-    if (command === 'online') {
-      tellOnline()
-      return
-    }
-    if (command === 'unknown') {
-      hud.tell(copy('chat.unknown_command'))
+    if (command) {
+      runCommand(command)
       return
     }
     if (net.online) {

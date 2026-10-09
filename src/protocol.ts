@@ -18,7 +18,7 @@ import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 22
+export const PROTOCOL_VERSION = 23
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -301,6 +301,33 @@ export interface ChatMessage {
   text: string
 }
 
+// A whisper (friends.ts, sharedworld.ts rule 20): one line to the raider
+// signed in as `to`, by username in any case, under the chat rules. The
+// valley sends it to their sockets and echoes it to the sender's; nothing
+// is stored.
+export interface WhisperMessage {
+  type: 'whisper'
+  to: string
+  text: string
+}
+
+// Ask the raider named `name` to be friends, or accept their asking.
+export interface FriendMessage {
+  type: 'friend'
+  name: string
+}
+
+// No longer friends with `name`, or take back a request either way.
+export interface UnfriendMessage {
+  type: 'unfriend'
+  name: string
+}
+
+// The account's friends list, please (a friends frame answers).
+export interface FriendsMessage {
+  type: 'friends'
+}
+
 // Gron changed this raider's character. The outfit is checked by the
 // server against the select's roster (characters.ts isSelectable), like
 // the hello's.
@@ -343,12 +370,19 @@ export type ClientMessage =
   | StowMessage
   | TradeMessage
   | ChatMessage
+  | WhisperMessage
+  | FriendMessage
+  | UnfriendMessage
+  | FriendsMessage
   | AppearanceMessage
   | RenameMessage
   | DevMessage
 
 // What a client may be refused for.
-export type NackRe = Exclude<ClientMessage['type'], 'hello' | 'state' | 'ping'>
+export type NackRe = Exclude<
+  ClientMessage['type'],
+  'hello' | 'state' | 'ping' | 'friends'
+>
 
 // --- Server → client -------------------------------------------------------
 
@@ -577,6 +611,49 @@ export type ServerMessage =
   | StruckMessage
   | SeasonMessage
   | TaskMessage
+  | WhisperedMessage
+  | FriendsListMessage
+  | FriendNewsMessage
+
+// A whisper as the valley delivers it (rule 20), with its own clock: to
+// the raider it was for, and back to the sender's sockets with `outgoing`.
+// Both names are usernames as D1 holds them.
+export interface WhisperedMessage {
+  type: 'whisper'
+  from: string
+  to: string
+  text: string
+  at: number
+  outgoing: boolean
+}
+
+// Roughly where a raider is (friends.ts whereabouts).
+export type Whereabouts = 'riding' | 'maze' | 'citgo' | 'valley'
+
+// One name on an account's friends list: a friend, a raider this account
+// asked (asked) or one asking it (asking); whether they are in the valley
+// now, and roughly where.
+export interface FriendWire {
+  name: string
+  state: 'friend' | 'asked' | 'asking'
+  online: boolean
+  where: Whereabouts | null
+}
+
+// The account's friends list, in answer to a friends frame or after a
+// change to it.
+export interface FriendsListMessage {
+  type: 'friends'
+  friends: FriendWire[]
+}
+
+// News of a friend, for the log: `name` asked to be friends, accepted, or
+// came into the valley.
+export interface FriendNewsMessage {
+  type: 'friend-news'
+  news: 'asked' | 'accepted' | 'online'
+  name: string
+}
 
 // Application close codes (the 4xxx range is ours per RFC 6455). The client
 // treats every 4xxx close as final and does not reconnect.
@@ -787,7 +864,19 @@ export function parseClientMessage(text: string): ClientMessage | null {
     case 'board':
     case 'hop-out':
     case 'rename':
+    case 'friends':
       return { type: value.type }
+    case 'whisper': {
+      const { to, text } = value
+      return isValidName(to) && isValidChat(text)
+        ? { type: 'whisper', to, text }
+        : null
+    }
+    case 'friend':
+    case 'unfriend': {
+      const { name } = value
+      return isValidName(name) ? { type: value.type, name } : null
+    }
     case 'collect': {
       const { bush } = value
       return isCount(bush) ? { type: 'collect', bush } : null

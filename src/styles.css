@@ -420,6 +420,12 @@
   color: var(--fi-gold);
 }
 
+/* A whisper, to this raider or from them: pink, set apart from the
+   valley's blue. */
+.bv-chat-line--whisper {
+  color: #ff8ad8;
+}
+
 .bv-chat-stamp {
   margin-right: 1ch;
   color: var(--bv-eggshell);

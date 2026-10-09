@@ -763,6 +763,181 @@ describe('ValleyDO', () => {
     })
   })
 
+  // Accounts in the store under the names their sockets join with.
+  async function named(v: TestValley, ...names: string[]) {
+    for (const name of names) {
+      const id = `acct-${name}`
+      await v.accountStore.create(
+        {
+          accountId: id,
+          username: name,
+          role: 'user',
+          primaryProvider: `dev:${id}`,
+          createdAt: 0,
+          lastLoginAt: 0,
+        },
+        {
+          providerKey: `dev:${id}`,
+          accountId: id,
+          provider: 'dev',
+          providerId: id,
+          displayName: id,
+          avatarUrl: null,
+          linkedAt: 0,
+        }
+      )
+    }
+  }
+
+  const ofType = <T extends ServerMessage['type']>(
+    socket: MockSocket,
+    type: T
+  ) =>
+    socket
+      .frames()
+      .filter((m): m is Extract<ServerMessage, { type: T }> => m.type === type)
+
+  it('whispers to one raider by name, echoing it to the sender alone', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'Able')
+    const b = await join(v, s, 'Baker')
+    const c = await join(v, s, 'Charlie')
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ type: 'whisper', to: 'baker', text: 'at the maze' })
+    )
+    expect(ofType(b, 'whisper')).toEqual([
+      expect.objectContaining({
+        from: 'Able',
+        to: 'Baker',
+        text: 'at the maze',
+        outgoing: false,
+      }),
+    ])
+    expect(ofType(a, 'whisper')).toEqual([
+      expect.objectContaining({ from: 'Able', to: 'Baker', outgoing: true }),
+    ])
+    expect(ofType(c, 'whisper')).toEqual([])
+    // Nobody by that name here, and no whispering to yourself.
+    for (const [to, reason] of [
+      ['Nobody', 'not-here'],
+      ['ABLE', 'self'],
+    ]) {
+      await v.webSocketMessage(
+        ws(a),
+        JSON.stringify({ type: 'whisper', to, text: 'hi' })
+      )
+      expect(a.last()).toEqual({ type: 'nack', re: 'whisper', reason })
+    }
+    // The chat's rate covers whispers too.
+    for (let i = 0; i < 3; i++) {
+      await v.webSocketMessage(
+        ws(a),
+        JSON.stringify({ type: 'whisper', to: 'Baker', text: 'hi' })
+      )
+    }
+    expect(a.last()).toEqual({
+      type: 'nack',
+      re: 'whisper',
+      reason: 'too-fast',
+    })
+  })
+
+  it('asks, accepts, lists and unfriends by username, and says when a friend comes in', async () => {
+    const { valley: v, state: s } = await valley()
+    await named(v, 'Able', 'Baker')
+    const a = await join(v, s, 'Able')
+    const b = await join(v, s, 'Baker')
+    // Nothing on either list yet, so no hello brought one.
+    expect(ofType(a, 'friends')).toEqual([])
+    const ask = (socket: MockSocket, type: string, name: string) =>
+      v.webSocketMessage(ws(socket), JSON.stringify({ type, name }))
+    await ask(a, 'friend', 'baker')
+    expect(ofType(b, 'friend-news')).toEqual([
+      { type: 'friend-news', news: 'asked', name: 'Able' },
+    ])
+    expect(ofType(a, 'friends').at(-1)?.friends).toEqual([
+      { name: 'Baker', state: 'asked', online: false, where: null },
+    ])
+    expect(ofType(b, 'friends').at(-1)?.friends).toEqual([
+      { name: 'Able', state: 'asking', online: false, where: null },
+    ])
+    await ask(a, 'friend', 'Baker')
+    expect(a.last()).toEqual({
+      type: 'nack',
+      re: 'friend',
+      reason: 'already-asked',
+    })
+    await ask(a, 'friend', 'Nobody')
+    expect(a.last()).toEqual({ type: 'nack', re: 'friend', reason: 'unknown' })
+    // Baker asks back: friends, and each sees the other in the valley.
+    await ask(b, 'friend', 'Able')
+    expect(ofType(a, 'friend-news').at(-1)).toEqual({
+      type: 'friend-news',
+      news: 'accepted',
+      name: 'Baker',
+    })
+    expect(ofType(a, 'friends').at(-1)?.friends).toEqual([
+      { name: 'Baker', state: 'friend', online: true, where: null },
+    ])
+    // Roughly where, from Baker's last state frame, on asking.
+    await v.webSocketMessage(ws(b), state(900, 900))
+    await v.webSocketMessage(ws(a), JSON.stringify({ type: 'friends' }))
+    expect(ofType(a, 'friends').at(-1)?.friends).toEqual([
+      { name: 'Baker', state: 'friend', online: true, where: 'valley' },
+    ])
+    // Baker goes and comes back: Able hears it, once.
+    await v.webSocketClose(ws(b))
+    await v.webSocketMessage(ws(a), JSON.stringify({ type: 'friends' }))
+    expect(ofType(a, 'friends').at(-1)?.friends).toEqual([
+      { name: 'Baker', state: 'friend', online: false, where: null },
+    ])
+    const back = await join(v, s, 'Baker')
+    expect(ofType(a, 'friend-news').at(-1)).toEqual({
+      type: 'friend-news',
+      news: 'online',
+      name: 'Baker',
+    })
+    // A second socket on the same account is no news.
+    const before = ofType(a, 'friend-news').length
+    await join(v, s, 'Baker')
+    expect(ofType(a, 'friend-news')).toHaveLength(before)
+    // Able ends it; there is nothing left to end.
+    await ask(a, 'unfriend', 'Baker')
+    expect(ofType(back, 'friends').at(-1)?.friends).toEqual([])
+    await ask(a, 'unfriend', 'Baker')
+    expect(a.last()).toEqual({
+      type: 'nack',
+      re: 'unfriend',
+      reason: 'not-friends',
+    })
+  })
+
+  it('refuses a friends change it cannot write, and too many at once', async () => {
+    const { valley: v, state: s } = await valley()
+    await named(v, 'Able', 'Baker')
+    const a = await join(v, s, 'Able')
+    const store = v.accountStore
+    const error = console.error
+    console.error = () => {}
+    onTestFinished(() => {
+      console.error = error
+    })
+    store.askFriend = () => Promise.reject(new Error('D1 is down'))
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ type: 'friend', name: 'Baker' })
+    )
+    expect(a.last()).toEqual({ type: 'nack', re: 'friend', reason: 'server' })
+    for (let i = 0; i < 5; i++) {
+      await v.webSocketMessage(
+        ws(a),
+        JSON.stringify({ type: 'friend', name: 'Baker' })
+      )
+    }
+    expect(a.last()).toEqual({ type: 'nack', re: 'friend', reason: 'too-fast' })
+  })
+
   it("renames a raider to the account's new username, read from the database", async () => {
     const { valley: v, state: s } = await valley()
     for (const [id, username] of [

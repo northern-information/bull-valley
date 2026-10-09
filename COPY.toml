@@ -220,7 +220,41 @@ locker = { text = "E — Open Your Locker", by = "ai" }
 too_fast = { text = "You are speaking too fast.", by = "ai" }
 offline = { text = "No one can hear you.", by = "ai" }
 online = { text = "In the valley: {names}.", by = "ai" }
-unknown_command = { text = "No such command. Try /online.", by = "ai" }
+unknown_command = { text = "No such command. Try /online, /friends, /friend name, /unfriend name or /w name message.", by = "ai" }
+usage_whisper = { text = "To whisper: /w name message", by = "ai" }
+usage_friend = { text = "To ask a raider to be friends: /friend name", by = "ai" }
+usage_unfriend = { text = "To stop being friends: /unfriend name", by = "ai" }
+whisper_from = { text = "{name} whispers", by = "ai" }
+whisper_to = { text = "To {name}", by = "ai" }
+whisper_not_here = { text = "{name} is not in the valley.", by = "ai" }
+whisper_self = { text = "You whisper to yourself. No one hears it.", by = "ai" }
+
+# Friends (src/friends.ts): /friends lists them, /friend asks or accepts,
+# /unfriend undoes it.
+
+[friends]
+none = { text = "No friends yet. /friend name asks a raider.", by = "ai" }
+online = { text = "{name}: in the valley, {where}.", by = "ai" }
+offline = { text = "{name}: away.", by = "ai" }
+asking = { text = "{name} asks to be friends. /friend {name} to accept.", by = "ai" }
+asked = { text = "{name}: asked, waiting.", by = "ai" }
+where_riding = { text = "riding with Marx", by = "ai" }
+where_maze = { text = "in the corn maze", by = "ai" }
+where_citgo = { text = "by a Citgo", by = "ai" }
+where_valley = { text = "out in the valley", by = "ai" }
+sent = { text = "You asked {name} to be friends.", by = "ai" }
+now = { text = "You and {name} are friends.", by = "ai" }
+removed = { text = "You and {name} are no longer friends.", by = "ai" }
+unknown = { text = "No raider is called {name}.", by = "ai" }
+self = { text = "You are already your own friend.", by = "ai" }
+already_friends = { text = "You and {name} are already friends.", by = "ai" }
+already_asked = { text = "You already asked {name}.", by = "ai" }
+full = { text = "Your friends list is full.", by = "ai" }
+not_friends = { text = "You and {name} are not friends.", by = "ai" }
+failed = { text = "The friends list could not be changed. Try again soon.", by = "ai" }
+news_asked = { text = "{name} asks to be friends. /friend {name} to accept.", by = "ai" }
+news_accepted = { text = "{name} is your friend now.", by = "ai" }
+news_online = { text = "Your friend {name} is in the valley.", by = "ai" }
 
 # The Tab pack grid and the hotbar (src/hud.ts). Item cards are under
 # [items].
