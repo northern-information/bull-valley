@@ -18,6 +18,7 @@ import {
 } from './assets.ts'
 import { CONFIG } from './config.ts'
 import { createCorpseMeshes } from './corpsemeshes.ts'
+import { EMOTE_IDS, EMOTES } from './emotes.ts'
 import {
   applyJoints,
   applyPose,
@@ -38,6 +39,7 @@ import { buildShadowmanFigure, makeSilhouetteTexture } from './shadowcards.ts'
 import { buildTruckMesh } from './truck.ts'
 import type { MapHook } from './akashicmap.ts'
 import type { AkashicAsset } from './assets.ts'
+import type { EmoteId } from './emotes.ts'
 import type { OutfitId } from './outfits.ts'
 
 // The dev hook on window.__akashic.
@@ -114,6 +116,16 @@ function sampleHaloWorn(): THREE.Group {
   return figure.group
 }
 
+// A raider taking an emote (emotes.ts), as the others see them, its
+// cycle playing.
+function sampleEmote(id: EmoteId): THREE.Group {
+  const figure = buildFigure(OUTFIT_IDS[0])
+  const { pose } = EMOTES[id]
+  applyPose(figure, samplePose(pose))
+  setMotion(figure.group, (t) => applyPose(figure, samplePose(pose, t)))
+  return figure.group
+}
+
 // A raider where a strike left them, laid on their back in the sprawl
 // pose (corpses.ts).
 function sampleCorpse(): THREE.Group {
@@ -152,6 +164,11 @@ const ASSETS: AkashicAsset[] = [
     build: sampleHaloWorn,
   },
   { id: 'corpse', label: 'A raider struck down', build: sampleCorpse },
+  ...EMOTE_IDS.map((id) => ({
+    id: `emote-${id}`,
+    label: `Emote: /${id}`,
+    build: () => sampleEmote(id),
+  })),
   {
     id: 'locker-doors',
     label: 'Citgo back room: locker doors',

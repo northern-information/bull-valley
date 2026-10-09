@@ -5,11 +5,12 @@
 // the drops, the bodies, the lines in the log).
 
 import { toFound } from './book.ts'
-import { CHAT_COPY, othersLine } from './chat.ts'
+import { CHAT_COPY, emoteLine, othersLine } from './chat.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { toCosmetics } from './cosmetics.ts'
 import { DAILY_TASK, taskNews } from './dailytask.ts'
+import { seenEmote } from './emotes.ts'
 import { pickupLabel } from './interactions.ts'
 import { toInventory } from './inventory.ts'
 import { itemById } from './items.ts'
@@ -66,7 +67,17 @@ export function wireValley(game: Game, actions: Actions): void {
       }
       case 'peer-state': {
         const { x, y, z, yaw, pitch, pose, riding, light } = msg
+        const peer = peers.table.get(msg.id)
+        const was = peer?.next?.pose ?? null
         peers.state(msg.id, { x, y, z, yaw, pitch, pose, riding, light }, now)
+        // An emote just begun near enough to see: a quiet line in the log.
+        const emote = seenEmote(
+          was,
+          pose,
+          Math.hypot(x - player.pos.x, z - player.pos.z),
+          CONFIG.emotes.seenRadius
+        )
+        if (emote && peer) hud.tell(emoteLine(emote, peer.name))
         return
       }
       case 'peer-left': {

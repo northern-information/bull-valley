@@ -284,11 +284,32 @@ locker = { text = "E — Open Your Locker", by = "ai" }
 
 # Lines the game says to the player in the chat log (src/chat.ts).
 
+# The emotes (src/emotes.ts): what a raider is told doing one, and the
+# quiet line a raider near enough to see it gets.
+
+[emotes]
+list = { text = "Emotes: {list}", by = "ai" }
+in_bed = { text = "Not from the bed.", by = "ai" }
+wave_self = { text = "You wave.", by = "ai" }
+wave_seen = { text = "{name} waves.", by = "ai" }
+sit_self = { text = "You sit down in the dirt.", by = "ai" }
+sit_seen = { text = "{name} sits down.", by = "ai" }
+smoke_self = { text = "You stand and smoke a while.", by = "ai" }
+smoke_seen = { text = "{name} smokes.", by = "ai" }
+dance_self = { text = "You dance.", by = "ai" }
+dance_seen = { text = "{name} dances.", by = "ai" }
+point_self = { text = "You point.", by = "ai" }
+point_seen = { text = "{name} points.", by = "ai" }
+shrug_self = { text = "You shrug.", by = "ai" }
+shrug_seen = { text = "{name} shrugs.", by = "ai" }
+kneel_self = { text = "You kneel.", by = "ai" }
+kneel_seen = { text = "{name} kneels.", by = "ai" }
+
 [chat]
 too_fast = { text = "You are speaking too fast.", by = "ai" }
 offline = { text = "No one can hear you.", by = "ai" }
 online = { text = "In the valley: {names}.", by = "ai" }
-unknown_command = { text = "No such command. Try /online.", by = "ai" }
+unknown_command = { text = "No such command. Try /online or /emotes.", by = "ai" }
 
 # The Tab pack grid and the hotbar (src/hud.ts). Item cards are under
 # [items].
