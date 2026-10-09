@@ -16,7 +16,7 @@ import type { Game } from './game.ts'
 import type { Grave } from './graves.ts'
 import type { Hand } from './hands.ts'
 import type { Hotbar } from './hotbar.ts'
-import type { GeometrieAxis, Inventory } from './interfaces.ts'
+import type { GeometrieAxis, Inventory, XZ } from './interfaces.ts'
 import type { TruckState } from './marx.ts'
 import type { MistCards } from './mistcards.ts'
 import type { NetStatus } from './net.ts'
@@ -32,6 +32,7 @@ import type { RoadGraph } from './roadgraph.ts'
 import type { SeasonProgress } from './season.ts'
 import type { ShadowCards } from './shadowcards.ts'
 import type { ShadeKind } from './shadowmen.ts'
+import type { StandLedger } from './stand.ts'
 import type { Truck } from './truck.ts'
 import type { World } from './world.ts'
 import type * as THREE from 'three'
@@ -76,6 +77,8 @@ interface BvHook {
   readonly bookOpen: boolean
   // The account's progress on the daily task, as the valley last said.
   readonly task: TaskProgress
+  // The account's XP in all (progression.ts), as the valley last said.
+  readonly xp: number
   // The account's friends list, as the valley last sent it.
   readonly friends: readonly FriendWire[]
   // The pack as this client holds it: the valley's last word, plus guesses.
@@ -91,6 +94,10 @@ interface BvHook {
   // What the account's locker holds, and whether the pack is open at it.
   readonly stash: Inventory
   readonly lockerOpen: boolean
+  // The account's Cabbage Stand as the valley last said (null alone), and
+  // where the stand stands.
+  readonly stand: StandLedger | null
+  readonly standAt: XZ | null
   // The item on each number key, slot 0 for 1.
   readonly hotbar: Hotbar
   // How high, stimulated and drunk right now, each 0 to 1.
@@ -191,6 +198,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     get task() {
       return s.task
     },
+    get xp() {
+      return s.xp
+    },
     get friends() {
       return s.friends
     },
@@ -214,6 +224,12 @@ export function installDevHook(game: Game, actions: Actions): void {
     },
     get lockerOpen() {
       return s.lockerOpen
+    },
+    get stand() {
+      return s.stand
+    },
+    get standAt() {
+      return game.world.stand?.at ?? null
     },
     get hotbar() {
       return s.hotbar

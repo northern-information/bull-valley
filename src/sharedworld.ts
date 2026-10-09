@@ -117,7 +117,26 @@
 //    neither. A whisper goes to the sockets of the raider it names, and
 //    back to the sender's, under the chat rules and the chat rate; nothing
 //    is kept.
-// 22. Health (health.ts): every account has CONFIG.health.max points, kept
+// 22. The raider's level (progression.ts): one XP bar for the account,
+//    fed by everything. A shadowman or spider burst in the raider's beam,
+//    the Caretaker unmade with it (a big jump), a ride with Marx that
+//    gets home with them in the bed, the day's berry off a bush, a pickup,
+//    a unit bought, a drop the valley left taken up, and what the Cabbage
+//    Stand pays out when collected (by the cents, rule 23) each earn the
+//    account XP (Reduced.xp, and stepShadows' xp); a raider's own drop
+//    taken up earns none. Every grant is named here, worth what
+//    progression.ts XP says; the valley adds it to the account's XP in D1
+//    and tells everyone when it reaches a new level.
+// 23. The Cabbage Stand (stand.ts): every account keeps its own ledger at
+//    the one stand on the spawn Citgo's lot, where the world was opened
+//    with it (SharedWorld.stand). A raider out of the bed whose last state
+//    frame put them beside it can put cabbages and berries out of the pack
+//    on its table, collect what it banked on the valley's clock into the
+//    wallet, or buy its next level with cash and goods (ValleyContext.stand
+//    in, Reduced.stand out); the valley writes the ledger, the pack and the
+//    wallet together, or none of them. A collect earns XP by the cents it
+//    pays (stand.ts standXp, rule 22).
+// 24. Health (health.ts): every account has CONFIG.health.max points, kept
 //    by the valley (Valley.health, only the accounts below whole), so no
 //    reconnect or second tab heals. Any shadow's touch (rules 11 and 13)
 //    takes one, once a step however many of the account's sockets were
@@ -168,6 +187,15 @@ import {
   placeStill,
   stepShadowmen,
 } from './shadowmen.ts'
+import {
+  affordsUpgrade,
+  atStand,
+  collect as collectStand,
+  standXp,
+  stock as stockStand,
+  upgradePrice,
+  upgrade as upgradeStand,
+} from './stand.ts'
 import { atLocker } from './stash.ts'
 import { freshStock, onShelf, takeUnit } from './store.ts'
 import type { Caretaker } from './caretaker.ts'
@@ -179,6 +207,7 @@ import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckChange, TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
 import type { OutfitId } from './outfits.ts'
+import type { XpGrant, XpSource } from './progression.ts'
 import type {
   CaretakerWire,
   DailyMessage,
@@ -201,6 +230,7 @@ import type {
   ShadowmenField,
   TruckPose,
 } from './shadowmen.ts'
+import type { StandLedger } from './stand.ts'
 import type { WaterMap } from './waterside.ts'
 
 // A raider online: one socket.
@@ -238,6 +268,8 @@ export interface SharedWorld {
   water: WaterMap
   maze: MazePlace | null
   routes: TruckRoutes
+  // Where the Cabbage Stand stands, or null (rule 23).
+  stand: XZ | null
 }
 
 // Everything the server persists.
@@ -254,7 +286,7 @@ export interface Valley {
   // fell (never on the wire), and the id the next one gets.
   corpses: ValleyCorpse[]
   nextCorpse: number
-  // Rule 22: account -> its health, while below whole.
+  // Rule 24: account -> its health, while below whole.
   health: Record<string, number>
 }
 
@@ -285,6 +317,7 @@ export type ValleyAction =
       water: WaterMap
       maze: MazePlace | null
       routes: TruckRoutes
+      stand: XZ | null
     }
   // at: where their last state frame put them, or null.
   | { type: 'leave'; id: string; at: PeerStateWire | null }
@@ -307,7 +340,7 @@ export type ValleyAction =
   // where the raider's last state frame put them, or null.
   | { type: 'fall'; id: string; items: Inventory; at: Facing | null }
   | { type: 'loot'; id: string; corpse: number }
-  // Rule 22: a shadow's touch; points given back (by), or made whole (no
+  // Rule 24: a shadow's touch; points given back (by), or made whole (no
   // by: a forecourt).
   | { type: 'hit'; id: string }
   | { type: 'mend'; id: string; by?: number }
@@ -322,6 +355,16 @@ export type ValleyAction =
       count: number
       at: XZ | null
     }
+  // Rule 23: the account's Cabbage Stand tended. at: where the raider's
+  // last state frame put them, or null.
+  | {
+      type: 'stand-stock'
+      id: string
+      kind: string
+      count: number
+      at: XZ | null
+    }
+  | { type: 'stand-collect' | 'stand-upgrade'; id: string; at: XZ | null }
   // Rule 14: cosmetic `offer` from Moab.
   | { type: 'trade'; id: string; offer: string }
   // Rule 9: a new name, a new character, or both.
@@ -342,6 +385,9 @@ export interface ValleyContext {
   // For a trade: the trader's pack and cosmetics, as the valley just read
   // them.
   holdings?: { pack: Inventory; cosmetics: readonly CosmeticId[] }
+  // For tending the stand: the account's ledger, pack and wallet (cents),
+  // as the valley just read them.
+  stand?: { ledger: StandLedger; pack: Inventory; cash: number }
 }
 
 export interface Reduced {
@@ -378,13 +424,29 @@ export interface Reduced {
   corpse?: number
   // Rule 18: a body's things, back into its account's pack.
   give?: { account: string; items: Inventory }
-  // Rule 22: an account's health after a hit or a mend, for its sockets;
+  // Rule 24: an account's health after a hit or a mend, for its sockets;
   // fatal when the hit took the last point (the account is whole again).
   health?: { account: string; points: number; fatal?: true }
   // Rule 19: units of `kind` into the account's locker out of its pack
   // (positive), or back (negative). The valley moves them only when the
   // side they come out of holds them.
   stash?: PackChange
+  // Rule 22: the XP each account earned, a grant at a time.
+  xp?: XpGrant[]
+  // Rule 23: the account's stand as tended, written together with what it
+  // took out of the pack and what it paid into the wallet (or, negative,
+  // took out of it), or not at all.
+  stand?: StandChange
+}
+
+export interface StandChange {
+  account: string
+  re: 'stock' | 'collect' | 'upgrade'
+  ledger: StandLedger
+  // Units out of the pack, each count positive.
+  items: Inventory
+  // Cents into the wallet, or out of it when negative.
+  cash: number
 }
 
 export interface PackChange {
@@ -451,7 +513,7 @@ export function corpsesOf(valley: Valley, account: string): number[] {
   return valley.corpses.filter((c) => c.account === account).map((c) => c.id)
 }
 
-// Rule 22: `account`'s health.
+// Rule 24: `account`'s health.
 export function healthFor(valley: Valley, account: string): number {
   return healthOf(valley.health, account)
 }
@@ -530,9 +592,9 @@ const TRUCK_REASONS: Record<TruckChange, WorldReason> = {
 function settle(
   valley: Valley,
   now: number
-): { valley: Valley; frames: WorldMessage[] } {
+): { valley: Valley; frames: WorldMessage[]; xp: XpGrant[] } {
   const world = valley.world
-  if (!world) return { valley, frames: [] }
+  if (!world) return { valley, frames: [], xp: [] }
   let next = valley
   const frames: WorldMessage[] = []
   const today = dayKey(now)
@@ -547,13 +609,28 @@ function settle(
     frames.push(frame(next, 'refill'))
   }
   const settled = settleTruck(world.truck, now, world.routes)
+  // Rule 22: whoever was still in the bed when Marx got home rode with
+  // him; one hopping out on the way did not.
+  const xp = settled.changes.includes('home')
+    ? grantsTo(valley, world.truck.riders, 'ride')
+    : []
   if (settled.changes.length > 0 && next.world) {
     next = withTruck(next, next.world, settled.truck)
     for (const change of settled.changes) {
       frames.push(frame(next, TRUCK_REASONS[change]))
     }
   }
-  return { valley: next, frames }
+  return { valley: next, frames, xp }
+}
+
+// Rule 22: a grant of `source` to the account behind each socket id, once
+// per account.
+function grantsTo(
+  valley: Valley,
+  ids: readonly string[],
+  source: XpSource
+): XpGrant[] {
+  return creditedWith(valley, ids).map((account) => ({ account, source }))
 }
 
 function done(
@@ -573,18 +650,18 @@ export function reduce(
   // Whatever was due has happened before anything else does.
   const settled = settle(before, now)
   const r = act(settled.valley, action, context)
-  return {
-    ...r,
-    broadcast: [...settled.frames, ...r.broadcast],
-    alarm: r.reject ? wakeAt(before, now) : r.alarm,
-    valley: r.reject ? before : r.valley,
+  const broadcast = [...settled.frames, ...r.broadcast]
+  if (r.reject) {
+    return { ...r, broadcast, alarm: wakeAt(before, now), valley: before }
   }
+  const xp = [...settled.xp, ...(r.xp ?? [])]
+  return { ...r, broadcast, ...(xp.length > 0 ? { xp } : {}) }
 }
 
 function act(
   valley: Valley,
   action: ValleyAction,
-  { now, present, cash, holdings }: ValleyContext
+  { now, present, cash, holdings, stand }: ValleyContext
 ): Reduced {
   switch (action.type) {
     case 'join': {
@@ -613,6 +690,7 @@ function act(
           water: action.water,
           maze: action.maze,
           routes: action.routes,
+          stand: action.stand,
         }
       } else if (
         !samePickups(world.pickups, action.pickups) ||
@@ -733,6 +811,8 @@ function act(
         broadcast: [
           frame(next, 'taken', { by: action.id, index: action.index }),
         ],
+        // Rule 22.
+        xp: [{ account: member.account, source: 'pickup' }],
       })
       // Rule 10.
       if (isPackKind(spec.kind) && spec.count > 0) {
@@ -772,6 +852,8 @@ function act(
           frame(next, 'bought', { by: action.id, station, item: kind }),
         ],
         spend: { account: member.account, amount: price },
+        // Rule 22.
+        xp: [{ account: member.account, source: 'purchase' }],
       })
       // Rule 10.
       if (isPackKind(kind)) {
@@ -824,6 +906,8 @@ function act(
         },
         // Rule 10.
         pack: { account: member.account, kind: 'berries', delta: 1 },
+        // Rule 22.
+        xp: [{ account: member.account, source: 'berry' }],
       })
     }
 
@@ -918,6 +1002,8 @@ function act(
         ...(isCash(drop.kind)
           ? { earn: { account, amount: taken * centsOf(drop.kind) } }
           : { pack: { account, kind: drop.kind, delta: taken } }),
+        // Rule 22: only what the valley left, never a raider's own drop.
+        ...(drop.spilled ? { xp: [{ account, source: 'drop' as const }] } : {}),
       })
     }
 
@@ -945,6 +1031,7 @@ function act(
         count,
         x,
         z,
+        spilled: true,
       }))
       const next = withWorld(valley, {
         ...world,
@@ -991,7 +1078,7 @@ function act(
     }
 
     case 'hit': {
-      // Rule 22.
+      // Rule 24.
       const member = valley.members[action.id]
       if (!member) return done(valley, now, { broadcast: [] })
       const { account } = member
@@ -1007,7 +1094,7 @@ function act(
     }
 
     case 'mend': {
-      // Rule 22: a forecourt makes whole; medicine gives its points back.
+      // Rule 24: a forecourt makes whole; medicine gives its points back.
       const member = valley.members[action.id]
       if (!member) return done(valley, now, { broadcast: [] })
       const { account } = member
@@ -1082,6 +1169,68 @@ function act(
       })
     }
 
+    case 'stand-stock':
+    case 'stand-collect':
+    case 'stand-upgrade': {
+      // Rule 23.
+      const member = valley.members[action.id]
+      const world = valley.world
+      const re = action.type
+      const refuse = (reason: string): Reduced =>
+        done(valley, now, { broadcast: [], reply: nack(re, reason) })
+      if (!member || !world) return refuse('not-in-valley')
+      if (isAboard(world.truck, action.id)) return refuse('aboard')
+      if (!atStand(action.at, world.stand)) return refuse('no-stand')
+      if (!stand) return refuse('unavailable')
+      const { ledger, pack } = stand
+      const tended = (
+        change: Omit<StandChange, 'account' | 're'>,
+        xp?: XpGrant[]
+      ): Reduced =>
+        done(valley, now, {
+          broadcast: [],
+          ...(xp ? { xp } : {}),
+          stand: {
+            account: member.account,
+            re:
+              re === 'stand-stock'
+                ? 'stock'
+                : re === 'stand-collect'
+                  ? 'collect'
+                  : 'upgrade',
+            ...change,
+          },
+        })
+      if (action.type === 'stand-stock') {
+        const { kind, count } = action
+        if ((pack[kind] || 0) < count) return refuse('none-left')
+        const next = stockStand(ledger, kind, count, now)
+        if (!next) return refuse('no-room')
+        return tended({ ledger: next, items: { [kind]: count }, cash: 0 })
+      }
+      if (action.type === 'stand-collect') {
+        const got = collectStand(ledger, now)
+        if (!got) return refuse('empty')
+        // Rule 22: the stand's XP, by the cents it paid.
+        const times = standXp(got.cents)
+        return tended(
+          { ledger: got.ledger, items: {}, cash: got.cents },
+          times > 0
+            ? [{ account: member.account, source: 'stand', times }]
+            : undefined
+        )
+      }
+      const price = upgradePrice(ledger)
+      const next = upgradeStand(ledger, now)
+      if (!price || !next) return refuse('top')
+      if (!affordsUpgrade(ledger, stand.cash, pack)) return refuse('short')
+      return tended({
+        ledger: next,
+        items: { ...price.items },
+        cash: -price.cash,
+      })
+    }
+
     case 'trade': {
       // Rule 14.
       const member = valley.members[action.id]
@@ -1144,6 +1293,7 @@ function act(
       const settled = settle(next, now)
       return done(settled.valley, now, {
         broadcast: [frame(next, 'hurry'), ...settled.frames],
+        ...(settled.xp.length > 0 ? { xp: settled.xp } : {}),
       })
     }
 
@@ -1268,6 +1418,8 @@ export function stepShadows(
   // shadowman each burned. A spiderling is no shadowman, and a spider's
   // brood would all but finish the day's task on its own.
   burned: string[]
+  // Rule 22: the XP those burns and that unmaking earned.
+  xp: XpGrant[]
 } | null {
   const world = valley.world
   const raiders = world ? shadowRaiders(valley, shadows, placed, now) : []
@@ -1370,10 +1522,19 @@ export function stepShadows(
     burned: bursts
       .filter((b) => b.kind !== 'spiderling')
       .flatMap((b) => creditedWith(valley, b.by)),
+    // A spiderling earns no XP: a spider's brood would farm it.
+    xp: [
+      ...bursts
+        .filter((b) => b.kind !== 'spiderling')
+        .flatMap((b) =>
+          grantsTo(valley, b.by, b.kind === 'spider' ? 'spider' : 'burn')
+        ),
+      ...credited.map((account) => ({ account, source: 'unmake' as const })),
+    ],
   }
 }
 
-// Rule 22: the placed raiders a forecourt makes whole: on foot, below
+// Rule 24: the placed raiders a forecourt makes whole: on foot, below
 // whole, and where their last state frame put them inside a haven. One id
 // an account.
 export function forecourtMends(
@@ -1396,7 +1557,7 @@ export function forecourtMends(
   return ids
 }
 
-// Rules 15 and 16: the accounts behind the sockets whose beams unmade the
+// Rules 15, 16 and 22: the accounts behind the sockets whose beams unmade the
 // Caretaker or burst a shadowman, each once, in the order their beams were
 // counted.
 export function creditedWith(valley: Valley, ids: readonly string[]): string[] {

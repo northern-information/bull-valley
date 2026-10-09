@@ -23,7 +23,7 @@ import { paintMud } from './mudart.ts'
 import { paintPack } from './packart.ts'
 import { applyPS1 } from './ps1.ts'
 import { mulberry32, range } from './rng.ts'
-import { paintStandSign } from './standart.ts'
+import { paintAwning, paintOpenBoard, paintStandSign } from './standart.ts'
 import { STORE_LAYOUT } from './store.ts'
 import type { DrinkArt } from './canart.ts'
 import type { CanvasArt } from './canvas.ts'
@@ -1778,6 +1778,93 @@ export function buildCabbageStand(seed = 0xcab5): THREE.Group {
   )
   sign.position.set(0, roofFront - 0.25, postZ + 0.07)
   group.add(sign)
+  return group
+}
+
+// What a raider's stand has bought with its levels (stand.ts), laid over
+// buildCabbageStand in the same space: from level 2 a striped canopy out
+// over the front, from 3 a grey cash box on the table, at 4 a
+// hand-painted OPEN board out front. Level 1 adds nothing.
+export function buildStandDressing(level: number): THREE.Group {
+  const { width, depth, table, roofFront } = CABBAGE_STAND
+  const group = new THREE.Group()
+  group.name = 'cabbage-stand-dressing'
+  const wood = lambert({ color: '#6b5236' })
+  const front = depth / 2
+  if (level >= 2) {
+    // The cloth runs out off the roof's front lip, falling only a little,
+    // so the painted board under the lip still shows beneath it.
+    const cloth = artTexture(paintAwning())
+    const stripes = lambert({ map: cloth, side: THREE.DoubleSide })
+    const reach = 0.7
+    const drop = 0.08
+    const lip = roofFront + 0.02
+    const awning = new THREE.Mesh(
+      new THREE.PlaneGeometry(width + 0.3, Math.hypot(reach, drop)),
+      stripes
+    )
+    awning.rotation.x = -Math.PI / 2 + Math.atan2(drop, reach)
+    awning.position.set(0, lip - drop / 2, front + 0.15 + reach / 2)
+    group.add(awning)
+    // Two poles hold its front edge up.
+    for (const x of [-(width + 0.3) / 2 + 0.05, (width + 0.3) / 2 - 0.05]) {
+      const pole = new THREE.Mesh(
+        new THREE.BoxGeometry(0.05, lip - drop, 0.05),
+        wood
+      )
+      pole.position.set(x, (lip - drop) / 2, front + 0.15 + reach)
+      group.add(pole)
+    }
+  }
+  if (level >= 3) {
+    // A grey steel cash box at the table's end, its lid propped open on
+    // the coin tray.
+    const steel = lambert({ color: '#6d7780' })
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.12, 0.24), steel)
+    box.position.set(width / 2 - 0.3, table + 0.085, 0.1)
+    group.add(box)
+    const lid = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.02, 0.24), steel)
+    lid.position.set(width / 2 - 0.3, table + 0.2, -0.04)
+    lid.rotation.x = -1.1
+    group.add(lid)
+    const tray = new THREE.Mesh(
+      new THREE.BoxGeometry(0.3, 0.01, 0.2),
+      lambert({ color: '#b9a24c' })
+    )
+    tray.position.set(width / 2 - 0.3, table + 0.15, 0.1)
+    group.add(tray)
+  }
+  if (level >= 4) {
+    // The sandwich board stands at the table's other end, out front,
+    // turned a little toward the pumps.
+    const face = artTexture(paintOpenBoard())
+    const painted = lambert({
+      map: face,
+      emissive: new THREE.Color('#ffffff'),
+      emissiveMap: face,
+      emissiveIntensity: 0.35,
+    })
+    const board = new THREE.Group()
+    const tall = 0.95
+    const lean = 0.22
+    for (const side of [1, -1]) {
+      // BoxGeometry face order is +x, -x, +y, -y, +z, -z.
+      const panel = new THREE.Mesh(new THREE.BoxGeometry(0.6, tall, 0.025), [
+        wood,
+        wood,
+        wood,
+        wood,
+        painted,
+        wood,
+      ])
+      panel.position.set(0, tall / 2 - 0.02, side * 0.12)
+      panel.rotation.set(-side * lean, side < 0 ? Math.PI : 0, 0)
+      board.add(panel)
+    }
+    board.position.set(-width / 2 - 0.2, 0, front + 0.75)
+    board.rotation.y = 0.35
+    group.add(board)
+  }
   return group
 }
 
@@ -6034,6 +6121,15 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     label: 'Bull Valley Cabbage Stand',
     build: () => buildCabbageStand(),
   },
+  ...[2, 3, 4].map((level) => ({
+    id: `cabbage-stand-${level}`,
+    label: `Bull Valley Cabbage Stand, level ${level}`,
+    build: () => {
+      const stand = buildCabbageStand()
+      stand.add(buildStandDressing(level))
+      return stand
+    },
+  })),
   {
     id: 'wreck',
     label: 'The wreck: a green BMW in a tree',

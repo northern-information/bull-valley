@@ -43,6 +43,7 @@ const hello = {
   water: dryMap({ width: 15059, height: 15038 }),
   maze: { x: 120, z: -40, yaw: 0.5 },
   truck: { home: { x: 10, z: -20 }, joyrideMs: 600_000 },
+  stand: { x: 6, z: -24 },
 }
 
 const parse = (value: unknown) => parseClientMessage(JSON.stringify(value))
@@ -196,6 +197,7 @@ describe('parseClientMessage', () => {
       water: _water,
       maze: _maze,
       truck: _truck,
+      stand: _stand,
       ...older
     } = hello
     expect(parse({ ...older, v: PROTOCOL_VERSION - 1 })).toEqual({
@@ -206,6 +208,7 @@ describe('parseClientMessage', () => {
       water: { cell: 100, cols: 1, rows: 1, bits: 'AA==' },
       maze: null,
       truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
+      stand: null,
     })
     // Bad ones read as missing in an older build, too.
     expect(
@@ -216,6 +219,7 @@ describe('parseClientMessage', () => {
         metres: 'big',
         maze: 'corn',
         truck: 'chevy',
+        stand: 'cabbages',
       })
     ).toEqual({
       ...older,
@@ -226,6 +230,7 @@ describe('parseClientMessage', () => {
       water: hello.water,
       maze: null,
       truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
+      stand: null,
     })
     // The current version still requires both.
     expect(parse({ ...older, v: PROTOCOL_VERSION })).toBeNull()
@@ -329,6 +334,20 @@ describe('parseClientMessage', () => {
       kind: 'joints',
       count: 1,
     })
+    expect(parse({ type: 'stand-stock', kind: 'cabbage', count: 3 })).toEqual({
+      type: 'stand-stock',
+      kind: 'cabbage',
+      count: 3,
+    })
+    expect(parse({ type: 'stand-stock', kind: 'cabbage', count: 0 })).toBeNull()
+    expect(parse({ type: 'stand-stock', kind: 7, count: 1 })).toBeNull()
+    expect(parse({ type: 'stand-collect', extra: 1 })).toEqual({
+      type: 'stand-collect',
+    })
+    expect(parse({ type: 'stand-upgrade' })).toEqual({ type: 'stand-upgrade' })
+    // A hello says where the stand stands, or that there is none.
+    expect(parse({ ...hello, stand: null })).toEqual({ ...hello, stand: null })
+    expect(parse({ ...hello, stand: { x: 'here' } })).toBeNull()
     expect(parse({ type: 'trade', offer: 'flaming-halo', extra: 1 })).toEqual({
       type: 'trade',
       offer: 'flaming-halo',

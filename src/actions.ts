@@ -49,10 +49,12 @@ import {
   packItems,
   stashItems,
 } from './packgrid.ts'
+import { levelOf } from './progression.ts'
 import { normalizeChat } from './protocol.ts'
 import { callRoute } from './roadgraph.ts'
 import { inHaven } from './shadowmen.ts'
 import { buy as buyItem, settle } from './shop.ts'
+import { openStandDialog } from './standdialog.ts'
 import { move, moveAmount } from './stash.ts'
 import { formatCash } from './store.ts'
 import { planLeg } from './truckplan.ts'
@@ -436,7 +438,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (mended) hud.tell(copy('log.mended'))
   }
 
-  // Played alone, a forecourt makes whole (rule 22).
+  // Played alone, a forecourt makes whole (rule 24).
   const mendAtForecourt = () => {
     if (isWhole(s.health)) return
     s.health = MAX_HEALTH
@@ -491,6 +493,42 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         item: pickupLabel({ kind, count }),
       })
     )
+  }
+
+  // E at the Cabbage Stand: its dialog, the pointer free for it as for
+  // Gron's. The stand is the account's (rule 23), so played alone there is
+  // none. Every change is the valley's to make: the dialog asks, and the
+  // stand and pack frames that answer show in it as they land.
+  const tendStand = () => {
+    if (s.talking) return
+    if (!s.world || !s.stand) {
+      hud.tell(copy('log.stand_offline'))
+      return
+    }
+    s.talking = true
+    s.standSaid = null
+    player.keys.clear()
+    if (document.pointerLockElement) document.exitPointerLock()
+    const ask = (msg: Parameters<typeof net.send>[0]) => {
+      s.pendingStand = true
+      s.standSaid = null
+      net.send(msg)
+    }
+    void openStandDialog({
+      goods: CONFIG.stand.goods,
+      ledger: () => (s.world ? s.stand : null),
+      pack: () => s.inventory,
+      cash: () => s.cash,
+      now: () => net.clock.serverNow(performance.now()),
+      pending: () => s.pendingStand,
+      said: () => s.standSaid,
+      onStock: (kind, count) => ask({ type: 'stand-stock', kind, count }),
+      onCollect: () => ask({ type: 'stand-collect' }),
+      onUpgrade: () => ask({ type: 'stand-upgrade' }),
+    }).then(() => {
+      s.talking = false
+      engagePointer()
+    })
   }
 
   const stowKind = (kind: string, all: boolean) => restash(kind, all, true)
@@ -891,6 +929,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       case 'locker':
         openLocker()
         return
+      case 'stand':
+        tendStand()
+        return
     }
   }
 
@@ -904,8 +945,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     }
     hud.tell(
       onlineLine(
-        game.pick.username,
-        peers.list().map((peer) => peer.name)
+        { name: game.pick.username, level: levelOf(s.xp) },
+        peers.list().map(({ name, level }) => ({ name, level }))
       )
     )
   }

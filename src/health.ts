@@ -3,7 +3,7 @@
 // touch that takes the last shatters their geometrie: the strike that
 // leaves everything on a body (corpses.ts), and they come to whole. A
 // Citgo forecourt makes them whole, and medicine gives points back
-// (items.ts heals). sharedworld.ts keeps each account's (rule 22),
+// (items.ts heals). sharedworld.ts keeps each account's (rule 24),
 // actions.ts the one a raider playing alone has. No three.js, no DOM.
 
 import { CONFIG } from './config.ts'

@@ -97,6 +97,10 @@ export interface Drop extends XZ {
   id: number
   kind: string
   count: number
+  // Left by the valley itself (dimes, a spider's bill, gold bullion), not
+  // set down out of a raider's pack: taking it up earns XP
+  // (progression.ts).
+  spilled?: true
 }
 
 // Where a raider stands and faces, as their last state frame said.

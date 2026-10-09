@@ -52,6 +52,7 @@ import type { SeasonProgress } from './season.ts'
 import type { SettingsStore } from './settingsui.ts'
 import type { ShadowBursts } from './shadowburst.ts'
 import type { ShadowCards } from './shadowcards.ts'
+import type { StandLedger } from './stand.ts'
 import type { Titles } from './titles.ts'
 import type { Trails } from './trails.ts'
 import type { Truck } from './truck.ts'
@@ -95,6 +96,9 @@ export interface GameState {
   pendingAsk: PendingAsk | null
   showFriends: boolean
   whisperTo: string | null
+  // The account's XP in all (progression.ts) as the valley last sent it;
+  // alone, none, and nothing is kept.
+  xp: number
   // Every Citgo's shelves, one stock per station like world.fuelPoints.
   storeStock: ShopStock[]
   // The item on each number key: the account's, saved one change at a
@@ -136,8 +140,9 @@ export interface GameState {
   // The Book of Shadows is open over the valley, with the pointer free for
   // it, as the pack's is.
   bookOpen: boolean
-  // Gron's dialog is open: the pointer is free for it, and the game's
-  // keys, mouse look and pause screen stand aside until it closes.
+  // Gron's dialog, or the stand's, is open: the pointer is free for it,
+  // and the game's keys, mouse look and pause screen stand aside until it
+  // closes.
   talking: boolean
   // What E would do right now; resolved every frame in the loop.
   interaction: Interaction<Pickup> | null
@@ -186,6 +191,12 @@ export interface GameState {
   // lockerOpen: the pack is open at the locker, with its Locker tab.
   stash: Inventory
   lockerOpen: boolean
+  // Rule 23: the account's Cabbage Stand as the valley last sent it; null
+  // alone, where there is none. A change asked of the valley and not yet
+  // answered, and the last word on one, for the stand's dialog.
+  stand: StandLedger | null
+  pendingStand: boolean
+  standSaid: string | null
   // Shelf units asked of the valley and not yet answered, as station:kind.
   pendingBuys: Set<string>
   // The berry bushes as the valley last described them (the welcome, then
@@ -215,6 +226,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     pendingAsk: null,
     showFriends: false,
     whisperTo: null,
+    xp: 0,
     storeStock: freshStock(stations),
     hotbar,
     hotbarSaved: Promise.resolve(),
@@ -257,6 +269,9 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     pendingLoots: new Set(),
     stash: {},
     lockerOpen: false,
+    stand: null,
+    pendingStand: false,
+    standSaid: null,
     pendingBuys: new Set(),
     daily: null,
     pendingCollect: false,

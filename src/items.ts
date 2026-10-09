@@ -21,7 +21,7 @@
 //   tripSeconds  how long a drink's trails last (trip.ts); a cigarette's
 //             last while it smokes, the joint's while perception does
 //   heals     health points one use gives back (health.ts, sharedworld.ts
-//             rule 22): one pill of aspirin or ibuprofen gives one back
+//             rule 24): one pill of aspirin or ibuprofen gives one back
 //
 // Medicine that does not heal cannot be used yet, so it has no used or
 // empty text. Forage is

@@ -113,7 +113,7 @@ export async function heardWhere(page: Page): Promise<void> {
     .toBeLessThan(1)
 }
 
-// Down to the last point of health (sharedworld.ts rule 22), so the next
+// Down to the last point of health (sharedworld.ts rule 24), so the next
 // touch shatters: the valley's word, heard back.
 export async function onLastPoint(page: Page): Promise<void> {
   await page.evaluate(() => window.__bv?.setHealth(1))

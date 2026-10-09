@@ -22,8 +22,10 @@ import { pickupLabel } from './interactions.ts'
 import { toInventory } from './inventory.ts'
 import { itemById } from './items.ts'
 import { createTruck } from './marx.ts'
+import { levelUp } from './progression.ts'
 import { CLOSE } from './protocol.ts'
 import { SEASON } from './season.ts'
+import { isStandLedger, refusalLine } from './stand.ts'
 import { formatCash } from './store.ts'
 import { aboard, newLeg, settledBy } from './worldsync.ts'
 import type { Actions } from './actions.ts'
@@ -33,10 +35,12 @@ import type { Inventory } from './interfaces.ts'
 import type {
   NackMessage,
   SeasonWire,
+  StandMessage,
   TaskWire,
   WorldMessage,
   WorldWire,
 } from './protocol.ts'
+import type { StandLedger } from './stand.ts'
 
 export function wireValley(game: Game, actions: Actions): void {
   const { state: s, hud, net, peers, world, player } = game
@@ -65,10 +69,17 @@ export function wireValley(game: Game, actions: Actions): void {
       case 'peer-updated': {
         // Our own comes back too; the dialog has said so already.
         if (msg.peer.id === net.id) return
-        const was = peers.table.get(msg.peer.id)?.name
+        const was = peers.table.get(msg.peer.id)
+        const { name, level } = msg.peer
+        const wasLevel = was?.level
+        const wasName = was?.name
         peers.updated(msg.peer)
-        if (was && was !== msg.peer.name) {
-          hud.tell(copy('log.peer_renamed', { was, name: msg.peer.name }))
+        if (wasName && wasName !== name) {
+          hud.tell(copy('log.peer_renamed', { was: wasName, name }))
+        }
+        // Rule 22.
+        if (wasLevel !== undefined && level > wasLevel) {
+          hud.tell(copy('log.peer_level', { name, level }))
         }
         return
       }
@@ -139,7 +150,7 @@ export function wireValley(game: Game, actions: Actions): void {
         game.shadowmen.receive(msg, now)
         game.caretaker.receive(msg, now)
         return
-      // Rule 22: a touch, and the health it left; health given back.
+      // Rule 24: a touch, and the health it left; health given back.
       case 'struck':
         actions.strike(msg.by ?? 'shadowman', msg.health)
         return
@@ -313,6 +324,14 @@ export function wireValley(game: Game, actions: Actions): void {
     } else if (msg.re === 'stow' || msg.re === 'unstow') {
       // The pack frame that follows puts both sides right.
       hud.tell(copy('log.locker_refused'))
+    } else if (
+      msg.re === 'stand-stock' ||
+      msg.re === 'stand-collect' ||
+      msg.re === 'stand-upgrade'
+    ) {
+      s.pendingStand = false
+      s.standSaid = refusalLine(msg.reason)
+      hud.tell(s.standSaid)
     } else if (msg.re === 'rename' || msg.re === 'appearance') {
       // The account kept the change; only the valley's roster missed it.
       hud.tell(copy('log.change_unheard'))
@@ -376,9 +395,33 @@ export function wireValley(game: Game, actions: Actions): void {
       applyTask(msg.task)
       // What the account has found already is no news.
       actions.setBook(toFound(msg.book))
+      s.xp = msg.xp
+      s.stand = isStandLedger(msg.stand) ? msg.stand : null
     } else if (msg.type === 'book') {
       // Rule 20: written in the account's Book of Shadows.
       actions.applyBook(msg.found)
+    } else if (msg.type === 'xp') {
+      // Rule 22: XP only grows, so a frame overtaken by a later one is
+      // old news.
+      const before = s.xp
+      s.xp = Math.max(s.xp, msg.xp)
+      const level = levelUp(before, s.xp)
+      if (level !== null) {
+        hud.season.announce({
+          kicker: copy('level.kicker'),
+          headline: copy('level.banner', { level }),
+        })
+        hud.tell(copy('log.level_up', { level }))
+      }
+    } else if (msg.type === 'stand') {
+      // Rule 23: the stand as the valley wrote it, to every socket on the
+      // account. Its pack frame follows.
+      if (!isStandLedger(msg.stand)) return
+      const was = s.stand
+      s.stand = msg.stand
+      s.pendingStand = false
+      s.standSaid = standNews(msg, was)
+      if (s.standSaid) hud.tell(s.standSaid)
     } else if (msg.type === 'task') {
       // Rule 16: credited with a burn. A reward's pack frame follows.
       if (!applyTask(msg.task)) return
@@ -428,9 +471,37 @@ export function wireValley(game: Game, actions: Actions): void {
       s.pendingTrade = false
       s.bookAsked.clear()
       s.pendingLoots.clear()
+      s.stand = null
+      s.pendingStand = false
       // The valley's bodies are out of reach; ours alone are drawn.
       if (s.lockerOpen) actions.closeInventory()
       actions.showAloneCorpses()
     }
   })
+}
+
+// What the log says of the stand as the valley wrote it: the goods put
+// out (whatever the table holds more of than `was`), the cents collected,
+// or the new level.
+function standNews(msg: StandMessage, was: StandLedger | null): string | null {
+  const { stand } = msg
+  switch (msg.re) {
+    case 'stock': {
+      for (const [kind, count] of Object.entries(stand.stock)) {
+        const more = count - (was?.stock[kind] ?? 0)
+        if (more > 0) {
+          return copy('log.stand_stocked', {
+            item: pickupLabel({ kind, count: more }),
+          })
+        }
+      }
+      return null
+    }
+    case 'collect':
+      return copy('log.stand_collected', {
+        amount: formatCash(msg.cents ?? 0),
+      })
+    case 'upgrade':
+      return copy('log.stand_upgraded', { level: stand.level })
+  }
 }

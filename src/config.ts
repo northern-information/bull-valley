@@ -398,12 +398,50 @@ export const CONFIG = {
     // Where the Bull Valley Cabbage Stand is set up on the spawn Citgo's
     // lot, station-local like the bush: on Gron's side, beside the lot lamp
     // at the store's back corner (world.ts STATION_LAMPS), toward the
-    // pumps, turned to face them. Scenery: it only blocks.
+    // pumps, turned to face them. It blocks, and every account keeps its
+    // own outpost there (stand.ts).
     at: { x: -3.6, z: -17.2 },
     // It blocks as a capsule along its table (assets.ts CABBAGE_STAND):
     // this far either side of its middle, this wide.
     halfLength: 1.0,
     radius: 0.75,
+    // How close its middle must be for E to open it.
+    reach: 2.8,
+    // The valley tends a raider's stand only when their last state frame
+    // put them within this of its middle: generous, since frames lag.
+    tendReach: 8,
+    // A collect earns the stand's XP (progression.ts XP.stand) once for
+    // every whole this many cents it pays out.
+    xpCents: 25,
+    // What goes on the table: the valley's own produce.
+    goods: ['cabbage', 'berries'],
+    // Each level, the first the one every account starts at: how many
+    // goods the table holds (`shelf`), what it earns an hour in cents with
+    // the table full (`rate`; a part-full table earns its share), how many
+    // hours of that it banks before it stops (`capHours`), and what the
+    // upgrade to it costs (cents, and goods out of the pack). The goods put
+    // out never run down: the rate is flat for the level.
+    levels: [
+      { shelf: 6, rate: 30, capHours: 12, price: null },
+      {
+        shelf: 10,
+        rate: 60,
+        capHours: 14,
+        price: { cash: 1000, items: { cabbage: 4, berries: 0 } },
+      },
+      {
+        shelf: 16,
+        rate: 100,
+        capHours: 18,
+        price: { cash: 2500, items: { cabbage: 8, berries: 4 } },
+      },
+      {
+        shelf: 24,
+        rate: 150,
+        capHours: 24,
+        price: { cash: 6000, items: { cabbage: 12, berries: 8 } },
+      },
+    ],
   },
   wreck: {
     // The green BMW nosed into a tree beside the spawn Citgo, station-local
@@ -545,5 +583,14 @@ export const CONFIG = {
     // Unmade, it leaves this many 1 troy ounce bars of gold bullion lying
     // where it was, each a drop of its own (drops.ts spillsOf).
     bullion: 2,
+  },
+  // The raider's level (progression.ts): one XP bar for the account, fed
+  // by everything. Reaching level L takes base * (L - 1) ^ power XP in all,
+  // so each level asks a little more than the last; uncapped by the
+  // season, and never past maxLevel.
+  progression: {
+    base: 100,
+    power: 1.5,
+    maxLevel: 99,
   },
 }
