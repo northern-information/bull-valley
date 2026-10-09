@@ -29,7 +29,12 @@ export function nameLines(name: string, chars = 11): string[] {
   return lines
 }
 
-export function paintTombstone(name: string, seed = 0x6a7e): CanvasArt {
+// `heading` is carved over the cross: R.I.P. on a shadowman's stone.
+export function paintTombstone(
+  name: string,
+  seed = 0x6a7e,
+  heading = 'R.I.P.'
+): CanvasArt {
   const art = canvas(TOMBSTONE_FACE_SIZE, STONE)
   const { ctx, w, h } = art
   const rng = mulberry32(seed)
@@ -49,7 +54,7 @@ export function paintTombstone(name: string, seed = 0x6a7e): CanvasArt {
     text(ctx, str, w / 2, y + 1, w - 24, px, SERIF, LIT)
     text(ctx, str, w / 2, y, w - 24, px, SERIF, CUT)
   }
-  carve('R.I.P.', 22, 20)
+  carve(heading, 22, 20)
   // A small cross under it.
   ctx.fillStyle = CUT
   ctx.fillRect(w / 2 - 2, 34, 4, 16)

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { CABBAGE_SEED, placeCabbages } from '../../src/cabbages.ts'
+import {
+  CABBAGE_SEED,
+  DISH_CABBAGE_SEED,
+  PINE_CABBAGE_SEED,
+  placeCabbages,
+  placeCabbagesAround,
+  placeDishCabbages,
+} from '../../src/cabbages.ts'
 import { pointInPolygon } from '../../src/coords.ts'
 import { CABBAGE_PATCH, landmarkWorldPositions } from '../../src/landmarks.ts'
 import { mulberry32 } from '../../src/rng.ts'
@@ -108,5 +115,84 @@ describe('landmarks', () => {
     }
     expect(patch.u).toBeCloseTo(0.775, 2)
     expect(patch.v).toBeCloseTo(0.702, 2)
+  })
+})
+
+describe('placeDishCabbages', () => {
+  const DISHES = Array.from({ length: 36 }, (_, i) => ({
+    x: (i % 6) * 13,
+    z: Math.floor(i / 6) * 13,
+  }))
+  const OPTIONS = { count: 8, near: 2.4, far: 3.8 }
+
+  it('grows each under its own dish, past the pad and inside the rim', () => {
+    const spots = placeDishCabbages(
+      DISHES,
+      mulberry32(DISH_CABBAGE_SEED),
+      OPTIONS
+    )
+    expect(spots).toHaveLength(8)
+    const under = spots.map((s) => {
+      const i = DISHES.findIndex(
+        (d) => Math.hypot(s.x - d.x, s.z - d.z) <= OPTIONS.far
+      )
+      const d = Math.hypot(s.x - DISHES[i].x, s.z - DISHES[i].z)
+      expect(d).toBeGreaterThanOrEqual(OPTIONS.near)
+      return i
+    })
+    expect(new Set(under).size).toBe(8)
+  })
+
+  it('is the same every time from the same seed', () => {
+    expect(
+      placeDishCabbages(DISHES, mulberry32(DISH_CABBAGE_SEED), OPTIONS)
+    ).toEqual(placeDishCabbages(DISHES, mulberry32(DISH_CABBAGE_SEED), OPTIONS))
+  })
+
+  it('grows no more than there are dishes, and none with no dishes', () => {
+    expect(
+      placeDishCabbages(DISHES.slice(0, 3), mulberry32(1), OPTIONS)
+    ).toHaveLength(3)
+    expect(placeDishCabbages([], mulberry32(1), OPTIONS)).toEqual([])
+  })
+})
+
+describe('placeCabbagesAround', () => {
+  const CENTRE = { x: 100, z: -40 }
+  const PATCH = { count: 14, near: 1.4, far: 5.5 }
+
+  it('grows a patch round the centre, between near and far', () => {
+    const spots = placeCabbagesAround(
+      CENTRE,
+      mulberry32(PINE_CABBAGE_SEED),
+      PATCH
+    )
+    expect(spots).toHaveLength(14)
+    for (const s of spots) {
+      const d = Math.hypot(s.x - CENTRE.x, s.z - CENTRE.z)
+      expect(d).toBeGreaterThanOrEqual(PATCH.near)
+      expect(d).toBeLessThanOrEqual(PATCH.far)
+    }
+  })
+
+  it('keeps clear of what it is told to avoid', () => {
+    const avoid = [
+      { x: 102, z: -40, r: 2 },
+      { x: 98, z: -38, r: 1.5 },
+    ]
+    const spots = placeCabbagesAround(CENTRE, mulberry32(3), PATCH, avoid)
+    expect(spots).toHaveLength(14)
+    for (const s of spots) {
+      for (const a of avoid) {
+        expect(Math.hypot(s.x - a.x, s.z - a.z)).toBeGreaterThanOrEqual(a.r)
+      }
+    }
+  })
+
+  it('grows fewer when the room runs out, and never hangs', () => {
+    const smother = [{ ...CENTRE, r: 10 }]
+    expect(placeCabbagesAround(CENTRE, mulberry32(1), PATCH, smother)).toEqual(
+      []
+    )
   })
 })
