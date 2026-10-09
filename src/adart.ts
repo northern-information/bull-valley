@@ -164,7 +164,7 @@ function notice(
   return art
 }
 
-// A stick figure lifting a box the right way: knees bent, back straight.
+// A stick figure lifting a box, and the advice the store gives.
 function lift(): CanvasArt {
   const art = notice([120, 160], '#1f6b3a', 'SAFETY', [])
   const { ctx, w, h } = art
@@ -190,7 +190,7 @@ function lift(): CanvasArt {
   ctx.fillStyle = '#a07a4a'
   ctx.fillRect(cx - 18, 80, 36, 22)
   text(ctx, 'LIFT WITH', w / 2, h - 36, w - 14, 14, SANS, '#1a1a1a')
-  text(ctx, 'YOUR LEGS', w / 2, h - 18, w - 14, 14, SANS, '#c8102e')
+  text(ctx, 'YOUR BACK', w / 2, h - 18, w - 14, 14, SANS, '#c8102e')
   return art
 }
 
@@ -229,8 +229,7 @@ function fire(): CanvasArt {
     '1. PULL ALARM',
     '2. LEAVE BUILDING',
     '3. CALL 911',
-    'DO NOT USE',
-    'ELEVATORS',
+    'SHUT OFF PUMPS',
   ])
 }
 
