@@ -7,7 +7,15 @@
 // pure modules'; this is the glue that applies them and says so.
 
 import { saveHotbar, saveLook } from './auth.ts'
-import { CHAT_COPY, chatCommand, onlineLine } from './chat.ts'
+import { CHAPTERS, entryOf, newlyFound } from './book.ts'
+import { portraitOf } from './bookportraits.ts'
+import {
+  CHAT_COPY,
+  chatCommand,
+  emoteLine,
+  emotesLine,
+  onlineLine,
+} from './chat.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { corpseWire, emptied, fallen, isEmpty, recover } from './corpses.ts'
@@ -47,7 +55,9 @@ import { buy as buyItem, settle } from './shop.ts'
 import { move, moveAmount } from './stash.ts'
 import { formatCash } from './store.ts'
 import { planLeg } from './truckplan.ts'
+import type { ChatCommand } from './chat.ts'
 import type { CosmeticId } from './cosmetics.ts'
+import type { EmoteId } from './emotes.ts'
 import type { Game } from './game.ts'
 import type { DailyStatus, ShelfSpot } from './interactions.ts'
 import type { Leg, TruckState } from './marx.ts'
@@ -69,6 +79,25 @@ export interface Actions {
   closeInventory(relock?: boolean): void
   // A or D in the pack: the tab to the left (-1) or right (+1), wrapping.
   stepBagTab(step: number): void
+  // B: the Book of Shadows over the valley, with the pointer free for it.
+  openBook(): void
+  // relock as closeInventory's.
+  closeBook(relock?: boolean): void
+  // A or D in the book: the chapter to the left or right, wrapping; W or
+  // S: the entry above or below.
+  stepChapter(step: number): void
+  stepEntry(step: number): void
+  // Entries of the Book of Shadows this raider has just come across
+  // (book.ts ids): asked of the valley, or played alone written at once.
+  // Anything found or already asked is left out, so the loop may call it
+  // every frame.
+  discover(ids: readonly string[]): void
+  // Entries the valley wrote in the account's book: news, each one.
+  applyBook(found: readonly string[]): void
+  // The valley could not take the last ask; ask again.
+  bookRefused(): void
+  // The account's book as the valley keeps it (the welcome): no news.
+  setBook(found: ReadonlySet<string>): void
   // A number key over an item in the pack puts it on that slot, or takes
   // it off when it is there already.
   assignSlot(slot: number, kind: string): void
@@ -127,6 +156,9 @@ export interface Actions {
   say(typed: string): void
 }
 
+// After the valley refuses a Book of Shadows ask, the next waits this long.
+const BOOK_RETRY_MS = 3000
+
 // engagePointer takes the pointer back once Gron's dialog closes.
 export function createActions(game: Game, engagePointer: () => void): Actions {
   const { state: s, hud, net, peers, player, truck, world, graph } = game
@@ -171,6 +203,85 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     const tabs = bagTabs(s.lockerOpen)
     const at = tabs.indexOf(hud.bagTab)
     showBagTab(tabs[stepIndex(at, tabs.length, step)])
+  }
+
+  // The book turns its pages through these, and draws each on the
+  // pack's renderer.
+  const bookHud = hud.book
+  bookHud.onChapter = (chapter) => bookHud.showChapter(chapter)
+  bookHud.onSelect = (id) => bookHud.select(id)
+  bookHud.onPage = (entry, found) => {
+    const { build, fitAs } = portraitOf(entry)
+    game.thumbs.spinModel(
+      bookHud.portrait,
+      `book:${entry.id}`,
+      build,
+      !found,
+      fitAs
+    )
+  }
+
+  const openBook = () => {
+    closeInventory()
+    player.keys.clear()
+    s.bookOpen = hud.showBook(true)
+    if (document.pointerLockElement) document.exitPointerLock()
+  }
+
+  const closeBook = (relock = false) => {
+    if (!s.bookOpen) return
+    s.bookOpen = hud.showBook(false)
+    game.thumbs.stop()
+    if (relock) engagePointer()
+  }
+
+  const stepChapter = (step: number) => {
+    const at = CHAPTERS.indexOf(bookHud.chapter)
+    bookHud.showChapter(CHAPTERS[stepIndex(at, CHAPTERS.length, step)])
+  }
+
+  const stepEntry = (step: number) => bookHud.step(step)
+
+  const setBook = (found: ReadonlySet<string>) => {
+    s.book = new Set(found)
+    s.bookAsked.clear()
+    bookHud.setFound(s.book)
+  }
+
+  const applyBook = (found: readonly string[]) => {
+    const names: string[] = []
+    for (const id of found) {
+      s.bookAsked.delete(id)
+      if (s.book.has(id)) continue
+      s.book.add(id)
+      const entry = entryOf(id)
+      if (entry) names.push(entry.name)
+    }
+    bookHud.setFound(s.book)
+    bookHud.announce(names)
+  }
+
+  // A refused ask waits this long before the next (local ms), so the loop
+  // never asks again every frame.
+  let bookWaitUntil = 0
+  const bookRefused = () => {
+    s.bookAsked.clear()
+    bookWaitUntil = performance.now() + BOOK_RETRY_MS
+  }
+
+  const discover = (ids: readonly string[]) => {
+    if (ids.length === 0 || performance.now() < bookWaitUntil) return
+    const fresh = newlyFound(new Set([...s.book, ...s.bookAsked]), ids)
+    if (fresh.length === 0) return
+    // Online, the valley writes it and says so. Before it has welcomed us,
+    // or while it is out of reach after it had, nothing is asked, and a
+    // later frame asks again; only played alone is it written here.
+    if (net.online && s.world) {
+      for (const id of fresh) s.bookAsked.add(id)
+      net.send({ type: 'discover', entries: fresh })
+    } else if (net.status === 'offline' && !s.world) {
+      applyBook(fresh)
+    }
   }
 
   const assignSlot = (slot: number, kind: string) => {
@@ -259,9 +370,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   const strike = (by: 'shadowman' | 'caretaker' = 'shadowman') => {
     if (s.aboard) return
     s.strikes += 1
+    s.emoting = null
     s.strikeUntil = performance.now() + CONFIG.shadowmen.strikeSeconds * 1000
     hud.showStatic(true)
     closeInventory()
+    closeBook()
     player.keys.clear()
     const items = fallen(s.inventory)
     if (!isEmpty(items)) {
@@ -711,12 +824,15 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         collectBerry(interaction.bush, interaction.status)
         return
       case 'talk':
+        discover(['gron'])
         talkToGron()
         return
       case 'speak':
+        discover([interaction.npc])
         speakTo(interaction.npc)
         return
       case 'trade':
+        discover(['moab'])
         trade(interaction.offer)
         return
       case 'loot':
@@ -744,16 +860,64 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     )
   }
 
+  // An emote (emotes.ts): the body takes its pose, which the next state
+  // frame carries to everyone; never from the bed.
+  const emote = (id: EmoteId) => {
+    if (s.aboard) {
+      hud.tell(copy('emotes.in_bed'))
+      return
+    }
+    s.emoting = { id, since: performance.now() / 1000 }
+    hud.tell(emoteLine(id, null))
+  }
+
+  // A slash command (chat.ts chatCommand). The friends' and the whisper's
+  // go to the valley (rule 21); their answers come back in valleysync.ts.
+  const runCommand = (command: ChatCommand) => {
+    switch (command.name) {
+      case 'online':
+        tellOnline()
+        return
+      case 'emotes':
+        hud.tell(emotesLine())
+        return
+      case 'emote':
+        emote(command.id)
+        return
+      case 'unknown':
+        hud.tell(copy('chat.unknown_command'))
+        return
+      case 'usage':
+        hud.tell(command.line)
+        return
+    }
+    if (!net.online) {
+      hud.tell(CHAT_COPY.offline)
+      return
+    }
+    switch (command.name) {
+      case 'friends':
+        s.showFriends = true
+        net.send({ type: 'friends' })
+        return
+      case 'whisper':
+        s.whisperTo = command.to
+        net.send({ type: 'whisper', to: command.to, text: command.text })
+        return
+      case 'friend':
+      case 'unfriend':
+        s.pendingAsk = { op: command.name, name: command.who }
+        net.send({ type: command.name, name: command.who })
+        return
+    }
+  }
+
   const say = (typed: string) => {
     const text = normalizeChat(typed)
     if (!text) return
     const command = chatCommand(text)
-    if (command === 'online') {
-      tellOnline()
-      return
-    }
-    if (command === 'unknown') {
-      hud.tell(copy('chat.unknown_command'))
+    if (command) {
+      runCommand(command)
       return
     }
     if (net.online) {
@@ -772,6 +936,14 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     openInventory,
     closeInventory,
     stepBagTab,
+    openBook,
+    closeBook,
+    stepChapter,
+    stepEntry,
+    discover,
+    applyBook,
+    bookRefused,
+    setBook,
     assignSlot,
     followLeg,
     setAloneTruck,

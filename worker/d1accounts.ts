@@ -4,6 +4,7 @@
 
 import { isSelectable } from '../src/characters.ts'
 import { isFinish } from '../src/finishes.ts'
+import { askOutcome, FRIENDS_MAX } from '../src/friends.ts'
 import { toHotbar } from '../src/hotbar.ts'
 import { toSettings } from '../src/settings.ts'
 import type {
@@ -12,6 +13,7 @@ import type {
   Provider,
   SettingsWire,
 } from '../src/account.ts'
+import type { AskResult, FriendRow, FriendState } from '../src/friends.ts'
 import type {
   Account,
   AccountStore,
@@ -307,6 +309,85 @@ export class D1AccountStore implements AccountStore {
       .bind(JSON.stringify(settings), accountId)
       .run()
     return result.meta.changes === 1
+  }
+
+  async accountByUsername(
+    username: string
+  ): Promise<{ accountId: string; username: string } | null> {
+    const row = await this.db
+      .prepare(
+        'SELECT account_id, username FROM accounts WHERE username = ? COLLATE NOCASE'
+      )
+      .bind(username)
+      .first<{ account_id: string; username: string }>()
+    return row ? { accountId: row.account_id, username: row.username } : null
+  }
+
+  // This account's own rows (friends, and those it asked), then those
+  // asking it that it has not asked back.
+  async friendsOf(accountId: string): Promise<FriendRow[]> {
+    const { results } = await this.db
+      .prepare(
+        'SELECT a.account_id AS id, a.username AS username, ' +
+          "CASE WHEN f.accepted = 1 THEN 'friend' ELSE 'asked' END AS state " +
+          'FROM friends f JOIN accounts a ON a.account_id = f.friend_id ' +
+          'WHERE f.account_id = ?1 AND a.username IS NOT NULL ' +
+          'UNION ALL ' +
+          "SELECT a.account_id, a.username, 'asking' " +
+          'FROM friends f JOIN accounts a ON a.account_id = f.account_id ' +
+          'WHERE f.friend_id = ?1 AND f.accepted = 0 AND a.username IS NOT NULL ' +
+          'AND NOT EXISTS (SELECT 1 FROM friends g WHERE g.account_id = ?1 AND g.friend_id = f.account_id)'
+      )
+      .bind(accountId)
+      .all<{ id: string; username: string; state: FriendState }>()
+    return results.map((r) => ({
+      accountId: r.id,
+      username: r.username,
+      state: r.state,
+    }))
+  }
+
+  // The asker's list is read first; a request is one row, an acceptance
+  // two in one batch, so a pair is never left half friends.
+  async askFriend(from: string, to: string, now: number): Promise<AskResult> {
+    const rows = await this.friendsOf(from)
+    const state = rows.find((r) => r.accountId === to)?.state ?? null
+    const outcome = askOutcome(state, from === to)
+    if (outcome === 'requested') {
+      if (rows.length >= FRIENDS_MAX) return 'full'
+      await this.db
+        .prepare(
+          'INSERT OR IGNORE INTO friends (account_id, friend_id, accepted, since) VALUES (?, ?, 0, ?)'
+        )
+        .bind(from, to, now)
+        .run()
+    }
+    if (outcome === 'accepted') {
+      await this.db.batch([
+        this.db
+          .prepare(
+            'UPDATE friends SET accepted = 1, since = ? WHERE account_id = ? AND friend_id = ?'
+          )
+          .bind(now, to, from),
+        this.db
+          .prepare(
+            'INSERT INTO friends (account_id, friend_id, accepted, since) VALUES (?, ?, 1, ?) ' +
+              'ON CONFLICT (account_id, friend_id) DO UPDATE SET accepted = 1, since = excluded.since'
+          )
+          .bind(from, to, now),
+      ])
+    }
+    return outcome
+  }
+
+  async unfriend(a: string, b: string): Promise<boolean> {
+    const result = await this.db
+      .prepare(
+        'DELETE FROM friends WHERE (account_id = ?1 AND friend_id = ?2) OR (account_id = ?2 AND friend_id = ?1)'
+      )
+      .bind(a, b)
+      .run()
+    return result.meta.changes > 0
   }
 
   private insertProvider(provider: LinkedProvider): D1PreparedStatement {

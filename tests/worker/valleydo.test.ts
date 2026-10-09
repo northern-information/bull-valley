@@ -14,6 +14,7 @@ import { MemoryAccountStore } from '../../worker/accounts.ts'
 import { MemoryPackStore, STARTING_CASH } from '../../worker/packs.ts'
 import { ValleyDO } from '../../worker/ValleyDO.ts'
 import type {
+  BookMessage,
   DailyMessage,
   NackMessage,
   PackMessage,
@@ -587,7 +588,7 @@ describe('ValleyDO', () => {
       type: 'daily',
       picked: false,
     })
-    // The berry earned XP once (rule 20).
+    // The berry earned XP once (rule 22).
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(a.frames().filter((m) => m.type === 'xp')).toEqual([
       { type: 'xp', xp: XP.berry, gained: XP.berry },
@@ -771,6 +772,181 @@ describe('ValleyDO', () => {
     })
   })
 
+  // Accounts in the store under the names their sockets join with.
+  async function named(v: TestValley, ...names: string[]) {
+    for (const name of names) {
+      const id = `acct-${name}`
+      await v.accountStore.create(
+        {
+          accountId: id,
+          username: name,
+          role: 'user',
+          primaryProvider: `dev:${id}`,
+          createdAt: 0,
+          lastLoginAt: 0,
+        },
+        {
+          providerKey: `dev:${id}`,
+          accountId: id,
+          provider: 'dev',
+          providerId: id,
+          displayName: id,
+          avatarUrl: null,
+          linkedAt: 0,
+        }
+      )
+    }
+  }
+
+  const ofType = <T extends ServerMessage['type']>(
+    socket: MockSocket,
+    type: T
+  ) =>
+    socket
+      .frames()
+      .filter((m): m is Extract<ServerMessage, { type: T }> => m.type === type)
+
+  it('whispers to one raider by name, echoing it to the sender alone', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'Able')
+    const b = await join(v, s, 'Baker')
+    const c = await join(v, s, 'Charlie')
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ type: 'whisper', to: 'baker', text: 'at the maze' })
+    )
+    expect(ofType(b, 'whisper')).toEqual([
+      expect.objectContaining({
+        from: 'Able',
+        to: 'Baker',
+        text: 'at the maze',
+        outgoing: false,
+      }),
+    ])
+    expect(ofType(a, 'whisper')).toEqual([
+      expect.objectContaining({ from: 'Able', to: 'Baker', outgoing: true }),
+    ])
+    expect(ofType(c, 'whisper')).toEqual([])
+    // Nobody by that name here, and no whispering to yourself.
+    for (const [to, reason] of [
+      ['Nobody', 'not-here'],
+      ['ABLE', 'self'],
+    ]) {
+      await v.webSocketMessage(
+        ws(a),
+        JSON.stringify({ type: 'whisper', to, text: 'hi' })
+      )
+      expect(a.last()).toEqual({ type: 'nack', re: 'whisper', reason })
+    }
+    // The chat's rate covers whispers too.
+    for (let i = 0; i < 3; i++) {
+      await v.webSocketMessage(
+        ws(a),
+        JSON.stringify({ type: 'whisper', to: 'Baker', text: 'hi' })
+      )
+    }
+    expect(a.last()).toEqual({
+      type: 'nack',
+      re: 'whisper',
+      reason: 'too-fast',
+    })
+  })
+
+  it('asks, accepts, lists and unfriends by username, and says when a friend comes in', async () => {
+    const { valley: v, state: s } = await valley()
+    await named(v, 'Able', 'Baker')
+    const a = await join(v, s, 'Able')
+    const b = await join(v, s, 'Baker')
+    // Nothing on either list yet, so no hello brought one.
+    expect(ofType(a, 'friends')).toEqual([])
+    const ask = (socket: MockSocket, type: string, name: string) =>
+      v.webSocketMessage(ws(socket), JSON.stringify({ type, name }))
+    await ask(a, 'friend', 'baker')
+    expect(ofType(b, 'friend-news')).toEqual([
+      { type: 'friend-news', news: 'asked', name: 'Able' },
+    ])
+    expect(ofType(a, 'friends').at(-1)?.friends).toEqual([
+      { name: 'Baker', state: 'asked', online: false, where: null },
+    ])
+    expect(ofType(b, 'friends').at(-1)?.friends).toEqual([
+      { name: 'Able', state: 'asking', online: false, where: null },
+    ])
+    await ask(a, 'friend', 'Baker')
+    expect(a.last()).toEqual({
+      type: 'nack',
+      re: 'friend',
+      reason: 'already-asked',
+    })
+    await ask(a, 'friend', 'Nobody')
+    expect(a.last()).toEqual({ type: 'nack', re: 'friend', reason: 'unknown' })
+    // Baker asks back: friends, and each sees the other in the valley.
+    await ask(b, 'friend', 'Able')
+    expect(ofType(a, 'friend-news').at(-1)).toEqual({
+      type: 'friend-news',
+      news: 'accepted',
+      name: 'Baker',
+    })
+    expect(ofType(a, 'friends').at(-1)?.friends).toEqual([
+      { name: 'Baker', state: 'friend', online: true, where: null },
+    ])
+    // Roughly where, from Baker's last state frame, on asking.
+    await v.webSocketMessage(ws(b), state(900, 900))
+    await v.webSocketMessage(ws(a), JSON.stringify({ type: 'friends' }))
+    expect(ofType(a, 'friends').at(-1)?.friends).toEqual([
+      { name: 'Baker', state: 'friend', online: true, where: 'valley' },
+    ])
+    // Baker goes and comes back: Able hears it, once.
+    await v.webSocketClose(ws(b))
+    await v.webSocketMessage(ws(a), JSON.stringify({ type: 'friends' }))
+    expect(ofType(a, 'friends').at(-1)?.friends).toEqual([
+      { name: 'Baker', state: 'friend', online: false, where: null },
+    ])
+    const back = await join(v, s, 'Baker')
+    expect(ofType(a, 'friend-news').at(-1)).toEqual({
+      type: 'friend-news',
+      news: 'online',
+      name: 'Baker',
+    })
+    // A second socket on the same account is no news.
+    const before = ofType(a, 'friend-news').length
+    await join(v, s, 'Baker')
+    expect(ofType(a, 'friend-news')).toHaveLength(before)
+    // Able ends it; there is nothing left to end.
+    await ask(a, 'unfriend', 'Baker')
+    expect(ofType(back, 'friends').at(-1)?.friends).toEqual([])
+    await ask(a, 'unfriend', 'Baker')
+    expect(a.last()).toEqual({
+      type: 'nack',
+      re: 'unfriend',
+      reason: 'not-friends',
+    })
+  })
+
+  it('refuses a friends change it cannot write, and too many at once', async () => {
+    const { valley: v, state: s } = await valley()
+    await named(v, 'Able', 'Baker')
+    const a = await join(v, s, 'Able')
+    const store = v.accountStore
+    const error = console.error
+    console.error = () => {}
+    onTestFinished(() => {
+      console.error = error
+    })
+    store.askFriend = () => Promise.reject(new Error('D1 is down'))
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ type: 'friend', name: 'Baker' })
+    )
+    expect(a.last()).toEqual({ type: 'nack', re: 'friend', reason: 'server' })
+    for (let i = 0; i < 5; i++) {
+      await v.webSocketMessage(
+        ws(a),
+        JSON.stringify({ type: 'friend', name: 'Baker' })
+      )
+    }
+    expect(a.last()).toEqual({ type: 'nack', re: 'friend', reason: 'too-fast' })
+  })
+
   it("renames a raider to the account's new username, read from the database", async () => {
     const { valley: v, state: s } = await valley()
     for (const [id, username] of [
@@ -868,6 +1044,8 @@ describe('ValleyDO', () => {
       give: () => Promise.reject(new Error('D1 is down')),
       stow: () => Promise.reject(new Error('D1 is down')),
       score: () => Promise.reject(new Error('D1 is down')),
+      book: () => Promise.reject(new Error('D1 is down')),
+      discover: () => Promise.reject(new Error('D1 is down')),
       task: () => Promise.reject(new Error('D1 is down')),
       scoreTask: () => Promise.reject(new Error('D1 is down')),
       xp: () => Promise.reject(new Error('D1 is down')),
@@ -954,6 +1132,8 @@ describe('ValleyDO', () => {
         earn: (id, amount) => store.earn(id, amount),
         trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
         season: (id, season) => store.season(id, season),
+        book: (id) => store.book(id),
+        discover: (id, entries, now) => store.discover(id, entries, now),
         strip: (id) => store.strip(id),
         give: (id, items) => store.give(id, items),
         stow: (id, kind, delta) => store.stow(id, kind, delta),
@@ -1058,6 +1238,8 @@ describe('ValleyDO: drops', () => {
       purchase: (id, amount, item) => store.purchase(id, amount, item),
       trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
       season: (id, season) => store.season(id, season),
+      book: (id) => store.book(id),
+      discover: (id, entries, now) => store.discover(id, entries, now),
       strip: (id) => store.strip(id),
       give: (id, items) => store.give(id, items),
       stow: (id, kind, delta) => store.stow(id, kind, delta),
@@ -1216,6 +1398,8 @@ describe('ValleyDO: corpse runs', () => {
         strip: (id) => store.strip(id),
         give: () => Promise.reject(new Error('down')),
         stow: (id, kind, delta) => store.stow(id, kind, delta),
+        book: (id) => store.book(id),
+        discover: (id, entries, now) => store.discover(id, entries, now),
         task: (id, task) => store.task(id, task),
         scoreTask: (id, task, progress, reward) =>
           store.scoreTask(id, task, progress, reward),
@@ -1467,6 +1651,40 @@ describe('ValleyDO: the shadowmen', () => {
     return { v, a, b, dimes, grave, x, z }
   }
 
+  it("burns one in Marx's headlights, as a raider near the truck says where it stands", async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    // In the bed, light down, so the one placed stands to burn.
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ ...JSON.parse(state(500, 500)), riding: true })
+    )
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"calm"}')
+    // The truck 20 m east, facing north (-Z), the shadowman 15 m ahead.
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({
+        type: 'headlights',
+        x: 520,
+        y: 0,
+        z: 500,
+        heading: Math.PI,
+      })
+    )
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"shadowman","x":520,"z":485}'
+    )
+    for (let i = 0; i < 10; i++) v.tick()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const spilled = a
+      .frames()
+      .findLast((m): m is WorldMessage => m.type === 'world')
+    expect(spilled?.reason).toBe('spilled')
+    // The headlights credit no one with the burn.
+    expect(tasks(a)).toEqual([])
+  })
+
   it('leaves a named tombstone a step from where one burst', async () => {
     const { grave, x, z } = await burst()
     expect(grave.name.length).toBeGreaterThan(0)
@@ -1505,7 +1723,7 @@ describe('ValleyDO: the shadowmen', () => {
   const xps = (socket: MockSocket) =>
     socket.frames().filter((m): m is XpMessage => m.type === 'xp')
 
-  it('earns the account whose beam burst it XP (rule 20)', async () => {
+  it('earns the account whose beam burst it XP (rule 22)', async () => {
     const { a, b } = await burst()
     expect(a.frames()[0]).toMatchObject({ type: 'welcome', xp: 0 })
     // A crossing shadowman may burn in the same beam too.
@@ -1583,6 +1801,8 @@ describe('ValleyDO: the shadowmen', () => {
       earn: () => Promise.reject(new Error('down')),
       trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
       season: (id, season) => store.season(id, season),
+      book: (id) => store.book(id),
+      discover: (id, entries, now) => store.discover(id, entries, now),
       strip: (id) => store.strip(id),
       give: (id, items) => store.give(id, items),
       stow: (id, kind, delta) => store.stow(id, kind, delta),
@@ -1706,6 +1926,8 @@ describe('ValleyDO: the shadowmen', () => {
       earn: (id, amount) => store.earn(id, amount),
       trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
       season: (id, season) => store.season(id, season),
+      book: (id) => store.book(id),
+      discover: (id, entries, now) => store.discover(id, entries, now),
       strip: (id) => store.strip(id),
       give: (id, items) => store.give(id, items),
       stow: (id, kind, delta) => store.stow(id, kind, delta),
@@ -1846,6 +2068,8 @@ describe("ValleyDO: Moab's trade", () => {
         earn: (id, amount) => store.earn(id, amount),
         trade: () => Promise.reject(new Error('down')),
         season: (id, season) => store.season(id, season),
+        book: (id) => store.book(id),
+        discover: (id, entries, now) => store.discover(id, entries, now),
         strip: (id) => store.strip(id),
         give: (id, items) => store.give(id, items),
         stow: (id, kind, delta) => store.stow(id, kind, delta),
@@ -1868,5 +2092,78 @@ describe("ValleyDO: Moab's trade", () => {
     } finally {
       console.error = error
     }
+  })
+})
+
+describe('ValleyDO: the Book of Shadows', () => {
+  const discover = (...entries: unknown[]) =>
+    JSON.stringify({ type: 'discover', entries })
+  const books = (socket: MockSocket) =>
+    socket.frames().filter((m): m is BookMessage => m.type === 'book')
+
+  it("writes what the raider came across in the account's book, once", async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const a2 = await join(v, s, 'A2', { account: 'acct-A' })
+    const b = await join(v, s, 'B')
+    expect(a.frames()[0]).toMatchObject({ type: 'welcome', book: [] })
+    await v.webSocketMessage(ws(a), discover('citgo', 'nowhere', 'marlboro'))
+    // Every socket on the account hears it; no one else does.
+    for (const socket of [a, a2]) {
+      expect(books(socket)).toEqual([
+        { type: 'book', found: ['citgo', 'marlboro'] },
+      ])
+    }
+    expect(books(b)).toEqual([])
+    // Asked again, it is no news.
+    await v.webSocketMessage(ws(a2), discover('citgo', 'marx'))
+    expect(books(a).at(-1)).toEqual({ type: 'book', found: ['marx'] })
+    await v.webSocketMessage(ws(a), discover('marx'))
+    expect(books(a)).toHaveLength(2)
+    // The book outlives the socket.
+    await v.webSocketClose(ws(a))
+    await v.webSocketClose(ws(a2))
+    const back = await join(v, s, 'A', { account: 'acct-A' })
+    expect(back.frames()[0]).toMatchObject({
+      type: 'welcome',
+      book: ['citgo', 'marlboro', 'marx'],
+    })
+  })
+
+  it('nacks an ask too soon after the last ten, and one it cannot write', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    for (let i = 0; i < 10; i++) {
+      await v.webSocketMessage(ws(a), discover('citgo'))
+    }
+    await v.webSocketMessage(ws(a), discover('marx'))
+    expect(a.last<NackMessage>()).toEqual({
+      type: 'nack',
+      re: 'discover',
+      reason: 'too-fast',
+    })
+    const b = await join(v, s, 'B')
+    const store = v.packStore
+    v.packStore = {
+      ...store,
+      open: (id) => store.open(id),
+      get: (id) => store.get(id),
+      season: (id, season) => store.season(id, season),
+      book: (id) => store.book(id),
+      discover: () => Promise.reject(new Error('down')),
+    }
+    const error = console.error
+    console.error = () => {}
+    try {
+      await v.webSocketMessage(ws(b), discover('gron'))
+    } finally {
+      console.error = error
+    }
+    expect(b.last<NackMessage>()).toEqual({
+      type: 'nack',
+      re: 'discover',
+      reason: 'unwritten',
+    })
+    expect(books(b)).toEqual([])
   })
 })

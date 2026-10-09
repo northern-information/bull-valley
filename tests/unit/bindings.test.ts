@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   actionOf,
+  BOOK,
   CHAT,
   hotbarSlot,
   isHeld,
@@ -17,6 +18,7 @@ const tables: [string, Record<string, Binding>][] = [
   ['WORLD', WORLD],
   ['PACK', PACK],
   ['CHAT', CHAT],
+  ['BOOK', BOOK],
 ]
 
 describe.each(tables)('%s', (_name, table) => {
@@ -46,6 +48,14 @@ describe.each(tables)('%s', (_name, table) => {
   it('binds nothing to a key the game does not use', () => {
     expect(actionOf(table, 'KeyZ')).toBeNull()
     expect(actionOf(table, 'F5')).toBeNull()
+  })
+})
+
+describe('BOOK', () => {
+  it('closes on the key that opens it', () => {
+    expect(BOOK.close.codes).toEqual(
+      expect.arrayContaining([...WORLD.book.codes])
+    )
   })
 })
 

@@ -85,6 +85,62 @@ base(
     await a.waitForTimeout(500)
     expect(await lines(a)).toEqual(['wwww cabbages by the keep'])
 
+    // A whisper reaches Baker alone, inked as a whisper, and Able's log
+    // shows who it went to.
+    const typeLine = async (page: Page, text: string) => {
+      await page.keyboard.press('Enter')
+      await page.keyboard.type(text)
+      await page.keyboard.press('Enter')
+    }
+    const whispers = (page: Page) =>
+      page.evaluate(
+        () =>
+          window.__bv?.chat
+            .filter((l) => l.kind === 'whisper')
+            .map((l) => `${l.name}: ${l.text}`) ?? []
+      )
+    await typeLine(a, `/w ${baker.username.toLowerCase()} meet me at the maze`)
+    await expect
+      .poll(() => whispers(b))
+      .toEqual([
+        `${copy('chat.whisper_from', { name: able.username })}: meet me at the maze`,
+      ])
+    await expect
+      .poll(() => whispers(a))
+      .toEqual([
+        `${copy('chat.whisper_to', { name: baker.username })}: meet me at the maze`,
+      ])
+    await expect(b.locator('.bv-chat-line--whisper')).toHaveCount(1)
+    expect(await lines(b)).toEqual(['wwww cabbages by the keep'])
+
+    // Able asks, Baker hears it and asks back: friends, both lists say so.
+    const log = (page: Page) =>
+      page.getByRole('log', { name: copy('hud.chat_log_label') })
+    await typeLine(a, `/friend ${baker.username}`)
+    await expect(log(a)).toContainText(
+      copy('friends.sent', { name: baker.username })
+    )
+    await expect(log(b)).toContainText(
+      copy('friends.news_asked', { name: able.username })
+    )
+    await typeLine(b, `/friend ${able.username}`)
+    await expect(log(b)).toContainText(
+      copy('friends.now', { name: able.username })
+    )
+    await expect(log(a)).toContainText(
+      copy('friends.news_accepted', { name: baker.username })
+    )
+    await typeLine(a, '/friends')
+    await expect
+      .poll(() => a.evaluate(() => window.__bv?.friends))
+      .toEqual([
+        expect.objectContaining({
+          name: baker.username,
+          state: 'friend',
+          online: true,
+        }),
+      ])
+
     expect(errorsA).toEqual([])
     expect(errorsB).toEqual([])
     await contextA.close()

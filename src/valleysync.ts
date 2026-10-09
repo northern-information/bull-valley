@@ -4,11 +4,20 @@
 // and this file does it (the truck, the bed, the pickups, the shelves,
 // the drops, the bodies, the lines in the log).
 
-import { CHAT_COPY, othersLine } from './chat.ts'
+import { toFound } from './book.ts'
+import { CHAT_COPY, emoteLine, othersLine } from './chat.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { toCosmetics } from './cosmetics.ts'
 import { DAILY_TASK, taskNews } from './dailytask.ts'
+import { seenEmote } from './emotes.ts'
+import {
+  friendLines,
+  friendNews,
+  friendRefusal,
+  settledAsk,
+  whisperRefusal,
+} from './friends.ts'
 import { pickupLabel } from './interactions.ts'
 import { toInventory } from './inventory.ts'
 import { itemById } from './items.ts'
@@ -65,7 +74,7 @@ export function wireValley(game: Game, actions: Actions): void {
         if (wasName && wasName !== name) {
           hud.tell(copy('log.peer_renamed', { was: wasName, name }))
         }
-        // Rule 20.
+        // Rule 22.
         if (wasLevel !== undefined && level > wasLevel) {
           hud.tell(copy('log.peer_level', { name, level }))
         }
@@ -73,7 +82,17 @@ export function wireValley(game: Game, actions: Actions): void {
       }
       case 'peer-state': {
         const { x, y, z, yaw, pitch, pose, riding, light } = msg
+        const peer = peers.table.get(msg.id)
+        const was = peer?.next?.pose ?? null
         peers.state(msg.id, { x, y, z, yaw, pitch, pose, riding, light }, now)
+        // An emote just begun near enough to see: a quiet line in the log.
+        const emote = seenEmote(
+          was,
+          pose,
+          Math.hypot(x - player.pos.x, z - player.pos.z),
+          CONFIG.emotes.seenRadius
+        )
+        if (emote && peer) hud.tell(emoteLine(emote, peer.name))
         return
       }
       case 'peer-left': {
@@ -87,6 +106,36 @@ export function wireValley(game: Game, actions: Actions): void {
           { kind: 'say', name: msg.name, text: msg.text, at: msg.at },
           now
         )
+        return
+      // Rule 20: a whisper, to this raider or echoed from one they sent.
+      case 'whisper':
+        hud.chatLine(
+          {
+            kind: 'whisper',
+            name: msg.outgoing
+              ? copy('chat.whisper_to', { name: msg.to })
+              : copy('chat.whisper_from', { name: msg.from }),
+            text: msg.text,
+            at: msg.at,
+          },
+          now
+        )
+        return
+      case 'friends': {
+        s.friends = msg.friends
+        const settled = s.pendingAsk && settledAsk(s.pendingAsk, msg.friends)
+        if (settled) {
+          s.pendingAsk = null
+          hud.tell(settled)
+        }
+        if (s.showFriends) {
+          s.showFriends = false
+          for (const line of friendLines(msg.friends)) hud.tell(line)
+        }
+        return
+      }
+      case 'friend-news':
+        hud.tell(friendNews(msg.news, msg.name))
         return
       case 'error':
         console.warn('Valley:', msg.code, msg.message)
@@ -234,11 +283,18 @@ export function wireValley(game: Game, actions: Actions): void {
       hud.tell(copy('log.berry_refused'))
     } else if (msg.re === 'chat') {
       hud.tell(CHAT_COPY.tooFast)
+    } else if (msg.re === 'whisper') {
+      hud.tell(whisperRefusal(msg.reason, s.whisperTo ?? ''))
+    } else if (msg.re === 'friend' || msg.re === 'unfriend') {
+      hud.tell(friendRefusal(msg.reason, s.pendingAsk?.name ?? ''))
+      s.pendingAsk = null
     } else if (msg.re === 'drop') {
       // The pack frame that follows a refused drop puts the count right.
       hud.tell(
         copy(msg.reason === 'aboard' ? 'log.drop_aboard' : 'log.drop_refused')
       )
+    } else if (msg.re === 'discover') {
+      actions.bookRefused()
     } else if (msg.re === 'take-drop') {
       if (msg.drop !== undefined) s.pendingDrops.delete(msg.drop)
       if (msg.reason === 'gone') hud.tell(copy('log.taken_first'))
@@ -321,9 +377,14 @@ export function wireValley(game: Game, actions: Actions): void {
       applyPack(msg)
       applySeason(msg.season)
       applyTask(msg.task)
+      // What the account has found already is no news.
+      actions.setBook(toFound(msg.book))
       s.xp = msg.xp
+    } else if (msg.type === 'book') {
+      // Rule 20: written in the account's Book of Shadows.
+      actions.applyBook(msg.found)
     } else if (msg.type === 'xp') {
-      // Rule 20: XP only grows, so a frame overtaken by a later one is
+      // Rule 22: XP only grows, so a frame overtaken by a later one is
       // old news.
       const before = s.xp
       s.xp = Math.max(s.xp, msg.xp)
@@ -382,6 +443,7 @@ export function wireValley(game: Game, actions: Actions): void {
       s.pendingTakes.clear()
       s.pendingBuys.clear()
       s.pendingTrade = false
+      s.bookAsked.clear()
       s.pendingLoots.clear()
       // The valley's bodies are out of reach; ours alone are drawn.
       if (s.lockerOpen) actions.closeInventory()

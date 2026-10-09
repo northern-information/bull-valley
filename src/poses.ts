@@ -50,6 +50,14 @@ export type PoseName =
   | 'hunch'
   | 'wield'
   | 'sprawl'
+  // The emotes (emotes.ts).
+  | 'wave'
+  | 'rest'
+  | 'smoke'
+  | 'dance'
+  | 'point'
+  | 'shrug'
+  | 'kneel'
 
 // A sampled pose: every joint present.
 export interface PoseSample {
@@ -207,6 +215,229 @@ export const POSES = {
           hipR: [0, 0, -0.18],
           kneeL: [1.1, 0, 0],
           kneeR: [0.1, 0, 0],
+        },
+      },
+    ],
+  },
+  // The emotes (emotes.ts), each what a raider types to take it.
+  // /wave: the right arm up high and out, the hand rocking side to side
+  // over the head.
+  wave: {
+    seconds: 0.7,
+    keys: [
+      {
+        lift: 0,
+        joints: {
+          ...ARMS_DOWN,
+          neck: [0, 0, -0.05],
+          shoulderR: [-2.75, 0, -0.35],
+          elbowR: [-0.35, 0, 0.35],
+        },
+      },
+      {
+        lift: 0,
+        joints: {
+          ...ARMS_DOWN,
+          neck: [0, 0, -0.05],
+          shoulderR: [-2.75, 0, -0.05],
+          elbowR: [-0.35, 0, -0.45],
+        },
+      },
+    ],
+  },
+  // /sit: down on the ground, knees up, forearms resting on them.
+  rest: {
+    keys: [
+      {
+        lift: -0.86,
+        joints: {
+          spine: [-0.12, 0, 0],
+          neck: [0.05, 0, 0],
+          hipL: [-2.15, 0, 0.2],
+          hipR: [-2.15, 0, -0.2],
+          kneeL: [2.35, 0, 0],
+          kneeR: [2.35, 0, 0],
+          shoulderL: [-1.05, 0, 0.18],
+          shoulderR: [-1.05, 0, -0.18],
+          elbowL: [-0.35, 0, 0],
+          elbowR: [-0.35, 0, 0],
+        },
+      },
+    ],
+  },
+  // /smoke: weight on one leg, the left arm across the chest, the right
+  // hand brought up to the mouth, held for a drag, and lowered again.
+  smoke: {
+    seconds: 4,
+    keys: [
+      {
+        lift: 0,
+        joints: {
+          pelvis: [0, 0, 0.05],
+          hipR: [-0.12, 0, -0.1],
+          kneeR: [0.2, 0, 0],
+          shoulderL: [-0.6, 0, -0.3],
+          elbowL: [-1.7, 0, 0],
+          shoulderR: [-1.15, 0, 0.45],
+          elbowR: [-2.45, 0, 0],
+          neck: [-0.12, 0, 0],
+        },
+      },
+      {
+        lift: 0,
+        joints: {
+          pelvis: [0, 0, 0.05],
+          hipR: [-0.12, 0, -0.1],
+          kneeR: [0.2, 0, 0],
+          shoulderL: [-0.6, 0, -0.3],
+          elbowL: [-1.7, 0, 0],
+          shoulderR: [-1.15, 0, 0.45],
+          elbowR: [-2.45, 0, 0],
+          neck: [-0.22, 0, 0],
+        },
+      },
+      {
+        lift: 0,
+        joints: {
+          pelvis: [0, 0, 0.05],
+          hipR: [-0.12, 0, -0.1],
+          kneeR: [0.2, 0, 0],
+          shoulderL: [-0.6, 0, -0.3],
+          elbowL: [-1.7, 0, 0],
+          shoulderR: [-0.35, 0, 0.1],
+          elbowR: [-1.2, 0, 0],
+        },
+      },
+      {
+        lift: 0,
+        joints: {
+          pelvis: [0, 0, 0.05],
+          hipR: [-0.12, 0, -0.1],
+          kneeR: [0.2, 0, 0],
+          shoulderL: [-0.6, 0, -0.3],
+          elbowL: [-1.7, 0, 0],
+          shoulderR: [-0.3, 0, 0.1],
+          elbowR: [-1.25, 0, 0],
+        },
+      },
+    ],
+  },
+  // /dance: a bounce on bent knees, hips swinging side to side, the arms
+  // pumping up by turns.
+  dance: {
+    seconds: 1,
+    keys: [
+      {
+        lift: -0.06,
+        joints: {
+          pelvis: [0, 0.25, 0.1],
+          spine: [0, -0.2, -0.12],
+          neck: [0, 0, 0.15],
+          hipL: [-0.3, 0, 0.08],
+          hipR: [-0.15, 0, -0.04],
+          kneeL: [0.5, 0, 0],
+          kneeR: [0.3, 0, 0],
+          shoulderL: [-2.6, 0, 0.3],
+          elbowL: [-0.4, 0, 0],
+          shoulderR: [-0.5, 0, -0.5],
+          elbowR: [-1.4, 0, 0],
+        },
+      },
+      {
+        lift: 0.02,
+        joints: {
+          ...ARMS_DOWN,
+          hipL: [-0.1, 0, 0],
+          hipR: [-0.1, 0, 0],
+          kneeL: [0.15, 0, 0],
+          kneeR: [0.15, 0, 0],
+          shoulderL: [-1.2, 0, 0.5],
+          shoulderR: [-1.2, 0, -0.5],
+          elbowL: [-1.2, 0, 0],
+          elbowR: [-1.2, 0, 0],
+        },
+      },
+      {
+        lift: -0.06,
+        joints: {
+          pelvis: [0, -0.25, -0.1],
+          spine: [0, 0.2, 0.12],
+          neck: [0, 0, -0.15],
+          hipL: [-0.15, 0, 0.04],
+          hipR: [-0.3, 0, -0.08],
+          kneeL: [0.3, 0, 0],
+          kneeR: [0.5, 0, 0],
+          shoulderL: [-0.5, 0, 0.5],
+          elbowL: [-1.4, 0, 0],
+          shoulderR: [-2.6, 0, -0.3],
+          elbowR: [-0.4, 0, 0],
+        },
+      },
+      {
+        lift: 0.02,
+        joints: {
+          ...ARMS_DOWN,
+          hipL: [-0.1, 0, 0],
+          hipR: [-0.1, 0, 0],
+          kneeL: [0.15, 0, 0],
+          kneeR: [0.15, 0, 0],
+          shoulderL: [-1.2, 0, 0.5],
+          shoulderR: [-1.2, 0, -0.5],
+          elbowL: [-1.2, 0, 0],
+          elbowR: [-1.2, 0, 0],
+        },
+      },
+    ],
+  },
+  // /point: the right arm straight out ahead, the body leaning after it.
+  point: {
+    keys: [
+      {
+        lift: 0,
+        joints: {
+          ...ARMS_DOWN,
+          spine: [0.06, 0.15, 0],
+          neck: [-0.08, -0.12, 0],
+          hipL: [0.12, 0, 0],
+          hipR: [-0.2, 0, 0],
+          shoulderR: [-1.55, 0, -0.08],
+          elbowR: [-0.05, 0, 0],
+        },
+      },
+    ],
+  },
+  // /shrug: the shoulders up, the elbows tucked and the forearms turned out
+  // with the palms up, the head tipped.
+  shrug: {
+    keys: [
+      {
+        lift: 0.02,
+        joints: {
+          neck: [0.1, 0, 0.22],
+          shoulderL: [-0.15, 0, 0.35],
+          shoulderR: [-0.15, 0, -0.35],
+          elbowL: [-1.45, 0, 0.6],
+          elbowR: [-1.45, 0, -0.6],
+        },
+      },
+    ],
+  },
+  // /kneel: down on the right knee, the left foot planted ahead, a hand
+  // on the raised knee.
+  kneel: {
+    keys: [
+      {
+        lift: -0.48,
+        joints: {
+          spine: [0.12, 0, 0],
+          hipL: [-1.5, 0, 0.06],
+          kneeL: [1.5, 0, 0],
+          hipR: [0.05, 0, -0.06],
+          kneeR: [1.55, 0, 0],
+          shoulderL: [-0.9, 0, 0.1],
+          elbowL: [-0.6, 0, 0],
+          shoulderR: [0, 0, -0.08],
+          elbowR: [-0.12, 0, 0],
         },
       },
     ],

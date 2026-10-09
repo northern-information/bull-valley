@@ -85,7 +85,7 @@ test('a shadowman held in the beam bursts into dimes', async ({ page }) => {
   )
   await expect(page.locator('.bv-task .bv-season-pip--lit')).toHaveCount(1)
 
-  // And earns the raider XP (rule 20), shown on the level row under it.
+  // And earns the raider XP (rule 22), shown on the level row under it.
   const xp = () => page.evaluate(() => window.__bv?.xp ?? 0)
   await expect.poll(xp).toBeGreaterThanOrEqual(XP.burn)
   const { level, into, span } = barOf(await xp())

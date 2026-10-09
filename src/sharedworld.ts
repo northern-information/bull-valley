@@ -50,7 +50,10 @@
 //    dimes taken up are cash, into the taker's wallet (Reduced.earn), never
 //    the pack. Among them come the shadow spiders, twice the height, far
 //    more often near the water the world was opened with (waterside.ts),
-//    twice as long to burn, and each leaves a $20 bill, cash the same way. The valley steps the field (stepShadows) and keeps it in
+//    twice as long to burn, and each leaves a $20 bill, cash the same way.
+//    Marx's headlights burn them too, crediting no one: the valley never
+//    knows the roads, so it aims them from where a raider near the truck
+//    last said it stood (seeHeadlights), and only while that is fresh. The valley steps the field (stepShadows) and keeps it in
 //    memory only: the shadowmen are gone whenever no one is placed in the
 //    valley.
 // 12. A raider out of the bed can drop what their pack holds (the valley
@@ -100,7 +103,21 @@
 //    whose last state frame put them at a station can move what their pack
 //    holds into it, or back (Reduced.stash); the valley moves it only when
 //    the side it comes out of holds it.
-// 20. The raider's level (progression.ts): one XP bar for the account,
+// 20. The Book of Shadows (book.ts): every entry a raider comes across (a
+//    place in reach, a shadow in sight, one of the folk spoken to, an item
+//    in the pack) is written in the account's book once, at the first
+//    time; an ask names only what the raider met, and only the real
+//    entries the account had not found are news (book.ts newlyFound).
+//    The book is the account's, kept by the valley in D1.
+// 21. Friends and whispers (friends.ts): a raider asks another by name,
+//    and they are friends once the other asks back; the friendships are
+//    the accounts', in D1 beside them, and only usernames go on the wire.
+//    A friend's list says whether they are in the valley and roughly where
+//    (whereabouts, from their last state frame); a request either way says
+//    neither. A whisper goes to the sockets of the raider it names, and
+//    back to the sender's, under the chat rules and the chat rate; nothing
+//    is kept.
+// 22. The raider's level (progression.ts): one XP bar for the account,
 //    fed by everything. A shadowman or spider burst in the raider's beam,
 //    the Caretaker unmade with it (a big jump), a ride with Marx that
 //    gets home with them in the bed, the day's berry off a bush, a pickup,
@@ -137,6 +154,7 @@ import {
   beamFrom,
   burnSecondsOf,
   createShadowmen,
+  headlightBeam,
   placeStill,
   stepShadowmen,
 } from './shadowmen.ts'
@@ -167,7 +185,13 @@ import type {
   WorldWire,
 } from './protocol.ts'
 import type { Rng } from './rng.ts'
-import type { Raider, ShadeKind, ShadowmenField } from './shadowmen.ts'
+import type {
+  Beam,
+  Raider,
+  ShadeKind,
+  ShadowmenField,
+  TruckPose,
+} from './shadowmen.ts'
 import type { WaterMap } from './waterside.ts'
 
 // A raider online: one socket.
@@ -341,7 +365,7 @@ export interface Reduced {
   // (positive), or back (negative). The valley moves them only when the
   // side they come out of holds them.
   stash?: PackChange
-  // Rule 20: the XP each account earned, a grant at a time.
+  // Rule 22: the XP each account earned, a grant at a time.
   xp?: XpGrant[]
 }
 
@@ -499,7 +523,7 @@ function settle(
     frames.push(frame(next, 'refill'))
   }
   const settled = settleTruck(world.truck, now, world.routes)
-  // Rule 20: whoever was still in the bed when Marx got home rode with
+  // Rule 22: whoever was still in the bed when Marx got home rode with
   // him; one hopping out on the way did not.
   const xp = settled.changes.includes('home')
     ? grantsTo(valley, world.truck.riders, 'ride')
@@ -513,7 +537,7 @@ function settle(
   return { valley: next, frames, xp }
 }
 
-// Rule 20: a grant of `source` to the account behind each socket id, once
+// Rule 22: a grant of `source` to the account behind each socket id, once
 // per account.
 function grantsTo(
   valley: Valley,
@@ -700,7 +724,7 @@ function act(
         broadcast: [
           frame(next, 'taken', { by: action.id, index: action.index }),
         ],
-        // Rule 20.
+        // Rule 22.
         xp: [{ account: member.account, source: 'pickup' }],
       })
       // Rule 10.
@@ -741,7 +765,7 @@ function act(
           frame(next, 'bought', { by: action.id, station, item: kind }),
         ],
         spend: { account: member.account, amount: price },
-        // Rule 20.
+        // Rule 22.
         xp: [{ account: member.account, source: 'purchase' }],
       })
       // Rule 10.
@@ -795,7 +819,7 @@ function act(
         },
         // Rule 10.
         pack: { account: member.account, kind: 'berries', delta: 1 },
-        // Rule 20.
+        // Rule 22.
         xp: [{ account: member.account, source: 'berry' }],
       })
     }
@@ -891,7 +915,7 @@ function act(
         ...(isCash(drop.kind)
           ? { earn: { account, amount: taken * centsOf(drop.kind) } }
           : { pack: { account, kind: drop.kind, delta: taken } }),
-        // Rule 20: only what the valley left, never a raider's own drop.
+        // Rule 22: only what the valley left, never a raider's own drop.
         ...(drop.spilled ? { xp: [{ account, source: 'drop' as const }] } : {}),
       })
     }
@@ -1092,12 +1116,14 @@ function act(
 // --- Rule 11: the shadowmen ------------------------------------------------
 
 // The valley's shadowmen, in the server's memory: the field, the
-// Caretaker (rule 13), and each raider who was struck with the server ms
-// until which they are left alone.
+// Caretaker (rule 13), each raider who was struck with the server ms
+// until which they are left alone, and where Marx's truck was last said to
+// stand, with the server ms it was said.
 export interface Shadows {
   field: ShadowmenField
   caretaker: Caretaker
   recovering: Record<string, number>
+  headlights: { pose: TruckPose; at: number } | null
 }
 
 export function createShadows(): Shadows {
@@ -1105,6 +1131,7 @@ export function createShadows(): Shadows {
     field: createShadowmen(),
     caretaker: createCaretaker(),
     recovering: {},
+    headlights: null,
   }
 }
 
@@ -1143,6 +1170,35 @@ export function shadowRaiders(
   return raiders
 }
 
+// A raider says where Marx's truck stands (a headlights frame). Every
+// client drives the same leg against the same clock, so any one near it
+// will do; the word of one whose last state frame is not within reach of
+// it is not taken. Whether it was. Mutates shadows.
+export function seeHeadlights(
+  shadows: Shadows,
+  from: PeerStateWire | null,
+  pose: TruckPose,
+  now: number,
+  cfg = CONFIG.truck.headlights
+): boolean {
+  if (!from || Math.hypot(from.x - pose.x, from.z - pose.z) > cfg.reach) {
+    return false
+  }
+  shadows.headlights = { pose, at: now }
+  return true
+}
+
+// The headlights' beam, while the truck's last word is fresh.
+export function headlightsAt(
+  shadows: Shadows,
+  now: number,
+  cfg = CONFIG.truck.headlights
+): Beam[] {
+  const seen = shadows.headlights
+  if (!seen || now - seen.at > cfg.staleMs) return []
+  return [headlightBeam(seen.pose, cfg)]
+}
+
 // Where the wire rounds a shadowman: centimetres, and hundredths of a burn.
 const round = (n: number, places: number) =>
   Math.round(n * 10 ** places) / 10 ** places
@@ -1168,7 +1224,7 @@ export function stepShadows(
   // Rule 16: the accounts credited with a burn this step, once for each
   // shadowman each burned.
   burned: string[]
-  // Rule 20: the XP those burns and that unmaking earned.
+  // Rule 22: the XP those burns and that unmaking earned.
   xp: XpGrant[]
 } | null {
   const world = valley.world
@@ -1187,6 +1243,7 @@ export function stepShadows(
       havens: world.havens,
       water: world.water,
       calm,
+      lights: headlightsAt(shadows, now),
     },
     cfg
   )
@@ -1262,7 +1319,7 @@ export function stepShadows(
   }
 }
 
-// Rules 15, 16 and 20: the accounts behind the sockets whose beams unmade the
+// Rules 15, 16 and 22: the accounts behind the sockets whose beams unmade the
 // Caretaker or burst a shadowman, each once, in the order their beams were
 // counted.
 export function creditedWith(valley: Valley, ids: readonly string[]): string[] {

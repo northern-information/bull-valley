@@ -22,7 +22,12 @@ import type { MistCards } from './mistcards.ts'
 import type { NetStatus } from './net.ts'
 import type { Player } from './player.ts'
 import type { Peer } from './presence.ts'
-import type { DailyWire, PeerStateWire, WorldWire } from './protocol.ts'
+import type {
+  DailyWire,
+  FriendWire,
+  PeerStateWire,
+  WorldWire,
+} from './protocol.ts'
 import type { RoadGraph } from './roadgraph.ts'
 import type { SeasonProgress } from './season.ts'
 import type { ShadowCards } from './shadowcards.ts'
@@ -61,10 +66,16 @@ interface BvHook {
   readonly cash: number
   // The account's progress through the season, as the valley last said.
   readonly season: SeasonProgress
+  // The Book of Shadows entries found (book.ts ids), as the valley last
+  // said; and whether the book is open.
+  readonly book: string[]
+  readonly bookOpen: boolean
   // The account's progress on the daily task, as the valley last said.
   readonly task: TaskProgress
   // The account's XP in all (progression.ts), as the valley last said.
   readonly xp: number
+  // The account's friends list, as the valley last sent it.
+  readonly friends: readonly FriendWire[]
   // The pack as this client holds it: the valley's last word, plus guesses.
   readonly inventory: Inventory
   // What lies dropped: the valley's, or this raider's alone.
@@ -163,11 +174,20 @@ export function installDevHook(game: Game, actions: Actions): void {
     get season() {
       return s.season
     },
+    get book() {
+      return [...s.book]
+    },
+    get bookOpen() {
+      return s.bookOpen
+    },
     get task() {
       return s.task
     },
     get xp() {
       return s.xp
+    },
+    get friends() {
+      return s.friends
     },
     get inventory() {
       return s.inventory

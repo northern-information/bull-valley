@@ -13,7 +13,7 @@
 // task's (rule 16), so a burn is counted once and the day's reward paid
 // once; and a strike that empties the pack onto a body (rule 18), a body
 // looted, and a move to or from the locker (rule 19), so no unit is in two
-// places. XP (rule 20) needs no such care: each account's is added in one
+// places. XP (rule 22) needs no such care: each account's is added in one
 // statement (PackStore.gainXp), whatever lands beside it.
 //
 // The shadowmen (rule 11) and the Caretaker (rule 13) are stepped here
@@ -29,6 +29,7 @@ import { toCosmetics } from '../src/cosmetics.ts'
 import { dayKey } from '../src/daily.ts'
 import { DAILY_TASK, tallyTask } from '../src/dailytask.ts'
 import { spillsOf } from '../src/drops.ts'
+import { sameName, whereabouts } from '../src/friends.ts'
 import { burialsOf } from '../src/graves.ts'
 import { levelOf, levelUp, totals } from '../src/progression.ts'
 import {
@@ -50,6 +51,7 @@ import {
   placeShadowman,
   reduce,
   restoreValley,
+  seeHeadlights,
   stepShadows,
   toWire,
 } from '../src/sharedworld.ts'
@@ -58,6 +60,7 @@ import { D1AccountStore } from './d1accounts.ts'
 import { D1PackStore } from './d1packs.ts'
 import type { CosmeticId } from '../src/cosmetics.ts'
 import type { TaskProgress } from '../src/dailytask.ts'
+import type { FriendRow } from '../src/friends.ts'
 import type { Inventory, XZ } from '../src/interfaces.ts'
 import type { XpGrant } from '../src/progression.ts'
 import type {
@@ -98,6 +101,9 @@ const STATE_LIMIT: RateLimit = { count: 30, ms: 1000 }
 // Chat lines one socket may send in ten seconds; the rest are nacked.
 const CHAT_LIMIT: RateLimit = { count: 5, ms: 10_000 }
 
+// Friend requests and removals one socket may make in ten seconds.
+const FRIEND_LIMIT: RateLimit = { count: 5, ms: 10_000 }
+
 // Changes at Gron one socket may make in ten seconds; each one rebuilds a
 // figure for everyone, so the rest are nacked.
 const APPEARANCE_LIMIT: RateLimit = { count: 5, ms: 10_000 }
@@ -105,6 +111,10 @@ const APPEARANCE_LIMIT: RateLimit = { count: 5, ms: 10_000 }
 // Drops one socket may make in ten seconds; each sends the whole world to
 // everyone, so the rest are nacked.
 const DROP_LIMIT: RateLimit = { count: 20, ms: 10_000 }
+
+// Discover frames one socket may send in ten seconds; each reads and
+// writes D1, so the rest are nacked (the client asks again).
+const DISCOVER_LIMIT: RateLimit = { count: 10, ms: 10_000 }
 
 const VALLEY_KEY = 'valley'
 
@@ -123,9 +133,12 @@ export class ValleyDO extends DurableObject<Env> {
   // Rate windows live in memory only; a wake from hibernation starts them
   // fresh, which only ever lets a few extra frames through.
   private stateRate = new WeakMap<WebSocket, RateWindow>()
+  private headlightsRate = new WeakMap<WebSocket, RateWindow>()
   private chatRate = new WeakMap<WebSocket, RateWindow>()
   private appearanceRate = new WeakMap<WebSocket, RateWindow>()
+  private friendRate = new WeakMap<WebSocket, RateWindow>()
   private dropRate = new WeakMap<WebSocket, RateWindow>()
+  private discoverRate = new WeakMap<WebSocket, RateWindow>()
   // Rule 13, in memory only: gone whenever the object sleeps.
   private shadows = createShadows()
   private shadowRng = mulberry32(Math.floor(Math.random() * 2 ** 32))
@@ -190,6 +203,13 @@ export class ValleyDO extends DurableObject<Env> {
       case 'state':
         this.state(ws, attachment, me, msg)
         this.startShadows()
+        return
+      case 'headlights':
+        // Rule 11: where Marx's truck stands, for its headlights.
+        if (allow(this.headlightsRate, ws, STATE_LIMIT)) {
+          const { x, y, z, heading } = msg
+          seeHeadlights(this.shadows, me.at, { x, y, z, heading }, Date.now())
+        }
         return
       case 'ping':
         send(ws, { type: 'pong', t: msg.t, serverNow: Date.now() })
@@ -267,8 +287,21 @@ export class ValleyDO extends DurableObject<Env> {
           offer: msg.offer,
         })
         return
+      case 'discover':
+        await this.discover(ws, attachment.account, msg.entries)
+        return
       case 'chat':
         this.chat(ws, me, msg.text)
+        return
+      case 'whisper':
+        this.whisper(ws, attachment, me, msg.to, msg.text)
+        return
+      case 'friend':
+      case 'unfriend':
+        await this.befriend(ws, attachment, me, msg.type, msg.name)
+        return
+      case 'friends':
+        if (attachment.account) await this.sendFriends(attachment.account)
         return
       case 'appearance':
         await this.restyle(ws, attachment, me, msg.outfit)
@@ -569,12 +602,14 @@ export class ValleyDO extends DurableObject<Env> {
     // it.
     let holdings: Holdings
     let season: SeasonProgress
+    let book: string[]
     let task: TaskProgress
     let xp: number
     try {
       const packs = this.packs()
       holdings = await packs.open(account)
       season = await packs.season(account, SEASON.id)
+      book = await packs.book(account)
       task = await packs.task(account, DAILY_TASK.id)
       xp = await packs.xp(account)
     } catch (err) {
@@ -635,11 +670,13 @@ export class ValleyDO extends DurableObject<Env> {
       stash: holdings.stash,
       corpses: corpsesOf(this.valley, account),
       season: seasonWire(season),
+      book,
       task: taskWire(task),
       xp,
     })
     this.broadcast({ type: 'peer-joined', peer: me }, ws)
     for (const msg of reduced.broadcast) this.broadcast(msg, ws)
+    await this.greetFriends(ws, account, name)
   }
 
   private state(
@@ -666,6 +703,174 @@ export class ValleyDO extends DurableObject<Env> {
       { type: 'chat', id: me.id, name: me.name, text, at: Date.now() },
       null
     )
+  }
+
+  // Rule 20: a whisper to the raider signed in as `to`, under the chat
+  // rules and its rate, delivered to their sockets and echoed to the
+  // sender's. Nothing is stored.
+  private whisper(
+    ws: WebSocket,
+    attachment: Attachment,
+    me: PeerWire,
+    to: string,
+    text: string
+  ): void {
+    if (!allow(this.chatRate, ws, CHAT_LIMIT)) {
+      send(ws, { type: 'nack', re: 'whisper', reason: 'too-fast' })
+      return
+    }
+    const target = this.ctx
+      .getWebSockets()
+      .map((socket) => this.attachment(socket))
+      .find((a) => a.me && a.account && sameName(a.me.name, to))
+    if (!target?.me || !target.account) {
+      send(ws, { type: 'nack', re: 'whisper', reason: 'not-here' })
+      return
+    }
+    if (target.account === attachment.account) {
+      send(ws, { type: 'nack', re: 'whisper', reason: 'self' })
+      return
+    }
+    const line = { from: me.name, to: target.me.name, text, at: Date.now() }
+    this.toAccount(target.account, {
+      type: 'whisper',
+      ...line,
+      outgoing: false,
+    })
+    if (attachment.account) {
+      this.toAccount(attachment.account, {
+        type: 'whisper',
+        ...line,
+        outgoing: true,
+      })
+    }
+  }
+
+  // Rule 20: ask `name` to be friends (or accept their asking), or no
+  // longer be friends. Both lists go to every socket on both accounts, and
+  // the news to the one it is news to.
+  private async befriend(
+    ws: WebSocket,
+    attachment: Attachment,
+    me: PeerWire,
+    op: 'friend' | 'unfriend',
+    name: string
+  ): Promise<void> {
+    const account = attachment.account
+    if (!account) return
+    if (!allow(this.friendRate, ws, FRIEND_LIMIT)) {
+      send(ws, { type: 'nack', re: op, reason: 'too-fast' })
+      return
+    }
+    try {
+      const accounts = this.accounts()
+      const other = await accounts.accountByUsername(name)
+      if (!other) {
+        send(ws, { type: 'nack', re: op, reason: 'unknown' })
+        return
+      }
+      if (op === 'unfriend') {
+        if (!(await accounts.unfriend(account, other.accountId))) {
+          send(ws, { type: 'nack', re: op, reason: 'not-friends' })
+          return
+        }
+      } else {
+        const result = await accounts.askFriend(
+          account,
+          other.accountId,
+          Date.now()
+        )
+        if (result !== 'requested' && result !== 'accepted') {
+          send(ws, { type: 'nack', re: op, reason: result })
+          return
+        }
+        this.toAccount(other.accountId, {
+          type: 'friend-news',
+          news: result === 'accepted' ? 'accepted' : 'asked',
+          name: me.name,
+        })
+      }
+      await this.sendFriends(account)
+      await this.sendFriends(other.accountId)
+    } catch (err) {
+      console.error('The friends list could not be changed', err)
+      send(ws, { type: 'nack', re: op, reason: 'server' })
+    }
+  }
+
+  // Rule 20: the account's list to every socket on it: each name, and for
+  // a friend whether they are in the valley and roughly where. A request
+  // either way says nothing of where anyone is.
+  private async sendFriends(account: string): Promise<void> {
+    if (!this.hasSocket(account)) return
+    let rows: FriendRow[]
+    try {
+      rows = await this.accounts().friendsOf(account)
+    } catch (err) {
+      console.error('The friends list could not be read', err)
+      return
+    }
+    this.listFriends(account, rows)
+  }
+
+  private listFriends(account: string, rows: readonly FriendRow[]): void {
+    const world = this.valley.world
+    this.toAccount(account, {
+      type: 'friends',
+      friends: rows.map((row) => {
+        const here =
+          row.state === 'friend' ? this.placedAs(row.accountId) : undefined
+        return {
+          name: row.username,
+          state: row.state,
+          online: here !== undefined,
+          where: here ? whereabouts(here.at, world) : null,
+        }
+      }),
+    })
+  }
+
+  // A raider coming in: their own list, when there is anything on it (the
+  // client starts with an empty one), and the news to every friend in the
+  // valley, unless this account was already here on another socket.
+  private async greetFriends(
+    ws: WebSocket,
+    account: string,
+    name: string
+  ): Promise<void> {
+    const already = this.ctx.getWebSockets().some((socket) => {
+      const a = this.attachment(socket)
+      return socket !== ws && a.account === account && a.me !== null
+    })
+    try {
+      const rows = await this.accounts().friendsOf(account)
+      if (rows.length > 0) this.listFriends(account, rows)
+      if (already) return
+      for (const row of rows) {
+        if (row.state !== 'friend') continue
+        this.toAccount(row.accountId, {
+          type: 'friend-news',
+          news: 'online',
+          name,
+        })
+      }
+    } catch (err) {
+      console.error('Friends could not be told', err)
+    }
+  }
+
+  // Whether any socket on `account` has said hello.
+  private hasSocket(account: string): boolean {
+    return this.placedAs(account) !== undefined
+  }
+
+  // The player of the first socket on `account` that has said hello.
+  private placedAs(account: string): PeerWire | undefined {
+    for (const socket of this.ctx.getWebSockets()) {
+      const a = this.attachment(socket)
+      if (a.account === account && a.me) return a.me
+    }
+    return undefined
   }
 
   // A new character from Gron, for everyone to see.
@@ -1002,6 +1207,32 @@ export class ValleyDO extends DurableObject<Env> {
     })
   }
 
+  // Rule 20: the entries the raider came across, written in the account's
+  // Book of Shadows alone, so two sockets on one account never both call
+  // one new. Every socket on the account hears what was new; a frame too
+  // soon, or one the book could not take, is nacked, and the client asks
+  // again.
+  private async discover(
+    ws: WebSocket,
+    account: string | null,
+    entries: readonly string[]
+  ): Promise<void> {
+    if (!account) return
+    if (!allow(this.discoverRate, ws, DISCOVER_LIMIT)) {
+      send(ws, { type: 'nack', re: 'discover', reason: 'too-fast' })
+      return
+    }
+    await this.ctx.blockConcurrencyWhile(async () => {
+      try {
+        const found = await this.packs().discover(account, entries, Date.now())
+        if (found.length > 0) this.toAccount(account, { type: 'book', found })
+      } catch (err) {
+        console.error('The book could not be written', account, err)
+        send(ws, { type: 'nack', re: 'discover', reason: 'unwritten' })
+      }
+    })
+  }
+
   // Rule 16: each account credited with a burn, tallied alone against
   // today's progress, so two burns never read the same count. Every socket
   // on the account hears the new count, and the wallet when the tally paid
@@ -1035,7 +1266,7 @@ export class ValleyDO extends DurableObject<Env> {
     })
   }
 
-  // Rule 20: the XP each account earned, added to its own; every socket on
+  // Rule 22: the XP each account earned, added to its own; every socket on
   // the account hears its XP in all, and everyone sees a new level.
   private async award(grants: readonly XpGrant[]): Promise<void> {
     const packs = this.packs()
@@ -1114,7 +1345,7 @@ export class ValleyDO extends DurableObject<Env> {
   }
 
   // Persist the valley and arm the alarm for its next change, or clear it
-  // with nobody here to see one; and what the action earned (rule 20).
+  // with nobody here to see one; and what the action earned (rule 22).
   private async apply(reduced: Reduced): Promise<void> {
     this.valley = reduced.valley
     await this.ctx.storage.put(VALLEY_KEY, this.valley)

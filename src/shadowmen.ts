@@ -127,6 +127,9 @@ export interface ShadowmenStep {
   // A dev server's quiet valley, for the specs: the crossings never rush
   // anyone, and only a shadowman a spec placed does.
   calm?: boolean
+  // Beams no raider holds (Marx's headlights): they burn like any other,
+  // but credit no one.
+  lights?: readonly Beam[]
   // Where the water is: spiders come up more often near it. None, and
   // they come at their plain chance.
   water?: WaterMap | null
@@ -197,6 +200,32 @@ export function beamFrom(
     },
     range: cfg.flashlight.range,
     halfAngle: cfg.flashlight.halfAngle,
+    floor: y,
+  }
+}
+
+// Where Marx's truck stands and faces: its middle on the ground at
+// (x, y, z), heading radians from +Z toward +X (truck.ts).
+export interface TruckPose {
+  x: number
+  y: number
+  z: number
+  heading: number
+}
+
+// The truck's headlights as a beam: from the lamps at its nose, level
+// down the way it faces.
+export function headlightBeam(
+  { x, y, z, heading }: TruckPose,
+  cfg = CONFIG.truck.headlights
+): Beam {
+  const dx = Math.sin(heading)
+  const dz = Math.cos(heading)
+  return {
+    origin: { x: x + dx * cfg.nose, y: y + cfg.height, z: z + dz * cfg.nose },
+    dir: { x: dx, y: 0, z: dz },
+    range: cfg.range,
+    halfAngle: cfg.halfAngle,
     floor: y,
   }
 }
@@ -361,7 +390,15 @@ function fill(
 export function stepShadowmen(
   field: ShadowmenField,
   rng: Rng,
-  { dt, raiders, metres, havens, calm = false, water = null }: ShadowmenStep,
+  {
+    dt,
+    raiders,
+    metres,
+    havens,
+    calm = false,
+    water = null,
+    lights = [],
+  }: ShadowmenStep,
   cfg: ShadowmenConfig = CONFIG.shadowmen
 ): ShadowmenUpdate {
   const struck: string[] = []
@@ -444,7 +481,12 @@ export function stepShadowmen(
         beam ? inBeam(beam, { x: s.x, y: beam.floor + aim, z: s.z }) : false
       )
       .map((r) => r.id)
-    s.burn = by.length > 0 ? s.burn + dt : Math.max(0, s.burn - dt)
+    const held =
+      by.length > 0 ||
+      lights.some((beam) =>
+        inBeam(beam, { x: s.x, y: beam.floor + aim, z: s.z })
+      )
+    s.burn = held ? s.burn + dt : Math.max(0, s.burn - dt)
     if (s.burn >= burnSecondsOf(s.kind, cfg)) {
       bursts.push({ id: s.id, kind: s.kind, x: s.x, z: s.z, by })
       continue

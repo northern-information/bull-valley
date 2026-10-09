@@ -4,6 +4,7 @@
 // JSON text; every number the server stores is checked here first.
 
 import { USERNAME_MAX } from './account.ts'
+import { EMOTE_IDS } from './emotes.ts'
 import { isWaterMap } from './waterside.ts'
 import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -13,12 +14,12 @@ import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
 import type { OutfitId } from './outfits.ts'
-import type { Burst, ShadeKind } from './shadowmen.ts'
+import type { Burst, ShadeKind, TruckPose } from './shadowmen.ts'
 import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 23
+export const PROTOCOL_VERSION = 26
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -40,6 +41,10 @@ export const CHAT_MAX = 120
 // More pickups than any build places; a longer hello is refused.
 export const PICKUPS_MAX = 1000
 
+// More Book of Shadows entries than one discover frame may name (book.ts
+// has fewer in all).
+export const DISCOVER_MAX = 128
+
 // More Citgo stations than any build places.
 const STATIONS_MAX = 64
 
@@ -49,9 +54,10 @@ const KIND_MAX = 64
 // The survey is about 5 km across; nothing legitimate is this far out.
 export const MAX_COORD = 20_000
 
-// How a figure stands this instant. Riders stand in the bed, so there is
-// no seated pose yet.
-export const PEER_POSES = ['stand', 'walk', 'crouch'] as const
+// How a figure stands this instant: standing, walking, crouched, or one of
+// the emotes (emotes.ts EMOTES), each named as it is typed. Riders stand
+// in the bed.
+export const PEER_POSES = ['stand', 'walk', 'crouch', ...EMOTE_IDS] as const
 export type PeerPose = (typeof PEER_POSES)[number]
 
 // Where a player is and how they stand. y is the height the feet stand on
@@ -279,6 +285,16 @@ export interface TradeMessage {
   offer: string
 }
 
+// Entries of the Book of Shadows this raider has just come across
+// (book.ts ids: a place in reach, a shadow in sight, one of the folk
+// spoken to, an item in the pack). The valley writes those the account had
+// not found and answers with a BookMessage naming them; which ids are real
+// is its to check.
+export interface DiscoverMessage {
+  type: 'discover'
+  entries: string[]
+}
+
 // Dev-server only: the Worker stamps the socket, and production ignores
 // these. hurry brings the truck's next change to `seconds` from now;
 // reset opens the world afresh.
@@ -303,6 +319,33 @@ export interface ChatMessage {
   text: string
 }
 
+// A whisper (friends.ts, sharedworld.ts rule 21): one line to the raider
+// signed in as `to`, by username in any case, under the chat rules. The
+// valley sends it to their sockets and echoes it to the sender's; nothing
+// is stored.
+export interface WhisperMessage {
+  type: 'whisper'
+  to: string
+  text: string
+}
+
+// Ask the raider named `name` to be friends, or accept their asking.
+export interface FriendMessage {
+  type: 'friend'
+  name: string
+}
+
+// No longer friends with `name`, or take back a request either way.
+export interface UnfriendMessage {
+  type: 'unfriend'
+  name: string
+}
+
+// The account's friends list, please (a friends frame answers).
+export interface FriendsMessage {
+  type: 'friends'
+}
+
 // Gron changed this raider's character. The outfit is checked by the
 // server against the select's roster (characters.ts isSelectable), like
 // the hello's.
@@ -322,6 +365,13 @@ export interface StateMessage extends PeerStateWire {
   type: 'state'
 }
 
+// Where Marx's truck stands and faces, as this client drives its leg: sent
+// on the state frame's cadence by a client near it, so the valley can aim
+// the headlights at the shadowmen (sharedworld.ts seeHeadlights).
+export interface HeadlightsMessage extends TruckPose {
+  type: 'headlights'
+}
+
 export interface PingMessage {
   type: 'ping'
   // The sender's clock when it sent the ping; echoed in the pong.
@@ -331,6 +381,7 @@ export interface PingMessage {
 export type ClientMessage =
   | HelloMessage
   | StateMessage
+  | HeadlightsMessage
   | PingMessage
   | BoardMessage
   | HopOutMessage
@@ -344,13 +395,21 @@ export type ClientMessage =
   | LootMessage
   | StowMessage
   | TradeMessage
+  | DiscoverMessage
   | ChatMessage
+  | WhisperMessage
+  | FriendMessage
+  | UnfriendMessage
+  | FriendsMessage
   | AppearanceMessage
   | RenameMessage
   | DevMessage
 
 // What a client may be refused for.
-export type NackRe = Exclude<ClientMessage['type'], 'hello' | 'state' | 'ping'>
+export type NackRe = Exclude<
+  ClientMessage['type'],
+  'hello' | 'state' | 'headlights' | 'ping' | 'friends'
+>
 
 // --- Server → client -------------------------------------------------------
 
@@ -376,9 +435,11 @@ export interface WelcomeMessage {
   corpses: number[]
   // The account's progress through the season (season.ts).
   season: SeasonWire
+  // The Book of Shadows entries the account has found (book.ts ids).
+  book: string[]
   // The account's progress on the daily task (dailytask.ts).
   task: TaskWire
-  // The account's XP in all (progression.ts; sharedworld.ts rule 20).
+  // The account's XP in all (progression.ts; sharedworld.ts rule 22).
   xp: number
 }
 
@@ -398,6 +459,13 @@ export interface SeasonMessage {
   type: 'season'
   season: SeasonWire
   rewarded: boolean
+}
+
+// Entries newly written in the account's Book of Shadows (sharedworld.ts
+// rule 20), in the order found. Sent to every socket signed in to it.
+export interface BookMessage {
+  type: 'book'
+  found: string[]
 }
 
 // An account's progress on the daily task (sharedworld.ts rule 16): the
@@ -420,7 +488,7 @@ export interface TaskMessage {
   rewarded: boolean
 }
 
-// The account earned XP (sharedworld.ts rule 20). Sent to every socket
+// The account earned XP (sharedworld.ts rule 22). Sent to every socket
 // signed in to it: its XP in all now, and how much this added. A new
 // level also sends everyone a peer-updated frame for each of its sockets.
 export interface XpMessage {
@@ -589,8 +657,52 @@ export type ServerMessage =
   | ShadowmenMessage
   | StruckMessage
   | SeasonMessage
+  | BookMessage
   | TaskMessage
   | XpMessage
+  | WhisperedMessage
+  | FriendsListMessage
+  | FriendNewsMessage
+
+// A whisper as the valley delivers it (rule 21), with its own clock: to
+// the raider it was for, and back to the sender's sockets with `outgoing`.
+// Both names are usernames as D1 holds them.
+export interface WhisperedMessage {
+  type: 'whisper'
+  from: string
+  to: string
+  text: string
+  at: number
+  outgoing: boolean
+}
+
+// Roughly where a raider is (friends.ts whereabouts).
+export type Whereabouts = 'riding' | 'maze' | 'citgo' | 'valley'
+
+// One name on an account's friends list: a friend, a raider this account
+// asked (asked) or one asking it (asking); whether they are in the valley
+// now, and roughly where.
+export interface FriendWire {
+  name: string
+  state: 'friend' | 'asked' | 'asking'
+  online: boolean
+  where: Whereabouts | null
+}
+
+// The account's friends list, in answer to a friends frame or after a
+// change to it.
+export interface FriendsListMessage {
+  type: 'friends'
+  friends: FriendWire[]
+}
+
+// News of a friend, for the log: `name` asked to be friends, accepted, or
+// came into the valley.
+export interface FriendNewsMessage {
+  type: 'friend-news'
+  news: 'asked' | 'accepted' | 'online'
+  name: string
+}
 
 // Application close codes (the 4xxx range is ours per RFC 6455). The client
 // treats every 4xxx close as final and does not reconnect.
@@ -801,7 +913,19 @@ export function parseClientMessage(text: string): ClientMessage | null {
     case 'board':
     case 'hop-out':
     case 'rename':
+    case 'friends':
       return { type: value.type }
+    case 'whisper': {
+      const { to, text } = value
+      return isValidName(to) && isValidChat(text)
+        ? { type: 'whisper', to, text }
+        : null
+    }
+    case 'friend':
+    case 'unfriend': {
+      const { name } = value
+      return isValidName(name) ? { type: value.type, name } : null
+    }
     case 'collect': {
       const { bush } = value
       return isCount(bush) ? { type: 'collect', bush } : null
@@ -851,6 +975,12 @@ export function parseClientMessage(text: string): ClientMessage | null {
       const { offer } = value
       return isKind(offer) ? { type: 'trade', offer } : null
     }
+    case 'discover': {
+      const { entries } = value
+      if (!Array.isArray(entries) || entries.length < 1) return null
+      if (entries.length > DISCOVER_MAX || !entries.every(isKind)) return null
+      return { type: 'discover', entries }
+    }
     case 'call': {
       const from = parseXZ(value.from)
       const to = parseXZ(value.to)
@@ -891,6 +1021,12 @@ export function parseClientMessage(text: string): ClientMessage | null {
     case 'state': {
       const state = parsePeerState(value)
       return state ? { type: 'state', ...state } : null
+    }
+    case 'headlights': {
+      const { x, y, z, heading } = value
+      if (!isCoord(x) || !isCoord(y) || !isCoord(z)) return null
+      if (typeof heading !== 'number' || !Number.isFinite(heading)) return null
+      return { type: 'headlights', x, y, z, heading }
     }
     case 'ping': {
       const { t } = value

@@ -13,11 +13,13 @@ import {
   createValley,
   creditedWith,
   dailyFor,
+  headlightsAt,
   placeCaretaker,
   placeOf,
   placeShadowman,
   reduce,
   restoreValley,
+  seeHeadlights,
   shadowRaiders,
   stepShadows,
   toWire,
@@ -925,7 +927,7 @@ describe('rule 19: the stash', () => {
   })
 })
 
-describe('rule 20: XP for what a raider does', () => {
+describe('rule 22: XP for what a raider does', () => {
   it('earns XP for a pickup, a unit bought and the day’s berry', () => {
     const v = valleyWith(join('a'))
     expect(v.step({ type: 'take', id: 'a', index: 2 }).xp).toEqual([
@@ -1235,8 +1237,43 @@ describe("rule 11: the shadowmen are the valley's", () => {
     // the burn (rule 16).
     expect(out?.message.bursts).toEqual([{ id, kind: 'man', x: 500, z: 490 }])
     expect(out?.burned).toEqual(['acct-b'])
-    // And earns it XP (rule 20).
+    // And earns it XP (rule 22).
     expect(out?.xp).toEqual([{ account: 'acct-b', source: 'burn' }])
+  })
+
+  it("burns in Marx's headlights while a raider near says where they are", () => {
+    const v = valley()
+    const shadows = createShadows()
+    // From the bed, light down, so the one placed stands still to burn.
+    const placed = [{ id: 'b', at: state({ riding: true }) }]
+    stepShadows(v, shadows, placed, mulberry32(1), { now: T0, dt: 0 })
+    shadows.field.shadowmen = []
+    // The truck 20 m east of the raider, facing north (-Z), on the one placed.
+    const pose = { x: 520, y: 0, z: 500, heading: Math.PI }
+    expect(seeHeadlights(shadows, state(), pose, T0)).toBe(true)
+    const id = shadows.field.nextId
+    placeShadowman(shadows, 520, 485)
+    const out = stepShadows(v, shadows, placed, mulberry32(1), {
+      now: T0,
+      dt: CONFIG.shadowmen.burnSeconds,
+    })
+    // It bursts, and no one is credited with it.
+    expect(out?.message.bursts).toEqual([{ id, kind: 'man', x: 520, z: 485 }])
+    expect(out?.burned).toEqual([])
+  })
+
+  it('takes the headlights only fresh, and only from a raider near them', () => {
+    const shadows = createShadows()
+    const pose = { x: 520, y: 0, z: 500, heading: Math.PI }
+    const { reach, staleMs } = CONFIG.truck.headlights
+    expect(seeHeadlights(shadows, null, pose, T0)).toBe(false)
+    expect(
+      seeHeadlights(shadows, state({ x: 520 + reach + 1 }), pose, T0)
+    ).toBe(false)
+    expect(headlightsAt(shadows, T0)).toEqual([])
+    expect(seeHeadlights(shadows, state(), pose, T0)).toBe(true)
+    expect(headlightsAt(shadows, T0 + staleMs)).toHaveLength(1)
+    expect(headlightsAt(shadows, T0 + staleMs + 1)).toEqual([])
   })
 
   it('sends a spider as one, its burn against its own longer time', () => {
@@ -1427,7 +1464,7 @@ describe('rule 13: the Caretaker keeps the maze', () => {
     out = step(one, CONFIG.caretaker.burnSeconds / 2)
     expect(out?.message.unmade).toEqual({ x: last?.x, z: last?.z })
     expect(out?.credited).toEqual(['acct-a', 'acct-b'])
-    // Each earns the big jump (rule 20).
+    // Each earns the big jump (rule 22).
     expect(out?.xp).toEqual([
       { account: 'acct-a', source: 'unmake' },
       { account: 'acct-b', source: 'unmake' },

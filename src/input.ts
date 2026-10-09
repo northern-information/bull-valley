@@ -1,8 +1,9 @@
 // The pointer and the keys. Pointer lock starts and pauses the game; the
 // keys are bindings.ts's (WORLD in the valley, PACK with the pack open,
-// CHAT while typing), and what they do is actions.ts's.
+// BOOK with the Book of Shadows open, CHAT while typing), and what they do
+// is actions.ts's.
 
-import { actionOf, CHAT, hotbarSlot, PACK, WORLD } from './bindings.ts'
+import { actionOf, BOOK, CHAT, hotbarSlot, PACK, WORLD } from './bindings.ts'
 import { othersLine } from './chat.ts'
 import { copy } from './copy.ts'
 import { LOCKER_TAB } from './packgrid.ts'
@@ -82,13 +83,13 @@ export function wirePointer(game: Game): () => void {
         // How many others, once the valley has said; a late welcome says it.
         if (net.online) hud.tell(othersLine(peers.count))
       }
-    } else if (s.started && !s.inventoryOpen && !s.talking) {
+    } else if (s.started && !s.inventoryOpen && !s.bookOpen && !s.talking) {
       hud.showIntro(true, true)
     }
   })
   window.addEventListener('blur', () => player.keys.clear())
   document.addEventListener('mousemove', (e) => {
-    if (!s.inventoryOpen && !s.talking) {
+    if (!s.inventoryOpen && !s.bookOpen && !s.talking) {
       player.handleMouse(e.movementX, e.movementY)
     }
   })
@@ -103,17 +104,18 @@ export function wireKeys(
 ): void {
   const { state: s, hud, player, scope } = game
 
-  // A click past the pack closes it; with the pointer free otherwise, a
-  // click on the view takes it back.
+  // A click past the pack or the book closes it; with the pointer free
+  // otherwise, a click on the view takes it back.
   hud.canvas.addEventListener('click', () => {
     if (s.inventoryOpen) actions.closeInventory(true)
+    else if (s.bookOpen) actions.closeBook(true)
     else if (s.started && !player.locked) engagePointer()
   })
   // The left button raises the flashlight or puts it down, only with the
   // pointer locked: the click that takes the pointer back never does.
   document.addEventListener('mousedown', (e) => {
     if (e.button !== 0 || !player.locked) return
-    if (s.inventoryOpen || s.talking || hud.chatOpen) return
+    if (s.inventoryOpen || s.bookOpen || s.talking || hud.chatOpen) return
     actions.toggleFlashlight()
   })
 
@@ -162,12 +164,40 @@ export function wireKeys(
     }
   }
 
+  // With the book open its keys turn the pages (BOOK in bindings.ts) and
+  // never reach the player.
+  const bookKey = (e: KeyboardEvent) => {
+    const action = actionOf(BOOK, e.code)
+    if (action) e.preventDefault()
+    switch (action) {
+      case 'close':
+        actions.closeBook(true)
+        return
+      case 'prevChapter':
+        actions.stepChapter(-1)
+        return
+      case 'nextChapter':
+        actions.stepChapter(1)
+        return
+      case 'prevEntry':
+        actions.stepEntry(-1)
+        return
+      case 'nextEntry':
+        actions.stepEntry(1)
+        return
+    }
+  }
+
   // In the valley the keys are WORLD in bindings.ts; the movement keys go
   // to the player as held state.
   document.addEventListener('keydown', (e) => {
     // The pack frees the pointer, so its keys come first.
     if (s.inventoryOpen) {
       inventoryKey(e)
+      return
+    }
+    if (s.bookOpen) {
+      bookKey(e)
       return
     }
     if (!player.locked || s.talking) return
@@ -191,6 +221,10 @@ export function wireKeys(
       case 'inventory':
         e.preventDefault()
         actions.openInventory()
+        return
+      case 'book':
+        e.preventDefault()
+        actions.openBook()
         return
       case 'scope':
         scope.toggle()

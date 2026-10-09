@@ -1,11 +1,12 @@
 // The pack store on D1 (migrations/0002_packs.sql): one row per item an
 // account has held, and one wallet per account; the cosmetics it has
-// (0004_cosmetics.sql); its locker (0007_stashes.sql); and its XP
-// (0008_levels.sql). Every change is
+// (0004_cosmetics.sql); its locker (0007_stashes.sql); its Book of
+// Shadows (0008_book.sql); and its XP (0010_levels.sql). Every change is
 // a single statement or one batch, which is one transaction,
 // statement, so two sockets on one account can never lose a unit or a cent
 // between a read and a write.
 
+import { newlyFound } from '../src/book.ts'
 import { toCosmetics } from '../src/cosmetics.ts'
 import { NO_TASK } from '../src/dailytask.ts'
 import { STARTING_INVENTORY, toInventory } from '../src/inventory.ts'
@@ -291,6 +292,37 @@ export class D1PackStore implements PackStore {
           ]
         : []),
     ])
+  }
+
+  async book(accountId: string): Promise<string[]> {
+    const { results } = await this.db
+      .prepare(
+        'SELECT entry FROM book WHERE account_id = ? ORDER BY found_at, rowid'
+      )
+      .bind(accountId)
+      .all<{ entry: string }>()
+    return results.map((row) => row.entry)
+  }
+
+  // Each entry goes in only where the account has no row for it, so one
+  // found twice keeps the first time; what goes in is what was not there.
+  async discover(
+    accountId: string,
+    entries: readonly string[],
+    now: number
+  ): Promise<string[]> {
+    const fresh = newlyFound(new Set(await this.book(accountId)), entries)
+    if (fresh.length === 0) return []
+    const results = await this.db.batch(
+      fresh.map((entry) =>
+        this.db
+          .prepare(
+            'INSERT OR IGNORE INTO book (account_id, entry, found_at) VALUES (?, ?, ?)'
+          )
+          .bind(accountId, entry, now)
+      )
+    )
+    return fresh.filter((_, i) => (results[i]?.meta.changes ?? 0) > 0)
   }
 
   async task(accountId: string, task: string): Promise<TaskProgress> {

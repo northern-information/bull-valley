@@ -19,6 +19,7 @@ import { createWalker } from './roadgraph.ts'
 import type { CigaretteRig, Figure } from './figure.ts'
 import type { HeightAt, Vec3, XZ } from './interfaces.ts'
 import type { RoadPoint, Walker } from './roadgraph.ts'
+import type { TruckPose } from './shadowmen.ts'
 import type { TruckPlan } from './truckplan.ts'
 
 export interface TruckOptions {
@@ -464,6 +465,13 @@ export class Truck {
     const spot = new THREE.Vector3(3, 0, -1.0)
     this.group.localToWorld(spot)
     return { x: spot.x, z: spot.z }
+  }
+
+  // Where the truck stands and faces as drawn, for its headlights'
+  // beam (shadowmen.ts headlightBeam).
+  headlights(): TruckPose {
+    const { x, y, z } = this.group.position
+    return { x, y, z, heading: this.group.rotation.y }
   }
 
   distanceTo(x: number, z: number): number {

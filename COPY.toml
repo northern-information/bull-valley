@@ -147,6 +147,74 @@ next = { text = "Next", by = "tyler" }
 hint = { text = "← → Cycle · Enter Choose", by = "tyler" }
 hint_finish = { text = "← → Cycle · Up / Down Finish · R Randomize · Enter Choose", by = "tyler" }
 
+# The Book of Shadows (src/book.ts, src/bookhud.ts): B opens it. An entry
+# stays dark until the account first meets it. Items use their own label
+# and blurb ([items.<id>]); the folk and the shadowman use [outfits].
+
+[book]
+title = { text = "Book of Shadows", by = "ai" }
+places = { text = "Places", by = "ai" }
+shadows = { text = "Shadows", by = "ai" }
+folk = { text = "Folk", by = "ai" }
+items = { text = "Items", by = "ai" }
+tally = { text = "{found}/{of}", by = "ai" }
+unknown = { text = "???", by = "ai" }
+unknown_lore = { text = "Not yet found. Something in the valley is still waiting for you.", by = "ai" }
+found_all = { text = "Every page written.", by = "ai" }
+toast = { text = "Written in the Book of Shadows", by = "ai" }
+toast_many = { text = "{count} new pages", by = "ai" }
+toast_hint = { text = "B to read", by = "ai" }
+
+[book.citgo]
+name = { text = "The Citgo", by = "ai" }
+lore = { text = "Lit all night under the triangle. Shelves of smokes and cans, a clerk who never sleeps, and the one place the shadowmen will not follow you.", by = "ai" }
+
+[book.cabbage-stand]
+name = { text = "Bull Valley Cabbage Stand", by = "ai" }
+lore = { text = "Set up on the Citgo's lot, honor box and all. No one has ever seen who stocks it.", by = "ai" }
+
+[book.dishes]
+name = { text = "The Dish Array", by = "ai" }
+lore = { text = "Thirty-six dishes behind the Citgo, red lamps on their horns, turning together on a clock no one set. Listening for something past the valley.", by = "ai" }
+
+[book.wreck]
+name = { text = "The Wreck", by = "ai" }
+lore = { text = "A green BMW nosed into a tree across from the maze. Still smouldering. The hazards have not stopped blinking since the night it left the road.", by = "ai" }
+
+[book.donut-field]
+name = { text = "The Donut Field", by = "ai" }
+lore = { text = "Between Lake Avenue and the corn, rutted into rings. Matthew Marx comes here to think.", by = "ai" }
+
+[book.corn-maze]
+name = { text = "The Corn Maze", by = "ai" }
+lore = { text = "Cut from a hedge maze in an old film, corn over your head the whole way in. It keeps a keeper.", by = "ai" }
+
+[book.maze-heart]
+name = { text = "The Heart of the Maze", by = "ai" }
+lore = { text = "A ring of berry bushes round a door that opens back onto the gate. You can walk in. The maze decides when you leave.", by = "ai" }
+
+[book.keep]
+lore = { text = "A light on the hill to the north. The beacon burns whether anyone is home or not.", by = "ai" }
+
+[book.shadowman]
+lore = { text = "They cross the valley round every raider, the same ones for everyone. Close enough, one rushes, and its touch sends you back to the Citgo. Hold a beam on one and it comes apart into mist and skulls, and leaves its dimes.", by = "ai" }
+
+[book.caretaker]
+name = { text = "The Caretaker", by = "ai" }
+lore = { text = "A hooded shade with a cold lantern who keeps the corn maze. One light does nothing to it. Two, held together, unmake it, and it forms again at the heart.", by = "ai" }
+
+[book.marx]
+lore = { text = "Reads at his tailgate by the Citgo, does donuts across the road, and comes when you whistle. Climb into the bed and he will take you out through the valley and home.", by = "ai" }
+
+[book.carlsten]
+lore = { text = "Behind the counter at every Citgo at once. Friendly. Knows more about the outages than he says.", by = "ai" }
+
+[book.gron]
+lore = { text = "Stands under his own raincloud by the berry bush. He can make you anything you want: a new name, a new body.", by = "ai" }
+
+[book.moab]
+lore = { text = "A burning skeleton in a red trench coat, his back to his burning horse, under every Citgo sign. He deals in gold.", by = "ai" }
+
 # The game's own lines in the chat log (src/actions.ts, src/valleysync.ts,
 # src/loop.ts, src/shop.ts).
 
@@ -230,12 +298,67 @@ locker = { text = "E — Open Your Locker", by = "ai" }
 
 # Lines the game says to the player in the chat log (src/chat.ts).
 
+# The emotes (src/emotes.ts): what a raider is told doing one, and the
+# quiet line a raider near enough to see it gets.
+
+[emotes]
+list = { text = "Emotes: {list}", by = "ai" }
+in_bed = { text = "Not from the bed.", by = "ai" }
+wave_self = { text = "You wave.", by = "ai" }
+wave_seen = { text = "{name} waves.", by = "ai" }
+sit_self = { text = "You sit down in the dirt.", by = "ai" }
+sit_seen = { text = "{name} sits down.", by = "ai" }
+smoke_self = { text = "You stand and smoke a while.", by = "ai" }
+smoke_seen = { text = "{name} smokes.", by = "ai" }
+dance_self = { text = "You dance.", by = "ai" }
+dance_seen = { text = "{name} dances.", by = "ai" }
+point_self = { text = "You point.", by = "ai" }
+point_seen = { text = "{name} points.", by = "ai" }
+shrug_self = { text = "You shrug.", by = "ai" }
+shrug_seen = { text = "{name} shrugs.", by = "ai" }
+kneel_self = { text = "You kneel.", by = "ai" }
+kneel_seen = { text = "{name} kneels.", by = "ai" }
+
 [chat]
 too_fast = { text = "You are speaking too fast.", by = "ai" }
 offline = { text = "No one can hear you.", by = "ai" }
 online = { text = "In the valley: {names}.", by = "ai" }
 online_name = { text = "{name} (level {level})", by = "ai" }
-unknown_command = { text = "No such command. Try /online.", by = "ai" }
+unknown_command = { text = "No such command. Try /online, /emotes, /friends, /friend name, /unfriend name or /w name message.", by = "ai" }
+usage_whisper = { text = "To whisper: /w name message", by = "ai" }
+usage_friend = { text = "To ask a raider to be friends: /friend name", by = "ai" }
+usage_unfriend = { text = "To stop being friends: /unfriend name", by = "ai" }
+whisper_from = { text = "{name} whispers", by = "ai" }
+whisper_to = { text = "To {name}", by = "ai" }
+whisper_not_here = { text = "{name} is not in the valley.", by = "ai" }
+whisper_self = { text = "You whisper to yourself. No one hears it.", by = "ai" }
+
+# Friends (src/friends.ts): /friends lists them, /friend asks or accepts,
+# /unfriend undoes it.
+
+[friends]
+none = { text = "No friends yet. /friend name asks a raider.", by = "ai" }
+online = { text = "{name}: in the valley, {where}.", by = "ai" }
+offline = { text = "{name}: away.", by = "ai" }
+asking = { text = "{name} asks to be friends. /friend {name} to accept.", by = "ai" }
+asked = { text = "{name}: asked, waiting.", by = "ai" }
+where_riding = { text = "riding with Marx", by = "ai" }
+where_maze = { text = "in the corn maze", by = "ai" }
+where_citgo = { text = "by a Citgo", by = "ai" }
+where_valley = { text = "out in the valley", by = "ai" }
+sent = { text = "You asked {name} to be friends.", by = "ai" }
+now = { text = "You and {name} are friends.", by = "ai" }
+removed = { text = "You and {name} are no longer friends.", by = "ai" }
+unknown = { text = "No raider is called {name}.", by = "ai" }
+self = { text = "You are already your own friend.", by = "ai" }
+already_friends = { text = "You and {name} are already friends.", by = "ai" }
+already_asked = { text = "You already asked {name}.", by = "ai" }
+full = { text = "Your friends list is full.", by = "ai" }
+not_friends = { text = "You and {name} are not friends.", by = "ai" }
+failed = { text = "The friends list could not be changed. Try again soon.", by = "ai" }
+news_asked = { text = "{name} asks to be friends. /friend {name} to accept.", by = "ai" }
+news_accepted = { text = "{name} is your friend now.", by = "ai" }
+news_online = { text = "Your friend {name} is in the valley.", by = "ai" }
 
 # The Tab pack grid and the hotbar (src/hud.ts). Item cards are under
 # [items].
@@ -293,6 +416,7 @@ flashlight = { text = "Flashlight", by = "ai" }
 crouch = { text = "Crouch", by = "ai" }
 scope = { text = "Scaduscope", by = "ai" }
 inventory = { text = "Inventory", by = "ai" }
+book = { text = "Book of Shadows", by = "ai" }
 interact = { text = "Interact", by = "ai" }
 call_truck = { text = "Call the Truck", by = "ai" }
 hotbar = { text = "Use Hotbar Item", by = "ai" }
@@ -310,6 +434,7 @@ unstow = { text = "Take One Out", by = "ai" }
 unstow_all = { text = "Take All Out", by = "ai" }
 in_pack = { text = "{action} (in Pack)", by = "ai" }
 switch_tab = { text = "Switch Tab", by = "ai" }
+turn_page = { text = "Turn the Page", by = "ai" }
 close = { text = "Close", by = "ai" }
 
 # Sign-in errors, from the Worker (worker/auth.ts) and the client's

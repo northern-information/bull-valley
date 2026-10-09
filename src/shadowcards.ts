@@ -143,6 +143,8 @@ export interface AloneFrame {
   vulnerable: boolean
   // The flashlight, while it is up and on.
   beam: Beam | null
+  // Marx's headlights.
+  lights: Beam[]
 }
 
 export interface ShadowCardsFrame {
@@ -241,7 +243,16 @@ export class ShadowCards {
       this.table = createShadowTable()
       const out = stepShadowmen(this.field, this.rng, {
         dt,
-        raiders: [{ id: ALONE, x: player.x, z: player.z, ...alone }],
+        raiders: [
+          {
+            id: ALONE,
+            x: player.x,
+            z: player.z,
+            vulnerable: alone.vulnerable,
+            beam: alone.beam,
+          },
+        ],
+        lights: alone.lights,
         metres: this.metres,
         havens: this.havens,
         water: this.water,

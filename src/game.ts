@@ -18,7 +18,9 @@ import type { CosmeticId } from './cosmetics.ts'
 import type { TaskProgress } from './dailytask.ts'
 import type { DropMeshes } from './dropmeshes.ts'
 import type { Drop } from './drops.ts'
+import type { Emoting } from './emotes.ts'
 import type { FirstPersonHands } from './fphands.ts'
+import type { PendingAsk } from './friends.ts'
 import type { Geometrie } from './geometrie.ts'
 import type { Glow } from './glow.ts'
 import type { Grave } from './graves.ts'
@@ -37,8 +39,12 @@ import type { NpcId } from './npcs.ts'
 import type { Peers } from './peers.ts'
 import type { Player } from './player.ts'
 import type { PlayerBody } from './playerbody.ts'
-import type { DailyWire, PeerStateWire, WorldWire } from './protocol.ts'
-import type { Radio } from './radiorig.ts'
+import type {
+  DailyWire,
+  FriendWire,
+  PeerStateWire,
+  WorldWire,
+} from './protocol.ts'
 import type { RoadGraph } from './roadgraph.ts'
 import type { Scope } from './scope.ts'
 import type { SeasonProgress } from './season.ts'
@@ -72,9 +78,22 @@ export interface GameState {
   // The account's progress through the season (season.ts) as the valley
   // last sent it; alone, none, and nothing is kept.
   season: SeasonProgress
+  // The Book of Shadows entries the account has found (book.ts), as the
+  // valley last said (the welcome, then every book frame); alone, what this
+  // client has come across, and nothing is kept. Entries asked of the
+  // valley and not yet answered.
+  book: Set<string>
+  bookAsked: Set<string>
   // The account's progress on the daily task (dailytask.ts) as the valley
   // last sent it, on the day it counts; alone, none, and nothing is kept.
   task: TaskProgress
+  // Rule 20: the account's friends list as the valley last sent it; a
+  // /friend or /unfriend waiting on it; whether a /friends is waiting to
+  // be shown; and who the last whisper went to, for a refusal's line.
+  friends: FriendWire[]
+  pendingAsk: PendingAsk | null
+  showFriends: boolean
+  whisperTo: string | null
   // The account's XP in all (progression.ts) as the valley last sent it;
   // alone, none, and nothing is kept.
   xp: number
@@ -99,6 +118,9 @@ export interface GameState {
   // most CONFIG.render.maxStep a frame, so on a slow machine 1.6 s of it
   // can take half a minute, and the player would sit in static the whole
   // while.
+  // The emote under way (emotes.ts), on performance.now() seconds; null
+  // when none.
+  emoting: Emoting | null
   strikeUntil: number
   started: boolean
   greeted: boolean
@@ -106,6 +128,9 @@ export interface GameState {
   // the Citgo.
   strikes: number
   inventoryOpen: boolean
+  // The Book of Shadows is open over the valley, with the pointer free for
+  // it, as the pack's is.
+  bookOpen: boolean
   // Gron's dialog is open: the pointer is free for it, and the game's
   // keys, mouse look and pause screen stand aside until it closes.
   talking: boolean
@@ -178,7 +203,13 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     pendingTrade: false,
     offeredBy: null,
     season: NO_PROGRESS,
+    book: new Set(),
+    bookAsked: new Set(),
     task: NO_TASK,
+    friends: [],
+    pendingAsk: null,
+    showFriends: false,
+    whisperTo: null,
     xp: 0,
     storeStock: freshStock(stations),
     hotbar,
@@ -189,10 +220,12 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     flashlight: HAND_DOWN,
     using: null,
     strikeUntil: 0,
+    emoting: null,
     started: false,
     greeted: false,
     strikes: 0,
     inventoryOpen: false,
+    bookOpen: false,
     talking: false,
     interaction: null,
     lastSent: null,
@@ -243,10 +276,8 @@ export interface Game {
   corpses: CorpseMeshes
   graph: RoadGraph
   truck: Truck
-  // The radio in Marx's cab; none under e2e, which never plays sound.
-  radio: Radio | null
-  // The valley's music, likewise none under e2e, and the settings that
-  // say how loud it plays.
+  // The valley's music, none under e2e, which never plays sound, and the
+  // settings that say how loud it plays.
   music: Music | null
   settings: SettingsStore
   // The roads Matthew Marx drives (truckplan.ts): where he parks, the

@@ -1,5 +1,5 @@
 // The raider's level: one XP bar for the account that everything a raider
-// does feeds (sharedworld.ts rule 20). Burning a shadowman, a ride with
+// does feeds (sharedworld.ts rule 22). Burning a shadowman, a ride with
 // Marx, a berry, a pickup, a unit bought, a drop the valley left taken up,
 // and the Caretaker unmade (a big jump) each grant the XP below; the curve
 // that turns XP into a level is CONFIG.progression.
