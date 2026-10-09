@@ -74,6 +74,18 @@ tracker_label = { text = "Daily task: {count} of {goal} shadowmen burned today",
 banner_done = { text = "Daily Task Done", by = "ai" }
 banner_paid = { text = "+{cash}", by = "ai" }
 
+# The raider's level (src/progression.ts, src/levelhud.ts): a row in the
+# upper-right tracker, the banner on a new level, and the name tags.
+[level]
+kicker = { text = "Raider", by = "ai" }
+title = { text = "Level {level}", by = "ai" }
+progress = { text = "{into}/{span} XP", by = "ai" }
+max = { text = "Max", by = "ai" }
+tracker_label = { text = "Raider level {level}: {into} of {span} XP to the next", by = "ai" }
+tracker_label_max = { text = "Raider level {level}, the highest", by = "ai" }
+banner = { text = "Level {level}", by = "ai" }
+tag = { text = "{name} · {level}", by = "ai" }
+
 [signin]
 title = { text = "Sign In", by = "tyler" }
 lede = { text = "Sign in to raid the valley.", by = "tyler" }
@@ -214,6 +226,8 @@ welcome_many = { text = "{count} others in the valley.", by = "ai" }
 peer_joined = { text = "{name} is in the valley.", by = "ai" }
 peer_left = { text = "{name} is gone.", by = "ai" }
 peer_renamed = { text = "{was} is {name} now.", by = "ai" }
+peer_level = { text = "{name} reached level {level}.", by = "ai" }
+level_up = { text = "You reached raider level {level}.", by = "ai" }
 signal_lost = { text = "Signal lost. The valley goes quiet.", by = "ai" }
 signed_out = { text = "Signed out. Sign in again to raid.", by = "ai" }
 board = { text = "You climb into the bed.", by = "ai" }
@@ -309,6 +323,7 @@ kneel_seen = { text = "{name} kneels.", by = "ai" }
 too_fast = { text = "You are speaking too fast.", by = "ai" }
 offline = { text = "No one can hear you.", by = "ai" }
 online = { text = "In the valley: {names}.", by = "ai" }
+online_name = { text = "{name} (level {level})", by = "ai" }
 unknown_command = { text = "No such command. Try /online, /emotes, /friends, /friend name, /unfriend name or /w name message.", by = "ai" }
 usage_whisper = { text = "To whisper: /w name message", by = "ai" }
 usage_friend = { text = "To ask a raider to be friends: /friend name", by = "ai" }

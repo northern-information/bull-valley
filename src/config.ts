@@ -505,4 +505,13 @@ export const CONFIG = {
     // where it was, each a drop of its own (drops.ts spillsOf).
     bullion: 2,
   },
+  // The raider's level (progression.ts): one XP bar for the account, fed
+  // by everything. Reaching level L takes base * (L - 1) ^ power XP in all,
+  // so each level asks a little more than the last; uncapped by the
+  // season, and never past maxLevel.
+  progression: {
+    base: 100,
+    power: 1.5,
+    maxLevel: 99,
+  },
 }

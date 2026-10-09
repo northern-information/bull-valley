@@ -72,6 +72,8 @@ interface BvHook {
   readonly bookOpen: boolean
   // The account's progress on the daily task, as the valley last said.
   readonly task: TaskProgress
+  // The account's XP in all (progression.ts), as the valley last said.
+  readonly xp: number
   // The account's friends list, as the valley last sent it.
   readonly friends: readonly FriendWire[]
   // The pack as this client holds it: the valley's last word, plus guesses.
@@ -180,6 +182,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     },
     get task() {
       return s.task
+    },
+    get xp() {
+      return s.xp
     },
     get friends() {
       return s.friends

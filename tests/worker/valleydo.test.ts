@@ -6,6 +6,7 @@ import { DAILY_TASK, NO_TASK } from '../../src/dailytask.ts'
 import { DIME_CENTS } from '../../src/drops.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { getItem } from '../../src/items.ts'
+import { XP, xpToReach } from '../../src/progression.ts'
 import { CLOSE, PROTOCOL_VERSION } from '../../src/protocol.ts'
 import { SEASON } from '../../src/season.ts'
 import { dryMap } from '../../src/waterside.ts'
@@ -28,6 +29,7 @@ import type {
   TaskMessage,
   WelcomeMessage,
   WorldMessage,
+  XpMessage,
 } from '../../src/protocol.ts'
 import type { AccountStore } from '../../worker/accounts.ts'
 import type { PackStore } from '../../worker/packs.ts'
@@ -586,6 +588,11 @@ describe('ValleyDO', () => {
       type: 'daily',
       picked: false,
     })
+    // The berry earned XP once (rule 22).
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(a.frames().filter((m) => m.type === 'xp')).toEqual([
+      { type: 'xp', xp: XP.berry, gained: XP.berry },
+    ])
     // The same account on another socket already had today's.
     const twin = await join(v, s, 'Dave')
     expect(twin.last<WelcomeMessage>().daily.collected).toEqual([0])
@@ -717,6 +724,7 @@ describe('ValleyDO', () => {
           name: 'A',
           outfit: 'church',
           cosmetics: [],
+          level: 1,
           at: null,
         },
       })
@@ -1040,6 +1048,8 @@ describe('ValleyDO', () => {
       discover: () => Promise.reject(new Error('D1 is down')),
       task: () => Promise.reject(new Error('D1 is down')),
       scoreTask: () => Promise.reject(new Error('D1 is down')),
+      xp: () => Promise.reject(new Error('D1 is down')),
+      gainXp: () => Promise.reject(new Error('D1 is down')),
     }
     const errors: unknown[] = []
     const error = console.error
@@ -1132,6 +1142,8 @@ describe('ValleyDO', () => {
         task: (id, task) => store.task(id, task),
         scoreTask: (id, task, progress, reward) =>
           store.scoreTask(id, task, progress, reward),
+        xp: (id) => store.xp(id),
+        gainXp: (id, amount) => store.gainXp(id, amount),
       }
       await buy()
       expect(a.last<NackMessage>()).toMatchObject({ reason: 'unavailable' })
@@ -1236,6 +1248,8 @@ describe('ValleyDO: drops', () => {
       task: (id, task) => store.task(id, task),
       scoreTask: (id, task, progress, reward) =>
         store.scoreTask(id, task, progress, reward),
+      xp: (id) => store.xp(id),
+      gainXp: (id, amount) => store.gainXp(id, amount),
       change: () => Promise.reject(new Error('down')),
       earn: (id, amount) => store.earn(id, amount),
     }
@@ -1389,6 +1403,8 @@ describe('ValleyDO: corpse runs', () => {
         task: (id, task) => store.task(id, task),
         scoreTask: (id, task, progress, reward) =>
           store.scoreTask(id, task, progress, reward),
+        xp: (id) => store.xp(id),
+        gainXp: (id, amount) => store.gainXp(id, amount),
       }
       await v.webSocketMessage(ws(a), '{"type":"loot","corpse":0}')
       expect(a.last<NackMessage>()).toMatchObject({ reason: 'unavailable' })
@@ -1704,6 +1720,39 @@ describe('ValleyDO: the shadowmen', () => {
     expect(tasks(b)).toEqual([])
   })
 
+  const xps = (socket: MockSocket) =>
+    socket.frames().filter((m): m is XpMessage => m.type === 'xp')
+
+  it('earns the account whose beam burst it XP (rule 22)', async () => {
+    const { a, b } = await burst()
+    expect(a.frames()[0]).toMatchObject({ type: 'welcome', xp: 0 })
+    // A crossing shadowman may burn in the same beam too.
+    const [first] = xps(a)
+    expect(first.gained).toBeGreaterThanOrEqual(XP.burn)
+    expect(first.xp).toBe(first.gained)
+    expect(xps(b)).toEqual([])
+  })
+
+  it('shows everyone the level a burn reaches', async () => {
+    const store = new MemoryPackStore()
+    const { a, b } = await burst(async (v) => {
+      v.packStore = store
+      await store.open('acct-A')
+      await store.gainXp('acct-A', xpToReach(2) - 1)
+    })
+    // The welcome and the roster carried the level the account had.
+    expect(a.frames()[0]).toMatchObject({ xp: xpToReach(2) - 1 })
+    const roster = b.frames()[0] as WelcomeMessage
+    expect(roster.peers).toMatchObject([{ name: 'A', level: 1 }])
+    const updated = b
+      .frames()
+      .filter((m): m is PeerUpdatedMessage => m.type === 'peer-updated')
+    expect(updated).toMatchObject([{ peer: { name: 'A', level: 2 } }])
+    expect(await store.xp('acct-A')).toBeGreaterThanOrEqual(
+      xpToReach(2) - 1 + XP.burn
+    )
+  })
+
   it("pays the day's reward on the burn that finishes the task", async () => {
     const store = new MemoryPackStore()
     const { a } = await burst(async (v) => {
@@ -1762,6 +1811,8 @@ describe('ValleyDO: the shadowmen', () => {
       task: (id, task) => store.task(id, task),
       scoreTask: (id, task, progress, reward) =>
         store.scoreTask(id, task, progress, reward),
+      xp: (id) => store.xp(id),
+      gainXp: (id, amount) => store.gainXp(id, amount),
     }
     const error = console.error
     console.error = () => {}
@@ -1884,6 +1935,8 @@ describe('ValleyDO: the shadowmen', () => {
       task: (id, task) => store.task(id, task),
       scoreTask: (id, task, progress, reward) =>
         store.scoreTask(id, task, progress, reward),
+      xp: (id) => store.xp(id),
+      gainXp: (id, amount) => store.gainXp(id, amount),
     }
     const heart = heartPoint(theMaze())
     const hx = MAZE.x + heart.x
@@ -2025,6 +2078,8 @@ describe("ValleyDO: Moab's trade", () => {
         task: (id, task) => store.task(id, task),
         scoreTask: (id, task, progress, reward) =>
           store.scoreTask(id, task, progress, reward),
+        xp: (id) => store.xp(id),
+        gainXp: (id, amount) => store.gainXp(id, amount),
       }
       await v.webSocketMessage(ws(a), trade())
       expect(a.last<NackMessage>()).toMatchObject({ reason: 'unavailable' })

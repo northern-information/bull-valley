@@ -168,13 +168,32 @@ describe('othersLine', () => {
 })
 
 describe('onlineLine', () => {
-  it('names this raider first, then the others by name', () => {
-    expect(onlineLine('Mo', ['zed', 'Able', 'baker'])).toBe(
-      copy('chat.online', { names: 'Mo, Able, baker, zed' })
+  const raider = (name: string, level = 1) => ({ name, level })
+  const named = (name: string, level = 1) =>
+    copy('chat.online_name', { name, level })
+
+  it('names this raider first, then the others by name, with levels', () => {
+    expect(
+      onlineLine(raider('Mo', 3), [
+        raider('zed'),
+        raider('Able', 12),
+        raider('baker'),
+      ])
+    ).toBe(
+      copy('chat.online', {
+        names: [
+          named('Mo', 3),
+          named('Able', 12),
+          named('baker'),
+          named('zed'),
+        ].join(', '),
+      })
     )
   })
 
   it('names this raider alone', () => {
-    expect(onlineLine('Mo', [])).toBe(copy('chat.online', { names: 'Mo' }))
+    expect(onlineLine(raider('Mo'), [])).toBe(
+      copy('chat.online', { names: named('Mo') })
+    )
   })
 })

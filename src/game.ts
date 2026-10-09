@@ -94,6 +94,9 @@ export interface GameState {
   pendingAsk: PendingAsk | null
   showFriends: boolean
   whisperTo: string | null
+  // The account's XP in all (progression.ts) as the valley last sent it;
+  // alone, none, and nothing is kept.
+  xp: number
   // Every Citgo's shelves, one stock per station like world.fuelPoints.
   storeStock: ShopStock[]
   // The item on each number key: the account's, saved one change at a
@@ -207,6 +210,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     pendingAsk: null,
     showFriends: false,
     whisperTo: null,
+    xp: 0,
     storeStock: freshStock(stations),
     hotbar,
     hotbarSaved: Promise.resolve(),

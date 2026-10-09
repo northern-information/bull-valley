@@ -1,7 +1,7 @@
 // The pack store on D1 (migrations/0002_packs.sql): one row per item an
 // account has held, and one wallet per account; the cosmetics it has
-// (0004_cosmetics.sql); its locker (0007_stashes.sql); and its Book of
-// Shadows (0008_book.sql). Every change is
+// (0004_cosmetics.sql); its locker (0007_stashes.sql); its Book of
+// Shadows (0008_book.sql); and its XP (0010_levels.sql). Every change is
 // a single statement or one batch, which is one transaction,
 // statement, so two sockets on one account can never lose a unit or a cent
 // between a read and a write.
@@ -368,5 +368,27 @@ export class D1PackStore implements PackStore {
           ]
         : []),
     ])
+  }
+
+  async xp(accountId: string): Promise<number> {
+    const row = await this.db
+      .prepare('SELECT xp FROM levels WHERE account_id = ?')
+      .bind(accountId)
+      .first<{ xp: number }>()
+    return row?.xp ?? 0
+  }
+
+  // One statement: two grants landing together each add theirs.
+  async gainXp(accountId: string, amount: number): Promise<number> {
+    const row = await this.db
+      .prepare(
+        'INSERT INTO levels (account_id, xp) VALUES (?, ?) ' +
+          'ON CONFLICT (account_id) DO UPDATE SET xp = xp + excluded.xp ' +
+          'RETURNING xp'
+      )
+      .bind(accountId, amount)
+      .first<{ xp: number }>()
+    if (!row) throw new Error('The XP was not written')
+    return row.xp
   }
 }

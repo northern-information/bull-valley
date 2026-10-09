@@ -22,6 +22,7 @@ import { pickupLabel } from './interactions.ts'
 import { toInventory } from './inventory.ts'
 import { itemById } from './items.ts'
 import { createTruck } from './marx.ts'
+import { levelUp } from './progression.ts'
 import { CLOSE } from './protocol.ts'
 import { SEASON } from './season.ts'
 import { formatCash } from './store.ts'
@@ -65,10 +66,17 @@ export function wireValley(game: Game, actions: Actions): void {
       case 'peer-updated': {
         // Our own comes back too; the dialog has said so already.
         if (msg.peer.id === net.id) return
-        const was = peers.table.get(msg.peer.id)?.name
+        const was = peers.table.get(msg.peer.id)
+        const { name, level } = msg.peer
+        const wasLevel = was?.level
+        const wasName = was?.name
         peers.updated(msg.peer)
-        if (was && was !== msg.peer.name) {
-          hud.tell(copy('log.peer_renamed', { was, name: msg.peer.name }))
+        if (wasName && wasName !== name) {
+          hud.tell(copy('log.peer_renamed', { was: wasName, name }))
+        }
+        // Rule 22.
+        if (wasLevel !== undefined && level > wasLevel) {
+          hud.tell(copy('log.peer_level', { name, level }))
         }
         return
       }
@@ -371,9 +379,23 @@ export function wireValley(game: Game, actions: Actions): void {
       applyTask(msg.task)
       // What the account has found already is no news.
       actions.setBook(toFound(msg.book))
+      s.xp = msg.xp
     } else if (msg.type === 'book') {
       // Rule 20: written in the account's Book of Shadows.
       actions.applyBook(msg.found)
+    } else if (msg.type === 'xp') {
+      // Rule 22: XP only grows, so a frame overtaken by a later one is
+      // old news.
+      const before = s.xp
+      s.xp = Math.max(s.xp, msg.xp)
+      const level = levelUp(before, s.xp)
+      if (level !== null) {
+        hud.season.announce({
+          kicker: copy('level.kicker'),
+          headline: copy('level.banner', { level }),
+        })
+        hud.tell(copy('log.level_up', { level }))
+      }
     } else if (msg.type === 'task') {
       // Rule 16: credited with a burn. A reward's pack frame follows.
       if (!applyTask(msg.task)) return

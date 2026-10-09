@@ -33,6 +33,7 @@ const wire = (id: string, placed = true): PeerWire => ({
   id,
   name: id.toUpperCase(),
   outfit: 'coleman',
+  level: 1,
   cosmetics: [],
   at: placed ? at(0, 0) : null,
 })
@@ -70,12 +71,14 @@ describe('peer table', () => {
       id: 'a',
       name: 'Renamed',
       outfit: 'church',
+      level: 4,
       cosmetics: ['flaming-halo'],
       at: null,
     })
     expect(updated).toMatchObject({
       name: 'Renamed',
       outfit: 'church',
+      level: 4,
       cosmetics: ['flaming-halo'],
     })
     expect(peers.get('a')?.prev?.x).toBe(1)

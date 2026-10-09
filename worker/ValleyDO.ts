@@ -13,7 +13,8 @@
 // task's (rule 16), so a burn is counted once and the day's reward paid
 // once; and a strike that empties the pack onto a body (rule 18), a body
 // looted, and a move to or from the locker (rule 19), so no unit is in two
-// places.
+// places. XP (rule 22) needs no such care: each account's is added in one
+// statement (PackStore.gainXp), whatever lands beside it.
 //
 // The shadowmen (rule 11) and the Caretaker (rule 13) are stepped here
 // CONFIG.shadowmen.tickHz times a second while anyone is placed in the
@@ -30,6 +31,7 @@ import { DAILY_TASK, tallyTask } from '../src/dailytask.ts'
 import { spillsOf } from '../src/drops.ts'
 import { sameName, whereabouts } from '../src/friends.ts'
 import { burialsOf } from '../src/graves.ts'
+import { levelOf, levelUp, totals } from '../src/progression.ts'
 import {
   CLOSE,
   isValidName,
@@ -60,6 +62,7 @@ import type { CosmeticId } from '../src/cosmetics.ts'
 import type { TaskProgress } from '../src/dailytask.ts'
 import type { FriendRow } from '../src/friends.ts'
 import type { Inventory, XZ } from '../src/interfaces.ts'
+import type { XpGrant } from '../src/progression.ts'
 import type {
   HelloMessage,
   PackMessage,
@@ -407,6 +410,7 @@ export class ValleyDO extends DurableObject<Env> {
     this.broadcast(out.message, null)
     if (out.credited.length > 0) void this.credit(out.credited)
     if (out.burned.length > 0) void this.creditBurns(out.burned)
+    if (out.xp.length > 0) void this.award(out.xp)
     const { bursts, unmade } = out.message
     if (bursts.length || unmade) void this.spill(bursts, unmade)
     if (out.struck.length === 0) return
@@ -600,12 +604,14 @@ export class ValleyDO extends DurableObject<Env> {
     let season: SeasonProgress
     let book: string[]
     let task: TaskProgress
+    let xp: number
     try {
       const packs = this.packs()
       holdings = await packs.open(account)
       season = await packs.season(account, SEASON.id)
       book = await packs.book(account)
       task = await packs.task(account, DAILY_TASK.id)
+      xp = await packs.xp(account)
     } catch (err) {
       console.error('The pack could not be opened', err)
       ws.close(CLOSE.serverError, 'The valley lost the pack')
@@ -640,6 +646,7 @@ export class ValleyDO extends DurableObject<Env> {
       name,
       outfit: hello.outfit,
       cosmetics: holdings.cosmetics,
+      level: levelOf(xp),
       at: null,
     }
     ws.serializeAttachment({ ...attachment, me } satisfies Attachment)
@@ -665,6 +672,7 @@ export class ValleyDO extends DurableObject<Env> {
       season: seasonWire(season),
       book,
       task: taskWire(task),
+      xp,
     })
     this.broadcast({ type: 'peer-joined', peer: me }, ws)
     for (const msg of reduced.broadcast) this.broadcast(msg, ws)
@@ -1258,6 +1266,38 @@ export class ValleyDO extends DurableObject<Env> {
     })
   }
 
+  // Rule 22: the XP each account earned, added to its own; every socket on
+  // the account hears its XP in all, and everyone sees a new level.
+  private async award(grants: readonly XpGrant[]): Promise<void> {
+    const packs = this.packs()
+    for (const [account, gained] of totals(grants)) {
+      try {
+        const xp = await packs.gainXp(account, gained)
+        this.toAccount(account, { type: 'xp', xp, gained })
+        const level = levelUp(xp - gained, xp)
+        if (level !== null) this.relevel(account, level)
+      } catch (err) {
+        console.error('The XP could not be written', account, gained, err)
+      }
+    }
+  }
+
+  // Every socket on `account` shown to everyone at `level`. Two grants
+  // landing out of order never take a level back.
+  private relevel(account: string, level: number): void {
+    for (const socket of this.ctx.getWebSockets()) {
+      const attachment = this.attachment(socket)
+      const me = attachment.me
+      if (attachment.account !== account || !me || me.level >= level) continue
+      const next: PeerWire = { ...me, level }
+      socket.serializeAttachment({
+        ...attachment,
+        me: next,
+      } satisfies Attachment)
+      this.broadcast({ type: 'peer-updated', peer: next }, null)
+    }
+  }
+
   // The account's pack frame: its holdings, and its bodies lying in the
   // valley.
   private packFrame(account: string, holdings: Holdings): PackMessage {
@@ -1305,7 +1345,7 @@ export class ValleyDO extends DurableObject<Env> {
   }
 
   // Persist the valley and arm the alarm for its next change, or clear it
-  // with nobody here to see one.
+  // with nobody here to see one; and what the action earned (rule 22).
   private async apply(reduced: Reduced): Promise<void> {
     this.valley = reduced.valley
     await this.ctx.storage.put(VALLEY_KEY, this.valley)
@@ -1314,6 +1354,7 @@ export class ValleyDO extends DurableObject<Env> {
     } else {
       await this.ctx.storage.setAlarm(reduced.alarm)
     }
+    if (reduced.xp) void this.award(reduced.xp)
   }
 
   // Ids of everyone who has said hello, except the socket given.

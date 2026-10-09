@@ -350,6 +350,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     } else {
       hud.task.set(null)
     }
+    hud.level.set(net.online ? s.xp : null)
     hud.tickChat(performance.now())
 
     scope.draw(dt, {

@@ -2,7 +2,7 @@
 // kept by the valley so they follow the raider to any browser. The
 // interface is here with an in-memory store for the tests; production is
 // the D1 store in d1packs.ts. The rules of what goes in and out are
-// src/sharedworld.ts's (rules 7, 10, 16, 18 and 19).
+// src/sharedworld.ts's (rules 7, 10, 16, 18, 19, 20 and 22).
 
 import { newlyFound } from '../src/book.ts'
 import { CONFIG } from '../src/config.ts'
@@ -97,6 +97,11 @@ export interface PackStore {
     progress: TaskProgress,
     reward: number | null
   ): Promise<void>
+  // The account's XP in all (src/progression.ts), none before the first.
+  xp(accountId: string): Promise<number>
+  // Adds `amount` XP to the account's, in one step however many grants
+  // land at once, and returns its XP in all after.
+  gainXp(accountId: string, amount: number): Promise<number>
 }
 
 // Units of one kind going into a pack.
@@ -116,6 +121,7 @@ export class MemoryPackStore implements PackStore {
   readonly books = new Map<string, string[]>()
   // `${account}/${task}` -> progress.
   readonly tasks = new Map<string, TaskProgress>()
+  readonly levels = new Map<string, number>()
 
   open(accountId: string): Promise<Holdings> {
     if (!this.packs.has(accountId)) {
@@ -259,5 +265,15 @@ export class MemoryPackStore implements PackStore {
       this.wallets.set(accountId, (this.wallets.get(accountId) ?? 0) + reward)
     }
     return Promise.resolve()
+  }
+
+  xp(accountId: string): Promise<number> {
+    return Promise.resolve(this.levels.get(accountId) ?? 0)
+  }
+
+  gainXp(accountId: string, amount: number): Promise<number> {
+    const xp = (this.levels.get(accountId) ?? 0) + amount
+    this.levels.set(accountId, xp)
+    return Promise.resolve(xp)
   }
 }

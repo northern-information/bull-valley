@@ -173,6 +173,19 @@ function packContract(makeStore: () => PackStore): void {
     expect(await store.task('a1', 't')).toEqual(next)
   })
 
+  it('adds XP to the account’s, none before the first', async () => {
+    const store = makeStore()
+    await store.open('a1')
+    expect(await store.xp('a1')).toBe(0)
+    expect(await store.gainXp('a1', 10)).toBe(10)
+    const [one, two] = await Promise.all([
+      store.gainXp('a1', 5),
+      store.gainXp('a1', 25),
+    ])
+    expect(Math.max(one, two)).toBe(40)
+    expect(await store.xp('a1')).toBe(40)
+  })
+
   it('empties the whole pack onto a body, and gives it back', async () => {
     const store = makeStore()
     await store.open('a1')

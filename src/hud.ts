@@ -7,6 +7,7 @@ import { PACK, PACK_IN_MENU, WORLD } from './bindings.ts'
 import { BookHud } from './bookhud.ts'
 import { CHAT_LINES, formatStamp, isFaded, pushLine } from './chat.ts'
 import { copy } from './copy.ts'
+import { LevelHud } from './levelhud.ts'
 import { bagTabs, LOCKER_TAB, PACK_TABS } from './packgrid.ts'
 import { CHAT_MAX } from './protocol.ts'
 import { SeasonHud } from './seasonhud.ts'
@@ -241,6 +242,8 @@ export class Hud {
   book: BookHud
   // The daily task's row in the season's tracker.
   task: TaskHud
+  // The raider's level, under it.
+  level: LevelHud
 
   constructor(root: HTMLElement) {
     this.root = root
@@ -257,6 +260,7 @@ export class Hud {
     this.season = new SeasonHud(ui)
     this.book = new BookHud(ui)
     this.task = new TaskHud(this.season.tracker)
+    this.level = new LevelHud(this.season.tracker)
 
     // Loadout countdown: bare numbers, top center.
     this.countdown = el('p', 'bv-countdown')

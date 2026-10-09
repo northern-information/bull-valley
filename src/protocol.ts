@@ -19,7 +19,7 @@ import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 25
+export const PROTOCOL_VERSION = 26
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -79,12 +79,14 @@ export interface PeerStateWire {
 // A player as the server knows them. `at` is null until their first state
 // frame; a figure is only drawn once it is placed. cosmetics: what they
 // wear over the outfit, as their account holds it (cosmetics.ts), never
-// the client's word.
+// the client's word. level: their account's (progression.ts), read by the
+// valley from D1.
 export interface PeerWire {
   id: string
   name: string
   outfit: OutfitId
   cosmetics: CosmeticId[]
+  level: number
   at: PeerStateWire | null
 }
 
@@ -437,6 +439,8 @@ export interface WelcomeMessage {
   book: string[]
   // The account's progress on the daily task (dailytask.ts).
   task: TaskWire
+  // The account's XP in all (progression.ts; sharedworld.ts rule 22).
+  xp: number
 }
 
 // An account's progress through the season (sharedworld.ts rule 15): the
@@ -482,6 +486,15 @@ export interface TaskMessage {
   type: 'task'
   task: TaskWire
   rewarded: boolean
+}
+
+// The account earned XP (sharedworld.ts rule 22). Sent to every socket
+// signed in to it: its XP in all now, and how much this added. A new
+// level also sends everyone a peer-updated frame for each of its sockets.
+export interface XpMessage {
+  type: 'xp'
+  xp: number
+  gained: number
 }
 
 // The account's pack, wallet (cents), cosmetics and locker, and the ids of
@@ -646,6 +659,7 @@ export type ServerMessage =
   | SeasonMessage
   | BookMessage
   | TaskMessage
+  | XpMessage
   | WhisperedMessage
   | FriendsListMessage
   | FriendNewsMessage

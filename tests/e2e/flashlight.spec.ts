@@ -1,3 +1,4 @@
+import { barOf, XP } from '../../src/progression.ts'
 import { copy } from './copy.ts'
 import { beginRaid, expect, heardWhere, test } from './fixtures.ts'
 
@@ -83,6 +84,17 @@ test('a shadowman held in the beam bursts into dimes', async ({ page }) => {
     copy('task.progress', { count: 1, goal: 5 })
   )
   await expect(page.locator('.bv-task .bv-season-pip--lit')).toHaveCount(1)
+
+  // And earns the raider XP (rule 22), shown on the level row under it.
+  const xp = () => page.evaluate(() => window.__bv?.xp ?? 0)
+  await expect.poll(xp).toBeGreaterThanOrEqual(XP.burn)
+  const { level, into, span } = barOf(await xp())
+  await expect(page.locator('.bv-level .bv-season-title')).toHaveText(
+    copy('level.title', { level })
+  )
+  await expect(page.locator('.bv-level-count')).toHaveText(
+    copy('level.progress', { into, span: span ?? 0 })
+  )
 
   // It leaves its dimes lying where it stood; E takes them up into the
   // wallet, never the pack, and the log says so.
