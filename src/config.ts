@@ -347,6 +347,11 @@ export const CONFIG = {
   },
   cabbage: {
     count: 48,
+    // Under the dish array behind the spawn Citgo (cabbages.ts
+    // placeDishCabbages): this many, each under its own dish, between
+    // `near` and `far` metres off the pedestal: past the concrete pad
+    // (assets.ts DISH.pad) and inside the reflector's rim.
+    underDishes: { count: 8, near: 2.4, far: 3.8 },
   },
   // Items dropped from the pack (drops.ts).
   drops: {

@@ -7,7 +7,7 @@
 import { CONFIG } from './config.ts'
 import { pointInPolygon, polygonBounds } from './coords.ts'
 import { range } from './rng.ts'
-import type { Geo, Metres } from './interfaces.ts'
+import type { Geo, Metres, XZ } from './interfaces.ts'
 import type { Rng } from './rng.ts'
 
 export type CabbageSource = 'cluster' | 'wetland' | 'reserve'
@@ -26,6 +26,9 @@ export interface CabbageOptions {
 }
 
 export const CABBAGE_SEED = 0xcabba6e
+// The cabbages under the dishes draw from their own seed, so moving the
+// array never reshuffles the wild ones.
+export const DISH_CABBAGE_SEED = 0xd15ca6e
 
 // geo: the survey (wetland rings, reserves). patch: the cabbage patch in
 // unit coords { u, v }. metres: geo.metres, for the cluster radius.
@@ -69,6 +72,29 @@ export function placeCabbages(
     if (!pointInPolygon(u, v, poly)) continue
     if (u < 0 || u > 1 || v < 0 || v > 1) continue
     spots.push({ u, v, src: useWetland ? 'wetland' : 'reserve' })
+  }
+  return spots
+}
+
+// Cabbages growing in the shade under the dish array behind the spawn
+// Citgo (CONFIG.cabbage.underDishes): each under its own dish, drawn at
+// random, a seeded step off the pedestal, past its pad and still under the
+// reflector. dishes: where each pedestal stands, in world metres.
+export function placeDishCabbages(
+  dishes: readonly XZ[],
+  rng: Rng,
+  { count, near, far } = CONFIG.cabbage.underDishes
+): XZ[] {
+  const pool = dishes.map((_, i) => i)
+  const spots: XZ[] = []
+  while (spots.length < count && pool.length > 0) {
+    const [i] = pool.splice(Math.floor(rng() * pool.length), 1)
+    const angle = rng() * Math.PI * 2
+    const r = range(rng, near, far)
+    spots.push({
+      x: dishes[i].x + Math.cos(angle) * r,
+      z: dishes[i].z + Math.sin(angle) * r,
+    })
   }
   return spots
 }

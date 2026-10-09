@@ -44,7 +44,12 @@ import {
   wireMaterial,
   WRECK,
 } from './assets.ts'
-import { CABBAGE_SEED, placeCabbages } from './cabbages.ts'
+import {
+  CABBAGE_SEED,
+  DISH_CABBAGE_SEED,
+  placeCabbages,
+  placeDishCabbages,
+} from './cabbages.ts'
 import { CONFIG } from './config.ts'
 import {
   pointInPolygon,
@@ -1590,6 +1595,7 @@ function buildPickups(
   metres: Metres,
   heightAt: HeightAt,
   fuelPoints: readonly FuelPoint[],
+  dishSpots: readonly XZ[],
   rng: Rng
 ): { group: THREE.Group; pickups: Pickup[] } {
   const group = new THREE.Group()
@@ -1652,6 +1658,13 @@ function buildPickups(
   })
   for (const spot of cabbages) {
     const { x, z } = unitToWorld(spot.u, spot.v, metres)
+    place(x, z, 'cabbage', 1)
+  }
+  // And a few in the shade under the dishes behind the spawn Citgo.
+  for (const { x, z } of placeDishCabbages(
+    dishSpots,
+    mulberry32(DISH_CABBAGE_SEED)
+  )) {
     place(x, z, 'cabbage', 1)
   }
   return { group, pickups }
@@ -2047,7 +2060,14 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   const landmarks = buildLandmarks(geo, metres, ground.at)
   group.add(landmarks.group)
   group.add(buildBoundary(geo, metres, ground.at))
-  const pickupSet = buildPickups(geo, metres, ground.at, fuel.points, rng)
+  const pickupSet = buildPickups(
+    geo,
+    metres,
+    ground.at,
+    fuel.points,
+    dishSpots,
+    rng
+  )
   group.add(pickupSet.group)
   let portal: MazePortal | null = null
   if (spawnStation && maze) {

@@ -21,7 +21,7 @@ import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 28
+export const PROTOCOL_VERSION = 29
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
