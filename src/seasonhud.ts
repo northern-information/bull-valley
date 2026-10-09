@@ -1,9 +1,10 @@
 // The season as the raider sees it (season.ts): the card on the intro and
 // pause overlay that says what the season asks and pays, the tracker in
-// the upper right (out of sight but for a few seconds after the season's
-// or the daily task's count goes up), and the banners that sweep across
-// the view when the season goes live, when the raider helps unmake the
-// Caretaker, and when the season is done. Hud builds it; valleysync.ts and input.ts feed it.
+// the upper right (out of sight but for a few seconds after the season's,
+// the daily task's or the level's count goes up), and the banners that
+// sweep across the view when the season goes live, when the raider helps
+// unmake the Caretaker, and when the season is done. Hud builds it;
+// valleysync.ts and input.ts feed it.
 
 import { copy } from './copy.ts'
 import { newsOf, SEASON, shownKills } from './season.ts'
