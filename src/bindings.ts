@@ -47,6 +47,7 @@ export const WORLD = {
   crouch: { codes: ['KeyC'], key: 'C', labelKey: 'keys.crouch' },
   scope: { codes: ['KeyQ'], key: 'Q', labelKey: 'keys.scope' },
   inventory: { codes: ['Tab'], key: 'Tab', labelKey: 'keys.inventory' },
+  book: { codes: ['KeyB'], key: 'B', labelKey: 'keys.book' },
   interact: { codes: ['KeyE'], key: 'E', labelKey: 'keys.interact' },
   callTruck: { codes: ['KeyT'], key: 'T', labelKey: 'keys.call_truck' },
   hotbar: { codes: HOTBAR_CODES, key: '1–9', labelKey: 'keys.hotbar' },
@@ -93,6 +94,33 @@ export const PACK = {
     labelKey: 'keys.switch_tab',
   },
   close: { codes: ['Tab', 'Escape'], key: 'Tab', labelKey: 'keys.close' },
+} as const satisfies Record<string, Binding>
+
+// With the Book of Shadows open (bookhud.ts): A and D switch the chapter,
+// W and S turn to the entry above or below, and B or Esc closes it. The
+// arrows are quiet aliases, as in the pack.
+export const BOOK = {
+  prevChapter: {
+    codes: ['KeyA', 'ArrowLeft'],
+    key: 'A',
+    labelKey: 'keys.switch_tab',
+  },
+  nextChapter: {
+    codes: ['KeyD', 'ArrowRight'],
+    key: 'D',
+    labelKey: 'keys.switch_tab',
+  },
+  prevEntry: {
+    codes: ['KeyW', 'ArrowUp'],
+    key: 'W',
+    labelKey: 'keys.turn_page',
+  },
+  nextEntry: {
+    codes: ['KeyS', 'ArrowDown'],
+    key: 'S',
+    labelKey: 'keys.turn_page',
+  },
+  close: { codes: ['KeyB', 'Escape'], key: 'B', labelKey: 'keys.close' },
 } as const satisfies Record<string, Binding>
 
 // The pack's keys the controls table lists too, under the valley's: only

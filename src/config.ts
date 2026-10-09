@@ -27,6 +27,25 @@ export const CONFIG = {
     // The body's radius, for the store walls.
     radius: 0.3,
   },
+  // The Book of Shadows (book.ts): how near a raider must come for each
+  // place to be written in it (world.ts bookSights), in metres, and how
+  // near a shadow, as the scope reads it.
+  book: {
+    reach: {
+      citgo: 25,
+      stand: 7,
+      wreck: 12,
+      // From the middle of the array, which runs some 70 m a side.
+      dishes: 45,
+      // Past the field's own edge.
+      donutField: 4,
+      // Past the corn, either side of the maze.
+      maze: 8,
+      heart: 12,
+      keep: 40,
+    },
+    sightRange: 25,
+  },
   shadowmen: {
     // Crossings: this many shadowmen at once in a bubble around the player.
     count: 12,

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   CHAT_MAX,
   CLOSE,
+  DISCOVER_MAX,
   isValidChat,
   isValidName,
   MAX_COORD,
@@ -228,6 +229,23 @@ describe('parseClientMessage', () => {
       x: 1,
       z: -2,
     })
+  })
+
+  it('parses a discover frame, leaving which entries are real to the valley', () => {
+    expect(parse({ type: 'discover', entries: ['citgo', 'nowhere'] })).toEqual({
+      type: 'discover',
+      entries: ['citgo', 'nowhere'],
+    })
+    expect(parse({ type: 'discover', entries: [] })).toBeNull()
+    expect(parse({ type: 'discover', entries: 'citgo' })).toBeNull()
+    expect(parse({ type: 'discover', entries: ['citgo', 3] })).toBeNull()
+    expect(parse({ type: 'discover', entries: [''] })).toBeNull()
+    expect(
+      parse({
+        type: 'discover',
+        entries: Array.from({ length: DISCOVER_MAX + 1 }, () => 'citgo'),
+      })
+    ).toBeNull()
   })
 
   it('parses the raid frames', () => {

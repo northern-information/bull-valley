@@ -71,6 +71,12 @@ export interface GameState {
   // The account's progress through the season (season.ts) as the valley
   // last sent it; alone, none, and nothing is kept.
   season: SeasonProgress
+  // The Book of Shadows entries the account has found (book.ts), as the
+  // valley last said (the welcome, then every book frame); alone, what this
+  // client has come across, and nothing is kept. Entries asked of the
+  // valley and not yet answered.
+  book: Set<string>
+  bookAsked: Set<string>
   // The account's progress on the daily task (dailytask.ts) as the valley
   // last sent it, on the day it counts; alone, none, and nothing is kept.
   task: TaskProgress
@@ -102,6 +108,9 @@ export interface GameState {
   // the Citgo.
   strikes: number
   inventoryOpen: boolean
+  // The Book of Shadows is open over the valley, with the pointer free for
+  // it, as the pack's is.
+  bookOpen: boolean
   // Gron's dialog is open: the pointer is free for it, and the game's
   // keys, mouse look and pause screen stand aside until it closes.
   talking: boolean
@@ -174,6 +183,8 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     pendingTrade: false,
     offeredBy: null,
     season: NO_PROGRESS,
+    book: new Set(),
+    bookAsked: new Set(),
     task: NO_TASK,
     storeStock: freshStock(stations),
     hotbar,
@@ -188,6 +199,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     greeted: false,
     strikes: 0,
     inventoryOpen: false,
+    bookOpen: false,
     talking: false,
     interaction: null,
     lastSent: null,
