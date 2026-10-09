@@ -4,6 +4,7 @@
 
 import * as THREE from 'three'
 import { pulseMaterials } from './assets.ts'
+import { itemsHeld, sightsInReach } from './book.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { moabOffer } from './cosmetics.ts'
@@ -23,8 +24,7 @@ import { settleTruck } from './marx.ts'
 import { inPortal } from './maze.ts'
 import { packItemOf } from './packgrid.ts'
 import { poseOf, stateChanged } from './presence.ts'
-import { heardAt } from './radio.ts'
-import { aimHeightOf, beamFrom } from './shadowmen.ts'
+import { aimHeightOf, beamFrom, headlightBeam } from './shadowmen.ts'
 import { formatCash } from './store.ts'
 import { tripLevel } from './trip.ts'
 import { boardable, clockText, countdown, seatOf } from './worldsync.ts'
@@ -51,7 +51,6 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     sky,
     world,
     truck,
-    radio,
     music,
     settings,
     player,
@@ -195,21 +194,11 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       })
       truck.update(dt, now)
     }
-    // Marx's radio, at the valley's moment: the valley's clock online, the
-    // wall clock alone, as his day is.
-    const radioDistance = truck.distanceTo(player.pos.x, player.pos.z)
-    radio?.update({
-      serverMs: s.world ? net.clock.serverNow(now) : Date.now(),
-      distance: radioDistance,
-      riding: s.aboard,
-      started: s.started,
-    })
-    // The valley's music, at the raider's setting, under the radio.
+    // The valley's music, at the raider's setting.
     music?.update({
       now,
       started: s.started,
       setting: settings.current.music,
-      radioGain: heardAt(radioDistance, s.aboard, CONFIG.radio).gain,
     })
     if (s.onTruckRolls.length && truck.rolling()) {
       for (const line of s.onTruckRolls) hud.tell(line)
@@ -250,6 +239,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
                 crouching
               )
             : null,
+          lights: [headlightBeam(truck.headlights())],
         }
     const swarm = shadowmen.update({
       dt,
@@ -328,6 +318,14 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         s.lastSent = state
         net.sendState(state)
       }
+      // Near Marx's truck, where it stands, so the valley can aim its
+      // headlights at the shadowmen round us.
+      if (
+        truck.distanceTo(player.pos.x, player.pos.z) <
+        CONFIG.shadowmen.despawnRadius
+      ) {
+        net.sendHeadlights(truck.headlights())
+      }
     }
 
     hud.setCountdown(countdownLine(now))
@@ -363,6 +361,21 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       forward,
       perception,
     })
+
+    // The Book of Shadows: the places in reach, a shadow come within
+    // sight, and whatever the pack holds, written the first time
+    // (actions.ts discover leaves out what is found or asked).
+    if (s.started) {
+      const range = CONFIG.book.sightRange
+      actions.discover([
+        ...sightsInReach(world.sights, player.pos),
+        ...(swarm.contacts.some((c) => c.dist <= range) ? ['shadowman'] : []),
+        ...(keeper.contact && keeper.contact.dist <= range
+          ? ['caretaker']
+          : []),
+        ...itemsHeld(s.inventory),
+      ])
+    }
 
     // Pickups pulse every frame, whatever the prompt says.
     const pulse = 0.35 + Math.sin(time * 3) * 0.2

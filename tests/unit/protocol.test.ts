@@ -3,6 +3,7 @@ import { EMOTE_IDS } from '../../src/emotes.ts'
 import {
   CHAT_MAX,
   CLOSE,
+  DISCOVER_MAX,
   isValidChat,
   isValidName,
   MAX_COORD,
@@ -146,6 +147,14 @@ describe('parseClientMessage', () => {
     expect(parse({ type: 'ping', t: 12.5 })).toEqual({ type: 'ping', t: 12.5 })
   })
 
+  it("parses where Marx's truck stands, and nothing else", () => {
+    const lights = { type: 'headlights', x: 1, y: 2, z: 3, heading: -1.5 }
+    expect(parse({ ...lights, extra: true })).toEqual(lights)
+    expect(parse({ ...lights, heading: 'north' })).toBeNull()
+    expect(parse({ ...lights, heading: Infinity })).toBeNull()
+    expect(parse({ ...lights, x: NaN })).toBeNull()
+  })
+
   it('lets the server judge a bad outfit in a hello', () => {
     const judged = parse({ ...hello, outfit: 'tuxedo' })
     expect(judged?.type).toBe('hello')
@@ -223,6 +232,23 @@ describe('parseClientMessage', () => {
       x: 1,
       z: -2,
     })
+  })
+
+  it('parses a discover frame, leaving which entries are real to the valley', () => {
+    expect(parse({ type: 'discover', entries: ['citgo', 'nowhere'] })).toEqual({
+      type: 'discover',
+      entries: ['citgo', 'nowhere'],
+    })
+    expect(parse({ type: 'discover', entries: [] })).toBeNull()
+    expect(parse({ type: 'discover', entries: 'citgo' })).toBeNull()
+    expect(parse({ type: 'discover', entries: ['citgo', 3] })).toBeNull()
+    expect(parse({ type: 'discover', entries: [''] })).toBeNull()
+    expect(
+      parse({
+        type: 'discover',
+        entries: Array.from({ length: DISCOVER_MAX + 1 }, () => 'citgo'),
+      })
+    ).toBeNull()
   })
 
   it('parses the raid frames', () => {

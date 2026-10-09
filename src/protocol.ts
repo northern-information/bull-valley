@@ -14,12 +14,12 @@ import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
 import type { OutfitId } from './outfits.ts'
-import type { Burst, ShadeKind } from './shadowmen.ts'
+import type { Burst, ShadeKind, TruckPose } from './shadowmen.ts'
 import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 23
+export const PROTOCOL_VERSION = 24
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -40,6 +40,10 @@ export const CHAT_MAX = 120
 
 // More pickups than any build places; a longer hello is refused.
 export const PICKUPS_MAX = 1000
+
+// More Book of Shadows entries than one discover frame may name (book.ts
+// has fewer in all).
+export const DISCOVER_MAX = 128
 
 // More Citgo stations than any build places.
 const STATIONS_MAX = 64
@@ -279,6 +283,16 @@ export interface TradeMessage {
   offer: string
 }
 
+// Entries of the Book of Shadows this raider has just come across
+// (book.ts ids: a place in reach, a shadow in sight, one of the folk
+// spoken to, an item in the pack). The valley writes those the account had
+// not found and answers with a BookMessage naming them; which ids are real
+// is its to check.
+export interface DiscoverMessage {
+  type: 'discover'
+  entries: string[]
+}
+
 // Dev-server only: the Worker stamps the socket, and production ignores
 // these. hurry brings the truck's next change to `seconds` from now;
 // reset opens the world afresh.
@@ -322,6 +336,13 @@ export interface StateMessage extends PeerStateWire {
   type: 'state'
 }
 
+// Where Marx's truck stands and faces, as this client drives its leg: sent
+// on the state frame's cadence by a client near it, so the valley can aim
+// the headlights at the shadowmen (sharedworld.ts seeHeadlights).
+export interface HeadlightsMessage extends TruckPose {
+  type: 'headlights'
+}
+
 export interface PingMessage {
   type: 'ping'
   // The sender's clock when it sent the ping; echoed in the pong.
@@ -331,6 +352,7 @@ export interface PingMessage {
 export type ClientMessage =
   | HelloMessage
   | StateMessage
+  | HeadlightsMessage
   | PingMessage
   | BoardMessage
   | HopOutMessage
@@ -344,13 +366,17 @@ export type ClientMessage =
   | LootMessage
   | StowMessage
   | TradeMessage
+  | DiscoverMessage
   | ChatMessage
   | AppearanceMessage
   | RenameMessage
   | DevMessage
 
 // What a client may be refused for.
-export type NackRe = Exclude<ClientMessage['type'], 'hello' | 'state' | 'ping'>
+export type NackRe = Exclude<
+  ClientMessage['type'],
+  'hello' | 'state' | 'headlights' | 'ping'
+>
 
 // --- Server → client -------------------------------------------------------
 
@@ -376,6 +402,8 @@ export interface WelcomeMessage {
   corpses: number[]
   // The account's progress through the season (season.ts).
   season: SeasonWire
+  // The Book of Shadows entries the account has found (book.ts ids).
+  book: string[]
   // The account's progress on the daily task (dailytask.ts).
   task: TaskWire
 }
@@ -396,6 +424,13 @@ export interface SeasonMessage {
   type: 'season'
   season: SeasonWire
   rewarded: boolean
+}
+
+// Entries newly written in the account's Book of Shadows (sharedworld.ts
+// rule 20), in the order found. Sent to every socket signed in to it.
+export interface BookMessage {
+  type: 'book'
+  found: string[]
 }
 
 // An account's progress on the daily task (sharedworld.ts rule 16): the
@@ -578,6 +613,7 @@ export type ServerMessage =
   | ShadowmenMessage
   | StruckMessage
   | SeasonMessage
+  | BookMessage
   | TaskMessage
 
 // Application close codes (the 4xxx range is ours per RFC 6455). The client
@@ -839,6 +875,12 @@ export function parseClientMessage(text: string): ClientMessage | null {
       const { offer } = value
       return isKind(offer) ? { type: 'trade', offer } : null
     }
+    case 'discover': {
+      const { entries } = value
+      if (!Array.isArray(entries) || entries.length < 1) return null
+      if (entries.length > DISCOVER_MAX || !entries.every(isKind)) return null
+      return { type: 'discover', entries }
+    }
     case 'call': {
       const from = parseXZ(value.from)
       const to = parseXZ(value.to)
@@ -879,6 +921,12 @@ export function parseClientMessage(text: string): ClientMessage | null {
     case 'state': {
       const state = parsePeerState(value)
       return state ? { type: 'state', ...state } : null
+    }
+    case 'headlights': {
+      const { x, y, z, heading } = value
+      if (!isCoord(x) || !isCoord(y) || !isCoord(z)) return null
+      if (typeof heading !== 'number' || !Number.isFinite(heading)) return null
+      return { type: 'headlights', x, y, z, heading }
     }
     case 'ping': {
       const { t } = value

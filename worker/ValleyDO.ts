@@ -48,6 +48,7 @@ import {
   placeShadowman,
   reduce,
   restoreValley,
+  seeHeadlights,
   stepShadows,
   toWire,
 } from '../src/sharedworld.ts'
@@ -103,6 +104,10 @@ const APPEARANCE_LIMIT: RateLimit = { count: 5, ms: 10_000 }
 // everyone, so the rest are nacked.
 const DROP_LIMIT: RateLimit = { count: 20, ms: 10_000 }
 
+// Discover frames one socket may send in ten seconds; each reads and
+// writes D1, so the rest are nacked (the client asks again).
+const DISCOVER_LIMIT: RateLimit = { count: 10, ms: 10_000 }
+
 const VALLEY_KEY = 'valley'
 
 interface RateWindow {
@@ -120,9 +125,11 @@ export class ValleyDO extends DurableObject<Env> {
   // Rate windows live in memory only; a wake from hibernation starts them
   // fresh, which only ever lets a few extra frames through.
   private stateRate = new WeakMap<WebSocket, RateWindow>()
+  private headlightsRate = new WeakMap<WebSocket, RateWindow>()
   private chatRate = new WeakMap<WebSocket, RateWindow>()
   private appearanceRate = new WeakMap<WebSocket, RateWindow>()
   private dropRate = new WeakMap<WebSocket, RateWindow>()
+  private discoverRate = new WeakMap<WebSocket, RateWindow>()
   // Rule 13, in memory only: gone whenever the object sleeps.
   private shadows = createShadows()
   private shadowRng = mulberry32(Math.floor(Math.random() * 2 ** 32))
@@ -187,6 +194,13 @@ export class ValleyDO extends DurableObject<Env> {
       case 'state':
         this.state(ws, attachment, me, msg)
         this.startShadows()
+        return
+      case 'headlights':
+        // Rule 11: where Marx's truck stands, for its headlights.
+        if (allow(this.headlightsRate, ws, STATE_LIMIT)) {
+          const { x, y, z, heading } = msg
+          seeHeadlights(this.shadows, me.at, { x, y, z, heading }, Date.now())
+        }
         return
       case 'ping':
         send(ws, { type: 'pong', t: msg.t, serverNow: Date.now() })
@@ -263,6 +277,9 @@ export class ValleyDO extends DurableObject<Env> {
           id: me.id,
           offer: msg.offer,
         })
+        return
+      case 'discover':
+        await this.discover(ws, attachment.account, msg.entries)
         return
       case 'chat':
         this.chat(ws, me, msg.text)
@@ -565,11 +582,13 @@ export class ValleyDO extends DurableObject<Env> {
     // it.
     let holdings: Holdings
     let season: SeasonProgress
+    let book: string[]
     let task: TaskProgress
     try {
       const packs = this.packs()
       holdings = await packs.open(account)
       season = await packs.season(account, SEASON.id)
+      book = await packs.book(account)
       task = await packs.task(account, DAILY_TASK.id)
     } catch (err) {
       console.error('The pack could not be opened', err)
@@ -628,6 +647,7 @@ export class ValleyDO extends DurableObject<Env> {
       stash: holdings.stash,
       corpses: corpsesOf(this.valley, account),
       season: seasonWire(season),
+      book,
       task: taskWire(task),
     })
     this.broadcast({ type: 'peer-joined', peer: me }, ws)
@@ -990,6 +1010,32 @@ export class ValleyDO extends DurableObject<Env> {
         } catch (err) {
           console.error('The season could not be tallied', account, err)
         }
+      }
+    })
+  }
+
+  // Rule 20: the entries the raider came across, written in the account's
+  // Book of Shadows alone, so two sockets on one account never both call
+  // one new. Every socket on the account hears what was new; a frame too
+  // soon, or one the book could not take, is nacked, and the client asks
+  // again.
+  private async discover(
+    ws: WebSocket,
+    account: string | null,
+    entries: readonly string[]
+  ): Promise<void> {
+    if (!account) return
+    if (!allow(this.discoverRate, ws, DISCOVER_LIMIT)) {
+      send(ws, { type: 'nack', re: 'discover', reason: 'too-fast' })
+      return
+    }
+    await this.ctx.blockConcurrencyWhile(async () => {
+      try {
+        const found = await this.packs().discover(account, entries, Date.now())
+        if (found.length > 0) this.toAccount(account, { type: 'book', found })
+      } catch (err) {
+        console.error('The book could not be written', account, err)
+        send(ws, { type: 'nack', re: 'discover', reason: 'unwritten' })
       }
     })
   }
