@@ -531,6 +531,27 @@ const STORE_FINISH: Record<StoreFinish, () => THREE.Material> = {
       emissive: new THREE.Color('#1c221f'),
       emissiveIntensity: 0.5,
     }),
+  // The bathroom: pale tile, white porcelain, a mirror that gives back
+  // nothing but a grey sheen, and the door in a cheap brown laminate.
+  tile: () =>
+    lambert({
+      color: '#a9b0a6',
+      emissive: new THREE.Color('#33362f'),
+      emissiveIntensity: 0.5,
+    }),
+  porcelain: () =>
+    lambert({
+      color: '#e4e2da',
+      emissive: new THREE.Color('#3c3b36'),
+      emissiveIntensity: 0.5,
+    }),
+  mirror: () => applyPS1(new THREE.MeshBasicMaterial({ color: '#8f9ea3' })),
+  door: () =>
+    lambert({
+      color: '#6b4e36',
+      emissive: new THREE.Color('#231a12'),
+      emissiveIntensity: 0.5,
+    }),
   light: () => applyPS1(new THREE.MeshBasicMaterial({ color: '#eaf1ee' })),
   // Storefront glass: a cool tint you see the lot through. No depth write,
   // so the shelves and the pumps show through from either side.
