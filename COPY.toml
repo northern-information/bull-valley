@@ -418,6 +418,7 @@ logo_alt = { text = "Bull Valley Shadow Wars", by = "ai" }
 [menu]
 create_account = { text = "Create Account", by = "ai" }
 die = { text = "Die", by = "ai" }
+audio = { text = "Audio", by = "ai" }
 settings = { text = "Settings", by = "ai" }
 quit = { text = "Quit", by = "ai" }
 account = { text = "Account", by = "ai" }

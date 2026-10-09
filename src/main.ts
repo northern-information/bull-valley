@@ -94,7 +94,7 @@ async function boot() {
   // reveal uncovers the one beneath and the last discloses the intro
   // dialog already waiting. Not awaited until the player body needs the
   // pick; the scene builds underneath.
-  // The raider's settings: the menu's Settings and the pause overlay share
+  // The raider's settings: the menu's Audio and the pause overlay share
   // them, and the music reads them every frame.
   const settings = createSettingsStore()
   // The valley's music, from the main menu on. Under e2e the valley is

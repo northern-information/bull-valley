@@ -55,7 +55,7 @@ export function openAccount(): void {
 // sign-in, a pending signup, no username yet) goes straight back to the
 // account step.
 // The account's settings land in `settings` as soon as they are known, so
-// the menu's Settings shows them. The menu starts the valley's music.
+// the menu's Audio shows them. The menu starts the valley's music.
 export async function showTitles(
   audio: BvAudio,
   settings: SettingsStore,

@@ -921,7 +921,6 @@
 }
 
 :is(.bv-bag-menu-item, .bv-bag-menu-slot):is(:hover, :focus-visible) {
-  outline: none;
   color: #000;
   background: var(--bv-citgo);
 }
@@ -1607,7 +1606,7 @@
 }
 
 /* A setting: its name, a slider, and where the slider stands, on one
-   line in the main menu's Settings and on the pause overlay. */
+   line in the main menu's Audio and on the pause overlay. */
 .bv-setting {
   display: grid;
   grid-template-columns: auto 1fr 4ch;
