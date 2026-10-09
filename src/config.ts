@@ -72,8 +72,8 @@ export const CONFIG = {
     // still within reachScale times its touch. A beat to step away.
     windupSeconds: 0.35,
     reachScale: 1.25,
-    // Citgo forecourts are havens: shadowmen vanish at the lights and nothing
-    // can touch you inside.
+    // Citgo forecourts are havens: shadowmen turn aside at the lights and
+    // nothing can touch you inside.
     havenRadius: 60,
     // The static after a strike, in real seconds (actions.ts times it by the
     // wall clock, never the frame-capped game time).
@@ -126,6 +126,11 @@ export const CONFIG = {
       aimHeight: 0.5,
       dimes: { min: 1, max: 3 },
     },
+    // What shows through the fog (a spider's eyes, the joint's violet aura)
+    // fades out between these distances from the raider, so it is gone
+    // before the spawn ring and the despawn radius: none is ever seen to
+    // come or go.
+    glowFade: { near: 200, far: 290 },
     // In the shared valley the server steps them this many times a second
     // and sends each step; clients draw them between the last two.
     tickHz: 10,

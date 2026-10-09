@@ -4167,7 +4167,8 @@ export function buildCaretaker(seed = 0xca2e): CaretakerRig {
 // them. Origin on the ground under its body. update() walks the legs in two
 // alternating sets at `speed` (m/s), lifts and sways the body with them,
 // pales it toward grey as it burns in a beam (0 to 1), and shows the
-// violet aura while a joint is working.
+// violet aura while a joint is working. `sight` (0 to 1, 1 if left out)
+// fades the eyes and the aura that ignore the fog, for one far off.
 export interface ShadowSpider {
   group: THREE.Group
   // windup: how far through winding up to strike (0 to 1), rearing with
@@ -4180,6 +4181,7 @@ export interface ShadowSpider {
     perception: boolean
     windup?: number
     lunge?: number
+    sight?: number
   }): void
 }
 
@@ -4259,7 +4261,11 @@ export function buildShadowSpider(height = 5.6, seed = 0x5b1d): ShadowSpider {
 
   // The eyes: two big ones, two beside them, and four small over them, a
   // red that ignores the fog, each with a glow.
-  const eye = new THREE.MeshBasicMaterial({ color: '#ff2414', fog: false })
+  const eye = new THREE.MeshBasicMaterial({
+    color: '#ff2414',
+    fog: false,
+    transparent: true,
+  })
   const glow = makeGlowTexture('rgba(255, 40, 20, 0.9)')
   const eyes: [number, number, number][] = [
     [-0.03, 0.03, 0.022],
@@ -4345,6 +4351,7 @@ export function buildShadowSpider(height = 5.6, seed = 0x5b1d): ShadowSpider {
     perception,
     windup = 0,
     lunge = 0,
+    sight = 1,
   }) => {
     // A stride a little longer the faster it goes, and steps to match.
     const pace = Math.min(1, speed / 8)
@@ -4399,8 +4406,9 @@ export function buildShadowSpider(height = 5.6, seed = 0x5b1d): ShadowSpider {
     }
     skin.color.lerpColors(SPIDER_BODY, SPIDER_BURNING, Math.min(1, burn))
     // The eyes flare as it burns.
-    for (const halo of glows) halo.material.opacity = 0.8 + 0.2 * burn
-    aura.material.opacity = perception ? 0.45 : 0
+    for (const halo of glows) halo.material.opacity = (0.8 + 0.2 * burn) * sight
+    eye.opacity = sight
+    aura.material.opacity = perception ? 0.45 * sight : 0
   }
   update({ dt: 0, speed: 0, burn: 0, perception: false })
   return { group, update }
