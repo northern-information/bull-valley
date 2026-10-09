@@ -99,6 +99,24 @@ export const PACK = {
   close: { codes: ['Tab', 'Escape'], key: 'Tab', labelKey: 'keys.close' },
 } as const satisfies Record<string, Binding>
 
+// The mouse in the open pack (hud.ts), as its card names it: buttonKey is
+// the COPY.toml key of the button's name, since a mouse has no key label.
+export interface MouseBinding {
+  buttonKey: string
+  labelKey: string
+}
+
+// A click pins an item's card, a double-click uses it, a drag puts it on a
+// hotbar slot (and a slot dragged off the bar, or right-clicked, empties
+// it), a right-click opens its menu, and at the locker a Shift-click moves
+// the stack the other way.
+export const PACK_MOUSE = {
+  use: { buttonKey: 'keys.mouse_double', labelKey: 'keys.use' },
+  assign: { buttonKey: 'keys.mouse_drag', labelKey: 'keys.to_hotbar' },
+  menu: { buttonKey: 'keys.mouse_right', labelKey: 'keys.more' },
+  moveAll: { buttonKey: 'keys.mouse_shift_click', labelKey: 'keys.stow_all' },
+} as const satisfies Record<string, MouseBinding>
+
 // With the Book of Shadows open (bookhud.ts): A and D switch the chapter,
 // W and S turn to the entry above or below, and B or Esc closes it. The
 // arrows are quiet aliases, as in the pack.

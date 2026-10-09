@@ -387,6 +387,7 @@ news_online = { text = "Your friend {name} is in the valley.", by = "ai" }
 [inventory]
 label = { text = "Inventory", by = "ai" }
 hotbar_label = { text = "Hotbar", by = "ai" }
+hotbar_empty = { text = "Empty", by = "ai" }
 quantity = { text = "Quantity: {count}", by = "ai" }
 quantity_left = { text = "Quantity: {count}, {left} left in the open one", by = "ai" }
 cash = { text = "Cash", by = "ai" }
@@ -448,6 +449,12 @@ pause = { text = "Pause", by = "ai" }
 use = { text = "Use", by = "ai" }
 assign = { text = "Assign", by = "ai" }
 clear_slot = { text = "Clear Slot", by = "ai" }
+to_hotbar = { text = "To the Hotbar", by = "ai" }
+more = { text = "More", by = "ai" }
+mouse_double = { text = "Double-click", by = "ai" }
+mouse_drag = { text = "Drag", by = "ai" }
+mouse_right = { text = "Right-click", by = "ai" }
+mouse_shift_click = { text = "Shift-click", by = "ai" }
 drop = { text = "Drop One", by = "ai" }
 drop_all = { text = "Drop All", by = "ai" }
 stow = { text = "Stow One", by = "ai" }

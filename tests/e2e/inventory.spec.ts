@@ -9,7 +9,7 @@ test('Tab opens the pack, a number key assigns, the hotbar uses and is kept', as
   const open = page.locator('#bv-root.bv-shell--inventory')
   const cell = page.locator('.bv-bag-cell[data-kind="marlboro"]')
   const card = page.locator('.bv-bag-card')
-  const slots = page.locator('.bv-hot-slot')
+  const slots = page.locator('.bv-hot-slot:not(.bv-hot-slot--empty)')
   const hotbar = () => page.evaluate(() => window.__bv?.hotbar)
   const marlboros = () =>
     page.evaluate(() => window.__bv?.inventory.marlboro ?? 0)
@@ -92,4 +92,63 @@ test('Tab opens the pack, a number key assigns, the hotbar uses and is kept', as
   await cleared
   await expect.poll(async () => (await hotbar())?.[2]).toBeNull()
   await expect(slots).toHaveCount(0)
+})
+
+test('the mouse selects, uses, drags to the hotbar and opens a menu; a spent kind leaves the bar', async ({
+  page,
+}) => {
+  await beginRaid(page)
+  const open = page.locator('#bv-root.bv-shell--inventory')
+  const cell = page.locator('.bv-bag-cell[data-kind="marlboro"]')
+  const card = page.locator('.bv-bag-card')
+  const menu = page.locator('.bv-bag-menu')
+  const slots = page.locator('.bv-hot-slot')
+  const hotbar = () => page.evaluate(() => window.__bv?.hotbar)
+  const marlboros = () =>
+    page.evaluate(() => window.__bv?.inventory.marlboro ?? 0)
+
+  // With the pack open every slot shows, empty ones too.
+  await page.keyboard.press('Tab')
+  await expect(open).toHaveCount(1)
+  await expect(slots).toHaveCount(9)
+
+  // A click pins the card while the cursor is elsewhere.
+  await cell.click()
+  await page.mouse.move(2, 2)
+  await expect(card).toBeVisible()
+
+  // A drag onto slot 5 puts it there.
+  const box = await cell.boundingBox()
+  const five = await slots.nth(4).boundingBox()
+  if (!box || !five) throw new Error('no boxes')
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(five.x + five.width / 2, five.y + five.height / 2, {
+    steps: 8,
+  })
+  await page.mouse.up()
+  await expect.poll(async () => (await hotbar())?.[4]).toBe('marlboro')
+  // The drag's click left the pack open.
+  await expect(open).toHaveCount(1)
+
+  // A double-click uses one.
+  const before = await marlboros()
+  await cell.dblclick()
+  await expect.poll(marlboros).toBe(before - 1)
+
+  // A right-click on a slot empties it.
+  await slots.nth(4).click({ button: 'right' })
+  await expect.poll(async () => (await hotbar())?.[4]).toBeNull()
+
+  // Back on slot 1; then the menu's Drop All drops the stack, and the slot
+  // empties itself.
+  await cell.hover()
+  await page.keyboard.press('Digit1')
+  await expect.poll(async () => (await hotbar())?.[0]).toBe('marlboro')
+  await cell.click({ button: 'right' })
+  await expect(menu).toBeVisible()
+  await menu.getByRole('menuitem', { name: copy('keys.drop_all') }).click()
+  await expect(menu).toBeHidden()
+  await expect.poll(marlboros).toBe(0)
+  await expect.poll(async () => (await hotbar())?.[0]).toBeNull()
 })

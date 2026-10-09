@@ -122,6 +122,7 @@ export function wireKeys(
   // With the pack open the keys act on the item under the cursor (PACK in
   // bindings.ts) and never reach the player.
   const inventoryKey = (e: KeyboardEvent) => {
+    hud.closeBagMenu()
     const item = hud.bagHovered
     const action = actionOf(PACK, e.code)
     // What the locker holds only moves, back into the pack.

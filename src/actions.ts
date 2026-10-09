@@ -35,7 +35,7 @@ import { dose } from './geometrie.ts'
 import { burialsOf, bury } from './graves.ts'
 import { openGronDialog } from './grondialog.ts'
 import { hit, isWhole, MAX_HEALTH, mend } from './health.ts'
-import { assign, clearSlot as clearHotbarSlot } from './hotbar.ts'
+import { assign, clearSlot as clearHotbarSlot, place, spent } from './hotbar.ts'
 import { pickupLabel } from './interactions.ts'
 import { addItem, consume } from './inventory.ts'
 import { getItem, healsOf, itemById } from './items.ts'
@@ -66,7 +66,7 @@ import type { Hotbar } from './hotbar.ts'
 import type { DailyStatus, ShelfSpot } from './interactions.ts'
 import type { Leg, TruckState } from './marx.ts'
 import type { NpcId } from './npcs.ts'
-import type { BagTab } from './packgrid.ts'
+import type { BagAction, BagTab } from './packgrid.ts'
 import type { DailyMessage } from './protocol.ts'
 import type { Burst } from './shadowmen.ts'
 import type { Pickup } from './world.ts'
@@ -496,6 +496,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (!moved) return
     s.inventory = stow ? moved.from : moved.to
     s.stash = stow ? moved.to : moved.from
+    keepHotbar(spent(s.hotbar, kind, s.inventory))
     net.send({ type: stow ? 'stow' : 'unstow', kind, count })
     refreshBag()
     hud.tell(
@@ -543,6 +544,28 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   const stowKind = (kind: string, all: boolean) => restash(kind, all, true)
   const unstowKind = (kind: string, all: boolean) => restash(kind, all, false)
+
+  // The mouse in the open pack, done as its keys do it (input.ts).
+  const bagAction = (action: BagAction) => {
+    switch (action.type) {
+      case 'use':
+        if (hud.bagTab !== LOCKER_TAB) useKind(action.kind)
+        return
+      case 'place':
+        keepHotbar(place(s.hotbar, action.slot, action.kind))
+        return
+      case 'clear':
+        clearSlot(action.slot)
+        return
+      case 'drop':
+        if (hud.bagTab !== LOCKER_TAB) dropKind(action.kind, action.all)
+        return
+      case 'move':
+        restash(action.kind, action.all, hud.bagTab !== LOCKER_TAB)
+        return
+    }
+  }
+  hud.onBagAction = bagAction
 
   // T: Marx comes to us, if he is free, and drives us home.
   const callTruck = () => {
@@ -731,6 +754,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       return
     }
     s.inventory = result.inv
+    keepHotbar(spent(s.hotbar, kind, s.inventory))
     s.effects = result.effects
     s.geometrie = dose(s.geometrie, itemById(kind)?.geometrie, s.time)
     // The right hand brings it up (fphands.ts).
@@ -754,6 +778,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     const count = dropAmount(kind, s.inventory[kind] || 0, all)
     if (count < 1) return
     s.inventory = addItem(s.inventory, kind, -count)
+    keepHotbar(spent(s.hotbar, kind, s.inventory))
     if (s.world) {
       net.send({ type: 'drop', kind, count })
       refreshBag()

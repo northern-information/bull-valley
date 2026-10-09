@@ -733,7 +733,12 @@
   cursor: default;
 }
 
-.bv-bag-cell:not(.bv-bag-cell--empty):is(:hover, :focus-visible) {
+.bv-bag-cell:not(.bv-bag-cell--empty):is(
+    :hover,
+    :focus-visible,
+    .bv-bag-cell--selected
+  ),
+.bv-hot-slot--target {
   outline: none;
   border-color: var(--bv-citgo);
   box-shadow:
@@ -874,6 +879,68 @@
 
 .bv-bag-card-key--dim {
   opacity: 0.35;
+}
+
+/* The right-click menu over an item, inside the pack's box at the cursor;
+   hud.ts places it. */
+.bv-bag-menu {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 12rem;
+  padding: 0.25rem 0;
+  background: rgb(0 0 0 / 92%);
+  border: 1px solid var(--bv-citgo);
+}
+
+.bv-bag-menu-item,
+.bv-bag-menu-slot {
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: none;
+  border: 0;
+}
+
+.bv-bag-menu-item {
+  padding: 0.25rem 0.75rem;
+  text-align: left;
+}
+
+.bv-bag-menu-slots {
+  display: flex;
+  gap: 0.15rem;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+}
+
+.bv-bag-menu-slots span {
+  margin-right: 0.5rem;
+}
+
+.bv-bag-menu-slot {
+  padding: 0 0.3em;
+  border: 1px solid currentcolor;
+}
+
+:is(.bv-bag-menu-item, .bv-bag-menu-slot):is(:hover, :focus-visible) {
+  outline: none;
+  color: #000;
+  background: var(--bv-citgo);
+}
+
+/* What a drag carries, under the cursor. */
+.bv-drag-ghost {
+  position: fixed;
+  z-index: 6;
+  width: var(--bv-cell);
+  height: var(--bv-cell);
+  object-fit: contain;
+  pointer-events: none;
+  opacity: 0.85;
+  transform: translate(-50%, -50%);
 }
 
 /* The Book of Shadows (bookhud.ts): over the valley like the pack, its
@@ -1120,6 +1187,16 @@
 
 .bv-hot-slot--out img {
   opacity: 0.3;
+}
+
+/* With the pack open the bar takes the mouse: every slot shows, an item
+   drags onto one, and a slot drags off. */
+.bv-shell--inventory .bv-hotbar {
+  pointer-events: auto;
+}
+
+.bv-shell--inventory .bv-hot-slot:not(.bv-hot-slot--empty) {
+  cursor: grab;
 }
 
 /* A cooldown: the dark wedge shrinks clockwise from the top as it runs

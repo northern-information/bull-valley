@@ -14,6 +14,16 @@ export type PackTab = (typeof PACK_TABS)[number]
 export const LOCKER_TAB = 'locker'
 export type BagTab = PackTab | typeof LOCKER_TAB
 
+// What the mouse asks of the open pack (hud.ts), done as the keys do it
+// (actions.ts): use one, put a kind on a slot (place) or empty it, drop one
+// or the stack, and at the locker move one or the stack the other way.
+export type BagAction =
+  | { type: 'use'; kind: string }
+  | { type: 'place'; slot: number; kind: string }
+  | { type: 'clear'; slot: number }
+  | { type: 'drop'; kind: string; all: boolean }
+  | { type: 'move'; kind: string; all: boolean }
+
 // The tabs open now, left to right: the pack's, and the Locker tab at the
 // locker.
 export function bagTabs(atLocker: boolean): BagTab[] {
