@@ -3,22 +3,23 @@
 // strike static. Markup is generated here so
 // index.html stays a bare #bv-root.
 
-import { PACK, PACK_IN_MENU, WORLD } from './bindings.ts'
+import { PACK, PACK_IN_MENU, PACK_MOUSE, WORLD } from './bindings.ts'
 import { BookHud } from './bookhud.ts'
 import { CHAT_LINES, formatStamp, isFaded, pushLine } from './chat.ts'
 import { copy } from './copy.ts'
 import { MAX_HEALTH } from './health.ts'
+import { HOTBAR_SLOTS } from './hotbar.ts'
 import { LevelHud } from './levelhud.ts'
 import { bagTabs, LOCKER_TAB, PACK_TABS } from './packgrid.ts'
 import { CHAT_MAX } from './protocol.ts'
 import { SeasonHud } from './seasonhud.ts'
 import { musicSlider } from './settingsui.ts'
 import { TaskHud } from './taskhud.ts'
-import type { Binding } from './bindings.ts'
+import type { Binding, MouseBinding } from './bindings.ts'
 import type { ChatLine } from './chat.ts'
 import type { Cooldown } from './hotbar.ts'
 import type { GeometrieAxis, PackItem } from './interfaces.ts'
-import type { BagTab } from './packgrid.ts'
+import type { BagAction, BagTab } from './packgrid.ts'
 import type { SettingsStore } from './settingsui.ts'
 
 // Geometrie's triangle (geometrie.ts): one corner per level, each lit by
@@ -91,6 +92,14 @@ const CARD_VIEW_PX = 144
 // Cells a row in the pack grid (styles.css .bv-bag-grid); the last row is
 // filled out with empty slots.
 const BAG_COLUMNS = 8
+
+// How far the cursor moves, in px, before a press on an item is a drag.
+const DRAG_START = 6
+
+// Where a pointer event is, as a drag remembers its start.
+function at(e: PointerEvent): { x: number; y: number } {
+  return { x: e.clientX, y: e.clientY }
+}
 
 // Each pack tab's label, and the line its grid shows when empty.
 const BAG_TABS: Record<BagTab, { label: string; empty: string }> = {
@@ -212,12 +221,31 @@ export class Hud {
   bagHovered: PackItem | null = null
   // Told whenever the hovered item changes, to spin it on the card.
   onBagHover: ((item: PackItem | null) => void) | null = null
+  // The item clicked in the grid: its card stays, and the keys act on it,
+  // whenever the cursor is over no other item.
+  bagSelected: string | null = null
+  // Told what the mouse did in the pack or on the hotbar (actions.ts).
+  onBagAction: ((action: BagAction) => void) | null = null
+  // The right-click menu over an item, and the item it is for.
+  bagMenu: HTMLDivElement
+  bagMenuKind: string | null = null
+  // A drag under way, from the grid (from null) or off a hotbar slot; the
+  // ghost follows the cursor once it has moved far enough to be a drag.
+  private bagDrag: {
+    kind: string
+    from: number | null
+    icon: string
+    x: number
+    y: number
+    ghost: HTMLImageElement | null
+  } | null = null
   card: HTMLDivElement
   cardCanvas: HTMLCanvasElement
   cardName: HTMLElement
   cardBlurb: HTMLElement
   cardQuantity: HTMLElement
-  cardUse: HTMLElement
+  // E and the double-click, dimmed for an item that is not used.
+  cardUse: HTMLElement[]
   // The pack's own keys on the card, and the locker's: the label beside F
   // says which way it moves.
   cardPackKeys: HTMLElement[]
@@ -348,6 +376,11 @@ export class Hud {
     this.bag.setAttribute('role', 'dialog')
     this.bag.setAttribute('aria-label', copy('inventory.label'))
     this.bag.hidden = true
+    // The right-click menu: every way to move an item, by name. It goes in
+    // after the card, over it.
+    this.bagMenu = el('div', 'bv-bag-menu')
+    this.bagMenu.setAttribute('role', 'menu')
+    this.bagMenu.hidden = true
     // The tabs over the grid, which is their one panel.
     const tabs = el('div', 'bv-bag-tabs')
     tabs.setAttribute('role', 'tablist')
@@ -388,6 +421,8 @@ export class Hud {
       ' ',
       text('kbd', PACK.nextTab.key),
       ` ${copy(PACK.nextTab.labelKey)} `,
+      text('kbd', PACK.clearSlot.key),
+      ` ${copy(PACK.clearSlot.labelKey)} `,
       text('kbd', PACK.close.key),
       ` ${copy(PACK.close.labelKey)}`
     )
@@ -440,16 +475,29 @@ export class Hud {
       keys.appendChild(li)
       return { li, label }
     }
-    this.cardUse = keyItem(PACK.use).li
+    // The mouse's buttons, named as the keys are.
+    const mouseItem = ({ buttonKey, labelKey }: MouseBinding) =>
+      keyItem({ codes: [], key: copy(buttonKey), labelKey })
+    const use = keyItem(PACK.use).li
+    const assign = keyItem(PACK.assign).li
+    const drop = [keyItem(PACK.drop).li, keyItem(PACK.dropAll).li]
+    const useMouse = mouseItem(PACK_MOUSE.use).li
+    this.cardUse = [use, useMouse]
     this.cardPackKeys = [
-      this.cardUse,
-      keyItem(PACK.assign).li,
-      keyItem(PACK.drop).li,
-      keyItem(PACK.dropAll).li,
+      use,
+      assign,
+      ...drop,
+      useMouse,
+      mouseItem(PACK_MOUSE.assign).li,
     ]
-    const stow = [keyItem(PACK.stow), keyItem(PACK.stowAll)]
+    const stow = [
+      keyItem(PACK.stow),
+      keyItem(PACK.stowAll),
+      mouseItem(PACK_MOUSE.moveAll),
+    ]
     this.cardStowKeys = stow.map(({ li }) => li)
     this.cardStowLabels = stow.map(({ label }) => label)
+    mouseItem(PACK_MOUSE.menu)
     this.card.append(
       this.cardCanvas,
       this.cardName,
@@ -459,11 +507,14 @@ export class Hud {
     )
     this.bag.appendChild(this.card)
 
+    this.bag.appendChild(this.bagMenu)
+
     // The hotbar: the assigned slots, in number order, along the bottom.
     this.hotbar = el('ol', 'bv-hotbar')
     this.hotbar.setAttribute('aria-label', copy('inventory.hotbar_label'))
     this.hotbar.hidden = true
     ui.appendChild(this.hotbar)
+    this.wireBagMouse()
 
     // A shadow's touch: the view washed red, fading (hurt).
     this.hurtWash = el('div', 'bv-hurt')
@@ -693,6 +744,8 @@ export class Hud {
   // Marks `tab` as the one the grid shows; setBag fills it.
   selectBagTab(tab: BagTab): void {
     this.bagTab = tab
+    this.bagSelected = null
+    this.closeBagMenu()
     for (const [one, button] of this.bagTabs) {
       const selected = one === tab
       button.setAttribute('aria-selected', String(selected))
@@ -713,6 +766,9 @@ export class Hud {
     if (key === this.bagKey) return
     this.bagKey = key
     this.bagItems = items
+    const has = (kind: string | null) => items.some((one) => one.kind === kind)
+    if (!has(this.bagSelected)) this.bagSelected = null
+    if (!has(this.bagMenuKind)) this.closeBagMenu()
     const hovered = this.bagHovered?.kind
     const focused =
       document.activeElement instanceof HTMLElement
@@ -723,6 +779,10 @@ export class Hud {
         const cell = el('button', 'bv-bag-cell')
         cell.type = 'button'
         cell.dataset.kind = item.kind
+        cell.classList.toggle(
+          'bv-bag-cell--selected',
+          item.kind === this.bagSelected
+        )
         cell.setAttribute('aria-label', `${item.label}, ${quantity(item)}`)
         const img = el('img')
         img.src = iconOf(item.kind)
@@ -765,7 +825,10 @@ export class Hud {
 
   // The card beside a cell, or none. It sits to the right of the cell, or
   // to the left where the right would run off the screen.
-  private hoverCell(cell: HTMLElement | null): void {
+  private hoverCell(hovered: HTMLElement | null): void {
+    // Off every item, the selected one keeps its card.
+    const cell =
+      hovered ?? (this.bagSelected ? this.cellOf(this.bagSelected) : null)
     const item = cell
       ? (this.bagItems.find((one) => one.kind === cell.dataset.kind) ?? null)
       : null
@@ -776,17 +839,20 @@ export class Hud {
       this.cardName.textContent = item.label
       this.cardBlurb.textContent = item.blurb
       this.cardQuantity.textContent = quantity(item)
-      this.cardUse.classList.toggle('bv-bag-card-key--dim', !item.canUse)
+      for (const li of this.cardUse) {
+        li.classList.toggle('bv-bag-card-key--dim', !item.canUse)
+      }
       // In the locker only F moves it; at the locker F moves the pack's
       // items in too.
       const inLocker = this.bagTab === LOCKER_TAB
       for (const li of this.cardPackKeys) li.hidden = inLocker
       for (const li of this.cardStowKeys) li.hidden = !this.atLocker
-      const [one, all] = this.cardStowLabels
+      const [one, all, allMouse] = this.cardStowLabels
       one.textContent = copy(inLocker ? 'keys.unstow' : PACK.stow.labelKey)
       all.textContent = copy(
         inLocker ? 'keys.unstow_all' : PACK.stowAll.labelKey
       )
+      allMouse.textContent = all.textContent
       const at = cell.getBoundingClientRect()
       const box = this.bag.getBoundingClientRect()
       const width = this.card.offsetWidth
@@ -806,6 +872,230 @@ export class Hud {
     if (changed) this.onBagHover?.(item)
   }
 
+  // The mouse in the open pack: a click selects an item (again, or past
+  // every item, lets it go), Shift-click at the locker moves the stack, a
+  // double-click uses it, a right-click opens its menu, and a drag puts it
+  // on a hotbar slot. On the bar, a slot dragged off or right-clicked
+  // empties.
+  private wireBagMouse(): void {
+    const itemCell = (target: EventTarget | null) =>
+      target instanceof Element
+        ? target.closest<HTMLElement>('.bv-bag-cell:not(.bv-bag-cell--empty)')
+        : null
+    const slotOf = (target: EventTarget | null) =>
+      target instanceof Element
+        ? target.closest<HTMLElement>('.bv-hot-slot')
+        : null
+    this.bag.addEventListener('click', (e) => {
+      const cell = itemCell(e.target)
+      const kind = cell?.dataset.kind
+      if (!cell || !kind) {
+        if (!this.bagMenu.contains(e.target as Node)) this.selectBagItem(null)
+        return
+      }
+      if (e.shiftKey) {
+        if (this.atLocker) this.onBagAction?.({ type: 'move', kind, all: true })
+        return
+      }
+      // The second click of a double-click is the double-click's.
+      if (e.detail > 1) return
+      this.selectBagItem(this.bagSelected === kind ? null : kind, cell)
+    })
+    this.bagGrid.addEventListener('dblclick', (e) => {
+      const kind = itemCell(e.target)?.dataset.kind
+      const item = this.bagItems.find((one) => one.kind === kind)
+      if (!item?.canUse || e.shiftKey || this.bagTab === LOCKER_TAB) return
+      this.onBagAction?.({ type: 'use', kind: item.kind })
+    })
+    this.bag.addEventListener('contextmenu', (e) => {
+      e.preventDefault()
+      const cell = itemCell(e.target)
+      const item = this.bagItems.find((one) => one.kind === cell?.dataset.kind)
+      if (!cell || !item) return
+      this.selectBagItem(item.kind, cell)
+      this.openBagMenu(item, e.clientX, e.clientY)
+    })
+    // A press anywhere past the menu closes it.
+    document.addEventListener(
+      'pointerdown',
+      (e) => {
+        if (!this.bagMenu.contains(e.target as Node)) this.closeBagMenu()
+      },
+      true
+    )
+    this.bagGrid.addEventListener('pointerdown', (e) => {
+      const cell = itemCell(e.target)
+      const kind = cell?.dataset.kind
+      if (e.button !== 0 || e.shiftKey || !kind) return
+      if (this.bagTab === LOCKER_TAB) return
+      const icon = cell.querySelector('img')?.src ?? ''
+      this.bagDrag = { kind, from: null, icon, ...at(e), ghost: null }
+    })
+    this.hotbar.addEventListener('pointerdown', (e) => {
+      const li = slotOf(e.target)
+      const kind = li?.dataset.kind
+      if (e.button !== 0 || this.bag.hidden || !li || !kind) return
+      const icon = li.querySelector('img')?.src ?? ''
+      const from = Number(li.dataset.slot)
+      this.bagDrag = { kind, from, icon, ...at(e), ghost: null }
+    })
+    this.hotbar.addEventListener('contextmenu', (e) => {
+      if (this.bag.hidden) return
+      e.preventDefault()
+      const li = slotOf(e.target)
+      if (li?.dataset.kind) {
+        this.onBagAction?.({ type: 'clear', slot: Number(li.dataset.slot) })
+      }
+    })
+    document.addEventListener('pointermove', (e) => {
+      const drag = this.bagDrag
+      if (!drag) return
+      if (!drag.ghost) {
+        if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < DRAG_START) {
+          return
+        }
+        drag.ghost = el('img', 'bv-drag-ghost')
+        drag.ghost.src = drag.icon
+        drag.ghost.alt = ''
+        this.root.appendChild(drag.ghost)
+      }
+      drag.ghost.style.left = `${e.clientX}px`
+      drag.ghost.style.top = `${e.clientY}px`
+      const target = this.slotAt(e.clientX, e.clientY)
+      for (const li of this.hotbar.children) {
+        li.classList.toggle(
+          'bv-hot-slot--target',
+          li instanceof HTMLElement && Number(li.dataset.slot) === target
+        )
+      }
+    })
+    document.addEventListener('pointerup', (e) => {
+      const drag = this.bagDrag
+      if (!drag?.ghost) {
+        this.bagDrag = null
+        return
+      }
+      const target = this.slotAt(e.clientX, e.clientY)
+      this.endBagDrag()
+      // The click a drag ends in selects nothing and closes nothing.
+      const swallow = (click: Event) => click.stopPropagation()
+      window.addEventListener('click', swallow, { capture: true, once: true })
+      setTimeout(() => window.removeEventListener('click', swallow, true))
+      if (target !== null) {
+        if (target !== drag.from) {
+          this.onBagAction?.({ type: 'place', slot: target, kind: drag.kind })
+        }
+      } else if (drag.from !== null) {
+        this.onBagAction?.({ type: 'clear', slot: drag.from })
+      }
+    })
+  }
+
+  // The hotbar slot under a point on the screen, or null.
+  private slotAt(x: number, y: number): number | null {
+    const hit = document.elementFromPoint(x, y)
+    const li = hit?.closest<HTMLElement>('.bv-hot-slot')
+    return li && this.hotbar.contains(li) ? Number(li.dataset.slot) : null
+  }
+
+  private endBagDrag(): void {
+    this.bagDrag?.ghost?.remove()
+    this.bagDrag = null
+    for (const li of this.hotbar.children) {
+      li.classList.remove('bv-hot-slot--target')
+    }
+  }
+
+  // Selects kind in the grid, or none; its card shows (or the one under
+  // the cursor, `hovered`).
+  private selectBagItem(kind: string | null, hovered?: HTMLElement): void {
+    this.bagSelected = kind
+    for (const cell of this.bagGrid.querySelectorAll<HTMLElement>(
+      '.bv-bag-cell'
+    )) {
+      cell.classList.toggle(
+        'bv-bag-cell--selected',
+        kind !== null && cell.dataset.kind === kind
+      )
+    }
+    this.hoverCell(hovered ?? null)
+  }
+
+  // The right-click menu for item, at the cursor: use, put on a slot, drop
+  // one or the stack, and at the locker move one or the stack the other
+  // way. In the locker only the moves.
+  private openBagMenu(item: PackItem, x: number, y: number): void {
+    const { kind } = item
+    const inLocker = this.bagTab === LOCKER_TAB
+    const button = (label: string, action: BagAction, className: string) => {
+      const one = text('button', label, className)
+      one.type = 'button'
+      one.setAttribute('role', 'menuitem')
+      one.addEventListener('click', () => {
+        this.closeBagMenu()
+        this.onBagAction?.(action)
+      })
+      return one
+    }
+    const entry = (labelKey: string, action: BagAction) =>
+      button(copy(labelKey), action, 'bv-bag-menu-item')
+    const entries: HTMLElement[] = []
+    if (!inLocker) {
+      if (item.canUse)
+        entries.push(entry(PACK.use.labelKey, { type: 'use', kind }))
+      const slots = el('div', 'bv-bag-menu-slots')
+      slots.append(text('span', copy(PACK.assign.labelKey)))
+      for (let slot = 0; slot < HOTBAR_SLOTS; slot++) {
+        slots.append(
+          button(
+            String(slot + 1),
+            { type: 'place', slot, kind },
+            'bv-bag-menu-slot'
+          )
+        )
+      }
+      entries.push(
+        slots,
+        entry(PACK.drop.labelKey, { type: 'drop', kind, all: false }),
+        entry(PACK.dropAll.labelKey, { type: 'drop', kind, all: true })
+      )
+    }
+    if (this.atLocker) {
+      entries.push(
+        entry(inLocker ? 'keys.unstow' : PACK.stow.labelKey, {
+          type: 'move',
+          kind,
+          all: false,
+        }),
+        entry(inLocker ? 'keys.unstow_all' : PACK.stowAll.labelKey, {
+          type: 'move',
+          kind,
+          all: true,
+        })
+      )
+    }
+    if (entries.length < 1) return
+    this.bagMenu.replaceChildren(...entries)
+    this.bagMenu.hidden = false
+    this.bagMenuKind = kind
+    const box = this.bag.getBoundingClientRect()
+    const left = Math.min(
+      x,
+      window.innerWidth - this.bagMenu.offsetWidth - CARD_GAP
+    )
+    const top = Math.min(
+      y,
+      window.innerHeight - this.bagMenu.offsetHeight - CARD_GAP
+    )
+    this.bagMenu.style.left = `${left - box.left}px`
+    this.bagMenu.style.top = `${top - box.top}px`
+  }
+
+  closeBagMenu(): void {
+    this.bagMenu.hidden = true
+    this.bagMenuKind = null
+  }
+
   setBagStatus({ cash }: BagStatus): void {
     if (this.bagCash.textContent !== cash) this.bagCash.textContent = cash
   }
@@ -813,7 +1103,12 @@ export class Hud {
   showBag(show: boolean): boolean {
     this.bag.hidden = !show
     this.root.classList.toggle('bv-shell--inventory', show)
-    if (!show) this.hoverCell(null)
+    if (!show) {
+      this.bagSelected = null
+      this.closeBagMenu()
+      this.endBagDrag()
+      this.hoverCell(null)
+    }
     return show
   }
 
@@ -826,16 +1121,41 @@ export class Hud {
 
   // The loop calls this every frame. The slots are rebuilt only when what
   // they hold changes; the cooldown sweeps are touched only when they move.
+  // With the pack open every slot shows, the empty ones too, so an item
+  // can be dragged onto any of them.
   setHotbar(slots: HotbarSlotView[]): void {
-    const key = slots
-      .map(
+    const open = !this.bag.hidden
+    const key = [
+      open ? 'open' : 'shut',
+      ...slots.map(
         ({ slot, item }) => `${slot}:${item.kind}:${item.stock}:${item.left}`
-      )
-      .join(',')
+      ),
+    ].join(',')
     if (key !== this.hotbarKey) {
       this.hotbarKey = key
-      this.hotbarSlots = slots.map(({ slot, item, icon }) => {
+      const views = new Map(slots.map((view) => [view.slot, view]))
+      const shown = open
+        ? Array.from({ length: HOTBAR_SLOTS }, (_, slot) => slot)
+        : slots.map(({ slot }) => slot)
+      const lis: HTMLLIElement[] = []
+      this.hotbarSlots = []
+      for (const slot of shown) {
+        const view = views.get(slot)
+        if (!view) {
+          const li = el('li', 'bv-hot-slot bv-hot-slot--empty')
+          li.dataset.slot = String(slot)
+          li.setAttribute(
+            'aria-label',
+            `${slot + 1}: ${copy('inventory.hotbar_empty')}`
+          )
+          li.append(text('span', String(slot + 1), 'bv-hot-key'))
+          lis.push(li)
+          continue
+        }
+        const { item, icon } = view
         const li = el('li', 'bv-hot-slot')
+        li.dataset.slot = String(slot)
+        li.dataset.kind = item.kind
         li.classList.toggle('bv-hot-slot--out', item.stock < 1)
         li.setAttribute(
           'aria-label',
@@ -853,11 +1173,12 @@ export class Hud {
           text('span', String(slot + 1), 'bv-hot-key'),
           text('span', String(item.stock), 'bv-hot-count')
         )
-        return { li, cd, view: '' }
-      })
-      this.hotbar.replaceChildren(...this.hotbarSlots.map(({ li }) => li))
-      this.hotbar.hidden = slots.length < 1
-      this.root.classList.toggle('bv-shell--hotbar', slots.length > 0)
+        this.hotbarSlots.push({ li, cd, view: '' })
+        lis.push(li)
+      }
+      this.hotbar.replaceChildren(...lis)
+      this.hotbar.hidden = lis.length < 1
+      this.root.classList.toggle('bv-shell--hotbar', lis.length > 0)
     }
     slots.forEach(({ cooldown }, i) => {
       const shown = this.hotbarSlots[i]
