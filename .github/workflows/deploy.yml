@@ -43,28 +43,32 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # Bundles the client and the Worker; the plugin writes the deployable
+      # wrangler config under dist/ and points `wrangler deploy` at it. The
+      # build comes first, so a red one leaves the schema where it was.
+      - run: npm run build
+      # Migrations only add: a DROP or a RENAME would break the Worker still
+      # running while the new one ships, so the deploy refuses one.
+      - name: Check the migrations only add
+        run: scripts/check-migrations.sh
       # Brings the accounts database up to the schema in migrations/ before
-      # the Worker that expects it ships. Migrations only add, so the Worker
-      # still running meanwhile is unaffected. Runs against the root config:
+      # the Worker that expects it ships. Runs against the root config:
       # after the build, wrangler is redirected to the generated one under
       # dist/, where the relative migrations_dir would not resolve.
-      - uses: cloudflare/wrangler-action@v4
+      - uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           command: d1 migrations apply bull-valley-accounts --remote -c wrangler.jsonc
-      # Bundles the client and the Worker; the plugin writes the deployable
-      # wrangler config under dist/ and points `wrangler deploy` at it.
-      - run: npm run build
       # CLOUDFLARE_API_TOKEN is the northern-information organization secret;
       # the account is pinned in wrangler.jsonc.
-      - uses: cloudflare/wrangler-action@v4
+      - uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           command: deploy
       # The redirect from www.bvsw.net and bvsw.gay, a Worker of its own
       # (worker/www.ts). The explicit config skips the redirect to the game's
       # generated config.
-      - uses: cloudflare/wrangler-action@v4
+      - uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           command: deploy -c wrangler.www.jsonc

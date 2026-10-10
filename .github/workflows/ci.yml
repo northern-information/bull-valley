@@ -30,6 +30,8 @@ jobs:
       - run: npm run lint
       - run: npm run lint:css
       - run: npm run typecheck
+      - name: Check the migrations only add
+        run: scripts/check-migrations.sh
 
   unit:
     name: Unit tests
