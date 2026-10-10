@@ -7,8 +7,6 @@ import { INVENTORY_KINDS, isUsable, itemById, tripSecondsOf } from './items.ts'
 import type { Effects } from './hotbar.ts'
 import type { Inventory } from './interfaces.ts'
 
-export const KINDS = INVENTORY_KINDS
-
 // Every kind present, each a non-negative integer; anything else in `raw`
 // is dropped.
 export function toInventory(raw: unknown): Inventory {
@@ -18,27 +16,25 @@ export function toInventory(raw: unknown): Inventory {
     unknown
   >
   const inv: Inventory = {}
-  for (const kind of KINDS) inv[kind] = Math.max(0, Number(source[kind]) | 0)
+  for (const kind of INVENTORY_KINDS)
+    inv[kind] = Math.max(0, Number(source[kind]) | 0)
   return inv
 }
 
 // A new account's pack.
 export const STARTING_INVENTORY = toInventory(
-  Object.fromEntries(KINDS.map((kind) => [kind, itemById(kind)?.start ?? 0]))
+  Object.fromEntries(
+    INVENTORY_KINDS.map((kind) => [kind, itemById(kind)?.start ?? 0])
+  )
 )
 
 export function addItem(inv: Inventory, kind: string, count = 1): Inventory {
   return { ...inv, [kind]: (inv[kind] || 0) + count }
 }
 
-// What using one unit came to: the pack and the effects after it, or why
-// nothing happened.
-export type Consumed =
-  | { used: true; inv: Inventory; effects: Effects }
-  | { used: false; reason: 'unusable' | 'smoking' | 'empty' }
-
 // One unit of `kind` out of the pack at `time` (game seconds), and the
-// effect it starts (hotbar.ts Effects). An item with no effect yet is not
+// effect it starts (hotbar.ts Effects): the pack and the effects after it,
+// or why nothing happened. An item with no effect yet is not
 // used. A cigarette waits until the one burning is out, then smokes for
 // smokeSeconds and smoulders for emberSeconds after; the joint starts
 // perception. Each use blurs the view afresh and runs its trails at least
@@ -49,7 +45,9 @@ export function consume(
   kind: string,
   effects: Effects,
   time: number
-): Consumed {
+):
+  | { used: true; inv: Inventory; effects: Effects }
+  | { used: false; reason: 'unusable' | 'smoking' | 'empty' } {
   const item = itemById(kind)
   if (!item || !isUsable(kind)) return { used: false, reason: 'unusable' }
   const smoke = item.category === 'cigarette'

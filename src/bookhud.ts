@@ -16,7 +16,7 @@ const PORTRAIT_PX = 220
 
 // How long the toast holds when something new is written, in ms;
 // styles.css's bv-book-toast animation runs the same length.
-export const TOAST_MS = 4000
+const TOAST_MS = 4000
 
 // More new pages at once than this, and the toast counts them instead of
 // naming them.

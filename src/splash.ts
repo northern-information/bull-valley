@@ -69,7 +69,7 @@ export function skipTitles(): boolean {
 // Mounts a black card as the last child of <body>, so DOM order stacks it
 // above everything mounted before it, and drives opacity from a RAF loop.
 // Audio failures never block the visual.
-export function mountCard({ audio, config }: CardOptions): Card {
+function mountCard({ audio, config }: CardOptions): Card {
   const machine = createSplashMachine({
     now: () => performance.now(),
     cfg: config,

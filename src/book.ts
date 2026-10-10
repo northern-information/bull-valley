@@ -7,7 +7,7 @@
 // Pure, no Three. What the account has found is the account's, kept in D1
 // by the valley (sharedworld.ts rule 20, worker/packs.ts); this says what
 // the entries are and what an ask adds. The words are COPY.toml's [book]
-// (an item's are its own, [items.<id>]); the portraits are bookthumbs.ts's.
+// (an item's are its own, [items.<id>]); the portraits are bookportraits.ts's.
 
 import { copy } from './copy.ts'
 import { ITEMS } from './items.ts'
@@ -138,9 +138,6 @@ export const BOOK: readonly BookEntry[] = [
 ]
 
 const BY_ID = new Map(BOOK.map((entry) => [entry.id, entry]))
-
-// The most one discover frame may name: every entry at once.
-export const DISCOVER_MAX = BOOK.length
 
 export function isEntry(id: unknown): id is string {
   return typeof id === 'string' && BY_ID.has(id)

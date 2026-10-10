@@ -13,7 +13,7 @@ import type { SeasonProgress } from './season.ts'
 
 // How long one banner holds the view, in ms; styles.css's bv-banner
 // animation runs the same length.
-export const BANNER_MS = 5200
+const BANNER_MS = 5200
 
 export interface Banner {
   kicker: string

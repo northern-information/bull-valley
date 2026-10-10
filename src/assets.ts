@@ -2309,7 +2309,7 @@ export interface DishArray {
 
 // Where every dish looks at `t` seconds: azimuth from the array's heading,
 // and elevation over the horizon.
-export function dishAim(t: number): { azimuth: number; elevation: number } {
+function dishAim(t: number): { azimuth: number; elevation: number } {
   const turn = (t / DISH.period) * Math.PI * 2
   return {
     azimuth: Math.sin(turn) * DISH.sweep,
@@ -4452,7 +4452,7 @@ function sampleShadowSpider(): THREE.Group {
 
 // Anything that strikes, over and over in Akashic: a stride, the windup,
 // the lunge, a rest.
-export const STRIKE_LOOP = { walk: 1.2, windup: 0.35, lunge: 0.3, rest: 0.6 }
+const STRIKE_LOOP = { walk: 1.2, windup: 0.35, lunge: 0.3, rest: 0.6 }
 
 // Where a strike loop is at `t` seconds: the windup and lunge progress
 // (0 to 1), and how fast it walks.

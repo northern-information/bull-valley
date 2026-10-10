@@ -42,12 +42,6 @@ export type ShadowmenConfig = typeof CONFIG.shadowmen
 // (CONFIG.shadowmen.spiderling).
 export type ShadeKind = 'man' | 'spider' | 'spiderling'
 
-export const SHADE_KINDS: readonly ShadeKind[] = ['man', 'spider', 'spiderling']
-
-export function isShadeKind(value: unknown): value is ShadeKind {
-  return SHADE_KINDS.includes(value as ShadeKind)
-}
-
 // How a kind crosses, rushes, touches and burns.
 export function speedRange(
   kind: ShadeKind,

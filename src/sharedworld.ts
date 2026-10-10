@@ -301,7 +301,7 @@ export interface ValleyCorpse extends Corpse {
 // under. Bush 0's is the bare account, as it was when it was the only one.
 export const BUSHES = 1 + CONFIG.maze.bushes.count
 
-export function bushKey(account: string, bush: number): string {
+function bushKey(account: string, bush: number): string {
   return bush === 0 ? account : `${account}/${bush}`
 }
 
@@ -1601,7 +1601,7 @@ export function stepShadows(
     const until = shadows.recovering[r.id]
     if (until !== undefined && until > now) recovering[r.id] = until
   }
-  // Rule 21: a raider struck is let alone for a little while, where they
+  // Rule 24: a raider struck is let alone for a little while, where they
   // stand or where they come to.
   for (const id of struck) {
     recovering[id] = now + CONFIG.health.graceSeconds * 1000

@@ -115,7 +115,7 @@ export async function identityFor(
 // server alone, never in the client bundle; case and edge spaces aside.
 const MAGIC_WORD = 'berries'
 
-export function isMagicWord(word: unknown): boolean {
+function isMagicWord(word: unknown): boolean {
   return typeof word === 'string' && word.trim().toLowerCase() === MAGIC_WORD
 }
 
