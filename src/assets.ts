@@ -2304,6 +2304,9 @@ export interface DishSpot {
 
 export interface DishArray {
   group: THREE.Group
+  // The middle of the array, and how far its farthest dish stands from it.
+  middle: { x: number; z: number }
+  reach: number
   update(t: number): void
 }
 
@@ -2509,7 +2512,15 @@ export function buildDishArray(spots: readonly DishSpot[]): DishArray {
     }
   }
   update(0)
-  return { group, update }
+  const middle = {
+    x: spots.reduce((sum, d) => sum + d.x, 0) / Math.max(1, count),
+    z: spots.reduce((sum, d) => sum + d.z, 0) / Math.max(1, count),
+  }
+  const reach = Math.max(
+    ...spots.map((d) => Math.hypot(d.x - middle.x, d.z - middle.z)),
+    0
+  )
+  return { group, middle, reach, update }
 }
 
 // --- Raincloud -----------------------------------------------------------
@@ -2723,6 +2734,19 @@ export function buildFlames(
   const sparks = rise(SPARKS)
   const puffs = rise(SMOKE)
   const biggest = Math.max(...spots.map((s) => s.size), 0.05)
+  // Where the tongues stand together, and how far anything off them goes.
+  const middle = new THREE.Vector3()
+  for (const { at } of spots) middle.add(where.set(...at))
+  middle.divideScalar(Math.max(1, spots.length))
+  const farthest = Math.max(
+    ...spots.map(({ at }) => where.set(...at).distanceTo(middle)),
+    0
+  )
+  const reach = Math.max(
+    SPARKS.rise + SPARKS.spread + SPARKS.flutter,
+    SMOKE.rise + SMOKE.spread + SMOKE.flutter
+  )
+  const extent = farthest + biggest * (0.6 + reach)
   const points = (
     count: number,
     channels: 3 | 4,
@@ -2740,8 +2764,10 @@ export function buildFlames(
     )
     const cloud = new THREE.Points(geometry, material)
     cloud.name = name
-    // The points move every frame; their bounds would go stale.
-    cloud.frustumCulled = false
+    // The points move every frame, so the bounds computed from them would
+    // go stale; a sphere set by hand round the tongues, out to the top of
+    // the highest rise and the widest spread, holds for culling.
+    geometry.boundingSphere = new THREE.Sphere(middle, extent)
     group.add(cloud)
     return geometry
   }
@@ -3041,8 +3067,13 @@ export function buildFireRoots(
     )
   )
   cracks.name = 'fire-root-cracks'
-  // The points move every frame; their bounds would go stale.
-  cracks.frustumCulled = false
+  // The points move every frame, so the bounds computed from them would
+  // go stale; a sphere set by hand over the whole span they writhe in,
+  // high and low enough for a sloping lot, holds for culling.
+  geometry.boundingSphere = new THREE.Sphere(
+    new THREE.Vector3(),
+    ROOTS.span / 2 + ROOTS.lift + 1
+  )
   group.add(cracks)
 
   // A soft pool of firelight on the ground under them, draped over it.

@@ -341,21 +341,36 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     }
     bursts.update(dt)
     mist.update({ dt, player: player.pos })
+    // What moves on its own is stepped only within the fog's reach of
+    // the player (CONFIG.render.liveRadius): each takes a running time,
+    // so it is where it should be the moment it comes back into reach.
+    const live = (at: { x: number; z: number }, margin = 0) =>
+      Math.hypot(at.x - player.pos.x, at.z - player.pos.z) <=
+      CONFIG.render.liveRadius + margin
     // Gron's rain falls on its own clock, Moab's fire burns on it too, and
     // the wreck smoulders and blinks on it.
-    world.gronRig?.update(time)
+    if (world.gronRig && world.gron && live(world.gron)) {
+      world.gronRig.update(time)
+    }
     // The stand dressed for this raider's own level (rule 23).
     world.stand?.setLevel(s.stand?.level ?? 1)
-    for (const rig of world.moabRigs) rig.update(time)
-    world.wreck?.update(time)
+    world.moabRigs.forEach((rig, i) => {
+      if (live(world.moabs[i])) rig.update(time)
+    })
+    if (world.wreck && live(world.wreck.group.position)) {
+      world.wreck.update(time)
+    }
     // The dishes slew on the valley's clock, so every raider sees them
     // look the same way.
-    world.dishes?.update(net.clock.serverNow(now) / 1000)
+    const dishes = world.dishes
+    if (dishes && live(dishes.middle, dishes.reach)) {
+      dishes.update(net.clock.serverNow(now) / 1000)
+    }
     // The portal at the maze's heart swirls, and anyone on foot who walks
     // into it comes out on the trail outside the gate.
     const portal = world.portal
     if (portal) {
-      portal.rig.update(time)
+      if (live(portal.at)) portal.rig.update(time)
       const { x, z } = player.pos
       if (!s.aboard && inPortal(x, z, portal.at, CONFIG.maze.portal.radius)) {
         player.relocate(portal.exit.x, portal.exit.z, portal.exit.yaw)
