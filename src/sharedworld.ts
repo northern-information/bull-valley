@@ -1033,9 +1033,16 @@ function act(
         z,
         spilled: true,
       }))
+      // The oldest of what the valley spilled goes past the cap; what a
+      // raider dropped lies.
+      let drops = [...world.drops, ...spilled]
+      let over = drops.filter((d) => d.spilled).length - CONFIG.drops.spilledMax
+      if (over > 0) {
+        drops = drops.filter((d) => !(d.spilled && over-- > 0))
+      }
       const next = withWorld(valley, {
         ...world,
-        drops: [...world.drops, ...spilled],
+        drops,
         nextDrop: world.nextDrop + spilled.length,
         graves: buried.graves,
         nextGrave: buried.next,
@@ -1052,10 +1059,19 @@ function act(
       }
       const id = valley.nextCorpse
       const { x, z, yaw } = action.at
+      // One body an account: what an earlier one still held is carried
+      // onto this one, so nothing is lost and nothing lies forever.
+      const items = { ...action.items }
+      for (const old of valley.corpses) {
+        if (old.account !== member.account) continue
+        for (const [kind, count] of Object.entries(old.items)) {
+          items[kind] = (items[kind] ?? 0) + count
+        }
+      }
       const next: Valley = {
         ...valley,
         corpses: [
-          ...valley.corpses,
+          ...valley.corpses.filter((c) => c.account !== member.account),
           {
             id,
             x,
@@ -1063,7 +1079,7 @@ function act(
             yaw,
             name: member.name,
             outfit: member.outfit,
-            items: { ...action.items },
+            items,
             account: member.account,
           },
         ],

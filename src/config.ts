@@ -364,6 +364,10 @@ export const CONFIG = {
     ahead: 1.2,
     // The circle drops from one spot are spread round, in metres.
     scatter: 0.35,
+    // How many of what the valley spilled (dimes, a $20, bullion) lie at
+    // once; past it the oldest goes, so an evening's bursts never fill the
+    // world. A raider's own drops lie until the day turns.
+    spilledMax: 300,
   },
   // The tombstones burst shadowmen leave (graves.ts).
   graves: {

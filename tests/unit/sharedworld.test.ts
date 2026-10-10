@@ -791,9 +791,23 @@ describe('rule 18: corpse runs', () => {
     ])
     expect(corpsesOf(v.valley, 'acct-a')).toEqual([0])
     expect(corpsesOf(v.valley, 'acct-b')).toEqual([])
-    // A second fall lays a second body.
-    expect(v.step(fell('a', { x: 0, z: 0, yaw: 0 })).corpse).toBe(1)
-    expect(corpsesOf(v.valley, 'acct-a')).toEqual([0, 1])
+    // A second fall lays one body, with what the first still held.
+    const again = v.step({
+      type: 'fall',
+      id: 'a',
+      items: { marlboro: 2, cabbage: 1 },
+      at: { x: 0, z: 0, yaw: 0 },
+    })
+    expect(again.corpse).toBe(1)
+    expect(corpsesOf(v.valley, 'acct-a')).toEqual([1])
+    expect(v.valley.corpses[0].items).toEqual({
+      marlboro: 14,
+      'gold-bullion': 1,
+      cabbage: 1,
+    })
+    // Another account's body lies on.
+    v.step(fell('b', { x: 1, z: 1, yaw: 0 }))
+    expect(v.valley.corpses.map((c) => c.id)).toEqual([1, 2])
   })
 
   it('lays none with nothing on it, nowhere heard, or for a stranger', () => {
@@ -1222,6 +1236,29 @@ describe('rule 11: a burst shadowman leaves dimes', () => {
       { id: 1, kind: 'dimes', count: 3, x: 50, z: 60, spilled: true },
     ])
     expect(v.valley.world?.nextDrop).toBe(2)
+  })
+
+  it('lets the oldest of what it spilled go past the cap, never a drop', () => {
+    const v = valleyWith(join('a'), {
+      type: 'drop',
+      id: 'a',
+      kind: 'joints',
+      count: 1,
+      at: { x: 0, z: 0, yaw: 0 },
+    })
+    const max = CONFIG.drops.spilledMax
+    for (let i = 0; i < max + 2; i++) {
+      v.step({
+        type: 'spill',
+        spills: [{ x: i, z: 0, kind: 'dimes', count: 1 }],
+      })
+    }
+    const drops = v.valley.world?.drops ?? []
+    expect(drops).toHaveLength(max + 1)
+    expect(drops[0]).toMatchObject({ id: 0, kind: 'joints' })
+    // Ids 1 and 2 were the first spilled, and are gone.
+    expect(drops[1].id).toBe(3)
+    expect(drops.at(-1)?.id).toBe(max + 2)
   })
 
   it('spills nothing with no world, or no dimes', () => {

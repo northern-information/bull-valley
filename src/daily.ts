@@ -66,12 +66,22 @@ function zoneOffset(ms: number, zone: string): number {
 }
 
 // The calendar day at `ms` in Central time, as YYYY-MM-DD. Two instants
-// share a day exactly when the bush treats them as the same day.
+// share a day exactly when the bush treats them as the same day. The
+// valley asks on every change, so the last minute's answer is kept: a day
+// never turns inside a minute.
+let lastDay: { zone: string; minute: number; key: string } | null = null
+
 export function dayKey(ms: number, zone = DAILY_ZONE): string {
+  const minute = Math.floor(ms / 60_000)
+  if (lastDay && lastDay.zone === zone && lastDay.minute === minute) {
+    return lastDay.key
+  }
   const { year, month, day } = wallClock(ms, zone)
   const mm = String(month).padStart(2, '0')
   const dd = String(day).padStart(2, '0')
-  return `${year}-${mm}-${dd}`
+  const key = `${year}-${mm}-${dd}`
+  lastDay = { zone, minute, key }
+  return key
 }
 
 // The first instant of the next Central day after `ms`: midnight, in UTC
