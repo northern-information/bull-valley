@@ -308,8 +308,8 @@ async function boot() {
 
   player.onEdge = () => hud.tell(copy('log.edge'))
   // The hovered item in the pack spins on its card.
-  hud.onBagHover = (item) => {
-    if (item) game.thumbs.spin(hud.cardCanvas, item.kind)
+  hud.pack.onHover = (item) => {
+    if (item) game.thumbs.spin(hud.pack.cardCanvas, item.kind)
     else game.thumbs.stop()
   }
 

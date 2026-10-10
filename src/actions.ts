@@ -190,7 +190,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     hud.selectBagTab(tab)
     refreshBag()
   }
-  hud.onBagTab = showBagTab
+  hud.pack.onTab = showBagTab
 
   // A panel over the valley (the pack, the book) with the pointer free for
   // it, as Gron's dialog has it; the player freezes, the valley does not.
@@ -586,7 +586,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         return
     }
   }
-  hud.onBagAction = bagAction
+  hud.pack.onAction = bagAction
 
   // T: Marx comes to us, if he is free, and drives us home.
   const callTruck = () => {
