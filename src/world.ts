@@ -45,8 +45,8 @@ import {
   worldFacings,
 } from './store.ts'
 import { buildStreetlights } from './streetlights.ts'
-import { buildRoads, buildShoulders, buildWater } from './worldsurfaces.ts'
 import { Walls } from './walls.ts'
+import { buildRoads, buildShoulders, buildWater } from './worldsurfaces.ts'
 import type { DishArray, PortalRig, Wreck } from './assets.ts'
 import type { Sight } from './book.ts'
 import type { DonutField } from './donuts.ts'

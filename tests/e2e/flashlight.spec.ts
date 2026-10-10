@@ -196,6 +196,8 @@ test('a shadow spider takes twice as long and leaves a $20 bill', async ({
     bill.x,
     bill.z,
   ] as const)
+  // The valley gives a drop only to a raider it has heard stand in reach.
+  await heardWhere(page)
   await expect(page.locator('.bv-item-label')).toContainText(
     copy('labels.twenty')
   )
