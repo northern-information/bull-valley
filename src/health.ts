@@ -50,8 +50,10 @@ export function withHealth(
   points: number
 ): Record<string, number> {
   const next = { ...health }
-  if (isWhole(points) || points <= 0) delete next[account]
-  else next[account] = points
+  // Whole, nothing left, or no number at all: not an account below whole.
+  if (!Number.isFinite(points) || isWhole(points) || points <= 0) {
+    delete next[account]
+  } else next[account] = points
   return next
 }
 

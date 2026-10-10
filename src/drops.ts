@@ -6,6 +6,7 @@
 
 import { CONFIG } from './config.ts'
 import { isItemId, leftInOpen } from './items.ts'
+import { goldenSpot } from './math.ts'
 import type { XZ } from './interfaces.ts'
 import type { ItemId, PickupKind } from './items.ts'
 import type { Rng } from './rng.ts'
@@ -129,14 +130,12 @@ export function dropAmount(kind: string, held: number, all: boolean): number {
 // a small circle per id so drops made from one spot lie side by side.
 export function dropSpot(at: Facing, id: number, cfg = CONFIG): XZ {
   const { ahead, scatter } = cfg.drops
-  const turn = id * GOLDEN_ANGLE
-  return {
-    x: at.x - Math.sin(at.yaw) * ahead + Math.cos(turn) * scatter,
-    z: at.z - Math.cos(at.yaw) * ahead + Math.sin(turn) * scatter,
+  const before = {
+    x: at.x - Math.sin(at.yaw) * ahead,
+    z: at.z - Math.cos(at.yaw) * ahead,
   }
+  return goldenSpot(before, id, scatter)
 }
-
-const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5))
 
 // Taking up a drop with room for `room` more (Infinity for the pack): how
 // many come up, and the drop as it lies after, or null when none is left.

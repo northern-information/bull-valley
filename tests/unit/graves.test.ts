@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
-import { burialsOf, bury, graveSpot, NAME_MAX } from '../../src/graves.ts'
+import { burialsOf, bury, GRAVE_NAME_MAX, graveSpot } from '../../src/graves.ts'
 import { mulberry32 } from '../../src/rng.ts'
 import type { Grave } from '../../src/graves.ts'
 
@@ -45,7 +45,7 @@ describe('bury', () => {
   it('numbers the graves on from next and skips a name that is not one', () => {
     const out = bury([], 4, [
       { x: 0, z: 0, name: 'Old Man Draper' },
-      { x: 0, z: 0, name: 'x'.repeat(NAME_MAX + 1) },
+      { x: 0, z: 0, name: 'x'.repeat(GRAVE_NAME_MAX + 1) },
       { x: Number.NaN, z: 0, name: 'Aunt Boger' },
       { x: 1, z: 1, name: 'Little Curran' },
     ])

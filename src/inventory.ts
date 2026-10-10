@@ -16,8 +16,10 @@ export function toInventory(raw: unknown): Inventory {
     unknown
   >
   const inv: Inventory = {}
-  for (const kind of INVENTORY_KINDS)
-    inv[kind] = Math.max(0, Number(source[kind]) | 0)
+  for (const kind of INVENTORY_KINDS) {
+    const n = Math.floor(Number(source[kind]))
+    inv[kind] = Number.isFinite(n) && n > 0 ? n : 0
+  }
   return inv
 }
 

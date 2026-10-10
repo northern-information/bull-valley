@@ -107,6 +107,16 @@ describe('the Cabbage Stand', () => {
     expect(got && collect(got.ledger, after)).toBeNull()
   })
 
+  it('earns again under the new cap once a capped stand levels up', () => {
+    const capped = settle(full(), 100 * one.capHours * HOUR)
+    expect(capped.banked).toBe(capOf(full()))
+    expect(accruedAt(capped, capped.since + HOUR)).toBe(capped.banked)
+    const up = upgrade(capped, capped.since)
+    if (!up) throw new Error('upgraded')
+    expect(capOf(up)).toBeGreaterThan(capOf(capped))
+    expect(accruedAt(up, up.since + HOUR)).toBeGreaterThan(up.banked)
+  })
+
   it('levels up for its price, banking first, until the top', () => {
     expect(upgradePrice(FRESH_STAND)).toEqual(two.price)
     const price = two.price

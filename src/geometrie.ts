@@ -8,6 +8,7 @@
 // Like the item effects, it is this client's alone: never sent, never kept.
 
 import { CONFIG } from './config.ts'
+import { clamp01 } from './math.ts'
 import type { GeometrieAxis } from './interfaces.ts'
 
 export const AXES: readonly GeometrieAxis[] = ['high', 'stimulated', 'drunk']
@@ -22,8 +23,6 @@ export const SOBER: Geometrie = {
   at: 0,
   levels: { high: 0, stimulated: 0, drunk: 0 },
 }
-
-const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
 
 // Every level at `time`, faded from where it stood. Time never runs back:
 // an earlier time reads the levels as they stood.
