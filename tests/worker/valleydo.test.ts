@@ -147,6 +147,12 @@ class TestValley extends ValleyDO {
 // Lets the writes a step started (a strike, its fall, a mend) land.
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
 
+// Waits, a macrotask at a time, until `ready` or `tries` turns have gone:
+// a write a step started lands under a lock and a store's own awaits.
+async function settledWhen(ready: () => boolean, tries = 20): Promise<void> {
+  for (let i = 0; i < tries && !ready(); i++) await settle()
+}
+
 // Steps the shadowmen by hand until `socket` hears it was struck, through
 // the windup; the strike and its fall written after.
 async function tickUntilStruck(v: TestValley, socket: MockSocket) {
@@ -2087,6 +2093,7 @@ describe('ValleyDO: the shadowmen', () => {
         null
       )
     })
+    await settledWhen(() => tasks(a).some((t) => t.rewarded))
     expect(tasks(a).at(-1)).toMatchObject({
       task: { count: DAILY_TASK.goal, claimed: true },
       rewarded: true,
