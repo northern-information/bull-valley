@@ -26,13 +26,20 @@ import { settleTruck } from './marx.ts'
 import { inPortal } from './maze.ts'
 import { packItemOf } from './packgrid.ts'
 import { poseOf, stateChanged } from './presence.ts'
-import { aimHeightOf, beamFrom, headlightBeam, inHaven } from './shadowmen.ts'
+import {
+  aimHeightOf,
+  beamFrom,
+  headlightBeam,
+  headlightsDue,
+  inHaven,
+} from './shadowmen.ts'
 import { formatCash } from './store.ts'
 import { tripLevel } from './trip.ts'
 import { boardable, clockText, countdown, seatOf } from './worldsync.ts'
 import type { Actions } from './actions.ts'
 import type { Game } from './game.ts'
 import type { PeerStateWire } from './protocol.ts'
+import type { HeadlightsSent } from './shadowmen.ts'
 import type { Targets } from './targets.ts'
 
 // Under e2e (--mode test) the valley runs but is never drawn. The specs
@@ -108,6 +115,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   let promptKey: string | null = null
   let prompt: string | null = null
   let label: ReturnType<typeof itemLabel> = null
+
+  // The last word the valley had from us on Marx's headlights.
+  let headlightsSent: HeadlightsSent | null = null
 
   let last = performance.now()
   const frame = () => {
@@ -362,12 +372,17 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         net.sendState(state)
       }
       // Near Marx's truck, where it stands, so the valley can aim its
-      // headlights at the shadowmen round us.
+      // headlights at the shadowmen round us: as it drives, once where
+      // it stops, and then only often enough that the valley remembers.
       if (
         truck.distanceTo(player.pos.x, player.pos.z) <
         CONFIG.shadowmen.despawnRadius
       ) {
-        net.sendHeadlights(truck.headlights())
+        const pose = truck.headlights()
+        if (headlightsDue(headlightsSent, pose, truck.moving, now)) {
+          headlightsSent = { pose, at: now }
+          net.sendHeadlights(pose)
+        }
       }
     }
 

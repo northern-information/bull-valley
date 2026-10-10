@@ -6,6 +6,7 @@ import {
   contactsOf,
   createShadowmen,
   headlightBeam,
+  headlightsDue,
   inBeam,
   inBounds,
   inHaven,
@@ -533,6 +534,41 @@ describe('headlightBeam', () => {
     expect(east.origin.x).toBeCloseTo(3, 9)
     expect(east.dir.x).toBeCloseTo(1, 9)
     expect(east.dir.z).toBeCloseTo(0, 9)
+  })
+})
+
+describe('headlightsDue', () => {
+  const cfg = {
+    reach: 400,
+    range: 30,
+    halfAngle: 0.45,
+    height: 0.95,
+    nose: 3,
+    staleMs: 1000,
+  }
+  const pose = { x: 1, y: 2, z: 3, heading: 0 }
+
+  it('owes the first word, and one every tick while the truck drives', () => {
+    expect(headlightsDue(null, pose, false, 0, cfg)).toBe(true)
+    const sent = { pose, at: 0 }
+    expect(headlightsDue(sent, pose, true, 100, cfg)).toBe(true)
+  })
+
+  it('owes one where the truck stopped, and none while nothing moves', () => {
+    const sent = { pose, at: 0 }
+    expect(headlightsDue(sent, pose, false, 100, cfg)).toBe(false)
+    expect(headlightsDue(sent, { ...pose, x: 1.5 }, false, 100, cfg)).toBe(true)
+    expect(
+      headlightsDue(sent, { ...pose, heading: 0.2 }, false, 100, cfg)
+    ).toBe(true)
+  })
+
+  it('says it again before the valley forgets', () => {
+    const sent = { pose, at: 0 }
+    expect(headlightsDue(sent, pose, false, cfg.staleMs / 2 - 1, cfg)).toBe(
+      false
+    )
+    expect(headlightsDue(sent, pose, false, cfg.staleMs / 2, cfg)).toBe(true)
   })
 })
 
