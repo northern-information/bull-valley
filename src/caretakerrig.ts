@@ -159,6 +159,7 @@ export class CaretakerShade {
           dist,
           bearing: compassBearing(shown.x - player.x, shown.z - player.z),
           hunting: shown.target === me,
+          kind: 'shadow',
         }
       }
     }

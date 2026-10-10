@@ -170,6 +170,8 @@ export interface ScopeContact {
   dist: number
   bearing: number
   hunting: boolean
+  // A shadow (a shadowman, a spider, the Caretaker) or another raider.
+  kind: 'shadow' | 'raider'
 }
 
 // ---------------------------------------------------------------------------

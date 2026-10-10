@@ -661,6 +661,7 @@ export function contactsOf(
       dist,
       bearing: compassBearing(s.x - me.x, s.z - me.z),
       hunting: s.target === myId,
+      kind: 'shadow',
     })
   }
   return contacts
