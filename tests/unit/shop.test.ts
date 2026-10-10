@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
 import { copy } from '../../src/copy.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
+import { itemLine } from '../../src/itemcopy.ts'
 import { contentsOf, getItem } from '../../src/items.ts'
 import { buy, settle } from '../../src/shop.ts'
 import { freshStock } from '../../src/store.ts'
@@ -28,7 +29,7 @@ describe('buy', () => {
       state.inventory.marlboro + contentsOf('marlboro')
     )
     expect(next?.cash).toBe(state.cash - getItem('marlboro').price)
-    expect(line).toBe(getItem('marlboro').bought)
+    expect(line).toBe(itemLine('marlboro', 'bought'))
     // The input is never changed.
     expect(state.stock).toEqual(before)
   })
@@ -90,7 +91,7 @@ describe('settle', () => {
     )
     expect(next?.cash).toBe(state.cash - getItem('marlboro').price)
     expect(next && 'stock' in next).toBe(false)
-    expect(line).toBe(getItem('marlboro').bought)
+    expect(line).toBe(itemLine('marlboro', 'bought'))
   })
 
   it('refuses short cash and an unknown kind', () => {

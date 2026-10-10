@@ -38,7 +38,8 @@ import { hit, isWhole, keepsPill, MAX_HEALTH, mend } from './health.ts'
 import { assign, clearSlot as clearHotbarSlot, place, spent } from './hotbar.ts'
 import { pickupLabel } from './interactions.ts'
 import { addItem, consume } from './inventory.ts'
-import { getItem, healsOf, itemById } from './items.ts'
+import { itemLabel, itemLine } from './itemcopy.ts'
+import { healsOf, itemById } from './items.ts'
 import { board, call, hopOut as hopOutOf, refused } from './marx.ts'
 import { npcLine } from './npcs.ts'
 import { outfitById } from './outfits.ts'
@@ -690,7 +691,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     }
     s.inventory = addItem(s.inventory, 'berries', 1)
     refreshBag()
-    hud.tell(getItem('berries').collected)
+    const collected = itemLine('berries', 'collected')
+    if (collected) hud.tell(collected)
   }
 
   // A line from an NPC into this player's chat log alone; the valley never
@@ -733,7 +735,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       hud.tell(
         copy('log.trade_short', {
           count: cosmetic.price.count,
-          price: itemById(cosmetic.price.kind)?.label ?? cosmetic.price.kind,
+          price: itemLabel(cosmetic.price.kind),
         })
       )
     } else if (reason === 'owned' && cosmetic) {
@@ -771,7 +773,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     }
     const result = consume(s.inventory, kind, s.effects, s.time)
     if (!result.used) {
-      const empty = result.reason === 'empty' ? itemById(kind)?.empty : null
+      const empty = result.reason === 'empty' ? itemLine(kind, 'empty') : null
       if (empty) hud.tell(empty)
       return
     }
@@ -786,7 +788,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     net.send({ type: 'use', kind })
     if (!s.world && heals > 0) s.health = mend(s.health, heals)
     refreshBag()
-    const used = itemById(kind)?.used
+    const used = itemLine(kind, 'used')
     if (used) hud.tell(used)
   }
 

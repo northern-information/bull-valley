@@ -10,6 +10,7 @@
 // (an item's are its own, [items.<id>]); the portraits are bookportraits.ts's.
 
 import { copy } from './copy.ts'
+import { itemBlurb, itemLabel } from './itemcopy.ts'
 import { ITEMS } from './items.ts'
 import type { XZ } from './interfaces.ts'
 
@@ -132,8 +133,8 @@ export const BOOK: readonly BookEntry[] = [
   ...ITEMS.map((item) => ({
     id: item.id,
     chapter: 'items' as const,
-    name: item.label,
-    lore: item.blurb,
+    name: itemLabel(item.id),
+    lore: itemBlurb(item.id),
   })),
 ]
 

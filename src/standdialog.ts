@@ -9,7 +9,7 @@
 
 import { copy } from './copy.ts'
 import { finder } from './dom.ts'
-import { itemById } from './items.ts'
+import { itemLabel } from './itemcopy.ts'
 import {
   accruedAt,
   affordsUpgrade,
@@ -58,7 +58,7 @@ function spanText(ms: number): string {
 }
 
 function labelOf(kind: string): string {
-  return itemById(kind)?.label ?? kind
+  return itemLabel(kind)
 }
 
 function priceText(price: StandPrice): string {

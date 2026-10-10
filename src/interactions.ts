@@ -7,7 +7,8 @@ import { copy } from './copy.ts'
 import { nearestCorpse } from './corpses.ts'
 import { cosmeticById } from './cosmetics.ts'
 import { GOLD_BULLION, isCash, TWENTY } from './drops.ts'
-import { getItem, itemById } from './items.ts'
+import { itemLabel as itemName } from './itemcopy.ts'
+import { itemById } from './items.ts'
 import { npcReach } from './npcs.ts'
 import { formatCash } from './store.ts'
 import type { CorpseWire } from './corpses.ts'
@@ -231,9 +232,9 @@ export function pickupLabel({
   }
   if (isCash(kind)) return copy('labels.dimes', { count })
   // A bar is one troy ounce, and its name says so.
-  if (kind === GOLD_BULLION && count === 1) return getItem(GOLD_BULLION).label
+  if (kind === GOLD_BULLION && count === 1) return itemName(GOLD_BULLION)
   return copy('labels.pickup_count', {
-    item: itemById(kind)?.label ?? kind,
+    item: itemName(kind),
     count,
   })
 }
@@ -254,7 +255,7 @@ export function itemLabel(interaction: Interaction): ItemLabel | null {
     case 'buy':
       return {
         text: copy('labels.price', {
-          item: itemById(interaction.item)?.label ?? interaction.item,
+          item: itemName(interaction.item),
           price: formatCash(interaction.price),
         }),
         dim: !interaction.affordable,
@@ -324,12 +325,11 @@ export function interactionPrompt(interaction: Interaction): string | null {
     // Moab's offer is said, since the glow alone cannot say what he wants.
     case 'trade': {
       const cosmetic = cosmeticById(interaction.offer)
-      const price = cosmetic ? itemById(cosmetic.price.kind) : null
-      if (!cosmetic || !price) return null
+      if (!cosmetic || !itemById(cosmetic.price.kind)) return null
       return copy('prompts.trade', {
         cosmetic: cosmetic.label,
         count: cosmetic.price.count,
-        price: price.label,
+        price: itemName(cosmetic.price.kind),
       })
     }
   }

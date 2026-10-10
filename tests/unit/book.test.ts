@@ -12,6 +12,7 @@ import {
   tallyOf,
   toFound,
 } from '../../src/book.ts'
+import { itemLabel } from '../../src/itemcopy.ts'
 import { ITEMS } from '../../src/items.ts'
 import { DISCOVER_MAX } from '../../src/protocol.ts'
 import type { Sight } from '../../src/book.ts'
@@ -39,7 +40,8 @@ describe('BOOK', () => {
     expect(entriesOf('items').map((entry) => entry.id)).toEqual(
       ITEMS.map((item) => item.id)
     )
-    for (const item of ITEMS) expect(entryOf(item.id)?.name).toBe(item.label)
+    for (const item of ITEMS)
+      expect(entryOf(item.id)?.name).toBe(itemLabel(item.id))
   })
 
   it('has a page for each of the folk the raider can talk to', () => {

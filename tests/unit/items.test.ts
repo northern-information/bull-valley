@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { copy } from '../../src/copy.ts'
 import { CONTAINERS } from '../../src/drinks.ts'
 import {
   CIGARETTE_IDS,
@@ -44,18 +43,10 @@ describe('items', () => {
     }
   })
 
-  it('gives every counted item its text and a starting count', () => {
+  it('gives every counted item a starting count', () => {
     for (const id of INVENTORY_KINDS) {
       const item = itemById(id)
       if (!item) throw new Error(`no item ${id}`)
-      const keys: (keyof Item)[] = ['label', 'blurb']
-      // Shelf items are bought; berries are collected off a bush.
-      if (item.price !== undefined) keys.push('bought')
-      if (id === 'berries') keys.push('collected')
-      if (isUsable(id)) keys.push('used', 'empty')
-      for (const key of keys) {
-        expect(item[key], `${id}.${key}`).toBeTruthy()
-      }
       expect(Number.isInteger(item.start), `${id}.start`).toBe(true)
     }
     expect(getItem('joints').perceptionSeconds).toBeGreaterThan(0)
@@ -125,7 +116,6 @@ describe('items', () => {
     expect(isCigarette('djarum')).toBe(true)
     expect(isCigarette('joints')).toBe(false)
     expect(isCigarette('nope')).toBe(false)
-    expect(getItem('newport').label).toBe(copy('items.newport.label'))
     expect(itemById('nope')).toBeNull()
   })
 
@@ -145,8 +135,6 @@ describe('items', () => {
     const berries = getItem('berries')
     expect(berries.category).toBe('forage')
     expect('price' in berries).toBe(false)
-    expect('bought' in berries).toBe(false)
-    expect(berries.collected).toBeTruthy()
     expect(berries.start).toBe(0)
     expect(INVENTORY_KINDS).toContain('berries')
     expect(isUsable('berries')).toBe(false)

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { COPY, copy } from '../../src/copy.ts'
 import { flatten, placeholders } from '../../src/copybook.ts'
+import { ITEM_COPY_KEYS } from '../../src/itemcopy.ts'
 
 // Every source file of the client and the Worker, as text.
 const SOURCES: Record<string, string> = import.meta.glob(
@@ -11,9 +12,10 @@ const SOURCES: Record<string, string> = import.meta.glob(
 // The keys passed to copy() as literals, across the client and the Worker.
 // A ternary inside the call (copy(ok ? 'a' : 'b')) names both. A binding's
 // labelKey and a mouse binding's buttonKey (bindings.ts) count too: hud.ts
-// passes them to copy().
+// passes them to copy(). The items' words are asked for by id
+// (itemcopy.ts), which says every key it reads.
 function usedKeys(): Set<string> {
-  const keys = new Set<string>()
+  const keys = new Set<string>(ITEM_COPY_KEYS)
   for (const text of Object.values(SOURCES)) {
     for (const call of text.matchAll(/\bcopy\(([^)]*)/g)) {
       for (const literal of call[1].matchAll(
