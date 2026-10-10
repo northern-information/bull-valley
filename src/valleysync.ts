@@ -4,7 +4,7 @@
 // and this file does it (the truck, the bed, the pickups, the shelves,
 // the drops, the bodies, the lines in the log).
 
-import { toFound } from './book.ts'
+import { knownOf, toFound } from './book.ts'
 import { CHAT_COPY, emoteLine, othersLine } from './chat.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
@@ -472,6 +472,7 @@ export function wireValley(game: Game, actions: Actions): void {
       s.pendingBuys.clear()
       s.pendingTrade = false
       s.bookAsked.clear()
+      s.known = knownOf(s.book, s.bookAsked)
       s.pendingLoots.clear()
       s.stand = null
       s.pendingStand = false

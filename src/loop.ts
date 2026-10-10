@@ -340,11 +340,13 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       camera.rotation.z += (Math.random() * 2 - 1) * shake * 0.5
     }
 
-    // Ours goes out on a fixed cadence, and only when it changed.
+    // Ours goes out on a fixed cadence, and only when it changed. The
+    // same tick paces what need not run every frame (the book's asks).
     peers.update(dt, renderAt)
     s.sinceSent += dt
-    if (net.online && s.sinceSent >= 1 / CONFIG.net.sendHz) {
-      s.sinceSent = 0
+    const tick = s.sinceSent >= 1 / CONFIG.net.sendHz
+    if (tick) s.sinceSent = 0
+    if (net.online && tick) {
       const state: PeerStateWire = {
         x: player.pos.x,
         y: feetY,
@@ -406,8 +408,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
 
     // The Book of Shadows: the places in reach, a shadow come within
     // sight, and whatever the pack holds, written the first time
-    // (actions.ts discover leaves out what is found or asked).
-    if (s.started) {
+    // (actions.ts discover leaves out what is found or asked), looked for
+    // on the state frame's cadence.
+    if (s.started && tick) {
       const range = CONFIG.book.sightRange
       actions.discover([
         ...sightsInReach(world.sights, player.pos),

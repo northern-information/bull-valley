@@ -6,6 +6,7 @@ import {
   entryOf,
   isEntry,
   itemsHeld,
+  knownOf,
   newlyFound,
   sightsInReach,
   tallyOf,
@@ -83,6 +84,19 @@ describe('newlyFound', () => {
     expect(newlyFound(new Set(['citgo', 'marx']), ['marx', 'citgo'])).toEqual(
       []
     )
+  })
+})
+
+describe('knownOf', () => {
+  it('holds what is found and what is asked, as one set apart from both', () => {
+    const found = new Set(['citgo'])
+    const asked = new Set(['marx', 'citgo'])
+    const known = knownOf(found, asked)
+    expect([...known]).toEqual(['citgo', 'marx'])
+    known.add('gron')
+    expect(found.has('gron')).toBe(false)
+    expect(asked.has('gron')).toBe(false)
+    expect(newlyFound(known, ['gron', 'marx', 'moab'])).toEqual(['moab'])
   })
 })
 

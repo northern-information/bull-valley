@@ -164,9 +164,22 @@ export function tallyOf(
   }
 }
 
-// What an ask adds to what is known: each named entry that is real and
-// not known yet, once, in the order asked. The valley writes these, and
-// they alone are news (sharedworld.ts rule 20).
+// What the client holds as known: the entries found, and the ones asked
+// of the valley and not yet answered. The client keeps this set beside
+// the two (game.ts GameState.known), adding to it as each changes, so
+// discover() never builds it again.
+export function knownOf(
+  found: ReadonlySet<string>,
+  asked: ReadonlySet<string>
+): Set<string> {
+  const known = new Set(found)
+  for (const id of asked) known.add(id)
+  return known
+}
+
+// What an ask adds to what is known (knownOf): each named entry that is
+// real and not known yet, once, in the order asked. The valley writes
+// these, and they alone are news (sharedworld.ts rule 20).
 export function newlyFound(
   known: ReadonlySet<string>,
   asked: readonly unknown[]

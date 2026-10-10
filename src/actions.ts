@@ -7,7 +7,7 @@
 // pure modules'; this is the glue that applies them and says so.
 
 import { saveHotbar, saveLook } from './auth.ts'
-import { CHAPTERS, entryOf, newlyFound } from './book.ts'
+import { CHAPTERS, entryOf, knownOf, newlyFound } from './book.ts'
 import { portraitOf } from './bookportraits.ts'
 import {
   CHAT_COPY,
@@ -93,8 +93,8 @@ export interface Actions {
   stepEntry(step: number): void
   // Entries of the Book of Shadows this raider has just come across
   // (book.ts ids): asked of the valley, or played alone written at once.
-  // Anything found or already asked is left out, so the loop may call it
-  // every frame.
+  // Anything found or already asked is left out (GameState.known), so the
+  // loop may call it on every state-frame tick.
   discover(ids: readonly string[]): void
   // Entries the valley wrote in the account's book: news, each one.
   applyBook(found: readonly string[]): void
@@ -258,6 +258,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   const setBook = (found: ReadonlySet<string>) => {
     s.book = new Set(found)
     s.bookAsked.clear()
+    s.known = knownOf(s.book, s.bookAsked)
     bookHud.setFound(s.book)
   }
 
@@ -265,6 +266,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     const names: string[] = []
     for (const id of found) {
       s.bookAsked.delete(id)
+      s.known.add(id)
       if (s.book.has(id)) continue
       s.book.add(id)
       const entry = entryOf(id)
@@ -279,18 +281,22 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   let bookWaitUntil = 0
   const bookRefused = () => {
     s.bookAsked.clear()
+    s.known = knownOf(s.book, s.bookAsked)
     bookWaitUntil = performance.now() + BOOK_RETRY_MS
   }
 
   const discover = (ids: readonly string[]) => {
     if (ids.length === 0 || performance.now() < bookWaitUntil) return
-    const fresh = newlyFound(new Set([...s.book, ...s.bookAsked]), ids)
+    const fresh = newlyFound(s.known, ids)
     if (fresh.length === 0) return
     // Online, the valley writes it and says so. Before it has welcomed us,
     // or while it is out of reach after it had, nothing is asked, and a
     // later frame asks again; only played alone is it written here.
     if (net.online && s.world) {
-      for (const id of fresh) s.bookAsked.add(id)
+      for (const id of fresh) {
+        s.bookAsked.add(id)
+        s.known.add(id)
+      }
       net.send({ type: 'discover', entries: fresh })
     } else if (net.status === 'offline' && !s.world) {
       applyBook(fresh)
