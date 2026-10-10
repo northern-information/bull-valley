@@ -418,6 +418,7 @@ logo_alt = { text = "Bull Valley Shadow Wars", by = "ai" }
 [menu]
 create_account = { text = "Create Account", by = "ai" }
 die = { text = "Die", by = "ai" }
+audio = { text = "Audio", by = "ai" }
 settings = { text = "Settings", by = "ai" }
 quit = { text = "Quit", by = "ai" }
 account = { text = "Account", by = "ai" }
@@ -427,6 +428,7 @@ music = { text = "Music", by = "ai" }
 music_level = { text = "{percent}%", by = "ai" }
 sfx = { text = "Sounds", by = "ai" }
 quit_blocked = { text = "The valley lets you go. Close this tab.", by = "ai" }
+credit = { text = "2008-2026 AD Northern Information", by = "ai" }
 
 # Key labels: what each key does, in the intro controls table and the
 # pack's item card. The key names themselves stay in src/bindings.ts.

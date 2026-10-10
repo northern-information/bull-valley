@@ -107,7 +107,7 @@ test('the music volume is kept on the account', async ({ page }) => {
   await signIn(page)
   await page.goto('/')
   await toMenu(page)
-  await menuButton(page, 'menu.settings').click()
+  await menuButton(page, 'menu.audio').click()
   const slider = page.locator('.bv-menu [data-bv="setting-music"]')
   await expect(slider).toBeVisible()
   const start = Number(await slider.inputValue())
@@ -127,7 +127,7 @@ test('the music volume is kept on the account', async ({ page }) => {
   // Another load of the page reads it back from the account.
   await page.goto('/')
   await toMenu(page)
-  await menuButton(page, 'menu.settings').click()
+  await menuButton(page, 'menu.audio').click()
   await expect(slider).toHaveValue(want)
 })
 
@@ -148,6 +148,8 @@ test('Settings opens the account panel and steps back', async ({ page }) => {
   await toMenu(page)
   await expect(menuButton(page, 'menu.die')).toBeFocused()
   // ↓ walks the options.
+  await page.keyboard.press('ArrowDown')
+  await expect(menuButton(page, 'menu.audio')).toBeFocused()
   await page.keyboard.press('ArrowDown')
   await expect(menuButton(page, 'menu.settings')).toBeFocused()
   await page.keyboard.press('Enter')

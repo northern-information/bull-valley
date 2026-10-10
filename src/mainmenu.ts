@@ -1,9 +1,10 @@
 // The main menu, straight after the colophon: the Bull Valley Shadow Wars
-// logo under its black fog (fog.ts), its cue playing once, and the options
-// below it. Signed out, the one option is Create Account, which hands the
+// logo centered under its black fog (fog.ts), silent, the valley's music
+// starting under it (musicrig.ts), the options in the lower
+// left and the credit in the lower right. Signed out, the one option is Create Account, which hands the
 // raider to the account step (signin.ts) beneath it. Signed in: Die (on to
-// the character select), Settings (the music and sound volumes, the
-// account panel and Sign Out), and
+// the character select), Audio (the music and sound volumes), Settings
+// (the account panel and Sign Out), and
 // Quit, which closes the tab, or says to where the browser will not let a
 // page close itself. Mounted at boot above the account step and the select,
 // so hiding it uncovers them; it never removes itself until titles.ts is
@@ -14,17 +15,20 @@ import { createFog } from './fog.ts'
 import { volumeSliders } from './settingsui.ts'
 import type { BvAudio } from './audio.ts'
 import type { FogLayer } from './fog.ts'
+import type { Music } from './musicrig.ts'
 import type { SettingsStore } from './settingsui.ts'
-import type { CardConfig } from './splash.ts'
+import type { LogoConfig } from './splash.ts'
 
 export interface MainMenuOptions {
   audio: BvAudio
-  // The logo's image, cue and timings (splash.ts LOGO).
-  config: CardConfig
+  // The logo's image and fade (splash.ts LOGO).
+  config: LogoConfig
   // The fog's render downscale, the game's.
   downscale: number
   // The raider's settings, shared with the pause overlay.
   settings: SettingsStore
+  // The valley's music, started with the menu; none under e2e.
+  music: Music | null
   // Account was pressed in Settings: the panel opens over the menu.
   onAccount: () => void
   // Sign Out was pressed in Settings.
@@ -52,6 +56,7 @@ export function mountMainMenu({
   config,
   downscale,
   settings,
+  music,
   onAccount,
   onSignOut,
 }: MainMenuOptions): MainMenu {
@@ -70,8 +75,13 @@ export function mountMainMenu({
       </div>
       <div class="bv-menu-options" data-face="in">
         <button type="button" class="bv-btn bv-btn--primary" data-bv="menu-die">${copy('menu.die')}</button>
+        <button type="button" class="bv-btn" data-bv="menu-audio">${copy('menu.audio')}</button>
         <button type="button" class="bv-btn" data-bv="menu-settings">${copy('menu.settings')}</button>
         <button type="button" class="bv-btn" data-bv="menu-quit">${copy('menu.quit')}</button>
+      </div>
+      <div class="bv-menu-options" data-face="audio">
+        <h2>${copy('menu.audio')}</h2>
+        <button type="button" class="bv-btn" data-bv="menu-audio-back">${copy('menu.back')}</button>
       </div>
       <div class="bv-menu-options" data-face="settings">
         <h2>${copy('menu.settings')}</h2>
@@ -80,7 +90,8 @@ export function mountMainMenu({
         <button type="button" class="bv-btn" data-bv="menu-back">${copy('menu.back')}</button>
       </div>
       <p class="bv-menu-quit" data-face="quit" role="status">${copy('menu.quit_blocked')}</p>
-    </nav>`
+    </nav>
+    <p class="bv-menu-credit">${copy('menu.credit')}</p>`
   document.body.appendChild(root)
 
   const find = <T extends Element>(selector: string): T => {
@@ -92,14 +103,14 @@ export function mountMainMenu({
   const faces = Array.from(root.querySelectorAll<HTMLElement>('[data-face]'))
   const createBtn = find<HTMLButtonElement>('[data-bv="menu-create"]')
   const dieBtn = find<HTMLButtonElement>('[data-bv="menu-die"]')
+  const audioBtn = find<HTMLButtonElement>('[data-bv="menu-audio"]')
+  const audioBackBtn = find<HTMLButtonElement>('[data-bv="menu-audio-back"]')
   const settingsBtn = find<HTMLButtonElement>('[data-bv="menu-settings"]')
   const quitBtn = find<HTMLButtonElement>('[data-bv="menu-quit"]')
   const accountBtn = find<HTMLButtonElement>('[data-bv="menu-account"]')
   const signOutBtn = find<HTMLButtonElement>('[data-bv="menu-sign-out"]')
   const backBtn = find<HTMLButtonElement>('[data-bv="menu-back"]')
-  find<HTMLElement>('[data-face="settings"] h2').after(
-    ...volumeSliders(settings)
-  )
+  find<HTMLElement>('[data-face="audio"] h2').after(...volumeSliders(settings))
 
   // A missing PNG must not show the broken-image glyph.
   logo.addEventListener('error', () => {
@@ -110,43 +121,48 @@ export function mountMainMenu({
 
   let fog: FogLayer | null = null
   let shown = false
+  // The music's frames until the menu comes down; loop.ts drives it after.
+  let musicFrame = 0
+  const playMusic = (now: number) => {
+    music?.update({ now, started: true, setting: settings.current.music })
+    musicFrame = requestAnimationFrame(playMusic)
+  }
 
-  type Face = 'out' | 'in' | 'settings' | 'quit'
+  type Face = 'out' | 'in' | 'audio' | 'settings' | 'quit'
   let face: Face = 'out'
 
   const show = (next: Face) => {
     face = next
     for (const el of faces) el.hidden = el.dataset.face !== next
+    // The first option takes focus: on Audio the slider, so ← and → move it.
     root
-      .querySelector<HTMLButtonElement>(`[data-face="${next}"] button`)
+      .querySelector<HTMLElement>(
+        `[data-face="${next}"] button, [data-face="${next}"] input`
+      )
       ?.focus()
   }
 
-  // The first showing fades the logo and the options up out of the black
-  // and plays the logo's cue once; later ones come back at once.
+  // The first showing fades the logo and the options up out of the black;
+  // later ones come back at once.
   const reveal = () => {
     root.hidden = false
     if (shown) return
     shown = true
     fog = createFog(downscale)
     if (fog) root.insertBefore(fog.canvas, root.querySelector('.bv-menu-ui'))
-    // The colophon's cue may still be tailing, and one plays at a time.
+    // The colophon's cue may still be tailing; the menu is the music's.
     audio.stopOneShot(config.skipAudioFadeMs)
-    void audio.playOneShot(config.audioSrc, {
-      fadeInMs: config.fadeInMs,
-      holdMs: config.holdMs,
-      fadeOutMs: config.fadeOutMs,
-    })
+    if (music) musicFrame = requestAnimationFrame(playMusic)
     // On the next frame, so the fade starts from the black.
     requestAnimationFrame(() => root.classList.add('bv-menu--up'))
   }
 
   // Up and down (or W and S) walk the options, the volume sliders among
   // them, which left and right move; Enter and Space press the one in
-  // focus, as buttons do; Escape steps back out of Settings.
+  // focus, as buttons do; Escape steps back out of Audio or Settings.
   const onKey = (e: KeyboardEvent) => {
     if (root.hidden) return
-    if (e.code === 'Escape' && face === 'settings') {
+    if (e.code === 'Escape' && (face === 'audio' || face === 'settings')) {
       e.preventDefault()
       show('in')
       return
@@ -179,6 +195,8 @@ export function mountMainMenu({
     }, QUIT_WAIT_MS)
   }
 
+  audioBtn.addEventListener('click', () => show('audio'))
+  audioBackBtn.addEventListener('click', () => show('in'))
   settingsBtn.addEventListener('click', () => show('settings'))
   backBtn.addEventListener('click', () => show('in'))
   accountBtn.addEventListener('click', onAccount)
@@ -209,6 +227,7 @@ export function mountMainMenu({
     choose,
     remove() {
       document.removeEventListener('keydown', onKey)
+      cancelAnimationFrame(musicFrame)
       fog?.stop()
       audio.stopOneShot(config.skipAudioFadeMs)
       root.remove()
