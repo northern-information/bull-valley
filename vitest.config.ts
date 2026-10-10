@@ -1,6 +1,76 @@
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
+// The modules the unit tests cannot load or cannot cover: the Three and DOM
+// glue (the scene, the HUD and its dialogs, the rigs, the input and the
+// frame), the canvas art (every painter draws on a document canvas), the
+// socket (net.ts) and the music (an <audio>). The e2e specs cover these
+// instead. Everything else under src/ is a pure module carrying the game's
+// rules, and gets the floor below: a new module is floored unless it is
+// listed here.
+const THREE_AND_DOM = [
+  'accountpanel',
+  'actions',
+  'adart',
+  'akashic',
+  'akashicmap',
+  'assets',
+  'billart',
+  'bookhud',
+  'bookportraits',
+  'canart',
+  'canvas',
+  'caretakerrig',
+  'characterselect',
+  'corpsemeshes',
+  'decalart',
+  'devhook',
+  'dropmeshes',
+  'figure',
+  'fog',
+  'fphands',
+  'game',
+  'glow',
+  'graveart',
+  'gravestones',
+  'grondialog',
+  'hud',
+  'input',
+  'itemthumbs',
+  'levelhud',
+  'loop',
+  'main',
+  'mainmenu',
+  'mazeart',
+  'medart',
+  'mistcards',
+  'mudart',
+  'musicrig',
+  'net',
+  'packart',
+  'peers',
+  'player',
+  'playerbody',
+  'ps1',
+  'scope',
+  'seasonhud',
+  'settingsui',
+  'shadowburst',
+  'shadowcards',
+  'signin',
+  'splash',
+  'standart',
+  'standdialog',
+  'targets',
+  'taskhud',
+  'terrain',
+  'titles',
+  'trails',
+  'truck',
+  'valleysync',
+  'world',
+]
+
 export default defineConfig({
   resolve: {
     alias: {
@@ -22,17 +92,17 @@ export default defineConfig({
       // give every module listed there a test.
       include: ['src/**/*.ts', 'worker/**/*.ts'],
       // The pure modules carry the game rules and run in Node, so each one
-      // must stay well covered. The Three and DOM modules are covered by
-      // the e2e specs instead, and have no threshold here.
+      // must stay well covered: every module under src/ but the Three and
+      // DOM ones above (a picomatch exclusion, matched against the path
+      // from the repo root).
       thresholds: {
-        'src/{account,auth,bindings,book,cabbages,caretaker,characters,chat,clock,cookies,coords,copy,copybook,corpses,cosmetics,cycle,daily,dailytask,donuts,drinks,drops,emotes,finishes,friends,geometrie,graves,ground,hands,hotbar,interactions,inventory,items,landmarks,mapedit,marx,maze,mist,music,names,npcs,outfits,packgrid,poses,presence,progression,protocol,rng,roadgraph,roadside,season,settings,shadowmen,shadowsync,sharedworld,shop,splashmachine,stand,stash,store,trip,truckplan,walls,waterside,worldsync}.ts':
-          {
-            perFile: true,
-            statements: 85,
-            lines: 90,
-            functions: 90,
-            branches: 50,
-          },
+        [`src/!(${THREE_AND_DOM.join('|')}).ts`]: {
+          perFile: true,
+          statements: 85,
+          lines: 90,
+          functions: 90,
+          branches: 50,
+        },
         // The Worker: the valley, the accounts and the money.
         'worker/*.ts': {
           perFile: true,
