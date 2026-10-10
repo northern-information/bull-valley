@@ -2,9 +2,24 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { cloudflare } from '@cloudflare/vite-plugin'
 import { defineConfig } from 'vite'
 import { isGeo, serializeGeo } from './src/mapedit.ts'
+import type { IncomingMessage } from 'node:http'
 import type { Plugin } from 'vite'
 
 const GEO_PATH = 'public/data/bull-valley/geo.json'
+
+// The most a survey may be, in bytes: geo.json is well under a megabyte.
+const MAX_BODY = 4 * 1024 * 1024
+
+// Only the page the dev server itself served may save: a browser says so
+// with Sec-Fetch-Site, and one that does not send it must name this server
+// as its origin. Anything cross-site (a drive-by form post from another
+// tab) is refused.
+function fromThisServer(req: IncomingMessage): boolean {
+  const site = req.headers['sec-fetch-site']
+  if (site !== undefined) return site === 'same-origin'
+  const { origin, host } = req.headers
+  return typeof origin === 'string' && origin === `http://${host}`
+}
 
 // Akashic's Map mode saves the survey here (akashicmap.ts): a POST of the
 // whole geo.json, written back minified. Dev server only; never in the
@@ -24,10 +39,16 @@ function akashicMapSave(mode: string): Plugin {
         }
         if (req.method !== 'POST') return reply(405, 'POST the survey')
         if (mode === 'test') return reply(403, 'saving is off under e2e')
+        if (!fromThisServer(req)) return reply(403, 'not from Akashic')
         const chunks: Buffer[] = []
-        req.on('data', (c: Buffer) => chunks.push(c))
+        let size = 0
+        req.on('data', (c: Buffer) => {
+          size += c.length
+          if (size <= MAX_BODY) chunks.push(c)
+        })
         req.on('end', () => {
           void (async () => {
+            if (size > MAX_BODY) return reply(413, 'survey too big')
             let body: unknown
             try {
               body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
