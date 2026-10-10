@@ -31,10 +31,23 @@ export interface Holdings {
   stash: Inventory
 }
 
+// Everything the welcome carries of the account's (ValleyDO.ts hello).
+export interface Welcome {
+  holdings: Holdings
+  season: SeasonProgress
+  book: string[]
+  task: TaskProgress
+  xp: number
+  stand: StandLedger
+}
+
 export interface PackStore {
   // The account's holdings, with the starting pack and wallet given the
   // first time.
   open(accountId: string): Promise<Holdings>
+  // What the welcome carries, read together: `open` and every account
+  // read below in one round trip, so a hello costs the valley one wait.
+  welcome(accountId: string, season: string, task: string): Promise<Welcome>
   get(accountId: string): Promise<Holdings>
   // Adds `delta` of `kind`. A negative delta is taken only when the pack
   // holds that many; false when it does not.
@@ -151,6 +164,21 @@ export class MemoryPackStore implements PackStore {
       this.wallets.set(accountId, STARTING_CASH)
     }
     return this.get(accountId)
+  }
+
+  async welcome(
+    accountId: string,
+    season: string,
+    task: string
+  ): Promise<Welcome> {
+    return {
+      holdings: await this.open(accountId),
+      season: await this.season(accountId, season),
+      book: await this.book(accountId),
+      task: await this.task(accountId, task),
+      xp: await this.xp(accountId),
+      stand: (await this.stand(accountId)).ledger,
+    }
   }
 
   get(accountId: string): Promise<Holdings> {

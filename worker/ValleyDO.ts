@@ -64,6 +64,7 @@ import {
   reduce,
   restoreValley,
   seeHeadlights,
+  shadowmenNear,
   stepShadows,
   toWire,
 } from '../src/sharedworld.ts'
@@ -130,6 +131,9 @@ const DROP_LIMIT: RateLimit = { count: 20, ms: 10_000 }
 const DISCOVER_LIMIT: RateLimit = { count: 10, ms: 10_000 }
 
 const VALLEY_KEY = 'valley'
+// How far round a raider the shadowmen frame reaches: past where their
+// own bubble lets one go, so none crosses the edge unseen.
+const SHADOW_FRAME_RADIUS = CONFIG.shadowmen.despawnRadius + 40
 
 interface RateWindow {
   startedAt: number
@@ -500,7 +504,18 @@ export class ValleyDO extends DurableObject<Env> {
       this.ticker = null
       return
     }
-    this.broadcast(out.message, null)
+    // Each socket the field round its own raider: the whole of it, to
+    // everyone, grows with the raiders squared.
+    for (const socket of this.ctx.getWebSockets()) {
+      const me = this.attachment(socket).me
+      if (!me) continue
+      const at = me.at ? { x: me.at.x, z: me.at.z } : null
+      try {
+        send(socket, shadowmenNear(out.message, at, SHADOW_FRAME_RADIUS))
+      } catch {
+        // Closing sockets throw; their close handler follows.
+      }
+    }
     if (out.credited.length > 0) void this.credit(out.credited)
     if (out.burned.length > 0) void this.creditBurns(out.burned)
     if (out.xp.length > 0) void this.award(out.xp)
@@ -842,13 +857,8 @@ export class ValleyDO extends DurableObject<Env> {
     let xp: number
     let stand: StandLedger
     try {
-      const packs = this.packs()
-      holdings = await packs.open(account)
-      season = await packs.season(account, SEASON.id)
-      book = await packs.book(account)
-      task = await packs.task(account, DAILY_TASK.id)
-      xp = await packs.xp(account)
-      stand = (await packs.stand(account)).ledger
+      ;({ holdings, season, book, task, xp, stand } =
+        await this.packs().welcome(account, SEASON.id, DAILY_TASK.id))
     } catch (err) {
       console.error('The pack could not be opened', err)
       ws.close(CLOSE.serverError, 'The valley lost the pack')

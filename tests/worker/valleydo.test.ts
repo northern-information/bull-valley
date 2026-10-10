@@ -1142,6 +1142,7 @@ describe('ValleyDO', () => {
     const { valley: v, state: s } = await valley()
     v.packStore = {
       open: () => Promise.reject(new Error('D1 is down')),
+      welcome: () => Promise.reject(new Error('D1 is down')),
       get: () => Promise.reject(new Error('D1 is down')),
       change: () => Promise.reject(new Error('D1 is down')),
       purchase: () => Promise.reject(new Error('D1 is down')),
@@ -1238,6 +1239,7 @@ describe('ValleyDO', () => {
       expect(a.last<NackMessage>()).toMatchObject({ reason: 'unavailable' })
       v.packStore = {
         open: (id) => store.open(id),
+        welcome: (id, season, task) => store.welcome(id, season, task),
         get: (id) => store.get(id),
         change: (id, kind, delta) => store.change(id, kind, delta),
         purchase: () => Promise.reject(new Error('down')),
@@ -1349,6 +1351,7 @@ describe('ValleyDO: drops', () => {
     const store = v.packStore
     v.packStore = {
       open: (id) => store.open(id),
+      welcome: (id, season, task) => store.welcome(id, season, task),
       get: (id) => store.get(id),
       purchase: (id, amount, item) => store.purchase(id, amount, item),
       trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
@@ -1493,6 +1496,7 @@ describe('ValleyDO: corpse runs', () => {
     v.packStore = {
       ...store,
       open: (id) => store.open(id),
+      welcome: (id, season, task) => store.welcome(id, season, task),
       get: (id) => store.get(id),
       strip: () => Promise.reject(new Error('down')),
     }
@@ -1506,6 +1510,7 @@ describe('ValleyDO: corpse runs', () => {
       await v.fallFor('acct-A', idOf(a), { x: 1, z: 2, yaw: 0 })
       v.packStore = {
         open: (id) => store.open(id),
+        welcome: (id, season, task) => store.welcome(id, season, task),
         get: (id) => store.get(id),
         change: (id, kind, delta) => store.change(id, kind, delta),
         purchase: (id, amount, item) => store.purchase(id, amount, item),
@@ -1596,6 +1601,7 @@ describe('ValleyDO: the stash', () => {
     v.packStore = {
       ...store,
       open: (id) => store.open(id),
+      welcome: (id, season, task) => store.welcome(id, season, task),
       get: (id) => store.get(id),
       stow: () => Promise.reject(new Error('down')),
     }
@@ -1732,6 +1738,7 @@ describe('ValleyDO: the Cabbage Stand', () => {
       v.packStore = {
         ...store,
         open: (id) => store.open(id),
+        welcome: (id, season, task) => store.welcome(id, season, task),
         get: (id) => store.get(id),
         stand: () => Promise.reject(new Error('down')),
       }
@@ -1740,6 +1747,7 @@ describe('ValleyDO: the Cabbage Stand', () => {
       v.packStore = {
         ...store,
         open: (id) => store.open(id),
+        welcome: (id, season, task) => store.welcome(id, season, task),
         get: (id) => store.get(id),
         stand: (id) => store.stand(id),
         tend: () => Promise.reject(new Error('down')),
@@ -1758,6 +1766,7 @@ describe('ValleyDO: the Cabbage Stand', () => {
       v.packStore = {
         ...store,
         open: (id) => store.open(id),
+        welcome: (id, season, task) => store.welcome(id, season, task),
         get: (id) => store.get(id),
         stand: (id) => store.stand(id),
         tend: () => Promise.resolve(false),
@@ -1803,6 +1812,36 @@ describe('ValleyDO: the shadowmen', () => {
     await v.webSocketClose(ws(b))
     v.tick()
     expect(v.ticking).toBe(false)
+  })
+
+  it('sends each raider the shadowmen round them, not the whole valley', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const b = await join(v, s, 'B')
+    const c = await join(v, s, 'C')
+    await v.webSocketMessage(ws(a), state(0, 0))
+    await v.webSocketMessage(ws(b), state(5000, 5000))
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"calm"}')
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"shadowman","x":3,"z":3}'
+    )
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"shadowman","x":5003,"z":5003}'
+    )
+    v.tick()
+    const near = (socket: MockSocket, x: number) =>
+      shadowFrames(socket)
+        .at(-1)
+        ?.shadowmen.some((m) => Math.abs(m.x - x) < 1)
+    expect(near(a, 3)).toBe(true)
+    expect(near(a, 5003)).toBe(false)
+    expect(near(b, 5003)).toBe(true)
+    expect(near(b, 3)).toBe(false)
+    // C, nowhere yet, is sent the whole field.
+    expect(near(c, 3)).toBe(true)
+    expect(near(c, 5003)).toBe(true)
   })
 
   it('strikes the raider a shadowman touches, and no one else', async () => {
@@ -2077,6 +2116,7 @@ describe('ValleyDO: the shadowmen', () => {
     const store = v.packStore
     v.packStore = {
       open: (id) => store.open(id),
+      welcome: (id, season, task) => store.welcome(id, season, task),
       get: (id) => store.get(id),
       change: (id, kind, delta) => store.change(id, kind, delta),
       purchase: (id, amount, item) => store.purchase(id, amount, item),
@@ -2205,6 +2245,7 @@ describe('ValleyDO: the shadowmen', () => {
     const store = v.packStore
     v.packStore = {
       open: (id) => store.open(id),
+      welcome: (id, season, task) => store.welcome(id, season, task),
       get: (id) => store.get(id),
       change: (id, kind, delta) => store.change(id, kind, delta),
       purchase: (id, amount, item) => store.purchase(id, amount, item),
@@ -2349,6 +2390,7 @@ describe("ValleyDO: Moab's trade", () => {
       expect(a.last<NackMessage>()).toMatchObject({ reason: 'unavailable' })
       v.packStore = {
         open: (id) => store.open(id),
+        welcome: (id, season, task) => store.welcome(id, season, task),
         get: (id) => store.get(id),
         change: (id, kind, delta) => store.change(id, kind, delta),
         purchase: (id, amount, item) => store.purchase(id, amount, item),
@@ -2436,6 +2478,7 @@ describe('ValleyDO: the Book of Shadows', () => {
     v.packStore = {
       ...store,
       open: (id) => store.open(id),
+      welcome: (id, season, task) => store.welcome(id, season, task),
       get: (id) => store.get(id),
       season: (id, season) => store.season(id, season),
       book: (id) => store.book(id),

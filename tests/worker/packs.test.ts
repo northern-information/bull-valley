@@ -44,6 +44,33 @@ function packContract(makeStore: () => PackStore): void {
     })
   })
 
+  it('reads everything the welcome carries at once, opening the account', async () => {
+    const store = makeStore()
+    const first = await store.welcome('a1', 'one', 'burn')
+    expect(first).toEqual({
+      holdings: {
+        pack: STARTING_INVENTORY,
+        cash: STARTING_CASH,
+        cosmetics: [],
+        stash: EMPTY,
+      },
+      season: NO_PROGRESS,
+      book: [],
+      task: NO_TASK,
+      xp: 0,
+      stand: FRESH_STAND,
+    })
+    await store.change('a1', OTHER, 2)
+    await store.discover('a1', ['citgo'], 5)
+    await store.gainXp('a1', 7)
+    const again = await store.welcome('a1', 'one', 'burn')
+    expect(again.holdings.pack[OTHER]).toBe(2)
+    expect(again.book).toEqual(['citgo'])
+    expect(again.xp).toBe(7)
+    // Reading never makes a stand row: the first tend does.
+    expect((await store.stand('a1')).rev).toBe(0)
+  })
+
   it('holds nothing for an account never opened', async () => {
     const store = makeStore()
     const { pack, cash } = await store.get('a1')
@@ -323,7 +350,9 @@ describe('D1PackStore', () => {
     const { db } = testD1()
     const store = new D1PackStore(db)
     // No account, so the stand row breaks its foreign key.
-    await expect(store.stand('nobody')).rejects.toThrow(/FOREIGN KEY/)
+    await expect(
+      store.tend('nobody', 0, { ledger: FRESH_STAND, items: {}, cash: 0 })
+    ).rejects.toThrow(/FOREIGN KEY/)
     const broken = {
       ...db,
       batch: () => Promise.reject(new Error('D1 is down')),

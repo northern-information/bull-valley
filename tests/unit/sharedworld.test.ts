@@ -22,6 +22,7 @@ import {
   reduce,
   restoreValley,
   seeHeadlights,
+  shadowmenNear,
   shadowRaiders,
   stepShadows,
   toWire,
@@ -1509,6 +1510,30 @@ describe("rule 11: the shadowmen are the valley's", () => {
     expect(world?.metres).toEqual(METRES)
     const wire = toWire(valleyWith(join('a')).valley)
     expect(wire && ('havens' in wire || 'metres' in wire)).toBe(false)
+  })
+
+  it('cuts a frame down to the shadowmen round one raider', () => {
+    const man = (id: number, x: number) => ({
+      id,
+      x,
+      z: 0,
+      burn: 0,
+      target: null,
+    })
+    const frame = {
+      type: 'shadowmen' as const,
+      shadowmen: [man(1, 10), man(2, 500), man(3, 20)],
+      lunges: [1, 2],
+      bursts: [],
+      caretaker: null,
+      unmade: null,
+    }
+    const near = shadowmenNear(frame, { x: 0, z: 0 }, 100)
+    expect(near.shadowmen.map((m) => m.id)).toEqual([1, 3])
+    expect(near.lunges).toEqual([1])
+    // Whole when all are near, and for a raider nowhere yet.
+    expect(shadowmenNear(frame, { x: 0, z: 0 }, 1000)).toBe(frame)
+    expect(shadowmenNear(frame, null, 1)).toBe(frame)
   })
 
   it('crosses round every placed raider in the valley', () => {

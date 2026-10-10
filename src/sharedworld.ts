@@ -1492,6 +1492,28 @@ const round = (n: number, places: number) =>
   Math.round(n * 10 ** places) / 10 ** places
 
 // One step of the valley's shadowmen and its Caretaker, dt seconds on: the
+// The step's frame as one raider at `at` needs it: the shadowmen within
+// `radius` of them (the field round every raider is sent to no one whole),
+// the lunges among those, and the rest as it is. A raider nowhere yet gets
+// it whole.
+export function shadowmenNear(
+  message: ShadowmenMessage,
+  at: XZ | null,
+  radius: number
+): ShadowmenMessage {
+  if (!at) return message
+  const shadowmen = message.shadowmen.filter(
+    (s) => Math.hypot(s.x - at.x, s.z - at.z) <= radius
+  )
+  if (shadowmen.length === message.shadowmen.length) return message
+  const ids = new Set(shadowmen.map((s) => s.id))
+  return {
+    ...message,
+    shadowmen,
+    lunges: message.lunges.filter((id) => ids.has(id)),
+  }
+}
+
 // frame for everyone, the raiders struck, and which of them the Caretaker
 // caught. Null when there is nothing to step (no world, or no one placed
 // in it), and the field is emptied, so the valley stops stepping until
