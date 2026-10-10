@@ -449,7 +449,7 @@ describe('contactsOf', () => {
 
   it('reports what is inside scope range by bearing and distance', () => {
     expect(contactsOf([at(0, -100)], ORIGIN, 'a', 250)).toEqual([
-      { dist: 100, bearing: 0, hunting: false },
+      { dist: 100, bearing: 0, hunting: false, kind: 'shadow' },
     ])
     const [east] = contactsOf([at(100, 0)], ORIGIN, 'a', 250)
     expect(east.bearing).toBeCloseTo(90, 9)

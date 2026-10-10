@@ -162,7 +162,9 @@ describe('peerContacts', () => {
     expect(contacts.map((c) => Math.round(c.bearing))).toEqual([
       0, 90, 180, 270,
     ])
-    expect(contacts.every((c) => c.dist === 10 && !c.hunting)).toBe(true)
+    expect(
+      contacts.every((c) => c.dist === 10 && !c.hunting && c.kind === 'raider')
+    ).toBe(true)
   })
 })
 

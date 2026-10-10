@@ -49,8 +49,8 @@ export const CONFIG = {
   shadowmen: {
     // Crossings: this many shadowmen at once in a bubble around the player.
     count: 12,
-    // They spawn on this ring, just past scope range so blips enter from the
-    // rim, cross toward a point within crossRadius of the player, and are
+    // They spawn on this ring, well past scope range so blips enter from the
+    // rim as they near, cross toward a point within crossRadius of the player, and are
     // dropped past despawnRadius.
     spawnRadius: 300,
     crossRadius: 120,
@@ -219,7 +219,8 @@ export const CONFIG = {
     fadePerSecond: { high: 1 / 240, stimulated: 1 / 180, drunk: 1 / 300 },
   },
   scope: {
-    rangeMetres: 250,
+    // Close enough to read: a rush starts at a quarter of it.
+    rangeMetres: 100,
     sweepSeconds: 3.2,
   },
   spawn: {
