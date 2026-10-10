@@ -279,7 +279,6 @@ struck = { text = "You are somewhere else. Time is missing.", by = "ai" }
 hit = { text = "Something cold goes through you. It takes a piece with it.", by = "ai" }
 hit_caretaker = { text = "The lantern swings into you. A piece of you stays in the corn.", by = "ai" }
 mended = { text = "Under the Citgo lights you come back together.", by = "ai" }
-whole = { text = "You are whole. Save it.", by = "ai" }
 caught = { text = "A lantern, very close. Then the forecourt, and the smell of cold corn.", by = "ai" }
 fell = { text = "Your pockets are empty. Everything you carried is still out there, on you, where you fell.", by = "ai" }
 looted = { text = "You take your things back off your own body.", by = "ai" }
@@ -829,13 +828,17 @@ empty = { text = "The ibuprofen bottle rattles empty.", by = "ai" }
 
 [items.benadryl]
 label = { text = "Benadryl", by = "ai" }
-blurb = { text = "The pink box. Allergies, or a few hours of nothing.", by = "ai" }
+blurb = { text = "The pink box. Allergies, or a few hours of nothing. One gives a point of health back.", by = "ai" }
+used = { text = "You swallow a pink Benadryl. The edges go soft and far away.", by = "ai" }
 bought = { text = "One box of Benadryl, pocketed.", by = "ai" }
+empty = { text = "The Benadryl box is empty foil.", by = "ai" }
 
 [items.eye-drops]
 label = { text = "Eye Drops", by = "ai" }
-blurb = { text = "Half an ounce, red cap. Gets the red out.", by = "ai" }
+blurb = { text = "Half an ounce, red cap. Gets the red out. One gives a point of health back.", by = "ai" }
+used = { text = "A drop in each eye. The valley comes back into focus.", by = "ai" }
 bought = { text = "One bottle of eye drops, pocketed.", by = "ai" }
+empty = { text = "The eye drops squeeze out nothing but air.", by = "ai" }
 
 [items.cabbage]
 label = { text = "Cabbage", by = "ai" }

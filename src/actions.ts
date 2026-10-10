@@ -742,12 +742,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // An item with no effect yet does nothing, and a cigarette waits for the
   // one burning.
   const useKind = (kind: string) => {
-    // Medicine that heals is kept for when it is wanted.
     const heals = healsOf(kind)
-    if (heals > 0 && isWhole(s.health) && (s.inventory[kind] ?? 0) > 0) {
-      hud.tell(copy('log.whole'))
-      return
-    }
     const result = consume(s.inventory, kind, s.effects, s.time)
     if (!result.used) {
       const empty = result.reason === 'empty' ? itemById(kind)?.empty : null
