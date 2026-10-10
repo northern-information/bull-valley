@@ -102,13 +102,64 @@ describe('STORE_LAYOUT', () => {
       const nx = Math.sin(sign.yaw)
       const nz = Math.cos(sign.yaw)
       if (Math.abs(nx) > 0.5) {
-        near(x - nx * half, [STORE_LAYOUT.front, STORE_LAYOUT.back])
+        near(x - nx * half, [
+          STORE_LAYOUT.front,
+          STORE_LAYOUT.back,
+          STORE_LAYOUT.partition,
+        ])
         expect(Math.abs(z) + w / 2).toBeLessThan(STORE_LAYOUT.halfWidth)
       } else {
-        near(z - nz * half, [STORE_LAYOUT.halfWidth, -STORE_LAYOUT.halfWidth])
+        near(z - nz * half, [
+          STORE_LAYOUT.halfWidth,
+          -STORE_LAYOUT.halfWidth,
+          STORE_LAYOUT.bathroom.z,
+        ])
         expect(x - w / 2).toBeGreaterThan(STORE_LAYOUT.back)
         expect(x + w / 2).toBeLessThan(STORE_LAYOUT.front)
       }
+    }
+  })
+})
+
+describe('the bathroom', () => {
+  const inBackRoom = (b: { center: Vec3; size: Vec3 }) => {
+    const [x, y, z] = b.center
+    const [sx, sy, sz] = b.size
+    expect(x - sx / 2).toBeGreaterThanOrEqual(STORE_LAYOUT.back)
+    expect(x + sx / 2).toBeLessThanOrEqual(STORE_LAYOUT.partition)
+    expect(y - sy / 2).toBeGreaterThanOrEqual(STORE_LAYOUT.floor - 1e-9)
+    expect(y + sy / 2).toBeLessThanOrEqual(STORE_LAYOUT.height)
+    expect(Math.abs(z) + sz / 2).toBeLessThanOrEqual(STORE_LAYOUT.halfWidth)
+  }
+  const parts = ['bath-', 'toilet-', 'sink-', 'mirror']
+  const bathroom = STORE_LAYOUT.boxes.filter((b) =>
+    parts.some((p) => b.name.startsWith(p))
+  )
+
+  it('stands in the back room, past the lockers', () => {
+    expect(bathroom.length).toBeGreaterThan(0)
+    const { z, width, count } = STORE_LAYOUT.lockers
+    for (const b of bathroom) {
+      inBackRoom(b)
+      expect(b.center[2] - b.size[2] / 2).toBeGreaterThan(
+        z + (width * count) / 2
+      )
+    }
+  })
+
+  it('leaves a doorway a raider fits through', () => {
+    const [x0, x1] = STORE_LAYOUT.bathroom.door
+    expect(x1 - x0).toBeGreaterThan(CONFIG.player.radius * 3)
+    const wall = STORE_LAYOUT.boxes.find((b) => b.name === 'bath-wall')
+    expect(wall?.blocks).toBe(true)
+    expect((wall?.center[0] ?? 0) + (wall?.size[0] ?? 0) / 2).toBeCloseTo(x0)
+    // Nothing that blocks stands in the doorway.
+    for (const b of STORE_LAYOUT.boxes.filter((b) => b.blocks)) {
+      const [x, , z] = b.center
+      const [sx, , sz] = b.size
+      const overlapsX = x + sx / 2 > x0 + 1e-9 && x - sx / 2 < x1 - 1e-9
+      const overlapsZ = Math.abs(z - STORE_LAYOUT.bathroom.z) < sz / 2 + 0.3
+      expect(overlapsX && overlapsZ).toBe(false)
     }
   })
 })
