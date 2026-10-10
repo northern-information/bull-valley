@@ -2292,6 +2292,15 @@ const MALL_FINISH: Record<MallFinish, () => THREE.Material> = {
   tube: () => applyPS1(new THREE.MeshBasicMaterial({ color: '#eaf1ee' })),
   'dead-tube': () => lambert({ color: '#8c8f88' }),
   cardboard: () => lambert({ color: '#9c7c52' }),
+  xxx: () =>
+    lambert({
+      color: '#c2306e',
+      emissive: new THREE.Color('#5a1030'),
+      emissiveIntensity: 0.5,
+    }),
+  beads: () =>
+    lambert({ color: '#b07a2a', emissive: new THREE.Color('#3a2408') }),
+  redlight: () => applyPS1(new THREE.MeshBasicMaterial({ color: '#ff2a2a' })),
 }
 
 // A box from the layout as geometry in mall-local space, turned if it was
@@ -2398,6 +2407,13 @@ export function buildStripMall(): StripMallRig {
   knob.position.set(0.08, 1.0, lock.width - 0.12)
   door.add(knob)
   group.add(door)
+  // The adult section's red bulb throws a red haze round itself.
+  const bulb = STRIP_MALL.boxes.find((b) => b.name === 'adult-bulb')
+  if (bulb) {
+    const haze = makeGlowSprite(makeGlowTexture('rgba(255, 40, 40, 0.55)'), 3.2)
+    haze.position.set(...bulb.center)
+    group.add(haze)
+  }
   for (const sign of STRIP_MALL.signs) {
     const mesh = mallSignMesh(sign)
     group.add(mesh)
@@ -4183,6 +4199,201 @@ function buildMushrooms({ glow = true }: PickupOptions = {}): THREE.Group {
     group.add(halo)
   }
   setPulseMaterials(group, [cap, bag])
+  return group
+}
+
+// --- Erwin's goods and his rose ------------------------------------------
+
+// A sheet of blotter, a few tabs torn off along the perforations: the
+// tabs printed with a third eye in a triangle, red on yellow. Drawn three
+// times its size, or the downscale would lose it. Origin at ground level
+// under it.
+function buildBlotter({ glow = true }: PickupOptions = {}): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'lsd'
+  const art = canvas([64, 64], '#f2d24a')
+  const { ctx } = art
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)'
+  ctx.lineWidth = 1
+  for (let i = 1; i < 4; i++) {
+    ctx.beginPath()
+    ctx.moveTo(i * 16, 0)
+    ctx.lineTo(i * 16, 64)
+    ctx.moveTo(0, i * 16)
+    ctx.lineTo(64, i * 16)
+    ctx.stroke()
+  }
+  ctx.fillStyle = '#b81e2a'
+  ctx.beginPath()
+  ctx.moveTo(32, 10)
+  ctx.lineTo(54, 50)
+  ctx.lineTo(10, 50)
+  ctx.closePath()
+  ctx.fill()
+  ctx.fillStyle = '#f2d24a'
+  ctx.beginPath()
+  ctx.ellipse(32, 36, 9, 5, 0, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.fillStyle = '#1a1a1a'
+  ctx.beginPath()
+  ctx.arc(32, 36, 3, 0, Math.PI * 2)
+  ctx.fill()
+  const texture = artTexture(art)
+  const paper = lambert({
+    map: texture,
+    emissive: new THREE.Color('#ffffff'),
+    emissiveMap: texture,
+    emissiveIntensity: 0.35,
+    side: THREE.DoubleSide,
+  })
+  const sheet = new THREE.Mesh(new THREE.PlaneGeometry(0.11, 0.11), paper)
+  sheet.rotation.x = -Math.PI / 2
+  sheet.position.y = 0.003
+  group.add(sheet)
+  // Two tabs torn loose beside it.
+  for (const [x, z, turn] of [
+    [0.09, 0.02, 0.4],
+    [0.075, -0.05, -0.9],
+  ]) {
+    const tab = new THREE.Mesh(new THREE.PlaneGeometry(0.028, 0.028), paper)
+    tab.rotation.set(-Math.PI / 2, 0, turn)
+    tab.position.set(x, 0.004, z)
+    group.add(tab)
+  }
+  if (glow) {
+    const halo = makeGlowSprite(
+      makeGlowTexture('rgba(242, 210, 74, 0.45)'),
+      0.5
+    )
+    halo.position.y = 0.02
+    group.add(halo)
+  }
+  setPulseMaterials(group, [paper])
+  return group
+}
+
+// A prescription bottle of Adderall, the amber kind with a white cap and
+// a white label, lying on its side. Drawn twice its size. Origin at ground
+// level under it.
+function buildAdderall({ glow = true }: PickupOptions = {}): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'adderall'
+  const amber = lambert({
+    color: '#b8601a',
+    emissive: new THREE.Color('#e08a2a'),
+    emissiveIntensity: 0.35,
+    transparent: true,
+    opacity: 0.85,
+  })
+  const cap = lambert({ color: '#f0eee6' })
+  const label = lambert({
+    color: '#e8e6dc',
+    emissive: new THREE.Color('#6a685e'),
+    emissiveIntensity: 0.4,
+  })
+  const pills = lambert({ color: '#e07a2a' })
+  const bottle = new THREE.Group()
+  const body = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.018, 0.018, 0.06, 8),
+    amber
+  )
+  bottle.add(body)
+  const sticker = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.0185, 0.0185, 0.032, 8),
+    label
+  )
+  sticker.position.y = -0.004
+  bottle.add(sticker)
+  const lid = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.02, 0.02, 0.014, 8),
+    cap
+  )
+  lid.position.y = 0.037
+  bottle.add(lid)
+  bottle.rotation.z = Math.PI / 2
+  bottle.position.y = 0.02
+  group.add(bottle)
+  // Two pills spilled beside it.
+  for (const [x, z] of [
+    [0.05, 0.03],
+    [0.065, 0.012],
+  ]) {
+    const pill = new THREE.Mesh(
+      new THREE.CapsuleGeometry(0.004, 0.008, 2, 4),
+      pills
+    )
+    pill.rotation.z = Math.PI / 2
+    pill.position.set(x, 0.004, z)
+    group.add(pill)
+  }
+  group.scale.setScalar(2)
+  if (glow) {
+    const halo = makeGlowSprite(
+      makeGlowTexture('rgba(224, 138, 42, 0.45)'),
+      0.3
+    )
+    halo.position.y = 0.02
+    group.add(halo)
+  }
+  setPulseMaterials(group, [amber, label])
+  return group
+}
+
+// A single red rose, long-stemmed, lying on its side: the bloom as a few
+// tilted cones of petals, two leaves on the stem. Origin at ground level
+// under its middle.
+function buildRose({ glow = true }: PickupOptions = {}): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'rose'
+  const petal = lambert({
+    color: '#8a0e1c',
+    emissive: new THREE.Color('#d0203a'),
+    emissiveIntensity: 0.4,
+  })
+  const green = lambert({ color: '#2a5a24' })
+  const rose = new THREE.Group()
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.004, 0.005, 0.42, 5),
+    green
+  )
+  stem.position.y = 0.21
+  rose.add(stem)
+  for (const [y, side] of [
+    [0.16, 1],
+    [0.27, -1],
+  ]) {
+    const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.06, 4), green)
+    leaf.position.set(side * 0.02, y, 0)
+    leaf.rotation.z = -side * 1.1
+    leaf.scale.z = 0.3
+    rose.add(leaf)
+  }
+  const sepal = new THREE.Mesh(new THREE.ConeGeometry(0.016, 0.025, 5), green)
+  sepal.position.y = 0.425
+  sepal.rotation.x = Math.PI
+  rose.add(sepal)
+  for (let i = 0; i < 3; i++) {
+    const bloom = new THREE.Mesh(
+      new THREE.ConeGeometry(0.03 - i * 0.008, 0.045 - i * 0.008, 6, 1, true),
+      petal
+    )
+    bloom.position.y = 0.455 + i * 0.004
+    bloom.rotation.set(Math.PI, i * 0.7, 0)
+    rose.add(bloom)
+  }
+  const bud = new THREE.Mesh(new THREE.IcosahedronGeometry(0.012, 0), petal)
+  bud.position.y = 0.46
+  rose.add(bud)
+  // On its side, the bloom resting a little off the ground.
+  rose.rotation.z = Math.PI / 2 - 0.05
+  rose.position.set(0.22, 0.03, 0)
+  group.add(rose)
+  if (glow) {
+    const halo = makeGlowSprite(makeGlowTexture('rgba(220, 40, 60, 0.45)'), 0.6)
+    halo.position.y = 0.04
+    group.add(halo)
+  }
+  setPulseMaterials(group, [petal])
   return group
 }
 
@@ -6213,6 +6424,9 @@ export function buildPickup(
   if (kind === 'gold-bullion') return buildGoldBullion({ glow })
   if (kind === 'vault-key') return buildVaultKey({ glow })
   if (kind === 'mushrooms') return buildMushrooms({ glow })
+  if (kind === 'lsd') return buildBlotter({ glow })
+  if (kind === 'adderall') return buildAdderall({ glow })
+  if (kind === 'rose') return buildRose({ glow })
   if (isMedicine(kind)) return buildMedicine(kind, { glow })
   let mesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshLambertMaterial>
   if (kind === 'cabbage') {
@@ -6587,6 +6801,13 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     label: 'Video Vault key',
     build: () => buildPickup('vault-key'),
   },
+  {
+    id: 'lsd',
+    label: 'LSD: a sheet of blotter',
+    build: () => buildPickup('lsd'),
+  },
+  { id: 'adderall', label: 'Adderall', build: () => buildPickup('adderall') },
+  { id: 'rose', label: "Erwin's rose", build: () => buildPickup('rose') },
   {
     id: 'tombstone',
     label: "Tombstone: a shadowman's",

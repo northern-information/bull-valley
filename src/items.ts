@@ -5,8 +5,8 @@
 //
 // Fields:
 //   id        inventory kind and mesh key
-//   category  'cigarette' | 'joint' | 'psychedelic' | 'drink' | 'medicine'
-//             | 'forage' | 'valuable' | 'key'
+//   category  'cigarette' | 'joint' | 'psychedelic' | 'stimulant' |
+//             'drink' | 'medicine' | 'forage' | 'valuable' | 'key-item'
 //   label     name in the pack, and floating over a pickup or shelf unit
 //   blurb     description on the pack's item card
 //   used      chat line when the player uses it
@@ -119,9 +119,32 @@ export const ITEMS = [
     perceptionSeconds: 120,
     geometrie: { high: 0.5 },
   },
-  // Never on a Citgo shelf: the squatter in the Golden Wok sells them
-  // (dealer.ts). They work like the joint, harder and longer: perception,
-  // a long trip, and very high.
+  // Never on a Citgo shelf: Erwin von Dutch in the Golden Wok deals them
+  // (dealer.ts). The psychedelics work like the joint, harder and longer:
+  // perception, a long trip, and very high; the Adderall stimulates.
+  {
+    id: 'lsd',
+    category: 'psychedelic',
+    label: copy('items.lsd.label'),
+    blurb: copy('items.lsd.blurb'),
+    used: copy('items.lsd.used'),
+    empty: copy('items.lsd.empty'),
+    start: 0,
+    perceptionSeconds: 480,
+    geometrie: { high: 1 },
+  },
+  {
+    id: 'adderall',
+    category: 'stimulant',
+    label: copy('items.adderall.label'),
+    blurb: copy('items.adderall.blurb'),
+    used: copy('items.adderall.used'),
+    empty: copy('items.adderall.empty'),
+    start: 0,
+    contents: 10,
+    tripSeconds: 20,
+    geometrie: { stimulated: 0.45 },
+  },
   {
     id: 'mushrooms',
     category: 'psychedelic',
@@ -449,11 +472,19 @@ export const ITEMS = [
     blurb: copy('items.gold-bullion.blurb'),
     start: 0,
   },
-  // Keys. Never used up: a key opens its lock for whoever carries it
-  // (keys.ts), and goes where the pack goes, a strike included.
+  // Key items: what a quest gives or asks for (quests.ts), and the keys,
+  // which open their locks for whoever carries them (keys.ts). Never used
+  // up and never dropped; they go where the pack goes, a strike included.
+  {
+    id: 'rose',
+    category: 'key-item',
+    label: copy('items.rose.label'),
+    blurb: copy('items.rose.blurb'),
+    start: 0,
+  },
   {
     id: 'vault-key',
-    category: 'key',
+    category: 'key-item',
     label: copy('items.vault-key.label'),
     blurb: copy('items.vault-key.blurb'),
     start: 0,
@@ -502,6 +533,11 @@ export function isDrink(id: string): boolean {
   return itemById(id)?.category === 'drink'
 }
 
+// Whether `id` is a key item: never dropped, never used up.
+export function isKeyItem(id: string): boolean {
+  return itemById(id)?.category === 'key-item'
+}
+
 export function isMedicine(id: string): boolean {
   return itemById(id)?.category === 'medicine'
 }
@@ -514,6 +550,7 @@ export function isUsable(id: string): boolean {
     category === 'cigarette' ||
     category === 'joint' ||
     category === 'psychedelic' ||
+    category === 'stimulant' ||
     category === 'drink'
   )
 }

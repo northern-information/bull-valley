@@ -5,7 +5,7 @@ import { holdsKey, isLock, LOCKS, passes } from '../../src/keys.ts'
 describe('keys', () => {
   it('opens each lock with a key item', () => {
     for (const lock of Object.values(LOCKS)) {
-      expect(itemById(lock.key)?.category).toBe('key')
+      expect(itemById(lock.key)?.category).toBe('key-item')
     }
     expect(isLock('vault-back-room')).toBe(true)
     expect(isLock('front-door')).toBe(false)

@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { heartPoint, theMaze } from '../../src/caretaker.ts'
 import { CONFIG } from '../../src/config.ts'
 import { dayKey, nextMidnight } from '../../src/daily.ts'
-import { freshDealerStock, goodOf } from '../../src/dealer.ts'
+import { costIn, freshDealerStock, goodOf } from '../../src/dealer.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { contentsOf, getItem } from '../../src/items.ts'
+import { mazeToWorld } from '../../src/maze.ts'
 import { PROTOCOL_VERSION } from '../../src/protocol.ts'
 import { mulberry32 } from '../../src/rng.ts'
 import {
@@ -37,6 +38,7 @@ import type {
   PickupSpec,
   WorldMessage,
 } from '../../src/protocol.ts'
+import type { QuestStage } from '../../src/quests.ts'
 import type { Placed, Valley, ValleyAction } from '../../src/sharedworld.ts'
 import type { StandLedger } from '../../src/stand.ts'
 
@@ -74,6 +76,7 @@ function valleyWith(...actions: ValleyAction[]) {
   // when a test says what it holds.
   let cash = 100_00
   let pack: Inventory | null = null
+  let quest: { stage: QuestStage; pack: Inventory } | null = null
   const out: ReturnType<typeof reduce>[] = []
   const step = (action: ValleyAction) => {
     const ctx = {
@@ -81,6 +84,7 @@ function valleyWith(...actions: ValleyAction[]) {
       present: [...present],
       cash,
       ...(pack ? { holdings: { pack, cosmetics: [] } } : {}),
+      ...(quest ? { quest } : {}),
     }
     const reduced = reduce(valley, action, ctx)
     valley = reduced.valley
@@ -106,6 +110,9 @@ function valleyWith(...actions: ValleyAction[]) {
     },
     setPack(held: Inventory) {
       pack = held
+    },
+    setQuest(stage: QuestStage, held: Inventory) {
+      quest = { stage, pack: held }
     },
     get now() {
       return now
@@ -509,17 +516,20 @@ describe('rule 4, cash: a pickup of cash goes into the wallet', () => {
   })
 })
 
-describe('rule 24: the squatter deals', () => {
+describe('rule 24: Erwin von Dutch barters', () => {
   const near = { x: DEALER.x + 1, z: DEALER.z }
   const dealAs = (
     id: string,
     kind = 'mushrooms',
+    pay = 'marlboro',
     at: { x: number; z: number } | null = near
-  ): ValleyAction => ({ type: 'deal', id, kind, at })
+  ): ValleyAction => ({ type: 'deal', id, kind, pay, at })
+  const mushrooms = goodOf('mushrooms')
+  const cost = mushrooms ? (costIn(mushrooms, 'marlboro') ?? 0) : 0
 
-  it('sells one out of his stock for the whole valley, out of the wallet', () => {
+  it('trades one out of his stock for the whole valley, out of the pack', () => {
     const v = valleyWith(join('a'), join('b'))
-    v.setPack({})
+    v.setPack({ marlboro: 200 })
     expect(v.valley.world?.dealerStock).toEqual(freshDealerStock())
     const r = v.step(dealAs('a'))
     expect(r.broadcast).toHaveLength(1)
@@ -529,45 +539,49 @@ describe('rule 24: the squatter deals', () => {
       item: 'mushrooms',
     })
     expect(r.broadcast[0].world?.dealer.mushrooms).toBe(
-      (goodOf('mushrooms')?.perDay ?? 0) - 1
+      (mushrooms?.perDay ?? 0) - 1
     )
-    expect(r.spend).toEqual({
+    expect(r.barter).toEqual({
       account: 'acct-a',
-      amount: goodOf('mushrooms')?.price,
+      give: { kind: 'marlboro', count: cost },
+      take: { kind: 'mushrooms', count: 1 },
     })
-    expect(r.pack).toEqual({ account: 'acct-a', kind: 'mushrooms', delta: 1 })
+    // No cash changes hands.
+    expect(r.spend).toBeUndefined()
+    expect(r.pack).toBeUndefined()
     expect(r.xp).toEqual([{ account: 'acct-a', source: 'purchase' }])
   })
 
-  it('refuses from afar, aboard, sold out, short, or a second key', () => {
+  it('refuses from afar, aboard, sold out, short, or for what he will not take', () => {
     const v = valleyWith(join('a'), join('b'))
-    v.setPack({ 'vault-key': 1 })
+    v.setPack({ marlboro: 1000, cabbage: 5 })
     const reason = (r: ReturnType<typeof reduce>) => r.reply?.reason
-    expect(v.step(dealAs('a', 'mushrooms', null)).reply).toEqual({
+    expect(v.step(dealAs('a', 'mushrooms', 'marlboro', null)).reply).toEqual({
       type: 'nack',
       re: 'deal',
       reason: 'too-far',
       item: 'mushrooms',
     })
-    expect(reason(v.step(dealAs('a', 'mushrooms', { x: 0, z: 0 })))).toBe(
-      'too-far'
+    expect(
+      reason(v.step(dealAs('a', 'mushrooms', 'marlboro', { x: 0, z: 0 })))
+    ).toBe('too-far')
+    expect(reason(v.step(dealAs('a', 'mushrooms', 'cabbage')))).toBe(
+      'worthless'
     )
-    expect(reason(v.step(dealAs('a', 'vault-key')))).toBe('have-one')
     expect(reason(v.step(dealAs('a', 'marlboro')))).toBe('no-such-good')
     expect(reason(v.step(dealAs('z')))).toBe('not-in-valley')
-    v.setCash(0)
+    const left = goodOf('lsd')?.perDay ?? 0
+    for (let i = 0; i < left; i++) v.step(dealAs('b', 'lsd'))
+    expect(reason(v.step(dealAs('a', 'lsd')))).toBe('sold-out')
+    v.setPack({ marlboro: 1 })
     expect(reason(v.step(dealAs('a')))).toBe('short')
-    v.setCash(100_00)
-    const left = goodOf('joints')?.perDay ?? 0
-    for (let i = 0; i < left; i++) v.step(dealAs('b', 'joints'))
-    expect(reason(v.step(dealAs('a', 'joints')))).toBe('sold-out')
     v.step({ type: 'board', id: 'a' })
     expect(reason(v.step(dealAs('a')))).toBe('aboard')
   })
 
   it('has a day of everything again when the day turns', () => {
     const v = valleyWith(join('a'))
-    v.setPack({})
+    v.setPack({ marlboro: 200 })
     v.step(dealAs('a'))
     v.tick(24 * 60 * 60 * SEC)
     v.step({ type: 'clock' })
@@ -577,6 +591,73 @@ describe('rule 24: the squatter deals', () => {
   it('has no one to deal with in a world opened without him', () => {
     const v = valleyWith({ ...join('a'), dealer: null } as ValleyAction)
     expect(v.step(dealAs('a')).reply?.reason).toBe('no-dealer')
+  })
+})
+
+describe('rule 25: the rose quest', () => {
+  const heart = mazeToWorld(MAZE, heartPoint(theMaze()))
+  const step = (
+    id: string,
+    s: 'accept' | 'lay' | 'reward',
+    at: { x: number; z: number } | null
+  ): ValleyAction => ({ type: 'quest', id, quest: 'rose', step: s, at })
+  const near = { x: DEALER.x + 1, z: DEALER.z }
+
+  it('takes each step where the valley last heard the raider, stage and pack together', () => {
+    const v = valleyWith({ ...join('a'), maze: MAZE } as ValleyAction)
+    v.setQuest('none', {})
+    expect(v.step(step('a', 'accept', near)).quest).toEqual({
+      account: 'acct-a',
+      quest: 'rose',
+      step: 'accept',
+      from: 'none',
+      to: 'given',
+      change: { kind: 'rose', delta: 1 },
+    })
+    v.setQuest('given', { rose: 1 })
+    expect(v.step(step('a', 'lay', near)).reply?.reason).toBe('too-far')
+    expect(v.step(step('a', 'lay', heart)).quest).toMatchObject({
+      from: 'given',
+      to: 'laid',
+      change: { kind: 'rose', delta: -1 },
+    })
+    v.setQuest('laid', {})
+    const r = v.step(step('a', 'reward', near))
+    expect(r.quest).toMatchObject({
+      from: 'laid',
+      to: 'done',
+      change: { kind: 'vault-key', delta: 1 },
+    })
+    // Rule 22: the key earns quest XP.
+    expect(r.xp).toEqual([{ account: 'acct-a', source: 'quest' }])
+  })
+
+  it('refuses a quest there is not, one not read, one out of turn, and from the bed', () => {
+    const v = valleyWith({ ...join('a'), maze: MAZE } as ValleyAction)
+    expect(v.step(step('a', 'accept', near)).reply?.reason).toBe('unavailable')
+    v.setQuest('done', {})
+    expect(v.step(step('a', 'accept', near)).reply?.reason).toBe('not-now')
+    expect(
+      v.step({
+        type: 'quest',
+        id: 'a',
+        quest: 'lily',
+        step: 'accept',
+        at: near,
+      }).reply?.reason
+    ).toBe('no-such-quest')
+    expect(v.step(step('z', 'accept', near)).reply?.reason).toBe(
+      'not-in-valley'
+    )
+    v.setQuest('none', {})
+    v.step({ type: 'board', id: 'a' })
+    expect(v.step(step('a', 'accept', near)).reply?.reason).toBe('aboard')
+  })
+
+  it('has no heart to lay it at in a world opened without the maze', () => {
+    const v = valleyWith(join('a'))
+    v.setQuest('given', { rose: 1 })
+    expect(v.step(step('a', 'lay', heart)).reply?.reason).toBe('too-far')
   })
 })
 

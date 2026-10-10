@@ -41,6 +41,9 @@ export type MallFinish =
   | 'tube' // the one fluorescent tube still lit, flickering
   | 'dead-tube'
   | 'cardboard'
+  | 'xxx' // the adult section's tape boxes
+  | 'beads' // its curtain
+  | 'redlight' // its bulb
 
 // One box, centred at `center` with full `size`, in mall-local space.
 // `turn` (an Euler XYZ) tips the box for things fallen or swung open; a
@@ -63,6 +66,10 @@ export type MallArtId =
   | 'curl-up'
   | 'rewind'
   | 'employees'
+  | 'adults-only'
+  | 'pinup-a'
+  | 'pinup-b'
+  | 'pinup-c'
   | 'menu'
   | 'for-lease'
   | 'graffiti-eye'
@@ -145,7 +152,16 @@ const LOT_REACH = 40
 // The back room behind the Video Vault: the wall across the shop at
 // `wall` (its shop-side face at wall + WALL), and the locked door in it,
 // `door` from the unit's -z end, `width` wide. The racks stand clear of it.
-const BACK_ROOM = { wall: -10.5, door: 2.4, width: 1.0, height: 2.2 }
+// `split` is the wall between the office (the -z side, behind the locked
+// door) and the adult section (the +z side, its doorway at ADULT.curtain).
+const BACK_ROOM = {
+  wall: -10.5,
+  door: 2.4,
+  width: 1.0,
+  height: 2.2,
+  split: 4.6,
+}
+const ADULT = { curtain: 5.8, width: 1.2 }
 const RACKS = { x0: -9.5, x1: -4.5 }
 
 export type Window = 'glass' | 'broken' | 'boarded'
@@ -622,16 +638,21 @@ function ceilings(): MallBox[] {
   return boxes
 }
 
-// The Video Vault's back room, its wall across the shop with the locked
-// door's opening in it (the door itself is a gate, keys.ts, drawn on its
-// own by assets.ts), and what is inside: the safe stood open and empty
-// but for what the day leaves in it, the manager's desk and its set, and
-// a shelf of boxed tapes.
+// The Video Vault's back of house, behind the wall across the shop: the
+// office on the -z side, behind the locked door (a gate, keys.ts, drawn
+// on its own by assets.ts), with the safe stood open and empty but for
+// what the day leaves in it, the manager's desk and its set, and a shelf
+// of boxed tapes; and on the +z side, through a beaded curtain, the adult
+// section: racks of tapes in their loud boxes, a red bulb, and the
+// posters. A wall between the two.
 function backRoom(video: number): MallBox[] {
   const x: [number, number] = [BACK_ROOM.wall, BACK_ROOM.wall + WALL]
   const d0 = video + BACK_ROOM.door
   const d1 = d0 + BACK_ROOM.width
-  return [
+  const c0 = video + ADULT.curtain
+  const c1 = c0 + ADULT.width
+  const split = video + BACK_ROOM.split
+  const boxes: MallBox[] = [
     span(
       'back-room-wall-a',
       x,
@@ -640,15 +661,26 @@ function backRoom(video: number): MallBox[] {
       'block',
       true
     ),
+    span('back-room-lintel', x, [BACK_ROOM.height, HEIGHT], [d0, d1], 'block'),
+    span('back-room-wall-b', x, [0, HEIGHT], [d1, c0], 'block', true),
+    span('adult-lintel', x, [BACK_ROOM.height, HEIGHT], [c0, c1], 'block'),
     span(
-      'back-room-wall-b',
+      'back-room-wall-c',
       x,
       [0, HEIGHT],
-      [d1, video + UNIT - WALL / 2],
+      [c1, video + UNIT - WALL / 2],
       'block',
       true
     ),
-    span('back-room-lintel', x, [BACK_ROOM.height, HEIGHT], [d0, d1], 'block'),
+    span(
+      'back-room-divider',
+      [IN_BACK, BACK_ROOM.wall],
+      [0, HEIGHT],
+      [split - WALL / 2, split + WALL / 2],
+      'block',
+      true
+    ),
+    // The office.
     span(
       'back-room-shelf',
       [IN_BACK + 0.3, BACK_ROOM.wall - 0.6],
@@ -677,25 +709,126 @@ function backRoom(video: number): MallBox[] {
       'back-room-desk',
       [IN_BACK, IN_BACK + 0.8],
       [0, 0.75],
-      [video + 5.0, video + 6.6],
+      [video + 2.5, video + 4.1],
       'laminate',
       true
     ),
     box(
       'back-room-set',
-      [IN_BACK + 0.35, 0.95, video + 5.5],
+      [IN_BACK + 0.35, 0.95, video + 3.1],
       [0.4, 0.4, 0.45],
       'tape'
     ),
     box(
       'back-room-chair',
-      [IN_BACK + 1.3, 0.25, video + 5.9],
+      [IN_BACK + 1.3, 0.25, video + 3.5],
       [0.5, 0.5, 0.5],
       'blanket',
       false,
       [0, 0.4, 0]
     ),
+    // The adult section: racks against the back wall and the laundromat's,
+    // under one red bulb on its cord.
+    span(
+      'adult-rack-back',
+      [IN_BACK, IN_BACK + 0.5],
+      [0, 1.9],
+      [split + 0.5, video + UNIT - 0.6],
+      'fixture',
+      true
+    ),
+    span(
+      'adult-rack-side',
+      [IN_BACK + 0.9, BACK_ROOM.wall - 0.4],
+      [0, 1.6],
+      [video + UNIT - WALL / 2 - 0.45, video + UNIT - WALL / 2],
+      'fixture',
+      true
+    ),
+    box(
+      'adult-cord',
+      [
+        (IN_BACK + BACK_ROOM.wall) / 2,
+        HEIGHT - 0.35,
+        (split + video + UNIT) / 2,
+      ],
+      [0.01, 0.7, 0.01],
+      'tape'
+    ),
+    box(
+      'adult-bulb',
+      [
+        (IN_BACK + BACK_ROOM.wall) / 2,
+        HEIGHT - 0.75,
+        (split + video + UNIT) / 2,
+      ],
+      [0.12, 0.14, 0.12],
+      'redlight'
+    ),
   ]
+  // The boxes on the racks, face out, a few tumbled to the floor.
+  const loud = mulberry32(0xadd)
+  for (let shelf = 0; shelf < 3; shelf++) {
+    for (let i = 0; i < 14; i++) {
+      const z = split + 0.7 + i * 0.25
+      if (z > video + UNIT - 0.8) break
+      boxes.push(
+        box(
+          `adult-tape-back-${shelf}-${i}`,
+          [IN_BACK + 0.52, 0.5 + shelf * 0.55, z],
+          [0.03, 0.19, 0.105],
+          'xxx'
+        )
+      )
+    }
+    for (let i = 0; i < 8; i++) {
+      boxes.push(
+        box(
+          `adult-tape-side-${shelf}-${i}`,
+          [
+            IN_BACK + 1.1 + i * 0.25,
+            0.45 + shelf * 0.5,
+            video + UNIT - WALL / 2 - 0.47,
+          ],
+          [0.105, 0.19, 0.03],
+          'xxx'
+        )
+      )
+    }
+  }
+  for (let i = 0; i < 7; i++) {
+    boxes.push(
+      box(
+        `adult-tape-floor-${i}`,
+        [
+          range(loud, IN_BACK + 0.8, BACK_ROOM.wall - 0.4),
+          0.015,
+          range(loud, split + 0.5, video + UNIT - 1),
+        ],
+        [0.19, 0.025, 0.105],
+        'xxx',
+        false,
+        [0, range(loud, 0, Math.PI), 0]
+      )
+    )
+  }
+  // The beaded curtain across its doorway, strand by strand.
+  const strands = Math.floor(ADULT.width / 0.08)
+  for (let i = 0; i < strands; i++) {
+    const z = c0 + 0.04 + i * 0.08
+    const sway = Math.sin(i * 1.7) * 0.05
+    boxes.push(
+      box(
+        `adult-beads-${i}`,
+        [BACK_ROOM.wall + WALL / 2, BACK_ROOM.height / 2 + 0.05, z],
+        [0.012, BACK_ROOM.height - 0.1, 0.012],
+        'beads',
+        false,
+        [sway, 0, 0]
+      )
+    )
+  }
+  return boxes
 }
 
 // What each shop left behind.
@@ -1034,6 +1167,45 @@ function buildSigns(): MallSign[] {
       size: [0.6, 0.3],
       turn: [0, Math.PI / 2, 0],
     },
+    // Over the curtain into the adult section, the shop side.
+    {
+      name: 'sign-adults-only',
+      art: 'adults-only',
+      center: [
+        BACK_ROOM.wall + WALL + 0.03,
+        2.75,
+        unitZ(0) + ADULT.curtain + ADULT.width / 2,
+      ],
+      size: [1.3, 0.42],
+      turn: [0, Math.PI / 2, 0],
+    },
+    // And inside it, the posters: one on the wall from the office, one by
+    // the curtain, one over the back rack.
+    {
+      name: 'sign-pinup-a',
+      art: 'pinup-a',
+      center: [
+        (IN_BACK + BACK_ROOM.wall) / 2,
+        1.7,
+        unitZ(0) + BACK_ROOM.split + WALL / 2 + 0.02,
+      ],
+      size: [0.9, 1.3],
+      turn: [0, 0, 0.03],
+    },
+    {
+      name: 'sign-pinup-b',
+      art: 'pinup-b',
+      center: [BACK_ROOM.wall - 0.02, 1.7, unitZ(0) + 7.65],
+      size: [0.8, 1.2],
+      turn: [0, -Math.PI / 2, -0.04],
+    },
+    {
+      name: 'sign-pinup-c',
+      art: 'pinup-c',
+      center: [IN_BACK + 0.02, 2.65, unitZ(0) + (BACK_ROOM.split + UNIT) / 2],
+      size: [1.5, 0.9],
+      turn: [0, Math.PI / 2, 0],
+    },
     // Inside the Video Vault, over the counter.
     {
       name: 'sign-rewind',
@@ -1121,6 +1293,13 @@ function ways(): Way[] {
     z: unitZ(wok),
     open: true,
   })
+  // Through the beaded curtain into the adult section.
+  list.push({
+    name: 'adult-curtain',
+    x: BACK_ROOM.wall + WALL / 2,
+    z: unitZ(0) + ADULT.curtain + ADULT.width / 2,
+    open: true,
+  })
   // Locked: open only to whoever carries the key (keys.ts).
   list.push({
     name: 'vault-back-room',
@@ -1162,7 +1341,7 @@ export interface MallLoot extends XZ {
 const LOOT: readonly MallLoot[] = [
   // The back room.
   { kind: 'twenty', count: 1, x: IN_BACK + 1.0, z: unitZ(0) + 1.35 },
-  { kind: 'wild-turkey', count: 1, x: IN_BACK + 1.2, z: unitZ(0) + 6.9 },
+  { kind: 'wild-turkey', count: 1, x: IN_BACK + 2.2, z: unitZ(0) + 3.9 },
   // The Video Vault, by the counter.
   { kind: 'camel', count: 20, x: -2.0, z: unitZ(0) + 3.2 },
   // Suds 'n' Duds: in front of the dryers, and under the soda machine.
@@ -1294,7 +1473,7 @@ export function onMallGrounds(
   )
 }
 
-// Whether a world point stands in the Video Vault's back room, behind its
+// Whether a world point stands in the Video Vault's office, behind its
 // locked door.
 export function inBackRoom(origin: StoreOrigin, x: number, z: number): boolean {
   const p = toLocal(origin, x, z)
@@ -1303,6 +1482,23 @@ export function inBackRoom(origin: StoreOrigin, x: number, z: number): boolean {
     p.x > -DEPTH &&
     p.x < BACK_ROOM.wall + WALL / 2 &&
     p.z > video &&
+    p.z < video + BACK_ROOM.split
+  )
+}
+
+// Whether a world point stands in the Video Vault's adult section, through
+// the curtain.
+export function inAdultSection(
+  origin: StoreOrigin,
+  x: number,
+  z: number
+): boolean {
+  const p = toLocal(origin, x, z)
+  const video = unitZ(0)
+  return (
+    p.x > -DEPTH &&
+    p.x < BACK_ROOM.wall + WALL / 2 &&
+    p.z > video + BACK_ROOM.split &&
     p.z < video + UNIT
   )
 }

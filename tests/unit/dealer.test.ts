@@ -3,27 +3,35 @@ import { CONFIG } from '../../src/config.ts'
 import { copy } from '../../src/copy.ts'
 import {
   atDealer,
+  costIn,
   deal,
   DEALER_GOODS,
   dealRefusal,
   freshDealerStock,
   goodOf,
   leftOf,
+  payable,
+  ramble,
+  unitWorth,
 } from '../../src/dealer.ts'
-import { itemById } from '../../src/items.ts'
+import { getItem, itemById } from '../../src/items.ts'
 
-describe('the dealer', () => {
-  it('sells real items no Citgo shelf carries at his price, the key among them', () => {
+const lsd = goodOf('lsd')
+if (!lsd) throw new Error('no LSD')
+
+describe('Erwin von Dutch', () => {
+  it('deals LSD, Adderall and mushrooms, none of them on a Citgo shelf', () => {
+    expect(DEALER_GOODS.map((good) => good.kind)).toEqual([
+      'lsd',
+      'adderall',
+      'mushrooms',
+    ])
     for (const good of DEALER_GOODS) {
-      expect(itemById(good.kind), good.kind).not.toBeNull()
-      expect(Number.isInteger(good.price) && good.price > 0).toBe(true)
+      expect(itemById(good.kind)?.price, good.kind).toBeUndefined()
+      expect(Number.isInteger(good.worth) && good.worth > 0).toBe(true)
       expect(good.perDay).toBeGreaterThan(0)
     }
-    expect(goodOf('vault-key')).not.toBeNull()
-    expect(goodOf('mushrooms')).not.toBeNull()
     expect(goodOf('marlboro')).toBeNull()
-    expect(itemById('mushrooms')?.price).toBeUndefined()
-    expect(itemById('vault-key')?.price).toBeUndefined()
   })
 
   it('starts every day with a day of each', () => {
@@ -34,38 +42,67 @@ describe('the dealer', () => {
     expect(leftOf(stock, 'marlboro')).toBe(0)
   })
 
-  it('sells one out of the stock for its price', () => {
-    const stock = freshDealerStock()
-    const sale = deal(stock, 'mushrooms', 10_000, {})
-    if (!sale.ok) throw new Error(sale.reason)
-    const good = goodOf('mushrooms')
-    expect(sale.price).toBe(good?.price)
-    expect(sale.units).toBe(1)
-    expect(leftOf(sale.stock, 'mushrooms')).toBe(leftOf(stock, 'mushrooms') - 1)
-    // The stock he had is untouched.
-    expect(leftOf(stock, 'mushrooms')).toBe(good?.perDay)
+  it('counts each unit at a little under its shelf price, and cash at nothing', () => {
+    const marlboro = getItem('marlboro')
+    expect(unitWorth('marlboro')).toBeCloseTo(
+      (marlboro.price / marlboro.contents) * CONFIG.dealer.rate
+    )
+    expect(CONFIG.dealer.rate).toBeLessThan(1)
+    expect(CONFIG.dealer.rate).toBeGreaterThan(0.8)
+    expect(unitWorth('cabbage')).toBe(0)
+    expect(unitWorth('gold-bullion')).toBe(0)
+    expect(unitWorth('lsd')).toBe(0)
+    expect(unitWorth('dimes')).toBe(0)
   })
 
-  it('refuses a good he lacks, one sold out, a key already carried, and a short wallet', () => {
+  it('asks enough units to cover the good, rounded up', () => {
+    const count = costIn(lsd, 'marlboro')
+    if (count === null) throw new Error('refused Marlboro')
+    expect(count * unitWorth('marlboro')).toBeGreaterThanOrEqual(lsd.worth)
+    expect((count - 1) * unitWorth('marlboro')).toBeLessThan(lsd.worth)
+    expect(costIn(lsd, 'cabbage')).toBeNull()
+  })
+
+  it('trades one out of the stock for units out of the pack', () => {
     const stock = freshDealerStock()
-    expect(deal(stock, 'marlboro', 10_000, {})).toEqual({
+    const count = costIn(lsd, 'pbr') ?? 0
+    const sale = deal(stock, 'lsd', 'pbr', { pbr: count })
+    if (!sale.ok) throw new Error(sale.reason)
+    expect(sale.give).toEqual({ kind: 'pbr', count })
+    expect(sale.units).toBe(1)
+    expect(leftOf(sale.stock, 'lsd')).toBe(lsd.perDay - 1)
+    // The stock he had is untouched.
+    expect(leftOf(stock, 'lsd')).toBe(lsd.perDay)
+    // Adderall comes by the bottle.
+    const pills = deal(stock, 'adderall', 'pbr', { pbr: 100 })
+    expect(pills.ok && pills.units).toBe(getItem('adderall').contents)
+  })
+
+  it('refuses a good he lacks, one gone, payment he will not take, and a pack short of it', () => {
+    const stock = freshDealerStock()
+    const pack = { marlboro: 200, cabbage: 9 }
+    expect(deal(stock, 'marlboro', 'marlboro', pack)).toEqual({
       ok: false,
       reason: 'no-such-good',
     })
-    expect(deal({ ...stock, joints: 0 }, 'joints', 10_000, {})).toEqual({
+    expect(deal({ ...stock, lsd: 0 }, 'lsd', 'marlboro', pack)).toEqual({
       ok: false,
       reason: 'sold-out',
     })
-    expect(deal(stock, 'vault-key', 10_000, { 'vault-key': 1 })).toEqual({
+    expect(deal(stock, 'lsd', 'cabbage', pack)).toEqual({
       ok: false,
-      reason: 'have-one',
+      reason: 'worthless',
     })
-    // Mushrooms in the pack are no reason not to sell more.
-    expect(deal(stock, 'mushrooms', 10_000, { mushrooms: 3 }).ok).toBe(true)
-    expect(deal(stock, 'vault-key', 100, {})).toEqual({
+    expect(deal(stock, 'lsd', 'marlboro', { marlboro: 1 })).toEqual({
       ok: false,
       reason: 'short',
     })
+  })
+
+  it('names what a pack could pay him with', () => {
+    expect(
+      payable({ marlboro: 3, cabbage: 2, pbr: 0, joints: 1, 'vault-key': 1 })
+    ).toEqual(['marlboro', 'joints'])
   })
 
   it('deals only with a raider beside him', () => {
@@ -77,10 +114,13 @@ describe('the dealer', () => {
     expect(atDealer(at, null)).toBe(false)
   })
 
-  it('says why a deal was refused', () => {
+  it('rambles about the currency, round again, and says why he refused', () => {
+    expect(ramble(0)).toBe(copy('dealer.ramble_1'))
+    expect(ramble(3)).toBe(copy('dealer.ramble_4'))
+    expect(ramble(4)).toBe(ramble(0))
     expect(dealRefusal('sold-out')).toBe(copy('dealer.sold_out'))
     expect(dealRefusal('short')).toBe(copy('dealer.short'))
-    expect(dealRefusal('have-one')).toBe(copy('dealer.have_one'))
+    expect(dealRefusal('worthless')).toBe(copy('dealer.worthless'))
     expect(dealRefusal('too-far')).toBe(copy('dealer.too_far'))
     expect(dealRefusal('unavailable')).toBe(copy('dealer.refused'))
   })

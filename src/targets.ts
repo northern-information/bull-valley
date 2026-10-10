@@ -73,6 +73,8 @@ export function createTargets(game: Game): Targets {
         return world.plaza?.dealer.group ?? null
       case 'locked':
         return world.plaza?.door ?? null
+      case 'lay':
+        return world.portal?.rig.group ?? null
       case 'speak':
         switch (action.npc) {
           case 'marx':

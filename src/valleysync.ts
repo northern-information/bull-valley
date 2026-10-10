@@ -25,6 +25,13 @@ import { itemById } from './items.ts'
 import { createTruck } from './marx.ts'
 import { levelUp } from './progression.ts'
 import { CLOSE } from './protocol.ts'
+import {
+  isQuest,
+  isQuestStage,
+  stepNews,
+  stepRefusal,
+  toQuests,
+} from './quests.ts'
 import { SEASON } from './season.ts'
 import { isStandLedger, refusalLine } from './stand.ts'
 import { formatCash } from './store.ts'
@@ -324,6 +331,10 @@ export function wireValley(game: Game, actions: Actions): void {
       hud.tell(copy('log.none_left'))
     } else if (msg.re === 'trade') {
       actions.tradeRefused(msg.reason)
+    } else if (msg.re === 'quest') {
+      s.pendingQuest = false
+      s.dealSaid = stepRefusal(msg.reason)
+      hud.tell(s.dealSaid)
     } else if (msg.re === 'deal') {
       s.pendingDeal = false
       s.dealSaid = dealRefusal(msg.reason)
@@ -406,6 +417,15 @@ export function wireValley(game: Game, actions: Actions): void {
       actions.setBook(toFound(msg.book))
       s.xp = msg.xp
       s.stand = isStandLedger(msg.stand) ? msg.stand : null
+      s.quests = toQuests(msg.quests)
+    } else if (msg.type === 'quest') {
+      // Rule 25: a step of a quest went through, to every socket on the
+      // account. Its pack frame follows.
+      if (!isQuest(msg.quest) || !isQuestStage(msg.stage)) return
+      s.quests = { ...(s.quests ?? toQuests(null)), [msg.quest]: msg.stage }
+      s.pendingQuest = false
+      s.dealSaid = stepNews(msg.step)
+      hud.tell(s.dealSaid)
     } else if (msg.type === 'book') {
       // Rule 20: written in the account's Book of Shadows.
       actions.applyBook(msg.found)

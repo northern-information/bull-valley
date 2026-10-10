@@ -3,6 +3,7 @@ import { CONFIG } from '../../src/config.ts'
 import { toWorld } from '../../src/store.ts'
 import {
   boxWall,
+  inAdultSection,
   inBackRoom,
   insideMall,
   mallCenter,
@@ -88,6 +89,28 @@ describe('STRIP_MALL', () => {
     const open = walls.resolve(p.x, p.z, RADIUS)
     expect(Math.hypot(open.x - p.x, open.z - p.z)).toBeLessThan(1e-6)
     expect(mallGate(origin).gate).toBe('vault-back-room')
+  })
+
+  it('opens the adult section to anyone, through its curtain, beside the office', () => {
+    const curtain = STRIP_MALL.ways.find((way) => way.name === 'adult-curtain')
+    expect(curtain?.open).toBe(true)
+    const z0 = -STRIP_MALL.length / 2
+    const adult = at(-12.5, z0 + 7)
+    expect(inAdultSection(origin, adult.x, adult.z)).toBe(true)
+    expect(inBackRoom(origin, adult.x, adult.z)).toBe(false)
+    const office = at(-12.5, z0 + 2)
+    expect(inAdultSection(origin, office.x, office.z)).toBe(false)
+    // A wall between the office and the adult section.
+    const walls = built()
+    walls.setGates(() => true)
+    const split = at(-12.5, z0 + 4.6)
+    const out = walls.resolve(split.x, split.z, RADIUS)
+    expect(Math.hypot(out.x - split.x, out.z - split.z)).toBeGreaterThan(0.05)
+    // The posters hang in it.
+    const posters = STRIP_MALL.signs.filter((sign) =>
+      sign.art.startsWith('pinup')
+    )
+    expect(posters).toHaveLength(3)
   })
 
   it('knows the back room from the shop in front of it', () => {

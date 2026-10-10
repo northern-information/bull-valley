@@ -5,6 +5,7 @@
 
 import { USERNAME_MAX } from './account.ts'
 import { EMOTE_IDS } from './emotes.ts'
+import { isQuestStep } from './quests.ts'
 import { isWaterMap } from './waterside.ts'
 import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -15,6 +16,7 @@ import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
 import type { OutfitId } from './outfits.ts'
+import type { QuestId, QuestStage, QuestStep } from './quests.ts'
 import type { Burst, ShadeKind, TruckPose } from './shadowmen.ts'
 import type { StandLedger } from './stand.ts'
 import type { WaterMap } from './waterside.ts'
@@ -306,12 +308,23 @@ export interface TradeMessage {
   offer: string
 }
 
-// One of `kind` from the squatter in the plaza (sharedworld.ts rule 24),
-// paid for out of the wallet. The valley answers with a 'dealt' world
-// frame and a PackMessage, or a nack.
+// One of `kind` from Erwin von Dutch in the plaza (sharedworld.ts rule
+// 24), bartered for with units of `pay` out of the pack. The valley
+// answers with a 'dealt' world frame and a PackMessage, or a nack.
+// One step of quest `quest` (sharedworld.ts rule 25): taking the rose
+// from Erwin, laying it at the heart of the maze, or coming back to him
+// for the key. The valley answers with a QuestFrame and a PackMessage,
+// or a nack.
+export interface QuestMessage {
+  type: 'quest'
+  quest: string
+  step: QuestStep
+}
+
 export interface DealMessage {
   type: 'deal'
   kind: string
+  pay: string
 }
 
 // Entries of the Book of Shadows this raider has just come across
@@ -426,6 +439,7 @@ export type ClientMessage =
   | StandTendMessage
   | TradeMessage
   | DealMessage
+  | QuestMessage
   | DiscoverMessage
   | ChatMessage
   | WhisperMessage
@@ -474,12 +488,24 @@ export interface WelcomeMessage {
   xp: number
   // The account's Cabbage Stand (stand.ts).
   stand: StandLedger
+  // Where the account stands on each quest (quests.ts).
+  quests: Record<QuestId, QuestStage>
 }
 
 // The account's Cabbage Stand after it was tended (rule 23), to every
 // socket signed in to it: what was done, the ledger as the valley wrote
 // it, and for a collect the cents paid into the wallet. A pack frame
 // follows with the pack and the wallet.
+// A quest's step went through (sharedworld.ts rule 25): where the
+// account stands on it now. To every socket on the account, with a
+// PackMessage after it.
+export interface QuestFrame {
+  type: 'quest'
+  quest: QuestId
+  step: QuestStep
+  stage: QuestStage
+}
+
 export interface StandMessage {
   type: 'stand'
   re: 'stock' | 'collect' | 'upgrade'
@@ -705,6 +731,7 @@ export type ServerMessage =
   | BookMessage
   | TaskMessage
   | StandMessage
+  | QuestFrame
   | XpMessage
   | WhisperedMessage
   | FriendsListMessage
@@ -1039,10 +1066,17 @@ export function parseClientMessage(text: string): ClientMessage | null {
       const { offer } = value
       return isKind(offer) ? { type: 'trade', offer } : null
     }
+    case 'quest': {
+      // Which quests there are is the valley's to check.
+      const { quest, step } = value
+      return isKind(quest) && isQuestStep(step)
+        ? { type: 'quest', quest, step }
+        : null
+    }
     case 'deal': {
       // What he sells is the valley's to check.
-      const { kind } = value
-      return isKind(kind) ? { type: 'deal', kind } : null
+      const { kind, pay } = value
+      return isKind(kind) && isKind(pay) ? { type: 'deal', kind, pay } : null
     }
     case 'discover': {
       const { entries } = value

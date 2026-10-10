@@ -45,6 +45,7 @@ import type {
   PeerStateWire,
   WorldWire,
 } from './protocol.ts'
+import type { QuestId, QuestStage } from './quests.ts'
 import type { RoadGraph } from './roadgraph.ts'
 import type { Scope } from './scope.ts'
 import type { SeasonProgress } from './season.ts'
@@ -189,9 +190,15 @@ export interface GameState {
   stand: StandLedger | null
   pendingStand: boolean
   standSaid: string | null
-  // Rule 24: a deal with the squatter not yet answered, and his last word.
+  // Rule 24: a deal with Erwin not yet answered, his last word, and how
+  // many times he has rambled at this raider.
   pendingDeal: boolean
   dealSaid: string | null
+  rambled: number
+  // Rule 25: where the account stands on each quest (null before the
+  // valley says, or played alone), and a step not yet answered.
+  quests: Record<QuestId, QuestStage> | null
+  pendingQuest: boolean
   // Shelf units asked of the valley and not yet answered, as station:kind.
   pendingBuys: Set<string>
   // The berry bushes as the valley last described them (the welcome, then
@@ -266,6 +273,9 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     standSaid: null,
     pendingDeal: false,
     dealSaid: null,
+    rambled: 0,
+    quests: null,
+    pendingQuest: false,
     pendingBuys: new Set(),
     daily: null,
     pendingCollect: false,

@@ -1089,9 +1089,9 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     patterns: { shirt: 'tattered' },
     shaved: true,
   },
-  // Wick, the squatter in Bull Valley Plaza's Golden Wok (dealer.ts): a
-  // hoodie gone the color of the floor, hood up, a week of stubble. He
-  // deals. Not on the select roster.
+  // Erwin von Dutch, the squatter in Bull Valley Plaza's Golden Wok
+  // (dealer.ts): a hoodie gone the color of the floor, hood up, a week of
+  // stubble. He barters. Not on the select roster.
   squatter: {
     label: copy('outfits.squatter'),
     colors: {

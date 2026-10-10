@@ -101,6 +101,10 @@ const BAG_TABS: Record<BagTab, { label: string; empty: string }> = {
     label: copy('inventory.tab_loot'),
     empty: copy('inventory.empty_loot'),
   },
+  'key-items': {
+    label: copy('inventory.tab_key_items'),
+    empty: copy('inventory.empty_key_items'),
+  },
   materials: {
     label: copy('inventory.tab_materials'),
     empty: copy('inventory.empty_materials'),

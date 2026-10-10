@@ -139,13 +139,28 @@
 // 24. The squatter in Bull Valley Plaza deals (dealer.ts), where the
 //    world was opened with him (SharedWorld.dealer): a few of each of his
 //    goods a day for the whole valley (SharedWorld.dealerStock, full
-//    again when the day turns, rule 6). A raider out of the bed whose
-//    last state frame put them beside him buys one out of the wallet, as
-//    off a Citgo shelf (ValleyContext.cash and holdings in, Reduced.spend
-//    and Reduced.pack out); he will not sell a key to a raider carrying
-//    one already, and the sale earns XP as a purchase (rule 22).
+//    again when the day turns, rule 6). He takes no cash: a raider out of
+//    the bed whose last state frame put them beside him barters one kind
+//    out of their pack for one of his, counted a little under shelf price
+//    (ValleyContext.holdings in, Reduced.barter out), and the deal earns
+//    XP as a purchase (rule 22).
+// 25. Quests (quests.ts): each account's stage on each is its own, kept by
+//    the valley in D1 beside the pack. Erwin von Dutch gives a raider out
+//    of the bed beside him a rose (again, if it was lost); laid at the
+//    heart of the maze where the world was opened with it, he gives them
+//    the Video Vault's back-room key. Each step is judged against where
+//    the raider's last state frame put them and what the pack holds
+//    (ValleyContext.quest in, Reduced.quest out); the valley writes the
+//    stage and the pack together, or neither. The key earns quest XP
+//    (rule 22).
 
-import { caretakerAt, createCaretaker, stepCaretaker } from './caretaker.ts'
+import {
+  caretakerAt,
+  createCaretaker,
+  heartPoint,
+  stepCaretaker,
+  theMaze,
+} from './caretaker.ts'
 import { CONFIG } from './config.ts'
 import { corpseWire, isEmpty } from './corpses.ts'
 import { affords, cosmeticById, MOAB_OFFERS } from './cosmetics.ts'
@@ -153,7 +168,7 @@ import { collectedToday, dayKey, nextMidnight } from './daily.ts'
 import { atDealer, deal, freshDealerStock } from './dealer.ts'
 import { centsOf, dropSpot, isCash, takeUp } from './drops.ts'
 import { bury } from './graves.ts'
-import { contentsOf, INVENTORY_KINDS, itemById } from './items.ts'
+import { contentsOf, INVENTORY_KINDS, isKeyItem, itemById } from './items.ts'
 import {
   arrive,
   board,
@@ -167,8 +182,9 @@ import {
   refused,
   settleTruck,
 } from './marx.ts'
-import { worldToMaze } from './maze.ts'
+import { mazeToWorld, worldToMaze } from './maze.ts'
 import { PROTOCOL_VERSION } from './protocol.ts'
+import { atHeart, isQuest, QUESTS, questStep } from './quests.ts'
 import {
   beamFrom,
   burnSecondsOf,
@@ -213,6 +229,7 @@ import type {
   WorldReason,
   WorldWire,
 } from './protocol.ts'
+import type { QuestId, QuestStage, QuestStep } from './quests.ts'
 import type { Rng } from './rng.ts'
 import type {
   Beam,
@@ -355,9 +372,12 @@ export type ValleyAction =
   | { type: 'stand-collect' | 'stand-upgrade'; id: string; at: XZ | null }
   // Rule 14: cosmetic `offer` from Moab.
   | { type: 'trade'; id: string; offer: string }
-  // Rule 24: one of `kind` from the squatter. at: where the raider's last
-  // state frame put them, or null.
-  | { type: 'deal'; id: string; kind: string; at: XZ | null }
+  // Rule 25: one step of `quest`. at: where the raider's last state frame
+  // put them, or null.
+  | { type: 'quest'; id: string; quest: string; step: QuestStep; at: XZ | null }
+  // Rule 24: one of `kind` from Erwin, bartered for with `pay`. at: where
+  // the raider's last state frame put them, or null.
+  | { type: 'deal'; id: string; kind: string; pay: string; at: XZ | null }
   // Rule 9: a new name, a new character, or both.
   | { type: 'appearance'; id: string; name?: string; outfit?: OutfitId }
   // The valley's own clock: the truck and the day, moved on.
@@ -371,12 +391,14 @@ export interface ValleyContext {
   // Ids with an open socket right now, so a member whose close was never
   // heard is dropped. On a join, the joiner is not yet among them.
   present: readonly string[]
-  // For a buy or a deal: the buyer's wallet in cents, as the valley just
-  // read it.
+  // For a buy: the buyer's wallet in cents, as the valley just read it.
   cash?: number
   // For a trade or a deal: the raider's pack and cosmetics, as the valley
   // just read them.
   holdings?: { pack: Inventory; cosmetics: readonly CosmeticId[] }
+  // For a quest's step: where the account stands on it, and its pack, as
+  // the valley just read them.
+  quest?: { stage: QuestStage; pack: Inventory }
   // For tending the stand: the account's ledger, pack and wallet (cents),
   // as the valley just read them.
   stand?: { ledger: StandLedger; pack: Inventory; cash: number }
@@ -404,6 +426,24 @@ export interface Reduced {
   spend?: { account: string; amount: number }
   // Rule 11: what dimes taken up pay into the taker's wallet, in cents.
   earn?: { account: string; amount: number }
+  // Rule 25: a quest's step, which stands once the valley has moved the
+  // account's stage from `from` to `to` and made `change` to its pack,
+  // together.
+  quest?: {
+    account: string
+    quest: QuestId
+    step: QuestStep
+    from: QuestStage
+    to: QuestStage
+    change: { kind: string; delta: number }
+  }
+  // Rule 24: a barter that stands once the valley has taken `give` out of
+  // the account's pack and put `take` in, together.
+  barter?: {
+    account: string
+    give: { kind: string; count: number }
+    take: { kind: string; count: number }
+  }
   // Rule 14: a trade that stands once the valley has taken the price out
   // of the account's pack and given it the cosmetic, together.
   trade?: {
@@ -646,7 +686,7 @@ export function reduce(
 function act(
   valley: Valley,
   action: ValleyAction,
-  { now, present, cash, holdings, stand }: ValleyContext
+  { now, present, cash, holdings, stand, quest }: ValleyContext
 ): Reduced {
   switch (action.type) {
     case 'join': {
@@ -859,6 +899,50 @@ function act(
       return reduced
     }
 
+    case 'quest': {
+      const member = valley.members[action.id]
+      const world = valley.world
+      const refuse = (reason: string): Reduced =>
+        done(valley, now, {
+          broadcast: [],
+          reply: { type: 'nack', re: 'quest', reason },
+        })
+      if (!member || !world) return refuse('not-in-valley')
+      if (!isQuest(action.quest)) return refuse('no-such-quest')
+      if (!quest) return refuse('unavailable')
+      // Rule 25.
+      if (world.truck.riders.includes(action.id)) return refuse('aboard')
+      const heart = world.maze
+        ? mazeToWorld(world.maze, heartPoint(theMaze()))
+        : null
+      const step = questStep(
+        QUESTS[action.quest],
+        quest.stage,
+        action.step,
+        quest.pack,
+        {
+          atDealer: atDealer(action.at, world.dealer),
+          atHeart: atHeart(action.at, heart),
+        }
+      )
+      if (!step.ok) return refuse(step.reason)
+      return done(valley, now, {
+        broadcast: [],
+        quest: {
+          account: member.account,
+          quest: action.quest,
+          step: action.step,
+          from: quest.stage,
+          to: step.stage,
+          change: step.change,
+        },
+        // Rule 22.
+        ...(step.stage === 'done'
+          ? { xp: [{ account: member.account, source: 'quest' as const }] }
+          : {}),
+      })
+    }
+
     case 'deal': {
       const member = valley.members[action.id]
       const world = valley.world
@@ -876,16 +960,19 @@ function act(
       const sale = deal(
         world.dealerStock,
         kind,
-        cash ?? 0,
+        action.pay,
         holdings?.pack ?? {}
       )
       if (!sale.ok) return refuse(sale.reason)
       const next = withWorld(valley, { ...world, dealerStock: sale.stock })
       return done(next, now, {
         broadcast: [frame(next, 'dealt', { by: action.id, item: kind })],
-        spend: { account: member.account, amount: sale.price },
         // Rule 10.
-        pack: { account: member.account, kind, delta: sale.units },
+        barter: {
+          account: member.account,
+          give: sale.give,
+          take: { kind, count: sale.units },
+        },
         // Rule 22.
         xp: [{ account: member.account, source: 'purchase' }],
       })
@@ -972,6 +1059,8 @@ function act(
       if (isAboard(world.truck, action.id)) return refuse('aboard')
       if (!action.at) return refuse('no-position')
       if (!isPackKind(kind)) return refuse('not-an-item')
+      // A key item is never set down (items.ts isKeyItem).
+      if (isKeyItem(kind)) return refuse('key-item')
       if (count < 1) return refuse('nothing')
       const id = world.nextDrop
       const drop: Drop = { id, kind, count, ...dropSpot(action.at, id) }

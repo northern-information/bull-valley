@@ -113,6 +113,58 @@ function packContract(makeStore: () => PackStore): void {
     expect((await store.get('a1')).pack['gold-bullion']).toBe(1)
   })
 
+  it('barters only what the pack holds, both sides together', async () => {
+    const store = makeStore()
+    await store.open('a1')
+    await store.change(
+      'a1',
+      'marlboro',
+      40 - (STARTING_INVENTORY.marlboro ?? 0)
+    )
+    expect(
+      await store.barter(
+        'a1',
+        { kind: 'marlboro', count: 41 },
+        { kind: 'lsd', count: 1 }
+      )
+    ).toBe(false)
+    expect((await store.get('a1')).pack).toMatchObject({ marlboro: 40, lsd: 0 })
+    expect(
+      await store.barter(
+        'a1',
+        { kind: 'marlboro', count: 37 },
+        { kind: 'lsd', count: 1 }
+      )
+    ).toBe(true)
+    expect((await store.get('a1')).pack).toMatchObject({ marlboro: 3, lsd: 1 })
+  })
+
+  it('steps a quest only from where it stands, with its pack change', async () => {
+    const store = makeStore()
+    await store.open('a1')
+    expect((await store.quests('a1')).rose).toBe('none')
+    const give = { kind: 'rose', delta: 1 }
+    // Not from a stage it is not at.
+    expect(await store.quest('a1', 'rose', 'given', 'laid', give)).toBe(false)
+    expect(await store.quest('a1', 'rose', 'none', 'given', give)).toBe(true)
+    expect((await store.quests('a1')).rose).toBe('given')
+    expect((await store.get('a1')).pack.rose).toBe(1)
+    // Taken out only while the pack holds it, the stage with it.
+    const lay = { kind: 'rose', delta: -1 }
+    expect(await store.quest('a1', 'rose', 'given', 'laid', lay)).toBe(true)
+    expect(await store.quest('a1', 'rose', 'laid', 'laid', lay)).toBe(false)
+    expect((await store.quests('a1')).rose).toBe('laid')
+    expect((await store.get('a1')).pack.rose).toBe(0)
+    expect(
+      await store.quest('a1', 'rose', 'laid', 'done', {
+        kind: 'vault-key',
+        delta: 1,
+      })
+    ).toBe(true)
+    expect((await store.quests('a1')).rose).toBe('done')
+    expect((await store.get('a1')).pack['vault-key']).toBe(1)
+  })
+
   it('keeps season progress, paying a reward with it', async () => {
     const store = makeStore()
     await store.open('a1')

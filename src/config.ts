@@ -450,14 +450,25 @@ export const CONFIG = {
     doorReach: 2.5,
   },
   dealer: {
-    // How close the squatter in the Golden Wok (dealer.ts, placed at
+    // How close Erwin von Dutch in the Golden Wok (dealer.ts, placed at
     // stripmall.ts STRIP_MALL.dealer) must be for E to deal with him.
     reach: 2.2,
+    // What he counts each unit of a raider's goods at, as a share of its
+    // Citgo shelf price: a little under.
+    rate: 0.9,
     // The valley sells only to a raider whose last state frame put them
     // within this of him: generous, since frames lag.
     dealReach: 8,
     // He blocks like a post this wide.
     radius: 0.35,
+  },
+  quests: {
+    // How near the heart of the corn maze a raider's last state frame
+    // must put them for the valley to take the rose laid there (quests.ts),
+    // in metres: past the berry bushes' ring, since frames lag.
+    heartReach: 10,
+    // How near the portal E lays it.
+    layReach: 4,
   },
   emotes: {
     // A raider within this many metres of one who emotes (emotes.ts) gets

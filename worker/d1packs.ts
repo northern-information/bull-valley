@@ -11,12 +11,14 @@ import { newlyFound } from '../src/book.ts'
 import { toCosmetics } from '../src/cosmetics.ts'
 import { NO_TASK } from '../src/dailytask.ts'
 import { STARTING_INVENTORY, toInventory } from '../src/inventory.ts'
+import { isQuest, isQuestStage, QUESTS } from '../src/quests.ts'
 import { NO_PROGRESS } from '../src/season.ts'
 import { FRESH_STAND, isStandLedger } from '../src/stand.ts'
 import { STARTING_CASH } from './packs.ts'
 import type { CosmeticId } from '../src/cosmetics.ts'
 import type { TaskProgress } from '../src/dailytask.ts'
 import type { Inventory } from '../src/interfaces.ts'
+import type { QuestId, QuestStage } from '../src/quests.ts'
 import type { SeasonProgress, SeasonReward } from '../src/season.ts'
 import type { StandChange } from '../src/sharedworld.ts'
 import type { StandLedger } from '../src/stand.ts'
@@ -198,6 +200,40 @@ export class D1PackStore implements PackStore {
     return (results[1]?.meta.changes ?? 0) > 0
   }
 
+  // One batch is one transaction. What he gives goes in first, only while
+  // the pack still holds what it is given for; that comes out after,
+  // under the same guard, so the two land together or not at all (the
+  // two kinds always differ: he takes only what a Citgo shelf prices, and
+  // sells nothing it does).
+  async barter(
+    accountId: string,
+    give: { kind: string; count: number },
+    take: { kind: string; count: number }
+  ): Promise<boolean> {
+    const results = await this.db.batch([
+      this.db
+        .prepare(
+          'INSERT INTO packs (account_id, kind, count) ' +
+            'SELECT ?, ?, ? WHERE (SELECT count FROM packs WHERE account_id = ? AND kind = ?) >= ? ' +
+            'ON CONFLICT (account_id, kind) DO UPDATE SET count = count + excluded.count'
+        )
+        .bind(
+          accountId,
+          take.kind,
+          take.count,
+          accountId,
+          give.kind,
+          give.count
+        ),
+      this.db
+        .prepare(
+          'UPDATE packs SET count = count - ? WHERE account_id = ? AND kind = ? AND count >= ?'
+        )
+        .bind(give.count, accountId, give.kind, give.count),
+    ])
+    return (results[1]?.meta.changes ?? 0) > 0
+  }
+
   // A wallet never opened starts from the starting cash, as open() would.
   async earn(accountId: string, amount: number): Promise<void> {
     await this.db
@@ -327,6 +363,76 @@ export class D1PackStore implements PackStore {
       )
     )
     return fresh.filter((_, i) => (results[i]?.meta.changes ?? 0) > 0)
+  }
+
+  async quests(accountId: string): Promise<Record<QuestId, QuestStage>> {
+    const { results } = await this.db
+      .prepare('SELECT quest, stage FROM quests WHERE account_id = ?')
+      .bind(accountId)
+      .all<{ quest: string; stage: string }>()
+    const stages = {} as Record<QuestId, QuestStage>
+    for (const id of Object.keys(QUESTS) as QuestId[]) stages[id] = 'none'
+    for (const row of results) {
+      if (isQuest(row.quest) && isQuestStage(row.stage)) {
+        stages[row.quest] = row.stage
+      }
+    }
+    return stages
+  }
+
+  // One batch is one transaction. The stage goes first, only while the
+  // quest stands where the step found it (no row is 'none') and, for a
+  // change out of the pack, while the pack holds it, stamped with this
+  // step's id; the pack changes after it only where that stamp is this
+  // step's, so the two land together or not at all.
+  async quest(
+    accountId: string,
+    quest: QuestId,
+    from: QuestStage,
+    to: QuestStage,
+    change: { kind: string; delta: number }
+  ): Promise<boolean> {
+    const id = crypto.randomUUID()
+    const out = Math.max(0, -change.delta)
+    const stamped =
+      '(SELECT step_id FROM quests WHERE account_id = ? AND quest = ?) = ?'
+    const results = await this.db.batch([
+      this.db
+        .prepare(
+          'INSERT INTO quests (account_id, quest, stage, step_id, updated_at) ' +
+            "SELECT ?, ?, ?, ?, ? WHERE COALESCE((SELECT stage FROM quests WHERE account_id = ? AND quest = ?), 'none') = ? " +
+            'AND COALESCE((SELECT count FROM packs WHERE account_id = ? AND kind = ?), 0) >= ? ' +
+            'ON CONFLICT (account_id, quest) DO UPDATE SET stage = excluded.stage, step_id = excluded.step_id, updated_at = excluded.updated_at'
+        )
+        .bind(
+          accountId,
+          quest,
+          to,
+          id,
+          Date.now(),
+          accountId,
+          quest,
+          from,
+          accountId,
+          change.kind,
+          out
+        ),
+      change.delta >= 0
+        ? this.db
+            .prepare(
+              'INSERT INTO packs (account_id, kind, count) ' +
+                `SELECT ?, ?, ? WHERE ${stamped} ` +
+                'ON CONFLICT (account_id, kind) DO UPDATE SET count = count + excluded.count'
+            )
+            .bind(accountId, change.kind, change.delta, accountId, quest, id)
+        : this.db
+            .prepare(
+              'UPDATE packs SET count = count - ? ' +
+                `WHERE account_id = ? AND kind = ? AND count >= ? AND ${stamped}`
+            )
+            .bind(out, accountId, change.kind, out, accountId, quest, id),
+    ])
+    return (results[1]?.meta.changes ?? 0) > 0
   }
 
   async task(accountId: string, task: string): Promise<TaskProgress> {

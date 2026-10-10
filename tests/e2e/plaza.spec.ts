@@ -2,14 +2,17 @@ import { copy } from './copy.ts'
 import { beginRaid, expect, heardWhere, test } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
-// Bull Valley Plaza: Wick, the squatter in the Golden Wok, deals (rule
-// 24); the key he sells opens the Video Vault's back room for whoever
-// carries it (keys.ts); and the $20 the day leaves in its safe is cash
-// (rule 4).
+// Bull Valley Plaza: Erwin von Dutch, the squatter in the Golden Wok,
+// barters and never takes cash (rule 24), and gives the rose quest (rule
+// 25): the rose laid at the heart of the maze earns the key that opens
+// the Video Vault's office for whoever carries it (keys.ts), and the $20
+// the day leaves in its safe is cash (rule 4).
 
 const cash = (page: Page) => page.evaluate(() => window.__bv?.cash ?? 0)
+const held = (page: Page, kind: string) =>
+  page.evaluate((k) => window.__bv?.inventory[k] ?? 0, kind)
 
-// Whether the back room's door stops a raider standing in its opening.
+// Whether the office's door stops a raider standing in its opening.
 const doorStops = (page: Page) =>
   page.evaluate(() => {
     const bv = window.__bv
@@ -20,14 +23,8 @@ const doorStops = (page: Page) =>
     return Math.hypot(out.x - x, out.z - z) > 0.05
   })
 
-test('Wick sells the key, the key opens the back room, and its $20 is cash', async ({
-  page,
-}) => {
-  test.slow()
-  await beginRaid(page)
-  expect(await doorStops(page)).toBe(true)
-
-  // In front of Wick, the way he faces.
+// In front of Erwin, the way he faces, and heard there.
+async function toErwin(page: Page): Promise<void> {
   await page.evaluate(() => {
     const bv = window.__bv
     const plaza = bv?.world.plaza
@@ -41,27 +38,64 @@ test('Wick sells the key, the key opens the back room, and its $20 is cash', asy
     )
   })
   await heardWhere(page)
+}
+
+test('Erwin barters, the rose earns the key, the key opens the office', async ({
+  page,
+}) => {
+  test.slow()
+  await beginRaid(page)
+  expect(await doorStops(page)).toBe(true)
+  await page.evaluate(() => window.__bv?.grant('marlboro', 100))
+  await expect.poll(() => held(page, 'marlboro')).toBeGreaterThan(99)
+
+  // A tab of LSD for Marlboros; the wallet is never touched.
+  await toErwin(page)
   const before = await cash(page)
+  const smokes = await held(page, 'marlboro')
   await page.keyboard.press('KeyE')
   const dialog = page.locator('.bv-deal')
   await expect(dialog).toBeVisible()
-  await expect(dialog).toContainText(copy('dealer.says'))
-  await dialog.locator('[data-good="vault-key"] [data-bv="deal-buy"]').click()
-  await expect
-    .poll(() => page.evaluate(() => window.__bv?.inventory['vault-key']))
-    .toBe(1)
-  await expect.poll(() => cash(page)).toBe(before - 2000)
-  await expect(page.locator('.bv-chat')).toContainText(
-    copy('dealer.bought', { item: copy('items.vault-key.label') })
-  )
-  // He will not sell a second.
-  await expect(
-    dialog.locator('[data-good="vault-key"] [data-bv="deal-buy"]')
-  ).toBeDisabled()
+  await expect(dialog).toContainText(copy('dealer.ramble_1'))
+  await dialog.locator('[data-kind="marlboro"]').click()
+  await dialog.locator('[data-good="lsd"] [data-bv="deal-buy"]').click()
+  await expect.poll(() => held(page, 'lsd')).toBe(1)
+  expect(await held(page, 'marlboro')).toBeLessThan(smokes)
+  expect(await cash(page)).toBe(before)
+
+  // He gives the rose.
+  await expect(dialog).toContainText(copy('quests.rose_offer'))
+  await dialog.locator('[data-bv="deal-quest-go"]').click()
+  await expect.poll(() => held(page, 'rose')).toBe(1)
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
 
-  // The key in the pack, the door lets this raider through.
+  // Laid at the heart of the maze, the Caretaker parked at the maze's far
+  // corner, out of sight of it: a strike there would leave the rose on the
+  // raider's body.
+  await page.evaluate(() => {
+    const bv = window.__bv
+    const portal = bv?.world.portal
+    const corner = bv?.world.mazePlace
+    if (!bv || !portal || !corner) throw new Error('no maze')
+    bv.placeCaretaker(corner.x, corner.z)
+    bv.player.relocate(portal.rose.position.x, portal.rose.position.z, 0)
+  })
+  await heardWhere(page)
+  await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.lay'))
+  await page.keyboard.press('KeyE')
+  await expect.poll(() => held(page, 'rose')).toBe(0)
+  await expect(page.locator('.bv-chat')).toContainText(
+    copy('quests.rose_placed')
+  )
+
+  // Back to Erwin for the key; the door lets this raider through.
+  await toErwin(page)
+  await page.keyboard.press('KeyE')
+  await expect(dialog).toContainText(copy('quests.rose_laid'))
+  await dialog.locator('[data-bv="deal-quest-go"]').click()
+  await expect.poll(() => held(page, 'vault-key')).toBe(1)
+  await page.keyboard.press('Escape')
   expect(await doorStops(page)).toBe(false)
 
   // The $20 in the safe, taken up, goes into the wallet.

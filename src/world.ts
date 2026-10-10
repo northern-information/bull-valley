@@ -281,6 +281,9 @@ export interface MazePortal {
   at: XZ
   exit: Spawn
   rig: PortalRig
+  // Erwin's rose, laid before the portal (quests.ts): shown to a raider
+  // whose quest says they laid it.
+  rose: THREE.Object3D
 }
 
 // A geometry and material pair from assets.ts, ready to instance.
@@ -1751,8 +1754,8 @@ export interface PlazaRig extends StripMallRig {
   lock: LockId
   doorAt: XZ
   inBackRoom(x: number, z: number): boolean
-  // Wick, the squatter who deals (dealer.ts): where he sits, and his
-  // figure for the glow.
+  // Erwin von Dutch, the squatter who deals (dealer.ts): where he sits,
+  // and his figure for the glow.
   dealer: { at: XZ; group: THREE.Group }
 }
 
@@ -1876,7 +1879,7 @@ function buildPlaza(
   mall.group.position.set(origin.x, deck, origin.z)
   mall.group.rotation.y = -origin.yaw
   group.add(mall.group)
-  // Wick, the squatter, on the floor at the foot of his mattress in the
+  // Erwin von Dutch, on the floor at the foot of his mattress in the
   // Golden Wok (STRIP_MALL.dealer), facing the candles; he blocks like a
   // post.
   const { dealer } = STRIP_MALL
@@ -1965,6 +1968,9 @@ function mazeFrame(station: StoreOrigin): MazeFrame {
     },
   }
 }
+
+// How far out from the portal, toward the gate, the laid rose lies.
+const ROSE_STEP = 1.8
 
 // The maze's trail field is sampled every TRAIL_STEP metres, and the sheet
 // it is painted on is draped every SHEET_STEP. The sheet lies SHEET_LIFT
@@ -2157,11 +2163,21 @@ function buildCornMaze(
     CONFIG.maze.portal.exit.z,
   ])
   const gateAt = out[0]
+  // The rose lies on the path a step out from the portal, toward the gate.
+  const along = Math.hypot(toward.x - heart.x, toward.z - heart.z) || 1
+  const rx = heart.x + ((toward.x - heart.x) / along) * ROSE_STEP
+  const rz = heart.z + ((toward.z - heart.z) / along) * ROSE_STEP
+  const rose = buildPickup('rose', 0, { glow: false })
+  rose.position.set(rx, ground.at(rx, rz), rz)
+  rose.rotation.y = 0.7
+  rose.visible = false
+  group.add(rose)
   const portal: MazePortal = {
     at: { x: heart.x, z: heart.z },
     // The camera looks along (-sin yaw, -cos yaw).
     exit: { x: ex, z: ez, yaw: Math.atan2(-(gateAt.x - ex), -(gateAt.z - ez)) },
     rig,
+    rose,
   }
 
   // A sign at a station-local spot, its board (which faces +Z) turned to

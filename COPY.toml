@@ -220,22 +220,44 @@ lore = { text = "Stands under his own raincloud by the berry bush. He can make y
 lore = { text = "A burning skeleton in a red trench coat, his back to his burning horse, under every Citgo sign. He deals in gold.", by = "ai" }
 
 [book.squatter]
-lore = { text = "Sleeps behind the Golden Wok's boards with his candles and his chalk. Sells what the Citgo will not, a few a day, and a key he says he found in the Video Vault's register.", by = "ai" }
+lore = { text = "Sleeps behind the Golden Wok's boards with his candles and his chalk. Takes no cash: he barters for what the Citgo sells, at a little under its price. He has a rose that wants to go somewhere.", by = "ai" }
 
-# Wick, the squatter in Bull Valley Plaza (src/dealer.ts, src/dealdialog.ts).
+# Erwin von Dutch, the squatter in Bull Valley Plaza (src/dealer.ts,
+# src/dealdialog.ts), and his quest (src/quests.ts).
 
 [dealer]
-says = { text = "\"You came in through the laundromat, didn't you. Everybody does. Don't step on the chalk.\"", by = "ai" }
-buy = { text = "Buy {item} — {price}", by = "ai" }
+ramble_1 = { text = "\"Put that wallet away. A Federal Reserve note is an IOU from an empire that owes everybody. I deal in things. Real things.\"", by = "ai" }
+ramble_2 = { text = "\"Fiat money is a story the empire tells itself so it can sleep. Cigarettes are a story too, but at least you can smoke them.\"", by = "ai" }
+ramble_3 = { text = "\"The dollar's been dead since '71. Nixon killed it on television and nobody came to the funeral. Show me what's in your pack.\"", by = "ai" }
+ramble_4 = { text = "\"I do not recognize imperialist currency. Marlboros, beer, a can of something cold, those I recognize. The shadowmen don't take cash either, you'll notice.\"", by = "ai" }
+pay_with = { text = "What He'll Take", by = "ai" }
+pay_kind = { text = "{item} ({count})", by = "ai" }
 good = { text = "{item}: {left} left today, {held} in your pack", by = "ai" }
-cash = { text = "Your wallet: {cash}", by = "ai" }
+trade = { text = "Trade {count} × {pay} for {item}", by = "ai" }
+trade_nothing = { text = "Nothing he'll take for {item}", by = "ai" }
+nothing_to_pay = { text = "\"You've got nothing I want. Come back with smokes, or something to drink.\"", by = "ai" }
 close = { text = "Leave", by = "ai" }
-bought = { text = "Wick slides you the {item}. \"Didn't get it from me.\"", by = "ai" }
+bought = { text = "Erwin von Dutch slides you the {item}. \"Pleasure doing business outside the system.\"", by = "ai" }
 sold_out = { text = "\"That's all I had today. Come back tomorrow.\"", by = "ai" }
-short = { text = "\"Come back when you've got it.\"", by = "ai" }
-have_one = { text = "\"You've already got one of those.\"", by = "ai" }
+short = { text = "\"That's not enough. I count it at shelf price, less a little for the trouble.\"", by = "ai" }
+worthless = { text = "\"I don't take that.\"", by = "ai" }
 too_far = { text = "\"Come closer. I'm not shouting.\"", by = "ai" }
 refused = { text = "\"Not right now.\"", by = "ai" }
+
+[quests]
+rose_offer = { text = "\"There's something at the heart of the corn maze that wants a rose. A single one. Lay it down for me and the back room of the Video Vault is yours. I have the key. I've always had the key.\"", by = "ai" }
+rose_accept = { text = "Take the Rose", by = "ai" }
+rose_waiting = { text = "\"The heart of the maze. Before the door that isn't a door. Go on.\"", by = "ai" }
+rose_lost = { text = "\"You lost it? There are always more roses. Not always more of you.\"", by = "ai" }
+rose_again = { text = "Take Another Rose", by = "ai" }
+rose_laid = { text = "\"It took the rose. I felt it. Here, the key, like I promised.\"", by = "ai" }
+rose_reward = { text = "Take the Key", by = "ai" }
+rose_done = { text = "\"You did right by the maze. The back room's yours, for what it's worth.\"", by = "ai" }
+rose_given = { text = "Erwin von Dutch presses a single red rose into your hand. \"The heart of the maze.\"", by = "ai" }
+rose_placed = { text = "You lay the rose at the heart of the maze. Something in the corn goes quiet.", by = "ai" }
+rose_rewarded = { text = "Erwin von Dutch drops a brass key on a red tag into your palm. It says BACK.", by = "ai" }
+too_far = { text = "Not here.", by = "ai" }
+not_now = { text = "\"Not now.\"", by = "ai" }
 
 # The game's own lines in the chat log (src/actions.ts, src/valleysync.ts,
 # src/loop.ts, src/shop.ts).
@@ -291,6 +313,7 @@ berry_refused = { text = "The bush gives you nothing.", by = "ai" }
 none_left = { text = "You have none left.", by = "ai" }
 dropped = { text = "Dropped: {item}", by = "ai" }
 drop_aboard = { text = "Not from the truck.", by = "ai" }
+drop_key_item = { text = "You keep hold of it. Someone is counting on you.", by = "ai" }
 drop_refused = { text = "It won't come loose.", by = "ai" }
 change_unheard = { text = "The valley missed that. Others will see it when you next join.", by = "ai" }
 struck = { text = "You are somewhere else. Time is missing.", by = "ai" }
@@ -307,7 +330,7 @@ stand_collected = { text = "The stand paid you {amount}.", by = "ai" }
 stand_upgraded = { text = "Your stand is level {level} now.", by = "ai" }
 stand_offline = { text = "No signal. The stand is shut.", by = "ai" }
 locked = { text = "Locked. The handle does not give.", by = "ai" }
-deal_offline = { text = "No signal. Wick will not deal with a stranger alone.", by = "ai" }
+deal_offline = { text = "No signal. Erwin von Dutch will not deal with a stranger alone.", by = "ai" }
 stand_far = { text = "You are too far from the stand.", by = "ai" }
 stand_short = { text = "You cannot cover that.", by = "ai" }
 stand_none = { text = "You have none of those to put out.", by = "ai" }
@@ -333,6 +356,7 @@ loot = { text = "E — Take Your Things Back", by = "ai" }
 locker = { text = "E — Open Your Locker", by = "ai" }
 stand = { text = "E — Tend Your Stand", by = "ai" }
 locked = { text = "E — Locked", by = "ai" }
+lay = { text = "E — Lay the Rose", by = "ai" }
 
 # Lines the game says to the player in the chat log (src/chat.ts).
 
@@ -409,9 +433,11 @@ quantity_left = { text = "Quantity: {count}, {left} left in the open one", by = 
 cash = { text = "Cash", by = "ai" }
 tab_consumables = { text = "Consumables", by = "ai" }
 tab_loot = { text = "Loot", by = "ai" }
+tab_key_items = { text = "Key Items", by = "ai" }
 tab_materials = { text = "Materials", by = "ai" }
 empty_consumables = { text = "Empty pockets. Nothing between you and the valley.", by = "ai" }
 empty_loot = { text = "Nothing found yet.", by = "ai" }
+empty_key_items = { text = "Nothing anyone has asked you to carry.", by = "ai" }
 empty_materials = { text = "Nothing to build with yet.", by = "ai" }
 tab_locker = { text = "Locker", by = "ai" }
 empty_locker = { text = "Your locker is empty. What you leave here, no shadow takes.", by = "ai" }
@@ -549,7 +575,7 @@ jdogg = { text = "Jdogg", by = "tyler" }
 mathiesen = { text = "Alex Mathiesen", by = "ai" }
 gron = { text = "Gron", by = "tyler" }
 moab = { text = "Moab Coldë", by = "ai" }
-squatter = { text = "Wick", by = "ai" }
+squatter = { text = "Erwin von Dutch", by = "ai" }
 
 # Matthew Marx, looked at and spoken to (src/npcs.ts): "O, Whistle an' I'll
 # Come to Ye, My Lad" by Robert Burns, a stanza each time, into the chat log.
@@ -702,9 +728,21 @@ used = { text = "You spark the joint. The valley sharpens.", by = "ai" }
 bought = { text = "One joint, pocketed.", by = "ai" }
 empty = { text = "No joints left.", by = "ai" }
 
+[items.lsd]
+label = { text = "LSD", by = "ai" }
+blurb = { text = "A sheet of blotter from Erwin von Dutch, a third eye printed on every tab. Eight hours, he says, give or take a lifetime.", by = "ai" }
+used = { text = "A tab under the tongue. The fog starts to breathe.", by = "ai" }
+empty = { text = "No tabs left.", by = "ai" }
+
+[items.adderall]
+label = { text = "Adderall", by = "ai" }
+blurb = { text = "An amber bottle with someone else's name on the label. Ten pills. Everything gets very clear and very fast.", by = "ai" }
+used = { text = "You dry-swallow a pill. Your jaw tightens.", by = "ai" }
+empty = { text = "The bottle is empty.", by = "ai" }
+
 [items.mushrooms]
 label = { text = "Mushrooms", by = "ai" }
-blurb = { text = "A baggie of dried caps from the man behind the Golden Wok's boards. He says they show you what the shadowmen see.", by = "ai" }
+blurb = { text = "A baggie of dried caps from Erwin von Dutch. He says they show you what the shadowmen see.", by = "ai" }
 used = { text = "You chew the caps down. They taste like the floor of the maze.", by = "ai" }
 empty = { text = "No mushrooms left.", by = "ai" }
 
@@ -860,6 +898,10 @@ collected = { text = "A berry off the bush. The rest are for tomorrow.", by = "a
 label = { text = "Gold Bullion", by = "ai" }
 blurb = { text = "One troy ounce, stamped .9999 fine. Moab Coldë has a use for it.", by = "ai" }
 
+[items.rose]
+label = { text = "A Single Rose", by = "ai" }
+blurb = { text = "Erwin von Dutch wants it laid at the heart of the corn maze. Don't ask him why. He will tell you.", by = "ai" }
+
 [items.vault-key]
 label = { text = "Video Vault Key", by = "ai" }
-blurb = { text = "A brass key on a red tag that says BACK. It opens the room behind the Video Vault's counter, for whoever carries it.", by = "ai" }
+blurb = { text = "A brass key on a red tag that says BACK, from Erwin von Dutch for the rose. It opens the office behind the Video Vault, for whoever carries it.", by = "ai" }

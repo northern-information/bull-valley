@@ -22,6 +22,7 @@ import { corpseWire, emptied, fallen, isEmpty, recover } from './corpses.ts'
 import { affords, cosmeticById } from './cosmetics.ts'
 import { stepIndex } from './cycle.ts'
 import { openDealDialog } from './dealdialog.ts'
+import { ramble } from './dealer.ts'
 import { isDropPickup } from './dropmeshes.ts'
 import {
   centsOf,
@@ -39,7 +40,7 @@ import { openGronDialog } from './grondialog.ts'
 import { assign } from './hotbar.ts'
 import { pickupLabel } from './interactions.ts'
 import { addItem, consume } from './inventory.ts'
-import { getItem, itemById } from './items.ts'
+import { getItem, isKeyItem, itemById } from './items.ts'
 import { board, call, hopOut as hopOutOf, refused } from './marx.ts'
 import { npcLine } from './npcs.ts'
 import { outfitById } from './outfits.ts'
@@ -52,6 +53,7 @@ import {
 } from './packgrid.ts'
 import { levelOf } from './progression.ts'
 import { normalizeChat } from './protocol.ts'
+import { dealerStep, roseLine } from './quests.ts'
 import { callRoute } from './roadgraph.ts'
 import { buy as buyItem, settle } from './shop.ts'
 import { openStandDialog } from './standdialog.ts'
@@ -490,9 +492,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     })
   }
 
-  // E beside Wick, the squatter in the plaza: what he sells, in a dialog
-  // with the pointer free, as at the stand. He deals only in the valley
-  // (rule 24): played alone there is no one to buy from.
+  // E beside Erwin von Dutch, the squatter in the plaza: what he deals
+  // and what he wants for it, and his quest, in a dialog with the pointer
+  // free, as at the stand. He deals only in the valley (rules 24 and 25):
+  // played alone there is no one to barter with.
   const openDeal = () => {
     if (s.talking) return
     discover(['squatter'])
@@ -504,21 +507,38 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     s.dealSaid = null
     player.keys.clear()
     if (document.pointerLockElement) document.exitPointerLock()
+    const says = ramble(s.rambled++)
     void openDealDialog({
+      says,
       stock: () => s.world?.dealer ?? null,
       pack: () => s.inventory,
-      cash: () => s.cash,
-      pending: () => s.pendingDeal,
+      pending: () => s.pendingDeal || s.pendingQuest,
       said: () => s.dealSaid,
-      onBuy: (kind) => {
+      quest: () => (s.quests ? roseLine(s.quests.rose, s.inventory) : null),
+      onDeal: (kind, pay) => {
         s.pendingDeal = true
         s.dealSaid = null
-        net.send({ type: 'deal', kind })
+        net.send({ type: 'deal', kind, pay })
+      },
+      onQuest: () => {
+        const step = s.quests ? dealerStep(s.quests.rose) : null
+        if (!step) return
+        s.pendingQuest = true
+        s.dealSaid = null
+        net.send({ type: 'quest', quest: 'rose', step })
       },
     }).then(() => {
       s.talking = false
       engagePointer()
     })
+  }
+
+  // E at the heart of the maze with Erwin's rose (rule 25): the valley
+  // takes it out of the pack and writes it laid.
+  const layRose = () => {
+    if (!s.world || s.pendingQuest) return
+    s.pendingQuest = true
+    net.send({ type: 'quest', quest: 'rose', step: 'lay' })
   }
 
   const stowKind = (kind: string, all: boolean) => restash(kind, all, true)
@@ -719,6 +739,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // Rule 12. In the valley the drop lands where our last state frame put
   // us; the pack shows the units gone at once. Alone it lands at once.
   const dropKind = (kind: string, all: boolean) => {
+    // A key item stays in the pack (items.ts isKeyItem).
+    if (isKeyItem(kind)) {
+      hud.tell(copy('log.drop_key_item'))
+      return
+    }
     if (s.aboard) {
       hud.tell(copy('log.drop_aboard'))
       return
@@ -915,6 +940,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         return
       case 'deal':
         openDeal()
+        return
+      case 'lay':
+        layRose()
         return
       case 'locked':
         hud.tell(copy('log.locked'))

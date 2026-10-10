@@ -3,10 +3,11 @@ import { heartPoint, theMaze } from '../../src/caretaker.ts'
 import { CONFIG } from '../../src/config.ts'
 import { dayKey } from '../../src/daily.ts'
 import { DAILY_TASK, NO_TASK } from '../../src/dailytask.ts'
-import { goodOf } from '../../src/dealer.ts'
+import { costIn, goodOf } from '../../src/dealer.ts'
 import { DIME_CENTS } from '../../src/drops.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { getItem } from '../../src/items.ts'
+import { mazeToWorld } from '../../src/maze.ts'
 import { XP, xpToReach } from '../../src/progression.ts'
 import { CLOSE, PROTOCOL_VERSION } from '../../src/protocol.ts'
 import { SEASON } from '../../src/season.ts'
@@ -576,33 +577,91 @@ describe('ValleyDO', () => {
     })
   })
 
-  it('deals with the squatter only beside him, wallet and pack together', async () => {
+  it('barters with Erwin only beside him, both sides of the pack together', async () => {
     const { valley: v, state: s } = await valley()
-    const a = await join(v, s, 'A')
+    const a = await join(v, s, 'A', { dev: true })
     const b = await join(v, s, 'B')
-    const deal = JSON.stringify({ type: 'deal', kind: 'vault-key' })
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"grant","kind":"marlboro","count":200}'
+    )
+    const held = lastPack(a)?.marlboro ?? 0
+    const deal = JSON.stringify({ type: 'deal', kind: 'lsd', pay: 'marlboro' })
     // Nowhere the valley heard them stand: too far.
     await v.webSocketMessage(ws(a), deal)
     expect(a.last<NackMessage>()).toEqual({
       type: 'nack',
       re: 'deal',
       reason: 'too-far',
-      item: 'vault-key',
+      item: 'lsd',
     })
     await v.webSocketMessage(ws(a), state(DEALER.x + 1, DEALER.z))
     await v.webSocketMessage(ws(a), deal)
     expect(b.last<WorldMessage>()).toMatchObject({
       reason: 'dealt',
       by: idOf(a),
-      item: 'vault-key',
+      item: 'lsd',
     })
-    const price = goodOf('vault-key')?.price ?? 0
+    const lsd = goodOf('lsd')
+    const cost = lsd ? (costIn(lsd, 'marlboro') ?? 0) : 0
     const pack = a.frames().findLast((m): m is PackMessage => m.type === 'pack')
-    expect(pack?.pack['vault-key']).toBe(1)
-    expect(pack?.cash).toBe(STARTING_CASH - price)
-    // A second key, he will not sell.
-    await v.webSocketMessage(ws(a), deal)
-    expect(a.last<NackMessage>().reason).toBe('have-one')
+    expect(pack?.pack.lsd).toBe(1)
+    expect(pack?.pack.marlboro).toBe(held - cost)
+    // No cash changes hands.
+    expect(pack?.cash).toBe(STARTING_CASH)
+    // What he will not take, he refuses.
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ type: 'deal', kind: 'lsd', pay: 'cabbage' })
+    )
+    expect(a.last<NackMessage>().reason).toBe('worthless')
+  })
+
+  it('walks the rose quest: the rose from Erwin, laid at the heart, the key back', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const other = await join(v, s, 'A2', { account: 'acct-A' })
+    const welcome = a
+      .frames()
+      .find((m): m is WelcomeMessage => m.type === 'welcome')
+    expect(welcome?.quests).toEqual({ rose: 'none' })
+    const quest = (step: string) =>
+      v.webSocketMessage(
+        ws(a),
+        JSON.stringify({ type: 'quest', quest: 'rose', step })
+      )
+    const lastQuest = (socket: MockSocket) =>
+      socket.frames().findLast((m) => m.type === 'quest')
+    await v.webSocketMessage(ws(a), state(DEALER.x + 1, DEALER.z))
+    await quest('accept')
+    expect(lastQuest(a)).toEqual({
+      type: 'quest',
+      quest: 'rose',
+      step: 'accept',
+      stage: 'given',
+    })
+    // Every socket on the account hears it.
+    expect(lastQuest(other)).toMatchObject({ stage: 'given' })
+    expect(lastPack(a)?.rose).toBe(1)
+    // Not laid from here.
+    await quest('lay')
+    expect(a.last<NackMessage>()).toEqual({
+      type: 'nack',
+      re: 'quest',
+      reason: 'too-far',
+    })
+    const heart = mazeToWorld(MAZE, heartPoint(theMaze()))
+    await v.webSocketMessage(ws(a), state(heart.x, heart.z))
+    await quest('lay')
+    expect(lastQuest(a)).toMatchObject({ step: 'lay', stage: 'laid' })
+    expect(lastPack(a)?.rose).toBe(0)
+    await v.webSocketMessage(ws(a), state(DEALER.x + 1, DEALER.z))
+    await quest('reward')
+    expect(lastQuest(a)).toMatchObject({ step: 'reward', stage: 'done' })
+    expect(lastPack(a)?.['vault-key']).toBe(1)
+    // Done is done.
+    await quest('accept')
+    expect(a.last<NackMessage>().reason).toBe('not-now')
   })
 
   it('hands out one berry a day per account, and says so in the welcome', async () => {
@@ -1077,6 +1136,9 @@ describe('ValleyDO', () => {
       purchase: () => Promise.reject(new Error('D1 is down')),
       earn: () => Promise.reject(new Error('D1 is down')),
       trade: () => Promise.reject(new Error('D1 is down')),
+      barter: () => Promise.reject(new Error('D1 is down')),
+      quests: () => Promise.reject(new Error('D1 is down')),
+      quest: () => Promise.reject(new Error('D1 is down')),
       season: () => Promise.reject(new Error('D1 is down')),
       strip: () => Promise.reject(new Error('D1 is down')),
       give: () => Promise.reject(new Error('D1 is down')),
@@ -1171,6 +1233,10 @@ describe('ValleyDO', () => {
         purchase: () => Promise.reject(new Error('down')),
         earn: (id, amount) => store.earn(id, amount),
         trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
+        barter: (id, give, take) => store.barter(id, give, take),
+        quests: (id) => store.quests(id),
+        quest: (id, quest, from, to, change) =>
+          store.quest(id, quest, from, to, change),
         season: (id, season) => store.season(id, season),
         book: (id) => store.book(id),
         discover: (id, entries, now) => store.discover(id, entries, now),
@@ -1279,6 +1345,10 @@ describe('ValleyDO: drops', () => {
       get: (id) => store.get(id),
       purchase: (id, amount, item) => store.purchase(id, amount, item),
       trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
+      barter: (id, give, take) => store.barter(id, give, take),
+      quests: (id) => store.quests(id),
+      quest: (id, quest, from, to, change) =>
+        store.quest(id, quest, from, to, change),
       season: (id, season) => store.season(id, season),
       book: (id) => store.book(id),
       discover: (id, entries, now) => store.discover(id, entries, now),
@@ -1436,6 +1506,10 @@ describe('ValleyDO: corpse runs', () => {
         purchase: (id, amount, item) => store.purchase(id, amount, item),
         earn: (id, amount) => store.earn(id, amount),
         trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
+        barter: (id, give, take) => store.barter(id, give, take),
+        quests: (id) => store.quests(id),
+        quest: (id, quest, from, to, change) =>
+          store.quest(id, quest, from, to, change),
         season: (id, season) => store.season(id, season),
         score: (id, season, progress, reward) =>
           store.score(id, season, progress, reward),
@@ -2003,6 +2077,10 @@ describe('ValleyDO: the shadowmen', () => {
       purchase: (id, amount, item) => store.purchase(id, amount, item),
       earn: () => Promise.reject(new Error('down')),
       trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
+      barter: (id, give, take) => store.barter(id, give, take),
+      quests: (id) => store.quests(id),
+      quest: (id, quest, from, to, change) =>
+        store.quest(id, quest, from, to, change),
       season: (id, season) => store.season(id, season),
       book: (id) => store.book(id),
       discover: (id, entries, now) => store.discover(id, entries, now),
@@ -2130,6 +2208,10 @@ describe('ValleyDO: the shadowmen', () => {
       purchase: (id, amount, item) => store.purchase(id, amount, item),
       earn: (id, amount) => store.earn(id, amount),
       trade: (id, price, cosmetic) => store.trade(id, price, cosmetic),
+      barter: (id, give, take) => store.barter(id, give, take),
+      quests: (id) => store.quests(id),
+      quest: (id, quest, from, to, change) =>
+        store.quest(id, quest, from, to, change),
       season: (id, season) => store.season(id, season),
       book: (id) => store.book(id),
       discover: (id, entries, now) => store.discover(id, entries, now),
@@ -2274,6 +2356,9 @@ describe("ValleyDO: Moab's trade", () => {
         purchase: (id, amount, item) => store.purchase(id, amount, item),
         earn: (id, amount) => store.earn(id, amount),
         trade: () => Promise.reject(new Error('down')),
+        barter: () => Promise.reject(new Error('down')),
+        quests: () => Promise.reject(new Error('down')),
+        quest: () => Promise.reject(new Error('down')),
         season: (id, season) => store.season(id, season),
         book: (id) => store.book(id),
         discover: (id, entries, now) => store.discover(id, entries, now),

@@ -39,6 +39,7 @@ import {
   parseClientMessage,
   PROTOCOL_VERSION,
 } from '../src/protocol.ts'
+import { isQuest } from '../src/quests.ts'
 import { mulberry32 } from '../src/rng.ts'
 import { SEASON, tally } from '../src/season.ts'
 import {
@@ -72,6 +73,7 @@ import type {
   ServerMessage,
   TaskWire,
 } from '../src/protocol.ts'
+import type { QuestId, QuestStage } from '../src/quests.ts'
 import type { SeasonProgress } from '../src/season.ts'
 import type {
   PackChange,
@@ -303,13 +305,24 @@ export class ValleyDO extends DurableObject<Env> {
           offer: msg.offer,
         })
         return
+      case 'quest':
+        // Beside Erwin, or at the heart of the maze, where the raider's
+        // own last state frame put them.
+        await this.questStep(ws, attachment, {
+          type: 'quest',
+          id: me.id,
+          quest: msg.quest,
+          step: msg.step,
+          at: me.at ? { x: me.at.x, z: me.at.z } : null,
+        })
+        return
       case 'deal':
-        // Beside the squatter where the raider's own last state frame put
-        // them.
-        await this.purchase(ws, attachment, {
+        // Beside Erwin where the raider's own last state frame put them.
+        await this.barter(ws, attachment, {
           type: 'deal',
           id: me.id,
           kind: msg.kind,
+          pay: msg.pay,
           at: me.at ? { x: me.at.x, z: me.at.z } : null,
         })
         return
@@ -702,6 +715,7 @@ export class ValleyDO extends DurableObject<Env> {
     let task: TaskProgress
     let xp: number
     let stand: StandLedger
+    let quests: Record<QuestId, QuestStage>
     try {
       const packs = this.packs()
       holdings = await packs.open(account)
@@ -710,6 +724,7 @@ export class ValleyDO extends DurableObject<Env> {
       task = await packs.task(account, DAILY_TASK.id)
       xp = await packs.xp(account)
       stand = (await packs.stand(account)).ledger
+      quests = await packs.quests(account)
     } catch (err) {
       console.error('The pack could not be opened', err)
       ws.close(CLOSE.serverError, 'The valley lost the pack')
@@ -774,6 +789,7 @@ export class ValleyDO extends DurableObject<Env> {
       task: taskWire(task),
       xp,
       stand,
+      quests,
     })
     this.broadcast({ type: 'peer-joined', peer: me }, ws)
     for (const msg of reduced.broadcast) this.broadcast(msg, ws)
@@ -1075,46 +1091,37 @@ export class ValleyDO extends DurableObject<Env> {
     for (const msg of reduced.broadcast) this.broadcast(msg, null)
   }
 
-  // A buy off a Citgo shelf (rule 7) or from the squatter (rule 24),
-  // alone: no other frame runs between reading the wallet, judging the
-  // sale against it, and paying. A wallet that cannot be read or that does
-  // not cover the sale leaves the valley as it was.
+  // A buy off a Citgo shelf, alone (rule 7): no other frame runs between
+  // reading the wallet, judging the sale against it, and paying. A wallet
+  // that cannot be read or that does not cover the sale leaves the valley
+  // as it was.
   private async purchase(
     ws: WebSocket,
     attachment: Attachment,
-    action: Extract<ValleyAction, { type: 'buy' | 'deal' }>
+    action: Extract<ValleyAction, { type: 'buy' }>
   ): Promise<void> {
     const { account } = attachment
     if (!account) return
     const refuse = (reason: string) => {
-      send(
-        ws,
-        action.type === 'buy'
-          ? {
-              type: 'nack',
-              re: 'buy',
-              reason,
-              station: action.station,
-              item: action.kind,
-            }
-          : { type: 'nack', re: 'deal', reason, item: action.kind }
-      )
+      send(ws, {
+        type: 'nack',
+        re: 'buy',
+        reason,
+        station: action.station,
+        item: action.kind,
+      })
     }
     await this.ctx.blockConcurrencyWhile(async () => {
       const packs = this.packs()
-      let holdings: Holdings
+      let cash: number
       try {
-        holdings = await packs.get(account)
+        cash = (await packs.get(account)).cash
       } catch (err) {
         console.error('The wallet could not be read', err)
         refuse('unavailable')
         return
       }
-      const reduced = reduce(this.valley, action, {
-        ...this.context(),
-        cash: holdings.cash,
-        holdings,
-      })
+      const reduced = reduce(this.valley, action, { ...this.context(), cash })
       if (reduced.spend) {
         // The charge and the unit go in together, so a failed write never
         // takes the cash without the item.
@@ -1140,6 +1147,133 @@ export class ValleyDO extends DurableObject<Env> {
       for (const msg of reduced.broadcast) this.broadcast(msg, null)
       if (reduced.spend) await this.repack(ws, null, account)
       else if (reduced.pack) await this.repack(ws, reduced.pack)
+    })
+  }
+
+  // A quest's step, alone (rule 25): no other frame runs between reading
+  // the stage and the pack, judging the step against them, and writing
+  // both. On success every socket on the account hears the stage, then
+  // the pack.
+  private async questStep(
+    ws: WebSocket,
+    attachment: Attachment,
+    action: Extract<ValleyAction, { type: 'quest' }>
+  ): Promise<void> {
+    const { account } = attachment
+    if (!account) return
+    const refuse = (reason: string) => {
+      send(ws, { type: 'nack', re: 'quest', reason })
+    }
+    if (!isQuest(action.quest)) {
+      refuse('no-such-quest')
+      return
+    }
+    const id = action.quest
+    await this.ctx.blockConcurrencyWhile(async () => {
+      const packs = this.packs()
+      let quest: { stage: QuestStage; pack: Inventory }
+      try {
+        const [stages, holdings] = await Promise.all([
+          packs.quests(account),
+          packs.get(account),
+        ])
+        quest = { stage: stages[id], pack: holdings.pack }
+      } catch (err) {
+        console.error('The quest could not be read', err)
+        refuse('unavailable')
+        return
+      }
+      const reduced = reduce(this.valley, action, {
+        ...this.context(),
+        quest,
+      })
+      if (reduced.reply) {
+        send(ws, reduced.reply)
+        return
+      }
+      const step = reduced.quest
+      if (!step) return
+      let stepped: boolean
+      try {
+        stepped = await packs.quest(
+          account,
+          step.quest,
+          step.from,
+          step.to,
+          step.change
+        )
+      } catch (err) {
+        console.error('The quest could not be written', err)
+        refuse('unavailable')
+        return
+      }
+      if (!stepped) {
+        refuse('not-now')
+        return
+      }
+      await this.apply(reduced)
+      for (const socket of this.ctx.getWebSockets()) {
+        if (this.attachment(socket).account !== account) continue
+        send(socket, {
+          type: 'quest',
+          quest: step.quest,
+          step: step.step,
+          stage: step.to,
+        })
+      }
+      await this.repack(ws, null, account)
+    })
+  }
+
+  // A barter with Erwin von Dutch, alone (rule 24): no other frame runs
+  // between reading the pack, judging the deal against it, and writing
+  // both sides of it. On success everyone sees his stock go down, and the
+  // account's sockets get the pack.
+  private async barter(
+    ws: WebSocket,
+    attachment: Attachment,
+    action: Extract<ValleyAction, { type: 'deal' }>
+  ): Promise<void> {
+    const { account } = attachment
+    if (!account) return
+    const refuse = (reason: string) => {
+      send(ws, { type: 'nack', re: 'deal', reason, item: action.kind })
+    }
+    await this.ctx.blockConcurrencyWhile(async () => {
+      const packs = this.packs()
+      let holdings: Holdings
+      try {
+        holdings = await packs.get(account)
+      } catch (err) {
+        console.error('The pack could not be read', err)
+        refuse('unavailable')
+        return
+      }
+      const reduced = reduce(this.valley, action, {
+        ...this.context(),
+        holdings,
+      })
+      if (reduced.reply) {
+        send(ws, reduced.reply)
+        return
+      }
+      const deal = reduced.barter
+      if (!deal) return
+      let dealt: boolean
+      try {
+        dealt = await packs.barter(account, deal.give, deal.take)
+      } catch (err) {
+        console.error('The barter could not be written', err)
+        refuse('unavailable')
+        return
+      }
+      if (!dealt) {
+        refuse('short')
+        return
+      }
+      await this.apply(reduced)
+      for (const msg of reduced.broadcast) this.broadcast(msg, null)
+      await this.repack(ws, null, account)
     })
   }
 

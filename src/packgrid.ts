@@ -6,7 +6,12 @@ import { containersOf, isUsable, itemById, ITEMS, leftInOpen } from './items.ts'
 import type { Inventory, ItemCategory, PackItem } from './interfaces.ts'
 
 // The pack's tabs, left to right; it opens on the first.
-export const PACK_TABS = ['consumables', 'loot', 'materials'] as const
+export const PACK_TABS = [
+  'consumables',
+  'loot',
+  'key-items',
+  'materials',
+] as const
 export type PackTab = (typeof PACK_TABS)[number]
 
 // The tabs the pack shows: its own, and at the locker the Locker tab after
@@ -21,17 +26,18 @@ export function bagTabs(atLocker: boolean): BagTab[] {
 }
 
 // Which tab each item category sits in: forage (the cabbages and the
-// berries), valuables (the gold bullion) and keys are loot. Nothing is a
-// material yet.
+// berries) and valuables (the gold bullion) are loot; the keys and what a
+// quest asks for are key items. Nothing is a material yet.
 const TAB_OF: Record<ItemCategory, PackTab> = {
   cigarette: 'consumables',
   joint: 'consumables',
   psychedelic: 'consumables',
+  stimulant: 'consumables',
   drink: 'consumables',
   medicine: 'consumables',
   forage: 'loot',
   valuable: 'loot',
-  key: 'loot',
+  'key-item': 'key-items',
 }
 
 // A kind is in its tab when the player carries it, in ITEMS order. Each

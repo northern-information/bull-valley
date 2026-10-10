@@ -87,6 +87,9 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   | { kind: 'deal' }
   // A door locked to this raider (keys.ts): E only rattles it.
   | { kind: 'locked' }
+  // The heart of the maze with Erwin's rose in the pack: E lays it
+  // (quests.ts).
+  | { kind: 'lay' }
 
 // A locker bank as the resolver sees it: where E opens it, and its
 // station.
@@ -125,6 +128,9 @@ export interface InteractionInput<P extends PickupSpot> {
   dealer?: XZ | null
   // A locked door this raider lacks the key to, or null.
   locked?: XZ | null
+  // The heart of the maze, while this raider has a rose to lay there, or
+  // null.
+  heart?: XZ | null
 }
 
 // The first match wins, in this order: hop out while riding; speak to the
@@ -202,6 +208,14 @@ export function resolveInteraction<P extends PickupSpot>(
     Math.hypot(dealer.x - player.x, dealer.z - player.z) < CONFIG.dealer.reach
   ) {
     return { kind: 'deal' }
+  }
+
+  const heart = input.heart
+  if (
+    heart &&
+    Math.hypot(heart.x - player.x, heart.z - player.z) < CONFIG.quests.layReach
+  ) {
+    return { kind: 'lay' }
   }
 
   const locked = input.locked
@@ -339,6 +353,8 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return null
     case 'locked':
       return copy('prompts.locked')
+    case 'lay':
+      return copy('prompts.lay')
     // Moab's offer is said, since the glow alone cannot say what he wants.
     case 'trade': {
       const cosmetic = cosmeticById(interaction.offer)

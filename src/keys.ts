@@ -1,5 +1,5 @@
-// Pure: keys and the locks they open. A key is an item (items.ts, the
-// 'key' category) and is never used up: a lock lets through whoever
+// Pure: keys and the locks they open. A key is a key item (items.ts, the
+// 'key-item' category) and is never used up: a lock lets through whoever
 // carries its key, and anyone already behind it, so no one is ever shut
 // in. Each lock is a gate on the walls (walls.ts addGate) that the client
 // opens for its own raider alone; the key itself is the account's, in its

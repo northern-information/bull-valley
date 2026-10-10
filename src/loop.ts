@@ -295,6 +295,11 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     world.stand?.setLevel(s.stand?.level ?? 1)
     for (const rig of world.moabRigs) rig.update(time)
     world.wreck?.update(time)
+    // Erwin's rose lies at the heart for a raider who laid it (rule 25).
+    if (world.portal) {
+      const stage = s.quests?.rose
+      world.portal.rose.visible = stage === 'laid' || stage === 'done'
+    }
     // The locked door swings open as a raider who may pass comes up to it.
     if (plaza) {
       const { x, z } = player.pos
@@ -440,6 +445,13 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       lockers: targets.lockerSpots(inStore),
       stand: world.stand?.at ?? null,
       dealer: world.plaza?.dealer.at ?? null,
+      heart:
+        world.portal &&
+        s.quests?.rose === 'given' &&
+        (s.inventory.rose ?? 0) > 0 &&
+        !s.pendingQuest
+          ? world.portal.at
+          : null,
       locked:
         world.plaza &&
         !passes(

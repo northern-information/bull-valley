@@ -97,11 +97,12 @@ export type ItemCategory =
   | 'cigarette'
   | 'joint'
   | 'psychedelic'
+  | 'stimulant'
   | 'drink'
   | 'medicine'
   | 'forage'
   | 'valuable'
-  | 'key'
+  | 'key-item'
 
 // How a medicine is packed: a pill bottle, a folding carton, or a dropper
 // bottle. assets.ts builds one shape per form; medart.ts paints its labels.

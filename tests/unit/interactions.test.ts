@@ -387,6 +387,14 @@ describe('resolveInteraction: bodies and lockers', () => {
     })
   })
 
+  it('lays the rose at the heart of the maze within reach of it', () => {
+    const heart = { x: 251, z: 250 }
+    expect(resolveInteraction(input({ heart }))).toEqual({ kind: 'lay' })
+    const far = { x: 250 + CONFIG.quests.layReach + 0.1, z: 250 }
+    expect(resolveInteraction(input({ heart: far }))).toBeNull()
+    expect(interactionPrompt({ kind: 'lay' })).toBe(copy('prompts.lay'))
+  })
+
   it('names the quarters', () => {
     expect(pickupLabel({ kind: 'quarters', count: 8 })).toBe(
       copy('labels.quarters', { count: 8 })

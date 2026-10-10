@@ -9,11 +9,13 @@ import { CONFIG } from '../src/config.ts'
 import { toCosmetics } from '../src/cosmetics.ts'
 import { NO_TASK } from '../src/dailytask.ts'
 import { STARTING_INVENTORY, toInventory } from '../src/inventory.ts'
+import { QUESTS } from '../src/quests.ts'
 import { NO_PROGRESS } from '../src/season.ts'
 import { FRESH_STAND } from '../src/stand.ts'
 import type { CosmeticId } from '../src/cosmetics.ts'
 import type { TaskProgress } from '../src/dailytask.ts'
 import type { Inventory } from '../src/interfaces.ts'
+import type { QuestId, QuestStage } from '../src/quests.ts'
 import type { SeasonProgress, SeasonReward } from '../src/season.ts'
 import type { StandChange } from '../src/sharedworld.ts'
 import type { StandLedger } from '../src/stand.ts'
@@ -57,6 +59,13 @@ export interface PackStore {
   // the locker into the pack (negative), both or neither; false when the
   // side it comes out of holds fewer (rule 19).
   stow(accountId: string, kind: string, delta: number): Promise<boolean>
+  // A barter (sharedworld.ts rule 24): `give` out of the pack and `take`
+  // into it, both or neither; false when the pack does not hold `give`.
+  barter(
+    accountId: string,
+    give: { kind: string; count: number },
+    take: { kind: string; count: number }
+  ): Promise<boolean>
   // Pays `amount` cents into the wallet (dimes taken up).
   earn(accountId: string, amount: number): Promise<void>
   // A trade (sharedworld.ts rule 14): `price.count` of `price.kind` out of
@@ -100,6 +109,20 @@ export interface PackStore {
     progress: TaskProgress,
     reward: number | null
   ): Promise<void>
+  // Where the account stands on each quest (src/quests.ts), 'none' for
+  // one not begun.
+  quests(accountId: string): Promise<Record<QuestId, QuestStage>>
+  // A quest's step (sharedworld.ts rule 25): `quest` from `from` to `to`,
+  // and `change` into (or, negative, out of) the pack, both or neither;
+  // false when the quest no longer stands at `from` or the pack does not
+  // hold what comes out of it.
+  quest(
+    accountId: string,
+    quest: QuestId,
+    from: QuestStage,
+    to: QuestStage,
+    change: { kind: string; delta: number }
+  ): Promise<boolean>
   // The account's Cabbage Stand (src/stand.ts), as fresh the first time,
   // and how many times it has been written: `tend` takes that back.
   stand(accountId: string): Promise<{ ledger: StandLedger; rev: number }>
@@ -136,6 +159,7 @@ export class MemoryPackStore implements PackStore {
   readonly books = new Map<string, string[]>()
   // `${account}/${task}` -> progress.
   readonly tasks = new Map<string, TaskProgress>()
+  readonly questStages = new Map<string, QuestStage>()
   readonly stands = new Map<string, { ledger: StandLedger; rev: number }>()
   readonly levels = new Map<string, number>()
 
@@ -216,6 +240,16 @@ export class MemoryPackStore implements PackStore {
     return true
   }
 
+  async barter(
+    accountId: string,
+    give: { kind: string; count: number },
+    take: { kind: string; count: number }
+  ): Promise<boolean> {
+    if (!(await this.change(accountId, give.kind, -give.count))) return false
+    await this.change(accountId, take.kind, take.count)
+    return true
+  }
+
   earn(accountId: string, amount: number): Promise<void> {
     const cash = this.wallets.get(accountId) ?? STARTING_CASH
     this.wallets.set(accountId, cash + amount)
@@ -268,6 +302,28 @@ export class MemoryPackStore implements PackStore {
 
   task(accountId: string, task: string): Promise<TaskProgress> {
     return Promise.resolve(this.tasks.get(`${accountId}/${task}`) ?? NO_TASK)
+  }
+
+  quests(accountId: string): Promise<Record<QuestId, QuestStage>> {
+    const stages = {} as Record<QuestId, QuestStage>
+    for (const id of Object.keys(QUESTS) as QuestId[]) {
+      stages[id] = this.questStages.get(`${accountId}/${id}`) ?? 'none'
+    }
+    return Promise.resolve(stages)
+  }
+
+  async quest(
+    accountId: string,
+    quest: QuestId,
+    from: QuestStage,
+    to: QuestStage,
+    change: { kind: string; delta: number }
+  ): Promise<boolean> {
+    const key = `${accountId}/${quest}`
+    if ((this.questStages.get(key) ?? 'none') !== from) return false
+    if (!(await this.change(accountId, change.kind, change.delta))) return false
+    this.questStages.set(key, to)
+    return true
   }
 
   scoreTask(

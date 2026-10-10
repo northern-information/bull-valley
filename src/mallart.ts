@@ -128,6 +128,273 @@ function rewind(): CanvasArt {
   return art
 }
 
+// Over the curtain: the adult section's sign, hand-lettered on red.
+function adultsOnly(): CanvasArt {
+  const art = canvas([192, 64], '#7a0f12')
+  const { ctx, w } = art
+  ctx.strokeStyle = '#f2d24a'
+  ctx.lineWidth = 2
+  ctx.strokeRect(4, 4, w - 8, 56)
+  text(ctx, 'ADULTS ONLY', w / 2, 24, w - 24, 22, SANS, '#f2d24a')
+  text(ctx, 'MUST BE 18 · NO MINORS', w / 2, 47, w - 30, 11, SANS, '#f4e8d0')
+  weather(art, 0xadd1, 1.1)
+  return art
+}
+
+// A low-poly pin-up: flat polygons in a poster's few inks, the way a
+// 1996 shooter painted its wall art, every pose in a bikini. Points are
+// in the unit square of the figure's own box, `box` placing it on the
+// canvas.
+type Poly = readonly (readonly [number, number])[]
+
+function polygon(
+  ctx: CanvasRenderingContext2D,
+  poly: Poly,
+  [x0, y0, w, h]: readonly [number, number, number, number],
+  color: string
+): void {
+  ctx.fillStyle = color
+  ctx.beginPath()
+  poly.forEach(([u, v], i) => {
+    const x = x0 + u * w
+    const y = y0 + v * h
+    if (i === 0) ctx.moveTo(x, y)
+    else ctx.lineTo(x, y)
+  })
+  ctx.closePath()
+  ctx.fill()
+}
+
+interface PinupInks {
+  ground: string
+  burst: string
+  skin: string
+  shade: string
+  hair: string
+  suit: string
+  title: string
+}
+
+// Standing, one hand behind her head, hip out.
+const STANDING: Record<string, Poly> = {
+  hair: [
+    [0.38, 0.02],
+    [0.62, 0.02],
+    [0.7, 0.16],
+    [0.66, 0.3],
+    [0.34, 0.28],
+    [0.31, 0.12],
+  ],
+  head: [
+    [0.42, 0.06],
+    [0.58, 0.06],
+    [0.6, 0.17],
+    [0.5, 0.22],
+    [0.4, 0.17],
+  ],
+  armUp: [
+    [0.58, 0.24],
+    [0.74, 0.08],
+    [0.62, 0.02],
+    [0.56, 0.1],
+    [0.62, 0.12],
+    [0.55, 0.24],
+  ],
+  body: [
+    [0.42, 0.22],
+    [0.58, 0.22],
+    [0.62, 0.32],
+    [0.58, 0.46],
+    [0.66, 0.56],
+    [0.36, 0.56],
+    [0.42, 0.44],
+    [0.38, 0.32],
+  ],
+  armDown: [
+    [0.4, 0.25],
+    [0.33, 0.4],
+    [0.36, 0.52],
+    [0.39, 0.51],
+    [0.37, 0.4],
+    [0.43, 0.29],
+  ],
+  legs: [
+    [0.36, 0.56],
+    [0.66, 0.56],
+    [0.6, 0.78],
+    [0.6, 0.97],
+    [0.54, 0.97],
+    [0.51, 0.72],
+    [0.47, 0.78],
+    [0.36, 0.97],
+    [0.3, 0.95],
+    [0.4, 0.74],
+  ],
+  top: [
+    [0.4, 0.3],
+    [0.6, 0.3],
+    [0.6, 0.37],
+    [0.4, 0.37],
+  ],
+  bottom: [
+    [0.37, 0.53],
+    [0.65, 0.53],
+    [0.58, 0.61],
+    [0.5, 0.63],
+    [0.43, 0.61],
+  ],
+}
+
+// Lying along the poster on one elbow, knees up: the centerfold.
+const RECLINING: Record<string, Poly> = {
+  hair: [
+    [0.04, 0.3],
+    [0.16, 0.24],
+    [0.24, 0.34],
+    [0.2, 0.62],
+    [0.08, 0.6],
+  ],
+  head: [
+    [0.1, 0.32],
+    [0.19, 0.32],
+    [0.2, 0.48],
+    [0.12, 0.5],
+  ],
+  armDown: [
+    [0.12, 0.5],
+    [0.2, 0.5],
+    [0.24, 0.86],
+    [0.17, 0.88],
+  ],
+  body: [
+    [0.18, 0.46],
+    [0.5, 0.52],
+    [0.58, 0.66],
+    [0.5, 0.82],
+    [0.2, 0.74],
+  ],
+  legs: [
+    [0.5, 0.56],
+    [0.68, 0.3],
+    [0.76, 0.32],
+    [0.92, 0.7],
+    [0.96, 0.8],
+    [0.86, 0.8],
+    [0.72, 0.5],
+    [0.62, 0.8],
+    [0.5, 0.82],
+  ],
+  top: [
+    [0.24, 0.5],
+    [0.36, 0.52],
+    [0.36, 0.62],
+    [0.24, 0.6],
+  ],
+  bottom: [
+    [0.46, 0.55],
+    [0.58, 0.62],
+    [0.56, 0.76],
+    [0.46, 0.78],
+  ],
+}
+
+function pinup(
+  size: [number, number],
+  figure: Record<string, Poly>,
+  box: readonly [number, number, number, number],
+  inks: PinupInks,
+  title: string,
+  seed: number
+): CanvasArt {
+  const art = canvas(size, inks.ground)
+  const { ctx, w, h } = art
+  // A starburst behind her.
+  ctx.fillStyle = inks.burst
+  const cx = box[0] + box[2] / 2
+  const cy = box[1] + box[3] * 0.45
+  for (let i = 0; i < 12; i += 2) {
+    const a0 = (i / 12) * Math.PI * 2
+    const a1 = ((i + 1) / 12) * Math.PI * 2
+    ctx.beginPath()
+    ctx.moveTo(cx, cy)
+    ctx.lineTo(cx + Math.cos(a0) * w, cy + Math.sin(a0) * w)
+    ctx.lineTo(cx + Math.cos(a1) * w, cy + Math.sin(a1) * w)
+    ctx.closePath()
+    ctx.fill()
+  }
+  const order: [string, string][] = [
+    ['hair', inks.hair],
+    ['armUp', inks.shade],
+    ['legs', inks.skin],
+    ['body', inks.skin],
+    ['armDown', inks.shade],
+    ['head', inks.skin],
+    ['top', inks.suit],
+    ['bottom', inks.suit],
+  ]
+  for (const [part, color] of order) {
+    const poly = figure[part]
+    if (poly) polygon(ctx, poly, box, color)
+  }
+  text(ctx, title, w / 2, h - 12, w - 16, 16, SANS, inks.title)
+  weather(art, seed, 0.9)
+  return art
+}
+
+const pinupA = () =>
+  pinup(
+    [96, 140],
+    STANDING,
+    [8, 8, 80, 108],
+    {
+      ground: '#1b1030',
+      burst: '#2c1a4a',
+      skin: '#e8b48e',
+      shade: '#c8906c',
+      hair: '#f0d070',
+      suit: '#e8203c',
+      title: '#f0d070',
+    },
+    'HOT SUMMER',
+    0xa1
+  )
+
+const pinupB = () =>
+  pinup(
+    [96, 144],
+    STANDING,
+    [10, 10, 76, 108],
+    {
+      ground: '#0e2a2a',
+      burst: '#174040',
+      skin: '#c88a64',
+      shade: '#a86c4c',
+      hair: '#1a1210',
+      suit: '#f2f2e0',
+      title: '#ff6a9a',
+    },
+    'BABES 1996',
+    0xb2
+  )
+
+const pinupC = () =>
+  pinup(
+    [192, 112],
+    RECLINING,
+    [16, 4, 160, 92],
+    {
+      ground: '#2a0a10',
+      burst: '#40121c',
+      skin: '#eac0a0',
+      shade: '#c89878',
+      hair: '#a03a1a',
+      suit: '#101010',
+      title: '#ffcc33',
+    },
+    'LOVE MACHINE',
+    0xc3
+  )
+
 // The plate on the back room's door.
 function employees(): CanvasArt {
   const art = canvas([128, 64], '#c9c4b4')
@@ -278,6 +545,10 @@ const PAINTERS: Record<MallArtId, () => CanvasArt> = {
   'curl-up': curlUp,
   rewind,
   employees,
+  'adults-only': adultsOnly,
+  'pinup-a': pinupA,
+  'pinup-b': pinupB,
+  'pinup-c': pinupC,
   menu,
   'for-lease': forLease,
   'graffiti-eye': graffitiEye,

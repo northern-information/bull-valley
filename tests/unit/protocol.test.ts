@@ -356,11 +356,17 @@ describe('parseClientMessage', () => {
       dealer: null,
     })
     expect(parse({ ...hello, dealer: { z: 1 } })).toBeNull()
-    expect(parse({ type: 'deal', kind: 'mushrooms', extra: 1 })).toEqual({
-      type: 'deal',
-      kind: 'mushrooms',
+    expect(
+      parse({ type: 'deal', kind: 'mushrooms', pay: 'pbr', extra: 1 })
+    ).toEqual({ type: 'deal', kind: 'mushrooms', pay: 'pbr' })
+    expect(parse({ type: 'deal', kind: 'lsd' })).toBeNull()
+    expect(parse({ type: 'deal', kind: 4, pay: 'pbr' })).toBeNull()
+    expect(parse({ type: 'quest', quest: 'rose', step: 'lay' })).toEqual({
+      type: 'quest',
+      quest: 'rose',
+      step: 'lay',
     })
-    expect(parse({ type: 'deal', kind: 4 })).toBeNull()
+    expect(parse({ type: 'quest', quest: 'rose', step: 'pick' })).toBeNull()
     expect(parse({ type: 'trade', offer: 'flaming-halo', extra: 1 })).toEqual({
       type: 'trade',
       offer: 'flaming-halo',
