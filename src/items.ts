@@ -29,6 +29,7 @@
 // (sharedworld.ts rules 4 and 8).
 
 import { copy } from './copy.ts'
+import type { CashKind } from './drops.ts'
 import type { Item } from './interfaces.ts'
 
 export const ITEMS = [
@@ -451,14 +452,16 @@ type ItemEntry = (typeof ITEMS)[number]
 // Every item id, as a type: a typo in a literal id fails the type check.
 export type ItemId = ItemEntry['id']
 
-// What a pickup in the valley can be: an item, or the dimes a shadowman
-// bursts into (drops.ts DIMES), which are cash and never an item.
-export type PickupKind = ItemId | 'dimes'
-
-// ITEMS widened to the plain Item shape, for code that reads optional
-// fields (container) across every entry.
+// What a pickup in the valley can be: an item, or the cash a shadow bursts
+// into (drops.ts CashKind: dimes, a spider's $20), never an item.
+export type PickupKind = ItemId | CashKind
 
 const BY_ID = new Map<string, Item>(ITEMS.map((item) => [item.id, item]))
+
+// Whether an id that came from outside the table is an item's.
+export function isItemId(id: string): id is ItemId {
+  return BY_ID.has(id)
+}
 
 // Look up an id that came from outside the table (saved inventory, a ring
 // entry). Null when the id is unknown.

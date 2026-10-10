@@ -5,9 +5,9 @@
 // alone. No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
-import { leftInOpen } from './items.ts'
+import { isItemId, leftInOpen } from './items.ts'
 import type { XZ } from './interfaces.ts'
-import type { ItemId } from './items.ts'
+import type { ItemId, PickupKind } from './items.ts'
 import type { Rng } from './rng.ts'
 import type { ShadeKind } from './shadowmen.ts'
 
@@ -20,18 +20,26 @@ export const DIME_CENTS = 10
 export const TWENTY = 'twenty'
 export const TWENTY_CENTS = 2000
 
-const CENTS: Readonly<Record<string, number>> = {
+// The kinds that are cash: taken up, they pay the wallet, never the pack.
+export type CashKind = typeof DIMES | typeof TWENTY
+
+const CENTS: Readonly<Record<CashKind, number>> = {
   [DIMES]: DIME_CENTS,
   [TWENTY]: TWENTY_CENTS,
 }
 
-export function isCash(kind: string): boolean {
-  return kind in CENTS
+export function isCash(kind: string): kind is CashKind {
+  return Object.hasOwn(CENTS, kind)
+}
+
+// Whether a kind off the wire is one a drop can be: an item or cash.
+export function isPickupKind(kind: string): kind is PickupKind {
+  return isCash(kind) || isItemId(kind)
 }
 
 // What one of a cash kind is worth, in cents; 0 for anything else.
 export function centsOf(kind: string): number {
-  return CENTS[kind] ?? 0
+  return isCash(kind) ? CENTS[kind] : 0
 }
 
 // How many dimes one burst shadowman (or spiderling, from its own fewer)
@@ -52,7 +60,7 @@ export const GOLD_BULLION: ItemId = 'gold-bullion'
 
 // One drop the valley sets down of its own accord: what, how many, where.
 export interface Spill extends XZ {
-  kind: string
+  kind: PickupKind
   count: number
 }
 

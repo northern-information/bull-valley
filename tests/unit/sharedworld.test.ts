@@ -33,6 +33,7 @@ import { dryMap } from '../../src/waterside.ts'
 import { unitsLeft } from './stock.ts'
 import type { CosmeticId } from '../../src/cosmetics.ts'
 import type { Inventory } from '../../src/interfaces.ts'
+import type { PickupKind } from '../../src/items.ts'
 import type {
   DailyMessage,
   PeerStateWire,
@@ -1380,7 +1381,9 @@ describe('rule 11: a burst shadowman leaves dimes', () => {
         { x: 10, z: 20, kind: 'dimes', count: 7 },
         { x: 30, z: 40, kind: 'dimes', count: 0 },
         { x: 50, z: 60, kind: 'dimes', count: 3 },
-        { x: 70, z: 80, kind: 'not-a-thing', count: 1 },
+        // Off the wire a kind is any string; one that is neither cash nor
+        // a pack kind is left out.
+        { x: 70, z: 80, kind: 'not-a-thing' as PickupKind, count: 1 },
       ],
     })
     expect(reasons(r)).toEqual(['spilled'])
