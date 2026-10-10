@@ -10,6 +10,7 @@
     "dev": "vite",
     "types": "wrangler types",
     "build": "npm run types && tsc -b && vite build",
+    "build:only": "npm run types && vite build",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
     "typecheck": "npm run types && tsc -b",

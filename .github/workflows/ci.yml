@@ -57,7 +57,8 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm run build
+      # The check job already type-checks, so the build here skips `tsc -b`.
+      - run: npm run build:only
 
   e2e:
     name: E2E tests (${{ matrix.group }})
