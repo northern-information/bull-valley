@@ -31,6 +31,7 @@ import {
 import { buildDishArray } from './dishes.ts'
 import { buildDrink } from './drinkmodels.ts'
 import { buildFireRoots, buildRaincloud } from './fire.ts'
+import { itemLabel } from './itemcopy.ts'
 import { ITEMS } from './items.ts'
 import { mazeSpans, SHINING_MAZE } from './maze.ts'
 import { buildMedicine } from './medicinemodels.ts'
@@ -301,13 +302,13 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   { id: 'cabbage', label: 'Cabbage', build: () => buildPickup('cabbage') },
   ...ITEMS.filter((item) => item.category === 'cigarette').map((item) => ({
     id: `pack-${item.id}`,
-    label: `Pack: ${item.label}`,
+    label: `Pack: ${itemLabel(item.id)}`,
     build: () => buildCigarettePack(item.id),
   })),
   { id: 'joints', label: 'Joints', build: () => buildPickup('joints') },
   ...ITEMS.filter((item) => item.category === 'drink').map((d) => ({
     id: `drink-${d.id}`,
-    label: `Drink: ${d.label}`,
+    label: `Drink: ${itemLabel(d.id)}`,
     build: () => buildDrink(d.id),
   })),
   { id: 'berries', label: 'Berries', build: () => buildPickup('berries') },
@@ -420,7 +421,7 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   },
   ...ITEMS.filter((item) => item.category === 'medicine').map((m) => ({
     id: `med-${m.id}`,
-    label: `Medicine: ${m.label}`,
+    label: `Medicine: ${itemLabel(m.id)}`,
     build: () => buildMedicine(m.id),
   })),
   {

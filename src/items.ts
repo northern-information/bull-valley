@@ -1,18 +1,14 @@
-// Every item in Bull Valley, in one table: identity and tuning, with its
-// words from COPY.toml ([items.<id>]). Edit an item here and the pack grid,
-// the Citgo shelves, pickups, and chat lines follow.
+// Every item in Bull Valley, in one table: identity and tuning. Its words
+// (the label, the blurb and the chat lines, COPY.toml [items.<id>]) are
+// itemcopy.ts's, so this table and every pure module that reads it stay
+// free of the copy book. Edit an item here and the pack grid, the Citgo
+// shelves, pickups, and chat lines follow.
 // Pure, no Three. Meshes stay in assets.ts, keyed by id.
 //
 // Fields:
 //   id        inventory kind and mesh key
 //   category  'cigarette' | 'joint' | 'drink' | 'medicine' | 'forage' |
 //             'valuable'
-//   label     name in the pack, and floating over a pickup or shelf unit
-//   blurb     description on the pack's item card
-//   used      chat line when the player uses it
-//   bought    chat line when the player buys it at a Citgo (shelf items only)
-//   collected chat line when the player picks it off a berry bush
-//   empty     chat line when the player tries to use it with none left
 //   start     count in a new inventory (counted items only)
 //   price     shelf price at every Citgo, in cents (shelf items only)
 //   contents  how many the pack, bottle or box holds (1 when absent); the
@@ -23,12 +19,10 @@
 //   heals     health points one use gives back (health.ts, sharedworld.ts
 //             rule 24): one pill of aspirin or ibuprofen gives one back
 //
-// Medicine that does not heal cannot be used yet, so it has no used or
-// empty text. Forage is
-// never on a shelf, so it has no price or bought text; the valley hands it out
-// (sharedworld.ts rules 4 and 8).
+// Medicine that does not heal cannot be used yet. Forage is never on a
+// shelf, so it has no price; the valley hands it out (sharedworld.ts rules
+// 4 and 8).
 
-import { copy } from './copy.ts'
 import type { CashKind } from './drops.ts'
 import type { Item } from './interfaces.ts'
 
@@ -36,11 +30,6 @@ export const ITEMS = [
   {
     id: 'marlboro',
     category: 'cigarette',
-    label: copy('items.marlboro.label'),
-    blurb: copy('items.marlboro.blurb'),
-    used: copy('items.marlboro.used'),
-    bought: copy('items.marlboro.bought'),
-    empty: copy('items.marlboro.empty'),
     start: 2,
     price: 549,
     contents: 20,
@@ -51,11 +40,6 @@ export const ITEMS = [
   {
     id: 'camel',
     category: 'cigarette',
-    label: copy('items.camel.label'),
-    blurb: copy('items.camel.blurb'),
-    used: copy('items.camel.used'),
-    bought: copy('items.camel.bought'),
-    empty: copy('items.camel.empty'),
     start: 0,
     price: 529,
     contents: 20,
@@ -66,11 +50,6 @@ export const ITEMS = [
   {
     id: 'parliament',
     category: 'cigarette',
-    label: copy('items.parliament.label'),
-    blurb: copy('items.parliament.blurb'),
-    used: copy('items.parliament.used'),
-    bought: copy('items.parliament.bought'),
-    empty: copy('items.parliament.empty'),
     start: 0,
     price: 599,
     contents: 20,
@@ -81,11 +60,6 @@ export const ITEMS = [
   {
     id: 'newport',
     category: 'cigarette',
-    label: copy('items.newport.label'),
-    blurb: copy('items.newport.blurb'),
-    used: copy('items.newport.used'),
-    bought: copy('items.newport.bought'),
-    empty: copy('items.newport.empty'),
     start: 0,
     price: 549,
     contents: 20,
@@ -96,11 +70,6 @@ export const ITEMS = [
   {
     id: 'djarum',
     category: 'cigarette',
-    label: copy('items.djarum.label'),
-    blurb: copy('items.djarum.blurb'),
-    used: copy('items.djarum.used'),
-    bought: copy('items.djarum.bought'),
-    empty: copy('items.djarum.empty'),
     start: 0,
     price: 649,
     contents: 20,
@@ -111,11 +80,6 @@ export const ITEMS = [
   {
     id: 'joints',
     category: 'joint',
-    label: copy('items.joints.label'),
-    blurb: copy('items.joints.blurb'),
-    used: copy('items.joints.used'),
-    bought: copy('items.joints.bought'),
-    empty: copy('items.joints.empty'),
     start: 1,
     price: 1000,
     // Shadowmen resolve through the murk while it lasts.
@@ -130,11 +94,6 @@ export const ITEMS = [
   {
     id: 'monster',
     category: 'drink',
-    label: copy('items.monster.label'),
-    blurb: copy('items.monster.blurb'),
-    used: copy('items.monster.used'),
-    bought: copy('items.monster.bought'),
-    empty: copy('items.monster.empty'),
     start: 0,
     price: 219,
     container: 'tall',
@@ -144,11 +103,6 @@ export const ITEMS = [
   {
     id: 'monster-ultra',
     category: 'drink',
-    label: copy('items.monster-ultra.label'),
-    blurb: copy('items.monster-ultra.blurb'),
-    used: copy('items.monster-ultra.used'),
-    bought: copy('items.monster-ultra.bought'),
-    empty: copy('items.monster-ultra.empty'),
     start: 0,
     price: 219,
     container: 'tall',
@@ -158,11 +112,6 @@ export const ITEMS = [
   {
     id: 'red-bull',
     category: 'drink',
-    label: copy('items.red-bull.label'),
-    blurb: copy('items.red-bull.blurb'),
-    used: copy('items.red-bull.used'),
-    bought: copy('items.red-bull.bought'),
-    empty: copy('items.red-bull.empty'),
     start: 0,
     price: 199,
     container: 'slim',
@@ -172,11 +121,6 @@ export const ITEMS = [
   {
     id: 'rip-it',
     category: 'drink',
-    label: copy('items.rip-it.label'),
-    blurb: copy('items.rip-it.blurb'),
-    used: copy('items.rip-it.used'),
-    bought: copy('items.rip-it.bought'),
-    empty: copy('items.rip-it.empty'),
     start: 0,
     price: 99,
     container: 'tall',
@@ -186,11 +130,6 @@ export const ITEMS = [
   {
     id: 'rockstar',
     category: 'drink',
-    label: copy('items.rockstar.label'),
-    blurb: copy('items.rockstar.blurb'),
-    used: copy('items.rockstar.used'),
-    bought: copy('items.rockstar.bought'),
-    empty: copy('items.rockstar.empty'),
     start: 0,
     price: 199,
     container: 'tall',
@@ -200,11 +139,6 @@ export const ITEMS = [
   {
     id: 'nos',
     category: 'drink',
-    label: copy('items.nos.label'),
-    blurb: copy('items.nos.blurb'),
-    used: copy('items.nos.used'),
-    bought: copy('items.nos.bought'),
-    empty: copy('items.nos.empty'),
     start: 0,
     price: 229,
     container: 'nos',
@@ -214,11 +148,6 @@ export const ITEMS = [
   {
     id: 'four-loko-blue',
     category: 'drink',
-    label: copy('items.four-loko-blue.label'),
-    blurb: copy('items.four-loko-blue.blurb'),
-    used: copy('items.four-loko-blue.used'),
-    bought: copy('items.four-loko-blue.bought'),
-    empty: copy('items.four-loko-blue.empty'),
     start: 0,
     price: 249,
     container: 'tall',
@@ -228,11 +157,6 @@ export const ITEMS = [
   {
     id: 'four-loko-punch',
     category: 'drink',
-    label: copy('items.four-loko-punch.label'),
-    blurb: copy('items.four-loko-punch.blurb'),
-    used: copy('items.four-loko-punch.used'),
-    bought: copy('items.four-loko-punch.bought'),
-    empty: copy('items.four-loko-punch.empty'),
     start: 0,
     price: 249,
     container: 'tall',
@@ -242,11 +166,6 @@ export const ITEMS = [
   {
     id: 'four-loko-lemon',
     category: 'drink',
-    label: copy('items.four-loko-lemon.label'),
-    blurb: copy('items.four-loko-lemon.blurb'),
-    used: copy('items.four-loko-lemon.used'),
-    bought: copy('items.four-loko-lemon.bought'),
-    empty: copy('items.four-loko-lemon.empty'),
     start: 0,
     price: 249,
     container: 'tall',
@@ -256,11 +175,6 @@ export const ITEMS = [
   {
     id: 'wild-turkey',
     category: 'drink',
-    label: copy('items.wild-turkey.label'),
-    blurb: copy('items.wild-turkey.blurb'),
-    used: copy('items.wild-turkey.used'),
-    bought: copy('items.wild-turkey.bought'),
-    empty: copy('items.wild-turkey.empty'),
     start: 0,
     price: 2199,
     container: 'bourbon',
@@ -270,11 +184,6 @@ export const ITEMS = [
   {
     id: 'jim-beam',
     category: 'drink',
-    label: copy('items.jim-beam.label'),
-    blurb: copy('items.jim-beam.blurb'),
-    used: copy('items.jim-beam.used'),
-    bought: copy('items.jim-beam.bought'),
-    empty: copy('items.jim-beam.empty'),
     start: 0,
     price: 1599,
     container: 'square',
@@ -284,11 +193,6 @@ export const ITEMS = [
   {
     id: 'grey-goose',
     category: 'drink',
-    label: copy('items.grey-goose.label'),
-    blurb: copy('items.grey-goose.blurb'),
-    used: copy('items.grey-goose.used'),
-    bought: copy('items.grey-goose.bought'),
-    empty: copy('items.grey-goose.empty'),
     start: 0,
     price: 2999,
     container: 'goose',
@@ -298,11 +202,6 @@ export const ITEMS = [
   {
     id: 'pbr',
     category: 'drink',
-    label: copy('items.pbr.label'),
-    blurb: copy('items.pbr.blurb'),
-    used: copy('items.pbr.used'),
-    bought: copy('items.pbr.bought'),
-    empty: copy('items.pbr.empty'),
     start: 0,
     price: 99,
     container: 'can12',
@@ -312,11 +211,6 @@ export const ITEMS = [
   {
     id: 'high-life',
     category: 'drink',
-    label: copy('items.high-life.label'),
-    blurb: copy('items.high-life.blurb'),
-    used: copy('items.high-life.used'),
-    bought: copy('items.high-life.bought'),
-    empty: copy('items.high-life.empty'),
     start: 0,
     price: 129,
     container: 'longneck',
@@ -326,11 +220,6 @@ export const ITEMS = [
   {
     id: 'modelo',
     category: 'drink',
-    label: copy('items.modelo.label'),
-    blurb: copy('items.modelo.blurb'),
-    used: copy('items.modelo.used'),
-    bought: copy('items.modelo.bought'),
-    empty: copy('items.modelo.empty'),
     start: 0,
     price: 149,
     container: 'can12',
@@ -340,11 +229,6 @@ export const ITEMS = [
   {
     id: 'md-2020',
     category: 'drink',
-    label: copy('items.md-2020.label'),
-    blurb: copy('items.md-2020.blurb'),
-    used: copy('items.md-2020.used'),
-    bought: copy('items.md-2020.bought'),
-    empty: copy('items.md-2020.empty'),
     start: 0,
     price: 299,
     container: 'flask',
@@ -354,11 +238,6 @@ export const ITEMS = [
   {
     id: 'ice-mountain',
     category: 'drink',
-    label: copy('items.ice-mountain.label'),
-    blurb: copy('items.ice-mountain.blurb'),
-    used: copy('items.ice-mountain.used'),
-    bought: copy('items.ice-mountain.bought'),
-    empty: copy('items.ice-mountain.empty'),
     start: 0,
     price: 119,
     container: 'water',
@@ -372,11 +251,6 @@ export const ITEMS = [
   {
     id: 'aspirin',
     category: 'medicine',
-    label: copy('items.aspirin.label'),
-    blurb: copy('items.aspirin.blurb'),
-    used: copy('items.aspirin.used'),
-    bought: copy('items.aspirin.bought'),
-    empty: copy('items.aspirin.empty'),
     start: 0,
     price: 449,
     contents: 24,
@@ -386,11 +260,6 @@ export const ITEMS = [
   {
     id: 'ibuprofen',
     category: 'medicine',
-    label: copy('items.ibuprofen.label'),
-    blurb: copy('items.ibuprofen.blurb'),
-    used: copy('items.ibuprofen.used'),
-    bought: copy('items.ibuprofen.bought'),
-    empty: copy('items.ibuprofen.empty'),
     start: 0,
     price: 499,
     contents: 24,
@@ -400,9 +269,6 @@ export const ITEMS = [
   {
     id: 'benadryl',
     category: 'medicine',
-    label: copy('items.benadryl.label'),
-    blurb: copy('items.benadryl.blurb'),
-    bought: copy('items.benadryl.bought'),
     start: 0,
     price: 699,
     contents: 24,
@@ -411,9 +277,6 @@ export const ITEMS = [
   {
     id: 'eye-drops',
     category: 'medicine',
-    label: copy('items.eye-drops.label'),
-    blurb: copy('items.eye-drops.blurb'),
-    bought: copy('items.eye-drops.bought'),
     start: 0,
     price: 549,
     form: 'dropper',
@@ -424,16 +287,11 @@ export const ITEMS = [
   {
     id: 'cabbage',
     category: 'forage',
-    label: copy('items.cabbage.label'),
-    blurb: copy('items.cabbage.blurb'),
     start: 0,
   },
   {
     id: 'berries',
     category: 'forage',
-    label: copy('items.berries.label'),
-    blurb: copy('items.berries.blurb'),
-    collected: copy('items.berries.collected'),
     start: 0,
   },
   // Valuables. Not for sale and of no use, but Moab Coldë takes them in
@@ -441,8 +299,6 @@ export const ITEMS = [
   {
     id: 'gold-bullion',
     category: 'valuable',
-    label: copy('items.gold-bullion.label'),
-    blurb: copy('items.gold-bullion.blurb'),
     start: 0,
   },
 ] as const satisfies readonly Item[]

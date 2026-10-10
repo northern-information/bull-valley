@@ -123,14 +123,6 @@ export interface Container {
 export interface Item {
   id: string
   category: ItemCategory
-  label: string
-  blurb: string
-  used?: string
-  // Items on the Citgo shelves have a price and a bought line; forage
-  // has neither, and a collected line instead.
-  bought?: string
-  collected?: string
-  empty?: string
   start?: number
   // How many one container holds (items.ts contentsOf).
   contents?: number
