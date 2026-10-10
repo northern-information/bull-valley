@@ -1,6 +1,9 @@
 // The socket to the valley server: DOM glue around src/protocol.ts. Opens
 // one WebSocket, says hello, hands every server frame to a listener, and
-// reconnects with backoff when the line drops. A 4xxx close is the server
+// reconnects with backoff when the line drops, for as long as the page is
+// open (the delay is capped, never the attempts: a lid closed for an hour
+// comes back to the valley), and at once when the page comes back into
+// view or the browser says it is online again. A 4xxx close is the server
 // turning us away, and is final; onRefused hears why (no session, a stale
 // build). If the server never answers, the game plays alone: `ready`
 // resolves 'offline' and nothing else changes. Who we are rides on the
@@ -68,9 +71,8 @@ export interface NetIdentity {
   stand: XZ | null
 }
 
-// Reconnect schedule, then give up: the valley is gone.
+// Reconnect schedule; the last delay holds for every attempt after.
 const BACKOFF_MS = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000]
-const MAX_ATTEMPTS = BACKOFF_MS.length + 6
 
 type Listener = (msg: ServerMessage) => void
 type StatusListener = (status: NetStatus) => void
@@ -112,6 +114,8 @@ export class NetClient {
   private pingTimer: ReturnType<typeof setInterval> | null = null
   private connectTimer: ReturnType<typeof setTimeout> | null = null
   private closed = false
+  // The server turned us away: no reconnect, however the page stirs.
+  private refused = false
   private resolveReady: (status: NetStatus) => void = () => {}
 
   constructor({ url, config, clock, beforeOpen }: NetOptions) {
@@ -122,6 +126,16 @@ export class NetClient {
     this.ready = new Promise<NetStatus>((resolve) => {
       this.resolveReady = resolve
     })
+    // Waiting out a backoff when the page comes back into view, or the
+    // browser finds the network again, is waiting for nothing.
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') this.retryNow()
+      })
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', () => this.retryNow())
+    }
   }
 
   get online(): boolean {
@@ -131,6 +145,7 @@ export class NetClient {
   connect(identity: NetIdentity): Promise<NetStatus> {
     this.identity = identity
     this.closed = false
+    this.refused = false
     this.attempt = 0
     void this.open(true)
     return this.ready
@@ -271,18 +286,14 @@ export class NetClient {
   }
 
   private refuse(code: number, reason: string): void {
+    this.refused = true
     for (const listener of this.refusedListeners) listener(code, reason)
     this.setStatus('offline')
     this.resolveReady('offline')
   }
 
   private scheduleReconnect(): void {
-    if (this.closed) return
-    if (this.attempt >= MAX_ATTEMPTS) {
-      this.setStatus('offline')
-      this.resolveReady('offline')
-      return
-    }
+    if (this.closed || this.refused) return
     const delay = BACKOFF_MS[Math.min(this.attempt, BACKOFF_MS.length - 1)]
     this.attempt += 1
     // The first connection keeps 'connecting' until the timeout decides.
@@ -291,6 +302,14 @@ export class NetClient {
       this.reconnectTimer = null
       void this.open()
     }, delay)
+  }
+
+  // A reconnect waiting on its backoff goes now instead.
+  private retryNow(): void {
+    if (this.reconnectTimer === null || this.closed || this.refused) return
+    clearTimeout(this.reconnectTimer)
+    this.reconnectTimer = null
+    void this.open()
   }
 
   private startPings(): void {
