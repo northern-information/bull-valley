@@ -50,6 +50,7 @@ import type { RoadGraph } from './roadgraph.ts'
 import type { Scope } from './scope.ts'
 import type { SeasonProgress } from './season.ts'
 import type { SettingsStore } from './settingsui.ts'
+import type { Sfx } from './sfxrig.ts'
 import type { ShadowBursts } from './shadowburst.ts'
 import type { ShadowCards } from './shadowcards.ts'
 import type { StandLedger } from './stand.ts'
@@ -301,6 +302,8 @@ export interface Game {
   // The valley's music, none under e2e, which never plays sound, and the
   // settings that say how loud it plays.
   music: Music | null
+  // The valley's sounds (sfxrig.ts), none under e2e either.
+  sfx: Sfx | null
   settings: SettingsStore
   // The roads Matthew Marx drives (truckplan.ts): where he parks, the
   // joyride, his donuts for a seed; and what the valley is told of them.

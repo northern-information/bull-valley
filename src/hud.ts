@@ -13,7 +13,7 @@ import { LevelHud } from './levelhud.ts'
 import { bagTabs, LOCKER_TAB, PACK_TABS } from './packgrid.ts'
 import { CHAT_MAX } from './protocol.ts'
 import { SeasonHud } from './seasonhud.ts'
-import { musicSlider } from './settingsui.ts'
+import { volumeSliders } from './settingsui.ts'
 import { TaskHud } from './taskhud.ts'
 import type { Binding, MouseBinding } from './bindings.ts'
 import type { ChatLine } from './chat.ts'
@@ -618,13 +618,13 @@ export class Hud {
     ).hidden = false
   }
 
-  // The music slider on the Raiding As line, sharing the main menu's
+  // The volume sliders on the Raiding As line, sharing the main menu's
   // store; it shows with that line once the titles settle the account.
   setSettings(store: SettingsStore): void {
     required(
       this.intro.querySelector<HTMLElement>('[data-bv="intro-settings"]'),
       'intro settings'
-    ).replaceChildren(musicSlider(store))
+    ).replaceChildren(...volumeSliders(store))
   }
 
   // A null text hides the countdown.
