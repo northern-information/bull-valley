@@ -172,9 +172,16 @@ const MAZE = { x: 5000, z: 5000, yaw: 0 }
 const STAND = { x: -4, z: -17 }
 
 // What a build placed: two joints first, then `n - 1` cabbages.
+// What a build placed: two joints first, then `n - 1` cabbages, all at
+// the origin, where the first station and every bush stand too.
 const placed = (n: number) => [
-  { kind: 'joints', count: 2 },
-  ...Array.from({ length: n - 1 }, () => ({ kind: 'cabbage', count: 1 })),
+  { kind: 'joints', count: 2, x: 0, z: 0 },
+  ...Array.from({ length: n - 1 }, () => ({
+    kind: 'cabbage',
+    count: 1,
+    x: 0,
+    z: 0,
+  })),
 ]
 
 const hello = (
@@ -195,6 +202,7 @@ const hello = (
     maze: MAZE,
     truck: { home: { x: 10, z: 10 }, joyrideMs: 600_000 },
     stand: STAND,
+    bushes: Array.from({ length: 7 }, () => ({ x: 0, z: 0 })),
   })
 
 // The last pack frame a socket was sent.
@@ -511,6 +519,9 @@ describe('ValleyDO', () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A')
     const b = await join(v, s, 'B')
+    // Both heard at the Citgo: the bed is there, and so is pickup 4.
+    await v.webSocketMessage(ws(a), state(10, 10))
+    await v.webSocketMessage(ws(b), state(0, 0))
     await v.webSocketMessage(ws(a), '{"type":"board"}')
     const boarded = a.last<WorldMessage>()
     expect(boarded).toMatchObject({ reason: 'boarded', by: idOf(a) })
@@ -561,6 +572,9 @@ describe('ValleyDO', () => {
     const b = await join(v, s, 'B')
     expect(a.last<WelcomeMessage>().world.shelves).toHaveLength(5)
     const perItem = a.last<WelcomeMessage>().world.shelves[0].pbr.length
+    // Both on station 0's lot.
+    await v.webSocketMessage(ws(a), state(0, 0))
+    await v.webSocketMessage(ws(b), state(0, 0))
     for (let unit = 0; unit < perItem; unit++) {
       await v.webSocketMessage(
         ws(a),
@@ -596,6 +610,7 @@ describe('ValleyDO', () => {
     const welcome = a.last<WelcomeMessage>()
     expect(welcome.daily.collected).toEqual([])
     expect(welcome.daily.resetsAt).toBeGreaterThan(before)
+    await v.webSocketMessage(ws(a), state(0, 0))
     await v.webSocketMessage(ws(a), '{"type":"collect","bush":0}')
     const picked = lastDaily(a)
     expect(picked).toMatchObject({
@@ -618,6 +633,7 @@ describe('ValleyDO', () => {
     // The same account on another socket already had today's.
     const twin = await join(v, s, 'Dave')
     expect(twin.last<WelcomeMessage>().daily.collected).toEqual([0])
+    await v.webSocketMessage(ws(twin), state(0, 0))
     await v.webSocketMessage(ws(twin), '{"type":"collect","bush":0}')
     expect(lastDaily(twin).picked).toBe(false)
     // A maze bush has a berry of its own.
@@ -646,6 +662,7 @@ describe('ValleyDO', () => {
     const { valley: v } = await valley(shared)
     const a = await join(v, shared, 'Dave')
     expect(a.last<WelcomeMessage>().daily.collected).toEqual([])
+    await v.webSocketMessage(ws(a), state(0, 0))
     await v.webSocketMessage(ws(a), '{"type":"collect","bush":0}')
     expect(lastDaily(a).picked).toBe(true)
   })
@@ -742,6 +759,7 @@ describe('ValleyDO', () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A')
     const b = await join(v, s, 'B')
+    await v.webSocketMessage(ws(b), state(0, 0))
     await v.webSocketMessage(ws(b), '{"type":"take","index":3}')
     const before = a.sent.length
     const idB = idOf(b)
@@ -782,6 +800,7 @@ describe('ValleyDO', () => {
     const shared = new MockState()
     const first = (await valley(shared)).valley
     const a = await join(first, shared, 'A')
+    await first.webSocketMessage(ws(a), state(0, 0))
     await first.webSocketMessage(ws(a), '{"type":"take","index":0}')
     // Hibernation: a new object over the same storage and sockets.
     const woken = (await valley(shared)).valley
@@ -1091,6 +1110,7 @@ describe('ValleyDO', () => {
       type: 'welcome',
       pack: STARTING_INVENTORY,
     })
+    await v.webSocketMessage(ws(a), state(0, 0))
     await v.webSocketMessage(ws(a), '{"type":"collect","bush":0}')
     expect(lastPack(a)?.berries).toBe(1)
     expect(lastPack(a2)?.berries).toBe(1)
@@ -1162,6 +1182,7 @@ describe('ValleyDO', () => {
       cash: STARTING_CASH,
     })
     const price = getItem('pbr').price ?? 0
+    await v.webSocketMessage(ws(a), state(0, 0))
     await v.webSocketMessage(
       ws(a),
       '{"type":"buy","station":0,"kind":"pbr","unit":0}'
@@ -1200,6 +1221,7 @@ describe('ValleyDO', () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A')
     const b = await join(v, s, 'B')
+    await v.webSocketMessage(ws(a), state(0, 0))
     const store = v.packStore
     const errors: unknown[] = []
     const error = console.error
@@ -1278,6 +1300,7 @@ describe('ValleyDO: drops', () => {
     const [lying] = dropped?.world?.drops ?? []
     // Where A's own state frame put them, not anywhere the frame said.
     expect(Math.hypot(lying.x - 40, lying.z - 60)).toBeLessThan(2)
+    await v.webSocketMessage(ws(b), state(40, 60))
     await v.webSocketMessage(ws(b), '{"type":"take-drop","drop":0}')
     expect(lastPack(b)?.joints).toBe(STARTING_INVENTORY.joints + 1)
     expect(worldFrames(a).at(-1)).toMatchObject({
@@ -1460,6 +1483,8 @@ describe('ValleyDO: corpse runs', () => {
     const a = await join(v, s, 'A')
     // Nowhere the valley heard them stand: the pack is given back.
     await v.fallFor('acct-A', idOf(a), null)
+    // Where the bodies below are laid.
+    await v.webSocketMessage(ws(a), state(1, 2))
     expect(lastFrame(a)).toMatchObject({
       pack: STARTING_INVENTORY,
       corpses: [],
@@ -2036,6 +2061,7 @@ describe('ValleyDO: the shadowmen', () => {
     const { min, max } = CONFIG.shadowmen.dimes
     expect(dimes.count).toBeGreaterThanOrEqual(min)
     expect(dimes.count).toBeLessThanOrEqual(max)
+    await v.webSocketMessage(ws(b), state(dimes.x, dimes.z))
     await v.webSocketMessage(ws(b), `{"type":"take-drop","drop":${dimes.id}}`)
     const paid = b.last<PackMessage>()
     expect(paid).toMatchObject({
@@ -2075,6 +2101,7 @@ describe('ValleyDO: the shadowmen', () => {
     const error = console.error
     console.error = () => {}
     try {
+      await v.webSocketMessage(ws(b), state(dimes.x, dimes.z))
       await v.webSocketMessage(ws(b), `{"type":"take-drop","drop":${dimes.id}}`)
     } finally {
       console.error = error

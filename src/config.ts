@@ -331,6 +331,21 @@ export const CONFIG = {
       drift: 0.6,
     },
   },
+  // What the valley holds a raider to (sharedworld.ts): a take, a buy, a
+  // berry, a body looted, the bed climbed into, all from where the
+  // raider's last state frame put them. Looser than the client's own
+  // reach, since a frame is up to a tenth of a second old and a sprint
+  // covers a metre in that.
+  valleyReach: {
+    // A pickup, a drop, a berry bush or a body, in metres.
+    item: 10,
+    // The truck's bed, parked at home or come to a whistle.
+    truck: 24,
+    // A whistle reckons the drive from where the client says the truck
+    // is; further than this from home it is reckoned from home, so no
+    // whistle can send Marx on a drive from the far side of the valley.
+    callFrom: 600,
+  },
   net: {
     // The valley server. State frames go out at most this often, and only
     // when something changed; peers are drawn this far behind the present

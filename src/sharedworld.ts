@@ -270,6 +270,8 @@ export interface SharedWorld {
   routes: TruckRoutes
   // Where the Cabbage Stand stands, or null (rule 23).
   stand: XZ | null
+  // Where each berry bush stands, in bush order (rule 8).
+  bushes: XZ[]
 }
 
 // Everything the server persists.
@@ -318,20 +320,33 @@ export type ValleyAction =
       maze: MazePlace | null
       routes: TruckRoutes
       stand: XZ | null
+      bushes: XZ[]
     }
   // at: where their last state frame put them, or null.
   | { type: 'leave'; id: string; at: PeerStateWire | null }
-  | { type: 'board'; id: string }
+  // In every action below, at: where the raider's last state frame put
+  // them, or null when the valley has not heard one. The valley holds them
+  // to it (CONFIG.valleyReach), never to where a frame says they are.
+  | { type: 'board'; id: string; at: XZ | null }
   | { type: 'hop-out'; id: string }
-  | { type: 'take'; id: string; index: number }
-  | { type: 'buy'; id: string; station: number; kind: string; unit: number }
-  | { type: 'call'; id: string; from: XZ; to: XZ }
-  | { type: 'collect'; id: string; bush: number }
+  | { type: 'take'; id: string; index: number; at: XZ | null }
+  | {
+      type: 'buy'
+      id: string
+      station: number
+      kind: string
+      unit: number
+      at: XZ | null
+    }
+  // from: where the client sees the truck; the drive is reckoned from it
+  // (marx.ts), or from home when that is too far to believe.
+  | { type: 'call'; id: string; from: XZ; at: XZ | null }
+  | { type: 'collect'; id: string; bush: number; at: XZ | null }
   | { type: 'use'; id: string; kind: string }
   // Rule 12. at: where the raider's last state frame put them, or null
   // when the valley has not heard one.
   | { type: 'drop'; id: string; kind: string; count: number; at: Facing | null }
-  | { type: 'take-drop'; id: string; drop: number }
+  | { type: 'take-drop'; id: string; drop: number; at: XZ | null }
   // Rules 11, 13 and 17: what the valley leaves of its own accord: the
   // dimes burst shadowmen leave and their tombstones, and the Caretaker's
   // gold bullion.
@@ -339,7 +354,7 @@ export type ValleyAction =
   // Rule 18: struck, with `items` already out of the account's pack. at:
   // where the raider's last state frame put them, or null.
   | { type: 'fall'; id: string; items: Inventory; at: Facing | null }
-  | { type: 'loot'; id: string; corpse: number }
+  | { type: 'loot'; id: string; corpse: number; at: XZ | null }
   // Rule 24: a shadow's touch; points given back (by), or made whole (no
   // by: a forecourt).
   | { type: 'hit'; id: string }
@@ -459,6 +474,19 @@ export interface PackChange {
 // Whether `kind` is carried in the pack (items.ts INVENTORY_KINDS).
 function isPackKind(kind: string): boolean {
   return INVENTORY_KINDS.includes(kind)
+}
+
+// Why the valley will not let a raider at `target` from `at`, or null when
+// it will: nowhere heard, or further than `reach` metres.
+function tooFar(
+  at: XZ | null,
+  target: XZ,
+  reach: number
+): 'no-position' | 'too-far' | null {
+  if (!at) return 'no-position'
+  return Math.hypot(at.x - target.x, at.z - target.z) <= reach
+    ? null
+    : 'too-far'
 }
 
 function samePickups(a: readonly PickupSpec[], b: readonly PickupSpec[]) {
@@ -691,6 +719,7 @@ function act(
           maze: action.maze,
           routes: action.routes,
           stand: action.stand,
+          bushes: action.bushes,
         }
       } else if (
         !samePickups(world.pickups, action.pickups) ||
@@ -753,13 +782,43 @@ function act(
           reply: nack(re, 'not-in-valley'),
         })
       }
+      // Where the bed is to climb into: parked at home, or come to a
+      // whistle; and a whistle only from where the valley heard the
+      // whistler stand.
+      if (action.type === 'board' || action.type === 'call') {
+        const leg = world.truck.leg
+        const target =
+          action.type === 'call'
+            ? action.at
+            : leg.kind === 'called'
+              ? leg.to
+              : world.routes.home
+        const far = target
+          ? tooFar(action.at, target, CONFIG.valleyReach.truck)
+          : 'no-position'
+        if (far) {
+          return done(valley, now, { broadcast: [], reply: nack(re, far) })
+        }
+      }
       // Rule 3.
       const truck =
         action.type === 'board'
           ? board(world.truck, action.id, now)
           : action.type === 'hop-out'
             ? hopOut(world.truck, action.id)
-            : call(world.truck, action.id, action.from, action.to, now)
+            : call(
+                world.truck,
+                action.id,
+                tooFar(
+                  action.from,
+                  world.routes.home,
+                  CONFIG.valleyReach.callFrom
+                )
+                  ? world.routes.home
+                  : action.from,
+                action.at ?? world.routes.home,
+                now
+              )
       if (refused(truck)) {
         return done(valley, now, {
           broadcast: [],
@@ -803,6 +862,13 @@ function act(
           reply: nack('take', 'gone', action.index),
         })
       }
+      const far = tooFar(action.at, spec, CONFIG.valleyReach.item)
+      if (far) {
+        return done(valley, now, {
+          broadcast: [],
+          reply: nack('take', far, action.index),
+        })
+      }
       const next = withWorld(valley, {
         ...world,
         taken: [...world.taken, action.index],
@@ -842,6 +908,9 @@ function act(
       }
       // Rule 7.
       if (!onShelf(shelf, kind, unit)) return refuse('sold-out')
+      const haven = world.havens[station] as XZ | undefined
+      const far = haven && tooFar(action.at, haven, CONFIG.stash.stationReach)
+      if (far) return refuse(far)
       if (cash === undefined || cash < price) return refuse('short')
       const shelves = world.shelves.map((s, i) =>
         i === station ? takeUnit(s, kind, unit) : s
@@ -868,7 +937,8 @@ function act(
 
     case 'collect': {
       const member = valley.members[action.id]
-      if (!member) {
+      const world = valley.world
+      if (!member || !world) {
         return done(valley, now, {
           broadcast: [],
           reply: nack('collect', 'not-in-valley'),
@@ -876,11 +946,16 @@ function act(
       }
       // Rule 8.
       const { bush } = action
-      if (!Number.isInteger(bush) || bush < 0 || bush >= BUSHES) {
+      const spot = world.bushes[bush] as XZ | undefined
+      if (!Number.isInteger(bush) || bush < 0 || bush >= BUSHES || !spot) {
         return done(valley, now, {
           broadcast: [],
           reply: nack('collect', 'no-such-bush'),
         })
+      }
+      const far = tooFar(action.at, spot, CONFIG.valleyReach.item)
+      if (far) {
+        return done(valley, now, { broadcast: [], reply: nack('collect', far) })
       }
       const daily = dailyFor(valley, member.account, now)
       if (daily.collected.includes(bush)) {
@@ -982,6 +1057,8 @@ function act(
       if (!member || !world) return refuse('not-in-valley')
       const drop = world.drops.find((d) => d.id === action.drop)
       if (!drop) return refuse('gone')
+      const far = tooFar(action.at, drop, CONFIG.valleyReach.item)
+      if (far) return refuse(far)
       const { taken } = takeUp(drop, Infinity)
       const next = withWorld(valley, {
         ...world,
@@ -1150,6 +1227,8 @@ function act(
       if (!corpse) return refuse('gone')
       if (corpse.account !== member.account) return refuse('not-yours')
       if (isAboard(valley.world.truck, action.id)) return refuse('aboard')
+      const far = tooFar(action.at, corpse, CONFIG.valleyReach.item)
+      if (far) return refuse(far)
       const next: Valley = {
         ...valley,
         corpses: valley.corpses.filter((c) => c.id !== corpse.id),

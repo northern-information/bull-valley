@@ -587,8 +587,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       return
     }
     if (s.world) {
-      // One whistle for the whole valley; the world frame drives the truck.
-      net.send({ type: 'call', from, to })
+      // One whistle for the whole valley; the world frame drives the truck
+      // to where the valley last heard the whistler.
+      net.send({ type: 'call', from })
       return
     }
     hud.tell(copy('log.whistle'))

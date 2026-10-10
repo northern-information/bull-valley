@@ -34,8 +34,8 @@ const hello = {
   v: PROTOCOL_VERSION,
   outfit: 'coleman',
   pickups: [
-    { kind: 'marlboro', count: 3 },
-    { kind: 'cabbage', count: 1 },
+    { kind: 'marlboro', count: 3, x: 4, z: -6 },
+    { kind: 'cabbage', count: 1, x: 250.5, z: 80 },
   ],
   stations: 5,
   havens: [0, 1, 2, 3, 4].map((i) => ({ x: i * 100, z: i })),
@@ -44,6 +44,7 @@ const hello = {
   maze: { x: 120, z: -40, yaw: 0.5 },
   truck: { home: { x: 10, z: -20 }, joyrideMs: 600_000 },
   stand: { x: 6, z: -24 },
+  bushes: [0, 1, 2].map((i) => ({ x: 6 + i, z: -30 })),
 }
 
 const parse = (value: unknown) => parseClientMessage(JSON.stringify(value))
@@ -204,6 +205,7 @@ describe('parseClientMessage', () => {
       maze: _maze,
       truck: _truck,
       stand: _stand,
+      bushes: _bushes,
       ...older
     } = hello
     expect(parse({ ...older, v: PROTOCOL_VERSION - 1 })).toEqual({
@@ -215,6 +217,7 @@ describe('parseClientMessage', () => {
       maze: null,
       truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
       stand: null,
+      bushes: [],
     })
     // Bad ones read as missing in an older build, too.
     expect(
@@ -226,6 +229,7 @@ describe('parseClientMessage', () => {
         maze: 'corn',
         truck: 'chevy',
         stand: 'cabbages',
+        bushes: 'berries',
       })
     ).toEqual({
       ...older,
@@ -237,6 +241,7 @@ describe('parseClientMessage', () => {
       maze: null,
       truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
       stand: null,
+      bushes: [],
     })
     // The current version still requires both.
     expect(parse({ ...older, v: PROTOCOL_VERSION })).toBeNull()
@@ -372,12 +377,8 @@ describe('parseClientMessage', () => {
       index: 3,
     })
     expect(
-      parse({
-        type: 'call',
-        from: { x: 1, z: 2, extra: true },
-        to: { x: 3, z: 4 },
-      })
-    ).toEqual({ type: 'call', from: { x: 1, z: 2 }, to: { x: 3, z: 4 } })
+      parse({ type: 'call', from: { x: 1, z: 2, extra: true }, to: { x: 3 } })
+    ).toEqual({ type: 'call', from: { x: 1, z: 2 } })
     expect(parse({ type: 'dev', op: 'hurry', seconds: 2 })).toEqual({
       type: 'dev',
       op: 'hurry',
@@ -422,16 +423,8 @@ describe('parseClientMessage', () => {
       parse({ type: 'dev', op: 'grant', kind: 'gold-bullion', count: 0 })
     ).toBeNull()
     expect(parse({ type: 'dev', op: 'grant', kind: '', count: 1 })).toBeNull()
-    expect(
-      parse({ type: 'call', from: { x: 1 }, to: { x: 3, z: 4 } })
-    ).toBeNull()
-    expect(
-      parse({
-        type: 'call',
-        from: { x: 1, z: 2 },
-        to: { x: MAX_COORD + 1, z: 4 },
-      })
-    ).toBeNull()
+    expect(parse({ type: 'call', from: { x: 1 } })).toBeNull()
+    expect(parse({ type: 'call', from: { x: MAX_COORD + 1, z: 4 } })).toBeNull()
     // Gone with the raid.
     expect(parse({ type: 'extract', kind: 'keep' })).toBeNull()
     expect(parse({ type: 'unboard' })).toBeNull()
@@ -453,9 +446,25 @@ describe('parseClientMessage', () => {
     expect(parse({ ...hello, pickups: undefined })).toBeNull()
     expect(parse({ ...hello, pickups: 70 })).toBeNull()
     expect(parse({ ...hello, pickups: [{ kind: 'joints' }] })).toBeNull()
-    expect(parse({ ...hello, pickups: [{ kind: '', count: 1 }] })).toBeNull()
     expect(
-      parse({ ...hello, pickups: [{ kind: 'joints', count: 1.5 }] })
+      parse({ ...hello, pickups: [{ kind: '', count: 1, x: 0, z: 0 }] })
+    ).toBeNull()
+    expect(
+      parse({ ...hello, pickups: [{ kind: 'joints', count: 1.5, x: 0, z: 0 }] })
+    ).toBeNull()
+    expect(
+      parse({ ...hello, pickups: [{ kind: 'joints', count: 1, x: 0 }] })
+    ).toBeNull()
+    expect(
+      parse({ ...hello, pickups: [{ kind: 'joints', count: 1, x: 0, z: NaN }] })
+    ).toBeNull()
+    expect(parse({ ...hello, bushes: [{ x: 1 }] })).toBeNull()
+    expect(parse({ ...hello, bushes: 7 })).toBeNull()
+    expect(
+      parse({
+        ...hello,
+        bushes: Array.from({ length: 17 }, () => ({ x: 0, z: 0 })),
+      })
     ).toBeNull()
     expect(parse({ ...hello, pickups: [null] })).toBeNull()
     expect(
@@ -464,6 +473,8 @@ describe('parseClientMessage', () => {
         pickups: Array.from({ length: PICKUPS_MAX + 1 }, () => ({
           kind: 'cabbage',
           count: 1,
+          x: 0,
+          z: 0,
         })),
       })
     ).toBeNull()

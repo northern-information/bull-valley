@@ -42,11 +42,16 @@ import type { Placed, Valley, ValleyAction } from '../../src/sharedworld.ts'
 import type { StandLedger } from '../../src/stand.ts'
 
 // What a build placed: a pack of Marlboros, two joints, then cabbages.
+// Everything a test reaches for stands at the origin, and every raider is
+// heard there (HERE) unless a test says otherwise.
+const HERE = { x: 0, z: 0 }
 const PICKUPS: PickupSpec[] = [
-  { kind: 'marlboro', count: 3 },
-  { kind: 'joints', count: 2 },
-  ...Array.from({ length: 68 }, () => ({ kind: 'cabbage', count: 1 })),
+  { kind: 'marlboro', count: 3, ...HERE },
+  { kind: 'joints', count: 2, ...HERE },
+  ...Array.from({ length: 68 }, () => ({ kind: 'cabbage', count: 1, ...HERE })),
 ]
+// The spawn Citgo's bush and the maze's ring, all at the origin.
+const BUSH_SPOTS = Array.from({ length: 7 }, () => HERE)
 const STATIONS = 3
 const HAVENS = [
   { x: 0, z: 0 },
@@ -119,6 +124,7 @@ const join = (id: string): ValleyAction => ({
   maze: null,
   routes: ROUTES,
   stand: STAND,
+  bushes: BUSH_SPOTS,
 })
 
 // A join as its own action shape, so a test can sign it in elsewhere.
@@ -159,7 +165,12 @@ describe('rule 1: the world is persistent', () => {
   })
 
   it('outlasts everyone leaving: the next arrival finds it as it was', () => {
-    const v = valleyWith(join('a'), { type: 'take', id: 'a', index: 2 })
+    const v = valleyWith(join('a'), {
+      type: 'take',
+      id: 'a',
+      index: 2,
+      at: HERE,
+    })
     v.step(leaveAs('a'))
     expect(v.valley.members).toEqual({})
     expect(v.valley.world?.taken).toEqual([2])
@@ -248,7 +259,7 @@ describe('rule 2: a raider comes back where they stood', () => {
     v.step(leaveAs('a', at({ x: 0, riding: true })))
     expect(placeOf(v.valley, 'acct-a')).toEqual({ x: 120, z: -40, yaw: 1.5 })
     v.step(join('a'))
-    v.step({ type: 'board', id: 'a' })
+    v.step({ type: 'board', id: 'a', at: HERE })
     v.step(leaveAs('a', at({ x: 5 })))
     expect(placeOf(v.valley, 'acct-a')?.x).toBe(120)
     v.step(join('a'))
@@ -285,7 +296,7 @@ describe("rule 3: Marx's truck is the valley's", () => {
 
   it('counts down once someone is in the bed, then takes them on the joyride', () => {
     const v = valleyWith(join('a'), join('b'))
-    const r = v.step({ type: 'board', id: 'a' })
+    const r = v.step({ type: 'board', id: 'a', at: HERE })
     expect(reasons(r)).toEqual(['boarded'])
     const leaves = T0 + CONFIG.truck.countdownSeconds * SEC
     expect(r.broadcast[0].world?.truck).toEqual({
@@ -305,8 +316,8 @@ describe("rule 3: Marx's truck is the valley's", () => {
   })
 
   it('lets a raider out of the bed, and says why it will not let them in', () => {
-    const v = valleyWith(join('a'), { type: 'board', id: 'a' })
-    expect(v.step({ type: 'board', id: 'a' }).reply).toEqual({
+    const v = valleyWith(join('a'), { type: 'board', id: 'a', at: HERE })
+    expect(v.step({ type: 'board', id: 'a', at: HERE }).reply).toEqual({
       type: 'nack',
       re: 'board',
       reason: 'aboard',
@@ -318,19 +329,19 @@ describe("rule 3: Marx's truck is the valley's", () => {
     expect(v.step({ type: 'hop-out', id: 'a' }).reply?.reason).toBe(
       'not-aboard'
     )
-    expect(v.step({ type: 'board', id: 'nobody' }).reply?.reason).toBe(
-      'not-in-valley'
-    )
+    expect(
+      v.step({ type: 'board', id: 'nobody', at: HERE }).reply?.reason
+    ).toBe('not-in-valley')
   })
 
   it('takes a raider who leaves out of the bed', () => {
-    const v = valleyWith(join('a'), { type: 'board', id: 'a' })
+    const v = valleyWith(join('a'), { type: 'board', id: 'a', at: HERE })
     v.step(leaveAs('a'))
     expect(v.valley.world?.truck.riders).toEqual([])
   })
 
   it('hurries the next change for a dev', () => {
-    const v = valleyWith(join('a'), { type: 'board', id: 'a' })
+    const v = valleyWith(join('a'), { type: 'board', id: 'a', at: HERE })
     const r = v.step({ type: 'hurry', seconds: 0 })
     expect(reasons(r)).toEqual(['hurry', 'depart'])
     expect(v.valley.world?.truck.leg.kind).toBe('joyride')
@@ -347,7 +358,12 @@ describe("rule 3: Marx's truck is the valley's", () => {
   })
 
   it('opens the world afresh on a dev reset', () => {
-    const v = valleyWith(join('a'), { type: 'take', id: 'a', index: 0 })
+    const v = valleyWith(join('a'), {
+      type: 'take',
+      id: 'a',
+      index: 0,
+      at: HERE,
+    })
     const r = v.step({ type: 'reset' })
     expect(reasons(r)).toEqual(['reset'])
     expect(r.broadcast[0].world).toBeNull()
@@ -359,20 +375,105 @@ describe("rule 3: Marx's truck is the valley's", () => {
 describe('rule 4: pickups go to the first to ask', () => {
   it('gives the pickup to the first and refuses the rest', () => {
     const v = valleyWith(join('a'), join('b'))
-    const r = v.step({ type: 'take', id: 'a', index: 0 })
+    const r = v.step({ type: 'take', id: 'a', index: 0, at: HERE })
     expect(r.broadcast[0]).toMatchObject({ reason: 'taken', by: 'a', index: 0 })
-    expect(v.step({ type: 'take', id: 'b', index: 0 }).reply).toEqual({
-      type: 'nack',
-      re: 'take',
-      reason: 'gone',
-      index: 0,
+    expect(v.step({ type: 'take', id: 'b', index: 0, at: HERE }).reply).toEqual(
+      {
+        type: 'nack',
+        re: 'take',
+        reason: 'gone',
+        index: 0,
+      }
+    )
+    expect(
+      v.step({ type: 'take', id: 'b', index: 999, at: HERE }).reply?.reason
+    ).toBe('no-such-pickup')
+    expect(
+      v.step({ type: 'take', id: 'z', index: 1, at: HERE }).reply?.reason
+    ).toBe('not-in-valley')
+  })
+})
+
+describe("the valley's reach", () => {
+  // Further than any reach from the origin, where everything stands.
+  const far = { x: 500, z: 500 }
+  const reach = CONFIG.valleyReach
+
+  it('gives a pickup, a drop, a berry or a body only to a raider in reach', () => {
+    const v = valleyWith(join('a'), join('b'), {
+      type: 'drop',
+      id: 'b',
+      kind: 'joints',
+      count: 1,
+      at: { x: 0, z: 0, yaw: 0 },
     })
-    expect(v.step({ type: 'take', id: 'b', index: 999 }).reply?.reason).toBe(
-      'no-such-pickup'
+    v.step({
+      type: 'fall',
+      id: 'a',
+      items: { marlboro: 1 },
+      at: { x: 0, z: 0, yaw: 0 },
+    })
+    const refusals = (at: { x: number; z: number } | null) => [
+      v.step({ type: 'take', id: 'a', index: 0, at }).reply?.reason,
+      v.step({ type: 'take-drop', id: 'a', drop: 0, at }).reply?.reason,
+      v.step({ type: 'collect', id: 'a', bush: 0, at }).reply?.reason,
+      v.step({ type: 'loot', id: 'a', corpse: 0, at }).reply?.reason,
+    ]
+    expect(refusals(far)).toEqual(['too-far', 'too-far', 'too-far', 'too-far'])
+    expect(refusals(null)).toEqual([
+      'no-position',
+      'no-position',
+      'no-position',
+      'no-position',
+    ])
+    // Just inside the reach is fine.
+    const near = { x: reach.item - 0.5, z: 0 }
+    expect(refusals(near)).toEqual([undefined, undefined, undefined, undefined])
+    expect(v.valley.world?.taken).toEqual([0])
+    expect(v.valley.corpses).toEqual([])
+  })
+
+  it("sells only on the station's lot", () => {
+    const v = valleyWith(join('a'))
+    const buy = (station: number, at: { x: number; z: number } | null) =>
+      v.step({ type: 'buy', id: 'a', station, kind: 'pbr', unit: 0, at }).reply
+        ?.reason
+    expect(buy(1, HERE)).toBe('too-far')
+    expect(buy(0, far)).toBe('too-far')
+    expect(buy(0, null)).toBe('no-position')
+    expect(
+      buy(1, { x: HAVENS[1].x + CONFIG.stash.stationReach - 1, z: 0 })
+    ).toBe(undefined)
+  })
+
+  it('lets a raider into the bed only beside the truck, and whistles only from where they stand', () => {
+    const v = valleyWith(join('a'), join('b'))
+    expect(v.step({ type: 'board', id: 'a', at: far }).reply?.reason).toBe(
+      'too-far'
     )
-    expect(v.step({ type: 'take', id: 'z', index: 1 }).reply?.reason).toBe(
-      'not-in-valley'
+    expect(v.step({ type: 'board', id: 'a', at: null }).reply?.reason).toBe(
+      'no-position'
     )
+    // Parked at home: in reach of the lot.
+    expect(
+      v.step({ type: 'board', id: 'a', at: { x: ROUTES.home.x + 5, z: 0 } })
+        .reply
+    ).toBeUndefined()
+    v.step({ type: 'hop-out', id: 'a' })
+    expect(
+      v.step({ type: 'call', id: 'b', from: ROUTES.home, at: null }).reply
+        ?.reason
+    ).toBe('no-position')
+    // The whistle comes to where the valley heard the whistler, and the
+    // drive is reckoned from where the client says the truck is, unless
+    // that is too far from home to believe.
+    const beyond = { x: ROUTES.home.x + reach.callFrom + 1, z: ROUTES.home.z }
+    v.step({ type: 'call', id: 'b', from: beyond, at: far })
+    expect(v.valley.world?.truck.leg).toMatchObject({
+      kind: 'called',
+      from: ROUTES.home,
+      to: far,
+    })
   })
 })
 
@@ -382,19 +483,27 @@ describe('rule 5: the whistle', () => {
 
   it('brings the empty truck to the whistler, and takes them home', () => {
     const v = valleyWith(join('a'), join('b'))
-    const r = v.step({ type: 'call', id: 'a', from, to })
+    const r = v.step({ type: 'call', id: 'a', from, at: to })
     expect(r.broadcast[0]).toMatchObject({ reason: 'called', by: 'a' })
-    expect(v.step({ type: 'call', id: 'b', from, to }).reply?.reason).toBe(
+    expect(v.step({ type: 'call', id: 'b', from, at: to }).reply?.reason).toBe(
       'busy'
     )
-    expect(v.step({ type: 'board', id: 'b' }).reply?.reason).toBe('not-yours')
+    expect(v.step({ type: 'board', id: 'b', at: to }).reply?.reason).toBe(
+      'not-yours'
+    )
     v.tick(90 * SEC)
-    expect(reasons(v.step({ type: 'board', id: 'a' }))).toEqual(['ferry'])
+    // The bed is where the truck came, not at the Citgo.
+    expect(v.step({ type: 'board', id: 'a', at: HERE }).reply?.reason).toBe(
+      'too-far'
+    )
+    expect(reasons(v.step({ type: 'board', id: 'a', at: to }))).toEqual([
+      'ferry',
+    ])
     expect(v.valley.world?.truck.leg).toMatchObject({ kind: 'ferry', from, to })
   })
 
   it('sends the truck home when its whistler leaves', () => {
-    const v = valleyWith(join('a'), { type: 'call', id: 'a', from, to })
+    const v = valleyWith(join('a'), { type: 'call', id: 'a', from, at: to })
     v.step(leaveAs('a'))
     expect(v.valley.world?.truck.leg).toMatchObject({
       kind: 'parked',
@@ -408,8 +517,8 @@ describe('rule 6: the day turns', () => {
     const at = { x: 1, z: 2, yaw: 0 }
     const v = valleyWith(
       join('a'),
-      { type: 'take', id: 'a', index: 3 },
-      { type: 'buy', id: 'a', station: 0, kind: 'pbr', unit: 0 },
+      { type: 'take', id: 'a', index: 3, at: HERE },
+      { type: 'buy', id: 'a', station: 0, kind: 'pbr', unit: 0, at: HERE },
       { type: 'drop', id: 'a', kind: 'joints', count: 1, at }
     )
     v.tick(nextMidnight(v.now) - v.now - 1)
@@ -431,7 +540,7 @@ describe('rule 6: the day turns', () => {
   it('wakes for the turn of the day when nothing else comes sooner', () => {
     const v = valleyWith(join('a'))
     v.tick(nextMidnight(v.now) - v.now - 60 * SEC)
-    const r = v.step({ type: 'board', id: 'a' })
+    const r = v.step({ type: 'board', id: 'a', at: HERE })
     v.step({ type: 'hop-out', id: 'a' })
     expect(r.alarm).toBeLessThanOrEqual(nextMidnight(v.now))
   })
@@ -442,12 +551,13 @@ describe('rule 7: the shelves are shared', () => {
     id: string,
     station = 0,
     kind = 'pbr',
-    unit = 0
-  ): ValleyAction => ({ type: 'buy', id, station, kind, unit })
+    unit = 0,
+    at: { x: number; z: number } | null = HERE
+  ): ValleyAction => ({ type: 'buy', id, station, kind, unit, at })
 
   it("takes the unit picked off that station's shelf and tells everyone who bought it", () => {
     const v = valleyWith(join('a'), join('b'))
-    const r = v.step(buy('a', 1, 'marlboro', 2))
+    const r = v.step(buy('a', 1, 'marlboro', 2, HAVENS[1]))
     expect(r.broadcast).toHaveLength(1)
     expect(r.broadcast[0]).toMatchObject({
       reason: 'bought',
@@ -489,11 +599,11 @@ describe('rule 7: the shelves are shared', () => {
 })
 
 describe('rule 8: one berry a day per account, at each bush', () => {
-  const collect = (id: string, bush = 0): ValleyAction => ({
-    type: 'collect',
-    id,
-    bush,
-  })
+  const collect = (
+    id: string,
+    bush = 0,
+    at: { x: number; z: number } | null = HERE
+  ): ValleyAction => ({ type: 'collect', id, bush, at })
   const daily = (r: ReturnType<typeof reduce>) => r.daily as DailyMessage
 
   it('gives the first ask of the day a berry, to the asker alone', () => {
@@ -569,12 +679,12 @@ describe('rule 9: Gron changes how a raider is shown', () => {
 describe("rule 10: the pack is the account's", () => {
   it('puts a pickup in the pack, a cabbage included', () => {
     const v = valleyWith(join('a'))
-    expect(v.step({ type: 'take', id: 'a', index: 0 }).pack).toEqual({
+    expect(v.step({ type: 'take', id: 'a', index: 0, at: HERE }).pack).toEqual({
       account: 'acct-a',
       kind: 'marlboro',
       delta: 3,
     })
-    expect(v.step({ type: 'take', id: 'a', index: 5 }).pack).toEqual({
+    expect(v.step({ type: 'take', id: 'a', index: 5, at: HERE }).pack).toEqual({
       account: 'acct-a',
       kind: 'cabbage',
       delta: 1,
@@ -644,7 +754,7 @@ describe('rule 14: Moab trades cosmetics for gold', () => {
 })
 
 describe('rule 12: raiders drop what they carry', () => {
-  const at = { x: 100, z: 50, yaw: 0 }
+  const at = { x: 0, z: 0, yaw: 0 }
   const drop = (
     id: string,
     kind = 'joints',
@@ -677,13 +787,13 @@ describe('rule 12: raiders drop what they carry', () => {
     expect(v.step(drop('a', 'sack')).reply?.reason).toBe('not-an-item')
     expect(v.step(drop('a', 'joints', 0)).reply?.reason).toBe('nothing')
     expect(v.step(drop('z')).reply?.reason).toBe('not-in-valley')
-    v.step({ type: 'board', id: 'a' })
+    v.step({ type: 'board', id: 'a', at: HERE })
     expect(v.step(drop('a')).reply?.reason).toBe('aboard')
   })
 
   it('lets anyone take a drop up, first to ask', () => {
     const v = valleyWith(join('a'), join('b'), drop('a', 'cabbage', 3))
-    const r = v.step({ type: 'take-drop', id: 'b', drop: 0 })
+    const r = v.step({ type: 'take-drop', id: 'b', drop: 0, at: HERE })
     expect(r.broadcast[0]).toMatchObject({
       reason: 'drop-taken',
       by: 'b',
@@ -693,7 +803,9 @@ describe('rule 12: raiders drop what they carry', () => {
     })
     expect(r.pack).toEqual({ account: 'acct-b', kind: 'cabbage', delta: 3 })
     expect(v.valley.world?.drops).toEqual([])
-    expect(v.step({ type: 'take-drop', id: 'a', drop: 0 }).reply).toEqual({
+    expect(
+      v.step({ type: 'take-drop', id: 'a', drop: 0, at: HERE }).reply
+    ).toEqual({
       type: 'nack',
       re: 'take-drop',
       reason: 'gone',
@@ -834,17 +946,29 @@ describe('rule 18: corpse runs', () => {
   it('gives the things back to the account that fell, and no one else', () => {
     const v = valleyWith(join('a'), join('b'))
     v.step(fell('a', { x: 40, z: -12, yaw: 1 }))
-    const stranger = v.step({ type: 'loot', id: 'b', corpse: 0 })
+    const stranger = v.step({
+      type: 'loot',
+      id: 'b',
+      corpse: 0,
+      at: { x: 40, z: -12 },
+    })
     expect(stranger.reply).toMatchObject({
       re: 'loot',
       reason: 'not-yours',
       corpse: 0,
     })
     expect(stranger.give).toBeUndefined()
-    expect(v.step({ type: 'loot', id: 'a', corpse: 7 }).reply).toMatchObject({
+    expect(
+      v.step({ type: 'loot', id: 'a', corpse: 7, at: { x: 40, z: -12 } }).reply
+    ).toMatchObject({
       reason: 'gone',
     })
-    const mine = v.step({ type: 'loot', id: 'a', corpse: 0 })
+    const mine = v.step({
+      type: 'loot',
+      id: 'a',
+      corpse: 0,
+      at: { x: 40, z: -12 },
+    })
     expect(mine.give).toEqual({
       account: 'acct-a',
       items: { marlboro: 12, 'gold-bullion': 1 },
@@ -855,7 +979,9 @@ describe('rule 18: corpse runs', () => {
       corpse: 0,
     })
     expect(v.valley.corpses).toEqual([])
-    expect(v.step({ type: 'loot', id: 'a', corpse: 0 }).reply).toMatchObject({
+    expect(
+      v.step({ type: 'loot', id: 'a', corpse: 0, at: { x: 40, z: -12 } }).reply
+    ).toMatchObject({
       reason: 'gone',
     })
   })
@@ -866,12 +992,16 @@ describe('rule 18: corpse runs', () => {
       account: 'acct-a',
     } as ValleyAction)
     v.step(fell('a', { x: 40, z: -12, yaw: 1 }))
-    v.step({ type: 'board', id: 'a2' })
-    expect(v.step({ type: 'loot', id: 'a2', corpse: 0 }).reply).toMatchObject({
+    v.step({ type: 'board', id: 'a2', at: HERE })
+    expect(
+      v.step({ type: 'loot', id: 'a2', corpse: 0, at: { x: 40, z: -12 } }).reply
+    ).toMatchObject({
       reason: 'aboard',
     })
     v.step({ type: 'hop-out', id: 'a2' })
-    expect(v.step({ type: 'loot', id: 'a2', corpse: 0 }).give).toMatchObject({
+    expect(
+      v.step({ type: 'loot', id: 'a2', corpse: 0, at: { x: 40, z: -12 } }).give
+    ).toMatchObject({
       account: 'acct-a',
     })
   })
@@ -897,7 +1027,8 @@ describe('rule 18: corpse runs', () => {
     const v = valleyWith(join('a'))
     v.step(fell('a', { x: 40, z: -12, yaw: 1 }))
     expect(
-      v.step({ type: 'loot', id: 'nobody', corpse: 0 }).reply
+      v.step({ type: 'loot', id: 'nobody', corpse: 0, at: { x: 40, z: -12 } })
+        .reply
     ).toMatchObject({ reason: 'not-in-valley' })
   })
 })
@@ -946,7 +1077,7 @@ describe('rule 19: the stash', () => {
     expect(v.step(stow('nobody', at(0, 0))).reply).toMatchObject({
       reason: 'not-in-valley',
     })
-    v.step({ type: 'board', id: 'a' })
+    v.step({ type: 'board', id: 'a', at: HERE })
     expect(v.step(stow('a', at(0, 0))).reply).toMatchObject({
       reason: 'aboard',
     })
@@ -1123,7 +1254,7 @@ describe('rule 23: the Cabbage Stand', () => {
         { now: T0, present: ['a'] }
       ).reply
     ).toMatchObject({ reason: 'unavailable' })
-    v.step({ type: 'board', id: 'a' })
+    v.step({ type: 'board', id: 'a', at: HERE })
     expect(collect('a', beside)).toMatchObject({ reason: 'aboard' })
   })
 
@@ -1139,13 +1270,20 @@ describe('rule 23: the Cabbage Stand', () => {
 describe('rule 22: XP for what a raider does', () => {
   it('earns XP for a pickup, a unit bought and the day’s berry', () => {
     const v = valleyWith(join('a'))
-    expect(v.step({ type: 'take', id: 'a', index: 2 }).xp).toEqual([
+    expect(v.step({ type: 'take', id: 'a', index: 2, at: HERE }).xp).toEqual([
       { account: 'acct-a', source: 'pickup' },
     ])
     expect(
-      v.step({ type: 'buy', id: 'a', station: 0, kind: 'pbr', unit: 0 }).xp
+      v.step({
+        type: 'buy',
+        id: 'a',
+        station: 0,
+        kind: 'pbr',
+        unit: 0,
+        at: HERE,
+      }).xp
     ).toEqual([{ account: 'acct-a', source: 'purchase' }])
-    expect(v.step({ type: 'collect', id: 'a', bush: 0 }).xp).toEqual([
+    expect(v.step({ type: 'collect', id: 'a', bush: 0, at: HERE }).xp).toEqual([
       { account: 'acct-a', source: 'berry' },
     ])
   })
@@ -1155,14 +1293,26 @@ describe('rule 22: XP for what a raider does', () => {
       type: 'take',
       id: 'a',
       index: 2,
+      at: HERE,
     })
-    expect(v.step({ type: 'take', id: 'b', index: 2 }).xp).toBeUndefined()
+    expect(
+      v.step({ type: 'take', id: 'b', index: 2, at: HERE }).xp
+    ).toBeUndefined()
     v.setCash(0)
     expect(
-      v.step({ type: 'buy', id: 'a', station: 0, kind: 'pbr', unit: 0 }).xp
+      v.step({
+        type: 'buy',
+        id: 'a',
+        station: 0,
+        kind: 'pbr',
+        unit: 0,
+        at: HERE,
+      }).xp
     ).toBeUndefined()
-    v.step({ type: 'collect', id: 'a', bush: 0 })
-    expect(v.step({ type: 'collect', id: 'a', bush: 0 }).xp).toBeUndefined()
+    v.step({ type: 'collect', id: 'a', bush: 0, at: HERE })
+    expect(
+      v.step({ type: 'collect', id: 'a', bush: 0, at: HERE }).xp
+    ).toBeUndefined()
     expect(v.step({ type: 'use', id: 'a', kind: 'joints' }).xp).toBeUndefined()
   })
 
@@ -1173,11 +1323,13 @@ describe('rule 22: XP for what a raider does', () => {
       type: 'spill',
       spills: [{ x: 1, z: 2, kind: 'gold-bullion', count: 1 }],
     })
-    expect(v.step({ type: 'take-drop', id: 'b', drop: 0 }).xp).toEqual([
-      { account: 'acct-b', source: 'drop' },
-    ])
+    expect(
+      v.step({ type: 'take-drop', id: 'b', drop: 0, at: HERE }).xp
+    ).toEqual([{ account: 'acct-b', source: 'drop' }])
     v.step({ type: 'drop', id: 'b', kind: 'gold-bullion', count: 1, at })
-    expect(v.step({ type: 'take-drop', id: 'a', drop: 1 }).xp).toBeUndefined()
+    expect(
+      v.step({ type: 'take-drop', id: 'a', drop: 1, at: HERE }).xp
+    ).toBeUndefined()
   })
 
   it('earns each rider XP when Marx gets home, never one who hopped out', () => {
@@ -1185,16 +1337,16 @@ describe('rule 22: XP for what a raider does', () => {
       join('a'),
       join('b'),
       join('c'),
-      { type: 'board', id: 'a' },
-      { type: 'board', id: 'b' },
-      { type: 'board', id: 'c' }
+      { type: 'board', id: 'a', at: HERE },
+      { type: 'board', id: 'b', at: HERE },
+      { type: 'board', id: 'c', at: HERE }
     )
     v.tick(CONFIG.truck.countdownSeconds * SEC)
     expect(v.step({ type: 'clock' }).xp).toBeUndefined()
     v.step({ type: 'hop-out', id: 'c' })
     v.tick(ROUTES.joyrideMs)
     // Whatever wakes the valley when he is home, a stranger's berry here.
-    const r = v.step({ type: 'collect', id: 'c', bush: 0 })
+    const r = v.step({ type: 'collect', id: 'c', bush: 0, at: HERE })
     expect(reasons(r)).toEqual(['home'])
     expect(r.xp).toEqual([
       { account: 'acct-a', source: 'ride' },
@@ -1208,8 +1360,8 @@ describe('rule 22: XP for what a raider does', () => {
     const v = valleyWith(
       join('a'),
       { ...join('a2'), account: 'acct-a' } as ValleyAction,
-      { type: 'board', id: 'a' },
-      { type: 'board', id: 'a2' }
+      { type: 'board', id: 'a', at: HERE },
+      { type: 'board', id: 'a2', at: HERE }
     )
     v.tick(CONFIG.truck.countdownSeconds * SEC + ROUTES.joyrideMs)
     expect(v.step({ type: 'clock' }).xp).toEqual([
@@ -1280,7 +1432,7 @@ describe('rule 11: a burst shadowman leaves dimes', () => {
       type: 'spill',
       spills: [{ x: 1, z: 2, kind: 'dimes', count: 12 }],
     })
-    const r = v.step({ type: 'take-drop', id: 'b', drop: 0 })
+    const r = v.step({ type: 'take-drop', id: 'b', drop: 0, at: HERE })
     expect(r.broadcast[0]).toMatchObject({
       reason: 'drop-taken',
       by: 'b',
@@ -1298,7 +1450,7 @@ describe('rule 11: a burst shadowman leaves dimes', () => {
       type: 'spill',
       spills: [{ x: 1, z: 2, kind: 'twenty', count: 1 }],
     })
-    const r = v.step({ type: 'take-drop', id: 'a', drop: 0 })
+    const r = v.step({ type: 'take-drop', id: 'a', drop: 0, at: HERE })
     expect(r.earn).toEqual({ account: 'acct-a', amount: 2000 })
     expect(r.pack).toBeUndefined()
   })
@@ -1316,7 +1468,7 @@ describe('rule 11: a burst shadowman leaves dimes', () => {
       { id: 0, kind: 'gold-bullion', count: 1, x: 1, z: 2, spilled: true },
       { id: 1, kind: 'gold-bullion', count: 1, x: 1.5, z: 2, spilled: true },
     ])
-    const r = v.step({ type: 'take-drop', id: 'a', drop: 0 })
+    const r = v.step({ type: 'take-drop', id: 'a', drop: 0, at: HERE })
     expect(r.pack).toEqual({
       account: 'acct-a',
       kind: 'gold-bullion',
@@ -1378,7 +1530,11 @@ describe("rule 11: the shadowmen are the valley's", () => {
       shadowRaiders(v, shadows, [{ id, at }], T0)[0].vulnerable
     expect(vulnerable(state())).toBe(true)
     // In the bed of the parked truck.
-    const aboard = valleyWith(join('a'), { type: 'board', id: 'a' }).valley
+    const aboard = valleyWith(join('a'), {
+      type: 'board',
+      id: 'a',
+      at: HERE,
+    }).valley
     expect(
       shadowRaiders(aboard, shadows, [{ id: 'a', at: state() }], T0)[0]
         .vulnerable

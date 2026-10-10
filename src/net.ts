@@ -60,6 +60,8 @@ export interface NetIdentity {
   water: WaterMap
   // Where the corn maze lies (the Caretaker's, rule 13), or null.
   maze: MazePlace | null
+  // Where each berry bush stands; see HelloMessage.
+  bushes: XZ[]
   // Where Marx parks and how long his joyride takes.
   truck: TruckRoutes
   // Where the Cabbage Stand stands (rule 23), or null.
@@ -218,6 +220,7 @@ export class NetClient {
           maze: identity.maze,
           truck: identity.truck,
           stand: identity.stand,
+          bushes: identity.bushes,
           // Who we were before a reconnect, so the valley drops that ghost.
           ...(this.id ? { was: this.id } : {}),
         } satisfies ClientMessage)

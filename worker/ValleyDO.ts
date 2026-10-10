@@ -222,6 +222,9 @@ export class ValleyDO extends DurableObject<Env> {
       await this.hello(ws, attachment, msg)
       return
     }
+    // Where the raider's own last state frame put them, never a frame's
+    // word: what the valley holds every reach to (sharedworld.ts).
+    const at = me.at ? { x: me.at.x, z: me.at.z } : null
     switch (msg.type) {
       case 'hello':
         ws.close(CLOSE.malformed, 'Already said hello')
@@ -240,12 +243,14 @@ export class ValleyDO extends DurableObject<Env> {
       case 'ping':
         send(ws, { type: 'pong', t: msg.t, serverNow: Date.now() })
         return
-      case 'board':
       case 'hop-out':
-        await this.act(ws, { type: msg.type, id: me.id })
+        await this.act(ws, { type: 'hop-out', id: me.id })
+        return
+      case 'board':
+        await this.act(ws, { type: 'board', id: me.id, at })
         return
       case 'take':
-        await this.act(ws, { type: 'take', id: me.id, index: msg.index })
+        await this.act(ws, { type: 'take', id: me.id, index: msg.index, at })
         return
       case 'buy':
         await this.purchase(ws, attachment, {
@@ -254,18 +259,14 @@ export class ValleyDO extends DurableObject<Env> {
           station: msg.station,
           kind: msg.kind,
           unit: msg.unit,
+          at,
         })
         return
       case 'call':
-        await this.act(ws, {
-          type: 'call',
-          id: me.id,
-          from: msg.from,
-          to: msg.to,
-        })
+        await this.act(ws, { type: 'call', id: me.id, from: msg.from, at })
         return
       case 'collect':
-        await this.act(ws, { type: 'collect', id: me.id, bush: msg.bush })
+        await this.act(ws, { type: 'collect', id: me.id, bush: msg.bush, at })
         return
       case 'use': {
         // Rule 24: medicine that heals gives its points back once the pack
@@ -293,13 +294,14 @@ export class ValleyDO extends DurableObject<Env> {
         return
       }
       case 'take-drop':
-        await this.act(ws, { type: 'take-drop', id: me.id, drop: msg.drop })
+        await this.act(ws, { type: 'take-drop', id: me.id, drop: msg.drop, at })
         return
       case 'loot':
         await this.loot(ws, attachment.account, {
           type: 'loot',
           id: me.id,
           corpse: msg.corpse,
+          at,
         })
         return
       case 'stow':
@@ -874,6 +876,7 @@ export class ValleyDO extends DurableObject<Env> {
           maze: hello.maze,
           routes: hello.truck,
           stand: hello.stand,
+          bushes: hello.bushes,
         },
         { now: Date.now(), present: this.presentIds(ws) }
       )

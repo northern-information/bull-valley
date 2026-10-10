@@ -21,7 +21,7 @@ import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 29
+export const PROTOCOL_VERSION = 30
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -49,6 +49,8 @@ export const DISCOVER_MAX = 128
 
 // More Citgo stations than any build places.
 const STATIONS_MAX = 64
+// How many berry bushes a hello may place.
+const BUSHES_MAX = 16
 
 // An item id or a pickup kind on the wire: items.ts ids are short.
 const KIND_MAX = 64
@@ -100,6 +102,9 @@ export interface PeerWire {
 export interface PickupSpec {
   kind: string
   count: number
+  // Where it lies: the valley gives it only to a raider in reach.
+  x: number
+  z: number
 }
 
 // --- The shared world ------------------------------------------------------
@@ -207,6 +212,10 @@ export interface HelloMessage {
   // Where the Cabbage Stand stands, or null: the valley tends each
   // account's stand only for a raider beside it (rule 23).
   stand: XZ | null
+  // Where each berry bush stands, in sharedworld.ts bush order (the spawn
+  // Citgo's, then the maze's ring): a berry only for a raider in reach
+  // (rule 8).
+  bushes: XZ[]
   // On a reconnect, the id this client had before the line dropped. The
   // valley may not have heard that socket close yet; it retires it if it is
   // the same account's, so the raider is not welcomed back beside their own
@@ -237,10 +246,11 @@ export interface BuyMessage {
   unit: number
 }
 
+// A whistle: where the client sees the truck (the valley never knows the
+// roads). Where it comes to is where the valley last heard the whistler.
 export interface CallMessage {
   type: 'call'
   from: XZ
-  to: XZ
 }
 
 // One unit of `kind` out of the pack, used. The valley takes it off the
@@ -855,9 +865,10 @@ function parsePickups(value: unknown): PickupSpec[] | null {
   const specs: PickupSpec[] = []
   for (const entry of value as unknown[]) {
     if (!isRecord(entry)) return null
-    const { kind, count } = entry
+    const { kind, count, x, z } = entry
     if (!isKind(kind) || !isCount(count)) return null
-    specs.push({ kind, count })
+    if (!isCoord(x) || !isCoord(z)) return null
+    specs.push({ kind, count, x, z })
   }
   return specs
 }
@@ -871,13 +882,19 @@ function parseXZ(value: unknown): XZ | null {
 // A hello's havens: one place per station.
 function parseHavens(value: unknown, stations: number): XZ[] | null {
   if (!Array.isArray(value) || value.length !== stations) return null
-  const havens: XZ[] = []
+  return parseSpots(value, stations)
+}
+
+// At most `max` places.
+function parseSpots(value: unknown, max: number): XZ[] | null {
+  if (!Array.isArray(value) || value.length > max) return null
+  const spots: XZ[] = []
   for (const entry of value as unknown[]) {
     const at = parseXZ(entry)
     if (!at) return null
-    havens.push(at)
+    spots.push(at)
   }
-  return havens
+  return spots
 }
 
 // The longest joyride the valley believes: a day.
@@ -954,6 +971,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
       const maze = value.maze === null ? null : parseMazePlace(value.maze)
       const truck = parseRoutes(value.truck)
       const stand = value.stand === null ? null : parseXZ(value.stand)
+      const bushes = parseSpots(value.bushes, BUSHES_MAX)
       // An older build sends none of them; it still parses as far as its
       // version, which the server then refuses.
       if (
@@ -963,6 +981,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
           !water ||
           maze === undefined ||
           !truck ||
+          !bushes ||
           (stand === null && value.stand !== null))
       ) {
         return null
@@ -983,6 +1002,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
         maze: maze ?? null,
         truck: truck ?? { home: { x: 0, z: 0 }, joyrideMs: 0 },
         stand,
+        bushes: bushes ?? [],
         ...(typeof value.was === 'string' && value.was.length <= ID_MAX
           ? { was: value.was }
           : {}),
@@ -1069,8 +1089,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
     }
     case 'call': {
       const from = parseXZ(value.from)
-      const to = parseXZ(value.to)
-      return from && to ? { type: 'call', from, to } : null
+      return from ? { type: 'call', from } : null
     }
     case 'dev': {
       if (value.op === 'reset') return { type: 'dev', op: 'reset' }
