@@ -1435,6 +1435,8 @@ interface StationLights {
   group: THREE.Group
   // Off (zero intensity) away from every store. The lights stay in the
   // scene either way, so the shaders never recompile for a changed count.
+  // Off, the spots stop rendering their shadow maps too: Three skips the
+  // pass only on autoUpdate false, never for a zero intensity.
   setOn(on: boolean): void
 }
 
@@ -1442,6 +1444,7 @@ function buildStationLights(): StationLights {
   const group = new THREE.Group()
   group.name = 'station-lights'
   const spots: THREE.SpotLight[] = []
+  let lit = true
   const hang = (
     at: Vec3,
     tuning: {
@@ -1487,8 +1490,13 @@ function buildStationLights(): StationLights {
   return {
     group,
     setOn(on) {
+      if (on === lit) return
+      lit = on
       for (const spot of spots) {
         spot.intensity = on ? (spot.userData.intensity as number) : 0
+        spot.shadow.autoUpdate = on
+        // A re-parked rig renders one fresh map before it settles.
+        if (on) spot.shadow.needsUpdate = true
       }
     },
   }

@@ -101,7 +101,8 @@ const LAMPS: readonly Lamp[] = [
   },
 ]
 const LAMP_SHADOW_MAP = 512
-function attachLamps(group: THREE.Group): void {
+function attachLamps(group: THREE.Group): THREE.SpotLight[] {
+  const spots: THREE.SpotLight[] = []
   for (const lamp of LAMPS) {
     const spot = new THREE.SpotLight(
       lamp.color,
@@ -119,7 +120,9 @@ function attachLamps(group: THREE.Group): void {
     spot.shadow.bias = -0.001
     spot.shadow.normalBias = 0.03
     group.add(spot, spot.target)
+    spots.push(spot)
   }
+  return spots
 }
 
 // Working vectors for bedSeat() and driverAt(); their values never leave
@@ -182,6 +185,9 @@ export class Truck {
   driver: Figure
   cigarette: CigaretteRig
   book: THREE.Group
+  // The headlights' and taillights' spots, casting shadows only while the
+  // player is near enough to see them (castShadowsNear).
+  lamps: THREE.SpotLight[]
   post: DriverPost
   // Matthew Marx's walk to the door before this route, or null when he
   // is already at the wheel; the route holds for TO_DOOR_SECONDS.
@@ -217,7 +223,7 @@ export class Truck {
     const model = buildTruck()
     this.group = model.group
     castShadows(this.group)
-    attachLamps(this.group)
+    this.lamps = attachLamps(this.group)
     scene.add(this.group)
     this.walker = null
     this.speed = CONFIG.truck.speed
@@ -476,5 +482,18 @@ export class Truck {
 
   distanceTo(x: number, z: number): number {
     return Math.hypot(this.x - x, this.z - z)
+  }
+
+  // The lamps render their shadow maps only while the player at (x, z)
+  // is within CONFIG.render.liveRadius: past the fog no one sees them,
+  // and Three skips the pass only on autoUpdate false, never for
+  // distance. The lights stay in the scene either way, so the shaders
+  // never recompile for a changed count.
+  castShadowsNear(x: number, z: number): void {
+    const near = this.distanceTo(x, z) <= CONFIG.render.liveRadius
+    for (const lamp of this.lamps) {
+      if (near && !lamp.shadow.autoUpdate) lamp.shadow.needsUpdate = true
+      lamp.shadow.autoUpdate = near
+    }
   }
 }

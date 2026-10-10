@@ -252,6 +252,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       })
       truck.update(dt, now)
     }
+    truck.castShadowsNear(player.pos.x, player.pos.z)
     // The valley's music, at the raider's setting.
     music?.update({
       now,

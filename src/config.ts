@@ -10,6 +10,11 @@ export const CONFIG = {
     // stars and moon stay overhead while the valley closes in.
     fogDensity: 0.016,
     far: 1400,
+    // Past this many metres from the player the fog has swallowed
+    // everything (3/fogDensity), so what moves on its own out there
+    // (Moab's fire, the dishes, the wreck's hazards) is not stepped, and
+    // Marx's lamps stop rendering their shadow maps.
+    liveRadius: 190,
     // The longest step one frame may take, in seconds, so a stall never
     // jumps the valley ahead.
     maxStep: 0.05,
