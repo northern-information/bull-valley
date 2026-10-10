@@ -445,6 +445,7 @@ export function buildTombstoneFace(
   const texture = artTexture(paintTombstone(name, seed, heading))
   const material = lambert({ map: texture })
   const mesh = new THREE.Mesh(tombstoneParts().face, material)
+  mesh.name = 'tombstone-face'
   return {
     mesh,
     dispose: () => {

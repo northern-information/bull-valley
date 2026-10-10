@@ -108,10 +108,15 @@ test('a shadowman held in the beam bursts into dimes', async ({ page }) => {
   const [grave] = await page.evaluate(() => window.__bv?.graves ?? [])
   expect(grave.name.length).toBeGreaterThan(0)
   expect(Math.hypot(grave.x - lying.x, grave.z - lying.z)).toBeLessThan(1.5)
+  // The stones draw instanced across every grave; each grave's carved
+  // face is its own.
   await expect
     .poll(() =>
       page.evaluate(
-        () => window.__bv?.scene.getObjectByName('tombstones')?.children.length
+        () =>
+          window.__bv?.scene
+            .getObjectByName('tombstones')
+            ?.children.filter((o) => o.name === 'tombstone-face').length
       )
     )
     .toBe(1)
