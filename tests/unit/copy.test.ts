@@ -82,7 +82,12 @@ describe('copy', () => {
 describe('flatten', () => {
   it('nests groups into dotted keys', () => {
     const entries = flatten({ a: { b: { text: 'Hi', by: 'ai' } } })
-    expect(entries.get('a.b')).toEqual({ text: 'Hi', by: 'ai' })
+    expect(entries.get('a.b')).toEqual({ text: 'Hi', by: 'ai', names: [] })
+  })
+
+  it('finds the placeholders once, at load', () => {
+    const entries = flatten({ a: { text: 'Hi {name}, {n}', by: 'ai' } })
+    expect(entries.get('a')?.names).toEqual(['name', 'n'])
   })
 
   it('rejects an unknown author', () => {

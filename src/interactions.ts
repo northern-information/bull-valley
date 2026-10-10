@@ -275,6 +275,30 @@ export function itemLabel(interaction: Interaction): ItemLabel | null {
   return null
 }
 
+// What the prompt and the label of an interaction are made from, as one
+// string: while it holds the same, the loop keeps the lines it had
+// rather than filling them again every frame.
+export function interactionKey(interaction: Interaction): string {
+  switch (interaction.kind) {
+    case 'pickup':
+      return `pickup:${interaction.pickup.kind}:${interaction.pickup.count}`
+    case 'buy':
+      return `buy:${interaction.item}:${interaction.price}:${interaction.affordable}`
+    case 'collect':
+      return `collect:${interaction.bush}:${interaction.status}`
+    case 'speak':
+      return `speak:${interaction.npc}:${interaction.station ?? ''}`
+    case 'trade':
+      return `trade:${interaction.offer}:${interaction.station}`
+    case 'loot':
+      return `loot:${interaction.corpse}`
+    case 'locker':
+      return `locker:${interaction.station}`
+    default:
+      return interaction.kind
+  }
+}
+
 // The bottom prompt for what E would do, or null where something else
 // says it: an item's own label (itemLabel), or the glow on the people you
 // talk to.

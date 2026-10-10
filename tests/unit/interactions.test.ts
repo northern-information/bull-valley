@@ -3,6 +3,7 @@ import { CONFIG } from '../../src/config.ts'
 import { copy } from '../../src/copy.ts'
 import {
   dailyStatus,
+  interactionKey,
   interactionPrompt,
   itemLabel,
   pickupLabel,
@@ -410,6 +411,40 @@ describe('interactionPrompt', () => {
     expect(
       interactionPrompt({ kind: 'collect', bush: 0, status: 'ready' })
     ).toBeNull()
+  })
+})
+
+describe('interactionKey', () => {
+  it('reads the same while the prompt and the label would', () => {
+    const pickup = {
+      x: 0,
+      z: 0,
+      kind: 'joints' as const,
+      count: 2,
+      taken: false,
+    }
+    expect(interactionKey({ kind: 'pickup', pickup })).toBe(
+      interactionKey({ kind: 'pickup', pickup: { ...pickup, x: 5 } })
+    )
+    expect(interactionKey({ kind: 'pickup', pickup })).not.toBe(
+      interactionKey({ kind: 'pickup', pickup: { ...pickup, count: 1 } })
+    )
+    expect(interactionKey({ kind: 'buy', ...shelf })).not.toBe(
+      interactionKey({ kind: 'buy', ...shelf, affordable: !shelf.affordable })
+    )
+    expect(
+      interactionKey({ kind: 'collect', bush: 0, status: 'ready' })
+    ).not.toBe(interactionKey({ kind: 'collect', bush: 0, status: 'picked' }))
+    expect(interactionKey({ kind: 'loot', corpse: 1 })).not.toBe(
+      interactionKey({ kind: 'loot', corpse: 2 })
+    )
+    expect(interactionKey({ kind: 'speak', npc: 'moab', station: 1 })).not.toBe(
+      interactionKey({ kind: 'speak', npc: 'moab', station: 2 })
+    )
+    expect(interactionKey({ kind: 'hopOut' })).toBe('hopOut')
+    expect(interactionKey({ kind: 'stand' })).not.toBe(
+      interactionKey({ kind: 'locker', station: 0 })
+    )
   })
 })
 

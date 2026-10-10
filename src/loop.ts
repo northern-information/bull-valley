@@ -17,6 +17,7 @@ import { shakeAt } from './health.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
 import {
   dailyStatus,
+  interactionKey,
   interactionPrompt,
   itemLabel,
   resolveInteraction,
@@ -69,7 +70,10 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   } = game
   const ridingForward = new THREE.Vector3(0, 0, -1)
 
-  // Marx's countdown, for whoever is in the bed or standing by it.
+  // Marx's countdown, for whoever is in the bed or standing by it. The
+  // line is filled again only when its clock reads differently.
+  let clockShown = ''
+  let clockLine = ''
   const countdownLine = (now: number): string | null => {
     const left = s.world
       ? countdown(s.world.truck, net.clock.serverNow(now))
@@ -78,7 +82,13 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     const near =
       s.aboard ||
       truck.distanceTo(player.pos.x, player.pos.z) < CONFIG.truck.countdownReach
-    return near ? copy('truck.leaves_in', { clock: clockText(left) }) : null
+    if (!near) return null
+    const clock = clockText(left)
+    if (clock !== clockShown) {
+      clockShown = clock
+      clockLine = copy('truck.leaves_in', { clock })
+    }
+    return clockLine
   }
 
   // How each bush stands for this player right now.
@@ -92,6 +102,12 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       status: dailyStatus(daily, id, now),
     }))
   }
+
+  // The prompt and the label for what E would do, kept while the
+  // interaction reads the same (interactionKey).
+  let promptKey: string | null = null
+  let prompt: string | null = null
+  let label: ReturnType<typeof itemLabel> = null
 
   let last = performance.now()
   renderer.setAnimationLoop(() => {
@@ -446,8 +462,12 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     const offering = interaction?.kind === 'trade' ? interaction.station : null
     if (offering !== null && offering !== s.offeredBy) actions.offerTrade()
     s.offeredBy = offering
-    const prompt = interaction ? interactionPrompt(interaction) : null
-    const label = interaction ? itemLabel(interaction) : null
+    const key = interaction ? interactionKey(interaction) : null
+    if (key !== promptKey) {
+      promptKey = key
+      prompt = interaction ? interactionPrompt(interaction) : null
+      label = interaction ? itemLabel(interaction) : null
+    }
     const labelTo = label ? targets.labelTarget(interaction) : null
     const labelSpot = labelTo ? targets.labelAt(labelTo) : null
     glow.setTarget(targets.glowTarget(interaction))
