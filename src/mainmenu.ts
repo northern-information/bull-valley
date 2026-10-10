@@ -3,8 +3,8 @@
 // starting under it (musicrig.ts), the options in the lower
 // left and the credit in the lower right. Signed out, the one option is Create Account, which hands the
 // raider to the account step (signin.ts) beneath it. Signed in: Die (on to
-// the character select), Audio (the music volume), Settings (the account
-// panel and Sign Out), and
+// the character select), Audio (the music and sound volumes), Settings
+// (the account panel and Sign Out), and
 // Quit, which closes the tab, or says to where the browser will not let a
 // page close itself. Mounted at boot above the account step and the select,
 // so hiding it uncovers them; it never removes itself until titles.ts is
@@ -12,7 +12,7 @@
 
 import { copy } from './copy.ts'
 import { createFog } from './fog.ts'
-import { musicSlider } from './settingsui.ts'
+import { volumeSliders } from './settingsui.ts'
 import type { BvAudio } from './audio.ts'
 import type { FogLayer } from './fog.ts'
 import type { Music } from './musicrig.ts'
@@ -110,7 +110,7 @@ export function mountMainMenu({
   const accountBtn = find<HTMLButtonElement>('[data-bv="menu-account"]')
   const signOutBtn = find<HTMLButtonElement>('[data-bv="menu-sign-out"]')
   const backBtn = find<HTMLButtonElement>('[data-bv="menu-back"]')
-  find<HTMLElement>('[data-face="audio"] h2').after(musicSlider(settings))
+  find<HTMLElement>('[data-face="audio"] h2').after(...volumeSliders(settings))
 
   // A missing PNG must not show the broken-image glyph.
   logo.addEventListener('error', () => {
@@ -157,7 +157,7 @@ export function mountMainMenu({
     requestAnimationFrame(() => root.classList.add('bv-menu--up'))
   }
 
-  // Up and down (or W and S) walk the options, the music slider among
+  // Up and down (or W and S) walk the options, the volume sliders among
   // them, which left and right move; Enter and Space press the one in
   // focus, as buttons do; Escape steps back out of Audio or Settings.
   const onKey = (e: KeyboardEvent) => {

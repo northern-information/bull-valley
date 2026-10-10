@@ -17,6 +17,7 @@ import { buildShadowSpider, isMesh } from './assets.ts'
 import { context2d } from './canvas.ts'
 import { CONFIG } from './config.ts'
 import { mulberry32, range } from './rng.ts'
+import { shadeCues, windupsBegun } from './sfx.ts'
 import {
   burnSecondsOf,
   contactsOf,
@@ -33,6 +34,7 @@ import type { ShadowSpider } from './assets.ts'
 import type { HeightAt, Metres, ScopeContact, XZ } from './interfaces.ts'
 import type { ShadowmanWire, ShadowmenMessage } from './protocol.ts'
 import type { Rng } from './rng.ts'
+import type { ShadeCues, ShadeHeard } from './sfx.ts'
 import type { Beam, Burst, ShadeKind, ShadowmenField } from './shadowmen.ts'
 import type { ShadowTable } from './shadowsync.ts'
 import type { WaterMap } from './waterside.ts'
@@ -193,6 +195,8 @@ export interface ShadowCardsUpdate {
   // The kinds within CONFIG.book.sightRange of the player (the Book of
   // Shadows).
   sighted: ShadeKind[]
+  // What they sound like this frame (sfx.ts).
+  heard: ShadeCues
 }
 
 interface Card {
@@ -225,6 +229,13 @@ export class ShadowCards {
   private pending: Burst[] = []
   // Seconds since each shadowman lunged, while the lunge plays.
   private lunges = new Map<number, number>()
+  // Windups begun and lunges not yet heard; each one's windup in the last
+  // frame or step, and where the last two placed each (sfx.ts).
+  private begun: number[] = []
+  private lunged: number[] = []
+  private windups = new Map<number, number>()
+  private frame = new Map<number, ShadeHeard>()
+  private known = new Map<number, ShadeHeard>()
 
   constructor({ scene, groundAt, metres, havens, water }: ShadowCardsOptions) {
     this.groundAt = groundAt
@@ -251,6 +262,19 @@ export class ShadowCards {
     applyShadowFrame(this.table, msg.shadowmen, at)
     this.pending.push(...msg.bursts)
     for (const id of msg.lunges) this.lunges.set(id, 0)
+    this.lunged.push(...msg.lunges)
+    this.listen(msg.shadowmen)
+  }
+
+  // A frame landed or a step taken: the windups it began, and where it
+  // placed each, kept a frame past its going for a lunge that struck.
+  private listen(shades: readonly ShadeHeard[]): void {
+    const { begun, windups } = windupsBegun(this.windups, shades)
+    this.begun.push(...begun)
+    this.windups = windups
+    const frame = new Map(shades.map((s) => [s.id, s]))
+    this.known = new Map([...this.frame, ...frame])
+    this.frame = frame
   }
 
   // A dev shadowman (or spider) standing still at (x, z), played alone.
@@ -292,12 +316,14 @@ export class ShadowCards {
       struck = out.struck.length > 0
       this.pending.push(...out.bursts)
       for (const id of out.lunges) this.lunges.set(id, 0)
+      this.lunged.push(...out.lunges)
       shown = this.field.shadowmen.map((s) => ({
         ...s,
         kind: s.kind === 'man' ? undefined : s.kind,
         burn: s.burn / burnSecondsOf(s.kind, CONFIG.shadowmen),
         windup: s.windup / CONFIG.shadowmen.windupSeconds,
       }))
+      this.listen(shown)
       me = ALONE
     } else {
       // In the shared valley the field this client stepped is not the
@@ -314,8 +340,25 @@ export class ShadowCards {
     }
     const bursts = this.pending
     this.pending = []
+    const heard = shadeCues(
+      this.begun,
+      this.lunged,
+      shown,
+      this.known,
+      bursts,
+      player,
+      CONFIG.sfx
+    )
+    this.begun = []
+    this.lunged = []
     this.draw(shown, player, perception, dt)
-    return { struck, bursts, contacts: this.contacts, sighted: [...sighted] }
+    return {
+      struck,
+      bursts,
+      contacts: this.contacts,
+      sighted: [...sighted],
+      heard,
+    }
   }
 
   private draw(

@@ -234,6 +234,20 @@ export const CONFIG = {
     // Seconds it takes to come up from silence when it starts.
     fadeInSeconds: 4,
   },
+  sfx: {
+    // The valley's sounds (sfx.ts): the loudness at the setting's top.
+    volume: 0.8,
+    // Nothing further from the raider than this, in metres, is heard.
+    hearing: 60,
+    // At most this many spiderlings skitter at once, the nearest.
+    skitters: 3,
+    // A placed sound is at full loudness this close, in metres, and falls
+    // away past it this fast (a Web Audio inverse model).
+    refDistance: 4,
+    rolloff: 1.2,
+    // How far a playback rate (pitch) wanders, either way, per play.
+    jitter: 0.06,
+  },
   store: {
     // A new account's wallet, in cents (worker/packs.ts). Played alone,
     // every visit starts with this much.

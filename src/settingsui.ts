@@ -1,7 +1,7 @@
 // The raider's settings in the page: one store shared by the main menu's
-// Audio and the pause overlay, so both sliders always agree, and the
-// music slider they each draw. A change is heard at once (the music reads
-// the store every frame) and saved to the account once the slider has been
+// Audio and the pause overlay, so both always agree, and the volume
+// sliders they each draw. A change is heard at once (the music and the
+// sounds read the store every frame) and saved to the account once the slider has been
 // let go and left a moment (auth.ts `saveSettings`), so an arrow key held
 // down saves once; never to the browser.
 
@@ -12,8 +12,9 @@ import {
   MUSIC_MAX,
   MUSIC_STEP,
   toSettings,
+  VOLUMES,
 } from './settings.ts'
-import type { Settings } from './settings.ts'
+import type { Settings, Volume } from './settings.ts'
 
 export interface SettingsStore {
   readonly current: Settings
@@ -21,7 +22,7 @@ export interface SettingsStore {
   load(raw: unknown): void
   // The raider moved a slider: heard at once, and saved a moment after the
   // last `commit`.
-  setMusic(music: number, commit: boolean): void
+  setVolume(key: Volume, percent: number, commit: boolean): void
   // Called with the settings whenever they change.
   subscribe(listener: (settings: Settings) => void): void
 }
@@ -47,8 +48,8 @@ export function createSettingsStore(
     load(raw) {
       set(toSettings(raw))
     },
-    setMusic(music, commit) {
-      set(toSettings({ ...current, music }))
+    setVolume(key, percent, commit) {
+      set(toSettings({ ...current, [key]: percent }))
       if (!commit) return
       if (pending !== null) clearTimeout(pending)
       pending = setTimeout(() => {
@@ -62,35 +63,42 @@ export function createSettingsStore(
   }
 }
 
-// A labelled music slider kept in step with the store: dragging it is
+// A labelled volume slider kept in step with the store: dragging it is
 // heard as it moves, and letting it go saves.
-export function musicSlider(store: SettingsStore): HTMLElement {
+export function volumeSlider(store: SettingsStore, key: Volume): HTMLElement {
   const row = document.createElement('label')
   row.className = 'bv-setting'
   const name = document.createElement('span')
   name.className = 'bv-setting-name'
-  name.textContent = copy('menu.music')
+  name.textContent = key === 'music' ? copy('menu.music') : copy('menu.sfx')
   const input = document.createElement('input')
   input.type = 'range'
   input.className = 'bv-setting-range'
   input.min = '0'
   input.max = String(MUSIC_MAX)
   input.step = String(MUSIC_STEP)
-  input.dataset.bv = 'setting-music'
+  input.dataset.bv = `setting-${key}`
   const level = document.createElement('span')
   level.className = 'bv-setting-level'
-  const show = ({ music }: Settings) => {
-    if (input.value !== String(music)) input.value = String(music)
-    level.textContent = copy('menu.music_level', { percent: String(music) })
+  level.dataset.bv = `setting-${key}-level`
+  const show = (settings: Settings) => {
+    const percent = String(settings[key])
+    if (input.value !== percent) input.value = percent
+    level.textContent = copy('menu.music_level', { percent })
   }
   show(store.current)
   store.subscribe(show)
   input.addEventListener('input', () =>
-    store.setMusic(Number(input.value), false)
+    store.setVolume(key, Number(input.value), false)
   )
   input.addEventListener('change', () =>
-    store.setMusic(Number(input.value), true)
+    store.setVolume(key, Number(input.value), true)
   )
   row.append(name, input, level)
   return row
+}
+
+// Every volume slider, in order.
+export function volumeSliders(store: SettingsStore): HTMLElement[] {
+  return VOLUMES.map((key) => volumeSlider(store, key))
 }

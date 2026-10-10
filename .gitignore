@@ -10,6 +10,8 @@ coverage/
 # Wrangler state and the generated runtime types (npm run types).
 .wrangler/
 worker-configuration.d.ts
+# Sound takes auditioned before they are delivered (?sfx=local).
+public/sfx/
 # Local secrets for the Worker (see .dev.vars.example).
 .dev.vars
 .dev.vars.*
