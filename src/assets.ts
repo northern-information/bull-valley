@@ -367,7 +367,10 @@ export interface Tombstone {
 
 const TOMBSTONE = { width: 0.5, shoulder: 0.62, depth: 0.1 }
 
-let tombstoneParts: {
+// The geometry and materials every tombstone shares: the stone's three
+// pieces and the face's plane, and the mound of earth. gravestones.ts
+// draws the stones and the mounds instanced across every grave.
+export interface TombstoneParts {
   slab: THREE.BufferGeometry
   arch: THREE.BufferGeometry
   plinth: THREE.BufferGeometry
@@ -375,15 +378,13 @@ let tombstoneParts: {
   mound: THREE.BufferGeometry
   stone: THREE.Material
   earth: THREE.Material
-} | null = null
+}
 
-export function buildTombstone(
-  name: string,
-  seed = 0x6a7e,
-  heading?: string
-): Tombstone {
+let tombstoneShared: TombstoneParts | null = null
+
+export function tombstoneParts(): TombstoneParts {
   const { width, shoulder, depth } = TOMBSTONE
-  tombstoneParts ??= (() => {
+  tombstoneShared ??= (() => {
     const slab = new THREE.BoxGeometry(width, shoulder, depth)
     slab.translate(0, shoulder / 2 + 0.08, 0)
     // A half disc standing on the slab, its flat side down.
@@ -424,28 +425,54 @@ export function buildTombstone(
       earth: lambert({ color: '#3b2c1f' }),
     }
   })()
-  const parts = tombstoneParts
+  return tombstoneShared
+}
+
+// How a stone with this seed has settled, a little out of true: the
+// pitch and roll of the stone over its mound.
+export function tombstoneSettle(seed: number): { x: number; z: number } {
+  const rng = mulberry32(seed)
+  return { x: range(rng, -0.05, 0.03), z: range(rng, -0.06, 0.06) }
+}
+
+// The face alone, the name cut in (graveart.ts): the one part of a
+// tombstone that is its own, in the stone's space. dispose() frees it.
+export function buildTombstoneFace(
+  name: string,
+  seed = 0x6a7e,
+  heading?: string
+): { mesh: THREE.Mesh; dispose: () => void } {
+  const texture = artTexture(paintTombstone(name, seed, heading))
+  const material = lambert({ map: texture })
+  const mesh = new THREE.Mesh(tombstoneParts().face, material)
+  return {
+    mesh,
+    dispose: () => {
+      texture.dispose()
+      material.dispose()
+    },
+  }
+}
+
+export function buildTombstone(
+  name: string,
+  seed = 0x6a7e,
+  heading?: string
+): Tombstone {
+  const parts = tombstoneParts()
   const group = new THREE.Group()
   group.name = 'tombstone'
   const stone = new THREE.Group()
   for (const geo of [parts.slab, parts.arch, parts.plinth]) {
     stone.add(new THREE.Mesh(geo, parts.stone))
   }
-  const texture = artTexture(paintTombstone(name, seed, heading))
-  const faceMaterial = lambert({ map: texture })
-  stone.add(new THREE.Mesh(parts.face, faceMaterial))
-  // Settled a little out of true.
-  const rng = mulberry32(seed)
-  stone.rotation.set(range(rng, -0.05, 0.03), 0, range(rng, -0.06, 0.06))
+  const face = buildTombstoneFace(name, seed, heading)
+  stone.add(face.mesh)
+  const settle = tombstoneSettle(seed)
+  stone.rotation.set(settle.x, 0, settle.z)
   group.add(stone)
   group.add(new THREE.Mesh(parts.mound, parts.earth))
-  return {
-    group,
-    dispose: () => {
-      texture.dispose()
-      faceMaterial.dispose()
-    },
-  }
+  return { group, dispose: face.dispose }
 }
 
 // --- Citgo station -------------------------------------------------------
@@ -3710,15 +3737,23 @@ export function buildDimes(
   })
   const geo = new THREE.CylinderGeometry(0.027, 0.027, 0.004, 10)
   const rng = mulberry32(seed)
-  for (let i = 0; i < Math.max(1, Math.min(count, 20)); i++) {
-    const coin = new THREE.Mesh(geo, material)
+  // Every coin in one draw: an instanced mesh, each coin its own matrix.
+  const n = Math.max(1, Math.min(count, 20))
+  const coins = new THREE.InstancedMesh(geo, material, n)
+  coins.name = 'coins'
+  const coin = new THREE.Object3D()
+  for (let i = 0; i < n; i++) {
     // Thicker toward the middle, as a spray lands.
     const r = Math.sqrt(rng()) * 0.45
     const a = rng() * Math.PI * 2
     coin.position.set(Math.cos(a) * r, 0.004 + rng() * 0.01, Math.sin(a) * r)
     coin.rotation.set(range(rng, -0.35, 0.35), 0, range(rng, -0.35, 0.35))
-    group.add(coin)
+    coin.updateMatrix()
+    coins.setMatrixAt(i, coin.matrix)
   }
+  coins.instanceMatrix.needsUpdate = true
+  coins.computeBoundingSphere()
+  group.add(coins)
   if (glow) {
     const halo = makeGlowSprite(
       makeGlowTexture('rgba(214, 226, 238, 0.45)'),
