@@ -59,6 +59,12 @@ const ID_MAX = 64
 
 // The survey is about 5 km across; nothing legitimate is this far out.
 export const MAX_COORD = 20_000
+// No count on the wire is more than this; what a pack holds is checked
+// against the pack, this only keeps the arithmetic sane.
+export const COUNT_MAX = 1_000_000
+// No frame from a client is longer than this: the hello, with every pickup
+// and the water map, is the biggest at a few tens of thousands.
+export const FRAME_MAX = 256_000
 
 // How a figure stands this instant: standing, walking, crouched, or one of
 // the emotes (emotes.ts EMOTES), each named as it is typed. Riders stand
@@ -844,9 +850,14 @@ function isCoord(value: unknown): value is number {
   )
 }
 
-// A non-negative integer: an index or a count.
+// A non-negative integer no bigger than COUNT_MAX: an index or a count.
 function isCount(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 0
+  return (
+    typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= 0 &&
+    value <= COUNT_MAX
+  )
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -950,6 +961,7 @@ export function parsePeerState(value: unknown): PeerStateWire | null {
 // A hello with a bad outfit still parses; the server decides which
 // close code those deserve.
 export function parseClientMessage(text: string): ClientMessage | null {
+  if (text.length > FRAME_MAX) return null
   let value: unknown
   try {
     value = JSON.parse(text)

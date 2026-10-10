@@ -1437,6 +1437,12 @@ export interface Placed {
   at: PeerStateWire | null
 }
 
+// What a raider's grace after a strike is kept under: the account's
+// (rule 24), or the socket's for one the valley does not know.
+function graceKey(valley: Valley, id: string): string {
+  return valley.members[id]?.account ?? id
+}
+
 // The raiders the shadowmen cross round: every placed member.
 export function shadowRaiders(
   valley: Valley,
@@ -1456,7 +1462,7 @@ export function shadowRaiders(
       vulnerable:
         !at.riding &&
         !(truck && isAboard(truck, id)) &&
-        now >= (shadows.recovering[id] ?? 0),
+        now >= (shadows.recovering[graceKey(valley, id)] ?? 0),
       beam: at.light
         ? beamFrom(at, at.yaw, at.pitch, at.pose === 'crouch')
         : null,
@@ -1603,15 +1609,16 @@ export function stepShadows(
       }
     }
   }
-  const recovering: Record<string, number> = {}
-  for (const r of raiders) {
-    const until = shadows.recovering[r.id]
-    if (until !== undefined && until > now) recovering[r.id] = until
-  }
   // Rule 24: a raider struck is let alone for a little while, where they
-  // stand or where they come to.
+  // stand or where they come to; the grace is the account's, like the
+  // health, so a second tab is not struck inside the first's.
+  const recovering: Record<string, number> = {}
+  const here = new Set(raiders.map((r) => graceKey(valley, r.id)))
+  for (const [key, until] of Object.entries(shadows.recovering)) {
+    if (until > now && here.has(key)) recovering[key] = until
+  }
   for (const id of struck) {
-    recovering[id] = now + CONFIG.health.graceSeconds * 1000
+    recovering[graceKey(valley, id)] = now + CONFIG.health.graceSeconds * 1000
   }
   shadows.recovering = recovering
   return {

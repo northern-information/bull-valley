@@ -138,7 +138,12 @@ export async function handleAuth(
 }
 
 function json(body: object, status = 200, cookies: string[] = []): Response {
-  const headers = new Headers({ 'Content-Type': 'application/json' })
+  // Every answer here is one account's, and slides its cookies: never
+  // cached anywhere.
+  const headers = new Headers({
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-store',
+  })
   for (const cookie of cookies) headers.append('Set-Cookie', cookie)
   return new Response(JSON.stringify(body), { status, headers })
 }
@@ -287,6 +292,14 @@ class AuthHandler {
   }
 
   // --- Reading the session -------------------------------------------------
+
+  // The request's JSON body, or null for none or a malformed one.
+  private async body(): Promise<Record<string, unknown> | null> {
+    return (await this.request.json().catch(() => null)) as Record<
+      string,
+      unknown
+    > | null
+  }
 
   private cookie(name: string, value: string, maxAge: number): string {
     return serializeCookie(name, value, { maxAge, secure: this.secure })
@@ -660,10 +673,7 @@ class AuthHandler {
         this.clear(COOKIE.pending),
       ])
     }
-    const body = (await this.request.json().catch(() => null)) as Record<
-      string,
-      unknown
-    > | null
+    const body = await this.body()
     // A wrong word keeps the pending signup, so the raider can try again;
     // the strict rate limit keeps them from guessing at speed.
     if (!isMagicWord(body?.magicWord, magicWord(this.env, this.dev))) {
@@ -681,10 +691,7 @@ class AuthHandler {
   private async setUsername(rename = false): Promise<Response> {
     const claims = await this.access()
     if (!claims) return json({ error: copy('auth.sign_in_first') }, 401)
-    const body = (await this.request.json().catch(() => null)) as Record<
-      string,
-      unknown
-    > | null
+    const body = await this.body()
     const username = body?.username
     if (!isValidUsername(username)) {
       return json({ error: copy('auth.username_rule') }, 400)
@@ -719,10 +726,7 @@ class AuthHandler {
   private async setLook(): Promise<Response> {
     const claims = await this.access()
     if (!claims) return json({ error: copy('auth.sign_in_first') }, 401)
-    const body = (await this.request.json().catch(() => null)) as Record<
-      string,
-      unknown
-    > | null
+    const body = await this.body()
     const outfit = body?.outfit
     const finish = body?.finish
     if (!isSelectable(outfit) || !isFinish(finish)) {
@@ -742,10 +746,7 @@ class AuthHandler {
   private async setHotbar(): Promise<Response> {
     const claims = await this.access()
     if (!claims) return json({ error: copy('auth.sign_in_first') }, 401)
-    const body = (await this.request.json().catch(() => null)) as Record<
-      string,
-      unknown
-    > | null
+    const body = await this.body()
     const hotbar = body?.hotbar
     if (!isHotbar(hotbar)) {
       return json({ error: copy('auth.hotbar_rule') }, 400)
@@ -764,10 +765,7 @@ class AuthHandler {
   private async setSettings(): Promise<Response> {
     const claims = await this.access()
     if (!claims) return json({ error: copy('auth.sign_in_first') }, 401)
-    const body = (await this.request.json().catch(() => null)) as Record<
-      string,
-      unknown
-    > | null
+    const body = await this.body()
     const settings = body?.settings
     if (!isSettings(settings)) {
       return json({ error: copy('auth.settings_rule') }, 400)

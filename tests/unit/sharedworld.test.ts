@@ -1568,7 +1568,7 @@ describe("rule 11: the shadowmen are the valley's", () => {
         .vulnerable
     ).toBe(false)
     expect(vulnerable(state({ riding: true }))).toBe(false)
-    shadows.recovering.b = T0 + 1
+    shadows.recovering['acct-b'] = T0 + 1
     expect(vulnerable(state())).toBe(false)
   })
 
@@ -1636,7 +1636,7 @@ describe("rule 11: the shadowmen are the valley's", () => {
     // The one that struck stays.
     expect(out?.message.shadowmen.map((s) => s.id)).toContain(id)
     const until = T0 + CONFIG.health.graceSeconds * 1000
-    expect(shadows.recovering).toEqual({ b: until })
+    expect(shadows.recovering).toEqual({ 'acct-b': until })
     // Still coming to: not rushed.
     placeShadowman(shadows, 500, 501)
     expect(
@@ -1746,7 +1746,7 @@ describe("rule 11: the shadowmen are the valley's", () => {
     const v = valley()
     const shadows = createShadows()
     placeShadowman(shadows, 3, 4)
-    shadows.recovering.b = T0 + 5
+    shadows.recovering['acct-b'] = T0 + 5
     expect(
       stepShadows(v, shadows, [], mulberry32(1), { now: T0, dt: 0.1 })
     ).toBeNull()
@@ -1837,7 +1837,9 @@ describe('rule 13: the Caretaker keeps the maze', () => {
     expect(out?.caught).toEqual(['b'])
     expect(out?.struck).toEqual(['b'])
     expect(out?.message.caretaker?.lunge).toBe(true)
-    expect(shadows.recovering.b).toBe(T0 + CONFIG.health.graceSeconds * 1000)
+    expect(shadows.recovering['acct-b']).toBe(
+      T0 + CONFIG.health.graceSeconds * 1000
+    )
     // Coming to, they are let be.
     expect(shadows.caretaker.target).toBeNull()
   })

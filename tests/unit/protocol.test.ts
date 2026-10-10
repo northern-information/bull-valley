@@ -3,7 +3,9 @@ import { EMOTE_IDS } from '../../src/emotes.ts'
 import {
   CHAT_MAX,
   CLOSE,
+  COUNT_MAX,
   DISCOVER_MAX,
+  FRAME_MAX,
   isValidChat,
   isValidName,
   MAX_COORD,
@@ -425,6 +427,16 @@ describe('parseClientMessage', () => {
     expect(parse({ type: 'dev', op: 'grant', kind: '', count: 1 })).toBeNull()
     expect(parse({ type: 'call', from: { x: 1 } })).toBeNull()
     expect(parse({ type: 'call', from: { x: MAX_COORD + 1, z: 4 } })).toBeNull()
+    // Too long a frame, too big a count.
+    expect(parseClientMessage(`"${'x'.repeat(FRAME_MAX)}"`)).toBeNull()
+    expect(
+      parse({ type: 'drop', kind: 'joints', count: COUNT_MAX + 1 })
+    ).toBeNull()
+    expect(parse({ type: 'drop', kind: 'joints', count: COUNT_MAX })).toEqual({
+      type: 'drop',
+      kind: 'joints',
+      count: COUNT_MAX,
+    })
     // Gone with the raid.
     expect(parse({ type: 'extract', kind: 'keep' })).toBeNull()
     expect(parse({ type: 'unboard' })).toBeNull()

@@ -111,6 +111,8 @@ interface Attachment {
 // State frames per second one socket may send before the rest are dropped.
 // The client sends at most CONFIG.net.sendHz; three times that is a flood.
 const STATE_LIMIT: RateLimit = { count: 30, ms: 1000 }
+// Where Marx's truck stands, on the state frame's cadence.
+const HEADLIGHTS_LIMIT: RateLimit = STATE_LIMIT
 
 // Chat lines one socket may send in ten seconds; the rest are nacked.
 const CHAT_LIMIT: RateLimit = { count: 5, ms: 10_000 }
@@ -121,10 +123,14 @@ const FRIEND_LIMIT: RateLimit = { count: 5, ms: 10_000 }
 // Changes at Gron one socket may make in ten seconds; each one rebuilds a
 // figure for everyone, so the rest are nacked.
 const APPEARANCE_LIMIT: RateLimit = { count: 5, ms: 10_000 }
+// A trade with Moab: a change to the look, at its pace.
+const TRADE_LIMIT: RateLimit = APPEARANCE_LIMIT
 
 // Drops one socket may make in ten seconds; each sends the whole world to
 // everyone, so the rest are nacked.
 const DROP_LIMIT: RateLimit = { count: 20, ms: 10_000 }
+// Every other write to the pack (the locker, the stand): the same pace.
+const PACK_LIMIT: RateLimit = DROP_LIMIT
 
 // Discover frames one socket may send in ten seconds; each reads and
 // writes D1, so the rest are nacked (the client asks again).
@@ -239,7 +245,7 @@ export class ValleyDO extends DurableObject<Env> {
         return
       case 'headlights':
         // Rule 11: where Marx's truck stands, for its headlights.
-        if (allow(this.headlightsRate, ws, STATE_LIMIT)) {
+        if (allow(this.headlightsRate, ws, HEADLIGHTS_LIMIT)) {
           const { x, y, z, heading } = msg
           seeHeadlights(this.shadows, me.at, { x, y, z, heading }, Date.now())
         }
@@ -463,13 +469,15 @@ export class ValleyDO extends DurableObject<Env> {
 
   // Where the accounts are kept; the Worker tests hand in a memory store.
   protected accounts(): AccountStore {
-    return new D1AccountStore(this.env.DB)
+    return (this.d1Accounts ??= new D1AccountStore(this.env.DB))
   }
+  private d1Accounts: AccountStore | null = null
 
   // Where the packs are kept; the Worker tests hand in a memory store.
   protected packs(): PackStore {
-    return new D1PackStore(this.env.DB)
+    return (this.d1Packs ??= new D1PackStore(this.env.DB))
   }
+  private d1Packs: PackStore | null = null
 
   // The shadowmen's clock; the Worker tests step them by hand instead.
   protected startTicker(step: () => void, ms: number): unknown {
@@ -492,6 +500,18 @@ export class ValleyDO extends DurableObject<Env> {
   // One step of the shadowmen and the Caretaker: the frame to everyone, a
   // strike to each raider touched, saying when it was the Caretaker. Stops the clock when there is no one to step round.
   protected tickShadows(): void {
+    try {
+      this.tickShadowsUnguarded()
+    } catch (err) {
+      // A throw in a timer has no request to fail; say so once a step
+      // rather than every tenth of a second.
+      if (!this.tickFailed) console.error('The shadowmen could not step', err)
+      this.tickFailed = true
+    }
+  }
+  private tickFailed = false
+
+  private tickShadowsUnguarded(): void {
     this.sweep(Date.now())
     const placed = this.roster(null).map(({ id, at }) => ({ id, at }))
     const out = stepShadows(this.valley, this.shadows, placed, this.shadowRng, {
@@ -693,7 +713,7 @@ export class ValleyDO extends DurableObject<Env> {
       send(ws, { type: 'nack', re: action.type, reason })
       await this.repack(ws, null, account ?? undefined)
     }
-    if (!allow(this.dropRate, ws, DROP_LIMIT)) {
+    if (!allow(this.dropRate, ws, PACK_LIMIT)) {
       await refuse('too-fast')
       return
     }
@@ -741,7 +761,7 @@ export class ValleyDO extends DurableObject<Env> {
     const refuse = (reason: string) => {
       send(ws, { type: 'nack', re: action.type, reason })
     }
-    if (!allow(this.dropRate, ws, DROP_LIMIT)) {
+    if (!allow(this.dropRate, ws, PACK_LIMIT)) {
       refuse('too-fast')
       return
     }
@@ -835,6 +855,9 @@ export class ValleyDO extends DurableObject<Env> {
       ws.close(CLOSE.unauthenticated, 'Sign in to raid')
       return
     }
+    // Sockets gone silent are let go here too, since the step that sweeps
+    // them runs only while someone is placed.
+    this.sweep(Date.now())
     // The username the Worker stamped; checked again, since it is shown to
     // everyone.
     const name = normalizeName(attachment.name ?? '')
@@ -1312,7 +1335,7 @@ export class ValleyDO extends DurableObject<Env> {
     const refuse = (reason: string) => {
       send(ws, { type: 'nack', re: 'trade', reason })
     }
-    if (!allow(this.appearanceRate, ws, APPEARANCE_LIMIT)) {
+    if (!allow(this.appearanceRate, ws, TRADE_LIMIT)) {
       refuse('too-fast')
       return
     }
