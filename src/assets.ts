@@ -4314,6 +4314,9 @@ export function buildShadowSpider(height = 5.6, seed = 0x5b1d): ShadowSpider {
     mesh.rotation.set(-0.35, 0, side * 0.25)
     body.add(mesh)
   }
+  // The head, the abdomen, its bristles and the fangs never move against
+  // the body: one draw for the lot. The eyes and the legs stay their own.
+  mergeStatic(body)
 
   // The eyes: two big ones, two beside them, and four small over them, a
   // red that ignores the fog, each with a glow.
