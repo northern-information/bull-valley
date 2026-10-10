@@ -77,9 +77,16 @@ export function lambert(
   return applyPS1(new THREE.MeshLambertMaterial(opts))
 }
 
+// One glow texture a color, shared by every halo that asks for it and
+// never disposed: a pickup, a drop or a spider going frees its own
+// materials and leaves the map.
+const GLOW_TEXTURES = new Map<string, THREE.CanvasTexture>()
+
 export function makeGlowTexture(
   color = 'rgba(251, 191, 36, 0.65)'
 ): THREE.CanvasTexture {
+  const had = GLOW_TEXTURES.get(color)
+  if (had) return had
   const canvas = document.createElement('canvas')
   canvas.width = 64
   canvas.height = 64
@@ -89,7 +96,9 @@ export function makeGlowTexture(
   grad.addColorStop(1, 'rgba(0, 0, 0, 0)')
   ctx.fillStyle = grad
   ctx.fillRect(0, 0, 64, 64)
-  return new THREE.CanvasTexture(canvas)
+  const texture = new THREE.CanvasTexture(canvas)
+  GLOW_TEXTURES.set(color, texture)
+  return texture
 }
 
 export function makeGlowSprite(
@@ -1341,11 +1350,37 @@ const PACK = {
 }
 
 // A painted canvas as a texture, in sRGB like the CSS colors it was drawn in.
+// One texture a canvas: art painted once (the trade dress below, shared
+// by every pack, drink and medicine of its kind) is uploaded once, and
+// every instance's material reads the same map.
+const ART_TEXTURES = new WeakMap<HTMLCanvasElement, THREE.CanvasTexture>()
 export function artTexture({ c }: CanvasArt): THREE.CanvasTexture {
+  const had = ART_TEXTURES.get(c)
+  if (had) return had
   const texture = new THREE.CanvasTexture(c)
   texture.colorSpace = THREE.SRGBColorSpace
+  ART_TEXTURES.set(c, texture)
   return texture
 }
+
+// The trade dress, painted once a kind and kept: every instance of a
+// pack, a drink, a medicine or the $20 bill shares its canvases (and, by
+// artTexture, its textures), so nothing that goes may dispose its maps.
+function memo<T>(paint: (id: string) => T): (id: string) => T {
+  const had = new Map<string, T>()
+  return (id) => {
+    let art = had.get(id)
+    if (art === undefined) {
+      art = paint(id)
+      had.set(id, art)
+    }
+    return art
+  }
+}
+const packArt = memo(paintPack)
+const drinkArt = memo(paintDrink)
+const medicineArt = memo(paintMedicine)
+const twentyArt = memo(() => paintTwenty())
 
 // Art that glows through its own emissiveMap, so it reads in the dark; the
 // pickup pulse drives emissiveIntensity.
@@ -1398,7 +1433,7 @@ function buildCigarettePack(
   seed = 0x5ac,
   { glow = true }: PickupOptions = {}
 ): THREE.Group {
-  const art = paintPack(brandId)
+  const art = packArt(brandId)
   const { width: W, depth: D, bodyHeight: BH, lidHeight: LH } = PACK
   const pack = new THREE.Group()
   pack.name = `pack-${brandId}`
@@ -3709,7 +3744,7 @@ export function buildTwenty(
   const rng = mulberry32(seed)
   const group = new THREE.Group()
   group.name = 'twenty'
-  const texture = artTexture(paintTwenty())
+  const texture = artTexture(twentyArt('twenty'))
   const face = lambert({
     map: texture,
     emissive: new THREE.Color('#ffffff'),
@@ -5583,7 +5618,7 @@ function buildDrink(
 ): THREE.Group {
   const drink = isDrink(drinkId) ? itemById(drinkId) : null
   if (!drink?.container) throw new Error(`Unknown drink "${drinkId}"`)
-  const art = paintDrink(drinkId)
+  const art = drinkArt(drinkId)
   const size = CONTAINERS[drink.container]
   const group = new THREE.Group()
   group.name = `drink-${drinkId}`
@@ -5733,7 +5768,7 @@ function buildMedicine(
 ): THREE.Group {
   const medicine = isMedicine(medicineId) ? itemById(medicineId) : null
   if (!medicine?.form) throw new Error(`Unknown medicine "${medicineId}"`)
-  const art = paintMedicine(medicineId)
+  const art = medicineArt(medicineId)
   const group = new THREE.Group()
   group.name = `med-${medicineId}`
   const pulse: THREE.MeshLambertMaterial[] = []

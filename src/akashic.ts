@@ -323,13 +323,6 @@ function hasGeometry(
   return 'geometry' in o
 }
 
-// Material declares no map; the Mesh*Material and SpriteMaterial types do.
-function hasMap(
-  m: THREE.Material
-): m is THREE.Material & { map: THREE.Texture | null } {
-  return 'map' in m
-}
-
 // A mesh may carry one material or an array (one per geometry group).
 function materialsOf(o: THREE.Object3D): THREE.Material[] {
   if (!hasMaterial(o) || !o.material) return []
@@ -362,13 +355,13 @@ interface Current {
 
 let current: Current | null = null
 
+// The asset's geometries and materials go; its maps stay, since the art
+// and the glow textures are shared across assets (assets.ts artTexture,
+// makeGlowTexture) and the next one may read them.
 function dispose(object: THREE.Object3D): void {
   object.traverse((o) => {
     if (hasGeometry(o)) o.geometry?.dispose()
-    for (const m of materialsOf(o)) {
-      if (hasMap(m)) m.map?.dispose()
-      m.dispose()
-    }
+    for (const m of materialsOf(o)) m.dispose()
   })
 }
 

@@ -489,6 +489,8 @@ function sightOf(s: XZ, player: XZ): number {
 }
 
 // A spider's body is its own: every geometry and material goes with it.
+// Its eyes' and aura's glow are textures every spider shares (assets.ts
+// makeGlowTexture), so those stay.
 function disposeTree(root: THREE.Object3D): void {
   root.traverse((o) => {
     if (o instanceof THREE.Mesh || o instanceof THREE.Sprite) {
@@ -497,7 +499,6 @@ function disposeTree(root: THREE.Object3D): void {
       for (const m of [
         o.material as THREE.Material | THREE.Material[],
       ].flat()) {
-        if ('map' in m && m.map instanceof THREE.Texture) m.map.dispose()
         m.dispose()
       }
     }
