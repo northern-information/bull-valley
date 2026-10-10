@@ -47,9 +47,9 @@ export default defineConfig([
     files: ['worker/**/*.ts', 'tests/worker/**/*.ts'],
     languageOptions: { globals: globals.serviceworker },
   },
-  // The config files and the geo fetch script stay plain JS.
+  // The config files and scripts/copy-ai.mjs stay plain JS.
   {
-    files: ['**/*.{js,cjs}'],
+    files: ['**/*.{js,cjs,mjs}'],
     extends: [js.configs.recommended],
     languageOptions: {
       ecmaVersion: 2022,
