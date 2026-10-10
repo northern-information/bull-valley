@@ -157,6 +157,8 @@ const MAZE = { x: 5000, z: 5000, yaw: 0 }
 // Where a build sets up the Cabbage Stand: on the first station's lot.
 const STAND = { x: -4, z: -17 }
 const DEALER = { x: -20, z: -55 }
+// Where the Undercroft lies, far from everything else.
+const CROFT = { x: -7000, z: -7000, yaw: 0 }
 
 // What a build placed: two joints first, then `n - 1` cabbages.
 const placed = (n: number) => [
@@ -183,6 +185,7 @@ const hello = (
     truck: { home: { x: 10, z: 10 }, joyrideMs: 600_000 },
     stand: STAND,
     dealer: DEALER,
+    undercroft: CROFT,
   })
 
 // The last pack frame a socket was sent.

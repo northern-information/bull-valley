@@ -462,6 +462,48 @@ export const CONFIG = {
     // He blocks like a post this wide.
     radius: 0.35,
   },
+  // The tunnel shades in the Undercroft (tunnelshades.ts): each kind's
+  // drift round its lair and its hunt (m/s; the walk is 4.2), how far it
+  // sees and feels, its touch, the seconds a beam must hold it, and the
+  // seconds before it forms again. The Warden keeps the deep chamber.
+  tunnel: {
+    shade: {
+      patrolSpeed: 1.1,
+      huntSpeed: 3.4,
+      sightRange: 14,
+      senseRadius: 2.5,
+      touchRadius: 0.9,
+      burnSeconds: 0.9,
+      respawnSeconds: 90,
+      patrolRadius: 8,
+      chestHeight: 1.2,
+    },
+    warden: {
+      patrolSpeed: 0.5,
+      huntSpeed: 3.0,
+      sightRange: 18,
+      senseRadius: 3,
+      touchRadius: 1.4,
+      burnSeconds: 4,
+      respawnSeconds: 300,
+      patrolRadius: 2.5,
+      chestHeight: 1.8,
+    },
+    forgetSeconds: 4,
+    rethinkSeconds: 0.75,
+    clearance: 0.5,
+  },
+  undercroft: {
+    // Where the Undercroft lies (undercroft.ts): this many metres in from
+    // the survey square's low corner, well past the valley's edge, and
+    // this high over the highest ground under it, so nothing on the
+    // surface ever stands in it.
+    inset: 60,
+    lift: 60,
+    // How near the trapdoor in the Video Vault's office, or the ladder's
+    // foot below, E climbs.
+    climbReach: 1.6,
+  },
   quests: {
     // How near the heart of the corn maze a raider's last state frame
     // must put them for the valley to take the rose laid there (quests.ts),

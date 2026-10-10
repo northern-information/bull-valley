@@ -90,6 +90,10 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // The heart of the maze with Erwin's rose in the pack: E lays it
   // (quests.ts).
   | { kind: 'lay' }
+  // The trapdoor in the Video Vault's office: E climbs down into the
+  // Undercroft (undercroft.ts); the ladder's foot below: E climbs up.
+  | { kind: 'descend' }
+  | { kind: 'ascend' }
 
 // A locker bank as the resolver sees it: where E opens it, and its
 // station.
@@ -131,6 +135,10 @@ export interface InteractionInput<P extends PickupSpot> {
   // The heart of the maze, while this raider has a rose to lay there, or
   // null.
   heart?: XZ | null
+  // The trapdoor down to the Undercroft, and the ladder's foot up out of
+  // it, or null.
+  trapdoor?: XZ | null
+  ladder?: XZ | null
 }
 
 // The first match wins, in this order: hop out while riding; speak to the
@@ -209,6 +217,13 @@ export function resolveInteraction<P extends PickupSpot>(
   ) {
     return { kind: 'deal' }
   }
+
+  const reach = (spot: XZ | null | undefined) =>
+    spot != null &&
+    Math.hypot(spot.x - player.x, spot.z - player.z) <
+      CONFIG.undercroft.climbReach
+  if (reach(input.ladder)) return { kind: 'ascend' }
+  if (reach(input.trapdoor)) return { kind: 'descend' }
 
   const heart = input.heart
   if (
@@ -355,6 +370,10 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return copy('prompts.locked')
     case 'lay':
       return copy('prompts.lay')
+    case 'descend':
+      return copy('prompts.descend')
+    case 'ascend':
+      return copy('prompts.ascend')
     // Moab's offer is said, since the glow alone cannot say what he wants.
     case 'trade': {
       const cosmetic = cosmeticById(interaction.offer)

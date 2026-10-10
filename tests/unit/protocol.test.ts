@@ -45,6 +45,7 @@ const hello = {
   truck: { home: { x: 10, z: -20 }, joyrideMs: 600_000 },
   stand: { x: 6, z: -24 },
   dealer: { x: -10, z: -60 },
+  undercroft: { x: -7000, z: -7000, yaw: 0 },
 }
 
 const parse = (value: unknown) => parseClientMessage(JSON.stringify(value))
@@ -200,6 +201,7 @@ describe('parseClientMessage', () => {
       truck: _truck,
       stand: _stand,
       dealer: _dealer,
+      undercroft: _undercroft,
       ...older
     } = hello
     expect(parse({ ...older, v: PROTOCOL_VERSION - 1 })).toEqual({
@@ -212,6 +214,7 @@ describe('parseClientMessage', () => {
       truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
       stand: null,
       dealer: null,
+      undercroft: null,
     })
     // Bad ones read as missing in an older build, too.
     expect(
@@ -224,6 +227,7 @@ describe('parseClientMessage', () => {
         truck: 'chevy',
         stand: 'cabbages',
         dealer: 'wick',
+        undercroft: 'cellar',
       })
     ).toEqual({
       ...older,
@@ -236,6 +240,7 @@ describe('parseClientMessage', () => {
       truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
       stand: null,
       dealer: null,
+      undercroft: null,
     })
     // The current version still requires both.
     expect(parse({ ...older, v: PROTOCOL_VERSION })).toBeNull()

@@ -450,7 +450,12 @@ export class ValleyDO extends DurableObject<Env> {
     if (out.credited.length > 0) void this.credit(out.credited)
     if (out.burned.length > 0) void this.creditBurns(out.burned)
     if (out.xp.length > 0) void this.award(out.xp)
-    const { bursts, unmade } = out.message
+    // The tunnel shades burst into dimes too, and leave their stones.
+    const { unmade, tunnelBursts } = out.message
+    const bursts = [
+      ...out.message.bursts,
+      ...tunnelBursts.map(({ x, z }) => ({ x, z })),
+    ]
     if (bursts.length || unmade) void this.spill(bursts, unmade)
     if (out.struck.length === 0) return
     // Rule 18: each account struck leaves what its pack held on a body, once
@@ -464,7 +469,9 @@ export class ValleyDO extends DurableObject<Env> {
           socket,
           out.caught.includes(me.id)
             ? { type: 'struck', by: 'caretaker' }
-            : { type: 'struck' }
+            : out.tunneled.includes(me.id)
+              ? { type: 'struck', by: 'tunnel' }
+              : { type: 'struck' }
         )
       } catch {
         // Closing sockets throw; their close handler follows.
@@ -748,6 +755,7 @@ export class ValleyDO extends DurableObject<Env> {
         routes: hello.truck,
         stand: hello.stand,
         dealer: hello.dealer,
+        undercroft: hello.undercroft,
       },
       { now: Date.now(), present: this.presentIds(ws) }
     )

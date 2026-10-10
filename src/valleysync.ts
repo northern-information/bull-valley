@@ -157,6 +157,7 @@ export function wireValley(game: Game, actions: Actions): void {
       case 'shadowmen':
         game.shadowmen.receive(msg, now)
         game.caretaker.receive(msg, now)
+        game.tunnel.receive(msg, now)
         return
       case 'struck':
         actions.strike(msg.by ?? 'shadowman')

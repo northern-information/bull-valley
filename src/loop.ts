@@ -28,6 +28,7 @@ import { poseOf, stateChanged } from './presence.ts'
 import { aimHeightOf, beamFrom, headlightBeam } from './shadowmen.ts'
 import { formatCash } from './store.ts'
 import { tripLevel } from './trip.ts'
+import { burstHeight, burstScale } from './tunnelrig.ts'
 import { boardable, clockText, countdown, seatOf } from './worldsync.ts'
 import type { Actions } from './actions.ts'
 import type { Game } from './game.ts'
@@ -252,11 +253,14 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
             : null,
           lights: [headlightBeam(truck.headlights())],
         }
+    // Down in the Undercroft only the tunnel shades walk (rule 11).
+    const croft = world.undercroft
+    const below = croft ? croft.inside(player.pos.x, player.pos.z) : false
     const swarm = shadowmen.update({
       dt,
       player: player.pos,
       perception,
-      alone,
+      alone: below ? null : alone,
       renderAt,
       myId: net.id,
     })
@@ -277,7 +281,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       dt,
       time,
       player: player.pos,
-      alone,
+      alone: below ? null : alone,
       renderAt,
       myId: net.id,
     })
@@ -286,6 +290,25 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       const y = world.ground.at(at.x, at.z) + CONFIG.caretaker.chestHeight
       bursts.spawn(at.x, y, at.z)
     }
+    // And the tunnel shades in the Undercroft, the Warden among them.
+    const tunnel = game.tunnel.update({
+      dt,
+      time,
+      player: player.pos,
+      alone,
+      renderAt,
+      myId: net.id,
+    })
+    if (tunnel.struck) actions.strike('tunnel')
+    for (const at of tunnel.bursts) {
+      const y = world.ground.at(at.x, at.z) + burstHeight(at.kind)
+      bursts.spawn(at.x, y, at.z, burstScale(at.kind))
+    }
+    // Played alone each leaves its dimes and its stone, as a shadowman's.
+    actions.spillBursts(
+      tunnel.bursts.map(({ x, z }) => ({ id: -1, kind: 'man' as const, x, z }))
+    )
+    croft?.update(time)
     bursts.update(dt)
     mist.update({ dt, player: player.pos })
     // Gron's rain falls on its own clock, Moab's fire burns on it too, the
@@ -386,6 +409,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     scope.draw(dt, {
       contacts: [
         ...swarm.contacts,
+        ...tunnel.contacts,
         ...(keeper.contact ? [keeper.contact] : []),
         ...peers.contacts(player.pos, CONFIG.scope.rangeMetres, renderAt),
       ],
@@ -404,6 +428,11 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         ...(keeper.contact && keeper.contact.dist <= range
           ? ['caretaker']
           : []),
+        ...game.tunnel.shown
+          .filter(
+            (t) => Math.hypot(t.x - player.pos.x, t.z - player.pos.z) <= range
+          )
+          .map((t) => (t.kind === 'warden' ? 'warden' : 'tunnel-shade')),
         ...itemsHeld(s.inventory),
       ])
     }
@@ -445,6 +474,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       lockers: targets.lockerSpots(inStore),
       stand: world.stand?.at ?? null,
       dealer: world.plaza?.dealer.at ?? null,
+      trapdoor: world.undercroft?.hatch ?? null,
+      ladder: world.undercroft?.foot ?? null,
       heart:
         world.portal &&
         s.quests?.rose === 'given' &&

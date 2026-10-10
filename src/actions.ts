@@ -117,7 +117,7 @@ export interface Actions {
   leaveBed(line?: string): void
   // A shadowman touched you: everything the pack held stays on your body
   // where you fell (sharedworld.ts rule 18).
-  strike(by?: 'shadowman' | 'caretaker'): void
+  strike(by?: 'shadowman' | 'caretaker' | 'tunnel'): void
   // Played alone, the bodies this raider left, drawn and offered to E.
   showAloneCorpses(): void
   // F at the locker: one of an item (the open container, or one of
@@ -372,7 +372,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // the Caretaker's. Everything the pack held stays on your body where you
   // fell (rule 18): in the valley the valley lays it and its pack frame has
   // the last word, so the pack shows empty at once; alone it lies at once.
-  const strike = (by: 'shadowman' | 'caretaker' = 'shadowman') => {
+  const strike = (by: 'shadowman' | 'caretaker' | 'tunnel' = 'shadowman') => {
     if (s.aboard) return
     s.strikes += 1
     s.emoting = null
@@ -402,7 +402,15 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       refreshBag()
     }
     player.relocate(world.spawn.x, world.spawn.z, world.spawn.yaw)
-    hud.tell(copy(by === 'caretaker' ? 'log.caught' : 'log.struck'))
+    hud.tell(
+      copy(
+        by === 'caretaker'
+          ? 'log.caught'
+          : by === 'tunnel'
+            ? 'log.tunneled'
+            : 'log.struck'
+      )
+    )
     if (!isEmpty(items)) hud.tell(copy('log.fell'))
   }
 
@@ -544,9 +552,14 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   const stowKind = (kind: string, all: boolean) => restash(kind, all, true)
   const unstowKind = (kind: string, all: boolean) => restash(kind, all, false)
 
-  // T: Marx comes to us, if he is free, and drives us home.
+  // T: Marx comes to us, if he is free, and drives us home. No whistle
+  // carries up out of the Undercroft.
   const callTruck = () => {
     if (s.aboard) return
+    if (world.undercroft?.inside(player.pos.x, player.pos.z)) {
+      hud.tell(copy('log.whistle_below'))
+      return
+    }
     const now = Date.now()
     const current = s.world?.truck ?? s.aloneTruck
     const id = me() ?? ''
@@ -944,6 +957,19 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       case 'lay':
         layRose()
         return
+      case 'descend':
+      case 'ascend': {
+        // Down the ladder into the Undercroft, or up it into the office.
+        const croft = world.undercroft
+        if (!croft) return
+        const to =
+          interaction.kind === 'descend' ? croft.ladder : croft.trapdoor
+        player.relocate(to.x, to.z, to.yaw)
+        hud.tell(
+          copy(interaction.kind === 'descend' ? 'log.descend' : 'log.ascend')
+        )
+        return
+      }
       case 'locked':
         hud.tell(copy('log.locked'))
         return

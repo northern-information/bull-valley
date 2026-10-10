@@ -1341,7 +1341,7 @@ export interface MallLoot extends XZ {
 const LOOT: readonly MallLoot[] = [
   // The back room.
   { kind: 'twenty', count: 1, x: IN_BACK + 1.0, z: unitZ(0) + 1.35 },
-  { kind: 'wild-turkey', count: 1, x: IN_BACK + 2.2, z: unitZ(0) + 3.9 },
+  { kind: 'wild-turkey', count: 1, x: -11.0, z: unitZ(0) + 1.0 },
   // The Video Vault, by the counter.
   { kind: 'camel', count: 20, x: -2.0, z: unitZ(0) + 3.2 },
   // Suds 'n' Duds: in front of the dryers, and under the soda machine.
@@ -1402,6 +1402,9 @@ export const STRIP_MALL = {
   signs: buildSigns(),
   ways: ways(),
   lock: lockedDoor(),
+  // The trapdoor in the office floor, down to the Undercroft
+  // (undercroft.ts): its hole's middle.
+  trapdoor: { x: -11.6, z: unitZ(0) + 3.3 },
   loot: LOOT,
   dealer: DEALER,
   // The asphalt round the building, mall-local: [x0, x1] by [z0, z1]. The

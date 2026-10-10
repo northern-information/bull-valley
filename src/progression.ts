@@ -26,6 +26,7 @@ export type XpSource =
   | 'drop'
   | 'stand'
   | 'quest'
+  | 'warden'
 
 // The XP each grants: every grant in one table.
 export const XP: Readonly<Record<XpSource, number>> = {
@@ -55,6 +56,8 @@ export const XP: Readonly<Record<XpSource, number>> = {
   // A quest finished (quests.ts): the rose laid and the key given. Once
   // an account, so it stays well under the Caretaker.
   quest: 25,
+  // The Warden burst in the Undercroft, in the raider's beam.
+  warden: 25,
 }
 
 // XP earned by an account.

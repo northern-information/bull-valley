@@ -64,6 +64,12 @@ const NAMED: readonly BookEntry[] = [
     lore: copy('book.strip-mall.lore'),
   },
   {
+    id: 'undercroft',
+    chapter: 'places',
+    name: copy('book.undercroft.name'),
+    lore: copy('book.undercroft.lore'),
+  },
+  {
     id: 'donut-field',
     chapter: 'places',
     name: copy('book.donut-field.name'),
@@ -99,6 +105,19 @@ const NAMED: readonly BookEntry[] = [
     name: copy('book.caretaker.name'),
     lore: copy('book.caretaker.lore'),
   },
+  {
+    id: 'tunnel-shade',
+    chapter: 'shadows',
+    name: copy('book.tunnel-shade.name'),
+    lore: copy('book.tunnel-shade.lore'),
+  },
+  {
+    id: 'warden',
+    chapter: 'shadows',
+    name: copy('book.warden.name'),
+    lore: copy('book.warden.lore'),
+  },
+
   {
     id: 'marx',
     chapter: 'folk',

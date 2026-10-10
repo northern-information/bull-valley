@@ -39,6 +39,7 @@ import { openAccount, showTitles, signOutAndReload } from './titles.ts'
 import { createTrails } from './trails.ts'
 import { Truck } from './truck.ts'
 import { joyrideMs } from './truckplan.ts'
+import { TunnelShades } from './tunnelrig.ts'
 import { wireValley } from './valleysync.ts'
 import { waterMapOf } from './waterside.ts'
 import { buildWorld } from './world.ts'
@@ -291,6 +292,11 @@ async function boot() {
       groundAt: world.ground.at,
       place: world.mazePlace,
     }),
+    tunnel: new TunnelShades({
+      scene,
+      groundAt: world.ground.at,
+      place: world.undercroft?.place ?? null,
+    }),
     bursts: new ShadowBursts(scene),
     // Ground mist drifts around the player.
     mist: new MistCards({
@@ -330,6 +336,7 @@ async function boot() {
     truck: truckRoutes,
     stand: world.stand ? world.stand.at : null,
     dealer: world.plaza ? world.plaza.dealer.at : null,
+    undercroft: world.undercroft?.place ?? null,
   })
   wireKeys(game, actions, engagePointer)
 

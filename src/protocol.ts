@@ -19,11 +19,12 @@ import type { OutfitId } from './outfits.ts'
 import type { QuestId, QuestStage, QuestStep } from './quests.ts'
 import type { Burst, ShadeKind, TruckPose } from './shadowmen.ts'
 import type { StandLedger } from './stand.ts'
+import type { TunnelKind } from './tunnelshades.ts'
 import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 28
+export const PROTOCOL_VERSION = 29
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -213,6 +214,9 @@ export interface HelloMessage {
   // Where the squatter in Bull Valley Plaza sits, or null: the valley
   // deals only with a raider beside him (rule 24).
   dealer: XZ | null
+  // Where the Undercroft lies (undercroft.ts), or null: the valley steps
+  // its tunnel shades in it (rule 11).
+  undercroft: MazePlace | null
 }
 
 export interface BoardMessage {
@@ -683,6 +687,23 @@ export interface CaretakerWire {
   target: string | null
 }
 
+// A tunnel shade in the Undercroft (tunnelshades.ts), or its Warden, as
+// the valley sends it: its id, never reused, where it walks, how near a
+// beam has it to bursting (0 to 1), and the raider it hunts.
+export interface TunnelShadeWire {
+  id: number
+  kind: TunnelKind
+  x: number
+  z: number
+  burn: number
+  target: string | null
+}
+
+// One that burst this step.
+export interface TunnelBurstWire extends XZ {
+  kind: TunnelKind
+}
+
 // Every step of the valley's shadowmen (CONFIG.shadowmen.tickHz a second),
 // to everyone: all of them, and the ones that burst this step; the
 // Caretaker, null while it is unmade, and where it was unmade this step.
@@ -692,12 +713,15 @@ export interface ShadowmenMessage {
   bursts: Burst[]
   caretaker: CaretakerWire | null
   unmade: XZ | null
+  // The Undercroft's tunnel shades, and the ones that burst this step.
+  tunnel: TunnelShadeWire[]
+  tunnelBursts: TunnelBurstWire[]
 }
 
-// A shadowman, or the Caretaker, touched this raider.
+// A shadowman, the Caretaker, or a tunnel shade touched this raider.
 export interface StruckMessage {
   type: 'struck'
-  by?: 'caretaker'
+  by?: 'caretaker' | 'tunnel'
 }
 
 export interface PongMessage {
@@ -960,6 +984,8 @@ export function parseClientMessage(text: string): ClientMessage | null {
       const truck = parseRoutes(value.truck)
       const stand = value.stand === null ? null : parseXZ(value.stand)
       const dealer = value.dealer === null ? null : parseXZ(value.dealer)
+      const undercroft =
+        value.undercroft === null ? null : parseMazePlace(value.undercroft)
       // An older build sends none of them; it still parses as far as its
       // version, which the server then refuses.
       if (
@@ -970,7 +996,8 @@ export function parseClientMessage(text: string): ClientMessage | null {
           maze === undefined ||
           !truck ||
           (stand === null && value.stand !== null) ||
-          (dealer === null && value.dealer !== null))
+          (dealer === null && value.dealer !== null) ||
+          undercroft === undefined)
       ) {
         return null
       }
@@ -991,6 +1018,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
         truck: truck ?? { home: { x: 0, z: 0 }, joyrideMs: 0 },
         stand,
         dealer,
+        undercroft: undercroft ?? null,
       }
     }
     case 'board':

@@ -53,7 +53,12 @@
 //    twice as long to burn, and each leaves a $20 bill, cash the same way.
 //    Marx's headlights burn them too, crediting no one: the valley never
 //    knows the roads, so it aims them from where a raider near the truck
-//    last said it stood (seeHeadlights), and only while that is fresh. The valley steps the field (stepShadows) and keeps it in
+//    last said it stood (seeHeadlights), and only while that is fresh.
+//    Under Bull Valley Plaza, in the Undercroft the world was opened with
+//    (undercroft.ts), the tunnel shades walk instead (tunnelshades.ts): a
+//    raider down there is out of the shadowmen's field and the Caretaker's
+//    reach, and the shades hunt them, strike them the same way, and burst
+//    in one beam into dimes, the Warden among them. The valley steps the field (stepShadows) and keeps it in
 //    memory only: the shadowmen are gone whenever no one is placed in the
 //    valley.
 // 12. A raider out of the bed can drop what their pack holds (the valley
@@ -204,6 +209,12 @@ import {
 } from './stand.ts'
 import { atLocker } from './stash.ts'
 import { freshStock, onShelf, takeUnit } from './store.ts'
+import {
+  createTunnelShades,
+  stepTunnelShades,
+  tunnelShadesAt,
+} from './tunnelshades.ts'
+import { inUndercroft } from './undercroft.ts'
 import type { Caretaker } from './caretaker.ts'
 import type { Corpse } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -239,6 +250,7 @@ import type {
   TruckPose,
 } from './shadowmen.ts'
 import type { StandLedger } from './stand.ts'
+import type { TunnelBurst, TunnelShade } from './tunnelshades.ts'
 import type { WaterMap } from './waterside.ts'
 
 // A raider online: one socket.
@@ -282,6 +294,8 @@ export interface SharedWorld {
   // 24).
   dealer: XZ | null
   dealerStock: DealerStock
+  // Where the Undercroft lies, or null (rule 11: the tunnel shades).
+  undercroft: MazePlace | null
 }
 
 // Everything the server persists.
@@ -329,6 +343,7 @@ export type ValleyAction =
       routes: TruckRoutes
       stand: XZ | null
       dealer: XZ | null
+      undercroft: MazePlace | null
     }
   // at: where their last state frame put them, or null.
   | { type: 'leave'; id: string; at: PeerStateWire | null }
@@ -718,6 +733,7 @@ function act(
           stand: action.stand,
           dealer: action.dealer,
           dealerStock: freshDealerStock(),
+          undercroft: action.undercroft,
         }
       } else if (
         !samePickups(world.pickups, action.pickups) ||
@@ -1385,6 +1401,7 @@ function act(
 export interface Shadows {
   field: ShadowmenField
   caretaker: Caretaker
+  tunnel: TunnelShade[]
   recovering: Record<string, number>
   headlights: { pose: TruckPose; at: number } | null
 }
@@ -1393,6 +1410,7 @@ export function createShadows(): Shadows {
   return {
     field: createShadowmen(),
     caretaker: createCaretaker(),
+    tunnel: createTunnelShades(),
     recovering: {},
     headlights: null,
   }
@@ -1462,6 +1480,10 @@ export function headlightsAt(
   return [headlightBeam(seen.pose, cfg)]
 }
 
+// How far past the Undercroft's walls a raider still counts as down there,
+// so one climbing the ladder never meets a shadowman on the way.
+const CROFT_MARGIN = 4
+
 // Where the wire rounds a shadowman: centimetres, and hundredths of a burn.
 const round = (n: number, places: number) =>
   Math.round(n * 10 ** places) / 10 ** places
@@ -1482,6 +1504,8 @@ export function stepShadows(
   message: ShadowmenMessage
   struck: string[]
   caught: string[]
+  // Struck by a tunnel shade.
+  tunneled: string[]
   // Rule 15: the accounts credited with unmaking the Caretaker this step.
   credited: string[]
   // Rule 16: the accounts credited with a burn this step, once for each
@@ -1496,12 +1520,17 @@ export function stepShadows(
     Object.assign(shadows, createShadows())
     return null
   }
+  // Rule 11: a raider in the Undercroft is the tunnel shades' alone.
+  const croft = world.undercroft
+  const surface = croft
+    ? raiders.filter((r) => !inUndercroft(croft, r, CROFT_MARGIN))
+    : raiders
   const { struck, bursts } = stepShadowmen(
     shadows.field,
     rng,
     {
       dt,
-      raiders,
+      raiders: surface,
       metres: world.metres,
       havens: world.havens,
       water: world.water,
@@ -1518,7 +1547,7 @@ export function stepShadows(
   if (world.maze) {
     const out = stepCaretaker(shadows.caretaker, rng, {
       dt,
-      raiders,
+      raiders: surface,
       place: world.maze,
     })
     caught.push(...out.struck)
@@ -1539,6 +1568,22 @@ export function stepShadows(
         ),
         target: shadows.caretaker.target,
       }
+    }
+  }
+  // The tunnel shades, in the Undercroft.
+  const tunneled: string[] = []
+  let tunnelBursts: TunnelBurst[] = []
+  if (croft) {
+    const out = stepTunnelShades(shadows.tunnel, rng, {
+      dt,
+      raiders,
+      place: croft,
+      calm,
+    })
+    tunnelBursts = out.bursts
+    for (const id of out.struck) {
+      tunneled.push(id)
+      if (!struck.includes(id)) struck.push(id)
     }
   }
   const recovering: Record<string, number> = {}
@@ -1568,14 +1613,39 @@ export function stepShadows(
       })),
       caretaker,
       unmade,
+      tunnel: croft
+        ? tunnelShadesAt(shadows.tunnel, croft).map((s) => ({
+            id: s.id,
+            kind: s.kind,
+            x: round(s.world.x, 2),
+            z: round(s.world.z, 2),
+            burn: round(
+              Math.min(1, s.burn / CONFIG.tunnel[s.kind].burnSeconds),
+              2
+            ),
+            target: s.target,
+          }))
+        : [],
+      tunnelBursts: tunnelBursts.map((b) => ({
+        kind: b.kind,
+        x: round(b.x, 2),
+        z: round(b.z, 2),
+      })),
     },
     struck,
     caught,
+    tunneled,
     credited,
-    burned: bursts.flatMap((b) => creditedWith(valley, b.by)),
+    // Rule 16: a tunnel shade burnt is a shadow burnt.
+    burned: [...bursts, ...tunnelBursts].flatMap((b) =>
+      creditedWith(valley, b.by)
+    ),
     xp: [
       ...bursts.flatMap((b) =>
         grantsTo(valley, b.by, b.kind === 'spider' ? 'spider' : 'burn')
+      ),
+      ...tunnelBursts.flatMap((b) =>
+        grantsTo(valley, b.by, b.kind === 'warden' ? 'warden' : 'burn')
       ),
       ...credited.map((account) => ({ account, source: 'unmake' as const })),
     ],

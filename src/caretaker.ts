@@ -222,9 +222,10 @@ export function createCaretaker(map: MazeMap = theMaze()): Caretaker {
   }
 }
 
-// Down its route `distance` metres, cutting each corner it can clear.
-function advance(
-  ct: Caretaker,
+// Down its route `distance` metres, cutting each corner it can clear: the
+// Caretaker, or a tunnel shade in the Undercroft (tunnelshades.ts).
+export function advance(
+  ct: { x: number; z: number; route: XZ[] },
   distance: number,
   map: MazeMap,
   clearance: number

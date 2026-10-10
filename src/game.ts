@@ -57,6 +57,7 @@ import type { Titles } from './titles.ts'
 import type { Trails } from './trails.ts'
 import type { Truck } from './truck.ts'
 import type { TruckContext, TruckPlan } from './truckplan.ts'
+import type { TunnelShades } from './tunnelrig.ts'
 import type { FuelPoint, Pickup, World } from './world.ts'
 import type * as THREE from 'three'
 
@@ -321,6 +322,8 @@ export interface Game {
   shadowmen: ShadowCards
   // The Caretaker in the corn maze.
   caretaker: CaretakerShade
+  // The tunnel shades in the Undercroft.
+  tunnel: TunnelShades
   // Shadowmen bursting in the beam.
   bursts: ShadowBursts
   mist: MistCards

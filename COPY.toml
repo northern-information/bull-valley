@@ -185,6 +185,10 @@ lore = { text = "A green BMW nosed into a tree across from the maze. Still smoul
 name = { text = "Bull Valley Plaza", by = "ai" }
 lore = { text = "Four shops in a row past the Citgo's lot, dark since before anyone can say. The tapes are still on the floor of the Video Vault, and someone keeps candles lit behind the Golden Wok's boards.", by = "ai" }
 
+[book.undercroft]
+name = { text = "The Undercroft", by = "ai" }
+lore = { text = "Down the ladder under the Video Vault's office: rough-cut rooms older than the plaza, older than the roads. Candles someone keeps lit, a floor of chalk, a wall of skulls, and an altar at the bottom.", by = "ai" }
+
 [book.donut-field]
 name = { text = "The Donut Field", by = "ai" }
 lore = { text = "Between Lake Avenue and the corn, rutted into rings. Matthew Marx comes here to think.", by = "ai" }
@@ -206,6 +210,14 @@ lore = { text = "They cross the valley round every raider, the same ones for eve
 [book.caretaker]
 name = { text = "The Caretaker", by = "ai" }
 lore = { text = "A hooded shade with a cold lantern who keeps the corn maze. One light does nothing to it. Two, held together, unmake it, and it forms again at the heart.", by = "ai" }
+
+[book.tunnel-shade]
+name = { text = "Tunnel Shade", by = "ai" }
+lore = { text = "Hunched shapes that keep to the Undercroft's rooms, slower than you but patient. They see in the dark. Your light undoes them, and they come back.", by = "ai" }
+
+[book.warden]
+name = { text = "The Warden", by = "ai" }
+lore = { text = "Crowned in iron, hung with chain, it stands before the altar at the bottom of the Undercroft and never leaves. Hold your light on it a long while.", by = "ai" }
 
 [book.marx]
 lore = { text = "Reads at his tailgate by the Citgo, does donuts across the road, and comes when you whistle. Climb into the bed and he will take you out through the valley and home.", by = "ai" }
@@ -318,6 +330,7 @@ drop_refused = { text = "It won't come loose.", by = "ai" }
 change_unheard = { text = "The valley missed that. Others will see it when you next join.", by = "ai" }
 struck = { text = "You are somewhere else. Time is missing.", by = "ai" }
 caught = { text = "A lantern, very close. Then the forecourt, and the smell of cold corn.", by = "ai" }
+tunneled = { text = "Something in the dark, very close. Then the forecourt, and the taste of stone.", by = "ai" }
 fell = { text = "Your pockets are empty. Everything you carried is still out there, on you, where you fell.", by = "ai" }
 looted = { text = "You take your things back off your own body.", by = "ai" }
 loot_refused = { text = "Your hands go through it. Not now.", by = "ai" }
@@ -331,6 +344,9 @@ stand_upgraded = { text = "Your stand is level {level} now.", by = "ai" }
 stand_offline = { text = "No signal. The stand is shut.", by = "ai" }
 locked = { text = "Locked. The handle does not give.", by = "ai" }
 deal_offline = { text = "No signal. Erwin von Dutch will not deal with a stranger alone.", by = "ai" }
+descend = { text = "You climb down out of the light. The rungs are older than the store.", by = "ai" }
+ascend = { text = "You climb back up into the office. The fluorescent hum is almost a comfort.", by = "ai" }
+whistle_below = { text = "Your whistle dies in the stone. No one hears it up there.", by = "ai" }
 stand_far = { text = "You are too far from the stand.", by = "ai" }
 stand_short = { text = "You cannot cover that.", by = "ai" }
 stand_none = { text = "You have none of those to put out.", by = "ai" }
@@ -357,6 +373,8 @@ locker = { text = "E — Open Your Locker", by = "ai" }
 stand = { text = "E — Tend Your Stand", by = "ai" }
 locked = { text = "E — Locked", by = "ai" }
 lay = { text = "E — Lay the Rose", by = "ai" }
+descend = { text = "E — Climb Down", by = "ai" }
+ascend = { text = "E — Climb Up", by = "ai" }
 
 # Lines the game says to the player in the chat log (src/chat.ts).
 

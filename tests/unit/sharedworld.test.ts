@@ -28,6 +28,7 @@ import {
   wakeAt,
 } from '../../src/sharedworld.ts'
 import { FRESH_STAND, standXp } from '../../src/stand.ts'
+import { UNDERCROFT } from '../../src/undercroft.ts'
 import { dryMap } from '../../src/waterside.ts'
 import { unitsLeft } from './stock.ts'
 import type { CosmeticId } from '../../src/cosmetics.ts'
@@ -137,6 +138,7 @@ const join = (id: string): ValleyAction => ({
   routes: ROUTES,
   stand: STAND,
   dealer: DEALER,
+  undercroft: null,
 })
 
 const leaveAs = (
@@ -1716,6 +1718,75 @@ describe('rule 15: the season', () => {
       'acct-b',
     ])
     expect(creditedWith(v, [])).toEqual([])
+  })
+})
+
+describe('rule 11, below: the tunnel shades walk the Undercroft', () => {
+  const CROFT = { x: -7000, z: -7000, yaw: 0 }
+  // A spot in the Undercroft, in its own metres, in the world.
+  const below = (p: { x: number; z: number }) => ({
+    x: CROFT.x + p.x,
+    z: CROFT.z + p.z,
+  })
+  const state = (at: { x: number; z: number }): PeerStateWire => ({
+    ...at,
+    y: 0,
+    yaw: 0,
+    pitch: 0,
+    pose: 'stand',
+    riding: false,
+    light: false,
+  })
+  const valley = () =>
+    valleyWith({ ...join('a'), undercroft: CROFT } as ValleyAction).valley
+
+  it('keeps where the Undercroft lies, and sends its shades every step', () => {
+    const v = valley()
+    expect(v.world?.undercroft).toEqual(CROFT)
+    const shadows = createShadows()
+    const placed = [{ id: 'a', at: state({ x: 0, z: 0 }) }]
+    const out = stepShadows(v, shadows, placed, mulberry32(1), {
+      now: T0,
+      dt: 0,
+    })
+    expect(out?.message.tunnel).toHaveLength(UNDERCROFT.lairs.length + 1)
+    expect(out?.message.tunnel.at(-1)).toMatchObject({
+      kind: 'warden',
+      ...below(UNDERCROFT.warden),
+    })
+  })
+
+  it('keeps a raider below out of the shadowmen, and strikes them itself', () => {
+    const v = valley()
+    const shadows = createShadows()
+    const lair = UNDERCROFT.lairs[0]
+    const placed = [{ id: 'a', at: state(below({ x: lair.x + 3, z: lair.z })) }]
+    let struck: string[] = []
+    let tunneled: string[] = []
+    for (let i = 0; i < 100 && struck.length === 0; i++) {
+      const out = stepShadows(v, shadows, placed, mulberry32(i), {
+        now: T0 + i * 100,
+        dt: 0.1,
+      })
+      expect(out?.message.shadowmen).toEqual([])
+      struck = out?.struck ?? []
+      tunneled = out?.tunneled ?? []
+    }
+    expect(struck).toEqual(['a'])
+    expect(tunneled).toEqual(['a'])
+  })
+
+  it('leaves the shades still in a world opened without the Undercroft', () => {
+    const v = valleyWith(join('a')).valley
+    const out = stepShadows(
+      v,
+      createShadows(),
+      [{ id: 'a', at: state({ x: 0, z: 0 }) }],
+      mulberry32(1),
+      { now: T0, dt: 0.1 }
+    )
+    expect(out?.message.tunnel).toEqual([])
+    expect(out?.message.tunnelBursts).toEqual([])
   })
 })
 

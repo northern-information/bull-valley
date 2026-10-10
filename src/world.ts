@@ -17,6 +17,8 @@ import {
   buildShoppingCart,
   buildStandDressing,
   buildStripMall,
+  buildTrapdoor,
+  buildUndercroft,
   buildWreck,
   CANOPY,
   castShadows,
@@ -110,6 +112,12 @@ import {
   plazaLotMiddle,
   STRIP_MALL,
 } from './stripmall.ts'
+import {
+  croftWalls,
+  inUndercroft,
+  UNDERCROFT,
+  undercroftPlace,
+} from './undercroft.ts'
 import { Walls } from './walls.ts'
 import type {
   CornPiece,
@@ -235,6 +243,9 @@ export interface World {
   // update(t) for its one flickering tube and the candles, and its locked
   // back room; null without a spawn station.
   plaza: PlazaRig | null
+  // The Undercroft under it, through the office's trapdoor; null without
+  // the plaza.
+  undercroft: CroftRig | null
   // What to stand on anywhere: the terrain, or the road or lot over it.
   ground: Ground
   // What stops you: the store walls and fixtures, the berry bush, Gron,
@@ -1748,6 +1759,114 @@ function donutFieldOf(station: StoreOrigin): DonutField {
   return { x, z, radius }
 }
 
+// The Undercroft as the game reads it (undercroft.ts): where it lies (its
+// corner high over the survey's), the height of its floor, the trapdoor
+// in the office above and the ladder's foot below as a raider climbs them
+// (each where they stand, and the way they face), whether a point is down
+// there, and its candles' flicker.
+export interface CroftRig {
+  place: MazePlace
+  deck: number
+  // Where E climbs: the hatch's middle and the ladder's foot.
+  hatch: XZ
+  foot: XZ
+  // Where a raider stands after climbing, and the way they face.
+  trapdoor: Spawn
+  ladder: Spawn
+  inside(x: number, z: number): boolean
+  update(t: number): void
+}
+
+// Trees keep this far off the Undercroft's footprint: a tree there would
+// stand on its floor.
+const CROFT_TREE_CLEAR = 10
+
+// The Undercroft (undercroft.ts): a sealed stone box over a far corner of
+// the survey, its floor CONFIG.undercroft.lift over the highest ground
+// under it and registered as a floor, its stone and fixtures as walls (its
+// outer stone keeping anyone on the surface out); and the trapdoor in the
+// plaza's office floor, the way down.
+function buildCroft(
+  plaza: { origin: StoreOrigin; group: THREE.Group },
+  metres: Metres,
+  heightAt: HeightAt,
+  ground: Ground,
+  walls: Walls
+): { group: THREE.Group; rig: CroftRig } {
+  const group = new THREE.Group()
+  group.name = 'croft'
+  const place = undercroftPlace(metres)
+  const { size, wall } = UNDERCROFT
+  let highest = -Infinity
+  for (let x = -wall; x <= size.across + wall; x += 4) {
+    for (let z = -wall; z <= size.along + wall; z += 4) {
+      const p = mazeToWorld(place, { x, z })
+      highest = Math.max(highest, heightAt(p.x, p.z))
+    }
+  }
+  const deck = highest + CONFIG.undercroft.lift
+  // Its floor, along its x (the world's, unturned), as wide as its z.
+  const cos = Math.cos(place.yaw)
+  const sin = Math.sin(place.yaw)
+  const mid = mazeToWorld(place, { x: 0, z: size.along / 2 })
+  ground.addFloor(
+    mid.x,
+    mid.z,
+    cos,
+    sin,
+    -wall,
+    size.across + wall,
+    size.along / 2 + wall,
+    deck
+  )
+  for (const w of croftWalls()) {
+    walls.addWall(mazeToWorld(place, w.a), mazeToWorld(place, w.b), w.half)
+  }
+  const croft = buildUndercroft()
+  croft.group.position.set(place.x, deck, place.z)
+  croft.group.rotation.y = -place.yaw
+  group.add(croft.group)
+
+  // The trapdoor in the office floor.
+  const hatch = buildTrapdoor()
+  const [tx, , tz] = toWorld(plaza.origin, [
+    STRIP_MALL.trapdoor.x,
+    0,
+    STRIP_MALL.trapdoor.z,
+  ])
+  hatch.position.set(tx, ground.at(tx, tz), tz)
+  hatch.rotation.y = -plaza.origin.yaw
+  group.add(hatch)
+
+  // Climbing up, a raider steps off beside the hatch toward the office's
+  // door; climbing down, off the ladder's foot into the entry chamber.
+  // The camera looks along (-sin yaw, -cos yaw).
+  const [ux, , uz] = toWorld(plaza.origin, [
+    STRIP_MALL.trapdoor.x + 1,
+    0,
+    STRIP_MALL.trapdoor.z,
+  ])
+  const foot = mazeToWorld(place, UNDERCROFT.ladder)
+  const face = mazeToWorld(place, UNDERCROFT.ladder.face)
+  return {
+    group,
+    rig: {
+      place,
+      deck,
+      hatch: { x: tx, z: tz },
+      foot,
+      trapdoor: { x: ux, z: uz, yaw: Math.atan2(-(ux - tx), -(uz - tz)) },
+      ladder: {
+        x: foot.x,
+        z: foot.z,
+        yaw: Math.atan2(-(face.x - foot.x), -(face.z - foot.z)),
+      },
+      inside: (x, z) => inUndercroft(place, { x, z }),
+      update: (t) => croft.update(t),
+    },
+  }
+}
+
 // The plaza as the game reads it: the rig, where the back room's locked
 // door stands, which lock it is, and whether a point is behind it.
 export interface PlazaRig extends StripMallRig {
@@ -2247,6 +2366,10 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     ? buildPlaza(spawnStation, geo, metres, heightAt, ground, walls)
     : null
   if (plaza) group.add(plaza.group)
+  const croft = plaza
+    ? buildCroft(plaza, metres, heightAt, ground, walls)
+    : null
+  if (croft) group.add(croft.group)
   group.add(
     buildTrees(
       geo,
@@ -2267,6 +2390,9 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
           (d) => Math.hypot(x - d.x, z - d.z) < CONFIG.dishes.treeClear
         ) ||
         (plaza ? onMallGrounds(plaza.origin, x, z, STORE_TREE_CLEAR) : false) ||
+        (croft
+          ? inUndercroft(croft.rig.place, { x, z }, CROFT_TREE_CLEAR)
+          : false) ||
         // No tree grows through a store or its back room.
         fuel.points.some((p) => insideStore(p, x, z, STORE_TREE_CLEAR))
     )
@@ -2305,10 +2431,20 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     fuel.points,
     rng,
     plaza
-      ? STRIP_MALL.loot.map((spot) => {
-          const [x, , z] = toWorld(plaza.origin, [spot.x, 0, spot.z])
-          return { x, z, kind: spot.kind, count: spot.count }
-        })
+      ? [
+          ...STRIP_MALL.loot.map((spot) => {
+            const [x, , z] = toWorld(plaza.origin, [spot.x, 0, spot.z])
+            return { x, z, kind: spot.kind, count: spot.count }
+          }),
+          // And under it, the Undercroft's.
+          ...(croft
+            ? UNDERCROFT.loot.map((spot) => ({
+                ...mazeToWorld(croft.rig.place, spot),
+                kind: spot.kind,
+                count: spot.count,
+              }))
+            : []),
+        ]
       : []
   )
   group.add(pickupSet.group)
@@ -2540,6 +2676,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     wreck,
     dishes,
     plaza: plaza ? plaza.rig : null,
+    undercroft: croft ? croft.rig : null,
     ground,
     walls,
     facings: fuel.points.map(worldFacings),
@@ -2557,6 +2694,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
       wreck: wreckAt ? { x: wreckAt[0], z: wreckAt[2] } : null,
       dishes: dishSpots,
       plaza: plaza ? mallCenter(plaza.origin) : null,
+      undercroft: croft ? croft.rig.place : null,
       landmarks: landmarks.points,
     }),
   }
@@ -2575,6 +2713,7 @@ function bookSights(at: {
   wreck: XZ | null
   dishes: readonly XZ[]
   plaza: XZ | null
+  undercroft: MazePlace | null
   landmarks: readonly LandmarkPoint[]
 }): Sight[] {
   const { reach } = CONFIG.book
@@ -2604,6 +2743,15 @@ function bookSights(at: {
   }
   if (at.plaza) {
     sights.push({ id: 'strip-mall', ...at.plaza, reach: reach.plaza })
+  }
+  // The Undercroft: anywhere in it.
+  if (at.undercroft) {
+    const { across, along } = UNDERCROFT.size
+    sights.push({
+      id: 'undercroft',
+      ...mazeToWorld(at.undercroft, { x: across / 2, z: along / 2 }),
+      reach: Math.hypot(across, along) / 2,
+    })
   }
   if (at.donutField) {
     const { x, z, radius } = at.donutField

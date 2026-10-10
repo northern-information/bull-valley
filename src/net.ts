@@ -66,6 +66,8 @@ export interface NetIdentity {
   stand: XZ | null
   // Where the squatter deals (rule 24), or null.
   dealer: XZ | null
+  // Where the Undercroft lies (rule 11: the tunnel shades), or null.
+  undercroft: MazePlace | null
 }
 
 // Reconnect schedule, then give up: the valley is gone.
@@ -221,6 +223,7 @@ export class NetClient {
           truck: identity.truck,
           stand: identity.stand,
           dealer: identity.dealer,
+          undercroft: identity.undercroft,
         } satisfies ClientMessage)
       )
     })
