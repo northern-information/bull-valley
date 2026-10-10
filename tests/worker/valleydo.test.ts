@@ -2624,6 +2624,15 @@ describe('ValleyDO: health', () => {
     )
     await v.webSocketMessage(ws(a), '{"type":"use","kind":"benadryl"}')
     expect(healthOf(a)).toEqual([1, 2])
+    // Whole again, a pill is kept: refused, and the pack as it was.
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"health","points":3}')
+    await v.webSocketMessage(ws(a), '{"type":"use","kind":"aspirin"}')
+    expect(a.last<NackMessage>()).toEqual({
+      type: 'nack',
+      re: 'use',
+      reason: 'whole',
+    })
+    expect(lastPack(a)?.aspirin).toBe(23)
   })
 
   it('keeps a touch that lands while another change waits on D1', async () => {

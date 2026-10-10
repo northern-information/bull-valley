@@ -34,7 +34,7 @@ import { finishById } from './finishes.ts'
 import { dose } from './geometrie.ts'
 import { burialsOf, bury } from './graves.ts'
 import { openGronDialog } from './grondialog.ts'
-import { hit, isWhole, MAX_HEALTH, mend } from './health.ts'
+import { hit, isWhole, keepsPill, MAX_HEALTH, mend } from './health.ts'
 import { assign, clearSlot as clearHotbarSlot, place, spent } from './hotbar.ts'
 import { pickupLabel } from './interactions.ts'
 import { addItem, consume } from './inventory.ts'
@@ -750,7 +750,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   const useKind = (kind: string) => {
     // Medicine that heals is kept for when it is wanted.
     const heals = healsOf(kind)
-    if (heals > 0 && isWhole(s.health) && (s.inventory[kind] ?? 0) > 0) {
+    if (keepsPill(heals, s.health) && (s.inventory[kind] ?? 0) > 0) {
       hud.tell(copy('log.whole'))
       return
     }

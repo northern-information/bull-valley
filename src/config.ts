@@ -106,6 +106,8 @@ export const CONFIG = {
       waterRadius: 120,
       maxPerBubble: 3,
       burnScale: 2,
+      // Its burst, against a shadowman's.
+      burstScale: 2,
       aimHeight: 2.8,
       speedMin: 5,
       speedMax: 8,
@@ -122,6 +124,8 @@ export const CONFIG = {
       brood: { min: 3, max: 8 },
       scatter: 2.5,
       scale: 0.25,
+      // Its burst, against a shadowman's.
+      burstScale: 0.5,
       speedMin: 8,
       speedMax: 11,
       rushRadius: 40,

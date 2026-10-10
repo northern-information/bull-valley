@@ -1926,6 +1926,25 @@ describe('rule 13: the Caretaker keeps the maze', () => {
 
 describe('rule 24: health', () => {
   const MAX = CONFIG.health.max
+
+  it('keeps a pill that heals while the account is whole', () => {
+    const v = valleyWith(join('a'))
+    expect(v.step({ type: 'use', id: 'a', kind: 'aspirin' }).reply).toEqual({
+      type: 'nack',
+      re: 'use',
+      reason: 'whole',
+    })
+    // Medicine that does not heal, and anything else, is used at whole.
+    expect(v.step({ type: 'use', id: 'a', kind: 'benadryl' }).pack).toBeTruthy()
+    expect(v.step({ type: 'use', id: 'a', kind: 'joints' }).pack).toBeTruthy()
+    v.step({ type: 'hit', id: 'a' })
+    expect(v.step({ type: 'use', id: 'a', kind: 'aspirin' }).pack).toEqual({
+      account: 'acct-a',
+      kind: 'aspirin',
+      delta: -1,
+    })
+  })
+
   const at = (over: Partial<PeerStateWire> = {}): PeerStateWire => ({
     x: 500,
     y: 0,

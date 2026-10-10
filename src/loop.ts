@@ -29,6 +29,7 @@ import { poseOf, stateChanged } from './presence.ts'
 import {
   aimHeightOf,
   beamFrom,
+  burstScaleOf,
   headlightBeam,
   headlightsDue,
   inHaven,
@@ -316,7 +317,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     for (const at of swarm.bursts) {
       // A spider bursts where its body hung, twice as big; a spiderling
       // half as big.
-      const size = at.kind === 'spider' ? 2 : at.kind === 'spiderling' ? 0.5 : 1
+      const size = burstScaleOf(at.kind ?? 'man', CONFIG.shadowmen)
       const y =
         world.ground.at(at.x, at.z) + aimHeightOf(at.kind, CONFIG.shadowmen)
       bursts.spawn(at.x, y, at.z, size)

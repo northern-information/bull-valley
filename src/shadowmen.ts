@@ -72,6 +72,13 @@ export function touchRadiusOf(kind: ShadeKind, cfg: ShadowmenConfig): number {
 }
 
 // Seconds in a beam until it bursts.
+// How big one bursts (shadowburst.ts), against a shadowman's burst.
+export function burstScaleOf(kind: ShadeKind, cfg: ShadowmenConfig): number {
+  if (kind === 'spider') return cfg.spider.burstScale
+  if (kind === 'spiderling') return cfg.spiderling.burstScale
+  return 1
+}
+
 export function burnSecondsOf(kind: ShadeKind, cfg: ShadowmenConfig): number {
   if (kind === 'spider') return cfg.burnSeconds * cfg.spider.burnScale
   if (kind === 'spiderling') return cfg.spiderling.burnSeconds

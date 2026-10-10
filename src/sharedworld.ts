@@ -158,11 +158,12 @@ import {
   healthOf,
   hit,
   isWhole,
+  keepsPill,
   MAX_HEALTH,
   mend,
   withHealth,
 } from './health.ts'
-import { contentsOf, INVENTORY_KINDS, itemById } from './items.ts'
+import { contentsOf, healsOf, INVENTORY_KINDS, itemById } from './items.ts'
 import {
   arrive,
   board,
@@ -1000,6 +1001,12 @@ function act(
           broadcast: [],
           reply: nack('use', 'not-an-item'),
         })
+      }
+      // Rule 24: medicine that heals is kept at whole.
+      if (
+        keepsPill(healsOf(action.kind), healthOf(valley.health, member.account))
+      ) {
+        return done(valley, now, { broadcast: [], reply: nack('use', 'whole') })
       }
       return done(valley, now, {
         broadcast: [],

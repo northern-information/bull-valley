@@ -319,7 +319,7 @@ export function wireValley(game: Game, actions: Actions): void {
       s.aboard = false
     } else if (msg.re === 'use') {
       // The pack frame that follows puts the count right.
-      hud.tell(copy('log.none_left'))
+      hud.tell(copy(msg.reason === 'whole' ? 'log.whole' : 'log.none_left'))
     } else if (msg.re === 'trade') {
       actions.tradeRefused(msg.reason)
     } else if (msg.re === 'loot') {

@@ -3,6 +3,7 @@ import { CONFIG } from '../../src/config.ts'
 import { mulberry32 } from '../../src/rng.ts'
 import {
   beamFrom,
+  burstScaleOf,
   contactsOf,
   createShadowmen,
   headlightBeam,
@@ -35,6 +36,7 @@ const CFG: ShadowmenConfig = {
     waterRadius: 120,
     maxPerBubble: 3,
     burnScale: 2,
+    burstScale: 2,
     aimHeight: 2.8,
     speedMin: 5,
     speedMax: 8,
@@ -45,6 +47,7 @@ const CFG: ShadowmenConfig = {
     brood: { min: 3, max: 8 },
     scatter: 2.5,
     scale: 0.25,
+    burstScale: 0.5,
     speedMin: 8,
     speedMax: 11,
     rushRadius: 40,
@@ -843,5 +846,17 @@ describe('the spiderlings', () => {
       dt: 0.001,
     })
     expect(first(close)?.windup).toBe(0)
+  })
+})
+
+describe('a burst', () => {
+  it('is sized by what burst', () => {
+    expect(burstScaleOf('man', CONFIG.shadowmen)).toBe(1)
+    expect(burstScaleOf('spider', CONFIG.shadowmen)).toBe(
+      CONFIG.shadowmen.spider.burstScale
+    )
+    expect(burstScaleOf('spiderling', CONFIG.shadowmen)).toBe(
+      CONFIG.shadowmen.spiderling.burstScale
+    )
   })
 })

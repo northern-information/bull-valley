@@ -27,6 +27,13 @@ export function isWhole(points: number): boolean {
   return points >= MAX_HEALTH
 }
 
+// A pill of medicine that heals is kept while the raider is whole, so none
+// is swallowed for nothing: the valley refuses the use, and a client
+// playing alone never asks.
+export function keepsPill(heals: number, points: number): boolean {
+  return heals > 0 && isWhole(points)
+}
+
 // An account's points as the valley keeps them: only the accounts below
 // whole are written down.
 export function healthOf(
