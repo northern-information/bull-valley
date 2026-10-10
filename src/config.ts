@@ -35,6 +35,8 @@ export const CONFIG = {
       citgo: 25,
       stand: 7,
       wreck: 12,
+      // From the middle of the plaza's building, out over its lot.
+      plaza: 30,
       // From the middle of the array, which runs some 70 m a side.
       dishes: 45,
       // Past the field's own edge.
@@ -434,6 +436,14 @@ export const CONFIG = {
     radius: 1.4,
     // Trees keep this far off each pedestal: clear of the reflector.
     treeClear: 6,
+  },
+  stripMall: {
+    // Bull Valley Plaza, the dead strip mall beside the spawn Citgo
+    // (stripmall.ts), station-local like the bush: the middle of its
+    // front wall, on the side away from the wreck and the maze, its lot
+    // running on from the Citgo's past the cabbage stand, and its alley
+    // behind clear of the dish array. Scenery: it only blocks.
+    at: { x: -8, z: -60 },
   },
   emotes: {
     // A raider within this many metres of one who emotes (emotes.ts) gets

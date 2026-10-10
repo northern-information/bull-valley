@@ -69,6 +69,7 @@ const PORTRAITS: Partial<Record<string, () => THREE.Object3D>> = {
   'cabbage-stand': worldAsset('cabbage-stand'),
   dishes: worldAsset('dish'),
   wreck: worldAsset('wreck'),
+  'strip-mall': worldAsset('plaza-sign'),
   'donut-field': buildTruckMesh,
   'corn-maze': worldAsset('corn-maze-sign'),
   'maze-heart': worldAsset('portal'),

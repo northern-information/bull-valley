@@ -181,6 +181,10 @@ lore = { text = "Thirty-six dishes behind the Citgo, red lamps on their horns, t
 name = { text = "The Wreck", by = "ai" }
 lore = { text = "A green BMW nosed into a tree across from the maze. Still smouldering. The hazards have not stopped blinking since the night it left the road.", by = "ai" }
 
+[book.strip-mall]
+name = { text = "Bull Valley Plaza", by = "ai" }
+lore = { text = "Four shops in a row past the Citgo's lot, dark since before anyone can say. The tapes are still on the floor of the Video Vault, and someone keeps candles lit behind the Golden Wok's boards.", by = "ai" }
+
 [book.donut-field]
 name = { text = "The Donut Field", by = "ai" }
 lore = { text = "Between Lake Avenue and the corn, rutted into rings. Matthew Marx comes here to think.", by = "ai" }

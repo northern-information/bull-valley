@@ -6,17 +6,22 @@ import {
   buildCornMazeSign,
   buildCornWalls,
   buildDishArray,
+  buildDumpster,
   buildEnterSign,
   buildLandmarkBeacon,
   buildLockerDoors,
   buildPickup,
+  buildPlazaSign,
   buildPortal,
   buildShelfDisplay,
+  buildShoppingCart,
   buildStandDressing,
+  buildStripMall,
   buildWreck,
   CANOPY,
   castShadows,
   CORN_SIGN,
+  DUMPSTER,
   ENTER_SIGN,
   fenceMaterial,
   FUEL_LAYOUT,
@@ -25,6 +30,7 @@ import {
   lotMaterial,
   makeGlowSprite,
   mudMaterial,
+  PLAZA_SIGN,
   POLE_ARM_DROP,
   POLE_INSULATOR_X,
   poleParts,
@@ -89,15 +95,26 @@ import {
   storeBase,
   storeCenter,
   storeWalls,
+  toLocal,
   toWorld,
   worldFacings,
 } from './store.ts'
+import {
+  mallCenter,
+  mallDeck,
+  mallOrigin,
+  mallWalls,
+  onMallGrounds,
+  plazaLotMiddle,
+  STRIP_MALL,
+} from './stripmall.ts'
 import { Walls } from './walls.ts'
 import type {
   CornPiece,
   DishArray,
   MazeSignSize,
   PortalRig,
+  StripMallRig,
   Wreck,
 } from './assets.ts'
 import type { Sight } from './book.ts'
@@ -211,11 +228,15 @@ export interface World {
   // The dish array behind the spawn station, update(t) to slew it; null
   // without a spawn station.
   dishes: DishArray | null
+  // Bull Valley Plaza, the dead strip mall beside the spawn station,
+  // update(t) for its one flickering tube and the candles; null without a
+  // spawn station.
+  plaza: StripMallRig | null
   // What to stand on anywhere: the terrain, or the road or lot over it.
   ground: Ground
   // What stops you: the store walls and fixtures, the berry bush, Gron,
-  // Moab and his horse, the wreck and its tree, the dishes, the poles and
-  // lamps.
+  // Moab and his horse, the wreck and its tree, the dishes, the plaza, the
+  // poles and lamps.
   walls: Walls
   // Every station's shelf facings in the world, indexed like fuelPoints.
   facings: WorldFacing[][]
@@ -1715,6 +1736,162 @@ function donutFieldOf(station: StoreOrigin): DonutField {
   return { x, z, radius }
 }
 
+// Bull Valley Plaza beside the spawn station (CONFIG.stripMall,
+// stripmall.ts). Its asphalt goes down first: the lot out front in strips,
+// each reaching the centreline of the road nearest it (so the lot follows
+// the road as the Citgo's does, its seam under the road), and the drives
+// round both ends and the alley behind, every piece registered on the
+// ground. Then the building stands level on its slab over the highest
+// ground under it, its deck registered as a floor and its walls on
+// `walls`; then the pylon by the road, the dumpsters, the carts, and the
+// stalls painted on the lot.
+const PLAZA_STRIP = 4
+// The lot never reaches less far than this past its front, or further,
+// whatever road is nearest.
+const PLAZA_REACH = { min: 10, max: 40 }
+const PLAZA_STRIPE = { width: 0.12, color: '#5e5c55', lift: LOT_LIFT + 0.02 }
+
+function buildPlaza(
+  station: FuelPoint,
+  geo: Pick<Geo, 'roads'>,
+  metres: Metres,
+  heightAt: HeightAt,
+  ground: Ground,
+  walls: Walls
+): { group: THREE.Group; rig: StripMallRig; origin: StoreOrigin } {
+  const group = new THREE.Group()
+  group.name = 'plaza'
+  const frame = mallOrigin(station, 0)
+  const cos = Math.cos(frame.yaw)
+  const sin = Math.sin(frame.yaw)
+  const at = (x: number, z: number): XZ => {
+    const [wx, , wz] = toWorld(frame, [x, 0, z])
+    return { x: wx, z: wz }
+  }
+  const lots = makeRibbonAccumulator(ground)
+  const { lot } = STRIP_MALL
+  for (let z0 = lot.z0; z0 < lot.z1; z0 += PLAZA_STRIP) {
+    const z1 = Math.min(lot.z1, z0 + PLAZA_STRIP)
+    const zc = (z0 + z1) / 2
+    const front = at(lot.x0, zc)
+    const road = nearestRoadside(geo.roads, metres, front.x, front.z)
+    const reach = road ? toLocal(frame, road.x, road.z).x : PLAZA_REACH.min
+    const x1 = Math.min(PLAZA_REACH.max, Math.max(PLAZA_REACH.min, reach))
+    const mid = at(0, zc)
+    lots.addPatch(
+      mid.x,
+      mid.z,
+      cos,
+      sin,
+      lot.x0,
+      x1,
+      (z1 - z0) / 2,
+      3,
+      heightAt,
+      FUEL_LAYOUT.lotColor,
+      LOT_LIFT
+    )
+  }
+  for (const piece of STRIP_MALL.asphalt) {
+    const mid = at(0, (piece.z[0] + piece.z[1]) / 2)
+    lots.addPatch(
+      mid.x,
+      mid.z,
+      cos,
+      sin,
+      piece.x[0],
+      piece.x[1],
+      (piece.z[1] - piece.z[0]) / 2,
+      3,
+      heightAt,
+      FUEL_LAYOUT.lotColor,
+      LOT_LIFT
+    )
+  }
+  const lotMesh = lots.build('plaza-lot', lotMaterial())
+  lotMesh.receiveShadow = true
+  group.add(lotMesh)
+
+  // The stalls, draped on the lot just over it. Nobody stands on paint.
+  const stripes = makeRibbonAccumulator(null)
+  for (const z of STRIP_MALL.stripes.z) {
+    const mid = at(0, z)
+    stripes.addPatch(
+      mid.x,
+      mid.z,
+      cos,
+      sin,
+      STRIP_MALL.stripes.x0,
+      STRIP_MALL.stripes.x1,
+      PLAZA_STRIPE.width / 2,
+      1,
+      heightAt,
+      PLAZA_STRIPE.color,
+      PLAZA_STRIPE.lift
+    )
+  }
+  group.add(stripes.build('plaza-stripes'))
+
+  // The building, level on its slab.
+  const front = at(STRIP_MALL.walk, 0)
+  const deck = mallDeck(frame, ground.at(front.x, front.z), heightAt)
+  const origin = mallOrigin(station, deck)
+  ground.addFloor(
+    origin.x,
+    origin.z,
+    cos,
+    sin,
+    -STRIP_MALL.depth,
+    STRIP_MALL.walk,
+    STRIP_MALL.length / 2,
+    deck
+  )
+  for (const wall of mallWalls(origin)) walls.addWall(wall.a, wall.b, wall.half)
+  const rig = buildStripMall()
+  rig.group.position.set(origin.x, deck, origin.z)
+  rig.group.rotation.y = -origin.yaw
+  group.add(rig.group)
+
+  // What lies round it, each on the ground under it and turned in the
+  // plaza's frame: an asset's yaw turns +X to (cos, -sin), so the frame's
+  // own turn is -yaw.
+  const place = (object: THREE.Object3D, x: number, z: number, yaw: number) => {
+    const p = at(x, z)
+    object.position.set(p.x, ground.at(p.x, p.z), p.z)
+    object.rotation.y = -origin.yaw + yaw
+    group.add(object)
+    return p
+  }
+  const { pylon, dumpsters, carts } = STRIP_MALL.props
+  place(buildPlazaSign(), pylon.x, pylon.z, pylon.yaw)
+  // Its legs stand along its own Z, which its yaw turns to (sin, cos).
+  for (const d of [-PLAZA_SIGN.legs / 2, PLAZA_SIGN.legs / 2]) {
+    const leg = at(
+      pylon.x + d * Math.sin(pylon.yaw),
+      pylon.z + d * Math.cos(pylon.yaw)
+    )
+    walls.addWall(leg, leg, PLAZA_SIGN.leg)
+  }
+  // The dumpsters stand along the wall, their length down the alley.
+  for (const spot of dumpsters) {
+    place(buildDumpster(spot.fallen), spot.x, spot.z, spot.yaw + Math.PI / 2)
+    const along = DUMPSTER.length / 2 - DUMPSTER.width / 2
+    const dx = Math.sin(spot.yaw) * along
+    const dz = Math.cos(spot.yaw) * along
+    // Over on its side, it lies out from where it stood.
+    const off = spot.fallen ? -DUMPSTER.height / 2 : 0
+    walls.addWall(
+      at(spot.x + off - dx, spot.z - dz),
+      at(spot.x + off + dx, spot.z + dz),
+      DUMPSTER.width / 2
+    )
+  }
+  for (const spot of carts) {
+    place(buildShoppingCart(spot.fallen), spot.x, spot.z, spot.yaw)
+  }
+  return { group, rig, origin }
+}
+
 // Where the corn maze lies: maze-local metres (maze.ts, x away from the
 // road and z along it) to the world through the spawn station's frame
 // (CONFIG.maze.at, station-local), and back.
@@ -2004,6 +2181,10 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     ? toWorld(spawnStation, [CONFIG.wreck.at.x, 0, CONFIG.wreck.at.z])
     : null
   const dishSpots = spawnStation ? dishSpotsOf(spawnStation) : []
+  const plaza = spawnStation
+    ? buildPlaza(spawnStation, geo, metres, heightAt, ground, walls)
+    : null
+  if (plaza) group.add(plaza.group)
   group.add(
     buildTrees(
       geo,
@@ -2023,13 +2204,21 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
         dishSpots.some(
           (d) => Math.hypot(x - d.x, z - d.z) < CONFIG.dishes.treeClear
         ) ||
+        (plaza ? onMallGrounds(plaza.origin, x, z, STORE_TREE_CLEAR) : false) ||
         // No tree grows through a store or its back room.
         fuel.points.some((p) => insideStore(p, x, z, STORE_TREE_CLEAR))
     )
   )
   // The roadside draws from its own seed, so retuning the poles never moves
   // the reeds, graves or pickups that draw after it.
-  const roadside = placeRoadside(geo.roads, metres, { avoid: fuel.points })
+  const roadside = placeRoadside(geo.roads, metres, {
+    avoid: [
+      ...fuel.points,
+      ...(plaza
+        ? [mallCenter(plaza.origin), plazaLotMiddle(plaza.origin)]
+        : []),
+    ],
+  })
   group.add(buildPoles(roadside.poles, ground.at, walls))
   const streetlights = buildStreetlights(
     [
@@ -2276,6 +2465,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     stand: standRig,
     wreck,
     dishes,
+    plaza: plaza ? plaza.rig : null,
     ground,
     walls,
     facings: fuel.points.map(worldFacings),
@@ -2292,6 +2482,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
       donutField,
       wreck: wreckAt ? { x: wreckAt[0], z: wreckAt[2] } : null,
       dishes: dishSpots,
+      plaza: plaza ? mallCenter(plaza.origin) : null,
       landmarks: landmarks.points,
     }),
   }
@@ -2309,6 +2500,7 @@ function bookSights(at: {
   donutField: DonutField | null
   wreck: XZ | null
   dishes: readonly XZ[]
+  plaza: XZ | null
   landmarks: readonly LandmarkPoint[]
 }): Sight[] {
   const { reach } = CONFIG.book
@@ -2335,6 +2527,9 @@ function bookSights(at: {
       z: at.dishes.reduce((sum, d) => sum + d.z, 0) / n,
       reach: reach.dishes,
     })
+  }
+  if (at.plaza) {
+    sights.push({ id: 'strip-mall', ...at.plaza, reach: reach.plaza })
   }
   if (at.donutField) {
     const { x, z, radius } = at.donutField

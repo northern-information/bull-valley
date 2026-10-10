@@ -58,6 +58,12 @@ const NAMED: readonly BookEntry[] = [
     lore: copy('book.wreck.lore'),
   },
   {
+    id: 'strip-mall',
+    chapter: 'places',
+    name: copy('book.strip-mall.name'),
+    lore: copy('book.strip-mall.lore'),
+  },
+  {
     id: 'donut-field',
     chapter: 'places',
     name: copy('book.donut-field.name'),

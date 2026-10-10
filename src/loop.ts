@@ -277,13 +277,14 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     }
     bursts.update(dt)
     mist.update({ dt, player: player.pos })
-    // Gron's rain falls on its own clock, Moab's fire burns on it too, and
-    // the wreck smoulders and blinks on it.
+    // Gron's rain falls on its own clock, Moab's fire burns on it too, the
+    // wreck smoulders and blinks on it, and the plaza's last tube flickers.
     world.gronRig?.update(time)
     // The stand dressed for this raider's own level (rule 23).
     world.stand?.setLevel(s.stand?.level ?? 1)
     for (const rig of world.moabRigs) rig.update(time)
     world.wreck?.update(time)
+    world.plaza?.update(time)
     // The dishes slew on the valley's clock, so every raider sees them
     // look the same way.
     world.dishes?.update(net.clock.serverNow(now) / 1000)
