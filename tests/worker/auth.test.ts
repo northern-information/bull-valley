@@ -590,13 +590,24 @@ describe('confirm-signup and username', () => {
       call('/auth/settings', { method: 'PUT', jar: j, store: s, body })
     const saved = await put({ settings: { music: 60, extra: true } })
     expect(saved.res.status).toBe(200)
-    // Only what the game knows is kept.
-    expect((await me(jar, s)).account?.settings).toEqual({ music: 60 })
+    // Only what the game knows is kept; sounds missing (a page from before
+    // they were kept) read as their default.
+    expect((await me(jar, s)).account?.settings).toEqual({
+      music: 60,
+      sfx: DEFAULT_SETTINGS.sfx,
+    })
+    expect((await put({ settings: { music: 60, sfx: 25 } })).res.status).toBe(
+      200
+    )
+    expect((await me(jar, s)).account?.settings).toEqual({ music: 60, sfx: 25 })
     // Out of range, not whole, or missing: refused, nothing moves.
     expect((await put({ settings: { music: 101 } })).res.status).toBe(400)
     expect((await put({ settings: { music: 12.5 } })).res.status).toBe(400)
+    expect((await put({ settings: { music: 60, sfx: -1 } })).res.status).toBe(
+      400
+    )
     expect((await put({})).res.status).toBe(400)
-    expect((await me(jar, s)).account?.settings).toEqual({ music: 60 })
+    expect((await me(jar, s)).account?.settings).toEqual({ music: 60, sfx: 25 })
     expect((await put({ settings: { music: 10 } }, new Jar())).res.status).toBe(
       401
     )

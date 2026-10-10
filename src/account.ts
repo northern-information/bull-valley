@@ -70,10 +70,12 @@ export interface LookWire {
 // the rules; this module stays free of the item table.
 export type HotbarWire = readonly (string | null)[]
 
-// The raider's settings (PUT /auth/settings): the music volume, a whole
-// number of percent. src/settings.ts holds the rules and the defaults.
+// The raider's settings (PUT /auth/settings): the music's and the sounds'
+// volumes, each a whole number of percent. src/settings.ts holds the rules
+// and the defaults.
 export interface SettingsWire {
   music: number
+  sfx: number
 }
 
 // A provider as it shows on the account panel.

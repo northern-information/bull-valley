@@ -120,9 +120,9 @@ test('the music volume is kept on the account', async ({ page }) => {
   await page.keyboard.press('ArrowRight')
   const want = String(start + 10)
   await expect(slider).toHaveValue(want)
-  await expect(page.locator('.bv-menu .bv-setting-level')).toHaveText(
-    copy('menu.music_level', { percent: want })
-  )
+  await expect(
+    page.locator('.bv-menu [data-bv="setting-music-level"]')
+  ).toHaveText(copy('menu.music_level', { percent: want }))
   await saved
   // Another load of the page reads it back from the account.
   await page.goto('/')

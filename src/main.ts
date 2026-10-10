@@ -31,6 +31,7 @@ import { mulberry32 } from './rng.ts'
 import { buildRoadGraph, nearestRoadPoint, wanderRoute } from './roadgraph.ts'
 import { Scope } from './scope.ts'
 import { createSettingsStore } from './settingsui.ts'
+import { createSfx } from './sfxrig.ts'
 import { ShadowBursts } from './shadowburst.ts'
 import { ShadowCards } from './shadowcards.ts'
 import { createTargets } from './targets.ts'
@@ -269,6 +270,16 @@ async function boot() {
     truck,
     // Under e2e the valley is never drawn and never heard.
     music: import.meta.env.MODE === 'test' ? null : createMusic(),
+    // A dev build with ?sfx=local auditions files from public/sfx/.
+    sfx:
+      import.meta.env.MODE === 'test'
+        ? null
+        : createSfx(
+            import.meta.env.DEV &&
+              new URLSearchParams(window.location.search).get('sfx') === 'local'
+              ? { base: '/sfx/', probe: true }
+              : {}
+          ),
     settings,
     truckContext,
     truckRoutes,
