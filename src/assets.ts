@@ -368,7 +368,11 @@ let tombstoneParts: {
   earth: THREE.Material
 } | null = null
 
-export function buildTombstone(name: string, seed = 0x6a7e): Tombstone {
+export function buildTombstone(
+  name: string,
+  seed = 0x6a7e,
+  heading?: string
+): Tombstone {
   const { width, shoulder, depth } = TOMBSTONE
   tombstoneParts ??= (() => {
     const slab = new THREE.BoxGeometry(width, shoulder, depth)
@@ -418,7 +422,7 @@ export function buildTombstone(name: string, seed = 0x6a7e): Tombstone {
   for (const geo of [parts.slab, parts.arch, parts.plinth]) {
     stone.add(new THREE.Mesh(geo, parts.stone))
   }
-  const texture = artTexture(paintTombstone(name, seed))
+  const texture = artTexture(paintTombstone(name, seed, heading))
   const faceMaterial = lambert({ map: texture })
   stone.add(new THREE.Mesh(parts.face, faceMaterial))
   // Settled a little out of true.
@@ -6099,6 +6103,16 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     id: 'tombstone',
     label: "Tombstone: a shadowman's",
     build: () => buildTombstone('Hush Wren of Bull Valley Road').group,
+  },
+  {
+    id: 'tombstone-spunky',
+    label: 'Tombstone (Spunky)',
+    build: () =>
+      buildTombstone(
+        CONFIG.lonePine.grave.name,
+        CONFIG.lonePine.grave.seed,
+        CONFIG.lonePine.grave.heading
+      ).group,
   },
   {
     id: 'gold-bullion',
