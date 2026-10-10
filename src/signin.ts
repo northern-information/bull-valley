@@ -27,7 +27,9 @@ import {
   usernameAvailable,
 } from './auth.ts'
 import { copy } from './copy.ts'
+import { finder, setStatus } from './dom.ts'
 import type { MeResponse, Provider } from './account.ts'
+import type { Tone } from './dom.ts'
 
 export interface AccountStep {
   // Resolves with the username once the raider has one, removing the
@@ -81,11 +83,7 @@ export function mountAccountStep(): AccountStep {
     </form>`
   document.body.appendChild(root)
 
-  const find = <T extends Element>(selector: string): T => {
-    const found = root.querySelector<T>(selector)
-    if (!found) throw new Error(`Missing ${selector}`)
-    return found
-  }
+  const find = finder(root)
   const signInFace = find<HTMLDivElement>('[data-face="sign-in"]')
   const usernameFace = find<HTMLFormElement>('[data-face="username"]')
   const providerRow = find<HTMLDivElement>('.bv-account-providers')
@@ -165,11 +163,8 @@ export function mountAccountStep(): AccountStep {
         cancelBtn.disabled = submitting
       }
 
-      const say = (text: string, tone: 'ok' | 'bad' | null = null) => {
-        status.textContent = text
-        if (tone) status.dataset.tone = tone
-        else delete status.dataset.tone
-      }
+      const say = (text: string, tone: Tone = null) =>
+        setStatus(status, text, tone)
 
       const check = () => {
         const name = handle()

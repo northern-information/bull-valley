@@ -8,6 +8,7 @@
 // they land.
 
 import { copy } from './copy.ts'
+import { finder } from './dom.ts'
 import { itemById } from './items.ts'
 import {
   accruedAt,
@@ -108,11 +109,7 @@ export function openStandDialog(options: StandDialogOptions): Promise<void> {
     </div>`
   document.body.appendChild(root)
 
-  const find = <T extends Element>(selector: string, from: Element = root) => {
-    const found = from.querySelector<T>(selector)
-    if (!found) throw new Error(`Missing ${selector}`)
-    return found
-  }
+  const find = finder(root)
   const level = find<HTMLParagraphElement>('[data-bv="stand-level"]')
   const table = find<HTMLHeadingElement>('[data-bv="stand-table"]')
   const earning = find<HTMLParagraphElement>('[data-bv="stand-earning"]')

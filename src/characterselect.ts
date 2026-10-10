@@ -15,6 +15,7 @@ import * as THREE from 'three'
 import { SELECTABLE } from './characters.ts'
 import { copy } from './copy.ts'
 import { stepIndex } from './cycle.ts'
+import { finder } from './dom.ts'
 import { applyPose, buildFigure } from './figure.ts'
 import { FINISHES, isFinish, randomFinish } from './finishes.ts'
 import { outfitById } from './outfits.ts'
@@ -88,11 +89,7 @@ export function mountCharacterSelect({
     </div>`
   document.body.appendChild(root)
 
-  const find = <T extends Element>(selector: string): T => {
-    const found = root.querySelector<T>(selector)
-    if (!found) throw new Error(`Missing ${selector}`)
-    return found
-  }
+  const find = finder(root)
   const canvas = find<HTMLCanvasElement>('.bv-select-canvas')
   const ui = find<HTMLDivElement>('.bv-select-ui')
   const nameEl = find<HTMLParagraphElement>('.bv-select-name')

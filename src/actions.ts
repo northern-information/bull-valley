@@ -192,16 +192,35 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
   hud.onBagTab = showBagTab
 
-  // The pack opens over the valley with the pointer free for it, as Gron's
-  // dialog does, on its first tab; the player freezes, the valley does not.
-  const openInventory = (atLocker = false) => {
+  // A panel over the valley (the pack, the book) with the pointer free for
+  // it, as Gron's dialog has it; the player freezes, the valley does not.
+  const withPanel = (open: () => void) => {
     player.keys.clear()
-    s.lockerOpen = atLocker
-    hud.setLocker(atLocker)
-    s.inventoryOpen = hud.showBag(true)
-    showBagTab(PACK_TABS[0])
+    open()
     if (document.pointerLockElement) document.exitPointerLock()
   }
+
+  // A dialog over the valley (Gron's, the stand's): the game stands aside
+  // (talking) with the pointer free until it closes, then takes it back.
+  // The valley does not stop for it.
+  const withDialog = (open: () => Promise<void>) => {
+    s.talking = true
+    player.keys.clear()
+    if (document.pointerLockElement) document.exitPointerLock()
+    void open().then(() => {
+      s.talking = false
+      engagePointer()
+    })
+  }
+
+  // The pack opens on its first tab.
+  const openInventory = (atLocker = false) =>
+    withPanel(() => {
+      s.lockerOpen = atLocker
+      hud.setLocker(atLocker)
+      s.inventoryOpen = hud.showBag(true)
+      showBagTab(PACK_TABS[0])
+    })
 
   const closeInventory = (relock = false) => {
     if (!s.inventoryOpen) return
@@ -236,9 +255,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   const openBook = () => {
     closeInventory()
-    player.keys.clear()
-    s.bookOpen = hud.showBook(true)
-    if (document.pointerLockElement) document.exitPointerLock()
+    withPanel(() => {
+      s.bookOpen = hud.showBook(true)
+    })
   }
 
   const closeBook = (relock = false) => {
@@ -522,30 +541,26 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       hud.tell(copy('log.stand_offline'))
       return
     }
-    s.talking = true
     s.standSaid = null
-    player.keys.clear()
-    if (document.pointerLockElement) document.exitPointerLock()
     const ask = (msg: Parameters<typeof net.send>[0]) => {
       s.pending.stand = true
       s.standSaid = null
       net.send(msg)
     }
-    void openStandDialog({
-      goods: CONFIG.stand.goods,
-      ledger: () => (s.world ? s.stand : null),
-      pack: () => s.inventory,
-      cash: () => s.cash,
-      now: () => net.clock.serverNow(performance.now()),
-      pending: () => s.pending.stand,
-      said: () => s.standSaid,
-      onStock: (kind, count) => ask({ type: 'stand-stock', kind, count }),
-      onCollect: () => ask({ type: 'stand-collect' }),
-      onUpgrade: () => ask({ type: 'stand-upgrade' }),
-    }).then(() => {
-      s.talking = false
-      engagePointer()
-    })
+    withDialog(() =>
+      openStandDialog({
+        goods: CONFIG.stand.goods,
+        ledger: () => (s.world ? s.stand : null),
+        pack: () => s.inventory,
+        cash: () => s.cash,
+        now: () => net.clock.serverNow(performance.now()),
+        pending: () => s.pending.stand,
+        said: () => s.standSaid,
+        onStock: (kind, count) => ask({ type: 'stand-stock', kind, count }),
+        onCollect: () => ask({ type: 'stand-collect' }),
+        onUpgrade: () => ask({ type: 'stand-upgrade' }),
+      })
+    )
   }
 
   const stowKind = (kind: string, all: boolean) => restash(kind, all, true)
@@ -896,41 +911,36 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     net.send({ type: 'take', index })
   }
 
-  // Gron's dialog: the pointer comes free for it and the game stands aside
-  // (talking). He changes the name the valley knows and the body worn. The
-  // valley does not stop for him.
+  // Gron's dialog: the game stands aside for it (talking). He changes the
+  // name the valley knows and the body worn.
   const talkToGron = () => {
     if (s.talking) return
-    s.talking = true
-    player.keys.clear()
-    if (document.pointerLockElement) document.exitPointerLock()
     const { pick } = game
-    void openGronDialog({
-      username: pick.username,
-      outfit: pick.outfit,
-      finish: pick.finish,
-      cosmetics: s.cosmetics,
-      onRenamed: (name) => {
-        pick.username = name
-        hud.setRaider(name)
-        net.send({ type: 'rename' })
-      },
-      onBecome: (outfit, finish) => {
-        void saveLook({ outfit, finish }).then((saved) => {
-          if (!saved.ok) hud.tell(saved.error)
-        })
-        pick.finish = finish
-        game.playerBody.restyle(outfit, finishById(finish).color)
-        game.hands.restyle(outfit)
-        pick.outfit = outfit
-        // A reconnect says hello in the new body too.
-        net.setOutfit(outfit)
-        net.send({ type: 'appearance', outfit })
-      },
-    }).then(() => {
-      s.talking = false
-      engagePointer()
-    })
+    withDialog(() =>
+      openGronDialog({
+        username: pick.username,
+        outfit: pick.outfit,
+        finish: pick.finish,
+        cosmetics: s.cosmetics,
+        onRenamed: (name) => {
+          pick.username = name
+          hud.setRaider(name)
+          net.send({ type: 'rename' })
+        },
+        onBecome: (outfit, finish) => {
+          void saveLook({ outfit, finish }).then((saved) => {
+            if (!saved.ok) hud.tell(saved.error)
+          })
+          pick.finish = finish
+          game.playerBody.restyle(outfit, finishById(finish).color)
+          game.hands.restyle(outfit)
+          pick.outfit = outfit
+          // A reconnect says hello in the new body too.
+          net.setOutfit(outfit)
+          net.send({ type: 'appearance', outfit })
+        },
+      })
+    )
   }
 
   const interact = () => {

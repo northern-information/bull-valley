@@ -7,6 +7,7 @@ import { PACK, PACK_IN_MENU, PACK_MOUSE, WORLD } from './bindings.ts'
 import { BookHud } from './bookhud.ts'
 import { CHAT_LINES, formatStamp, isFaded, pushLine } from './chat.ts'
 import { copy } from './copy.ts'
+import { el, find, text } from './dom.ts'
 import { MAX_HEALTH } from './health.ts'
 import { HOTBAR_SLOTS } from './hotbar.ts'
 import { LevelHud } from './levelhud.ts'
@@ -133,29 +134,6 @@ const BEGIN_LABELS = {
 
 export type BeginState = keyof typeof BEGIN_LABELS
 
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className?: string,
-  html?: string
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag)
-  if (className) node.className = className
-  if (html !== undefined) node.innerHTML = html
-  return node
-}
-
-// An element holding text as text: a key label like "< >" is not markup.
-function text<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  content: string,
-  className?: string
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag)
-  if (className) node.className = className
-  node.textContent = content
-  return node
-}
-
 // The controls table: two bindings a row, key then action; an odd last
 // one gets the whole row.
 function controlRows(
@@ -183,7 +161,7 @@ function quantity({ stock, left }: PackItem): string {
     : copy('inventory.quantity_left', { count: stock, left })
 }
 
-// The HUD builds its own markup, so a missing node or context is a bug here.
+// The HUD builds its own markup, so a missing context is a bug here.
 function required<T>(value: T | null, what: string): T {
   if (value === null) throw new Error(`Hud: missing ${what}`)
   return value
@@ -558,10 +536,7 @@ export class Hud {
         <span class="bv-intro-settings" data-bv="intro-settings"></span>
       </p>
       <p class="bv-intro-note bv-intro-fine">${copy('intro.fine')}</p>`
-    required(
-      this.intro.querySelector<HTMLTableElement>('[data-bv="controls"]'),
-      'controls table'
-    ).replaceChildren(
+    find<HTMLTableElement>(this.intro, '[data-bv="controls"]').replaceChildren(
       ...controlRows([
         ...Object.values(WORLD).map(({ key, labelKey }) => ({
           key,
@@ -574,20 +549,12 @@ export class Hud {
         })),
       ])
     )
-    required(
-      this.intro.querySelector<HTMLElement>('[data-bv="intro-note"]'),
-      'intro note'
-    ).textContent = copy('intro.note')
+    const note = find<HTMLElement>(this.intro, '[data-bv="intro-note"]')
+    note.textContent = copy('intro.note')
     // What the season asks and pays, under the note.
-    required(
-      this.intro.querySelector<HTMLElement>('[data-bv="intro-note"]'),
-      'intro note'
-    ).after(this.season.card)
+    note.after(this.season.card)
     ui.appendChild(this.intro)
-    this.beginBtn = required(
-      this.intro.querySelector<HTMLButtonElement>('[data-bv="begin"]'),
-      'begin button'
-    )
+    this.beginBtn = find(this.intro, '[data-bv="begin"]')
     this.beginBtn.replaceChildren(
       ...Object.entries(BEGIN_LABELS).map(([state, label]) => {
         const span = text('span', label)
@@ -596,37 +563,24 @@ export class Hud {
       })
     )
     this.setBegin('play')
-    this.raiderEl = required(
-      this.intro.querySelector<HTMLElement>('[data-bv="intro-username"]'),
-      'intro username'
-    )
-    this.accountBtn = required(
-      this.intro.querySelector<HTMLButtonElement>('[data-bv="intro-account"]'),
-      'intro account'
-    )
-    this.signOutBtn = required(
-      this.intro.querySelector<HTMLButtonElement>('[data-bv="intro-sign-out"]'),
-      'intro sign out'
-    )
+    this.raiderEl = find(this.intro, '[data-bv="intro-username"]')
+    this.accountBtn = find(this.intro, '[data-bv="intro-account"]')
+    this.signOutBtn = find(this.intro, '[data-bv="intro-sign-out"]')
   }
 
   // Who the pause overlay says is raiding, with Account and Sign Out beside
   // it; hidden until the titles settle a username.
   setRaider(username: string): void {
     this.raiderEl.textContent = username
-    required(
-      this.intro.querySelector<HTMLElement>('[data-bv="intro-as"]'),
-      'intro raider'
-    ).hidden = false
+    find<HTMLElement>(this.intro, '[data-bv="intro-as"]').hidden = false
   }
 
   // The music slider on the Raiding As line, sharing the main menu's
   // store; it shows with that line once the titles settle the account.
   setSettings(store: SettingsStore): void {
-    required(
-      this.intro.querySelector<HTMLElement>('[data-bv="intro-settings"]'),
-      'intro settings'
-    ).replaceChildren(musicSlider(store))
+    find<HTMLElement>(this.intro, '[data-bv="intro-settings"]').replaceChildren(
+      musicSlider(store)
+    )
   }
 
   // A null text hides the countdown.

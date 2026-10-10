@@ -20,7 +20,9 @@ import {
 } from './account.ts'
 import { fetchMe, fetchProviders, unlinkProvider } from './auth.ts'
 import { copy } from './copy.ts'
+import { finder, setStatus } from './dom.ts'
 import type { AccountWire, Provider, ProviderWire } from './account.ts'
+import type { Tone } from './dom.ts'
 
 export interface AccountPanelOptions {
   // Sign Out was pressed.
@@ -60,11 +62,7 @@ export function openAccountPanel({
     </div>`
   document.body.appendChild(root)
 
-  const find = <T extends Element>(selector: string): T => {
-    const found = root.querySelector<T>(selector)
-    if (!found) throw new Error(`Missing ${selector}`)
-    return found
-  }
+  const find = finder(root)
   const avatar = find<HTMLImageElement>('.bv-avatar')
   const usernameEl = find<HTMLParagraphElement>('[data-bv="panel-username"]')
   const linkedList = find<HTMLUListElement>('[data-bv="panel-linked"]')
@@ -87,11 +85,9 @@ export function openAccountPanel({
     // word should clear.
     let waiting = false
 
-    const say = (text: string, tone: 'ok' | 'bad' | null = null) => {
+    const say = (text: string, tone: Tone = null) => {
       waiting = false
-      status.textContent = text
-      if (tone) status.dataset.tone = tone
-      else delete status.dataset.tone
+      setStatus(status, text, tone)
     }
 
     const setBusy = (next: boolean) => {

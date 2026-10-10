@@ -7,6 +7,7 @@
 // valleysync.ts and input.ts feed it.
 
 import { copy } from './copy.ts'
+import { el } from './dom.ts'
 import { newsOf, SEASON, shownKills } from './season.ts'
 import { formatCash } from './store.ts'
 import type { SeasonProgress } from './season.ts'
@@ -21,17 +22,6 @@ export interface Banner {
   detail?: string
   // The finished season's banner burns gold, not Citgo red.
   gold?: boolean
-}
-
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className: string,
-  content?: string
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag)
-  node.className = className
-  if (content !== undefined) node.textContent = content
-  return node
 }
 
 // A row of one pip per unmaking the season asks for.

@@ -9,6 +9,7 @@
 import { BOOK as BOOK_KEYS } from './bindings.ts'
 import { BOOK, CHAPTERS, entriesOf, tallyOf } from './book.ts'
 import { copy } from './copy.ts'
+import { el } from './dom.ts'
 import type { BookEntry, Chapter } from './book.ts'
 
 // The portrait's CSS size; it is drawn at the screen's own density.
@@ -31,17 +32,6 @@ const CHAPTER_LABEL: Record<Chapter, string> = {
 
 const UNKNOWN = copy('book.unknown')
 const UNKNOWN_LORE = copy('book.unknown_lore')
-
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className: string,
-  content?: string
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag)
-  node.className = className
-  if (content !== undefined) node.textContent = content
-  return node
-}
 
 export class BookHud {
   readonly root: HTMLElement
