@@ -60,6 +60,52 @@ import type { TruckContext, TruckPlan } from './truckplan.ts'
 import type { FuelPoint, Pickup, World } from './world.ts'
 import type * as THREE from 'three'
 
+// Everything asked of the valley and not yet answered. The line dropping
+// clears it whole (freshPending): nothing asked of a valley out of reach
+// is ever answered, and a stale ask would misread the next answer.
+export interface Pending {
+  // Rule 3: a board.
+  board: boolean
+  // Rule 4: pickups, by index.
+  takes: Set<number>
+  // Rule 7: shelf units, as station:kind.
+  buys: Set<string>
+  // Rule 8: a berry.
+  collect: boolean
+  // Rule 12: drops, by id.
+  drops: Set<number>
+  // Rule 14: a trade with Moab.
+  trade: boolean
+  // Rule 18: bodies, by id.
+  loots: Set<number>
+  // Rule 20: entries of the Book of Shadows.
+  book: Set<string>
+  // Rule 21: a /friend or /unfriend; whether a /friends is waiting to be
+  // shown; and who the last whisper went to, for a refusal's line.
+  ask: PendingAsk | null
+  showFriends: boolean
+  whisperTo: string | null
+  // Rule 23: a change to the Cabbage Stand.
+  stand: boolean
+}
+
+export function freshPending(): Pending {
+  return {
+    board: false,
+    takes: new Set(),
+    buys: new Set(),
+    collect: false,
+    drops: new Set(),
+    trade: false,
+    loots: new Set(),
+    book: new Set(),
+    ask: null,
+    showFriends: false,
+    whisperTo: null,
+    stand: false,
+  }
+}
+
 export interface GameState {
   // The account's pack as the valley last sent it (the welcome, then every
   // pack frame), with this client's own changes applied in the meantime.
@@ -72,8 +118,8 @@ export interface GameState {
   // What the account wears (cosmetics.ts), as the valley last sent it;
   // alone, nothing, and nothing is kept.
   cosmetics: CosmeticId[]
-  // A trade asked of Moab and not yet answered.
-  pendingTrade: boolean
+  // Everything asked of the valley and not yet answered.
+  pending: Pending
   // The station whose Moab last made this raider his offer, while they
   // stay in his reach; null otherwise. He says it once each time.
   offeredBy: number | null
@@ -82,22 +128,16 @@ export interface GameState {
   season: SeasonProgress
   // The Book of Shadows entries the account has found (book.ts), as the
   // valley last said (the welcome, then every book frame); alone, what this
-  // client has come across, and nothing is kept. Entries asked of the
-  // valley and not yet answered. And the two together (book.ts knownOf),
-  // kept in step with each change, for the loop's asks.
+  // client has come across, and nothing is kept. And it with the entries
+  // asked (pending.book), as one set (book.ts knownOf), kept in step with
+  // each change, for the loop's asks.
   book: Set<string>
-  bookAsked: Set<string>
   known: Set<string>
   // The account's progress on the daily task (dailytask.ts) as the valley
   // last sent it, on the day it counts; alone, none, and nothing is kept.
   task: TaskProgress
-  // Rule 21: the account's friends list as the valley last sent it; a
-  // /friend or /unfriend waiting on it; whether a /friends is waiting to
-  // be shown; and who the last whisper went to, for a refusal's line.
+  // Rule 21: the account's friends list as the valley last sent it.
   friends: FriendWire[]
-  pendingAsk: PendingAsk | null
-  showFriends: boolean
-  whisperTo: string | null
   // The account's XP in all (progression.ts) as the valley last sent it;
   // alone, none, and nothing is kept.
   xp: number
@@ -160,20 +200,15 @@ export interface GameState {
   // the truck does for it (truckplan.ts).
   truckLeg: Leg | null
   truckPlan: TruckPlan | null
-  // In the bed of the truck, whatever it is doing; and asked of the valley
-  // and not yet answered.
+  // In the bed of the truck, whatever it is doing.
   aboard: boolean
-  pendingBoard: boolean
   // The welcome has put us where the account last stood.
   placed: boolean
-  // Pickups asked of the valley and not yet answered.
-  pendingTakes: Set<number>
   // What lies dropped (sharedworld.ts rule 12): the valley's, from every
   // snapshot, or this raider's own when played alone, numbered from
-  // nextDrop. Drops asked of the valley and not yet answered, by id.
+  // nextDrop.
   drops: Drop[]
   nextDrop: number
-  pendingDrops: Set<number>
   // The shadowmen's tombstones (rule 17): the valley's, from every
   // snapshot, or this raider's own when played alone, numbered from
   // nextGrave.
@@ -181,31 +216,25 @@ export interface GameState {
   nextGrave: number
   // Rule 18: the bodies lying in the valley, the valley's from every
   // snapshot, or this raider's own when played alone (aloneCorpses, with
-  // what each holds, numbered from nextCorpse); which of them are this
-  // account's; and those asked of the valley and not yet answered.
+  // what each holds, numbered from nextCorpse); and which of them are
+  // this account's.
   corpses: CorpseWire[]
   myCorpses: number[]
   aloneCorpses: Corpse[]
   nextCorpse: number
-  pendingLoots: Set<number>
   // Rule 19: what the account's locker holds, as the valley last sent it
   // (with this client's own moves applied in the meantime); alone, nothing.
   // lockerOpen: the pack is open at the locker, with its Locker tab.
   stash: Inventory
   lockerOpen: boolean
   // Rule 23: the account's Cabbage Stand as the valley last sent it; null
-  // alone, where there is none. A change asked of the valley and not yet
-  // answered, and the last word on one, for the stand's dialog.
+  // alone, where there is none. And the last word on a change, for the
+  // stand's dialog.
   stand: StandLedger | null
-  pendingStand: boolean
   standSaid: string | null
-  // Shelf units asked of the valley and not yet answered, as station:kind.
-  pendingBuys: Set<string>
   // The berry bushes as the valley last described them (the welcome, then
   // every daily frame); null offline. The day's berries are the valley's.
   daily: DailyWire | null
-  // A berry asked of the valley and not yet answered.
-  pendingCollect: boolean
   // Lines that wait for the truck to roll: Matthew Marx walks from the
   // tailgate to his door first, and the truck holds until he is in.
   onTruckRolls: string[]
@@ -218,17 +247,13 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     inventory: { ...STARTING_INVENTORY },
     cash: CONFIG.store.startingCash,
     cosmetics: [],
-    pendingTrade: false,
+    pending: freshPending(),
     offeredBy: null,
     season: NO_PROGRESS,
     book: new Set(),
-    bookAsked: new Set(),
     known: new Set(),
     task: NO_TASK,
     friends: [],
-    pendingAsk: null,
-    showFriends: false,
-    whisperTo: null,
     xp: 0,
     storeStock: freshStock(stations),
     hotbar,
@@ -257,27 +282,20 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     truckLeg: null,
     truckPlan: null,
     aboard: false,
-    pendingBoard: false,
     placed: false,
-    pendingTakes: new Set(),
     drops: [],
     nextDrop: 0,
-    pendingDrops: new Set(),
     graves: [],
     nextGrave: 0,
     corpses: [],
     myCorpses: [],
     aloneCorpses: [],
     nextCorpse: 0,
-    pendingLoots: new Set(),
     stash: {},
     lockerOpen: false,
     stand: null,
-    pendingStand: false,
     standSaid: null,
-    pendingBuys: new Set(),
     daily: null,
-    pendingCollect: false,
     onTruckRolls: [],
     npcSaid: { marx: 0, carlsten: 0, moab: 0 },
   }

@@ -453,9 +453,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       bushes,
       gron: world.gron,
       npcs: targets.npcSpots(inStore),
-      moabOffer: s.pendingTrade ? null : moabOffer(s.inventory, s.cosmetics),
+      moabOffer: s.pending.trade ? null : moabOffer(s.inventory, s.cosmetics),
       corpses: s.corpses.filter(
-        (c) => s.myCorpses.includes(c.id) && !s.pendingLoots.has(c.id)
+        (c) => s.myCorpses.includes(c.id) && !s.pending.loots.has(c.id)
       ),
       lockers: targets.lockerSpots(inStore),
       stand: world.stand?.at ?? null,
