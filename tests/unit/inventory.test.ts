@@ -128,7 +128,7 @@ describe('consume', () => {
       used: false,
       reason: 'empty',
     })
-    expect(consume(pack, 'benadryl', NO_EFFECTS, 0)).toEqual({
+    expect(consume(pack, 'cabbage', NO_EFFECTS, 0)).toEqual({
       used: false,
       reason: 'unusable',
     })
