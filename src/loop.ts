@@ -110,7 +110,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   let label: ReturnType<typeof itemLabel> = null
 
   let last = performance.now()
-  renderer.setAnimationLoop(() => {
+  const frame = () => {
     const now = performance.now()
     // Real seconds since the last frame, and the same capped at maxStep: the
     // capped step moves the player, the item timers, and the animation, so
@@ -504,5 +504,21 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     // While Gron talks, his dialog covers the view and draws its own
     // turntable; the valley runs on behind it undrawn, holding its last
     // frame, so the page is not drawing two scenes at once.
+  }
+
+  // A throw anywhere in the frame would otherwise end the game in
+  // silence: Three asks for no next frame after a callback throws, and
+  // the view freezes with only a console error behind it. The loop stops
+  // for good, and the Begin button says the valley will not resolve.
+  renderer.setAnimationLoop(() => {
+    try {
+      frame()
+    } catch (err) {
+      renderer.setAnimationLoop(null)
+      console.error('Shadow Wars stopped mid-frame:', err)
+      if (document.pointerLockElement) document.exitPointerLock()
+      hud.showIntro(true, true)
+      hud.setBegin('failed')
+    }
   })
 }

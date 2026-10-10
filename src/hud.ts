@@ -266,6 +266,8 @@ export class Hud {
   reticle: HTMLDivElement
   intro: HTMLDivElement
   beginBtn: HTMLButtonElement
+  // Failed is final: the pause overlay never offers Resume over it.
+  beginFailed = false
   accountBtn: HTMLButtonElement
   signOutBtn: HTMLButtonElement
   raiderEl: HTMLElement
@@ -1265,6 +1267,8 @@ export class Hud {
   // Shows one of the Begin button's labels; it is clickable only to play or
   // resume. The others stay in the button, hidden, holding its width.
   setBegin(state: BeginState): void {
+    if (this.beginFailed) return
+    if (state === 'failed') this.beginFailed = true
     for (const span of this.beginBtn.querySelectorAll<HTMLElement>(
       '[data-state]'
     )) {
