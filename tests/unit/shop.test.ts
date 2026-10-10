@@ -60,7 +60,7 @@ describe('buy', () => {
     const state = fresh({ cash: 2000 })
     expect(buy(state, 0, 'grey-goose', 0)).toEqual({
       next: null,
-      line: "You're $9.99 short.",
+      line: copy('log.short', { amount: '$9.99' }),
     })
   })
 
