@@ -5,6 +5,7 @@ import {
   clockText,
   countdown,
   newLeg,
+  reconcileBed,
   seatOf,
   settledBy,
 } from '../../src/worldsync.ts'
@@ -59,6 +60,70 @@ describe('the bed', () => {
     expect(boardable(called, null)).toBe(false)
     expect(boardable({ kind: 'donuts', at: T0 }, 'a')).toBe(false)
     expect(boardable(null, 'a')).toBe(false)
+  })
+})
+
+describe('reconcileBed', () => {
+  const off = { aboard: false, pendingBoard: false }
+  const on = { aboard: true, pendingBoard: false }
+  const asked = { aboard: true, pendingBoard: true }
+
+  it("takes the valley's word on who is in the bed", () => {
+    const w = world(parked(T0 + 60_000), ['a'])
+    expect(reconcileBed(w, 'a', off, 'boarded')).toEqual({
+      aboard: true,
+      pendingBoard: false,
+      letOff: false,
+      rolling: false,
+    })
+    expect(reconcileBed(w, 'b', off, 'boarded')).toEqual({
+      aboard: false,
+      pendingBoard: false,
+      letOff: false,
+      rolling: false,
+    })
+  })
+
+  it('lets a raider off when the valley no longer has them in the bed', () => {
+    const w = world(parked(), [])
+    expect(reconcileBed(w, 'a', on, 'home')).toEqual({
+      aboard: false,
+      pendingBoard: false,
+      letOff: true,
+      rolling: false,
+    })
+  })
+
+  it('keeps a raider in the bed on trust until their board is answered', () => {
+    const w = world(parked(), ['b'])
+    expect(reconcileBed(w, 'a', asked, 'boarded')).toEqual({
+      aboard: true,
+      pendingBoard: true,
+      letOff: false,
+      rolling: false,
+    })
+    // Answered: the board is no longer pending.
+    expect(
+      reconcileBed(world(parked(), ['b', 'a']), 'a', asked, 'boarded')
+    ).toEqual({
+      aboard: true,
+      pendingBoard: false,
+      letOff: false,
+      rolling: false,
+    })
+  })
+
+  it('says the truck is rolling with us in it', () => {
+    const joyride: Leg = { kind: 'joyride', at: T0 }
+    expect(reconcileBed(world(joyride, ['a']), 'a', on, 'depart').rolling).toBe(
+      true
+    )
+    expect(reconcileBed(world(joyride, ['b']), 'a', on, 'depart').rolling).toBe(
+      false
+    )
+    expect(reconcileBed(world(joyride, ['a']), 'a', on, 'joined').rolling).toBe(
+      false
+    )
   })
 })
 

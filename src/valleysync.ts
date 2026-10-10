@@ -26,9 +26,9 @@ import { createTruck } from './marx.ts'
 import { levelUp } from './progression.ts'
 import { CLOSE } from './protocol.ts'
 import { SEASON } from './season.ts'
-import { isStandLedger, refusalLine } from './stand.ts'
+import { isStandLedger, refusalLine, standNews } from './stand.ts'
 import { formatCash } from './store.ts'
-import { aboard, newLeg, settledBy } from './worldsync.ts'
+import { newLeg, reconcileBed, settledBy } from './worldsync.ts'
 import type { Actions } from './actions.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { Game } from './game.ts'
@@ -36,12 +36,10 @@ import type { Inventory } from './interfaces.ts'
 import type {
   NackMessage,
   SeasonWire,
-  StandMessage,
   TaskWire,
   WorldMessage,
   WorldWire,
 } from './protocol.ts'
-import type { StandLedger } from './stand.ts'
 
 export function wireValley(game: Game, actions: Actions): void {
   const { state: s, hud, net, peers, world, player } = game
@@ -242,14 +240,19 @@ export function wireValley(game: Game, actions: Actions): void {
     // valley's word on who is in it.
     const leg = wire.truck.leg
     if (newLeg(s.truckLeg, leg)) actions.followLeg(leg)
-    const inBed = aboard(wire, me)
-    if (inBed) s.pending.board = false
-    if (s.aboard && !inBed && !s.pending.board) {
+    const bed = reconcileBed(
+      wire,
+      me,
+      { aboard: s.aboard, pendingBoard: s.pending.board },
+      reason
+    )
+    s.pending.board = bed.pendingBoard
+    if (bed.letOff) {
       // Let off at the Citgo.
       actions.leaveBed(reason === 'home' ? copy('log.end_of_line') : undefined)
     }
-    if (!s.pending.board) s.aboard = inBed
-    if (reason === 'depart' && inBed) {
+    s.aboard = bed.aboard
+    if (bed.rolling) {
       s.onTruckRolls = [copy('log.truck_leaves'), copy('log.hop_out_hint')]
     }
     if (reason === 'ferry' && detail.by === me) hud.tell(copy('log.ride_home'))
@@ -476,30 +479,4 @@ export function wireValley(game: Game, actions: Actions): void {
       actions.showAloneCorpses()
     }
   })
-}
-
-// What the log says of the stand as the valley wrote it: the goods put
-// out (whatever the table holds more of than `was`), the cents collected,
-// or the new level.
-function standNews(msg: StandMessage, was: StandLedger | null): string | null {
-  const { stand } = msg
-  switch (msg.re) {
-    case 'stock': {
-      for (const [kind, count] of Object.entries(stand.stock)) {
-        const more = count - (was?.stock[kind] ?? 0)
-        if (more > 0) {
-          return copy('log.stand_stocked', {
-            item: pickupLabel({ kind, count: more }),
-          })
-        }
-      }
-      return null
-    }
-    case 'collect':
-      return copy('log.stand_collected', {
-        amount: formatCash(msg.cents ?? 0),
-      })
-    case 'upgrade':
-      return copy('log.stand_upgraded', { level: stand.level })
-  }
 }

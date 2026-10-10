@@ -56,6 +56,39 @@ export function aboard(world: WorldWire | null, me: string | null): boolean {
   return !!world && me !== null && world.truck.riders.includes(me)
 }
 
+// The bed as this raider holds it: in it or not, and whether a board is
+// asked and not yet answered.
+export interface BedState {
+  aboard: boolean
+  pendingBoard: boolean
+}
+
+// What a snapshot makes of the bed for this raider. The valley's word on
+// who is in it stands, except while our own board is still unanswered
+// (we sit in the bed on trust until then). letOff: we were in the bed and
+// are not now, by the valley's word, so we step off beside the truck.
+// rolling: the truck is leaving with us in it.
+export interface BedChange extends BedState {
+  letOff: boolean
+  rolling: boolean
+}
+
+export function reconcileBed(
+  world: WorldWire,
+  me: string | null,
+  state: BedState,
+  reason: WorldMessage['reason']
+): BedChange {
+  const inBed = aboard(world, me)
+  const pendingBoard = state.pendingBoard && !inBed
+  return {
+    aboard: pendingBoard ? state.aboard : inBed,
+    pendingBoard,
+    letOff: state.aboard && !inBed && !pendingBoard,
+    rolling: reason === 'depart' && inBed,
+  }
+}
+
 // Which bed seat is this raider's: by the order they climbed in. Seat 0
 // with no valley.
 export function seatOf(world: WorldWire | null, me: string | null): number {
