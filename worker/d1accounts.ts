@@ -31,6 +31,7 @@ interface AccountRow {
   primary_provider: string
   created_at: number
   last_login_at: number
+  session: number
 }
 
 interface ProviderRow {
@@ -50,6 +51,7 @@ const toAccount = (row: AccountRow): Account => ({
   primaryProvider: row.primary_provider,
   createdAt: row.created_at,
   lastLoginAt: row.last_login_at,
+  session: row.session,
 })
 
 const toProvider = (row: ProviderRow): LinkedProvider => ({
@@ -93,7 +95,7 @@ export class D1AccountStore implements AccountStore {
       await this.db.batch([
         this.db
           .prepare(
-            'INSERT INTO accounts (account_id, username, role, primary_provider, created_at, last_login_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO accounts (account_id, username, role, primary_provider, created_at, last_login_at, session) VALUES (?, ?, ?, ?, ?, ?, ?)'
           )
           .bind(
             account.accountId,
@@ -101,7 +103,8 @@ export class D1AccountStore implements AccountStore {
             account.role,
             account.primaryProvider,
             account.createdAt,
-            account.lastLoginAt
+            account.lastLoginAt,
+            account.session
           ),
         this.insertProvider(provider),
       ])
@@ -118,6 +121,13 @@ export class D1AccountStore implements AccountStore {
     await this.db
       .prepare('UPDATE accounts SET last_login_at = ? WHERE account_id = ?')
       .bind(now, accountId)
+      .run()
+  }
+
+  async endSessions(accountId: string): Promise<void> {
+    await this.db
+      .prepare('UPDATE accounts SET session = session + 1 WHERE account_id = ?')
+      .bind(accountId)
       .run()
   }
 

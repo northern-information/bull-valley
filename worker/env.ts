@@ -7,6 +7,9 @@ export interface AuthSecrets {
   // Signs the session tokens (worker/tokens.ts). Production refuses to
   // serve accounts without it; a dev server falls back to DEV_JWT_SECRET.
   JWT_SECRET?: string
+  // The word a new raider must say (worker/auth.ts). Production refuses
+  // every signup without it; a dev server falls back to DEV_MAGIC_WORD.
+  MAGIC_WORD?: string
   GOOGLE_CLIENT_ID?: string
   GOOGLE_CLIENT_SECRET?: string
   DISCORD_CLIENT_ID?: string
@@ -38,4 +41,15 @@ export const DEV_JWT_SECRET = 'bull-valley-dev-secret-do-not-use-in-prod'
 export function jwtSecret(env: WorkerEnv, dev: boolean): string | null {
   if (env.JWT_SECRET) return env.JWT_SECRET
   return dev ? DEV_JWT_SECRET : null
+}
+
+// Dev only, like the dev secret: anyone can read it.
+export const DEV_MAGIC_WORD = 'berries'
+
+// The magic word for this request, lowercased, or null when production
+// has none (and so takes no new raider).
+export function magicWord(env: WorkerEnv, dev: boolean): string | null {
+  const word = env.MAGIC_WORD?.trim().toLowerCase()
+  if (word) return word
+  return dev ? DEV_MAGIC_WORD : null
 }

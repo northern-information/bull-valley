@@ -5,7 +5,7 @@ import { assign, EMPTY_HOTBAR } from '../../src/hotbar.ts'
 import { DEFAULT_SETTINGS } from '../../src/settings.ts'
 import { MemoryAccountStore } from '../../worker/accounts.ts'
 import { handleAuth, identityFor } from '../../worker/auth.ts'
-import { DEV_JWT_SECRET } from '../../worker/env.ts'
+import { DEV_JWT_SECRET, magicWord } from '../../worker/env.ts'
 import { OAUTH } from '../../worker/oauth.ts'
 import { ACCESS_TTL, Tokens } from '../../worker/tokens.ts'
 import type { MeResponse } from '../../src/account.ts'
@@ -23,6 +23,7 @@ function env(overrides: Partial<WorkerEnv> = {}): WorkerEnv {
   return {
     APP_ORIGIN: PROD,
     JWT_SECRET: SECRET,
+    MAGIC_WORD: 'berries',
     GITHUB_CLIENT_ID: 'gh-id',
     GITHUB_CLIENT_SECRET: 'gh-secret',
     DB: {} as unknown as D1Database,
@@ -685,11 +686,74 @@ describe('session', () => {
     expect(gone.cookies[COOKIE.refresh]).toBeUndefined()
   })
 
-  it('signs out by clearing the cookies', async () => {
+  it('signs out by clearing the cookies, and ends every session of the account', async () => {
     const { jar, s } = await signedIn()
+    // The same account, signed in on another browser.
+    const other = new Jar()
+    other.cookies[COOKIE.refresh] = jar.cookies[COOKIE.refresh]
     await call('/auth/logout', { method: 'POST', jar, store: s })
     expect(jar.cookies).toEqual({})
     expect(await me(jar, s)).toEqual({ account: null, pending: null })
+    // The other browser's refresh token is dead too.
+    const dead = await call('/auth/refresh', {
+      method: 'POST',
+      jar: other,
+      store: s,
+    })
+    expect(await dead.res.json()).toEqual({ ok: false })
+    expect(other.cookies[COOKIE.refresh]).toBeUndefined()
+  })
+
+  it('spends the refresh token it was given and issues a fresh one', async () => {
+    const { jar, s } = await signedIn()
+    const first = jar.cookies[COOKIE.refresh]
+    delete jar.cookies[COOKIE.token]
+    const ok = await call('/auth/refresh', {
+      method: 'POST',
+      jar,
+      store: s,
+      now: T0 + 1000,
+    })
+    expect(await ok.res.json()).toEqual({ ok: true })
+    expect(jar.cookies[COOKIE.refresh]).not.toBe(first)
+    // Sliding the session on /auth/me reissues it the same way.
+    delete jar.cookies[COOKIE.token]
+    const second = jar.cookies[COOKIE.refresh]
+    await call('/auth/me', { jar, store: s, now: T0 + 2000 })
+    expect(jar.cookies[COOKIE.refresh]).not.toBe(second)
+  })
+
+  it('takes the magic word from the secret, the dev word on a dev server alone', async () => {
+    const s = new MemoryAccountStore()
+    const jar = new Jar()
+    await signIn(jar, { id: 7, login: 'seven' }, s)
+    const confirm = (word: string, origin = PROD, e = env()) =>
+      call('/auth/confirm-signup', {
+        method: 'POST',
+        jar,
+        store: s,
+        body: { magicWord: word },
+        origin,
+        env: e,
+      })
+    // Production with no secret takes no one.
+    const none = env({ MAGIC_WORD: undefined })
+    expect((await confirm('berries', PROD, none)).res.status).toBe(403)
+    expect((await confirm('open sesame', PROD, none)).res.status).toBe(403)
+    // A dev server knows the dev word; production never does.
+    expect(magicWord(none, true)).toBe('berries')
+    expect(magicWord(none, false)).toBeNull()
+    expect(magicWord(env({ MAGIC_WORD: ' Open Sesame ' }), false)).toBe(
+      'open sesame'
+    )
+    expect(
+      (await confirm('berries', PROD, env({ MAGIC_WORD: 'Open Sesame' }))).res
+        .status
+    ).toBe(403)
+    expect(
+      (await confirm(' open SESAME ', PROD, env({ MAGIC_WORD: 'Open Sesame' })))
+        .res.status
+    ).toBe(200)
   })
 
   it('refuses a mutation from another origin', async () => {

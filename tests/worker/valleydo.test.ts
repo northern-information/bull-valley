@@ -891,6 +891,7 @@ describe('ValleyDO', () => {
           primaryProvider: `dev:${id}`,
           createdAt: 0,
           lastLoginAt: 0,
+          session: 0,
         },
         {
           providerKey: `dev:${id}`,
@@ -1068,6 +1069,7 @@ describe('ValleyDO', () => {
           primaryProvider: `dev:${id}`,
           createdAt: 0,
           lastLoginAt: 0,
+          session: 0,
         },
         {
           providerKey: `dev:${id}`,

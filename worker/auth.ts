@@ -42,7 +42,7 @@ import { copy } from '../src/copy.ts'
 import { isFinish } from '../src/finishes.ts'
 import { isHotbar } from '../src/hotbar.ts'
 import { isSettings } from '../src/settings.ts'
-import { appOrigin, isDevHost, jwtSecret } from './env.ts'
+import { appOrigin, isDevHost, jwtSecret, magicWord } from './env.ts'
 import {
   authorizeUrl,
   credentials,
@@ -111,12 +111,15 @@ export async function identityFor(
   return { account: claims.accountId, name: claims.username }
 }
 
-// The game is private: a new account takes the magic word. It lives on the
+// The game is private: a new account takes the magic word, a secret of the
+// Worker's (env.ts magicWord; a dev server's is known). It lives on the
 // server alone, never in the client bundle; case and edge spaces aside.
-const MAGIC_WORD = 'berries'
-
-function isMagicWord(word: unknown): boolean {
-  return typeof word === 'string' && word.trim().toLowerCase() === MAGIC_WORD
+function isMagicWord(word: unknown, expected: string | null): boolean {
+  return (
+    expected !== null &&
+    typeof word === 'string' &&
+    word.trim().toLowerCase() === expected
+  )
 }
 
 export async function handleAuth(
@@ -259,7 +262,7 @@ class AuthHandler {
     const refreshed = await this.tokens.verifyRefresh(
       this.cookies[COOKIE.refresh]
     )
-    if (refreshed) return `account:${refreshed}`
+    if (refreshed) return `account:${refreshed.accountId}`
     const pending = await this.tokens.verifyPending(
       this.cookies[COOKIE.pending]
     )
@@ -306,10 +309,19 @@ class AuthHandler {
       ),
       this.cookie(
         COOKIE.refresh,
-        await this.tokens.signRefresh(account.accountId),
+        await this.tokens.signRefresh(account.accountId, account.session),
         REFRESH_TTL
       ),
     ]
+  }
+
+  // The account the refresh cookie names, while its session is the one
+  // the token was signed under; null when it is not (signed out, or gone).
+  private async refreshed(): Promise<Account | null> {
+    const claims = await this.tokens.verifyRefresh(this.cookies[COOKIE.refresh])
+    if (!claims) return null
+    const account = await this.store.get(claims.accountId)
+    return account && account.session === claims.session ? account : null
   }
 
   private clearSession(): string[] {
@@ -322,15 +334,13 @@ class AuthHandler {
   }
 
   // The access claims, sliding the session on the refresh cookie when the
-  // access cookie has lapsed. The second value is the cookies to set.
+  // access cookie has lapsed (and the refresh cookie reissued with it).
+  // The second value is the cookies to set.
   private async session(): Promise<[AccessClaims | null, string[]]> {
     const claims = await this.access()
     if (claims) return [claims, []]
-    const accountId = await this.tokens.verifyRefresh(
-      this.cookies[COOKIE.refresh]
-    )
-    if (!accountId) return [null, []]
-    const account = await this.store.get(accountId)
+    if (!this.cookies[COOKIE.refresh]) return [null, []]
+    const account = await this.refreshed()
     if (!account) return [null, this.clearSession()]
     return [
       {
@@ -338,17 +348,7 @@ class AuthHandler {
         username: account.username,
         role: account.role,
       },
-      [
-        this.cookie(
-          COOKIE.token,
-          await this.tokens.signAccess({
-            accountId: account.accountId,
-            username: account.username,
-            role: account.role,
-          }),
-          ACCESS_TTL
-        ),
-      ],
+      await this.sessionCookies(account),
     ]
   }
 
@@ -431,26 +431,22 @@ class AuthHandler {
     return json(body, 200, cookies)
   }
 
+  // A fresh access cookie, and a fresh refresh cookie with it: the one
+  // used is spent.
   private async refresh(): Promise<Response> {
-    const accountId = await this.tokens.verifyRefresh(
-      this.cookies[COOKIE.refresh]
-    )
-    const account = accountId ? await this.store.get(accountId) : null
+    const account = await this.refreshed()
     if (!account) return json({ ok: false }, 200, this.clearSession())
-    return json({ ok: true }, 200, [
-      this.cookie(
-        COOKIE.token,
-        await this.tokens.signAccess({
-          accountId: account.accountId,
-          username: account.username,
-          role: account.role,
-        }),
-        ACCESS_TTL
-      ),
-    ])
+    return json({ ok: true }, 200, await this.sessionCookies(account))
   }
 
-  private logout(): Response {
+  // Signing out ends every session of the account, on every browser: the
+  // refresh tokens die at once, the access tokens within ACCESS_TTL.
+  private async logout(): Promise<Response> {
+    const claims = await this.access()
+    const accountId =
+      claims?.accountId ??
+      (await this.tokens.verifyRefresh(this.cookies[COOKIE.refresh]))?.accountId
+    if (accountId) await this.store.endSessions(accountId)
     return json({ ok: true }, 200, [
       ...this.clearSession(),
       this.clear(COOKIE.pending),
@@ -642,6 +638,7 @@ class AuthHandler {
       primaryProvider: key,
       createdAt: now,
       lastLoginAt: now,
+      session: 0,
     }
     const created = await this.store.create(
       account,
@@ -669,7 +666,7 @@ class AuthHandler {
     > | null
     // A wrong word keeps the pending signup, so the raider can try again;
     // the strict rate limit keeps them from guessing at speed.
-    if (!isMagicWord(body?.magicWord)) {
+    if (!isMagicWord(body?.magicWord, magicWord(this.env, this.dev))) {
       return json({ error: copy('auth.magic_word_wrong') }, 403)
     }
     const account = await this.createAccount(pending.provider, pending.profile)

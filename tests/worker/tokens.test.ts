@@ -22,9 +22,9 @@ describe('Tokens', () => {
     expect(await tokens.verifyAccess(await tokens.signAccess(access))).toEqual(
       access
     )
-    expect(await tokens.verifyRefresh(await tokens.signRefresh('acct-1'))).toBe(
-      'acct-1'
-    )
+    expect(
+      await tokens.verifyRefresh(await tokens.signRefresh('acct-1', 3))
+    ).toEqual({ accountId: 'acct-1', session: 3 })
     expect(
       await tokens.verifyPending(await tokens.signPending(pending))
     ).toEqual(pending)
@@ -41,7 +41,7 @@ describe('Tokens', () => {
   it('never lets one kind pass for another', async () => {
     const tokens = new Tokens(SECRET, clock(T0))
     const a = await tokens.signAccess(access)
-    const r = await tokens.signRefresh('acct-1')
+    const r = await tokens.signRefresh('acct-1', 0)
     const p = await tokens.signPending(pending)
     expect(await tokens.verifyAccess(r)).toBeNull()
     expect(await tokens.verifyAccess(p)).toBeNull()
@@ -54,7 +54,7 @@ describe('Tokens', () => {
   it('expires each kind on its own clock', async () => {
     const signer = new Tokens(SECRET, clock(T0))
     const a = await signer.signAccess(access)
-    const r = await signer.signRefresh('acct-1')
+    const r = await signer.signRefresh('acct-1', 0)
     const p = await signer.signPending(pending)
     const just = (ttl: number) =>
       new Tokens(SECRET, clock(T0 + ttl * 1000 - 1000))
@@ -62,7 +62,10 @@ describe('Tokens', () => {
       new Tokens(SECRET, clock(T0 + ttl * 1000 + 1000))
     expect(await just(ACCESS_TTL).verifyAccess(a)).not.toBeNull()
     expect(await past(ACCESS_TTL).verifyAccess(a)).toBeNull()
-    expect(await just(REFRESH_TTL).verifyRefresh(r)).toBe('acct-1')
+    expect(await just(REFRESH_TTL).verifyRefresh(r)).toEqual({
+      accountId: 'acct-1',
+      session: 0,
+    })
     expect(await past(REFRESH_TTL).verifyRefresh(r)).toBeNull()
     expect(await just(PENDING_TTL).verifyPending(p)).not.toBeNull()
     expect(await past(PENDING_TTL).verifyPending(p)).toBeNull()

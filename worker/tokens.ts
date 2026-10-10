@@ -1,9 +1,11 @@
 // The session tokens: HS256 JWTs signed with the Worker's secret. Three
 // kinds, told apart by a `typ` claim so one can never pass for another:
 // access (names the account, short-lived, read on every request and on the
-// socket upgrade), refresh (mints new access tokens for a month), and
-// pending (a new raider's provider profile, held until the
-// raider says the magic word and the account is created).
+// socket upgrade), refresh (mints new access tokens for a month, carrying
+// the account's session number so a sign-out ends it: a refresh token
+// under an older number is dead, and each use issues a fresh one), and
+// pending (a new raider's provider profile, held until the raider says
+// the magic word and the account is created).
 
 import { jwtVerify, SignJWT } from 'jose'
 import type { Provider } from '../src/account.ts'
@@ -22,6 +24,16 @@ export interface AccessClaims {
   // Null until the raider chooses a username.
   username: string | null
   role: string
+}
+
+export interface RefreshClaims {
+  accountId: string
+  session: number
+}
+
+export interface RefreshClaims {
+  accountId: string
+  session: number
 }
 
 export interface PendingClaims {
@@ -49,8 +61,8 @@ export class Tokens {
     )
   }
 
-  signRefresh(accountId: string): Promise<string> {
-    return this.sign('refresh', {}, accountId, REFRESH_TTL)
+  signRefresh(accountId: string, session: number): Promise<string> {
+    return this.sign('refresh', { session }, accountId, REFRESH_TTL)
   }
 
   signPending(claims: PendingClaims): Promise<string> {
@@ -74,10 +86,18 @@ export class Tokens {
     }
   }
 
-  // The account a refresh token belongs to.
-  async verifyRefresh(token: string | undefined): Promise<string | null> {
+  // The account a refresh token belongs to, and the session number it
+  // was signed under.
+  async verifyRefresh(
+    token: string | undefined
+  ): Promise<RefreshClaims | null> {
     const payload = await this.verify('refresh', token)
-    return payload && typeof payload.sub === 'string' ? payload.sub : null
+    if (!payload || typeof payload.sub !== 'string') return null
+    const session = payload.session
+    return {
+      accountId: payload.sub,
+      session: typeof session === 'number' ? session : 0,
+    }
   }
 
   async verifyPending(

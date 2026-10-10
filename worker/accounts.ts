@@ -23,6 +23,9 @@ export interface Account {
   primaryProvider: string
   createdAt: number
   lastLoginAt: number
+  // The session number every live refresh token carries (worker/tokens.ts);
+  // moved on by endSessions.
+  session: number
 }
 
 export interface LinkedProvider {
@@ -48,6 +51,9 @@ export interface AccountStore {
   // created, when another account has linked the provider meanwhile.
   create(account: Account, provider: LinkedProvider): Promise<boolean>
   touchLogin(accountId: string, now: number): Promise<void>
+  // Ends every session of the account: the session number moves on, and
+  // no refresh token signed before it is honoured again.
+  endSessions(accountId: string): Promise<void>
   // The provider's display name and avatar as of this sign-in.
   updateProfile(
     providerKey: string,
@@ -120,6 +126,12 @@ export class MemoryAccountStore implements AccountStore {
   touchLogin(accountId: string, now: number): Promise<void> {
     const account = this.accounts.get(accountId)
     if (account) account.lastLoginAt = now
+    return Promise.resolve()
+  }
+
+  endSessions(accountId: string): Promise<void> {
+    const account = this.accounts.get(accountId)
+    if (account) account.session += 1
     return Promise.resolve()
   }
 

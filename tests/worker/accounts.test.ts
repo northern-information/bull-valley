@@ -18,6 +18,7 @@ const account = (id: string, primary: string): Account => ({
   primaryProvider: primary,
   createdAt: 1000,
   lastLoginAt: 1000,
+  session: 0,
 })
 
 const linked = (
@@ -141,6 +142,17 @@ export function storeContract(makeStore: () => AccountStore): void {
     ).toBe(false)
     expect(await store.get('a2')).toBeNull()
     expect((await store.findByProvider('github:1'))?.accountId).toBe('a1')
+  })
+
+  it('moves the session number on when every session is ended', async () => {
+    const store = makeStore()
+    await store.create(account('a1', 'github:1'), linked('a1', 'github', '1'))
+    expect((await store.get('a1'))?.session).toBe(0)
+    await store.endSessions('a1')
+    await store.endSessions('a1')
+    expect((await store.get('a1'))?.session).toBe(2)
+    // Nothing happens for an account that is not there.
+    await store.endSessions('nobody')
   })
 
   it('records the latest login and profile', async () => {
