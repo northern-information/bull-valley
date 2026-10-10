@@ -353,31 +353,27 @@ export class D1AccountStore implements AccountStore {
     const rows = await this.friendsOf(from)
     const state = rows.find((r) => r.accountId === to)?.state ?? null
     const outcome = askOutcome(state, from === to)
-    if (outcome === 'requested') {
-      if (rows.length >= FRIENDS_MAX) return 'full'
-      await this.db
-        .prepare(
-          'INSERT OR IGNORE INTO friends (account_id, friend_id, accepted, since) VALUES (?, ?, 0, ?)'
-        )
-        .bind(from, to, now)
-        .run()
-    }
-    if (outcome === 'accepted') {
-      await this.db.batch([
-        this.db
-          .prepare(
-            'UPDATE friends SET accepted = 1, since = ? WHERE account_id = ? AND friend_id = ?'
-          )
-          .bind(now, to, from),
-        this.db
-          .prepare(
-            'INSERT INTO friends (account_id, friend_id, accepted, since) VALUES (?, ?, 1, ?) ' +
-              'ON CONFLICT (account_id, friend_id) DO UPDATE SET accepted = 1, since = excluded.since'
-          )
-          .bind(from, to, now),
-      ])
-    }
-    return outcome
+    if (outcome !== 'requested' && outcome !== 'accepted') return outcome
+    if (outcome === 'requested' && rows.length >= FRIENDS_MAX) return 'full'
+    // The ask is one row, the other side's a second: both are accepted by
+    // whichever ask finds the other's row there, so two asking each other
+    // at once are friends whatever the order, never each waiting on the
+    // other. The rows say what came of it, not the read above.
+    await this.db
+      .prepare(
+        'INSERT OR IGNORE INTO friends (account_id, friend_id, accepted, since) VALUES (?, ?, 0, ?)'
+      )
+      .bind(from, to, now)
+      .run()
+    const { meta } = await this.db
+      .prepare(
+        'UPDATE friends SET accepted = 1, since = ?3 ' +
+          'WHERE ((account_id = ?1 AND friend_id = ?2) OR (account_id = ?2 AND friend_id = ?1)) ' +
+          'AND EXISTS (SELECT 1 FROM friends WHERE account_id = ?2 AND friend_id = ?1)'
+      )
+      .bind(from, to, now)
+      .run()
+    return meta.changes > 0 ? 'accepted' : 'requested'
   }
 
   async unfriend(a: string, b: string): Promise<boolean> {

@@ -312,6 +312,25 @@ describe('D1AccountStore', () => {
     )
   })
 
+  it('makes two asking each other at once friends, whichever read first', async () => {
+    const { store } = await seeded()
+    await friendly(store)
+    // a1's ask read nothing between them, but a2's lands first.
+    const stale = Object.create(store) as D1AccountStore
+    stale.friendsOf = () => Promise.resolve([])
+    expect(await store.askFriend('a2', 'a1', 5)).toBe('requested')
+    expect(await stale.askFriend('a1', 'a2', 6)).toBe('accepted')
+    expect(
+      (await store.friendsOf('a1')).map(({ username, state }) => [
+        username,
+        state,
+      ])
+    ).toEqual([['Baker', 'friend']])
+    expect((await store.friendsOf('a2')).map((r) => r.state)).toEqual([
+      'friend',
+    ])
+  })
+
   it('never unlinks the last provider, even two unlinks at once', async () => {
     const { store } = await seeded()
     await store.linkProvider(linked('a1', 'discord', '3', 2000))
