@@ -1,5 +1,5 @@
 // The raider's settings in the page: one store shared by the main menu's
-// Settings and the pause overlay, so both always agree, and the volume
+// Audio and the pause overlay, so both always agree, and the volume
 // sliders they each draw. A change is heard at once (the music and the
 // sounds read the store every frame) and saved to the account once the slider has been
 // let go and left a moment (auth.ts `saveSettings`), so an arrow key held

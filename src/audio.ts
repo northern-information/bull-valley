@@ -1,6 +1,6 @@
-// The title-card cues (the Northern Information colophon and the Bull
-// Valley Shadow Wars logo), played through WebAudio via playOneShot. The
-// valley's own sound is its music (musicrig.ts) and its sound effects
+// The title-card cue (the Northern Information colophon's), played
+// through WebAudio via playOneShot. The valley's own sound is its music
+// (musicrig.ts), which starts on the main menu, and its sound effects
 // (sfxrig.ts).
 
 import type { OneShotEnvelope } from './interfaces.ts'

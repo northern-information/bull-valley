@@ -282,16 +282,11 @@ export const CONFIG = {
   },
   logo: {
     // The game's own logo atop the main menu, straight after the colophon:
-    // it fades up over fadeInMs, and its cue (~14s) plays once under the
-    // same envelope shape, so it ends at silence.
+    // it fades up over fadeInMs, silent (the valley's music starts under
+    // it), while the colophon's cue fades out over skipAudioFadeMs.
     fadeInMs: 2000,
-    holdMs: 10400,
-    fadeOutMs: 1600,
-    skipFadeMs: 200,
     skipAudioFadeMs: 300,
-    revealFadeMs: 400,
     imageSrc: '/bull-valley-shadow-wars.png',
-    audioSrc: '/sfx/bull-valley-shadow-wars-intro.mp3',
   },
   select: {
     // The character turntable: spin speed and the fade that reveals the
