@@ -156,7 +156,7 @@ export class ValleyDO extends DurableObject<Env> {
   private friendRate = new WeakMap<WebSocket, RateWindow>()
   private dropRate = new WeakMap<WebSocket, RateWindow>()
   private discoverRate = new WeakMap<WebSocket, RateWindow>()
-  // Rule 13, in memory only: gone whenever the object sleeps.
+  // Rules 11 and 13, in memory only: gone whenever the object sleeps.
   private shadows = createShadows()
   private shadowRng = mulberry32(Math.floor(Math.random() * 2 ** 32))
   // A dev server's quiet valley (the specs'): no crossing shadowman rushes.
@@ -963,7 +963,7 @@ export class ValleyDO extends DurableObject<Env> {
     )
   }
 
-  // Rule 20: a whisper to the raider signed in as `to`, under the chat
+  // Rule 21: a whisper to the raider signed in as `to`, under the chat
   // rules and its rate, delivered to their sockets and echoed to the
   // sender's. Nothing is stored.
   private whisper(
@@ -1004,7 +1004,7 @@ export class ValleyDO extends DurableObject<Env> {
     }
   }
 
-  // Rule 20: ask `name` to be friends (or accept their asking), or no
+  // Rule 21: ask `name` to be friends (or accept their asking), or no
   // longer be friends. Both lists go to every socket on both accounts, and
   // the news to the one it is news to.
   private async befriend(
@@ -1056,7 +1056,7 @@ export class ValleyDO extends DurableObject<Env> {
     }
   }
 
-  // Rule 20: the account's list to every socket on it: each name, and for
+  // Rule 21: the account's list to every socket on it: each name, and for
   // a friend whether they are in the valley and roughly where. A request
   // either way says nothing of where anyone is.
   private async sendFriends(account: string): Promise<void> {

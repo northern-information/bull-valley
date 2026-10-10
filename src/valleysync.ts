@@ -110,7 +110,7 @@ export function wireValley(game: Game, actions: Actions): void {
           now
         )
         return
-      // Rule 20: a whisper, to this raider or echoed from one they sent.
+      // Rule 21: a whisper, to this raider or echoed from one they sent.
       case 'whisper':
         hud.chatLine(
           {
@@ -145,7 +145,7 @@ export function wireValley(game: Game, actions: Actions): void {
         return
       case 'pong':
         return
-      // Rule 13: the valley's shadowmen, every step, and a touch.
+      // Rule 11: the valley's shadowmen, every step, and a touch.
       case 'shadowmen':
         game.shadowmen.receive(msg, now)
         game.caretaker.receive(msg, now)

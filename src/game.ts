@@ -89,7 +89,7 @@ export interface GameState {
   // The account's progress on the daily task (dailytask.ts) as the valley
   // last sent it, on the day it counts; alone, none, and nothing is kept.
   task: TaskProgress
-  // Rule 20: the account's friends list as the valley last sent it; a
+  // Rule 21: the account's friends list as the valley last sent it; a
   // /friend or /unfriend waiting on it; whether a /friends is waiting to
   // be shown; and who the last whisper went to, for a refusal's line.
   friends: FriendWire[]

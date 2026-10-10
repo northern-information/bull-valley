@@ -662,7 +662,7 @@ export interface ShadowmanWire {
   windup?: number
 }
 
-// The Caretaker as the valley sends it (rule 15): where it floats, how
+// The Caretaker as the valley sends it (rule 13): where it floats, how
 // far through being unmade by two beams (0 to 1), and the raider it hunts.
 export interface CaretakerWire {
   x: number
@@ -689,7 +689,7 @@ export interface ShadowmenMessage {
 }
 
 // A shadowman, or the Caretaker, touched this raider (sharedworld.ts rule
-// 22): the health the account has left, 0 when the touch shattered their
+// 24): the health the account has left, 0 when the touch shattered their
 // geometrie (the account is whole again after, rule 18's fall following).
 export interface StruckMessage {
   type: 'struck'

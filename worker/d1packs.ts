@@ -2,10 +2,9 @@
 // account has held, and one wallet per account; the cosmetics it has
 // (0004_cosmetics.sql); its locker (0007_stashes.sql); its Book of
 // Shadows (0008_book.sql); its XP (0010_levels.sql); and its Cabbage
-// Stand (0011_stands.sql). Every change is
-// a single statement or one batch, which is one transaction,
-// statement, so two sockets on one account can never lose a unit or a cent
-// between a read and a write.
+// Stand (0011_stands.sql). Every change is a single statement or one
+// batch, which is one transaction, so two sockets on one account can never
+// lose a unit or a cent between a read and a write.
 
 import { newlyFound } from '../src/book.ts'
 import { toCosmetics } from '../src/cosmetics.ts'

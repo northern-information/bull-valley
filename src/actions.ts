@@ -118,7 +118,7 @@ export interface Actions {
   // off.
   leaveBed(line?: string): void
   // A shadow touched you: one point of health off (sharedworld.ts rule
-  // 22), the valley's word on what is left, or alone our own. The last one
+  // 24), the valley's word on what is left, or alone our own. The last one
   // shatters your geometrie, and everything the pack held stays on your
   // body where you fell (rule 18).
   strike(by?: 'shadowman' | 'caretaker', health?: number): void

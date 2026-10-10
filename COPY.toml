@@ -47,8 +47,6 @@ chat_input_label = { text = "Say to the valley", by = "ai" }
 geometrie_label = { text = "Geometrie: high {high}%, stimulated {stimulated}%, drunk {drunk}%", by = "ai" }
 health_label = { text = "Health: {health} of {max}", by = "ai" }
 
-# The sign-in card (src/signin.ts).
-
 # The season (src/seasonhud.ts): the card on the intro and pause overlay,
 # the tracker in the upper right, and the banners.
 
@@ -86,6 +84,8 @@ tracker_label = { text = "Raider level {level}: {into} of {span} XP to the next"
 tracker_label_max = { text = "Raider level {level}, the highest", by = "ai" }
 banner = { text = "Level {level}", by = "ai" }
 tag = { text = "{name} · {level}", by = "ai" }
+
+# The sign-in card (src/signin.ts).
 
 [signin]
 title = { text = "Sign In", by = "tyler" }
@@ -317,8 +317,6 @@ loot = { text = "E — Take Your Things Back", by = "ai" }
 locker = { text = "E — Open Your Locker", by = "ai" }
 stand = { text = "E — Tend Your Stand", by = "ai" }
 
-# Lines the game says to the player in the chat log (src/chat.ts).
-
 # The emotes (src/emotes.ts): what a raider is told doing one, and the
 # quiet line a raider near enough to see it gets.
 
@@ -339,6 +337,8 @@ shrug_self = { text = "You shrug.", by = "ai" }
 shrug_seen = { text = "{name} shrugs.", by = "ai" }
 kneel_self = { text = "You kneel.", by = "ai" }
 kneel_seen = { text = "{name} kneels.", by = "ai" }
+
+# Lines the game says to the player in the chat log (src/chat.ts).
 
 [chat]
 too_fast = { text = "You are speaking too fast.", by = "ai" }
@@ -400,12 +400,12 @@ empty_materials = { text = "Nothing to build with yet.", by = "ai" }
 tab_locker = { text = "Locker", by = "ai" }
 empty_locker = { text = "Your locker is empty. What you leave here, no shadow takes.", by = "ai" }
 
-# Place names, shown in prompts and the raid summary (src/landmarks.ts).
+# Place names, shown in prompts (src/landmarks.ts).
 
 [places]
 keep = { text = "Mt. Coleman's Keep", by = "ai" }
 
-# The title cards (src/config.ts): image alt text and the colophon's hint.
+# The title cards (src/splash.ts): image alt text and the colophon's hint.
 
 [titles]
 colophon_alt = { text = "Northern Information", by = "ai" }
