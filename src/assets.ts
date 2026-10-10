@@ -695,27 +695,31 @@ export function buildLockerDoors(): THREE.Group {
   const handleGeometry = new THREE.BoxGeometry(0.03, 0.12, 0.025)
   const plateGeometry = new THREE.BoxGeometry(0.008, 0.035, 0.07)
   const z0 = z - (count * width) / 2
-  for (let i = 0; i < count; i++) {
-    const locker = new THREE.Group()
-    locker.position.set(
-      face + 0.01,
-      floor + 0.06 + doorH / 2,
-      z0 + width * (i + 0.5)
-    )
-    locker.add(new THREE.Mesh(doorGeometry, door))
-    for (let v = 0; v < 4; v++) {
-      const vent = new THREE.Mesh(ventGeometry, dark)
-      vent.position.set(0.012, doorH / 2 - 0.12 - v * 0.04, 0)
-      locker.add(vent)
-    }
-    const handle = new THREE.Mesh(handleGeometry, brass)
-    handle.position.set(0.022, 0.02, doorW / 2 - 0.06)
-    locker.add(handle)
-    const number = new THREE.Mesh(plateGeometry, plate)
-    number.position.set(0.012, doorH / 2 - 0.05, 0)
-    locker.add(number)
-    group.add(locker)
+  // Every part straight under the group, so the bank merges to one draw
+  // a material.
+  const part = (
+    geometry: THREE.BufferGeometry,
+    material: THREE.Material,
+    x: number,
+    y: number,
+    z: number
+  ) => {
+    const mesh = new THREE.Mesh(geometry, material)
+    mesh.position.set(x, y, z)
+    group.add(mesh)
   }
+  for (let i = 0; i < count; i++) {
+    const x = face + 0.01
+    const y = floor + 0.06 + doorH / 2
+    const zi = z0 + width * (i + 0.5)
+    part(doorGeometry, door, x, y, zi)
+    for (let v = 0; v < 4; v++) {
+      part(ventGeometry, dark, x + 0.012, y + doorH / 2 - 0.12 - v * 0.04, zi)
+    }
+    part(handleGeometry, brass, x + 0.022, y + 0.02, zi + doorW / 2 - 0.06)
+    part(plateGeometry, plate, x + 0.012, y + doorH / 2 - 0.05, zi)
+  }
+  mergeStatic(group)
   return group
 }
 
@@ -1701,6 +1705,9 @@ export function buildBerryBush(seed = 0xbe221): THREE.Group {
     )
     berries.add(mesh)
   }
+  // The lumps in one draw, and the berries in one under their own group,
+  // so the bush still shows itself picked clean.
+  mergeStatic(group)
   return group
 }
 
@@ -2562,8 +2569,11 @@ export function buildRaincloud(fall = 2.6, seed = 0x7a1c): Raincloud {
     puff.rotation.set(range(rng, 0, Math.PI), range(rng, 0, Math.PI), 0)
     group.add(puff)
   }
+  // The puffs in one draw a shade.
+  mergeStatic(group)
   // The rain: thin streaks under the cloud, each starting at its own point
-  // of the fall so the sheet never empties.
+  // of the fall so the sheet never empties. One instanced mesh, each drop
+  // its own matrix.
   const dropMat = new THREE.MeshBasicMaterial({
     color: '#9fb4c8',
     transparent: true,
@@ -2571,19 +2581,27 @@ export function buildRaincloud(fall = 2.6, seed = 0x7a1c): Raincloud {
     depthWrite: false,
   })
   const dropGeo = new THREE.BoxGeometry(0.012, 0.18, 0.012)
+  const rain = new THREE.InstancedMesh(dropGeo, dropMat, RAIN_DROPS)
+  rain.name = 'rain'
+  // The drops fall the whole column under the cloud; bounds set by hand,
+  // since those computed from one moment would go stale.
+  rain.boundingSphere = new THREE.Sphere(
+    new THREE.Vector3(0, -fall / 2, 0),
+    fall / 2 + 0.6
+  )
+  group.add(rain)
   const drops = Array.from({ length: RAIN_DROPS }, () => {
-    const mesh = new THREE.Mesh(dropGeo, dropMat)
     const a = range(rng, 0, Math.PI * 2)
     const d = Math.sqrt(rng()) * 0.42
-    mesh.position.set(Math.cos(a) * d, 0, Math.sin(a) * d * 0.7)
-    group.add(mesh)
-    return { mesh, phase: rng() }
+    return { x: Math.cos(a) * d, z: Math.sin(a) * d * 0.7, phase: rng() }
   })
+  const matrix = new THREE.Matrix4()
   const update = (t: number) => {
-    for (const { mesh, phase } of drops) {
+    drops.forEach(({ x, z, phase }, i) => {
       const along = ((t * RAIN_SPEED) / fall + phase) % 1
-      mesh.position.y = -along * fall
-    }
+      rain.setMatrixAt(i, matrix.makeTranslation(x, -along * fall, z))
+    })
+    rain.instanceMatrix.needsUpdate = true
   }
   update(0)
   setMotion(group, update)
