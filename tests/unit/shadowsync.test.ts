@@ -18,6 +18,7 @@ const man = (id: number, x: number, over: Partial<ShadowmanWire> = {}) => ({
 describe('sampleShadowmen', () => {
   it('draws nothing before the first frame, and holds the only one', () => {
     const table = createShadowTable()
+    expect(table.before.size).toBe(0)
     expect(sampleShadowmen(table, 0)).toEqual([])
     applyShadowFrame(table, [man(1, 5)], 100)
     expect(sampleShadowmen(table, 0)).toEqual([man(1, 5)])

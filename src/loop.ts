@@ -38,9 +38,12 @@ import { tripLevel } from './trip.ts'
 import { boardable, clockText, countdown, seatOf } from './worldsync.ts'
 import type { Actions } from './actions.ts'
 import type { Game } from './game.ts'
-import type { PeerStateWire } from './protocol.ts'
+import type { BushSpot } from './interactions.ts'
+import type { ScopeContact } from './interfaces.ts'
+import type { DailyWire, PeerStateWire } from './protocol.ts'
 import type { HeadlightsSent } from './shadowmen.ts'
 import type { Targets } from './targets.ts'
+import type { Pickup } from './world.ts'
 
 // Under e2e (--mode test) the valley runs but is never drawn. The specs
 // read the game through window.__bv, never its pixels, and CI draws WebGL
@@ -98,17 +101,45 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     return clockLine
   }
 
-  // How each bush stands for this player right now.
-  const bushSpots = () => {
+  // How each bush stands for this player right now: read again when the
+  // valley's word on the bushes changes, and when the day turns under it
+  // (dailyStatus reads the word against the clock).
+  let bushes: BushSpot[] = []
+  let bushesFor: DailyWire | null = null
+  let bushesPastReset = false
+  let bushesStale = true
+  const bushSpots = (now: number): BushSpot[] => {
     const daily = net.online ? s.daily : null
-    const now = net.clock.serverNow(performance.now())
-    return world.bushes.map(({ id, x, z }) => ({
-      id,
-      x,
-      z,
-      status: dailyStatus(daily, id, now),
-    }))
+    const serverNow = net.clock.serverNow(now)
+    const pastReset = daily !== null && serverNow >= daily.resetsAt
+    if (bushesStale || daily !== bushesFor || pastReset !== bushesPastReset) {
+      bushesStale = false
+      bushesFor = daily
+      bushesPastReset = pastReset
+      bushes = world.bushes.map(({ id, x, z }) => ({
+        id,
+        x,
+        z,
+        status: dailyStatus(daily, id, serverNow),
+      }))
+    }
+    return bushes
   }
+
+  // Everything E could take up, the valley's pickups and what lies
+  // dropped, as one list: built again when the drops' meshes are.
+  let dropPickups = game.drops.pickups
+  let pickups: Pickup[] = [...world.pickups, ...dropPickups]
+  const allPickups = (): Pickup[] => {
+    if (game.drops.pickups !== dropPickups) {
+      dropPickups = game.drops.pickups
+      pickups = [...world.pickups, ...dropPickups]
+    }
+    return pickups
+  }
+
+  // The scope's contacts, one list filled each frame it is raised.
+  const scopeContacts: ScopeContact[] = []
 
   // The prompt and the label for what E would do, kept while the
   // interaction reads the same (interactionKey).
@@ -411,15 +442,19 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     hud.level.set(net.online ? s.xp : null)
     hud.tickChat(performance.now())
 
-    scope.draw(dt, {
-      contacts: [
-        ...swarm.contacts,
-        ...(keeper.contact ? [keeper.contact] : []),
-        ...peers.contacts(player.pos, CONFIG.scope.rangeMetres, renderAt),
-      ],
-      forward,
-      perception,
-    })
+    if (scope.raised) {
+      scopeContacts.length = 0
+      for (const c of swarm.contacts) scopeContacts.push(c)
+      if (keeper.contact) scopeContacts.push(keeper.contact)
+      for (const c of peers.contacts(
+        player.pos,
+        CONFIG.scope.rangeMetres,
+        renderAt
+      )) {
+        scopeContacts.push(c)
+      }
+      scope.draw(dt, { contacts: scopeContacts, forward, perception })
+    }
 
     // The Book of Shadows: the places in reach, a shadow come within
     // sight, and whatever the pack holds, written the first time
@@ -440,7 +475,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
 
     // Pickups pulse every frame, whatever the prompt says.
     const pulse = 0.35 + Math.sin(time * 3) * 0.2
-    for (const pickup of [...world.pickups, ...game.drops.pickups]) {
+    for (const pickup of allPickups()) {
       if (pickup.taken) continue
       for (const m of pulseMaterials(pickup.mesh)) m.emissiveIntensity = pulse
     }
@@ -452,7 +487,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
 
     // --- Interactions: what E would do right now -------------------------
     const inStore = targets.storeIndex()
-    const bushes = bushSpots()
+    const bushes = bushSpots(now)
     const leg = s.world?.truck.leg ?? s.aloneTruck.leg
     s.interaction = resolveInteraction({
       riding: s.aboard,
@@ -463,7 +498,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         boardable: boardable(leg, s.world ? net.id : 'me'),
       },
       // What lies dropped answers to E like any pickup.
-      pickups: [...world.pickups, ...game.drops.pickups],
+      pickups: allPickups(),
       shelf: targets.shelfInView(inStore),
       bushes,
       gron: world.gron,
