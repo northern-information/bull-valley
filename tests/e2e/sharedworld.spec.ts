@@ -63,12 +63,14 @@ async function moveToTruck(page: Page): Promise<void> {
     if (!bv) throw new Error('no dev hook')
     bv.player.relocate(bv.truck.x + 1, bv.truck.z + 1, bv.player.yaw)
   })
+  // The valley holds a board to where it last heard the raider stand.
+  await heardWhere(page)
 }
 
 // Stand a stride off the first untaken cabbage, looking down at it, and
 // say which it is.
 async function moveToCabbage(page: Page): Promise<number> {
-  return page.evaluate(() => {
+  const i = await page.evaluate(() => {
     const bv = window.__bv!
     const i = bv.world.pickups.findIndex(
       (p) => p.kind === 'cabbage' && !p.taken
@@ -78,6 +80,9 @@ async function moveToCabbage(page: Page): Promise<number> {
     bv.player.pitch = -0.5
     return i
   })
+  // The valley gives a take only to a raider it has heard stand in reach.
+  await heardWhere(page)
+  return i
 }
 
 base.describe('a shared world', { tag: '@valley' }, () => {

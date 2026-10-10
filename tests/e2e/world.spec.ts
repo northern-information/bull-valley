@@ -1,6 +1,6 @@
 import { test as base } from '@playwright/test'
 import { copy } from './copy.ts'
-import { beginRaid, expect, watchErrors } from './fixtures.ts'
+import { beginRaid, expect, heardWhere, watchErrors } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
 // A visit to the valley, played in order on one page: shop, climb into the
@@ -52,6 +52,9 @@ base.describe('one visit', { tag: '@raid' }, () => {
       bv.player.relocate(spot.x + 1, spot.z + 1, Math.atan2(1, 1))
       bv.player.pitch = -0.5
     }, find)
+    // The valley holds a take and a board to where it last heard the
+    // raider stand.
+    await heardWhere(page)
   }
 
   // How many PBRs the pack holds, as the valley last said (a fresh
