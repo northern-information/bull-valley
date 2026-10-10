@@ -21,7 +21,7 @@ import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 29
+export const PROTOCOL_VERSION = 30
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -251,6 +251,16 @@ export interface UseMessage {
   kind: string
 }
 
+// One unit of `kind` out of the pack, passed to the raider `to` (their
+// peer id) instead of used (sharedworld.ts rule 25): they take it in full,
+// the giver a share. The valley refuses a pass to a raider out of reach,
+// in the bed, or not in the valley, and one the pack cannot cover.
+export interface PassMessage {
+  type: 'pass'
+  kind: string
+  to: string
+}
+
 // `count` of `kind` set down a little ahead of the raider, out of the
 // pack. The valley places it where the raider's last state frame put
 // them, and refuses a drop the pack cannot cover.
@@ -421,6 +431,7 @@ export type ClientMessage =
   | CallMessage
   | CollectMessage
   | UseMessage
+  | PassMessage
   | DropMessage
   | TakeDropMessage
   | LootMessage
@@ -477,6 +488,15 @@ export interface WelcomeMessage {
   stand: StandLedger
   // The account's health (sharedworld.ts rule 24, health.ts).
   health: number
+  // The account's geometrie at serverNow (sharedworld.ts rule 25).
+  geometrie: GeometrieLevels
+}
+
+// Geometrie's three levels, each from 0 to 1 (geometrie.ts).
+export interface GeometrieLevels {
+  high: number
+  stimulated: number
+  drunk: number
 }
 
 // The account's Cabbage Stand after it was tended (rule 23), to every
@@ -681,10 +701,31 @@ export interface ShadowmenMessage {
 // A shadowman, or the Caretaker, touched this raider (sharedworld.ts rule
 // 22): the health the account has left, 0 when the touch shattered their
 // geometrie (the account is whole again after, rule 18's fall following).
+// shrugged: the raider's drunk shrugged the touch off (rule 25), and the
+// health is what it was.
 export interface StruckMessage {
   type: 'struck'
   by?: 'caretaker'
   health: number
+  shrugged?: true
+}
+
+// The account's geometrie as the valley keeps it (sharedworld.ts rule 25),
+// at the moment the frame is sent: after a use, a pass either way, or a
+// shattering. To every socket signed in to it.
+export interface GeometrieMessage {
+  type: 'geometrie'
+  geometrie: GeometrieLevels
+}
+
+// Something passed (rule 25): to the raider who took it, naming who passed
+// it (`from`); and back to the giver's sockets naming who took it (`to`).
+// Usernames as D1 holds them. A geometrie frame follows for each side.
+export interface PassedMessage {
+  type: 'passed'
+  kind: string
+  from?: string
+  to?: string
 }
 
 // The account's health, given back (sharedworld.ts rule 24): a forecourt,
@@ -722,6 +763,8 @@ export type ServerMessage =
   | ShadowmenMessage
   | StruckMessage
   | HealthMessage
+  | GeometrieMessage
+  | PassedMessage
   | SeasonMessage
   | BookMessage
   | TaskMessage
@@ -1028,6 +1071,15 @@ export function parseClientMessage(text: string): ClientMessage | null {
     case 'use': {
       const { kind } = value
       return isKind(kind) ? { type: 'use', kind } : null
+    }
+    case 'pass': {
+      const { kind, to } = value
+      return isKind(kind) &&
+        typeof to === 'string' &&
+        to.length > 0 &&
+        to.length <= 64
+        ? { type: 'pass', kind, to }
+        : null
     }
     case 'drop': {
       const { kind, count } = value

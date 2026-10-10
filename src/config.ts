@@ -218,6 +218,19 @@ export const CONFIG = {
     // src/items.ts.
     fadePerSecond: { high: 1 / 240, stimulated: 1 / 180, drunk: 1 / 300 },
   },
+  // What geometrie does while it lasts (buffs.ts), each scaled by its
+  // level from 0 to 1. High reaches the flashlight further and wider (a
+  // full high, half again); stimulated quickens the sprint (a full one,
+  // 35% faster); drunk shrugs a touch off now and then (a full drunk, one
+  // in two). Passing something to a raider within passReach metres doses
+  // them in full and heals them, and doses the giver at shareScale too.
+  buffs: {
+    beamPerHigh: 0.5,
+    sprintPerStimulated: 0.35,
+    shrugPerDrunk: 0.5,
+    passReach: 3,
+    shareScale: 0.5,
+  },
   scope: {
     // Close enough to read: a rush starts at a quarter of it.
     rangeMetres: 100,

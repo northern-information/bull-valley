@@ -48,6 +48,7 @@ import {
   createValley,
   dailyFor,
   forecourtMends,
+  geometrieFor,
   healthFor,
   placeCaretaker,
   placeOf,
@@ -251,17 +252,22 @@ export class ValleyDO extends DurableObject<Env> {
         await this.act(ws, { type: 'collect', id: me.id, bush: msg.bush })
         return
       case 'use': {
-        // Rule 24: medicine that heals gives its points back once the pack
-        // has given the unit up.
+        // Rules 24 and 25: once the pack has given the unit up, it doses
+        // geometrie and gives its points back.
         const used = await this.act(ws, {
           type: 'use',
           id: me.id,
           kind: msg.kind,
         })
+        if (!used) return
+        await this.dose({ type: 'dose', id: me.id, kind: msg.kind })
         const heals = healsOf(msg.kind)
-        if (used && heals > 0) await this.mend(me.id, heals)
+        if (heals > 0) await this.mend(me.id, heals)
         return
       }
+      case 'pass':
+        await this.pass(ws, me, msg.kind, msg.to)
+        return
       case 'drop': {
         // Where the raider's own last state frame put them, never the
         // drop frame's word.
@@ -487,27 +493,98 @@ export class ValleyDO extends DurableObject<Env> {
     sockets: readonly WebSocket[],
     caught: boolean
   ): Promise<void> {
-    const reduced = reduce(this.valley, { type: 'hit', id }, this.context())
+    const reduced = reduce(
+      this.valley,
+      { type: 'hit', id, roll: this.roll() },
+      this.context()
+    )
     await this.apply(reduced)
     const change = reduced.health
     if (!change) return
     const health = change.points
+    // Rule 25: shrugged off, the sockets touched hear it and nothing is
+    // lost.
+    const shrugged = change.shrugged ? { shrugged: true as const } : {}
     for (const socket of this.ctx.getWebSockets()) {
       const attachment = this.attachment(socket)
       if (attachment.account !== account || !attachment.me) continue
       try {
-        if (!sockets.includes(socket)) send(socket, { type: 'health', health })
-        else if (caught)
-          send(socket, { type: 'struck', by: 'caretaker', health })
-        else send(socket, { type: 'struck', health })
+        if (!sockets.includes(socket)) {
+          if (!change.shrugged) send(socket, { type: 'health', health })
+        } else if (caught) {
+          send(socket, { type: 'struck', by: 'caretaker', health, ...shrugged })
+        } else send(socket, { type: 'struck', health, ...shrugged })
       } catch {
         // Closing sockets throw; their close handler follows.
       }
     }
+    this.tellGeometrie(reduced)
     if (!change.fatal) return
     const me = this.attachment(sockets[0]).me
     const at = me?.at ? { x: me.at.x, z: me.at.z, yaw: me.at.yaw } : null
     await this.fall(account, id, at)
+  }
+
+  // Rule 25's draw for a drunk's shrug; the Worker tests replace it.
+  protected roll(): number {
+    return Math.random()
+  }
+
+  // Rule 25: every socket on each account dosed hears its geometrie.
+  private tellGeometrie(reduced: Reduced): void {
+    for (const { account, levels } of reduced.geometrie ?? []) {
+      this.toAccount(account, { type: 'geometrie', geometrie: levels })
+    }
+  }
+
+  // Rule 25: a use or a pass, once the pack gave the unit up, doses.
+  private async dose(
+    action: Extract<ValleyAction, { type: 'dose' }>
+  ): Promise<void> {
+    const reduced = reduce(this.valley, action, this.context())
+    await this.apply(reduced)
+    this.tellGeometrie(reduced)
+  }
+
+  // Rule 25: a unit passed to the raider `to` (a peer id), both where
+  // their own last state frames put them. Once the giver's pack gives it
+  // up, the taker is dosed in full and given its heal, the giver dosed
+  // their share, and both sides hear who and what.
+  private async pass(
+    ws: WebSocket,
+    me: PeerWire,
+    kind: string,
+    to: string
+  ): Promise<void> {
+    let taker: PeerWire | null = null
+    for (const socket of this.ctx.getWebSockets()) {
+      const other = this.attachment(socket).me
+      if (other?.id === to) taker = other
+    }
+    const spot = (peer: PeerWire | null) =>
+      peer?.at ? { x: peer.at.x, z: peer.at.z, riding: peer.at.riding } : null
+    const reduced = reduce(
+      this.valley,
+      {
+        type: 'pass',
+        id: me.id,
+        to,
+        kind,
+        from: spot(me),
+        at: spot(taker),
+      },
+      this.context()
+    )
+    await this.apply(reduced)
+    if (reduced.reply) send(ws, reduced.reply)
+    const { passed, pack } = reduced
+    if (!passed || !pack || !taker) return
+    if (!(await this.repack(ws, pack, pack.account, 'pass'))) return
+    await this.dose({ type: 'dose', id: me.id, kind, to })
+    const heals = healsOf(kind)
+    if (heals > 0) await this.mend(to, heals)
+    this.toAccount(passed.account, { type: 'passed', kind, from: me.name })
+    this.toAccount(pack.account, { type: 'passed', kind, to: taker.name })
   }
 
   // Points given back (rule 24): `by` of them, or whole on a forecourt.
@@ -834,6 +911,7 @@ export class ValleyDO extends DurableObject<Env> {
       book,
       task: taskWire(task),
       health: healthFor(this.valley, account),
+      geometrie: geometrieFor(this.valley, account, now),
       xp,
       stand,
     })
@@ -1325,7 +1403,8 @@ export class ValleyDO extends DurableObject<Env> {
   private async repack(
     ws: WebSocket | null,
     change: PackChange | null,
-    account = change?.account
+    account = change?.account,
+    re: 'use' | 'pass' = 'use'
   ): Promise<boolean> {
     if (!account) return false
     let done = true
@@ -1334,7 +1413,7 @@ export class ValleyDO extends DurableObject<Env> {
       if (change) {
         done = await packs.change(account, change.kind, change.delta)
         if (!done && ws) {
-          send(ws, { type: 'nack', re: 'use', reason: 'none-left' })
+          send(ws, { type: 'nack', re, reason: 'none-left' })
         }
       }
       this.toAccount(account, this.packFrame(account, await packs.get(account)))

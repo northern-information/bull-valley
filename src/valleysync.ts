@@ -5,6 +5,7 @@
 // the drops, the bodies, the lines in the log).
 
 import { toFound } from './book.ts'
+import { isLevels } from './buffs.ts'
 import { CHAT_COPY, emoteLine, othersLine } from './chat.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
@@ -152,10 +153,17 @@ export function wireValley(game: Game, actions: Actions): void {
         return
       // Rule 24: a touch, and the health it left; health given back.
       case 'struck':
-        actions.strike(msg.by ?? 'shadowman', msg.health)
+        actions.strike(msg.by ?? 'shadowman', msg.health, msg.shrugged)
         return
       case 'health':
         actions.setHealth(msg.health)
+        return
+      // Rule 25: the account's geometrie, and something passed.
+      case 'geometrie':
+        if (isLevels(msg.geometrie)) actions.setGeometrie(msg.geometrie)
+        return
+      case 'passed':
+        actions.applyPassed(msg)
         return
     }
   })
@@ -300,6 +308,9 @@ export function wireValley(game: Game, actions: Actions): void {
       hud.tell(
         copy(msg.reason === 'aboard' ? 'log.drop_aboard' : 'log.drop_refused')
       )
+    } else if (msg.re === 'pass') {
+      // The pack frame that follows puts the count right.
+      hud.tell(passRefusal(msg.reason))
     } else if (msg.re === 'discover') {
       actions.bookRefused()
     } else if (msg.re === 'take-drop') {
@@ -386,6 +397,7 @@ export function wireValley(game: Game, actions: Actions): void {
       }
       s.placed = true
       s.health = msg.health
+      if (isLevels(msg.geometrie)) actions.setGeometrie(msg.geometrie)
       applyWorld(msg.world, 'joined', { by: msg.id })
       s.daily = msg.daily
       // What the account already wears is no news.
@@ -505,5 +517,18 @@ function standNews(msg: StandMessage, was: StandLedger | null): string | null {
       })
     case 'upgrade':
       return copy('log.stand_upgraded', { level: stand.level })
+  }
+}
+
+// Rule 25: why the valley would not take a pass.
+function passRefusal(reason: string): string {
+  switch (reason) {
+    case 'too-far':
+    case 'no-one':
+      return copy('log.pass_no_one')
+    case 'not-on-foot':
+      return copy('log.pass_aboard')
+    default:
+      return copy('log.pass_refused')
   }
 }

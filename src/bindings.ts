@@ -50,6 +50,8 @@ export const WORLD = {
   book: { codes: ['KeyB'], key: 'B', labelKey: 'keys.book' },
   interact: { codes: ['KeyE'], key: 'E', labelKey: 'keys.interact' },
   callTruck: { codes: ['KeyT'], key: 'T', labelKey: 'keys.call_truck' },
+  // The last thing used, to the raider in reach in front of you.
+  pass: { codes: ['KeyG'], key: 'G', labelKey: 'keys.pass' },
   hotbar: { codes: HOTBAR_CODES, key: '1–9', labelKey: 'keys.hotbar' },
   chat: {
     codes: ['Enter', 'NumpadEnter'],
@@ -75,6 +77,8 @@ export const CHAT = {
 // Esc no longer drops a lock.
 export const PACK = {
   use: { codes: ['KeyE', 'Enter'], key: 'E', labelKey: 'keys.use' },
+  // The item to the raider in reach in front of you.
+  pass: { codes: ['KeyG'], key: 'G', labelKey: 'keys.pass_item' },
   assign: { codes: HOTBAR_CODES, key: '1–9', labelKey: 'keys.assign' },
   // The same keys with nothing under the cursor empty that slot (input.ts
   // reads the hover).

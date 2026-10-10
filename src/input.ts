@@ -151,6 +151,9 @@ export function wireKeys(
       case 'drop':
         if (item && !inLocker) actions.dropKind(item.kind, e.shiftKey)
         return
+      case 'pass':
+        if (item?.canUse && !inLocker) actions.passKind(item.kind)
+        return
       case 'stow':
         if (!item || !s.lockerOpen) return
         if (inLocker) actions.unstowKind(item.kind, e.shiftKey)
@@ -231,6 +234,9 @@ export function wireKeys(
         return
       case 'scope':
         scope.toggle()
+        return
+      case 'pass':
+        actions.passKind()
         return
       case 'hotbar': {
         const slot = hotbarSlot(e.code)

@@ -9,6 +9,7 @@
 import { saveHotbar, saveLook } from './auth.ts'
 import { CHAPTERS, entryOf, newlyFound } from './book.ts'
 import { portraitOf } from './bookportraits.ts'
+import { passTarget, shrugs } from './buffs.ts'
 import {
   CHAT_COPY,
   chatCommand,
@@ -31,14 +32,14 @@ import {
   spillsOf,
 } from './drops.ts'
 import { finishById } from './finishes.ts'
-import { dose } from './geometrie.ts'
+import { dose, levelsAt, SOBER } from './geometrie.ts'
 import { burialsOf, bury } from './graves.ts'
 import { openGronDialog } from './grondialog.ts'
 import { hit, isWhole, MAX_HEALTH, mend } from './health.ts'
 import { assign, clearSlot as clearHotbarSlot, place, spent } from './hotbar.ts'
 import { pickupLabel } from './interactions.ts'
 import { addItem, consume } from './inventory.ts'
-import { getItem, healsOf, itemById } from './items.ts'
+import { getItem, healsOf, isUsable, itemById, tripSecondsOf } from './items.ts'
 import { board, call, hopOut as hopOutOf, refused } from './marx.ts'
 import { npcLine } from './npcs.ts'
 import { outfitById } from './outfits.ts'
@@ -67,7 +68,11 @@ import type { DailyStatus, ShelfSpot } from './interactions.ts'
 import type { Leg, TruckState } from './marx.ts'
 import type { NpcId } from './npcs.ts'
 import type { BagAction, BagTab } from './packgrid.ts'
-import type { DailyMessage } from './protocol.ts'
+import type {
+  DailyMessage,
+  GeometrieLevels,
+  PassedMessage,
+} from './protocol.ts'
 import type { Burst } from './shadowmen.ts'
 import type { Pickup } from './world.ts'
 
@@ -121,7 +126,20 @@ export interface Actions {
   // 22), the valley's word on what is left, or alone our own. The last one
   // shatters your geometrie, and everything the pack held stays on your
   // body where you fell (rule 18).
-  strike(by?: 'shadowman' | 'caretaker', health?: number): void
+  // shrugged: the valley says the drunk shrugged it off (rule 25), as
+  // alone the drunk's own chance may.
+  strike(
+    by?: 'shadowman' | 'caretaker',
+    health?: number,
+    shrugged?: boolean
+  ): void
+  // G: one of `kind` (the last used, in the valley) passed to the raider
+  // in reach in front of you (rule 25).
+  passKind(kind?: string | null): void
+  // The valley's word on a pass: to us (`from`), or from us (`to`).
+  applyPassed(msg: PassedMessage): void
+  // The account's geometrie as the valley keeps it.
+  setGeometrie(levels: GeometrieLevels): void
   // The account's health as the valley says it (a forecourt, medicine).
   setHealth(points: number): void
   // Played alone, a forecourt makes whole.
@@ -388,7 +406,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // the last word, so the pack shows empty at once; alone it lies at once.
   const strike = (
     by: 'shadowman' | 'caretaker' = 'shadowman',
-    health?: number
+    health?: number,
+    shrugged = false
   ) => {
     if (s.aboard) {
       // Touched as we climbed in: the valley's count stands all the same.
@@ -396,6 +415,15 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       return
     }
     const now = performance.now()
+    // Rule 25: the drunk shrugs it off, the valley's word or alone our
+    // own chance; a few seconds' grace all the same.
+    const levels = levelsAt(s.geometrie, s.time)
+    if (shrugged || (!s.world && shrugs(levels, Math.random()))) {
+      if (health !== undefined) s.health = health
+      s.graceUntil = now + CONFIG.health.graceSeconds * 1000
+      hud.tell(copy('log.shrugged'))
+      return
+    }
     s.emoting = null
     s.health = health ?? hit(s.health).points
     s.graceUntil = now + CONFIG.health.graceSeconds * 1000
@@ -406,8 +434,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       hud.tell(copy(by === 'caretaker' ? 'log.hit_caretaker' : 'log.hit'))
       return
     }
-    // Shattered: whole again where you come to.
+    // Shattered: whole again where you come to, and sober.
     s.health = MAX_HEALTH
+    s.geometrie = SOBER
     s.strikes += 1
     s.strikeUntil = now + CONFIG.shadowmen.strikeSeconds * 1000
     hud.showStatic(true)
@@ -755,6 +784,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     s.geometrie = dose(s.geometrie, itemById(kind)?.geometrie, s.time)
     // The right hand brings it up (fphands.ts).
     s.using = { kind, at: s.time }
+    s.lastUsed = kind
     // The unit is the account's: the valley takes it out of the pack, and
     // gives back what it heals; alone it heals at once.
     net.send({ type: 'use', kind })
@@ -762,6 +792,59 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     refreshBag()
     const used = itemById(kind)?.used
     if (used) hud.tell(used)
+  }
+
+  // Rule 25. Passed to the nearest raider on foot in reach and in front,
+  // where their last frame put them; the valley checks. The unit leaves
+  // the pack at once, and the valley's pack frame has the last word.
+  const passKind = (kind: string | null = s.lastUsed) => {
+    if (!kind || !isUsable(kind) || (s.inventory[kind] ?? 0) < 1) {
+      hud.tell(copy('log.pass_nothing'))
+      return
+    }
+    if (!s.world) {
+      hud.tell(copy('log.pass_alone'))
+      return
+    }
+    if (s.aboard) {
+      hud.tell(copy('log.pass_aboard'))
+      return
+    }
+    const peers = [...game.peers.table.values()].flatMap((peer) =>
+      peer.next && !peer.next.riding
+        ? [{ id: peer.id, x: peer.next.x, z: peer.next.z }]
+        : []
+    )
+    const to = passTarget(player.pos, player.yaw, peers)
+    if (!to) {
+      hud.tell(copy('log.pass_no_one'))
+      return
+    }
+    s.inventory = addItem(s.inventory, kind, -1)
+    keepHotbar(spent(s.hotbar, kind, s.inventory))
+    refreshBag()
+    net.send({ type: 'pass', kind, to: to.id })
+  }
+
+  // The valley's word: taken from us, or passed to us. What it does to
+  // geometrie and health comes in its own frames; the trip is ours to
+  // draw.
+  const applyPassed = (msg: PassedMessage) => {
+    const item = itemById(msg.kind)?.label ?? msg.kind
+    if (msg.to !== undefined) {
+      s.using = { kind: msg.kind, at: s.time }
+      hud.tell(copy('log.passed', { item, name: msg.to }))
+      return
+    }
+    const end = Math.max(s.effects.trip.end, s.time + tripSecondsOf(msg.kind))
+    if (end > s.time) s.effects = { ...s.effects, trip: { start: s.time, end } }
+    s.using = { kind: msg.kind, at: s.time }
+    hud.tell(copy('log.passed_you', { item, name: msg.from ?? '' }))
+  }
+
+  // Rule 25: the valley's levels, as of now on our own clock.
+  const setGeometrie = (levels: GeometrieLevels) => {
+    s.geometrie = { at: s.time, levels }
   }
 
   // Rule 12. In the valley the drop lands where our last state frame put
@@ -1086,6 +1169,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     wear,
     tradeRefused,
     useKind,
+    passKind,
+    applyPassed,
+    setGeometrie,
     dropKind,
     applyDropTaken,
     spillBursts,

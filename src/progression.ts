@@ -1,6 +1,6 @@
 // The raider's level: one XP bar for the account that everything a raider
 // does feeds (sharedworld.ts rule 22). Burning a shadowman, a ride with
-// Marx, a berry, a pickup, a unit bought, a drop the valley left taken up,
+// Marx, a berry, a pickup, something passed to another raider, a unit bought, a drop the valley left taken up,
 // what the Cabbage Stand pays out when collected, and the Caretaker
 // unmade (a big jump) each grant the XP below; the curve
 // that turns XP into a level is CONFIG.progression.
@@ -25,6 +25,7 @@ export type XpSource =
   | 'purchase'
   | 'drop'
   | 'stand'
+  | 'share'
 
 // The XP each grants: every grant in one table.
 export const XP: Readonly<Record<XpSource, number>> = {
@@ -51,6 +52,9 @@ export const XP: Readonly<Record<XpSource, number>> = {
   // collected (stand.ts standXp), so collecting often earns no more than
   // collecting once.
   stand: 1,
+  // Something smoked, drunk or swallowed passed to another raider (rule
+  // 25). It costs the giver the unit, so it is never free to farm.
+  share: 5,
 }
 
 // XP earned by an account.

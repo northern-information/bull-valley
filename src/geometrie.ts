@@ -5,7 +5,9 @@
 // draws it as a red triangle: the top corner lights with high, the lower
 // right with stimulated, the lower left with drunk.
 //
-// Like the item effects, it is this client's alone: never sent, never kept.
+// It is the account's, kept by the valley (sharedworld.ts rule 25) and sent
+// to the client as levels; played alone, the client keeps its own. What
+// it does while it lasts is buffs.ts.
 
 import { CONFIG } from './config.ts'
 import type { GeometrieAxis } from './interfaces.ts'

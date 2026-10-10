@@ -274,6 +274,14 @@ none_left = { text = "You have none left.", by = "ai" }
 dropped = { text = "Dropped: {item}", by = "ai" }
 drop_aboard = { text = "Not from the truck.", by = "ai" }
 drop_refused = { text = "It won't come loose.", by = "ai" }
+shrugged = { text = "Something cold goes through you. You're too far gone to feel it.", by = "ai" }
+pass_nothing = { text = "Nothing in hand to pass.", by = "ai" }
+pass_alone = { text = "No one out here to pass it to.", by = "ai" }
+pass_aboard = { text = "Not from the truck.", by = "ai" }
+pass_no_one = { text = "No one close enough to take it.", by = "ai" }
+pass_refused = { text = "It doesn't make it across.", by = "ai" }
+passed = { text = "You pass the {item} to {name}.", by = "ai" }
+passed_you = { text = "{name} passes you the {item}.", by = "ai" }
 change_unheard = { text = "The valley missed that. Others will see it when you next join.", by = "ai" }
 struck = { text = "You are somewhere else. Time is missing.", by = "ai" }
 hit = { text = "Something cold goes through you. It takes a piece with it.", by = "ai" }
@@ -443,6 +451,8 @@ inventory = { text = "Inventory", by = "ai" }
 book = { text = "Book of Shadows", by = "ai" }
 interact = { text = "Interact", by = "ai" }
 call_truck = { text = "Call the Truck", by = "ai" }
+pass = { text = "Pass It", by = "ai" }
+pass_item = { text = "Pass to a Raider", by = "ai" }
 hotbar = { text = "Use Hotbar Item", by = "ai" }
 chat = { text = "Chat", by = "ai" }
 chat_scroll_up = { text = "Scroll Up", by = "ai" }

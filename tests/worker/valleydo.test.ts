@@ -131,6 +131,11 @@ class TestValley extends ValleyDO {
   tick(): void {
     this.tickShadows()
   }
+  // Rule 25's draw for a drunk's shrug: never, unless a test says.
+  rolled = 0.999
+  protected override roll(): number {
+    return this.rolled
+  }
   // A strike's fall, as the step would make it, for a socket on `account`.
   fallFor(
     account: string,
@@ -2556,5 +2561,128 @@ describe('ValleyDO: health', () => {
     )
     await v.webSocketMessage(ws(a), '{"type":"use","kind":"grey-goose"}')
     expect(healthOf(a).at(-1)).toBe(3)
+  })
+})
+
+describe('ValleyDO: buffs', () => {
+  const welcomeOf = (socket: MockSocket) =>
+    socket.frames()[0] as Extract<ServerMessage, { type: 'welcome' }>
+  const geometrieOf = (socket: MockSocket) =>
+    socket
+      .frames()
+      .filter((m) => m.type === 'geometrie')
+      .map((m) => m.geometrie)
+
+  async function two() {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const b = await join(v, s, 'B', { dev: true })
+    await v.alarm()
+    await v.webSocketMessage(ws(a), state(500, 500))
+    await v.webSocketMessage(ws(b), state(501, 500))
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"calm"}')
+    return { v, s, a, b, bId: welcomeOf(b).id }
+  }
+
+  it('welcomes an account sober', async () => {
+    const { a } = await two()
+    expect(welcomeOf(a).geometrie).toEqual({
+      high: 0,
+      stimulated: 0,
+      drunk: 0,
+    })
+  })
+
+  it('doses geometrie for a use once the pack gives the unit up', async () => {
+    const { v, a } = await two()
+    // None carried: nothing dosed.
+    await v.webSocketMessage(ws(a), '{"type":"use","kind":"wild-turkey"}')
+    expect(geometrieOf(a)).toEqual([])
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"grant","kind":"joints","count":1}'
+    )
+    await v.webSocketMessage(ws(a), '{"type":"use","kind":"joints"}')
+    expect(geometrieOf(a).at(-1)?.high).toBeGreaterThan(0.4)
+  })
+
+  it('passes a unit to a raider in reach: they take it in full, the giver a share', async () => {
+    const { v, a, b, bId } = await two()
+    await v.webSocketMessage(ws(b), '{"type":"dev","op":"health","points":1}')
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"grant","kind":"joints","count":2}'
+    )
+    const before = lastPack(a)?.joints ?? 0
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ type: 'pass', kind: 'joints', to: bId })
+    )
+    expect(lastPack(a)?.joints).toBe(before - 1)
+    expect(b.frames()).toContainEqual({
+      type: 'passed',
+      kind: 'joints',
+      from: 'A',
+    })
+    expect(a.frames()).toContainEqual({
+      type: 'passed',
+      kind: 'joints',
+      to: 'B',
+    })
+    const high = geometrieOf(b).at(-1)?.high ?? 0
+    expect(high).toBeGreaterThan(0.4)
+    expect(geometrieOf(a).at(-1)?.high).toBeCloseTo(
+      high * CONFIG.buffs.shareScale,
+      2
+    )
+    // The joint heals two.
+    expect(b.frames()).toContainEqual({ type: 'health', health: 3 })
+    await settle()
+    expect(a.frames().some((m) => m.type === 'xp')).toBe(true)
+  })
+
+  it('refuses a pass out of reach, or one the pack cannot cover', async () => {
+    const { v, a, b, bId } = await two()
+    const pass = JSON.stringify({ type: 'pass', kind: 'pbr', to: bId })
+    await v.webSocketMessage(ws(a), pass)
+    expect(a.frames()).toContainEqual({
+      type: 'nack',
+      re: 'pass',
+      reason: 'none-left',
+    })
+    await v.webSocketMessage(ws(b), state(520, 500))
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"grant","kind":"pbr","count":1}'
+    )
+    await v.webSocketMessage(ws(a), pass)
+    expect(a.frames()).toContainEqual({
+      type: 'nack',
+      re: 'pass',
+      reason: 'too-far',
+    })
+    expect(lastPack(a)?.pbr).toBe(1)
+    expect(b.frames().some((m) => m.type === 'passed')).toBe(false)
+  })
+
+  it("shrugs a touch off when the drunk's roll says so", async () => {
+    const { v, a } = await two()
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"grant","kind":"wild-turkey","count":2}'
+    )
+    await v.webSocketMessage(ws(a), '{"type":"use","kind":"wild-turkey"}')
+    await v.webSocketMessage(ws(a), '{"type":"use","kind":"wild-turkey"}')
+    v.rolled = 0
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"shadowman","x":500,"z":501}'
+    )
+    await tickUntilStruck(v, a)
+    expect(a.frames()).toContainEqual({
+      type: 'struck',
+      health: CONFIG.health.max,
+      shrugged: true,
+    })
   })
 })

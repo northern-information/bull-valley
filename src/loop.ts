@@ -5,6 +5,7 @@
 import * as THREE from 'three'
 import { pulseMaterials } from './assets.ts'
 import { itemsHeld, sightsInReach } from './book.ts'
+import { buffedBeam, sprintScale } from './buffs.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { moabOffer } from './cosmetics.ts'
@@ -164,6 +165,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         speedScale:
           (scope.raised ? CONFIG.player.scopeSpeedScale : 1) *
           (smoking ? CONFIG.items.smokingSpeedScale : 1),
+        // Rule 25: stimulated, the sprint runs quicker.
+        sprintScale: sprintScale(levelsAt(s.geometrie, s.time)),
         eye: s.emoting ? EMOTES[s.emoting.id].eye : null,
       })
       forward = playerState.forward
@@ -242,13 +245,17 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
             !s.aboard &&
             now >= s.strikeUntil &&
             now >= s.graceUntil,
-          // The same beam the valley would aim from this raider's frame.
+          // The same beam the valley would aim from this raider's frame,
+          // reached out by their high (rule 25).
           beam: lit
-            ? beamFrom(
-                { x: player.pos.x, y: feetY, z: player.pos.z },
-                player.yaw,
-                player.pitch,
-                crouching
+            ? buffedBeam(
+                beamFrom(
+                  { x: player.pos.x, y: feetY, z: player.pos.z },
+                  player.yaw,
+                  player.pitch,
+                  crouching
+                ),
+                levelsAt(s.geometrie, s.time)
               )
             : null,
           lights: [headlightBeam(truck.headlights())],

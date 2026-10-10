@@ -14,6 +14,7 @@ import {
   creditedWith,
   dailyFor,
   forecourtMends,
+  geometrieFor,
   headlightsAt,
   healthFor,
   placeCaretaker,
@@ -1812,5 +1813,149 @@ describe('rule 24: health', () => {
     expect(out?.message.shadowmen.some((s) => s.kind === 'spiderling')).toBe(
       false
     )
+  })
+})
+
+describe('rule 25: buffs', () => {
+  const at = (over: Partial<PeerStateWire> = {}): PeerStateWire => ({
+    x: 500,
+    y: 0,
+    z: 500,
+    yaw: 0,
+    pitch: 0,
+    pose: 'walk',
+    riding: false,
+    light: false,
+    ...over,
+  })
+  const spot = (x: number, z: number, riding = false) => ({ x, z, riding })
+  const pass = (
+    over: Partial<Extract<ValleyAction, { type: 'pass' }>> = {}
+  ): ValleyAction => ({
+    type: 'pass',
+    id: 'a',
+    to: 'b',
+    kind: 'joints',
+    from: spot(500, 500),
+    at: spot(501, 500),
+    ...over,
+  })
+
+  it('starts every account sober, and an older valley is too', () => {
+    const v = valleyWith(join('a'))
+    expect(geometrieFor(v.valley, 'acct-a', v.now)).toEqual({
+      high: 0,
+      stimulated: 0,
+      drunk: 0,
+    })
+    const { geometrie: _, ...older } = createValley()
+    expect(restoreValley(older).geometrie).toEqual({})
+  })
+
+  it('doses the user once the unit is out of the pack, fading on its clock', () => {
+    const v = valleyWith(join('a'))
+    const out = v.step({ type: 'dose', id: 'a', kind: 'joints' })
+    const high = getItem('joints').geometrie.high
+    expect(out.geometrie).toEqual([
+      { account: 'acct-a', levels: { high, stimulated: 0, drunk: 0 } },
+    ])
+    expect(out.xp).toBeUndefined()
+    v.tick(60 * SEC)
+    const later = geometrieFor(v.valley, 'acct-a', v.now).high
+    expect(later).toBeCloseTo(high - 60 * CONFIG.geometrie.fadePerSecond.high)
+    expect(
+      v.step({ type: 'dose', id: 'nobody', kind: 'joints' }).geometrie
+    ).toBeUndefined()
+  })
+
+  it("passes to another raider on foot in reach, out of the giver's pack", () => {
+    const v = valleyWith(join('a'), join('b'))
+    const out = v.step(pass())
+    expect(out.reply).toBeUndefined()
+    expect(out.pack).toEqual({ account: 'acct-a', kind: 'joints', delta: -1 })
+    expect(out.passed).toEqual({ to: 'b', account: 'acct-b', kind: 'joints' })
+  })
+
+  it('refuses a pass too far, from or to the bed, to yourself, or of nothing usable', () => {
+    const second = { ...joinAs('c'), account: 'acct-a' }
+    const v = valleyWith(join('a'), join('b'), second)
+    const reason = (action: ValleyAction) => v.step(action).reply?.reason
+    expect(reason(pass({ at: spot(510, 500) }))).toBe('too-far')
+    expect(reason(pass({ at: spot(501, 500, true) }))).toBe('not-on-foot')
+    expect(reason(pass({ from: null }))).toBe('not-on-foot')
+    expect(reason(pass({ at: null }))).toBe('not-on-foot')
+    expect(reason(pass({ to: 'c' }))).toBe('no-one')
+    expect(reason(pass({ to: 'nobody' }))).toBe('no-one')
+    expect(reason(pass({ id: 'nobody' }))).toBe('not-in-valley')
+    expect(reason(pass({ kind: 'cabbage' }))).toBe('not-an-item')
+    expect(reason(pass({ kind: 'nope' }))).toBe('not-an-item')
+    expect(v.step(pass({ at: spot(510, 500) })).pack).toBeUndefined()
+  })
+
+  it('doses the taker in full and the giver a share, and pays the giver XP', () => {
+    const v = valleyWith(join('a'), join('b'))
+    const out = v.step({
+      type: 'dose',
+      id: 'a',
+      kind: 'four-loko-blue',
+      to: 'b',
+    })
+    const { stimulated, drunk } = getItem('four-loko-blue').geometrie
+    const share = CONFIG.buffs.shareScale
+    expect(out.geometrie).toEqual([
+      { account: 'acct-b', levels: { high: 0, stimulated, drunk } },
+      {
+        account: 'acct-a',
+        levels: {
+          high: 0,
+          stimulated: stimulated * share,
+          drunk: drunk * share,
+        },
+      },
+    ])
+    expect(out.xp).toEqual([{ account: 'acct-a', source: 'share' }])
+    // A taker gone by then is dosed nothing.
+    expect(
+      v.step({ type: 'dose', id: 'a', kind: 'pbr', to: 'nobody' }).geometrie
+    ).toBeUndefined()
+  })
+
+  it("shrugs a touch off by the drunk's chance, and a shattering sobers", () => {
+    const v = valleyWith(join('a'))
+    // Sober, no roll shrugs it off.
+    expect(
+      v.step({ type: 'hit', id: 'a', roll: 0 }).health?.shrugged
+    ).toBeUndefined()
+    v.step({ type: 'set-health', id: 'a', points: CONFIG.health.max })
+    v.step({ type: 'dose', id: 'a', kind: 'wild-turkey' })
+    v.step({ type: 'dose', id: 'a', kind: 'wild-turkey' })
+    const shrugged = v.step({ type: 'hit', id: 'a', roll: 0 }).health
+    expect(shrugged).toEqual({
+      account: 'acct-a',
+      points: CONFIG.health.max,
+      shrugged: true,
+    })
+    expect(healthFor(v.valley, 'acct-a')).toBe(CONFIG.health.max)
+    // A roll past the chance lands.
+    expect(v.step({ type: 'hit', id: 'a', roll: 0.99 }).health?.points).toBe(
+      CONFIG.health.max - 1
+    )
+    v.step({ type: 'set-health', id: 'a', points: 1 })
+    const fatal = v.step({ type: 'hit', id: 'a', roll: 0.99 })
+    expect(fatal.health?.fatal).toBe(true)
+    expect(fatal.geometrie).toEqual([
+      { account: 'acct-a', levels: { high: 0, stimulated: 0, drunk: 0 } },
+    ])
+    expect(v.valley.geometrie).toEqual({})
+  })
+
+  it("reaches a high raider's beam further for the shadowmen", () => {
+    const v = valleyWith(join('a'))
+    const placed: Placed[] = [{ id: 'a', at: at({ light: true }) }]
+    const sober = shadowRaiders(v.valley, createShadows(), placed, v.now)[0]
+    v.step({ type: 'dose', id: 'a', kind: 'joints' })
+    const high = shadowRaiders(v.valley, createShadows(), placed, v.now)[0]
+    expect(high.beam!.range).toBeGreaterThan(sober.beam!.range)
+    expect(high.beam!.halfAngle).toBeGreaterThan(sober.beam!.halfAngle)
   })
 })

@@ -479,12 +479,14 @@ export class Hud {
     const mouseItem = ({ buttonKey, labelKey }: MouseBinding) =>
       keyItem({ codes: [], key: copy(buttonKey), labelKey })
     const use = keyItem(PACK.use).li
+    const pass = keyItem(PACK.pass).li
     const assign = keyItem(PACK.assign).li
     const drop = [keyItem(PACK.drop).li, keyItem(PACK.dropAll).li]
     const useMouse = mouseItem(PACK_MOUSE.use).li
-    this.cardUse = [use, useMouse]
+    this.cardUse = [use, pass, useMouse]
     this.cardPackKeys = [
       use,
+      pass,
       assign,
       ...drop,
       useMouse,

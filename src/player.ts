@@ -27,6 +27,8 @@ export interface PlayerOptions {
 // Per-frame movement modifiers from items and the scope.
 export interface PlayerMods {
   speedScale?: number
+  // How much faster the sprint alone runs (buffs.ts sprintScale).
+  sprintScale?: number
   // The eye sunk to this height over the ground (an emote sitting or
   // kneeling), or null for standing or crouched.
   eye?: number | null
@@ -111,7 +113,7 @@ export class Player {
     let speed = crouching
       ? cfg.crouchSpeed
       : sprinting
-        ? cfg.sprintSpeed
+        ? cfg.sprintSpeed * (mods.sprintScale ?? 1)
         : cfg.walkSpeed
     speed *= mods.speedScale ?? 1
 
