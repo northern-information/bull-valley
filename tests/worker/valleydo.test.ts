@@ -40,6 +40,8 @@ import type { PackStore } from '../../worker/packs.ts'
 
 class MockSocket {
   attachment: unknown = null
+  // How many times the valley read the attachment off the socket.
+  deserialized = 0
   sent: string[] = []
   closeCode: number | null = null
   closeReason = ''
@@ -55,6 +57,7 @@ class MockSocket {
     this.attachment = value
   }
   deserializeAttachment(): unknown {
+    this.deserialized++
     return this.attachment
   }
   frames(): ServerMessage[] {
@@ -2549,5 +2552,49 @@ describe('ValleyDO: health', () => {
     )
     await v.webSocketMessage(ws(a), '{"type":"use","kind":"benadryl"}')
     expect(healthOf(a)).toEqual([1, 2])
+  })
+
+  it('keeps a touch that lands while another change waits on D1', async () => {
+    const { v, s, a } = await out()
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"shadowman","x":500,"z":501}'
+    )
+    // A drop whose pack write takes long enough for the shadowman to wind
+    // up and lunge meanwhile: the step's hit must not be overwritten by
+    // the valley the drop was reduced from.
+    const store = v.packStore
+    const change = store.change.bind(store)
+    store.change = async (...args) => {
+      for (let i = 0; i < 30; i++) {
+        v.tick()
+        await settle()
+      }
+      return change(...args)
+    }
+    await v.webSocketMessage(ws(a), '{"type":"drop","kind":"joints","count":1}')
+    await settle()
+    expect(a.reasons()).toContain('dropped')
+    expect(a.frames()).toContainEqual({
+      type: 'struck',
+      health: CONFIG.health.max - 1,
+    })
+    await v.webSocketClose(ws(a))
+    const back = await join(v, s, 'A')
+    expect(back.frames()[0]).toMatchObject({
+      type: 'welcome',
+      health: CONFIG.health.max - 1,
+    })
+  })
+
+  it('reads each socket off the wire once, however many frames go round', async () => {
+    const { v, a, b } = await out()
+    const read = b.deserialized
+    for (let i = 0; i < 20; i++) {
+      await v.webSocketMessage(ws(a), state(500 + i, 500))
+    }
+    v.tick()
+    expect(b.frames().length).toBeGreaterThan(20)
+    expect(b.deserialized).toBe(read)
   })
 })
