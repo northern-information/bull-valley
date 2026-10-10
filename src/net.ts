@@ -64,6 +64,8 @@ export interface NetIdentity {
   truck: TruckRoutes
   // Where the Cabbage Stand stands (rule 23), or null.
   stand: XZ | null
+  // Where the squatter deals (rule 24), or null.
+  dealer: XZ | null
 }
 
 // Reconnect schedule, then give up: the valley is gone.
@@ -218,6 +220,7 @@ export class NetClient {
           maze: identity.maze,
           truck: identity.truck,
           stand: identity.stand,
+          dealer: identity.dealer,
         } satisfies ClientMessage)
       )
     })

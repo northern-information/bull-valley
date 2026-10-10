@@ -47,6 +47,7 @@ describe('BOOK', () => {
       'carlsten',
       'gron',
       'moab',
+      'squatter',
     ])
   })
 

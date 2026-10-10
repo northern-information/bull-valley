@@ -123,6 +123,12 @@ const NAMED: readonly BookEntry[] = [
     name: copy('outfits.moab'),
     lore: copy('book.moab.lore'),
   },
+  {
+    id: 'squatter',
+    chapter: 'folk',
+    name: copy('outfits.squatter'),
+    lore: copy('book.squatter.lore'),
+  },
 ]
 
 // Every entry, chapter by chapter; the items in items.ts's order, each

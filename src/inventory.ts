@@ -3,7 +3,13 @@
 // the copy the valley last sent and applies its own changes in the meantime.
 // Kinds and starting counts come from items.ts.
 
-import { INVENTORY_KINDS, isUsable, itemById, tripSecondsOf } from './items.ts'
+import {
+  givesPerception,
+  INVENTORY_KINDS,
+  isUsable,
+  itemById,
+  tripSecondsOf,
+} from './items.ts'
 import type { Effects } from './hotbar.ts'
 import type { Inventory } from './interfaces.ts'
 
@@ -75,7 +81,7 @@ export function consume(
       },
     }
   }
-  if (item.category === 'joint') {
+  if (givesPerception(kind)) {
     return {
       used: true,
       inv: result.inv,

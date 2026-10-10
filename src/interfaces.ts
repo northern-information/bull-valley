@@ -94,7 +94,14 @@ export interface Geo {
 export type GeometrieAxis = 'high' | 'stimulated' | 'drunk'
 
 export type ItemCategory =
-  'cigarette' | 'joint' | 'drink' | 'medicine' | 'forage' | 'valuable'
+  | 'cigarette'
+  | 'joint'
+  | 'psychedelic'
+  | 'drink'
+  | 'medicine'
+  | 'forage'
+  | 'valuable'
+  | 'key'
 
 // How a medicine is packed: a pill bottle, a folding carton, or a dropper
 // bottle. assets.ts builds one shape per form; medart.ts paints its labels.
@@ -139,7 +146,7 @@ export interface Item {
   // Cigarettes.
   smokeSeconds?: number
   emberSeconds?: number
-  // Joints.
+  // Joints and psychedelics.
   perceptionSeconds?: number
   // How far one use moves each geometrie level (geometrie.ts), 0 to 1.
   geometrie?: Partial<Record<GeometrieAxis, number>>

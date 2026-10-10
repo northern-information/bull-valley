@@ -100,8 +100,10 @@ import {
   worldFacings,
 } from './store.ts'
 import {
+  inBackRoom,
   mallCenter,
   mallDeck,
+  mallGate,
   mallOrigin,
   mallWalls,
   onMallGrounds,
@@ -131,6 +133,7 @@ import type {
   XZ,
 } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
+import type { LockId } from './keys.ts'
 import type { Cell, MazePlace, TrailField } from './maze.ts'
 import type { Rng } from './rng.ts'
 import type { LampSpot, PoleSpot } from './roadside.ts'
@@ -229,9 +232,9 @@ export interface World {
   // without a spawn station.
   dishes: DishArray | null
   // Bull Valley Plaza, the dead strip mall beside the spawn station,
-  // update(t) for its one flickering tube and the candles; null without a
-  // spawn station.
-  plaza: StripMallRig | null
+  // update(t) for its one flickering tube and the candles, and its locked
+  // back room; null without a spawn station.
+  plaza: PlazaRig | null
   // What to stand on anywhere: the terrain, or the road or lot over it.
   ground: Ground
   // What stops you: the store walls and fixtures, the berry bush, Gron,
@@ -1611,7 +1614,8 @@ function buildPickups(
   metres: Metres,
   heightAt: HeightAt,
   fuelPoints: readonly FuelPoint[],
-  rng: Rng
+  rng: Rng,
+  loot: readonly (XZ & { kind: PickupKind; count: number })[] = []
 ): { group: THREE.Group; pickups: Pickup[] } {
   const group = new THREE.Group()
   group.name = 'pickups'
@@ -1675,6 +1679,11 @@ function buildPickups(
     const { x, z } = unitToWorld(spot.u, spot.v, metres)
     place(x, z, 'cabbage', 1)
   }
+  // Last, what Bull Valley Plaza leaves lying every day (stripmall.ts
+  // STRIP_MALL.loot), each turned its own way, drawing on no seed.
+  loot.forEach((spot, i) => {
+    place(spot.x, spot.z, spot.kind, spot.count, 0x9100 + i, i * 2.3)
+  })
   return { group, pickups }
 }
 
@@ -1736,6 +1745,17 @@ function donutFieldOf(station: StoreOrigin): DonutField {
   return { x, z, radius }
 }
 
+// The plaza as the game reads it: the rig, where the back room's locked
+// door stands, which lock it is, and whether a point is behind it.
+export interface PlazaRig extends StripMallRig {
+  lock: LockId
+  doorAt: XZ
+  inBackRoom(x: number, z: number): boolean
+  // Wick, the squatter who deals (dealer.ts): where he sits, and his
+  // figure for the glow.
+  dealer: { at: XZ; group: THREE.Group }
+}
+
 // Bull Valley Plaza beside the spawn station (CONFIG.stripMall,
 // stripmall.ts). Its asphalt goes down first: the lot out front in strips,
 // each reaching the centreline of the road nearest it (so the lot follows
@@ -1758,7 +1778,7 @@ function buildPlaza(
   heightAt: HeightAt,
   ground: Ground,
   walls: Walls
-): { group: THREE.Group; rig: StripMallRig; origin: StoreOrigin } {
+): { group: THREE.Group; rig: PlazaRig; origin: StoreOrigin } {
   const group = new THREE.Group()
   group.name = 'plaza'
   const frame = mallOrigin(station, 0)
@@ -1847,10 +1867,36 @@ function buildPlaza(
     deck
   )
   for (const wall of mallWalls(origin)) walls.addWall(wall.a, wall.b, wall.half)
-  const rig = buildStripMall()
-  rig.group.position.set(origin.x, deck, origin.z)
-  rig.group.rotation.y = -origin.yaw
-  group.add(rig.group)
+  // The back room's door: a gate, standing for whoever lacks its key
+  // (keys.ts; the game says who, walls.setGates).
+  const { lock } = STRIP_MALL
+  const gate = mallGate(origin)
+  walls.addGate(gate.a, gate.b, gate.half, gate.gate)
+  const mall = buildStripMall()
+  mall.group.position.set(origin.x, deck, origin.z)
+  mall.group.rotation.y = -origin.yaw
+  group.add(mall.group)
+  // Wick, the squatter, on the floor at the foot of his mattress in the
+  // Golden Wok (STRIP_MALL.dealer), facing the candles; he blocks like a
+  // post.
+  const { dealer } = STRIP_MALL
+  const wickAt = at(dealer.x, dealer.z)
+  const facing = at(dealer.face.x, dealer.face.z)
+  const wick = buildFigure('squatter')
+  applyPose(wick, samplePose('rest'))
+  wick.group.position.set(wickAt.x, deck, wickAt.z)
+  // The figure faces +Z: rotation.y turns it to (sin, cos).
+  wick.group.rotation.y = Math.atan2(facing.x - wickAt.x, facing.z - wickAt.z)
+  castShadows(wick.group)
+  group.add(wick.group)
+  walls.addWall(wickAt, wickAt, CONFIG.dealer.radius)
+  const rig: PlazaRig = {
+    ...mall,
+    lock: lock.id,
+    doorAt: at((lock.a.x + lock.b.x) / 2, (lock.a.z + lock.b.z) / 2),
+    inBackRoom: (x, z) => inBackRoom(origin, x, z),
+    dealer: { at: wickAt, group: wick.group },
+  }
 
   // What lies round it, each on the ground under it and turned in the
   // plaza's frame: an asset's yaw turns +X to (cos, -sin), so the frame's
@@ -2236,7 +2282,19 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   const landmarks = buildLandmarks(geo, metres, ground.at)
   group.add(landmarks.group)
   group.add(buildBoundary(geo, metres, ground.at))
-  const pickupSet = buildPickups(geo, metres, ground.at, fuel.points, rng)
+  const pickupSet = buildPickups(
+    geo,
+    metres,
+    ground.at,
+    fuel.points,
+    rng,
+    plaza
+      ? STRIP_MALL.loot.map((spot) => {
+          const [x, , z] = toWorld(plaza.origin, [spot.x, 0, spot.z])
+          return { x, z, kind: spot.kind, count: spot.count }
+        })
+      : []
+  )
   group.add(pickupSet.group)
   let portal: MazePortal | null = null
   if (spawnStation && maze) {

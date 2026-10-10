@@ -329,6 +329,7 @@ async function boot() {
     maze: world.mazePlace,
     truck: truckRoutes,
     stand: world.stand ? world.stand.at : null,
+    dealer: world.plaza ? world.plaza.dealer.at : null,
   })
   wireKeys(game, actions, engagePointer)
 

@@ -11,6 +11,8 @@ import { CONFIG } from './config.ts'
 import { mulberry32, range } from './rng.ts'
 import { toLocal, toWorld } from './store.ts'
 import type { Vec3, XZ } from './interfaces.ts'
+import type { PickupKind } from './items.ts'
+import type { LockId } from './keys.ts'
 import type { StoreOrigin, WallSegment } from './store.ts'
 
 // What a box is drawn in; assets.ts maps each to a material.
@@ -60,6 +62,7 @@ export type MallArtId =
   | 'golden-wok'
   | 'curl-up'
   | 'rewind'
+  | 'employees'
   | 'menu'
   | 'for-lease'
   | 'graffiti-eye'
@@ -138,6 +141,12 @@ const ALLEY = 8
 const END = 6
 const LOT_FRONT = 1.5
 const LOT_REACH = 40
+
+// The back room behind the Video Vault: the wall across the shop at
+// `wall` (its shop-side face at wall + WALL), and the locked door in it,
+// `door` from the unit's -z end, `width` wide. The racks stand clear of it.
+const BACK_ROOM = { wall: -10.5, door: 2.4, width: 1.0, height: 2.2 }
+const RACKS = { x0: -9.5, x1: -4.5 }
 
 export type Window = 'glass' | 'broken' | 'boarded'
 export type Door = 'swung' | 'gone' | 'boarded' | 'ajar'
@@ -613,44 +622,123 @@ function ceilings(): MallBox[] {
   return boxes
 }
 
+// The Video Vault's back room, its wall across the shop with the locked
+// door's opening in it (the door itself is a gate, keys.ts, drawn on its
+// own by assets.ts), and what is inside: the safe stood open and empty
+// but for what the day leaves in it, the manager's desk and its set, and
+// a shelf of boxed tapes.
+function backRoom(video: number): MallBox[] {
+  const x: [number, number] = [BACK_ROOM.wall, BACK_ROOM.wall + WALL]
+  const d0 = video + BACK_ROOM.door
+  const d1 = d0 + BACK_ROOM.width
+  return [
+    span(
+      'back-room-wall-a',
+      x,
+      [0, HEIGHT],
+      [video + WALL / 2, d0],
+      'block',
+      true
+    ),
+    span(
+      'back-room-wall-b',
+      x,
+      [0, HEIGHT],
+      [d1, video + UNIT - WALL / 2],
+      'block',
+      true
+    ),
+    span('back-room-lintel', x, [BACK_ROOM.height, HEIGHT], [d0, d1], 'block'),
+    span(
+      'back-room-shelf',
+      [IN_BACK + 0.3, BACK_ROOM.wall - 0.6],
+      [0, 1.9],
+      [video + WALL / 2, video + WALL / 2 + 0.4],
+      'fixture',
+      true
+    ),
+    span(
+      'back-room-safe',
+      [IN_BACK, IN_BACK + 0.7],
+      [0, 0.9],
+      [video + 1.0, video + 1.7],
+      'steel',
+      true
+    ),
+    box(
+      'back-room-safe-door',
+      [IN_BACK + 0.95, 0.45, video + 1.85],
+      [0.06, 0.8, 0.6],
+      'steel',
+      false,
+      [0, -1.0, 0]
+    ),
+    span(
+      'back-room-desk',
+      [IN_BACK, IN_BACK + 0.8],
+      [0, 0.75],
+      [video + 5.0, video + 6.6],
+      'laminate',
+      true
+    ),
+    box(
+      'back-room-set',
+      [IN_BACK + 0.35, 0.95, video + 5.5],
+      [0.4, 0.4, 0.45],
+      'tape'
+    ),
+    box(
+      'back-room-chair',
+      [IN_BACK + 1.3, 0.25, video + 5.9],
+      [0.5, 0.5, 0.5],
+      'blanket',
+      false,
+      [0, 0.4, 0]
+    ),
+  ]
+}
+
 // What each shop left behind.
 function contents(): MallBox[] {
   const boxes: MallBox[] = []
   const [video, laundromat, wok, salon] = [0, 1, 2, 3].map(unitZ)
 
   // Video Vault: the counter by the door, racks run front to back with one
-  // pushed over, and the tapes all over the floor.
+  // pushed over, and the tapes all over the floor. The aisle between the
+  // first rack and the fallen one leads back to the locked door; behind it,
+  // the back room (BACK_ROOM): the safe, the desk, the shelf of tapes no
+  // one was meant to rent.
   boxes.push(
     span(
       'video-counter',
       [-3.3, -2.7],
       [0, 1.0],
-      [video + 0.6, video + 3.0],
+      [video + 0.6, video + 2.6],
       'fixture',
       true
     ),
     span(
       'video-rack-a',
-      [-12, -6],
+      [RACKS.x0, RACKS.x1],
       [0, 1.8],
-      [video + 1.5, video + 2.1],
+      [video + 1.0, video + 1.6],
       'fixture',
       true
     ),
     span(
       'video-rack-c',
-      [-12, -6],
+      [RACKS.x0, RACKS.x1],
       [0, 1.8],
-      [video + 6.9, video + 7.5],
+      [video + 7.4, video + 8.0],
       'fixture',
       true
     ),
     // The middle rack, flat on its back across the aisle.
     span(
       'video-rack-fallen',
-      [-12, -6],
+      [RACKS.x0, RACKS.x1],
       [0, 0.6],
-      [video + 3.6, video + 5.4],
+      [video + 4.4, video + 6.2],
       'fixture',
       true
     ),
@@ -661,7 +749,8 @@ function contents(): MallBox[] {
       'cardboard',
       false,
       [0, 0.5, -0.12]
-    )
+    ),
+    ...backRoom(video)
   )
   const tapes = mulberry32(0x7a9e)
   for (let i = 0; i < 36; i++) {
@@ -669,7 +758,7 @@ function contents(): MallBox[] {
       box(
         `video-tape-${i}`,
         [
-          range(tapes, -12.5, -1.5),
+          range(tapes, BACK_ROOM.wall + 0.6, -1.5),
           0.015 + (i % 3) * 0.03,
           range(tapes, video + 0.5, video + 8.5),
         ],
@@ -933,6 +1022,18 @@ function buildSigns(): MallSign[] {
   }))
   const [video, , wok, salon] = [0, 1, 2, 3].map(unitZ)
   signs.push(
+    // On the back room's door, the shop side.
+    {
+      name: 'sign-employees',
+      art: 'employees',
+      center: [
+        BACK_ROOM.wall + WALL + 0.08,
+        1.55,
+        unitZ(0) + BACK_ROOM.door + BACK_ROOM.width / 2,
+      ],
+      size: [0.6, 0.3],
+      turn: [0, Math.PI / 2, 0],
+    },
     // Inside the Video Vault, over the counter.
     {
       name: 'sign-rewind',
@@ -1020,7 +1121,70 @@ function ways(): Way[] {
     z: unitZ(wok),
     open: true,
   })
+  // Locked: open only to whoever carries the key (keys.ts).
+  list.push({
+    name: 'vault-back-room',
+    x: BACK_ROOM.wall + WALL / 2,
+    z: unitZ(0) + BACK_ROOM.door + BACK_ROOM.width / 2,
+    open: false,
+  })
   return list
+}
+
+// The locked door into the Video Vault's back room: the gate across its
+// opening (from `a` to `b`, `half` either side), and the leaf hung on its
+// hinge at the -z jamb, `width` wide and `height` tall, swinging into the
+// shop.
+function lockedDoor() {
+  const x = BACK_ROOM.wall + WALL / 2
+  const z0 = unitZ(0) + BACK_ROOM.door
+  return {
+    id: 'vault-back-room' as const,
+    a: { x, z: z0 + WALL / 2 },
+    b: { x, z: z0 + BACK_ROOM.width - WALL / 2 },
+    half: WALL / 2,
+    hinge: { x: BACK_ROOM.wall + WALL, z: z0 },
+    width: BACK_ROOM.width,
+    height: BACK_ROOM.height,
+  }
+}
+
+// What the plaza leaves lying every day, mall-local (a pickup each, back
+// with the day like every other, sharedworld.ts rule 6): quarters in the
+// laundromat, cabbages in the Golden Wok's kitchen, a pack or a can where
+// someone left it, and, behind the locked door, a $20 in the open safe
+// and a bottle by the desk. First to take each has it.
+export interface MallLoot extends XZ {
+  kind: PickupKind
+  count: number
+}
+
+const LOOT: readonly MallLoot[] = [
+  // The back room.
+  { kind: 'twenty', count: 1, x: IN_BACK + 1.0, z: unitZ(0) + 1.35 },
+  { kind: 'wild-turkey', count: 1, x: IN_BACK + 1.2, z: unitZ(0) + 6.9 },
+  // The Video Vault, by the counter.
+  { kind: 'camel', count: 20, x: -2.0, z: unitZ(0) + 3.2 },
+  // Suds 'n' Duds: in front of the dryers, and under the soda machine.
+  { kind: 'quarters', count: 8, x: IN_BACK + 1.2, z: unitZ(1) + 4.5 },
+  { kind: 'quarters', count: 4, x: -1.0, z: unitZ(1) + 7.2 },
+  // The Golden Wok's kitchen.
+  { kind: 'cabbage', count: 1, x: -10, z: unitZ(2) + 6.5 },
+  { kind: 'cabbage', count: 1, x: -8, z: unitZ(2) + 7.8 },
+  // Curl Up & Dye, by the desk.
+  { kind: 'newport', count: 20, x: -1.6, z: unitZ(3) + 7.0 },
+  // The alley, by the tipped dumpster, and the lot, by the cart.
+  { kind: 'pbr', count: 1, x: -DEPTH - 3.4, z: 3.8 },
+  { kind: 'red-bull', count: 1, x: 8.2, z: 8.0 },
+]
+
+// Where the squatter keeps himself (dealer.ts): in the Golden Wok's
+// front room at the foot of his mattress, facing the candles and the
+// hole he came in by.
+const DEALER = {
+  x: -2.2,
+  z: unitZ(2) + 5.9,
+  face: { x: -3.5, z: unitZ(2) + 2 },
 }
 
 const PROPS: {
@@ -1058,6 +1222,9 @@ export const STRIP_MALL = {
   ],
   signs: buildSigns(),
   ways: ways(),
+  lock: lockedDoor(),
+  loot: LOOT,
+  dealer: DEALER,
   // The asphalt round the building, mall-local: [x0, x1] by [z0, z1]. The
   // lot out front reaches the road, which world.ts finds strip by strip;
   // `lot` gives where it starts and its z extent.
@@ -1127,6 +1294,19 @@ export function onMallGrounds(
   )
 }
 
+// Whether a world point stands in the Video Vault's back room, behind its
+// locked door.
+export function inBackRoom(origin: StoreOrigin, x: number, z: number): boolean {
+  const p = toLocal(origin, x, z)
+  const video = unitZ(0)
+  return (
+    p.x > -DEPTH &&
+    p.x < BACK_ROOM.wall + WALL / 2 &&
+    p.z > video &&
+    p.z < video + UNIT
+  )
+}
+
 // Whether a world point stands inside the building's walls.
 export function insideMall(origin: StoreOrigin, x: number, z: number): boolean {
   const p = toLocal(origin, x, z)
@@ -1163,6 +1343,20 @@ export function boxWall(
   const [ax, , az] = toWorld(origin, a)
   const [ex, , ez] = toWorld(origin, e)
   return { a: { x: ax, z: az }, b: { x: ex, z: ez }, half }
+}
+
+// The locked door's gate in the world (walls.ts addGate): a wall for
+// whoever its lock does not let through.
+export function mallGate(origin: StoreOrigin): WallSegment & { gate: LockId } {
+  const { lock } = STRIP_MALL
+  const [ax, , az] = toWorld(origin, [lock.a.x, 0, lock.a.z])
+  const [bx, , bz] = toWorld(origin, [lock.b.x, 0, lock.b.z])
+  return {
+    a: { x: ax, z: az },
+    b: { x: bx, z: bz },
+    half: lock.half,
+    gate: lock.id,
+  }
 }
 
 // Every wall the building puts up, in the world.

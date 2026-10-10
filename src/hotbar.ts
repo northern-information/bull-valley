@@ -2,7 +2,7 @@
 // number key, each holding an item kind or nothing; the account keeps it
 // (PUT /auth/hotbar). No three.js, no DOM: hud.ts draws it.
 
-import { INVENTORY_KINDS, isCigarette, itemById } from './items.ts'
+import { givesPerception, INVENTORY_KINDS, isCigarette } from './items.ts'
 
 export const HOTBAR_SLOTS = 9
 
@@ -115,7 +115,7 @@ export function cooldownOf(
       running(effects.ember, 'ember', time)
     )
   }
-  if (itemById(kind)?.category === 'joint') {
+  if (givesPerception(kind)) {
     return running(effects.perception, 'perception', time)
   }
   return null

@@ -2331,8 +2331,19 @@ function mallSignMesh(sign: MallSign): THREE.Mesh {
 
 export interface StripMallRig {
   group: THREE.Group
+  // The back room's locked door, its leaf on its hinge: the glow rings it
+  // while E would only rattle it.
+  door: THREE.Object3D
+  // The flicker and the candles, and the door swinging toward where
+  // setDoorOpen last asked.
   update(t: number): void
+  // Swing the locked door open (for this raider alone: they carry the key
+  // or are already behind it) or shut.
+  setDoorOpen(open: boolean): void
 }
+
+// How far the back room's door swings open, in radians, and how fast.
+const MALL_DOOR = { open: 1.45, speed: 2.4 }
 
 // The laundromat's tube: on, mostly, with stutters of dark, the pattern
 // repeating every few seconds. Brightness from 0 to 1 at time t.
@@ -2366,18 +2377,58 @@ export function buildStripMall(): StripMallRig {
     if (finish === 'tube') tube = material as THREE.MeshBasicMaterial
     if (finish === 'flame') flame = material as THREE.MeshBasicMaterial
   }
-  for (const sign of STRIP_MALL.signs) group.add(mallSignMesh(sign))
+  // The locked door: a steel leaf on a pivot at its hinge, swinging into
+  // the shop, the EMPLOYEES ONLY plate riding on it.
+  const { lock } = STRIP_MALL
+  const door = new THREE.Group()
+  door.name = 'plaza-locked-door'
+  door.position.set(lock.hinge.x, 0, lock.hinge.z)
+  const leaf = new THREE.Mesh(
+    new THREE.BoxGeometry(0.05, lock.height, lock.width - 0.04),
+    lambert({ color: '#5a4f44' })
+  )
+  leaf.position.set(0.03, lock.height / 2, lock.width / 2)
+  leaf.castShadow = true
+  leaf.receiveShadow = true
+  door.add(leaf)
+  const knob = new THREE.Mesh(
+    new THREE.BoxGeometry(0.08, 0.06, 0.06),
+    lambert({ color: '#b09040' })
+  )
+  knob.position.set(0.08, 1.0, lock.width - 0.12)
+  door.add(knob)
+  group.add(door)
+  for (const sign of STRIP_MALL.signs) {
+    const mesh = mallSignMesh(sign)
+    group.add(mesh)
+    if (sign.art === 'employees') door.attach(mesh)
+  }
   const lit = new THREE.Color('#eaf1ee')
   const warm = new THREE.Color('#ffb347')
+  let wanted = 0
+  let last: number | null = null
   const update = (t: number) => {
     tube?.color.copy(lit).multiplyScalar(tubeFlicker(t))
     flame?.color
       .copy(warm)
       .multiplyScalar(0.8 + 0.2 * Math.sin(t * 13) * Math.sin(t * 7.3))
+    const dt = last === null ? 0 : Math.max(0, Math.min(0.1, t - last))
+    last = t
+    const step = MALL_DOOR.speed * dt
+    const now = door.rotation.y
+    door.rotation.y =
+      now < wanted ? Math.min(wanted, now + step) : Math.max(wanted, now - step)
   }
   update(0)
   setMotion(group, update)
-  return { group, update }
+  return {
+    group,
+    door,
+    update,
+    setDoorOpen(open) {
+      wanted = open ? MALL_DOOR.open : 0
+    },
+  }
 }
 
 // The pylon by the road: two steel legs, the plaza's name across the top,
@@ -3960,6 +4011,178 @@ export function buildDimes(
     group.add(halo)
   }
   setPulseMaterials(group, [material])
+  return group
+}
+
+// The quarters left in the plaza laundromat's machines (drops.ts
+// QUARTERS): a small stack and a few loose beside it, bigger and paler
+// than the dimes. Origin at ground level under the stack.
+export function buildQuarters(
+  count: number,
+  seed = 0x25c,
+  { glow = true }: PickupOptions = {}
+): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'quarters'
+  const material = lambert({
+    color: '#9aa0a6',
+    emissive: new THREE.Color('#e8edf2'),
+    emissiveIntensity: 0.4,
+  })
+  const geo = new THREE.CylinderGeometry(0.036, 0.036, 0.006, 12)
+  const rng = mulberry32(seed)
+  const n = Math.max(1, Math.min(count, 12))
+  const stacked = Math.ceil(n / 2)
+  for (let i = 0; i < n; i++) {
+    const coin = new THREE.Mesh(geo, material)
+    if (i < stacked) {
+      coin.position.set(range(rng, -0.004, 0.004), 0.003 + i * 0.0065, 0)
+    } else {
+      const a = rng() * Math.PI * 2
+      const r = range(rng, 0.09, 0.2)
+      coin.position.set(Math.cos(a) * r, 0.004, Math.sin(a) * r)
+      coin.rotation.set(range(rng, -0.2, 0.2), 0, range(rng, -0.2, 0.2))
+    }
+    group.add(coin)
+  }
+  if (glow) {
+    const halo = makeGlowSprite(
+      makeGlowTexture('rgba(214, 226, 238, 0.45)'),
+      0.9
+    )
+    halo.position.y = 0.06
+    group.add(halo)
+  }
+  setPulseMaterials(group, [material])
+  return group
+}
+
+// --- Keys ----------------------------------------------------------------
+
+// The Video Vault's back-room key (keys.ts): a brass key on a ring with a
+// red paper tag, lying flat. Drawn twice its size, as the coins are, or
+// the downscale would lose it. Origin at ground level under the ring.
+function buildVaultKey({ glow = true }: PickupOptions = {}): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'vault-key'
+  const brass = lambert({
+    color: '#8a6a22',
+    emissive: new THREE.Color('#e0b84a'),
+    emissiveIntensity: 0.45,
+  })
+  const tag = lambert({
+    color: '#8e2a22',
+    emissive: new THREE.Color('#d0473a'),
+    emissiveIntensity: 0.3,
+  })
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.035, 0.005, 4, 12),
+    brass
+  )
+  ring.rotation.x = Math.PI / 2
+  ring.position.y = 0.006
+  group.add(ring)
+  // The bow, the shank and its teeth, along +X from the ring.
+  const bow = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.022, 0.022, 0.006, 8),
+    brass
+  )
+  bow.position.set(0.045, 0.004, 0)
+  group.add(bow)
+  const shank = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.006, 0.012), brass)
+  shank.position.set(0.105, 0.004, 0)
+  group.add(shank)
+  for (const [x, w] of [
+    [0.12, 0.012],
+    [0.137, 0.008],
+  ]) {
+    const tooth = new THREE.Mesh(new THREE.BoxGeometry(w, 0.006, 0.014), brass)
+    tooth.position.set(x, 0.004, 0.012)
+    group.add(tooth)
+  }
+  const paper = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.003, 0.03), tag)
+  paper.position.set(-0.05, 0.002, 0.012)
+  paper.rotation.y = 0.5
+  group.add(paper)
+  group.scale.setScalar(2)
+  if (glow) {
+    const halo = makeGlowSprite(
+      makeGlowTexture('rgba(255, 210, 96, 0.5)'),
+      0.35
+    )
+    halo.position.y = 0.01
+    group.add(halo)
+  }
+  setPulseMaterials(group, [brass, tag])
+  return group
+}
+
+// --- Mushrooms -----------------------------------------------------------
+
+// The dealer's mushrooms (dealer.ts): a clear baggie slumped on its side,
+// dried caps on long thin stems showing through it. Origin at ground level
+// under the bag.
+function buildMushrooms({ glow = true }: PickupOptions = {}): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'mushrooms'
+  const bag = lambert({
+    color: '#cfd6d2',
+    emissive: new THREE.Color('#9aa59e'),
+    emissiveIntensity: 0.3,
+    transparent: true,
+    opacity: 0.45,
+    depthWrite: false,
+  })
+  const cap = lambert({
+    color: '#6a4a2a',
+    emissive: new THREE.Color('#b08a50'),
+    emissiveIntensity: 0.35,
+  })
+  const stem = lambert({ color: '#c8bfa4' })
+  const rng = mulberry32(0x5400)
+  for (let i = 0; i < 5; i++) {
+    const shroom = new THREE.Group()
+    const s = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.004, 0.006, 0.07, 4),
+      stem
+    )
+    s.position.y = 0.035
+    shroom.add(s)
+    const c = new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.02, 6), cap)
+    c.position.y = 0.075
+    shroom.add(c)
+    shroom.position.set(
+      range(rng, -0.04, 0.04),
+      0.012,
+      range(rng, -0.025, 0.025)
+    )
+    shroom.rotation.set(
+      Math.PI / 2 - 0.2,
+      range(rng, 0, Math.PI * 2),
+      range(rng, -0.4, 0.4)
+    )
+    group.add(shroom)
+  }
+  const sack = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.04, 0.09), bag)
+  sack.position.y = 0.02
+  group.add(sack)
+  // The zip along its mouth.
+  const zip = new THREE.Mesh(
+    new THREE.BoxGeometry(0.004, 0.042, 0.09),
+    lambert({ color: '#4a6aa0' })
+  )
+  zip.position.set(0.063, 0.021, 0)
+  group.add(zip)
+  group.scale.setScalar(1.6)
+  if (glow) {
+    const halo = makeGlowSprite(
+      makeGlowTexture('rgba(200, 170, 120, 0.45)'),
+      0.5
+    )
+    halo.position.y = 0.03
+    group.add(halo)
+  }
+  setPulseMaterials(group, [cap, bag])
   return group
 }
 
@@ -5972,9 +6195,9 @@ export function pulseMaterials(
   return PULSE.get(object) ?? []
 }
 
-// Kinds: 'cabbage', 'dimes', or an item id from items.ts. glow: false
-// leaves out the halo on packs, joints, drinks, medicine, berries, dimes
-// and gold bullion.
+// Kinds: an item id from items.ts, or cash ('dimes', 'quarters',
+// 'twenty'). glow: false leaves out the halo on everything but the
+// cabbage.
 export function buildPickup(
   kind: string,
   seed?: number,
@@ -5985,7 +6208,11 @@ export function buildPickup(
   if (isDrink(kind)) return buildDrink(kind, { glow })
   if (kind === 'berries') return buildBerries({ glow })
   if (kind === 'dimes') return buildDimes(12, seed, { glow })
+  if (kind === 'quarters') return buildQuarters(8, seed, { glow })
+  if (kind === 'twenty') return buildTwenty(seed, { glow })
   if (kind === 'gold-bullion') return buildGoldBullion({ glow })
+  if (kind === 'vault-key') return buildVaultKey({ glow })
+  if (kind === 'mushrooms') return buildMushrooms({ glow })
   if (isMedicine(kind)) return buildMedicine(kind, { glow })
   let mesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshLambertMaterial>
   if (kind === 'cabbage') {
@@ -6349,6 +6576,17 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   })),
   { id: 'berries', label: 'Berries', build: () => buildPickup('berries') },
   { id: 'dimes', label: 'Dimes (12)', build: () => buildDimes(12) },
+  { id: 'quarters', label: 'Quarters (8)', build: () => buildQuarters(8) },
+  {
+    id: 'mushrooms',
+    label: 'Mushrooms',
+    build: () => buildPickup('mushrooms'),
+  },
+  {
+    id: 'vault-key',
+    label: 'Video Vault key',
+    build: () => buildPickup('vault-key'),
+  },
   {
     id: 'tombstone',
     label: "Tombstone: a shadowman's",

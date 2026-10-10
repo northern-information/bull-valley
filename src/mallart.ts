@@ -128,6 +128,16 @@ function rewind(): CanvasArt {
   return art
 }
 
+// The plate on the back room's door.
+function employees(): CanvasArt {
+  const art = canvas([128, 64], '#c9c4b4')
+  const { ctx, w } = art
+  text(ctx, 'EMPLOYEES', w / 2, 22, w - 16, 20, SANS, '#7a1d18')
+  text(ctx, 'ONLY', w / 2, 46, w - 40, 18, SANS, '#7a1d18')
+  weather(art, 0xe3, 0.8)
+  return art
+}
+
 function menu(): CanvasArt {
   const art = canvas([320, 96], '#141414')
   const { ctx, w } = art
@@ -267,6 +277,7 @@ const PAINTERS: Record<MallArtId, () => CanvasArt> = {
   'golden-wok': goldenWok,
   'curl-up': curlUp,
   rewind,
+  employees,
   menu,
   'for-lease': forLease,
   'graffiti-eye': graffitiEye,

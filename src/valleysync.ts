@@ -10,6 +10,7 @@ import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { toCosmetics } from './cosmetics.ts'
 import { DAILY_TASK, taskNews } from './dailytask.ts'
+import { dealRefusal } from './dealer.ts'
 import { seenEmote } from './emotes.ts'
 import {
   friendLines,
@@ -201,6 +202,15 @@ export function wireValley(game: Game, actions: Actions): void {
       }
     })
 
+    // Rule 24: a deal of ours, done; the pack frame after it carries the
+    // goods and the wallet.
+    if (reason === 'dealt' && me !== null && detail.by === me) {
+      s.pendingDeal = false
+      s.dealSaid = copy('dealer.bought', {
+        item: itemById(detail.item ?? '')?.label ?? detail.item ?? '',
+      })
+      hud.tell(s.dealSaid)
+    }
     // The shelves are the valley's; a unit it sold us goes in the pocket.
     if (sale) {
       s.pendingBuys.delete(`${sale.station}:${sale.item}`)
@@ -314,6 +324,10 @@ export function wireValley(game: Game, actions: Actions): void {
       hud.tell(copy('log.none_left'))
     } else if (msg.re === 'trade') {
       actions.tradeRefused(msg.reason)
+    } else if (msg.re === 'deal') {
+      s.pendingDeal = false
+      s.dealSaid = dealRefusal(msg.reason)
+      hud.tell(s.dealSaid)
     } else if (msg.re === 'loot') {
       if (msg.corpse !== undefined) s.pendingLoots.delete(msg.corpse)
       hud.tell(copy('log.loot_refused'))

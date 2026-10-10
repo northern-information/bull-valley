@@ -189,6 +189,9 @@ export interface GameState {
   stand: StandLedger | null
   pendingStand: boolean
   standSaid: string | null
+  // Rule 24: a deal with the squatter not yet answered, and his last word.
+  pendingDeal: boolean
+  dealSaid: string | null
   // Shelf units asked of the valley and not yet answered, as station:kind.
   pendingBuys: Set<string>
   // The berry bushes as the valley last described them (the welcome, then
@@ -261,6 +264,8 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     stand: null,
     pendingStand: false,
     standSaid: null,
+    pendingDeal: false,
+    dealSaid: null,
     pendingBuys: new Set(),
     daily: null,
     pendingCollect: false,

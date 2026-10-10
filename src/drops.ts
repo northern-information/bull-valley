@@ -20,9 +20,15 @@ export const DIME_CENTS = 10
 export const TWENTY = 'twenty'
 export const TWENTY_CENTS = 2000
 
+// What the plaza's laundromat leaves in its machines every day (a
+// pickup, stripmall.ts): quarters, cash the same way.
+export const QUARTERS = 'quarters'
+export const QUARTER_CENTS = 25
+
 const CENTS: Readonly<Record<string, number>> = {
   [DIMES]: DIME_CENTS,
   [TWENTY]: TWENTY_CENTS,
+  [QUARTERS]: QUARTER_CENTS,
 }
 
 export function isCash(kind: string): boolean {

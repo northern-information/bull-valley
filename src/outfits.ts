@@ -187,6 +187,7 @@ export type OutfitId =
   | 'carlsten'
   | 'gron'
   | 'moab'
+  | 'squatter'
 
 // Dreadlocks hang from a ring round the back and sides of the head, leaving
 // the face clear. Angles are around the head from +X toward +Z (the face).
@@ -1087,6 +1088,24 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     // Scorched, ripped through to the bone, and frayed.
     patterns: { shirt: 'tattered' },
     shaved: true,
+  },
+  // Wick, the squatter in Bull Valley Plaza's Golden Wok (dealer.ts): a
+  // hoodie gone the color of the floor, hood up, a week of stubble. He
+  // deals. Not on the select roster.
+  squatter: {
+    label: copy('outfits.squatter'),
+    colors: {
+      skin: '#c9a98c',
+      hair: '#2a2018',
+      shirt: '#3a3d33',
+      pants: '#2c3442',
+      boots: '#1a1714',
+      coat: '#3a3d33',
+      stubble: '#5a4632',
+    },
+    addons: ['hood', 'stubble', 'kangaroo-pocket'],
+    loose: 1.2,
+    baggy: 1.2,
   },
 }
 

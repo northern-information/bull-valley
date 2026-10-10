@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { heartPoint, theMaze } from '../../src/caretaker.ts'
 import { CONFIG } from '../../src/config.ts'
 import { dayKey, nextMidnight } from '../../src/daily.ts'
+import { freshDealerStock, goodOf } from '../../src/dealer.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { contentsOf, getItem } from '../../src/items.ts'
 import { PROTOCOL_VERSION } from '../../src/protocol.ts'
@@ -59,6 +60,7 @@ const MAZE = { x: 3000, z: 3000, yaw: 0 }
 const ROUTES = { home: { x: 10, z: 10 }, joyrideMs: 600_000 }
 // Where the Cabbage Stand stands (rule 23).
 const STAND = { x: 5, z: -20 }
+const DEALER = { x: -30, z: -60 }
 // Noon, Central time, so a test has the afternoon before the day turns.
 const T0 = Date.UTC(2026, 9, 7, 17, 0, 0)
 const SEC = 1000
@@ -68,11 +70,18 @@ function valleyWith(...actions: ValleyAction[]) {
   let valley = createValley()
   const present: string[] = []
   let now = T0
-  // Every buyer's wallet, as the valley would read it.
+  // Every buyer's wallet, as the valley would read it, and their pack
+  // when a test says what it holds.
   let cash = 100_00
+  let pack: Inventory | null = null
   const out: ReturnType<typeof reduce>[] = []
   const step = (action: ValleyAction) => {
-    const ctx = { now, present: [...present], cash }
+    const ctx = {
+      now,
+      present: [...present],
+      cash,
+      ...(pack ? { holdings: { pack, cosmetics: [] } } : {}),
+    }
     const reduced = reduce(valley, action, ctx)
     valley = reduced.valley
     if (action.type === 'join' && !reduced.reject) present.push(action.id)
@@ -94,6 +103,9 @@ function valleyWith(...actions: ValleyAction[]) {
     },
     setCash(cents: number) {
       cash = cents
+    },
+    setPack(held: Inventory) {
+      pack = held
     },
     get now() {
       return now
@@ -117,6 +129,7 @@ const join = (id: string): ValleyAction => ({
   maze: null,
   routes: ROUTES,
   stand: STAND,
+  dealer: DEALER,
 })
 
 const leaveAs = (
@@ -479,6 +492,91 @@ describe('rule 7: the shelves are shared', () => {
     expect(v.step(buy('z')).reply?.reason).toBe('not-in-valley')
     v.setCash(0)
     expect(v.step(buy('a', 0, 'pbr', 1)).reply?.reason).toBe('short')
+  })
+})
+
+describe('rule 4, cash: a pickup of cash goes into the wallet', () => {
+  it('pays the quarters in, never the pack', () => {
+    const v = valleyWith({
+      ...join('a'),
+      pickups: [...PICKUPS, { kind: 'quarters', count: 8 }],
+    } as ValleyAction)
+    const r = v.step({ type: 'take', id: 'a', index: PICKUPS.length })
+    expect(r.broadcast[0]).toMatchObject({ reason: 'taken', by: 'a' })
+    expect(r.earn).toEqual({ account: 'acct-a', amount: 8 * 25 })
+    expect(r.pack).toBeUndefined()
+    expect(r.xp).toEqual([{ account: 'acct-a', source: 'pickup' }])
+  })
+})
+
+describe('rule 24: the squatter deals', () => {
+  const near = { x: DEALER.x + 1, z: DEALER.z }
+  const dealAs = (
+    id: string,
+    kind = 'mushrooms',
+    at: { x: number; z: number } | null = near
+  ): ValleyAction => ({ type: 'deal', id, kind, at })
+
+  it('sells one out of his stock for the whole valley, out of the wallet', () => {
+    const v = valleyWith(join('a'), join('b'))
+    v.setPack({})
+    expect(v.valley.world?.dealerStock).toEqual(freshDealerStock())
+    const r = v.step(dealAs('a'))
+    expect(r.broadcast).toHaveLength(1)
+    expect(r.broadcast[0]).toMatchObject({
+      reason: 'dealt',
+      by: 'a',
+      item: 'mushrooms',
+    })
+    expect(r.broadcast[0].world?.dealer.mushrooms).toBe(
+      (goodOf('mushrooms')?.perDay ?? 0) - 1
+    )
+    expect(r.spend).toEqual({
+      account: 'acct-a',
+      amount: goodOf('mushrooms')?.price,
+    })
+    expect(r.pack).toEqual({ account: 'acct-a', kind: 'mushrooms', delta: 1 })
+    expect(r.xp).toEqual([{ account: 'acct-a', source: 'purchase' }])
+  })
+
+  it('refuses from afar, aboard, sold out, short, or a second key', () => {
+    const v = valleyWith(join('a'), join('b'))
+    v.setPack({ 'vault-key': 1 })
+    const reason = (r: ReturnType<typeof reduce>) => r.reply?.reason
+    expect(v.step(dealAs('a', 'mushrooms', null)).reply).toEqual({
+      type: 'nack',
+      re: 'deal',
+      reason: 'too-far',
+      item: 'mushrooms',
+    })
+    expect(reason(v.step(dealAs('a', 'mushrooms', { x: 0, z: 0 })))).toBe(
+      'too-far'
+    )
+    expect(reason(v.step(dealAs('a', 'vault-key')))).toBe('have-one')
+    expect(reason(v.step(dealAs('a', 'marlboro')))).toBe('no-such-good')
+    expect(reason(v.step(dealAs('z')))).toBe('not-in-valley')
+    v.setCash(0)
+    expect(reason(v.step(dealAs('a')))).toBe('short')
+    v.setCash(100_00)
+    const left = goodOf('joints')?.perDay ?? 0
+    for (let i = 0; i < left; i++) v.step(dealAs('b', 'joints'))
+    expect(reason(v.step(dealAs('a', 'joints')))).toBe('sold-out')
+    v.step({ type: 'board', id: 'a' })
+    expect(reason(v.step(dealAs('a')))).toBe('aboard')
+  })
+
+  it('has a day of everything again when the day turns', () => {
+    const v = valleyWith(join('a'))
+    v.setPack({})
+    v.step(dealAs('a'))
+    v.tick(24 * 60 * 60 * SEC)
+    v.step({ type: 'clock' })
+    expect(v.valley.world?.dealerStock).toEqual(freshDealerStock())
+  })
+
+  it('has no one to deal with in a world opened without him', () => {
+    const v = valleyWith({ ...join('a'), dealer: null } as ValleyAction)
+    expect(v.step(dealAs('a')).reply?.reason).toBe('no-dealer')
   })
 })
 

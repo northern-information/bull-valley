@@ -3,9 +3,11 @@ import { CONFIG } from '../../src/config.ts'
 import { toWorld } from '../../src/store.ts'
 import {
   boxWall,
+  inBackRoom,
   insideMall,
   mallCenter,
   mallDeck,
+  mallGate,
   mallOrigin,
   mallWalls,
   onMallGrounds,
@@ -24,6 +26,8 @@ const RADIUS = CONFIG.player.radius
 function built(): Walls {
   const walls = new Walls()
   for (const wall of mallWalls(origin)) walls.addWall(wall.a, wall.b, wall.half)
+  const gate = mallGate(origin)
+  walls.addGate(gate.a, gate.b, gate.half, gate.gate)
   return walls
 }
 
@@ -71,6 +75,55 @@ describe('STRIP_MALL', () => {
       if (way.open) expect(moved, way.name).toBeLessThan(1e-6)
       else expect(moved, way.name).toBeGreaterThan(0.05)
     }
+  })
+
+  it('locks the back room to all but whoever the gate lets through', () => {
+    const walls = built()
+    const door = STRIP_MALL.ways.find((way) => way.name === 'vault-back-room')
+    if (!door) throw new Error('no back room door')
+    const p = at(door.x, door.z)
+    const shut = walls.resolve(p.x, p.z, RADIUS)
+    expect(Math.hypot(shut.x - p.x, shut.z - p.z)).toBeGreaterThan(0.05)
+    walls.setGates((gate) => gate === STRIP_MALL.lock.id)
+    const open = walls.resolve(p.x, p.z, RADIUS)
+    expect(Math.hypot(open.x - p.x, open.z - p.z)).toBeLessThan(1e-6)
+    expect(mallGate(origin).gate).toBe('vault-back-room')
+  })
+
+  it('knows the back room from the shop in front of it', () => {
+    const room = at(-12.5, -STRIP_MALL.length / 2 + 4)
+    expect(inBackRoom(origin, room.x, room.z)).toBe(true)
+    const shop = at(-6, -STRIP_MALL.length / 2 + 4)
+    expect(inBackRoom(origin, shop.x, shop.z)).toBe(false)
+    const laundromat = at(-12.5, -STRIP_MALL.length / 2 + 13)
+    expect(inBackRoom(origin, laundromat.x, laundromat.z)).toBe(false)
+  })
+
+  it("leaves the day's loot where a raider can reach it", () => {
+    const walls = built()
+    walls.setGates(() => true)
+    for (const spot of STRIP_MALL.loot) {
+      const p = at(spot.x, spot.z)
+      const out = walls.resolve(p.x, p.z, RADIUS)
+      expect(Math.hypot(out.x - p.x, out.z - p.z), spot.kind).toBeLessThan(
+        CONFIG.player.pickupReach
+      )
+      expect(spot.count, spot.kind).toBeGreaterThan(0)
+    }
+    // The $20 in the safe is behind the locked door.
+    const twenty = STRIP_MALL.loot.find((spot) => spot.kind === 'twenty')
+    if (!twenty) throw new Error('no twenty')
+    const safe = at(twenty.x, twenty.z)
+    expect(inBackRoom(origin, safe.x, safe.z)).toBe(true)
+  })
+
+  it('seats the squatter in the Golden Wok', () => {
+    const { dealer } = STRIP_MALL
+    const wok = STRIP_MALL.units.findIndex((unit) => unit.id === 'wok')
+    const z0 = -STRIP_MALL.length / 2 + wok * STRIP_MALL.unitWidth
+    expect(dealer.z).toBeGreaterThan(z0)
+    expect(dealer.z).toBeLessThan(z0 + STRIP_MALL.unitWidth)
+    expect(dealer.x).toBeLessThan(0)
   })
 
   it('boards the Golden Wok up out front, but leaves the alley and the hole', () => {

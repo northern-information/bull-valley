@@ -21,6 +21,7 @@ import { copy } from './copy.ts'
 import { corpseWire, emptied, fallen, isEmpty, recover } from './corpses.ts'
 import { affords, cosmeticById } from './cosmetics.ts'
 import { stepIndex } from './cycle.ts'
+import { openDealDialog } from './dealdialog.ts'
 import { isDropPickup } from './dropmeshes.ts'
 import {
   centsOf,
@@ -28,6 +29,7 @@ import {
   dropAmount,
   dropSpot,
   isCash,
+  QUARTERS,
   spillsOf,
 } from './drops.ts'
 import { finishById } from './finishes.ts'
@@ -488,6 +490,37 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     })
   }
 
+  // E beside Wick, the squatter in the plaza: what he sells, in a dialog
+  // with the pointer free, as at the stand. He deals only in the valley
+  // (rule 24): played alone there is no one to buy from.
+  const openDeal = () => {
+    if (s.talking) return
+    discover(['squatter'])
+    if (!s.world) {
+      hud.tell(copy('log.deal_offline'))
+      return
+    }
+    s.talking = true
+    s.dealSaid = null
+    player.keys.clear()
+    if (document.pointerLockElement) document.exitPointerLock()
+    void openDealDialog({
+      stock: () => s.world?.dealer ?? null,
+      pack: () => s.inventory,
+      cash: () => s.cash,
+      pending: () => s.pendingDeal,
+      said: () => s.dealSaid,
+      onBuy: (kind) => {
+        s.pendingDeal = true
+        s.dealSaid = null
+        net.send({ type: 'deal', kind })
+      },
+    }).then(() => {
+      s.talking = false
+      engagePointer()
+    })
+  }
+
   const stowKind = (kind: string, all: boolean) => restash(kind, all, true)
   const unstowKind = (kind: string, all: boolean) => restash(kind, all, false)
 
@@ -716,7 +749,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       hud.tell(
         kind === DIMES
           ? copy('log.dimes', { count, amount: paid })
-          : copy('log.twenty', { amount: paid })
+          : kind === QUARTERS
+            ? copy('log.quarters', { count, amount: paid })
+            : copy('log.twenty', { amount: paid })
       )
     } else {
       s.inventory = addItem(s.inventory, kind, count)
@@ -766,14 +801,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     s.flashlight = { ...s.flashlight, up: !s.flashlight.up }
   }
 
+  // A pickup taken: into the pack, or cash (the plaza's quarters, the $20
+  // in its back room) into the wallet, as a drop taken up is.
   const applyTake = (pickup: Pickup) => {
     markTaken(pickup)
-    s.inventory = addItem(s.inventory, pickup.kind, pickup.count)
-    hud.tell(copy('log.taken', { item: pickupLabel(pickup) }))
-    refreshBag()
-    s.interaction = null
-    hud.prompt(null)
-    hud.itemLabel(null)
+    applyDropTaken(pickup.kind, pickup.count)
   }
 
   const markTaken = (pickup: Pickup) => {
@@ -880,6 +912,12 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         return
       case 'stand':
         tendStand()
+        return
+      case 'deal':
+        openDeal()
+        return
+      case 'locked':
+        hud.tell(copy('log.locked'))
         return
     }
   }

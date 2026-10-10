@@ -136,12 +136,21 @@
 //    in, Reduced.stand out); the valley writes the ledger, the pack and the
 //    wallet together, or none of them. A collect earns XP by the cents it
 //    pays (stand.ts standXp, rule 22).
+// 24. The squatter in Bull Valley Plaza deals (dealer.ts), where the
+//    world was opened with him (SharedWorld.dealer): a few of each of his
+//    goods a day for the whole valley (SharedWorld.dealerStock, full
+//    again when the day turns, rule 6). A raider out of the bed whose
+//    last state frame put them beside him buys one out of the wallet, as
+//    off a Citgo shelf (ValleyContext.cash and holdings in, Reduced.spend
+//    and Reduced.pack out); he will not sell a key to a raider carrying
+//    one already, and the sale earns XP as a purchase (rule 22).
 
 import { caretakerAt, createCaretaker, stepCaretaker } from './caretaker.ts'
 import { CONFIG } from './config.ts'
 import { corpseWire, isEmpty } from './corpses.ts'
 import { affords, cosmeticById, MOAB_OFFERS } from './cosmetics.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
+import { atDealer, deal, freshDealerStock } from './dealer.ts'
 import { centsOf, dropSpot, isCash, takeUp } from './drops.ts'
 import { bury } from './graves.ts'
 import { contentsOf, INVENTORY_KINDS, itemById } from './items.ts'
@@ -182,6 +191,7 @@ import { freshStock, onShelf, takeUnit } from './store.ts'
 import type { Caretaker } from './caretaker.ts'
 import type { Corpse } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
+import type { DealerStock } from './dealer.ts'
 import type { Drop, Facing, Spill } from './drops.ts'
 import type { Burial, Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
@@ -251,6 +261,10 @@ export interface SharedWorld {
   routes: TruckRoutes
   // Where the Cabbage Stand stands, or null (rule 23).
   stand: XZ | null
+  // Where the squatter deals, or null, and what he has left today (rule
+  // 24).
+  dealer: XZ | null
+  dealerStock: DealerStock
 }
 
 // Everything the server persists.
@@ -297,6 +311,7 @@ export type ValleyAction =
       maze: MazePlace | null
       routes: TruckRoutes
       stand: XZ | null
+      dealer: XZ | null
     }
   // at: where their last state frame put them, or null.
   | { type: 'leave'; id: string; at: PeerStateWire | null }
@@ -340,6 +355,9 @@ export type ValleyAction =
   | { type: 'stand-collect' | 'stand-upgrade'; id: string; at: XZ | null }
   // Rule 14: cosmetic `offer` from Moab.
   | { type: 'trade'; id: string; offer: string }
+  // Rule 24: one of `kind` from the squatter. at: where the raider's last
+  // state frame put them, or null.
+  | { type: 'deal'; id: string; kind: string; at: XZ | null }
   // Rule 9: a new name, a new character, or both.
   | { type: 'appearance'; id: string; name?: string; outfit?: OutfitId }
   // The valley's own clock: the truck and the day, moved on.
@@ -353,10 +371,11 @@ export interface ValleyContext {
   // Ids with an open socket right now, so a member whose close was never
   // heard is dropped. On a join, the joiner is not yet among them.
   present: readonly string[]
-  // For a buy: the buyer's wallet in cents, as the valley just read it.
+  // For a buy or a deal: the buyer's wallet in cents, as the valley just
+  // read it.
   cash?: number
-  // For a trade: the trader's pack and cosmetics, as the valley just read
-  // them.
+  // For a trade or a deal: the raider's pack and cosmetics, as the valley
+  // just read them.
   holdings?: { pack: Inventory; cosmetics: readonly CosmeticId[] }
   // For tending the stand: the account's ledger, pack and wallet (cents),
   // as the valley just read them.
@@ -496,6 +515,7 @@ export function toWire(valley: Valley): WorldWire | null {
     shelves: world.shelves,
     drops: world.drops,
     graves: world.graves,
+    dealer: world.dealerStock,
     corpses: valley.corpses.map(corpseWire),
     truck: world.truck,
     members: Object.values(valley.members).map(({ id, name }) => ({
@@ -568,6 +588,7 @@ function settle(
       day: today,
       taken: [],
       shelves: freshStock(world.stations),
+      dealerStock: freshDealerStock(),
       drops: [],
     })
     frames.push(frame(next, 'refill'))
@@ -655,6 +676,8 @@ function act(
           maze: action.maze,
           routes: action.routes,
           stand: action.stand,
+          dealer: action.dealer,
+          dealerStock: freshDealerStock(),
         }
       } else if (
         !samePickups(world.pickups, action.pickups) ||
@@ -778,8 +801,14 @@ function act(
         // Rule 22.
         xp: [{ account: member.account, source: 'pickup' }],
       })
-      // Rule 10.
-      if (isPackKind(spec.kind) && spec.count > 0) {
+      // Rule 10; cash (the plaza's quarters, its $20) into the wallet, as
+      // a drop of it taken up is (rule 11).
+      if (isCash(spec.kind) && spec.count > 0) {
+        reduced.earn = {
+          account: member.account,
+          amount: spec.count * centsOf(spec.kind),
+        }
+      } else if (isPackKind(spec.kind) && spec.count > 0) {
         reduced.pack = {
           account: member.account,
           kind: spec.kind,
@@ -828,6 +857,38 @@ function act(
         }
       }
       return reduced
+    }
+
+    case 'deal': {
+      const member = valley.members[action.id]
+      const world = valley.world
+      const { kind } = action
+      const refuse = (reason: string): Reduced =>
+        done(valley, now, {
+          broadcast: [],
+          reply: { type: 'nack', re: 'deal', reason, item: kind },
+        })
+      if (!member || !world) return refuse('not-in-valley')
+      // Rule 24.
+      if (!world.dealer) return refuse('no-dealer')
+      if (!atDealer(action.at, world.dealer)) return refuse('too-far')
+      if (world.truck.riders.includes(action.id)) return refuse('aboard')
+      const sale = deal(
+        world.dealerStock,
+        kind,
+        cash ?? 0,
+        holdings?.pack ?? {}
+      )
+      if (!sale.ok) return refuse(sale.reason)
+      const next = withWorld(valley, { ...world, dealerStock: sale.stock })
+      return done(next, now, {
+        broadcast: [frame(next, 'dealt', { by: action.id, item: kind })],
+        spend: { account: member.account, amount: sale.price },
+        // Rule 10.
+        pack: { account: member.account, kind, delta: sale.units },
+        // Rule 22.
+        xp: [{ account: member.account, source: 'purchase' }],
+      })
     }
 
     case 'collect': {

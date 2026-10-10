@@ -21,15 +21,17 @@ export function bagTabs(atLocker: boolean): BagTab[] {
 }
 
 // Which tab each item category sits in: forage (the cabbages and the
-// berries) and valuables (the gold bullion) are loot. Nothing is a material
-// yet.
+// berries), valuables (the gold bullion) and keys are loot. Nothing is a
+// material yet.
 const TAB_OF: Record<ItemCategory, PackTab> = {
   cigarette: 'consumables',
   joint: 'consumables',
+  psychedelic: 'consumables',
   drink: 'consumables',
   medicine: 'consumables',
   forage: 'loot',
   valuable: 'loot',
+  key: 'loot',
 }
 
 // A kind is in its tab when the player carries it, in ITEMS order. Each

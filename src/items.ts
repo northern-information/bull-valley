@@ -5,8 +5,8 @@
 //
 // Fields:
 //   id        inventory kind and mesh key
-//   category  'cigarette' | 'joint' | 'drink' | 'medicine' | 'forage' |
-//             'valuable'
+//   category  'cigarette' | 'joint' | 'psychedelic' | 'drink' | 'medicine'
+//             | 'forage' | 'valuable' | 'key'
 //   label     name in the pack, and floating over a pickup or shelf unit
 //   blurb     description on the pack's item card
 //   used      chat line when the player uses it
@@ -14,7 +14,8 @@
 //   collected chat line when the player picks it off a berry bush
 //   empty     chat line when the player tries to use it with none left
 //   start     count in a new inventory (counted items only)
-//   price     shelf price at every Citgo, in cents (shelf items only)
+//   price     shelf price at every Citgo, in cents (shelf items only; the
+//             dealer's goods are priced in dealer.ts, not here)
 //   contents  how many the pack, bottle or box holds (1 when absent); the
 //             inventory counts these, and a buy or a pickup adds a full one
 //   geometrie how far one use moves each geometrie level (geometrie.ts)
@@ -117,6 +118,20 @@ export const ITEMS = [
     // Shadowmen resolve through the murk while it lasts.
     perceptionSeconds: 120,
     geometrie: { high: 0.5 },
+  },
+  // Never on a Citgo shelf: the squatter in the Golden Wok sells them
+  // (dealer.ts). They work like the joint, harder and longer: perception,
+  // a long trip, and very high.
+  {
+    id: 'mushrooms',
+    category: 'psychedelic',
+    label: copy('items.mushrooms.label'),
+    blurb: copy('items.mushrooms.blurb'),
+    used: copy('items.mushrooms.used'),
+    empty: copy('items.mushrooms.empty'),
+    start: 0,
+    perceptionSeconds: 300,
+    geometrie: { high: 0.85 },
   },
   // Drinks, circa 2008. Drinking one moves geometrie (geometrie.ts): the
   // energy drinks stimulate, the beer and the liquor get you drunk, Four
@@ -434,6 +449,15 @@ export const ITEMS = [
     blurb: copy('items.gold-bullion.blurb'),
     start: 0,
   },
+  // Keys. Never used up: a key opens its lock for whoever carries it
+  // (keys.ts), and goes where the pack goes, a strike included.
+  {
+    id: 'vault-key',
+    category: 'key',
+    label: copy('items.vault-key.label'),
+    blurb: copy('items.vault-key.blurb'),
+    start: 0,
+  },
 ] as const satisfies readonly Item[]
 
 type ItemEntry = (typeof ITEMS)[number]
@@ -441,9 +465,10 @@ type ItemEntry = (typeof ITEMS)[number]
 // Every item id, as a type: a typo in a literal id fails the type check.
 export type ItemId = ItemEntry['id']
 
-// What a pickup in the valley can be: an item, or the dimes a shadowman
-// bursts into (drops.ts DIMES), which are cash and never an item.
-export type PickupKind = ItemId | 'dimes'
+// What a pickup in the valley can be: an item, or cash (drops.ts: the
+// dimes a shadowman bursts into, a spider's $20, the quarters left in the
+// plaza's laundromat), which is never an item.
+export type PickupKind = ItemId | 'dimes' | 'twenty' | 'quarters'
 
 // ITEMS widened to the plain Item shape, for code that reads optional
 // fields (container) across every entry.
@@ -486,8 +511,18 @@ export function isMedicine(id: string): boolean {
 export function isUsable(id: string): boolean {
   const category = itemById(id)?.category
   return (
-    category === 'cigarette' || category === 'joint' || category === 'drink'
+    category === 'cigarette' ||
+    category === 'joint' ||
+    category === 'psychedelic' ||
+    category === 'drink'
   )
+}
+
+// Whether using `id` sharpens perception (the shadowmen resolve through
+// the murk): the joint, and the dealer's mushrooms.
+export function givesPerception(id: string): boolean {
+  const category = itemById(id)?.category
+  return category === 'joint' || category === 'psychedelic'
 }
 
 // How long using one unit of `id` puts trails on the view (trip.ts): a
@@ -497,7 +532,7 @@ export function tripSecondsOf(id: string): number {
   const item = itemById(id)
   if (!item) return 0
   if (item.category === 'cigarette') return item.smokeSeconds ?? 0
-  if (item.category === 'joint') return item.perceptionSeconds ?? 0
+  if (givesPerception(id)) return item.perceptionSeconds ?? 0
   return item.tripSeconds ?? 0
 }
 

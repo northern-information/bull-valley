@@ -303,6 +303,16 @@ export class ValleyDO extends DurableObject<Env> {
           offer: msg.offer,
         })
         return
+      case 'deal':
+        // Beside the squatter where the raider's own last state frame put
+        // them.
+        await this.purchase(ws, attachment, {
+          type: 'deal',
+          id: me.id,
+          kind: msg.kind,
+          at: me.at ? { x: me.at.x, z: me.at.z } : null,
+        })
+        return
       case 'discover':
         await this.discover(ws, attachment.account, msg.entries)
         return
@@ -722,6 +732,7 @@ export class ValleyDO extends DurableObject<Env> {
         maze: hello.maze,
         routes: hello.truck,
         stand: hello.stand,
+        dealer: hello.dealer,
       },
       { now: Date.now(), present: this.presentIds(ws) }
     )
@@ -1033,8 +1044,9 @@ export class ValleyDO extends DurableObject<Env> {
     if (reduced.earn) await this.pay(ws, reduced.earn)
   }
 
-  // Dimes taken up (sharedworld.ts rule 11): into the wallet, then the
-  // pack and wallet to every socket on the account.
+  // Cash taken up (sharedworld.ts rule 11: dimes, a $20, the plaza's
+  // quarters): into the wallet, then the pack and wallet to every socket
+  // on the account.
   private async pay(
     ws: WebSocket,
     { account, amount }: { account: string; amount: number }
@@ -1063,36 +1075,46 @@ export class ValleyDO extends DurableObject<Env> {
     for (const msg of reduced.broadcast) this.broadcast(msg, null)
   }
 
-  // A buy, alone: no other frame runs between reading the wallet, judging
-  // the sale against it, and paying. A wallet that cannot be read or that
-  // does not cover the sale leaves the valley as it was.
+  // A buy off a Citgo shelf (rule 7) or from the squatter (rule 24),
+  // alone: no other frame runs between reading the wallet, judging the
+  // sale against it, and paying. A wallet that cannot be read or that does
+  // not cover the sale leaves the valley as it was.
   private async purchase(
     ws: WebSocket,
     attachment: Attachment,
-    action: Extract<ValleyAction, { type: 'buy' }>
+    action: Extract<ValleyAction, { type: 'buy' | 'deal' }>
   ): Promise<void> {
     const { account } = attachment
     if (!account) return
     const refuse = (reason: string) => {
-      send(ws, {
-        type: 'nack',
-        re: 'buy',
-        reason,
-        station: action.station,
-        item: action.kind,
-      })
+      send(
+        ws,
+        action.type === 'buy'
+          ? {
+              type: 'nack',
+              re: 'buy',
+              reason,
+              station: action.station,
+              item: action.kind,
+            }
+          : { type: 'nack', re: 'deal', reason, item: action.kind }
+      )
     }
     await this.ctx.blockConcurrencyWhile(async () => {
       const packs = this.packs()
-      let cash: number
+      let holdings: Holdings
       try {
-        cash = (await packs.get(account)).cash
+        holdings = await packs.get(account)
       } catch (err) {
         console.error('The wallet could not be read', err)
         refuse('unavailable')
         return
       }
-      const reduced = reduce(this.valley, action, { ...this.context(), cash })
+      const reduced = reduce(this.valley, action, {
+        ...this.context(),
+        cash: holdings.cash,
+        holdings,
+      })
       if (reduced.spend) {
         // The charge and the unit go in together, so a failed write never
         // takes the cash without the item.

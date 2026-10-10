@@ -360,6 +360,39 @@ describe('resolveInteraction: bodies and lockers', () => {
     expect(itemLabel({ kind: 'stand' })).toBeNull()
   })
 
+  it('deals with the squatter within his reach', () => {
+    const dealer = { x: 251, z: 250 }
+    expect(resolveInteraction(input({ dealer }))).toEqual({ kind: 'deal' })
+    const far = { x: 250 + CONFIG.dealer.reach + 0.1, z: 250 }
+    expect(resolveInteraction(input({ dealer: far }))).toBeNull()
+    expect(interactionPrompt({ kind: 'deal' })).toBeNull()
+  })
+
+  it('rattles a locked door, but takes up a pickup lying by it first', () => {
+    const locked = { x: 251, z: 250 }
+    expect(resolveInteraction(input({ locked }))).toEqual({ kind: 'locked' })
+    expect(interactionPrompt({ kind: 'locked' })).toBe(copy('prompts.locked'))
+    const far = { x: 250 + CONFIG.stripMall.doorReach + 0.1, z: 250 }
+    expect(resolveInteraction(input({ locked: far }))).toBeNull()
+    const pickup = {
+      x: 250.5,
+      z: 250,
+      kind: 'pbr' as const,
+      count: 1,
+      taken: false,
+    }
+    expect(resolveInteraction(input({ locked, pickups: [pickup] }))).toEqual({
+      kind: 'pickup',
+      pickup,
+    })
+  })
+
+  it('names the quarters', () => {
+    expect(pickupLabel({ kind: 'quarters', count: 8 })).toBe(
+      copy('labels.quarters', { count: 8 })
+    )
+  })
+
   it('says what E does at each', () => {
     expect(interactionPrompt({ kind: 'loot', corpse: 0 })).toBe(
       copy('prompts.loot')

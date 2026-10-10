@@ -444,6 +444,20 @@ export const CONFIG = {
     // running on from the Citgo's past the cabbage stand, and its alley
     // behind clear of the dish array. Scenery: it only blocks.
     at: { x: -8, z: -60 },
+    // The back room's locked door swings open for a raider who may pass
+    // (keys.ts) once they are this close to it, in metres; E this close
+    // without the key only rattles it.
+    doorReach: 2.5,
+  },
+  dealer: {
+    // How close the squatter in the Golden Wok (dealer.ts, placed at
+    // stripmall.ts STRIP_MALL.dealer) must be for E to deal with him.
+    reach: 2.2,
+    // The valley sells only to a raider whose last state frame put them
+    // within this of him: generous, since frames lag.
+    dealReach: 8,
+    // He blocks like a post this wide.
+    radius: 0.35,
   },
   emotes: {
     // A raider within this many metres of one who emotes (emotes.ts) gets

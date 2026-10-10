@@ -8,6 +8,7 @@ import { EMOTE_IDS } from './emotes.ts'
 import { isWaterMap } from './waterside.ts'
 import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
+import type { DealerStock } from './dealer.ts'
 import type { Drop } from './drops.ts'
 import type { Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
@@ -20,7 +21,7 @@ import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 27
+export const PROTOCOL_VERSION = 28
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -124,6 +125,8 @@ export interface WorldWire {
   // A tombstone for every shadowman burnt, carved with its name; they stay
   // when the day turns.
   graves: Grave[]
+  // What the squatter in the plaza has left to sell today (dealer.ts).
+  dealer: DealerStock
   // Where raiders fell and have not yet taken their things back
   // (sharedworld.ts rule 18); a body lies whatever the day.
   corpses: CorpseWire[]
@@ -171,6 +174,7 @@ export type WorldReason =
   | 'fell'
   | 'looted'
   | 'refill'
+  | 'dealt'
   | 'hurry'
   | 'reset'
 
@@ -204,6 +208,9 @@ export interface HelloMessage {
   // Where the Cabbage Stand stands, or null: the valley tends each
   // account's stand only for a raider beside it (rule 23).
   stand: XZ | null
+  // Where the squatter in Bull Valley Plaza sits, or null: the valley
+  // deals only with a raider beside him (rule 24).
+  dealer: XZ | null
 }
 
 export interface BoardMessage {
@@ -297,6 +304,14 @@ export interface CollectMessage {
 export interface TradeMessage {
   type: 'trade'
   offer: string
+}
+
+// One of `kind` from the squatter in the plaza (sharedworld.ts rule 24),
+// paid for out of the wallet. The valley answers with a 'dealt' world
+// frame and a PackMessage, or a nack.
+export interface DealMessage {
+  type: 'deal'
+  kind: string
 }
 
 // Entries of the Book of Shadows this raider has just come across
@@ -410,6 +425,7 @@ export type ClientMessage =
   | StowMessage
   | StandTendMessage
   | TradeMessage
+  | DealMessage
   | DiscoverMessage
   | ChatMessage
   | WhisperMessage
@@ -556,13 +572,14 @@ export interface WorldMessage {
   reason: WorldReason
   world: WorldWire | null
   // Who did it, for 'joined', 'left', 'boarded', 'hopped-out', 'called',
-  // 'ferry', 'taken', 'bought', 'dropped', 'drop-taken', 'fell', 'looted'.
+  // 'ferry', 'taken', 'bought', 'dealt', 'dropped', 'drop-taken', 'fell',
+  // 'looted'.
   by?: string
   // For 'taken'.
   index?: number
   // For 'bought'.
   station?: number
-  // For 'bought', 'dropped' and 'drop-taken': the kind.
+  // For 'bought', 'dealt', 'dropped' and 'drop-taken': the kind.
   item?: string
   // For 'dropped' and 'drop-taken': the drop's id, and how many were set
   // down or taken up.
@@ -578,7 +595,7 @@ export interface NackMessage {
   reason: string
   // For 'take'.
   index?: number
-  // For 'buy'.
+  // For 'buy' (and 'deal', the item).
   station?: number
   item?: string
   // For 'take-drop'.
@@ -915,6 +932,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
       const maze = value.maze === null ? null : parseMazePlace(value.maze)
       const truck = parseRoutes(value.truck)
       const stand = value.stand === null ? null : parseXZ(value.stand)
+      const dealer = value.dealer === null ? null : parseXZ(value.dealer)
       // An older build sends none of them; it still parses as far as its
       // version, which the server then refuses.
       if (
@@ -924,7 +942,8 @@ export function parseClientMessage(text: string): ClientMessage | null {
           !water ||
           maze === undefined ||
           !truck ||
-          (stand === null && value.stand !== null))
+          (stand === null && value.stand !== null) ||
+          (dealer === null && value.dealer !== null))
       ) {
         return null
       }
@@ -944,6 +963,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
         maze: maze ?? null,
         truck: truck ?? { home: { x: 0, z: 0 }, joyrideMs: 0 },
         stand,
+        dealer,
       }
     }
     case 'board':
@@ -1018,6 +1038,11 @@ export function parseClientMessage(text: string): ClientMessage | null {
       // Which offers there are is the valley's to check.
       const { offer } = value
       return isKind(offer) ? { type: 'trade', offer } : null
+    }
+    case 'deal': {
+      // What he sells is the valley's to check.
+      const { kind } = value
+      return isKind(kind) ? { type: 'deal', kind } : null
     }
     case 'discover': {
       const { entries } = value

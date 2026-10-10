@@ -20,6 +20,7 @@ import {
   itemLabel,
   resolveInteraction,
 } from './interactions.ts'
+import { isLock, passes } from './keys.ts'
 import { settleTruck } from './marx.ts'
 import { inPortal } from './maze.ts'
 import { packItemOf } from './packgrid.ts'
@@ -67,6 +68,16 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     peers,
   } = game
   const ridingForward = new THREE.Vector3(0, 0, -1)
+  // The back room's locked door lets this raider through while they carry
+  // its key, or once they are behind it (keys.ts); everyone else's game
+  // decides for them.
+  const plaza = world.plaza
+  if (plaza) {
+    world.walls.setGates(
+      (gate, x, z) =>
+        isLock(gate) && passes(gate, s.inventory, plaza.inBackRoom(x, z))
+    )
+  }
 
   // Marx's countdown, for whoever is in the bed or standing by it.
   const countdownLine = (now: number): string | null => {
@@ -284,7 +295,18 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     world.stand?.setLevel(s.stand?.level ?? 1)
     for (const rig of world.moabRigs) rig.update(time)
     world.wreck?.update(time)
-    world.plaza?.update(time)
+    // The locked door swings open as a raider who may pass comes up to it.
+    if (plaza) {
+      const { x, z } = player.pos
+      const near =
+        Math.hypot(x - plaza.doorAt.x, z - plaza.doorAt.z) <
+        CONFIG.stripMall.doorReach
+      const inside = plaza.inBackRoom(x, z)
+      plaza.setDoorOpen(
+        (near || inside) && passes(plaza.lock, s.inventory, inside)
+      )
+      plaza.update(time)
+    }
     // The dishes slew on the valley's clock, so every raider sees them
     // look the same way.
     world.dishes?.update(net.clock.serverNow(now) / 1000)
@@ -417,6 +439,16 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       ),
       lockers: targets.lockerSpots(inStore),
       stand: world.stand?.at ?? null,
+      dealer: world.plaza?.dealer.at ?? null,
+      locked:
+        world.plaza &&
+        !passes(
+          world.plaza.lock,
+          s.inventory,
+          world.plaza.inBackRoom(player.pos.x, player.pos.z)
+        )
+          ? world.plaza.doorAt
+          : null,
     })
     const interaction = s.interaction
     // Rule 14: Moab makes his offer as you come into his reach.

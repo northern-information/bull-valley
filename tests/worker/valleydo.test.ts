@@ -3,6 +3,7 @@ import { heartPoint, theMaze } from '../../src/caretaker.ts'
 import { CONFIG } from '../../src/config.ts'
 import { dayKey } from '../../src/daily.ts'
 import { DAILY_TASK, NO_TASK } from '../../src/dailytask.ts'
+import { goodOf } from '../../src/dealer.ts'
 import { DIME_CENTS } from '../../src/drops.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { getItem } from '../../src/items.ts'
@@ -154,6 +155,7 @@ const MAZE = { x: 5000, z: 5000, yaw: 0 }
 
 // Where a build sets up the Cabbage Stand: on the first station's lot.
 const STAND = { x: -4, z: -17 }
+const DEALER = { x: -20, z: -55 }
 
 // What a build placed: two joints first, then `n - 1` cabbages.
 const placed = (n: number) => [
@@ -179,6 +181,7 @@ const hello = (
     maze: MAZE,
     truck: { home: { x: 10, z: 10 }, joyrideMs: 600_000 },
     stand: STAND,
+    dealer: DEALER,
   })
 
 // The last pack frame a socket was sent.
@@ -571,6 +574,35 @@ describe('ValleyDO', () => {
       station: 0,
       item: 'pbr',
     })
+  })
+
+  it('deals with the squatter only beside him, wallet and pack together', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    const deal = JSON.stringify({ type: 'deal', kind: 'vault-key' })
+    // Nowhere the valley heard them stand: too far.
+    await v.webSocketMessage(ws(a), deal)
+    expect(a.last<NackMessage>()).toEqual({
+      type: 'nack',
+      re: 'deal',
+      reason: 'too-far',
+      item: 'vault-key',
+    })
+    await v.webSocketMessage(ws(a), state(DEALER.x + 1, DEALER.z))
+    await v.webSocketMessage(ws(a), deal)
+    expect(b.last<WorldMessage>()).toMatchObject({
+      reason: 'dealt',
+      by: idOf(a),
+      item: 'vault-key',
+    })
+    const price = goodOf('vault-key')?.price ?? 0
+    const pack = a.frames().findLast((m): m is PackMessage => m.type === 'pack')
+    expect(pack?.pack['vault-key']).toBe(1)
+    expect(pack?.cash).toBe(STARTING_CASH - price)
+    // A second key, he will not sell.
+    await v.webSocketMessage(ws(a), deal)
+    expect(a.last<NackMessage>().reason).toBe('have-one')
   })
 
   it('hands out one berry a day per account, and says so in the welcome', async () => {

@@ -219,6 +219,24 @@ lore = { text = "Stands under his own raincloud by the berry bush. He can make y
 [book.moab]
 lore = { text = "A burning skeleton in a red trench coat, his back to his burning horse, under every Citgo sign. He deals in gold.", by = "ai" }
 
+[book.squatter]
+lore = { text = "Sleeps behind the Golden Wok's boards with his candles and his chalk. Sells what the Citgo will not, a few a day, and a key he says he found in the Video Vault's register.", by = "ai" }
+
+# Wick, the squatter in Bull Valley Plaza (src/dealer.ts, src/dealdialog.ts).
+
+[dealer]
+says = { text = "\"You came in through the laundromat, didn't you. Everybody does. Don't step on the chalk.\"", by = "ai" }
+buy = { text = "Buy {item} — {price}", by = "ai" }
+good = { text = "{item}: {left} left today, {held} in your pack", by = "ai" }
+cash = { text = "Your wallet: {cash}", by = "ai" }
+close = { text = "Leave", by = "ai" }
+bought = { text = "Wick slides you the {item}. \"Didn't get it from me.\"", by = "ai" }
+sold_out = { text = "\"That's all I had today. Come back tomorrow.\"", by = "ai" }
+short = { text = "\"Come back when you've got it.\"", by = "ai" }
+have_one = { text = "\"You've already got one of those.\"", by = "ai" }
+too_far = { text = "\"Come closer. I'm not shouting.\"", by = "ai" }
+refused = { text = "\"Not right now.\"", by = "ai" }
+
 # The game's own lines in the chat log (src/actions.ts, src/valleysync.ts,
 # src/loop.ts, src/shop.ts).
 
@@ -263,6 +281,7 @@ taken = { text = "Taken: {item}", by = "ai" }
 taken_first = { text = "Someone got there first.", by = "ai" }
 dimes = { text = "You scoop up {count} dimes. +{amount}", by = "ai" }
 twenty = { text = "You pick up a twenty-dollar bill. It is cold and wet. +{amount}", by = "ai" }
+quarters = { text = "You fish {count} quarters out of the machine. +{amount}", by = "ai" }
 short = { text = "You're {amount} short.", by = "ai" }
 sold_out = { text = "Sold out.", by = "ai" }
 refused = { text = "The clerk shakes his head.", by = "ai" }
@@ -287,6 +306,8 @@ stand_stocked = { text = "On the stand: {item}", by = "ai" }
 stand_collected = { text = "The stand paid you {amount}.", by = "ai" }
 stand_upgraded = { text = "Your stand is level {level} now.", by = "ai" }
 stand_offline = { text = "No signal. The stand is shut.", by = "ai" }
+locked = { text = "Locked. The handle does not give.", by = "ai" }
+deal_offline = { text = "No signal. Wick will not deal with a stranger alone.", by = "ai" }
 stand_far = { text = "You are too far from the stand.", by = "ai" }
 stand_short = { text = "You cannot cover that.", by = "ai" }
 stand_none = { text = "You have none of those to put out.", by = "ai" }
@@ -311,6 +332,7 @@ trade = { text = "E — Trade {count} oz of {price} for the {cosmetic}", by = "a
 loot = { text = "E — Take Your Things Back", by = "ai" }
 locker = { text = "E — Open Your Locker", by = "ai" }
 stand = { text = "E — Tend Your Stand", by = "ai" }
+locked = { text = "E — Locked", by = "ai" }
 
 # Lines the game says to the player in the chat log (src/chat.ts).
 
@@ -500,6 +522,7 @@ price = { text = "{item} {price}", by = "ai" }
 berries = { text = "Berries", by = "ai" }
 dimes = { text = "{count} Dimes", by = "ai" }
 twenty = { text = "$20 Bill", by = "ai" }
+quarters = { text = "{count} Quarters", by = "ai" }
 twenties = { text = "{count} $20 Bills", by = "ai" }
 berry_picked = { text = "Picked Clean Until Midnight", by = "ai" }
 berry_offline = { text = "No Signal", by = "ai" }
@@ -526,6 +549,7 @@ jdogg = { text = "Jdogg", by = "tyler" }
 mathiesen = { text = "Alex Mathiesen", by = "ai" }
 gron = { text = "Gron", by = "tyler" }
 moab = { text = "Moab Coldë", by = "ai" }
+squatter = { text = "Wick", by = "ai" }
 
 # Matthew Marx, looked at and spoken to (src/npcs.ts): "O, Whistle an' I'll
 # Come to Ye, My Lad" by Robert Burns, a stanza each time, into the chat log.
@@ -678,6 +702,12 @@ used = { text = "You spark the joint. The valley sharpens.", by = "ai" }
 bought = { text = "One joint, pocketed.", by = "ai" }
 empty = { text = "No joints left.", by = "ai" }
 
+[items.mushrooms]
+label = { text = "Mushrooms", by = "ai" }
+blurb = { text = "A baggie of dried caps from the man behind the Golden Wok's boards. He says they show you what the shadowmen see.", by = "ai" }
+used = { text = "You chew the caps down. They taste like the floor of the maze.", by = "ai" }
+empty = { text = "No mushrooms left.", by = "ai" }
+
 [items.monster]
 label = { text = "Monster Energy", by = "ai" }
 blurb = { text = "Three green claw marks. Tastes like a battery.", by = "ai" }
@@ -829,3 +859,7 @@ collected = { text = "A berry off the bush. The rest are for tomorrow.", by = "a
 [items.gold-bullion]
 label = { text = "Gold Bullion", by = "ai" }
 blurb = { text = "One troy ounce, stamped .9999 fine. Moab Coldë has a use for it.", by = "ai" }
+
+[items.vault-key]
+label = { text = "Video Vault Key", by = "ai" }
+blurb = { text = "A brass key on a red tag that says BACK. It opens the room behind the Video Vault's counter, for whoever carries it.", by = "ai" }

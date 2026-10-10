@@ -25,10 +25,12 @@ describe('items', () => {
       expect([
         'cigarette',
         'joint',
+        'psychedelic',
         'drink',
         'medicine',
         'forage',
         'valuable',
+        'key',
       ]).toContain(item.category)
     }
   })
@@ -127,8 +129,9 @@ describe('items', () => {
   it('prices every shelf item in whole cents', () => {
     const items: readonly Item[] = ITEMS
     const forSale = items.filter((item) => item.price !== undefined)
-    // All but the forage (the berries and the cabbages) and the gold.
-    expect(forSale.length).toBe(ITEMS.length - 3)
+    // All but the forage (the berries and the cabbages), the gold, and
+    // what only the squatter sells (dealer.ts prices those).
+    expect(forSale.length).toBe(ITEMS.length - 5)
     for (const item of forSale) {
       expect(Number.isInteger(item.price), item.id).toBe(true)
       expect(item.price, item.id).toBeGreaterThan(0)
