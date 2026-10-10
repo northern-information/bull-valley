@@ -39,7 +39,7 @@ import { assign, clearSlot as clearHotbarSlot, place, spent } from './hotbar.ts'
 import { pickupLabel } from './interactions.ts'
 import { addItem, consume } from './inventory.ts'
 import { itemLabel, itemLine } from './itemcopy.ts'
-import { healsOf, itemById } from './items.ts'
+import { geometrieOf, healsOf } from './items.ts'
 import { board, call, hopOut as hopOutOf, refused } from './marx.ts'
 import { npcLine } from './npcs.ts'
 import { outfitById } from './outfits.ts'
@@ -780,7 +780,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     s.inventory = result.inv
     keepHotbar(spent(s.hotbar, kind, s.inventory))
     s.effects = result.effects
-    s.geometrie = dose(s.geometrie, itemById(kind)?.geometrie, s.time)
+    s.geometrie = dose(s.geometrie, geometrieOf(kind), s.time)
     // The right hand brings it up (fphands.ts).
     s.using = { kind, at: s.time }
     // The unit is the account's: the valley takes it out of the pack, and

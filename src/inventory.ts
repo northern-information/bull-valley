@@ -3,7 +3,13 @@
 // the copy the valley last sent and applies its own changes in the meantime.
 // Kinds and starting counts come from items.ts.
 
-import { INVENTORY_KINDS, isUsable, itemById, tripSecondsOf } from './items.ts'
+import {
+  INVENTORY_KINDS,
+  isUsable,
+  itemById,
+  ITEMS,
+  tripSecondsOf,
+} from './items.ts'
 import type { Effects } from './hotbar.ts'
 import type { Inventory } from './interfaces.ts'
 
@@ -25,9 +31,7 @@ export function toInventory(raw: unknown): Inventory {
 
 // A new account's pack.
 export const STARTING_INVENTORY = toInventory(
-  Object.fromEntries(
-    INVENTORY_KINDS.map((kind) => [kind, itemById(kind)?.start ?? 0])
-  )
+  Object.fromEntries(ITEMS.map((item) => [item.id, item.start]))
 )
 
 export function addItem(inv: Inventory, kind: string, count = 1): Inventory {
@@ -52,8 +56,7 @@ export function consume(
   | { used: false; reason: 'unusable' | 'smoking' | 'empty' } {
   const item = itemById(kind)
   if (!item || !isUsable(kind)) return { used: false, reason: 'unusable' }
-  const smoke = item.category === 'cigarette'
-  if (smoke && time < effects.smoking.end) {
+  if (item.category === 'cigarette' && time < effects.smoking.end) {
     return { used: false, reason: 'smoking' }
   }
   const result = useItem(inv, kind)
@@ -66,15 +69,15 @@ export function consume(
     start: time,
     end: Math.max(effects.trip.end, time + tripSecondsOf(kind)),
   }
-  if (smoke) {
-    const end = time + (item.smokeSeconds ?? 0)
+  if (item.category === 'cigarette') {
+    const end = time + item.smokeSeconds
     return {
       used: true,
       inv: result.inv,
       effects: {
         ...effects,
         smoking: { start: time, end },
-        ember: { start: end, end: end + (item.emberSeconds ?? 0) },
+        ember: { start: end, end: end + item.emberSeconds },
         trip,
       },
     }
@@ -85,7 +88,7 @@ export function consume(
       inv: result.inv,
       effects: {
         ...effects,
-        perception: { start: time, end: time + (item.perceptionSeconds ?? 0) },
+        perception: { start: time, end: time + item.perceptionSeconds },
         trip,
       },
     }

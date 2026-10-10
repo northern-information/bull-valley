@@ -9,7 +9,7 @@ import {
   setPulseMaterials,
 } from './assetkit.ts'
 import { cap, drinkLabel, lathe, need } from './drinkmodels.ts'
-import { isMedicine, itemById } from './items.ts'
+import { itemById } from './items.ts'
 import { paintMedicine } from './medart.ts'
 import type { PickupOptions } from './assetkit.ts'
 import type { CanvasArt } from './canvas.ts'
@@ -133,8 +133,10 @@ export function buildMedicine(
   medicineId: string,
   { glow = true }: PickupOptions = {}
 ): THREE.Group {
-  const medicine = isMedicine(medicineId) ? itemById(medicineId) : null
-  if (!medicine?.form) throw new Error(`Unknown medicine "${medicineId}"`)
+  const medicine = itemById(medicineId)
+  if (medicine?.category !== 'medicine') {
+    throw new Error(`Unknown medicine "${medicineId}"`)
+  }
   const art = medicineArt(medicineId)
   const group = new THREE.Group()
   group.name = `med-${medicineId}`

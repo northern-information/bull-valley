@@ -11,7 +11,7 @@ import {
 } from './assetkit.ts'
 import { paintDrink } from './canart.ts'
 import { CONTAINERS } from './drinks.ts'
-import { isDrink, itemById } from './items.ts'
+import { itemById } from './items.ts'
 import type { PickupOptions } from './assetkit.ts'
 import type { DrinkArt } from './canart.ts'
 import type { CanvasArt } from './canvas.ts'
@@ -521,8 +521,8 @@ export function buildDrink(
   drinkId: string,
   { glow = true }: PickupOptions = {}
 ): THREE.Group {
-  const drink = isDrink(drinkId) ? itemById(drinkId) : null
-  if (!drink?.container) throw new Error(`Unknown drink "${drinkId}"`)
+  const drink = itemById(drinkId)
+  if (drink?.category !== 'drink') throw new Error(`Unknown drink "${drinkId}"`)
   const art = drinkArt(drinkId)
   const size = CONTAINERS[drink.container]
   const group = new THREE.Group()

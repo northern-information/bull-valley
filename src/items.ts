@@ -5,26 +5,97 @@
 // shelves, pickups, and chat lines follow.
 // Pure, no Three. Meshes stay in assets.ts, keyed by id.
 //
-// Fields:
+// An Item is one of a union by category (below), so each category carries
+// exactly the fields it uses and a reader narrows on `category` instead of
+// checking which fields exist. Common to all:
 //   id        inventory kind and mesh key
 //   category  'cigarette' | 'joint' | 'drink' | 'medicine' | 'forage' |
 //             'valuable'
-//   start     count in a new inventory (counted items only)
-//   price     shelf price at every Citgo, in cents (shelf items only)
+//   start     count in a new inventory
 //   contents  how many the pack, bottle or box holds (1 when absent); the
 //             inventory counts these, and a buy or a pickup adds a full one
-//   geometrie how far one use moves each geometrie level (geometrie.ts)
+// On the shelf items (everything but forage and valuables):
+//   price     shelf price at every Citgo, in cents
+// By category:
+//   geometrie how far one use moves each geometrie level (geometrie.ts):
+//             a cigarette's, the joint's and a drink's
+//   smokeSeconds, emberSeconds  a cigarette burns, then smoulders
+//   perceptionSeconds  the joint resolves the shadowmen through the murk
+//   container a drink's shape, a key into CONTAINERS in drinks.ts
 //   tripSeconds  how long a drink's trails last (trip.ts); a cigarette's
 //             last while it smokes, the joint's while perception does
-//   heals     health points one use gives back (health.ts, sharedworld.ts
-//             rule 24): one pill of aspirin or ibuprofen gives one back
+//   form      a medicine's packaging (MedicineForm, the shape assets.ts
+//             builds)
+//   heals     health points one use of a medicine gives back (health.ts,
+//             sharedworld.ts rule 24): one pill of aspirin or ibuprofen
+//             gives one back
 //
 // Medicine that does not heal cannot be used yet. Forage is never on a
 // shelf, so it has no price; the valley hands it out (sharedworld.ts rules
 // 4 and 8).
 
 import type { CashKind } from './drops.ts'
-import type { Item } from './interfaces.ts'
+import type { ContainerKey, GeometrieAxis, MedicineForm } from './interfaces.ts'
+
+// How far one use moves each geometrie level (geometrie.ts), 0 to 1.
+export type GeometrieDose = Partial<Record<GeometrieAxis, number>>
+
+interface ItemBase {
+  id: string
+  // Count in a new inventory.
+  start: number
+  // How many one container holds (contentsOf); 1 when absent.
+  contents?: number
+}
+
+// What is on a Citgo shelf: priced in cents.
+interface Shelf {
+  price: number
+}
+
+export interface Cigarette extends ItemBase, Shelf {
+  category: 'cigarette'
+  smokeSeconds: number
+  emberSeconds: number
+  geometrie: GeometrieDose
+}
+
+export interface Joint extends ItemBase, Shelf {
+  category: 'joint'
+  perceptionSeconds: number
+  geometrie: GeometrieDose
+}
+
+export interface Drink extends ItemBase, Shelf {
+  category: 'drink'
+  container: ContainerKey
+  tripSeconds: number
+  geometrie: GeometrieDose
+}
+
+export interface Medicine extends ItemBase, Shelf {
+  category: 'medicine'
+  form: MedicineForm
+  // Health points one use gives back; medicine without it cannot be used
+  // yet.
+  heals?: number
+}
+
+// Never on a shelf: the valley hands it out.
+export interface Forage extends ItemBase {
+  category: 'forage'
+  price?: undefined
+}
+
+// Never on a shelf and of no use, but Moab takes it in trade.
+export interface Valuable extends ItemBase {
+  category: 'valuable'
+  price?: undefined
+}
+
+export type Item = Cigarette | Joint | Drink | Medicine | Forage | Valuable
+
+export type ItemCategory = Item['category']
 
 export const ITEMS = [
   {
@@ -353,19 +424,41 @@ export function isMedicine(id: string): boolean {
 // Whether the player can use a carried item (E in the pack, or its hotbar
 // key): anything smoked or drunk, and medicine that heals.
 export function isUsable(id: string): boolean {
-  const category = itemById(id)?.category
-  return (
-    category === 'cigarette' ||
-    category === 'joint' ||
-    category === 'drink' ||
-    healsOf(id) > 0
-  )
+  const item = itemById(id)
+  if (!item) return false
+  switch (item.category) {
+    case 'cigarette':
+    case 'joint':
+    case 'drink':
+      return true
+    case 'medicine':
+      return (item.heals ?? 0) > 0
+    case 'forage':
+    case 'valuable':
+      return false
+  }
 }
 
 // Health points one use of `id` gives back (health.ts); 0 for anything
 // that does not heal.
 export function healsOf(id: string): number {
-  return itemById(id)?.heals ?? 0
+  const item = itemById(id)
+  return item?.category === 'medicine' ? (item.heals ?? 0) : 0
+}
+
+// How far one use of `id` moves geometrie (geometrie.ts dose): anything
+// smoked or drunk has a dose; nothing else moves it.
+export function geometrieOf(id: string): GeometrieDose | undefined {
+  const item = itemById(id)
+  if (!item) return undefined
+  switch (item.category) {
+    case 'cigarette':
+    case 'joint':
+    case 'drink':
+      return item.geometrie
+    default:
+      return undefined
+  }
 }
 
 // How long using one unit of `id` puts trails on the view (trip.ts): a
@@ -374,9 +467,16 @@ export function healsOf(id: string): number {
 export function tripSecondsOf(id: string): number {
   const item = itemById(id)
   if (!item) return 0
-  if (item.category === 'cigarette') return item.smokeSeconds ?? 0
-  if (item.category === 'joint') return item.perceptionSeconds ?? 0
-  return item.tripSeconds ?? 0
+  switch (item.category) {
+    case 'cigarette':
+      return item.smokeSeconds
+    case 'joint':
+      return item.perceptionSeconds
+    case 'drink':
+      return item.tripSeconds
+    default:
+      return 0
+  }
 }
 
 // The kinds the inventory counts: every item.

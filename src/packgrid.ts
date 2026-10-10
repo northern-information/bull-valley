@@ -4,7 +4,8 @@
 
 import { itemBlurb, itemLabel } from './itemcopy.ts'
 import { containersOf, isUsable, itemById, ITEMS, leftInOpen } from './items.ts'
-import type { Inventory, ItemCategory, PackItem } from './interfaces.ts'
+import type { Inventory, PackItem } from './interfaces.ts'
+import type { ItemCategory } from './items.ts'
 
 // The pack's tabs, left to right; it opens on the first.
 export const PACK_TABS = ['consumables', 'loot', 'materials'] as const

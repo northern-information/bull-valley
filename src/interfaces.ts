@@ -86,15 +86,13 @@ export interface Geo {
 }
 
 // ---------------------------------------------------------------------------
-// Items (src/items.ts), drink containers (src/drinks.ts), and medicine
-// packaging (src/assets.ts).
+// What the items (src/items.ts, where the Item union itself lives) share
+// with the modules that draw them: geometrie's axes (src/geometrie.ts),
+// drink containers (src/drinks.ts), and medicine packaging (src/assets.ts).
 
 // The three sides of geometrie (geometrie.ts): how high, how stimulated,
 // how drunk.
 export type GeometrieAxis = 'high' | 'stimulated' | 'drunk'
-
-export type ItemCategory =
-  'cigarette' | 'joint' | 'drink' | 'medicine' | 'forage' | 'valuable'
 
 // How a medicine is packed: a pill bottle, a folding carton, or a dropper
 // bottle. assets.ts builds one shape per form; medart.ts paints its labels.
@@ -118,31 +116,6 @@ export interface Container {
   height: number
   // Half the front-to-back size of a flat or square bottle.
   depth?: number
-}
-
-export interface Item {
-  id: string
-  category: ItemCategory
-  start?: number
-  // How many one container holds (items.ts contentsOf).
-  contents?: number
-  // Shelf price at every Citgo, in cents.
-  price?: number
-  // Cigarettes.
-  smokeSeconds?: number
-  emberSeconds?: number
-  // Joints.
-  perceptionSeconds?: number
-  // How far one use moves each geometrie level (geometrie.ts), 0 to 1.
-  geometrie?: Partial<Record<GeometrieAxis, number>>
-  // Drinks.
-  container?: ContainerKey
-  tripSeconds?: number
-  // Medicine.
-  form?: MedicineForm
-  // Health points one use gives back (health.ts); medicine without it
-  // cannot be used yet.
-  heals?: number
 }
 
 // Item id -> count. Every inventory kind is present.

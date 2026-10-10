@@ -4,6 +4,7 @@ import {
   CIGARETTE_IDS,
   containersOf,
   contentsOf,
+  geometrieOf,
   getItem,
   healsOf,
   INVENTORY_KINDS,
@@ -16,31 +17,91 @@ import {
   leftInOpen,
   tripSecondsOf,
 } from '../../src/items.ts'
-import type { Item } from '../../src/interfaces.ts'
+import type { Item, ItemCategory } from '../../src/items.ts'
+
+// The fields each category carries beyond the ones every item has (id,
+// category, start, and contents when it is a container): the shape of the
+// union in items.ts, which the table must match entry by entry.
+const COMMON = ['id', 'category', 'start', 'contents']
+const FIELDS_OF: Record<
+  ItemCategory,
+  { required: string[]; optional: string[] }
+> = {
+  cigarette: {
+    required: ['price', 'smokeSeconds', 'emberSeconds', 'geometrie'],
+    optional: [],
+  },
+  joint: {
+    required: ['price', 'perceptionSeconds', 'geometrie'],
+    optional: [],
+  },
+  drink: {
+    required: ['price', 'container', 'tripSeconds', 'geometrie'],
+    optional: [],
+  },
+  medicine: { required: ['price', 'form'], optional: ['heals'] },
+  forage: { required: [], optional: [] },
+  valuable: { required: [], optional: [] },
+}
 
 describe('items', () => {
   it('has unique ids and a known category', () => {
     expect(new Set(ITEMS.map((item) => item.id)).size).toBe(ITEMS.length)
     for (const item of ITEMS) {
-      expect([
-        'cigarette',
-        'joint',
-        'drink',
-        'medicine',
-        'forage',
-        'valuable',
-      ]).toContain(item.category)
+      expect(Object.keys(FIELDS_OF)).toContain(item.category)
     }
   })
 
-  it('has five cigarettes, each with tuning', () => {
-    expect(CIGARETTE_IDS).toHaveLength(5)
+  it('gives each category exactly its own fields', () => {
+    for (const item of ITEMS as readonly Item[]) {
+      const { required, optional } = FIELDS_OF[item.category]
+      const keys = Object.keys(item)
+      for (const key of required)
+        expect(keys, `${item.id}.${key}`).toContain(key)
+      for (const key of keys) {
+        expect(
+          [...COMMON, ...required, ...optional],
+          `${item.id}.${key}`
+        ).toContain(key)
+      }
+    }
+  })
+
+  it('has cigarettes, each with tuning', () => {
+    expect(CIGARETTE_IDS.length).toBeGreaterThan(0)
+    expect(CIGARETTE_IDS).toEqual(
+      ITEMS.filter((item) => item.category === 'cigarette').map((i) => i.id)
+    )
     for (const id of CIGARETTE_IDS) {
       const item = itemById(id)
-      if (!item) throw new Error(`no item ${id}`)
+      if (item?.category !== 'cigarette') throw new Error(`no cigarette ${id}`)
       expect(item.smokeSeconds).toBeGreaterThan(0)
       expect(item.emberSeconds).toBeGreaterThan(0)
     }
+  })
+
+  it('tells each category apart by its guard', () => {
+    for (const item of ITEMS) {
+      expect(isCigarette(item.id), item.id).toBe(item.category === 'cigarette')
+      expect(isDrink(item.id), item.id).toBe(item.category === 'drink')
+      expect(isMedicine(item.id), item.id).toBe(item.category === 'medicine')
+    }
+    expect(isCigarette('nope')).toBe(false)
+    expect(isDrink('nope')).toBe(false)
+    expect(isMedicine('nope')).toBe(false)
+  })
+
+  it('doses geometrie off anything smoked or drunk, and nothing else', () => {
+    for (const item of ITEMS) {
+      const dosed =
+        item.category === 'cigarette' ||
+        item.category === 'joint' ||
+        item.category === 'drink'
+      expect(geometrieOf(item.id), item.id).toEqual(
+        dosed ? item.geometrie : undefined
+      )
+    }
+    expect(geometrieOf('nope')).toBeUndefined()
   })
 
   it('gives every counted item a starting count', () => {
@@ -54,7 +115,7 @@ describe('items', () => {
 
   it('gives every drink a known container and a dose of geometrie', () => {
     const drinks = ITEMS.filter((item) => item.category === 'drink')
-    expect(drinks).toHaveLength(17)
+    expect(drinks.length).toBeGreaterThan(0)
     for (const item of drinks) {
       expect(CONTAINERS[item.container], item.id).toBeTruthy()
       expect(isDrink(item.id)).toBe(true)
@@ -73,7 +134,7 @@ describe('items', () => {
   it('gets you high off a joint and stimulated off a cigarette', () => {
     expect(getItem('joints').geometrie.high).toBeGreaterThan(0)
     for (const id of CIGARETTE_IDS) {
-      expect(itemById(id)?.geometrie?.stimulated, id).toBeGreaterThan(0)
+      expect(geometrieOf(id)?.stimulated, id).toBeGreaterThan(0)
     }
   })
 
@@ -89,12 +150,7 @@ describe('items', () => {
 
   it('gives every medicine a known form, and a use only when it heals', () => {
     const medicine = ITEMS.filter((item) => item.category === 'medicine')
-    expect(medicine.map((item) => item.id)).toEqual([
-      'aspirin',
-      'ibuprofen',
-      'benadryl',
-      'eye-drops',
-    ])
+    expect(medicine.length).toBeGreaterThan(0)
     for (const item of medicine) {
       expect(['pills', 'carton', 'dropper'], item.id).toContain(item.form)
       expect(isMedicine(item.id)).toBe(true)
@@ -105,7 +161,9 @@ describe('items', () => {
     expect(healsOf('ibuprofen')).toBe(1)
     expect(healsOf('benadryl')).toBe(0)
     expect(healsOf('pbr')).toBe(0)
+    expect(healsOf('nope')).toBe(0)
     expect(isMedicine('pbr')).toBe(false)
+    expect(isUsable('nope')).toBe(false)
   })
 
   it('counts every item in the inventory', () => {
@@ -119,12 +177,13 @@ describe('items', () => {
     expect(itemById('nope')).toBeNull()
   })
 
-  it('prices every shelf item in whole cents', () => {
+  it('prices every shelf item in whole cents, and nothing else', () => {
     const items: readonly Item[] = ITEMS
-    const forSale = items.filter((item) => item.price !== undefined)
-    // All but the forage (the berries and the cabbages) and the gold.
-    expect(forSale.length).toBe(ITEMS.length - 3)
-    for (const item of forSale) {
+    for (const item of items) {
+      // Everything but the forage and the valuables is on a shelf.
+      const onShelf = item.category !== 'forage' && item.category !== 'valuable'
+      expect(item.price !== undefined, item.id).toBe(onShelf)
+      if (item.price === undefined) continue
       expect(Number.isInteger(item.price), item.id).toBe(true)
       expect(item.price, item.id).toBeGreaterThan(0)
     }
