@@ -54,8 +54,8 @@ export const CONFIG = {
   shadowmen: {
     // Crossings: this many shadowmen at once in a bubble around the player.
     count: 12,
-    // They spawn on this ring, just past scope range so blips enter from the
-    // rim, cross toward a point within crossRadius of the player, and are
+    // They spawn on this ring, well past scope range so blips enter from the
+    // rim as they near, cross toward a point within crossRadius of the player, and are
     // dropped past despawnRadius.
     spawnRadius: 300,
     crossRadius: 120,
@@ -228,7 +228,8 @@ export const CONFIG = {
     fadePerSecond: { high: 1 / 240, stimulated: 1 / 180, drunk: 1 / 300 },
   },
   scope: {
-    rangeMetres: 250,
+    // Close enough to read: a rush starts at a quarter of it.
+    rangeMetres: 100,
     sweepSeconds: 3.2,
   },
   spawn: {
@@ -242,6 +243,20 @@ export const CONFIG = {
     volume: 0.5,
     // Seconds it takes to come up from silence when it starts.
     fadeInSeconds: 4,
+  },
+  sfx: {
+    // The valley's sounds (sfx.ts): the loudness at the setting's top.
+    volume: 0.8,
+    // Nothing further from the raider than this, in metres, is heard.
+    hearing: 60,
+    // At most this many spiderlings skitter at once, the nearest.
+    skitters: 3,
+    // A placed sound is at full loudness this close, in metres, and falls
+    // away past it this fast (a Web Audio inverse model).
+    refDistance: 4,
+    rolloff: 1.2,
+    // How far a playback rate (pitch) wanders, either way, per play.
+    jitter: 0.06,
   },
   store: {
     // A new account's wallet, in cents (worker/packs.ts). Played alone,
@@ -276,16 +291,11 @@ export const CONFIG = {
   },
   logo: {
     // The game's own logo atop the main menu, straight after the colophon:
-    // it fades up over fadeInMs, and its cue (~14s) plays once under the
-    // same envelope shape, so it ends at silence.
+    // it fades up over fadeInMs, silent (the valley's music starts under
+    // it), while the colophon's cue fades out over skipAudioFadeMs.
     fadeInMs: 2000,
-    holdMs: 10400,
-    fadeOutMs: 1600,
-    skipFadeMs: 200,
     skipAudioFadeMs: 300,
-    revealFadeMs: 400,
     imageSrc: '/bull-valley-shadow-wars.png',
-    audioSrc: '/sfx/bull-valley-shadow-wars-intro.mp3',
   },
   select: {
     // The character turntable: spin speed and the fade that reveals the

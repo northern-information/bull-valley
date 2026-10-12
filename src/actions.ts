@@ -34,7 +34,7 @@ import { finishById } from './finishes.ts'
 import { dose } from './geometrie.ts'
 import { burialsOf, bury } from './graves.ts'
 import { openGronDialog } from './grondialog.ts'
-import { hit, isWhole, keepsPill, MAX_HEALTH, mend } from './health.ts'
+import { hit, isWhole, MAX_HEALTH, mend } from './health.ts'
 import { assign, clearSlot as clearHotbarSlot, place, spent } from './hotbar.ts'
 import { pickupLabel } from './interactions.ts'
 import { addItem, consume } from './inventory.ts'
@@ -427,6 +427,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     s.graceUntil = now + CONFIG.health.graceSeconds * 1000
     s.hurtAt = now
     hud.hurt()
+    game.sfx?.play(s.health > 0 ? 'hit' : 'shatter')
     if (s.health > 0) {
       hud.tell(copy(by === 'caretaker' ? 'log.hit_caretaker' : 'log.hit'))
       return
@@ -765,12 +766,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // An item with no effect yet does nothing, and a cigarette waits for the
   // one burning.
   const useKind = (kind: string) => {
-    // Medicine that heals is kept for when it is wanted.
     const heals = healsOf(kind)
-    if (keepsPill(heals, s.health) && (s.inventory[kind] ?? 0) > 0) {
-      hud.tell(copy('log.whole'))
-      return
-    }
     const result = consume(s.inventory, kind, s.effects, s.time)
     if (!result.used) {
       const empty = result.reason === 'empty' ? itemLine(kind, 'empty') : null
@@ -874,6 +870,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // the valley hears it with the next state frame.
   const toggleFlashlight = () => {
     s.flashlight = { ...s.flashlight, up: !s.flashlight.up }
+    game.sfx?.play(s.flashlight.up ? 'flashlight-on' : 'flashlight-off')
   }
 
   const applyTake = (pickup: Pickup) => {

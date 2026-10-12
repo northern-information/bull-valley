@@ -1,5 +1,5 @@
 // Pure: the valley's music, the Bull Valley Scaduscope theme, looped under
-// everything once a raider has begun. Streamed from assets.the-rn.info,
+// everything from the main menu on. Streamed from assets.the-rn.info,
 // never in the bundle or the repo. musicrig.ts plays it; the raider's
 // music setting (settings.ts) sets how loud.
 

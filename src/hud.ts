@@ -13,7 +13,7 @@ import { MAX_HEALTH } from './health.ts'
 import { LevelHud } from './levelhud.ts'
 import { PackHud } from './packhud.ts'
 import { SeasonHud } from './seasonhud.ts'
-import { musicSlider } from './settingsui.ts'
+import { volumeSliders } from './settingsui.ts'
 import { TaskHud } from './taskhud.ts'
 import type { ChatLine } from './chat.ts'
 import type { GeometrieAxis, PackItem } from './interfaces.ts'
@@ -294,11 +294,11 @@ export class Hud {
     find<HTMLElement>(this.intro, '[data-bv="intro-as"]').hidden = false
   }
 
-  // The music slider on the Raiding As line, sharing the main menu's
+  // The volume sliders on the Raiding As line, sharing the main menu's
   // store; it shows with that line once the titles settle the account.
   setSettings(store: SettingsStore): void {
     find<HTMLElement>(this.intro, '[data-bv="intro-settings"]').replaceChildren(
-      musicSlider(store)
+      ...volumeSliders(store)
     )
   }
 

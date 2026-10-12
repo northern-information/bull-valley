@@ -26,13 +26,13 @@
 //             last while it smokes, the joint's while perception does
 //   form      a medicine's packaging (MedicineForm, the shape assets.ts
 //             builds)
-//   heals     health points one use of a medicine gives back (health.ts,
-//             sharedworld.ts rule 24): one pill of aspirin or ibuprofen
-//             gives one back
+//   heals     health points one use gives back (health.ts, sharedworld.ts
+//             rule 24): everything smoked, drunk or swallowed gives one
+//             back, the joint, Four Loko and the liquor two
 //
-// Medicine that does not heal cannot be used yet. Forage is never on a
-// shelf, so it has no price; the valley hands it out (sharedworld.ts rules
-// 4 and 8).
+// Forage is
+// never on a shelf, so it has no price or bought text; the valley hands it out
+// (sharedworld.ts rules 4 and 8).
 
 import type { CashKind } from './drops.ts'
 import type { ContainerKey, GeometrieAxis, MedicineForm } from './interfaces.ts'
@@ -48,9 +48,11 @@ interface ItemBase {
   contents?: number
 }
 
-// What is on a Citgo shelf: priced in cents.
+// What is on a Citgo shelf: priced in cents, and most of it gives health
+// back when used (health.ts, sharedworld.ts rule 24).
 interface Shelf {
   price: number
+  heals?: number
 }
 
 export interface Cigarette extends ItemBase, Shelf {
@@ -76,9 +78,7 @@ export interface Drink extends ItemBase, Shelf {
 export interface Medicine extends ItemBase, Shelf {
   category: 'medicine'
   form: MedicineForm
-  // Health points one use gives back; medicine without it cannot be used
-  // yet.
-  heals?: number
+  geometrie: GeometrieDose
 }
 
 // Never on a shelf: the valley hands it out.
@@ -107,6 +107,7 @@ export const ITEMS = [
     smokeSeconds: 12,
     emberSeconds: 20,
     geometrie: { stimulated: 0.12 },
+    heals: 1,
   },
   {
     id: 'camel',
@@ -117,6 +118,7 @@ export const ITEMS = [
     smokeSeconds: 14,
     emberSeconds: 20,
     geometrie: { stimulated: 0.12 },
+    heals: 1,
   },
   {
     id: 'parliament',
@@ -127,6 +129,7 @@ export const ITEMS = [
     smokeSeconds: 13,
     emberSeconds: 16,
     geometrie: { stimulated: 0.1 },
+    heals: 1,
   },
   {
     id: 'newport',
@@ -137,6 +140,7 @@ export const ITEMS = [
     smokeSeconds: 9,
     emberSeconds: 14,
     geometrie: { stimulated: 0.1 },
+    heals: 1,
   },
   {
     id: 'djarum',
@@ -147,6 +151,7 @@ export const ITEMS = [
     smokeSeconds: 18,
     emberSeconds: 26,
     geometrie: { stimulated: 0.15 },
+    heals: 1,
   },
   {
     id: 'joints',
@@ -156,11 +161,13 @@ export const ITEMS = [
     // Shadowmen resolve through the murk while it lasts.
     perceptionSeconds: 120,
     geometrie: { high: 0.5 },
+    heals: 2,
   },
   // Drinks, circa 2008. Drinking one moves geometrie (geometrie.ts): the
   // energy drinks stimulate, the beer and the liquor get you drunk, Four
   // Loko does both, and water sobers you a little. Each blurs the view and
-  // trails it for tripSeconds (trip.ts); the water only blurs. container is a key into
+  // trails it for tripSeconds (trip.ts); the water only blurs. Every one
+  // gives health back (heals). container is a key into
   // CONTAINERS in drinks.ts.
   {
     id: 'monster',
@@ -170,6 +177,7 @@ export const ITEMS = [
     container: 'tall',
     tripSeconds: 30,
     geometrie: { stimulated: 0.3 },
+    heals: 1,
   },
   {
     id: 'monster-ultra',
@@ -179,6 +187,7 @@ export const ITEMS = [
     container: 'tall',
     tripSeconds: 30,
     geometrie: { stimulated: 0.25 },
+    heals: 1,
   },
   {
     id: 'red-bull',
@@ -188,6 +197,7 @@ export const ITEMS = [
     container: 'slim',
     tripSeconds: 30,
     geometrie: { stimulated: 0.25 },
+    heals: 1,
   },
   {
     id: 'rip-it',
@@ -197,6 +207,7 @@ export const ITEMS = [
     container: 'tall',
     tripSeconds: 30,
     geometrie: { stimulated: 0.3 },
+    heals: 1,
   },
   {
     id: 'rockstar',
@@ -206,6 +217,7 @@ export const ITEMS = [
     container: 'tall',
     tripSeconds: 30,
     geometrie: { stimulated: 0.3 },
+    heals: 1,
   },
   {
     id: 'nos',
@@ -215,6 +227,7 @@ export const ITEMS = [
     container: 'nos',
     tripSeconds: 30,
     geometrie: { stimulated: 0.35 },
+    heals: 1,
   },
   {
     id: 'four-loko-blue',
@@ -224,6 +237,7 @@ export const ITEMS = [
     container: 'tall',
     tripSeconds: 120,
     geometrie: { stimulated: 0.3, drunk: 0.35 },
+    heals: 2,
   },
   {
     id: 'four-loko-punch',
@@ -233,6 +247,7 @@ export const ITEMS = [
     container: 'tall',
     tripSeconds: 120,
     geometrie: { stimulated: 0.3, drunk: 0.35 },
+    heals: 2,
   },
   {
     id: 'four-loko-lemon',
@@ -242,6 +257,7 @@ export const ITEMS = [
     container: 'tall',
     tripSeconds: 120,
     geometrie: { stimulated: 0.3, drunk: 0.35 },
+    heals: 2,
   },
   {
     id: 'wild-turkey',
@@ -251,6 +267,7 @@ export const ITEMS = [
     container: 'bourbon',
     tripSeconds: 90,
     geometrie: { drunk: 0.5 },
+    heals: 2,
   },
   {
     id: 'jim-beam',
@@ -260,6 +277,7 @@ export const ITEMS = [
     container: 'square',
     tripSeconds: 90,
     geometrie: { drunk: 0.45 },
+    heals: 2,
   },
   {
     id: 'grey-goose',
@@ -269,6 +287,7 @@ export const ITEMS = [
     container: 'goose',
     tripSeconds: 90,
     geometrie: { drunk: 0.45 },
+    heals: 2,
   },
   {
     id: 'pbr',
@@ -278,6 +297,7 @@ export const ITEMS = [
     container: 'can12',
     tripSeconds: 60,
     geometrie: { drunk: 0.15 },
+    heals: 1,
   },
   {
     id: 'high-life',
@@ -287,6 +307,7 @@ export const ITEMS = [
     container: 'longneck',
     tripSeconds: 60,
     geometrie: { drunk: 0.15 },
+    heals: 1,
   },
   {
     id: 'modelo',
@@ -296,6 +317,7 @@ export const ITEMS = [
     container: 'can12',
     tripSeconds: 60,
     geometrie: { drunk: 0.15 },
+    heals: 1,
   },
   {
     id: 'md-2020',
@@ -305,6 +327,7 @@ export const ITEMS = [
     container: 'flask',
     tripSeconds: 90,
     geometrie: { drunk: 0.3 },
+    heals: 1,
   },
   {
     id: 'ice-mountain',
@@ -314,10 +337,11 @@ export const ITEMS = [
     container: 'water',
     tripSeconds: 1,
     geometrie: { drunk: -0.1 },
+    heals: 1,
   },
-  // Medicine, off the rack by the register. A pill of aspirin or
-  // ibuprofen gives a health point back; the rest has no effect yet: the
-  // player can buy and carry it, not take it. form is a MedicineForm
+  // Medicine, off the rack by the register. Each one taken gives a health
+  // point back and moves geometrie: aspirin and ibuprofen take the edge off,
+  // Benadryl gets you high, and the eye drops get the red out. form is a MedicineForm
   // (interfaces.ts), the shape assets.ts builds.
   {
     id: 'aspirin',
@@ -326,6 +350,7 @@ export const ITEMS = [
     price: 449,
     contents: 24,
     form: 'pills',
+    geometrie: { stimulated: -0.1 },
     heals: 1,
   },
   {
@@ -335,6 +360,7 @@ export const ITEMS = [
     price: 499,
     contents: 24,
     form: 'pills',
+    geometrie: { stimulated: -0.1 },
     heals: 1,
   },
   {
@@ -344,6 +370,8 @@ export const ITEMS = [
     price: 699,
     contents: 24,
     form: 'carton',
+    geometrie: { high: 0.3 },
+    heals: 1,
   },
   {
     id: 'eye-drops',
@@ -351,6 +379,8 @@ export const ITEMS = [
     start: 0,
     price: 549,
     form: 'dropper',
+    geometrie: { high: -0.15 },
+    heals: 1,
   },
   // Forage. Not for sale: cabbages grow wild across the valley and come
   // back with the day, and the berry bushes give every account one berry
@@ -422,7 +452,7 @@ export function isMedicine(id: string): boolean {
 }
 
 // Whether the player can use a carried item (E in the pack, or its hotbar
-// key): anything smoked or drunk, and medicine that heals.
+// key): anything smoked, drunk or swallowed.
 export function isUsable(id: string): boolean {
   const item = itemById(id)
   if (!item) return false
@@ -443,7 +473,7 @@ export function isUsable(id: string): boolean {
 // that does not heal.
 export function healsOf(id: string): number {
   const item = itemById(id)
-  return item?.category === 'medicine' ? (item.heals ?? 0) : 0
+  return item && 'heals' in item ? (item.heals ?? 0) : 0
 }
 
 // How far one use of `id` moves geometrie (geometrie.ts dose): anything
@@ -455,6 +485,7 @@ export function geometrieOf(id: string): GeometrieDose | undefined {
     case 'cigarette':
     case 'joint':
     case 'drink':
+    case 'medicine':
       return item.geometrie
     default:
       return undefined

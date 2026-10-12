@@ -41,7 +41,7 @@ describe('itemcopy', () => {
     }
     expect(itemLine('marlboro', 'bought')).toBeTruthy()
     expect(itemLine('berries', 'bought')).toBeNull()
-    expect(itemLine('benadryl', 'used')).toBeNull()
+    expect(itemLine('benadryl', 'used')).toBeTruthy()
   })
 
   it('lists every key it reads, and reads every item key COPY.toml has', () => {

@@ -1,7 +1,9 @@
 // The music heard: one streaming <audio> on a loop (music.ts), its volume
-// set every frame from the raider's setting. Built on the
-// first frame after Begin, inside the page's activation, so a raider who
-// never begins downloads nothing; none under e2e, which never plays sound.
+// set every frame from the raider's setting. Built when the main menu
+// shows (mainmenu.ts drives it until the menu comes down, loop.ts after),
+// the colophon's click having armed the page's sound; once started it keeps
+// playing through the select and the intro. None under e2e, which never
+// plays sound.
 
 import { CONFIG } from './config.ts'
 import { MUSIC_URL, musicVolume } from './music.ts'
@@ -9,7 +11,8 @@ import { MUSIC_URL, musicVolume } from './music.ts'
 export interface MusicRigFrame {
   // The page's clock, ms.
   now: number
-  // The player has begun (a click has armed the page's sound).
+  // The music may start: the main menu is up, or the player has begun.
+  // Once started, it plays on whatever later frames say.
   started: boolean
   // The raider's music setting, in percent.
   setting: number
@@ -29,7 +32,7 @@ export function createMusic(): Music {
 
   return {
     update({ now, started, setting }) {
-      if (!started) return
+      if (!started && !element) return
       if (!element) {
         element = new Audio(MUSIC_URL)
         element.loop = true

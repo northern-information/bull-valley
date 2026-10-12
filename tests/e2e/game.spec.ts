@@ -79,10 +79,24 @@ test('shadowmen cross the valley and show on the scope', async ({ page }) => {
     .toBeGreaterThan(0)
   await page.keyboard.press('q')
   await expect(page.locator('.bv-phone')).toHaveClass(/bv-phone--raised/)
-  // The bubble is populated from the first frame, so blips are already in.
+  // The crossings come in from well past its range, so stand one inside it,
+  // out of the forecourt haven.
+  await page.evaluate(() => window.__bv?.teleport(0.5, 0.5))
+  await heardWhere(page)
+  await page.evaluate(() => {
+    const bv = window.__bv
+    if (!bv) return
+    bv.placeShadowman(bv.player.pos.x + 40, bv.player.pos.z)
+  })
   await expect
-    .poll(() => page.evaluate(() => window.__bv?.shadowmen.contacts.length))
-    .toBeGreaterThan(0)
+    .poll(() =>
+      page.evaluate(() =>
+        window.__bv?.shadowmen.contacts.some(
+          (c) => c.kind === 'shadow' && Math.abs(c.dist - 40) < 2
+        )
+      )
+    )
+    .toBe(true)
 })
 
 test("a shadowman's touch takes a point, and the Citgo makes you whole", async ({

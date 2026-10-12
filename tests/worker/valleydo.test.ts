@@ -2611,7 +2611,7 @@ describe('ValleyDO: health', () => {
     expect(healthOf(a).length).toBe(heard)
   })
 
-  it('gives a point back for a pill that heals, once the pack gives it up', async () => {
+  it('gives health back for what is used, once the pack gives it up', async () => {
     const { v, a } = await out()
     await v.webSocketMessage(ws(a), '{"type":"dev","op":"health","points":1}')
     // None carried: refused, and no point back.
@@ -2624,22 +2624,20 @@ describe('ValleyDO: health', () => {
     await v.webSocketMessage(ws(a), '{"type":"use","kind":"aspirin"}')
     expect(healthOf(a)).toEqual([1, 2])
     expect(lastPack(a)?.aspirin).toBe(23)
-    // Medicine that does not heal gives nothing back.
+    // A beer gives a point back too, and liquor two, never past whole.
     await v.webSocketMessage(
       ws(a),
-      '{"type":"dev","op":"grant","kind":"benadryl","count":24}'
+      '{"type":"dev","op":"grant","kind":"pbr","count":1}'
     )
-    await v.webSocketMessage(ws(a), '{"type":"use","kind":"benadryl"}')
-    expect(healthOf(a)).toEqual([1, 2])
-    // Whole again, a pill is kept: refused, and the pack as it was.
-    await v.webSocketMessage(ws(a), '{"type":"dev","op":"health","points":3}')
-    await v.webSocketMessage(ws(a), '{"type":"use","kind":"aspirin"}')
-    expect(a.last<NackMessage>()).toEqual({
-      type: 'nack',
-      re: 'use',
-      reason: 'whole',
-    })
-    expect(lastPack(a)?.aspirin).toBe(23)
+    await v.webSocketMessage(ws(a), '{"type":"use","kind":"pbr"}')
+    expect(healthOf(a)).toEqual([1, 2, 3])
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"health","points":2}')
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"grant","kind":"grey-goose","count":1}'
+    )
+    await v.webSocketMessage(ws(a), '{"type":"use","kind":"grey-goose"}')
+    expect(healthOf(a).at(-1)).toBe(3)
   })
 
   it('keeps a touch that lands while another change waits on D1', async () => {

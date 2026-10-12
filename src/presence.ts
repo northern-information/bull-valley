@@ -146,7 +146,12 @@ export function peerContacts(
     const dz = at.z - origin.z
     const dist = Math.hypot(dx, dz)
     if (dist > rangeMetres) continue
-    contacts.push({ dist, bearing: compassBearing(dx, dz), hunting: false })
+    contacts.push({
+      dist,
+      bearing: compassBearing(dx, dz),
+      hunting: false,
+      kind: 'raider',
+    })
   }
   return contacts
 }

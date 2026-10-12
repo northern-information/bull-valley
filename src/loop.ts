@@ -65,6 +65,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     world,
     truck,
     music,
+    sfx,
     settings,
     player,
     playerBody,
@@ -260,6 +261,12 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       started: s.started,
       setting: settings.current.music,
     })
+    // The valley's sounds, heard from the camera at the raider's setting.
+    sfx?.update({
+      started: s.started,
+      setting: settings.current.sfx,
+      listener: camera,
+    })
     if (s.onTruckRolls.length && truck.rolling()) {
       for (const line of s.onTruckRolls) hud.tell(line)
       s.onTruckRolls = []
@@ -341,6 +348,12 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       bursts.spawn(at.x, y, at.z)
     }
     bursts.update(dt)
+    // What the shadowmen and the Caretaker sound like this frame.
+    sfx?.hear(
+      [...swarm.heard.cues, ...keeper.heard.cues],
+      [...swarm.heard.holds, ...keeper.heard.holds],
+      (x, z) => world.ground.at(x, z)
+    )
     mist.update({ dt, player: player.pos })
     // What moves on its own is stepped only within the fog's reach of
     // the player (CONFIG.render.liveRadius): each takes a running time,

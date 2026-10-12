@@ -18,6 +18,8 @@ import type { ScopeContact } from './interfaces.ts'
 const GREEN = '#4ade80'
 const MAGENTA = '#e879f9'
 const SLATE = '#94a3b8'
+// Other raiders: the blue their names take in the chat log.
+const RAIDER = '#60a5fa'
 // The hand is the player's: same skin and sleeve as the player outfit, with
 // the shadow facet a darker tone of the skin.
 const PLAYER = outfitById('player').colors
@@ -200,21 +202,25 @@ export class Scope {
     ctx.lineTo(c + Math.sin(this.sweep) * r, cy - Math.cos(this.sweep) * r)
     ctx.stroke()
 
-    // Contacts: alpha decays with angular distance behind the sweep.
+    // Contacts. A shadow's alpha decays with angular distance behind the
+    // sweep; another raider holds steady, bigger and blue, so a friend is
+    // never mistaken for a shadow.
     for (const contact of contacts) {
       const rad = (contact.bearing * Math.PI) / 180
+      const rr = Math.min(1, contact.dist / CONFIG.scope.rangeMetres) * r
+      const x = c + Math.sin(rad) * rr
+      const y = cy - Math.cos(rad) * rr
+      if (contact.kind === 'raider') {
+        ctx.fillStyle = RAIDER
+        ctx.fillRect(x - 1.5 * px, y - 1.5 * px, 3 * px, 3 * px)
+        continue
+      }
       let behind = this.sweep - rad
       while (behind < 0) behind += Math.PI * 2
       const alpha = Math.max(0.08, 1 - behind / (Math.PI * 2))
-      const rr = Math.min(1, contact.dist / CONFIG.scope.rangeMetres) * r
       ctx.fillStyle = contact.hunting ? MAGENTA : GREEN
       ctx.globalAlpha = perception ? Math.min(1, alpha + 0.3) : alpha
-      ctx.fillRect(
-        c + Math.sin(rad) * rr - px,
-        cy - Math.cos(rad) * rr - px,
-        2 * px,
-        2 * px
-      )
+      ctx.fillRect(x - px, y - px, 2 * px, 2 * px)
       ctx.globalAlpha = 1
     }
 
@@ -228,7 +234,7 @@ export class Scope {
 
     ctx.restore()
 
-    // Dish rim and the nearest contact.
+    // Dish rim and the nearest shadow.
     ctx.strokeStyle = GREEN
     ctx.lineWidth = px
     ctx.beginPath()
@@ -236,6 +242,7 @@ export class Scope {
     ctx.stroke()
     let best: ScopeContact | null = null
     for (const contact of contacts) {
+      if (contact.kind !== 'shadow') continue
       if (!best || contact.dist < best.dist) best = contact
     }
     const line = best

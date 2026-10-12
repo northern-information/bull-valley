@@ -139,21 +139,28 @@ describe('saveLook', () => {
 describe('saveSettings', () => {
   it('puts the settings, and tells a rate limit apart', async () => {
     const { impl, seen } = answer(200)
-    expect(await saveSettings({ music: 40 }, impl)).toEqual({ ok: true })
+    expect(await saveSettings({ music: 40, sfx: 70 }, impl)).toEqual({
+      ok: true,
+    })
     expect(seen[0].url).toBe('/auth/settings')
     expect(seen[0].init?.method).toBe('PUT')
     expect(JSON.parse(seen[0].init?.body as string)).toEqual({
-      settings: { music: 40 },
+      settings: { music: 40, sfx: 70 },
     })
-    expect(await saveSettings({ music: 40 }, answer(500).impl)).toEqual({
+    expect(
+      await saveSettings({ music: 40, sfx: 70 }, answer(500).impl)
+    ).toEqual({
       ok: false,
       limited: false,
       error: copy('auth.settings_failed'),
     })
     expect(
-      await saveSettings({ music: 40 }, answer(429, { error: 'Slow.' }).impl)
+      await saveSettings(
+        { music: 40, sfx: 70 },
+        answer(429, { error: 'Slow.' }).impl
+      )
     ).toEqual({ ok: false, limited: true, error: 'Slow.' })
-    expect(await saveSettings({ music: 40 }, down)).toEqual({
+    expect(await saveSettings({ music: 40, sfx: 70 }, down)).toEqual({
       ok: false,
       error: copy('auth.unreachable'),
     })

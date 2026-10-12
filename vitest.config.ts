@@ -75,6 +75,7 @@ const THREE_AND_DOM = [
   'scope',
   'seasonhud',
   'settingsui',
+  'sfxrig',
   'shadowburst',
   'shadowburstmodel',
   'shadowcards',

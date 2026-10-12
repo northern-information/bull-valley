@@ -29,17 +29,20 @@ const FIELDS_OF: Record<
 > = {
   cigarette: {
     required: ['price', 'smokeSeconds', 'emberSeconds', 'geometrie'],
-    optional: [],
+    optional: ['heals'],
   },
   joint: {
     required: ['price', 'perceptionSeconds', 'geometrie'],
-    optional: [],
+    optional: ['heals'],
   },
   drink: {
     required: ['price', 'container', 'tripSeconds', 'geometrie'],
-    optional: [],
+    optional: ['heals'],
   },
-  medicine: { required: ['price', 'form'], optional: ['heals'] },
+  medicine: {
+    required: ['price', 'form', 'geometrie'],
+    optional: ['heals'],
+  },
   forage: { required: [], optional: [] },
   valuable: { required: [], optional: [] },
 }
@@ -91,12 +94,9 @@ describe('items', () => {
     expect(isMedicine('nope')).toBe(false)
   })
 
-  it('doses geometrie off anything smoked or drunk, and nothing else', () => {
+  it('doses geometrie off anything smoked, drunk or swallowed, and nothing else', () => {
     for (const item of ITEMS) {
-      const dosed =
-        item.category === 'cigarette' ||
-        item.category === 'joint' ||
-        item.category === 'drink'
+      const dosed = item.category !== 'forage' && item.category !== 'valuable'
       expect(geometrieOf(item.id), item.id).toEqual(
         dosed ? item.geometrie : undefined
       )
@@ -148,22 +148,38 @@ describe('items', () => {
     expect(tripSecondsOf('nope')).toBe(0)
   })
 
-  it('gives every medicine a known form, and a use only when it heals', () => {
+  it('gives every medicine a known form, and a use', () => {
     const medicine = ITEMS.filter((item) => item.category === 'medicine')
     expect(medicine.length).toBeGreaterThan(0)
     for (const item of medicine) {
       expect(['pills', 'carton', 'dropper'], item.id).toContain(item.form)
       expect(isMedicine(item.id)).toBe(true)
       expect(isDrink(item.id)).toBe(false)
-      expect(isUsable(item.id)).toBe(healsOf(item.id) > 0)
+      expect(isUsable(item.id)).toBe(true)
     }
-    expect(healsOf('aspirin')).toBe(1)
-    expect(healsOf('ibuprofen')).toBe(1)
-    expect(healsOf('benadryl')).toBe(0)
-    expect(healsOf('pbr')).toBe(0)
-    expect(healsOf('nope')).toBe(0)
     expect(isMedicine('pbr')).toBe(false)
     expect(isUsable('nope')).toBe(false)
+  })
+
+  it('heals and moves geometrie with everything smoked, drunk or swallowed', () => {
+    for (const item of ITEMS) {
+      const usable = isUsable(item.id)
+      expect(healsOf(item.id) > 0, item.id).toBe(usable)
+      if (!usable) continue
+      const geometrie: object = 'geometrie' in item ? item.geometrie : {}
+      expect(Object.keys(geometrie).length, item.id).toBeGreaterThan(0)
+    }
+    // The stronger ones give two back.
+    expect(healsOf('aspirin')).toBe(1)
+    expect(healsOf('benadryl')).toBe(1)
+    expect(healsOf('marlboro')).toBe(1)
+    expect(healsOf('pbr')).toBe(1)
+    expect(healsOf('ice-mountain')).toBe(1)
+    expect(healsOf('joints')).toBe(2)
+    expect(healsOf('four-loko-blue')).toBe(2)
+    expect(healsOf('grey-goose')).toBe(2)
+    expect(healsOf('cabbage')).toBe(0)
+    expect(healsOf('nope')).toBe(0)
   })
 
   it('counts every item in the inventory', () => {

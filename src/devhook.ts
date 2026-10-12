@@ -5,6 +5,7 @@
 import { unitToWorld } from './coords.ts'
 import { levelsAt } from './geometrie.ts'
 import { hurry } from './marx.ts'
+import { isSfxId, SFX_IDS } from './sfx.ts'
 import type { Actions } from './actions.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
 import type { ChatLine } from './chat.ts'
@@ -122,6 +123,10 @@ interface BvHook {
   // dev frame, or this client's own, played alone.
   placeCaretaker(x: number, z: number): void
   hurryTruck(seconds?: number): void
+  // Every sound's id (sfx.ts), and one played: at world (x, z), or in the
+  // head without a place. Nothing under e2e, which never plays sound.
+  readonly sfxIds: readonly string[]
+  sfx(id: string, x?: number, z?: number): void
   // A quiet valley: no crossing shadowman rushes anyone, only one a spec
   // places. The valley's, through a dev frame, or this client's own.
   calm(): void
@@ -290,6 +295,15 @@ export function installDevHook(game: Game, actions: Actions): void {
     setHealth(points) {
       if (net.online) net.send({ type: 'dev', op: 'health', points })
       else s.health = points
+    },
+    sfxIds: SFX_IDS,
+    sfx(id, x, z) {
+      if (!isSfxId(id)) return
+      const at =
+        x === undefined || z === undefined
+          ? null
+          : { x, y: game.world.ground.at(x, z) + 1.2, z }
+      game.sfx?.play(id, at)
     },
     hurryTruck(seconds = 5) {
       // In the shared valley the server keeps Marx's day; a dev server
