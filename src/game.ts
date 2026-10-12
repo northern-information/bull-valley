@@ -46,6 +46,7 @@ import type {
   PeerStateWire,
   WorldWire,
 } from './protocol.ts'
+import type { QuestId, QuestStage } from './quests.ts'
 import type { RoadGraph } from './roadgraph.ts'
 import type { Scope } from './scope.ts'
 import type { SeasonProgress } from './season.ts'
@@ -58,6 +59,7 @@ import type { Titles } from './titles.ts'
 import type { Trails } from './trails.ts'
 import type { Truck } from './truck.ts'
 import type { TruckContext, TruckPlan } from './truckplan.ts'
+import type { TunnelShades } from './tunnelrig.ts'
 import type { FuelPoint, Pickup, World } from './world.ts'
 import type * as THREE from 'three'
 
@@ -198,6 +200,15 @@ export interface GameState {
   stand: StandLedger | null
   pendingStand: boolean
   standSaid: string | null
+  // Rule 25: a deal with Erwin not yet answered, his last word, and how
+  // many times he has rambled at this raider.
+  pendingDeal: boolean
+  dealSaid: string | null
+  rambled: number
+  // Rule 26: where the account stands on each quest (null before the
+  // valley says, or played alone), and a step not yet answered.
+  quests: Record<QuestId, QuestStage> | null
+  pendingQuest: boolean
   // Shelf units asked of the valley and not yet answered, as station:kind.
   pendingBuys: Set<string>
   // The berry bushes as the valley last described them (the welcome, then
@@ -273,6 +284,11 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     stand: null,
     pendingStand: false,
     standSaid: null,
+    pendingDeal: false,
+    dealSaid: null,
+    rambled: 0,
+    quests: null,
+    pendingQuest: false,
     pendingBuys: new Set(),
     daily: null,
     pendingCollect: false,
@@ -320,6 +336,8 @@ export interface Game {
   shadowmen: ShadowCards
   // The Caretaker in the corn maze.
   caretaker: CaretakerShade
+  // The tunnel shades in the Undercroft.
+  tunnel: TunnelShades
   // Shadowmen bursting in the beam.
   bursts: ShadowBursts
   mist: MistCards

@@ -6,7 +6,7 @@ import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { nearestCorpse } from './corpses.ts'
 import { cosmeticById } from './cosmetics.ts'
-import { GOLD_BULLION, isCash, TWENTY } from './drops.ts'
+import { GOLD_BULLION, isCash, QUARTERS, TWENTY } from './drops.ts'
 import { getItem, itemById } from './items.ts'
 import { npcReach } from './npcs.ts'
 import { formatCash } from './store.ts'
@@ -82,6 +82,18 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   | { kind: 'locker'; station: number }
   // The Cabbage Stand: E opens this raider's own (rule 23).
   | { kind: 'stand' }
+  // The squatter in Bull Valley Plaza: E opens what he is selling
+  // (dealer.ts).
+  | { kind: 'deal' }
+  // A door locked to this raider (keys.ts): E only rattles it.
+  | { kind: 'locked' }
+  // The heart of the maze with Erwin's rose in the pack: E lays it
+  // (quests.ts).
+  | { kind: 'lay' }
+  // The trapdoor in the Video Vault's office: E climbs down into the
+  // Undercroft (undercroft.ts); the ladder's foot below: E climbs up.
+  | { kind: 'descend' }
+  | { kind: 'ascend' }
 
 // A locker bank as the resolver sees it: where E opens it, and its
 // station.
@@ -116,14 +128,26 @@ export interface InteractionInput<P extends PickupSpot> {
   lockers?: readonly LockerSpot[]
   // The Cabbage Stand's middle, or null.
   stand?: XZ | null
+  // The squatter who deals in the plaza, or null.
+  dealer?: XZ | null
+  // A locked door this raider lacks the key to, or null.
+  locked?: XZ | null
+  // The heart of the maze, while this raider has a rose to lay there, or
+  // null.
+  heart?: XZ | null
+  // The trapdoor down to the Undercroft, and the ladder's foot up out of
+  // it, or null.
+  trapdoor?: XZ | null
+  ladder?: XZ | null
 }
 
 // The first match wins, in this order: hop out while riding; speak to the
 // nearest NPC in his reach, unless a shelf unit is in view; climb into the
 // truck standing still beside you, when it is yours to climb into; buy off
 // a shelf; take your things back off your nearest body; open the lockers;
-// tend the Cabbage Stand; Gron or the nearest berry bush, whichever is nearer; take the nearest
-// pickup.
+// tend the Cabbage Stand; deal with the squatter; take the nearest pickup
+// in reach of a locked door, or else rattle it; Gron or the nearest berry
+// bush, whichever is nearer; take the nearest pickup.
 export function resolveInteraction<P extends PickupSpot>(
   input: InteractionInput<P>
 ): Interaction<P> | null {
@@ -186,6 +210,39 @@ export function resolveInteraction<P extends PickupSpot>(
     return { kind: 'stand' }
   }
 
+  const dealer = input.dealer
+  if (
+    dealer &&
+    Math.hypot(dealer.x - player.x, dealer.z - player.z) < CONFIG.dealer.reach
+  ) {
+    return { kind: 'deal' }
+  }
+
+  const reach = (spot: XZ | null | undefined) =>
+    spot != null &&
+    Math.hypot(spot.x - player.x, spot.z - player.z) <
+      CONFIG.undercroft.climbReach
+  if (reach(input.ladder)) return { kind: 'ascend' }
+  if (reach(input.trapdoor)) return { kind: 'descend' }
+
+  const heart = input.heart
+  if (
+    heart &&
+    Math.hypot(heart.x - player.x, heart.z - player.z) < CONFIG.quests.layReach
+  ) {
+    return { kind: 'lay' }
+  }
+
+  const locked = input.locked
+  if (
+    locked &&
+    Math.hypot(locked.x - player.x, locked.z - player.z) <
+      CONFIG.stripMall.doorReach
+  ) {
+    const pickup = nearestPickup(input.pickups, player)
+    return pickup ? { kind: 'pickup', pickup } : { kind: 'locked' }
+  }
+
   // Gron and the first bush stand at the spawn Citgo a few strides apart,
   // so both can be in reach; the nearer one answers.
   const dist = (spot: XZ | null) =>
@@ -201,9 +258,18 @@ export function resolveInteraction<P extends PickupSpot>(
     return { kind: 'collect', bush: bush.id, status: bush.status }
   }
 
+  const nearest = nearestPickup(input.pickups, player)
+  return nearest ? { kind: 'pickup', pickup: nearest } : null
+}
+
+// The nearest pickup not yet taken within reach, or null.
+function nearestPickup<P extends PickupSpot>(
+  pickups: readonly P[],
+  player: XZ
+): P | null {
   let best = CONFIG.player.pickupReach
   let nearest: P | null = null
-  for (const pickup of input.pickups) {
+  for (const pickup of pickups) {
     if (pickup.taken) continue
     const d = Math.hypot(pickup.x - player.x, pickup.z - player.z)
     if (d < best) {
@@ -211,7 +277,7 @@ export function resolveInteraction<P extends PickupSpot>(
       nearest = pickup
     }
   }
-  return nearest ? { kind: 'pickup', pickup: nearest } : null
+  return nearest
 }
 
 // What an item is called on its floating label: its name, and a count for
@@ -229,6 +295,7 @@ export function pickupLabel({
       ? copy('labels.twenty')
       : copy('labels.twenties', { count })
   }
+  if (kind === QUARTERS) return copy('labels.quarters', { count })
   if (isCash(kind)) return copy('labels.dimes', { count })
   // A bar is one troy ounce, and its name says so.
   if (kind === GOLD_BULLION && count === 1) return getItem(GOLD_BULLION).label
@@ -297,6 +364,16 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return copy('prompts.locker')
     case 'stand':
       return copy('prompts.stand')
+    case 'deal':
+      return null
+    case 'locked':
+      return copy('prompts.locked')
+    case 'lay':
+      return copy('prompts.lay')
+    case 'descend':
+      return copy('prompts.descend')
+    case 'ascend':
+      return copy('prompts.ascend')
     // Moab's offer is said, since the glow alone cannot say what he wants.
     case 'trade': {
       const cosmetic = cosmeticById(interaction.offer)

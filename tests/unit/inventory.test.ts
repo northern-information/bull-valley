@@ -98,6 +98,18 @@ describe('consume', () => {
     expect(r.effects.smoking).toEqual({ start: 0, end: 50 })
   })
 
+  it("takes the dealer's mushrooms like a joint, longer, and never a key", () => {
+    const r = consume({ ...pack, mushrooms: 1 }, 'mushrooms', NO_EFFECTS, 10)
+    if (!r.used) throw new Error('not used')
+    const seconds = getItem('mushrooms').perceptionSeconds
+    expect(seconds).toBeGreaterThan(getItem('joints').perceptionSeconds)
+    expect(r.effects.perception).toEqual({ start: 10, end: 10 + seconds })
+    expect(r.effects.trip).toEqual({ start: 10, end: 10 + seconds })
+    expect(
+      consume({ ...pack, 'vault-key': 1 }, 'vault-key', NO_EFFECTS, 10)
+    ).toEqual({ used: false, reason: 'unusable' })
+  })
+
   it('starts each trip afresh, keeping a longer one going', () => {
     const r = consume(pack, 'joints', NO_EFFECTS, 10)
     if (!r.used) throw new Error('not used')

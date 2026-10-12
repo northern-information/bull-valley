@@ -64,6 +64,10 @@ export interface NetIdentity {
   truck: TruckRoutes
   // Where the Cabbage Stand stands (rule 23), or null.
   stand: XZ | null
+  // Where the squatter deals (rule 25), or null.
+  dealer: XZ | null
+  // Where the Undercroft lies (rule 11: the tunnel shades), or null.
+  undercroft: MazePlace | null
 }
 
 // Reconnect schedule, then give up: the valley is gone.
@@ -218,6 +222,8 @@ export class NetClient {
           maze: identity.maze,
           truck: identity.truck,
           stand: identity.stand,
+          dealer: identity.dealer,
+          undercroft: identity.undercroft,
           // Who we were before a reconnect, so the valley drops that ghost.
           ...(this.id ? { was: this.id } : {}),
         } satisfies ClientMessage)

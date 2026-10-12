@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { heartPoint, theMaze } from '../../src/caretaker.ts'
 import { CONFIG } from '../../src/config.ts'
 import { dayKey, nextMidnight } from '../../src/daily.ts'
+import { costIn, freshDealerStock, goodOf } from '../../src/dealer.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { contentsOf, getItem } from '../../src/items.ts'
+import { mazeToWorld } from '../../src/maze.ts'
 import { PROTOCOL_VERSION } from '../../src/protocol.ts'
 import { mulberry32 } from '../../src/rng.ts'
 import {
@@ -28,6 +30,7 @@ import {
   wakeAt,
 } from '../../src/sharedworld.ts'
 import { FRESH_STAND, standXp } from '../../src/stand.ts'
+import { UNDERCROFT } from '../../src/undercroft.ts'
 import { dryMap } from '../../src/waterside.ts'
 import { unitsLeft } from './stock.ts'
 import type { CosmeticId } from '../../src/cosmetics.ts'
@@ -38,6 +41,7 @@ import type {
   PickupSpec,
   WorldMessage,
 } from '../../src/protocol.ts'
+import type { QuestStage } from '../../src/quests.ts'
 import type { Placed, Valley, ValleyAction } from '../../src/sharedworld.ts'
 import type { StandLedger } from '../../src/stand.ts'
 
@@ -61,6 +65,7 @@ const MAZE = { x: 3000, z: 3000, yaw: 0 }
 const ROUTES = { home: { x: 10, z: 10 }, joyrideMs: 600_000 }
 // Where the Cabbage Stand stands (rule 23).
 const STAND = { x: 5, z: -20 }
+const DEALER = { x: -30, z: -60 }
 // Noon, Central time, so a test has the afternoon before the day turns.
 const T0 = Date.UTC(2026, 9, 7, 17, 0, 0)
 const SEC = 1000
@@ -70,11 +75,20 @@ function valleyWith(...actions: ValleyAction[]) {
   let valley = createValley()
   const present: string[] = []
   let now = T0
-  // Every buyer's wallet, as the valley would read it.
+  // Every buyer's wallet, as the valley would read it, and their pack
+  // when a test says what it holds.
   let cash = 100_00
+  let pack: Inventory | null = null
+  let quest: { stage: QuestStage; pack: Inventory } | null = null
   const out: ReturnType<typeof reduce>[] = []
   const step = (action: ValleyAction) => {
-    const ctx = { now, present: [...present], cash }
+    const ctx = {
+      now,
+      present: [...present],
+      cash,
+      ...(pack ? { holdings: { pack, cosmetics: [] } } : {}),
+      ...(quest ? { quest } : {}),
+    }
     const reduced = reduce(valley, action, ctx)
     valley = reduced.valley
     if (action.type === 'join' && !reduced.reject) present.push(action.id)
@@ -96,6 +110,12 @@ function valleyWith(...actions: ValleyAction[]) {
     },
     setCash(cents: number) {
       cash = cents
+    },
+    setPack(held: Inventory) {
+      pack = held
+    },
+    setQuest(stage: QuestStage, held: Inventory) {
+      quest = { stage, pack: held }
     },
     get now() {
       return now
@@ -119,6 +139,8 @@ const join = (id: string): ValleyAction => ({
   maze: null,
   routes: ROUTES,
   stand: STAND,
+  dealer: DEALER,
+  undercroft: null,
 })
 
 // A join as its own action shape, so a test can sign it in elsewhere.
@@ -485,6 +507,165 @@ describe('rule 7: the shelves are shared', () => {
     expect(v.step(buy('z')).reply?.reason).toBe('not-in-valley')
     v.setCash(0)
     expect(v.step(buy('a', 0, 'pbr', 1)).reply?.reason).toBe('short')
+  })
+})
+
+describe('rule 4, cash: a pickup of cash goes into the wallet', () => {
+  it('pays the quarters in, never the pack', () => {
+    const v = valleyWith({
+      ...join('a'),
+      pickups: [...PICKUPS, { kind: 'quarters', count: 8 }],
+    } as ValleyAction)
+    const r = v.step({ type: 'take', id: 'a', index: PICKUPS.length })
+    expect(r.broadcast[0]).toMatchObject({ reason: 'taken', by: 'a' })
+    expect(r.earn).toEqual({ account: 'acct-a', amount: 8 * 25 })
+    expect(r.pack).toBeUndefined()
+    expect(r.xp).toEqual([{ account: 'acct-a', source: 'pickup' }])
+  })
+})
+
+describe('rule 25: Erwin von Dutch barters', () => {
+  const near = { x: DEALER.x + 1, z: DEALER.z }
+  const dealAs = (
+    id: string,
+    kind = 'mushrooms',
+    pay = 'marlboro',
+    at: { x: number; z: number } | null = near
+  ): ValleyAction => ({ type: 'deal', id, kind, pay, at })
+  const mushrooms = goodOf('mushrooms')
+  const cost = mushrooms ? (costIn(mushrooms, 'marlboro') ?? 0) : 0
+
+  it('trades one out of his stock for the whole valley, out of the pack', () => {
+    const v = valleyWith(join('a'), join('b'))
+    v.setPack({ marlboro: 200 })
+    expect(v.valley.world?.dealerStock).toEqual(freshDealerStock())
+    const r = v.step(dealAs('a'))
+    expect(r.broadcast).toHaveLength(1)
+    expect(r.broadcast[0]).toMatchObject({
+      reason: 'dealt',
+      by: 'a',
+      item: 'mushrooms',
+    })
+    expect(r.broadcast[0].world?.dealer.mushrooms).toBe(
+      (mushrooms?.perDay ?? 0) - 1
+    )
+    expect(r.barter).toEqual({
+      account: 'acct-a',
+      give: { kind: 'marlboro', count: cost },
+      take: { kind: 'mushrooms', count: 1 },
+    })
+    // No cash changes hands.
+    expect(r.spend).toBeUndefined()
+    expect(r.pack).toBeUndefined()
+    expect(r.xp).toEqual([{ account: 'acct-a', source: 'purchase' }])
+  })
+
+  it('refuses from afar, aboard, sold out, short, or for what he will not take', () => {
+    const v = valleyWith(join('a'), join('b'))
+    v.setPack({ marlboro: 1000, cabbage: 5 })
+    const reason = (r: ReturnType<typeof reduce>) => r.reply?.reason
+    expect(v.step(dealAs('a', 'mushrooms', 'marlboro', null)).reply).toEqual({
+      type: 'nack',
+      re: 'deal',
+      reason: 'too-far',
+      item: 'mushrooms',
+    })
+    expect(
+      reason(v.step(dealAs('a', 'mushrooms', 'marlboro', { x: 0, z: 0 })))
+    ).toBe('too-far')
+    expect(reason(v.step(dealAs('a', 'mushrooms', 'cabbage')))).toBe(
+      'worthless'
+    )
+    expect(reason(v.step(dealAs('a', 'marlboro')))).toBe('no-such-good')
+    expect(reason(v.step(dealAs('z')))).toBe('not-in-valley')
+    const left = goodOf('lsd')?.perDay ?? 0
+    for (let i = 0; i < left; i++) v.step(dealAs('b', 'lsd'))
+    expect(reason(v.step(dealAs('a', 'lsd')))).toBe('sold-out')
+    v.setPack({ marlboro: 1 })
+    expect(reason(v.step(dealAs('a')))).toBe('short')
+    v.step({ type: 'board', id: 'a' })
+    expect(reason(v.step(dealAs('a')))).toBe('aboard')
+  })
+
+  it('has a day of everything again when the day turns', () => {
+    const v = valleyWith(join('a'))
+    v.setPack({ marlboro: 200 })
+    v.step(dealAs('a'))
+    v.tick(24 * 60 * 60 * SEC)
+    v.step({ type: 'clock' })
+    expect(v.valley.world?.dealerStock).toEqual(freshDealerStock())
+  })
+
+  it('has no one to deal with in a world opened without him', () => {
+    const v = valleyWith({ ...join('a'), dealer: null } as ValleyAction)
+    expect(v.step(dealAs('a')).reply?.reason).toBe('no-dealer')
+  })
+})
+
+describe('rule 26: the rose quest', () => {
+  const heart = mazeToWorld(MAZE, heartPoint(theMaze()))
+  const step = (
+    id: string,
+    s: 'accept' | 'lay' | 'reward',
+    at: { x: number; z: number } | null
+  ): ValleyAction => ({ type: 'quest', id, quest: 'rose', step: s, at })
+  const near = { x: DEALER.x + 1, z: DEALER.z }
+
+  it('takes each step where the valley last heard the raider, stage and pack together', () => {
+    const v = valleyWith({ ...join('a'), maze: MAZE } as ValleyAction)
+    v.setQuest('none', {})
+    expect(v.step(step('a', 'accept', near)).quest).toEqual({
+      account: 'acct-a',
+      quest: 'rose',
+      step: 'accept',
+      from: 'none',
+      to: 'given',
+      change: { kind: 'rose', delta: 1 },
+    })
+    v.setQuest('given', { rose: 1 })
+    expect(v.step(step('a', 'lay', near)).reply?.reason).toBe('too-far')
+    expect(v.step(step('a', 'lay', heart)).quest).toMatchObject({
+      from: 'given',
+      to: 'laid',
+      change: { kind: 'rose', delta: -1 },
+    })
+    v.setQuest('laid', {})
+    const r = v.step(step('a', 'reward', near))
+    expect(r.quest).toMatchObject({
+      from: 'laid',
+      to: 'done',
+      change: { kind: 'vault-key', delta: 1 },
+    })
+    // Rule 22: the key earns quest XP.
+    expect(r.xp).toEqual([{ account: 'acct-a', source: 'quest' }])
+  })
+
+  it('refuses a quest there is not, one not read, one out of turn, and from the bed', () => {
+    const v = valleyWith({ ...join('a'), maze: MAZE } as ValleyAction)
+    expect(v.step(step('a', 'accept', near)).reply?.reason).toBe('unavailable')
+    v.setQuest('done', {})
+    expect(v.step(step('a', 'accept', near)).reply?.reason).toBe('not-now')
+    expect(
+      v.step({
+        type: 'quest',
+        id: 'a',
+        quest: 'lily',
+        step: 'accept',
+        at: near,
+      }).reply?.reason
+    ).toBe('no-such-quest')
+    expect(v.step(step('z', 'accept', near)).reply?.reason).toBe(
+      'not-in-valley'
+    )
+    v.setQuest('none', {})
+    v.step({ type: 'board', id: 'a' })
+    expect(v.step(step('a', 'accept', near)).reply?.reason).toBe('aboard')
+  })
+
+  it('has no heart to lay it at in a world opened without the maze', () => {
+    const v = valleyWith(join('a'))
+    v.setQuest('given', { rose: 1 })
+    expect(v.step(step('a', 'lay', heart)).reply?.reason).toBe('too-far')
   })
 })
 
@@ -1556,6 +1737,75 @@ describe('rule 15: the season', () => {
       'acct-b',
     ])
     expect(creditedWith(v, [])).toEqual([])
+  })
+})
+
+describe('rule 11, below: the tunnel shades walk the Undercroft', () => {
+  const CROFT = { x: -7000, z: -7000, yaw: 0 }
+  // A spot in the Undercroft, in its own metres, in the world.
+  const below = (p: { x: number; z: number }) => ({
+    x: CROFT.x + p.x,
+    z: CROFT.z + p.z,
+  })
+  const state = (at: { x: number; z: number }): PeerStateWire => ({
+    ...at,
+    y: 0,
+    yaw: 0,
+    pitch: 0,
+    pose: 'stand',
+    riding: false,
+    light: false,
+  })
+  const valley = () =>
+    valleyWith({ ...join('a'), undercroft: CROFT } as ValleyAction).valley
+
+  it('keeps where the Undercroft lies, and sends its shades every step', () => {
+    const v = valley()
+    expect(v.world?.undercroft).toEqual(CROFT)
+    const shadows = createShadows()
+    const placed = [{ id: 'a', at: state({ x: 0, z: 0 }) }]
+    const out = stepShadows(v, shadows, placed, mulberry32(1), {
+      now: T0,
+      dt: 0,
+    })
+    expect(out?.message.tunnel).toHaveLength(UNDERCROFT.lairs.length + 1)
+    expect(out?.message.tunnel.at(-1)).toMatchObject({
+      kind: 'warden',
+      ...below(UNDERCROFT.warden),
+    })
+  })
+
+  it('keeps a raider below out of the shadowmen, and strikes them itself', () => {
+    const v = valley()
+    const shadows = createShadows()
+    const lair = UNDERCROFT.lairs[0]
+    const placed = [{ id: 'a', at: state(below({ x: lair.x + 3, z: lair.z })) }]
+    let struck: string[] = []
+    let tunneled: string[] = []
+    for (let i = 0; i < 100 && struck.length === 0; i++) {
+      const out = stepShadows(v, shadows, placed, mulberry32(i), {
+        now: T0 + i * 100,
+        dt: 0.1,
+      })
+      expect(out?.message.shadowmen).toEqual([])
+      struck = out?.struck ?? []
+      tunneled = out?.tunneled ?? []
+    }
+    expect(struck).toEqual(['a'])
+    expect(tunneled).toEqual(['a'])
+  })
+
+  it('leaves the shades still in a world opened without the Undercroft', () => {
+    const v = valleyWith(join('a')).valley
+    const out = stepShadows(
+      v,
+      createShadows(),
+      [{ id: 'a', at: state({ x: 0, z: 0 }) }],
+      mulberry32(1),
+      { now: T0, dt: 0.1 }
+    )
+    expect(out?.message.tunnel).toEqual([])
+    expect(out?.message.tunnelBursts).toEqual([])
   })
 })
 

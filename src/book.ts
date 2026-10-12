@@ -58,6 +58,18 @@ const NAMED: readonly BookEntry[] = [
     lore: copy('book.wreck.lore'),
   },
   {
+    id: 'strip-mall',
+    chapter: 'places',
+    name: copy('book.strip-mall.name'),
+    lore: copy('book.strip-mall.lore'),
+  },
+  {
+    id: 'undercroft',
+    chapter: 'places',
+    name: copy('book.undercroft.name'),
+    lore: copy('book.undercroft.lore'),
+  },
+  {
     id: 'donut-field',
     chapter: 'places',
     name: copy('book.donut-field.name'),
@@ -100,6 +112,19 @@ const NAMED: readonly BookEntry[] = [
     lore: copy('book.caretaker.lore'),
   },
   {
+    id: 'tunnel-shade',
+    chapter: 'shadows',
+    name: copy('book.tunnel-shade.name'),
+    lore: copy('book.tunnel-shade.lore'),
+  },
+  {
+    id: 'warden',
+    chapter: 'shadows',
+    name: copy('book.warden.name'),
+    lore: copy('book.warden.lore'),
+  },
+
+  {
     id: 'marx',
     chapter: 'folk',
     name: copy('outfits.marx'),
@@ -122,6 +147,12 @@ const NAMED: readonly BookEntry[] = [
     chapter: 'folk',
     name: copy('outfits.moab'),
     lore: copy('book.moab.lore'),
+  },
+  {
+    id: 'squatter',
+    chapter: 'folk',
+    name: copy('outfits.squatter'),
+    lore: copy('book.squatter.lore'),
   },
 ]
 

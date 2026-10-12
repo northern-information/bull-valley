@@ -21,6 +21,8 @@ import { copy } from './copy.ts'
 import { corpseWire, emptied, fallen, isEmpty, recover } from './corpses.ts'
 import { affords, cosmeticById } from './cosmetics.ts'
 import { stepIndex } from './cycle.ts'
+import { openDealDialog } from './dealdialog.ts'
+import { ramble } from './dealer.ts'
 import { isDropPickup } from './dropmeshes.ts'
 import {
   centsOf,
@@ -28,6 +30,7 @@ import {
   dropAmount,
   dropSpot,
   isCash,
+  QUARTERS,
   spillsOf,
 } from './drops.ts'
 import { finishById } from './finishes.ts'
@@ -38,7 +41,7 @@ import { hit, isWhole, MAX_HEALTH, mend } from './health.ts'
 import { assign, clearSlot as clearHotbarSlot, place, spent } from './hotbar.ts'
 import { pickupLabel } from './interactions.ts'
 import { addItem, consume } from './inventory.ts'
-import { getItem, healsOf, itemById } from './items.ts'
+import { getItem, healsOf, isKeyItem, itemById } from './items.ts'
 import { board, call, hopOut as hopOutOf, refused } from './marx.ts'
 import { npcLine } from './npcs.ts'
 import { outfitById } from './outfits.ts'
@@ -51,6 +54,7 @@ import {
 } from './packgrid.ts'
 import { levelOf } from './progression.ts'
 import { normalizeChat } from './protocol.ts'
+import { dealerStep, roseLine } from './quests.ts'
 import { callRoute } from './roadgraph.ts'
 import { inHaven } from './shadowmen.ts'
 import { buy as buyItem, settle } from './shop.ts'
@@ -121,7 +125,7 @@ export interface Actions {
   // 22), the valley's word on what is left, or alone our own. The last one
   // shatters your geometrie, and everything the pack held stays on your
   // body where you fell (rule 18).
-  strike(by?: 'shadowman' | 'caretaker', health?: number): void
+  strike(by?: 'shadowman' | 'caretaker' | 'tunnel', health?: number): void
   // The account's health as the valley says it (a forecourt, medicine).
   setHealth(points: number): void
   // Played alone, a forecourt makes whole.
@@ -387,7 +391,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // fell (rule 18): in the valley the valley lays it and its pack frame has
   // the last word, so the pack shows empty at once; alone it lies at once.
   const strike = (
-    by: 'shadowman' | 'caretaker' = 'shadowman',
+    by: 'shadowman' | 'caretaker' | 'tunnel' = 'shadowman',
     health?: number
   ) => {
     if (s.aboard) {
@@ -435,7 +439,15 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       refreshBag()
     }
     player.relocate(world.spawn.x, world.spawn.z, world.spawn.yaw)
-    hud.tell(copy(by === 'caretaker' ? 'log.caught' : 'log.struck'))
+    hud.tell(
+      copy(
+        by === 'caretaker'
+          ? 'log.caught'
+          : by === 'tunnel'
+            ? 'log.tunneled'
+            : 'log.struck'
+      )
+    )
     if (!isEmpty(items)) hud.tell(copy('log.fell'))
   }
 
@@ -543,6 +555,55 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     })
   }
 
+  // E beside Erwin von Dutch, the squatter in the plaza: what he deals
+  // and what he wants for it, and his quest, in a dialog with the pointer
+  // free, as at the stand. He deals only in the valley (rules 24 and 25):
+  // played alone there is no one to barter with.
+  const openDeal = () => {
+    if (s.talking) return
+    discover(['squatter'])
+    if (!s.world) {
+      hud.tell(copy('log.deal_offline'))
+      return
+    }
+    s.talking = true
+    s.dealSaid = null
+    player.keys.clear()
+    if (document.pointerLockElement) document.exitPointerLock()
+    const says = ramble(s.rambled++)
+    void openDealDialog({
+      says,
+      stock: () => s.world?.dealer ?? null,
+      pack: () => s.inventory,
+      pending: () => s.pendingDeal || s.pendingQuest,
+      said: () => s.dealSaid,
+      quest: () => (s.quests ? roseLine(s.quests.rose, s.inventory) : null),
+      onDeal: (kind, pay) => {
+        s.pendingDeal = true
+        s.dealSaid = null
+        net.send({ type: 'deal', kind, pay })
+      },
+      onQuest: () => {
+        const step = s.quests ? dealerStep(s.quests.rose) : null
+        if (!step) return
+        s.pendingQuest = true
+        s.dealSaid = null
+        net.send({ type: 'quest', quest: 'rose', step })
+      },
+    }).then(() => {
+      s.talking = false
+      engagePointer()
+    })
+  }
+
+  // E at the heart of the maze with Erwin's rose (rule 26): the valley
+  // takes it out of the pack and writes it laid.
+  const layRose = () => {
+    if (!s.world || s.pendingQuest) return
+    s.pendingQuest = true
+    net.send({ type: 'quest', quest: 'rose', step: 'lay' })
+  }
+
   const stowKind = (kind: string, all: boolean) => restash(kind, all, true)
   const unstowKind = (kind: string, all: boolean) => restash(kind, all, false)
 
@@ -568,9 +629,14 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
   hud.onBagAction = bagAction
 
-  // T: Marx comes to us, if he is free, and drives us home.
+  // T: Marx comes to us, if he is free, and drives us home. No whistle
+  // carries up out of the Undercroft.
   const callTruck = () => {
     if (s.aboard) return
+    if (world.undercroft?.inside(player.pos.x, player.pos.z)) {
+      hud.tell(copy('log.whistle_below'))
+      return
+    }
     const now = Date.now()
     const current = s.world?.truck ?? s.aloneTruck
     const id = me() ?? ''
@@ -767,6 +833,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // Rule 12. In the valley the drop lands where our last state frame put
   // us; the pack shows the units gone at once. Alone it lands at once.
   const dropKind = (kind: string, all: boolean) => {
+    // A key item stays in the pack (items.ts isKeyItem).
+    if (isKeyItem(kind)) {
+      hud.tell(copy('log.drop_key_item'))
+      return
+    }
     if (s.aboard) {
       hud.tell(copy('log.drop_aboard'))
       return
@@ -798,7 +869,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       hud.tell(
         kind === DIMES
           ? copy('log.dimes', { count, amount: paid })
-          : copy('log.twenty', { amount: paid })
+          : kind === QUARTERS
+            ? copy('log.quarters', { count, amount: paid })
+            : copy('log.twenty', { amount: paid })
       )
     } else {
       s.inventory = addItem(s.inventory, kind, count)
@@ -849,14 +922,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     game.sfx?.play(s.flashlight.up ? 'flashlight-on' : 'flashlight-off')
   }
 
+  // A pickup taken: into the pack, or cash (the plaza's quarters, the $20
+  // in its back room) into the wallet, as a drop taken up is.
   const applyTake = (pickup: Pickup) => {
     markTaken(pickup)
-    s.inventory = addItem(s.inventory, pickup.kind, pickup.count)
-    hud.tell(copy('log.taken', { item: pickupLabel(pickup) }))
-    refreshBag()
-    s.interaction = null
-    hud.prompt(null)
-    hud.itemLabel(null)
+    applyDropTaken(pickup.kind, pickup.count)
   }
 
   const markTaken = (pickup: Pickup) => {
@@ -963,6 +1033,28 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         return
       case 'stand':
         tendStand()
+        return
+      case 'deal':
+        openDeal()
+        return
+      case 'lay':
+        layRose()
+        return
+      case 'descend':
+      case 'ascend': {
+        // Down the ladder into the Undercroft, or up it into the office.
+        const croft = world.undercroft
+        if (!croft) return
+        const to =
+          interaction.kind === 'descend' ? croft.ladder : croft.trapdoor
+        player.relocate(to.x, to.z, to.yaw)
+        hud.tell(
+          copy(interaction.kind === 'descend' ? 'log.descend' : 'log.ascend')
+        )
+        return
+      }
+      case 'locked':
+        hud.tell(copy('log.locked'))
         return
     }
   }

@@ -10,6 +10,7 @@ import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { toCosmetics } from './cosmetics.ts'
 import { DAILY_TASK, taskNews } from './dailytask.ts'
+import { dealRefusal } from './dealer.ts'
 import { seenEmote } from './emotes.ts'
 import {
   friendLines,
@@ -24,6 +25,13 @@ import { itemById } from './items.ts'
 import { createTruck } from './marx.ts'
 import { levelUp } from './progression.ts'
 import { CLOSE } from './protocol.ts'
+import {
+  isQuest,
+  isQuestStage,
+  stepNews,
+  stepRefusal,
+  toQuests,
+} from './quests.ts'
 import { SEASON } from './season.ts'
 import { isStandLedger, refusalLine } from './stand.ts'
 import { formatCash } from './store.ts'
@@ -149,6 +157,7 @@ export function wireValley(game: Game, actions: Actions): void {
       case 'shadowmen':
         game.shadowmen.receive(msg, now)
         game.caretaker.receive(msg, now)
+        game.tunnel.receive(msg, now)
         return
       // Rule 24: a touch, and the health it left; health given back.
       case 'struck':
@@ -205,6 +214,15 @@ export function wireValley(game: Game, actions: Actions): void {
       }
     })
 
+    // Rule 25: a deal of ours, done; the pack frame after it carries the
+    // goods and the wallet.
+    if (reason === 'dealt' && me !== null && detail.by === me) {
+      s.pendingDeal = false
+      s.dealSaid = copy('dealer.bought', {
+        item: itemById(detail.item ?? '')?.label ?? detail.item ?? '',
+      })
+      hud.tell(s.dealSaid)
+    }
     // The shelves are the valley's; a unit it sold us goes in the pocket.
     if (sale) {
       s.pendingBuys.delete(`${sale.station}:${sale.item}`)
@@ -318,6 +336,14 @@ export function wireValley(game: Game, actions: Actions): void {
       hud.tell(copy('log.none_left'))
     } else if (msg.re === 'trade') {
       actions.tradeRefused(msg.reason)
+    } else if (msg.re === 'quest') {
+      s.pendingQuest = false
+      s.dealSaid = stepRefusal(msg.reason)
+      hud.tell(s.dealSaid)
+    } else if (msg.re === 'deal') {
+      s.pendingDeal = false
+      s.dealSaid = dealRefusal(msg.reason)
+      hud.tell(s.dealSaid)
     } else if (msg.re === 'loot') {
       if (msg.corpse !== undefined) s.pendingLoots.delete(msg.corpse)
       hud.tell(copy('log.loot_refused'))
@@ -397,6 +423,15 @@ export function wireValley(game: Game, actions: Actions): void {
       actions.setBook(toFound(msg.book))
       s.xp = msg.xp
       s.stand = isStandLedger(msg.stand) ? msg.stand : null
+      s.quests = toQuests(msg.quests)
+    } else if (msg.type === 'quest') {
+      // Rule 26: a step of a quest went through, to every socket on the
+      // account. Its pack frame follows.
+      if (!isQuest(msg.quest) || !isQuestStage(msg.stage)) return
+      s.quests = { ...(s.quests ?? toQuests(null)), [msg.quest]: msg.stage }
+      s.pendingQuest = false
+      s.dealSaid = stepNews(msg.step)
+      hud.tell(s.dealSaid)
     } else if (msg.type === 'book') {
       // Rule 20: written in the account's Book of Shadows.
       actions.applyBook(msg.found)

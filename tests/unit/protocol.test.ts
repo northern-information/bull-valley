@@ -44,6 +44,8 @@ const hello = {
   maze: { x: 120, z: -40, yaw: 0.5 },
   truck: { home: { x: 10, z: -20 }, joyrideMs: 600_000 },
   stand: { x: 6, z: -24 },
+  dealer: { x: -10, z: -60 },
+  undercroft: { x: -7000, z: -7000, yaw: 0 },
 }
 
 const parse = (value: unknown) => parseClientMessage(JSON.stringify(value))
@@ -204,6 +206,8 @@ describe('parseClientMessage', () => {
       maze: _maze,
       truck: _truck,
       stand: _stand,
+      dealer: _dealer,
+      undercroft: _undercroft,
       ...older
     } = hello
     expect(parse({ ...older, v: PROTOCOL_VERSION - 1 })).toEqual({
@@ -215,6 +219,8 @@ describe('parseClientMessage', () => {
       maze: null,
       truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
       stand: null,
+      dealer: null,
+      undercroft: null,
     })
     // Bad ones read as missing in an older build, too.
     expect(
@@ -226,6 +232,8 @@ describe('parseClientMessage', () => {
         maze: 'corn',
         truck: 'chevy',
         stand: 'cabbages',
+        dealer: 'wick',
+        undercroft: 'cellar',
       })
     ).toEqual({
       ...older,
@@ -237,6 +245,8 @@ describe('parseClientMessage', () => {
       maze: null,
       truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
       stand: null,
+      dealer: null,
+      undercroft: null,
     })
     // The current version still requires both.
     expect(parse({ ...older, v: PROTOCOL_VERSION })).toBeNull()
@@ -354,6 +364,23 @@ describe('parseClientMessage', () => {
     // A hello says where the stand stands, or that there is none.
     expect(parse({ ...hello, stand: null })).toEqual({ ...hello, stand: null })
     expect(parse({ ...hello, stand: { x: 'here' } })).toBeNull()
+    // And where the squatter deals, or that there is none (rule 25).
+    expect(parse({ ...hello, dealer: null })).toEqual({
+      ...hello,
+      dealer: null,
+    })
+    expect(parse({ ...hello, dealer: { z: 1 } })).toBeNull()
+    expect(
+      parse({ type: 'deal', kind: 'mushrooms', pay: 'pbr', extra: 1 })
+    ).toEqual({ type: 'deal', kind: 'mushrooms', pay: 'pbr' })
+    expect(parse({ type: 'deal', kind: 'lsd' })).toBeNull()
+    expect(parse({ type: 'deal', kind: 4, pay: 'pbr' })).toBeNull()
+    expect(parse({ type: 'quest', quest: 'rose', step: 'lay' })).toEqual({
+      type: 'quest',
+      quest: 'rose',
+      step: 'lay',
+    })
+    expect(parse({ type: 'quest', quest: 'rose', step: 'pick' })).toBeNull()
     expect(parse({ type: 'trade', offer: 'flaming-halo', extra: 1 })).toEqual({
       type: 'trade',
       offer: 'flaming-halo',

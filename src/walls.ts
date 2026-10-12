@@ -1,9 +1,12 @@
 // Pure: the few things in the valley that stop you: the Citgo walls and
 // fixtures (store.ts), the berry bush, Gron, Moab and his horse (a capsule
 // along its spine), the wreck by the spawn Citgo (a capsule down the car)
-// and the tree it hit, the dishes behind it, and the utility poles and streetlights (roadside.ts),
-// each a post (a capsule of zero length) unless noted;
-// trees, the truck, and everything else stay walk-through. A wall is a
+// and the tree it hit, the dishes behind it, Bull Valley Plaza
+// (stripmall.ts), and the utility poles and streetlights (roadside.ts),
+// each a post (a capsule of zero length) unless noted; trees, the truck,
+// and everything else stay walk-through. A gate is a wall that stands for
+// some and not for others: a locked door (keys.ts), asked whether it is
+// open for the body at (x, z) every time it is met. A wall is a
 // capsule: a segment on the ground plane, `half` its thickness either side.
 // The player asks resolve() after every move and is pushed back out of any
 // wall it walked into.
@@ -18,7 +21,12 @@ interface Wall {
   a: XZ
   b: XZ
   half: number
+  // A gate's name, for `open` to answer.
+  gate?: string
 }
+
+// Whether gate `gate` lets the body at (x, z) through.
+export type GateOpen = (gate: string, x: number, z: number) => boolean
 
 // Two passes settle a corner, where pushing out of one wall can push into
 // the next.
@@ -33,14 +41,30 @@ export class Walls {
   readonly resolve: (x: number, z: number, radius: number) => XZ
   private readonly cell: number
   private readonly cells = new Map<string, Wall[]>()
+  // Every gate stands until told otherwise.
+  private open: GateOpen = () => false
 
   constructor(cell = 50) {
     this.cell = cell
     this.resolve = (x, z, radius) => this.push(x, z, radius)
   }
 
+  // A gate: a wall that stands unless `open` says it lets a body through.
+  addGate(a: XZ, b: XZ, half: number, gate: string) {
+    this.file({ a, b, half, gate })
+  }
+
+  // Who each gate lets through, from now on.
+  setGates(open: GateOpen) {
+    this.open = open
+  }
+
   addWall(a: XZ, b: XZ, half: number) {
-    const wall: Wall = { a, b, half }
+    this.file({ a, b, half })
+  }
+
+  private file(wall: Wall) {
+    const { a, b, half } = wall
     const pad = half + BODY_MARGIN
     const i0 = Math.floor((Math.min(a.x, b.x) - pad) / this.cell)
     const i1 = Math.floor((Math.max(a.x, b.x) + pad) / this.cell)
@@ -70,6 +94,7 @@ export class Walls {
     for (let pass = 0; pass < PASSES; pass++) {
       let moved = false
       for (const wall of near) {
+        if (wall.gate !== undefined && this.open(wall.gate, x, z)) continue
         const clear = wall.half + radius
         const p = projectOnSegment(
           px,

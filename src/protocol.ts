@@ -6,22 +6,26 @@
 import { USERNAME_MAX } from './account.ts'
 import { EMOTE_IDS } from './emotes.ts'
 import { isHealth } from './health.ts'
+import { isQuestStep } from './quests.ts'
 import { isWaterMap } from './waterside.ts'
 import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
+import type { DealerStock } from './dealer.ts'
 import type { Drop } from './drops.ts'
 import type { Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
 import type { OutfitId } from './outfits.ts'
+import type { QuestId, QuestStage, QuestStep } from './quests.ts'
 import type { Burst, ShadeKind, TruckPose } from './shadowmen.ts'
 import type { StandLedger } from './stand.ts'
+import type { TunnelKind } from './tunnelshades.ts'
 import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 29
+export const PROTOCOL_VERSION = 30
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -127,6 +131,8 @@ export interface WorldWire {
   // A tombstone for every shadowman burnt, carved with its name; they stay
   // when the day turns.
   graves: Grave[]
+  // What the squatter in the plaza has left to sell today (dealer.ts).
+  dealer: DealerStock
   // Where raiders fell and have not yet taken their things back
   // (sharedworld.ts rule 18); a body lies whatever the day.
   corpses: CorpseWire[]
@@ -174,6 +180,7 @@ export type WorldReason =
   | 'fell'
   | 'looted'
   | 'refill'
+  | 'dealt'
   | 'hurry'
   | 'reset'
 
@@ -207,6 +214,12 @@ export interface HelloMessage {
   // Where the Cabbage Stand stands, or null: the valley tends each
   // account's stand only for a raider beside it (rule 23).
   stand: XZ | null
+  // Where the squatter in Bull Valley Plaza sits, or null: the valley
+  // deals only with a raider beside him (rule 25).
+  dealer: XZ | null
+  // Where the Undercroft lies (undercroft.ts), or null: the valley steps
+  // its tunnel shades in it (rule 11).
+  undercroft: MazePlace | null
   // On a reconnect, the id this client had before the line dropped. The
   // valley may not have heard that socket close yet; it retires it if it is
   // the same account's, so the raider is not welcomed back beside their own
@@ -305,6 +318,25 @@ export interface CollectMessage {
 export interface TradeMessage {
   type: 'trade'
   offer: string
+}
+
+// One of `kind` from Erwin von Dutch in the plaza (sharedworld.ts rule
+// 25), bartered for with units of `pay` out of the pack. The valley
+// answers with a 'dealt' world frame and a PackMessage, or a nack.
+// One step of quest `quest` (sharedworld.ts rule 26): taking the rose
+// from Erwin, laying it at the heart of the maze, or coming back to him
+// for the key. The valley answers with a QuestFrame and a PackMessage,
+// or a nack.
+export interface QuestMessage {
+  type: 'quest'
+  quest: string
+  step: QuestStep
+}
+
+export interface DealMessage {
+  type: 'deal'
+  kind: string
+  pay: string
 }
 
 // Entries of the Book of Shadows this raider has just come across
@@ -427,6 +459,8 @@ export type ClientMessage =
   | StowMessage
   | StandTendMessage
   | TradeMessage
+  | DealMessage
+  | QuestMessage
   | DiscoverMessage
   | ChatMessage
   | WhisperMessage
@@ -475,6 +509,8 @@ export interface WelcomeMessage {
   xp: number
   // The account's Cabbage Stand (stand.ts).
   stand: StandLedger
+  // Where the account stands on each quest (quests.ts).
+  quests: Record<QuestId, QuestStage>
   // The account's health (sharedworld.ts rule 24, health.ts).
   health: number
 }
@@ -483,6 +519,16 @@ export interface WelcomeMessage {
 // socket signed in to it: what was done, the ledger as the valley wrote
 // it, and for a collect the cents paid into the wallet. A pack frame
 // follows with the pack and the wallet.
+// A quest's step went through (sharedworld.ts rule 26): where the
+// account stands on it now. To every socket on the account, with a
+// PackMessage after it.
+export interface QuestFrame {
+  type: 'quest'
+  quest: QuestId
+  step: QuestStep
+  stage: QuestStage
+}
+
 export interface StandMessage {
   type: 'stand'
   re: 'stock' | 'collect' | 'upgrade'
@@ -575,13 +621,14 @@ export interface WorldMessage {
   reason: WorldReason
   world: WorldWire | null
   // Who did it, for 'joined', 'left', 'boarded', 'hopped-out', 'called',
-  // 'ferry', 'taken', 'bought', 'dropped', 'drop-taken', 'fell', 'looted'.
+  // 'ferry', 'taken', 'bought', 'dealt', 'dropped', 'drop-taken', 'fell',
+  // 'looted'.
   by?: string
   // For 'taken'.
   index?: number
   // For 'bought'.
   station?: number
-  // For 'bought', 'dropped' and 'drop-taken': the kind.
+  // For 'bought', 'dealt', 'dropped' and 'drop-taken': the kind.
   item?: string
   // For 'dropped' and 'drop-taken': the drop's id, and how many were set
   // down or taken up.
@@ -597,7 +644,7 @@ export interface NackMessage {
   reason: string
   // For 'take'.
   index?: number
-  // For 'buy'.
+  // For 'buy' (and 'deal', the item).
   station?: number
   item?: string
   // For 'take-drop'.
@@ -665,6 +712,23 @@ export interface CaretakerWire {
   lunge?: true
 }
 
+// A tunnel shade in the Undercroft (tunnelshades.ts), or its Warden, as
+// the valley sends it: its id, never reused, where it walks, how near a
+// beam has it to bursting (0 to 1), and the raider it hunts.
+export interface TunnelShadeWire {
+  id: number
+  kind: TunnelKind
+  x: number
+  z: number
+  burn: number
+  target: string | null
+}
+
+// One that burst this step.
+export interface TunnelBurstWire extends XZ {
+  kind: TunnelKind
+}
+
 // Every step of the valley's shadowmen (CONFIG.shadowmen.tickHz a second),
 // to everyone: all of them, and the ones that burst this step; the
 // Caretaker, null while it is unmade, and where it was unmade this step.
@@ -676,14 +740,18 @@ export interface ShadowmenMessage {
   bursts: Burst[]
   caretaker: CaretakerWire | null
   unmade: XZ | null
+  // The Undercroft's tunnel shades, and the ones that burst this step.
+  tunnel: TunnelShadeWire[]
+  tunnelBursts: TunnelBurstWire[]
 }
 
-// A shadowman, or the Caretaker, touched this raider (sharedworld.ts rule
-// 22): the health the account has left, 0 when the touch shattered their
-// geometrie (the account is whole again after, rule 18's fall following).
+// A shadowman, the Caretaker, or a tunnel shade touched this raider
+// (sharedworld.ts rule 24): the health the account has left, 0 when the
+// touch shattered their geometrie (the account is whole again after, rule
+// 18's fall following).
 export interface StruckMessage {
   type: 'struck'
-  by?: 'caretaker'
+  by?: 'caretaker' | 'tunnel'
   health: number
 }
 
@@ -726,6 +794,7 @@ export type ServerMessage =
   | BookMessage
   | TaskMessage
   | StandMessage
+  | QuestFrame
   | XpMessage
   | WhisperedMessage
   | FriendsListMessage
@@ -954,6 +1023,9 @@ export function parseClientMessage(text: string): ClientMessage | null {
       const maze = value.maze === null ? null : parseMazePlace(value.maze)
       const truck = parseRoutes(value.truck)
       const stand = value.stand === null ? null : parseXZ(value.stand)
+      const dealer = value.dealer === null ? null : parseXZ(value.dealer)
+      const undercroft =
+        value.undercroft === null ? null : parseMazePlace(value.undercroft)
       // An older build sends none of them; it still parses as far as its
       // version, which the server then refuses.
       if (
@@ -963,7 +1035,9 @@ export function parseClientMessage(text: string): ClientMessage | null {
           !water ||
           maze === undefined ||
           !truck ||
-          (stand === null && value.stand !== null))
+          (stand === null && value.stand !== null) ||
+          (dealer === null && value.dealer !== null) ||
+          undercroft === undefined)
       ) {
         return null
       }
@@ -983,6 +1057,8 @@ export function parseClientMessage(text: string): ClientMessage | null {
         maze: maze ?? null,
         truck: truck ?? { home: { x: 0, z: 0 }, joyrideMs: 0 },
         stand,
+        dealer,
+        undercroft: undercroft ?? null,
         ...(typeof value.was === 'string' && value.was.length <= ID_MAX
           ? { was: value.was }
           : {}),
@@ -1060,6 +1136,18 @@ export function parseClientMessage(text: string): ClientMessage | null {
       // Which offers there are is the valley's to check.
       const { offer } = value
       return isKind(offer) ? { type: 'trade', offer } : null
+    }
+    case 'quest': {
+      // Which quests there are is the valley's to check.
+      const { quest, step } = value
+      return isKind(quest) && isQuestStep(step)
+        ? { type: 'quest', quest, step }
+        : null
+    }
+    case 'deal': {
+      // What he sells is the valley's to check.
+      const { kind, pay } = value
+      return isKind(kind) && isKind(pay) ? { type: 'deal', kind, pay } : null
     }
     case 'discover': {
       const { entries } = value

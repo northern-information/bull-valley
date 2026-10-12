@@ -10,6 +10,13 @@ import { CONTAINERS } from './drinks.ts'
 import { DEFAULT_FINISH, finishById } from './finishes.ts'
 import { paintTombstone } from './graveart.ts'
 import { isCigarette, isDrink, isMedicine, itemById, ITEMS } from './items.ts'
+import {
+  isCutOut,
+  paintMallArt,
+  paintPylonHeader,
+  paintPylonPanel,
+  PYLON_PANELS,
+} from './mallart.ts'
 import { mazeSpans, SHINING_MAZE, spanPieces } from './maze.ts'
 import {
   paintCornMazeSign,
@@ -25,6 +32,9 @@ import { applyPS1 } from './ps1.ts'
 import { mulberry32, range } from './rng.ts'
 import { paintAwning, paintOpenBoard, paintStandSign } from './standart.ts'
 import { STORE_LAYOUT } from './store.ts'
+import { STRIP_MALL } from './stripmall.ts'
+import { UNDERCROFT } from './undercroft.ts'
+import { paintCroftArt } from './undercroftart.ts'
 import type { DrinkArt } from './canart.ts'
 import type { CanvasArt } from './canvas.ts'
 import type {
@@ -37,6 +47,8 @@ import type { Span } from './maze.ts'
 import type { MedicineArt } from './medart.ts'
 import type { Rng } from './rng.ts'
 import type { StoreFinish, StoreSign } from './store.ts'
+import type { MallBox, MallFinish, MallSign } from './stripmall.ts'
+import type { CroftFinish } from './undercroft.ts'
 
 // Every placed 3D asset in Bull Valley, defined once in asset-local space.
 // world.ts instances these parts across the valley; the Akashic dev page
@@ -2260,6 +2272,716 @@ export function buildWreck(seed = 0xb3e30): Wreck {
   return { group, update }
 }
 
+// --- Bull Valley Plaza ---------------------------------------------------
+
+// The dead strip mall beside the spawn Citgo, from STRIP_MALL (stripmall.ts)
+// in mall-local space: every box merged into one mesh per finish, so the
+// whole building costs a couple of dozen draw calls, and the painted
+// panels over it. Nothing is lit but one fluorescent tube in the
+// laundromat, flickering, and the candles in the Golden Wok; the rest is
+// for the flashlight. world.ts places the group at the plaza's origin.
+const MALL_FINISH: Record<MallFinish, () => THREE.Material> = {
+  block: () => lambert({ color: '#9a9284' }),
+  brick: () => lambert({ color: '#6e4a3a' }),
+  floor: () => lambert({ color: '#6d6a60' }),
+  concrete: () => lambert({ color: '#7d7a72' }),
+  ceiling: () => lambert({ color: '#4a4842' }),
+  fascia: () => lambert({ color: '#a89c80' }),
+  glass: () =>
+    applyPS1(
+      new THREE.MeshBasicMaterial({
+        color: '#8fa6a8',
+        transparent: true,
+        opacity: 0.28,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      })
+    ),
+  plywood: () => lambert({ color: '#8a7448' }),
+  steel: () => lambert({ color: '#5d6266' }),
+  fixture: () => lambert({ color: '#2f3338' }),
+  enamel: () => lambert({ color: '#c9c6b8' }),
+  laminate: () => lambert({ color: '#9b8a6a' }),
+  tile: () => lambert({ color: '#b8b2a2' }),
+  tape: () => lambert({ color: '#141414' }),
+  plastic: () => lambert({ color: '#c46a24' }),
+  vending: () => lambert({ color: '#7e1e1a' }),
+  mirror: () =>
+    lambert({
+      color: '#6c7a80',
+      emissive: new THREE.Color('#2a3236'),
+      emissiveIntensity: 0.6,
+    }),
+  mattress: () => lambert({ color: '#a9a07c' }),
+  blanket: () => lambert({ color: '#3f4d5c' }),
+  candle: () =>
+    lambert({ color: '#e8e0c8', emissive: new THREE.Color('#5a4a2a') }),
+  flame: () => applyPS1(new THREE.MeshBasicMaterial({ color: '#ffb347' })),
+  tube: () => applyPS1(new THREE.MeshBasicMaterial({ color: '#eaf1ee' })),
+  'dead-tube': () => lambert({ color: '#8c8f88' }),
+  cardboard: () => lambert({ color: '#9c7c52' }),
+  xxx: () =>
+    lambert({
+      color: '#c2306e',
+      emissive: new THREE.Color('#5a1030'),
+      emissiveIntensity: 0.5,
+    }),
+  beads: () =>
+    lambert({ color: '#b07a2a', emissive: new THREE.Color('#3a2408') }),
+  redlight: () => applyPS1(new THREE.MeshBasicMaterial({ color: '#ff2a2a' })),
+}
+
+// A box from the layout as geometry in mall-local space, turned if it was
+// tipped.
+function mallBoxGeometry(b: MallBox): THREE.BufferGeometry {
+  const geometry = new THREE.BoxGeometry(...b.size)
+  if (b.turn) {
+    geometry.applyMatrix4(
+      new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...b.turn))
+    )
+  }
+  geometry.translate(...b.center)
+  return geometry.toNonIndexed()
+}
+
+// A painted panel, its art on the front; the cut-outs (graffiti, chalk)
+// see-through round their paint. A faint glow of its own keeps a sign
+// readable by moonlight; the cut-outs take only what light falls on them.
+function mallSignMesh(sign: MallSign): THREE.Mesh {
+  const texture = artTexture(paintMallArt(sign.art))
+  const cut = isCutOut(sign.art)
+  const material = lambert({
+    map: texture,
+    transparent: cut,
+    alphaTest: cut ? 0.1 : 0,
+    depthWrite: !cut,
+    emissive: new THREE.Color('#ffffff'),
+    emissiveMap: texture,
+    emissiveIntensity: cut ? 0.05 : 0.3,
+  })
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(...sign.size), material)
+  mesh.name = `plaza-${sign.name}`
+  mesh.position.set(...sign.center)
+  mesh.rotation.set(...sign.turn)
+  return mesh
+}
+
+export interface StripMallRig {
+  group: THREE.Group
+  // The back room's locked door, its leaf on its hinge: the glow rings it
+  // while E would only rattle it.
+  door: THREE.Object3D
+  // The flicker and the candles, and the door swinging toward where
+  // setDoorOpen last asked.
+  update(t: number): void
+  // Swing the locked door open (for this raider alone: they carry the key
+  // or are already behind it) or shut.
+  setDoorOpen(open: boolean): void
+}
+
+// How far the back room's door swings open, in radians, and how fast.
+const MALL_DOOR = { open: 1.45, speed: 2.4 }
+
+// The laundromat's tube: on, mostly, with stutters of dark, the pattern
+// repeating every few seconds. Brightness from 0 to 1 at time t.
+function tubeFlicker(t: number): number {
+  const beat = t % 5.3
+  if (beat > 4.1 && beat < 4.6) return Math.sin(beat * 90) > 0.2 ? 1 : 0.05
+  if (beat > 1.2 && beat < 1.3) return 0.15
+  return 0.9 + 0.1 * Math.sin(t * 50)
+}
+
+export function buildStripMall(): StripMallRig {
+  const group = new THREE.Group()
+  group.name = 'strip-mall'
+  const byFinish = new Map<MallFinish, THREE.BufferGeometry[]>()
+  for (const b of STRIP_MALL.boxes) {
+    const list = byFinish.get(b.finish) ?? []
+    list.push(mallBoxGeometry(b))
+    byFinish.set(b.finish, list)
+  }
+  let tube: THREE.MeshBasicMaterial | null = null
+  let flame: THREE.MeshBasicMaterial | null = null
+  for (const [finish, geometries] of byFinish) {
+    const geometry = mergeGeometries(geometries)
+    const material = MALL_FINISH[finish]()
+    const mesh = new THREE.Mesh(geometry, material)
+    mesh.name = `plaza-${finish}`
+    // The slab and the glass throw nothing; the rest of it shades itself.
+    mesh.castShadow = finish !== 'concrete' && finish !== 'glass'
+    mesh.receiveShadow = true
+    group.add(mesh)
+    if (finish === 'tube') tube = material as THREE.MeshBasicMaterial
+    if (finish === 'flame') flame = material as THREE.MeshBasicMaterial
+  }
+  // The locked door: a steel leaf on a pivot at its hinge, swinging into
+  // the shop, the EMPLOYEES ONLY plate riding on it.
+  const { lock } = STRIP_MALL
+  const door = new THREE.Group()
+  door.name = 'plaza-locked-door'
+  door.position.set(lock.hinge.x, 0, lock.hinge.z)
+  const leaf = new THREE.Mesh(
+    new THREE.BoxGeometry(0.05, lock.height, lock.width - 0.04),
+    lambert({ color: '#5a4f44' })
+  )
+  leaf.position.set(0.03, lock.height / 2, lock.width / 2)
+  leaf.castShadow = true
+  leaf.receiveShadow = true
+  door.add(leaf)
+  const knob = new THREE.Mesh(
+    new THREE.BoxGeometry(0.08, 0.06, 0.06),
+    lambert({ color: '#b09040' })
+  )
+  knob.position.set(0.08, 1.0, lock.width - 0.12)
+  door.add(knob)
+  group.add(door)
+  // The adult section's red bulb throws a red haze round itself.
+  const bulb = STRIP_MALL.boxes.find((b) => b.name === 'adult-bulb')
+  if (bulb) {
+    const haze = makeGlowSprite(makeGlowTexture('rgba(255, 40, 40, 0.55)'), 3.2)
+    haze.position.set(...bulb.center)
+    group.add(haze)
+  }
+  for (const sign of STRIP_MALL.signs) {
+    const mesh = mallSignMesh(sign)
+    group.add(mesh)
+    if (sign.art === 'employees') door.attach(mesh)
+  }
+  const lit = new THREE.Color('#eaf1ee')
+  const warm = new THREE.Color('#ffb347')
+  let wanted = 0
+  let last: number | null = null
+  const update = (t: number) => {
+    tube?.color.copy(lit).multiplyScalar(tubeFlicker(t))
+    flame?.color
+      .copy(warm)
+      .multiplyScalar(0.8 + 0.2 * Math.sin(t * 13) * Math.sin(t * 7.3))
+    const dt = last === null ? 0 : Math.max(0, Math.min(0.1, t - last))
+    last = t
+    const step = MALL_DOOR.speed * dt
+    const now = door.rotation.y
+    door.rotation.y =
+      now < wanted ? Math.min(wanted, now + step) : Math.max(wanted, now - step)
+  }
+  update(0)
+  setMotion(group, update)
+  return {
+    group,
+    door,
+    update,
+    setDoorOpen(open) {
+      wanted = open ? MALL_DOOR.open : 0
+    },
+  }
+}
+
+// The pylon by the road: two steel legs, the plaza's name across the top,
+// and a panel for every tenant under it. Its origin is on the ground
+// between its legs; the panels face +X, toward the road, and -X.
+export const PLAZA_SIGN = {
+  legs: 1.4,
+  leg: 0.22,
+  width: 2.6,
+  header: { y: 6.2, height: 1.0 },
+  panel: { top: 5.6, height: 0.5, gap: 0.08 },
+  depth: 0.35,
+}
+
+export function buildPlazaSign(): THREE.Group {
+  const S = PLAZA_SIGN
+  const group = new THREE.Group()
+  group.name = 'plaza-sign'
+  const steel = lambert({ color: '#4c5155' })
+  const frame = lambert({ color: '#2b3a2f' })
+  const top = S.header.y + S.header.height / 2
+  for (const z of [-S.legs / 2, S.legs / 2]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(S.leg, top, S.leg), steel)
+    leg.position.set(0, top / 2, z)
+    group.add(leg)
+  }
+  const face = (art: CanvasArt) => {
+    const texture = artTexture(art)
+    return lambert({
+      map: texture,
+      emissive: new THREE.Color('#ffffff'),
+      emissiveMap: texture,
+      emissiveIntensity: 0.3,
+    })
+  }
+  // A cabinet with art on both broad faces (+X and -X); BoxGeometry face
+  // order is +x, -x, +y, -y, +z, -z.
+  const cabinet = (art: CanvasArt, y: number, height: number) => {
+    const painted = face(art)
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(S.depth, height, S.width),
+      [painted, painted, frame, frame, frame, frame]
+    )
+    mesh.position.y = y
+    group.add(mesh)
+    return mesh
+  }
+  cabinet(paintPylonHeader(), S.header.y, S.header.height)
+  PYLON_PANELS.forEach((label, i) => {
+    const y =
+      S.panel.top - S.panel.height / 2 - i * (S.panel.height + S.panel.gap)
+    const panel = cabinet(paintPylonPanel(label, 0x9a1 + i), y, S.panel.height)
+    // The kicked-in one hangs crooked in its frame.
+    if (label === null) panel.rotation.x = 0.08
+  })
+  castShadows(group)
+  return group
+}
+
+// A steel dumpster, its lids thrown back, standing on the alley: the
+// origin on the ground under its middle, its length along X.
+export const DUMPSTER = { length: 1.9, width: 1.3, height: 1.25 }
+
+export function buildDumpster(fallen = false): THREE.Group {
+  const { length, width, height } = DUMPSTER
+  const group = new THREE.Group()
+  group.name = 'dumpster'
+  const body = lambert({ color: '#2f4f3a' })
+  const rust = lambert({ color: '#5a3a24' })
+  const lid = lambert({ color: '#1c1c1c' })
+  const bin = new THREE.Group()
+  group.add(bin)
+  const add = (
+    size: [number, number, number],
+    at: [number, number, number],
+    material: THREE.Material,
+    turn: [number, number, number] = [0, 0, 0]
+  ) => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material)
+    mesh.position.set(...at)
+    mesh.rotation.set(...turn)
+    bin.add(mesh)
+  }
+  const wall = 0.05
+  add([length, 0.08, width], [0, 0.18, 0], body)
+  add([length, height - 0.14, wall], [0, height / 2 + 0.07, width / 2], body)
+  add([length, height - 0.14, wall], [0, height / 2 + 0.07, -width / 2], body)
+  add([wall, height - 0.14, width], [length / 2, height / 2 + 0.07, 0], body)
+  add([wall, height - 0.14, width], [-length / 2, height / 2 + 0.07, 0], body)
+  add([length * 0.6, 0.35, wall + 0.01], [0.2, 0.45, width / 2], rust)
+  // The skids, and the lids flung back over the far side.
+  for (const x of [-length / 3, length / 3]) {
+    add([0.12, 0.14, width + 0.1], [x, 0.07, 0], lid)
+  }
+  for (const x of [-length / 4, length / 4]) {
+    add(
+      [length / 2 - 0.04, 0.03, width * 0.9],
+      [x, height + 0.25, -width / 2 - 0.2],
+      lid,
+      [-1.9, 0, 0]
+    )
+  }
+  // Trash bags spilling out of it.
+  const bag = lambert({ color: '#151515' })
+  const rng = mulberry32(fallen ? 0xd0a : 0xd0b)
+  for (let i = 0; i < 4; i++) {
+    const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.3, 0), bag)
+    mesh.position.set(
+      range(rng, -0.6, 0.6),
+      height - 0.15,
+      range(rng, -0.3, 0.3)
+    )
+    mesh.rotation.set(range(rng, 0, 3), range(rng, 0, 3), 0)
+    bin.add(mesh)
+  }
+  if (fallen) {
+    // Over on its side, the open top to the alley, its bags out on the
+    // ground.
+    bin.rotation.x = Math.PI / 2
+    bin.position.y = width / 2
+    bin.position.z = -height / 2
+  }
+  castShadows(group)
+  return group
+}
+
+// A shopping cart, low-poly wire as thin boxes: the origin on the ground
+// under its middle, its handle toward -X.
+export function buildShoppingCart(fallen = false): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'shopping-cart'
+  const wire = lambert({ color: '#8d9296' })
+  const rubber = lambert({ color: '#1a1a1a' })
+  const cart = new THREE.Group()
+  group.add(cart)
+  const bar = (
+    size: [number, number, number],
+    at: [number, number, number],
+    material: THREE.Material = wire
+  ) => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material)
+    mesh.position.set(...at)
+    cart.add(mesh)
+  }
+  const [l, w] = [0.9, 0.55]
+  // The basket: a floor, two sides, a front and a back, as frames.
+  bar([l, 0.02, w], [0, 0.45, 0])
+  for (const z of [-w / 2, w / 2]) {
+    bar([l, 0.02, 0.02], [0, 0.95, z])
+    for (let i = 0; i <= 4; i++) {
+      bar([0.015, 0.5, 0.015], [-l / 2 + (i * l) / 4, 0.7, z])
+    }
+    // The legs, raked, down to the casters.
+    bar([0.03, 0.42, 0.03], [-l / 2 + 0.05, 0.22, z])
+    bar([0.03, 0.42, 0.03], [l / 2 - 0.08, 0.22, z * 0.8])
+    bar([0.09, 0.09, 0.04], [-l / 2 + 0.05, 0.045, z], rubber)
+    bar([0.09, 0.09, 0.04], [l / 2 - 0.08, 0.045, z * 0.8], rubber)
+  }
+  bar([0.02, 0.55, w], [l / 2, 0.68, 0])
+  bar([0.02, 0.5, w], [-l / 2, 0.7, 0])
+  // The handle.
+  bar(
+    [0.04, 0.04, w + 0.06],
+    [-l / 2 - 0.12, 1.02, 0],
+    lambert({ color: '#a8251f' })
+  )
+  if (fallen) {
+    cart.rotation.x = Math.PI / 2 - 0.1
+    cart.position.y = w / 2 + 0.02
+  }
+  castShadows(group)
+  return group
+}
+
+// The plaza whole for the Akashic: the building on its slab, its pylon,
+// the dumpsters and the carts in their places on flat ground.
+function samplePlaza(): THREE.Group {
+  const group = new THREE.Group()
+  group.add(buildStripMall().group)
+  const { props } = STRIP_MALL
+  const pylon = buildPlazaSign()
+  pylon.position.set(props.pylon.x, 0, props.pylon.z)
+  group.add(pylon)
+  for (const spot of props.dumpsters) {
+    const dumpster = buildDumpster(spot.fallen)
+    dumpster.position.set(spot.x, 0, spot.z)
+    dumpster.rotation.y = spot.yaw + Math.PI / 2
+    group.add(dumpster)
+  }
+  for (const spot of props.carts) {
+    const cart = buildShoppingCart(spot.fallen)
+    cart.position.set(spot.x, 0, spot.z)
+    cart.rotation.y = spot.yaw
+    group.add(cart)
+  }
+  return group
+}
+
+// --- The Undercroft ------------------------------------------------------
+
+// The old stone under Bull Valley Plaza (undercroft.ts), in its own metres:
+// every box merged into one mesh per finish, the carvings and the chalk
+// over it, and a warm haze over each knot of candles (the altar's red).
+// Nothing else is lit; the rest is for the flashlight. world.ts places the
+// group at the Undercroft's corner, high over the survey's.
+const CROFT_FINISH: Record<CroftFinish, () => THREE.Material> = {
+  // A little light of their own, as the store's walls have, so the rooms
+  // read before a flashlight finds them.
+  stone: () =>
+    lambert({
+      color: '#4a463f',
+      emissive: new THREE.Color('#1c1a16'),
+      emissiveIntensity: 0.6,
+    }),
+  flagstone: () =>
+    lambert({
+      color: '#3a3733',
+      emissive: new THREE.Color('#16140f'),
+      emissiveIntensity: 0.6,
+    }),
+  vault: () => lambert({ color: '#26241f' }),
+  altar: () => lambert({ color: '#5a554c' }),
+  bone: () =>
+    lambert({
+      color: '#c9bfa4',
+      emissive: new THREE.Color('#3a3528'),
+      emissiveIntensity: 0.6,
+    }),
+  wood: () => lambert({ color: '#5a4228' }),
+  candle: () =>
+    lambert({ color: '#e8e0c8', emissive: new THREE.Color('#5a4a2a') }),
+  flame: () => applyPS1(new THREE.MeshBasicMaterial({ color: '#ffb347' })),
+  water: () =>
+    applyPS1(
+      new THREE.MeshBasicMaterial({
+        color: '#0a1418',
+        transparent: true,
+        opacity: 0.85,
+      })
+    ),
+  iron: () => lambert({ color: '#3a3c3e' }),
+  cloth: () => lambert({ color: '#5a1418' }),
+}
+
+export interface UndercroftRig {
+  group: THREE.Group
+  // The candles' flicker.
+  update(t: number): void
+}
+
+export function buildUndercroft(): UndercroftRig {
+  const group = new THREE.Group()
+  group.name = 'undercroft'
+  const byFinish = new Map<CroftFinish, THREE.BufferGeometry[]>()
+  for (const b of UNDERCROFT.boxes) {
+    const geometry = new THREE.BoxGeometry(...b.size)
+    if (b.turn) {
+      geometry.applyMatrix4(
+        new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...b.turn))
+      )
+    }
+    geometry.translate(...b.center)
+    const list = byFinish.get(b.finish) ?? []
+    list.push(geometry.toNonIndexed())
+    byFinish.set(b.finish, list)
+  }
+  let flame: THREE.MeshBasicMaterial | null = null
+  for (const [finish, geometries] of byFinish) {
+    const material = CROFT_FINISH[finish]()
+    const mesh = new THREE.Mesh(mergeGeometries(geometries), material)
+    mesh.name = `undercroft-${finish}`
+    mesh.receiveShadow = true
+    group.add(mesh)
+    if (finish === 'flame') flame = material as THREE.MeshBasicMaterial
+  }
+  for (const sign of UNDERCROFT.signs) {
+    const texture = artTexture(paintCroftArt(sign.art))
+    const cut = sign.art === 'sigil'
+    const mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(...sign.size),
+      lambert({
+        map: texture,
+        transparent: cut,
+        alphaTest: cut ? 0.1 : 0,
+        depthWrite: !cut,
+        emissive: new THREE.Color(
+          sign.name === 'altar-sigil' ? '#ff3020' : '#ffffff'
+        ),
+        emissiveMap: texture,
+        emissiveIntensity:
+          sign.name === 'altar-sigil' ? 0.6 : sign.art === 'sigil' ? 0.5 : 0.12,
+      })
+    )
+    mesh.name = `undercroft-${sign.name}`
+    mesh.position.set(...sign.center)
+    mesh.rotation.set(...sign.turn)
+    group.add(mesh)
+  }
+  // A haze over each knot of candles: the hall's rows, the chalk ring, the
+  // entry's, and the altar's red.
+  const warm = makeGlowTexture('rgba(255, 170, 80, 0.4)')
+  const red = makeGlowTexture('rgba(255, 40, 30, 0.5)')
+  const { rooms, altar, ladder } = UNDERCROFT
+  const hazes: [number, number, number, THREE.Texture, number][] = [
+    [ladder.x + 1.5, 0.6, ladder.z + 3, warm, 2.4],
+    [altar.x + 0.2, 1.4, altar.z, red, 5],
+  ]
+  for (let i = 0; i < 5; i++) {
+    hazes.push([
+      rooms.candles.x0 + 2 + i * 4,
+      0.5,
+      (rooms.candles.z0 + rooms.candles.z1) / 2,
+      warm,
+      3.2,
+    ])
+  }
+  hazes.push([
+    (rooms.chalk.x0 + rooms.chalk.x1) / 2,
+    0.5,
+    (rooms.chalk.z0 + rooms.chalk.z1) / 2,
+    warm,
+    7,
+  ])
+  // And the light down the ladder from the trapdoor.
+  hazes.push([
+    ladder.x,
+    UNDERCROFT.height - 0.3,
+    ladder.z,
+    makeGlowTexture('rgba(200, 220, 230, 0.35)'),
+    2.5,
+  ])
+  for (const [x, y, z, map, scale] of hazes) {
+    const sprite = makeGlowSprite(map, scale)
+    sprite.position.set(x, y, z)
+    group.add(sprite)
+  }
+  const glow = new THREE.Color('#ffb347')
+  const update = (t: number) => {
+    flame?.color
+      .copy(glow)
+      .multiplyScalar(0.75 + 0.25 * Math.sin(t * 11) * Math.sin(t * 6.1))
+  }
+  update(0)
+  setMotion(group, update)
+  return { group, update }
+}
+
+// The trapdoor in the Video Vault's office floor (stripmall.ts): a dark
+// square in the boards, its hatch thrown back on its hinges. Origin at
+// the floor under the hole's middle; the hatch hinges on its -X edge.
+export const TRAPDOOR = { size: 0.9 }
+
+export function buildTrapdoor(): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'trapdoor'
+  const { size } = TRAPDOOR
+  const dark = applyPS1(new THREE.MeshBasicMaterial({ color: '#020202' }))
+  const wood = lambert({ color: '#5a4228' })
+  const iron = lambert({ color: '#2a2c2e' })
+  const hole = new THREE.Mesh(new THREE.BoxGeometry(size, 0.01, size), dark)
+  hole.position.y = 0.006
+  group.add(hole)
+  for (const [x, z, w, d] of [
+    [0, size / 2 + 0.04, size + 0.16, 0.08],
+    [0, -size / 2 - 0.04, size + 0.16, 0.08],
+    [size / 2 + 0.04, 0, 0.08, size],
+    [-size / 2 - 0.04, 0, 0.08, size],
+  ]) {
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(w, 0.03, d), wood)
+    frame.position.set(x, 0.015, z)
+    group.add(frame)
+  }
+  const hatch = new THREE.Group()
+  hatch.position.set(-size / 2 - 0.04, 0.03, 0)
+  hatch.rotation.z = 1.9
+  const lid = new THREE.Mesh(new THREE.BoxGeometry(size, 0.05, size), wood)
+  lid.position.x = size / 2
+  hatch.add(lid)
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.012, 4, 8), iron)
+  ring.position.set(size * 0.8, 0.04, 0)
+  ring.rotation.x = Math.PI / 2
+  hatch.add(ring)
+  group.add(hatch)
+  // The ladder's top rungs, going down into the dark.
+  for (let i = 0; i < 3; i++) {
+    const rung = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.5), wood)
+    rung.position.set(0.2, -0.15 - i * 0.36, 0)
+    group.add(rung)
+  }
+  castShadows(group)
+  return group
+}
+
+// A tunnel shade (tunnelshades.ts): a hunched black shape low to the
+// stone, its long arms hanging, two pale eyes; or the Warden, tall in a
+// hooded cloak with a crown of iron spikes and red eyes. Origin at the
+// floor under it, facing +Z. setBurn pales it and shakes it as a beam
+// burns it.
+export interface TunnelShadeRig {
+  group: THREE.Group
+  update(t: number): void
+  setBurn(burn: number): void
+}
+
+const SHADE_BODY = new THREE.Color('#040405')
+const SHADE_PALE = new THREE.Color('#6a6e78')
+
+export function buildTunnelShade(
+  kind: 'shade' | 'warden',
+  seed = 0x7e11
+): TunnelShadeRig {
+  const rng = mulberry32(seed)
+  const group = new THREE.Group()
+  group.name = kind === 'warden' ? 'warden' : 'tunnel-shade'
+  const body = new THREE.MeshBasicMaterial({
+    color: SHADE_BODY,
+    transparent: true,
+    opacity: 0.94,
+  })
+  applyPS1(body)
+  const eyes = applyPS1(
+    new THREE.MeshBasicMaterial({
+      color: kind === 'warden' ? '#ff2a1a' : '#d8e4ea',
+    })
+  )
+  const iron = lambert({
+    color: '#2a2c30',
+    emissive: new THREE.Color('#0a0a0c'),
+  })
+  const add = (
+    geometry: THREE.BufferGeometry,
+    material: THREE.Material,
+    at: Vec3,
+    turn: Vec3 = [0, 0, 0]
+  ) => {
+    const mesh = new THREE.Mesh(geometry, material)
+    mesh.position.set(...at)
+    mesh.rotation.set(...turn)
+    group.add(mesh)
+    return mesh
+  }
+  const sway: THREE.Mesh[] = []
+  if (kind === 'shade') {
+    // Hunched: a long tilted body, the head thrust forward low.
+    add(
+      new THREE.ConeGeometry(0.42, 1.3, 6),
+      body,
+      [0, 0.65, -0.1],
+      [0.5, 0, 0]
+    )
+    add(new THREE.IcosahedronGeometry(0.2, 0), body, [0, 1.15, 0.38])
+    for (const x of [-0.12, 0.12]) {
+      add(new THREE.BoxGeometry(0.05, 0.03, 0.02), eyes, [x * 0.6, 1.18, 0.56])
+    }
+    for (const x of [-0.32, 0.32]) {
+      sway.push(
+        add(
+          new THREE.BoxGeometry(0.07, 1.0, 0.07),
+          body,
+          [x, 0.6, 0.2],
+          [0.3, 0, x > 0 ? -0.15 : 0.15]
+        )
+      )
+    }
+  } else {
+    // The Warden: a cloak to the floor, the hood, the crown, a chain.
+    add(new THREE.ConeGeometry(0.7, 2.6, 7), body, [0, 1.3, 0])
+    add(new THREE.ConeGeometry(0.32, 0.6, 6), body, [0, 2.75, 0])
+    for (const x of [-0.1, 0.1]) {
+      add(new THREE.BoxGeometry(0.06, 0.04, 0.02), eyes, [x, 2.55, 0.28])
+    }
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * Math.PI * 2
+      add(
+        new THREE.ConeGeometry(0.03, 0.28, 4),
+        iron,
+        [Math.sin(a) * 0.22, 3.1, Math.cos(a) * 0.22],
+        [range(rng, -0.2, 0.2), 0, range(rng, -0.2, 0.2)]
+      )
+    }
+    for (let i = 0; i < 8; i++) {
+      sway.push(
+        add(
+          new THREE.TorusGeometry(0.06, 0.015, 3, 6),
+          iron,
+          [0.55, 1.6 - i * 0.14, 0.3],
+          [0, i % 2 ? Math.PI / 2 : 0, 0]
+        )
+      )
+    }
+  }
+  const base = sway.map((m) => m.rotation.x)
+  let burn = 0
+  const update = (t: number) => {
+    sway.forEach((m, i) => {
+      m.rotation.x = base[i] + Math.sin(t * 1.7 + i) * 0.12
+    })
+  }
+  return {
+    group,
+    update,
+    setBurn(next) {
+      burn = Math.max(0, Math.min(1, next))
+      body.color.copy(SHADE_BODY).lerp(SHADE_PALE, burn)
+      body.opacity = 0.94 - burn * 0.4
+    },
+  }
+}
+
 // --- The dish array ------------------------------------------------------
 
 // The big dishes in rows behind the spawn Citgo: radio telescopes, each a
@@ -3644,6 +4366,373 @@ export function buildDimes(
     group.add(halo)
   }
   setPulseMaterials(group, [material])
+  return group
+}
+
+// The quarters left in the plaza laundromat's machines (drops.ts
+// QUARTERS): a small stack and a few loose beside it, bigger and paler
+// than the dimes. Origin at ground level under the stack.
+export function buildQuarters(
+  count: number,
+  seed = 0x25c,
+  { glow = true }: PickupOptions = {}
+): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'quarters'
+  const material = lambert({
+    color: '#9aa0a6',
+    emissive: new THREE.Color('#e8edf2'),
+    emissiveIntensity: 0.4,
+  })
+  const geo = new THREE.CylinderGeometry(0.036, 0.036, 0.006, 12)
+  const rng = mulberry32(seed)
+  const n = Math.max(1, Math.min(count, 12))
+  const stacked = Math.ceil(n / 2)
+  for (let i = 0; i < n; i++) {
+    const coin = new THREE.Mesh(geo, material)
+    if (i < stacked) {
+      coin.position.set(range(rng, -0.004, 0.004), 0.003 + i * 0.0065, 0)
+    } else {
+      const a = rng() * Math.PI * 2
+      const r = range(rng, 0.09, 0.2)
+      coin.position.set(Math.cos(a) * r, 0.004, Math.sin(a) * r)
+      coin.rotation.set(range(rng, -0.2, 0.2), 0, range(rng, -0.2, 0.2))
+    }
+    group.add(coin)
+  }
+  if (glow) {
+    const halo = makeGlowSprite(
+      makeGlowTexture('rgba(214, 226, 238, 0.45)'),
+      0.9
+    )
+    halo.position.y = 0.06
+    group.add(halo)
+  }
+  setPulseMaterials(group, [material])
+  return group
+}
+
+// --- Keys ----------------------------------------------------------------
+
+// The Video Vault's back-room key (keys.ts): a brass key on a ring with a
+// red paper tag, lying flat. Drawn twice its size, as the coins are, or
+// the downscale would lose it. Origin at ground level under the ring.
+function buildVaultKey({ glow = true }: PickupOptions = {}): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'vault-key'
+  const brass = lambert({
+    color: '#8a6a22',
+    emissive: new THREE.Color('#e0b84a'),
+    emissiveIntensity: 0.45,
+  })
+  const tag = lambert({
+    color: '#8e2a22',
+    emissive: new THREE.Color('#d0473a'),
+    emissiveIntensity: 0.3,
+  })
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.035, 0.005, 4, 12),
+    brass
+  )
+  ring.rotation.x = Math.PI / 2
+  ring.position.y = 0.006
+  group.add(ring)
+  // The bow, the shank and its teeth, along +X from the ring.
+  const bow = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.022, 0.022, 0.006, 8),
+    brass
+  )
+  bow.position.set(0.045, 0.004, 0)
+  group.add(bow)
+  const shank = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.006, 0.012), brass)
+  shank.position.set(0.105, 0.004, 0)
+  group.add(shank)
+  for (const [x, w] of [
+    [0.12, 0.012],
+    [0.137, 0.008],
+  ]) {
+    const tooth = new THREE.Mesh(new THREE.BoxGeometry(w, 0.006, 0.014), brass)
+    tooth.position.set(x, 0.004, 0.012)
+    group.add(tooth)
+  }
+  const paper = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.003, 0.03), tag)
+  paper.position.set(-0.05, 0.002, 0.012)
+  paper.rotation.y = 0.5
+  group.add(paper)
+  group.scale.setScalar(2)
+  if (glow) {
+    const halo = makeGlowSprite(
+      makeGlowTexture('rgba(255, 210, 96, 0.5)'),
+      0.35
+    )
+    halo.position.y = 0.01
+    group.add(halo)
+  }
+  setPulseMaterials(group, [brass, tag])
+  return group
+}
+
+// --- Mushrooms -----------------------------------------------------------
+
+// The dealer's mushrooms (dealer.ts): a clear baggie slumped on its side,
+// dried caps on long thin stems showing through it. Origin at ground level
+// under the bag.
+function buildMushrooms({ glow = true }: PickupOptions = {}): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'mushrooms'
+  const bag = lambert({
+    color: '#cfd6d2',
+    emissive: new THREE.Color('#9aa59e'),
+    emissiveIntensity: 0.3,
+    transparent: true,
+    opacity: 0.45,
+    depthWrite: false,
+  })
+  const cap = lambert({
+    color: '#6a4a2a',
+    emissive: new THREE.Color('#b08a50'),
+    emissiveIntensity: 0.35,
+  })
+  const stem = lambert({ color: '#c8bfa4' })
+  const rng = mulberry32(0x5400)
+  for (let i = 0; i < 5; i++) {
+    const shroom = new THREE.Group()
+    const s = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.004, 0.006, 0.07, 4),
+      stem
+    )
+    s.position.y = 0.035
+    shroom.add(s)
+    const c = new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.02, 6), cap)
+    c.position.y = 0.075
+    shroom.add(c)
+    shroom.position.set(
+      range(rng, -0.04, 0.04),
+      0.012,
+      range(rng, -0.025, 0.025)
+    )
+    shroom.rotation.set(
+      Math.PI / 2 - 0.2,
+      range(rng, 0, Math.PI * 2),
+      range(rng, -0.4, 0.4)
+    )
+    group.add(shroom)
+  }
+  const sack = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.04, 0.09), bag)
+  sack.position.y = 0.02
+  group.add(sack)
+  // The zip along its mouth.
+  const zip = new THREE.Mesh(
+    new THREE.BoxGeometry(0.004, 0.042, 0.09),
+    lambert({ color: '#4a6aa0' })
+  )
+  zip.position.set(0.063, 0.021, 0)
+  group.add(zip)
+  group.scale.setScalar(1.6)
+  if (glow) {
+    const halo = makeGlowSprite(
+      makeGlowTexture('rgba(200, 170, 120, 0.45)'),
+      0.5
+    )
+    halo.position.y = 0.03
+    group.add(halo)
+  }
+  setPulseMaterials(group, [cap, bag])
+  return group
+}
+
+// --- Erwin's goods and his rose ------------------------------------------
+
+// A sheet of blotter, a few tabs torn off along the perforations: the
+// tabs printed with a third eye in a triangle, red on yellow. Drawn three
+// times its size, or the downscale would lose it. Origin at ground level
+// under it.
+function buildBlotter({ glow = true }: PickupOptions = {}): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'lsd'
+  const art = canvas([64, 64], '#f2d24a')
+  const { ctx } = art
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)'
+  ctx.lineWidth = 1
+  for (let i = 1; i < 4; i++) {
+    ctx.beginPath()
+    ctx.moveTo(i * 16, 0)
+    ctx.lineTo(i * 16, 64)
+    ctx.moveTo(0, i * 16)
+    ctx.lineTo(64, i * 16)
+    ctx.stroke()
+  }
+  ctx.fillStyle = '#b81e2a'
+  ctx.beginPath()
+  ctx.moveTo(32, 10)
+  ctx.lineTo(54, 50)
+  ctx.lineTo(10, 50)
+  ctx.closePath()
+  ctx.fill()
+  ctx.fillStyle = '#f2d24a'
+  ctx.beginPath()
+  ctx.ellipse(32, 36, 9, 5, 0, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.fillStyle = '#1a1a1a'
+  ctx.beginPath()
+  ctx.arc(32, 36, 3, 0, Math.PI * 2)
+  ctx.fill()
+  const texture = artTexture(art)
+  const paper = lambert({
+    map: texture,
+    emissive: new THREE.Color('#ffffff'),
+    emissiveMap: texture,
+    emissiveIntensity: 0.35,
+    side: THREE.DoubleSide,
+  })
+  const sheet = new THREE.Mesh(new THREE.PlaneGeometry(0.11, 0.11), paper)
+  sheet.rotation.x = -Math.PI / 2
+  sheet.position.y = 0.003
+  group.add(sheet)
+  // Two tabs torn loose beside it.
+  for (const [x, z, turn] of [
+    [0.09, 0.02, 0.4],
+    [0.075, -0.05, -0.9],
+  ]) {
+    const tab = new THREE.Mesh(new THREE.PlaneGeometry(0.028, 0.028), paper)
+    tab.rotation.set(-Math.PI / 2, 0, turn)
+    tab.position.set(x, 0.004, z)
+    group.add(tab)
+  }
+  if (glow) {
+    const halo = makeGlowSprite(
+      makeGlowTexture('rgba(242, 210, 74, 0.45)'),
+      0.5
+    )
+    halo.position.y = 0.02
+    group.add(halo)
+  }
+  setPulseMaterials(group, [paper])
+  return group
+}
+
+// A prescription bottle of Adderall, the amber kind with a white cap and
+// a white label, lying on its side. Drawn twice its size. Origin at ground
+// level under it.
+function buildAdderall({ glow = true }: PickupOptions = {}): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'adderall'
+  const amber = lambert({
+    color: '#b8601a',
+    emissive: new THREE.Color('#e08a2a'),
+    emissiveIntensity: 0.35,
+    transparent: true,
+    opacity: 0.85,
+  })
+  const cap = lambert({ color: '#f0eee6' })
+  const label = lambert({
+    color: '#e8e6dc',
+    emissive: new THREE.Color('#6a685e'),
+    emissiveIntensity: 0.4,
+  })
+  const pills = lambert({ color: '#e07a2a' })
+  const bottle = new THREE.Group()
+  const body = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.018, 0.018, 0.06, 8),
+    amber
+  )
+  bottle.add(body)
+  const sticker = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.0185, 0.0185, 0.032, 8),
+    label
+  )
+  sticker.position.y = -0.004
+  bottle.add(sticker)
+  const lid = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.02, 0.02, 0.014, 8),
+    cap
+  )
+  lid.position.y = 0.037
+  bottle.add(lid)
+  bottle.rotation.z = Math.PI / 2
+  bottle.position.y = 0.02
+  group.add(bottle)
+  // Two pills spilled beside it.
+  for (const [x, z] of [
+    [0.05, 0.03],
+    [0.065, 0.012],
+  ]) {
+    const pill = new THREE.Mesh(
+      new THREE.CapsuleGeometry(0.004, 0.008, 2, 4),
+      pills
+    )
+    pill.rotation.z = Math.PI / 2
+    pill.position.set(x, 0.004, z)
+    group.add(pill)
+  }
+  group.scale.setScalar(2)
+  if (glow) {
+    const halo = makeGlowSprite(
+      makeGlowTexture('rgba(224, 138, 42, 0.45)'),
+      0.3
+    )
+    halo.position.y = 0.02
+    group.add(halo)
+  }
+  setPulseMaterials(group, [amber, label])
+  return group
+}
+
+// A single red rose, long-stemmed, lying on its side: the bloom as a few
+// tilted cones of petals, two leaves on the stem. Origin at ground level
+// under its middle.
+function buildRose({ glow = true }: PickupOptions = {}): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'rose'
+  const petal = lambert({
+    color: '#8a0e1c',
+    emissive: new THREE.Color('#d0203a'),
+    emissiveIntensity: 0.4,
+  })
+  const green = lambert({ color: '#2a5a24' })
+  const rose = new THREE.Group()
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.004, 0.005, 0.42, 5),
+    green
+  )
+  stem.position.y = 0.21
+  rose.add(stem)
+  for (const [y, side] of [
+    [0.16, 1],
+    [0.27, -1],
+  ]) {
+    const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.06, 4), green)
+    leaf.position.set(side * 0.02, y, 0)
+    leaf.rotation.z = -side * 1.1
+    leaf.scale.z = 0.3
+    rose.add(leaf)
+  }
+  const sepal = new THREE.Mesh(new THREE.ConeGeometry(0.016, 0.025, 5), green)
+  sepal.position.y = 0.425
+  sepal.rotation.x = Math.PI
+  rose.add(sepal)
+  for (let i = 0; i < 3; i++) {
+    const bloom = new THREE.Mesh(
+      new THREE.ConeGeometry(0.03 - i * 0.008, 0.045 - i * 0.008, 6, 1, true),
+      petal
+    )
+    bloom.position.y = 0.455 + i * 0.004
+    bloom.rotation.set(Math.PI, i * 0.7, 0)
+    rose.add(bloom)
+  }
+  const bud = new THREE.Mesh(new THREE.IcosahedronGeometry(0.012, 0), petal)
+  bud.position.y = 0.46
+  rose.add(bud)
+  // On its side, the bloom resting a little off the ground.
+  rose.rotation.z = Math.PI / 2 - 0.05
+  rose.position.set(0.22, 0.03, 0)
+  group.add(rose)
+  if (glow) {
+    const halo = makeGlowSprite(makeGlowTexture('rgba(220, 40, 60, 0.45)'), 0.6)
+    halo.position.y = 0.04
+    group.add(halo)
+  }
+  setPulseMaterials(group, [petal])
   return group
 }
 
@@ -5743,9 +6832,9 @@ export function pulseMaterials(
   return PULSE.get(object) ?? []
 }
 
-// Kinds: 'cabbage', 'dimes', or an item id from items.ts. glow: false
-// leaves out the halo on packs, joints, drinks, medicine, berries, dimes
-// and gold bullion.
+// Kinds: an item id from items.ts, or cash ('dimes', 'quarters',
+// 'twenty'). glow: false leaves out the halo on everything but the
+// cabbage.
 export function buildPickup(
   kind: string,
   seed?: number,
@@ -5756,7 +6845,14 @@ export function buildPickup(
   if (isDrink(kind)) return buildDrink(kind, { glow })
   if (kind === 'berries') return buildBerries({ glow })
   if (kind === 'dimes') return buildDimes(12, seed, { glow })
+  if (kind === 'quarters') return buildQuarters(8, seed, { glow })
+  if (kind === 'twenty') return buildTwenty(seed, { glow })
   if (kind === 'gold-bullion') return buildGoldBullion({ glow })
+  if (kind === 'vault-key') return buildVaultKey({ glow })
+  if (kind === 'mushrooms') return buildMushrooms({ glow })
+  if (kind === 'lsd') return buildBlotter({ glow })
+  if (kind === 'adderall') return buildAdderall({ glow })
+  if (kind === 'rose') return buildRose({ glow })
   if (isMedicine(kind)) return buildMedicine(kind, { glow })
   let mesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshLambertMaterial>
   if (kind === 'cabbage') {
@@ -6120,6 +7216,24 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   })),
   { id: 'berries', label: 'Berries', build: () => buildPickup('berries') },
   { id: 'dimes', label: 'Dimes (12)', build: () => buildDimes(12) },
+  { id: 'quarters', label: 'Quarters (8)', build: () => buildQuarters(8) },
+  {
+    id: 'mushrooms',
+    label: 'Mushrooms',
+    build: () => buildPickup('mushrooms'),
+  },
+  {
+    id: 'vault-key',
+    label: 'Video Vault key',
+    build: () => buildPickup('vault-key'),
+  },
+  {
+    id: 'lsd',
+    label: 'LSD: a sheet of blotter',
+    build: () => buildPickup('lsd'),
+  },
+  { id: 'adderall', label: 'Adderall', build: () => buildPickup('adderall') },
+  { id: 'rose', label: "Erwin's rose", build: () => buildPickup('rose') },
   {
     id: 'tombstone',
     label: "Tombstone: a shadowman's",
@@ -6177,6 +7291,51 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     id: 'wreck',
     label: 'The wreck: a green BMW in a tree',
     build: () => buildWreck().group,
+  },
+  {
+    id: 'strip-mall',
+    label: 'Bull Valley Plaza, the dead strip mall',
+    build: samplePlaza,
+  },
+  {
+    id: 'undercroft',
+    label: 'The Undercroft, under the plaza',
+    build: () => buildUndercroft().group,
+  },
+  { id: 'trapdoor', label: 'The trapdoor in the office', build: buildTrapdoor },
+  {
+    id: 'tunnel-shade',
+    label: 'A tunnel shade',
+    build: () => {
+      const rig = buildTunnelShade('shade')
+      setMotion(rig.group, (t) => rig.update(t))
+      return rig.group
+    },
+  },
+  {
+    id: 'warden',
+    label: 'The Warden',
+    build: () => {
+      const rig = buildTunnelShade('warden')
+      setMotion(rig.group, (t) => rig.update(t))
+      return rig.group
+    },
+  },
+  {
+    id: 'plaza-sign',
+    label: 'Bull Valley Plaza: the pylon by the road',
+    build: buildPlazaSign,
+  },
+  { id: 'dumpster', label: 'Dumpster', build: () => buildDumpster() },
+  {
+    id: 'dumpster-fallen',
+    label: 'Dumpster, over on its side',
+    build: () => buildDumpster(true),
+  },
+  {
+    id: 'shopping-cart',
+    label: 'Shopping cart',
+    build: () => buildShoppingCart(),
   },
   {
     id: 'dish',

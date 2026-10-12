@@ -5,8 +5,8 @@
 //
 // Fields:
 //   id        inventory kind and mesh key
-//   category  'cigarette' | 'joint' | 'drink' | 'medicine' | 'forage' |
-//             'valuable'
+//   category  'cigarette' | 'joint' | 'psychedelic' | 'stimulant' |
+//             'drink' | 'medicine' | 'forage' | 'valuable' | 'key-item'
 //   label     name in the pack, and floating over a pickup or shelf unit
 //   blurb     description on the pack's item card
 //   used      chat line when the player uses it
@@ -14,7 +14,8 @@
 //   collected chat line when the player picks it off a berry bush
 //   empty     chat line when the player tries to use it with none left
 //   start     count in a new inventory (counted items only)
-//   price     shelf price at every Citgo, in cents (shelf items only)
+//   price     shelf price at every Citgo, in cents (shelf items only; the
+//             dealer's goods are priced in dealer.ts, not here)
 //   contents  how many the pack, bottle or box holds (1 when absent); the
 //             inventory counts these, and a buy or a pickup adds a full one
 //   geometrie how far one use moves each geometrie level (geometrie.ts)
@@ -125,6 +126,47 @@ export const ITEMS = [
     // Shadowmen resolve through the murk while it lasts.
     perceptionSeconds: 120,
     geometrie: { high: 0.5 },
+    heals: 2,
+  },
+  // Never on a Citgo shelf: Erwin von Dutch in the Golden Wok deals them
+  // (dealer.ts). The psychedelics work like the joint, harder and longer:
+  // perception, a long trip, and very high; the Adderall stimulates. Each
+  // gives health back, the psychedelics two like the joint.
+  {
+    id: 'lsd',
+    category: 'psychedelic',
+    label: copy('items.lsd.label'),
+    blurb: copy('items.lsd.blurb'),
+    used: copy('items.lsd.used'),
+    empty: copy('items.lsd.empty'),
+    start: 0,
+    perceptionSeconds: 480,
+    geometrie: { high: 1 },
+    heals: 2,
+  },
+  {
+    id: 'adderall',
+    category: 'stimulant',
+    label: copy('items.adderall.label'),
+    blurb: copy('items.adderall.blurb'),
+    used: copy('items.adderall.used'),
+    empty: copy('items.adderall.empty'),
+    start: 0,
+    contents: 10,
+    tripSeconds: 20,
+    geometrie: { stimulated: 0.45 },
+    heals: 1,
+  },
+  {
+    id: 'mushrooms',
+    category: 'psychedelic',
+    label: copy('items.mushrooms.label'),
+    blurb: copy('items.mushrooms.blurb'),
+    used: copy('items.mushrooms.used'),
+    empty: copy('items.mushrooms.empty'),
+    start: 0,
+    perceptionSeconds: 300,
+    geometrie: { high: 0.85 },
     heals: 2,
   },
   // Drinks, circa 2008. Drinking one moves geometrie (geometrie.ts): the
@@ -478,6 +520,23 @@ export const ITEMS = [
     blurb: copy('items.gold-bullion.blurb'),
     start: 0,
   },
+  // Key items: what a quest gives or asks for (quests.ts), and the keys,
+  // which open their locks for whoever carries them (keys.ts). Never used
+  // up and never dropped; they go where the pack goes, a strike included.
+  {
+    id: 'rose',
+    category: 'key-item',
+    label: copy('items.rose.label'),
+    blurb: copy('items.rose.blurb'),
+    start: 0,
+  },
+  {
+    id: 'vault-key',
+    category: 'key-item',
+    label: copy('items.vault-key.label'),
+    blurb: copy('items.vault-key.blurb'),
+    start: 0,
+  },
 ] as const satisfies readonly Item[]
 
 type ItemEntry = (typeof ITEMS)[number]
@@ -485,9 +544,10 @@ type ItemEntry = (typeof ITEMS)[number]
 // Every item id, as a type: a typo in a literal id fails the type check.
 export type ItemId = ItemEntry['id']
 
-// What a pickup in the valley can be: an item, or the dimes a shadowman
-// bursts into (drops.ts DIMES), which are cash and never an item.
-export type PickupKind = ItemId | 'dimes'
+// What a pickup in the valley can be: an item, or cash (drops.ts: the
+// dimes a shadowman bursts into, a spider's $20, the quarters left in the
+// plaza's laundromat), which is never an item.
+export type PickupKind = ItemId | 'dimes' | 'twenty' | 'quarters'
 
 // ITEMS widened to the plain Item shape, for code that reads optional
 // fields (container) across every entry.
@@ -521,6 +581,11 @@ export function isDrink(id: string): boolean {
   return itemById(id)?.category === 'drink'
 }
 
+// Whether `id` is a key item: never dropped, never used up.
+export function isKeyItem(id: string): boolean {
+  return itemById(id)?.category === 'key-item'
+}
+
 export function isMedicine(id: string): boolean {
   return itemById(id)?.category === 'medicine'
 }
@@ -532,9 +597,18 @@ export function isUsable(id: string): boolean {
   return (
     category === 'cigarette' ||
     category === 'joint' ||
+    category === 'psychedelic' ||
+    category === 'stimulant' ||
     category === 'drink' ||
     healsOf(id) > 0
   )
+}
+
+// Whether using `id` sharpens perception (the shadowmen resolve through
+// the murk): the joint, and the dealer's mushrooms.
+export function givesPerception(id: string): boolean {
+  const category = itemById(id)?.category
+  return category === 'joint' || category === 'psychedelic'
 }
 
 // Health points one use of `id` gives back (health.ts); 0 for anything
@@ -550,7 +624,7 @@ export function tripSecondsOf(id: string): number {
   const item = itemById(id)
   if (!item) return 0
   if (item.category === 'cigarette') return item.smokeSeconds ?? 0
-  if (item.category === 'joint') return item.perceptionSeconds ?? 0
+  if (givesPerception(id)) return item.perceptionSeconds ?? 0
   return item.tripSeconds ?? 0
 }
 
