@@ -6,6 +6,7 @@ import {
   containersOf,
   contentsOf,
   getItem,
+  healsOf,
   INVENTORY_KINDS,
   isCigarette,
   isDrink,
@@ -98,7 +99,7 @@ describe('items', () => {
     expect(tripSecondsOf('nope')).toBe(0)
   })
 
-  it('gives every medicine a known form, and no use', () => {
+  it('gives every medicine a known form, and a use', () => {
     const medicine = ITEMS.filter((item) => item.category === 'medicine')
     expect(medicine.map((item) => item.id)).toEqual([
       'aspirin',
@@ -110,9 +111,30 @@ describe('items', () => {
       expect(['pills', 'carton', 'dropper'], item.id).toContain(item.form)
       expect(isMedicine(item.id)).toBe(true)
       expect(isDrink(item.id)).toBe(false)
-      expect(isUsable(item.id)).toBe(false)
+      expect(isUsable(item.id)).toBe(true)
     }
     expect(isMedicine('pbr')).toBe(false)
+  })
+
+  it('heals and moves geometrie with everything smoked, drunk or swallowed', () => {
+    for (const item of ITEMS) {
+      const usable = isUsable(item.id)
+      expect(healsOf(item.id) > 0, item.id).toBe(usable)
+      if (!usable) continue
+      const geometrie: object = 'geometrie' in item ? item.geometrie : {}
+      expect(Object.keys(geometrie).length, item.id).toBeGreaterThan(0)
+    }
+    // The stronger ones give two back.
+    expect(healsOf('aspirin')).toBe(1)
+    expect(healsOf('benadryl')).toBe(1)
+    expect(healsOf('marlboro')).toBe(1)
+    expect(healsOf('pbr')).toBe(1)
+    expect(healsOf('ice-mountain')).toBe(1)
+    expect(healsOf('joints')).toBe(2)
+    expect(healsOf('four-loko-blue')).toBe(2)
+    expect(healsOf('grey-goose')).toBe(2)
+    expect(healsOf('cabbage')).toBe(0)
+    expect(healsOf('nope')).toBe(0)
   })
 
   it('counts every item in the inventory', () => {

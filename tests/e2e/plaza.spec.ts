@@ -3,8 +3,8 @@ import { beginRaid, expect, heardWhere, test } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
 // Bull Valley Plaza: Erwin von Dutch, the squatter in the Golden Wok,
-// barters and never takes cash (rule 24), and gives the rose quest (rule
-// 25): the rose laid at the heart of the maze earns the key that opens
+// barters and never takes cash (rule 25), and gives the rose quest (rule
+// 26): the rose laid at the heart of the maze earns the key that opens
 // the Video Vault's office for whoever carries it (keys.ts), and the $20
 // the day leaves in its safe is cash (rule 4).
 

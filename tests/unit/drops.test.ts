@@ -32,6 +32,24 @@ describe('dimes', () => {
   })
 })
 
+describe("a spiderling's dimes", () => {
+  it('come from its own fewer, every count reached', () => {
+    const { min, max } = CONFIG.shadowmen.spiderling.dimes
+    const rng = mulberry32(7)
+    const seen = new Set<number>()
+    for (let i = 0; i < 500; i++) seen.add(dimesFor(rng, CONFIG, 'spiderling'))
+    expect(Math.min(...seen)).toBe(min)
+    expect(Math.max(...seen)).toBe(max)
+    const [spill] = spillsOf(
+      [{ x: 1, z: 2, kind: 'spiderling' }],
+      null,
+      mulberry32(3)
+    )
+    expect(spill.kind).toBe(DIMES)
+    expect(spill.count).toBeLessThanOrEqual(max)
+  })
+})
+
 describe('a twenty', () => {
   it('is cash worth $20, as dimes are worth 10 cents', () => {
     expect(isCash(TWENTY)).toBe(true)

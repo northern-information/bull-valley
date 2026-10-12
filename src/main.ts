@@ -31,6 +31,7 @@ import { mulberry32 } from './rng.ts'
 import { buildRoadGraph, nearestRoadPoint, wanderRoute } from './roadgraph.ts'
 import { Scope } from './scope.ts'
 import { createSettingsStore } from './settingsui.ts'
+import { createSfx } from './sfxrig.ts'
 import { ShadowBursts } from './shadowburst.ts'
 import { ShadowCards } from './shadowcards.ts'
 import { createTargets } from './targets.ts'
@@ -95,10 +96,13 @@ async function boot() {
   // reveal uncovers the one beneath and the last discloses the intro
   // dialog already waiting. Not awaited until the player body needs the
   // pick; the scene builds underneath.
-  // The raider's settings: the menu's Settings and the pause overlay share
+  // The raider's settings: the menu's Audio and the pause overlay share
   // them, and the music reads them every frame.
   const settings = createSettingsStore()
-  const titles = showTitles(audio, settings)
+  // The valley's music, from the main menu on. Under e2e the valley is
+  // never heard.
+  const music = import.meta.env.MODE === 'test' ? null : createMusic()
+  const titles = showTitles(audio, settings, music)
   hud.showIntro(true, false)
   hud.setBegin('loading')
 
@@ -268,8 +272,18 @@ async function boot() {
     corpses,
     graph,
     truck,
-    // Under e2e the valley is never drawn and never heard.
-    music: import.meta.env.MODE === 'test' ? null : createMusic(),
+    music,
+    // Under e2e the valley is never heard.
+    // A dev build with ?sfx=local auditions files from public/sfx/.
+    sfx:
+      import.meta.env.MODE === 'test'
+        ? null
+        : createSfx(
+            import.meta.env.DEV &&
+              new URLSearchParams(window.location.search).get('sfx') === 'local'
+              ? { base: '/sfx/', probe: true }
+              : {}
+          ),
     settings,
     truckContext,
     truckRoutes,

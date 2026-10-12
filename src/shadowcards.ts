@@ -7,13 +7,17 @@
 // field with the player as the one raider. One card per shadowman id, and
 // each id looks the same on every client. A shadow spider is no card but a
 // body of its own (assets.ts buildShadowSpider), twice a shadowman's
-// height, walking the way it goes.
+// height, walking the way it goes; a spiderling is the same body, small
+// (CONFIG.shadowmen.spiderling.scale). In reach of its raider each winds
+// up (a card draws back and stretches tall, a spider rears with its front
+// legs raised), then lunges, for everyone to see.
 
 import * as THREE from 'three'
 import { buildShadowSpider, isMesh } from './assets.ts'
 import { context2d } from './canvas.ts'
 import { CONFIG } from './config.ts'
 import { mulberry32, range } from './rng.ts'
+import { shadeCues, windupsBegun } from './sfx.ts'
 import {
   burnSecondsOf,
   contactsOf,
@@ -30,6 +34,7 @@ import type { ShadowSpider } from './assets.ts'
 import type { HeightAt, Metres, ScopeContact, XZ } from './interfaces.ts'
 import type { ShadowmanWire, ShadowmenMessage } from './protocol.ts'
 import type { Rng } from './rng.ts'
+import type { ShadeCues, ShadeHeard } from './sfx.ts'
 import type { Beam, Burst, ShadeKind, ShadowmenField } from './shadowmen.ts'
 import type { ShadowTable } from './shadowsync.ts'
 import type { WaterMap } from './waterside.ts'
@@ -126,7 +131,29 @@ export interface ShadowCardsOptions {
 }
 
 // One shown, as the valley sends it (or this client steps it).
-type Shown = Pick<ShadowmanWire, 'id' | 'kind' | 'x' | 'z' | 'burn' | 'target'>
+type Shown = Pick<
+  ShadowmanWire,
+  'id' | 'kind' | 'x' | 'z' | 'burn' | 'target' | 'windup'
+>
+
+// How long a lunge plays, in seconds.
+export const LUNGE_SECONDS = 0.3
+
+// A card striking: how far it draws back from its raider (metres, negative
+// toward them) and how much taller and narrower it stands, for a windup
+// and a lunge each 0 to 1.
+export function cardStrike(
+  windup: number,
+  lunge: number
+): { back: number; tall: number; narrow: number } {
+  const rear = Math.min(1, Math.max(0, windup))
+  const slam = Math.sin(Math.PI * Math.min(1, Math.max(0, lunge)))
+  return {
+    back: 0.35 * rear - 1.1 * slam,
+    tall: 1 + 0.25 * rear - 0.1 * slam,
+    narrow: 1 - 0.15 * rear + 0.2 * slam,
+  }
+}
 
 // A spider as shown: its body, where it was last frame (so it faces the
 // way it goes), and how fast it was going.
@@ -165,6 +192,11 @@ export interface ShadowCardsUpdate {
   // Where shadowmen burst since the last update.
   bursts: Burst[]
   contacts: ScopeContact[]
+  // The kinds within CONFIG.book.sightRange of the player (the Book of
+  // Shadows).
+  sighted: ShadeKind[]
+  // What they sound like this frame (sfx.ts).
+  heard: ShadeCues
 }
 
 interface Card {
@@ -195,6 +227,15 @@ export class ShadowCards {
   private cards = new Map<number, Card>()
   private spiders = new Map<number, Spider>()
   private pending: Burst[] = []
+  // Seconds since each shadowman lunged, while the lunge plays.
+  private lunges = new Map<number, number>()
+  // Windups begun and lunges not yet heard; each one's windup in the last
+  // frame or step, and where the last two placed each (sfx.ts).
+  private begun: number[] = []
+  private lunged: number[] = []
+  private windups = new Map<number, number>()
+  private frame = new Map<number, ShadeHeard>()
+  private known = new Map<number, ShadeHeard>()
 
   constructor({ scene, groundAt, metres, havens, water }: ShadowCardsOptions) {
     this.groundAt = groundAt
@@ -220,6 +261,20 @@ export class ShadowCards {
   receive(msg: ShadowmenMessage, at: number): void {
     applyShadowFrame(this.table, msg.shadowmen, at)
     this.pending.push(...msg.bursts)
+    for (const id of msg.lunges) this.lunges.set(id, 0)
+    this.lunged.push(...msg.lunges)
+    this.listen(msg.shadowmen)
+  }
+
+  // A frame landed or a step taken: the windups it began, and where it
+  // placed each, kept a frame past its going for a lunge that struck.
+  private listen(shades: readonly ShadeHeard[]): void {
+    const { begun, windups } = windupsBegun(this.windups, shades)
+    this.begun.push(...begun)
+    this.windups = windups
+    const frame = new Map(shades.map((s) => [s.id, s]))
+    this.known = new Map([...this.frame, ...frame])
+    this.frame = frame
   }
 
   // A dev shadowman (or spider) standing still at (x, z), played alone.
@@ -260,11 +315,15 @@ export class ShadowCards {
       })
       struck = out.struck.length > 0
       this.pending.push(...out.bursts)
+      for (const id of out.lunges) this.lunges.set(id, 0)
+      this.lunged.push(...out.lunges)
       shown = this.field.shadowmen.map((s) => ({
         ...s,
-        kind: s.kind === 'spider' ? 'spider' : undefined,
+        kind: s.kind === 'man' ? undefined : s.kind,
         burn: s.burn / burnSecondsOf(s.kind, CONFIG.shadowmen),
+        windup: s.windup / CONFIG.shadowmen.windupSeconds,
       }))
+      this.listen(shown)
       me = ALONE
     } else {
       // In the shared valley the field this client stepped is not the
@@ -274,10 +333,32 @@ export class ShadowCards {
       me = myId ?? ''
     }
     this.contacts = contactsOf(shown, player, me)
+    const sighted = new Set<ShadeKind>()
+    for (const s of shown) {
+      const d = Math.hypot(s.x - player.x, s.z - player.z)
+      if (d <= CONFIG.book.sightRange) sighted.add(s.kind ?? 'man')
+    }
     const bursts = this.pending
     this.pending = []
+    const heard = shadeCues(
+      this.begun,
+      this.lunged,
+      shown,
+      this.known,
+      bursts,
+      player,
+      CONFIG.sfx
+    )
+    this.begun = []
+    this.lunged = []
     this.draw(shown, player, perception, dt)
-    return { struck, bursts, contacts: this.contacts }
+    return {
+      struck,
+      bursts,
+      contacts: this.contacts,
+      sighted: [...sighted],
+      heard,
+    }
   }
 
   private draw(
@@ -287,10 +368,16 @@ export class ShadowCards {
     dt: number
   ): void {
     const seen = new Set<number>()
+    for (const [id, age] of this.lunges) {
+      if (age + dt >= LUNGE_SECONDS) this.lunges.delete(id)
+      else this.lunges.set(id, age + dt)
+    }
     for (const s of shown) {
       seen.add(s.id)
-      if (s.kind === 'spider') {
-        this.drawSpider(s, perception, dt)
+      const age = this.lunges.get(s.id)
+      const lunge = age === undefined ? 0 : age / LUNGE_SECONDS
+      if (s.kind === 'spider' || s.kind === 'spiderling') {
+        this.drawSpider(s, perception, dt, lunge, sightOf(s, player))
         continue
       }
       const card = this.cardFor(s.id)
@@ -305,15 +392,20 @@ export class ShadowCards {
       const y = this.groundAt(s.x, s.z) + card.halfHeight
       // In a beam: paler and shaking harder the nearer it is to bursting.
       const burn = Math.min(1, s.burn)
-      const shake = 0.03 + burn * 0.12
+      const windup = s.windup ?? 0
+      const shake = 0.03 + burn * 0.12 + windup * 0.06
+      // Striking: drawn back from the player, then thrown at them.
+      const facing = Math.atan2(player.x - s.x, player.z - s.z)
+      const strike = cardStrike(windup, lunge)
       card.node.position.set(
-        s.x + range(this.rng, -shake, shake),
-        y + range(this.rng, -0.02, 0.02),
-        s.z + range(this.rng, -shake, shake)
+        s.x - Math.sin(facing) * strike.back + range(this.rng, -shake, shake),
+        y + (strike.tall - 1) * card.halfHeight + range(this.rng, -0.02, 0.02),
+        s.z - Math.cos(facing) * strike.back + range(this.rng, -shake, shake)
       )
+      card.node.scale.set(strike.narrow, strike.tall, 1)
       card.body.color.lerpColors(BODY, BURNING, burn)
-      card.node.rotation.y = Math.atan2(player.x - s.x, player.z - s.z)
-      card.aura.material.opacity = perception ? 0.5 : 0
+      card.node.rotation.y = facing
+      card.aura.material.opacity = perception ? 0.5 * sightOf(s, player) : 0
     }
     // A spider gone takes its body with it.
     for (const [id, spider] of this.spiders) {
@@ -337,12 +429,21 @@ export class ShadowCards {
 
   // A spider walks the way it goes, faced along its motion, on the ground
   // under it; held in a beam it pales and shakes like a card.
-  private drawSpider(s: Shown, perception: boolean, dt: number): void {
+  private drawSpider(
+    s: Shown,
+    perception: boolean,
+    dt: number,
+    lunge: number,
+    sight: number
+  ): void {
     let spider = this.spiders.get(s.id)
     if (!spider) {
-      // Its size comes from its id, twice a shadowman's.
+      // Its size comes from its id, twice a shadowman's; a spiderling's a
+      // fraction of that.
       const look = mulberry32(s.id)
-      const rig = buildShadowSpider(range(look, 2.4, 3.2) * 2, s.id)
+      const scale =
+        s.kind === 'spiderling' ? CONFIG.shadowmen.spiderling.scale : 1
+      const rig = buildShadowSpider(range(look, 2.4, 3.2) * 2 * scale, s.id)
       this.group.add(rig.group)
       spider = { rig, x: s.x, z: s.z, heading: look() * Math.PI * 2, speed: 0 }
       this.spiders.set(s.id, spider)
@@ -369,7 +470,15 @@ export class ShadowCards {
       s.z + range(this.rng, -shake, shake)
     )
     spider.rig.group.rotation.y = spider.heading
-    spider.rig.update({ dt, speed: spider.speed, burn, perception })
+    spider.rig.update({
+      dt,
+      speed: spider.speed,
+      burn,
+      perception,
+      windup: s.windup ?? 0,
+      lunge,
+      sight,
+    })
   }
 
   // The card for a shadowman, built the first time it shows: its
@@ -412,6 +521,14 @@ export class ShadowCards {
     this.cards.set(id, card)
     return card
   }
+}
+
+// How much of what ignores the fog shows of one this far off: all of it
+// near, none by the spawn ring (CONFIG.shadowmen.glowFade).
+function sightOf(s: XZ, player: XZ): number {
+  const { near, far } = CONFIG.shadowmen.glowFade
+  const d = Math.hypot(s.x - player.x, s.z - player.z)
+  return Math.min(1, Math.max(0, (far - d) / (far - near)))
 }
 
 // A spider's body is its own: every geometry and material goes with it.

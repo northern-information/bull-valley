@@ -13,7 +13,7 @@
 // PUT  /auth/username                       change it (Gron)
 // PUT  /auth/look                           the character and guitar finish
 // PUT  /auth/hotbar                         the number keys' items
-// PUT  /auth/settings                       the music volume
+// PUT  /auth/settings                       the music and sound volumes
 // GET  /auth/username/:username/available   is this handle free
 // POST /auth/refresh                        a fresh access cookie (always 200)
 // POST /auth/logout                         clear the session
@@ -41,7 +41,7 @@ import {
 import { copy } from '../src/copy.ts'
 import { isFinish } from '../src/finishes.ts'
 import { isHotbar } from '../src/hotbar.ts'
-import { isSettings } from '../src/settings.ts'
+import { isSettings, toSettings } from '../src/settings.ts'
 import { appOrigin, isDevHost, jwtSecret } from './env.ts'
 import {
   authorizeUrl,
@@ -775,7 +775,8 @@ class AuthHandler {
     if (!isSettings(settings)) {
       return json({ error: copy('auth.settings_rule') }, 400)
     }
-    const kept = { music: settings.music }
+    // Only the volumes, the sounds' read as their default when missing.
+    const kept = toSettings({ music: settings.music, sfx: settings.sfx })
     if (!(await this.store.setSettings(claims.accountId, kept))) {
       return json(
         { error: copy('auth.account_not_found') },

@@ -28,6 +28,30 @@ export function assign(bar: Hotbar, slot: number, kind: string): Hotbar {
   })
 }
 
+// Puts kind on slot, as assign does, but never takes it off: a drag onto
+// the slot that already holds it leaves it there.
+export function place(bar: Hotbar, slot: number, kind: string): Hotbar {
+  return bar[slot] === kind ? bar : assign(bar, slot, kind)
+}
+
+// Takes kind off the bar once the pack holds none of it: the last one used,
+// dropped or stowed leaves no empty slot behind.
+export function spent(
+  bar: Hotbar,
+  kind: string,
+  inv: Readonly<Record<string, number>>
+): Hotbar {
+  if ((inv[kind] || 0) > 0 || !bar.includes(kind)) return bar
+  return bar.map((held) => (held === kind ? null : held))
+}
+
+// Empties slot, whatever it held: the way off the bar for a kind the pack
+// has run out of, which the grid no longer shows to assign over.
+export function clearSlot(bar: Hotbar, slot: number): Hotbar {
+  if (slot < 0 || slot >= HOTBAR_SLOTS || bar[slot] === null) return bar
+  return bar.map((held, i) => (i === slot ? null : held))
+}
+
 // The assigned slots in number order, as the bar shows them.
 export function shownSlots(bar: Hotbar): { slot: number; kind: string }[] {
   const shown: { slot: number; kind: string }[] = []

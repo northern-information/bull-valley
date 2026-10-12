@@ -1,5 +1,5 @@
 // Pure: Erwin von Dutch, the squatter who sleeps in the Golden Wok in Bull
-// Valley Plaza, and deals out of it (sharedworld.ts rule 24). He does not
+// Valley Plaza, and deals out of it (sharedworld.ts rule 25). He does not
 // recognize the wallet's money: he barters. A raider pays for one of his
 // goods with one kind out of their pack, each unit counted at a little
 // under what a Citgo shelf asks for it (CONFIG.dealer.rate), however many

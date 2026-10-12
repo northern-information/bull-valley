@@ -59,7 +59,7 @@ export interface PackStore {
   // the locker into the pack (negative), both or neither; false when the
   // side it comes out of holds fewer (rule 19).
   stow(accountId: string, kind: string, delta: number): Promise<boolean>
-  // A barter (sharedworld.ts rule 24): `give` out of the pack and `take`
+  // A barter (sharedworld.ts rule 25): `give` out of the pack and `take`
   // into it, both or neither; false when the pack does not hold `give`.
   barter(
     accountId: string,
@@ -112,7 +112,7 @@ export interface PackStore {
   // Where the account stands on each quest (src/quests.ts), 'none' for
   // one not begun.
   quests(accountId: string): Promise<Record<QuestId, QuestStage>>
-  // A quest's step (sharedworld.ts rule 25): `quest` from `from` to `to`,
+  // A quest's step (sharedworld.ts rule 26): `quest` from `from` to `to`,
   // and `change` into (or, negative, out of) the pack, both or neither;
   // false when the quest no longer stands at `from` or the pack does not
   // hold what comes out of it.

@@ -1,4 +1,4 @@
--- Each account's quests (src/quests.ts, sharedworld.ts rule 25): where it
+-- Each account's quests (src/quests.ts, sharedworld.ts rule 26): where it
 -- stands on each ('given', 'laid', 'done'; no row is 'none'), and the id of
 -- the step that last wrote it, which the pack change written with it
 -- checks, so the two land together or not at all. The valley

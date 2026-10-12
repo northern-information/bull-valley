@@ -22,7 +22,18 @@ export interface StoreOrigin extends XZ {
 // What a box is drawn in; assets.ts maps each to a material. `light` is a
 // lit fluorescent panel, `glass` a storefront window.
 export type StoreFinish =
-  'floor' | 'wall' | 'roof' | 'shelf' | 'counter' | 'light' | 'glass' | 'locker'
+  | 'floor'
+  | 'wall'
+  | 'roof'
+  | 'shelf'
+  | 'counter'
+  | 'light'
+  | 'glass'
+  | 'locker'
+  | 'tile'
+  | 'porcelain'
+  | 'mirror'
+  | 'door'
 
 // One box of the building or its fixtures, centred at `center` with full
 // `size`, both station-local. `blocks` boxes are walls to the player.
@@ -54,8 +65,20 @@ export interface UnitInView<F extends WorldFacing> {
   unit: number
 }
 
-// The advertisements on the walls; adart.ts paints each by id.
-export type AdId = 'smokes' | 'thanks' | 'beer' | 'energy'
+// The advertisements on the shop's walls, and the flag and the notices in
+// the back room; adart.ts paints each by id.
+export type AdId =
+  | 'smokes'
+  | 'thanks'
+  | 'beer'
+  | 'energy'
+  | 'flag'
+  | 'lift'
+  | 'accidents'
+  | 'the-law'
+  | 'fire'
+  | 'restroom'
+  | 'wash-hands'
 
 // A photograph pinned to a wall: the path of an image under public/.
 export interface Photo {
@@ -137,6 +160,21 @@ const LIGHT = {
 // the partition (+X), centred across the room. Every raider's stash is in
 // one of them (stash.ts); E in front of the bank opens yours.
 const LOCKERS = { count: 8, width: 0.45, height: 1.85, depth: 0.5 }
+// The bathroom: the back room's +Z end walled off past the lockers, its
+// doorway against the partition. Inside, the toilet against the back wall
+// and the sink under its mirror on the +Z wall. Decoration only, though
+// you can walk in.
+const BATH = {
+  // The wall's centreline, and its thickness.
+  z: 2.6,
+  wall: 0.1,
+  // The doorway, from the partition's back face toward the back wall.
+  door: 1.0,
+  toilet: { z: 4.4 },
+  sink: { x: -15.6 },
+}
+const BATH_INSIDE = BATH.z + BATH.wall / 2
+const BATH_DOOR_X0 = PARTITION - BATH.door
 // The signs stand this far off their wall, so they never z-fight with it.
 const SIGN_DEPTH = 0.04
 // The rack on the +Z wall beside the counter: medicine, at eye height.
@@ -154,6 +192,85 @@ function box(
   blocks = false
 ): StoreBox {
   return { name, center, size, finish, blocks }
+}
+
+// The bathroom in the back room's +Z end: its wall with the doorway
+// against the partition and the lintel over it, the door stood open
+// against the partition, a tiled floor, the toilet, and the sink under its
+// mirror.
+function bathroom(wallY: number, wallH: number): StoreBox[] {
+  const inner = BACK + WALL
+  const sideZ = HALF_WIDTH - WALL
+  const depth = sideZ - BATH_INSIDE
+  const toilet = BATH.toilet.z
+  const sink = BATH.sink.x
+  return [
+    box(
+      'bath-wall',
+      [(inner + BATH_DOOR_X0) / 2, wallY, BATH.z],
+      [BATH_DOOR_X0 - inner, wallH, BATH.wall],
+      'wall',
+      true
+    ),
+    box(
+      'bath-lintel',
+      [
+        (BATH_DOOR_X0 + PARTITION) / 2,
+        HEIGHT - (HEIGHT - DOOR_HEIGHT) / 2,
+        BATH.z,
+      ],
+      [BATH.door, HEIGHT - DOOR_HEIGHT, BATH.wall],
+      'wall'
+    ),
+    // Swung in against the partition, a hand off it.
+    box(
+      'bath-door',
+      [PARTITION - 0.04, FLOOR + (DOOR_HEIGHT - 0.02) / 2, BATH_INSIDE + 0.5],
+      [0.04, DOOR_HEIGHT - 0.02, 0.9],
+      'door'
+    ),
+    box(
+      'bath-floor',
+      [(inner + PARTITION) / 2, FLOOR + 0.005, BATH_INSIDE + depth / 2],
+      [PARTITION - inner, 0.01, depth],
+      'tile'
+    ),
+    // The toilet: the tank on the wall, the bowl before it, the lid down.
+    box(
+      'toilet-tank',
+      [inner + 0.11, 0.68, toilet],
+      [0.22, 0.42, 0.5],
+      'porcelain'
+    ),
+    box(
+      'toilet-bowl',
+      [inner + 0.45, FLOOR + 0.19, toilet],
+      [0.48, 0.38, 0.38],
+      'porcelain',
+      true
+    ),
+    box(
+      'toilet-lid',
+      [inner + 0.45, FLOOR + 0.4, toilet],
+      [0.46, 0.04, 0.4],
+      'porcelain'
+    ),
+    // The sink on a pedestal, the mirror over it.
+    box(
+      'sink-pedestal',
+      [sink, FLOOR + 0.36, sideZ - 0.2],
+      [0.16, 0.72, 0.16],
+      'porcelain',
+      true
+    ),
+    box(
+      'sink-basin',
+      [sink, 0.88, sideZ - 0.22],
+      [0.55, 0.14, 0.44],
+      'porcelain'
+    ),
+    box('mirror', [sink, 1.55, sideZ - 0.01], [0.5, 0.7, 0.02], 'mirror'),
+  ]
 }
 
 function buildBoxes(): StoreBox[] {
@@ -260,6 +377,7 @@ function buildBoxes(): StoreBox[] {
       'locker',
       true
     ),
+    ...bathroom(wallY, wallH),
     box(
       'wall-left',
       [midX, wallY, -HALF_WIDTH + WALL / 2],
@@ -345,11 +463,14 @@ function buildBoxes(): StoreBox[] {
 
 // The signs, each hung on a wall face. The front wall's inside face is at
 // FRONT - WALL and the side walls' at ±(HALF_WIDTH - WALL); the back
-// wall's outside face is at BACK. A sign's centre sits half its depth off
-// its face.
+// wall's outside face is at BACK and its inside face at BACK + WALL; the
+// partition's back face is at PARTITION. A sign's centre sits half its
+// depth off its face.
 function buildSigns(): StoreSign[] {
   const frontX = FRONT - WALL - SIGN_DEPTH / 2
   const rearX = BACK - SIGN_DEPTH / 2
+  const backX = BACK + WALL + SIGN_DEPTH / 2
+  const partitionX = PARTITION - SIGN_DEPTH / 2
   const sideZ = HALF_WIDTH - WALL - SIGN_DEPTH / 2
   return [
     // The photo on the outside of the back wall, facing away from the
@@ -391,6 +512,66 @@ function buildSigns(): StoreSign[] {
       art: 'energy',
       center: [-10.5, 2.0, sideZ],
       size: [1.6, 1.0],
+      yaw: Math.PI,
+    },
+    // The back room. The flag over the lockers, on the back wall's inside
+    // face.
+    {
+      name: 'sign-flag',
+      art: 'flag',
+      center: [backX, 2.6, 0],
+      size: [1.52, 0.8],
+      yaw: Math.PI / 2,
+    },
+    // Beside the lockers, on the same wall.
+    {
+      name: 'sign-lift',
+      art: 'lift',
+      center: [backX, 1.6, -3.4],
+      size: [0.6, 0.8],
+      yaw: Math.PI / 2,
+    },
+    // On the -Z wall, between the back wall and the doorway.
+    {
+      name: 'sign-accidents',
+      art: 'accidents',
+      center: [-16.3, 1.75, -sideZ],
+      size: [0.9, 0.6],
+      yaw: 0,
+    },
+    {
+      name: 'sign-the-law',
+      art: 'the-law',
+      center: [-15.0, 1.6, -sideZ],
+      size: [0.6, 0.8],
+      yaw: 0,
+    },
+    // On the partition's back face, looking at the lockers.
+    {
+      name: 'sign-fire',
+      art: 'fire',
+      center: [partitionX, 1.6, -1.2],
+      size: [0.6, 0.8],
+      yaw: -Math.PI / 2,
+    },
+    // On the bathroom wall's outside face, beside its doorway.
+    {
+      name: 'sign-restroom',
+      art: 'restroom',
+      center: [
+        BATH_DOOR_X0 - 0.4,
+        1.6,
+        BATH.z - BATH.wall / 2 - SIGN_DEPTH / 2,
+      ],
+      size: [0.3, 0.3],
+      yaw: Math.PI,
+    },
+    // In the bathroom, over the sink's shoulder.
+    {
+      name: 'sign-wash-hands',
+      art: 'wash-hands',
+      center: [BATH.sink.x + 0.75, 1.55, sideZ],
+      size: [0.4, 0.3],
       yaw: Math.PI,
     },
   ]
@@ -462,6 +643,7 @@ function buildFacings(): Facing[] {
 
 export const STORE_LAYOUT = {
   back: BACK,
+  partition: PARTITION,
   front: FRONT,
   halfWidth: HALF_WIDTH,
   height: HEIGHT,
@@ -479,6 +661,8 @@ export const STORE_LAYOUT = {
     z: 0,
     floor: FLOOR,
   },
+  // The bathroom wall's centreline, and the doorway through it.
+  bathroom: { z: BATH.z, door: [BATH_DOOR_X0, PARTITION] as const },
 } as const
 
 // Where E opens the lockers at a station: in front of the middle of the

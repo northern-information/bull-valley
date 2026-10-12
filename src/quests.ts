@@ -1,4 +1,4 @@
-// Pure: quests (sharedworld.ts rule 25). One for now: Erwin von Dutch's,
+// Pure: quests (sharedworld.ts rule 26). One for now: Erwin von Dutch's,
 // in Bull Valley Plaza. He gives a raider a single rose to lay at the
 // heart of the corn maze; laid, he gives them the Video Vault's back-room
 // key (keys.ts). The rose and the key are key items (items.ts), never

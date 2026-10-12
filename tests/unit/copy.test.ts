@@ -10,7 +10,8 @@ const SOURCES: Record<string, string> = import.meta.glob(
 
 // The keys passed to copy() as literals, across the client and the Worker.
 // A ternary inside the call (copy(ok ? 'a' : 'b')) names both. A binding's
-// labelKey (bindings.ts) counts too: hud.ts passes it to copy().
+// labelKey and a mouse binding's buttonKey (bindings.ts) count too: hud.ts
+// passes them to copy().
 function usedKeys(): Set<string> {
   const keys = new Set<string>()
   for (const text of Object.values(SOURCES)) {
@@ -21,7 +22,7 @@ function usedKeys(): Set<string> {
         keys.add(literal[1])
       }
     }
-    for (const label of text.matchAll(/\blabelKey: '([a-z_.]+)'/g)) {
+    for (const label of text.matchAll(/\b(?:label|button)Key: '([a-z_.]+)'/g)) {
       keys.add(label[1])
     }
   }

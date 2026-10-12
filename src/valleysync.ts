@@ -159,8 +159,12 @@ export function wireValley(game: Game, actions: Actions): void {
         game.caretaker.receive(msg, now)
         game.tunnel.receive(msg, now)
         return
+      // Rule 24: a touch, and the health it left; health given back.
       case 'struck':
-        actions.strike(msg.by ?? 'shadowman')
+        actions.strike(msg.by ?? 'shadowman', msg.health)
+        return
+      case 'health':
+        actions.setHealth(msg.health)
         return
     }
   })
@@ -210,7 +214,7 @@ export function wireValley(game: Game, actions: Actions): void {
       }
     })
 
-    // Rule 24: a deal of ours, done; the pack frame after it carries the
+    // Rule 25: a deal of ours, done; the pack frame after it carries the
     // goods and the wallet.
     if (reason === 'dealt' && me !== null && detail.by === me) {
       s.pendingDeal = false
@@ -407,6 +411,7 @@ export function wireValley(game: Game, actions: Actions): void {
         player.relocate(msg.place.x, msg.place.z, msg.place.yaw)
       }
       s.placed = true
+      s.health = msg.health
       applyWorld(msg.world, 'joined', { by: msg.id })
       s.daily = msg.daily
       // What the account already wears is no news.
@@ -420,7 +425,7 @@ export function wireValley(game: Game, actions: Actions): void {
       s.stand = isStandLedger(msg.stand) ? msg.stand : null
       s.quests = toQuests(msg.quests)
     } else if (msg.type === 'quest') {
-      // Rule 25: a step of a quest went through, to every socket on the
+      // Rule 26: a step of a quest went through, to every socket on the
       // account. Its pack frame follows.
       if (!isQuest(msg.quest) || !isQuestStage(msg.stage)) return
       s.quests = { ...(s.quests ?? toQuests(null)), [msg.quest]: msg.stage }
@@ -436,6 +441,7 @@ export function wireValley(game: Game, actions: Actions): void {
       const before = s.xp
       s.xp = Math.max(s.xp, msg.xp)
       const level = levelUp(before, s.xp)
+      if (s.xp > before) hud.season.flash()
       if (level !== null) {
         hud.season.announce({
           kicker: copy('level.kicker'),
@@ -469,6 +475,7 @@ export function wireValley(game: Game, actions: Actions): void {
       } else if (news === 'burned') {
         hud.tell(copy('log.task_burned', { count: s.task.count, goal }))
       }
+      if (news !== 'past') hud.season.flash()
     } else if (msg.type === 'season') {
       // Rule 15: credited with unmaking the Caretaker. A reward's pack
       // frame follows.

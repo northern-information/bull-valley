@@ -134,6 +134,7 @@ export class TunnelShades {
         dist,
         bearing: compassBearing(s.x - player.x, s.z - player.z),
         hunting: s.target === me,
+        kind: 'shadow',
       })
     }
     return { struck, bursts, contacts }

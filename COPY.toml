@@ -32,19 +32,20 @@ raiding_as = { text = "Raiding as", by = "ai" }
 account = { text = "Account", by = "ai" }
 sign_out = { text = "Sign Out", by = "ai" }
 
-# The rest of the HUD (src/hud.ts): the Begin button's states, the strike
-# static, and labels read by screen readers.
+# The rest of the HUD (src/hud.ts): the Begin button's states, the static
+# when geometrie shatters, and labels read by screen readers.
 
 [hud]
 begin_loading = { text = "Resolving Terrain…", by = "ai" }
 begin_play = { text = "Click to Die", by = "ai" }
 begin_resume = { text = "Click to Resume", by = "ai" }
 begin_failed = { text = "The Valley Will Not Resolve", by = "ai" }
-signal_lost = { text = "SIGNAL LOST", by = "ai" }
+geometrie_shattered = { text = "GEOMETRIE SHATTERED", by = "ai" }
 countdown_label = { text = "Truck leaves in", by = "ai" }
 chat_log_label = { text = "Chat", by = "ai" }
 chat_input_label = { text = "Say to the valley", by = "ai" }
 geometrie_label = { text = "Geometrie: high {high}%, stimulated {stimulated}%, drunk {drunk}%", by = "ai" }
+health_label = { text = "Health: {health} of {max}", by = "ai" }
 
 # The sign-in card (src/signin.ts).
 
@@ -205,7 +206,11 @@ lore = { text = "A ring of berry bushes round a door that opens back onto the ga
 lore = { text = "A light on the hill to the north. The beacon burns whether anyone is home or not.", by = "ai" }
 
 [book.shadowman]
-lore = { text = "They cross the valley round every raider, the same ones for everyone. Close enough, one rushes, and its touch sends you back to the Citgo. Hold a beam on one and it comes apart into mist and skulls, and leaves its dimes.", by = "ai" }
+lore = { text = "They cross the valley round every raider, the same ones for everyone. Close enough, one rushes, draws back, and lunges, and its touch takes a piece of you; the third sends you back to the Citgo with nothing. Hold a beam on one and it comes apart into mist and skulls, and leaves its dimes.", by = "ai" }
+
+[book.spiderling]
+name = { text = "Spiderling", by = "ai" }
+lore = { text = "Burn a shadow spider and it breaks into a brood of these: small, quick, and straight at whoever is nearest. A touch costs the same as any shadow's. A beam takes them apart in a blink, and each leaves a few dimes.", by = "ai" }
 
 [book.caretaker]
 name = { text = "The Caretaker", by = "ai" }
@@ -329,6 +334,9 @@ drop_key_item = { text = "You keep hold of it. Someone is counting on you.", by 
 drop_refused = { text = "It won't come loose.", by = "ai" }
 change_unheard = { text = "The valley missed that. Others will see it when you next join.", by = "ai" }
 struck = { text = "You are somewhere else. Time is missing.", by = "ai" }
+hit = { text = "Something cold goes through you. It takes a piece with it.", by = "ai" }
+hit_caretaker = { text = "The lantern swings into you. A piece of you stays in the corn.", by = "ai" }
+mended = { text = "Under the Citgo lights you come back together.", by = "ai" }
 caught = { text = "A lantern, very close. Then the forecourt, and the smell of cold corn.", by = "ai" }
 tunneled = { text = "Something in the dark, very close. Then the forecourt, and the taste of stone.", by = "ai" }
 fell = { text = "Your pockets are empty. Everything you carried is still out there, on you, where you fell.", by = "ai" }
@@ -446,6 +454,7 @@ news_online = { text = "Your friend {name} is in the valley.", by = "ai" }
 [inventory]
 label = { text = "Inventory", by = "ai" }
 hotbar_label = { text = "Hotbar", by = "ai" }
+hotbar_empty = { text = "Empty", by = "ai" }
 quantity = { text = "Quantity: {count}", by = "ai" }
 quantity_left = { text = "Quantity: {count}, {left} left in the open one", by = "ai" }
 cash = { text = "Cash", by = "ai" }
@@ -478,6 +487,7 @@ logo_alt = { text = "Bull Valley Shadow Wars", by = "ai" }
 [menu]
 create_account = { text = "Create Account", by = "ai" }
 die = { text = "Die", by = "ai" }
+audio = { text = "Audio", by = "ai" }
 settings = { text = "Settings", by = "ai" }
 quit = { text = "Quit", by = "ai" }
 account = { text = "Account", by = "ai" }
@@ -485,7 +495,9 @@ sign_out = { text = "Sign Out", by = "ai" }
 back = { text = "Back", by = "ai" }
 music = { text = "Music", by = "ai" }
 music_level = { text = "{percent}%", by = "ai" }
+sfx = { text = "Sounds", by = "ai" }
 quit_blocked = { text = "The valley lets you go. Close this tab.", by = "ai" }
+credit = { text = "2008-2026 AD Northern Information", by = "ai" }
 
 # Key labels: what each key does, in the intro controls table and the
 # pack's item card. The key names themselves stay in src/bindings.ts.
@@ -508,6 +520,13 @@ chat_scroll_down = { text = "Scroll Down", by = "ai" }
 pause = { text = "Pause", by = "ai" }
 use = { text = "Use", by = "ai" }
 assign = { text = "Assign", by = "ai" }
+clear_slot = { text = "Clear Slot", by = "ai" }
+to_hotbar = { text = "To the Hotbar", by = "ai" }
+more = { text = "More", by = "ai" }
+mouse_double = { text = "Double-click", by = "ai" }
+mouse_drag = { text = "Drag", by = "ai" }
+mouse_right = { text = "Right-click", by = "ai" }
+mouse_shift_click = { text = "Shift-click", by = "ai" }
 drop = { text = "Drop One", by = "ai" }
 drop_all = { text = "Drop All", by = "ai" }
 stow = { text = "Stow One", by = "ai" }
@@ -546,7 +565,7 @@ look_rule = { text = "Pick a character and a finish from the select", by = "ai" 
 look_failed = { text = "Your character could not be saved", by = "ai" }
 hotbar_rule = { text = "Each number key holds one item from your pack, or nothing", by = "ai" }
 hotbar_failed = { text = "Your hotbar could not be saved", by = "ai" }
-settings_rule = { text = "The music volume is a whole percent from 0 to 100", by = "ai" }
+settings_rule = { text = "Each volume is a whole percent from 0 to 100", by = "ai" }
 settings_failed = { text = "Your settings could not be saved", by = "ai" }
 account_not_found = { text = "Account not found", by = "ai" }
 unlink_last = { text = "You cannot unlink your only way to sign in", by = "ai" }
@@ -885,23 +904,31 @@ empty = { text = "No Ice Mountain left.", by = "ai" }
 
 [items.aspirin]
 label = { text = "Aspirin", by = "ai" }
-blurb = { text = "Yellow label, 24 tablets. For the head you woke up with.", by = "ai" }
+blurb = { text = "Yellow label, 24 tablets. For the head you woke up with. One gives a point of health back.", by = "ai" }
+used = { text = "You swallow an aspirin dry. Something knits back together.", by = "ai" }
 bought = { text = "One bottle of aspirin, pocketed.", by = "ai" }
+empty = { text = "The aspirin bottle rattles empty.", by = "ai" }
 
 [items.ibuprofen]
 label = { text = "Ibuprofen", by = "ai" }
-blurb = { text = "Blue label, 200 mg. The gas station kind, two to a dose.", by = "ai" }
+blurb = { text = "Blue label, 200 mg. The gas station kind. One gives a point of health back.", by = "ai" }
+used = { text = "You swallow an ibuprofen. The ache backs off a step.", by = "ai" }
 bought = { text = "One bottle of ibuprofen, pocketed.", by = "ai" }
+empty = { text = "The ibuprofen bottle rattles empty.", by = "ai" }
 
 [items.benadryl]
 label = { text = "Benadryl", by = "ai" }
-blurb = { text = "The pink box. Allergies, or a few hours of nothing.", by = "ai" }
+blurb = { text = "The pink box. Allergies, or a few hours of nothing. One gives a point of health back.", by = "ai" }
+used = { text = "You swallow a pink Benadryl. The edges go soft and far away.", by = "ai" }
 bought = { text = "One box of Benadryl, pocketed.", by = "ai" }
+empty = { text = "The Benadryl box is empty foil.", by = "ai" }
 
 [items.eye-drops]
 label = { text = "Eye Drops", by = "ai" }
-blurb = { text = "Half an ounce, red cap. Gets the red out.", by = "ai" }
+blurb = { text = "Half an ounce, red cap. Gets the red out. One gives a point of health back.", by = "ai" }
+used = { text = "A drop in each eye. The valley comes back into focus.", by = "ai" }
 bought = { text = "One bottle of eye drops, pocketed.", by = "ai" }
+empty = { text = "The eye drops squeeze out nothing but air.", by = "ai" }
 
 [items.cabbage]
 label = { text = "Cabbage", by = "ai" }

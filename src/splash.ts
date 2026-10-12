@@ -37,7 +37,13 @@ export const COLOPHON: SplashConfig = {
   hint: copy('titles.colophon_hint'),
 }
 
-export const LOGO: CardConfig = {
+// The main menu's logo: no cue of its own, only its image and its fade.
+export type LogoConfig = Pick<
+  CardConfig,
+  'alt' | 'imageSrc' | 'fadeInMs' | 'skipAudioFadeMs'
+>
+
+export const LOGO: LogoConfig = {
   ...CONFIG.logo,
   alt: copy('titles.logo_alt'),
 }

@@ -158,11 +158,36 @@ describe('the Caretaker', () => {
       return out.struck.length > 0
     })
     expect(caught).toEqual(['r'])
-    // At its hunting pace.
-    expect(steps * 0.1).toBeLessThan(12 / CONFIG.caretaker.huntSpeed + 0.5)
+    // At its hunting pace, then the windup.
+    expect(steps * 0.1).toBeLessThan(
+      12 / CONFIG.caretaker.huntSpeed + CONFIG.caretaker.windupSeconds + 0.5
+    )
     // It lets them be, and goes home.
     expect(ct.target).toBeNull()
     expect(ct.homeward).toBe(true)
+  })
+
+  it('winds up in reach, and misses a raider who steps back', () => {
+    const ct = createCaretaker(map)
+    const rng = mulberry32(1)
+    const close = raider({ ...world({ x: heart.x, z: heart.z + 0.5 }) })
+    const out = stepCaretaker(ct, rng, { dt: 0.1, raiders: [close], place })
+    expect(out.struck).toEqual([])
+    expect(ct.windup).toBeCloseTo(0.1, 9)
+    const where = { x: ct.x, z: ct.z }
+    // Stepped back, out of reach but still in sight.
+    const back = raider({ ...world({ x: heart.x, z: heart.z + 3 }) })
+    let lunged = false
+    for (let i = 0; i < 10 && !lunged; i++) {
+      const next = stepCaretaker(ct, rng, { dt: 0.1, raiders: [back], place })
+      expect(next.struck).toEqual([])
+      lunged = next.lunged
+      if (!lunged) expect({ x: ct.x, z: ct.z }).toEqual(where)
+    }
+    expect(lunged).toBe(true)
+    expect(ct.windup).toBe(0)
+    // Still on them.
+    expect(ct.target).toBe('r')
   })
 
   it('outpaced, it loses a raider it can no longer see', () => {

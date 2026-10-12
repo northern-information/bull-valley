@@ -1,9 +1,9 @@
 /* Bull Valley Shadow Wars HUD. Tokens (--fi-*, --bv-*) are declared by the
    host page (index.html). One face, one size, one ink: every HUD text is
    IBM Plex Mono at --bv-text-size in --bv-eggshell, set once on .bv-shell and
-   inherited. Role colors stay on borders, fills, and focus rings, except in
-   the chat log, where speech is inked by speaker. Dark field, hard edges,
-   offset shadows, 3px cyan focus. The pack grid and the hotbar are the
+   inherited. Role colors stay on borders and fills, except in the chat
+   log, where speech is inked by speaker. Dark field, hard edges, offset
+   shadows, and never a focus ring. The pack grid and the hotbar are the
    quieter exception: translucent black, thin cells, Citgo red on hover. */
 
 .bv-shell {
@@ -12,6 +12,7 @@
   --bv-cell-gap: 4px;
   --bv-pane: rgb(0 0 0 / 60%);
   --bv-cell-edge: rgb(255 255 255 / 12%);
+  --bv-health-height: 1.6rem;
 
   position: fixed;
   inset: 0;
@@ -73,9 +74,11 @@
   color: inherit;
 }
 
-.bv-ui :focus-visible {
-  outline: 3px solid var(--fi-cyan);
-  outline-offset: 3px;
+/* No focus ring anywhere, on any layer: a focused button lifts as a
+   hovered one does instead (.bv-btn:focus-visible). */
+*:focus,
+*:focus-visible {
+  outline: none;
 }
 
 /* Loadout countdown: bare numbers, no box. The dark halo keeps it legible
@@ -94,8 +97,11 @@
 
 /* The season (seasonhud.ts). The tracker sits in the upper right: the
    season over a row of pips, one lit for each time the Caretaker came
-   apart in the raider's beam. */
+   apart in the raider's beam. Out of sight until a count goes up, when
+   it shows for a few seconds and fades (SeasonHud.flash). */
 .bv-season {
+  opacity: 0;
+  pointer-events: none;
   position: absolute;
   top: 0.9rem;
   right: 1rem;
@@ -154,6 +160,30 @@
   border-color: var(--fi-gold);
   background: var(--fi-gold);
   box-shadow: 0 0 6px var(--fi-gold);
+}
+
+.bv-season--flash {
+  animation: bv-tracker 4.5s ease-out both;
+}
+
+@keyframes bv-tracker {
+  0% {
+    opacity: 0;
+    transform: translateY(-0.5rem);
+  }
+
+  8% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  70% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
 }
 
 /* The daily task (taskhud.ts): a row under the season in the same pane,
@@ -468,20 +498,14 @@
   box-shadow: 3px 3px 0 var(--fi-black-shadow);
 }
 
-/* The field shows only while it has focus, and its red border says so;
-   the shell's focus ring round it would draw a second edge. */
-.bv-chat-input:focus-visible {
-  outline: none;
-}
-
 /* Geometrie: a red triangle in the lower right, a dim face whose corners
    light with their levels: the top with high, the lower right with
    stimulated, the lower left with drunk. Under the phone when it is
-   raised. */
+   raised. Health sits under it. */
 .bv-geometrie {
   position: absolute;
   right: 1rem;
-  bottom: 1rem;
+  bottom: calc(1rem + var(--bv-health-height) + 0.5rem);
   width: 5rem;
   aspect-ratio: 100 / 90;
   filter: drop-shadow(3px 3px 0 var(--fi-black-shadow));
@@ -491,6 +515,59 @@
   display: block;
   width: 100%;
   height: 100%;
+}
+
+/* Health: chunky blocks under the triangle, one a point, dark when lost. */
+.bv-health {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 0.35rem;
+  width: 5.5rem;
+  height: var(--bv-health-height);
+  filter: drop-shadow(3px 3px 0 var(--fi-black-shadow));
+}
+
+.bv-health-pip {
+  background: #d4140a;
+  border: 3px solid #ffb39a;
+  box-shadow: inset 0 -0.45rem 0 rgb(90 10 4 / 55%);
+}
+
+.bv-health-pip--lost {
+  background: rgb(90 10 4 / 70%);
+  border-color: rgb(212 20 10 / 45%);
+  box-shadow: none;
+}
+
+/* A shadow's touch: the view washed red, fading out. */
+.bv-hurt {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at center,
+    rgb(200 0 0 / 22%) 30%,
+    rgb(160 0 0 / 55%) 100%
+  );
+  opacity: 0;
+}
+
+.bv-hurt--on {
+  animation: bv-hurt 0.7s ease-out forwards;
+}
+
+@keyframes bv-hurt {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
 }
 
 .bv-geo-face {
@@ -652,8 +729,12 @@
   cursor: default;
 }
 
-.bv-bag-cell:not(.bv-bag-cell--empty):is(:hover, :focus-visible) {
-  outline: none;
+.bv-bag-cell:not(.bv-bag-cell--empty):is(
+    :hover,
+    :focus-visible,
+    .bv-bag-cell--selected
+  ),
+.bv-hot-slot--target {
   border-color: var(--bv-citgo);
   box-shadow:
     inset 0 0 0 1px var(--bv-citgo),
@@ -795,6 +876,67 @@
   opacity: 0.35;
 }
 
+/* The right-click menu over an item, inside the pack's box at the cursor;
+   hud.ts places it. */
+.bv-bag-menu {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 12rem;
+  padding: 0.25rem 0;
+  background: rgb(0 0 0 / 92%);
+  border: 1px solid var(--bv-citgo);
+}
+
+.bv-bag-menu-item,
+.bv-bag-menu-slot {
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: none;
+  border: 0;
+}
+
+.bv-bag-menu-item {
+  padding: 0.25rem 0.75rem;
+  text-align: left;
+}
+
+.bv-bag-menu-slots {
+  display: flex;
+  gap: 0.15rem;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+}
+
+.bv-bag-menu-slots span {
+  margin-right: 0.5rem;
+}
+
+.bv-bag-menu-slot {
+  padding: 0 0.3em;
+  border: 1px solid currentcolor;
+}
+
+:is(.bv-bag-menu-item, .bv-bag-menu-slot):is(:hover, :focus-visible) {
+  color: #000;
+  background: var(--bv-citgo);
+}
+
+/* What a drag carries, under the cursor. */
+.bv-drag-ghost {
+  position: fixed;
+  z-index: 6;
+  width: var(--bv-cell);
+  height: var(--bv-cell);
+  object-fit: contain;
+  pointer-events: none;
+  opacity: 0.85;
+  transform: translate(-50%, -50%);
+}
+
 /* The Book of Shadows (bookhud.ts): over the valley like the pack, its
    chapters as tabs, the chapter's entries down the left and the open page
    on the right, its portrait turning over the name and the lore. */
@@ -898,7 +1040,6 @@
 }
 
 .bv-book-row:is(:hover, :focus-visible) {
-  outline: none;
   background: rgb(255 255 255 / 6%);
 }
 
@@ -1039,6 +1180,16 @@
 
 .bv-hot-slot--out img {
   opacity: 0.3;
+}
+
+/* With the pack open the bar takes the mouse: every slot shows, an item
+   drags onto one, and a slot drags off. */
+.bv-shell--inventory .bv-hotbar {
+  pointer-events: auto;
+}
+
+.bv-shell--inventory .bv-hot-slot:not(.bv-hot-slot--empty) {
+  cursor: grab;
 }
 
 /* A cooldown: the dark wedge shrinks clockwise from the top as it runs
@@ -1204,7 +1355,8 @@
   visibility: hidden;
 }
 
-.bv-btn:hover {
+.bv-btn:hover,
+.bv-btn:focus-visible {
   transform: translate(-1px, -1px);
   box-shadow: 5px 5px 0 var(--fi-black-shadow);
 }
@@ -1276,19 +1428,21 @@
   user-select: none;
 }
 
-/* The main menu (mainmenu.ts): the logo under its fog, the options below.
-   A title card's black, grain and fog, mounted above the account step and
-   the select at their z-index, so hiding it uncovers them. The first
-   showing fades the logo and the options up over the logo's fadeInMs. */
+/* The main menu (mainmenu.ts): the logo under its fog, centered on its
+   own whatever the options show, the options in the lower left and the
+   credit in the lower right. A title card's black, grain and fog, mounted
+   above the account step and the select at their z-index, so hiding it
+   uncovers them. The first showing fades the logo and the options up over
+   the logo's fadeInMs. */
 .bv-menu {
+  --bv-menu-edge: 2.5rem;
+
   position: fixed;
   inset: 0;
   z-index: 9;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2.5rem;
   padding: 1rem;
   background: #000;
   font-family: var(--bv-font, 'IBM Plex Mono', ui-monospace, monospace);
@@ -1313,11 +1467,6 @@
   pointer-events: none;
 }
 
-.bv-menu :focus-visible {
-  outline: 3px solid var(--fi-cyan);
-  outline-offset: 3px;
-}
-
 .bv-menu-logo {
   max-height: 50vh;
   max-width: 80vw;
@@ -1327,8 +1476,23 @@
 }
 
 .bv-menu-ui {
-  position: relative;
+  position: absolute;
+  left: var(--bv-menu-edge);
+  bottom: var(--bv-menu-edge);
   z-index: 3;
+  max-width: calc(100vw - 2 * var(--bv-menu-edge));
+  opacity: 0;
+  transition: opacity calc(var(--bv-menu-fade, 2s) / 2) linear
+    calc(var(--bv-menu-fade, 2s) / 2);
+}
+
+.bv-menu-credit {
+  position: absolute;
+  right: var(--bv-menu-edge);
+  bottom: var(--bv-menu-edge);
+  z-index: 3;
+  margin: 0;
+  letter-spacing: 0.06em;
   opacity: 0;
   transition: opacity calc(var(--bv-menu-fade, 2s) / 2) linear
     calc(var(--bv-menu-fade, 2s) / 2);
@@ -1339,19 +1503,22 @@
   opacity: 1;
 }
 
+.bv-menu--up .bv-menu-credit {
+  opacity: 0.6;
+}
+
 .bv-menu-options {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
+  align-items: flex-start;
   gap: 0.8rem;
-  min-width: min(16rem, 100%);
 }
 
 .bv-menu-options h2 {
   margin: 0 0 0.5rem;
   font-size: inherit;
   letter-spacing: 0.28em;
-  text-align: center;
+  text-align: left;
   text-transform: uppercase;
   text-shadow: 4px 4px 0 var(--fi-black-shadow);
 }
@@ -1361,16 +1528,9 @@
   letter-spacing: 0.06em;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .bv-menu-logo,
-  .bv-menu-ui {
-    transition: none;
-  }
-}
-
 /* Character select. Lives on <body> like the title cards, mounted before
    them so they stack above it; it sits outside .bv-shell, so it sets its
-   own face, ink and focus ring. The turntable canvas fills it at the
+   own face and ink. The turntable canvas fills it at the
    game's downscale. Opacity is driven inline on choose. */
 .bv-select {
   position: fixed;
@@ -1384,11 +1544,6 @@
 
 .bv-select [hidden] {
   display: none !important;
-}
-
-.bv-select :focus-visible {
-  outline: 3px solid var(--fi-cyan);
-  outline-offset: 3px;
 }
 
 .bv-select-canvas {
@@ -1451,7 +1606,7 @@
 }
 
 /* A setting: its name, a slider, and where the slider stands, on one
-   line in the main menu's Settings and on the pause overlay. */
+   line in the main menu's Audio and on the pause overlay. */
 .bv-setting {
   display: grid;
   grid-template-columns: auto 1fr 4ch;
@@ -1531,7 +1686,7 @@
 }
 
 /* The account step (signin.ts): black like the select, above it in DOM
-   order at the same z-index, with its own face, ink and focus ring. */
+   order at the same z-index, with its own face and ink. */
 .bv-account {
   position: fixed;
   inset: 0;
@@ -1548,11 +1703,6 @@
 
 .bv-account [hidden] {
   display: none !important;
-}
-
-.bv-account :focus-visible {
-  outline: 3px solid var(--fi-cyan);
-  outline-offset: 3px;
 }
 
 .bv-account-ui {

@@ -51,8 +51,8 @@ export const CONFIG = {
   shadowmen: {
     // Crossings: this many shadowmen at once in a bubble around the player.
     count: 12,
-    // They spawn on this ring, just past scope range so blips enter from the
-    // rim, cross toward a point within crossRadius of the player, and are
+    // They spawn on this ring, well past scope range so blips enter from the
+    // rim as they near, cross toward a point within crossRadius of the player, and are
     // dropped past despawnRadius.
     spawnRadius: 300,
     crossRadius: 120,
@@ -69,8 +69,13 @@ export const CONFIG = {
     rushRadius: 25,
     rushSpeed: 12,
     touchRadius: 1.4,
-    // Citgo forecourts are havens: shadowmen vanish at the lights and nothing
-    // can touch you inside.
+    // Nothing touches at once: one in reach stands and winds up for
+    // windupSeconds, then lunges, and the lunge lands only on a raider
+    // still within reachScale times its touch. A beat to step away.
+    windupSeconds: 0.35,
+    reachScale: 1.25,
+    // Citgo forecourts are havens: shadowmen turn aside at the lights and
+    // nothing can touch you inside.
     havenRadius: 60,
     // The static after a strike, in real seconds (actions.ts times it by the
     // wall clock, never the frame-capped game time).
@@ -104,9 +109,46 @@ export const CONFIG = {
       rushSpeed: 13,
       touchRadius: 2.4,
     },
+    // A spider that bursts breaks into brood.min to brood.max spiderlings,
+    // scattered up to `scatter` metres round where it burst: a quarter of
+    // a spider's size (`scale`), quicker, rushing anyone within rushRadius,
+    // touching closer, bursting in burnSeconds in a beam, aimed at
+    // aimHeight. Each leaves a few dimes (`dimes`), never a tombstone, and
+    // none breaks again.
+    spiderling: {
+      brood: { min: 3, max: 8 },
+      scatter: 2.5,
+      scale: 0.25,
+      speedMin: 8,
+      speedMax: 11,
+      rushRadius: 40,
+      rushSpeed: 14,
+      touchRadius: 0.9,
+      burnSeconds: 0.2,
+      aimHeight: 0.5,
+      dimes: { min: 1, max: 3 },
+    },
+    // What shows through the fog (a spider's eyes, the joint's violet aura)
+    // fades out between these distances from the raider, so it is gone
+    // before the spawn ring and the despawn radius: none is ever seen to
+    // come or go.
+    glowFade: { near: 200, far: 290 },
     // In the shared valley the server steps them this many times a second
     // and sends each step; clients draw them between the last two.
     tickHz: 10,
+  },
+  // Health (health.ts, sharedworld.ts rule 21): every raider has `max`
+  // points, and any shadow's touch takes one. A touch that leaves some
+  // lets the raider alone for graceSeconds where they stand; the last one
+  // shatters their geometrie (a strike: the static and the corpse run),
+  // and they come to whole. A Citgo forecourt makes them whole, and so
+  // does medicine (items.ts heals). A hit fills the view red and shakes it
+  // for shakeSeconds, up to shakeMetres off.
+  health: {
+    max: 3,
+    graceSeconds: 3,
+    shakeSeconds: 0.45,
+    shakeMetres: 0.07,
   },
   // The flashlight in the left hand: the beam that burns shadowmen reaches
   // range metres, halfAngle radians off the line of sight. The light itself
@@ -179,7 +221,8 @@ export const CONFIG = {
     fadePerSecond: { high: 1 / 240, stimulated: 1 / 180, drunk: 1 / 300 },
   },
   scope: {
-    rangeMetres: 250,
+    // Close enough to read: a rush starts at a quarter of it.
+    rangeMetres: 100,
     sweepSeconds: 3.2,
   },
   spawn: {
@@ -193,6 +236,20 @@ export const CONFIG = {
     volume: 0.5,
     // Seconds it takes to come up from silence when it starts.
     fadeInSeconds: 4,
+  },
+  sfx: {
+    // The valley's sounds (sfx.ts): the loudness at the setting's top.
+    volume: 0.8,
+    // Nothing further from the raider than this, in metres, is heard.
+    hearing: 60,
+    // At most this many spiderlings skitter at once, the nearest.
+    skitters: 3,
+    // A placed sound is at full loudness this close, in metres, and falls
+    // away past it this fast (a Web Audio inverse model).
+    refDistance: 4,
+    rolloff: 1.2,
+    // How far a playback rate (pitch) wanders, either way, per play.
+    jitter: 0.06,
   },
   store: {
     // A new account's wallet, in cents (worker/packs.ts). Played alone,
@@ -227,16 +284,11 @@ export const CONFIG = {
   },
   logo: {
     // The game's own logo atop the main menu, straight after the colophon:
-    // it fades up over fadeInMs, and its cue (~14s) plays once under the
-    // same envelope shape, so it ends at silence.
+    // it fades up over fadeInMs, silent (the valley's music starts under
+    // it), while the colophon's cue fades out over skipAudioFadeMs.
     fadeInMs: 2000,
-    holdMs: 10400,
-    fadeOutMs: 1600,
-    skipFadeMs: 200,
     skipAudioFadeMs: 300,
-    revealFadeMs: 400,
     imageSrc: '/bull-valley-shadow-wars.png',
-    audioSrc: '/sfx/bull-valley-shadow-wars-intro.mp3',
   },
   select: {
     // The character turntable: spin speed and the fade that reveals the
@@ -301,12 +353,22 @@ export const CONFIG = {
     connectTimeoutMs: 2000,
     // Clock-offset pings once online.
     pingMs: 10000,
+    // The valley lets go of a socket it has heard nothing from (no ping, no
+    // state) for this long, so a tab that vanished without closing leaves
+    // no figure standing. Generous: a background tab's timers can run as
+    // seldom as once a minute, and one let go too soon only reconnects.
+    silentMs: 120_000,
     // How long the "signed out" line sits in the chat log before the page
     // reloads to the sign-in card.
     signedOutReloadMs: 2500,
   },
   cabbage: {
     count: 48,
+    // Under the dish array behind the spawn Citgo (cabbages.ts
+    // placeDishCabbages): this many, each under its own dish, between
+    // `near` and `far` metres off the pedestal: past the concrete pad
+    // (assets.ts DISH.pad) and inside the reflector's rim.
+    underDishes: { count: 8, near: 2.4, far: 3.8 },
   },
   // Items dropped from the pack (drops.ts).
   drops: {
@@ -422,6 +484,33 @@ export const CONFIG = {
     radius: 0.9,
     // Trees keep this far off its middle.
     treeClear: 6,
+  },
+  lonePine: {
+    // The lone pine among the dishes behind the spawn Citgo, station-local
+    // like the dishes: between the second and third rows, a little off the
+    // middle. No other tree grows inside the array. Its shape is a scatter
+    // tree's (world.ts buildTrees).
+    at: { x: -44.65, z: -12.47 },
+    trunkH: 3.9,
+    canopyH: 7.5,
+    canopyR: 2.6,
+    tint: 0.4,
+    // Spunky's grave at its foot, `offset` metres off the trunk toward the
+    // station and facing it, blocking like a small post. The carving is
+    // trade dress (graveart.ts), so it lives here and not in COPY.toml.
+    grave: {
+      heading: 'HERE LIES',
+      name: 'SPUNKY',
+      seed: 0x5b0c4e,
+      offset: 2.2,
+      radius: 0.35,
+      // Cabbages keep this far off the stone and its mound.
+      clear: 1.6,
+    },
+    // The cabbage patch round it (cabbages.ts placeCabbagesAround):
+    // between `near` and `far` metres off the trunk, each at least `clear`
+    // off a dish pedestal, past its pad.
+    cabbages: { count: 14, near: 1.4, far: 5.5, clear: 2.4 },
   },
   dishes: {
     // The dish array behind the spawn Citgo (assets.ts DISH), station-local
@@ -608,6 +697,10 @@ export const CONFIG = {
     senseRadius: 3,
     forgetSeconds: 4,
     touchRadius: 1.1,
+    // In reach it stops and winds up for windupSeconds, its lantern drawn
+    // back, then lunges; the lunge lands within reachScale of its touch.
+    windupSeconds: 0.45,
+    reachScale: 1.3,
     burnSeconds: 1.2,
     respawnSeconds: 180,
     hover: 0.5,

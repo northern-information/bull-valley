@@ -5,6 +5,7 @@
 import { unitToWorld } from './coords.ts'
 import { levelsAt } from './geometrie.ts'
 import { hurry } from './marx.ts'
+import { isSfxId, SFX_IDS } from './sfx.ts'
 import type { Actions } from './actions.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
 import type { ChatLine } from './chat.ts'
@@ -32,6 +33,7 @@ import type {
 import type { RoadGraph } from './roadgraph.ts'
 import type { SeasonProgress } from './season.ts'
 import type { ShadowCards } from './shadowcards.ts'
+import type { ShadeKind } from './shadowmen.ts'
 import type { StandLedger } from './stand.ts'
 import type { Truck } from './truck.ts'
 import type { World } from './world.ts'
@@ -50,8 +52,11 @@ interface BvHook {
   // The Undercroft's tunnel shades as last drawn.
   readonly tunnel: TunnelShadeWire[]
   mist: MistCards
-  // Times a touch put this raider back at the Citgo.
+  // Times a touch shattered this raider's geometrie and put them back at
+  // the Citgo.
   readonly strikes: number
+  // Health (health.ts): the account's as the valley last said, or our own.
+  readonly health: number
   net: {
     readonly status: NetStatus
     readonly id: string | null
@@ -114,12 +119,17 @@ interface BvHook {
   // A shadowman standing still at world (x, z): the valley's, through a
   // dev frame, or this client's own, played alone.
   // A spider instead when `spider` (CONFIG.shadowmen.spider).
-  placeShadowman(x: number, z: number, spider?: boolean): void
+  // true for a spider, as it always was, or the kind.
+  placeShadowman(x: number, z: number, kind?: boolean | ShadeKind): void
   // The Caretaker moved to world (x, z), formed, its hunt forgotten,
   // floating still until it has someone to hunt: the valley's, through a
   // dev frame, or this client's own, played alone.
   placeCaretaker(x: number, z: number): void
   hurryTruck(seconds?: number): void
+  // Every sound's id (sfx.ts), and one played: at world (x, z), or in the
+  // head without a place. Nothing under e2e, which never plays sound.
+  readonly sfxIds: readonly string[]
+  sfx(id: string, x?: number, z?: number): void
   // A quiet valley: no crossing shadowman rushes anyone, only one a spec
   // places. The valley's, through a dev frame, or this client's own.
   calm(): void
@@ -128,6 +138,8 @@ interface BvHook {
   // `count` of `kind` into the pack: the valley's, through a dev frame, or
   // this client's own. Gold bullion has no other way in yet.
   grant(kind: string, count?: number): void
+  // This raider at `points` of health (1 to whole), for the specs.
+  setHealth(points: number): void
 }
 
 declare global {
@@ -154,6 +166,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     mist: game.mist,
     get strikes() {
       return s.strikes
+    },
+    get health() {
+      return s.health
     },
     net: {
       get status() {
@@ -250,14 +265,17 @@ export function installDevHook(game: Game, actions: Actions): void {
       player.relocate(x, z)
     },
     toggleFlashlight: () => actions.toggleFlashlight(),
-    placeShadowman(x: number, z: number, spider = false) {
+    placeShadowman(x: number, z: number, kind: boolean | ShadeKind = 'man') {
+      // true is a spider, as it always was.
+      const shade: ShadeKind =
+        kind === true ? 'spider' : kind === false ? 'man' : kind
       if (net.online) {
         net.send(
-          spider
-            ? { type: 'dev', op: 'shadowman', x, z, spider: true }
-            : { type: 'dev', op: 'shadowman', x, z }
+          shade === 'man'
+            ? { type: 'dev', op: 'shadowman', x, z }
+            : { type: 'dev', op: 'shadowman', x, z, kind: shade }
         )
-      } else game.shadowmen.place(x, z, spider ? 'spider' : 'man')
+      } else game.shadowmen.place(x, z, shade)
     },
     placeCaretaker(x: number, z: number) {
       if (net.online) net.send({ type: 'dev', op: 'caretaker', x, z })
@@ -279,6 +297,19 @@ export function installDevHook(game: Game, actions: Actions): void {
         }
         actions.refreshBag()
       }
+    },
+    setHealth(points) {
+      if (net.online) net.send({ type: 'dev', op: 'health', points })
+      else s.health = points
+    },
+    sfxIds: SFX_IDS,
+    sfx(id, x, z) {
+      if (!isSfxId(id)) return
+      const at =
+        x === undefined || z === undefined
+          ? null
+          : { x, y: game.world.ground.at(x, z) + 1.2, z }
+      game.sfx?.play(id, at)
     },
     hurryTruck(seconds = 5) {
       // In the shared valley the server keeps Marx's day; a dev server

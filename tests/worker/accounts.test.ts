@@ -246,9 +246,11 @@ export function storeContract(makeStore: () => AccountStore): void {
     const store = makeStore()
     await store.create(account('a1', 'github:1'), linked('a1', 'github', '1'))
     expect(await store.settingsOf('a1')).toEqual(DEFAULT_SETTINGS)
-    expect(await store.setSettings('a1', { music: 75 })).toBe(true)
-    expect(await store.settingsOf('a1')).toEqual({ music: 75 })
-    expect(await store.setSettings('nobody', { music: 75 })).toBe(false)
+    expect(await store.setSettings('a1', { music: 75, sfx: 20 })).toBe(true)
+    expect(await store.settingsOf('a1')).toEqual({ music: 75, sfx: 20 })
+    expect(await store.setSettings('nobody', { music: 75, sfx: 20 })).toBe(
+      false
+    )
     expect(await store.settingsOf('nobody')).toEqual(DEFAULT_SETTINGS)
   })
 }

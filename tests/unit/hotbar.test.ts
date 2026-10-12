@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
   assign,
+  clearSlot,
   cooldownOf,
   EMPTY_HOTBAR,
   HOTBAR_SLOTS,
   isHotbar,
   NO_EFFECTS,
+  place,
   shownSlots,
+  spent,
   toHotbar,
 } from '../../src/hotbar.ts'
 
@@ -36,6 +39,51 @@ describe('assign', () => {
   it('ignores a slot off the bar', () => {
     expect(assign(EMPTY_HOTBAR, 9, 'camel')).toBe(EMPTY_HOTBAR)
     expect(assign(EMPTY_HOTBAR, -1, 'camel')).toBe(EMPTY_HOTBAR)
+  })
+})
+
+describe('place', () => {
+  it('puts a kind on a slot, moving it off any other', () => {
+    const bar = place(assign(EMPTY_HOTBAR, 0, 'camel'), 4, 'camel')
+    expect(bar[0]).toBeNull()
+    expect(bar[4]).toBe('camel')
+  })
+
+  it('leaves a kind on the slot that already holds it', () => {
+    const bar = assign(EMPTY_HOTBAR, 3, 'camel')
+    expect(place(bar, 3, 'camel')).toBe(bar)
+  })
+})
+
+describe('spent', () => {
+  it('takes a kind off the bar once the pack holds none', () => {
+    const bar = assign(assign(EMPTY_HOTBAR, 1, 'camel'), 4, 'joints')
+    const after = spent(bar, 'camel', { camel: 0, joints: 2 })
+    expect(after[1]).toBeNull()
+    expect(after[4]).toBe('joints')
+    expect(spent(bar, 'joints', {})[4]).toBeNull()
+  })
+
+  it('leaves the bar while any is left, or the kind is not on it', () => {
+    const bar = assign(EMPTY_HOTBAR, 1, 'camel')
+    expect(spent(bar, 'camel', { camel: 1 })).toBe(bar)
+    expect(spent(bar, 'joints', {})).toBe(bar)
+  })
+})
+
+describe('clearSlot', () => {
+  it('empties a slot, whatever it held', () => {
+    const bar = assign(assign(EMPTY_HOTBAR, 1, 'camel'), 4, 'joints')
+    const cleared = clearSlot(bar, 1)
+    expect(cleared[1]).toBeNull()
+    expect(cleared[4]).toBe('joints')
+  })
+
+  it('leaves the bar as it was for an empty slot or one off the bar', () => {
+    const bar = assign(EMPTY_HOTBAR, 0, 'camel')
+    expect(clearSlot(bar, 2)).toBe(bar)
+    expect(clearSlot(bar, 9)).toBe(bar)
+    expect(clearSlot(bar, -1)).toBe(bar)
   })
 })
 

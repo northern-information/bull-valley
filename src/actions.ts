@@ -37,10 +37,11 @@ import { finishById } from './finishes.ts'
 import { dose } from './geometrie.ts'
 import { burialsOf, bury } from './graves.ts'
 import { openGronDialog } from './grondialog.ts'
-import { assign } from './hotbar.ts'
+import { hit, isWhole, MAX_HEALTH, mend } from './health.ts'
+import { assign, clearSlot as clearHotbarSlot, place, spent } from './hotbar.ts'
 import { pickupLabel } from './interactions.ts'
 import { addItem, consume } from './inventory.ts'
-import { getItem, isKeyItem, itemById } from './items.ts'
+import { getItem, healsOf, isKeyItem, itemById } from './items.ts'
 import { board, call, hopOut as hopOutOf, refused } from './marx.ts'
 import { npcLine } from './npcs.ts'
 import { outfitById } from './outfits.ts'
@@ -55,6 +56,7 @@ import { levelOf } from './progression.ts'
 import { normalizeChat } from './protocol.ts'
 import { dealerStep, roseLine } from './quests.ts'
 import { callRoute } from './roadgraph.ts'
+import { inHaven } from './shadowmen.ts'
 import { buy as buyItem, settle } from './shop.ts'
 import { openStandDialog } from './standdialog.ts'
 import { move, moveAmount } from './stash.ts'
@@ -64,10 +66,11 @@ import type { ChatCommand } from './chat.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { EmoteId } from './emotes.ts'
 import type { Game } from './game.ts'
+import type { Hotbar } from './hotbar.ts'
 import type { DailyStatus, ShelfSpot } from './interactions.ts'
 import type { Leg, TruckState } from './marx.ts'
 import type { NpcId } from './npcs.ts'
-import type { BagTab } from './packgrid.ts'
+import type { BagAction, BagTab } from './packgrid.ts'
 import type { DailyMessage } from './protocol.ts'
 import type { Burst } from './shadowmen.ts'
 import type { Pickup } from './world.ts'
@@ -106,6 +109,9 @@ export interface Actions {
   // A number key over an item in the pack puts it on that slot, or takes
   // it off when it is there already.
   assignSlot(slot: number, kind: string): void
+  // A number key over nothing in the pack empties that slot, as for a kind
+  // the pack has run out of.
+  clearSlot(slot: number): void
   // The truck drives `leg` (marx.ts): the valley's, or our own alone.
   followLeg(leg: Leg): void
   // Played alone, the truck as it now stands: its leg followed when it
@@ -115,9 +121,15 @@ export interface Actions {
   // Off the bed beside the truck, with no word to the valley: it let us
   // off.
   leaveBed(line?: string): void
-  // A shadowman touched you: everything the pack held stays on your body
-  // where you fell (sharedworld.ts rule 18).
-  strike(by?: 'shadowman' | 'caretaker' | 'tunnel'): void
+  // A shadow touched you: one point of health off (sharedworld.ts rule
+  // 22), the valley's word on what is left, or alone our own. The last one
+  // shatters your geometrie, and everything the pack held stays on your
+  // body where you fell (rule 18).
+  strike(by?: 'shadowman' | 'caretaker' | 'tunnel', health?: number): void
+  // The account's health as the valley says it (a forecourt, medicine).
+  setHealth(points: number): void
+  // Played alone, a forecourt makes whole.
+  mendAtForecourt(): void
   // Played alone, the bodies this raider left, drawn and offered to E.
   showAloneCorpses(): void
   // F at the locker: one of an item (the open container, or one of
@@ -289,8 +301,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     }
   }
 
-  const assignSlot = (slot: number, kind: string) => {
-    const bar = assign(s.hotbar, slot, kind)
+  const keepHotbar = (bar: Hotbar) => {
+    if (bar === s.hotbar) return
     s.hotbar = bar
     s.hotbarSaved = s.hotbarSaved
       .then(() => saveHotbar(bar))
@@ -298,6 +310,12 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         if (!saved.ok) hud.tell(saved.error)
       })
   }
+
+  const assignSlot = (slot: number, kind: string) =>
+    keepHotbar(assign(s.hotbar, slot, kind))
+
+  const clearSlot = (slot: number) =>
+    keepHotbar(clearHotbarSlot(s.hotbar, slot))
 
   // Played alone, this raider's id in the truck's bed.
   const ALONE = 'me'
@@ -372,11 +390,30 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // the Caretaker's. Everything the pack held stays on your body where you
   // fell (rule 18): in the valley the valley lays it and its pack frame has
   // the last word, so the pack shows empty at once; alone it lies at once.
-  const strike = (by: 'shadowman' | 'caretaker' | 'tunnel' = 'shadowman') => {
-    if (s.aboard) return
-    s.strikes += 1
+  const strike = (
+    by: 'shadowman' | 'caretaker' | 'tunnel' = 'shadowman',
+    health?: number
+  ) => {
+    if (s.aboard) {
+      // Touched as we climbed in: the valley's count stands all the same.
+      if (health !== undefined) s.health = health > 0 ? health : MAX_HEALTH
+      return
+    }
+    const now = performance.now()
     s.emoting = null
-    s.strikeUntil = performance.now() + CONFIG.shadowmen.strikeSeconds * 1000
+    s.health = health ?? hit(s.health).points
+    s.graceUntil = now + CONFIG.health.graceSeconds * 1000
+    s.hurtAt = now
+    hud.hurt()
+    game.sfx?.play(s.health > 0 ? 'hit' : 'shatter')
+    if (s.health > 0) {
+      hud.tell(copy(by === 'caretaker' ? 'log.hit_caretaker' : 'log.hit'))
+      return
+    }
+    // Shattered: whole again where you come to.
+    s.health = MAX_HEALTH
+    s.strikes += 1
+    s.strikeUntil = now + CONFIG.shadowmen.strikeSeconds * 1000
     hud.showStatic(true)
     closeInventory()
     closeBook()
@@ -412,6 +449,23 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       )
     )
     if (!isEmpty(items)) hud.tell(copy('log.fell'))
+  }
+
+  // Made whole standing at a Citgo: the lights did it.
+  const setHealth = (points: number) => {
+    const mended =
+      isWhole(points) &&
+      !isWhole(s.health) &&
+      inHaven(player.pos, world.fuelPoints, CONFIG.shadowmen.havenRadius)
+    s.health = points
+    if (mended) hud.tell(copy('log.mended'))
+  }
+
+  // Played alone, a forecourt makes whole (rule 24).
+  const mendAtForecourt = () => {
+    if (isWhole(s.health)) return
+    s.health = MAX_HEALTH
+    hud.tell(copy('log.mended'))
   }
 
   // E over your own body: everything it holds back into the pack. In the
@@ -455,6 +509,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (!moved) return
     s.inventory = stow ? moved.from : moved.to
     s.stash = stow ? moved.to : moved.from
+    keepHotbar(spent(s.hotbar, kind, s.inventory))
     net.send({ type: stow ? 'stow' : 'unstow', kind, count })
     refreshBag()
     hud.tell(
@@ -541,7 +596,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     })
   }
 
-  // E at the heart of the maze with Erwin's rose (rule 25): the valley
+  // E at the heart of the maze with Erwin's rose (rule 26): the valley
   // takes it out of the pack and writes it laid.
   const layRose = () => {
     if (!s.world || s.pendingQuest) return
@@ -551,6 +606,28 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   const stowKind = (kind: string, all: boolean) => restash(kind, all, true)
   const unstowKind = (kind: string, all: boolean) => restash(kind, all, false)
+
+  // The mouse in the open pack, done as its keys do it (input.ts).
+  const bagAction = (action: BagAction) => {
+    switch (action.type) {
+      case 'use':
+        if (hud.bagTab !== LOCKER_TAB) useKind(action.kind)
+        return
+      case 'place':
+        keepHotbar(place(s.hotbar, action.slot, action.kind))
+        return
+      case 'clear':
+        clearSlot(action.slot)
+        return
+      case 'drop':
+        if (hud.bagTab !== LOCKER_TAB) dropKind(action.kind, action.all)
+        return
+      case 'move':
+        restash(action.kind, action.all, hud.bagTab !== LOCKER_TAB)
+        return
+    }
+  }
+  hud.onBagAction = bagAction
 
   // T: Marx comes to us, if he is free, and drives us home. No whistle
   // carries up out of the Undercroft.
@@ -731,6 +808,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // An item with no effect yet does nothing, and a cigarette waits for the
   // one burning.
   const useKind = (kind: string) => {
+    const heals = healsOf(kind)
     const result = consume(s.inventory, kind, s.effects, s.time)
     if (!result.used) {
       const empty = result.reason === 'empty' ? itemById(kind)?.empty : null
@@ -738,12 +816,15 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       return
     }
     s.inventory = result.inv
+    keepHotbar(spent(s.hotbar, kind, s.inventory))
     s.effects = result.effects
     s.geometrie = dose(s.geometrie, itemById(kind)?.geometrie, s.time)
     // The right hand brings it up (fphands.ts).
     s.using = { kind, at: s.time }
-    // The unit is the account's: the valley takes it out of the pack.
+    // The unit is the account's: the valley takes it out of the pack, and
+    // gives back what it heals; alone it heals at once.
     net.send({ type: 'use', kind })
+    if (!s.world && heals > 0) s.health = mend(s.health, heals)
     refreshBag()
     const used = itemById(kind)?.used
     if (used) hud.tell(used)
@@ -764,6 +845,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     const count = dropAmount(kind, s.inventory[kind] || 0, all)
     if (count < 1) return
     s.inventory = addItem(s.inventory, kind, -count)
+    keepHotbar(spent(s.hotbar, kind, s.inventory))
     if (s.world) {
       net.send({ type: 'drop', kind, count })
       refreshBag()
@@ -837,6 +919,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // the valley hears it with the next state frame.
   const toggleFlashlight = () => {
     s.flashlight = { ...s.flashlight, up: !s.flashlight.up }
+    game.sfx?.play(s.flashlight.up ? 'flashlight-on' : 'flashlight-off')
   }
 
   // A pickup taken: into the pack, or cash (the plaza's quarters, the $20
@@ -1077,11 +1160,14 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     bookRefused,
     setBook,
     assignSlot,
+    clearSlot,
     followLeg,
     setAloneTruck,
     hopOut,
     leaveBed,
     strike,
+    setHealth,
+    mendAtForecourt,
     showAloneCorpses,
     stowKind,
     unstowKind,

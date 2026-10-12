@@ -1,7 +1,8 @@
 import { expect, test } from './fixtures.ts'
 
 test('every Akashic asset builds with geometry', async ({ page }) => {
-  // One page builds every asset in turn, the whole strip mall among them.
+  // Every asset in turn, well over a hundred of them, the whole strip mall
+  // among them.
   test.slow()
   await page.goto('/akashic')
   await expect.poll(() => page.evaluate(() => !!window.__akashic)).toBe(true)

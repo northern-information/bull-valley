@@ -6,6 +6,7 @@ import { CONFIG } from './config.ts'
 import { NO_TASK } from './dailytask.ts'
 import { SOBER } from './geometrie.ts'
 import { HAND_DOWN } from './hands.ts'
+import { MAX_HEALTH } from './health.ts'
 import { NO_EFFECTS } from './hotbar.ts'
 import { STARTING_INVENTORY } from './inventory.ts'
 import { createTruck } from './marx.ts'
@@ -50,6 +51,7 @@ import type { RoadGraph } from './roadgraph.ts'
 import type { Scope } from './scope.ts'
 import type { SeasonProgress } from './season.ts'
 import type { SettingsStore } from './settingsui.ts'
+import type { Sfx } from './sfxrig.ts'
 import type { ShadowBursts } from './shadowburst.ts'
 import type { ShadowCards } from './shadowcards.ts'
 import type { StandLedger } from './stand.ts'
@@ -116,15 +118,22 @@ export interface GameState {
   flashlight: Hand
   // The item the right hand last brought up, and when, on `time`.
   using: { kind: string; at: number } | null
-  // The static after a shadowman's touch runs until this local ms
+  // The emote under way (emotes.ts), on performance.now() seconds; null
+  // when none.
+  emoting: Emoting | null
+  // The static after geometrie shatters runs until this local ms
   // (performance.now). It is wall-clock, not `time`: `time` advances at
   // most CONFIG.render.maxStep a frame, so on a slow machine 1.6 s of it
   // can take half a minute, and the player would sit in static the whole
   // while.
-  // The emote under way (emotes.ts), on performance.now() seconds; null
-  // when none.
-  emoting: Emoting | null
   strikeUntil: number
+  // Health (health.ts): the account's in the valley, as it last said;
+  // this client's own played alone. After a touch nothing may touch again
+  // until graceUntil, and the view shakes from hurtAt (both local ms, like
+  // strikeUntil).
+  health: number
+  graceUntil: number
+  hurtAt: number
   started: boolean
   greeted: boolean
   // Times a shadowman's or the Caretaker's touch put this raider back at
@@ -191,12 +200,12 @@ export interface GameState {
   stand: StandLedger | null
   pendingStand: boolean
   standSaid: string | null
-  // Rule 24: a deal with Erwin not yet answered, his last word, and how
+  // Rule 25: a deal with Erwin not yet answered, his last word, and how
   // many times he has rambled at this raider.
   pendingDeal: boolean
   dealSaid: string | null
   rambled: number
-  // Rule 25: where the account stands on each quest (null before the
+  // Rule 26: where the account stands on each quest (null before the
   // valley says, or played alone), and a step not yet answered.
   quests: Record<QuestId, QuestStage> | null
   pendingQuest: boolean
@@ -239,6 +248,9 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     flashlight: HAND_DOWN,
     using: null,
     strikeUntil: 0,
+    health: MAX_HEALTH,
+    graceUntil: 0,
+    hurtAt: -Infinity,
     emoting: null,
     started: false,
     greeted: false,
@@ -306,6 +318,8 @@ export interface Game {
   // The valley's music, none under e2e, which never plays sound, and the
   // settings that say how loud it plays.
   music: Music | null
+  // The valley's sounds (sfxrig.ts), none under e2e either.
+  sfx: Sfx | null
   settings: SettingsStore
   // The roads Matthew Marx drives (truckplan.ts): where he parks, the
   // joyride, his donuts for a seed; and what the valley is told of them.

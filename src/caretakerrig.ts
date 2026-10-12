@@ -1,6 +1,7 @@
 // The Caretaker as seen (caretaker.ts): its body (assets.ts buildCaretaker)
 // floating over the maze's paths, turned to face the player, shaking and
-// paling as two beams unmake it. In the shared valley it is the valley's
+// paling as two beams unmake it, drawing its lantern back as it winds up
+// to strike and lurching out as it lunges. In the shared valley it is the valley's
 // (sharedworld.ts rule 13): it rides in the shadowmen frames and is drawn a
 // beat behind the present, between the last two. Played alone, this steps
 // a Caretaker of its own with the player as the one raider, and one
@@ -13,15 +14,20 @@ import { CONFIG } from './config.ts'
 import { compassBearing } from './coords.ts'
 import { worldToMaze } from './maze.ts'
 import { mulberry32, range } from './rng.ts'
+import { keeperCues } from './sfx.ts'
 import type { CaretakerRig } from './assets.ts'
 import type { Caretaker } from './caretaker.ts'
 import type { HeightAt, ScopeContact, XZ } from './interfaces.ts'
 import type { MazePlace } from './maze.ts'
 import type { CaretakerWire, ShadowmenMessage } from './protocol.ts'
+import type { ShadeCues } from './sfx.ts'
 import type { AloneFrame } from './shadowcards.ts'
 
 // The player's id when they play alone.
 const ALONE = 'me'
+
+// How long a lunge plays, in seconds.
+const LUNGE_SECONDS = 0.35
 
 interface Frame {
   at: number
@@ -55,6 +61,8 @@ export interface CaretakerShadeUpdate {
   unmade: XZ[]
   // Its blip on the scope, if it is in range.
   contact: ScopeContact | null
+  // What it sounds like this frame (sfx.ts).
+  heard: ShadeCues
 }
 
 export class CaretakerShade {
@@ -69,6 +77,13 @@ export class CaretakerShade {
   private prev: Frame | null = null
   private next: Frame | null = null
   private pending: XZ[] = []
+  // Seconds since it last lunged, while the lunge plays; null otherwise.
+  private lunging: number | null = null
+  // A windup begun and a lunge not yet heard, and its windup in the last
+  // frame or step.
+  private begun = false
+  private lunged = false
+  private windup = 0
 
   constructor({ scene, groundAt, place }: CaretakerShadeOptions) {
     this.maze = place
@@ -95,6 +110,17 @@ export class CaretakerShade {
     this.prev = this.next
     this.next = { at, caretaker: msg.caretaker }
     if (msg.unmade) this.pending.push(msg.unmade)
+    if (msg.caretaker?.lunge) {
+      this.lunging = 0
+      this.lunged = true
+    }
+    this.listen(msg.caretaker?.windup ?? 0)
+  }
+
+  // A frame landed or a step taken: whether its windup began.
+  private listen(windup: number): void {
+    if (windup > 0 && this.windup <= 0) this.begun = true
+    this.windup = windup
   }
 
   update({
@@ -119,12 +145,18 @@ export class CaretakerShade {
       })
       struck = out.struck.length > 0
       if (out.burst) this.pending.push(out.burst)
+      if (out.lunged) {
+        this.lunging = 0
+        this.lunged = true
+      }
       const at = caretakerAt(this.own, this.maze)
       shown = at && {
         ...at,
         burn: this.own.burn / CONFIG.caretaker.burnSeconds,
         target: this.own.target,
+        windup: this.own.windup / CONFIG.caretaker.windupSeconds,
       }
+      this.listen(this.own.windup)
       me = ALONE
     } else if (this.maze) {
       // The one this client stepped is not the valley's: a fall back to
@@ -135,9 +167,23 @@ export class CaretakerShade {
       shown = this.sample(renderAt)
     }
     this.shown = shown
+    if (this.lunging !== null) {
+      this.lunging += dt
+      if (this.lunging >= LUNGE_SECONDS) this.lunging = null
+    }
     this.draw(shown, player, time)
     const unmade = this.pending
     this.pending = []
+    const heard = keeperCues(
+      this.begun,
+      this.lunged,
+      shown,
+      unmade,
+      player,
+      CONFIG.sfx
+    )
+    this.begun = false
+    this.lunged = false
     let contact: ScopeContact | null = null
     if (shown) {
       const dist = Math.hypot(shown.x - player.x, shown.z - player.z)
@@ -146,10 +192,11 @@ export class CaretakerShade {
           dist,
           bearing: compassBearing(shown.x - player.x, shown.z - player.z),
           hunting: shown.target === me,
+          kind: 'shadow',
         }
       }
     }
-    return { struck, unmade, contact }
+    return { struck, unmade, contact, heard }
   }
 
   // The valley's Caretaker at renderAt, between the last two frames; it
@@ -184,6 +231,10 @@ export class CaretakerShade {
     )
     group.rotation.y = Math.atan2(player.x - shown.x, player.z - shown.z)
     this.rig.setBurn(burn)
+    this.rig.setStrike(
+      shown.windup ?? 0,
+      this.lunging === null ? 0 : this.lunging / LUNGE_SECONDS
+    )
     this.rig.update(time)
   }
 }

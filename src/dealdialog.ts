@@ -1,5 +1,5 @@
 // Dealing with Erwin von Dutch, the squatter in Bull Valley Plaza
-// (sharedworld.ts rule 24): a small dialog over the valley, opened with E
+// (sharedworld.ts rule 25): a small dialog over the valley, opened with E
 // beside him, like the stand's. He takes no cash, so it starts with what
 // the pack could pay him with: pick one, and each of his goods (dealer.ts
 // DEALER_GOODS) shows how many of it he wants, how many he has left
