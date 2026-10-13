@@ -25,6 +25,8 @@ export type XpSource =
   | 'purchase'
   | 'drop'
   | 'stand'
+  | 'quest'
+  | 'warden'
   | 'share'
 
 // The XP each grants: every grant in one table.
@@ -52,6 +54,11 @@ export const XP: Readonly<Record<XpSource, number>> = {
   // collected (stand.ts standXp), so collecting often earns no more than
   // collecting once.
   stand: 1,
+  // A quest finished (quests.ts): the rose laid and the key given. Once
+  // an account, so it stays well under the Caretaker.
+  quest: 25,
+  // The Warden burst in the Undercroft, in the raider's beam.
+  warden: 25,
   // Something smoked, drunk or swallowed passed to another raider (rule
   // 25). It costs the giver the unit, so it is never free to farm.
   share: 5,

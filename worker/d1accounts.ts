@@ -31,6 +31,7 @@ interface AccountRow {
   primary_provider: string
   created_at: number
   last_login_at: number
+  session: number
 }
 
 interface ProviderRow {
@@ -50,6 +51,7 @@ const toAccount = (row: AccountRow): Account => ({
   primaryProvider: row.primary_provider,
   createdAt: row.created_at,
   lastLoginAt: row.last_login_at,
+  session: row.session,
 })
 
 const toProvider = (row: ProviderRow): LinkedProvider => ({
@@ -93,7 +95,7 @@ export class D1AccountStore implements AccountStore {
       await this.db.batch([
         this.db
           .prepare(
-            'INSERT INTO accounts (account_id, username, role, primary_provider, created_at, last_login_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO accounts (account_id, username, role, primary_provider, created_at, last_login_at, session) VALUES (?, ?, ?, ?, ?, ?, ?)'
           )
           .bind(
             account.accountId,
@@ -101,7 +103,8 @@ export class D1AccountStore implements AccountStore {
             account.role,
             account.primaryProvider,
             account.createdAt,
-            account.lastLoginAt
+            account.lastLoginAt,
+            account.session
           ),
         this.insertProvider(provider),
       ])
@@ -118,6 +121,13 @@ export class D1AccountStore implements AccountStore {
     await this.db
       .prepare('UPDATE accounts SET last_login_at = ? WHERE account_id = ?')
       .bind(now, accountId)
+      .run()
+  }
+
+  async endSessions(accountId: string): Promise<void> {
+    await this.db
+      .prepare('UPDATE accounts SET session = session + 1 WHERE account_id = ?')
+      .bind(accountId)
       .run()
   }
 
@@ -230,12 +240,12 @@ export class D1AccountStore implements AccountStore {
       this.db
         .prepare(
           'UPDATE accounts SET primary_provider = (' +
-            'SELECT provider_key FROM providers WHERE account_id = ?1 ' +
+            'SELECT provider_key FROM providers WHERE account_id = ? ' +
             'ORDER BY linked_at, provider_key LIMIT 1' +
-            ') WHERE account_id = ?1 AND primary_provider NOT IN (' +
-            'SELECT provider_key FROM providers WHERE account_id = ?1)'
+            ') WHERE account_id = ? AND primary_provider NOT IN (' +
+            'SELECT provider_key FROM providers WHERE account_id = ?)'
         )
-        .bind(accountId),
+        .bind(accountId, accountId, accountId),
     ])
     return (removed?.meta.changes ?? 0) > 0 ? 'ok' : 'last-provider'
   }
@@ -331,14 +341,14 @@ export class D1AccountStore implements AccountStore {
         'SELECT a.account_id AS id, a.username AS username, ' +
           "CASE WHEN f.accepted = 1 THEN 'friend' ELSE 'asked' END AS state " +
           'FROM friends f JOIN accounts a ON a.account_id = f.friend_id ' +
-          'WHERE f.account_id = ?1 AND a.username IS NOT NULL ' +
+          'WHERE f.account_id = ? AND a.username IS NOT NULL ' +
           'UNION ALL ' +
           "SELECT a.account_id, a.username, 'asking' " +
           'FROM friends f JOIN accounts a ON a.account_id = f.account_id ' +
-          'WHERE f.friend_id = ?1 AND f.accepted = 0 AND a.username IS NOT NULL ' +
-          'AND NOT EXISTS (SELECT 1 FROM friends g WHERE g.account_id = ?1 AND g.friend_id = f.account_id)'
+          'WHERE f.friend_id = ? AND f.accepted = 0 AND a.username IS NOT NULL ' +
+          'AND NOT EXISTS (SELECT 1 FROM friends g WHERE g.account_id = ? AND g.friend_id = f.account_id)'
       )
-      .bind(accountId)
+      .bind(accountId, accountId, accountId)
       .all<{ id: string; username: string; state: FriendState }>()
     return results.map((r) => ({
       accountId: r.id,
@@ -353,39 +363,35 @@ export class D1AccountStore implements AccountStore {
     const rows = await this.friendsOf(from)
     const state = rows.find((r) => r.accountId === to)?.state ?? null
     const outcome = askOutcome(state, from === to)
-    if (outcome === 'requested') {
-      if (rows.length >= FRIENDS_MAX) return 'full'
-      await this.db
-        .prepare(
-          'INSERT OR IGNORE INTO friends (account_id, friend_id, accepted, since) VALUES (?, ?, 0, ?)'
-        )
-        .bind(from, to, now)
-        .run()
-    }
-    if (outcome === 'accepted') {
-      await this.db.batch([
-        this.db
-          .prepare(
-            'UPDATE friends SET accepted = 1, since = ? WHERE account_id = ? AND friend_id = ?'
-          )
-          .bind(now, to, from),
-        this.db
-          .prepare(
-            'INSERT INTO friends (account_id, friend_id, accepted, since) VALUES (?, ?, 1, ?) ' +
-              'ON CONFLICT (account_id, friend_id) DO UPDATE SET accepted = 1, since = excluded.since'
-          )
-          .bind(from, to, now),
-      ])
-    }
-    return outcome
+    if (outcome !== 'requested' && outcome !== 'accepted') return outcome
+    if (outcome === 'requested' && rows.length >= FRIENDS_MAX) return 'full'
+    // The ask is one row, the other side's a second: both are accepted by
+    // whichever ask finds the other's row there, so two asking each other
+    // at once are friends whatever the order, never each waiting on the
+    // other. The rows say what came of it, not the read above.
+    await this.db
+      .prepare(
+        'INSERT OR IGNORE INTO friends (account_id, friend_id, accepted, since) VALUES (?, ?, 0, ?)'
+      )
+      .bind(from, to, now)
+      .run()
+    const { meta } = await this.db
+      .prepare(
+        'UPDATE friends SET accepted = 1, since = ? ' +
+          'WHERE ((account_id = ? AND friend_id = ?) OR (account_id = ? AND friend_id = ?)) ' +
+          'AND EXISTS (SELECT 1 FROM friends WHERE account_id = ? AND friend_id = ?)'
+      )
+      .bind(now, from, to, to, from, to, from)
+      .run()
+    return meta.changes > 0 ? 'accepted' : 'requested'
   }
 
   async unfriend(a: string, b: string): Promise<boolean> {
     const result = await this.db
       .prepare(
-        'DELETE FROM friends WHERE (account_id = ?1 AND friend_id = ?2) OR (account_id = ?2 AND friend_id = ?1)'
+        'DELETE FROM friends WHERE (account_id = ? AND friend_id = ?) OR (account_id = ? AND friend_id = ?)'
       )
-      .bind(a, b)
+      .bind(a, b, b, a)
       .run()
     return result.meta.changes > 0
   }

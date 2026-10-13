@@ -47,8 +47,6 @@ chat_input_label = { text = "Say to the valley", by = "ai" }
 geometrie_label = { text = "Geometrie: high {high}%, stimulated {stimulated}%, drunk {drunk}%", by = "ai" }
 health_label = { text = "Health: {health} of {max}", by = "ai" }
 
-# The sign-in card (src/signin.ts).
-
 # The season (src/seasonhud.ts): the card on the intro and pause overlay,
 # the tracker in the upper right, and the banners.
 
@@ -86,6 +84,8 @@ tracker_label = { text = "Raider level {level}: {into} of {span} XP to the next"
 tracker_label_max = { text = "Raider level {level}, the highest", by = "ai" }
 banner = { text = "Level {level}", by = "ai" }
 tag = { text = "{name} · {level}", by = "ai" }
+
+# The sign-in card (src/signin.ts).
 
 [signin]
 title = { text = "Sign In", by = "tyler" }
@@ -182,6 +182,14 @@ lore = { text = "Thirty-six dishes behind the Citgo, red lamps on their horns, t
 name = { text = "The Wreck", by = "ai" }
 lore = { text = "A green BMW nosed into a tree across from the maze. Still smouldering. The hazards have not stopped blinking since the night it left the road.", by = "ai" }
 
+[book.strip-mall]
+name = { text = "Bull Valley Plaza", by = "ai" }
+lore = { text = "Four shops in a row past the Citgo's lot, dark since before anyone can say. The tapes are still on the floor of the Video Vault, and someone keeps candles lit behind the Golden Wok's boards.", by = "ai" }
+
+[book.undercroft]
+name = { text = "The Undercroft", by = "ai" }
+lore = { text = "Down the ladder under the Video Vault's office: rough-cut rooms older than the plaza, older than the roads. Candles someone keeps lit, a floor of chalk, a wall of skulls, and an altar at the bottom.", by = "ai" }
+
 [book.donut-field]
 name = { text = "The Donut Field", by = "ai" }
 lore = { text = "Between Lake Avenue and the corn, rutted into rings. Matthew Marx comes here to think.", by = "ai" }
@@ -208,6 +216,14 @@ lore = { text = "Burn a shadow spider and it breaks into a brood of these: small
 name = { text = "The Caretaker", by = "ai" }
 lore = { text = "A hooded shade with a cold lantern who keeps the corn maze. One light does nothing to it. Two, held together, unmake it, and it forms again at the heart.", by = "ai" }
 
+[book.tunnel-shade]
+name = { text = "Tunnel Shade", by = "ai" }
+lore = { text = "Hunched shapes that keep to the Undercroft's rooms, slower than you but patient. They see in the dark. Your light undoes them, and they come back.", by = "ai" }
+
+[book.warden]
+name = { text = "The Warden", by = "ai" }
+lore = { text = "Crowned in iron, hung with chain, it stands before the altar at the bottom of the Undercroft and never leaves. Hold your light on it a long while.", by = "ai" }
+
 [book.marx]
 lore = { text = "Reads at his tailgate by the Citgo, does donuts across the road, and comes when you whistle. Climb into the bed and he will take you out through the valley and home.", by = "ai" }
 
@@ -219,6 +235,46 @@ lore = { text = "Stands under his own raincloud by the berry bush. He can make y
 
 [book.moab]
 lore = { text = "A burning skeleton in a red trench coat, his back to his burning horse, under every Citgo sign. He deals in gold.", by = "ai" }
+
+[book.squatter]
+lore = { text = "Sleeps behind the Golden Wok's boards with his candles and his chalk. Takes no cash: he barters for what the Citgo sells, at a little under its price. He has a rose that wants to go somewhere.", by = "ai" }
+
+# Erwin von Dutch, the squatter in Bull Valley Plaza (src/dealer.ts,
+# src/dealdialog.ts), and his quest (src/quests.ts).
+
+[dealer]
+ramble_1 = { text = "\"Put that wallet away. A Federal Reserve note is an IOU from an empire that owes everybody. I deal in things. Real things.\"", by = "ai" }
+ramble_2 = { text = "\"Fiat money is a story the empire tells itself so it can sleep. Cigarettes are a story too, but at least you can smoke them.\"", by = "ai" }
+ramble_3 = { text = "\"The dollar's been dead since '71. Nixon killed it on television and nobody came to the funeral. Show me what's in your pack.\"", by = "ai" }
+ramble_4 = { text = "\"I do not recognize imperialist currency. Marlboros, beer, a can of something cold, those I recognize. The shadowmen don't take cash either, you'll notice.\"", by = "ai" }
+pay_with = { text = "What He'll Take", by = "ai" }
+pay_kind = { text = "{item} ({count})", by = "ai" }
+good = { text = "{item}: {left} left today, {held} in your pack", by = "ai" }
+trade = { text = "Trade {count} × {pay} for {item}", by = "ai" }
+trade_nothing = { text = "Nothing he'll take for {item}", by = "ai" }
+nothing_to_pay = { text = "\"You've got nothing I want. Come back with smokes, or something to drink.\"", by = "ai" }
+close = { text = "Leave", by = "ai" }
+bought = { text = "Erwin von Dutch slides you the {item}. \"Pleasure doing business outside the system.\"", by = "ai" }
+sold_out = { text = "\"That's all I had today. Come back tomorrow.\"", by = "ai" }
+short = { text = "\"That's not enough. I count it at shelf price, less a little for the trouble.\"", by = "ai" }
+worthless = { text = "\"I don't take that.\"", by = "ai" }
+too_far = { text = "\"Come closer. I'm not shouting.\"", by = "ai" }
+refused = { text = "\"Not right now.\"", by = "ai" }
+
+[quests]
+rose_offer = { text = "\"There's something at the heart of the corn maze that wants a rose. A single one. Lay it down for me and the back room of the Video Vault is yours. I have the key. I've always had the key.\"", by = "ai" }
+rose_accept = { text = "Take the Rose", by = "ai" }
+rose_waiting = { text = "\"The heart of the maze. Before the door that isn't a door. Go on.\"", by = "ai" }
+rose_lost = { text = "\"You lost it? There are always more roses. Not always more of you.\"", by = "ai" }
+rose_again = { text = "Take Another Rose", by = "ai" }
+rose_laid = { text = "\"It took the rose. I felt it. Here, the key, like I promised.\"", by = "ai" }
+rose_reward = { text = "Take the Key", by = "ai" }
+rose_done = { text = "\"You did right by the maze. The back room's yours, for what it's worth.\"", by = "ai" }
+rose_given = { text = "Erwin von Dutch presses a single red rose into your hand. \"The heart of the maze.\"", by = "ai" }
+rose_placed = { text = "You lay the rose at the heart of the maze. Something in the corn goes quiet.", by = "ai" }
+rose_rewarded = { text = "Erwin von Dutch drops a brass key on a red tag into your palm. It says BACK.", by = "ai" }
+too_far = { text = "Not here.", by = "ai" }
+not_now = { text = "\"Not now.\"", by = "ai" }
 
 # The game's own lines in the chat log (src/actions.ts, src/valleysync.ts,
 # src/loop.ts, src/shop.ts).
@@ -264,6 +320,7 @@ taken = { text = "Taken: {item}", by = "ai" }
 taken_first = { text = "Someone got there first.", by = "ai" }
 dimes = { text = "You scoop up {count} dimes. +{amount}", by = "ai" }
 twenty = { text = "You pick up a twenty-dollar bill. It is cold and wet. +{amount}", by = "ai" }
+quarters = { text = "You fish {count} quarters out of the machine. +{amount}", by = "ai" }
 short = { text = "You're {amount} short.", by = "ai" }
 sold_out = { text = "Sold out.", by = "ai" }
 refused = { text = "The clerk shakes his head.", by = "ai" }
@@ -273,6 +330,7 @@ berry_refused = { text = "The bush gives you nothing.", by = "ai" }
 none_left = { text = "You have none left.", by = "ai" }
 dropped = { text = "Dropped: {item}", by = "ai" }
 drop_aboard = { text = "Not from the truck.", by = "ai" }
+drop_key_item = { text = "You keep hold of it. Someone is counting on you.", by = "ai" }
 drop_refused = { text = "It won't come loose.", by = "ai" }
 shrugged = { text = "Something cold goes through you. You're too far gone to feel it.", by = "ai" }
 pass_nothing = { text = "Nothing in hand to pass.", by = "ai" }
@@ -288,6 +346,7 @@ hit = { text = "Something cold goes through you. It takes a piece with it.", by 
 hit_caretaker = { text = "The lantern swings into you. A piece of you stays in the corn.", by = "ai" }
 mended = { text = "Under the Citgo lights you come back together.", by = "ai" }
 caught = { text = "A lantern, very close. Then the forecourt, and the smell of cold corn.", by = "ai" }
+tunneled = { text = "Something in the dark, very close. Then the forecourt, and the taste of stone.", by = "ai" }
 fell = { text = "Your pockets are empty. Everything you carried is still out there, on you, where you fell.", by = "ai" }
 looted = { text = "You take your things back off your own body.", by = "ai" }
 loot_refused = { text = "Your hands go through it. Not now.", by = "ai" }
@@ -299,6 +358,11 @@ stand_stocked = { text = "On the stand: {item}", by = "ai" }
 stand_collected = { text = "The stand paid you {amount}.", by = "ai" }
 stand_upgraded = { text = "Your stand is level {level} now.", by = "ai" }
 stand_offline = { text = "No signal. The stand is shut.", by = "ai" }
+locked = { text = "Locked. The handle does not give.", by = "ai" }
+deal_offline = { text = "No signal. Erwin von Dutch will not deal with a stranger alone.", by = "ai" }
+descend = { text = "You climb down out of the light. The rungs are older than the store.", by = "ai" }
+ascend = { text = "You climb back up into the office. The fluorescent hum is almost a comfort.", by = "ai" }
+whistle_below = { text = "Your whistle dies in the stone. No one hears it up there.", by = "ai" }
 stand_far = { text = "You are too far from the stand.", by = "ai" }
 stand_short = { text = "You cannot cover that.", by = "ai" }
 stand_none = { text = "You have none of those to put out.", by = "ai" }
@@ -323,8 +387,10 @@ trade = { text = "E — Trade {count} oz of {price} for the {cosmetic}", by = "a
 loot = { text = "E — Take Your Things Back", by = "ai" }
 locker = { text = "E — Open Your Locker", by = "ai" }
 stand = { text = "E — Tend Your Stand", by = "ai" }
-
-# Lines the game says to the player in the chat log (src/chat.ts).
+locked = { text = "E — Locked", by = "ai" }
+lay = { text = "E — Lay the Rose", by = "ai" }
+descend = { text = "E — Climb Down", by = "ai" }
+ascend = { text = "E — Climb Up", by = "ai" }
 
 # The emotes (src/emotes.ts): what a raider is told doing one, and the
 # quiet line a raider near enough to see it gets.
@@ -346,6 +412,8 @@ shrug_self = { text = "You shrug.", by = "ai" }
 shrug_seen = { text = "{name} shrugs.", by = "ai" }
 kneel_self = { text = "You kneel.", by = "ai" }
 kneel_seen = { text = "{name} kneels.", by = "ai" }
+
+# Lines the game says to the player in the chat log (src/chat.ts).
 
 [chat]
 too_fast = { text = "You are speaking too fast.", by = "ai" }
@@ -400,19 +468,21 @@ quantity_left = { text = "Quantity: {count}, {left} left in the open one", by = 
 cash = { text = "Cash", by = "ai" }
 tab_consumables = { text = "Consumables", by = "ai" }
 tab_loot = { text = "Loot", by = "ai" }
+tab_key_items = { text = "Key Items", by = "ai" }
 tab_materials = { text = "Materials", by = "ai" }
 empty_consumables = { text = "Empty pockets. Nothing between you and the valley.", by = "ai" }
 empty_loot = { text = "Nothing found yet.", by = "ai" }
+empty_key_items = { text = "Nothing anyone has asked you to carry.", by = "ai" }
 empty_materials = { text = "Nothing to build with yet.", by = "ai" }
 tab_locker = { text = "Locker", by = "ai" }
 empty_locker = { text = "Your locker is empty. What you leave here, no shadow takes.", by = "ai" }
 
-# Place names, shown in prompts and the raid summary (src/landmarks.ts).
+# Place names, shown in prompts (src/landmarks.ts).
 
 [places]
 keep = { text = "Mt. Coleman's Keep", by = "ai" }
 
-# The title cards (src/config.ts): image alt text and the colophon's hint.
+# The title cards (src/splash.ts): image alt text and the colophon's hint.
 
 [titles]
 colophon_alt = { text = "Northern Information", by = "ai" }
@@ -525,6 +595,7 @@ price = { text = "{item} {price}", by = "ai" }
 berries = { text = "Berries", by = "ai" }
 dimes = { text = "{count} Dimes", by = "ai" }
 twenty = { text = "$20 Bill", by = "ai" }
+quarters = { text = "{count} Quarters", by = "ai" }
 twenties = { text = "{count} $20 Bills", by = "ai" }
 berry_picked = { text = "Picked Clean Until Midnight", by = "ai" }
 berry_offline = { text = "No Signal", by = "ai" }
@@ -551,6 +622,7 @@ jdogg = { text = "Jdogg", by = "tyler" }
 mathiesen = { text = "Alex Mathiesen", by = "ai" }
 gron = { text = "Gron", by = "tyler" }
 moab = { text = "Moab Coldë", by = "ai" }
+squatter = { text = "Erwin von Dutch", by = "ai" }
 
 # Matthew Marx, looked at and spoken to (src/npcs.ts): "O, Whistle an' I'll
 # Come to Ye, My Lad" by Robert Burns, a stanza each time, into the chat log.
@@ -702,6 +774,24 @@ blurb = { text = "You will see them. You will feel less.", by = "ai" }
 used = { text = "You spark the joint. The valley sharpens.", by = "ai" }
 bought = { text = "One joint, pocketed.", by = "ai" }
 empty = { text = "No joints left.", by = "ai" }
+
+[items.lsd]
+label = { text = "LSD", by = "ai" }
+blurb = { text = "A sheet of blotter from Erwin von Dutch, a third eye printed on every tab. Eight hours, he says, give or take a lifetime.", by = "ai" }
+used = { text = "A tab under the tongue. The fog starts to breathe.", by = "ai" }
+empty = { text = "No tabs left.", by = "ai" }
+
+[items.adderall]
+label = { text = "Adderall", by = "ai" }
+blurb = { text = "An amber bottle with someone else's name on the label. Ten pills. Everything gets very clear and very fast.", by = "ai" }
+used = { text = "You dry-swallow a pill. Your jaw tightens.", by = "ai" }
+empty = { text = "The bottle is empty.", by = "ai" }
+
+[items.mushrooms]
+label = { text = "Mushrooms", by = "ai" }
+blurb = { text = "A baggie of dried caps from Erwin von Dutch. He says they show you what the shadowmen see.", by = "ai" }
+used = { text = "You chew the caps down. They taste like the floor of the maze.", by = "ai" }
+empty = { text = "No mushrooms left.", by = "ai" }
 
 [items.monster]
 label = { text = "Monster Energy", by = "ai" }
@@ -862,3 +952,11 @@ collected = { text = "A berry off the bush. The rest are for tomorrow.", by = "a
 [items.gold-bullion]
 label = { text = "Gold Bullion", by = "ai" }
 blurb = { text = "One troy ounce, stamped .9999 fine. Moab Coldë has a use for it.", by = "ai" }
+
+[items.rose]
+label = { text = "A Single Rose", by = "ai" }
+blurb = { text = "Erwin von Dutch wants it laid at the heart of the corn maze. Don't ask him why. He will tell you.", by = "ai" }
+
+[items.vault-key]
+label = { text = "Video Vault Key", by = "ai" }
+blurb = { text = "A brass key on a red tag that says BACK, from Erwin von Dutch for the rose. It opens the office behind the Video Vault, for whoever carries it.", by = "ai" }

@@ -17,7 +17,7 @@ const consumables = (inv: Inventory) => packItems(inv, 'consumables')
 
 describe('PACK_TABS', () => {
   it('opens on consumables, with loot beside it', () => {
-    expect(PACK_TABS).toEqual(['consumables', 'loot', 'materials'])
+    expect(PACK_TABS).toEqual(['consumables', 'loot', 'key-items', 'materials'])
   })
 })
 

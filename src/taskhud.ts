@@ -6,17 +6,7 @@
 
 import { copy } from './copy.ts'
 import { DAILY_TASK } from './dailytask.ts'
-
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className: string,
-  content?: string
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag)
-  node.className = className
-  if (content !== undefined) node.textContent = content
-  return node
-}
+import { el } from './dom.ts'
 
 // What the row shows: today's count and whether the reward is paid, or
 // nothing at all.

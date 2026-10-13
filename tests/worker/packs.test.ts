@@ -44,6 +44,34 @@ function packContract(makeStore: () => PackStore): void {
     })
   })
 
+  it('reads everything the welcome carries at once, opening the account', async () => {
+    const store = makeStore()
+    const first = await store.welcome('a1', 'one', 'burn')
+    expect(first).toEqual({
+      holdings: {
+        pack: STARTING_INVENTORY,
+        cash: STARTING_CASH,
+        cosmetics: [],
+        stash: EMPTY,
+      },
+      season: NO_PROGRESS,
+      book: [],
+      task: NO_TASK,
+      xp: 0,
+      stand: FRESH_STAND,
+      quests: { rose: 'none' },
+    })
+    await store.change('a1', OTHER, 2)
+    await store.discover('a1', ['citgo'], 5)
+    await store.gainXp('a1', 7)
+    const again = await store.welcome('a1', 'one', 'burn')
+    expect(again.holdings.pack[OTHER]).toBe(2)
+    expect(again.book).toEqual(['citgo'])
+    expect(again.xp).toBe(7)
+    // Reading never makes a stand row: the first tend does.
+    expect((await store.stand('a1')).rev).toBe(0)
+  })
+
   it('holds nothing for an account never opened', async () => {
     const store = makeStore()
     const { pack, cash } = await store.get('a1')
@@ -111,6 +139,58 @@ function packContract(makeStore: () => PackStore): void {
     // Had for good: never sold twice, and never paid for twice.
     expect(await store.trade('a1', price, 'flaming-halo')).toBe(false)
     expect((await store.get('a1')).pack['gold-bullion']).toBe(1)
+  })
+
+  it('barters only what the pack holds, both sides together', async () => {
+    const store = makeStore()
+    await store.open('a1')
+    await store.change(
+      'a1',
+      'marlboro',
+      40 - (STARTING_INVENTORY.marlboro ?? 0)
+    )
+    expect(
+      await store.barter(
+        'a1',
+        { kind: 'marlboro', count: 41 },
+        { kind: 'lsd', count: 1 }
+      )
+    ).toBe(false)
+    expect((await store.get('a1')).pack).toMatchObject({ marlboro: 40, lsd: 0 })
+    expect(
+      await store.barter(
+        'a1',
+        { kind: 'marlboro', count: 37 },
+        { kind: 'lsd', count: 1 }
+      )
+    ).toBe(true)
+    expect((await store.get('a1')).pack).toMatchObject({ marlboro: 3, lsd: 1 })
+  })
+
+  it('steps a quest only from where it stands, with its pack change', async () => {
+    const store = makeStore()
+    await store.open('a1')
+    expect((await store.quests('a1')).rose).toBe('none')
+    const give = { kind: 'rose', delta: 1 }
+    // Not from a stage it is not at.
+    expect(await store.quest('a1', 'rose', 'given', 'laid', give)).toBe(false)
+    expect(await store.quest('a1', 'rose', 'none', 'given', give)).toBe(true)
+    expect((await store.quests('a1')).rose).toBe('given')
+    expect((await store.get('a1')).pack.rose).toBe(1)
+    // Taken out only while the pack holds it, the stage with it.
+    const lay = { kind: 'rose', delta: -1 }
+    expect(await store.quest('a1', 'rose', 'given', 'laid', lay)).toBe(true)
+    expect(await store.quest('a1', 'rose', 'laid', 'laid', lay)).toBe(false)
+    expect((await store.quests('a1')).rose).toBe('laid')
+    expect((await store.get('a1')).pack.rose).toBe(0)
+    expect(
+      await store.quest('a1', 'rose', 'laid', 'done', {
+        kind: 'vault-key',
+        delta: 1,
+      })
+    ).toBe(true)
+    expect((await store.quests('a1')).rose).toBe('done')
+    expect((await store.get('a1')).pack['vault-key']).toBe(1)
   })
 
   it('keeps season progress, paying a reward with it', async () => {
@@ -323,7 +403,9 @@ describe('D1PackStore', () => {
     const { db } = testD1()
     const store = new D1PackStore(db)
     // No account, so the stand row breaks its foreign key.
-    await expect(store.stand('nobody')).rejects.toThrow(/FOREIGN KEY/)
+    await expect(
+      store.tend('nobody', 0, { ledger: FRESH_STAND, items: {}, cash: 0 })
+    ).rejects.toThrow(/FOREIGN KEY/)
     const broken = {
       ...db,
       batch: () => Promise.reject(new Error('D1 is down')),

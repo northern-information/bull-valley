@@ -4,6 +4,7 @@
 // makes. No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
+import { goldenSpot } from './math.ts'
 import { generateName } from './names.ts'
 import type { XZ } from './interfaces.ts'
 import type { Rng } from './rng.ts'
@@ -32,20 +33,14 @@ export function burialsOf(
     .map(({ x, z }) => ({ x, z, name: generateName(rng) }))
 }
 
-const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5))
-
 // Where grave `id` stands: a step off where its shadowman burst, turned
 // round by id, so the stone never covers the dimes it left.
 export function graveSpot(at: XZ, id: number, cfg = CONFIG): XZ {
-  const turn = id * GOLDEN_ANGLE
-  return {
-    x: at.x + Math.cos(turn) * cfg.graves.offset,
-    z: at.z + Math.sin(turn) * cfg.graves.offset,
-  }
+  return goldenSpot(at, id, cfg.graves.offset)
 }
 
 // The longest name a stone takes; anything longer is not one of ours.
-export const NAME_MAX = 48
+export const GRAVE_NAME_MAX = 48
 
 // The graves after `burials` are laid beside `graves`, numbered from
 // `next`: the oldest go once more than CONFIG.graves.max stand.
@@ -61,7 +56,7 @@ export function bury(
         Number.isFinite(b.x) &&
         Number.isFinite(b.z) &&
         b.name.length > 0 &&
-        b.name.length <= NAME_MAX
+        b.name.length <= GRAVE_NAME_MAX
     )
     .map((b, i) => ({
       id: next + i,

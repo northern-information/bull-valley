@@ -10,6 +10,11 @@ export const CONFIG = {
     // stars and moon stay overhead while the valley closes in.
     fogDensity: 0.016,
     far: 1400,
+    // Past this many metres from the player the fog has swallowed
+    // everything (3/fogDensity), so what moves on its own out there
+    // (Moab's fire, the dishes, the wreck's hazards) is not stepped, and
+    // Marx's lamps stop rendering their shadow maps.
+    liveRadius: 190,
     // The longest step one frame may take, in seconds, so a stall never
     // jumps the valley ahead.
     maxStep: 0.05,
@@ -35,6 +40,8 @@ export const CONFIG = {
       citgo: 25,
       stand: 7,
       wreck: 12,
+      // From the middle of the plaza's building, out over its lot.
+      plaza: 30,
       // From the middle of the array, which runs some 70 m a side.
       dishes: 45,
       // Past the field's own edge.
@@ -101,6 +108,8 @@ export const CONFIG = {
       waterRadius: 120,
       maxPerBubble: 3,
       burnScale: 2,
+      // Its burst, against a shadowman's.
+      burstScale: 2,
       aimHeight: 2.8,
       speedMin: 5,
       speedMax: 8,
@@ -117,6 +126,8 @@ export const CONFIG = {
       brood: { min: 3, max: 8 },
       scatter: 2.5,
       scale: 0.25,
+      // Its burst, against a shadowman's.
+      burstScale: 0.5,
       speedMin: 8,
       speedMax: 11,
       rushRadius: 40,
@@ -135,7 +146,7 @@ export const CONFIG = {
     // and sends each step; clients draw them between the last two.
     tickHz: 10,
   },
-  // Health (health.ts, sharedworld.ts rule 21): every raider has `max`
+  // Health (health.ts, sharedworld.ts rule 24): every raider has `max`
   // points, and any shadow's touch takes one. A touch that leaves some
   // lets the raider alone for graceSeconds where they stand; the last one
   // shatters their geometrie (a strike: the static and the corpse run),
@@ -354,6 +365,21 @@ export const CONFIG = {
       drift: 0.6,
     },
   },
+  // What the valley holds a raider to (sharedworld.ts): a take, a buy, a
+  // berry, a body looted, the bed climbed into, all from where the
+  // raider's last state frame put them. Looser than the client's own
+  // reach, since a frame is up to a tenth of a second old and a sprint
+  // covers a metre in that.
+  valleyReach: {
+    // A pickup, a drop, a berry bush or a body, in metres.
+    item: 10,
+    // The truck's bed, parked at home or come to a whistle.
+    truck: 24,
+    // A whistle reckons the drive from where the client says the truck
+    // is; further than this from home it is reckoned from home, so no
+    // whistle can send Marx on a drive from the far side of the valley.
+    callFrom: 600,
+  },
   net: {
     // The valley server. State frames go out at most this often, and only
     // when something changed; peers are drawn this far behind the present
@@ -387,6 +413,10 @@ export const CONFIG = {
     ahead: 1.2,
     // The circle drops from one spot are spread round, in metres.
     scatter: 0.35,
+    // How many of what the valley spilled (dimes, a $20, bullion) lie at
+    // once; past it the oldest goes, so an evening's bursts never fill the
+    // world. A raider's own drops lie until the day turns.
+    spilledMax: 300,
   },
   // The tombstones burst shadowmen leave (graves.ts).
   graves: {
@@ -536,6 +566,81 @@ export const CONFIG = {
     radius: 1.4,
     // Trees keep this far off each pedestal: clear of the reflector.
     treeClear: 6,
+  },
+  stripMall: {
+    // Bull Valley Plaza, the dead strip mall beside the spawn Citgo
+    // (stripmall.ts), station-local like the bush: the middle of its
+    // front wall, on the side away from the wreck and the maze, its lot
+    // running on from the Citgo's past the cabbage stand, and its alley
+    // behind clear of the dish array. Scenery: it only blocks.
+    at: { x: -8, z: -60 },
+    // The back room's locked door swings open for a raider who may pass
+    // (keys.ts) once they are this close to it, in metres; E this close
+    // without the key only rattles it.
+    doorReach: 2.5,
+  },
+  dealer: {
+    // How close Erwin von Dutch in the Golden Wok (dealer.ts, placed at
+    // stripmall.ts STRIP_MALL.dealer) must be for E to deal with him.
+    reach: 2.2,
+    // What he counts each unit of a raider's goods at, as a share of its
+    // Citgo shelf price: a little under.
+    rate: 0.9,
+    // The valley sells only to a raider whose last state frame put them
+    // within this of him: generous, since frames lag.
+    dealReach: 8,
+    // He blocks like a post this wide.
+    radius: 0.35,
+  },
+  // The tunnel shades in the Undercroft (tunnelshades.ts): each kind's
+  // drift round its lair and its hunt (m/s; the walk is 4.2), how far it
+  // sees and feels, its touch, the seconds a beam must hold it, and the
+  // seconds before it forms again. The Warden keeps the deep chamber.
+  tunnel: {
+    shade: {
+      patrolSpeed: 1.1,
+      huntSpeed: 3.4,
+      sightRange: 14,
+      senseRadius: 2.5,
+      touchRadius: 0.9,
+      burnSeconds: 0.9,
+      respawnSeconds: 90,
+      patrolRadius: 8,
+      chestHeight: 1.2,
+    },
+    warden: {
+      patrolSpeed: 0.5,
+      huntSpeed: 3.0,
+      sightRange: 18,
+      senseRadius: 3,
+      touchRadius: 1.4,
+      burnSeconds: 4,
+      respawnSeconds: 300,
+      patrolRadius: 2.5,
+      chestHeight: 1.8,
+    },
+    forgetSeconds: 4,
+    rethinkSeconds: 0.75,
+    clearance: 0.5,
+  },
+  undercroft: {
+    // Where the Undercroft lies (undercroft.ts): this many metres in from
+    // the survey square's low corner, well past the valley's edge, and
+    // this high over the highest ground under it, so nothing on the
+    // surface ever stands in it.
+    inset: 60,
+    lift: 60,
+    // How near the trapdoor in the Video Vault's office, or the ladder's
+    // foot below, E climbs.
+    climbReach: 1.6,
+  },
+  quests: {
+    // How near the heart of the corn maze a raider's last state frame
+    // must put them for the valley to take the rose laid there (quests.ts),
+    // in metres: past the berry bushes' ring, since frames lag.
+    heartReach: 10,
+    // How near the portal E lays it.
+    layReach: 4,
   },
   emotes: {
     // A raider within this many metres of one who emotes (emotes.ts) gets

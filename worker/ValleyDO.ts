@@ -6,15 +6,24 @@
 // plumbing that reads a frame, runs the reducer, persists, arms the alarm
 // for Marx's truck and the day's turn, and sends what came back. Each account's pack and wallet are in D1
 // (d1packs.ts): the reducer says what goes in or out, and this writes it
-// and tells the account's sockets. A buy runs alone (blockConcurrencyWhile),
-// so the wallet it was judged against is the wallet it is paid from; so
-// does a trade with Moab, against the pack, the season's tally (rule 15),
-// so an unmaking is counted once and its reward paid once, and the daily
-// task's (rule 16), so a burn is counted once and the day's reward paid
-// once; and a strike that empties the pack onto a body (rule 18), a body
-// looted, and a move to or from the locker (rule 19), so no unit is in two
-// places. XP (rule 22) needs no such care: each account's is added in one
-// statement (PackStore.gainXp), whatever lands beside it.
+// and tells the account's sockets.
+//
+// Every change to the valley runs under one lock (`locked`): the reducer
+// is run and its result applied with nothing else between, D1 writes
+// included, so a buy is paid from the wallet it was judged against, a
+// trade with Moab taken from the pack it was judged against, a strike's
+// body laid from the pack it emptied (rule 18), a body looted and a move
+// to or from the locker (rule 19) done with no unit in two places, and
+// the shadowmen's step never lands between a handler's reduce and its
+// apply (a step's hit, spill or mend would otherwise be overwritten by a
+// valley reduced before it). blockConcurrencyWhile would not do: it holds
+// inbound events, not the step's timer. State frames and chat touch no
+// valley and never wait on the lock. What is one account's alone (the
+// season's tally, rule 15, so an unmaking is counted once; the daily
+// task's, rule 16; the Book of Shadows, rule 20) runs under that
+// account's own lock (`forAccount`), so no one else's input waits on its
+// D1 round trips. XP (rule 22) needs no lock: each account's is added in
+// one statement (PackStore.gainXp), whatever lands beside it.
 //
 // The shadowmen (rule 11) and the Caretaker (rule 13) are stepped here
 // CONFIG.shadowmen.tickHz times a second while anyone is placed in the
@@ -40,6 +49,7 @@ import {
   parseClientMessage,
   PROTOCOL_VERSION,
 } from '../src/protocol.ts'
+import { isQuest } from '../src/quests.ts'
 import { mulberry32 } from '../src/rng.ts'
 import { SEASON, tally } from '../src/season.ts'
 import {
@@ -56,6 +66,7 @@ import {
   reduce,
   restoreValley,
   seeHeadlights,
+  shadowmenNear,
   stepShadows,
   toWire,
 } from '../src/sharedworld.ts'
@@ -76,6 +87,7 @@ import type {
   ServerMessage,
   TaskWire,
 } from '../src/protocol.ts'
+import type { QuestId, QuestStage } from '../src/quests.ts'
 import type { SeasonProgress } from '../src/season.ts'
 import type {
   PackChange,
@@ -102,6 +114,8 @@ interface Attachment {
 // State frames per second one socket may send before the rest are dropped.
 // The client sends at most CONFIG.net.sendHz; three times that is a flood.
 const STATE_LIMIT: RateLimit = { count: 30, ms: 1000 }
+// Where Marx's truck stands, on the state frame's cadence.
+const HEADLIGHTS_LIMIT: RateLimit = STATE_LIMIT
 
 // Chat lines one socket may send in ten seconds; the rest are nacked.
 const CHAT_LIMIT: RateLimit = { count: 5, ms: 10_000 }
@@ -112,16 +126,23 @@ const FRIEND_LIMIT: RateLimit = { count: 5, ms: 10_000 }
 // Changes at Gron one socket may make in ten seconds; each one rebuilds a
 // figure for everyone, so the rest are nacked.
 const APPEARANCE_LIMIT: RateLimit = { count: 5, ms: 10_000 }
+// A trade with Moab: a change to the look, at its pace.
+const TRADE_LIMIT: RateLimit = APPEARANCE_LIMIT
 
 // Drops one socket may make in ten seconds; each sends the whole world to
 // everyone, so the rest are nacked.
 const DROP_LIMIT: RateLimit = { count: 20, ms: 10_000 }
+// Every other write to the pack (the locker, the stand): the same pace.
+const PACK_LIMIT: RateLimit = DROP_LIMIT
 
 // Discover frames one socket may send in ten seconds; each reads and
 // writes D1, so the rest are nacked (the client asks again).
 const DISCOVER_LIMIT: RateLimit = { count: 10, ms: 10_000 }
 
 const VALLEY_KEY = 'valley'
+// How far round a raider the shadowmen frame reaches: past where their
+// own bubble lets one go, so none crosses the edge unseen.
+const SHADOW_FRAME_RADIUS = CONFIG.shadowmen.despawnRadius + 40
 
 interface RateWindow {
   startedAt: number
@@ -144,7 +165,7 @@ export class ValleyDO extends DurableObject<Env> {
   private friendRate = new WeakMap<WebSocket, RateWindow>()
   private dropRate = new WeakMap<WebSocket, RateWindow>()
   private discoverRate = new WeakMap<WebSocket, RateWindow>()
-  // Rule 13, in memory only: gone whenever the object sleeps.
+  // Rules 11 and 13, in memory only: gone whenever the object sleeps.
   private shadows = createShadows()
   private shadowRng = mulberry32(Math.floor(Math.random() * 2 ** 32))
   // A dev server's quiet valley (the specs'): no crossing shadowman rushes.
@@ -154,6 +175,14 @@ export class ValleyDO extends DurableObject<Env> {
   // here (after a wake) counts as heard now.
   private heard = new WeakMap<WebSocket, number>()
   private sweptAt = 0
+  // Each socket's attachment as last written, so reading one (every
+  // broadcast reads every socket's) is a lookup, not a structured clone;
+  // a socket missing here (after a wake) is read from the socket once.
+  private attachments = new WeakMap<WebSocket, Attachment>()
+  // The valley's lock: the tail of the chain every change waits on.
+  private chain: Promise<unknown> = Promise.resolve()
+  // Each account's lock, for what is that account's alone.
+  private accountChains = new Map<string, Promise<unknown>>()
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
@@ -178,7 +207,7 @@ export class ValleyDO extends DurableObject<Env> {
       name: request.headers.get(NAME_HEADER),
       me: null,
     }
-    server.serializeAttachment(attachment)
+    this.attach(server, attachment)
     return new Response(null, { status: 101, webSocket: client })
   }
 
@@ -206,6 +235,9 @@ export class ValleyDO extends DurableObject<Env> {
       await this.hello(ws, attachment, msg)
       return
     }
+    // Where the raider's own last state frame put them, never a frame's
+    // word: what the valley holds every reach to (sharedworld.ts).
+    const at = me.at ? { x: me.at.x, z: me.at.z } : null
     switch (msg.type) {
       case 'hello':
         ws.close(CLOSE.malformed, 'Already said hello')
@@ -216,7 +248,7 @@ export class ValleyDO extends DurableObject<Env> {
         return
       case 'headlights':
         // Rule 11: where Marx's truck stands, for its headlights.
-        if (allow(this.headlightsRate, ws, STATE_LIMIT)) {
+        if (allow(this.headlightsRate, ws, HEADLIGHTS_LIMIT)) {
           const { x, y, z, heading } = msg
           seeHeadlights(this.shadows, me.at, { x, y, z, heading }, Date.now())
         }
@@ -224,12 +256,14 @@ export class ValleyDO extends DurableObject<Env> {
       case 'ping':
         send(ws, { type: 'pong', t: msg.t, serverNow: Date.now() })
         return
-      case 'board':
       case 'hop-out':
-        await this.act(ws, { type: msg.type, id: me.id })
+        await this.act(ws, { type: 'hop-out', id: me.id })
+        return
+      case 'board':
+        await this.act(ws, { type: 'board', id: me.id, at })
         return
       case 'take':
-        await this.act(ws, { type: 'take', id: me.id, index: msg.index })
+        await this.act(ws, { type: 'take', id: me.id, index: msg.index, at })
         return
       case 'buy':
         await this.purchase(ws, attachment, {
@@ -238,18 +272,14 @@ export class ValleyDO extends DurableObject<Env> {
           station: msg.station,
           kind: msg.kind,
           unit: msg.unit,
+          at,
         })
         return
       case 'call':
-        await this.act(ws, {
-          type: 'call',
-          id: me.id,
-          from: msg.from,
-          to: msg.to,
-        })
+        await this.act(ws, { type: 'call', id: me.id, from: msg.from, at })
         return
       case 'collect':
-        await this.act(ws, { type: 'collect', id: me.id, bush: msg.bush })
+        await this.act(ws, { type: 'collect', id: me.id, bush: msg.bush, at })
         return
       case 'use': {
         // Rules 24 and 25: once the pack has given the unit up, it doses
@@ -282,13 +312,14 @@ export class ValleyDO extends DurableObject<Env> {
         return
       }
       case 'take-drop':
-        await this.act(ws, { type: 'take-drop', id: me.id, drop: msg.drop })
+        await this.act(ws, { type: 'take-drop', id: me.id, drop: msg.drop, at })
         return
       case 'loot':
         await this.loot(ws, attachment.account, {
           type: 'loot',
           id: me.id,
           corpse: msg.corpse,
+          at,
         })
         return
       case 'stow':
@@ -324,6 +355,27 @@ export class ValleyDO extends DurableObject<Env> {
           type: 'trade',
           id: me.id,
           offer: msg.offer,
+        })
+        return
+      case 'quest':
+        // Beside Erwin, or at the heart of the maze, where the raider's
+        // own last state frame put them.
+        await this.questStep(ws, attachment, {
+          type: 'quest',
+          id: me.id,
+          quest: msg.quest,
+          step: msg.step,
+          at: me.at ? { x: me.at.x, z: me.at.z } : null,
+        })
+        return
+      case 'deal':
+        // Beside Erwin where the raider's own last state frame put them.
+        await this.barter(ws, attachment, {
+          type: 'deal',
+          id: me.id,
+          kind: msg.kind,
+          pay: msg.pay,
+          at: me.at ? { x: me.at.x, z: me.at.z } : null,
         })
         return
       case 'discover':
@@ -369,18 +421,21 @@ export class ValleyDO extends DurableObject<Env> {
           return
         }
         if (msg.op === 'health') {
-          const reduced = reduce(
-            this.valley,
-            { type: 'set-health', id: me.id, points: msg.points },
-            this.context()
-          )
-          await this.apply(reduced)
-          if (reduced.health) {
-            this.toAccount(reduced.health.account, {
-              type: 'health',
-              health: reduced.health.points,
-            })
-          }
+          const { points } = msg
+          await this.locked(async () => {
+            const reduced = reduce(
+              this.valley,
+              { type: 'set-health', id: me.id, points },
+              this.context()
+            )
+            await this.apply(reduced)
+            if (reduced.health) {
+              this.toAccount(reduced.health.account, {
+                type: 'health',
+                health: reduced.health.points,
+              })
+            }
+          })
           return
         }
         if (msg.op === 'caretaker') {
@@ -409,20 +464,49 @@ export class ValleyDO extends DurableObject<Env> {
 
   // Marx's truck or the day is due to move on.
   async alarm(): Promise<void> {
-    const reduced = reduce(this.valley, { type: 'clock' }, this.context())
-    await this.apply(reduced)
-    for (const msg of reduced.broadcast) this.broadcast(msg, null)
+    await this.locked(async () => {
+      const reduced = reduce(this.valley, { type: 'clock' }, this.context())
+      await this.apply(reduced)
+      for (const msg of reduced.broadcast) this.broadcast(msg, null)
+    })
+  }
+
+  // Runs `fn` once every change queued before it has landed, and makes
+  // every change queued after wait on it: the valley's lock. A throw
+  // inside fails only `fn`; the chain goes on.
+  private locked<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.chain.then(fn, fn)
+    this.chain = run.catch(() => undefined)
+    return run
+  }
+
+  // Runs `fn` alone among `account`'s own writes, with no one else's
+  // input waiting on it.
+  private forAccount<T>(account: string, fn: () => Promise<T>): Promise<T> {
+    const before = this.accountChains.get(account) ?? Promise.resolve()
+    const run = before.then(fn, fn)
+    const after = run
+      .catch(() => undefined)
+      .then(() => {
+        if (this.accountChains.get(account) === after) {
+          this.accountChains.delete(account)
+        }
+      })
+    this.accountChains.set(account, after)
+    return run
   }
 
   // Where the accounts are kept; the Worker tests hand in a memory store.
   protected accounts(): AccountStore {
-    return new D1AccountStore(this.env.DB)
+    return (this.d1Accounts ??= new D1AccountStore(this.env.DB))
   }
+  private d1Accounts: AccountStore | null = null
 
   // Where the packs are kept; the Worker tests hand in a memory store.
   protected packs(): PackStore {
-    return new D1PackStore(this.env.DB)
+    return (this.d1Packs ??= new D1PackStore(this.env.DB))
   }
+  private d1Packs: PackStore | null = null
 
   // The shadowmen's clock; the Worker tests step them by hand instead.
   protected startTicker(step: () => void, ms: number): unknown {
@@ -445,6 +529,18 @@ export class ValleyDO extends DurableObject<Env> {
   // One step of the shadowmen and the Caretaker: the frame to everyone, a
   // strike to each raider touched, saying when it was the Caretaker. Stops the clock when there is no one to step round.
   protected tickShadows(): void {
+    try {
+      this.tickShadowsUnguarded()
+    } catch (err) {
+      // A throw in a timer has no request to fail; say so once a step
+      // rather than every tenth of a second.
+      if (!this.tickFailed) console.error('The shadowmen could not step', err)
+      this.tickFailed = true
+    }
+  }
+  private tickFailed = false
+
+  private tickShadowsUnguarded(): void {
     this.sweep(Date.now())
     const placed = this.roster(null).map(({ id, at }) => ({ id, at }))
     const out = stepShadows(this.valley, this.shadows, placed, this.shadowRng, {
@@ -457,11 +553,27 @@ export class ValleyDO extends DurableObject<Env> {
       this.ticker = null
       return
     }
-    this.broadcast(out.message, null)
+    // Each socket the field round its own raider: the whole of it, to
+    // everyone, grows with the raiders squared.
+    for (const socket of this.ctx.getWebSockets()) {
+      const me = this.attachment(socket).me
+      if (!me) continue
+      const at = me.at ? { x: me.at.x, z: me.at.z } : null
+      try {
+        send(socket, shadowmenNear(out.message, at, SHADOW_FRAME_RADIUS))
+      } catch {
+        // Closing sockets throw; their close handler follows.
+      }
+    }
     if (out.credited.length > 0) void this.credit(out.credited)
     if (out.burned.length > 0) void this.creditBurns(out.burned)
     if (out.xp.length > 0) void this.award(out.xp)
-    const { bursts, unmade } = out.message
+    // The tunnel shades burst into dimes too, and leave their stones.
+    const { unmade, tunnelBursts } = out.message
+    const bursts = [
+      ...out.message.bursts,
+      ...tunnelBursts.map(({ x, z }) => ({ x, z })),
+    ]
     if (bursts.length || unmade) void this.spill(bursts, unmade)
     // Rule 24: a forecourt makes whole.
     for (const id of forecourtMends(this.valley, placed)) {
@@ -479,7 +591,12 @@ export class ValleyDO extends DurableObject<Env> {
       else hit.set(account, { id: me.id, sockets: [socket] })
     }
     for (const [account, { id, sockets }] of hit) {
-      void this.strike(account, id, sockets, out.caught.includes(id))
+      const by = out.caught.includes(id)
+        ? 'caretaker'
+        : out.tunneled.includes(id)
+          ? 'tunnel'
+          : undefined
+      void this.strike(account, id, sockets, by)
     }
   }
 
@@ -491,7 +608,16 @@ export class ValleyDO extends DurableObject<Env> {
     account: string,
     id: string,
     sockets: readonly WebSocket[],
-    caught: boolean
+    by?: 'caretaker' | 'tunnel'
+  ): Promise<void> {
+    await this.locked(() => this.strikeHeld(account, id, sockets, by))
+  }
+
+  private async strikeHeld(
+    account: string,
+    id: string,
+    sockets: readonly WebSocket[],
+    by?: 'caretaker' | 'tunnel'
   ): Promise<void> {
     const reduced = reduce(
       this.valley,
@@ -502,7 +628,7 @@ export class ValleyDO extends DurableObject<Env> {
     const change = reduced.health
     if (!change) return
     const health = change.points
-    // Rule 25: shrugged off, the sockets touched hear it and nothing is
+    // Rule 27: shrugged off, the sockets touched hear it and nothing is
     // lost.
     const shrugged = change.shrugged ? { shrugged: true as const } : {}
     for (const socket of this.ctx.getWebSockets()) {
@@ -511,8 +637,8 @@ export class ValleyDO extends DurableObject<Env> {
       try {
         if (!sockets.includes(socket)) {
           if (!change.shrugged) send(socket, { type: 'health', health })
-        } else if (caught) {
-          send(socket, { type: 'struck', by: 'caretaker', health, ...shrugged })
+        } else if (by) {
+          send(socket, { type: 'struck', by, health, ...shrugged })
         } else send(socket, { type: 'struck', health, ...shrugged })
       } catch {
         // Closing sockets throw; their close handler follows.
@@ -522,31 +648,33 @@ export class ValleyDO extends DurableObject<Env> {
     if (!change.fatal) return
     const me = this.attachment(sockets[0]).me
     const at = me?.at ? { x: me.at.x, z: me.at.z, yaw: me.at.yaw } : null
-    await this.fall(account, id, at)
+    await this.fallHeld(account, id, at)
   }
 
-  // Rule 25's draw for a drunk's shrug; the Worker tests replace it.
+  // Rule 27's draw for a drunk's shrug; the Worker tests replace it.
   protected roll(): number {
     return Math.random()
   }
 
-  // Rule 25: every socket on each account dosed hears its geometrie.
+  // Rule 27: every socket on each account dosed hears its geometrie.
   private tellGeometrie(reduced: Reduced): void {
     for (const { account, levels } of reduced.geometrie ?? []) {
       this.toAccount(account, { type: 'geometrie', geometrie: levels })
     }
   }
 
-  // Rule 25: a use or a pass, once the pack gave the unit up, doses.
+  // Rule 27: a use or a pass, once the pack gave the unit up, doses.
   private async dose(
     action: Extract<ValleyAction, { type: 'dose' }>
   ): Promise<void> {
-    const reduced = reduce(this.valley, action, this.context())
-    await this.apply(reduced)
-    this.tellGeometrie(reduced)
+    await this.locked(async () => {
+      const reduced = reduce(this.valley, action, this.context())
+      await this.apply(reduced)
+      this.tellGeometrie(reduced)
+    })
   }
 
-  // Rule 25: a unit passed to the raider `to` (a peer id), both where
+  // Rule 27: a unit passed to the raider `to` (a peer id), both where
   // their own last state frames put them. Once the giver's pack gives it
   // up, the taker is dosed in full and given its heal, the giver dosed
   // their share, and both sides hear who and what.
@@ -563,28 +691,34 @@ export class ValleyDO extends DurableObject<Env> {
     }
     const spot = (peer: PeerWire | null) =>
       peer?.at ? { x: peer.at.x, z: peer.at.z, riding: peer.at.riding } : null
-    const reduced = reduce(
-      this.valley,
-      {
-        type: 'pass',
-        id: me.id,
-        to,
-        kind,
-        from: spot(me),
-        at: spot(taker),
-      },
-      this.context()
-    )
-    await this.apply(reduced)
-    if (reduced.reply) send(ws, reduced.reply)
-    const { passed, pack } = reduced
-    if (!passed || !pack || !taker) return
-    if (!(await this.repack(ws, pack, pack.account, 'pass'))) return
+    // The check and the giver's pack together, alone in the valley; the
+    // doses and the heal after take the lock of their own.
+    const passed = await this.locked(async () => {
+      const reduced = reduce(
+        this.valley,
+        {
+          type: 'pass',
+          id: me.id,
+          to,
+          kind,
+          from: spot(me),
+          at: spot(taker),
+        },
+        this.context()
+      )
+      await this.apply(reduced)
+      if (reduced.reply) send(ws, reduced.reply)
+      const { passed, pack } = reduced
+      if (!passed || !pack) return null
+      if (!(await this.repack(ws, pack, pack.account, 'pass'))) return null
+      return { taker: passed.account, giver: pack.account }
+    })
+    if (!passed || !taker) return
     await this.dose({ type: 'dose', id: me.id, kind, to })
     const heals = healsOf(kind)
     if (heals > 0) await this.mend(to, heals)
-    this.toAccount(passed.account, { type: 'passed', kind, from: me.name })
-    this.toAccount(pack.account, { type: 'passed', kind, to: taker.name })
+    this.toAccount(passed.taker, { type: 'passed', kind, from: me.name })
+    this.toAccount(passed.giver, { type: 'passed', kind, to: taker.name })
   }
 
   // Points given back (rule 24): `by` of them, or whole on a forecourt.
@@ -592,12 +726,17 @@ export class ValleyDO extends DurableObject<Env> {
   protected async mend(id: string, by?: number): Promise<void> {
     const action: ValleyAction =
       by === undefined ? { type: 'mend', id } : { type: 'mend', id, by }
-    const reduced = reduce(this.valley, action, this.context())
-    await this.apply(reduced)
-    const change = reduced.health
-    if (change) {
-      this.toAccount(change.account, { type: 'health', health: change.points })
-    }
+    await this.locked(async () => {
+      const reduced = reduce(this.valley, action, this.context())
+      await this.apply(reduced)
+      const change = reduced.health
+      if (change) {
+        this.toAccount(change.account, {
+          type: 'health',
+          health: change.points,
+        })
+      }
+    })
   }
 
   // A strike, alone (rule 18): the pack is emptied, then a body laid where
@@ -609,33 +748,40 @@ export class ValleyDO extends DurableObject<Env> {
     id: string,
     at: { x: number; z: number; yaw: number } | null
   ): Promise<void> {
-    await this.ctx.blockConcurrencyWhile(async () => {
-      const packs = this.packs()
-      let items: Inventory
-      try {
-        items = await packs.strip(account)
-      } catch (err) {
-        console.error('The pack could not be emptied onto a body', err)
-        await this.repack(null, null, account)
-        return
-      }
-      const reduced = reduce(
-        this.valley,
-        { type: 'fall', id, items, at },
-        this.context()
-      )
-      if (reduced.corpse === undefined) {
-        try {
-          await packs.give(account, items)
-        } catch (err) {
-          console.error('The pack could not be given back', account, err)
-        }
-      } else {
-        await this.apply(reduced)
-        for (const msg of reduced.broadcast) this.broadcast(msg, null)
-      }
+    await this.locked(() => this.fallHeld(account, id, at))
+  }
+
+  // The fall, with the lock held (a strike's, under its own).
+  private async fallHeld(
+    account: string,
+    id: string,
+    at: { x: number; z: number; yaw: number } | null
+  ): Promise<void> {
+    const packs = this.packs()
+    let items: Inventory
+    try {
+      items = await packs.strip(account)
+    } catch (err) {
+      console.error('The pack could not be emptied onto a body', err)
       await this.repack(null, null, account)
-    })
+      return
+    }
+    const reduced = reduce(
+      this.valley,
+      { type: 'fall', id, items, at },
+      this.context()
+    )
+    if (reduced.corpse === undefined) {
+      try {
+        await packs.give(account, items)
+      } catch (err) {
+        console.error('The pack could not be given back', account, err)
+      }
+    } else {
+      await this.apply(reduced)
+      for (const msg of reduced.broadcast) this.broadcast(msg, null)
+    }
+    await this.repack(null, null, account)
   }
 
   // A body looted, alone (rule 18): the things go back into the pack before
@@ -645,7 +791,7 @@ export class ValleyDO extends DurableObject<Env> {
     account: string | null,
     action: Extract<ValleyAction, { type: 'loot' }>
   ): Promise<void> {
-    await this.ctx.blockConcurrencyWhile(async () => {
+    await this.locked(async () => {
       const reduced = reduce(this.valley, action, this.context())
       if (reduced.reply) {
         send(ws, reduced.reply)
@@ -685,11 +831,11 @@ export class ValleyDO extends DurableObject<Env> {
       send(ws, { type: 'nack', re: action.type, reason })
       await this.repack(ws, null, account ?? undefined)
     }
-    if (!allow(this.dropRate, ws, DROP_LIMIT)) {
+    if (!allow(this.dropRate, ws, PACK_LIMIT)) {
       await refuse('too-fast')
       return
     }
-    await this.ctx.blockConcurrencyWhile(async () => {
+    await this.locked(async () => {
       const reduced = reduce(this.valley, action, this.context())
       if (reduced.reply) {
         await refuse(reduced.reply.reason)
@@ -733,11 +879,11 @@ export class ValleyDO extends DurableObject<Env> {
     const refuse = (reason: string) => {
       send(ws, { type: 'nack', re: action.type, reason })
     }
-    if (!allow(this.dropRate, ws, DROP_LIMIT)) {
+    if (!allow(this.dropRate, ws, PACK_LIMIT)) {
       refuse('too-fast')
       return
     }
-    await this.ctx.blockConcurrencyWhile(async () => {
+    await this.locked(async () => {
       const packs = this.packs()
       let read: { ledger: StandLedger; rev: number }
       let holdings: Holdings
@@ -788,7 +934,9 @@ export class ValleyDO extends DurableObject<Env> {
   }
 
   private attachment(ws: WebSocket): Attachment {
-    return (
+    const cached = this.attachments.get(ws)
+    if (cached) return cached
+    const attachment =
       // A socket with nothing attached has no session, so its hello fails.
       (ws.deserializeAttachment() as Attachment | null) ?? {
         dev: false,
@@ -796,7 +944,15 @@ export class ValleyDO extends DurableObject<Env> {
         name: null,
         me: null,
       }
-    )
+    this.attachments.set(ws, attachment)
+    return attachment
+  }
+
+  // Writes the socket's attachment, where it survives hibernation, and
+  // keeps it to read.
+  private attach(ws: WebSocket, attachment: Attachment): void {
+    ws.serializeAttachment(attachment)
+    this.attachments.set(ws, attachment)
   }
 
   private context() {
@@ -817,6 +973,9 @@ export class ValleyDO extends DurableObject<Env> {
       ws.close(CLOSE.unauthenticated, 'Sign in to raid')
       return
     }
+    // Sockets gone silent are let go here too, since the step that sweeps
+    // them runs only while someone is placed.
+    this.sweep(Date.now())
     // The username the Worker stamped; checked again, since it is shown to
     // everyone.
     const name = normalizeName(attachment.name ?? '')
@@ -838,47 +997,50 @@ export class ValleyDO extends DurableObject<Env> {
     let task: TaskProgress
     let xp: number
     let stand: StandLedger
+    let quests: Record<QuestId, QuestStage>
     try {
-      const packs = this.packs()
-      holdings = await packs.open(account)
-      season = await packs.season(account, SEASON.id)
-      book = await packs.book(account)
-      task = await packs.task(account, DAILY_TASK.id)
-      xp = await packs.xp(account)
-      stand = (await packs.stand(account)).ledger
+      ;({ holdings, season, book, task, xp, stand, quests } =
+        await this.packs().welcome(account, SEASON.id, DAILY_TASK.id))
     } catch (err) {
       console.error('The pack could not be opened', err)
       ws.close(CLOSE.serverError, 'The valley lost the pack')
       return
     }
-    // A reconnect: the socket this client had may not have closed here yet.
-    // Retire it first, so the roster never shows the raider their own ghost.
-    if (hello.was) await this.retire(ws, account, hello.was)
     const id = crypto.randomUUID()
-    const reduced = reduce(
-      this.valley,
-      {
-        type: 'join',
-        id,
-        account,
-        name,
-        outfit: hello.outfit,
-        pickups: hello.pickups,
-        stations: hello.stations,
-        havens: hello.havens,
-        metres: hello.metres,
-        water: hello.water,
-        maze: hello.maze,
-        routes: hello.truck,
-        stand: hello.stand,
-      },
-      { now: Date.now(), present: this.presentIds(ws) }
-    )
+    const reduced = await this.locked(async () => {
+      // A reconnect: the socket this client had may not have closed here
+      // yet. Retire it first, so the roster never shows the raider their
+      // own ghost.
+      if (hello.was) await this.retire(ws, account, hello.was)
+      const reduced = reduce(
+        this.valley,
+        {
+          type: 'join',
+          id,
+          account,
+          name,
+          outfit: hello.outfit,
+          pickups: hello.pickups,
+          stations: hello.stations,
+          havens: hello.havens,
+          metres: hello.metres,
+          water: hello.water,
+          maze: hello.maze,
+          routes: hello.truck,
+          stand: hello.stand,
+          bushes: hello.bushes,
+          dealer: hello.dealer,
+          undercroft: hello.undercroft,
+        },
+        { now: Date.now(), present: this.presentIds(ws) }
+      )
+      if (!reduced.reject) await this.apply(reduced)
+      return reduced
+    })
     if (reduced.reject) {
       ws.close(CLOSE.staleBuild, 'This build placed a different valley')
       return
     }
-    await this.apply(reduced)
     const me: PeerWire = {
       id,
       name,
@@ -887,7 +1049,7 @@ export class ValleyDO extends DurableObject<Env> {
       level: levelOf(xp),
       at: null,
     }
-    ws.serializeAttachment({ ...attachment, me } satisfies Attachment)
+    this.attach(ws, { ...attachment, me })
     const world = toWire(this.valley)
     if (!world || !this.valley.members[id]) {
       ws.close(CLOSE.serverError, 'The valley lost the world')
@@ -914,6 +1076,7 @@ export class ValleyDO extends DurableObject<Env> {
       geometrie: geometrieFor(this.valley, account, now),
       xp,
       stand,
+      quests,
     })
     this.broadcast({ type: 'peer-joined', peer: me }, ws)
     for (const msg of reduced.broadcast) this.broadcast(msg, ws)
@@ -930,7 +1093,7 @@ export class ValleyDO extends DurableObject<Env> {
     const { x, y, z, yaw, pitch, pose, riding, light } = state
     const at = { x, y, z, yaw, pitch, pose, riding, light }
     const next: PeerWire = { ...me, at }
-    ws.serializeAttachment({ ...attachment, me: next } satisfies Attachment)
+    this.attach(ws, { ...attachment, me: next })
     this.broadcast({ type: 'peer-state', id: me.id, ...at }, ws)
   }
 
@@ -946,7 +1109,7 @@ export class ValleyDO extends DurableObject<Env> {
     )
   }
 
-  // Rule 20: a whisper to the raider signed in as `to`, under the chat
+  // Rule 21: a whisper to the raider signed in as `to`, under the chat
   // rules and its rate, delivered to their sockets and echoed to the
   // sender's. Nothing is stored.
   private whisper(
@@ -987,7 +1150,7 @@ export class ValleyDO extends DurableObject<Env> {
     }
   }
 
-  // Rule 20: ask `name` to be friends (or accept their asking), or no
+  // Rule 21: ask `name` to be friends (or accept their asking), or no
   // longer be friends. Both lists go to every socket on both accounts, and
   // the news to the one it is news to.
   private async befriend(
@@ -1039,7 +1202,7 @@ export class ValleyDO extends DurableObject<Env> {
     }
   }
 
-  // Rule 20: the account's list to every socket on it: each name, and for
+  // Rule 21: the account's list to every socket on it: each name, and for
   // a friend whether they are in the valley and roughly where. A request
   // either way says nothing of where anyone is.
   private async sendFriends(account: string): Promise<void> {
@@ -1162,12 +1325,14 @@ export class ValleyDO extends DurableObject<Env> {
     attachment: Attachment,
     me: PeerWire
   ): Promise<void> {
-    ws.serializeAttachment({ ...attachment, me } satisfies Attachment)
-    await this.apply(
-      reduce(
-        this.valley,
-        { type: 'appearance', id: me.id, name: me.name, outfit: me.outfit },
-        this.context()
+    this.attach(ws, { ...attachment, me })
+    await this.locked(() =>
+      this.apply(
+        reduce(
+          this.valley,
+          { type: 'appearance', id: me.id, name: me.name, outfit: me.outfit },
+          this.context()
+        )
       )
     )
     this.broadcast({ type: 'peer-updated', peer: me }, null)
@@ -1175,20 +1340,23 @@ export class ValleyDO extends DurableObject<Env> {
 
   // A world action from one player: run it, persist, answer, tell everyone.
   // Whether the pack change the action asked for, if any, was made.
-  private async act(ws: WebSocket, action: ValleyAction): Promise<boolean> {
-    const reduced = reduce(this.valley, action, this.context())
-    await this.apply(reduced)
-    if (reduced.reply) send(ws, reduced.reply)
-    if (reduced.daily) send(ws, reduced.daily)
-    for (const msg of reduced.broadcast) this.broadcast(msg, null)
-    let changed = !reduced.reply
-    if (reduced.pack) changed = await this.repack(ws, reduced.pack)
-    if (reduced.earn) await this.pay(ws, reduced.earn)
-    return changed
+  private act(ws: WebSocket, action: ValleyAction): Promise<boolean> {
+    return this.locked(async () => {
+      const reduced = reduce(this.valley, action, this.context())
+      await this.apply(reduced)
+      if (reduced.reply) send(ws, reduced.reply)
+      if (reduced.daily) send(ws, reduced.daily)
+      for (const msg of reduced.broadcast) this.broadcast(msg, null)
+      let changed = !reduced.reply
+      if (reduced.pack) changed = await this.repack(ws, reduced.pack)
+      if (reduced.earn) await this.pay(ws, reduced.earn)
+      return changed
+    })
   }
 
-  // Dimes taken up (sharedworld.ts rule 11): into the wallet, then the
-  // pack and wallet to every socket on the account.
+  // Cash taken up (sharedworld.ts rule 11: dimes, a $20, the plaza's
+  // quarters): into the wallet, then the pack and wallet to every socket
+  // on the account.
   private async pay(
     ws: WebSocket,
     { account, amount }: { account: string; amount: number }
@@ -1208,18 +1376,21 @@ export class ValleyDO extends DurableObject<Env> {
   private async spill(bursts: readonly XZ[], unmade: XZ | null): Promise<void> {
     const spills = spillsOf(bursts, unmade, this.shadowRng)
     const burials = burialsOf(bursts, this.shadowRng)
-    const reduced = reduce(
-      this.valley,
-      { type: 'spill', spills, burials },
-      this.context()
-    )
-    await this.apply(reduced)
-    for (const msg of reduced.broadcast) this.broadcast(msg, null)
+    await this.locked(async () => {
+      const reduced = reduce(
+        this.valley,
+        { type: 'spill', spills, burials },
+        this.context()
+      )
+      await this.apply(reduced)
+      for (const msg of reduced.broadcast) this.broadcast(msg, null)
+    })
   }
 
-  // A buy, alone: no other frame runs between reading the wallet, judging
-  // the sale against it, and paying. A wallet that cannot be read or that
-  // does not cover the sale leaves the valley as it was.
+  // A buy off a Citgo shelf, alone (rule 7): no other frame runs between
+  // reading the wallet, judging the sale against it, and paying. A wallet
+  // that cannot be read or that does not cover the sale leaves the valley
+  // as it was.
   private async purchase(
     ws: WebSocket,
     attachment: Attachment,
@@ -1236,7 +1407,7 @@ export class ValleyDO extends DurableObject<Env> {
         item: action.kind,
       })
     }
-    await this.ctx.blockConcurrencyWhile(async () => {
+    await this.locked(async () => {
       const packs = this.packs()
       let cash: number
       try {
@@ -1275,6 +1446,133 @@ export class ValleyDO extends DurableObject<Env> {
     })
   }
 
+  // A quest's step, alone (rule 26): no other frame runs between reading
+  // the stage and the pack, judging the step against them, and writing
+  // both. On success every socket on the account hears the stage, then
+  // the pack.
+  private async questStep(
+    ws: WebSocket,
+    attachment: Attachment,
+    action: Extract<ValleyAction, { type: 'quest' }>
+  ): Promise<void> {
+    const { account } = attachment
+    if (!account) return
+    const refuse = (reason: string) => {
+      send(ws, { type: 'nack', re: 'quest', reason })
+    }
+    if (!isQuest(action.quest)) {
+      refuse('no-such-quest')
+      return
+    }
+    const id = action.quest
+    await this.ctx.blockConcurrencyWhile(async () => {
+      const packs = this.packs()
+      let quest: { stage: QuestStage; pack: Inventory }
+      try {
+        const [stages, holdings] = await Promise.all([
+          packs.quests(account),
+          packs.get(account),
+        ])
+        quest = { stage: stages[id], pack: holdings.pack }
+      } catch (err) {
+        console.error('The quest could not be read', err)
+        refuse('unavailable')
+        return
+      }
+      const reduced = reduce(this.valley, action, {
+        ...this.context(),
+        quest,
+      })
+      if (reduced.reply) {
+        send(ws, reduced.reply)
+        return
+      }
+      const step = reduced.quest
+      if (!step) return
+      let stepped: boolean
+      try {
+        stepped = await packs.quest(
+          account,
+          step.quest,
+          step.from,
+          step.to,
+          step.change
+        )
+      } catch (err) {
+        console.error('The quest could not be written', err)
+        refuse('unavailable')
+        return
+      }
+      if (!stepped) {
+        refuse('not-now')
+        return
+      }
+      await this.apply(reduced)
+      for (const socket of this.ctx.getWebSockets()) {
+        if (this.attachment(socket).account !== account) continue
+        send(socket, {
+          type: 'quest',
+          quest: step.quest,
+          step: step.step,
+          stage: step.to,
+        })
+      }
+      await this.repack(ws, null, account)
+    })
+  }
+
+  // A barter with Erwin von Dutch, alone (rule 25): no other frame runs
+  // between reading the pack, judging the deal against it, and writing
+  // both sides of it. On success everyone sees his stock go down, and the
+  // account's sockets get the pack.
+  private async barter(
+    ws: WebSocket,
+    attachment: Attachment,
+    action: Extract<ValleyAction, { type: 'deal' }>
+  ): Promise<void> {
+    const { account } = attachment
+    if (!account) return
+    const refuse = (reason: string) => {
+      send(ws, { type: 'nack', re: 'deal', reason, item: action.kind })
+    }
+    await this.ctx.blockConcurrencyWhile(async () => {
+      const packs = this.packs()
+      let holdings: Holdings
+      try {
+        holdings = await packs.get(account)
+      } catch (err) {
+        console.error('The pack could not be read', err)
+        refuse('unavailable')
+        return
+      }
+      const reduced = reduce(this.valley, action, {
+        ...this.context(),
+        holdings,
+      })
+      if (reduced.reply) {
+        send(ws, reduced.reply)
+        return
+      }
+      const deal = reduced.barter
+      if (!deal) return
+      let dealt: boolean
+      try {
+        dealt = await packs.barter(account, deal.give, deal.take)
+      } catch (err) {
+        console.error('The barter could not be written', err)
+        refuse('unavailable')
+        return
+      }
+      if (!dealt) {
+        refuse('short')
+        return
+      }
+      await this.apply(reduced)
+      for (const msg of reduced.broadcast) this.broadcast(msg, null)
+      await this.repack(ws, null, account)
+    })
+  }
+
   // A trade with Moab, alone (rule 14): no other frame runs between
   // reading the pack, judging the trade against it, and writing it. On
   // success the account's sockets get the pack, and everyone sees the
@@ -1289,11 +1587,11 @@ export class ValleyDO extends DurableObject<Env> {
     const refuse = (reason: string) => {
       send(ws, { type: 'nack', re: 'trade', reason })
     }
-    if (!allow(this.appearanceRate, ws, APPEARANCE_LIMIT)) {
+    if (!allow(this.appearanceRate, ws, TRADE_LIMIT)) {
       refuse('too-fast')
       return
     }
-    await this.ctx.blockConcurrencyWhile(async () => {
+    await this.locked(async () => {
       const packs = this.packs()
       let holdings: Holdings
       try {
@@ -1339,10 +1637,7 @@ export class ValleyDO extends DurableObject<Env> {
       const me = attachment.me
       if (attachment.account !== account || !me) continue
       const next: PeerWire = { ...me, cosmetics: toCosmetics(cosmetics) }
-      socket.serializeAttachment({
-        ...attachment,
-        me: next,
-      } satisfies Attachment)
+      this.attach(socket, { ...attachment, me: next })
       this.broadcast({ type: 'peer-updated', peer: next }, null)
     }
   }
@@ -1365,7 +1660,7 @@ export class ValleyDO extends DurableObject<Env> {
       await refuse('too-fast')
       return
     }
-    await this.ctx.blockConcurrencyWhile(async () => {
+    await this.locked(async () => {
       const reduced = reduce(this.valley, action, this.context())
       if (reduced.reply) {
         await refuse(reduced.reply.reason)
@@ -1429,30 +1724,32 @@ export class ValleyDO extends DurableObject<Env> {
   // the account hears the new count, and the pack and wallet when the
   // tally paid the reward.
   private async credit(accounts: readonly string[]): Promise<void> {
-    await this.ctx.blockConcurrencyWhile(async () => {
-      const packs = this.packs()
-      for (const account of accounts) {
-        try {
-          const { progress, reward } = tally(
-            await packs.season(account, SEASON.id)
-          )
-          await packs.score(account, SEASON.id, progress, reward)
-          this.toAccount(account, {
-            type: 'season',
-            season: seasonWire(progress),
-            rewarded: reward !== null,
-          })
-          if (reward) {
-            this.toAccount(
-              account,
-              this.packFrame(account, await packs.get(account))
+    const packs = this.packs()
+    await Promise.all(
+      accounts.map((account) =>
+        this.forAccount(account, async () => {
+          try {
+            const { progress, reward } = tally(
+              await packs.season(account, SEASON.id)
             )
+            await packs.score(account, SEASON.id, progress, reward)
+            this.toAccount(account, {
+              type: 'season',
+              season: seasonWire(progress),
+              rewarded: reward !== null,
+            })
+            if (reward) {
+              this.toAccount(
+                account,
+                this.packFrame(account, await packs.get(account))
+              )
+            }
+          } catch (err) {
+            console.error('The season could not be tallied', account, err)
           }
-        } catch (err) {
-          console.error('The season could not be tallied', account, err)
-        }
-      }
-    })
+        })
+      )
+    )
   }
 
   // Rule 20: the entries the raider came across, written in the account's
@@ -1470,7 +1767,7 @@ export class ValleyDO extends DurableObject<Env> {
       send(ws, { type: 'nack', re: 'discover', reason: 'too-fast' })
       return
     }
-    await this.ctx.blockConcurrencyWhile(async () => {
+    await this.forAccount(account, async () => {
       try {
         const found = await this.packs().discover(account, entries, Date.now())
         if (found.length > 0) this.toAccount(account, { type: 'book', found })
@@ -1486,32 +1783,34 @@ export class ValleyDO extends DurableObject<Env> {
   // on the account hears the new count, and the wallet when the tally paid
   // the day's reward.
   private async creditBurns(accounts: readonly string[]): Promise<void> {
-    await this.ctx.blockConcurrencyWhile(async () => {
-      const packs = this.packs()
-      const day = dayKey(Date.now())
-      for (const account of accounts) {
-        try {
-          const { progress, reward } = tallyTask(
-            await packs.task(account, DAILY_TASK.id),
-            day
-          )
-          await packs.scoreTask(account, DAILY_TASK.id, progress, reward)
-          this.toAccount(account, {
-            type: 'task',
-            task: taskWire(progress),
-            rewarded: reward !== null,
-          })
-          if (reward) {
-            this.toAccount(
-              account,
-              this.packFrame(account, await packs.get(account))
+    const packs = this.packs()
+    const day = dayKey(Date.now())
+    await Promise.all(
+      accounts.map((account) =>
+        this.forAccount(account, async () => {
+          try {
+            const { progress, reward } = tallyTask(
+              await packs.task(account, DAILY_TASK.id),
+              day
             )
+            await packs.scoreTask(account, DAILY_TASK.id, progress, reward)
+            this.toAccount(account, {
+              type: 'task',
+              task: taskWire(progress),
+              rewarded: reward !== null,
+            })
+            if (reward) {
+              this.toAccount(
+                account,
+                this.packFrame(account, await packs.get(account))
+              )
+            }
+          } catch (err) {
+            console.error('The daily task could not be tallied', account, err)
           }
-        } catch (err) {
-          console.error('The daily task could not be tallied', account, err)
-        }
-      }
-    })
+        })
+      )
+    )
   }
 
   // Rule 22: the XP each account earned, added to its own; every socket on
@@ -1538,10 +1837,7 @@ export class ValleyDO extends DurableObject<Env> {
       const me = attachment.me
       if (attachment.account !== account || !me || me.level >= level) continue
       const next: PeerWire = { ...me, level }
-      socket.serializeAttachment({
-        ...attachment,
-        me: next,
-      } satisfies Attachment)
+      this.attach(socket, { ...attachment, me: next })
       this.broadcast({ type: 'peer-updated', peer: next }, null)
     }
   }
@@ -1607,7 +1903,7 @@ export class ValleyDO extends DurableObject<Env> {
       if (socket === ws) continue
       const attachment = this.attachment(socket)
       if (attachment.account !== account || attachment.me?.id !== id) continue
-      await this.left(socket)
+      await this.leftHeld(socket)
       try {
         socket.close(CLOSE.replaced, 'Reconnected')
       } catch {
@@ -1617,12 +1913,18 @@ export class ValleyDO extends DurableObject<Env> {
   }
 
   private async left(ws: WebSocket): Promise<void> {
+    if (!this.attachment(ws).me) return
+    await this.locked(() => this.leftHeld(ws))
+  }
+
+  // The departure, with the lock held.
+  private async leftHeld(ws: WebSocket): Promise<void> {
     const attachment = this.attachment(ws)
     const me = attachment.me
     if (!me) return
     // Clear the attachment first so a close that fires twice (close after
     // error) announces the departure once.
-    ws.serializeAttachment({ ...attachment, me: null } satisfies Attachment)
+    this.attach(ws, { ...attachment, me: null })
     this.broadcast({ type: 'peer-left', id: me.id }, ws)
     // Where they last stood is where they come back (sharedworld.ts
     // rule 2).

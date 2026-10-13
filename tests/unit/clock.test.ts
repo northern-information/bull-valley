@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createClockSync } from '../../src/clock.ts'
+import { createClockSync, STALE_MS } from '../../src/clock.ts'
 
 describe('clock sync', () => {
   it('starts unsynced with no offset', () => {
@@ -35,6 +35,36 @@ describe('clock sync', () => {
     // An equally fast one does; it is newer.
     clock.observe({ sentAt: 3000, receivedAt: 3020, serverNow: 4012 })
     expect(clock.offsetMs).toBe(1002)
+  })
+
+  it('lets a slower sample replace one kept too long', () => {
+    const clock = createClockSync()
+    clock.observe({ sentAt: 0, receivedAt: 20, serverNow: 1010 })
+    expect(clock.offsetMs).toBe(1000)
+    // Still fresh: a slower sample is passed over.
+    const later = STALE_MS - 1000
+    clock.observe({
+      sentAt: later,
+      receivedAt: later + 100,
+      serverNow: later + 2050,
+    })
+    expect(clock.offsetMs).toBe(1000)
+    // Kept long enough (the clock slept): the next sample is taken.
+    const stale = STALE_MS + 1000
+    clock.observe({
+      sentAt: stale,
+      receivedAt: stale + 100,
+      serverNow: stale + 2050,
+    })
+    expect(clock.offsetMs).toBe(2000)
+    expect(clock.rttMs).toBe(100)
+    // And is kept, in its turn, against a slower one.
+    clock.observe({
+      sentAt: stale + 200,
+      receivedAt: stale + 400,
+      serverNow: stale + 3300,
+    })
+    expect(clock.offsetMs).toBe(2000)
   })
 
   it('tolerates a reply that seems to arrive before it left', () => {

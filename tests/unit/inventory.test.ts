@@ -3,12 +3,11 @@ import { NO_EFFECTS } from '../../src/hotbar.ts'
 import {
   addItem,
   consume,
-  KINDS,
   STARTING_INVENTORY,
   toInventory,
   useItem,
 } from '../../src/inventory.ts'
-import { getItem, tripSecondsOf } from '../../src/items.ts'
+import { getItem, INVENTORY_KINDS, tripSecondsOf } from '../../src/items.ts'
 import type { Inventory } from '../../src/interfaces.ts'
 
 describe('inventory', () => {
@@ -25,7 +24,9 @@ describe('inventory', () => {
   })
 
   it('starts with every kind present', () => {
-    expect(Object.keys(STARTING_INVENTORY).sort()).toEqual([...KINDS].sort())
+    expect(Object.keys(STARTING_INVENTORY).sort()).toEqual(
+      [...INVENTORY_KINDS].sort()
+    )
     expect(STARTING_INVENTORY).toMatchObject({ marlboro: 2, joints: 1 })
   })
 
@@ -96,6 +97,18 @@ describe('consume', () => {
       end: 10 + (getItem('joints').perceptionSeconds ?? 0),
     })
     expect(r.effects.smoking).toEqual({ start: 0, end: 50 })
+  })
+
+  it("takes the dealer's mushrooms like a joint, longer, and never a key", () => {
+    const r = consume({ ...pack, mushrooms: 1 }, 'mushrooms', NO_EFFECTS, 10)
+    if (!r.used) throw new Error('not used')
+    const seconds = getItem('mushrooms').perceptionSeconds
+    expect(seconds).toBeGreaterThan(getItem('joints').perceptionSeconds)
+    expect(r.effects.perception).toEqual({ start: 10, end: 10 + seconds })
+    expect(r.effects.trip).toEqual({ start: 10, end: 10 + seconds })
+    expect(
+      consume({ ...pack, 'vault-key': 1 }, 'vault-key', NO_EFFECTS, 10)
+    ).toEqual({ used: false, reason: 'unusable' })
   })
 
   it('starts each trip afresh, keeping a longer one going', () => {

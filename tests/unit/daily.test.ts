@@ -23,6 +23,18 @@ describe('dayKey', () => {
     expect(dayKey(midnight)).toBe('2026-10-03')
   })
 
+  it('names the day across both seams of the clocks changing', () => {
+    // 01:59:59 CST, then 03:00:00 CDT a second later.
+    expect(dayKey(utc('2026-03-08T07:59:59Z'))).toBe('2026-03-08')
+    expect(dayKey(utc('2026-03-08T08:00:00Z'))).toBe('2026-03-08')
+    // 01:59:59 CDT, then 01:00:00 CST a second later.
+    expect(dayKey(utc('2026-11-01T06:59:59Z'))).toBe('2026-11-01')
+    expect(dayKey(utc('2026-11-01T07:00:00Z'))).toBe('2026-11-01')
+    // Midnight on the night the clocks fall back is still midnight.
+    expect(dayKey(utc('2026-11-01T04:59:59Z'))).toBe('2026-10-31')
+    expect(dayKey(utc('2026-11-01T05:00:00Z'))).toBe('2026-11-01')
+  })
+
   it('reads CST in winter', () => {
     // 5:30 UTC on January 10 is 23:30 CST on January 9.
     expect(dayKey(utc('2026-01-10T05:30:00Z'))).toBe('2026-01-09')

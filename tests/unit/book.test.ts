@@ -6,11 +6,13 @@ import {
   entryOf,
   isEntry,
   itemsHeld,
+  knownOf,
   newlyFound,
   sightsInReach,
   tallyOf,
   toFound,
 } from '../../src/book.ts'
+import { itemLabel } from '../../src/itemcopy.ts'
 import { ITEMS } from '../../src/items.ts'
 import { DISCOVER_MAX } from '../../src/protocol.ts'
 import type { Sight } from '../../src/book.ts'
@@ -38,7 +40,8 @@ describe('BOOK', () => {
     expect(entriesOf('items').map((entry) => entry.id)).toEqual(
       ITEMS.map((item) => item.id)
     )
-    for (const item of ITEMS) expect(entryOf(item.id)?.name).toBe(item.label)
+    for (const item of ITEMS)
+      expect(entryOf(item.id)?.name).toBe(itemLabel(item.id))
   })
 
   it('has a page for each of the folk the raider can talk to', () => {
@@ -47,6 +50,7 @@ describe('BOOK', () => {
       'carlsten',
       'gron',
       'moab',
+      'squatter',
     ])
   })
 
@@ -83,6 +87,19 @@ describe('newlyFound', () => {
     expect(newlyFound(new Set(['citgo', 'marx']), ['marx', 'citgo'])).toEqual(
       []
     )
+  })
+})
+
+describe('knownOf', () => {
+  it('holds what is found and what is asked, as one set apart from both', () => {
+    const found = new Set(['citgo'])
+    const asked = new Set(['marx', 'citgo'])
+    const known = knownOf(found, asked)
+    expect([...known]).toEqual(['citgo', 'marx'])
+    known.add('gron')
+    expect(found.has('gron')).toBe(false)
+    expect(asked.has('gron')).toBe(false)
+    expect(newlyFound(known, ['gron', 'marx', 'moab'])).toEqual(['moab'])
   })
 })
 

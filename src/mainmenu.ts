@@ -11,6 +11,7 @@
 // done with it.
 
 import { copy } from './copy.ts'
+import { finder } from './dom.ts'
 import { createFog } from './fog.ts'
 import { volumeSliders } from './settingsui.ts'
 import type { BvAudio } from './audio.ts'
@@ -94,11 +95,7 @@ export function mountMainMenu({
     <p class="bv-menu-credit">${copy('menu.credit')}</p>`
   document.body.appendChild(root)
 
-  const find = <T extends Element>(selector: string): T => {
-    const found = root.querySelector<T>(selector)
-    if (!found) throw new Error(`Missing ${selector}`)
-    return found
-  }
+  const find = finder(root)
   const logo = find<HTMLImageElement>('.bv-menu-logo')
   const faces = Array.from(root.querySelectorAll<HTMLElement>('[data-face]'))
   const createBtn = find<HTMLButtonElement>('[data-bv="menu-create"]')

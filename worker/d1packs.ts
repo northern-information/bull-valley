@@ -2,25 +2,26 @@
 // account has held, and one wallet per account; the cosmetics it has
 // (0004_cosmetics.sql); its locker (0007_stashes.sql); its Book of
 // Shadows (0008_book.sql); its XP (0010_levels.sql); and its Cabbage
-// Stand (0011_stands.sql). Every change is
-// a single statement or one batch, which is one transaction,
-// statement, so two sockets on one account can never lose a unit or a cent
-// between a read and a write.
+// Stand (0011_stands.sql). Every change is a single statement or one
+// batch, which is one transaction, so two sockets on one account can never
+// lose a unit or a cent between a read and a write.
 
 import { newlyFound } from '../src/book.ts'
 import { toCosmetics } from '../src/cosmetics.ts'
 import { NO_TASK } from '../src/dailytask.ts'
 import { STARTING_INVENTORY, toInventory } from '../src/inventory.ts'
+import { isQuest, isQuestStage, QUESTS } from '../src/quests.ts'
 import { NO_PROGRESS } from '../src/season.ts'
 import { FRESH_STAND, isStandLedger } from '../src/stand.ts'
 import { STARTING_CASH } from './packs.ts'
 import type { CosmeticId } from '../src/cosmetics.ts'
 import type { TaskProgress } from '../src/dailytask.ts'
 import type { Inventory } from '../src/interfaces.ts'
+import type { QuestId, QuestStage } from '../src/quests.ts'
 import type { SeasonProgress, SeasonReward } from '../src/season.ts'
 import type { StandChange } from '../src/sharedworld.ts'
 import type { StandLedger } from '../src/stand.ts'
-import type { Holdings, PackItem, PackStore } from './packs.ts'
+import type { Holdings, PackItem, PackStore, Welcome } from './packs.ts'
 
 interface PackRow {
   kind: string
@@ -37,9 +38,10 @@ export class D1PackStore implements PackStore {
   // The starting items and wallet go in only where the account has no row
   // for them, so a pack used down to zero or a wallet spent out is never
   // refilled.
-  async open(accountId: string): Promise<Holdings> {
+  // The starting pack and wallet, given once.
+  private opening(accountId: string): D1PreparedStatement[] {
     const start = Object.entries(STARTING_INVENTORY).filter(([, n]) => n > 0)
-    await this.db.batch([
+    return [
       this.db
         .prepare(
           'INSERT OR IGNORE INTO wallets (account_id, cash) VALUES (?, ?)'
@@ -52,39 +54,120 @@ export class D1PackStore implements PackStore {
           )
           .bind(accountId, kind, count)
       ),
-    ])
+    ]
+  }
+  async open(accountId: string): Promise<Holdings> {
+    await this.db.batch(this.opening(accountId))
     return this.get(accountId)
+  }
+  async welcome(
+    accountId: string,
+    season: string,
+    task: string
+  ): Promise<Welcome> {
+    const opening = this.opening(accountId)
+    const rows = await this.db.batch([
+      ...opening,
+      ...this.holdingsReads(accountId),
+      this.db
+        .prepare(
+          'SELECT kills, claimed FROM seasons WHERE account_id = ? AND season = ?'
+        )
+        .bind(accountId, season),
+      this.db
+        .prepare(
+          'SELECT entry FROM book WHERE account_id = ? ORDER BY found_at, rowid'
+        )
+        .bind(accountId),
+      this.db
+        .prepare(
+          'SELECT day, count, claimed FROM tasks WHERE account_id = ? AND task = ?'
+        )
+        .bind(accountId, task),
+      this.db
+        .prepare('SELECT xp FROM levels WHERE account_id = ?')
+        .bind(accountId),
+      this.db
+        .prepare(
+          'SELECT level, stock, banked, since, rev FROM stands WHERE account_id = ?'
+        )
+        .bind(accountId),
+      this.db
+        .prepare('SELECT quest, stage FROM quests WHERE account_id = ?')
+        .bind(accountId),
+    ])
+    const read = rows.slice(opening.length)
+    const [
+      packs,
+      wallet,
+      cosmetics,
+      stash,
+      seasons,
+      book,
+      tasks,
+      levels,
+      stands,
+      quests,
+    ] = read as [
+      D1Result<PackRow>,
+      D1Result<{ cash: number }>,
+      D1Result<{ cosmetic: string }>,
+      D1Result<PackRow>,
+      D1Result<{ kills: number; claimed: number }>,
+      D1Result<{ entry: string }>,
+      D1Result<{ day: string; count: number; claimed: number }>,
+      D1Result<{ xp: number }>,
+      D1Result<StandRow>,
+      D1Result<{ quest: string; stage: string }>,
+    ]
+    return {
+      holdings: toHoldings(
+        packs.results,
+        wallet.results[0],
+        cosmetics.results,
+        stash.results
+      ),
+      season: toSeason(seasons.results[0]),
+      book: book.results.map((row) => row.entry),
+      task: toTask(tasks.results[0]),
+      xp: levels.results[0]?.xp ?? 0,
+      stand: toStand(stands.results[0]).ledger,
+      quests: toQuests(quests.results),
+    }
+  }
+  // The holdings, in the order toHoldings takes them.
+  private holdingsReads(accountId: string): D1PreparedStatement[] {
+    return [
+      this.db
+        .prepare('SELECT kind, count FROM packs WHERE account_id = ?')
+        .bind(accountId),
+      this.db
+        .prepare('SELECT cash FROM wallets WHERE account_id = ?')
+        .bind(accountId),
+      this.db
+        .prepare('SELECT cosmetic FROM cosmetics WHERE account_id = ?')
+        .bind(accountId),
+      this.db
+        .prepare('SELECT kind, count FROM stashes WHERE account_id = ?')
+        .bind(accountId),
+    ]
   }
 
   async get(accountId: string): Promise<Holdings> {
-    const [packs, wallet, cosmetics, stash] = await Promise.all([
-      this.db
-        .prepare('SELECT kind, count FROM packs WHERE account_id = ?')
-        .bind(accountId)
-        .all<PackRow>(),
-      this.db
-        .prepare('SELECT cash FROM wallets WHERE account_id = ?')
-        .bind(accountId)
-        .first<{ cash: number }>(),
-      this.db
-        .prepare('SELECT cosmetic FROM cosmetics WHERE account_id = ?')
-        .bind(accountId)
-        .all<{ cosmetic: string }>(),
-      this.db
-        .prepare('SELECT kind, count FROM stashes WHERE account_id = ?')
-        .bind(accountId)
-        .all<PackRow>(),
-    ])
-    return {
-      pack: toInventory(
-        Object.fromEntries(packs.results.map((row) => [row.kind, row.count]))
-      ),
-      cash: wallet?.cash ?? 0,
-      cosmetics: toCosmetics(cosmetics.results.map((row) => row.cosmetic)),
-      stash: toInventory(
-        Object.fromEntries(stash.results.map((row) => [row.kind, row.count]))
-      ),
-    }
+    const [packs, wallet, cosmetics, stash] = (await this.db.batch(
+      this.holdingsReads(accountId)
+    )) as [
+      D1Result<PackRow>,
+      D1Result<{ cash: number }>,
+      D1Result<{ cosmetic: string }>,
+      D1Result<PackRow>,
+    ]
+    return toHoldings(
+      packs.results,
+      wallet.results[0],
+      cosmetics.results,
+      stash.results
+    )
   }
 
   // One batch is one transaction: what is read is what is zeroed.
@@ -198,6 +281,40 @@ export class D1PackStore implements PackStore {
     return (results[1]?.meta.changes ?? 0) > 0
   }
 
+  // One batch is one transaction. What he gives goes in first, only while
+  // the pack still holds what it is given for; that comes out after,
+  // under the same guard, so the two land together or not at all (the
+  // two kinds always differ: he takes only what a Citgo shelf prices, and
+  // sells nothing it does).
+  async barter(
+    accountId: string,
+    give: { kind: string; count: number },
+    take: { kind: string; count: number }
+  ): Promise<boolean> {
+    const results = await this.db.batch([
+      this.db
+        .prepare(
+          'INSERT INTO packs (account_id, kind, count) ' +
+            'SELECT ?, ?, ? WHERE (SELECT count FROM packs WHERE account_id = ? AND kind = ?) >= ? ' +
+            'ON CONFLICT (account_id, kind) DO UPDATE SET count = count + excluded.count'
+        )
+        .bind(
+          accountId,
+          take.kind,
+          take.count,
+          accountId,
+          give.kind,
+          give.count
+        ),
+      this.db
+        .prepare(
+          'UPDATE packs SET count = count - ? WHERE account_id = ? AND kind = ? AND count >= ?'
+        )
+        .bind(give.count, accountId, give.kind, give.count),
+    ])
+    return (results[1]?.meta.changes ?? 0) > 0
+  }
+
   // A wallet never opened starts from the starting cash, as open() would.
   async earn(accountId: string, amount: number): Promise<void> {
     await this.db
@@ -261,7 +378,7 @@ export class D1PackStore implements PackStore {
       )
       .bind(accountId, season)
       .first<{ kills: number; claimed: number }>()
-    return row ? { kills: row.kills, claimed: row.claimed === 1 } : NO_PROGRESS
+    return toSeason(row ?? undefined)
   }
 
   // One batch is one transaction: the progress and the reward it paid land
@@ -329,6 +446,69 @@ export class D1PackStore implements PackStore {
     return fresh.filter((_, i) => (results[i]?.meta.changes ?? 0) > 0)
   }
 
+  async quests(accountId: string): Promise<Record<QuestId, QuestStage>> {
+    const { results } = await this.db
+      .prepare('SELECT quest, stage FROM quests WHERE account_id = ?')
+      .bind(accountId)
+      .all<{ quest: string; stage: string }>()
+    return toQuests(results)
+  }
+
+  // One batch is one transaction. The stage goes first, only while the
+  // quest stands where the step found it (no row is 'none') and, for a
+  // change out of the pack, while the pack holds it, stamped with this
+  // step's id; the pack changes after it only where that stamp is this
+  // step's, so the two land together or not at all.
+  async quest(
+    accountId: string,
+    quest: QuestId,
+    from: QuestStage,
+    to: QuestStage,
+    change: { kind: string; delta: number }
+  ): Promise<boolean> {
+    const id = crypto.randomUUID()
+    const out = Math.max(0, -change.delta)
+    const stamped =
+      '(SELECT step_id FROM quests WHERE account_id = ? AND quest = ?) = ?'
+    const results = await this.db.batch([
+      this.db
+        .prepare(
+          'INSERT INTO quests (account_id, quest, stage, step_id, updated_at) ' +
+            "SELECT ?, ?, ?, ?, ? WHERE COALESCE((SELECT stage FROM quests WHERE account_id = ? AND quest = ?), 'none') = ? " +
+            'AND COALESCE((SELECT count FROM packs WHERE account_id = ? AND kind = ?), 0) >= ? ' +
+            'ON CONFLICT (account_id, quest) DO UPDATE SET stage = excluded.stage, step_id = excluded.step_id, updated_at = excluded.updated_at'
+        )
+        .bind(
+          accountId,
+          quest,
+          to,
+          id,
+          Date.now(),
+          accountId,
+          quest,
+          from,
+          accountId,
+          change.kind,
+          out
+        ),
+      change.delta >= 0
+        ? this.db
+            .prepare(
+              'INSERT INTO packs (account_id, kind, count) ' +
+                `SELECT ?, ?, ? WHERE ${stamped} ` +
+                'ON CONFLICT (account_id, kind) DO UPDATE SET count = count + excluded.count'
+            )
+            .bind(accountId, change.kind, change.delta, accountId, quest, id)
+        : this.db
+            .prepare(
+              'UPDATE packs SET count = count - ? ' +
+                `WHERE account_id = ? AND kind = ? AND count >= ? AND ${stamped}`
+            )
+            .bind(out, accountId, change.kind, out, accountId, quest, id),
+    ])
+    return (results[1]?.meta.changes ?? 0) > 0
+  }
+
   async task(accountId: string, task: string): Promise<TaskProgress> {
     const row = await this.db
       .prepare(
@@ -336,9 +516,7 @@ export class D1PackStore implements PackStore {
       )
       .bind(accountId, task)
       .first<{ day: string; count: number; claimed: number }>()
-    return row
-      ? { day: row.day, count: row.count, claimed: row.claimed === 1 }
-      : NO_TASK
+    return toTask(row ?? undefined)
   }
 
   // One batch is one transaction: the progress and the cents it paid land
@@ -375,39 +553,17 @@ export class D1PackStore implements PackStore {
   }
 
   // The row is made the first time, so a tend always has one to guard.
+  // A read, never a write: `tend` makes the row the first time.
   async stand(
     accountId: string
   ): Promise<{ ledger: StandLedger; rev: number }> {
-    const [, read] = await this.db.batch<StandRow>([
-      this.db
-        .prepare('INSERT OR IGNORE INTO stands (account_id) VALUES (?)')
-        .bind(accountId),
-      this.db
-        .prepare(
-          'SELECT level, stock, banked, since, rev FROM stands WHERE account_id = ?'
-        )
-        .bind(accountId),
-    ])
-    const row = read?.results[0]
-    if (!row) return { ledger: FRESH_STAND, rev: 0 }
-    let stock: unknown
-    try {
-      stock = JSON.parse(row.stock)
-    } catch {
-      stock = null
-    }
-    const ledger = {
-      level: row.level,
-      stock,
-      banked: row.banked,
-      since: row.since,
-    }
-    // A row no build could have written reads as a fresh stand, and the
-    // next tend overwrites it.
-    return {
-      ledger: isStandLedger(ledger) ? ledger : FRESH_STAND,
-      rev: row.rev,
-    }
+    const row = await this.db
+      .prepare(
+        'SELECT level, stock, banked, since, rev FROM stands WHERE account_id = ?'
+      )
+      .bind(accountId)
+      .first<StandRow>()
+    return toStand(row ?? undefined)
   }
 
   // One batch is one transaction, and every statement in it fails rather
@@ -513,10 +669,81 @@ export class D1PackStore implements PackStore {
   }
 }
 
+function toHoldings(
+  packs: readonly PackRow[],
+  wallet: { cash: number } | undefined,
+  cosmetics: readonly { cosmetic: string }[],
+  stash: readonly PackRow[]
+): Holdings {
+  return {
+    pack: toInventory(
+      Object.fromEntries(packs.map((row) => [row.kind, row.count]))
+    ),
+    cash: wallet?.cash ?? 0,
+    cosmetics: toCosmetics(cosmetics.map((row) => row.cosmetic)),
+    stash: toInventory(
+      Object.fromEntries(stash.map((row) => [row.kind, row.count]))
+    ),
+  }
+}
+
+function toSeason(
+  row: { kills: number; claimed: number } | undefined
+): SeasonProgress {
+  return row ? { kills: row.kills, claimed: row.claimed === 1 } : NO_PROGRESS
+}
+
+function toTask(
+  row: { day: string; count: number; claimed: number } | undefined
+): TaskProgress {
+  return row
+    ? { day: row.day, count: row.count, claimed: row.claimed === 1 }
+    : NO_TASK
+}
+
+// A row no build could have written reads as a fresh stand, and the next
+// tend overwrites it; no row at all is a fresh stand at rev 0.
+function toStand(row: StandRow | undefined): {
+  ledger: StandLedger
+  rev: number
+} {
+  if (!row) return { ledger: FRESH_STAND, rev: 0 }
+  let stock: unknown
+  try {
+    stock = JSON.parse(row.stock)
+  } catch {
+    stock = null
+  }
+  const ledger = {
+    level: row.level,
+    stock,
+    banked: row.banked,
+    since: row.since,
+  }
+  return {
+    ledger: isStandLedger(ledger) ? ledger : FRESH_STAND,
+    rev: row.rev,
+  }
+}
+
 interface StandRow {
   level: number
   stock: string
   banked: number
   since: number
   rev: number
+}
+
+// Where the account stands on each quest, 'none' for one no row names.
+function toQuests(
+  rows: readonly { quest: string; stage: string }[]
+): Record<QuestId, QuestStage> {
+  const stages = {} as Record<QuestId, QuestStage>
+  for (const id of Object.keys(QUESTS) as QuestId[]) stages[id] = 'none'
+  for (const row of rows) {
+    if (isQuest(row.quest) && isQuestStage(row.stage)) {
+      stages[row.quest] = row.stage
+    }
+  }
+  return stages
 }

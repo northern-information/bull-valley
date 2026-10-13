@@ -5,9 +5,10 @@
 // alone. No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
-import { leftInOpen } from './items.ts'
+import { isItemId, leftInOpen } from './items.ts'
+import { goldenSpot } from './math.ts'
 import type { XZ } from './interfaces.ts'
-import type { ItemId } from './items.ts'
+import type { ItemId, PickupKind } from './items.ts'
 import type { Rng } from './rng.ts'
 import type { ShadeKind } from './shadowmen.ts'
 
@@ -20,18 +21,32 @@ export const DIME_CENTS = 10
 export const TWENTY = 'twenty'
 export const TWENTY_CENTS = 2000
 
-const CENTS: Readonly<Record<string, number>> = {
+// What the plaza's laundromat leaves in its machines every day (a
+// pickup, stripmall.ts): quarters, cash the same way.
+export const QUARTERS = 'quarters'
+export const QUARTER_CENTS = 25
+
+// The kinds that are cash: taken up, they pay the wallet, never the pack.
+export type CashKind = typeof DIMES | typeof TWENTY | typeof QUARTERS
+
+const CENTS: Readonly<Record<CashKind, number>> = {
   [DIMES]: DIME_CENTS,
   [TWENTY]: TWENTY_CENTS,
+  [QUARTERS]: QUARTER_CENTS,
 }
 
-export function isCash(kind: string): boolean {
-  return kind in CENTS
+export function isCash(kind: string): kind is CashKind {
+  return Object.hasOwn(CENTS, kind)
+}
+
+// Whether a kind off the wire is one a drop can be: an item or cash.
+export function isPickupKind(kind: string): kind is PickupKind {
+  return isCash(kind) || isItemId(kind)
 }
 
 // What one of a cash kind is worth, in cents; 0 for anything else.
 export function centsOf(kind: string): number {
-  return CENTS[kind] ?? 0
+  return isCash(kind) ? CENTS[kind] : 0
 }
 
 // How many dimes one burst shadowman (or spiderling, from its own fewer)
@@ -52,7 +67,7 @@ export const GOLD_BULLION: ItemId = 'gold-bullion'
 
 // One drop the valley sets down of its own accord: what, how many, where.
 export interface Spill extends XZ {
-  kind: string
+  kind: PickupKind
   count: number
 }
 
@@ -121,14 +136,12 @@ export function dropAmount(kind: string, held: number, all: boolean): number {
 // a small circle per id so drops made from one spot lie side by side.
 export function dropSpot(at: Facing, id: number, cfg = CONFIG): XZ {
   const { ahead, scatter } = cfg.drops
-  const turn = id * GOLDEN_ANGLE
-  return {
-    x: at.x - Math.sin(at.yaw) * ahead + Math.cos(turn) * scatter,
-    z: at.z - Math.cos(at.yaw) * ahead + Math.sin(turn) * scatter,
+  const before = {
+    x: at.x - Math.sin(at.yaw) * ahead,
+    z: at.z - Math.cos(at.yaw) * ahead,
   }
+  return goldenSpot(before, id, scatter)
 }
-
-const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5))
 
 // Taking up a drop with room for `room` more (Infinity for the pack): how
 // many come up, and the drop as it lies after, or null when none is left.

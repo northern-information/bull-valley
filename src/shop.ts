@@ -9,6 +9,7 @@
 
 import { copy } from './copy.ts'
 import { addItem } from './inventory.ts'
+import { itemLine } from './itemcopy.ts'
 import { contentsOf, itemById } from './items.ts'
 import { formatCash, onShelf, takeUnit } from './store.ts'
 import type { Inventory, ShopStock } from './interfaces.ts'
@@ -54,7 +55,7 @@ export function settle(purse: Purse, kind: string): Settled {
       inventory: addItem(inventory, kind, contentsOf(kind)),
       cash: cash - item.price,
     },
-    line: item.bought ?? null,
+    line: itemLine(kind, 'bought'),
   }
 }
 

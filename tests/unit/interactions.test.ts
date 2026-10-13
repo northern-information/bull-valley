@@ -3,6 +3,7 @@ import { CONFIG } from '../../src/config.ts'
 import { copy } from '../../src/copy.ts'
 import {
   dailyStatus,
+  interactionKey,
   interactionPrompt,
   itemLabel,
   pickupLabel,
@@ -360,6 +361,47 @@ describe('resolveInteraction: bodies and lockers', () => {
     expect(itemLabel({ kind: 'stand' })).toBeNull()
   })
 
+  it('deals with the squatter within his reach', () => {
+    const dealer = { x: 251, z: 250 }
+    expect(resolveInteraction(input({ dealer }))).toEqual({ kind: 'deal' })
+    const far = { x: 250 + CONFIG.dealer.reach + 0.1, z: 250 }
+    expect(resolveInteraction(input({ dealer: far }))).toBeNull()
+    expect(interactionPrompt({ kind: 'deal' })).toBeNull()
+  })
+
+  it('rattles a locked door, but takes up a pickup lying by it first', () => {
+    const locked = { x: 251, z: 250 }
+    expect(resolveInteraction(input({ locked }))).toEqual({ kind: 'locked' })
+    expect(interactionPrompt({ kind: 'locked' })).toBe(copy('prompts.locked'))
+    const far = { x: 250 + CONFIG.stripMall.doorReach + 0.1, z: 250 }
+    expect(resolveInteraction(input({ locked: far }))).toBeNull()
+    const pickup = {
+      x: 250.5,
+      z: 250,
+      kind: 'pbr' as const,
+      count: 1,
+      taken: false,
+    }
+    expect(resolveInteraction(input({ locked, pickups: [pickup] }))).toEqual({
+      kind: 'pickup',
+      pickup,
+    })
+  })
+
+  it('lays the rose at the heart of the maze within reach of it', () => {
+    const heart = { x: 251, z: 250 }
+    expect(resolveInteraction(input({ heart }))).toEqual({ kind: 'lay' })
+    const far = { x: 250 + CONFIG.quests.layReach + 0.1, z: 250 }
+    expect(resolveInteraction(input({ heart: far }))).toBeNull()
+    expect(interactionPrompt({ kind: 'lay' })).toBe(copy('prompts.lay'))
+  })
+
+  it('names the quarters', () => {
+    expect(pickupLabel({ kind: 'quarters', count: 8 })).toBe(
+      copy('labels.quarters', { count: 8 })
+    )
+  })
+
   it('says what E does at each', () => {
     expect(interactionPrompt({ kind: 'loot', corpse: 0 })).toBe(
       copy('prompts.loot')
@@ -410,6 +452,40 @@ describe('interactionPrompt', () => {
     expect(
       interactionPrompt({ kind: 'collect', bush: 0, status: 'ready' })
     ).toBeNull()
+  })
+})
+
+describe('interactionKey', () => {
+  it('reads the same while the prompt and the label would', () => {
+    const pickup = {
+      x: 0,
+      z: 0,
+      kind: 'joints' as const,
+      count: 2,
+      taken: false,
+    }
+    expect(interactionKey({ kind: 'pickup', pickup })).toBe(
+      interactionKey({ kind: 'pickup', pickup: { ...pickup, x: 5 } })
+    )
+    expect(interactionKey({ kind: 'pickup', pickup })).not.toBe(
+      interactionKey({ kind: 'pickup', pickup: { ...pickup, count: 1 } })
+    )
+    expect(interactionKey({ kind: 'buy', ...shelf })).not.toBe(
+      interactionKey({ kind: 'buy', ...shelf, affordable: !shelf.affordable })
+    )
+    expect(
+      interactionKey({ kind: 'collect', bush: 0, status: 'ready' })
+    ).not.toBe(interactionKey({ kind: 'collect', bush: 0, status: 'picked' }))
+    expect(interactionKey({ kind: 'loot', corpse: 1 })).not.toBe(
+      interactionKey({ kind: 'loot', corpse: 2 })
+    )
+    expect(interactionKey({ kind: 'speak', npc: 'moab', station: 1 })).not.toBe(
+      interactionKey({ kind: 'speak', npc: 'moab', station: 2 })
+    )
+    expect(interactionKey({ kind: 'hopOut' })).toBe('hopOut')
+    expect(interactionKey({ kind: 'stand' })).not.toBe(
+      interactionKey({ kind: 'locker', station: 0 })
+    )
   })
 })
 

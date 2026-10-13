@@ -84,6 +84,8 @@ test('a bush at the heart gives a berry of its own', async ({ page }) => {
       bv.player.yaw
     )
   })
+  // The valley gives a berry only to a raider it has heard stand in reach.
+  await heardWhere(page)
   const label = page.locator('.bv-item-label')
   await expect(label).toHaveText(copy('labels.berries'))
   await page.keyboard.press('KeyE')

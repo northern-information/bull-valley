@@ -10,7 +10,7 @@ import {
 } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
-// Rule 25: one raider passes a joint to another standing in front of
+// Rule 27: one raider passes a joint to another standing in front of
 // them. The taker gets it in full, its high and its heal; the giver gets
 // a share of the high.
 

@@ -8,7 +8,8 @@
 // they land.
 
 import { copy } from './copy.ts'
-import { itemById } from './items.ts'
+import { finder } from './dom.ts'
+import { itemLabel } from './itemcopy.ts'
 import {
   accruedAt,
   affordsUpgrade,
@@ -57,7 +58,7 @@ function spanText(ms: number): string {
 }
 
 function labelOf(kind: string): string {
-  return itemById(kind)?.label ?? kind
+  return itemLabel(kind)
 }
 
 function priceText(price: StandPrice): string {
@@ -108,11 +109,7 @@ export function openStandDialog(options: StandDialogOptions): Promise<void> {
     </div>`
   document.body.appendChild(root)
 
-  const find = <T extends Element>(selector: string, from: Element = root) => {
-    const found = from.querySelector<T>(selector)
-    if (!found) throw new Error(`Missing ${selector}`)
-    return found
-  }
+  const find = finder(root)
   const level = find<HTMLParagraphElement>('[data-bv="stand-level"]')
   const table = find<HTMLHeadingElement>('[data-bv="stand-table"]')
   const earning = find<HTMLParagraphElement>('[data-bv="stand-earning"]')

@@ -6,7 +6,10 @@
 // Central (daily.ts), and the count with it.
 //
 // Pure, no Three. The progress is the account's, kept in D1 by the valley
-// (worker/packs.ts); this says what a burn does to it.
+// (worker/packs.ts); this says what a burn does to it, by the counting
+// every goal shares (goal.ts).
+
+import { advance, goalNews, shownProgress } from './goal.ts'
 
 export interface DailyTask {
   // The key the account's progress is kept under.
@@ -48,13 +51,8 @@ export function tallyTask(
   day: string,
   task: DailyTask = DAILY_TASK
 ): { progress: TaskProgress; reward: number | null } {
-  const today = onDay(progress, day)
-  const count = today.count + 1
-  const due = !today.claimed && count >= task.goal
-  return {
-    progress: { day, count, claimed: today.claimed || due },
-    reward: due ? task.reward : null,
-  }
+  const out = advance(onDay(progress, day), task)
+  return { progress: { day, ...out.progress }, reward: out.reward }
 }
 
 // How far along the tracker reads on `day`: never past the goal.
@@ -63,7 +61,7 @@ export function shownCount(
   day: string,
   task: DailyTask = DAILY_TASK
 ): number {
-  return Math.min(task.goal, Math.max(0, onDay(progress, day).count))
+  return shownProgress(onDay(progress, day), task)
 }
 
 // What a credited burn means to the raider: the one that paid the day's
@@ -71,6 +69,6 @@ export function shownCount(
 export type TaskNews = 'done' | 'burned' | 'past'
 
 export function taskNews(progress: TaskProgress, rewarded: boolean): TaskNews {
-  if (rewarded) return 'done'
-  return progress.claimed ? 'past' : 'burned'
+  const news = goalNews(progress, rewarded)
+  return news === 'paid' ? 'done' : news === 'past' ? 'past' : 'burned'
 }

@@ -27,6 +27,7 @@ import type {
   DailyWire,
   FriendWire,
   PeerStateWire,
+  TunnelShadeWire,
   WorldWire,
 } from './protocol.ts'
 import type { RoadGraph } from './roadgraph.ts'
@@ -48,6 +49,8 @@ interface BvHook {
   graph: RoadGraph
   shadowmen: ShadowCards
   caretaker: CaretakerShade
+  // The Undercroft's tunnel shades as last drawn.
+  readonly tunnel: TunnelShadeWire[]
   mist: MistCards
   // Times a touch shattered this raider's geometrie and put them back at
   // the Citgo.
@@ -157,6 +160,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     graph: game.graph,
     shadowmen: game.shadowmen,
     caretaker: game.caretaker,
+    get tunnel() {
+      return game.tunnel.shown
+    },
     mist: game.mist,
     get strikes() {
       return s.strikes

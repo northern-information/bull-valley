@@ -1,4 +1,4 @@
-// Buffs, pure: what geometrie does while it lasts (sharedworld.ts rule 25).
+// Buffs, pure: what geometrie does while it lasts (sharedworld.ts rule 27).
 // High reaches the flashlight further and wider, stimulated quickens the
 // sprint, and drunk shrugs a shadow's touch off now and then; each scaled
 // by its level (geometrie.ts levelsAt). And passing: anything smoked, drunk

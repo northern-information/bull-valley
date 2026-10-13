@@ -3,9 +3,11 @@ import { CONFIG } from '../../src/config.ts'
 import { mulberry32 } from '../../src/rng.ts'
 import {
   beamFrom,
+  burstScaleOf,
   contactsOf,
   createShadowmen,
   headlightBeam,
+  headlightsDue,
   inBeam,
   inBounds,
   inHaven,
@@ -34,6 +36,7 @@ const CFG: ShadowmenConfig = {
     waterRadius: 120,
     maxPerBubble: 3,
     burnScale: 2,
+    burstScale: 2,
     aimHeight: 2.8,
     speedMin: 5,
     speedMax: 8,
@@ -44,6 +47,7 @@ const CFG: ShadowmenConfig = {
     brood: { min: 3, max: 8 },
     scatter: 2.5,
     scale: 0.25,
+    burstScale: 0.5,
     speedMin: 8,
     speedMax: 11,
     rushRadius: 40,
@@ -536,6 +540,41 @@ describe('headlightBeam', () => {
   })
 })
 
+describe('headlightsDue', () => {
+  const cfg = {
+    reach: 400,
+    range: 30,
+    halfAngle: 0.45,
+    height: 0.95,
+    nose: 3,
+    staleMs: 1000,
+  }
+  const pose = { x: 1, y: 2, z: 3, heading: 0 }
+
+  it('owes the first word, and one every tick while the truck drives', () => {
+    expect(headlightsDue(null, pose, false, 0, cfg)).toBe(true)
+    const sent = { pose, at: 0 }
+    expect(headlightsDue(sent, pose, true, 100, cfg)).toBe(true)
+  })
+
+  it('owes one where the truck stopped, and none while nothing moves', () => {
+    const sent = { pose, at: 0 }
+    expect(headlightsDue(sent, pose, false, 100, cfg)).toBe(false)
+    expect(headlightsDue(sent, { ...pose, x: 1.5 }, false, 100, cfg)).toBe(true)
+    expect(
+      headlightsDue(sent, { ...pose, heading: 0.2 }, false, 100, cfg)
+    ).toBe(true)
+  })
+
+  it('says it again before the valley forgets', () => {
+    const sent = { pose, at: 0 }
+    expect(headlightsDue(sent, pose, false, cfg.staleMs / 2 - 1, cfg)).toBe(
+      false
+    )
+    expect(headlightsDue(sent, pose, false, cfg.staleMs / 2, cfg)).toBe(true)
+  })
+})
+
 describe('the headlights', () => {
   // The truck at the origin facing -Z, its lamps on a shadowman ahead.
   const lights = [headlightBeam({ ...ORIGIN_3, heading: Math.PI })]
@@ -807,5 +846,17 @@ describe('the spiderlings', () => {
       dt: 0.001,
     })
     expect(first(close)?.windup).toBe(0)
+  })
+})
+
+describe('a burst', () => {
+  it('is sized by what burst', () => {
+    expect(burstScaleOf('man', CONFIG.shadowmen)).toBe(1)
+    expect(burstScaleOf('spider', CONFIG.shadowmen)).toBe(
+      CONFIG.shadowmen.spider.burstScale
+    )
+    expect(burstScaleOf('spiderling', CONFIG.shadowmen)).toBe(
+      CONFIG.shadowmen.spiderling.burstScale
+    )
   })
 })
