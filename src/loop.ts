@@ -22,6 +22,7 @@ import {
   itemLabel,
   resolveInteraction,
 } from './interactions.ts'
+import { isLock, passes } from './keys.ts'
 import { settleTruck } from './marx.ts'
 import { inPortal } from './maze.ts'
 import { packItemOf } from './packgrid.ts'
@@ -36,6 +37,7 @@ import {
 } from './shadowmen.ts'
 import { formatCash } from './store.ts'
 import { tripLevel } from './trip.ts'
+import { burstHeight, burstScale } from './tunnelrig.ts'
 import { boardable, clockText, countdown, seatOf } from './worldsync.ts'
 import type { Actions } from './actions.ts'
 import type { Game } from './game.ts'
@@ -81,6 +83,16 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     peers,
   } = game
   const ridingForward = new THREE.Vector3(0, 0, -1)
+  // The back room's locked door lets this raider through while they carry
+  // its key, or once they are behind it (keys.ts); everyone else's game
+  // decides for them.
+  const plaza = world.plaza
+  if (plaza) {
+    world.walls.setGates(
+      (gate, x, z) =>
+        isLock(gate) && passes(gate, s.inventory, plaza.inBackRoom(x, z))
+    )
+  }
 
   // Marx's countdown, for whoever is in the bed or standing by it. The
   // line is filled again only when its clock reads differently.
@@ -312,11 +324,14 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
             : null,
           lights: [headlightBeam(truck.headlights())],
         }
+    // Down in the Undercroft only the tunnel shades walk (rule 11).
+    const croft = world.undercroft
+    const below = croft ? croft.inside(player.pos.x, player.pos.z) : false
     const swarm = shadowmen.update({
       dt,
       player: player.pos,
       perception,
-      alone,
+      alone: below ? null : alone,
       renderAt,
       myId: net.id,
     })
@@ -338,7 +353,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       dt,
       time,
       player: player.pos,
-      alone,
+      alone: below ? null : alone,
       renderAt,
       myId: net.id,
     })
@@ -347,6 +362,25 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       const y = world.ground.at(at.x, at.z) + CONFIG.caretaker.chestHeight
       bursts.spawn(at.x, y, at.z)
     }
+    // And the tunnel shades in the Undercroft, the Warden among them.
+    const tunnel = game.tunnel.update({
+      dt,
+      time,
+      player: player.pos,
+      alone,
+      renderAt,
+      myId: net.id,
+    })
+    if (tunnel.struck) actions.strike('tunnel')
+    for (const at of tunnel.bursts) {
+      const y = world.ground.at(at.x, at.z) + burstHeight(at.kind)
+      bursts.spawn(at.x, y, at.z, burstScale(at.kind))
+    }
+    // Played alone each leaves its dimes and its stone, as a shadowman's.
+    actions.spillBursts(
+      tunnel.bursts.map(({ x, z }) => ({ id: -1, kind: 'man' as const, x, z }))
+    )
+    croft?.update(time)
     bursts.update(dt)
     // What the shadowmen and the Caretaker sound like this frame.
     sfx?.hear(
@@ -361,8 +395,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     const live = (at: { x: number; z: number }, margin = 0) =>
       Math.hypot(at.x - player.pos.x, at.z - player.pos.z) <=
       CONFIG.render.liveRadius + margin
-    // Gron's rain falls on its own clock, Moab's fire burns on it too, and
-    // the wreck smoulders and blinks on it.
+    // Gron's rain falls on its own clock, Moab's fire burns on it too, the
+    // wreck smoulders and blinks on it, and the plaza's last tube flickers.
     if (world.gronRig && world.gron && live(world.gron)) {
       world.gronRig.update(time)
     }
@@ -371,6 +405,24 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     world.moabRigs.forEach((rig, i) => {
       if (live(world.moabs[i])) rig.update(time)
     })
+    // Erwin's rose lies at the heart for a raider who laid it (rule 26).
+    if (world.portal) {
+      const stage = s.quests?.rose
+      world.portal.rose.visible = stage === 'laid' || stage === 'done'
+    }
+    // The locked door swings open as a raider who may pass comes up to it.
+    if (plaza) {
+      const { x, z } = player.pos
+      const near =
+        Math.hypot(x - plaza.doorAt.x, z - plaza.doorAt.z) <
+        CONFIG.stripMall.doorReach
+      const inside = plaza.inBackRoom(x, z)
+      plaza.setDoorOpen(
+        (near || inside) && passes(plaza.lock, s.inventory, inside)
+      )
+      // The building is long: its tube and candles flicker from a way off.
+      if (live(plaza.doorAt, 60)) plaza.update(time)
+    }
     if (world.wreck && live(world.wreck.group.position)) {
       world.wreck.update(time)
     }
@@ -475,6 +527,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     if (scope.raised) {
       scopeContacts.length = 0
       for (const c of swarm.contacts) scopeContacts.push(c)
+      for (const c of tunnel.contacts) scopeContacts.push(c)
       if (keeper.contact) scopeContacts.push(keeper.contact)
       for (const c of peers.contacts(
         player.pos,
@@ -499,6 +552,11 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         ...(keeper.contact && keeper.contact.dist <= range
           ? ['caretaker']
           : []),
+        ...game.tunnel.shown
+          .filter(
+            (t) => Math.hypot(t.x - player.pos.x, t.z - player.pos.z) <= range
+          )
+          .map((t) => (t.kind === 'warden' ? 'warden' : 'tunnel-shade')),
         ...itemsHeld(s.inventory),
       ])
     }
@@ -539,6 +597,25 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       ),
       lockers: targets.lockerSpots(inStore),
       stand: world.stand?.at ?? null,
+      dealer: world.plaza?.dealer.at ?? null,
+      trapdoor: world.undercroft?.hatch ?? null,
+      ladder: world.undercroft?.foot ?? null,
+      heart:
+        world.portal &&
+        s.quests?.rose === 'given' &&
+        (s.inventory.rose ?? 0) > 0 &&
+        !s.pendingQuest
+          ? world.portal.at
+          : null,
+      locked:
+        world.plaza &&
+        !passes(
+          world.plaza.lock,
+          s.inventory,
+          world.plaza.inBackRoom(player.pos.x, player.pos.z)
+        )
+          ? world.plaza.doorAt
+          : null,
     })
     const interaction = s.interaction
     // Rule 14: Moab makes his offer as you come into his reach.

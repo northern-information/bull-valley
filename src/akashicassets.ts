@@ -39,8 +39,15 @@ import {
   buildCigarettePack,
   buildDimes,
   buildPickup,
+  buildQuarters,
   buildTwenty,
 } from './pickups.ts'
+import {
+  buildDumpster,
+  buildPlazaSign,
+  buildShoppingCart,
+  buildStripMall,
+} from './plazamodel.ts'
 import {
   buildAxe,
   buildBat,
@@ -75,6 +82,9 @@ import { buildShadowBurst, SHADOW_BURST } from './shadowburstmodel.ts'
 import { buildShadowSpider, strikeLoopAt } from './shadowspider.ts'
 import { buildSkeletonHorse } from './skeletonhorse.ts'
 import { STORE_LAYOUT } from './store.ts'
+import { STRIP_MALL } from './stripmall.ts'
+import { buildTunnelShade } from './tunnelshademodel.ts'
+import { buildTrapdoor, buildUndercroft } from './undercroftmodel.ts'
 import { buildWreck } from './wreck.ts'
 import type { AkashicAsset, Part } from './assetkit.ts'
 import type { Span } from './maze.ts'
@@ -238,6 +248,30 @@ function sampleStrikingSpider(height: number): () => THREE.Group {
 }
 
 // The guitar standing on its horn, for Akashic.
+// The plaza whole for the Akashic: the building on its slab, its pylon,
+// the dumpsters and the carts in their places on flat ground.
+function samplePlaza(): THREE.Group {
+  const group = new THREE.Group()
+  group.add(buildStripMall().group)
+  const { props } = STRIP_MALL
+  const pylon = buildPlazaSign()
+  pylon.position.set(props.pylon.x, 0, props.pylon.z)
+  group.add(pylon)
+  for (const spot of props.dumpsters) {
+    const dumpster = buildDumpster(spot.fallen)
+    dumpster.position.set(spot.x, 0, spot.z)
+    dumpster.rotation.y = spot.yaw + Math.PI / 2
+    group.add(dumpster)
+  }
+  for (const spot of props.carts) {
+    const cart = buildShoppingCart(spot.fallen)
+    cart.position.set(spot.x, 0, spot.z)
+    cart.rotation.y = spot.yaw
+    group.add(cart)
+  }
+  return group
+}
+
 function sampleGuitar(): THREE.Group {
   const guitar = buildGuitar().group
   guitar.position.y = -Math.min(...GUITAR_OUTLINE.map(([, y]) => y))
@@ -313,6 +347,24 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   })),
   { id: 'berries', label: 'Berries', build: () => buildPickup('berries') },
   { id: 'dimes', label: 'Dimes (12)', build: () => buildDimes(12) },
+  { id: 'quarters', label: 'Quarters (8)', build: () => buildQuarters(8) },
+  {
+    id: 'mushrooms',
+    label: 'Mushrooms',
+    build: () => buildPickup('mushrooms'),
+  },
+  {
+    id: 'vault-key',
+    label: 'Video Vault key',
+    build: () => buildPickup('vault-key'),
+  },
+  {
+    id: 'lsd',
+    label: 'LSD: a sheet of blotter',
+    build: () => buildPickup('lsd'),
+  },
+  { id: 'adderall', label: 'Adderall', build: () => buildPickup('adderall') },
+  { id: 'rose', label: "Erwin's rose", build: () => buildPickup('rose') },
   {
     id: 'tombstone',
     label: "Tombstone: a shadowman's",
@@ -370,6 +422,51 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     id: 'wreck',
     label: 'The wreck: a green BMW in a tree',
     build: () => buildWreck().group,
+  },
+  {
+    id: 'strip-mall',
+    label: 'Bull Valley Plaza, the dead strip mall',
+    build: samplePlaza,
+  },
+  {
+    id: 'undercroft',
+    label: 'The Undercroft, under the plaza',
+    build: () => buildUndercroft().group,
+  },
+  { id: 'trapdoor', label: 'The trapdoor in the office', build: buildTrapdoor },
+  {
+    id: 'tunnel-shade',
+    label: 'A tunnel shade',
+    build: () => {
+      const rig = buildTunnelShade('shade')
+      setMotion(rig.group, (t) => rig.update(t))
+      return rig.group
+    },
+  },
+  {
+    id: 'warden',
+    label: 'The Warden',
+    build: () => {
+      const rig = buildTunnelShade('warden')
+      setMotion(rig.group, (t) => rig.update(t))
+      return rig.group
+    },
+  },
+  {
+    id: 'plaza-sign',
+    label: 'Bull Valley Plaza: the pylon by the road',
+    build: buildPlazaSign,
+  },
+  { id: 'dumpster', label: 'Dumpster', build: () => buildDumpster() },
+  {
+    id: 'dumpster-fallen',
+    label: 'Dumpster, over on its side',
+    build: () => buildDumpster(true),
+  },
+  {
+    id: 'shopping-cart',
+    label: 'Shopping cart',
+    build: () => buildShoppingCart(),
   },
   {
     id: 'dish',

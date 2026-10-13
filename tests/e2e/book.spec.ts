@@ -36,6 +36,19 @@ test('the Book of Shadows fills as the raider goes', async ({ page }) => {
     copy('book.wreck.name')
   )
 
+  // And Bull Valley Plaza, walked up to out front.
+  await page.evaluate(() => {
+    const bv = window.__bv
+    const plaza = bv?.world.plaza
+    if (!bv || !plaza) throw new Error('no plaza')
+    const { x, z } = plaza.group.position
+    bv.player.relocate(x, z, bv.player.yaw)
+  })
+  await expect.poll(() => found(page)).toContain('strip-mall')
+  await expect(page.locator('[data-bv="book-toast"]')).toContainText(
+    copy('book.strip-mall.name')
+  )
+
   // B opens it with the pointer free; the folk not yet spoken to are dark.
   await page.keyboard.press('KeyB')
   await expect.poll(() => page.evaluate(() => window.__bv?.bookOpen)).toBe(true)

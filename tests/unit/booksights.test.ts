@@ -3,6 +3,7 @@ import { bookSights } from '../../src/booksights.ts'
 import { CONFIG } from '../../src/config.ts'
 import { KEEP } from '../../src/landmarks.ts'
 import { toWorld } from '../../src/store.ts'
+import { UNDERCROFT } from '../../src/undercroft.ts'
 import type { MazeFrame } from '../../src/cornmaze.ts'
 import type { FuelPoint } from '../../src/world.ts'
 
@@ -24,6 +25,8 @@ describe('bookSights', () => {
       donutField: null,
       wreck: null,
       dishes: [],
+      plaza: null,
+      undercroft: null,
       landmarks: [],
     })
     expect(sights).toEqual([
@@ -45,6 +48,8 @@ describe('bookSights', () => {
         { x: 0, z: 0 },
         { x: 10, z: 20 },
       ],
+      plaza: { x: 50, z: 60 },
+      undercroft: { x: -7000, z: -7000, yaw: 0 },
       landmarks: [
         { n: KEEP, x: 7, z: 8 },
         { n: 'elsewhere', x: 9, z: 9 },
@@ -56,6 +61,8 @@ describe('bookSights', () => {
       'cabbage-stand',
       'wreck',
       'dishes',
+      'strip-mall',
+      'undercroft',
       'donut-field',
       'corn-maze',
       'corn-maze',
@@ -87,6 +94,20 @@ describe('bookSights', () => {
       x: 5,
       z: 10,
       reach: reach.dishes,
+    })
+    expect(by('strip-mall')[0]).toEqual({
+      id: 'strip-mall',
+      x: 50,
+      z: 60,
+      reach: reach.plaza,
+    })
+    // The Undercroft: its middle, with a reach that covers all of it.
+    const croft = UNDERCROFT.size
+    expect(by('undercroft')[0]).toEqual({
+      id: 'undercroft',
+      x: -7000 + croft.across / 2,
+      z: -7000 + croft.along / 2,
+      reach: Math.hypot(croft.across, croft.along) / 2,
     })
     expect(by('donut-field')[0]).toEqual({
       id: 'donut-field',

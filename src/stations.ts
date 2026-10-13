@@ -24,7 +24,7 @@ interface MeshPart {
 
 // The closest point on any road centreline to (x, z), with that road's
 // paved width. Null when the survey has no roads.
-function nearestRoadside(
+export function nearestRoadside(
   roads: readonly Road[],
   metres: Metres,
   x: number,

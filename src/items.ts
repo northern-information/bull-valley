@@ -9,8 +9,8 @@
 // exactly the fields it uses and a reader narrows on `category` instead of
 // checking which fields exist. Common to all:
 //   id        inventory kind and mesh key
-//   category  'cigarette' | 'joint' | 'drink' | 'medicine' | 'forage' |
-//             'valuable'
+//   category  'cigarette' | 'joint' | 'psychedelic' | 'stimulant' |
+//             'drink' | 'medicine' | 'forage' | 'valuable' | 'key-item'
 //   start     count in a new inventory
 //   contents  how many the pack, bottle or box holds (1 when absent); the
 //             inventory counts these, and a buy or a pickup adds a full one
@@ -20,7 +20,8 @@
 //   geometrie how far one use moves each geometrie level (geometrie.ts):
 //             a cigarette's, the joint's and a drink's
 //   smokeSeconds, emberSeconds  a cigarette burns, then smoulders
-//   perceptionSeconds  the joint resolves the shadowmen through the murk
+//   perceptionSeconds  the joint (and a psychedelic) resolves the shadowmen
+//             through the murk
 //   container a drink's shape, a key into CONTAINERS in drinks.ts
 //   tripSeconds  how long a drink's trails last (trip.ts); a cigarette's
 //             last while it smokes, the joint's while perception does
@@ -81,6 +82,25 @@ export interface Medicine extends ItemBase, Shelf {
   geometrie: GeometrieDose
 }
 
+// Never on a shelf: Erwin von Dutch deals them (dealer.ts). The
+// psychedelics work like the joint, harder and longer; the stimulant like
+// a drink, a trip and a dose.
+export interface Psychedelic extends ItemBase {
+  category: 'psychedelic'
+  price?: undefined
+  perceptionSeconds: number
+  geometrie: GeometrieDose
+  heals: number
+}
+
+export interface Stimulant extends ItemBase {
+  category: 'stimulant'
+  price?: undefined
+  tripSeconds: number
+  geometrie: GeometrieDose
+  heals: number
+}
+
 // Never on a shelf: the valley hands it out.
 export interface Forage extends ItemBase {
   category: 'forage'
@@ -93,7 +113,24 @@ export interface Valuable extends ItemBase {
   price?: undefined
 }
 
-export type Item = Cigarette | Joint | Drink | Medicine | Forage | Valuable
+// What a quest gives or asks for (quests.ts), and the keys, which open
+// their locks for whoever carries them (keys.ts): never used up and never
+// dropped; they go where the pack goes, a strike included.
+export interface KeyItem extends ItemBase {
+  category: 'key-item'
+  price?: undefined
+}
+
+export type Item =
+  | Cigarette
+  | Joint
+  | Drink
+  | Medicine
+  | Psychedelic
+  | Stimulant
+  | Forage
+  | Valuable
+  | KeyItem
 
 export type ItemCategory = Item['category']
 
@@ -161,6 +198,35 @@ export const ITEMS = [
     // Shadowmen resolve through the murk while it lasts.
     perceptionSeconds: 120,
     geometrie: { high: 0.5 },
+    heals: 2,
+  },
+  // Never on a Citgo shelf: Erwin von Dutch in the Golden Wok deals them
+  // (dealer.ts). The psychedelics work like the joint, harder and longer:
+  // perception, a long trip, and very high; the Adderall stimulates. Each
+  // gives health back, the psychedelics two like the joint.
+  {
+    id: 'lsd',
+    category: 'psychedelic',
+    start: 0,
+    perceptionSeconds: 480,
+    geometrie: { high: 1 },
+    heals: 2,
+  },
+  {
+    id: 'adderall',
+    category: 'stimulant',
+    start: 0,
+    contents: 10,
+    tripSeconds: 20,
+    geometrie: { stimulated: 0.45 },
+    heals: 1,
+  },
+  {
+    id: 'mushrooms',
+    category: 'psychedelic',
+    start: 0,
+    perceptionSeconds: 300,
+    geometrie: { high: 0.85 },
     heals: 2,
   },
   // Drinks, circa 2008. Drinking one moves geometrie (geometrie.ts): the
@@ -402,6 +468,17 @@ export const ITEMS = [
     category: 'valuable',
     start: 0,
   },
+  // Key items (KeyItem above).
+  {
+    id: 'rose',
+    category: 'key-item',
+    start: 0,
+  },
+  {
+    id: 'vault-key',
+    category: 'key-item',
+    start: 0,
+  },
 ] as const satisfies readonly Item[]
 
 type ItemEntry = (typeof ITEMS)[number]
@@ -447,6 +524,11 @@ export function isDrink(id: string): boolean {
   return itemById(id)?.category === 'drink'
 }
 
+// Whether `id` is a key item: never dropped, never used up.
+export function isKeyItem(id: string): boolean {
+  return itemById(id)?.category === 'key-item'
+}
+
 export function isMedicine(id: string): boolean {
   return itemById(id)?.category === 'medicine'
 }
@@ -459,14 +541,24 @@ export function isUsable(id: string): boolean {
   switch (item.category) {
     case 'cigarette':
     case 'joint':
+    case 'psychedelic':
+    case 'stimulant':
     case 'drink':
       return true
     case 'medicine':
       return (item.heals ?? 0) > 0
     case 'forage':
     case 'valuable':
+    case 'key-item':
       return false
   }
+}
+
+// Whether using `id` sharpens perception (the shadowmen resolve through
+// the murk): the joint, and the dealer's mushrooms.
+export function givesPerception(id: string): boolean {
+  const category = itemById(id)?.category
+  return category === 'joint' || category === 'psychedelic'
 }
 
 // Health points one use of `id` gives back (health.ts); 0 for anything
@@ -486,6 +578,8 @@ export function geometrieOf(id: string): GeometrieDose | undefined {
     case 'joint':
     case 'drink':
     case 'medicine':
+    case 'psychedelic':
+    case 'stimulant':
       return item.geometrie
     default:
       return undefined
@@ -502,8 +596,10 @@ export function tripSecondsOf(id: string): number {
     case 'cigarette':
       return item.smokeSeconds
     case 'joint':
+    case 'psychedelic':
       return item.perceptionSeconds
     case 'drink':
+    case 'stimulant':
       return item.tripSeconds
     default:
       return 0

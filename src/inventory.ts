@@ -82,7 +82,7 @@ export function consume(
       },
     }
   }
-  if (item.category === 'joint') {
+  if (item.category === 'joint' || item.category === 'psychedelic') {
     return {
       used: true,
       inv: result.inv,

@@ -6,6 +6,8 @@ import { unitToWorld } from './coords.ts'
 import { buildCornMaze, mazeFrame, mazeLamps } from './cornmaze.ts'
 import { Ground } from './ground.ts'
 import { KEEP, landmarkWorldPositions } from './landmarks.ts'
+import { mazeToWorld } from './maze.ts'
+import { buildCroft, buildPlaza, CROFT_TREE_CLEAR } from './plazasite.ts'
 import { buildPoles } from './poles.ts'
 import { mulberry32 } from './rng.ts'
 import { placeRoadside } from './roadside.ts'
@@ -45,6 +47,13 @@ import {
   worldFacings,
 } from './store.ts'
 import { buildStreetlights } from './streetlights.ts'
+import {
+  mallCenter,
+  onMallGrounds,
+  plazaLotMiddle,
+  STRIP_MALL,
+} from './stripmall.ts'
+import { inUndercroft, UNDERCROFT } from './undercroft.ts'
 import { Walls } from './walls.ts'
 import { buildRoads, buildShoulders, buildWater } from './worldsurfaces.ts'
 import type { DishArray, PortalRig, Wreck } from './assets.ts'
@@ -54,9 +63,11 @@ import type { GronRig, MoabRig } from './figure.ts'
 import type { Geo, HeightAt, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
 import type { MazePlace } from './maze.ts'
+import type { CroftRig, PlazaRig } from './plazasite.ts'
 import type { StoreOrigin, WorldFacing } from './store.ts'
 import type { Streetlights } from './streetlights.ts'
 
+export type { CroftRig, PlazaRig } from './plazasite.ts'
 export type { Streetlights } from './streetlights.ts'
 
 // Builds every static feature of Bull Valley from the survey's geo.json:
@@ -149,11 +160,18 @@ export interface World {
   // The dish array behind the spawn station, update(t) to slew it; null
   // without a spawn station.
   dishes: DishArray | null
+  // Bull Valley Plaza, the dead strip mall beside the spawn station,
+  // update(t) for its one flickering tube and the candles, and its locked
+  // back room; null without a spawn station.
+  plaza: PlazaRig | null
+  // The Undercroft under it, through the office's trapdoor; null without
+  // the plaza.
+  undercroft: CroftRig | null
   // What to stand on anywhere: the terrain, or the road or lot over it.
   ground: Ground
   // What stops you: the store walls and fixtures, the berry bush, Gron,
-  // Moab and his horse, the wreck and its tree, the dishes, the poles and
-  // lamps.
+  // Moab and his horse, the wreck and its tree, the dishes, the plaza, the
+  // poles and lamps.
   walls: Walls
   // Every station's shelf facings in the world, indexed like fuelPoints.
   facings: WorldFacing[][]
@@ -195,6 +213,9 @@ export interface MazePortal {
   at: XZ
   exit: Spawn
   rig: PortalRig
+  // Erwin's rose, laid before the portal (quests.ts): shown to a raider
+  // whose quest says they laid it.
+  rose: THREE.Object3D
 }
 
 // across the fog — magenta for the Keep.
@@ -272,6 +293,14 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     : null
   const dishSpots = spawnStation ? dishSpotsOf(spawnStation) : []
   const pine = spawnStation ? lonePineOf(spawnStation) : null
+  const plaza = spawnStation
+    ? buildPlaza(spawnStation, geo, metres, heightAt, ground, walls)
+    : null
+  if (plaza) group.add(plaza.group)
+  const croft = plaza
+    ? buildCroft(plaza, metres, heightAt, ground, walls)
+    : null
+  if (croft) group.add(croft.group)
   group.add(
     buildTrees(
       geo,
@@ -291,6 +320,10 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
         dishSpots.some(
           (d) => Math.hypot(x - d.x, z - d.z) < CONFIG.dishes.treeClear
         ) ||
+        (plaza ? onMallGrounds(plaza.origin, x, z, STORE_TREE_CLEAR) : false) ||
+        (croft
+          ? inUndercroft(croft.rig.place, { x, z }, CROFT_TREE_CLEAR)
+          : false) ||
         // The lone pine stands alone among the dishes.
         (spawnStation ? insideDishArray(spawnStation, x, z) : false) ||
         // No tree grows through a store or its back room.
@@ -300,7 +333,14 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   )
   // The roadside draws from its own seed, so retuning the poles never moves
   // the reeds, graves or pickups that draw after it.
-  const roadside = placeRoadside(geo.roads, metres, { avoid: fuel.points })
+  const roadside = placeRoadside(geo.roads, metres, {
+    avoid: [
+      ...fuel.points,
+      ...(plaza
+        ? [mallCenter(plaza.origin), plazaLotMiddle(plaza.origin)]
+        : []),
+    ],
+  })
   group.add(buildPoles(roadside.poles, ground.at, walls))
   const streetlights = buildStreetlights(
     [
@@ -325,7 +365,23 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     fuel.points,
     dishSpots,
     pine,
-    rng
+    rng,
+    plaza
+      ? [
+          ...STRIP_MALL.loot.map((spot) => {
+            const [x, , z] = toWorld(plaza.origin, [spot.x, 0, spot.z])
+            return { x, z, kind: spot.kind, count: spot.count }
+          }),
+          // And under it, the Undercroft's.
+          ...(croft
+            ? UNDERCROFT.loot.map((spot) => ({
+                ...mazeToWorld(croft.rig.place, spot),
+                kind: spot.kind,
+                count: spot.count,
+              }))
+            : []),
+        ]
+      : []
   )
   group.add(pickupSet.group)
   let portal: MazePortal | null = null
@@ -370,6 +426,8 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     stand: standRig,
     wreck,
     dishes,
+    plaza: plaza ? plaza.rig : null,
+    undercroft: croft ? croft.rig : null,
     ground,
     walls,
     facings: fuel.points.map(worldFacings),
@@ -386,6 +444,8 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
       donutField,
       wreck: wreckAt ? { x: wreckAt[0], z: wreckAt[2] } : null,
       dishes: dishSpots,
+      plaza: plaza ? mallCenter(plaza.origin) : null,
+      undercroft: croft ? croft.rig.place : null,
       landmarks: landmarks.points,
     }),
   }

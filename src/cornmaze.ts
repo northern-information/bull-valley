@@ -3,6 +3,7 @@ import {
   buildCornMazeSign,
   buildCornWalls,
   buildEnterSign,
+  buildPickup,
   buildPortal,
   CORN_SIGN,
   ENTER_SIGN,
@@ -169,6 +170,9 @@ export function mazeLamps(frame: MazeFrame, station: StoreOrigin): LampSpot[] {
 // short enough to follow it and blocks as one capsule along its
 // centreline. The CORN MAZE! sign stands on the verge by the near corner
 
+// How far out from the portal, toward the gate, the laid rose lies.
+const ROSE_STEP = 1.8
+
 export function buildCornMaze(
   frame: MazeFrame,
   station: StoreOrigin,
@@ -253,11 +257,21 @@ export function buildCornMaze(
     CONFIG.maze.portal.exit.z,
   ])
   const gateAt = out[0]
+  // The rose lies on the path a step out from the portal, toward the gate.
+  const along = Math.hypot(toward.x - heart.x, toward.z - heart.z) || 1
+  const rx = heart.x + ((toward.x - heart.x) / along) * ROSE_STEP
+  const rz = heart.z + ((toward.z - heart.z) / along) * ROSE_STEP
+  const rose = buildPickup('rose', 0, { glow: false })
+  rose.position.set(rx, ground.at(rx, rz), rz)
+  rose.rotation.y = 0.7
+  rose.visible = false
+  group.add(rose)
   const portal: MazePortal = {
     at: { x: heart.x, z: heart.z },
     // The camera looks along (-sin yaw, -cos yaw).
     exit: { x: ex, z: ez, yaw: Math.atan2(-(gateAt.x - ex), -(gateAt.z - ez)) },
     rig,
+    rose,
   }
 
   // A sign at a station-local spot, its board (which faces +Z) turned to

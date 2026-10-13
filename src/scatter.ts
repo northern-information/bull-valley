@@ -337,7 +337,8 @@ export function buildPickups(
   fuelPoints: readonly FuelPoint[],
   dishSpots: readonly XZ[],
   pine: { at: XZ; grave: XZ } | null,
-  rng: Rng
+  rng: Rng,
+  loot: readonly (XZ & { kind: PickupKind; count: number })[] = []
 ): { group: THREE.Group; pickups: Pickup[] } {
   const group = new THREE.Group()
   group.name = 'pickups'
@@ -425,6 +426,11 @@ export function buildPickups(
       place(x, z, 'cabbage', 1)
     }
   }
+  // Last, what Bull Valley Plaza leaves lying every day (stripmall.ts
+  // STRIP_MALL.loot), each turned its own way, drawing on no seed.
+  loot.forEach((spot, i) => {
+    place(spot.x, spot.z, spot.kind, spot.count, 0x9100 + i, i * 2.3)
+  })
   return { group, pickups }
 }
 

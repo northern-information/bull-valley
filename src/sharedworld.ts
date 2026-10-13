@@ -53,7 +53,12 @@
 //    twice as long to burn, and each leaves a $20 bill, cash the same way.
 //    Marx's headlights burn them too, crediting no one: the valley never
 //    knows the roads, so it aims them from where a raider near the truck
-//    last said it stood (seeHeadlights), and only while that is fresh. The valley steps the field (stepShadows) and keeps it in
+//    last said it stood (seeHeadlights), and only while that is fresh.
+//    Under Bull Valley Plaza, in the Undercroft the world was opened with
+//    (undercroft.ts), the tunnel shades walk instead (tunnelshades.ts): a
+//    raider down there is out of the shadowmen's field and the Caretaker's
+//    reach, and the shades hunt them, strike them the same way, and burst
+//    in one beam into dimes, the Warden among them. The valley steps the field (stepShadows) and keeps it in
 //    memory only: the shadowmen are gone whenever no one is placed in the
 //    valley.
 // 12. A raider out of the bed can drop what their pack holds (the valley
@@ -146,12 +151,36 @@
 //    raider on foot whose last state frame put them on a Citgo forecourt
 //    is made whole, and a use of medicine that heals (items.ts heals),
 //    once the pack has given the unit up, gives its points back.
+// 25. The squatter in Bull Valley Plaza deals (dealer.ts), where the
+//    world was opened with him (SharedWorld.dealer): a few of each of his
+//    goods a day for the whole valley (SharedWorld.dealerStock, full
+//    again when the day turns, rule 6). He takes no cash: a raider out of
+//    the bed whose last state frame put them beside him barters one kind
+//    out of their pack for one of his, counted a little under shelf price
+//    (ValleyContext.holdings in, Reduced.barter out), and the deal earns
+//    XP as a purchase (rule 22).
+// 26. Quests (quests.ts): each account's stage on each is its own, kept by
+//    the valley in D1 beside the pack. Erwin von Dutch gives a raider out
+//    of the bed beside him a rose (again, if it was lost); laid at the
+//    heart of the maze where the world was opened with it, he gives them
+//    the Video Vault's back-room key. Each step is judged against where
+//    the raider's last state frame put them and what the pack holds
+//    (ValleyContext.quest in, Reduced.quest out); the valley writes the
+//    stage and the pack together, or neither. The key earns quest XP
+//    (rule 22).
 
-import { caretakerAt, createCaretaker, stepCaretaker } from './caretaker.ts'
+import {
+  caretakerAt,
+  createCaretaker,
+  heartPoint,
+  stepCaretaker,
+  theMaze,
+} from './caretaker.ts'
 import { CONFIG } from './config.ts'
 import { corpseWire, isEmpty } from './corpses.ts'
 import { affords, cosmeticById, MOAB_OFFERS } from './cosmetics.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
+import { atDealer, deal, freshDealerStock } from './dealer.ts'
 import { centsOf, dropSpot, isCash, takeUp } from './drops.ts'
 import { bury } from './graves.ts'
 import {
@@ -162,7 +191,7 @@ import {
   mend,
   withHealth,
 } from './health.ts'
-import { contentsOf, INVENTORY_KINDS, itemById } from './items.ts'
+import { contentsOf, INVENTORY_KINDS, isKeyItem, itemById } from './items.ts'
 import {
   arrive,
   board,
@@ -176,8 +205,9 @@ import {
   refused,
   settleTruck,
 } from './marx.ts'
-import { worldToMaze } from './maze.ts'
+import { mazeToWorld, worldToMaze } from './maze.ts'
 import { PROTOCOL_VERSION } from './protocol.ts'
+import { atHeart, isQuest, QUESTS, questStep } from './quests.ts'
 import {
   beamFrom,
   burnSecondsOf,
@@ -198,9 +228,16 @@ import {
 } from './stand.ts'
 import { atLocker } from './stash.ts'
 import { freshStock, onShelf, takeUnit } from './store.ts'
+import {
+  createTunnelShades,
+  stepTunnelShades,
+  tunnelShadesAt,
+} from './tunnelshades.ts'
+import { inUndercroft } from './undercroft.ts'
 import type { Caretaker } from './caretaker.ts'
 import type { Corpse } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
+import type { DealerStock } from './dealer.ts'
 import type { Drop, Facing, Spill } from './drops.ts'
 import type { Burial, Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
@@ -222,6 +259,7 @@ import type {
   WorldReason,
   WorldWire,
 } from './protocol.ts'
+import type { QuestId, QuestStage, QuestStep } from './quests.ts'
 import type { Rng } from './rng.ts'
 import type {
   Beam,
@@ -231,6 +269,7 @@ import type {
   TruckPose,
 } from './shadowmen.ts'
 import type { StandLedger } from './stand.ts'
+import type { TunnelBurst, TunnelShade } from './tunnelshades.ts'
 import type { WaterMap } from './waterside.ts'
 
 // A raider online: one socket.
@@ -272,6 +311,12 @@ export interface SharedWorld {
   stand: XZ | null
   // Where each berry bush stands, in bush order (rule 8).
   bushes: XZ[]
+  // Where the squatter deals, or null, and what he has left today (rule
+  // 25).
+  dealer: XZ | null
+  dealerStock: DealerStock
+  // Where the Undercroft lies, or null (rule 11: the tunnel shades).
+  undercroft: MazePlace | null
 }
 
 // Everything the server persists.
@@ -321,6 +366,8 @@ export type ValleyAction =
       routes: TruckRoutes
       stand: XZ | null
       bushes: XZ[]
+      dealer: XZ | null
+      undercroft: MazePlace | null
     }
   // at: where their last state frame put them, or null.
   | { type: 'leave'; id: string; at: PeerStateWire | null }
@@ -382,6 +429,12 @@ export type ValleyAction =
   | { type: 'stand-collect' | 'stand-upgrade'; id: string; at: XZ | null }
   // Rule 14: cosmetic `offer` from Moab.
   | { type: 'trade'; id: string; offer: string }
+  // Rule 26: one step of `quest`. at: where the raider's last state frame
+  // put them, or null.
+  | { type: 'quest'; id: string; quest: string; step: QuestStep; at: XZ | null }
+  // Rule 25: one of `kind` from Erwin, bartered for with `pay`. at: where
+  // the raider's last state frame put them, or null.
+  | { type: 'deal'; id: string; kind: string; pay: string; at: XZ | null }
   // Rule 9: a new name, a new character, or both.
   | { type: 'appearance'; id: string; name?: string; outfit?: OutfitId }
   // The valley's own clock: the truck and the day, moved on.
@@ -397,9 +450,12 @@ export interface ValleyContext {
   present: readonly string[]
   // For a buy: the buyer's wallet in cents, as the valley just read it.
   cash?: number
-  // For a trade: the trader's pack and cosmetics, as the valley just read
-  // them.
+  // For a trade or a deal: the raider's pack and cosmetics, as the valley
+  // just read them.
   holdings?: { pack: Inventory; cosmetics: readonly CosmeticId[] }
+  // For a quest's step: where the account stands on it, and its pack, as
+  // the valley just read them.
+  quest?: { stage: QuestStage; pack: Inventory }
   // For tending the stand: the account's ledger, pack and wallet (cents),
   // as the valley just read them.
   stand?: { ledger: StandLedger; pack: Inventory; cash: number }
@@ -427,6 +483,24 @@ export interface Reduced {
   spend?: { account: string; amount: number }
   // Rule 11: what dimes taken up pay into the taker's wallet, in cents.
   earn?: { account: string; amount: number }
+  // Rule 26: a quest's step, which stands once the valley has moved the
+  // account's stage from `from` to `to` and made `change` to its pack,
+  // together.
+  quest?: {
+    account: string
+    quest: QuestId
+    step: QuestStep
+    from: QuestStage
+    to: QuestStage
+    change: { kind: string; delta: number }
+  }
+  // Rule 25: a barter that stands once the valley has taken `give` out of
+  // the account's pack and put `take` in, together.
+  barter?: {
+    account: string
+    give: { kind: string; count: number }
+    take: { kind: string; count: number }
+  }
   // Rule 14: a trade that stands once the valley has taken the price out
   // of the account's pack and given it the cosmetic, together.
   trade?: {
@@ -560,6 +634,7 @@ export function toWire(valley: Valley): WorldWire | null {
     shelves: world.shelves,
     drops: world.drops,
     graves: world.graves,
+    dealer: world.dealerStock,
     corpses: valley.corpses.map(corpseWire),
     truck: world.truck,
     members: Object.values(valley.members).map(({ id, name }) => ({
@@ -632,6 +707,7 @@ function settle(
       day: today,
       taken: [],
       shelves: freshStock(world.stations),
+      dealerStock: freshDealerStock(),
       drops: [],
     })
     frames.push(frame(next, 'refill'))
@@ -689,7 +765,7 @@ export function reduce(
 function act(
   valley: Valley,
   action: ValleyAction,
-  { now, present, cash, holdings, stand }: ValleyContext
+  { now, present, cash, holdings, stand, quest }: ValleyContext
 ): Reduced {
   switch (action.type) {
     case 'join': {
@@ -720,6 +796,9 @@ function act(
           routes: action.routes,
           stand: action.stand,
           bushes: action.bushes,
+          dealer: action.dealer,
+          dealerStock: freshDealerStock(),
+          undercroft: action.undercroft,
         }
       } else if (
         !samePickups(world.pickups, action.pickups) ||
@@ -880,8 +959,14 @@ function act(
         // Rule 22.
         xp: [{ account: member.account, source: 'pickup' }],
       })
-      // Rule 10.
-      if (isPackKind(spec.kind) && spec.count > 0) {
+      // Rule 10; cash (the plaza's quarters, its $20) into the wallet, as
+      // a drop of it taken up is (rule 11).
+      if (isCash(spec.kind) && spec.count > 0) {
+        reduced.earn = {
+          account: member.account,
+          amount: spec.count * centsOf(spec.kind),
+        }
+      } else if (isPackKind(spec.kind) && spec.count > 0) {
         reduced.pack = {
           account: member.account,
           kind: spec.kind,
@@ -933,6 +1018,85 @@ function act(
         }
       }
       return reduced
+    }
+
+    case 'quest': {
+      const member = valley.members[action.id]
+      const world = valley.world
+      const refuse = (reason: string): Reduced =>
+        done(valley, now, {
+          broadcast: [],
+          reply: { type: 'nack', re: 'quest', reason },
+        })
+      if (!member || !world) return refuse('not-in-valley')
+      if (!isQuest(action.quest)) return refuse('no-such-quest')
+      if (!quest) return refuse('unavailable')
+      // Rule 26.
+      if (world.truck.riders.includes(action.id)) return refuse('aboard')
+      const heart = world.maze
+        ? mazeToWorld(world.maze, heartPoint(theMaze()))
+        : null
+      const step = questStep(
+        QUESTS[action.quest],
+        quest.stage,
+        action.step,
+        quest.pack,
+        {
+          atDealer: atDealer(action.at, world.dealer),
+          atHeart: atHeart(action.at, heart),
+        }
+      )
+      if (!step.ok) return refuse(step.reason)
+      return done(valley, now, {
+        broadcast: [],
+        quest: {
+          account: member.account,
+          quest: action.quest,
+          step: action.step,
+          from: quest.stage,
+          to: step.stage,
+          change: step.change,
+        },
+        // Rule 22.
+        ...(step.stage === 'done'
+          ? { xp: [{ account: member.account, source: 'quest' as const }] }
+          : {}),
+      })
+    }
+
+    case 'deal': {
+      const member = valley.members[action.id]
+      const world = valley.world
+      const { kind } = action
+      const refuse = (reason: string): Reduced =>
+        done(valley, now, {
+          broadcast: [],
+          reply: { type: 'nack', re: 'deal', reason, item: kind },
+        })
+      if (!member || !world) return refuse('not-in-valley')
+      // Rule 25.
+      if (!world.dealer) return refuse('no-dealer')
+      if (!atDealer(action.at, world.dealer)) return refuse('too-far')
+      if (world.truck.riders.includes(action.id)) return refuse('aboard')
+      const sale = deal(
+        world.dealerStock,
+        kind,
+        action.pay,
+        holdings?.pack ?? {}
+      )
+      if (!sale.ok) return refuse(sale.reason)
+      const next = withWorld(valley, { ...world, dealerStock: sale.stock })
+      return done(next, now, {
+        broadcast: [frame(next, 'dealt', { by: action.id, item: kind })],
+        // Rule 10.
+        barter: {
+          account: member.account,
+          give: sale.give,
+          take: { kind, count: sale.units },
+        },
+        // Rule 22.
+        xp: [{ account: member.account, source: 'purchase' }],
+      })
     }
 
     case 'collect': {
@@ -1022,6 +1186,8 @@ function act(
       if (isAboard(world.truck, action.id)) return refuse('aboard')
       if (!action.at) return refuse('no-position')
       if (!isPackKind(kind)) return refuse('not-an-item')
+      // A key item is never set down (items.ts isKeyItem).
+      if (isKeyItem(kind)) return refuse('key-item')
       if (count < 1) return refuse('nothing')
       const id = world.nextDrop
       const drop: Drop = { id, kind, count, ...dropSpot(action.at, id) }
@@ -1410,6 +1576,7 @@ function act(
 export interface Shadows {
   field: ShadowmenField
   caretaker: Caretaker
+  tunnel: TunnelShade[]
   recovering: Record<string, number>
   headlights: { pose: TruckPose; at: number } | null
 }
@@ -1418,6 +1585,7 @@ export function createShadows(): Shadows {
   return {
     field: createShadowmen(),
     caretaker: createCaretaker(),
+    tunnel: createTunnelShades(),
     recovering: {},
     headlights: null,
   }
@@ -1493,6 +1661,10 @@ export function headlightsAt(
   return [headlightBeam(seen.pose, cfg)]
 }
 
+// How far past the Undercroft's walls a raider still counts as down there,
+// so one climbing the ladder never meets a shadowman on the way.
+const CROFT_MARGIN = 4
+
 // Where the wire rounds a shadowman: centimetres, and hundredths of a burn.
 const round = (n: number, places: number) =>
   Math.round(n * 10 ** places) / 10 ** places
@@ -1535,6 +1707,8 @@ export function stepShadows(
   message: ShadowmenMessage
   struck: string[]
   caught: string[]
+  // Struck by a tunnel shade.
+  tunneled: string[]
   // Rule 15: the accounts credited with unmaking the Caretaker this step.
   credited: string[]
   // Rule 16: the accounts credited with a burn this step, once for each
@@ -1550,12 +1724,17 @@ export function stepShadows(
     Object.assign(shadows, createShadows())
     return null
   }
+  // Rule 11: a raider in the Undercroft is the tunnel shades' alone.
+  const croft = world.undercroft
+  const surface = croft
+    ? raiders.filter((r) => !inUndercroft(croft, r, CROFT_MARGIN))
+    : raiders
   const { struck, lunges, bursts } = stepShadowmen(
     shadows.field,
     rng,
     {
       dt,
-      raiders,
+      raiders: surface,
       metres: world.metres,
       havens: world.havens,
       water: world.water,
@@ -1572,7 +1751,7 @@ export function stepShadows(
   if (world.maze) {
     const out = stepCaretaker(shadows.caretaker, rng, {
       dt,
-      raiders,
+      raiders: surface,
       place: world.maze,
     })
     caught.push(...out.struck)
@@ -1600,6 +1779,22 @@ export function stepShadows(
         ...(windup > 0 ? { windup } : {}),
         ...(lunged ? { lunge: true as const } : {}),
       }
+    }
+  }
+  // The tunnel shades, in the Undercroft.
+  const tunneled: string[] = []
+  let tunnelBursts: TunnelBurst[] = []
+  if (croft) {
+    const out = stepTunnelShades(shadows.tunnel, rng, {
+      dt,
+      raiders,
+      place: croft,
+      calm,
+    })
+    tunnelBursts = out.bursts
+    for (const id of out.struck) {
+      tunneled.push(id)
+      if (!struck.includes(id)) struck.push(id)
     }
   }
   // Rule 24: a raider struck is let alone for a little while, where they
@@ -1639,13 +1834,34 @@ export function stepShadows(
       })),
       caretaker,
       unmade,
+      tunnel: croft
+        ? tunnelShadesAt(shadows.tunnel, croft).map((s) => ({
+            id: s.id,
+            kind: s.kind,
+            x: round(s.world.x, 2),
+            z: round(s.world.z, 2),
+            burn: round(
+              Math.min(1, s.burn / CONFIG.tunnel[s.kind].burnSeconds),
+              2
+            ),
+            target: s.target,
+          }))
+        : [],
+      tunnelBursts: tunnelBursts.map((b) => ({
+        kind: b.kind,
+        x: round(b.x, 2),
+        z: round(b.z, 2),
+      })),
     },
     struck,
     caught,
+    tunneled,
     credited,
-    burned: bursts
-      .filter((b) => b.kind !== 'spiderling')
-      .flatMap((b) => creditedWith(valley, b.by)),
+    // Rule 16: a tunnel shade burnt is a shadow burnt.
+    burned: [
+      ...bursts.filter((b) => b.kind !== 'spiderling'),
+      ...tunnelBursts,
+    ].flatMap((b) => creditedWith(valley, b.by)),
     // A spiderling earns no XP: a spider's brood would farm it.
     xp: [
       ...bursts
@@ -1653,6 +1869,9 @@ export function stepShadows(
         .flatMap((b) =>
           grantsTo(valley, b.by, b.kind === 'spider' ? 'spider' : 'burn')
         ),
+      ...tunnelBursts.flatMap((b) =>
+        grantsTo(valley, b.by, b.kind === 'warden' ? 'warden' : 'burn')
+      ),
       ...credited.map((account) => ({ account, source: 'unmake' as const })),
     ],
   }

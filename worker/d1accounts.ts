@@ -240,12 +240,12 @@ export class D1AccountStore implements AccountStore {
       this.db
         .prepare(
           'UPDATE accounts SET primary_provider = (' +
-            'SELECT provider_key FROM providers WHERE account_id = ?1 ' +
+            'SELECT provider_key FROM providers WHERE account_id = ? ' +
             'ORDER BY linked_at, provider_key LIMIT 1' +
-            ') WHERE account_id = ?1 AND primary_provider NOT IN (' +
-            'SELECT provider_key FROM providers WHERE account_id = ?1)'
+            ') WHERE account_id = ? AND primary_provider NOT IN (' +
+            'SELECT provider_key FROM providers WHERE account_id = ?)'
         )
-        .bind(accountId),
+        .bind(accountId, accountId, accountId),
     ])
     return (removed?.meta.changes ?? 0) > 0 ? 'ok' : 'last-provider'
   }
@@ -341,14 +341,14 @@ export class D1AccountStore implements AccountStore {
         'SELECT a.account_id AS id, a.username AS username, ' +
           "CASE WHEN f.accepted = 1 THEN 'friend' ELSE 'asked' END AS state " +
           'FROM friends f JOIN accounts a ON a.account_id = f.friend_id ' +
-          'WHERE f.account_id = ?1 AND a.username IS NOT NULL ' +
+          'WHERE f.account_id = ? AND a.username IS NOT NULL ' +
           'UNION ALL ' +
           "SELECT a.account_id, a.username, 'asking' " +
           'FROM friends f JOIN accounts a ON a.account_id = f.account_id ' +
-          'WHERE f.friend_id = ?1 AND f.accepted = 0 AND a.username IS NOT NULL ' +
-          'AND NOT EXISTS (SELECT 1 FROM friends g WHERE g.account_id = ?1 AND g.friend_id = f.account_id)'
+          'WHERE f.friend_id = ? AND f.accepted = 0 AND a.username IS NOT NULL ' +
+          'AND NOT EXISTS (SELECT 1 FROM friends g WHERE g.account_id = ? AND g.friend_id = f.account_id)'
       )
-      .bind(accountId)
+      .bind(accountId, accountId, accountId)
       .all<{ id: string; username: string; state: FriendState }>()
     return results.map((r) => ({
       accountId: r.id,
@@ -377,11 +377,11 @@ export class D1AccountStore implements AccountStore {
       .run()
     const { meta } = await this.db
       .prepare(
-        'UPDATE friends SET accepted = 1, since = ?3 ' +
-          'WHERE ((account_id = ?1 AND friend_id = ?2) OR (account_id = ?2 AND friend_id = ?1)) ' +
-          'AND EXISTS (SELECT 1 FROM friends WHERE account_id = ?2 AND friend_id = ?1)'
+        'UPDATE friends SET accepted = 1, since = ? ' +
+          'WHERE ((account_id = ? AND friend_id = ?) OR (account_id = ? AND friend_id = ?)) ' +
+          'AND EXISTS (SELECT 1 FROM friends WHERE account_id = ? AND friend_id = ?)'
       )
-      .bind(from, to, now)
+      .bind(now, from, to, to, from, to, from)
       .run()
     return meta.changes > 0 ? 'accepted' : 'requested'
   }
@@ -389,9 +389,9 @@ export class D1AccountStore implements AccountStore {
   async unfriend(a: string, b: string): Promise<boolean> {
     const result = await this.db
       .prepare(
-        'DELETE FROM friends WHERE (account_id = ?1 AND friend_id = ?2) OR (account_id = ?2 AND friend_id = ?1)'
+        'DELETE FROM friends WHERE (account_id = ? AND friend_id = ?) OR (account_id = ? AND friend_id = ?)'
       )
-      .bind(a, b)
+      .bind(a, b, b, a)
       .run()
     return result.meta.changes > 0
   }

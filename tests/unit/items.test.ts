@@ -43,6 +43,15 @@ const FIELDS_OF: Record<
     required: ['price', 'form', 'geometrie'],
     optional: ['heals'],
   },
+  psychedelic: {
+    required: ['perceptionSeconds', 'geometrie', 'heals'],
+    optional: [],
+  },
+  stimulant: {
+    required: ['tripSeconds', 'geometrie', 'heals'],
+    optional: [],
+  },
+  'key-item': { required: [], optional: [] },
   forage: { required: [], optional: [] },
   valuable: { required: [], optional: [] },
 }
@@ -96,9 +105,12 @@ describe('items', () => {
 
   it('doses geometrie off anything smoked, drunk or swallowed, and nothing else', () => {
     for (const item of ITEMS) {
-      const dosed = item.category !== 'forage' && item.category !== 'valuable'
+      const dosed =
+        item.category !== 'forage' &&
+        item.category !== 'valuable' &&
+        item.category !== 'key-item'
       expect(geometrieOf(item.id), item.id).toEqual(
-        dosed ? item.geometrie : undefined
+        dosed && 'geometrie' in item ? item.geometrie : undefined
       )
     }
     expect(geometrieOf('nope')).toBeUndefined()
@@ -196,8 +208,14 @@ describe('items', () => {
   it('prices every shelf item in whole cents, and nothing else', () => {
     const items: readonly Item[] = ITEMS
     for (const item of items) {
-      // Everything but the forage and the valuables is on a shelf.
-      const onShelf = item.category !== 'forage' && item.category !== 'valuable'
+      // Everything but the forage, the valuables, the key items and what
+      // only Erwin von Dutch deals (dealer.ts values those) is on a shelf.
+      const onShelf =
+        item.category !== 'forage' &&
+        item.category !== 'valuable' &&
+        item.category !== 'key-item' &&
+        item.category !== 'psychedelic' &&
+        item.category !== 'stimulant'
       expect(item.price !== undefined, item.id).toBe(onShelf)
       if (item.price === undefined) continue
       expect(Number.isInteger(item.price), item.id).toBe(true)

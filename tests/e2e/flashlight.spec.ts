@@ -136,6 +136,8 @@ test('a shadowman held in the beam bursts into dimes', async ({ page }) => {
     lying.x,
     lying.z,
   ] as const)
+  // The valley pays only a raider it has heard standing by them.
+  await heardWhere(page)
   await expect(page.locator('.bv-item-label')).toContainText(
     copy('labels.dimes', { count: lying.count })
   )

@@ -1,15 +1,18 @@
 import { CONFIG } from './config.ts'
 import { KEEP } from './landmarks.ts'
+import { mazeToWorld } from './maze.ts'
 import { toWorld } from './store.ts'
+import { UNDERCROFT } from './undercroft.ts'
 import type { Sight } from './book.ts'
 import type { MazeFrame } from './cornmaze.ts'
 import type { DonutField } from './donuts.ts'
 import type { XZ } from './interfaces.ts'
+import type { MazePlace } from './maze.ts'
 import type { FuelPoint, LandmarkPoint, MazePortal } from './world.ts'
 
 // Where each place of the Book of Shadows is found (CONFIG.book.reach):
 // every Citgo, and round the spawn Citgo its stand, the wreck, the dishes,
-// the donut field, the corn maze (three rings down its length, so the
+// Bull Valley Plaza and the Undercroft under it, the donut field, the corn maze (three rings down its length, so the
 // whole of it counts and little past it) and its heart, and the Keep.
 export function bookSights(at: {
   stations: readonly FuelPoint[]
@@ -19,6 +22,8 @@ export function bookSights(at: {
   donutField: DonutField | null
   wreck: XZ | null
   dishes: readonly XZ[]
+  plaza: XZ | null
+  undercroft: MazePlace | null
   landmarks: readonly LandmarkPoint[]
 }): Sight[] {
   const { reach } = CONFIG.book
@@ -44,6 +49,18 @@ export function bookSights(at: {
       x: at.dishes.reduce((sum, d) => sum + d.x, 0) / n,
       z: at.dishes.reduce((sum, d) => sum + d.z, 0) / n,
       reach: reach.dishes,
+    })
+  }
+  if (at.plaza) {
+    sights.push({ id: 'strip-mall', ...at.plaza, reach: reach.plaza })
+  }
+  // The Undercroft: anywhere in it.
+  if (at.undercroft) {
+    const { across, along } = UNDERCROFT.size
+    sights.push({
+      id: 'undercroft',
+      ...mazeToWorld(at.undercroft, { x: across / 2, z: along / 2 }),
+      reach: Math.hypot(across, along) / 2,
     })
   }
   if (at.donutField) {

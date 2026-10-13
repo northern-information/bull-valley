@@ -40,6 +40,8 @@ export const CONFIG = {
       citgo: 25,
       stand: 7,
       wreck: 12,
+      // From the middle of the plaza's building, out over its lot.
+      plaza: 30,
       // From the middle of the array, which runs some 70 m a side.
       dishes: 45,
       // Past the field's own edge.
@@ -551,6 +553,81 @@ export const CONFIG = {
     radius: 1.4,
     // Trees keep this far off each pedestal: clear of the reflector.
     treeClear: 6,
+  },
+  stripMall: {
+    // Bull Valley Plaza, the dead strip mall beside the spawn Citgo
+    // (stripmall.ts), station-local like the bush: the middle of its
+    // front wall, on the side away from the wreck and the maze, its lot
+    // running on from the Citgo's past the cabbage stand, and its alley
+    // behind clear of the dish array. Scenery: it only blocks.
+    at: { x: -8, z: -60 },
+    // The back room's locked door swings open for a raider who may pass
+    // (keys.ts) once they are this close to it, in metres; E this close
+    // without the key only rattles it.
+    doorReach: 2.5,
+  },
+  dealer: {
+    // How close Erwin von Dutch in the Golden Wok (dealer.ts, placed at
+    // stripmall.ts STRIP_MALL.dealer) must be for E to deal with him.
+    reach: 2.2,
+    // What he counts each unit of a raider's goods at, as a share of its
+    // Citgo shelf price: a little under.
+    rate: 0.9,
+    // The valley sells only to a raider whose last state frame put them
+    // within this of him: generous, since frames lag.
+    dealReach: 8,
+    // He blocks like a post this wide.
+    radius: 0.35,
+  },
+  // The tunnel shades in the Undercroft (tunnelshades.ts): each kind's
+  // drift round its lair and its hunt (m/s; the walk is 4.2), how far it
+  // sees and feels, its touch, the seconds a beam must hold it, and the
+  // seconds before it forms again. The Warden keeps the deep chamber.
+  tunnel: {
+    shade: {
+      patrolSpeed: 1.1,
+      huntSpeed: 3.4,
+      sightRange: 14,
+      senseRadius: 2.5,
+      touchRadius: 0.9,
+      burnSeconds: 0.9,
+      respawnSeconds: 90,
+      patrolRadius: 8,
+      chestHeight: 1.2,
+    },
+    warden: {
+      patrolSpeed: 0.5,
+      huntSpeed: 3.0,
+      sightRange: 18,
+      senseRadius: 3,
+      touchRadius: 1.4,
+      burnSeconds: 4,
+      respawnSeconds: 300,
+      patrolRadius: 2.5,
+      chestHeight: 1.8,
+    },
+    forgetSeconds: 4,
+    rethinkSeconds: 0.75,
+    clearance: 0.5,
+  },
+  undercroft: {
+    // Where the Undercroft lies (undercroft.ts): this many metres in from
+    // the survey square's low corner, well past the valley's edge, and
+    // this high over the highest ground under it, so nothing on the
+    // surface ever stands in it.
+    inset: 60,
+    lift: 60,
+    // How near the trapdoor in the Video Vault's office, or the ladder's
+    // foot below, E climbs.
+    climbReach: 1.6,
+  },
+  quests: {
+    // How near the heart of the corn maze a raider's last state frame
+    // must put them for the valley to take the rose laid there (quests.ts),
+    // in metres: past the berry bushes' ring, since frames lag.
+    heartReach: 10,
+    // How near the portal E lays it.
+    layReach: 4,
   },
   emotes: {
     // A raider within this many metres of one who emotes (emotes.ts) gets
