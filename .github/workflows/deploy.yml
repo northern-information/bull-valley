@@ -65,6 +65,15 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           command: deploy
+          # Uploaded as Worker secrets once the deploy is through, from the
+          # environment variables named here (worker/env.ts magicWord): the
+          # values live in the repository's GitHub secrets, never in the
+          # repo, and every deploy applies them again, so rotating one is
+          # editing the GitHub secret and dispatching a deploy.
+          secrets: |
+            MAGIC_WORD
+        env:
+          MAGIC_WORD: ${{ secrets.MAGIC_WORD }}
       # The redirect from www.bvsw.net and bvsw.gay, a Worker of its own
       # (worker/www.ts). The explicit config skips the redirect to the game's
       # generated config.
