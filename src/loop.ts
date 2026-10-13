@@ -17,6 +17,7 @@ import { shakeAt } from './health.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
 import {
   dailyStatus,
+  interactionKey,
   interactionPrompt,
   itemLabel,
   resolveInteraction,
@@ -26,15 +27,26 @@ import { settleTruck } from './marx.ts'
 import { inPortal } from './maze.ts'
 import { packItemOf } from './packgrid.ts'
 import { poseOf, stateChanged } from './presence.ts'
-import { aimHeightOf, beamFrom, headlightBeam, inHaven } from './shadowmen.ts'
+import {
+  aimHeightOf,
+  beamFrom,
+  burstScaleOf,
+  headlightBeam,
+  headlightsDue,
+  inHaven,
+} from './shadowmen.ts'
 import { formatCash } from './store.ts'
 import { tripLevel } from './trip.ts'
 import { burstHeight, burstScale } from './tunnelrig.ts'
 import { boardable, clockText, countdown, seatOf } from './worldsync.ts'
 import type { Actions } from './actions.ts'
 import type { Game } from './game.ts'
-import type { PeerStateWire } from './protocol.ts'
+import type { BushSpot } from './interactions.ts'
+import type { ScopeContact } from './interfaces.ts'
+import type { DailyWire, PeerStateWire } from './protocol.ts'
+import type { HeadlightsSent } from './shadowmen.ts'
 import type { Targets } from './targets.ts'
+import type { Pickup } from './world.ts'
 
 // Under e2e (--mode test) the valley runs but is never drawn. The specs
 // read the game through window.__bv, never its pixels, and CI draws WebGL
@@ -82,7 +94,10 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     )
   }
 
-  // Marx's countdown, for whoever is in the bed or standing by it.
+  // Marx's countdown, for whoever is in the bed or standing by it. The
+  // line is filled again only when its clock reads differently.
+  let clockShown = ''
+  let clockLine = ''
   const countdownLine = (now: number): string | null => {
     const left = s.world
       ? countdown(s.world.truck, net.clock.serverNow(now))
@@ -91,23 +106,66 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     const near =
       s.aboard ||
       truck.distanceTo(player.pos.x, player.pos.z) < CONFIG.truck.countdownReach
-    return near ? copy('truck.leaves_in', { clock: clockText(left) }) : null
+    if (!near) return null
+    const clock = clockText(left)
+    if (clock !== clockShown) {
+      clockShown = clock
+      clockLine = copy('truck.leaves_in', { clock })
+    }
+    return clockLine
   }
 
-  // How each bush stands for this player right now.
-  const bushSpots = () => {
+  // How each bush stands for this player right now: read again when the
+  // valley's word on the bushes changes, and when the day turns under it
+  // (dailyStatus reads the word against the clock).
+  let bushes: BushSpot[] = []
+  let bushesFor: DailyWire | null = null
+  let bushesPastReset = false
+  let bushesStale = true
+  const bushSpots = (now: number): BushSpot[] => {
     const daily = net.online ? s.daily : null
-    const now = net.clock.serverNow(performance.now())
-    return world.bushes.map(({ id, x, z }) => ({
-      id,
-      x,
-      z,
-      status: dailyStatus(daily, id, now),
-    }))
+    const serverNow = net.clock.serverNow(now)
+    const pastReset = daily !== null && serverNow >= daily.resetsAt
+    if (bushesStale || daily !== bushesFor || pastReset !== bushesPastReset) {
+      bushesStale = false
+      bushesFor = daily
+      bushesPastReset = pastReset
+      bushes = world.bushes.map(({ id, x, z }) => ({
+        id,
+        x,
+        z,
+        status: dailyStatus(daily, id, serverNow),
+      }))
+    }
+    return bushes
   }
+
+  // Everything E could take up, the valley's pickups and what lies
+  // dropped, as one list: built again when the drops' meshes are.
+  let dropPickups = game.drops.pickups
+  let pickups: Pickup[] = [...world.pickups, ...dropPickups]
+  const allPickups = (): Pickup[] => {
+    if (game.drops.pickups !== dropPickups) {
+      dropPickups = game.drops.pickups
+      pickups = [...world.pickups, ...dropPickups]
+    }
+    return pickups
+  }
+
+  // The scope's contacts, one list filled each frame it is raised.
+  const scopeContacts: ScopeContact[] = []
+
+  // The prompt and the label for what E would do, kept while the
+  // interaction reads the same (interactionKey).
+  let promptKey: string | null = null
+  let prompt: string | null = null
+  let label: ReturnType<typeof itemLabel> = null
+
+  // The last word the valley had from us on Marx's headlights.
+  let headlightsSent: HeadlightsSent | null = null
 
   let last = performance.now()
-  renderer.setAnimationLoop(() => {
+  const frame = () => {
     const now = performance.now()
     // Real seconds since the last frame, and the same capped at maxStep: the
     // capped step moves the player, the item timers, and the animation, so
@@ -208,6 +266,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       })
       truck.update(dt, now)
     }
+    truck.castShadowsNear(player.pos.x, player.pos.z)
     // The valley's music, at the raider's setting.
     music?.update({
       now,
@@ -280,7 +339,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     for (const at of swarm.bursts) {
       // A spider bursts where its body hung, twice as big; a spiderling
       // half as big.
-      const size = at.kind === 'spider' ? 2 : at.kind === 'spiderling' ? 0.5 : 1
+      const size = burstScaleOf(at.kind ?? 'man', CONFIG.shadowmen)
       const y =
         world.ground.at(at.x, at.z) + aimHeightOf(at.kind, CONFIG.shadowmen)
       bursts.spawn(at.x, y, at.z, size)
@@ -330,13 +389,22 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       (x, z) => world.ground.at(x, z)
     )
     mist.update({ dt, player: player.pos })
+    // What moves on its own is stepped only within the fog's reach of
+    // the player (CONFIG.render.liveRadius): each takes a running time,
+    // so it is where it should be the moment it comes back into reach.
+    const live = (at: { x: number; z: number }, margin = 0) =>
+      Math.hypot(at.x - player.pos.x, at.z - player.pos.z) <=
+      CONFIG.render.liveRadius + margin
     // Gron's rain falls on its own clock, Moab's fire burns on it too, the
     // wreck smoulders and blinks on it, and the plaza's last tube flickers.
-    world.gronRig?.update(time)
+    if (world.gronRig && world.gron && live(world.gron)) {
+      world.gronRig.update(time)
+    }
     // The stand dressed for this raider's own level (rule 23).
     world.stand?.setLevel(s.stand?.level ?? 1)
-    for (const rig of world.moabRigs) rig.update(time)
-    world.wreck?.update(time)
+    world.moabRigs.forEach((rig, i) => {
+      if (live(world.moabs[i])) rig.update(time)
+    })
     // Erwin's rose lies at the heart for a raider who laid it (rule 26).
     if (world.portal) {
       const stage = s.quests?.rose
@@ -352,16 +420,23 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       plaza.setDoorOpen(
         (near || inside) && passes(plaza.lock, s.inventory, inside)
       )
-      plaza.update(time)
+      // The building is long: its tube and candles flicker from a way off.
+      if (live(plaza.doorAt, 60)) plaza.update(time)
+    }
+    if (world.wreck && live(world.wreck.group.position)) {
+      world.wreck.update(time)
     }
     // The dishes slew on the valley's clock, so every raider sees them
     // look the same way.
-    world.dishes?.update(net.clock.serverNow(now) / 1000)
+    const dishes = world.dishes
+    if (dishes && live(dishes.middle, dishes.reach)) {
+      dishes.update(net.clock.serverNow(now) / 1000)
+    }
     // The portal at the maze's heart swirls, and anyone on foot who walks
     // into it comes out on the trail outside the gate.
     const portal = world.portal
     if (portal) {
-      portal.rig.update(time)
+      if (live(portal.at)) portal.rig.update(time)
       const { x, z } = player.pos
       if (!s.aboard && inPortal(x, z, portal.at, CONFIG.maze.portal.radius)) {
         player.relocate(portal.exit.x, portal.exit.z, portal.exit.yaw)
@@ -388,11 +463,13 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       camera.rotation.z += (Math.random() * 2 - 1) * shake * 0.5
     }
 
-    // Ours goes out on a fixed cadence, and only when it changed.
+    // Ours goes out on a fixed cadence, and only when it changed. The
+    // same tick paces what need not run every frame (the book's asks).
     peers.update(dt, renderAt)
     s.sinceSent += dt
-    if (net.online && s.sinceSent >= 1 / CONFIG.net.sendHz) {
-      s.sinceSent = 0
+    const tick = s.sinceSent >= 1 / CONFIG.net.sendHz
+    if (tick) s.sinceSent = 0
+    if (net.online && tick) {
       const state: PeerStateWire = {
         x: player.pos.x,
         y: feetY,
@@ -408,12 +485,17 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         net.sendState(state)
       }
       // Near Marx's truck, where it stands, so the valley can aim its
-      // headlights at the shadowmen round us.
+      // headlights at the shadowmen round us: as it drives, once where
+      // it stops, and then only often enough that the valley remembers.
       if (
         truck.distanceTo(player.pos.x, player.pos.z) <
         CONFIG.shadowmen.despawnRadius
       ) {
-        net.sendHeadlights(truck.headlights())
+        const pose = truck.headlights()
+        if (headlightsDue(headlightsSent, pose, truck.moving, now)) {
+          headlightsSent = { pose, at: now }
+          net.sendHeadlights(pose)
+        }
       }
     }
 
@@ -442,21 +524,26 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     hud.level.set(net.online ? s.xp : null)
     hud.tickChat(performance.now())
 
-    scope.draw(dt, {
-      contacts: [
-        ...swarm.contacts,
-        ...tunnel.contacts,
-        ...(keeper.contact ? [keeper.contact] : []),
-        ...peers.contacts(player.pos, CONFIG.scope.rangeMetres, renderAt),
-      ],
-      forward,
-      perception,
-    })
+    if (scope.raised) {
+      scopeContacts.length = 0
+      for (const c of swarm.contacts) scopeContacts.push(c)
+      for (const c of tunnel.contacts) scopeContacts.push(c)
+      if (keeper.contact) scopeContacts.push(keeper.contact)
+      for (const c of peers.contacts(
+        player.pos,
+        CONFIG.scope.rangeMetres,
+        renderAt
+      )) {
+        scopeContacts.push(c)
+      }
+      scope.draw(dt, { contacts: scopeContacts, forward, perception })
+    }
 
     // The Book of Shadows: the places in reach, a shadow come within
     // sight, and whatever the pack holds, written the first time
-    // (actions.ts discover leaves out what is found or asked).
-    if (s.started) {
+    // (actions.ts discover leaves out what is found or asked), looked for
+    // on the state frame's cadence.
+    if (s.started && tick) {
       const range = CONFIG.book.sightRange
       actions.discover([
         ...sightsInReach(world.sights, player.pos),
@@ -476,7 +563,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
 
     // Pickups pulse every frame, whatever the prompt says.
     const pulse = 0.35 + Math.sin(time * 3) * 0.2
-    for (const pickup of [...world.pickups, ...game.drops.pickups]) {
+    for (const pickup of allPickups()) {
       if (pickup.taken) continue
       for (const m of pulseMaterials(pickup.mesh)) m.emissiveIntensity = pulse
     }
@@ -488,7 +575,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
 
     // --- Interactions: what E would do right now -------------------------
     const inStore = targets.storeIndex()
-    const bushes = bushSpots()
+    const bushes = bushSpots(now)
     const leg = s.world?.truck.leg ?? s.aloneTruck.leg
     s.interaction = resolveInteraction({
       riding: s.aboard,
@@ -499,14 +586,14 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         boardable: boardable(leg, s.world ? net.id : 'me'),
       },
       // What lies dropped answers to E like any pickup.
-      pickups: [...world.pickups, ...game.drops.pickups],
+      pickups: allPickups(),
       shelf: targets.shelfInView(inStore),
       bushes,
       gron: world.gron,
       npcs: targets.npcSpots(inStore),
-      moabOffer: s.pendingTrade ? null : moabOffer(s.inventory, s.cosmetics),
+      moabOffer: s.pending.trade ? null : moabOffer(s.inventory, s.cosmetics),
       corpses: s.corpses.filter(
-        (c) => s.myCorpses.includes(c.id) && !s.pendingLoots.has(c.id)
+        (c) => s.myCorpses.includes(c.id) && !s.pending.loots.has(c.id)
       ),
       lockers: targets.lockerSpots(inStore),
       stand: world.stand?.at ?? null,
@@ -535,8 +622,12 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     const offering = interaction?.kind === 'trade' ? interaction.station : null
     if (offering !== null && offering !== s.offeredBy) actions.offerTrade()
     s.offeredBy = offering
-    const prompt = interaction ? interactionPrompt(interaction) : null
-    const label = interaction ? itemLabel(interaction) : null
+    const key = interaction ? interactionKey(interaction) : null
+    if (key !== promptKey) {
+      promptKey = key
+      prompt = interaction ? interactionPrompt(interaction) : null
+      label = interaction ? itemLabel(interaction) : null
+    }
     const labelTo = label ? targets.labelTarget(interaction) : null
     const labelSpot = labelTo ? targets.labelAt(labelTo) : null
     glow.setTarget(targets.glowTarget(interaction))
@@ -573,5 +664,21 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     // While Gron talks, his dialog covers the view and draws its own
     // turntable; the valley runs on behind it undrawn, holding its last
     // frame, so the page is not drawing two scenes at once.
+  }
+
+  // A throw anywhere in the frame would otherwise end the game in
+  // silence: Three asks for no next frame after a callback throws, and
+  // the view freezes with only a console error behind it. The loop stops
+  // for good, and the Begin button says the valley will not resolve.
+  renderer.setAnimationLoop(() => {
+    try {
+      frame()
+    } catch (err) {
+      renderer.setAnimationLoop(null)
+      console.error('Shadow Wars stopped mid-frame:', err)
+      if (document.pointerLockElement) document.exitPointerLock()
+      hud.showIntro(true, true)
+      hud.setBegin('failed')
+    }
   })
 }

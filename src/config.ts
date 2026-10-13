@@ -10,6 +10,11 @@ export const CONFIG = {
     // stars and moon stay overhead while the valley closes in.
     fogDensity: 0.016,
     far: 1400,
+    // Past this many metres from the player the fog has swallowed
+    // everything (3/fogDensity), so what moves on its own out there
+    // (Moab's fire, the dishes, the wreck's hazards) is not stepped, and
+    // Marx's lamps stop rendering their shadow maps.
+    liveRadius: 190,
     // The longest step one frame may take, in seconds, so a stall never
     // jumps the valley ahead.
     maxStep: 0.05,
@@ -103,6 +108,8 @@ export const CONFIG = {
       waterRadius: 120,
       maxPerBubble: 3,
       burnScale: 2,
+      // Its burst, against a shadowman's.
+      burstScale: 2,
       aimHeight: 2.8,
       speedMin: 5,
       speedMax: 8,
@@ -119,6 +126,8 @@ export const CONFIG = {
       brood: { min: 3, max: 8 },
       scatter: 2.5,
       scale: 0.25,
+      // Its burst, against a shadowman's.
+      burstScale: 0.5,
       speedMin: 8,
       speedMax: 11,
       rushRadius: 40,
@@ -137,7 +146,7 @@ export const CONFIG = {
     // and sends each step; clients draw them between the last two.
     tickHz: 10,
   },
-  // Health (health.ts, sharedworld.ts rule 21): every raider has `max`
+  // Health (health.ts, sharedworld.ts rule 24): every raider has `max`
   // points, and any shadow's touch takes one. A touch that leaves some
   // lets the raider alone for graceSeconds where they stand; the last one
   // shatters their geometrie (a strike: the static and the corpse run),
@@ -343,6 +352,21 @@ export const CONFIG = {
       drift: 0.6,
     },
   },
+  // What the valley holds a raider to (sharedworld.ts): a take, a buy, a
+  // berry, a body looted, the bed climbed into, all from where the
+  // raider's last state frame put them. Looser than the client's own
+  // reach, since a frame is up to a tenth of a second old and a sprint
+  // covers a metre in that.
+  valleyReach: {
+    // A pickup, a drop, a berry bush or a body, in metres.
+    item: 10,
+    // The truck's bed, parked at home or come to a whistle.
+    truck: 24,
+    // A whistle reckons the drive from where the client says the truck
+    // is; further than this from home it is reckoned from home, so no
+    // whistle can send Marx on a drive from the far side of the valley.
+    callFrom: 600,
+  },
   net: {
     // The valley server. State frames go out at most this often, and only
     // when something changed; peers are drawn this far behind the present
@@ -376,6 +400,10 @@ export const CONFIG = {
     ahead: 1.2,
     // The circle drops from one spot are spread round, in metres.
     scatter: 0.35,
+    // How many of what the valley spilled (dimes, a $20, bullion) lie at
+    // once; past it the oldest goes, so an evening's bursts never fill the
+    // world. A raider's own drops lie until the day turns.
+    spilledMax: 300,
   },
   // The tombstones burst shadowmen leave (graves.ts).
   graves: {

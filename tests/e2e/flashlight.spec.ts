@@ -119,10 +119,15 @@ test('a shadowman held in the beam bursts into dimes', async ({ page }) => {
     (g) => Math.hypot(g.x - lying.x, g.z - lying.z) < 1.5
   )
   expect(grave?.name.length).toBeGreaterThan(0)
+  // The stones draw instanced across every grave; each grave's carved
+  // face is its own.
   await expect
     .poll(() =>
       page.evaluate(
-        () => window.__bv?.scene.getObjectByName('tombstones')?.children.length
+        () =>
+          window.__bv?.scene
+            .getObjectByName('tombstones')
+            ?.children.filter((o) => o.name === 'tombstone-face').length
       )
     )
     .toBeGreaterThanOrEqual(1)
@@ -131,6 +136,8 @@ test('a shadowman held in the beam bursts into dimes', async ({ page }) => {
     lying.x,
     lying.z,
   ] as const)
+  // The valley pays only a raider it has heard standing by them.
+  await heardWhere(page)
   await expect(page.locator('.bv-item-label')).toContainText(
     copy('labels.dimes', { count: lying.count })
   )
@@ -202,6 +209,8 @@ test('a shadow spider takes twice as long and leaves a $20 bill', async ({
     bill.x,
     bill.z,
   ] as const)
+  // The valley gives a drop only to a raider it has heard stand in reach.
+  await heardWhere(page)
   await expect(page.locator('.bv-item-label')).toContainText(
     copy('labels.twenty')
   )

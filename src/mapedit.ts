@@ -64,7 +64,7 @@ export interface FeatureRef {
 }
 
 // The survey keeps four decimals (about 1.5 m across the 15 km frame).
-export function roundUnit(n: number): number {
+function roundUnit(n: number): number {
   return Math.round(n * 1e4) / 1e4
 }
 
@@ -108,7 +108,7 @@ function centroid(ring: Ring): UnitPoint {
 
 // A copy of the feature with new points. A graveyard's centre follows its
 // fence.
-export function withPoints(layer: LayerId, f: Feature, ring: Ring): Feature {
+function withPoints(layer: LayerId, f: Feature, ring: Ring): Feature {
   if (layer === 'fuel') return { ...(f as FuelStation), p: ring[0] }
   if (layer === 'wetland' || layer === 'boundary') return ring
   if (layer === 'graveyards') {

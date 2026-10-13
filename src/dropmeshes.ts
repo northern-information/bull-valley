@@ -6,9 +6,8 @@
 
 import * as THREE from 'three'
 import { buildDimes, buildPickup, buildTwenty } from './assets.ts'
-import { isCash, TWENTY } from './drops.ts'
+import { isCash, isPickupKind, TWENTY } from './drops.ts'
 import type { Drop } from './drops.ts'
-import type { PickupKind } from './items.ts'
 import type { Pickup } from './world.ts'
 
 export interface DropPickup extends Pickup {
@@ -50,30 +49,33 @@ export function createDropMeshes(
       for (const pickup of [...byId.values()]) {
         if (!lying.has(pickup.drop)) remove(pickup)
       }
-      pickups = drops.map((d) => {
+      pickups = drops.flatMap((d) => {
         const known = byId.get(d.id)
         if (known) {
           // Cabbages taken up only as far as the arms had room leave the
           // rest lying.
           known.count = d.count
-          return known
+          return [known]
         }
+        // The valley drops only items (the cabbage and the gold bullion
+        // among them) and cash (dimes, a spider's $20); anything else is
+        // not drawn.
+        if (!isPickupKind(d.kind)) return []
+        const kind = d.kind
         // The id seeds the look (a pack's brand art, how the dimes lie) and
         // turns it, so two drops side by side never lie the same way.
         const mesh =
-          d.kind === TWENTY
+          kind === TWENTY
             ? buildTwenty(d.id)
-            : isCash(d.kind)
+            : isCash(kind)
               ? buildDimes(d.count, d.id)
-              : buildPickup(d.kind, d.id)
+              : buildPickup(kind, d.id)
         mesh.position.set(d.x, groundAt(d.x, d.z), d.z)
         mesh.rotation.y = d.id * 2.4
         group.add(mesh)
         const pickup: DropPickup = {
           drop: d.id,
-          // The valley drops only items (the cabbage and the gold bullion
-          // among them) and cash (dimes, a spider's $20).
-          kind: d.kind as PickupKind,
+          kind,
           count: d.count,
           x: d.x,
           z: d.z,
@@ -81,23 +83,22 @@ export function createDropMeshes(
           taken: false,
         }
         byId.set(d.id, pickup)
-        return pickup
+        return [pickup]
       })
     },
   }
 }
 
-// Every pickup mesh is built fresh (its materials, its art, its halo), so
-// all of it goes; Three's sprites share one geometry, which stays.
+// Every pickup mesh is built fresh (its geometry, its materials, its
+// halo), so those go; its art and its halo's glow are textures shared by
+// every pickup of its kind (assets.ts artTexture, makeGlowTexture), and
+// Three's sprites share one geometry, so those stay.
 function dispose(object: THREE.Object3D): void {
   object.traverse((o) => {
     if (o instanceof THREE.Mesh) (o as THREE.Mesh).geometry.dispose()
     if (o instanceof THREE.Mesh || o instanceof THREE.Sprite) {
       const materials = o.material as THREE.Material | THREE.Material[]
-      for (const m of [materials].flat()) {
-        if ('map' in m && m.map instanceof THREE.Texture) m.map.dispose()
-        m.dispose()
-      }
+      for (const m of [materials].flat()) m.dispose()
     }
   })
 }

@@ -4,7 +4,7 @@
 // and this file does it (the truck, the bed, the pickups, the shelves,
 // the drops, the bodies, the lines in the log).
 
-import { toFound } from './book.ts'
+import { knownOf, toFound } from './book.ts'
 import { CHAT_COPY, emoteLine, othersLine } from './chat.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
@@ -19,8 +19,10 @@ import {
   settledAsk,
   whisperRefusal,
 } from './friends.ts'
+import { freshPending } from './game.ts'
 import { pickupLabel } from './interactions.ts'
 import { toInventory } from './inventory.ts'
+import { itemLabel } from './itemcopy.ts'
 import { itemById } from './items.ts'
 import { createTruck } from './marx.ts'
 import { levelUp } from './progression.ts'
@@ -33,9 +35,9 @@ import {
   toQuests,
 } from './quests.ts'
 import { SEASON } from './season.ts'
-import { isStandLedger, refusalLine } from './stand.ts'
+import { isStandLedger, refusalLine, standNews } from './stand.ts'
 import { formatCash } from './store.ts'
-import { aboard, newLeg, settledBy } from './worldsync.ts'
+import { newLeg, reconcileBed, settledBy } from './worldsync.ts'
 import type { Actions } from './actions.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { Game } from './game.ts'
@@ -43,12 +45,10 @@ import type { Inventory } from './interfaces.ts'
 import type {
   NackMessage,
   SeasonWire,
-  StandMessage,
   TaskWire,
   WorldMessage,
   WorldWire,
 } from './protocol.ts'
-import type { StandLedger } from './stand.ts'
 
 export function wireValley(game: Game, actions: Actions): void {
   const { state: s, hud, net, peers, world, player } = game
@@ -118,7 +118,7 @@ export function wireValley(game: Game, actions: Actions): void {
           now
         )
         return
-      // Rule 20: a whisper, to this raider or echoed from one they sent.
+      // Rule 21: a whisper, to this raider or echoed from one they sent.
       case 'whisper':
         hud.chatLine(
           {
@@ -134,13 +134,13 @@ export function wireValley(game: Game, actions: Actions): void {
         return
       case 'friends': {
         s.friends = msg.friends
-        const settled = s.pendingAsk && settledAsk(s.pendingAsk, msg.friends)
+        const settled = s.pending.ask && settledAsk(s.pending.ask, msg.friends)
         if (settled) {
-          s.pendingAsk = null
+          s.pending.ask = null
           hud.tell(settled)
         }
-        if (s.showFriends) {
-          s.showFriends = false
+        if (s.pending.showFriends) {
+          s.pending.showFriends = false
           for (const line of friendLines(msg.friends)) hud.tell(line)
         }
         return
@@ -153,7 +153,7 @@ export function wireValley(game: Game, actions: Actions): void {
         return
       case 'pong':
         return
-      // Rule 13: the valley's shadowmen, every step, and a touch.
+      // Rule 11: the valley's shadowmen, every step, and a touch.
       case 'shadowmen':
         game.shadowmen.receive(msg, now)
         game.caretaker.receive(msg, now)
@@ -196,7 +196,7 @@ export function wireValley(game: Game, actions: Actions): void {
     )
 
     if (take) {
-      s.pendingTakes.delete(take.index)
+      s.pending.takes.delete(take.index)
       const pickup = world.pickups[take.index]
       if (pickup && !pickup.taken) {
         if (take.mine) actions.applyTake(pickup)
@@ -209,7 +209,7 @@ export function wireValley(game: Game, actions: Actions): void {
     world.pickups.forEach((pickup, i) => {
       if (taken.has(i)) {
         if (!pickup.taken) actions.markTaken(pickup)
-      } else if (pickup.taken && !s.pendingTakes.has(i)) {
+      } else if (pickup.taken && !s.pending.takes.has(i)) {
         actions.markUntaken(pickup)
       }
     })
@@ -219,13 +219,13 @@ export function wireValley(game: Game, actions: Actions): void {
     if (reason === 'dealt' && me !== null && detail.by === me) {
       s.pendingDeal = false
       s.dealSaid = copy('dealer.bought', {
-        item: itemById(detail.item ?? '')?.label ?? detail.item ?? '',
+        item: detail.item ? itemLabel(detail.item) : '',
       })
       hud.tell(s.dealSaid)
     }
     // The shelves are the valley's; a unit it sold us goes in the pocket.
     if (sale) {
-      s.pendingBuys.delete(`${sale.station}:${sale.item}`)
+      s.pending.buys.delete(`${sale.station}:${sale.item}`)
       if (sale.mine) actions.pocket(sale.item)
     }
     s.storeStock = wire.shelves
@@ -237,8 +237,8 @@ export function wireValley(game: Game, actions: Actions): void {
     // Rule 17: the tombstones too.
     s.graves = wire.graves
     game.graves.sync(s.graves)
-    for (const id of s.pendingDrops) {
-      if (!wire.drops.some((d) => d.id === id)) s.pendingDrops.delete(id)
+    for (const id of s.pending.drops) {
+      if (!wire.drops.some((d) => d.id === id)) s.pending.drops.delete(id)
     }
     if (dropped?.mine) {
       hud.tell(copy('log.dropped', { item: pickupLabel(dropped) }))
@@ -250,8 +250,8 @@ export function wireValley(game: Game, actions: Actions): void {
     // the pack frame.
     s.corpses = wire.corpses
     game.corpses.sync(s.corpses)
-    for (const id of s.pendingLoots) {
-      if (!wire.corpses.some((c) => c.id === id)) s.pendingLoots.delete(id)
+    for (const id of s.pending.loots) {
+      if (!wire.corpses.some((c) => c.id === id)) s.pending.loots.delete(id)
     }
     if (reason === 'looted' && detail.by === me) hud.tell(copy('log.looted'))
 
@@ -259,14 +259,19 @@ export function wireValley(game: Game, actions: Actions): void {
     // valley's word on who is in it.
     const leg = wire.truck.leg
     if (newLeg(s.truckLeg, leg)) actions.followLeg(leg)
-    const inBed = aboard(wire, me)
-    if (inBed) s.pendingBoard = false
-    if (s.aboard && !inBed && !s.pendingBoard) {
+    const bed = reconcileBed(
+      wire,
+      me,
+      { aboard: s.aboard, pendingBoard: s.pending.board },
+      reason
+    )
+    s.pending.board = bed.pendingBoard
+    if (bed.letOff) {
       // Let off at the Citgo.
       actions.leaveBed(reason === 'home' ? copy('log.end_of_line') : undefined)
     }
-    if (!s.pendingBoard) s.aboard = inBed
-    if (reason === 'depart' && inBed) {
+    s.aboard = bed.aboard
+    if (bed.rolling) {
       s.onTruckRolls = [copy('log.truck_leaves'), copy('log.hop_out_hint')]
     }
     if (reason === 'ferry' && detail.by === me) hud.tell(copy('log.ride_home'))
@@ -282,7 +287,7 @@ export function wireValley(game: Game, actions: Actions): void {
 
   const applyNack = (msg: NackMessage) => {
     if (msg.re === 'take') {
-      if (msg.index !== undefined) s.pendingTakes.delete(msg.index)
+      if (msg.index !== undefined) s.pending.takes.delete(msg.index)
       if (msg.reason !== 'gone') return
       const pickup =
         msg.index === undefined ? undefined : world.pickups[msg.index]
@@ -290,7 +295,7 @@ export function wireValley(game: Game, actions: Actions): void {
       hud.tell(copy('log.taken_first'))
     } else if (msg.re === 'buy') {
       if (msg.station !== undefined && msg.item) {
-        s.pendingBuys.delete(`${msg.station}:${msg.item}`)
+        s.pending.buys.delete(`${msg.station}:${msg.item}`)
       }
       const price = msg.item ? itemById(msg.item)?.price : undefined
       if (msg.reason === 'sold-out') hud.tell(copy('log.sold_out'))
@@ -304,15 +309,15 @@ export function wireValley(game: Game, actions: Actions): void {
     } else if (msg.re === 'call') {
       hud.tell(copy('log.truck_busy'))
     } else if (msg.re === 'collect') {
-      s.pendingCollect = false
+      s.pending.collect = false
       hud.tell(copy('log.berry_refused'))
     } else if (msg.re === 'chat') {
       hud.tell(CHAT_COPY.tooFast)
     } else if (msg.re === 'whisper') {
-      hud.tell(whisperRefusal(msg.reason, s.whisperTo ?? ''))
+      hud.tell(whisperRefusal(msg.reason, s.pending.whisperTo ?? ''))
     } else if (msg.re === 'friend' || msg.re === 'unfriend') {
-      hud.tell(friendRefusal(msg.reason, s.pendingAsk?.name ?? ''))
-      s.pendingAsk = null
+      hud.tell(friendRefusal(msg.reason, s.pending.ask?.name ?? ''))
+      s.pending.ask = null
     } else if (msg.re === 'drop') {
       // The pack frame that follows a refused drop puts the count right.
       hud.tell(
@@ -321,12 +326,12 @@ export function wireValley(game: Game, actions: Actions): void {
     } else if (msg.re === 'discover') {
       actions.bookRefused()
     } else if (msg.re === 'take-drop') {
-      if (msg.drop !== undefined) s.pendingDrops.delete(msg.drop)
+      if (msg.drop !== undefined) s.pending.drops.delete(msg.drop)
       if (msg.reason === 'gone') hud.tell(copy('log.taken_first'))
       else hud.tell(copy('log.drop_refused'))
     } else if (msg.re === 'board') {
       // The bed is not ours after all.
-      s.pendingBoard = false
+      s.pending.board = false
       s.aboard = false
       hud.tell(copy('log.board_refused'))
     } else if (msg.re === 'hop-out') {
@@ -345,7 +350,7 @@ export function wireValley(game: Game, actions: Actions): void {
       s.dealSaid = dealRefusal(msg.reason)
       hud.tell(s.dealSaid)
     } else if (msg.re === 'loot') {
-      if (msg.corpse !== undefined) s.pendingLoots.delete(msg.corpse)
+      if (msg.corpse !== undefined) s.pending.loots.delete(msg.corpse)
       hud.tell(copy('log.loot_refused'))
     } else if (msg.re === 'stow' || msg.re === 'unstow') {
       // The pack frame that follows puts both sides right.
@@ -355,7 +360,7 @@ export function wireValley(game: Game, actions: Actions): void {
       msg.re === 'stand-collect' ||
       msg.re === 'stand-upgrade'
     ) {
-      s.pendingStand = false
+      s.pending.stand = false
       s.standSaid = refusalLine(msg.reason)
       hud.tell(s.standSaid)
     } else if (msg.re === 'rename' || msg.re === 'appearance') {
@@ -455,7 +460,7 @@ export function wireValley(game: Game, actions: Actions): void {
       if (!isStandLedger(msg.stand)) return
       const was = s.stand
       s.stand = msg.stand
-      s.pendingStand = false
+      s.pending.stand = false
       s.standSaid = standNews(msg, was)
       if (s.standSaid) hud.tell(s.standSaid)
     } else if (msg.type === 'task') {
@@ -497,48 +502,17 @@ export function wireValley(game: Game, actions: Actions): void {
     // and what we hold plays on alone, the truck from where it stands.
     if (status === 'offline') {
       s.world = null
-      s.pendingBoard = false
+      // Nothing asked of it will be answered now.
+      s.pending = freshPending()
+      s.known = knownOf(s.book, s.pending.book)
       if (s.aboard) actions.leaveBed()
       actions.setAloneTruck(createTruck(Date.now()))
       actions.followLeg(s.aloneTruck.leg)
       s.daily = null
-      s.pendingCollect = false
-      s.pendingTakes.clear()
-      s.pendingBuys.clear()
-      s.pendingTrade = false
-      s.bookAsked.clear()
-      s.pendingLoots.clear()
       s.stand = null
-      s.pendingStand = false
       // The valley's bodies are out of reach; ours alone are drawn.
       if (s.lockerOpen) actions.closeInventory()
       actions.showAloneCorpses()
     }
   })
-}
-
-// What the log says of the stand as the valley wrote it: the goods put
-// out (whatever the table holds more of than `was`), the cents collected,
-// or the new level.
-function standNews(msg: StandMessage, was: StandLedger | null): string | null {
-  const { stand } = msg
-  switch (msg.re) {
-    case 'stock': {
-      for (const [kind, count] of Object.entries(stand.stock)) {
-        const more = count - (was?.stock[kind] ?? 0)
-        if (more > 0) {
-          return copy('log.stand_stocked', {
-            item: pickupLabel({ kind, count: more }),
-          })
-        }
-      }
-      return null
-    }
-    case 'collect':
-      return copy('log.stand_collected', {
-        amount: formatCash(msg.cents ?? 0),
-      })
-    case 'upgrade':
-      return copy('log.stand_upgraded', { level: stand.level })
-  }
 }

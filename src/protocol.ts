@@ -53,6 +53,8 @@ export const DISCOVER_MAX = 128
 
 // More Citgo stations than any build places.
 const STATIONS_MAX = 64
+// How many berry bushes a hello may place.
+const BUSHES_MAX = 16
 
 // An item id or a pickup kind on the wire: items.ts ids are short.
 const KIND_MAX = 64
@@ -61,6 +63,12 @@ const ID_MAX = 64
 
 // The survey is about 5 km across; nothing legitimate is this far out.
 export const MAX_COORD = 20_000
+// No count on the wire is more than this; what a pack holds is checked
+// against the pack, this only keeps the arithmetic sane.
+export const COUNT_MAX = 1_000_000
+// No frame from a client is longer than this: the hello, with every pickup
+// and the water map, is the biggest at a few tens of thousands.
+export const FRAME_MAX = 256_000
 
 // How a figure stands this instant: standing, walking, crouched, or one of
 // the emotes (emotes.ts EMOTES), each named as it is typed. Riders stand
@@ -104,6 +112,9 @@ export interface PeerWire {
 export interface PickupSpec {
   kind: string
   count: number
+  // Where it lies: the valley gives it only to a raider in reach.
+  x: number
+  z: number
 }
 
 // --- The shared world ------------------------------------------------------
@@ -214,6 +225,10 @@ export interface HelloMessage {
   // Where the Cabbage Stand stands, or null: the valley tends each
   // account's stand only for a raider beside it (rule 23).
   stand: XZ | null
+  // Where each berry bush stands, in sharedworld.ts bush order (the spawn
+  // Citgo's, then the maze's ring): a berry only for a raider in reach
+  // (rule 8).
+  bushes: XZ[]
   // Where the squatter in Bull Valley Plaza sits, or null: the valley
   // deals only with a raider beside him (rule 25).
   dealer: XZ | null
@@ -250,10 +265,11 @@ export interface BuyMessage {
   unit: number
 }
 
+// A whistle: where the client sees the truck (the valley never knows the
+// roads). Where it comes to is where the valley last heard the whistler.
 export interface CallMessage {
   type: 'call'
   from: XZ
-  to: XZ
 }
 
 // One unit of `kind` out of the pack, used. The valley takes it off the
@@ -699,7 +715,7 @@ export interface ShadowmanWire {
   windup?: number
 }
 
-// The Caretaker as the valley sends it (rule 15): where it floats, how
+// The Caretaker as the valley sends it (rule 13): where it floats, how
 // far through being unmade by two beams (0 to 1), and the raider it hunts.
 export interface CaretakerWire {
   x: number
@@ -745,6 +761,9 @@ export interface ShadowmenMessage {
   tunnelBursts: TunnelBurstWire[]
 }
 
+// A shadowman, or the Caretaker, touched this raider (sharedworld.ts rule
+// 24): the health the account has left, 0 when the touch shattered their
+// geometrie (the account is whole again after, rule 18's fall following).
 // A shadowman, the Caretaker, or a tunnel shade touched this raider
 // (sharedworld.ts rule 24): the health the account has left, 0 when the
 // touch shattered their geometrie (the account is whole again after, rule
@@ -903,9 +922,14 @@ function isCoord(value: unknown): value is number {
   )
 }
 
-// A non-negative integer: an index or a count.
+// A non-negative integer no bigger than COUNT_MAX: an index or a count.
 function isCount(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 0
+  return (
+    typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= 0 &&
+    value <= COUNT_MAX
+  )
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -924,9 +948,10 @@ function parsePickups(value: unknown): PickupSpec[] | null {
   const specs: PickupSpec[] = []
   for (const entry of value as unknown[]) {
     if (!isRecord(entry)) return null
-    const { kind, count } = entry
+    const { kind, count, x, z } = entry
     if (!isKind(kind) || !isCount(count)) return null
-    specs.push({ kind, count })
+    if (!isCoord(x) || !isCoord(z)) return null
+    specs.push({ kind, count, x, z })
   }
   return specs
 }
@@ -940,13 +965,19 @@ function parseXZ(value: unknown): XZ | null {
 // A hello's havens: one place per station.
 function parseHavens(value: unknown, stations: number): XZ[] | null {
   if (!Array.isArray(value) || value.length !== stations) return null
-  const havens: XZ[] = []
+  return parseSpots(value, stations)
+}
+
+// At most `max` places.
+function parseSpots(value: unknown, max: number): XZ[] | null {
+  if (!Array.isArray(value) || value.length > max) return null
+  const spots: XZ[] = []
   for (const entry of value as unknown[]) {
     const at = parseXZ(entry)
     if (!at) return null
-    havens.push(at)
+    spots.push(at)
   }
-  return havens
+  return spots
 }
 
 // The longest joyride the valley believes: a day.
@@ -1002,6 +1033,7 @@ export function parsePeerState(value: unknown): PeerStateWire | null {
 // A hello with a bad outfit still parses; the server decides which
 // close code those deserve.
 export function parseClientMessage(text: string): ClientMessage | null {
+  if (text.length > FRAME_MAX) return null
   let value: unknown
   try {
     value = JSON.parse(text)
@@ -1023,6 +1055,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
       const maze = value.maze === null ? null : parseMazePlace(value.maze)
       const truck = parseRoutes(value.truck)
       const stand = value.stand === null ? null : parseXZ(value.stand)
+      const bushes = parseSpots(value.bushes, BUSHES_MAX)
       const dealer = value.dealer === null ? null : parseXZ(value.dealer)
       const undercroft =
         value.undercroft === null ? null : parseMazePlace(value.undercroft)
@@ -1035,6 +1068,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
           !water ||
           maze === undefined ||
           !truck ||
+          !bushes ||
           (stand === null && value.stand !== null) ||
           (dealer === null && value.dealer !== null) ||
           undercroft === undefined)
@@ -1057,6 +1091,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
         maze: maze ?? null,
         truck: truck ?? { home: { x: 0, z: 0 }, joyrideMs: 0 },
         stand,
+        bushes: bushes ?? [],
         dealer,
         undercroft: undercroft ?? null,
         ...(typeof value.was === 'string' && value.was.length <= ID_MAX
@@ -1157,8 +1192,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
     }
     case 'call': {
       const from = parseXZ(value.from)
-      const to = parseXZ(value.to)
-      return from && to ? { type: 'call', from, to } : null
+      return from ? { type: 'call', from } : null
     }
     case 'dev': {
       if (value.op === 'reset') return { type: 'dev', op: 'reset' }

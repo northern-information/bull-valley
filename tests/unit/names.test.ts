@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { NAME_MAX } from '../../src/graves.ts'
+import { GRAVE_NAME_MAX } from '../../src/graves.ts'
 import {
   EPITHETS,
   generateName,
@@ -37,7 +37,7 @@ describe('generateName', () => {
       longest(TITLES) + 1 + longest(SHORT_PLACES),
       longest(EPITHETS) + 1 + longest(GIVEN) + 4 + longest(PLACES)
     )
-    expect(longestName).toBeLessThanOrEqual(NAME_MAX)
+    expect(longestName).toBeLessThanOrEqual(GRAVE_NAME_MAX)
   })
 
   it('has about seven thousand names', () => {

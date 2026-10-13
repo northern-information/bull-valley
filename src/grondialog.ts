@@ -16,6 +16,7 @@ import { availabilityOf, renameUsername, usernameAvailable } from './auth.ts'
 import { SELECTABLE } from './characters.ts'
 import { copy } from './copy.ts'
 import { stepIndex } from './cycle.ts'
+import { finder, setStatus } from './dom.ts'
 import { applyPose, attachCosmetics, buildFigure } from './figure.ts'
 import { finishById, FINISHES } from './finishes.ts'
 import { outfitById } from './outfits.ts'
@@ -104,11 +105,7 @@ export function openGronDialog({
     </div>`
   document.body.appendChild(root)
 
-  const find = <T extends Element>(selector: string): T => {
-    const found = root.querySelector<T>(selector)
-    if (!found) throw new Error(`Missing ${selector}`)
-    return found
-  }
+  const find = finder(root)
   const says = find<HTMLParagraphElement>('.bv-gron-says')
   const nameForm = find<HTMLFormElement>('[data-bv="gron-name"]')
   const input = find<HTMLInputElement>('[data-bv="gron-username"]')
@@ -132,12 +129,6 @@ export function openGronDialog({
 
   const lines = gronSays()
   says.textContent = lines[Math.floor(Math.random() * lines.length)]
-
-  const tone = (el: HTMLElement, text: string, t: 'ok' | 'bad' | null) => {
-    el.textContent = text
-    if (t) el.dataset.tone = t
-    else delete el.dataset.tone
-  }
 
   return new Promise<void>((resolve) => {
     // --- Your Name ---------------------------------------------------------
@@ -164,21 +155,21 @@ export function openGronDialog({
       if (checking !== null) clearTimeout(checking)
       checking = null
       if (name === current) {
-        tone(nameStatus, copy('gron.name_now'), null)
+        setStatus(nameStatus, copy('gron.name_now'), null)
       } else if (!isValidUsername(name)) {
-        tone(nameStatus, copy('signin.rules'), name ? 'bad' : null)
+        setStatus(nameStatus, copy('signin.rules'), name ? 'bad' : null)
       } else if (isOwn(name)) {
         available = true
-        tone(nameStatus, copy('username.available'), 'ok')
+        setStatus(nameStatus, copy('username.available'), 'ok')
       } else {
-        tone(nameStatus, copy('username.checking'), null)
+        setStatus(nameStatus, copy('username.checking'), null)
         checking = setTimeout(() => {
           checking = null
           void usernameAvailable(name).then((answer) => {
             if (handle() !== name) return
             const said = availabilityOf(answer)
             available = said.available
-            tone(nameStatus, said.line, said.tone)
+            setStatus(nameStatus, said.line, said.tone)
             refreshName()
           })
         }, CHECK_DELAY_MS)
@@ -197,13 +188,13 @@ export function openGronDialog({
       if (result.ok) {
         current = name
         available = null
-        tone(nameStatus, copy('gron.renamed', { name }), 'ok')
+        setStatus(nameStatus, copy('gron.renamed', { name }), 'ok')
         onRenamed(name)
       } else if ('taken' in result) {
         available = false
-        tone(nameStatus, copy('username.taken'), 'bad')
+        setStatus(nameStatus, copy('username.taken'), 'bad')
       } else {
-        tone(nameStatus, result.error, 'bad')
+        setStatus(nameStatus, result.error, 'bad')
       }
       refreshName()
     }
@@ -258,7 +249,7 @@ export function openGronDialog({
         id === worn &&
         (finishRow.hidden || FINISHES[finishIndex].id === wornFinish)
       becomeBtn.disabled = same
-      tone(characterStatus, same ? copy('gron.character_now') : '', null)
+      setStatus(characterStatus, same ? copy('gron.character_now') : '', null)
     }
 
     const step = (dir: number) => {
@@ -283,7 +274,7 @@ export function openGronDialog({
       wornFinish = FINISHES[finishIndex].id
       onBecome(worn, wornFinish)
       showCharacter()
-      tone(
+      setStatus(
         characterStatus,
         copy('gron.became', { name: outfitById(worn).label }),
         'ok'

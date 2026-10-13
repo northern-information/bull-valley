@@ -1,6 +1,117 @@
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
+// The modules the unit tests cannot load or cannot cover: the Three and DOM
+// glue (the scene, the HUD and its dialogs, the rigs, the input and the
+// frame), the canvas art (every painter draws on a document canvas), the
+// socket (net.ts) and the music (an <audio>). The e2e specs cover these
+// instead. Everything else under src/ is a pure module carrying the game's
+// rules, and gets the floor below: a new module is floored unless it is
+// listed here.
+const THREE_AND_DOM = [
+  'accountpanel',
+  'actions',
+  'adart',
+  'akashic',
+  'akashicassets',
+  'akashicmap',
+  'assetkit',
+  'assets',
+  'berrybush',
+  'billart',
+  'bookhud',
+  'bookportraits',
+  'cabbagestandmodel',
+  'canart',
+  'canvas',
+  'caretakermodel',
+  'caretakerrig',
+  'characterselect',
+  'chathud',
+  'citgo',
+  'cornmaze',
+  'cornmazeparts',
+  'dealdialog',
+  'corpsemeshes',
+  'decalart',
+  'devhook',
+  'dishes',
+  'dom',
+  'drinkmodels',
+  'dropmeshes',
+  'figure',
+  'fire',
+  'fog',
+  'fphands',
+  'game',
+  'glow',
+  'graveart',
+  'gravestones',
+  'grondialog',
+  'hud',
+  'input',
+  'itemthumbs',
+  'levelhud',
+  'loop',
+  'main',
+  'mallart',
+  'mainmenu',
+  'mazeart',
+  'medart',
+  'medicinemodels',
+  'mistcards',
+  'mudart',
+  'musicrig',
+  'net',
+  'packart',
+  'packhud',
+  'peers',
+  'pickups',
+  'plazamodel',
+  'plazasite',
+  'player',
+  'playerbody',
+  'poles',
+  'props',
+  'ps1',
+  'roadsideparts',
+  'scatter',
+  'scope',
+  'seasonhud',
+  'settingsui',
+  'sfxrig',
+  'shadowburst',
+  'shadowburstmodel',
+  'shadowcards',
+  'shadowspider',
+  'signin',
+  'skeletonhorse',
+  'sky',
+  'spawnlot',
+  'splash',
+  'standart',
+  'standdialog',
+  'stationdisplay',
+  'stations',
+  'streetlights',
+  'surfaces',
+  'worldsurfaces',
+  'targets',
+  'taskhud',
+  'terrain',
+  'titles',
+  'trails',
+  'truck',
+  'truckbody',
+  'tunnelrig',
+  'tunnelshademodel',
+  'undercroftart',
+  'undercroftmodel',
+  'valleysync',
+  'world',
+  'wreck',
+]
+
 export default defineConfig({
   resolve: {
     alias: {
@@ -22,17 +133,17 @@ export default defineConfig({
       // give every module listed there a test.
       include: ['src/**/*.ts', 'worker/**/*.ts'],
       // The pure modules carry the game rules and run in Node, so each one
-      // must stay well covered. The Three and DOM modules are covered by
-      // the e2e specs instead, and have no threshold here.
+      // must stay well covered: every module under src/ but the Three and
+      // DOM ones above (a picomatch exclusion, matched against the path
+      // from the repo root).
       thresholds: {
-        'src/{account,auth,bindings,book,cabbages,caretaker,characters,chat,clock,cookies,coords,copy,copybook,corpses,cosmetics,cycle,daily,dailytask,dealer,donuts,drinks,drops,emotes,finishes,friends,geometrie,graves,ground,hands,hotbar,interactions,inventory,items,keys,landmarks,mapedit,marx,maze,mist,music,names,npcs,outfits,packgrid,poses,presence,progression,protocol,quests,rng,roadgraph,roadside,season,settings,sfx,shadowmen,shadowsync,sharedworld,shop,splashmachine,stand,stash,store,stripmall,trip,truckplan,tunnelshades,undercroft,walls,waterside,worldsync}.ts':
-          {
-            perFile: true,
-            statements: 85,
-            lines: 90,
-            functions: 90,
-            branches: 50,
-          },
+        [`src/!(${THREE_AND_DOM.join('|')}).ts`]: {
+          perFile: true,
+          statements: 85,
+          lines: 90,
+          functions: 90,
+          branches: 50,
+        },
         // The Worker: the valley, the accounts and the money.
         'worker/*.ts': {
           perFile: true,

@@ -9,6 +9,7 @@
 import { BOOK as BOOK_KEYS } from './bindings.ts'
 import { BOOK, CHAPTERS, entriesOf, tallyOf } from './book.ts'
 import { copy } from './copy.ts'
+import { el } from './dom.ts'
 import type { BookEntry, Chapter } from './book.ts'
 
 // The portrait's CSS size; it is drawn at the screen's own density.
@@ -16,7 +17,7 @@ const PORTRAIT_PX = 220
 
 // How long the toast holds when something new is written, in ms;
 // styles.css's bv-book-toast animation runs the same length.
-export const TOAST_MS = 4000
+const TOAST_MS = 4000
 
 // More new pages at once than this, and the toast counts them instead of
 // naming them.
@@ -31,17 +32,6 @@ const CHAPTER_LABEL: Record<Chapter, string> = {
 
 const UNKNOWN = copy('book.unknown')
 const UNKNOWN_LORE = copy('book.unknown_lore')
-
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className: string,
-  content?: string
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag)
-  node.className = className
-  if (content !== undefined) node.textContent = content
-  return node
-}
 
 export class BookHud {
   readonly root: HTMLElement

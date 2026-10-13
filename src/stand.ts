@@ -11,7 +11,10 @@
 
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
+import { pickupLabel } from './interactions.ts'
+import { formatCash } from './store.ts'
 import type { Inventory, XZ } from './interfaces.ts'
+import type { StandMessage } from './protocol.ts'
 
 // One account's stand: its level (1 on), what is out on its table, the
 // cents it had banked by `since` (fractional: it earns by the
@@ -279,5 +282,34 @@ export function refusalLine(reason: string): string {
       return copy('log.stand_offline')
     default:
       return copy('log.stand_refused')
+  }
+}
+
+// What the log says of the stand as the valley wrote it (a stand frame):
+// the goods put out (whatever the table holds more of than `was`), the
+// cents collected, or the new level.
+export function standNews(
+  msg: Pick<StandMessage, 're' | 'stand' | 'cents'>,
+  was: StandLedger | null
+): string | null {
+  const { stand } = msg
+  switch (msg.re) {
+    case 'stock': {
+      for (const [kind, count] of Object.entries(stand.stock)) {
+        const more = count - (was?.stock[kind] ?? 0)
+        if (more > 0) {
+          return copy('log.stand_stocked', {
+            item: pickupLabel({ kind, count: more }),
+          })
+        }
+      }
+      return null
+    }
+    case 'collect':
+      return copy('log.stand_collected', {
+        amount: formatCash(msg.cents ?? 0),
+      })
+    case 'upgrade':
+      return copy('log.stand_upgraded', { level: stand.level })
   }
 }

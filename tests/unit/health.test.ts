@@ -36,6 +36,12 @@ describe('health', () => {
     expect(mend(2, -1)).toBe(2)
   })
 
+  it('writes down no account at NaN or Infinity', () => {
+    expect(withHealth({}, 'a', NaN)).toEqual({})
+    expect(withHealth({ a: 1 }, 'a', Infinity)).toEqual({})
+    expect(withHealth({}, 'a', 1)).toEqual({ a: 1 })
+  })
+
   it('keeps only the accounts below whole', () => {
     expect(healthOf({}, 'a')).toBe(MAX_HEALTH)
     const one = withHealth({}, 'a', 1)

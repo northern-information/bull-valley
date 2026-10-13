@@ -18,6 +18,7 @@ const account = (id: string, primary: string): Account => ({
   primaryProvider: primary,
   createdAt: 1000,
   lastLoginAt: 1000,
+  session: 0,
 })
 
 const linked = (
@@ -141,6 +142,17 @@ export function storeContract(makeStore: () => AccountStore): void {
     ).toBe(false)
     expect(await store.get('a2')).toBeNull()
     expect((await store.findByProvider('github:1'))?.accountId).toBe('a1')
+  })
+
+  it('moves the session number on when every session is ended', async () => {
+    const store = makeStore()
+    await store.create(account('a1', 'github:1'), linked('a1', 'github', '1'))
+    expect((await store.get('a1'))?.session).toBe(0)
+    await store.endSessions('a1')
+    await store.endSessions('a1')
+    expect((await store.get('a1'))?.session).toBe(2)
+    // Nothing happens for an account that is not there.
+    await store.endSessions('nobody')
   })
 
   it('records the latest login and profile', async () => {
@@ -312,6 +324,25 @@ describe('D1AccountStore', () => {
     expect(await racing.linkProvider(linked('a1', 'discord', '3'))).toBe(
       'linked-elsewhere'
     )
+  })
+
+  it('makes two asking each other at once friends, whichever read first', async () => {
+    const { store } = await seeded()
+    await friendly(store)
+    // a1's ask read nothing between them, but a2's lands first.
+    const stale = Object.create(store) as D1AccountStore
+    stale.friendsOf = () => Promise.resolve([])
+    expect(await store.askFriend('a2', 'a1', 5)).toBe('requested')
+    expect(await stale.askFriend('a1', 'a2', 6)).toBe('accepted')
+    expect(
+      (await store.friendsOf('a1')).map(({ username, state }) => [
+        username,
+        state,
+      ])
+    ).toEqual([['Baker', 'friend']])
+    expect((await store.friendsOf('a2')).map((r) => r.state)).toEqual([
+      'friend',
+    ])
   })
 
   it('never unlinks the last provider, even two unlinks at once', async () => {

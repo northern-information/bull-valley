@@ -328,8 +328,8 @@ async function boot() {
 
   player.onEdge = () => hud.tell(copy('log.edge'))
   // The hovered item in the pack spins on its card.
-  hud.onBagHover = (item) => {
-    if (item) game.thumbs.spin(hud.cardCanvas, item.kind)
+  hud.pack.onHover = (item) => {
+    if (item) game.thumbs.spin(hud.pack.cardCanvas, item.kind)
     else game.thumbs.stop()
   }
 
@@ -341,13 +341,19 @@ async function boot() {
   // Not awaited: the game never waits on the network.
   void net.connect({
     outfit: pick.outfit,
-    pickups: world.pickups.map(({ kind, count }) => ({ kind, count })),
+    pickups: world.pickups.map(({ kind, count, x, z }) => ({
+      kind,
+      count,
+      x,
+      z,
+    })),
     stations: world.fuelPoints.length,
     havens: world.fuelPoints.map(({ x, z }) => ({ x, z })),
     metres: geo.metres,
     water,
     maze: world.mazePlace,
     truck: truckRoutes,
+    bushes: world.bushes.map(({ x, z }) => ({ x, z })),
     stand: world.stand ? world.stand.at : null,
     dealer: world.plaza ? world.plaza.dealer.at : null,
     undercroft: world.undercroft?.place ?? null,

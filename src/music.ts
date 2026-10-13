@@ -3,6 +3,8 @@
 // never in the bundle or the repo. musicrig.ts plays it; the raider's
 // music setting (settings.ts) sets how loud.
 
+import { clamp01 } from './math.ts'
+
 export const MUSIC_URL =
   'https://assets.the-rn.info/bull-valley/bull-valley-scaduscope/01-bull-valley-scaduscope.mp3'
 
@@ -26,10 +28,8 @@ export function musicVolume(
   { setting, playedSeconds }: MusicFrame,
   tuning: MusicTuning
 ): number {
-  const level = Math.min(1, Math.max(0, setting / 100))
+  const level = clamp01(setting / 100)
   const fade =
-    tuning.fadeInSeconds > 0
-      ? Math.min(1, Math.max(0, playedSeconds / tuning.fadeInSeconds))
-      : 1
-  return Math.min(1, Math.max(0, tuning.volume * level * fade))
+    tuning.fadeInSeconds > 0 ? clamp01(playedSeconds / tuning.fadeInSeconds) : 1
+  return clamp01(tuning.volume * level * fade)
 }

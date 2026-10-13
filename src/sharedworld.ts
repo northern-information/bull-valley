@@ -309,6 +309,8 @@ export interface SharedWorld {
   routes: TruckRoutes
   // Where the Cabbage Stand stands, or null (rule 23).
   stand: XZ | null
+  // Where each berry bush stands, in bush order (rule 8).
+  bushes: XZ[]
   // Where the squatter deals, or null, and what he has left today (rule
   // 25).
   dealer: XZ | null
@@ -344,7 +346,7 @@ export interface ValleyCorpse extends Corpse {
 // under. Bush 0's is the bare account, as it was when it was the only one.
 export const BUSHES = 1 + CONFIG.maze.bushes.count
 
-export function bushKey(account: string, bush: number): string {
+function bushKey(account: string, bush: number): string {
   return bush === 0 ? account : `${account}/${bush}`
 }
 
@@ -363,22 +365,35 @@ export type ValleyAction =
       maze: MazePlace | null
       routes: TruckRoutes
       stand: XZ | null
+      bushes: XZ[]
       dealer: XZ | null
       undercroft: MazePlace | null
     }
   // at: where their last state frame put them, or null.
   | { type: 'leave'; id: string; at: PeerStateWire | null }
-  | { type: 'board'; id: string }
+  // In every action below, at: where the raider's last state frame put
+  // them, or null when the valley has not heard one. The valley holds them
+  // to it (CONFIG.valleyReach), never to where a frame says they are.
+  | { type: 'board'; id: string; at: XZ | null }
   | { type: 'hop-out'; id: string }
-  | { type: 'take'; id: string; index: number }
-  | { type: 'buy'; id: string; station: number; kind: string; unit: number }
-  | { type: 'call'; id: string; from: XZ; to: XZ }
-  | { type: 'collect'; id: string; bush: number }
+  | { type: 'take'; id: string; index: number; at: XZ | null }
+  | {
+      type: 'buy'
+      id: string
+      station: number
+      kind: string
+      unit: number
+      at: XZ | null
+    }
+  // from: where the client sees the truck; the drive is reckoned from it
+  // (marx.ts), or from home when that is too far to believe.
+  | { type: 'call'; id: string; from: XZ; at: XZ | null }
+  | { type: 'collect'; id: string; bush: number; at: XZ | null }
   | { type: 'use'; id: string; kind: string }
   // Rule 12. at: where the raider's last state frame put them, or null
   // when the valley has not heard one.
   | { type: 'drop'; id: string; kind: string; count: number; at: Facing | null }
-  | { type: 'take-drop'; id: string; drop: number }
+  | { type: 'take-drop'; id: string; drop: number; at: XZ | null }
   // Rules 11, 13 and 17: what the valley leaves of its own accord: the
   // dimes burst shadowmen leave and their tombstones, and the Caretaker's
   // gold bullion.
@@ -386,7 +401,7 @@ export type ValleyAction =
   // Rule 18: struck, with `items` already out of the account's pack. at:
   // where the raider's last state frame put them, or null.
   | { type: 'fall'; id: string; items: Inventory; at: Facing | null }
-  | { type: 'loot'; id: string; corpse: number }
+  | { type: 'loot'; id: string; corpse: number; at: XZ | null }
   // Rule 24: a shadow's touch; points given back (by), or made whole (no
   // by: a forecourt).
   | { type: 'hit'; id: string }
@@ -533,6 +548,19 @@ export interface PackChange {
 // Whether `kind` is carried in the pack (items.ts INVENTORY_KINDS).
 function isPackKind(kind: string): boolean {
   return INVENTORY_KINDS.includes(kind)
+}
+
+// Why the valley will not let a raider at `target` from `at`, or null when
+// it will: nowhere heard, or further than `reach` metres.
+function tooFar(
+  at: XZ | null,
+  target: XZ,
+  reach: number
+): 'no-position' | 'too-far' | null {
+  if (!at) return 'no-position'
+  return Math.hypot(at.x - target.x, at.z - target.z) <= reach
+    ? null
+    : 'too-far'
 }
 
 function samePickups(a: readonly PickupSpec[], b: readonly PickupSpec[]) {
@@ -767,6 +795,7 @@ function act(
           maze: action.maze,
           routes: action.routes,
           stand: action.stand,
+          bushes: action.bushes,
           dealer: action.dealer,
           dealerStock: freshDealerStock(),
           undercroft: action.undercroft,
@@ -832,13 +861,43 @@ function act(
           reply: nack(re, 'not-in-valley'),
         })
       }
+      // Where the bed is to climb into: parked at home, or come to a
+      // whistle; and a whistle only from where the valley heard the
+      // whistler stand.
+      if (action.type === 'board' || action.type === 'call') {
+        const leg = world.truck.leg
+        const target =
+          action.type === 'call'
+            ? action.at
+            : leg.kind === 'called'
+              ? leg.to
+              : world.routes.home
+        const far = target
+          ? tooFar(action.at, target, CONFIG.valleyReach.truck)
+          : 'no-position'
+        if (far) {
+          return done(valley, now, { broadcast: [], reply: nack(re, far) })
+        }
+      }
       // Rule 3.
       const truck =
         action.type === 'board'
           ? board(world.truck, action.id, now)
           : action.type === 'hop-out'
             ? hopOut(world.truck, action.id)
-            : call(world.truck, action.id, action.from, action.to, now)
+            : call(
+                world.truck,
+                action.id,
+                tooFar(
+                  action.from,
+                  world.routes.home,
+                  CONFIG.valleyReach.callFrom
+                )
+                  ? world.routes.home
+                  : action.from,
+                action.at ?? world.routes.home,
+                now
+              )
       if (refused(truck)) {
         return done(valley, now, {
           broadcast: [],
@@ -880,6 +939,13 @@ function act(
         return done(valley, now, {
           broadcast: [],
           reply: nack('take', 'gone', action.index),
+        })
+      }
+      const far = tooFar(action.at, spec, CONFIG.valleyReach.item)
+      if (far) {
+        return done(valley, now, {
+          broadcast: [],
+          reply: nack('take', far, action.index),
         })
       }
       const next = withWorld(valley, {
@@ -927,6 +993,9 @@ function act(
       }
       // Rule 7.
       if (!onShelf(shelf, kind, unit)) return refuse('sold-out')
+      const haven = world.havens[station] as XZ | undefined
+      const far = haven && tooFar(action.at, haven, CONFIG.stash.stationReach)
+      if (far) return refuse(far)
       if (cash === undefined || cash < price) return refuse('short')
       const shelves = world.shelves.map((s, i) =>
         i === station ? takeUnit(s, kind, unit) : s
@@ -1032,7 +1101,8 @@ function act(
 
     case 'collect': {
       const member = valley.members[action.id]
-      if (!member) {
+      const world = valley.world
+      if (!member || !world) {
         return done(valley, now, {
           broadcast: [],
           reply: nack('collect', 'not-in-valley'),
@@ -1040,11 +1110,16 @@ function act(
       }
       // Rule 8.
       const { bush } = action
-      if (!Number.isInteger(bush) || bush < 0 || bush >= BUSHES) {
+      const spot = world.bushes[bush] as XZ | undefined
+      if (!Number.isInteger(bush) || bush < 0 || bush >= BUSHES || !spot) {
         return done(valley, now, {
           broadcast: [],
           reply: nack('collect', 'no-such-bush'),
         })
+      }
+      const far = tooFar(action.at, spot, CONFIG.valleyReach.item)
+      if (far) {
+        return done(valley, now, { broadcast: [], reply: nack('collect', far) })
       }
       const daily = dailyFor(valley, member.account, now)
       if (daily.collected.includes(bush)) {
@@ -1148,6 +1223,8 @@ function act(
       if (!member || !world) return refuse('not-in-valley')
       const drop = world.drops.find((d) => d.id === action.drop)
       if (!drop) return refuse('gone')
+      const far = tooFar(action.at, drop, CONFIG.valleyReach.item)
+      if (far) return refuse(far)
       const { taken } = takeUp(drop, Infinity)
       const next = withWorld(valley, {
         ...world,
@@ -1199,9 +1276,16 @@ function act(
         z,
         spilled: true,
       }))
+      // The oldest of what the valley spilled goes past the cap; what a
+      // raider dropped lies.
+      let drops = [...world.drops, ...spilled]
+      let over = drops.filter((d) => d.spilled).length - CONFIG.drops.spilledMax
+      if (over > 0) {
+        drops = drops.filter((d) => !(d.spilled && over-- > 0))
+      }
       const next = withWorld(valley, {
         ...world,
-        drops: [...world.drops, ...spilled],
+        drops,
         nextDrop: world.nextDrop + spilled.length,
         graves: buried.graves,
         nextGrave: buried.next,
@@ -1218,10 +1302,19 @@ function act(
       }
       const id = valley.nextCorpse
       const { x, z, yaw } = action.at
+      // One body an account: what an earlier one still held is carried
+      // onto this one, so nothing is lost and nothing lies forever.
+      const items = { ...action.items }
+      for (const old of valley.corpses) {
+        if (old.account !== member.account) continue
+        for (const [kind, count] of Object.entries(old.items)) {
+          items[kind] = (items[kind] ?? 0) + count
+        }
+      }
       const next: Valley = {
         ...valley,
         corpses: [
-          ...valley.corpses,
+          ...valley.corpses.filter((c) => c.account !== member.account),
           {
             id,
             x,
@@ -1229,7 +1322,7 @@ function act(
             yaw,
             name: member.name,
             outfit: member.outfit,
-            items: { ...action.items },
+            items,
             account: member.account,
           },
         ],
@@ -1300,6 +1393,8 @@ function act(
       if (!corpse) return refuse('gone')
       if (corpse.account !== member.account) return refuse('not-yours')
       if (isAboard(valley.world.truck, action.id)) return refuse('aboard')
+      const far = tooFar(action.at, corpse, CONFIG.valleyReach.item)
+      if (far) return refuse(far)
       const next: Valley = {
         ...valley,
         corpses: valley.corpses.filter((c) => c.id !== corpse.id),
@@ -1503,6 +1598,12 @@ export interface Placed {
   at: PeerStateWire | null
 }
 
+// What a raider's grace after a strike is kept under: the account's
+// (rule 24), or the socket's for one the valley does not know.
+function graceKey(valley: Valley, id: string): string {
+  return valley.members[id]?.account ?? id
+}
+
 // The raiders the shadowmen cross round: every placed member.
 export function shadowRaiders(
   valley: Valley,
@@ -1522,7 +1623,7 @@ export function shadowRaiders(
       vulnerable:
         !at.riding &&
         !(truck && isAboard(truck, id)) &&
-        now >= (shadows.recovering[id] ?? 0),
+        now >= (shadows.recovering[graceKey(valley, id)] ?? 0),
       beam: at.light
         ? beamFrom(at, at.yaw, at.pitch, at.pose === 'crouch')
         : null,
@@ -1569,6 +1670,28 @@ const round = (n: number, places: number) =>
   Math.round(n * 10 ** places) / 10 ** places
 
 // One step of the valley's shadowmen and its Caretaker, dt seconds on: the
+// The step's frame as one raider at `at` needs it: the shadowmen within
+// `radius` of them (the field round every raider is sent to no one whole),
+// the lunges among those, and the rest as it is. A raider nowhere yet gets
+// it whole.
+export function shadowmenNear(
+  message: ShadowmenMessage,
+  at: XZ | null,
+  radius: number
+): ShadowmenMessage {
+  if (!at) return message
+  const shadowmen = message.shadowmen.filter(
+    (s) => Math.hypot(s.x - at.x, s.z - at.z) <= radius
+  )
+  if (shadowmen.length === message.shadowmen.length) return message
+  const ids = new Set(shadowmen.map((s) => s.id))
+  return {
+    ...message,
+    shadowmen,
+    lunges: message.lunges.filter((id) => ids.has(id)),
+  }
+}
+
 // frame for everyone, the raiders struck, and which of them the Caretaker
 // caught. Null when there is nothing to step (no world, or no one placed
 // in it), and the field is emptied, so the valley stops stepping until
@@ -1674,15 +1797,16 @@ export function stepShadows(
       if (!struck.includes(id)) struck.push(id)
     }
   }
+  // Rule 24: a raider struck is let alone for a little while, where they
+  // stand or where they come to; the grace is the account's, like the
+  // health, so a second tab is not struck inside the first's.
   const recovering: Record<string, number> = {}
-  for (const r of raiders) {
-    const until = shadows.recovering[r.id]
-    if (until !== undefined && until > now) recovering[r.id] = until
+  const here = new Set(raiders.map((r) => graceKey(valley, r.id)))
+  for (const [key, until] of Object.entries(shadows.recovering)) {
+    if (until > now && here.has(key)) recovering[key] = until
   }
-  // Rule 21: a raider struck is let alone for a little while, where they
-  // stand or where they come to.
   for (const id of struck) {
-    recovering[id] = now + CONFIG.health.graceSeconds * 1000
+    recovering[graceKey(valley, id)] = now + CONFIG.health.graceSeconds * 1000
   }
   shadows.recovering = recovering
   return {

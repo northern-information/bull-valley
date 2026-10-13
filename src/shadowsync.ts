@@ -25,12 +25,15 @@ export interface ShadowFrame<T extends Stepped = ShadowmanWire> {
 export interface ShadowTable<T extends Stepped = ShadowmanWire> {
   prev: ShadowFrame<T> | null
   next: ShadowFrame<T> | null
+  // prev's shadowmen by id, built once as each frame lands: the sample is
+  // taken every drawn frame, the valley's land ten times a second.
+  before: ReadonlyMap<T['id'], T>
 }
 
 export function createShadowTable<
   T extends Stepped = ShadowmanWire,
 >(): ShadowTable<T> {
-  return { prev: null, next: null }
+  return { prev: null, next: null, before: new Map() }
 }
 
 // A frame landed at `at` (local ms).
@@ -41,6 +44,7 @@ export function applyShadowFrame<T extends Stepped>(
 ): void {
   table.prev = table.next
   table.next = { at, shadowmen }
+  table.before = new Map(table.prev?.shadowmen.map((s) => [s.id, s]) ?? [])
 }
 
 // The valley's shadowmen at renderAt (local ms), between the two frames;
@@ -49,11 +53,10 @@ export function sampleShadowmen<T extends Stepped>(
   table: ShadowTable<T>,
   renderAt: number
 ): T[] {
-  const { prev, next } = table
+  const { prev, next, before } = table
   if (!next) return []
   if (!prev || next.at <= prev.at) return [...next.shadowmen]
   const t = Math.min(1, Math.max(0, (renderAt - prev.at) / (next.at - prev.at)))
-  const before = new Map(prev.shadowmen.map((s) => [s.id, s]))
   return next.shadowmen.map((s) => {
     const was = before.get(s.id)
     if (!was) return s

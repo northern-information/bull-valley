@@ -1,26 +1,32 @@
-// Every item in Bull Valley, in one table: identity and tuning, with its
-// words from COPY.toml ([items.<id>]). Edit an item here and the pack grid,
-// the Citgo shelves, pickups, and chat lines follow.
+// Every item in Bull Valley, in one table: identity and tuning. Its words
+// (the label, the blurb and the chat lines, COPY.toml [items.<id>]) are
+// itemcopy.ts's, so this table and every pure module that reads it stay
+// free of the copy book. Edit an item here and the pack grid, the Citgo
+// shelves, pickups, and chat lines follow.
 // Pure, no Three. Meshes stay in assets.ts, keyed by id.
 //
-// Fields:
+// An Item is one of a union by category (below), so each category carries
+// exactly the fields it uses and a reader narrows on `category` instead of
+// checking which fields exist. Common to all:
 //   id        inventory kind and mesh key
 //   category  'cigarette' | 'joint' | 'psychedelic' | 'stimulant' |
 //             'drink' | 'medicine' | 'forage' | 'valuable' | 'key-item'
-//   label     name in the pack, and floating over a pickup or shelf unit
-//   blurb     description on the pack's item card
-//   used      chat line when the player uses it
-//   bought    chat line when the player buys it at a Citgo (shelf items only)
-//   collected chat line when the player picks it off a berry bush
-//   empty     chat line when the player tries to use it with none left
-//   start     count in a new inventory (counted items only)
-//   price     shelf price at every Citgo, in cents (shelf items only; the
-//             dealer's goods are priced in dealer.ts, not here)
+//   start     count in a new inventory
 //   contents  how many the pack, bottle or box holds (1 when absent); the
 //             inventory counts these, and a buy or a pickup adds a full one
-//   geometrie how far one use moves each geometrie level (geometrie.ts)
+// On the shelf items (everything but forage and valuables):
+//   price     shelf price at every Citgo, in cents
+// By category:
+//   geometrie how far one use moves each geometrie level (geometrie.ts):
+//             a cigarette's, the joint's and a drink's
+//   smokeSeconds, emberSeconds  a cigarette burns, then smoulders
+//   perceptionSeconds  the joint (and a psychedelic) resolves the shadowmen
+//             through the murk
+//   container a drink's shape, a key into CONTAINERS in drinks.ts
 //   tripSeconds  how long a drink's trails last (trip.ts); a cigarette's
 //             last while it smokes, the joint's while perception does
+//   form      a medicine's packaging (MedicineForm, the shape assets.ts
+//             builds)
 //   heals     health points one use gives back (health.ts, sharedworld.ts
 //             rule 24): everything smoked, drunk or swallowed gives one
 //             back, the joint, Four Loko and the liquor two
@@ -29,18 +35,109 @@
 // never on a shelf, so it has no price or bought text; the valley hands it out
 // (sharedworld.ts rules 4 and 8).
 
-import { copy } from './copy.ts'
-import type { Item } from './interfaces.ts'
+import type { CashKind } from './drops.ts'
+import type { ContainerKey, GeometrieAxis, MedicineForm } from './interfaces.ts'
+
+// How far one use moves each geometrie level (geometrie.ts), 0 to 1.
+export type GeometrieDose = Partial<Record<GeometrieAxis, number>>
+
+interface ItemBase {
+  id: string
+  // Count in a new inventory.
+  start: number
+  // How many one container holds (contentsOf); 1 when absent.
+  contents?: number
+}
+
+// What is on a Citgo shelf: priced in cents, and most of it gives health
+// back when used (health.ts, sharedworld.ts rule 24).
+interface Shelf {
+  price: number
+  heals?: number
+}
+
+export interface Cigarette extends ItemBase, Shelf {
+  category: 'cigarette'
+  smokeSeconds: number
+  emberSeconds: number
+  geometrie: GeometrieDose
+}
+
+export interface Joint extends ItemBase, Shelf {
+  category: 'joint'
+  perceptionSeconds: number
+  geometrie: GeometrieDose
+}
+
+export interface Drink extends ItemBase, Shelf {
+  category: 'drink'
+  container: ContainerKey
+  tripSeconds: number
+  geometrie: GeometrieDose
+}
+
+export interface Medicine extends ItemBase, Shelf {
+  category: 'medicine'
+  form: MedicineForm
+  geometrie: GeometrieDose
+}
+
+// Never on a shelf: Erwin von Dutch deals them (dealer.ts). The
+// psychedelics work like the joint, harder and longer; the stimulant like
+// a drink, a trip and a dose.
+export interface Psychedelic extends ItemBase {
+  category: 'psychedelic'
+  price?: undefined
+  perceptionSeconds: number
+  geometrie: GeometrieDose
+  heals: number
+}
+
+export interface Stimulant extends ItemBase {
+  category: 'stimulant'
+  price?: undefined
+  tripSeconds: number
+  geometrie: GeometrieDose
+  heals: number
+}
+
+// Never on a shelf: the valley hands it out.
+export interface Forage extends ItemBase {
+  category: 'forage'
+  price?: undefined
+}
+
+// Never on a shelf and of no use, but Moab takes it in trade.
+export interface Valuable extends ItemBase {
+  category: 'valuable'
+  price?: undefined
+}
+
+// What a quest gives or asks for (quests.ts), and the keys, which open
+// their locks for whoever carries them (keys.ts): never used up and never
+// dropped; they go where the pack goes, a strike included.
+export interface KeyItem extends ItemBase {
+  category: 'key-item'
+  price?: undefined
+}
+
+export type Item =
+  | Cigarette
+  | Joint
+  | Drink
+  | Medicine
+  | Psychedelic
+  | Stimulant
+  | Forage
+  | Valuable
+  | KeyItem
+
+export type ItemCategory = Item['category']
 
 export const ITEMS = [
   {
     id: 'marlboro',
     category: 'cigarette',
-    label: copy('items.marlboro.label'),
-    blurb: copy('items.marlboro.blurb'),
-    used: copy('items.marlboro.used'),
-    bought: copy('items.marlboro.bought'),
-    empty: copy('items.marlboro.empty'),
     start: 2,
     price: 549,
     contents: 20,
@@ -52,11 +149,6 @@ export const ITEMS = [
   {
     id: 'camel',
     category: 'cigarette',
-    label: copy('items.camel.label'),
-    blurb: copy('items.camel.blurb'),
-    used: copy('items.camel.used'),
-    bought: copy('items.camel.bought'),
-    empty: copy('items.camel.empty'),
     start: 0,
     price: 529,
     contents: 20,
@@ -68,11 +160,6 @@ export const ITEMS = [
   {
     id: 'parliament',
     category: 'cigarette',
-    label: copy('items.parliament.label'),
-    blurb: copy('items.parliament.blurb'),
-    used: copy('items.parliament.used'),
-    bought: copy('items.parliament.bought'),
-    empty: copy('items.parliament.empty'),
     start: 0,
     price: 599,
     contents: 20,
@@ -84,11 +171,6 @@ export const ITEMS = [
   {
     id: 'newport',
     category: 'cigarette',
-    label: copy('items.newport.label'),
-    blurb: copy('items.newport.blurb'),
-    used: copy('items.newport.used'),
-    bought: copy('items.newport.bought'),
-    empty: copy('items.newport.empty'),
     start: 0,
     price: 549,
     contents: 20,
@@ -100,11 +182,6 @@ export const ITEMS = [
   {
     id: 'djarum',
     category: 'cigarette',
-    label: copy('items.djarum.label'),
-    blurb: copy('items.djarum.blurb'),
-    used: copy('items.djarum.used'),
-    bought: copy('items.djarum.bought'),
-    empty: copy('items.djarum.empty'),
     start: 0,
     price: 649,
     contents: 20,
@@ -116,11 +193,6 @@ export const ITEMS = [
   {
     id: 'joints',
     category: 'joint',
-    label: copy('items.joints.label'),
-    blurb: copy('items.joints.blurb'),
-    used: copy('items.joints.used'),
-    bought: copy('items.joints.bought'),
-    empty: copy('items.joints.empty'),
     start: 1,
     price: 1000,
     // Shadowmen resolve through the murk while it lasts.
@@ -135,10 +207,6 @@ export const ITEMS = [
   {
     id: 'lsd',
     category: 'psychedelic',
-    label: copy('items.lsd.label'),
-    blurb: copy('items.lsd.blurb'),
-    used: copy('items.lsd.used'),
-    empty: copy('items.lsd.empty'),
     start: 0,
     perceptionSeconds: 480,
     geometrie: { high: 1 },
@@ -147,10 +215,6 @@ export const ITEMS = [
   {
     id: 'adderall',
     category: 'stimulant',
-    label: copy('items.adderall.label'),
-    blurb: copy('items.adderall.blurb'),
-    used: copy('items.adderall.used'),
-    empty: copy('items.adderall.empty'),
     start: 0,
     contents: 10,
     tripSeconds: 20,
@@ -160,10 +224,6 @@ export const ITEMS = [
   {
     id: 'mushrooms',
     category: 'psychedelic',
-    label: copy('items.mushrooms.label'),
-    blurb: copy('items.mushrooms.blurb'),
-    used: copy('items.mushrooms.used'),
-    empty: copy('items.mushrooms.empty'),
     start: 0,
     perceptionSeconds: 300,
     geometrie: { high: 0.85 },
@@ -178,11 +238,6 @@ export const ITEMS = [
   {
     id: 'monster',
     category: 'drink',
-    label: copy('items.monster.label'),
-    blurb: copy('items.monster.blurb'),
-    used: copy('items.monster.used'),
-    bought: copy('items.monster.bought'),
-    empty: copy('items.monster.empty'),
     start: 0,
     price: 219,
     container: 'tall',
@@ -193,11 +248,6 @@ export const ITEMS = [
   {
     id: 'monster-ultra',
     category: 'drink',
-    label: copy('items.monster-ultra.label'),
-    blurb: copy('items.monster-ultra.blurb'),
-    used: copy('items.monster-ultra.used'),
-    bought: copy('items.monster-ultra.bought'),
-    empty: copy('items.monster-ultra.empty'),
     start: 0,
     price: 219,
     container: 'tall',
@@ -208,11 +258,6 @@ export const ITEMS = [
   {
     id: 'red-bull',
     category: 'drink',
-    label: copy('items.red-bull.label'),
-    blurb: copy('items.red-bull.blurb'),
-    used: copy('items.red-bull.used'),
-    bought: copy('items.red-bull.bought'),
-    empty: copy('items.red-bull.empty'),
     start: 0,
     price: 199,
     container: 'slim',
@@ -223,11 +268,6 @@ export const ITEMS = [
   {
     id: 'rip-it',
     category: 'drink',
-    label: copy('items.rip-it.label'),
-    blurb: copy('items.rip-it.blurb'),
-    used: copy('items.rip-it.used'),
-    bought: copy('items.rip-it.bought'),
-    empty: copy('items.rip-it.empty'),
     start: 0,
     price: 99,
     container: 'tall',
@@ -238,11 +278,6 @@ export const ITEMS = [
   {
     id: 'rockstar',
     category: 'drink',
-    label: copy('items.rockstar.label'),
-    blurb: copy('items.rockstar.blurb'),
-    used: copy('items.rockstar.used'),
-    bought: copy('items.rockstar.bought'),
-    empty: copy('items.rockstar.empty'),
     start: 0,
     price: 199,
     container: 'tall',
@@ -253,11 +288,6 @@ export const ITEMS = [
   {
     id: 'nos',
     category: 'drink',
-    label: copy('items.nos.label'),
-    blurb: copy('items.nos.blurb'),
-    used: copy('items.nos.used'),
-    bought: copy('items.nos.bought'),
-    empty: copy('items.nos.empty'),
     start: 0,
     price: 229,
     container: 'nos',
@@ -268,11 +298,6 @@ export const ITEMS = [
   {
     id: 'four-loko-blue',
     category: 'drink',
-    label: copy('items.four-loko-blue.label'),
-    blurb: copy('items.four-loko-blue.blurb'),
-    used: copy('items.four-loko-blue.used'),
-    bought: copy('items.four-loko-blue.bought'),
-    empty: copy('items.four-loko-blue.empty'),
     start: 0,
     price: 249,
     container: 'tall',
@@ -283,11 +308,6 @@ export const ITEMS = [
   {
     id: 'four-loko-punch',
     category: 'drink',
-    label: copy('items.four-loko-punch.label'),
-    blurb: copy('items.four-loko-punch.blurb'),
-    used: copy('items.four-loko-punch.used'),
-    bought: copy('items.four-loko-punch.bought'),
-    empty: copy('items.four-loko-punch.empty'),
     start: 0,
     price: 249,
     container: 'tall',
@@ -298,11 +318,6 @@ export const ITEMS = [
   {
     id: 'four-loko-lemon',
     category: 'drink',
-    label: copy('items.four-loko-lemon.label'),
-    blurb: copy('items.four-loko-lemon.blurb'),
-    used: copy('items.four-loko-lemon.used'),
-    bought: copy('items.four-loko-lemon.bought'),
-    empty: copy('items.four-loko-lemon.empty'),
     start: 0,
     price: 249,
     container: 'tall',
@@ -313,11 +328,6 @@ export const ITEMS = [
   {
     id: 'wild-turkey',
     category: 'drink',
-    label: copy('items.wild-turkey.label'),
-    blurb: copy('items.wild-turkey.blurb'),
-    used: copy('items.wild-turkey.used'),
-    bought: copy('items.wild-turkey.bought'),
-    empty: copy('items.wild-turkey.empty'),
     start: 0,
     price: 2199,
     container: 'bourbon',
@@ -328,11 +338,6 @@ export const ITEMS = [
   {
     id: 'jim-beam',
     category: 'drink',
-    label: copy('items.jim-beam.label'),
-    blurb: copy('items.jim-beam.blurb'),
-    used: copy('items.jim-beam.used'),
-    bought: copy('items.jim-beam.bought'),
-    empty: copy('items.jim-beam.empty'),
     start: 0,
     price: 1599,
     container: 'square',
@@ -343,11 +348,6 @@ export const ITEMS = [
   {
     id: 'grey-goose',
     category: 'drink',
-    label: copy('items.grey-goose.label'),
-    blurb: copy('items.grey-goose.blurb'),
-    used: copy('items.grey-goose.used'),
-    bought: copy('items.grey-goose.bought'),
-    empty: copy('items.grey-goose.empty'),
     start: 0,
     price: 2999,
     container: 'goose',
@@ -358,11 +358,6 @@ export const ITEMS = [
   {
     id: 'pbr',
     category: 'drink',
-    label: copy('items.pbr.label'),
-    blurb: copy('items.pbr.blurb'),
-    used: copy('items.pbr.used'),
-    bought: copy('items.pbr.bought'),
-    empty: copy('items.pbr.empty'),
     start: 0,
     price: 99,
     container: 'can12',
@@ -373,11 +368,6 @@ export const ITEMS = [
   {
     id: 'high-life',
     category: 'drink',
-    label: copy('items.high-life.label'),
-    blurb: copy('items.high-life.blurb'),
-    used: copy('items.high-life.used'),
-    bought: copy('items.high-life.bought'),
-    empty: copy('items.high-life.empty'),
     start: 0,
     price: 129,
     container: 'longneck',
@@ -388,11 +378,6 @@ export const ITEMS = [
   {
     id: 'modelo',
     category: 'drink',
-    label: copy('items.modelo.label'),
-    blurb: copy('items.modelo.blurb'),
-    used: copy('items.modelo.used'),
-    bought: copy('items.modelo.bought'),
-    empty: copy('items.modelo.empty'),
     start: 0,
     price: 149,
     container: 'can12',
@@ -403,11 +388,6 @@ export const ITEMS = [
   {
     id: 'md-2020',
     category: 'drink',
-    label: copy('items.md-2020.label'),
-    blurb: copy('items.md-2020.blurb'),
-    used: copy('items.md-2020.used'),
-    bought: copy('items.md-2020.bought'),
-    empty: copy('items.md-2020.empty'),
     start: 0,
     price: 299,
     container: 'flask',
@@ -418,11 +398,6 @@ export const ITEMS = [
   {
     id: 'ice-mountain',
     category: 'drink',
-    label: copy('items.ice-mountain.label'),
-    blurb: copy('items.ice-mountain.blurb'),
-    used: copy('items.ice-mountain.used'),
-    bought: copy('items.ice-mountain.bought'),
-    empty: copy('items.ice-mountain.empty'),
     start: 0,
     price: 119,
     container: 'water',
@@ -437,11 +412,6 @@ export const ITEMS = [
   {
     id: 'aspirin',
     category: 'medicine',
-    label: copy('items.aspirin.label'),
-    blurb: copy('items.aspirin.blurb'),
-    used: copy('items.aspirin.used'),
-    bought: copy('items.aspirin.bought'),
-    empty: copy('items.aspirin.empty'),
     start: 0,
     price: 449,
     contents: 24,
@@ -452,11 +422,6 @@ export const ITEMS = [
   {
     id: 'ibuprofen',
     category: 'medicine',
-    label: copy('items.ibuprofen.label'),
-    blurb: copy('items.ibuprofen.blurb'),
-    used: copy('items.ibuprofen.used'),
-    bought: copy('items.ibuprofen.bought'),
-    empty: copy('items.ibuprofen.empty'),
     start: 0,
     price: 499,
     contents: 24,
@@ -467,11 +432,6 @@ export const ITEMS = [
   {
     id: 'benadryl',
     category: 'medicine',
-    label: copy('items.benadryl.label'),
-    blurb: copy('items.benadryl.blurb'),
-    used: copy('items.benadryl.used'),
-    bought: copy('items.benadryl.bought'),
-    empty: copy('items.benadryl.empty'),
     start: 0,
     price: 699,
     contents: 24,
@@ -482,11 +442,6 @@ export const ITEMS = [
   {
     id: 'eye-drops',
     category: 'medicine',
-    label: copy('items.eye-drops.label'),
-    blurb: copy('items.eye-drops.blurb'),
-    used: copy('items.eye-drops.used'),
-    bought: copy('items.eye-drops.bought'),
-    empty: copy('items.eye-drops.empty'),
     start: 0,
     price: 549,
     form: 'dropper',
@@ -499,16 +454,11 @@ export const ITEMS = [
   {
     id: 'cabbage',
     category: 'forage',
-    label: copy('items.cabbage.label'),
-    blurb: copy('items.cabbage.blurb'),
     start: 0,
   },
   {
     id: 'berries',
     category: 'forage',
-    label: copy('items.berries.label'),
-    blurb: copy('items.berries.blurb'),
-    collected: copy('items.berries.collected'),
     start: 0,
   },
   // Valuables. Not for sale and of no use, but Moab Coldë takes them in
@@ -516,25 +466,17 @@ export const ITEMS = [
   {
     id: 'gold-bullion',
     category: 'valuable',
-    label: copy('items.gold-bullion.label'),
-    blurb: copy('items.gold-bullion.blurb'),
     start: 0,
   },
-  // Key items: what a quest gives or asks for (quests.ts), and the keys,
-  // which open their locks for whoever carries them (keys.ts). Never used
-  // up and never dropped; they go where the pack goes, a strike included.
+  // Key items (KeyItem above).
   {
     id: 'rose',
     category: 'key-item',
-    label: copy('items.rose.label'),
-    blurb: copy('items.rose.blurb'),
     start: 0,
   },
   {
     id: 'vault-key',
     category: 'key-item',
-    label: copy('items.vault-key.label'),
-    blurb: copy('items.vault-key.blurb'),
     start: 0,
   },
 ] as const satisfies readonly Item[]
@@ -544,15 +486,16 @@ type ItemEntry = (typeof ITEMS)[number]
 // Every item id, as a type: a typo in a literal id fails the type check.
 export type ItemId = ItemEntry['id']
 
-// What a pickup in the valley can be: an item, or cash (drops.ts: the
-// dimes a shadowman bursts into, a spider's $20, the quarters left in the
-// plaza's laundromat), which is never an item.
-export type PickupKind = ItemId | 'dimes' | 'twenty' | 'quarters'
-
-// ITEMS widened to the plain Item shape, for code that reads optional
-// fields (container) across every entry.
+// What a pickup in the valley can be: an item, or the cash a shadow bursts
+// into (drops.ts CashKind: dimes, a spider's $20), never an item.
+export type PickupKind = ItemId | CashKind
 
 const BY_ID = new Map<string, Item>(ITEMS.map((item) => [item.id, item]))
+
+// Whether an id that came from outside the table is an item's.
+export function isItemId(id: string): id is ItemId {
+  return BY_ID.has(id)
+}
 
 // Look up an id that came from outside the table (saved inventory, a ring
 // entry). Null when the id is unknown.
@@ -593,15 +536,22 @@ export function isMedicine(id: string): boolean {
 // Whether the player can use a carried item (E in the pack, or its hotbar
 // key): anything smoked, drunk or swallowed.
 export function isUsable(id: string): boolean {
-  const category = itemById(id)?.category
-  return (
-    category === 'cigarette' ||
-    category === 'joint' ||
-    category === 'psychedelic' ||
-    category === 'stimulant' ||
-    category === 'drink' ||
-    healsOf(id) > 0
-  )
+  const item = itemById(id)
+  if (!item) return false
+  switch (item.category) {
+    case 'cigarette':
+    case 'joint':
+    case 'psychedelic':
+    case 'stimulant':
+    case 'drink':
+      return true
+    case 'medicine':
+      return (item.heals ?? 0) > 0
+    case 'forage':
+    case 'valuable':
+    case 'key-item':
+      return false
+  }
 }
 
 // Whether using `id` sharpens perception (the shadowmen resolve through
@@ -614,7 +564,26 @@ export function givesPerception(id: string): boolean {
 // Health points one use of `id` gives back (health.ts); 0 for anything
 // that does not heal.
 export function healsOf(id: string): number {
-  return itemById(id)?.heals ?? 0
+  const item = itemById(id)
+  return item && 'heals' in item ? (item.heals ?? 0) : 0
+}
+
+// How far one use of `id` moves geometrie (geometrie.ts dose): anything
+// smoked or drunk has a dose; nothing else moves it.
+export function geometrieOf(id: string): GeometrieDose | undefined {
+  const item = itemById(id)
+  if (!item) return undefined
+  switch (item.category) {
+    case 'cigarette':
+    case 'joint':
+    case 'drink':
+    case 'medicine':
+    case 'psychedelic':
+    case 'stimulant':
+      return item.geometrie
+    default:
+      return undefined
+  }
 }
 
 // How long using one unit of `id` puts trails on the view (trip.ts): a
@@ -623,9 +592,18 @@ export function healsOf(id: string): number {
 export function tripSecondsOf(id: string): number {
   const item = itemById(id)
   if (!item) return 0
-  if (item.category === 'cigarette') return item.smokeSeconds ?? 0
-  if (givesPerception(id)) return item.perceptionSeconds ?? 0
-  return item.tripSeconds ?? 0
+  switch (item.category) {
+    case 'cigarette':
+      return item.smokeSeconds
+    case 'joint':
+    case 'psychedelic':
+      return item.perceptionSeconds
+    case 'drink':
+    case 'stimulant':
+      return item.tripSeconds
+    default:
+      return 0
+  }
 }
 
 // The kinds the inventory counts: every item.

@@ -8,7 +8,7 @@ import { mulberry32 } from './rng.ts'
 import type { CanvasArt, CanvasSize } from './canvas.ts'
 
 // The face's pixels, in the face's proportions (assets.ts TOMBSTONE.face).
-export const TOMBSTONE_FACE_SIZE: CanvasSize = [128, 160]
+const TOMBSTONE_FACE_SIZE: CanvasSize = [128, 160]
 
 const STONE = '#80858b'
 // A cut letter: the shadow inside the cut, then its lit lower edge.
@@ -16,7 +16,7 @@ const CUT = '#121416'
 const LIT = '#b4b9be'
 
 // The words of `name`, broken into lines of at most `chars` letters.
-export function nameLines(name: string, chars = 11): string[] {
+function nameLines(name: string, chars = 11): string[] {
   const lines: string[] = []
   for (const word of name.split(/\s+/).filter(Boolean)) {
     const last = lines.length - 1

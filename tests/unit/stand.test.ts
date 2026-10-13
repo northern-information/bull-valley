@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
 import { copy } from '../../src/copy.ts'
+import { pickupLabel } from '../../src/interactions.ts'
 import {
   accruedAt,
   affordsUpgrade,
@@ -17,6 +18,7 @@ import {
   refusalLine,
   settle,
   shelfRoom,
+  standNews,
   standXp,
   stock,
   stocked,
@@ -24,6 +26,7 @@ import {
   upgrade,
   upgradePrice,
 } from '../../src/stand.ts'
+import { formatCash } from '../../src/store.ts'
 import type { StandLedger } from '../../src/stand.ts'
 
 const HOUR = 60 * 60 * 1000
@@ -104,6 +107,16 @@ describe('the Cabbage Stand', () => {
     expect(got && collect(got.ledger, after)).toBeNull()
   })
 
+  it('earns again under the new cap once a capped stand levels up', () => {
+    const capped = settle(full(), 100 * one.capHours * HOUR)
+    expect(capped.banked).toBe(capOf(full()))
+    expect(accruedAt(capped, capped.since + HOUR)).toBe(capped.banked)
+    const up = upgrade(capped, capped.since)
+    if (!up) throw new Error('upgraded')
+    expect(capOf(up)).toBeGreaterThan(capOf(capped))
+    expect(accruedAt(up, up.since + HOUR)).toBeGreaterThan(up.banked)
+  })
+
   it('levels up for its price, banking first, until the top', () => {
     expect(upgradePrice(FRESH_STAND)).toEqual(two.price)
     const price = two.price
@@ -170,6 +183,37 @@ describe('the stand refused', () => {
     expect(new Set(lines).size).toBe(reasons.length)
     expect(refusalLine('aboard')).toBe(refusalLine('no-stand'))
     expect(refusalLine('not-in-valley')).toBe(copy('log.stand_offline'))
+  })
+})
+
+describe('the stand’s news', () => {
+  it('names the goods put out, as many as the table gained', () => {
+    const was = { ...FRESH_STAND, stock: { cabbage: 2 } }
+    const stand = { ...FRESH_STAND, stock: { cabbage: 5 } }
+    expect(standNews({ re: 'stock', stand }, was)).toBe(
+      copy('log.stand_stocked', {
+        item: pickupLabel({ kind: 'cabbage', count: 3 }),
+      })
+    )
+    expect(standNews({ re: 'stock', stand }, null)).toBe(
+      copy('log.stand_stocked', {
+        item: pickupLabel({ kind: 'cabbage', count: 5 }),
+      })
+    )
+    expect(standNews({ re: 'stock', stand }, stand)).toBeNull()
+  })
+
+  it('says what was collected, and the new level', () => {
+    expect(
+      standNews({ re: 'collect', stand: FRESH_STAND, cents: 1234 }, null)
+    ).toBe(copy('log.stand_collected', { amount: formatCash(1234) }))
+    expect(standNews({ re: 'collect', stand: FRESH_STAND }, null)).toBe(
+      copy('log.stand_collected', { amount: formatCash(0) })
+    )
+    const upgraded = { ...FRESH_STAND, level: 2 }
+    expect(standNews({ re: 'upgrade', stand: upgraded }, FRESH_STAND)).toBe(
+      copy('log.stand_upgraded', { level: 2 })
+    )
   })
 })
 

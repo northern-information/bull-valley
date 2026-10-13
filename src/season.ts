@@ -6,8 +6,10 @@
 // (sharedworld.ts rule 15).
 //
 // Pure, no Three. The progress is the account's, kept in D1 by the valley
-// (worker/packs.ts); this says what an unmaking does to it.
+// (worker/packs.ts); this says what an unmaking does to it, by the counting
+// every goal shares (goal.ts).
 
+import { advance, goalNews, shownProgress } from './goal.ts'
 import { contentsOf } from './items.ts'
 
 // What finishing the season pays: cents into the wallet, units of one kind
@@ -56,11 +58,13 @@ export function tally(
   progress: SeasonProgress,
   season: Season = SEASON
 ): { progress: SeasonProgress; reward: SeasonReward | null } {
-  const kills = progress.kills + 1
-  const due = !progress.claimed && kills >= season.goal
+  const out = advance(
+    { count: progress.kills, claimed: progress.claimed },
+    season
+  )
   return {
-    progress: { kills, claimed: progress.claimed || due },
-    reward: due ? season.reward : null,
+    progress: { kills: out.progress.count, claimed: out.progress.claimed },
+    reward: out.reward,
   }
 }
 
@@ -69,7 +73,10 @@ export function shownKills(
   progress: SeasonProgress,
   season: Season = SEASON
 ): number {
-  return Math.min(season.goal, Math.max(0, progress.kills))
+  return shownProgress(
+    { count: progress.kills, claimed: progress.claimed },
+    season
+  )
 }
 
 // What a credited unmaking means to the raider: the one that paid the
@@ -80,6 +87,9 @@ export function newsOf(
   progress: SeasonProgress,
   rewarded: boolean
 ): SeasonNews {
-  if (rewarded) return 'complete'
-  return progress.claimed ? 'again' : 'unmade'
+  const news = goalNews(
+    { count: progress.kills, claimed: progress.claimed },
+    rewarded
+  )
+  return news === 'paid' ? 'complete' : news === 'past' ? 'again' : 'unmade'
 }

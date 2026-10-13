@@ -34,6 +34,12 @@ describe('the XP curve', () => {
     }
   })
 
+  it('turns over at the last XP point before each level, the top included', () => {
+    expect(levelOf(xpToReach(CFG.maxLevel) - 1)).toBe(CFG.maxLevel - 1)
+    expect(levelOf(xpToReach(CFG.maxLevel))).toBe(CFG.maxLevel)
+    expect(levelOf(xpToReach(2) - 1)).toBe(1)
+  })
+
   it('never goes past the highest level', () => {
     expect(levelOf(Number.MAX_SAFE_INTEGER)).toBe(CFG.maxLevel)
     expect(levelOf(10_000, { base: 1, power: 1, maxLevel: 5 })).toBe(5)

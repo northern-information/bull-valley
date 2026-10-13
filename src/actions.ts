@@ -7,7 +7,7 @@
 // pure modules'; this is the glue that applies them and says so.
 
 import { saveHotbar, saveLook } from './auth.ts'
-import { CHAPTERS, entryOf, newlyFound } from './book.ts'
+import { CHAPTERS, entryOf, knownOf, newlyFound } from './book.ts'
 import { portraitOf } from './bookportraits.ts'
 import {
   CHAT_COPY,
@@ -41,7 +41,8 @@ import { hit, isWhole, MAX_HEALTH, mend } from './health.ts'
 import { assign, clearSlot as clearHotbarSlot, place, spent } from './hotbar.ts'
 import { pickupLabel } from './interactions.ts'
 import { addItem, consume } from './inventory.ts'
-import { getItem, healsOf, isKeyItem, itemById } from './items.ts'
+import { itemLabel, itemLine } from './itemcopy.ts'
+import { geometrieOf, healsOf, isKeyItem } from './items.ts'
 import { board, call, hopOut as hopOutOf, refused } from './marx.ts'
 import { npcLine } from './npcs.ts'
 import { outfitById } from './outfits.ts'
@@ -97,8 +98,8 @@ export interface Actions {
   stepEntry(step: number): void
   // Entries of the Book of Shadows this raider has just come across
   // (book.ts ids): asked of the valley, or played alone written at once.
-  // Anything found or already asked is left out, so the loop may call it
-  // every frame.
+  // Anything found or already asked is left out (GameState.known), so the
+  // loop may call it on every state-frame tick.
   discover(ids: readonly string[]): void
   // Entries the valley wrote in the account's book: news, each one.
   applyBook(found: readonly string[]): void
@@ -122,7 +123,7 @@ export interface Actions {
   // off.
   leaveBed(line?: string): void
   // A shadow touched you: one point of health off (sharedworld.ts rule
-  // 22), the valley's word on what is left, or alone our own. The last one
+  // 24), the valley's word on what is left, or alone our own. The last one
   // shatters your geometrie, and everything the pack held stays on your
   // body where you fell (rule 18).
   strike(by?: 'shadowman' | 'caretaker' | 'tunnel', health?: number): void
@@ -194,18 +195,37 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     hud.selectBagTab(tab)
     refreshBag()
   }
-  hud.onBagTab = showBagTab
+  hud.pack.onTab = showBagTab
 
-  // The pack opens over the valley with the pointer free for it, as Gron's
-  // dialog does, on its first tab; the player freezes, the valley does not.
-  const openInventory = (atLocker = false) => {
+  // A panel over the valley (the pack, the book) with the pointer free for
+  // it, as Gron's dialog has it; the player freezes, the valley does not.
+  const withPanel = (open: () => void) => {
     player.keys.clear()
-    s.lockerOpen = atLocker
-    hud.setLocker(atLocker)
-    s.inventoryOpen = hud.showBag(true)
-    showBagTab(PACK_TABS[0])
+    open()
     if (document.pointerLockElement) document.exitPointerLock()
   }
+
+  // A dialog over the valley (Gron's, the stand's): the game stands aside
+  // (talking) with the pointer free until it closes, then takes it back.
+  // The valley does not stop for it.
+  const withDialog = (open: () => Promise<void>) => {
+    s.talking = true
+    player.keys.clear()
+    if (document.pointerLockElement) document.exitPointerLock()
+    void open().then(() => {
+      s.talking = false
+      engagePointer()
+    })
+  }
+
+  // The pack opens on its first tab.
+  const openInventory = (atLocker = false) =>
+    withPanel(() => {
+      s.lockerOpen = atLocker
+      hud.setLocker(atLocker)
+      s.inventoryOpen = hud.showBag(true)
+      showBagTab(PACK_TABS[0])
+    })
 
   const closeInventory = (relock = false) => {
     if (!s.inventoryOpen) return
@@ -240,9 +260,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   const openBook = () => {
     closeInventory()
-    player.keys.clear()
-    s.bookOpen = hud.showBook(true)
-    if (document.pointerLockElement) document.exitPointerLock()
+    withPanel(() => {
+      s.bookOpen = hud.showBook(true)
+    })
   }
 
   const closeBook = (relock = false) => {
@@ -261,14 +281,16 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   const setBook = (found: ReadonlySet<string>) => {
     s.book = new Set(found)
-    s.bookAsked.clear()
+    s.pending.book.clear()
+    s.known = knownOf(s.book, s.pending.book)
     bookHud.setFound(s.book)
   }
 
   const applyBook = (found: readonly string[]) => {
     const names: string[] = []
     for (const id of found) {
-      s.bookAsked.delete(id)
+      s.pending.book.delete(id)
+      s.known.add(id)
       if (s.book.has(id)) continue
       s.book.add(id)
       const entry = entryOf(id)
@@ -282,19 +304,23 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // never asks again every frame.
   let bookWaitUntil = 0
   const bookRefused = () => {
-    s.bookAsked.clear()
+    s.pending.book.clear()
+    s.known = knownOf(s.book, s.pending.book)
     bookWaitUntil = performance.now() + BOOK_RETRY_MS
   }
 
   const discover = (ids: readonly string[]) => {
     if (ids.length === 0 || performance.now() < bookWaitUntil) return
-    const fresh = newlyFound(new Set([...s.book, ...s.bookAsked]), ids)
+    const fresh = newlyFound(s.known, ids)
     if (fresh.length === 0) return
     // Online, the valley writes it and says so. Before it has welcomed us,
     // or while it is out of reach after it had, nothing is asked, and a
     // later frame asks again; only played alone is it written here.
     if (net.online && s.world) {
-      for (const id of fresh) s.bookAsked.add(id)
+      for (const id of fresh) {
+        s.pending.book.add(id)
+        s.known.add(id)
+      }
       net.send({ type: 'discover', entries: fresh })
     } else if (net.status === 'offline' && !s.world) {
       applyBook(fresh)
@@ -347,7 +373,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     closeInventory()
     if (s.world) {
       s.aboard = true
-      s.pendingBoard = true
+      s.pending.board = true
       net.send({ type: 'board' })
       hud.tell(copy('log.board'))
       return
@@ -473,8 +499,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // frame brings the things back; alone they come back at once.
   const lootCorpse = (id: number) => {
     if (s.world) {
-      if (s.pendingLoots.has(id)) return
-      s.pendingLoots.add(id)
+      if (s.pending.loots.has(id)) return
+      s.pending.loots.add(id)
       net.send({ type: 'loot', corpse: id })
       return
     }
@@ -529,30 +555,26 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       hud.tell(copy('log.stand_offline'))
       return
     }
-    s.talking = true
     s.standSaid = null
-    player.keys.clear()
-    if (document.pointerLockElement) document.exitPointerLock()
     const ask = (msg: Parameters<typeof net.send>[0]) => {
-      s.pendingStand = true
+      s.pending.stand = true
       s.standSaid = null
       net.send(msg)
     }
-    void openStandDialog({
-      goods: CONFIG.stand.goods,
-      ledger: () => (s.world ? s.stand : null),
-      pack: () => s.inventory,
-      cash: () => s.cash,
-      now: () => net.clock.serverNow(performance.now()),
-      pending: () => s.pendingStand,
-      said: () => s.standSaid,
-      onStock: (kind, count) => ask({ type: 'stand-stock', kind, count }),
-      onCollect: () => ask({ type: 'stand-collect' }),
-      onUpgrade: () => ask({ type: 'stand-upgrade' }),
-    }).then(() => {
-      s.talking = false
-      engagePointer()
-    })
+    withDialog(() =>
+      openStandDialog({
+        goods: CONFIG.stand.goods,
+        ledger: () => (s.world ? s.stand : null),
+        pack: () => s.inventory,
+        cash: () => s.cash,
+        now: () => net.clock.serverNow(performance.now()),
+        pending: () => s.pending.stand,
+        said: () => s.standSaid,
+        onStock: (kind, count) => ask({ type: 'stand-stock', kind, count }),
+        onCollect: () => ask({ type: 'stand-collect' }),
+        onUpgrade: () => ask({ type: 'stand-upgrade' }),
+      })
+    )
   }
 
   // E beside Erwin von Dutch, the squatter in the plaza: what he deals
@@ -627,7 +649,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         return
     }
   }
-  hud.onBagAction = bagAction
+  hud.pack.onAction = bagAction
 
   // T: Marx comes to us, if he is free, and drives us home. No whistle
   // carries up out of the Undercroft.
@@ -654,8 +676,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       return
     }
     if (s.world) {
-      // One whistle for the whole valley; the world frame drives the truck.
-      net.send({ type: 'call', from, to })
+      // One whistle for the whole valley; the world frame drives the truck
+      // to where the valley last heard the whistler.
+      net.send({ type: 'call', from })
       return
     }
     hud.tell(copy('log.whistle'))
@@ -692,8 +715,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       // valley says it was still there. The judgement above (stock as
       // last heard, cash) stands; the valley settles the race.
       const key = `${shelf.station}:${shelf.item}`
-      if (s.pendingBuys.has(key)) return
-      s.pendingBuys.add(key)
+      if (s.pending.buys.has(key)) return
+      s.pending.buys.add(key)
       net.send({
         type: 'buy',
         station: shelf.station,
@@ -720,14 +743,14 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       hud.tell(copy('log.berry_picked'))
       return
     }
-    if (s.pendingCollect) return
-    s.pendingCollect = true
+    if (s.pending.collect) return
+    s.pending.collect = true
     net.send({ type: 'collect', bush })
   }
 
   // A berry into the pack, or not today.
   const applyDaily = (msg: DailyMessage) => {
-    s.pendingCollect = false
+    s.pending.collect = false
     s.daily = msg.daily
     if (!msg.picked) {
       hud.tell(copy('log.berry_picked'))
@@ -735,7 +758,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     }
     s.inventory = addItem(s.inventory, 'berries', 1)
     refreshBag()
-    hud.tell(getItem('berries').collected)
+    const collected = itemLine('berries', 'collected')
+    if (collected) hud.tell(collected)
   }
 
   // A line from an NPC into this player's chat log alone; the valley never
@@ -762,7 +786,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   const wear = (cosmetics: CosmeticId[]) => {
     const gained = cosmetics.filter((id) => !s.cosmetics.includes(id))
     s.cosmetics = cosmetics
-    s.pendingTrade = false
+    s.pending.trade = false
     for (const id of gained) {
       npcSays('moab', copy('moab.traded'))
       const label = cosmeticById(id)?.label ?? id
@@ -771,14 +795,14 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
 
   const tradeRefused = (reason: string) => {
-    s.pendingTrade = false
+    s.pending.trade = false
     const cosmetic =
       s.interaction?.kind === 'trade' ? cosmeticById(s.interaction.offer) : null
     if (reason === 'short' && cosmetic) {
       hud.tell(
         copy('log.trade_short', {
           count: cosmetic.price.count,
-          price: itemById(cosmetic.price.kind)?.label ?? cosmetic.price.kind,
+          price: itemLabel(cosmetic.price.kind),
         })
       )
     } else if (reason === 'owned' && cosmetic) {
@@ -787,7 +811,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
 
   const trade = (offer: CosmeticId) => {
-    if (s.pendingTrade) return
+    if (s.pending.trade) return
     const cosmetic = cosmeticById(offer)
     if (!cosmetic || s.cosmetics.includes(offer)) return
     if (!affords(s.inventory, offer)) {
@@ -795,7 +819,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       return
     }
     if (s.world) {
-      s.pendingTrade = true
+      s.pending.trade = true
       net.send({ type: 'trade', offer })
       return
     }
@@ -811,14 +835,14 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     const heals = healsOf(kind)
     const result = consume(s.inventory, kind, s.effects, s.time)
     if (!result.used) {
-      const empty = result.reason === 'empty' ? itemById(kind)?.empty : null
+      const empty = result.reason === 'empty' ? itemLine(kind, 'empty') : null
       if (empty) hud.tell(empty)
       return
     }
     s.inventory = result.inv
     keepHotbar(spent(s.hotbar, kind, s.inventory))
     s.effects = result.effects
-    s.geometrie = dose(s.geometrie, itemById(kind)?.geometrie, s.time)
+    s.geometrie = dose(s.geometrie, geometrieOf(kind), s.time)
     // The right hand brings it up (fphands.ts).
     s.using = { kind, at: s.time }
     // The unit is the account's: the valley takes it out of the pack, and
@@ -826,7 +850,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     net.send({ type: 'use', kind })
     if (!s.world && heals > 0) s.health = mend(s.health, heals)
     refreshBag()
-    const used = itemById(kind)?.used
+    const used = itemLine(kind, 'used')
     if (used) hud.tell(used)
   }
 
@@ -903,8 +927,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   const takeDrop = (drop: number) => {
     if (s.world) {
-      if (s.pendingDrops.has(drop)) return
-      s.pendingDrops.add(drop)
+      if (s.pending.drops.has(drop)) return
+      s.pending.drops.add(drop)
       net.send({ type: 'take-drop', drop })
       return
     }
@@ -951,46 +975,41 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     // Pickups are shared by index: ask, and take it when the valley says
     // it is ours.
     const index = world.pickups.indexOf(pickup)
-    if (index < 0 || s.pendingTakes.has(index)) return
-    s.pendingTakes.add(index)
+    if (index < 0 || s.pending.takes.has(index)) return
+    s.pending.takes.add(index)
     net.send({ type: 'take', index })
   }
 
-  // Gron's dialog: the pointer comes free for it and the game stands aside
-  // (talking). He changes the name the valley knows and the body worn. The
-  // valley does not stop for him.
+  // Gron's dialog: the game stands aside for it (talking). He changes the
+  // name the valley knows and the body worn.
   const talkToGron = () => {
     if (s.talking) return
-    s.talking = true
-    player.keys.clear()
-    if (document.pointerLockElement) document.exitPointerLock()
     const { pick } = game
-    void openGronDialog({
-      username: pick.username,
-      outfit: pick.outfit,
-      finish: pick.finish,
-      cosmetics: s.cosmetics,
-      onRenamed: (name) => {
-        pick.username = name
-        hud.setRaider(name)
-        net.send({ type: 'rename' })
-      },
-      onBecome: (outfit, finish) => {
-        void saveLook({ outfit, finish }).then((saved) => {
-          if (!saved.ok) hud.tell(saved.error)
-        })
-        pick.finish = finish
-        game.playerBody.restyle(outfit, finishById(finish).color)
-        game.hands.restyle(outfit)
-        pick.outfit = outfit
-        // A reconnect says hello in the new body too.
-        net.setOutfit(outfit)
-        net.send({ type: 'appearance', outfit })
-      },
-    }).then(() => {
-      s.talking = false
-      engagePointer()
-    })
+    withDialog(() =>
+      openGronDialog({
+        username: pick.username,
+        outfit: pick.outfit,
+        finish: pick.finish,
+        cosmetics: s.cosmetics,
+        onRenamed: (name) => {
+          pick.username = name
+          hud.setRaider(name)
+          net.send({ type: 'rename' })
+        },
+        onBecome: (outfit, finish) => {
+          void saveLook({ outfit, finish }).then((saved) => {
+            if (!saved.ok) hud.tell(saved.error)
+          })
+          pick.finish = finish
+          game.playerBody.restyle(outfit, finishById(finish).color)
+          game.hands.restyle(outfit)
+          pick.outfit = outfit
+          // A reconnect says hello in the new body too.
+          net.setOutfit(outfit)
+          net.send({ type: 'appearance', outfit })
+        },
+      })
+    )
   }
 
   const interact = () => {
@@ -1112,16 +1131,16 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     }
     switch (command.name) {
       case 'friends':
-        s.showFriends = true
+        s.pending.showFriends = true
         net.send({ type: 'friends' })
         return
       case 'whisper':
-        s.whisperTo = command.to
+        s.pending.whisperTo = command.to
         net.send({ type: 'whisper', to: command.to, text: command.text })
         return
       case 'friend':
       case 'unfriend':
-        s.pendingAsk = { op: command.name, name: command.who }
+        s.pending.ask = { op: command.name, name: command.who }
         net.send({ type: command.name, name: command.who })
         return
     }

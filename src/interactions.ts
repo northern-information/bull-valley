@@ -7,7 +7,8 @@ import { copy } from './copy.ts'
 import { nearestCorpse } from './corpses.ts'
 import { cosmeticById } from './cosmetics.ts'
 import { GOLD_BULLION, isCash, QUARTERS, TWENTY } from './drops.ts'
-import { getItem, itemById } from './items.ts'
+import { itemLabel as itemName } from './itemcopy.ts'
+import { itemById } from './items.ts'
 import { npcReach } from './npcs.ts'
 import { formatCash } from './store.ts'
 import type { CorpseWire } from './corpses.ts'
@@ -298,9 +299,9 @@ export function pickupLabel({
   if (kind === QUARTERS) return copy('labels.quarters', { count })
   if (isCash(kind)) return copy('labels.dimes', { count })
   // A bar is one troy ounce, and its name says so.
-  if (kind === GOLD_BULLION && count === 1) return getItem(GOLD_BULLION).label
+  if (kind === GOLD_BULLION && count === 1) return itemName(GOLD_BULLION)
   return copy('labels.pickup_count', {
-    item: itemById(kind)?.label ?? kind,
+    item: itemName(kind),
     count,
   })
 }
@@ -321,7 +322,7 @@ export function itemLabel(interaction: Interaction): ItemLabel | null {
     case 'buy':
       return {
         text: copy('labels.price', {
-          item: itemById(interaction.item)?.label ?? interaction.item,
+          item: itemName(interaction.item),
           price: formatCash(interaction.price),
         }),
         dim: !interaction.affordable,
@@ -340,6 +341,30 @@ export function itemLabel(interaction: Interaction): ItemLabel | null {
       return null
   }
   return null
+}
+
+// What the prompt and the label of an interaction are made from, as one
+// string: while it holds the same, the loop keeps the lines it had
+// rather than filling them again every frame.
+export function interactionKey(interaction: Interaction): string {
+  switch (interaction.kind) {
+    case 'pickup':
+      return `pickup:${interaction.pickup.kind}:${interaction.pickup.count}`
+    case 'buy':
+      return `buy:${interaction.item}:${interaction.price}:${interaction.affordable}`
+    case 'collect':
+      return `collect:${interaction.bush}:${interaction.status}`
+    case 'speak':
+      return `speak:${interaction.npc}:${interaction.station ?? ''}`
+    case 'trade':
+      return `trade:${interaction.offer}:${interaction.station}`
+    case 'loot':
+      return `loot:${interaction.corpse}`
+    case 'locker':
+      return `locker:${interaction.station}`
+    default:
+      return interaction.kind
+  }
 }
 
 // The bottom prompt for what E would do, or null where something else
@@ -377,12 +402,11 @@ export function interactionPrompt(interaction: Interaction): string | null {
     // Moab's offer is said, since the glow alone cannot say what he wants.
     case 'trade': {
       const cosmetic = cosmeticById(interaction.offer)
-      const price = cosmetic ? itemById(cosmetic.price.kind) : null
-      if (!cosmetic || !price) return null
+      if (!cosmetic || !itemById(cosmetic.price.kind)) return null
       return copy('prompts.trade', {
         cosmetic: cosmetic.label,
         count: cosmetic.price.count,
-        price: price.label,
+        price: itemName(cosmetic.price.kind),
       })
     }
   }

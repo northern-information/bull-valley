@@ -106,6 +106,8 @@ test('Erwin barters, the rose earns the key, the key opens the office', async ({
     if (!bv || !twenty) throw new Error('no twenty')
     bv.player.relocate(twenty.x + 0.6, twenty.z, 0)
   })
+  // The valley pays only a raider it has heard standing by it.
+  await heardWhere(page)
   await expect(page.locator('.bv-item-label')).toContainText(
     copy('labels.twenty')
   )

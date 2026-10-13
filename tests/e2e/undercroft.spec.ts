@@ -50,6 +50,8 @@ test('the trapdoor goes down to the Undercroft, its gold, and back up', async ({
     if (!bv || !gold) throw new Error('no gold')
     bv.player.relocate(gold.x + 0.4, gold.z, 0)
   })
+  // The valley hands it over only to a raider it has heard standing by it.
+  await heardWhere(page)
   await expect(page.locator('.bv-item-label')).toContainText(
     copy('items.gold-bullion.label')
   )

@@ -7,9 +7,10 @@
 // Pure, no Three. What the account has found is the account's, kept in D1
 // by the valley (sharedworld.ts rule 20, worker/packs.ts); this says what
 // the entries are and what an ask adds. The words are COPY.toml's [book]
-// (an item's are its own, [items.<id>]); the portraits are bookthumbs.ts's.
+// (an item's are its own, [items.<id>]); the portraits are bookportraits.ts's.
 
 import { copy } from './copy.ts'
+import { itemBlurb, itemLabel } from './itemcopy.ts'
 import { ITEMS } from './items.ts'
 import type { XZ } from './interfaces.ts'
 
@@ -163,15 +164,12 @@ export const BOOK: readonly BookEntry[] = [
   ...ITEMS.map((item) => ({
     id: item.id,
     chapter: 'items' as const,
-    name: item.label,
-    lore: item.blurb,
+    name: itemLabel(item.id),
+    lore: itemBlurb(item.id),
   })),
 ]
 
 const BY_ID = new Map(BOOK.map((entry) => [entry.id, entry]))
-
-// The most one discover frame may name: every entry at once.
-export const DISCOVER_MAX = BOOK.length
 
 export function isEntry(id: unknown): id is string {
   return typeof id === 'string' && BY_ID.has(id)
@@ -198,9 +196,22 @@ export function tallyOf(
   }
 }
 
-// What an ask adds to what is known: each named entry that is real and
-// not known yet, once, in the order asked. The valley writes these, and
-// they alone are news (sharedworld.ts rule 20).
+// What the client holds as known: the entries found, and the ones asked
+// of the valley and not yet answered. The client keeps this set beside
+// the two (game.ts GameState.known), adding to it as each changes, so
+// discover() never builds it again.
+export function knownOf(
+  found: ReadonlySet<string>,
+  asked: ReadonlySet<string>
+): Set<string> {
+  const known = new Set(found)
+  for (const id of asked) known.add(id)
+  return known
+}
+
+// What an ask adds to what is known (knownOf): each named entry that is
+// real and not known yet, once, in the order asked. The valley writes
+// these, and they alone are news (sharedworld.ts rule 20).
 export function newlyFound(
   known: ReadonlySet<string>,
   asked: readonly unknown[]

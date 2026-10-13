@@ -1,9 +1,11 @@
 # Copy to .dev.vars (gitignored) for `npm run dev`. Every value is optional:
 # without JWT_SECRET a dev server signs sessions with a fixed dev secret,
 # and a provider with no client id is simply not offered. The Dev provider
-# needs nothing. Register each OAuth app with the redirect URI
+# needs nothing, and without MAGIC_WORD a dev server takes "berries".
+# Register each OAuth app with the redirect URI
 # http://localhost:5174/auth/<provider>/callback.
 JWT_SECRET=
+MAGIC_WORD=
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 DISCORD_CLIENT_ID=

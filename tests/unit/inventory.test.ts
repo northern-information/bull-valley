@@ -3,12 +3,11 @@ import { NO_EFFECTS } from '../../src/hotbar.ts'
 import {
   addItem,
   consume,
-  KINDS,
   STARTING_INVENTORY,
   toInventory,
   useItem,
 } from '../../src/inventory.ts'
-import { getItem, tripSecondsOf } from '../../src/items.ts'
+import { getItem, INVENTORY_KINDS, tripSecondsOf } from '../../src/items.ts'
 import type { Inventory } from '../../src/interfaces.ts'
 
 describe('inventory', () => {
@@ -25,7 +24,9 @@ describe('inventory', () => {
   })
 
   it('starts with every kind present', () => {
-    expect(Object.keys(STARTING_INVENTORY).sort()).toEqual([...KINDS].sort())
+    expect(Object.keys(STARTING_INVENTORY).sort()).toEqual(
+      [...INVENTORY_KINDS].sort()
+    )
     expect(STARTING_INVENTORY).toMatchObject({ marlboro: 2, joints: 1 })
   })
 

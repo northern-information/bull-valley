@@ -8,6 +8,7 @@ import {
   dropSpot,
   GOLD_BULLION,
   isCash,
+  isPickupKind,
   spillsOf,
   takeUp,
   TWENTY,
@@ -73,6 +74,30 @@ describe('a twenty', () => {
 })
 
 describe('spillsOf', () => {
+  it('leaves only kinds a pickup can be: cash or an item', () => {
+    const spills = spillsOf(
+      [
+        { x: 0, z: 0 },
+        { x: 1, z: 1, kind: 'man' },
+        { x: 2, z: 2, kind: 'spider' },
+        { x: 3, z: 3, kind: 'spiderling' },
+      ],
+      { x: 4, z: 4 },
+      mulberry32(5)
+    )
+    expect(spills.length).toBeGreaterThan(4)
+    for (const spill of spills) expect(isPickupKind(spill.kind)).toBe(true)
+  })
+
+  it('tells cash and items from anything else', () => {
+    expect(isPickupKind(DIMES)).toBe(true)
+    expect(isPickupKind(TWENTY)).toBe(true)
+    expect(isPickupKind(GOLD_BULLION)).toBe(true)
+    expect(isPickupKind('cabbage')).toBe(true)
+    expect(isPickupKind('toString')).toBe(false)
+    expect(isPickupKind('')).toBe(false)
+  })
+
   it('leaves dimes at each burst, and two 1 troy ounce bars where the Caretaker was unmade', () => {
     const rng = mulberry32(3)
     const spills = spillsOf([{ x: 1, z: 2 }], { x: 5, z: 6 }, rng)

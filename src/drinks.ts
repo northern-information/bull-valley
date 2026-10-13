@@ -27,13 +27,16 @@ const CANS: readonly ContainerKey[] = ['tall', 'slim', 'can12']
 
 type Family = 'can' | 'bottle'
 
-function familyOf(container: ContainerKey | undefined): Family {
-  return container && CANS.includes(container) ? 'can' : 'bottle'
+function familyOf(container: ContainerKey): Family {
+  return CANS.includes(container) ? 'can' : 'bottle'
 }
 
-// The height a view fits this drink's family to.
+// The height a view fits this drink's family to; a bottle's for anything
+// that is not a drink.
 export function drinkFitHeight(id: string): number {
-  const family = familyOf(itemById(id)?.container)
+  const item = itemById(id)
+  const family =
+    item?.category === 'drink' ? familyOf(item.container) : 'bottle'
   return Math.max(
     ...(Object.entries(CONTAINERS) as [ContainerKey, Container][])
       .filter(([name]) => familyOf(name) === family)

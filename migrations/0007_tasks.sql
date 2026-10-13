@@ -1,3 +1,9 @@
+-- Frozen: this file and 0007_stashes.sql share a number. Both were applied
+-- to production under these names, in lexical order (stashes, then tasks),
+-- and wrangler records a migration by its file name, so neither may ever
+-- be renamed: a renamed one would run its CREATE TABLE again and fail the
+-- deploy. tests/unit/migrations.test.ts allows this pair alone.
+--
 -- Each account's progress on each daily task (src/dailytask.ts): the
 -- Central day it counts (src/daily.ts dayKey), the shadowmen burned with
 -- their beam on them that day, and whether that day's reward has been

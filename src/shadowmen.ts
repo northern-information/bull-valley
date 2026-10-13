@@ -42,12 +42,6 @@ export type ShadowmenConfig = typeof CONFIG.shadowmen
 // (CONFIG.shadowmen.spiderling).
 export type ShadeKind = 'man' | 'spider' | 'spiderling'
 
-export const SHADE_KINDS: readonly ShadeKind[] = ['man', 'spider', 'spiderling']
-
-export function isShadeKind(value: unknown): value is ShadeKind {
-  return SHADE_KINDS.includes(value as ShadeKind)
-}
-
 // How a kind crosses, rushes, touches and burns.
 export function speedRange(
   kind: ShadeKind,
@@ -78,6 +72,13 @@ export function touchRadiusOf(kind: ShadeKind, cfg: ShadowmenConfig): number {
 }
 
 // Seconds in a beam until it bursts.
+// How big one bursts (shadowburst.ts), against a shadowman's burst.
+export function burstScaleOf(kind: ShadeKind, cfg: ShadowmenConfig): number {
+  if (kind === 'spider') return cfg.spider.burstScale
+  if (kind === 'spiderling') return cfg.spiderling.burstScale
+  return 1
+}
+
 export function burnSecondsOf(kind: ShadeKind, cfg: ShadowmenConfig): number {
   if (kind === 'spider') return cfg.burnSeconds * cfg.spider.burnScale
   if (kind === 'spiderling') return cfg.spiderling.burnSeconds
@@ -284,6 +285,36 @@ export interface TruckPose {
   y: number
   z: number
   heading: number
+}
+
+// The last word a client gave the valley on the headlights, and when
+// (local ms).
+export interface HeadlightsSent {
+  pose: TruckPose
+  at: number
+}
+
+// Whether a client near the truck owes the valley a new word on where
+// its headlights stand: when they moved since the last word (so a drive
+// that ends sends where it stopped), while the truck drives, and once in
+// half the valley's staleMs while it stands, since the valley forgets a
+// word older than that and a parked truck's beam must still burn.
+export function headlightsDue(
+  last: HeadlightsSent | null,
+  pose: TruckPose,
+  moving: boolean,
+  now: number,
+  cfg = CONFIG.truck.headlights
+): boolean {
+  if (!last || moving) return true
+  if (now - last.at >= cfg.staleMs / 2) return true
+  const was = last.pose
+  return (
+    Math.abs(was.x - pose.x) > 0.01 ||
+    Math.abs(was.y - pose.y) > 0.01 ||
+    Math.abs(was.z - pose.z) > 0.01 ||
+    Math.abs(was.heading - pose.heading) > 0.01
+  )
 }
 
 // The truck's headlights as a beam: from the lamps at its nose, level

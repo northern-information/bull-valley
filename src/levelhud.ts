@@ -4,18 +4,8 @@
 // it; loop.ts feeds it the account's XP, and valleysync.ts says the news.
 
 import { copy } from './copy.ts'
+import { el } from './dom.ts'
 import { barOf } from './progression.ts'
-
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className: string,
-  content?: string
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag)
-  node.className = className
-  if (content !== undefined) node.textContent = content
-  return node
-}
 
 export class LevelHud {
   row: HTMLElement

@@ -10,7 +10,8 @@
 
 import { copy } from './copy.ts'
 import { costIn, DEALER_GOODS, leftOf, payable } from './dealer.ts'
-import { containersOf, itemById } from './items.ts'
+import { itemLabel } from './itemcopy.ts'
+import { containersOf } from './items.ts'
 import type { DealerStock } from './dealer.ts'
 import type { Inventory } from './interfaces.ts'
 
@@ -33,7 +34,7 @@ export interface DealDialogOptions {
 const TICK_MS = 250
 
 function labelOf(kind: string): string {
-  return itemById(kind)?.label ?? kind
+  return itemLabel(kind)
 }
 
 // Mounts the dialog over everything and resolves once it is closed.
