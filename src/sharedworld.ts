@@ -168,7 +168,29 @@
 //    (ValleyContext.quest in, Reduced.quest out); the valley writes the
 //    stage and the pack together, or neither. The key earns quest XP
 //    (rule 22).
+// 27. Buffs (buffs.ts): every account's geometrie (geometrie.ts) is kept
+//    by the valley (Valley.geometrie, on its clock in seconds, only the
+//    accounts not sober), dosed by each use once the pack has given the
+//    unit up, and made sober by the strike of rule 18. It does things: a
+//    raider's high reaches their beam further and wider (shadowRaiders),
+//    and their drunk shrugs a touch off by a chance the valley draws (the
+//    hit's roll; no point lost, Reduced.health.shrugged). A raider on foot
+//    can pass a unit to another account's raider on foot within
+//    CONFIG.buffs.passReach of them, each where their last state frame put
+//    them: the pass takes it out of the giver's pack, then a dose
+//    doses the taker in full and the giver at CONFIG.buffs.shareScale, and
+//    earns the giver XP for sharing (rule 22); the valley gives the taker
+//    its heal (rule 24). The stimulated's quicker sprint is the client's.
 
+import {
+  buffedBeam,
+  dosed,
+  geometrieOf,
+  inPassReach,
+  scaled,
+  shrugs,
+  sobered,
+} from './buffs.ts'
 import {
   caretakerAt,
   createCaretaker,
@@ -182,6 +204,7 @@ import { affords, cosmeticById, MOAB_OFFERS } from './cosmetics.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
 import { atDealer, deal, freshDealerStock } from './dealer.ts'
 import { centsOf, dropSpot, isCash, takeUp } from './drops.ts'
+import { levelsAt } from './geometrie.ts'
 import { bury } from './graves.ts'
 import {
   healthOf,
@@ -191,7 +214,14 @@ import {
   mend,
   withHealth,
 } from './health.ts'
-import { contentsOf, INVENTORY_KINDS, isKeyItem, itemById } from './items.ts'
+import {
+  contentsOf,
+  geometrieOf as doseOf,
+  INVENTORY_KINDS,
+  isKeyItem,
+  isUsable,
+  itemById,
+} from './items.ts'
 import {
   arrive,
   board,
@@ -239,6 +269,7 @@ import type { Corpse } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { DealerStock } from './dealer.ts'
 import type { Drop, Facing, Spill } from './drops.ts'
+import type { Geometrie } from './geometrie.ts'
 import type { Burial, Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckChange, TruckRoutes, TruckState } from './marx.ts'
@@ -249,6 +280,7 @@ import type {
   CaretakerWire,
   DailyMessage,
   DailyWire,
+  GeometrieLevels,
   NackMessage,
   NackRe,
   PeerStateWire,
@@ -335,6 +367,9 @@ export interface Valley {
   nextCorpse: number
   // Rule 24: account -> its health, while below whole.
   health: Record<string, number>
+  // Rule 27: account -> its geometrie, while not sober, on the valley's
+  // clock in seconds.
+  geometrie: Record<string, Geometrie>
 }
 
 export interface ValleyCorpse extends Corpse {
@@ -390,6 +425,20 @@ export type ValleyAction =
   | { type: 'call'; id: string; from: XZ; at: XZ | null }
   | { type: 'collect'; id: string; bush: number; at: XZ | null }
   | { type: 'use'; id: string; kind: string }
+  // Rule 27: a unit of `kind` passed from `id` to `to`. from and at: where
+  // each raider's last state frame put them, or null when the valley has
+  // not heard one.
+  | {
+      type: 'pass'
+      id: string
+      to: string
+      kind: string
+      from: Spot | null
+      at: Spot | null
+    }
+  // Rule 27: once the pack gave it up, what a use doses (`to` absent), or
+  // a pass doses both sides.
+  | { type: 'dose'; id: string; kind: string; to?: string }
   // Rule 12. at: where the raider's last state frame put them, or null
   // when the valley has not heard one.
   | { type: 'drop'; id: string; kind: string; count: number; at: Facing | null }
@@ -404,7 +453,8 @@ export type ValleyAction =
   | { type: 'loot'; id: string; corpse: number; at: XZ | null }
   // Rule 24: a shadow's touch; points given back (by), or made whole (no
   // by: a forecourt).
-  | { type: 'hit'; id: string }
+  // roll: drawn from 0 to 1 by the valley for the drunk's shrug (rule 27).
+  | { type: 'hit'; id: string; roll?: number }
   | { type: 'mend'; id: string; by?: number }
   // A dev server's: the account at `points`, for the specs.
   | { type: 'set-health'; id: string; points: number }
@@ -515,7 +565,19 @@ export interface Reduced {
   give?: { account: string; items: Inventory }
   // Rule 24: an account's health after a hit or a mend, for its sockets;
   // fatal when the hit took the last point (the account is whole again).
-  health?: { account: string; points: number; fatal?: true }
+  // shrugged when the drunk shrugged it off (rule 27), and nothing lost.
+  health?: {
+    account: string
+    points: number
+    fatal?: true
+    shrugged?: true
+  }
+  // Rule 27: each account's geometrie after a dose or a shattering, for
+  // its sockets.
+  geometrie?: { account: string; levels: GeometrieLevels }[]
+  // Rule 27: a pass the valley allowed, once the giver's pack gives the
+  // unit up (pack): who to (their id and account) and what.
+  passed?: { to: string; account: string; kind: string }
   // Rule 19: units of `kind` into the account's locker out of its pack
   // (positive), or back (negative). The valley moves them only when the
   // side they come out of holds them.
@@ -579,13 +641,15 @@ export function createValley(): Valley {
     corpses: [],
     nextCorpse: 0,
     health: {},
+    geometrie: {},
   }
 }
 
 // The valley as an older build stored it, made current: the fresh one
 // fills in newer fields, and a world opened on another protocol (an older
 // build's raid included) is dropped, so the next arrival opens it afresh.
-// The berries, the places, the bodies and the health carry over.
+// The berries, the places, the bodies, the health and the geometrie carry
+// over.
 export function restoreValley(stored: Partial<Valley>): Valley {
   const valley = { ...createValley(), ...stored }
   const world: Partial<SharedWorld> | null = valley.world ?? null
@@ -618,6 +682,16 @@ export function corpsesOf(valley: Valley, account: string): number[] {
 // Rule 24: `account`'s health.
 export function healthFor(valley: Valley, account: string): number {
   return healthOf(valley.health, account)
+}
+
+// Rule 27: `account`'s geometrie levels at `now` (ms on the valley's
+// clock).
+export function geometrieFor(
+  valley: Valley,
+  account: string,
+  now: number
+): GeometrieLevels {
+  return levelsAt(geometrieOf(valley.geometrie, account), now / 1000)
 }
 
 // Rule 2: where `account` comes back to, or null for the spawn Citgo.
@@ -1341,14 +1415,100 @@ function act(
       const member = valley.members[action.id]
       if (!member) return done(valley, now, { broadcast: [] })
       const { account } = member
-      const { points, fatal } = hit(healthOf(valley.health, account))
+      const before = healthOf(valley.health, account)
+      const levels = geometrieFor(valley, account, now)
+      if (action.roll !== undefined && shrugs(levels, action.roll)) {
+        return done(valley, now, {
+          broadcast: [],
+          health: { account, points: before, shrugged: true },
+        })
+      }
+      const { points, fatal } = hit(before)
       const next: Valley = {
         ...valley,
         health: withHealth(valley.health, account, fatal ? MAX_HEALTH : points),
+        // A shattering leaves the raider sober.
+        geometrie: fatal
+          ? sobered(valley.geometrie, account)
+          : valley.geometrie,
       }
       return done(next, now, {
         broadcast: [],
         health: fatal ? { account, points, fatal } : { account, points },
+        ...(fatal
+          ? {
+              geometrie: [
+                { account, levels: geometrieFor(next, account, now) },
+              ],
+            }
+          : {}),
+      })
+    }
+
+    case 'pass': {
+      // Rule 27: to another account's raider on foot, both where their
+      // last state frames put them, close enough to hand it over.
+      const member = valley.members[action.id]
+      const taker = valley.members[action.to]
+      const refuse = (reason: string) =>
+        done(valley, now, { broadcast: [], reply: nack('pass', reason) })
+      if (!member) return refuse('not-in-valley')
+      if (!isPackKind(action.kind) || !isUsable(action.kind)) {
+        return refuse('not-an-item')
+      }
+      if (!taker || taker.account === member.account) return refuse('no-one')
+      const truck = valley.world?.truck
+      const onFoot = (id: string, at: Spot | null) =>
+        at !== null && !at.riding && !(truck && isAboard(truck, id))
+      if (!onFoot(action.id, action.from) || !onFoot(action.to, action.at)) {
+        return refuse('not-on-foot')
+      }
+      if (!inPassReach(action.from!, action.at!)) return refuse('too-far')
+      return done(valley, now, {
+        broadcast: [],
+        pack: { account: member.account, kind: action.kind, delta: -1 },
+        passed: { to: action.to, account: taker.account, kind: action.kind },
+      })
+    }
+
+    case 'dose': {
+      // Rule 27: the unit is out of the pack. A use doses the user; a
+      // pass doses the taker in full, the giver their share, and earns
+      // the giver XP for sharing.
+      const member = valley.members[action.id]
+      if (!member) return done(valley, now, { broadcast: [] })
+      const amounts = doseOf(action.kind)
+      const time = now / 1000
+      const taker = action.to === undefined ? null : valley.members[action.to]
+      if (action.to !== undefined && !taker) {
+        return done(valley, now, { broadcast: [] })
+      }
+      let record = valley.geometrie
+      const changed = [member.account]
+      if (taker) {
+        record = dosed(record, taker.account, amounts, time)
+        record = dosed(
+          record,
+          member.account,
+          scaled(amounts, CONFIG.buffs.shareScale),
+          time
+        )
+        changed.unshift(taker.account)
+      } else {
+        record = dosed(record, member.account, amounts, time)
+      }
+      const next = { ...valley, geometrie: record }
+      return done(next, now, {
+        broadcast: [],
+        geometrie: changed.map((account) => ({
+          account,
+          levels: geometrieFor(next, account, now),
+        })),
+        ...(taker
+          ? {
+              xp: [{ account: member.account, source: 'share' as const }],
+            }
+          : {}),
       })
     }
 
@@ -1604,6 +1764,13 @@ function graceKey(valley: Valley, id: string): string {
   return valley.members[id]?.account ?? id
 }
 
+// Rule 27: where a raider's last state frame put them, as a pass reads it.
+export interface Spot {
+  x: number
+  z: number
+  riding: boolean
+}
+
 // The raiders the shadowmen cross round: every placed member.
 export function shadowRaiders(
   valley: Valley,
@@ -1624,8 +1791,12 @@ export function shadowRaiders(
         !at.riding &&
         !(truck && isAboard(truck, id)) &&
         now >= (shadows.recovering[graceKey(valley, id)] ?? 0),
+      // Rule 27: their high reaches it further and wider.
       beam: at.light
-        ? beamFrom(at, at.yaw, at.pitch, at.pose === 'crouch')
+        ? buffedBeam(
+            beamFrom(at, at.yaw, at.pitch, at.pose === 'crouch'),
+            geometrieFor(valley, member.account, now)
+          )
         : null,
     })
   }

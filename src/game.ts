@@ -160,6 +160,8 @@ export interface GameState {
   flashlight: Hand
   // The item the right hand last brought up, and when, on `time`.
   using: { kind: string; at: number } | null
+  // The kind last used, which G in the valley passes (rule 27).
+  lastUsed: string | null
   // The emote under way (emotes.ts), on performance.now() seconds; null
   // when none.
   emoting: Emoting | null
@@ -277,6 +279,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     geometrie: SOBER,
     flashlight: HAND_DOWN,
     using: null,
+    lastUsed: null,
     strikeUntil: 0,
     health: MAX_HEALTH,
     graceUntil: 0,
