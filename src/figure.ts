@@ -631,9 +631,14 @@ export function buildFigure(
     hands[side] = { open, grip }
     // The bat hangs from the right hand, gripped just above the knob, its
     // barrel swung a little forward of the leg.
-    // The axe hangs the same way, its edge forward and its head down.
+    // The axe hangs the same way, head down, but turned about its haft so
+    // the edge faces back and down, the way an axe is carried, never up.
     if (side === 'R' && outfit.inHand) {
-      held = outfit.inHand === 'bat' ? buildBat() : buildAxe()
+      held = new THREE.Group()
+      held.name = 'held'
+      const prop = outfit.inHand === 'bat' ? buildBat() : buildAxe()
+      if (outfit.inHand === 'axe') prop.rotation.y = Math.PI
+      held.add(prop)
       held.position.set(0, -foreArm - 0.075, 0.01)
       elbow.add(held)
     }
