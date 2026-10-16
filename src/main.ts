@@ -341,12 +341,11 @@ async function boot() {
   // Not awaited: the game never waits on the network.
   void net.connect({
     outfit: pick.outfit,
-    pickups: world.pickups.map(({ kind, count, x, z }) => ({
-      kind,
-      count,
-      x,
-      z,
-    })),
+    pickups: world.pickups.map(({ kind, count, x, z, within }) =>
+      within
+        ? { kind, count, x, z, within: [...within] }
+        : { kind, count, x, z }
+    ),
     stations: world.fuelPoints.length,
     havens: world.fuelPoints.map(({ x, z }) => ({ x, z })),
     metres: geo.metres,

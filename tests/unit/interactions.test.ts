@@ -121,6 +121,32 @@ describe('resolveInteraction', () => {
     expect(resolveInteraction(input({ pickups: [outOfReach] }))).toBeNull()
   })
 
+  it('offers a pickup in a walled room only from inside it', () => {
+    const room = [
+      { x: 249, z: 249 },
+      { x: 251, z: 249 },
+      { x: 251, z: 251 },
+      { x: 249, z: 251 },
+    ]
+    const office: PickupSpot = {
+      x: 250.5,
+      z: 250,
+      kind: 'wild-turkey',
+      count: 1,
+      taken: false,
+      within: room,
+    }
+    expect(resolveInteraction(input({ pickups: [office] }))).toEqual({
+      kind: 'pickup',
+      pickup: office,
+    })
+    expect(
+      resolveInteraction(
+        input({ player: { x: 252, z: 250 }, pickups: [office] })
+      )
+    ).toBeNull()
+  })
+
   it('never offers a pickup behind a wall, however near', () => {
     const behind: PickupSpot = {
       x: 251,

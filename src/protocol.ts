@@ -25,7 +25,7 @@ import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 31
+export const PROTOCOL_VERSION = 32
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -115,6 +115,10 @@ export interface PickupSpec {
   // Where it lies: the valley gives it only to a raider in reach.
   x: number
   z: number
+  // The walled room it lies in, as the ring of its corners, when it lies
+  // behind walls (the Video Vault's office): the valley gives it only to
+  // a raider standing in the room, never one reaching through the wall.
+  within?: XZ[]
 }
 
 // --- The shared world ------------------------------------------------------
@@ -985,16 +989,35 @@ function isKind(value: unknown): value is string {
   )
 }
 
+// A room's ring of corners: 3 to RING_MAX points.
+const RING_MAX = 8
+function parseRing(value: unknown): XZ[] | null {
+  if (!Array.isArray(value)) return null
+  if (value.length < 3 || value.length > RING_MAX) return null
+  const ring: XZ[] = []
+  for (const point of value as unknown[]) {
+    if (!isRecord(point) || !isCoord(point.x) || !isCoord(point.z)) return null
+    ring.push({ x: point.x, z: point.z })
+  }
+  return ring
+}
+
 // A hello's pickups: at most PICKUPS_MAX, each a kind and a count.
 function parsePickups(value: unknown): PickupSpec[] | null {
   if (!Array.isArray(value) || value.length > PICKUPS_MAX) return null
   const specs: PickupSpec[] = []
   for (const entry of value as unknown[]) {
     if (!isRecord(entry)) return null
-    const { kind, count, x, z } = entry
+    const { kind, count, x, z, within } = entry
     if (!isKind(kind) || !isCount(count)) return null
     if (!isCoord(x) || !isCoord(z)) return null
-    specs.push({ kind, count, x, z })
+    if (within === undefined) {
+      specs.push({ kind, count, x, z })
+      continue
+    }
+    const ring = parseRing(within)
+    if (!ring) return null
+    specs.push({ kind, count, x, z, within: ring })
   }
   return specs
 }

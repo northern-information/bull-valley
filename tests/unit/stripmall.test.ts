@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
+import { insideRing } from '../../src/coords.ts'
 import { toWorld } from '../../src/store.ts'
 import {
+  backRoomRing,
   boxWall,
   inAdultSection,
   inBackRoom,
@@ -120,6 +122,21 @@ describe('STRIP_MALL', () => {
     expect(inBackRoom(origin, shop.x, shop.z)).toBe(false)
     const laundromat = at(-12.5, -STRIP_MALL.length / 2 + 13)
     expect(inBackRoom(origin, laundromat.x, laundromat.z)).toBe(false)
+  })
+
+  it('rings the office for the valley as inBackRoom knows it', () => {
+    const ring = backRoomRing(origin)
+    expect(ring).toHaveLength(4)
+    const video = -STRIP_MALL.length / 2
+    for (const [x, z] of [
+      [-12.5, video + 1],
+      [-6, video + 3],
+      [-12.5, video + 6],
+      [-11, video + 2],
+    ]) {
+      const p = at(x, z)
+      expect(insideRing(p.x, p.z, ring)).toBe(inBackRoom(origin, p.x, p.z))
+    }
   })
 
   it("keeps the back room's loot out of reach from the shop", () => {

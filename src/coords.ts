@@ -46,6 +46,20 @@ export function bilinearHeight(
   )
 }
 
+// Whether (x, z) stands inside the ring of world points `ring`, ray cast
+// like pointInPolygon.
+export function insideRing(
+  x: number,
+  z: number,
+  ring: readonly { x: number; z: number }[]
+): boolean {
+  return pointInPolygon(
+    x,
+    z,
+    ring.map((p) => [p.x, p.z])
+  )
+}
+
 // Ray cast over a [[x, y], …] ring.
 export function pointInPolygon(
   x: number,

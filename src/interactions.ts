@@ -3,6 +3,7 @@
 // three.js, no DOM: tests/unit/interactions.test.ts runs it in Node.
 
 import { CONFIG } from './config.ts'
+import { insideRing } from './coords.ts'
 import { copy } from './copy.ts'
 import { nearestCorpse } from './corpses.ts'
 import { cosmeticById } from './cosmetics.ts'
@@ -23,6 +24,9 @@ export interface PickupSpot extends XZ {
   kind: PickupKind
   count: number
   taken: boolean
+  // The walled room it lies in, when it does: taken only from inside it,
+  // as the valley holds it (sharedworld.ts rule 4).
+  within?: readonly XZ[]
 }
 
 // The shelf unit the player is looking at, from store.ts unitInView.
@@ -278,6 +282,9 @@ function nearestPickup<P extends PickupSpot>(
   let nearest: P | null = null
   for (const pickup of pickups) {
     if (pickup.taken) continue
+    if (pickup.within && !insideRing(player.x, player.z, pickup.within)) {
+      continue
+    }
     const d = Math.hypot(pickup.x - player.x, pickup.z - player.z)
     if (d < best && !walled?.(player, pickup)) {
       best = d
