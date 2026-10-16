@@ -4,6 +4,7 @@ import {
   expect,
   freshRaider,
   freshValley,
+  heardWhere,
   test,
 } from './fixtures.ts'
 import type { Page } from '@playwright/test'
@@ -61,6 +62,10 @@ test('the berry bush gives one berry, then is picked clean', async ({
   await expect(label).toHaveText(copy('labels.berries'))
   await expect.poll(() => bushGlows(page)).toBe(true)
   expect(await berriesShown(page)).toBe(true)
+  // The valley holds a collect to where the raider's last state frame put
+  // them (sharedworld.ts rule 8), so E before it has heard the teleport
+  // is refused as too far, and nothing asks again.
+  await heardWhere(page)
   await page.keyboard.press('KeyE')
   await expect.poll(() => berries(page)).toBe(1)
   await expect(label).toHaveText(copy('labels.berry_picked'))
