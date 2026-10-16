@@ -9,6 +9,7 @@ import { isSfxId, SFX_IDS } from './sfx.ts'
 import type { Actions } from './actions.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
 import type { ChatLine } from './chat.ts'
+import type { CitgoLog } from './citgos.ts'
 import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { TaskProgress } from './dailytask.ts'
@@ -22,6 +23,7 @@ import type { TruckState } from './marx.ts'
 import type { MistCards } from './mistcards.ts'
 import type { NetStatus } from './net.ts'
 import type { Player } from './player.ts'
+import type { Portal } from './portals.ts'
 import type { Peer } from './presence.ts'
 import type {
   DailyWire,
@@ -102,6 +104,14 @@ interface BvHook {
   // where the stand stands.
   readonly stand: StandLedger | null
   readonly standAt: XZ | null
+  // Rule 28: every Citgo the account has stood at and the last, the Citgo
+  // portals open (the valley's, or this raider's alone), the id of ours
+  // while it stands, and whether the phone is up and the map open.
+  readonly citgos: CitgoLog
+  readonly portals: readonly Portal[]
+  readonly myPortal: number | null
+  readonly phoneRaised: boolean
+  readonly mapOpen: boolean
   // The item on each number key, slot 0 for 1.
   readonly hotbar: Hotbar
   // How high, stimulated and drunk right now, each 0 to 1.
@@ -116,6 +126,11 @@ interface BvHook {
   teleport(u: number, v: number): void
   // The left button, for a page without pointer lock.
   toggleFlashlight(): void
+  // A Citgo portal opened ahead of the raider at once, as if the phone had
+  // dialed it through; and fast travel to Citgo `station`, as if clicked
+  // on the map.
+  openPortal(): void
+  fastTravel(station: number): void
   // A shadowman standing still at world (x, z): the valley's, through a
   // dev frame, or this client's own, played alone.
   // A spider instead when `spider` (CONFIG.shadowmen.spider).
@@ -242,6 +257,21 @@ export function installDevHook(game: Game, actions: Actions): void {
     get standAt() {
       return game.world.stand?.at ?? null
     },
+    get citgos() {
+      return s.citgos
+    },
+    get portals() {
+      return s.portals
+    },
+    get myPortal() {
+      return s.myPortal
+    },
+    get phoneRaised() {
+      return game.phone.raised
+    },
+    get mapOpen() {
+      return s.mapOpen
+    },
     get hotbar() {
       return s.hotbar
     },
@@ -265,6 +295,8 @@ export function installDevHook(game: Game, actions: Actions): void {
       player.relocate(x, z)
     },
     toggleFlashlight: () => actions.toggleFlashlight(),
+    openPortal: () => actions.openPortal(),
+    fastTravel: (station: number) => actions.fastTravel(station),
     placeShadowman(x: number, z: number, kind: boolean | ShadeKind = 'man') {
       // true is a spider, as it always was.
       const shade: ShadeKind =

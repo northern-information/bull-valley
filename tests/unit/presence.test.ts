@@ -6,7 +6,6 @@ import {
   applyUpdated,
   applyWelcome,
   createPeerTable,
-  peerContacts,
   poseOf,
   samplePeer,
   stateChanged,
@@ -142,29 +141,6 @@ describe('samplePeer', () => {
     // forwards through 0.
     const yaw = samplePeer(peer, 25)?.yaw ?? 0
     expect(yaw).toBeCloseTo(-Math.PI + 0.05, 9)
-  })
-})
-
-describe('peerContacts', () => {
-  it('reports compass bearings with north up and cuts at range', () => {
-    const peers = createPeerTable()
-    const place = (id: string, x: number, z: number) => {
-      applyJoined(peers, { ...wire(id, false) }, 0)
-      applyState(peers, id, at(x, z), 0)
-    }
-    place('n', 0, -10) // north is -Z
-    place('e', 10, 0)
-    place('s', 0, 10)
-    place('w', -10, 0)
-    place('far', 0, -300)
-    applyJoined(peers, wire('unplaced', false), 0)
-    const contacts = peerContacts(peers, { x: 0, z: 0 }, 250, 0)
-    expect(contacts.map((c) => Math.round(c.bearing))).toEqual([
-      0, 90, 180, 270,
-    ])
-    expect(
-      contacts.every((c) => c.dist === 10 && !c.hunting && c.kind === 'raider')
-    ).toBe(true)
   })
 })
 

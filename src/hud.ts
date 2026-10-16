@@ -1,5 +1,5 @@
 // All DOM: countdown, the season (seasonhud.ts), the chat log (chathud.ts),
-// scope phone, geometrie's triangle, the pack grid, its item card and the
+// the phone, geometrie's triangle, the pack grid, its item card and the
 // hotbar (packhud.ts), prompts, item labels, the intro/pause overlay, and
 // the strike static. Markup is generated here so index.html stays a bare
 // #bv-root.
@@ -7,6 +7,7 @@
 import { PACK_IN_MENU, WORLD } from './bindings.ts'
 import { BookHud } from './bookhud.ts'
 import { ChatHud } from './chathud.ts'
+import { CitgoMap } from './citgomap.ts'
 import { copy } from './copy.ts'
 import { el, find, text } from './dom.ts'
 import { MAX_HEALTH } from './health.ts'
@@ -112,7 +113,7 @@ export class Hud {
   // The chat log in the lower left.
   chat: ChatHud
   phone: HTMLDivElement
-  scopeCanvas: HTMLCanvasElement
+  phoneCanvas: HTMLCanvasElement
   promptEl: HTMLParagraphElement
   itemLabelEl: HTMLParagraphElement
   // The pack over the valley, and the hotbar along the bottom.
@@ -138,6 +139,9 @@ export class Hud {
   season: SeasonHud
   // The Book of Shadows, over the valley while it is open.
   book: BookHud
+  // The map (M), once the world is built (mountMap).
+  map: CitgoMap | null = null
+  private ui: HTMLElement
   // The daily task's row in the season's tracker.
   task: TaskHud
   // The raider's level, under it.
@@ -153,6 +157,7 @@ export class Hud {
 
     const ui = el('div', 'bv-ui')
     root.appendChild(ui)
+    this.ui = ui
 
     // The season: the tracker in the upper right and the banners.
     this.season = new SeasonHud(ui)
@@ -196,12 +201,13 @@ export class Hud {
     this.setHealth(MAX_HEALTH)
     ui.appendChild(this.health)
 
-    // The scope: a phone held in a PS1-style flipper hand. scope.ts draws the
-    // hand, the phone and the screen into this one low-res canvas.
+    // The phone in a PS1-style flipper hand, dialing a Citgo portal.
+    // phone.ts draws the hand, the phone and the screen into this one
+    // low-res canvas.
     this.phone = el('div', 'bv-phone')
     this.phone.setAttribute('aria-hidden', 'true')
-    this.scopeCanvas = el('canvas', 'bv-scope')
-    this.phone.appendChild(this.scopeCanvas)
+    this.phoneCanvas = el('canvas', 'bv-phone-screen')
+    this.phone.appendChild(this.phoneCanvas)
     ui.appendChild(this.phone)
 
     // Interaction prompt, and the name over the item E would act on.
@@ -414,6 +420,18 @@ export class Hud {
   showBook(show: boolean): boolean {
     this.root.classList.toggle('bv-shell--inventory', show)
     return this.book.show(show)
+  }
+
+  // The map, built once the world is: its roads and its Citgos.
+  mountMap(options: ConstructorParameters<typeof CitgoMap>[1]): CitgoMap {
+    this.map = new CitgoMap(this.ui, options)
+    return this.map
+  }
+
+  // The map opens over the valley as the book does.
+  showMap(show: boolean): boolean {
+    this.root.classList.toggle('bv-shell--inventory', show)
+    return this.map?.show(show) ?? false
   }
 
   setHotbar(slots: HotbarSlotView[]): void {

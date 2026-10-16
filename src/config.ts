@@ -25,7 +25,8 @@ export const CONFIG = {
     walkSpeed: 4.2,
     sprintSpeed: 9,
     crouchSpeed: 2.2,
-    scopeSpeedScale: 0.6,
+    // Walking with the phone up, dialing a Citgo portal.
+    phoneSpeedScale: 0.6,
     mouseSensitivity: 0.0023,
     // How close a pickup must be for E to take it.
     pickupReach: 2.6,
@@ -34,7 +35,7 @@ export const CONFIG = {
   },
   // The Book of Shadows (book.ts): how near a raider must come for each
   // place to be written in it (world.ts bookSights), in metres, and how
-  // near a shadow, as the scope reads it.
+  // near a shadow.
   book: {
     reach: {
       citgo: 25,
@@ -56,9 +57,8 @@ export const CONFIG = {
   shadowmen: {
     // Crossings: this many shadowmen at once in a bubble around the player.
     count: 12,
-    // They spawn on this ring, well past scope range so blips enter from the
-    // rim as they near, cross toward a point within crossRadius of the player, and are
-    // dropped past despawnRadius.
+    // They spawn on this ring, well out in the fog, cross toward a point
+    // within crossRadius of the player, and are dropped past despawnRadius.
     spawnRadius: 300,
     crossRadius: 120,
     despawnRadius: 360,
@@ -242,10 +242,28 @@ export const CONFIG = {
     passReach: 3,
     shareScale: 0.5,
   },
-  scope: {
-    // Close enough to read: a rush starts at a quarter of it.
-    rangeMetres: 100,
-    sweepSeconds: 3.2,
+  // Citgos visited, Citgo portals and fast travel (citgos.ts, portals.ts,
+  // sharedworld.ts rule 28). A raider within visitReach of a station's pump
+  // island stands at that Citgo: it is visited, it is the last Citgo they
+  // stood at, and fast travel leaves from there. The phone (Q) dials a
+  // portal for dialSeconds, then it opens `ahead` metres in front of the
+  // raider, facing them, and its twin opens at their last Citgo. Anyone on
+  // foot who walks within `radius` of either end's middle comes out `exit`
+  // metres in front of the other, facing away from it. Each account keeps
+  // one open at a time, for lifeSeconds. Every lot has a ring of `slots`
+  // portal ends, `ringRadius` metres round `ring` (station-local like the
+  // bush: past the pump island's far end, clear of Moab and the lamps),
+  // each facing out; fast travel sets a raider down in the ring's middle.
+  portal: {
+    dialSeconds: 1.5,
+    ahead: 3,
+    radius: 0.9,
+    exit: 2.2,
+    lifeSeconds: 180,
+    ring: { x: 2, z: 13.5 },
+    ringRadius: 3.5,
+    slots: 6,
+    visitReach: 25,
   },
   spawn: {
     // The spawn sits this far from the pump island, toward the truck: on

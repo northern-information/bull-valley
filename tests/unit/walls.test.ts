@@ -44,4 +44,32 @@ describe('Walls', () => {
     edge.addWall({ x: 9.95, z: 0 }, { x: 9.95, z: 5 }, 0.05)
     expect(edge.resolve(10.1, 1, 0.3).x).toBeCloseTo(10.3)
   })
+
+  it('stands between two points on either side of a wall, not beside it', () => {
+    expect(walls.between({ x: -1, z: 0 }, { x: 1, z: 0 })).toBe(true)
+    expect(walls.between({ x: 1, z: 0 }, { x: 2, z: 3 })).toBe(false)
+    // Past its end, round it.
+    expect(walls.between({ x: -1, z: 6 }, { x: 1, z: 6 })).toBe(false)
+    // Up to the round of its end, then past it.
+    expect(walls.between({ x: -1, z: 5.05 }, { x: 1, z: 5.05 })).toBe(true)
+    // A post stands across no line.
+    const post = new Walls()
+    post.addWall({ x: 0, z: 0 }, { x: 0, z: 0 }, 0.3)
+    expect(post.between({ x: -1, z: 0 }, { x: 1, z: 0 })).toBe(false)
+  })
+
+  it('stands a gate between unless it is open to the one reaching', () => {
+    const door = new Walls()
+    door.addGate({ x: 0, z: -1 }, { x: 0, z: 1 }, 0.1, 'vault')
+    expect(door.between({ x: 1, z: 0 }, { x: -1, z: 0 })).toBe(true)
+    door.setGates((gate, x) => gate === 'vault' && x > 0)
+    expect(door.between({ x: 1, z: 0 }, { x: -1, z: 0 })).toBe(false)
+    expect(door.between({ x: -1, z: 0 }, { x: 1, z: 0 })).toBe(true)
+  })
+
+  it('finds a wall across a line that spans two cells', () => {
+    const edge = new Walls(10)
+    edge.addWall({ x: 10.5, z: -5 }, { x: 10.5, z: 5 }, 0.1)
+    expect(edge.between({ x: 9, z: 0 }, { x: 11, z: 0 })).toBe(true)
+  })
 })

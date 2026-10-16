@@ -38,7 +38,7 @@ import {
 import { SEASON } from './season.ts'
 import { isStandLedger, refusalLine, standNews } from './stand.ts'
 import { formatCash } from './store.ts'
-import { newLeg, reconcileBed, settledBy } from './worldsync.ts'
+import { newLeg, portalNews, reconcileBed, settledBy } from './worldsync.ts'
 import type { Actions } from './actions.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { Game } from './game.ts'
@@ -174,6 +174,10 @@ export function wireValley(game: Game, actions: Actions): void {
       case 'passed':
         actions.applyPassed(msg)
         return
+      // Rule 28: a Citgo stood at, written.
+      case 'citgos':
+        actions.applyCitgos(msg.citgos)
+        return
     }
   })
   let wasOnline = false
@@ -192,7 +196,14 @@ export function wireValley(game: Game, actions: Actions): void {
     reason: WorldMessage['reason'],
     detail: Pick<
       WorldMessage,
-      'by' | 'index' | 'station' | 'item' | 'drop' | 'count' | 'corpse'
+      | 'by'
+      | 'index'
+      | 'station'
+      | 'item'
+      | 'drop'
+      | 'count'
+      | 'corpse'
+      | 'portal'
     > = {}
   ) => {
     s.world = wire
@@ -262,6 +273,20 @@ export function wireValley(game: Game, actions: Actions): void {
       if (!wire.corpses.some((c) => c.id === id)) s.pending.loots.delete(id)
     }
     if (reason === 'looted' && detail.by === me) hud.tell(copy('log.looted'))
+
+    // Rule 28: the Citgo portals are the valley's word. One opening is
+    // said, ours or another's; ours closing is said too.
+    s.portals = wire.portals
+    const portals = portalNews({ reason, ...detail }, wire, me, s.myPortal)
+    s.myPortal = portals.mine
+    if (portals.opened?.mine) {
+      s.pendingPortal = false
+      const citgo = hud.map?.label(portals.opened.portal.station) ?? ''
+      hud.tell(copy('log.portal_opened', { citgo }))
+    } else if (portals.opened) {
+      hud.tell(copy('log.portal_other', { name: portals.opened.portal.name }))
+    }
+    if (portals.closed) hud.tell(copy('log.portal_closed'))
 
     // Rule 3: the truck drives the valley's leg, and the bed is the
     // valley's word on who is in it.
@@ -374,6 +399,8 @@ export function wireValley(game: Game, actions: Actions): void {
       s.pending.stand = false
       s.standSaid = refusalLine(msg.reason)
       hud.tell(s.standSaid)
+    } else if (msg.re === 'portal') {
+      actions.portalRefused(msg.reason)
     } else if (msg.re === 'rename' || msg.re === 'appearance') {
       // The account kept the change; only the valley's roster missed it.
       hud.tell(copy('log.change_unheard'))
@@ -441,6 +468,8 @@ export function wireValley(game: Game, actions: Actions): void {
       s.xp = msg.xp
       s.stand = isStandLedger(msg.stand) ? msg.stand : null
       s.quests = toQuests(msg.quests)
+      // The Citgos the account has stood at already are no news.
+      actions.applyCitgos(msg.citgos, true)
     } else if (msg.type === 'quest') {
       // Rule 26: a step of a quest went through, to every socket on the
       // account. Its pack frame follows.

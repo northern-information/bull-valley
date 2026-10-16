@@ -25,6 +25,7 @@ import {
   buildCornWalls,
   buildEnterSign,
   buildPortal,
+  CITGO_PORTAL,
   cornWallSize,
   flatCornPieces,
 } from './cornmazeparts.ts'
@@ -317,6 +318,15 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     label: 'Corn maze: portal',
     build: () => {
       const portal = buildPortal()
+      setMotion(portal.group, (t) => portal.update(t))
+      return portal.group
+    },
+  },
+  {
+    id: 'citgo-portal',
+    label: 'Citgo portal',
+    build: () => {
+      const portal = buildPortal(CITGO_PORTAL)
       setMotion(portal.group, (t) => portal.update(t))
       return portal.group
     },

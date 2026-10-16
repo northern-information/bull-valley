@@ -49,6 +49,7 @@ const hello = {
   bushes: [0, 1, 2].map((i) => ({ x: 6 + i, z: -30 })),
   dealer: { x: -10, z: -60 },
   undercroft: { x: -7000, z: -7000, yaw: 0 },
+  rings: [0, 1, 2, 3, 4].map((i) => ({ x: i * 100 + 2, z: i + 14 })),
 }
 
 const parse = (value: unknown) => parseClientMessage(JSON.stringify(value))
@@ -212,6 +213,7 @@ describe('parseClientMessage', () => {
       bushes: _bushes,
       dealer: _dealer,
       undercroft: _undercroft,
+      rings: _rings,
       ...older
     } = hello
     expect(parse({ ...older, v: PROTOCOL_VERSION - 1 })).toEqual({
@@ -226,6 +228,7 @@ describe('parseClientMessage', () => {
       bushes: [],
       dealer: null,
       undercroft: null,
+      rings: [],
     })
     // Bad ones read as missing in an older build, too.
     expect(
@@ -240,6 +243,7 @@ describe('parseClientMessage', () => {
         bushes: 'berries',
         dealer: 'wick',
         undercroft: 'cellar',
+        rings: 'round',
       })
     ).toEqual({
       ...older,
@@ -254,6 +258,7 @@ describe('parseClientMessage', () => {
       bushes: [],
       dealer: null,
       undercroft: null,
+      rings: [],
     })
     // The current version still requires both.
     expect(parse({ ...older, v: PROTOCOL_VERSION })).toBeNull()
@@ -307,7 +312,7 @@ describe('parseClientMessage', () => {
   })
 
   it('parses the raid frames', () => {
-    for (const type of ['board', 'hop-out', 'rename']) {
+    for (const type of ['board', 'hop-out', 'portal', 'rename']) {
       expect(parse({ type })).toEqual({ type })
     }
     // A collect names its bush.
@@ -371,6 +376,8 @@ describe('parseClientMessage', () => {
     // A hello says where the stand stands, or that there is none.
     expect(parse({ ...hello, stand: null })).toEqual({ ...hello, stand: null })
     expect(parse({ ...hello, stand: { x: 'here' } })).toBeNull()
+    // A ring on every lot (rule 28), no fewer.
+    expect(parse({ ...hello, rings: hello.rings.slice(1) })).toBeNull()
     // And where the squatter deals, or that there is none (rule 25).
     expect(parse({ ...hello, dealer: null })).toEqual({
       ...hello,
@@ -485,6 +492,24 @@ describe('parseClientMessage', () => {
     expect(parse({ ...hello, pickups: undefined })).toBeNull()
     expect(parse({ ...hello, pickups: 70 })).toBeNull()
     expect(parse({ ...hello, pickups: [{ kind: 'joints' }] })).toBeNull()
+    const room = (within: unknown) =>
+      parse({
+        ...hello,
+        pickups: [{ kind: 'joints', count: 1, x: 0, z: 0, within }],
+      })
+    const square = [
+      { x: 0, z: 0 },
+      { x: 1, z: 0 },
+      { x: 1, z: 1 },
+    ]
+    expect(room(square)).toMatchObject({
+      pickups: [{ kind: 'joints', within: square }],
+    })
+    expect(room(square.slice(0, 2))).toBeNull()
+    expect(room(Array.from({ length: 9 }, () => square[0]))).toBeNull()
+    expect(room([...square.slice(0, 2), { x: 'a', z: 0 }])).toBeNull()
+    expect(room([...square.slice(0, 2), 7])).toBeNull()
+    expect(room('room')).toBeNull()
     expect(
       parse({ ...hello, pickups: [{ kind: '', count: 1, x: 0, z: 0 }] })
     ).toBeNull()

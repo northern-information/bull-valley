@@ -5,7 +5,9 @@ import { buildSky } from './assets.ts'
 import { BvAudio } from './audio.ts'
 import { refreshSession } from './auth.ts'
 import { CaretakerShade } from './caretakerrig.ts'
+import { mapCitgos } from './citgomap.ts'
 import { CONFIG } from './config.ts'
+import { unitToWorld } from './coords.ts'
 import { copy } from './copy.ts'
 import { createCorpseMeshes } from './corpsemeshes.ts'
 import { installDevHook } from './devhook.ts'
@@ -24,12 +26,13 @@ import { MistCards } from './mistcards.ts'
 import { createMusic } from './musicrig.ts'
 import { NetClient, socketUrl } from './net.ts'
 import { Peers } from './peers.ts'
+import { Phone } from './phone.ts'
 import { Player } from './player.ts'
 import { PlayerBody } from './playerbody.ts'
+import { createPortalMeshes } from './portalmeshes.ts'
 import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import { mulberry32 } from './rng.ts'
 import { buildRoadGraph, nearestRoadPoint, wanderRoute } from './roadgraph.ts'
-import { Scope } from './scope.ts'
 import { createSettingsStore } from './settingsui.ts'
 import { createSfx } from './sfxrig.ts'
 import { ShadowBursts } from './shadowburst.ts'
@@ -65,7 +68,7 @@ const FONT_WEIGHTS = [400, 600, 700]
 
 // IBM Plex Mono, loaded before any text exists, so nothing paints in a
 // fallback and then reflows when the face lands (index.html preloads it).
-// Canvas text (the scope, name tags) is drawn after boot, so it gets the face
+// Canvas text (the phone, name tags) is drawn after boot, so it gets the face
 // too. A font that never arrives must not hold the game: past the timeout,
 // boot goes on.
 async function fontsReady(): Promise<void> {
@@ -154,6 +157,18 @@ async function boot() {
   scene.add(graves.group)
   const corpses = createCorpseMeshes(world.ground.at)
   scene.add(corpses.group)
+  const portals = createPortalMeshes(world.ground.at)
+  scene.add(portals.group)
+  // The map (M): the survey's roads, and every Citgo named for its road.
+  const mapRoads = geo.roads.map((road) => ({
+    name: road.n,
+    points: road.p.map(([u, v]) => unitToWorld(u, v, geo.metres)),
+  }))
+  hud.mountMap({
+    roads: mapRoads,
+    metres: geo.metres,
+    citgos: mapCitgos(world.fuelPoints, mapRoads),
+  })
 
   // Sky furniture rides along with the player so it never recedes into fog.
   const sky = buildSky()
@@ -270,6 +285,7 @@ async function boot() {
     drops,
     graves,
     corpses,
+    portals,
     graph,
     truck,
     music,
@@ -292,8 +308,7 @@ async function boot() {
     playerBody,
     hands,
     pick,
-    scope: new Scope(hud.scopeCanvas, hud.phone),
-    // The shadowmen feed the scope.
+    phone: new Phone(hud.phoneCanvas, hud.phone),
     shadowmen: new ShadowCards({
       scene,
       groundAt: world.ground.at,
@@ -341,12 +356,11 @@ async function boot() {
   // Not awaited: the game never waits on the network.
   void net.connect({
     outfit: pick.outfit,
-    pickups: world.pickups.map(({ kind, count, x, z }) => ({
-      kind,
-      count,
-      x,
-      z,
-    })),
+    pickups: world.pickups.map(({ kind, count, x, z, within }) =>
+      within
+        ? { kind, count, x, z, within: [...within] }
+        : { kind, count, x, z }
+    ),
     stations: world.fuelPoints.length,
     havens: world.fuelPoints.map(({ x, z }) => ({ x, z })),
     metres: geo.metres,
@@ -357,6 +371,7 @@ async function boot() {
     stand: world.stand ? world.stand.at : null,
     dealer: world.plaza ? world.plaza.dealer.at : null,
     undercroft: world.undercroft?.place ?? null,
+    rings: world.rings,
   })
   wireKeys(game, actions, engagePointer)
 

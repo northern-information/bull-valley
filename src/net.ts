@@ -73,6 +73,8 @@ export interface NetIdentity {
   dealer: XZ | null
   // Where the Undercroft lies (rule 11: the tunnel shades), or null.
   undercroft: MazePlace | null
+  // The middle of each lot's Citgo portal ring (rule 28).
+  rings: XZ[]
 }
 
 // Reconnect schedule; the last delay holds for every attempt after.
@@ -242,6 +244,7 @@ export class NetClient {
           bushes: identity.bushes,
           dealer: identity.dealer,
           undercroft: identity.undercroft,
+          rings: identity.rings,
           // Who we were before a reconnect, so the valley drops that ghost.
           ...(this.id ? { was: this.id } : {}),
         } satisfies ClientMessage)

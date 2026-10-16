@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
+import { insideRing } from '../../src/coords.ts'
 import { toWorld } from '../../src/store.ts'
 import {
+  backRoomRing,
   boxWall,
   inAdultSection,
   inBackRoom,
@@ -122,6 +124,45 @@ describe('STRIP_MALL', () => {
     expect(inBackRoom(origin, laundromat.x, laundromat.z)).toBe(false)
   })
 
+  it('rings the office for the valley as inBackRoom knows it', () => {
+    const ring = backRoomRing(origin)
+    expect(ring).toHaveLength(4)
+    const video = -STRIP_MALL.length / 2
+    for (const [x, z] of [
+      [-12.5, video + 1],
+      [-6, video + 3],
+      [-12.5, video + 6],
+      [-11, video + 2],
+    ]) {
+      const p = at(x, z)
+      expect(insideRing(p.x, p.z, ring)).toBe(inBackRoom(origin, p.x, p.z))
+    }
+  })
+
+  it("keeps the back room's loot out of reach from the shop", () => {
+    const walls = built()
+    const video = -STRIP_MALL.length / 2
+    const behind = STRIP_MALL.loot
+      .map((spot) => at(spot.x, spot.z))
+      .filter((p) => inBackRoom(origin, p.x, p.z))
+    expect(behind.length).toBeGreaterThan(0)
+    let tried = 0
+    for (let x = -10.5; x <= -8; x += 0.1) {
+      for (let z = video; z <= video + STRIP_MALL.unitWidth; z += 0.1) {
+        const p = at(x, z)
+        const out = walls.resolve(p.x, p.z, RADIUS)
+        if (inBackRoom(origin, out.x, out.z)) continue
+        for (const loot of behind) {
+          const d = Math.hypot(loot.x - out.x, loot.z - out.z)
+          if (d >= CONFIG.player.pickupReach) continue
+          tried++
+          expect(walls.between(out, loot)).toBe(true)
+        }
+      }
+    }
+    expect(tried).toBeGreaterThan(0)
+  })
+
   it("leaves the day's loot where a raider can reach it", () => {
     const walls = built()
     walls.setGates(() => true)
@@ -131,6 +172,7 @@ describe('STRIP_MALL', () => {
       expect(Math.hypot(out.x - p.x, out.z - p.z), spot.kind).toBeLessThan(
         CONFIG.player.pickupReach
       )
+      expect(walls.between(out, p), spot.kind).toBe(false)
       expect(spot.count, spot.kind).toBeGreaterThan(0)
     }
     // The $20 in the safe is behind the locked door.

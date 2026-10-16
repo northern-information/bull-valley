@@ -8,6 +8,7 @@ import { EMOTE_IDS } from './emotes.ts'
 import { isHealth } from './health.ts'
 import { isQuestStep } from './quests.ts'
 import { isWaterMap } from './waterside.ts'
+import type { CitgoLog } from './citgos.ts'
 import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { DealerStock } from './dealer.ts'
@@ -17,6 +18,7 @@ import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
 import type { OutfitId } from './outfits.ts'
+import type { Portal } from './portals.ts'
 import type { QuestId, QuestStage, QuestStep } from './quests.ts'
 import type { Burst, ShadeKind, TruckPose } from './shadowmen.ts'
 import type { StandLedger } from './stand.ts'
@@ -25,7 +27,7 @@ import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 31
+export const PROTOCOL_VERSION = 33
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -115,6 +117,10 @@ export interface PickupSpec {
   // Where it lies: the valley gives it only to a raider in reach.
   x: number
   z: number
+  // The walled room it lies in, as the ring of its corners, when it lies
+  // behind walls (the Video Vault's office): the valley gives it only to
+  // a raider standing in the room, never one reaching through the wall.
+  within?: XZ[]
 }
 
 // --- The shared world ------------------------------------------------------
@@ -147,6 +153,10 @@ export interface WorldWire {
   // Where raiders fell and have not yet taken their things back
   // (sharedworld.ts rule 18); a body lies whatever the day.
   corpses: CorpseWire[]
+  // The Citgo portals open now (sharedworld.ts rule 28), each with the
+  // name of the raider who opened it, the Citgo it goes to, and when it
+  // closes.
+  portals: Portal[]
   // Matthew Marx's truck: its leg, stamped with server ms, and who is in
   // the bed (marx.ts). Every client drives the same leg (truckplan.ts).
   truck: TruckState
@@ -190,6 +200,8 @@ export type WorldReason =
   | 'spilled'
   | 'fell'
   | 'looted'
+  | 'portal-opened'
+  | 'portal-closed'
   | 'refill'
   | 'dealt'
   | 'hurry'
@@ -235,6 +247,9 @@ export interface HelloMessage {
   // Where the Undercroft lies (undercroft.ts), or null: the valley steps
   // its tunnel shades in it (rule 11).
   undercroft: MazePlace | null
+  // The middle of the Citgo portal ring on each station's lot, in
+  // world.fuelPoints order (rule 28).
+  rings: XZ[]
   // On a reconnect, the id this client had before the line dropped. The
   // valley may not have heard that socket close yet; it retires it if it is
   // the same account's, so the raider is not welcomed back beside their own
@@ -330,6 +345,14 @@ export type StandTendMessage =
   | { type: 'stand-stock'; kind: string; count: number }
   | { type: 'stand-collect' }
   | { type: 'stand-upgrade' }
+
+// A Citgo portal, opened a little ahead of the raider with its twin at the
+// last Citgo they stood at (sharedworld.ts rule 28). The valley places it
+// where the raider's last state frame put them, and answers with a world
+// frame, or a nack.
+export interface PortalMessage {
+  type: 'portal'
+}
 
 // Today's berry off bush `bush`, please. The valley answers with a
 // DailyMessage either way.
@@ -482,6 +505,7 @@ export type ClientMessage =
   | PassMessage
   | DropMessage
   | TakeDropMessage
+  | PortalMessage
   | LootMessage
   | StowMessage
   | StandTendMessage
@@ -542,6 +566,15 @@ export interface WelcomeMessage {
   health: number
   // The account's geometrie at serverNow (sharedworld.ts rule 27).
   geometrie: GeometrieLevels
+  // Every Citgo the account has stood at, and the last (rule 28).
+  citgos: CitgoLog
+}
+
+// The account's Citgos after it stood at one not yet the last (rule 28).
+// To every socket signed in to it.
+export interface CitgosMessage {
+  type: 'citgos'
+  citgos: CitgoLog
 }
 
 // Geometrie's three levels, each from 0 to 1 (geometrie.ts).
@@ -658,7 +691,7 @@ export interface WorldMessage {
   world: WorldWire | null
   // Who did it, for 'joined', 'left', 'boarded', 'hopped-out', 'called',
   // 'ferry', 'taken', 'bought', 'dealt', 'dropped', 'drop-taken', 'fell',
-  // 'looted'.
+  // 'looted', 'portal-opened'.
   by?: string
   // For 'taken'.
   index?: number
@@ -672,6 +705,8 @@ export interface WorldMessage {
   count?: number
   // For 'fell' and 'looted': the body's id.
   corpse?: number
+  // For 'portal-opened': the portal's id.
+  portal?: number
 }
 
 export interface NackMessage {
@@ -851,6 +886,7 @@ export type ServerMessage =
   | StruckMessage
   | HealthMessage
   | GeometrieMessage
+  | CitgosMessage
   | PassedMessage
   | SeasonMessage
   | BookMessage
@@ -985,16 +1021,35 @@ function isKind(value: unknown): value is string {
   )
 }
 
+// A room's ring of corners: 3 to RING_MAX points.
+const RING_MAX = 8
+function parseRing(value: unknown): XZ[] | null {
+  if (!Array.isArray(value)) return null
+  if (value.length < 3 || value.length > RING_MAX) return null
+  const ring: XZ[] = []
+  for (const point of value as unknown[]) {
+    if (!isRecord(point) || !isCoord(point.x) || !isCoord(point.z)) return null
+    ring.push({ x: point.x, z: point.z })
+  }
+  return ring
+}
+
 // A hello's pickups: at most PICKUPS_MAX, each a kind and a count.
 function parsePickups(value: unknown): PickupSpec[] | null {
   if (!Array.isArray(value) || value.length > PICKUPS_MAX) return null
   const specs: PickupSpec[] = []
   for (const entry of value as unknown[]) {
     if (!isRecord(entry)) return null
-    const { kind, count, x, z } = entry
+    const { kind, count, x, z, within } = entry
     if (!isKind(kind) || !isCount(count)) return null
     if (!isCoord(x) || !isCoord(z)) return null
-    specs.push({ kind, count, x, z })
+    if (within === undefined) {
+      specs.push({ kind, count, x, z })
+      continue
+    }
+    const ring = parseRing(within)
+    if (!ring) return null
+    specs.push({ kind, count, x, z, within: ring })
   }
   return specs
 }
@@ -1102,6 +1157,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
       const dealer = value.dealer === null ? null : parseXZ(value.dealer)
       const undercroft =
         value.undercroft === null ? null : parseMazePlace(value.undercroft)
+      const rings = parseHavens(value.rings, stations)
       // An older build sends none of them; it still parses as far as its
       // version, which the server then refuses.
       if (
@@ -1114,7 +1170,8 @@ export function parseClientMessage(text: string): ClientMessage | null {
           !bushes ||
           (stand === null && value.stand !== null) ||
           (dealer === null && value.dealer !== null) ||
-          undercroft === undefined)
+          undercroft === undefined ||
+          !rings)
       ) {
         return null
       }
@@ -1137,6 +1194,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
         bushes: bushes ?? [],
         dealer,
         undercroft: undercroft ?? null,
+        rings: rings ?? [],
         ...(typeof value.was === 'string' && value.was.length <= ID_MAX
           ? { was: value.was }
           : {}),
@@ -1144,6 +1202,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
     }
     case 'board':
     case 'hop-out':
+    case 'portal':
     case 'rename':
     case 'friends':
       return { type: value.type }

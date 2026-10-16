@@ -100,10 +100,24 @@ export function paintEnterSign(): CanvasArt {
   return art
 }
 
+// The colours of a portal's swirl: its bands (r, g, b) and its eye, from
+// the middle out.
+export interface SwirlColors {
+  band: readonly [number, number, number]
+  eye: readonly [string, string]
+}
+
+// The maze's pale green.
+const MAZE_SWIRL: SwirlColors = {
+  band: [150, 255, 210],
+  eye: ['rgba(230, 255, 245, 1)', 'rgba(60, 200, 160, 0)'],
+}
+
 // The portal at the maze's heart: a spiral of pale green bands on black,
-// brightest at the eye, fading to nothing at the rim. Drawn for additive
-// blending, so black is clear.
-export function paintPortalSwirl(): CanvasArt {
+// brightest at the eye, fading to nothing at the rim; a Citgo portal's the
+// same in its own colours. Drawn for additive blending, so black is clear.
+export function paintPortalSwirl(colors: SwirlColors = MAZE_SWIRL): CanvasArt {
+  const [r0, g0, b0] = colors.band
   const art = canvas([64, 64], '#000000')
   const { ctx, w, h } = art
   const cx = w / 2
@@ -114,7 +128,7 @@ export function paintPortalSwirl(): CanvasArt {
       const a = (arm / 3) * Math.PI * 2 + s * Math.PI * 3
       const d = s * r
       const fade = 1 - s
-      ctx.fillStyle = `rgba(150, 255, 210, ${(0.25 + fade * 0.75).toFixed(2)})`
+      ctx.fillStyle = `rgba(${r0}, ${g0}, ${b0}, ${(0.25 + fade * 0.75).toFixed(2)})`
       ctx.beginPath()
       ctx.arc(
         cx + Math.cos(a) * d,
@@ -127,8 +141,8 @@ export function paintPortalSwirl(): CanvasArt {
     }
   }
   const eye = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 0.4)
-  eye.addColorStop(0, 'rgba(230, 255, 245, 1)')
-  eye.addColorStop(1, 'rgba(60, 200, 160, 0)')
+  eye.addColorStop(0, colors.eye[0])
+  eye.addColorStop(1, colors.eye[1])
   ctx.fillStyle = eye
   ctx.fillRect(0, 0, w, h)
   return art

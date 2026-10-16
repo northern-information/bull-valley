@@ -5,6 +5,7 @@
 // No three.js, no DOM.
 
 import type { Leg, TruckState } from './marx.ts'
+import type { Portal } from './portals.ts'
 import type { WorldMessage, WorldWire } from './protocol.ts'
 
 // What a 'taken', 'bought', 'dropped' or 'drop-taken' snapshot settled,
@@ -129,4 +130,38 @@ export function boardable(leg: Leg | null, me: string | null): boolean {
   if (!leg) return false
   if (leg.kind === 'parked') return true
   return leg.kind === 'called' && me !== null && leg.by === me
+}
+
+// What a snapshot says of the Citgo portals for this raider
+// (sharedworld.ts rule 28), who last knew their own as `myPortal` (its id,
+// or null): one opened and whether it was theirs, their own as it stands
+// now (its id, or null), and whether their own just closed. Opening a
+// second closes the first, but that is no closing to tell of.
+export interface PortalNews {
+  opened: { portal: Portal; mine: boolean } | null
+  mine: number | null
+  closed: boolean
+}
+
+export function portalNews(
+  msg: Pick<WorldMessage, 'reason' | 'by' | 'portal'>,
+  wire: WorldWire,
+  me: string | null,
+  myPortal: number | null
+): PortalNews {
+  const found =
+    msg.reason === 'portal-opened' && msg.portal !== undefined
+      ? wire.portals.find((p) => p.id === msg.portal)
+      : undefined
+  const opened = found
+    ? { portal: found, mine: me !== null && msg.by === me }
+    : null
+  if (opened?.mine) return { opened, mine: opened.portal.id, closed: false }
+  const standing =
+    myPortal !== null && wire.portals.some((p) => p.id === myPortal)
+  return {
+    opened,
+    mine: standing ? myPortal : null,
+    closed: myPortal !== null && !standing,
+  }
 }

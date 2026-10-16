@@ -23,12 +23,10 @@ import {
   applyUpdated,
   applyWelcome,
   createPeerTable,
-  peerContacts,
   samplePeer,
 } from './presence.ts'
 import type { Flashlight } from './assets.ts'
 import type { Figure, Worn } from './figure.ts'
-import type { ScopeContact, XZ } from './interfaces.ts'
 import type { Peer, PeerTable } from './presence.ts'
 import type { PeerStateWire, PeerWire } from './protocol.ts'
 
@@ -168,10 +166,6 @@ export class Peers {
       puppet.flashlight.setOn(at.light)
       puppet.worn.update(this.time)
     }
-  }
-
-  contacts(origin: XZ, rangeMetres: number, renderAt: number): ScopeContact[] {
-    return peerContacts(this.table, origin, rangeMetres, renderAt)
   }
 
   private build(peer: Peer): void {

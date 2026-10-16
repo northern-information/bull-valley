@@ -3,6 +3,7 @@
 // three.js, no DOM: tests/unit/interactions.test.ts runs it in Node.
 
 import { CONFIG } from './config.ts'
+import { insideRing } from './coords.ts'
 import { copy } from './copy.ts'
 import { nearestCorpse } from './corpses.ts'
 import { cosmeticById } from './cosmetics.ts'
@@ -23,6 +24,9 @@ export interface PickupSpot extends XZ {
   kind: PickupKind
   count: number
   taken: boolean
+  // The walled room it lies in, when it does: taken only from inside it,
+  // as the valley holds it (sharedworld.ts rule 4).
+  within?: readonly XZ[]
 }
 
 // The shelf unit the player is looking at, from store.ts unitInView.
@@ -114,6 +118,10 @@ export interface InteractionInput<P extends PickupSpot> {
   // raider may climb in (worldsync.ts boardable).
   truck: { distance: number; moving: boolean; boardable: boolean }
   pickups: readonly P[]
+  // Whether a wall stands between two points (walls.ts between): a pickup
+  // behind one is out of reach however near it lies. Left out, nothing
+  // does.
+  walled?: (from: XZ, to: XZ) => boolean
   // The shelf unit in view inside a store, or null.
   shelf: ShelfSpot | null
   // The berry bushes (the spawn Citgo's and the maze's), and how each
@@ -260,7 +268,7 @@ export function resolveInteraction<P extends PickupSpot>(
     Math.hypot(locked.x - player.x, locked.z - player.z) <
       CONFIG.stripMall.doorReach
   ) {
-    const pickup = nearestPickup(input.pickups, player)
+    const pickup = nearestPickup(input.pickups, player, input.walled)
     return pickup ? { kind: 'pickup', pickup } : { kind: 'locked' }
   }
 
@@ -279,21 +287,26 @@ export function resolveInteraction<P extends PickupSpot>(
     return { kind: 'collect', bush: bush.id, status: bush.status }
   }
 
-  const nearest = nearestPickup(input.pickups, player)
+  const nearest = nearestPickup(input.pickups, player, input.walled)
   return nearest ? { kind: 'pickup', pickup: nearest } : null
 }
 
-// The nearest pickup not yet taken within reach, or null.
+// The nearest pickup not yet taken within reach, with no wall between,
+// or null.
 function nearestPickup<P extends PickupSpot>(
   pickups: readonly P[],
-  player: XZ
+  player: XZ,
+  walled?: (from: XZ, to: XZ) => boolean
 ): P | null {
   let best = CONFIG.player.pickupReach
   let nearest: P | null = null
   for (const pickup of pickups) {
     if (pickup.taken) continue
+    if (pickup.within && !insideRing(player.x, player.z, pickup.within)) {
+      continue
+    }
     const d = Math.hypot(pickup.x - player.x, pickup.z - player.z)
-    if (d < best) {
+    if (d < best && !walled?.(player, pickup)) {
       best = d
       nearest = pickup
     }

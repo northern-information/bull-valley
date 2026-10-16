@@ -11,13 +11,12 @@ import * as THREE from 'three'
 import { buildCaretaker } from './assets.ts'
 import { caretakerAt, createCaretaker, stepCaretaker } from './caretaker.ts'
 import { CONFIG } from './config.ts'
-import { compassBearing } from './coords.ts'
 import { worldToMaze } from './maze.ts'
 import { mulberry32, range } from './rng.ts'
 import { keeperCues } from './sfx.ts'
 import type { CaretakerRig } from './assets.ts'
 import type { Caretaker } from './caretaker.ts'
-import type { HeightAt, ScopeContact, XZ } from './interfaces.ts'
+import type { HeightAt, XZ } from './interfaces.ts'
 import type { MazePlace } from './maze.ts'
 import type { CaretakerWire, ShadowmenMessage } from './protocol.ts'
 import type { ShadeCues } from './sfx.ts'
@@ -50,7 +49,6 @@ export interface CaretakerShadeFrame {
   // Null in the shared valley, which steps it itself.
   alone: AloneFrame | null
   renderAt: number
-  myId: string | null
 }
 
 export interface CaretakerShadeUpdate {
@@ -59,8 +57,9 @@ export interface CaretakerShadeUpdate {
   struck: boolean
   // Where it was unmade since the last update.
   unmade: XZ[]
-  // Its blip on the scope, if it is in range.
-  contact: ScopeContact | null
+  // How far it floats from the player, or null while it is unmade (the
+  // Book of Shadows).
+  distance: number | null
   // What it sounds like this frame (sfx.ts).
   heard: ShadeCues
 }
@@ -129,11 +128,9 @@ export class CaretakerShade {
     player,
     alone,
     renderAt,
-    myId,
   }: CaretakerShadeFrame): CaretakerShadeUpdate {
     let struck = false
     let shown: CaretakerWire | null = null
-    let me = myId ?? ''
     if (this.maze && alone) {
       // Played alone the valley's frames are stale: start them afresh.
       this.prev = null
@@ -157,7 +154,6 @@ export class CaretakerShade {
         windup: this.own.windup / CONFIG.caretaker.windupSeconds,
       }
       this.listen(this.own.windup)
-      me = ALONE
     } else if (this.maze) {
       // The one this client stepped is not the valley's: a fall back to
       // playing alone starts fresh.
@@ -184,19 +180,10 @@ export class CaretakerShade {
     )
     this.begun = false
     this.lunged = false
-    let contact: ScopeContact | null = null
-    if (shown) {
-      const dist = Math.hypot(shown.x - player.x, shown.z - player.z)
-      if (dist < CONFIG.scope.rangeMetres) {
-        contact = {
-          dist,
-          bearing: compassBearing(shown.x - player.x, shown.z - player.z),
-          hunting: shown.target === me,
-          kind: 'shadow',
-        }
-      }
-    }
-    return { struck, unmade, contact, heard }
+    const distance = shown
+      ? Math.hypot(shown.x - player.x, shown.z - player.z)
+      : null
+    return { struck, unmade, distance, heard }
   }
 
   // The valley's Caretaker at renderAt, between the last two frames; it

@@ -4,7 +4,6 @@ import { mulberry32 } from '../../src/rng.ts'
 import {
   beamFrom,
   burstScaleOf,
-  contactsOf,
   createShadowmen,
   headlightBeam,
   headlightsDue,
@@ -441,30 +440,6 @@ describe('stepShadowmen: rushes', () => {
     step(field)
     expect(first(field)?.windup).toBe(0)
     expect(first(field)?.target).toBeNull()
-  })
-})
-
-describe('contactsOf', () => {
-  const at = (x: number, z: number, target: string | null = null) => ({
-    x,
-    z,
-    target,
-  })
-
-  it('reports what is inside scope range by bearing and distance', () => {
-    expect(contactsOf([at(0, -100)], ORIGIN, 'a', 250)).toEqual([
-      { dist: 100, bearing: 0, hunting: false, kind: 'shadow' },
-    ])
-    const [east] = contactsOf([at(100, 0)], ORIGIN, 'a', 250)
-    expect(east.bearing).toBeCloseTo(90, 9)
-    expect(east.dist).toBeCloseTo(100, 9)
-    expect(contactsOf([at(0, -300)], ORIGIN, 'a', 250)).toEqual([])
-    expect(contactsOf([at(0, -300)], ORIGIN, 'a', 400).length).toBe(1)
-  })
-
-  it('hunts only when it is rushing this raider', () => {
-    expect(contactsOf([at(0, -10, 'a')], ORIGIN, 'a')[0].hunting).toBe(true)
-    expect(contactsOf([at(0, -10, 'b')], ORIGIN, 'a')[0].hunting).toBe(false)
   })
 })
 

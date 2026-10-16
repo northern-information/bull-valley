@@ -2,6 +2,7 @@
 // state they share and change (GameState). boot() makes one of each; actions.ts,
 // valleysync.ts, input.ts, targets.ts and loop.ts each take the Game.
 
+import { NO_CITGOS } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { NO_TASK } from './dailytask.ts'
 import { SOBER } from './geometrie.ts'
@@ -13,6 +14,7 @@ import { createTruck } from './marx.ts'
 import { NO_PROGRESS } from './season.ts'
 import { freshStock } from './store.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
+import type { CitgoLog } from './citgos.ts'
 import type { CorpseMeshes } from './corpsemeshes.ts'
 import type { Corpse, CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -38,8 +40,11 @@ import type { Music } from './musicrig.ts'
 import type { NetClient } from './net.ts'
 import type { NpcId } from './npcs.ts'
 import type { Peers } from './peers.ts'
+import type { Phone } from './phone.ts'
 import type { Player } from './player.ts'
 import type { PlayerBody } from './playerbody.ts'
+import type { PortalMeshes } from './portalmeshes.ts'
+import type { Portal } from './portals.ts'
 import type {
   DailyWire,
   FriendWire,
@@ -48,7 +53,6 @@ import type {
 } from './protocol.ts'
 import type { QuestId, QuestStage } from './quests.ts'
 import type { RoadGraph } from './roadgraph.ts'
-import type { Scope } from './scope.ts'
 import type { SeasonProgress } from './season.ts'
 import type { SettingsStore } from './settingsui.ts'
 import type { Sfx } from './sfxrig.ts'
@@ -237,6 +241,22 @@ export interface GameState {
   // stand's dialog.
   stand: StandLedger | null
   standSaid: string | null
+  // Rule 28: every Citgo the account has stood at, and the last, as the
+  // valley last said (the welcome, then every citgos frame); alone, this
+  // client's own. The Citgo portals, the valley's from every snapshot, or
+  // this raider's own when played alone (numbered from nextPortal, closing
+  // on the wall clock); the id of the one this raider opened, while it
+  // stands; a portal asked of the valley and not yet answered; after
+  // stepping through one or fast travelling, the local ms
+  // (performance.now) before which no portal takes them; and whether the
+  // map is open.
+  citgos: CitgoLog
+  portals: Portal[]
+  nextPortal: number
+  myPortal: number | null
+  pendingPortal: boolean
+  portalGraceUntil: number
+  mapOpen: boolean
   // Rule 25: a deal with Erwin not yet answered, his last word, and how
   // many times he has rambled at this raider.
   pendingDeal: boolean
@@ -312,6 +332,13 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     lockerOpen: false,
     stand: null,
     standSaid: null,
+    citgos: NO_CITGOS,
+    portals: [],
+    nextPortal: 0,
+    myPortal: null,
+    pendingPortal: false,
+    portalGraceUntil: 0,
+    mapOpen: false,
     pendingDeal: false,
     dealSaid: null,
     rambled: 0,
@@ -340,6 +367,8 @@ export interface Game {
   graves: Gravestones
   // The bodies, kept in step with state.corpses.
   corpses: CorpseMeshes
+  // The Citgo portals, kept in step with the open ones of state.portals.
+  portals: PortalMeshes
   graph: RoadGraph
   truck: Truck
   // The valley's music, none under e2e, which never plays sound, and the
@@ -359,7 +388,8 @@ export interface Game {
   hands: FirstPersonHands
   // The account and outfit from the titles; Gron changes them.
   pick: Titles
-  scope: Scope
+  // The phone, dialing Citgo portals (Q).
+  phone: Phone
   shadowmen: ShadowCards
   // The Caretaker in the corn maze.
   caretaker: CaretakerShade

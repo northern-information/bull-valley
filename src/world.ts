@@ -49,6 +49,8 @@ import {
 } from './store.ts'
 import { buildStreetlights } from './streetlights.ts'
 import {
+  backRoomRing,
+  inBackRoom,
   mallCenter,
   onMallGrounds,
   plazaLotMiddle,
@@ -115,6 +117,9 @@ export interface LandmarkPoint extends XZ {
 export interface Pickup extends XZ {
   kind: PickupKind
   count: number
+  // The walled room it lies in, when it does (protocol.ts
+  // PickupSpec.within): taken only from inside it.
+  within?: readonly XZ[]
   mesh: THREE.Object3D
   taken: boolean
 }
@@ -151,6 +156,10 @@ export interface World {
   // Where E opens the lockers in each back room (store.ts lockerSpot),
   // indexed like fuelPoints.
   lockers: XZ[]
+  // The middle of the Citgo portal ring on each station's lot
+  // (CONFIG.portal.ring; sharedworld.ts rule 28), indexed like fuelPoints:
+  // where fast travel sets a raider down.
+  rings: XZ[]
   // The Cabbage Stand on the spawn station's lot (sharedworld.ts rule 23):
   // where its middle is, the stand itself for the glow, and setLevel to
   // dress it for the raider's own level. Null without a spawn station.
@@ -389,7 +398,11 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
       ? [
           ...STRIP_MALL.loot.map((spot) => {
             const [x, , z] = toWorld(plaza.origin, [spot.x, 0, spot.z])
-            return { x, z, kind: spot.kind, count: spot.count }
+            const loot = { x, z, kind: spot.kind, count: spot.count }
+            // What lies in the office is the office's alone.
+            return inBackRoom(plaza.origin, x, z)
+              ? { ...loot, within: backRoomRing(plaza.origin) }
+              : loot
           }),
           // And under it, the Undercroft's.
           ...(croft
@@ -444,6 +457,11 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     moabs,
     moabRigs,
     lockers: fuel.points.map(lockerSpot),
+    rings: fuel.points.map((point) => {
+      const { ring } = CONFIG.portal
+      const [x, , z] = toWorld(point, [ring.x, 0, ring.z])
+      return { x, z }
+    }),
     stand: standRig,
     wreck,
     dishes,

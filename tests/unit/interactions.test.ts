@@ -121,6 +121,52 @@ describe('resolveInteraction', () => {
     expect(resolveInteraction(input({ pickups: [outOfReach] }))).toBeNull()
   })
 
+  it('offers a pickup in a walled room only from inside it', () => {
+    const room = [
+      { x: 249, z: 249 },
+      { x: 251, z: 249 },
+      { x: 251, z: 251 },
+      { x: 249, z: 251 },
+    ]
+    const office: PickupSpot = {
+      x: 250.5,
+      z: 250,
+      kind: 'wild-turkey',
+      count: 1,
+      taken: false,
+      within: room,
+    }
+    expect(resolveInteraction(input({ pickups: [office] }))).toEqual({
+      kind: 'pickup',
+      pickup: office,
+    })
+    expect(
+      resolveInteraction(
+        input({ player: { x: 252, z: 250 }, pickups: [office] })
+      )
+    ).toBeNull()
+  })
+
+  it('never offers a pickup behind a wall, however near', () => {
+    const behind: PickupSpot = {
+      x: 251,
+      z: 250,
+      kind: 'wild-turkey',
+      count: 1,
+      taken: false,
+    }
+    const walled = (_: unknown, to: { x: number }) => to.x > 250.5
+    expect(resolveInteraction(input({ pickups: [behind], walled }))).toBeNull()
+    const locked = { x: 251, z: 250 }
+    expect(
+      resolveInteraction(input({ locked, pickups: [behind], walled }))
+    ).toEqual({ kind: 'locked' })
+    const before: PickupSpot = { ...behind, x: 249 }
+    expect(
+      resolveInteraction(input({ pickups: [behind, before], walled }))
+    ).toEqual({ kind: 'pickup', pickup: before })
+  })
+
   it('offers the bush within reach, as the valley has it today', () => {
     const atBush = { player: { x: bush.x + 1, z: bush.z } }
     expect(resolveInteraction(input(atBush))).toEqual({
