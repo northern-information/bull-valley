@@ -59,6 +59,9 @@ export interface Figure {
   hipY: number
   // Where each hand grips, on its elbow pivot: a prop added here is held.
   fists: Record<'L' | 'R', THREE.Group>
+  // Each hand open, and closed round the fist (setGrip): the left closes
+  // on the flashlight, the right on the bat or the axe.
+  hands: Record<'L' | 'R', Hand>
   // The guitar on the back, when the outfit carries one; setFinish
   // recolors it in place.
   guitar?: Guitar
@@ -66,6 +69,12 @@ export interface Figure {
   // applyPose and applyJoints keep it hanging head down (poses.ts
   // heldPitch).
   held?: THREE.Group
+}
+
+// A hand's two shapes, one shown at a time.
+export interface Hand {
+  open: THREE.Group
+  grip: THREE.Group
 }
 
 export interface FigureOptions {
@@ -420,6 +429,64 @@ const HAND: RingInput[] = [
   [-0.07, 0.02, 0.045],
   [-0.13, 0.012, 0.03],
 ]
+// A hand closed round a barrel (the flashlight's, a haft, a bat's
+// handle) running along the forearm through the fist, in the fist's own
+// space: the barrel's axis down Y through the origin, the wrist above at
+// +Y, the thumb's side forward (+Z). out is the side the back of the
+// hand faces, +1 for the left hand, -1 for the right. The back of the
+// hand lies along the barrel's outer side, the four fingers come off it
+// one above the next and curl round behind the barrel to the far side,
+// and the thumb lies forward along the barrel, on the switch.
+function buildGrip(skin: string, out: number): THREE.Group {
+  const grip = new THREE.Group()
+  grip.name = 'grip'
+  // The creases between the fingers and under the knuckles a shade
+  // darker than the skin, so the fingers read apart.
+  const crease = shade(skin, 0.78)
+  // The heel of the hand, from the end of the forearm to the back.
+  part(grip, box(0.044, 0.032, 0.052), skin, 0.012 * out, 0.07, -0.004)
+  // The back of the hand along the barrel's outer side, its knuckles
+  // standing proud down the back edge.
+  part(grip, box(0.018, 0.09, 0.054), skin, 0.031 * out, 0.026, 0.002)
+  part(grip, box(0.012, 0.084, 0.05), crease, 0.026 * out, 0.026, -0.008)
+  // The fingers, index (nearest the wrist) to little, each with its
+  // knuckle on the back, a first bone round behind the barrel, a second
+  // down its far side, and the tip folded in toward the thumb; the
+  // little finger shortest.
+  const fingers: [number, number, number][] = [
+    [0.054, 0.019, 1],
+    [0.033, 0.019, 1],
+    [0.012, 0.018, 0.95],
+    [-0.008, 0.016, 0.85],
+  ]
+  for (const [y, h, reach] of fingers) {
+    part(grip, box(0.014, h, 0.014), skin, 0.034 * out, y, -0.024)
+    part(grip, box(0.044, h, 0.017), skin, 0.006 * out, y, -0.032)
+    part(grip, box(0.017, h, 0.028 * reach), skin, -0.03 * out, y, -0.012)
+    part(
+      grip,
+      box(0.014, h * 0.9, 0.012),
+      skin,
+      -0.024 * out,
+      y,
+      -0.012 + 0.018 * reach
+    )
+    // The crease below each finger, between it and the next.
+    part(grip, box(0.046, 0.003, 0.016), crease, 0.004 * out, y - h / 2, -0.03)
+  }
+  // The thumb: its root swelling forward off the back, then lying along
+  // the front of the barrel toward the lens, its tip on the switch.
+  part(grip, box(0.026, 0.042, 0.028), skin, 0.022 * out, 0.044, 0.025)
+  part(grip, box(0.017, 0.034, 0.017), skin, 0.01 * out, 0.012, 0.031)
+  part(grip, box(0.015, 0.022, 0.015), skin, 0.004 * out, -0.014, 0.029)
+  return grip
+}
+
+// A color darkened (or lightened, past 1) by a factor.
+function shade(color: string, by: number): string {
+  return `#${new THREE.Color(color).multiplyScalar(by).getHexString()}`
+}
+
 const THIGH: RingInput[] = [
   [0.02, 0.085, 0.09],
   [-0.16, 0.08, 0.085],
@@ -453,6 +520,7 @@ export function buildFigure(
   group.name = `figure-${outfitId}`
   const built: Partial<Record<JointName, THREE.Group>> = {}
   const fists: Partial<Record<'L' | 'R', THREE.Group>> = {}
+  const hands: Partial<Record<'L' | 'R', Hand>> = {}
   let held: THREE.Group | undefined
 
   const pelvis = pivot(group, built, 'pelvis', 0, hipY, 0)
@@ -547,13 +615,20 @@ export function buildFigure(
       bare ? 'arm' : null,
       bare ? null : 'shirt'
     )
-    part(elbow, loft(HAND), c.skin, 0, -foreArm, 0)
-    part(elbow, box(0.025, 0.05, 0.025), c.skin, 0, -foreArm - 0.035, 0.04)
+    // The hand open, or closed round what it holds (setGrip).
+    const open = new THREE.Group()
+    open.name = `hand${side}`
+    part(open, loft(HAND), c.skin, 0, -foreArm, 0)
+    part(open, box(0.025, 0.05, 0.025), c.skin, 0, -foreArm - 0.035, 0.04)
+    elbow.add(open)
     const fist = new THREE.Group()
     fist.name = `fist${side}`
     fist.position.set(0, -foreArm - 0.075, 0.01)
     elbow.add(fist)
     fists[side] = fist
+    const grip = buildGrip(c.skin, sign)
+    fist.add(grip)
+    hands[side] = { open, grip }
     // The bat hangs from the right hand, gripped just above the knob, its
     // barrel swung a little forward of the leg.
     // The axe hangs the same way, its edge forward and its head down.
@@ -627,17 +702,35 @@ export function buildFigure(
     joints,
     hipY,
     fists: fists as Record<'L' | 'R', THREE.Group>,
+    hands: hands as Record<'L' | 'R', Hand>,
     guitar,
     held,
   }
+  setGrip(figure, 'L', false)
+  setGrip(figure, 'R', Boolean(held))
   hang(figure)
   return figure
 }
 
+// Close a hand round what it holds, or open it again.
+export function setGrip(figure: Figure, side: 'L' | 'R', closed: boolean) {
+  const { open, grip } = figure.hands[side]
+  open.visible = !closed
+  grip.visible = closed
+}
+
+// How far the first-person wrist is cocked back (a positive x rotation
+// swings the hand back off the forearm's line).
+const WRIST_COCK = 0.4
+
 // One outfit's forearm and hand on their own: the elbow at the origin, the
-// forearm hanging down -Y, in the same sleeve and skin as the body. The
+// forearm hanging down -Y, in the same sleeve and skin as the body, the
+// hand closed round the fist (the hand on the given side). The
 // first-person hands (fphands.ts) hold things up into the view with it.
-export function buildForearm(outfitId: OutfitId): {
+export function buildForearm(
+  outfitId: OutfitId,
+  side: 'L' | 'R'
+): {
   group: THREE.Group
   fist: THREE.Group
 } {
@@ -653,11 +746,16 @@ export function buildForearm(outfitId: OutfitId): {
     loft(widen(stretch(FOREARM, arm), bare ? 1 : (outfit.loose ?? 1))),
     bare ? c.skin : c.shirt
   )
-  part(group, loft(HAND), c.skin, 0, -foreArm, 0)
-  part(group, box(0.025, 0.05, 0.025), c.skin, 0, -foreArm - 0.035, 0.04)
+  // The wrist cocked back, so from behind the elbow the hand and what it
+  // holds rise clear of the sleeve instead of hiding behind it.
+  const wrist = new THREE.Group()
+  wrist.position.set(0, -foreArm, 0)
+  wrist.rotation.x = WRIST_COCK
+  group.add(wrist)
   const fist = new THREE.Group()
-  fist.position.set(0, -foreArm - 0.075, 0.01)
-  group.add(fist)
+  fist.position.set(0, -0.075, 0.01)
+  wrist.add(fist)
+  fist.add(buildGrip(c.skin, side === 'L' ? 1 : -1))
   return { group, fist }
 }
 
@@ -698,6 +796,7 @@ export function attachFlashlight(figure: Figure, beam = 7): Flashlight {
   // The barrel's +Z down the forearm's -Y.
   flashlight.group.rotation.x = Math.PI / 2
   figure.fists.L.add(flashlight.group)
+  setGrip(figure, 'L', true)
   return flashlight
 }
 

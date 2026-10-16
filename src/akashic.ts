@@ -9,6 +9,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { mountMap } from './akashicmap.ts'
 import {
+  buildFlashlight,
   buildLockerDoors,
   isMesh,
   meshBounds,
@@ -28,6 +29,7 @@ import {
   attachCosmetics,
   attachFlashlight,
   buildFigure,
+  buildForearm,
   buildGron,
   buildMoab,
 } from './figure.ts'
@@ -126,6 +128,21 @@ function sampleFlashlightUp(): THREE.Group {
   return figure.group
 }
 
+// The left hand as the raider sees their own in first person
+// (fphands.ts): the forearm with the flashlight in the closed fist, the
+// lens lit, lying on its side the way it is held up into the view.
+function sampleFlashlightHand(): THREE.Group {
+  const { group, fist } = buildForearm(OUTFIT_IDS[0], 'L')
+  const flashlight = buildFlashlight()
+  flashlight.group.rotation.x = Math.PI / 2
+  flashlight.setOn(true)
+  fist.add(flashlight.group)
+  group.rotation.x = Math.PI / 2
+  const held = new THREE.Group()
+  held.add(group)
+  return held
+}
+
 // A raider as the others see them in the Flaming Halo, Moab's trade.
 function sampleHaloWorn(): THREE.Group {
   const figure = buildFigure(OUTFIT_IDS[0])
@@ -187,6 +204,11 @@ const ASSETS: AkashicAsset[] = [
     id: 'flashlight-up',
     label: 'Raider with the flashlight up',
     build: sampleFlashlightUp,
+  },
+  {
+    id: 'flashlight-hand',
+    label: 'Your hand on the flashlight, first person',
+    build: sampleFlashlightHand,
   },
   {
     id: 'halo-worn',
