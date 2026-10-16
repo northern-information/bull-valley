@@ -17,6 +17,8 @@
 //    home, and the whistle. Anyone arriving while he is at his donuts
 //    brings him home.
 // 4. A pickup goes to whoever asks first; the rest are told it is gone.
+//    One lying in a walled room (PickupSpec.within) goes only to a raider
+//    standing in it.
 // 5. One whistle at a time, and only an empty truck answers it: it drives
 //    to the whistler, who climbs in and is driven home to the Citgo. A
 //    whistler who leaves sends it home empty.
@@ -214,6 +216,7 @@ import {
 } from './caretaker.ts'
 import { citgoAt, NO_CITGOS, visit } from './citgos.ts'
 import { CONFIG } from './config.ts'
+import { insideRing } from './coords.ts'
 import { corpseWire, isEmpty } from './corpses.ts'
 import { affords, cosmeticById, MOAB_OFFERS } from './cosmetics.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
@@ -1083,7 +1086,14 @@ function act(
           reply: nack('take', 'gone', action.index),
         })
       }
-      const far = tooFar(action.at, spec, CONFIG.valleyReach.item)
+      // Within reach, and in its room when it lies behind walls.
+      const far =
+        tooFar(action.at, spec, CONFIG.valleyReach.item) ??
+        (spec.within &&
+        action.at &&
+        !insideRing(action.at.x, action.at.z, spec.within)
+          ? 'too-far'
+          : null)
       if (far) {
         return done(valley, now, {
           broadcast: [],

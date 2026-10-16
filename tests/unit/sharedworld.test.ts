@@ -403,6 +403,36 @@ describe("rule 3: Marx's truck is the valley's", () => {
 })
 
 describe('rule 4: pickups go to the first to ask', () => {
+  it('gives a pickup in a walled room only to a raider standing in it', () => {
+    // A room four metres square round the origin, its door no matter.
+    const within = [
+      { x: -2, z: -2 },
+      { x: 2, z: -2 },
+      { x: 2, z: 2 },
+      { x: -2, z: 2 },
+    ]
+    const v = valleyWith({
+      ...joinAs('a'),
+      pickups: PICKUPS.map((spec, i) => (i === 0 ? { ...spec, within } : spec)),
+    })
+    // A step through the wall, well in reach.
+    const outside = { x: 3, z: 0 }
+    expect(
+      v.step({ type: 'take', id: 'a', index: 0, at: outside }).reply?.reason
+    ).toBe('too-far')
+    expect(
+      v.step({ type: 'take', id: 'a', index: 0, at: null }).reply?.reason
+    ).toBe('no-position')
+    // Anything not in a room is held to reach alone.
+    expect(
+      v.step({ type: 'take', id: 'a', index: 1, at: outside }).broadcast[0]
+    ).toMatchObject({ reason: 'taken', index: 1 })
+    const inside = { x: 1, z: 0.5 }
+    expect(
+      v.step({ type: 'take', id: 'a', index: 0, at: inside }).broadcast[0]
+    ).toMatchObject({ reason: 'taken', index: 0 })
+  })
+
   it('gives the pickup to the first and refuses the rest', () => {
     const v = valleyWith(join('a'), join('b'))
     const r = v.step({ type: 'take', id: 'a', index: 0, at: HERE })

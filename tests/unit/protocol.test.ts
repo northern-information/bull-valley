@@ -492,6 +492,24 @@ describe('parseClientMessage', () => {
     expect(parse({ ...hello, pickups: undefined })).toBeNull()
     expect(parse({ ...hello, pickups: 70 })).toBeNull()
     expect(parse({ ...hello, pickups: [{ kind: 'joints' }] })).toBeNull()
+    const room = (within: unknown) =>
+      parse({
+        ...hello,
+        pickups: [{ kind: 'joints', count: 1, x: 0, z: 0, within }],
+      })
+    const square = [
+      { x: 0, z: 0 },
+      { x: 1, z: 0 },
+      { x: 1, z: 1 },
+    ]
+    expect(room(square)).toMatchObject({
+      pickups: [{ kind: 'joints', within: square }],
+    })
+    expect(room(square.slice(0, 2))).toBeNull()
+    expect(room(Array.from({ length: 9 }, () => square[0]))).toBeNull()
+    expect(room([...square.slice(0, 2), { x: 'a', z: 0 }])).toBeNull()
+    expect(room([...square.slice(0, 2), 7])).toBeNull()
+    expect(room('room')).toBeNull()
     expect(
       parse({ ...hello, pickups: [{ kind: '', count: 1, x: 0, z: 0 }] })
     ).toBeNull()

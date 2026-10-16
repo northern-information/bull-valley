@@ -1489,6 +1489,25 @@ export function inBackRoom(origin: StoreOrigin, x: number, z: number): boolean {
   )
 }
 
+// The Video Vault's office as a ring of world corners, the room inBackRoom
+// asks after: what lies in it goes only to a raider standing in it
+// (protocol.ts PickupSpec.within).
+export function backRoomRing(origin: StoreOrigin): XZ[] {
+  const video = unitZ(0)
+  const x1 = BACK_ROOM.wall + WALL / 2
+  const z1 = video + BACK_ROOM.split
+  const corners: [number, number][] = [
+    [-DEPTH, video],
+    [x1, video],
+    [x1, z1],
+    [-DEPTH, z1],
+  ]
+  return corners.map(([x, z]) => {
+    const [wx, , wz] = toWorld(origin, [x, 0, z])
+    return { x: wx, z: wz }
+  })
+}
+
 // Whether a world point stands in the Video Vault's adult section, through
 // the curtain.
 export function inAdultSection(

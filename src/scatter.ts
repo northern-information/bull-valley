@@ -338,7 +338,11 @@ export function buildPickups(
   dishSpots: readonly XZ[],
   pine: { at: XZ; grave: XZ } | null,
   rng: Rng,
-  loot: readonly (XZ & { kind: PickupKind; count: number })[] = []
+  loot: readonly (XZ & {
+    kind: PickupKind
+    count: number
+    within?: readonly XZ[]
+  })[] = []
 ): { group: THREE.Group; pickups: Pickup[] } {
   const group = new THREE.Group()
   group.name = 'pickups'
@@ -430,6 +434,7 @@ export function buildPickups(
   // STRIP_MALL.loot), each turned its own way, drawing on no seed.
   loot.forEach((spot, i) => {
     place(spot.x, spot.z, spot.kind, spot.count, 0x9100 + i, i * 2.3)
+    if (spot.within) pickups[pickups.length - 1].within = spot.within
   })
   return { group, pickups }
 }
