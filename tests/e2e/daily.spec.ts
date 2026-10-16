@@ -4,6 +4,7 @@ import {
   expect,
   freshRaider,
   freshValley,
+  heardWhere,
   test,
 } from './fixtures.ts'
 import type { Page } from '@playwright/test'
@@ -44,6 +45,8 @@ async function standAtBush(page: Page): Promise<void> {
     if (!bush) throw new Error('no berry bush')
     bv.player.relocate(bush.x + 1, bush.z + 1, bv.player.yaw)
   })
+  // The valley gives a berry only to a raider it has heard stand in reach.
+  await heardWhere(page)
 }
 
 test('the berry bush gives one berry, then is picked clean', async ({
