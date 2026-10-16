@@ -170,24 +170,27 @@ test('a shadow spider takes twice as long and leaves a $20 bill', async ({
   })
   await heardWhere(page)
   // A spider standing still down the line of sight, aimed at its body.
-  await page.evaluate(() => {
+  const at = await page.evaluate(() => {
     const bv = window.__bv
-    if (!bv) return
+    if (!bv) return { x: 0, z: 0 }
     const { yaw } = bv.player
-    bv.placeShadowman(
-      bv.player.pos.x - Math.sin(yaw) * 27,
-      bv.player.pos.z - Math.cos(yaw) * 27,
-      true
-    )
+    const spot = {
+      x: bv.player.pos.x - Math.sin(yaw) * 27,
+      z: bv.player.pos.z - Math.cos(yaw) * 27,
+    }
+    bv.placeShadowman(spot.x, spot.z, true)
+    return spot
   })
-  // The valley sends it as a spider, and the client draws it as one.
+  // The valley sends it as a spider, and the client draws it as one. Near
+  // water a crossing spider may come up too, so only the one placed counts.
   await expect
     .poll(() =>
       page.evaluate(
-        () =>
+        ({ x, z }) =>
           window.__bv?.shadowmen.table.next?.shadowmen.filter(
-            (s) => s.kind === 'spider'
-          ).length
+            (s) => s.kind === 'spider' && Math.hypot(s.x - x, s.z - z) < 1.5
+          ).length,
+        at
       )
     )
     .toBe(1)
@@ -198,8 +201,12 @@ test('a shadow spider takes twice as long and leaves a $20 bill', async ({
     .toBe(true)
   // Held in the beam, it bursts and leaves one $20 bill where it stood.
   const twenties = () =>
-    page.evaluate(() =>
-      (window.__bv?.drops ?? []).filter((d) => d.kind === 'twenty')
+    page.evaluate(
+      ({ x, z }) =>
+        (window.__bv?.drops ?? []).filter(
+          (d) => d.kind === 'twenty' && Math.hypot(d.x - x, d.z - z) < 4
+        ),
+      at
     )
   await expect.poll(async () => (await twenties()).length).toBe(1)
   const [bill] = await twenties()
