@@ -39,6 +39,8 @@ const BODY_MARGIN = 1
 export class Walls {
   // Bound, so it passes as a plain function.
   readonly resolve: (x: number, z: number, radius: number) => XZ
+  // Bound too: whether a wall stands across the line between two points.
+  readonly between: (from: XZ, to: XZ) => boolean
   private readonly cell: number
   private readonly cells = new Map<string, Wall[]>()
   // Every gate stands until told otherwise.
@@ -47,6 +49,7 @@ export class Walls {
   constructor(cell = 50) {
     this.cell = cell
     this.resolve = (x, z, radius) => this.push(x, z, radius)
+    this.between = (from, to) => this.crossed(from, to)
   }
 
   // A gate: a wall that stands unless `open` says it lets a body through.
@@ -81,6 +84,29 @@ export class Walls {
         list.push(wall)
       }
     }
+  }
+
+  // Whether the straight line from `from` to `to` crosses a wall from one
+  // side of it to the other, so what lies at `to` is out of reach of a
+  // hand at `from` (a pickup behind a partition). A post, of no length,
+  // never stands across a line; a gate open to the body at `from` stands
+  // aside.
+  private crossed(from: XZ, to: XZ): boolean {
+    const i0 = Math.floor(Math.min(from.x, to.x) / this.cell)
+    const i1 = Math.floor(Math.max(from.x, to.x) / this.cell)
+    const j0 = Math.floor(Math.min(from.z, to.z) / this.cell)
+    const j1 = Math.floor(Math.max(from.z, to.z) / this.cell)
+    for (let i = i0; i <= i1; i++) {
+      for (let j = j0; j <= j1; j++) {
+        for (const wall of this.cells.get(`${i},${j}`) ?? []) {
+          if (wall.gate !== undefined && this.open(wall.gate, from.x, from.z)) {
+            continue
+          }
+          if (crosses(from, to, wall)) return true
+        }
+      }
+    }
+    return false
   }
 
   // (x, z) pushed out until it is at least `radius` clear of every wall.
@@ -123,4 +149,20 @@ export class Walls {
     }
     return { x: px, z: pz }
   }
+}
+
+// Whether segment pq crosses the wall's centreline, run on through the
+// round of each end so that walls meeting at a corner leave no chink
+// between them: each point strictly on its own side of the other's line.
+function crosses(p: XZ, q: XZ, wall: Wall): boolean {
+  const dx = wall.b.x - wall.a.x
+  const dz = wall.b.z - wall.a.z
+  const len = Math.hypot(dx, dz)
+  if (len === 0) return false
+  const k = wall.half / len
+  const a = { x: wall.a.x - dx * k, z: wall.a.z - dz * k }
+  const b = { x: wall.b.x + dx * k, z: wall.b.z + dz * k }
+  const side = (o: XZ, u: XZ, v: XZ) =>
+    (u.x - o.x) * (v.z - o.z) - (u.z - o.z) * (v.x - o.x)
+  return side(a, b, p) * side(a, b, q) < 0 && side(p, q, a) * side(p, q, b) < 0
 }

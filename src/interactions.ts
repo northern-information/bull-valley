@@ -110,6 +110,10 @@ export interface InteractionInput<P extends PickupSpot> {
   // raider may climb in (worldsync.ts boardable).
   truck: { distance: number; moving: boolean; boardable: boolean }
   pickups: readonly P[]
+  // Whether a wall stands between two points (walls.ts between): a pickup
+  // behind one is out of reach however near it lies. Left out, nothing
+  // does.
+  walled?: (from: XZ, to: XZ) => boolean
   // The shelf unit in view inside a store, or null.
   shelf: ShelfSpot | null
   // The berry bushes (the spawn Citgo's and the maze's), and how each
@@ -240,7 +244,7 @@ export function resolveInteraction<P extends PickupSpot>(
     Math.hypot(locked.x - player.x, locked.z - player.z) <
       CONFIG.stripMall.doorReach
   ) {
-    const pickup = nearestPickup(input.pickups, player)
+    const pickup = nearestPickup(input.pickups, player, input.walled)
     return pickup ? { kind: 'pickup', pickup } : { kind: 'locked' }
   }
 
@@ -259,21 +263,23 @@ export function resolveInteraction<P extends PickupSpot>(
     return { kind: 'collect', bush: bush.id, status: bush.status }
   }
 
-  const nearest = nearestPickup(input.pickups, player)
+  const nearest = nearestPickup(input.pickups, player, input.walled)
   return nearest ? { kind: 'pickup', pickup: nearest } : null
 }
 
-// The nearest pickup not yet taken within reach, or null.
+// The nearest pickup not yet taken within reach, with no wall between,
+// or null.
 function nearestPickup<P extends PickupSpot>(
   pickups: readonly P[],
-  player: XZ
+  player: XZ,
+  walled?: (from: XZ, to: XZ) => boolean
 ): P | null {
   let best = CONFIG.player.pickupReach
   let nearest: P | null = null
   for (const pickup of pickups) {
     if (pickup.taken) continue
     const d = Math.hypot(pickup.x - player.x, pickup.z - player.z)
-    if (d < best) {
+    if (d < best && !walled?.(player, pickup)) {
       best = d
       nearest = pickup
     }
