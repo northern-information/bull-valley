@@ -161,7 +161,6 @@ export class Hud {
 
     // The season: the tracker in the upper right and the banners.
     this.season = new SeasonHud(ui)
-    this.book = new BookHud(ui)
     this.task = new TaskHud(this.season.tracker)
     this.level = new LevelHud(this.season.tracker)
 
@@ -218,8 +217,12 @@ export class Hud {
     this.itemLabelEl.hidden = true
     ui.appendChild(this.itemLabelEl)
 
-    // The pack and the hotbar.
+    // The pack and the hotbar, then the Book of Shadows: each a panel over
+    // the rest of the HUD (the log, the phone, the prompt), in DOM order.
     this.pack = new PackHud(root, ui)
+    this.book = new BookHud(ui)
+    // A banner and the book's toast sweep over the open pack or book too.
+    ui.append(this.season.banner, this.book.toast)
 
     // A shadow's touch: the view washed red, fading (hurt).
     this.hurtWash = el('div', 'bv-hurt')
