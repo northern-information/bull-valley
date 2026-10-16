@@ -31,7 +31,7 @@ import {
 } from './assets.ts'
 import { paintPrints } from './decalart.ts'
 import { ADDONS, outfitById } from './outfits.ts'
-import { JOINTS, samplePose } from './poses.ts'
+import { heldPitch, JOINTS, samplePose } from './poses.ts'
 import type {
   FlameSpot,
   FlamingHalo,
@@ -62,6 +62,10 @@ export interface Figure {
   // The guitar on the back, when the outfit carries one; setFinish
   // recolors it in place.
   guitar?: Guitar
+  // The bat or the axe in the right hand, when the outfit carries one;
+  // applyPose and applyJoints keep it hanging head down (poses.ts
+  // heldPitch).
+  held?: THREE.Group
 }
 
 export interface FigureOptions {
@@ -449,6 +453,7 @@ export function buildFigure(
   group.name = `figure-${outfitId}`
   const built: Partial<Record<JointName, THREE.Group>> = {}
   const fists: Partial<Record<'L' | 'R', THREE.Group>> = {}
+  let held: THREE.Group | undefined
 
   const pelvis = pivot(group, built, 'pelvis', 0, hipY, 0)
 
@@ -551,11 +556,10 @@ export function buildFigure(
     fists[side] = fist
     // The bat hangs from the right hand, gripped just above the knob, its
     // barrel swung a little forward of the leg.
-    // The axe hangs the same way, its edge forward.
+    // The axe hangs the same way, its edge forward and its head down.
     if (side === 'R' && outfit.inHand) {
-      const held = outfit.inHand === 'bat' ? buildBat() : buildAxe()
+      held = outfit.inHand === 'bat' ? buildBat() : buildAxe()
       held.position.set(0, -foreArm - 0.075, 0.01)
-      held.rotation.set(-0.18, 0, 0)
       elbow.add(held)
     }
 
@@ -618,13 +622,16 @@ export function buildFigure(
 
   // Every figure throws a shadow under the station lights.
   castShadows(group)
-  return {
+  const figure: Figure = {
     group,
     joints,
     hipY,
     fists: fists as Record<'L' | 'R', THREE.Group>,
     guitar,
+    held,
   }
+  hang(figure)
+  return figure
 }
 
 // One outfit's forearm and hand on their own: the elbow at the origin, the
@@ -664,6 +671,22 @@ export function applyJoints(
     const rotation = joints[joint]
     if (rotation) figure.joints[joint].rotation.set(...rotation)
   }
+  hang(figure)
+}
+
+// Swing what the right hand holds back under the fist, however the arm
+// is bent, so its head stays down.
+function hang(figure: Figure): void {
+  if (!figure.held) return
+  const { pelvis, spine, shoulderR, elbowR } = figure.joints
+  figure.held.rotation.set(
+    heldPitch(
+      pelvis.rotation.x + spine.rotation.x + shoulderR.rotation.x,
+      elbowR.rotation.x
+    ),
+    0,
+    0
+  )
 }
 
 // The flashlight every raider carries, in the left fist with the lens out
@@ -719,6 +742,7 @@ export function applyPose(figure: Figure, pose: PoseSample): void {
     figure.joints[joint].rotation.set(...pose.joints[joint])
   }
   figure.joints.pelvis.position.y = figure.hipY + pose.lift
+  hang(figure)
 }
 
 // An open paperback held in front of the chest, where the read pose

@@ -15,7 +15,7 @@ import {
   attachFlashlight,
   buildFigure,
 } from './figure.ts'
-import { flashlightArm, POSES, samplePose } from './poses.ts'
+import { flashlightArm, samplePose, strideOf, stridePose } from './poses.ts'
 import {
   applyJoined,
   applyLeft,
@@ -30,8 +30,6 @@ import type { Figure, Worn } from './figure.ts'
 import type { Peer, PeerTable } from './presence.ts'
 import type { PeerStateWire, PeerWire } from './protocol.ts'
 
-// Metres covered by one full walk cycle; the same stride as playerbody.ts.
-const STRIDE = 1.5
 // The name floats this far above the feet. A figure stands about 1.8 m;
 // in the Flaming Halo, the name floats over the fire.
 const LABEL_HEIGHT = 2.0
@@ -153,11 +151,8 @@ export class Peers {
         // An emote (emotes.ts), its cycle on this page's clock.
         applyPose(puppet.figure, samplePose(EMOTES[at.pose].pose, this.time))
       } else if (at.pose === 'walk' && at.speed > 0.3) {
-        puppet.cycle += (at.speed * dt) / STRIDE
-        applyPose(
-          puppet.figure,
-          samplePose('walk', puppet.cycle * POSES.walk.seconds)
-        )
+        puppet.cycle += (at.speed * dt) / strideOf(at.speed)
+        applyPose(puppet.figure, stridePose(puppet.cycle, at.speed))
       } else {
         applyPose(puppet.figure, samplePose('stand'))
       }

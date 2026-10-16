@@ -33,7 +33,7 @@ import {
 } from './figure.ts'
 import { buildMistCard, makeMistTexture } from './mistcards.ts'
 import { OUTFIT_IDS, OUTFITS } from './outfits.ts'
-import { flashlightArm, samplePose } from './poses.ts'
+import { flashlightArm, samplePose, strideOf, stridePose } from './poses.ts'
 import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import { mulberry32 } from './rng.ts'
 import {
@@ -145,6 +145,17 @@ function sampleEmote(id: EmoteId): THREE.Group {
   return figure.group
 }
 
+// A raider moving at speed (m/s) on the spot, the stride playing: Alex,
+// so the axe swings with it.
+function sampleStride(speed: number): THREE.Group {
+  const figure = buildFigure('mathiesen')
+  applyPose(figure, stridePose(0, speed))
+  setMotion(figure.group, (t) =>
+    applyPose(figure, stridePose((t * speed) / strideOf(speed), speed))
+  )
+  return figure.group
+}
+
 // A raider where a strike left them, laid on their back in the sprawl
 // pose (corpses.ts).
 function sampleCorpse(): THREE.Group {
@@ -181,6 +192,22 @@ const ASSETS: AkashicAsset[] = [
     id: 'halo-worn',
     label: 'Raider wearing the Flaming Halo',
     build: sampleHaloWorn,
+  },
+  {
+    id: 'walk',
+    label: 'Raider walking',
+    build: () => sampleStride(CONFIG.player.walkSpeed),
+  },
+  {
+    id: 'jog',
+    label: 'Raider breaking into a run',
+    build: () =>
+      sampleStride((CONFIG.player.walkSpeed + CONFIG.player.sprintSpeed) / 2),
+  },
+  {
+    id: 'run',
+    label: 'Raider sprinting',
+    build: () => sampleStride(CONFIG.player.sprintSpeed),
   },
   { id: 'corpse', label: 'A raider struck down', build: sampleCorpse },
   ...EMOTE_IDS.map((id) => ({
