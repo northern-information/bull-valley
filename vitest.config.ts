@@ -52,6 +52,7 @@ const THREE_AND_DOM = [
   'input',
   'itemthumbs',
   'levelhud',
+  'lookoutmodel',
   'loop',
   'main',
   'mallart',

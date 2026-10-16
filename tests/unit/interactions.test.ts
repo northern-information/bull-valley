@@ -640,3 +640,32 @@ describe('dailyStatus', () => {
     expect(dailyStatus({ ...daily, collected: [] }, 0, 0)).toBe('ready')
   })
 })
+
+describe('the lookout tower', () => {
+  const foot = { x: 250, z: 250 }
+  const top = { x: 252.5, z: 250 }
+  const at = (player: { x: number; z: number }, on: boolean) =>
+    resolveInteraction(input({ player, lookout: { foot, top, on } }))
+
+  it('climbs up at the ladder’s foot, and only from below', () => {
+    expect(at(foot, false)).toEqual({ kind: 'climbTower' })
+    expect(at(top, false)).toBeNull()
+    expect(
+      at({ x: foot.x - CONFIG.maze.lookout.climbReach - 0.1, z: 250 }, false)
+    ).toBeNull()
+  })
+
+  it('climbs down at the ladder’s top, and only from the deck', () => {
+    expect(at(top, true)).toEqual({ kind: 'leaveTower' })
+    expect(at(foot, true)).toBeNull()
+  })
+
+  it('says each climb at the bottom of the view', () => {
+    expect(interactionPrompt({ kind: 'climbTower' })).toBe(
+      copy('prompts.climb_tower')
+    )
+    expect(interactionPrompt({ kind: 'leaveTower' })).toBe(
+      copy('prompts.leave_tower')
+    )
+  })
+})

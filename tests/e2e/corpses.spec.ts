@@ -53,6 +53,8 @@ test('a strike leaves the pack on your body, and E takes it back', async ({
     body.x,
     body.z,
   ] as const)
+  // The valley gives a body back only to a raider it has heard beside it.
+  await heardWhere(page)
   await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.loot'))
   await page.keyboard.press('KeyE')
   await expect.poll(() => held(page)).toEqual(before)

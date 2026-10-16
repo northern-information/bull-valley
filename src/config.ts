@@ -737,6 +737,12 @@ export const CONFIG = {
     // the court and along it (maze.ts ringSpots). Each gives every account
     // one berry a day, like the bush at the spawn Citgo (CONFIG.daily).
     bushes: { count: 6, across: 2.6, along: 5 },
+    // The lookout tower (lookout.ts), maze-local: just out from the gate,
+    // on the far side of the ENTER! sign from the road, clear of the
+    // donut field and the trail out. E within `climbReach` of the ladder's
+    // foot climbs it, and at its top climbs back down. Trees and lamps keep
+    // `clear` off its footprint.
+    lookout: { at: { x: 61, z: -8 }, climbReach: 1.6, clear: 4 },
   },
   // The Caretaker: one floating shade that walks the corn maze's paths
   // (caretaker.ts, sharedworld.ts rule 13). It patrols out to a random

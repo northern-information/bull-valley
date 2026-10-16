@@ -3,6 +3,7 @@ import {
   buildCornMazeSign,
   buildCornWalls,
   buildEnterSign,
+  buildLookout,
   buildPickup,
   buildPortal,
   CORN_SIGN,
@@ -11,6 +12,15 @@ import {
 } from './assets.ts'
 import { CONFIG } from './config.ts'
 import { projectOnSegment } from './coords.ts'
+import {
+  LADDER_FOOT,
+  LADDER_TOP,
+  LOOKOUT,
+  lookoutPlace,
+  lookoutToWorld,
+  lookoutWalls,
+  onLookout,
+} from './lookout.ts'
 import {
   cellPoint,
   inMaze,
@@ -29,11 +39,11 @@ import { makeMudAccumulator, MUD_LIFT } from './worldsurfaces.ts'
 import type { CornPiece, MazeSignSize } from './assets.ts'
 import type { Ground } from './ground.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
-import type { Cell, TrailField } from './maze.ts'
+import type { Cell, MazePlace, TrailField } from './maze.ts'
 import type { LampSpot } from './roadside.ts'
 import type { StoreOrigin } from './store.ts'
 import type { Walls } from './walls.ts'
-import type { MazePortal } from './world.ts'
+import type { LookoutRig, MazePortal } from './world.ts'
 
 // Where the corn maze lies: maze-local metres (maze.ts, x away from the
 // road and z along it) to the world through the spawn station's frame
@@ -140,9 +150,14 @@ function trailOutLine(): XZ[] {
 // Sodium lamps round the outside of the maze, their arms reaching over the
 // corn, kept clear of the gate, the signs and the trail out.
 export function mazeLamps(frame: MazeFrame, station: StoreOrigin): LampSpot[] {
-  const { at, size, sign, enterSign, lamps } = CONFIG.maze
+  const { at, size, sign, enterSign, lamps, lookout } = CONFIG.maze
   const line = trailOutLine()
   const clearOf = (x: number, z: number) =>
+    Math.max(
+      Math.abs(x - at.x - lookout.at.x),
+      Math.abs(z - at.z - lookout.at.z)
+    ) >
+      LOOKOUT.half + LOOKOUT.spread + lookout.clear &&
     [sign, enterSign].every(
       (s) => Math.hypot(x - s.x, z - s.z) > lamps.clear
     ) &&
@@ -179,7 +194,7 @@ export function buildCornMaze(
   terrain: HeightAt,
   ground: Ground,
   walls: Walls
-): { group: THREE.Group; portal: MazePortal } {
+): { group: THREE.Group; portal: MazePortal; lookout: LookoutRig } {
   const { size, wallHeight, wallThickness, wallSink, pieceLength } = CONFIG.maze
   const half = wallThickness / 2
   const spans = mazeSpans(SHINING_MAZE, size)
@@ -308,5 +323,62 @@ export function buildCornMaze(
     x: Math.sin(station.yaw),
     z: -Math.cos(station.yaw),
   }))
-  return { group, portal }
+  const lookout = placeLookout(group, mazePlaceOf(station), ground, walls)
+  return { group, portal, lookout }
+}
+
+// The maze's place in the world (maze.ts MazePlace), as the valley is told
+// it: the corner at CONFIG.maze.at, turned with the station.
+export function mazePlaceOf(station: StoreOrigin): MazePlace {
+  const [x, , z] = toWorld(station, [CONFIG.maze.at.x, 0, CONFIG.maze.at.z])
+  return { x, z, yaw: station.yaw }
+}
+
+// The lookout tower by the gate (lookout.ts): stood on the lowest ground
+// under its legs, its deck LOOKOUT.height over the highest, the deck a
+// floor on the ground and its footprint walled all round, so the only way
+// up is the ladder.
+function placeLookout(
+  group: THREE.Group,
+  maze: MazePlace,
+  ground: Ground,
+  walls: Walls
+): LookoutRig {
+  const place = lookoutPlace(maze)
+  const reach = LOOKOUT.half + LOOKOUT.spread
+  const heights = [
+    [-reach, -reach],
+    [reach, -reach],
+    [reach, reach],
+    [-reach, reach],
+    [0, 0],
+  ].map(([x, z]) => {
+    const p = lookoutToWorld(maze, { x, z })
+    return ground.at(p.x, p.z)
+  })
+  const base = Math.min(...heights)
+  const deck = Math.max(...heights) + LOOKOUT.height
+  const tower = buildLookout(deck - base)
+  tower.position.set(place.x, base, place.z)
+  // mazeToWorld turns local +x to (cos, sin); a Three yaw turns it to
+  // (cos, -sin).
+  tower.rotation.y = -place.yaw
+  group.add(tower)
+  const cos = Math.cos(place.yaw)
+  const sin = Math.sin(place.yaw)
+  const { half } = LOOKOUT
+  ground.addFloor(place.x, place.z, cos, sin, -half, half, half, deck)
+  for (const w of lookoutWalls()) {
+    walls.addWall(lookoutToWorld(maze, w.a), lookoutToWorld(maze, w.b), w.half)
+  }
+  // The camera looks along (-sin yaw, -cos yaw): at the foot, toward the
+  // tower (local +x); up top, out over the maze (local +z).
+  const facing = (dx: number, dz: number) => Math.atan2(-dx, -dz)
+  const foot = lookoutToWorld(maze, LADDER_FOOT)
+  const top = lookoutToWorld(maze, LADDER_TOP)
+  return {
+    foot: { ...foot, yaw: facing(cos, sin) },
+    top: { ...top, yaw: facing(-sin, cos) },
+    on: (x, z) => onLookout(maze, { x, z }),
+  }
 }
