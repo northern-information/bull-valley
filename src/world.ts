@@ -48,6 +48,8 @@ import {
 } from './store.ts'
 import { buildStreetlights } from './streetlights.ts'
 import {
+  backRoomRing,
+  inBackRoom,
   mallCenter,
   onMallGrounds,
   plazaLotMiddle,
@@ -114,6 +116,9 @@ export interface LandmarkPoint extends XZ {
 export interface Pickup extends XZ {
   kind: PickupKind
   count: number
+  // The walled room it lies in, when it does (protocol.ts
+  // PickupSpec.within): taken only from inside it.
+  within?: readonly XZ[]
   mesh: THREE.Object3D
   taken: boolean
 }
@@ -370,7 +375,11 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
       ? [
           ...STRIP_MALL.loot.map((spot) => {
             const [x, , z] = toWorld(plaza.origin, [spot.x, 0, spot.z])
-            return { x, z, kind: spot.kind, count: spot.count }
+            const loot = { x, z, kind: spot.kind, count: spot.count }
+            // What lies in the office is the office's alone.
+            return inBackRoom(plaza.origin, x, z)
+              ? { ...loot, within: backRoomRing(plaza.origin) }
+              : loot
           }),
           // And under it, the Undercroft's.
           ...(croft
