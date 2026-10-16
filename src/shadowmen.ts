@@ -28,10 +28,9 @@
 // src/shadowcards.ts.
 
 import { CONFIG } from './config.ts'
-import { compassBearing } from './coords.ts'
 import { range } from './rng.ts'
 import { nearWater } from './waterside.ts'
-import type { Metres, ScopeContact, XZ } from './interfaces.ts'
+import type { Metres, XZ } from './interfaces.ts'
 import type { Rng } from './rng.ts'
 import type { WaterMap } from './waterside.ts'
 
@@ -674,26 +673,4 @@ export function placeStill(
     windup: 0,
     placed: true,
   })
-}
-
-// What one raider's Scaduscope sees: every shadowman inside its range,
-// hunting when it is rushing them.
-export function contactsOf(
-  shadowmen: readonly { x: number; z: number; target: string | null }[],
-  me: XZ,
-  myId: string,
-  rangeMetres: number = CONFIG.scope.rangeMetres
-): ScopeContact[] {
-  const contacts: ScopeContact[] = []
-  for (const s of shadowmen) {
-    const dist = Math.hypot(s.x - me.x, s.z - me.z)
-    if (dist >= rangeMetres) continue
-    contacts.push({
-      dist,
-      bearing: compassBearing(s.x - me.x, s.z - me.z),
-      hunting: s.target === myId,
-      kind: 'shadow',
-    })
-  }
-  return contacts
 }

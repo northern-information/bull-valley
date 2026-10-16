@@ -21,6 +21,7 @@ import { mulberry32 } from './rng.ts'
 import type { CanvasArt } from './canvas.ts'
 import type { Vec3 } from './interfaces.ts'
 import type { Span } from './maze.ts'
+import type { SwirlColors } from './mazeart.ts'
 
 // The corn maze as seen (maze.ts lays it out): the walls of corn as
 // instanced pieces, the CORN MAZE! and ENTER! signs, and the portal at
@@ -249,8 +250,27 @@ const PORTAL = {
   tube: 0.1,
   centre: 1.45,
   color: '#7cf7d4',
+  glow: 'rgba(124, 247, 212, 0.55)',
+  swirl: undefined as SwirlColors | undefined,
   glowScale: 6,
   spin: 0.9,
+}
+
+// A Citgo portal (portals.ts, sharedworld.ts rule 28): the same ring in
+// Citgo blue, a little taller, spinning the other way and faster: the one
+// the phone opens, and its twin on a Citgo's lot.
+export const CITGO_PORTAL: typeof PORTAL = {
+  radius: 1.25,
+  tube: 0.11,
+  centre: 1.5,
+  color: '#6aa8ff',
+  glow: 'rgba(106, 168, 255, 0.6)',
+  swirl: {
+    band: [140, 190, 255],
+    eye: ['rgba(235, 245, 255, 1)', 'rgba(50, 110, 230, 0)'],
+  },
+  glowScale: 7,
+  spin: -1.6,
 }
 
 export interface PortalRig {
@@ -258,10 +278,10 @@ export interface PortalRig {
   update(t: number): void
 }
 
-export function buildPortal(): PortalRig {
+export function buildPortal(look: typeof PORTAL = PORTAL): PortalRig {
   const group = new THREE.Group()
   group.name = 'portal'
-  const { radius, tube, centre, color, glowScale, spin } = PORTAL
+  const { radius, tube, centre, color, glowScale, spin } = look
   const ringMaterial = applyPS1(new THREE.MeshBasicMaterial({ color }))
   const ring = new THREE.Mesh(
     new THREE.TorusGeometry(radius, tube, 6, 24),
@@ -273,7 +293,7 @@ export function buildPortal(): PortalRig {
     new THREE.CircleGeometry(radius - tube / 2, 24),
     applyPS1(
       new THREE.MeshBasicMaterial({
-        map: artTexture(paintPortalSwirl()),
+        map: artTexture(paintPortalSwirl(look.swirl)),
         blending: THREE.AdditiveBlending,
         depthWrite: false,
         transparent: true,
@@ -283,10 +303,7 @@ export function buildPortal(): PortalRig {
   )
   swirl.position.y = centre
   group.add(swirl)
-  const halo = makeGlowSprite(
-    makeGlowTexture('rgba(124, 247, 212, 0.55)'),
-    glowScale
-  )
+  const halo = makeGlowSprite(makeGlowTexture(look.glow), glowScale)
   halo.position.y = centre
   group.add(halo)
   const base = new THREE.Color(color)

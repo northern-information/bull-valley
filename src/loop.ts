@@ -2,10 +2,10 @@
 // the maze portal, the state frame to the valley, the HUD and the hotbar,
 // what E would do, and the draw.
 
-import * as THREE from 'three'
 import { pulseMaterials } from './assets.ts'
 import { itemsHeld, sightsInReach } from './book.ts'
 import { buffedBeam, sprintScale } from './buffs.ts'
+import { citgoAt } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { moabOffer } from './cosmetics.ts'
@@ -27,6 +27,7 @@ import { isLock, passes } from './keys.ts'
 import { settleTruck } from './marx.ts'
 import { inPortal } from './maze.ts'
 import { packItemOf } from './packgrid.ts'
+import { secondsLeft } from './portals.ts'
 import { poseOf, stateChanged } from './presence.ts'
 import {
   aimHeightOf,
@@ -43,7 +44,6 @@ import { boardable, clockText, countdown, seatOf } from './worldsync.ts'
 import type { Actions } from './actions.ts'
 import type { Game } from './game.ts'
 import type { BushSpot } from './interactions.ts'
-import type { ScopeContact } from './interfaces.ts'
 import type { DailyWire, PeerStateWire } from './protocol.ts'
 import type { HeadlightsSent } from './shadowmen.ts'
 import type { Targets } from './targets.ts'
@@ -73,7 +73,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     player,
     playerBody,
     hands,
-    scope,
+    phone,
     shadowmen,
     caretaker,
     bursts,
@@ -83,7 +83,6 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     thumbs,
     peers,
   } = game
-  const ridingForward = new THREE.Vector3(0, 0, -1)
   // The back room's locked door lets this raider through while they carry
   // its key, or once they are behind it (keys.ts); everyone else's game
   // decides for them.
@@ -153,9 +152,6 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     return pickups
   }
 
-  // The scope's contacts, one list filled each frame it is raised.
-  const scopeContacts: ScopeContact[] = []
-
   // The prompt and the label for what E would do, kept while the
   // interaction reads the same (interactionKey).
   let promptKey: string | null = null
@@ -200,14 +196,13 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       }
     }
 
-    let forward = ridingForward
     // Where the feet stand and how, for the body and for the wire.
     let feetY: number
     let moveSpeed = 0
     let crouching = false
     if (s.aboard) {
       // The one place the camera leaves player.update(): ride the bed with
-      // free look, keeping player.pos honest for the scope.
+      // free look, keeping player.pos honest for everything that reads it.
       const truckState = truck.update(dt, now)
       const seat = truck.bedSeat(
         s.world
@@ -217,7 +212,6 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       player.relocate(seat.x, seat.z, player.yaw)
       camera.position.set(seat.x, seat.y, seat.z)
       camera.rotation.set(player.pitch, player.yaw, 0)
-      ridingForward.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw))
       // Standing in the bed.
       feetY = seat.y - CONFIG.truck.bedEye
       playerBody.update(dt, {
@@ -233,13 +227,12 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     } else {
       const playerState = player.update(dt, {
         speedScale:
-          (scope.raised ? CONFIG.player.scopeSpeedScale : 1) *
+          (phone.raised ? CONFIG.player.phoneSpeedScale : 1) *
           (smoking ? CONFIG.items.smokingSpeedScale : 1),
         // Rule 27: stimulated, the sprint runs quicker.
         sprintScale: sprintScale(levelsAt(s.geometrie, s.time)),
         eye: s.emoting ? EMOTES[s.emoting.id].eye : null,
       })
-      forward = playerState.forward
       feetY = player.groundY
       moveSpeed = playerState.speed
       crouching = playerState.crouching
@@ -340,7 +333,6 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       perception,
       alone: below ? null : alone,
       renderAt,
-      myId: net.id,
     })
     if (swarm.struck) actions.strike()
     for (const at of swarm.bursts) {
@@ -362,7 +354,6 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       player: player.pos,
       alone: below ? null : alone,
       renderAt,
-      myId: net.id,
     })
     if (keeper.struck) actions.strike('caretaker')
     for (const at of keeper.unmade) {
@@ -376,7 +367,6 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       player: player.pos,
       alone,
       renderAt,
-      myId: net.id,
     })
     if (tunnel.struck) actions.strike('tunnel')
     for (const at of tunnel.bursts) {
@@ -449,6 +439,18 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         player.relocate(portal.exit.x, portal.exit.z, portal.exit.yaw)
         hud.tell(copy('log.portal'))
       }
+    }
+    // The Citgo portals (rule 28), on the valley's clock, or alone on the
+    // wall clock: drawn, and one walked into takes you out of its twin.
+    const portalNow = s.world ? net.clock.serverNow(now) : Date.now()
+    actions.tendPortals(portalNow)
+    // The map, while it is open: where you stand, your Citgos.
+    if (s.mapOpen) {
+      hud.map?.draw({
+        me: { x: player.pos.x, z: player.pos.z, yaw: player.yaw },
+        log: s.citgos,
+        here: s.aboard ? null : citgoAt(player.pos, world.fuelPoints),
+      })
     }
     if (now < s.strikeUntil) hud.drawStatic()
     else if (!hud.staticWrap.hidden) hud.showStatic(false)
@@ -531,20 +533,12 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     hud.level.set(net.online ? s.xp : null)
     hud.tickChat(performance.now())
 
-    if (scope.raised) {
-      scopeContacts.length = 0
-      for (const c of swarm.contacts) scopeContacts.push(c)
-      for (const c of tunnel.contacts) scopeContacts.push(c)
-      if (keeper.contact) scopeContacts.push(keeper.contact)
-      for (const c of peers.contacts(
-        player.pos,
-        CONFIG.scope.rangeMetres,
-        renderAt
-      )) {
-        scopeContacts.push(c)
-      }
-      scope.draw(dt, { contacts: scopeContacts, forward, perception })
-    }
+    // The phone dials a Citgo portal; the frame it goes through, it opens.
+    const mine = s.portals.find((p) => p.id === s.myPortal)
+    const through = phone.update(dt, {
+      open: mine ? secondsLeft(mine.closes, portalNow) : null,
+    })
+    if (through) actions.openPortal()
 
     // The Book of Shadows: the places in reach, a shadow come within
     // sight, and whatever the pack holds, written the first time
@@ -554,9 +548,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       const range = CONFIG.book.sightRange
       actions.discover([
         ...sightsInReach(world.sights, player.pos),
-        ...(swarm.contacts.some((c) => c.dist <= range) ? ['shadowman'] : []),
+        ...(swarm.sighted.length > 0 ? ['shadowman'] : []),
         ...(swarm.sighted.includes('spiderling') ? ['spiderling'] : []),
-        ...(keeper.contact && keeper.contact.dist <= range
+        ...(keeper.distance !== null && keeper.distance <= range
           ? ['caretaker']
           : []),
         ...game.tunnel.shown

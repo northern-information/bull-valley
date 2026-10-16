@@ -3,10 +3,8 @@
 // and glide between frames instead of teleporting ten times a second. Pure
 // and Three-free; peers.ts draws it, valleysync.ts feeds it from the net frames.
 
-import { compassBearing } from './coords.ts'
 import { toCosmetics } from './cosmetics.ts'
 import type { CosmeticId } from './cosmetics.ts'
-import type { ScopeContact, XZ } from './interfaces.ts'
 import type { OutfitId } from './outfits.ts'
 import type { PeerPose, PeerStateWire, PeerWire } from './protocol.ts'
 
@@ -128,32 +126,6 @@ export function samplePeer(peer: Peer, renderAt: number): PeerSample | null {
     light: next.light,
     speed,
   }
-}
-
-// Every placed peer within range as a Scaduscope blip: compass bearing in
-// degrees and distance in metres from origin. Peers are never hunting.
-export function peerContacts(
-  peers: PeerTable,
-  origin: XZ,
-  rangeMetres: number,
-  renderAt: number
-): ScopeContact[] {
-  const contacts: ScopeContact[] = []
-  for (const peer of peers.values()) {
-    const at = samplePeer(peer, renderAt)
-    if (!at) continue
-    const dx = at.x - origin.x
-    const dz = at.z - origin.z
-    const dist = Math.hypot(dx, dz)
-    if (dist > rangeMetres) continue
-    contacts.push({
-      dist,
-      bearing: compassBearing(dx, dz),
-      hunting: false,
-      kind: 'raider',
-    })
-  }
-  return contacts
 }
 
 // The pose a local player's frame reads as on the wire.

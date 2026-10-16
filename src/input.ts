@@ -3,7 +3,15 @@
 // BOOK with the Book of Shadows open, CHAT while typing), and what they do
 // is actions.ts's.
 
-import { actionOf, BOOK, CHAT, hotbarSlot, PACK, WORLD } from './bindings.ts'
+import {
+  actionOf,
+  BOOK,
+  CHAT,
+  hotbarSlot,
+  MAP,
+  PACK,
+  WORLD,
+} from './bindings.ts'
 import { othersLine } from './chat.ts'
 import { copy } from './copy.ts'
 import { LOCKER_TAB } from './packgrid.ts'
@@ -83,13 +91,19 @@ export function wirePointer(game: Game): () => void {
         // How many others, once the valley has said; a late welcome says it.
         if (net.online) hud.tell(othersLine(peers.count))
       }
-    } else if (s.started && !s.inventoryOpen && !s.bookOpen && !s.talking) {
+    } else if (
+      s.started &&
+      !s.inventoryOpen &&
+      !s.bookOpen &&
+      !s.mapOpen &&
+      !s.talking
+    ) {
       hud.showIntro(true, true)
     }
   })
   window.addEventListener('blur', () => player.keys.clear())
   document.addEventListener('mousemove', (e) => {
-    if (!s.inventoryOpen && !s.bookOpen && !s.talking) {
+    if (!s.inventoryOpen && !s.bookOpen && !s.mapOpen && !s.talking) {
       player.handleMouse(e.movementX, e.movementY)
     }
   })
@@ -102,20 +116,29 @@ export function wireKeys(
   actions: Actions,
   engagePointer: () => void
 ): void {
-  const { state: s, hud, player, scope } = game
+  const { state: s, hud, player } = game
 
   // A click past the pack or the book closes it; with the pointer free
   // otherwise, a click on the view takes it back.
   hud.canvas.addEventListener('click', () => {
     if (s.inventoryOpen) actions.closeInventory(true)
     else if (s.bookOpen) actions.closeBook(true)
+    else if (s.mapOpen) actions.closeMap(true)
     else if (s.started && !player.locked) engagePointer()
   })
   // The left button raises the flashlight or puts it down, only with the
   // pointer locked: the click that takes the pointer back never does.
   document.addEventListener('mousedown', (e) => {
     if (e.button !== 0 || !player.locked) return
-    if (s.inventoryOpen || s.bookOpen || s.talking || hud.chatOpen) return
+    if (
+      s.inventoryOpen ||
+      s.bookOpen ||
+      s.mapOpen ||
+      s.talking ||
+      hud.chatOpen
+    ) {
+      return
+    }
     actions.toggleFlashlight()
   })
 
@@ -206,6 +229,14 @@ export function wireKeys(
       bookKey(e)
       return
     }
+    // The map's only key closes it; a click on it fast travels.
+    if (s.mapOpen) {
+      if (actionOf(MAP, e.code) === 'close') {
+        e.preventDefault()
+        actions.closeMap(true)
+      }
+      return
+    }
     if (!player.locked || s.talking) return
     // While typing, every key belongs to the field; Enter sends, and
     // PageUp/PageDown scroll the log.
@@ -232,8 +263,12 @@ export function wireKeys(
         e.preventDefault()
         actions.openBook()
         return
-      case 'scope':
-        scope.toggle()
+      case 'phone':
+        actions.dialPortal()
+        return
+      case 'map':
+        e.preventDefault()
+        actions.openMap()
         return
       case 'pass':
         actions.passKind()

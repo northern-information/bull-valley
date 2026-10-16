@@ -10,6 +10,8 @@ import { PROTOCOL_VERSION } from '../../src/protocol.ts'
 import { mulberry32 } from '../../src/rng.ts'
 import {
   BUSHES,
+  citgosFor,
+  citgoVisits,
   corpsesOf,
   createShadows,
   createValley,
@@ -65,6 +67,8 @@ const HAVENS = [
   { x: 2000, z: 0 },
   { x: 0, z: 2000 },
 ]
+// The middle of each station's Citgo portal ring (rule 28).
+const RINGS = HAVENS.map(({ x, z }) => ({ x: x + 2, z: z + 14 }))
 const METRES = { width: 15059, height: 15038 }
 // Where a build with a corn maze puts it (rule 13). The default join's
 // build has none, so the shadowmen's tests step only shadowmen.
@@ -150,6 +154,7 @@ const join = (id: string): ValleyAction => ({
   bushes: BUSH_SPOTS,
   dealer: DEALER,
   undercroft: null,
+  rings: RINGS,
 })
 
 // A join as its own action shape, so a test can sign it in elsewhere.
@@ -969,6 +974,166 @@ describe('rule 14: Moab trades cosmetics for gold', () => {
       reason: 'unavailable',
     })
     expect(tradeWith(v, trade('a'), carrying(0)).trade).toBeUndefined()
+  })
+})
+
+describe('rule 28: Citgos, and Citgo portals', () => {
+  // Far out in the valley, facing -z.
+  const far = { x: 500, z: 500, yaw: 0 }
+  const open = (id: string, where: typeof far | null = far): ValleyAction => ({
+    type: 'open-portal',
+    id,
+    at: where,
+  })
+  const at = (station: number) => ({ id: '', ...HAVENS[station] })
+  const life = CONFIG.portal.lifeSeconds * SEC
+  const standing = (x: number, z: number, riding = false): PeerStateWire => ({
+    x,
+    y: 0,
+    z,
+    yaw: 0,
+    pitch: 0,
+    pose: 'stand',
+    riding,
+    light: false,
+  })
+
+  it('says who stands at a Citgo not yet their last', () => {
+    const v = valleyWith(join('a'), join('b'), join('c'), join('d'))
+    const placed: Placed[] = [
+      { id: 'a', at: standing(HAVENS[1].x + 5, HAVENS[1].z) },
+      { id: 'b', at: standing(HAVENS[1].x, HAVENS[1].z, true) },
+      { id: 'c', at: standing(900, 900) },
+      { id: 'd', at: null },
+    ]
+    expect(citgoVisits(v.valley, placed)).toEqual([{ id: 'a', station: 1 }])
+    v.step({ type: 'visit', id: 'a', station: 1 })
+    expect(citgoVisits(v.valley, placed)).toEqual([])
+  })
+
+  it("writes the Citgo in the account's log once, and the last", () => {
+    const v = valleyWith(join('a'))
+    const r = v.step({ type: 'visit', id: 'a', station: 2 })
+    expect(r.citgos).toEqual({
+      account: 'acct-a',
+      log: { last: 2, visited: [2] },
+    })
+    expect(v.step({ type: 'visit', id: 'a', station: 2 }).citgos).toBe(
+      undefined
+    )
+    v.step({ type: 'visit', id: 'a', station: 0 })
+    expect(citgosFor(v.valley, 'acct-a')).toEqual({
+      last: 0,
+      visited: [2, 0],
+    })
+    // No such station is no visit.
+    expect(v.step({ type: 'visit', id: 'a', station: 9 }).citgos).toBe(
+      undefined
+    )
+  })
+
+  it('opens a portal ahead of the raider, its twin at their last Citgo', () => {
+    const v = valleyWith(join('a'), { type: 'visit', id: 'a', station: 1 })
+    const r = v.step(open('a'))
+    expect(r.reply).toBeUndefined()
+    expect(r.broadcast[0]).toMatchObject({
+      reason: 'portal-opened',
+      by: 'a',
+      portal: 0,
+    })
+    const [portal] = r.broadcast[0].world?.portals ?? []
+    expect(portal).toMatchObject({
+      id: 0,
+      name: 'A',
+      station: 1,
+      slot: 0,
+      closes: T0 + life,
+    })
+    expect(portal.field.x).toBeCloseTo(far.x, 9)
+    expect(portal.field.z).toBeCloseTo(far.z - CONFIG.portal.ahead, 9)
+    expect(
+      Math.hypot(portal.citgo.x - RINGS[1].x, portal.citgo.z - RINGS[1].z)
+    ).toBeCloseTo(CONFIG.portal.ringRadius, 9)
+    // The wire never names the account.
+    expect(portal).not.toHaveProperty('account')
+  })
+
+  it('keeps one an account: a second closes the first', () => {
+    const v = valleyWith(
+      join('a'),
+      join('b'),
+      { type: 'visit', id: 'a', station: 0 },
+      { type: 'visit', id: 'b', station: 0 },
+      open('a'),
+      open('b')
+    )
+    expect(v.valley.world?.portals.map((p) => [p.id, p.slot])).toEqual([
+      [0, 0],
+      [1, 1],
+    ])
+    v.step(open('a', { x: 600, z: 600, yaw: 1 }))
+    expect(v.valley.world?.portals.map((p) => [p.id, p.slot])).toEqual([
+      [1, 1],
+      [2, 0],
+    ])
+  })
+
+  it('refuses with no Citgo, at it, with no place, from the bed, or with its ring full', () => {
+    const v = valleyWith(join('a'))
+    expect(v.step(open('a')).reply).toEqual({
+      type: 'nack',
+      re: 'portal',
+      reason: 'no-citgo',
+    })
+    v.step({ type: 'visit', id: 'a', station: 0 })
+    expect(v.step(open('a', null)).reply?.reason).toBe('no-position')
+    expect(v.step(open('a', { ...at(0), yaw: 0 })).reply?.reason).toBe(
+      'at-citgo'
+    )
+    expect(v.step(open('z')).reply?.reason).toBe('not-in-valley')
+    v.step({ type: 'board', id: 'a', at: HERE })
+    expect(v.step(open('a')).reply?.reason).toBe('aboard')
+
+    const ids = Array.from({ length: CONFIG.portal.slots + 1 }, (_, i) =>
+      String.fromCharCode(98 + i)
+    )
+    const full = valleyWith(
+      ...ids.flatMap((id): ValleyAction[] => [
+        join(id),
+        { type: 'visit', id, station: 2 },
+      ])
+    )
+    for (const id of ids.slice(0, -1)) {
+      expect(full.step(open(id)).reply).toBeUndefined()
+    }
+    expect(full.step(open(ids[ids.length - 1])).reply?.reason).toBe('busy')
+  })
+
+  it('wakes the valley to close it when its time is up', () => {
+    const v = valleyWith(
+      join('a'),
+      { type: 'visit', id: 'a', station: 0 },
+      open('a')
+    )
+    expect(wakeAt(v.valley, v.now)).toBe(T0 + life)
+    v.tick(life - 1)
+    expect(reasons(v.step({ type: 'clock' }))).toEqual([])
+    v.tick(1)
+    const r = v.step({ type: 'clock' })
+    expect(reasons(r)).toEqual(['portal-closed'])
+    expect(r.broadcast[0].world?.portals).toEqual([])
+  })
+
+  it('lets the portals go with a world opened afresh, but keeps the log', () => {
+    const v = valleyWith(
+      join('a'),
+      { type: 'visit', id: 'a', station: 0 },
+      open('a'),
+      { type: 'reset' },
+      join('b')
+    )
+    expect(v.valley.world?.portals).toEqual([])
+    expect(citgosFor(v.valley, 'acct-a').last).toBe(0)
   })
 })
 

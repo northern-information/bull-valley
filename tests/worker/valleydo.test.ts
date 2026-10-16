@@ -221,6 +221,10 @@ const hello = (
     bushes: Array.from({ length: 7 }, () => ({ x: 0, z: 0 })),
     dealer: DEALER,
     undercroft: CROFT,
+    rings: Array.from({ length: stations }, (_, i) => ({
+      x: i * 1000 + 2,
+      z: 14,
+    })),
   })
 
 // The last pack frame a socket was sent.
@@ -476,6 +480,56 @@ describe('ValleyDO', () => {
     })
     expect(fanned.id).toBe(idOf(a))
     expect(stranger.sent).toEqual([])
+  })
+
+  it('writes the Citgos a raider stands at, and opens a Citgo portal to the last', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    expect(a.frames().find((m) => m.type === 'welcome')).toMatchObject({
+      citgos: { last: null, visited: [] },
+    })
+    const portal = JSON.stringify({ type: 'portal' })
+    // No Citgo yet to call.
+    await v.webSocketMessage(ws(a), state(1500, 1500))
+    await v.webSocketMessage(ws(a), portal)
+    expect(a.last()).toMatchObject({
+      type: 'nack',
+      re: 'portal',
+      reason: 'no-citgo',
+    })
+    // On the second station's forecourt, then back out in the valley.
+    await v.webSocketMessage(ws(a), state(1003, 4))
+    v.tick()
+    const citgos = () => a.frames().filter((m) => m.type === 'citgos')
+    await settledWhen(() => citgos().length > 0)
+    expect(citgos()).toEqual([
+      { type: 'citgos', citgos: { last: 1, visited: [1] } },
+    ])
+    // B heard nothing of it.
+    expect(b.frames().some((m) => m.type === 'citgos')).toBe(false)
+    // Standing there still writes nothing new.
+    v.tick()
+    await settle()
+    expect(citgos()).toHaveLength(1)
+    await v.webSocketMessage(ws(a), state(1500, 1500))
+    await v.webSocketMessage(ws(a), portal)
+    for (const socket of [a, b]) {
+      expect(socket.last()).toMatchObject({
+        type: 'world',
+        reason: 'portal-opened',
+        by: idOf(a),
+        portal: 0,
+      })
+    }
+    const [opened] = b.last<WorldMessage>().world?.portals ?? []
+    expect(opened).toMatchObject({ id: 0, name: 'A', station: 1, slot: 0 })
+    expect(Math.hypot(opened.citgo.x - 1002, opened.citgo.z - 14)).toBeCloseTo(
+      CONFIG.portal.ringRadius,
+      6
+    )
+    // The valley wakes to close it.
+    expect(s.storage.alarm).toBe(opened.closes)
   })
 
   it('drops a flood of state frames', async () => {

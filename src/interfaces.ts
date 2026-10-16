@@ -127,19 +127,6 @@ export type Inventory = Record<string, number>
 export type ShopStock = Record<string, boolean[]>
 
 // ---------------------------------------------------------------------------
-// The scope (src/scope.ts), fed by the shadowmen (src/shadowmen.ts).
-
-// A shadowman on the scope: compass bearing in degrees, distance in metres.
-// hunting draws it magenta: it is coming for you.
-export interface ScopeContact {
-  dist: number
-  bearing: number
-  hunting: boolean
-  // A shadow (a shadowman, a spider, the Caretaker) or another raider.
-  kind: 'shadow' | 'raider'
-}
-
-// ---------------------------------------------------------------------------
 // The pack grid (src/packgrid.ts).
 
 export interface PackItem {

@@ -155,6 +155,10 @@ export interface World {
   // Where E opens the lockers in each back room (store.ts lockerSpot),
   // indexed like fuelPoints.
   lockers: XZ[]
+  // The middle of the Citgo portal ring on each station's lot
+  // (CONFIG.portal.ring; sharedworld.ts rule 28), indexed like fuelPoints:
+  // where fast travel sets a raider down.
+  rings: XZ[]
   // The Cabbage Stand on the spawn station's lot (sharedworld.ts rule 23):
   // where its middle is, the stand itself for the glow, and setLevel to
   // dress it for the raider's own level. Null without a spawn station.
@@ -432,6 +436,11 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     moabs,
     moabRigs,
     lockers: fuel.points.map(lockerSpot),
+    rings: fuel.points.map((point) => {
+      const { ring } = CONFIG.portal
+      const [x, , z] = toWorld(point, [ring.x, 0, ring.z])
+      return { x, z }
+    }),
     stand: standRig,
     wreck,
     dishes,

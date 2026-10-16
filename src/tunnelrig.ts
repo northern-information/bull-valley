@@ -8,7 +8,6 @@
 
 import { buildTunnelShade } from './assets.ts'
 import { CONFIG } from './config.ts'
-import { compassBearing } from './coords.ts'
 import { mulberry32, range } from './rng.ts'
 import {
   applyShadowFrame,
@@ -21,7 +20,7 @@ import {
   tunnelShadesAt,
 } from './tunnelshades.ts'
 import type { TunnelShadeRig } from './assets.ts'
-import type { HeightAt, ScopeContact, XZ } from './interfaces.ts'
+import type { HeightAt, XZ } from './interfaces.ts'
 import type { MazePlace } from './maze.ts'
 import type {
   ShadowmenMessage,
@@ -50,7 +49,6 @@ export interface TunnelShadesFrame {
   // Null in the shared valley, which steps them itself.
   alone: AloneFrame | null
   renderAt: number
-  myId: string | null
 }
 
 export interface TunnelShadesUpdate {
@@ -59,8 +57,6 @@ export interface TunnelShadesUpdate {
   struck: boolean
   // Where they burst since the last update.
   bursts: TunnelBurstWire[]
-  // Their blips on the scope, those in range.
-  contacts: ScopeContact[]
 }
 
 export class TunnelShades {
@@ -95,11 +91,9 @@ export class TunnelShades {
     player,
     alone,
     renderAt,
-    myId,
   }: TunnelShadesFrame): TunnelShadesUpdate {
     let struck = false
     let shown: TunnelShadeWire[] = []
-    let me = myId ?? ''
     if (this.place && alone) {
       // Played alone the valley's frames are stale: start them afresh.
       this.table = createShadowTable()
@@ -118,7 +112,6 @@ export class TunnelShades {
         burn: s.burn / CONFIG.tunnel[s.kind].burnSeconds,
         target: s.target,
       }))
-      me = ALONE
     } else if (this.place) {
       shown = sampleShadowmen(this.table, renderAt)
     }
@@ -126,18 +119,7 @@ export class TunnelShades {
     this.draw(shown, player, time)
     const bursts = this.pending
     this.pending = []
-    const contacts: ScopeContact[] = []
-    for (const s of shown) {
-      const dist = Math.hypot(s.x - player.x, s.z - player.z)
-      if (dist >= CONFIG.scope.rangeMetres) continue
-      contacts.push({
-        dist,
-        bearing: compassBearing(s.x - player.x, s.z - player.z),
-        hunting: s.target === me,
-        kind: 'shadow',
-      })
-    }
-    return { struck, bursts, contacts }
+    return { struck, bursts }
   }
 
   private draw(

@@ -20,7 +20,6 @@ import { mulberry32, range } from './rng.ts'
 import { shadeCues, windupsBegun } from './sfx.ts'
 import {
   burnSecondsOf,
-  contactsOf,
   createShadowmen,
   placeStill,
   stepShadowmen,
@@ -31,7 +30,7 @@ import {
   sampleShadowmen,
 } from './shadowsync.ts'
 import type { ShadowSpider } from './assets.ts'
-import type { HeightAt, Metres, ScopeContact, XZ } from './interfaces.ts'
+import type { HeightAt, Metres, XZ } from './interfaces.ts'
 import type { ShadowmanWire, ShadowmenMessage } from './protocol.ts'
 import type { Rng } from './rng.ts'
 import type { ShadeCues, ShadeHeard } from './sfx.ts'
@@ -182,7 +181,6 @@ export interface ShadowCardsFrame {
   alone: AloneFrame | null
   // The shared valley's moment to draw (local ms), and this raider's id.
   renderAt: number
-  myId: string | null
 }
 
 export interface ShadowCardsUpdate {
@@ -191,7 +189,6 @@ export interface ShadowCardsUpdate {
   struck: boolean
   // Where shadowmen burst since the last update.
   bursts: Burst[]
-  contacts: ScopeContact[]
   // The kinds within CONFIG.book.sightRange of the player (the Book of
   // Shadows).
   sighted: ShadeKind[]
@@ -217,8 +214,6 @@ export class ShadowCards {
   field: ShadowmenField
   // In the shared valley: the last two frames the valley sent.
   table: ShadowTable
-  // The last update's contacts, for the dev hook.
-  contacts: ScopeContact[]
   // Played alone, a spec's quiet valley (shadowmen.ts ShadowmenStep).
   calm = false
   group: THREE.Group
@@ -249,7 +244,6 @@ export class ShadowCards {
     for (let i = 0; i < LOOKS; i++) {
       this.textures.push(makeSilhouetteTexture(this.rng))
     }
-    this.contacts = []
     this.group = new THREE.Group()
     this.group.name = 'shadowmen'
     scene.add(this.group)
@@ -288,11 +282,9 @@ export class ShadowCards {
     perception,
     alone,
     renderAt,
-    myId,
   }: ShadowCardsFrame): ShadowCardsUpdate {
     let struck = false
     let shown: readonly Shown[]
-    let me: string
     if (alone) {
       // Played alone the valley's frames are stale: start them afresh.
       this.table = createShadowTable()
@@ -324,15 +316,12 @@ export class ShadowCards {
         windup: s.windup / CONFIG.shadowmen.windupSeconds,
       }))
       this.listen(shown)
-      me = ALONE
     } else {
       // In the shared valley the field this client stepped is not the
       // valley's: drop it, so a fall back to playing alone starts fresh.
       if (this.field.shadowmen.length) this.field = createShadowmen()
       shown = sampleShadowmen(this.table, renderAt)
-      me = myId ?? ''
     }
-    this.contacts = contactsOf(shown, player, me)
     const sighted = new Set<ShadeKind>()
     for (const s of shown) {
       const d = Math.hypot(s.x - player.x, s.z - player.z)
@@ -355,7 +344,6 @@ export class ShadowCards {
     return {
       struck,
       bursts,
-      contacts: this.contacts,
       sighted: [...sighted],
       heard,
     }

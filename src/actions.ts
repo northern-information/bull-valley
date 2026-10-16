@@ -17,6 +17,12 @@ import {
   emotesLine,
   onlineLine,
 } from './chat.ts'
+import {
+  arrivalAt,
+  citgoAt,
+  fastTravel as fastTravelTo,
+  visit,
+} from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { corpseWire, emptied, fallen, isEmpty, recover } from './corpses.ts'
@@ -60,6 +66,7 @@ import {
   packItems,
   stashItems,
 } from './packgrid.ts'
+import { enteredAt, exitFrom, fieldEnd, openAt, ringEnd } from './portals.ts'
 import { levelOf } from './progression.ts'
 import { normalizeChat } from './protocol.ts'
 import { dealerStep, roseLine } from './quests.ts'
@@ -71,6 +78,7 @@ import { move, moveAmount } from './stash.ts'
 import { formatCash } from './store.ts'
 import { planLeg } from './truckplan.ts'
 import type { ChatCommand } from './chat.ts'
+import type { CitgoLog } from './citgos.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { EmoteId } from './emotes.ts'
 import type { Game } from './game.ts'
@@ -181,6 +189,28 @@ export interface Actions {
   dropKind(kind: string, all: boolean): void
   // The valley says a drop came up into our pack.
   applyDropTaken(kind: string, count: number): void
+  // Q: the phone dials a Citgo portal, or hangs up on one dialing
+  // (sharedworld.ts rule 28).
+  dialPortal(): void
+  // The dial went through: the portal opens ahead of us (in the valley,
+  // asked of it).
+  openPortal(): void
+  // The valley refused it.
+  portalRefused(reason: string): void
+  // Every frame, at `now` (the valley's clock, or alone the wall clock):
+  // the open portals drawn, ours played alone closed when it is due, one
+  // walked into taking us out of its other end, and played alone the Citgo
+  // we stand at written in our own log.
+  tendPortals(now: number): void
+  // The account's Citgos as the valley says (the welcome, a citgos frame):
+  // a new one is said, unless `quiet` or before Begin.
+  applyCitgos(log: CitgoLog, quiet?: boolean): void
+  // M: the map, over the valley with the pointer free; relock as
+  // closeBook's.
+  openMap(): void
+  closeMap(relock?: boolean): void
+  // A Citgo on the map clicked: fast travel there.
+  fastTravel(station: number): void
   // Shadowmen burst: played alone, their dimes (a spider's $20) fall where
   // they were and their tombstones stand beside them.
   spillBursts(bursts: readonly Burst[]): void
@@ -461,6 +491,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       return
     }
     s.emoting = null
+    // A touch knocks the phone down mid-dial.
+    game.phone.hangUp()
     s.health = health ?? hit(s.health).points
     s.graceUntil = now + CONFIG.health.graceSeconds * 1000
     s.hurtAt = now
@@ -1235,6 +1267,162 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     }
   }
 
+  // --- Rule 28: Citgos, Citgo portals and fast travel ---------------------
+
+  const citgoLabel = (station: number | null) =>
+    station === null ? '' : (hud.map?.label(station) ?? '')
+
+  const applyCitgos = (log: CitgoLog, quiet = false) => {
+    const found = log.visited.filter((i) => !s.citgos.visited.includes(i))
+    s.citgos = log
+    // Before Begin there is no one to tell: the spawn Citgo is found then.
+    if (quiet || !s.started) return
+    for (const station of found) {
+      hud.tell(copy('log.citgo_visited', { citgo: citgoLabel(station) }))
+    }
+  }
+
+  // Q. The phone dials first; aboard it has no signal.
+  const dialPortal = () => {
+    if (s.aboard) {
+      hud.tell(copy('log.portal_aboard'))
+      return
+    }
+    if (!game.phone.dial()) hud.tell(copy('log.portal_hung_up'))
+  }
+
+  const portalRefusal = (reason: string): string => {
+    switch (reason) {
+      case 'aboard':
+        return copy('log.portal_aboard')
+      case 'at-citgo':
+        return copy('log.portal_at_citgo')
+      case 'no-citgo':
+        return copy('log.portal_no_citgo')
+      case 'busy':
+        return copy('log.portal_busy')
+      default:
+        return copy('log.portal_refused')
+    }
+  }
+
+  const portalRefused = (reason: string) => {
+    s.pendingPortal = false
+    game.phone.hangUp()
+    hud.tell(portalRefusal(reason))
+  }
+
+  // In the valley the portal opens where our last state frame put us, and
+  // the world frame that comes back says so (valleysync.ts). Alone it
+  // opens at once, our one portal, on the wall clock.
+  const openPortal = () => {
+    const at = { x: player.pos.x, z: player.pos.z, yaw: player.yaw }
+    const station = s.citgos.last
+    if (s.aboard) return portalRefused('aboard')
+    if (station === null) return portalRefused('no-citgo')
+    if (citgoAt(at, [world.fuelPoints[station]]) !== null) {
+      return portalRefused('at-citgo')
+    }
+    if (s.world) {
+      if (s.pendingPortal) return
+      s.pendingPortal = true
+      net.send({ type: 'portal' })
+      return
+    }
+    const id = s.nextPortal++
+    s.portals = [
+      {
+        id,
+        name: game.pick.username,
+        field: fieldEnd(at),
+        citgo: ringEnd(world.rings[station], 0),
+        station,
+        slot: 0,
+        closes: Date.now() + CONFIG.portal.lifeSeconds * 1000,
+      },
+    ]
+    s.myPortal = id
+    hud.tell(copy('log.portal_opened', { citgo: citgoLabel(station) }))
+  }
+
+  const tendPortals = (now: number) => {
+    const open = openAt(s.portals, now)
+    if (!s.world) {
+      if (open.length < s.portals.length) {
+        s.portals = open
+        if (s.myPortal !== null && !open.some((p) => p.id === s.myPortal)) {
+          s.myPortal = null
+          hud.tell(copy('log.portal_closed'))
+        }
+      }
+      // Alone, the Citgo we stand at is ours to write (the valley writes
+      // it from our state frames).
+      const here = s.aboard ? null : citgoAt(player.pos, world.fuelPoints)
+      if (here !== null && s.started) applyCitgos(visit(s.citgos, here))
+    }
+    game.portals.sync(open)
+    game.portals.update(s.time)
+    if (s.aboard || performance.now() < s.portalGraceUntil) return
+    const walked = enteredAt(open, player.pos, now)
+    if (!walked) return
+    const out = exitFrom(walked.portal, walked.side)
+    player.relocate(out.x, out.z, out.yaw)
+    // A beat before any portal takes us again, whatever stands where we
+    // come out.
+    s.portalGraceUntil = performance.now() + 1000
+    hud.tell(
+      walked.side === 'field'
+        ? copy('log.portal_citgo')
+        : walked.portal.id === s.myPortal
+          ? copy('log.portal_back')
+          : copy('log.portal_through', { name: walked.portal.name })
+    )
+  }
+
+  const openMap = () => {
+    if (!hud.map) return
+    closeInventory()
+    closeBook()
+    withPanel(() => {
+      s.mapOpen = hud.showMap(true)
+    })
+  }
+
+  const closeMap = (relock = false) => {
+    if (!s.mapOpen) return
+    s.mapOpen = hud.showMap(false)
+    if (relock) engagePointer()
+  }
+
+  // From the Citgo we stand at to one visited (citgos.ts fastTravel): set
+  // down in the middle of its portal ring. Where we stand is our own word,
+  // so the valley hears it from the next state frame.
+  const fastTravel = (station: number) => {
+    if (s.aboard) {
+      hud.tell(copy('log.travel_aboard'))
+      return
+    }
+    const here = citgoAt(player.pos, world.fuelPoints)
+    const verdict = fastTravelTo(s.citgos, here, station)
+    if (verdict !== 'ok') {
+      hud.tell(
+        verdict === 'not-at-citgo'
+          ? copy('log.travel_away')
+          : verdict === 'here'
+            ? copy('log.travel_here')
+            : copy('log.travel_unvisited', { citgo: citgoLabel(station) })
+      )
+      return
+    }
+    const to = arrivalAt(world.rings[station], world.fuelPoints[station])
+    player.relocate(to.x, to.z, to.yaw)
+    s.emoting = null
+    s.portalGraceUntil = performance.now() + 1000
+    closeMap(true)
+    hud.tell(copy('log.travel', { citgo: citgoLabel(station) }))
+  }
+  if (hud.map) hud.map.onTravel = fastTravel
+
   const say = (typed: string) => {
     const text = normalizeChat(typed)
     if (!text) return
@@ -1290,6 +1478,14 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     applyPassed,
     setGeometrie,
     dropKind,
+    dialPortal,
+    openPortal,
+    portalRefused,
+    tendPortals,
+    applyCitgos,
+    openMap,
+    closeMap,
+    fastTravel,
     applyDropTaken,
     spillBursts,
     toggleFlashlight,

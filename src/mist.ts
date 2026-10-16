@@ -2,7 +2,7 @@
 // that follows the player, wrapping to the far side as they leave it, and
 // each one swells and thins on its own slow period, so the valley floor
 // comes and goes in waves. Atmosphere only: the mist hides nothing from the
-// scope, the shadowmen, or the pickups.
+// shadowmen or the pickups.
 //
 // Pure, no three.js. The cards that show the banks are in src/mistcards.ts;
 // the field here is the whole truth about where they are.

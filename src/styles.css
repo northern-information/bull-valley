@@ -593,8 +593,8 @@
   stroke-linejoin: miter;
 }
 
-/* Scope: a phone in a low-poly hand, tilted and cut off by the bottom edge.
-   scope.ts draws it all into one small canvas; pixelated upscaling gives it
+/* The phone in a low-poly hand, tilted and cut off by the bottom edge.
+   phone.ts draws it all into one small canvas; pixelated upscaling gives it
    the same coarse pixels as the world render. */
 .bv-phone {
   --bv-phone-w: 17rem;
@@ -614,7 +614,7 @@
   bottom: calc(var(--bv-phone-w) * -0.3);
 }
 
-.bv-scope {
+.bv-phone-screen {
   display: block;
   width: 100%;
   height: 100%;
@@ -935,6 +935,59 @@
   pointer-events: none;
   opacity: 0.85;
   transform: translate(-50%, -50%);
+}
+
+/* The map (citgomap.ts): over the valley like the book, the valley from
+   above on a square canvas, the last Citgo and the hint under it. */
+.bv-map {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  box-sizing: border-box;
+  width: min(40rem, calc(100% - 2rem), calc(100vh - 10rem));
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  transform: translate(-50%, -50%);
+  background: var(--bv-pane);
+  pointer-events: auto;
+}
+
+.bv-map[hidden] {
+  display: none;
+}
+
+.bv-map-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.bv-map-title {
+  margin: 0;
+  font-size: inherit;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.bv-map-count,
+.bv-map-hint {
+  margin: 0;
+  opacity: 0.6;
+}
+
+.bv-map-canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  background: rgb(0 0 0 / 50%);
+}
+
+.bv-map-last {
+  margin: 0;
 }
 
 /* The Book of Shadows (bookhud.ts): over the valley like the pack, its
@@ -1318,6 +1371,10 @@
 }
 
 .bv-intro-actions {
+  /* Over the dock, which sits over the overlay (.bv-shell--intro .bv-dock):
+     however tall the card grows, a line of the log never covers Begin. */
+  position: relative;
+  z-index: 2;
   display: flex;
   gap: 0.8rem;
 }

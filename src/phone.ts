@@ -1,13 +1,13 @@
 import { context2d, EGGSHELL, MONO } from './canvas.ts'
 import { CONFIG } from './config.ts'
-import { compassBearing } from './coords.ts'
+import { copy } from './copy.ts'
 import { outfitById } from './outfits.ts'
-import type { ScopeContact } from './interfaces.ts'
 
-// The handheld Scaduscope: a north-up sweep radar in the SYSOUT voice, run as
-// an app on a phone. Blips light as the sweep passes and decay until it comes
-// around again. This is the same instrument as /bull-valley-scaduscope/,
-// carried into the field.
+// The phone: Q brings it up and it dials a Citgo portal to the last Citgo
+// the raider stood at (portals.ts, sharedworld.ts rule 28), the screen
+// filling as it goes, then says the portal is open and goes down again.
+// While one of ours is open the screen says how long it has left. Q again
+// while it dials hangs up.
 //
 // The phone, the hand that holds it and the screen all draw into one small
 // canvas that CSS upscales with image-rendering: pixelated, so the prop has
@@ -15,11 +15,9 @@ import type { ScopeContact } from './interfaces.ts'
 // shapes are flat polygons in a 200 x 360 design grid, scaled down to the
 // canvas.
 
-const GREEN = '#4ade80'
-const MAGENTA = '#e879f9'
-const SLATE = '#94a3b8'
-// Other raiders: the blue their names take in the chat log.
-const RAIDER = '#60a5fa'
+// The portal's blue, as Citgo portals burn (assets.ts CITGO_PORTAL).
+const BLUE = '#6aa8ff'
+const DIM = 'rgba(106, 168, 255, 0.3)'
 // The hand is the player's: same skin and sleeve as the player outfit, with
 // the shadow facet a darker tone of the skin.
 const PLAYER = outfitById('player').colors
@@ -95,52 +93,96 @@ function clockText() {
   })
 }
 
-// A direction on the ground plane. A THREE.Vector3 fits.
-export interface GroundDirection {
-  x: number
-  z: number
+// m:ss
+function mmss(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}:${String(s).padStart(2, '0')}`
 }
 
-// What draw() needs each frame. forward is the player's facing.
-export interface ScopeFrame {
-  contacts: ScopeContact[]
-  forward: GroundDirection
-  perception: boolean
+// How long the screen says OPEN after the portal opens, before the phone
+// goes down.
+const OPEN_HOLD = 1.2
+
+// What draw() needs each frame: whole seconds left on our own open portal,
+// or null with none.
+export interface PhoneFrame {
+  open: number | null
 }
 
-export class Scope {
+export class Phone {
   canvas: HTMLCanvasElement
   holder: HTMLElement
   ctx: CanvasRenderingContext2D
   raised: boolean
-  sweep: number
+  // Seconds into dialing, or null when not dialing.
+  dialing: number | null
+  // Seconds the screen still says OPEN, once the dial went through.
+  holding: number
+  spin: number
   clock: string
   clockAge: number
 
-  // holder is the element that slides up when the scope is raised.
+  // holder is the element that slides up when the phone is raised.
   constructor(canvas: HTMLCanvasElement, holder: HTMLElement = canvas) {
     this.canvas = canvas
     this.holder = holder
     this.ctx = context2d(canvas)
     this.raised = false
-    this.sweep = 0
+    this.dialing = null
+    this.holding = 0
+    this.spin = 0
     this.clock = ''
     this.clockAge = Infinity
     canvas.width = WIDTH
     canvas.height = HEIGHT
   }
 
-  toggle(): boolean {
-    this.raised = !this.raised
-    this.holder.classList.toggle('bv-phone--raised', this.raised)
-    return this.raised
+  private raise(raised: boolean): void {
+    this.raised = raised
+    this.holder.classList.toggle('bv-phone--raised', raised)
   }
 
-  draw(dt: number, { contacts, forward, perception }: ScopeFrame): void {
-    if (!this.raised) return
-    this.sweep =
-      (this.sweep + (dt * Math.PI * 2) / CONFIG.scope.sweepSeconds) %
-      (Math.PI * 2)
+  // Q: dial a portal, or hang up on one dialing. Whether it now dials.
+  dial(): boolean {
+    if (this.dialing !== null) {
+      this.hangUp()
+      return false
+    }
+    this.dialing = 0
+    this.holding = 0
+    this.raise(true)
+    return true
+  }
+
+  // Down again, whatever it was doing.
+  hangUp(): void {
+    this.dialing = null
+    this.holding = 0
+    this.raise(false)
+  }
+
+  // A frame on: true the frame the dial goes through, when the portal
+  // should open.
+  update(dt: number, frame: PhoneFrame): boolean {
+    let through = false
+    if (this.dialing !== null) {
+      this.dialing += dt
+      if (this.dialing >= CONFIG.portal.dialSeconds) {
+        this.dialing = null
+        this.holding = OPEN_HOLD
+        through = true
+      }
+    } else if (this.holding > 0) {
+      this.holding -= dt
+      if (this.holding <= 0) this.raise(false)
+    }
+    if (this.raised) this.draw(dt, frame)
+    return through
+  }
+
+  private draw(dt: number, { open }: PhoneFrame): void {
+    this.spin = (this.spin + dt * 2.4) % (Math.PI * 2)
     const ctx = this.ctx
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, WIDTH, HEIGHT)
@@ -165,92 +207,52 @@ export class Scope {
     ctx.fillText(this.clock, SX + 3 * px, SY + 5 * px)
     ctx.fillRect(SX + SW - 9 * px, SY + 3 * px, 6 * px, 3 * px)
 
-    // Dish
+    // The app's name.
     const c = SX + SW / 2
-    const cy = SY + 92
-    const r = 44
-    ctx.save()
-    ctx.beginPath()
-    ctx.arc(c, cy, r, 0, Math.PI * 2)
-    ctx.clip()
-
-    // Rings and cross
-    ctx.strokeStyle = 'rgba(74, 222, 128, 0.35)'
-    ctx.lineWidth = px
-    ctx.beginPath()
-    ctx.arc(c, cy, r / 2, 0, Math.PI * 2)
-    ctx.moveTo(c, cy - r)
-    ctx.lineTo(c, cy + r)
-    ctx.moveTo(c - r, cy)
-    ctx.lineTo(c + r, cy)
-    ctx.stroke()
-
-    // Sweep wedge
-    const grad = ctx.createConicGradient
-      ? ctx.createConicGradient(this.sweep - Math.PI / 2, c, cy)
-      : null
-    if (grad) {
-      grad.addColorStop(0, 'rgba(74, 222, 128, 0.35)')
-      grad.addColorStop(0.12, 'rgba(74, 222, 128, 0)')
-      grad.addColorStop(1, 'rgba(74, 222, 128, 0)')
-      ctx.fillStyle = grad
-      ctx.fillRect(c - r, cy - r, r * 2, r * 2)
-    }
-    ctx.strokeStyle = GREEN
-    ctx.beginPath()
-    ctx.moveTo(c, cy)
-    ctx.lineTo(c + Math.sin(this.sweep) * r, cy - Math.cos(this.sweep) * r)
-    ctx.stroke()
-
-    // Contacts. A shadow's alpha decays with angular distance behind the
-    // sweep; another raider holds steady, bigger and blue, so a friend is
-    // never mistaken for a shadow.
-    for (const contact of contacts) {
-      const rad = (contact.bearing * Math.PI) / 180
-      const rr = Math.min(1, contact.dist / CONFIG.scope.rangeMetres) * r
-      const x = c + Math.sin(rad) * rr
-      const y = cy - Math.cos(rad) * rr
-      if (contact.kind === 'raider') {
-        ctx.fillStyle = RAIDER
-        ctx.fillRect(x - 1.5 * px, y - 1.5 * px, 3 * px, 3 * px)
-        continue
-      }
-      let behind = this.sweep - rad
-      while (behind < 0) behind += Math.PI * 2
-      const alpha = Math.max(0.08, 1 - behind / (Math.PI * 2))
-      ctx.fillStyle = contact.hunting ? MAGENTA : GREEN
-      ctx.globalAlpha = perception ? Math.min(1, alpha + 0.3) : alpha
-      ctx.fillRect(x - px, y - px, 2 * px, 2 * px)
-      ctx.globalAlpha = 1
-    }
-
-    // Player facing tick at centre.
-    const yaw = (compassBearing(forward.x, forward.z) * Math.PI) / 180
-    ctx.strokeStyle = SLATE
-    ctx.beginPath()
-    ctx.moveTo(c, cy)
-    ctx.lineTo(c + Math.sin(yaw) * 4 * px, cy - Math.cos(yaw) * 4 * px)
-    ctx.stroke()
-
-    ctx.restore()
-
-    // Dish rim and the nearest shadow.
-    ctx.strokeStyle = GREEN
-    ctx.lineWidth = px
-    ctx.beginPath()
-    ctx.arc(c, cy, r, 0, Math.PI * 2)
-    ctx.stroke()
-    let best: ScopeContact | null = null
-    for (const contact of contacts) {
-      if (contact.kind !== 'shadow') continue
-      if (!best || contact.dist < best.dist) best = contact
-    }
-    const line = best
-      ? `${String(Math.round(best.bearing)).padStart(3, '0')}° ${Math.round(best.dist)}M`
-      : 'NO CONTACT'
     ctx.textAlign = 'center'
+    ctx.fillStyle = BLUE
+    ctx.fillText(copy('phone.title'), c, SY + 32)
+
+    // The portal: a ring that fills as it dials, and a swirl inside that
+    // grows with it.
+    const cy = SY + 98
+    const r = 40
+    const charge =
+      this.dialing !== null
+        ? Math.min(1, this.dialing / CONFIG.portal.dialSeconds)
+        : 1
+    ctx.lineWidth = 2 * px
+    ctx.strokeStyle = DIM
+    ctx.beginPath()
+    ctx.arc(c, cy, r, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.strokeStyle = BLUE
+    ctx.beginPath()
+    ctx.arc(c, cy, r, -Math.PI / 2, -Math.PI / 2 + charge * Math.PI * 2)
+    ctx.stroke()
+    ctx.lineWidth = px
+    for (let arm = 0; arm < 3; arm++) {
+      ctx.beginPath()
+      for (let s = 0; s <= 1; s += 0.05) {
+        const a = this.spin + (arm / 3) * Math.PI * 2 + s * Math.PI * 2.5
+        const d = s * (r - 6) * charge
+        const x = c + Math.cos(a) * d
+        const y = cy + Math.sin(a) * d
+        if (s === 0) ctx.moveTo(x, y)
+        else ctx.lineTo(x, y)
+      }
+      ctx.stroke()
+    }
+
+    // What it is doing, and how long ours has left.
     ctx.fillStyle = EGGSHELL
-    ctx.fillText(line, c, cy + r + 9 * px)
+    const said =
+      this.dialing !== null ? copy('phone.dialing') : copy('phone.open')
+    ctx.fillText(said, c, cy + r + 14)
+    if (open !== null) {
+      ctx.fillStyle = BLUE
+      ctx.fillText(copy('phone.left', { clock: mmss(open) }), c, cy + r + 30)
+    }
 
     fillPolys(ctx, FRONT)
   }
