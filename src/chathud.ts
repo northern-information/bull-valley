@@ -23,8 +23,8 @@ export class ChatHud {
     this.log = el('div', 'bv-chat-log')
     this.log.setAttribute('role', 'log')
     this.log.setAttribute('aria-label', copy('hud.chat_log_label'))
-    // Paused, with the cursor free, hovering holds the log up and the
-    // wheel scrolls it.
+    // With the cursor free (the pack or the book open), hovering holds the
+    // log up and the wheel scrolls it.
     this.log.addEventListener('pointerenter', () => {
       this.hovered = true
     })
