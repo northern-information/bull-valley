@@ -9,6 +9,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { mountMap } from './akashicmap.ts'
 import {
+  buildFlashlight,
   buildLockerDoors,
   isMesh,
   meshBounds,
@@ -28,12 +29,13 @@ import {
   attachCosmetics,
   attachFlashlight,
   buildFigure,
+  buildForearm,
   buildGron,
   buildMoab,
 } from './figure.ts'
 import { buildMistCard, makeMistTexture } from './mistcards.ts'
 import { OUTFIT_IDS, OUTFITS } from './outfits.ts'
-import { flashlightArm, samplePose } from './poses.ts'
+import { flashlightArm, samplePose, strideOf, stridePose } from './poses.ts'
 import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import { mulberry32 } from './rng.ts'
 import {
@@ -126,6 +128,21 @@ function sampleFlashlightUp(): THREE.Group {
   return figure.group
 }
 
+// The left hand as the raider sees their own in first person
+// (fphands.ts): the forearm with the flashlight in the closed fist, the
+// lens lit, lying on its side the way it is held up into the view.
+function sampleFlashlightHand(): THREE.Group {
+  const { group, fist } = buildForearm(OUTFIT_IDS[0], 'L')
+  const flashlight = buildFlashlight()
+  flashlight.group.rotation.x = Math.PI / 2
+  flashlight.setOn(true)
+  fist.add(flashlight.group)
+  group.rotation.x = Math.PI / 2
+  const held = new THREE.Group()
+  held.add(group)
+  return held
+}
+
 // A raider as the others see them in the Flaming Halo, Moab's trade.
 function sampleHaloWorn(): THREE.Group {
   const figure = buildFigure(OUTFIT_IDS[0])
@@ -142,6 +159,17 @@ function sampleEmote(id: EmoteId): THREE.Group {
   const { pose } = EMOTES[id]
   applyPose(figure, samplePose(pose))
   setMotion(figure.group, (t) => applyPose(figure, samplePose(pose, t)))
+  return figure.group
+}
+
+// A raider moving at speed (m/s) on the spot, the stride playing: Alex,
+// so the axe swings with it.
+function sampleStride(speed: number): THREE.Group {
+  const figure = buildFigure('mathiesen')
+  applyPose(figure, stridePose(0, speed))
+  setMotion(figure.group, (t) =>
+    applyPose(figure, stridePose((t * speed) / strideOf(speed), speed))
+  )
   return figure.group
 }
 
@@ -178,9 +206,30 @@ const ASSETS: AkashicAsset[] = [
     build: sampleFlashlightUp,
   },
   {
+    id: 'flashlight-hand',
+    label: 'Your hand on the flashlight, first person',
+    build: sampleFlashlightHand,
+  },
+  {
     id: 'halo-worn',
     label: 'Raider wearing the Flaming Halo',
     build: sampleHaloWorn,
+  },
+  {
+    id: 'walk',
+    label: 'Raider walking',
+    build: () => sampleStride(CONFIG.player.walkSpeed),
+  },
+  {
+    id: 'jog',
+    label: 'Raider breaking into a run',
+    build: () =>
+      sampleStride((CONFIG.player.walkSpeed + CONFIG.player.sprintSpeed) / 2),
+  },
+  {
+    id: 'run',
+    label: 'Raider sprinting',
+    build: () => sampleStride(CONFIG.player.sprintSpeed),
   },
   { id: 'corpse', label: 'A raider struck down', build: sampleCorpse },
   ...EMOTE_IDS.map((id) => ({
