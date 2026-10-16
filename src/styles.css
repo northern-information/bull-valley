@@ -1371,6 +1371,10 @@
 }
 
 .bv-intro-actions {
+  /* Over the dock, which sits over the overlay (.bv-shell--intro .bv-dock):
+     however tall the card grows, a line of the log never covers Begin. */
+  position: relative;
+  z-index: 2;
   display: flex;
   gap: 0.8rem;
 }
