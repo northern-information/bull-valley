@@ -314,6 +314,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
           vulnerable:
             s.started &&
             !s.aboard &&
+            // Up on the lookout no shadow reaches them (rule 11).
+            !world.lookout?.on(player.pos.x, player.pos.z) &&
             now >= s.strikeUntil &&
             now >= s.graceUntil,
           // The same beam the valley would aim from this raider's frame,
@@ -607,6 +609,11 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       dealer: world.plaza?.dealer.at ?? null,
       trapdoor: world.undercroft?.hatch ?? null,
       ladder: world.undercroft?.foot ?? null,
+      lookout: world.lookout && {
+        foot: world.lookout.foot,
+        top: world.lookout.top,
+        on: world.lookout.on(player.pos.x, player.pos.z),
+      },
       heart:
         world.portal &&
         s.quests?.rose === 'given' &&

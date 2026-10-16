@@ -58,7 +58,10 @@
 //    (undercroft.ts), the tunnel shades walk instead (tunnelshades.ts): a
 //    raider down there is out of the shadowmen's field and the Caretaker's
 //    reach, and the shades hunt them, strike them the same way, and burst
-//    in one beam into dimes, the Warden among them. The valley steps the field (stepShadows) and keeps it in
+//    in one beam into dimes, the Warden among them. Up on the lookout
+//    tower by the maze's gate (lookout.ts) no shadow reaches a raider: no
+//    shadowman rushes them and the Caretaker never hunts them, though their
+//    beam still burns what is below. The valley steps the field (stepShadows) and keeps it in
 //    memory only: the shadowmen are gone whenever no one is placed in the
 //    valley.
 // 12. A raider out of the bed can drop what their pack holds (the valley
@@ -222,6 +225,7 @@ import {
   isUsable,
   itemById,
 } from './items.ts'
+import { onLookout } from './lookout.ts'
 import {
   arrive,
   board,
@@ -1780,6 +1784,7 @@ export function shadowRaiders(
 ): Raider[] {
   const raiders: Raider[] = []
   const truck = valley.world?.truck
+  const maze = valley.world?.maze ?? null
   for (const { id, at } of placed) {
     const member = valley.members[id]
     if (!at || !member) continue
@@ -1790,6 +1795,8 @@ export function shadowRaiders(
       vulnerable:
         !at.riding &&
         !(truck && isAboard(truck, id)) &&
+        // Up on the lookout no shadow reaches them.
+        !(maze && onLookout(maze, at)) &&
         now >= (shadows.recovering[graceKey(valley, id)] ?? 0),
       // Rule 27: their high reaches it further and wider.
       beam: at.light

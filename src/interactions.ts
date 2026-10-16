@@ -95,6 +95,10 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // Undercroft (undercroft.ts); the ladder's foot below: E climbs up.
   | { kind: 'descend' }
   | { kind: 'ascend' }
+  // The lookout tower by the maze's gate (lookout.ts): E at the ladder's
+  // foot climbs up onto the deck; at its top, E climbs back down.
+  | { kind: 'climbTower' }
+  | { kind: 'leaveTower' }
 
 // A locker bank as the resolver sees it: where E opens it, and its
 // station.
@@ -140,6 +144,9 @@ export interface InteractionInput<P extends PickupSpot> {
   // it, or null.
   trapdoor?: XZ | null
   ladder?: XZ | null
+  // The lookout tower's ladder, its foot and its top, and whether this
+  // raider is up on the deck; or null.
+  lookout?: { foot: XZ; top: XZ; on: boolean } | null
 }
 
 // The first match wins, in this order: hop out while riding; speak to the
@@ -225,6 +232,19 @@ export function resolveInteraction<P extends PickupSpot>(
       CONFIG.undercroft.climbReach
   if (reach(input.ladder)) return { kind: 'ascend' }
   if (reach(input.trapdoor)) return { kind: 'descend' }
+
+  // Up on the deck only the way down is offered, and below only the way
+  // up, so the two never meet.
+  const tower = input.lookout
+  if (tower) {
+    const spot = tower.on ? tower.top : tower.foot
+    if (
+      Math.hypot(spot.x - player.x, spot.z - player.z) <
+      CONFIG.maze.lookout.climbReach
+    ) {
+      return { kind: tower.on ? 'leaveTower' : 'climbTower' }
+    }
+  }
 
   const heart = input.heart
   if (
@@ -399,6 +419,10 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return copy('prompts.descend')
     case 'ascend':
       return copy('prompts.ascend')
+    case 'climbTower':
+      return copy('prompts.climb_tower')
+    case 'leaveTower':
+      return copy('prompts.leave_tower')
     // Moab's offer is said, since the glow alone cannot say what he wants.
     case 'trade': {
       const cosmetic = cosmeticById(interaction.offer)

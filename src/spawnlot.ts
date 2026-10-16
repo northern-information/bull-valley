@@ -8,6 +8,7 @@ import {
   WRECK,
 } from './assets.ts'
 import { CONFIG } from './config.ts'
+import { mazePlaceOf } from './cornmaze.ts'
 import { buildGron, buildMoab, MOAB_BESIDE } from './figure.ts'
 import {
   cellPoint,
@@ -137,12 +138,7 @@ export function plantBushes(
       CONFIG.daily.bush.z,
     ])
     plantBush(bx, bz, -spawnStation.yaw)
-    const [mx, , mz] = toWorld(spawnStation, [
-      CONFIG.maze.at.x,
-      0,
-      CONFIG.maze.at.z,
-    ])
-    const place = { x: mx, z: mz, yaw: spawnStation.yaw }
+    const place = mazePlaceOf(spawnStation)
     mazePlace = place
     const { count, across, along } = CONFIG.maze.bushes
     const heart = cellPoint(

@@ -1161,6 +1161,17 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         )
         return
       }
+      case 'climbTower':
+      case 'leaveTower': {
+        // Up the lookout's ladder onto the deck, or back down to its foot.
+        const tower = world.lookout
+        if (!tower) return
+        const up = interaction.kind === 'climbTower'
+        const to = up ? tower.top : tower.foot
+        player.relocate(to.x, to.z, to.yaw)
+        hud.tell(copy(up ? 'log.climb_tower' : 'log.leave_tower'))
+        return
+      }
       case 'locked':
         hud.tell(copy('log.locked'))
         return
