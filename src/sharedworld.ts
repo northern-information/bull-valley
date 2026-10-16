@@ -181,6 +181,20 @@
 //    doses the taker in full and the giver at CONFIG.buffs.shareScale, and
 //    earns the giver XP for sharing (rule 22); the valley gives the taker
 //    its heal (rule 24). The stimulated's quicker sprint is the client's.
+// 28. Citgos and Citgo portals (citgos.ts, portals.ts): the valley keeps
+//    every Citgo each account has stood at, and the last (Valley.citgos):
+//    a raider on foot whose last state frame put them within
+//    CONFIG.portal.visitReach of a station's pump island stands at it
+//    (citgoVisits). A raider on foot, out of the bed and away from their
+//    last Citgo, opens a Citgo portal with the phone: it stands a little
+//    ahead of where their last state frame put them, its twin in a free
+//    slot of the ring on that Citgo's lot, where the world was opened with
+//    it (SharedWorld.rings). Anyone walking into either end comes out of
+//    the other, and fast travel from one visited Citgo to another is the
+//    client's: where a raider stands is their own client's word, so the
+//    valley keeps only the log and the portals. An account keeps one
+//    portal open at a time (opening another closes the first), each for
+//    CONFIG.portal.lifeSeconds; the day's turn leaves them.
 
 import {
   buffedBeam,
@@ -198,6 +212,7 @@ import {
   stepCaretaker,
   theMaze,
 } from './caretaker.ts'
+import { citgoAt, NO_CITGOS, visit } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { corpseWire, isEmpty } from './corpses.ts'
 import { affords, cosmeticById, MOAB_OFFERS } from './cosmetics.ts'
@@ -236,6 +251,7 @@ import {
   settleTruck,
 } from './marx.ts'
 import { mazeToWorld, worldToMaze } from './maze.ts'
+import { fieldEnd, freeSlot, nextClose, openAt, ringEnd } from './portals.ts'
 import { PROTOCOL_VERSION } from './protocol.ts'
 import { atHeart, isQuest, QUESTS, questStep } from './quests.ts'
 import {
@@ -265,6 +281,7 @@ import {
 } from './tunnelshades.ts'
 import { inUndercroft } from './undercroft.ts'
 import type { Caretaker } from './caretaker.ts'
+import type { CitgoLog } from './citgos.ts'
 import type { Corpse } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { DealerStock } from './dealer.ts'
@@ -275,6 +292,7 @@ import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckChange, TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
 import type { OutfitId } from './outfits.ts'
+import type { Portal } from './portals.ts'
 import type { XpGrant, XpSource } from './progression.ts'
 import type {
   CaretakerWire,
@@ -349,6 +367,16 @@ export interface SharedWorld {
   dealerStock: DealerStock
   // Where the Undercroft lies, or null (rule 11: the tunnel shades).
   undercroft: MazePlace | null
+  // Rule 28: the middle of the portal ring on each station's lot, indexed
+  // like havens; the portals open now, each with the account that opened
+  // it (never on the wire); and the id the next one gets.
+  rings: XZ[]
+  portals: ValleyPortal[]
+  nextPortal: number
+}
+
+export interface ValleyPortal extends Portal {
+  account: string
 }
 
 // Everything the server persists.
@@ -370,6 +398,8 @@ export interface Valley {
   // Rule 27: account -> its geometrie, while not sober, on the valley's
   // clock in seconds.
   geometrie: Record<string, Geometrie>
+  // Rule 28: account -> every Citgo it has stood at, and the last.
+  citgos: Record<string, CitgoLog>
 }
 
 export interface ValleyCorpse extends Corpse {
@@ -403,6 +433,7 @@ export type ValleyAction =
       bushes: XZ[]
       dealer: XZ | null
       undercroft: MazePlace | null
+      rings: XZ[]
     }
   // at: where their last state frame put them, or null.
   | { type: 'leave'; id: string; at: PeerStateWire | null }
@@ -487,6 +518,9 @@ export type ValleyAction =
   | { type: 'deal'; id: string; kind: string; pay: string; at: XZ | null }
   // Rule 9: a new name, a new character, or both.
   | { type: 'appearance'; id: string; name?: string; outfit?: OutfitId }
+  // Rule 28: the raider stands at Citgo `station`; a Citgo portal opened.
+  | { type: 'visit'; id: string; station: number }
+  | { type: 'open-portal'; id: string; at: Facing | null }
   // The valley's own clock: the truck and the day, moved on.
   | { type: 'clock' }
   | { type: 'hurry'; seconds: number }
@@ -588,6 +622,8 @@ export interface Reduced {
   // took out of the pack and what it paid into the wallet (or, negative,
   // took out of it), or not at all.
   stand?: StandChange
+  // Rule 28: an account's Citgos after a visit, for its sockets.
+  citgos?: { account: string; log: CitgoLog }
 }
 
 export interface StandChange {
@@ -642,6 +678,7 @@ export function createValley(): Valley {
     nextCorpse: 0,
     health: {},
     geometrie: {},
+    citgos: {},
   }
 }
 
@@ -694,6 +731,11 @@ export function geometrieFor(
   return levelsAt(geometrieOf(valley.geometrie, account), now / 1000)
 }
 
+// Rule 28: every Citgo `account` has stood at, and the last.
+export function citgosFor(valley: Valley, account: string): CitgoLog {
+  return valley.citgos[account] ?? NO_CITGOS
+}
+
 // Rule 2: where `account` comes back to, or null for the spawn Citgo.
 export function placeOf(valley: Valley, account: string): Place | null {
   return valley.places[account] ?? null
@@ -710,6 +752,17 @@ export function toWire(valley: Valley): WorldWire | null {
     graves: world.graves,
     dealer: world.dealerStock,
     corpses: valley.corpses.map(corpseWire),
+    portals: world.portals.map(
+      ({ id, name, field, citgo, station, slot, closes }): Portal => ({
+        id,
+        name,
+        field,
+        citgo,
+        station,
+        slot,
+        closes,
+      })
+    ),
     truck: world.truck,
     members: Object.values(valley.members).map(({ id, name }) => ({
       id,
@@ -721,7 +774,7 @@ export function toWire(valley: Valley): WorldWire | null {
 type Detail = Partial<
   Pick<
     WorldMessage,
-    'by' | 'index' | 'station' | 'item' | 'drop' | 'count' | 'corpse'
+    'by' | 'index' | 'station' | 'item' | 'drop' | 'count' | 'corpse' | 'portal'
   >
 >
 
@@ -747,14 +800,20 @@ function withTruck(valley: Valley, world: SharedWorld, truck: TruckState) {
   return withWorld(valley, { ...world, truck })
 }
 
-// When the valley next needs waking: the truck's next change or the day's
-// turn, whichever comes first; null with no world or nobody in it.
+// When the valley next needs waking: the truck's next change, a Citgo
+// portal closing, or the day's turn, whichever comes first; null with no
+// world or nobody in it.
 export function wakeAt(valley: Valley, now: number): number | null {
   const { world } = valley
   if (!world || Object.keys(valley.members).length === 0) return null
-  const truck = nextChange(world.truck, world.routes)
-  const midnight = nextMidnight(now)
-  return truck === null ? midnight : Math.min(truck, midnight)
+  let wake = nextMidnight(now)
+  for (const at of [
+    nextChange(world.truck, world.routes),
+    nextClose(world.portals),
+  ]) {
+    if (at !== null) wake = Math.min(wake, at)
+  }
+  return wake
 }
 
 const TRUCK_REASONS: Record<TruckChange, WorldReason> = {
@@ -764,8 +823,9 @@ const TRUCK_REASONS: Record<TruckChange, WorldReason> = {
   back: 'back',
 }
 
-// The world moved on to `now`: the day turned (rule 6), and the truck
-// through every change due (rule 3). The frames say each, oldest first.
+// The world moved on to `now`: the day turned (rule 6), the truck through
+// every change due (rule 3), and the Citgo portals due closed (rule 28).
+// The frames say each, oldest first.
 function settle(
   valley: Valley,
   now: number
@@ -785,6 +845,11 @@ function settle(
       drops: [],
     })
     frames.push(frame(next, 'refill'))
+  }
+  const portals = next.world ? openAt(next.world.portals, now) : []
+  if (next.world && portals.length < next.world.portals.length) {
+    next = withWorld(next, { ...next.world, portals })
+    frames.push(frame(next, 'portal-closed'))
   }
   const settled = settleTruck(world.truck, now, world.routes)
   // Rule 22: whoever was still in the bed when Marx got home rode with
@@ -873,6 +938,9 @@ function act(
           dealer: action.dealer,
           dealerStock: freshDealerStock(),
           undercroft: action.undercroft,
+          rings: action.rings,
+          portals: [],
+          nextPortal: 0,
         }
       } else if (
         !samePickups(world.pickups, action.pickups) ||
@@ -1697,6 +1765,70 @@ function act(
       return done(next, now, { broadcast: [] })
     }
 
+    case 'visit': {
+      // Rule 28.
+      const member = valley.members[action.id]
+      const world = valley.world
+      if (!member || !world) return done(valley, now, { broadcast: [] })
+      if (!Number.isInteger(action.station)) {
+        return done(valley, now, { broadcast: [] })
+      }
+      if (action.station < 0 || action.station >= world.stations) {
+        return done(valley, now, { broadcast: [] })
+      }
+      const { account } = member
+      const before = citgosFor(valley, account)
+      const log = visit(before, action.station)
+      if (log === before) return done(valley, now, { broadcast: [] })
+      return done(
+        { ...valley, citgos: { ...valley.citgos, [account]: log } },
+        now,
+        { broadcast: [], citgos: { account, log } }
+      )
+    }
+
+    case 'open-portal': {
+      // Rule 28.
+      const member = valley.members[action.id]
+      const world = valley.world
+      const refuse = (reason: string): Reduced =>
+        done(valley, now, { broadcast: [], reply: nack('portal', reason) })
+      if (!member || !world) return refuse('not-in-valley')
+      if (isAboard(world.truck, action.id)) return refuse('aboard')
+      if (!action.at) return refuse('no-position')
+      const station = citgosFor(valley, member.account).last
+      const ring = station === null ? undefined : world.rings[station]
+      if (station === null || !ring) return refuse('no-citgo')
+      if (citgoAt(action.at, [world.havens[station]]) !== null) {
+        return refuse('at-citgo')
+      }
+      // One an account: its last closes as this one opens.
+      const others = world.portals.filter((p) => p.account !== member.account)
+      const slot = freeSlot(others, station)
+      if (slot === null) return refuse('busy')
+      const id = world.nextPortal
+      const portal: ValleyPortal = {
+        id,
+        name: member.name,
+        field: fieldEnd(action.at),
+        citgo: ringEnd(ring, slot),
+        station,
+        slot,
+        closes: now + CONFIG.portal.lifeSeconds * 1000,
+        account: member.account,
+      }
+      const next = withWorld(valley, {
+        ...world,
+        portals: [...others, portal],
+        nextPortal: id + 1,
+      })
+      return done(next, now, {
+        broadcast: [
+          frame(next, 'portal-opened', { by: action.id, portal: id }),
+        ],
+      })
+    }
+
     case 'clock':
       return done(valley, now, { broadcast: [] })
 
@@ -2069,6 +2201,29 @@ export function forecourtMends(
     ids.push(id)
   }
   return ids
+}
+
+// Rule 28: the placed raiders standing at a Citgo that is not yet the last
+// their account stood at, each with that station: on foot, where their
+// last state frame put them. One an account.
+export function citgoVisits(
+  valley: Valley,
+  placed: readonly Placed[]
+): { id: string; station: number }[] {
+  const world = valley.world
+  if (!world) return []
+  const visits: { id: string; station: number }[] = []
+  const seen = new Set<string>()
+  for (const { id, at } of placed) {
+    const member = valley.members[id]
+    if (!at || !member || at.riding || seen.has(member.account)) continue
+    const station = citgoAt(at, world.havens)
+    if (station === null) continue
+    seen.add(member.account)
+    if (citgosFor(valley, member.account).last === station) continue
+    visits.push({ id, station })
+  }
+  return visits
 }
 
 // Rules 15, 16 and 22: the accounts behind the sockets whose beams unmade the

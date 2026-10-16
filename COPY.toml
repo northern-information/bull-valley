@@ -371,6 +371,45 @@ stand_empty = { text = "Not a cent to collect yet.", by = "ai" }
 stand_top = { text = "Your stand is as good as it gets.", by = "ai" }
 stand_refused = { text = "The stand will not do that right now.", by = "ai" }
 edge = { text = "The valley ends here.", by = "ai" }
+portal_opened = { text = "A Citgo portal tears open in front of you. Its twin burns at {citgo}.", by = "ai" }
+portal_other = { text = "{name} opened a Citgo portal.", by = "ai" }
+portal_closed = { text = "Your Citgo portal gutters out.", by = "ai" }
+portal_citgo = { text = "Cold blue light, then the Citgo hum.", by = "ai" }
+portal_through = { text = "Cold blue light, then {name}'s side of the valley.", by = "ai" }
+portal_back = { text = "Cold blue light, then back where you dialed from.", by = "ai" }
+portal_aboard = { text = "No signal from the truck bed.", by = "ai" }
+portal_at_citgo = { text = "You are already at your Citgo.", by = "ai" }
+portal_no_citgo = { text = "No Citgo to call yet. Stand on a forecourt first.", by = "ai" }
+portal_busy = { text = "Every line to that Citgo is busy.", by = "ai" }
+portal_refused = { text = "The call drops.", by = "ai" }
+portal_hung_up = { text = "You hang up.", by = "ai" }
+citgo_visited = { text = "You found {citgo}. It is on your map.", by = "ai" }
+travel = { text = "The lights go out and come back on. {citgo}.", by = "ai" }
+travel_away = { text = "Fast travel leaves from a Citgo forecourt.", by = "ai" }
+travel_unvisited = { text = "You have not been to {citgo} yet.", by = "ai" }
+travel_here = { text = "You are already here.", by = "ai" }
+travel_aboard = { text = "Not from the truck bed.", by = "ai" }
+
+# The phone's Citgo portal app (src/phone.ts).
+
+[phone]
+title = { text = "CITGO PORTAL", by = "ai" }
+dialing = { text = "DIALING", by = "ai" }
+open = { text = "PORTAL OPEN", by = "ai" }
+left = { text = "{clock} LEFT", by = "ai" }
+
+# The map (src/citgomap.ts): the valley's Citgos, the ones visited, the
+# last, and fast travel. A Citgo is named for its nearest road.
+
+[map]
+title = { text = "Map", by = "ai" }
+visited = { text = "{count} of {total} Citgos visited", by = "ai" }
+last = { text = "Last Citgo: {citgo}. Your portal goes there.", by = "ai" }
+none = { text = "No Citgo yet. Stand on a forecourt.", by = "ai" }
+hint = { text = "Click a visited Citgo to fast travel.", by = "ai" }
+hint_away = { text = "Fast travel leaves from a Citgo forecourt.", by = "ai" }
+citgo = { text = "Citgo on {road}", by = "ai" }
+citgo_unnamed = { text = "Citgo #{n}", by = "ai" }
 
 # Marx's countdown once anyone is in the bed (src/loop.ts).
 
@@ -516,7 +555,8 @@ sprint = { text = "Sprint", by = "ai" }
 look = { text = "Look", by = "ai" }
 flashlight = { text = "Flashlight", by = "ai" }
 crouch = { text = "Crouch", by = "ai" }
-scope = { text = "Scaduscope", by = "ai" }
+phone = { text = "Citgo Portal", by = "ai" }
+map = { text = "Map", by = "ai" }
 inventory = { text = "Inventory", by = "ai" }
 book = { text = "Book of Shadows", by = "ai" }
 interact = { text = "Interact", by = "ai" }

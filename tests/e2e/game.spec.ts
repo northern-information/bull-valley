@@ -69,7 +69,7 @@ test('Marx does donuts in the field after reading, until whistled', async ({
   await expect.poll(truck).toMatchObject({ drifting: false })
 })
 
-test('shadowmen cross the valley and show on the scope', async ({ page }) => {
+test('shadowmen cross the valley', async ({ page }) => {
   await beginRaid(page)
   // They are the valley's: it sends them every step.
   await expect
@@ -77,26 +77,97 @@ test('shadowmen cross the valley and show on the scope', async ({ page }) => {
       page.evaluate(() => window.__bv?.shadowmen.table.next?.shadowmen.length)
     )
     .toBeGreaterThan(0)
-  await page.keyboard.press('q')
-  await expect(page.locator('.bv-phone')).toHaveClass(/bv-phone--raised/)
-  // The crossings come in from well past its range, so stand one inside it,
-  // out of the forecourt haven.
+})
+
+// The Citgo the valley last saw this raider stand at: the spawn Citgo,
+// once their first state frame lands.
+const lastCitgo = (page: Page) =>
+  page.evaluate(() => window.__bv?.citgos.last ?? null)
+
+test('the phone dials a Citgo portal to the last Citgo and back', async ({
+  page,
+}) => {
+  await beginRaid(page)
+  await expect.poll(() => lastCitgo(page)).not.toBeNull()
+  const station = await lastCitgo(page)
+  // Out in the valley, far from any Citgo.
   await page.evaluate(() => window.__bv?.teleport(0.5, 0.5))
   await heardWhere(page)
-  await page.evaluate(() => {
-    const bv = window.__bv
-    if (!bv) return
-    bv.placeShadowman(bv.player.pos.x + 40, bv.player.pos.z)
-  })
+  await page.keyboard.press('q')
+  await expect(page.locator('.bv-phone')).toHaveClass(/bv-phone--raised/)
   await expect
-    .poll(() =>
-      page.evaluate(() =>
-        window.__bv?.shadowmen.contacts.some(
-          (c) => c.kind === 'shadow' && Math.abs(c.dist - 40) < 2
-        )
-      )
-    )
-    .toBe(true)
+    .poll(() => page.evaluate(() => window.__bv?.myPortal ?? null), {
+      timeout: 15_000,
+    })
+    .not.toBeNull()
+  const portal = await page.evaluate(() => {
+    const bv = window.__bv
+    return bv?.portals.find((p) => p.id === bv.myPortal) ?? null
+  })
+  if (!portal) throw new Error('no portal')
+  expect(portal.station).toBe(station)
+  const distanceTo = (end: { x: number; z: number }) =>
+    page.evaluate(({ x, z }) => {
+      const bv = window.__bv
+      return bv ? Math.hypot(bv.player.pos.x - x, bv.player.pos.z - z) : null
+    }, end)
+  const walkInto = (end: { x: number; z: number }) =>
+    page.evaluate(({ x, z }) => {
+      const bv = window.__bv
+      bv?.player.relocate(x, z, bv.player.yaw)
+    }, end)
+  // Into the end ahead of us, out at the Citgo.
+  await walkInto(portal.field)
+  await expect.poll(() => distanceTo(portal.citgo)).toBeLessThan(3)
+  // And back out of the twin, where we dialed from.
+  await page.waitForTimeout(1200)
+  await walkInto(portal.citgo)
+  await expect.poll(() => distanceTo(portal.field)).toBeLessThan(3)
+})
+
+test('the map shows the Citgos, and fast travel goes between visited ones', async ({
+  page,
+}) => {
+  await beginRaid(page)
+  await expect.poll(() => lastCitgo(page)).not.toBeNull()
+  const home = (await lastCitgo(page)) ?? 0
+  await page.keyboard.press('m')
+  await expect(page.locator('.bv-map')).toBeVisible()
+  await expect(page.locator('[data-bv="map-last"]')).not.toHaveText('')
+  await page.keyboard.press('m')
+  await expect(page.locator('.bv-map')).toBeHidden()
+
+  const count = await page.evaluate(
+    () => window.__bv?.world.fuelPoints.length ?? 0
+  )
+  const other = (home + 1) % count
+  const ring = (i: number) =>
+    page.evaluate((i) => window.__bv?.world.rings[i] ?? null, i)
+  const nearRing = async (i: number) => {
+    const at = await ring(i)
+    return page.evaluate((at) => {
+      const bv = window.__bv
+      if (!bv || !at) return Infinity
+      return Math.hypot(bv.player.pos.x - at.x, bv.player.pos.z - at.z)
+    }, at)
+  }
+  // Not yet visited: no fast travel there.
+  await page.evaluate((i) => window.__bv?.fastTravel(i), other)
+  expect(await nearRing(other)).toBeGreaterThan(50)
+  // Stand on its forecourt, and the valley writes it.
+  await page.evaluate((i) => {
+    const bv = window.__bv
+    const at = bv?.world.fuelPoints[i]
+    if (bv && at) bv.player.relocate(at.x + 3, at.z + 3, 0)
+  }, other)
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.citgos.visited ?? []), {
+      timeout: 15_000,
+    })
+    .toContain(other)
+  // From there, home again by fast travel.
+  await page.evaluate((i) => window.__bv?.fastTravel(i), home)
+  await expect.poll(() => nearRing(home)).toBeLessThan(1)
 })
 
 test("a shadowman's touch takes a point, and the Citgo makes you whole", async ({

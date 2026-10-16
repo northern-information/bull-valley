@@ -24,7 +24,7 @@ export interface PlayerOptions {
   spawn: PlayerSpawn
 }
 
-// Per-frame movement modifiers from items and the scope.
+// Per-frame movement modifiers from items and the phone.
 export interface PlayerMods {
   speedScale?: number
   // How much faster the sprint alone runs (buffs.ts sprintScale).

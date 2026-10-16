@@ -45,9 +45,10 @@ export const WORLD = {
   look: { codes: [], key: 'Mouse', labelKey: 'keys.look' },
   flashlight: { codes: [], key: 'Left Click', labelKey: 'keys.flashlight' },
   crouch: { codes: ['KeyC'], key: 'C', labelKey: 'keys.crouch' },
-  scope: { codes: ['KeyQ'], key: 'Q', labelKey: 'keys.scope' },
+  phone: { codes: ['KeyQ'], key: 'Q', labelKey: 'keys.phone' },
   inventory: { codes: ['Tab'], key: 'Tab', labelKey: 'keys.inventory' },
   book: { codes: ['KeyB'], key: 'B', labelKey: 'keys.book' },
+  map: { codes: ['KeyM'], key: 'M', labelKey: 'keys.map' },
   interact: { codes: ['KeyE'], key: 'E', labelKey: 'keys.interact' },
   callTruck: { codes: ['KeyT'], key: 'T', labelKey: 'keys.call_truck' },
   // The last thing used, to the raider in reach in front of you.
@@ -146,6 +147,12 @@ export const BOOK = {
     labelKey: 'keys.turn_page',
   },
   close: { codes: ['KeyB', 'Escape'], key: 'B', labelKey: 'keys.close' },
+} as const satisfies Record<string, Binding>
+
+// With the map open (citgomap.ts): M or Esc closes it; a click on a
+// visited Citgo fast travels there.
+export const MAP = {
+  close: { codes: ['KeyM', 'Escape'], key: 'M', labelKey: 'keys.close' },
 } as const satisfies Record<string, Binding>
 
 // The pack's keys the controls table lists too, under the valley's: only

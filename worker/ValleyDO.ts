@@ -53,6 +53,8 @@ import { isQuest } from '../src/quests.ts'
 import { mulberry32 } from '../src/rng.ts'
 import { SEASON, tally } from '../src/season.ts'
 import {
+  citgosFor,
+  citgoVisits,
   corpsesOf,
   createShadows,
   createValley,
@@ -313,6 +315,15 @@ export class ValleyDO extends DurableObject<Env> {
       }
       case 'take-drop':
         await this.act(ws, { type: 'take-drop', id: me.id, drop: msg.drop, at })
+        return
+      case 'portal':
+        // Rule 28: ahead of where the raider's own last state frame put
+        // them.
+        await this.act(ws, {
+          type: 'open-portal',
+          id: me.id,
+          at: me.at ? { x: me.at.x, z: me.at.z, yaw: me.at.yaw } : null,
+        })
         return
       case 'loot':
         await this.loot(ws, attachment.account, {
@@ -579,6 +590,10 @@ export class ValleyDO extends DurableObject<Env> {
     for (const id of forecourtMends(this.valley, placed)) {
       void this.mend(id)
     }
+    // Rule 28: a Citgo stood at is written in the account's log.
+    for (const { id, station } of citgoVisits(this.valley, placed)) {
+      void this.visit(id, station)
+    }
     if (out.struck.length === 0) return
     // Rule 24: each account struck loses one point, once however many of
     // its sockets were touched.
@@ -719,6 +734,23 @@ export class ValleyDO extends DurableObject<Env> {
     if (heals > 0) await this.mend(to, heals)
     this.toAccount(passed.taker, { type: 'passed', kind, from: me.name })
     this.toAccount(passed.giver, { type: 'passed', kind, to: taker.name })
+  }
+
+  // A raider stands at a Citgo (rule 28): every socket on the account hears
+  // its Citgos when the log changed.
+  protected async visit(id: string, station: number): Promise<void> {
+    await this.locked(async () => {
+      const reduced = reduce(
+        this.valley,
+        { type: 'visit', id, station },
+        this.context()
+      )
+      await this.apply(reduced)
+      const change = reduced.citgos
+      if (change) {
+        this.toAccount(change.account, { type: 'citgos', citgos: change.log })
+      }
+    })
   }
 
   // Points given back (rule 24): `by` of them, or whole on a forecourt.
@@ -1031,6 +1063,7 @@ export class ValleyDO extends DurableObject<Env> {
           bushes: hello.bushes,
           dealer: hello.dealer,
           undercroft: hello.undercroft,
+          rings: hello.rings,
         },
         { now: Date.now(), present: this.presentIds(ws) }
       )
@@ -1074,6 +1107,7 @@ export class ValleyDO extends DurableObject<Env> {
       task: taskWire(task),
       health: healthFor(this.valley, account),
       geometrie: geometrieFor(this.valley, account, now),
+      citgos: citgosFor(this.valley, account),
       xp,
       stand,
       quests,

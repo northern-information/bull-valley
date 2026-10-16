@@ -60,7 +60,7 @@ export function text(
 
 export const SERIF = 'bold $px Georgia, "Times New Roman", serif'
 export const SANS = 'bold $px "Helvetica Neue", Arial, sans-serif'
-// The game's own face, for UI drawn on canvas (the scope, name tags). Boot
+// The game's own face, for UI drawn on canvas (the phone, name tags). Boot
 // waits for it to load (main.ts), so the first draw is already IBM Plex Mono.
 export const MONO = '600 $px "IBM Plex Mono", ui-monospace, monospace'
 

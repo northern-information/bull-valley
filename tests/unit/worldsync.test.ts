@@ -5,11 +5,13 @@ import {
   clockText,
   countdown,
   newLeg,
+  portalNews,
   reconcileBed,
   seatOf,
   settledBy,
 } from '../../src/worldsync.ts'
 import type { Leg } from '../../src/marx.ts'
+import type { Portal } from '../../src/portals.ts'
 import type { WorldWire } from '../../src/protocol.ts'
 
 const T0 = 1_000_000
@@ -22,6 +24,7 @@ const world = (leg: Leg, riders: string[] = []): WorldWire => ({
   dealer: {},
   graves: [],
   corpses: [],
+  portals: [],
   truck: { leg, riders },
   members: [],
 })
@@ -212,5 +215,65 @@ describe('settledBy', () => {
     expect(
       settledBy({ reason: 'drop-taken', by: 'a', item: 'joints', drop: 1 }, 'a')
     ).toEqual(none)
+  })
+})
+
+describe('Citgo portals', () => {
+  const end = { x: 0, z: 0, yaw: 0 }
+  const portal = (id: number): Portal => ({
+    id,
+    name: `R${id}`,
+    field: end,
+    citgo: end,
+    station: 0,
+    slot: id,
+    closes: T0,
+  })
+  const withPortals = (...ids: number[]): WorldWire => ({
+    ...world(parked()),
+    portals: ids.map(portal),
+  })
+
+  it('says ours opened, and keeps it as ours', () => {
+    const news = portalNews(
+      { reason: 'portal-opened', by: 'me', portal: 3 },
+      withPortals(3),
+      'me',
+      null
+    )
+    expect(news).toEqual({
+      opened: { portal: portal(3), mine: true },
+      mine: 3,
+      closed: false,
+    })
+  })
+
+  it('says another opened one, and ours stands', () => {
+    const news = portalNews(
+      { reason: 'portal-opened', by: 'them', portal: 4 },
+      withPortals(3, 4),
+      'me',
+      3
+    )
+    expect(news.opened).toEqual({ portal: portal(4), mine: false })
+    expect(news.mine).toBe(3)
+    expect(news.closed).toBe(false)
+  })
+
+  it('says ours closed once it is gone, and never a second as closing the first', () => {
+    expect(
+      portalNews({ reason: 'portal-closed' }, withPortals(), 'me', 3)
+    ).toEqual({ opened: null, mine: null, closed: true })
+    expect(
+      portalNews(
+        { reason: 'portal-opened', by: 'me', portal: 5 },
+        withPortals(5),
+        'me',
+        3
+      )
+    ).toMatchObject({ mine: 5, closed: false })
+    expect(portalNews({ reason: 'joined' }, withPortals(), 'me', null)).toEqual(
+      { opened: null, mine: null, closed: false }
+    )
   })
 })
