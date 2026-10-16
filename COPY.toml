@@ -362,6 +362,8 @@ locked = { text = "Locked. The handle does not give.", by = "ai" }
 deal_offline = { text = "No signal. Erwin von Dutch will not deal with a stranger alone.", by = "ai" }
 descend = { text = "You climb down out of the light. The rungs are older than the store.", by = "ai" }
 ascend = { text = "You climb back up into the office. The fluorescent hum is almost a comfort.", by = "ai" }
+climb_tower = { text = "You climb the lookout. Up here the corn lies open below you, and nothing in the dark can reach you.", by = "ai" }
+leave_tower = { text = "You climb back down. The corn closes over the view again.", by = "ai" }
 whistle_below = { text = "Your whistle dies in the stone. No one hears it up there.", by = "ai" }
 stand_far = { text = "You are too far from the stand.", by = "ai" }
 stand_short = { text = "You cannot cover that.", by = "ai" }
@@ -430,6 +432,8 @@ locked = { text = "E — Locked", by = "ai" }
 lay = { text = "E — Lay the Rose", by = "ai" }
 descend = { text = "E — Climb Down", by = "ai" }
 ascend = { text = "E — Climb Up", by = "ai" }
+climb_tower = { text = "E — Climb the Lookout", by = "ai" }
+leave_tower = { text = "E — Climb Down", by = "ai" }
 
 # The emotes (src/emotes.ts): what a raider is told doing one, and the
 # quiet line a raider near enough to see it gets.

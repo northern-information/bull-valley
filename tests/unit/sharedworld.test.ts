@@ -5,6 +5,7 @@ import { dayKey, nextMidnight } from '../../src/daily.ts'
 import { costIn, freshDealerStock, goodOf } from '../../src/dealer.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { contentsOf, getItem } from '../../src/items.ts'
+import { LADDER_FOOT, LADDER_TOP, lookoutToWorld } from '../../src/lookout.ts'
 import { mazeToWorld } from '../../src/maze.ts'
 import { PROTOCOL_VERSION } from '../../src/protocol.ts'
 import { mulberry32 } from '../../src/rng.ts'
@@ -1954,6 +1955,25 @@ describe("rule 11: the shadowmen are the valley's", () => {
     expect(vulnerable(state({ riding: true }))).toBe(false)
     shadows.recovering['acct-b'] = T0 + 1
     expect(vulnerable(state())).toBe(false)
+  })
+
+  it('reaches no raider up on the lookout, whose beam still burns', () => {
+    const maze = { x: 120, z: -40, yaw: 0.6 }
+    const v = valleyWith({ ...join('a'), maze } as ValleyAction).valley
+    const shadows = createShadows()
+    const at = (p: { x: number; z: number }, light = false) =>
+      shadowRaiders(
+        v,
+        shadows,
+        [{ id: 'a', at: state({ ...lookoutToWorld(maze, p), light }) }],
+        T0
+      )[0]
+    const up = at(LADDER_TOP, true)
+    expect(up.vulnerable).toBe(false)
+    expect(up.beam).not.toBeNull()
+    expect(at({ x: 0, z: 0 }).vulnerable).toBe(false)
+    // At the ladder's foot they are back within reach.
+    expect(at(LADDER_FOOT).vulnerable).toBe(true)
   })
 
   it('aims a beam only for a raider whose light is on', () => {

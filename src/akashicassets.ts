@@ -34,6 +34,7 @@ import { buildDrink } from './drinkmodels.ts'
 import { buildFireRoots, buildRaincloud } from './fire.ts'
 import { itemLabel } from './itemcopy.ts'
 import { ITEMS } from './items.ts'
+import { buildLookout } from './lookoutmodel.ts'
 import { mazeSpans, SHINING_MAZE } from './maze.ts'
 import { buildMedicine } from './medicinemodels.ts'
 import {
@@ -432,6 +433,11 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     id: 'wreck',
     label: 'The wreck: a green BMW in a tree',
     build: () => buildWreck().group,
+  },
+  {
+    id: 'lookout',
+    label: 'The lookout tower by the corn maze',
+    build: () => buildLookout(),
   },
   {
     id: 'strip-mall',

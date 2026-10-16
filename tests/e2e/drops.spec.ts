@@ -79,6 +79,8 @@ base.describe('drops', { tag: '@valley' }, () => {
         lying.x,
         lying.z,
       ] as const)
+      // The valley gives a drop only to a raider it has heard stand in reach.
+      await heardWhere(b)
       await expect(b.locator('.bv-item-label')).toContainText(
         copy('items.joints.label')
       )

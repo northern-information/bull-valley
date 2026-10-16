@@ -3,9 +3,10 @@ import { boundaryMaterial, buildLandmarkBeacon } from './assets.ts'
 import { bookSights } from './booksights.ts'
 import { CONFIG } from './config.ts'
 import { unitToWorld } from './coords.ts'
-import { buildCornMaze, mazeFrame, mazeLamps } from './cornmaze.ts'
+import { buildCornMaze, mazeFrame, mazeLamps, mazePlaceOf } from './cornmaze.ts'
 import { Ground } from './ground.ts'
 import { KEEP, landmarkWorldPositions } from './landmarks.ts'
+import { LOOKOUT, onLookout } from './lookout.ts'
 import { mazeToWorld } from './maze.ts'
 import { buildCroft, buildPlaza, CROFT_TREE_CLEAR } from './plazasite.ts'
 import { buildPoles } from './poles.ts'
@@ -188,6 +189,8 @@ export interface World {
   streetlights: Streetlights
   // The portal at the corn maze's heart; null without a spawn station.
   portal: MazePortal | null
+  // The lookout tower by the maze's gate; null without a spawn station.
+  lookout: LookoutRig | null
   // Where the corn maze lies, for the Caretaker (caretaker.ts); null
   // without a spawn station.
   mazePlace: MazePlace | null
@@ -225,6 +228,15 @@ export interface MazePortal {
   // Erwin's rose, laid before the portal (quests.ts): shown to a raider
   // whose quest says they laid it.
   rose: THREE.Object3D
+}
+
+// The lookout tower by the corn maze's gate (lookout.ts): where E climbs
+// up (the ladder's foot) and where it climbs down (the top, on the deck),
+// each where the climb leaves you, and whether a point is up on the deck.
+export interface LookoutRig {
+  foot: Spawn
+  top: Spawn
+  on(x: number, z: number): boolean
 }
 
 // across the fog — magenta for the Keep.
@@ -319,6 +331,13 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
       rng,
       (x, z) =>
         (maze ? maze.covers(x, z, CONFIG.maze.treeClear) : false) ||
+        (spawnStation
+          ? onLookout(
+              mazePlaceOf(spawnStation),
+              { x, z },
+              LOOKOUT.spread + CONFIG.maze.lookout.clear
+            )
+          : false) ||
         (donutField
           ? Math.hypot(x - donutField.x, z - donutField.z) <
             donutField.radius + DONUT_TREE_CLEAR
@@ -398,10 +417,12 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   )
   group.add(pickupSet.group)
   let portal: MazePortal | null = null
+  let lookout: LookoutRig | null = null
   if (spawnStation && maze) {
     const corn = buildCornMaze(maze, spawnStation, heightAt, ground, walls)
     group.add(corn.group)
     portal = corn.portal
+    lookout = corn.lookout
   }
 
   const spawn: Spawn = spawnStation
@@ -452,6 +473,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     shelves,
     streetlights,
     portal,
+    lookout,
     mazePlace,
     donutField,
     sights: bookSights({

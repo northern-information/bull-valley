@@ -25,6 +25,8 @@ test('climbing into the bed starts the countdown, and Marx leaves with you', asy
     if (!bv) throw new Error('no dev hook')
     bv.player.relocate(bv.truck.x + 1, bv.truck.z + 1, Math.atan2(1, 1))
   })
+  // The valley lets into the bed only a raider it has heard beside it.
+  await heardWhere(page)
   await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.board'))
   await page.keyboard.press('KeyE')
   await expect.poll(() => page.evaluate(() => window.__bv?.aboard)).toBe(true)
