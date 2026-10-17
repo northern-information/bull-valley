@@ -36,11 +36,8 @@ import { OUTFIT_IDS, OUTFITS } from './outfits.ts'
 import { flashlightArm, samplePose } from './poses.ts'
 import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import { mulberry32 } from './rng.ts'
-import {
-  buildShadowmanFigure,
-  cardStrike,
-  makeSilhouetteTexture,
-} from './shadowcards.ts'
+import { strikeReach } from './shadowcards.ts'
+import { buildShadowman } from './shadowmanmodel.ts'
 import { buildTruckMesh } from './truck.ts'
 import type { MapHook } from './akashicmap.ts'
 import type { AkashicAsset } from './assets.ts'
@@ -90,30 +87,42 @@ function sampleFigure(outfitId: OutfitId): THREE.Group {
   return figure.group
 }
 
-function sampleShadowman(): THREE.Group {
-  const height = 2.8
-  const figure = buildShadowmanFigure(
-    makeSilhouetteTexture(mulberry32(0xd06)),
-    height
-  )
-  figure.position.y = height / 2
+// A shadowman (shadowcards.ts), standing, walking in place, or winding
+// up and lunging at the view. `frame` says, at each moment, how fast it
+// walks and how far through a strike it is.
+function sampleShadowmanDoing(
+  frame: (t: number) => { speed: number; windup: number; lunge: number }
+): THREE.Group {
+  const rig = buildShadowman(2.8, 0xd06)
   const group = new THREE.Group()
-  group.add(figure)
+  group.add(rig.group)
+  const still = { dt: 0, burn: 0, perception: false }
+  rig.update({ ...still, ...frame(0) })
+  let last = 0
+  setMotion(group, (t) => {
+    const dt = Math.min(0.1, Math.max(0, t - last))
+    last = t
+    const now = frame(t)
+    rig.update({ ...still, dt, ...now })
+    rig.group.position.z = -strikeReach(now.windup, now.lunge)
+  })
   return group
 }
 
-// A shadowman winding up and lunging at the view (shadowcards.ts).
+function sampleShadowman(): THREE.Group {
+  return sampleShadowmanDoing(() => ({ speed: 0, windup: 0, lunge: 0 }))
+}
+
+function sampleShadowmanWalking(): THREE.Group {
+  return sampleShadowmanDoing(() => ({ speed: 1.6, windup: 0, lunge: 0 }))
+}
+
 function sampleShadowmanStriking(): THREE.Group {
-  const group = sampleShadowman()
-  const [figure] = group.children
-  const height = 2.8
-  setMotion(group, (t) => {
-    const { windup, lunge } = strikeLoopAt(t)
-    const strike = cardStrike(windup, lunge)
-    figure.scale.set(strike.narrow, strike.tall, 1)
-    figure.position.set(0, (height / 2) * strike.tall, -strike.back)
+  // The spider's loop, walked at a man's pace.
+  return sampleShadowmanDoing((t) => {
+    const loop = strikeLoopAt(t)
+    return { ...loop, speed: loop.speed / 4 }
   })
-  return group
 }
 
 // A raider as the others see them with the flashlight up: the arm held
@@ -194,6 +203,11 @@ const ASSETS: AkashicAsset[] = [
     build: buildLockerDoors,
   },
   { id: 'shadowman', label: 'Shadowman', build: sampleShadowman },
+  {
+    id: 'shadowman-walking',
+    label: 'Shadowman: walking',
+    build: sampleShadowmanWalking,
+  },
   {
     id: 'shadowman-striking',
     label: 'Shadowman: winding up and lunging',

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { flashlightArm, JOINTS, POSES, samplePose } from '../../src/poses.ts'
+import {
+  blendPose,
+  flashlightArm,
+  JOINTS,
+  POSES,
+  samplePose,
+} from '../../src/poses.ts'
 import type { PoseName } from '../../src/poses.ts'
 
 describe('poses', () => {
@@ -69,5 +75,26 @@ describe('flashlightArm', () => {
     expect(level.shoulderL?.[0]).toBeCloseTo(-1.3, 9)
     // Looking up swings it further forward and up.
     expect(flashlightArm(0.4).shoulderL?.[0]).toBeCloseTo(-1.7, 9)
+  })
+
+  it('blends two poses joint by joint', () => {
+    const stand = samplePose('stand')
+    const lunge = samplePose('shadow-lunge')
+    expect(blendPose(stand, lunge, 0)).toEqual(stand)
+    expect(blendPose(stand, lunge, 1)).toEqual(lunge)
+    const half = blendPose(stand, lunge, 0.5)
+    expect(half.lift).toBeCloseTo(lunge.lift / 2, 6)
+    expect(half.joints.spine[0]).toBeCloseTo(lunge.joints.spine[0] / 2, 6)
+  })
+
+  it("rears a shadowman's arms up and back, then flings them ahead", () => {
+    const windup = samplePose('shadow-windup').joints
+    const lunge = samplePose('shadow-lunge').joints
+    // Raised past straight up, then out ahead and down from there.
+    expect(windup.shoulderL[0]).toBeLessThan(-2.4)
+    expect(lunge.shoulderL[0]).toBeGreaterThan(windup.shoulderL[0])
+    // Leaning back to wind up, thrown forward to lunge.
+    expect(windup.spine[0]).toBeLessThan(0)
+    expect(lunge.spine[0]).toBeGreaterThan(0.3)
   })
 })
