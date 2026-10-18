@@ -20,6 +20,7 @@ type ColorSlot =
   | 'hat'
   | 'straps'
   | 'sockets'
+  | 'soles'
 
 // Painted art printed on a part; decalart.ts paints each one.
 export type DecalId =
@@ -39,6 +40,8 @@ export type DecalId =
   | 'tattered'
   | 'flannel'
   | 'open-shirt'
+  | 'paramore'
+  | 'against-me'
 
 // Where an outfit prints a decal over the body: across the torso front,
 // across the front of both thighs, or all round both bare arms.
@@ -144,6 +147,12 @@ type AddonId =
   | 'hem-buckles'
   | 'tatters-long'
   | 'tatters-short'
+  | 'flattop'
+  | 'sneaker-soles-l'
+  | 'sneaker-soles-r'
+  | 'toe-caps-l'
+  | 'toe-caps-r'
+  | 'hood-shadow'
 
 type LimbGroup = 'arm' | 'leg'
 
@@ -188,6 +197,12 @@ export type OutfitId =
   | 'gron'
   | 'moab'
   | 'squatter'
+  | 'rich'
+  | 'sam'
+  | 'meyer'
+  | 'anderchuck'
+  | 'lane'
+  | 'terry'
 
 // Dreadlocks hang from a ring round the back and sides of the head, leaving
 // the face clear. Angles are around the head from +X toward +Z (the face).
@@ -808,6 +823,54 @@ export const ADDONS: Record<AddonId, Addon> = {
       [-0.66, 0.24, 0.175, -0.02],
     ],
   },
+  // A flattop: the hair stands up off the crown and is cut level, a
+  // little narrower at the top than round the temples. Its front sits back
+  // inside the forehead, so it rises from the hairline.
+  flattop: {
+    joint: 'neck',
+    slot: 'hair',
+    sides: 8,
+    rings: [
+      [0.26, 0.097, 0.1, -0.02],
+      [0.31, 0.095, 0.1, -0.015],
+      [0.36, 0.088, 0.094, -0.015],
+    ],
+  },
+  // Canvas sneakers: a white rubber sole under each shoe and a white toe
+  // cap over its front, laid on the shoe at the base leg length.
+  'sneaker-soles-l': {
+    joint: 'kneeL',
+    slot: 'soles',
+    box: [0.116, 0.022, 0.256],
+    offset: [0, -0.452, 0.045],
+  },
+  'sneaker-soles-r': {
+    joint: 'kneeR',
+    slot: 'soles',
+    box: [0.116, 0.022, 0.256],
+    offset: [0, -0.452, 0.045],
+  },
+  'toe-caps-l': {
+    joint: 'kneeL',
+    slot: 'soles',
+    box: [0.094, 0.044, 0.04],
+    offset: [0, -0.434, 0.157],
+  },
+  'toe-caps-r': {
+    joint: 'kneeR',
+    slot: 'soles',
+    box: [0.094, 0.044, 0.04],
+    offset: [0, -0.434, 0.157],
+  },
+  // The dark inside a hood worn up: where the face would be, nothing
+  // shows. Just proud of the hood's front in the middle, its edges sunk
+  // into the hood's curve.
+  'hood-shadow': {
+    joint: 'neck',
+    slot: 'sockets',
+    box: [0.1, 0.16, 0.008],
+    offset: [0, 0.165, 0.12],
+  },
 }
 
 // proportions scale the length of each limb group (1 = the base body).
@@ -1009,6 +1072,126 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     patterns: { shirt: 'flannel' },
     prints: { torso: ['open-shirt'] },
     inHand: 'axe',
+  },
+  // A baby face, clean-shaven, under long black hair; black on black.
+  rich: {
+    label: copy('outfits.rich'),
+    colors: {
+      skin: '#f4dccb',
+      hair: '#141012',
+      shirt: '#121214',
+      pants: '#1a1a1e',
+      boots: '#060607',
+      belt: '#0a0a0b',
+    },
+    addons: ['long-hair', 'belt', 'belt-loops'],
+    sleeves: 'short',
+  },
+  // Black emo hair swept to the side, a pink Paramore tee, torn jeans.
+  sam: {
+    label: copy('outfits.sam'),
+    colors: {
+      skin: '#f1d6c2',
+      hair: '#141012',
+      shirt: '#e889b0',
+      pants: '#3f5f8a',
+      boots: '#141416',
+      belt: '#0c0c0e',
+    },
+    addons: [
+      'emo-hair',
+      'hair-spikes-long',
+      'hair-spikes-short',
+      'fringe',
+      'fringe-fill',
+      'belt',
+      'belt-loops',
+    ],
+    sleeves: 'short',
+    prints: { torso: ['paramore'], thigh: ['torn-jeans'] },
+  },
+  // A blonde flattop and a mustache, an Against Me! tee, blue jeans and
+  // Converse.
+  meyer: {
+    label: copy('outfits.meyer'),
+    colors: {
+      skin: '#efcfb4',
+      hair: '#d9bd7a',
+      shirt: '#141416',
+      pants: '#3f5f8a',
+      // The canvas; the soles and toe caps are white rubber.
+      boots: '#18181c',
+      soles: '#ecebe4',
+      belt: '#0c0c0e',
+    },
+    addons: [
+      'flattop',
+      'mustache',
+      'belt',
+      'belt-loops',
+      'sneaker-soles-l',
+      'sneaker-soles-r',
+      'toe-caps-l',
+      'toe-caps-r',
+    ],
+    sleeves: 'short',
+    prints: { torso: ['against-me'] },
+  },
+  // Dark hair to the shoulders, a full beard, a black Pantera tee and
+  // black jeans.
+  anderchuck: {
+    label: copy('outfits.anderchuck'),
+    colors: {
+      skin: '#ecc9ab',
+      hair: '#2a1d14',
+      shirt: '#141416',
+      pants: '#1a1a1e',
+      boots: '#2a2018',
+      belt: '#0c0c0e',
+    },
+    addons: ['long-hair', 'beard', 'belt', 'belt-loops'],
+    sleeves: 'short',
+    prints: { torso: ['pantera'] },
+  },
+  // A cipher: a plain grey hoodie with the hood up and nothing to read
+  // inside it, no print, no hair, no face.
+  lane: {
+    label: copy('outfits.lane'),
+    colors: {
+      skin: '#d9bfa6',
+      // The hood's grey, so the hair cap and brow never show through it.
+      hair: '#3a3b3f',
+      shirt: '#3a3b3f',
+      pants: '#2e2f33',
+      boots: '#111113',
+      coat: '#3a3b3f',
+      sockets: '#060607',
+    },
+    addons: ['hood', 'hood-shadow', 'kangaroo-pocket'],
+    loose: 1.1,
+  },
+  // Tall and slight, dark emo hair falling over his eyes, a plain dark
+  // shirt and slim jeans.
+  terry: {
+    label: copy('outfits.terry'),
+    colors: {
+      skin: '#f0d4bf',
+      hair: '#1e1611',
+      shirt: '#24262c',
+      pants: '#2c3a52',
+      boots: '#2a2018',
+      belt: '#0c0c0e',
+    },
+    addons: [
+      'emo-hair',
+      'hair-spikes-long',
+      'hair-spikes-short',
+      'fringe',
+      'fringe-fill',
+      'belt',
+      'belt-loops',
+    ],
+    proportions: { arm: 1.06, leg: 1.1 },
   },
   // The Citgo clerk, behind every counter. Not on the select roster.
   carlsten: {

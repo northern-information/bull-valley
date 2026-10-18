@@ -11,6 +11,8 @@
 //   pantera          the band logo, on the chest. Torso, 123×150.
 //   as-i-lay-dying   the band name, on the chest. Torso, 123×150.
 //   nin              the band's box logo, on the chest. Torso, 123×150.
+//   paramore         the band name, on the chest. Torso, 123×150.
+//   against-me       the band name, on the chest. Torso, 123×150.
 //   guitar-strap     a strap from the right shoulder to the left hip.
 //                    Torso, 123×150.
 //   torn-tank        a black tank top's cut and its tears: the neck scoop,
@@ -407,6 +409,29 @@ function pantera(): CanvasArt {
   return art
 }
 
+// The band name in black across the pink tee, with a thin rule under it.
+function paramore(): CanvasArt {
+  const art = canvas(TORSO)
+  const { ctx, w } = art
+  const ink = '#141416'
+  text(ctx, 'PARAMORE', w / 2, 46, 76, 18, CONDENSED, ink)
+  ctx.fillStyle = ink
+  ctx.fillRect(w / 2 - 30, 57, 60, 2)
+  return art
+}
+
+// The band name in white capitals across the black tee, on two lines, the
+// bang as tall as both.
+function againstMe(): CanvasArt {
+  const art = canvas(TORSO)
+  const { ctx, w } = art
+  const white = '#e8e6e0'
+  text(ctx, 'AGAINST', w / 2 - 6, 38, 60, 18, CONDENSED, white)
+  text(ctx, 'ME', w / 2 - 6, 56, 60, 18, CONDENSED, white)
+  text(ctx, '!', w / 2 + 32, 47, 10, 38, CONDENSED, white)
+  return art
+}
+
 function russ(): CanvasArt {
   const gold = '#d9b23a'
   const art = canvas(BUCKLE, gold)
@@ -566,6 +591,8 @@ const DECAL_PAINTERS: Record<DecalId, DecalPainter> = {
   tattered,
   flannel,
   'open-shirt': openShirt,
+  paramore,
+  'against-me': againstMe,
 }
 
 // Tattoos ink only onto skin a layer below already painted.
