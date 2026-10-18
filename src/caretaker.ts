@@ -4,9 +4,9 @@
 // foot in the maze that it can see, or that comes very close, it hunts down
 // the paths, and its touch is a strike, as a shadowman's: in reach it stops
 // and winds up, then lunges, and the lunge lands only on a raider still
-// within reach. One flashlight
-// does nothing to it. Two raiders' beams on it at once, held, burn it,
-// and it forms again at the heart a few minutes later.
+// within reach. One flashlight does nothing to it. Two raiders' beams on
+// it at once, held, burn it, and it forms again at the heart a few minutes
+// later.
 //
 // Pure, no three.js. Everything here is in the maze's own metres (maze.ts:
 // x away from the road, z along it); MazePlace carries a raider's world

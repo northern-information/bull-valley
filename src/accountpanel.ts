@@ -25,7 +25,6 @@ import type { AccountWire, Provider, ProviderWire } from './account.ts'
 import type { Tone } from './dom.ts'
 
 export interface AccountPanelOptions {
-  // Sign Out was pressed.
   onSignOut: () => void
 }
 

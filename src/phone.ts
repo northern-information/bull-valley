@@ -93,7 +93,6 @@ function clockText() {
   })
 }
 
-// m:ss
 function mmss(seconds: number): string {
   const m = Math.floor(seconds / 60)
   const s = seconds % 60

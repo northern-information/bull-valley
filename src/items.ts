@@ -31,9 +31,8 @@
 //             rule 24): everything smoked, drunk or swallowed gives a
 //             block (100) back, the joint, Four Loko and the liquor two
 //
-// Forage is
-// never on a shelf, so it has no price or bought text; the valley hands it out
-// (sharedworld.ts rules 4 and 8).
+// Forage is never on a shelf, so it has no price or bought text; the
+// valley hands it out (sharedworld.ts rules 4 and 8).
 
 import type { CashKind } from './drops.ts'
 import type { ContainerKey, GeometrieAxis, MedicineForm } from './interfaces.ts'

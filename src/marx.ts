@@ -341,7 +341,7 @@ export function hurry(
   return { ...truck, leg: { ...leg, at: leg.at + shift } }
 }
 
-// Who is in the bed, by id.
+// Whether `id` is in the bed.
 export function isAboard(truck: TruckState, id: string): boolean {
   return truck.riders.includes(id)
 }

@@ -52,7 +52,6 @@ export function settledBy(
   }
 }
 
-// Whether this raider is in the bed.
 export function aboard(world: WorldWire | null, me: string | null): boolean {
   return !!world && me !== null && world.truck.riders.includes(me)
 }

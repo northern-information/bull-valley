@@ -11,7 +11,6 @@ export interface Goal<R> {
 
 export interface GoalProgress {
   count: number
-  // Whether the reward has been paid.
   claimed: boolean
 }
 

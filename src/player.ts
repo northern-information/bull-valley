@@ -154,7 +154,6 @@ export class Player {
     const speedNow = Math.hypot(this.vel.x, this.vel.z)
     const moving = speedNow > 0.3
 
-    // Head bob.
     this.bobPhase += speedNow * dt * 1.6
     const bobSin = Math.sin(this.bobPhase)
 

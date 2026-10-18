@@ -103,7 +103,6 @@ const drive = (
       }
     : { kind: 'park' }
 
-// What the truck does for `leg`.
 export function planLeg(leg: Leg, ctx: TruckContext): TruckPlan {
   switch (leg.kind) {
     case 'parked':

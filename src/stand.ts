@@ -52,7 +52,6 @@ function levels(cfg = CONFIG): readonly StandLevel[] {
   return cfg.stand.levels
 }
 
-// The highest level a stand reaches.
 export function topLevel(cfg = CONFIG): number {
   return levels(cfg).length
 }

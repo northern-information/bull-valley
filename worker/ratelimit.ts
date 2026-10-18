@@ -70,7 +70,6 @@ export interface LimitBindings {
   AUTH_LOOSE?: RateLimit
 }
 
-// The limiter over the Worker's bindings.
 export function limiterFrom(env: LimitBindings): Limiter {
   return async (tier, key) => {
     const binding = tier === 'strict' ? env.AUTH_STRICT : env.AUTH_LOOSE

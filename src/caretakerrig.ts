@@ -25,7 +25,6 @@ import type { AloneFrame } from './shadowcards.ts'
 // The player's id when they play alone.
 const ALONE = 'me'
 
-// How long a lunge plays, in seconds.
 const LUNGE_SECONDS = 0.35
 
 interface Frame {

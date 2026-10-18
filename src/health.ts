@@ -27,7 +27,6 @@ export function mend(points: number, by: number): number {
   return Math.max(0, Math.min(MAX_HEALTH, points + Math.max(0, by)))
 }
 
-// Whether `points` is whole.
 export function isWhole(points: number): boolean {
   return points >= MAX_HEALTH
 }

@@ -85,7 +85,6 @@ export class ChatHud {
     this.log.scrollTop += dir * Math.max(line, this.log.clientHeight - line)
   }
 
-  // Whether the field is open for typing.
   get open(): boolean {
     return !this.input.hidden
   }

@@ -35,7 +35,6 @@ export interface CharacterSelectOptions {
   config: CharacterSelectConfig
   // Account was pressed: the panel (accountpanel.ts) opens over the select.
   onAccount: () => void
-  // Sign Out was pressed.
   onSignOut: () => void
 }
 

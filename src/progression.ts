@@ -64,7 +64,6 @@ export const XP: Readonly<Record<XpSource, number>> = {
   share: 5,
 }
 
-// XP earned by an account.
 export interface XpGrant {
   account: string
   source: XpSource

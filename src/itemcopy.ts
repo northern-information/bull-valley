@@ -21,7 +21,6 @@ export const ITEM_LINES: readonly ItemLine[] = [
   'empty',
 ]
 
-// Whether `id` has a `line` to say.
 export function hasItemLine(id: ItemId, line: ItemLine): boolean {
   switch (line) {
     case 'used':

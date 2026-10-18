@@ -18,7 +18,6 @@ export interface MusicTuning {
 export interface MusicFrame {
   // The raider's music setting, in percent (settings.ts).
   setting: number
-  // Seconds since the music started.
   playedSeconds: number
 }
 

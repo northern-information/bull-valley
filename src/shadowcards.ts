@@ -59,7 +59,6 @@ type Shown = Pick<
   'id' | 'kind' | 'x' | 'z' | 'burn' | 'target' | 'windup'
 >
 
-// How long a lunge plays, in seconds.
 export const LUNGE_SECONDS = 0.3
 
 // A shadowman striking: how far it draws back from its raider over the

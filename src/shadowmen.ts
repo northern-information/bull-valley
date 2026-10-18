@@ -489,7 +489,7 @@ function near(field: ShadowmenField, p: XZ, cfg: ShadowmenConfig): number {
 }
 
 // A new raider's bubble filled at once, each shadowman already somewhere
-// along its crossing, so the first blips are not one wave arriving at the
+// along its crossing, so the first ones seen are not one wave arriving at the
 // rim together. A raider who arrives among others already has theirs.
 function fill(
   field: ShadowmenField,
