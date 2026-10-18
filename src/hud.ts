@@ -296,7 +296,7 @@ export class Hud {
     this.intro.setAttribute('aria-modal', 'true')
     this.intro.setAttribute('aria-labelledby', 'bv-intro-title')
     this.intro.innerHTML = `
-      <div class="bv-npc-ui">
+      <div class="bv-npc-ui bv-npc-ui--wide">
         ${npcHeader({
           titleId: 'bv-intro-title',
           title: copy('intro.title'),
@@ -309,7 +309,7 @@ export class Hud {
         <section class="bv-npc-section" data-bv="intro-season">
           ${sectionHead(1, SEASON_COPY.kicker, 'intro-live')}
         </section>
-        <section class="bv-npc-section">
+        <section class="bv-npc-section bv-npc-side" data-bv="intro-controls">
           ${sectionHead(2, copy('intro.controls_label'), 'intro-keys')}
           <table class="bv-controls" aria-label="${copy('intro.controls_label')}" data-bv="controls"></table>
         </section>

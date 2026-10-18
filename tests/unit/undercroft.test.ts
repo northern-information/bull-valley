@@ -5,6 +5,7 @@ import {
   croftWalls,
   inRoom,
   inUndercroft,
+  ossuaryLedges,
   ROOMS,
   theUndercroft,
   UNDERCROFT,
@@ -82,5 +83,38 @@ describe('the Undercroft', () => {
     const stone = walls.filter((w) => w.half === UNDERCROFT.wall / 2)
     expect(stone.length).toBeGreaterThan(10)
     expect(walls.length).toBeGreaterThan(stone.length)
+  })
+})
+
+describe('the ossuary', () => {
+  it('breaks its ledges off at every doorway, so the way through is clear', () => {
+    const { x0, x1, z0, z1 } = ROOMS.ossuary
+    const cell = 3
+    const sides = ossuaryLedges()
+    expect(sides).toHaveLength(2)
+    // Each doorway in a long wall: a floor cell just beyond it.
+    const row = (x: number) => Math.round(x / cell)
+    const doors: { side: number; z: number }[] = []
+    const beyond = [row(x0) - 1, row(x1) + 1]
+    beyond.forEach((r, side) => {
+      for (let col = 0; col < UNDERCROFT_GRID[0].length; col++) {
+        const z = col * cell
+        if (z >= z0 && z <= z1 && floor(r, col)) doors.push({ side, z })
+      }
+    })
+    // The way to the deep chamber is one of them.
+    expect(doors.length).toBeGreaterThan(0)
+    for (const { side, z } of doors) {
+      for (const [a, b] of sides[side].runs) {
+        expect(b <= z - 1 || a >= z + 1, `${a}..${b} over ${z}`).toBe(true)
+      }
+    }
+    for (const { runs } of sides) {
+      for (const [a, b] of runs) {
+        expect(a).toBeGreaterThanOrEqual(z0)
+        expect(b).toBeLessThanOrEqual(z1)
+        expect(b).toBeGreaterThan(a)
+      }
+    }
   })
 })

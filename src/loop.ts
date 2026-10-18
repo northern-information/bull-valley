@@ -376,10 +376,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       const y = world.ground.at(at.x, at.z) + burstHeight(at.kind)
       bursts.spawn(at.x, y, at.z, burstScale(at.kind))
     }
-    // Played alone each leaves its dimes and its stone, as a shadowman's.
-    actions.spillBursts(
-      tunnel.bursts.map(({ x, z }) => ({ id: -1, kind: 'man' as const, x, z }))
-    )
+    // Played alone each leaves its dimes, but no stone.
+    actions.spillBursts(tunnel.bursts.map(({ x, z }) => ({ x, z })))
     croft?.update(time)
     bursts.update(dt)
     // What the shadowmen and the Caretaker sound like this frame.
@@ -553,7 +551,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       const range = CONFIG.book.sightRange
       actions.discover([
         ...sightsInReach(world.sights, player.pos),
-        ...(swarm.sighted.length > 0 ? ['shadowman'] : []),
+        ...(swarm.sighted.includes('man') ? ['shadowman'] : []),
+        ...(swarm.sighted.includes('spider') ? ['spider'] : []),
         ...(swarm.sighted.includes('spiderling') ? ['spiderling'] : []),
         ...(keeper.distance !== null && keeper.distance <= range
           ? ['caretaker']

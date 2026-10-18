@@ -91,6 +91,7 @@ import type {
 } from '../src/protocol.ts'
 import type { QuestId, QuestStage } from '../src/quests.ts'
 import type { SeasonProgress } from '../src/season.ts'
+import type { ShadeKind } from '../src/shadowmen.ts'
 import type {
   PackChange,
   Reduced,
@@ -579,13 +580,16 @@ export class ValleyDO extends DurableObject<Env> {
     if (out.credited.length > 0) void this.credit(out.credited)
     if (out.burned.length > 0) void this.creditBurns(out.burned)
     if (out.xp.length > 0) void this.award(out.xp)
-    // The tunnel shades burst into dimes too, and leave their stones.
+    // The tunnel shades burst into dimes too, but leave no stones: only a
+    // shadowman is buried.
     const { unmade, tunnelBursts } = out.message
     const bursts = [
       ...out.message.bursts,
       ...tunnelBursts.map(({ x, z }) => ({ x, z })),
     ]
-    if (bursts.length || unmade) void this.spill(bursts, unmade)
+    if (bursts.length || unmade) {
+      void this.spill(bursts, out.message.bursts, unmade)
+    }
     // Rule 24: a forecourt makes whole.
     for (const id of forecourtMends(this.valley, placed)) {
       void this.mend(id)
@@ -1403,13 +1407,17 @@ export class ValleyDO extends DurableObject<Env> {
     await this.repack(ws, null, account)
   }
 
-  // Each shadowman that burst leaves its dimes where it was (sharedworld.ts
-  // rule 11), how many drawn here, so the reducer stays pure, and its
-  // tombstone, its name drawn here too (rule 17); the Caretaker unmade
-  // leaves its gold bullion (rule 13).
-  private async spill(bursts: readonly XZ[], unmade: XZ | null): Promise<void> {
+  // Each shadow that burst leaves its dimes where it was (sharedworld.ts
+  // rule 11), how many drawn here, so the reducer stays pure, and each
+  // shadowman among `shades` its tombstone, its name drawn here too (rule
+  // 17); the Caretaker unmade leaves its gold bullion (rule 13).
+  private async spill(
+    bursts: readonly (XZ & { kind?: ShadeKind })[],
+    shades: readonly (XZ & { kind: ShadeKind })[],
+    unmade: XZ | null
+  ): Promise<void> {
     const spills = spillsOf(bursts, unmade, this.shadowRng)
-    const burials = burialsOf(bursts, this.shadowRng)
+    const burials = burialsOf(shades, this.shadowRng)
     await this.locked(async () => {
       const reduced = reduce(
         this.valley,

@@ -8,8 +8,8 @@ describe('burialsOf', () => {
   it('names each burst shadowman where it burst', () => {
     const burials = burialsOf(
       [
-        { x: 1, z: 2 },
-        { x: 3, z: 4 },
+        { x: 1, z: 2, kind: 'man' },
+        { x: 3, z: 4, kind: 'man' },
       ],
       mulberry32(5)
     )
@@ -18,16 +18,17 @@ describe('burialsOf', () => {
     for (const b of burials) expect(b.name.length).toBeGreaterThan(0)
   })
 
-  it('buries no spiderling', () => {
+  it('buries no spider and no spiderling', () => {
     const burials = burialsOf(
       [
         { x: 1, z: 2, kind: 'spiderling' },
         { x: 3, z: 4, kind: 'spider' },
+        { x: 5, z: 6, kind: 'man' },
       ],
       mulberry32(5)
     )
     expect(burials).toHaveLength(1)
-    expect(burials[0]).toMatchObject({ x: 3, z: 4 })
+    expect(burials[0]).toMatchObject({ x: 5, z: 6 })
   })
 })
 

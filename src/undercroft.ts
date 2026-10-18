@@ -211,6 +211,31 @@ function candles(
   return boxes
 }
 
+// The ossuary's ledges, one side of the room at a time: where they stand
+// (x) and the spans along the wall (z) they run, each doorway through that
+// wall left open a whole cell wide.
+export function ossuaryLedges(): { side: number; runs: [number, number][] }[] {
+  const { x0, x1, z0, z1 } = ROOMS.ossuary
+  const across = (x: number) =>
+    Math.round((x / UNDERCROFT_SIZE.across) * (ROWS - 1))
+  const sides = [
+    { side: x0 + 0.25, beyond: across(x0) - 1 },
+    { side: x1 - 0.25, beyond: across(x1) + 1 },
+  ]
+  return sides.map(({ side, beyond }) => {
+    const runs: [number, number][] = []
+    let from = z0
+    for (let col = 0; col < COLS; col++) {
+      const { z } = at(beyond, col)
+      if (z < z0 || z > z1 || UNDERCROFT_GRID[beyond][col] !== '.') continue
+      if (z - CELL / 2 > from) runs.push([from, z - CELL / 2])
+      from = z + CELL / 2
+    }
+    if (z1 > from) runs.push([from, z1])
+    return { side, runs }
+  })
+}
+
 // What fills each room.
 function furnish(): CroftBox[] {
   const boxes: CroftBox[] = [
@@ -291,31 +316,34 @@ function furnish(): CroftBox[] {
     )
   }
   // The ossuary: skulls in rows on stone ledges along its long walls,
-  // bones in heaps.
+  // broken off at the doorways so the way through stays clear, bones in
+  // heaps.
   const skulls = mulberry32(0x5c11)
-  for (const side of [ossuary.x0 + 0.25, ossuary.x1 - 0.25]) {
+  for (const { side, runs } of ossuaryLedges()) {
     for (let shelf = 0; shelf < 3; shelf++) {
-      boxes.push(
-        box(
-          `ledge-${side}-${shelf}`,
-          [side, 0.46 + shelf * 0.9, (ossuary.z0 + ossuary.z1) / 2],
-          [0.5, 0.08, ossuary.z1 - ossuary.z0],
-          'stone'
-        )
-      )
-      for (let i = 0; i < 26; i++) {
-        const z = ossuary.z0 + 0.6 + i * 1.08
-        if (z > ossuary.z1 - 0.4) break
+      runs.forEach(([z0, z1], run) => {
         boxes.push(
           box(
-            `skull-${side}-${shelf}-${i}`,
-            [side, 0.6 + shelf * 0.9 + range(skulls, -0.03, 0.03), z],
-            [0.22, 0.2, 0.18],
-            'bone',
-            [0, range(skulls, -0.4, 0.4), 0]
+            `ledge-${side}-${shelf}-${run}`,
+            [side, 0.46 + shelf * 0.9, (z0 + z1) / 2],
+            [0.5, 0.08, z1 - z0],
+            'stone'
           )
         )
-      }
+        for (let i = 0; i < 26; i++) {
+          const z = z0 + 0.6 + i * 1.08
+          if (z > z1 - 0.4) break
+          boxes.push(
+            box(
+              `skull-${side}-${shelf}-${run}-${i}`,
+              [side, 0.6 + shelf * 0.9 + range(skulls, -0.03, 0.03), z],
+              [0.22, 0.2, 0.18],
+              'bone',
+              [0, range(skulls, -0.4, 0.4), 0]
+            )
+          )
+        }
+      })
     }
   }
   for (let heap = 0; heap < 4; heap++) {

@@ -1434,15 +1434,13 @@
   letter-spacing: 0.3em;
 }
 
-/* Intro / pause: the keepers' dialogs' frame (npcdialog.ts) over a scrim,
-   scrolling when the window is short. */
+/* Intro / pause: the keepers' dialogs' frame (npcdialog.ts) over a
+   scrim, wide (.bv-npc-ui--wide): the season and the raider down the
+   left, the controls on the right. */
 .bv-intro {
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: flex-start;
-  padding: 1rem;
-  overflow-y: auto;
   background: rgb(0 0 0 / 78%);
   pointer-events: auto;
 }
@@ -1490,8 +1488,10 @@
   color: var(--bv-citgo);
 }
 
-.bv-intro-settings {
-  gap: 16px;
+.bv-intro .bv-intro-settings {
+  /* One slider a row: the raider's column is too narrow for two. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
 }
 
 .bv-intro-actions {
@@ -1877,6 +1877,26 @@
   display: none !important;
 }
 
+/* Every overlay keeps a gutter round its card and never scrolls itself or
+   the page: a window too short for the card scrolls the card, inside it. */
+.bv-account,
+.bv-intro {
+  box-sizing: border-box;
+  padding: 24px;
+  overflow: hidden;
+}
+
+.bv-account > *,
+.bv-intro > * {
+  box-sizing: border-box;
+  max-height: 100%;
+  margin: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--bv-npc-edge, rgb(240 234 214 / 24%)) transparent;
+}
+
 .bv-account-ui {
   display: flex;
   flex-direction: column;
@@ -2011,12 +2031,7 @@
 /* Gron's dialog (grondialog.ts): the account step's look over the valley,
    your name and your character side by side, stacked on a narrow screen. */
 .bv-gron {
-  /* Auto margins on the dialog centre it when it fits and start it at the
-     top when it does not, so a short window scrolls to all of it; flex
-     centring would push the top out of reach. */
-  align-items: flex-start;
   background: rgb(0 0 0 / 96%);
-  overflow-y: auto;
 }
 
 .bv-gron-ui {
@@ -2175,9 +2190,7 @@
 }
 
 .bv-npc {
-  align-items: flex-start;
   background: rgb(0 0 0 / 92%);
-  overflow-y: auto;
 }
 
 .bv-npc-ui {
@@ -2312,6 +2325,37 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* A wide dialog (the intro, the stand, Erwin): two columns, so the whole
+   of it fits a 1280x720 window. The header and the footer take the row;
+   the side section (.bv-npc-side) takes the right, the rest stack down
+   the left. Too narrow for two, it is one column like any other. */
+.bv-npc-ui--wide {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  grid-auto-rows: min-content;
+  gap: 20px 40px;
+  width: min(100%, 1120px);
+  padding: 24px 32px;
+}
+
+.bv-npc-ui--wide > :is(.bv-npc-head, .bv-npc-foot) {
+  grid-column: 1 / -1;
+}
+
+.bv-npc-ui--wide > .bv-npc-side {
+  grid-column: 2;
+  grid-row: 2 / span 2;
+}
+
+@media (width < 1000px) {
+  .bv-npc-ui--wide {
+    display: flex;
+    gap: 32px;
+    width: min(100%, 720px);
+    padding: 32px;
+  }
 }
 
 /* A section's head row: 01 in Citgo red, the name, a rule, the meta. */

@@ -272,7 +272,7 @@ export function openAccountPanel({
     })
     document.addEventListener('keydown', onKey, true)
     window.addEventListener('message', onMessage)
-    closeBtn.focus()
+    closeBtn.focus({ preventScroll: true })
 
     void (async () => {
       say(copy('panel.loading'))

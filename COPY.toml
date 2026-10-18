@@ -224,6 +224,10 @@ lore = { text = "A light on the hill to the north. The beacon burns whether anyo
 [book.shadowman]
 lore = { text = "They cross the valley round every raider, the same ones for everyone. Close enough, one rushes, draws back, and lunges, and its touch takes a piece of you; the third sends you back to the Citgo with nothing. Hold a beam on one and it comes apart into mist and skulls, and leaves its dimes.", by = "ai" }
 
+[book.spider]
+name = { text = "Shadow Spider", by = "ai" }
+lore = { text = "A black spider twice a shadowman's height, high on its long legs, eight red eyes burning through the fog. They come up anywhere, and far more often near water. One takes twice as long in a beam to burst, and reaches further when it strikes; it leaves a $20 bill and breaks into a brood of spiderlings.", by = "ai" }
+
 [book.spiderling]
 name = { text = "Spiderling", by = "ai" }
 lore = { text = "Burn a shadow spider and it breaks into a brood of these: small, quick, and straight at whoever is nearest. A touch costs the same as any shadow's. A beam takes them apart in a blink, and each leaves a few dimes.", by = "ai" }
