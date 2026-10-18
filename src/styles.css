@@ -589,6 +589,7 @@
 
 .bv-geo-face {
   fill: rgb(90 10 4 / 70%);
+  opacity: 0;
 }
 
 .bv-geo-glow {

@@ -150,6 +150,14 @@ describe('items', () => {
     }
   })
 
+  it('lights the pill corner off anything swallowed as a pill', () => {
+    for (const id of ['adderall', 'aspirin', 'ibuprofen', 'benadryl']) {
+      const dose = geometrieOf(id) ?? {}
+      expect(Object.keys(dose), id).toEqual(['stimulated'])
+      expect(dose.stimulated, id).toBeGreaterThan(0)
+    }
+  })
+
   it('trips on anything smoked or drunk, for as long as it lasts', () => {
     for (const item of ITEMS.filter((i) => i.category === 'drink')) {
       expect(tripSecondsOf(item.id), item.id).toBeGreaterThan(0)
