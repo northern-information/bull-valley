@@ -144,6 +144,9 @@ interface BvHook {
   // Bring the next drop of slurms at the nearest Citgo to now (this
   // client's view alone; slurms.ts).
   hurrySlurms(): void
+  // Hold the slurms off (or let them fall again), so Carlsten stays
+  // behind his counter (this client's view alone).
+  holdSlurms(on: boolean): void
   // Every sound's id (sfx.ts), and one played: at world (x, z), or in the
   // head without a place. Nothing under e2e, which never plays sound.
   readonly sfxIds: readonly string[]
@@ -348,6 +351,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     },
     hurrySlurms() {
       game.world.shelves.hurrySlurms()
+    },
+    holdSlurms(on) {
+      game.world.shelves.holdSlurms(on)
     },
     hurryTruck(seconds = 5) {
       // In the shared valley the server keeps Marx's day; a dev server

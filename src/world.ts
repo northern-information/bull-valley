@@ -118,6 +118,9 @@ export interface ShelfDisplay {
   clerkAway(station: number): boolean
   // Dev: bring the next drop of slurms at the parked station to now.
   hurrySlurms(): void
+  // Dev: hold every drop off (or let them fall again), Carlsten behind
+  // the counter until then.
+  holdSlurms(on: boolean): void
   // The locker doors in the back room, riding with it too: what the glow
   // rings when E would open the stash.
   lockers: THREE.Object3D
