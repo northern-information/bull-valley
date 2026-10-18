@@ -7,8 +7,9 @@
 
 import { PACK, PACK_MOUSE } from './bindings.ts'
 import { copy } from './copy.ts'
-import { el, text } from './dom.ts'
+import { el, find, text } from './dom.ts'
 import { HOTBAR_SLOTS } from './hotbar.ts'
+import { npcHeader } from './npcdialog.ts'
 import { bagTabs, LOCKER_TAB, PACK_TABS } from './packgrid.ts'
 import type { Binding, MouseBinding } from './bindings.ts'
 import type { Cooldown } from './hotbar.ts'
@@ -88,6 +89,8 @@ export class PackHud {
   grid: HTMLDivElement
   empty: HTMLParagraphElement
   cash: HTMLElement
+  // The header's word that the locker is open beside the pack.
+  where: HTMLElement
   // The tab the grid shows.
   tab: BagTab = PACK_TABS[0]
   // Opened at the locker: the Locker tab shows, and F moves an item into
@@ -121,6 +124,8 @@ export class PackHud {
   } | null = null
   card: HTMLDivElement
   cardCanvas: HTMLCanvasElement
+  // The tab the item lies on, over its name.
+  cardEyebrow: HTMLElement
   cardName: HTMLElement
   cardBlurb: HTMLElement
   cardQuantity: HTMLElement
@@ -151,7 +156,23 @@ export class PackHud {
     this.menu = el('div', 'bv-bag-menu')
     this.menu.setAttribute('role', 'menu')
     this.menu.hidden = true
-    // The tabs over the grid, which is their one panel.
+    // The header, in the keepers' dialogs' frame (npcdialog.ts): the
+    // pack, the locker beside it when it is open, and the cash on the
+    // right. The tabs over the grid, which is their one panel.
+    const head = el('div')
+    head.innerHTML = npcHeader({
+      titleId: 'bv-bag-title',
+      title: copy('inventory.label'),
+      eyebrow: copy('inventory.eyebrow'),
+      where: copy('inventory.where_locker'),
+      status: `<span class="bv-npc-label">${copy('inventory.cash')}</span><span class="bv-bag-cash" data-bv="inv-cash"></span>`,
+      speech: false,
+    })
+    const header = find<HTMLElement>(head, 'header')
+    this.where = find<HTMLElement>(header, '[data-bv="npc-where"]')
+    this.where.hidden = true
+    this.cash = find<HTMLElement>(header, '[data-bv="inv-cash"]')
+    this.bag.setAttribute('aria-labelledby', 'bv-bag-title')
     const tabs = el('div', 'bv-bag-tabs')
     tabs.setAttribute('role', 'tablist')
     tabs.setAttribute('aria-label', copy('inventory.label'))
@@ -172,36 +193,25 @@ export class PackHud {
     this.grid.id = 'bv-bag-panel'
     this.grid.setAttribute('role', 'tabpanel')
     this.empty = el('p', 'bv-bag-empty')
-    const status = el('dl', 'bv-bag-status')
-    const stat = (label: string) => {
-      const dd = document.createElement('dd')
-      const pair = el('div')
-      pair.append(text('dt', label), dd)
-      status.appendChild(pair)
-      return dd
+    // Along the foot: the keys that switch tabs and clear a slot, and the
+    // way out wearing its key.
+    const foot = el('footer', 'bv-npc-foot bv-bag-foot')
+    const keyed = (key: string, labelKey: string) => {
+      const span = el('span', 'bv-npc-label bv-bag-keyed')
+      span.append(text('span', key, 'bv-npc-key'), copy(labelKey))
+      return span
     }
-    this.cash = stat(copy('inventory.cash'))
-    this.cash.dataset.bv = 'inv-cash'
-    // Along the foot: the status, and the keys that switch tabs and close
-    // the pack.
-    const foot = el('div', 'bv-bag-foot')
     const footKeys = el('p', 'bv-bag-keys')
     footKeys.append(
-      text('kbd', PACK.prevTab.key),
-      ' ',
-      text('kbd', PACK.nextTab.key),
-      ` ${copy(PACK.nextTab.labelKey)} `,
-      text('kbd', PACK.clearSlot.key),
-      ` ${copy(PACK.clearSlot.labelKey)} `,
-      text('kbd', PACK.close.key),
-      ` ${copy(PACK.close.labelKey)}`
+      keyed(`${PACK.prevTab.key} ${PACK.nextTab.key}`, PACK.nextTab.labelKey),
+      keyed(PACK.clearSlot.key, PACK.clearSlot.labelKey)
     )
-    foot.append(status, footKeys)
+    foot.append(footKeys, keyed(PACK.close.key, PACK.close.labelKey))
     // The empty line lies over the grid's empty row, so switching to an
     // empty tab never changes the pack's height.
     const panel = el('div', 'bv-bag-panel')
     panel.append(this.grid, this.empty)
-    this.bag.append(tabs, panel, foot)
+    this.bag.append(header, tabs, panel, foot)
     this.selectTab(this.tab)
     // Moving across the gaps between cells keeps the card; leaving the
     // grid drops it.
@@ -234,14 +244,15 @@ export class PackHud {
       CARD_VIEW_PX * window.devicePixelRatio
     )
     this.cardCanvas.setAttribute('aria-hidden', 'true')
+    this.cardEyebrow = el('p', 'bv-npc-eyebrow bv-npc-lead')
     this.cardName = el('h3', 'bv-bag-card-name')
     this.cardBlurb = el('p', 'bv-bag-card-blurb')
-    this.cardQuantity = el('p', 'bv-bag-card-quantity')
+    this.cardQuantity = el('p', 'bv-npc-label bv-bag-card-quantity')
     const keys = el('ul', 'bv-bag-card-keys')
     const keyItem = ({ key, labelKey }: Binding) => {
       const li = document.createElement('li')
       const label = text('span', copy(labelKey))
-      li.append(text('kbd', key), ' ', label)
+      li.append(text('span', key, 'bv-npc-key'), label)
       keys.appendChild(li)
       return { li, label }
     }
@@ -272,6 +283,7 @@ export class PackHud {
     mouseItem(PACK_MOUSE.menu)
     this.card.append(
       this.cardCanvas,
+      this.cardEyebrow,
       this.cardName,
       this.cardBlurb,
       this.cardQuantity,
@@ -299,6 +311,7 @@ export class PackHud {
     this.atLocker = open
     const locker = this.tabs.get(LOCKER_TAB)
     if (locker) locker.hidden = !open
+    this.where.hidden = !open
   }
 
   // Marks `tab` as the one the grid shows; set fills it.
@@ -395,6 +408,7 @@ export class PackHud {
     this.hovered = item
     this.card.hidden = !item
     if (cell && item) {
+      this.cardEyebrow.textContent = BAG_TABS[this.tab].label
       this.cardName.textContent = item.label
       this.cardBlurb.textContent = item.blurb
       this.cardQuantity.textContent = quantity(item)
@@ -622,7 +636,7 @@ export class PackHud {
           button(
             String(slot + 1),
             { type: 'place', slot, kind },
-            'bv-bag-menu-slot'
+            'bv-bag-menu-slot bv-npc-key'
           )
         )
       }

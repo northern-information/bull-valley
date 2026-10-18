@@ -225,36 +225,19 @@
   box-shadow: 0 0 6px var(--bv-citgo);
 }
 
-/* The season's card on the intro and pause overlay. */
+/* The season's card under its section head on the intro and pause
+   overlay (hud.ts): the title, what it asks, what it pays in gold, and
+   the pips. */
 .bv-season-card {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.45rem;
-  width: min(30rem, 100%);
-  padding: 0 0 0.8rem;
-  border: 1px solid var(--bv-citgo);
-  background: rgb(0 0 0 / 55%);
-  box-shadow:
-    4px 4px 0 var(--fi-black-shadow),
-    0 0 18px rgb(255 74 28 / 35%);
-  letter-spacing: 0.06em;
+  gap: 8px;
+  padding-left: 16px;
+  border-left: 2px solid var(--bv-citgo);
 }
 
-.bv-season-card-strip {
-  display: flex;
-  justify-content: space-between;
-  align-self: stretch;
-  margin: 0;
-  padding: 0.3rem 0.7rem;
-  background: var(--bv-citgo);
-  color: var(--fi-bg);
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-}
-
-.bv-season-card-live {
+[data-bv='intro-live'] {
+  color: var(--bv-citgo);
   animation: bv-live 1.2s steps(2, jump-none) infinite;
 }
 
@@ -269,23 +252,31 @@
 }
 
 .bv-season-card-title {
-  margin: 0.2rem 0 0;
-  font-size: inherit;
+  margin: 0;
+  font-size: 1rem;
   font-weight: 700;
-  letter-spacing: 0.32em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  text-shadow: 3px 3px 0 var(--fi-maroon);
 }
 
 .bv-season-card-text,
 .bv-season-card-reward {
   margin: 0;
-  padding: 0 1rem;
-  line-height: 1.5;
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+}
+
+.bv-season-card-text {
+  color: var(--bv-npc-soft);
 }
 
 .bv-season-card-reward {
+  font-style: italic;
   color: var(--fi-gold);
+}
+
+.bv-season-card .bv-season-progress {
+  margin: 4px 0 0;
 }
 
 /* A banner swept across the upper view: in, held, out, BANNER_MS long. */
@@ -694,41 +685,62 @@
   position: absolute;
   top: 50%;
   left: 50%;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
   box-sizing: border-box;
   max-width: calc(100% - 2rem);
-  padding: 0.75rem;
+  padding: 32px;
+  font-variant-numeric: tabular-nums;
   transform: translate(-50%, -50%);
-  background: var(--bv-pane);
+  background: rgb(5 5 5 / 85%);
+  border: 1px solid var(--bv-npc-edge);
+  box-shadow: 8px 8px 0 var(--fi-black-shadow);
   pointer-events: auto;
 }
 
-/* The tabs over the grid: plain words, the shown one underlined in Citgo
-   red. */
+.bv-bag-cash {
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+/* The tabs over the grid: tracked caps, the shown one eggshell over a
+   Citgo-red rule; the locker's set apart at the end. */
 .bv-bag-tabs {
   display: flex;
-  gap: 1.25rem;
-  margin-bottom: 0.75rem;
+  gap: 20px;
+  overflow-x: auto;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--bv-npc-line);
 }
 
 .bv-bag-tab {
-  margin: 0;
-  padding: 0 0 0.25rem;
+  margin: 0 0 -1px;
+  padding: 0 0 8px;
   font: inherit;
-  color: inherit;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--bv-npc-dim);
   background: none;
   border: 0;
   border-bottom: 2px solid transparent;
-  opacity: 0.6;
   cursor: pointer;
 }
 
 .bv-bag-tab:hover {
-  opacity: 1;
+  color: var(--bv-eggshell);
 }
 
 .bv-bag-tab[aria-selected='true'] {
+  color: var(--bv-eggshell);
   border-bottom-color: var(--bv-citgo);
-  opacity: 1;
+}
+
+#bv-bag-tab-locker {
+  margin-left: auto;
+  color: var(--bv-citgo);
 }
 
 /* Eight cells a row, fewer where the screen is narrower. */
@@ -753,6 +765,7 @@
 
 .bv-bag-cell {
   margin: 0;
+  border-color: var(--bv-npc-edge);
   font: inherit;
   color: inherit;
   cursor: pointer;
@@ -824,85 +837,87 @@
   display: none;
 }
 
+/* The foot: the keys, and the way out wearing its key. */
 .bv-bag-foot {
-  display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  gap: 0.25rem 1.25rem;
-  margin-top: 0.75rem;
-}
-
-.bv-bag-status {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 1.25rem;
-  margin: 0;
+  margin-top: 0;
 }
 
 .bv-bag-keys {
-  margin: 0;
-  opacity: 0.6;
-}
-
-.bv-bag-status div {
   display: flex;
-  gap: 1ch;
-}
-
-.bv-bag-status dt {
-  opacity: 0.6;
-}
-
-.bv-bag-status dd {
+  flex-wrap: wrap;
+  gap: 8px 20px;
   margin: 0;
+}
+
+.bv-bag-keyed {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* The item card beside the hovered cell, inside the pack's box; hud.ts
    places it against the screen. */
 .bv-bag-card {
   position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   box-sizing: border-box;
   width: 18rem;
-  padding: 0.75rem;
-  background: rgb(0 0 0 / 85%);
-  border: 1px solid var(--bv-citgo);
+  padding: 20px;
+  background: #050505;
+  border: 1px solid var(--bv-npc-edge);
+  box-shadow: 8px 8px 0 var(--fi-black-shadow);
   pointer-events: none;
+}
+
+.bv-bag-card p {
+  margin: 0;
 }
 
 .bv-bag-card-view {
   display: block;
   width: 144px;
   height: 144px;
-  margin: 0 auto 0.5rem;
+  margin: 0 auto 8px;
 }
 
 .bv-bag-card-name {
-  margin: 0 0 0.25rem;
-  font-weight: 600;
-}
-
-.bv-bag-card-blurb,
-.bv-bag-card-quantity {
-  margin: 0 0 0.5rem;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
 }
 
 .bv-bag-card-blurb {
-  opacity: 0.8;
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+  color: var(--bv-npc-soft);
 }
 
+/* The keys: a keycap and what it does, one a row, on the frame's rules. */
 .bv-bag-card-keys {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 1rem;
-  margin: 0;
-  padding: 0;
+  flex-direction: column;
+  margin: 4px 0 0;
+  padding: 8px 0 0;
   list-style: none;
+  border-top: 1px solid var(--bv-npc-line);
 }
 
-:is(.bv-bag-card-keys, .bv-bag-keys) kbd {
-  padding: 0 0.3em;
-  font: inherit;
-  border: 1px solid currentcolor;
+.bv-bag-card-keys li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 0;
+  font-size: 0.8125rem;
+}
+
+.bv-bag-card-keys li[hidden] {
+  display: none;
 }
 
 .bv-bag-card-key--dim {
@@ -916,10 +931,11 @@
   z-index: 1;
   display: flex;
   flex-direction: column;
-  min-width: 12rem;
-  padding: 0.25rem 0;
-  background: rgb(0 0 0 / 92%);
-  border: 1px solid var(--bv-citgo);
+  min-width: 13rem;
+  padding: 6px 0;
+  background: #050505;
+  border: 1px solid var(--bv-npc-edge);
+  box-shadow: 8px 8px 0 var(--fi-black-shadow);
 }
 
 .bv-bag-menu-item,
@@ -933,24 +949,30 @@
 }
 
 .bv-bag-menu-item {
-  padding: 0.25rem 0.75rem;
+  padding: 8px 16px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
   text-align: left;
+  text-transform: uppercase;
 }
 
 .bv-bag-menu-slots {
   display: flex;
-  gap: 0.15rem;
+  flex-wrap: wrap;
+  gap: 4px;
   align-items: center;
-  padding: 0.25rem 0.75rem;
+  padding: 8px 16px;
+  border-block: 1px solid var(--bv-npc-line);
 }
 
 .bv-bag-menu-slots span {
-  margin-right: 0.5rem;
-}
-
-.bv-bag-menu-slot {
-  padding: 0 0.3em;
-  border: 1px solid currentcolor;
+  width: 100%;
+  margin-bottom: 2px;
+  font-size: 0.6875rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--bv-npc-dim);
 }
 
 :is(.bv-bag-menu-item, .bv-bag-menu-slot):is(:hover, :focus-visible) {
@@ -1412,56 +1434,64 @@
   letter-spacing: 0.3em;
 }
 
-/* Intro / pause */
+/* Intro / pause: the keepers' dialogs' frame (npcdialog.ts) over a scrim,
+   scrolling when the window is short. */
 .bv-intro {
   position: absolute;
   inset: 0;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1.1rem;
-  text-align: center;
+  align-items: flex-start;
+  padding: 1rem;
+  overflow-y: auto;
   background: rgb(0 0 0 / 78%);
   pointer-events: auto;
-  padding: 1rem;
 }
 
-.bv-intro h2 {
-  margin: 0;
-  letter-spacing: 0.28em;
-  text-shadow: 4px 4px 0 var(--fi-black-shadow);
-}
-
-.bv-intro-note {
-  margin: 0;
-  max-width: 30rem;
-  letter-spacing: 0.06em;
-  line-height: 1.7;
-
-  /* Line breaks come from the copy (COPY.toml), as text. */
-  white-space: pre-line;
-}
-
+/* The controls: two bindings a row, each a keycap and what it does, on
+   the frame's row rules. */
 .bv-controls {
+  width: 100%;
   border-collapse: collapse;
-  letter-spacing: 0.06em;
+  font-size: 0.875rem;
+}
+
+.bv-controls tr {
+  border-bottom: 1px solid rgb(240 234 214 / 10%);
 }
 
 .bv-controls th,
 .bv-controls td {
-  white-space: nowrap;
+  padding: 6px 0;
+  text-align: left;
+  vertical-align: middle;
 }
 
 .bv-controls th {
-  padding: 0.25rem 0.6rem;
-  text-align: right;
-  font-weight: 700;
+  width: 1%;
+  padding-right: 12px;
+  font-weight: 400;
+  white-space: nowrap;
 }
 
 .bv-controls td {
-  padding: 0.25rem 0.9rem 0.25rem 0.4rem;
-  text-align: left;
+  padding-right: 16px;
+  color: var(--bv-npc-soft);
+}
+
+.bv-intro-as {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bv-intro-as b {
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--bv-citgo);
+}
+
+.bv-intro-settings {
+  gap: 16px;
 }
 
 .bv-intro-actions {
@@ -1471,6 +1501,13 @@
   z-index: 2;
   display: flex;
   gap: 0.8rem;
+}
+
+@media (width <= 640px) {
+  .bv-controls tr {
+    display: grid;
+    grid-template-columns: auto 1fr;
+  }
 }
 
 .bv-btn {
@@ -1746,16 +1783,6 @@
   color: var(--bv-citgo);
 }
 
-.bv-intro-as {
-  margin: 0;
-  letter-spacing: 0.06em;
-}
-
-.bv-intro-as b {
-  font-weight: inherit;
-  color: var(--bv-citgo);
-}
-
 /* A setting: its name, a slider, and where the slider stands, on one
    line in the main menu's Audio and on the pause overlay. */
 .bv-setting {
@@ -1778,12 +1805,6 @@
   margin: 0;
   accent-color: var(--bv-citgo);
   cursor: pointer;
-}
-
-.bv-intro-settings .bv-setting {
-  display: inline-grid;
-  margin-left: 1.6em;
-  vertical-align: middle;
 }
 
 /* A button that reads as a link: Sign Out beside the username. */
@@ -2144,12 +2165,16 @@
    labels, titles and buttons; speech in gold italic, as an NPC's line is
    in the chat log. One Citgo-red button per section is the thing you came
    for; row actions are outlined; a disabled one is dashed and says why. */
-.bv-npc {
+.bv-npc,
+.bv-intro,
+.bv-bag {
   --bv-npc-dim: rgb(240 234 214 / 60%);
   --bv-npc-soft: rgb(240 234 214 / 75%);
   --bv-npc-line: rgb(240 234 214 / 16%);
   --bv-npc-edge: rgb(240 234 214 / 24%);
+}
 
+.bv-npc {
   align-items: flex-start;
   background: rgb(0 0 0 / 92%);
   overflow-y: auto;
@@ -2476,7 +2501,8 @@
   background: transparent;
 }
 
-.bv-account .bv-npc-btn:disabled {
+.bv-account .bv-npc-btn:disabled,
+.bv-intro .bv-npc-btn:disabled {
   border-style: dashed;
   box-shadow: none;
 }
@@ -2659,6 +2685,10 @@
   flex: 1;
 }
 
+.bv-npc-lede:empty {
+  display: none;
+}
+
 .bv-npc .bv-npc-leave {
   display: inline-flex;
   align-items: center;
@@ -2683,9 +2713,47 @@
   border: 1px solid currentcolor;
 }
 
+/* The pause overlay and the pack in the frame: the pack's header sits in
+   a panel with no reset of its own, and the overlay's lede keeps the
+   copy's line breaks. */
+.bv-bag .bv-npc-eyebrows,
+.bv-bag .bv-npc-title {
+  margin: 0;
+}
+
+.bv-intro .bv-npc-lede {
+  /* Line breaks come from the copy (COPY.toml), as text. */
+  white-space: pre-line;
+}
+
+.bv-intro .bv-npc-btn:not(.bv-btn--primary) {
+  color: var(--bv-eggshell);
+}
+
+.bv-intro .bv-npc-foot > p {
+  flex: 1;
+}
+
+.bv-intro .bv-setting-name {
+  font-size: 0.6875rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--bv-npc-dim);
+}
+
+.bv-intro .bv-btn--stack {
+  align-content: center;
+}
+
+/* A section head with nothing to say on the right lets its rule run. */
+.bv-npc-sh > .bv-npc-label:empty {
+  display: none;
+}
+
 /* On a narrow screen every cell takes the row but a table's. */
 @media (width <= 640px) {
-  .bv-npc-ui {
+  .bv-npc-ui,
+  .bv-bag {
     padding: 20px;
   }
 
