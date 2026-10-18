@@ -150,6 +150,15 @@ describe('items', () => {
     }
   })
 
+  it('gets you high off every psychedelic', () => {
+    const psychedelics = ITEMS.filter((item) => item.category === 'psychedelic')
+    expect(psychedelics.map((item) => item.id)).toEqual(['lsd', 'mushrooms'])
+    for (const item of psychedelics) {
+      expect(Object.keys(item.geometrie), item.id).toEqual(['high'])
+      expect(item.geometrie.high, item.id).toBeGreaterThan(0)
+    }
+  })
+
   it('lights the pill corner off anything swallowed as a pill', () => {
     for (const id of ['adderall', 'aspirin', 'ibuprofen', 'benadryl']) {
       const dose = geometrieOf(id) ?? {}
