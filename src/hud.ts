@@ -12,8 +12,9 @@ import { copy } from './copy.ts'
 import { el, find, text } from './dom.ts'
 import { MAX_HEALTH } from './health.ts'
 import { LevelHud } from './levelhud.ts'
+import { npcHeader, sectionHead } from './npcdialog.ts'
 import { PackHud } from './packhud.ts'
-import { SeasonHud } from './seasonhud.ts'
+import { SEASON_COPY, SeasonHud } from './seasonhud.ts'
 import { volumeSliders } from './settingsui.ts'
 import { TaskHud } from './taskhud.ts'
 import type { ChatLine } from './chat.ts'
@@ -93,7 +94,9 @@ function controlRows(
     for (const [j, { key, label }] of pair.entries()) {
       const action = text('td', label)
       if (pair.length === 1 && j === 0) action.colSpan = 3
-      row.append(text('th', key), action)
+      const head = document.createElement('th')
+      head.append(text('span', key, 'bv-npc-key'))
+      row.append(head, action)
     }
     rows.push(row)
   }
@@ -129,6 +132,8 @@ export class Hud {
   staticCanvas: HTMLCanvasElement
   reticle: HTMLDivElement
   intro: HTMLDivElement
+  // The overlay's status: paused, or ready to begin.
+  introState: HTMLElement
   beginBtn: HTMLButtonElement
   // Failed is final: the pause overlay never offers Resume over it.
   beginFailed = false
@@ -246,24 +251,50 @@ export class Hud {
     this.reticle.setAttribute('aria-hidden', 'true')
     ui.appendChild(this.reticle)
 
-    // Intro / pause overlay.
+    // Intro / pause overlay, in the keepers' dialogs' frame (npcdialog.ts):
+    // the header, 01 the season, 02 the controls, 03 who is raiding with
+    // their settings, and Begin in the footer.
     this.intro = el('div', 'bv-intro')
     this.intro.setAttribute('role', 'dialog')
     this.intro.setAttribute('aria-modal', 'true')
+    this.intro.setAttribute('aria-labelledby', 'bv-intro-title')
     this.intro.innerHTML = `
-      <h2>${copy('intro.title')}</h2>
-      <p class="bv-intro-note" data-bv="intro-note"></p>
-      <table class="bv-controls" aria-label="${copy('intro.controls_label')}" data-bv="controls"></table>
-      <div class="bv-intro-actions">
-        <button type="button" class="bv-btn bv-btn--primary bv-btn--stack" data-bv="begin"></button>
-      </div>
-      <p class="bv-intro-as" data-bv="intro-as" hidden>
-        ${copy('intro.raiding_as')} <b data-bv="intro-username"></b>
-        <button type="button" class="bv-link" data-bv="intro-account">${copy('intro.account')}</button>
-        <button type="button" class="bv-link" data-bv="intro-sign-out">${copy('intro.sign_out')}</button>
-        <span class="bv-intro-settings" data-bv="intro-settings"></span>
-      </p>
-      <p class="bv-intro-note bv-intro-fine">${copy('intro.fine')}</p>`
+      <div class="bv-npc-ui">
+        ${npcHeader({
+          titleId: 'bv-intro-title',
+          title: copy('intro.title'),
+          eyebrow: copy('intro.eyebrow'),
+          where: copy('intro.where'),
+          status:
+            '<span class="bv-npc-eyebrow bv-npc-tag" data-bv="intro-state"></span>',
+          speech: false,
+        })}
+        <section class="bv-npc-section" data-bv="intro-season">
+          ${sectionHead(1, SEASON_COPY.kicker, 'intro-live')}
+        </section>
+        <section class="bv-npc-section">
+          ${sectionHead(2, copy('intro.controls_label'), 'intro-keys')}
+          <table class="bv-controls" aria-label="${copy('intro.controls_label')}" data-bv="controls"></table>
+        </section>
+        <section class="bv-npc-section" data-bv="intro-as" hidden>
+          ${sectionHead(3, copy('intro.raider'), 'intro-raider')}
+          <div class="bv-npc-grid">
+            <p class="bv-intro-as bv-npc-c6">
+              <span class="bv-npc-label">${copy('intro.raiding_as')}</span>
+              <b data-bv="intro-username"></b>
+            </p>
+            <button type="button" class="bv-btn bv-npc-btn bv-npc-c3" data-bv="intro-account">${copy('intro.account')}</button>
+            <button type="button" class="bv-btn bv-npc-btn bv-npc-c3" data-bv="intro-sign-out">${copy('intro.sign_out')}</button>
+            <div class="bv-npc-pair bv-intro-settings bv-npc-c12" data-bv="intro-settings"></div>
+          </div>
+        </section>
+        <footer class="bv-npc-foot">
+          <p class="bv-npc-label">${copy('intro.fine')}</p>
+          <div class="bv-intro-actions">
+            <button type="button" class="bv-btn bv-btn--primary bv-btn--stack bv-npc-btn" data-bv="begin"></button>
+          </div>
+        </footer>
+      </div>`
     find<HTMLTableElement>(this.intro, '[data-bv="controls"]').replaceChildren(
       ...controlRows([
         ...Object.values(WORLD).map(({ key, labelKey }) => ({
@@ -277,10 +308,15 @@ export class Hud {
         })),
       ])
     )
-    const note = find<HTMLElement>(this.intro, '[data-bv="intro-note"]')
-    note.textContent = copy('intro.note')
-    // What the season asks and pays, under the note.
-    note.after(this.season.card)
+    find<HTMLElement>(this.intro, '[data-bv="npc-lede"]').textContent =
+      copy('intro.note')
+    find<HTMLElement>(this.intro, '[data-bv="intro-live"]').textContent =
+      SEASON_COPY.live
+    // What the season asks and pays, under its head.
+    find<HTMLElement>(this.intro, '[data-bv="intro-season"]').append(
+      this.season.card
+    )
+    this.introState = find(this.intro, '[data-bv="intro-state"]')
     ui.appendChild(this.intro)
     this.beginBtn = find(this.intro, '[data-bv="begin"]')
     this.beginBtn.replaceChildren(
@@ -529,5 +565,6 @@ export class Hud {
     this.intro.hidden = !show
     this.root.classList.toggle('bv-shell--intro', show)
     if (show) this.setBegin(paused ? 'resume' : 'play')
+    this.introState.textContent = copy(paused ? 'intro.paused' : 'intro.ready')
   }
 }

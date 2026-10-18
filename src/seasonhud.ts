@@ -65,16 +65,11 @@ export class SeasonHud {
     this.tracker.append(head, this.progressRow())
     ui.appendChild(this.tracker)
 
-    // The card, for the intro and pause overlay (Hud places it).
-    this.card = el('section', 'bv-season-card')
+    // The card, for the intro and pause overlay (Hud places it under the
+    // section head that names the season and says it is live).
+    this.card = el('div', 'bv-season-card')
     this.card.setAttribute('aria-label', SEASON_COPY.kicker)
-    const strip = el('p', 'bv-season-card-strip')
-    strip.append(
-      el('span', '', SEASON_COPY.kicker),
-      el('span', 'bv-season-card-live', SEASON_COPY.live)
-    )
     this.card.append(
-      strip,
       el('h3', 'bv-season-card-title', SEASON_COPY.title),
       el('p', 'bv-season-card-text', SEASON_COPY.challenge),
       el('p', 'bv-season-card-reward', SEASON_COPY.reward),

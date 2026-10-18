@@ -1,5 +1,6 @@
 // The frame the Cabbage Stand's and Erwin von Dutch's dialogs share
-// (standdialog.ts, dealdialog.ts): a header (an eyebrow, the status on the
+// (standdialog.ts, dealdialog.ts), and that the pause overlay (hud.ts) and
+// the pack (packhud.ts) wear too: a header (an eyebrow, the status on the
 // right, the title, the keeper's line), numbered sections each opened by a
 // head row, and a footer with the valley's last word and the way out. The
 // markup is styles.css's .bv-npc; each dialog fills its own sections on
@@ -24,7 +25,7 @@ export function npcHeader(options: {
     <header class="bv-npc-grid bv-npc-head">
       <p class="bv-npc-eyebrows bv-npc-c8">
         <span class="bv-npc-eyebrow bv-npc-lead">${options.eyebrow}</span>
-        <span class="bv-npc-eyebrow">${options.where}</span>
+        <span class="bv-npc-eyebrow" data-bv="npc-where">${options.where}</span>
       </p>
       <div class="bv-npc-status bv-npc-c4">${options.status}</div>
       <h2 class="bv-npc-title bv-npc-c12" id="${options.titleId}">${options.title}</h2>

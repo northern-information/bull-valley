@@ -29,6 +29,11 @@ And beware the shadowmen.""", by = "tyler" }
 controls_label = { text = "Controls", by = "ai" }
 fine = { text = "Requires a keyboard and mouse.", by = "ai" }
 raiding_as = { text = "Raiding as", by = "ai" }
+eyebrow = { text = "The Valley", by = "ai" }
+where = { text = "· Bull Valley, Illinois", by = "ai" }
+paused = { text = "Paused", by = "ai" }
+ready = { text = "Ready", by = "ai" }
+raider = { text = "Raider", by = "ai" }
 account = { text = "Account", by = "ai" }
 sign_out = { text = "Sign Out", by = "ai" }
 
@@ -529,6 +534,8 @@ hotbar_empty = { text = "Empty", by = "ai" }
 quantity = { text = "Quantity: {count}", by = "ai" }
 quantity_left = { text = "Quantity: {count}, {left} left in the open one", by = "ai" }
 cash = { text = "Cash", by = "ai" }
+eyebrow = { text = "Pack", by = "ai" }
+where_locker = { text = "· Citgo Locker", by = "ai" }
 tab_consumables = { text = "Consumables", by = "ai" }
 tab_loot = { text = "Loot", by = "ai" }
 tab_key_items = { text = "Key Items", by = "ai" }
