@@ -51,6 +51,17 @@ chat_log_label = { text = "Chat", by = "ai" }
 chat_input_label = { text = "Say to the valley", by = "ai" }
 geometrie_label = { text = "Geometrie: high {high}%, stimulated {stimulated}%, drunk {drunk}%", by = "ai" }
 health_label = { text = "Health: {health} of {max}", by = "ai" }
+health_value = { text = "{health}/{max}", by = "ai" }
+
+# The buffs over the hotbar (src/buffhud.ts), each winding down.
+
+[buffs]
+label = { text = "Buffs", by = "ai" }
+cell = { text = "{buff}, {time} left", by = "ai" }
+high = { text = "High: the flashlight reaches further and wider", by = "ai" }
+stimulated = { text = "Stimulated: the sprint runs faster", by = "ai" }
+drunk = { text = "Drunk: a shadow's touch is shrugged off now and then", by = "ai" }
+perception = { text = "Perception: the shadows show through the fog", by = "ai" }
 
 # The season (src/seasonhud.ts): the card on the intro and pause overlay,
 # the tracker in the upper right, and the banners.
@@ -1009,28 +1020,28 @@ empty = { text = "No Ice Mountain left.", by = "ai" }
 
 [items.aspirin]
 label = { text = "Aspirin", by = "ai" }
-blurb = { text = "Yellow label, 24 tablets. For the head you woke up with. One gives a point of health back.", by = "ai" }
+blurb = { text = "Yellow label, 24 tablets. For the head you woke up with. One gives 100 health back.", by = "ai" }
 used = { text = "You swallow an aspirin dry. Something knits back together.", by = "ai" }
 bought = { text = "One bottle of aspirin, pocketed.", by = "ai" }
 empty = { text = "The aspirin bottle rattles empty.", by = "ai" }
 
 [items.ibuprofen]
 label = { text = "Ibuprofen", by = "ai" }
-blurb = { text = "Blue label, 200 mg. The gas station kind. One gives a point of health back.", by = "ai" }
+blurb = { text = "Blue label, 200 mg. The gas station kind. One gives 100 health back.", by = "ai" }
 used = { text = "You swallow an ibuprofen. The ache backs off a step.", by = "ai" }
 bought = { text = "One bottle of ibuprofen, pocketed.", by = "ai" }
 empty = { text = "The ibuprofen bottle rattles empty.", by = "ai" }
 
 [items.benadryl]
 label = { text = "Benadryl", by = "ai" }
-blurb = { text = "The pink box. Allergies, or a few hours of nothing. One gives a point of health back.", by = "ai" }
+blurb = { text = "The pink box. Allergies, or a few hours of nothing. One gives 100 health back.", by = "ai" }
 used = { text = "You swallow a pink Benadryl. The edges go soft and far away.", by = "ai" }
 bought = { text = "One box of Benadryl, pocketed.", by = "ai" }
 empty = { text = "The Benadryl box is empty foil.", by = "ai" }
 
 [items.eye-drops]
 label = { text = "Eye Drops", by = "ai" }
-blurb = { text = "Half an ounce, red cap. Gets the red out. One gives a point of health back.", by = "ai" }
+blurb = { text = "Half an ounce, red cap. Gets the red out. One gives 100 health back.", by = "ai" }
 used = { text = "A drop in each eye. The valley comes back into focus.", by = "ai" }
 bought = { text = "One bottle of eye drops, pocketed.", by = "ai" }
 empty = { text = "The eye drops squeeze out nothing but air.", by = "ai" }

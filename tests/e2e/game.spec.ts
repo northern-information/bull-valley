@@ -172,13 +172,16 @@ test('the map shows the Citgos, and fast travel goes between visited ones', asyn
   await expect.poll(() => nearRing(home)).toBeLessThan(1)
 })
 
-test("a shadowman's touch takes a point, and the Citgo makes you whole", async ({
+test("a shadowman's touch takes a block, and the Citgo makes you whole", async ({
   page,
 }) => {
   await beginRaid(page)
   const max = await page.evaluate(() => window.__bv?.health)
-  expect(max).toBe(3)
-  await expect(page.locator('.bv-health')).toHaveAttribute('data-health', '3')
+  expect(max).toBe(300)
+  await expect(page.locator('.bv-health')).toHaveAttribute('data-health', '300')
+  await expect(page.locator('.bv-health-value')).toHaveText(
+    copy('hud.health_value', { health: 300, max: 300 })
+  )
   await page.evaluate(() => window.__bv?.grant('marlboro', 20))
   await expect
     .poll(() => page.evaluate(() => window.__bv?.inventory.marlboro))
@@ -195,8 +198,11 @@ test("a shadowman's touch takes a point, and the Citgo makes you whole", async (
     if (!bv) return
     bv.placeShadowman(bv.player.pos.x, bv.player.pos.z + 3)
   })
-  await expect.poll(() => page.evaluate(() => window.__bv?.health)).toBe(2)
-  await expect(page.locator('.bv-health')).toHaveAttribute('data-health', '2')
+  await expect.poll(() => page.evaluate(() => window.__bv?.health)).toBe(200)
+  await expect(page.locator('.bv-health')).toHaveAttribute('data-health', '200')
+  await expect(page.locator('.bv-health-value')).toHaveText(
+    copy('hud.health_value', { health: 200, max: 300 })
+  )
   await expect(page.locator('.bv-hurt')).toHaveClass(/bv-hurt--on/)
   await expect(page.locator('.bv-chat')).toContainText(copy('log.hit'))
   // No static, no body: still standing where it struck, the pack whole.
@@ -226,7 +232,7 @@ test("a shadowman's touch takes a point, and the Citgo makes you whole", async (
     const bv = window.__bv
     if (bv) bv.player.relocate(bv.world.spawn.x, bv.world.spawn.z)
   })
-  await expect.poll(() => page.evaluate(() => window.__bv?.health)).toBe(3)
+  await expect.poll(() => page.evaluate(() => window.__bv?.health)).toBe(300)
   await expect(page.locator('.bv-chat')).toContainText(copy('log.mended'))
 })
 

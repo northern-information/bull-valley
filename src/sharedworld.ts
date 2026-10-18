@@ -146,10 +146,10 @@
 //    in, Reduced.stand out); the valley writes the ledger, the pack and the
 //    wallet together, or none of them. A collect earns XP by the cents it
 //    pays (stand.ts standXp, rule 22).
-// 24. Health (health.ts): every account has CONFIG.health.max points, kept
-//    by the valley (Valley.health, only the accounts below whole), so no
-//    reconnect or second tab heals. Any shadow's touch (rules 11 and 13)
-//    takes one, once a step however many of the account's sockets were
+// 24. Health (health.ts): every account has CONFIG.health.max hit points,
+//    kept by the valley (Valley.health, only the accounts below whole), so
+//    no reconnect or second tab heals. Any shadow's touch (rules 11 and 13)
+//    takes CONFIG.health.touch, once a step however many of the account's sockets were
 //    touched, and lets the raider alone for CONFIG.health.graceSeconds
 //    where they stand. The touch that takes the last is the strike of rule
 //    18 (Reduced.health.fatal), and the account is whole again after. A
@@ -233,6 +233,7 @@ import {
   isWhole,
   MAX_HEALTH,
   mend,
+  rescaled,
   withHealth,
 } from './health.ts'
 import {
@@ -400,8 +401,10 @@ export interface Valley {
   // fell (never on the wire), and the id the next one gets.
   corpses: ValleyCorpse[]
   nextCorpse: number
-  // Rule 24: account -> its health, while below whole.
+  // Rule 24: account -> its hit points, while below whole, and the max
+  // they were kept against (restoreValley rescales them when it moves).
   health: Record<string, number>
+  healthMax: number
   // Rule 27: account -> its geometrie, while not sober, on the valley's
   // clock in seconds.
   geometrie: Record<string, Geometrie>
@@ -684,6 +687,7 @@ export function createValley(): Valley {
     corpses: [],
     nextCorpse: 0,
     health: {},
+    healthMax: MAX_HEALTH,
     geometrie: {},
     citgos: {},
   }
@@ -693,9 +697,15 @@ export function createValley(): Valley {
 // fills in newer fields, and a world opened on another protocol (an older
 // build's raid included) is dropped, so the next arrival opens it afresh.
 // The berries, the places, the bodies, the health and the geometrie carry
-// over.
+// over, the health rescaled to the max it is kept against now (a valley
+// stored before healthMax kept three points).
 export function restoreValley(stored: Partial<Valley>): Valley {
-  const valley = { ...createValley(), ...stored }
+  const valley = {
+    ...createValley(),
+    ...stored,
+    health: rescaled(stored.health ?? {}, stored.healthMax ?? 3),
+    healthMax: MAX_HEALTH,
+  }
   const world: Partial<SharedWorld> | null = valley.world ?? null
   if (!world || world.version !== PROTOCOL_VERSION) {
     return { ...valley, world: null }

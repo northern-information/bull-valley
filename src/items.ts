@@ -27,9 +27,9 @@
 //             last while it smokes, the joint's while perception does
 //   form      a medicine's packaging (MedicineForm, the shape assets.ts
 //             builds)
-//   heals     health points one use gives back (health.ts, sharedworld.ts
-//             rule 24): everything smoked, drunk or swallowed gives one
-//             back, the joint, Four Loko and the liquor two
+//   heals     hit points one use gives back (health.ts, sharedworld.ts
+//             rule 24): everything smoked, drunk or swallowed gives a
+//             block (100) back, the joint, Four Loko and the liquor two
 //
 // Forage is
 // never on a shelf, so it has no price or bought text; the valley hands it out
@@ -144,7 +144,7 @@ export const ITEMS = [
     smokeSeconds: 12,
     emberSeconds: 20,
     geometrie: { stimulated: 0.12 },
-    heals: 1,
+    heals: 100,
   },
   {
     id: 'camel',
@@ -155,7 +155,7 @@ export const ITEMS = [
     smokeSeconds: 14,
     emberSeconds: 20,
     geometrie: { stimulated: 0.12 },
-    heals: 1,
+    heals: 100,
   },
   {
     id: 'parliament',
@@ -166,7 +166,7 @@ export const ITEMS = [
     smokeSeconds: 13,
     emberSeconds: 16,
     geometrie: { stimulated: 0.1 },
-    heals: 1,
+    heals: 100,
   },
   {
     id: 'newport',
@@ -177,7 +177,7 @@ export const ITEMS = [
     smokeSeconds: 9,
     emberSeconds: 14,
     geometrie: { stimulated: 0.1 },
-    heals: 1,
+    heals: 100,
   },
   {
     id: 'djarum',
@@ -188,7 +188,7 @@ export const ITEMS = [
     smokeSeconds: 18,
     emberSeconds: 26,
     geometrie: { stimulated: 0.15 },
-    heals: 1,
+    heals: 100,
   },
   {
     id: 'joints',
@@ -198,7 +198,7 @@ export const ITEMS = [
     // Shadowmen resolve through the murk while it lasts.
     perceptionSeconds: 120,
     geometrie: { high: 0.5 },
-    heals: 2,
+    heals: 200,
   },
   // Never on a Citgo shelf: Erwin von Dutch in the Golden Wok deals them
   // (dealer.ts). The psychedelics work like the joint, harder and longer:
@@ -210,7 +210,7 @@ export const ITEMS = [
     start: 0,
     perceptionSeconds: 480,
     geometrie: { high: 1 },
-    heals: 2,
+    heals: 200,
   },
   {
     id: 'adderall',
@@ -219,7 +219,7 @@ export const ITEMS = [
     contents: 10,
     tripSeconds: 20,
     geometrie: { stimulated: 0.45 },
-    heals: 1,
+    heals: 100,
   },
   {
     id: 'mushrooms',
@@ -227,7 +227,7 @@ export const ITEMS = [
     start: 0,
     perceptionSeconds: 300,
     geometrie: { high: 0.85 },
-    heals: 2,
+    heals: 200,
   },
   // Drinks, circa 2008. Drinking one moves geometrie (geometrie.ts): the
   // energy drinks stimulate, the beer and the liquor get you drunk, Four
@@ -243,7 +243,7 @@ export const ITEMS = [
     container: 'tall',
     tripSeconds: 30,
     geometrie: { stimulated: 0.3 },
-    heals: 1,
+    heals: 100,
   },
   {
     id: 'monster-ultra',
@@ -253,7 +253,7 @@ export const ITEMS = [
     container: 'tall',
     tripSeconds: 30,
     geometrie: { stimulated: 0.25 },
-    heals: 1,
+    heals: 100,
   },
   {
     id: 'red-bull',
@@ -263,7 +263,7 @@ export const ITEMS = [
     container: 'slim',
     tripSeconds: 30,
     geometrie: { stimulated: 0.25 },
-    heals: 1,
+    heals: 100,
   },
   {
     id: 'rip-it',
@@ -273,7 +273,7 @@ export const ITEMS = [
     container: 'tall',
     tripSeconds: 30,
     geometrie: { stimulated: 0.3 },
-    heals: 1,
+    heals: 100,
   },
   {
     id: 'rockstar',
@@ -283,7 +283,7 @@ export const ITEMS = [
     container: 'tall',
     tripSeconds: 30,
     geometrie: { stimulated: 0.3 },
-    heals: 1,
+    heals: 100,
   },
   {
     id: 'nos',
@@ -293,7 +293,7 @@ export const ITEMS = [
     container: 'nos',
     tripSeconds: 30,
     geometrie: { stimulated: 0.35 },
-    heals: 1,
+    heals: 100,
   },
   {
     id: 'four-loko-blue',
@@ -303,7 +303,7 @@ export const ITEMS = [
     container: 'tall',
     tripSeconds: 120,
     geometrie: { stimulated: 0.3, drunk: 0.35 },
-    heals: 2,
+    heals: 200,
   },
   {
     id: 'four-loko-punch',
@@ -313,7 +313,7 @@ export const ITEMS = [
     container: 'tall',
     tripSeconds: 120,
     geometrie: { stimulated: 0.3, drunk: 0.35 },
-    heals: 2,
+    heals: 200,
   },
   {
     id: 'four-loko-lemon',
@@ -323,7 +323,7 @@ export const ITEMS = [
     container: 'tall',
     tripSeconds: 120,
     geometrie: { stimulated: 0.3, drunk: 0.35 },
-    heals: 2,
+    heals: 200,
   },
   {
     id: 'wild-turkey',
@@ -333,7 +333,7 @@ export const ITEMS = [
     container: 'bourbon',
     tripSeconds: 90,
     geometrie: { drunk: 0.5 },
-    heals: 2,
+    heals: 200,
   },
   {
     id: 'jim-beam',
@@ -343,7 +343,7 @@ export const ITEMS = [
     container: 'square',
     tripSeconds: 90,
     geometrie: { drunk: 0.45 },
-    heals: 2,
+    heals: 200,
   },
   {
     id: 'grey-goose',
@@ -353,7 +353,7 @@ export const ITEMS = [
     container: 'goose',
     tripSeconds: 90,
     geometrie: { drunk: 0.45 },
-    heals: 2,
+    heals: 200,
   },
   {
     id: 'pbr',
@@ -363,7 +363,7 @@ export const ITEMS = [
     container: 'can12',
     tripSeconds: 60,
     geometrie: { drunk: 0.15 },
-    heals: 1,
+    heals: 100,
   },
   {
     id: 'high-life',
@@ -373,7 +373,7 @@ export const ITEMS = [
     container: 'longneck',
     tripSeconds: 60,
     geometrie: { drunk: 0.15 },
-    heals: 1,
+    heals: 100,
   },
   {
     id: 'modelo',
@@ -383,7 +383,7 @@ export const ITEMS = [
     container: 'can12',
     tripSeconds: 60,
     geometrie: { drunk: 0.15 },
-    heals: 1,
+    heals: 100,
   },
   {
     id: 'md-2020',
@@ -393,7 +393,7 @@ export const ITEMS = [
     container: 'flask',
     tripSeconds: 90,
     geometrie: { drunk: 0.3 },
-    heals: 1,
+    heals: 100,
   },
   {
     id: 'ice-mountain',
@@ -403,7 +403,7 @@ export const ITEMS = [
     container: 'water',
     tripSeconds: 1,
     geometrie: { drunk: -0.1 },
-    heals: 1,
+    heals: 100,
   },
   // Medicine, off the rack by the register. Each one taken gives a health
   // point back and moves geometrie: aspirin and ibuprofen take the edge off,
@@ -417,7 +417,7 @@ export const ITEMS = [
     contents: 24,
     form: 'pills',
     geometrie: { stimulated: -0.1 },
-    heals: 1,
+    heals: 100,
   },
   {
     id: 'ibuprofen',
@@ -427,7 +427,7 @@ export const ITEMS = [
     contents: 24,
     form: 'pills',
     geometrie: { stimulated: -0.1 },
-    heals: 1,
+    heals: 100,
   },
   {
     id: 'benadryl',
@@ -437,7 +437,7 @@ export const ITEMS = [
     contents: 24,
     form: 'carton',
     geometrie: { high: 0.3 },
-    heals: 1,
+    heals: 100,
   },
   {
     id: 'eye-drops',
@@ -446,7 +446,7 @@ export const ITEMS = [
     price: 549,
     form: 'dropper',
     geometrie: { high: -0.15 },
-    heals: 1,
+    heals: 100,
   },
   // Forage. Not for sale: cabbages grow wild across the valley and come
   // back with the day, and the berry bushes give every account one berry

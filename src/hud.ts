@@ -6,17 +6,21 @@
 
 import { PACK_IN_MENU, WORLD } from './bindings.ts'
 import { BookHud } from './bookhud.ts'
+import { BuffHud } from './buffhud.ts'
 import { ChatHud } from './chathud.ts'
 import { CitgoMap } from './citgomap.ts'
+import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { el, find, text } from './dom.ts'
 import { MAX_HEALTH } from './health.ts'
+import { ICON_SHAPES } from './icons.ts'
 import { LevelHud } from './levelhud.ts'
 import { npcHeader, sectionHead } from './npcdialog.ts'
 import { PackHud } from './packhud.ts'
 import { SEASON_COPY, SeasonHud } from './seasonhud.ts'
 import { volumeSliders } from './settingsui.ts'
 import { TaskHud } from './taskhud.ts'
+import type { Buff } from './buffbar.ts'
 import type { ChatLine } from './chat.ts'
 import type { GeometrieAxis, PackItem } from './interfaces.ts'
 import type { BagTab } from './packgrid.ts'
@@ -24,12 +28,20 @@ import type { BagStatus, HotbarSlotView } from './packhud.ts'
 import type { SettingsStore } from './settingsui.ts'
 
 // Geometrie's triangle (geometrie.ts): one corner per level, each lit by
-// its own glow over the dim red face, in the triangle's own units.
+// its own glow over the dim red face, in the triangle's own units, with
+// its mark (icons.ts) set in from the corner: a weed leaf for high, a pill
+// for stimulated, a beer bottle for drunk.
 const GEOMETRIE_CORNERS: Record<GeometrieAxis, { x: number; y: number }> = {
   high: { x: 50, y: 6 },
   stimulated: { x: 94, y: 84 },
   drunk: { x: 6, y: 84 },
 }
+const GEOMETRIE_MARKS: Record<GeometrieAxis, { x: number; y: number }> = {
+  high: { x: 50, y: 36 },
+  stimulated: { x: 72, y: 71 },
+  drunk: { x: 28, y: 71 },
+}
+const GEOMETRIE_MARK_SIZE = 22
 const GEOMETRIE_POINTS = Object.values(GEOMETRIE_CORNERS)
   .map(({ x, y }) => `${x},${y}`)
   .join(' ')
@@ -58,6 +70,14 @@ function geometrieMarkup(): string {
         )
         .join('')}
       <polygon class="bv-geo-edge" points="${GEOMETRIE_POINTS}" />
+      ${Object.entries(GEOMETRIE_MARKS)
+        .map(([axis, { x, y }]) => {
+          const scale = GEOMETRIE_MARK_SIZE / 24
+          const left = x - GEOMETRIE_MARK_SIZE / 2
+          const top = y - GEOMETRIE_MARK_SIZE / 2
+          return `<g class="bv-geo-mark" data-mark="${axis}" transform="translate(${left} ${top}) scale(${scale})">${ICON_SHAPES[axis as GeometrieAxis]}</g>`
+        })
+        .join('')}
     </svg>`
 }
 
@@ -123,9 +143,13 @@ export class Hud {
   pack: PackHud
   geometrie: HTMLDivElement
   geometrieGlows: Map<GeometrieAxis, SVGPolygonElement>
+  geometrieMarks: Map<GeometrieAxis, SVGGElement>
   geometrieView = ''
+  // The buffs over the hotbar, winding down.
+  buffs: BuffHud
   health: HTMLDivElement
-  healthPips: HTMLSpanElement[]
+  healthFill: HTMLDivElement
+  healthValue: HTMLSpanElement
   healthView = -1
   hurtWash: HTMLDivElement
   staticWrap: HTMLDivElement
@@ -191,17 +215,29 @@ export class Hud {
         ...this.geometrie.querySelectorAll<SVGPolygonElement>('[data-axis]'),
       ].map((glow) => [glow.dataset.axis as GeometrieAxis, glow])
     )
+    this.geometrieMarks = new Map(
+      [...this.geometrie.querySelectorAll<SVGGElement>('[data-mark]')].map(
+        (mark) => [mark.dataset.mark as GeometrieAxis, mark]
+      )
+    )
     this.setGeometrie({ high: 0, stimulated: 0, drunk: 0 })
     ui.appendChild(this.geometrie)
 
-    // Health (health.ts): chunky red blocks under the triangle, one a
-    // point, dark when lost.
+    // Health (health.ts): a chunky red bar under the triangle, notched at
+    // every block, dark where it is lost, with the hit points on it.
     this.health = el('div', 'bv-health')
     this.health.setAttribute('role', 'img')
-    this.healthPips = Array.from({ length: MAX_HEALTH }, () =>
-      el('span', 'bv-health-pip')
+    this.healthFill = el('div', 'bv-health-fill')
+    const notches = Array.from(
+      { length: Math.max(0, Math.ceil(MAX_HEALTH / CONFIG.health.block) - 1) },
+      (_, i) => {
+        const notch = el('span', 'bv-health-notch')
+        notch.style.left = `${(((i + 1) * CONFIG.health.block) / MAX_HEALTH) * 100}%`
+        return notch
+      }
     )
-    this.health.append(...this.healthPips)
+    this.healthValue = el('span', 'bv-health-value')
+    this.health.append(this.healthFill, ...notches, this.healthValue)
     this.setHealth(MAX_HEALTH)
     ui.appendChild(this.health)
 
@@ -225,6 +261,7 @@ export class Hud {
     // The pack and the hotbar, then the Book of Shadows: each a panel over
     // the rest of the HUD (the log, the phone, the prompt), in DOM order.
     this.pack = new PackHud(root, ui)
+    this.buffs = new BuffHud(this.pack.bar)
     this.book = new BookHud(ui)
     // A banner and the book's toast sweep over the open pack or book too.
     ui.append(this.season.banner, this.book.toast)
@@ -487,6 +524,10 @@ export class Hud {
     for (const [axis, glow] of this.geometrieGlows) {
       glow.style.opacity = String(percent(axis) / 100)
     }
+    // Each mark reads dim until its corner lights.
+    for (const [axis, mark] of this.geometrieMarks) {
+      mark.style.opacity = String(0.45 + (0.55 * percent(axis)) / 100)
+    }
     this.geometrie.setAttribute(
       'aria-label',
       copy('hud.geometrie_label', {
@@ -504,13 +545,22 @@ export class Hud {
     if (locked) this.chat.hovered = false
   }
 
-  // The health blocks lit to `points`.
+  // The buffs going, over the hotbar (buffbar.ts activeBuffs).
+  setBuffs(buffs: readonly Buff[]): void {
+    this.buffs.set(buffs)
+    this.root.classList.toggle('bv-shell--buffs', buffs.length > 0)
+  }
+
+  // The health bar filled to `points`, and the number on it.
   setHealth(points: number): void {
     if (points === this.healthView) return
     this.healthView = points
-    for (const [i, pip] of this.healthPips.entries()) {
-      pip.classList.toggle('bv-health-pip--lost', i >= points)
-    }
+    const share = Math.max(0, Math.min(1, points / MAX_HEALTH))
+    this.healthFill.style.width = `${share * 100}%`
+    this.healthValue.textContent = copy('hud.health_value', {
+      health: points,
+      max: MAX_HEALTH,
+    })
     this.health.dataset.health = String(points)
     this.health.setAttribute(
       'aria-label',

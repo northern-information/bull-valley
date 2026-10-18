@@ -153,7 +153,7 @@ interface BvHook {
   // `count` of `kind` into the pack: the valley's, through a dev frame, or
   // this client's own. Gold bullion has no other way in yet.
   grant(kind: string, count?: number): void
-  // This raider at `points` of health (1 to whole), for the specs.
+  // This raider at `points` hit points (1 to whole), for the specs.
   setHealth(points: number): void
 }
 
