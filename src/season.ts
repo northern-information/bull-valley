@@ -81,7 +81,7 @@ export function shownKills(
 
 // What a credited burning means to the raider: the one that paid the
 // reward, one more toward the goal, or one past a season already done.
-export type SeasonNews = 'complete' | 'burned' | 'again'
+type SeasonNews = 'complete' | 'burned' | 'again'
 
 export function newsOf(
   progress: SeasonProgress,

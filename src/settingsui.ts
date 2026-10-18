@@ -65,7 +65,7 @@ export function createSettingsStore(
 
 // A labelled volume slider kept in step with the store: dragging it is
 // heard as it moves, and letting it go saves.
-export function volumeSlider(store: SettingsStore, key: Volume): HTMLElement {
+function volumeSlider(store: SettingsStore, key: Volume): HTMLElement {
   const row = document.createElement('label')
   row.className = 'bv-setting'
   const name = document.createElement('span')

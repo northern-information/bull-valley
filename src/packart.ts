@@ -11,7 +11,7 @@ import { canvas, SANS, SERIF, text } from './canvas.ts'
 import type { CanvasArt, CanvasSize } from './canvas.ts'
 
 // The flat colors of one cigarette. Only kreteks have a band.
-export interface StickColors {
+interface StickColors {
   paper: string
   filter: string
   tip: string
@@ -19,7 +19,7 @@ export interface StickColors {
 }
 
 // Everything one brand's painter returns.
-export interface PackArt {
+interface PackArt {
   front: CanvasArt
   side: CanvasArt
   lidFront: CanvasArt
@@ -31,7 +31,7 @@ export interface PackArt {
   glow: string
 }
 
-export type PackPainter = () => PackArt
+type PackPainter = () => PackArt
 
 const FRONT: CanvasSize = [100, 120]
 const SIDE: CanvasSize = [40, 120]

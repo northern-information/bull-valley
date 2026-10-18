@@ -31,7 +31,7 @@ export interface StandPrice {
   items: Inventory
 }
 
-export interface StandLevel {
+interface StandLevel {
   shelf: number
   rate: number
   capHours: number
@@ -52,7 +52,6 @@ function levels(cfg = CONFIG): readonly StandLevel[] {
   return cfg.stand.levels
 }
 
-// The highest level a stand reaches.
 export function topLevel(cfg = CONFIG): number {
   return levels(cfg).length
 }

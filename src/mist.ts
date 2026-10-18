@@ -14,7 +14,6 @@ import type { Rng } from './rng.ts'
 
 export type MistConfig = typeof CONFIG.mist
 
-// One bank of mist.
 export interface MistBank {
   x: number
   z: number
@@ -35,7 +34,7 @@ export interface MistField {
   banks: MistBank[]
 }
 
-export interface MistStep {
+interface MistStep {
   dt: number
   player: XZ
 }

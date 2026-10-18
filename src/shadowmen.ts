@@ -42,10 +42,7 @@ export type ShadowmenConfig = typeof CONFIG.shadowmen
 export type ShadeKind = 'man' | 'spider' | 'spiderling'
 
 // How a kind crosses, rushes, touches and burns.
-export function speedRange(
-  kind: ShadeKind,
-  cfg: ShadowmenConfig
-): [number, number] {
+function speedRange(kind: ShadeKind, cfg: ShadowmenConfig): [number, number] {
   if (kind === 'spider') return [cfg.spider.speedMin, cfg.spider.speedMax]
   if (kind === 'spiderling') {
     return [cfg.spiderling.speedMin, cfg.spiderling.speedMax]
@@ -53,18 +50,18 @@ export function speedRange(
   return [cfg.speedMin, cfg.speedMax]
 }
 
-export function rushSpeedOf(kind: ShadeKind, cfg: ShadowmenConfig): number {
+function rushSpeedOf(kind: ShadeKind, cfg: ShadowmenConfig): number {
   if (kind === 'spider') return cfg.spider.rushSpeed
   if (kind === 'spiderling') return cfg.spiderling.rushSpeed
   return cfg.rushSpeed
 }
 
 // How close a raider must come for it to turn and rush them.
-export function rushRadiusOf(kind: ShadeKind, cfg: ShadowmenConfig): number {
+function rushRadiusOf(kind: ShadeKind, cfg: ShadowmenConfig): number {
   return kind === 'spiderling' ? cfg.spiderling.rushRadius : cfg.rushRadius
 }
 
-export function touchRadiusOf(kind: ShadeKind, cfg: ShadowmenConfig): number {
+function touchRadiusOf(kind: ShadeKind, cfg: ShadowmenConfig): number {
   if (kind === 'spider') return cfg.spider.touchRadius
   if (kind === 'spiderling') return cfg.spiderling.touchRadius
   return cfg.touchRadius
@@ -179,11 +176,11 @@ export interface Burst {
 // A burst as the step saw it: also the raiders whose beams were on the
 // shadowman as it burst (sharedworld.ts rule 16). The valley keeps them
 // to itself; only the Burst goes on the wire.
-export interface BurstBy extends Burst {
+interface BurstBy extends Burst {
   by: string[]
 }
 
-export interface ShadowmenUpdate {
+interface ShadowmenUpdate {
   // The raiders touched this step.
   struck: string[]
   // The shadowmen that lunged this step, whether the lunge landed or not.
@@ -397,7 +394,7 @@ export function spawnShadowman(
 // Whether the next arrival round `raider`, coming in at `at`, is a spider:
 // by the spider's chance, or its near-water chance when either is close to
 // water, while the bubble holds fewer than maxPerBubble.
-export function spiderComes(
+function spiderComes(
   rng: Rng,
   field: ShadowmenField,
   raider: XZ,
@@ -445,7 +442,7 @@ function arrival(
 // The spiderlings a spider bursting at `at` breaks into: brood.min to
 // brood.max of them, scattered round where it burst, each heading out from
 // it, with ids from field.nextId. They rush like any other shadow.
-export function broodOf(
+function broodOf(
   field: ShadowmenField,
   rng: Rng,
   at: XZ,
@@ -489,7 +486,7 @@ function near(field: ShadowmenField, p: XZ, cfg: ShadowmenConfig): number {
 }
 
 // A new raider's bubble filled at once, each shadowman already somewhere
-// along its crossing, so the first blips are not one wave arriving at the
+// along its crossing, so the first ones seen are not one wave arriving at the
 // rim together. A raider who arrives among others already has theirs.
 function fill(
   field: ShadowmenField,

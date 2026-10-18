@@ -17,7 +17,7 @@ interface Stepped {
 }
 
 // One frame, stamped with this client's clock when it landed.
-export interface ShadowFrame<T extends Stepped = ShadowmanWire> {
+interface ShadowFrame<T extends Stepped = ShadowmanWire> {
   at: number
   shadowmen: readonly T[]
 }

@@ -90,7 +90,7 @@ export interface MallSign {
 // What lies round the building, in mall-local space, each stood on
 // ground.at by world.ts: the dumpsters in the alley, the carts, the pylon
 // sign at the road, and the parking stripes.
-export interface MallProp extends XZ {
+interface MallProp extends XZ {
   yaw: number
   // Tipped onto its side.
   fallen?: boolean
@@ -165,7 +165,7 @@ const ADULT = { curtain: 5.8, width: 1.2 }
 const RACKS = { x0: -9.5, x1: -4.5 }
 
 export type Window = 'glass' | 'broken' | 'boarded'
-export type Door = 'swung' | 'gone' | 'boarded' | 'ajar'
+type Door = 'swung' | 'gone' | 'boarded' | 'ajar'
 
 // The four shops, -z first (the far end from the Citgo).
 export interface Unit {
@@ -177,7 +177,7 @@ export interface Unit {
   sign: MallArtId
 }
 
-export const UNIT_LIST: readonly Unit[] = [
+const UNIT_LIST: readonly Unit[] = [
   {
     id: 'video',
     windows: ['broken', 'glass'],
@@ -1263,7 +1263,7 @@ function buildSigns(): MallSign[] {
 // back door standing open, and the hole into the Golden Wok. The ways
 // shut (a boarded door, a back door closed) are listed too, for the tests
 // and anyone wondering why it will not open.
-export interface Way extends XZ {
+interface Way extends XZ {
   name: string
   open: boolean
 }
@@ -1333,7 +1333,7 @@ function lockedDoor() {
 // laundromat, cabbages in the Golden Wok's kitchen, a pack or a can where
 // someone left it, and, behind the locked door, a $20 in the open safe
 // and a bottle by the desk. First to take each has it.
-export interface MallLoot extends XZ {
+interface MallLoot extends XZ {
   kind: PickupKind
   count: number
 }
@@ -1506,29 +1506,6 @@ export function backRoomRing(origin: StoreOrigin): XZ[] {
     const [wx, , wz] = toWorld(origin, [x, 0, z])
     return { x: wx, z: wz }
   })
-}
-
-// Whether a world point stands in the Video Vault's adult section, through
-// the curtain.
-export function inAdultSection(
-  origin: StoreOrigin,
-  x: number,
-  z: number
-): boolean {
-  const p = toLocal(origin, x, z)
-  const video = unitZ(0)
-  return (
-    p.x > -DEPTH &&
-    p.x < BACK_ROOM.wall + WALL / 2 &&
-    p.z > video + BACK_ROOM.split &&
-    p.z < video + UNIT
-  )
-}
-
-// Whether a world point stands inside the building's walls.
-export function insideMall(origin: StoreOrigin, x: number, z: number): boolean {
-  const p = toLocal(origin, x, z)
-  return p.x > -DEPTH && p.x < 0 && Math.abs(p.z) < HALF
 }
 
 // The middle of the building in the world, for the Book of Shadows.

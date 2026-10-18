@@ -12,7 +12,7 @@
 
 import { CONFIG } from './config.ts'
 
-export type ProgressionConfig = typeof CONFIG.progression
+type ProgressionConfig = typeof CONFIG.progression
 
 // What earned the XP.
 export type XpSource =
@@ -64,7 +64,6 @@ export const XP: Readonly<Record<XpSource, number>> = {
   share: 5,
 }
 
-// XP earned by an account.
 export interface XpGrant {
   account: string
   source: XpSource
@@ -93,7 +92,7 @@ export function levelOf(
 
 // Where `xp` in all stands on the bar: the level, the XP into it, and the
 // XP the whole level takes (null at maxLevel, where the bar is full).
-export interface LevelBar {
+interface LevelBar {
   level: number
   into: number
   span: number | null

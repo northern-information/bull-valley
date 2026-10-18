@@ -9,9 +9,8 @@ import {
 import type { Page } from '@playwright/test'
 
 // Two browsers in one valley: each sees the other arrive as a figure in
-// their outfit, follows them as they move, hears them on the Scaduscope,
-// and sees them go. Each context signs in its own raider, so each has its
-// own pick.
+// their outfit, follows them as they move, and sees them go. Each context
+// signs in its own raider, so each has its own pick.
 
 const peers = (page: Page) =>
   page.evaluate(() => window.__bv?.net.peers() ?? [])
@@ -56,7 +55,7 @@ base(
       }, idB)
     await expect.poll(figureVisible).toBe(true)
 
-    // B steps 20 m east; A's copy of B follows, and the scope hears it.
+    // B steps 20 m east; A's copy of B follows.
     const start = await b.evaluate(() => {
       const { x, z } = window.__bv!.player.pos
       return { x, z }

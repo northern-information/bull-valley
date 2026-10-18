@@ -15,7 +15,7 @@ import type { Rng } from './rng.ts'
 export type RoadPoint = XZ
 
 // A run of road between two nodes, with its full polyline.
-export interface RoadEdge {
+interface RoadEdge {
   // Node indices at the start and end of points.
   a: number
   b: number
@@ -34,7 +34,7 @@ export interface RoadGraph {
 }
 
 // The closest point on the road network, from nearestRoadPoint.
-export interface RoadPointOnEdge extends RoadPoint {
+interface RoadPointOnEdge extends RoadPoint {
   edge: number
   // Arc position along the edge, in metres.
   s: number
@@ -43,7 +43,7 @@ export interface RoadPointOnEdge extends RoadPoint {
 
 export type Route = RoadPoint[]
 
-export interface WalkerState {
+interface WalkerState {
   x: number
   z: number
   dirX: number
@@ -54,7 +54,6 @@ export interface WalkerState {
 export interface Walker {
   total: number
   advance(metres: number): WalkerState
-  position(): WalkerState
 }
 
 function cumulative(points: readonly RoadPoint[]): number[] {
@@ -415,9 +414,6 @@ export function createWalker(points: readonly RoadPoint[]): Walker {
     advance(metres: number) {
       s = Math.min(total, s + metres)
       settle()
-      return state
-    },
-    position() {
       return state
     },
   }

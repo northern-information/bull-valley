@@ -27,7 +27,7 @@ import type { MazePlace } from './maze.ts'
 import type { Rng } from './rng.ts'
 import type { Raider } from './shadowmen.ts'
 
-export type TunnelConfig = typeof CONFIG.tunnel
+type TunnelConfig = typeof CONFIG.tunnel
 export type TunnelKind = 'shade' | 'warden'
 
 export interface TunnelShade {
@@ -81,7 +81,7 @@ export function createTunnelShades(): TunnelShade[] {
   return shades
 }
 
-export interface TunnelStep {
+interface TunnelStep {
   dt: number
   // Every raider the valley knows, in world metres.
   raiders: readonly Raider[]

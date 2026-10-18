@@ -13,9 +13,9 @@ import { parse } from 'smol-toml'
 
 const AUTHORS = ['ai', 'tyler'] as const
 
-export type Author = (typeof AUTHORS)[number]
+type Author = (typeof AUTHORS)[number]
 
-export interface CopyEntry {
+interface CopyEntry {
   text: string
   by: Author
   // The placeholder names in the text, found once at load: fill() runs

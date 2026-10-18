@@ -167,6 +167,56 @@ describe('the tunnel shades', () => {
     ).toBeGreaterThanOrEqual(CONFIG.tunnel.warden.blinkFrom)
   })
 
+  it('throw the Warden as far from everyone as it can when the chamber is crowded', () => {
+    const warden = createTunnelShades().find((s) => s.kind === 'warden')
+    if (!warden) throw new Error('no Warden')
+    const rng = mulberry32(5)
+    const { deep } = ROOMS
+    // Raiders a few metres apart over the whole chamber: nowhere in it is
+    // blinkFrom from them all.
+    const crowd: Raider[] = []
+    for (let x = deep.x0; x <= deep.x1; x += 3) {
+      for (let z = deep.z0; z <= deep.z1; z += 3) {
+        crowd.push(raider({ x, z }, { id: `${x},${z}`, vulnerable: false }))
+      }
+    }
+    for (let t = 0; t < 10 && warden.wounds === 0; t += 0.1) {
+      const lit = {
+        ...aiming({ x: warden.x + 1.5, z: warden.z }, warden),
+        vulnerable: false,
+      }
+      stepTunnelShades([warden], rng, {
+        dt: 0.1,
+        raiders: [lit, ...crowd],
+        place,
+      })
+    }
+    expect(warden.wounds).toBe(1)
+    expect(inRoom(deep, warden)).toBe(true)
+  })
+
+  it('give up on a raider it has lost sight of, once it forgets them', () => {
+    const shade = createTunnelShades()[0]
+    const near = raider({ x: shade.lair.x + 4, z: shade.lair.z })
+    stepTunnelShades([shade], mulberry32(1), {
+      dt: 0.1,
+      raiders: [near],
+      place,
+    })
+    expect(shade.target).toBe('r')
+    // Gone out of sight and reach: back in the entry chamber.
+    const far = raider({ x: ROOMS.entry.x0, z: ROOMS.entry.z0 })
+    const seconds = CONFIG.tunnel.forgetSeconds + 1
+    for (let t = 0; t < seconds; t += 0.1) {
+      stepTunnelShades([shade], mulberry32(1), {
+        dt: 0.1,
+        raiders: [far],
+        place,
+      })
+    }
+    expect(shade.target).toBeNull()
+  })
+
   it('let the Warden roam the whole of its chamber, never out of it', () => {
     const warden = createTunnelShades().find((s) => s.kind === 'warden')
     if (!warden) throw new Error('no Warden')

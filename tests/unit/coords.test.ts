@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   bilinearHeight,
-  compassBearing,
   pointInPolygon,
   pointSegmentDistance,
   projectOnSegment,
@@ -67,12 +66,5 @@ describe('coords', () => {
       Math.hypot(3, 3),
       6
     )
-  })
-
-  it('gives compass bearings with north at -z', () => {
-    expect(compassBearing(0, -1)).toBeCloseTo(0, 5) // north
-    expect(compassBearing(1, 0)).toBeCloseTo(90, 5) // east
-    expect(compassBearing(0, 1)).toBeCloseTo(180, 5) // south
-    expect(compassBearing(-1, 0)).toBeCloseTo(270, 5) // west
   })
 })

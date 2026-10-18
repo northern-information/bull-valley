@@ -129,7 +129,7 @@ export interface PickupSpec {
 // every change comes down as a WorldMessage.
 
 // A raider in the valley, as the others see them.
-export interface MemberWire {
+interface MemberWire {
   id: string
   name: string
 }
@@ -257,15 +257,15 @@ export interface HelloMessage {
   was?: string
 }
 
-export interface BoardMessage {
+interface BoardMessage {
   type: 'board'
 }
 
-export interface HopOutMessage {
+interface HopOutMessage {
   type: 'hop-out'
 }
 
-export interface TakeMessage {
+interface TakeMessage {
   type: 'take'
   index: number
 }
@@ -273,7 +273,7 @@ export interface TakeMessage {
 // Unit `unit` of `kind` (its slot on the facing) off station `station`'s
 // shelf, paid for out of the account's wallet. The valley says whether
 // that unit was still there and whether the wallet covers it.
-export interface BuyMessage {
+interface BuyMessage {
   type: 'buy'
   station: number
   kind: string
@@ -282,7 +282,7 @@ export interface BuyMessage {
 
 // A whistle: where the client sees the truck (the valley never knows the
 // roads). Where it comes to is where the valley last heard the whistler.
-export interface CallMessage {
+interface CallMessage {
   type: 'call'
   from: XZ
 }
@@ -290,7 +290,7 @@ export interface CallMessage {
 // One unit of `kind` out of the pack, used. The valley takes it off the
 // account's pack and answers with a PackMessage, or a nack when there is
 // none to use.
-export interface UseMessage {
+interface UseMessage {
   type: 'use'
   kind: string
 }
@@ -299,7 +299,7 @@ export interface UseMessage {
 // peer id) instead of used (sharedworld.ts rule 27): they take it in full,
 // the giver a share. The valley refuses a pass to a raider out of reach,
 // in the bed, or not in the valley, and one the pack cannot cover.
-export interface PassMessage {
+interface PassMessage {
   type: 'pass'
   kind: string
   to: string
@@ -308,21 +308,21 @@ export interface PassMessage {
 // `count` of `kind` set down a little ahead of the raider, out of the
 // pack. The valley places it where the raider's last state frame put
 // them, and refuses a drop the pack cannot cover.
-export interface DropMessage {
+interface DropMessage {
   type: 'drop'
   kind: string
   count: number
 }
 
 // Drop `drop` (its id), taken up. First to ask wins, as with a pickup.
-export interface TakeDropMessage {
+interface TakeDropMessage {
   type: 'take-drop'
   drop: number
 }
 
 // This raider's things taken back off their body `corpse` (its id), into
 // the pack (sharedworld.ts rule 18). Only the account that fell may.
-export interface LootMessage {
+interface LootMessage {
   type: 'loot'
   corpse: number
 }
@@ -330,7 +330,7 @@ export interface LootMessage {
 // `count` of `kind` out of the pack into the account's locker (stow), or
 // out of the locker into the pack (unstow), at a Citgo (rule 19). The
 // valley checks the raider's last state frame put them at one.
-export interface StowMessage {
+interface StowMessage {
   type: 'stow' | 'unstow'
   kind: string
   count: number
@@ -341,7 +341,7 @@ export interface StowMessage {
 // into the wallet, or the next level bought. The valley checks the
 // raider's last state frame put them beside it, and answers with a
 // StandMessage and a PackMessage, or a nack.
-export type StandTendMessage =
+type StandTendMessage =
   | { type: 'stand-stock'; kind: string; count: number }
   | { type: 'stand-collect' }
   | { type: 'stand-upgrade' }
@@ -350,13 +350,13 @@ export type StandTendMessage =
 // last Citgo they stood at (sharedworld.ts rule 28). The valley places it
 // where the raider's last state frame put them, and answers with a world
 // frame, or a nack.
-export interface PortalMessage {
+interface PortalMessage {
   type: 'portal'
 }
 
 // Today's berry off bush `bush`, please. The valley answers with a
 // DailyMessage either way.
-export interface CollectMessage {
+interface CollectMessage {
   type: 'collect'
   bush: number
 }
@@ -364,7 +364,7 @@ export interface CollectMessage {
 // Cosmetic `offer` from Moab Coldë, paid for out of the pack
 // (sharedworld.ts rule 14). The valley answers with a PackMessage that
 // carries it, or a nack.
-export interface TradeMessage {
+interface TradeMessage {
   type: 'trade'
   offer: string
 }
@@ -376,13 +376,13 @@ export interface TradeMessage {
 // from Erwin, laying it at the heart of the maze, or coming back to him
 // for the key. The valley answers with a QuestFrame and a PackMessage,
 // or a nack.
-export interface QuestMessage {
+interface QuestMessage {
   type: 'quest'
   quest: string
   step: QuestStep
 }
 
-export interface DealMessage {
+interface DealMessage {
   type: 'deal'
   kind: string
   pay: string
@@ -393,7 +393,7 @@ export interface DealMessage {
 // spoken to, an item in the pack). The valley writes those the account had
 // not found and answers with a BookMessage naming them; which ids are real
 // is its to check.
-export interface DiscoverMessage {
+interface DiscoverMessage {
   type: 'discover'
   entries: string[]
 }
@@ -401,7 +401,7 @@ export interface DiscoverMessage {
 // Dev-server only: the Worker stamps the socket, and production ignores
 // these. hurry brings the truck's next change to `seconds` from now;
 // reset opens the world afresh.
-export type DevMessage =
+type DevMessage =
   | { type: 'dev'; op: 'hurry'; seconds: number }
   | { type: 'dev'; op: 'reset' }
   // A shadowman (or a shadow spider, or a spiderling) standing still at
@@ -426,7 +426,7 @@ export type DevMessage =
 
 // One line to everyone in the valley. The valley echoes it back to the
 // sender too, so every client shows the server's copy.
-export interface ChatMessage {
+interface ChatMessage {
   type: 'chat'
   text: string
 }
@@ -435,33 +435,33 @@ export interface ChatMessage {
 // signed in as `to`, by username in any case, under the chat rules. The
 // valley sends it to their sockets and echoes it to the sender's; nothing
 // is stored.
-export interface WhisperMessage {
+interface WhisperMessage {
   type: 'whisper'
   to: string
   text: string
 }
 
 // Ask the raider named `name` to be friends, or accept their asking.
-export interface FriendMessage {
+interface FriendMessage {
   type: 'friend'
   name: string
 }
 
 // No longer friends with `name`, or take back a request either way.
-export interface UnfriendMessage {
+interface UnfriendMessage {
   type: 'unfriend'
   name: string
 }
 
 // The account's friends list, please (a friends frame answers).
-export interface FriendsMessage {
+interface FriendsMessage {
   type: 'friends'
 }
 
 // Gron changed this raider's character. The outfit is checked by the
 // server against the select's roster (characters.ts isSelectable), like
 // the hello's.
-export interface AppearanceMessage {
+interface AppearanceMessage {
   type: 'appearance'
   outfit: OutfitId
 }
@@ -469,22 +469,22 @@ export interface AppearanceMessage {
 // Gron changed this raider's username (PUT /auth/username). The frame names
 // nothing: the valley reads the account's new username itself, so a client
 // can never claim a name.
-export interface RenameMessage {
+interface RenameMessage {
   type: 'rename'
 }
 
-export interface StateMessage extends PeerStateWire {
+interface StateMessage extends PeerStateWire {
   type: 'state'
 }
 
 // Where Marx's truck stands and faces, as this client drives its leg: sent
 // on the state frame's cadence by a client near it, so the valley can aim
 // the headlights at the shadowmen (sharedworld.ts seeHeadlights).
-export interface HeadlightsMessage extends TruckPose {
+interface HeadlightsMessage extends TruckPose {
   type: 'headlights'
 }
 
-export interface PingMessage {
+interface PingMessage {
   type: 'ping'
   // The sender's clock when it sent the ping; echoed in the pong.
   t: number
@@ -572,7 +572,7 @@ export interface WelcomeMessage {
 
 // The account's Citgos after it stood at one not yet the last (rule 28).
 // To every socket signed in to it.
-export interface CitgosMessage {
+interface CitgosMessage {
   type: 'citgos'
   citgos: CitgoLog
 }
@@ -591,7 +591,7 @@ export interface GeometrieLevels {
 // A quest's step went through (sharedworld.ts rule 26): where the
 // account stands on it now. To every socket on the account, with a
 // PackMessage after it.
-export interface QuestFrame {
+interface QuestFrame {
   type: 'quest'
   quest: QuestId
   step: QuestStep
@@ -829,7 +829,7 @@ export interface ShadowmenMessage {
 // 18's fall following).
 // shrugged: the raider's drunk shrugged the touch off (rule 27), and the
 // health is what it was.
-export interface StruckMessage {
+interface StruckMessage {
   type: 'struck'
   by?: 'caretaker' | 'tunnel'
   health: number
@@ -839,7 +839,7 @@ export interface StruckMessage {
 // The account's geometrie as the valley keeps it (sharedworld.ts rule 27),
 // at the moment the frame is sent: after a use, a pass either way, or a
 // shattering. To every socket signed in to it.
-export interface GeometrieMessage {
+interface GeometrieMessage {
   type: 'geometrie'
   geometrie: GeometrieLevels
 }
@@ -856,18 +856,18 @@ export interface PassedMessage {
 
 // The account's health, given back (sharedworld.ts rule 24): a forecourt,
 // medicine, or a dev frame. To every socket signed in to it.
-export interface HealthMessage {
+interface HealthMessage {
   type: 'health'
   health: number
 }
 
-export interface PongMessage {
+interface PongMessage {
   type: 'pong'
   t: number
   serverNow: number
 }
 
-export interface ErrorMessage {
+interface ErrorMessage {
   type: 'error'
   code: string
   message: string
@@ -905,7 +905,7 @@ export type ServerMessage =
 // A whisper as the valley delivers it (rule 21), with its own clock: to
 // the raider it was for, and back to the sender's sockets with `outgoing`.
 // Both names are usernames as D1 holds them.
-export interface WhisperedMessage {
+interface WhisperedMessage {
   type: 'whisper'
   from: string
   to: string
@@ -929,14 +929,14 @@ export interface FriendWire {
 
 // The account's friends list, in answer to a friends frame or after a
 // change to it.
-export interface FriendsListMessage {
+interface FriendsListMessage {
   type: 'friends'
   friends: FriendWire[]
 }
 
 // News of a friend, for the log: `name` asked to be friends, accepted, or
 // came into the valley.
-export interface FriendNewsMessage {
+interface FriendNewsMessage {
   type: 'friend-news'
   news: 'asked' | 'accepted' | 'online'
   name: string

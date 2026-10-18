@@ -77,7 +77,7 @@ export interface Hand {
   grip: THREE.Group
 }
 
-export interface FigureOptions {
+interface FigureOptions {
   // false hides the head and everything on the neck.
   head?: boolean
   // The guitar's gloss color, for an outfit with one on its back.
@@ -718,7 +718,7 @@ export function buildFigure(
 }
 
 // Close a hand round what it holds, or open it again.
-export function setGrip(figure: Figure, side: 'L' | 'R', closed: boolean) {
+function setGrip(figure: Figure, side: 'L' | 'R', closed: boolean) {
   const { open, grip } = figure.hands[side]
   open.visible = !closed
   grip.visible = closed

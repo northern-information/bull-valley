@@ -9,7 +9,7 @@ import type { OutfitId } from './outfits.ts'
 import type { PeerPose, PeerStateWire, PeerWire } from './protocol.ts'
 
 // A state stamped with the local time it arrived.
-export interface PeerSnapshot extends PeerStateWire {
+interface PeerSnapshot extends PeerStateWire {
   at: number
 }
 
@@ -28,7 +28,7 @@ export interface Peer {
 }
 
 // Where to draw a peer this frame. speed drives the walk cycle.
-export interface PeerSample extends PeerStateWire {
+interface PeerSample extends PeerStateWire {
   speed: number
 }
 

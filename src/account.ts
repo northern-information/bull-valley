@@ -106,7 +106,7 @@ export interface AccountWire {
 }
 
 // The profile a new raider arrived with, held until the gates are passed.
-export interface PendingWire {
+interface PendingWire {
   provider: Provider
   displayName: string
   avatarUrl: string | null

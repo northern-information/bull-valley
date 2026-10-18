@@ -38,7 +38,7 @@ import type { FuelPoint, Pickup } from './world.ts'
 
 const PACK_SEED = 0xc16a7e
 
-export interface OccupancyMask {
+interface OccupancyMask {
   blocked(u: number, v: number): boolean
 }
 

@@ -5,9 +5,7 @@ import { toWorld } from '../../src/store.ts'
 import {
   backRoomRing,
   boxWall,
-  inAdultSection,
   inBackRoom,
-  insideMall,
   mallCenter,
   mallDeck,
   mallGate,
@@ -98,10 +96,7 @@ describe('STRIP_MALL', () => {
     expect(curtain?.open).toBe(true)
     const z0 = -STRIP_MALL.length / 2
     const adult = at(-12.5, z0 + 7)
-    expect(inAdultSection(origin, adult.x, adult.z)).toBe(true)
     expect(inBackRoom(origin, adult.x, adult.z)).toBe(false)
-    const office = at(-12.5, z0 + 2)
-    expect(inAdultSection(origin, office.x, office.z)).toBe(false)
     // A wall between the office and the adult section.
     const walls = built()
     walls.setGates(() => true)
@@ -265,10 +260,7 @@ describe('placing the plaza', () => {
   })
 
   it('says what is inside, what is on its grounds, and what is not', () => {
-    const inside = at(-7, 0)
-    expect(insideMall(origin, inside.x, inside.z)).toBe(true)
     const walk = at(1.5, 0)
-    expect(insideMall(origin, walk.x, walk.z)).toBe(false)
     expect(onMallGrounds(origin, walk.x, walk.z)).toBe(true)
     const alley = at(-STRIP_MALL.depth - 4, 0)
     expect(onMallGrounds(origin, alley.x, alley.z)).toBe(true)
@@ -284,7 +276,6 @@ describe('placing the plaza', () => {
     expect(center.z).toBeCloseTo(want.z)
     const lot = plazaLotMiddle(origin)
     expect(onMallGrounds(origin, lot.x, lot.z)).toBe(true)
-    expect(insideMall(origin, lot.x, lot.z)).toBe(false)
   })
 
   it('walls a box along its long side, covering it end to end', () => {

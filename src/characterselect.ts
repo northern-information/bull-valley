@@ -24,25 +24,25 @@ import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import type { CharacterPick } from './characters.ts'
 import type { CosmeticId } from './cosmetics.ts'
 
-export interface CharacterSelectConfig {
+interface CharacterSelectConfig {
   spinPerSecond: number
   revealFadeMs: number
   // CONFIG.render.downscale, so the turntable has the game's grain.
   downscale: number
 }
 
-export interface CharacterSelectOptions {
+interface CharacterSelectOptions {
   config: CharacterSelectConfig
   // Account was pressed: the panel (accountpanel.ts) opens over the select.
   onAccount: () => void
-  // Sign Out was pressed.
   onSignOut: () => void
 }
 
-export interface CharacterSelect {
+interface CharacterSelect {
   // Arms the screen for `username`, opening on the account's `pick` with
-  // what the account wears over any character (cosmetics.ts), and resolves with the chosen outfit and finish once
-  // the overlay has faded out and removed itself.
+  // what the account wears over any character (cosmetics.ts), and resolves
+  // with the chosen outfit and finish once the overlay has faded out and
+  // removed itself.
   run(
     username: string,
     pick: CharacterPick,

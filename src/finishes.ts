@@ -6,7 +6,7 @@
 
 import { copy } from './copy.ts'
 
-export interface Finish {
+interface Finish {
   id: string
   label: string
   // The gloss color, as a hex string.

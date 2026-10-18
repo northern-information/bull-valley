@@ -63,7 +63,7 @@ export interface TruckRoutes {
   joyrideMs: number
 }
 
-export type MarxConfig = typeof CONFIG.truck
+type MarxConfig = typeof CONFIG.truck
 
 // Marx's walk from the tailgate round the rear corner and up the driver
 // side to his door, truck-local (truck.ts draws it); a drive that starts
@@ -200,7 +200,7 @@ export function settleTruck(
 }
 
 // A refusal, and why.
-export interface Refused {
+interface Refused {
   refused: string
 }
 
@@ -341,7 +341,7 @@ export function hurry(
   return { ...truck, leg: { ...leg, at: leg.at + shift } }
 }
 
-// Who is in the bed, by id.
+// Whether `id` is in the bed.
 export function isAboard(truck: TruckState, id: string): boolean {
   return truck.riders.includes(id)
 }

@@ -10,7 +10,7 @@ import { isCash, isPickupKind, TWENTY } from './drops.ts'
 import type { Drop } from './drops.ts'
 import type { Pickup } from './world.ts'
 
-export interface DropPickup extends Pickup {
+interface DropPickup extends Pickup {
   drop: number
 }
 

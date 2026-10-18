@@ -10,7 +10,7 @@
 // its round trip, so a machine back from sleep (or a lucky first sample
 // against a cold server) does not hold a drifted offset for good.
 
-export interface ClockSample {
+interface ClockSample {
   sentAt: number
   receivedAt: number
   serverNow: number

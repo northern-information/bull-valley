@@ -47,7 +47,7 @@ import type { EmoteId } from './emotes.ts'
 import type { OutfitId } from './outfits.ts'
 
 // The dev hook on window.__akashic.
-export interface AkashicHook {
+interface AkashicHook {
   ids: string[]
   select(id: string): void
   setView(azimuth: number, elevation: number, distance?: number): void

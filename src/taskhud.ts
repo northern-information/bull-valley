@@ -10,7 +10,7 @@ import { el } from './dom.ts'
 
 // What the row shows: today's count and whether the reward is paid, or
 // nothing at all.
-export interface TaskView {
+interface TaskView {
   count: number
   done: boolean
 }

@@ -33,7 +33,7 @@ export interface Portal {
 
 // Which end of a portal: the one opened in the valley, or the one at the
 // Citgo.
-export type PortalSide = 'field' | 'citgo'
+type PortalSide = 'field' | 'citgo'
 
 type PortalConfig = typeof CONFIG.portal
 

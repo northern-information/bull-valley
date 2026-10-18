@@ -1,11 +1,10 @@
 // Pure: one purchase off a Citgo shelf. Like marx.ts and inventory.ts, it
 // returns new state and never changes its input. targets.ts finds the shelf
 // unit the player is looking at (store.ts) and tells the player in the
-// chat log. In the shared
-// valley the shelf and the wallet belong to the server (sharedworld.ts rule
-// 7): buy() still judges the sale here (stock and cash as last heard),
-// settle() applies it once the valley confirms it, and the valley's next
-// word replaces both guesses.
+// chat log. In the shared valley the shelf and the wallet belong to the
+// server (sharedworld.ts rule 7): buy() still judges the sale here (stock
+// and cash as last heard), settle() applies it once the valley confirms
+// it, and the valley's next word replaces both guesses.
 
 import { copy } from './copy.ts'
 import { addItem } from './inventory.ts'
@@ -22,7 +21,7 @@ export interface ShopState {
   cash: number
 }
 
-export interface Purchase {
+interface Purchase {
   // The new state, or null when nothing was sold.
   next: ShopState | null
   line: string | null
@@ -30,7 +29,7 @@ export interface Purchase {
 
 // The buyer's side of a sale: the cash and the inventory. Nothing about
 // the shelf.
-export type Purse = Pick<ShopState, 'inventory' | 'cash'>
+type Purse = Pick<ShopState, 'inventory' | 'cash'>
 
 export interface Settled {
   next: Purse | null

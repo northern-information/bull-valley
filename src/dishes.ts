@@ -38,7 +38,7 @@ export const DISH = {
   period: 240,
 }
 
-export interface DishSpot {
+interface DishSpot {
   x: number
   // The ground under the pedestal.
   y: number

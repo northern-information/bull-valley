@@ -9,8 +9,8 @@ import type { JointName } from './poses.ts'
 // Every outfit colors these; add-ons may use more slots (coat, glasses).
 export const BODY_SLOTS = ['skin', 'hair', 'shirt', 'pants', 'boots'] as const
 
-export type BodySlot = (typeof BODY_SLOTS)[number]
-export type ColorSlot =
+type BodySlot = (typeof BODY_SLOTS)[number]
+type ColorSlot =
   | BodySlot
   | 'coat'
   | 'glasses'
@@ -61,12 +61,12 @@ interface AddonBase {
   rotation?: Vec3
 }
 
-export interface LoftAddon extends AddonBase {
+interface LoftAddon extends AddonBase {
   rings: LoftRing[]
   sides?: number
 }
 
-export interface BoxAddon extends AddonBase {
+interface BoxAddon extends AddonBase {
   box: Vec3
   // Painted on the front (+Z) face; the other faces take the slot color.
   decal?: DecalId
@@ -88,13 +88,13 @@ export interface Crescent {
 }
 
 // Crescents stacked as one add-on, on the neck joint.
-export interface CrescentAddon extends AddonBase {
+interface CrescentAddon extends AddonBase {
   crescents: Crescent[]
 }
 
-export type Addon = LoftAddon | BoxAddon | CrescentAddon
+type Addon = LoftAddon | BoxAddon | CrescentAddon
 
-export type AddonId =
+type AddonId =
   | 'beard'
   | 'goatee'
   | 'mustache'
@@ -145,7 +145,7 @@ export type AddonId =
   | 'tatters-long'
   | 'tatters-short'
 
-export type LimbGroup = 'arm' | 'leg'
+type LimbGroup = 'arm' | 'leg'
 
 export interface Outfit {
   label: string

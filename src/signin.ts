@@ -31,7 +31,7 @@ import { finder, setStatus } from './dom.ts'
 import type { MeResponse, Provider } from './account.ts'
 import type { Tone } from './dom.ts'
 
-export interface AccountStep {
+interface AccountStep {
   // Resolves with the username once the raider has one, removing the
   // overlay, or with null when Back on the sign-in face leaves for the
   // menu, the overlay kept for another run. `error` is a failed round trip

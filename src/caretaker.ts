@@ -4,9 +4,9 @@
 // foot in the maze that it can see, or that comes very close, it hunts down
 // the paths, and its touch is a strike, as a shadowman's: in reach it stops
 // and winds up, then lunges, and the lunge lands only on a raider still
-// within reach. One flashlight
-// does nothing to it. Two raiders' beams on it at once, held, burn it,
-// and it forms again at the heart a few minutes later.
+// within reach. One flashlight does nothing to it. Two raiders' beams on
+// it at once, held, burn it, and it forms again at the heart a few minutes
+// later.
 //
 // Pure, no three.js. Everything here is in the maze's own metres (maze.ts:
 // x away from the road, z along it); MazePlace carries a raider's world
@@ -33,7 +33,7 @@ import type { Cell, MazePlace, MazeSize, Span } from './maze.ts'
 import type { Rng } from './rng.ts'
 import type { Raider } from './shadowmen.ts'
 
-export type CaretakerConfig = typeof CONFIG.caretaker
+type CaretakerConfig = typeof CONFIG.caretaker
 
 export interface Caretaker {
   // Where it floats, in maze-local metres.
@@ -270,7 +270,7 @@ function giveUp(ct: Caretaker): void {
   ct.homeward = true
 }
 
-export interface CaretakerStep {
+interface CaretakerStep {
   dt: number
   // Every raider the valley knows, in world metres (shadowmen.ts Raider:
   // who can be struck, and their beam).
@@ -278,7 +278,7 @@ export interface CaretakerStep {
   place: MazePlace
 }
 
-export interface CaretakerUpdate {
+interface CaretakerUpdate {
   // The raider it touched this step, if any.
   struck: string[]
   // Whether it lunged this step, landing or not.

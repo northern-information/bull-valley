@@ -4,7 +4,6 @@ import {
   EPITHETS,
   generateName,
   GIVEN,
-  NAME_SPACE,
   NOUNS,
   PLACES,
   SHORT_PLACES,
@@ -38,9 +37,5 @@ describe('generateName', () => {
       longest(EPITHETS) + 1 + longest(GIVEN) + 4 + longest(PLACES)
     )
     expect(longestName).toBeLessThanOrEqual(GRAVE_NAME_MAX)
-  })
-
-  it('has about seven thousand names', () => {
-    expect(NAME_SPACE).toBe(21 * 36 + 18 * 14 + 16 * 18 * 21)
   })
 })

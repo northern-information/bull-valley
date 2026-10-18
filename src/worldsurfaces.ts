@@ -36,7 +36,7 @@ export const LOT_LIFT = 0.28
 // runs from x0 to x1 on the local axis (cos, sin) through (x, z),
 // `halfWidth` spans the perpendicular, and the grid samples its own height
 // every `step`.
-export interface PatchSpec {
+interface PatchSpec {
   x: number
   z: number
   cos: number

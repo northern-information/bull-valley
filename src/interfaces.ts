@@ -35,7 +35,7 @@ export interface Metres {
   height: number
 }
 
-export interface TerrainRange {
+interface TerrainRange {
   size: number
   min: number
   max: number

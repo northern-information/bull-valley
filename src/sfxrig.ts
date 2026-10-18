@@ -23,7 +23,7 @@ import {
 import type { Cue, Hold, SfxId } from './sfx.ts'
 import type { Camera } from 'three'
 
-export interface SfxFrame {
+interface SfxFrame {
   // The player has begun (a click has armed the page's sound).
   started: boolean
   // The raider's sounds setting, in percent.
@@ -51,7 +51,7 @@ export interface Sfx {
   ): void
 }
 
-export interface SfxOptions {
+interface SfxOptions {
   // Where takes stream from.
   base?: string
   // Look for every sound's takes in `base` whatever the table says (dev).

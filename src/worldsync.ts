@@ -52,14 +52,13 @@ export function settledBy(
   }
 }
 
-// Whether this raider is in the bed.
 export function aboard(world: WorldWire | null, me: string | null): boolean {
   return !!world && me !== null && world.truck.riders.includes(me)
 }
 
 // The bed as this raider holds it: in it or not, and whether a board is
 // asked and not yet answered.
-export interface BedState {
+interface BedState {
   aboard: boolean
   pendingBoard: boolean
 }
@@ -69,7 +68,7 @@ export interface BedState {
 // (we sit in the bed on trust until then). letOff: we were in the bed and
 // are not now, by the valley's word, so we step off beside the truck.
 // rolling: the truck is leaving with us in it.
-export interface BedChange extends BedState {
+interface BedChange extends BedState {
   letOff: boolean
   rolling: boolean
 }
@@ -137,7 +136,7 @@ export function boardable(leg: Leg | null, me: string | null): boolean {
 // or null): one opened and whether it was theirs, their own as it stands
 // now (its id, or null), and whether their own just closed. Opening a
 // second closes the first, but that is no closing to tell of.
-export interface PortalNews {
+interface PortalNews {
   opened: { portal: Portal; mine: boolean } | null
   mine: number | null
   closed: boolean

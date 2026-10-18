@@ -22,7 +22,7 @@ import type { RoadPoint, Walker } from './roadgraph.ts'
 import type { TruckPose } from './shadowmen.ts'
 import type { TruckPlan } from './truckplan.ts'
 
-export interface TruckOptions {
+interface TruckOptions {
   scene: THREE.Object3D
   // What the truck stands on: world.ground.at, never the bare terrain.
   groundAt: HeightAt
@@ -40,7 +40,7 @@ export interface TruckState {
 }
 
 // Where Matthew Marx is: at the wheel, or reading by the tailgate.
-export type DriverPost = 'cab' | 'tailgate'
+type DriverPost = 'cab' | 'tailgate'
 
 // The truck mesh and the driver inside it.
 interface TruckModel {

@@ -32,7 +32,7 @@ export interface DrinkArt {
   glow: string
 }
 
-export type DrinkPainter = () => DrinkArt
+type DrinkPainter = () => DrinkArt
 
 // A point on the canvas: [x, y].
 type Point = [number, number]

@@ -1507,7 +1507,7 @@ export class ValleyDO extends DurableObject<Env> {
       return
     }
     const id = action.quest
-    await this.ctx.blockConcurrencyWhile(async () => {
+    await this.locked(async () => {
       const packs = this.packs()
       let quest: { stage: QuestStage; pack: Inventory }
       try {
@@ -1577,7 +1577,7 @@ export class ValleyDO extends DurableObject<Env> {
     const refuse = (reason: string) => {
       send(ws, { type: 'nack', re: 'deal', reason, item: action.kind })
     }
-    await this.ctx.blockConcurrencyWhile(async () => {
+    await this.locked(async () => {
       const packs = this.packs()
       let holdings: Holdings
       try {

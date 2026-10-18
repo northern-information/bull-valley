@@ -11,7 +11,7 @@ import type { ItemId } from './items.ts'
 
 export type LockId = 'vault-back-room'
 
-export interface Lock {
+interface Lock {
   // The item that opens it.
   key: ItemId
 }

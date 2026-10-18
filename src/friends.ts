@@ -22,7 +22,7 @@ export type FriendState = 'friend' | 'asked' | 'asking'
 // What asking comes to, from where the two stand now: a fresh request, the
 // other's request accepted (they become friends), a request already made,
 // friends already, or no one to ask (yourself).
-export type AskOutcome =
+type AskOutcome =
   'requested' | 'accepted' | 'already-asked' | 'already-friends' | 'self'
 
 export function askOutcome(

@@ -65,12 +65,11 @@ export function tierFor(method: string, parts: readonly string[]): Tier | null {
   return null
 }
 
-export interface LimitBindings {
+interface LimitBindings {
   AUTH_STRICT?: RateLimit
   AUTH_LOOSE?: RateLimit
 }
 
-// The limiter over the Worker's bindings.
 export function limiterFrom(env: LimitBindings): Limiter {
   return async (tier, key) => {
     const binding = tier === 'strict' ? env.AUTH_STRICT : env.AUTH_LOOSE

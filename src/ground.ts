@@ -14,7 +14,7 @@ import { projectOnSegment } from './coords.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
 
 // A point with its height, as a ribbon's centreline carries it.
-export interface GroundPoint extends XZ {
+interface GroundPoint extends XZ {
   y: number
 }
 

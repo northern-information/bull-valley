@@ -16,7 +16,7 @@ import type { SeasonProgress } from './season.ts'
 // animation runs the same length.
 const BANNER_MS = 5200
 
-export interface Banner {
+interface Banner {
   kicker: string
   headline: string
   detail?: string

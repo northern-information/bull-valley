@@ -14,7 +14,7 @@ export interface Landmark {
   lon: number
 }
 
-export interface LandmarkWorld {
+interface LandmarkWorld {
   n: string
   x: number
   z: number

@@ -166,9 +166,3 @@ export function generateName(rng: Rng): string {
   if (pattern < 0.75) return `${pick(TITLES, rng)} ${pick(SHORT_PLACES, rng)}`
   return `${pick(EPITHETS, rng)} ${pick(GIVEN, rng)} of ${pick(PLACES, rng)}`
 }
-
-// How many distinct names the lists can produce.
-export const NAME_SPACE =
-  PLACES.length * NOUNS.length +
-  TITLES.length * SHORT_PLACES.length +
-  EPITHETS.length * GIVEN.length * PLACES.length

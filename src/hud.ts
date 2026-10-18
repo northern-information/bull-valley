@@ -84,7 +84,7 @@ function geometrieMarkup(): string {
 
 // The floating name over an item, placed by its top in the view: x and y
 // from 0 at the left and top to 1 at the right and bottom.
-export interface ItemLabelView {
+interface ItemLabelView {
   text: string
   dim: boolean
   x: number
@@ -101,7 +101,7 @@ const BEGIN_LABELS = {
   failed: copy('hud.begin_failed'),
 } as const
 
-export type BeginState = keyof typeof BEGIN_LABELS
+type BeginState = keyof typeof BEGIN_LABELS
 
 // The controls table: two bindings a row, key then action; an odd last
 // one gets the whole row.

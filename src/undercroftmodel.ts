@@ -59,7 +59,7 @@ const CROFT_FINISH: Record<CroftFinish, () => THREE.Material> = {
   cloth: () => lambert({ color: '#5a1418' }),
 }
 
-export interface UndercroftRig {
+interface UndercroftRig {
   group: THREE.Group
   // The candles' flicker.
   update(t: number): void
@@ -165,7 +165,7 @@ export function buildUndercroft(): UndercroftRig {
 // The trapdoor in the Video Vault's office floor (stripmall.ts): a dark
 // square in the boards, its hatch thrown back on its hinges. Origin at
 // the floor under the hole's middle; the hatch hinges on its -X edge.
-export const TRAPDOOR = { size: 0.9 }
+const TRAPDOOR = { size: 0.9 }
 
 export function buildTrapdoor(): THREE.Group {
   const group = new THREE.Group()

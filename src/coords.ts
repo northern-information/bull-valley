@@ -96,7 +96,7 @@ export function polygonBounds(poly: readonly UnitPoint[]): Bounds {
 // The closest point on the segment a-b to p: where it is, how far along
 // the segment it sits (t from 0 at a to 1 at b), and the distance to p. A
 // zero-length segment projects onto a.
-export interface SegmentProjection {
+interface SegmentProjection {
   x: number
   y: number
   t: number
@@ -132,11 +132,4 @@ export function pointSegmentDistance(
   by: number
 ): number {
   return projectOnSegment(px, py, ax, ay, bx, by).dist
-}
-
-// Compass bearing of a world-space offset: north (-z) is 0°, east (+x) is 90°.
-export function compassBearing(dx: number, dz: number): number {
-  let deg = (Math.atan2(dx, -dz) * 180) / Math.PI
-  if (deg < 0) deg += 360
-  return deg
 }

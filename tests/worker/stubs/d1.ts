@@ -59,7 +59,7 @@ class Statement {
   }
 }
 
-export interface TestD1 {
+interface TestD1 {
   // The store-facing handle, typed as the Workers runtime's.
   db: D1Database
   // The SQLite underneath, for a test to read or break the rows directly.

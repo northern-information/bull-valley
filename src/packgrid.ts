@@ -14,7 +14,7 @@ export const PACK_TABS = [
   'key-items',
   'materials',
 ] as const
-export type PackTab = (typeof PACK_TABS)[number]
+type PackTab = (typeof PACK_TABS)[number]
 
 // The tabs the pack shows: its own, and at the locker the Locker tab after
 // them (stash.ts), which holds the account's stash.

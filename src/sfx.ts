@@ -43,7 +43,7 @@ export interface Tone {
   pulse?: number
 }
 
-export interface SfxSpec {
+interface SfxSpec {
   // Heard from where it happens (mono, placed against the camera), or in
   // the raider's head (UI and their own body).
   positional: boolean
@@ -208,7 +208,7 @@ export function takeUrls(id: SfxId, takes: number, base = SFX_BASE): string[] {
   return Array.from({ length: takes }, (_, i) => `${base}${id}-${i + 1}.ogg`)
 }
 
-export interface SfxTuning {
+interface SfxTuning {
   // The loudness at the setting's top, 100%.
   volume: number
 }
@@ -299,7 +299,7 @@ export interface Hold {
   gain: number
 }
 
-export interface CueTuning {
+interface CueTuning {
   // Nothing further from the raider than this, in metres, is heard.
   hearing: number
   // At most this many spiderlings skitter at once, the nearest.

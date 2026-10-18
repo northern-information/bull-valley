@@ -15,7 +15,7 @@ import type * as THREE from 'three'
 
 // Where the body stands this frame. ground: the y the feet stand on. yaw:
 // the player's yaw (0 faces -Z).
-export interface PlayerBodyFrame {
+interface PlayerBodyFrame {
   x: number
   ground: number
   z: number

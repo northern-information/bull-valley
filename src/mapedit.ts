@@ -30,7 +30,7 @@ export type LayerId =
 // a closed area, or a single point. Water is either, feature by feature.
 export type Shape = 'line' | 'area' | 'point'
 
-export interface LayerSpec {
+interface LayerSpec {
   id: LayerId
   label: string
   // The shape of a new feature drawn on this layer.
@@ -56,7 +56,7 @@ export const ROAD_CLASSES: readonly RoadClass[] = [
   'unclassified',
 ]
 
-export type Feature = Road | Water | Ring | Reserve | Graveyard | FuelStation
+type Feature = Road | Water | Ring | Reserve | Graveyard | FuelStation
 
 export interface FeatureRef {
   layer: LayerId
@@ -254,7 +254,7 @@ export function addFeature(geo: Geo, layer: LayerId, f: Feature): Patch {
   }
 }
 
-export interface FeatureProps {
+interface FeatureProps {
   n?: string
   c?: RoadClass
   k?: Water['k']

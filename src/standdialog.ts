@@ -31,7 +31,7 @@ import { formatCash } from './store.ts'
 import type { Inventory } from './interfaces.ts'
 import type { StandLedger, StandPrice } from './stand.ts'
 
-export interface StandDialogOptions {
+interface StandDialogOptions {
   // The goods that go out on the table (CONFIG.stand.goods).
   goods: readonly string[]
   // Read again every tick: the ledger (null when the valley is gone), the

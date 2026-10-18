@@ -8,17 +8,16 @@ import { clamp01 } from './math.ts'
 export const MUSIC_URL =
   'https://assets.the-rn.info/bull-valley/bull-valley-scaduscope/01-bull-valley-scaduscope.mp3'
 
-export interface MusicTuning {
+interface MusicTuning {
   // The element's volume at the setting's top, 100%.
   volume: number
   // Seconds the music takes to come up from silence when it starts.
   fadeInSeconds: number
 }
 
-export interface MusicFrame {
+interface MusicFrame {
   // The raider's music setting, in percent (settings.ts).
   setting: number
-  // Seconds since the music started.
   playedSeconds: number
 }
 

@@ -25,7 +25,6 @@ import type { AloneFrame } from './shadowcards.ts'
 // The player's id when they play alone.
 const ALONE = 'me'
 
-// How long a lunge plays, in seconds.
 const LUNGE_SECONDS = 0.35
 
 interface Frame {
@@ -33,7 +32,7 @@ interface Frame {
   caretaker: CaretakerWire | null
 }
 
-export interface CaretakerShadeOptions {
+interface CaretakerShadeOptions {
   scene: THREE.Object3D
   groundAt: HeightAt
   // Where the corn maze lies; null without one, and then there is no
@@ -41,7 +40,7 @@ export interface CaretakerShadeOptions {
   place: MazePlace | null
 }
 
-export interface CaretakerShadeFrame {
+interface CaretakerShadeFrame {
   dt: number
   // A running time for its drift and its lantern.
   time: number
@@ -51,7 +50,7 @@ export interface CaretakerShadeFrame {
   renderAt: number
 }
 
-export interface CaretakerShadeUpdate {
+interface CaretakerShadeUpdate {
   // It caught the player, played alone; in the shared valley a struck
   // frame says so.
   struck: boolean

@@ -219,7 +219,7 @@ function buildShelfItem(kind: string): THREE.Object3D {
 
 // A unit on the shelves: which facing (an index into
 // STORE_LAYOUT.facings) and which of its slots.
-export interface ShelfSlot {
+interface ShelfSlot {
   facing: number
   unit: number
   object: THREE.Object3D
@@ -331,7 +331,6 @@ function makePumpFaceTexture(): THREE.CanvasTexture {
   // The readout, dark glass, off.
   ctx.fillStyle = '#12171b'
   ctx.fillRect(8, 28, w - 16, 22)
-  // Grade buttons.
   const grades = ['87', '89', '93']
   grades.forEach((grade, i) => {
     const x = 7 + i * 26

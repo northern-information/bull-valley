@@ -86,7 +86,7 @@ export async function signIn(
   return raider
 }
 
-export interface BeginOptions {
+interface BeginOptions {
   // The valley (Durable Object) to join. Specs run in parallel against one
   // dev server, so each page gets a valley of its own unless a spec wants
   // two pages to meet.
