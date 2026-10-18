@@ -13,7 +13,10 @@ import type { Page } from '@playwright/test'
 // Rule 14: one raider sets an item down out of the pack, everyone sees it
 // lie there, and another takes it up with E. Shift drops the whole stack.
 
-const drops = (page: Page) => page.evaluate(() => window.__bv?.drops ?? [])
+// Only what a raider set down: a crossing shadowman burnt in Marx's
+// headlights spills dimes of the valley's own, which the spec leaves out.
+const drops = (page: Page) =>
+  page.evaluate(() => (window.__bv?.drops ?? []).filter((d) => !d.spilled))
 const held = (page: Page, kind: string) =>
   page.evaluate((k) => window.__bv?.inventory[k] ?? 0, kind)
 
