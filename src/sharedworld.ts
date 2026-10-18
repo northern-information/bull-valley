@@ -918,969 +918,1111 @@ export function reduce(
   return { ...r, broadcast, ...(xp.length > 0 ? { xp } : {}) }
 }
 
+// One valley action, by its type; each handler below acts on its own.
+type ActionOf<T extends ValleyAction['type']> = Extract<
+  ValleyAction,
+  { type: T }
+>
+
 function act(
   valley: Valley,
   action: ValleyAction,
-  { now, present, cash, holdings, stand, quest }: ValleyContext
+  context: ValleyContext
 ): Reduced {
   switch (action.type) {
-    case 'join': {
-      // Members whose sockets are gone without a word are dropped first.
-      const members: Record<string, Member> = {}
-      for (const m of Object.values(valley.members)) {
-        if (present.includes(m.id)) members[m.id] = m
-      }
-      let world = valley.world
-      // Rule 1.
-      if (!world) {
-        world = {
-          version: PROTOCOL_VERSION,
-          day: dayKey(now),
-          taken: [],
-          shelves: freshStock(action.stations),
-          drops: [],
-          nextDrop: 0,
-          graves: [],
-          nextGrave: 0,
-          truck: createTruck(now),
-          pickups: action.pickups,
-          stations: action.stations,
-          havens: action.havens,
-          metres: action.metres,
-          water: action.water,
-          maze: action.maze,
-          routes: action.routes,
-          stand: action.stand,
-          bushes: action.bushes,
-          dealer: action.dealer,
-          dealerStock: freshDealerStock(),
-          undercroft: action.undercroft,
-          rings: action.rings,
-          portals: [],
-          nextPortal: 0,
-        }
-      } else if (
-        !samePickups(world.pickups, action.pickups) ||
-        world.stations !== action.stations
-      ) {
-        return done(valley, now, { broadcast: [], reject: 'stale-build' })
-      }
-      // Rule 3: dropped riders leave the bed; Marx comes home from his
-      // donuts for the new arrival.
-      let truck = world.truck
-      for (const id of truck.riders) {
-        if (!members[id]) truck = leave(truck, id, now)
-      }
-      truck = arrive(truck, now)
-      members[action.id] = {
-        id: action.id,
-        account: action.account,
-        name: action.name,
-        outfit: action.outfit,
-      }
-      const next: Valley = { ...valley, members, world: { ...world, truck } }
-      return done(next, now, {
-        broadcast: [frame(next, 'joined', { by: action.id })],
-      })
-    }
-
-    case 'leave': {
-      const member = valley.members[action.id]
-      if (!member) return done(valley, now, { broadcast: [] })
-      const members = { ...valley.members }
-      delete members[action.id]
-      let next: Valley = { ...valley, members }
-      const world = next.world
-      // Rule 2: where they stood on foot is where they come back.
-      const at = action.at
-      if (at && !at.riding && !(world && isAboard(world.truck, action.id))) {
-        next = {
-          ...next,
-          places: {
-            ...next.places,
-            [member.account]: { x: at.x, z: at.z, yaw: at.yaw },
-          },
-        }
-      }
-      if (!world) return done(next, now, { broadcast: [] })
-      next = withTruck(next, world, leave(world.truck, action.id, now))
-      return done(next, now, {
-        broadcast: [frame(next, 'left', { by: action.id })],
-      })
-    }
-
+    case 'join':
+      return onJoin(valley, action, context)
+    case 'leave':
+      return onLeave(valley, action, context)
     case 'board':
     case 'hop-out':
-    case 'call': {
-      const world = valley.world
-      const re = action.type
-      if (!valley.members[action.id] || !world) {
-        return done(valley, now, {
-          broadcast: [],
-          reply: nack(re, 'not-in-valley'),
-        })
-      }
-      // Where the bed is to climb into: parked at home, or come to a
-      // whistle; and a whistle only from where the valley heard the
-      // whistler stand.
-      if (action.type === 'board' || action.type === 'call') {
-        const leg = world.truck.leg
-        const target =
-          action.type === 'call'
-            ? action.at
-            : leg.kind === 'called'
-              ? leg.to
-              : world.routes.home
-        const far = target
-          ? tooFar(action.at, target, CONFIG.valleyReach.truck)
-          : 'no-position'
-        if (far) {
-          return done(valley, now, { broadcast: [], reply: nack(re, far) })
-        }
-      }
-      // Rule 3.
-      const truck =
-        action.type === 'board'
-          ? board(world.truck, action.id, now)
-          : action.type === 'hop-out'
-            ? hopOut(world.truck, action.id)
-            : call(
-                world.truck,
-                action.id,
-                tooFar(
-                  action.from,
-                  world.routes.home,
-                  CONFIG.valleyReach.callFrom
-                )
-                  ? world.routes.home
-                  : action.from,
-                action.at ?? world.routes.home,
-                now
-              )
-      if (refused(truck)) {
-        return done(valley, now, {
-          broadcast: [],
-          reply: nack(re, truck.refused),
-        })
-      }
-      const next = withTruck(valley, world, truck)
-      const reason: WorldReason =
-        action.type === 'board'
-          ? truck.leg.kind === 'ferry'
-            ? 'ferry'
-            : 'boarded'
-          : action.type === 'hop-out'
-            ? 'hopped-out'
-            : 'called'
-      return done(next, now, {
-        broadcast: [frame(next, reason, { by: action.id })],
-      })
-    }
-
-    case 'take': {
-      const member = valley.members[action.id]
-      const world = valley.world
-      if (!member || !world) {
-        return done(valley, now, {
-          broadcast: [],
-          reply: nack('take', 'not-in-valley', action.index),
-        })
-      }
-      const spec = world.pickups[action.index] as PickupSpec | undefined
-      if (!spec) {
-        return done(valley, now, {
-          broadcast: [],
-          reply: nack('take', 'no-such-pickup', action.index),
-        })
-      }
-      // Rule 4.
-      if (world.taken.includes(action.index)) {
-        return done(valley, now, {
-          broadcast: [],
-          reply: nack('take', 'gone', action.index),
-        })
-      }
-      // Within reach, and in its room when it lies behind walls.
-      const far =
-        tooFar(action.at, spec, CONFIG.valleyReach.item) ??
-        (spec.within &&
-        action.at &&
-        !insideRing(action.at.x, action.at.z, spec.within)
-          ? 'too-far'
-          : null)
-      if (far) {
-        return done(valley, now, {
-          broadcast: [],
-          reply: nack('take', far, action.index),
-        })
-      }
-      const next = withWorld(valley, {
-        ...world,
-        taken: [...world.taken, action.index],
-      })
-      const reduced = done(next, now, {
-        broadcast: [
-          frame(next, 'taken', { by: action.id, index: action.index }),
-        ],
-        // Rule 22.
-        xp: [{ account: member.account, source: 'pickup' }],
-      })
-      // Rule 10; cash (the plaza's quarters, its $20) into the wallet, as
-      // a drop of it taken up is (rule 11).
-      if (isCash(spec.kind) && spec.count > 0) {
-        reduced.earn = {
-          account: member.account,
-          amount: spec.count * centsOf(spec.kind),
-        }
-      } else if (isPackKind(spec.kind) && spec.count > 0) {
-        reduced.pack = {
-          account: member.account,
-          kind: spec.kind,
-          delta: spec.count,
-        }
-      }
-      return reduced
-    }
-
-    case 'buy': {
-      const member = valley.members[action.id]
-      const world = valley.world
-      const { station, kind, unit } = action
-      const refuse = (reason: string): Reduced =>
-        done(valley, now, {
-          broadcast: [],
-          reply: { type: 'nack', re: 'buy', reason, station, item: kind },
-        })
-      if (!member || !world) return refuse('not-in-valley')
-      const shelf = world.shelves[station] as ShopStock | undefined
-      const price = itemById(kind)?.price
-      if (!shelf || !Object.hasOwn(shelf, kind) || price === undefined) {
-        return refuse('no-such-shelf')
-      }
-      // Rule 7.
-      if (!onShelf(shelf, kind, unit)) return refuse('sold-out')
-      const haven = world.havens[station] as XZ | undefined
-      const far = haven && tooFar(action.at, haven, CONFIG.stash.stationReach)
-      if (far) return refuse(far)
-      if (cash === undefined || cash < price) return refuse('short')
-      const shelves = world.shelves.map((s, i) =>
-        i === station ? takeUnit(s, kind, unit) : s
-      )
-      const next = withWorld(valley, { ...world, shelves })
-      const reduced = done(next, now, {
-        broadcast: [
-          frame(next, 'bought', { by: action.id, station, item: kind }),
-        ],
-        spend: { account: member.account, amount: price },
-        // Rule 22.
-        xp: [{ account: member.account, source: 'purchase' }],
-      })
-      // Rule 10.
-      if (isPackKind(kind)) {
-        reduced.pack = {
-          account: member.account,
-          kind,
-          delta: contentsOf(kind),
-        }
-      }
-      return reduced
-    }
-
-    case 'quest': {
-      const member = valley.members[action.id]
-      const world = valley.world
-      const refuse = (reason: string): Reduced =>
-        done(valley, now, {
-          broadcast: [],
-          reply: { type: 'nack', re: 'quest', reason },
-        })
-      if (!member || !world) return refuse('not-in-valley')
-      if (!isQuest(action.quest)) return refuse('no-such-quest')
-      if (!quest) return refuse('unavailable')
-      // Rule 26.
-      if (world.truck.riders.includes(action.id)) return refuse('aboard')
-      const heart = world.maze
-        ? mazeToWorld(world.maze, heartPoint(theMaze()))
-        : null
-      const step = questStep(
-        QUESTS[action.quest],
-        quest.stage,
-        action.step,
-        quest.pack,
-        {
-          atDealer: atDealer(action.at, world.dealer),
-          atHeart: atHeart(action.at, heart),
-        }
-      )
-      if (!step.ok) return refuse(step.reason)
-      return done(valley, now, {
-        broadcast: [],
-        quest: {
-          account: member.account,
-          quest: action.quest,
-          step: action.step,
-          from: quest.stage,
-          to: step.stage,
-          change: step.change,
-        },
-        // Rule 22.
-        ...(step.stage === 'done'
-          ? { xp: [{ account: member.account, source: 'quest' as const }] }
-          : {}),
-      })
-    }
-
-    case 'deal': {
-      const member = valley.members[action.id]
-      const world = valley.world
-      const { kind } = action
-      const refuse = (reason: string): Reduced =>
-        done(valley, now, {
-          broadcast: [],
-          reply: { type: 'nack', re: 'deal', reason, item: kind },
-        })
-      if (!member || !world) return refuse('not-in-valley')
-      // Rule 25.
-      if (!world.dealer) return refuse('no-dealer')
-      if (!atDealer(action.at, world.dealer)) return refuse('too-far')
-      if (world.truck.riders.includes(action.id)) return refuse('aboard')
-      const sale = deal(
-        world.dealerStock,
-        kind,
-        action.pay,
-        holdings?.pack ?? {}
-      )
-      if (!sale.ok) return refuse(sale.reason)
-      const next = withWorld(valley, { ...world, dealerStock: sale.stock })
-      return done(next, now, {
-        broadcast: [frame(next, 'dealt', { by: action.id, item: kind })],
-        // Rule 10.
-        barter: {
-          account: member.account,
-          give: sale.give,
-          take: { kind, count: sale.units },
-        },
-        // Rule 22.
-        xp: [{ account: member.account, source: 'purchase' }],
-      })
-    }
-
-    case 'collect': {
-      const member = valley.members[action.id]
-      const world = valley.world
-      if (!member || !world) {
-        return done(valley, now, {
-          broadcast: [],
-          reply: nack('collect', 'not-in-valley'),
-        })
-      }
-      // Rule 8.
-      const { bush } = action
-      const spot = world.bushes[bush] as XZ | undefined
-      if (!Number.isInteger(bush) || bush < 0 || bush >= BUSHES || !spot) {
-        return done(valley, now, {
-          broadcast: [],
-          reply: nack('collect', 'no-such-bush'),
-        })
-      }
-      const far = tooFar(action.at, spot, CONFIG.valleyReach.item)
-      if (far) {
-        return done(valley, now, { broadcast: [], reply: nack('collect', far) })
-      }
-      const daily = dailyFor(valley, member.account, now)
-      if (daily.collected.includes(bush)) {
-        return done(valley, now, {
-          broadcast: [],
-          daily: { type: 'daily', bush, daily, picked: false },
-        })
-      }
-      const today = dayKey(now)
-      const dailies: Record<string, string> = {}
-      for (const [key, day] of Object.entries(valley.dailies)) {
-        if (day === today) dailies[key] = day
-      }
-      dailies[bushKey(member.account, bush)] = today
-      const next: Valley = { ...valley, dailies }
-      return done(next, now, {
-        broadcast: [],
-        daily: {
-          type: 'daily',
-          bush,
-          daily: dailyFor(next, member.account, now),
-          picked: true,
-        },
-        // Rule 10.
-        pack: { account: member.account, kind: 'berries', delta: 1 },
-        // Rule 22.
-        xp: [{ account: member.account, source: 'berry' }],
-      })
-    }
-
-    case 'use': {
-      // Rule 10. Whether the pack holds one is the valley's to check.
-      const member = valley.members[action.id]
-      if (!member) {
-        return done(valley, now, {
-          broadcast: [],
-          reply: nack('use', 'not-in-valley'),
-        })
-      }
-      if (!isPackKind(action.kind)) {
-        return done(valley, now, {
-          broadcast: [],
-          reply: nack('use', 'not-an-item'),
-        })
-      }
-      return done(valley, now, {
-        broadcast: [],
-        pack: { account: member.account, kind: action.kind, delta: -1 },
-      })
-    }
-
-    case 'drop': {
-      // Rule 12.
-      const member = valley.members[action.id]
-      const world = valley.world
-      const { kind, count } = action
-      const refuse = (reason: string): Reduced =>
-        done(valley, now, {
-          broadcast: [],
-          reply: { type: 'nack', re: 'drop', reason },
-        })
-      if (!member || !world) return refuse('not-in-valley')
-      // Nothing goes over the side of the truck, moving or parked.
-      if (isAboard(world.truck, action.id)) return refuse('aboard')
-      if (!action.at) return refuse('no-position')
-      if (!isPackKind(kind)) return refuse('not-an-item')
-      // A key item is never set down (items.ts isKeyItem).
-      if (isKeyItem(kind)) return refuse('key-item')
-      if (count < 1) return refuse('nothing')
-      const id = world.nextDrop
-      const drop: Drop = { id, kind, count, ...dropSpot(action.at, id) }
-      const next = withWorld(valley, {
-        ...world,
-        drops: [...world.drops, drop],
-        nextDrop: id + 1,
-      })
-      return done(next, now, {
-        broadcast: [
-          frame(next, 'dropped', {
-            by: action.id,
-            item: kind,
-            drop: id,
-            count,
-          }),
-        ],
-        // Rule 10: out of the pack first; the valley lets the drop stand
-        // only once the pack has given it up.
-        pack: { account: member.account, kind, delta: -count },
-      })
-    }
-
-    case 'take-drop': {
-      // Rule 12: first to ask wins.
-      const member = valley.members[action.id]
-      const world = valley.world
-      const refuse = (reason: string): Reduced =>
-        done(valley, now, {
-          broadcast: [],
-          reply: { type: 'nack', re: 'take-drop', reason, drop: action.drop },
-        })
-      if (!member || !world) return refuse('not-in-valley')
-      const drop = world.drops.find((d) => d.id === action.drop)
-      if (!drop) return refuse('gone')
-      const far = tooFar(action.at, drop, CONFIG.valleyReach.item)
-      if (far) return refuse(far)
-      const { taken } = takeUp(drop, Infinity)
-      const next = withWorld(valley, {
-        ...world,
-        drops: world.drops.filter((d) => d.id !== drop.id),
-      })
-      const account = member.account
-      return done(next, now, {
-        broadcast: [
-          frame(next, 'drop-taken', {
-            by: action.id,
-            item: drop.kind,
-            drop: drop.id,
-            count: taken,
-          }),
-        ],
-        // Rule 11: dimes and a spider's $20 are cash; rule 10: anything
-        // else, the pack.
-        ...(isCash(drop.kind)
-          ? { earn: { account, amount: taken * centsOf(drop.kind) } }
-          : { pack: { account, kind: drop.kind, delta: taken } }),
-        // Rule 22: only what the valley left, never a raider's own drop.
-        ...(drop.spilled ? { xp: [{ account, source: 'drop' as const }] } : {}),
-      })
-    }
-
-    case 'spill': {
-      // Rules 11 and 13: each burst leaves its dimes lying where it was,
-      // and the Caretaker burned its gold bullion. Only cash or an item.
-      // Rule 17: each burst shadowman its tombstone.
-      const world = valley.world
-      const spills = action.spills.filter(
-        (one) => one.count > 0 && (isCash(one.kind) || isPackKind(one.kind))
-      )
-      const buried = world
-        ? bury(world.graves, world.nextGrave, action.burials ?? [])
-        : null
-      if (
-        !world ||
-        !buried ||
-        (spills.length === 0 && buried.next === world.nextGrave)
-      ) {
-        return done(valley, now, { broadcast: [] })
-      }
-      const spilled: Drop[] = spills.map(({ x, z, kind, count }, i) => ({
-        id: world.nextDrop + i,
-        kind,
-        count,
-        x,
-        z,
-        spilled: true,
-      }))
-      // The oldest of what the valley spilled goes past the cap; what a
-      // raider dropped lies.
-      let drops = [...world.drops, ...spilled]
-      let over = drops.filter((d) => d.spilled).length - CONFIG.drops.spilledMax
-      if (over > 0) {
-        drops = drops.filter((d) => !(d.spilled && over-- > 0))
-      }
-      const next = withWorld(valley, {
-        ...world,
-        drops,
-        nextDrop: world.nextDrop + spilled.length,
-        graves: buried.graves,
-        nextGrave: buried.next,
-      })
-      return done(next, now, { broadcast: [frame(next, 'spilled')] })
-    }
-
-    case 'fall': {
-      // Rule 18. A body only where the valley heard the raider stand, and
-      // only with something on it.
-      const member = valley.members[action.id]
-      if (!member || !action.at || isEmpty(action.items)) {
-        return done(valley, now, { broadcast: [] })
-      }
-      const id = valley.nextCorpse
-      const { x, z, yaw } = action.at
-      // One body an account: what an earlier one still held is carried
-      // onto this one, so nothing is lost and nothing lies forever.
-      const items = { ...action.items }
-      for (const old of valley.corpses) {
-        if (old.account !== member.account) continue
-        for (const [kind, count] of Object.entries(old.items)) {
-          items[kind] = (items[kind] ?? 0) + count
-        }
-      }
-      const next: Valley = {
-        ...valley,
-        corpses: [
-          ...valley.corpses.filter((c) => c.account !== member.account),
-          {
-            id,
-            x,
-            z,
-            yaw,
-            name: member.name,
-            outfit: member.outfit,
-            items,
-            account: member.account,
-          },
-        ],
-        nextCorpse: id + 1,
-      }
-      return done(next, now, {
-        broadcast: next.world
-          ? [frame(next, 'fell', { by: action.id, corpse: id })]
-          : [],
-        corpse: id,
-      })
-    }
-
-    case 'hit': {
-      // Rule 24.
-      const member = valley.members[action.id]
-      if (!member) return done(valley, now, { broadcast: [] })
-      const { account } = member
-      const before = healthOf(valley.health, account)
-      const levels = geometrieFor(valley, account, now)
-      if (action.roll !== undefined && shrugs(levels, action.roll)) {
-        return done(valley, now, {
-          broadcast: [],
-          health: { account, points: before, shrugged: true },
-        })
-      }
-      const { points, fatal } = hit(before)
-      const next: Valley = {
-        ...valley,
-        health: withHealth(valley.health, account, fatal ? MAX_HEALTH : points),
-        // A shattering leaves the raider sober.
-        geometrie: fatal
-          ? sobered(valley.geometrie, account)
-          : valley.geometrie,
-      }
-      return done(next, now, {
-        broadcast: [],
-        health: fatal ? { account, points, fatal } : { account, points },
-        ...(fatal
-          ? {
-              geometrie: [
-                { account, levels: geometrieFor(next, account, now) },
-              ],
-            }
-          : {}),
-      })
-    }
-
-    case 'pass': {
-      // Rule 27: to another account's raider on foot, both where their
-      // last state frames put them, close enough to hand it over.
-      const member = valley.members[action.id]
-      const taker = valley.members[action.to]
-      const refuse = (reason: string) =>
-        done(valley, now, { broadcast: [], reply: nack('pass', reason) })
-      if (!member) return refuse('not-in-valley')
-      if (!isPackKind(action.kind) || !isUsable(action.kind)) {
-        return refuse('not-an-item')
-      }
-      if (!taker || taker.account === member.account) return refuse('no-one')
-      const truck = valley.world?.truck
-      const onFoot = (id: string, at: Spot | null) =>
-        at !== null && !at.riding && !(truck && isAboard(truck, id))
-      if (!onFoot(action.id, action.from) || !onFoot(action.to, action.at)) {
-        return refuse('not-on-foot')
-      }
-      if (!inPassReach(action.from!, action.at!)) return refuse('too-far')
-      return done(valley, now, {
-        broadcast: [],
-        pack: { account: member.account, kind: action.kind, delta: -1 },
-        passed: { to: action.to, account: taker.account, kind: action.kind },
-      })
-    }
-
-    case 'dose': {
-      // Rule 27: the unit is out of the pack. A use doses the user; a
-      // pass doses the taker in full, the giver their share, and earns
-      // the giver XP for sharing.
-      const member = valley.members[action.id]
-      if (!member) return done(valley, now, { broadcast: [] })
-      const amounts = doseOf(action.kind)
-      const time = now / 1000
-      const taker = action.to === undefined ? null : valley.members[action.to]
-      if (action.to !== undefined && !taker) {
-        return done(valley, now, { broadcast: [] })
-      }
-      let record = valley.geometrie
-      const changed = [member.account]
-      if (taker) {
-        record = dosed(record, taker.account, amounts, time)
-        record = dosed(
-          record,
-          member.account,
-          scaled(amounts, CONFIG.buffs.shareScale),
-          time
-        )
-        changed.unshift(taker.account)
-      } else {
-        record = dosed(record, member.account, amounts, time)
-      }
-      const next = { ...valley, geometrie: record }
-      return done(next, now, {
-        broadcast: [],
-        geometrie: changed.map((account) => ({
-          account,
-          levels: geometrieFor(next, account, now),
-        })),
-        ...(taker
-          ? {
-              xp: [{ account: member.account, source: 'share' as const }],
-            }
-          : {}),
-      })
-    }
-
-    case 'mend': {
-      // Rule 24: a forecourt makes whole; medicine gives its points back.
-      const member = valley.members[action.id]
-      if (!member) return done(valley, now, { broadcast: [] })
-      const { account } = member
-      const before = healthOf(valley.health, account)
-      if (isWhole(before)) return done(valley, now, { broadcast: [] })
-      const points =
-        action.by === undefined ? MAX_HEALTH : mend(before, action.by)
-      return done(
-        { ...valley, health: withHealth(valley.health, account, points) },
-        now,
-        { broadcast: [], health: { account, points } }
-      )
-    }
-
-    case 'set-health': {
-      const member = valley.members[action.id]
-      if (!member) return done(valley, now, { broadcast: [] })
-      const { account } = member
-      const points = mend(0, action.points)
-      return done(
-        { ...valley, health: withHealth(valley.health, account, points) },
-        now,
-        { broadcast: [], health: { account, points } }
-      )
-    }
-
-    case 'loot': {
-      // Rule 18: the account that fell, and no one else.
-      const member = valley.members[action.id]
-      const refuse = (reason: string): Reduced =>
-        done(valley, now, {
-          broadcast: [],
-          reply: { type: 'nack', re: 'loot', reason, corpse: action.corpse },
-        })
-      if (!member || !valley.world) return refuse('not-in-valley')
-      const corpse = valley.corpses.find((c) => c.id === action.corpse)
-      if (!corpse) return refuse('gone')
-      if (corpse.account !== member.account) return refuse('not-yours')
-      if (isAboard(valley.world.truck, action.id)) return refuse('aboard')
-      const far = tooFar(action.at, corpse, CONFIG.valleyReach.item)
-      if (far) return refuse(far)
-      const next: Valley = {
-        ...valley,
-        corpses: valley.corpses.filter((c) => c.id !== corpse.id),
-      }
-      return done(next, now, {
-        broadcast: [
-          frame(next, 'looted', { by: action.id, corpse: corpse.id }),
-        ],
-        give: { account: member.account, items: { ...corpse.items } },
-      })
-    }
-
+    case 'call':
+      return onTruck(valley, action, context)
+    case 'take':
+      return onTake(valley, action, context)
+    case 'buy':
+      return onBuy(valley, action, context)
+    case 'quest':
+      return onQuest(valley, action, context)
+    case 'deal':
+      return onDeal(valley, action, context)
+    case 'collect':
+      return onCollect(valley, action, context)
+    case 'use':
+      return onUse(valley, action, context)
+    case 'drop':
+      return onDrop(valley, action, context)
+    case 'take-drop':
+      return onTakeDrop(valley, action, context)
+    case 'spill':
+      return onSpill(valley, action, context)
+    case 'fall':
+      return onFall(valley, action, context)
+    case 'hit':
+      return onHit(valley, action, context)
+    case 'pass':
+      return onPass(valley, action, context)
+    case 'dose':
+      return onDose(valley, action, context)
+    case 'mend':
+      return onMend(valley, action, context)
+    case 'set-health':
+      return onSetHealth(valley, action, context)
+    case 'loot':
+      return onLoot(valley, action, context)
     case 'stow':
-    case 'unstow': {
-      // Rule 19.
-      const member = valley.members[action.id]
-      const world = valley.world
-      const re = action.type
-      const refuse = (reason: string): Reduced =>
-        done(valley, now, { broadcast: [], reply: nack(re, reason) })
-      if (!member || !world) return refuse('not-in-valley')
-      if (isAboard(world.truck, action.id)) return refuse('aboard')
-      if (!atLocker(action.at, world.havens)) return refuse('no-locker')
-      if (!isPackKind(action.kind)) return refuse('not-an-item')
-      if (action.count < 1) return refuse('nothing')
-      return done(valley, now, {
-        broadcast: [],
-        stash: {
-          account: member.account,
-          kind: action.kind,
-          delta: re === 'stow' ? action.count : -action.count,
-        },
-      })
-    }
-
+    case 'unstow':
+      return onStash(valley, action, context)
     case 'stand-stock':
     case 'stand-collect':
-    case 'stand-upgrade': {
-      // Rule 23.
-      const member = valley.members[action.id]
-      const world = valley.world
-      const re = action.type
-      const refuse = (reason: string): Reduced =>
-        done(valley, now, { broadcast: [], reply: nack(re, reason) })
-      if (!member || !world) return refuse('not-in-valley')
-      if (isAboard(world.truck, action.id)) return refuse('aboard')
-      if (!atStand(action.at, world.stand)) return refuse('no-stand')
-      if (!stand) return refuse('unavailable')
-      const { ledger, pack } = stand
-      const tended = (
-        change: Omit<StandChange, 'account' | 're'>,
-        xp?: XpGrant[]
-      ): Reduced =>
-        done(valley, now, {
-          broadcast: [],
-          ...(xp ? { xp } : {}),
-          stand: {
-            account: member.account,
-            re:
-              re === 'stand-stock'
-                ? 'stock'
-                : re === 'stand-collect'
-                  ? 'collect'
-                  : 'upgrade',
-            ...change,
-          },
-        })
-      if (action.type === 'stand-stock') {
-        const { kind, count } = action
-        if ((pack[kind] || 0) < count) return refuse('none-left')
-        const next = stockStand(ledger, kind, count, now)
-        if (!next) return refuse('no-room')
-        return tended({ ledger: next, items: { [kind]: count }, cash: 0 })
-      }
-      if (action.type === 'stand-collect') {
-        const got = collectStand(ledger, now)
-        if (!got) return refuse('empty')
-        // Rule 22: the stand's XP, by the cents it paid.
-        const times = standXp(got.cents)
-        return tended(
-          { ledger: got.ledger, items: {}, cash: got.cents },
-          times > 0
-            ? [{ account: member.account, source: 'stand', times }]
-            : undefined
-        )
-      }
-      const price = upgradePrice(ledger)
-      const next = upgradeStand(ledger, now)
-      if (!price || !next) return refuse('top')
-      if (!affordsUpgrade(ledger, stand.cash, pack)) return refuse('short')
-      return tended({
-        ledger: next,
-        items: { ...price.items },
-        cash: -price.cash,
-      })
-    }
-
-    case 'trade': {
-      // Rule 14.
-      const member = valley.members[action.id]
-      const refuse = (reason: string): Reduced =>
-        done(valley, now, {
-          broadcast: [],
-          reply: nack('trade', reason),
-        })
-      if (!member) return refuse('not-in-valley')
-      const offer = MOAB_OFFERS.find((id) => id === action.offer)
-      const cosmetic = offer ? cosmeticById(offer) : null
-      if (!offer || !cosmetic) return refuse('no-such-offer')
-      if (!holdings) return refuse('unavailable')
-      if (holdings.cosmetics.includes(offer)) return refuse('owned')
-      if (!affords(holdings.pack, offer)) return refuse('short')
-      return done(valley, now, {
-        broadcast: [],
-        trade: {
-          account: member.account,
-          cosmetic: offer,
-          price: { ...cosmetic.price },
-        },
-      })
-    }
-
-    case 'appearance': {
-      // Rule 9. The world frames carry no outfit, so the change goes out
-      // to the others as a peer-updated frame (ValleyDO), not as a world
-      // frame.
-      const member = valley.members[action.id]
-      if (!member) return done(valley, now, { broadcast: [] })
-      const next: Valley = {
-        ...valley,
-        members: {
-          ...valley.members,
-          [member.id]: {
-            ...member,
-            name: action.name ?? member.name,
-            outfit: action.outfit ?? member.outfit,
-          },
-        },
-      }
-      return done(next, now, { broadcast: [] })
-    }
-
-    case 'visit': {
-      // Rule 28.
-      const member = valley.members[action.id]
-      const world = valley.world
-      if (!member || !world) return done(valley, now, { broadcast: [] })
-      if (!Number.isInteger(action.station)) {
-        return done(valley, now, { broadcast: [] })
-      }
-      if (action.station < 0 || action.station >= world.stations) {
-        return done(valley, now, { broadcast: [] })
-      }
-      const { account } = member
-      const before = citgosFor(valley, account)
-      const log = visit(before, action.station)
-      if (log === before) return done(valley, now, { broadcast: [] })
-      return done(
-        { ...valley, citgos: { ...valley.citgos, [account]: log } },
-        now,
-        { broadcast: [], citgos: { account, log } }
-      )
-    }
-
-    case 'open-portal': {
-      // Rule 28.
-      const member = valley.members[action.id]
-      const world = valley.world
-      const refuse = (reason: string): Reduced =>
-        done(valley, now, { broadcast: [], reply: nack('portal', reason) })
-      if (!member || !world) return refuse('not-in-valley')
-      if (isAboard(world.truck, action.id)) return refuse('aboard')
-      if (!action.at) return refuse('no-position')
-      const station = citgosFor(valley, member.account).last
-      const ring = station === null ? undefined : world.rings[station]
-      if (station === null || !ring) return refuse('no-citgo')
-      if (citgoAt(action.at, [world.havens[station]]) !== null) {
-        return refuse('at-citgo')
-      }
-      // One an account: its last closes as this one opens.
-      const others = world.portals.filter((p) => p.account !== member.account)
-      const slot = freeSlot(others, station)
-      if (slot === null) return refuse('busy')
-      const id = world.nextPortal
-      const portal: ValleyPortal = {
-        id,
-        name: member.name,
-        field: fieldEnd(action.at),
-        citgo: ringEnd(ring, slot),
-        station,
-        slot,
-        closes: now + CONFIG.portal.lifeSeconds * 1000,
-        account: member.account,
-      }
-      const next = withWorld(valley, {
-        ...world,
-        portals: [...others, portal],
-        nextPortal: id + 1,
-      })
-      return done(next, now, {
-        broadcast: [
-          frame(next, 'portal-opened', { by: action.id, portal: id }),
-        ],
-      })
-    }
-
+    case 'stand-upgrade':
+      return onStand(valley, action, context)
+    case 'trade':
+      return onTrade(valley, action, context)
+    case 'appearance':
+      return onAppearance(valley, action, context)
+    case 'visit':
+      return onVisit(valley, action, context)
+    case 'open-portal':
+      return onOpenPortal(valley, action, context)
     case 'clock':
-      return done(valley, now, { broadcast: [] })
+      return done(valley, context.now, { broadcast: [] })
+    case 'hurry':
+      return onHurry(valley, action, context)
+    case 'reset':
+      return onReset(valley, context)
+  }
+}
 
-    case 'hurry': {
-      const world = valley.world
-      if (!world) {
-        return done(valley, now, {
-          broadcast: [],
-          reply: nack('dev', 'no-world'),
-        })
-      }
-      const truck = hurry(world.truck, now, action.seconds, world.routes)
-      const next = withTruck(valley, world, truck)
-      // A change due now happens now.
-      const settled = settle(next, now)
-      return done(settled.valley, now, {
-        broadcast: [frame(next, 'hurry'), ...settled.frames],
-        ...(settled.xp.length > 0 ? { xp: settled.xp } : {}),
-      })
+function onJoin(
+  valley: Valley,
+  action: ActionOf<'join'>,
+  { now, present }: ValleyContext
+): Reduced {
+  // Members whose sockets are gone without a word are dropped first.
+  const members: Record<string, Member> = {}
+  for (const m of Object.values(valley.members)) {
+    if (present.includes(m.id)) members[m.id] = m
+  }
+  let world = valley.world
+  // Rule 1.
+  if (!world) {
+    world = {
+      version: PROTOCOL_VERSION,
+      day: dayKey(now),
+      taken: [],
+      shelves: freshStock(action.stations),
+      drops: [],
+      nextDrop: 0,
+      graves: [],
+      nextGrave: 0,
+      truck: createTruck(now),
+      pickups: action.pickups,
+      stations: action.stations,
+      havens: action.havens,
+      metres: action.metres,
+      water: action.water,
+      maze: action.maze,
+      routes: action.routes,
+      stand: action.stand,
+      bushes: action.bushes,
+      dealer: action.dealer,
+      dealerStock: freshDealerStock(),
+      undercroft: action.undercroft,
+      rings: action.rings,
+      portals: [],
+      nextPortal: 0,
     }
+  } else if (
+    !samePickups(world.pickups, action.pickups) ||
+    world.stations !== action.stations
+  ) {
+    return done(valley, now, { broadcast: [], reject: 'stale-build' })
+  }
+  // Rule 3: dropped riders leave the bed; Marx comes home from his
+  // donuts for the new arrival.
+  let truck = world.truck
+  for (const id of truck.riders) {
+    if (!members[id]) truck = leave(truck, id, now)
+  }
+  truck = arrive(truck, now)
+  members[action.id] = {
+    id: action.id,
+    account: action.account,
+    name: action.name,
+    outfit: action.outfit,
+  }
+  const next: Valley = { ...valley, members, world: { ...world, truck } }
+  return done(next, now, {
+    broadcast: [frame(next, 'joined', { by: action.id })],
+  })
+}
 
-    case 'reset': {
-      // The whole world afresh: the next arrival opens it. The members
-      // stay, and are asked to come back.
-      const next: Valley = { ...valley, world: null }
-      return done(next, now, { broadcast: [frame(next, 'reset')] })
+function onLeave(
+  valley: Valley,
+  action: ActionOf<'leave'>,
+  { now }: ValleyContext
+): Reduced {
+  const member = valley.members[action.id]
+  if (!member) return done(valley, now, { broadcast: [] })
+  const members = { ...valley.members }
+  delete members[action.id]
+  let next: Valley = { ...valley, members }
+  const world = next.world
+  // Rule 2: where they stood on foot is where they come back.
+  const at = action.at
+  if (at && !at.riding && !(world && isAboard(world.truck, action.id))) {
+    next = {
+      ...next,
+      places: {
+        ...next.places,
+        [member.account]: { x: at.x, z: at.z, yaw: at.yaw },
+      },
     }
   }
+  if (!world) return done(next, now, { broadcast: [] })
+  next = withTruck(next, world, leave(world.truck, action.id, now))
+  return done(next, now, {
+    broadcast: [frame(next, 'left', { by: action.id })],
+  })
+}
+
+function onTruck(
+  valley: Valley,
+  action: ActionOf<'board' | 'hop-out' | 'call'>,
+  { now }: ValleyContext
+): Reduced {
+  const world = valley.world
+  const re = action.type
+  if (!valley.members[action.id] || !world) {
+    return done(valley, now, {
+      broadcast: [],
+      reply: nack(re, 'not-in-valley'),
+    })
+  }
+  // Where the bed is to climb into: parked at home, or come to a
+  // whistle; and a whistle only from where the valley heard the
+  // whistler stand.
+  if (action.type === 'board' || action.type === 'call') {
+    const leg = world.truck.leg
+    const target =
+      action.type === 'call'
+        ? action.at
+        : leg.kind === 'called'
+          ? leg.to
+          : world.routes.home
+    const far = target
+      ? tooFar(action.at, target, CONFIG.valleyReach.truck)
+      : 'no-position'
+    if (far) {
+      return done(valley, now, { broadcast: [], reply: nack(re, far) })
+    }
+  }
+  // Rule 3.
+  const truck =
+    action.type === 'board'
+      ? board(world.truck, action.id, now)
+      : action.type === 'hop-out'
+        ? hopOut(world.truck, action.id)
+        : call(
+            world.truck,
+            action.id,
+            tooFar(action.from, world.routes.home, CONFIG.valleyReach.callFrom)
+              ? world.routes.home
+              : action.from,
+            action.at ?? world.routes.home,
+            now
+          )
+  if (refused(truck)) {
+    return done(valley, now, {
+      broadcast: [],
+      reply: nack(re, truck.refused),
+    })
+  }
+  const next = withTruck(valley, world, truck)
+  const reason: WorldReason =
+    action.type === 'board'
+      ? truck.leg.kind === 'ferry'
+        ? 'ferry'
+        : 'boarded'
+      : action.type === 'hop-out'
+        ? 'hopped-out'
+        : 'called'
+  return done(next, now, {
+    broadcast: [frame(next, reason, { by: action.id })],
+  })
+}
+
+function onTake(
+  valley: Valley,
+  action: ActionOf<'take'>,
+  { now }: ValleyContext
+): Reduced {
+  const member = valley.members[action.id]
+  const world = valley.world
+  if (!member || !world) {
+    return done(valley, now, {
+      broadcast: [],
+      reply: nack('take', 'not-in-valley', action.index),
+    })
+  }
+  const spec = world.pickups[action.index] as PickupSpec | undefined
+  if (!spec) {
+    return done(valley, now, {
+      broadcast: [],
+      reply: nack('take', 'no-such-pickup', action.index),
+    })
+  }
+  // Rule 4.
+  if (world.taken.includes(action.index)) {
+    return done(valley, now, {
+      broadcast: [],
+      reply: nack('take', 'gone', action.index),
+    })
+  }
+  // Within reach, and in its room when it lies behind walls.
+  const far =
+    tooFar(action.at, spec, CONFIG.valleyReach.item) ??
+    (spec.within &&
+    action.at &&
+    !insideRing(action.at.x, action.at.z, spec.within)
+      ? 'too-far'
+      : null)
+  if (far) {
+    return done(valley, now, {
+      broadcast: [],
+      reply: nack('take', far, action.index),
+    })
+  }
+  const next = withWorld(valley, {
+    ...world,
+    taken: [...world.taken, action.index],
+  })
+  const reduced = done(next, now, {
+    broadcast: [frame(next, 'taken', { by: action.id, index: action.index })],
+    // Rule 22.
+    xp: [{ account: member.account, source: 'pickup' }],
+  })
+  // Rule 10; cash (the plaza's quarters, its $20) into the wallet, as
+  // a drop of it taken up is (rule 11).
+  if (isCash(spec.kind) && spec.count > 0) {
+    reduced.earn = {
+      account: member.account,
+      amount: spec.count * centsOf(spec.kind),
+    }
+  } else if (isPackKind(spec.kind) && spec.count > 0) {
+    reduced.pack = {
+      account: member.account,
+      kind: spec.kind,
+      delta: spec.count,
+    }
+  }
+  return reduced
+}
+
+function onBuy(
+  valley: Valley,
+  action: ActionOf<'buy'>,
+  { now, cash }: ValleyContext
+): Reduced {
+  const member = valley.members[action.id]
+  const world = valley.world
+  const { station, kind, unit } = action
+  const refuse = (reason: string): Reduced =>
+    done(valley, now, {
+      broadcast: [],
+      reply: { type: 'nack', re: 'buy', reason, station, item: kind },
+    })
+  if (!member || !world) return refuse('not-in-valley')
+  const shelf = world.shelves[station] as ShopStock | undefined
+  const price = itemById(kind)?.price
+  if (!shelf || !Object.hasOwn(shelf, kind) || price === undefined) {
+    return refuse('no-such-shelf')
+  }
+  // Rule 7.
+  if (!onShelf(shelf, kind, unit)) return refuse('sold-out')
+  const haven = world.havens[station] as XZ | undefined
+  const far = haven && tooFar(action.at, haven, CONFIG.stash.stationReach)
+  if (far) return refuse(far)
+  if (cash === undefined || cash < price) return refuse('short')
+  const shelves = world.shelves.map((s, i) =>
+    i === station ? takeUnit(s, kind, unit) : s
+  )
+  const next = withWorld(valley, { ...world, shelves })
+  const reduced = done(next, now, {
+    broadcast: [frame(next, 'bought', { by: action.id, station, item: kind })],
+    spend: { account: member.account, amount: price },
+    // Rule 22.
+    xp: [{ account: member.account, source: 'purchase' }],
+  })
+  // Rule 10.
+  if (isPackKind(kind)) {
+    reduced.pack = {
+      account: member.account,
+      kind,
+      delta: contentsOf(kind),
+    }
+  }
+  return reduced
+}
+
+function onQuest(
+  valley: Valley,
+  action: ActionOf<'quest'>,
+  { now, quest }: ValleyContext
+): Reduced {
+  const member = valley.members[action.id]
+  const world = valley.world
+  const refuse = (reason: string): Reduced =>
+    done(valley, now, {
+      broadcast: [],
+      reply: { type: 'nack', re: 'quest', reason },
+    })
+  if (!member || !world) return refuse('not-in-valley')
+  if (!isQuest(action.quest)) return refuse('no-such-quest')
+  if (!quest) return refuse('unavailable')
+  // Rule 26.
+  if (world.truck.riders.includes(action.id)) return refuse('aboard')
+  const heart = world.maze
+    ? mazeToWorld(world.maze, heartPoint(theMaze()))
+    : null
+  const step = questStep(
+    QUESTS[action.quest],
+    quest.stage,
+    action.step,
+    quest.pack,
+    {
+      atDealer: atDealer(action.at, world.dealer),
+      atHeart: atHeart(action.at, heart),
+    }
+  )
+  if (!step.ok) return refuse(step.reason)
+  return done(valley, now, {
+    broadcast: [],
+    quest: {
+      account: member.account,
+      quest: action.quest,
+      step: action.step,
+      from: quest.stage,
+      to: step.stage,
+      change: step.change,
+    },
+    // Rule 22.
+    ...(step.stage === 'done'
+      ? { xp: [{ account: member.account, source: 'quest' as const }] }
+      : {}),
+  })
+}
+
+function onDeal(
+  valley: Valley,
+  action: ActionOf<'deal'>,
+  { now, holdings }: ValleyContext
+): Reduced {
+  const member = valley.members[action.id]
+  const world = valley.world
+  const { kind } = action
+  const refuse = (reason: string): Reduced =>
+    done(valley, now, {
+      broadcast: [],
+      reply: { type: 'nack', re: 'deal', reason, item: kind },
+    })
+  if (!member || !world) return refuse('not-in-valley')
+  // Rule 25.
+  if (!world.dealer) return refuse('no-dealer')
+  if (!atDealer(action.at, world.dealer)) return refuse('too-far')
+  if (world.truck.riders.includes(action.id)) return refuse('aboard')
+  const sale = deal(world.dealerStock, kind, action.pay, holdings?.pack ?? {})
+  if (!sale.ok) return refuse(sale.reason)
+  const next = withWorld(valley, { ...world, dealerStock: sale.stock })
+  return done(next, now, {
+    broadcast: [frame(next, 'dealt', { by: action.id, item: kind })],
+    // Rule 10.
+    barter: {
+      account: member.account,
+      give: sale.give,
+      take: { kind, count: sale.units },
+    },
+    // Rule 22.
+    xp: [{ account: member.account, source: 'purchase' }],
+  })
+}
+
+function onCollect(
+  valley: Valley,
+  action: ActionOf<'collect'>,
+  { now }: ValleyContext
+): Reduced {
+  const member = valley.members[action.id]
+  const world = valley.world
+  if (!member || !world) {
+    return done(valley, now, {
+      broadcast: [],
+      reply: nack('collect', 'not-in-valley'),
+    })
+  }
+  // Rule 8.
+  const { bush } = action
+  const spot = world.bushes[bush] as XZ | undefined
+  if (!Number.isInteger(bush) || bush < 0 || bush >= BUSHES || !spot) {
+    return done(valley, now, {
+      broadcast: [],
+      reply: nack('collect', 'no-such-bush'),
+    })
+  }
+  const far = tooFar(action.at, spot, CONFIG.valleyReach.item)
+  if (far) {
+    return done(valley, now, { broadcast: [], reply: nack('collect', far) })
+  }
+  const daily = dailyFor(valley, member.account, now)
+  if (daily.collected.includes(bush)) {
+    return done(valley, now, {
+      broadcast: [],
+      daily: { type: 'daily', bush, daily, picked: false },
+    })
+  }
+  const today = dayKey(now)
+  const dailies: Record<string, string> = {}
+  for (const [key, day] of Object.entries(valley.dailies)) {
+    if (day === today) dailies[key] = day
+  }
+  dailies[bushKey(member.account, bush)] = today
+  const next: Valley = { ...valley, dailies }
+  return done(next, now, {
+    broadcast: [],
+    daily: {
+      type: 'daily',
+      bush,
+      daily: dailyFor(next, member.account, now),
+      picked: true,
+    },
+    // Rule 10.
+    pack: { account: member.account, kind: 'berries', delta: 1 },
+    // Rule 22.
+    xp: [{ account: member.account, source: 'berry' }],
+  })
+}
+
+function onUse(
+  valley: Valley,
+  action: ActionOf<'use'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rule 10. Whether the pack holds one is the valley's to check.
+  const member = valley.members[action.id]
+  if (!member) {
+    return done(valley, now, {
+      broadcast: [],
+      reply: nack('use', 'not-in-valley'),
+    })
+  }
+  if (!isPackKind(action.kind)) {
+    return done(valley, now, {
+      broadcast: [],
+      reply: nack('use', 'not-an-item'),
+    })
+  }
+  return done(valley, now, {
+    broadcast: [],
+    pack: { account: member.account, kind: action.kind, delta: -1 },
+  })
+}
+
+function onDrop(
+  valley: Valley,
+  action: ActionOf<'drop'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rule 12.
+  const member = valley.members[action.id]
+  const world = valley.world
+  const { kind, count } = action
+  const refuse = (reason: string): Reduced =>
+    done(valley, now, {
+      broadcast: [],
+      reply: { type: 'nack', re: 'drop', reason },
+    })
+  if (!member || !world) return refuse('not-in-valley')
+  // Nothing goes over the side of the truck, moving or parked.
+  if (isAboard(world.truck, action.id)) return refuse('aboard')
+  if (!action.at) return refuse('no-position')
+  if (!isPackKind(kind)) return refuse('not-an-item')
+  // A key item is never set down (items.ts isKeyItem).
+  if (isKeyItem(kind)) return refuse('key-item')
+  if (count < 1) return refuse('nothing')
+  const id = world.nextDrop
+  const drop: Drop = { id, kind, count, ...dropSpot(action.at, id) }
+  const next = withWorld(valley, {
+    ...world,
+    drops: [...world.drops, drop],
+    nextDrop: id + 1,
+  })
+  return done(next, now, {
+    broadcast: [
+      frame(next, 'dropped', {
+        by: action.id,
+        item: kind,
+        drop: id,
+        count,
+      }),
+    ],
+    // Rule 10: out of the pack first; the valley lets the drop stand
+    // only once the pack has given it up.
+    pack: { account: member.account, kind, delta: -count },
+  })
+}
+
+function onTakeDrop(
+  valley: Valley,
+  action: ActionOf<'take-drop'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rule 12: first to ask wins.
+  const member = valley.members[action.id]
+  const world = valley.world
+  const refuse = (reason: string): Reduced =>
+    done(valley, now, {
+      broadcast: [],
+      reply: { type: 'nack', re: 'take-drop', reason, drop: action.drop },
+    })
+  if (!member || !world) return refuse('not-in-valley')
+  const drop = world.drops.find((d) => d.id === action.drop)
+  if (!drop) return refuse('gone')
+  const far = tooFar(action.at, drop, CONFIG.valleyReach.item)
+  if (far) return refuse(far)
+  const { taken } = takeUp(drop, Infinity)
+  const next = withWorld(valley, {
+    ...world,
+    drops: world.drops.filter((d) => d.id !== drop.id),
+  })
+  const account = member.account
+  return done(next, now, {
+    broadcast: [
+      frame(next, 'drop-taken', {
+        by: action.id,
+        item: drop.kind,
+        drop: drop.id,
+        count: taken,
+      }),
+    ],
+    // Rule 11: dimes and a spider's $20 are cash; rule 10: anything
+    // else, the pack.
+    ...(isCash(drop.kind)
+      ? { earn: { account, amount: taken * centsOf(drop.kind) } }
+      : { pack: { account, kind: drop.kind, delta: taken } }),
+    // Rule 22: only what the valley left, never a raider's own drop.
+    ...(drop.spilled ? { xp: [{ account, source: 'drop' as const }] } : {}),
+  })
+}
+
+function onSpill(
+  valley: Valley,
+  action: ActionOf<'spill'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rules 11 and 13: each burst leaves its dimes lying where it was,
+  // and the Caretaker burned its gold bullion. Only cash or an item.
+  // Rule 17: each burst shadowman its tombstone.
+  const world = valley.world
+  const spills = action.spills.filter(
+    (one) => one.count > 0 && (isCash(one.kind) || isPackKind(one.kind))
+  )
+  const buried = world
+    ? bury(world.graves, world.nextGrave, action.burials ?? [])
+    : null
+  if (
+    !world ||
+    !buried ||
+    (spills.length === 0 && buried.next === world.nextGrave)
+  ) {
+    return done(valley, now, { broadcast: [] })
+  }
+  const spilled: Drop[] = spills.map(({ x, z, kind, count }, i) => ({
+    id: world.nextDrop + i,
+    kind,
+    count,
+    x,
+    z,
+    spilled: true,
+  }))
+  // The oldest of what the valley spilled goes past the cap; what a
+  // raider dropped lies.
+  let drops = [...world.drops, ...spilled]
+  let over = drops.filter((d) => d.spilled).length - CONFIG.drops.spilledMax
+  if (over > 0) {
+    drops = drops.filter((d) => !(d.spilled && over-- > 0))
+  }
+  const next = withWorld(valley, {
+    ...world,
+    drops,
+    nextDrop: world.nextDrop + spilled.length,
+    graves: buried.graves,
+    nextGrave: buried.next,
+  })
+  return done(next, now, { broadcast: [frame(next, 'spilled')] })
+}
+
+function onFall(
+  valley: Valley,
+  action: ActionOf<'fall'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rule 18. A body only where the valley heard the raider stand, and
+  // only with something on it.
+  const member = valley.members[action.id]
+  if (!member || !action.at || isEmpty(action.items)) {
+    return done(valley, now, { broadcast: [] })
+  }
+  const id = valley.nextCorpse
+  const { x, z, yaw } = action.at
+  // One body an account: what an earlier one still held is carried
+  // onto this one, so nothing is lost and nothing lies forever.
+  const items = { ...action.items }
+  for (const old of valley.corpses) {
+    if (old.account !== member.account) continue
+    for (const [kind, count] of Object.entries(old.items)) {
+      items[kind] = (items[kind] ?? 0) + count
+    }
+  }
+  const next: Valley = {
+    ...valley,
+    corpses: [
+      ...valley.corpses.filter((c) => c.account !== member.account),
+      {
+        id,
+        x,
+        z,
+        yaw,
+        name: member.name,
+        outfit: member.outfit,
+        items,
+        account: member.account,
+      },
+    ],
+    nextCorpse: id + 1,
+  }
+  return done(next, now, {
+    broadcast: next.world
+      ? [frame(next, 'fell', { by: action.id, corpse: id })]
+      : [],
+    corpse: id,
+  })
+}
+
+function onHit(
+  valley: Valley,
+  action: ActionOf<'hit'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rule 24.
+  const member = valley.members[action.id]
+  if (!member) return done(valley, now, { broadcast: [] })
+  const { account } = member
+  const before = healthOf(valley.health, account)
+  const levels = geometrieFor(valley, account, now)
+  if (action.roll !== undefined && shrugs(levels, action.roll)) {
+    return done(valley, now, {
+      broadcast: [],
+      health: { account, points: before, shrugged: true },
+    })
+  }
+  const { points, fatal } = hit(before)
+  const next: Valley = {
+    ...valley,
+    health: withHealth(valley.health, account, fatal ? MAX_HEALTH : points),
+    // A shattering leaves the raider sober.
+    geometrie: fatal ? sobered(valley.geometrie, account) : valley.geometrie,
+  }
+  return done(next, now, {
+    broadcast: [],
+    health: fatal ? { account, points, fatal } : { account, points },
+    ...(fatal
+      ? {
+          geometrie: [{ account, levels: geometrieFor(next, account, now) }],
+        }
+      : {}),
+  })
+}
+
+function onPass(
+  valley: Valley,
+  action: ActionOf<'pass'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rule 27: to another account's raider on foot, both where their
+  // last state frames put them, close enough to hand it over.
+  const member = valley.members[action.id]
+  const taker = valley.members[action.to]
+  const refuse = (reason: string) =>
+    done(valley, now, { broadcast: [], reply: nack('pass', reason) })
+  if (!member) return refuse('not-in-valley')
+  if (!isPackKind(action.kind) || !isUsable(action.kind)) {
+    return refuse('not-an-item')
+  }
+  if (!taker || taker.account === member.account) return refuse('no-one')
+  const truck = valley.world?.truck
+  const onFoot = (id: string, at: Spot | null) =>
+    at !== null && !at.riding && !(truck && isAboard(truck, id))
+  if (!onFoot(action.id, action.from) || !onFoot(action.to, action.at)) {
+    return refuse('not-on-foot')
+  }
+  if (!inPassReach(action.from!, action.at!)) return refuse('too-far')
+  return done(valley, now, {
+    broadcast: [],
+    pack: { account: member.account, kind: action.kind, delta: -1 },
+    passed: { to: action.to, account: taker.account, kind: action.kind },
+  })
+}
+
+function onDose(
+  valley: Valley,
+  action: ActionOf<'dose'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rule 27: the unit is out of the pack. A use doses the user; a
+  // pass doses the taker in full, the giver their share, and earns
+  // the giver XP for sharing.
+  const member = valley.members[action.id]
+  if (!member) return done(valley, now, { broadcast: [] })
+  const amounts = doseOf(action.kind)
+  const time = now / 1000
+  const taker = action.to === undefined ? null : valley.members[action.to]
+  if (action.to !== undefined && !taker) {
+    return done(valley, now, { broadcast: [] })
+  }
+  let record = valley.geometrie
+  const changed = [member.account]
+  if (taker) {
+    record = dosed(record, taker.account, amounts, time)
+    record = dosed(
+      record,
+      member.account,
+      scaled(amounts, CONFIG.buffs.shareScale),
+      time
+    )
+    changed.unshift(taker.account)
+  } else {
+    record = dosed(record, member.account, amounts, time)
+  }
+  const next = { ...valley, geometrie: record }
+  return done(next, now, {
+    broadcast: [],
+    geometrie: changed.map((account) => ({
+      account,
+      levels: geometrieFor(next, account, now),
+    })),
+    ...(taker
+      ? {
+          xp: [{ account: member.account, source: 'share' as const }],
+        }
+      : {}),
+  })
+}
+
+function onMend(
+  valley: Valley,
+  action: ActionOf<'mend'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rule 24: a forecourt makes whole; medicine gives its points back.
+  const member = valley.members[action.id]
+  if (!member) return done(valley, now, { broadcast: [] })
+  const { account } = member
+  const before = healthOf(valley.health, account)
+  if (isWhole(before)) return done(valley, now, { broadcast: [] })
+  const points = action.by === undefined ? MAX_HEALTH : mend(before, action.by)
+  return done(
+    { ...valley, health: withHealth(valley.health, account, points) },
+    now,
+    { broadcast: [], health: { account, points } }
+  )
+}
+
+function onSetHealth(
+  valley: Valley,
+  action: ActionOf<'set-health'>,
+  { now }: ValleyContext
+): Reduced {
+  const member = valley.members[action.id]
+  if (!member) return done(valley, now, { broadcast: [] })
+  const { account } = member
+  const points = mend(0, action.points)
+  return done(
+    { ...valley, health: withHealth(valley.health, account, points) },
+    now,
+    { broadcast: [], health: { account, points } }
+  )
+}
+
+function onLoot(
+  valley: Valley,
+  action: ActionOf<'loot'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rule 18: the account that fell, and no one else.
+  const member = valley.members[action.id]
+  const refuse = (reason: string): Reduced =>
+    done(valley, now, {
+      broadcast: [],
+      reply: { type: 'nack', re: 'loot', reason, corpse: action.corpse },
+    })
+  if (!member || !valley.world) return refuse('not-in-valley')
+  const corpse = valley.corpses.find((c) => c.id === action.corpse)
+  if (!corpse) return refuse('gone')
+  if (corpse.account !== member.account) return refuse('not-yours')
+  if (isAboard(valley.world.truck, action.id)) return refuse('aboard')
+  const far = tooFar(action.at, corpse, CONFIG.valleyReach.item)
+  if (far) return refuse(far)
+  const next: Valley = {
+    ...valley,
+    corpses: valley.corpses.filter((c) => c.id !== corpse.id),
+  }
+  return done(next, now, {
+    broadcast: [frame(next, 'looted', { by: action.id, corpse: corpse.id })],
+    give: { account: member.account, items: { ...corpse.items } },
+  })
+}
+
+function onStash(
+  valley: Valley,
+  action: ActionOf<'stow' | 'unstow'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rule 19.
+  const member = valley.members[action.id]
+  const world = valley.world
+  const re = action.type
+  const refuse = (reason: string): Reduced =>
+    done(valley, now, { broadcast: [], reply: nack(re, reason) })
+  if (!member || !world) return refuse('not-in-valley')
+  if (isAboard(world.truck, action.id)) return refuse('aboard')
+  if (!atLocker(action.at, world.havens)) return refuse('no-locker')
+  if (!isPackKind(action.kind)) return refuse('not-an-item')
+  if (action.count < 1) return refuse('nothing')
+  return done(valley, now, {
+    broadcast: [],
+    stash: {
+      account: member.account,
+      kind: action.kind,
+      delta: re === 'stow' ? action.count : -action.count,
+    },
+  })
+}
+
+function onStand(
+  valley: Valley,
+  action: ActionOf<'stand-stock' | 'stand-collect' | 'stand-upgrade'>,
+  { now, stand }: ValleyContext
+): Reduced {
+  // Rule 23.
+  const member = valley.members[action.id]
+  const world = valley.world
+  const re = action.type
+  const refuse = (reason: string): Reduced =>
+    done(valley, now, { broadcast: [], reply: nack(re, reason) })
+  if (!member || !world) return refuse('not-in-valley')
+  if (isAboard(world.truck, action.id)) return refuse('aboard')
+  if (!atStand(action.at, world.stand)) return refuse('no-stand')
+  if (!stand) return refuse('unavailable')
+  const { ledger, pack } = stand
+  const tended = (
+    change: Omit<StandChange, 'account' | 're'>,
+    xp?: XpGrant[]
+  ): Reduced =>
+    done(valley, now, {
+      broadcast: [],
+      ...(xp ? { xp } : {}),
+      stand: {
+        account: member.account,
+        re:
+          re === 'stand-stock'
+            ? 'stock'
+            : re === 'stand-collect'
+              ? 'collect'
+              : 'upgrade',
+        ...change,
+      },
+    })
+  if (action.type === 'stand-stock') {
+    const { kind, count } = action
+    if ((pack[kind] || 0) < count) return refuse('none-left')
+    const next = stockStand(ledger, kind, count, now)
+    if (!next) return refuse('no-room')
+    return tended({ ledger: next, items: { [kind]: count }, cash: 0 })
+  }
+  if (action.type === 'stand-collect') {
+    const got = collectStand(ledger, now)
+    if (!got) return refuse('empty')
+    // Rule 22: the stand's XP, by the cents it paid.
+    const times = standXp(got.cents)
+    return tended(
+      { ledger: got.ledger, items: {}, cash: got.cents },
+      times > 0
+        ? [{ account: member.account, source: 'stand', times }]
+        : undefined
+    )
+  }
+  const price = upgradePrice(ledger)
+  const next = upgradeStand(ledger, now)
+  if (!price || !next) return refuse('top')
+  if (!affordsUpgrade(ledger, stand.cash, pack)) return refuse('short')
+  return tended({
+    ledger: next,
+    items: { ...price.items },
+    cash: -price.cash,
+  })
+}
+
+function onTrade(
+  valley: Valley,
+  action: ActionOf<'trade'>,
+  { now, holdings }: ValleyContext
+): Reduced {
+  // Rule 14.
+  const member = valley.members[action.id]
+  const refuse = (reason: string): Reduced =>
+    done(valley, now, {
+      broadcast: [],
+      reply: nack('trade', reason),
+    })
+  if (!member) return refuse('not-in-valley')
+  const offer = MOAB_OFFERS.find((id) => id === action.offer)
+  const cosmetic = offer ? cosmeticById(offer) : null
+  if (!offer || !cosmetic) return refuse('no-such-offer')
+  if (!holdings) return refuse('unavailable')
+  if (holdings.cosmetics.includes(offer)) return refuse('owned')
+  if (!affords(holdings.pack, offer)) return refuse('short')
+  return done(valley, now, {
+    broadcast: [],
+    trade: {
+      account: member.account,
+      cosmetic: offer,
+      price: { ...cosmetic.price },
+    },
+  })
+}
+
+function onAppearance(
+  valley: Valley,
+  action: ActionOf<'appearance'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rule 9. The world frames carry no outfit, so the change goes out
+  // to the others as a peer-updated frame (ValleyDO), not as a world
+  // frame.
+  const member = valley.members[action.id]
+  if (!member) return done(valley, now, { broadcast: [] })
+  const next: Valley = {
+    ...valley,
+    members: {
+      ...valley.members,
+      [member.id]: {
+        ...member,
+        name: action.name ?? member.name,
+        outfit: action.outfit ?? member.outfit,
+      },
+    },
+  }
+  return done(next, now, { broadcast: [] })
+}
+
+function onVisit(
+  valley: Valley,
+  action: ActionOf<'visit'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rule 28.
+  const member = valley.members[action.id]
+  const world = valley.world
+  if (!member || !world) return done(valley, now, { broadcast: [] })
+  if (!Number.isInteger(action.station)) {
+    return done(valley, now, { broadcast: [] })
+  }
+  if (action.station < 0 || action.station >= world.stations) {
+    return done(valley, now, { broadcast: [] })
+  }
+  const { account } = member
+  const before = citgosFor(valley, account)
+  const log = visit(before, action.station)
+  if (log === before) return done(valley, now, { broadcast: [] })
+  return done(
+    { ...valley, citgos: { ...valley.citgos, [account]: log } },
+    now,
+    { broadcast: [], citgos: { account, log } }
+  )
+}
+
+function onOpenPortal(
+  valley: Valley,
+  action: ActionOf<'open-portal'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rule 28.
+  const member = valley.members[action.id]
+  const world = valley.world
+  const refuse = (reason: string): Reduced =>
+    done(valley, now, { broadcast: [], reply: nack('portal', reason) })
+  if (!member || !world) return refuse('not-in-valley')
+  if (isAboard(world.truck, action.id)) return refuse('aboard')
+  if (!action.at) return refuse('no-position')
+  const station = citgosFor(valley, member.account).last
+  const ring = station === null ? undefined : world.rings[station]
+  if (station === null || !ring) return refuse('no-citgo')
+  if (citgoAt(action.at, [world.havens[station]]) !== null) {
+    return refuse('at-citgo')
+  }
+  // One an account: its last closes as this one opens.
+  const others = world.portals.filter((p) => p.account !== member.account)
+  const slot = freeSlot(others, station)
+  if (slot === null) return refuse('busy')
+  const id = world.nextPortal
+  const portal: ValleyPortal = {
+    id,
+    name: member.name,
+    field: fieldEnd(action.at),
+    citgo: ringEnd(ring, slot),
+    station,
+    slot,
+    closes: now + CONFIG.portal.lifeSeconds * 1000,
+    account: member.account,
+  }
+  const next = withWorld(valley, {
+    ...world,
+    portals: [...others, portal],
+    nextPortal: id + 1,
+  })
+  return done(next, now, {
+    broadcast: [frame(next, 'portal-opened', { by: action.id, portal: id })],
+  })
+}
+
+function onHurry(
+  valley: Valley,
+  action: ActionOf<'hurry'>,
+  { now }: ValleyContext
+): Reduced {
+  const world = valley.world
+  if (!world) {
+    return done(valley, now, {
+      broadcast: [],
+      reply: nack('dev', 'no-world'),
+    })
+  }
+  const truck = hurry(world.truck, now, action.seconds, world.routes)
+  const next = withTruck(valley, world, truck)
+  // A change due now happens now.
+  const settled = settle(next, now)
+  return done(settled.valley, now, {
+    broadcast: [frame(next, 'hurry'), ...settled.frames],
+    ...(settled.xp.length > 0 ? { xp: settled.xp } : {}),
+  })
+}
+
+function onReset(valley: Valley, { now }: ValleyContext): Reduced {
+  // The whole world afresh: the next arrival opens it. The members
+  // stay, and are asked to come back.
+  const next: Valley = { ...valley, world: null }
+  return done(next, now, { broadcast: [frame(next, 'reset')] })
 }
 
 // --- Rule 11: the shadowmen ------------------------------------------------
