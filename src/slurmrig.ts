@@ -73,6 +73,8 @@ export interface Slurms {
   away(station: number): boolean
   // Dev: bring the next drop at the parked station to now.
   hurry(): void
+  // Dev: hold every drop off, as if between drops, until let go.
+  hold(on: boolean): void
 }
 
 export function createSlurms(clerk: Figure, ground: Ground): Slurms {
@@ -89,6 +91,7 @@ export function createSlurms(clerk: Figure, ground: Ground): Slurms {
   let parked = -1
   let out = false
   let lastSeconds = 0
+  let held = false
   // What the last frame drew, to hear a landing, a smash or the curse
   // once as it happens.
   let last: { event: SlurmEvent; phases: string[]; t: number } | null = null
@@ -113,7 +116,8 @@ export function createSlurms(clerk: Figure, ground: Ground): Slurms {
       parked = station
       lastSeconds = seconds
       const now = seconds + offset
-      const under = station >= 0 && origin ? eventAt(station, now) : null
+      const under =
+        !held && station >= 0 && origin ? eventAt(station, now) : null
       if (!under || !origin) {
         for (const rig of pool) rig.group.visible = false
         atCounter()
@@ -202,6 +206,9 @@ export function createSlurms(clerk: Figure, ground: Ground): Slurms {
       if (parked < 0) return
       const now = lastSeconds + offset
       offset += nextStart(parked, now) - now
+    },
+    hold(on) {
+      held = on
     },
   }
 }
