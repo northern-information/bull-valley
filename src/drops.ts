@@ -61,7 +61,7 @@ export function dimesFor(
   return min + Math.floor(rng() * (max - min + 1))
 }
 
-// The kind of the drops the Caretaker leaves where it was unmade: gold
+// The kind of the drops the Caretaker leaves where it was burned: gold
 // bullion, an item, each one a 1 troy ounce bar.
 export const GOLD_BULLION: ItemId = 'gold-bullion'
 
@@ -71,17 +71,17 @@ export interface Spill extends XZ {
   count: number
 }
 
-// How far each of the Caretaker's bars lies from where it was unmade, in
+// How far each of the Caretaker's bars lies from where it was burned, in
 // metres.
 const BAR_SPREAD = 0.25
 
 // What one step leaves lying: dimes where each shadowman (or spiderling)
 // burst, a $20 bill where each spider did, and the Caretaker's gold bullion where it was
-// unmade: its bars, one troy ounce each, as drops of their own, side by
+// burned: its bars, one troy ounce each, as drops of their own, side by
 // side.
 export function spillsOf(
   bursts: readonly (XZ & { kind?: ShadeKind })[],
-  unmade: XZ | null,
+  burned: XZ | null,
   rng: Rng,
   cfg = CONFIG
 ): Spill[] {
@@ -90,14 +90,14 @@ export function spillsOf(
       ? { x, z, kind: TWENTY, count: 1 }
       : { x, z, kind: DIMES, count: dimesFor(rng, cfg, kind) }
   )
-  if (unmade) {
+  if (burned) {
     const bars = cfg.caretaker.bullion
     for (let i = 0; i < bars; i++) {
       const turn = (i / bars) * Math.PI * 2
       const r = bars > 1 ? BAR_SPREAD : 0
       spills.push({
-        x: unmade.x + Math.cos(turn) * r,
-        z: unmade.z + Math.sin(turn) * r,
+        x: burned.x + Math.cos(turn) * r,
+        z: burned.z + Math.sin(turn) * r,
         kind: GOLD_BULLION,
         count: 1,
       })

@@ -55,8 +55,10 @@ export interface TunnelShadesUpdate {
   // One touched the player, played alone; in the shared valley a struck
   // frame says so.
   struck: boolean
-  // Where they burst since the last update.
+  // Where they burst since the last update, and where one took a hit it
+  // stands (the Warden) and went into the dark.
   bursts: TunnelBurstWire[]
+  wounds: TunnelBurstWire[]
 }
 
 export class TunnelShades {
@@ -71,6 +73,7 @@ export class TunnelShades {
   private rng = mulberry32(0x7e117)
   private table: ShadowTable<TunnelShadeWire> = createShadowTable()
   private pending: TunnelBurstWire[] = []
+  private hits: TunnelBurstWire[] = []
 
   constructor({ scene, groundAt, place }: TunnelShadesOptions) {
     this.scene = scene
@@ -83,6 +86,7 @@ export class TunnelShades {
   receive(msg: ShadowmenMessage, at: number): void {
     applyShadowFrame(this.table, msg.tunnel, at)
     this.pending.push(...msg.tunnelBursts)
+    this.hits.push(...msg.tunnelWounds)
   }
 
   update({
@@ -104,12 +108,14 @@ export class TunnelShades {
       })
       struck = out.struck.length > 0
       this.pending.push(...out.bursts.map(({ x, z, kind }) => ({ x, z, kind })))
+      this.hits.push(...out.wounds)
       shown = tunnelShadesAt(this.own, this.place).map((s) => ({
         id: s.id,
         kind: s.kind,
         x: s.world.x,
         z: s.world.z,
         burn: s.burn / CONFIG.tunnel[s.kind].burnSeconds,
+        hurt: s.wounds / CONFIG.tunnel[s.kind].hits,
         target: s.target,
       }))
     } else if (this.place) {
@@ -118,8 +124,10 @@ export class TunnelShades {
     this.shown = shown
     this.draw(shown, player, time)
     const bursts = this.pending
+    const wounds = this.hits
     this.pending = []
-    return { struck, bursts }
+    this.hits = []
+    return { struck, bursts, wounds }
   }
 
   private draw(
@@ -137,7 +145,7 @@ export class TunnelShades {
         this.scene.add(rig.group)
       }
       const burn = Math.min(1, s.burn)
-      const shake = burn * 0.15
+      const shake = burn * 0.15 + s.hurt * 0.04
       rig.group.visible = true
       rig.group.position.set(
         s.x + range(this.rng, -shake, shake),
@@ -145,7 +153,8 @@ export class TunnelShades {
         s.z + range(this.rng, -shake, shake)
       )
       rig.group.rotation.y = Math.atan2(player.x - s.x, player.z - s.z)
-      rig.setBurn(burn)
+      // Its wounds pale it for good, a beam on it the rest of the way.
+      rig.setBurn(Math.min(1, s.hurt * 0.45 + burn * (1 - s.hurt * 0.45)))
       rig.update(time)
     }
     for (const [id, rig] of this.rigs) {

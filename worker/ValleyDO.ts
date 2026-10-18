@@ -19,7 +19,7 @@
 // valley reduced before it). blockConcurrencyWhile would not do: it holds
 // inbound events, not the step's timer. State frames and chat touch no
 // valley and never wait on the lock. What is one account's alone (the
-// season's tally, rule 15, so an unmaking is counted once; the daily
+// season's tally, rule 15, so a burning is counted once; the daily
 // task's, rule 16; the Book of Shadows, rule 20) runs under that
 // account's own lock (`forAccount`), so no one else's input waits on its
 // D1 round trips. XP (rule 22) needs no lock: each account's is added in
@@ -582,13 +582,13 @@ export class ValleyDO extends DurableObject<Env> {
     if (out.xp.length > 0) void this.award(out.xp)
     // The tunnel shades burst into dimes too, but leave no stones: only a
     // shadowman is buried.
-    const { unmade, tunnelBursts } = out.message
+    const { burned, tunnelBursts } = out.message
     const bursts = [
       ...out.message.bursts,
       ...tunnelBursts.map(({ x, z }) => ({ x, z })),
     ]
-    if (bursts.length || unmade) {
-      void this.spill(bursts, out.message.bursts, unmade)
+    if (bursts.length || burned) {
+      void this.spill(bursts, out.message.bursts, burned)
     }
     // Rule 24: a forecourt makes whole.
     for (const id of forecourtMends(this.valley, placed)) {
@@ -1410,13 +1410,13 @@ export class ValleyDO extends DurableObject<Env> {
   // Each shadow that burst leaves its dimes where it was (sharedworld.ts
   // rule 11), how many drawn here, so the reducer stays pure, and each
   // shadowman among `shades` its tombstone, its name drawn here too (rule
-  // 17); the Caretaker unmade leaves its gold bullion (rule 13).
+  // 17); the Caretaker burned leaves its gold bullion (rule 13).
   private async spill(
     bursts: readonly (XZ & { kind?: ShadeKind })[],
     shades: readonly (XZ & { kind: ShadeKind })[],
-    unmade: XZ | null
+    burned: XZ | null
   ): Promise<void> {
-    const spills = spillsOf(bursts, unmade, this.shadowRng)
+    const spills = spillsOf(bursts, burned, this.shadowRng)
     const burials = burialsOf(shades, this.shadowRng)
     await this.locked(async () => {
       const reduced = reduce(
@@ -1761,8 +1761,8 @@ export class ValleyDO extends DurableObject<Env> {
     return done
   }
 
-  // Rule 15: each account credited with unmaking the Caretaker, tallied
-  // alone, so two unmakings never read the same progress. Every socket on
+  // Rule 15: each account credited with burning the Caretaker, tallied
+  // alone, so two burnings never read the same progress. Every socket on
   // the account hears the new count, and the pack and wallet when the
   // tally paid the reward.
   private async credit(accounts: readonly string[]): Promise<void> {

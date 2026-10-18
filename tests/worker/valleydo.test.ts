@@ -2072,7 +2072,7 @@ describe('ValleyDO: the shadowmen', () => {
     expect(b.frames().some((m) => m.type === 'struck')).toBe(false)
   })
 
-  it('leaves two 1 troy ounce gold bars where two beams unmade the Caretaker', async () => {
+  it('leaves two 1 troy ounce gold bars where two beams burned the Caretaker', async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A', { dev: true })
     const b = await join(v, s, 'B')
@@ -2333,7 +2333,7 @@ describe('ValleyDO: the shadowmen', () => {
     expect(b.last<PackMessage>()).toMatchObject({ cash: STARTING_CASH })
   })
 
-  it('credits both beams with unmaking the Caretaker, and pays the season out once', async () => {
+  it('credits both beams with burning the Caretaker, and pays the season out once', async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A', { dev: true })
     const b = await join(v, s, 'B')
@@ -2367,7 +2367,7 @@ describe('ValleyDO: the shadowmen', () => {
     await v.webSocketMessage(ws(a), '{"type":"dev","op":"calm"}')
     const seasonFrames = (socket: MockSocket) =>
       socket.frames().filter((m): m is SeasonMessage => m.type === 'season')
-    const unmake = async () => {
+    const burn = async () => {
       await v.webSocketMessage(ws(a), lit(0))
       await v.webSocketMessage(ws(b), lit(0.5))
       await v.webSocketMessage(
@@ -2384,7 +2384,7 @@ describe('ValleyDO: the shadowmen', () => {
     const wallet = (await v.packStore.get('acct-A')).cash
     const reds = (await v.packStore.get('acct-A')).pack.marlboro
     for (let n = 1; n <= SEASON.goal; n++) {
-      await unmake()
+      await burn()
       expect(seasonFrames(a)).toHaveLength(n)
       expect(seasonFrames(b)).toHaveLength(n)
     }
@@ -2404,8 +2404,8 @@ describe('ValleyDO: the shadowmen', () => {
     expect((await v.packStore.get('acct-A')).pack.marlboro).toBe(
       reds + SEASON.reward.count
     )
-    // Once: a sixth unmaking counts, and pays nothing.
-    await unmake()
+    // Once: a sixth burning counts, and pays nothing.
+    await burn()
     expect(seasonFrames(a).at(-1)).toEqual({
       type: 'season',
       season: { season: SEASON.id, kills: SEASON.goal + 1, claimed: true },

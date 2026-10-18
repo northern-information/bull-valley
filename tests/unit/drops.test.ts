@@ -98,7 +98,7 @@ describe('spillsOf', () => {
     expect(isPickupKind('')).toBe(false)
   })
 
-  it('leaves dimes at each burst, and two 1 troy ounce bars where the Caretaker was unmade', () => {
+  it('leaves dimes at each burst, and two 1 troy ounce bars where the Caretaker was burned', () => {
     const rng = mulberry32(3)
     const spills = spillsOf([{ x: 1, z: 2 }], { x: 5, z: 6 }, rng)
     expect(spills).toHaveLength(3)
@@ -115,7 +115,7 @@ describe('spillsOf', () => {
     expect(isCash(GOLD_BULLION)).toBe(false)
   })
 
-  it('leaves nothing when nothing burst or was unmade', () => {
+  it('leaves nothing when nothing burst or was burned', () => {
     expect(spillsOf([], null, mulberry32(3))).toEqual([])
   })
 })

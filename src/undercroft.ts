@@ -28,6 +28,7 @@ import type { Cell, MazePlace, MazeSize } from './maze.ts'
 //   A  the entry chamber, the ladder in its corner   rows 1-7,  cols 1-5
 //   B  the candle hall, four pillars                  rows 1-8,  cols 7-15
 //   C  the deep chamber, the altar and the Warden     rows 1-8,  cols 17-27
+//      (its walls broken into stubs and ruins that cut its sight lines)
 //   D  the flooded room                               rows 10-15, cols 1-5
 //   E  the chalk room                                 rows 10-15, cols 7-15
 //   F  the ossuary, one pillar                        rows 10-15, cols 17-27
@@ -36,11 +37,11 @@ export const UNDERCROFT_GRID: readonly string[] = [
   '#############################',
   '#.....#.........#...........#',
   '#.....#.........#...........#',
-  '#.....#..#...#..#...........#',
-  '#.....#.........#...#...#...#',
-  '#...............#...........#',
-  '#.....#..#...#..#...........#',
-  '#.....#.........#...#...#...#',
+  '#.....#..#...#..###.##...##.#',
+  '#.....#.........#....#......#',
+  '#...............#........#..#',
+  '#.....#..#...#..#.##..##.##.#',
+  '#.....#.........#...#.......#',
   '###.###.........#...........#',
   '###.#######.###########.#####',
   '#.....#.........#...........#',
@@ -167,18 +168,86 @@ function solid(
 }
 
 // The stone: one box per wall span, each reaching half the stone's
-// thickness past its ends so the corners close; a pillar is a square.
+// thickness past its ends so the corners close; a pillar is a square. The
+// walls standing inside the deep chamber are ruins (ruin).
 function stone(): CroftBox[] {
-  return mazeSpans(UNDERCROFT_GRID, UNDERCROFT_SIZE).map((span, i) => {
+  return mazeSpans(UNDERCROFT_GRID, UNDERCROFT_SIZE).flatMap((span, i) => {
     const dx = Math.abs(span.b.x - span.a.x)
     const dz = Math.abs(span.b.z - span.a.z)
-    return box(
-      `stone-${i}`,
-      [(span.a.x + span.b.x) / 2, HEIGHT / 2, (span.a.z + span.b.z) / 2],
-      [dx + WALL, HEIGHT, dz + WALL],
-      'stone'
-    )
+    const mid = { x: (span.a.x + span.b.x) / 2, z: (span.a.z + span.b.z) / 2 }
+    if (inRoom(ROOMS.deep, mid)) return ruin(`stone-${i}`, span, i)
+    return [
+      box(
+        `stone-${i}`,
+        [mid.x, HEIGHT / 2, mid.z],
+        [dx + WALL, HEIGHT, dz + WALL],
+        'stone'
+      ),
+    ]
   })
+}
+
+// A broken wall: a course of stone well over a raider's head, so it still
+// hides whoever stands behind it, its top knocked ragged in blocks of its
+// own height, and the stone that fell lying tumbled at its foot. It blocks
+// as any wall does (croftWalls, from the grid); only its look is broken.
+function ruin(name: string, span: { a: XZ; b: XZ }, seed: number): CroftBox[] {
+  const rng = mulberry32(0xb40c + seed)
+  const alongX = Math.abs(span.b.x - span.a.x) > Math.abs(span.b.z - span.a.z)
+  const lo = alongX
+    ? Math.min(span.a.x, span.b.x) - WALL / 2
+    : Math.min(span.a.z, span.b.z) - WALL / 2
+  const hi = alongX
+    ? Math.max(span.a.x, span.b.x) + WALL / 2
+    : Math.max(span.a.z, span.b.z) + WALL / 2
+  const across = alongX ? span.a.z : span.a.x
+  const at = (along: number, side = 0): [number, number] =>
+    alongX ? [along, across + side] : [across + side, along]
+  const course = range(rng, 2.1, 2.5)
+  const [cx, cz] = at((lo + hi) / 2)
+  const long = hi - lo
+  const boxes: CroftBox[] = [
+    box(
+      `${name}-course`,
+      [cx, course / 2, cz],
+      alongX ? [long, course, WALL] : [WALL, course, long],
+      'stone'
+    ),
+  ]
+  // The ragged top: blocks of their own heights, some missing.
+  let from = lo
+  for (let i = 0; from < hi - 0.2; i++) {
+    const width = Math.min(hi - from, range(rng, 0.5, 1.1))
+    const tall = rng() < 0.25 ? 0 : range(rng, 0.2, 1.6)
+    if (tall > 0) {
+      const [bx, bz] = at(from + width / 2)
+      boxes.push(
+        box(
+          `${name}-top-${i}`,
+          [bx, course + tall / 2, bz],
+          alongX ? [width, tall, WALL * 0.9] : [WALL * 0.9, tall, width],
+          'stone'
+        )
+      )
+    }
+    from += width
+  }
+  // What fell, either side.
+  for (let i = 0; i < 6; i++) {
+    const side = (rng() < 0.5 ? -1 : 1) * range(rng, WALL / 2 + 0.2, 1.3)
+    const [rx, rz] = at(range(rng, lo, hi), side)
+    const size = range(rng, 0.2, 0.55)
+    boxes.push(
+      box(
+        `${name}-rubble-${i}`,
+        [rx, size / 2 - 0.04, rz],
+        [size, size * range(rng, 0.5, 0.9), size * range(rng, 0.7, 1.2)],
+        'stone',
+        [range(rng, -0.4, 0.4), range(rng, 0, Math.PI), range(rng, -0.4, 0.4)]
+      )
+    )
+  }
+  return boxes
 }
 
 // Candles in a cluster round (x, z), `count` of them, each its own height.

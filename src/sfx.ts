@@ -30,7 +30,7 @@ export type SfxId =
   | 'caretaker-hum'
   | 'caretaker-windup'
   | 'caretaker-lunge'
-  | 'caretaker-unmade'
+  | 'caretaker-burned'
 
 // A placeholder: a wave swept from one pitch to another (Hz) over its
 // seconds, or for noise a low-pass swept the same way; `pulse` beats its
@@ -186,7 +186,7 @@ export const SFX: Record<SfxId, SfxSpec> = {
     gain: 0.9,
     placeholder: { wave: 'noise', from: 3000, to: 300, seconds: 0.4 },
   },
-  'caretaker-unmade': {
+  'caretaker-burned': {
     positional: true,
     loop: false,
     takes: 0,
@@ -429,20 +429,20 @@ export function shadeCues(
 
 // The Caretaker's hum while it is formed, louder while it hunts; its
 // windup begun and its lunge since the last drawn frame (each read as the
-// valley's frames land), and where it was unmade.
+// valley's frames land), and where it was burned.
 export function keeperCues(
   begun: boolean,
   lunged: boolean,
   shown: Pick<CaretakerWire, 'x' | 'z' | 'target'> | null,
-  unmade: readonly XZ[],
+  burned: readonly XZ[],
   player: XZ,
   tuning: CueTuning
 ): ShadeCues {
   const cues: Cue[] = []
   const holds: Hold[] = []
-  for (const at of unmade) {
+  for (const at of burned) {
     if (near(at, player, tuning.hearing)) {
-      cues.push({ id: 'caretaker-unmade', x: at.x, z: at.z, rate: 1 })
+      cues.push({ id: 'caretaker-burned', x: at.x, z: at.z, rate: 1 })
     }
   }
   if (!shown || !near(shown, player, tuning.hearing)) return { cues, holds }
