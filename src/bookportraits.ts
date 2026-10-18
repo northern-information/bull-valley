@@ -17,8 +17,7 @@ import {
 } from './figure.ts'
 import { itemById } from './items.ts'
 import { samplePose } from './poses.ts'
-import { mulberry32 } from './rng.ts'
-import { buildShadowmanFigure, makeSilhouetteTexture } from './shadowcards.ts'
+import { buildShadowman } from './shadowmanmodel.ts'
 import { buildTruckMesh } from './truck.ts'
 import type { BookEntry } from './book.ts'
 import type { OutfitId } from './outfits.ts'
@@ -47,20 +46,19 @@ function marx(): THREE.Object3D {
 }
 
 function shadowman(): THREE.Object3D {
-  const height = CONFIG.shadowmen.chestHeight * 2
-  const figure = buildShadowmanFigure(
-    makeSilhouetteTexture(mulberry32(0xb00c)),
-    height
-  )
-  figure.position.y = height / 2
-  const group = new THREE.Group()
-  group.add(figure)
-  // A card, as the valley stands them: kept square to the viewer while the
-  // page turns it, so it never shows its edge.
-  setMotion(group, () => {
-    if (group.parent) group.rotation.y = -group.parent.rotation.y
+  const rig = buildShadowman(CONFIG.shadowmen.chestHeight * 2, 0xb00c)
+  rig.update({ dt: 0, speed: 0, burn: 0, perception: false })
+  let last = 0
+  setMotion(rig.group, (t) => {
+    rig.update({
+      dt: Math.min(0.1, Math.max(0, t - last)),
+      speed: 0,
+      burn: 0,
+      perception: false,
+    })
+    last = t
   })
-  return group
+  return rig.group
 }
 
 const PORTRAITS: Partial<Record<string, () => THREE.Object3D>> = {

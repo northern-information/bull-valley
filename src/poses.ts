@@ -64,6 +64,9 @@ export type PoseName =
   | 'point'
   | 'shrug'
   | 'kneel'
+  // A shadowman's strike (shadowmanmodel.ts).
+  | 'shadow-windup'
+  | 'shadow-lunge'
 
 // A sampled pose: every joint present.
 export interface PoseSample {
@@ -650,6 +653,48 @@ export const POSES = {
   // The sprint: leaning in, elbows bent, the swing knee folded high, both
   // feet off the ground between steps.
   run: { seconds: 1, smooth: true, keys: stride(RUN_HALF) },
+  // A shadowman winding up: reared back on its heels, the head thrown up,
+  // both too-long arms raised high and drawn back over it, claws curled.
+  'shadow-windup': {
+    keys: [
+      {
+        lift: -0.08,
+        joints: {
+          spine: [-0.35, 0, 0],
+          neck: [-0.35, 0, 0],
+          shoulderL: [-2.7, 0, 0.35],
+          shoulderR: [-2.7, 0, -0.35],
+          elbowL: [-0.6, 0, 0],
+          elbowR: [-0.6, 0, 0],
+          hipL: [-0.35, 0, 0.06],
+          hipR: [0.3, 0, -0.06],
+          kneeL: [0.35, 0, 0],
+          kneeR: [0.4, 0, 0],
+        },
+      },
+    ],
+  },
+  // A shadowman lunging: thrown forward off the back foot, the head
+  // craned at its raider, both arms flung straight out at them.
+  'shadow-lunge': {
+    keys: [
+      {
+        lift: -0.15,
+        joints: {
+          spine: [0.6, 0, 0],
+          neck: [-0.45, 0, 0],
+          shoulderL: [-2.0, 0, 0.18],
+          shoulderR: [-2.0, 0, -0.18],
+          elbowL: [-0.1, 0, 0],
+          elbowR: [-0.1, 0, 0],
+          hipL: [-0.95, 0, 0.04],
+          hipR: [0.45, 0, -0.04],
+          kneeL: [0.8, 0, 0],
+          kneeR: [0.3, 0, 0],
+        },
+      },
+    ],
+  },
 } satisfies Record<PoseName, Pose>
 
 const ZERO: Rotation = [0, 0, 0]
@@ -764,4 +809,12 @@ export function stridePose(phase: number, speed: number): PoseSample {
     joints[joint] = mix(walk.joints[joint], run.joints[joint], share)
   }
   return { lift: walk.lift + (run.lift - walk.lift) * share, joints }
+}
+
+// Two sampled poses mixed: a at t 0, b at t 1.
+export function blendPose(a: PoseSample, b: PoseSample, t: number): PoseSample {
+  const joints = {} as Record<JointName, Rotation> // filled for every joint below
+  for (const joint of JOINTS)
+    joints[joint] = mix(a.joints[joint], b.joints[joint], t)
+  return { lift: a.lift + (b.lift - a.lift) * t, joints }
 }
