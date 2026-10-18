@@ -178,6 +178,16 @@ describe('parseClientMessage', () => {
     expect(parse({ type: 'ping', t: 12.5 })).toEqual({ type: 'ping', t: 12.5 })
   })
 
+  it('refuses a type or a dev op it does not know, prototype names too', () => {
+    expect(parse({ type: 'teleport' })).toBeNull()
+    expect(parse({ type: 'toString' })).toBeNull()
+    expect(parse({ type: '__proto__' })).toBeNull()
+    expect(parse({ type: 7 })).toBeNull()
+    expect(parse({ type: 'dev', op: 'toString' })).toBeNull()
+    expect(parse({ type: 'dev', op: 'fly' })).toBeNull()
+    expect(parse({ type: 'dev' })).toBeNull()
+  })
+
   it("parses where Marx's truck stands, and nothing else", () => {
     const lights = { type: 'headlights', x: 1, y: 2, z: 3, heading: -1.5 }
     expect(parse({ ...lights, extra: true })).toEqual(lights)
@@ -230,7 +240,8 @@ describe('parseClientMessage', () => {
       undercroft: null,
       rings: [],
     })
-    // Bad ones read as missing in an older build, too.
+    // Any bad one reads as none in an older build, a good map beside them
+    // too: the places come all together or not at all.
     expect(
       parse({
         ...hello,
@@ -250,8 +261,7 @@ describe('parseClientMessage', () => {
       v: PROTOCOL_VERSION - 1,
       havens: [],
       metres: { width: 0, height: 0 },
-      // A good map parses whatever the version.
-      water: hello.water,
+      water: { cell: 100, cols: 1, rows: 1, bits: 'AA==' },
       maze: null,
       truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
       stand: null,
@@ -260,8 +270,14 @@ describe('parseClientMessage', () => {
       undercroft: null,
       rings: [],
     })
-    // The current version still requires both.
+    // The current version still requires them all.
     expect(parse({ ...older, v: PROTOCOL_VERSION })).toBeNull()
+    expect(parse({ ...hello, dealer: 'wick' })).toBeNull()
+    expect(parse({ ...hello, maze: null, stand: null })).toEqual({
+      ...hello,
+      maze: null,
+      stand: null,
+    })
   })
 
   it('parses the dev frame that places a shadowman', () => {
