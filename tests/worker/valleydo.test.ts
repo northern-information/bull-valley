@@ -410,6 +410,11 @@ describe('ValleyDO', () => {
   })
 
   it('welcomes a player with the roster and the world, and tells the others', async () => {
+    // Noon Central, so the day's turn is not the next thing due.
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.UTC(2026, 6, 1, 17) })
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, '  Dave  Coleman ')
     const welcomeA = a.last<WelcomeMessage>()
