@@ -21,6 +21,7 @@ const THREE_AND_DOM = [
   'billart',
   'bookhud',
   'bookportraits',
+  'buffhud',
   'cabbagestandmodel',
   'canart',
   'canvas',

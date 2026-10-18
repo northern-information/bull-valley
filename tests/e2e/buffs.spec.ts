@@ -50,8 +50,8 @@ base.describe('buffs', { tag: '@valley' }, () => {
     // B two metres in front of A.
     await standInTheOpen(a, 0)
     await standInTheOpen(b, -2)
-    await b.evaluate(() => window.__bv?.setHealth(1))
-    await expect.poll(() => health(b)).toBe(1)
+    await b.evaluate(() => window.__bv?.setHealth(100))
+    await expect.poll(() => health(b)).toBe(100)
     await expect
       .poll(() => a.evaluate(() => window.__bv?.valley?.members.length))
       .toBe(2)
@@ -66,7 +66,15 @@ base.describe('buffs', { tag: '@valley' }, () => {
 
     await expect.poll(() => held(a, 'joints')).toBe(joints - 1)
     await expect.poll(() => high(b)).toBeGreaterThan(0.4)
-    await expect.poll(() => health(b)).toBe(3)
+    await expect.poll(() => health(b)).toBe(300)
+    // Each high shows as a buff over the hotbar, winding down.
+    await expect(b.locator('.bv-buff[data-buff="high"]')).toBeVisible()
+    await expect(
+      b.locator('.bv-buff[data-buff="high"] .bv-buff-time')
+    ).toHaveText(/^\d+[ms]$/)
+    await expect(a.locator('.bv-buff[data-buff="high"]')).toBeVisible()
+    // The triangle names its corners.
+    await expect(b.locator('.bv-geo-mark')).toHaveCount(3)
     await expect.poll(() => high(a)).toBeGreaterThan(0.2)
     expect(await high(a)).toBeLessThan(await high(b))
     await expect(b.locator('.bv-chat')).toContainText(

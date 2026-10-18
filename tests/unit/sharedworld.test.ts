@@ -2401,6 +2401,7 @@ describe('rule 13: the Caretaker keeps the maze', () => {
 
 describe('rule 24: health', () => {
   const MAX = CONFIG.health.max
+  const TOUCH = CONFIG.health.touch
 
   const at = (over: Partial<PeerStateWire> = {}): PeerStateWire => ({
     x: 500,
@@ -2420,9 +2421,9 @@ describe('rule 24: health', () => {
     expect(v.valley.health).toEqual({})
   })
 
-  it('takes a point a touch, and the last shatters and makes whole', () => {
+  it('takes a block a touch, and the last shatters and makes whole', () => {
     const v = valleyWith(join('a'))
-    for (let left = MAX - 1; left > 0; left--) {
+    for (let left = MAX - TOUCH; left > 0; left -= TOUCH) {
       expect(v.step({ type: 'hit', id: 'a' }).health).toEqual({
         account: 'acct-a',
         points: left,
@@ -2442,7 +2443,9 @@ describe('rule 24: health', () => {
     const second = { ...joinAs('b'), account: 'acct-a' }
     const v = valleyWith(join('a'), second)
     v.step({ type: 'hit', id: 'a' })
-    expect(v.step({ type: 'hit', id: 'b' }).health?.points).toBe(MAX - 2)
+    expect(v.step({ type: 'hit', id: 'b' }).health?.points).toBe(
+      MAX - 2 * TOUCH
+    )
     expect(v.step({ type: 'hit', id: 'nobody' }).health).toBeUndefined()
     expect(v.step({ type: 'mend', id: 'nobody', by: 1 }).health).toBeUndefined()
   })
@@ -2452,7 +2455,7 @@ describe('rule 24: health', () => {
     expect(v.step({ type: 'mend', id: 'a', by: 1 }).health).toBeUndefined()
     v.step({ type: 'set-health', id: 'a', points: 1 })
     expect(v.step({ type: 'mend', id: 'a', by: 1 }).health?.points).toBe(2)
-    expect(v.step({ type: 'mend', id: 'a', by: 9 }).health?.points).toBe(MAX)
+    expect(v.step({ type: 'mend', id: 'a', by: MAX }).health?.points).toBe(MAX)
     v.step({ type: 'set-health', id: 'a', points: 1 })
     // A forecourt: whole at once.
     expect(v.step({ type: 'mend', id: 'a' }).health?.points).toBe(MAX)
@@ -2464,10 +2467,14 @@ describe('rule 24: health', () => {
     v.step(leaveAs('a'))
     v.step({ type: 'reset' })
     const restored = restoreValley({ ...v.valley, world: null })
-    expect(healthFor(restored, 'acct-a')).toBe(MAX - 1)
+    expect(healthFor(restored, 'acct-a')).toBe(MAX - TOUCH)
     // An older build's valley, kept before health was, is whole.
-    const { health: _, ...older } = createValley()
+    const { health: _, healthMax: __, ...older } = createValley()
     expect(healthFor(restoreValley(older), 'acct-a')).toBe(MAX)
+    // One kept in three points comes back at the same share of whole.
+    const points = restoreValley({ ...older, health: { 'acct-a': 2 } })
+    expect(healthFor(points, 'acct-a')).toBe(Math.round((MAX * 2) / 3))
+    expect(points.healthMax).toBe(MAX)
   })
 
   it('makes whole on a forecourt, on foot, one socket an account', () => {
@@ -2634,7 +2641,7 @@ describe('rule 27: buffs', () => {
     expect(healthFor(v.valley, 'acct-a')).toBe(CONFIG.health.max)
     // A roll past the chance lands.
     expect(v.step({ type: 'hit', id: 'a', roll: 0.99 }).health?.points).toBe(
-      CONFIG.health.max - 1
+      CONFIG.health.max - CONFIG.health.touch
     )
     v.step({ type: 'set-health', id: 'a', points: 1 })
     const fatal = v.step({ type: 'hit', id: 'a', roll: 0.99 })

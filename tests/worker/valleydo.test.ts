@@ -2035,7 +2035,10 @@ describe('ValleyDO: the shadowmen', () => {
       '{"type":"dev","op":"shadowman","x":500,"z":501}'
     )
     await tickUntilStruck(v, a)
-    expect(a.frames()).toContainEqual({ type: 'struck', health: 2 })
+    expect(a.frames()).toContainEqual({
+      type: 'struck',
+      health: CONFIG.health.max - CONFIG.health.touch,
+    })
     expect(b.frames().some((m) => m.type === 'struck')).toBe(false)
   })
 
@@ -2064,7 +2067,7 @@ describe('ValleyDO: the shadowmen', () => {
     expect(a.frames()).toContainEqual({
       type: 'struck',
       by: 'caretaker',
-      health: 2,
+      health: CONFIG.health.max - CONFIG.health.touch,
     })
     expect(b.frames().some((m) => m.type === 'struck')).toBe(false)
   })
@@ -2728,12 +2731,12 @@ describe('ValleyDO: health', () => {
     await tickUntilStruck(v, a)
     expect(a.frames()).toContainEqual({
       type: 'struck',
-      health: CONFIG.health.max - 1,
+      health: CONFIG.health.max - CONFIG.health.touch,
     })
     // The account's other socket hears its health, not a strike.
     expect(a2.frames()).toContainEqual({
       type: 'health',
-      health: CONFIG.health.max - 1,
+      health: CONFIG.health.max - CONFIG.health.touch,
     })
     expect(a2.frames().some((m) => m.type === 'struck')).toBe(false)
     // No body, and the pack as it was.
@@ -2792,31 +2795,31 @@ describe('ValleyDO: health', () => {
 
   it('gives health back for what is used, once the pack gives it up', async () => {
     const { v, a } = await out()
-    await v.webSocketMessage(ws(a), '{"type":"dev","op":"health","points":1}')
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"health","points":100}')
     // None carried: refused, and no point back.
     await v.webSocketMessage(ws(a), '{"type":"use","kind":"aspirin"}')
-    expect(healthOf(a)).toEqual([1])
+    expect(healthOf(a)).toEqual([100])
     await v.webSocketMessage(
       ws(a),
       '{"type":"dev","op":"grant","kind":"aspirin","count":24}'
     )
     await v.webSocketMessage(ws(a), '{"type":"use","kind":"aspirin"}')
-    expect(healthOf(a)).toEqual([1, 2])
+    expect(healthOf(a)).toEqual([100, 200])
     expect(lastPack(a)?.aspirin).toBe(23)
-    // A beer gives a point back too, and liquor two, never past whole.
+    // A beer gives a block back too, and liquor two, never past whole.
     await v.webSocketMessage(
       ws(a),
       '{"type":"dev","op":"grant","kind":"pbr","count":1}'
     )
     await v.webSocketMessage(ws(a), '{"type":"use","kind":"pbr"}')
-    expect(healthOf(a)).toEqual([1, 2, 3])
-    await v.webSocketMessage(ws(a), '{"type":"dev","op":"health","points":2}')
+    expect(healthOf(a)).toEqual([100, 200, 300])
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"health","points":200}')
     await v.webSocketMessage(
       ws(a),
       '{"type":"dev","op":"grant","kind":"grey-goose","count":1}'
     )
     await v.webSocketMessage(ws(a), '{"type":"use","kind":"grey-goose"}')
-    expect(healthOf(a).at(-1)).toBe(3)
+    expect(healthOf(a).at(-1)).toBe(CONFIG.health.max)
   })
 
   it('keeps a touch that lands while another change waits on D1', async () => {
@@ -2842,13 +2845,13 @@ describe('ValleyDO: health', () => {
     expect(a.reasons()).toContain('dropped')
     expect(a.frames()).toContainEqual({
       type: 'struck',
-      health: CONFIG.health.max - 1,
+      health: CONFIG.health.max - CONFIG.health.touch,
     })
     await v.webSocketClose(ws(a))
     const back = await join(v, s, 'A')
     expect(back.frames()[0]).toMatchObject({
       type: 'welcome',
-      health: CONFIG.health.max - 1,
+      health: CONFIG.health.max - CONFIG.health.touch,
     })
   })
 
@@ -2908,7 +2911,7 @@ describe('ValleyDO: buffs', () => {
 
   it('passes a unit to a raider in reach: they take it in full, the giver a share', async () => {
     const { v, a, b, bId } = await two()
-    await v.webSocketMessage(ws(b), '{"type":"dev","op":"health","points":1}')
+    await v.webSocketMessage(ws(b), '{"type":"dev","op":"health","points":100}')
     await v.webSocketMessage(
       ws(a),
       '{"type":"dev","op":"grant","kind":"joints","count":2}'
@@ -2936,7 +2939,10 @@ describe('ValleyDO: buffs', () => {
       2
     )
     // The joint heals two.
-    expect(b.frames()).toContainEqual({ type: 'health', health: 3 })
+    expect(b.frames()).toContainEqual({
+      type: 'health',
+      health: CONFIG.health.max,
+    })
     await settle()
     expect(a.frames().some((m) => m.type === 'xp')).toBe(true)
   })

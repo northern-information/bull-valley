@@ -132,6 +132,7 @@ export class PackHud {
   cardStowKeys: HTMLElement[]
   cardStowLabels: HTMLElement[]
   hotbar: HTMLOListElement
+  bar: HTMLDivElement
   hotbarKey = ''
   hotbarSlots: { li: HTMLLIElement; cd: HTMLElement; view: string }[] = []
 
@@ -284,7 +285,11 @@ export class PackHud {
     this.hotbar = el('ol', 'bv-hotbar')
     this.hotbar.setAttribute('aria-label', copy('inventory.hotbar_label'))
     this.hotbar.hidden = true
-    ui.appendChild(this.hotbar)
+    // In a strip along the bottom with the buffs over it (buffhud.ts), so
+    // their row starts where the bar does.
+    this.bar = el('div', 'bv-bar')
+    this.bar.appendChild(this.hotbar)
+    ui.appendChild(this.bar)
     this.wireMouse()
   }
 

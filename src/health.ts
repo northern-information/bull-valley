@@ -1,8 +1,9 @@
-// Health, pure: every raider has CONFIG.health.max points, and any shadow's
-// touch (a shadowman, a spider, a spiderling, the Caretaker) takes one. The
-// touch that takes the last shatters their geometrie: the strike that
+// Health, pure: every raider has CONFIG.health.max hit points (three blocks
+// of CONFIG.health.block), and any shadow's touch (a shadowman, a spider, a
+// spiderling, the Caretaker) takes CONFIG.health.touch. The touch that
+// takes the last shatters their geometrie: the strike that
 // leaves everything on a body (corpses.ts), and they come to whole. A
-// Citgo forecourt makes them whole, and medicine gives points back
+// Citgo forecourt makes them whole, and medicine gives hit points back
 // (items.ts heals). sharedworld.ts keeps each account's (rule 24),
 // actions.ts the one a raider playing alone has. No three.js, no DOM.
 
@@ -10,10 +11,14 @@ import { CONFIG } from './config.ts'
 
 export const MAX_HEALTH = CONFIG.health.max
 
-// A touch: the points left, and whether it was the last (the account is
-// whole again after, so `points` is what the raider is told: 0).
-export function hit(points: number): { points: number; fatal: boolean } {
-  const left = Math.max(0, Math.min(MAX_HEALTH, points) - 1)
+// A touch of `damage` hit points: the points left, and whether it was the
+// last (the account is whole again after, so `points` is what the raider is
+// told: 0).
+export function hit(
+  points: number,
+  damage: number = CONFIG.health.touch
+): { points: number; fatal: boolean } {
+  const left = Math.max(0, Math.min(MAX_HEALTH, points) - Math.max(0, damage))
   return { points: left, fatal: left === 0 }
 }
 
@@ -25,6 +30,22 @@ export function mend(points: number, by: number): number {
 // Whether `points` is whole.
 export function isWhole(points: number): boolean {
   return points >= MAX_HEALTH
+}
+
+// The record as a valley that kept `storedMax` whole keeps it now: every
+// account below whole at the same share of whole, so retuning the max (three
+// points once, 300 hit points now) never leaves anyone a sliver.
+export function rescaled(
+  health: Readonly<Record<string, number>>,
+  storedMax: number
+): Record<string, number> {
+  if (storedMax === MAX_HEALTH || !(storedMax > 0)) return { ...health }
+  let next: Record<string, number> = {}
+  for (const [account, points] of Object.entries(health)) {
+    const scaled = Math.round((points / storedMax) * MAX_HEALTH)
+    next = withHealth(next, account, Math.max(1, scaled))
+  }
+  return next
 }
 
 // An account's points as the valley keeps them: only the accounts below

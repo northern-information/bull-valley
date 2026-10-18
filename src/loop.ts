@@ -4,6 +4,7 @@
 
 import { pulseMaterials } from './assets.ts'
 import { itemsHeld, sightsInReach } from './book.ts'
+import { activeBuffs } from './buffbar.ts'
 import { buffedBeam, sprintScale } from './buffs.ts'
 import { citgoAt } from './citgos.ts'
 import { CONFIG } from './config.ts'
@@ -520,7 +521,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         return [{ slot, item, icon: thumbs.icon(kind), cooldown }]
       })
     )
-    hud.setGeometrie(levelsAt(s.geometrie, time))
+    const levels = levelsAt(s.geometrie, time)
+    hud.setGeometrie(levels)
+    hud.setBuffs(activeBuffs(levels, s.effects, time))
     // The daily task as it stands on the valley's day: a count from an
     // earlier day reads as nothing done. Alone, nothing is kept to show.
     if (net.online) {
