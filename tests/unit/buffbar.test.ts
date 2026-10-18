@@ -4,7 +4,7 @@ import { CONFIG } from '../../src/config.ts'
 import { NO_EFFECTS } from '../../src/hotbar.ts'
 import { ICON_SHAPES, iconSvg } from '../../src/icons.ts'
 
-const SOBER = { high: 0, stimulated: 0, drunk: 0 }
+const SOBER = { high: 0, stimulated: 0, drunk: 0, tripping: 0 }
 const fade = CONFIG.geometrie.fadePerSecond
 
 describe('activeBuffs', () => {
@@ -16,7 +16,7 @@ describe('activeBuffs', () => {
 
   it('winds each level down to nothing at its own rate', () => {
     const buffs = activeBuffs(
-      { high: 1, stimulated: 0.5, drunk: 0.25 },
+      { high: 1, stimulated: 0.5, drunk: 0.25, tripping: 0.75 },
       NO_EFFECTS,
       0
     )
@@ -28,6 +28,11 @@ describe('activeBuffs', () => {
         seconds: Math.ceil(0.5 / fade.stimulated),
       },
       { id: 'drunk', fraction: 0.25, seconds: Math.ceil(0.25 / fade.drunk) },
+      {
+        id: 'tripping',
+        fraction: 0.75,
+        seconds: Math.ceil(0.75 / fade.tripping),
+      },
     ])
   })
 
@@ -64,7 +69,13 @@ describe('buffTime', () => {
 
 describe('icons', () => {
   it('draws a mark for every buff, each a whole SVG in its box', () => {
-    for (const id of ['high', 'stimulated', 'drunk', 'perception'] as const) {
+    for (const id of [
+      'high',
+      'stimulated',
+      'drunk',
+      'tripping',
+      'perception',
+    ] as const) {
       expect(ICON_SHAPES[id].length).toBeGreaterThan(0)
       const svg = iconSvg(id)
       expect(svg).toMatch(/^<svg class="bv-icon" viewBox="0 0 24 24"/)

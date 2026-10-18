@@ -146,21 +146,45 @@ export const CONFIG = {
     // and sends each step; clients draw them between the last two.
     tickHz: 10,
   },
-  // Health (health.ts, sharedworld.ts rule 24): every raider has `max` hit
-  // points, three blocks of `block`, and any shadow's touch takes `touch`
-  // (a block). A touch that leaves some
-  // lets the raider alone for graceSeconds where they stand; the last one
-  // shatters their geometrie (a strike: the static and the corpse run),
-  // and they come to whole. A Citgo forecourt makes them whole, and so
-  // does medicine (items.ts heals). A hit fills the view red and shakes it
-  // for shakeSeconds, up to shakeMetres off.
+  // Geometrie, the raider's hit points (health.ts, sharedworld.ts rule
+  // 24): `base` at level 1 and `perLevel` more for each level after
+  // (progression.ts), rounded to `round`. Each shadow's touch takes its
+  // own hit (wards.ts, CONFIG.damage), cut by the raider's wards. A touch
+  // that leaves some lets the raider alone for graceSeconds where they
+  // stand; the last one shatters their geometrie (a strike: the static and
+  // the corpse run), and they come to whole. A Citgo forecourt makes them
+  // whole, and anything smoked, drunk or swallowed gives back its share
+  // (items.ts healsPct). A hit fills the view red and shakes it for
+  // shakeSeconds, up to shakeMetres off.
   health: {
-    max: 300,
-    block: 100,
-    touch: 100,
+    base: 1000,
+    perLevel: 40,
+    round: 10,
     graceSeconds: 3,
     shakeSeconds: 0.45,
     shakeMetres: 0.07,
+  },
+  // What each shadow's touch takes off geometrie before any ward
+  // (wards.ts damageOf), give or take `spread` either way on the valley's
+  // roll, so every raider sees the same number.
+  damage: {
+    spread: 0.1,
+    spiderling: 140,
+    man: 320,
+    spider: 480,
+    shade: 420,
+    caretaker: 750,
+    warden: 1100,
+  },
+  // The wards (wards.ts): the corner matched to a shadow cuts its touch by
+  // `matching` at full strength, the strongest other corner by `other`,
+  // never past `cap` in all.
+  wards: {
+    matching: 0.6,
+    other: 0.1,
+    cap: 0.75,
+    // The tetrahedron turns once in this many seconds (hud.ts).
+    turnSeconds: 14,
   },
   // The flashlight in the left hand: the beam that burns shadowmen reaches
   // range metres, halfAngle radians off the line of sight. The light itself
@@ -228,20 +252,23 @@ export const CONFIG = {
   geometrie: {
     // Each level fades this much a second (a level runs from 0 to 1), so
     // a full one fades out in 1 / rate seconds: high in four minutes,
-    // stimulated in three, drunk in five. Per-item doses live in
-    // src/items.ts.
-    fadePerSecond: { high: 1 / 240, stimulated: 1 / 180, drunk: 1 / 300 },
+    // stimulated in three, drunk in five, a trip in four. Per-item doses
+    // live in src/items.ts.
+    fadePerSecond: {
+      high: 1 / 240,
+      stimulated: 1 / 180,
+      drunk: 1 / 300,
+      tripping: 1 / 240,
+    },
   },
-  // What geometrie does while it lasts (buffs.ts), each scaled by its
+  // What the wards do besides warding (buffs.ts), each scaled by its
   // level from 0 to 1. High reaches the flashlight further and wider (a
   // full high, half again); stimulated quickens the sprint (a full one,
-  // 35% faster); drunk shrugs a touch off now and then (a full drunk, one
-  // in two). Passing something to a raider within passReach metres doses
+  // 35% faster). Passing something to a raider within passReach metres doses
   // them in full and heals them, and doses the giver at shareScale too.
   buffs: {
     beamPerHigh: 0.5,
     sprintPerStimulated: 0.35,
-    shrugPerDrunk: 0.5,
     passReach: 3,
     shareScale: 0.5,
   },

@@ -5,8 +5,9 @@ import { dayKey } from '../../src/daily.ts'
 import { DAILY_TASK, NO_TASK } from '../../src/dailytask.ts'
 import { costIn, goodOf } from '../../src/dealer.ts'
 import { DIME_CENTS } from '../../src/drops.ts'
+import { BASE_GEOMETRIE } from '../../src/health.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
-import { getItem } from '../../src/items.ts'
+import { getItem, healsOf } from '../../src/items.ts'
 import { mazeToWorld } from '../../src/maze.ts'
 import { XP, xpToReach } from '../../src/progression.ts'
 import { CLOSE, PROTOCOL_VERSION } from '../../src/protocol.ts'
@@ -37,6 +38,10 @@ import type {
 } from '../../src/protocol.ts'
 import type { AccountStore } from '../../worker/accounts.ts'
 import type { PackStore } from '../../worker/packs.ts'
+
+// Rule 24: a level 1 raider's whole, and a shadowman's hit.
+const MAX = BASE_GEOMETRIE
+const MAN = CONFIG.damage.man
 
 // Mocks for the slice of the Workers runtime the object touches.
 
@@ -136,8 +141,9 @@ class TestValley extends ValleyDO {
   tick(): void {
     this.tickShadows()
   }
-  // Rule 27's draw for a drunk's shrug: never, unless a test says.
-  rolled = 0.999
+  // Rule 24's draw for a touch's spread: square in the middle, unless a
+  // test says.
+  rolled = 0.5
   protected override roll(): number {
     return this.rolled
   }
@@ -2084,7 +2090,11 @@ describe('ValleyDO: the shadowmen', () => {
     await tickUntilStruck(v, a)
     expect(a.frames()).toContainEqual({
       type: 'struck',
-      health: CONFIG.health.max - CONFIG.health.touch,
+      by: 'man',
+      damage: MAN,
+      warded: 0,
+      health: MAX - MAN,
+      max: MAX,
     })
     expect(b.frames().some((m) => m.type === 'struck')).toBe(false)
   })
@@ -2114,7 +2124,10 @@ describe('ValleyDO: the shadowmen', () => {
     expect(a.frames()).toContainEqual({
       type: 'struck',
       by: 'caretaker',
-      health: CONFIG.health.max - CONFIG.health.touch,
+      damage: CONFIG.damage.caretaker,
+      warded: 0,
+      health: MAX - CONFIG.damage.caretaker,
+      max: MAX,
     })
     expect(b.frames().some((m) => m.type === 'struck')).toBe(false)
   })
@@ -2444,7 +2457,9 @@ describe('ValleyDO: the shadowmen', () => {
       false,
       true,
     ])
-    expect(a.last<PackMessage>()).toMatchObject({
+    expect(
+      a.frames().findLast((m): m is PackMessage => m.type === 'pack')
+    ).toMatchObject({
       type: 'pack',
       cash: wallet + SEASON.reward.cash,
     })
@@ -2765,11 +2780,12 @@ describe('ValleyDO: health', () => {
     const a = await join(v, s, 'A')
     expect(a.frames()[0]).toMatchObject({
       type: 'welcome',
-      health: CONFIG.health.max,
+      health: MAX,
+      healthMax: MAX,
     })
   })
 
-  it('takes one point for a touch, and leaves the pack and the raider be', async () => {
+  it("takes a shadowman's hit for a touch, and leaves the pack and the raider be", async () => {
     const { v, a, a2, b } = await out()
     await v.webSocketMessage(
       ws(a),
@@ -2778,12 +2794,17 @@ describe('ValleyDO: health', () => {
     await tickUntilStruck(v, a)
     expect(a.frames()).toContainEqual({
       type: 'struck',
-      health: CONFIG.health.max - CONFIG.health.touch,
+      by: 'man',
+      damage: MAN,
+      warded: 0,
+      health: MAX - MAN,
+      max: MAX,
     })
-    // The account's other socket hears its health, not a strike.
+    // The account's other socket hears its geometrie, not a strike.
     expect(a2.frames()).toContainEqual({
       type: 'health',
-      health: CONFIG.health.max - CONFIG.health.touch,
+      health: MAX - MAN,
+      max: MAX,
     })
     expect(a2.frames().some((m) => m.type === 'struck')).toBe(false)
     // No body, and the pack as it was.
@@ -2812,7 +2833,14 @@ describe('ValleyDO: health', () => {
       '{"type":"dev","op":"shadowman","x":500,"z":501}'
     )
     await tickUntilStruck(v, a)
-    expect(a.frames()).toContainEqual({ type: 'struck', health: 0 })
+    expect(a.frames()).toContainEqual({
+      type: 'struck',
+      by: 'man',
+      damage: MAN,
+      warded: 0,
+      health: 0,
+      max: MAX,
+    })
     expect(
       a.frames().findLast((m): m is PackMessage => m.type === 'pack')
     ).toMatchObject({ corpses: [0] })
@@ -2820,7 +2848,7 @@ describe('ValleyDO: health', () => {
     const back = await join(v, s, 'A')
     expect(back.frames()[0]).toMatchObject({
       type: 'welcome',
-      health: CONFIG.health.max,
+      health: MAX,
     })
   })
 
@@ -2831,8 +2859,8 @@ describe('ValleyDO: health', () => {
     await v.webSocketMessage(ws(a), state(5, 5))
     v.tick()
     await settle()
-    expect(healthOf(a).at(-1)).toBe(CONFIG.health.max)
-    expect(healthOf(a2).at(-1)).toBe(CONFIG.health.max)
+    expect(healthOf(a).at(-1)).toBe(MAX)
+    expect(healthOf(a2).at(-1)).toBe(MAX)
     // Whole, it hears nothing more.
     const heard = healthOf(a).length
     v.tick()
@@ -2840,10 +2868,10 @@ describe('ValleyDO: health', () => {
     expect(healthOf(a).length).toBe(heard)
   })
 
-  it('gives health back for what is used, once the pack gives it up', async () => {
+  it('gives geometrie back for what is used, once the pack gives it up', async () => {
     const { v, a } = await out()
     await v.webSocketMessage(ws(a), '{"type":"dev","op":"health","points":100}')
-    // None carried: refused, and no point back.
+    // None carried: refused, and nothing back.
     await v.webSocketMessage(ws(a), '{"type":"use","kind":"aspirin"}')
     expect(healthOf(a)).toEqual([100])
     await v.webSocketMessage(
@@ -2851,22 +2879,23 @@ describe('ValleyDO: health', () => {
       '{"type":"dev","op":"grant","kind":"aspirin","count":24}'
     )
     await v.webSocketMessage(ws(a), '{"type":"use","kind":"aspirin"}')
-    expect(healthOf(a)).toEqual([100, 200])
+    expect(healthOf(a)).toEqual([100, 250])
     expect(lastPack(a)?.aspirin).toBe(23)
-    // A beer gives a block back too, and liquor two, never past whole.
+    // A beer gives its share back too, and liquor twice that, never past
+    // whole.
     await v.webSocketMessage(
       ws(a),
       '{"type":"dev","op":"grant","kind":"pbr","count":1}'
     )
     await v.webSocketMessage(ws(a), '{"type":"use","kind":"pbr"}')
-    expect(healthOf(a)).toEqual([100, 200, 300])
-    await v.webSocketMessage(ws(a), '{"type":"dev","op":"health","points":200}')
+    expect(healthOf(a)).toEqual([100, 250, 400])
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"health","points":900}')
     await v.webSocketMessage(
       ws(a),
       '{"type":"dev","op":"grant","kind":"grey-goose","count":1}'
     )
     await v.webSocketMessage(ws(a), '{"type":"use","kind":"grey-goose"}')
-    expect(healthOf(a).at(-1)).toBe(CONFIG.health.max)
+    expect(healthOf(a).at(-1)).toBe(MAX)
   })
 
   it('keeps a touch that lands while another change waits on D1', async () => {
@@ -2892,13 +2921,17 @@ describe('ValleyDO: health', () => {
     expect(a.reasons()).toContain('dropped')
     expect(a.frames()).toContainEqual({
       type: 'struck',
-      health: CONFIG.health.max - CONFIG.health.touch,
+      by: 'man',
+      damage: MAN,
+      warded: 0,
+      health: MAX - MAN,
+      max: MAX,
     })
     await v.webSocketClose(ws(a))
     const back = await join(v, s, 'A')
     expect(back.frames()[0]).toMatchObject({
       type: 'welcome',
-      health: CONFIG.health.max - CONFIG.health.touch,
+      health: MAX - MAN,
     })
   })
 
@@ -2940,6 +2973,7 @@ describe('ValleyDO: buffs', () => {
       high: 0,
       stimulated: 0,
       drunk: 0,
+      tripping: 0,
     })
   })
 
@@ -2985,10 +3019,11 @@ describe('ValleyDO: buffs', () => {
       high * CONFIG.buffs.shareScale,
       2
     )
-    // The joint heals two.
+    // The joint gives back its share.
     expect(b.frames()).toContainEqual({
       type: 'health',
-      health: CONFIG.health.max,
+      health: 100 + healsOf('joints', MAX),
+      max: MAX,
     })
     await settle()
     expect(a.frames().some((m) => m.type === 'xp')).toBe(true)
@@ -3018,24 +3053,25 @@ describe('ValleyDO: buffs', () => {
     expect(b.frames().some((m) => m.type === 'passed')).toBe(false)
   })
 
-  it("shrugs a touch off when the drunk's roll says so", async () => {
+  it("wards a touch by the raider's wards, and says how much", async () => {
     const { v, a } = await two()
     await v.webSocketMessage(
       ws(a),
-      '{"type":"dev","op":"grant","kind":"wild-turkey","count":2}'
+      '{"type":"dev","op":"grant","kind":"joints","count":2}'
     )
-    await v.webSocketMessage(ws(a), '{"type":"use","kind":"wild-turkey"}')
-    await v.webSocketMessage(ws(a), '{"type":"use","kind":"wild-turkey"}')
-    v.rolled = 0
+    await v.webSocketMessage(ws(a), '{"type":"use","kind":"joints"}')
+    await v.webSocketMessage(ws(a), '{"type":"use","kind":"joints"}')
+    v.rolled = 1
     await v.webSocketMessage(
       ws(a),
       '{"type":"dev","op":"shadowman","x":500,"z":501}'
     )
     await tickUntilStruck(v, a)
-    expect(a.frames()).toContainEqual({
-      type: 'struck',
-      health: CONFIG.health.max,
-      shrugged: true,
-    })
+    const struck = a.frames().find((m) => m.type === 'struck')
+    // The high takes most of it, the spread on the roll before.
+    expect(struck).toMatchObject({ type: 'struck', by: 'man', max: MAX })
+    const { damage, warded } = struck as { damage: number; warded: number }
+    expect(damage + warded).toBe(Math.round(MAN * 1.1))
+    expect(warded).toBeGreaterThan(damage)
   })
 })

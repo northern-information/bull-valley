@@ -10,7 +10,7 @@ import { buffedBeam } from './buffs.ts'
 import { caretakerAt, createCaretaker, stepCaretaker } from './caretaker.ts'
 import { citgoAt } from './citgos.ts'
 import { CONFIG } from './config.ts'
-import { healthOf, isWhole } from './health.ts'
+import { woundsOf } from './health.ts'
 import { onLookout } from './lookout.ts'
 import { isAboard } from './marx.ts'
 import { worldToMaze } from './maze.ts'
@@ -60,6 +60,7 @@ import type {
 } from './shadowmen.ts'
 import type { Valley } from './sharedworld.ts'
 import type { TunnelBurst, TunnelShade, TunnelUpdate } from './tunnelshades.ts'
+import type { ShadowHit } from './wards.ts'
 
 // The valley's shadowmen, in the server's memory: the field, the
 // Caretaker (rule 13), each raider who was struck with the server ms
@@ -198,10 +199,9 @@ export interface ShadowStep {
   // The frame for everyone.
   message: ShadowmenMessage
   struck: string[]
-  // Struck by the Caretaker.
-  caught: string[]
-  // Struck by a tunnel shade.
-  tunneled: string[]
+  // Rule 24: what struck each raider struck (the heaviest, when more
+  // than one landed in the step).
+  strikers: Record<string, ShadowHit>
   // Rule 15: the accounts credited with burning the Caretaker this step.
   credited: string[]
   // Rule 16: the accounts credited with a burn this step, once for each
@@ -352,7 +352,7 @@ export function stepShadows(
   const surface = croft
     ? raiders.filter((r) => !inUndercroft(croft, r, CROFT_MARGIN))
     : raiders
-  const { struck, lunges, bursts } = stepShadowmen(
+  const crossing = stepShadowmen(
     shadows.field,
     rng,
     {
@@ -366,15 +366,24 @@ export function stepShadows(
     },
     cfg
   )
+  const { struck, lunges, bursts } = crossing
   const keeper = world.maze
     ? stepKeeper(valley, shadows, rng, world.maze, surface, dt)
     : { caretaker: null, burned: null, caught: [], credited: [] }
   const tunnel: TunnelUpdate = croft
     ? stepTunnelShades(shadows.tunnel, rng, { dt, raiders, place: croft, calm })
-    : { struck: [], bursts: [], wounds: [] }
+    : { struck: [], strikers: {}, bursts: [], wounds: [] }
   for (const id of [...keeper.caught, ...tunnel.struck]) {
     if (!struck.includes(id)) struck.push(id)
   }
+  const strikers: Record<string, ShadowHit> = {}
+  const land = (id: string, by: ShadowHit): void => {
+    const was = strikers[id]
+    if (!was || CONFIG.damage[by] > CONFIG.damage[was]) strikers[id] = by
+  }
+  for (const [id, by] of Object.entries(crossing.strikers)) land(id, by)
+  for (const id of keeper.caught) land(id, 'caretaker')
+  for (const [id, by] of Object.entries(tunnel.strikers)) land(id, by)
   regrace(valley, shadows, raiders, struck, now)
   return {
     message: {
@@ -395,8 +404,7 @@ export function stepShadows(
       tunnelWounds: tunnel.wounds.map(tunnelSpot),
     },
     struck,
-    caught: keeper.caught,
-    tunneled: tunnel.struck,
+    strikers,
     credited: keeper.credited,
     ...burnCredits(valley, bursts, tunnel.bursts, keeper.credited),
   }
@@ -417,7 +425,7 @@ export function forecourtMends(
   for (const { id, at } of placed) {
     const member = valley.members[id]
     if (!at || !member || at.riding || seen.has(member.account)) continue
-    if (isWhole(healthOf(valley.health, member.account))) continue
+    if (woundsOf(valley.wounds, member.account) <= 0) continue
     if (!inHaven(at, world.havens, cfg.havenRadius)) continue
     seen.add(member.account)
     ids.push(id)

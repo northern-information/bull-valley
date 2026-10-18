@@ -49,19 +49,39 @@ geometrie_shattered = { text = "GEOMETRIE SHATTERED", by = "ai" }
 countdown_label = { text = "Truck leaves in", by = "ai" }
 chat_log_label = { text = "Chat", by = "ai" }
 chat_input_label = { text = "Say to the valley", by = "ai" }
-geometrie_label = { text = "Geometrie: high {high}%, stimulated {stimulated}%, drunk {drunk}%", by = "ai" }
-health_label = { text = "Health: {health} of {max}", by = "ai" }
-health_value = { text = "{health}/{max}", by = "ai" }
+wards_label = { text = "Wards: high {high}%, stimulated {stimulated}%, drunk {drunk}%, tripping {tripping}%", by = "ai" }
+health_title = { text = "Geometrie", by = "ai" }
+health_label = { text = "Geometrie: {health} of {max}", by = "ai" }
+health_value = { text = "{health} / {max}", by = "ai" }
+level_tag = { text = "LV {level}", by = "ai" }
+damage = { text = "−{damage}", by = "ai" }
+warded = { text = "−{warded} warded", by = "ai" }
+ward_chip = { text = "{percent}%", by = "ai" }
 
 # The buffs over the hotbar (src/buffhud.ts), each winding down.
 
 [buffs]
 label = { text = "Buffs", by = "ai" }
 cell = { text = "{buff}, {time} left", by = "ai" }
-high = { text = "High: the flashlight reaches further and wider", by = "ai" }
-stimulated = { text = "Stimulated: the sprint runs faster", by = "ai" }
-drunk = { text = "Drunk: a shadow's touch is shrugged off now and then", by = "ai" }
+high = { text = "High: the shadowmen hit softer, and the flashlight reaches further and wider", by = "ai" }
+stimulated = { text = "Stimulated: the spiders hit softer, and the sprint runs faster", by = "ai" }
+drunk = { text = "Drunk: the Caretaker's lantern lands softer", by = "ai" }
+tripping = { text = "Tripping: the Undercroft's shades can't find all of you", by = "ai" }
 perception = { text = "Perception: the shadows show through the fog", by = "ai" }
+
+# The wards (src/wards.ts): each corner's name and the shadows it wards,
+# for the Book of Shadows and the item card.
+
+[wards]
+high = { text = "High", by = "ai" }
+stimulated = { text = "Stimulated", by = "ai" }
+drunk = { text = "Drunk", by = "ai" }
+tripping = { text = "Tripping", by = "ai" }
+high_against = { text = "the shadowmen", by = "ai" }
+stimulated_against = { text = "the spiders", by = "ai" }
+drunk_against = { text = "the Caretaker", by = "ai" }
+tripping_against = { text = "the Undercroft's shades", by = "ai" }
+card = { text = "{ward}: wards against {against}", by = "ai" }
 
 # The season (src/seasonhud.ts): the card on the intro and pause overlay,
 # the tracker in the upper right, and the banners.
@@ -175,6 +195,7 @@ shadows = { text = "Shadows", by = "ai" }
 folk = { text = "Folk", by = "ai" }
 items = { text = "Items", by = "ai" }
 tally = { text = "{found}/{of}", by = "ai" }
+warded_by = { text = "Warded by {ward}", by = "ai" }
 unknown = { text = "???", by = "ai" }
 unknown_lore = { text = "Not yet found. Something in the valley is still waiting for you.", by = "ai" }
 found_all = { text = "Every page written.", by = "ai" }
@@ -372,7 +393,6 @@ dropped = { text = "Dropped: {item}", by = "ai" }
 drop_aboard = { text = "Not from the truck.", by = "ai" }
 drop_key_item = { text = "You keep hold of it. Someone is counting on you.", by = "ai" }
 drop_refused = { text = "It won't come loose.", by = "ai" }
-shrugged = { text = "Something cold goes through you. You're too far gone to feel it.", by = "ai" }
 pass_nothing = { text = "Nothing in hand to pass.", by = "ai" }
 pass_alone = { text = "No one out here to pass it to.", by = "ai" }
 pass_aboard = { text = "Not from the truck.", by = "ai" }
@@ -384,6 +404,10 @@ change_unheard = { text = "The valley missed that. Others will see it when you n
 struck = { text = "You are somewhere else. Time is missing.", by = "ai" }
 hit = { text = "Something cold goes through you. It takes a piece with it.", by = "ai" }
 hit_caretaker = { text = "The lantern swings into you. A piece of you stays in the corn.", by = "ai" }
+warded_high = { text = "The high takes the edge off it.", by = "ai" }
+warded_stimulated = { text = "You're too wired for it to sink in. The legs only graze you.", by = "ai" }
+warded_drunk = { text = "The lantern lands soft. You're too loose to break.", by = "ai" }
+warded_tripping = { text = "It reaches for you and finds only part of you there.", by = "ai" }
 mended = { text = "Under the Citgo lights you come back together.", by = "ai" }
 caught = { text = "A lantern, very close. Then the forecourt, and the smell of cold corn.", by = "ai" }
 tunneled = { text = "Something in the dark, very close. Then the forecourt, and the taste of stone.", by = "ai" }

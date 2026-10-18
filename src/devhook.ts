@@ -57,8 +57,10 @@ interface BvHook {
   // Times a touch shattered this raider's geometrie and put them back at
   // the Citgo.
   readonly strikes: number
-  // Health (health.ts): the account's as the valley last said, or our own.
+  // Geometrie (health.ts), left and whole: the account's as the valley
+  // last said, or our own.
   readonly health: number
+  readonly healthMax: number
   net: {
     readonly status: NetStatus
     readonly id: string | null
@@ -114,7 +116,8 @@ interface BvHook {
   readonly mapOpen: boolean
   // The item on each number key, slot 0 for 1.
   readonly hotbar: Hotbar
-  // How high, stimulated and drunk right now, each 0 to 1.
+  // The wards right now: how high, stimulated, drunk and tripping, each
+  // 0 to 1.
   readonly geometrie: Record<GeometrieAxis, number>
   // The chat log, oldest first.
   readonly chat: readonly ChatLine[]
@@ -190,6 +193,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     },
     get health() {
       return s.health
+    },
+    get healthMax() {
+      return s.healthMax
     },
     net: {
       get status() {

@@ -99,6 +99,8 @@ export interface TunnelBurst extends XZ {
 
 export interface TunnelUpdate {
   struck: string[]
+  // What touched each raider struck.
+  strikers: Record<string, TunnelKind>
   bursts: TunnelBurst[]
   // Where one took a hit and went into the dark, standing yet, in world
   // metres.
@@ -120,7 +122,12 @@ export function stepTunnelShades(
   cfg: TunnelConfig = CONFIG.tunnel,
   map: MazeMap = theUndercroft()
 ): TunnelUpdate {
-  const out: TunnelUpdate = { struck: [], bursts: [], wounds: [] }
+  const out: TunnelUpdate = {
+    struck: [],
+    strikers: {},
+    bursts: [],
+    wounds: [],
+  }
   const local = raiders.map((r) => ({ r, at: worldToMaze(place, r) }))
   const below = local.filter(({ at }) => inMaze(map.size, at.x, at.z))
   for (const shade of shades) {
@@ -228,6 +235,7 @@ export function stepTunnelShades(
           tune.touchRadius
       ) {
         out.struck.push(quarry.r.id)
+        out.strikers[quarry.r.id] = shade.kind
         giveUp(shade)
       }
       continue

@@ -9,8 +9,6 @@ import {
   isSober,
   passTarget,
   scaled,
-  shrugChance,
-  shrugs,
   sobered,
   sprintScale,
 } from '../../src/buffs.ts'
@@ -18,8 +16,8 @@ import { CONFIG } from '../../src/config.ts'
 import { levelsAt, SOBER } from '../../src/geometrie.ts'
 import type { Beam } from '../../src/shadowmen.ts'
 
-const SOBER_LEVELS = { high: 0, stimulated: 0, drunk: 0 }
-const FULL = { high: 1, stimulated: 1, drunk: 1 }
+const SOBER_LEVELS = { high: 0, stimulated: 0, drunk: 0, tripping: 0 }
+const FULL = { high: 1, stimulated: 1, drunk: 1, tripping: 1 }
 const cfg = CONFIG.buffs
 
 const BEAM: Beam = {
@@ -46,15 +44,6 @@ describe('what geometrie does', () => {
   it('quickens the sprint with stimulated', () => {
     expect(sprintScale(SOBER_LEVELS)).toBe(1)
     expect(sprintScale(FULL)).toBeCloseTo(1 + cfg.sprintPerStimulated)
-  })
-
-  it('shrugs a touch off by a chance that grows with drunk', () => {
-    expect(shrugChance(SOBER_LEVELS)).toBe(0)
-    expect(shrugs(SOBER_LEVELS, 0)).toBe(false)
-    expect(shrugChance(FULL)).toBeCloseTo(cfg.shrugPerDrunk)
-    expect(shrugs(FULL, cfg.shrugPerDrunk - 0.01)).toBe(true)
-    expect(shrugs(FULL, cfg.shrugPerDrunk + 0.01)).toBe(false)
-    expect(shrugChance(FULL, { ...cfg, shrugPerDrunk: 3 })).toBe(1)
   })
 
   it("scales a dose to the giver's share, leaving out what it never named", () => {
