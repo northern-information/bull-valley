@@ -81,6 +81,7 @@ import type { FriendRow } from '../src/friends.ts'
 import type { Inventory, XZ } from '../src/interfaces.ts'
 import type { XpGrant } from '../src/progression.ts'
 import type {
+  ClientMessage,
   HelloMessage,
   PackMessage,
   PeerStateWire,
@@ -91,7 +92,7 @@ import type {
 } from '../src/protocol.ts'
 import type { QuestId, QuestStage } from '../src/quests.ts'
 import type { SeasonProgress } from '../src/season.ts'
-import type { ShadeKind } from '../src/shadowmen.ts'
+import type { ShadeKind, TruckPose } from '../src/shadowmen.ts'
 import type {
   PackChange,
   Reduced,
@@ -229,18 +230,29 @@ export class ValleyDO extends DurableObject<Env> {
       return
     }
     const attachment = this.attachment(ws)
-    const me = attachment.me
-    if (!me) {
-      if (msg.type !== 'hello') {
-        ws.close(CLOSE.malformed, 'Expected hello first')
-        return
-      }
+    const { me } = attachment
+    if (me) {
+      await this.frame(ws, attachment, me, msg)
+    } else if (msg.type === 'hello') {
       await this.hello(ws, attachment, msg)
-      return
+    } else {
+      ws.close(CLOSE.malformed, 'Expected hello first')
     }
-    // Where the raider's own last state frame put them, never a frame's
-    // word: what the valley holds every reach to (sharedworld.ts).
-    const at = me.at ? { x: me.at.x, z: me.at.z } : null
+  }
+
+  // One frame from a raider who has said hello, by its type: each is the
+  // valley's action, or a method of its own below. Every reach is held to
+  // where the raider's own last state frame put them, never to a frame's
+  // word (sharedworld.ts).
+  private async frame(
+    ws: WebSocket,
+    attachment: Attachment,
+    me: PeerWire,
+    msg: ClientMessage
+  ): Promise<void> {
+    const { id } = me
+    const { account } = attachment
+    const at = standing(me)
     switch (msg.type) {
       case 'hello':
         ws.close(CLOSE.malformed, 'Already said hello')
@@ -250,148 +262,69 @@ export class ValleyDO extends DurableObject<Env> {
         this.startShadows()
         return
       case 'headlights':
-        // Rule 11: where Marx's truck stands, for its headlights.
-        if (allow(this.headlightsRate, ws, HEADLIGHTS_LIMIT)) {
-          const { x, y, z, heading } = msg
-          seeHeadlights(this.shadows, me.at, { x, y, z, heading }, Date.now())
-        }
+        this.headlights(ws, me, msg)
         return
       case 'ping':
         send(ws, { type: 'pong', t: msg.t, serverNow: Date.now() })
         return
       case 'hop-out':
-        await this.act(ws, { type: 'hop-out', id: me.id })
+        await this.act(ws, { type: 'hop-out', id })
         return
       case 'board':
-        await this.act(ws, { type: 'board', id: me.id, at })
+        await this.act(ws, { type: 'board', id, at })
         return
       case 'take':
-        await this.act(ws, { type: 'take', id: me.id, index: msg.index, at })
+        await this.act(ws, { type: 'take', id, index: msg.index, at })
         return
       case 'buy':
-        await this.purchase(ws, attachment, {
-          type: 'buy',
-          id: me.id,
-          station: msg.station,
-          kind: msg.kind,
-          unit: msg.unit,
-          at,
-        })
+        await this.purchase(ws, attachment, { ...msg, id, at })
         return
       case 'call':
-        await this.act(ws, { type: 'call', id: me.id, from: msg.from, at })
+        await this.act(ws, { type: 'call', id, from: msg.from, at })
         return
       case 'collect':
-        await this.act(ws, { type: 'collect', id: me.id, bush: msg.bush, at })
+        await this.act(ws, { type: 'collect', id, bush: msg.bush, at })
         return
-      case 'use': {
-        // Rules 24 and 25: once the pack has given the unit up, it doses
-        // geometrie and gives its points back.
-        const used = await this.act(ws, {
-          type: 'use',
-          id: me.id,
-          kind: msg.kind,
-        })
-        if (!used) return
-        await this.dose({ type: 'dose', id: me.id, kind: msg.kind })
-        const heals = healsOf(msg.kind)
-        if (heals > 0) await this.mend(me.id, heals)
+      case 'use':
+        await this.use(ws, id, msg.kind)
         return
-      }
       case 'pass':
         await this.pass(ws, me, msg.kind, msg.to)
         return
-      case 'drop': {
-        // Where the raider's own last state frame put them, never the
-        // drop frame's word.
-        const at = me.at ? { x: me.at.x, z: me.at.z, yaw: me.at.yaw } : null
-        await this.setDown(ws, attachment.account, {
-          type: 'drop',
-          id: me.id,
-          kind: msg.kind,
-          count: msg.count,
-          at,
-        })
+      case 'drop':
+        await this.setDown(ws, account, { ...msg, id, at: facing(me) })
         return
-      }
       case 'take-drop':
-        await this.act(ws, { type: 'take-drop', id: me.id, drop: msg.drop, at })
+        await this.act(ws, { type: 'take-drop', id, drop: msg.drop, at })
         return
       case 'portal':
-        // Rule 28: ahead of where the raider's own last state frame put
-        // them.
-        await this.act(ws, {
-          type: 'open-portal',
-          id: me.id,
-          at: me.at ? { x: me.at.x, z: me.at.z, yaw: me.at.yaw } : null,
-        })
+        // Rule 28: ahead of the raider, the way they face.
+        await this.act(ws, { type: 'open-portal', id, at: facing(me) })
         return
       case 'loot':
-        await this.loot(ws, attachment.account, {
-          type: 'loot',
-          id: me.id,
-          corpse: msg.corpse,
-          at,
-        })
+        await this.loot(ws, account, { ...msg, id, at })
         return
       case 'stow':
-      case 'unstow': {
-        // At the locker where the raider's own last state frame put them.
-        const at = me.at ? { x: me.at.x, z: me.at.z } : null
-        await this.restash(ws, attachment.account, {
-          type: msg.type,
-          id: me.id,
-          kind: msg.kind,
-          count: msg.count,
-          at,
-        })
+      case 'unstow':
+        await this.restash(ws, account, { ...msg, id, at })
         return
-      }
       case 'stand-stock':
       case 'stand-collect':
-      case 'stand-upgrade': {
-        // Beside the stand where the raider's own last state frame put
-        // them.
-        const at = me.at ? { x: me.at.x, z: me.at.z } : null
-        await this.tend(
-          ws,
-          attachment.account,
-          msg.type === 'stand-stock'
-            ? { ...msg, id: me.id, at }
-            : { type: msg.type, id: me.id, at }
-        )
+      case 'stand-upgrade':
+        await this.tend(ws, account, { ...msg, id, at })
         return
-      }
       case 'trade':
-        await this.trade(ws, attachment, {
-          type: 'trade',
-          id: me.id,
-          offer: msg.offer,
-        })
+        await this.trade(ws, attachment, { ...msg, id })
         return
       case 'quest':
-        // Beside Erwin, or at the heart of the maze, where the raider's
-        // own last state frame put them.
-        await this.questStep(ws, attachment, {
-          type: 'quest',
-          id: me.id,
-          quest: msg.quest,
-          step: msg.step,
-          at: me.at ? { x: me.at.x, z: me.at.z } : null,
-        })
+        // Beside Erwin, or at the heart of the maze.
+        await this.questStep(ws, attachment, { ...msg, id, at })
         return
       case 'deal':
-        // Beside Erwin where the raider's own last state frame put them.
-        await this.barter(ws, attachment, {
-          type: 'deal',
-          id: me.id,
-          kind: msg.kind,
-          pay: msg.pay,
-          at: me.at ? { x: me.at.x, z: me.at.z } : null,
-        })
+        await this.barter(ws, attachment, { ...msg, id, at })
         return
       case 'discover':
-        await this.discover(ws, attachment.account, msg.entries)
+        await this.discover(ws, account, msg.entries)
         return
       case 'chat':
         this.chat(ws, me, msg.text)
@@ -404,7 +337,7 @@ export class ValleyDO extends DurableObject<Env> {
         await this.befriend(ws, attachment, me, msg.type, msg.name)
         return
       case 'friends':
-        if (attachment.account) await this.sendFriends(attachment.account)
+        if (account) await this.sendFriends(account)
         return
       case 'appearance':
         await this.restyle(ws, attachment, me, msg.outfit)
@@ -413,57 +346,85 @@ export class ValleyDO extends DurableObject<Env> {
         await this.rename(ws, attachment, me)
         return
       case 'dev':
-        if (!attachment.dev) {
+        if (attachment.dev) {
+          await this.dev(ws, account, id, msg)
+        } else {
           send(ws, { type: 'nack', re: 'dev', reason: 'not-a-dev-server' })
-          return
         }
-        if (msg.op === 'shadowman') {
-          placeShadowman(this.shadows, msg.x, msg.z, msg.kind ?? 'man')
-          this.startShadows()
-          return
-        }
-        if (msg.op === 'calm') {
-          this.calm = true
-          return
-        }
-        if (msg.op === 'grant') {
-          const { account } = attachment
-          if (!account) return
-          await this.repack(ws, { account, kind: msg.kind, delta: msg.count })
-          return
-        }
-        if (msg.op === 'health') {
-          const { points } = msg
-          await this.locked(async () => {
-            const reduced = reduce(
-              this.valley,
-              { type: 'set-health', id: me.id, points },
-              this.context()
-            )
-            await this.apply(reduced)
-            if (reduced.health) {
-              this.toAccount(reduced.health.account, {
-                type: 'health',
-                health: reduced.health.points,
-              })
-            }
-          })
-          return
-        }
-        if (msg.op === 'caretaker') {
-          placeCaretaker(this.valley, this.shadows, msg.x, msg.z)
-          this.startShadows()
-          return
-        }
-        if (msg.op === 'reset') this.shadows = createShadows()
-        await this.act(
-          ws,
-          msg.op === 'hurry'
-            ? { type: 'hurry', seconds: msg.seconds }
-            : { type: 'reset' }
-        )
         return
     }
+  }
+
+  // Rule 11: where Marx's truck stands, for its headlights.
+  private headlights(ws: WebSocket, me: PeerWire, pose: TruckPose): void {
+    if (!allow(this.headlightsRate, ws, HEADLIGHTS_LIMIT)) return
+    const { x, y, z, heading } = pose
+    seeHeadlights(this.shadows, me.at, { x, y, z, heading }, Date.now())
+  }
+
+  // Rules 24 and 27: once the pack has given the unit up, it doses
+  // geometrie and gives its points back.
+  private async use(ws: WebSocket, id: string, kind: string): Promise<void> {
+    const used = await this.act(ws, { type: 'use', id, kind })
+    if (!used) return
+    await this.dose({ type: 'dose', id, kind })
+    const heals = healsOf(kind)
+    if (heals > 0) await this.mend(id, heals)
+  }
+
+  // The dev server's frames, for the specs (the Worker stamped the socket).
+  private async dev(
+    ws: WebSocket,
+    account: string | null,
+    id: string,
+    msg: DevMessage
+  ): Promise<void> {
+    switch (msg.op) {
+      case 'shadowman':
+        placeShadowman(this.shadows, msg.x, msg.z, msg.kind ?? 'man')
+        this.startShadows()
+        return
+      case 'caretaker':
+        placeCaretaker(this.valley, this.shadows, msg.x, msg.z)
+        this.startShadows()
+        return
+      case 'calm':
+        this.calm = true
+        return
+      case 'grant':
+        if (account) {
+          await this.repack(ws, { account, kind: msg.kind, delta: msg.count })
+        }
+        return
+      case 'health':
+        await this.setHealth(id, msg.points)
+        return
+      case 'hurry':
+        await this.act(ws, { type: 'hurry', seconds: msg.seconds })
+        return
+      case 'reset':
+        this.shadows = createShadows()
+        await this.act(ws, { type: 'reset' })
+        return
+    }
+  }
+
+  // The account at `points` of health, for the specs (rule 24).
+  private async setHealth(id: string, points: number): Promise<void> {
+    await this.locked(async () => {
+      const reduced = reduce(
+        this.valley,
+        { type: 'set-health', id, points },
+        this.context()
+      )
+      await this.apply(reduced)
+      if (reduced.health) {
+        this.toAccount(reduced.health.account, {
+          type: 'health',
+          health: reduced.health.points,
+        })
+      }
+    })
   }
 
   async webSocketClose(ws: WebSocket): Promise<void> {
@@ -2043,6 +2004,19 @@ function seasonWire(progress: SeasonProgress): SeasonWire {
 
 function taskWire(progress: TaskProgress): TaskWire {
   return { task: DAILY_TASK.id, ...progress }
+}
+
+// The dev server's frames.
+type DevMessage = Extract<ClientMessage, { type: 'dev' }>
+
+// Where the raider's own last state frame put them.
+function standing(me: PeerWire): XZ | null {
+  return me.at ? { x: me.at.x, z: me.at.z } : null
+}
+
+// The same, and which way they face: where a drop or a portal goes.
+function facing(me: PeerWire): { x: number; z: number; yaw: number } | null {
+  return me.at ? { x: me.at.x, z: me.at.z, yaw: me.at.yaw } : null
 }
 
 function send(ws: WebSocket, msg: ServerMessage): void {
