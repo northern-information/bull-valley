@@ -11,6 +11,7 @@ import {
   QUESTS,
   questStep,
   roseLine,
+  roseProgress,
   stepNews,
   stepRefusal,
   toQuests,
@@ -89,6 +90,11 @@ describe('the rose quest', () => {
   })
 
   it("says the rose's line and the button that takes his next step", () => {
+    expect(roseProgress('none', {})).toBe(0)
+    expect(roseProgress('given', { rose: 1 })).toBe(1)
+    expect(roseProgress('given', {})).toBe(0)
+    expect(roseProgress('laid', {})).toBe(2)
+    expect(roseProgress('done', {})).toBe(3)
     expect(roseLine('none', {})).toEqual({
       line: copy('quests.rose_offer'),
       button: copy('quests.rose_accept'),

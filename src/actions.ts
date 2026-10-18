@@ -69,7 +69,7 @@ import {
 import { enteredAt, exitFrom, fieldEnd, openAt, ringEnd } from './portals.ts'
 import { levelOf } from './progression.ts'
 import { normalizeChat } from './protocol.ts'
-import { dealerStep, roseLine } from './quests.ts'
+import { dealerStep, roseLine, roseProgress } from './quests.ts'
 import { callRoute } from './roadgraph.ts'
 import { inHaven } from './shadowmen.ts'
 import { buy as buyItem, settle } from './shop.ts'
@@ -666,7 +666,13 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       pack: () => s.inventory,
       pending: () => s.pendingDeal || s.pendingQuest,
       said: () => s.dealSaid,
-      quest: () => (s.quests ? roseLine(s.quests.rose, s.inventory) : null),
+      quest: () =>
+        s.quests
+          ? {
+              ...roseLine(s.quests.rose, s.inventory),
+              step: roseProgress(s.quests.rose, s.inventory),
+            }
+          : null,
       onDeal: (kind, pay) => {
         s.pendingDeal = true
         s.dealSaid = null

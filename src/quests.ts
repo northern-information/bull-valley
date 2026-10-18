@@ -148,6 +148,22 @@ export function roseLine(
   }
 }
 
+// Which of the quest's three steps is under way for a raider at `stage`
+// holding `pack` (0 taking the rose, 1 laying it, 2 taking the key), or 3
+// once it is done; his dialog lights them. A lost rose is taken again.
+export function roseProgress(stage: QuestStage, pack: Inventory): number {
+  switch (stage) {
+    case 'none':
+      return 0
+    case 'given':
+      return (pack[QUESTS.rose.gives] ?? 0) > 0 ? 1 : 0
+    case 'laid':
+      return 2
+    case 'done':
+      return 3
+  }
+}
+
 // The step his dialog's button takes at `stage`.
 export function dealerStep(stage: QuestStage): QuestStep | null {
   if (stage === 'none' || stage === 'given') return 'accept'
