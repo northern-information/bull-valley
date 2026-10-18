@@ -25,6 +25,7 @@ import {
   topLevel,
   upgrade,
   upgradePrice,
+  upgradeShortfall,
 } from '../../src/stand.ts'
 import { formatCash } from '../../src/store.ts'
 import type { StandLedger } from '../../src/stand.ts'
@@ -133,6 +134,17 @@ describe('the Cabbage Stand', () => {
     expect(upgradePrice(top)).toBeNull()
     expect(upgrade(top, 0)).toBeNull()
     expect(affordsUpgrade(top, 1e9, { cabbage: 1e9, berries: 1e9 })).toBe(false)
+    // What falls short, the cash first, then each good in the price.
+    expect(upgradeShortfall(FRESH_STAND, price.cash, price.items)).toBeNull()
+    expect(upgradeShortfall(FRESH_STAND, price.cash - 5, {})).toEqual({
+      kind: 'cash',
+      count: 5,
+    })
+    expect(upgradeShortfall(FRESH_STAND, price.cash, { cabbage: 1 })).toEqual({
+      kind: 'cabbage',
+      count: (price.items.cabbage ?? 0) - 1,
+    })
+    expect(upgradeShortfall(top, 0, {})).toBeNull()
     // A level out of range reads as the nearest there is.
     expect(levelOf({ ...FRESH_STAND, level: 99 }).shelf).toBe(
       CONFIG.stand.levels[topLevel() - 1].shelf

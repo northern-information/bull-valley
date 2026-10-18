@@ -155,6 +155,12 @@ export const MAP = {
   close: { codes: ['KeyM', 'Escape'], key: 'M', labelKey: 'keys.close' },
 } as const satisfies Record<string, Binding>
 
+// With a keeper's dialog open (the Cabbage Stand's, Erwin von Dutch's):
+// Esc closes it, and its close button wears the key.
+export const DIALOG = {
+  close: { codes: ['Escape'], key: 'Esc', labelKey: 'keys.close' },
+} as const satisfies Record<string, Binding>
+
 // The pack's keys the controls table lists too, under the valley's: only
 // the ones that act on an item, since the rest are the pack's own way
 // round (its tabs, closing it).

@@ -208,6 +208,25 @@ export function affordsUpgrade(
   )
 }
 
+// The first thing `cash` (cents) and `pack` fall short of for the next
+// level, and by how much (`kind` 'cash' for the cents): the cash, then each
+// good in the price's order; null when they cover it, or at the top level.
+export function upgradeShortfall(
+  ledger: StandLedger,
+  cash: number,
+  pack: Inventory,
+  cfg = CONFIG
+): { kind: string; count: number } | null {
+  const price = upgradePrice(ledger, cfg)
+  if (!price) return null
+  if (cash < price.cash) return { kind: 'cash', count: price.cash - cash }
+  for (const [kind, count] of Object.entries(price.items)) {
+    const held = pack[kind] || 0
+    if (held < count) return { kind, count: count - held }
+  }
+  return null
+}
+
 // The stand a level up at `now`, what it earned so far banked first, or
 // null at the top. Whether the raider can pay is the caller's to check.
 export function upgrade(

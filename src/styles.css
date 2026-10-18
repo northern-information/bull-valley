@@ -2038,42 +2038,575 @@
   outline-offset: 2px;
 }
 
-/* The Cabbage Stand's dialog (standdialog.ts): the account step's look
-   over the valley, one column. */
-.bv-stand {
+/* The Cabbage Stand's and Erwin von Dutch's dialogs (npcdialog.ts, with
+   standdialog.ts and dealdialog.ts): one 720px panel over the valley. A
+   header (an eyebrow, the status on the right, the title, the keeper's
+   line), numbered sections on a 12-column grid with a 16px gutter, and a
+   footer with the valley's answer and the way out. Caps for eyebrows,
+   labels, titles and buttons; speech in gold italic, as an NPC's line is
+   in the chat log. One Citgo-red button per section is the thing you came
+   for; row actions are outlined; a disabled one is dashed and says why. */
+.bv-npc {
+  --bv-npc-dim: rgb(240 234 214 / 60%);
+  --bv-npc-soft: rgb(240 234 214 / 75%);
+  --bv-npc-line: rgb(240 234 214 / 16%);
+  --bv-npc-edge: rgb(240 234 214 / 24%);
+
   align-items: flex-start;
   background: rgb(0 0 0 / 92%);
   overflow-y: auto;
 }
 
-.bv-stand-ui {
+.bv-npc-ui {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 10px;
+  gap: 32px;
+  box-sizing: border-box;
+  width: min(100%, 720px);
   margin: auto;
-  text-align: center;
+  padding: 32px;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  background: #050505;
+  border: 1px solid var(--bv-npc-edge);
+  box-shadow: 8px 8px 0 var(--fi-black-shadow);
 }
 
-.bv-stand-ui p,
-.bv-stand-ui h3 {
+.bv-npc-ui p,
+.bv-npc-ui h2 {
   margin: 0;
 }
 
-.bv-stand-ui h3 {
-  font-size: 0.75em;
-  letter-spacing: 0.2em;
+.bv-npc-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 16px;
+  align-items: center;
+}
+
+.bv-npc-grid--top {
+  align-items: start;
+}
+
+.bv-npc-c2 {
+  grid-column: span 2;
+}
+
+.bv-npc-c3 {
+  grid-column: span 3;
+}
+
+.bv-npc-c4 {
+  grid-column: span 4;
+}
+
+.bv-npc-c6 {
+  grid-column: span 6;
+}
+
+.bv-npc-c8 {
+  grid-column: span 8;
+}
+
+.bv-npc-c10 {
+  grid-column: span 10;
+}
+
+.bv-npc-c12 {
+  grid-column: span 12;
+}
+
+.bv-npc-right {
+  grid-column: 7 / span 6;
+}
+
+/* The type: eyebrows and labels small and tracked, the title in caps, the
+   till's numbers large, numbers right-aligned in their column. */
+.bv-npc-eyebrow,
+.bv-npc-label {
+  font-size: 0.6875rem;
+  line-height: 1rem;
   text-transform: uppercase;
+  color: var(--bv-npc-dim);
+}
+
+.bv-npc-eyebrow {
+  font-weight: 600;
+  letter-spacing: 0.24em;
+}
+
+.bv-npc-label {
+  letter-spacing: 0.16em;
+}
+
+.bv-npc-lead {
+  color: var(--bv-citgo);
+}
+
+.bv-npc-head {
+  gap: 8px 16px;
+}
+
+.bv-npc-eyebrows {
+  display: flex;
+  gap: 12px;
+}
+
+.bv-npc-status {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.bv-npc-tag {
+  padding: 2px 8px;
+  border: 1px solid rgb(240 234 214 / 40%);
+}
+
+.bv-npc-title {
+  font-size: 1.375rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-shadow: 4px 4px 0 var(--fi-black-shadow);
+}
+
+.bv-npc-lede {
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+  color: var(--bv-npc-soft);
+}
+
+.bv-npc-say {
+  font-size: 0.875rem;
+  font-style: italic;
+  line-height: 1.375rem;
+  color: var(--fi-gold);
+}
+
+.bv-npc-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* A section's head row: 01 in Citgo red, the name, a rule, the meta. */
+.bv-npc-sh {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bv-npc-num {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--bv-citgo);
+}
+
+.bv-npc-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--bv-npc-line);
+}
+
+.bv-npc-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-self: start;
+}
+
+.bv-npc-numeral {
+  display: flex;
+  align-items: baseline;
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 2rem;
+}
+
+.bv-npc-numeral small {
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--bv-npc-dim);
+}
+
+.bv-npc-cell {
+  text-align: right;
+}
+
+.bv-npc-strong {
+  font-weight: 600;
+}
+
+.bv-npc-short,
+.bv-npc-why {
+  color: var(--bv-citgo);
+}
+
+.bv-npc-why {
+  min-height: 1rem;
+  font-size: 0.6875rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.bv-npc-why:empty {
+  display: none;
+}
+
+.bv-npc-hint {
+  font-size: 0.75rem;
+  color: var(--bv-npc-dim);
+}
+
+.bv-npc-hint:empty {
+  display: none;
+}
+
+/* The level and stock as square pips, lit as they fill. */
+.bv-npc-pips {
+  display: flex;
+  gap: 3px;
+}
+
+.bv-npc-pip {
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--bv-eggshell);
+}
+
+.bv-npc-pip--on {
+  background: var(--bv-eggshell);
+}
+
+/* The till's bank against its cap; Citgo red once it is full. */
+.bv-npc-meter-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bv-npc-meter {
+  box-sizing: border-box;
+  height: 12px;
+  padding: 2px;
+  border: 1px solid rgb(240 234 214 / 40%);
+}
+
+.bv-npc-meter > div {
+  height: 100%;
+  background: var(--bv-eggshell);
+}
+
+.bv-npc-legend {
+  display: flex;
+  justify-content: space-between;
+}
+
+.bv-stand--full .bv-npc-meter {
+  border-color: var(--bv-citgo);
+}
+
+.bv-stand--full .bv-npc-meter > div {
+  background: var(--bv-citgo);
+}
+
+.bv-stand--full [data-bv='stand-banked'],
+.bv-stand--full [data-bv='stand-cap'] {
+  color: var(--bv-citgo);
+}
+
+/* The goods tables: a head row of labels, then one row per good. */
+.bv-npc-row {
+  min-height: 56px;
+  font-size: 0.875rem;
+  border-bottom: 1px solid rgb(240 234 214 / 10%);
+}
+
+.bv-npc-row--head {
+  min-height: 0;
+  padding-bottom: 6px;
+  border-bottom-color: var(--bv-npc-line);
+}
+
+.bv-npc-row--out {
+  opacity: 0.5;
+}
+
+.bv-npc-good,
+.bv-npc-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bv-npc-left {
+  gap: 8px;
+}
+
+.bv-npc-left .bv-npc-pip {
+  width: 8px;
+  height: 8px;
+}
+
+.bv-npc-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.bv-npc-act {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 0;
+}
+
+/* Every button in the frame stands 44px tall and fills its cell. */
+.bv-npc-btn {
+  min-height: 44px;
+  padding: 0 16px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+}
+
+.bv-npc-btn:not(.bv-btn--primary) {
+  background: transparent;
+}
+
+.bv-account .bv-npc-btn:disabled {
+  border-style: dashed;
+  box-shadow: none;
+}
+
+/* Each good's color, on its swatch and its slots on the table. */
+.bv-npc-swatch {
+  width: 10px;
+  height: 10px;
+}
+
+.bv-npc-slots {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 4px;
+}
+
+.bv-npc-slot {
+  box-sizing: border-box;
+  height: 20px;
+  border: 1px solid var(--bv-npc-edge);
+}
+
+[data-good='cabbage'].bv-npc-swatch,
+[data-good='cabbage'].bv-npc-slot {
+  background: #7fae5a;
+  border-color: #7fae5a;
+}
+
+[data-good='berries'].bv-npc-swatch,
+[data-good='berries'].bv-npc-slot {
+  background: #7c4d9e;
+  border-color: #7c4d9e;
+}
+
+/* The next level: what changes, and what it costs against what you have. */
+.bv-npc-compare,
+.bv-npc-costs {
+  display: grid;
+  gap: 8px 12px;
+  align-items: baseline;
+  font-size: 0.875rem;
+}
+
+.bv-npc-compare {
+  grid-template-columns: 1fr auto 1rem auto;
+}
+
+.bv-npc-costs {
+  grid-template-columns: 1fr auto auto;
+  padding-left: 16px;
+  border-left: 1px solid var(--bv-npc-line);
+}
+
+.bv-npc-cost-rows {
+  display: contents;
+}
+
+.bv-npc-was {
+  text-align: right;
+  color: var(--bv-npc-dim);
+}
+
+.bv-npc-arrow {
+  color: var(--bv-citgo);
+}
+
+.bv-npc-then {
+  font-weight: 600;
+  text-align: right;
+}
+
+/* The payment Erwin takes, one picked, filled in eggshell so it never
+   reads as an action. */
+.bv-npc-chips {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.bv-npc-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  box-sizing: border-box;
+  min-height: 56px;
+  padding: 0 12px;
+  font: inherit;
+  text-align: left;
+  color: var(--bv-eggshell);
+  background: transparent;
+  border: 1px solid rgb(240 234 214 / 40%);
+  cursor: pointer;
+}
+
+.bv-npc-chip b {
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.bv-npc-chip small {
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
   opacity: 0.7;
 }
 
-.bv-stand-says {
-  font-style: italic;
+.bv-npc-chip:hover,
+.bv-npc-chip:focus-visible {
+  border-color: var(--bv-eggshell);
 }
 
-.bv-stand-good {
+.bv-npc-chip[aria-checked='true'] {
+  color: var(--fi-bg);
+  background: var(--bv-eggshell);
+  border-color: var(--bv-eggshell);
+}
+
+.bv-npc-chip:disabled {
+  cursor: not-allowed;
+}
+
+.bv-npc-empty {
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 6px;
+  padding: 16px;
+  border: 1px dashed rgb(240 234 214 / 30%);
+}
+
+/* The quest's steps: done in eggshell, the one under way in Citgo red. */
+.bv-npc-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.bv-npc-step {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 2px solid var(--bv-npc-edge);
+}
+
+.bv-npc-where {
+  font-size: 0.75rem;
+  color: var(--bv-npc-dim);
+}
+
+.bv-npc-step--done {
+  border-top-color: var(--bv-eggshell);
+}
+
+.bv-npc-step--done .bv-npc-label {
+  color: var(--bv-eggshell);
+}
+
+.bv-npc-step--now {
+  border-top-color: var(--bv-citgo);
+}
+
+.bv-npc-step--now .bv-npc-label {
+  color: var(--bv-citgo);
+}
+
+/* The footer: the valley's word, then the way out wearing its key. */
+.bv-npc-foot {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: -8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--bv-npc-line);
+}
+
+.bv-npc-foot .bv-account-status {
+  flex: 1;
+}
+
+.bv-npc .bv-npc-leave {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--bv-npc-soft);
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.bv-npc .bv-npc-leave:hover,
+.bv-npc .bv-npc-leave:focus-visible {
+  color: var(--bv-eggshell);
+  border-color: var(--bv-npc-edge);
+}
+
+.bv-npc-key {
+  padding: 1px 5px;
+  font-size: 0.625rem;
+  line-height: 0.875rem;
+  letter-spacing: 0.08em;
+  border: 1px solid currentcolor;
+}
+
+/* On a narrow screen every cell takes the row but a table's. */
+@media (width <= 640px) {
+  .bv-npc-ui {
+    padding: 20px;
+  }
+
+  .bv-npc-btn {
+    padding: 0 8px;
+  }
+
+  .bv-npc-head > *,
+  .bv-npc-section > .bv-npc-grid > *,
+  .bv-npc-chips {
+    grid-column: 1 / -1;
+  }
+
+  .bv-npc-chips {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bv-npc-costs {
+    padding-left: 0;
+    border-left: 0;
+  }
 }
