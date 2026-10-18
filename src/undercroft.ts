@@ -60,7 +60,7 @@ const HEIGHT = 4.2
 const ROWS = UNDERCROFT_GRID.length
 const COLS = UNDERCROFT_GRID[0].length
 
-export const UNDERCROFT_SIZE: MazeSize = {
+const UNDERCROFT_SIZE: MazeSize = {
   across: (ROWS - 1) * CELL,
   along: (COLS - 1) * CELL,
 }
@@ -71,7 +71,7 @@ const at = (row: number, col: number): XZ =>
 
 // A room, by its cells (inclusive), as metres: the floor between its
 // walls' faces.
-export interface Room {
+interface Room {
   id: 'entry' | 'candles' | 'deep' | 'flooded' | 'chalk' | 'ossuary'
   x0: number
   x1: number
@@ -125,7 +125,7 @@ export type CroftFinish =
 // One box, in the Undercroft's metres; `turn` (Euler XYZ) tips it. The
 // stone blocks (the grid's walls, croftWalls); a fixture that `blocks`
 // too never turns, so its wall stays square to it.
-export interface CroftBox {
+interface CroftBox {
   name: string
   center: Vec3
   size: Vec3
@@ -137,7 +137,7 @@ export interface CroftBox {
 // A painted panel: on the floor or carved on a wall.
 export type CroftArtId = 'sigil' | 'names' | 'warning'
 
-export interface CroftSign {
+interface CroftSign {
   name: string
   art: CroftArtId
   center: Vec3
@@ -529,7 +529,7 @@ function signs(): CroftSign[] {
 // day, sharedworld.ts rule 6): growth in the candle hall, a tab in the
 // chalk, a bottle in the water, dimes among the bones, and on the altar a
 // bar of gold and a bill for whoever reaches it first.
-export interface CroftLoot extends XZ {
+interface CroftLoot extends XZ {
   kind: PickupKind
   count: number
 }

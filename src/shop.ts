@@ -21,7 +21,7 @@ export interface ShopState {
   cash: number
 }
 
-export interface Purchase {
+interface Purchase {
   // The new state, or null when nothing was sold.
   next: ShopState | null
   line: string | null
@@ -29,7 +29,7 @@ export interface Purchase {
 
 // The buyer's side of a sale: the cash and the inventory. Nothing about
 // the shelf.
-export type Purse = Pick<ShopState, 'inventory' | 'cash'>
+type Purse = Pick<ShopState, 'inventory' | 'cash'>
 
 export interface Settled {
   next: Purse | null

@@ -16,7 +16,7 @@ import type { BvAudio } from './audio.ts'
 import type { SplashTiming } from './splashmachine.ts'
 
 // A card's timings plus what it mounts and plays.
-export interface CardConfig extends SplashTiming {
+interface CardConfig extends SplashTiming {
   skipAudioFadeMs: number
   imageSrc: string
   alt: string
@@ -24,7 +24,7 @@ export interface CardConfig extends SplashTiming {
 }
 
 // A card that waits for a gesture behind a hint.
-export interface SplashConfig extends CardConfig {
+interface SplashConfig extends CardConfig {
   hint: string
 }
 
@@ -48,7 +48,7 @@ export const LOGO: LogoConfig = {
   alt: copy('titles.logo_alt'),
 }
 
-export interface CardOptions<C extends CardConfig = CardConfig> {
+interface CardOptions<C extends CardConfig = CardConfig> {
   audio: BvAudio
   config: C
 }
@@ -57,7 +57,7 @@ export interface CardOptions<C extends CardConfig = CardConfig> {
 // cards above it. listen() arms its click and keys: the first gesture
 // starts it, the next skips. start() arms it and starts it at once. done
 // resolves once the card has removed itself.
-export interface Card {
+interface Card {
   root: HTMLDivElement
   listen(): void
   start(): void

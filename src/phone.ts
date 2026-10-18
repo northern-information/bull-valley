@@ -105,7 +105,7 @@ const OPEN_HOLD = 1.2
 
 // What draw() needs each frame: whole seconds left on our own open portal,
 // or null with none.
-export interface PhoneFrame {
+interface PhoneFrame {
   open: number | null
 }
 

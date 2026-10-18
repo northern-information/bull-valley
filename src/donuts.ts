@@ -20,7 +20,7 @@ export interface DonutField extends XZ {
   radius: number
 }
 
-export interface DonutTuning {
+interface DonutTuning {
   // The path runs about this long, then ends where the truck parks.
   metres: number
   // Each loop's radius is drawn from this range.

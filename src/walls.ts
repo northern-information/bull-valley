@@ -26,7 +26,7 @@ interface Wall {
 }
 
 // Whether gate `gate` lets the body at (x, z) through.
-export type GateOpen = (gate: string, x: number, z: number) => boolean
+type GateOpen = (gate: string, x: number, z: number) => boolean
 
 // Two passes settle a corner, where pushing out of one wall can push into
 // the next.

@@ -85,7 +85,7 @@ export function buildMistCard(
   return card
 }
 
-export interface MistCardsOptions {
+interface MistCardsOptions {
   scene: THREE.Object3D
   // What the banks stand on: world.ground.at, never the bare terrain.
   groundAt: HeightAt
@@ -93,7 +93,7 @@ export interface MistCardsOptions {
   player: XZ
 }
 
-export interface MistCardsFrame {
+interface MistCardsFrame {
   dt: number
   player: XZ
 }

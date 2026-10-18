@@ -18,7 +18,7 @@ import { npcFooter, npcHeader, sectionHead, setPips } from './npcdialog.ts'
 import type { DealerStock } from './dealer.ts'
 import type { Inventory } from './interfaces.ts'
 
-export interface DealDialogOptions {
+interface DealDialogOptions {
   // What he says as it opens.
   says: string
   // Read again every tick: his stock today (null when the valley is gone),

@@ -63,7 +63,7 @@ export interface MapHook {
   save(): Promise<void>
 }
 
-export interface MapMode {
+interface MapMode {
   show(): void
   hide(): void
   hook: MapHook

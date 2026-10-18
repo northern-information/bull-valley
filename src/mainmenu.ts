@@ -20,7 +20,7 @@ import type { Music } from './musicrig.ts'
 import type { SettingsStore } from './settingsui.ts'
 import type { LogoConfig } from './splash.ts'
 
-export interface MainMenuOptions {
+interface MainMenuOptions {
   audio: BvAudio
   // The logo's image and fade (splash.ts LOGO).
   config: LogoConfig
@@ -37,9 +37,9 @@ export interface MainMenuOptions {
 }
 
 // What the raider chose to leave the menu by.
-export type MenuChoice = 'create' | 'die'
+type MenuChoice = 'create' | 'die'
 
-export interface MainMenu {
+interface MainMenu {
   // Shows the menu with the options for a raider signed in or not, and
   // resolves with the one chosen, hiding the menu again.
   choose(signedIn: boolean): Promise<MenuChoice>

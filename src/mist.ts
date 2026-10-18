@@ -34,7 +34,7 @@ export interface MistField {
   banks: MistBank[]
 }
 
-export interface MistStep {
+interface MistStep {
   dt: number
   player: XZ
 }

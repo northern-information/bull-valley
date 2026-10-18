@@ -27,7 +27,7 @@ import type { Worn } from './figure.ts'
 import type { FinishId } from './finishes.ts'
 import type { OutfitId } from './outfits.ts'
 
-export interface GronDialogOptions {
+interface GronDialogOptions {
   username: string
   outfit: OutfitId
   finish: FinishId

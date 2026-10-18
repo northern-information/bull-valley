@@ -11,10 +11,10 @@ export const SPLASH_STATES = {
   DONE: 'DONE',
 } as const
 
-export type SplashState = (typeof SPLASH_STATES)[keyof typeof SPLASH_STATES]
+type SplashState = (typeof SPLASH_STATES)[keyof typeof SPLASH_STATES]
 
 // What gesture() tells the caller to do.
-export type SplashAction = 'start' | 'skip' | null
+type SplashAction = 'start' | 'skip' | null
 
 // The timings the machine reads. The logo envelope is the audio envelope.
 export interface SplashTiming extends OneShotEnvelope {
@@ -24,20 +24,20 @@ export interface SplashTiming extends OneShotEnvelope {
 
 // One tick() of the machine. The latches are present only on the tick
 // that fires them.
-export interface SplashFrame {
+interface SplashFrame {
   imgAlpha: number
   rootAlpha: number
   fadeOutStart?: true
   complete?: true
 }
 
-export interface SplashMachine {
+interface SplashMachine {
   readonly state: SplashState
   gesture(): SplashAction
   tick(): SplashFrame
 }
 
-export interface SplashMachineOptions {
+interface SplashMachineOptions {
   now: () => number
   cfg: SplashTiming
 }

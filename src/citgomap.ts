@@ -16,13 +16,13 @@ import type { Metres, XZ } from './interfaces.ts'
 
 // One Citgo on the map: where its pump island stands, and what it is
 // called there.
-export interface MapCitgo extends XZ {
+interface MapCitgo extends XZ {
   label: string
 }
 
 // What one frame of the open map shows: where the raider stands and faces,
 // their Citgos, and the one they stand at (null: out in the valley).
-export interface MapFrame {
+interface MapFrame {
   me: Facing
   log: CitgoLog
   here: number | null

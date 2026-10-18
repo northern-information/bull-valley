@@ -12,7 +12,6 @@ import type { Geometrie } from './geometrie.ts'
 import type { GeometrieAxis } from './interfaces.ts'
 import type { Beam } from './shadowmen.ts'
 
-export type BuffsConfig = typeof CONFIG.buffs
 type Levels = Readonly<Record<GeometrieAxis, number>>
 
 // How much further and wider the flashlight reaches at `levels`.

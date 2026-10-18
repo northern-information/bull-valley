@@ -331,7 +331,7 @@ import type { TunnelBurst, TunnelShade, TunnelUpdate } from './tunnelshades.ts'
 import type { WaterMap } from './waterside.ts'
 
 // A raider online: one socket.
-export interface Member {
+interface Member {
   id: string
   // The signed-in account (worker/auth.ts). Never on the wire.
   account: string
@@ -339,7 +339,7 @@ export interface Member {
   outfit: OutfitId
 }
 
-export interface SharedWorld {
+interface SharedWorld {
   // The protocol of the build that opened it (rule 1).
   version: number
   // The Central day its pickups, shelves and drops belong to (rule 6).
@@ -383,7 +383,7 @@ export interface SharedWorld {
   nextPortal: number
 }
 
-export interface ValleyPortal extends Portal {
+interface ValleyPortal extends Portal {
   account: string
 }
 
@@ -412,7 +412,7 @@ export interface Valley {
   citgos: Record<string, CitgoLog>
 }
 
-export interface ValleyCorpse extends Corpse {
+interface ValleyCorpse extends Corpse {
   account: string
 }
 
@@ -536,7 +536,7 @@ export type ValleyAction =
   | { type: 'hurry'; seconds: number }
   | { type: 'reset' }
 
-export interface ValleyContext {
+interface ValleyContext {
   // Server ms.
   now: number
   // Ids with an open socket right now, so a member whose close was never

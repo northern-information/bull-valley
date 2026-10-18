@@ -12,12 +12,3 @@ const BOOK = readCopyBook(
 export function copy(key: string, vars?: CopyVars): string {
   return fill(BOOK, key, vars)
 }
-
-// A key's text as a pattern, each placeholder matching any text: for a line
-// whose filled-in part the spec does not know.
-export function copyPattern(key: string): RegExp {
-  const text = BOOK.get(key)?.text
-  if (text === undefined) throw new Error(`COPY.toml has no ${key}`)
-  const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return new RegExp(`^${escaped.replace(/\\\{[a-zA-Z0-9]+\\\}/g, '.+')}$`)
-}

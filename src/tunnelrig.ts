@@ -35,14 +35,14 @@ import type * as THREE from 'three'
 // The player's id when they play alone.
 const ALONE = 'me'
 
-export interface TunnelShadesOptions {
+interface TunnelShadesOptions {
   scene: THREE.Object3D
   groundAt: HeightAt
   // Where the Undercroft lies; null without one, and then there are none.
   place: MazePlace | null
 }
 
-export interface TunnelShadesFrame {
+interface TunnelShadesFrame {
   dt: number
   time: number
   player: XZ
@@ -51,7 +51,7 @@ export interface TunnelShadesFrame {
   renderAt: number
 }
 
-export interface TunnelShadesUpdate {
+interface TunnelShadesUpdate {
   // One touched the player, played alone; in the shared valley a struck
   // frame says so.
   struck: boolean

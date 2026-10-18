@@ -44,7 +44,7 @@ export function jwtSecret(env: WorkerEnv, dev: boolean): string | null {
 }
 
 // Dev only, like the dev secret: anyone can read it.
-export const DEV_MAGIC_WORD = 'berries'
+const DEV_MAGIC_WORD = 'berries'
 
 // The magic word for this request, lowercased, or null when production
 // has none (and so takes no new raider).

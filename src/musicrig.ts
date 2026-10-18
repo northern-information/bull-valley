@@ -8,7 +8,7 @@
 import { CONFIG } from './config.ts'
 import { MUSIC_URL, musicVolume } from './music.ts'
 
-export interface MusicRigFrame {
+interface MusicRigFrame {
   // The page's clock, ms.
   now: number
   // The music may start: the main menu is up, or the player has begun.

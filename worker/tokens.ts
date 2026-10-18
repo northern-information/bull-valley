@@ -26,17 +26,17 @@ export interface AccessClaims {
   role: string
 }
 
-export interface RefreshClaims {
+interface RefreshClaims {
   accountId: string
   session: number
 }
 
-export interface RefreshClaims {
+interface RefreshClaims {
   accountId: string
   session: number
 }
 
-export interface PendingClaims {
+interface PendingClaims {
   provider: Provider
   profile: Profile
 }

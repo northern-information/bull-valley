@@ -34,14 +34,14 @@ import type { WaterMap } from './waterside.ts'
 
 export type NetStatus = 'connecting' | 'online' | 'offline'
 
-export interface NetConfig {
+interface NetConfig {
   // Give up on the first connection after this long and play offline.
   connectTimeoutMs: number
   // How often to measure the clock offset once online.
   pingMs: number
 }
 
-export interface NetOptions {
+interface NetOptions {
   url: string
   config: NetConfig
   clock?: ClockSync
@@ -50,7 +50,7 @@ export interface NetOptions {
   beforeOpen?: () => Promise<boolean>
 }
 
-export interface NetIdentity {
+interface NetIdentity {
   outfit: OutfitId
   // Every pickup this build placed, and how many stations; see
   // HelloMessage.

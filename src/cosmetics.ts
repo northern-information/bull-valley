@@ -28,10 +28,6 @@ export type CosmeticId = (typeof COSMETICS)[number]['id']
 // Every cosmetic Moab trades for, in the order he offers them.
 export const MOAB_OFFERS: readonly CosmeticId[] = ['flaming-halo']
 
-export function isCosmetic(value: unknown): value is CosmeticId {
-  return COSMETICS.some((cosmetic) => cosmetic.id === value)
-}
-
 export function cosmeticById(id: string): Cosmetic | null {
   return COSMETICS.find((cosmetic) => cosmetic.id === id) ?? null
 }

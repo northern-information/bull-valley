@@ -10,15 +10,15 @@ import { range } from './rng.ts'
 import type { Geo, Metres, XZ } from './interfaces.ts'
 import type { Rng } from './rng.ts'
 
-export type CabbageSource = 'cluster' | 'wetland' | 'reserve'
+type CabbageSource = 'cluster' | 'wetland' | 'reserve'
 
-export interface CabbageSpot {
+interface CabbageSpot {
   u: number
   v: number
   src: CabbageSource
 }
 
-export interface CabbageOptions {
+interface CabbageOptions {
   patch?: { u: number; v: number }
   metres?: Metres
   count?: number

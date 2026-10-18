@@ -17,7 +17,7 @@ import { GLOW_LAYER } from './glow.ts'
 import type { Flashlight } from './assets.ts'
 import type { OutfitId } from './outfits.ts'
 
-export interface HandsFrame {
+interface HandsFrame {
   // 0 out of view, 1 held up: hands.ts lifts, already eased.
   left: number
   right: number

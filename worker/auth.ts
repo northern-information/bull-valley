@@ -81,7 +81,7 @@ export const NAME_HEADER = 'x-bv-name'
 // How long a sign-in round trip may take.
 const ROUND_TRIP_TTL = 5 * 60
 
-export interface AuthDeps {
+interface AuthDeps {
   store: AccountStore
   fetch: typeof fetch
   now?: () => number

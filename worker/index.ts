@@ -19,7 +19,6 @@ import { ValleyDO } from './ValleyDO.ts'
 import type { WorkerEnv } from './env.ts'
 
 export { ValleyDO }
-export { isDevHost }
 
 // Set on the upgrade request for a dev server; ValleyDO reads it.
 export const DEV_HEADER = 'x-bv-dev'

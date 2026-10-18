@@ -24,7 +24,7 @@ export const COOKIE = {
   redirect: 'bv_redirect',
 } as const
 
-export interface CookieOptions {
+interface CookieOptions {
   // Lifetime in seconds. 0 clears the cookie.
   maxAge: number
   // Set over https. A dev server on http must leave it off.

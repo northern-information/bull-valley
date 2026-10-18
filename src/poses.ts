@@ -30,13 +30,13 @@ export type JointName = (typeof JOINTS)[number]
 // An Euler rotation [x, y, z] in radians.
 export type Rotation = Vec3
 
-export interface PoseKey {
+interface PoseKey {
   // Metres added to the root height; negative crouches.
   lift: number
   joints: Partial<Record<JointName, Rotation>>
 }
 
-export interface Pose {
+interface Pose {
   keys: PoseKey[]
   // Cycle length; only poses with more than one key loop.
   seconds?: number

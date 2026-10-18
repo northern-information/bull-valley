@@ -17,18 +17,13 @@ export type QuestId = 'rose'
 // rose laid, the key given.
 export type QuestStage = 'none' | 'given' | 'laid' | 'done'
 
-export const QUEST_STAGES: readonly QuestStage[] = [
-  'none',
-  'given',
-  'laid',
-  'done',
-]
+const QUEST_STAGES: readonly QuestStage[] = ['none', 'given', 'laid', 'done']
 
 // What the raider does: take the rose from Erwin (again, if it was lost),
 // lay it at the heart of the maze, or come back to him for the key.
 export type QuestStep = 'accept' | 'lay' | 'reward'
 
-export interface Quest {
+interface Quest {
   id: QuestId
   // What he gives to begin it, and what the reward is.
   gives: ItemId
@@ -53,14 +48,14 @@ export function isQuestStep(value: unknown): value is QuestStep {
 
 // Where the raider is, as the valley judges it from their last state
 // frame: beside Erwin, or at the heart of the maze.
-export interface QuestPlace {
+interface QuestPlace {
   atDealer: boolean
   atHeart: boolean
 }
 
-export type QuestRefusal = 'too-far' | 'not-now'
+type QuestRefusal = 'too-far' | 'not-now'
 
-export type QuestOutcome =
+type QuestOutcome =
   | {
       ok: true
       // The stage after, and what goes into (positive) or out of the pack.

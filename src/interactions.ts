@@ -343,7 +343,7 @@ export function pickupLabel({
 // would take, or a berry bush. dim: true when it cannot be had (short of
 // cash, or the bush picked clean or out of reach of the valley). Null for
 // everything else.
-export interface ItemLabel {
+interface ItemLabel {
   text: string
   dim: boolean
 }

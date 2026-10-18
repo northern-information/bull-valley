@@ -73,7 +73,7 @@ export interface LampSpot extends XZ {
   yaw: number
 }
 
-export interface Junction extends XZ {
+interface Junction extends XZ {
   // Every road class that meets here.
   classes: Set<RoadClass>
   // Directions of the arms leaving the junction, radians on the x–z plane
@@ -219,13 +219,13 @@ export function findJunctions(
   return junctions
 }
 
-export interface RoadsideOptions {
+interface RoadsideOptions {
   // Places nothing stands near: the fuel points.
   avoid?: readonly XZ[]
   rng?: Rng
 }
 
-export interface Roadside {
+interface Roadside {
   poles: PoleSpot[]
   lamps: LampSpot[]
 }

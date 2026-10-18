@@ -12,7 +12,7 @@ import { copy } from './copy.ts'
 import { isItemId, isUsable, itemById, ITEMS } from './items.ts'
 import type { ItemId } from './items.ts'
 
-export type ItemLine = 'used' | 'bought' | 'collected' | 'empty'
+type ItemLine = 'used' | 'bought' | 'collected' | 'empty'
 
 export const ITEM_LINES: readonly ItemLine[] = [
   'used',

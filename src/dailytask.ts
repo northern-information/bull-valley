@@ -11,7 +11,7 @@
 
 import { advance, goalNews, shownProgress } from './goal.ts'
 
-export interface DailyTask {
+interface DailyTask {
   // The key the account's progress is kept under.
   id: string
   // Shadowmen it takes.
@@ -66,7 +66,7 @@ export function shownCount(
 
 // What a credited burn means to the raider: the one that paid the day's
 // reward, one more toward the goal, or one past a task already done today.
-export type TaskNews = 'done' | 'burned' | 'past'
+type TaskNews = 'done' | 'burned' | 'past'
 
 export function taskNews(progress: TaskProgress, rewarded: boolean): TaskNews {
   const news = goalNews(progress, rewarded)

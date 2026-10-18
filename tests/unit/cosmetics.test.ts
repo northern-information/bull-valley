@@ -3,7 +3,6 @@ import {
   affords,
   cosmeticById,
   COSMETICS,
-  isCosmetic,
   MOAB_OFFERS,
   moabOffer,
   toCosmetics,
@@ -25,7 +24,7 @@ describe('cosmetics', () => {
       expect(Number.isInteger(cosmetic.price.count)).toBe(true)
       expect(cosmetic.price.count).toBeGreaterThan(0)
     }
-    for (const offer of MOAB_OFFERS) expect(isCosmetic(offer)).toBe(true)
+    for (const offer of MOAB_OFFERS) expect(cosmeticById(offer)).not.toBeNull()
   })
 
   it('sells the Flaming Halo for one troy ounce of gold bullion', () => {
@@ -34,7 +33,6 @@ describe('cosmetics', () => {
       count: 1,
     })
     expect(cosmeticById('golden-crown')).toBeNull()
-    expect(isCosmetic('golden-crown')).toBe(false)
   })
 
   it('keeps only the known cosmetics, each once, in table order', () => {

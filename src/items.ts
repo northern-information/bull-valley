@@ -38,7 +38,7 @@ import type { CashKind } from './drops.ts'
 import type { ContainerKey, GeometrieAxis, MedicineForm } from './interfaces.ts'
 
 // How far one use moves each geometrie level (geometrie.ts), 0 to 1.
-export type GeometrieDose = Partial<Record<GeometrieAxis, number>>
+type GeometrieDose = Partial<Record<GeometrieAxis, number>>
 
 interface ItemBase {
   id: string
@@ -62,7 +62,7 @@ export interface Cigarette extends ItemBase, Shelf {
   geometrie: GeometrieDose
 }
 
-export interface Joint extends ItemBase, Shelf {
+interface Joint extends ItemBase, Shelf {
   category: 'joint'
   perceptionSeconds: number
   geometrie: GeometrieDose
@@ -84,7 +84,7 @@ export interface Medicine extends ItemBase, Shelf {
 // Never on a shelf: Erwin von Dutch deals them (dealer.ts). The
 // psychedelics work like the joint, harder and longer; the stimulant like
 // a drink, a trip and a dose.
-export interface Psychedelic extends ItemBase {
+interface Psychedelic extends ItemBase {
   category: 'psychedelic'
   price?: undefined
   perceptionSeconds: number
@@ -92,7 +92,7 @@ export interface Psychedelic extends ItemBase {
   heals: number
 }
 
-export interface Stimulant extends ItemBase {
+interface Stimulant extends ItemBase {
   category: 'stimulant'
   price?: undefined
   tripSeconds: number
@@ -101,13 +101,13 @@ export interface Stimulant extends ItemBase {
 }
 
 // Never on a shelf: the valley hands it out.
-export interface Forage extends ItemBase {
+interface Forage extends ItemBase {
   category: 'forage'
   price?: undefined
 }
 
 // Never on a shelf and of no use, but Moab takes it in trade.
-export interface Valuable extends ItemBase {
+interface Valuable extends ItemBase {
   category: 'valuable'
   price?: undefined
 }
@@ -115,7 +115,7 @@ export interface Valuable extends ItemBase {
 // What a quest gives or asks for (quests.ts), and the keys, which open
 // their locks for whoever carries them (keys.ts): never used up and never
 // dropped; they go where the pack goes, a strike included.
-export interface KeyItem extends ItemBase {
+interface KeyItem extends ItemBase {
   category: 'key-item'
   price?: undefined
 }

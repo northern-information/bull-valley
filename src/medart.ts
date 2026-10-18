@@ -24,7 +24,7 @@ export interface MedicineArt {
   glow: string
 }
 
-export type MedicinePainter = () => MedicineArt
+type MedicinePainter = () => MedicineArt
 
 // Once around a 24-count pill bottle, about three times as wide as tall.
 const PILL_LABEL: CanvasSize = [192, 64]

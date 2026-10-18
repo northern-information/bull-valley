@@ -33,7 +33,7 @@ import type { Cell, MazePlace, MazeSize, Span } from './maze.ts'
 import type { Rng } from './rng.ts'
 import type { Raider } from './shadowmen.ts'
 
-export type CaretakerConfig = typeof CONFIG.caretaker
+type CaretakerConfig = typeof CONFIG.caretaker
 
 export interface Caretaker {
   // Where it floats, in maze-local metres.
@@ -270,7 +270,7 @@ function giveUp(ct: Caretaker): void {
   ct.homeward = true
 }
 
-export interface CaretakerStep {
+interface CaretakerStep {
   dt: number
   // Every raider the valley knows, in world metres (shadowmen.ts Raider:
   // who can be struck, and their beam).
@@ -278,7 +278,7 @@ export interface CaretakerStep {
   place: MazePlace
 }
 
-export interface CaretakerUpdate {
+interface CaretakerUpdate {
   // The raider it touched this step, if any.
   struck: string[]
   // Whether it lunged this step, landing or not.

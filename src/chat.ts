@@ -96,7 +96,7 @@ export function othersLine(count: number): string {
 }
 
 // A raider as /online names them: their name and their level.
-export interface OnlineRaider {
+interface OnlineRaider {
   name: string
   level: number
 }

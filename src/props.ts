@@ -35,7 +35,7 @@ const TOMBSTONE = { width: 0.5, shoulder: 0.62, depth: 0.1 }
 // The geometry and materials every tombstone shares: the stone's three
 // pieces and the face's plane, and the mound of earth. gravestones.ts
 // draws the stones and the mounds instanced across every grave.
-export interface TombstoneParts {
+interface TombstoneParts {
   slab: THREE.BufferGeometry
   arch: THREE.BufferGeometry
   plinth: THREE.BufferGeometry

@@ -8,13 +8,13 @@ import type { HeightAt, Metres, XZ } from './interfaces.ts'
 // The camera never leaves this class; loop.ts only reads the
 // returned state.
 
-export interface PlayerSpawn {
+interface PlayerSpawn {
   x: number
   z: number
   yaw?: number
 }
 
-export interface PlayerOptions {
+interface PlayerOptions {
   camera: THREE.Camera
   // What the player stands on: world.ground.at, never the bare terrain.
   groundAt: HeightAt
@@ -25,7 +25,7 @@ export interface PlayerOptions {
 }
 
 // Per-frame movement modifiers from items and the phone.
-export interface PlayerMods {
+interface PlayerMods {
   speedScale?: number
   // How much faster the sprint alone runs (buffs.ts sprintScale).
   sprintScale?: number
@@ -35,7 +35,7 @@ export interface PlayerMods {
 }
 
 // What update() returns each frame.
-export interface PlayerState {
+interface PlayerState {
   pos: THREE.Vector3
   forward: THREE.Vector3
   speed: number

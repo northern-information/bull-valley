@@ -10,7 +10,7 @@ export interface TerrainData {
   size: number
 }
 
-export interface HeightField {
+interface HeightField {
   seg: number
   // Grid points per side: seg + 1.
   n: number

@@ -43,7 +43,7 @@ import type { WaterMap } from './waterside.ts'
 // The player's id in a field of their own.
 const ALONE = 'me'
 
-export interface ShadowCardsOptions {
+interface ShadowCardsOptions {
   scene: THREE.Object3D
   // What the shadowmen stand on: world.ground.at, never the bare terrain.
   groundAt: HeightAt
@@ -90,7 +90,7 @@ export interface AloneFrame {
   lights: Beam[]
 }
 
-export interface ShadowCardsFrame {
+interface ShadowCardsFrame {
   dt: number
   player: XZ
   perception: boolean
@@ -100,7 +100,7 @@ export interface ShadowCardsFrame {
   renderAt: number
 }
 
-export interface ShadowCardsUpdate {
+interface ShadowCardsUpdate {
   // A shadowman touched the player, played alone; in the shared valley the
   // valley says so (a struck frame).
   struck: boolean

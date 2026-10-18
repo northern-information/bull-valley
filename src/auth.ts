@@ -84,7 +84,7 @@ export async function refreshSession(
 // `limited` is a refusal to wait out (worker/ratelimit.ts), not a failure.
 // `retry` is a refusal that leaves the pending signup standing: the wrong
 // magic word.
-export type Outcome =
+type Outcome =
   | { ok: true }
   | { ok: false; error: string; limited?: boolean; retry?: boolean }
 
@@ -125,8 +125,7 @@ export async function confirmSignup(
   }
 }
 
-export type UsernameOutcome =
-  Outcome | { ok: false; taken: true; error: string }
+type UsernameOutcome = Outcome | { ok: false; taken: true; error: string }
 
 export async function setUsername(
   username: string,
@@ -257,7 +256,7 @@ export async function usernameAvailable(
 // What to say of a username check: whether the name is free (null when
 // the valley could not say), the status line, and its tone. The sign-in
 // step and Gron's dialog show the same lines.
-export interface Availability {
+interface Availability {
   available: boolean | null
   line: string
   tone: 'ok' | 'bad'

@@ -72,7 +72,7 @@ export interface CornPiece {
   b: Vec3
 }
 
-export interface CornWallSize {
+interface CornWallSize {
   height: number
   thickness: number
   // How far the foot sinks under the ground, so a slope across the

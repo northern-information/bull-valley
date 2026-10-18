@@ -1,16 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import {
-  advance,
-  goalNews,
-  NO_GOAL_PROGRESS,
-  shownProgress,
-} from '../../src/goal.ts'
+import { advance, goalNews, shownProgress } from '../../src/goal.ts'
 
 const GOAL = { goal: 3, reward: 'prize' }
 
 describe('a goal', () => {
   it('pays on the credit that reaches it, once', () => {
-    let progress = NO_GOAL_PROGRESS
+    let progress = { count: 0, claimed: false }
     const rewards = []
     for (let i = 0; i < GOAL.goal + 2; i++) {
       const out = advance(progress, GOAL)

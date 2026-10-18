@@ -31,7 +31,7 @@ const DRINK_SEGMENTS = 16
 const DRINK_GLOW_SCALE = 1
 
 // A lathe profile point: [radius, y].
-export type ProfilePoint = [number, number]
+type ProfilePoint = [number, number]
 
 // The superellipse a round lathe is pushed out to (see squareUp).
 interface SquareSize {
@@ -48,7 +48,7 @@ interface BottleShape {
 // The material makers one drink's parts share, so every material it makes
 // joins the pickup pulse.
 // Function properties, not methods: the builders destructure them.
-export interface DrinkMaterials {
+interface DrinkMaterials {
   face: (canvasArt: CanvasArt | undefined) => THREE.MeshLambertMaterial
   cutout: (canvasArt: CanvasArt | undefined) => THREE.MeshLambertMaterial
   flat: (color: string | undefined) => THREE.MeshLambertMaterial

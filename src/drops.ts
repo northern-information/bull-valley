@@ -19,12 +19,12 @@ export const DIME_CENTS = 10
 
 // What a shadow spider bursts into: one $20 bill, cash the same way.
 export const TWENTY = 'twenty'
-export const TWENTY_CENTS = 2000
+const TWENTY_CENTS = 2000
 
 // What the plaza's laundromat leaves in its machines every day (a
 // pickup, stripmall.ts): quarters, cash the same way.
 export const QUARTERS = 'quarters'
-export const QUARTER_CENTS = 25
+const QUARTER_CENTS = 25
 
 // The kinds that are cash: taken up, they pay the wallet, never the pack.
 export type CashKind = typeof DIMES | typeof TWENTY | typeof QUARTERS

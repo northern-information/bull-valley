@@ -20,7 +20,7 @@ import type { Vec3 } from './interfaces.ts'
 // Horse-local space: origin on the ground under the middle of the barrel,
 // facing +Z, left side +X, like a figure. Call update(t) every frame with
 // a running time, or once with a fixed time to hold it still.
-export interface SkeletonHorse {
+interface SkeletonHorse {
   group: THREE.Group
   update(t: number): void
 }

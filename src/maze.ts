@@ -96,7 +96,7 @@ export interface Cell {
 
 // One straight wall, from the centre of one `#` to the centre of another
 // in the same row or column. A lone `#` is a post: a and b are the same.
-export interface MazeRun {
+interface MazeRun {
   a: Cell
   b: Cell
 }
@@ -501,7 +501,7 @@ export function distanceField(
 
 // A spot just outside the maze, with the way back to the corn (inward,
 // unit length), in maze-local metres.
-export interface EdgeSpot {
+interface EdgeSpot {
   x: number
   z: number
   inX: number

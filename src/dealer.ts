@@ -15,7 +15,7 @@ import { contentsOf, itemById } from './items.ts'
 import type { Inventory, XZ } from './interfaces.ts'
 import type { ItemId } from './items.ts'
 
-export interface DealerGood {
+interface DealerGood {
   kind: ItemId
   // What one is worth to him, in cents of shelf value.
   worth: number
@@ -81,10 +81,10 @@ export function atDealer(
   return Math.hypot(at.x - dealer.x, at.z - dealer.z) <= cfg.dealer.dealReach
 }
 
-export type DealRefusal =
+type DealRefusal =
   'no-such-good' | 'sold-out' | 'worthless' | 'short' | 'too-far'
 
-export type DealOutcome =
+type DealOutcome =
   | {
       ok: true
       // What comes out of the pack for it, how many of the good go in,

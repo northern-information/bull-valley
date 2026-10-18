@@ -4,7 +4,7 @@
 // its code runs, so it never sees a request for a file, and matching on the
 // hostname there would mean running it first on every asset request.
 
-export interface WwwEnv {
+interface WwwEnv {
   APP_ORIGIN: string
 }
 

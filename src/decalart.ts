@@ -45,7 +45,7 @@ import { mulberry32 } from './rng.ts'
 import type { CanvasArt, CanvasSize } from './canvas.ts'
 import type { DecalId, Outfit } from './outfits.ts'
 
-export type DecalPainter = (colors: Outfit['colors']) => CanvasArt
+type DecalPainter = (colors: Outfit['colors']) => CanvasArt
 
 // The torso front is 0.41 × 0.5 m and the thigh 0.17 × 0.46 m: both at
 // 300 pixels a metre.

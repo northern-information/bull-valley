@@ -65,7 +65,7 @@ export function tierFor(method: string, parts: readonly string[]): Tier | null {
   return null
 }
 
-export interface LimitBindings {
+interface LimitBindings {
   AUTH_STRICT?: RateLimit
   AUTH_LOOSE?: RateLimit
 }

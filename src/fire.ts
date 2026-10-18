@@ -21,7 +21,7 @@ import type { Vec3 } from './interfaces.ts'
 // drops fall `fall` metres, to the ground under it. update(t) moves the
 // rain; call it every frame with a running time in seconds, or once with a
 // fixed time to hold it still.
-export interface Raincloud {
+interface Raincloud {
   group: THREE.Group
   update(t: number): void
 }
@@ -399,7 +399,7 @@ export function buildFlames(
 // ground, draped over it by `groundAt` (heights in the roots' own space;
 // flat when left out), so the roots follow a sloping lot as they writhe. update(t) moves the pulse; call it every frame with a running time,
 // or once with a fixed time to hold it still.
-export interface FireRoots {
+interface FireRoots {
   group: THREE.Group
   update(t: number): void
 }

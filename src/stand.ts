@@ -31,7 +31,7 @@ export interface StandPrice {
   items: Inventory
 }
 
-export interface StandLevel {
+interface StandLevel {
   shelf: number
   rate: number
   capHours: number

@@ -37,7 +37,7 @@ export type StoreFinish =
 
 // One box of the building or its fixtures, centred at `center` with full
 // `size`, both station-local. `blocks` boxes are walls to the player.
-export interface StoreBox {
+interface StoreBox {
   name: string
   center: Vec3
   size: Vec3
@@ -60,7 +60,7 @@ export interface WorldFacing {
 }
 
 // The unit the player is looking at: its facing, and its slot there.
-export interface UnitInView<F extends WorldFacing> {
+interface UnitInView<F extends WorldFacing> {
   facing: F
   unit: number
 }
@@ -81,7 +81,7 @@ export type AdId =
   | 'wash-hands'
 
 // A photograph pinned to a wall: the path of an image under public/.
-export interface Photo {
+interface Photo {
   photo: string
 }
 

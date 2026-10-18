@@ -23,7 +23,7 @@ export interface WaterMap {
 export const WATER_CELL = 100
 
 // The most cells a map may hold: a 15 km survey at 100 m is about 23 000.
-export const WATER_CELLS_MAX = 250_000
+const WATER_CELLS_MAX = 250_000
 
 // Cells are marked by sampling each edge at a quarter of a cell.
 const SAMPLES_PER_CELL = 4

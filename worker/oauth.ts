@@ -74,7 +74,7 @@ export const OAUTH: Record<OAuthProvider, ProviderSpec> = {
   },
 }
 
-export interface Credentials {
+interface Credentials {
   clientId: string
   clientSecret: string
 }
@@ -122,7 +122,7 @@ export async function pkceChallenge(verifier: string): Promise<string> {
   return base64url(new Uint8Array(digest))
 }
 
-export interface AuthorizeParams {
+interface AuthorizeParams {
   clientId: string
   redirectUri: string
   state: string
@@ -147,7 +147,7 @@ export function authorizeUrl(
   return `${spec.authorizeUrl}?${params.toString()}`
 }
 
-export interface ExchangeParams {
+interface ExchangeParams {
   code: string
   redirectUri: string
   verifier: string
