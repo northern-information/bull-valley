@@ -55,17 +55,22 @@ test('Tab opens the pack, a number key assigns, the hotbar uses and is kept', as
       page.evaluate(() => window.__bv?.chat.map((line) => line.text) ?? [])
     )
     .toContain(copy('items.marlboro.used'))
-  // It stimulates: the lower right of the geometrie triangle lights.
+  // It stimulates: the tetrahedron's stimulated corner lights, and its
+  // ward's chip shows.
   await expect
     .poll(() => page.evaluate(() => window.__bv?.geometrie.stimulated ?? 0))
     .toBeGreaterThan(0)
   await expect(
-    page.locator('.bv-geometrie [data-axis="stimulated"]')
+    page.locator('.bv-vitals [data-axis="stimulated"]')
   ).not.toHaveCSS('opacity', '0')
-  await expect(page.locator('.bv-geometrie [data-axis="drunk"]')).toHaveCSS(
+  await expect(page.locator('.bv-vitals [data-axis="drunk"]')).toHaveCSS(
     'opacity',
     '0'
   )
+  await expect(
+    page.locator('.bv-vitals-ward[data-ward="stimulated"]')
+  ).toBeVisible()
+  await expect(page.locator('.bv-vitals-ward[data-ward="drunk"]')).toBeHidden()
 
   // A reload brings the bar back from the account.
   await page.reload()

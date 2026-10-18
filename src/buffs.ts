@@ -1,13 +1,13 @@
-// Buffs, pure: what geometrie does while it lasts (sharedworld.ts rule 27).
-// High reaches the flashlight further and wider, stimulated quickens the
-// sprint, and drunk shrugs a shadow's touch off now and then; each scaled
-// by its level (geometrie.ts levelsAt). And passing: anything smoked, drunk
+// Buffs, pure: what the wards do while they last besides warding
+// (sharedworld.ts rule 27; the warding is wards.ts). High reaches the
+// flashlight further and wider and stimulated quickens the sprint, each
+// scaled by its level (geometrie.ts levelsAt). And passing: anything smoked, drunk
 // or swallowed can go to a raider within reach instead, who takes it in
 // full (its dose and its heal), the giver catching shareScale of the dose
 // and the XP for sharing. Tune it all in CONFIG.buffs. No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
-import { dose, levelsAt, SOBER } from './geometrie.ts'
+import { AXES, dose, levelsAt, SOBER } from './geometrie.ts'
 import type { Geometrie } from './geometrie.ts'
 import type { GeometrieAxis } from './interfaces.ts'
 import type { Beam } from './shadowmen.ts'
@@ -39,20 +39,6 @@ export function sprintScale(levels: Levels, cfg = CONFIG.buffs): number {
   return 1 + cfg.sprintPerStimulated * levels.stimulated
 }
 
-// The chance a touch is shrugged off at `levels`.
-export function shrugChance(levels: Levels, cfg = CONFIG.buffs): number {
-  return Math.min(1, Math.max(0, cfg.shrugPerDrunk * levels.drunk))
-}
-
-// Whether a touch is shrugged off, `roll` drawn from 0 to 1 by the caller.
-export function shrugs(
-  levels: Levels,
-  roll: number,
-  cfg = CONFIG.buffs
-): boolean {
-  return roll < shrugChance(levels, cfg)
-}
-
 // An item's dose scaled: the giver's share of what they passed.
 export function scaled(
   amounts: Partial<Levels> | undefined,
@@ -60,7 +46,7 @@ export function scaled(
 ): Partial<Record<GeometrieAxis, number>> {
   const out: Partial<Record<GeometrieAxis, number>> = {}
   if (!amounts) return out
-  for (const axis of ['high', 'stimulated', 'drunk'] as const) {
+  for (const axis of AXES) {
     const amount = amounts[axis]
     if (amount !== undefined) out[axis] = amount * scale
   }
@@ -149,7 +135,7 @@ export function sobered(
 export function isLevels(value: unknown): value is Levels {
   if (typeof value !== 'object' || value === null) return false
   const v = value as Record<string, unknown>
-  return (['high', 'stimulated', 'drunk'] as const).every(
+  return AXES.every(
     (axis) => typeof v[axis] === 'number' && v[axis] >= 0 && v[axis] <= 1
   )
 }

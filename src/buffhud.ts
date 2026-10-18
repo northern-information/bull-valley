@@ -19,6 +19,8 @@ function nameOf(id: BuffId): string {
       return copy('buffs.stimulated')
     case 'drunk':
       return copy('buffs.drunk')
+    case 'tripping':
+      return copy('buffs.tripping')
     case 'perception':
       return copy('buffs.perception')
   }

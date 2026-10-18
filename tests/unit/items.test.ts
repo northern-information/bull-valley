@@ -29,26 +29,26 @@ const FIELDS_OF: Record<
 > = {
   cigarette: {
     required: ['price', 'smokeSeconds', 'emberSeconds', 'geometrie'],
-    optional: ['heals'],
+    optional: ['healsPct'],
   },
   joint: {
     required: ['price', 'perceptionSeconds', 'geometrie'],
-    optional: ['heals'],
+    optional: ['healsPct'],
   },
   drink: {
     required: ['price', 'container', 'tripSeconds', 'geometrie'],
-    optional: ['heals'],
+    optional: ['healsPct'],
   },
   medicine: {
     required: ['price', 'form', 'geometrie'],
-    optional: ['heals'],
+    optional: ['healsPct'],
   },
   psychedelic: {
-    required: ['perceptionSeconds', 'geometrie', 'heals'],
+    required: ['perceptionSeconds', 'geometrie', 'healsPct'],
     optional: [],
   },
   stimulant: {
-    required: ['tripSeconds', 'geometrie', 'heals'],
+    required: ['tripSeconds', 'geometrie', 'healsPct'],
     optional: [],
   },
   'key-item': { required: [], optional: [] },
@@ -150,12 +150,23 @@ describe('items', () => {
     }
   })
 
-  it('gets you high off every psychedelic', () => {
+  it('trips you, and gets you a little high, off every psychedelic', () => {
     const psychedelics = ITEMS.filter((item) => item.category === 'psychedelic')
     expect(psychedelics.map((item) => item.id)).toEqual(['lsd', 'mushrooms'])
     for (const item of psychedelics) {
-      expect(Object.keys(item.geometrie), item.id).toEqual(['high'])
-      expect(item.geometrie.high, item.id).toBeGreaterThan(0)
+      expect(Object.keys(item.geometrie).sort(), item.id).toEqual([
+        'high',
+        'tripping',
+      ])
+      expect(item.geometrie.tripping, item.id).toBeGreaterThan(
+        item.geometrie.high ?? 0
+      )
+    }
+    // Nothing else trips you, and the eye drops bring it down.
+    for (const item of ITEMS) {
+      if (item.category === 'psychedelic' || !('geometrie' in item)) continue
+      const dose: Partial<Record<string, number>> = item.geometrie
+      expect(dose.tripping ?? 0, item.id).toBeLessThanOrEqual(0)
     }
   })
 
@@ -193,22 +204,23 @@ describe('items', () => {
   it('heals and moves geometrie with everything smoked, drunk or swallowed', () => {
     for (const item of ITEMS) {
       const usable = isUsable(item.id)
-      expect(healsOf(item.id) > 0, item.id).toBe(usable)
+      expect(healsOf(item.id, 1000) > 0, item.id).toBe(usable)
       if (!usable) continue
       const geometrie: object = 'geometrie' in item ? item.geometrie : {}
       expect(Object.keys(geometrie).length, item.id).toBeGreaterThan(0)
     }
-    // The stronger ones give two back.
-    expect(healsOf('aspirin')).toBe(100)
-    expect(healsOf('benadryl')).toBe(100)
-    expect(healsOf('marlboro')).toBe(100)
-    expect(healsOf('pbr')).toBe(100)
-    expect(healsOf('ice-mountain')).toBe(100)
-    expect(healsOf('joints')).toBe(200)
-    expect(healsOf('four-loko-blue')).toBe(200)
-    expect(healsOf('grey-goose')).toBe(200)
-    expect(healsOf('cabbage')).toBe(0)
-    expect(healsOf('nope')).toBe(0)
+    // A share of whole, the stronger ones twice the share.
+    expect(healsOf('aspirin', 1000)).toBe(150)
+    expect(healsOf('benadryl', 1000)).toBe(150)
+    expect(healsOf('marlboro', 1000)).toBe(150)
+    expect(healsOf('pbr', 1000)).toBe(150)
+    expect(healsOf('ice-mountain', 1000)).toBe(150)
+    expect(healsOf('joints', 1000)).toBe(300)
+    expect(healsOf('lsd', 1000)).toBe(300)
+    expect(healsOf('four-loko-blue', 1000)).toBe(300)
+    expect(healsOf('grey-goose', 2960)).toBe(888)
+    expect(healsOf('cabbage', 1000)).toBe(0)
+    expect(healsOf('nope', 1000)).toBe(0)
   })
 
   it('counts every item in the inventory', () => {

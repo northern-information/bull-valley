@@ -3,8 +3,9 @@ import { heartPoint, theMaze } from '../../src/caretaker.ts'
 import { CONFIG } from '../../src/config.ts'
 import { dayKey, nextMidnight } from '../../src/daily.ts'
 import { costIn, freshDealerStock, goodOf } from '../../src/dealer.ts'
+import { BASE_GEOMETRIE, maxGeometrie } from '../../src/health.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
-import { contentsOf, getItem } from '../../src/items.ts'
+import { contentsOf, getItem, healsOf } from '../../src/items.ts'
 import { LADDER_FOOT, LADDER_TOP, lookoutToWorld } from '../../src/lookout.ts'
 import { mazeToWorld } from '../../src/maze.ts'
 import { PROTOCOL_VERSION } from '../../src/protocol.ts'
@@ -30,6 +31,8 @@ import {
   dailyFor,
   geometrieFor,
   healthFor,
+  levelFor,
+  maxFor,
   placeOf,
   reduce,
   restoreValley,
@@ -38,6 +41,7 @@ import {
 } from '../../src/sharedworld.ts'
 import { FRESH_STAND, standXp } from '../../src/stand.ts'
 import { UNDERCROFT } from '../../src/undercroft.ts'
+import { damageOf } from '../../src/wards.ts'
 import { dryMap } from '../../src/waterside.ts'
 import { unitsLeft } from './stock.ts'
 import type { CosmeticId } from '../../src/cosmetics.ts'
@@ -53,6 +57,7 @@ import type { QuestStage } from '../../src/quests.ts'
 import type { Placed } from '../../src/shadowstep.ts'
 import type { Valley, ValleyAction } from '../../src/sharedworld.ts'
 import type { StandLedger } from '../../src/stand.ts'
+import type { ShadowHit } from '../../src/wards.ts'
 
 // What a build placed: a pack of Marlboros, two joints, then cabbages.
 // Everything a test reaches for stands at the origin, and every raider is
@@ -2229,7 +2234,7 @@ describe('rule 11, below: the tunnel shades walk the Undercroft', () => {
     const lair = UNDERCROFT.lairs[0]
     const placed = [{ id: 'a', at: state(below({ x: lair.x + 3, z: lair.z })) }]
     let struck: string[] = []
-    let tunneled: string[] = []
+    let strikers: Record<string, string> = {}
     for (let i = 0; i < 100 && struck.length === 0; i++) {
       const out = stepShadows(v, shadows, placed, mulberry32(i), {
         now: T0 + i * 100,
@@ -2237,10 +2242,10 @@ describe('rule 11, below: the tunnel shades walk the Undercroft', () => {
       })
       expect(out?.message.shadowmen).toEqual([])
       struck = out?.struck ?? []
-      tunneled = out?.tunneled ?? []
+      strikers = out?.strikers ?? {}
     }
     expect(struck).toEqual(['a'])
-    expect(tunneled).toEqual(['a'])
+    expect(strikers).toEqual({ a: 'shade' })
   })
 
   it("credits a burn and XP for a shade burst in a raider's beam", () => {
@@ -2338,7 +2343,7 @@ describe('rule 13: the Caretaker keeps the maze', () => {
       target: 'b',
     })
     let wound = false
-    for (let i = 0; i < 20 && !out?.caught.length; i++) {
+    for (let i = 0; i < 20 && !out?.struck.length; i++) {
       shadows.field.shadowmen = []
       out = stepShadows(v, shadows, placed, mulberry32(1), {
         now: T0,
@@ -2347,7 +2352,7 @@ describe('rule 13: the Caretaker keeps the maze', () => {
       wound ||= (out?.message.caretaker?.windup ?? 0) > 0
     }
     expect(wound).toBe(true)
-    expect(out?.caught).toEqual(['b'])
+    expect(out?.strikers).toEqual({ b: 'caretaker' })
     expect(out?.struck).toEqual(['b'])
     expect(out?.message.caretaker?.lunge).toBe(true)
     expect(shadows.recovering['acct-b']).toBe(
@@ -2375,7 +2380,7 @@ describe('rule 13: the Caretaker keeps the maze', () => {
           dt: 0.1,
         }
       )
-      expect(out?.caught).toEqual([])
+      expect(out?.struck).toEqual([])
       expect(shadows.caretaker.target).toBeNull()
     }
   })
@@ -2439,9 +2444,9 @@ describe('rule 13: the Caretaker keeps the maze', () => {
   })
 })
 
-describe('rule 24: health', () => {
-  const MAX = CONFIG.health.max
-  const TOUCH = CONFIG.health.touch
+describe('rule 24: geometrie', () => {
+  const MAX = BASE_GEOMETRIE
+  const MAN = CONFIG.damage.man
 
   const at = (over: Partial<PeerStateWire> = {}): PeerStateWire => ({
     x: 500,
@@ -2458,44 +2463,79 @@ describe('rule 24: health', () => {
   it('starts every account whole, and keeps none that is', () => {
     const v = valleyWith(join('a'))
     expect(healthFor(v.valley, 'acct-a')).toBe(MAX)
-    expect(v.valley.health).toEqual({})
+    expect(maxFor(v.valley, 'acct-a')).toBe(MAX)
+    expect(v.valley.wounds).toEqual({})
   })
 
-  it('takes a block a touch, and the last shatters and makes whole', () => {
-    const v = valleyWith(join('a'))
-    for (let left = MAX - TOUCH; left > 0; left -= TOUCH) {
-      expect(v.step({ type: 'hit', id: 'a' }).health).toEqual({
-        account: 'acct-a',
-        points: left,
-      })
-      expect(healthFor(v.valley, 'acct-a')).toBe(left)
-    }
-    expect(v.step({ type: 'hit', id: 'a' }).health).toEqual({
+  it("sizes the whole by the account's level, and a new level tops it up", () => {
+    const v = valleyWith({ ...joinAs('a'), level: 10 })
+    expect(levelFor(v.valley, 'acct-a')).toBe(10)
+    expect(healthFor(v.valley, 'acct-a')).toBe(maxGeometrie(10))
+    v.step({ type: 'hit', id: 'a', by: 'man', roll: 0.5 })
+    expect(healthFor(v.valley, 'acct-a')).toBe(maxGeometrie(10) - MAN)
+    const up = v.step({ type: 'level', account: 'acct-a', level: 25 })
+    expect(up.health).toEqual({
       account: 'acct-a',
-      points: 0,
-      fatal: true,
+      points: maxGeometrie(25) - MAN,
+      max: maxGeometrie(25),
     })
+    // Never a level taken back.
+    expect(
+      v.step({ type: 'level', account: 'acct-a', level: 3 }).health
+    ).toBeUndefined()
+    expect(levelFor(v.valley, 'acct-a')).toBe(25)
+    expect(levelFor(v.valley, 'acct-nobody')).toBe(1)
+  })
+
+  it("takes each shadow's hit, and the last shatters and makes whole", () => {
+    const v = valleyWith(join('a'))
+    const hit = { type: 'hit', id: 'a', by: 'man', roll: 0.5 } as const
+    expect(v.step(hit).health).toEqual({
+      account: 'acct-a',
+      points: MAX - MAN,
+      max: MAX,
+      hit: { by: 'man', damage: MAN, warded: 0 },
+    })
+    expect(
+      v.step({ type: 'hit', id: 'a', by: 'warden', roll: 0.5 }).health?.hit
+    ).toEqual({ by: 'warden', damage: CONFIG.damage.warden, warded: 0 })
+    expect(v.valley.wounds).toEqual({})
     expect(healthFor(v.valley, 'acct-a')).toBe(MAX)
-    expect(v.valley.health).toEqual({})
+    v.step({ type: 'set-health', id: 'a', points: MAN })
+    const fatal = v.step(hit)
+    expect(fatal.health).toMatchObject({ points: 0, fatal: true })
+    expect(healthFor(v.valley, 'acct-a')).toBe(MAX)
   })
 
   it("is the account's: a second socket shares it, and a stranger has none", () => {
     const second = { ...joinAs('b'), account: 'acct-a' }
     const v = valleyWith(join('a'), second)
-    v.step({ type: 'hit', id: 'a' })
-    expect(v.step({ type: 'hit', id: 'b' }).health?.points).toBe(
-      MAX - 2 * TOUCH
-    )
-    expect(v.step({ type: 'hit', id: 'nobody' }).health).toBeUndefined()
-    expect(v.step({ type: 'mend', id: 'nobody', by: 1 }).health).toBeUndefined()
+    v.step({ type: 'hit', id: 'a', by: 'spiderling', roll: 0.5 })
+    expect(
+      v.step({ type: 'hit', id: 'b', by: 'spiderling', roll: 0.5 }).health
+        ?.points
+    ).toBe(MAX - 2 * CONFIG.damage.spiderling)
+    expect(
+      v.step({ type: 'hit', id: 'nobody', by: 'man' }).health
+    ).toBeUndefined()
+    expect(
+      v.step({ type: 'mend', id: 'nobody', kind: 'pbr' }).health
+    ).toBeUndefined()
   })
 
-  it('gives points back, never past whole, and says nothing when whole', () => {
+  it('gives its share back, never past whole, and says nothing when whole', () => {
     const v = valleyWith(join('a'))
-    expect(v.step({ type: 'mend', id: 'a', by: 1 }).health).toBeUndefined()
+    expect(
+      v.step({ type: 'mend', id: 'a', kind: 'pbr' }).health
+    ).toBeUndefined()
     v.step({ type: 'set-health', id: 'a', points: 1 })
-    expect(v.step({ type: 'mend', id: 'a', by: 1 }).health?.points).toBe(2)
-    expect(v.step({ type: 'mend', id: 'a', by: MAX }).health?.points).toBe(MAX)
+    expect(v.step({ type: 'mend', id: 'a', kind: 'pbr' }).health?.points).toBe(
+      1 + healsOf('pbr', MAX)
+    )
+    v.step({ type: 'set-health', id: 'a', points: MAX - 10 })
+    expect(
+      v.step({ type: 'mend', id: 'a', kind: 'joints' }).health?.points
+    ).toBe(MAX)
     v.step({ type: 'set-health', id: 'a', points: 1 })
     // A forecourt: whole at once.
     expect(v.step({ type: 'mend', id: 'a' }).health?.points).toBe(MAX)
@@ -2503,18 +2543,22 @@ describe('rule 24: health', () => {
 
   it('outlasts a reconnect and a world opened afresh', () => {
     const v = valleyWith(join('a'))
-    v.step({ type: 'hit', id: 'a' })
+    v.step({ type: 'hit', id: 'a', by: 'man', roll: 0.5 })
     v.step(leaveAs('a'))
     v.step({ type: 'reset' })
     const restored = restoreValley({ ...v.valley, world: null })
-    expect(healthFor(restored, 'acct-a')).toBe(MAX - TOUCH)
+    expect(restored.wounds).toEqual({ 'acct-a': MAN })
     // An older build's valley, kept before health was, is whole.
-    const { health: _, healthMax: __, ...older } = createValley()
-    expect(healthFor(restoreValley(older), 'acct-a')).toBe(MAX)
-    // One kept in three points comes back at the same share of whole.
-    const points = restoreValley({ ...older, health: { 'acct-a': 2 } })
-    expect(healthFor(points, 'acct-a')).toBe(Math.round((MAX * 2) / 3))
-    expect(points.healthMax).toBe(MAX)
+    const { wounds: _, ...older } = createValley()
+    expect(restoreValley(older).wounds).toEqual({})
+    // One kept as hit points left comes back at the same share of whole.
+    expect(
+      restoreValley({ ...older, health: { 'acct-a': 100 }, healthMax: 300 })
+        .wounds
+    ).toEqual({ 'acct-a': 667 })
+    expect(restoreValley({ ...older, health: { 'acct-a': 2 } }).wounds).toEqual(
+      { 'acct-a': 333 }
+    )
   })
 
   it('makes whole on a forecourt, on foot, one socket an account', () => {
@@ -2590,6 +2634,7 @@ describe('rule 27: buffs', () => {
       high: 0,
       stimulated: 0,
       drunk: 0,
+      tripping: 0,
     })
     const { geometrie: _, ...older } = createValley()
     expect(restoreValley(older).geometrie).toEqual({})
@@ -2600,7 +2645,10 @@ describe('rule 27: buffs', () => {
     const out = v.step({ type: 'dose', id: 'a', kind: 'joints' })
     const high = getItem('joints').geometrie.high
     expect(out.geometrie).toEqual([
-      { account: 'acct-a', levels: { high, stimulated: 0, drunk: 0 } },
+      {
+        account: 'acct-a',
+        levels: { high, stimulated: 0, drunk: 0, tripping: 0 },
+      },
     ])
     expect(out.xp).toBeUndefined()
     v.tick(60 * SEC)
@@ -2646,13 +2694,17 @@ describe('rule 27: buffs', () => {
     const { stimulated, drunk } = getItem('four-loko-blue').geometrie
     const share = CONFIG.buffs.shareScale
     expect(out.geometrie).toEqual([
-      { account: 'acct-b', levels: { high: 0, stimulated, drunk } },
+      {
+        account: 'acct-b',
+        levels: { high: 0, stimulated, drunk, tripping: 0 },
+      },
       {
         account: 'acct-a',
         levels: {
           high: 0,
           stimulated: stimulated * share,
           drunk: drunk * share,
+          tripping: 0,
         },
       },
     ])
@@ -2663,33 +2715,52 @@ describe('rule 27: buffs', () => {
     ).toBeUndefined()
   })
 
-  it("shrugs a touch off by the drunk's chance, and a shattering sobers", () => {
+  it('wards each shadow with its own, and a shattering sobers', () => {
     const v = valleyWith(join('a'))
-    // Sober, no roll shrugs it off.
-    expect(
-      v.step({ type: 'hit', id: 'a', roll: 0 }).health?.shrugged
-    ).toBeUndefined()
-    v.step({ type: 'set-health', id: 'a', points: CONFIG.health.max })
-    v.step({ type: 'dose', id: 'a', kind: 'wild-turkey' })
-    v.step({ type: 'dose', id: 'a', kind: 'wild-turkey' })
-    const shrugged = v.step({ type: 'hit', id: 'a', roll: 0 }).health
-    expect(shrugged).toEqual({
-      account: 'acct-a',
-      points: CONFIG.health.max,
-      shrugged: true,
+    const hit = (by: ShadowHit) =>
+      v.step({ type: 'hit', id: 'a', by, roll: 0.5 }).health?.hit
+    // Sober, nothing is warded.
+    expect(hit('caretaker')).toEqual({
+      by: 'caretaker',
+      damage: CONFIG.damage.caretaker,
+      warded: 0,
     })
-    expect(healthFor(v.valley, 'acct-a')).toBe(CONFIG.health.max)
-    // A roll past the chance lands.
-    expect(v.step({ type: 'hit', id: 'a', roll: 0.99 }).health?.points).toBe(
-      CONFIG.health.max - CONFIG.health.touch
-    )
+    v.step({ type: 'set-health', id: 'a', points: BASE_GEOMETRIE })
+    v.step({ type: 'dose', id: 'a', kind: 'wild-turkey' })
+    v.step({ type: 'dose', id: 'a', kind: 'wild-turkey' })
+    const drunk = geometrieFor(v.valley, 'acct-a', v.now).drunk
+    expect(drunk).toBe(1)
+    // Drunk wards the Caretaker hard, the shadowmen only a little.
+    expect(hit('caretaker')).toEqual({
+      by: 'caretaker',
+      ...damageOf('caretaker', geometrieFor(v.valley, 'acct-a', v.now), 0.5),
+    })
+    expect(hit('caretaker')?.damage).toBe(300)
+    expect(hit('man')?.damage).toBe(288)
     v.step({ type: 'set-health', id: 'a', points: 1 })
-    const fatal = v.step({ type: 'hit', id: 'a', roll: 0.99 })
+    const fatal = v.step({ type: 'hit', id: 'a', by: 'man', roll: 0.99 })
     expect(fatal.health?.fatal).toBe(true)
     expect(fatal.geometrie).toEqual([
-      { account: 'acct-a', levels: { high: 0, stimulated: 0, drunk: 0 } },
+      {
+        account: 'acct-a',
+        levels: { high: 0, stimulated: 0, drunk: 0, tripping: 0 },
+      },
     ])
     expect(v.valley.geometrie).toEqual({})
+  })
+
+  it('wards the Undercroft with a trip', () => {
+    const v = valleyWith(join('a'))
+    v.step({ type: 'dose', id: 'a', kind: 'lsd' })
+    const levels = geometrieFor(v.valley, 'acct-a', v.now)
+    expect(levels.tripping).toBe(1)
+    const warden = v.step({ type: 'hit', id: 'a', by: 'warden', roll: 0.5 })
+    // The trip's ward, and a little for the high besides.
+    expect(warden.health?.hit).toEqual({
+      by: 'warden',
+      ...damageOf('warden', levels, 0.5),
+    })
+    expect(warden.health?.hit?.damage).toBe(413)
   })
 
   it("reaches a high raider's beam further for the shadowmen", () => {

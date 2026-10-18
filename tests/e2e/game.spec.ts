@@ -172,15 +172,19 @@ test('the map shows the Citgos, and fast travel goes between visited ones', asyn
   await expect.poll(() => nearRing(home)).toBeLessThan(1)
 })
 
-test("a shadowman's touch takes a block, and the Citgo makes you whole", async ({
+test("a shadowman's touch takes its hit, and the Citgo makes you whole", async ({
   page,
 }) => {
   await beginRaid(page)
   const max = await page.evaluate(() => window.__bv?.health)
-  expect(max).toBe(300)
-  await expect(page.locator('.bv-health')).toHaveAttribute('data-health', '300')
-  await expect(page.locator('.bv-health-value')).toHaveText(
-    copy('hud.health_value', { health: 300, max: 300 })
+  expect(max).toBe(1000)
+  expect(await page.evaluate(() => window.__bv?.healthMax)).toBe(1000)
+  await expect(page.locator('.bv-vitals')).toHaveAttribute(
+    'data-health',
+    '1000'
+  )
+  await expect(page.locator('.bv-vitals-value')).toHaveText(
+    copy('hud.health_value', { health: '1,000', max: '1,000' })
   )
   await page.evaluate(() => window.__bv?.grant('marlboro', 20))
   await expect
@@ -198,10 +202,22 @@ test("a shadowman's touch takes a block, and the Citgo makes you whole", async (
     if (!bv) return
     bv.placeShadowman(bv.player.pos.x, bv.player.pos.z + 3)
   })
-  await expect.poll(() => page.evaluate(() => window.__bv?.health)).toBe(200)
-  await expect(page.locator('.bv-health')).toHaveAttribute('data-health', '200')
-  await expect(page.locator('.bv-health-value')).toHaveText(
-    copy('hud.health_value', { health: 200, max: 300 })
+  // A shadowman's 320, give or take a tenth on the valley's roll.
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.health))
+    .toBeLessThan(1000)
+  const left = (await page.evaluate(() => window.__bv?.health)) ?? 0
+  expect(left).toBeGreaterThanOrEqual(1000 - 352)
+  expect(left).toBeLessThanOrEqual(1000 - 288)
+  await expect(page.locator('.bv-vitals')).toHaveAttribute(
+    'data-health',
+    String(left)
+  )
+  await expect(page.locator('.bv-vitals-value')).toHaveText(
+    copy('hud.health_value', { health: left, max: '1,000' })
+  )
+  await expect(page.locator('.bv-vitals-damage')).toHaveText(
+    copy('hud.damage', { damage: 1000 - left })
   )
   await expect(page.locator('.bv-hurt')).toHaveClass(/bv-hurt--on/)
   await expect(page.locator('.bv-chat')).toContainText(copy('log.hit'))
@@ -232,7 +248,7 @@ test("a shadowman's touch takes a block, and the Citgo makes you whole", async (
     const bv = window.__bv
     if (bv) bv.player.relocate(bv.world.spawn.x, bv.world.spawn.z)
   })
-  await expect.poll(() => page.evaluate(() => window.__bv?.health)).toBe(300)
+  await expect.poll(() => page.evaluate(() => window.__bv?.health)).toBe(1000)
   await expect(page.locator('.bv-chat')).toContainText(copy('log.mended'))
 })
 

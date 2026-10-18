@@ -27,9 +27,10 @@
 //             last while it smokes, the joint's while perception does
 //   form      a medicine's packaging (MedicineForm, the shape assets.ts
 //             builds)
-//   heals     hit points one use gives back (health.ts, sharedworld.ts
-//             rule 24): everything smoked, drunk or swallowed gives a
-//             block (100) back, the joint, Four Loko and the liquor two
+//   healsPct  the share of whole geometrie one use gives back, in percent
+//             (health.ts, sharedworld.ts rule 24): everything smoked,
+//             drunk or swallowed gives 15 back, the joint, the
+//             psychedelics, Four Loko and the liquor 30
 //
 // Forage is never on a shelf, so it has no price or bought text; the
 // valley hands it out (sharedworld.ts rules 4 and 8).
@@ -52,7 +53,7 @@ interface ItemBase {
 // back when used (health.ts, sharedworld.ts rule 24).
 interface Shelf {
   price: number
-  heals?: number
+  healsPct?: number
 }
 
 export interface Cigarette extends ItemBase, Shelf {
@@ -89,7 +90,7 @@ interface Psychedelic extends ItemBase {
   price?: undefined
   perceptionSeconds: number
   geometrie: GeometrieDose
-  heals: number
+  healsPct: number
 }
 
 interface Stimulant extends ItemBase {
@@ -97,7 +98,7 @@ interface Stimulant extends ItemBase {
   price?: undefined
   tripSeconds: number
   geometrie: GeometrieDose
-  heals: number
+  healsPct: number
 }
 
 // Never on a shelf: the valley hands it out.
@@ -143,7 +144,7 @@ export const ITEMS = [
     smokeSeconds: 12,
     emberSeconds: 20,
     geometrie: { stimulated: 0.12 },
-    heals: 100,
+    healsPct: 15,
   },
   {
     id: 'camel',
@@ -154,7 +155,7 @@ export const ITEMS = [
     smokeSeconds: 14,
     emberSeconds: 20,
     geometrie: { stimulated: 0.12 },
-    heals: 100,
+    healsPct: 15,
   },
   {
     id: 'parliament',
@@ -165,7 +166,7 @@ export const ITEMS = [
     smokeSeconds: 13,
     emberSeconds: 16,
     geometrie: { stimulated: 0.1 },
-    heals: 100,
+    healsPct: 15,
   },
   {
     id: 'newport',
@@ -176,7 +177,7 @@ export const ITEMS = [
     smokeSeconds: 9,
     emberSeconds: 14,
     geometrie: { stimulated: 0.1 },
-    heals: 100,
+    healsPct: 15,
   },
   {
     id: 'djarum',
@@ -187,7 +188,7 @@ export const ITEMS = [
     smokeSeconds: 18,
     emberSeconds: 26,
     geometrie: { stimulated: 0.15 },
-    heals: 100,
+    healsPct: 15,
   },
   {
     id: 'joints',
@@ -197,19 +198,20 @@ export const ITEMS = [
     // Shadowmen resolve through the murk while it lasts.
     perceptionSeconds: 120,
     geometrie: { high: 0.5 },
-    heals: 200,
+    healsPct: 30,
   },
   // Never on a Citgo shelf: Erwin von Dutch in the Golden Wok deals them
   // (dealer.ts). The psychedelics work like the joint, harder and longer:
-  // perception, a long trip, and very high; the Adderall stimulates. Each
-  // gives health back, the psychedelics two like the joint.
+  // perception, a long trip, and the trip's ward (wards.ts: the Undercroft
+  // fears it) with some high besides; the Adderall stimulates. Each gives
+  // geometrie back, the psychedelics as much as the joint.
   {
     id: 'lsd',
     category: 'psychedelic',
     start: 0,
     perceptionSeconds: 480,
-    geometrie: { high: 1 },
-    heals: 200,
+    geometrie: { tripping: 1, high: 0.25 },
+    healsPct: 30,
   },
   {
     id: 'adderall',
@@ -218,21 +220,21 @@ export const ITEMS = [
     contents: 10,
     tripSeconds: 20,
     geometrie: { stimulated: 0.45 },
-    heals: 100,
+    healsPct: 15,
   },
   {
     id: 'mushrooms',
     category: 'psychedelic',
     start: 0,
     perceptionSeconds: 300,
-    geometrie: { high: 0.85 },
-    heals: 200,
+    geometrie: { tripping: 0.7, high: 0.4 },
+    healsPct: 30,
   },
   // Drinks, circa 2008. Drinking one moves geometrie (geometrie.ts): the
   // energy drinks stimulate, the beer and the liquor get you drunk, Four
   // Loko does both, and water sobers you a little. Each blurs the view and
   // trails it for tripSeconds (trip.ts); the water only blurs. Every one
-  // gives health back (heals). container is a key into
+  // gives geometrie back (healsPct). container is a key into
   // CONTAINERS in drinks.ts.
   {
     id: 'monster',
@@ -242,7 +244,7 @@ export const ITEMS = [
     container: 'tall',
     tripSeconds: 30,
     geometrie: { stimulated: 0.3 },
-    heals: 100,
+    healsPct: 15,
   },
   {
     id: 'monster-ultra',
@@ -252,7 +254,7 @@ export const ITEMS = [
     container: 'tall',
     tripSeconds: 30,
     geometrie: { stimulated: 0.25 },
-    heals: 100,
+    healsPct: 15,
   },
   {
     id: 'red-bull',
@@ -262,7 +264,7 @@ export const ITEMS = [
     container: 'slim',
     tripSeconds: 30,
     geometrie: { stimulated: 0.25 },
-    heals: 100,
+    healsPct: 15,
   },
   {
     id: 'rip-it',
@@ -272,7 +274,7 @@ export const ITEMS = [
     container: 'tall',
     tripSeconds: 30,
     geometrie: { stimulated: 0.3 },
-    heals: 100,
+    healsPct: 15,
   },
   {
     id: 'rockstar',
@@ -282,7 +284,7 @@ export const ITEMS = [
     container: 'tall',
     tripSeconds: 30,
     geometrie: { stimulated: 0.3 },
-    heals: 100,
+    healsPct: 15,
   },
   {
     id: 'nos',
@@ -292,7 +294,7 @@ export const ITEMS = [
     container: 'nos',
     tripSeconds: 30,
     geometrie: { stimulated: 0.35 },
-    heals: 100,
+    healsPct: 15,
   },
   {
     id: 'four-loko-blue',
@@ -302,7 +304,7 @@ export const ITEMS = [
     container: 'tall',
     tripSeconds: 120,
     geometrie: { stimulated: 0.3, drunk: 0.35 },
-    heals: 200,
+    healsPct: 30,
   },
   {
     id: 'four-loko-punch',
@@ -312,7 +314,7 @@ export const ITEMS = [
     container: 'tall',
     tripSeconds: 120,
     geometrie: { stimulated: 0.3, drunk: 0.35 },
-    heals: 200,
+    healsPct: 30,
   },
   {
     id: 'four-loko-lemon',
@@ -322,7 +324,7 @@ export const ITEMS = [
     container: 'tall',
     tripSeconds: 120,
     geometrie: { stimulated: 0.3, drunk: 0.35 },
-    heals: 200,
+    healsPct: 30,
   },
   {
     id: 'wild-turkey',
@@ -332,7 +334,7 @@ export const ITEMS = [
     container: 'bourbon',
     tripSeconds: 90,
     geometrie: { drunk: 0.5 },
-    heals: 200,
+    healsPct: 30,
   },
   {
     id: 'jim-beam',
@@ -342,7 +344,7 @@ export const ITEMS = [
     container: 'square',
     tripSeconds: 90,
     geometrie: { drunk: 0.45 },
-    heals: 200,
+    healsPct: 30,
   },
   {
     id: 'grey-goose',
@@ -352,7 +354,7 @@ export const ITEMS = [
     container: 'goose',
     tripSeconds: 90,
     geometrie: { drunk: 0.45 },
-    heals: 200,
+    healsPct: 30,
   },
   {
     id: 'pbr',
@@ -362,7 +364,7 @@ export const ITEMS = [
     container: 'can12',
     tripSeconds: 60,
     geometrie: { drunk: 0.15 },
-    heals: 100,
+    healsPct: 15,
   },
   {
     id: 'high-life',
@@ -372,7 +374,7 @@ export const ITEMS = [
     container: 'longneck',
     tripSeconds: 60,
     geometrie: { drunk: 0.15 },
-    heals: 100,
+    healsPct: 15,
   },
   {
     id: 'modelo',
@@ -382,7 +384,7 @@ export const ITEMS = [
     container: 'can12',
     tripSeconds: 60,
     geometrie: { drunk: 0.15 },
-    heals: 100,
+    healsPct: 15,
   },
   {
     id: 'md-2020',
@@ -392,7 +394,7 @@ export const ITEMS = [
     container: 'flask',
     tripSeconds: 90,
     geometrie: { drunk: 0.3 },
-    heals: 100,
+    healsPct: 15,
   },
   {
     id: 'ice-mountain',
@@ -402,7 +404,7 @@ export const ITEMS = [
     container: 'water',
     tripSeconds: 1,
     geometrie: { drunk: -0.1 },
-    heals: 100,
+    healsPct: 15,
   },
   // Medicine, off the rack by the register. Each one taken gives a health
   // point back and moves geometrie: whatever is swallowed as a pill (the
@@ -417,7 +419,7 @@ export const ITEMS = [
     contents: 24,
     form: 'pills',
     geometrie: { stimulated: 0.1 },
-    heals: 100,
+    healsPct: 15,
   },
   {
     id: 'ibuprofen',
@@ -427,7 +429,7 @@ export const ITEMS = [
     contents: 24,
     form: 'pills',
     geometrie: { stimulated: 0.1 },
-    heals: 100,
+    healsPct: 15,
   },
   {
     id: 'benadryl',
@@ -437,7 +439,7 @@ export const ITEMS = [
     contents: 24,
     form: 'carton',
     geometrie: { stimulated: 0.3 },
-    heals: 100,
+    healsPct: 15,
   },
   {
     id: 'eye-drops',
@@ -445,8 +447,8 @@ export const ITEMS = [
     start: 0,
     price: 549,
     form: 'dropper',
-    geometrie: { high: -0.15 },
-    heals: 100,
+    geometrie: { high: -0.15, tripping: -0.15 },
+    healsPct: 15,
   },
   // Forage. Not for sale: cabbages grow wild across the valley and come
   // back with the day, and the berry bushes give every account one berry
@@ -546,7 +548,7 @@ export function isUsable(id: string): boolean {
     case 'drink':
       return true
     case 'medicine':
-      return (item.heals ?? 0) > 0
+      return (item.healsPct ?? 0) > 0
     case 'forage':
     case 'valuable':
     case 'key-item':
@@ -561,11 +563,12 @@ export function givesPerception(id: string): boolean {
   return category === 'joint' || category === 'psychedelic'
 }
 
-// Health points one use of `id` gives back (health.ts); 0 for anything
-// that does not heal.
-export function healsOf(id: string): number {
+// Geometrie one use of `id` gives back to a raider `max` whole (health.ts);
+// 0 for anything that does not heal.
+export function healsOf(id: string, max: number): number {
   const item = itemById(id)
-  return item && 'heals' in item ? (item.heals ?? 0) : 0
+  const pct = item && 'healsPct' in item ? (item.healsPct ?? 0) : 0
+  return Math.round((pct / 100) * max)
 }
 
 // How far one use of `id` moves geometrie (geometrie.ts dose): anything
