@@ -127,8 +127,12 @@ export function createTargets(game: Game): Targets {
       const spots: NpcSpot[] = []
       const marx = truck.driverAt()
       if (marx) spots.push({ id: 'marx', ...marx })
+      // Out on the lot after the slurms, there is no one behind the
+      // counter to talk to (slurms.ts).
       const carlsten = world.clerks[station]
-      if (carlsten) spots.push({ id: 'carlsten', ...carlsten })
+      if (carlsten && !world.shelves.clerkAway(station)) {
+        spots.push({ id: 'carlsten', ...carlsten })
+      }
       // A Moab under every station's sign.
       world.moabs.forEach((moab, i) => {
         spots.push({ id: 'moab', ...moab, station: i })

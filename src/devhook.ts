@@ -141,6 +141,9 @@ interface BvHook {
   // dev frame, or this client's own, played alone.
   placeCaretaker(x: number, z: number): void
   hurryTruck(seconds?: number): void
+  // Bring the next drop of slurms at the nearest Citgo to now (this
+  // client's view alone; slurms.ts).
+  hurrySlurms(): void
   // Every sound's id (sfx.ts), and one played: at world (x, z), or in the
   // head without a place. Nothing under e2e, which never plays sound.
   readonly sfxIds: readonly string[]
@@ -342,6 +345,9 @@ export function installDevHook(game: Game, actions: Actions): void {
           ? null
           : { x, y: game.world.ground.at(x, z) + 1.2, z }
       game.sfx?.play(id, at)
+    },
+    hurrySlurms() {
+      game.world.shelves.hurrySlurms()
     },
     hurryTruck(seconds = 5) {
       // In the shared valley the server keeps Marx's day; a dev server

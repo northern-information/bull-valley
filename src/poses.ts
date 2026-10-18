@@ -67,6 +67,9 @@ export type PoseName =
   // A shadowman's strike (shadowmanmodel.ts).
   | 'shadow-windup'
   | 'shadow-lunge'
+  // David Carlsten's swing at a slurm (slurms.ts).
+  | 'bat-windup'
+  | 'bat-smash'
 
 // A sampled pose: every joint present.
 export interface PoseSample {
@@ -691,6 +694,50 @@ export const POSES = {
           hipR: [0.45, 0, -0.04],
           kneeL: [0.8, 0, 0],
           kneeR: [0.3, 0, 0],
+        },
+      },
+    ],
+  },
+  // The bat raised in both hands for a chop at the ground: up over the
+  // head and drawn back behind it, leaning back on the rear foot. The
+  // bat is held along the forearms here, not hanging (slurmrig.ts).
+  'bat-windup': {
+    keys: [
+      {
+        lift: -0.03,
+        joints: {
+          spine: [-0.22, 0, 0],
+          neck: [0.15, 0, 0],
+          shoulderL: [-2.85, 0, 0.3],
+          shoulderR: [-2.95, 0, -0.25],
+          elbowL: [-1.15, 0, 0],
+          elbowR: [-1.25, 0, 0],
+          hipL: [-0.3, 0, 0.06],
+          hipR: [0.22, 0, -0.06],
+          kneeL: [0.3, 0, 0],
+          kneeR: [0.2, 0, 0],
+        },
+      },
+    ],
+  },
+  // The bat brought down on it: bent over the blow, both arms driven down
+  // and out, the bat's head on the ground ahead, the front knee taking
+  // the weight.
+  'bat-smash': {
+    keys: [
+      {
+        lift: -0.12,
+        joints: {
+          spine: [0.6, 0, 0],
+          neck: [-0.35, 0, 0],
+          shoulderL: [-1.0, 0, 0.12],
+          shoulderR: [-1.0, 0, -0.12],
+          elbowL: [-0.25, 0, 0],
+          elbowR: [-0.2, 0, 0],
+          hipL: [-0.75, 0, 0.05],
+          hipR: [0.35, 0, -0.05],
+          kneeL: [0.85, 0, 0],
+          kneeR: [0.35, 0, 0],
         },
       },
     ],

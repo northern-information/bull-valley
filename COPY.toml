@@ -750,6 +750,18 @@ says_1 = { text = "Howdy. Welcome in.", by = "tyler" }
 says_2 = { text = "Shadowmen are out tonight.", by = "tyler" }
 says_3 = { text = "Heard there's been some rolling power outages.", by = "tyler" }
 
+# David Carlsten, out on the lot with his bat after the slurms that drop
+# off the Citgo's dripline (src/slurms.ts), one line a drop, in turn.
+[slurms]
+curse_1 = { text = "Damn slurms...", by = "ai" }
+curse_2 = { text = "Every night. Every damn night.", by = "ai" }
+curse_3 = { text = "Back in the gutter, you slimy little—", by = "ai" }
+curse_4 = { text = "Not on my lot.", by = "ai" }
+curse_5 = { text = "Who keeps feeding these things?", by = "ai" }
+curse_6 = { text = "Slurms. Again. Unbelievable.", by = "ai" }
+curse_7 = { text = "Don't you show me that tooth.", by = "ai" }
+curse_8 = { text = "I'm not paid enough for slurms.", by = "ai" }
+
 # Talking to Gron by the berry bush (src/grondialog.ts). One of the says_
 # lines greets you at random; the field, the checks and the Previous / Next
 # buttons share their lines with [username] and [select].

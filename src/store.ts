@@ -641,6 +641,11 @@ function buildFacings(): Facing[] {
   return facings
 }
 
+// The canopy over the pump island, centred on it: `width` along local X,
+// `depth` along Z, its slab `thickness` deep and centred at `height`.
+// assets.ts draws it; the slurms (slurms.ts) drip off its edges.
+export const CANOPY = { width: 9, thickness: 0.45, depth: 6.5, height: 4.6 }
+
 export const STORE_LAYOUT = {
   back: BACK,
   partition: PARTITION,

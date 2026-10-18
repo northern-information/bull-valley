@@ -689,6 +689,46 @@ export const CONFIG = {
     // counter, which keeps you about 1.6 m from him.
     reach: 1.8,
   },
+  // The slurms (slurms.ts): black slugs dropping off a Citgo's dripline,
+  // and David Carlsten coming out with his bat to smash them. Scenery on
+  // the shared clock, the same for everyone; they never touch a raider.
+  slurms: {
+    // Time is cut into slots this long, and each slot at each station has
+    // one drop, starting up to `jitterSeconds` into it: the drops come
+    // 30 to 90 seconds apart, and one is always over before the next.
+    slotSeconds: 60,
+    jitterSeconds: 30,
+    // How often a drop is more than one slurm, and the most at once.
+    multiChance: 0.35,
+    maxCount: 4,
+    // Several fall from along this much of the edge, a beat apart.
+    spread: 1.6,
+    stagger: [0.15, 0.6],
+    // Metres a second squared, off the eave or the canopy.
+    gravity: 9.8,
+    // Each crawls off this fast for this long, then rears and snaps.
+    crawlSpeed: 0.12,
+    crawlSeconds: 2.5,
+    // The tooth slides out and back in once a period.
+    toothPeriod: [1.1, 2.2],
+    // Carlsten sees the first land and comes out after this long, walking
+    // brisk (he has done this before), and stands this far off each one.
+    reactSeconds: 1.2,
+    walkSpeed: 2.1,
+    standOff: 0.8,
+    // His swing: the bat raised, brought down (the slurm bursts at the
+    // end of it), and a beat to recover before the next.
+    windupSeconds: 0.45,
+    smashSeconds: 0.18,
+    recoverSeconds: 0.35,
+    // After the last he curses, and goes back in this long after.
+    curseDelay: 0.4,
+    lingerSeconds: 1.4,
+    // A squashed slurm lies as a black splat this long, then fades.
+    splatSeconds: 5,
+    // How close you must be to hear him curse in the log.
+    hearRadius: 30,
+  },
   moab: {
     // Where Moab Coldë's horse stands at every Citgo, station-local like
     // the bush: under the road sign (FUEL_LAYOUT.signDistance, signAlong in

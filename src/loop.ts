@@ -46,6 +46,7 @@ import type { Actions } from './actions.ts'
 import type { Game } from './game.ts'
 import type { BushSpot } from './interactions.ts'
 import type { DailyWire, PeerStateWire } from './protocol.ts'
+import type { Cue } from './sfx.ts'
 import type { HeadlightsSent } from './shadowmen.ts'
 import type { Targets } from './targets.ts'
 import type { Pickup } from './world.ts'
@@ -162,6 +163,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   // The last word the valley had from us on Marx's headlights.
   let headlightsSent: HeadlightsSent | null = null
 
+  // The slurms' sounds, heard with the shadows' on the next frame.
+  let slurmCues: Cue[] = []
   let last = performance.now()
   const frame = () => {
     const now = performance.now()
@@ -395,7 +398,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     bursts.update(dt)
     // What the shadowmen and the Caretaker sound like this frame.
     sfx?.hear(
-      [...swarm.heard.cues, ...keeper.heard.cues, ...tunnelCues],
+      [...swarm.heard.cues, ...keeper.heard.cues, ...tunnelCues, ...slurmCues],
       [...swarm.heard.holds, ...keeper.heard.holds],
       (x, z) => world.ground.at(x, z)
     )
@@ -587,7 +590,16 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     }
 
     // The stocked shelves follow the player to the nearest store.
-    world.shelves.update(player.pos.x, player.pos.z, s.storeStock)
+    // With them the slurms off its dripline, on the valley's clock so
+    // everyone at that Citgo sees the same drop (slurms.ts).
+    const shelves = world.shelves.update(
+      player.pos.x,
+      player.pos.z,
+      s.storeStock,
+      (net.online ? net.clock.serverNow(now) : Date.now()) / 1000
+    )
+    slurmCues = shelves.cues
+    if (shelves.curse) actions.npcSays('carlsten', shelves.curse)
     // And the streetlights' real lights to the nearest lamps.
     world.streetlights.update(player.pos.x, player.pos.z)
 

@@ -9,7 +9,9 @@ import {
 import { CONFIG } from './config.ts'
 import { applyPose, buildFigure } from './figure.ts'
 import { samplePose } from './poses.ts'
+import { createSlurms } from './slurmrig.ts'
 import { onShelf, STORE_LAYOUT, storeCenter } from './store.ts'
+import type { Ground } from './ground.ts'
 import type { Vec3 } from './interfaces.ts'
 import type { FuelPoint, ShelfDisplay } from './world.ts'
 
@@ -107,15 +109,12 @@ function buildStationLights(): StationLights {
 // it parks at the store nearest the player and hides the units that store
 // has sold. A buy takes the unit the buyer looks at. David Carlsten rides
 // along behind the counter, so every Citgo has its clerk, and the station
-
-// One stocked display for every store. Building 15 stores' worth of shelf
-// units would cost thousands of draw calls, and the walls and the fog hide
-// every store but the one you are near, so the one display follows you:
-// it parks at the store nearest the player and hides the units that store
-// has sold. A buy takes the unit the buyer looks at. David Carlsten rides
-// along behind the counter, so every Citgo has its clerk, and the station
-// lights ride with it.
-export function buildShelves(points: readonly FuelPoint[]): ShelfDisplay {
+// lights ride with it, and so do the slurms that drop off its dripline and
+// Carlsten coming out after them (slurmrig.ts).
+export function buildShelves(
+  points: readonly FuelPoint[],
+  ground: Ground
+): ShelfDisplay {
   const { group: display, slots } = buildShelfDisplay()
   display.visible = false
   const clerk = buildFigure('carlsten')
@@ -124,6 +123,8 @@ export function buildShelves(points: readonly FuelPoint[]): ShelfDisplay {
   clerk.group.position.set(spot.x, STORE_LAYOUT.floor, spot.z)
   clerk.group.rotation.y = spot.yaw
   display.add(clerk.group)
+  const slurms = createSlurms(clerk, ground)
+  display.add(slurms.group)
   const lockers = buildLockerDoors()
   display.add(lockers)
   castShadows(display)
@@ -146,7 +147,7 @@ export function buildShelves(points: readonly FuelPoint[]): ShelfDisplay {
       )
       return slot?.object ?? null
     },
-    update(x, z, stocks) {
+    update(x, z, stocks, seconds) {
       let best = -1
       let bestD = CONFIG.store.displayRange
       centers.forEach((c, i) => {
@@ -159,8 +160,9 @@ export function buildShelves(points: readonly FuelPoint[]): ShelfDisplay {
       parked = best
       display.visible = best >= 0
       lights.setOn(best >= 0)
-      if (best < 0) return
-      const at = points[best]
+      const at = best >= 0 ? points[best] : null
+      const heard = slurms.update(best, at, seconds, { x, z })
+      if (!at) return heard
       group.position.set(at.x, at.y, at.z)
       group.rotation.set(0, -at.yaw, 0)
       const stock = stocks[best] ?? {}
@@ -168,7 +170,10 @@ export function buildShelves(points: readonly FuelPoint[]): ShelfDisplay {
         const kind = facings[slot.facing].kind
         slot.object.visible = onShelf(stock, kind, slot.unit)
       }
+      return heard
     },
+    clerkAway: (station) => slurms.away(station),
+    hurrySlurms: () => slurms.hurry(),
   }
 }
 
