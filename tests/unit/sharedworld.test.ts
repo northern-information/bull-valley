@@ -2240,6 +2240,42 @@ describe('rule 11, below: the tunnel shades walk the Undercroft', () => {
     expect(tunneled).toEqual(['a'])
   })
 
+  it("credits a burn and XP for a shade burst in a raider's beam", () => {
+    const v = valley()
+    const shadows = createShadows()
+    let bursts: { kind: string }[] = []
+    let burned: string[] = []
+    let xp: { account: string; source: string }[] = []
+    const first = stepShadows(
+      v,
+      shadows,
+      [{ id: 'a', at: state(below({ x: 0, z: 0 })) }],
+      mulberry32(1),
+      { now: T0, dt: 0 }
+    )
+    let shade = first?.message.tunnel[0]
+    if (!shade) throw new Error('no shade')
+    for (let i = 1; i < 100 && bursts.length === 0; i++) {
+      // A step off the shade, its light on it.
+      const from = { x: shade.x + 1.5, z: shade.z }
+      const yaw = Math.atan2(shade.x - from.x, shade.z - from.z) + Math.PI
+      const at = { ...state(from), yaw, pitch: -0.15, light: true }
+      const out = stepShadows(v, shadows, [{ id: 'a', at }], mulberry32(i), {
+        now: T0 + i * 100,
+        dt: 0.1,
+        calm: true,
+      })
+      const id: number = shade.id
+      shade = out?.message.tunnel.find((t) => t.id === id) ?? shade
+      bursts = out?.message.tunnelBursts ?? []
+      burned = out?.burned ?? []
+      xp = out?.xp ?? []
+    }
+    expect(bursts).toHaveLength(1)
+    expect(burned).toEqual(['acct-a'])
+    expect(xp).toContainEqual({ account: 'acct-a', source: 'burn' })
+  })
+
   it('leaves the shades still in a world opened without the Undercroft', () => {
     const v = valleyWith(join('a')).valley
     const out = stepShadows(
