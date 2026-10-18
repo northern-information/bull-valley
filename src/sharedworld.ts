@@ -149,16 +149,21 @@
 //    in, Reduced.stand out); the valley writes the ledger, the pack and the
 //    wallet together, or none of them. A collect earns XP by the cents it
 //    pays (stand.ts standXp, rule 22).
-// 24. Health (health.ts): every account has CONFIG.health.max hit points,
-//    kept by the valley (Valley.health, only the accounts below whole), so
-//    no reconnect or second tab heals. Any shadow's touch (rules 11 and 13)
-//    takes CONFIG.health.touch, once a step however many of the account's sockets were
-//    touched, and lets the raider alone for CONFIG.health.graceSeconds
-//    where they stand. The touch that takes the last is the strike of rule
-//    18 (Reduced.health.fatal), and the account is whole again after. A
-//    raider on foot whose last state frame put them on a Citgo forecourt
-//    is made whole, and a use of medicine that heals (items.ts heals),
-//    once the pack has given the unit up, gives its points back.
+// 24. Geometrie, the raider's hit points (health.ts): every account has
+//    maxGeometrie of its level (Member.level, read from D1 on the join and
+//    moved on by a `level` action), and the valley keeps what each has
+//    lost (Valley.wounds, only the wounded), so no reconnect or second tab
+//    heals and a new level's larger whole tops the raider up. Each shadow's
+//    touch (rules 11 and 13) takes its own hit (wards.ts damageOf: the
+//    shadow's, give or take its spread on the valley's roll, cut by the
+//    raider's wards, rule 27), once a step however many of the account's
+//    sockets were touched, and lets the raider alone for
+//    CONFIG.health.graceSeconds where they stand. The touch that takes the
+//    last is the strike of rule 18 (Reduced.health.fatal), and the account
+//    is whole again after. A raider on foot whose last state frame put them
+//    on a Citgo forecourt is made whole, and a use of anything that heals
+//    (items.ts healsPct), once the pack has given the unit up, gives its
+//    share of whole back.
 // 25. The squatter in Bull Valley Plaza deals (dealer.ts), where the
 //    world was opened with him (SharedWorld.dealer): a few of each of his
 //    goods a day for the whole valley (SharedWorld.dealerStock, full
@@ -181,8 +186,9 @@
 //    accounts not sober), dosed by each use once the pack has given the
 //    unit up, and made sober by the strike of rule 18. It does things: a
 //    raider's high reaches their beam further and wider (shadowRaiders),
-//    and their drunk shrugs a touch off by a chance the valley draws (the
-//    hit's roll; no point lost, Reduced.health.shrugged). A raider on foot
+//    and each level wards against its own shadows (wards.ts: high the
+//    shadowmen, stimulated the spiders, drunk the Caretaker, a trip the
+//    Undercroft), cutting what their touch takes (rule 24). A raider on foot
 //    can pass a unit to another account's raider on foot within
 //    CONFIG.buffs.passReach of them, each where their last state frame put
 //    them: the pass takes it out of the giver's pack, then a dose
@@ -207,14 +213,7 @@
 //    portal open at a time (opening another closes the first), each for
 //    CONFIG.portal.lifeSeconds; the day's turn leaves them.
 
-import {
-  dosed,
-  geometrieOf,
-  inPassReach,
-  scaled,
-  shrugs,
-  sobered,
-} from './buffs.ts'
+import { dosed, geometrieOf, inPassReach, scaled, sobered } from './buffs.ts'
 import { heartPoint, theMaze } from './caretaker.ts'
 import { citgoAt, NO_CITGOS, visit } from './citgos.ts'
 import { CONFIG } from './config.ts'
@@ -227,17 +226,18 @@ import { centsOf, dropSpot, isCash, takeUp } from './drops.ts'
 import { levelsAt } from './geometrie.ts'
 import { bury } from './graves.ts'
 import {
-  healthOf,
   hit,
-  isWhole,
-  MAX_HEALTH,
+  maxGeometrie,
   mend,
-  rescaled,
-  withHealth,
+  pointsOf,
+  withWounds,
+  woundsFromHealth,
+  woundsOf,
 } from './health.ts'
 import {
   contentsOf,
   geometrieOf as doseOf,
+  healsOf,
   INVENTORY_KINDS,
   isKeyItem,
   isUsable,
@@ -272,6 +272,7 @@ import {
 } from './stand.ts'
 import { atLocker } from './stash.ts'
 import { freshStock, onShelf, takeUnit } from './store.ts'
+import { damageOf } from './wards.ts'
 import type { CitgoLog } from './citgos.ts'
 import type { Corpse } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -300,6 +301,7 @@ import type {
 } from './protocol.ts'
 import type { QuestId, QuestStage, QuestStep } from './quests.ts'
 import type { StandLedger } from './stand.ts'
+import type { ShadowHit } from './wards.ts'
 import type { WaterMap } from './waterside.ts'
 
 // A raider online: one socket.
@@ -309,6 +311,9 @@ interface Member {
   account: string
   name: string
   outfit: OutfitId
+  // Rule 24: the account's level (progression.ts), which sizes its
+  // geometrie.
+  level: number
 }
 
 interface SharedWorld {
@@ -373,10 +378,8 @@ export interface Valley {
   // fell (never on the wire), and the id the next one gets.
   corpses: ValleyCorpse[]
   nextCorpse: number
-  // Rule 24: account -> its hit points, while below whole, and the max
-  // they were kept against (restoreValley rescales them when it moves).
-  health: Record<string, number>
-  healthMax: number
+  // Rule 24: account -> the geometrie it has lost, while wounded.
+  wounds: Record<string, number>
   // Rule 27: account -> its geometrie, while not sober, on the valley's
   // clock in seconds.
   geometrie: Record<string, Geometrie>
@@ -423,6 +426,8 @@ export type ValleyAction =
       dealer: XZ | null
       undercroft: MazePlace | null
       rings: XZ[]
+      // Rule 24: the account's level, read from D1 (1 when absent).
+      level?: number
     }
   // at: where their last state frame put them, or null.
   | { type: 'leave'; id: string; at: PeerStateWire | null }
@@ -474,11 +479,13 @@ export type ValleyAction =
   // where the raider's last state frame put them, or null.
   | { type: 'fall'; id: string; items: Inventory; at: Facing | null }
   | { type: 'loot'; id: string; corpse: number; at: XZ | null }
-  // Rule 24: a shadow's touch; points given back (by), or made whole (no
-  // by: a forecourt).
-  // roll: drawn from 0 to 1 by the valley for the drunk's shrug (rule 27).
-  | { type: 'hit'; id: string; roll?: number }
-  | { type: 'mend'; id: string; by?: number }
+  // Rule 24: a shadow's touch, `by` what (wards.ts), roll drawn from 0 to
+  // 1 by the valley for its spread; a use of `kind` giving its share
+  // back, or made whole (no kind: a forecourt).
+  | { type: 'hit'; id: string; by: ShadowHit; roll?: number }
+  | { type: 'mend'; id: string; kind?: string }
+  // Rule 24: the account reached `level` (rule 22).
+  | { type: 'level'; account: string; level: number }
   // A dev server's: the account at `points`, for the specs.
   | { type: 'set-health'; id: string; points: number }
   // Rule 19: `count` of `kind` into the locker (stow) or out of it
@@ -589,14 +596,16 @@ export interface Reduced {
   corpse?: number
   // Rule 18: a body's things, back into its account's pack.
   give?: { account: string; items: Inventory }
-  // Rule 24: an account's health after a hit or a mend, for its sockets;
-  // fatal when the hit took the last point (the account is whole again).
-  // shrugged when the drunk shrugged it off (rule 27), and nothing lost.
+  // Rule 24: an account's geometrie after a hit, a mend or a new level,
+  // for its sockets, out of `max`; fatal when the hit took the last of it
+  // (the account is whole again). A hit says what took it, how much, and
+  // how much the wards took off.
   health?: {
     account: string
     points: number
+    max: number
     fatal?: true
-    shrugged?: true
+    hit?: { by: ShadowHit; damage: number; warded: number }
   }
   // Rule 27: each account's geometrie after a dose or a shattering, for
   // its sockets.
@@ -668,8 +677,7 @@ export function createValley(): Valley {
     places: {},
     corpses: [],
     nextCorpse: 0,
-    health: {},
-    healthMax: MAX_HEALTH,
+    wounds: {},
     geometrie: {},
     citgos: {},
   }
@@ -678,15 +686,22 @@ export function createValley(): Valley {
 // The valley as an older build stored it, made current: the fresh one
 // fills in newer fields, and a world opened on another protocol (an older
 // build's raid included) is dropped, so the next arrival opens it afresh.
-// The berries, the places, the bodies, the health and the geometrie carry
-// over, the health rescaled to the max it is kept against now (a valley
-// stored before healthMax kept three points).
-export function restoreValley(stored: Partial<Valley>): Valley {
-  const valley = {
+// The berries, the places, the bodies, the wounds and the geometrie carry
+// over; a valley stored as hit points left (an older build's `health`,
+// kept against `healthMax`, three once) is read as wounds at the same
+// share of whole.
+export function restoreValley(
+  stored: Partial<Valley> & {
+    health?: Record<string, number>
+    healthMax?: number
+  }
+): Valley {
+  const { health, healthMax, ...rest } = stored
+  const valley: Valley = {
     ...createValley(),
-    ...stored,
-    health: rescaled(stored.health ?? {}, stored.healthMax ?? 3),
-    healthMax: MAX_HEALTH,
+    ...rest,
+    wounds:
+      rest.wounds ?? (health ? woundsFromHealth(health, healthMax ?? 3) : {}),
   }
   const world: Partial<SharedWorld> | null = valley.world ?? null
   if (!world || world.version !== PROTOCOL_VERSION) {
@@ -715,9 +730,24 @@ export function corpsesOf(valley: Valley, account: string): number[] {
   return valley.corpses.filter((c) => c.account === account).map((c) => c.id)
 }
 
-// Rule 24: `account`'s health.
+// Rule 24: `account`'s level, the highest any of its raiders here holds
+// (1 with none).
+export function levelFor(valley: Valley, account: string): number {
+  let level = 1
+  for (const m of Object.values(valley.members)) {
+    if (m.account === account) level = Math.max(level, m.level || 1)
+  }
+  return level
+}
+
+// Rule 24: `account`'s geometrie whole.
+export function maxFor(valley: Valley, account: string): number {
+  return maxGeometrie(levelFor(valley, account))
+}
+
+// Rule 24: `account`'s geometrie left.
 export function healthFor(valley: Valley, account: string): number {
-  return healthOf(valley.health, account)
+  return pointsOf(woundsOf(valley.wounds, account), maxFor(valley, account))
 }
 
 // Rule 27: `account`'s geometrie levels at `now` (ms on the valley's
@@ -954,6 +984,8 @@ function act(
       return onMend(valley, action, context)
     case 'set-health':
       return onSetHealth(valley, action, context)
+    case 'level':
+      return onLevel(valley, action, context)
     case 'loot':
       return onLoot(valley, action, context)
     case 'stow':
@@ -1037,6 +1069,7 @@ function onJoin(
     account: action.account,
     name: action.name,
     outfit: action.outfit,
+    level: action.level ?? 1,
   }
   const next: Valley = { ...valley, members, world: { ...world, truck } }
   return done(next, now, {
@@ -1642,28 +1675,27 @@ function onHit(
   action: ActionOf<'hit'>,
   { now }: ValleyContext
 ): Reduced {
-  // Rule 24.
+  // Rules 24 and 27: the shadow's hit, cut by the wards.
   const member = valley.members[action.id]
   if (!member) return done(valley, now, { broadcast: [] })
   const { account } = member
-  const before = healthOf(valley.health, account)
+  const max = maxFor(valley, account)
+  const before = pointsOf(woundsOf(valley.wounds, account), max)
   const levels = geometrieFor(valley, account, now)
-  if (action.roll !== undefined && shrugs(levels, action.roll)) {
-    return done(valley, now, {
-      broadcast: [],
-      health: { account, points: before, shrugged: true },
-    })
-  }
-  const { points, fatal } = hit(before)
+  const { damage, warded } = damageOf(action.by, levels, action.roll)
+  const { points, fatal } = hit(before, damage, max)
   const next: Valley = {
     ...valley,
-    health: withHealth(valley.health, account, fatal ? MAX_HEALTH : points),
+    wounds: withWounds(valley.wounds, account, fatal ? 0 : max - points),
     // A shattering leaves the raider sober.
     geometrie: fatal ? sobered(valley.geometrie, account) : valley.geometrie,
   }
+  const struck = { by: action.by, damage, warded }
   return done(next, now, {
     broadcast: [],
-    health: fatal ? { account, points, fatal } : { account, points },
+    health: fatal
+      ? { account, points, max, fatal, hit: struck }
+      : { account, points, max, hit: struck },
     ...(fatal
       ? {
           geometrie: [{ account, levels: geometrieFor(next, account, now) }],
@@ -1752,17 +1784,22 @@ function onMend(
   action: ActionOf<'mend'>,
   { now }: ValleyContext
 ): Reduced {
-  // Rule 24: a forecourt makes whole; medicine gives its points back.
+  // Rule 24: a forecourt makes whole; a use gives its share back.
   const member = valley.members[action.id]
   if (!member) return done(valley, now, { broadcast: [] })
   const { account } = member
-  const before = healthOf(valley.health, account)
-  if (isWhole(before)) return done(valley, now, { broadcast: [] })
-  const points = action.by === undefined ? MAX_HEALTH : mend(before, action.by)
+  const wounds = woundsOf(valley.wounds, account)
+  if (wounds <= 0) return done(valley, now, { broadcast: [] })
+  const max = maxFor(valley, account)
+  const before = pointsOf(wounds, max)
+  const points =
+    action.kind === undefined
+      ? max
+      : mend(before, healsOf(action.kind, max), max)
   return done(
-    { ...valley, health: withHealth(valley.health, account, points) },
+    { ...valley, wounds: withWounds(valley.wounds, account, max - points) },
     now,
-    { broadcast: [], health: { account, points } }
+    { broadcast: [], health: { account, points, max } }
   )
 }
 
@@ -1774,12 +1811,42 @@ function onSetHealth(
   const member = valley.members[action.id]
   if (!member) return done(valley, now, { broadcast: [] })
   const { account } = member
-  const points = mend(0, action.points)
+  const max = maxFor(valley, account)
+  const points = mend(0, action.points, max)
+  // Nothing left is whole again, as after a shattering.
+  const wounds = points > 0 ? max - points : 0
   return done(
-    { ...valley, health: withHealth(valley.health, account, points) },
+    { ...valley, wounds: withWounds(valley.wounds, account, wounds) },
     now,
-    { broadcast: [], health: { account, points } }
+    { broadcast: [], health: { account, points: max - wounds, max } }
   )
+}
+
+function onLevel(
+  valley: Valley,
+  action: ActionOf<'level'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rule 24: a new level's larger whole, the wounds kept; never a level
+  // taken back.
+  const before = levelFor(valley, action.account)
+  if (!(action.level > before)) return done(valley, now, { broadcast: [] })
+  const members: Record<string, Member> = { ...valley.members }
+  for (const m of Object.values(members)) {
+    if (m.account === action.account) {
+      members[m.id] = { ...m, level: action.level }
+    }
+  }
+  const next = { ...valley, members }
+  const max = maxFor(next, action.account)
+  return done(next, now, {
+    broadcast: [],
+    health: {
+      account: action.account,
+      points: healthFor(next, action.account),
+      max,
+    },
+  })
 }
 
 function onLoot(

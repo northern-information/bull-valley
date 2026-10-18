@@ -1,7 +1,8 @@
 // The HUD's little marks, drawn as SVG in a 24-unit box in currentColor:
-// what each of geometrie's corners means (a weed leaf for high, a pill for
-// stimulated, a beer bottle for drunk) and the joint's perception (an eye).
-// hud.ts sets them in the triangle's corners, buffhud.ts on each buff. No
+// what each of the wards' corners means (a weed leaf for high, a pill for
+// stimulated, a beer bottle for drunk, a blotter tab's rings for tripping)
+// and the joint's perception (an eye). vitalshud.ts sets them on the
+// tetrahedron's corners and the ward chips, buffhud.ts on each buff. No
 // DOM: markup only.
 
 import type { BuffId } from './buffbar.ts'
@@ -31,10 +32,14 @@ const PILL = `<g transform="rotate(-45 12 12)"><path d="M12 8H7.5a4 4 0 0 0 0 8H
 
 const EYE = `<path d="M1.5 12C5 6 19 6 22.5 12C19 18 5 18 1.5 12Z M12 8.2a3.8 3.8 0 1 0 0 7.6a3.8 3.8 0 1 0 0-7.6Z" fill-rule="evenodd" /><circle cx="12" cy="12" r="1.7" />`
 
+// A blotter tab, square, with the rings of its print cut through it.
+const BLOTTER = `<path fill-rule="evenodd" d="M3 3h18v18H3Z M12 4.8a7.2 7.2 0 1 0 0 14.4a7.2 7.2 0 1 0 0-14.4Z M12 7.2a4.8 4.8 0 1 1 0 9.6a4.8 4.8 0 1 1 0-9.6Z M12 9.6a2.4 2.4 0 1 0 0 4.8a2.4 2.4 0 1 0 0-4.8Z" />`
+
 export const ICON_SHAPES: Record<BuffId, string> = {
   high: LEAF,
   stimulated: PILL,
   drunk: BOTTLE,
+  tripping: BLOTTER,
   perception: EYE,
 }
 

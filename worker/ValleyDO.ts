@@ -70,6 +70,7 @@ import {
   dailyFor,
   geometrieFor,
   healthFor,
+  maxFor,
   placeOf,
   reduce,
   restoreValley,
@@ -103,6 +104,7 @@ import type {
   ValleyAction,
 } from '../src/sharedworld.ts'
 import type { StandLedger } from '../src/stand.ts'
+import type { ShadowHit } from '../src/wards.ts'
 import type { AccountStore } from './accounts.ts'
 import type { Holdings, PackStore } from './packs.ts'
 
@@ -368,14 +370,13 @@ export class ValleyDO extends DurableObject<Env> {
     seeHeadlights(this.shadows, me.at, { x, y, z, heading }, Date.now())
   }
 
-  // Rules 24 and 27: once the pack has given the unit up, it doses
-  // geometrie and gives its points back.
+  // Rules 24 and 27: once the pack has given the unit up, it doses the
+  // wards and gives its share of geometrie back.
   private async use(ws: WebSocket, id: string, kind: string): Promise<void> {
     const used = await this.act(ws, { type: 'use', id, kind })
     if (!used) return
     await this.dose({ type: 'dose', id, kind })
-    const heals = healsOf(kind)
-    if (heals > 0) await this.mend(id, heals)
+    if (healsOf(kind, 100) > 0) await this.mend(id, kind)
   }
 
   // The dev server's frames, for the specs (the Worker stamped the socket).
@@ -424,13 +425,21 @@ export class ValleyDO extends DurableObject<Env> {
         this.context()
       )
       await this.apply(reduced)
-      if (reduced.health) {
-        this.toAccount(reduced.health.account, {
-          type: 'health',
-          health: reduced.health.points,
-        })
-      }
+      if (reduced.health) this.tellHealth(reduced.health)
     })
+  }
+
+  // Rule 24: every socket on the account hears its geometrie.
+  private tellHealth({
+    account,
+    points,
+    max,
+  }: {
+    account: string
+    points: number
+    max: number
+  }): void {
+    this.toAccount(account, { type: 'health', health: points, max })
   }
 
   async webSocketClose(ws: WebSocket): Promise<void> {
@@ -566,8 +575,8 @@ export class ValleyDO extends DurableObject<Env> {
       void this.visit(id, station)
     }
     if (out.struck.length === 0) return
-    // Rule 24: each account struck loses one point, once however many of
-    // its sockets were touched.
+    // Rule 24: each account struck takes its hit, once however many of its
+    // sockets were touched.
     const hit = new Map<string, { id: string; sockets: WebSocket[] }>()
     for (const socket of this.ctx.getWebSockets()) {
       const { account, me } = this.attachment(socket)
@@ -577,24 +586,19 @@ export class ValleyDO extends DurableObject<Env> {
       else hit.set(account, { id: me.id, sockets: [socket] })
     }
     for (const [account, { id, sockets }] of hit) {
-      const by = out.caught.includes(id)
-        ? 'caretaker'
-        : out.tunneled.includes(id)
-          ? 'tunnel'
-          : undefined
-      void this.strike(account, id, sockets, by)
+      void this.strike(account, id, sockets, out.strikers[id] ?? 'man')
     }
   }
 
-  // A touch (rule 24): one point off the account. The sockets touched hear
-  // they were struck and how much is left, the account's others its
-  // health. The last point is rule 18's strike: everything the pack held
-  // goes onto a body.
+  // A touch (rule 24): the shadow's hit off the account, cut by its wards.
+  // The sockets touched hear they were struck, by what, for how much and
+  // how much is left, the account's others its geometrie. The last of it
+  // is rule 18's strike: everything the pack held goes onto a body.
   protected async strike(
     account: string,
     id: string,
     sockets: readonly WebSocket[],
-    by?: 'caretaker' | 'tunnel'
+    by: ShadowHit
   ): Promise<void> {
     await this.locked(() => this.strikeHeld(account, id, sockets, by))
   }
@@ -603,29 +607,27 @@ export class ValleyDO extends DurableObject<Env> {
     account: string,
     id: string,
     sockets: readonly WebSocket[],
-    by?: 'caretaker' | 'tunnel'
+    by: ShadowHit
   ): Promise<void> {
     const reduced = reduce(
       this.valley,
-      { type: 'hit', id, roll: this.roll() },
+      { type: 'hit', id, by, roll: this.roll() },
       this.context()
     )
     await this.apply(reduced)
     const change = reduced.health
-    if (!change) return
-    const health = change.points
-    // Rule 27: shrugged off, the sockets touched hear it and nothing is
-    // lost.
-    const shrugged = change.shrugged ? { shrugged: true as const } : {}
+    if (!change?.hit) return
+    const { points: health, max } = change
+    const { damage, warded } = change.hit
     for (const socket of this.ctx.getWebSockets()) {
       const attachment = this.attachment(socket)
       if (attachment.account !== account || !attachment.me) continue
       try {
         if (!sockets.includes(socket)) {
-          if (!change.shrugged) send(socket, { type: 'health', health })
-        } else if (by) {
-          send(socket, { type: 'struck', by, health, ...shrugged })
-        } else send(socket, { type: 'struck', health, ...shrugged })
+          send(socket, { type: 'health', health, max })
+        } else {
+          send(socket, { type: 'struck', by, damage, warded, health, max })
+        }
       } catch {
         // Closing sockets throw; their close handler follows.
       }
@@ -637,7 +639,7 @@ export class ValleyDO extends DurableObject<Env> {
     await this.fallHeld(account, id, at)
   }
 
-  // Rule 27's draw for a drunk's shrug; the Worker tests replace it.
+  // Rule 24's draw for a touch's spread; the Worker tests replace it.
   protected roll(): number {
     return Math.random()
   }
@@ -701,8 +703,7 @@ export class ValleyDO extends DurableObject<Env> {
     })
     if (!passed || !taker) return
     await this.dose({ type: 'dose', id: me.id, kind, to })
-    const heals = healsOf(kind)
-    if (heals > 0) await this.mend(to, heals)
+    if (healsOf(kind, 100) > 0) await this.mend(to, kind)
     this.toAccount(passed.taker, { type: 'passed', kind, from: me.name })
     this.toAccount(passed.giver, { type: 'passed', kind, to: taker.name })
   }
@@ -726,21 +727,15 @@ export class ValleyDO extends DurableObject<Env> {
     })
   }
 
-  // Points given back (rule 24): `by` of them, or whole on a forecourt.
-  // Every socket on the account hears its health.
-  protected async mend(id: string, by?: number): Promise<void> {
+  // Geometrie given back (rule 24): a use of `kind`'s share, or whole on
+  // a forecourt. Every socket on the account hears it.
+  protected async mend(id: string, kind?: string): Promise<void> {
     const action: ValleyAction =
-      by === undefined ? { type: 'mend', id } : { type: 'mend', id, by }
+      kind === undefined ? { type: 'mend', id } : { type: 'mend', id, kind }
     await this.locked(async () => {
       const reduced = reduce(this.valley, action, this.context())
       await this.apply(reduced)
-      const change = reduced.health
-      if (change) {
-        this.toAccount(change.account, {
-          type: 'health',
-          health: change.points,
-        })
-      }
+      if (reduced.health) this.tellHealth(reduced.health)
     })
   }
 
@@ -1037,6 +1032,7 @@ export class ValleyDO extends DurableObject<Env> {
           dealer: hello.dealer,
           undercroft: hello.undercroft,
           rings: hello.rings,
+          level: levelOf(xp),
         },
         { now: Date.now(), present: this.presentIds(ws) }
       )
@@ -1079,6 +1075,7 @@ export class ValleyDO extends DurableObject<Env> {
       book,
       task: taskWire(task),
       health: healthFor(this.valley, account),
+      healthMax: maxFor(this.valley, account),
       geometrie: geometrieFor(this.valley, account, now),
       citgos: citgosFor(this.valley, account),
       xp,
@@ -1844,11 +1841,28 @@ export class ValleyDO extends DurableObject<Env> {
         const xp = await packs.gainXp(account, gained)
         this.toAccount(account, { type: 'xp', xp, gained })
         const level = levelUp(xp - gained, xp)
-        if (level !== null) this.relevel(account, level)
+        if (level !== null) {
+          this.relevel(account, level)
+          await this.levelUp(account, level)
+        }
       } catch (err) {
         console.error('The XP could not be written', account, gained, err)
       }
     }
+  }
+
+  // Rule 24: a new level's larger whole, which every socket on the account
+  // hears.
+  private async levelUp(account: string, level: number): Promise<void> {
+    await this.locked(async () => {
+      const reduced = reduce(
+        this.valley,
+        { type: 'level', account, level },
+        this.context()
+      )
+      await this.apply(reduced)
+      if (reduced.health) this.tellHealth(reduced.health)
+    })
   }
 
   // Every socket on `account` shown to everyone at `level`. Two grants

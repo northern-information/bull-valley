@@ -66,15 +66,17 @@ base.describe('buffs', { tag: '@valley' }, () => {
 
     await expect.poll(() => held(a, 'joints')).toBe(joints - 1)
     await expect.poll(() => high(b)).toBeGreaterThan(0.4)
-    await expect.poll(() => health(b)).toBe(300)
+    // The joint gives back 30% of whole.
+    await expect.poll(() => health(b)).toBe(400)
     // Each high shows as a buff over the hotbar, winding down.
     await expect(b.locator('.bv-buff[data-buff="high"]')).toBeVisible()
     await expect(
       b.locator('.bv-buff[data-buff="high"] .bv-buff-time')
     ).toHaveText(/^\d+[ms]$/)
     await expect(a.locator('.bv-buff[data-buff="high"]')).toBeVisible()
-    // The triangle names its corners.
-    await expect(b.locator('.bv-geo-mark')).toHaveCount(3)
+    // The tetrahedron names its corners, and the high's ward shows.
+    await expect(b.locator('.bv-geo-mark')).toHaveCount(4)
+    await expect(b.locator('.bv-vitals-ward[data-ward="high"]')).toBeVisible()
     await expect.poll(() => high(a)).toBeGreaterThan(0.2)
     expect(await high(a)).toBeLessThan(await high(b))
     await expect(b.locator('.bv-chat')).toContainText(

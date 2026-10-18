@@ -29,7 +29,7 @@ import type {
 } from './protocol.ts'
 import type { AloneFrame } from './shadowcards.ts'
 import type { ShadowTable } from './shadowsync.ts'
-import type { TunnelShade } from './tunnelshades.ts'
+import type { TunnelKind, TunnelShade } from './tunnelshades.ts'
 import type * as THREE from 'three'
 
 // The player's id when they play alone.
@@ -52,9 +52,9 @@ interface TunnelShadesFrame {
 }
 
 interface TunnelShadesUpdate {
-  // One touched the player, played alone; in the shared valley a struck
+  // What touched the player, played alone; in the shared valley a struck
   // frame says so.
-  struck: boolean
+  struck: TunnelKind | null
   // Where they burst since the last update, and where one took a hit it
   // stands (the Warden) and went into the dark.
   bursts: TunnelBurstWire[]
@@ -96,7 +96,7 @@ export class TunnelShades {
     alone,
     renderAt,
   }: TunnelShadesFrame): TunnelShadesUpdate {
-    let struck = false
+    let struck: TunnelKind | null = null
     let shown: TunnelShadeWire[] = []
     if (this.place && alone) {
       // Played alone the valley's frames are stale: start them afresh.
@@ -106,7 +106,7 @@ export class TunnelShades {
         raiders: [{ id: ALONE, x: player.x, z: player.z, ...alone }],
         place: this.place,
       })
-      struck = out.struck.length > 0
+      struck = out.struck.length > 0 ? (out.strikers[ALONE] ?? 'shade') : null
       this.pending.push(...out.bursts.map(({ x, z, kind }) => ({ x, z, kind })))
       this.hits.push(...out.wounds)
       shown = tunnelShadesAt(this.own, this.place).map((s) => ({

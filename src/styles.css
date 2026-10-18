@@ -12,10 +12,15 @@
   --bv-cell-gap: 4px;
   --bv-pane: rgb(0 0 0 / 60%);
   --bv-cell-edge: rgb(255 255 255 / 12%);
-  --bv-health-height: 1.6rem;
 
   /* A buff's cell over the hotbar: its mark, and the time left under it. */
   --bv-buff: 34px;
+
+  /* Each ward's colour (vitalshud.ts): its chip, its number, its lines. */
+  --bv-ward-high: #8fd46b;
+  --bv-ward-stimulated: #ffc24a;
+  --bv-ward-drunk: #e39a52;
+  --bv-ward-tripping: #c493ff;
 
   position: fixed;
   inset: 0;
@@ -498,66 +503,230 @@
   box-shadow: 3px 3px 0 var(--fi-black-shadow);
 }
 
-/* Geometrie: a red triangle in the lower right, a dim face whose corners
-   light with their levels: the top with high, the lower right with
-   stimulated, the lower left with drunk. Under the phone when it is
-   raised. Each corner carries its mark: a weed leaf for high, a pill for
-   stimulated, a beer bottle for drunk. Health sits under it. */
-.bv-geometrie {
+/* Geometrie and the wards, upper left, as Dark Souls keeps its bars
+   (vitalshud.ts): the wards' tetrahedron turning, each corner glowing red
+   with its level; beside it the geometrie bar, as long as the raider's
+   whole (--bv-vitals-length, growing with the level, never past the
+   view), with a pale trail of what a touch took draining after it; under
+   it the touch's big number and what the wards took off it, then a chip
+   for every ward going. */
+.bv-vitals {
+  --bv-vitals-length: 16rem;
+
   position: absolute;
-  right: 1rem;
-  bottom: calc(1rem + var(--bv-health-height) + 0.5rem);
-  width: 6.5rem;
-  aspect-ratio: 100 / 90;
+  top: 0.9rem;
+  left: 1rem;
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  max-width: calc(100% - 2rem);
+}
+
+.bv-vitals-tetra {
+  flex: none;
+  width: 6rem;
+  height: 6rem;
+  overflow: visible;
   filter: drop-shadow(3px 3px 0 var(--fi-black-shadow));
 }
 
-.bv-geometrie svg {
-  display: block;
-  width: 100%;
-  height: 100%;
+.bv-vitals-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+  padding-top: 0.35rem;
 }
 
-/* Health: a chunky bar under the triangle, notched at every block of hit
-   points, dark where it is lost, the hit points on it. */
-.bv-health {
-  position: absolute;
-  right: 1rem;
-  bottom: 1rem;
+.bv-vitals-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  width: min(var(--bv-vitals-length), 42vw);
+  min-width: 11rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-shadow:
+    0 0 3px rgb(0 0 0 / 90%),
+    1px 1px 0 rgb(0 0 0 / 80%);
+}
+
+.bv-vitals-bar {
+  position: relative;
   box-sizing: border-box;
-  width: 9rem;
-  height: var(--bv-health-height);
+  width: min(var(--bv-vitals-length), 42vw);
+  min-width: 11rem;
+  height: 2.2rem;
   overflow: hidden;
-  background: rgb(90 10 4 / 70%);
+  background: rgb(40 4 2 / 78%);
   border: 3px solid #ffb39a;
   filter: drop-shadow(3px 3px 0 var(--fi-black-shadow));
+  transition: width 0.4s steps(6);
 }
 
-.bv-health-fill {
+.bv-vitals-fill,
+.bv-vitals-lost {
   position: absolute;
   inset: 0 auto 0 0;
-  background: #d4140a;
-  box-shadow: inset 0 -0.45rem 0 rgb(90 10 4 / 55%);
-  transition: width 0.2s steps(4);
 }
 
-.bv-health-notch {
+.bv-vitals-fill {
+  background: #d4140a;
+  box-shadow:
+    inset 0 -0.6rem 0 rgb(90 10 4 / 55%),
+    inset 0 0.25rem 0 rgb(255 140 110 / 35%);
+  transition: width 0.15s steps(3);
+}
+
+/* What a touch took: pale, holding a beat, then draining after the fill. */
+.bv-vitals-lost {
+  background: #ffd9a8;
+}
+
+.bv-vitals-lost--drain {
+  transition: width 0.9s steps(12) 0.6s;
+}
+
+.bv-vitals-tick {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 3px;
-  margin-left: -1.5px;
-  background: rgb(255 179 154 / 55%);
+  width: 2px;
+  margin-left: -1px;
+  background: rgb(255 179 154 / 35%);
 }
 
-.bv-health-value {
+.bv-vitals-value {
   position: absolute;
-  inset: 0;
+  inset: 0 0.6rem 0 auto;
   display: grid;
   place-items: center;
-  font-weight: 600;
+  font-size: 1.15rem;
+  font-weight: 700;
   line-height: 1;
-  text-shadow: 1px 1px 0 rgb(0 0 0 / 80%);
+  font-variant-numeric: tabular-nums;
+  text-shadow:
+    1px 1px 0 rgb(0 0 0 / 85%),
+    0 0 4px rgb(0 0 0 / 70%);
+}
+
+/* The touch: a big number, and what the wards took off it in the ward's
+   colour with its mark; it holds, then fades. */
+.bv-vitals-pop {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  min-height: 1.9rem;
+  opacity: 0;
+  text-shadow:
+    0 0 3px rgb(0 0 0 / 90%),
+    2px 2px 0 rgb(0 0 0 / 85%);
+}
+
+.bv-vitals-pop--on {
+  animation: bv-vitals-pop var(--bv-pop-hold, 2.6s) steps(8, end) forwards;
+}
+
+@keyframes bv-vitals-pop {
+  0% {
+    opacity: 1;
+    transform: translateX(-4px);
+  }
+
+  8% {
+    transform: none;
+  }
+
+  70% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+.bv-vitals-damage {
+  font-size: 1.7rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #ff5a3c;
+  font-variant-numeric: tabular-nums;
+}
+
+.bv-vitals-warded {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+  font-weight: 600;
+  color: var(--bv-ward, var(--bv-eggshell));
+}
+
+.bv-vitals-warded[data-ward='high'],
+.bv-vitals-ward[data-ward='high'] {
+  --bv-ward: var(--bv-ward-high);
+}
+
+.bv-vitals-warded[data-ward='stimulated'],
+.bv-vitals-ward[data-ward='stimulated'] {
+  --bv-ward: var(--bv-ward-stimulated);
+}
+
+.bv-vitals-warded[data-ward='drunk'],
+.bv-vitals-ward[data-ward='drunk'] {
+  --bv-ward: var(--bv-ward-drunk);
+}
+
+.bv-vitals-warded[data-ward='tripping'],
+.bv-vitals-ward[data-ward='tripping'] {
+  --bv-ward: var(--bv-ward-tripping);
+}
+
+.bv-vitals-warded-mark .bv-icon,
+.bv-vitals-ward-mark .bv-icon,
+.bv-ward-mark .bv-icon {
+  display: block;
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+/* A ward named in the Book of Shadows or on an item card: its mark and
+   its words in its colour. */
+.bv-ward-line {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin: 0.5rem 0 0;
+  font-weight: 600;
+  color: var(--bv-ward);
+}
+
+.bv-vitals-wards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A ward going: its mark and its strength, in its colour, the chip's
+   underline as full as the ward. */
+.bv-vitals-ward {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+  padding: 0.15rem 0.4rem;
+  color: var(--bv-ward);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  background:
+    linear-gradient(var(--bv-ward), var(--bv-ward)) left bottom /
+      calc(var(--ward, 0) * 100%) 3px no-repeat,
+    var(--fi-surface-82);
+  border: 1px solid var(--bv-ward);
+  filter: drop-shadow(2px 2px 0 var(--fi-black-shadow));
 }
 
 /* A shadow's touch: the view washed red, fading out. */
@@ -604,10 +773,16 @@
 }
 
 .bv-geo-edge {
-  fill: none;
   stroke: var(--bv-citgo);
   stroke-width: 3;
-  stroke-linejoin: miter;
+  stroke-linecap: square;
+}
+
+/* An edge behind the faces toward the viewer. */
+.bv-geo-edge--back {
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+  opacity: 0.55;
 }
 
 .bv-geo-mark {
@@ -1582,6 +1757,15 @@
 @media (width <= 900px) {
   .bv-phone {
     --bv-phone-w: 12rem;
+  }
+
+  .bv-vitals-tetra {
+    width: 4.5rem;
+    height: 4.5rem;
+  }
+
+  .bv-vitals-bar {
+    height: 1.8rem;
   }
 }
 

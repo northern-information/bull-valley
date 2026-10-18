@@ -174,6 +174,7 @@ export function buildShelves(
     },
     clerkAway: (station) => slurms.away(station),
     hurrySlurms: () => slurms.hurry(),
+    holdSlurms: (on) => slurms.hold(on),
   }
 }
 

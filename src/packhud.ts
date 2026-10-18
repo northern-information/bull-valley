@@ -10,8 +10,11 @@ import { PACK, PACK_MOUSE } from './bindings.ts'
 import { copy } from './copy.ts'
 import { el, find, text } from './dom.ts'
 import { HOTBAR_SLOTS } from './hotbar.ts'
+import { geometrieOf } from './items.ts'
 import { npcHeader } from './npcdialog.ts'
 import { bagTabs, LOCKER_TAB, PACK_TABS } from './packgrid.ts'
+import { wardAgainst, wardLine, wardName } from './vitalshud.ts'
+import { wardsRaised } from './wards.ts'
 import type { AvatarLook, AvatarView } from './avatarview.ts'
 import type { Binding, MouseBinding } from './bindings.ts'
 import type { Cooldown } from './hotbar.ts'
@@ -130,6 +133,8 @@ export class PackHud {
   cardEyebrow: HTMLElement
   cardName: HTMLElement
   cardBlurb: HTMLElement
+  // The wards it raises, each with what it wards against.
+  cardWards: HTMLElement
   cardQuantity: HTMLElement
   // E and the double-click, dimmed for an item that is not used.
   cardUse: HTMLElement[]
@@ -261,6 +266,7 @@ export class PackHud {
     this.cardEyebrow = el('p', 'bv-npc-eyebrow bv-npc-lead')
     this.cardName = el('h3', 'bv-bag-card-name')
     this.cardBlurb = el('p', 'bv-bag-card-blurb')
+    this.cardWards = el('div', 'bv-bag-card-wards')
     this.cardQuantity = el('p', 'bv-npc-label bv-bag-card-quantity')
     const keys = el('ul', 'bv-bag-card-keys')
     const keyItem = ({ key, labelKey }: Binding) => {
@@ -300,6 +306,7 @@ export class PackHud {
       this.cardEyebrow,
       this.cardName,
       this.cardBlurb,
+      this.cardWards,
       this.cardQuantity,
       keys
     )
@@ -425,6 +432,19 @@ export class PackHud {
       this.cardEyebrow.textContent = BAG_TABS[this.tab].label
       this.cardName.textContent = item.label
       this.cardBlurb.textContent = item.blurb
+      // What it wards against, for anything that raises a ward.
+      this.cardWards.replaceChildren(
+        ...wardsRaised(geometrieOf(item.kind)).map((ward) =>
+          wardLine(
+            'bv-ward-line',
+            ward,
+            copy('wards.card', {
+              ward: wardName(ward),
+              against: wardAgainst(ward),
+            })
+          )
+        )
+      )
       this.cardQuantity.textContent = quantity(item)
       for (const li of this.cardUse) {
         li.classList.toggle('bv-bag-card-key--dim', !item.canUse)

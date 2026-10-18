@@ -90,9 +90,10 @@ export interface Geo {
 // with the modules that draw them: geometrie's axes (src/geometrie.ts),
 // drink containers (src/drinks.ts), and medicine packaging (src/assets.ts).
 
-// The three sides of geometrie (geometrie.ts): how high, how stimulated,
-// how drunk.
-export type GeometrieAxis = 'high' | 'stimulated' | 'drunk'
+// The four wards (geometrie.ts, wards.ts): how high, how stimulated, how
+// drunk, how far into a trip. Each the corner of the tetrahedron hud.ts
+// turns, and each a layer of armor against its own shadows.
+export type GeometrieAxis = 'high' | 'stimulated' | 'drunk' | 'tripping'
 
 // How a medicine is packed: a pill bottle, a folding carton, or a dropper
 // bottle. assets.ts builds one shape per form; medart.ts paints its labels.

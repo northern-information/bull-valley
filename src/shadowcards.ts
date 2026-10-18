@@ -101,9 +101,9 @@ interface ShadowCardsFrame {
 }
 
 interface ShadowCardsUpdate {
-  // A shadowman touched the player, played alone; in the shared valley the
+  // What touched the player, played alone; in the shared valley the
   // valley says so (a struck frame).
-  struck: boolean
+  struck: ShadeKind | null
   // Where shadowmen burst since the last update.
   bursts: Burst[]
   // The kinds within CONFIG.book.sightRange of the player (the Book of
@@ -196,7 +196,7 @@ export class ShadowCards {
     alone,
     renderAt,
   }: ShadowCardsFrame): ShadowCardsUpdate {
-    let struck = false
+    let struck: ShadeKind | null = null
     let shown: readonly Shown[]
     if (alone) {
       // Played alone the valley's frames are stale: start them afresh.
@@ -218,7 +218,7 @@ export class ShadowCards {
         water: this.water,
         calm: this.calm,
       })
-      struck = out.struck.length > 0
+      struck = out.struck.length > 0 ? (out.strikers[ALONE] ?? 'man') : null
       this.pending.push(...out.bursts)
       for (const id of out.lunges) this.lunges.set(id, 0)
       this.lunged.push(...out.lunges)

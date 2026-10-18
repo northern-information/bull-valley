@@ -57,8 +57,10 @@ interface BvHook {
   // Times a touch shattered this raider's geometrie and put them back at
   // the Citgo.
   readonly strikes: number
-  // Health (health.ts): the account's as the valley last said, or our own.
+  // Geometrie (health.ts), left and whole: the account's as the valley
+  // last said, or our own.
   readonly health: number
+  readonly healthMax: number
   net: {
     readonly status: NetStatus
     readonly id: string | null
@@ -114,7 +116,8 @@ interface BvHook {
   readonly mapOpen: boolean
   // The item on each number key, slot 0 for 1.
   readonly hotbar: Hotbar
-  // How high, stimulated and drunk right now, each 0 to 1.
+  // The wards right now: how high, stimulated, drunk and tripping, each
+  // 0 to 1.
   readonly geometrie: Record<GeometrieAxis, number>
   // The chat log, oldest first.
   readonly chat: readonly ChatLine[]
@@ -144,6 +147,9 @@ interface BvHook {
   // Bring the next drop of slurms at the nearest Citgo to now (this
   // client's view alone; slurms.ts).
   hurrySlurms(): void
+  // Hold the slurms off (or let them fall again), so Carlsten stays
+  // behind his counter (this client's view alone).
+  holdSlurms(on: boolean): void
   // Every sound's id (sfx.ts), and one played: at world (x, z), or in the
   // head without a place. Nothing under e2e, which never plays sound.
   readonly sfxIds: readonly string[]
@@ -187,6 +193,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     },
     get health() {
       return s.health
+    },
+    get healthMax() {
+      return s.healthMax
     },
     net: {
       get status() {
@@ -348,6 +357,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     },
     hurrySlurms() {
       game.world.shelves.hurrySlurms()
+    },
+    holdSlurms(on) {
+      game.world.shelves.holdSlurms(on)
     },
     hurryTruck(seconds = 5) {
       // In the shared valley the server keeps Marx's day; a dev server

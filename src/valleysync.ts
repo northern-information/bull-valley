@@ -160,12 +160,12 @@ export function wireValley(game: Game, actions: Actions): void {
         game.caretaker.receive(msg, now)
         game.tunnel.receive(msg, now)
         return
-      // Rule 24: a touch, and the health it left; health given back.
+      // Rule 24: a touch, and the geometrie it left; geometrie given back.
       case 'struck':
-        actions.strike(msg.by ?? 'shadowman', msg.health, msg.shrugged)
+        actions.strike(msg.by, msg)
         return
       case 'health':
-        actions.setHealth(msg.health)
+        actions.setHealth(msg.health, msg.max)
         return
       // Rule 27: the account's geometrie, and something passed.
       case 'geometrie':
@@ -473,6 +473,7 @@ export function wireValley(game: Game, actions: Actions): void {
       }
       s.placed = true
       s.health = msg.health
+      s.healthMax = msg.healthMax
       if (isLevels(msg.geometrie)) actions.setGeometrie(msg.geometrie)
       applyWorld(msg.world, 'joined', { by: msg.id })
       s.daily = msg.daily

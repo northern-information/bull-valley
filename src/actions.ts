@@ -9,7 +9,7 @@
 import { saveHotbar, saveLook } from './auth.ts'
 import { bountyOf, CHAPTERS, entryOf, knownOf, newlyFound } from './book.ts'
 import { portraitOf } from './bookportraits.ts'
-import { passTarget, shrugs } from './buffs.ts'
+import { passTarget } from './buffs.ts'
 import {
   CHAT_COPY,
   chatCommand,
@@ -44,7 +44,7 @@ import { finishById } from './finishes.ts'
 import { dose, levelsAt, SOBER } from './geometrie.ts'
 import { burialsOf, bury } from './graves.ts'
 import { openGronDialog } from './grondialog.ts'
-import { hit, isWhole, MAX_HEALTH, mend } from './health.ts'
+import { hit, mend } from './health.ts'
 import { assign, clearSlot as clearHotbarSlot, place, spent } from './hotbar.ts'
 import { pickupLabel } from './interactions.ts'
 import { addItem, consume } from './inventory.ts'
@@ -77,6 +77,7 @@ import { openStandDialog } from './standdialog.ts'
 import { move, moveAmount } from './stash.ts'
 import { formatCash } from './store.ts'
 import { planLeg } from './truckplan.ts'
+import { damageOf, WARD_OF } from './wards.ts'
 import { charterable } from './worldsync.ts'
 import type { ChatCommand } from './chat.ts'
 import type { CitgoLog } from './citgos.ts'
@@ -85,7 +86,7 @@ import type { EmoteId } from './emotes.ts'
 import type { Game } from './game.ts'
 import type { Hotbar } from './hotbar.ts'
 import type { DailyStatus, ShelfSpot } from './interactions.ts'
-import type { XZ } from './interfaces.ts'
+import type { GeometrieAxis, XZ } from './interfaces.ts'
 import type { Leg, TruckState } from './marx.ts'
 import type { NpcId } from './npcs.ts'
 import type { BagAction, BagTab } from './packgrid.ts'
@@ -95,7 +96,17 @@ import type {
   PassedMessage,
 } from './protocol.ts'
 import type { ShadeKind } from './shadowmen.ts'
+import type { ShadowHit } from './wards.ts'
 import type { Pickup } from './world.ts'
+
+// The valley's word on a touch (a struck frame): what it took, what the
+// wards took off it, and the geometrie left of whole.
+export interface Struck {
+  damage: number
+  warded: number
+  health: number
+  max: number
+}
 
 // A shadow that burst, to spill: where, and what kind of shadowman (a
 // tunnel shade has none).
@@ -150,17 +161,12 @@ export interface Actions {
   // Off the bed beside the truck, with no word to the valley: it let us
   // off.
   leaveBed(line?: string): void
-  // A shadow touched you: one point of health off (sharedworld.ts rule
-  // 24), the valley's word on what is left, or alone our own. The last one
-  // shatters your geometrie, and everything the pack held stays on your
-  // body where you fell (rule 18).
-  // shrugged: the valley says the drunk shrugged it off (rule 27), as
-  // alone the drunk's own chance may.
-  strike(
-    by?: 'shadowman' | 'caretaker' | 'tunnel',
-    health?: number,
-    shrugged?: boolean
-  ): void
+  // A shadow touched you (sharedworld.ts rule 24): its hit off your
+  // geometrie, cut by your wards (rule 27), the valley's word on what it
+  // took and what is left, or alone our own. The last of it shatters your
+  // geometrie, and everything the pack held stays on your body where you
+  // fell (rule 18).
+  strike(by: ShadowHit, valley?: Struck): void
   // G: one of `kind` (the last used, in the valley) passed to the raider
   // in reach in front of you (rule 27).
   passKind(kind?: string | null): void
@@ -168,8 +174,9 @@ export interface Actions {
   applyPassed(msg: PassedMessage): void
   // The account's geometrie as the valley keeps it.
   setGeometrie(levels: GeometrieLevels): void
-  // The account's health as the valley says it (a forecourt, medicine).
-  setHealth(points: number): void
+  // The account's geometrie, left and whole, as the valley says it (a
+  // forecourt, a use, a new level).
+  setHealth(points: number, max: number): void
   // Played alone, a forecourt makes whole.
   mendAtForecourt(): void
   // Played alone, the bodies this raider left, drawn and offered to E.
@@ -535,40 +542,58 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // the Caretaker's. Everything the pack held stays on your body where you
   // fell (rule 18): in the valley the valley lays it and its pack frame has
   // the last word, so the pack shows empty at once; alone it lies at once.
-  const strike = (
-    by: 'shadowman' | 'caretaker' | 'tunnel' = 'shadowman',
-    health?: number,
-    shrugged = false
-  ) => {
+  // What a ward taking the edge off a touch says in the log.
+  const wardedLine = (ward: GeometrieAxis): string => {
+    switch (ward) {
+      case 'high':
+        return copy('log.warded_high')
+      case 'stimulated':
+        return copy('log.warded_stimulated')
+      case 'drunk':
+        return copy('log.warded_drunk')
+      case 'tripping':
+        return copy('log.warded_tripping')
+    }
+  }
+  // The wards that have said so in the log this session, once each.
+  const wardsTold = new Set<GeometrieAxis>()
+  const strike = (by: ShadowHit, valley?: Struck) => {
     if (s.aboard) {
       // Touched as we climbed in: the valley's count stands all the same.
-      if (health !== undefined) s.health = health > 0 ? health : MAX_HEALTH
+      if (valley) {
+        s.healthMax = valley.max
+        s.health = valley.health > 0 ? valley.health : valley.max
+      }
       return
     }
     const now = performance.now()
-    // Rule 27: the drunk shrugs it off, the valley's word or alone our
-    // own chance; a few seconds' grace all the same.
+    // Rule 27: the wards cut it, the valley's word or alone our own roll.
     const levels = levelsAt(s.geometrie, s.time)
-    if (shrugged || (!s.world && shrugs(levels, Math.random()))) {
-      if (health !== undefined) s.health = health
-      s.graceUntil = now + CONFIG.health.graceSeconds * 1000
-      hud.tell(copy('log.shrugged'))
-      return
-    }
+    const { damage, warded } = valley ?? damageOf(by, levels, Math.random())
     s.emoting = null
     // A touch knocks the phone down mid-dial.
     game.phone.hangUp()
-    s.health = health ?? hit(s.health).points
+    if (valley) s.healthMax = valley.max
+    s.health = valley
+      ? valley.health
+      : hit(s.health, damage, s.healthMax).points
     s.graceUntil = now + CONFIG.health.graceSeconds * 1000
     s.hurtAt = now
+    const ward = WARD_OF[by]
     hud.hurt()
+    hud.popDamage(damage, warded, ward)
     game.sfx?.play(s.health > 0 ? 'hit' : 'shatter')
     if (s.health > 0) {
       hud.tell(copy(by === 'caretaker' ? 'log.hit_caretaker' : 'log.hit'))
+      // The first time a ward takes the edge off, it says so.
+      if (warded > 0 && !wardsTold.has(ward)) {
+        wardsTold.add(ward)
+        hud.tell(wardedLine(ward))
+      }
       return
     }
     // Shattered: whole again where you come to, and sober.
-    s.health = MAX_HEALTH
+    s.health = s.healthMax
     s.geometrie = SOBER
     s.strikes += 1
     s.strikeUntil = now + CONFIG.shadowmen.strikeSeconds * 1000
@@ -601,7 +626,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       copy(
         by === 'caretaker'
           ? 'log.caught'
-          : by === 'tunnel'
+          : by === 'shade' || by === 'warden'
             ? 'log.tunneled'
             : 'log.struck'
       )
@@ -610,19 +635,20 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
 
   // Made whole standing at a Citgo: the lights did it.
-  const setHealth = (points: number) => {
+  const setHealth = (points: number, max: number) => {
     const mended =
-      isWhole(points) &&
-      !isWhole(s.health) &&
+      points >= max &&
+      s.health < s.healthMax &&
       inHaven(player.pos, world.fuelPoints, CONFIG.shadowmen.havenRadius)
     s.health = points
+    s.healthMax = max
     if (mended) hud.tell(copy('log.mended'))
   }
 
   // Played alone, a forecourt makes whole (rule 24).
   const mendAtForecourt = () => {
-    if (isWhole(s.health)) return
-    s.health = MAX_HEALTH
+    if (s.health >= s.healthMax) return
+    s.health = s.healthMax
     hud.tell(copy('log.mended'))
   }
 
@@ -970,7 +996,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // An item with no effect yet does nothing, and a cigarette waits for the
   // one burning.
   const useKind = (kind: string) => {
-    const heals = healsOf(kind)
+    const heals = healsOf(kind, s.healthMax)
     const result = consume(s.inventory, kind, s.effects, s.time)
     if (!result.used) {
       const empty = result.reason === 'empty' ? itemLine(kind, 'empty') : null
@@ -987,7 +1013,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     // The unit is the account's: the valley takes it out of the pack, and
     // gives back what it heals; alone it heals at once.
     net.send({ type: 'use', kind })
-    if (!s.world && heals > 0) s.health = mend(s.health, heals)
+    if (!s.world && heals > 0) s.health = mend(s.health, heals, s.healthMax)
     refreshBag()
     const used = itemLine(kind, 'used')
     if (used) hud.tell(used)

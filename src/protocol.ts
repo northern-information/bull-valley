@@ -23,11 +23,12 @@ import type { QuestId, QuestStage, QuestStep } from './quests.ts'
 import type { Burst, ShadeKind, TruckPose } from './shadowmen.ts'
 import type { StandLedger } from './stand.ts'
 import type { TunnelKind } from './tunnelshades.ts'
+import type { ShadowHit } from './wards.ts'
 import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 35
+export const PROTOCOL_VERSION = 36
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -572,8 +573,10 @@ export interface WelcomeMessage {
   stand: StandLedger
   // Where the account stands on each quest (quests.ts).
   quests: Record<QuestId, QuestStage>
-  // The account's health (sharedworld.ts rule 24, health.ts).
+  // The account's geometrie left and whole (sharedworld.ts rule 24,
+  // health.ts).
   health: number
+  healthMax: number
   // The account's geometrie at serverNow (sharedworld.ts rule 27).
   geometrie: GeometrieLevels
   // Every Citgo the account has stood at, and the last (rule 28).
@@ -587,11 +590,12 @@ interface CitgosMessage {
   citgos: CitgoLog
 }
 
-// Geometrie's three levels, each from 0 to 1 (geometrie.ts).
+// The four wards' levels, each from 0 to 1 (geometrie.ts).
 export interface GeometrieLevels {
   high: number
   stimulated: number
   drunk: number
+  tripping: number
 }
 
 // The account's Cabbage Stand after it was tended (rule 23), to every
@@ -830,20 +834,18 @@ export interface ShadowmenMessage {
   tunnelWounds: TunnelBurstWire[]
 }
 
-// A shadowman, or the Caretaker, touched this raider (sharedworld.ts rule
-// 24): the health the account has left, 0 when the touch shattered their
-// geometrie (the account is whole again after, rule 18's fall following).
-// A shadowman, the Caretaker, or a tunnel shade touched this raider
-// (sharedworld.ts rule 24): the health the account has left, 0 when the
-// touch shattered their geometrie (the account is whole again after, rule
-// 18's fall following).
-// shrugged: the raider's drunk shrugged the touch off (rule 27), and the
-// health is what it was.
+// A shadow touched this raider (sharedworld.ts rule 24): what (`by`), what
+// it took (`damage`) and what the wards took off it (`warded`, rule 27),
+// and the geometrie the account has left of `max`, 0 when the touch
+// shattered it (the account is whole again after, rule 18's fall
+// following).
 interface StruckMessage {
   type: 'struck'
-  by?: 'caretaker' | 'tunnel'
+  by: ShadowHit
+  damage: number
+  warded: number
   health: number
-  shrugged?: true
+  max: number
 }
 
 // The account's geometrie as the valley keeps it (sharedworld.ts rule 27),
@@ -864,11 +866,14 @@ export interface PassedMessage {
   to?: string
 }
 
-// The account's health, given back (sharedworld.ts rule 24): a forecourt,
-// medicine, or a dev frame. To every socket signed in to it.
+// The account's geometrie left and whole (sharedworld.ts rule 24): given
+// back (a forecourt, a use, a dev frame), taken by a touch on another of
+// its sockets, or a new level's larger whole. To every socket signed in to
+// it.
 interface HealthMessage {
   type: 'health'
   health: number
+  max: number
 }
 
 interface PongMessage {

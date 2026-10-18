@@ -10,6 +10,8 @@ import { BOOK as BOOK_KEYS } from './bindings.ts'
 import { BOOK, CHAPTERS, entriesOf, tallyOf } from './book.ts'
 import { copy } from './copy.ts'
 import { el } from './dom.ts'
+import { wardLine, wardName } from './vitalshud.ts'
+import { wardOfEntry } from './wards.ts'
 import type { BookEntry, Chapter } from './book.ts'
 
 // The portrait's CSS size; it is drawn at the screen's own density.
@@ -55,6 +57,8 @@ export class BookHud {
   private readonly list: HTMLOListElement
   private readonly name: HTMLElement
   private readonly lore: HTMLElement
+  // A shadow's page, once met: the ward against it.
+  private readonly ward: HTMLElement
 
   constructor(ui: HTMLElement) {
     this.root = el('section', 'bv-book')
@@ -98,7 +102,8 @@ export class BookHud {
     this.name = el('h3', 'bv-book-name')
     this.name.dataset.bv = 'book-name'
     this.lore = el('p', 'bv-book-lore')
-    page.append(this.portrait, this.name, this.lore)
+    this.ward = el('div', 'bv-book-ward')
+    page.append(this.portrait, this.name, this.lore, this.ward)
 
     const panel = el('div', 'bv-book-panel')
     panel.id = 'bv-book-panel'
@@ -230,6 +235,18 @@ export class BookHud {
     this.name.textContent = known ? this.selected.name : UNKNOWN
     this.lore.textContent = known ? this.selected.lore : UNKNOWN_LORE
     this.lore.classList.toggle('bv-book-lore--dark', !known)
+    const ward = known ? wardOfEntry(this.selected.id) : null
+    this.ward.replaceChildren(
+      ...(ward
+        ? [
+            wardLine(
+              'bv-ward-line',
+              ward,
+              copy('book.warded_by', { ward: wardName(ward) })
+            ),
+          ]
+        : [])
+    )
     if (this.open) this.onPage?.(this.selected, known)
   }
 }

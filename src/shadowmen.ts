@@ -181,8 +181,9 @@ interface BurstBy extends Burst {
 }
 
 export interface ShadowmenUpdate {
-  // The raiders touched this step.
+  // The raiders touched this step, and by what kind (the last to land).
   struck: string[]
+  strikers: Record<string, ShadeKind>
   // The shadowmen that lunged this step, whether the lunge landed or not.
   lunges: number[]
   bursts: BurstBy[]
@@ -535,6 +536,7 @@ export function stepShadowmen(
   cfg: ShadowmenConfig = CONFIG.shadowmen
 ): ShadowmenUpdate {
   const struck: string[] = []
+  const strikers: Record<string, ShadeKind> = {}
   const lunges: number[] = []
   const bursts: BurstBy[] = []
   const brood: Shadowman[] = []
@@ -601,7 +603,10 @@ export function stepShadowmen(
         s.windup = 0
         lunges.push(s.id)
         const d = Math.hypot(target.x - s.x, target.z - s.z)
-        if (d < reach * cfg.reachScale) struck.push(target.id)
+        if (d < reach * cfg.reachScale) {
+          struck.push(target.id)
+          strikers[target.id] = s.kind
+        }
       }
     } else {
       s.windup = 0
@@ -646,7 +651,7 @@ export function stepShadowmen(
     field.cooldowns[raider.id] = cfg.spawnInterval
   }
 
-  return { struck, lunges, bursts }
+  return { struck, strikers, lunges, bursts }
 }
 
 // A shadowman (or a spider, or a spiderling) standing still at (x, z), for the specs (a dev

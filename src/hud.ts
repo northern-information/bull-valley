@@ -1,5 +1,5 @@
 // All DOM: countdown, the season (seasonhud.ts), the chat log (chathud.ts),
-// the phone, geometrie's triangle, the pack grid, its item card and the
+// the phone, geometrie and the wards (vitalshud.ts), the pack grid, its item card and the
 // hotbar (packhud.ts), prompts, item labels, the intro/pause overlay, and
 // the strike static. Markup is generated here so index.html stays a bare
 // #bv-root.
@@ -9,17 +9,15 @@ import { BookHud } from './bookhud.ts'
 import { BuffHud } from './buffhud.ts'
 import { ChatHud } from './chathud.ts'
 import { CitgoMap } from './citgomap.ts'
-import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { el, find, text } from './dom.ts'
-import { MAX_HEALTH } from './health.ts'
-import { ICON_SHAPES } from './icons.ts'
 import { LevelHud } from './levelhud.ts'
 import { npcHeader, sectionHead } from './npcdialog.ts'
 import { PackHud } from './packhud.ts'
 import { SEASON_COPY, SeasonHud } from './seasonhud.ts'
 import { volumeSliders } from './settingsui.ts'
 import { TaskHud } from './taskhud.ts'
+import { VitalsHud } from './vitalshud.ts'
 import type { AvatarLook } from './avatarview.ts'
 import type { Buff } from './buffbar.ts'
 import type { ChatLine } from './chat.ts'
@@ -27,60 +25,6 @@ import type { GeometrieAxis, PackItem } from './interfaces.ts'
 import type { BagTab } from './packgrid.ts'
 import type { BagStatus, HotbarSlotView } from './packhud.ts'
 import type { SettingsStore } from './settingsui.ts'
-
-// Geometrie's triangle (geometrie.ts): one corner per level, each lit by
-// its own glow over the dim red face, in the triangle's own units, with
-// its mark (icons.ts) set in from the corner: a weed leaf for high, a pill
-// for stimulated, a beer bottle for drunk.
-const GEOMETRIE_CORNERS: Record<GeometrieAxis, { x: number; y: number }> = {
-  high: { x: 50, y: 6 },
-  stimulated: { x: 94, y: 84 },
-  drunk: { x: 6, y: 84 },
-}
-const GEOMETRIE_MARKS: Record<GeometrieAxis, { x: number; y: number }> = {
-  high: { x: 50, y: 36 },
-  stimulated: { x: 72, y: 71 },
-  drunk: { x: 28, y: 71 },
-}
-const GEOMETRIE_MARK_SIZE = 22
-const GEOMETRIE_POINTS = Object.values(GEOMETRIE_CORNERS)
-  .map(({ x, y }) => `${x},${y}`)
-  .join(' ')
-
-function geometrieMarkup(): string {
-  const glows = Object.entries(GEOMETRIE_CORNERS)
-  return `
-    <svg viewBox="0 0 100 90" aria-hidden="true">
-      <defs>
-        ${glows
-          .map(
-            ([axis, { x, y }]) => `
-          <radialGradient id="bv-geo-${axis}" gradientUnits="userSpaceOnUse" cx="${x}" cy="${y}" r="52">
-            <stop offset="0" class="bv-geo-hot" />
-            <stop offset="0.25" class="bv-geo-lit" />
-            <stop offset="1" class="bv-geo-lit" stop-opacity="0" />
-          </radialGradient>`
-          )
-          .join('')}
-      </defs>
-      <polygon class="bv-geo-face" points="${GEOMETRIE_POINTS}" />
-      ${glows
-        .map(
-          ([axis]) =>
-            `<polygon class="bv-geo-glow" data-axis="${axis}" points="${GEOMETRIE_POINTS}" fill="url(#bv-geo-${axis})" />`
-        )
-        .join('')}
-      <polygon class="bv-geo-edge" points="${GEOMETRIE_POINTS}" />
-      ${Object.entries(GEOMETRIE_MARKS)
-        .map(([axis, { x, y }]) => {
-          const scale = GEOMETRIE_MARK_SIZE / 24
-          const left = x - GEOMETRIE_MARK_SIZE / 2
-          const top = y - GEOMETRIE_MARK_SIZE / 2
-          return `<g class="bv-geo-mark" data-mark="${axis}" transform="translate(${left} ${top}) scale(${scale})">${ICON_SHAPES[axis as GeometrieAxis]}</g>`
-        })
-        .join('')}
-    </svg>`
-}
 
 // The floating name over an item, placed by its top in the view: x and y
 // from 0 at the left and top to 1 at the right and bottom.
@@ -142,16 +86,10 @@ export class Hud {
   itemLabelEl: HTMLParagraphElement
   // The pack over the valley, and the hotbar along the bottom.
   pack: PackHud
-  geometrie: HTMLDivElement
-  geometrieGlows: Map<GeometrieAxis, SVGPolygonElement>
-  geometrieMarks: Map<GeometrieAxis, SVGGElement>
-  geometrieView = ''
+  // Geometrie and the wards, in the upper left.
+  vitals: VitalsHud
   // The buffs over the hotbar, winding down.
   buffs: BuffHud
-  health: HTMLDivElement
-  healthFill: HTMLDivElement
-  healthValue: HTMLSpanElement
-  healthView = -1
   hurtWash: HTMLDivElement
   staticWrap: HTMLDivElement
   staticCanvas: HTMLCanvasElement
@@ -206,41 +144,8 @@ export class Hud {
     ui.appendChild(dock)
     this.chat = new ChatHud(dock)
 
-    // Geometrie: a red triangle in the lower right, each corner lit by its
-    // level. Before the phone, which covers it when raised.
-    this.geometrie = el('div', 'bv-geometrie')
-    this.geometrie.setAttribute('role', 'img')
-    this.geometrie.innerHTML = geometrieMarkup()
-    this.geometrieGlows = new Map(
-      [
-        ...this.geometrie.querySelectorAll<SVGPolygonElement>('[data-axis]'),
-      ].map((glow) => [glow.dataset.axis as GeometrieAxis, glow])
-    )
-    this.geometrieMarks = new Map(
-      [...this.geometrie.querySelectorAll<SVGGElement>('[data-mark]')].map(
-        (mark) => [mark.dataset.mark as GeometrieAxis, mark]
-      )
-    )
-    this.setGeometrie({ high: 0, stimulated: 0, drunk: 0 })
-    ui.appendChild(this.geometrie)
-
-    // Health (health.ts): a chunky red bar under the triangle, notched at
-    // every block, dark where it is lost, with the hit points on it.
-    this.health = el('div', 'bv-health')
-    this.health.setAttribute('role', 'img')
-    this.healthFill = el('div', 'bv-health-fill')
-    const notches = Array.from(
-      { length: Math.max(0, Math.ceil(MAX_HEALTH / CONFIG.health.block) - 1) },
-      (_, i) => {
-        const notch = el('span', 'bv-health-notch')
-        notch.style.left = `${(((i + 1) * CONFIG.health.block) / MAX_HEALTH) * 100}%`
-        return notch
-      }
-    )
-    this.healthValue = el('span', 'bv-health-value')
-    this.health.append(this.healthFill, ...notches, this.healthValue)
-    this.setHealth(MAX_HEALTH)
-    ui.appendChild(this.health)
+    // Geometrie and the wards: the tetrahedron and the bar, upper left.
+    this.vitals = new VitalsHud(ui)
 
     // The phone in a PS1-style flipper hand, dialing a Citgo portal.
     // phone.ts draws the hand, the phone and the screen into this one
@@ -516,28 +421,18 @@ export class Hud {
     this.pack.setHotbar(slots)
   }
 
-  // The loop calls this every frame; the triangle is touched only when a
-  // level moves by a percent.
+  // The loop calls these every frame; the vitals touch the page only when
+  // something on them moves.
   setGeometrie(levels: Record<GeometrieAxis, number>): void {
-    const percent = (axis: GeometrieAxis) => Math.round(levels[axis] * 100)
-    const view = `${percent('high')}:${percent('stimulated')}:${percent('drunk')}`
-    if (view === this.geometrieView) return
-    this.geometrieView = view
-    for (const [axis, glow] of this.geometrieGlows) {
-      glow.style.opacity = String(percent(axis) / 100)
-    }
-    // Each mark reads dim until its corner lights.
-    for (const [axis, mark] of this.geometrieMarks) {
-      mark.style.opacity = String(0.45 + (0.55 * percent(axis)) / 100)
-    }
-    this.geometrie.setAttribute(
-      'aria-label',
-      copy('hud.geometrie_label', {
-        high: String(percent('high')),
-        stimulated: String(percent('stimulated')),
-        drunk: String(percent('drunk')),
-      })
-    )
+    this.vitals.setWards(levels)
+  }
+
+  turnWards(time: number): void {
+    this.vitals.turn(time)
+  }
+
+  setLevel(level: number): void {
+    this.vitals.setLevel(level)
   }
 
   // Pointer lock drives the center dot.
@@ -553,21 +448,14 @@ export class Hud {
     this.root.classList.toggle('bv-shell--buffs', buffs.length > 0)
   }
 
-  // The health bar filled to `points`, and the number on it.
-  setHealth(points: number): void {
-    if (points === this.healthView) return
-    this.healthView = points
-    const share = Math.max(0, Math.min(1, points / MAX_HEALTH))
-    this.healthFill.style.width = `${share * 100}%`
-    this.healthValue.textContent = copy('hud.health_value', {
-      health: points,
-      max: MAX_HEALTH,
-    })
-    this.health.dataset.health = String(points)
-    this.health.setAttribute(
-      'aria-label',
-      copy('hud.health_label', { health: points, max: MAX_HEALTH })
-    )
+  // The geometrie bar at `points` of `max`.
+  setHealth(points: number, max: number): void {
+    this.vitals.setHealth(points, max)
+  }
+
+  // A touch's number under the bar, and what `ward` took off it.
+  popDamage(damage: number, warded: number, ward: GeometrieAxis): void {
+    this.vitals.hit(damage, warded, ward, performance.now())
   }
 
   // A touch: the red wash over the view, from the top, again.

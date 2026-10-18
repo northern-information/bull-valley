@@ -30,6 +30,7 @@ import { inPortal } from './maze.ts'
 import { packItemOf } from './packgrid.ts'
 import { secondsLeft } from './portals.ts'
 import { poseOf, stateChanged } from './presence.ts'
+import { levelOf } from './progression.ts'
 import {
   aimHeightOf,
   beamFrom,
@@ -384,7 +385,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       alone: below ? null : alone,
       renderAt,
     })
-    if (swarm.struck) actions.strike()
+    if (swarm.struck) actions.strike(swarm.struck)
     for (const at of swarm.bursts) {
       // A spider bursts where its body hung, twice as big; a spiderling
       // half as big.
@@ -418,7 +419,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       alone,
       renderAt,
     })
-    if (tunnel.struck) actions.strike('tunnel')
+    if (tunnel.struck) actions.strike(tunnel.struck)
     for (const at of tunnel.bursts) {
       const y = world.ground.at(at.x, at.z) + burstHeight(at.kind)
       bursts.spawn(at.x, y, at.z, burstScale(at.kind))
@@ -536,7 +537,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     ) {
       actions.mendAtForecourt()
     }
-    hud.setHealth(s.health)
+    hud.setHealth(s.health, s.healthMax)
     const shake = shakeAt((now - s.hurtAt) / 1000)
     if (shake > 0) {
       camera.position.x += (Math.random() * 2 - 1) * shake
@@ -603,6 +604,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     )
     const levels = levelsAt(s.geometrie, time)
     hud.setGeometrie(levels)
+    hud.turnWards(time)
     hud.setBuffs(activeBuffs(levels, s.effects, time))
     // The daily task as it stands on the valley's day: a count from an
     // earlier day reads as nothing done. Alone, nothing is kept to show.
@@ -616,6 +618,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       hud.task.set(null)
     }
     hud.level.set(net.online ? s.xp : null)
+    hud.setLevel(levelOf(s.xp))
     hud.tickChat(performance.now())
   }
 

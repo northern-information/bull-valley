@@ -7,7 +7,7 @@ import { CONFIG } from './config.ts'
 import { NO_TASK } from './dailytask.ts'
 import { SOBER } from './geometrie.ts'
 import { HAND_DOWN } from './hands.ts'
-import { MAX_HEALTH } from './health.ts'
+import { BASE_GEOMETRIE } from './health.ts'
 import { NO_EFFECTS } from './hotbar.ts'
 import { STARTING_INVENTORY } from './inventory.ts'
 import { createTruck } from './marx.ts'
@@ -175,11 +175,12 @@ export interface GameState {
   // can take half a minute, and the player would sit in static the whole
   // while.
   strikeUntil: number
-  // Health (health.ts): the account's in the valley, as it last said;
-  // this client's own played alone. After a touch nothing may touch again
-  // until graceUntil, and the view shakes from hurtAt (both local ms, like
-  // strikeUntil).
+  // Geometrie, the hit points (health.ts): the account's in the valley,
+  // left and whole, as it last said; this client's own played alone.
+  // After a touch nothing may touch again until graceUntil, and the view
+  // shakes from hurtAt (both local ms, like strikeUntil).
   health: number
+  healthMax: number
   graceUntil: number
   hurtAt: number
   started: boolean
@@ -304,7 +305,8 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     using: null,
     lastUsed: null,
     strikeUntil: 0,
-    health: MAX_HEALTH,
+    health: BASE_GEOMETRIE,
+    healthMax: BASE_GEOMETRIE,
     graceUntil: 0,
     hurtAt: -Infinity,
     emoting: null,

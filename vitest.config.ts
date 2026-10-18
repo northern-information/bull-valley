@@ -116,6 +116,7 @@ const THREE_AND_DOM = [
   'undercroftart',
   'undercroftmodel',
   'valleysync',
+  'vitalshud',
   'world',
   'worldsurfaces',
   'wreck',

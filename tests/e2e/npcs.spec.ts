@@ -82,6 +82,19 @@ test('Carlsten glows when you come near and cycles through his lines', async ({
   page,
 }) => {
   await beginRaid(page)
+  // The slurms bring him out from behind the counter on the shared clock,
+  // where there is no one to talk to (slurms.ts); hold them off, and wait
+  // for him to be back before reading which way he faces.
+  await page.evaluate(() => window.__bv!.holdSlurms(true))
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const { world } = window.__bv!
+        const station = world.fuelPoints.indexOf(world.spawnStation!)
+        return world.shelves.clerkAway(station)
+      })
+    )
+    .toBe(false)
   await approach(page, 'carlsten')
   await expect.poll(() => glowsOn(page, 'carlsten')).toBe(true)
   await expect(page.locator('.bv-prompt')).toBeHidden()
