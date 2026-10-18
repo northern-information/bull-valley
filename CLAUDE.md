@@ -37,7 +37,7 @@ Dev only: `?valley=<id>` picks another Durable Object, so parallel e2e specs nev
 
 ## Module map
 
-Strict TypeScript throughout. The map (`public/data/bull-valley/`: `geo.json` and the `terrain.png` heightmap) is the game's own, committed and edited by hand; nothing fetches or regenerates it. Shapes that cross modules (world points and heights, geo.json, pack grid entries, the item types the drawing modules share) live in `src/interfaces.ts`; types one module owns stay in that module (the `Item` union is `items.ts`'s).
+Strict TypeScript throughout. The map (`public/data/bull-valley/`: `geo.json` and the `terrain.png` heightmap) is the game's own, committed and edited by hand; nothing fetches or regenerates it. Shapes that cross modules (world points and heights, geo.json, pack grid entries, the item types the drawing modules share) live in `src/interfaces.ts`; types one module owns stay in that module (the `Item` union is `items.ts`'s). Every module under `src/` and `worker/` has its line below: `tests/unit/modulemap.test.ts` fails on one the map does not name, and on a name with no module.
 
 - `src/interfaces.ts` — shared types only, no runtime code
 - `src/toml.d.ts` — the type of a Vite `?raw` import, for `copy.ts`'s `COPY.toml`
