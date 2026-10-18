@@ -406,9 +406,10 @@ export const ITEMS = [
     heals: 100,
   },
   // Medicine, off the rack by the register. Each one taken gives a health
-  // point back and moves geometrie: aspirin and ibuprofen take the edge off,
-  // Benadryl gets you high, and the eye drops get the red out. form is a MedicineForm
-  // (interfaces.ts), the shape assets.ts builds.
+  // point back and moves geometrie: whatever is swallowed as a pill (the
+  // aspirin and ibuprofen a little, the Benadryl a lot) lights the pill
+  // corner, as the Adderall does, and the eye drops get the red out. form
+  // is a MedicineForm (interfaces.ts), the shape assets.ts builds.
   {
     id: 'aspirin',
     category: 'medicine',
@@ -416,7 +417,7 @@ export const ITEMS = [
     price: 449,
     contents: 24,
     form: 'pills',
-    geometrie: { stimulated: -0.1 },
+    geometrie: { stimulated: 0.1 },
     heals: 100,
   },
   {
@@ -426,7 +427,7 @@ export const ITEMS = [
     price: 499,
     contents: 24,
     form: 'pills',
-    geometrie: { stimulated: -0.1 },
+    geometrie: { stimulated: 0.1 },
     heals: 100,
   },
   {
@@ -436,7 +437,7 @@ export const ITEMS = [
     price: 699,
     contents: 24,
     form: 'carton',
-    geometrie: { high: 0.3 },
+    geometrie: { stimulated: 0.3 },
     heals: 100,
   },
   {
