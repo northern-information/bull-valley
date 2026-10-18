@@ -43,10 +43,12 @@ import { tripLevel } from './trip.ts'
 import { burstHeight, burstScale } from './tunnelrig.ts'
 import { boardable, clockText, countdown, seatOf } from './worldsync.ts'
 import type { Actions } from './actions.ts'
+import type { CaretakerShade } from './caretakerrig.ts'
 import type { Game } from './game.ts'
 import type { BushSpot } from './interactions.ts'
 import type { DailyWire, PeerStateWire } from './protocol.ts'
 import type { Cue } from './sfx.ts'
+import type { AloneFrame, ShadowCards } from './shadowcards.ts'
 import type { HeadlightsSent } from './shadowmen.ts'
 import type { Targets } from './targets.ts'
 import type { Pickup } from './world.ts'
@@ -57,6 +59,20 @@ import type { Pickup } from './world.ts'
 // ps1.ts turns shadows off there too. The inventory, the dialogs and the
 // title cards still draw.
 const DRAW_VALLEY = import.meta.env.MODE !== 'test'
+
+// One frame's clocks: now (ms), the capped step (s), and the game clock.
+interface FrameClock {
+  now: number
+  dt: number
+  time: number
+}
+
+// Where the feet stand and how, for the body and for the wire.
+interface Feet {
+  feetY: number
+  moveSpeed: number
+  crouching: boolean
+}
 
 export function startLoop(game: Game, actions: Actions, targets: Targets) {
   const {
@@ -163,44 +179,48 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   // The last word the valley had from us on Marx's headlights.
   let headlightsSent: HeadlightsSent | null = null
 
+  // What moves on its own is stepped only within the fog's reach of the
+  // player (CONFIG.render.liveRadius): each takes a running time, so it is
+  // where it should be the moment it comes back into reach.
+  const live = (at: { x: number; z: number }, margin = 0) =>
+    Math.hypot(at.x - player.pos.x, at.z - player.pos.z) <=
+    CONFIG.render.liveRadius + margin
+
   // The slurms' sounds, heard with the shadows' on the next frame.
   let slurmCues: Cue[] = []
   let last = performance.now()
-  const frame = () => {
+  // Real seconds since the last frame, and the same capped at maxStep: the
+  // capped step moves the player, the item timers, and the animation, so a
+  // stalled frame never jumps them ahead.
+  const advanceClocks = (): FrameClock => {
     const now = performance.now()
-    // Real seconds since the last frame, and the same capped at maxStep: the
-    // capped step moves the player, the item timers, and the animation, so
-    // a stalled frame never jumps them ahead.
     const elapsed = (now - last) / 1000
     const dt = Math.min(CONFIG.render.maxStep, elapsed)
     last = now
     s.time += dt
-    const { time } = s
+    return { now, dt, time: s.time }
+  }
 
-    const smoking = time < s.effects.smoking.end
-    const perception = time < s.effects.perception.end
-
-    // Played alone, Matthew Marx keeps his day on the wall clock, never the
-    // capped step, which on a slow machine would stretch it out of shape.
-    // In the shared valley the valley keeps it and says so.
-    if (!s.world) {
-      const settled = settleTruck(s.aloneTruck, Date.now(), game.truckRoutes)
-      if (settled.changes.length > 0) {
-        actions.setAloneTruck(settled.truck)
-        for (const change of settled.changes) {
-          if (change === 'donuts') hud.tell(copy('log.marx_donuts'))
-          if (change === 'back') hud.tell(copy('log.marx_back'))
-          if (change === 'depart' && s.aboard) {
-            s.onTruckRolls = [
-              copy('log.truck_leaves'),
-              copy('log.hop_out_hint'),
-            ]
-          }
-        }
+  // Played alone, Matthew Marx keeps his day on the wall clock, never the
+  // capped step, which on a slow machine would stretch it out of shape. In
+  // the shared valley the valley keeps it and says so.
+  const settleAloneTruck = () => {
+    if (s.world) return
+    const settled = settleTruck(s.aloneTruck, Date.now(), game.truckRoutes)
+    if (settled.changes.length === 0) return
+    actions.setAloneTruck(settled.truck)
+    for (const change of settled.changes) {
+      if (change === 'donuts') hud.tell(copy('log.marx_donuts'))
+      if (change === 'back') hud.tell(copy('log.marx_back'))
+      if (change === 'depart' && s.aboard) {
+        s.onTruckRolls = [copy('log.truck_leaves'), copy('log.hop_out_hint')]
       }
     }
+  }
 
-    // Where the feet stand and how, for the body and for the wire.
+  // Where the feet stand and how, for the body and for the wire.
+  const rideOrWalk = ({ now, dt, time }: FrameClock): Feet => {
+    const smoking = time < s.effects.smoking.end
     let feetY: number
     let moveSpeed = 0
     let crouching = false
@@ -267,6 +287,10 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       truck.update(dt, now)
     }
     truck.castShadowsNear(player.pos.x, player.pos.z)
+    return { feetY, moveSpeed, crouching }
+  }
+
+  const stepAudio = (now: number) => {
     // The valley's music, at the raider's setting.
     music?.update({
       now,
@@ -279,13 +303,19 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       setting: settings.current.sfx,
       listener: camera,
     })
+  }
+
+  // The lines held for the moment Marx's truck starts rolling.
+  const tellTruckRolls = () => {
     if (s.onTruckRolls.length && truck.rolling()) {
       for (const line of s.onTruckRolls) hud.tell(line)
       s.onTruckRolls = []
     }
+  }
 
-    // The hands: the flashlight lit once it is all the way up, and the
-    // item just used brought up once.
+  // The hands: the flashlight lit once it is all the way up, and the item
+  // just used brought up once. Says whether the flashlight is lit.
+  const raiseHands = ({ dt, time }: FrameClock): boolean => {
     s.flashlight = stepHand(s.flashlight, dt)
     if (s.using && time - s.using.at >= useSeconds()) s.using = null
     const lit = s.flashlight.up && s.flashlight.lift >= 1
@@ -296,16 +326,19 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       kind: s.using?.kind ?? null,
       on: lit,
     })
-    // The others are drawn a beat behind the present, so two of their
-    // frames always bracket the moment: the peers, and the valley's
-    // shadowmen.
-    const renderAt = now - CONFIG.net.interpolateMs
+    return lit
+  }
 
-    // The shadowmen cross whatever anyone is doing, but only rush and touch
-    // a player on foot who is not already coming to from the last strike.
-    // In the shared valley they are the valley's, and it says when one
-    // touches you; played alone, this client steps them.
-    const alone = net.online
+  // The shadowmen cross whatever anyone is doing, but only rush and touch a
+  // player on foot who is not already coming to from the last strike. In
+  // the shared valley they are the valley's, and it says when one touches
+  // you (null); played alone, this client steps them on these terms.
+  const aloneFrame = (
+    now: number,
+    { feetY, crouching }: Feet,
+    lit: boolean
+  ): AloneFrame | null =>
+    net.online
       ? null
       : {
           vulnerable:
@@ -330,6 +363,15 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
             : null,
           lights: [headlightBeam(truck.headlights())],
         }
+
+  // The shadowmen, the Caretaker and the tunnel shades, their strikes and
+  // bursts and what they sound like, and the mist.
+  const stepShadows = (
+    { dt, time }: FrameClock,
+    alone: AloneFrame | null,
+    renderAt: number
+  ) => {
+    const perception = time < s.effects.perception.end
     // Down in the Undercroft only the tunnel shades walk (rule 11).
     const croft = world.undercroft
     const below = croft ? croft.inside(player.pos.x, player.pos.z) : false
@@ -403,12 +445,11 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       (x, z) => world.ground.at(x, z)
     )
     mist.update({ dt, player: player.pos })
-    // What moves on its own is stepped only within the fog's reach of
-    // the player (CONFIG.render.liveRadius): each takes a running time,
-    // so it is where it should be the moment it comes back into reach.
-    const live = (at: { x: number; z: number }, margin = 0) =>
-      Math.hypot(at.x - player.pos.x, at.z - player.pos.z) <=
-      CONFIG.render.liveRadius + margin
+    return { swarm, keeper }
+  }
+
+  // What stands in the valley and moves on its own clock.
+  const stepScenery = ({ now, time }: FrameClock) => {
     // Gron's rain falls on its own clock, Moab's fire burns on it too, the
     // wreck smoulders and blinks on it, and the plaza's last tube flickers.
     if (world.gronRig && world.gron && live(world.gron)) {
@@ -446,6 +487,10 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     if (dishes && live(dishes.middle, dishes.reach)) {
       dishes.update(net.clock.serverNow(now) / 1000)
     }
+  }
+
+  // The portals. Says the moment the Citgo portals' clock reads.
+  const stepPortals = ({ now, time }: FrameClock): number => {
     // The portal at the maze's heart swirls, and anyone on foot who walks
     // into it comes out on the trail outside the gate.
     const portal = world.portal
@@ -461,7 +506,11 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     // wall clock: drawn, and one walked into takes you out of its twin.
     const portalNow = s.world ? net.clock.serverNow(now) : Date.now()
     actions.tendPortals(portalNow)
-    // The map, while it is open: where you stand, your Citgos.
+    return portalNow
+  }
+
+  // The map, while it is open: where you stand, your Citgos.
+  const drawMap = () => {
     if (s.mapOpen) {
       hud.map?.draw({
         me: { x: player.pos.x, z: player.pos.z, yaw: player.yaw },
@@ -469,6 +518,10 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         here: s.aboard ? null : citgoAt(player.pos, world.fuelPoints),
       })
     }
+  }
+
+  // The static after a strike, health, and the shake of a touch.
+  const feelStrikes = (now: number, alone: AloneFrame | null) => {
     if (now < s.strikeUntil) hud.drawStatic()
     else if (!hud.staticWrap.hidden) hud.showStatic(false)
     // Rule 24: played alone, a forecourt makes whole (the valley does
@@ -488,10 +541,16 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       camera.position.y += (Math.random() * 2 - 1) * shake
       camera.rotation.z += (Math.random() * 2 - 1) * shake * 0.5
     }
+  }
 
-    // Ours goes out on a fixed cadence, and only when it changed. The
-    // same tick paces what need not run every frame (the book's asks).
-    peers.update(dt, renderAt)
+  // Ours goes out on a fixed cadence, and only when it changed. The same
+  // tick paces what need not run every frame (the book's asks), so this
+  // says whether it came round.
+  const sendState = (
+    { now, dt }: FrameClock,
+    { feetY, moveSpeed, crouching }: Feet,
+    lit: boolean
+  ): boolean => {
     s.sinceSent += dt
     const tick = s.sinceSent >= 1 / CONFIG.net.sendHz
     if (tick) s.sinceSent = 0
@@ -524,7 +583,12 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         }
       }
     }
+    return tick
+  }
 
+  // The countdown, the hotbar, geometrie and the buffs, the tracker's
+  // rows, and the chat log.
+  const stepHud = ({ now, time }: FrameClock) => {
     hud.setCountdown(countdownLine(now))
 
     hud.setHotbar(
@@ -551,18 +615,26 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     }
     hud.level.set(net.online ? s.xp : null)
     hud.tickChat(performance.now())
+  }
 
-    // The phone dials a Citgo portal; the frame it goes through, it opens.
+  // The phone dials a Citgo portal; the frame it goes through, it opens.
+  const stepPhone = (dt: number, portalNow: number) => {
     const mine = s.portals.find((p) => p.id === s.myPortal)
     const through = phone.update(dt, {
       open: mine ? secondsLeft(mine.closes, portalNow) : null,
     })
     if (through) actions.openPortal()
+  }
 
-    // The Book of Shadows: the places in reach, a shadow come within
-    // sight, and whatever the pack holds, written the first time
-    // (actions.ts discover leaves out what is found or asked), looked for
-    // on the state frame's cadence.
+  // The Book of Shadows: the places in reach, a shadow come within sight,
+  // and whatever the pack holds, written the first time (actions.ts
+  // discover leaves out what is found or asked), looked for on the state
+  // frame's cadence.
+  const discoverBook = (
+    tick: boolean,
+    swarm: ReturnType<ShadowCards['update']>,
+    keeper: ReturnType<CaretakerShade['update']>
+  ) => {
     if (s.started && tick) {
       const range = CONFIG.book.sightRange
       actions.discover([
@@ -581,14 +653,18 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         ...itemsHeld(s.inventory),
       ])
     }
+  }
 
-    // Pickups pulse every frame, whatever the prompt says.
+  // Pickups pulse every frame, whatever the prompt says.
+  const pulsePickups = (time: number) => {
     const pulse = 0.35 + Math.sin(time * 3) * 0.2
     for (const pickup of allPickups()) {
       if (pickup.taken) continue
       for (const m of pulseMaterials(pickup.mesh)) m.emissiveIntensity = pulse
     }
+  }
 
+  const followPlayer = (now: number) => {
     // The stocked shelves follow the player to the nearest store.
     // With them the slurms off its dripline, on the valley's clock so
     // everyone at that Citgo sees the same drop (slurms.ts).
@@ -602,8 +678,11 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     if (shelves.curse) actions.npcSays('carlsten', shelves.curse)
     // And the streetlights' real lights to the nearest lamps.
     world.streetlights.update(player.pos.x, player.pos.z)
+  }
 
-    // --- Interactions: what E would do right now -------------------------
+  // What E would do right now, and what says so: the prompt, the item's
+  // label, the glow, the reticle, and the bushes bare or in berry.
+  const resolveE = (now: number) => {
     const inStore = targets.storeIndex()
     const bushes = bushSpots(now)
     const leg = s.world?.truck.leg ?? s.aloneTruck.leg
@@ -680,7 +759,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     )
     // With the pointer free, the red edge round the view says so (hud.ts).
     hud.prompt(player.locked && clear ? prompt : null)
+  }
 
+  const draw = (time: number) => {
     sky.position.set(player.pos.x, 0, player.pos.z)
     if (s.inventoryOpen) {
       hud.setBagStatus({ cash: formatCash(s.cash) })
@@ -700,6 +781,34 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     // While Gron talks, his dialog covers the view and draws its own
     // turntable; the valley runs on behind it undrawn, holding its last
     // frame, so the page is not drawing two scenes at once.
+  }
+
+  const frame = () => {
+    const clock = advanceClocks()
+    settleAloneTruck()
+    const feet = rideOrWalk(clock)
+    stepAudio(clock.now)
+    tellTruckRolls()
+    const lit = raiseHands(clock)
+    // The others are drawn a beat behind the present, so two of their
+    // frames always bracket the moment: the peers, and the valley's
+    // shadowmen.
+    const renderAt = clock.now - CONFIG.net.interpolateMs
+    const alone = aloneFrame(clock.now, feet, lit)
+    const { swarm, keeper } = stepShadows(clock, alone, renderAt)
+    stepScenery(clock)
+    const portalNow = stepPortals(clock)
+    drawMap()
+    feelStrikes(clock.now, alone)
+    peers.update(clock.dt, renderAt)
+    const tick = sendState(clock, feet, lit)
+    stepHud(clock)
+    stepPhone(clock.dt, portalNow)
+    discoverBook(tick, swarm, keeper)
+    pulsePickups(clock.time)
+    followPlayer(clock.now)
+    resolveE(clock.now)
+    draw(clock.time)
   }
 
   // A throw anywhere in the frame would otherwise end the game in
