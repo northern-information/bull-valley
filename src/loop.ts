@@ -680,11 +680,38 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     world.streetlights.update(player.pos.x, player.pos.z)
   }
 
-  // What E would do right now, and what says so: the prompt, the item's
-  // label, the glow, the reticle, and the bushes bare or in berry.
-  const resolveE = (now: number) => {
+  // The lookout tower's ladder, and whether the raider is up on its deck.
+  const lookoutSpot = () =>
+    world.lookout && {
+      foot: world.lookout.foot,
+      top: world.lookout.top,
+      on: world.lookout.on(player.pos.x, player.pos.z),
+    }
+
+  // The heart of the maze, while the raider carries Erwin's rose to lay
+  // there (rule 26).
+  const heartSpot = () =>
+    world.portal &&
+    s.quests?.rose === 'given' &&
+    (s.inventory.rose ?? 0) > 0 &&
+    !s.pendingQuest
+      ? world.portal.at
+      : null
+
+  // The office's door, while it will not let this raider through.
+  const lockedDoor = () =>
+    world.plaza &&
+    !passes(
+      world.plaza.lock,
+      s.inventory,
+      world.plaza.inBackRoom(player.pos.x, player.pos.z)
+    )
+      ? world.plaza.doorAt
+      : null
+
+  // What E would do right now.
+  const resolveE = (bushes: BushSpot[]) => {
     const inStore = targets.storeIndex()
-    const bushes = bushSpots(now)
     const leg = s.world?.truck.leg ?? s.aloneTruck.leg
     s.interaction = resolveInteraction({
       riding: s.aboard,
@@ -710,28 +737,15 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       dealer: world.plaza?.dealer.at ?? null,
       trapdoor: world.undercroft?.hatch ?? null,
       ladder: world.undercroft?.foot ?? null,
-      lookout: world.lookout && {
-        foot: world.lookout.foot,
-        top: world.lookout.top,
-        on: world.lookout.on(player.pos.x, player.pos.z),
-      },
-      heart:
-        world.portal &&
-        s.quests?.rose === 'given' &&
-        (s.inventory.rose ?? 0) > 0 &&
-        !s.pendingQuest
-          ? world.portal.at
-          : null,
-      locked:
-        world.plaza &&
-        !passes(
-          world.plaza.lock,
-          s.inventory,
-          world.plaza.inBackRoom(player.pos.x, player.pos.z)
-        )
-          ? world.plaza.doorAt
-          : null,
+      lookout: lookoutSpot(),
+      heart: heartSpot(),
+      locked: lockedDoor(),
     })
+  }
+
+  // What says what E would do: the prompt, the item's label, the glow, the
+  // reticle, and the bushes bare or in berry.
+  const showE = (now: number, bushes: BushSpot[]) => {
     const interaction = s.interaction
     // Rule 14: Moab makes his offer as you come into his reach.
     const offering = interaction?.kind === 'trade' ? interaction.station : null
@@ -807,7 +821,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     discoverBook(tick, swarm, keeper)
     pulsePickups(clock.time)
     followPlayer(clock.now)
-    resolveE(clock.now)
+    const bushes = bushSpots(clock.now)
+    resolveE(bushes)
+    showE(clock.now, bushes)
     draw(clock.time)
   }
 
