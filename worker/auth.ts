@@ -385,6 +385,7 @@ class AuthHandler {
       look: await this.store.lookOf(account.accountId),
       hotbar: await this.store.hotbarOf(account.accountId),
       settings: await this.store.settingsOf(account.accountId),
+      cosmetics: await this.store.cosmeticsOf(account.accountId),
     }
   }
 

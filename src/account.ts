@@ -5,6 +5,7 @@
 // imports only: the e2e specs import this file, and Playwright cannot load
 // copy.ts.
 
+import type { CosmeticId } from './cosmetics.ts'
 import type { FinishId } from './finishes.ts'
 import type { OutfitId } from './outfits.ts'
 
@@ -99,6 +100,9 @@ export interface AccountWire {
   look: LookWire
   hotbar: HotbarWire
   settings: SettingsWire
+  // What the account wears over any character (cosmetics.ts), as the
+  // valley keeps it, so the select shows it before the valley answers.
+  cosmetics: CosmeticId[]
 }
 
 // The profile a new raider arrived with, held until the gates are passed.

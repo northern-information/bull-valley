@@ -9,6 +9,7 @@ import { pickOf } from './characters.ts'
 import { mountCharacterSelect } from './characterselect.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
+import { toCosmetics } from './cosmetics.ts'
 import { toHotbar } from './hotbar.ts'
 import { mountMainMenu } from './mainmenu.ts'
 import { mountAccountStep } from './signin.ts'
@@ -144,7 +145,11 @@ export async function showTitles(
   account.remove()
   const username = known?.account?.username
   if (!username) throw new Error('Died without an account')
-  const chosen = await select.run(username, pickOf(known?.account?.look))
+  const chosen = await select.run(
+    username,
+    pickOf(known?.account?.look),
+    toCosmetics(known?.account?.cosmetics)
+  )
   // The pick is the account's, so it follows the raider to any browser.
   const saved = await saveLook(chosen)
   return {

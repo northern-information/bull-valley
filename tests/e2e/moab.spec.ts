@@ -101,4 +101,14 @@ test('Moab Coldë trades the Flaming Halo for an ounce of gold', async ({
   await expect
     .poll(() => page.evaluate(() => window.__bv?.chat.at(-1)?.text))
     .toBe(copy('moab.says'))
+  // The account wears it from the titles on: the select dresses every
+  // character in what /auth/me says.
+  const me = (await (await page.request.get('/auth/me')).json()) as {
+    account: { cosmetics: string[] } | null
+  }
+  expect(me.account?.cosmetics).toEqual(['flaming-halo'])
+  // And the pack shows the raider in it, beside the grid.
+  await page.keyboard.press('Tab')
+  await expect(page.locator('.bv-bag')).toBeVisible()
+  await expect(page.locator('.bv-bag-avatar')).toBeVisible()
 })

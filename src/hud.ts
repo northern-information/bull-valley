@@ -20,6 +20,7 @@ import { PackHud } from './packhud.ts'
 import { SEASON_COPY, SeasonHud } from './seasonhud.ts'
 import { volumeSliders } from './settingsui.ts'
 import { TaskHud } from './taskhud.ts'
+import type { AvatarLook } from './avatarview.ts'
 import type { Buff } from './buffbar.ts'
 import type { ChatLine } from './chat.ts'
 import type { GeometrieAxis, PackItem } from './interfaces.ts'
@@ -487,8 +488,8 @@ export class Hud {
     this.pack.setStatus(status)
   }
 
-  showBag(show: boolean): boolean {
-    return this.pack.show(show)
+  showBag(show: boolean, look?: AvatarLook): boolean {
+    return this.pack.show(show, look)
   }
 
   // The Book of Shadows opens over the valley as the pack does, and the

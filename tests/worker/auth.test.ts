@@ -576,6 +576,22 @@ describe('confirm-signup and username', () => {
     expect((await put({ hotbar: bar }, new Jar())).res.status).toBe(401)
   })
 
+  it('says what the account wears', async () => {
+    const s = new MemoryAccountStore()
+    const jar = new Jar()
+    await signIn(jar, { id: 46, login: 'fortysix' }, s)
+    await call('/auth/confirm-signup', {
+      body: WORD,
+      method: 'POST',
+      jar,
+      store: s,
+    })
+    const signedIn = (await me(jar, s)).account
+    expect(signedIn?.cosmetics).toEqual([])
+    s.cosmetics.set(signedIn?.accountId ?? '', ['flaming-halo'])
+    expect((await me(jar, s)).account?.cosmetics).toEqual(['flaming-halo'])
+  })
+
   it('keeps the settings on the account', async () => {
     const s = new MemoryAccountStore()
     const jar = new Jar()

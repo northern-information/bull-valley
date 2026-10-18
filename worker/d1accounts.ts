@@ -3,6 +3,7 @@
 // tests/worker/accounts.test.ts runs it against the migrations on SQLite.
 
 import { isSelectable } from '../src/characters.ts'
+import { toCosmetics } from '../src/cosmetics.ts'
 import { isFinish } from '../src/finishes.ts'
 import { askOutcome, FRIENDS_MAX } from '../src/friends.ts'
 import { toHotbar } from '../src/hotbar.ts'
@@ -13,6 +14,7 @@ import type {
   Provider,
   SettingsWire,
 } from '../src/account.ts'
+import type { CosmeticId } from '../src/cosmetics.ts'
 import type { AskResult, FriendRow, FriendState } from '../src/friends.ts'
 import type {
   Account,
@@ -294,6 +296,14 @@ export class D1AccountStore implements AccountStore {
       .bind(JSON.stringify(hotbar), accountId)
       .run()
     return result.meta.changes === 1
+  }
+
+  async cosmeticsOf(accountId: string): Promise<CosmeticId[]> {
+    const rows = await this.db
+      .prepare('SELECT cosmetic FROM cosmetics WHERE account_id = ?')
+      .bind(accountId)
+      .all<{ cosmetic: string }>()
+    return toCosmetics(rows.results.map((row) => row.cosmetic))
   }
 
   async settingsOf(accountId: string): Promise<SettingsWire> {
