@@ -715,6 +715,48 @@ describe('ValleyDO', () => {
     expect(a.last<NackMessage>().reason).toBe('worthless')
   })
 
+  it('holds every other change while a barter is written, so neither is lost', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const b = await join(v, s, 'B')
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"grant","kind":"marlboro","count":200}'
+    )
+    await v.webSocketMessage(ws(a), state(DEALER.x + 1, DEALER.z))
+    await v.webSocketMessage(ws(b), state(0, 0))
+    // The barter's write waits until the test lets it land.
+    const store = v.packStore
+    let release = () => {}
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    v.packStore = Object.assign(Object.create(store) as PackStore, {
+      barter: async (...args: Parameters<PackStore['barter']>) => {
+        await held
+        return store.barter(...args)
+      },
+    })
+    const dealing = v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ type: 'deal', kind: 'lsd', pay: 'marlboro' })
+    )
+    await settle()
+    const taking = v.webSocketMessage(ws(b), '{"type":"take","index":4}')
+    await settle()
+    release()
+    await Promise.all([dealing, taking])
+    const last = b
+      .frames()
+      .findLast((m): m is WorldMessage => m.type === 'world')
+    expect(last?.reason).toBe('taken')
+    expect(last?.world?.taken).toContain(4)
+    const lsd = goodOf('lsd')
+    expect(last?.world?.dealer.lsd).toBe((lsd?.perDay ?? 0) - 1)
+    const stored = s.storage.map.get('valley') as { world: { taken: number[] } }
+    expect(stored.world.taken).toContain(4)
+  })
+
   it('walks the rose quest: the rose from Erwin, laid at the heart, the key back', async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A')
