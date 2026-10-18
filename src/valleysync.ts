@@ -300,14 +300,29 @@ export function wireValley(game: Game, actions: Actions): void {
     )
     s.pending.board = bed.pendingBoard
     if (bed.letOff) {
-      // Let off at the Citgo.
-      actions.leaveBed(reason === 'home' ? copy('log.end_of_line') : undefined)
+      // Let off at the Citgo, or where the first one in picked.
+      actions.leaveBed(
+        reason === 'home'
+          ? copy('log.end_of_line')
+          : reason === 'dropoff'
+            ? copy('log.dropoff')
+            : undefined
+      )
     }
     s.aboard = bed.aboard
     if (bed.rolling) {
       s.onTruckRolls = [copy('log.truck_leaves'), copy('log.hop_out_hint')]
     }
     if (reason === 'ferry' && detail.by === me) hud.tell(copy('log.ride_home'))
+    // The first one in picked where he goes: the rest of the bed hears it.
+    if (reason === 'charted' && bed.aboard && detail.by !== me) {
+      const dest = leg.kind === 'parked' ? leg.dest : undefined
+      hud.tell(
+        dest && hud.map
+          ? copy('log.charter_other', { place: hud.map.placeOf(dest) })
+          : copy('log.charter_other_joyride')
+      )
+    }
     if (reason === 'called') {
       hud.tell(
         detail.by === me ? copy('log.whistle') : copy('log.whistle_other')
@@ -367,9 +382,12 @@ export function wireValley(game: Game, actions: Actions): void {
       else hud.tell(copy('log.drop_refused'))
     } else if (msg.re === 'board') {
       // The bed is not ours after all.
+      actions.endCharter()
       s.pending.board = false
       s.aboard = false
       hud.tell(copy('log.board_refused'))
+    } else if (msg.re === 'charter') {
+      hud.tell(copy('log.charter_refused'))
     } else if (msg.re === 'hop-out') {
       s.aboard = false
     } else if (msg.re === 'use') {

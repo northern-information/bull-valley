@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   BOOK,
+  bountyOf,
   CHAPTERS,
   entriesOf,
   entryOf,
@@ -12,6 +13,7 @@ import {
   tallyOf,
   toFound,
 } from '../../src/book.ts'
+import { CONFIG } from '../../src/config.ts'
 import { itemLabel } from '../../src/itemcopy.ts'
 import { ITEMS } from '../../src/items.ts'
 import { DISCOVER_MAX } from '../../src/protocol.ts'
@@ -148,5 +150,13 @@ describe('itemsHeld', () => {
       'marlboro',
       'pbr',
     ])
+  })
+})
+
+describe('bounties', () => {
+  it('pays for the Keep found, and nothing for anything else', () => {
+    expect(bountyOf(['keep'])).toBe(CONFIG.bounties.keep)
+    expect(bountyOf(['citgo', 'wreck'])).toBe(0)
+    expect(bountyOf([])).toBe(0)
   })
 })

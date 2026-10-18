@@ -257,6 +257,9 @@ export interface GameState {
   pendingPortal: boolean
   portalGraceUntil: number
   mapOpen: boolean
+  // Rule 3: the map is open for us to pick where Marx drives (we were the
+  // first one into the bed), and not yet picked.
+  charting: boolean
   // Rule 25: a deal with Erwin not yet answered, his last word, and how
   // many times he has rambled at this raider.
   pendingDeal: boolean
@@ -339,6 +342,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     pendingPortal: false,
     portalGraceUntil: 0,
     mapOpen: false,
+    charting: false,
     pendingDeal: false,
     dealSaid: null,
     rambled: 0,

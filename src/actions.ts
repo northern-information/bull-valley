@@ -7,7 +7,7 @@
 // pure modules'; this is the glue that applies them and says so.
 
 import { saveHotbar, saveLook } from './auth.ts'
-import { CHAPTERS, entryOf, knownOf, newlyFound } from './book.ts'
+import { bountyOf, CHAPTERS, entryOf, knownOf, newlyFound } from './book.ts'
 import { portraitOf } from './bookportraits.ts'
 import { passTarget, shrugs } from './buffs.ts'
 import {
@@ -56,7 +56,7 @@ import {
   isUsable,
   tripSecondsOf,
 } from './items.ts'
-import { board, call, hopOut as hopOutOf, refused } from './marx.ts'
+import { board, call, charter, hopOut as hopOutOf, refused } from './marx.ts'
 import { npcLine } from './npcs.ts'
 import { outfitById } from './outfits.ts'
 import {
@@ -70,13 +70,14 @@ import { enteredAt, exitFrom, fieldEnd, openAt, ringEnd } from './portals.ts'
 import { levelOf } from './progression.ts'
 import { normalizeChat } from './protocol.ts'
 import { dealerStep, roseLine, roseProgress } from './quests.ts'
-import { callRoute } from './roadgraph.ts'
+import { callRoute, nearestRoadPoint } from './roadgraph.ts'
 import { inHaven } from './shadowmen.ts'
 import { buy as buyItem, settle } from './shop.ts'
 import { openStandDialog } from './standdialog.ts'
 import { move, moveAmount } from './stash.ts'
 import { formatCash } from './store.ts'
 import { planLeg } from './truckplan.ts'
+import { charterable } from './worldsync.ts'
 import type { ChatCommand } from './chat.ts'
 import type { CitgoLog } from './citgos.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -219,6 +220,10 @@ export interface Actions {
   closeMap(relock?: boolean): void
   // A Citgo on the map clicked: fast travel there.
   fastTravel(station: number): void
+  // Rule 3: the map opened for us to pick where Marx goes ends: a point
+  // picked (to), the joyride (null), or nothing asked (undefined: he left,
+  // or the bed is not ours).
+  endCharter(to?: XZ | null): void
   // Shadows burst: played alone, their dimes (a spider's $20) fall where
   // they were, and each shadowman's tombstone stands beside them.
   spillBursts(bursts: readonly Spilled[]): void
@@ -364,6 +369,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     }
     bookHud.setFound(s.book)
     bookHud.announce(names)
+    // In the valley a landmark found pays its bounty (book.ts bountyOf).
+    const bounty = s.world ? bountyOf(found) : 0
+    if (bounty > 0) {
+      hud.tell(copy('log.landmark_bounty', { cash: formatCash(bounty) }))
+    }
   }
 
   // A refused ask waits this long before the next (local ms), so the loop
@@ -416,6 +426,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // The truck drives `leg`, against the valley's clock or, alone, the
   // wall clock.
   const followLeg = (leg: Leg) => {
+    // He has left: no pick to make any more.
+    if (leg.kind !== 'parked') endCharter()
     s.truckLeg = leg
     s.truckPlan = planLeg(leg, game.truckContext)
     const toLocal = s.world
@@ -432,27 +444,68 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (s.aboard && !next.riders.includes(ALONE)) leaveBed()
   }
 
-  // Into the bed: of the truck at the Citgo, where the countdown starts,
-  // or of the truck we whistled, which drives us home.
+  // Into the bed: of the truck at the Citgo, where the countdown starts
+  // and the first one in picks on the map where he goes (rule 3), or of
+  // the truck we whistled, which drives us home.
   const boardTruck = () => {
     if (s.aboard) return
     closeInventory()
     if (s.world) {
+      const first = charterable(s.world.truck, net.id)
       s.aboard = true
       s.pending.board = true
       net.send({ type: 'board' })
       hud.tell(copy('log.board'))
+      if (first) openCharter()
       return
     }
+    const first = charterable(s.aloneTruck, ALONE)
     const next = board(s.aloneTruck, ALONE, Date.now())
     if (refused(next)) return
     s.aboard = true
     hud.tell(copy('log.board'))
     setAloneTruck(next)
+    if (first) openCharter()
+  }
+
+  // The map, for the first one in to pick where Marx drives.
+  const openCharter = () => {
+    if (!hud.map) return
+    closeBook()
+    s.charting = true
+    withPanel(() => {
+      s.mapOpen = hud.showMap(true, true)
+    })
+  }
+
+  // The charter's map closes: with a point picked (snapped to the nearest
+  // road, where the truck will stop), the joyride (null), or no word sent
+  // at all (undefined).
+  const endCharter = (to?: XZ | null) => {
+    if (!s.charting) return
+    s.charting = false
+    s.mapOpen = hud.showMap(false)
+    if (s.started) engagePointer()
+    if (to === undefined || !s.aboard) return
+    const spot = to && nearestRoadPoint(game.truckContext.graph, to.x, to.z)
+    const dest = spot ? { x: spot.x, z: spot.z } : null
+    hud.tell(
+      dest && hud.map
+        ? copy('log.charter', { place: hud.map.placeOf(dest) })
+        : copy('log.charter_joyride')
+    )
+    if (s.world) {
+      net.send({ type: 'charter', to: dest })
+      return
+    }
+    // Alone, there is never anyone else: he leaves at once.
+    const next = charter(s.aloneTruck, ALONE, dest, Date.now(), true)
+    if (!refused(next)) setAloneTruck(next)
   }
 
   // Off the bed, beside the truck.
   const leaveBed = (line?: string) => {
+    endCharter()
     s.aboard = false
     const spot = truck.hopOutSpot()
     player.relocate(spot.x, spot.z, player.yaw)
@@ -1310,8 +1363,18 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     s.citgos = log
     // Before Begin there is no one to tell: the spawn Citgo is found then.
     if (quiet || !s.started) return
+    // In the valley the first time at each pays its bounty (rule 28), but
+    // the first ever.
+    const paid = s.world !== null && s.citgos.visited.length > found.length
     for (const station of found) {
-      hud.tell(copy('log.citgo_visited', { citgo: citgoLabel(station) }))
+      hud.tell(
+        paid
+          ? copy('log.citgo_bounty', {
+              citgo: citgoLabel(station),
+              cash: formatCash(CONFIG.bounties.citgo),
+            })
+          : copy('log.citgo_visited', { citgo: citgoLabel(station) })
+      )
     }
   }
 
@@ -1422,6 +1485,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
 
   const closeMap = (relock = false) => {
+    // Closed without a pick, the charter's map is the joyride.
+    if (s.charting) {
+      endCharter(null)
+      return
+    }
     if (!s.mapOpen) return
     s.mapOpen = hud.showMap(false)
     if (relock) engagePointer()
@@ -1454,7 +1522,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     closeMap(true)
     hud.tell(copy('log.travel', { citgo: citgoLabel(station) }))
   }
-  if (hud.map) hud.map.onTravel = fastTravel
+  if (hud.map) {
+    hud.map.onTravel = fastTravel
+    hud.map.onCharter = (to) => endCharter(to)
+  }
 
   const say = (typed: string) => {
     const text = normalizeChat(typed)
@@ -1520,6 +1591,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     openMap,
     closeMap,
     fastTravel,
+    endCharter,
     applyDropTaken,
     spillBursts,
     toggleFlashlight,

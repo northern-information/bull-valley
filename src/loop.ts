@@ -112,14 +112,14 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     )
   }
 
-  // Marx's countdown, for whoever is in the bed or standing by it. The
-  // line is filled again only when its clock reads differently.
+  // Marx's countdown, for whoever is in the bed or standing by it, and
+  // only with someone else in the valley (alone, he leaves once the pick is
+  // made). The line is filled again only when its clock reads differently.
   let clockShown = ''
   let clockLine = ''
   const countdownLine = (now: number): string | null => {
-    const left = s.world
-      ? countdown(s.world.truck, net.clock.serverNow(now))
-      : countdown(s.aloneTruck, Date.now())
+    if (!s.world || peers.count === 0) return null
+    const left = countdown(s.world.truck, net.clock.serverNow(now))
     if (left === null) return null
     const near =
       s.aboard ||
@@ -208,8 +208,10 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     if (s.world) return
     const settled = settleTruck(s.aloneTruck, Date.now(), game.truckRoutes)
     if (settled.changes.length === 0) return
+    const wasAboard = s.aboard
     actions.setAloneTruck(settled.truck)
     for (const change of settled.changes) {
+      if (change === 'dropoff' && wasAboard) hud.tell(copy('log.dropoff'))
       if (change === 'donuts') hud.tell(copy('log.marx_donuts'))
       if (change === 'back') hud.tell(copy('log.marx_back'))
       if (change === 'depart' && s.aboard) {

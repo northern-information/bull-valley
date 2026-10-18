@@ -487,6 +487,26 @@ describe('ValleyDO', () => {
     expect(stranger.sent).toEqual([])
   })
 
+  it('pays the bounty for each Citgo found past the first', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const cash = () =>
+      a.frames().findLast((m): m is PackMessage => m.type === 'pack')?.cash
+    const visited = () =>
+      a
+        .frames()
+        .flatMap((m) => (m.type === 'citgos' ? [m.citgos.visited.length] : []))
+        .at(-1)
+    await v.webSocketMessage(ws(a), state(1003, 4))
+    v.tick()
+    await settledWhen(() => visited() === 1)
+    expect(cash()).toBeUndefined()
+    await v.webSocketMessage(ws(a), state(3, 4))
+    v.tick()
+    await settledWhen(() => cash() === 4000 + CONFIG.bounties.citgo)
+    expect(visited()).toBe(2)
+  })
+
   it('writes the Citgos a raider stands at, and opens a Citgo portal to the last', async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A')
@@ -2697,6 +2717,19 @@ describe('ValleyDO: the Book of Shadows', () => {
       type: 'welcome',
       book: ['citgo', 'marlboro', 'marx'],
     })
+  })
+
+  it('pays the bounty for the Keep found, once', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const cash = () =>
+      a.frames().findLast((m): m is PackMessage => m.type === 'pack')?.cash
+    await v.webSocketMessage(ws(a), discover('keep'))
+    expect(books(a)).toEqual([{ type: 'book', found: ['keep'] }])
+    expect(cash()).toBe(4000 + CONFIG.bounties.keep)
+    await settledWhen(() => a.frames().some((m) => m.type === 'xp'))
+    await v.webSocketMessage(ws(a), discover('keep', 'marx'))
+    expect(cash()).toBe(4000 + CONFIG.bounties.keep)
   })
 
   it('nacks an ask too soon after the last ten, and one it cannot write', async () => {

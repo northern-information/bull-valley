@@ -193,6 +193,8 @@ export type WorldReason =
   | 'home'
   | 'donuts'
   | 'back'
+  | 'charted'
+  | 'dropoff'
   | 'taken'
   | 'bought'
   | 'dropped'
@@ -263,6 +265,13 @@ interface BoardMessage {
 
 interface HopOutMessage {
   type: 'hop-out'
+}
+
+// The first one in the bed picks where Marx goes (sharedworld.ts rule 3):
+// a point on the map, or null for the joyride.
+interface CharterMessage {
+  type: 'charter'
+  to: XZ | null
 }
 
 interface TakeMessage {
@@ -497,6 +506,7 @@ export type ClientMessage =
   | PingMessage
   | BoardMessage
   | HopOutMessage
+  | CharterMessage
   | TakeMessage
   | BuyMessage
   | CallMessage
@@ -690,7 +700,7 @@ export interface WorldMessage {
   reason: WorldReason
   world: WorldWire | null
   // Who did it, for 'joined', 'left', 'boarded', 'hopped-out', 'called',
-  // 'ferry', 'taken', 'bought', 'dealt', 'dropped', 'drop-taken', 'fell',
+  // 'charted', 'ferry', 'taken', 'bought', 'dealt', 'dropped', 'drop-taken', 'fell',
   // 'looted', 'portal-opened'.
   by?: string
   // For 'taken'.
@@ -1273,6 +1283,11 @@ const CLIENT_PARSERS: ClientParsers = {
   hello: parseHello,
   board: bare('board'),
   'hop-out': bare('hop-out'),
+  charter: ({ to }) => {
+    if (to === null) return { type: 'charter', to: null }
+    const at = parseXZ(to)
+    return at && { type: 'charter', to: at }
+  },
   portal: bare('portal'),
   rename: bare('rename'),
   friends: bare('friends'),

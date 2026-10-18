@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   aboard,
   boardable,
+  charterable,
   clockText,
   countdown,
   newLeg,
@@ -128,6 +129,27 @@ describe('reconcileBed', () => {
     expect(reconcileBed(world(joyride, ['a']), 'a', on, 'joined').rolling).toBe(
       false
     )
+  })
+})
+
+describe('the charter', () => {
+  it('is the first one in to pick, at the Citgo only', () => {
+    const empty = world(parked()).truck
+    expect(charterable(empty, 'a')).toBe(true)
+    const two = world(parked(T0 + 60_000), ['a', 'b']).truck
+    expect(charterable(two, 'a')).toBe(true)
+    expect(charterable(two, 'b')).toBe(false)
+    const called: Leg = {
+      kind: 'called',
+      at: T0,
+      by: 'a',
+      from: { x: 0, z: 0 },
+      to: { x: 1, z: 1 },
+      rest: true,
+    }
+    expect(charterable(world(called).truck, 'a')).toBe(false)
+    expect(charterable(null, 'a')).toBe(false)
+    expect(charterable(empty, null)).toBe(false)
   })
 })
 

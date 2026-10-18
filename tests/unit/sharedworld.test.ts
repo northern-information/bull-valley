@@ -6,6 +6,7 @@ import { costIn, freshDealerStock, goodOf } from '../../src/dealer.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { contentsOf, getItem } from '../../src/items.ts'
 import { LADDER_FOOT, LADDER_TOP, lookoutToWorld } from '../../src/lookout.ts'
+import { nextChange } from '../../src/marx.ts'
 import { mazeToWorld } from '../../src/maze.ts'
 import { PROTOCOL_VERSION } from '../../src/protocol.ts'
 import { mulberry32 } from '../../src/rng.ts'
@@ -347,6 +348,71 @@ describe("rule 3: Marx's truck is the valley's", () => {
     v.tick(ROUTES.joyrideMs)
     expect(reasons(v.step({ type: 'clock' }))).toEqual(['home'])
     expect(v.valley.world?.truck.riders).toEqual([])
+  })
+
+  it('drives the bed where the first one in picked once the countdown runs out', () => {
+    const to = { x: 800, z: -600 }
+    const v = valleyWith(
+      join('a'),
+      join('b'),
+      { type: 'board', id: 'a', at: HERE },
+      { type: 'board', id: 'b', at: HERE }
+    )
+    expect(v.step({ type: 'charter', id: 'b', to }).reply?.reason).toBe(
+      'not-first'
+    )
+    const r = v.step({ type: 'charter', id: 'a', to })
+    expect(reasons(r)).toEqual(['charted'])
+    const leaves = T0 + CONFIG.truck.countdownSeconds * SEC
+    expect(v.valley.world?.truck.leg).toMatchObject({
+      kind: 'parked',
+      leavesAt: leaves,
+      dest: to,
+    })
+    v.tick(CONFIG.truck.countdownSeconds * SEC)
+    expect(reasons(v.step({ type: 'clock' }))).toEqual(['depart'])
+    expect(v.valley.world?.truck.leg).toEqual({
+      kind: 'charter',
+      at: leaves,
+      to,
+    })
+    // Let off there, both earn the ride.
+    const truck = v.valley.world?.truck
+    const due = truck ? nextChange(truck, ROUTES) : null
+    v.tick((due ?? v.now) - v.now)
+    const there = v.step({ type: 'clock' })
+    expect(reasons(there)).toEqual(['dropoff'])
+    expect(v.valley.world?.truck.riders).toEqual([])
+    expect(there.xp).toEqual([
+      { account: 'acct-a', source: 'ride' },
+      { account: 'acct-b', source: 'ride' },
+    ])
+  })
+
+  it('leaves as soon as the pick is made with no one else in the valley', () => {
+    const v = valleyWith(join('a'), { type: 'board', id: 'a', at: HERE })
+    const r = v.step({ type: 'charter', id: 'a', to: null })
+    expect(reasons(r)).toEqual(['charted', 'depart'])
+    expect(v.valley.world?.truck.leg).toEqual({ kind: 'joyride', at: T0 })
+    expect(r.alarm).toBe(T0 + ROUTES.joyrideMs)
+  })
+
+  it('refuses a charter off the map, or from anyone not in the bed', () => {
+    const v = valleyWith(join('a'), join('b'), {
+      type: 'board',
+      id: 'a',
+      at: HERE,
+    })
+    const off = { x: METRES.width, z: 0 }
+    expect(v.step({ type: 'charter', id: 'a', to: off }).reply?.reason).toBe(
+      'off-map'
+    )
+    expect(v.step({ type: 'charter', id: 'b', to: null }).reply?.reason).toBe(
+      'not-first'
+    )
+    expect(
+      v.step({ type: 'charter', id: 'nobody', to: null }).reply?.reason
+    ).toBe('not-in-valley')
   })
 
   it('lets a raider out of the bed, and says why it will not let them in', () => {
@@ -1013,6 +1079,26 @@ describe('rule 28: Citgos, and Citgo portals', () => {
     expect(citgoVisits(v.valley, placed)).toEqual([{ id: 'a', station: 1 }])
     v.step({ type: 'visit', id: 'a', station: 1 })
     expect(citgoVisits(v.valley, placed)).toEqual([])
+  })
+
+  it('pays a bounty and XP the first time an account stands at each Citgo past its first', () => {
+    const v = valleyWith(join('a'))
+    // The first, where every raider starts, pays nothing.
+    const spawn = v.step({ type: 'visit', id: 'a', station: 2 })
+    expect(spawn.earn).toBeUndefined()
+    expect(spawn.xp).toBeUndefined()
+    const first = v.step({ type: 'visit', id: 'a', station: 1 })
+    expect(first.earn).toEqual({
+      account: 'acct-a',
+      amount: CONFIG.bounties.citgo,
+    })
+    expect(first.xp).toEqual([{ account: 'acct-a', source: 'citgo' }])
+    v.step({ type: 'visit', id: 'a', station: 0 })
+    // Back at one already found: the last moves, nothing is paid.
+    const again = v.step({ type: 'visit', id: 'a', station: 1 })
+    expect(again.citgos?.log.last).toBe(1)
+    expect(again.earn).toBeUndefined()
+    expect(again.xp).toBeUndefined()
   })
 
   it("writes the Citgo in the account's log once, and the last", () => {

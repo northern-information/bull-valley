@@ -1,6 +1,6 @@
 // The raider's level: one XP bar for the account that everything a raider
 // does feeds (sharedworld.ts rule 22). Burning a shadowman, a ride with
-// Marx, a berry, a pickup, something passed to another raider, a unit bought, a drop the valley left taken up,
+// Marx, a berry, a pickup, something passed to another raider, a unit bought, a drop the valley left taken up, a Citgo or the Keep found,
 // what the Cabbage Stand pays out when collected, and the Caretaker
 // burned (a big jump) each grant the XP below; the curve
 // that turns XP into a level is CONFIG.progression.
@@ -28,6 +28,8 @@ export type XpSource =
   | 'quest'
   | 'warden'
   | 'share'
+  | 'citgo'
+  | 'landmark'
 
 // The XP each grants: every grant in one table.
 export const XP: Readonly<Record<XpSource, number>> = {
@@ -37,8 +39,8 @@ export const XP: Readonly<Record<XpSource, number>> = {
   spider: 20,
   // The Caretaker burned with the raider's beam on it.
   caretaker: 250,
-  // In the bed when Marx gets home: the joyride, or the ride home from a
-  // whistle.
+  // In the bed when Marx gets home (the joyride, or the ride home from a
+  // whistle) or lets them off where the first one in picked (a charter).
   ride: 25,
   // The day's berry off a bush.
   berry: 5,
@@ -62,6 +64,11 @@ export const XP: Readonly<Record<XpSource, number>> = {
   // Something smoked, drunk or swallowed passed to another raider (rule
   // 25). It costs the giver the unit, so it is never free to farm.
   share: 5,
+  // A Citgo stood at for the first time, and a landmark's page first
+  // written in the Book of Shadows (Mt. Coleman's Keep), each once an
+  // account (CONFIG.bounties pays cash beside it).
+  citgo: 10,
+  landmark: 25,
 }
 
 export interface XpGrant {

@@ -32,6 +32,7 @@
 // left, and the object can hibernate again.
 
 import { DurableObject } from 'cloudflare:workers'
+import { bountyOf } from '../src/book.ts'
 import { isSelectable } from '../src/characters.ts'
 import { CONFIG } from '../src/config.ts'
 import { toCosmetics } from '../src/cosmetics.ts'
@@ -274,6 +275,9 @@ export class ValleyDO extends DurableObject<Env> {
         return
       case 'board':
         await this.act(ws, { type: 'board', id, at })
+        return
+      case 'charter':
+        await this.act(ws, { type: 'charter', id, to: msg.to })
         return
       case 'take':
         await this.act(ws, { type: 'take', id, index: msg.index, at })
@@ -717,6 +721,8 @@ export class ValleyDO extends DurableObject<Env> {
       if (change) {
         this.toAccount(change.account, { type: 'citgos', citgos: change.log })
       }
+      // The first time at this Citgo pays its bounty.
+      if (reduced.earn) await this.pay(null, reduced.earn)
     })
   }
 
@@ -1359,7 +1365,7 @@ export class ValleyDO extends DurableObject<Env> {
   // quarters): into the wallet, then the pack and wallet to every socket
   // on the account.
   private async pay(
-    ws: WebSocket,
+    ws: WebSocket | null,
     { account, amount }: { account: string; amount: number }
   ): Promise<void> {
     try {
@@ -1774,8 +1780,19 @@ export class ValleyDO extends DurableObject<Env> {
     }
     await this.forAccount(account, async () => {
       try {
-        const found = await this.packs().discover(account, entries, Date.now())
+        const packs = this.packs()
+        const found = await packs.discover(account, entries, Date.now())
         if (found.length > 0) this.toAccount(account, { type: 'book', found })
+        // A landmark found for the first time pays its bounty, and XP.
+        const bounty = bountyOf(found)
+        if (bounty > 0) {
+          await packs.earn(account, bounty)
+          this.toAccount(
+            account,
+            this.packFrame(account, await packs.get(account))
+          )
+          void this.award([{ account, source: 'landmark' }])
+        }
       } catch (err) {
         console.error('The book could not be written', account, err)
         send(ws, { type: 'nack', re: 'discover', reason: 'unwritten' })

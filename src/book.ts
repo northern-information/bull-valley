@@ -9,6 +9,7 @@
 // the entries are and what an ask adds. The words are COPY.toml's [book]
 // (an item's are its own, [items.<id>]); the portraits are bookportraits.ts's.
 
+import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { itemBlurb, itemLabel } from './itemcopy.ts'
 import { ITEMS } from './items.ts'
@@ -228,6 +229,17 @@ export function newlyFound(
     out.push(id)
   }
   return out
+}
+
+// What finding entries pays, once an account (sharedworld.ts rule 20): a
+// landmark's bounty in cents (Mt. Coleman's Keep), the sum of those among
+// `found`. The Citgos pay on the forecourt instead (rule 28).
+export const BOUNTIES: Readonly<Record<string, number>> = {
+  keep: CONFIG.bounties.keep,
+}
+
+export function bountyOf(found: readonly string[]): number {
+  return found.reduce((sum, id) => sum + (BOUNTIES[id] ?? 0), 0)
 }
 
 // The ids the valley keeps, as the client holds them: real entries only,
