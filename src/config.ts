@@ -386,7 +386,11 @@ export const CONFIG = {
     wanderMetres: 6000, // how far the outbound joyride runs
     // Matthew Marx's day (marx.ts): he reads at the tailgate this long,
     // then does donuts this long, over and over. Climbing into the bed
-    // starts a countdown this long before he leaves on the joyride.
+    // starts a countdown this long before he leaves (marx.ts board): on the
+    // joyride, or wherever the first one in picked on the map (charter).
+    // With no one else in the valley no countdown shows, and he leaves as
+    // soon as the pick is made; this long is only how long he waits for
+    // one.
     readSeconds: 300,
     donutSeconds: 300,
     countdownSeconds: 60,
@@ -870,5 +874,13 @@ export const CONFIG = {
     base: 100,
     power: 1.5,
     maxLevel: 99,
+  },
+  // Finding places pays (sharedworld.ts rule 28 and rule 20), once an
+  // account, in cents: every Citgo the first time it stands on the
+  // forecourt (but the first, the spawn Citgo), and Mt. Coleman's Keep the first time its page is written
+  // in the Book of Shadows (book.ts bountyOf).
+  bounties: {
+    citgo: 500,
+    keep: 2500,
   },
 }

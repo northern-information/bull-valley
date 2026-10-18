@@ -117,6 +117,11 @@ export function planLeg(leg: Leg, ctx: TruckContext): TruckPlan {
       })
     case 'joyride':
       return drive(joyrideRoute(ctx), leg.at, { fromTailgate: true })
+    case 'charter':
+      return drive(callRoute(ctx.graph, ctx.home, leg.to), leg.at, {
+        fromTailgate: true,
+        home: false,
+      })
     case 'called':
       return drive(callRoute(ctx.graph, leg.from, leg.to), leg.at, {
         fromTailgate: leg.rest,

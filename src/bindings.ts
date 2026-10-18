@@ -150,9 +150,12 @@ export const BOOK = {
 } as const satisfies Record<string, Binding>
 
 // With the map open (citgomap.ts): M or Esc closes it; a click on a
-// visited Citgo fast travels there.
+// visited Citgo fast travels there. Opened for a charter (the first one
+// into Marx's bed), a click picks where he goes, closing it takes the
+// joyride, and E hops out.
 export const MAP = {
   close: { codes: ['KeyM', 'Escape'], key: 'M', labelKey: 'keys.close' },
+  hopOut: { codes: ['KeyE'], key: 'E', labelKey: 'keys.interact' },
 } as const satisfies Record<string, Binding>
 
 // With a keeper's dialog open (the Cabbage Stand's, Erwin von Dutch's):

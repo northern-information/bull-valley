@@ -410,10 +410,11 @@ export class Hud {
     return this.map
   }
 
-  // The map opens over the valley as the book does.
-  showMap(show: boolean): boolean {
+  // The map opens over the valley as the book does; for a charter, a
+  // click on it picks where Marx drives.
+  showMap(show: boolean, charter = false): boolean {
     this.root.classList.toggle('bv-shell--inventory', show)
-    return this.map?.show(show) ?? false
+    return this.map?.show(show, charter) ?? false
   }
 
   setHotbar(slots: HotbarSlotView[]): void {

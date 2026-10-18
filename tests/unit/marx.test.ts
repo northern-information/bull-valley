@@ -4,6 +4,7 @@ import {
   arrive,
   board,
   call,
+  charter,
   createTruck,
   homeAt,
   hopOut,
@@ -156,6 +157,91 @@ describe('the bed and the countdown', () => {
       riders: [],
     }
     expect(board(joyride, 'a', T0)).toEqual({ refused: 'gone' })
+  })
+})
+
+describe('the charter', () => {
+  const to = { x: 600, z: -800 }
+
+  it('lets the first one in pick where he goes, leaving when the countdown runs out', () => {
+    const truck = ok(board(ok(board(createTruck(T0), 'a', T0)), 'b', T0))
+    expect(charter(truck, 'b', to, T0, false)).toEqual({ refused: 'not-first' })
+    const picked = ok(charter(truck, 'a', to, T0 + SEC, false))
+    const leaves = T0 + countdownSeconds * SEC
+    expect(picked.leg).toMatchObject({
+      kind: 'parked',
+      leavesAt: leaves,
+      dest: to,
+    })
+    const out = settleTruck(picked, leaves, ROUTES)
+    expect(out.changes).toEqual(['depart'])
+    expect(out.truck).toEqual({
+      leg: { kind: 'charter', at: leaves, to },
+      riders: ['a', 'b'],
+    })
+    // Picking the joyride again forgets the place.
+    const joyride = ok(charter(picked, 'a', null, T0 + SEC, false))
+    expect(joyride.leg).not.toHaveProperty('dest')
+    expect(settleTruck(joyride, leaves, ROUTES).truck.leg.kind).toBe('joyride')
+  })
+
+  it('leaves at once with no one else in the valley', () => {
+    const truck = ok(board(createTruck(T0), 'a', T0))
+    const picked = ok(charter(truck, 'a', to, T0 + SEC, true))
+    expect(nextChange(picked, ROUTES)).toBe(T0 + SEC)
+    expect(settleTruck(picked, T0 + SEC, ROUTES).truck.leg).toEqual({
+      kind: 'charter',
+      at: T0 + SEC,
+      to,
+    })
+  })
+
+  it('lets them off there once the drive is surely done, then drives home', () => {
+    const truck: TruckState = {
+      leg: { kind: 'charter', at: T0, to },
+      riders: ['a'],
+    }
+    const due = nextChange(truck, ROUTES)
+    const straight = Math.hypot(to.x, to.z)
+    expect(due).toBeGreaterThan(
+      T0 + (TO_DOOR_SECONDS + straight / CONFIG.truck.speed) * SEC
+    )
+    const there = settleTruck(truck, due!, ROUTES)
+    expect(there.changes).toEqual(['dropoff'])
+    expect(there.truck).toEqual({
+      leg: {
+        kind: 'parked',
+        at: due,
+        from: {
+          kind: 'called',
+          at: T0,
+          from: ROUTES.home,
+          to,
+          rest: true,
+          cut: due,
+        },
+        leavesAt: null,
+      },
+      riders: [],
+    })
+  })
+
+  it("is no one's to pick once he has left, or with the bed empty", () => {
+    expect(charter(createTruck(T0), 'a', to, T0, true)).toEqual({
+      refused: 'gone',
+    })
+    const away: TruckState = { leg: { kind: 'joyride', at: T0 }, riders: ['a'] }
+    expect(charter(away, 'a', to, T0, true)).toEqual({ refused: 'gone' })
+    // The last one out takes the pick with them.
+    const picked = ok(
+      charter(ok(board(createTruck(T0), 'a', T0)), 'a', to, T0, false)
+    )
+    expect(ok(hopOut(picked, 'a')).leg).toEqual({
+      kind: 'parked',
+      at: T0,
+      from: null,
+      leavesAt: null,
+    })
   })
 })
 

@@ -184,6 +184,39 @@ describe('planLeg', () => {
     })
   })
 
+  it('drives a charter from the tailgate to the place picked, and stops there', () => {
+    const to = near(-300, 0)
+    const plan = planLeg({ kind: 'charter', at: T0, to }, ctx)
+    expect(plan).toMatchObject({
+      kind: 'drive',
+      fromTailgate: true,
+      home: false,
+    })
+    if (plan.kind !== 'drive') throw new Error('not a drive')
+    expect(plan.points[0]).toEqual(home)
+    expect(plan.points[plan.points.length - 1]).toEqual(to)
+    // Let off there, he drives home from where the charter's road ended.
+    const back = planLeg(
+      {
+        kind: 'parked',
+        at: T0 + 600_000,
+        from: {
+          kind: 'called',
+          at: T0,
+          from: home,
+          to,
+          rest: true,
+          cut: T0 + 600_000,
+        },
+        leavesAt: null,
+      },
+      ctx
+    )
+    if (back.kind !== 'drive') throw new Error('not a drive')
+    expect(back.points[0]).toEqual(to)
+    expect(back.points[back.points.length - 1]).toEqual(home)
+  })
+
   it('answers a whistle, then drives the whistler home', () => {
     const to = near(-300, 0)
     expect(

@@ -361,6 +361,12 @@ hop_out_moving = { text = "Boots on gravel. The truck rolls on.", by = "ai" }
 end_of_line = { text = "Back at the Citgo. Marx lights a cigarette.", by = "ai" }
 ride_home = { text = "Marx turns for home.", by = "ai" }
 board_refused = { text = "Marx shakes his head. Not now.", by = "ai" }
+charter = { text = "You tap the cab and point. Marx nods: {place}.", by = "ai" }
+charter_joyride = { text = "You leave it to Marx. The long way, then.", by = "ai" }
+charter_other = { text = "Marx is headed for {place}.", by = "ai" }
+charter_other_joyride = { text = "Marx will take the long way round.", by = "ai" }
+charter_refused = { text = "Marx does not hear you over the engine.", by = "ai" }
+dropoff = { text = "Marx slows and waves you off. He turns for home.", by = "ai" }
 cosmetic_worn = { text = "You wear the {cosmetic}. The whole valley can see it burn.", by = "ai" }
 trade_short = { text = "Moab wants {count} oz of {price}. You do not have it.", by = "ai" }
 trade_owned = { text = "You already wear the {cosmetic}.", by = "ai" }
@@ -450,6 +456,8 @@ portal_busy = { text = "Every line to that Citgo is busy.", by = "ai" }
 portal_refused = { text = "The call drops.", by = "ai" }
 portal_hung_up = { text = "You hang up.", by = "ai" }
 citgo_visited = { text = "You found {citgo}. It is on your map.", by = "ai" }
+citgo_bounty = { text = "You found {citgo}. It is on your map. {cash} for the find.", by = "ai" }
+landmark_bounty = { text = "Not many find this place. {cash} for the find.", by = "ai" }
 travel = { text = "The lights go out and come back on. {citgo}.", by = "ai" }
 travel_away = { text = "Fast travel leaves from a Citgo forecourt.", by = "ai" }
 travel_unvisited = { text = "You have not been to {citgo} yet.", by = "ai" }
@@ -474,6 +482,8 @@ last = { text = "Last Citgo: {citgo}. Your portal goes there.", by = "ai" }
 none = { text = "No Citgo yet. Stand on a forecourt.", by = "ai" }
 hint = { text = "Click a visited Citgo to fast travel.", by = "ai" }
 hint_away = { text = "Fast travel leaves from a Citgo forecourt.", by = "ai" }
+hint_charter = { text = "Click where Marx should take you. Esc for the long way, E to hop out.", by = "ai" }
+somewhere = { text = "the middle of nowhere", by = "ai" }
 citgo = { text = "Citgo on {road}", by = "ai" }
 citgo_unnamed = { text = "Citgo #{n}", by = "ai" }
 

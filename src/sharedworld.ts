@@ -15,7 +15,10 @@
 // 3. Matthew Marx's truck is the valley's (marx.ts): his reading and his
 //    donuts, his countdown once anyone is in the bed, the joyride out and
 //    home, and the whistle. Anyone arriving while he is at his donuts
-//    brings him home.
+//    brings him home. The first one in the bed may pick where he goes
+//    (charter, a point inside the survey): he takes the bed there and lets
+//    them off, then drives home. With no one else in the valley there is
+//    no countdown: he leaves as soon as the pick is made.
 // 4. A pickup goes to whoever asks first; the rest are told it is gone.
 //    One lying in a walled room (PickupSpec.within) goes only to a raider
 //    standing in it.
@@ -196,7 +199,10 @@
 //    every Citgo each account has stood at, and the last (Valley.citgos):
 //    a raider on foot whose last state frame put them within
 //    CONFIG.portal.visitReach of a station's pump island stands at it
-//    (citgoVisits). A raider on foot, out of the bed and away from their
+//    (citgoVisits). The first time an account stands at a Citgo, past the
+//    first it ever stood at (the spawn Citgo), it pays
+//    CONFIG.bounties.citgo into the wallet (Reduced.earn) and earns citgo
+//    XP (rule 22). A raider on foot, out of the bed and away from their
 //    last Citgo, opens a Citgo portal with the phone: it stands a little
 //    ahead of where their last state frame put them, its twin in a free
 //    slot of the ring on that Citgo's lot, where the world was opened with
@@ -241,6 +247,7 @@ import {
   arrive,
   board,
   call,
+  charter,
   createTruck,
   hopOut,
   hurry,
@@ -429,6 +436,9 @@ export type ValleyAction =
   // to it (CONFIG.valleyReach), never to where a frame says they are.
   | { type: 'board'; id: string; at: XZ | null }
   | { type: 'hop-out'; id: string }
+  // Rule 3: where the first one in the bed picked to go, or the joyride
+  // (null).
+  | { type: 'charter'; id: string; to: XZ | null }
   | { type: 'take'; id: string; index: number; at: XZ | null }
   | {
       type: 'buy'
@@ -838,6 +848,7 @@ export function wakeAt(valley: Valley, now: number): number | null {
 const TRUCK_REASONS: Record<TruckChange, WorldReason> = {
   depart: 'depart',
   home: 'home',
+  dropoff: 'dropoff',
   donuts: 'donuts',
   back: 'back',
 }
@@ -873,9 +884,10 @@ function settle(
   const settled = settleTruck(world.truck, now, world.routes)
   // Rule 22: whoever was still in the bed when Marx got home rode with
   // him; one hopping out on the way did not.
-  const xp = settled.changes.includes('home')
-    ? grantsTo(valley, world.truck.riders, 'ride')
-    : []
+  const xp =
+    settled.changes.includes('home') || settled.changes.includes('dropoff')
+      ? grantsTo(valley, world.truck.riders, 'ride')
+      : []
   if (settled.changes.length > 0 && next.world) {
     next = withTruck(next, next.world, settled.truck)
     for (const change of settled.changes) {
@@ -940,6 +952,8 @@ function act(
     case 'hop-out':
     case 'call':
       return onTruck(valley, action, context)
+    case 'charter':
+      return onCharter(valley, action, context)
     case 'take':
       return onTake(valley, action, context)
     case 'buy':
@@ -1155,6 +1169,48 @@ function onTruck(
         : 'called'
   return done(next, now, {
     broadcast: [frame(next, reason, { by: action.id })],
+  })
+}
+
+function onCharter(
+  valley: Valley,
+  action: ActionOf<'charter'>,
+  { now, present }: ValleyContext
+): Reduced {
+  const world = valley.world
+  if (!valley.members[action.id] || !world) {
+    return done(valley, now, {
+      broadcast: [],
+      reply: nack('charter', 'not-in-valley'),
+    })
+  }
+  const { to } = action
+  const { width, height } = world.metres
+  if (to && (Math.abs(to.x) > width / 2 || Math.abs(to.z) > height / 2)) {
+    return done(valley, now, {
+      broadcast: [],
+      reply: nack('charter', 'off-map'),
+    })
+  }
+  // Alone in the valley: no one else here (a second socket on the
+  // account counts as someone).
+  const solo = present.filter((id) => valley.members[id]).length <= 1
+  const truck = charter(world.truck, action.id, to, now, solo)
+  if (refused(truck)) {
+    return done(valley, now, {
+      broadcast: [],
+      reply: nack('charter', truck.refused),
+    })
+  }
+  // Settled at once, so a solo pick leaves now rather than at the next
+  // wake.
+  const settled = settleTruck(truck, now, world.routes)
+  const next = withTruck(valley, world, settled.truck)
+  return done(next, now, {
+    broadcast: [
+      frame(next, 'charted', { by: action.id }),
+      ...settled.changes.map((change) => frame(next, TRUCK_REASONS[change])),
+    ],
   })
 }
 
@@ -1984,10 +2040,23 @@ function onVisit(
   const before = citgosFor(valley, account)
   const log = visit(before, action.station)
   if (log === before) return done(valley, now, { broadcast: [] })
+  // Found: new to the account, and not the first it ever stood at (the
+  // spawn Citgo, where every raider starts).
+  const found =
+    before.visited.length > 0 && !before.visited.includes(action.station)
   return done(
     { ...valley, citgos: { ...valley.citgos, [account]: log } },
     now,
-    { broadcast: [], citgos: { account, log } }
+    {
+      broadcast: [],
+      citgos: { account, log },
+      ...(found
+        ? {
+            earn: { account, amount: CONFIG.bounties.citgo },
+            xp: [{ account, source: 'citgo' as const }],
+          }
+        : {}),
+    }
   )
 }
 

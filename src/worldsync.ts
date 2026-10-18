@@ -56,6 +56,17 @@ export function aboard(world: WorldWire | null, me: string | null): boolean {
   return !!world && me !== null && world.truck.riders.includes(me)
 }
 
+// Rule 3: whether this raider may pick where the truck goes: it is parked
+// at the Citgo and they are the first one in its bed, or it is empty and
+// they are climbing in. A whistled truck only ever goes home.
+export function charterable(
+  truck: TruckState | null,
+  me: string | null
+): boolean {
+  if (!truck || me === null || truck.leg.kind !== 'parked') return false
+  return truck.riders.length === 0 || truck.riders[0] === me
+}
+
 // The bed as this raider holds it: in it or not, and whether a board is
 // asked and not yet answered.
 interface BedState {
