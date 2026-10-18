@@ -8,7 +8,7 @@ import {
   stepTunnelShades,
   tunnelShadesAt,
 } from '../../src/tunnelshades.ts'
-import { ROOMS, UNDERCROFT } from '../../src/undercroft.ts'
+import { inRoom, ROOMS, UNDERCROFT } from '../../src/undercroft.ts'
 import type { XZ } from '../../src/interfaces.ts'
 import type { Raider } from '../../src/shadowmen.ts'
 import type { TunnelShade } from '../../src/tunnelshades.ts'
@@ -104,10 +104,86 @@ describe('the tunnel shades', () => {
     expect(shade.burn).toBe(0)
   })
 
-  it('make the Warden take far longer to burn', () => {
-    expect(CONFIG.tunnel.warden.burnSeconds).toBeGreaterThan(
-      CONFIG.tunnel.shade.burnSeconds * 3
+  it('make the Warden take far longer to burn, over several hits', () => {
+    const { shade, warden } = CONFIG.tunnel
+    expect(shade.hits).toBe(1)
+    expect(warden.hits).toBeGreaterThan(2)
+    expect(warden.burnSeconds * warden.hits).toBeGreaterThan(
+      shade.burnSeconds * 6
     )
+  })
+
+  it('throw the Warden into the dark at each hit, to form again elsewhere, until the last bursts it', () => {
+    const warden = createTunnelShades().find((s) => s.kind === 'warden')
+    if (!warden) throw new Error('no Warden')
+    const rng = mulberry32(3)
+    const wounds: XZ[] = []
+    const bursts: XZ[] = []
+    const spots: XZ[] = []
+    let hidden = 0
+    for (let t = 0; t < 60 && bursts.length === 0; t += 0.1) {
+      if (tunnelShadesAt([warden], place).length === 0) hidden++
+      // Whoever holds the light stands a step off wherever it is.
+      const from = { x: warden.x + 1.5, z: warden.z }
+      const lit = { ...aiming(from, warden), vulnerable: false }
+      const out = stepTunnelShades([warden], rng, {
+        dt: 0.1,
+        raiders: [lit],
+        place,
+      })
+      wounds.push(...out.wounds)
+      bursts.push(...out.bursts)
+      if (out.wounds.length > 0) spots.push({ x: warden.x, z: warden.z })
+    }
+    const { hits } = CONFIG.tunnel.warden
+    expect(wounds).toHaveLength(hits - 1)
+    expect(bursts).toHaveLength(1)
+    expect(hidden).toBeGreaterThan(0)
+    // Every place a hit threw it is in its chamber, and it moved.
+    for (const at of spots) expect(inRoom(ROOMS.deep, at)).toBe(true)
+    expect(
+      spots.some(
+        (at) =>
+          Math.hypot(at.x - UNDERCROFT.warden.x, at.z - UNDERCROFT.warden.z) > 1
+      )
+    ).toBe(true)
+    expect(warden.wounds).toBe(hits)
+    expect(tunnelShadesAt([warden], place)).toEqual([])
+  })
+
+  it('throw the Warden away from every raider when the chamber has room', () => {
+    const warden = createTunnelShades().find((s) => s.kind === 'warden')
+    if (!warden) throw new Error('no Warden')
+    const rng = mulberry32(5)
+    let from = warden as XZ
+    for (let t = 0; t < 10 && warden.wounds === 0; t += 0.1) {
+      from = { x: warden.x + 1.5, z: warden.z }
+      const lit = { ...aiming(from, warden), vulnerable: false }
+      stepTunnelShades([warden], rng, { dt: 0.1, raiders: [lit], place })
+    }
+    expect(warden.wounds).toBe(1)
+    expect(
+      Math.hypot(warden.x - from.x, warden.z - from.z)
+    ).toBeGreaterThanOrEqual(CONFIG.tunnel.warden.blinkFrom)
+  })
+
+  it('let the Warden roam the whole of its chamber, never out of it', () => {
+    const warden = createTunnelShades().find((s) => s.kind === 'warden')
+    if (!warden) throw new Error('no Warden')
+    const rng = mulberry32(11)
+    let far = 0
+    for (let t = 0; t < 240; t += 0.1) {
+      stepTunnelShades([warden], rng, { dt: 0.1, raiders: [], place })
+      expect(inRoom(ROOMS.deep, warden, 0.5)).toBe(true)
+      far = Math.max(
+        far,
+        Math.hypot(
+          warden.x - UNDERCROFT.warden.x,
+          warden.z - UNDERCROFT.warden.z
+        )
+      )
+    }
+    expect(far).toBeGreaterThan(10)
   })
 
   it('keep the Warden in its chamber: it hunts no one outside it', () => {

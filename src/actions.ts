@@ -84,6 +84,7 @@ import type { EmoteId } from './emotes.ts'
 import type { Game } from './game.ts'
 import type { Hotbar } from './hotbar.ts'
 import type { DailyStatus, ShelfSpot } from './interactions.ts'
+import type { XZ } from './interfaces.ts'
 import type { Leg, TruckState } from './marx.ts'
 import type { NpcId } from './npcs.ts'
 import type { BagAction, BagTab } from './packgrid.ts'
@@ -92,8 +93,12 @@ import type {
   GeometrieLevels,
   PassedMessage,
 } from './protocol.ts'
-import type { Burst } from './shadowmen.ts'
+import type { ShadeKind } from './shadowmen.ts'
 import type { Pickup } from './world.ts'
+
+// A shadow that burst, to spill: where, and what kind of shadowman (a
+// tunnel shade has none).
+type Spilled = XZ & { kind?: ShadeKind }
 
 export interface Actions {
   // Redraw the open pack after anything that changes what you carry. The
@@ -211,9 +216,9 @@ export interface Actions {
   closeMap(relock?: boolean): void
   // A Citgo on the map clicked: fast travel there.
   fastTravel(station: number): void
-  // Shadowmen burst: played alone, their dimes (a spider's $20) fall where
-  // they were and their tombstones stand beside them.
-  spillBursts(bursts: readonly Burst[]): void
+  // Shadows burst: played alone, their dimes (a spider's $20) fall where
+  // they were, and each shadowman's tombstone stands beside them.
+  spillBursts(bursts: readonly Spilled[]): void
   // The left button: the flashlight up and on, or down and off.
   toggleFlashlight(): void
   // The pickup is ours: into the pack.
@@ -1038,11 +1043,12 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     refreshBag()
   }
 
-  // Shadowmen burst where `bursts` say: played alone each leaves its dimes
-  // lying there, and each spider its $20 (sharedworld.ts rule 11), and its
-  // tombstone, named, beside them (rule 17). In the valley the valley does
+  // Shadows burst where `bursts` say: played alone each leaves its dimes
+  // lying there, and each spider its $20 (sharedworld.ts rule 11), and each
+  // shadowman its tombstone, named, beside them (rule 17); a burst with no
+  // kind (a tunnel shade) is never buried. In the valley the valley does
   // both.
-  const spillBursts = (bursts: readonly Burst[]) => {
+  const spillBursts = (bursts: readonly Spilled[]) => {
     if (s.world || bursts.length === 0) return
     const cash = spillsOf(bursts, null, Math.random).map((spill) => ({
       id: s.nextDrop++,
@@ -1050,7 +1056,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     }))
     s.drops = [...s.drops, ...cash]
     game.drops.sync(s.drops)
-    const buried = bury(s.graves, s.nextGrave, burialsOf(bursts, Math.random))
+    const shades = bursts.flatMap(({ x, z, kind }) =>
+      kind ? [{ x, z, kind }] : []
+    )
+    const buried = bury(s.graves, s.nextGrave, burialsOf(shades, Math.random))
     s.graves = buried.graves
     s.nextGrave = buried.next
     game.graves.sync(s.graves)

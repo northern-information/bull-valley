@@ -1,5 +1,5 @@
 // Tombstones, pure: every shadowman burnt in a beam leaves one where it
-// burst, carved with the name it is given then (names.ts). sharedworld.ts
+// burst (no other shadow does), carved with the name it is given then (names.ts). sharedworld.ts
 // keeps the valley's (rule 17), actions.ts the ones a raider playing alone
 // makes. No three.js, no DOM.
 
@@ -22,14 +22,15 @@ export interface Burial extends XZ {
   name: string
 }
 
-// Names for the shadowmen that burst at `bursts`, one each. A spiderling
-// is too small a thing to bury.
+// Names for the shadowmen that burst at `bursts`, one each. Only a
+// shadowman is buried: a spider, a spiderling, a tunnel shade or the
+// Warden leaves no stone.
 export function burialsOf(
-  bursts: readonly (XZ & { kind?: ShadeKind })[],
+  bursts: readonly (XZ & { kind: ShadeKind })[],
   rng: Rng
 ): Burial[] {
   return bursts
-    .filter(({ kind }) => kind !== 'spiderling')
+    .filter(({ kind }) => kind === 'man')
     .map(({ x, z }) => ({ x, z, name: generateName(rng) }))
 }
 

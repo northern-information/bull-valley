@@ -628,17 +628,31 @@ export const CONFIG = {
       respawnSeconds: 90,
       patrolRadius: 8,
       chestHeight: 1.2,
+      // Beams held burnSeconds this many times burst it; one, for a shade.
+      hits: 1,
+      // A hit that leaves it standing: gone this long, then formed again
+      // somewhere in its room at least blinkFrom metres from every raider.
+      blinkSeconds: 0,
+      blinkFrom: 0,
     },
+    // The Warden roams the whole deep chamber through its ruins, hunts
+    // only a little slower than a walk, and takes four hits, each a beam
+    // held burnSeconds on it: a hit throws it into the dark, and it forms
+    // again elsewhere among the broken walls, its wounds kept until it
+    // bursts.
     warden: {
-      patrolSpeed: 0.5,
-      huntSpeed: 3.0,
-      sightRange: 18,
-      senseRadius: 3,
+      patrolSpeed: 1.6,
+      huntSpeed: 3.8,
+      sightRange: 22,
+      senseRadius: 3.5,
       touchRadius: 1.4,
-      burnSeconds: 4,
+      burnSeconds: 2.2,
       respawnSeconds: 300,
-      patrolRadius: 2.5,
+      patrolRadius: 30,
       chestHeight: 1.8,
+      hits: 4,
+      blinkSeconds: 1.6,
+      blinkFrom: 9,
     },
     forgetSeconds: 4,
     rethinkSeconds: 0.75,
@@ -755,7 +769,7 @@ export const CONFIG = {
   // huntSpeed (faster than a walk, slower than a sprint), and gives up
   // forgetSeconds after it last saw them. Its touch at touchRadius is a
   // strike, as a shadowman's. Two raiders' beams on it at once for
-  // burnSeconds unmake it, and it forms again at the heart respawnSeconds
+  // burnSeconds burn it, and it forms again at the heart respawnSeconds
   // later; one beam alone does nothing. It floats hover metres over the
   // paths, and a beam is aimed at chestHeight over the holder's feet.
   caretaker: {
@@ -777,7 +791,7 @@ export const CONFIG = {
     // often a hunt works out its way through the paths again, in seconds.
     clearance: 0.45,
     rethinkSeconds: 0.5,
-    // Unmade, it leaves this many 1 troy ounce bars of gold bullion lying
+    // Burned, it leaves this many 1 troy ounce bars of gold bullion lying
     // where it was, each a drop of its own (drops.ts spillsOf).
     bullion: 2,
   },

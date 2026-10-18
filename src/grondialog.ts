@@ -327,6 +327,6 @@ export function openGronDialog({
 
     check()
     showCharacter()
-    closeBtn.focus()
+    closeBtn.focus({ preventScroll: true })
   })
 }

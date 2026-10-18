@@ -27,7 +27,7 @@ import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 34
+export const PROTOCOL_VERSION = 35
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -614,8 +614,8 @@ export interface SeasonWire {
   claimed: boolean
 }
 
-// The account was credited with unmaking the Caretaker. Sent to every
-// socket signed in to it; `rewarded` when this unmaking finished the
+// The account was credited with burning the Caretaker. Sent to every
+// socket signed in to it; `rewarded` when this burning finished the
 // season and paid its reward (a pack frame follows with it).
 export interface SeasonMessage {
   type: 'season'
@@ -771,7 +771,7 @@ export interface ShadowmanWire {
 }
 
 // The Caretaker as the valley sends it (rule 13): where it floats, how
-// far through being unmade by two beams (0 to 1), and the raider it hunts.
+// far through being burned by two beams (0 to 1), and the raider it hunts.
 export interface CaretakerWire {
   x: number
   z: number
@@ -792,17 +792,20 @@ export interface TunnelShadeWire {
   x: number
   z: number
   burn: number
+  // The share of its hits it has taken (0 to 1; the Warden takes several,
+  // CONFIG.tunnel.warden.hits), kept until it bursts.
+  hurt: number
   target: string | null
 }
 
-// One that burst this step.
+// One that burst this step, or (tunnelWounds) took a hit it stands.
 export interface TunnelBurstWire extends XZ {
   kind: TunnelKind
 }
 
 // Every step of the valley's shadowmen (CONFIG.shadowmen.tickHz a second),
 // to everyone: all of them, and the ones that burst this step; the
-// Caretaker, null while it is unmade, and where it was unmade this step.
+// Caretaker, null while it is burned, and where it was burned this step.
 export interface ShadowmenMessage {
   type: 'shadowmen'
   shadowmen: ShadowmanWire[]
@@ -810,10 +813,11 @@ export interface ShadowmenMessage {
   lunges: number[]
   bursts: Burst[]
   caretaker: CaretakerWire | null
-  unmade: XZ | null
+  burned: XZ | null
   // The Undercroft's tunnel shades, and the ones that burst this step.
   tunnel: TunnelShadeWire[]
   tunnelBursts: TunnelBurstWire[]
+  tunnelWounds: TunnelBurstWire[]
 }
 
 // A shadowman, or the Caretaker, touched this raider (sharedworld.ts rule

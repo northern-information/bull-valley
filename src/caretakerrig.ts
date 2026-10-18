@@ -1,11 +1,11 @@
 // The Caretaker as seen (caretaker.ts): its body (assets.ts buildCaretaker)
 // floating over the maze's paths, turned to face the player, shaking and
-// paling as two beams unmake it, drawing its lantern back as it winds up
+// paling as two beams burn it, drawing its lantern back as it winds up
 // to strike and lurching out as it lunges. In the shared valley it is the valley's
 // (sharedworld.ts rule 13): it rides in the shadowmen frames and is drawn a
 // beat behind the present, between the last two. Played alone, this steps
 // a Caretaker of its own with the player as the one raider, and one
-// flashlight can never unmake it.
+// flashlight can never burn it.
 
 import * as THREE from 'three'
 import { buildCaretaker } from './assets.ts'
@@ -55,9 +55,9 @@ export interface CaretakerShadeUpdate {
   // It caught the player, played alone; in the shared valley a struck
   // frame says so.
   struck: boolean
-  // Where it was unmade since the last update.
-  unmade: XZ[]
-  // How far it floats from the player, or null while it is unmade (the
+  // Where it was burned since the last update.
+  burned: XZ[]
+  // How far it floats from the player, or null while it is burned (the
   // Book of Shadows).
   distance: number | null
   // What it sounds like this frame (sfx.ts).
@@ -67,7 +67,7 @@ export interface CaretakerShadeUpdate {
 export class CaretakerShade {
   // Played alone: the Caretaker this client steps.
   own: Caretaker
-  // Where it stands as last drawn, for the dev hook; null while unmade.
+  // Where it stands as last drawn, for the dev hook; null while burned.
   shown: CaretakerWire | null = null
   private maze: MazePlace | null
   private groundAt: HeightAt
@@ -108,7 +108,7 @@ export class CaretakerShade {
   receive(msg: ShadowmenMessage, at: number): void {
     this.prev = this.next
     this.next = { at, caretaker: msg.caretaker }
-    if (msg.unmade) this.pending.push(msg.unmade)
+    if (msg.burned) this.pending.push(msg.burned)
     if (msg.caretaker?.lunge) {
       this.lunging = 0
       this.lunged = true
@@ -168,13 +168,13 @@ export class CaretakerShade {
       if (this.lunging >= LUNGE_SECONDS) this.lunging = null
     }
     this.draw(shown, player, time)
-    const unmade = this.pending
+    const burned = this.pending
     this.pending = []
     const heard = keeperCues(
       this.begun,
       this.lunged,
       shown,
-      unmade,
+      burned,
       player,
       CONFIG.sfx
     )
@@ -183,11 +183,11 @@ export class CaretakerShade {
     const distance = shown
       ? Math.hypot(shown.x - player.x, shown.z - player.z)
       : null
-    return { struck, unmade, distance, heard }
+    return { struck, burned, distance, heard }
   }
 
   // The valley's Caretaker at renderAt, between the last two frames; it
-  // shows as soon as it forms and is gone as soon as it is unmade.
+  // shows as soon as it forms and is gone as soon as it is burned.
   private sample(renderAt: number): CaretakerWire | null {
     const { prev, next } = this
     const now = next?.caretaker ?? null

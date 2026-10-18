@@ -1912,9 +1912,10 @@ describe("rule 11: the shadowmen are the valley's", () => {
       lunges: [1, 2],
       bursts: [],
       caretaker: null,
-      unmade: null,
+      burned: null,
       tunnel: [],
       tunnelBursts: [],
+      tunnelWounds: [],
     }
     const near = shadowmenNear(frame, { x: 0, z: 0 }, 100)
     expect(near.shadowmen.map((m) => m.id)).toEqual([1, 3])
@@ -2340,7 +2341,7 @@ describe('rule 13: the Caretaker keeps the maze', () => {
     }
   })
 
-  it('shrugs off one beam, is unmade by two, and forms again at the heart', () => {
+  it('shrugs off one beam, is burned by two, and forms again at the heart', () => {
     const v = valley()
     const shadows = createShadows()
     placeCaretaker(v, shadows, at().x, at().z)
@@ -2362,18 +2363,18 @@ describe('rule 13: the Caretaker keeps the maze', () => {
     // Two at once, halfway.
     out = step(one, CONFIG.caretaker.burnSeconds / 2)
     expect(out?.message.caretaker?.burn).toBe(0.5)
-    expect(out?.message.unmade).toBeNull()
+    expect(out?.message.burned).toBeNull()
     expect(out?.credited).toEqual([])
-    // Unmade where it floated, wandering as it was, and both accounts
+    // Burned where it floated, wandering as it was, and both accounts
     // credited with it (rule 15).
     const last = out?.message.caretaker
     out = step(one, CONFIG.caretaker.burnSeconds / 2)
-    expect(out?.message.unmade).toEqual({ x: last?.x, z: last?.z })
+    expect(out?.message.burned).toEqual({ x: last?.x, z: last?.z })
     expect(out?.credited).toEqual(['acct-a', 'acct-b'])
     // Each earns the big jump (rule 22).
     expect(out?.xp).toEqual([
-      { account: 'acct-a', source: 'unmake' },
-      { account: 'acct-b', source: 'unmake' },
+      { account: 'acct-a', source: 'caretaker' },
+      { account: 'acct-b', source: 'caretaker' },
     ])
     expect(out?.message.caretaker).toBeNull()
     out = step(one, CONFIG.caretaker.respawnSeconds - 1)
@@ -2395,7 +2396,7 @@ describe('rule 13: the Caretaker keeps the maze', () => {
       { now: T0, dt: 0.1 }
     )
     expect(out?.message.caretaker).toBeNull()
-    expect(out?.message.unmade).toBeNull()
+    expect(out?.message.burned).toBeNull()
   })
 })
 

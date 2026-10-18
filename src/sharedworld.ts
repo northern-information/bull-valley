@@ -76,8 +76,8 @@
 //    It walks the maze's paths, hunts a raider in the maze it sees who
 //    could be rushed by a shadowman, and its touch strikes them the same
 //    way. One beam does nothing to it; two raiders' beams on it at once,
-//    held, unmake it, and it forms again at the heart minutes later.
-//    Unmade, it leaves two 1 troy ounce bars of gold bullion lying where
+//    held, burn it, and it forms again at the heart minutes later.
+//    Burned, it leaves two 1 troy ounce bars of gold bullion lying where
 //    it was (drops.ts spillsOf), each a drop like any other (rule 12) that
 //    goes into the taker's pack.
 // 14. Moab Coldë trades cosmetics for what the pack holds (cosmetics.ts):
@@ -86,10 +86,10 @@
 //    trade the pack does not cover (ValleyContext.holdings in,
 //    Reduced.trade out) and writes the price and the cosmetic together.
 // 15. The season (season.ts): every raider whose beam was on the
-//    Caretaker when it came apart is credited with the unmaking, once per
+//    Caretaker when it came apart is credited with the burning, once per
 //    account however many of its sockets held a beam on it. The progress
 //    is the account's, kept by the valley in D1 beside the wallet, and the
-//    unmaking that finishes the season pays its reward once.
+//    burning that finishes the season pays its reward once.
 // 16. The daily task (dailytask.ts): every raider whose beam was on a
 //    shadowman as it burst is credited with the burn, once per account
 //    however many of its sockets held a beam on it. The progress is the
@@ -129,7 +129,7 @@
 //    is kept.
 // 22. The raider's level (progression.ts): one XP bar for the account,
 //    fed by everything. A shadowman or spider burst in the raider's beam,
-//    the Caretaker unmade with it (a big jump), a ride with Marx that
+//    the Caretaker burned with it (a big jump), a ride with Marx that
 //    gets home with them in the bed, the day's berry off a bush, a pickup,
 //    a unit bought, a drop the valley left taken up, and what the Cabbage
 //    Stand pays out when collected (by the cents, rule 23) each earn the
@@ -327,7 +327,7 @@ import type {
   TruckPose,
 } from './shadowmen.ts'
 import type { StandLedger } from './stand.ts'
-import type { TunnelBurst, TunnelShade } from './tunnelshades.ts'
+import type { TunnelBurst, TunnelShade, TunnelUpdate } from './tunnelshades.ts'
 import type { WaterMap } from './waterside.ts'
 
 // A raider online: one socket.
@@ -1418,7 +1418,7 @@ function act(
 
     case 'spill': {
       // Rules 11 and 13: each burst leaves its dimes lying where it was,
-      // and the Caretaker unmade its gold bullion. Only cash or an item.
+      // and the Caretaker burned its gold bullion. Only cash or an item.
       // Rule 17: each burst shadowman its tombstone.
       const world = valley.world
       const spills = action.spills.filter(
@@ -2039,13 +2039,13 @@ export function stepShadows(
   caught: string[]
   // Struck by a tunnel shade.
   tunneled: string[]
-  // Rule 15: the accounts credited with unmaking the Caretaker this step.
+  // Rule 15: the accounts credited with burning the Caretaker this step.
   credited: string[]
   // Rule 16: the accounts credited with a burn this step, once for each
   // shadowman each burned. A spiderling is no shadowman, and a spider's
   // brood would all but finish the day's task on its own.
   burned: string[]
-  // Rule 22: the XP those burns and that unmaking earned.
+  // Rule 22: the XP those burns and that burning earned.
   xp: XpGrant[]
 } | null {
   const world = valley.world
@@ -2075,7 +2075,7 @@ export function stepShadows(
   )
   // Rule 13: the Caretaker, in the maze the world was opened with.
   let caretaker: CaretakerWire | null = null
-  let unmade: XZ | null = null
+  let burned: XZ | null = null
   const caught: string[] = []
   let credited: string[] = []
   if (world.maze) {
@@ -2086,9 +2086,9 @@ export function stepShadows(
     })
     caught.push(...out.struck)
     const { lunged } = out
-    credited = creditedWith(valley, out.unmadeBy)
+    credited = creditedWith(valley, out.burnedBy)
     for (const id of out.struck) if (!struck.includes(id)) struck.push(id)
-    unmade = out.burst && {
+    burned = out.burst && {
       x: round(out.burst.x, 2),
       z: round(out.burst.z, 2),
     }
@@ -2114,6 +2114,7 @@ export function stepShadows(
   // The tunnel shades, in the Undercroft.
   const tunneled: string[] = []
   let tunnelBursts: TunnelBurst[] = []
+  let tunnelWounds: TunnelUpdate['wounds'] = []
   if (croft) {
     const out = stepTunnelShades(shadows.tunnel, rng, {
       dt,
@@ -2122,6 +2123,7 @@ export function stepShadows(
       calm,
     })
     tunnelBursts = out.bursts
+    tunnelWounds = out.wounds
     for (const id of out.struck) {
       tunneled.push(id)
       if (!struck.includes(id)) struck.push(id)
@@ -2163,7 +2165,7 @@ export function stepShadows(
         z: round(b.z, 2),
       })),
       caretaker,
-      unmade,
+      burned,
       tunnel: croft
         ? tunnelShadesAt(shadows.tunnel, croft).map((s) => ({
             id: s.id,
@@ -2174,10 +2176,16 @@ export function stepShadows(
               Math.min(1, s.burn / CONFIG.tunnel[s.kind].burnSeconds),
               2
             ),
+            hurt: round(s.wounds / CONFIG.tunnel[s.kind].hits, 2),
             target: s.target,
           }))
         : [],
       tunnelBursts: tunnelBursts.map((b) => ({
+        kind: b.kind,
+        x: round(b.x, 2),
+        z: round(b.z, 2),
+      })),
+      tunnelWounds: tunnelWounds.map((b) => ({
         kind: b.kind,
         x: round(b.x, 2),
         z: round(b.z, 2),
@@ -2202,7 +2210,7 @@ export function stepShadows(
       ...tunnelBursts.flatMap((b) =>
         grantsTo(valley, b.by, b.kind === 'warden' ? 'warden' : 'burn')
       ),
-      ...credited.map((account) => ({ account, source: 'unmake' as const })),
+      ...credited.map((account) => ({ account, source: 'caretaker' as const })),
     ],
   }
 }
@@ -2253,7 +2261,7 @@ export function citgoVisits(
   return visits
 }
 
-// Rules 15, 16 and 22: the accounts behind the sockets whose beams unmade the
+// Rules 15, 16 and 22: the accounts behind the sockets whose beams burned the
 // Caretaker or burst a shadowman, each once, in the order their beams were
 // counted.
 export function creditedWith(valley: Valley, ids: readonly string[]): string[] {
@@ -2277,7 +2285,7 @@ export function placeShadowman(
 }
 
 // A dev server's Caretaker moved to (x, z) in the world, formed if it was
-// unmade, with its mind wiped, floating still there until it has someone
+// burned, with its mind wiped, floating still there until it has someone
 // to hunt, for the specs. Nothing without a maze.
 export function placeCaretaker(
   valley: Valley,

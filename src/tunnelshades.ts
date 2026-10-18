@@ -4,8 +4,11 @@
 // close) it hunts down the passages, slower than a walk, and its touch is
 // a strike, as a shadowman's. One raider's beam held on one for a moment
 // bursts it into mist, and it forms again in its lair later. The Warden is
-// one of them, bigger and slower to burn, that never leaves the deep
-// chamber where it keeps the altar.
+// one of them, bigger, that never leaves the deep chamber where it keeps
+// the altar but roams the whole of it through the broken walls, and takes
+// several hits (CONFIG.tunnel.warden.hits): each beam held long enough
+// throws it into the dark, and it forms again somewhere else in the ruins,
+// away from every raider, until the last hit bursts it.
 //
 // Pure, no three.js. In the Undercroft's own metres; MazePlace carries a
 // raider's world position in and a shade's out, as for the Caretaker,
@@ -44,6 +47,10 @@ export interface TunnelShade {
   rethink: number
   // Seconds held in a beam, running back down outside one.
   burn: number
+  // Hits taken (each a beam held burnSeconds), kept until it bursts.
+  wounds: number
+  // Seconds until it forms again where a hit threw it; 0 while it walks.
+  blink: number
   // Seconds until it forms again in its lair; 0 while it walks.
   gone: number
 }
@@ -61,6 +68,8 @@ function fresh(id: number, kind: TunnelKind, lair: XZ): TunnelShade {
     forget: 0,
     rethink: 0,
     burn: 0,
+    wounds: 0,
+    blink: 0,
     gone: 0,
   }
 }
@@ -91,6 +100,9 @@ export interface TunnelBurst extends XZ {
 export interface TunnelUpdate {
   struck: string[]
   bursts: TunnelBurst[]
+  // Where one took a hit and went into the dark, standing yet, in world
+  // metres.
+  wounds: (XZ & { kind: TunnelKind })[]
 }
 
 function giveUp(shade: TunnelShade): void {
@@ -108,7 +120,7 @@ export function stepTunnelShades(
   cfg: TunnelConfig = CONFIG.tunnel,
   map: MazeMap = theUndercroft()
 ): TunnelUpdate {
-  const out: TunnelUpdate = { struck: [], bursts: [] }
+  const out: TunnelUpdate = { struck: [], bursts: [], wounds: [] }
   const local = raiders.map((r) => ({ r, at: worldToMaze(place, r) }))
   const below = local.filter(({ at }) => inMaze(map.size, at.x, at.z))
   for (const shade of shades) {
@@ -117,6 +129,10 @@ export function stepTunnelShades(
       shade.gone = Math.max(0, shade.gone - dt)
       if (shade.gone === 0)
         Object.assign(shade, fresh(shade.id, shade.kind, shade.lair))
+      continue
+    }
+    if (shade.blink > 0) {
+      shade.blink = Math.max(0, shade.blink - dt)
       continue
     }
 
@@ -133,9 +149,19 @@ export function stepTunnelShades(
     shade.burn =
       holders.length > 0 ? shade.burn + dt : Math.max(0, shade.burn - dt)
     if (shade.burn >= tune.burnSeconds) {
-      out.bursts.push({ ...world, kind: shade.kind, by: holders })
       giveUp(shade)
       shade.burn = 0
+      shade.wounds += 1
+      if (shade.wounds < tune.hits) {
+        // A hit it stands: into the dark, to form again elsewhere.
+        out.wounds.push({ ...world, kind: shade.kind })
+        const to = blinkSpot(shade, below, map, rng, tune.blinkFrom)
+        shade.x = to.x
+        shade.z = to.z
+        shade.blink = tune.blinkSeconds
+        continue
+      }
+      out.bursts.push({ ...world, kind: shade.kind, by: holders })
       shade.gone = tune.respawnSeconds
       continue
     }
@@ -210,13 +236,11 @@ export function stepTunnelShades(
     // Drifting round its lair: to a floor cell within patrolRadius of it,
     // then another.
     if (shade.route.length === 0) {
-      const near = map.cells
-        .map((cell) => cellPoint(map.grid, map.size, cell))
-        .filter(
-          (p) =>
-            Math.hypot(p.x - shade.lair.x, p.z - shade.lair.z) <=
-            tune.patrolRadius
-        )
+      const near = roomCells(shade, map).filter(
+        (p) =>
+          Math.hypot(p.x - shade.lair.x, p.z - shade.lair.z) <=
+          tune.patrolRadius
+      )
       const to =
         near.length > 0 ? near[Math.floor(rng() * near.length)] : shade.lair
       shade.route = routeTo(map, shade, to)
@@ -226,12 +250,50 @@ export function stepTunnelShades(
   return out
 }
 
-// Where each shade walks in the world, the unmade left out.
+// The floor a shade keeps to: the Warden its chamber, any other the
+// floor round its lair.
+function roomCells(shade: TunnelShade, map: MazeMap): XZ[] {
+  const cells = map.cells.map((cell) => cellPoint(map.grid, map.size, cell))
+  return shade.kind === 'warden'
+    ? cells.filter((p) => inRoom(ROOMS.deep, p))
+    : cells
+}
+
+// Where a hit throws a shade: a floor cell of its room at least `from`
+// metres from every raider down here, or, with none so far, the furthest.
+function blinkSpot(
+  shade: TunnelShade,
+  below: readonly { at: XZ }[],
+  map: MazeMap,
+  rng: Rng,
+  from: number
+): XZ {
+  const cells = roomCells(shade, map)
+  const nearest = (p: XZ) =>
+    below.reduce(
+      (d, { at }) => Math.min(d, Math.hypot(at.x - p.x, at.z - p.z)),
+      Infinity
+    )
+  const far = cells.filter((p) => nearest(p) >= from)
+  if (far.length > 0) return far[Math.floor(rng() * far.length)]
+  let best: XZ = shade.lair
+  let bestD = -1
+  for (const p of cells) {
+    const d = nearest(p)
+    if (d > bestD) {
+      bestD = d
+      best = p
+    }
+  }
+  return best
+}
+
+// Where each shade walks in the world, the burned and the thrown left out.
 export function tunnelShadesAt(
   shades: readonly TunnelShade[],
   place: MazePlace
 ): (TunnelShade & { world: XZ })[] {
   return shades
-    .filter((shade) => shade.gone <= 0)
+    .filter((shade) => shade.gone <= 0 && shade.blink <= 0)
     .map((shade) => ({ ...shade, world: mazeToWorld(place, shade) }))
 }

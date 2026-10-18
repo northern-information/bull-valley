@@ -98,7 +98,7 @@ export function openStandDialog(options: StandDialogOptions): Promise<void> {
     <span class="bv-npc-arrow">→</span>
     <span class="bv-npc-then" data-bv="${bv}-then"></span>`
   root.innerHTML = `
-    <div class="bv-npc-ui">
+    <div class="bv-npc-ui bv-npc-ui--wide">
       ${npcHeader({
         titleId: 'bv-stand-title',
         title: copy('stand.title'),
@@ -140,7 +140,7 @@ export function openStandDialog(options: StandDialogOptions): Promise<void> {
         </div>
         <p class="bv-npc-hint" data-bv="stand-table-full"></p>
       </section>
-      <section class="bv-npc-section">
+      <section class="bv-npc-section bv-npc-side">
         ${sectionHead(3, '', 'stand-next')}
         <div class="bv-npc-grid bv-npc-grid--top" data-bv="stand-next-body">
           <div class="bv-npc-compare bv-npc-c6">
@@ -409,6 +409,6 @@ export function openStandDialog(options: StandDialogOptions): Promise<void> {
     document.addEventListener('keydown', onKey)
 
     refresh()
-    closeBtn.focus()
+    closeBtn.focus({ preventScroll: true })
   })
 }

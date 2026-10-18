@@ -77,7 +77,7 @@ export function openDealDialog(options: DealDialogOptions): Promise<void> {
     )
     .join('')
   root.innerHTML = `
-    <div class="bv-npc-ui">
+    <div class="bv-npc-ui bv-npc-ui--wide">
       ${npcHeader({
         titleId: 'bv-deal-title',
         title: copy('outfits.squatter'),
@@ -94,7 +94,7 @@ export function openDealDialog(options: DealDialogOptions): Promise<void> {
           <span class="bv-npc-label">${copy('dealer.pay_hint')}</span>
         </div>
       </section>
-      <section class="bv-npc-section">
+      <section class="bv-npc-section bv-npc-side">
         ${sectionHead(2, copy('dealer.goods'), 'deal-restocks')}
         <div class="bv-npc-table">
           <div class="bv-npc-grid bv-npc-row bv-npc-row--head">
@@ -257,6 +257,6 @@ export function openDealDialog(options: DealDialogOptions): Promise<void> {
     document.addEventListener('keydown', onKey)
 
     refresh()
-    closeBtn.focus()
+    closeBtn.focus({ preventScroll: true })
   })
 }

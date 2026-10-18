@@ -70,13 +70,13 @@ perception = { text = "Perception: the shadows show through the fog", by = "ai" 
 kicker = { text = "Season One", by = "ai" }
 title = { text = "The Caretaker", by = "ai" }
 live = { text = "Now Live", by = "ai" }
-challenge = { text = "Unmake the Caretaker {goal} times. It takes two flashlights on him at once, held, in the corn maze.", by = "ai" }
+challenge = { text = "Burn the Caretaker {goal} times. It takes two flashlights on him at once, held, in the corn maze.", by = "ai" }
 reward = { text = "Reward: {cash} and a carton of Marlboro Reds", by = "ai" }
 progress = { text = "{kills}/{goal}", by = "ai" }
 complete = { text = "Complete", by = "ai" }
-tracker_label = { text = "Season One: the Caretaker unmade {kills} of {goal} times", by = "ai" }
-banner_unmade = { text = "Caretaker Unmade {kills}/{goal}", by = "ai" }
-banner_unmade_again = { text = "Caretaker Unmade", by = "ai" }
+tracker_label = { text = "Season One: the Caretaker burned {kills} of {goal} times", by = "ai" }
+banner_burned = { text = "Caretaker Burned {kills}/{goal}", by = "ai" }
+banner_burned_again = { text = "Caretaker Burned", by = "ai" }
 banner_complete = { text = "Season Complete", by = "ai" }
 banner_paid = { text = "+{cash} · Carton of Marlboro Reds", by = "ai" }
 
@@ -224,13 +224,17 @@ lore = { text = "A light on the hill to the north. The beacon burns whether anyo
 [book.shadowman]
 lore = { text = "They cross the valley round every raider, the same ones for everyone. Close enough, one rushes, draws back, and lunges, and its touch takes a piece of you; the third sends you back to the Citgo with nothing. Hold a beam on one and it comes apart into mist and skulls, and leaves its dimes.", by = "ai" }
 
+[book.spider]
+name = { text = "Shadow Spider", by = "ai" }
+lore = { text = "A black spider twice a shadowman's height, high on its long legs, eight red eyes burning through the fog. They come up anywhere, and far more often near water. One takes twice as long in a beam to burst, and reaches further when it strikes; it leaves a $20 bill and breaks into a brood of spiderlings.", by = "ai" }
+
 [book.spiderling]
 name = { text = "Spiderling", by = "ai" }
 lore = { text = "Burn a shadow spider and it breaks into a brood of these: small, quick, and straight at whoever is nearest. A touch costs the same as any shadow's. A beam takes them apart in a blink, and each leaves a few dimes.", by = "ai" }
 
 [book.caretaker]
 name = { text = "The Caretaker", by = "ai" }
-lore = { text = "A hooded shade with a cold lantern who keeps the corn maze. One light does nothing to it. Two, held together, unmake it, and it forms again at the heart.", by = "ai" }
+lore = { text = "A hooded shade with a cold lantern who keeps the corn maze. One light does nothing to it. Two, held together, burn it, and it forms again at the heart.", by = "ai" }
 
 [book.tunnel-shade]
 name = { text = "Tunnel Shade", by = "ai" }
@@ -238,7 +242,7 @@ lore = { text = "Hunched shapes that keep to the Undercroft's rooms, slower than
 
 [book.warden]
 name = { text = "The Warden", by = "ai" }
-lore = { text = "Crowned in iron, hung with chain, it stands before the altar at the bottom of the Undercroft and never leaves. Hold your light on it a long while.", by = "ai" }
+lore = { text = "Crowned in iron, hung with chain, it keeps the altar at the bottom of the Undercroft and roams the ruins round it, never leaving its chamber. A light held on it long enough throws it into the dark, and it comes back somewhere else among the broken walls; it takes four of those before it bursts.", by = "ai" }
 
 [book.marx]
 lore = { text = "Reads at his tailgate by the Citgo, does donuts across the road, and comes when you whistle. Climb into the bed and he will take you out through the valley and home.", by = "ai" }
@@ -342,9 +346,9 @@ trade_owned = { text = "You already wear the {cosmetic}.", by = "ai" }
 trade_refused = { text = "Moab turns the scroll in the fire. Not now.", by = "ai" }
 marx_donuts = { text = "Somewhere across the road, tires tear up a field.", by = "ai" }
 marx_back = { text = "Marx comes back across the road and picks up his book.", by = "ai" }
-season_live = { text = "Season One: The Caretaker is live. Unmake him {goal} times for {cash} and a carton of Marlboro Reds.", by = "ai" }
-season_unmade = { text = "You helped unmake the Caretaker. {kills} of {goal} for Season One.", by = "ai" }
-season_unmade_again = { text = "You helped unmake the Caretaker again.", by = "ai" }
+season_live = { text = "Season One: The Caretaker is live. Burn him {goal} times for {cash} and a carton of Marlboro Reds.", by = "ai" }
+season_burned = { text = "You helped burn the Caretaker. {kills} of {goal} for Season One.", by = "ai" }
+season_burned_again = { text = "You helped burn the Caretaker again.", by = "ai" }
 task_burned = { text = "Shadowman burned: {count}/{goal} for today's task.", by = "ai" }
 task_reward = { text = "Daily task done: {goal} shadowmen burned. {cash} into your wallet.", by = "ai" }
 season_reward = { text = "Season One complete. {cash} and a carton of Marlboro Reds are in your pack.", by = "ai" }

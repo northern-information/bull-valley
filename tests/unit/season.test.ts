@@ -9,7 +9,7 @@ import {
 } from '../../src/season.ts'
 
 describe('Season One: The Caretaker', () => {
-  it('asks for five unmakings and pays $100 and a carton of Reds', () => {
+  it('asks for five burnings and pays $100 and a carton of Reds', () => {
     expect(SEASON.goal).toBe(5)
     expect(SEASON.reward).toEqual({
       cash: 100_00,
@@ -20,7 +20,7 @@ describe('Season One: The Caretaker', () => {
     expect(SEASON.reward.count).toBe(200)
   })
 
-  it('pays the reward on the unmaking that reaches the goal, once', () => {
+  it('pays the reward on the burning that reaches the goal, once', () => {
     let progress = NO_PROGRESS
     const rewards = []
     for (let i = 0; i < SEASON.goal + 3; i++) {
@@ -50,8 +50,8 @@ describe('Season One: The Caretaker', () => {
     expect(shownKills({ kills: -1, claimed: false })).toBe(0)
   })
 
-  it('says what an unmaking means to the raider', () => {
-    expect(newsOf({ kills: 2, claimed: false }, false)).toBe('unmade')
+  it('says what a burning means to the raider', () => {
+    expect(newsOf({ kills: 2, claimed: false }, false)).toBe('burned')
     expect(newsOf({ kills: 5, claimed: true }, true)).toBe('complete')
     expect(newsOf({ kills: 6, claimed: true }, false)).toBe('again')
   })

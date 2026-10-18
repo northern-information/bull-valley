@@ -523,10 +523,10 @@ export function wireValley(game: Game, actions: Actions): void {
       }
       if (news !== 'past') hud.season.flash()
     } else if (msg.type === 'season') {
-      // Rule 15: credited with unmaking the Caretaker. A reward's pack
+      // Rule 15: credited with burning the Caretaker. A reward's pack
       // frame follows.
       if (applySeason(msg.season)) {
-        hud.tell(hud.season.unmade(s.season, msg.rewarded))
+        hud.tell(hud.season.burned(s.season, msg.rewarded))
       }
     } else if (msg.type === 'pack') {
       applyPack(msg)

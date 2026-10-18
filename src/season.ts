@@ -1,12 +1,12 @@
 // The season: the valley run as a live service, one challenge at a time,
 // each with a reward for the account that sees it through. Season One is
-// The Caretaker: unmake him (caretaker.ts, two beams at once) SEASON.goal
+// The Caretaker: burn him (caretaker.ts, two beams at once) SEASON.goal
 // times and the wallet takes $100 and the pack a carton of Marlboro Reds.
 // Every raider whose beam was on him when he came apart is credited
 // (sharedworld.ts rule 15).
 //
 // Pure, no Three. The progress is the account's, kept in D1 by the valley
-// (worker/packs.ts); this says what an unmaking does to it, by the counting
+// (worker/packs.ts); this says what a burning does to it, by the counting
 // every goal shares (goal.ts).
 
 import { advance, goalNews, shownProgress } from './goal.ts'
@@ -24,7 +24,7 @@ export interface Season {
   // The key the account's progress is kept under.
   id: string
   number: number
-  // Unmakings it takes.
+  // Burnings it takes.
   goal: number
   reward: SeasonReward
 }
@@ -43,7 +43,7 @@ export const SEASON: Season = {
   },
 }
 
-// One account's progress through a season: the Caretaker unmade with their
+// One account's progress through a season: the Caretaker burned with their
 // beam on him, and whether the reward has been paid.
 export interface SeasonProgress {
   kills: number
@@ -52,7 +52,7 @@ export interface SeasonProgress {
 
 export const NO_PROGRESS: SeasonProgress = { kills: 0, claimed: false }
 
-// One more unmaking: the progress after it, and the reward when this is
+// One more burning: the progress after it, and the reward when this is
 // the one that finishes the season (paid once, however many follow).
 export function tally(
   progress: SeasonProgress,
@@ -79,9 +79,9 @@ export function shownKills(
   )
 }
 
-// What a credited unmaking means to the raider: the one that paid the
+// What a credited burning means to the raider: the one that paid the
 // reward, one more toward the goal, or one past a season already done.
-export type SeasonNews = 'complete' | 'unmade' | 'again'
+export type SeasonNews = 'complete' | 'burned' | 'again'
 
 export function newsOf(
   progress: SeasonProgress,
@@ -91,5 +91,5 @@ export function newsOf(
     { count: progress.kills, claimed: progress.claimed },
     rewarded
   )
-  return news === 'paid' ? 'complete' : news === 'past' ? 'again' : 'unmade'
+  return news === 'paid' ? 'complete' : news === 'past' ? 'again' : 'burned'
 }
