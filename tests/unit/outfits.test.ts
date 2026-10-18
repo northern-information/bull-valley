@@ -10,7 +10,7 @@ import {
 import { JOINTS } from '../../src/poses.ts'
 
 describe('outfits', () => {
-  it('has the thirteen characters', () => {
+  it('has every character', () => {
     expect(OUTFIT_IDS).toEqual([
       'marx',
       'player',
@@ -22,6 +22,12 @@ describe('outfits', () => {
       'halatek',
       'jdogg',
       'mathiesen',
+      'rich',
+      'sam',
+      'meyer',
+      'anderchuck',
+      'lane',
+      'terry',
       'carlsten',
       'gron',
       'moab',
@@ -37,6 +43,49 @@ describe('outfits', () => {
     expect(alex.prints?.torso).toEqual(['open-shirt'])
     expect(alex.sleeves).toBeUndefined()
     expect(alex.inHand).toBe('axe')
+  })
+
+  it('puts John Meyer in a flattop, an Against Me! tee and Converse', () => {
+    const john = OUTFITS.meyer
+    expect(john.label).toBe(copy('outfits.meyer'))
+    expect(john.addons).toEqual(
+      expect.arrayContaining([
+        'flattop',
+        'mustache',
+        'sneaker-soles-l',
+        'sneaker-soles-r',
+        'toe-caps-l',
+        'toe-caps-r',
+      ])
+    )
+    expect(john.prints?.torso).toEqual(['against-me'])
+    expect(john.colors.soles).toBeDefined()
+  })
+
+  it('keeps Lane a cipher: hood up, nothing showing inside it', () => {
+    const lane = OUTFITS.lane
+    expect(lane.label).toBe(copy('outfits.lane'))
+    expect(lane.addons).toEqual(expect.arrayContaining(['hood', 'hood-shadow']))
+    expect(lane.prints).toBeUndefined()
+    expect(lane.patterns).toBeUndefined()
+  })
+
+  it('gives every add-on the new characters wear a color', () => {
+    for (const id of [
+      'rich',
+      'sam',
+      'meyer',
+      'anderchuck',
+      'lane',
+      'terry',
+    ] as const) {
+      for (const addon of OUTFITS[id].addons) {
+        expect(
+          OUTFITS[id].colors[ADDONS[addon].slot],
+          `${id} ${addon}`
+        ).toBeDefined()
+      }
+    }
   })
 
   it('dresses Moab Coldë as a skeleton in a strapped, tattered red trench coat', () => {

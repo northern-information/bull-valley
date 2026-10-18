@@ -9,7 +9,7 @@ import { DEFAULT_FINISH } from '../../src/finishes.ts'
 import { OUTFITS } from '../../src/outfits.ts'
 
 describe('characters', () => {
-  it('offers the player and the seven named characters', () => {
+  it('offers the player and the named characters', () => {
     expect(SELECTABLE).toEqual([
       'player',
       'coleman',
@@ -19,6 +19,12 @@ describe('characters', () => {
       'halatek',
       'jdogg',
       'mathiesen',
+      'rich',
+      'sam',
+      'meyer',
+      'anderchuck',
+      'lane',
+      'terry',
     ])
   })
 

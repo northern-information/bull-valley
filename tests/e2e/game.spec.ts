@@ -358,7 +358,7 @@ test('the guitar finish is picked with Church and remembered', async ({
   // ← wraps from the first character to the last.
   await page.keyboard.press('ArrowLeft')
   await expect(page.locator('.bv-select-name')).toHaveText(
-    copy('outfits.mathiesen')
+    copy('outfits.terry')
   )
   await page.keyboard.press('ArrowRight')
   // Three steps right of the player: Church, with the EX-400 on his back.

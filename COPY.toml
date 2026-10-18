@@ -733,6 +733,12 @@ mathiesen = { text = "Alex Mathiesen", by = "ai" }
 gron = { text = "Gron", by = "tyler" }
 moab = { text = "Moab Coldë", by = "ai" }
 squatter = { text = "Erwin von Dutch", by = "ai" }
+rich = { text = "Rich", by = "ai" }
+sam = { text = "Sam", by = "ai" }
+meyer = { text = "John Meyer", by = "ai" }
+anderchuck = { text = "Shaun Anderchuck", by = "ai" }
+lane = { text = "Lane", by = "ai" }
+terry = { text = "Terry", by = "ai" }
 
 # Matthew Marx, looked at and spoken to (src/npcs.ts): "O, Whistle an' I'll
 # Come to Ye, My Lad" by Robert Burns, a stanza each time, into the chat log.
