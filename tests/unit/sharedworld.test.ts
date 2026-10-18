@@ -10,27 +10,29 @@ import { mazeToWorld } from '../../src/maze.ts'
 import { PROTOCOL_VERSION } from '../../src/protocol.ts'
 import { mulberry32 } from '../../src/rng.ts'
 import {
-  BUSHES,
-  citgosFor,
   citgoVisits,
-  corpsesOf,
   createShadows,
-  createValley,
-  creditedWith,
-  dailyFor,
   forecourtMends,
-  geometrieFor,
   headlightsAt,
-  healthFor,
   placeCaretaker,
-  placeOf,
   placeShadowman,
-  reduce,
-  restoreValley,
   seeHeadlights,
   shadowmenNear,
   shadowRaiders,
   stepShadows,
+} from '../../src/shadowstep.ts'
+import {
+  BUSHES,
+  citgosFor,
+  corpsesOf,
+  createValley,
+  creditedWith,
+  dailyFor,
+  geometrieFor,
+  healthFor,
+  placeOf,
+  reduce,
+  restoreValley,
   toWire,
   wakeAt,
 } from '../../src/sharedworld.ts'
@@ -48,7 +50,8 @@ import type {
   WorldMessage,
 } from '../../src/protocol.ts'
 import type { QuestStage } from '../../src/quests.ts'
-import type { Placed, Valley, ValleyAction } from '../../src/sharedworld.ts'
+import type { Placed } from '../../src/shadowstep.ts'
+import type { Valley, ValleyAction } from '../../src/sharedworld.ts'
 import type { StandLedger } from '../../src/stand.ts'
 
 // What a build placed: a pack of Marlboros, two joints, then cabbages.

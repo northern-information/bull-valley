@@ -180,7 +180,7 @@ interface BurstBy extends Burst {
   by: string[]
 }
 
-interface ShadowmenUpdate {
+export interface ShadowmenUpdate {
   // The raiders touched this step.
   struck: string[]
   // The shadowmen that lunged this step, whether the lunge landed or not.
