@@ -9,7 +9,7 @@ import {
 import { canvas, context2d, SANS, text } from './canvas.ts'
 import { buildPickup } from './pickups.ts'
 import { applyPS1 } from './ps1.ts'
-import { STORE_LAYOUT } from './store.ts'
+import { CANOPY, STORE_LAYOUT } from './store.ts'
 import type { Part } from './assetkit.ts'
 import type { Vec3 } from './interfaces.ts'
 import type { StoreFinish, StoreSign } from './store.ts'
@@ -450,9 +450,9 @@ export function trashCanParts(): Part[] {
   ]
 }
 
-// The canopy's dimensions, shared by the slab, the tubes under it, and the
-// light world.ts hangs there.
-export const CANOPY = { width: 9, thickness: 0.45, depth: 6.5, height: 4.6 }
+// The canopy's dimensions (store.ts), shared by the slab, the tubes under
+// it, and the light world.ts hangs there.
+export { CANOPY }
 
 export function fuelStationParts() {
   const canopy = new THREE.BoxGeometry(

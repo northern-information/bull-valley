@@ -94,6 +94,8 @@ const THREE_AND_DOM = [
   'signin',
   'skeletonhorse',
   'sky',
+  'slurmmodel',
+  'slurmrig',
   'spawnlot',
   'splash',
   'standart',

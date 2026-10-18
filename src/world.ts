@@ -67,6 +67,7 @@ import type { Geo, HeightAt, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
 import type { MazePlace } from './maze.ts'
 import type { CroftRig, PlazaRig } from './plazasite.ts'
+import type { Cue } from './sfx.ts'
 import type { StoreOrigin, WorldFacing } from './store.ts'
 import type { Streetlights } from './streetlights.ts'
 
@@ -98,13 +99,25 @@ export interface ShelfDisplay {
   group: THREE.Group
   // Move the display to the store nearest (x, z), inside
   // CONFIG.store.displayRange, and show what is left on its shelves.
-  // stocks: one per station, indexed like fuelPoints.
-  update(x: number, z: number, stocks: readonly ShopStock[]): void
+  // stocks: one per station, indexed like fuelPoints. `seconds` is the
+  // shared clock, for the slurms off its dripline (slurms.ts): what they
+  // sound like this frame, and Carlsten's curse when he says it.
+  update(
+    x: number,
+    z: number,
+    stocks: readonly ShopStock[],
+    seconds: number
+  ): { cues: Cue[]; curse: string | null }
   // Unit `unit` of `kind` at `station` (its slot on the facing), or null
   // when the display is parked elsewhere.
   unitFor(station: number, kind: string, unit: number): THREE.Object3D | null
   // David Carlsten behind the counter, riding with the display.
   clerk: THREE.Object3D
+  // Whether he is out on `station`'s lot after the slurms, with no one
+  // behind the counter to talk to.
+  clerkAway(station: number): boolean
+  // Dev: bring the next drop of slurms at the parked station to now.
+  hurrySlurms(): void
   // The locker doors in the back room, riding with it too: what the glow
   // rings when E would open the stash.
   lockers: THREE.Object3D
@@ -304,7 +317,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   group.add(buildShoulders(geo, metres, heightAt, ground))
   group.add(buildWater(geo, metres, heightAt))
   const fuel = buildFuelStations(geo, metres, heightAt, ground, walls)
-  const shelves = buildShelves(fuel.points)
+  const shelves = buildShelves(fuel.points, ground)
   group.add(shelves.group)
   const spawnStation = chooseSpawnStation(geo, metres, fuel.points)
   const maze = spawnStation ? mazeFrame(spawnStation) : null

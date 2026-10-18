@@ -47,6 +47,7 @@ import type { CaretakerShade } from './caretakerrig.ts'
 import type { Game } from './game.ts'
 import type { BushSpot } from './interactions.ts'
 import type { DailyWire, PeerStateWire } from './protocol.ts'
+import type { Cue } from './sfx.ts'
 import type { AloneFrame, ShadowCards } from './shadowcards.ts'
 import type { HeadlightsSent } from './shadowmen.ts'
 import type { Targets } from './targets.ts'
@@ -185,6 +186,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     Math.hypot(at.x - player.pos.x, at.z - player.pos.z) <=
     CONFIG.render.liveRadius + margin
 
+  // The slurms' sounds, heard with the shadows' on the next frame.
+  let slurmCues: Cue[] = []
   let last = performance.now()
   // Real seconds since the last frame, and the same capped at maxStep: the
   // capped step moves the player, the item timers, and the animation, so a
@@ -437,7 +440,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     bursts.update(dt)
     // What the shadowmen and the Caretaker sound like this frame.
     sfx?.hear(
-      [...swarm.heard.cues, ...keeper.heard.cues, ...tunnelCues],
+      [...swarm.heard.cues, ...keeper.heard.cues, ...tunnelCues, ...slurmCues],
       [...swarm.heard.holds, ...keeper.heard.holds],
       (x, z) => world.ground.at(x, z)
     )
@@ -661,9 +664,18 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     }
   }
 
-  const followPlayer = () => {
+  const followPlayer = (now: number) => {
     // The stocked shelves follow the player to the nearest store.
-    world.shelves.update(player.pos.x, player.pos.z, s.storeStock)
+    // With them the slurms off its dripline, on the valley's clock so
+    // everyone at that Citgo sees the same drop (slurms.ts).
+    const shelves = world.shelves.update(
+      player.pos.x,
+      player.pos.z,
+      s.storeStock,
+      (net.online ? net.clock.serverNow(now) : Date.now()) / 1000
+    )
+    slurmCues = shelves.cues
+    if (shelves.curse) actions.npcSays('carlsten', shelves.curse)
     // And the streetlights' real lights to the nearest lamps.
     world.streetlights.update(player.pos.x, player.pos.z)
   }
@@ -808,7 +820,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     stepPhone(clock.dt, portalNow)
     discoverBook(tick, swarm, keeper)
     pulsePickups(clock.time)
-    followPlayer()
+    followPlayer(clock.now)
     const bushes = bushSpots(clock.now)
     resolveE(bushes)
     showE(clock.now, bushes)

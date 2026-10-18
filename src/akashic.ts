@@ -11,6 +11,7 @@ import { mountMap } from './akashicmap.ts'
 import {
   buildFlashlight,
   buildLockerDoors,
+  buildSlurm,
   isMesh,
   meshBounds,
   motionOf,
@@ -40,6 +41,7 @@ import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import { mulberry32 } from './rng.ts'
 import { strikeReach } from './shadowcards.ts'
 import { buildShadowman } from './shadowmanmodel.ts'
+import { poseCarlsten } from './slurmrig.ts'
 import { buildTruckMesh } from './truck.ts'
 import type { MapHook } from './akashicmap.ts'
 import type { AkashicAsset } from './assets.ts'
@@ -182,6 +184,46 @@ function sampleStride(speed: number): THREE.Group {
   return figure.group
 }
 
+// David Carlsten smashing a slurm, over and over: the bat up, down on
+// it, and back to hanging (slurms.ts, slurmrig.ts).
+function sampleCarlstenSmash(): THREE.Group {
+  const group = new THREE.Group()
+  const figure = buildFigure('carlsten')
+  group.add(figure.group)
+  const slurm = buildSlurm()
+  const { standOff, windupSeconds, smashSeconds, recoverSeconds } =
+    CONFIG.slurms
+  slurm.group.position.set(0, 0, standOff)
+  slurm.group.rotation.y = Math.PI
+  group.add(slurm.group)
+  const raised = windupSeconds
+  const impact = raised + smashSeconds
+  const done = impact + recoverSeconds
+  const pose = (t: number) => {
+    const at = t % 3
+    const beat =
+      at < raised
+        ? { action: 'windup' as const, beat: at / raised }
+        : at < impact
+          ? { action: 'smash' as const, beat: (at - raised) / smashSeconds }
+          : at < done
+            ? {
+                action: 'recover' as const,
+                beat: (at - impact) / recoverSeconds,
+              }
+            : { action: 'stand' as const, beat: 0 }
+    poseCarlsten(figure, { x: 0, z: 0, yaw: 0, walked: 0, away: true, ...beat })
+    slurm.pose({
+      stretch: (t * 0.4) % 1,
+      tooth: 1,
+      splat: at >= impact ? (at - impact) / (3 - impact) : null,
+    })
+  }
+  pose(0)
+  setMotion(group, pose)
+  return group
+}
+
 // A raider where a strike left them, laid on their back in the sprawl
 // pose (corpses.ts).
 function sampleCorpse(): THREE.Group {
@@ -209,6 +251,11 @@ const ASSETS: AkashicAsset[] = [
     build: () => sampleFigure(id),
   })),
   ...WORLD_ASSETS,
+  {
+    id: 'carlsten-smash',
+    label: 'David Carlsten smashing a slurm',
+    build: sampleCarlstenSmash,
+  },
   {
     id: 'flashlight-up',
     label: 'Raider with the flashlight up',

@@ -83,6 +83,7 @@ import {
 import { buildShadowBurst, SHADOW_BURST } from './shadowburstmodel.ts'
 import { buildShadowSpider, strikeLoopAt } from './shadowspider.ts'
 import { buildSkeletonHorse } from './skeletonhorse.ts'
+import { buildSlurm } from './slurmmodel.ts'
 import { STORE_LAYOUT } from './store.ts'
 import { STRIP_MALL } from './stripmall.ts'
 import { buildTunnelShade } from './tunnelshademodel.ts'
@@ -222,6 +223,20 @@ function sampleCornWall(): THREE.Group {
 function sampleCornMaze(): THREE.Group {
   const spans = mazeSpans(SHINING_MAZE, CONFIG.maze.size)
   return buildCornWalls(flatCornPieces(spans), cornWallSize())
+}
+
+// A slurm inching along on the spot, baring its tooth now and then.
+function sampleSlurm(): THREE.Group {
+  const slurm = buildSlurm()
+  const pose = (t: number) =>
+    slurm.pose({
+      stretch: (t * 1.4) % 1,
+      tooth: Math.max(0, Math.min(1, (Math.sin(t * 4) - 0.25) / 0.5)),
+      splat: null,
+    })
+  pose(0)
+  setMotion(slurm.group, pose)
+  return slurm.group
 }
 
 function sampleShadowSpider(): THREE.Group {
@@ -492,6 +507,11 @@ export const WORLD_ASSETS: AkashicAsset[] = [
       setMotion(dish.group, (t) => dish.update(t))
       return dish.group
     },
+  },
+  {
+    id: 'slurm',
+    label: 'Slurm: a black slug off the Citgo dripline',
+    build: sampleSlurm,
   },
   {
     id: 'shadow-spider',

@@ -101,6 +101,9 @@ import type { Pickup } from './world.ts'
 type Spilled = XZ & { kind?: ShadeKind }
 
 export interface Actions {
+  // A line from an NPC into this player's chat log alone (Carlsten's
+  // curse after the slurms, slurms.ts).
+  npcSays(npc: NpcId, text: string): void
   // Redraw the open pack after anything that changes what you carry. The
   // hotbar follows on its own, every frame.
   refreshBag(): void
@@ -1473,6 +1476,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
 
   return {
+    npcSays,
     refreshBag,
     openInventory,
     closeInventory,
