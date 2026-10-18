@@ -137,6 +137,40 @@ export async function handleAuth(
   return handler.route()
 }
 
+// One route: its method, its path (a segment starting ':' matches any one
+// and is handed to the handler, in order), and whether only a dev server
+// serves it.
+interface Route<H> {
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE'
+  path: readonly string[]
+  dev?: true
+  run: (handler: H, params: string[]) => Response | Promise<Response>
+}
+
+// The params a request's path fills in a route, or null when it is not
+// that route.
+function matchRoute<H>(
+  route: Route<H>,
+  method: string,
+  parts: readonly string[],
+  dev: boolean
+): string[] | null {
+  if (route.method !== method || route.path.length !== parts.length) {
+    return null
+  }
+  if (route.dev && !dev) return null
+  const params: string[] = []
+  for (const [i, segment] of route.path.entries()) {
+    if (segment.startsWith(':')) params.push(parts[i])
+    else if (segment !== parts[i]) return null
+  }
+  return params
+}
+
+function notFound(): Response {
+  return json({ error: 'Not found' }, 404)
+}
+
 function json(body: object, status = 200, cookies: string[] = []): Response {
   // Every answer here is one account's, and slides its cookies: never
   // cached anywhere.
@@ -161,6 +195,60 @@ function html(body: string): Response {
 }
 
 class AuthHandler {
+  // Every /auth route, first match wins: the dev provider's before the
+  // OAuth providers', whose name is any one segment.
+  private static readonly ROUTES: readonly Route<AuthHandler>[] = [
+    { method: 'GET', path: ['providers'], run: (a) => a.providers() },
+    { method: 'GET', path: ['me'], run: (a) => a.me() },
+    { method: 'POST', path: ['refresh'], run: (a) => a.refresh() },
+    { method: 'POST', path: ['logout'], run: (a) => a.logout() },
+    { method: 'POST', path: ['confirm-signup'], run: (a) => a.confirmSignup() },
+    { method: 'POST', path: ['username'], run: (a) => a.setUsername() },
+    { method: 'PUT', path: ['username'], run: (a) => a.setUsername(true) },
+    { method: 'PUT', path: ['look'], run: (a) => a.setLook() },
+    { method: 'PUT', path: ['hotbar'], run: (a) => a.setHotbar() },
+    { method: 'PUT', path: ['settings'], run: (a) => a.setSettings() },
+    {
+      method: 'GET',
+      path: ['username', ':username', 'available'],
+      run: (a, [username]) => a.available(username),
+    },
+    {
+      method: 'GET',
+      path: ['link', ':provider', 'login'],
+      run: (a, [provider]) => a.linkLogin(provider),
+    },
+    {
+      method: 'DELETE',
+      path: ['providers', ':provider'],
+      run: (a, [provider]) => a.unlink(provider),
+    },
+    {
+      method: 'GET',
+      path: ['dev', 'form'],
+      dev: true,
+      run: (a) => a.devForm(),
+    },
+    {
+      method: 'GET',
+      path: ['dev', 'login'],
+      dev: true,
+      run: (a) => a.devLogin(),
+    },
+    {
+      method: 'GET',
+      path: [':provider', 'login'],
+      run: (a, [provider]) =>
+        isOAuthProvider(provider) ? a.login(provider) : notFound(),
+    },
+    {
+      method: 'GET',
+      path: [':provider', 'callback'],
+      run: (a, [provider]) =>
+        isOAuthProvider(provider) ? a.callback(provider) : notFound(),
+    },
+  ]
+
   private readonly request: Request
   private readonly url: URL
   private readonly env: WorkerEnv
@@ -203,7 +291,6 @@ class AuthHandler {
       .split('/')
       .filter(Boolean)
       .map(decodeURIComponent)
-    const [first, second, third] = parts
 
     // SameSite=Lax keeps the cookies off cross-site POSTs already; the
     // Origin check is belt and braces for the mutations.
@@ -219,40 +306,11 @@ class AuthHandler {
       return this.limited(method)
     }
 
-    if (parts.length === 1) {
-      if (first === 'providers' && method === 'GET') return this.providers()
-      if (first === 'me' && method === 'GET') return this.me()
-      if (first === 'refresh' && method === 'POST') return this.refresh()
-      if (first === 'logout' && method === 'POST') return this.logout()
-      if (first === 'confirm-signup' && method === 'POST') {
-        return this.confirmSignup()
-      }
-      if (first === 'username' && method === 'POST') return this.setUsername()
-      if (first === 'username' && method === 'PUT') {
-        return this.setUsername(true)
-      }
-      if (first === 'look' && method === 'PUT') return this.setLook()
-      if (first === 'hotbar' && method === 'PUT') return this.setHotbar()
-      if (first === 'settings' && method === 'PUT') return this.setSettings()
+    for (const route of AuthHandler.ROUTES) {
+      const params = matchRoute(route, method, parts, this.dev)
+      if (params) return route.run(this, params)
     }
-    if (parts.length === 3 && first === 'username' && third === 'available') {
-      if (method === 'GET') return this.available(second)
-    }
-    if (parts.length === 3 && first === 'link' && third === 'login') {
-      if (method === 'GET') return this.linkLogin(second)
-    }
-    if (parts.length === 2 && first === 'providers' && method === 'DELETE') {
-      return this.unlink(second)
-    }
-    if (this.dev && parts.length === 2 && first === 'dev' && method === 'GET') {
-      if (second === 'form') return this.devForm()
-      if (second === 'login') return this.devLogin()
-    }
-    if (parts.length === 2 && method === 'GET' && isOAuthProvider(first)) {
-      if (second === 'login') return this.login(first)
-      if (second === 'callback') return this.callback(first)
-    }
-    return json({ error: 'Not found' }, 404)
+    return notFound()
   }
 
   // --- Rate limits -----------------------------------------------------------
