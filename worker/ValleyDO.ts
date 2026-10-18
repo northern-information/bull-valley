@@ -53,23 +53,25 @@ import { isQuest } from '../src/quests.ts'
 import { mulberry32 } from '../src/rng.ts'
 import { SEASON, tally } from '../src/season.ts'
 import {
-  citgosFor,
   citgoVisits,
-  corpsesOf,
   createShadows,
-  createValley,
-  dailyFor,
   forecourtMends,
-  geometrieFor,
-  healthFor,
   placeCaretaker,
-  placeOf,
   placeShadowman,
-  reduce,
-  restoreValley,
   seeHeadlights,
   shadowmenNear,
   stepShadows,
+} from '../src/shadowstep.ts'
+import {
+  citgosFor,
+  corpsesOf,
+  createValley,
+  dailyFor,
+  geometrieFor,
+  healthFor,
+  placeOf,
+  reduce,
+  restoreValley,
   toWire,
 } from '../src/sharedworld.ts'
 import { ACCOUNT_HEADER, NAME_HEADER } from './auth.ts'
