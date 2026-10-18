@@ -146,15 +146,18 @@ export const CONFIG = {
     // and sends each step; clients draw them between the last two.
     tickHz: 10,
   },
-  // Health (health.ts, sharedworld.ts rule 24): every raider has `max`
-  // points, and any shadow's touch takes one. A touch that leaves some
+  // Health (health.ts, sharedworld.ts rule 24): every raider has `max` hit
+  // points, three blocks of `block`, and any shadow's touch takes `touch`
+  // (a block). A touch that leaves some
   // lets the raider alone for graceSeconds where they stand; the last one
   // shatters their geometrie (a strike: the static and the corpse run),
   // and they come to whole. A Citgo forecourt makes them whole, and so
   // does medicine (items.ts heals). A hit fills the view red and shakes it
   // for shakeSeconds, up to shakeMetres off.
   health: {
-    max: 3,
+    max: 300,
+    block: 100,
+    touch: 100,
     graceSeconds: 3,
     shakeSeconds: 0.45,
     shakeMetres: 0.07,

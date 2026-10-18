@@ -7,9 +7,12 @@ import {
   isWhole,
   MAX_HEALTH,
   mend,
+  rescaled,
   shakeAt,
   withHealth,
 } from '../../src/health.ts'
+
+const TOUCH = CONFIG.health.touch
 
 describe('health', () => {
   it('is CONFIG.health.max points whole', () => {
@@ -18,22 +21,41 @@ describe('health', () => {
     expect(isWhole(MAX_HEALTH - 1)).toBe(false)
   })
 
-  it('takes a point a touch, the last one fatal', () => {
-    expect(hit(3)).toEqual({ points: 2, fatal: false })
-    expect(hit(2)).toEqual({ points: 1, fatal: false })
-    expect(hit(1)).toEqual({ points: 0, fatal: true })
+  it('is three blocks of a hundred, a block a touch', () => {
+    expect(MAX_HEALTH).toBe(300)
+    expect(CONFIG.health.block).toBe(100)
+    expect(TOUCH).toBe(CONFIG.health.block)
+  })
+
+  it('takes a touch of hit points, the last one fatal', () => {
+    expect(hit(300)).toEqual({ points: 200, fatal: false })
+    expect(hit(200)).toEqual({ points: 100, fatal: false })
+    expect(hit(100)).toEqual({ points: 0, fatal: true })
+    // Whatever a touch takes, and only what it takes.
+    expect(hit(300, 40)).toEqual({ points: 260, fatal: false })
+    expect(hit(30, 40)).toEqual({ points: 0, fatal: true })
+    expect(hit(300, -5)).toEqual({ points: 300, fatal: false })
     // Never below nothing, nor from past whole.
     expect(hit(0)).toEqual({ points: 0, fatal: true })
     expect(hit(MAX_HEALTH + 5)).toEqual({
-      points: MAX_HEALTH - 1,
-      fatal: MAX_HEALTH === 1,
+      points: MAX_HEALTH - TOUCH,
+      fatal: MAX_HEALTH <= TOUCH,
     })
   })
 
   it('gives points back, never past whole', () => {
-    expect(mend(1, 1)).toBe(2)
-    expect(mend(2, 5)).toBe(MAX_HEALTH)
-    expect(mend(2, -1)).toBe(2)
+    expect(mend(100, 100)).toBe(200)
+    expect(mend(200, 500)).toBe(MAX_HEALTH)
+    expect(mend(200, -1)).toBe(200)
+  })
+
+  it('rescales a record kept against another max to the same share', () => {
+    expect(rescaled({ a: 1, b: 2 }, 3)).toEqual({ a: 100, b: 200 })
+    expect(rescaled({ a: 120 }, MAX_HEALTH)).toEqual({ a: 120 })
+    // Never rounded down to nothing, nor kept when it comes to whole.
+    expect(rescaled({ a: 1 }, 10_000)).toEqual({ a: 1 })
+    expect(rescaled({ a: 2.999 }, 3)).toEqual({})
+    expect(rescaled({ a: 1 }, 0)).toEqual({ a: 1 })
   })
 
   it('writes down no account at NaN or Infinity', () => {
