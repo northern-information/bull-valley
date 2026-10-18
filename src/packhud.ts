@@ -5,12 +5,14 @@
 // fills the grid and hears the mouse, input.ts reads the hovered item for
 // the keys, and loop.ts feeds the hotbar every frame.
 
+import { AVATAR_PX, createAvatarView } from './avatarview.ts'
 import { PACK, PACK_MOUSE } from './bindings.ts'
 import { copy } from './copy.ts'
 import { el, find, text } from './dom.ts'
 import { HOTBAR_SLOTS } from './hotbar.ts'
 import { npcHeader } from './npcdialog.ts'
 import { bagTabs, LOCKER_TAB, PACK_TABS } from './packgrid.ts'
+import type { AvatarLook, AvatarView } from './avatarview.ts'
 import type { Binding, MouseBinding } from './bindings.ts'
 import type { Cooldown } from './hotbar.ts'
 import type { PackItem } from './interfaces.ts'
@@ -136,6 +138,8 @@ export class PackHud {
   cardPackKeys: HTMLElement[]
   cardStowKeys: HTMLElement[]
   cardStowLabels: HTMLElement[]
+  // The raider beside the grid, in their character and what they wear.
+  avatar: AvatarView
   hotbar: HTMLOListElement
   bar: HTMLDivElement
   hotbarKey = ''
@@ -211,7 +215,17 @@ export class PackHud {
     // empty tab never changes the pack's height.
     const panel = el('div', 'bv-bag-panel')
     panel.append(this.grid, this.empty)
-    this.bag.append(header, tabs, panel, foot)
+    // The raider stands to the left of the tabs and the grid.
+    const avatarCanvas = el('canvas', 'bv-bag-avatar')
+    avatarCanvas.width = AVATAR_PX.width
+    avatarCanvas.height = AVATAR_PX.height
+    avatarCanvas.setAttribute('aria-hidden', 'true')
+    this.avatar = createAvatarView(avatarCanvas)
+    const items = el('div', 'bv-bag-items')
+    items.append(tabs, panel)
+    const body = el('div', 'bv-bag-body')
+    body.append(avatarCanvas, items)
+    this.bag.append(header, body, foot)
     this.selectTab(this.tab)
     // Moving across the gaps between cells keeps the card; leaving the
     // grid drops it.
@@ -688,10 +702,13 @@ export class PackHud {
     if (this.cash.textContent !== cash) this.cash.textContent = cash
   }
 
-  show(show: boolean): boolean {
+  // `look` dresses the raider beside the grid while the pack is open.
+  show(show: boolean, look?: AvatarLook): boolean {
     this.bag.hidden = !show
     this.shell.classList.toggle('bv-shell--inventory', show)
+    if (show && look) this.avatar.show(look)
     if (!show) {
+      this.avatar.stop()
       this.selected = null
       this.closeMenu()
       this.endDrag()

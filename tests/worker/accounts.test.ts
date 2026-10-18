@@ -358,6 +358,19 @@ describe('D1AccountStore', () => {
     expect((await store.get('a1'))?.primaryProvider).toBe(left[0].providerKey)
   })
 
+  it('reads what the account wears, unknown cosmetics dropped', async () => {
+    const { sqlite, store } = await seeded()
+    expect(await store.cosmeticsOf('a1')).toEqual([])
+    const insert = sqlite.prepare(
+      'INSERT INTO cosmetics (account_id, cosmetic, acquired_at, trade_id) ' +
+        'VALUES (?, ?, 1000, ?)'
+    )
+    insert.run('a1', 'flaming-halo', 't1')
+    insert.run('a1', 'retired-hat', 't2')
+    expect(await store.cosmeticsOf('a1')).toEqual(['flaming-halo'])
+    expect(await store.cosmeticsOf('nobody')).toEqual([])
+  })
+
   it('rethrows a database error that is not a taken name', async () => {
     const { sqlite, store } = await seeded()
     sqlite.exec('DROP TABLE providers')

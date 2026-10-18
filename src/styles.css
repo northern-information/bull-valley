@@ -705,6 +705,36 @@
   font-weight: 600;
 }
 
+/* The raider on their turntable to the left of the tabs and the grid
+   (avatarview.ts AVATAR_PX); a narrow screen gives the grid the room. */
+.bv-bag-body {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.bv-bag-avatar {
+  flex: none;
+  width: 120px;
+  height: 200px;
+  image-rendering: pixelated;
+  border: 1px solid var(--bv-npc-edge);
+}
+
+.bv-bag-items {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+@media (width <= 640px) {
+  .bv-bag-avatar {
+    display: none;
+  }
+}
+
 /* The tabs over the grid: tracked caps, the shown one eggshell over a
    Citgo-red rule; the locker's set apart at the end. */
 .bv-bag-tabs {

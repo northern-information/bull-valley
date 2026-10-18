@@ -16,12 +16,13 @@ import { SELECTABLE } from './characters.ts'
 import { copy } from './copy.ts'
 import { stepIndex } from './cycle.ts'
 import { finder } from './dom.ts'
-import { applyPose, buildFigure } from './figure.ts'
+import { applyPose, attachCosmetics, buildFigure } from './figure.ts'
 import { FINISHES, isFinish, randomFinish } from './finishes.ts'
 import { outfitById } from './outfits.ts'
 import { samplePose } from './poses.ts'
 import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import type { CharacterPick } from './characters.ts'
+import type { CosmeticId } from './cosmetics.ts'
 
 export interface CharacterSelectConfig {
   spinPerSecond: number
@@ -39,10 +40,14 @@ export interface CharacterSelectOptions {
 }
 
 export interface CharacterSelect {
-  // Arms the screen for `username`, opening on the account's `pick`, and
-  // resolves with the chosen outfit and finish once
+  // Arms the screen for `username`, opening on the account's `pick` with
+  // what the account wears over any character (cosmetics.ts), and resolves with the chosen outfit and finish once
   // the overlay has faded out and removed itself.
-  run(username: string, pick: CharacterPick): Promise<CharacterPick>
+  run(
+    username: string,
+    pick: CharacterPick,
+    cosmetics: readonly CosmeticId[]
+  ): Promise<CharacterPick>
 }
 
 // Mounts the overlay as the last child of <body>, black and inert until
@@ -108,7 +113,11 @@ export function mountCharacterSelect({
   const nextBtn = find<HTMLButtonElement>('[data-bv="select-next"]')
   const chooseBtn = find<HTMLButtonElement>('[data-bv="select-choose"]')
 
-  function run(username: string, pick: CharacterPick): Promise<CharacterPick> {
+  function run(
+    username: string,
+    pick: CharacterPick,
+    cosmetics: readonly CosmeticId[]
+  ): Promise<CharacterPick> {
     usernameEl.textContent = username
     return new Promise<CharacterPick>((resolve) => {
       const renderer = createPS1Renderer(canvas)
@@ -121,9 +130,16 @@ export function mountCharacterSelect({
 
       // Boots to the tip of Church's guitar in frame, clear of the title
       // above and the names, the finish row and the buttons below.
+      // A cosmetic over the head (the Flaming Halo's flames) wants a little
+      // more room up top, so the camera stands back for it.
       const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 50)
-      camera.position.set(0, 1.1, 6.6)
-      camera.lookAt(0, 0.4, 0)
+      if (cosmetics.length > 0) {
+        camera.position.set(0, 1.2, 7.6)
+        camera.lookAt(0, 0.55, 0)
+      } else {
+        camera.position.set(0, 1.1, 6.6)
+        camera.lookAt(0, 0.4, 0)
+      }
 
       let index = Math.max(0, SELECTABLE.indexOf(pick.outfit))
       let finishIndex = Math.max(
@@ -134,8 +150,9 @@ export function mountCharacterSelect({
       let fadeStart: number | null = null
 
       // One standing figure per character, every guitar in the saved
-      // finish. The materials and geometry are shared with every other
-      // figure in the game, so they are never disposed here.
+      // finish, each wearing the account's cosmetics. The materials and
+      // geometry are shared with every other figure in the game, so only
+      // what they wear is disposed here.
       const turntable = new THREE.Group()
       scene.add(turntable)
       const figures = SELECTABLE.map((id) => {
@@ -147,6 +164,7 @@ export function mountCharacterSelect({
         turntable.add(figure.group)
         return figure
       })
+      const worn = figures.map((figure) => attachCosmetics(figure, cosmetics))
 
       const showFinish = () => {
         const finish = FINISHES[finishIndex]
@@ -269,6 +287,7 @@ export function mountCharacterSelect({
         document.removeEventListener('keydown', onKey)
         window.removeEventListener('resize', resize)
         scene.remove(turntable)
+        for (const one of worn) one.dispose()
         renderer.dispose()
         renderer.forceContextLoss()
         root.remove()
@@ -298,6 +317,7 @@ export function mountCharacterSelect({
         const dt = Math.min(0.05, (now - last) / 1000)
         last = now
         turntable.rotation.y += dt * config.spinPerSecond
+        worn[index].update(now / 1000)
         renderer.render(scene, camera)
         if (fadeStart !== null) {
           const t = (now - fadeStart) / config.revealFadeMs

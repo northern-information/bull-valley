@@ -12,6 +12,7 @@ import type {
   Provider,
   SettingsWire,
 } from '../src/account.ts'
+import type { CosmeticId } from '../src/cosmetics.ts'
 import type { AskResult, FriendRow, FriendState } from '../src/friends.ts'
 
 export interface Account {
@@ -84,6 +85,9 @@ export interface AccountStore {
   settingsOf(accountId: string): Promise<SettingsWire>
   // False when there is no such account.
   setSettings(accountId: string, settings: SettingsWire): Promise<boolean>
+  // What the account wears over any character (cosmetics.ts), so the
+  // select can show it before the valley answers.
+  cosmeticsOf(accountId: string): Promise<CosmeticId[]>
   // The account signed in as `username`, in any case, or null.
   accountByUsername(
     username: string
@@ -105,6 +109,9 @@ export class MemoryAccountStore implements AccountStore {
   readonly looks = new Map<string, LookWire>()
   readonly hotbars = new Map<string, HotbarWire>()
   readonly settings = new Map<string, SettingsWire>()
+  // What each account wears; the pack store writes it in the Worker, so
+  // tests set it here by hand.
+  readonly cosmetics = new Map<string, CosmeticId[]>()
   // `${account}/${friend}` -> accepted: one account's side, as in D1.
   readonly friends = new Map<string, boolean>()
 
@@ -238,6 +245,10 @@ export class MemoryAccountStore implements AccountStore {
     if (!this.accounts.has(accountId)) return Promise.resolve(false)
     this.settings.set(accountId, { ...settings })
     return Promise.resolve(true)
+  }
+
+  cosmeticsOf(accountId: string): Promise<CosmeticId[]> {
+    return Promise.resolve([...(this.cosmetics.get(accountId) ?? [])])
   }
 
   // Whether another account holds the name; `except` is never counted.

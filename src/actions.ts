@@ -277,7 +277,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     withPanel(() => {
       s.lockerOpen = atLocker
       hud.setLocker(atLocker)
-      s.inventoryOpen = hud.showBag(true)
+      s.inventoryOpen = hud.showBag(true, {
+        outfit: game.pick.outfit,
+        finish: game.pick.finish,
+        cosmetics: s.cosmetics,
+      })
       showBagTab(PACK_TABS[0])
     })
 
