@@ -17,7 +17,7 @@ import { mulberry32, range } from './rng.ts'
 // lantern of cold light swinging from its right hand, so it shows down a
 // corridor before it turns the corner. A dark smudge of air hangs round
 // it. update(t) bobs it, sways it, swings the lantern and flickers the
-// eyes; setBurn(0..1) pales it as two beams unmake it; setStrike(windup,
+// eyes; setBurn(0..1) pales it as two beams burn it; setStrike(windup,
 // lunge), each 0 to 1, draws the lantern back flaring as it winds up and
 // swings it out as it lurches forward. Origin on the ground under it; it
 // floats CONFIG.caretaker.hover over that, facing +Z.

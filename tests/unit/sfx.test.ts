@@ -234,7 +234,7 @@ describe('keeperCues', () => {
     expect(keeperCues(false, false, null, [], me, tuning).holds).toEqual([])
   })
 
-  it('hears its windup begin, its lunge, and where it was unmade', () => {
+  it('hears its windup begin, its lunge, and where it was burned', () => {
     const { cues } = keeperCues(
       true,
       true,
@@ -244,7 +244,7 @@ describe('keeperCues', () => {
       tuning
     )
     expect(cues.map((c) => c.id)).toEqual([
-      'caretaker-unmade',
+      'caretaker-burned',
       'caretaker-windup',
       'caretaker-lunge',
     ])

@@ -91,10 +91,10 @@ export interface PackStore {
     cosmetic: CosmeticId
   ): Promise<boolean>
   // The account's progress through `season`, nothing done before the first
-  // unmaking.
+  // burning.
   season(accountId: string, season: string): Promise<SeasonProgress>
-  // Writes the progress after an unmaking (season.ts tally) and, with it,
-  // the reward that unmaking paid, if any: the cash into the wallet and the
+  // Writes the progress after a burning (season.ts tally) and, with it,
+  // the reward that burning paid, if any: the cash into the wallet and the
   // units into the pack, all or nothing.
   score(
     accountId: string,

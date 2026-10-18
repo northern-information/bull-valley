@@ -350,7 +350,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     // burst (the valley's do that itself).
     actions.spillBursts(swarm.bursts)
     // The Caretaker walks the maze on the same terms; played alone, one
-    // beam is never enough to unmake it.
+    // beam is never enough to burn it.
     const keeper = caretaker.update({
       dt,
       time,
@@ -359,7 +359,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       renderAt,
     })
     if (keeper.struck) actions.strike('caretaker')
-    for (const at of keeper.unmade) {
+    for (const at of keeper.burned) {
       const y = world.ground.at(at.x, at.z) + CONFIG.caretaker.chestHeight
       bursts.spawn(at.x, y, at.z)
     }
@@ -376,15 +376,26 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       const y = world.ground.at(at.x, at.z) + burstHeight(at.kind)
       bursts.spawn(at.x, y, at.z, burstScale(at.kind))
     }
-    // Played alone each leaves its dimes and its stone, as a shadowman's.
-    actions.spillBursts(
-      tunnel.bursts.map(({ x, z }) => ({ id: -1, kind: 'man' as const, x, z }))
+    // A hit the Warden stands throws it into the dark in a smaller burst.
+    for (const at of tunnel.wounds) {
+      const y = world.ground.at(at.x, at.z) + burstHeight(at.kind)
+      bursts.spawn(at.x, y, at.z, burstScale(at.kind) * 0.55)
+    }
+    const tunnelCues = [...tunnel.bursts, ...tunnel.wounds].map(
+      ({ x, z, kind }) => ({
+        id: 'shadow-burst' as const,
+        x,
+        z,
+        rate: kind === 'warden' ? 0.6 : 1,
+      })
     )
+    // Played alone each leaves its dimes, but no stone.
+    actions.spillBursts(tunnel.bursts.map(({ x, z }) => ({ x, z })))
     croft?.update(time)
     bursts.update(dt)
     // What the shadowmen and the Caretaker sound like this frame.
     sfx?.hear(
-      [...swarm.heard.cues, ...keeper.heard.cues],
+      [...swarm.heard.cues, ...keeper.heard.cues, ...tunnelCues],
       [...swarm.heard.holds, ...keeper.heard.holds],
       (x, z) => world.ground.at(x, z)
     )
@@ -553,7 +564,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       const range = CONFIG.book.sightRange
       actions.discover([
         ...sightsInReach(world.sights, player.pos),
-        ...(swarm.sighted.length > 0 ? ['shadowman'] : []),
+        ...(swarm.sighted.includes('man') ? ['shadowman'] : []),
+        ...(swarm.sighted.includes('spider') ? ['spider'] : []),
         ...(swarm.sighted.includes('spiderling') ? ['spiderling'] : []),
         ...(keeper.distance !== null && keeper.distance <= range
           ? ['caretaker']

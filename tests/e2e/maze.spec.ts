@@ -14,7 +14,7 @@ import type { Page } from '@playwright/test'
 // The heart of the corn maze: six berry bushes round the portal, each
 // with a berry a day for every account, and the Caretaker, who keeps the
 // maze. Its touch is a strike; one beam does nothing to it, and two at
-// once unmake it.
+// once burn it.
 
 // A spot at the heart, `along` metres down the court (the maze's own z,
 // the way its length runs) and `across` it, in the world.
@@ -119,7 +119,7 @@ test("the Caretaker's touch puts you back at the Citgo", async ({ page }) => {
 })
 
 test.describe('two flashlights', { tag: '@valley' }, () => {
-  test('one beam does nothing to the Caretaker, two unmake it', async ({
+  test('one beam does nothing to the Caretaker, two burn it', async ({
     browser,
   }) => {
     test.slow()

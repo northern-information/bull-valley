@@ -70,10 +70,12 @@ describe('the bar', () => {
 })
 
 describe('the grants', () => {
-  it('makes unmaking the Caretaker the big jump', () => {
-    const others = Object.entries(XP).filter(([source]) => source !== 'unmake')
+  it('makes burning the Caretaker the big jump', () => {
+    const others = Object.entries(XP).filter(
+      ([source]) => source !== 'caretaker'
+    )
     for (const [, xp] of others) {
-      expect(XP.unmake).toBeGreaterThanOrEqual(xp * 10)
+      expect(XP.caretaker).toBeGreaterThanOrEqual(xp * 10)
       expect(xp).toBeGreaterThan(0)
     }
     expect(XP.spider).toBeGreaterThan(XP.burn)

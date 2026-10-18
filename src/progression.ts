@@ -2,7 +2,7 @@
 // does feeds (sharedworld.ts rule 22). Burning a shadowman, a ride with
 // Marx, a berry, a pickup, something passed to another raider, a unit bought, a drop the valley left taken up,
 // what the Cabbage Stand pays out when collected, and the Caretaker
-// unmade (a big jump) each grant the XP below; the curve
+// burned (a big jump) each grant the XP below; the curve
 // that turns XP into a level is CONFIG.progression.
 //
 // Pure, no Three. The XP is the account's, kept in D1 by the valley
@@ -18,7 +18,7 @@ export type ProgressionConfig = typeof CONFIG.progression
 export type XpSource =
   | 'burn'
   | 'spider'
-  | 'unmake'
+  | 'caretaker'
   | 'ride'
   | 'berry'
   | 'pickup'
@@ -35,8 +35,8 @@ export const XP: Readonly<Record<XpSource, number>> = {
   // long to burn).
   burn: 10,
   spider: 20,
-  // The Caretaker unmade with the raider's beam on it.
-  unmake: 250,
+  // The Caretaker burned with the raider's beam on it.
+  caretaker: 250,
   // In the bed when Marx gets home: the joyride, or the ride home from a
   // whistle.
   ride: 25,

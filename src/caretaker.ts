@@ -5,7 +5,7 @@
 // the paths, and its touch is a strike, as a shadowman's: in reach it stops
 // and winds up, then lunges, and the lunge lands only on a raider still
 // within reach. One flashlight
-// does nothing to it. Two raiders' beams on it at once, held, unmake it,
+// does nothing to it. Two raiders' beams on it at once, held, burn it,
 // and it forms again at the heart a few minutes later.
 //
 // Pure, no three.js. Everything here is in the maze's own metres (maze.ts:
@@ -283,10 +283,10 @@ export interface CaretakerUpdate {
   struck: string[]
   // Whether it lunged this step, landing or not.
   lunged: boolean
-  // Where it was unmade this step, in world metres, and the raiders whose
+  // Where it was burned this step, in world metres, and the raiders whose
   // beams were on it when it came apart.
   burst: XZ | null
-  unmadeBy: string[]
+  burnedBy: string[]
 }
 
 // One step of the Caretaker, dt seconds on. Mutates ct.
@@ -301,7 +301,7 @@ export function stepCaretaker(
     struck: [],
     lunged: false,
     burst: null,
-    unmadeBy: [],
+    burnedBy: [],
   }
   if (ct.gone > 0) {
     ct.gone = Math.max(0, ct.gone - dt)
@@ -325,7 +325,7 @@ export function stepCaretaker(
     giveUp(ct)
     ct.burn = 0
     ct.gone = cfg.respawnSeconds
-    return { struck: [], lunged: false, burst: world, unmadeBy: holders }
+    return { struck: [], lunged: false, burst: world, burnedBy: holders }
   }
 
   // Only a raider who can be struck, and only in the maze.
@@ -383,7 +383,7 @@ export function stepCaretaker(
     if (d >= cfg.touchRadius * cfg.reachScale) return { ...none, lunged: true }
     const struck = [quarry.r.id]
     giveUp(ct)
-    return { struck, lunged: true, burst: null, unmadeBy: [] }
+    return { struck, lunged: true, burst: null, burnedBy: [] }
   }
   ct.windup = 0
 
@@ -416,7 +416,7 @@ export function stepCaretaker(
   return none
 }
 
-// Where it floats in the world, or null while it is unmade.
+// Where it floats in the world, or null while it is burned.
 export function caretakerAt(ct: Caretaker, place: MazePlace): XZ | null {
   return ct.gone > 0 ? null : mazeToWorld(place, ct)
 }

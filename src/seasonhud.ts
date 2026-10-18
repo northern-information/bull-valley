@@ -3,7 +3,7 @@
 // the upper right (out of sight but for a few seconds after the season's,
 // the daily task's or the level's count goes up), and the banners that
 // sweep across the view when the season goes live, when the raider helps
-// unmake the Caretaker, and when the season is done. Hud builds it;
+// burn the Caretaker, and when the season is done. Hud builds it;
 // valleysync.ts and input.ts feed it.
 
 import { copy } from './copy.ts'
@@ -24,7 +24,7 @@ export interface Banner {
   gold?: boolean
 }
 
-// A row of one pip per unmaking the season asks for.
+// A row of one pip per burning the season asks for.
 function pips(): { row: HTMLElement; pips: HTMLElement[] } {
   const row = el('span', 'bv-season-pips')
   row.setAttribute('aria-hidden', 'true')
@@ -166,10 +166,10 @@ export class SeasonHud {
     })
   }
 
-  // The raider was credited with unmaking the Caretaker: the banner for it,
+  // The raider was credited with burning the Caretaker: the banner for it,
   // the tracker flashed up when the count moved, and the line it says in
   // the log.
-  unmade(progress: SeasonProgress, rewarded: boolean): string {
+  burned(progress: SeasonProgress, rewarded: boolean): string {
     const kills = shownKills(progress)
     const cash = formatCash(SEASON.reward.cash)
     const news = newsOf(progress, rewarded)
@@ -183,18 +183,18 @@ export class SeasonHud {
           gold: true,
         })
         return copy('log.season_reward', { cash })
-      case 'unmade':
+      case 'burned':
         this.announce({
           kicker: `${SEASON_COPY.kicker} · ${SEASON_COPY.title}`,
-          headline: copy('season.banner_unmade', { kills, goal: SEASON.goal }),
+          headline: copy('season.banner_burned', { kills, goal: SEASON.goal }),
         })
-        return copy('log.season_unmade', { kills, goal: SEASON.goal })
+        return copy('log.season_burned', { kills, goal: SEASON.goal })
       case 'again':
         this.announce({
           kicker: `${SEASON_COPY.kicker} · ${SEASON_COPY.title}`,
-          headline: copy('season.banner_unmade_again'),
+          headline: copy('season.banner_burned_again'),
         })
-        return copy('log.season_unmade_again')
+        return copy('log.season_burned_again')
     }
   }
 }
