@@ -8,9 +8,6 @@ import type { Page } from '@playwright/test'
 // slow on CI, so the steps share one boot instead of paying it each time.
 // The specs move the player with the dev hook instead of walking, then
 // press the real keys. A fresh raider means the pack starts empty.
-//
-// The @raid tag lets CI run this group in its own job (--grep @raid),
-// beside a few of the longer single-page files; the job keeps its name.
 
 base.describe('one visit', { tag: '@raid' }, () => {
   base.describe.configure({ mode: 'serial' })

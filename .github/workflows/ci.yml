@@ -61,7 +61,7 @@ jobs:
       - run: npm run build:only
 
   e2e:
-    name: E2E tests (${{ matrix.group }})
+    name: E2E tests (${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Playwright's image has the browsers and their system packages, so the
@@ -71,26 +71,16 @@ jobs:
     container:
       image: mcr.microsoft.com/playwright:v1.63.0-noble
       options: --user 1001
-    # The runner draws WebGL in software, so each spec is slow; three jobs
-    # run at the same time. --shard cannot split here: it keeps the serial
-    # raid group whole and put every test in shard 1. --grep matches the
-    # file name as well as the title, so whole files move between jobs by
-    # name. The two-page specs (@valley) boot two games each and get their
-    # own job; the one-page walk (@raid) is short, so its job also runs the
-    # longest single-page files, which keeps the three jobs about even
-    # (about three minutes of test time each on CI). The trio covers every
-    # spec exactly once, and a new spec lands in "others" by default. The
-    # job names are kept, since checks are required by name.
+    # The runner draws WebGL in software, so each spec is slow; the suite
+    # runs as shards at the same time. Playwright's --shard deals the tests
+    # out in file order, the same count to each (a serial describe stays
+    # whole), so every spec runs exactly once and a new one needs nothing
+    # here. The jobs are named by number, not by what they hold, and the
+    # e2e-balance job says how evenly they came out (CLAUDE.md, "E2E shards").
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - group: raid
-            filter: --grep "@raid|(account|akashic|game)\.spec\.ts" --grep-invert @valley
-          - group: valley
-            filter: --grep @valley
-          - group: others
-            filter: --grep-invert "@raid|@valley|(account|akashic|game)\.spec\.ts"
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -98,11 +88,32 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm run test:e2e -- ${{ matrix.filter }}
+      # scripts/e2e-balance.mjs times the shards by this step's name.
+      - name: Run the shard
+        run: npm run test:e2e -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}
       - name: Upload the Playwright traces
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: playwright-results-${{ matrix.group }}
+          name: playwright-results-${{ matrix.shard }}
           path: test-results/
           retention-days: 14
+
+  e2e-balance:
+    name: E2E shard balance
+    needs: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Reads this run's job timings; it only warns, so it never holds back
+    # the deploy.
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Compare the shards
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}/jobs?per_page=100"
+          | node scripts/e2e-balance.mjs
