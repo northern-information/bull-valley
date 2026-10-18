@@ -1,11 +1,13 @@
 // The player's own body, seen in first person: the shared figure in the
-// outfit picked at the character select, legs only, under the camera. Look down and
-// there are legs. The torso and arms stay hidden: that close to the camera
-// they fill the view as big blocks. It stands, walks with the move speed, and crouches; it switches pose
-// without blending, the way PS1 characters snapped between animations.
+// outfit picked at the character select, legs only, under the camera. Look
+// down and there are legs. The torso and arms stay hidden: that close to
+// the camera they fill the view as big blocks. It stands, walks or runs
+// with the move speed (the stride eases from one into the other), and
+// crouches; it switches between those without blending, the way PS1
+// characters snapped between animations.
 
 import { applyPose, buildFigure } from './figure.ts'
-import { POSES, samplePose } from './poses.ts'
+import { samplePose, strideOf, stridePose } from './poses.ts'
 import type { Figure } from './figure.ts'
 import type { OutfitId } from './outfits.ts'
 import type { PoseName, PoseSample } from './poses.ts'
@@ -25,8 +27,6 @@ export interface PlayerBodyFrame {
   emote?: { pose: PoseName; seconds: number } | null
 }
 
-// Metres covered by one full walk cycle (two steps).
-const STRIDE = 1.5
 // The body sits this far behind the camera, so the camera never ends up
 // inside the chest and looking down shows the legs ahead of the feet.
 const BACKSET = 0.2
@@ -85,8 +85,8 @@ export class PlayerBody {
     } else if (emote) {
       pose = samplePose(emote.pose, emote.seconds)
     } else if (speed > 0.3) {
-      this.cycle += (speed * dt) / STRIDE
-      pose = samplePose('walk', this.cycle * POSES.walk.seconds)
+      this.cycle += (speed * dt) / strideOf(speed)
+      pose = stridePose(this.cycle, speed)
     } else {
       pose = samplePose('stand')
     }

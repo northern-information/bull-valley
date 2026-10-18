@@ -416,9 +416,14 @@ export class PackHud {
         right + width <= window.innerWidth - CARD_GAP
           ? right
           : Math.max(CARD_GAP, at.left - CARD_GAP - width)
+      // The card stops short of the hotbar, which shows under it with the
+      // pack open; the slots stay in view for a drag or a number key.
+      const floor = this.hotbar.hidden
+        ? window.innerHeight
+        : this.hotbar.getBoundingClientRect().top
       const top = Math.max(
         CARD_GAP,
-        Math.min(at.top, window.innerHeight - height - CARD_GAP)
+        Math.min(at.top, floor - height - CARD_GAP)
       )
       this.card.style.left = `${left - box.left}px`
       this.card.style.top = `${top - box.top}px`

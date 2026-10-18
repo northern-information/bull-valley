@@ -36,8 +36,8 @@ interface Arm {
   turn: number
 }
 const LEFT: Arm = {
-  at: new THREE.Vector3(-0.2, -0.3, 0.02),
-  tilt: 0.38,
+  at: new THREE.Vector3(-0.2, -0.25, 0.02),
+  tilt: 0.3,
   turn: -0.22,
 }
 // The left arm, mirrored.
@@ -105,8 +105,8 @@ export class FirstPersonHands {
   private dress(outfitId: OutfitId): void {
     this.left.clear()
     this.right.clear()
-    const left = buildForearm(outfitId)
-    const right = buildForearm(outfitId)
+    const left = buildForearm(outfitId, 'L')
+    const right = buildForearm(outfitId, 'R')
     this.left.add(left.group)
     this.right.add(right.group)
     // The barrel's +Z down the forearm's -Y, as a peer holds it.

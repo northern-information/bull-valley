@@ -7,7 +7,7 @@ import {
 } from './assetkit.ts'
 import { context2d } from './canvas.ts'
 import { applyPose, buildFigure } from './figure.ts'
-import { blendPose, JOINTS, POSES, samplePose } from './poses.ts'
+import { blendPose, JOINTS, samplePose, strideOf, stridePose } from './poses.ts'
 import { applyPS1 } from './ps1.ts'
 import { mulberry32, range } from './rng.ts'
 import type { Figure } from './figure.ts'
@@ -49,9 +49,8 @@ export interface ShadowmanRig {
 
 const BODY = new THREE.Color('#07080c')
 const BURNING = new THREE.Color('#6b6e78')
-// Metres one walk cycle covers for a body of the raiders' height; the same
-// stride as peers.ts, scaled with the body.
-const STRIDE = 1.5
+// The raiders' height: a body this much taller strides this much further
+// (poses.ts strideOf), walking or, rushing, running.
 const RAIDER_HEIGHT = 1.8
 
 // The holes: the side of one in the body's own metres (before it is
@@ -255,7 +254,7 @@ export function buildShadowman(height = 2.8, seed = 0xd06): ShadowmanRig {
   group.add(smoke)
 
   const crook = crookOf(seed)
-  const stride = STRIDE * (height / RAIDER_HEIGHT)
+  const scaled = height / RAIDER_HEIGHT
   // Its own small tremor, out of step with every other.
   const tremor = mulberry32(seed ^ 0x7e3)() * 10
   let cycle = 0
@@ -265,15 +264,13 @@ export function buildShadowman(height = 2.8, seed = 0xd06): ShadowmanRig {
     group,
     update({ dt, speed, burn, perception, windup = 0, lunge = 0, sight = 1 }) {
       time += dt
-      cycle += (speed * dt) / stride
-      const walking = Math.min(1, speed / 1.2)
+      // Its pace as a raider's, for a body its size.
+      const pace = speed / scaled
+      cycle += (pace * dt) / strideOf(pace)
+      const walking = Math.min(1, pace / 0.8)
       const slam = Math.sin(Math.PI * Math.min(1, Math.max(0, lunge)))
       const rear = Math.min(1, Math.max(0, windup))
-      let pose = blendPose(
-        STAND,
-        samplePose('walk', cycle * POSES.walk.seconds),
-        walking
-      )
+      let pose = blendPose(STAND, stridePose(cycle, pace), walking)
       pose = crooked(pose, crook, 1 - Math.max(rear, slam))
       pose = blendPose(pose, WINDUP, rear)
       pose = blendPose(pose, LUNGE, slam)

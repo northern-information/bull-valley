@@ -391,18 +391,14 @@
   bottom: calc(1rem + var(--bv-cell) + 8px + 0.75rem);
 }
 
-/* Paused, the dock sits over the pause overlay so the cursor can find the
-   log: hovering brings it back and the wheel scrolls it. */
-.bv-shell--intro .bv-dock {
-  z-index: 1;
-}
-
 /* Chat: a quiet log that fades out a while after the last line, and a
    field under it while typing. Eight lines show; older ones scroll, with
    no scrollbar (the wheel and PageUp/PageDown move it). Each line dims by
    its place from the newest, so the log thins out toward the top whatever
-   its height. Held (typing, or the cursor over it), the log stays up on a
-   pane and every line reads at full strength. */
+   its height. Held (typing, or the cursor over it while the pointer is
+   free: the pack or the book open), the log stays up on a pane and every
+   line reads at full strength. Paused, it lies under the overlay's scrim
+   like the rest of the HUD, never over the controls. */
 .bv-chat {
   display: flex;
   flex-direction: column;
