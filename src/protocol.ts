@@ -369,9 +369,6 @@ interface TradeMessage {
   offer: string
 }
 
-// One of `kind` from Erwin von Dutch in the plaza (sharedworld.ts rule
-// 25), bartered for with units of `pay` out of the pack. The valley
-// answers with a 'dealt' world frame and a PackMessage, or a nack.
 // One step of quest `quest` (sharedworld.ts rule 26): taking the rose
 // from Erwin, laying it at the heart of the maze, or coming back to him
 // for the key. The valley answers with a QuestFrame and a PackMessage,
@@ -382,6 +379,9 @@ interface QuestMessage {
   step: QuestStep
 }
 
+// One of `kind` from Erwin von Dutch in the plaza (sharedworld.ts rule
+// 25), bartered for with units of `pay` out of the pack. The valley
+// answers with a 'dealt' world frame and a PackMessage, or a nack.
 interface DealMessage {
   type: 'deal'
   kind: string
@@ -1130,10 +1130,236 @@ export function parsePeerState(value: unknown): PeerStateWire | null {
   return { x, y, z, yaw, pitch, pose, riding, light }
 }
 
+// One client frame, by its type. An intersection rather than an Extract,
+// since a stow and an unstow share one shape.
+type ClientMessageOf<T extends ClientMessage['type']> = ClientMessage & {
+  type: T
+}
+
+type Fields = Record<string, unknown>
+
+// A frame's own fields, checked: null for anything malformed.
+type ClientParsers = {
+  [T in ClientMessage['type']]: (value: Fields) => ClientMessageOf<T> | null
+}
+
+// Where a hello says the world places things, all kept in the world.
+type HelloPlaces = Pick<
+  HelloMessage,
+  | 'havens'
+  | 'metres'
+  | 'water'
+  | 'maze'
+  | 'truck'
+  | 'stand'
+  | 'bushes'
+  | 'dealer'
+  | 'undercroft'
+  | 'rings'
+>
+
+// An older build's places: none. The server refuses its version before it
+// reads any of them.
+const NO_PLACES: HelloPlaces = {
+  havens: [],
+  metres: { width: 0, height: 0 },
+  water: { cell: 100, cols: 1, rows: 1, bits: 'AA==' },
+  maze: null,
+  truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
+  stand: null,
+  bushes: [],
+  dealer: null,
+  undercroft: null,
+  rings: [],
+}
+
+// A place a hello may leave null (no maze, no stand): undefined when it is
+// neither null nor well formed, so the two stay apart.
+function nullable<T>(
+  value: unknown,
+  parse: (value: unknown) => T | null | undefined
+): T | null | undefined {
+  return value === null ? null : (parse(value) ?? undefined)
+}
+
+// Every place in a hello, or null when any is missing or malformed.
+function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
+  const havens = parseHavens(value.havens, stations)
+  const metres = parseMetres(value.metres)
+  const water = isWaterMap(value.water) ? value.water : null
+  const truck = parseRoutes(value.truck)
+  const bushes = parseSpots(value.bushes, BUSHES_MAX)
+  const rings = parseHavens(value.rings, stations)
+  if (!havens || !metres || !water || !truck || !bushes || !rings) return null
+  const maze = nullable(value.maze, parseMazePlace)
+  const stand = nullable(value.stand, parseXZ)
+  const dealer = nullable(value.dealer, parseXZ)
+  const undercroft = nullable(value.undercroft, parseMazePlace)
+  if (maze === undefined || stand === undefined) return null
+  if (dealer === undefined || undercroft === undefined) return null
+  const places = { havens, metres, water, maze, truck, stand, bushes, dealer }
+  return { ...places, undercroft, rings }
+}
+
+// A hello. The outfit is checked by the server (characters.ts
+// isSelectable); the type here is widened deliberately so a bad id
+// reaches that check. An older build's hello still parses (its name is
+// ignored, its places read as none), so it is told its version is stale
+// rather than that the frame is malformed.
+function parseHello(value: Fields): HelloMessage | null {
+  const { v, outfit, pickups, stations, was } = value
+  if (typeof v !== 'number' || !Number.isInteger(v)) return null
+  if (typeof outfit !== 'string') return null
+  if (!isCount(stations) || stations > STATIONS_MAX) return null
+  const specs = parsePickups(pickups)
+  if (!specs) return null
+  const places = parseHelloPlaces(value, stations)
+  if (!places && v === PROTOCOL_VERSION) return null
+  return {
+    type: 'hello',
+    v,
+    outfit: outfit as OutfitId,
+    pickups: specs,
+    stations,
+    ...(places ?? NO_PLACES),
+    ...(typeof was === 'string' && was.length <= ID_MAX ? { was } : {}),
+  }
+}
+
+// `count` of `kind`, at least one: a drop, a stow either way, the stand's
+// stock, a grant.
+function parseUnits(value: Fields): { kind: string; count: number } | null {
+  const { kind, count } = value
+  if (!isKind(kind) || !isCount(count) || count < 1) return null
+  return { kind, count }
+}
+
+// A frame that names nothing but its type.
+function bare<T extends string>(type: T): () => { type: T } {
+  return () => ({ type })
+}
+
+// Dev-server only frames, by their op (the Worker checks the stamp).
+const DEV_OPS: Record<string, (value: Fields) => DevMessage | null> = {
+  reset: () => ({ type: 'dev', op: 'reset' }),
+  calm: () => ({ type: 'dev', op: 'calm' }),
+  hurry: ({ seconds }) =>
+    typeof seconds === 'number' && Number.isFinite(seconds)
+      ? { type: 'dev', op: 'hurry', seconds }
+      : null,
+  grant: (value) => {
+    const units = parseUnits(value)
+    return units && { type: 'dev', op: 'grant', ...units }
+  },
+  health: ({ points }) =>
+    isHealth(points) && points > 0
+      ? { type: 'dev', op: 'health', points }
+      : null,
+  shadowman: (value) => {
+    const at = parseXZ(value)
+    if (!at) return null
+    const { kind } = value
+    return kind === 'spider' || kind === 'spiderling'
+      ? { type: 'dev', op: 'shadowman', ...at, kind }
+      : { type: 'dev', op: 'shadowman', ...at }
+  },
+  caretaker: (value) => {
+    const at = parseXZ(value)
+    return at && { type: 'dev', op: 'caretaker', ...at }
+  },
+}
+
+const CLIENT_PARSERS: ClientParsers = {
+  hello: parseHello,
+  board: bare('board'),
+  'hop-out': bare('hop-out'),
+  portal: bare('portal'),
+  rename: bare('rename'),
+  friends: bare('friends'),
+  'stand-collect': bare('stand-collect'),
+  'stand-upgrade': bare('stand-upgrade'),
+  whisper: ({ to, text }) =>
+    isValidName(to) && isValidChat(text) ? { type: 'whisper', to, text } : null,
+  friend: ({ name }) => (isValidName(name) ? { type: 'friend', name } : null),
+  unfriend: ({ name }) =>
+    isValidName(name) ? { type: 'unfriend', name } : null,
+  collect: ({ bush }) => (isCount(bush) ? { type: 'collect', bush } : null),
+  // Widened like the hello's, so a bad id reaches the server's check.
+  appearance: ({ outfit }) =>
+    typeof outfit === 'string'
+      ? { type: 'appearance', outfit: outfit as OutfitId }
+      : null,
+  take: ({ index }) => (isCount(index) ? { type: 'take', index } : null),
+  buy: ({ station, kind, unit }) =>
+    isCount(station) && isCount(unit) && isKind(kind)
+      ? { type: 'buy', station, kind, unit }
+      : null,
+  use: ({ kind }) => (isKind(kind) ? { type: 'use', kind } : null),
+  pass: ({ kind, to }) =>
+    isKind(kind) && typeof to === 'string' && to.length > 0 && to.length <= 64
+      ? { type: 'pass', kind, to }
+      : null,
+  drop: (value) => {
+    const units = parseUnits(value)
+    return units && { type: 'drop', ...units }
+  },
+  'take-drop': ({ drop }) =>
+    isCount(drop) ? { type: 'take-drop', drop } : null,
+  loot: ({ corpse }) => (isCount(corpse) ? { type: 'loot', corpse } : null),
+  stow: (value) => {
+    const units = parseUnits(value)
+    return units && { type: 'stow', ...units }
+  },
+  unstow: (value) => {
+    const units = parseUnits(value)
+    return units && { type: 'unstow', ...units }
+  },
+  'stand-stock': (value) => {
+    const units = parseUnits(value)
+    return units && { type: 'stand-stock', ...units }
+  },
+  // Which offers there are is the valley's to check.
+  trade: ({ offer }) => (isKind(offer) ? { type: 'trade', offer } : null),
+  // Which quests there are is the valley's to check.
+  quest: ({ quest, step }) =>
+    isKind(quest) && isQuestStep(step) ? { type: 'quest', quest, step } : null,
+  // What he sells is the valley's to check.
+  deal: ({ kind, pay }) =>
+    isKind(kind) && isKind(pay) ? { type: 'deal', kind, pay } : null,
+  discover: ({ entries }) =>
+    Array.isArray(entries) &&
+    entries.length >= 1 &&
+    entries.length <= DISCOVER_MAX &&
+    entries.every(isKind)
+      ? { type: 'discover', entries }
+      : null,
+  call: (value) => {
+    const from = parseXZ(value.from)
+    return from && { type: 'call', from }
+  },
+  dev: (value) =>
+    typeof value.op === 'string' && Object.hasOwn(DEV_OPS, value.op)
+      ? DEV_OPS[value.op](value)
+      : null,
+  chat: ({ text }) => (isValidChat(text) ? { type: 'chat', text } : null),
+  state: (value) => {
+    const state = parsePeerState(value)
+    return state && { type: 'state', ...state }
+  },
+  headlights: ({ x, y, z, heading }) =>
+    isCoord(x) &&
+    isCoord(y) &&
+    isCoord(z) &&
+    typeof heading === 'number' &&
+    Number.isFinite(heading)
+      ? { type: 'headlights', x, y, z, heading }
+      : null,
+  ping: ({ t }) =>
+    typeof t === 'number' && Number.isFinite(t) ? { type: 'ping', t } : null,
+}
+
 // Parses one text frame from a client. Returns null for anything that is
 // not a well-formed message, so the server never stores an unchecked value.
-// A hello with a bad outfit still parses; the server decides which
-// close code those deserve.
 export function parseClientMessage(text: string): ClientMessage | null {
   if (text.length > FRAME_MAX) return null
   let value: unknown
@@ -1142,230 +1368,10 @@ export function parseClientMessage(text: string): ClientMessage | null {
   } catch {
     return null
   }
-  if (!isRecord(value)) return null
-  switch (value.type) {
-    case 'hello': {
-      const { v, outfit, pickups, stations } = value
-      if (typeof v !== 'number' || !Number.isInteger(v)) return null
-      if (typeof outfit !== 'string') return null
-      if (!isCount(stations) || stations > STATIONS_MAX) return null
-      const specs = parsePickups(pickups)
-      if (!specs) return null
-      const havens = parseHavens(value.havens, stations)
-      const metres = parseMetres(value.metres)
-      const water = isWaterMap(value.water) ? value.water : null
-      const maze = value.maze === null ? null : parseMazePlace(value.maze)
-      const truck = parseRoutes(value.truck)
-      const stand = value.stand === null ? null : parseXZ(value.stand)
-      const bushes = parseSpots(value.bushes, BUSHES_MAX)
-      const dealer = value.dealer === null ? null : parseXZ(value.dealer)
-      const undercroft =
-        value.undercroft === null ? null : parseMazePlace(value.undercroft)
-      const rings = parseHavens(value.rings, stations)
-      // An older build sends none of them; it still parses as far as its
-      // version, which the server then refuses.
-      if (
-        v === PROTOCOL_VERSION &&
-        (!havens ||
-          !metres ||
-          !water ||
-          maze === undefined ||
-          !truck ||
-          !bushes ||
-          (stand === null && value.stand !== null) ||
-          (dealer === null && value.dealer !== null) ||
-          undercroft === undefined ||
-          !rings)
-      ) {
-        return null
-      }
-      // The outfit is checked by the server (characters.ts isSelectable); the type here
-      // is widened deliberately so a bad id reaches that check. An older
-      // build's hello still parses (its name is ignored), so it is told its
-      // version is stale rather than that the frame is malformed.
-      return {
-        type: 'hello',
-        v,
-        outfit: outfit as OutfitId,
-        pickups: specs,
-        stations,
-        havens: havens ?? [],
-        metres: metres ?? { width: 0, height: 0 },
-        water: water ?? { cell: 100, cols: 1, rows: 1, bits: 'AA==' },
-        maze: maze ?? null,
-        truck: truck ?? { home: { x: 0, z: 0 }, joyrideMs: 0 },
-        stand,
-        bushes: bushes ?? [],
-        dealer,
-        undercroft: undercroft ?? null,
-        rings: rings ?? [],
-        ...(typeof value.was === 'string' && value.was.length <= ID_MAX
-          ? { was: value.was }
-          : {}),
-      }
-    }
-    case 'board':
-    case 'hop-out':
-    case 'portal':
-    case 'rename':
-    case 'friends':
-      return { type: value.type }
-    case 'whisper': {
-      const { to, text } = value
-      return isValidName(to) && isValidChat(text)
-        ? { type: 'whisper', to, text }
-        : null
-    }
-    case 'friend':
-    case 'unfriend': {
-      const { name } = value
-      return isValidName(name) ? { type: value.type, name } : null
-    }
-    case 'collect': {
-      const { bush } = value
-      return isCount(bush) ? { type: 'collect', bush } : null
-    }
-    case 'appearance': {
-      // Widened like the hello's, so a bad id reaches the server's check.
-      const { outfit } = value
-      return typeof outfit === 'string'
-        ? { type: 'appearance', outfit: outfit as OutfitId }
-        : null
-    }
-    case 'take': {
-      const { index } = value
-      if (!isCount(index)) return null
-      return { type: 'take', index }
-    }
-    case 'buy': {
-      const { station, kind, unit } = value
-      if (!isCount(station) || !isCount(unit) || !isKind(kind)) return null
-      return { type: 'buy', station, kind, unit }
-    }
-    case 'use': {
-      const { kind } = value
-      return isKind(kind) ? { type: 'use', kind } : null
-    }
-    case 'pass': {
-      const { kind, to } = value
-      return isKind(kind) &&
-        typeof to === 'string' &&
-        to.length > 0 &&
-        to.length <= 64
-        ? { type: 'pass', kind, to }
-        : null
-    }
-    case 'drop': {
-      const { kind, count } = value
-      if (!isKind(kind) || !isCount(count) || count < 1) return null
-      return { type: 'drop', kind, count }
-    }
-    case 'take-drop': {
-      const { drop } = value
-      return isCount(drop) ? { type: 'take-drop', drop } : null
-    }
-    case 'loot': {
-      const { corpse } = value
-      return isCount(corpse) ? { type: 'loot', corpse } : null
-    }
-    case 'stow':
-    case 'unstow': {
-      const { kind, count } = value
-      if (!isKind(kind) || !isCount(count) || count < 1) return null
-      return { type: value.type, kind, count }
-    }
-    case 'stand-stock': {
-      const { kind, count } = value
-      if (!isKind(kind) || !isCount(count) || count < 1) return null
-      return { type: 'stand-stock', kind, count }
-    }
-    case 'stand-collect':
-    case 'stand-upgrade':
-      return { type: value.type }
-    case 'trade': {
-      // Which offers there are is the valley's to check.
-      const { offer } = value
-      return isKind(offer) ? { type: 'trade', offer } : null
-    }
-    case 'quest': {
-      // Which quests there are is the valley's to check.
-      const { quest, step } = value
-      return isKind(quest) && isQuestStep(step)
-        ? { type: 'quest', quest, step }
-        : null
-    }
-    case 'deal': {
-      // What he sells is the valley's to check.
-      const { kind, pay } = value
-      return isKind(kind) && isKind(pay) ? { type: 'deal', kind, pay } : null
-    }
-    case 'discover': {
-      const { entries } = value
-      if (!Array.isArray(entries) || entries.length < 1) return null
-      if (entries.length > DISCOVER_MAX || !entries.every(isKind)) return null
-      return { type: 'discover', entries }
-    }
-    case 'call': {
-      const from = parseXZ(value.from)
-      return from ? { type: 'call', from } : null
-    }
-    case 'dev': {
-      if (value.op === 'reset') return { type: 'dev', op: 'reset' }
-      if (value.op === 'calm') return { type: 'dev', op: 'calm' }
-      if (value.op === 'hurry') {
-        const { seconds } = value
-        if (typeof seconds !== 'number' || !Number.isFinite(seconds)) {
-          return null
-        }
-        return { type: 'dev', op: 'hurry', seconds }
-      }
-      if (value.op === 'grant') {
-        const { kind, count } = value
-        if (!isKind(kind) || !isCount(count) || count < 1) return null
-        return { type: 'dev', op: 'grant', kind, count }
-      }
-      if (value.op === 'health') {
-        const { points } = value
-        return isHealth(points) && points > 0
-          ? { type: 'dev', op: 'health', points }
-          : null
-      }
-      if (value.op === 'shadowman') {
-        const at = parseXZ(value)
-        if (!at) return null
-        const { kind } = value
-        return kind === 'spider' || kind === 'spiderling'
-          ? { type: 'dev', op: 'shadowman', ...at, kind }
-          : { type: 'dev', op: 'shadowman', ...at }
-      }
-      if (value.op === 'caretaker') {
-        const at = parseXZ(value)
-        return at ? { type: 'dev', op: value.op, ...at } : null
-      }
-      return null
-    }
-    case 'chat': {
-      const { text } = value
-      return isValidChat(text) ? { type: 'chat', text } : null
-    }
-    case 'state': {
-      const state = parsePeerState(value)
-      return state ? { type: 'state', ...state } : null
-    }
-    case 'headlights': {
-      const { x, y, z, heading } = value
-      if (!isCoord(x) || !isCoord(y) || !isCoord(z)) return null
-      if (typeof heading !== 'number' || !Number.isFinite(heading)) return null
-      return { type: 'headlights', x, y, z, heading }
-    }
-    case 'ping': {
-      const { t } = value
-      if (typeof t !== 'number' || !Number.isFinite(t)) return null
-      return { type: 'ping', t }
-    }
-    default:
-      return null
-  }
+  if (!isRecord(value) || typeof value.type !== 'string') return null
+  if (!Object.hasOwn(CLIENT_PARSERS, value.type)) return null
+  const parse = CLIENT_PARSERS[value.type as ClientMessage['type']]
+  return parse(value)
 }
 
 // Parses one text frame from the server. The client trusts its server, so
