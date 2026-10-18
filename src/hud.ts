@@ -28,7 +28,8 @@ import type { BagStatus, HotbarSlotView } from './packhud.ts'
 import type { SettingsStore } from './settingsui.ts'
 
 // Geometrie's triangle (geometrie.ts): one corner per level, each lit by
-// its own glow over the dim red face, in the triangle's own units, with
+// its own glow over a red face that is hollow while sober and fills as the
+// strongest level rises, in the triangle's own units, with
 // its mark (icons.ts) set in from the corner: a weed leaf for high, a pill
 // for stimulated, a beer bottle for drunk.
 const GEOMETRIE_CORNERS: Record<GeometrieAxis, { x: number; y: number }> = {
@@ -142,6 +143,7 @@ export class Hud {
   // The pack over the valley, and the hotbar along the bottom.
   pack: PackHud
   geometrie: HTMLDivElement
+  geometrieFace: SVGPolygonElement
   geometrieGlows: Map<GeometrieAxis, SVGPolygonElement>
   geometrieMarks: Map<GeometrieAxis, SVGGElement>
   geometrieView = ''
@@ -210,6 +212,7 @@ export class Hud {
     this.geometrie = el('div', 'bv-geometrie')
     this.geometrie.setAttribute('role', 'img')
     this.geometrie.innerHTML = geometrieMarkup()
+    this.geometrieFace = find(this.geometrie, '.bv-geo-face')
     this.geometrieGlows = new Map(
       [
         ...this.geometrie.querySelectorAll<SVGPolygonElement>('[data-axis]'),
@@ -521,6 +524,13 @@ export class Hud {
     const view = `${percent('high')}:${percent('stimulated')}:${percent('drunk')}`
     if (view === this.geometrieView) return
     this.geometrieView = view
+    // Hollow while sober, the face filling with the strongest level.
+    const strongest = Math.max(
+      percent('high'),
+      percent('stimulated'),
+      percent('drunk')
+    )
+    this.geometrieFace.style.opacity = String(Math.max(0, strongest) / 100)
     for (const [axis, glow] of this.geometrieGlows) {
       glow.style.opacity = String(percent(axis) / 100)
     }
