@@ -1322,7 +1322,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     hud.tell(
       onlineLine(
         { name: game.pick.username, level: levelOf(s.xp) },
-        peers.list().map(({ name, level }) => ({ name, level }))
+        peers.list().map(({ name, level, dialup }) => ({ name, level, dialup }))
       )
     )
   }

@@ -73,7 +73,11 @@ export function wireValley(game: Game, actions: Actions): void {
       }
       case 'peer-joined':
         peers.joined(msg.peer, now)
-        hud.tell(copy('log.peer_joined', { name: msg.peer.name }))
+        hud.tell(
+          msg.peer.dialup
+            ? copy('log.peer_dialed', { name: msg.peer.name })
+            : copy('log.peer_joined', { name: msg.peer.name })
+        )
         return
       case 'peer-updated': {
         // Our own comes back too; the dialog has said so already.

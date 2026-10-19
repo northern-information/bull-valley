@@ -212,6 +212,17 @@
 //    valley keeps only the log and the portals. An account keeps one
 //    portal open at a time (opening another closes the first), each for
 //    CONFIG.portal.lifeSeconds; the day's turn leaves them.
+// 29. Bull Valley Dial-Up: a raider may dial in from a phone with no body
+//    in the valley (a `dial` action, Member.dialup). They open no world
+//    and the truck pays them no mind; they never send a state frame, so
+//    no shadow reaches them and no place is kept. Space is collapsed for
+//    them: their locker and their Cabbage Stand answer wherever they are,
+//    world or none (rules 19 and 23), Erwin deals with them and gives and
+//    rewards the rose from anywhere (rules 25 and 26), and they buy off the
+//    shelves of any Citgo their account has stood at (rule 7, `not-visited`
+//    otherwise). What takes a body is refused them (`dialup`): the truck,
+//    a take, a berry, a use, a pass, a drop or taking one up, a body,
+//    a portal, and laying the rose.
 
 import { dosed, geometrieOf, inPassReach, scaled, sobered } from './buffs.ts'
 import { heartPoint, theMaze } from './caretaker.ts'
@@ -314,6 +325,9 @@ interface Member {
   // Rule 24: the account's level (progression.ts), which sizes its
   // geometrie.
   level: number
+  // Rule 29: dialed in from Bull Valley Dial-Up, with no body in the
+  // valley.
+  dialup?: true
 }
 
 interface SharedWorld {
@@ -428,6 +442,16 @@ export type ValleyAction =
       rings: XZ[]
       // Rule 24: the account's level, read from D1 (1 when absent).
       level?: number
+    }
+  // Rule 29: a raider dialed in from Bull Valley Dial-Up, with no body in
+  // the valley, so nothing of the world comes with them.
+  | {
+      type: 'dial'
+      id: string
+      account: string
+      name: string
+      outfit: OutfitId
+      level: number
     }
   // at: where their last state frame put them, or null.
   | { type: 'leave'; id: string; at: PeerStateWire | null }
@@ -923,13 +947,46 @@ export function reduce(
   const { now } = context
   // Whatever was due has happened before anything else does.
   const settled = settle(before, now)
-  const r = act(settled.valley, action, context)
+  const r =
+    bodiless(settled.valley, action, now) ??
+    act(settled.valley, action, context)
   const broadcast = [...settled.frames, ...r.broadcast]
   if (r.reject) {
     return { ...r, broadcast, alarm: wakeAt(before, now), valley: before }
   }
   const xp = [...settled.xp, ...(r.xp ?? [])]
   return { ...r, broadcast, ...(xp.length > 0 ? { xp } : {}) }
+}
+
+// Rule 29: what takes a body in the valley, refused to a raider dialed in
+// without one, under the frame's own name.
+const NEEDS_A_BODY: Partial<Record<ValleyAction['type'], NackRe>> = {
+  board: 'board',
+  'hop-out': 'hop-out',
+  call: 'call',
+  charter: 'charter',
+  take: 'take',
+  collect: 'collect',
+  use: 'use',
+  pass: 'pass',
+  drop: 'drop',
+  'take-drop': 'take-drop',
+  loot: 'loot',
+  'open-portal': 'portal',
+}
+
+function bodiless(
+  valley: Valley,
+  action: ValleyAction,
+  now: number
+): Reduced | null {
+  if (!('id' in action) || !valley.members[action.id]?.dialup) return null
+  const re =
+    action.type === 'quest' && action.step === 'lay'
+      ? 'quest'
+      : NEEDS_A_BODY[action.type]
+  if (!re) return null
+  return done(valley, now, { broadcast: [], reply: nack(re, 'dialup') })
 }
 
 // One valley action, by its type; each handler below acts on its own.
@@ -946,6 +1003,8 @@ function act(
   switch (action.type) {
     case 'join':
       return onJoin(valley, action, context)
+    case 'dial':
+      return onDial(valley, action, context)
     case 'leave':
       return onLeave(valley, action, context)
     case 'board':
@@ -1072,6 +1131,31 @@ function onJoin(
     level: action.level ?? 1,
   }
   const next: Valley = { ...valley, members, world: { ...world, truck } }
+  return done(next, now, {
+    broadcast: [frame(next, 'joined', { by: action.id })],
+  })
+}
+
+function onDial(
+  valley: Valley,
+  action: ActionOf<'dial'>,
+  { now, present }: ValleyContext
+): Reduced {
+  // Rule 29: in the valley, never placed in it. No world is opened for
+  // them, and the truck pays them no mind.
+  const members: Record<string, Member> = {}
+  for (const m of Object.values(valley.members)) {
+    if (present.includes(m.id)) members[m.id] = m
+  }
+  members[action.id] = {
+    id: action.id,
+    account: action.account,
+    name: action.name,
+    outfit: action.outfit,
+    level: action.level,
+    dialup: true,
+  }
+  const next: Valley = { ...valley, members }
   return done(next, now, {
     broadcast: [frame(next, 'joined', { by: action.id })],
   })
@@ -1302,9 +1386,16 @@ function onBuy(
   }
   // Rule 7.
   if (!onShelf(shelf, kind, unit)) return refuse('sold-out')
-  const haven = world.havens[station] as XZ | undefined
-  const far = haven && tooFar(action.at, haven, CONFIG.stash.stationReach)
-  if (far) return refuse(far)
+  // Rule 29: dialed in, any Citgo the account has stood at; on foot, the
+  // one they stand at.
+  if (member.dialup) {
+    const { visited } = citgosFor(valley, member.account)
+    if (!visited.includes(station)) return refuse('not-visited')
+  } else {
+    const haven = world.havens[station] as XZ | undefined
+    const far = haven && tooFar(action.at, haven, CONFIG.stash.stationReach)
+    if (far) return refuse(far)
+  }
   if (cash === undefined || cash < price) return refuse('short')
   const shelves = world.shelves.map((s, i) =>
     i === station ? takeUnit(s, kind, unit) : s
@@ -1353,7 +1444,9 @@ function onQuest(
     action.step,
     quest.pack,
     {
-      atDealer: atDealer(action.at, world.dealer),
+      // Rule 29: dialed in, Erwin is a call away; the heart of the maze
+      // is not (laying the rose takes a body, bodiless).
+      atDealer: !!member.dialup || atDealer(action.at, world.dealer),
       atHeart: atHeart(action.at, heart),
     }
   )
@@ -1391,7 +1484,10 @@ function onDeal(
   if (!member || !world) return refuse('not-in-valley')
   // Rule 25.
   if (!world.dealer) return refuse('no-dealer')
-  if (!atDealer(action.at, world.dealer)) return refuse('too-far')
+  // Rule 29: dialed in, wherever they are.
+  if (!member.dialup && !atDealer(action.at, world.dealer)) {
+    return refuse('too-far')
+  }
   if (world.truck.riders.includes(action.id)) return refuse('aboard')
   const sale = deal(world.dealerStock, kind, action.pay, holdings?.pack ?? {})
   if (!sale.ok) return refuse(sale.reason)
@@ -1889,9 +1985,14 @@ function onStash(
   const re = action.type
   const refuse = (reason: string): Reduced =>
     done(valley, now, { broadcast: [], reply: nack(re, reason) })
-  if (!member || !world) return refuse('not-in-valley')
-  if (isAboard(world.truck, action.id)) return refuse('aboard')
-  if (!atLocker(action.at, world.havens)) return refuse('no-locker')
+  if (!member) return refuse('not-in-valley')
+  // Rule 29: dialed in, the locker is the account's wherever they are,
+  // world or none.
+  if (!member.dialup) {
+    if (!world) return refuse('not-in-valley')
+    if (isAboard(world.truck, action.id)) return refuse('aboard')
+    if (!atLocker(action.at, world.havens)) return refuse('no-locker')
+  }
   if (!isPackKind(action.kind)) return refuse('not-an-item')
   if (action.count < 1) return refuse('nothing')
   return done(valley, now, {
@@ -1915,9 +2016,14 @@ function onStand(
   const re = action.type
   const refuse = (reason: string): Reduced =>
     done(valley, now, { broadcast: [], reply: nack(re, reason) })
-  if (!member || !world) return refuse('not-in-valley')
-  if (isAboard(world.truck, action.id)) return refuse('aboard')
-  if (!atStand(action.at, world.stand)) return refuse('no-stand')
+  if (!member) return refuse('not-in-valley')
+  // Rule 29: dialed in, the stand is the account's wherever they are,
+  // world or none.
+  if (!member.dialup) {
+    if (!world) return refuse('not-in-valley')
+    if (isAboard(world.truck, action.id)) return refuse('aboard')
+    if (!atStand(action.at, world.stand)) return refuse('no-stand')
+  }
   if (!stand) return refuse('unavailable')
   const { ledger, pack } = stand
   const tended = (
