@@ -95,10 +95,12 @@ export function othersLine(count: number): string {
   return copy('log.welcome_many', { count })
 }
 
-// A raider as /online names them: their name and their level.
+// A raider as /online names them: their name and their level, and
+// whether they are dialed in from Bull Valley Dial-Up.
 interface OnlineRaider {
   name: string
   level: number
+  dialup?: boolean
 }
 
 // Who is in the valley, for /online: this raider first, then the others
@@ -111,7 +113,11 @@ export function onlineLine(
     a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
   )
   const names = [self, ...sorted]
-    .map((raider) => copy('chat.online_name', { ...raider }))
+    .map(({ name, level, dialup }) =>
+      dialup
+        ? copy('chat.online_phone', { name, level })
+        : copy('chat.online_name', { name, level })
+    )
     .join(', ')
   return copy('chat.online', { names })
 }

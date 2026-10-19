@@ -86,6 +86,7 @@ import type { Inventory, XZ } from '../src/interfaces.ts'
 import type { XpGrant } from '../src/progression.ts'
 import type {
   ClientMessage,
+  DialMessage,
   HelloMessage,
   PackMessage,
   PeerStateWire,
@@ -238,7 +239,7 @@ export class ValleyDO extends DurableObject<Env> {
     const { me } = attachment
     if (me) {
       await this.frame(ws, attachment, me, msg)
-    } else if (msg.type === 'hello') {
+    } else if (msg.type === 'hello' || msg.type === 'dial') {
       await this.hello(ws, attachment, msg)
     } else {
       ws.close(CLOSE.malformed, 'Expected hello first')
@@ -260,13 +261,17 @@ export class ValleyDO extends DurableObject<Env> {
     const at = standing(me)
     switch (msg.type) {
       case 'hello':
+      case 'dial':
         ws.close(CLOSE.malformed, 'Already said hello')
         return
       case 'state':
+        // Rule 29: dialed in, never placed.
+        if (me.dialup) return
         this.state(ws, attachment, me, msg)
         this.startShadows()
         return
       case 'headlights':
+        if (me.dialup) return
         this.headlights(ws, me, msg)
         return
       case 'ping':
@@ -959,10 +964,12 @@ export class ValleyDO extends DurableObject<Env> {
     return { now: Date.now(), present: this.presentIds(null) }
   }
 
+  // A hello from the 3D valley, or a dial from Bull Valley Dial-Up (rule
+  // 29), which carries nothing of the world and is never placed.
   private async hello(
     ws: WebSocket,
     attachment: Attachment,
-    hello: HelloMessage
+    hello: HelloMessage | DialMessage
   ): Promise<void> {
     if (hello.v !== PROTOCOL_VERSION) {
       ws.close(CLOSE.badVersion, `Protocol ${PROTOCOL_VERSION} required`)
@@ -1014,26 +1021,35 @@ export class ValleyDO extends DurableObject<Env> {
       if (hello.was) await this.retire(ws, account, hello.was)
       const reduced = reduce(
         this.valley,
-        {
-          type: 'join',
-          id,
-          account,
-          name,
-          outfit: hello.outfit,
-          pickups: hello.pickups,
-          stations: hello.stations,
-          havens: hello.havens,
-          metres: hello.metres,
-          water: hello.water,
-          maze: hello.maze,
-          routes: hello.truck,
-          stand: hello.stand,
-          bushes: hello.bushes,
-          dealer: hello.dealer,
-          undercroft: hello.undercroft,
-          rings: hello.rings,
-          level: levelOf(xp),
-        },
+        hello.type === 'dial'
+          ? {
+              type: 'dial',
+              id,
+              account,
+              name,
+              outfit: hello.outfit,
+              level: levelOf(xp),
+            }
+          : {
+              type: 'join',
+              id,
+              account,
+              name,
+              outfit: hello.outfit,
+              pickups: hello.pickups,
+              stations: hello.stations,
+              havens: hello.havens,
+              metres: hello.metres,
+              water: hello.water,
+              maze: hello.maze,
+              routes: hello.truck,
+              stand: hello.stand,
+              bushes: hello.bushes,
+              dealer: hello.dealer,
+              undercroft: hello.undercroft,
+              rings: hello.rings,
+              level: levelOf(xp),
+            },
         { now: Date.now(), present: this.presentIds(ws) }
       )
       if (!reduced.reject) await this.apply(reduced)
@@ -1050,10 +1066,12 @@ export class ValleyDO extends DurableObject<Env> {
       cosmetics: holdings.cosmetics,
       level: levelOf(xp),
       at: null,
+      ...(hello.type === 'dial' ? { dialup: true as const } : {}),
     }
     this.attach(ws, { ...attachment, me })
     const world = toWire(this.valley)
-    if (!world || !this.valley.members[id]) {
+    // Only a dial may come into a valley no one has opened a world in.
+    if ((!world && hello.type !== 'dial') || !this.valley.members[id]) {
       ws.close(CLOSE.serverError, 'The valley lost the world')
       return
     }
@@ -1232,7 +1250,7 @@ export class ValleyDO extends DurableObject<Env> {
           name: row.username,
           state: row.state,
           online: here !== undefined,
-          where: here ? whereabouts(here.at, world) : null,
+          where: here ? whereabouts(here.at, world, here.dialup) : null,
         }
       }),
     })

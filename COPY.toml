@@ -346,6 +346,7 @@ welcome_none = { text = "No one else in the valley.", by = "ai" }
 welcome_one = { text = "One other in the valley.", by = "ai" }
 welcome_many = { text = "{count} others in the valley.", by = "ai" }
 peer_joined = { text = "{name} is in the valley.", by = "ai" }
+peer_dialed = { text = "{name} dialed in.", by = "ai" }
 peer_left = { text = "{name} is gone.", by = "ai" }
 peer_renamed = { text = "{was} is {name} now.", by = "ai" }
 peer_level = { text = "{name} reached level {level}.", by = "ai" }
@@ -537,6 +538,7 @@ too_fast = { text = "You are speaking too fast.", by = "ai" }
 offline = { text = "No one can hear you.", by = "ai" }
 online = { text = "In the valley: {names}.", by = "ai" }
 online_name = { text = "{name} (level {level})", by = "ai" }
+online_phone = { text = "{name} (level {level}, on the phone)", by = "ai" }
 unknown_command = { text = "No such command. Try /online, /emotes, /friends, /friend name, /unfriend name or /w name message.", by = "ai" }
 usage_whisper = { text = "To whisper: /w name message", by = "ai" }
 usage_friend = { text = "To ask a raider to be friends: /friend name", by = "ai" }
@@ -559,6 +561,7 @@ where_riding = { text = "riding with Marx", by = "ai" }
 where_maze = { text = "in the corn maze", by = "ai" }
 where_citgo = { text = "by a Citgo", by = "ai" }
 where_valley = { text = "out in the valley", by = "ai" }
+where_phone = { text = "on the phone", by = "ai" }
 sent = { text = "You asked {name} to be friends.", by = "ai" }
 now = { text = "You and {name} are friends.", by = "ai" }
 removed = { text = "You and {name} are no longer friends.", by = "ai" }

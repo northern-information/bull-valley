@@ -28,7 +28,7 @@ import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 36
+export const PROTOCOL_VERSION = 37
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -107,6 +107,9 @@ export interface PeerWire {
   cosmetics: CosmeticId[]
   level: number
   at: PeerStateWire | null
+  // Dialed in from Bull Valley Dial-Up (sharedworld.ts rule 29): in the
+  // valley, but never placed in it, so never drawn.
+  dialup?: true
 }
 
 // One pickup as this build placed it: what lies there and how many. The
@@ -257,6 +260,17 @@ export interface HelloMessage {
   // valley may not have heard that socket close yet; it retires it if it is
   // the same account's, so the raider is not welcomed back beside their own
   // ghost.
+  was?: string
+}
+
+// Bull Valley Dial-Up's hello (sharedworld.ts rule 29): the valley without
+// a body in it, so nothing of the world is carried, only the outfit the
+// raider wears. Who it is comes from the session cookie, as for a hello.
+export interface DialMessage {
+  type: 'dial'
+  v: number
+  outfit: OutfitId
+  // As a hello's: the id this client had before the line dropped.
   was?: string
 }
 
@@ -502,6 +516,7 @@ interface PingMessage {
 
 export type ClientMessage =
   | HelloMessage
+  | DialMessage
   | StateMessage
   | HeadlightsMessage
   | PingMessage
@@ -536,7 +551,7 @@ export type ClientMessage =
 // What a client may be refused for.
 export type NackRe = Exclude<
   ClientMessage['type'],
-  'hello' | 'state' | 'headlights' | 'ping' | 'friends'
+  'hello' | 'dial' | 'state' | 'headlights' | 'ping' | 'friends'
 >
 
 // --- Server → client -------------------------------------------------------
@@ -548,7 +563,9 @@ export interface WelcomeMessage {
   // offset from it.
   serverNow: number
   peers: PeerWire[]
-  world: WorldWire
+  // Null only for a dial-up raider (rule 29) in a valley no 3D raider
+  // has opened a world in yet.
+  world: WorldWire | null
   // Where this account last stood on foot, or null for the spawn Citgo.
   place: Place | null
   // Which bushes still have a berry for this account today.
@@ -929,8 +946,9 @@ interface WhisperedMessage {
   outgoing: boolean
 }
 
-// Roughly where a raider is (friends.ts whereabouts).
-export type Whereabouts = 'riding' | 'maze' | 'citgo' | 'valley'
+// Roughly where a raider is (friends.ts whereabouts): on the phone when
+// dialed in from Bull Valley Dial-Up.
+export type Whereabouts = 'riding' | 'maze' | 'citgo' | 'valley' | 'phone'
 
 // One name on an account's friends list: a friend, a raider this account
 // asked (asked) or one asking it (asking); whether they are in the valley
@@ -1286,6 +1304,16 @@ const DEV_OPS: Record<string, (value: Fields) => DevMessage | null> = {
 
 const CLIENT_PARSERS: ClientParsers = {
   hello: parseHello,
+  dial: ({ v, outfit, was }) => {
+    if (typeof v !== 'number' || !Number.isInteger(v)) return null
+    if (typeof outfit !== 'string') return null
+    return {
+      type: 'dial',
+      v,
+      outfit: outfit as OutfitId,
+      ...(typeof was === 'string' && was.length <= ID_MAX ? { was } : {}),
+    }
+  },
   board: bare('board'),
   'hop-out': bare('hop-out'),
   charter: ({ to }) => {

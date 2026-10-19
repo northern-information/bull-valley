@@ -21,6 +21,8 @@ export interface Peer {
   cosmetics: CosmeticId[]
   // Their account's level (progression.ts).
   level: number
+  // Dialed in from Bull Valley Dial-Up: never placed, so never drawn.
+  dialup: boolean
   // The two most recent states; prev is null until the second arrives, and
   // both are null until the peer is placed.
   prev: PeerSnapshot | null
@@ -55,6 +57,7 @@ export function applyJoined(peers: PeerTable, wire: PeerWire, now: number) {
     outfit: wire.outfit,
     cosmetics: toCosmetics(wire.cosmetics),
     level: wire.level,
+    dialup: wire.dialup === true,
     prev: null,
     next: wire.at ? { ...wire.at, at: now } : null,
   }

@@ -113,7 +113,9 @@ function valleyWith(...actions: ValleyAction[]) {
     }
     const reduced = reduce(valley, action, ctx)
     valley = reduced.valley
-    if (action.type === 'join' && !reduced.reject) present.push(action.id)
+    if ((action.type === 'join' || action.type === 'dial') && !reduced.reject) {
+      present.push(action.id)
+    }
     if (action.type === 'leave') {
       const i = present.indexOf(action.id)
       if (i >= 0) present.splice(i, 1)
@@ -2857,5 +2859,166 @@ describe('rule 27: buffs', () => {
     const high = shadowRaiders(v.valley, createShadows(), placed, v.now)[0]
     expect(high.beam!.range).toBeGreaterThan(sober.beam!.range)
     expect(high.beam!.halfAngle).toBeGreaterThan(sober.beam!.halfAngle)
+  })
+})
+
+describe('rule 29: Bull Valley Dial-Up', () => {
+  const dial = (id: string, account = `acct-${id}`): ValleyAction => ({
+    type: 'dial',
+    id,
+    account,
+    name: id.toUpperCase(),
+    outfit: 'coleman',
+    level: 3,
+  })
+
+  it('comes into the valley with no body, opening no world', () => {
+    const v = valleyWith(dial('p'))
+    expect(v.valley.world).toBeNull()
+    expect(v.valley.members.p).toMatchObject({
+      account: 'acct-p',
+      level: 3,
+      dialup: true,
+    })
+    expect(v.last().broadcast).toEqual([
+      { type: 'world', reason: 'joined', world: null, by: 'p' },
+    ])
+  })
+
+  it('pays the truck no mind and keeps those already here', () => {
+    const v = valleyWith(join('a'))
+    const leg = v.valley.world?.truck.leg
+    v.tick(1000)
+    v.step(dial('p'))
+    expect(v.valley.world?.truck.leg).toEqual(leg)
+    expect(Object.keys(v.valley.members).sort()).toEqual(['a', 'p'])
+  })
+
+  it('refuses whatever takes a body', () => {
+    const v = valleyWith(join('a'), dial('p'))
+    const refused = (action: ValleyAction) => v.step(action).reply
+    const cases: [ValleyAction, string][] = [
+      [{ type: 'board', id: 'p', at: HERE }, 'board'],
+      [{ type: 'hop-out', id: 'p' }, 'hop-out'],
+      [{ type: 'call', id: 'p', from: HERE, at: HERE }, 'call'],
+      [{ type: 'charter', id: 'p', to: null }, 'charter'],
+      [{ type: 'take', id: 'p', index: 0, at: HERE }, 'take'],
+      [{ type: 'collect', id: 'p', bush: 0, at: HERE }, 'collect'],
+      [{ type: 'use', id: 'p', kind: 'pbr' }, 'use'],
+      [
+        {
+          type: 'pass',
+          id: 'p',
+          to: 'a',
+          kind: 'pbr',
+          from: null,
+          at: null,
+        },
+        'pass',
+      ],
+      [{ type: 'drop', id: 'p', kind: 'pbr', count: 1, at: null }, 'drop'],
+      [{ type: 'take-drop', id: 'p', drop: 0, at: HERE }, 'take-drop'],
+      [{ type: 'loot', id: 'p', corpse: 0, at: HERE }, 'loot'],
+      [{ type: 'open-portal', id: 'p', at: null }, 'portal'],
+      [
+        { type: 'quest', id: 'p', quest: 'rose', step: 'lay', at: HERE },
+        'quest',
+      ],
+    ]
+    for (const [action, re] of cases) {
+      expect(refused(action), action.type).toEqual({
+        type: 'nack',
+        re,
+        reason: 'dialup',
+      })
+    }
+  })
+
+  it("opens the account's locker wherever they are, world or none", () => {
+    const v = valleyWith(dial('p'))
+    const r = v.step({
+      type: 'stow',
+      id: 'p',
+      kind: 'marlboro',
+      count: 2,
+      at: null,
+    })
+    expect(r.reply).toBeUndefined()
+    expect(r.stash).toEqual({ account: 'acct-p', kind: 'marlboro', delta: 2 })
+    // On foot, the locker is still at a Citgo.
+    const w = valleyWith(join('a'))
+    expect(
+      w.step({ type: 'stow', id: 'a', kind: 'marlboro', count: 2, at: null })
+        .reply
+    ).toMatchObject({ reason: 'no-locker' })
+  })
+
+  it('tends the stand wherever they are', () => {
+    const v = valleyWith(dial('p'))
+    const r = reduce(
+      v.valley,
+      { type: 'stand-stock', id: 'p', kind: 'cabbage', count: 2, at: null },
+      {
+        now: T0,
+        present: ['p'],
+        stand: { ledger: FRESH_STAND, pack: { cabbage: 2 }, cash: 0 },
+      }
+    )
+    expect(r.reply).toBeUndefined()
+    expect(r.stand).toMatchObject({ account: 'acct-p', re: 'stock' })
+  })
+
+  it('buys at a Citgo the account has stood at, and no other', () => {
+    const v = valleyWith(join('a'), dial('p', 'acct-a'))
+    const buy = (station: number): ValleyAction => ({
+      type: 'buy',
+      id: 'p',
+      station,
+      kind: 'pbr',
+      unit: 0,
+      at: null,
+    })
+    expect(v.step(buy(1)).reply).toMatchObject({
+      re: 'buy',
+      reason: 'not-visited',
+    })
+    v.step({ type: 'visit', id: 'a', station: 1 })
+    const r = v.step(buy(1))
+    expect(r.reply).toBeUndefined()
+    expect(r.spend).toEqual({ account: 'acct-a', amount: getItem('pbr').price })
+  })
+
+  it('deals with Erwin and takes and hands in the rose from anywhere', () => {
+    const v = valleyWith({ ...joinAs('a'), maze: MAZE }, dial('p'))
+    v.setPack({ marlboro: 200 })
+    const deal = v.step({
+      type: 'deal',
+      id: 'p',
+      kind: 'mushrooms',
+      pay: 'marlboro',
+      at: null,
+    })
+    expect(deal.reply).toBeUndefined()
+    expect(deal.barter).toMatchObject({ account: 'acct-p' })
+    v.setQuest('none', {})
+    expect(
+      v.step({
+        type: 'quest',
+        id: 'p',
+        quest: 'rose',
+        step: 'accept',
+        at: null,
+      }).quest
+    ).toMatchObject({ account: 'acct-p', to: 'given' })
+    v.setQuest('laid', {})
+    expect(
+      v.step({
+        type: 'quest',
+        id: 'p',
+        quest: 'rose',
+        step: 'reward',
+        at: null,
+      }).quest
+    ).toMatchObject({ to: 'done' })
   })
 })

@@ -62,6 +62,11 @@ describe('whereabouts', () => {
     expect(whereabouts(at(r + 1, 0), world)).toBe('valley')
     expect(whereabouts(at(r + 1, 0), null)).toBe('valley')
   })
+
+  it('says on the phone for a raider dialed in, wherever a frame says', () => {
+    expect(whereabouts(null, world, true)).toBe('phone')
+    expect(whereabouts(at(10, 10), world, true)).toBe('phone')
+  })
 })
 
 describe('the friends list in the log', () => {

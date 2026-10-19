@@ -62,8 +62,10 @@ export function sameName(a: string, b: string): boolean {
 // Null before their first frame.
 export function whereabouts(
   at: PeerStateWire | null,
-  world: { havens: readonly XZ[]; maze: MazePlace | null } | null
+  world: { havens: readonly XZ[]; maze: MazePlace | null } | null,
+  dialup = false
 ): Whereabouts | null {
+  if (dialup) return 'phone'
   if (!at) return null
   if (at.riding) return 'riding'
   if (world?.maze) {
@@ -83,6 +85,7 @@ const WHERE: Record<Whereabouts, () => string> = {
   maze: () => copy('friends.where_maze'),
   citgo: () => copy('friends.where_citgo'),
   valley: () => copy('friends.where_valley'),
+  phone: () => copy('friends.where_phone'),
 }
 
 // The friends list as the log says it, one line each: friends first,
