@@ -1,23 +1,35 @@
 // Bull Valley Dial-Up's shell (sharedworld.ts rule 29), once the modem has
 // connected: the top bar (the raider, their level and its bar, the wallet,
 // geometrie and the wards going), the tabs along the bottom (Lobby, Pack,
-// Expeditions, Social, Book; the last three not on this line yet), the
-// lobby's cards (the Cabbage Stand, the locker, the raider) and the sheets
+// Expeditions, Social, Book; Expeditions and Social not on this line
+// yet), the
+// lobby (the raider in their character with their record, and the cards
+// for the Cabbage Stand and the locker) and the sheets
 // they open, and a toast for the valley's last word. Space is collapsed:
 // no card is anywhere, so every one opens wherever the raider is. The
 // state is dialstate.ts's, redrawn whole on every frame.
 
 import { copy } from './copy.ts'
+import { dayKey } from './daily.ts'
+import { DialBook, renderPage } from './dialbook.ts'
 import { DialPack, renderLocker } from './dialpack.ts'
+import { raiderStats } from './dialstate.ts'
 import { el, text } from './dom.ts'
 import { AXES } from './geometrie.ts'
 import { iconSvg } from './icons.ts'
+import { OUTFITS } from './outfits.ts'
 import { barOf } from './progression.ts'
 import { collectable } from './stand.ts'
 import { formatCash } from './store.ts'
+import { grouped, wardName } from './vitalshud.ts'
+import type { AvatarView } from './avatarview.ts'
+import type { BookEntry } from './book.ts'
 import type { Opened, PackActions } from './dialpack.ts'
 import type { DialState } from './dialstate.ts'
+import type { FinishId } from './finishes.ts'
 import type { Hotbar } from './hotbar.ts'
+import type { ItemThumbs } from './itemthumbs.ts'
+import type { OutfitId } from './outfits.ts'
 
 export type DialTab = 'lobby' | 'pack' | 'expeditions' | 'social' | 'book'
 
@@ -34,6 +46,12 @@ const SAID_MS = 4000
 
 interface ShellOptions {
   name: string
+  // The character the raider wears and its guitar's finish
+  // (characters.ts pickOf).
+  outfit: OutfitId
+  finish: FinishId
+  // The 3D models, loaded once when first wanted.
+  models: () => Promise<typeof import('./dial3d.ts')>
   hotbar: Hotbar
   // The valley's clock in ms, for what the stand has banked.
   now: () => number
@@ -53,10 +71,19 @@ export class DialShell {
   private sheetBody: HTMLElement
   private sheetTitle: HTMLElement
   private tab: DialTab = 'lobby'
-  private sheetOpen: 'locker' | null = null
+  private sheetOpen: 'locker' | 'page' | null = null
   private lockerOpen: Opened = { kind: null }
   private pack: DialPack
+  private book: DialBook
   private state: DialState | null = null
+  // The raider's turntable: one canvas kept across redraws, and what it
+  // last showed them in.
+  private portrait: HTMLElement
+  private avatarCanvas: HTMLCanvasElement
+  private avatar: AvatarView | null = null
+  private dressed = ''
+  private thumbs: ItemThumbs | null = null
+  private models: ReturnType<ShellOptions['models']> | null = null
 
   private options: ShellOptions
 
@@ -87,6 +114,11 @@ export class DialShell {
     this.sheetBody = el('div', 'bv-dial-sheet-body')
     this.sheet.append(head, this.sheetBody)
     this.pack = new DialPack(options.hotbar, options.pack)
+    this.book = new DialBook((entry) => this.openPage(entry))
+    this.portrait = el('div', 'bv-dial-portrait')
+    this.avatarCanvas = document.createElement('canvas')
+    this.avatarCanvas.className = 'bv-dial-portrait-canvas'
+    this.portrait.append(this.avatarCanvas)
     this.root.append(this.top, this.view, this.toast, tabs, this.sheet)
     parent.append(this.root)
   }
@@ -106,11 +138,16 @@ export class DialShell {
         this.pack.render(s)
         this.view.replaceChildren(this.pack.root)
         break
+      case 'book':
+        this.book.render(new Set(s.book))
+        this.view.replaceChildren(this.book.root)
+        break
       default:
         this.view.replaceChildren(
           text('p', copy('dialup.soon'), 'bv-dial-note')
         )
     }
+    this.dress(s)
     if (this.sheetOpen === 'locker') {
       renderLocker(this.sheetBody, s, this.options.pack, this.lockerOpen)
     }
@@ -145,7 +182,53 @@ export class DialShell {
     if (this.state) this.render(this.state)
   }
 
+  // The 3D, loaded the first time it is wanted.
+  private load(): ReturnType<ShellOptions['models']> {
+    this.models ??= this.options.models()
+    return this.models
+  }
+
+  // The raider turns on the lobby in what they wear; anywhere else the
+  // turntable stops.
+  private dress(s: DialState): void {
+    const look = {
+      outfit: this.options.outfit,
+      finish: this.options.finish,
+      cosmetics: s.cosmetics,
+    }
+    const key = this.tab === 'lobby' ? JSON.stringify(look) : ''
+    if (key === this.dressed) return
+    this.dressed = key
+    if (!key) {
+      this.avatar?.stop()
+      return
+    }
+    void this.load().then((models) => {
+      if (this.dressed !== key) return
+      this.avatar ??= models.createAvatarView(this.avatarCanvas, {
+        drag: true,
+      })
+      this.avatar.show(look)
+    })
+  }
+
+  // An entry's page in the sheet, its portrait turning.
+  private openPage(entry: BookEntry): void {
+    const known = this.state?.book.includes(entry.id) ?? false
+    this.sheetOpen = 'page'
+    this.sheetTitle.textContent = copy('book.title')
+    this.sheet.hidden = false
+    const canvas = renderPage(this.sheetBody, entry, known)
+    void this.load().then((models) => {
+      if (this.sheetOpen !== 'page' || !canvas.isConnected) return
+      this.thumbs ??= models.createItemThumbs()
+      const { build, fitAs } = models.portraitOf(entry)
+      this.thumbs.spinModel(canvas, `book:${entry.id}`, build, !known, fitAs)
+    })
+  }
+
   private closeSheet(): void {
+    if (this.sheetOpen === 'page') this.thumbs?.stop()
     this.sheetOpen = null
     this.sheet.hidden = true
     this.sheetBody.replaceChildren()
@@ -163,17 +246,12 @@ export class DialShell {
     )
     const xp = meter('bv-dial-xp', share)
     const health = meter('bv-dial-health', life)
-    health.setAttribute(
-      'aria-label',
-      copy('dialup.geometrie', { health: s.health, max: s.healthMax })
-    )
-    health.append(
-      text(
-        'span',
-        copy('dialup.geometrie', { health: s.health, max: s.healthMax }),
-        'bv-dial-meter-text'
-      )
-    )
+    const points = copy('dialup.geometrie', {
+      health: grouped(s.health),
+      max: grouped(s.healthMax),
+    })
+    health.setAttribute('aria-label', points)
+    health.append(text('span', points, 'bv-dial-meter-text'))
     const wards = el('ol', 'bv-dial-wards')
     for (const axis of AXES) {
       const level = Math.round((s.wards[axis] || 0) * 100)
@@ -191,15 +269,7 @@ export class DialShell {
     const grid = el('div', 'bv-dial-lobby')
     const banked = s.stand ? collectable(s.stand, this.options.now()) : 0
     grid.append(
-      card(
-        'raider',
-        copy('dialup.lobby.raider', { name: this.options.name }),
-        copy('dialup.lobby.raider_blurb', {
-          level: barOf(s.xp).level,
-          cash: formatCash(s.cash),
-        }),
-        null
-      ),
+      this.raider(s),
       card(
         'stand',
         copy('dialup.lobby.stand'),
@@ -219,6 +289,62 @@ export class DialShell {
     away.href = this.options.switchHref
     grid.append(away)
     return grid
+  }
+
+  // The raider in their character, their level and their record.
+  private raider(s: DialState): HTMLElement {
+    const { name, outfit } = this.options
+    const look = OUTFITS[outfit].label
+    const panel = el('section', 'bv-dial-raider')
+    panel.dataset.card = 'raider'
+    this.avatarCanvas.setAttribute(
+      'aria-label',
+      copy('dialup.raider.portrait', { name, outfit: look })
+    )
+    this.avatarCanvas.setAttribute('role', 'img')
+
+    const head = el('div', 'bv-dial-raider-head')
+    head.append(
+      text('h2', name, 'bv-dial-raider-name'),
+      text(
+        'p',
+        copy('dialup.raider.title', { level: barOf(s.xp).level, outfit: look }),
+        'bv-dial-raider-title'
+      )
+    )
+    const stats = el('dl', 'bv-dial-stats')
+    for (const stat of raiderStats(s, dayKey(this.options.now()))) {
+      const row = el('div', 'bv-dial-stat')
+      row.dataset.stat = stat.id
+      row.append(
+        text('dt', stat.label, 'bv-dial-stat-label'),
+        text('dd', stat.value, 'bv-dial-stat-value')
+      )
+      if (stat.share !== null) row.append(meter('bv-dial-stat-bar', stat.share))
+      stats.append(row)
+    }
+    head.append(stats)
+
+    const wards = el('ul', 'bv-dial-raider-wards')
+    for (const axis of AXES) {
+      const level = s.wards[axis] || 0
+      if (Math.round(level * 100) < 1) continue
+      const chip = el('li', 'bv-dial-ward')
+      chip.dataset.ward = axis
+      chip.innerHTML = iconSvg(axis)
+      chip.append(
+        text('span', wardName(axis)),
+        text('span', `${Math.round(level * 100)}%`, 'bv-dial-ward-level')
+      )
+      wards.append(chip)
+    }
+    if (wards.childElementCount === 0) {
+      wards.append(
+        text('li', copy('dialup.raider.wards'), 'bv-dial-raider-calm')
+      )
+    }
+    panel.append(this.portrait, head, wards)
+    return panel
   }
 }
 

@@ -31,6 +31,7 @@ import { Phone } from './phone.ts'
 import { Player } from './player.ts'
 import { PlayerBody } from './playerbody.ts'
 import { createPortalMeshes } from './portalmeshes.ts'
+import { GRAIN_URL, imagesReady } from './preload.ts'
 import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import { mulberry32 } from './rng.ts'
 import { buildRoadGraph, nearestRoadPoint, wanderRoute } from './roadgraph.ts'
@@ -64,7 +65,11 @@ const DATA_BASE = '/data/bull-valley'
 async function boot() {
   const root = document.getElementById('bv-root')
   if (!root) throw new Error('Missing #bv-root')
-  await fontsReady()
+  // The face, the grain and the logos before any card paints.
+  await Promise.all([
+    fontsReady(),
+    imagesReady([GRAIN_URL, CONFIG.splash.imageSrc, CONFIG.logo.imageSrc]),
+  ])
   const hud = new Hud(root)
   const audio = new BvAudio()
   // The title-card cues; dev builds mute them.

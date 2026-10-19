@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest'
+import { BOOK } from '../../src/book.ts'
 import { copy } from '../../src/copy.ts'
-import { applyFrame, asked, DIALED, NO_WARDS } from '../../src/dialstate.ts'
+import { DAILY_TASK } from '../../src/dailytask.ts'
+import {
+  applyFrame,
+  asked,
+  DIALED,
+  NO_WARDS,
+  raiderStats,
+} from '../../src/dialstate.ts'
+import { SEASON } from '../../src/season.ts'
 import { FRESH_STAND, refusalLine } from '../../src/stand.ts'
+import type { DialState } from '../../src/dialstate.ts'
 import type { ServerMessage, WelcomeMessage } from '../../src/protocol.ts'
 
 const welcome = (over: Partial<WelcomeMessage> = {}): ServerMessage => ({
@@ -133,5 +143,91 @@ describe("Dial-Up's state", () => {
       applyFrame(s, { type: 'world', reason: 'joined', world: null }, 0).world
     ).toBe(world)
     expect(applyFrame(s, { type: 'pong', t: 0, serverNow: 0 }, 0)).toBe(s)
+  })
+
+  it('keeps the season, the task, the book and the Citgos', () => {
+    let s = applyFrame(DIALED, welcome({ book: ['citgo'] }), 0)
+    expect(s.season).toEqual({ kills: 0, claimed: false })
+    expect(s.task).toEqual({ day: 'd', count: 0, claimed: false })
+    expect(s.book).toEqual(['citgo'])
+    s = applyFrame(
+      s,
+      {
+        type: 'season',
+        season: { season: 's1', kills: 2, claimed: false },
+        rewarded: false,
+      },
+      0
+    )
+    expect(s.season.kills).toBe(2)
+    s = applyFrame(
+      s,
+      {
+        type: 'task',
+        task: { task: 't', day: 'e', count: 3, claimed: false },
+        rewarded: false,
+      },
+      0
+    )
+    expect(s.task).toEqual({ day: 'e', count: 3, claimed: false })
+    // A page already written is never written twice.
+    s = applyFrame(s, { type: 'book', found: ['citgo', 'shadowman'] }, 0)
+    expect(s.book).toEqual(['citgo', 'shadowman'])
+    s = applyFrame(
+      s,
+      { type: 'citgos', citgos: { last: 4, visited: [0, 4] } },
+      0
+    )
+    expect(s.citgos.visited).toEqual([0, 4])
+  })
+})
+
+describe("the raider's record", () => {
+  const record = (s: DialState, day = 'd') =>
+    Object.fromEntries(raiderStats(s, day).map((stat) => [stat.id, stat]))
+
+  it('counts toward each goal', () => {
+    const s: DialState = {
+      ...applyFrame(DIALED, welcome({ xp: 0 }), 0),
+      season: { kills: 2, claimed: false },
+      task: { day: 'd', count: 4, claimed: false },
+      book: ['citgo', 'citgo', 'shadowman'],
+      citgos: { last: 3, visited: [0, 3] },
+    }
+    const r = record(s)
+    expect(r.xp.share).toBe(0)
+    expect(r.season.value).toBe(
+      copy('dialup.raider.of', { done: 2, goal: SEASON.goal })
+    )
+    expect(r.task.value).toBe(
+      copy('dialup.raider.of', { done: 4, goal: DAILY_TASK.goal })
+    )
+    expect(r.book.value).toBe(
+      copy('dialup.raider.of', { done: 2, goal: BOOK.length })
+    )
+    expect(r.citgos).toMatchObject({ value: '2', share: null })
+    // Nothing worn, no line for it.
+    expect(r.worn).toBeUndefined()
+    // Yesterday's burns count for nothing today.
+    expect(record(s, 'e').task.share).toBe(0)
+  })
+
+  it('says Done for what is paid, the top level, and what is worn', () => {
+    const s: DialState = {
+      ...DIALED,
+      xp: Number.MAX_SAFE_INTEGER,
+      season: { kills: 7, claimed: true },
+      task: { day: 'd', count: 5, claimed: true },
+      cosmetics: ['flaming-halo'],
+    }
+    const r = record(s)
+    expect(r.xp).toMatchObject({
+      value: copy('dialup.raider.xp_max'),
+      share: 1,
+    })
+    expect(r.season.value).toBe(copy('dialup.raider.done'))
+    expect(r.season.share).toBe(1)
+    expect(r.task.value).toBe(copy('dialup.raider.done'))
+    expect(r.worn.value).toBe(copy('cosmetics.flaming-halo.label'))
   })
 })

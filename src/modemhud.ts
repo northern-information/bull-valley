@@ -1,13 +1,18 @@
-// The modem as seen and heard (modem.ts): a green terminal on black that
+// The modem as seen and heard (modem.ts): a terminal, eggshell on black,
+// under the game's logo in its black fog (fog.ts) and over the Northern
+// Information colophon, all under the title cards' film grain, that
 // says TAP TO DIAL, then types the handshake out line by line, playing
 // each cue as it comes due (modemaudio.ts), until the line answers. The
 // caller tells it how the line answered (connected, signedOut, noCarrier)
 // and waits on `done`, which says whether a login is wanted.
 
+import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { el } from './dom.ts'
+import { createFog } from './fog.ts'
 import { connected, IDLE, noCarrier, signedOut, tap, view } from './modem.ts'
 import { ModemAudio } from './modemaudio.ts'
+import { COLOPHON, LOGO } from './splash.ts'
 import type { Modem, ModemLine } from './modem.ts'
 
 const LINES: Record<ModemLine, string> = {
@@ -45,10 +50,15 @@ export function mountModem(
 ): ModemScreen {
   const root = el('section', 'bv-modem')
   root.setAttribute('aria-live', 'polite')
+  const logo = el('div', 'bv-modem-logo')
+  logo.append(image('bv-modem-logo-img', LOGO.imageSrc, LOGO.alt))
+  const fog = createFog(CONFIG.render.downscale)
+  if (fog) logo.append(fog.canvas)
   const brand = el('h1', 'bv-modem-brand', copy('dialup.title'))
   const screen = el('pre', 'bv-modem-screen')
   const prompt = el('p', 'bv-modem-prompt', copy('dialup.tap'))
-  root.append(brand, screen, prompt)
+  const colophon = image('bv-modem-colophon', COLOPHON.imageSrc, COLOPHON.alt)
+  root.append(logo, brand, screen, prompt, colophon)
   parent.append(root)
 
   let modem: Modem = IDLE
@@ -93,6 +103,7 @@ export function mountModem(
     }
     if (v.done) {
       audio?.close()
+      fog?.stop()
       root.removeEventListener('pointerdown', onTap)
       root.remove()
       resolve(v.login)
@@ -114,4 +125,12 @@ export function mountModem(
     },
     done,
   }
+}
+
+function image(className: string, src: string, alt: string): HTMLImageElement {
+  const img = document.createElement('img')
+  img.className = className
+  img.src = src
+  img.alt = alt
+  return img
 }

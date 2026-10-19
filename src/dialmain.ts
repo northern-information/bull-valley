@@ -20,6 +20,7 @@ import { fontsReady } from './fonts.ts'
 import { toHotbar } from './hotbar.ts'
 import { mountModem } from './modemhud.ts'
 import { NetClient, socketUrl } from './net.ts'
+import { GRAIN_URL, imagesReady } from './preload.ts'
 import { CLOSE } from './protocol.ts'
 import { toSettings } from './settings.ts'
 import { mountAccountStep } from './signin.ts'
@@ -41,7 +42,12 @@ async function boot(): Promise<void> {
   const root = document.getElementById('bv-root')
   if (!root) throw new Error('Missing #bv-root')
   brand()
-  const [known] = await Promise.all([fetchMe(), fontsReady()])
+  // The face, the grain and the logos before the modem paints.
+  const [known] = await Promise.all([
+    fetchMe(),
+    fontsReady(),
+    imagesReady([GRAIN_URL, CONFIG.splash.imageSrc, CONFIG.logo.imageSrc]),
+  ])
   const account = known?.account ?? null
   const settings = toSettings(account?.settings)
   const net = new NetClient({
@@ -95,6 +101,9 @@ async function boot(): Promise<void> {
   const now = () => net.clock.serverNow(performance.now())
   shell = new DialShell(root, {
     name: account.username,
+    outfit: pickOf(account.look).outfit,
+    finish: pickOf(account.look).finish,
+    models: () => import('./dial3d.ts'),
     hotbar: toHotbar(account.hotbar),
     now,
     switchHref: switchUrl(window.location, 'valley'),

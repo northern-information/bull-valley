@@ -1132,7 +1132,7 @@ blurb = { text = "A brass key on a red tag that says BACK, from Erwin von Dutch 
 [dialup]
 title = { text = "Bull Valley Dial-Up", by = "ai" }
 tap = { text = "TAP TO DIAL", by = "ai" }
-skip = { text = "tap to skip", by = "ai" }
+skip = { text = "TAP TO SKIP", by = "ai" }
 switch_valley = { text = "Walk the valley instead", by = "ai" }
 refused = { text = "The valley hung up. Reload to dial again.", by = "ai" }
 back = { text = "Back", by = "ai" }
@@ -1165,9 +1165,21 @@ stand = { text = "Cabbage Stand", by = "ai" }
 stand_blurb = { text = "Your outpost on the spawn Citgo's lot. Banking while you're away.", by = "ai" }
 locker = { text = "Citgo Locker", by = "ai" }
 locker_blurb = { text = "Your stash, the same at every Citgo.", by = "ai" }
-raider = { text = "{name}", by = "ai" }
-raider_blurb = { text = "Level {level}. {cash} in the wallet.", by = "ai" }
 banked = { text = "{amount} banked", by = "ai" }
+
+[dialup.raider]
+title = { text = "LV {level} · {outfit}", by = "ai" }
+portrait = { text = "{name} as {outfit}", by = "ai" }
+xp = { text = "XP", by = "ai" }
+xp_max = { text = "Top level", by = "ai" }
+of = { text = "{done} / {goal}", by = "ai" }
+done = { text = "Done", by = "ai" }
+season = { text = "Caretaker burned", by = "ai" }
+task = { text = "Shadows today", by = "ai" }
+book = { text = "Book of Shadows", by = "ai" }
+citgos = { text = "Citgos found", by = "ai" }
+worn = { text = "Wearing", by = "ai" }
+wards = { text = "No wards going.", by = "ai" }
 
 [dialup.pack]
 count = { text = "×{count}", by = "ai" }

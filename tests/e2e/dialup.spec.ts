@@ -23,19 +23,18 @@ async function dialIn(page: Page): Promise<void> {
   await expect(page.locator('.bv-dial')).toBeVisible({ timeout: 15_000 })
 }
 
-test('a phone dials up instead of walking the valley, with no three.js', async ({
-  browser,
-}) => {
+test('a phone dials up instead of walking the valley', async ({ browser }) => {
   const page = await phone(browser)
-  const asked: string[] = []
-  page.on('request', (req) => asked.push(req.url()))
   await signIn(page)
   await page.goto(`/?valley=${freshValley('dial')}`)
   await expect(page).toHaveTitle(copy('dialup.title'))
   await dialIn(page)
   await expect(page.locator('.bv-modem')).toHaveCount(0)
-  expect(asked.some((url) => /deps\/three\b|\/three\.module/.test(url))).toBe(
-    false
+  // The raider on the lobby, in their character, with their record.
+  const raider = page.locator('.bv-dial-raider')
+  await expect(raider.locator('.bv-dial-portrait-canvas')).toBeVisible()
+  await expect(raider.locator('.bv-dial-stat[data-stat="task"]')).toContainText(
+    copy('dialup.raider.task')
   )
   // The way back to the valley.
   await expect(page.locator('.bv-dial-switch')).toHaveAttribute(
@@ -116,4 +115,21 @@ test('a raider in the valley hears a phone dial in', async ({ browser }) => {
       desk.evaluate(() => window.__bv?.chat.map((line) => line.text) ?? [])
     )
     .toContain(copy('log.peer_dialed', { name: raider.username }))
+})
+
+test('reads the Book of Shadows, a page at a time', async ({ browser }) => {
+  const page = await phone(browser)
+  await signIn(page)
+  await page.goto(`/?valley=${freshValley('dial')}`)
+  await dialIn(page)
+  await page.locator('.bv-dial-tab[data-tab="book"]').click()
+  await page.locator('.bv-dial-chip[data-chapter="shadows"]').click()
+  // Nothing found yet: every page dark.
+  const entry = page.locator('.bv-dial-entry[data-entry="shadowman"]')
+  await expect(entry).toHaveText(copy('book.unknown'))
+  await entry.click()
+  await expect(page.locator('.bv-dial-page-lore')).toHaveText(
+    copy('book.unknown_lore')
+  )
+  await expect(page.locator('.bv-dial-page-portrait')).toBeVisible()
 })
