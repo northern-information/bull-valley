@@ -1125,3 +1125,68 @@ blurb = { text = "Erwin von Dutch wants it laid at the heart of the corn maze. D
 [items.vault-key]
 label = { text = "Video Vault Key", by = "ai" }
 blurb = { text = "A brass key on a red tag that says BACK, from Erwin von Dutch for the rose. It opens the office behind the Video Vault, for whoever carries it.", by = "ai" }
+
+# Bull Valley Dial-Up, the valley on a phone (src/dialmain.ts and the
+# dial* modules): the brand, the modem it opens on, and its screens.
+
+[dialup]
+title = { text = "Bull Valley Dial-Up", by = "ai" }
+tap = { text = "TAP TO DIAL", by = "ai" }
+skip = { text = "TAP TO SKIP", by = "ai" }
+switch_valley = { text = "Walk the valley instead", by = "ai" }
+refused = { text = "The valley hung up. Reload to dial again.", by = "ai" }
+back = { text = "Back", by = "ai" }
+level = { text = "LV {level}", by = "ai" }
+geometrie = { text = "Geometrie {health} / {max}", by = "ai" }
+soon = { text = "Not on this line yet.", by = "ai" }
+
+[dialup.modem]
+atz = { text = "ATZ", by = "ai" }
+ok = { text = "OK", by = "ai" }
+dial = { text = "ATDT 1-815-BULL-VLY", by = "ai" }
+ring = { text = "RINGING", by = "ai" }
+carrier = { text = "CARRIER 28800", by = "ai" }
+protocol = { text = "PROTOCOL: LAP-M", by = "ai" }
+compression = { text = "COMPRESSION: V.42BIS", by = "ai" }
+connect = { text = "CONNECT 56000", by = "ai" }
+login = { text = "LOGIN:", by = "ai" }
+no_carrier = { text = "NO CARRIER", by = "ai" }
+redial = { text = "ATDL", by = "ai" }
+
+[dialup.tabs]
+lobby = { text = "Lobby", by = "ai" }
+pack = { text = "Pack", by = "ai" }
+expeditions = { text = "Expeditions", by = "ai" }
+social = { text = "Social", by = "ai" }
+book = { text = "Book", by = "ai" }
+
+[dialup.lobby]
+stand = { text = "Cabbage Stand", by = "ai" }
+stand_blurb = { text = "Your outpost on the spawn Citgo's lot. Banking while you're away.", by = "ai" }
+locker = { text = "Citgo Locker", by = "ai" }
+locker_blurb = { text = "Your stash, the same at every Citgo.", by = "ai" }
+banked = { text = "{amount} banked", by = "ai" }
+
+[dialup.raider]
+title = { text = "LV {level} · {outfit}", by = "ai" }
+portrait = { text = "{name} as {outfit}", by = "ai" }
+xp = { text = "XP", by = "ai" }
+xp_max = { text = "Top level", by = "ai" }
+of = { text = "{done} / {goal}", by = "ai" }
+done = { text = "Done", by = "ai" }
+season = { text = "Caretaker burned", by = "ai" }
+task = { text = "Shadows today", by = "ai" }
+book = { text = "Book of Shadows", by = "ai" }
+citgos = { text = "Citgos found", by = "ai" }
+worn = { text = "Wearing", by = "ai" }
+wards = { text = "No wards going.", by = "ai" }
+
+[dialup.pack]
+count = { text = "×{count}", by = "ai" }
+stow_one = { text = "Stow 1", by = "ai" }
+stow_all = { text = "Stow all", by = "ai" }
+take_one = { text = "Take 1", by = "ai" }
+take_all = { text = "Take all", by = "ai" }
+hotbar = { text = "Put on the hotbar", by = "ai" }
+hotbar_pick = { text = "Tap a slot for {item}", by = "ai" }
+hotbar_saved = { text = "{item} on slot {slot}.", by = "ai" }

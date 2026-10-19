@@ -13,6 +13,7 @@ import { HOTBAR_SLOTS } from './hotbar.ts'
 import { geometrieOf } from './items.ts'
 import { npcHeader } from './npcdialog.ts'
 import { bagTabs, LOCKER_TAB, PACK_TABS } from './packgrid.ts'
+import { BAG_TABS } from './packtabs.ts'
 import { wardAgainst, wardLine, wardName } from './vitalshud.ts'
 import { wardsRaised } from './wards.ts'
 import type { AvatarLook, AvatarView } from './avatarview.ts'
@@ -51,30 +52,6 @@ const DRAG_START = 6
 // Where a pointer event is, as a drag remembers its start.
 function at(e: PointerEvent): { x: number; y: number } {
   return { x: e.clientX, y: e.clientY }
-}
-
-// Each pack tab's label, and the line its grid shows when empty.
-const BAG_TABS: Record<BagTab, { label: string; empty: string }> = {
-  consumables: {
-    label: copy('inventory.tab_consumables'),
-    empty: copy('inventory.empty_consumables'),
-  },
-  loot: {
-    label: copy('inventory.tab_loot'),
-    empty: copy('inventory.empty_loot'),
-  },
-  'key-items': {
-    label: copy('inventory.tab_key_items'),
-    empty: copy('inventory.empty_key_items'),
-  },
-  materials: {
-    label: copy('inventory.tab_materials'),
-    empty: copy('inventory.empty_materials'),
-  },
-  locker: {
-    label: copy('inventory.tab_locker'),
-    empty: copy('inventory.empty_locker'),
-  },
 }
 
 // How many of an item the pack holds, and what is left in the open pack or

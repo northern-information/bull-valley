@@ -34,6 +34,10 @@ export { expect }
 
 // Start and skip the colophon, landing on the main menu.
 export async function toMenu(page: Page): Promise<void> {
+  // The game loads after the page (entry.ts imports it once it knows a
+  // phone from a desk), so wait for the colophon to listen: its hint and
+  // its keys come together.
+  await page.locator('.bv-splash-hint').waitFor({ timeout: 30_000 })
   // The first press starts the colophon, the second skips it.
   await page.keyboard.press('Space')
   await page.keyboard.press('Space')
