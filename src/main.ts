@@ -14,6 +14,7 @@ import { installDevHook } from './devhook.ts'
 import { donutRoute } from './donuts.ts'
 import { createDropMeshes } from './dropmeshes.ts'
 import { finishById } from './finishes.ts'
+import { fontsReady } from './fonts.ts'
 import { FirstPersonHands } from './fphands.ts'
 import { createGameState } from './game.ts'
 import { createGlow } from './glow.ts'
@@ -59,32 +60,6 @@ import type { TruckContext } from './truckplan.ts'
 
 // The survey and terrain: the game's own map, committed in public/data.
 const DATA_BASE = '/data/bull-valley'
-
-// How long boot waits for IBM Plex Mono before it draws in the fallback face.
-const FONT_TIMEOUT_MS = 3000
-
-// The weights the HUD and canvas text use; the italic loads on first use.
-const FONT_WEIGHTS = [400, 600, 700]
-
-// IBM Plex Mono, loaded before any text exists, so nothing paints in a
-// fallback and then reflows when the face lands (index.html preloads it).
-// Canvas text (the phone, name tags) is drawn after boot, so it gets the face
-// too. A font that never arrives must not hold the game: past the timeout,
-// boot goes on.
-async function fontsReady(): Promise<void> {
-  const timeout = new Promise<void>((resolve) => {
-    setTimeout(resolve, FONT_TIMEOUT_MS)
-  })
-  const load = Promise.all(
-    FONT_WEIGHTS.map((w) => document.fonts.load(`${w} 1em "IBM Plex Mono"`))
-  ).then(
-    () => undefined,
-    (err: unknown) => {
-      console.error('IBM Plex Mono failed to load:', err)
-    }
-  )
-  await Promise.race([load, timeout])
-}
 
 async function boot() {
   const root = document.getElementById('bv-root')

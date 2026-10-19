@@ -9,6 +9,7 @@ import {
   packItems,
   stashItems,
 } from '../../src/packgrid.ts'
+import { BAG_TABS } from '../../src/packtabs.ts'
 import type { Inventory, PackItem } from '../../src/interfaces.ts'
 
 const kinds = (items: PackItem[]) => items.map((item) => item.kind)
@@ -120,5 +121,14 @@ describe('packItemOf', () => {
   it('is null for a kind the game does not know', () => {
     expect(packItemOf('anvil', empty)).toBeNull()
     expect(packItemOf('sack', empty)).toBeNull()
+  })
+})
+
+describe('the pack tabs as named', () => {
+  it('names every tab and what it says empty', () => {
+    for (const tab of bagTabs(true)) {
+      expect(BAG_TABS[tab].label.length, tab).toBeGreaterThan(0)
+      expect(BAG_TABS[tab].empty.length, tab).toBeGreaterThan(0)
+    }
   })
 })
