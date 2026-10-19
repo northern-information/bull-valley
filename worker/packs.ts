@@ -2,7 +2,7 @@
 // kept by the valley so they follow the raider to any browser. The
 // interface is here with an in-memory store for the tests; production is
 // the D1 store in d1packs.ts. The rules of what goes in and out are
-// src/sharedworld.ts's (rules 7, 10, 16, 18, 19, 20, 22 and 23).
+// src/sharedworld.ts's (rules 7, 10, 16, 18, 19, 20, 22, 23 and 30).
 
 import { newlyFound } from '../src/book.ts'
 import { CONFIG } from '../src/config.ts'
@@ -14,6 +14,7 @@ import { NO_PROGRESS } from '../src/season.ts'
 import { FRESH_STAND } from '../src/stand.ts'
 import type { CosmeticId } from '../src/cosmetics.ts'
 import type { TaskProgress } from '../src/dailytask.ts'
+import type { ExpeditionRun } from '../src/expeditions.ts'
 import type { Inventory } from '../src/interfaces.ts'
 import type { QuestId, QuestStage } from '../src/quests.ts'
 import type { SeasonProgress, SeasonReward } from '../src/season.ts'
@@ -42,6 +43,15 @@ export interface Welcome {
   xp: number
   stand: StandLedger
   quests: Record<QuestId, QuestStage>
+  // The run out on an expedition (src/expeditions.ts), or null.
+  expedition: ExpeditionRun | null
+}
+
+// An account's expedition as kept: the run out, or null, and how many
+// times it has been written: `embark` and `homecoming` take that back.
+export interface ExpeditionRead {
+  run: ExpeditionRun | null
+  rev: number
 }
 
 export interface PackStore {
@@ -149,6 +159,19 @@ export interface PackStore {
     rev: number,
     change: Pick<StandChange, 'ledger' | 'items' | 'cash'>
   ): Promise<boolean>
+  // The account's expedition (src/expeditions.ts, sharedworld.ts rule 30).
+  expedition(accountId: string): Promise<ExpeditionRead>
+  // A run sent out; false when the expedition was written since it was
+  // read at `rev`.
+  embark(accountId: string, rev: number, run: ExpeditionRun): Promise<boolean>
+  // A run home, the expedition left empty, with what it brought into the
+  // pack (units by kind) and the wallet (cents), all or none; false when
+  // the expedition was written since it was read at `rev`.
+  homecoming(
+    accountId: string,
+    rev: number,
+    haul: { items: Inventory; cents: number }
+  ): Promise<boolean>
   // The account's XP in all (src/progression.ts), none before the first.
   xp(accountId: string): Promise<number>
   // Adds `amount` XP to the account's, in one step however many grants
@@ -175,6 +198,7 @@ export class MemoryPackStore implements PackStore {
   readonly tasks = new Map<string, TaskProgress>()
   readonly questStages = new Map<string, QuestStage>()
   readonly stands = new Map<string, { ledger: StandLedger; rev: number }>()
+  readonly expeditions = new Map<string, ExpeditionRead>()
   readonly levels = new Map<string, number>()
 
   open(accountId: string): Promise<Holdings> {
@@ -204,6 +228,7 @@ export class MemoryPackStore implements PackStore {
       xp: await this.xp(accountId),
       stand: (await this.stand(accountId)).ledger,
       quests: await this.quests(accountId),
+      expedition: (await this.expedition(accountId)).run,
     }
   }
 
@@ -395,6 +420,36 @@ export class MemoryPackStore implements PackStore {
     this.packs.set(accountId, pack)
     this.wallets.set(accountId, wallet + cash)
     this.stands.set(accountId, { ledger, rev: rev + 1 })
+    return Promise.resolve(true)
+  }
+
+  expedition(accountId: string): Promise<ExpeditionRead> {
+    return Promise.resolve(
+      this.expeditions.get(accountId) ?? { run: null, rev: 0 }
+    )
+  }
+
+  embark(accountId: string, rev: number, run: ExpeditionRun): Promise<boolean> {
+    const was = this.expeditions.get(accountId)?.rev ?? 0
+    if (was !== rev) return Promise.resolve(false)
+    this.expeditions.set(accountId, { run, rev: rev + 1 })
+    return Promise.resolve(true)
+  }
+
+  homecoming(
+    accountId: string,
+    rev: number,
+    { items, cents }: { items: Inventory; cents: number }
+  ): Promise<boolean> {
+    const was = this.expeditions.get(accountId)?.rev ?? 0
+    if (was !== rev) return Promise.resolve(false)
+    const pack = this.packs.get(accountId) ?? new Map<string, number>()
+    for (const [kind, count] of Object.entries(items)) {
+      pack.set(kind, (pack.get(kind) ?? 0) + count)
+    }
+    this.packs.set(accountId, pack)
+    this.wallets.set(accountId, (this.wallets.get(accountId) ?? 0) + cents)
+    this.expeditions.set(accountId, { run: null, rev: rev + 1 })
     return Promise.resolve(true)
   }
 

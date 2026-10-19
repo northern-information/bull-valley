@@ -13,6 +13,7 @@ import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { DealerStock } from './dealer.ts'
 import type { Drop } from './drops.ts'
+import type { ExpeditionOutcome, ExpeditionRun } from './expeditions.ts'
 import type { Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckRoutes, TruckState } from './marx.ts'
@@ -370,6 +371,12 @@ type StandTendMessage =
   | { type: 'stand-collect' }
   | { type: 'stand-upgrade' }
 
+// An expedition (sharedworld.ts rule 30): a run of `kind` sent out, or the
+// run home claimed. Dial-Up only; the valley answers with an
+// ExpeditionMessage (and a PackMessage after a claim), or a nack.
+type ExpeditionTendMessage =
+  { type: 'expedition-send'; kind: string } | { type: 'expedition-claim' }
+
 // A Citgo portal, opened a little ahead of the raider with its twin at the
 // last Citgo they stood at (sharedworld.ts rule 28). The valley places it
 // where the raider's last state frame put them, and answers with a world
@@ -535,6 +542,7 @@ export type ClientMessage =
   | LootMessage
   | StowMessage
   | StandTendMessage
+  | ExpeditionTendMessage
   | TradeMessage
   | DealMessage
   | QuestMessage
@@ -590,6 +598,8 @@ export interface WelcomeMessage {
   stand: StandLedger
   // Where the account stands on each quest (quests.ts).
   quests: Record<QuestId, QuestStage>
+  // The account's run out on an expedition (expeditions.ts), or null.
+  expedition: ExpeditionRun | null
   // The account's geometrie left and whole (sharedworld.ts rule 24,
   // health.ts).
   health: number
@@ -627,6 +637,15 @@ interface QuestFrame {
   quest: QuestId
   step: QuestStep
   stage: QuestStage
+}
+
+// An account's expedition after a send or a claim (sharedworld.ts rule
+// 30), to every socket signed in to it: the run out, or null, and for a
+// claim what the run brought home.
+export interface ExpeditionMessage {
+  type: 'expedition'
+  run: ExpeditionRun | null
+  outcome?: ExpeditionOutcome
 }
 
 export interface StandMessage {
@@ -928,6 +947,7 @@ export type ServerMessage =
   | BookMessage
   | TaskMessage
   | StandMessage
+  | ExpeditionMessage
   | QuestFrame
   | XpMessage
   | WhisperedMessage
@@ -1326,6 +1346,10 @@ const CLIENT_PARSERS: ClientParsers = {
   friends: bare('friends'),
   'stand-collect': bare('stand-collect'),
   'stand-upgrade': bare('stand-upgrade'),
+  'expedition-claim': bare('expedition-claim'),
+  // Which runs there are is the valley's to check.
+  'expedition-send': ({ kind }) =>
+    isKind(kind) ? { type: 'expedition-send', kind } : null,
   whisper: ({ to, text }) =>
     isValidName(to) && isValidChat(text) ? { type: 'whisper', to, text } : null,
   friend: ({ name }) => (isValidName(name) ? { type: 'friend', name } : null),

@@ -5,6 +5,7 @@ import { dayKey } from '../../src/daily.ts'
 import { DAILY_TASK, NO_TASK } from '../../src/dailytask.ts'
 import { costIn, goodOf } from '../../src/dealer.ts'
 import { DIME_CENTS } from '../../src/drops.ts'
+import { outcomeOf } from '../../src/expeditions.ts'
 import { BASE_GEOMETRIE } from '../../src/health.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { getItem, healsOf } from '../../src/items.ts'
@@ -20,6 +21,7 @@ import { ValleyDO } from '../../worker/ValleyDO.ts'
 import type {
   BookMessage,
   DailyMessage,
+  ExpeditionMessage,
   NackMessage,
   PackMessage,
   PeerChatMessage,
@@ -1391,6 +1393,9 @@ describe('ValleyDO', () => {
       stow: () => Promise.reject(new Error('D1 is down')),
       stand: () => Promise.reject(new Error('D1 is down')),
       tend: () => Promise.reject(new Error('D1 is down')),
+      expedition: () => Promise.reject(new Error('D1 is down')),
+      embark: () => Promise.reject(new Error('D1 is down')),
+      homecoming: () => Promise.reject(new Error('D1 is down')),
       score: () => Promise.reject(new Error('D1 is down')),
       book: () => Promise.reject(new Error('D1 is down')),
       discover: () => Promise.reject(new Error('D1 is down')),
@@ -1494,6 +1499,9 @@ describe('ValleyDO', () => {
         stow: (id, kind, delta) => store.stow(id, kind, delta),
         stand: (id) => store.stand(id),
         tend: (id, rev, change) => store.tend(id, rev, change),
+        expedition: (id) => store.expedition(id),
+        embark: (id, rev, run) => store.embark(id, rev, run),
+        homecoming: (id, rev, haul) => store.homecoming(id, rev, haul),
         score: (id, season, progress, reward) =>
           store.score(id, season, progress, reward),
         task: (id, task) => store.task(id, task),
@@ -1608,6 +1616,9 @@ describe('ValleyDO: drops', () => {
       stow: (id, kind, delta) => store.stow(id, kind, delta),
       stand: (id) => store.stand(id),
       tend: (id, rev, change) => store.tend(id, rev, change),
+      expedition: (id) => store.expedition(id),
+      embark: (id, rev, run) => store.embark(id, rev, run),
+      homecoming: (id, rev, haul) => store.homecoming(id, rev, haul),
       score: (id, season, progress, reward) =>
         store.score(id, season, progress, reward),
       task: (id, task) => store.task(id, task),
@@ -1773,6 +1784,9 @@ describe('ValleyDO: corpse runs', () => {
         stow: (id, kind, delta) => store.stow(id, kind, delta),
         stand: (id) => store.stand(id),
         tend: (id, rev, change) => store.tend(id, rev, change),
+        expedition: (id) => store.expedition(id),
+        embark: (id, rev, run) => store.embark(id, rev, run),
+        homecoming: (id, rev, haul) => store.homecoming(id, rev, haul),
         book: (id) => store.book(id),
         discover: (id, entries, now) => store.discover(id, entries, now),
         task: (id, task) => store.task(id, task),
@@ -2000,6 +2014,9 @@ describe('ValleyDO: the Cabbage Stand', () => {
         get: (id) => store.get(id),
         stand: (id) => store.stand(id),
         tend: () => Promise.reject(new Error('down')),
+        expedition: (id) => store.expedition(id),
+        embark: (id, rev, run) => store.embark(id, rev, run),
+        homecoming: (id, rev, haul) => store.homecoming(id, rev, haul),
       }
       await v.webSocketMessage(
         ws(a),
@@ -2019,6 +2036,9 @@ describe('ValleyDO: the Cabbage Stand', () => {
         get: (id) => store.get(id),
         stand: (id) => store.stand(id),
         tend: () => Promise.resolve(false),
+        expedition: (id) => store.expedition(id),
+        embark: (id, rev, run) => store.embark(id, rev, run),
+        homecoming: (id, rev, haul) => store.homecoming(id, rev, haul),
       }
       await v.webSocketMessage(
         ws(a),
@@ -2394,6 +2414,9 @@ describe('ValleyDO: the shadowmen', () => {
       stow: (id, kind, delta) => store.stow(id, kind, delta),
       stand: (id) => store.stand(id),
       tend: (id, rev, change) => store.tend(id, rev, change),
+      expedition: (id) => store.expedition(id),
+      embark: (id, rev, run) => store.embark(id, rev, run),
+      homecoming: (id, rev, haul) => store.homecoming(id, rev, haul),
       score: (id, season, progress, reward) =>
         store.score(id, season, progress, reward),
       task: (id, task) => store.task(id, task),
@@ -2529,6 +2552,9 @@ describe('ValleyDO: the shadowmen', () => {
       stow: (id, kind, delta) => store.stow(id, kind, delta),
       stand: (id) => store.stand(id),
       tend: (id, rev, change) => store.tend(id, rev, change),
+      expedition: (id) => store.expedition(id),
+      embark: (id, rev, run) => store.embark(id, rev, run),
+      homecoming: (id, rev, haul) => store.homecoming(id, rev, haul),
       score: () => Promise.reject(new Error('down')),
       task: (id, task) => store.task(id, task),
       scoreTask: (id, task, progress, reward) =>
@@ -2677,6 +2703,9 @@ describe("ValleyDO: Moab's trade", () => {
         stow: (id, kind, delta) => store.stow(id, kind, delta),
         stand: (id) => store.stand(id),
         tend: (id, rev, change) => store.tend(id, rev, change),
+        expedition: (id) => store.expedition(id),
+        embark: (id, rev, run) => store.embark(id, rev, run),
+        homecoming: (id, rev, haul) => store.homecoming(id, rev, haul),
         score: (id, season, progress, reward) =>
           store.score(id, season, progress, reward),
         task: (id, task) => store.task(id, task),
@@ -3146,6 +3175,53 @@ describe('ValleyDO: Bull Valley Dial-Up', () => {
     await v.webSocketMessage(ws(p), state(500, 500))
     expect(a.frames().some((m) => m.type === 'peer-state')).toBe(false)
     expect((p.attachment as { me: { at: unknown } }).me.at).toBeNull()
+  })
+
+  it('sends a run out from the phone and brings it home into the pack', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.now() })
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+    const { valley: v, state: s } = await valley()
+    const p = await dial(v, s, 'P')
+    expect(p.frames()[0]).toMatchObject({ type: 'welcome', expedition: null })
+    v.rolled = 0.25
+    await v.webSocketMessage(ws(p), '{"type":"expedition-send","kind":"ride"}')
+    const sent = p.last<ExpeditionMessage>()
+    expect(sent).toMatchObject({
+      type: 'expedition',
+      run: { id: 'ride', seed: 2 ** 30, ward: 0 },
+    })
+    // A second, before the first is home, is refused; so is a claim.
+    await v.webSocketMessage(ws(p), '{"type":"expedition-send","kind":"corn"}')
+    expect(p.last()).toEqual({
+      type: 'nack',
+      re: 'expedition-send',
+      reason: 'busy',
+    })
+    await v.webSocketMessage(ws(p), '{"type":"expedition-claim"}')
+    expect(p.last()).toMatchObject({ reason: 'out' })
+    vi.setSystemTime(sent.run!.endsAt)
+    await v.webSocketMessage(ws(p), '{"type":"expedition-claim"}')
+    const home = p
+      .frames()
+      .findLast((m): m is ExpeditionMessage => m.type === 'expedition')
+    const outcome = outcomeOf(sent.run!)
+    expect(home).toEqual({ type: 'expedition', run: null, outcome })
+    expect(
+      p.frames().findLast((m): m is PackMessage => m.type === 'pack')?.cash
+    ).toBe(4000 + outcome.cents)
+  })
+
+  it('sends no run for a raider on foot', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    await v.webSocketMessage(ws(a), '{"type":"expedition-send","kind":"ride"}')
+    expect(a.last()).toEqual({
+      type: 'nack',
+      re: 'expedition-send',
+      reason: 'not-dialup',
+    })
   })
 
   it('sends a phone no shadowmen, whoever walks the valley', async () => {
