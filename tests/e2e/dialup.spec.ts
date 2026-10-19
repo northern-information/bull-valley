@@ -223,3 +223,20 @@ test('Gron changes the name from the phone', async ({ browser }) => {
   await page.locator('[data-bv="gron-close"]').click()
   await expect(page.locator('.bv-dial-name')).toHaveText(name)
 })
+
+test('signs out from the phone, back to the modem and a login', async ({
+  browser,
+}) => {
+  const page = await phone(browser)
+  await signIn(page)
+  await page.goto(`/?valley=${freshValley('dial')}`)
+  await dialIn(page)
+  await page.locator('[data-bv="dial-sign-out"]').click()
+  const modem = page.locator('.bv-modem')
+  await expect(modem).toContainText(copy('dialup.tap'))
+  await modem.click()
+  await expect(page.locator('.bv-modem-screen')).toContainText(
+    copy('dialup.modem.login'),
+    { timeout: 15_000 }
+  )
+})

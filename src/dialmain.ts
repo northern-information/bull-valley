@@ -8,7 +8,13 @@
 
 import './styles.css'
 import './dialup.css'
-import { fetchMe, refreshSession, saveHotbar, saveLook } from './auth.ts'
+import {
+  fetchMe,
+  refreshSession,
+  saveHotbar,
+  saveLook,
+  signOut,
+} from './auth.ts'
 import { pickOf } from './characters.ts'
 import { citgoNames } from './citgomap.ts'
 import { CONFIG } from './config.ts'
@@ -131,6 +137,10 @@ async function boot(): Promise<void> {
     hotbar: toHotbar(account.hotbar),
     now,
     switchHref: switchUrl(window.location, 'valley'),
+    // Signed out, the modem dials again and the line answers LOGIN.
+    signOut: () => {
+      void signOut().then(() => window.location.reload())
+    },
     pack: {
       move: (type, kind, count) => {
         if (count > 0) send({ type, kind, count }, { locker: true })

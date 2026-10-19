@@ -77,6 +77,8 @@ interface ShellOptions {
   social: SocialActions
   // The same page in the 3D valley.
   switchHref: string
+  // Signs the phone out, back to the modem.
+  signOut: () => void
 }
 
 export class DialShell {
@@ -392,9 +394,18 @@ export class DialShell {
         this.openMoab()
       )
     )
+    const foot = el('div', 'bv-dial-foot')
     const away = text('a', copy('dialup.switch_valley'), 'bv-dial-switch')
     away.href = this.options.switchHref
-    grid.append(away)
+    const out = text('button', copy('panel.sign_out'), 'bv-dial-btn')
+    out.type = 'button'
+    out.dataset.bv = 'dial-sign-out'
+    out.addEventListener('click', () => {
+      out.disabled = true
+      this.options.signOut()
+    })
+    foot.append(away, out)
+    grid.append(foot)
     return grid
   }
 
