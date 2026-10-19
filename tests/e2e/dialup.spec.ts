@@ -137,6 +137,8 @@ test('reads the Book of Shadows, a page at a time', async ({ browser }) => {
 test('with a raider on foot in the valley: the Citgo, Erwin, Moab and the chat', async ({
   browser,
 }) => {
+  // A whole game on a desk and a phone beside it.
+  test.slow()
   const valley = freshValley('dial')
   const raider = freshRaider('Both')
   // The account stands at the spawn Citgo in 3D first.
