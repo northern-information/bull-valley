@@ -581,6 +581,144 @@ button.bv-dial-card {
   color: var(--dial-dim);
 }
 
+/* The Citgo: its shelves, each kind with its price and Buy. */
+.bv-dial-citgo-cash {
+  margin: 0.25rem 0 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.bv-dial-shelf {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem 0.9rem;
+}
+
+.bv-dial-shelf-head,
+.bv-dial-shelf-foot {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bv-dial-shelf-price {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.bv-dial-btn--hot {
+  color: var(--fi-bg);
+  background: var(--dial-hot);
+  border-color: var(--dial-hot);
+}
+
+/* One of the folk in a sheet: Moab. */
+.bv-dial-folk-act {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.bv-dial-folk-says {
+  margin: 0;
+  color: var(--dial-hot);
+}
+
+/* Social: the log, the field, the friends, who is here. */
+.bv-dial-social {
+  display: grid;
+  gap: 1rem;
+}
+
+.bv-dial-log {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  height: 40vh;
+  min-height: 12rem;
+  margin: 0;
+  padding: 0.75rem;
+  overflow-y: auto;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  list-style: none;
+  background: var(--dial-panel);
+  border: 1px solid var(--dial-edge);
+}
+
+.bv-dial-line-at {
+  margin-right: 0.5rem;
+  color: var(--dial-dim);
+}
+
+.bv-dial-line-name {
+  margin-right: 0.5rem;
+  font-weight: 600;
+  color: var(--fi-blue);
+}
+
+.bv-dial-line[data-kind='whisper'] .bv-dial-line-name,
+.bv-dial-line[data-kind='whisper'] .bv-dial-line-text {
+  color: var(--fi-magenta);
+}
+
+.bv-dial-line[data-kind='system'] .bv-dial-line-text {
+  color: var(--dial-dim);
+}
+
+.bv-dial-say {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.bv-dial-say-field {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--dial-tap);
+  padding: 0 0.75rem;
+  font: inherit;
+
+  /* 16px or more, so the phone does not zoom on focus. */
+  font-size: 1rem;
+  color: var(--dial-ink);
+  background: var(--dial-panel);
+  border: 1px solid var(--dial-edge);
+  border-radius: 0;
+}
+
+.bv-dial-say-field:focus {
+  border-color: var(--dial-hot);
+}
+
+.bv-dial-social-head {
+  margin: 0 0 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--dial-dim);
+}
+
+.bv-dial-friend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--dial-line);
+}
+
+.bv-dial-friend-line {
+  flex: 1 1 12rem;
+  font-size: 0.875rem;
+}
+
+.bv-dial-online-name {
+  margin: 0.25rem 0;
+  font-size: 0.875rem;
+}
+
 /* A sheet over the view, with its way back. */
 .bv-dial-sheet {
   position: absolute;
@@ -623,6 +761,12 @@ button.bv-dial-card {
   background: var(--dial-panel);
   border: 1px solid var(--dial-hot);
   box-shadow: var(--dial-shadow);
+}
+
+/* The 3D valley's dialogs (the stand, Erwin, Gron) cover the shell
+   whole on a phone: there is no valley behind them to show through. */
+.bv-dialup .bv-account {
+  background: var(--dial-bg);
 }
 
 /* The stand's dialog, borrowed from the 3D valley, in one column. */

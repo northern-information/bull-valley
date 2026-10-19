@@ -8,12 +8,13 @@
 // while it is open.
 
 import { context2d, EGGSHELL, MONO } from './canvas.ts'
-import { roadNameNear } from './citgos.ts'
+import { roadNameNear, surveyedStations } from './citgos.ts'
+import { unitToWorld } from './coords.ts'
 import { copy } from './copy.ts'
 import { el } from './dom.ts'
 import type { CitgoLog, MapRoad } from './citgos.ts'
 import type { Facing } from './drops.ts'
-import type { Metres, XZ } from './interfaces.ts'
+import type { Geo, Metres, XZ } from './interfaces.ts'
 
 // One Citgo on the map: where its pump island stands, and what it is
 // called there.
@@ -310,4 +311,21 @@ export function mapCitgos(
         : copy('map.citgo_unnamed', { n: i + 1 }),
     }
   })
+}
+
+// Every Citgo's name, indexed like world.fuelPoints, straight from the
+// survey: the same names the map gives, for Bull Valley Dial-Up, which
+// builds no world. Each is named from its fuel point, a few metres off its
+// pump island, well within roadNameNear's reach.
+export function citgoNames(
+  geo: Pick<Geo, 'fuel' | 'roads' | 'metres'>
+): string[] {
+  const roads = geo.roads.map((road) => ({
+    name: road.n,
+    points: road.p.map(([u, v]) => unitToWorld(u, v, geo.metres)),
+  }))
+  const stations = surveyedStations(geo.fuel).map((f) =>
+    unitToWorld(f.p[0], f.p[1], geo.metres)
+  )
+  return mapCitgos(stations, roads).map((citgo) => citgo.label)
 }

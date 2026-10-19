@@ -8,7 +8,7 @@
 import { CONFIG } from './config.ts'
 import { projectOnSegment } from './coords.ts'
 import type { Facing } from './drops.ts'
-import type { XZ } from './interfaces.ts'
+import type { FuelStation, XZ } from './interfaces.ts'
 
 // An account's Citgos: every station it has stood at, in the order first
 // visited, and the last (indices into world.fuelPoints), or null for none
@@ -19,6 +19,15 @@ export interface CitgoLog {
 }
 
 export const NO_CITGOS: CitgoLog = { last: null, visited: [] }
+
+// The survey's fuel points a Citgo stands on: every one clear of the
+// survey's edge, in order, so the n-th is station n (stations.ts builds
+// one at each, indexed like world.fuelPoints).
+export function surveyedStations(fuel: readonly FuelStation[]): FuelStation[] {
+  return fuel.filter(
+    (f) => f.p[0] > 0.015 && f.p[0] < 0.985 && f.p[1] > 0.015 && f.p[1] < 0.985
+  )
+}
 
 // The station a raider at `at` stands at: the nearest pump island within
 // `reach`, or null out in the valley.
