@@ -133,3 +133,112 @@ test('reads the Book of Shadows, a page at a time', async ({ browser }) => {
   )
   await expect(page.locator('.bv-dial-page-portrait')).toBeVisible()
 })
+
+test('with a raider on foot in the valley: the Citgo, Erwin, Moab and the chat', async ({
+  browser,
+}) => {
+  // A whole game on a desk and a phone beside it.
+  test.slow()
+  const valley = freshValley('dial')
+  const raider = freshRaider('Both')
+  // The account stands at the spawn Citgo in 3D first.
+  const desk = await (await browser.newContext()).newPage()
+  await beginRaid(desk, 0, { valley, raider })
+  await expect
+    .poll(() => desk.evaluate(() => window.__bv?.citgos.visited.length ?? 0))
+    .toBeGreaterThan(0)
+  const page = await phone(browser)
+  await signIn(page, raider)
+  await page.goto(`/?valley=${encodeURIComponent(valley)}`)
+  await dialIn(page)
+
+  // The Citgo: its shelves, bought off from the phone.
+  await page.locator('.bv-dial-card[data-card="citgo"]').click()
+  const cash = page.locator('.bv-dial-cash')
+  const before = await cash.textContent()
+  const shelf = page.locator('.bv-dial-shelf').first()
+  await shelf.getByRole('button', { name: copy('dialup.citgo.buy') }).click()
+  await expect(cash).not.toHaveText(before ?? '')
+  await page.getByRole('button', { name: copy('dialup.back') }).click()
+
+  // Erwin gives the rose from anywhere.
+  await page.locator('.bv-dial-card[data-card="erwin"]').click()
+  const deal = page.locator('.bv-deal')
+  await expect(deal).toBeVisible()
+  await deal.locator('[data-bv="deal-quest-go"]').click()
+  await expect(deal.locator('[data-bv="deal-said"]')).toHaveText(
+    copy('quests.rose_given')
+  )
+  await deal.locator('[data-bv="deal-close"]').click()
+
+  // Moab offers the halo once the pack holds gold.
+  await desk.evaluate(() => window.__bv?.grant('gold-bullion', 1))
+  await page.locator('.bv-dial-card[data-card="moab"]').click()
+  const offer = page.locator('.bv-dial-folk-act .bv-dial-btn')
+  await expect(offer).toBeVisible()
+  await offer.click()
+  await expect(page.locator('.bv-dial-toast')).toHaveText(
+    copy('log.cosmetic_worn', {
+      cosmetic: copy('cosmetics.flaming-halo.label'),
+    })
+  )
+  await page.getByRole('button', { name: copy('dialup.back') }).click()
+
+  // A line said on the phone reaches the valley.
+  await page.locator('.bv-dial-tab[data-tab="social"]').click()
+  await page.locator('.bv-dial-say-field').fill('hello from the phone')
+  await page.getByRole('button', { name: copy('dialup.social.send') }).click()
+  await expect(page.locator('.bv-dial-log')).toContainText(
+    'hello from the phone'
+  )
+  await expect
+    .poll(() =>
+      desk.evaluate(() => window.__bv?.chat.map((line) => line.text) ?? [])
+    )
+    .toContain('hello from the phone')
+})
+
+test('a Citgo never stood at has no shelves on the phone', async ({
+  browser,
+}) => {
+  const page = await phone(browser)
+  await signIn(page)
+  await page.goto(`/?valley=${freshValley('dial')}`)
+  await dialIn(page)
+  await page.locator('.bv-dial-card[data-card="citgo"]').click()
+  await expect(page.locator('.bv-dial-sheet')).toContainText(
+    copy('dialup.citgo.none_visited')
+  )
+})
+
+test('Gron changes the name from the phone', async ({ browser }) => {
+  const page = await phone(browser)
+  await signIn(page)
+  await page.goto(`/?valley=${freshValley('dial')}`)
+  await dialIn(page)
+  await page.locator('.bv-dial-card[data-card="gron"]').click()
+  const name = freshRaider('Renamed').username
+  await page.locator('[data-bv="gron-username"]').fill(name)
+  const rename = page.locator('[data-bv="gron-rename"]')
+  await expect(rename).toBeEnabled()
+  await rename.click()
+  await page.locator('[data-bv="gron-close"]').click()
+  await expect(page.locator('.bv-dial-name')).toHaveText(name)
+})
+
+test('signs out from the phone, back to the modem and a login', async ({
+  browser,
+}) => {
+  const page = await phone(browser)
+  await signIn(page)
+  await page.goto(`/?valley=${freshValley('dial')}`)
+  await dialIn(page)
+  await page.locator('[data-bv="dial-sign-out"]').click()
+  const modem = page.locator('.bv-modem')
+  await expect(modem).toContainText(copy('dialup.tap'))
+  await modem.click()
+  await expect(page.locator('.bv-modem-screen')).toContainText(
+    copy('dialup.modem.login'),
+    { timeout: 15_000 }
+  )
+})

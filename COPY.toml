@@ -1166,6 +1166,11 @@ stand_blurb = { text = "Your outpost on the spawn Citgo's lot. Banking while you
 locker = { text = "Citgo Locker", by = "ai" }
 locker_blurb = { text = "Your stash, the same at every Citgo.", by = "ai" }
 banked = { text = "{amount} banked", by = "ai" }
+citgo = { text = "Citgo", by = "ai" }
+citgo_blurb = { text = "The shelves of every Citgo you've stood at. {count} found.", by = "ai" }
+erwin_blurb = { text = "Barters out of the Golden Wok. No fiat currency.", by = "ai" }
+gron_blurb = { text = "Changes your name and your character.", by = "ai" }
+moab_blurb = { text = "Burns under every Citgo sign. Trades for gold.", by = "ai" }
 
 [dialup.raider]
 title = { text = "LV {level} · {outfit}", by = "ai" }
@@ -1180,6 +1185,28 @@ book = { text = "Book of Shadows", by = "ai" }
 citgos = { text = "Citgos found", by = "ai" }
 worn = { text = "Wearing", by = "ai" }
 wards = { text = "No wards going.", by = "ai" }
+
+[dialup.citgo]
+buy = { text = "Buy", by = "ai" }
+bought = { text = "{item}, bought.", by = "ai" }
+left = { text = "{count} on the shelf", by = "ai" }
+sold_out = { text = "Sold out", by = "ai" }
+short = { text = "Short {amount}", by = "ai" }
+none_visited = { text = "Stand on a Citgo's forecourt in the valley, and its shelves come to the phone.", by = "ai" }
+not_visited = { text = "You haven't stood at that Citgo yet.", by = "ai" }
+no_world = { text = "No one has opened the valley today. Its shelves come up once someone walks it.", by = "ai" }
+
+[dialup.moab]
+trade = { text = "Trade {count} oz of {price} for the {cosmetic}", by = "ai" }
+
+[dialup.social]
+placeholder = { text = "Say something to the valley", by = "ai" }
+send = { text = "Send", by = "ai" }
+friends = { text = "Friends", by = "ai" }
+online = { text = "In the valley", by = "ai" }
+accept = { text = "Accept", by = "ai" }
+remove = { text = "Remove", by = "ai" }
+no_body = { text = "Emotes need a body. Walk the valley to take one.", by = "ai" }
 
 [dialup.pack]
 count = { text = "×{count}", by = "ai" }

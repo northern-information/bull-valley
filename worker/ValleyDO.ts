@@ -548,9 +548,10 @@ export class ValleyDO extends DurableObject<Env> {
     }
     // Each socket the field round its own raider: the whole of it, to
     // everyone, grows with the raiders squared.
+    // A phone dialed in (rule 29) has no body to draw them round.
     for (const socket of this.ctx.getWebSockets()) {
       const me = this.attachment(socket).me
-      if (!me) continue
+      if (!me || me.dialup) continue
       const at = me.at ? { x: me.at.x, z: me.at.z } : null
       try {
         send(socket, shadowmenNear(out.message, at, SHADOW_FRAME_RADIUS))

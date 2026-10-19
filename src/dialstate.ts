@@ -2,28 +2,61 @@
 // 29), read off the valley's frames (`applyFrame`): the pack, the locker
 // and the wallet, the Cabbage Stand, the XP, the geometrie and the wards,
 // the season, the daily task, the Book of Shadows and the Citgos found,
-// and the world as the last snapshot left it; and the raider's record as
-// the lobby shows it (`raiderStats`). The phone keeps nothing of
+// the quests, who else is in the valley, the chat log and the friends
+// list, and the world as the last snapshot left it (the shelves, Erwin's
+// stock); and the raider's record as the lobby shows it (`raiderStats`). The phone keeps nothing of
 // its own: every number on it is the valley's last word. Each frame may
-// also leave a line for the screen to say (`said`), and the stand's and
-// the locker's asks wait on an answer (`pending`). dialmain.ts feeds it.
+// also leave a line for the screen to say (`said`), and each ask waits on
+// an answer (`pending`). dialmain.ts feeds it.
 
 import { BOOK } from './book.ts'
 import { isLevels } from './buffs.ts'
+import { CHAT_COPY, chatCommand, onlineLine, pushLine } from './chat.ts'
 import { NO_CITGOS } from './citgos.ts'
 import { copy } from './copy.ts'
 import { cosmeticById, toCosmetics } from './cosmetics.ts'
 import { DAILY_TASK, NO_TASK, shownCount } from './dailytask.ts'
+import { dealRefusal } from './dealer.ts'
+import {
+  friendLines,
+  friendNews,
+  friendRefusal,
+  settledAsk,
+  whisperRefusal,
+} from './friends.ts'
 import { BASE_GEOMETRIE } from './health.ts'
 import { toInventory } from './inventory.ts'
+import { itemLabel, itemLine } from './itemcopy.ts'
+import { itemById } from './items.ts'
 import { barOf } from './progression.ts'
+import { normalizeChat } from './protocol.ts'
+import {
+  isQuest,
+  isQuestStage,
+  stepNews,
+  stepRefusal,
+  toQuests,
+} from './quests.ts'
 import { NO_PROGRESS, SEASON, shownKills } from './season.ts'
 import { isStandLedger, refusalLine, standNews } from './stand.ts'
+import { formatCash } from './store.ts'
+import type { ChatLine } from './chat.ts'
 import type { CitgoLog } from './citgos.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { TaskProgress } from './dailytask.ts'
+import type { PendingAsk } from './friends.ts'
 import type { Inventory } from './interfaces.ts'
-import type { GeometrieLevels, ServerMessage, WorldWire } from './protocol.ts'
+import type {
+  ClientMessage,
+  FriendWire,
+  GeometrieLevels,
+  NackMessage,
+  PeerWire,
+  ServerMessage,
+  WorldMessage,
+  WorldWire,
+} from './protocol.ts'
+import type { QuestId, QuestStage } from './quests.ts'
 import type { SeasonProgress } from './season.ts'
 import type { StandLedger } from './stand.ts'
 
@@ -45,13 +78,44 @@ export interface DialState {
   // The Book of Shadows entries found (book.ts ids).
   book: string[]
   citgos: CitgoLog
+  quests: Record<QuestId, QuestStage>
+  // Everyone else in the valley, the chat log (newest last), and the
+  // friends list as the valley last sent it.
+  peers: PeerWire[]
+  chat: ChatLine[]
+  friends: FriendWire[]
   // The last snapshot of the world, or null when no 3D raider has opened
   // one.
   world: WorldWire | null
   // The last word for the screen, and when (local ms).
   said: { text: string; at: number } | null
-  // An ask the valley has not answered yet.
-  pending: { stand: boolean; locker: boolean }
+  // Asks the valley has not answered yet: the stand's, the locker's, a
+  // buy (its station and kind), a deal or a quest step with Erwin, a trade
+  // with Moab, a friend asked or unasked, the list wanted in the log, and
+  // who a whisper went to (for its refusal).
+  pending: Pending
+}
+
+export interface Pending {
+  stand: boolean
+  locker: boolean
+  buy: { station: number; kind: string } | null
+  deal: boolean
+  trade: boolean
+  ask: PendingAsk | null
+  showFriends: boolean
+  whisperTo: string | null
+}
+
+const NOTHING_PENDING: Pending = {
+  stand: false,
+  locker: false,
+  buy: null,
+  deal: false,
+  trade: false,
+  ask: null,
+  showFriends: false,
+  whisperTo: null,
 }
 
 export const NO_WARDS: GeometrieLevels = {
@@ -76,9 +140,13 @@ export const DIALED: DialState = {
   task: NO_TASK,
   book: [],
   citgos: NO_CITGOS,
+  quests: toQuests(null),
+  peers: [],
+  chat: [],
+  friends: [],
   world: null,
   said: null,
-  pending: { stand: false, locker: false },
+  pending: NOTHING_PENDING,
 }
 
 // The state with `text` said at `now`.
@@ -86,9 +154,19 @@ function saying(s: DialState, text: string | null, now: number): DialState {
   return text ? { ...s, said: { text, at: now } } : s
 }
 
-// An ask sent: the stand's or the locker's, waiting on the valley.
-export function asked(s: DialState, what: 'stand' | 'locker'): DialState {
-  return { ...s, pending: { ...s.pending, [what]: true }, said: null }
+// An ask sent, waiting on the valley: what it changes of `pending`.
+export function asked(s: DialState, what: Partial<Pending>): DialState {
+  return { ...s, pending: { ...s.pending, ...what }, said: null }
+}
+
+// The log with one more line from the game, at `now` (epoch ms).
+function told(s: DialState, text: string, now: number): DialState {
+  return { ...s, chat: pushLine(s.chat, { kind: 'system', text, at: now }) }
+}
+
+// The game's line, said on the screen and kept in the log.
+function news(s: DialState, text: string, at: number, now: number): DialState {
+  return told(saying(s, text, at), text, now)
 }
 
 // The state after one frame from the valley, at local `now`.
@@ -119,18 +197,33 @@ export function applyFrame(
         },
         book: [...msg.book],
         citgos: msg.citgos,
+        quests: toQuests(msg.quests),
+        peers: [...msg.peers],
         world: msg.world,
-        pending: { stand: false, locker: false },
+        pending: NOTHING_PENDING,
       }
-    case 'pack':
-      return {
+    case 'pack': {
+      const cosmetics = toCosmetics(msg.cosmetics)
+      const next: DialState = {
         ...s,
         pack: toInventory(msg.pack),
         stash: toInventory(msg.stash),
         cash: msg.cash,
-        cosmetics: toCosmetics(msg.cosmetics),
-        pending: { ...s.pending, locker: false },
+        cosmetics,
+        pending: { ...s.pending, locker: false, trade: false },
       }
+      // Rule 14: a cosmetic Moab traded, worn now.
+      const worn = cosmetics.find((id) => !s.cosmetics.includes(id))
+      if (!worn) return next
+      return news(
+        next,
+        copy('log.cosmetic_worn', {
+          cosmetic: cosmeticById(worn)?.label ?? worn,
+        }),
+        now,
+        Date.now()
+      )
+    }
     case 'stand': {
       if (!isStandLedger(msg.stand)) return s
       const next = {
@@ -147,7 +240,82 @@ export function applyFrame(
     case 'geometrie':
       return isLevels(msg.geometrie) ? { ...s, wards: msg.geometrie } : s
     case 'world':
-      return msg.world ? { ...s, world: msg.world } : s
+      return msg.world ? worldNews({ ...s, world: msg.world }, msg, now) : s
+    case 'quest': {
+      if (!isQuest(msg.quest) || !isQuestStage(msg.stage)) return s
+      const next = {
+        ...s,
+        quests: { ...s.quests, [msg.quest]: msg.stage },
+        pending: { ...s.pending, deal: false },
+      }
+      return news(next, stepNews(msg.step), now, Date.now())
+    }
+    case 'peer-joined':
+      return told(
+        {
+          ...s,
+          peers: [...s.peers.filter((p) => p.id !== msg.peer.id), msg.peer],
+        },
+        msg.peer.dialup
+          ? copy('log.peer_dialed', { name: msg.peer.name })
+          : copy('log.peer_joined', { name: msg.peer.name }),
+        Date.now()
+      )
+    case 'peer-updated':
+      return {
+        ...s,
+        peers: s.peers.map((p) => (p.id === msg.peer.id ? msg.peer : p)),
+      }
+    case 'peer-left': {
+      const gone = s.peers.find((p) => p.id === msg.id)
+      const next = { ...s, peers: s.peers.filter((p) => p.id !== msg.id) }
+      return gone
+        ? told(next, copy('log.peer_left', { name: gone.name }), Date.now())
+        : next
+    }
+    case 'chat':
+      return {
+        ...s,
+        chat: pushLine(s.chat, {
+          kind: 'say',
+          name: msg.name,
+          text: msg.text,
+          at: msg.at,
+        }),
+      }
+    case 'whisper':
+      return {
+        ...s,
+        chat: pushLine(s.chat, {
+          kind: 'whisper',
+          name: msg.outgoing
+            ? copy('chat.whisper_to', { name: msg.to })
+            : copy('chat.whisper_from', { name: msg.from }),
+          text: msg.text,
+          at: msg.at,
+        }),
+      }
+    case 'friends': {
+      const settled = s.pending.ask && settledAsk(s.pending.ask, msg.friends)
+      let next: DialState = {
+        ...s,
+        friends: msg.friends,
+        pending: {
+          ...s.pending,
+          ask: settled ? null : s.pending.ask,
+          showFriends: false,
+        },
+      }
+      if (settled) next = news(next, settled, now, Date.now())
+      if (s.pending.showFriends) {
+        for (const line of friendLines(msg.friends)) {
+          next = told(next, line, Date.now())
+        }
+      }
+      return next
+    }
+    case 'friend-news':
+      return told(s, friendNews(msg.news, msg.name), Date.now())
     case 'season':
       return {
         ...s,
@@ -187,10 +355,88 @@ export function applyFrame(
             now
           )
         default:
-          return s
+          return refused(s, msg, now)
       }
     default:
       return s
+  }
+}
+
+// What a snapshot means to this raider: a unit they bought, a deal of
+// theirs with Erwin.
+function worldNews(s: DialState, msg: WorldMessage, now: number): DialState {
+  if (s.id === null || msg.by !== s.id || !msg.item) return s
+  if (msg.reason === 'bought') {
+    return news(
+      { ...s, pending: { ...s.pending, buy: null } },
+      itemLine(msg.item, 'bought') ??
+        copy('dialup.citgo.bought', { item: itemLabel(msg.item) }),
+      now,
+      Date.now()
+    )
+  }
+  if (msg.reason === 'dealt') {
+    return news(
+      { ...s, pending: { ...s.pending, deal: false } },
+      copy('dealer.bought', { item: itemLabel(msg.item) }),
+      now,
+      Date.now()
+    )
+  }
+  return s
+}
+
+// The valley's refusal of a buy, a deal, a quest step, a trade, a line, a
+// whisper or a friend asked.
+function refused(s: DialState, msg: NackMessage, now: number): DialState {
+  const done = (pending: Partial<Pending>, text: string) =>
+    news({ ...s, pending: { ...s.pending, ...pending } }, text, now, Date.now())
+  switch (msg.re) {
+    case 'buy':
+      return done({ buy: null }, buyRefusal(s, msg))
+    case 'deal':
+      return done({ deal: false }, dealRefusal(msg.reason))
+    case 'quest':
+      return done({ deal: false }, stepRefusal(msg.reason))
+    case 'trade':
+      return done({ trade: false }, copy('log.trade_refused'))
+    case 'chat':
+      return done({}, CHAT_COPY.tooFast)
+    case 'whisper':
+      return done(
+        { whisperTo: null },
+        whisperRefusal(msg.reason, s.pending.whisperTo ?? '')
+      )
+    case 'friend':
+    case 'unfriend':
+      return done(
+        { ask: null },
+        friendRefusal(msg.reason, s.pending.ask?.name ?? '')
+      )
+    default:
+      return s
+  }
+}
+
+// Why the valley would not sell: sold out, short, a Citgo the account has
+// not stood at, or no world to buy in.
+function buyRefusal(s: DialState, msg: NackMessage): string {
+  const price = msg.item ? itemById(msg.item)?.price : undefined
+  switch (msg.reason) {
+    case 'sold-out':
+      return copy('log.sold_out')
+    case 'short':
+      return price === undefined
+        ? copy('log.refused')
+        : copy('log.short', {
+            amount: formatCash(Math.max(0, price - s.cash)),
+          })
+    case 'not-visited':
+      return copy('dialup.citgo.not_visited')
+    case 'not-in-valley':
+      return copy('dialup.citgo.no_world')
+    default:
+      return copy('log.refused')
   }
 }
 
@@ -260,4 +506,97 @@ export function raiderStats(s: DialState, day: string): RaiderStat[] {
     })
   }
   return stats
+}
+
+// One kind on a Citgo's shelves as the phone lists it: its price, how
+// many are left, and the unit a buy takes (the first still on the shelf),
+// or null when none are.
+export interface ShelfRow {
+  kind: string
+  price: number
+  left: number
+  unit: number | null
+}
+
+// A Citgo's shelves as the valley last sent them, in the store's own
+// order; none with no world, or a station it has no shelf for.
+export function shelfOf(s: DialState, station: number): ShelfRow[] {
+  const shelf = s.world?.shelves[station]
+  if (!shelf) return []
+  return Object.entries(shelf).flatMap(([kind, units]) => {
+    const price = itemById(kind)?.price
+    if (price === undefined) return []
+    const unit = units.indexOf(true)
+    return [
+      {
+        kind,
+        price,
+        left: units.filter(Boolean).length,
+        unit: unit < 0 ? null : unit,
+      },
+    ]
+  })
+}
+
+// Who this raider is, for /online.
+export interface Self {
+  name: string
+  level: number
+}
+
+// A line typed into the phone's chat: the state after it, and the frame
+// it sends the valley (null when it is answered here). A line is said to
+// everyone; /online is answered from the peers; /friends, /w, /friend
+// and /unfriend go to the valley and wait on its answer; an emote needs
+// a body (sharedworld.ts rule 29), so the phone says so.
+export function sayLine(
+  s: DialState,
+  typed: string,
+  self: Self,
+  now: number
+): { state: DialState; frame: ClientMessage | null } {
+  const text = normalizeChat(typed)
+  if (!text) return { state: s, frame: null }
+  const command = chatCommand(text)
+  if (!command) return { state: s, frame: { type: 'chat', text } }
+  const answer = (line: string) => ({
+    state: told(s, line, now),
+    frame: null,
+  })
+  switch (command.name) {
+    case 'online':
+      return answer(
+        onlineLine(
+          { ...self, dialup: true },
+          s.peers.map((p) => ({
+            name: p.name,
+            level: p.level,
+            dialup: p.dialup,
+          }))
+        )
+      )
+    case 'emotes':
+    case 'emote':
+      return answer(copy('dialup.social.no_body'))
+    case 'usage':
+      return answer(command.line)
+    case 'unknown':
+      return answer(copy('chat.unknown_command'))
+    case 'friends':
+      return {
+        state: asked(s, { showFriends: true }),
+        frame: { type: 'friends' },
+      }
+    case 'whisper':
+      return {
+        state: asked(s, { whisperTo: command.to }),
+        frame: { type: 'whisper', to: command.to, text: command.text },
+      }
+    case 'friend':
+    case 'unfriend':
+      return {
+        state: asked(s, { ask: { op: command.name, name: command.who } }),
+        frame: { type: command.name, name: command.who },
+      }
+  }
 }

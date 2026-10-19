@@ -9,10 +9,14 @@
 // no card is anywhere, so every one opens wherever the raider is. The
 // state is dialstate.ts's, redrawn whole on every frame.
 
+import { entryOf } from './book.ts'
 import { copy } from './copy.ts'
 import { dayKey } from './daily.ts'
 import { DialBook, renderPage } from './dialbook.ts'
+import { renderCitgo } from './dialcitgo.ts'
+import { DialMoab } from './dialmoab.ts'
 import { DialPack, renderLocker } from './dialpack.ts'
+import { DialSocial } from './dialsocial.ts'
 import { raiderStats } from './dialstate.ts'
 import { el, text } from './dom.ts'
 import { AXES } from './geometrie.ts'
@@ -24,7 +28,10 @@ import { formatCash } from './store.ts'
 import { grouped, wardName } from './vitalshud.ts'
 import type { AvatarView } from './avatarview.ts'
 import type { BookEntry } from './book.ts'
+import type { CosmeticId } from './cosmetics.ts'
+import type { CitgoActions, CitgoOpen } from './dialcitgo.ts'
 import type { Opened, PackActions } from './dialpack.ts'
+import type { SocialActions } from './dialsocial.ts'
 import type { DialState } from './dialstate.ts'
 import type { FinishId } from './finishes.ts'
 import type { Hotbar } from './hotbar.ts'
@@ -56,10 +63,22 @@ interface ShellOptions {
   // The valley's clock in ms, for what the stand has banked.
   now: () => number
   pack: PackActions
-  // Opens the stand's dialog over the shell.
+  // Opens the stand's dialog over the shell; Erwin's and Gron's too.
   openStand: () => void
+  openErwin: () => void
+  openGron: () => void
+  // Buys off a Citgo's shelf, with every Citgo's name once the survey
+  // has loaded (citgomap.ts citgoNames).
+  citgo: CitgoActions
+  citgoNames: () => Promise<string[]>
+  // Trades with Moab.
+  trade: (offer: CosmeticId) => void
+  // Says a line, and asks or ends a friendship.
+  social: SocialActions
   // The same page in the 3D valley.
   switchHref: string
+  // Signs the phone out, back to the modem.
+  signOut: () => void
 }
 
 export class DialShell {
@@ -71,10 +90,14 @@ export class DialShell {
   private sheetBody: HTMLElement
   private sheetTitle: HTMLElement
   private tab: DialTab = 'lobby'
-  private sheetOpen: 'locker' | 'page' | null = null
+  private sheetOpen: 'locker' | 'page' | 'citgo' | 'moab' | null = null
   private lockerOpen: Opened = { kind: null }
+  private citgoOpen: CitgoOpen = { station: null }
+  private names: string[] | null = null
   private pack: DialPack
   private book: DialBook
+  private social: DialSocial
+  private moab: DialMoab | null = null
   private state: DialState | null = null
   // The raider's turntable: one canvas kept across redraws, and what it
   // last showed them in.
@@ -115,6 +138,7 @@ export class DialShell {
     this.sheet.append(head, this.sheetBody)
     this.pack = new DialPack(options.hotbar, options.pack)
     this.book = new DialBook((entry) => this.openPage(entry))
+    this.social = new DialSocial(options.social)
     this.portrait = el('div', 'bv-dial-portrait')
     this.avatarCanvas = document.createElement('canvas')
     this.avatarCanvas.className = 'bv-dial-portrait-canvas'
@@ -142,6 +166,15 @@ export class DialShell {
         this.book.render(new Set(s.book))
         this.view.replaceChildren(this.book.root)
         break
+      case 'social':
+        this.social.render(s, {
+          name: this.options.name,
+          level: barOf(s.xp).level,
+        })
+        if (this.social.root.parentElement !== this.view) {
+          this.view.replaceChildren(this.social.root)
+        }
+        break
       default:
         this.view.replaceChildren(
           text('p', copy('dialup.soon'), 'bv-dial-note')
@@ -151,10 +184,31 @@ export class DialShell {
     if (this.sheetOpen === 'locker') {
       renderLocker(this.sheetBody, s, this.options.pack, this.lockerOpen)
     }
+    if (this.sheetOpen === 'citgo') {
+      renderCitgo(
+        this.sheetBody,
+        s,
+        this.names,
+        this.citgoOpen,
+        this.options.citgo
+      )
+    }
+    if (this.sheetOpen === 'moab') this.moab?.update(s)
     const said = s.said
     const fresh = said && performance.now() - said.at < SAID_MS
     this.toast.hidden = !fresh
     if (said && fresh) this.toast.textContent = said.text
+  }
+
+  // A new name or character from Gron.
+  setName(name: string): void {
+    this.options = { ...this.options, name }
+    if (this.state) this.render(this.state)
+  }
+
+  setLook(outfit: OutfitId, finish: FinishId): void {
+    this.options = { ...this.options, outfit, finish }
+    if (this.state) this.render(this.state)
   }
 
   // The stand's banked cents tick on the valley's clock; once a second,
@@ -227,8 +281,45 @@ export class DialShell {
     })
   }
 
+  private openCitgo(): void {
+    this.sheetOpen = 'citgo'
+    this.sheetTitle.textContent = copy('dialup.lobby.citgo')
+    this.sheet.hidden = false
+    if (!this.names) {
+      void this.options.citgoNames().then(
+        (names) => {
+          this.names = names
+          if (this.state) this.render(this.state)
+        },
+        () => undefined
+      )
+    }
+    if (this.state) this.render(this.state)
+  }
+
+  // Moab in the sheet, his portrait turning.
+  private openMoab(): void {
+    this.sheetOpen = 'moab'
+    this.sheetTitle.textContent = copy('outfits.moab')
+    this.sheet.hidden = false
+    this.moab = new DialMoab(this.options.trade)
+    const canvas = this.moab.portrait
+    this.sheetBody.replaceChildren(this.moab.root)
+    if (this.state) this.render(this.state)
+    void this.load().then((models) => {
+      const entry = entryOf('moab')
+      if (this.sheetOpen !== 'moab' || !canvas.isConnected || !entry) return
+      this.thumbs ??= models.createItemThumbs()
+      const { build } = models.portraitOf(entry)
+      this.thumbs.spinModel(canvas, 'book:moab', build, false)
+    })
+  }
+
   private closeSheet(): void {
-    if (this.sheetOpen === 'page') this.thumbs?.stop()
+    if (this.sheetOpen === 'page' || this.sheetOpen === 'moab') {
+      this.thumbs?.stop()
+    }
+    this.moab = null
     this.sheetOpen = null
     this.sheet.hidden = true
     this.sheetBody.replaceChildren()
@@ -283,11 +374,38 @@ export class DialShell {
         copy('dialup.lobby.locker'),
         copy('dialup.lobby.locker_blurb'),
         () => this.openLocker()
+      ),
+      card(
+        'citgo',
+        copy('dialup.lobby.citgo'),
+        copy('dialup.lobby.citgo_blurb', { count: s.citgos.visited.length }),
+        () => this.openCitgo()
+      ),
+      card(
+        'erwin',
+        copy('outfits.squatter'),
+        copy('dialup.lobby.erwin_blurb'),
+        () => this.options.openErwin()
+      ),
+      card('gron', copy('outfits.gron'), copy('dialup.lobby.gron_blurb'), () =>
+        this.options.openGron()
+      ),
+      card('moab', copy('outfits.moab'), copy('dialup.lobby.moab_blurb'), () =>
+        this.openMoab()
       )
     )
+    const foot = el('div', 'bv-dial-foot')
     const away = text('a', copy('dialup.switch_valley'), 'bv-dial-switch')
     away.href = this.options.switchHref
-    grid.append(away)
+    const out = text('button', copy('panel.sign_out'), 'bv-dial-btn')
+    out.type = 'button'
+    out.dataset.bv = 'dial-sign-out'
+    out.addEventListener('click', () => {
+      out.disabled = true
+      this.options.signOut()
+    })
+    foot.append(away, out)
+    grid.append(foot)
     return grid
   }
 

@@ -3148,6 +3148,16 @@ describe('ValleyDO: Bull Valley Dial-Up', () => {
     expect((p.attachment as { me: { at: unknown } }).me.at).toBeNull()
   })
 
+  it('sends a phone no shadowmen, whoever walks the valley', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const p = await dial(v, s, 'P')
+    await v.webSocketMessage(ws(a), state(500, 500))
+    v.tick()
+    expect(a.frames().some((m) => m.type === 'shadowmen')).toBe(true)
+    expect(p.frames().some((m) => m.type === 'shadowmen')).toBe(false)
+  })
+
   it('stows into the locker from the phone, and refuses a use', async () => {
     const { valley: v, state: s } = await valley()
     const p = await dial(v, s, 'P')

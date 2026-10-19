@@ -5,6 +5,7 @@ import {
   lotMaterial,
   makeGlowSprite,
 } from './assets.ts'
+import { surveyedStations } from './citgos.ts'
 import { projectOnSegment, unitToWorld } from './coords.ts'
 import { roadWidth } from './roadside.ts'
 import { STORE_LAYOUT, storeBase, storeWalls, toWorld } from './store.ts'
@@ -62,9 +63,7 @@ export function buildFuelStations(
 ): { group: THREE.Group; points: FuelPoint[] } {
   const group = new THREE.Group()
   group.name = 'fuel'
-  const stations = geo.fuel.filter(
-    (f) => f.p[0] > 0.015 && f.p[0] < 0.985 && f.p[1] > 0.015 && f.p[1] < 0.985
-  )
+  const stations = surveyedStations(geo.fuel)
   const count = stations.length
 
   const parts = fuelStationParts()
