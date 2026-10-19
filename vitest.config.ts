@@ -41,6 +41,7 @@ const THREE_AND_DOM = [
   'dial3d',
   'dialbook',
   'dialcitgo',
+  'dialexpeditions',
   'dialmain',
   'dialmoab',
   'dialpack',

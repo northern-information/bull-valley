@@ -242,3 +242,33 @@ test('signs out from the phone, back to the modem and a login', async ({
     { timeout: 15_000 }
   )
 })
+
+test('sends a run out on an expedition, one at a time', async ({ browser }) => {
+  const page = await phone(browser)
+  await signIn(page)
+  await page.goto(`/?valley=${freshValley('dial')}`)
+  await dialIn(page)
+  await page.locator('.bv-dial-tab[data-tab="expeditions"]').click()
+  // The Undercroft waits on a level a new raider has not reached.
+  await expect(
+    page.locator(
+      '.bv-dial-expedition[data-expedition="undercroft"] .bv-dial-btn'
+    )
+  ).toBeDisabled()
+  await page
+    .locator('.bv-dial-expedition[data-expedition="ride"] .bv-dial-btn')
+    .click()
+  const out = page.locator('.bv-dial-run[data-run="ride"]')
+  await expect(out).toBeVisible()
+  await expect(
+    out.getByRole('button', { name: copy('dialup.expeditions.claim') })
+  ).toBeDisabled()
+  await expect(
+    page.locator('.bv-dial-expedition[data-expedition="corn"] .bv-dial-btn')
+  ).toBeDisabled()
+  // Kept by the valley: a redial finds it still out.
+  await page.reload()
+  await dialIn(page)
+  await page.locator('.bv-dial-tab[data-tab="expeditions"]').click()
+  await expect(page.locator('.bv-dial-run[data-run="ride"]')).toBeVisible()
+})

@@ -14,6 +14,7 @@ import { copy } from './copy.ts'
 import { dayKey } from './daily.ts'
 import { DialBook, renderPage } from './dialbook.ts'
 import { renderCitgo } from './dialcitgo.ts'
+import { renderExpeditions } from './dialexpeditions.ts'
 import { DialMoab } from './dialmoab.ts'
 import { DialPack, renderLocker } from './dialpack.ts'
 import { DialSocial } from './dialsocial.ts'
@@ -30,6 +31,7 @@ import type { AvatarView } from './avatarview.ts'
 import type { BookEntry } from './book.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { CitgoActions, CitgoOpen } from './dialcitgo.ts'
+import type { ExpeditionActions } from './dialexpeditions.ts'
 import type { Opened, PackActions } from './dialpack.ts'
 import type { SocialActions } from './dialsocial.ts'
 import type { DialState } from './dialstate.ts'
@@ -75,6 +77,8 @@ interface ShellOptions {
   trade: (offer: CosmeticId) => void
   // Says a line, and asks or ends a friendship.
   social: SocialActions
+  // Sends a run out, and brings it home.
+  expeditions: ExpeditionActions
   // The same page in the 3D valley.
   switchHref: string
   // Signs the phone out, back to the modem.
@@ -166,6 +170,14 @@ export class DialShell {
         this.book.render(new Set(s.book))
         this.view.replaceChildren(this.book.root)
         break
+      case 'expeditions':
+        renderExpeditions(
+          this.view,
+          s,
+          this.options.now(),
+          this.options.expeditions
+        )
+        break
       case 'social':
         this.social.render(s, {
           name: this.options.name,
@@ -175,10 +187,6 @@ export class DialShell {
           this.view.replaceChildren(this.social.root)
         }
         break
-      default:
-        this.view.replaceChildren(
-          text('p', copy('dialup.soon'), 'bv-dial-note')
-        )
     }
     this.dress(s)
     if (this.sheetOpen === 'locker') {
@@ -215,6 +223,15 @@ export class DialShell {
   // only the figure moves.
   tick(): void {
     const s = this.state
+    if (s && this.tab === 'expeditions') {
+      renderExpeditions(
+        this.view,
+        s,
+        this.options.now(),
+        this.options.expeditions
+      )
+      return
+    }
     const blurb = this.view.querySelector(
       '.bv-dial-card[data-card="stand"] .bv-dial-card-blurb'
     )

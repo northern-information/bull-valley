@@ -644,6 +644,61 @@ export const CONFIG = {
     // He blocks like a post this wide.
     radius: 0.35,
   },
+  // Idle expeditions from Bull Valley Dial-Up (expeditions.ts,
+  // sharedworld.ts rule 30): each run's minutes out, the level it opens
+  // at, the ward that keeps it safe (null for none needed), the chance it
+  // comes back hurt with that ward at nothing, how hard it hurts (a share
+  // of whole geometrie, never the last point), the XP it earns home, and
+  // what it brings back: each roll a kind (cash kinds pay the wallet), how
+  // many, and the chance it comes at all.
+  expeditions: {
+    runs: {
+      ride: {
+        minutes: 15,
+        level: 1,
+        ward: null,
+        risk: 0,
+        hurt: 0,
+        xp: 1,
+        loot: [
+          { kind: 'dimes', min: 5, max: 20, chance: 1 },
+          { kind: 'berries', min: 1, max: 1, chance: 0.25 },
+        ],
+      },
+      corn: {
+        minutes: 60,
+        level: 1,
+        ward: 'drunk',
+        risk: 0.35,
+        hurt: 0.25,
+        xp: 4,
+        loot: [
+          { kind: 'dimes', min: 10, max: 40, chance: 1 },
+          { kind: 'berries', min: 1, max: 3, chance: 0.8 },
+          { kind: 'cabbage', min: 1, max: 3, chance: 0.8 },
+          { kind: 'gold-bullion', min: 1, max: 1, chance: 0.05 },
+        ],
+      },
+      undercroft: {
+        minutes: 240,
+        level: 10,
+        ward: 'tripping',
+        risk: 0.5,
+        hurt: 0.4,
+        xp: 15,
+        loot: [
+          { kind: 'dimes', min: 30, max: 120, chance: 1 },
+          { kind: 'twenty', min: 1, max: 1, chance: 0.3 },
+          { kind: 'gold-bullion', min: 1, max: 1, chance: 0.2 },
+          { kind: 'lsd', min: 1, max: 2, chance: 0.2 },
+        ],
+      },
+    },
+    // The matching ward at its fullest takes this share off the risk.
+    wardCut: 0.8,
+    // A run that comes back hurt brings this share of each roll home.
+    hurtKeeps: 0.5,
+  },
   // The tunnel shades in the Undercroft (tunnelshades.ts): each kind's
   // drift round its lair and its hunt (m/s; the walk is 4.2), how far it
   // sees and feels, its touch, the seconds a beam must hold it, and the

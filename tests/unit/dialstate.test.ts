@@ -7,6 +7,8 @@ import {
   applyFrame,
   asked,
   DIALED,
+  expeditionName,
+  haulLine,
   NO_WARDS,
   raiderStats,
   sayLine,
@@ -44,6 +46,7 @@ const welcome = (over: Partial<WelcomeMessage> = {}): ServerMessage => ({
   healthMax: 1000,
   geometrie: { ...NO_WARDS, high: 0.5 },
   citgos: { last: null, visited: [] },
+  expedition: null,
   ...over,
 })
 
@@ -489,5 +492,75 @@ describe('the folk, the Citgo and the chat on the phone', () => {
         0
       ).said?.text
     ).toBe(copy('friends.self'))
+  })
+})
+
+describe('expeditions on the phone', () => {
+  const run = {
+    id: 'corn' as const,
+    startedAt: 0,
+    endsAt: 60_000,
+    seed: 3,
+    ward: 0,
+  }
+
+  it('keeps the run out, says it went, and says what came home', () => {
+    let s = applyFrame(DIALED, welcome({ expedition: run }), 0)
+    expect(s.expedition).toEqual(run)
+    expect(
+      applyFrame(DIALED, welcome({ expedition: 'x' as never }), 0).expedition
+    ).toBeNull()
+    s = asked({ ...s, expedition: null }, { expedition: true })
+    s = applyFrame(s, { type: 'expedition', run }, 0)
+    expect(s.pending.expedition).toBe(false)
+    expect(s.said?.text).toBe(
+      copy('dialup.expeditions.sent', { run: expeditionName('corn') })
+    )
+    const outcome = {
+      items: { cabbage: 2 },
+      cents: 150,
+      hurt: false,
+      damage: 0,
+      xp: 4,
+    }
+    s = applyFrame(s, { type: 'expedition', run: null, outcome }, 0)
+    expect(s.expedition).toBeNull()
+    expect(s.haul).toEqual(outcome)
+    expect(s.said?.text).toBe(haulLine(outcome))
+    expect(haulLine(outcome)).toBe(
+      copy('dialup.expeditions.home', {
+        haul: `${copy('dialup.expeditions.haul_item', { count: 2, item: itemLabel('cabbage') })}, ${formatCash(150)}`,
+      })
+    )
+    expect(
+      haulLine({ items: {}, cents: 0, hurt: true, damage: 0.2, xp: 1 })
+    ).toBe(
+      copy('dialup.expeditions.home_hurt', {
+        haul: copy('dialup.expeditions.nothing'),
+      })
+    )
+  })
+
+  it('names every run, and says why one was refused', () => {
+    expect(expeditionName('ride')).toBe(copy('dialup.expeditions.ride'))
+    expect(expeditionName('undercroft')).toBe(
+      copy('dialup.expeditions.undercroft')
+    )
+    const s = asked(applyFrame(DIALED, welcome(), 0), { expedition: true })
+    const nack = (re: 'expedition-send' | 'expedition-claim', reason: string) =>
+      applyFrame(s, { type: 'nack', re, reason }, 0)
+    expect(nack('expedition-send', 'busy').said?.text).toBe(
+      copy('dialup.expeditions.busy')
+    )
+    expect(nack('expedition-send', 'locked').said?.text).toBe(
+      copy('dialup.expeditions.locked_refused')
+    )
+    expect(nack('expedition-claim', 'out').said?.text).toBe(
+      copy('dialup.expeditions.out')
+    )
+    expect(nack('expedition-claim', 'what').pending.expedition).toBe(false)
+    expect(nack('expedition-claim', 'what').said?.text).toBe(
+      copy('dialup.expeditions.refused')
+    )
   })
 })

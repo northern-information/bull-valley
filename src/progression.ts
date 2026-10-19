@@ -30,6 +30,7 @@ export type XpSource =
   | 'share'
   | 'citgo'
   | 'landmark'
+  | 'expedition'
 
 // The XP each grants: every grant in one table.
 export const XP: Readonly<Record<XpSource, number>> = {
@@ -69,6 +70,10 @@ export const XP: Readonly<Record<XpSource, number>> = {
   // account (CONFIG.bounties pays cash beside it).
   citgo: 10,
   landmark: 25,
+  // An expedition home (expeditions.ts, rule 30), once for each of its
+  // run's CONFIG.expeditions xp: a long run earns more than a short one,
+  // and never more than burning shadows for the same hours would.
+  expedition: 10,
 }
 
 export interface XpGrant {
