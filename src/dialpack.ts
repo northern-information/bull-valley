@@ -11,6 +11,7 @@ import { el, text } from './dom.ts'
 import { assign, HOTBAR_SLOTS } from './hotbar.ts'
 import { itemLabel } from './itemcopy.ts'
 import { isKeyItem } from './items.ts'
+import { statsView } from './itemstatsview.ts'
 import { PACK_TABS, packItems, stashItems } from './packgrid.ts'
 import { BAG_TABS } from './packtabs.ts'
 import { moveAmount } from './stash.ts'
@@ -180,8 +181,9 @@ function button(
   return b
 }
 
-// A list of items, each its label and count, opening to its blurb and its
-// buttons when tapped.
+// A list of items, each its label and count, opening to its blurb, its
+// stats (itemstatsview.ts, as the 3D valley's pack card shows them) and
+// its buttons when tapped.
 function itemRows(
   items: readonly PackItem[],
   empty: string,
@@ -212,7 +214,10 @@ function itemRows(
       )
     )
     const body = el('div', 'bv-dial-item-body')
-    body.append(text('p', item.blurb, 'bv-dial-item-blurb'))
+    body.append(
+      text('p', item.blurb, 'bv-dial-item-blurb'),
+      ...statsView(item.kind)
+    )
     const buttons = el('div', 'bv-dial-row')
     buttons.append(...actionsOf(item))
     body.append(buttons)

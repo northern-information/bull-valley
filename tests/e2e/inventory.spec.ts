@@ -27,10 +27,10 @@ test('Tab opens the pack, a number key assigns, the hotbar uses and is kept', as
     copy('items.marlboro.label')
   )
   // Its stats, off the table: its kind and its shelf price among them.
-  const stats = card.locator('.bv-bag-card-stats')
+  const stats = card.locator('.bv-item-stats')
   await expect(stats).toContainText(copy('stats.cigarette'))
   await expect(stats).toContainText(copy('stats.price'))
-  await expect(card.locator('.bv-bag-card-wards')).toContainText(
+  await expect(card.locator('.bv-item-wards')).toContainText(
     copy('wards.stimulated')
   )
 

@@ -1116,38 +1116,42 @@
   color: var(--bv-npc-soft);
 }
 
-/* Its stats (itemstats.ts): a label on the left and its value on the
-   right, one a row on the frame's rules, like a page of the Book of
-   Shadows. */
-.bv-bag-card-stats {
+/* An item's stats (itemstatsview.ts), in the 3D valley's pack card and
+   Dial-Up's pack alike: a label on the left and its value on the right,
+   one a row on thin rules, like a page of the Book of Shadows, and a line
+   for each ward it moves under them. */
+.bv-item-stats {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 0;
-  margin: 4px 0 0;
-  border-top: 1px solid var(--bv-npc-line);
+  margin: 4px 0;
+  border-top: 1px solid rgb(240 234 214 / 16%);
 }
 
-.bv-bag-card-stats dt,
-.bv-bag-card-stats dd {
+.bv-item-stats dt,
+.bv-item-stats dd {
   margin: 0;
   padding: 3px 0;
   font-size: 0.8125rem;
-  border-bottom: 1px solid var(--bv-npc-line);
+  border-bottom: 1px solid rgb(240 234 214 / 16%);
 }
 
-.bv-bag-card-stats dt {
+.bv-item-stats dt {
   padding-right: 12px;
-  color: var(--bv-npc-soft);
+  color: rgb(240 234 214 / 75%);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.bv-bag-card-stats dd {
+.bv-item-stats dd {
   font-weight: 600;
   text-align: right;
 }
 
-.bv-bag-card-wards .bv-ward-line {
+.bv-item-wards {
+  margin: 0 0 8px;
+}
+
+.bv-item-wards .bv-ward-line {
   margin: 0 0 4px;
   font-size: 0.8125rem;
 }

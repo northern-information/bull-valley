@@ -11,18 +11,14 @@ import { copy } from './copy.ts'
 import { el, find, text } from './dom.ts'
 import { HOTBAR_SLOTS } from './hotbar.ts'
 import { isKeyItem } from './items.ts'
-import { doseText, itemStats, spanOf } from './itemstats.ts'
+import { statsOf } from './itemstatsview.ts'
 import { npcHeader } from './npcdialog.ts'
 import { bagTabs, LOCKER_TAB, PACK_TABS } from './packgrid.ts'
 import { BAG_TABS } from './packtabs.ts'
-import { formatCash } from './store.ts'
-import { wardAgainst, wardLine, wardName } from './vitalshud.ts'
 import type { AvatarLook, AvatarView } from './avatarview.ts'
 import type { Binding, MouseBinding } from './bindings.ts'
 import type { Cooldown } from './hotbar.ts'
 import type { PackItem } from './interfaces.ts'
-import type { ItemCategory } from './items.ts'
-import type { ItemStat } from './itemstats.ts'
 import type { BagAction, BagTab } from './packgrid.ts'
 
 // One hotbar slot as setHotbar draws it: slot 0 is key 1. icon is the
@@ -32,61 +28,6 @@ export interface HotbarSlotView {
   item: PackItem
   icon: string
   cooldown: Cooldown | null
-}
-
-// What kind of thing an item is, as its card names it.
-function categoryName(category: ItemCategory): string {
-  switch (category) {
-    case 'cigarette':
-      return copy('stats.cigarette')
-    case 'joint':
-      return copy('stats.joint')
-    case 'psychedelic':
-      return copy('stats.psychedelic')
-    case 'stimulant':
-      return copy('stats.stimulant')
-    case 'drink':
-      return copy('stats.drink')
-    case 'medicine':
-      return copy('stats.medicine')
-    case 'forage':
-      return copy('stats.forage')
-    case 'valuable':
-      return copy('stats.valuable')
-    case 'key-item':
-      return copy('stats.key_item')
-  }
-}
-
-// One stat of the card's table as its label and value; a ward's goes in
-// the lines under it instead, in its colour.
-function statRow(stat: ItemStat): [string, string] | null {
-  switch (stat.stat) {
-    case 'category':
-      return [copy('stats.kind'), categoryName(stat.category)]
-    case 'heals':
-      return [copy('stats.heals'), copy('stats.heals_value', { pct: stat.pct })]
-    case 'lasts':
-      return [
-        copy(
-          stat.lasting === 'smoke'
-            ? 'stats.smokes'
-            : stat.lasting === 'perception'
-              ? 'stats.perception'
-              : 'stats.trails'
-        ),
-        spanOf(stat.seconds),
-      ]
-    case 'contents':
-      return [
-        copy('stats.contents'),
-        copy('stats.contents_value', { count: stat.count }),
-      ]
-    case 'price':
-      return [copy('stats.price'), formatCash(stat.cents)]
-    case 'ward':
-      return null
-  }
 }
 
 // The line along the foot of the pack grid.
@@ -305,8 +246,8 @@ export class PackHud {
     this.cardEyebrow = el('p', 'bv-npc-eyebrow bv-npc-lead')
     this.cardName = el('h3', 'bv-bag-card-name')
     this.cardBlurb = el('p', 'bv-bag-card-blurb')
-    this.cardStats = el('dl', 'bv-bag-card-stats')
-    this.cardWards = el('div', 'bv-bag-card-wards')
+    this.cardStats = el('dl', 'bv-item-stats')
+    this.cardWards = el('div', 'bv-item-wards')
     this.cardQuantity = el('p', 'bv-npc-label bv-bag-card-quantity')
     const keys = el('ul', 'bv-bag-card-keys')
     const keyItem = ({ key, labelKey }: Binding) => {
@@ -479,30 +420,9 @@ export class PackHud {
       this.cardBlurb.textContent = item.blurb
       // Its stats, and how far it moves each ward with what that ward
       // wards against.
-      const stats = itemStats(item.kind)
-      this.cardStats.replaceChildren(
-        ...stats.flatMap((stat) => {
-          const row = statRow(stat)
-          return row ? [text('dt', row[0]), text('dd', row[1])] : []
-        })
-      )
-      this.cardWards.replaceChildren(
-        ...stats.flatMap((stat) =>
-          stat.stat === 'ward'
-            ? [
-                wardLine(
-                  'bv-ward-line',
-                  stat.axis,
-                  copy(stat.dose > 0 ? 'wards.card_dose' : 'wards.card_lower', {
-                    ward: wardName(stat.axis),
-                    dose: doseText(stat.dose),
-                    against: wardAgainst(stat.axis),
-                  })
-                ),
-              ]
-            : []
-        )
-      )
+      const { rows, wards } = statsOf(item.kind)
+      this.cardStats.replaceChildren(...rows)
+      this.cardWards.replaceChildren(...wards)
       this.cardQuantity.textContent = quantity(item)
       for (const li of this.cardUse) {
         li.classList.toggle('bv-bag-card-key--dim', !item.canUse)

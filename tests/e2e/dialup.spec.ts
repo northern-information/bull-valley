@@ -64,6 +64,10 @@ test('stows from the pack, takes it back out of the locker, and keeps the hotbar
   await page.locator('.bv-dial-tab[data-tab="pack"]').click()
   const pack = page.locator('.bv-dial-item[data-kind="marlboro"]')
   await pack.locator('summary').click()
+  // Opened, it shows its stats as the 3D pack card does.
+  await expect(pack.locator('.bv-item-stats')).toContainText(
+    copy('stats.cigarette')
+  )
   await pack.getByRole('button', { name: copy('dialup.pack.stow_one') }).click()
   // The locker, from the lobby, wherever the raider is.
   await page.locator('.bv-dial-tab[data-tab="lobby"]').click()
