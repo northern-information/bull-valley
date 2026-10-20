@@ -177,5 +177,3 @@ export function buildShelves(
     holdSlurms: (on) => slurms.hold(on),
   }
 }
-
-// Beacon markers for the hand-placed landmarks, color-coded so they read

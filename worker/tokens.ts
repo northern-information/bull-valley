@@ -31,11 +31,6 @@ interface RefreshClaims {
   session: number
 }
 
-interface RefreshClaims {
-  accountId: string
-  session: number
-}
-
 interface PendingClaims {
   provider: Provider
   profile: Profile

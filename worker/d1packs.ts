@@ -582,7 +582,6 @@ export class D1PackStore implements PackStore {
     ])
   }
 
-  // The row is made the first time, so a tend always has one to guard.
   // A read, never a write: `tend` makes the row the first time.
   async stand(
     accountId: string

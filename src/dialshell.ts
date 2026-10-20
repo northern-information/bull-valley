@@ -493,15 +493,15 @@ function card(
   id: string,
   title: string,
   blurb: string,
-  onOpen: (() => void) | null
+  onOpen: () => void
 ): HTMLElement {
-  const c = el(onOpen ? 'button' : 'div', 'bv-dial-card')
-  if (c instanceof HTMLButtonElement) c.type = 'button'
+  const c = el('button', 'bv-dial-card')
+  c.type = 'button'
   c.dataset.card = id
   c.append(
     text('span', title, 'bv-dial-card-title'),
     text('span', blurb, 'bv-dial-card-blurb')
   )
-  if (onOpen) c.addEventListener('click', onOpen)
+  c.addEventListener('click', onOpen)
   return c
 }

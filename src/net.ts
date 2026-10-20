@@ -38,7 +38,8 @@ import type { WaterMap } from './waterside.ts'
 export type NetStatus = 'connecting' | 'online' | 'offline'
 
 interface NetConfig {
-  // Give up on the first connection after this long and play offline.
+  // Give up on the first connection after this long: `ready` resolves
+  // offline, and the client keeps trying.
   connectTimeoutMs: number
   // How often to measure the clock offset once online.
   pingMs: number

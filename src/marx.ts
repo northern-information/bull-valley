@@ -13,7 +13,7 @@
 // runs out he takes whoever is aboard there and lets them off, or with no
 // pick on the joyride out through the valley and home again, letting them
 // off at the Citgo. With no one else in the valley there is no countdown:
-// he leaves as soon as the pick is made. A whistle (T) brings him to the
+// he leaves as soon as the pick is made. A whistle (Y) brings him to the
 // whistler, who climbs in and is driven home.
 //
 // The valley never knows the roads, so it never knows exactly when a drive
