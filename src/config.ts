@@ -787,10 +787,9 @@ export const CONFIG = {
     // How close E must be to talk to him, from where he sits.
     reach: 2.4,
     // The Jeep blocks as a capsule down its length (this far either side
-    // of its middle, this wide), and its dropped tailgate like a post.
+    // of its middle, this wide).
     halfLength: 1.3,
     radius: 1.0,
-    gateRadius: 0.5,
   },
   maze: {
     // The corn maze across Lake Avenue from the spawn Citgo, station-local

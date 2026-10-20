@@ -1,6 +1,6 @@
 // Pure: the few things in the valley that stop you: the Citgo walls and
 // fixtures (store.ts), the berry bush, Gron, Moab and his horse (a capsule
-// along its spine), Tyler's Jeep and its tailgate, the wreck by the spawn
+// along its spine), Tyler's Jeep, the wreck by the spawn
 // Citgo (a capsule down the car) and the tree it hit, the dishes behind
 // it, Bull Valley Plaza
 // (stripmall.ts), and the utility poles and streetlights (roadside.ts),

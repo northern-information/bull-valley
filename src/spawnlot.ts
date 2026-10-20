@@ -372,8 +372,8 @@ export function placeMoabs(
 
 // Tyler Etters in the back of his red Jeep on the spawn Citgo's lot
 // (CONFIG.tyler, station-local), its nose pointed `toward`, so its open
-// back faces Moab and the pumps. The Jeep blocks down its length and its
-// dropped tailgate like a post; he answers E from where he sits.
+// back faces Moab and the pumps. The Jeep blocks down its length; he
+// answers E from where he sits.
 export function placeTyler(
   group: THREE.Group,
   ground: Ground,
@@ -381,7 +381,7 @@ export function placeTyler(
   spawnStation: FuelPoint | null
 ): { tyler: XZ | null; tylerRig: TylerRig | null } {
   if (!spawnStation) return { tyler: null, tylerRig: null }
-  const { at, toward, halfLength, radius, gateRadius } = CONFIG.tyler
+  const { at, toward, halfLength, radius } = CONFIG.tyler
   const [x, , z] = toWorld(spawnStation, [at.x, 0, at.z])
   const [tx, , tz] = toWorld(spawnStation, [toward.x, 0, toward.z])
   const len = Math.hypot(tx - x, tz - z) || 1
@@ -397,10 +397,6 @@ export function placeTyler(
     { x: x + dx * halfLength, z: z + dz * halfLength },
     radius
   )
-  // The tailgate lies dropped flat behind the open back.
-  const back = JEEP.rear - JEEP.gate / 2
-  const gate = { x: x + dx * back, z: z + dz * back }
-  walls.addWall(gate, gate, gateRadius)
   // He sits in from the open back, a little up off the lot.
   const seat = JEEP.rear + TYLER_IN
   return { tyler: { x: x + dx * seat, z: z + dz * seat }, tylerRig: rig }

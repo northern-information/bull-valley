@@ -3,9 +3,9 @@ import { castShadows, lambert, mergeStatic } from './assetkit.ts'
 
 // Tyler Etters' red 1995 Jeep Wrangler, a YJ, parked on the spawn Citgo's
 // lot beside Moab Coldë (CONFIG.tyler places it): the square headlights in
-// the seven-slot grille, flat fenders, a hardtop in the body's red, the
-// rear glass lifted up on its hinges and the tailgate dropped flat, so
-// whoever sits in the back (figure.ts buildTyler) looks out over the lot.
+// the seven-slot grille, flat fenders, a hardtop in the body's red, its
+// one rear hatch lifted up on its hinges, so whoever sits in the back
+// (figure.ts buildTyler) looks out over the lot.
 // Scenery: it only blocks.
 
 // --- The Jeep ------------------------------------------------------------
@@ -13,22 +13,19 @@ import { castShadows, lambert, mergeStatic } from './assetkit.ts'
 // Faces +Z, origin at ground level under the middle; left (the driver's
 // side) is +X.
 export const JEEP = {
-  // Bumper to tailgate, and across the body under the flares.
+  // Bumper to bumper, and across the body under the flares.
   length: 4.0,
   width: 1.6,
   wheel: 0.4,
-  // The rear opening: where the body ends, and the cargo floor's height,
-  // which the dropped tailgate lies level with.
+  // The rear opening: where the body ends, and the cargo floor's height.
   rear: -1.95,
   floor: 0.78,
   // The hardtop's roof, over the cargo floor.
   roof: 1.86,
-  // How far the dropped tailgate reaches out behind.
-  gate: 0.44,
 }
 
 export function buildJeep(): THREE.Group {
-  const { width, wheel, rear, floor, roof, gate } = JEEP
+  const { width, wheel, rear, floor, roof } = JEEP
   const front = rear + JEEP.length
   const group = new THREE.Group()
   group.name = 'jeep'
@@ -230,42 +227,21 @@ export function buildJeep(): THREE.Group {
     )
   }
 
-  // The rear glass, lifted up on its hinge at the roof's back edge.
+  // The one rear hatch, roof to sill, lifted up on its hinge at the
+  // roof's back edge: red, with its window in the upper half.
   const hatch = new THREE.Group()
   hatch.position.set(0, roof, rear)
-  hatch.rotation.x = 2.25
+  hatch.rotation.x = 1.95
+  add(hatch, [width - 0.04, roof - sill, 0.05], red, 0, -(roof - sill) / 2, 0)
   add(
     hatch,
-    [width - 0.1, roof - belt - 0.06, 0.04],
-    red,
-    0,
-    -(roof - belt) / 2,
-    0
-  )
-  add(
-    hatch,
-    [width - 0.28, roof - belt - 0.2, 0.02],
+    [width - 0.28, roof - belt - 0.16, 0.02],
     glass,
     0,
     -(roof - belt) / 2,
-    -0.025
+    -0.03
   )
   group.add(hatch)
-  // The tailgate dropped flat on its hinge at the floor, level with it,
-  // the spare tyre on its face hanging under it.
-  const tailgate = new THREE.Group()
-  tailgate.position.set(0, floor, rear)
-  add(tailgate, [width - 0.04, 0.06, gate], red, 0, -0.03, -gate / 2)
-  const spare = new THREE.CylinderGeometry(0.36, 0.36, 0.22, 8)
-  const s = new THREE.Mesh(spare, black)
-  s.position.set(0, -0.17, -gate / 2)
-  const sHub = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.17, 0.17, 0.23, 6),
-    steel
-  )
-  sHub.position.copy(s.position)
-  tailgate.add(s, sHub)
-  group.add(tailgate)
 
   mergeStatic(group)
   castShadows(group)
