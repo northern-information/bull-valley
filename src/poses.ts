@@ -56,6 +56,7 @@ export type PoseName =
   | 'hunch'
   | 'wield'
   | 'sprawl'
+  | 'type'
   // The emotes (emotes.ts).
   | 'wave'
   | 'rest'
@@ -216,7 +217,7 @@ const RUN_HALF: PoseKey[] = [
       kneeR: [1.0, 0, 0],
       shoulderL: [0.75, 0, 0.14],
       shoulderR: [-0.85, 0, -0.14],
-      elbowL: [-1.05, 0, 0],
+      elbowL: [-1.55, 0, 0],
       elbowR: [-1.55, 0, 0],
     },
   },
@@ -265,7 +266,7 @@ const RUN_HALF: PoseKey[] = [
       shoulderL: [-0.8, 0, 0.14],
       shoulderR: [0.7, 0, -0.14],
       elbowL: [-1.55, 0, 0],
-      elbowR: [-1.05, 0, 0],
+      elbowR: [-1.55, 0, 0],
     },
   },
 ]
@@ -397,7 +398,7 @@ export const POSES = {
         lift: 0,
         joints: {
           shoulderL: [-0.35, 0, 0.2],
-          elbowL: [-1.05, 0, 0],
+          elbowL: [-1.55, 0, 0],
           shoulderR: [-1.3, 0, 0.05],
           elbowR: [-0.15, 0, 0],
         },
@@ -423,6 +424,28 @@ export const POSES = {
         },
       },
     ],
+  },
+  // Tyler Etters in the back of his Jeep (figure.ts buildTyler): down
+  // cross-legged, each shin folded across under the other knee, hunched
+  // over the laptop on the floor in front of him, the head down to its
+  // screen, both hands on the keys, pecking at them by turns.
+  type: {
+    seconds: 0.6,
+    keys: [0, 1].map((beat) => ({
+      lift: -0.86,
+      joints: {
+        spine: [0.75, 0, 0],
+        neck: [0.2 + beat * 0.02, 0, 0],
+        hipL: [-1.45, -1.1, 0.5],
+        hipR: [-1.45, 1.1, -0.5],
+        kneeL: [2.75, 0, 0],
+        kneeR: [2.75, 0, 0],
+        shoulderL: [-0.75 - beat * 0.06, 0, -0.1],
+        shoulderR: [-0.81 + beat * 0.06, 0, 0.1],
+        elbowL: [-0.75 + beat * 0.1, 0, 0],
+        elbowR: [-0.65 - beat * 0.1, 0, 0],
+      },
+    })),
   },
   // The emotes (emotes.ts), each what a raider types to take it.
   // /wave: the right arm up high and out, the hand rocking side to side

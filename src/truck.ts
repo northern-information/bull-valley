@@ -176,6 +176,8 @@ export class Truck {
   groundAt: HeightAt
   group: THREE.Group
   walker: Walker | null
+  // The points the walker drives, for the ruts a donut leg has cut.
+  route: readonly RoadPoint[]
   speed: number
   x: number
   z: number
@@ -226,6 +228,7 @@ export class Truck {
     this.lamps = attachLamps(this.group)
     scene.add(this.group)
     this.walker = null
+    this.route = []
     this.speed = CONFIG.truck.speed
     this.x = 0
     this.z = 0
@@ -328,6 +331,7 @@ export class Truck {
       this.setDriverPost('cab')
     }
     this.walker = createWalker(points)
+    this.route = points
     this.speed = speed
     this.drifting = false
     this.drift = 0
@@ -379,11 +383,13 @@ export class Truck {
         this.startedAt === null
           ? this.elapsed + dt
           : (nowMs - this.startedAt) / 1000
+      // The whole route holds for his walk, not just the frames of it, or
+      // the truck would leap ahead the frame after he took the wheel.
       let hold = 0
-      if (this.post === 'tailgate' && this.toDoor) {
+      if (this.toDoor) {
         hold = TO_DOOR_SECONDS
         if (this.elapsed < hold) this.walkToDoor(this.elapsed)
-        else this.setDriverPost('cab')
+        else if (this.post === 'tailgate') this.setDriverPost('cab')
       }
       const due = this.speed * Math.max(0, this.elapsed - hold)
       const metres = Math.max(0, due - this.travelled)
@@ -428,6 +434,14 @@ export class Truck {
   // to the door, if he had one.
   rolling(): boolean {
     return this.walker !== null && this.travelled > 0
+  }
+
+  // Seconds since the engine started on this route, or null while the
+  // truck stands: parked, waiting at a whistle, or Marx still walking
+  // round to his door.
+  engineSeconds(): number | null {
+    if (!this.moving || !this.walker || this.travelled <= 0) return null
+    return this.elapsed - (this.toDoor ? TO_DOOR_SECONDS : 0)
   }
 
   // The nose into the turn: the turn per metre, both averaged over about

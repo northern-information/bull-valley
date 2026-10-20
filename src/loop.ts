@@ -88,6 +88,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     sky,
     world,
     truck,
+    radio,
+    donutWake,
     music,
     sfx,
     settings,
@@ -312,6 +314,15 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       started: s.started,
       setting: settings.current.music,
     })
+    // Marx's radio while the truck rolls: as cut in the bed, and fading
+    // to its lows with the distance everywhere else.
+    radio?.update({
+      started: s.started,
+      setting: settings.current.music,
+      engine: truck.engineSeconds(),
+      distance: truck.distanceTo(player.pos.x, player.pos.z),
+      aboard: s.aboard,
+    })
     // The valley's sounds, heard from the camera at the raider's setting.
     sfx?.update({
       started: s.started,
@@ -481,6 +492,10 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     world.moabRigs.forEach((rig, i) => {
       if (live(world.moabs[i])) rig.update(time)
     })
+    // Tyler types on in the back of his Jeep.
+    if (world.tylerRig && world.tyler && live(world.tyler)) {
+      world.tylerRig.update(time)
+    }
     // Erwin's rose lies at the heart for a raider who laid it (rule 26).
     if (world.portal) {
       const stage = s.quests?.rose
@@ -855,6 +870,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     const clock = advanceClocks()
     settleAloneTruck()
     const feet = rideOrWalk(clock)
+    // The clods his wheels throw and the ruts they cut.
+    donutWake?.update(clock.dt, truck)
     stepAudio(clock.now)
     tellTruckRolls()
     const lit = raiseHands(clock)

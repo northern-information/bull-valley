@@ -14,6 +14,7 @@ import {
   buildFigure,
   buildGron,
   buildMoab,
+  buildTyler,
 } from './figure.ts'
 import { itemById } from './items.ts'
 import { samplePose } from './poses.ts'
@@ -85,6 +86,7 @@ const PORTRAITS: Partial<Record<string, () => THREE.Object3D>> = {
   gron: () => buildGron().group,
   moab: () => buildMoab().group,
   squatter: () => standing('squatter'),
+  tyler: () => buildTyler().group,
 }
 
 // The model for an entry's page, and the item it is when it is one (for

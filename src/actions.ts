@@ -943,7 +943,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     )
   }
 
-  // Marx, Carlsten and Moab each say their next line.
+  // Marx, Carlsten, Moab and Tyler each say their next line.
   const speakTo = (npc: NpcId) => {
     npcSays(npc, npcLine(npc, s.npcSaid[npc]++))
   }
