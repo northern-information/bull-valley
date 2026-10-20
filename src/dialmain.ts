@@ -8,6 +8,7 @@
 
 import './styles.css'
 import './dialup.css'
+import { openAccountPanel } from './accountpanel.ts'
 import {
   fetchMe,
   refreshSession,
@@ -41,7 +42,7 @@ import { GRAIN_URL, imagesReady } from './preload.ts'
 import { levelOf } from './progression.ts'
 import { CLOSE } from './protocol.ts'
 import { dealerStep, roseLine, roseProgress } from './quests.ts'
-import { toSettings } from './settings.ts'
+import { createSettingsStore } from './settingsui.ts'
 import { mountAccountStep } from './signin.ts'
 import { SILENT } from './silent.ts'
 import { openStandDialog } from './standdialog.ts'
@@ -71,7 +72,10 @@ async function boot(): Promise<void> {
   ])
   mountBuildTag()
   const account = known?.account ?? null
-  const settings = toSettings(account?.settings)
+  // The account's volumes, shared with the 3D valley and saved to the
+  // account a moment after a slider is let go (settingsui.ts).
+  const settings = createSettingsStore()
+  settings.load(account?.settings)
   const net = new NetClient({
     url: socketUrl(window.location, import.meta.env.DEV),
     config: CONFIG.net,
@@ -89,7 +93,7 @@ async function boot(): Promise<void> {
   let shell: DialShell | null = null
   const modem = mountModem(root, {
     // A silent page (silent.ts) is never heard.
-    volume: SILENT ? null : settings.sfx / 100,
+    volume: SILENT ? null : settings.current.sfx / 100,
     onDial: () => {
       if (!account?.username) {
         modem.signedOut()
@@ -152,6 +156,10 @@ async function boot(): Promise<void> {
     shell.render(state)
   })
   const now = () => net.clock.serverNow(performance.now())
+  // Signed out, the modem dials again and the line answers LOGIN.
+  const signOutAndRedial = () => {
+    void signOut().then(() => window.location.reload())
+  }
   // The valley's word on the screen, for what the phone itself says.
   const say = (text: string) => {
     state = { ...state, said: { text, at: performance.now() } }
@@ -170,10 +178,15 @@ async function boot(): Promise<void> {
     hotbar: toHotbar(account.hotbar),
     now,
     switchHref: switchUrl(window.location, 'valley'),
-    // Signed out, the modem dials again and the line answers LOGIN.
-    signOut: () => {
-      void signOut().then(() => window.location.reload())
+    settings,
+    // The 3D valley's own panel: providers to link and unlink, and Sign
+    // Out.
+    openAccount: () => {
+      void openAccountPanel({ onSignOut: signOutAndRedial }).then(() =>
+        shell?.render(state)
+      )
     },
+    signOut: signOutAndRedial,
     pack: {
       move: (type, kind, count) => {
         if (count > 0) send({ type, kind, count }, { locker: true })

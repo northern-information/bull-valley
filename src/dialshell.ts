@@ -21,6 +21,7 @@ import { el, text } from './dom.ts'
 import { iconSvg } from './icons.ts'
 import { OUTFITS } from './outfits.ts'
 import { barOf } from './progression.ts'
+import { volumeSliders } from './settingsui.ts'
 import { collectable } from './stand.ts'
 import { formatCash } from './store.ts'
 import { grouped, wardName } from './vitalshud.ts'
@@ -37,6 +38,7 @@ import type { FinishId } from './finishes.ts'
 import type { Hotbar } from './hotbar.ts'
 import type { ItemThumbs } from './itemthumbs.ts'
 import type { OutfitId } from './outfits.ts'
+import type { SettingsStore } from './settingsui.ts'
 
 export type DialTab = 'lobby' | 'pack' | 'expeditions' | 'social' | 'book'
 
@@ -77,8 +79,13 @@ interface ShellOptions {
   social: SocialActions
   // Sends a run out, and brings it home.
   expeditions: ExpeditionActions
+  // The account's music and sound volumes, shared with the 3D valley
+  // (settingsui.ts).
+  settings: SettingsStore
   // The same page in the 3D valley.
   switchHref: string
+  // Opens the account panel (accountpanel.ts) over the shell.
+  openAccount: () => void
   // Signs the phone out, back to the modem.
   signOut: () => void
 }
@@ -92,7 +99,10 @@ export class DialShell {
   private sheetBody: HTMLElement
   private sheetTitle: HTMLElement
   private tab: DialTab = 'lobby'
-  private sheetOpen: 'locker' | 'page' | 'citgo' | 'moab' | null = null
+  private sheetOpen: 'locker' | 'page' | 'citgo' | 'moab' | 'audio' | null =
+    null
+  // The volume sliders, built once and kept in step with the store.
+  private sliders: HTMLElement | null = null
   private lockerOpen: Opened = { kind: null }
   private citgoOpen: CitgoOpen = { station: null }
   private names: string[] | null = null
@@ -237,6 +247,17 @@ export class DialShell {
     this.tab = tab
     this.closeSheet()
     if (this.state) this.render(this.state)
+  }
+
+  private openAudio(): void {
+    this.sheetOpen = 'audio'
+    this.sheetTitle.textContent = copy('menu.audio')
+    this.sheet.hidden = false
+    if (!this.sliders) {
+      this.sliders = el('div', 'bv-dial-settings')
+      this.sliders.append(...volumeSliders(this.options.settings))
+    }
+    this.sheetBody.replaceChildren(this.sliders)
   }
 
   private openLocker(): void {
@@ -402,11 +423,18 @@ export class DialShell {
       ),
       card('moab', copy('outfits.moab'), copy('dialup.lobby.moab_blurb'), () =>
         this.openMoab()
+      ),
+      card('audio', copy('menu.audio'), copy('dialup.lobby.audio_blurb'), () =>
+        this.openAudio()
       )
     )
     const foot = el('div', 'bv-dial-foot')
     const away = text('a', copy('dialup.switch_valley'), 'bv-dial-switch')
     away.href = this.options.switchHref
+    const account = text('button', copy('menu.account'), 'bv-dial-btn')
+    account.type = 'button'
+    account.dataset.bv = 'dial-account'
+    account.addEventListener('click', () => this.options.openAccount())
     const out = text('button', copy('panel.sign_out'), 'bv-dial-btn')
     out.type = 'button'
     out.dataset.bv = 'dial-sign-out'
@@ -414,7 +442,8 @@ export class DialShell {
       out.disabled = true
       this.options.signOut()
     })
-    foot.append(away, out)
+    // The buttons side by side, the way to the 3D valley under them.
+    foot.append(account, out, away)
     grid.append(foot)
     return grid
   }
