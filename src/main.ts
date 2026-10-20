@@ -41,6 +41,7 @@ import { createSettingsStore } from './settingsui.ts'
 import { createSfx } from './sfxrig.ts'
 import { ShadowBursts } from './shadowburst.ts'
 import { ShadowCards } from './shadowcards.ts'
+import { SILENT } from './silent.ts'
 import { createTargets } from './targets.ts'
 import {
   buildTerrainMesh,
@@ -96,9 +97,9 @@ async function boot() {
   // The raider's settings: the menu's Audio and the pause overlay share
   // them, and the music reads them every frame.
   const settings = createSettingsStore()
-  // The valley's music, from the main menu on. Under e2e the valley is
-  // never heard.
-  const music = import.meta.env.MODE === 'test' ? null : createMusic()
+  // The valley's music, from the main menu on. A silent page (silent.ts)
+  // is never heard.
+  const music = SILENT ? null : createMusic()
   const titles = showTitles(audio, settings, music)
   hud.showIntro(true, false)
   hud.setBegin('loading')
@@ -293,7 +294,7 @@ async function boot() {
     portals,
     graph,
     truck,
-    radio: import.meta.env.MODE === 'test' ? null : createTruckRadio(),
+    radio: SILENT ? null : createTruckRadio(),
     donutWake: world.donutField
       ? new DonutWake({
           scene,
@@ -302,17 +303,16 @@ async function boot() {
         })
       : null,
     music,
-    // Under e2e the valley is never heard.
+    // A silent page (silent.ts) is never heard.
     // A dev build with ?sfx=local auditions files from public/sfx/.
-    sfx:
-      import.meta.env.MODE === 'test'
-        ? null
-        : createSfx(
-            import.meta.env.DEV &&
-              new URLSearchParams(window.location.search).get('sfx') === 'local'
-              ? { base: '/sfx/', probe: true }
-              : {}
-          ),
+    sfx: SILENT
+      ? null
+      : createSfx(
+          import.meta.env.DEV &&
+            new URLSearchParams(window.location.search).get('sfx') === 'local'
+            ? { base: '/sfx/', probe: true }
+            : {}
+        ),
     settings,
     truckContext,
     truckRoutes,
