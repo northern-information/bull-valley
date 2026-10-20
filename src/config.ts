@@ -413,6 +413,28 @@ export const CONFIG = {
       loop: { min: 5, max: 10 },
       // How far the nose swings into the turn at the tightest loop.
       drift: 0.6,
+      // What the rear wheels throw while he tears up the field (donutwake.ts):
+      // up to `perSecond` clods of grass and dirt at full speed, each
+      // flung back off the tyre at up to `throw` m/s and `lift` m/s up,
+      // landing and lying `life` seconds; never more than `max` at once.
+      spray: { perSecond: 160, throw: 6, lift: 4.5, life: 1.8, max: 400 },
+      // The ruts the wheels cut, on a sheet over the field `px` pixels a
+      // side: each pass darkens them by `alpha`, `width` metres wide, and
+      // every `healSeconds` the grass takes back `heal` of what is there.
+      ruts: { px: 512, alpha: 0.35, width: 0.32, healSeconds: 5, heal: 0.02 },
+    },
+    // Marx's radio (truckradio.ts): Day of Justice out of the cab while the
+    // truck rolls, as cut in the bed, fading and losing its highs with the
+    // distance, so from the Citgo only the lows of his donuts carry.
+    radio: {
+      volume: 0.9,
+      near: 4,
+      rolloff: 0.45,
+      far: 55,
+      openHz: 18000,
+      floorHz: 180,
+      hearing: 260,
+      fade: 80,
     },
   },
   // What the valley holds a raider to (sharedworld.ts): a take, a buy, a

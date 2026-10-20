@@ -21,7 +21,9 @@ const shared = (page: Page) => page.evaluate(() => window.__bv?.valley)
 const aboard = (page: Page) => page.evaluate(() => window.__bv?.aboard)
 const legKind = (page: Page) =>
   page.evaluate(() => window.__bv?.marx.leg.kind ?? null)
-const prompt = (page: Page) => page.locator('.bv-prompt')
+// The prompt as shown: a hidden one keeps the last text it showed, so a
+// check on its text alone can pass before a frame has said what E does.
+const prompt = (page: Page) => page.locator('.bv-prompt:not([hidden])')
 // The name over the item E would act on.
 const label = (page: Page) => page.locator('.bv-item-label')
 
@@ -133,6 +135,15 @@ base.describe('a shared world', { tag: '@valley' }, () => {
       await expect(prompt(a)).toHaveText(copy('prompts.board'))
       await a.keyboard.press('KeyE')
       await expect.poll(() => aboard(a)).toBe(true)
+      // The first one in gets the map to pick where Marx goes; Esc leaves
+      // it to him (the joyride), and the pointer comes back to the bed.
+      // The prompt is hidden while the map is open, so it says nothing
+      // until the map closes.
+      await expect.poll(() => a.evaluate(() => window.__bv?.mapOpen)).toBe(true)
+      await a.keyboard.press('Escape')
+      await expect
+        .poll(() => a.evaluate(() => window.__bv?.mapOpen))
+        .toBe(false)
       await expect(a.locator('.bv-countdown')).toContainText(leaving)
       await moveToTruck(b)
       await expect(b.locator('.bv-countdown')).toContainText(leaving)

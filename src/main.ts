@@ -12,6 +12,7 @@ import { copy } from './copy.ts'
 import { createCorpseMeshes } from './corpsemeshes.ts'
 import { installDevHook } from './devhook.ts'
 import { donutRoute } from './donuts.ts'
+import { DonutWake } from './donutwakerig.ts'
 import { createDropMeshes } from './dropmeshes.ts'
 import { finishById } from './finishes.ts'
 import { fontsReady } from './fonts.ts'
@@ -45,6 +46,7 @@ import { openAccount, showTitles, signOutAndReload } from './titles.ts'
 import { createTrails } from './trails.ts'
 import { Truck } from './truck.ts'
 import { joyrideMs } from './truckplan.ts'
+import { createTruckRadio } from './truckradiorig.ts'
 import { TunnelShades } from './tunnelrig.ts'
 import { wireValley } from './valleysync.ts'
 import { waterMapOf } from './waterside.ts'
@@ -268,6 +270,14 @@ async function boot() {
     portals,
     graph,
     truck,
+    radio: import.meta.env.MODE === 'test' ? null : createTruckRadio(),
+    donutWake: world.donutField
+      ? new DonutWake({
+          scene,
+          field: world.donutField,
+          groundAt: world.ground.at,
+        })
+      : null,
     music,
     // Under e2e the valley is never heard.
     // A dev build with ?sfx=local auditions files from public/sfx/.
