@@ -6,6 +6,11 @@ import type { Page } from '@playwright/test'
 // stone under Bull Valley Plaza, where the tunnel shades walk (rule 11)
 // and the altar keeps a bar of gold a day (rule 4); and back up.
 
+// The prompt as shown: a hidden one keeps the last text it showed (the
+// ladder's own, from the climb down), so a check on its text alone can
+// pass before a frame has put the raider back at the foot.
+const prompt = (page: Page) => page.locator('.bv-prompt:not([hidden])')
+
 const below = (page: Page) =>
   page.evaluate(() => {
     const bv = window.__bv
@@ -30,7 +35,7 @@ test('the trapdoor goes down to the Undercroft, its gold, and back up', async ({
     if (!bv || !croft) throw new Error('no Undercroft')
     bv.player.relocate(croft.hatch.x + 0.5, croft.hatch.z, 0)
   })
-  await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.descend'))
+  await expect(prompt(page)).toHaveText(copy('prompts.descend'))
   await page.keyboard.press('KeyE')
   await expect.poll(() => below(page)).toBe(true)
   await expect(page.locator('.bv-chat')).toContainText(copy('log.descend'))
@@ -67,7 +72,7 @@ test('the trapdoor goes down to the Undercroft, its gold, and back up', async ({
     if (!bv || !croft) throw new Error('no Undercroft')
     bv.player.relocate(croft.foot.x + 0.5, croft.foot.z, 0)
   })
-  await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.ascend'))
+  await expect(prompt(page)).toHaveText(copy('prompts.ascend'))
   await page.keyboard.press('KeyE')
   await expect.poll(() => below(page)).toBe(false)
 })
