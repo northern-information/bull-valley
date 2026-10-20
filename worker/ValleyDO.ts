@@ -401,11 +401,15 @@ export class ValleyDO extends DurableObject<Env> {
 
   // Rules 24 and 27: once the pack has given the unit up, it doses the
   // wards and gives its share of geometrie back.
-  private async use(ws: WebSocket, id: string, kind: string): Promise<void> {
-    const used = await this.act(ws, { type: 'use', id, kind })
-    if (!used) return
-    await this.dose({ type: 'dose', id, kind })
-    if (healsOf(kind, 100) > 0) await this.mend(id, kind)
+  // All under one lock, so no strike lands between the unit going and its
+  // dose: a raider shattered in between is never dosed after.
+  private use(ws: WebSocket, id: string, kind: string): Promise<void> {
+    return this.locked(async () => {
+      const used = await this.actHeld(ws, { type: 'use', id, kind })
+      if (!used) return
+      await this.doseHeld({ type: 'dose', id, kind })
+      if (healsOf(kind, 100) > 0) await this.mendHeld(id, kind)
+    })
   }
 
   // The dev server's frames, for the specs (the Worker stamped the socket).
@@ -706,14 +710,13 @@ export class ValleyDO extends DurableObject<Env> {
   }
 
   // Rule 27: a use or a pass, once the pack gave the unit up, doses.
-  private async dose(
+  // Held: the caller has the valley's lock.
+  private async doseHeld(
     action: Extract<ValleyAction, { type: 'dose' }>
   ): Promise<void> {
-    await this.locked(async () => {
-      const reduced = reduce(this.valley, action, this.context())
-      await this.apply(reduced)
-      this.tellWards(reduced)
-    })
+    const reduced = reduce(this.valley, action, this.context())
+    await this.apply(reduced)
+    this.tellWards(reduced)
   }
 
   // Rule 27: a unit passed to the raider `to` (a peer id), both where
@@ -733,8 +736,8 @@ export class ValleyDO extends DurableObject<Env> {
     }
     const spot = (peer: PeerWire | null) =>
       peer?.at ? { x: peer.at.x, z: peer.at.z } : null
-    // The check and the giver's pack together, alone in the valley; the
-    // doses and the heal after take the lock of their own.
+    // The check, the giver's pack, the doses and the heal together, alone
+    // in the valley, so no strike lands between them.
     const passed = await this.locked(async () => {
       const reduced = reduce(
         this.valley,
@@ -753,11 +756,11 @@ export class ValleyDO extends DurableObject<Env> {
       const { passed, pack } = reduced
       if (!passed || !pack) return null
       if (!(await this.repack(ws, pack, pack.account, 'pass'))) return null
+      await this.doseHeld({ type: 'dose', id: me.id, kind, to })
+      if (healsOf(kind, 100) > 0) await this.mendHeld(to, kind)
       return { taker: passed.account, giver: pack.account }
     })
     if (!passed || !taker) return
-    await this.dose({ type: 'dose', id: me.id, kind, to })
-    if (healsOf(kind, 100) > 0) await this.mend(to, kind)
     this.toAccount(passed.taker, { type: 'passed', kind, from: me.name })
     this.toAccount(passed.giver, { type: 'passed', kind, to: taker.name })
   }
@@ -786,14 +789,17 @@ export class ValleyDO extends DurableObject<Env> {
 
   // Geometrie given back (rule 24): a use of `kind`'s share, or whole on
   // a forecourt. Every socket on the account hears it.
-  protected async mend(id: string, kind?: string): Promise<void> {
+  protected mend(id: string, kind?: string): Promise<void> {
+    return this.locked(() => this.mendHeld(id, kind))
+  }
+
+  // Held: the caller has the valley's lock.
+  private async mendHeld(id: string, kind?: string): Promise<void> {
     const action: ValleyAction =
       kind === undefined ? { type: 'mend', id } : { type: 'mend', id, kind }
-    await this.locked(async () => {
-      const reduced = reduce(this.valley, action, this.context())
-      await this.apply(reduced)
-      if (reduced.health) this.tellHealth(reduced.health)
-    })
+    const reduced = reduce(this.valley, action, this.context())
+    await this.apply(reduced)
+    if (reduced.health) this.tellHealth(reduced.health)
   }
 
   // A strike, alone (rule 18): the pack is emptied, then a body laid where
@@ -1537,27 +1543,30 @@ export class ValleyDO extends DurableObject<Env> {
   // the pack. Whether the pack change the action asked for, if any, was
   // made.
   private act(ws: WebSocket, action: ValleyAction): Promise<boolean> {
-    return this.locked(async () => {
-      const reduced = reduce(this.valley, action, this.context())
-      const account = reduced.pack?.account ?? reduced.earn?.account
-      const written = await this.write(reduced.pack, reduced.earn)
-      if (written !== 'done') {
-        if (written === 'none-left') {
-          send(ws, { type: 'nack', re: 'use', reason: 'none-left' })
-        } else {
-          const nack = unwrittenNack(action)
-          if (nack) send(ws, nack)
-        }
-        if (account) await this.repack(ws, null, account)
-        return false
+    return this.locked(() => this.actHeld(ws, action))
+  }
+
+  // Held: the caller has the valley's lock.
+  private async actHeld(ws: WebSocket, action: ValleyAction): Promise<boolean> {
+    const reduced = reduce(this.valley, action, this.context())
+    const account = reduced.pack?.account ?? reduced.earn?.account
+    const written = await this.write(reduced.pack, reduced.earn)
+    if (written !== 'done') {
+      if (written === 'none-left') {
+        send(ws, { type: 'nack', re: 'use', reason: 'none-left' })
+      } else {
+        const nack = unwrittenNack(action)
+        if (nack) send(ws, nack)
       }
-      await this.apply(reduced)
-      if (reduced.reply) send(ws, reduced.reply)
-      if (reduced.daily) send(ws, reduced.daily)
-      for (const msg of reduced.broadcast) this.broadcast(msg, null)
       if (account) await this.repack(ws, null, account)
-      return !reduced.reply
-    })
+      return false
+    }
+    await this.apply(reduced)
+    if (reduced.reply) send(ws, reduced.reply)
+    if (reduced.daily) send(ws, reduced.daily)
+    for (const msg of reduced.broadcast) this.broadcast(msg, null)
+    if (account) await this.repack(ws, null, account)
+    return !reduced.reply
   }
 
   // The pack change and the cash an action moves, written before the

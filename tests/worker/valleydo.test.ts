@@ -1854,6 +1854,59 @@ describe('ValleyDO: corpse runs', () => {
     expect(lastFrame(b)?.corpses ?? []).toEqual([])
   })
 
+  it('doses a use before a strike that came while it was being written, never after the fall', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    await v.alarm()
+    await v.webSocketMessage(ws(a), state(500, 500))
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"calm"}')
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"health","points":1}')
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"shadowman","x":500,"z":501}'
+    )
+    // The joint's pack write waits until the test lets it land.
+    const store = v.packStore
+    let release = () => {}
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    v.packStore = Object.assign(Object.create(store) as PackStore, {
+      change: async (...args: Parameters<PackStore['change']>) => {
+        if (args[2] < 0) await held
+        return store.change(...args)
+      },
+    })
+    const using = v.webSocketMessage(ws(a), '{"type":"use","kind":"joints"}')
+    await settle()
+    // The shadowman winds up and lunges while the use is written.
+    for (let i = 0; i < 30; i++) {
+      v.tick()
+      await settle()
+    }
+    release()
+    await using
+    await settledWhen(() => a.frames().some((m) => m.type === 'struck'), 60)
+    const frames = a.frames()
+    const struck = frames.findIndex((m) => m.type === 'struck')
+    const dosed = frames.findIndex(
+      (m) => m.type === 'wards' && m.wards.high > 0
+    )
+    expect(struck).toBeGreaterThan(-1)
+    expect(dosed).toBeGreaterThan(-1)
+    expect(dosed).toBeLessThan(struck)
+    // The joint's heal and its ward against shadowmen were in before the
+    // touch, so the raider on their last point lives through it, still
+    // high: the touch never lands between the unit and its dose.
+    const hit = frames[struck]
+    expect(hit?.type === 'struck' && hit.health).toBeGreaterThan(0)
+    expect(
+      frames.findLast(
+        (m): m is Extract<typeof m, { type: 'wards' }> => m.type === 'wards'
+      )?.wards.high
+    ).toBeGreaterThan(0)
+  })
+
   it('gives the key items on an older body back as its raider comes in', async () => {
     const body = (
       id: number,
