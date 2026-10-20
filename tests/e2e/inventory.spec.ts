@@ -26,6 +26,13 @@ test('Tab opens the pack, a number key assigns, the hotbar uses and is kept', as
   await expect(card.locator('.bv-bag-card-name')).toHaveText(
     copy('items.marlboro.label')
   )
+  // Its stats, off the table: its kind and its shelf price among them.
+  const stats = card.locator('.bv-bag-card-stats')
+  await expect(stats).toContainText(copy('stats.cigarette'))
+  await expect(stats).toContainText(copy('stats.price'))
+  await expect(card.locator('.bv-bag-card-wards')).toContainText(
+    copy('wards.stimulated')
+  )
 
   // 3 over it puts it on the bar, and the account keeps it.
   const saved = page.waitForResponse(

@@ -1551,6 +1551,18 @@ describe('rule 19: the stash', () => {
     })
   })
 
+  it('never takes a key item into the locker, but lets one out', () => {
+    const v = valleyWith(join('a'))
+    expect(
+      v.step(stow('a', at(-17, 0), 'stow', 'vault-key', 1)).reply
+    ).toMatchObject({ re: 'stow', reason: 'key-item' })
+    expect(v.step(stow('a', at(-17, 0), 'unstow', 'rose', 1)).stash).toEqual({
+      account: 'acct-a',
+      kind: 'rose',
+      delta: -1,
+    })
+  })
+
   it('opens no locker away from a Citgo, from the bed, or for a stranger', () => {
     const v = valleyWith(join('a'))
     const far = CONFIG.stash.stationReach + 1

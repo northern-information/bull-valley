@@ -104,7 +104,7 @@
 //    where it burst (graves.ts). The graves outlast the day's turn; past
 //    CONFIG.graves.max the oldest goes.
 // 18. Corpse runs (corpses.ts): a strike leaves everything the raider's
-//    pack held on their body, where their last state frame put them; the
+//    pack held but its key items (which stay in the pack) on their body, where their last state frame put them; the
 //    valley takes it all out of the account's pack first, and lays the
 //    body only once it has (Reduced.corpse), or gives it back. The wallet
 //    and the locker are untouched. Only the account that fell can take its
@@ -115,7 +115,7 @@
 //    of every Citgo, the same from any of them. A raider out of the bed
 //    whose last state frame put them at a station can move what their pack
 //    holds into it, or back (Reduced.stash); the valley moves it only when
-//    the side it comes out of holds it.
+//    the side it comes out of holds it. A key item never goes in.
 // 20. The Book of Shadows (book.ts): every entry a raider comes across (a
 //    place in reach, a shadow in sight, one of the folk spoken to, an item
 //    in the pack) is written in the account's book once, at the first
@@ -2070,6 +2070,9 @@ function onStash(
     if (!atLocker(action.at, world.havens)) return refuse('no-locker')
   }
   if (!isPackKind(action.kind)) return refuse('not-an-item')
+  // A key item never goes into the locker (items.ts isKeyItem); one
+  // stowed before is let out.
+  if (re === 'stow' && isKeyItem(action.kind)) return refuse('key-item')
   if (action.count < 1) return refuse('nothing')
   return done(valley, now, {
     broadcast: [],

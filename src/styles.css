@@ -1070,8 +1070,8 @@
   flex-direction: column;
   gap: 8px;
   box-sizing: border-box;
-  width: 18rem;
-  padding: 20px;
+  width: 22rem;
+  padding: 16px 20px;
   background: #050505;
   border: 1px solid var(--bv-npc-edge);
   box-shadow: 8px 8px 0 var(--fi-black-shadow);
@@ -1082,11 +1082,24 @@
   margin: 0;
 }
 
+.bv-bag-card-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.bv-bag-card-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
 .bv-bag-card-view {
   display: block;
-  width: 144px;
-  height: 144px;
-  margin: 0 auto 8px;
+  flex: none;
+  width: 112px;
+  height: 112px;
 }
 
 .bv-bag-card-name {
@@ -1103,10 +1116,47 @@
   color: var(--bv-npc-soft);
 }
 
+/* Its stats (itemstats.ts): a label on the left and its value on the
+   right, one a row on the frame's rules, like a page of the Book of
+   Shadows. */
+.bv-bag-card-stats {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0;
+  margin: 4px 0 0;
+  border-top: 1px solid var(--bv-npc-line);
+}
+
+.bv-bag-card-stats dt,
+.bv-bag-card-stats dd {
+  margin: 0;
+  padding: 3px 0;
+  font-size: 0.8125rem;
+  border-bottom: 1px solid var(--bv-npc-line);
+}
+
+.bv-bag-card-stats dt {
+  padding-right: 12px;
+  color: var(--bv-npc-soft);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.bv-bag-card-stats dd {
+  font-weight: 600;
+  text-align: right;
+}
+
+.bv-bag-card-wards .bv-ward-line {
+  margin: 0 0 4px;
+  font-size: 0.8125rem;
+}
+
 /* The keys: a keycap and what it does, one a row, on the frame's rules. */
 .bv-bag-card-keys {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 12px;
   margin: 4px 0 0;
   padding: 8px 0 0;
   list-style: none;

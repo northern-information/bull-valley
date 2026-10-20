@@ -1,7 +1,7 @@
 // Bull Valley Dial-Up's pack and locker (sharedworld.ts rule 29): the
 // pack's tabs as the 3D valley's (packgrid.ts, packtabs.ts), each item a
 // row to tap open, with what it can do from a phone: stow one or all into
-// the locker, and put it on the hotbar (tap the button, then a slot). The
+// the locker (never a key item), and put it on the hotbar (tap the button, then a slot). The
 // locker lists what it holds the same way, to take out one or all. Never a
 // use or a drop: those take a body. Every move is the valley's to make;
 // the screen asks and redraws when the pack frame lands.
@@ -10,6 +10,7 @@ import { copy } from './copy.ts'
 import { el, text } from './dom.ts'
 import { assign, HOTBAR_SLOTS } from './hotbar.ts'
 import { itemLabel } from './itemcopy.ts'
+import { isKeyItem } from './items.ts'
 import { PACK_TABS, packItems, stashItems } from './packgrid.ts'
 import { BAG_TABS } from './packtabs.ts'
 import { moveAmount } from './stash.ts'
@@ -66,13 +67,23 @@ export class DialPack {
   private rowActions(s: DialState, item: PackItem): HTMLElement[] {
     const held = s.pack[item.kind] ?? 0
     const busy = s.pending.locker
+    // A key item stays in the pack (items.ts isKeyItem).
+    const stow = isKeyItem(item.kind)
+      ? []
+      : [
+          button(copy('dialup.pack.stow_one'), busy, () =>
+            this.actions.move(
+              'stow',
+              item.kind,
+              moveAmount(item.kind, held, false)
+            )
+          ),
+          button(copy('dialup.pack.stow_all'), busy, () =>
+            this.actions.move('stow', item.kind, held)
+          ),
+        ]
     return [
-      button(copy('dialup.pack.stow_one'), busy, () =>
-        this.actions.move('stow', item.kind, moveAmount(item.kind, held, false))
-      ),
-      button(copy('dialup.pack.stow_all'), busy, () =>
-        this.actions.move('stow', item.kind, held)
-      ),
+      ...stow,
       button(copy('dialup.pack.hotbar'), false, () => {
         this.placing = item.kind
         this.render(s)

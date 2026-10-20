@@ -28,6 +28,13 @@ describe('a fall', () => {
     expect(fallen({ joints: -3 })).toEqual({})
   })
 
+  it('leaves the key items in the pack, never on the body', () => {
+    const pack = { joints: 2, rose: 1, 'vault-key': 1 }
+    expect(fallen(pack)).toEqual({ joints: 2 })
+    expect(emptied(pack)).toEqual({ joints: 0, rose: 1, 'vault-key': 1 })
+    expect(isEmpty(fallen({ rose: 1 }))).toBe(true)
+  })
+
   it('leaves no body for an empty pack', () => {
     expect(isEmpty(fallen({ joints: 0 }))).toBe(true)
     expect(isEmpty({})).toBe(true)

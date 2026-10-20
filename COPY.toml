@@ -81,7 +81,8 @@ high_against = { text = "the shadowmen", by = "ai" }
 stimulated_against = { text = "the spiders", by = "ai" }
 drunk_against = { text = "the Caretaker", by = "ai" }
 tripping_against = { text = "the Undercroft's shades", by = "ai" }
-card = { text = "{ward}: wards against {against}", by = "ai" }
+card_dose = { text = "{ward} {dose}: wards against {against}", by = "ai" }
+card_lower = { text = "{ward} {dose}: brings it down", by = "ai" }
 
 # The season (src/seasonhud.ts): the card on the intro and pause overlay,
 # the tracker in the upper right, and the banners.
@@ -406,6 +407,7 @@ none_left = { text = "You have none left.", by = "ai" }
 dropped = { text = "Dropped: {item}", by = "ai" }
 drop_aboard = { text = "Not from the truck.", by = "ai" }
 drop_key_item = { text = "You keep hold of it. Someone is counting on you.", by = "ai" }
+stow_key_item = { text = "That stays on you. The locker can't hold it.", by = "ai" }
 drop_refused = { text = "It won't come loose.", by = "ai" }
 pass_nothing = { text = "Nothing in hand to pass.", by = "ai" }
 pass_alone = { text = "No one out here to pass it to.", by = "ai" }
@@ -607,6 +609,28 @@ empty_key_items = { text = "Nothing anyone has asked you to carry.", by = "ai" }
 empty_materials = { text = "Nothing to build with yet.", by = "ai" }
 tab_locker = { text = "Locker", by = "ai" }
 empty_locker = { text = "Your locker is empty. What you leave here, no shadow takes.", by = "ai" }
+
+# An item's stats on its card in the pack (src/itemstats.ts, src/packhud.ts).
+
+[stats]
+kind = { text = "Kind", by = "ai" }
+heals = { text = "Heals", by = "ai" }
+heals_value = { text = "+{pct}% geometrie", by = "ai" }
+smokes = { text = "Smokes", by = "ai" }
+perception = { text = "Perception", by = "ai" }
+trails = { text = "Trails", by = "ai" }
+contents = { text = "Holds", by = "ai" }
+contents_value = { text = "{count} to one", by = "ai" }
+price = { text = "Shelf price", by = "ai" }
+cigarette = { text = "Cigarettes", by = "ai" }
+joint = { text = "Smoke", by = "ai" }
+psychedelic = { text = "Psychedelic", by = "ai" }
+stimulant = { text = "Stimulant", by = "ai" }
+drink = { text = "Drink", by = "ai" }
+medicine = { text = "Medicine", by = "ai" }
+forage = { text = "Forage", by = "ai" }
+valuable = { text = "Valuable", by = "ai" }
+key_item = { text = "Key item, kept through death", by = "ai" }
 
 # Place names, shown in prompts (src/landmarks.ts).
 

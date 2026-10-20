@@ -11,6 +11,7 @@ import { toCosmetics } from '../src/cosmetics.ts'
 import { NO_TASK } from '../src/dailytask.ts'
 import { isExpeditionRun } from '../src/expeditions.ts'
 import { STARTING_INVENTORY, toInventory } from '../src/inventory.ts'
+import { KEY_ITEM_IDS } from '../src/items.ts'
 import { isQuest, isQuestStage, QUESTS } from '../src/quests.ts'
 import { NO_PROGRESS } from '../src/season.ts'
 import { FRESH_STAND, isStandLedger } from '../src/stand.ts'
@@ -182,19 +183,21 @@ export class D1PackStore implements PackStore {
     )
   }
 
-  // One batch is one transaction: what is read is what is zeroed.
+  // One batch is one transaction: what is read is what is zeroed. The key
+  // items stay in the pack (items.ts isKeyItem).
   async strip(accountId: string): Promise<Inventory> {
+    const kept = `kind NOT IN (${KEY_ITEM_IDS.map(() => '?').join(', ')})`
     const [held] = await this.db.batch<PackRow>([
       this.db
         .prepare(
-          'SELECT kind, count FROM packs WHERE account_id = ? AND count > 0'
+          `SELECT kind, count FROM packs WHERE account_id = ? AND count > 0 AND ${kept}`
         )
-        .bind(accountId),
+        .bind(accountId, ...KEY_ITEM_IDS),
       this.db
         .prepare(
-          'UPDATE packs SET count = 0 WHERE account_id = ? AND count > 0'
+          `UPDATE packs SET count = 0 WHERE account_id = ? AND count > 0 AND ${kept}`
         )
-        .bind(accountId),
+        .bind(accountId, ...KEY_ITEM_IDS),
     ])
     return Object.fromEntries(
       (held?.results ?? []).map((row) => [row.kind, row.count])

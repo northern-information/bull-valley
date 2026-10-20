@@ -10,16 +10,19 @@ import { PACK, PACK_MOUSE } from './bindings.ts'
 import { copy } from './copy.ts'
 import { el, find, text } from './dom.ts'
 import { HOTBAR_SLOTS } from './hotbar.ts'
-import { doseOf } from './items.ts'
+import { isKeyItem } from './items.ts'
+import { doseText, itemStats, spanOf } from './itemstats.ts'
 import { npcHeader } from './npcdialog.ts'
 import { bagTabs, LOCKER_TAB, PACK_TABS } from './packgrid.ts'
 import { BAG_TABS } from './packtabs.ts'
+import { formatCash } from './store.ts'
 import { wardAgainst, wardLine, wardName } from './vitalshud.ts'
-import { wardsRaised } from './wards.ts'
 import type { AvatarLook, AvatarView } from './avatarview.ts'
 import type { Binding, MouseBinding } from './bindings.ts'
 import type { Cooldown } from './hotbar.ts'
 import type { PackItem } from './interfaces.ts'
+import type { ItemCategory } from './items.ts'
+import type { ItemStat } from './itemstats.ts'
 import type { BagAction, BagTab } from './packgrid.ts'
 
 // One hotbar slot as setHotbar draws it: slot 0 is key 1. icon is the
@@ -29,6 +32,61 @@ export interface HotbarSlotView {
   item: PackItem
   icon: string
   cooldown: Cooldown | null
+}
+
+// What kind of thing an item is, as its card names it.
+function categoryName(category: ItemCategory): string {
+  switch (category) {
+    case 'cigarette':
+      return copy('stats.cigarette')
+    case 'joint':
+      return copy('stats.joint')
+    case 'psychedelic':
+      return copy('stats.psychedelic')
+    case 'stimulant':
+      return copy('stats.stimulant')
+    case 'drink':
+      return copy('stats.drink')
+    case 'medicine':
+      return copy('stats.medicine')
+    case 'forage':
+      return copy('stats.forage')
+    case 'valuable':
+      return copy('stats.valuable')
+    case 'key-item':
+      return copy('stats.key_item')
+  }
+}
+
+// One stat of the card's table as its label and value; a ward's goes in
+// the lines under it instead, in its colour.
+function statRow(stat: ItemStat): [string, string] | null {
+  switch (stat.stat) {
+    case 'category':
+      return [copy('stats.kind'), categoryName(stat.category)]
+    case 'heals':
+      return [copy('stats.heals'), copy('stats.heals_value', { pct: stat.pct })]
+    case 'lasts':
+      return [
+        copy(
+          stat.lasting === 'smoke'
+            ? 'stats.smokes'
+            : stat.lasting === 'perception'
+              ? 'stats.perception'
+              : 'stats.trails'
+        ),
+        spanOf(stat.seconds),
+      ]
+    case 'contents':
+      return [
+        copy('stats.contents'),
+        copy('stats.contents_value', { count: stat.count }),
+      ]
+    case 'price':
+      return [copy('stats.price'), formatCash(stat.cents)]
+    case 'ward':
+      return null
+  }
 }
 
 // The line along the foot of the pack grid.
@@ -41,7 +99,7 @@ export interface BagStatus {
 // least distance from the edge of the screen, in CSS pixels.
 const CARD_GAP = 8
 // The card's turntable, in CSS pixels; styles.css sizes it to match.
-const CARD_VIEW_PX = 144
+const CARD_VIEW_PX = 112
 // Cells a row in the pack grid (styles.css .bv-bag-grid); the last row is
 // filled out with empty slots.
 const BAG_COLUMNS = 8
@@ -110,11 +168,15 @@ export class PackHud {
   cardEyebrow: HTMLElement
   cardName: HTMLElement
   cardBlurb: HTMLElement
-  // The wards it raises, each with what it wards against.
+  // Its stats (itemstats.ts), a label and a value a row.
+  cardStats: HTMLElement
+  // How far it moves each ward, and what that ward wards against.
   cardWards: HTMLElement
   cardQuantity: HTMLElement
   // E and the double-click, dimmed for an item that is not used.
   cardUse: HTMLElement[]
+  // X and Shift-X, dimmed for a key item, which never leaves the pack.
+  cardDrop: HTMLElement[]
   // The pack's own keys on the card, and the locker's: the label beside F
   // says which way it moves.
   cardPackKeys: HTMLElement[]
@@ -243,6 +305,7 @@ export class PackHud {
     this.cardEyebrow = el('p', 'bv-npc-eyebrow bv-npc-lead')
     this.cardName = el('h3', 'bv-bag-card-name')
     this.cardBlurb = el('p', 'bv-bag-card-blurb')
+    this.cardStats = el('dl', 'bv-bag-card-stats')
     this.cardWards = el('div', 'bv-bag-card-wards')
     this.cardQuantity = el('p', 'bv-npc-label bv-bag-card-quantity')
     const keys = el('ul', 'bv-bag-card-keys')
@@ -262,6 +325,7 @@ export class PackHud {
     const drop = [keyItem(PACK.drop).li, keyItem(PACK.dropAll).li]
     const useMouse = mouseItem(PACK_MOUSE.use).li
     this.cardUse = [use, pass, useMouse]
+    this.cardDrop = drop
     this.cardPackKeys = [
       use,
       pass,
@@ -278,13 +342,17 @@ export class PackHud {
     this.cardStowKeys = stow.map(({ li }) => li)
     this.cardStowLabels = stow.map(({ label }) => label)
     mouseItem(PACK_MOUSE.menu)
+    // The item spinning beside its name, like a page of the Book of
+    // Shadows; its words and stats under them.
+    const titles = el('div', 'bv-bag-card-titles')
+    titles.append(this.cardEyebrow, this.cardName, this.cardQuantity)
+    const cardHead = el('div', 'bv-bag-card-head')
+    cardHead.append(this.cardCanvas, titles)
     this.card.append(
-      this.cardCanvas,
-      this.cardEyebrow,
-      this.cardName,
+      cardHead,
       this.cardBlurb,
+      this.cardStats,
       this.cardWards,
-      this.cardQuantity,
       keys
     )
     this.bag.appendChild(this.card)
@@ -409,28 +477,48 @@ export class PackHud {
       this.cardEyebrow.textContent = BAG_TABS[this.tab].label
       this.cardName.textContent = item.label
       this.cardBlurb.textContent = item.blurb
-      // What it wards against, for anything that raises a ward.
+      // Its stats, and how far it moves each ward with what that ward
+      // wards against.
+      const stats = itemStats(item.kind)
+      this.cardStats.replaceChildren(
+        ...stats.flatMap((stat) => {
+          const row = statRow(stat)
+          return row ? [text('dt', row[0]), text('dd', row[1])] : []
+        })
+      )
       this.cardWards.replaceChildren(
-        ...wardsRaised(doseOf(item.kind)).map((ward) =>
-          wardLine(
-            'bv-ward-line',
-            ward,
-            copy('wards.card', {
-              ward: wardName(ward),
-              against: wardAgainst(ward),
-            })
-          )
+        ...stats.flatMap((stat) =>
+          stat.stat === 'ward'
+            ? [
+                wardLine(
+                  'bv-ward-line',
+                  stat.axis,
+                  copy(stat.dose > 0 ? 'wards.card_dose' : 'wards.card_lower', {
+                    ward: wardName(stat.axis),
+                    dose: doseText(stat.dose),
+                    against: wardAgainst(stat.axis),
+                  })
+                ),
+              ]
+            : []
         )
       )
       this.cardQuantity.textContent = quantity(item)
       for (const li of this.cardUse) {
         li.classList.toggle('bv-bag-card-key--dim', !item.canUse)
       }
+      // A key item stays in the pack: never dropped, never stowed.
+      const keyItem = isKeyItem(item.kind)
+      for (const li of this.cardDrop) {
+        li.classList.toggle('bv-bag-card-key--dim', keyItem)
+      }
       // In the locker only F moves it; at the locker F moves the pack's
       // items in too.
       const inLocker = this.tab === LOCKER_TAB
       for (const li of this.cardPackKeys) li.hidden = inLocker
-      for (const li of this.cardStowKeys) li.hidden = !this.atLocker
+      for (const li of this.cardStowKeys) {
+        li.hidden = !this.atLocker || (keyItem && !inLocker)
+      }
       const [one, all, allMouse] = this.cardStowLabels
       one.textContent = copy(inLocker ? 'keys.unstow' : PACK.stow.labelKey)
       all.textContent = copy(
@@ -651,13 +739,16 @@ export class PackHud {
           )
         )
       }
-      entries.push(
-        slots,
-        entry(PACK.drop.labelKey, { type: 'drop', kind, all: false }),
-        entry(PACK.dropAll.labelKey, { type: 'drop', kind, all: true })
-      )
+      entries.push(slots)
+      // A key item stays in the pack: never dropped, never stowed.
+      if (!isKeyItem(kind)) {
+        entries.push(
+          entry(PACK.drop.labelKey, { type: 'drop', kind, all: false }),
+          entry(PACK.dropAll.labelKey, { type: 'drop', kind, all: true })
+        )
+      }
     }
-    if (this.atLocker) {
+    if (this.atLocker && (inLocker || !isKeyItem(kind))) {
       entries.push(
         entry(inLocker ? 'keys.unstow' : PACK.stow.labelKey, {
           type: 'move',
