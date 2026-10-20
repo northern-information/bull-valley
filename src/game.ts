@@ -55,7 +55,7 @@ import type { RoadGraph } from './roadgraph.ts'
 import type { SeasonProgress } from './season.ts'
 import type { SettingsStore } from './settingsui.ts'
 import type { Sfx } from './sfxrig.ts'
-import type { ShadowCards } from './shadowbodies.ts'
+import type { ShadowBodies } from './shadowbodies.ts'
 import type { ShadowBursts } from './shadowburst.ts'
 import type { StandLedger } from './stand.ts'
 import type { Titles } from './titles.ts'
@@ -376,7 +376,7 @@ export interface Game {
   pick: Titles
   // The phone, dialing Citgo portals (Q).
   phone: Phone
-  shadowmen: ShadowCards
+  shadowmen: ShadowBodies
   // The Caretaker in the corn maze.
   caretaker: CaretakerShade
   // The tunnel shades in the Undercroft.

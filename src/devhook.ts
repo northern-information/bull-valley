@@ -33,7 +33,7 @@ import type {
 } from './protocol.ts'
 import type { RoadGraph } from './roadgraph.ts'
 import type { SeasonProgress } from './season.ts'
-import type { ShadowCards } from './shadowbodies.ts'
+import type { ShadowBodies } from './shadowbodies.ts'
 import type { ShadeKind } from './shadowmen.ts'
 import type { StandLedger } from './stand.ts'
 import type { Truck } from './truck.ts'
@@ -48,7 +48,7 @@ interface BvHook {
   world: World
   truck: Truck
   graph: RoadGraph
-  shadowmen: ShadowCards
+  shadowmen: ShadowBodies
   caretaker: CaretakerShade
   // The Undercroft's tunnel shades as last drawn.
   readonly tunnel: TunnelShadeWire[]
