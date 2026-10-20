@@ -442,22 +442,37 @@ export class D1PackStore implements PackStore {
 
   // Each entry goes in only where the account has no row for it, so one
   // found twice keeps the first time; what goes in is what was not there.
+  // One batch is one transaction: the rows found and the cents they pay
+  // land together or not at all. The valley asks under the account's own
+  // lock, so the entries read as new here are the ones the batch writes.
   async discover(
     accountId: string,
     entries: readonly string[],
-    now: number
+    now: number,
+    pays?: (found: readonly string[]) => number
   ): Promise<string[]> {
     const fresh = newlyFound(new Set(await this.book(accountId)), entries)
     if (fresh.length === 0) return []
-    const results = await this.db.batch(
-      fresh.map((entry) =>
+    const cents = pays?.(fresh) ?? 0
+    const results = await this.db.batch([
+      ...fresh.map((entry) =>
         this.db
           .prepare(
             'INSERT OR IGNORE INTO book (account_id, entry, found_at) VALUES (?, ?, ?)'
           )
           .bind(accountId, entry, now)
-      )
-    )
+      ),
+      ...(cents > 0
+        ? [
+            this.db
+              .prepare(
+                'INSERT INTO wallets (account_id, cash) VALUES (?, ?) ' +
+                  'ON CONFLICT (account_id) DO UPDATE SET cash = cash + ?'
+              )
+              .bind(accountId, STARTING_CASH + cents, cents),
+          ]
+        : []),
+    ])
     return fresh.filter((_, i) => (results[i]?.meta.changes ?? 0) > 0)
   }
 

@@ -31,6 +31,7 @@ import {
   createValley,
   creditedWith,
   dailyFor,
+  findsPay,
   healthFor,
   levelFor,
   maxFor,
@@ -1834,6 +1835,17 @@ describe('rule 23: the Cabbage Stand', () => {
       tend(v.valley, { type: 'stand-collect', id: 'a', at: beside }, fresh)
         .reply
     ).toMatchObject({ reason: 'no-stand' })
+  })
+})
+
+describe('rule 20: what a find pays', () => {
+  it('pays the Keep its bounty and XP, and nothing else anything', () => {
+    expect(findsPay('acct-a', ['keep', 'marx'])).toEqual({
+      cents: CONFIG.bounties.keep,
+      xp: [{ account: 'acct-a', source: 'landmark' }],
+    })
+    expect(findsPay('acct-a', ['marx', 'citgo'])).toEqual({ cents: 0, xp: [] })
+    expect(findsPay('acct-a', [])).toEqual({ cents: 0, xp: [] })
   })
 })
 

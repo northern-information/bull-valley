@@ -123,7 +123,9 @@
 //    in the pack) is written in the account's book once, at the first
 //    time; an ask names only what the raider met, and only the real
 //    entries the account had not found are news (book.ts newlyFound).
-//    The book is the account's, kept by the valley in D1.
+//    The book is the account's, kept by the valley in D1. A landmark
+//    found for the first time pays its bounty into the wallet and its XP
+//    (findsPay); the valley writes the find and the cents together.
 // 21. Friends and whispers (friends.ts): a raider asks another by name,
 //    and they are friends once the other asks back; the friendships are
 //    the accounts', in D1 beside them, and only usernames go on the wire.
@@ -240,6 +242,7 @@
 //    last point (rule 24), and every run home earns its XP (rule 22). A
 //    raider on foot sends none (`not-dialup`).
 
+import { bountyOf } from './book.ts'
 import { dosed, inPassReach, scaled, sobered, wardsOf } from './buffs.ts'
 import { heartPoint, theMaze } from './caretaker.ts'
 import { citgoAt, NO_CITGOS, visit } from './citgos.ts'
@@ -832,6 +835,18 @@ export function wardsFor(
   now: number
 ): WardLevels {
   return levelsAt(wardsOf(valley.wards, account), now / 1000)
+}
+
+// Rule 20: what the entries `account` just found pay. A landmark found
+// for the first time (the Keep) pays its bounty (book.ts bountyOf) and its
+// XP (rule 22); anything else pays nothing.
+export function findsPay(
+  account: string,
+  found: readonly string[]
+): { cents: number; xp: XpGrant[] } {
+  const cents = bountyOf(found)
+  if (cents <= 0) return { cents: 0, xp: [] }
+  return { cents, xp: [{ account, source: 'landmark' }] }
 }
 
 // Rule 3: whether raider `id` is in Marx's bed, by the valley's own truck.

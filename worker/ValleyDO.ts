@@ -32,7 +32,6 @@
 // left, and the object can hibernate again.
 
 import { DurableObject } from 'cloudflare:workers'
-import { bountyOf } from '../src/book.ts'
 import { isSelectable, mayRaidAs } from '../src/characters.ts'
 import { CONFIG } from '../src/config.ts'
 import { toCosmetics } from '../src/cosmetics.ts'
@@ -68,6 +67,7 @@ import {
   corpsesOf,
   createValley,
   dailyFor,
+  findsPay,
   healthFor,
   maxFor,
   placeOf,
@@ -771,13 +771,16 @@ export class ValleyDO extends DurableObject<Env> {
         { type: 'visit', id, station },
         this.context()
       )
+      // The first time at this Citgo pays its bounty, written before the
+      // log that says it was found: a write that fails leaves the Citgo
+      // unfound, and the next step's visit pays it then.
+      if ((await this.write(undefined, reduced.earn)) !== 'done') return
       await this.apply(reduced)
       const change = reduced.citgos
       if (change) {
         this.toAccount(change.account, { type: 'citgos', citgos: change.log })
       }
-      // The first time at this Citgo pays its bounty.
-      if (reduced.earn) await this.pay(null, reduced.earn)
+      if (reduced.earn) await this.repack(null, null, reduced.earn.account)
     })
   }
 
@@ -1587,21 +1590,6 @@ export class ValleyDO extends DurableObject<Env> {
     }
   }
 
-  // Cash taken up (sharedworld.ts rule 11: dimes, a $20, the plaza's
-  // quarters): into the wallet, then the pack and wallet to every socket
-  // on the account.
-  private async pay(
-    ws: WebSocket | null,
-    { account, amount }: { account: string; amount: number }
-  ): Promise<void> {
-    try {
-      await this.packs().earn(account, amount)
-    } catch (err) {
-      console.error('The dimes could not be paid in', account, amount, err)
-    }
-    await this.repack(ws, null, account)
-  }
-
   // Each shadow that burst leaves its dimes where it was (sharedworld.ts
   // rule 11), how many drawn here, so the reducer stays pure, and each
   // shadowman among `shades` its tombstone, its name drawn here too (rule
@@ -2007,18 +1995,22 @@ export class ValleyDO extends DurableObject<Env> {
     await this.forAccount(account, async () => {
       try {
         const packs = this.packs()
-        const found = await packs.discover(account, entries, Date.now())
+        // The finds and their bounty (rule 20) in one write.
+        const found = await packs.discover(
+          account,
+          entries,
+          Date.now(),
+          (fresh) => findsPay(account, fresh).cents
+        )
         if (found.length > 0) this.toAccount(account, { type: 'book', found })
-        // A landmark found for the first time pays its bounty, and XP.
-        const bounty = bountyOf(found)
-        if (bounty > 0) {
-          await packs.earn(account, bounty)
+        const { cents, xp } = findsPay(account, found)
+        if (cents > 0) {
           this.toAccount(
             account,
             this.packFrame(account, await packs.get(account))
           )
-          void this.award([{ account, source: 'landmark' }])
         }
+        if (xp.length > 0) void this.award(xp)
       } catch (err) {
         console.error('The book could not be written', account, err)
         send(ws, { type: 'nack', re: 'discover', reason: 'unwritten' })

@@ -545,6 +545,38 @@ describe('ValleyDO', () => {
     expect(visited()).toBe(2)
   })
 
+  it('leaves a Citgo unfound while its bounty cannot be paid, and pays it on the next step', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const cash = () =>
+      a.frames().findLast((m): m is PackMessage => m.type === 'pack')?.cash
+    const visited = () =>
+      a
+        .frames()
+        .flatMap((m) => (m.type === 'citgos' ? [m.citgos.visited.length] : []))
+        .at(-1)
+    await v.webSocketMessage(ws(a), state(1003, 4))
+    v.tick()
+    await settledWhen(() => visited() === 1)
+    const store = v.packStore
+    let down = true
+    v.packStore = Object.assign(Object.create(store) as PackStore, {
+      earn: (...args: Parameters<PackStore['earn']>) =>
+        down ? Promise.reject(new Error('down')) : store.earn(...args),
+    })
+    await v.webSocketMessage(ws(a), state(3, 4))
+    v.tick()
+    await settle()
+    await settle()
+    // The wallet would not take it: the log still says one Citgo.
+    expect(visited()).toBe(1)
+    expect(cash()).toBeUndefined()
+    down = false
+    v.tick()
+    await settledWhen(() => cash() === 4000 + CONFIG.bounties.citgo)
+    expect(visited()).toBe(2)
+  })
+
   it('writes the Citgos a raider stands at, and opens a Citgo portal to the last', async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A')
