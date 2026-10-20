@@ -226,6 +226,20 @@ describe('callback', () => {
     expect(fresh.res.status).toBe(400)
   })
 
+  it('refuses a state that matches with no verifier, before the provider', async () => {
+    const jar = new Jar()
+    const gh = provider({ id: 1, login: 'newbie' })
+    const login = await call('/auth/github/login', { jar })
+    const state = new URL(login.location ?? '').searchParams.get('state')
+    delete jar.cookies[COOKIE.pkce]
+    const back = await call(`/auth/github/callback?code=c&state=${state}`, {
+      jar,
+      fetch: gh.impl,
+    })
+    expect(back.res.status).toBe(400)
+    expect(gh.calls).toEqual([])
+  })
+
   it('lands with the provider error', async () => {
     const { res, location } = await call(
       '/auth/github/callback?error=access_denied'

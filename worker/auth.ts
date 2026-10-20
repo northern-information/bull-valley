@@ -566,7 +566,12 @@ class AuthHandler {
     if (!state || state !== query.get('state')) {
       return json({ error: copy('auth.state_mismatch') }, 400)
     }
-    const verifier = this.cookies[COOKIE.pkce] ?? ''
+    // The login set both cookies; without the verifier the exchange would
+    // go to the provider with no proof of who started it.
+    const verifier = this.cookies[COOKIE.pkce]
+    if (!verifier) {
+      return json({ error: copy('auth.state_mismatch') }, 400)
+    }
     const creds = credentials(this.env, provider)
     if (!creds) {
       return json(
