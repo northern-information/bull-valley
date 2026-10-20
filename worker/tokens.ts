@@ -82,7 +82,11 @@ export class Tokens {
   }
 
   // The account a refresh token belongs to, and the session number it
-  // was signed under.
+  // was signed under. A token signed before session numbers (#180, out
+  // on 2026-10-13) has none and reads as 0, the column's default, so it
+  // works only until its account first signs out. Every refresh reissues
+  // it with one, and the last of them lapses by 2026-11-12 (REFRESH_TTL);
+  // after that a token with no session can be refused.
   async verifyRefresh(
     token: string | undefined
   ): Promise<RefreshClaims | null> {
