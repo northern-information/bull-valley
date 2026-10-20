@@ -1,7 +1,8 @@
 // Pure: the few things in the valley that stop you: the Citgo walls and
 // fixtures (store.ts), the berry bush, Gron, Moab and his horse (a capsule
-// along its spine), the wreck by the spawn Citgo (a capsule down the car)
-// and the tree it hit, the dishes behind it, Bull Valley Plaza
+// along its spine), Tyler's Jeep and its tailgate, the wreck by the spawn
+// Citgo (a capsule down the car) and the tree it hit, the dishes behind
+// it, Bull Valley Plaza
 // (stripmall.ts), and the utility poles and streetlights (roadside.ts),
 // each a post (a capsule of zero length) unless noted; trees, the truck,
 // and everything else stay walk-through. A gate is a wall that stands for

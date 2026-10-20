@@ -13,13 +13,14 @@ import { CONFIG } from './config.ts'
 import { DEFAULT_FINISH, finishById } from './finishes.ts'
 import { buildFlames } from './fire.ts'
 import { paintTombstone } from './graveart.ts'
+import { applyPS1 } from './ps1.ts'
 import { mulberry32, range } from './rng.ts'
 import type { CanvasArt } from './canvas.ts'
 import type { FlameSpot } from './fire.ts'
 
 // The things held, worn and set down: a shadowman's tombstone, the Flaming
 // Halo, the baseball bat, the axe, the flashlight, Marx's paperback,
-// Moab's scroll and scythe, and the guitar.
+// Tyler's laptop, Moab's scroll and scythe, and the guitar.
 
 // A shadowman's tombstone (graves.ts): a round-topped granite headstone on
 // a plinth, its name cut into the face (graveart.ts), over a low mound of
@@ -435,6 +436,110 @@ export function buildBook(): THREE.Group {
     group.add(hinge)
   }
   return group
+}
+
+// --- Tyler's laptop ------------------------------------------------------
+
+// An old black laptop open on Tyler Etters' lap (figure.ts buildTyler),
+// its screen a scope hunting for a lock: a ring and crosshairs, a trace
+// that never settles, a blip just off the middle. Local space: the base
+// flat at the origin, its hinge along the far edge (+Z), the screen
+// leaning back from it with its face toward the one typing (-Z).
+// update(t) flickers the screen and its glow on the face over it.
+export interface Laptop {
+  group: THREE.Group
+  update: (t: number) => void
+}
+
+const LAPTOP = {
+  width: 0.34,
+  depth: 0.24,
+  base: 0.022,
+  screen: 0.22,
+  lean: 0.3,
+}
+
+// The scope on the screen, in the phosphor green it never turns off.
+function paintScope(): CanvasArt {
+  const art = canvas([64, 42], '#04100c')
+  const { ctx, w, h } = art
+  const rng = mulberry32(0x7e77)
+  ctx.strokeStyle = '#1f6b4a'
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.arc(w * 0.36, h / 2, 15, 0, Math.PI * 2)
+  ctx.arc(w * 0.36, h / 2, 8, 0, Math.PI * 2)
+  ctx.moveTo(w * 0.36 - 18, h / 2)
+  ctx.lineTo(w * 0.36 + 18, h / 2)
+  ctx.moveTo(w * 0.36, h / 2 - 18)
+  ctx.lineTo(w * 0.36, h / 2 + 18)
+  ctx.stroke()
+  ctx.fillStyle = '#7dffb8'
+  ctx.fillRect(w * 0.36 + 5, h / 2 - 7, 3, 3)
+  // The trace down the right side, jittering round its middle.
+  ctx.strokeStyle = '#5cf29c'
+  ctx.beginPath()
+  for (let y = 4; y < h - 4; y += 2) {
+    const x = w * 0.82 + (rng() - 0.5) * 12
+    if (y === 4) ctx.moveTo(x, y)
+    else ctx.lineTo(x, y)
+  }
+  ctx.stroke()
+  return art
+}
+
+let screenGlow: THREE.Texture | null = null
+
+export function buildLaptop(): Laptop {
+  const { width, depth, base, screen, lean } = LAPTOP
+  const group = new THREE.Group()
+  group.name = 'laptop'
+  const shell = lambert({ color: '#1a1b1f' })
+  const keys = lambert({ color: '#2c2e33' })
+  const body = new THREE.Mesh(new THREE.BoxGeometry(width, base, depth), shell)
+  body.position.y = base / 2
+  const deck = new THREE.Mesh(
+    new THREE.BoxGeometry(width - 0.04, 0.004, depth * 0.45),
+    keys
+  )
+  deck.position.set(0, base, depth * 0.12)
+  group.add(body, deck)
+  // The lid on its hinge, leaning back past upright.
+  const lid = new THREE.Group()
+  lid.position.set(0, base, depth / 2)
+  lid.rotation.x = lean
+  const back = new THREE.Mesh(
+    new THREE.BoxGeometry(width, screen, 0.012),
+    shell
+  )
+  back.position.set(0, screen / 2, 0.006)
+  const face = applyPS1(
+    new THREE.MeshBasicMaterial({ map: artTexture(paintScope()) })
+  )
+  const glass = new THREE.Mesh(
+    new THREE.PlaneGeometry(width - 0.03, screen - 0.03),
+    face
+  )
+  glass.rotation.y = Math.PI
+  glass.position.set(0, screen / 2, -0.001)
+  lid.add(back, glass)
+  // Its light on whoever leans over it.
+  screenGlow ??= makeGlowTexture('rgba(110, 255, 180, 0.35)')
+  const glow = makeGlowSprite(screenGlow, 0.5)
+  glow.position.set(0, screen / 2, -0.12)
+  lid.add(glow)
+  group.add(lid)
+  castShadows(group)
+  const update = (t: number) => {
+    // A CRT's breath, and now and then a stutter.
+    const stutter = Math.sin(t * 23.7) > 0.97 ? 0.7 : 1
+    const level = (0.88 + 0.12 * Math.sin(t * 3.1)) * stutter
+    face.color.setScalar(level)
+    glow.material.opacity = level
+  }
+  update(0)
+  setMotion(group, update)
+  return { group, update }
 }
 
 // --- Moab's scroll -------------------------------------------------------

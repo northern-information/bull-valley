@@ -22,15 +22,15 @@ export interface Targets {
   storeIndex(): number
   // The shelf unit in view inside store `station`, for the resolver.
   shelfInView(station: number): ShelfSpot | null
-  // Marx while his truck stands still, Carlsten in store `station`, and
-  // every Moab, for the resolver to weigh by distance.
+  // Marx while his truck stands still, Carlsten in store `station`, every
+  // Moab and Tyler, for the resolver to weigh by distance.
   npcSpots(station: number): NpcSpot[]
   // The lockers in store `station`'s back room, for the resolver; none
   // outside every store.
   lockerSpots(station: number): LockerSpot[]
   // What the glow rings for an interaction: the pickup, the shelf unit a
   // buy would take, a bush while today's berry is on it, Gron, or Marx,
-  // Carlsten or Moab when E would talk to him, your body, the lockers, the
+  // Carlsten, Moab or Tyler when E would talk to him, your body, the lockers, the
   // Cabbage Stand. Nothing for the truck.
   glowTarget(action: Interaction<Pickup> | null): THREE.Object3D | null
   // What an item's label floats over: the pickup, the shelf unit a buy
@@ -85,6 +85,8 @@ export function createTargets(game: Game): Targets {
             return action.station === undefined
               ? null
               : (world.moabRigs[action.station]?.figure.group ?? null)
+          case 'tyler':
+            return world.tylerRig?.figure.group ?? null
         }
         break
       default:
@@ -137,6 +139,8 @@ export function createTargets(game: Game): Targets {
       world.moabs.forEach((moab, i) => {
         spots.push({ id: 'moab', ...moab, station: i })
       })
+      // Tyler, in the back of his Jeep by the spawn Citgo's Moab.
+      if (world.tyler) spots.push({ id: 'tyler', ...world.tyler })
       return spots
     },
 

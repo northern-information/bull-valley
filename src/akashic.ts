@@ -33,6 +33,7 @@ import {
   buildForearm,
   buildGron,
   buildMoab,
+  buildTyler,
 } from './figure.ts'
 import { buildMistCard, makeMistTexture } from './mistcards.ts'
 import { OUTFIT_IDS, OUTFITS } from './outfits.ts'
@@ -88,6 +89,8 @@ function sampleFigure(outfitId: OutfitId): THREE.Group {
   if (outfitId === 'gron') return buildGron().group
   // Moab burns beside his horse, as he stands under the sign.
   if (outfitId === 'moab') return buildMoab().group
+  // Tyler types in the back of his Jeep, as it stands beside Moab.
+  if (outfitId === 'tyler') return buildTyler().group
   return figure.group
 }
 

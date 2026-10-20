@@ -32,6 +32,7 @@ describe('outfits', () => {
       'gron',
       'moab',
       'squatter',
+      'tyler',
     ])
   })
 
