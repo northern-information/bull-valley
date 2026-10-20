@@ -680,7 +680,7 @@ export function buildFigure(
     const geometry =
       'rings' in addon ? loft(addon.rings, addon.sides) : box(...addon.box)
     const spots: Vec3[] = addon.offsets || [addon.offset || [0, 0, 0]]
-    for (const at of spots) {
+    for (const [i, at] of spots.entries()) {
       // An add-on slot the outfit leaves out has no color, as before.
       const mesh = part(
         joints[addon.joint],
@@ -688,7 +688,8 @@ export function buildFigure(
         c[addon.slot] as string,
         ...at
       )
-      if (addon.rotation) mesh.rotation.set(...addon.rotation)
+      const turn = addon.rotations?.[i] ?? addon.rotation
+      if (turn) mesh.rotation.set(...turn)
       // BoxGeometry faces run +X, -X, +Y, -Y, +Z, -Z; the decal takes +Z.
       if ('decal' in addon && addon.decal) {
         const plain = mesh.material as THREE.MeshLambertMaterial
