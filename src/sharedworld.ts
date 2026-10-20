@@ -123,7 +123,9 @@
 //    in the pack) is written in the account's book once, at the first
 //    time; an ask names only what the raider met, and only the real
 //    entries the account had not found are news (book.ts newlyFound).
-//    The book is the account's, kept by the valley in D1.
+//    The book is the account's, kept by the valley in D1. A landmark
+//    found for the first time pays its bounty into the wallet and its XP
+//    (findsPay); the valley writes the find and the cents together.
 // 21. Friends and whispers (friends.ts): a raider asks another by name,
 //    and they are friends once the other asks back; the friendships are
 //    the accounts', in D1 beside them, and only usernames go on the wire.
@@ -240,6 +242,7 @@
 //    last point (rule 24), and every run home earns its XP (rule 22). A
 //    raider on foot sends none (`not-dialup`).
 
+import { bountyOf } from './book.ts'
 import { dosed, inPassReach, scaled, sobered, wardsOf } from './buffs.ts'
 import { heartPoint, theMaze } from './caretaker.ts'
 import { citgoAt, NO_CITGOS, visit } from './citgos.ts'
@@ -444,7 +447,6 @@ function bushKey(account: string, bush: number): string {
 export interface Spot {
   x: number
   z: number
-  riding: boolean
 }
 
 export type ValleyAction =
@@ -833,6 +835,25 @@ export function wardsFor(
   now: number
 ): WardLevels {
   return levelsAt(wardsOf(valley.wards, account), now / 1000)
+}
+
+// Rule 20: what the entries `account` just found pay. A landmark found
+// for the first time (the Keep) pays its bounty (book.ts bountyOf) and its
+// XP (rule 22); anything else pays nothing.
+export function findsPay(
+  account: string,
+  found: readonly string[]
+): { cents: number; xp: XpGrant[] } {
+  const cents = bountyOf(found)
+  if (cents <= 0) return { cents: 0, xp: [] }
+  return { cents, xp: [{ account, source: 'landmark' }] }
+}
+
+// Rule 3: whether raider `id` is in Marx's bed, by the valley's own truck.
+// A state frame's `riding` is the client's word, for drawing peers only:
+// no rule reads it, so a client that says it rides is not out of reach.
+export function inTheBed(valley: Valley, id: string): boolean {
+  return valley.world !== null && isAboard(valley.world.truck, id)
 }
 
 // Rule 28: every Citgo `account` has stood at, and the last.
@@ -1232,7 +1253,7 @@ function onLeave(
   const world = next.world
   // Rule 2: where they stood on foot is where they come back.
   const at = action.at
-  if (at && !at.riding && !(world && isAboard(world.truck, action.id))) {
+  if (at && !inTheBed(valley, action.id)) {
     next = {
       ...next,
       places: {
@@ -1898,13 +1919,16 @@ function onPass(
     return refuse('not-an-item')
   }
   if (!taker || taker.account === member.account) return refuse('no-one')
-  const truck = valley.world?.truck
-  const onFoot = (id: string, at: Spot | null) =>
-    at !== null && !at.riding && !(truck && isAboard(truck, id))
-  if (!onFoot(action.id, action.from) || !onFoot(action.to, action.at)) {
+  const { from, at } = action
+  if (
+    !from ||
+    !at ||
+    inTheBed(valley, action.id) ||
+    inTheBed(valley, action.to)
+  ) {
     return refuse('not-on-foot')
   }
-  if (!inPassReach(action.from!, action.at!)) return refuse('too-far')
+  if (!inPassReach(from, at)) return refuse('too-far')
   return done(valley, now, {
     broadcast: [],
     pack: { account: member.account, kind: action.kind, delta: -1 },

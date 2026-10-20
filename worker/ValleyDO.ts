@@ -32,7 +32,6 @@
 // left, and the object can hibernate again.
 
 import { DurableObject } from 'cloudflare:workers'
-import { bountyOf } from '../src/book.ts'
 import { isSelectable, mayRaidAs } from '../src/characters.ts'
 import { CONFIG } from '../src/config.ts'
 import { toCosmetics } from '../src/cosmetics.ts'
@@ -68,6 +67,7 @@ import {
   corpsesOf,
   createValley,
   dailyFor,
+  findsPay,
   healthFor,
   maxFor,
   placeOf,
@@ -89,6 +89,7 @@ import type {
   ClientMessage,
   DialMessage,
   HelloMessage,
+  NackMessage,
   PackMessage,
   PeerStateWire,
   PeerWire,
@@ -400,11 +401,15 @@ export class ValleyDO extends DurableObject<Env> {
 
   // Rules 24 and 27: once the pack has given the unit up, it doses the
   // wards and gives its share of geometrie back.
-  private async use(ws: WebSocket, id: string, kind: string): Promise<void> {
-    const used = await this.act(ws, { type: 'use', id, kind })
-    if (!used) return
-    await this.dose({ type: 'dose', id, kind })
-    if (healsOf(kind, 100) > 0) await this.mend(id, kind)
+  // All under one lock, so no strike lands between the unit going and its
+  // dose: a raider shattered in between is never dosed after.
+  private use(ws: WebSocket, id: string, kind: string): Promise<void> {
+    return this.locked(async () => {
+      const used = await this.actHeld(ws, { type: 'use', id, kind })
+      if (!used) return
+      await this.doseHeld({ type: 'dose', id, kind })
+      if (healsOf(kind, 100) > 0) await this.mendHeld(id, kind)
+    })
   }
 
   // The dev server's frames, for the specs (the Worker stamped the socket).
@@ -705,14 +710,13 @@ export class ValleyDO extends DurableObject<Env> {
   }
 
   // Rule 27: a use or a pass, once the pack gave the unit up, doses.
-  private async dose(
+  // Held: the caller has the valley's lock.
+  private async doseHeld(
     action: Extract<ValleyAction, { type: 'dose' }>
   ): Promise<void> {
-    await this.locked(async () => {
-      const reduced = reduce(this.valley, action, this.context())
-      await this.apply(reduced)
-      this.tellWards(reduced)
-    })
+    const reduced = reduce(this.valley, action, this.context())
+    await this.apply(reduced)
+    this.tellWards(reduced)
   }
 
   // Rule 27: a unit passed to the raider `to` (a peer id), both where
@@ -731,9 +735,9 @@ export class ValleyDO extends DurableObject<Env> {
       if (other?.id === to) taker = other
     }
     const spot = (peer: PeerWire | null) =>
-      peer?.at ? { x: peer.at.x, z: peer.at.z, riding: peer.at.riding } : null
-    // The check and the giver's pack together, alone in the valley; the
-    // doses and the heal after take the lock of their own.
+      peer?.at ? { x: peer.at.x, z: peer.at.z } : null
+    // The check, the giver's pack, the doses and the heal together, alone
+    // in the valley, so no strike lands between them.
     const passed = await this.locked(async () => {
       const reduced = reduce(
         this.valley,
@@ -752,11 +756,11 @@ export class ValleyDO extends DurableObject<Env> {
       const { passed, pack } = reduced
       if (!passed || !pack) return null
       if (!(await this.repack(ws, pack, pack.account, 'pass'))) return null
+      await this.doseHeld({ type: 'dose', id: me.id, kind, to })
+      if (healsOf(kind, 100) > 0) await this.mendHeld(to, kind)
       return { taker: passed.account, giver: pack.account }
     })
     if (!passed || !taker) return
-    await this.dose({ type: 'dose', id: me.id, kind, to })
-    if (healsOf(kind, 100) > 0) await this.mend(to, kind)
     this.toAccount(passed.taker, { type: 'passed', kind, from: me.name })
     this.toAccount(passed.giver, { type: 'passed', kind, to: taker.name })
   }
@@ -770,26 +774,32 @@ export class ValleyDO extends DurableObject<Env> {
         { type: 'visit', id, station },
         this.context()
       )
+      // The first time at this Citgo pays its bounty, written before the
+      // log that says it was found: a write that fails leaves the Citgo
+      // unfound, and the next step's visit pays it then.
+      if ((await this.write(undefined, reduced.earn)) !== 'done') return
       await this.apply(reduced)
       const change = reduced.citgos
       if (change) {
         this.toAccount(change.account, { type: 'citgos', citgos: change.log })
       }
-      // The first time at this Citgo pays its bounty.
-      if (reduced.earn) await this.pay(null, reduced.earn)
+      if (reduced.earn) await this.repack(null, null, reduced.earn.account)
     })
   }
 
   // Geometrie given back (rule 24): a use of `kind`'s share, or whole on
   // a forecourt. Every socket on the account hears it.
-  protected async mend(id: string, kind?: string): Promise<void> {
+  protected mend(id: string, kind?: string): Promise<void> {
+    return this.locked(() => this.mendHeld(id, kind))
+  }
+
+  // Held: the caller has the valley's lock.
+  private async mendHeld(id: string, kind?: string): Promise<void> {
     const action: ValleyAction =
       kind === undefined ? { type: 'mend', id } : { type: 'mend', id, kind }
-    await this.locked(async () => {
-      const reduced = reduce(this.valley, action, this.context())
-      await this.apply(reduced)
-      if (reduced.health) this.tellHealth(reduced.health)
-    })
+    const reduced = reduce(this.valley, action, this.context())
+    await this.apply(reduced)
+    if (reduced.health) this.tellHealth(reduced.health)
   }
 
   // A strike, alone (rule 18): the pack is emptied, then a body laid where
@@ -1526,35 +1536,67 @@ export class ValleyDO extends DurableObject<Env> {
     this.broadcast({ type: 'peer-updated', peer: me }, null)
   }
 
-  // A world action from one player: run it, persist, answer, tell everyone.
-  // Whether the pack change the action asked for, if any, was made.
+  // A world action from one player: run it, write what it moves into or
+  // out of the pack or the wallet, and only then persist the world, answer
+  // and tell everyone. A write that fails leaves the valley as it was, so
+  // a pickup, a berry or a drop is never gone from it without reaching
+  // the pack. Whether the pack change the action asked for, if any, was
+  // made.
   private act(ws: WebSocket, action: ValleyAction): Promise<boolean> {
-    return this.locked(async () => {
-      const reduced = reduce(this.valley, action, this.context())
-      await this.apply(reduced)
-      if (reduced.reply) send(ws, reduced.reply)
-      if (reduced.daily) send(ws, reduced.daily)
-      for (const msg of reduced.broadcast) this.broadcast(msg, null)
-      let changed = !reduced.reply
-      if (reduced.pack) changed = await this.repack(ws, reduced.pack)
-      if (reduced.earn) await this.pay(ws, reduced.earn)
-      return changed
-    })
+    return this.locked(() => this.actHeld(ws, action))
   }
 
-  // Cash taken up (sharedworld.ts rule 11: dimes, a $20, the plaza's
-  // quarters): into the wallet, then the pack and wallet to every socket
-  // on the account.
-  private async pay(
-    ws: WebSocket | null,
-    { account, amount }: { account: string; amount: number }
-  ): Promise<void> {
-    try {
-      await this.packs().earn(account, amount)
-    } catch (err) {
-      console.error('The dimes could not be paid in', account, amount, err)
+  // Held: the caller has the valley's lock.
+  private async actHeld(ws: WebSocket, action: ValleyAction): Promise<boolean> {
+    const reduced = reduce(this.valley, action, this.context())
+    const account = reduced.pack?.account ?? reduced.earn?.account
+    const written = await this.write(reduced.pack, reduced.earn)
+    if (written !== 'done') {
+      if (written === 'none-left') {
+        send(ws, { type: 'nack', re: 'use', reason: 'none-left' })
+      } else {
+        const nack = unwrittenNack(action)
+        if (nack) send(ws, nack)
+      }
+      if (account) await this.repack(ws, null, account)
+      return false
     }
-    await this.repack(ws, null, account)
+    await this.apply(reduced)
+    if (reduced.reply) send(ws, reduced.reply)
+    if (reduced.daily) send(ws, reduced.daily)
+    for (const msg of reduced.broadcast) this.broadcast(msg, null)
+    if (account) await this.repack(ws, null, account)
+    return !reduced.reply
+  }
+
+  // The pack change and the cash an action moves, written before the
+  // world that takes them is: 'none-left' when the pack had no unit to
+  // give up, 'failed' when D1 would not take the write.
+  private async write(
+    change: PackChange | undefined,
+    earn: { account: string; amount: number } | undefined
+  ): Promise<'done' | 'none-left' | 'failed'> {
+    try {
+      const packs = this.packs()
+      if (change) {
+        const done = await packs.change(
+          change.account,
+          change.kind,
+          change.delta
+        )
+        if (!done) return 'none-left'
+      }
+      if (earn) await packs.earn(earn.account, earn.amount)
+      return 'done'
+    } catch (err) {
+      console.error(
+        'The pack or wallet could not be written',
+        change,
+        earn,
+        err
+      )
+      return 'failed'
+    }
   }
 
   // Each shadow that burst leaves its dimes where it was (sharedworld.ts
@@ -1962,18 +2004,22 @@ export class ValleyDO extends DurableObject<Env> {
     await this.forAccount(account, async () => {
       try {
         const packs = this.packs()
-        const found = await packs.discover(account, entries, Date.now())
+        // The finds and their bounty (rule 20) in one write.
+        const found = await packs.discover(
+          account,
+          entries,
+          Date.now(),
+          (fresh) => findsPay(account, fresh).cents
+        )
         if (found.length > 0) this.toAccount(account, { type: 'book', found })
-        // A landmark found for the first time pays its bounty, and XP.
-        const bounty = bountyOf(found)
-        if (bounty > 0) {
-          await packs.earn(account, bounty)
+        const { cents, xp } = findsPay(account, found)
+        if (cents > 0) {
           this.toAccount(
             account,
             this.packFrame(account, await packs.get(account))
           )
-          void this.award([{ account, source: 'landmark' }])
         }
+        if (xp.length > 0) void this.award(xp)
       } catch (err) {
         console.error('The book could not be written', account, err)
         send(ws, { type: 'nack', re: 'discover', reason: 'unwritten' })
@@ -2281,4 +2327,22 @@ function facing(me: PeerWire): { x: number; z: number; yaw: number } | null {
 
 function send(ws: WebSocket, msg: ServerMessage): void {
   ws.send(JSON.stringify(msg))
+}
+
+// The refusal for a take, a berry or a drop taken up whose pack or wallet
+// write failed, naming what was asked so the client lets go of it. A use
+// that failed is not answered: the pack frame after it puts the count
+// right.
+function unwrittenNack(action: ValleyAction): NackMessage | null {
+  const reason = 'unwritten'
+  switch (action.type) {
+    case 'take':
+      return { type: 'nack', re: 'take', reason, index: action.index }
+    case 'take-drop':
+      return { type: 'nack', re: 'take-drop', reason, drop: action.drop }
+    case 'collect':
+      return { type: 'nack', re: 'collect', reason }
+    default:
+      return null
+  }
 }

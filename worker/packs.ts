@@ -117,11 +117,14 @@ export interface PackStore {
   // order found.
   book(accountId: string): Promise<string[]>
   // Writes the entries the account had not found (book.ts newlyFound), at
-  // `now`, and returns them; known and unreal ones are left out.
+  // `now`, and returns them; known and unreal ones are left out. The cents
+  // those finds pay (`pays`, sharedworld.ts findsPay) go into the wallet in
+  // the same transaction, so a find is never written without its bounty.
   discover(
     accountId: string,
     entries: readonly string[],
-    now: number
+    now: number,
+    pays?: (found: readonly string[]) => number
   ): Promise<string[]>
   // The account's progress on daily task `task` as last written, on
   // whatever day that was (dailytask.ts onDay reads it for today).
@@ -350,10 +353,22 @@ export class MemoryPackStore implements PackStore {
     return Promise.resolve([...(this.books.get(accountId) ?? [])])
   }
 
-  discover(accountId: string, entries: readonly string[]): Promise<string[]> {
+  discover(
+    accountId: string,
+    entries: readonly string[],
+    _now: number,
+    pays?: (found: readonly string[]) => number
+  ): Promise<string[]> {
     const found = this.books.get(accountId) ?? []
     const fresh = newlyFound(new Set(found), entries)
     this.books.set(accountId, [...found, ...fresh])
+    const cents = fresh.length > 0 ? (pays?.(fresh) ?? 0) : 0
+    if (cents > 0) {
+      this.wallets.set(
+        accountId,
+        (this.wallets.get(accountId) ?? STARTING_CASH) + cents
+      )
+    }
     return Promise.resolve(fresh)
   }
 

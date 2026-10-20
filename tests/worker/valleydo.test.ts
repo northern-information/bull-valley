@@ -280,6 +280,17 @@ const state = (x: number, z: number, light = false) =>
     light,
   })
 
+// Into Marx's bed, where no shadow reaches (rule 3): heard by the parked
+// truck, then a board. The valley reads the bed off its own truck, never
+// off a state frame's `riding`, so a spec that keeps a raider safe while
+// their beam burns puts them in it this way.
+async function intoTheBed(v: TestValley, socket: MockSocket) {
+  await v.webSocketMessage(ws(socket), state(10, 10))
+  await v.webSocketMessage(ws(socket), '{"type":"board"}')
+  const boarded = socket.last<WorldMessage>()
+  if (boarded.reason !== 'boarded') throw new Error('not in the bed')
+}
+
 const chat = (text: string) => JSON.stringify({ type: 'chat', text })
 
 // A socket the Worker stamped as a signed-in raider, as the upgrade would
@@ -529,6 +540,38 @@ describe('ValleyDO', () => {
     await settledWhen(() => visited() === 1)
     expect(cash()).toBeUndefined()
     await v.webSocketMessage(ws(a), state(3, 4))
+    v.tick()
+    await settledWhen(() => cash() === 4000 + CONFIG.bounties.citgo)
+    expect(visited()).toBe(2)
+  })
+
+  it('leaves a Citgo unfound while its bounty cannot be paid, and pays it on the next step', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const cash = () =>
+      a.frames().findLast((m): m is PackMessage => m.type === 'pack')?.cash
+    const visited = () =>
+      a
+        .frames()
+        .flatMap((m) => (m.type === 'citgos' ? [m.citgos.visited.length] : []))
+        .at(-1)
+    await v.webSocketMessage(ws(a), state(1003, 4))
+    v.tick()
+    await settledWhen(() => visited() === 1)
+    const store = v.packStore
+    let down = true
+    v.packStore = Object.assign(Object.create(store) as PackStore, {
+      earn: (...args: Parameters<PackStore['earn']>) =>
+        down ? Promise.reject(new Error('down')) : store.earn(...args),
+    })
+    await v.webSocketMessage(ws(a), state(3, 4))
+    v.tick()
+    await settle()
+    await settle()
+    // The wallet would not take it: the log still says one Citgo.
+    expect(visited()).toBe(1)
+    expect(cash()).toBeUndefined()
+    down = false
     v.tick()
     await settledWhen(() => cash() === 4000 + CONFIG.bounties.citgo)
     expect(visited()).toBe(2)
@@ -807,6 +850,40 @@ describe('ValleyDO', () => {
     expect(last?.world?.dealer.lsd).toBe((lsd?.perDay ?? 0) - 1)
     const stored = s.storage.map.get('valley') as { world: { taken: number[] } }
     expect(stored.world.taken).toContain(4)
+  })
+
+  it('leaves a pickup in the valley when its pack write fails, and lets a retry take it', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    await v.webSocketMessage(ws(b), state(0, 0))
+    const store = v.packStore
+    let down = true
+    v.packStore = Object.assign(Object.create(store) as PackStore, {
+      change: (...args: Parameters<PackStore['change']>) =>
+        down ? Promise.reject(new Error('down')) : store.change(...args),
+    })
+    const before = (await store.get('acct-B')).pack
+    const heard = a.sent.length
+    await v.webSocketMessage(ws(b), '{"type":"take","index":4}')
+    expect(b.frames().findLast((m) => m.type === 'nack')).toEqual({
+      type: 'nack',
+      re: 'take',
+      reason: 'unwritten',
+      index: 4,
+    })
+    // No one heard it taken, the world kept it, and the pack is as it was.
+    expect(a.sent.length).toBe(heard)
+    const stored = s.storage.map.get('valley') as {
+      world: { taken: number[] }
+    }
+    expect(stored.world.taken).not.toContain(4)
+    expect((await store.get('acct-B')).pack).toEqual(before)
+    // D1 back, the same take lands.
+    down = false
+    await v.webSocketMessage(ws(b), '{"type":"take","index":4}')
+    expect(a.last<WorldMessage>()).toMatchObject({ reason: 'taken', index: 4 })
+    expect((await store.get('acct-B')).pack).not.toEqual(before)
   })
 
   it('walks the rose quest: the rose from Erwin, laid at the heart, the key back', async () => {
@@ -1777,6 +1854,59 @@ describe('ValleyDO: corpse runs', () => {
     expect(lastFrame(b)?.corpses ?? []).toEqual([])
   })
 
+  it('doses a use before a strike that came while it was being written, never after the fall', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    await v.alarm()
+    await v.webSocketMessage(ws(a), state(500, 500))
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"calm"}')
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"health","points":1}')
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"shadowman","x":500,"z":501}'
+    )
+    // The joint's pack write waits until the test lets it land.
+    const store = v.packStore
+    let release = () => {}
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    v.packStore = Object.assign(Object.create(store) as PackStore, {
+      change: async (...args: Parameters<PackStore['change']>) => {
+        if (args[2] < 0) await held
+        return store.change(...args)
+      },
+    })
+    const using = v.webSocketMessage(ws(a), '{"type":"use","kind":"joints"}')
+    await settle()
+    // The shadowman winds up and lunges while the use is written.
+    for (let i = 0; i < 30; i++) {
+      v.tick()
+      await settle()
+    }
+    release()
+    await using
+    await settledWhen(() => a.frames().some((m) => m.type === 'struck'), 60)
+    const frames = a.frames()
+    const struck = frames.findIndex((m) => m.type === 'struck')
+    const dosed = frames.findIndex(
+      (m) => m.type === 'wards' && m.wards.high > 0
+    )
+    expect(struck).toBeGreaterThan(-1)
+    expect(dosed).toBeGreaterThan(-1)
+    expect(dosed).toBeLessThan(struck)
+    // The joint's heal and its ward against shadowmen were in before the
+    // touch, so the raider on their last point lives through it, still
+    // high: the touch never lands between the unit and its dose.
+    const hit = frames[struck]
+    expect(hit?.type === 'struck' && hit.health).toBeGreaterThan(0)
+    expect(
+      frames.findLast(
+        (m): m is Extract<typeof m, { type: 'wards' }> => m.type === 'wards'
+      )?.wards.high
+    ).toBeGreaterThan(0)
+  })
+
   it('gives the key items on an older body back as its raider comes in', async () => {
     const body = (
       id: number,
@@ -2346,6 +2476,8 @@ describe('ValleyDO: the shadowmen', () => {
         yaw: Math.PI,
         riding: true,
       })
+    await intoTheBed(v, a)
+    await intoTheBed(v, b)
     await v.webSocketMessage(ws(a), lit(0))
     await v.webSocketMessage(ws(b), lit(0.5))
     await v.webSocketMessage(
@@ -2385,6 +2517,7 @@ describe('ValleyDO: the shadowmen', () => {
     await seed(v)
     const a = await join(v, s, 'A', { dev: true })
     const b = await join(v, s, 'B')
+    await intoTheBed(v, a)
     await v.webSocketMessage(
       ws(a),
       JSON.stringify({ ...JSON.parse(state(500, 500, true)), riding: true })
@@ -2410,10 +2543,26 @@ describe('ValleyDO: the shadowmen', () => {
     return { v, a, b, dimes, grave, x, z }
   }
 
+  it('strikes a raider on foot whose state frame says they ride', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ ...JSON.parse(state(500, 500)), riding: true })
+    )
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"shadowman","x":500,"z":501}'
+    )
+    await tickUntilStruck(v, a)
+    expect(a.frames().some((m) => m.type === 'struck')).toBe(true)
+  })
+
   it("burns one in Marx's headlights, as a raider near the truck says where it stands", async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A', { dev: true })
     // In the bed, light down, so the one placed stands to burn.
+    await intoTheBed(v, a)
     await v.webSocketMessage(
       ws(a),
       JSON.stringify({ ...JSON.parse(state(500, 500)), riding: true })
@@ -2623,6 +2772,8 @@ describe('ValleyDO: the shadowmen', () => {
         riding: true,
         light: true,
       })
+    await intoTheBed(v, a)
+    await intoTheBed(v, b)
     await v.webSocketMessage(ws(a2), state(900, 900))
     // No crossing shadowman rushes A2: a strike would empty the account's
     // pack onto a body.
@@ -2736,6 +2887,8 @@ describe('ValleyDO: the shadowmen', () => {
         riding: true,
         light: true,
       })
+    await intoTheBed(v, a)
+    await intoTheBed(v, b)
     await v.webSocketMessage(ws(a), lit(0))
     await v.webSocketMessage(ws(b), lit(0.5))
     await v.webSocketMessage(
