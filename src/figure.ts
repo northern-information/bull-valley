@@ -680,7 +680,7 @@ export function buildFigure(
     const geometry =
       'rings' in addon ? loft(addon.rings, addon.sides) : box(...addon.box)
     const spots: Vec3[] = addon.offsets || [addon.offset || [0, 0, 0]]
-    for (const at of spots) {
+    for (const [i, at] of spots.entries()) {
       // An add-on slot the outfit leaves out has no color, as before.
       const mesh = part(
         joints[addon.joint],
@@ -688,7 +688,8 @@ export function buildFigure(
         c[addon.slot] as string,
         ...at
       )
-      if (addon.rotation) mesh.rotation.set(...addon.rotation)
+      const turn = addon.rotations?.[i] ?? addon.rotation
+      if (turn) mesh.rotation.set(...turn)
       // BoxGeometry faces run +X, -X, +Y, -Y, +Z, -Z; the decal takes +Z.
       if ('decal' in addon && addon.decal) {
         const plain = mesh.material as THREE.MeshLambertMaterial
@@ -1114,10 +1115,12 @@ export interface TylerRig {
 }
 
 // Where he sits, in from the open back, and where the laptop and the can
-// stand on the cargo floor, in his own space.
-export const TYLER_IN = 0.85
-const TYLER_LAPTOP: Vec3 = [0, 0.02, 0.5]
-const TYLER_CAN: Vec3 = [0.42, 0.02, 0.12]
+// stand on the cargo floor, in his own space: the laptop flat on the
+// carpet past his knees, its keys under his hands, the can out by his
+// right knee.
+export const TYLER_IN = 1.0
+const TYLER_LAPTOP: Vec3 = [0, 0.02, 0.68]
+const TYLER_CAN: Vec3 = [0.56, 0.02, 0.05]
 
 export function buildTyler(): TylerRig {
   const group = new THREE.Group()

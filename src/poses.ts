@@ -426,24 +426,26 @@ export const POSES = {
     ],
   },
   // Tyler Etters in the back of his Jeep (figure.ts buildTyler): down
-  // cross-legged, each shin folded across under the other knee, hunched
-  // over the laptop on the floor in front of him, the head down to its
-  // screen, both hands on the keys, pecking at them by turns.
+  // cross-legged on the cargo floor, the knees out low to either side and
+  // the shins crossed flat on the carpet in front of his hips, the right
+  // ankle over the left, hunched over the laptop on the floor past them,
+  // the head down to its screen, the arms down over the shins and both
+  // hands over the keys, pecking at them by turns.
   type: {
     seconds: 0.6,
     keys: [0, 1].map((beat) => ({
-      lift: -0.86,
+      lift: -0.81,
       joints: {
         spine: [0.75, 0, 0],
         neck: [0.2 + beat * 0.02, 0, 0],
-        hipL: [-1.45, -1.1, 0.5],
-        hipR: [-1.45, 1.1, -0.5],
-        kneeL: [2.75, 0, 0],
-        kneeR: [2.75, 0, 0],
-        shoulderL: [-0.75 - beat * 0.06, 0, -0.1],
-        shoulderR: [-0.81 + beat * 0.06, 0, 0.1],
-        elbowL: [-0.75 + beat * 0.1, 0, 0],
-        elbowR: [-0.65 - beat * 0.1, 0, 0],
+        hipL: [-3.07, 0.74, 1.41],
+        hipR: [-3.37, -0.8, -1.55],
+        kneeL: [2.8, 0, 0],
+        kneeR: [2.69, 0, 0],
+        shoulderL: [-0.95 - beat * 0.06, 0, -0.1],
+        shoulderR: [-1.01 + beat * 0.06, 0, 0.1],
+        elbowL: [-1.1 + beat * 0.1, 0, 0],
+        elbowR: [-1.0 - beat * 0.1, 0, 0],
       },
     })),
   },

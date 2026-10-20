@@ -62,6 +62,9 @@ interface AddonBase {
   offsets?: Vec3[]
   // Euler angles in radians, in the joint's space.
   rotation?: Vec3
+  // One rotation per offset, in place of `rotation`, for copies that each
+  // point their own way.
+  rotations?: Vec3[]
 }
 
 interface LoftAddon extends AddonBase {
@@ -121,6 +124,9 @@ type AddonId =
   | 'fringe-fill'
   | 'hair-spikes-long'
   | 'hair-spikes-short'
+  | 'anime-spikes-long'
+  | 'anime-spikes-short'
+  | 'anime-bangs'
   | 'beret'
   | 'bandana'
   | 'bandana-knot'
@@ -235,6 +241,58 @@ const hemSpots = (angles: number[]) =>
   })
 const LONG_SPIKE_SPOTS = hemSpots([-10, 30, 150, 190, 220, 250, 280, 310, 340])
 const SHORT_SPIKE_SPOTS = hemSpots([10, 170, 205, 235, 265, 295, 325])
+
+// Anime hair: cones standing out of the hair cap, each rooted on the head
+// and pointing along its own direction (x out to the side, y up, z toward
+// the face): the long ones swept up and back off the crown, the short ones
+// out at the sides and the nape, the bangs falling over the forehead. A
+// cone is built along +Y, so its rotation turns +Y onto the direction
+// (Euler XYZ with no turn about Y: x tilts it toward z, z toward x).
+interface Spike {
+  at: Vec3
+  dir: Vec3
+}
+const pointAlong = ([x, y, z]: Vec3): Vec3 => {
+  const n = Math.hypot(x, y, z)
+  return [Math.atan2(z / n, y / n), 0, -Math.asin(x / n)]
+}
+const crownSpike = (dir: Vec3): Spike => {
+  const n = Math.hypot(...dir)
+  const [x, y, z] = dir.map((v) => v / n)
+  return { at: [x * 0.075, 0.245 + y * 0.06, z * 0.085 - 0.01], dir }
+}
+const mirrored = (dirs: Vec3[]): Vec3[] =>
+  dirs.flatMap(([x, y, z]): Vec3[] =>
+    x === 0
+      ? [[0, y, z]]
+      : [
+          [x, y, z],
+          [-x, y, z],
+        ]
+  )
+const LONG_ANIME = mirrored([
+  [0, 0.9, -0.45],
+  [0.45, 0.8, -0.4],
+  [0.25, 0.95, 0.1],
+  [0, 0.4, -0.95],
+  [0.55, 0.35, -0.8],
+]).map(crownSpike)
+const SHORT_ANIME = mirrored([
+  [0.95, 0.3, -0.15],
+  [0.85, 0.5, 0.2],
+  [0.35, -0.15, -0.95],
+  [0, -0.2, -1],
+  [0.8, -0.05, -0.6],
+]).map(crownSpike)
+const BANGS: Spike[] = [
+  { at: [0, 0.29, 0.08], dir: [0, -0.85, 0.5] },
+  { at: [0.045, 0.285, 0.075], dir: [0.3, -0.85, 0.45] },
+  { at: [-0.045, 0.285, 0.075], dir: [-0.3, -0.85, 0.45] },
+]
+const spikeSpots = (spikes: Spike[]) => ({
+  offsets: spikes.map((one) => one.at),
+  rotations: spikes.map((one) => pointAlong(one.dir)),
+})
 
 // Wisps hang from under the jaw in an uneven row, a few too far apart to
 // meet: the beard that never filled in.
@@ -419,6 +477,39 @@ export const ADDONS: Record<AddonId, Addon> = {
       [-0.033, 0.002, 0.002, 0],
     ],
     offsets: SHORT_SPIKE_SPOTS,
+  },
+  // Anime hair (Tyler's): long spikes swept up and back, short ones at the
+  // sides and the nape, and bangs over the forehead, over the hair cap.
+  'anime-spikes-long': {
+    joint: 'neck',
+    slot: 'hair',
+    sides: 4,
+    rings: [
+      [-0.01, 0.042, 0.036, 0],
+      [0.05, 0.026, 0.022, 0],
+      [0.14, 0.002, 0.002, 0],
+    ],
+    ...spikeSpots(LONG_ANIME),
+  },
+  'anime-spikes-short': {
+    joint: 'neck',
+    slot: 'hair',
+    sides: 4,
+    rings: [
+      [-0.01, 0.036, 0.03, 0],
+      [0.09, 0.002, 0.002, 0],
+    ],
+    ...spikeSpots(SHORT_ANIME),
+  },
+  'anime-bangs': {
+    joint: 'neck',
+    slot: 'hair',
+    sides: 4,
+    rings: [
+      [0, 0.03, 0.014, 0],
+      [0.085, 0.002, 0.002, 0],
+    ],
+    ...spikeSpots(BANGS),
   },
   // A chin beard only: narrow and forward, clear of the jaw line.
   goatee: {
@@ -1335,7 +1426,7 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     baggy: 1.2,
   },
   // Tyler Etters, cross-legged in the back of his red Jeep beside Moab
-  // (figure.ts buildTyler): ashy blonde hair to the shoulders, thick black
+  // (figure.ts buildTyler): ashy blonde hair in anime spikes, thick black
   // glasses, a plain black tee, blue jeans and green sneakers. Not on the
   // select roster.
   tyler: {
@@ -1353,7 +1444,9 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
       belt: '#0c0c0e',
     },
     addons: [
-      'long-hair',
+      'anime-spikes-long',
+      'anime-spikes-short',
+      'anime-bangs',
       'frame-rims',
       'frame-sides',
       'frame-bridge',
