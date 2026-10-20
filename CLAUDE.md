@@ -84,7 +84,7 @@ Strict TypeScript throughout. The map (`public/data/bull-valley/`: `geo.json` an
 - `src/dropmeshes.ts` — the drops in Three: one `assets.ts` `buildPickup` mesh per drop on `ground.at` (`buildDimes` for dimes, `buildTwenty` for a spider's $20), kept in step with `GameState.drops` (`sync`), each handed back as a pickup (`DropPickup`), so E, the glow and the floating label treat a drop like any other; `loop.ts` passes them to the resolver with `world.pickups`
 - `src/daily.ts` — pure: the daily clock behind the berry bush (the Central calendar day of an instant, the next midnight Central, DST included); the Worker runs it against its own clock
 - `src/clock.ts` — pure: the server-clock offset from ping round trips
-- `src/presence.ts` — pure: the peer table, two-frame interpolation
+- `src/presence.ts` — pure: the peer table, each peer's last few seconds of states (`FRAMES_KEPT`; a move after a silence past `GAP_MS` starts a frame before it) drawn between the two either side of the moment (`samplePeer`), and whether our own state is worth a frame (`stateChanged`)
 - `src/net.ts` — the WebSocket client: a session refresh before each open, hello (or a `dial` for Bull Valley Dial-Up, `dial`), reconnect with backoff, pings; `ready` resolves online or offline (Dial-Up's modem reads it for NO CARRIER), a ping unanswered past `CONFIG.net.deadMs` drops a half-open line, and `onRefused` hears a 4xxx close
 - `src/account.ts` — pure: the `/auth` protocol shared by the client and the Worker (providers, the username rule, wire shapes, redirects, the `?auth=` return flags)
 - `src/cookies.ts` — pure: the session cookie names, parse and serialize
