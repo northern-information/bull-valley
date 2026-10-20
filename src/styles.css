@@ -910,17 +910,21 @@
 }
 
 /* The tabs over the grid: tracked caps, the shown one eggshell over a
-   Citgo-red rule; the locker's set apart at the end. */
+   Citgo-red rule; the locker's set apart at the end. A narrow pack
+   scrolls them sideways with no bar. The grey rule is an inset shadow,
+   not a border, so the shown tab's rule covers it without overflowing
+   the row (which made it scroll down too). */
 .bv-bag-tabs {
   display: flex;
   gap: 20px;
-  overflow-x: auto;
+  overflow: auto hidden;
+  scrollbar-width: none;
   white-space: nowrap;
-  border-bottom: 1px solid var(--bv-npc-line);
+  box-shadow: inset 0 -1px 0 var(--bv-npc-line);
 }
 
 .bv-bag-tab {
-  margin: 0 0 -1px;
+  margin: 0;
   padding: 0 0 8px;
   font: inherit;
   font-size: 0.6875rem;
@@ -2660,18 +2664,11 @@
   }
 }
 
-/* A section's head row: 01 in Citgo red, the name, a rule, the meta. */
+/* A section's head row: the name in Citgo red, a rule, the meta. */
 .bv-npc-sh {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.bv-npc-num {
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  color: var(--bv-citgo);
 }
 
 .bv-npc-rule {

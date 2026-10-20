@@ -108,7 +108,7 @@ export function openStandDialog(options: StandDialogOptions): Promise<void> {
         speech: false,
       })}
       <section class="bv-npc-section">
-        ${sectionHead(1, copy('stand.till'), 'stand-cap')}
+        ${sectionHead(copy('stand.till'), 'stand-cap')}
         <div class="bv-npc-grid">
           ${stat(copy('stand.banked'), 'stand-banked')}
           <div class="bv-npc-stat bv-npc-c4">
@@ -128,7 +128,7 @@ export function openStandDialog(options: StandDialogOptions): Promise<void> {
         </div>
       </section>
       <section class="bv-npc-section">
-        ${sectionHead(2, copy('stand.table'), 'stand-slots')}
+        ${sectionHead(copy('stand.table'), 'stand-slots')}
         <div class="bv-npc-slots" data-bv="stand-strip"></div>
         <div class="bv-npc-table">
           <div class="bv-npc-grid bv-npc-row bv-npc-row--head">
@@ -141,7 +141,7 @@ export function openStandDialog(options: StandDialogOptions): Promise<void> {
         <p class="bv-npc-hint" data-bv="stand-table-full"></p>
       </section>
       <section class="bv-npc-section bv-npc-side">
-        ${sectionHead(3, '', 'stand-next')}
+        ${sectionHead('', 'stand-next')}
         <div class="bv-npc-grid bv-npc-grid--top" data-bv="stand-next-body">
           <div class="bv-npc-compare bv-npc-c6">
             ${compare(copy('stand.holds'), 'stand-holds')}

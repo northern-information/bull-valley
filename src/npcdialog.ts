@@ -1,8 +1,8 @@
 // The frame the Cabbage Stand's and Erwin von Dutch's dialogs share
 // (standdialog.ts, dealdialog.ts), and that the pause overlay (hud.ts) and
 // the pack (packhud.ts) wear too: a header (an eyebrow, the status on the
-// right, the title, the keeper's line), numbered sections each opened by a
-// head row, and a footer with the valley's last word and the way out. The
+// right, the title, the keeper's line), sections each opened by a head
+// row, and a footer with the valley's last word and the way out. The
 // markup is styles.css's .bv-npc; each dialog fills its own sections on
 // the 12-column grid.
 
@@ -33,13 +33,12 @@ export function npcHeader(options: {
     </header>`
 }
 
-// A section's head row: its number in Citgo red, its name, a rule, and a
-// meta line on the right named `meta` (set by the caller, it changes).
-export function sectionHead(n: number, name: string, meta: string): string {
+// A section's head row: its name in Citgo red, a rule, and a meta line on
+// the right named `meta` (set by the caller, it changes).
+export function sectionHead(name: string, meta: string): string {
   return `
     <div class="bv-npc-sh">
-      <span class="bv-npc-num">${String(n).padStart(2, '0')}</span>
-      <span class="bv-npc-eyebrow" data-bv="${meta}-name">${name}</span>
+      <span class="bv-npc-eyebrow bv-npc-lead" data-bv="${meta}-name">${name}</span>
       <span class="bv-npc-rule"></span>
       <span class="bv-npc-label" data-bv="${meta}"></span>
     </div>`

@@ -48,7 +48,12 @@ import {
   cutTerrainHole,
   loadTerrain,
 } from './terrain.ts'
-import { openAccount, showTitles, signOutAndReload } from './titles.ts'
+import {
+  exitToMenu,
+  openAccount,
+  showTitles,
+  signOutAndReload,
+} from './titles.ts'
 import { createTrails } from './trails.ts'
 import { Truck } from './truck.ts'
 import { joyrideMs } from './truckplan.ts'
@@ -247,6 +252,10 @@ async function boot() {
   hud.signOutBtn.addEventListener('click', () => {
     hud.signOutBtn.disabled = true
     signOutAndReload()
+  })
+  hud.exitBtn.addEventListener('click', () => {
+    hud.exitBtn.disabled = true
+    exitToMenu()
   })
   const playerBody = new PlayerBody(
     scene,
