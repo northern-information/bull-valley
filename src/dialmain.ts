@@ -24,7 +24,7 @@ import { openDealDialog } from './dealdialog.ts'
 import { ramble } from './dealer.ts'
 import { switchUrl } from './dialpick.ts'
 import { DialShell } from './dialshell.ts'
-import { applyFrame, asked, DIALED, sayLine } from './dialstate.ts'
+import { applyFrame, asking, DIALED, lineLost, sayLine } from './dialstate.ts'
 import { text } from './dom.ts'
 import { fontsReady } from './fonts.ts'
 import { toHotbar } from './hotbar.ts'
@@ -94,7 +94,7 @@ async function boot(): Promise<void> {
     }
     const next = applyFrame(state, msg, performance.now())
     // A frame that changes nothing the phone shows (a pong, a peer's
-    // state) leaves the screen be, so a tap never lands on a redraw.
+    // state) leaves the screen be.
     if (next === state) return
     state = next
     shell?.render(state)
@@ -116,11 +116,20 @@ async function boot(): Promise<void> {
     return
   }
 
+  // An ask waits on the valley only while the line is up; a tap on a
+  // dropped line says so and leaves every button free.
   const send = (msg: ClientMessage, what: Partial<Pending>) => {
-    state = asked(state, what)
+    state = asking(state, what, net.online, performance.now())
     net.send(msg)
     shell?.render(state)
   }
+  // The line dropped: net.ts redials on its own, and nothing asked of it
+  // is answered now, so nothing waits on it.
+  net.onStatus((status) => {
+    if (status !== 'offline' || !shell) return
+    state = lineLost(state, performance.now(), Date.now())
+    shell.render(state)
+  })
   const now = () => net.clock.serverNow(performance.now())
   // The valley's word on the screen, for what the phone itself says.
   const say = (text: string) => {
@@ -219,6 +228,10 @@ async function boot(): Promise<void> {
           { name: username, level: levelOf(state.xp) },
           Date.now()
         )
+        if (said.frame && !net.online) {
+          say(copy('dialup.no_signal'))
+          return
+        }
         state = said.state
         if (said.frame) net.send(said.frame)
         shell?.render(state)

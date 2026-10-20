@@ -1187,6 +1187,7 @@ tap = { text = "TAP TO DIAL", by = "ai" }
 skip = { text = "TAP TO SKIP", by = "ai" }
 switch_valley = { text = "Walk the valley instead", by = "ai" }
 refused = { text = "The valley hung up. Reload to dial again.", by = "ai" }
+no_signal = { text = "No signal. Redialing the valley…", by = "ai" }
 back = { text = "Back", by = "ai" }
 level = { text = "LV {level}", by = "ai" }
 geometrie = { text = "Geometrie {health} / {max}", by = "ai" }

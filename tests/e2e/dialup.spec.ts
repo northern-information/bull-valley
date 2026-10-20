@@ -270,9 +270,52 @@ test('sends a run out on an expedition, one at a time', async ({ browser }) => {
   await expect(
     page.locator('.bv-dial-expedition[data-expedition="corn"] .bv-dial-btn')
   ).toBeDisabled()
+  // The clock moves the time left in place: the card a tap would land on
+  // is the same node a tick later.
+  const left = out.locator('.bv-dial-run-left')
+  await out.evaluate((card) => {
+    card.dataset.kept = 'yes'
+  })
+  const before = await left.textContent()
+  await expect(left).not.toHaveText(before ?? '', { timeout: 5_000 })
+  await expect(out).toHaveAttribute('data-kept', 'yes')
   // Kept by the valley: a redial finds it still out.
   await page.reload()
   await dialIn(page)
   await page.locator('.bv-dial-tab[data-tab="expeditions"]').click()
   await expect(page.locator('.bv-dial-run[data-run="ride"]')).toBeVisible()
+})
+
+test('a dropped line lets every ask go and says so', async ({ browser }) => {
+  const page = await phone(browser)
+  // Keep every socket the page opens, so the spec can drop the valley's.
+  await page.addInitScript(() => {
+    const Socket = window.WebSocket
+    const kept: WebSocket[] = []
+    Object.assign(window, { __sockets: kept })
+    window.WebSocket = class extends Socket {
+      constructor(...args: ConstructorParameters<typeof WebSocket>) {
+        super(...args)
+        kept.push(this)
+      }
+    }
+  })
+  await signIn(page)
+  await page.goto(`/?valley=${freshValley('dial')}`)
+  await dialIn(page)
+  await page.evaluate(() => {
+    const kept = (window as unknown as { __sockets: WebSocket[] }).__sockets
+    // The valley's line alone: Vite's own reloads the page when it drops.
+    for (const socket of kept) {
+      if (new URL(socket.url).pathname === '/ws') socket.close()
+    }
+  })
+  await expect(page.locator('.bv-dial-toast')).toHaveText(
+    copy('log.signal_lost')
+  )
+  // net.ts redials on its own, and the phone plays on.
+  await page.locator('.bv-dial-tab[data-tab="expeditions"]').click()
+  await expect(
+    page.locator('.bv-dial-expedition[data-expedition="ride"] .bv-dial-btn')
+  ).toBeEnabled({ timeout: 15_000 })
 })
