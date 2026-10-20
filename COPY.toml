@@ -203,6 +203,7 @@ unknown_lore = { text = "Not yet found. Something in the valley is still waiting
 found_all = { text = "Every page written.", by = "ai" }
 toast = { text = "Written in the Book of Shadows", by = "ai" }
 toast_many = { text = "{count} new pages", by = "ai" }
+written = { text = "Written in the Book of Shadows: {names}.", by = "ai" }
 toast_hint = { text = "B to read", by = "ai" }
 
 [book.citgo]

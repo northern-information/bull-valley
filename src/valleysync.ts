@@ -11,12 +11,13 @@ import {
   emoteLine,
   joinedLine,
   othersLine,
+  peerNews,
   whisperLine,
 } from './chat.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { toCosmetics } from './cosmetics.ts'
-import { DAILY_TASK, taskNews, taskOf } from './dailytask.ts'
+import { DAILY_TASK, taskLine, taskNews, taskOf } from './dailytask.ts'
 import { boughtLine, dealRefusal } from './dealer.ts'
 import { seenEmote } from './emotes.ts'
 import {
@@ -91,17 +92,8 @@ export function wireValley(game: Game, actions: Actions): void {
         // Our own comes back too; the dialog has said so already.
         if (msg.peer.id === net.id) return
         const was = peers.table.get(msg.peer.id)
-        const { name, level } = msg.peer
-        const wasLevel = was?.level
-        const wasName = was?.name
         peers.updated(msg.peer)
-        if (wasName && wasName !== name) {
-          hud.tell(copy('log.peer_renamed', { was: wasName, name }))
-        }
-        // Rule 22.
-        if (wasLevel !== undefined && level > wasLevel) {
-          hud.tell(copy('log.peer_level', { name, level }))
-        }
+        for (const line of peerNews(was, msg.peer)) hud.tell(line)
         return
       }
       case 'peer-state': {
@@ -510,20 +502,19 @@ export function wireValley(game: Game, actions: Actions): void {
     } else if (msg.type === 'task') {
       // Rule 16: credited with a burn. A reward's pack frame follows.
       if (!applyTask(msg.task)) return
-      const { goal } = DAILY_TASK
-      const cash = formatCash(DAILY_TASK.reward)
       const news = taskNews(s.task, msg.rewarded)
       if (news === 'done') {
         hud.season.announce({
           kicker: copy('task.kicker'),
           headline: copy('task.banner_done'),
-          detail: copy('task.banner_paid', { cash }),
+          detail: copy('task.banner_paid', {
+            cash: formatCash(DAILY_TASK.reward),
+          }),
           gold: true,
         })
-        hud.tell(copy('log.task_reward', { goal, cash }))
-      } else if (news === 'burned') {
-        hud.tell(copy('log.task_burned', { count: s.task.count, goal }))
       }
+      const line = taskLine(s.task, msg.rewarded)
+      if (line) hud.tell(line)
       if (news !== 'past') hud.season.flash()
     } else if (msg.type === 'season') {
       // Rule 15: credited with burning the Caretaker. A reward's pack

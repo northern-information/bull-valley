@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   BOOK,
+  bountyLine,
   bountyOf,
   CHAPTERS,
   entriesOf,
   entryOf,
+  foundLines,
   isEntry,
   itemsHeld,
   knownOf,
@@ -14,9 +16,11 @@ import {
   toFound,
 } from '../../src/book.ts'
 import { CONFIG } from '../../src/config.ts'
+import { copy } from '../../src/copy.ts'
 import { itemLabel } from '../../src/itemcopy.ts'
 import { ITEMS } from '../../src/items.ts'
 import { DISCOVER_MAX } from '../../src/protocol.ts'
+import { formatCash } from '../../src/store.ts'
 import type { Sight } from '../../src/book.ts'
 
 describe('BOOK', () => {
@@ -159,5 +163,21 @@ describe('bounties', () => {
     expect(bountyOf(['keep'])).toBe(CONFIG.bounties.keep)
     expect(bountyOf(['citgo', 'wreck'])).toBe(0)
     expect(bountyOf([])).toBe(0)
+  })
+})
+
+describe('foundLines', () => {
+  it('names the pages written, and the bounty a landmark paid', () => {
+    const keep = entryOf('keep')?.name ?? ''
+    const bounty = copy('log.landmark_bounty', {
+      cash: formatCash(CONFIG.bounties.keep),
+    })
+    expect(bountyLine(['keep'])).toBe(bounty)
+    expect(bountyLine(['citgo'])).toBeNull()
+    expect(foundLines(['keep'])).toEqual([
+      copy('book.written', { names: keep }),
+      bounty,
+    ])
+    expect(foundLines(['not-a-page'])).toEqual([])
   })
 })

@@ -13,6 +13,7 @@ import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { itemBlurb, itemLabel } from './itemcopy.ts'
 import { ITEMS } from './items.ts'
+import { formatCash } from './store.ts'
 import type { XZ } from './interfaces.ts'
 
 export type Chapter = 'places' | 'shadows' | 'folk' | 'items'
@@ -281,4 +282,24 @@ export function itemsHeld(pack: Readonly<Record<string, number>>): string[] {
   return Object.entries(pack)
     .filter(([kind, count]) => count > 0 && BY_ID.has(kind))
     .map(([kind]) => kind)
+}
+
+// The bounty a landmark among `found` paid, as the log says it, or null.
+export function bountyLine(found: readonly string[]): string | null {
+  const bounty = bountyOf(found)
+  return bounty > 0
+    ? copy('log.landmark_bounty', { cash: formatCash(bounty) })
+    : null
+}
+
+// Pages newly written, as the log says it: their names, and the bounty a
+// landmark among them paid. Nothing for none.
+export function foundLines(found: readonly string[]): string[] {
+  const names = found.flatMap((id) => entryOf(id)?.name ?? [])
+  if (names.length === 0) return []
+  const bounty = bountyLine(found)
+  return [
+    copy('book.written', { names: names.join(', ') }),
+    ...(bounty ? [bounty] : []),
+  ]
 }

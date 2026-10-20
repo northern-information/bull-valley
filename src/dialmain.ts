@@ -24,7 +24,14 @@ import { openDealDialog } from './dealdialog.ts'
 import { ramble } from './dealer.ts'
 import { switchUrl } from './dialpick.ts'
 import { DialShell } from './dialshell.ts'
-import { applyFrame, asking, DIALED, lineLost, sayLine } from './dialstate.ts'
+import {
+  applyFrame,
+  asking,
+  DIALED,
+  lineLost,
+  sayLine,
+  withCitgoNames,
+} from './dialstate.ts'
 import { text } from './dom.ts'
 import { fontsReady } from './fonts.ts'
 import { toHotbar } from './hotbar.ts'
@@ -72,6 +79,13 @@ async function boot(): Promise<void> {
   })
 
   let state: DialState = DIALED
+  // Each Citgo's name off the survey, read once: the Citgo sheet lists
+  // them, and the log names a Citgo found.
+  let named: Promise<string[]> | null = null
+  const names = () =>
+    (named ??= fetch('/data/bull-valley/geo.json')
+      .then((res) => res.json() as Promise<Geo>)
+      .then(citgoNames))
   let shell: DialShell | null = null
   const modem = mountModem(root, {
     // A silent page (silent.ts) is never heard.
@@ -89,6 +103,13 @@ async function boot(): Promise<void> {
   net.on((msg) => {
     if (msg.type === 'welcome') {
       modem.connected()
+      // Without the survey a Citgo found goes unnamed in the log.
+      void names()
+        .then((list) => {
+          state = withCitgoNames(state, list)
+          shell?.render(state)
+        })
+        .catch(() => undefined)
       // The friends list, for the Social tab.
       net.send({ type: 'friends' })
     }
@@ -209,11 +230,7 @@ async function boot(): Promise<void> {
       buy: (station, kind, unit) =>
         send({ type: 'buy', station, kind, unit }, { buy: { station, kind } }),
     },
-    citgoNames: async () => {
-      const res = await fetch('/data/bull-valley/geo.json')
-      const geo = (await res.json()) as Geo
-      return citgoNames(geo)
-    },
+    citgoNames: names,
     trade: (offer) => send({ type: 'trade', offer }, { trade: true }),
     expeditions: {
       send: (kind) =>
