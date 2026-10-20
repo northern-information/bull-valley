@@ -19,6 +19,7 @@ import type { CorpseMeshes } from './corpsemeshes.ts'
 import type { Corpse, CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { TaskProgress } from './dailytask.ts'
+import type { DonutWake } from './donutwakerig.ts'
 import type { DropMeshes } from './dropmeshes.ts'
 import type { Drop } from './drops.ts'
 import type { Emoting } from './emotes.ts'
@@ -63,6 +64,7 @@ import type { Titles } from './titles.ts'
 import type { Trails } from './trails.ts'
 import type { Truck } from './truck.ts'
 import type { TruckContext, TruckPlan } from './truckplan.ts'
+import type { TruckRadio } from './truckradiorig.ts'
 import type { TunnelShades } from './tunnelrig.ts'
 import type { FuelPoint, Pickup, World } from './world.ts'
 import type * as THREE from 'three'
@@ -373,6 +375,11 @@ export interface Game {
   portals: PortalMeshes
   graph: RoadGraph
   truck: Truck
+  // Marx's radio while the truck rolls (truckradiorig.ts), none under e2e.
+  radio: TruckRadio | null
+  // The clods and ruts his donuts leave (donutwakerig.ts), none without a
+  // donut field.
+  donutWake: DonutWake | null
   // The valley's music, none under e2e, which never plays sound, and the
   // settings that say how loud it plays.
   music: Music | null
