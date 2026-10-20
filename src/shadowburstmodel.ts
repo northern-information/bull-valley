@@ -1,13 +1,11 @@
 import * as THREE from 'three'
-import { artTexture, makeGlowTexture } from './assetkit.ts'
-import { canvas } from './canvas.ts'
-import { skull } from './decalart.ts'
+import { makeGlowTexture } from './assetkit.ts'
 import { mulberry32, range } from './rng.ts'
 
 // --- Shadow burst --------------------------------------------------------
 
 // A shadowman caught in the flashlight: a black cloud thrown out from his
-// chest, and skulls flung up out of it, spinning, that fall back and fade.
+// chest, and larger black flecks flung up out of it that fall back and fade.
 // draw(age) poses the burst age seconds after it went off, from its seed
 // alone, so the pool in shadowburst.ts and the Akashic both just pick an
 // age. Local space: the chest at the origin.
@@ -20,30 +18,16 @@ export interface ShadowBurst {
 export const SHADOW_BURST = {
   seconds: 1.8,
   mist: 36,
-  skulls: 5,
+  flecks: 14,
   gravity: 9,
 }
 
+const FLECK_SIZE = 0.5
+
 let burstMist: THREE.Texture | null = null
-let burstSkull: THREE.Texture | null = null
-
-function makeSkullTexture(): THREE.Texture {
-  const art = canvas([32, 32])
-  skull(art.ctx, 16, 12, 9)
-  const texture = artTexture(art)
-  texture.magFilter = THREE.NearestFilter
-  texture.minFilter = THREE.NearestFilter
-  return texture
-}
-
-interface Flung {
-  velocity: THREE.Vector3
-  spin: number
-  size: number
-}
 
 export function buildShadowBurst(): ShadowBurst {
-  const { mist, skulls } = SHADOW_BURST
+  const { mist, flecks } = SHADOW_BURST
   const group = new THREE.Group()
   group.name = 'shadow-burst'
 
@@ -65,18 +49,25 @@ export function buildShadowBurst(): ShadowBurst {
   cloud.frustumCulled = false
   group.add(cloud)
 
-  burstSkull ??= makeSkullTexture()
-  const sprites: THREE.Sprite[] = []
-  for (let i = 0; i < skulls; i++) {
-    const sprite = new THREE.Sprite(
-      new THREE.SpriteMaterial({ map: burstSkull, transparent: true })
-    )
-    group.add(sprite)
-    sprites.push(sprite)
-  }
+  // Hard-edged squares, no soft map, so they read as chunks in the cloud.
+  const fleckMaterial = new THREE.PointsMaterial({
+    color: '#000000',
+    size: FLECK_SIZE,
+    transparent: true,
+    depthWrite: false,
+  })
+  const fleckPositions = new Float32Array(flecks * 3)
+  const fleckGeometry = new THREE.BufferGeometry()
+  fleckGeometry.setAttribute(
+    'position',
+    new THREE.BufferAttribute(fleckPositions, 3)
+  )
+  const fleckCloud = new THREE.Points(fleckGeometry, fleckMaterial)
+  fleckCloud.frustumCulled = false
+  group.add(fleckCloud)
 
   let puffs: THREE.Vector3[] = []
-  let flung: Flung[] = []
+  let flung: THREE.Vector3[] = []
   const start = (seed: number) => {
     const rng = mulberry32(seed)
     // A direction on the upper half of the sphere, mostly sideways.
@@ -89,10 +80,10 @@ export function buildShadowBurst(): ShadowBurst {
     puffs = Array.from({ length: mist }, () =>
       out().multiplyScalar(range(rng, 1.2, 3.4))
     )
-    flung = Array.from({ length: skulls }, () => {
+    flung = Array.from({ length: flecks }, () => {
       const velocity = out().multiplyScalar(range(rng, 1.5, 3.5))
       velocity.y = range(rng, 3.5, 6)
-      return { velocity, spin: range(rng, -9, 9), size: range(rng, 0.6, 0.85) }
+      return velocity
     })
   }
 
@@ -111,20 +102,17 @@ export function buildShadowBurst(): ShadowBurst {
     cloudGeometry.attributes.position.needsUpdate = true
     cloudMaterial.size = 1.1 + spread * 1.4
     cloudMaterial.opacity = 0.9 * (1 - life) ** 1.5
-    // The skulls: thrown, falling, spinning, gone over the last third.
+    // The flecks: thrown, falling, gone over the last third.
     const g = SHADOW_BURST.gravity
-    for (let i = 0; i < sprites.length; i++) {
-      const sprite = sprites[i]
-      const f = flung[i]
-      sprite.position.set(
-        f.velocity.x * t,
-        f.velocity.y * t - 0.5 * g * t * t,
-        f.velocity.z * t
-      )
-      sprite.scale.setScalar(f.size * Math.min(1, t * 8))
-      sprite.material.rotation = f.spin * t
-      sprite.material.opacity = Math.min(1, 3 * (1 - life))
+    for (let i = 0; i < flung.length; i++) {
+      const v = flung[i]
+      fleckPositions[i * 3] = v.x * t
+      fleckPositions[i * 3 + 1] = v.y * t - 0.5 * g * t * t
+      fleckPositions[i * 3 + 2] = v.z * t
     }
+    fleckGeometry.attributes.position.needsUpdate = true
+    fleckMaterial.size = FLECK_SIZE * Math.min(1, t * 8)
+    fleckMaterial.opacity = Math.min(1, 3 * (1 - life))
   }
 
   start(0x5c011)
