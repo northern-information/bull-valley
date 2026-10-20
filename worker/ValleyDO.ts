@@ -785,7 +785,8 @@ export class ValleyDO extends DurableObject<Env> {
   }
 
   // A strike, alone (rule 18): the pack is emptied, then a body laid where
-  // the raider fell with everything it held; a body the valley cannot lay
+  // the raider fell with everything it held, in place of any body the
+  // account had (what that held is lost); a body the valley cannot lay
   // gives it all back. Every socket on the account hears the pack after,
   // so the client's own emptying is put right either way.
   protected async fall(
@@ -822,10 +823,10 @@ export class ValleyDO extends DurableObject<Env> {
       } catch (err) {
         console.error('The pack could not be given back', account, err)
       }
-    } else {
-      await this.apply(reduced)
-      for (const msg of reduced.broadcast) this.broadcast(msg, null)
     }
+    // Even with no new body, a second fall takes the first away.
+    await this.apply(reduced)
+    for (const msg of reduced.broadcast) this.broadcast(msg, null)
     await this.repack(null, null, account)
   }
 

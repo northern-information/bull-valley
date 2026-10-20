@@ -106,7 +106,9 @@
 // 18. Corpse runs (corpses.ts): a strike leaves everything the raider's
 //    pack held but its key items (which stay in the pack) on their body, where their last state frame put them; the
 //    valley takes it all out of the account's pack first, and lays the
-//    body only once it has (Reduced.corpse), or gives it back. The wallet
+//    body only once it has (Reduced.corpse), or gives it back. One body
+//    an account: a second fall takes the first away, and what it still
+//    held is lost. The wallet
 //    and the locker are untouched. Only the account that fell can take its
 //    things back (Reduced.give), and a body lies until it does: the day's
 //    turn leaves it, and so does a world opened afresh, since the bodies
@@ -1780,27 +1782,26 @@ function onFall(
   action: ActionOf<'fall'>,
   { now }: ValleyContext
 ): Reduced {
-  // Rule 18. A body only where the valley heard the raider stand, and
-  // only with something on it.
+  // Rule 18. One body an account: a second fall takes the first away,
+  // and what it still held is lost. A new body only where the valley
+  // heard the raider stand, and only with something on it.
   const member = valley.members[action.id]
-  if (!member || !action.at || isEmpty(action.items)) {
-    return done(valley, now, { broadcast: [] })
+  if (!member) return done(valley, now, { broadcast: [] })
+  const corpses = valley.corpses.filter((c) => c.account !== member.account)
+  const lost = corpses.length < valley.corpses.length
+  if (!action.at || isEmpty(action.items)) {
+    if (!lost) return done(valley, now, { broadcast: [] })
+    const next: Valley = { ...valley, corpses }
+    return done(next, now, {
+      broadcast: next.world ? [frame(next, 'fell', { by: action.id })] : [],
+    })
   }
   const id = valley.nextCorpse
   const { x, z, yaw } = action.at
-  // One body an account: what an earlier one still held is carried
-  // onto this one, so nothing is lost and nothing lies forever.
-  const items = { ...action.items }
-  for (const old of valley.corpses) {
-    if (old.account !== member.account) continue
-    for (const [kind, count] of Object.entries(old.items)) {
-      items[kind] = (items[kind] ?? 0) + count
-    }
-  }
   const next: Valley = {
     ...valley,
     corpses: [
-      ...valley.corpses.filter((c) => c.account !== member.account),
+      ...corpses,
       {
         id,
         x,
@@ -1808,7 +1809,7 @@ function onFall(
         yaw,
         name: member.name,
         outfit: member.outfit,
-        items,
+        items: { ...action.items },
         account: member.account,
       },
     ],

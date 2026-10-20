@@ -1427,7 +1427,7 @@ describe('rule 18: corpse runs', () => {
     ])
     expect(corpsesOf(v.valley, 'acct-a')).toEqual([0])
     expect(corpsesOf(v.valley, 'acct-b')).toEqual([])
-    // A second fall lays one body, with what the first still held.
+    // A second fall lays one body, and what the first held is lost.
     const again = v.step({
       type: 'fall',
       id: 'a',
@@ -1436,14 +1436,31 @@ describe('rule 18: corpse runs', () => {
     })
     expect(again.corpse).toBe(1)
     expect(corpsesOf(v.valley, 'acct-a')).toEqual([1])
-    expect(v.valley.corpses[0].items).toEqual({
-      marlboro: 14,
-      'gold-bullion': 1,
-      cabbage: 1,
-    })
+    expect(v.valley.corpses[0].items).toEqual({ marlboro: 2, cabbage: 1 })
     // Another account's body lies on.
     v.step(fell('b', { x: 1, z: 1, yaw: 0 }))
     expect(v.valley.corpses.map((c) => c.id)).toEqual([1, 2])
+  })
+
+  it('takes the first body away on a second fall that lays none', () => {
+    const v = valleyWith(join('a'), join('b'))
+    v.step(fell('a', { x: 40, z: -12, yaw: 1 }))
+    v.step(fell('b', { x: 1, z: 1, yaw: 0 }))
+    const empty = v.step({
+      type: 'fall',
+      id: 'a',
+      items: {},
+      at: { x: 0, z: 0, yaw: 0 },
+    })
+    expect(empty.corpse).toBeUndefined()
+    expect(empty.broadcast[0]).toMatchObject({ reason: 'fell', by: 'a' })
+    expect(empty.broadcast[0].world?.corpses.map((c) => c.id)).toEqual([1])
+    expect(corpsesOf(v.valley, 'acct-a')).toEqual([])
+    // Nowhere heard, the same.
+    v.step(fell('a', { x: 40, z: -12, yaw: 1 }))
+    expect(v.step(fell('a', null)).corpse).toBeUndefined()
+    expect(corpsesOf(v.valley, 'acct-a')).toEqual([])
+    expect(corpsesOf(v.valley, 'acct-b')).toEqual([1])
   })
 
   it('lays none with nothing on it, nowhere heard, or for a stranger', () => {

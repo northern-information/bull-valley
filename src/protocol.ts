@@ -763,7 +763,8 @@ export interface WorldMessage {
   // down or taken up.
   drop?: number
   count?: number
-  // For 'fell' and 'looted': the body's id.
+  // For 'fell' and 'looted': the body's id ('fell' has none when a
+  // second fall only took the first body away).
   corpse?: number
   // For 'portal-opened': the portal's id.
   portal?: number

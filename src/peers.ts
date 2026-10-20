@@ -49,15 +49,13 @@ interface Puppet {
   cycle: number
 }
 
-function buildLabel(
-  name: string,
-  level: number
-): {
+// A name tag as the peers wear it, its own material and texture to
+// dispose; corpsemeshes.ts floats one over each body too.
+export function nameLabel(tag: string): {
   sprite: THREE.Sprite
   texture: THREE.CanvasTexture
 } {
   const art = canvas([LABEL_W, LABEL_H])
-  const tag = copy('level.tag', { name, level })
   text(art.ctx, tag, LABEL_W / 2, LABEL_H / 2, LABEL_W - 8, 18, MONO, EGGSHELL)
   const texture = new THREE.CanvasTexture(art.c)
   texture.magFilter = THREE.NearestFilter
@@ -171,7 +169,9 @@ export class Peers {
     figure.group.visible = false
     const flashlight = attachFlashlight(figure)
     const worn = attachCosmetics(figure, peer.cosmetics)
-    const { sprite, texture } = buildLabel(peer.name, peer.level)
+    const { sprite, texture } = nameLabel(
+      copy('level.tag', { name: peer.name, level: peer.level })
+    )
     if (peer.cosmetics.includes('flaming-halo')) {
       sprite.position.y = LABEL_OVER_HALO
     }

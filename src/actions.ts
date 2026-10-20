@@ -608,10 +608,15 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     closeBook()
     player.keys.clear()
     const items = fallen(s.inventory)
+    // One body: a second fall takes the first away, and what it held is
+    // lost (sharedworld.ts rule 18).
+    if (!s.world && s.aloneCorpses.length > 0) {
+      s.aloneCorpses = []
+      showAloneCorpses()
+    }
     if (!isEmpty(items)) {
       if (!s.world) {
         s.aloneCorpses = [
-          ...s.aloneCorpses,
           {
             id: s.nextCorpse++,
             x: player.pos.x,
