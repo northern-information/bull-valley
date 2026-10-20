@@ -820,6 +820,40 @@ describe('ValleyDO', () => {
     expect(stored.world.taken).toContain(4)
   })
 
+  it('leaves a pickup in the valley when its pack write fails, and lets a retry take it', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    await v.webSocketMessage(ws(b), state(0, 0))
+    const store = v.packStore
+    let down = true
+    v.packStore = Object.assign(Object.create(store) as PackStore, {
+      change: (...args: Parameters<PackStore['change']>) =>
+        down ? Promise.reject(new Error('down')) : store.change(...args),
+    })
+    const before = (await store.get('acct-B')).pack
+    const heard = a.sent.length
+    await v.webSocketMessage(ws(b), '{"type":"take","index":4}')
+    expect(b.frames().findLast((m) => m.type === 'nack')).toEqual({
+      type: 'nack',
+      re: 'take',
+      reason: 'unwritten',
+      index: 4,
+    })
+    // No one heard it taken, the world kept it, and the pack is as it was.
+    expect(a.sent.length).toBe(heard)
+    const stored = s.storage.map.get('valley') as {
+      world: { taken: number[] }
+    }
+    expect(stored.world.taken).not.toContain(4)
+    expect((await store.get('acct-B')).pack).toEqual(before)
+    // D1 back, the same take lands.
+    down = false
+    await v.webSocketMessage(ws(b), '{"type":"take","index":4}')
+    expect(a.last<WorldMessage>()).toMatchObject({ reason: 'taken', index: 4 })
+    expect((await store.get('acct-B')).pack).not.toEqual(before)
+  })
+
   it('walks the rose quest: the rose from Erwin, laid at the heart, the key back', async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A')

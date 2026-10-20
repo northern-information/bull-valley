@@ -89,6 +89,7 @@ import type {
   ClientMessage,
   DialMessage,
   HelloMessage,
+  NackMessage,
   PackMessage,
   PeerStateWire,
   PeerWire,
@@ -1526,20 +1527,64 @@ export class ValleyDO extends DurableObject<Env> {
     this.broadcast({ type: 'peer-updated', peer: me }, null)
   }
 
-  // A world action from one player: run it, persist, answer, tell everyone.
-  // Whether the pack change the action asked for, if any, was made.
+  // A world action from one player: run it, write what it moves into or
+  // out of the pack or the wallet, and only then persist the world, answer
+  // and tell everyone. A write that fails leaves the valley as it was, so
+  // a pickup, a berry or a drop is never gone from it without reaching
+  // the pack. Whether the pack change the action asked for, if any, was
+  // made.
   private act(ws: WebSocket, action: ValleyAction): Promise<boolean> {
     return this.locked(async () => {
       const reduced = reduce(this.valley, action, this.context())
+      const account = reduced.pack?.account ?? reduced.earn?.account
+      const written = await this.write(reduced.pack, reduced.earn)
+      if (written !== 'done') {
+        if (written === 'none-left') {
+          send(ws, { type: 'nack', re: 'use', reason: 'none-left' })
+        } else {
+          const nack = unwrittenNack(action)
+          if (nack) send(ws, nack)
+        }
+        if (account) await this.repack(ws, null, account)
+        return false
+      }
       await this.apply(reduced)
       if (reduced.reply) send(ws, reduced.reply)
       if (reduced.daily) send(ws, reduced.daily)
       for (const msg of reduced.broadcast) this.broadcast(msg, null)
-      let changed = !reduced.reply
-      if (reduced.pack) changed = await this.repack(ws, reduced.pack)
-      if (reduced.earn) await this.pay(ws, reduced.earn)
-      return changed
+      if (account) await this.repack(ws, null, account)
+      return !reduced.reply
     })
+  }
+
+  // The pack change and the cash an action moves, written before the
+  // world that takes them is: 'none-left' when the pack had no unit to
+  // give up, 'failed' when D1 would not take the write.
+  private async write(
+    change: PackChange | undefined,
+    earn: { account: string; amount: number } | undefined
+  ): Promise<'done' | 'none-left' | 'failed'> {
+    try {
+      const packs = this.packs()
+      if (change) {
+        const done = await packs.change(
+          change.account,
+          change.kind,
+          change.delta
+        )
+        if (!done) return 'none-left'
+      }
+      if (earn) await packs.earn(earn.account, earn.amount)
+      return 'done'
+    } catch (err) {
+      console.error(
+        'The pack or wallet could not be written',
+        change,
+        earn,
+        err
+      )
+      return 'failed'
+    }
   }
 
   // Cash taken up (sharedworld.ts rule 11: dimes, a $20, the plaza's
@@ -2281,4 +2326,22 @@ function facing(me: PeerWire): { x: number; z: number; yaw: number } | null {
 
 function send(ws: WebSocket, msg: ServerMessage): void {
   ws.send(JSON.stringify(msg))
+}
+
+// The refusal for a take, a berry or a drop taken up whose pack or wallet
+// write failed, naming what was asked so the client lets go of it. A use
+// that failed is not answered: the pack frame after it puts the count
+// right.
+function unwrittenNack(action: ValleyAction): NackMessage | null {
+  const reason = 'unwritten'
+  switch (action.type) {
+    case 'take':
+      return { type: 'nack', re: 'take', reason, index: action.index }
+    case 'take-drop':
+      return { type: 'nack', re: 'take-drop', reason, drop: action.drop }
+    case 'collect':
+      return { type: 'nack', re: 'collect', reason }
+    default:
+      return null
+  }
 }
