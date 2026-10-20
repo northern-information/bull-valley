@@ -6,7 +6,7 @@
 // pure modules'; this is the glue that applies them and says so.
 
 import { saveHotbar, saveLook } from './auth.ts'
-import { bountyOf, CHAPTERS, entryOf, knownOf, newlyFound } from './book.ts'
+import { bountyLine, CHAPTERS, entryOf, knownOf, newlyFound } from './book.ts'
 import { portraitOf } from './bookportraits.ts'
 import { passTarget } from './buffs.ts'
 import {
@@ -16,7 +16,12 @@ import {
   emotesLine,
   onlineLine,
 } from './chat.ts'
-import { arrivalAt, citgoAt, fastTravel as fastTravelTo } from './citgos.ts'
+import {
+  arrivalAt,
+  citgoAt,
+  citgoLines,
+  fastTravel as fastTravelTo,
+} from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { emptied, fallen, isEmpty } from './corpses.ts'
@@ -334,10 +339,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     bookHud.setFound(s.book)
     bookHud.announce(names)
     // In the valley a landmark found pays its bounty (book.ts bountyOf).
-    const bounty = s.world ? bountyOf(found) : 0
-    if (bounty > 0) {
-      hud.tell(copy('log.landmark_bounty', { cash: formatCash(bounty) }))
-    }
+    const bounty = s.world ? bountyLine(found) : null
+    if (bounty) hud.tell(bounty)
   }
 
   // A refused ask waits this long before the next (local ms), so the loop
@@ -1186,22 +1189,12 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     station === null ? '' : (hud.map?.label(station) ?? '')
 
   const applyCitgos = (log: CitgoLog, quiet = false) => {
-    const found = log.visited.filter((i) => !s.citgos.visited.includes(i))
+    const before = s.citgos
     s.citgos = log
     // Before Begin there is no one to tell: the spawn Citgo is found then.
     if (quiet || !s.started) return
-    // In the valley the first time at each pays its bounty (rule 28), but
-    // the first ever.
-    const paid = s.world !== null && s.citgos.visited.length > found.length
-    for (const station of found) {
-      hud.tell(
-        paid
-          ? copy('log.citgo_bounty', {
-              citgo: citgoLabel(station),
-              cash: formatCash(CONFIG.bounties.citgo),
-            })
-          : copy('log.citgo_visited', { citgo: citgoLabel(station) })
-      )
+    for (const line of citgoLines(before, log, citgoLabel, s.world !== null)) {
+      hud.tell(line)
     }
   }
 

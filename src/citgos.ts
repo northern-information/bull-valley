@@ -6,6 +6,8 @@
 
 import { CONFIG } from './config.ts'
 import { projectOnSegment } from './coords.ts'
+import { copy } from './copy.ts'
+import { formatCash } from './store.ts'
 import type { Facing } from './drops.ts'
 import type { FuelStation, XZ } from './interfaces.ts'
 
@@ -112,4 +114,25 @@ export function roadNameNear(
     }
   }
   return best
+}
+
+// What a new log says in the log: each Citgo found since `before`, named
+// by `label`, with its bounty when the valley paid one (in a world, for
+// any but the first ever; sharedworld.ts rule 28).
+export function citgoLines(
+  before: CitgoLog,
+  after: CitgoLog,
+  label: (station: number) => string,
+  inWorld: boolean
+): string[] {
+  const found = after.visited.filter((i) => !before.visited.includes(i))
+  const paid = inWorld && after.visited.length > found.length
+  return found.map((station) =>
+    paid
+      ? copy('log.citgo_bounty', {
+          citgo: label(station),
+          cash: formatCash(CONFIG.bounties.citgo),
+        })
+      : copy('log.citgo_visited', { citgo: label(station) })
+  )
 }

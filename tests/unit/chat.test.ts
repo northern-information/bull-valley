@@ -10,6 +10,7 @@ import {
   joinedLine,
   onlineLine,
   othersLine,
+  peerNews,
   pushLine,
   whisperLine,
 } from '../../src/chat.ts'
@@ -243,5 +244,20 @@ describe('joinedLine and whisperLine', () => {
     expect(whisperLine({ ...msg, outgoing: false }).name).toBe(
       copy('chat.whisper_from', { name: 'Me' })
     )
+  })
+})
+
+describe('peerNews', () => {
+  it('says a new name and a new level, and nothing of a stranger', () => {
+    expect(
+      peerNews({ name: 'Kid', level: 2 }, { name: 'Kid', level: 2 })
+    ).toEqual([])
+    expect(
+      peerNews({ name: 'Kid', level: 2 }, { name: 'Ace', level: 3 })
+    ).toEqual([
+      copy('log.peer_renamed', { was: 'Kid', name: 'Ace' }),
+      copy('log.peer_level', { name: 'Ace', level: 3 }),
+    ])
+    expect(peerNews(undefined, { name: 'Ace', level: 3 })).toEqual([])
   })
 })

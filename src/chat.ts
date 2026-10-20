@@ -218,3 +218,21 @@ export function whisperLine(msg: WhisperedMessage): ChatLine {
     at: msg.at,
   }
 }
+
+// A raider's new word from the valley, as the log says it: a new name,
+// and a new level (sharedworld.ts rule 22). Nothing for a raider not seen
+// before.
+export function peerNews(
+  was: { name: string; level: number } | undefined,
+  peer: { name: string; level: number }
+): string[] {
+  if (!was) return []
+  const lines: string[] = []
+  if (was.name !== peer.name) {
+    lines.push(copy('log.peer_renamed', { was: was.name, name: peer.name }))
+  }
+  if (peer.level > was.level) {
+    lines.push(copy('log.peer_level', { name: peer.name, level: peer.level }))
+  }
+  return lines
+}

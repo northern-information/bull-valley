@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { BOOK } from '../../src/book.ts'
+import { BOOK, foundLines } from '../../src/book.ts'
 import { copy } from '../../src/copy.ts'
-import { DAILY_TASK } from '../../src/dailytask.ts'
+import { DAILY_TASK, taskLine } from '../../src/dailytask.ts'
 import { dealRefusal } from '../../src/dealer.ts'
 import {
   applyFrame,
@@ -15,11 +15,13 @@ import {
   raiderStats,
   sayLine,
   shelfOf,
+  withCitgoNames,
 } from '../../src/dialstate.ts'
 import { itemLabel, itemLine } from '../../src/itemcopy.ts'
 import { itemById } from '../../src/items.ts'
+import { xpToReach } from '../../src/progression.ts'
 import { stepNews, stepRefusal } from '../../src/quests.ts'
-import { SEASON } from '../../src/season.ts'
+import { SEASON, seasonLine } from '../../src/season.ts'
 import { FRESH_STAND, refusalLine } from '../../src/stand.ts'
 import { formatCash } from '../../src/store.ts'
 import type { DialState } from '../../src/dialstate.ts'
@@ -652,5 +654,105 @@ describe('a dropped line on the phone', () => {
     const down = asking(s, { trade: true }, false, 10)
     expect(down.pending.trade).toBe(false)
     expect(down.said).toEqual({ text: copy('dialup.no_signal'), at: 10 })
+  })
+})
+
+describe("the account's news on the phone", () => {
+  const start = (over: Partial<WelcomeMessage> = {}) =>
+    applyFrame(DIALED, welcome(over), 0, 0)
+  const lastLog = (s: DialState) => s.chat.at(-1)?.text
+
+  it('says a new level, once', () => {
+    let s = start({ xp: xpToReach(2) - 1 })
+    s = applyFrame(s, { type: 'xp', xp: xpToReach(2), gained: 1 }, 5, 50)
+    expect(s.said).toEqual({
+      text: copy('log.level_up', { level: 2 }),
+      at: 5,
+    })
+    expect(s.chat.at(-1)).toMatchObject({ at: 50 })
+    const lines = s.chat.length
+    s = applyFrame(s, { type: 'xp', xp: xpToReach(2) + 1, gained: 1 }, 6, 60)
+    expect(s.chat).toHaveLength(lines)
+  })
+
+  it("says the season's and the task's news", () => {
+    let s = start()
+    const season = { season: SEASON.id, kills: 1, claimed: false }
+    s = applyFrame(s, { type: 'season', season, rewarded: false }, 0, 0)
+    expect(lastLog(s)).toBe(seasonLine({ kills: 1, claimed: false }, false))
+    const task = { task: DAILY_TASK.id, day: 'd', count: 2, claimed: false }
+    s = applyFrame(s, { type: 'task', task, rewarded: false }, 0, 0)
+    expect(lastLog(s)).toBe(
+      taskLine({ day: 'd', count: 2, claimed: false }, false)
+    )
+  })
+
+  it('says a page written, never twice', () => {
+    let s = start()
+    s = applyFrame(s, { type: 'book', found: ['keep'] }, 0, 0)
+    expect(s.chat.slice(-2).map((l) => l.text)).toEqual(foundLines(['keep']))
+    const lines = s.chat.length
+    s = applyFrame(s, { type: 'book', found: ['keep'] }, 0, 0)
+    expect(s.chat).toHaveLength(lines)
+  })
+
+  it('says a Citgo found by its name', () => {
+    let s = withCitgoNames(start({ citgos: { last: 0, visited: [0] } }), [
+      'Lake Avenue',
+      'Route 47',
+    ])
+    s = applyFrame(
+      s,
+      { type: 'citgos', citgos: { last: 1, visited: [0, 1] } },
+      0,
+      0
+    )
+    expect(lastLog(s)).toBe(copy('log.citgo_visited', { citgo: 'Route 47' }))
+  })
+
+  it("says a raider's new name and level, but not our own", () => {
+    const peer = {
+      id: 'p2',
+      name: 'Kid',
+      outfit: 'player',
+      cosmetics: [],
+      level: 3,
+      at: null,
+    } as const
+    let s = start({ peers: [{ ...peer, cosmetics: [] }] })
+    s = applyFrame(
+      s,
+      {
+        type: 'peer-updated',
+        peer: { ...peer, cosmetics: [], name: 'Ace', level: 4 },
+      },
+      0,
+      0
+    )
+    expect(s.chat.slice(-2).map((l) => l.text)).toEqual([
+      copy('log.peer_renamed', { was: 'Kid', name: 'Ace' }),
+      copy('log.peer_level', { name: 'Ace', level: 4 }),
+    ])
+    const lines = s.chat.length
+    s = applyFrame(
+      s,
+      {
+        type: 'peer-updated',
+        peer: { ...peer, cosmetics: [], id: 'p1', level: 9 },
+      },
+      0,
+      0
+    )
+    expect(s.chat).toHaveLength(lines)
+  })
+
+  it('says the valley missed a new name or look', () => {
+    const s = applyFrame(
+      start(),
+      { type: 'nack', re: 'rename', reason: 'gone' },
+      0,
+      0
+    )
+    expect(lastLog(s)).toBe(copy('log.change_unheard'))
   })
 })
