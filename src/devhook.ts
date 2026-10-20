@@ -33,7 +33,7 @@ import type {
 } from './protocol.ts'
 import type { RoadGraph } from './roadgraph.ts'
 import type { SeasonProgress } from './season.ts'
-import type { ShadowCards } from './shadowcards.ts'
+import type { ShadowCards } from './shadowbodies.ts'
 import type { ShadeKind } from './shadowmen.ts'
 import type { StandLedger } from './stand.ts'
 import type { Truck } from './truck.ts'
