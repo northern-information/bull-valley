@@ -161,9 +161,6 @@ export function wireValley(game: Game, actions: Actions): void {
       case 'friend-news':
         hud.tell(friendNews(msg.news, msg.name))
         return
-      case 'error':
-        console.warn('Valley:', msg.code, msg.message)
-        return
       case 'pong':
         return
       // Rule 11: the valley's shadowmen, every step, and a touch.

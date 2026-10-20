@@ -635,10 +635,6 @@ export interface WardLevels {
   tripping: number
 }
 
-// The account's Cabbage Stand after it was tended (rule 23), to every
-// socket signed in to it: what was done, the ledger as the valley wrote
-// it, and for a collect the cents paid into the wallet. A pack frame
-// follows with the pack and the wallet.
 // A quest's step went through (sharedworld.ts rule 26): where the
 // account stands on it now. To every socket on the account, with a
 // PackMessage after it.
@@ -658,6 +654,10 @@ export interface ExpeditionMessage {
   outcome?: ExpeditionOutcome
 }
 
+// The account's Cabbage Stand after it was tended (rule 23), to every
+// socket signed in to it: what was done, the ledger as the valley wrote
+// it, and for a collect the cents paid into the wallet. A pack frame
+// follows with the pack and the wallet.
 export interface StandMessage {
   type: 'stand'
   re: 'stock' | 'collect' | 'upgrade'
@@ -930,12 +930,6 @@ interface PongMessage {
   serverNow: number
 }
 
-interface ErrorMessage {
-  type: 'error'
-  code: string
-  message: string
-}
-
 export type ServerMessage =
   | WelcomeMessage
   | PeerJoinedMessage
@@ -948,7 +942,6 @@ export type ServerMessage =
   | PackMessage
   | PeerChatMessage
   | PongMessage
-  | ErrorMessage
   | ShadowmenMessage
   | StruckMessage
   | HealthMessage

@@ -280,6 +280,7 @@ export interface LookoutRig {
   on(x: number, z: number): boolean
 }
 
+// Beacon markers for the hand-placed landmarks, color-coded so they read
 // across the fog — magenta for the Keep.
 function buildLandmarks(
   geo: Pick<Geo, 'bbox'>,

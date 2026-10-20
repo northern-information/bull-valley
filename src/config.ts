@@ -349,7 +349,7 @@ export const CONFIG = {
     revealFadeMs: 400,
     imageSrc:
       '/applied-sciences-and-phantasms-working-division-flourescent.png',
-    audioSrc: '/sfx/northern-information.mp3',
+    audioSrc: '/audio/northern-information.mp3',
   },
   epigraph: {
     // "Based on true events." between the colophon and the main menu: the

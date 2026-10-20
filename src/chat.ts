@@ -1,6 +1,5 @@
 // The chat log in the lower left: what it holds and when it fades. Pure:
-// the lines come from the valley's chat frames (or the player's own, when
-// offline) and hud.ts draws them. Nothing is kept past the page.
+// the lines come from the valley's chat frames and hud.ts draws them. Nothing is kept past the page.
 
 import { copy } from './copy.ts'
 import { EMOTE_IDS, emoteOf } from './emotes.ts'

@@ -66,8 +66,8 @@ function buildSpinner(
 }
 
 // Whether a mesh is light rather than matter: fire, a glow, rain, a beam,
-// all drawn additive. A card cut out by its texture (a shadowman) is
-// matter, and keeps its outline in the dark.
+// all drawn additive. Anything else is matter, and keeps its outline in
+// the dark.
 function isLight(mesh: THREE.Mesh): boolean {
   const all = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
   return all.some((m) => m.blending === THREE.AdditiveBlending)

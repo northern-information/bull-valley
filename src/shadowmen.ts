@@ -23,7 +23,7 @@
 //
 // Pure, no three.js. In the shared valley the server steps the one field
 // everyone sees (worker/ValleyDO.ts, sharedworld.ts rule 11) and clients
-// draw it (shadowsync.ts). The silhouette cards that show them are in
+// draw it (shadowsync.ts). The bodies that show them are in
 // src/shadowcards.ts.
 
 import { CONFIG } from './config.ts'
@@ -89,7 +89,7 @@ export function aimHeightOf(kind: ShadeKind, cfg: ShadowmenConfig): number {
 
 // One shadowman mid-crossing, or rushing a raider.
 export interface Shadowman {
-  // Unique in its field, never reused: cards and bursts follow it.
+  // Unique in its field, never reused: bodies and bursts follow it.
   id: number
   kind: ShadeKind
   x: number

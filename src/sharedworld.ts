@@ -535,11 +535,12 @@ export type ValleyAction =
   // it comes into the valley (a body laid before strikes kept them).
   | { type: 'keys-back'; account: string }
   // Rule 24: a shadow's touch, `by` what (wards.ts), roll drawn from 0 to
-  // 1 by the valley for its spread; a use of `kind` giving its share
-  // back, or made whole (no kind: a forecourt).
+  // 1 by the valley for its spread.
   | { type: 'hit'; id: string; by: ShadowHit; roll?: number }
   // Rule 24: a fall landed from `height` metres, by the client's word.
   | { type: 'plunge'; id: string; height: number }
+  // Rule 24: a use of `kind` giving its share back, or made whole (no
+  // kind: a forecourt).
   | { type: 'mend'; id: string; kind?: string }
   // Rule 24: the account reached `level` (rule 22).
   | { type: 'level'; account: string; level: number }
@@ -759,7 +760,7 @@ export function createValley(): Valley {
 
 // The valley as an older build stored it, made current: the fresh one
 // fills in newer fields, and a world opened on another protocol (an older
-// build's raid included) is dropped, so the next arrival opens it afresh.
+// build's included) is dropped, so the next arrival opens it afresh.
 // The berries, the places, the bodies, the wounds and the wards carry
 // over; a valley stored as hit points left (an older build's `health`,
 // kept against `healthMax`, three once) is read as wounds at the same

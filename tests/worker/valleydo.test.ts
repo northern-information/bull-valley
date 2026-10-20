@@ -2673,7 +2673,8 @@ describe('ValleyDO: the shadowmen', () => {
       )
     })
     await settledWhen(() => tasks(a).some((t) => t.rewarded))
-    expect(tasks(a).at(-1)).toMatchObject({
+    // A crossing shadowman may burn after it, so read the frame that paid.
+    expect(tasks(a).find((t) => t.rewarded)).toMatchObject({
       task: { count: DAILY_TASK.goal, claimed: true },
       rewarded: true,
     })
