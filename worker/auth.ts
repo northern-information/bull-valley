@@ -31,7 +31,7 @@ import {
   PROVIDER_LABELS,
   validateRedirect,
 } from '../src/account.ts'
-import { isSelectable } from '../src/characters.ts'
+import { isSelectable, mayRaidAs } from '../src/characters.ts'
 import {
   clearCookie,
   COOKIE,
@@ -790,6 +790,11 @@ class AuthHandler {
     const finish = body?.finish
     if (!isSelectable(outfit) || !isFinish(finish)) {
       return json({ error: copy('auth.look_rule') }, 400)
+    }
+    // A character Moab trades for, only once the account has traded for it.
+    const cosmetics = await this.store.cosmeticsOf(claims.accountId)
+    if (!mayRaidAs(outfit, cosmetics)) {
+      return json({ error: copy('auth.look_locked') }, 403)
     }
     if (!(await this.store.setLook(claims.accountId, { outfit, finish }))) {
       return json(

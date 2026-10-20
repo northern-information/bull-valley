@@ -12,7 +12,7 @@
 // step (signin.ts) before this runs.
 
 import * as THREE from 'three'
-import { SELECTABLE } from './characters.ts'
+import { rosterFor } from './characters.ts'
 import { copy } from './copy.ts'
 import { stepIndex } from './cycle.ts'
 import { finder } from './dom.ts'
@@ -133,7 +133,7 @@ export function mountCharacterSelect({
       // A cosmetic over the head (the Flaming Halo's flames) wants a little
       // more room up top, so the camera stands back for it.
       const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 50)
-      if (cosmetics.length > 0) {
+      if (cosmetics.includes('flaming-halo')) {
         camera.position.set(0, 1.2, 7.6)
         camera.lookAt(0, 0.55, 0)
       } else {
@@ -141,7 +141,9 @@ export function mountCharacterSelect({
         camera.lookAt(0, 0.4, 0)
       }
 
-      let index = Math.max(0, SELECTABLE.indexOf(pick.outfit))
+      // The free roster and every character the account has traded for.
+      const roster = rosterFor(cosmetics)
+      let index = Math.max(0, roster.indexOf(pick.outfit))
       let finishIndex = Math.max(
         0,
         FINISHES.findIndex((finish) => finish.id === pick.finish)
@@ -155,7 +157,7 @@ export function mountCharacterSelect({
       // what they wear is disposed here.
       const turntable = new THREE.Group()
       scene.add(turntable)
-      const figures = SELECTABLE.map((id) => {
+      const figures = roster.map((id) => {
         const figure = buildFigure(id, {
           guitarFinish: FINISHES[finishIndex].color,
         })
@@ -184,7 +186,7 @@ export function mountCharacterSelect({
         })
         // Each new character turns to face you first.
         turntable.rotation.y = 0
-        const outfit = outfitById(SELECTABLE[index])
+        const outfit = outfitById(roster[index])
         nameEl.textContent = outfit.label
         // The finish row and its keys belong to a character with a guitar.
         finishRow.hidden = outfit.onBack !== 'guitar'
@@ -195,7 +197,7 @@ export function mountCharacterSelect({
 
       const step = (dir: number) => {
         if (chosen) return
-        index = stepIndex(index, SELECTABLE.length, dir)
+        index = stepIndex(index, roster.length, dir)
         show()
       }
 
@@ -292,7 +294,7 @@ export function mountCharacterSelect({
         renderer.forceContextLoss()
         root.remove()
         resolve({
-          outfit: SELECTABLE[index],
+          outfit: roster[index],
           finish: FINISHES[finishIndex].id,
         })
       }

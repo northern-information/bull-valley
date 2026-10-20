@@ -33,7 +33,7 @@
 
 import { DurableObject } from 'cloudflare:workers'
 import { bountyOf } from '../src/book.ts'
-import { isSelectable } from '../src/characters.ts'
+import { isSelectable, mayRaidAs } from '../src/characters.ts'
 import { CONFIG } from '../src/config.ts'
 import { toCosmetics } from '../src/cosmetics.ts'
 import { dayKey } from '../src/daily.ts'
@@ -1159,6 +1159,11 @@ export class ValleyDO extends DurableObject<Env> {
       ws.close(CLOSE.serverError, 'The valley lost the pack')
       return
     }
+    // A character Moab trades for, only once the account has traded for it.
+    if (!mayRaidAs(hello.outfit, holdings.cosmetics)) {
+      ws.close(CLOSE.badOutfit, 'Outfit not unlocked')
+      return
+    }
     let id: string = crypto.randomUUID()
     // A reconnect inside CONFIG.net.lingerMs takes its place back: the same
     // id, standing where it stood, so no one sees it leave or come.
@@ -1468,6 +1473,11 @@ export class ValleyDO extends DurableObject<Env> {
     }
     if (!isSelectable(outfit)) {
       send(ws, { type: 'nack', re: 'appearance', reason: 'unknown-outfit' })
+      return
+    }
+    // The cosmetics the valley holds for the raider, never the client's word.
+    if (!mayRaidAs(outfit, me.cosmetics)) {
+      send(ws, { type: 'nack', re: 'appearance', reason: 'locked-outfit' })
       return
     }
     await this.reshow(ws, attachment, { ...me, outfit })

@@ -13,7 +13,7 @@
 import * as THREE from 'three'
 import { isValidUsername, USERNAME_MAX } from './account.ts'
 import { availabilityOf, renameUsername, usernameAvailable } from './auth.ts'
-import { SELECTABLE } from './characters.ts'
+import { rosterFor } from './characters.ts'
 import { copy } from './copy.ts'
 import { stepIndex } from './cycle.ts'
 import { finder, setStatus } from './dom.ts'
@@ -203,7 +203,9 @@ export function openGronDialog({
 
     let worn = outfit
     let wornFinish = finish
-    let index = Math.max(0, SELECTABLE.indexOf(outfit))
+    // The free roster and every character the account has traded for.
+    const roster = rosterFor(cosmetics)
+    let index = Math.max(0, roster.indexOf(outfit))
     let finishIndex = Math.max(
       0,
       FINISHES.findIndex((one) => one.id === finish)
@@ -227,7 +229,7 @@ export function openGronDialog({
     let wearing: Worn | null = null
 
     const showCharacter = () => {
-      const id = SELECTABLE[index]
+      const id = roster[index]
       const look = outfitById(id)
       characterName.textContent = look.label
       finishRow.hidden = look.onBack !== 'guitar'
@@ -253,7 +255,7 @@ export function openGronDialog({
     }
 
     const step = (dir: number) => {
-      index = stepIndex(index, SELECTABLE.length, dir)
+      index = stepIndex(index, roster.length, dir)
       turntable.rotation.y = 0
       showCharacter()
     }
@@ -270,7 +272,7 @@ export function openGronDialog({
     }
 
     const become = () => {
-      worn = SELECTABLE[index]
+      worn = roster[index]
       wornFinish = FINISHES[finishIndex].id
       onBecome(worn, wornFinish)
       showCharacter()

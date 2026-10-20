@@ -34,6 +34,7 @@ import {
   setMotion,
 } from './assets.ts'
 import { paintPrints } from './decalart.ts'
+import { maskTexture } from './maskart.ts'
 import { ADDONS, outfitById } from './outfits.ts'
 import { heldPitch, JOINTS, samplePose } from './poses.ts'
 import type {
@@ -49,6 +50,7 @@ import type {
   Crescent,
   DecalId,
   LoftRing,
+  MaskId,
   OutfitId,
   PatternPart,
   PrintPart,
@@ -130,6 +132,23 @@ function decalMaterial(
       }),
     })
     decals.set(key, found)
+  }
+  return found
+}
+
+// One material per mask, laid over the front of the head like a print,
+// vertex for vertex, and pulled in front of it.
+const masks = new Map<MaskId, THREE.MeshLambertMaterial>()
+function maskMaterial(id: MaskId): THREE.MeshLambertMaterial {
+  let found = masks.get(id)
+  if (!found) {
+    found = lambert({
+      map: maskTexture(id),
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -4,
+    })
+    masks.set(id, found)
   }
   return found
 }
@@ -575,9 +594,16 @@ export function buildFigure(
   // The hair cap has the head's 8 sides: with 6, the middle of each facet
   // dipped inside the head and the skin showed through.
   part(neck, loft(HAIR, 8), outfit.shaved ? c.skin : c.hair)
-  // A nose and a brow line: enough for a face to read at PS1 resolution.
-  part(neck, box(0.026, 0.045, 0.03), c.skin, 0, 0.17, 0.1)
-  part(neck, box(0.13, 0.014, 0.02), c.hair, 0, 0.215, 0.098)
+  if (outfit.mask) {
+    // A mask over the face, in place of the nose and the brow.
+    neck.add(
+      new THREE.Mesh(printLoft(HEAD, 8, false), maskMaterial(outfit.mask))
+    )
+  } else {
+    // A nose and a brow line: enough for a face to read at PS1 resolution.
+    part(neck, box(0.026, 0.045, 0.03), c.skin, 0, 0.17, 0.1)
+    part(neck, box(0.13, 0.014, 0.02), c.hair, 0, 0.215, 0.098)
+  }
   neck.visible = head
 
   const sides: ['L' | 'R', number][] = [

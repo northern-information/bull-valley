@@ -2,9 +2,14 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_CHARACTER,
   isSelectable,
+  mayRaidAs,
   pickOf,
+  ROSTER,
+  rosterFor,
   SELECTABLE,
+  UNLOCKED_BY,
 } from '../../src/characters.ts'
+import { cosmeticById } from '../../src/cosmetics.ts'
 import { DEFAULT_FINISH } from '../../src/finishes.ts'
 import { OUTFITS } from '../../src/outfits.ts'
 
@@ -38,6 +43,24 @@ describe('characters', () => {
     // Gron changes who you are; nobody raids as Gron.
     expect(isSelectable('gron')).toBe(false)
     expect(isSelectable(null)).toBe(false)
+  })
+
+  it('keeps David Coleman: #1 behind his trade with Moab', () => {
+    expect(UNLOCKED_BY).toEqual({ coleman1: 'coleman-1' })
+    for (const [id, opens] of Object.entries(UNLOCKED_BY)) {
+      expect(OUTFITS[id as keyof typeof OUTFITS]).toBeDefined()
+      expect(cosmeticById(opens)).not.toBeNull()
+      expect(SELECTABLE).not.toContain(id)
+    }
+    expect(ROSTER).toEqual([...SELECTABLE, 'coleman1'])
+    expect(isSelectable('coleman1')).toBe(true)
+    expect(mayRaidAs('coleman1', [])).toBe(false)
+    expect(mayRaidAs('coleman1', ['flaming-halo'])).toBe(false)
+    expect(mayRaidAs('coleman1', ['coleman-1'])).toBe(true)
+    expect(mayRaidAs('church', [])).toBe(true)
+    expect(mayRaidAs('marx', ['coleman-1'])).toBe(false)
+    expect(rosterFor([])).toEqual(SELECTABLE)
+    expect(rosterFor(['coleman-1'])).toEqual([...SELECTABLE, 'coleman1'])
   })
 
   it("reads the account's pick, with defaults for what it lacks", () => {

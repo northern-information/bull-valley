@@ -2,11 +2,12 @@
 // portrait turning (bookportraits.ts, drawn by dialshell.ts through
 // dial3d.ts), his one line, and his trade, from wherever the raider is: a
 // cosmetic for what the pack holds when he has an offer (cosmetics.ts
-// moabOffer), else what he wants, or that the raider wears it already.
+// moabOffer), else what he wants next (moabWants), or that the raider has
+// every one already.
 // The valley takes the price and writes the cosmetic.
 
 import { copy } from './copy.ts'
-import { cosmeticById, MOAB_OFFERS, moabOffer } from './cosmetics.ts'
+import { cosmeticById, MOAB_OFFERS, moabOffer, moabWants } from './cosmetics.ts'
 import { el, text } from './dom.ts'
 import { itemLabel } from './itemcopy.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -33,7 +34,10 @@ export class DialMoab {
 
   update(s: DialState): void {
     const offer = moabOffer(s.pack, s.cosmetics)
-    const cosmetic = cosmeticById(offer ?? MOAB_OFFERS[0])
+    // With no offer: what he wants next, or the last of his trades, had.
+    const cosmetic = cosmeticById(
+      offer ?? moabWants(s.cosmetics) ?? MOAB_OFFERS[MOAB_OFFERS.length - 1]
+    )
     if (!cosmetic) return
     const price = {
       count: cosmetic.price.count,
@@ -49,7 +53,7 @@ export class DialMoab {
       button.disabled = s.pending.trade
       button.addEventListener('click', () => this.trade(offer))
       this.status.replaceChildren(
-        text('p', copy('moab.offer'), 'bv-dial-folk-says'),
+        text('p', cosmetic.offer, 'bv-dial-folk-says'),
         button
       )
       return

@@ -723,7 +723,13 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     const interaction = s.interaction
     // Rule 14: Moab makes his offer as you come into his reach.
     const offering = interaction?.kind === 'trade' ? interaction.station : null
-    if (offering !== null && offering !== s.offeredBy) actions.offerTrade()
+    if (
+      interaction?.kind === 'trade' &&
+      offering !== null &&
+      offering !== s.offeredBy
+    ) {
+      actions.offerTrade(interaction.offer)
+    }
     s.offeredBy = offering
     const key = interaction ? interactionKey(interaction) : null
     if (key !== promptKey) {
