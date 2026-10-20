@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { getItem } from '../../src/items.ts'
+import { copy } from '../../src/copy.ts'
+import { getItem, ITEMS } from '../../src/items.ts'
 import { doseText, itemStats, spanOf } from '../../src/itemstats.ts'
+import { wardWords } from '../../src/itemstatsview.ts'
 
 describe('an item’s stats', () => {
   it('reads a cigarette off the table', () => {
@@ -29,6 +31,19 @@ describe('an item’s stats', () => {
     expect(itemStats('eye-drops')).toContainEqual(
       expect.objectContaining({ stat: 'ward', axis: 'tripping' })
     )
+  })
+
+  // A line handed a value it has no place for throws, and the pack card
+  // and Dial-Up's locker list with it.
+  it('words every ward of every item', () => {
+    const wards = ITEMS.flatMap(({ id }) =>
+      itemStats(id).flatMap((stat) => (stat.stat === 'ward' ? [stat] : []))
+    )
+    expect(wards.some((stat) => stat.dose < 0)).toBe(true)
+    for (const stat of wards) expect(wardWords(stat)).toBeTruthy()
+    expect(
+      wardWords({ stat: 'ward', axis: 'tripping', dose: -1 })
+    ).not.toContain(copy('wards.tripping_against'))
   })
 
   it('gives a key item its kind alone, and an unknown kind nothing', () => {
