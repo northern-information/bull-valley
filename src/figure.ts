@@ -1114,10 +1114,12 @@ export interface TylerRig {
 }
 
 // Where he sits, in from the open back, and where the laptop and the can
-// stand on the cargo floor, in his own space.
-export const TYLER_IN = 0.85
-const TYLER_LAPTOP: Vec3 = [0, 0.02, 0.5]
-const TYLER_CAN: Vec3 = [0.42, 0.02, 0.12]
+// stand on the cargo floor, in his own space: the laptop flat on the
+// carpet past his knees, its keys under his hands, the can out by his
+// right knee.
+export const TYLER_IN = 1.0
+const TYLER_LAPTOP: Vec3 = [0, 0.02, 0.68]
+const TYLER_CAN: Vec3 = [0.56, 0.02, 0.05]
 
 export function buildTyler(): TylerRig {
   const group = new THREE.Group()

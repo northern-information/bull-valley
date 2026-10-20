@@ -14,18 +14,21 @@ import { castShadows, lambert, mergeStatic } from './assetkit.ts'
 // side) is +X.
 export const JEEP = {
   // Bumper to bumper, and across the body under the flares.
-  length: 4.0,
+  length: 4.3,
   width: 1.6,
   wheel: 0.4,
-  // The rear opening: where the body ends, and the cargo floor's height.
-  rear: -1.95,
+  // The rear opening: where the body ends, the cargo floor's height, and
+  // how deep the cargo runs in to the front seats' backs, room enough for
+  // him to sit cross-legged with the laptop on the floor past his knees.
+  rear: -2.1,
   floor: 0.78,
+  cargo: 1.2,
   // The hardtop's roof, over the cargo floor.
   roof: 1.86,
 }
 
 export function buildJeep(): THREE.Group {
-  const { width, wheel, rear, floor, roof } = JEEP
+  const { width, wheel, rear, floor, cargo, roof } = JEEP
   const front = rear + JEEP.length
   const group = new THREE.Group()
   group.name = 'jeep'
@@ -78,34 +81,42 @@ export function buildJeep(): THREE.Group {
   // belt line, the cargo floor inside, open at the back.
   add(
     group,
-    [width, belt - sill, cab - rear - 0.9],
+    [width, belt - sill, cab - rear - cargo],
     red,
     0,
     (belt + sill) / 2,
-    (cab + rear + 0.9) / 2
+    (cab + rear + cargo) / 2
   )
   for (const side of [1, -1]) {
     add(
       group,
-      [0.06, belt - sill, 0.9],
+      [0.06, belt - sill, cargo],
       red,
       side * (half - 0.03),
       (belt + sill) / 2,
-      rear + 0.45
+      rear + cargo / 2
     )
   }
   add(
     group,
-    [width - 0.12, floor - sill, 0.9],
+    [width - 0.12, floor - sill, cargo],
     red,
     0,
     (floor + sill) / 2,
-    rear + 0.45
+    rear + cargo / 2
   )
-  add(group, [width - 0.12, 0.02, 0.9], carpet, 0, floor + 0.01, rear + 0.45)
+  add(
+    group,
+    [width - 0.12, 0.02, cargo],
+    carpet,
+    0,
+    floor + 0.01,
+    rear + cargo / 2
+  )
   // The front seats' backs, seen through the open back.
   for (const side of [1, -1]) {
-    add(group, [0.5, 0.66, 0.14], black, side * 0.38, floor + 0.36, rear + 1.05)
+    const back = rear + cargo + 0.15
+    add(group, [0.5, 0.66, 0.14], black, side * 0.38, floor + 0.36, back)
   }
 
   // The front end: the engine under a flat hood, the flat fenders out
