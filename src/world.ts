@@ -220,7 +220,8 @@ export interface World {
   // The places of the Book of Shadows, each found by walking within its
   // reach (book.ts sightsInReach).
   sights: Sight[]
-  // Castle Entropy and its moat, north past the donut field; null without
+  // Castle Entropy and its moat, out the spawn Citgo's door past the donut
+  // field; null without
   // a spawn station.
   castle: CastleSite | null
 }
@@ -346,7 +347,7 @@ export function buildWorld(
   const donutField = spawnStation ? donutFieldOf(spawnStation) : null
   // Castle Entropy's moat is cut into the terrain before anything else
   // stands, so all that does stands on the cut ground (moat.ts).
-  const castlePlaceAt = donutField ? castlePlace(donutField) : null
+  const castlePlaceAt = spawnStation ? castlePlace(spawnStation) : null
   const raw = terrain ? terrain.raw : heightAt
   const moatAt = castlePlaceAt
     ? { place: castlePlaceAt, floor: moatFloor(raw, castlePlaceAt) }

@@ -21,8 +21,10 @@ import { CONFIG } from './config.ts'
 import { pointInPolygon } from './coords.ts'
 import { mazeToWorld, worldToMaze } from './maze.ts'
 import { mulberry32 } from './rng.ts'
+import { toWorld } from './store.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
 import type { MazePlace } from './maze.ts'
+import type { StoreOrigin } from './store.ts'
 import type { Band } from './walls.ts'
 
 type MoatConfig = typeof CONFIG.castle.moat
@@ -91,10 +93,14 @@ const OUTER_RING = ring(MOAT.outer)
 // No point of the outer edge lies further than this from the middle.
 const OUTER_REACH = Math.max(...MOAT.outer.map((p) => Math.hypot(p.x, p.z)))
 
-// Where the moat lies: the island's middle, `north` metres north (world
-// -z) of the donut field.
-export function castlePlace(donutField: XZ, cfg = CONFIG.castle): MazePlace {
-  return { x: donutField.x, z: donutField.z - cfg.north, yaw: cfg.yaw }
+// Where the moat lies: the island's middle at CONFIG.castle.at in the
+// spawn station's frame, straight out its door past the donut field.
+export function castlePlace(
+  station: StoreOrigin,
+  cfg = CONFIG.castle
+): MazePlace {
+  const [x, , z] = toWorld(station, [cfg.at.x, 0, cfg.at.z])
+  return { x, z, yaw: cfg.yaw }
 }
 
 export function onIsland(place: MazePlace, x: number, z: number): boolean {

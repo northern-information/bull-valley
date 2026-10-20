@@ -22,7 +22,8 @@ import { Walls } from '../../src/walls.ts'
 
 // A gentle slope for the terrain round the moat.
 const raw = (x: number, z: number) => 200 + x * 0.02 - z * 0.01
-const place = castlePlace({ x: 1000, z: 500 })
+const station = { x: 1000, z: 500, yaw: 0.4, y: 0 }
+const place = castlePlace(station)
 const floor = moatFloor(raw, place)
 const ground = new Ground(carve(raw, place, floor))
 const stairs = fireEscapes(raw, place, floor)
@@ -40,9 +41,16 @@ const ring = (poly: readonly { x: number; z: number }[]) =>
   poly.map((p) => [p.x, p.z] as [number, number])
 
 describe('moat', () => {
-  it('lies north of the donut field', () => {
-    expect(place.x).toBe(1000)
-    expect(place.z).toBe(500 - CONFIG.castle.north)
+  it('lies straight out the station door, past the donut field', () => {
+    const { at } = CONFIG.castle
+    const out = { x: Math.cos(station.yaw), z: Math.sin(station.yaw) }
+    const side = { x: -out.z, z: out.x }
+    const dx = place.x - station.x
+    const dz = place.z - station.z
+    expect(dx * out.x + dz * out.z).toBeCloseTo(at.x)
+    expect(dx * side.x + dz * side.z).toBeCloseTo(at.z)
+    expect(at.x).toBeGreaterThan(CONFIG.truck.donuts.field.x)
+    expect(place.yaw).toBe(CONFIG.castle.yaw)
   })
 
   it('is an irregular pentagon with the island inside the outer edge', () => {

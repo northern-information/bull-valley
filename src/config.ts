@@ -564,13 +564,15 @@ export const CONFIG = {
     ],
   },
   // Castle Entropy and its moat (moat.ts, castle.ts, castlesite.ts):
-  // north (world -z) of the donut field past Lake Avenue. The moat is cut
+  // straight out the spawn Citgo's front door, across Lake Avenue past the
+  // donut field, clear of the corn maze. The moat is cut
   // into the terrain itself (moat.ts carve), an irregular pentagon round an
   // island no one reaches yet, the castle floating over it and made anew
   // every Central day.
   castle: {
-    // From the donut field's middle, straight north, in metres.
-    north: 240,
+    // The island's middle, station-local like the wreck: +x is out the
+    // store's door toward the road.
+    at: { x: 230, z: -5 },
     // The pentagon's turn in the world, radians.
     yaw: 0.35,
     moat: {

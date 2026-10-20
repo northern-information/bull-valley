@@ -45,6 +45,31 @@ export function nearestRoadside(
   return best
 }
 
+// Where a station's pump island stands for its fuel point `at`, and which
+// way it faces: local +X points at the nearest road, the island
+// FUEL_LAYOUT.roadEdgeDistance back from its edge (`setback` from the
+// centreline). With no road to face, the station stays on its fuel point
+// facing +X.
+export function stationFacing(
+  roads: readonly Road[],
+  metres: Metres,
+  at: XZ
+): { x: number; z: number; yaw: number; setback: number } {
+  const L = FUEL_LAYOUT
+  const road = nearestRoadside(roads, metres, at.x, at.z)
+  if (!road || road.dist <= 0) {
+    return { x: at.x, z: at.z, yaw: 0, setback: L.roadEdgeDistance }
+  }
+  const yaw = Math.atan2(road.z - at.z, road.x - at.x)
+  const setback = road.width / 2 + L.roadEdgeDistance
+  return {
+    x: road.x - Math.cos(yaw) * setback,
+    z: road.z - Math.sin(yaw) * setback,
+    yaw,
+    setback,
+  }
+}
+
 // Low-poly Citgo stations at every fuel point inside the frame: a walk-in
 // store, canopy over a pump island, tall lit road sign, and an asphalt lot
 // between them and the road. Each station faces its nearest road, with the
@@ -89,21 +114,11 @@ export function buildFuelStations(
   const dummy = new THREE.Object3D()
   const points: FuelPoint[] = []
   for (let i = 0; i < count; i++) {
-    const at = unitToWorld(stations[i].p[0], stations[i].p[1], metres)
-    const road = nearestRoadside(geo.roads, metres, at.x, at.z)
-    // Local +X points at the road. With no road to face, the station stays
-    // on its fuel point facing +X.
-    let yaw = 0
-    let x = at.x
-    let z = at.z
-    // From the pump island to the road centreline.
-    let setback = L.roadEdgeDistance
-    if (road && road.dist > 0) {
-      yaw = Math.atan2(road.z - at.z, road.x - at.x)
-      setback = road.width / 2 + L.roadEdgeDistance
-      x = road.x - Math.cos(yaw) * setback
-      z = road.z - Math.sin(yaw) * setback
-    }
+    const { x, z, yaw, setback } = stationFacing(
+      geo.roads,
+      metres,
+      unitToWorld(stations[i].p[0], stations[i].p[1], metres)
+    )
     const cos = Math.cos(yaw)
     const sin = Math.sin(yaw)
 
