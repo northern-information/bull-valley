@@ -6,9 +6,11 @@ import { dealRefusal } from '../../src/dealer.ts'
 import {
   applyFrame,
   asked,
+  asking,
   DIALED,
   expeditionName,
   haulLine,
+  lineLost,
   NO_WARDS,
   raiderStats,
   sayLine,
@@ -565,5 +567,34 @@ describe('expeditions on the phone', () => {
     expect(nack('expedition-claim', 'what').said?.text).toBe(
       copy('dialup.expeditions.refused')
     )
+  })
+})
+
+describe('a dropped line on the phone', () => {
+  it('lets every ask go and says the signal is lost', () => {
+    let s = applyFrame(DIALED, welcome(), 0)
+    s = asked(s, {
+      stand: true,
+      expedition: true,
+      buy: { station: 2, kind: 'water' },
+    })
+    s = lineLost(s, 50, 1_000)
+    expect(s.pending).toEqual(applyFrame(DIALED, welcome(), 0).pending)
+    expect(s.said).toEqual({ text: copy('log.signal_lost'), at: 50 })
+    expect(s.chat.at(-1)).toMatchObject({
+      kind: 'system',
+      text: copy('log.signal_lost'),
+      at: 1_000,
+    })
+  })
+
+  it('waits on an ask only while the line is up', () => {
+    const s = applyFrame(DIALED, welcome(), 0)
+    const up = asking(s, { trade: true }, true, 10)
+    expect(up.pending.trade).toBe(true)
+    expect(up.said).toBeNull()
+    const down = asking(s, { trade: true }, false, 10)
+    expect(down.pending.trade).toBe(false)
+    expect(down.said).toEqual({ text: copy('dialup.no_signal'), at: 10 })
   })
 })

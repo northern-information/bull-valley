@@ -1,20 +1,18 @@
 // Bull Valley Dial-Up's shell (sharedworld.ts rule 29), once the modem has
 // connected: the top bar (the raider, their level and its bar, the wallet,
 // geometrie and the wards going), the tabs along the bottom (Lobby, Pack,
-// Expeditions, Social, Book; Expeditions and Social not on this line
-// yet), the
-// lobby (the raider in their character with their record, and the cards
-// for the Cabbage Stand and the locker) and the sheets
-// they open, and a toast for the valley's last word. Space is collapsed:
-// no card is anywhere, so every one opens wherever the raider is. The
-// state is dialstate.ts's, redrawn whole on every frame.
+// Expeditions, Social, Book), the lobby (the raider in their character
+// with their record, and the cards for the Cabbage Stand and the locker)
+// and the sheets they open, and a toast for the valley's last word. Space
+// is collapsed: no card is anywhere, so every one opens wherever the
+// raider is. The state is dialstate.ts's, redrawn whole on every frame.
 
 import { entryOf } from './book.ts'
 import { copy } from './copy.ts'
 import { dayKey } from './daily.ts'
 import { DialBook, renderPage } from './dialbook.ts'
 import { renderCitgo } from './dialcitgo.ts'
-import { renderExpeditions } from './dialexpeditions.ts'
+import { renderExpeditions, tickExpeditions } from './dialexpeditions.ts'
 import { DialMoab } from './dialmoab.ts'
 import { DialPack, renderLocker } from './dialpack.ts'
 import { DialSocial } from './dialsocial.ts'
@@ -219,17 +217,12 @@ export class DialShell {
     if (this.state) this.render(this.state)
   }
 
-  // The stand's banked cents tick on the valley's clock; once a second,
-  // only the figure moves.
+  // The stand's banked cents and the expedition out tick on the valley's
+  // clock; once a second, only the figures move.
   tick(): void {
     const s = this.state
     if (s && this.tab === 'expeditions') {
-      renderExpeditions(
-        this.view,
-        s,
-        this.options.now(),
-        this.options.expeditions
-      )
+      tickExpeditions(this.view, s, this.options.now())
       return
     }
     const blurb = this.view.querySelector(

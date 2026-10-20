@@ -173,6 +173,30 @@ export function asked(s: DialState, what: Partial<Pending>): DialState {
   return { ...s, pending: { ...s.pending, ...what }, said: null }
 }
 
+// An ask the phone would send, at local `at`: waiting on the valley while
+// the line is up; while it is down nothing would answer, so nothing waits
+// and the screen says there is no signal.
+export function asking(
+  s: DialState,
+  what: Partial<Pending>,
+  online: boolean,
+  at: number
+): DialState {
+  return online ? asked(s, what) : saying(s, copy('dialup.no_signal'), at)
+}
+
+// The line to the valley dropped, at local `at` (`now` epoch ms for the
+// log): nothing asked of it will be answered, so nothing waits. The
+// welcome that ends the drop puts the rest right.
+export function lineLost(s: DialState, at: number, now: number): DialState {
+  return news(
+    { ...s, pending: NOTHING_PENDING },
+    copy('log.signal_lost'),
+    at,
+    now
+  )
+}
+
 // The log with one more line from the game, at `now` (epoch ms).
 function told(s: DialState, text: string, now: number): DialState {
   return { ...s, chat: pushLine(s.chat, { kind: 'system', text, at: now }) }
