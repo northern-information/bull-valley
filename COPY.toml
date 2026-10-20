@@ -615,6 +615,7 @@ keep = { text = "Mt. Coleman's Keep", by = "ai" }
 
 # The title cards (src/splash.ts): image alt text, the colophon's hint and
 # the epigraph after it; and the build in the corner (src/buildtag.ts).
+# Dial-Up's modem prints the build and the epigraph first (src/modemhud.ts).
 
 [titles]
 colophon_alt = { text = "Northern Information", by = "ai" }

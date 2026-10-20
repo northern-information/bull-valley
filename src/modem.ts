@@ -1,5 +1,6 @@
 // Pure: Bull Valley Dial-Up's modem, the splash every launch opens on. A
-// tap dials: the script types out on the valley's clock (ATZ, OK, the
+// tap dials: the script types out on the valley's clock (the build's name
+// and the epigraph the 3D valley's colophon gives way to, then ATZ, OK, the
 // number, the ring, the carrier, the training) while modemaudio.ts plays
 // each step's cue, and then it waits on the line. It prints CONNECT only
 // once the valley's welcome has really come (connected), LOGIN for a
@@ -10,6 +11,8 @@
 
 // What the script prints, a COPY.toml [dialup.modem] key each.
 export type ModemLine =
+  | 'build'
+  | 'epigraph'
   | 'atz'
   | 'ok'
   | 'dial'
@@ -33,20 +36,23 @@ interface Step {
   cue?: ModemCue
 }
 
-// The handshake, as a 56k modem made it.
+// The terminal's banner (the build, Based on true events.), then the
+// handshake, as a 56k modem made it.
 export const SCRIPT: readonly Step[] = [
-  { at: 0, line: 'atz' },
-  { at: 350, line: 'ok' },
-  { at: 700, line: 'dial', cue: 'dialtone' },
-  { at: 1700, cue: 'dtmf' },
-  { at: 3100, line: 'ring', cue: 'ring' },
-  { at: 4700, line: 'carrier', cue: 'answer' },
-  { at: 5700, line: 'protocol', cue: 'train' },
-  { at: 7300, line: 'compression' },
+  { at: 0, line: 'build' },
+  { at: 350, line: 'epigraph' },
+  { at: 1100, line: 'atz' },
+  { at: 1450, line: 'ok' },
+  { at: 1800, line: 'dial', cue: 'dialtone' },
+  { at: 2800, cue: 'dtmf' },
+  { at: 4200, line: 'ring', cue: 'ring' },
+  { at: 5800, line: 'carrier', cue: 'answer' },
+  { at: 6800, line: 'protocol', cue: 'train' },
+  { at: 8400, line: 'compression' },
 ]
 
 // When the script is done and the modem waits on the line.
-export const HANDSHAKE_MS = 7800
+export const HANDSHAKE_MS = 8900
 
 // How long CONNECT (or LOGIN) holds before the modem gives way.
 export const HOLD_MS = 900
