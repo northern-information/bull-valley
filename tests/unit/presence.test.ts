@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { FRAMES_KEPT } from '../../src/framebuffer.ts'
 import {
   applyJoined,
   applyLeft,
@@ -6,7 +7,6 @@ import {
   applyUpdated,
   applyWelcome,
   createPeerTable,
-  FRAMES_KEPT,
   poseOf,
   samplePeer,
   stateChanged,

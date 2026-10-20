@@ -4,8 +4,8 @@
 // behind the present, which reaches back past the newest two; drawing
 // between only those two moves the drawing back each time a frame lands.
 // Keeping a short run and taking the two either side of the moment never
-// does. presence.ts keeps the peers the same way; shadowsync.ts and
-// caretakerrig.ts keep the shadows with this.
+// does. presence.ts keeps the peers with this, and shadowsync.ts and
+// caretakerrig.ts keep the shadows.
 
 import { CONFIG } from './config.ts'
 
@@ -14,20 +14,28 @@ export interface Stamped {
   at: number
 }
 
-// How many frames to keep: at CONFIG.shadowmen.tickHz a few seconds, far
-// more than the render delay ever reaches back.
+// How many frames to keep: at ten frames a second a few seconds, far more
+// than the render delay ever reaches back.
 export const FRAMES_KEPT = 32
-// A frame that comes after a longer silence than GAP_MS (a stalled socket)
-// starts its move from the last frame, held until one frame's span before
-// it, not spread across the whole silence.
+// A frame that comes after a silence of more than GAPS frames (a stalled
+// socket, or a peer who stood still and sent nothing) starts its move from
+// the last frame, held until one frame's span before it, not spread across
+// the whole silence.
+const GAPS = 2.5
+// The span of one of the valley's shadow frames, and the silence after it.
 const FRAME_MS = 1000 / CONFIG.shadowmen.tickHz
-export const GAP_MS = 2.5 * FRAME_MS
+export const GAP_MS = GAPS * FRAME_MS
 
 // Adds a frame to the end of the run, the oldest going past FRAMES_KEPT.
-export function keepFrame<T extends Stamped>(frames: T[], frame: T): void {
+// frameMs is one frame's span on the stream the run keeps.
+export function keepFrame<T extends Stamped>(
+  frames: T[],
+  frame: T,
+  frameMs = FRAME_MS
+): void {
   const last = frames.at(-1)
-  if (last && frame.at - last.at > GAP_MS)
-    push(frames, { ...last, at: frame.at - FRAME_MS })
+  if (last && frame.at - last.at > GAPS * frameMs)
+    push(frames, { ...last, at: frame.at - frameMs })
   push(frames, frame)
 }
 

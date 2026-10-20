@@ -39,6 +39,20 @@ describe('keepFrame', () => {
       [GAP_MS + 500, 10],
     ])
   })
+
+  it("measures the silence in the stream's own frames", () => {
+    const kept: F[] = []
+    keepFrame(kept, { at: 0, x: 0 }, 400)
+    keepFrame(kept, { at: 900, x: 1 }, 400)
+    expect(kept).toHaveLength(2)
+    keepFrame(kept, { at: 2001, x: 2 }, 400)
+    expect(kept.map((f) => [f.at, f.x])).toEqual([
+      [0, 0],
+      [900, 1],
+      [1601, 1],
+      [2001, 2],
+    ])
+  })
 })
 
 describe('between', () => {
