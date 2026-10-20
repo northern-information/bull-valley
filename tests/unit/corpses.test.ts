@@ -4,6 +4,7 @@ import {
   emptied,
   fallen,
   isEmpty,
+  keysOff,
   nearestCorpse,
   recover,
 } from '../../src/corpses.ts'
@@ -33,6 +34,13 @@ describe('a fall', () => {
     expect(fallen(pack)).toEqual({ joints: 2 })
     expect(emptied(pack)).toEqual({ joints: 0, rose: 1, 'vault-key': 1 })
     expect(isEmpty(fallen({ rose: 1 }))).toBe(true)
+  })
+
+  it('splits the key items off a body', () => {
+    expect(keysOff({ joints: 2, rose: 1, marlboro: 0 })).toEqual({
+      kept: { joints: 2 },
+      keys: { rose: 1 },
+    })
   })
 
   it('leaves no body for an empty pack', () => {

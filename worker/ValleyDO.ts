@@ -864,6 +864,29 @@ export class ValleyDO extends DurableObject<Env> {
     })
   }
 
+  // Key items off the account's bodies, alone (rule 18): into the pack
+  // first, so a failed write leaves them lying on the body for the next
+  // time the account comes in.
+  private async keysBack(account: string): Promise<void> {
+    await this.locked(async () => {
+      const reduced = reduce(
+        this.valley,
+        { type: 'keys-back', account },
+        this.context()
+      )
+      const give = reduced.give
+      if (!give) return
+      try {
+        await this.packs().give(give.account, give.items)
+      } catch (err) {
+        console.error('The keys could not be given back', account, err)
+        return
+      }
+      await this.apply(reduced)
+      for (const msg of reduced.broadcast) this.broadcast(msg, null)
+    })
+  }
+
   // Into the locker or out of it, alone (rule 19). The client moved the
   // units at once, so every refusal sends the pack and locker as they are
   // to put that right.
@@ -1106,6 +1129,9 @@ export class ValleyDO extends DurableObject<Env> {
       ws.close(CLOSE.badOutfit, 'Unknown outfit')
       return
     }
+    // Rule 18: any key item still on one of the account's bodies (laid
+    // before strikes kept them) back into the pack, before it is read.
+    await this.keysBack(account)
     // The pack first: a valley that cannot read it lets no one in to change
     // it.
     let holdings: Holdings

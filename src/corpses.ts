@@ -40,6 +40,23 @@ export function fallen(pack: Inventory): Inventory {
   return items
 }
 
+// A body's items split into what stays on it and its key items, which go
+// back to the pack: a body laid before key items were kept through a
+// strike (sharedworld.ts rule 18).
+export function keysOff(items: Inventory): {
+  kept: Inventory
+  keys: Inventory
+} {
+  const kept: Inventory = {}
+  const keys: Inventory = {}
+  for (const [kind, count] of Object.entries(items)) {
+    if (!(count > 0)) continue
+    if (isKeyItem(kind)) keys[kind] = count
+    else kept[kind] = count
+  }
+  return { kept, keys }
+}
+
 // Whether the body holds nothing, so a fall with an empty pack leaves none.
 export function isEmpty(items: Inventory): boolean {
   return Object.values(items).every((count) => !(count > 0))
