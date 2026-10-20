@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import {
   artTexture,
   castShadows,
-  isMesh,
+  disposeTree,
   lambert,
   LIGHT_BEAM,
   makeGlowTexture,
@@ -731,20 +731,7 @@ export function buildCastle(layout: CastleLayout): CastleRig {
   update(0)
   setMotion(group, update)
 
-  const dispose = () => {
-    // Sprites share one geometry among them all; keep it.
-    halo.material.dispose()
-    star.material.dispose()
-    group.traverse((node) => {
-      if (isMesh(node)) {
-        node.geometry.dispose()
-        const materials = Array.isArray(node.material)
-          ? node.material
-          : [node.material]
-        // The concrete and glow maps are shared and kept.
-        for (const material of materials) material.dispose()
-      }
-    })
-  }
+  // The concrete and glow maps are shared and kept.
+  const dispose = () => disposeTree(group)
   return { group, update, dispose }
 }

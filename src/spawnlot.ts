@@ -5,6 +5,7 @@ import {
   buildStandDressing,
   buildTombstone,
   buildWreck,
+  disposeTree,
   JEEP,
   WRECK,
 } from './assets.ts'
@@ -222,6 +223,8 @@ export function placeStand(
       setLevel(level) {
         if (level === dressed) return
         stand.remove(dressing)
+        // Each dressing paints its own cloth and boards; they go with it.
+        disposeTree(dressing, { maps: true })
         dressing = buildStandDressing(level)
         stand.add(dressing)
         dressed = level
