@@ -41,7 +41,7 @@ import { OUTFIT_IDS, OUTFITS } from './outfits.ts'
 import { flashlightArm, samplePose, strideOf, stridePose } from './poses.ts'
 import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import { mulberry32 } from './rng.ts'
-import { strikeReach } from './shadowcards.ts'
+import { strikeReach } from './shadowbodies.ts'
 import { buildShadowman } from './shadowmanmodel.ts'
 import { poseCarlsten } from './slurmrig.ts'
 import { buildTruckMesh } from './truck.ts'
@@ -95,7 +95,7 @@ function sampleFigure(outfitId: OutfitId): THREE.Group {
   return figure.group
 }
 
-// A shadowman (shadowcards.ts), standing, walking in place, or winding
+// A shadowman (shadowbodies.ts), standing, walking in place, or winding
 // up and lunging at the view. `frame` says, at each moment, how fast it
 // walks and how far through a strike it is.
 function sampleShadowmanDoing(

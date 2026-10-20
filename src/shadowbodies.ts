@@ -32,7 +32,7 @@ import type { ShadowmanRig } from './shadowmanmodel.ts'
 import type { Burst, ShadeKind } from './shadowmen.ts'
 import type { ShadowTable } from './shadowsync.ts'
 
-interface ShadowCardsOptions {
+interface ShadowBodiesOptions {
   scene: THREE.Object3D
   // What the shadowmen stand on: world.ground.at, never the bare terrain.
   groundAt: HeightAt
@@ -66,7 +66,7 @@ interface Spider {
   speed: number
 }
 
-interface ShadowCardsFrame {
+interface ShadowBodiesFrame {
   dt: number
   player: XZ
   perception: boolean
@@ -74,7 +74,7 @@ interface ShadowCardsFrame {
   renderAt: number
 }
 
-interface ShadowCardsUpdate {
+interface ShadowBodiesUpdate {
   // Where shadowmen burst since the last update.
   bursts: Burst[]
   // The kinds within CONFIG.book.sightRange of the player (the Book of
@@ -96,7 +96,7 @@ interface Man {
   hidden: number
 }
 
-export class ShadowCards {
+export class ShadowBodies {
   groundAt: HeightAt
   // The last two frames the valley sent.
   table: ShadowTable
@@ -115,7 +115,7 @@ export class ShadowCards {
   private frame = new Map<number, ShadeHeard>()
   private known = new Map<number, ShadeHeard>()
 
-  constructor({ scene, groundAt }: ShadowCardsOptions) {
+  constructor({ scene, groundAt }: ShadowBodiesOptions) {
     this.groundAt = groundAt
     this.rng = mulberry32(0xd06)
     this.group = new THREE.Group()
@@ -149,7 +149,7 @@ export class ShadowCards {
     player,
     perception,
     renderAt,
-  }: ShadowCardsFrame): ShadowCardsUpdate {
+  }: ShadowBodiesFrame): ShadowBodiesUpdate {
     const shown: readonly Shown[] = sampleShadowmen(this.table, renderAt)
     const sighted = new Set<ShadeKind>()
     for (const s of shown) {

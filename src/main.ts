@@ -39,8 +39,8 @@ import { mulberry32 } from './rng.ts'
 import { buildRoadGraph, nearestRoadPoint, wanderRoute } from './roadgraph.ts'
 import { createSettingsStore } from './settingsui.ts'
 import { createSfx } from './sfxrig.ts'
+import { ShadowBodies } from './shadowbodies.ts'
 import { ShadowBursts } from './shadowburst.ts'
-import { ShadowCards } from './shadowcards.ts'
 import { SILENT } from './silent.ts'
 import { createTargets } from './targets.ts'
 import {
@@ -321,7 +321,7 @@ async function boot() {
     hands,
     pick,
     phone: new Phone(hud.phoneCanvas, hud.phone),
-    shadowmen: new ShadowCards({ scene, groundAt: world.ground.at }),
+    shadowmen: new ShadowBodies({ scene, groundAt: world.ground.at }),
     caretaker: new CaretakerShade({
       scene,
       groundAt: world.ground.at,

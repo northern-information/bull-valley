@@ -24,7 +24,7 @@
 // Pure, no three.js. In the shared valley the server steps the one field
 // everyone sees (worker/ValleyDO.ts, sharedworld.ts rule 11) and clients
 // draw it (shadowsync.ts). The bodies that show them are in
-// src/shadowcards.ts.
+// src/shadowbodies.ts.
 
 import { CONFIG } from './config.ts'
 import { range } from './rng.ts'

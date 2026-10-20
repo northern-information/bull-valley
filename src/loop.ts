@@ -42,7 +42,7 @@ import type { Game } from './game.ts'
 import type { BushSpot } from './interactions.ts'
 import type { DailyWire, PeerStateWire } from './protocol.ts'
 import type { Cue } from './sfx.ts'
-import type { ShadowCards } from './shadowcards.ts'
+import type { ShadowBodies } from './shadowbodies.ts'
 import type { HeadlightsSent } from './shadowmen.ts'
 import type { Feet as SlurmFeet } from './slurms.ts'
 import type { Targets } from './targets.ts'
@@ -593,7 +593,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   // frame's cadence.
   const discoverBook = (
     tick: boolean,
-    swarm: ReturnType<ShadowCards['update']>,
+    swarm: ReturnType<ShadowBodies['update']>,
     keeper: ReturnType<CaretakerShade['update']>
   ) => {
     if (s.started && tick) {
