@@ -33,9 +33,21 @@ export type Titles = CharacterPick & {
   notice: string | null
 }
 
+// The query flag Exit to Menu reloads with.
+const MENU_PARAM = 'menu'
+
 // Sign out, then start over at the sign-in card.
 export function signOutAndReload(): void {
   void signOut().then(() => window.location.reload())
+}
+
+// The pause overlay's Exit to Menu: the page again, straight to the main
+// menu (?menu skips the colophon). The valley keeps where the raider stood,
+// so nothing is lost.
+export function exitToMenu(): void {
+  const url = new URL(window.location.href)
+  url.searchParams.set(MENU_PARAM, '1')
+  window.location.assign(url)
 }
 
 // The account panel, from the select or the pause overlay.
@@ -66,6 +78,14 @@ export async function showTitles(
   const returned = authReturnOf(search, copy('auth.sign_in_failed'))
   if (returned) {
     history.replaceState(null, '', pathname + stripAuthQuery(search) + hash)
+  }
+  // Back from the valley's Exit to Menu: the raider has seen the colophon.
+  const params = new URLSearchParams(window.location.search)
+  const toMenu = params.has(MENU_PARAM)
+  if (toMenu) {
+    params.delete(MENU_PARAM)
+    const rest = params.toString()
+    history.replaceState(null, '', pathname + (rest ? `?${rest}` : '') + hash)
   }
   const me = fetchMe().then((known) => {
     if (known?.account) settings.load(known.account.settings)
@@ -120,7 +140,7 @@ export async function showTitles(
   })
   // The menu goes up under the last card as it lifts, so its grain and fog
   // are there through the fade instead of popping in after it.
-  if (!skip && !returned) {
+  if (!skip && !returned && !toMenu) {
     await showSplash({
       audio,
       config: COLOPHON,

@@ -36,6 +36,7 @@ import { CLOSE } from './protocol.ts'
 import { dealerStep, roseLine, roseProgress } from './quests.ts'
 import { toSettings } from './settings.ts'
 import { mountAccountStep } from './signin.ts'
+import { SILENT } from './silent.ts'
 import { openStandDialog } from './standdialog.ts'
 import type { DialState, Pending } from './dialstate.ts'
 import type { Geo } from './interfaces.ts'
@@ -73,8 +74,8 @@ async function boot(): Promise<void> {
   let state: DialState = DIALED
   let shell: DialShell | null = null
   const modem = mountModem(root, {
-    // Under e2e the valley is never heard.
-    volume: import.meta.env.MODE === 'test' ? null : settings.sfx / 100,
+    // A silent page (silent.ts) is never heard.
+    volume: SILENT ? null : settings.sfx / 100,
     onDial: () => {
       if (!account?.username) {
         modem.signedOut()
