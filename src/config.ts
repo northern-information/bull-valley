@@ -829,6 +829,21 @@ export const CONFIG = {
     // Moab himself blocks like a post this wide.
     standRadius: 0.4,
   },
+  tyler: {
+    // Where Tyler Etters' red Jeep is parked on the spawn Citgo's lot,
+    // station-local like the bush: past Moab on the road-side corner, clear
+    // of the portal ring and the sign's pole, its open back turned toward
+    // Moab and the pumps. `toward` is the way its nose points (assets.ts
+    // JEEP); he sits in the back, facing out (figure.ts buildTyler).
+    at: { x: 9.3, z: 12.6 },
+    toward: { x: 10.4, z: 16.4 },
+    // How close E must be to talk to him, from where he sits.
+    reach: 2.4,
+    // The Jeep blocks as a capsule down its length (this far either side
+    // of its middle, this wide).
+    halfLength: 1.3,
+    radius: 1.0,
+  },
   maze: {
     // The corn maze across Lake Avenue from the spawn Citgo, station-local
     // like the bush: its corner nearest the station, 20 m past the road's

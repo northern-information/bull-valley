@@ -104,6 +104,10 @@ type AddonId =
   | 'dreadlocks'
   | 'glasses'
   | 'glasses-arms'
+  | 'frame-rims'
+  | 'frame-sides'
+  | 'frame-bridge'
+  | 'pupils'
   | 'coat-hem'
   | 'hood'
   | 'buckle'
@@ -197,6 +201,7 @@ export type OutfitId =
   | 'gron'
   | 'moab'
   | 'squatter'
+  | 'tyler'
   | 'rich'
   | 'sam'
   | 'meyer'
@@ -459,6 +464,45 @@ export const ADDONS: Record<AddonId, Addon> = {
     offsets: [
       [0.088, 0.204, 0.05],
       [-0.088, 0.204, 0.05],
+    ],
+  },
+  // Thick black frames with clear lenses: a heavy rim over and under each
+  // eye, the sides, the bridge between, and the eyes showing through.
+  'frame-rims': {
+    joint: 'neck',
+    slot: 'glasses',
+    box: [0.062, 0.013, 0.016],
+    offsets: [
+      [0.037, 0.219, 0.106],
+      [-0.037, 0.219, 0.106],
+      [0.037, 0.178, 0.106],
+      [-0.037, 0.178, 0.106],
+    ],
+  },
+  'frame-sides': {
+    joint: 'neck',
+    slot: 'glasses',
+    box: [0.012, 0.054, 0.016],
+    offsets: [
+      [0.074, 0.198, 0.104],
+      [-0.074, 0.198, 0.104],
+      [0.006, 0.198, 0.108],
+      [-0.006, 0.198, 0.108],
+    ],
+  },
+  'frame-bridge': {
+    joint: 'neck',
+    slot: 'glasses',
+    box: [0.02, 0.01, 0.014],
+    offset: [0, 0.206, 0.11],
+  },
+  pupils: {
+    joint: 'neck',
+    slot: 'sockets',
+    box: [0.016, 0.012, 0.006],
+    offsets: [
+      [0.036, 0.198, 0.101],
+      [-0.036, 0.198, 0.101],
     ],
   },
   'coat-hem': {
@@ -1289,6 +1333,40 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     addons: ['hood', 'stubble', 'kangaroo-pocket'],
     loose: 1.2,
     baggy: 1.2,
+  },
+  // Tyler Etters, cross-legged in the back of his red Jeep beside Moab
+  // (figure.ts buildTyler): ashy blonde hair to the shoulders, thick black
+  // glasses, a plain black tee, blue jeans and green sneakers. Not on the
+  // select roster.
+  tyler: {
+    label: copy('outfits.tyler'),
+    colors: {
+      skin: '#eccaae',
+      hair: '#b4a68a',
+      shirt: '#141416',
+      pants: '#3f5f8a',
+      // The canvas; the soles and toe caps are white rubber.
+      boots: '#2f8a3e',
+      soles: '#ecebe4',
+      glasses: '#0c0c0e',
+      sockets: '#2a2420',
+      belt: '#0c0c0e',
+    },
+    addons: [
+      'long-hair',
+      'frame-rims',
+      'frame-sides',
+      'frame-bridge',
+      'glasses-arms',
+      'pupils',
+      'belt',
+      'belt-loops',
+      'sneaker-soles-l',
+      'sneaker-soles-r',
+      'toe-caps-l',
+      'toe-caps-r',
+    ],
+    sleeves: 'short',
   },
 }
 
