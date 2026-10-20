@@ -46,7 +46,7 @@ const rows = shards.map(
 )
 const verdict = even
   ? `Even: the slowest shard took ${ratio.toFixed(2)}x the fastest (warns past ${BALANCE}x).`
-  : `Uneven: the slowest shard took ${ratio.toFixed(2)}x the fastest (warns past ${BALANCE}x). See CLAUDE.md, "E2E shards".`
+  : `Uneven: the slowest shard took ${ratio.toFixed(2)}x the fastest (warns past ${BALANCE}x). See docs/testing.md, "E2E shards".`
 const report = [
   '## E2E shard balance',
   '',
