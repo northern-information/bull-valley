@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
-import { AXES } from '../../src/geometrie.ts'
+import { AXES } from '../../src/wardlevels.ts'
 import {
   damageOf,
   isShadowHit,

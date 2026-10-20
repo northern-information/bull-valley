@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
-import { AXES, dose, levelsAt, SOBER } from '../../src/geometrie.ts'
+import { AXES, dose, levelsAt, SOBER } from '../../src/wardlevels.ts'
 
-describe('geometrie', () => {
+describe('wards', () => {
   it('starts sober on every side', () => {
     expect(AXES).toEqual(['high', 'stimulated', 'drunk', 'tripping'])
     expect(levelsAt(SOBER, 100)).toEqual({
@@ -28,7 +28,7 @@ describe('geometrie', () => {
   })
 
   it('fades each side at its own rate, never below sober', () => {
-    const { fadePerSecond } = CONFIG.geometrie
+    const { fadePerSecond } = CONFIG.wards
     const g = dose(
       SOBER,
       { high: 0.5, stimulated: 0.5, drunk: 0.5, tripping: 0.5 },
@@ -50,7 +50,7 @@ describe('geometrie', () => {
   })
 
   it('doses on top of what is left, held between 0 and 1', () => {
-    const { fadePerSecond } = CONFIG.geometrie
+    const { fadePerSecond } = CONFIG.wards
     const g = dose(SOBER, { drunk: 0.4 }, 0)
     const again = dose(g, { drunk: 0.4 }, 30)
     expect(levelsAt(again, 30).drunk).toBeCloseTo(

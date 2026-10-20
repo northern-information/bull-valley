@@ -5,7 +5,7 @@ import { NO_EFFECTS } from '../../src/hotbar.ts'
 import { ICON_SHAPES, iconSvg } from '../../src/icons.ts'
 
 const SOBER = { high: 0, stimulated: 0, drunk: 0, tripping: 0 }
-const fade = CONFIG.geometrie.fadePerSecond
+const fade = CONFIG.wards.fadePerSecond
 
 describe('activeBuffs', () => {
   it('shows nothing sober, with nothing going', () => {
@@ -36,7 +36,7 @@ describe('activeBuffs', () => {
     ])
   })
 
-  it('shows the joint’s perception for its span, after geometrie', () => {
+  it('shows the joint’s perception for its span, after the wards', () => {
     const effects = { ...NO_EFFECTS, perception: { start: 10, end: 110 } }
     const buffs = activeBuffs({ ...SOBER, drunk: 0.5 }, effects, 35)
     expect(buffs.map(({ id }) => id)).toEqual(['drunk', 'perception'])

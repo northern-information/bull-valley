@@ -201,7 +201,7 @@ base.describe('one visit', { tag: '@raid' }, () => {
     await page.keyboard.press('KeyE')
     await expect.poll(pbrs).toBe(0)
     await expect
-      .poll(() => page.evaluate(() => window.__bv?.geometrie.drunk ?? 0))
+      .poll(() => page.evaluate(() => window.__bv?.wards.drunk ?? 0))
       .toBeGreaterThan(0)
     await page.keyboard.press('KeyD')
     expect(await bagTab()).toBe(copy('inventory.tab_loot'))

@@ -44,7 +44,7 @@ const welcome = (over: Partial<WelcomeMessage> = {}): ServerMessage => ({
   quests: { rose: 'none' },
   health: 900,
   healthMax: 1000,
-  geometrie: { ...NO_WARDS, high: 0.5 },
+  wards: { ...NO_WARDS, high: 0.5 },
   citgos: { last: null, visited: [] },
   expedition: null,
   ...over,
@@ -70,7 +70,7 @@ describe("Dial-Up's state", () => {
   it('reads a bad stand or wards as none', () => {
     const s = applyFrame(
       DIALED,
-      welcome({ stand: 'x' as never, geometrie: 'y' as never }),
+      welcome({ stand: 'x' as never, wards: 'y' as never }),
       0
     )
     expect(s.stand).toBeNull()
@@ -137,15 +137,9 @@ describe("Dial-Up's state", () => {
     expect(applyFrame(s, { type: 'xp', xp: 140, gained: 20 }, 0).xp).toBe(150)
     s = applyFrame(s, { type: 'health', health: 1000, max: 1040 }, 0)
     expect([s.health, s.healthMax]).toEqual([1000, 1040])
-    s = applyFrame(
-      s,
-      { type: 'geometrie', geometrie: { ...NO_WARDS, drunk: 1 } },
-      0
-    )
+    s = applyFrame(s, { type: 'wards', wards: { ...NO_WARDS, drunk: 1 } }, 0)
     expect(s.wards.drunk).toBe(1)
-    expect(
-      applyFrame(s, { type: 'geometrie', geometrie: 'x' as never }, 0)
-    ).toBe(s)
+    expect(applyFrame(s, { type: 'wards', wards: 'x' as never }, 0)).toBe(s)
     const world = { day: 'd' } as never
     s = applyFrame(s, { type: 'world', reason: 'joined', world }, 0)
     expect(s.world).toBe(world)

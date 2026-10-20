@@ -1,18 +1,18 @@
 // Buffs, pure: what the wards do while they last besides warding
 // (sharedworld.ts rule 27; the warding is wards.ts). High reaches the
 // flashlight further and wider and stimulated quickens the sprint, each
-// scaled by its level (geometrie.ts levelsAt). And passing: anything smoked, drunk
+// scaled by its level (wardlevels.ts levelsAt). And passing: anything smoked, drunk
 // or swallowed can go to a raider within reach instead, who takes it in
 // full (its dose and its heal), the giver catching shareScale of the dose
 // and the XP for sharing. Tune it all in CONFIG.buffs. No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
-import { AXES, dose, levelsAt, SOBER } from './geometrie.ts'
-import type { Geometrie } from './geometrie.ts'
-import type { GeometrieAxis } from './interfaces.ts'
+import { AXES, dose, levelsAt, SOBER } from './wardlevels.ts'
+import type { WardAxis } from './interfaces.ts'
 import type { Beam } from './shadowmen.ts'
+import type { WardState } from './wardlevels.ts'
 
-type Levels = Readonly<Record<GeometrieAxis, number>>
+type Levels = Readonly<Record<WardAxis, number>>
 
 // How much further and wider the flashlight reaches at `levels`.
 export function beamScale(levels: Levels, cfg = CONFIG.buffs): number {
@@ -43,8 +43,8 @@ export function sprintScale(levels: Levels, cfg = CONFIG.buffs): number {
 export function scaled(
   amounts: Partial<Levels> | undefined,
   scale: number
-): Partial<Record<GeometrieAxis, number>> {
-  const out: Partial<Record<GeometrieAxis, number>> = {}
+): Partial<Record<WardAxis, number>> {
+  const out: Partial<Record<WardAxis, number>> = {}
   if (!amounts) return out
   for (const axis of AXES) {
     const amount = amounts[axis]
@@ -88,17 +88,17 @@ export function passTarget<P extends Spot>(
   return best
 }
 
-// An account's geometrie as the valley keeps it: only the accounts not
+// An account's wards as the valley keeps them: only the accounts not
 // sober are written down. The valley's clock is in seconds here.
-export function geometrieOf(
-  record: Readonly<Record<string, Geometrie>>,
+export function wardsOf(
+  record: Readonly<Record<string, WardState>>,
   account: string
-): Geometrie {
+): WardState {
   return record[account] ?? SOBER
 }
 
 // Whether every level has faded to nothing at `time`.
-export function isSober(g: Geometrie, time: number): boolean {
+export function isSober(g: WardState, time: number): boolean {
   const l = levelsAt(g, time)
   return l.high === 0 && l.stimulated === 0 && l.drunk === 0
 }
@@ -106,16 +106,16 @@ export function isSober(g: Geometrie, time: number): boolean {
 // The record with `account` dosed by `amounts` at `time`, and every
 // account gone sober by then dropped, so it never grows.
 export function dosed(
-  record: Readonly<Record<string, Geometrie>>,
+  record: Readonly<Record<string, WardState>>,
   account: string,
   amounts: Partial<Levels> | undefined,
   time: number
-): Record<string, Geometrie> {
-  const next: Record<string, Geometrie> = {}
+): Record<string, WardState> {
+  const next: Record<string, WardState> = {}
   for (const [key, g] of Object.entries(record)) {
     if (!isSober(g, time)) next[key] = g
   }
-  const after = dose(geometrieOf(record, account), amounts, time)
+  const after = dose(wardsOf(record, account), amounts, time)
   if (isSober(after, time)) delete next[account]
   else next[account] = after
   return next
@@ -123,15 +123,15 @@ export function dosed(
 
 // The record with `account` sober again (a strike shatters it).
 export function sobered(
-  record: Readonly<Record<string, Geometrie>>,
+  record: Readonly<Record<string, WardState>>,
   account: string
-): Record<string, Geometrie> {
+): Record<string, WardState> {
   const next = { ...record }
   delete next[account]
   return next
 }
 
-// Whether a wire value is a set of geometrie levels.
+// Whether a wire value is a set of ward levels.
 export function isLevels(value: unknown): value is Levels {
   if (typeof value !== 'object' || value === null) return false
   const v = value as Record<string, unknown>

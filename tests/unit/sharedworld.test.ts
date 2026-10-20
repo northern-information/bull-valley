@@ -31,7 +31,6 @@ import {
   createValley,
   creditedWith,
   dailyFor,
-  geometrieFor,
   healthFor,
   levelFor,
   maxFor,
@@ -40,6 +39,7 @@ import {
   restoreValley,
   toWire,
   wakeAt,
+  wardsFor,
 } from '../../src/sharedworld.ts'
 import { FRESH_STAND, standXp } from '../../src/stand.ts'
 import { UNDERCROFT } from '../../src/undercroft.ts'
@@ -265,6 +265,17 @@ describe('rule 1: the world is persistent', () => {
       dailies: { b: 'x' },
       places: {},
     })
+  })
+
+  it('reads the wards an older build kept as geometrie', () => {
+    const levels = {
+      at: 5,
+      levels: { high: 0.5, stimulated: 0, drunk: 0, tripping: 0 },
+    }
+    const { wards: _, ...rest } = createValley()
+    const older = { ...rest, geometrie: { acct: levels } }
+    expect(restoreValley(older).wards).toEqual({ acct: levels })
+    expect(restoreValley(createValley()).wards).toEqual({})
   })
 
   it('wakes for the truck or the day, and not with nobody here', () => {
@@ -2720,21 +2731,21 @@ describe('rule 27: buffs', () => {
 
   it('starts every account sober, and an older valley is too', () => {
     const v = valleyWith(join('a'))
-    expect(geometrieFor(v.valley, 'acct-a', v.now)).toEqual({
+    expect(wardsFor(v.valley, 'acct-a', v.now)).toEqual({
       high: 0,
       stimulated: 0,
       drunk: 0,
       tripping: 0,
     })
-    const { geometrie: _, ...older } = createValley()
-    expect(restoreValley(older).geometrie).toEqual({})
+    const { wards: _, ...older } = createValley()
+    expect(restoreValley(older).wards).toEqual({})
   })
 
   it('doses the user once the unit is out of the pack, fading on its clock', () => {
     const v = valleyWith(join('a'))
     const out = v.step({ type: 'dose', id: 'a', kind: 'joints' })
-    const high = getItem('joints').geometrie.high
-    expect(out.geometrie).toEqual([
+    const high = getItem('joints').wards.high
+    expect(out.wards).toEqual([
       {
         account: 'acct-a',
         levels: { high, stimulated: 0, drunk: 0, tripping: 0 },
@@ -2742,10 +2753,10 @@ describe('rule 27: buffs', () => {
     ])
     expect(out.xp).toBeUndefined()
     v.tick(60 * SEC)
-    const later = geometrieFor(v.valley, 'acct-a', v.now).high
-    expect(later).toBeCloseTo(high - 60 * CONFIG.geometrie.fadePerSecond.high)
+    const later = wardsFor(v.valley, 'acct-a', v.now).high
+    expect(later).toBeCloseTo(high - 60 * CONFIG.wards.fadePerSecond.high)
     expect(
-      v.step({ type: 'dose', id: 'nobody', kind: 'joints' }).geometrie
+      v.step({ type: 'dose', id: 'nobody', kind: 'joints' }).wards
     ).toBeUndefined()
   })
 
@@ -2781,9 +2792,9 @@ describe('rule 27: buffs', () => {
       kind: 'four-loko-blue',
       to: 'b',
     })
-    const { stimulated, drunk } = getItem('four-loko-blue').geometrie
+    const { stimulated, drunk } = getItem('four-loko-blue').wards
     const share = CONFIG.buffs.shareScale
-    expect(out.geometrie).toEqual([
+    expect(out.wards).toEqual([
       {
         account: 'acct-b',
         levels: { high: 0, stimulated, drunk, tripping: 0 },
@@ -2801,7 +2812,7 @@ describe('rule 27: buffs', () => {
     expect(out.xp).toEqual([{ account: 'acct-a', source: 'share' }])
     // A taker gone by then is dosed nothing.
     expect(
-      v.step({ type: 'dose', id: 'a', kind: 'pbr', to: 'nobody' }).geometrie
+      v.step({ type: 'dose', id: 'a', kind: 'pbr', to: 'nobody' }).wards
     ).toBeUndefined()
   })
 
@@ -2818,31 +2829,31 @@ describe('rule 27: buffs', () => {
     v.step({ type: 'set-health', id: 'a', points: BASE_GEOMETRIE })
     v.step({ type: 'dose', id: 'a', kind: 'wild-turkey' })
     v.step({ type: 'dose', id: 'a', kind: 'wild-turkey' })
-    const drunk = geometrieFor(v.valley, 'acct-a', v.now).drunk
+    const drunk = wardsFor(v.valley, 'acct-a', v.now).drunk
     expect(drunk).toBe(1)
     // Drunk wards the Caretaker hard, the shadowmen only a little.
     expect(hit('caretaker')).toEqual({
       by: 'caretaker',
-      ...damageOf('caretaker', geometrieFor(v.valley, 'acct-a', v.now), 0.5),
+      ...damageOf('caretaker', wardsFor(v.valley, 'acct-a', v.now), 0.5),
     })
     expect(hit('caretaker')?.damage).toBe(300)
     expect(hit('man')?.damage).toBe(288)
     v.step({ type: 'set-health', id: 'a', points: 1 })
     const fatal = v.step({ type: 'hit', id: 'a', by: 'man', roll: 0.99 })
     expect(fatal.health?.fatal).toBe(true)
-    expect(fatal.geometrie).toEqual([
+    expect(fatal.wards).toEqual([
       {
         account: 'acct-a',
         levels: { high: 0, stimulated: 0, drunk: 0, tripping: 0 },
       },
     ])
-    expect(v.valley.geometrie).toEqual({})
+    expect(v.valley.wards).toEqual({})
   })
 
   it('wards the Undercroft with a trip', () => {
     const v = valleyWith(join('a'))
     v.step({ type: 'dose', id: 'a', kind: 'lsd' })
-    const levels = geometrieFor(v.valley, 'acct-a', v.now)
+    const levels = wardsFor(v.valley, 'acct-a', v.now)
     expect(levels.tripping).toBe(1)
     const warden = v.step({ type: 'hit', id: 'a', by: 'warden', roll: 0.5 })
     // The trip's ward, and a little for the high besides.

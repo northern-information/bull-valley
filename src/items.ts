@@ -17,7 +17,7 @@
 // On the shelf items (everything but forage and valuables):
 //   price     shelf price at every Citgo, in cents
 // By category:
-//   geometrie how far one use moves each geometrie level (geometrie.ts):
+//   wards     how far one use moves each ward's level (wardlevels.ts):
 //             a cigarette's, the joint's and a drink's
 //   smokeSeconds, emberSeconds  a cigarette burns, then smoulders
 //   perceptionSeconds  the joint (and a psychedelic) resolves the shadowmen
@@ -36,10 +36,10 @@
 // valley hands it out (sharedworld.ts rules 4 and 8).
 
 import type { CashKind } from './drops.ts'
-import type { ContainerKey, GeometrieAxis, MedicineForm } from './interfaces.ts'
+import type { ContainerKey, MedicineForm, WardAxis } from './interfaces.ts'
 
-// How far one use moves each geometrie level (geometrie.ts), 0 to 1.
-type GeometrieDose = Partial<Record<GeometrieAxis, number>>
+// How far one use moves each ward's level (wardlevels.ts), 0 to 1.
+type WardDose = Partial<Record<WardAxis, number>>
 
 interface ItemBase {
   id: string
@@ -60,26 +60,26 @@ export interface Cigarette extends ItemBase, Shelf {
   category: 'cigarette'
   smokeSeconds: number
   emberSeconds: number
-  geometrie: GeometrieDose
+  wards: WardDose
 }
 
 interface Joint extends ItemBase, Shelf {
   category: 'joint'
   perceptionSeconds: number
-  geometrie: GeometrieDose
+  wards: WardDose
 }
 
 export interface Drink extends ItemBase, Shelf {
   category: 'drink'
   container: ContainerKey
   tripSeconds: number
-  geometrie: GeometrieDose
+  wards: WardDose
 }
 
 export interface Medicine extends ItemBase, Shelf {
   category: 'medicine'
   form: MedicineForm
-  geometrie: GeometrieDose
+  wards: WardDose
 }
 
 // Never on a shelf: Erwin von Dutch deals them (dealer.ts). The
@@ -89,7 +89,7 @@ interface Psychedelic extends ItemBase {
   category: 'psychedelic'
   price?: undefined
   perceptionSeconds: number
-  geometrie: GeometrieDose
+  wards: WardDose
   healsPct: number
 }
 
@@ -97,7 +97,7 @@ interface Stimulant extends ItemBase {
   category: 'stimulant'
   price?: undefined
   tripSeconds: number
-  geometrie: GeometrieDose
+  wards: WardDose
   healsPct: number
 }
 
@@ -143,7 +143,7 @@ export const ITEMS = [
     contents: 20,
     smokeSeconds: 12,
     emberSeconds: 20,
-    geometrie: { stimulated: 0.12 },
+    wards: { stimulated: 0.12 },
     healsPct: 15,
   },
   {
@@ -154,7 +154,7 @@ export const ITEMS = [
     contents: 20,
     smokeSeconds: 14,
     emberSeconds: 20,
-    geometrie: { stimulated: 0.12 },
+    wards: { stimulated: 0.12 },
     healsPct: 15,
   },
   {
@@ -165,7 +165,7 @@ export const ITEMS = [
     contents: 20,
     smokeSeconds: 13,
     emberSeconds: 16,
-    geometrie: { stimulated: 0.1 },
+    wards: { stimulated: 0.1 },
     healsPct: 15,
   },
   {
@@ -176,7 +176,7 @@ export const ITEMS = [
     contents: 20,
     smokeSeconds: 9,
     emberSeconds: 14,
-    geometrie: { stimulated: 0.1 },
+    wards: { stimulated: 0.1 },
     healsPct: 15,
   },
   {
@@ -187,7 +187,7 @@ export const ITEMS = [
     contents: 20,
     smokeSeconds: 18,
     emberSeconds: 26,
-    geometrie: { stimulated: 0.15 },
+    wards: { stimulated: 0.15 },
     healsPct: 15,
   },
   {
@@ -197,7 +197,7 @@ export const ITEMS = [
     price: 1000,
     // Shadowmen resolve through the murk while it lasts.
     perceptionSeconds: 120,
-    geometrie: { high: 0.5 },
+    wards: { high: 0.5 },
     healsPct: 30,
   },
   // Never on a Citgo shelf: Erwin von Dutch in the Golden Wok deals them
@@ -210,7 +210,7 @@ export const ITEMS = [
     category: 'psychedelic',
     start: 0,
     perceptionSeconds: 480,
-    geometrie: { tripping: 1, high: 0.25 },
+    wards: { tripping: 1, high: 0.25 },
     healsPct: 30,
   },
   {
@@ -219,7 +219,7 @@ export const ITEMS = [
     start: 0,
     contents: 10,
     tripSeconds: 20,
-    geometrie: { stimulated: 0.45 },
+    wards: { stimulated: 0.45 },
     healsPct: 15,
   },
   {
@@ -227,10 +227,10 @@ export const ITEMS = [
     category: 'psychedelic',
     start: 0,
     perceptionSeconds: 300,
-    geometrie: { tripping: 0.7, high: 0.4 },
+    wards: { tripping: 0.7, high: 0.4 },
     healsPct: 30,
   },
-  // Drinks, circa 2008. Drinking one moves geometrie (geometrie.ts): the
+  // Drinks, circa 2008. Drinking one moves the wards (wardlevels.ts): the
   // energy drinks stimulate, the beer and the liquor get you drunk, Four
   // Loko does both, and water sobers you a little. Each blurs the view and
   // trails it for tripSeconds (trip.ts); the water only blurs. Every one
@@ -243,7 +243,7 @@ export const ITEMS = [
     price: 219,
     container: 'tall',
     tripSeconds: 30,
-    geometrie: { stimulated: 0.3 },
+    wards: { stimulated: 0.3 },
     healsPct: 15,
   },
   {
@@ -253,7 +253,7 @@ export const ITEMS = [
     price: 219,
     container: 'tall',
     tripSeconds: 30,
-    geometrie: { stimulated: 0.25 },
+    wards: { stimulated: 0.25 },
     healsPct: 15,
   },
   {
@@ -263,7 +263,7 @@ export const ITEMS = [
     price: 199,
     container: 'slim',
     tripSeconds: 30,
-    geometrie: { stimulated: 0.25 },
+    wards: { stimulated: 0.25 },
     healsPct: 15,
   },
   {
@@ -273,7 +273,7 @@ export const ITEMS = [
     price: 99,
     container: 'tall',
     tripSeconds: 30,
-    geometrie: { stimulated: 0.3 },
+    wards: { stimulated: 0.3 },
     healsPct: 15,
   },
   {
@@ -283,7 +283,7 @@ export const ITEMS = [
     price: 199,
     container: 'tall',
     tripSeconds: 30,
-    geometrie: { stimulated: 0.3 },
+    wards: { stimulated: 0.3 },
     healsPct: 15,
   },
   {
@@ -293,7 +293,7 @@ export const ITEMS = [
     price: 229,
     container: 'nos',
     tripSeconds: 30,
-    geometrie: { stimulated: 0.35 },
+    wards: { stimulated: 0.35 },
     healsPct: 15,
   },
   {
@@ -303,7 +303,7 @@ export const ITEMS = [
     price: 249,
     container: 'tall',
     tripSeconds: 120,
-    geometrie: { stimulated: 0.3, drunk: 0.35 },
+    wards: { stimulated: 0.3, drunk: 0.35 },
     healsPct: 30,
   },
   {
@@ -313,7 +313,7 @@ export const ITEMS = [
     price: 249,
     container: 'tall',
     tripSeconds: 120,
-    geometrie: { stimulated: 0.3, drunk: 0.35 },
+    wards: { stimulated: 0.3, drunk: 0.35 },
     healsPct: 30,
   },
   {
@@ -323,7 +323,7 @@ export const ITEMS = [
     price: 249,
     container: 'tall',
     tripSeconds: 120,
-    geometrie: { stimulated: 0.3, drunk: 0.35 },
+    wards: { stimulated: 0.3, drunk: 0.35 },
     healsPct: 30,
   },
   {
@@ -333,7 +333,7 @@ export const ITEMS = [
     price: 2199,
     container: 'bourbon',
     tripSeconds: 90,
-    geometrie: { drunk: 0.5 },
+    wards: { drunk: 0.5 },
     healsPct: 30,
   },
   {
@@ -343,7 +343,7 @@ export const ITEMS = [
     price: 1599,
     container: 'square',
     tripSeconds: 90,
-    geometrie: { drunk: 0.45 },
+    wards: { drunk: 0.45 },
     healsPct: 30,
   },
   {
@@ -353,7 +353,7 @@ export const ITEMS = [
     price: 2999,
     container: 'goose',
     tripSeconds: 90,
-    geometrie: { drunk: 0.45 },
+    wards: { drunk: 0.45 },
     healsPct: 30,
   },
   {
@@ -363,7 +363,7 @@ export const ITEMS = [
     price: 99,
     container: 'can12',
     tripSeconds: 60,
-    geometrie: { drunk: 0.15 },
+    wards: { drunk: 0.15 },
     healsPct: 15,
   },
   {
@@ -373,7 +373,7 @@ export const ITEMS = [
     price: 129,
     container: 'longneck',
     tripSeconds: 60,
-    geometrie: { drunk: 0.15 },
+    wards: { drunk: 0.15 },
     healsPct: 15,
   },
   {
@@ -383,7 +383,7 @@ export const ITEMS = [
     price: 149,
     container: 'can12',
     tripSeconds: 60,
-    geometrie: { drunk: 0.15 },
+    wards: { drunk: 0.15 },
     healsPct: 15,
   },
   {
@@ -393,7 +393,7 @@ export const ITEMS = [
     price: 299,
     container: 'flask',
     tripSeconds: 90,
-    geometrie: { drunk: 0.3 },
+    wards: { drunk: 0.3 },
     healsPct: 15,
   },
   {
@@ -403,11 +403,11 @@ export const ITEMS = [
     price: 119,
     container: 'water',
     tripSeconds: 1,
-    geometrie: { drunk: -0.1 },
+    wards: { drunk: -0.1 },
     healsPct: 15,
   },
   // Medicine, off the rack by the register. Each one taken gives a health
-  // point back and moves geometrie: whatever is swallowed as a pill (the
+  // point back and moves the wards: whatever is swallowed as a pill (the
   // aspirin and ibuprofen a little, the Benadryl a lot) lights the pill
   // corner, as the Adderall does, and the eye drops get the red out. form
   // is a MedicineForm (interfaces.ts), the shape assets.ts builds.
@@ -418,7 +418,7 @@ export const ITEMS = [
     price: 449,
     contents: 24,
     form: 'pills',
-    geometrie: { stimulated: 0.1 },
+    wards: { stimulated: 0.1 },
     healsPct: 15,
   },
   {
@@ -428,7 +428,7 @@ export const ITEMS = [
     price: 499,
     contents: 24,
     form: 'pills',
-    geometrie: { stimulated: 0.1 },
+    wards: { stimulated: 0.1 },
     healsPct: 15,
   },
   {
@@ -438,7 +438,7 @@ export const ITEMS = [
     price: 699,
     contents: 24,
     form: 'carton',
-    geometrie: { stimulated: 0.3 },
+    wards: { stimulated: 0.3 },
     healsPct: 15,
   },
   {
@@ -447,7 +447,7 @@ export const ITEMS = [
     start: 0,
     price: 549,
     form: 'dropper',
-    geometrie: { high: -0.15, tripping: -0.15 },
+    wards: { high: -0.15, tripping: -0.15 },
     healsPct: 15,
   },
   // Forage. Not for sale: cabbages grow wild across the valley and come
@@ -571,9 +571,9 @@ export function healsOf(id: string, max: number): number {
   return Math.round((pct / 100) * max)
 }
 
-// How far one use of `id` moves geometrie (geometrie.ts dose): anything
+// How far one use of `id` moves the wards (wardlevels.ts dose): anything
 // smoked or drunk has a dose; nothing else moves it.
-export function geometrieOf(id: string): GeometrieDose | undefined {
+export function doseOf(id: string): WardDose | undefined {
   const item = itemById(id)
   if (!item) return undefined
   switch (item.category) {
@@ -583,7 +583,7 @@ export function geometrieOf(id: string): GeometrieDose | undefined {
     case 'medicine':
     case 'psychedelic':
     case 'stimulant':
-      return item.geometrie
+      return item.wards
     default:
       return undefined
   }
