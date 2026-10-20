@@ -6,6 +6,10 @@
 // moved in the world asks Ground; only the terrain mesh and the surfaces
 // themselves sample the terrain directly.
 //
+// Where decks stack (the moat's fire escapes, flight over flight), the
+// highest is not always the one underfoot: standAt answers for feet at a
+// height, the highest deck they could step onto from there.
+//
 // Surfaces register once as the world is built. A spatial hash of square
 // cells keeps a query to the few surfaces near the point, so the player and
 // the truck can ask every frame.
@@ -177,6 +181,29 @@ export class Ground {
       if (y !== null && (best === null || y > best)) best = y
     }
     return best
+  }
+
+  // The deck feet at `feetY` stand on at (x, z): the highest of the
+  // terrain and the surfaces over it covering the point that is no more
+  // than `climb` over the feet (any higher is a ceiling over them), or the
+  // lowest of them when every one is higher. A surface under the terrain
+  // is no deck, as in heightAt.
+  standAt(x: number, z: number, feetY: number, climb: number): number {
+    const reach = feetY + climb
+    const terrain = this.terrain(x, z)
+    let best = terrain
+    const lowest = terrain
+    let found = terrain <= reach
+    if (!found) best = -Infinity
+    for (const surface of this.cells.get(this.key(x, z)) ?? []) {
+      const y = this.deck(surface, x, z)
+      if (y === null || y < terrain) continue
+      if (y <= reach && y > best) {
+        best = y
+        found = true
+      }
+    }
+    return found ? best : lowest
   }
 
   heightAt(x: number, z: number): number {

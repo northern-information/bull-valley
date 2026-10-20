@@ -13,6 +13,7 @@ import { moabOffer } from './cosmetics.ts'
 import { dayKey } from './daily.ts'
 import { onDay, shownCount } from './dailytask.ts'
 import { EMOTES, holds } from './emotes.ts'
+import { hurts } from './fall.ts'
 import { ease, stepHand, useLift, useSeconds } from './hands.ts'
 import { shakeAt } from './health.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
@@ -189,6 +190,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
 
   // The slurms' sounds, heard with the shadows' on the next frame.
   let slurmCues: Cue[] = []
+  // A hard landing for the valley to hear, after where we came down.
+  let landing: number | null = null
   let last = performance.now()
   // Real seconds since the last frame, and the same capped at maxStep: the
   // capped step moves the player, the item timers, and the animation, so a
@@ -263,6 +266,13 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       feetY = player.groundY
       moveSpeed = playerState.speed
       crouching = playerState.crouching
+      // A hard landing (rule 24): in the valley it hears where we came
+      // down first (sendState), then how far; alone, our own.
+      const fell = playerState.landed
+      if (fell !== null && hurts(fell) && now >= s.strikeUntil) {
+        if (s.world && net.online) landing = fell
+        else actions.strike('fall', undefined, fell)
+      }
       // An emote holds while the raider stands still; moving, crouching or
       // its seconds running out end it.
       const nowSeconds = now / 1000
@@ -490,6 +500,14 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     if (dishes && live(dishes.middle, dishes.reach)) {
       dishes.update(net.clock.serverNow(now) / 1000)
     }
+    // Castle Entropy bobs and its lighthouse sweeps the valley from
+    // anywhere, on the valley's clock, and is made anew when the Central
+    // day turns (castle.ts); its moat and cranes move only near.
+    const castle = world.castle
+    if (castle) {
+      const shared = net.clock.serverNow(now)
+      castle.update(shared / 1000, dayKey(shared), live(castle.middle, 120))
+    }
   }
 
   // The portals. Says the moment the Citgo portals' clock reads.
@@ -555,7 +573,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     lit: boolean
   ): boolean => {
     s.sinceSent += dt
-    const tick = s.sinceSent >= 1 / CONFIG.net.sendHz
+    const tick = s.sinceSent >= 1 / CONFIG.net.sendHz || landing !== null
     if (tick) s.sinceSent = 0
     if (net.online && tick) {
       const state: PeerStateWire = {
@@ -571,6 +589,10 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       if (stateChanged(s.lastSent, state)) {
         s.lastSent = state
         net.sendState(state)
+      }
+      if (landing !== null) {
+        net.send({ type: 'fall', height: landing })
+        landing = null
       }
       // Near Marx's truck, where it stands, so the valley can aim its
       // headlights at the shadowmen round us: as it drives, once where

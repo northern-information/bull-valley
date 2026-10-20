@@ -254,11 +254,14 @@ export function assembleParts(parts: Part[]): THREE.Group {
 
 // Bounds from meshes only: glow sprites are unit planes scaled up, and would
 // frame a camera on empty air.
+// So would a beam of light (the lighthouse's, reaching 400 m), named
+// LIGHT_BEAM.
+export const LIGHT_BEAM = 'light-beam'
 export function meshBounds(object: THREE.Object3D): THREE.Box3 {
   const box = new THREE.Box3()
   object.updateMatrixWorld(true)
   object.traverse((o) => {
-    if (isMesh(o)) box.expandByObject(o)
+    if (isMesh(o) && o.name !== LIGHT_BEAM) box.expandByObject(o)
   })
   return box
 }

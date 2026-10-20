@@ -2608,6 +2608,31 @@ describe('rule 24: geometrie', () => {
     expect(healthFor(v.valley, 'acct-a')).toBe(MAX)
   })
 
+  it('takes a fall off it by its height, nothing cutting it', () => {
+    const { safe, lethal } = CONFIG.fall
+    const v = valleyWith(join('a'))
+    // Dosed to the eyes: no ward cuts a fall.
+    v.step({ type: 'dose', id: 'a', kind: 'joints' })
+    expect(
+      v.step({ type: 'plunge', id: 'a', height: safe - 0.5 }).health
+    ).toBeUndefined()
+    const half = (safe + lethal) / 2
+    expect(v.step({ type: 'plunge', id: 'a', height: half }).health).toEqual({
+      account: 'acct-a',
+      points: MAX - MAX / 2,
+      max: MAX,
+      hit: { by: 'fall', damage: MAX / 2, warded: 0 },
+    })
+    // Two stories shatter it, and the account is whole and sober after.
+    const fatal = v.step({ type: 'plunge', id: 'a', height: 30 })
+    expect(fatal.health).toMatchObject({ points: 0, fatal: true })
+    expect(fatal.health?.hit).toEqual({ by: 'fall', damage: MAX, warded: 0 })
+    expect(healthFor(v.valley, 'acct-a')).toBe(MAX)
+    expect(
+      v.step({ type: 'plunge', id: 'nobody', height: 30 }).health
+    ).toBeUndefined()
+  })
+
   it("is the account's: a second socket shares it, and a stranger has none", () => {
     const second = { ...joinAs('b'), account: 'acct-a' }
     const v = valleyWith(join('a'), second)
@@ -2905,6 +2930,13 @@ describe('rule 29: Bull Valley Dial-Up', () => {
     v.step(dial('p'))
     expect(v.valley.world?.truck.leg).toEqual(leg)
     expect(Object.keys(v.valley.members).sort()).toEqual(['a', 'p'])
+  })
+
+  it('never falls', () => {
+    const v = valleyWith(dial('p'))
+    expect(
+      v.step({ type: 'plunge', id: 'p', height: 30 }).health
+    ).toBeUndefined()
   })
 
   it('refuses whatever takes a body', () => {

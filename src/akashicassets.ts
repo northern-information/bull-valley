@@ -8,6 +8,8 @@ import {
 import { buildBerryBush } from './berrybush.ts'
 import { buildCabbageStand, buildStandDressing } from './cabbagestandmodel.ts'
 import { buildCaretaker } from './caretakermodel.ts'
+import { castleOf } from './castle.ts'
+import { buildCastle } from './castlemodel.ts'
 import {
   adSignPart,
   buildLockerDoors,
@@ -29,6 +31,8 @@ import {
   cornWallSize,
   flatCornPieces,
 } from './cornmazeparts.ts'
+import { buildCrane } from './cranemodel.ts'
+import { dayKey } from './daily.ts'
 import { buildDishArray } from './dishes.ts'
 import { buildDrink } from './drinkmodels.ts'
 import { buildFireRoots, buildRaincloud } from './fire.ts'
@@ -37,6 +41,8 @@ import { ITEMS } from './items.ts'
 import { buildLookout } from './lookoutmodel.ts'
 import { mazeSpans, SHINING_MAZE } from './maze.ts'
 import { buildMedicine } from './medicinemodels.ts'
+import { fireEscapes, moatEdges, moatFloor, trickle } from './moat.ts'
+import { buildMoat } from './moatmodel.ts'
 import {
   buildCigarettePack,
   buildDimes,
@@ -455,6 +461,26 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     build: () => buildLookout(),
   },
   {
+    id: 'castle-entropy',
+    label: 'Castle Entropy, as it stands today',
+    build: () => sampleCastle(0),
+  },
+  {
+    id: 'castle-entropy-tomorrow',
+    label: 'Castle Entropy, as it will stand tomorrow',
+    build: () => sampleCastle(1),
+  },
+  {
+    id: 'castle-moat',
+    label: "Castle Entropy's moat, with its fire escapes",
+    build: sampleMoat,
+  },
+  {
+    id: 'moat-crane',
+    label: "A crane rotting on the moat's rim",
+    build: () => buildCrane(0xc4a1).group,
+  },
+  {
     id: 'strip-mall',
     label: 'Bull Valley Plaza, the dead strip mall',
     build: samplePlaza,
@@ -612,3 +638,32 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   },
   { id: 'scythe', label: "Moab's scythe", build: buildScythe },
 ]
+
+// Castle Entropy `days` from now, on the Central calendar (castle.ts).
+function sampleCastle(days: number): THREE.Object3D {
+  const rig = buildCastle(castleOf(dayKey(Date.now() + days * 86_400_000)))
+  return rig.group
+}
+
+// The moat on rolling ground of its own, at the origin.
+function sampleMoat(): THREE.Object3D {
+  const place = { x: 0, z: 0, yaw: 0 }
+  const raw = (x: number, z: number) =>
+    4 * Math.sin(x / 40) + 3 * Math.cos(z / 55)
+  const floor = moatFloor(raw, place)
+  const edges = moatEdges(place)
+  const rig = buildMoat({
+    ...edges,
+    raw,
+    floor,
+    stairs: fireEscapes(raw, place, floor),
+    trickle: trickle(place),
+    middle: place,
+  })
+  // The floor on the grid, the rim up over it.
+  const lifted = new THREE.Group()
+  rig.group.position.y = -floor
+  lifted.add(rig.group)
+  setMotion(lifted, (t) => rig.update(t))
+  return lifted
+}

@@ -342,7 +342,9 @@ export function buildPickups(
     kind: PickupKind
     count: number
     within?: readonly XZ[]
-  })[] = []
+  })[] = [],
+  // Where nothing is left lying (the moat's grounds).
+  keepOut: (x: number, z: number) => boolean = () => false
 ): { group: THREE.Group; pickups: Pickup[] } {
   const group = new THREE.Group()
   group.name = 'pickups'
@@ -355,6 +357,7 @@ export function buildPickups(
     seed?: number,
     yaw = 0
   ) => {
+    if (keepOut(x, z)) return
     const mesh = buildPickup(kind, seed)
     mesh.position.set(x, heightAt(x, z), z)
     mesh.rotation.y = yaw

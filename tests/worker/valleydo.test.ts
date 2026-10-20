@@ -1705,6 +1705,52 @@ describe('ValleyDO: corpse runs', () => {
     expect(lastFrame(b)?.corpses ?? []).toEqual([])
   })
 
+  it('takes a hard landing off the account, and two stories lay a body', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    await v.alarm()
+    await v.webSocketMessage(ws(a), state(500, 500))
+    const { safe, lethal } = CONFIG.fall
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ type: 'fall', height: (safe + lethal) / 2 })
+    )
+    expect(a.frames()).toContainEqual({
+      type: 'struck',
+      by: 'fall',
+      damage: MAX / 2,
+      warded: 0,
+      health: MAX / 2,
+      max: MAX,
+    })
+    // Under a story, nothing; a height past belief is no frame at all.
+    const before = a.frames().length
+    await v.webSocketMessage(ws(a), '{"type":"fall","height":1}')
+    await v.webSocketMessage(ws(a), '{"type":"fall","height":9000}')
+    expect(
+      a
+        .frames()
+        .slice(before)
+        .some((m) => m.type === 'struck')
+    ).toBe(false)
+    await v.webSocketMessage(ws(a), '{"type":"fall","height":30}')
+    expect(a.frames()).toContainEqual({
+      type: 'struck',
+      by: 'fall',
+      damage: MAX,
+      warded: 0,
+      health: 0,
+      max: MAX,
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(worldFrames(b).at(-1)).toMatchObject({
+      reason: 'fell',
+      by: idOf(a),
+    })
+    expect(b.frames().some((m) => m.type === 'struck')).toBe(false)
+  })
+
   it('gives the things back to the account that fell, and no one else', async () => {
     const { v, a, b } = await struck()
     await v.webSocketMessage(ws(b), '{"type":"loot","corpse":0}')

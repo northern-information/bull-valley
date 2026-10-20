@@ -28,6 +28,7 @@ describe('bookSights', () => {
       plaza: null,
       undercroft: null,
       landmarks: [],
+      castle: null,
     })
     expect(sights).toEqual([
       { id: 'citgo', x: 100, z: 200, reach: CONFIG.book.reach.citgo },
@@ -35,7 +36,7 @@ describe('bookSights', () => {
     ])
   })
 
-  it('places every sight round the spawn Citgo, and the Keep', () => {
+  it('places every sight round the spawn Citgo, the Keep and the castle', () => {
     const { reach } = CONFIG.book
     const sights = bookSights({
       stations: [station],
@@ -54,6 +55,7 @@ describe('bookSights', () => {
         { n: KEEP, x: 7, z: 8 },
         { n: 'elsewhere', x: 9, z: 9 },
       ],
+      castle: { x: -50, z: -240 },
     })
     const ids = sights.map((s) => s.id)
     expect(ids).toEqual([
@@ -69,8 +71,12 @@ describe('bookSights', () => {
       'corn-maze',
       'maze-heart',
       'keep',
+      'castle',
     ])
     const by = (id: string) => sights.filter((s) => s.id === id)
+    expect(by('castle')).toEqual([
+      { id: 'castle', x: -50, z: -240, reach: reach.castle },
+    ])
     const [sx, , sz] = toWorld(station, [
       CONFIG.stand.at.x,
       0,

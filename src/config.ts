@@ -51,6 +51,8 @@ export const CONFIG = {
       maze: 8,
       heart: 12,
       keep: 40,
+      // Past the rim, from the island's middle.
+      castle: 90,
     },
     sightRange: 25,
   },
@@ -560,6 +562,72 @@ export const CONFIG = {
         price: { cash: 6000, items: { cabbage: 12, berries: 8 } },
       },
     ],
+  },
+  // Castle Entropy and its moat (moat.ts, castle.ts, castlesite.ts):
+  // north (world -z) of the donut field past Lake Avenue. The moat is cut
+  // into the terrain itself (moat.ts carve), an irregular pentagon round an
+  // island no one reaches yet, the castle floating over it and made anew
+  // every Central day.
+  castle: {
+    // From the donut field's middle, straight north, in metres.
+    north: 240,
+    // The pentagon's turn in the world, radians.
+    yaw: 0.35,
+    moat: {
+      // The island's middle radius, how far each corner may wander from it
+      // (a share), and how far each may turn off true (radians).
+      island: 34,
+      wobble: 0.16,
+      twist: 0.16,
+      seed: 0xe471,
+      // Across the channel and down it, from the lowest of the rim.
+      width: 30,
+      depth: 30,
+      // Trees, poles and pickups keep this far off the outer edge.
+      clear: 12,
+    },
+    // The fire escapes on the outer walls (moat.ts fireEscapes): the sides
+    // that carry one, how wide a flight runs (the strip is two), about how
+    // much each climbs, how steep (rise over run), and how deep a landing
+    // is.
+    stairs: {
+      sides: [0, 2, 3],
+      width: 1.1,
+      rise: 3,
+      slope: 0.7,
+      landing: 1.6,
+    },
+    // The cranes on the outer rim, leaning out over the moat.
+    cranes: 4,
+    // The castle's underside over the rim, and how it bobs.
+    float: 22,
+    bob: { metres: 0.8, seconds: 11 },
+    // How many of each it is built of (castle.ts castleOf), on cells this
+    // wide.
+    cell: 6,
+    masses: { min: 9, max: 15 },
+    // No mass stacks higher than this over the base.
+    stack: 44,
+    spires: { min: 4, max: 8 },
+    lighthouse: {
+      // Turns a minute, how far each beam reaches, its colour.
+      rpm: 5,
+      beamLength: 420,
+      color: '#4aa8ff',
+    },
+  },
+  // Falling (fall.ts): the feet leave the ground when it drops away more
+  // than `step`, and fall at `gravity` m/s². They climb onto a deck up to
+  // `climb` over them (a store's floor over its slope); a deck higher than
+  // that is a ceiling they walk under (the flight over a flight). A
+  // landing from `safe` metres hurts, scaled to all of a raider's
+  // geometrie at `lethal` (two stories) and past it.
+  fall: {
+    step: 0.6,
+    climb: 2,
+    gravity: 22,
+    safe: 3,
+    lethal: 7,
   },
   wreck: {
     // The green BMW nosed into a tree beside the spawn Citgo, station-local

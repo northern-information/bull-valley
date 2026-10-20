@@ -16,7 +16,13 @@ interface HeightField {
   n: number
   grid: Float32Array
   relief: number
+  // The ground's height: the grid, with whatever has been cut into it.
   sample: HeightAt
+  // The grid alone, uncut.
+  raw: HeightAt
+  // Cut something into the ground (Castle Entropy's moat, moat.ts carve):
+  // from now on `sample` is `cut` of the grid.
+  carve(cut: (raw: HeightAt) => HeightAt): void
 }
 
 // The committed heightmap: square, 16 bits of normalized elevation packed as
@@ -68,17 +74,90 @@ export function createHeightField(
     }
   }
   const { width, height } = geo.metres
+  const raw: HeightAt = (x, z) => {
+    const u = Math.max(0, Math.min(1, x / width + 0.5))
+    const v = Math.max(0, Math.min(1, z / height + 0.5))
+    return bilinearHeight(grid, n, u, v)
+  }
+  let cut: HeightAt = raw
   return {
     seg,
     n,
     grid,
     relief,
-    sample(x: number, z: number) {
-      const u = Math.max(0, Math.min(1, x / width + 0.5))
-      const v = Math.max(0, Math.min(1, z / height + 0.5))
-      return bilinearHeight(grid, n, u, v)
+    raw,
+    sample: (x, z) => cut(x, z),
+    carve(by) {
+      cut = by(raw)
     },
   }
+}
+
+// The terrain mesh with a hole where the ground is cut away (the moat's
+// channel: inside `outer`, outside `inner`, both five-cornered rings in
+// the world): the grid is far too coarse to draw the cut, so the mesh lets
+// it through and what was cut draws its own walls and floor.
+export function cutTerrainHole(
+  mesh: THREE.Mesh,
+  inner: readonly { x: number; z: number }[],
+  outer: readonly { x: number; z: number }[]
+): void {
+  const material = mesh.material as THREE.Material
+  // The PS1 snap's own (ps1.ts applyPS1), which the hole runs after.
+  const before = material.onBeforeCompile.bind(material)
+  const ring = (poly: readonly { x: number; z: number }[]) =>
+    poly.map((p) => new THREE.Vector2(p.x, p.z))
+  material.onBeforeCompile = (shader, renderer) => {
+    before(shader, renderer)
+    shader.uniforms.uHoleInner = { value: ring(inner) }
+    shader.uniforms.uHoleOuter = { value: ring(outer) }
+    shader.vertexShader =
+      'varying vec2 vHoleAt;\n' +
+      shader.vertexShader.replace(
+        '#include <project_vertex>',
+        [
+          '#include <project_vertex>',
+          'vHoleAt = (modelMatrix * vec4(transformed, 1.0)).xz;',
+        ].join('\n')
+      )
+    shader.fragmentShader =
+      [
+        'varying vec2 vHoleAt;',
+        `uniform vec2 uHoleInner[${inner.length}];`,
+        `uniform vec2 uHoleOuter[${outer.length}];`,
+        holeTest('inHoleInner', 'uHoleInner', inner.length),
+        holeTest('inHoleOuter', 'uHoleOuter', outer.length),
+      ].join('\n') +
+      '\n' +
+      shader.fragmentShader.replace(
+        '#include <clipping_planes_fragment>',
+        [
+          '#include <clipping_planes_fragment>',
+          'if (inHoleOuter(vHoleAt) && !inHoleInner(vHoleAt)) discard;',
+        ].join('\n')
+      )
+  }
+  material.customProgramCacheKey = () => 'terrain-hole'
+  material.needsUpdate = true
+}
+
+// A GLSL ray cast over a ring of `count` corners in uniform `ring`.
+function holeTest(name: string, ring: string, count: number): string {
+  return [
+    `bool ${name}(vec2 p) {`,
+    '  bool inside = false;',
+    `  for (int i = 0; i < ${count}; i++) {`,
+    `    int j = i == 0 ? ${count - 1} : i - 1;`,
+    `    vec2 a = ${ring}[i];`,
+    `    vec2 b = ${ring}[j];`,
+    '    if ((a.y > p.y) != (b.y > p.y) &&',
+    '        p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) {',
+    '      inside = !inside;',
+    '    }',
+    '  }',
+    '  return inside;',
+    '}',
+  ].join('\n')
 }
 
 export function buildTerrainMesh(

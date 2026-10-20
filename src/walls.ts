@@ -9,7 +9,9 @@
 // open for the body at (x, z) every time it is met. A wall is a
 // capsule: a segment on the ground plane, `half` its thickness either side.
 // The player asks resolve() after every move and is pushed back out of any
-// wall it walked into.
+// wall it walked into. A wall with a band stands only for a body whose
+// feet are within it: the moat's rim stops whoever is down in the channel
+// from walking up its face, but not whoever walks off it from above.
 //
 // Walls register once as the world is built. A spatial hash of square
 // cells, as in ground.ts, keeps a query to the few walls near the point.
@@ -23,6 +25,22 @@ interface Wall {
   half: number
   // A gate's name, for `open` to answer.
   gate?: string
+  // The heights of the feet it stands for, when not all of them.
+  band?: Band
+}
+
+// The feet a wall stands for: at or over `low`, at or under `high`.
+export interface Band {
+  low?: number
+  high?: number
+}
+
+function stands(band: Band | undefined, feet: number | undefined): boolean {
+  if (!band) return true
+  if (feet === undefined) return true
+  if (band.low !== undefined && feet < band.low) return false
+  if (band.high !== undefined && feet > band.high) return false
+  return true
 }
 
 // Whether gate `gate` lets the body at (x, z) through.
@@ -38,7 +56,7 @@ const BODY_MARGIN = 1
 
 export class Walls {
   // Bound, so it passes as a plain function.
-  readonly resolve: (x: number, z: number, radius: number) => XZ
+  readonly resolve: (x: number, z: number, radius: number, feet?: number) => XZ
   // Bound too: whether a wall stands across the line between two points.
   readonly between: (from: XZ, to: XZ) => boolean
   private readonly cell: number
@@ -48,7 +66,7 @@ export class Walls {
 
   constructor(cell = 50) {
     this.cell = cell
-    this.resolve = (x, z, radius) => this.push(x, z, radius)
+    this.resolve = (x, z, radius, feet) => this.push(x, z, radius, feet)
     this.between = (from, to) => this.crossed(from, to)
   }
 
@@ -62,8 +80,9 @@ export class Walls {
     this.open = open
   }
 
-  addWall(a: XZ, b: XZ, half: number) {
-    this.file({ a, b, half })
+  // A wall, standing for every body, or only for feet within `band`.
+  addWall(a: XZ, b: XZ, half: number, band?: Band) {
+    this.file(band ? { a, b, half, band } : { a, b, half })
   }
 
   private file(wall: Wall) {
@@ -90,7 +109,7 @@ export class Walls {
   // side of it to the other, so what lies at `to` is out of reach of a
   // hand at `from` (a pickup behind a partition). A post, of no length,
   // never stands across a line; a gate open to the body at `from` stands
-  // aside.
+  // aside, and a banded wall, a ledge, never stands across a reach.
   private crossed(from: XZ, to: XZ): boolean {
     const i0 = Math.floor(Math.min(from.x, to.x) / this.cell)
     const i1 = Math.floor(Math.max(from.x, to.x) / this.cell)
@@ -102,6 +121,7 @@ export class Walls {
           if (wall.gate !== undefined && this.open(wall.gate, from.x, from.z)) {
             continue
           }
+          if (wall.band) continue
           if (crosses(from, to, wall)) return true
         }
       }
@@ -109,8 +129,9 @@ export class Walls {
     return false
   }
 
-  // (x, z) pushed out until it is at least `radius` clear of every wall.
-  private push(x: number, z: number, radius: number): XZ {
+  // (x, z) pushed out until it is at least `radius` clear of every wall
+  // that stands for feet at `feet` (every wall, with no feet given).
+  private push(x: number, z: number, radius: number, feet?: number): XZ {
     const near = this.cells.get(
       `${Math.floor(x / this.cell)},${Math.floor(z / this.cell)}`
     )
@@ -121,6 +142,7 @@ export class Walls {
       let moved = false
       for (const wall of near) {
         if (wall.gate !== undefined && this.open(wall.gate, x, z)) continue
+        if (!stands(wall.band, feet)) continue
         const clear = wall.half + radius
         const p = projectOnSegment(
           px,

@@ -318,6 +318,10 @@ export class ValleyDO extends DurableObject<Env> {
       case 'loot':
         await this.loot(ws, account, { ...msg, id, at })
         return
+      case 'fall':
+        // Rule 24: landed hard, by the client's word.
+        if (account) await this.plunge(ws, account, id, msg.height)
+        return
       case 'stow':
       case 'unstow':
         await this.restash(ws, account, { ...msg, id, at })
@@ -620,22 +624,46 @@ export class ValleyDO extends DurableObject<Env> {
     await this.locked(() => this.strikeHeld(account, id, sockets, by))
   }
 
+  // A fall (rule 24): landed from `height` metres, by the socket's word,
+  // heard like a touch, on that socket alone.
+  private async plunge(
+    ws: WebSocket,
+    account: string,
+    id: string,
+    height: number
+  ): Promise<void> {
+    await this.locked(() =>
+      this.hurtHeld(account, id, [ws], { type: 'plunge', id, height })
+    )
+  }
+
   private async strikeHeld(
     account: string,
     id: string,
     sockets: readonly WebSocket[],
     by: ShadowHit
   ): Promise<void> {
-    const reduced = reduce(
-      this.valley,
-      { type: 'hit', id, by, roll: this.roll() },
-      this.context()
-    )
+    await this.hurtHeld(account, id, sockets, {
+      type: 'hit',
+      id,
+      by,
+      roll: this.roll(),
+    })
+  }
+
+  // A hit or a fall off the account, with the lock held.
+  private async hurtHeld(
+    account: string,
+    id: string,
+    sockets: readonly WebSocket[],
+    action: Extract<ValleyAction, { type: 'hit' | 'plunge' }>
+  ): Promise<void> {
+    const reduced = reduce(this.valley, action, this.context())
     await this.apply(reduced)
     const change = reduced.health
     if (!change?.hit) return
     const { points: health, max } = change
-    const { damage, warded } = change.hit
+    const { by, damage, warded } = change.hit
     for (const socket of this.ctx.getWebSockets()) {
       const attachment = this.attachment(socket)
       if (attachment.account !== account || !attachment.me) continue

@@ -242,6 +242,10 @@ lore = { text = "A ring of berry bushes round a door that opens back onto the ga
 [book.keep]
 lore = { text = "A light on the hill to the north. The beacon burns whether anyone is home or not.", by = "ai" }
 
+[book.castle]
+name = { text = "Castle Entropy", by = "ai" }
+lore = { text = "It hangs over its island with nothing under it but rock and the drop. The moat around it is ten stories of poured concrete. Every night it comes apart and goes back together wrong, and the blue light at its edge never stops turning.", by = "ai" }
+
 [book.shadowman]
 lore = { text = "They cross the valley round every raider, the same ones for everyone. Close enough, one rushes, draws back, and lunges, and its touch takes a piece of you; the third sends you back to the Citgo with nothing. Hold a beam on one and it comes apart into mist and skulls, and leaves its dimes.", by = "ai" }
 
@@ -411,6 +415,7 @@ change_unheard = { text = "The valley missed that. Others will see it when you n
 struck = { text = "You are somewhere else. Time is missing.", by = "ai" }
 hit = { text = "Something cold goes through you. It takes a piece with it.", by = "ai" }
 hit_caretaker = { text = "The lantern swings into you. A piece of you stays in the corn.", by = "ai" }
+hit_fall = { text = "You land hard. Something in you cracks and stays cracked.", by = "ai" }
 warded_high = { text = "The high takes the edge off it.", by = "ai" }
 warded_stimulated = { text = "You're too wired for it to sink in. The legs only graze you.", by = "ai" }
 warded_drunk = { text = "The lantern lands soft. You're too loose to break.", by = "ai" }
@@ -418,6 +423,7 @@ warded_tripping = { text = "It reaches for you and finds only part of you there.
 mended = { text = "Under the Citgo lights you come back together.", by = "ai" }
 caught = { text = "A lantern, very close. Then the forecourt, and the smell of cold corn.", by = "ai" }
 tunneled = { text = "Something in the dark, very close. Then the forecourt, and the taste of stone.", by = "ai" }
+plunged = { text = "The ground, all at once. Then the forecourt, and concrete dust in your teeth.", by = "ai" }
 fell = { text = "Your pockets are empty. Everything you carried is still out there, on you, where you fell.", by = "ai" }
 looted = { text = "You take your things back off your own body.", by = "ai" }
 loot_refused = { text = "Your hands go through it. Not now.", by = "ai" }

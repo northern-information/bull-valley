@@ -1,0 +1,450 @@
+import * as THREE from 'three'
+import {
+  artTexture,
+  castShadows,
+  isMesh,
+  lambert,
+  LIGHT_BEAM,
+  makeGlowTexture,
+  memo,
+  mergeStatic,
+  setMotion,
+} from './assetkit.ts'
+import { bobAt, lighthouseAngle } from './castle.ts'
+import { CONFIG } from './config.ts'
+import { MOAT } from './moat.ts'
+import { concreteArt } from './moatart.ts'
+import { mulberry32, range } from './rng.ts'
+import type { CastleLayout } from './castle.ts'
+
+// Castle Entropy as seen, from a day's layout (castle.ts castleOf): the
+// rock it floats on and the slab over it, the brutalist masses in poured
+// concrete with their window slits and heavy cornices, the gothic spires
+// in dark stone bristling with crockets, the flying buttresses arcing from
+// the low roofs up to the tall, the gargoyles on the corners, and the
+// lighthouse at the edge, its lamp a cold blue that takes no fog and its
+// two beams sweeping the valley on the shared clock. Origin at the
+// castle's base over the island's middle, in the moat's own frame (turn the
+// group by the place's yaw); `update(t)` bobs it and turns the beams, `t`
+// the shared clock in seconds.
+
+export interface CastleRig {
+  group: THREE.Group
+  update(t: number): void
+  // Frees what the castle built for itself (it is built anew each day).
+  dispose(): void
+}
+
+const concreteTexture = memo((id: string) => {
+  const texture = artTexture(concreteArt(id))
+  texture.wrapS = THREE.RepeatWrapping
+  texture.wrapT = THREE.RepeatWrapping
+  return texture
+})
+
+// A box whose uvs run in metres over `panel`, so the concrete's panels
+// keep their size on a mass of any size.
+function slab(
+  w: number,
+  h: number,
+  d: number,
+  panel: number
+): THREE.BoxGeometry {
+  const geometry = new THREE.BoxGeometry(w, h, d)
+  const uv = geometry.getAttribute('uv')
+  const normal = geometry.getAttribute('normal')
+  for (let i = 0; i < uv.count; i++) {
+    const nx = Math.abs(normal.getX(i))
+    const ny = Math.abs(normal.getY(i))
+    const across = nx > 0.5 ? d : w
+    const up = ny > 0.5 ? d : h
+    uv.setXY(i, (uv.getX(i) * across) / panel, (uv.getY(i) * up) / panel)
+  }
+  return geometry
+}
+
+export function buildCastle(layout: CastleLayout): CastleRig {
+  const group = new THREE.Group()
+  group.name = 'castle-entropy'
+  // Everything that bobs, under the group (the group itself is placed).
+  const body = new THREE.Group()
+  group.add(body)
+  const rng = mulberry32(0xca57e)
+  const concrete = lambert({ map: concreteTexture('#7d7b77') })
+  const pale = lambert({ map: concreteTexture('#8f8c86') })
+  const stone = lambert({ color: '#45444c' })
+  const darkStone = lambert({ color: '#2f2e35' })
+  const rock = lambert({ color: '#3a3631' })
+  const slit = lambert({
+    color: '#0c0d10',
+    emissive: new THREE.Color('#3a2a14'),
+    emissiveIntensity: 0.25,
+  })
+  const metal = lambert({ color: '#4a4f52' })
+  const pipe = lambert({ color: '#5a4636' })
+
+  const add = (
+    geometry: THREE.BufferGeometry,
+    material: THREE.Material,
+    x: number,
+    y: number,
+    z: number,
+    rotY = 0
+  ) => {
+    const mesh = new THREE.Mesh(geometry, material)
+    mesh.position.set(x, y, z)
+    mesh.rotation.y = rotY
+    body.add(mesh)
+    return mesh
+  }
+  const strut = (
+    a: THREE.Vector3,
+    b: THREE.Vector3,
+    size: number,
+    material: THREE.Material
+  ) => {
+    const length = a.distanceTo(b)
+    if (length < 1e-3) return
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(size, length, size),
+      material
+    )
+    mesh.position.copy(a).add(b).multiplyScalar(0.5)
+    mesh.quaternion.setFromUnitVectors(
+      new THREE.Vector3(0, 1, 0),
+      b.clone().sub(a).normalize()
+    )
+    body.add(mesh)
+  }
+
+  // The slab the castle stands on: the island's shape, drawn in a little.
+  const shape = new THREE.Shape(
+    MOAT.island.map((p) => new THREE.Vector2(p.x * 0.88, p.z * 0.88))
+  )
+  const base = new THREE.ExtrudeGeometry(shape, {
+    depth: 3,
+    bevelEnabled: false,
+  })
+  base.rotateX(Math.PI / 2)
+  add(base, concrete, 0, 0, 0)
+
+  // The rock under it, shards hanging point down.
+  for (const shard of layout.rock) {
+    const cone = new THREE.ConeGeometry(shard.radius, shard.depth, 5)
+    cone.rotateX(Math.PI)
+    const mesh = add(cone, rock, shard.x, -3 - shard.depth / 2, shard.z)
+    mesh.rotation.y = rng() * Math.PI
+  }
+  // Loose stones and torn-off rebar hanging under it.
+  for (let i = 0; i < 18; i++) {
+    const s = layout.rock[Math.floor(rng() * layout.rock.length)]
+    const down = range(rng, 2, s.depth * 0.7)
+    const at = new THREE.Vector3(
+      s.x + range(rng, -2, 2),
+      -3,
+      s.z + range(rng, -2, 2)
+    )
+    strut(at, at.clone().add(new THREE.Vector3(0, -down, 0)), 0.06, metal)
+    add(
+      new THREE.BoxGeometry(0.6, 0.6, 0.6),
+      rock,
+      at.x,
+      at.y - down,
+      at.z,
+      rng()
+    )
+  }
+
+  // The masses: concrete, slits on every face a story apart, a cornice
+  // jutting over the roof, and now and then a pipe run down a face.
+  for (const m of layout.masses) {
+    add(slab(m.w, m.h, m.d, 6), concrete, m.x, m.y + m.h / 2, m.z)
+    const cornice = slab(m.w + 1.2, 0.8, m.d + 1.2, 6)
+    add(cornice, pale, m.x, m.y + m.h - 0.4, m.z)
+    const stories = Math.max(1, m.rows)
+    for (let r = 0; r < stories; r++) {
+      const y = m.y + (r + 0.5) * (m.h / stories)
+      for (const [axis, span, depth] of [
+        ['x', m.w, m.d],
+        ['z', m.d, m.w],
+      ] as const) {
+        for (let o = -span / 2 + 1.5; o <= span / 2 - 1.5; o += 2) {
+          for (const side of [-1, 1]) {
+            const g = new THREE.BoxGeometry(
+              axis === 'x' ? 0.35 : 0.12,
+              2.2,
+              axis === 'x' ? 0.12 : 0.35
+            )
+            const x = axis === 'x' ? m.x + o : m.x + (side * depth) / 2
+            const z = axis === 'x' ? m.z + (side * depth) / 2 : m.z + o
+            add(g, slit, x, y, z)
+          }
+        }
+      }
+    }
+    if (rng() < 0.4) {
+      const side = rng() < 0.5 ? -1 : 1
+      const x = m.x + (side * m.w) / 2 + side * 0.4
+      const z = m.z + range(rng, -m.d / 3, m.d / 3)
+      strut(
+        new THREE.Vector3(x, m.y, z),
+        new THREE.Vector3(x, m.y + m.h, z),
+        0.4,
+        pipe
+      )
+    }
+  }
+
+  // The spires: a drum, the cone, crockets up its edges, a finial.
+  for (const s of layout.spires) {
+    const sides = 6
+    add(
+      new THREE.CylinderGeometry(s.radius * 1.1, s.radius * 1.2, 3, sides),
+      stone,
+      s.x,
+      s.y + 1.5,
+      s.z
+    )
+    add(
+      new THREE.ConeGeometry(s.radius, s.h, sides),
+      darkStone,
+      s.x,
+      s.y + 3 + s.h / 2,
+      s.z
+    )
+    for (let e = 0; e < sides; e++) {
+      const turn = (e / sides) * Math.PI * 2
+      for (let c = 1; c <= s.crockets; c++) {
+        const f = c / (s.crockets + 1)
+        const r = s.radius * (1 - f) + 0.2
+        add(
+          new THREE.BoxGeometry(0.5, 0.25, 0.25),
+          stone,
+          s.x + Math.cos(turn) * r,
+          s.y + 3 + f * s.h,
+          s.z + Math.sin(turn) * r,
+          -turn
+        )
+      }
+    }
+    const tip = s.y + 3 + s.h
+    strut(
+      new THREE.Vector3(s.x, tip, s.z),
+      new THREE.Vector3(s.x, tip + 2.5, s.z),
+      0.12,
+      metal
+    )
+    strut(
+      new THREE.Vector3(s.x - 0.7, tip + 1.7, s.z),
+      new THREE.Vector3(s.x + 0.7, tip + 1.7, s.z),
+      0.1,
+      metal
+    )
+  }
+
+  // The flying buttresses: an arc of stones from the low roof's edge up
+  // to the tall mass's side, a pinnacle on the pier it springs from.
+  for (const b of layout.buttresses) {
+    const from = new THREE.Vector3(b.from.x, b.from.y, b.from.z)
+    const to = new THREE.Vector3(b.to.x, b.to.y, b.to.z)
+    const lift = from.distanceTo(to) * 0.25
+    const at = (t: number) => {
+      const p = from.clone().lerp(to, t)
+      p.y += Math.sin(t * Math.PI) * lift
+      return p
+    }
+    const pieces = 8
+    for (let i = 0; i < pieces; i++) {
+      strut(at(i / pieces), at((i + 1) / pieces), 0.9, stone)
+    }
+    add(new THREE.BoxGeometry(1.6, 3, 1.6), stone, from.x, from.y + 1.5, from.z)
+    add(
+      new THREE.ConeGeometry(0.9, 4, 4),
+      darkStone,
+      from.x,
+      from.y + 5,
+      from.z,
+      Math.PI / 4
+    )
+  }
+
+  // The gargoyles: crouched, jutting out over the edge, mouths open.
+  for (const g of layout.gargoyles) {
+    const out = new THREE.Vector3(Math.cos(g.yaw), 0, Math.sin(g.yaw))
+    const at = new THREE.Vector3(g.x, g.y, g.z).add(
+      out.clone().multiplyScalar(0.6)
+    )
+    const rot = -g.yaw
+    add(
+      new THREE.BoxGeometry(1.4, 0.8, 0.8),
+      stone,
+      at.x,
+      at.y + 0.4,
+      at.z,
+      rot
+    )
+    const head = at.clone().add(out.clone().multiplyScalar(0.9))
+    add(
+      new THREE.BoxGeometry(0.7, 0.6, 0.6),
+      darkStone,
+      head.x,
+      head.y + 0.6,
+      head.z,
+      rot
+    )
+    for (const side of [-1, 1]) {
+      const wing = new THREE.BoxGeometry(0.9, 0.08, 0.6)
+      const across = new THREE.Vector3(-out.z, 0, out.x).multiplyScalar(
+        side * 0.6
+      )
+      const mesh = add(
+        wing,
+        darkStone,
+        at.x + across.x,
+        at.y + 1,
+        at.z + across.z,
+        rot
+      )
+      mesh.rotation.x = side * 0.6
+    }
+  }
+
+  // The lighthouse: a ribbed round tower, a gallery, the lantern room.
+  const lh = layout.lighthouse
+  add(
+    new THREE.CylinderGeometry(lh.radius * 0.85, lh.radius, lh.h, 10),
+    pale,
+    lh.x,
+    lh.y + lh.h / 2,
+    lh.z
+  )
+  for (let i = 0; i < 10; i++) {
+    const turn = (i / 10) * Math.PI * 2
+    add(
+      new THREE.BoxGeometry(0.35, lh.h, 0.35),
+      concrete,
+      lh.x + Math.cos(turn) * lh.radius * 0.95,
+      lh.y + lh.h / 2,
+      lh.z + Math.sin(turn) * lh.radius * 0.95
+    )
+  }
+  const top = lh.y + lh.h
+  add(
+    new THREE.CylinderGeometry(lh.radius + 1, lh.radius + 1, 0.5, 12),
+    metal,
+    lh.x,
+    top + 0.25,
+    lh.z
+  )
+  add(
+    new THREE.ConeGeometry(lh.radius * 0.9, 3, 10),
+    darkStone,
+    lh.x,
+    top + 5.5,
+    lh.z
+  )
+
+  castShadows(body)
+  mergeStatic(body)
+
+  // The lantern room and its lamp: no fog, so it shows across the valley.
+  const { color, beamLength } = CONFIG.castle.lighthouse
+  const blue = new THREE.Color(color)
+  const lantern = new THREE.Mesh(
+    new THREE.CylinderGeometry(lh.radius * 0.7, lh.radius * 0.7, 3.5, 10),
+    new THREE.MeshBasicMaterial({ color: blue, fog: false })
+  )
+  lantern.position.set(lh.x, top + 2.25, lh.z)
+  body.add(lantern)
+  const glow = makeGlowTexture('rgba(90, 170, 255, 0.9)')
+  const halo = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: glow,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      transparent: true,
+      fog: false,
+    })
+  )
+  halo.scale.setScalar(14)
+  halo.position.copy(lantern.position)
+  body.add(halo)
+  // A point of it the same size on screen however far off: the lamp seen
+  // from the other end of the valley.
+  const star = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: glow,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      transparent: true,
+      fog: false,
+      sizeAttenuation: false,
+    })
+  )
+  star.scale.setScalar(0.035)
+  star.position.copy(lantern.position)
+  body.add(star)
+
+  // The two beams, back to back, fading along their length.
+  const beams = new THREE.Group()
+  beams.position.copy(lantern.position)
+  const beamGeo = new THREE.ConeGeometry(
+    beamLength * 0.07,
+    beamLength,
+    16,
+    8,
+    true
+  )
+  beamGeo.translate(0, -beamLength / 2, 0)
+  beamGeo.rotateZ(Math.PI / 2)
+  const colors: number[] = []
+  const pos = beamGeo.getAttribute('position')
+  for (let i = 0; i < pos.count; i++) {
+    const fade = Math.pow(1 - Math.min(1, pos.getX(i) / beamLength), 1.6)
+    colors.push(blue.r * fade, blue.g * fade, blue.b * fade)
+  }
+  beamGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+  const beamMat = new THREE.MeshBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.32,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    fog: false,
+  })
+  for (const turn of [0, Math.PI]) {
+    const beam = new THREE.Mesh(beamGeo, beamMat)
+    beam.name = LIGHT_BEAM
+    beam.rotation.y = turn
+    // A little down, sweeping the valley floor.
+    beam.rotation.z = -0.04
+    beams.add(beam)
+  }
+  body.add(beams)
+
+  const update = (t: number) => {
+    body.position.y = bobAt(t)
+    // Moat-local angle from +x toward +z; three turns +y the other way.
+    beams.rotation.y = -lighthouseAngle(t)
+  }
+  update(0)
+  setMotion(group, update)
+
+  const dispose = () => {
+    // Sprites share one geometry among them all; keep it.
+    halo.material.dispose()
+    star.material.dispose()
+    group.traverse((node) => {
+      if (isMesh(node)) {
+        node.geometry.dispose()
+        const materials = Array.isArray(node.material)
+          ? node.material
+          : [node.material]
+        // The concrete and glow maps are shared and kept.
+        for (const material of materials) material.dispose()
+      }
+    })
+  }
+  return { group, update, dispose }
+}

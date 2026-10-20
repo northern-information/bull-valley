@@ -160,7 +160,10 @@
 //    sockets were touched, and lets the raider alone for
 //    CONFIG.health.graceSeconds where they stand. The touch that takes the
 //    last is the strike of rule 18 (Reduced.health.fatal), and the account
-//    is whole again after. A raider on foot whose last state frame put them
+//    is whole again after. A fall the client says it landed from (a
+//    `plunge`; where a raider stands is its own word) takes fall.ts
+//    fallDamage of its height, no ward cutting it: all of it from two
+//    stories, which is rule 18's strike the same. A raider on foot whose last state frame put them
 //    on a Citgo forecourt is made whole, and a use of anything that heals
 //    (items.ts healsPct), once the pack has given the unit up, gives its
 //    share of whole back.
@@ -252,6 +255,7 @@ import {
   outcomeOf,
   woundedBy,
 } from './expeditions.ts'
+import { fallDamage } from './fall.ts'
 import { bury } from './graves.ts'
 import {
   hit,
@@ -308,6 +312,7 @@ import type { CosmeticId } from './cosmetics.ts'
 import type { DealerStock } from './dealer.ts'
 import type { Drop, Facing, Spill } from './drops.ts'
 import type { ExpeditionOutcome, ExpeditionRun } from './expeditions.ts'
+import type { Hurt } from './fall.ts'
 import type { Burial, Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckChange, TruckRoutes, TruckState } from './marx.ts'
@@ -526,6 +531,8 @@ export type ValleyAction =
   // 1 by the valley for its spread; a use of `kind` giving its share
   // back, or made whole (no kind: a forecourt).
   | { type: 'hit'; id: string; by: ShadowHit; roll?: number }
+  // Rule 24: a fall landed from `height` metres, by the client's word.
+  | { type: 'plunge'; id: string; height: number }
   | { type: 'mend'; id: string; kind?: string }
   // Rule 24: the account reached `level` (rule 22).
   | { type: 'level'; account: string; level: number }
@@ -654,7 +661,7 @@ export interface Reduced {
     points: number
     max: number
     fatal?: true
-    hit?: { by: ShadowHit; damage: number; warded: number }
+    hit?: { by: Hurt; damage: number; warded: number }
   }
   // Rule 27: each account's wards after a dose or a shattering, for
   // its sockets.
@@ -1074,6 +1081,8 @@ function act(
       return onFall(valley, action, context)
     case 'hit':
       return onHit(valley, action, context)
+    case 'plunge':
+      return onPlunge(valley, action, context)
     case 'pass':
       return onPass(valley, action, context)
     case 'dose':
@@ -1817,18 +1826,43 @@ function onHit(
   const member = valley.members[action.id]
   if (!member) return done(valley, now, { broadcast: [] })
   const { account } = member
-  const max = maxFor(valley, account)
-  const before = pointsOf(woundsOf(valley.wounds, account), max)
   const levels = wardsFor(valley, account, now)
   const { damage, warded } = damageOf(action.by, levels, action.roll)
-  const { points, fatal } = hit(before, damage, max)
+  return hurt(valley, account, now, { by: action.by, damage, warded })
+}
+
+function onPlunge(
+  valley: Valley,
+  action: ActionOf<'plunge'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rule 24: a fall, no ward cutting it. A raider on the phone has no body
+  // to fall.
+  const member = valley.members[action.id]
+  if (!member || member.dialup) return done(valley, now, { broadcast: [] })
+  const { account } = member
+  const damage = fallDamage(action.height, maxFor(valley, account))
+  if (damage === 0) return done(valley, now, { broadcast: [] })
+  return hurt(valley, account, now, { by: 'fall', damage, warded: 0 })
+}
+
+// Rule 24: `struck` off the account's geometrie; the last of it shatters
+// it, the account whole and sober again after.
+function hurt(
+  valley: Valley,
+  account: string,
+  now: number,
+  struck: { by: Hurt; damage: number; warded: number }
+): Reduced {
+  const max = maxFor(valley, account)
+  const before = pointsOf(woundsOf(valley.wounds, account), max)
+  const { points, fatal } = hit(before, struck.damage, max)
   const next: Valley = {
     ...valley,
     wounds: withWounds(valley.wounds, account, fatal ? 0 : max - points),
     // A shattering leaves the raider sober.
     wards: fatal ? sobered(valley.wards, account) : valley.wards,
   }
-  const struck = { by: action.by, damage, warded }
   return done(next, now, {
     broadcast: [],
     health: fatal
