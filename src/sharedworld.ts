@@ -444,7 +444,6 @@ function bushKey(account: string, bush: number): string {
 export interface Spot {
   x: number
   z: number
-  riding: boolean
 }
 
 export type ValleyAction =
@@ -833,6 +832,13 @@ export function wardsFor(
   now: number
 ): WardLevels {
   return levelsAt(wardsOf(valley.wards, account), now / 1000)
+}
+
+// Rule 3: whether raider `id` is in Marx's bed, by the valley's own truck.
+// A state frame's `riding` is the client's word, for drawing peers only:
+// no rule reads it, so a client that says it rides is not out of reach.
+export function inTheBed(valley: Valley, id: string): boolean {
+  return valley.world !== null && isAboard(valley.world.truck, id)
 }
 
 // Rule 28: every Citgo `account` has stood at, and the last.
@@ -1232,7 +1238,7 @@ function onLeave(
   const world = next.world
   // Rule 2: where they stood on foot is where they come back.
   const at = action.at
-  if (at && !at.riding && !(world && isAboard(world.truck, action.id))) {
+  if (at && !inTheBed(valley, action.id)) {
     next = {
       ...next,
       places: {
@@ -1898,13 +1904,16 @@ function onPass(
     return refuse('not-an-item')
   }
   if (!taker || taker.account === member.account) return refuse('no-one')
-  const truck = valley.world?.truck
-  const onFoot = (id: string, at: Spot | null) =>
-    at !== null && !at.riding && !(truck && isAboard(truck, id))
-  if (!onFoot(action.id, action.from) || !onFoot(action.to, action.at)) {
+  const { from, at } = action
+  if (
+    !from ||
+    !at ||
+    inTheBed(valley, action.id) ||
+    inTheBed(valley, action.to)
+  ) {
     return refuse('not-on-foot')
   }
-  if (!inPassReach(action.from!, action.at!)) return refuse('too-far')
+  if (!inPassReach(from, at)) return refuse('too-far')
   return done(valley, now, {
     broadcast: [],
     pack: { account: member.account, kind: action.kind, delta: -1 },

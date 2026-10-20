@@ -280,6 +280,17 @@ const state = (x: number, z: number, light = false) =>
     light,
   })
 
+// Into Marx's bed, where no shadow reaches (rule 3): heard by the parked
+// truck, then a board. The valley reads the bed off its own truck, never
+// off a state frame's `riding`, so a spec that keeps a raider safe while
+// their beam burns puts them in it this way.
+async function intoTheBed(v: TestValley, socket: MockSocket) {
+  await v.webSocketMessage(ws(socket), state(10, 10))
+  await v.webSocketMessage(ws(socket), '{"type":"board"}')
+  const boarded = socket.last<WorldMessage>()
+  if (boarded.reason !== 'boarded') throw new Error('not in the bed')
+}
+
 const chat = (text: string) => JSON.stringify({ type: 'chat', text })
 
 // A socket the Worker stamped as a signed-in raider, as the upgrade would
@@ -2346,6 +2357,8 @@ describe('ValleyDO: the shadowmen', () => {
         yaw: Math.PI,
         riding: true,
       })
+    await intoTheBed(v, a)
+    await intoTheBed(v, b)
     await v.webSocketMessage(ws(a), lit(0))
     await v.webSocketMessage(ws(b), lit(0.5))
     await v.webSocketMessage(
@@ -2385,6 +2398,7 @@ describe('ValleyDO: the shadowmen', () => {
     await seed(v)
     const a = await join(v, s, 'A', { dev: true })
     const b = await join(v, s, 'B')
+    await intoTheBed(v, a)
     await v.webSocketMessage(
       ws(a),
       JSON.stringify({ ...JSON.parse(state(500, 500, true)), riding: true })
@@ -2410,10 +2424,26 @@ describe('ValleyDO: the shadowmen', () => {
     return { v, a, b, dimes, grave, x, z }
   }
 
+  it('strikes a raider on foot whose state frame says they ride', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ ...JSON.parse(state(500, 500)), riding: true })
+    )
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"shadowman","x":500,"z":501}'
+    )
+    await tickUntilStruck(v, a)
+    expect(a.frames().some((m) => m.type === 'struck')).toBe(true)
+  })
+
   it("burns one in Marx's headlights, as a raider near the truck says where it stands", async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A', { dev: true })
     // In the bed, light down, so the one placed stands to burn.
+    await intoTheBed(v, a)
     await v.webSocketMessage(
       ws(a),
       JSON.stringify({ ...JSON.parse(state(500, 500)), riding: true })
@@ -2623,6 +2653,8 @@ describe('ValleyDO: the shadowmen', () => {
         riding: true,
         light: true,
       })
+    await intoTheBed(v, a)
+    await intoTheBed(v, b)
     await v.webSocketMessage(ws(a2), state(900, 900))
     // No crossing shadowman rushes A2: a strike would empty the account's
     // pack onto a body.
@@ -2736,6 +2768,8 @@ describe('ValleyDO: the shadowmen', () => {
         riding: true,
         light: true,
       })
+    await intoTheBed(v, a)
+    await intoTheBed(v, b)
     await v.webSocketMessage(ws(a), lit(0))
     await v.webSocketMessage(ws(b), lit(0.5))
     await v.webSocketMessage(

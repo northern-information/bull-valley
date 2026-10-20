@@ -731,7 +731,7 @@ export class ValleyDO extends DurableObject<Env> {
       if (other?.id === to) taker = other
     }
     const spot = (peer: PeerWire | null) =>
-      peer?.at ? { x: peer.at.x, z: peer.at.z, riding: peer.at.riding } : null
+      peer?.at ? { x: peer.at.x, z: peer.at.z } : null
     // The check and the giver's pack together, alone in the valley; the
     // doses and the heal after take the lock of their own.
     const passed = await this.locked(async () => {
