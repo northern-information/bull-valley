@@ -101,7 +101,9 @@ test('shadowmen cross the valley', async ({ page }) => {
   // They are the valley's: it sends them every step.
   await expect
     .poll(() =>
-      page.evaluate(() => window.__bv?.shadowmen.table.next?.shadowmen.length)
+      page.evaluate(
+        () => window.__bv?.shadowmen.table.frames.at(-1)?.shadowmen.length
+      )
     )
     .toBeGreaterThan(0)
 })

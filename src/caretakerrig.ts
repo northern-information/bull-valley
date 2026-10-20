@@ -2,12 +2,14 @@
 // floating over the maze's paths, turned to face the player, shaking and
 // paling as two beams burn it, drawing its lantern back as it winds up
 // to strike and lurching out as it lunges. It is the valley's
-// (sharedworld.ts rule 13): it rides in the shadowmen frames and is drawn a
-// beat behind the present, between the last two.
+// (sharedworld.ts rule 13): it rides in the shadowmen frames, kept a few
+// seconds (framebuffer.ts), and is drawn a beat behind the present, between
+// the two either side of that moment.
 
 import * as THREE from 'three'
 import { buildCaretaker } from './assets.ts'
 import { CONFIG } from './config.ts'
+import { between, keepFrame, lerp } from './framebuffer.ts'
 import { mulberry32, range } from './rng.ts'
 import { keeperCues } from './sfx.ts'
 import type { CaretakerRig } from './assets.ts'
@@ -56,8 +58,8 @@ export class CaretakerShade {
   private groundAt: HeightAt
   private rig: CaretakerRig
   private rng = mulberry32(0xca2e7)
-  private prev: Frame | null = null
-  private next: Frame | null = null
+  // The frames landed, oldest first.
+  private frames: Frame[] = []
   private pending: XZ[] = []
   // Seconds since it last lunged, while the lunge plays; null otherwise.
   private lunging: number | null = null
@@ -77,8 +79,7 @@ export class CaretakerShade {
 
   // A frame from the valley, landed at `at` (local ms).
   receive(msg: ShadowmenMessage, at: number): void {
-    this.prev = this.next
-    this.next = { at, caretaker: msg.caretaker }
+    keepFrame(this.frames, { at, caretaker: msg.caretaker })
     if (msg.burned) this.pending.push(msg.burned)
     if (msg.caretaker?.lunge) {
       this.lunging = 0
@@ -124,22 +125,20 @@ export class CaretakerShade {
     return { burned, distance, heard }
   }
 
-  // The valley's Caretaker at renderAt, between the last two frames; it
-  // shows as soon as it forms and is gone as soon as it is burned.
+  // The valley's Caretaker at renderAt, between the two frames either side
+  // of it; it shows as soon as it forms (held where it formed until the
+  // drawing reaches it) and is gone as soon as it is burned.
   private sample(renderAt: number): CaretakerWire | null {
-    const { prev, next } = this
-    const now = next?.caretaker ?? null
-    const was = prev?.caretaker ?? null
-    if (!next || !now || !prev || !was || next.at <= prev.at) return now
-    const t = Math.min(
-      1,
-      Math.max(0, (renderAt - prev.at) / (next.at - prev.at))
-    )
+    const now = this.frames.at(-1)?.caretaker ?? null
+    if (!now) return null
+    const at = between(this.frames, renderAt, (f) => f.caretaker)
+    if (!at) return now
+    const { from, to, t } = at
     return {
       ...now,
-      x: was.x + (now.x - was.x) * t,
-      z: was.z + (now.z - was.z) * t,
-      burn: was.burn + (now.burn - was.burn) * t,
+      x: lerp(from.x, to.x, t),
+      z: lerp(from.z, to.z, t),
+      burn: lerp(from.burn, to.burn, t),
     }
   }
 

@@ -187,9 +187,11 @@ test('a shadow spider takes twice as long and leaves a $20 bill', async ({
     .poll(() =>
       page.evaluate(
         ({ x, z }) =>
-          window.__bv?.shadowmen.table.next?.shadowmen.filter(
-            (s) => s.kind === 'spider' && Math.hypot(s.x - x, s.z - z) < 1.5
-          ).length,
+          window.__bv?.shadowmen.table.frames
+            .at(-1)
+            ?.shadowmen.filter(
+              (s) => s.kind === 'spider' && Math.hypot(s.x - x, s.z - z) < 1.5
+            ).length,
         at
       )
     )

@@ -80,7 +80,7 @@ base(
     // The shadowmen are the valley's: both see the same ones.
     const shadowIds = (page: Page) =>
       page.evaluate(() =>
-        (window.__bv?.shadowmen.table.next?.shadowmen ?? [])
+        (window.__bv?.shadowmen.table.frames.at(-1)?.shadowmen ?? [])
           .map((s) => s.id)
           .sort((x, y) => x - y)
           .join()
