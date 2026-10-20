@@ -173,3 +173,17 @@ export function friendNews(
   if (news === 'accepted') return copy('friends.news_accepted', { name })
   return copy('friends.news_online', { name })
 }
+
+// What a new friends list answers: the line that settles the ask waiting
+// on it (null while it does not show yet, and the ask still waits), and
+// the list as the log says it when /friends asked for it.
+export function listAnswer(
+  ask: PendingAsk | null,
+  showFriends: boolean,
+  friends: readonly FriendWire[]
+): { settled: string | null; lines: string[] } {
+  return {
+    settled: ask ? settledAsk(ask, friends) : null,
+    lines: showFriends ? friendLines(friends) : [],
+  }
+}

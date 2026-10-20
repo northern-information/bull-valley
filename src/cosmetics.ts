@@ -86,3 +86,12 @@ export function moabOffer(
 export function moabWants(owned: readonly CosmeticId[]): CosmeticId | null {
   return MOAB_OFFERS.find((id) => !owned.includes(id)) ?? null
 }
+
+// The cosmetics `after` holds that `before` did not: what a trade just
+// gave the account to wear.
+export function gainedOf(
+  before: readonly CosmeticId[],
+  after: readonly CosmeticId[]
+): CosmeticId[] {
+  return after.filter((id) => !before.includes(id))
+}

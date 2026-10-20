@@ -3,6 +3,7 @@ import {
   affords,
   cosmeticById,
   COSMETICS,
+  gainedOf,
   MOAB_OFFERS,
   moabOffer,
   moabWants,
@@ -79,5 +80,15 @@ describe('cosmetics', () => {
     expect(moabOffer(carrying(0), [])).toBeNull()
     expect(moabOffer({}, [])).toBeNull()
     expect(moabOffer(carrying(1), ['flaming-halo'])).toBeNull()
+  })
+})
+
+describe('gainedOf', () => {
+  it('names only what the account did not wear before', () => {
+    expect(gainedOf([], ['flaming-halo'])).toEqual(['flaming-halo'])
+    expect(gainedOf(['flaming-halo'], ['flaming-halo', 'coleman-1'])).toEqual([
+      'coleman-1',
+    ])
+    expect(gainedOf(['flaming-halo'], ['flaming-halo'])).toEqual([])
   })
 })

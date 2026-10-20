@@ -20,7 +20,7 @@ import { arrivalAt, citgoAt, fastTravel as fastTravelTo } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { emptied, fallen, isEmpty } from './corpses.ts'
-import { affords, cosmeticById } from './cosmetics.ts'
+import { affords, cosmeticById, gainedOf } from './cosmetics.ts'
 import { stepIndex } from './cycle.ts'
 import { openDealDialog } from './dealdialog.ts'
 import { ramble } from './dealer.ts'
@@ -803,7 +803,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
 
   const wear = (cosmetics: CosmeticId[]) => {
-    const gained = cosmetics.filter((id) => !s.cosmetics.includes(id))
+    const gained = gainedOf(s.cosmetics, cosmetics)
     s.cosmetics = cosmetics
     s.pending.trade = false
     for (const id of gained) {

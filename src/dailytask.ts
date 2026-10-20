@@ -10,6 +10,7 @@
 // every goal shares (goal.ts).
 
 import { advance, goalNews, shownProgress } from './goal.ts'
+import type { TaskWire } from './protocol.ts'
 
 interface DailyTask {
   // The key the account's progress is kept under.
@@ -71,4 +72,15 @@ type TaskNews = 'done' | 'burned' | 'past'
 export function taskNews(progress: TaskProgress, rewarded: boolean): TaskNews {
   const news = goalNews(progress, rewarded)
   return news === 'paid' ? 'done' : news === 'past' ? 'past' : 'burned'
+}
+
+// The account's progress as the valley sent it, when it is this task's;
+// null for another's, which says nothing of this one.
+export function taskOf(
+  wire: TaskWire,
+  task: DailyTask = DAILY_TASK
+): TaskProgress | null {
+  return wire.task === task.id
+    ? { day: wire.day, count: wire.count, claimed: wire.claimed }
+    : null
 }

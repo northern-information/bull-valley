@@ -11,6 +11,7 @@
 
 import { advance, goalNews, shownProgress } from './goal.ts'
 import { contentsOf } from './items.ts'
+import type { SeasonWire } from './protocol.ts'
 
 // What finishing the season pays: cents into the wallet, units of one kind
 // into the pack.
@@ -92,4 +93,15 @@ export function newsOf(
     rewarded
   )
   return news === 'paid' ? 'complete' : news === 'past' ? 'again' : 'burned'
+}
+
+// The account's progress as the valley sent it, when it is this season's;
+// null for another's, which says nothing of this one.
+export function seasonOf(
+  wire: SeasonWire,
+  season: Season = SEASON
+): SeasonProgress | null {
+  return wire.season === season.id
+    ? { kills: wire.kills, claimed: wire.claimed }
+    : null
 }

@@ -4,8 +4,8 @@ import { copy } from '../../src/copy.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { itemLine } from '../../src/itemcopy.ts'
 import { contentsOf, getItem } from '../../src/items.ts'
-import { buy, settle } from '../../src/shop.ts'
-import { freshStock } from '../../src/store.ts'
+import { buy, buyRefusal, settle } from '../../src/shop.ts'
+import { formatCash, freshStock } from '../../src/store.ts'
 import { unitsLeft } from './stock.ts'
 import type { ShopState } from '../../src/shop.ts'
 
@@ -97,5 +97,23 @@ describe('settle', () => {
   it('refuses short cash and an unknown kind', () => {
     expect(settle(fresh({ cash: 1 }), 'pbr').next).toBeNull()
     expect(settle(fresh(), 'moonrock')).toEqual({ next: null, line: null })
+  })
+})
+
+describe('buyRefusal', () => {
+  it('says why the valley would not sell', () => {
+    const price = getItem('marlboro').price
+    expect(buyRefusal('sold-out', 'marlboro', 0)).toBe(copy('log.sold_out'))
+    expect(buyRefusal('short', 'marlboro', price - 25)).toBe(
+      copy('log.short', { amount: formatCash(25) })
+    )
+    expect(buyRefusal('short', undefined, 0)).toBe(copy('log.refused'))
+    expect(buyRefusal('not-visited', 'marlboro', 0)).toBe(
+      copy('dialup.citgo.not_visited')
+    )
+    expect(buyRefusal('not-in-valley', 'marlboro', 0)).toBe(
+      copy('dialup.citgo.no_world')
+    )
+    expect(buyRefusal('what', 'marlboro', 0)).toBe(copy('log.refused'))
   })
 })

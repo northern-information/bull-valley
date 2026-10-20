@@ -92,7 +92,7 @@ async function boot(): Promise<void> {
       // The friends list, for the Social tab.
       net.send({ type: 'friends' })
     }
-    const next = applyFrame(state, msg, performance.now())
+    const next = applyFrame(state, msg, performance.now(), Date.now())
     // A frame that changes nothing the phone shows (a pong, a peer's
     // state) leaves the screen be.
     if (next === state) return

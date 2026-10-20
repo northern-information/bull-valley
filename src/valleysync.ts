@@ -6,25 +6,28 @@
 
 import { knownOf, toFound } from './book.ts'
 import { isLevels } from './buffs.ts'
-import { CHAT_COPY, emoteLine, othersLine } from './chat.ts'
+import {
+  CHAT_COPY,
+  emoteLine,
+  joinedLine,
+  othersLine,
+  whisperLine,
+} from './chat.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { toCosmetics } from './cosmetics.ts'
-import { DAILY_TASK, taskNews } from './dailytask.ts'
-import { dealRefusal } from './dealer.ts'
+import { DAILY_TASK, taskNews, taskOf } from './dailytask.ts'
+import { boughtLine, dealRefusal } from './dealer.ts'
 import { seenEmote } from './emotes.ts'
 import {
-  friendLines,
   friendNews,
   friendRefusal,
-  settledAsk,
+  listAnswer,
   whisperRefusal,
 } from './friends.ts'
 import { freshPending } from './game.ts'
 import { pickupLabel } from './interactions.ts'
 import { toInventory } from './inventory.ts'
-import { itemLabel } from './itemcopy.ts'
-import { itemById } from './items.ts'
 import { levelUp } from './progression.ts'
 import { CLOSE } from './protocol.ts'
 import {
@@ -34,7 +37,8 @@ import {
   stepRefusal,
   toQuests,
 } from './quests.ts'
-import { SEASON } from './season.ts'
+import { seasonOf } from './season.ts'
+import { buyRefusal } from './shop.ts'
 import { isStandLedger, refusalLine, standNews } from './stand.ts'
 import { formatCash } from './store.ts'
 import { newLeg, portalNews, reconcileBed, settledBy } from './worldsync.ts'
@@ -81,11 +85,7 @@ export function wireValley(game: Game, actions: Actions): void {
       case 'peer-joined':
         // Back from a dropped line under the id we still see: no news.
         if (!peers.joined(msg.peer, now)) return
-        hud.tell(
-          msg.peer.dialup
-            ? copy('log.peer_dialed', { name: msg.peer.name })
-            : copy('log.peer_joined', { name: msg.peer.name })
-        )
+        hud.tell(joinedLine(msg.peer))
         return
       case 'peer-updated': {
         // Our own comes back too; the dialog has said so already.
@@ -133,29 +133,21 @@ export function wireValley(game: Game, actions: Actions): void {
         return
       // Rule 21: a whisper, to this raider or echoed from one they sent.
       case 'whisper':
-        hud.chatLine(
-          {
-            kind: 'whisper',
-            name: msg.outgoing
-              ? copy('chat.whisper_to', { name: msg.to })
-              : copy('chat.whisper_from', { name: msg.from }),
-            text: msg.text,
-            at: msg.at,
-          },
-          now
-        )
+        hud.chatLine(whisperLine(msg), now)
         return
       case 'friends': {
         s.friends = msg.friends
-        const settled = s.pending.ask && settledAsk(s.pending.ask, msg.friends)
+        const { settled, lines } = listAnswer(
+          s.pending.ask,
+          s.pending.showFriends,
+          msg.friends
+        )
         if (settled) {
           s.pending.ask = null
           hud.tell(settled)
         }
-        if (s.pending.showFriends) {
-          s.pending.showFriends = false
-          for (const line of friendLines(msg.friends)) hud.tell(line)
-        }
+        s.pending.showFriends = false
+        for (const line of lines) hud.tell(line)
         return
       }
       case 'friend-news':
@@ -237,9 +229,7 @@ export function wireValley(game: Game, actions: Actions): void {
     // goods and the wallet.
     if (reason === 'dealt' && me !== null && detail.by === me) {
       s.pendingDeal = false
-      s.dealSaid = copy('dealer.bought', {
-        item: detail.item ? itemLabel(detail.item) : '',
-      })
+      s.dealSaid = boughtLine(detail.item ?? '')
       hud.tell(s.dealSaid)
     }
     // The shelves are the valley's; a unit it sold us goes in the pocket.
@@ -345,15 +335,7 @@ export function wireValley(game: Game, actions: Actions): void {
       if (msg.station !== undefined && msg.item) {
         s.pending.buys.delete(`${msg.station}:${msg.item}`)
       }
-      const price = msg.item ? itemById(msg.item)?.price : undefined
-      if (msg.reason === 'sold-out') hud.tell(copy('log.sold_out'))
-      else if (msg.reason === 'short' && price !== undefined) {
-        hud.tell(
-          copy('log.short', {
-            amount: formatCash(Math.max(0, price - s.cash)),
-          })
-        )
-      } else hud.tell(copy('log.refused'))
+      hud.tell(buyRefusal(msg.reason, msg.item, s.cash))
     } else if (msg.re === 'call') {
       hud.tell(copy('log.truck_busy'))
     } else if (msg.re === 'collect') {
@@ -451,8 +433,9 @@ export function wireValley(game: Game, actions: Actions): void {
   // The account's progress through the season, when it is this season's;
   // false for another's.
   const applySeason = (wire: SeasonWire): boolean => {
-    if (wire.season !== SEASON.id) return false
-    s.season = { kills: wire.kills, claimed: wire.claimed }
+    const progress = seasonOf(wire)
+    if (!progress) return false
+    s.season = progress
     hud.season.set(s.season)
     return true
   }
@@ -460,8 +443,9 @@ export function wireValley(game: Game, actions: Actions): void {
   // The account's progress on the daily task, when it is this task's;
   // false for another's.
   const applyTask = (wire: TaskWire): boolean => {
-    if (wire.task !== DAILY_TASK.id) return false
-    s.task = { day: wire.day, count: wire.count, claimed: wire.claimed }
+    const progress = taskOf(wire)
+    if (!progress) return false
+    s.task = progress
     return true
   }
 

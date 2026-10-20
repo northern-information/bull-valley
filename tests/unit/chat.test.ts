@@ -7,9 +7,11 @@ import {
   emotesLine,
   formatStamp,
   isFaded,
+  joinedLine,
   onlineLine,
   othersLine,
   pushLine,
+  whisperLine,
 } from '../../src/chat.ts'
 import { copy } from '../../src/copy.ts'
 import { EMOTE_IDS } from '../../src/emotes.ts'
@@ -209,6 +211,37 @@ describe('onlineLine', () => {
   it('names this raider alone', () => {
     expect(onlineLine(raider('Mo'), [])).toBe(
       copy('chat.online', { names: named('Mo') })
+    )
+  })
+})
+
+describe('joinedLine and whisperLine', () => {
+  it('says a raider walked in or dialed in', () => {
+    expect(joinedLine({ name: 'Kid' })).toBe(
+      copy('log.peer_joined', { name: 'Kid' })
+    )
+    expect(joinedLine({ name: 'Kid', dialup: true })).toBe(
+      copy('log.peer_dialed', { name: 'Kid' })
+    )
+  })
+
+  it('names a whisper by who it went to or came from', () => {
+    const msg = {
+      type: 'whisper' as const,
+      from: 'Me',
+      to: 'Kid',
+      text: 'psst',
+      at: 9,
+      outgoing: true,
+    }
+    expect(whisperLine(msg)).toEqual({
+      kind: 'whisper',
+      name: copy('chat.whisper_to', { name: 'Kid' }),
+      text: 'psst',
+      at: 9,
+    })
+    expect(whisperLine({ ...msg, outgoing: false }).name).toBe(
+      copy('chat.whisper_from', { name: 'Me' })
     )
   })
 })
