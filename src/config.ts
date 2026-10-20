@@ -185,6 +185,16 @@ export const CONFIG = {
     cap: 0.75,
     // The tetrahedron turns once in this many seconds (hud.ts).
     turnSeconds: 14,
+    // Each level fades this much a second (a level runs from 0 to 1), so
+    // a full one fades out in 1 / rate seconds: high in four minutes,
+    // stimulated in three, drunk in five, a trip in four (wardlevels.ts).
+    // Per-item doses live in src/items.ts.
+    fadePerSecond: {
+      high: 1 / 240,
+      stimulated: 1 / 180,
+      drunk: 1 / 300,
+      tripping: 1 / 240,
+    },
   },
   // The flashlight in the left hand: the beam that burns shadowmen reaches
   // range metres, halfAngle radians off the line of sight. The light itself
@@ -248,18 +258,6 @@ export const CONFIG = {
     persistence: 0.86,
     // The trails thin out over the last this-many seconds of the trip.
     fadeSeconds: 4,
-  },
-  geometrie: {
-    // Each level fades this much a second (a level runs from 0 to 1), so
-    // a full one fades out in 1 / rate seconds: high in four minutes,
-    // stimulated in three, drunk in five, a trip in four. Per-item doses
-    // live in src/items.ts.
-    fadePerSecond: {
-      high: 1 / 240,
-      stimulated: 1 / 180,
-      drunk: 1 / 300,
-      tripping: 1 / 240,
-    },
   },
   // What the wards do besides warding (buffs.ts), each scaled by its
   // level from 0 to 1. High reaches the flashlight further and wider (a

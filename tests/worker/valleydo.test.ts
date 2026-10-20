@@ -3015,8 +3015,8 @@ describe('ValleyDO: buffs', () => {
   const geometrieOf = (socket: MockSocket) =>
     socket
       .frames()
-      .filter((m) => m.type === 'geometrie')
-      .map((m) => m.geometrie)
+      .filter((m) => m.type === 'wards')
+      .map((m) => m.wards)
 
   async function two() {
     const { valley: v, state: s } = await valley()
@@ -3031,7 +3031,7 @@ describe('ValleyDO: buffs', () => {
 
   it('welcomes an account sober', async () => {
     const { a } = await two()
-    expect(welcomeOf(a).geometrie).toEqual({
+    expect(welcomeOf(a).wards).toEqual({
       high: 0,
       stimulated: 0,
       drunk: 0,
@@ -3039,7 +3039,7 @@ describe('ValleyDO: buffs', () => {
     })
   })
 
-  it('doses geometrie for a use once the pack gives the unit up', async () => {
+  it('doses the wards for a use once the pack gives the unit up', async () => {
     const { v, a } = await two()
     // None carried: nothing dosed.
     await v.webSocketMessage(ws(a), '{"type":"use","kind":"wild-turkey"}')

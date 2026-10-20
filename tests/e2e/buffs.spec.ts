@@ -16,8 +16,7 @@ import type { Page } from '@playwright/test'
 
 const held = (page: Page, kind: string) =>
   page.evaluate((k) => window.__bv?.inventory[k] ?? 0, kind)
-const high = (page: Page) =>
-  page.evaluate(() => window.__bv?.geometrie.high ?? 0)
+const high = (page: Page) => page.evaluate(() => window.__bv?.wards.high ?? 0)
 const health = (page: Page) => page.evaluate(() => window.__bv?.health ?? 0)
 
 // An open spot off the spawn lot, facing -Z, `dz` metres along it.

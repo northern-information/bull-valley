@@ -5,7 +5,6 @@
 import { NO_CITGOS } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { NO_TASK } from './dailytask.ts'
-import { SOBER } from './geometrie.ts'
 import { HAND_DOWN } from './hands.ts'
 import { BASE_GEOMETRIE } from './health.ts'
 import { NO_EFFECTS } from './hotbar.ts'
@@ -13,6 +12,7 @@ import { STARTING_INVENTORY } from './inventory.ts'
 import { createTruck } from './marx.ts'
 import { NO_PROGRESS } from './season.ts'
 import { freshStock } from './store.ts'
+import { SOBER } from './wardlevels.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
 import type { CitgoLog } from './citgos.ts'
 import type { CorpseMeshes } from './corpsemeshes.ts'
@@ -24,7 +24,6 @@ import type { Drop } from './drops.ts'
 import type { Emoting } from './emotes.ts'
 import type { FirstPersonHands } from './fphands.ts'
 import type { PendingAsk } from './friends.ts'
-import type { Geometrie } from './geometrie.ts'
 import type { Glow } from './glow.ts'
 import type { Grave } from './graves.ts'
 import type { Gravestones } from './gravestones.ts'
@@ -64,6 +63,7 @@ import type { Trails } from './trails.ts'
 import type { Truck } from './truck.ts'
 import type { TruckContext, TruckPlan } from './truckplan.ts'
 import type { TunnelShades } from './tunnelrig.ts'
+import type { WardState } from './wardlevels.ts'
 import type { FuelPoint, Pickup, World } from './world.ts'
 import type * as THREE from 'three'
 
@@ -158,8 +158,8 @@ export interface GameState {
   time: number
   // A cigarette burning, its ember, the joint's perception, on `time`.
   effects: Effects
-  // How high, stimulated and drunk, on `time` (geometrie.ts).
-  geometrie: Geometrie
+  // How high, stimulated and drunk, on `time` (wardlevels.ts).
+  wards: WardState
   // The flashlight in the left hand: up and on, or down and off.
   flashlight: Hand
   // The item the right hand last brought up, and when, on `time`.
@@ -300,7 +300,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     hotbarSaved: Promise.resolve(),
     time: 0,
     effects: NO_EFFECTS,
-    geometrie: SOBER,
+    wards: SOBER,
     flashlight: HAND_DOWN,
     using: null,
     lastUsed: null,

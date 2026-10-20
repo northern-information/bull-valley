@@ -604,8 +604,8 @@ export interface WelcomeMessage {
   // health.ts).
   health: number
   healthMax: number
-  // The account's geometrie at serverNow (sharedworld.ts rule 27).
-  geometrie: GeometrieLevels
+  // The account's wards at serverNow (sharedworld.ts rule 27).
+  wards: WardLevels
   // Every Citgo the account has stood at, and the last (rule 28).
   citgos: CitgoLog
 }
@@ -617,8 +617,8 @@ interface CitgosMessage {
   citgos: CitgoLog
 }
 
-// The four wards' levels, each from 0 to 1 (geometrie.ts).
-export interface GeometrieLevels {
+// The four wards' levels, each from 0 to 1 (wardlevels.ts).
+export interface WardLevels {
   high: number
   stimulated: number
   drunk: number
@@ -884,17 +884,17 @@ interface StruckMessage {
   max: number
 }
 
-// The account's geometrie as the valley keeps it (sharedworld.ts rule 27),
+// The account's wards as the valley keeps them (sharedworld.ts rule 27),
 // at the moment the frame is sent: after a use, a pass either way, or a
 // shattering. To every socket signed in to it.
-interface GeometrieMessage {
-  type: 'geometrie'
-  geometrie: GeometrieLevels
+interface WardsMessage {
+  type: 'wards'
+  wards: WardLevels
 }
 
 // Something passed (rule 27): to the raider who took it, naming who passed
 // it (`from`); and back to the giver's sockets naming who took it (`to`).
-// Usernames as D1 holds them. A geometrie frame follows for each side.
+// Usernames as D1 holds them. A wards frame follows for each side.
 export interface PassedMessage {
   type: 'passed'
   kind: string
@@ -940,7 +940,7 @@ export type ServerMessage =
   | ShadowmenMessage
   | StruckMessage
   | HealthMessage
-  | GeometrieMessage
+  | WardsMessage
   | CitgosMessage
   | PassedMessage
   | SeasonMessage

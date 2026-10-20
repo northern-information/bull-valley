@@ -1,5 +1,5 @@
 // Pure: the wards (sharedworld.ts rules 24 and 27). Each of the raider's
-// four levels (geometrie.ts) is a layer of armor against its own shadows:
+// four levels (wardlevels.ts) is a layer of armor against its own shadows:
 // high against the shadowmen, stimulated against the spiders and their
 // spiderlings, drunk against the Caretaker, a trip against the
 // Undercroft's tunnel shades and the Warden. Each shadow's touch takes its
@@ -10,8 +10,8 @@
 // no DOM.
 
 import { CONFIG } from './config.ts'
-import { AXES } from './geometrie.ts'
-import type { GeometrieAxis } from './interfaces.ts'
+import { AXES } from './wardlevels.ts'
+import type { WardAxis } from './interfaces.ts'
 
 // Whatever can touch a raider.
 export type ShadowHit =
@@ -27,7 +27,7 @@ export const SHADOW_HITS: readonly ShadowHit[] = [
 ]
 
 // The ward each shadow fears.
-export const WARD_OF: Readonly<Record<ShadowHit, GeometrieAxis>> = {
+export const WARD_OF: Readonly<Record<ShadowHit, WardAxis>> = {
   man: 'high',
   spider: 'stimulated',
   spiderling: 'stimulated',
@@ -37,7 +37,7 @@ export const WARD_OF: Readonly<Record<ShadowHit, GeometrieAxis>> = {
 }
 
 // The shadows a ward is against, in SHADOW_HITS' order.
-export function wardedBy(axis: GeometrieAxis): ShadowHit[] {
+export function wardedBy(axis: WardAxis): ShadowHit[] {
   return SHADOW_HITS.filter((by) => WARD_OF[by] === axis)
 }
 
@@ -54,19 +54,19 @@ const BOOK_SHADOWS: Readonly<Record<string, ShadowHit>> = {
 
 // The ward against the shadow a Book of Shadows page names, or null for
 // a page that names none.
-export function wardOfEntry(id: string): GeometrieAxis | null {
+export function wardOfEntry(id: string): WardAxis | null {
   const by = Object.hasOwn(BOOK_SHADOWS, id) ? BOOK_SHADOWS[id] : null
   return by ? WARD_OF[by] : null
 }
 
 // The wards a dose raises, in the corners' order.
 export function wardsRaised(
-  dose: Partial<Readonly<Record<GeometrieAxis, number>>> | undefined
-): GeometrieAxis[] {
+  dose: Partial<Readonly<Record<WardAxis, number>>> | undefined
+): WardAxis[] {
   return AXES.filter((axis) => (dose?.[axis] ?? 0) > 0)
 }
 
-type Levels = Readonly<Record<GeometrieAxis, number>>
+type Levels = Readonly<Record<WardAxis, number>>
 
 // The share of a touch from `by` the wards at `levels` take off, 0 to cap.
 export function wardOf(
@@ -75,7 +75,7 @@ export function wardOf(
   cfg = CONFIG.wards
 ): number {
   const axis = WARD_OF[by]
-  const level = (a: GeometrieAxis): number =>
+  const level = (a: WardAxis): number =>
     Math.max(0, Math.min(1, levels[a] || 0))
   let other = 0
   for (const a of AXES) if (a !== axis) other = Math.max(other, level(a))
@@ -116,7 +116,7 @@ export function isShadowHit(value: unknown): value is ShadowHit {
 // A corner of the tetrahedron as drawn: x and y in a 100-unit box, y down,
 // and depth (toward the viewer is larger).
 export interface Corner {
-  axis: GeometrieAxis
+  axis: WardAxis
   x: number
   y: number
   depth: number
@@ -124,35 +124,31 @@ export interface Corner {
 
 // A regular tetrahedron round the origin, unit circumradius: high at the
 // top, the other three round its base.
-const TETRA: Readonly<
-  Record<GeometrieAxis, readonly [number, number, number]>
-> = (() => {
-  const base = -1 / 3
-  const r = Math.sqrt(8 / 9)
-  const at = (turn: number): [number, number, number] => [
-    r * Math.sin(turn),
-    base,
-    r * Math.cos(turn),
-  ]
-  return {
-    high: [0, 1, 0],
-    stimulated: at((2 * Math.PI) / 3),
-    drunk: at((4 * Math.PI) / 3),
-    tripping: at(0),
-  }
-})()
+const TETRA: Readonly<Record<WardAxis, readonly [number, number, number]>> =
+  (() => {
+    const base = -1 / 3
+    const r = Math.sqrt(8 / 9)
+    const at = (turn: number): [number, number, number] => [
+      r * Math.sin(turn),
+      base,
+      r * Math.cos(turn),
+    ]
+    return {
+      high: [0, 1, 0],
+      stimulated: at((2 * Math.PI) / 3),
+      drunk: at((4 * Math.PI) / 3),
+      tripping: at(0),
+    }
+  })()
 
 // The tetrahedron's faces, each its three corners.
-export const TETRA_FACES: readonly (readonly [
-  GeometrieAxis,
-  GeometrieAxis,
-  GeometrieAxis,
-])[] = [
-  ['high', 'stimulated', 'drunk'],
-  ['high', 'drunk', 'tripping'],
-  ['high', 'tripping', 'stimulated'],
-  ['stimulated', 'tripping', 'drunk'],
-]
+export const TETRA_FACES: readonly (readonly [WardAxis, WardAxis, WardAxis])[] =
+  [
+    ['high', 'stimulated', 'drunk'],
+    ['high', 'drunk', 'tripping'],
+    ['high', 'tripping', 'stimulated'],
+    ['stimulated', 'tripping', 'drunk'],
+  ]
 
 // The four corners turned `turn` radians about the upright and tipped
 // `tilt` toward the viewer, flattened into a 100-unit box (orthographic,
@@ -181,15 +177,15 @@ export function tetraCorners(turn: number, tilt = 0.55): Corner[] {
 // face toward the viewer holds it (the rest show faint, behind), and the
 // outline round it (three corners or four, in order round it).
 export interface TetraView {
-  corners: Readonly<Record<GeometrieAxis, Corner>>
-  edges: { a: GeometrieAxis; b: GeometrieAxis; front: boolean }[]
+  corners: Readonly<Record<WardAxis, Corner>>
+  edges: { a: WardAxis; b: WardAxis; front: boolean }[]
   hull: Corner[]
 }
 
 export function tetraView(turn: number, tilt = 0.55): TetraView {
   const list = tetraCorners(turn, tilt)
   const corners = Object.fromEntries(list.map((c) => [c.axis, c])) as Record<
-    GeometrieAxis,
+    WardAxis,
     Corner
   >
   // A regular tetrahedron's altitude runs through its face's middle, so a

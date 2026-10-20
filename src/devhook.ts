@@ -3,9 +3,9 @@
 // dev builds, so production bundles never carry it.
 
 import { unitToWorld } from './coords.ts'
-import { levelsAt } from './geometrie.ts'
 import { hurry } from './marx.ts'
 import { isSfxId, SFX_IDS } from './sfx.ts'
+import { levelsAt } from './wardlevels.ts'
 import type { Actions } from './actions.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
 import type { ChatLine } from './chat.ts'
@@ -18,7 +18,7 @@ import type { Game } from './game.ts'
 import type { Grave } from './graves.ts'
 import type { Hand } from './hands.ts'
 import type { Hotbar } from './hotbar.ts'
-import type { GeometrieAxis, Inventory, XZ } from './interfaces.ts'
+import type { Inventory, WardAxis, XZ } from './interfaces.ts'
 import type { TruckState } from './marx.ts'
 import type { MistCards } from './mistcards.ts'
 import type { NetStatus } from './net.ts'
@@ -118,7 +118,7 @@ interface BvHook {
   readonly hotbar: Hotbar
   // The wards right now: how high, stimulated, drunk and tripping, each
   // 0 to 1.
-  readonly geometrie: Record<GeometrieAxis, number>
+  readonly wards: Record<WardAxis, number>
   // The chat log, oldest first.
   readonly chat: readonly ChatLine[]
   // The flashlight in the left hand, and the item the right last raised.
@@ -287,8 +287,8 @@ export function installDevHook(game: Game, actions: Actions): void {
     get hotbar() {
       return s.hotbar
     },
-    get geometrie() {
-      return levelsAt(s.geometrie, s.time)
+    get wards() {
+      return levelsAt(s.wards, s.time)
     },
     get chat() {
       return hud.chatLines

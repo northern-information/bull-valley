@@ -55,10 +55,10 @@ import type { Inventory } from './interfaces.ts'
 import type {
   ClientMessage,
   FriendWire,
-  GeometrieLevels,
   NackMessage,
   PeerWire,
   ServerMessage,
+  WardLevels,
   WorldMessage,
   WorldWire,
 } from './protocol.ts'
@@ -78,7 +78,7 @@ export interface DialState {
   stand: StandLedger | null
   health: number
   healthMax: number
-  wards: GeometrieLevels
+  wards: WardLevels
   season: SeasonProgress
   task: TaskProgress
   // The Book of Shadows entries found (book.ts ids).
@@ -130,7 +130,7 @@ const NOTHING_PENDING: Pending = {
   whisperTo: null,
 }
 
-export const NO_WARDS: GeometrieLevels = {
+export const NO_WARDS: WardLevels = {
   high: 0,
   stimulated: 0,
   drunk: 0,
@@ -202,7 +202,7 @@ export function applyFrame(
         stand: isStandLedger(msg.stand) ? msg.stand : null,
         health: msg.health,
         healthMax: msg.healthMax,
-        wards: isLevels(msg.geometrie) ? msg.geometrie : NO_WARDS,
+        wards: isLevels(msg.wards) ? msg.wards : NO_WARDS,
         season: { kills: msg.season.kills, claimed: msg.season.claimed },
         task: {
           day: msg.task.day,
@@ -252,8 +252,8 @@ export function applyFrame(
       return { ...s, xp: Math.max(s.xp, msg.xp) }
     case 'health':
       return { ...s, health: msg.health, healthMax: msg.max }
-    case 'geometrie':
-      return isLevels(msg.geometrie) ? { ...s, wards: msg.geometrie } : s
+    case 'wards':
+      return isLevels(msg.wards) ? { ...s, wards: msg.wards } : s
     case 'world':
       return msg.world ? worldNews({ ...s, world: msg.world }, msg, now) : s
     case 'quest': {

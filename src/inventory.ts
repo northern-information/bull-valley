@@ -45,7 +45,7 @@ export function addItem(inv: Inventory, kind: string, count = 1): Inventory {
 // smokeSeconds and smoulders for emberSeconds after; the joint starts
 // perception. Each use blurs the view afresh and runs its trails at least
 // tripSecondsOf on (trip.ts); a longer trip already going keeps its end.
-// What it does to geometrie is the item's `geometrie` dose (geometrie.ts).
+// What it does to the wards is the item's `wards` dose (wardlevels.ts).
 export function consume(
   inv: Inventory,
   kind: string,

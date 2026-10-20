@@ -9,10 +9,10 @@
 
 import { CONFIG } from './config.ts'
 import { centsOf, isCash } from './drops.ts'
-import { AXES } from './geometrie.ts'
 import { mulberry32 } from './rng.ts'
-import type { GeometrieAxis } from './interfaces.ts'
-import type { GeometrieLevels } from './protocol.ts'
+import { AXES } from './wardlevels.ts'
+import type { WardAxis } from './interfaces.ts'
+import type { WardLevels } from './protocol.ts'
 
 type Runs = typeof CONFIG.expeditions.runs
 export type ExpeditionId = keyof Runs
@@ -48,7 +48,7 @@ export function isExpeditionRun(value: unknown): value is ExpeditionRun {
 }
 
 // The ward a run needs, or null.
-export function wardOf(id: ExpeditionId): GeometrieAxis | null {
+export function wardOf(id: ExpeditionId): WardAxis | null {
   const ward: string | null = CONFIG.expeditions.runs[id].ward
   return AXES.find((axis) => axis === ward) ?? null
 }
@@ -70,7 +70,7 @@ export function embark(
   current: ExpeditionRun | null,
   id: ExpeditionId,
   level: number,
-  wards: GeometrieLevels,
+  wards: WardLevels,
   now: number,
   seed: number
 ): ExpeditionRun | EmbarkRefusal {

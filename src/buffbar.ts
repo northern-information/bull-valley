@@ -1,16 +1,17 @@
 // Pure: the buffs a raider has going, as the row over the hotbar shows them
-// (buffhud.ts), each winding down. Geometrie's three (geometrie.ts, what
-// each does is buffs.ts): high, stimulated and drunk, each as full as its
-// level and lasting until it fades to nothing at CONFIG.geometrie's rate;
+// (buffhud.ts), each winding down. The wards (wardlevels.ts, what each
+// does is buffs.ts): high, stimulated, drunk and tripping, each as full as
+// its level and lasting until it fades to nothing at CONFIG.wards'
+// fadePerSecond;
 // and the joint's perception (hotbar.ts Effects), for its span. No
 // three.js, no DOM.
 
 import { CONFIG } from './config.ts'
-import { AXES } from './geometrie.ts'
+import { AXES } from './wardlevels.ts'
 import type { Effects } from './hotbar.ts'
-import type { GeometrieAxis } from './interfaces.ts'
+import type { WardAxis } from './interfaces.ts'
 
-export type BuffId = GeometrieAxis | 'perception'
+export type BuffId = WardAxis | 'perception'
 
 export interface Buff {
   id: BuffId
@@ -21,14 +22,14 @@ export interface Buff {
   seconds: number
 }
 
-// Every buff going at `time` (game seconds), geometrie's in its corner order
+// Every buff going at `time` (game seconds), the wards in their corner order
 // and then perception: a level under half a percent shows nothing, as the
 // triangle shows nothing.
 export function activeBuffs(
-  levels: Readonly<Record<GeometrieAxis, number>>,
+  levels: Readonly<Record<WardAxis, number>>,
   effects: Effects,
   time: number,
-  fade: Readonly<Record<GeometrieAxis, number>> = CONFIG.geometrie.fadePerSecond
+  fade: Readonly<Record<WardAxis, number>> = CONFIG.wards.fadePerSecond
 ): Buff[] {
   const buffs: Buff[] = []
   for (const axis of AXES) {

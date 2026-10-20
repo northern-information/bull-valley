@@ -68,13 +68,13 @@ import {
   corpsesOf,
   createValley,
   dailyFor,
-  geometrieFor,
   healthFor,
   maxFor,
   placeOf,
   reduce,
   restoreValley,
   toWire,
+  wardsFor,
 } from '../src/sharedworld.ts'
 import { ACCOUNT_HEADER, NAME_HEADER } from './auth.ts'
 import { D1AccountStore } from './d1accounts.ts'
@@ -649,7 +649,7 @@ export class ValleyDO extends DurableObject<Env> {
         // Closing sockets throw; their close handler follows.
       }
     }
-    this.tellGeometrie(reduced)
+    this.tellWards(reduced)
     if (!change.fatal) return
     const me = this.attachment(sockets[0]).me
     const at = me?.at ? { x: me.at.x, z: me.at.z, yaw: me.at.yaw } : null
@@ -661,10 +661,10 @@ export class ValleyDO extends DurableObject<Env> {
     return Math.random()
   }
 
-  // Rule 27: every socket on each account dosed hears its geometrie.
-  private tellGeometrie(reduced: Reduced): void {
-    for (const { account, levels } of reduced.geometrie ?? []) {
-      this.toAccount(account, { type: 'geometrie', geometrie: levels })
+  // Rule 27: every socket on each account dosed hears its wards.
+  private tellWards(reduced: Reduced): void {
+    for (const { account, levels } of reduced.wards ?? []) {
+      this.toAccount(account, { type: 'wards', wards: levels })
     }
   }
 
@@ -675,7 +675,7 @@ export class ValleyDO extends DurableObject<Env> {
     await this.locked(async () => {
       const reduced = reduce(this.valley, action, this.context())
       await this.apply(reduced)
-      this.tellGeometrie(reduced)
+      this.tellWards(reduced)
     })
   }
 
@@ -1177,7 +1177,7 @@ export class ValleyDO extends DurableObject<Env> {
       task: taskWire(task),
       health: healthFor(this.valley, account),
       healthMax: maxFor(this.valley, account),
-      geometrie: geometrieFor(this.valley, account, now),
+      wards: wardsFor(this.valley, account, now),
       citgos: citgosFor(this.valley, account),
       xp,
       stand,

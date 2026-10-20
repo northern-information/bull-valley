@@ -4,7 +4,7 @@ import {
   CIGARETTE_IDS,
   containersOf,
   contentsOf,
-  geometrieOf,
+  doseOf,
   getItem,
   healsOf,
   INVENTORY_KINDS,
@@ -28,27 +28,27 @@ const FIELDS_OF: Record<
   { required: string[]; optional: string[] }
 > = {
   cigarette: {
-    required: ['price', 'smokeSeconds', 'emberSeconds', 'geometrie'],
+    required: ['price', 'smokeSeconds', 'emberSeconds', 'wards'],
     optional: ['healsPct'],
   },
   joint: {
-    required: ['price', 'perceptionSeconds', 'geometrie'],
+    required: ['price', 'perceptionSeconds', 'wards'],
     optional: ['healsPct'],
   },
   drink: {
-    required: ['price', 'container', 'tripSeconds', 'geometrie'],
+    required: ['price', 'container', 'tripSeconds', 'wards'],
     optional: ['healsPct'],
   },
   medicine: {
-    required: ['price', 'form', 'geometrie'],
+    required: ['price', 'form', 'wards'],
     optional: ['healsPct'],
   },
   psychedelic: {
-    required: ['perceptionSeconds', 'geometrie', 'healsPct'],
+    required: ['perceptionSeconds', 'wards', 'healsPct'],
     optional: [],
   },
   stimulant: {
-    required: ['tripSeconds', 'geometrie', 'healsPct'],
+    required: ['tripSeconds', 'wards', 'healsPct'],
     optional: [],
   },
   'key-item': { required: [], optional: [] },
@@ -103,17 +103,17 @@ describe('items', () => {
     expect(isMedicine('nope')).toBe(false)
   })
 
-  it('doses geometrie off anything smoked, drunk or swallowed, and nothing else', () => {
+  it('doses the wards off anything smoked, drunk or swallowed, and nothing else', () => {
     for (const item of ITEMS) {
       const dosed =
         item.category !== 'forage' &&
         item.category !== 'valuable' &&
         item.category !== 'key-item'
-      expect(geometrieOf(item.id), item.id).toEqual(
-        dosed && 'geometrie' in item ? item.geometrie : undefined
+      expect(doseOf(item.id), item.id).toEqual(
+        dosed && 'wards' in item ? item.wards : undefined
       )
     }
-    expect(geometrieOf('nope')).toBeUndefined()
+    expect(doseOf('nope')).toBeUndefined()
   })
 
   it('gives every counted item a starting count', () => {
@@ -125,28 +125,28 @@ describe('items', () => {
     expect(getItem('joints').perceptionSeconds).toBeGreaterThan(0)
   })
 
-  it('gives every drink a known container and a dose of geometrie', () => {
+  it('gives every drink a known container and a dose of wards', () => {
     const drinks = ITEMS.filter((item) => item.category === 'drink')
     expect(drinks.length).toBeGreaterThan(0)
     for (const item of drinks) {
       expect(CONTAINERS[item.container], item.id).toBeTruthy()
       expect(isDrink(item.id)).toBe(true)
       expect(isUsable(item.id)).toBe(true)
-      expect(Object.keys(item.geometrie).length, item.id).toBeGreaterThan(0)
+      expect(Object.keys(item.wards).length, item.id).toBeGreaterThan(0)
     }
     // The energy drinks stimulate, the beer gets you drunk, Four Loko does
     // both, and water sobers you.
-    expect(getItem('red-bull').geometrie).toEqual({ stimulated: 0.25 })
-    expect(getItem('pbr').geometrie).toEqual({ drunk: 0.15 })
-    expect(getItem('four-loko-blue').geometrie.stimulated).toBeGreaterThan(0)
-    expect(getItem('four-loko-blue').geometrie.drunk).toBeGreaterThan(0)
-    expect(getItem('ice-mountain').geometrie.drunk).toBeLessThan(0)
+    expect(getItem('red-bull').wards).toEqual({ stimulated: 0.25 })
+    expect(getItem('pbr').wards).toEqual({ drunk: 0.15 })
+    expect(getItem('four-loko-blue').wards.stimulated).toBeGreaterThan(0)
+    expect(getItem('four-loko-blue').wards.drunk).toBeGreaterThan(0)
+    expect(getItem('ice-mountain').wards.drunk).toBeLessThan(0)
   })
 
   it('gets you high off a joint and stimulated off a cigarette', () => {
-    expect(getItem('joints').geometrie.high).toBeGreaterThan(0)
+    expect(getItem('joints').wards.high).toBeGreaterThan(0)
     for (const id of CIGARETTE_IDS) {
-      expect(geometrieOf(id)?.stimulated, id).toBeGreaterThan(0)
+      expect(doseOf(id)?.stimulated, id).toBeGreaterThan(0)
     }
   })
 
@@ -154,25 +154,23 @@ describe('items', () => {
     const psychedelics = ITEMS.filter((item) => item.category === 'psychedelic')
     expect(psychedelics.map((item) => item.id)).toEqual(['lsd', 'mushrooms'])
     for (const item of psychedelics) {
-      expect(Object.keys(item.geometrie).sort(), item.id).toEqual([
+      expect(Object.keys(item.wards).sort(), item.id).toEqual([
         'high',
         'tripping',
       ])
-      expect(item.geometrie.tripping, item.id).toBeGreaterThan(
-        item.geometrie.high ?? 0
-      )
+      expect(item.wards.tripping, item.id).toBeGreaterThan(item.wards.high ?? 0)
     }
     // Nothing else trips you, and the eye drops bring it down.
     for (const item of ITEMS) {
-      if (item.category === 'psychedelic' || !('geometrie' in item)) continue
-      const dose: Partial<Record<string, number>> = item.geometrie
+      if (item.category === 'psychedelic' || !('wards' in item)) continue
+      const dose: Partial<Record<string, number>> = item.wards
       expect(dose.tripping ?? 0, item.id).toBeLessThanOrEqual(0)
     }
   })
 
   it('lights the pill corner off anything swallowed as a pill', () => {
     for (const id of ['adderall', 'aspirin', 'ibuprofen', 'benadryl']) {
-      const dose = geometrieOf(id) ?? {}
+      const dose = doseOf(id) ?? {}
       expect(Object.keys(dose), id).toEqual(['stimulated'])
       expect(dose.stimulated, id).toBeGreaterThan(0)
     }
@@ -201,13 +199,13 @@ describe('items', () => {
     expect(isUsable('nope')).toBe(false)
   })
 
-  it('heals and moves geometrie with everything smoked, drunk or swallowed', () => {
+  it('heals and moves the wards with everything smoked, drunk or swallowed', () => {
     for (const item of ITEMS) {
       const usable = isUsable(item.id)
       expect(healsOf(item.id, 1000) > 0, item.id).toBe(usable)
       if (!usable) continue
-      const geometrie: object = 'geometrie' in item ? item.geometrie : {}
-      expect(Object.keys(geometrie).length, item.id).toBeGreaterThan(0)
+      const wards: object = 'wards' in item ? item.wards : {}
+      expect(Object.keys(wards).length, item.id).toBeGreaterThan(0)
     }
     // A share of whole, the stronger ones twice the share.
     expect(healsOf('aspirin', 1000)).toBe(150)

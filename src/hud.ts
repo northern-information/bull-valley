@@ -21,7 +21,7 @@ import { VitalsHud } from './vitalshud.ts'
 import type { AvatarLook } from './avatarview.ts'
 import type { Buff } from './buffbar.ts'
 import type { ChatLine } from './chat.ts'
-import type { GeometrieAxis, PackItem } from './interfaces.ts'
+import type { PackItem, WardAxis } from './interfaces.ts'
 import type { BagTab } from './packgrid.ts'
 import type { BagStatus, HotbarSlotView } from './packhud.ts'
 import type { SettingsStore } from './settingsui.ts'
@@ -423,7 +423,7 @@ export class Hud {
 
   // The loop calls these every frame; the vitals touch the page only when
   // something on them moves.
-  setGeometrie(levels: Record<GeometrieAxis, number>): void {
+  setWards(levels: Record<WardAxis, number>): void {
     this.vitals.setWards(levels)
   }
 
@@ -454,7 +454,7 @@ export class Hud {
   }
 
   // A touch's number under the bar, and what `ward` took off it.
-  popDamage(damage: number, warded: number, ward: GeometrieAxis): void {
+  popDamage(damage: number, warded: number, ward: WardAxis): void {
     this.vitals.hit(damage, warded, ward, performance.now())
   }
 
