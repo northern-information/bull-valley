@@ -352,6 +352,17 @@ export const CONFIG = {
       '/applied-sciences-and-phantasms-working-division-flourescent.png',
     audioSrc: '/sfx/northern-information.mp3',
   },
+  epigraph: {
+    // "Based on true events." between the colophon and the main menu: the
+    // line fades up, holds and fades out in silence over the colophon's
+    // black, then the black lifts onto the menu. A gesture skips it.
+    fadeInMs: 1400,
+    holdMs: 2200,
+    fadeOutMs: 1400,
+    skipFadeMs: 200,
+    skipAudioFadeMs: 300,
+    revealFadeMs: 400,
+  },
   logo: {
     // The game's own logo atop the main menu, straight after the colophon:
     // it fades up over fadeInMs, silent (the valley's music starts under

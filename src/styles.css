@@ -1833,11 +1833,40 @@
   object-fit: contain;
 }
 
+.bv-splash-epigraph {
+  margin: 0;
+  padding: 0 1rem;
+  font-family: var(--bv-font, 'IBM Plex Mono', ui-monospace, monospace);
+  font-size: 1.25rem;
+  letter-spacing: 0.08em;
+  color: var(--bv-eggshell);
+  text-align: center;
+  user-select: none;
+}
+
 .bv-splash-hint {
   font-family: var(--bv-font, 'IBM Plex Mono', ui-monospace, monospace);
   font-size: var(--bv-text-size, 1rem);
   color: var(--bv-eggshell);
   opacity: 0.6;
+  user-select: none;
+}
+
+/* The build's name (buildtag.ts) in the lower right corner, over every
+   title card, the menu and the valley; on the menu it sits under the
+   credit, on the menu's edge. */
+.bv-build {
+  position: fixed;
+  right: 2.5rem;
+  bottom: 1rem;
+  z-index: 20;
+  margin: 0;
+  font-family: var(--bv-font, 'IBM Plex Mono', ui-monospace, monospace);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  color: var(--bv-eggshell);
+  opacity: 0.55;
+  pointer-events: none;
   user-select: none;
 }
 
