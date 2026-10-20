@@ -1,6 +1,6 @@
 // The raider's level as the raider sees it (progression.ts): a row under
 // the daily task in the upper-right tracker, the level and a bar filling
-// toward the next. Hidden played alone, where nothing is kept. Hud builds
+// toward the next. Hidden until the valley says the XP. Hud builds
 // it; loop.ts feeds it the account's XP, and valleysync.ts says the news.
 
 import { copy } from './copy.ts'

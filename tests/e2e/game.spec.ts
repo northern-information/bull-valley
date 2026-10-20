@@ -13,7 +13,7 @@ import type { Page } from '@playwright/test'
 
 // Matthew Marx's truck, as the valley has it.
 const leg = (page: Page) =>
-  page.evaluate(() => window.__bv?.marx.leg.kind ?? null)
+  page.evaluate(() => window.__bv?.marx?.leg.kind ?? null)
 
 test('climbing into the bed starts the countdown, and Marx leaves with you', async ({
   page,
@@ -33,7 +33,7 @@ test('climbing into the bed starts the countdown, and Marx leaves with you', asy
   await expect
     .poll(() =>
       page.evaluate(() => {
-        const leg = window.__bv?.marx.leg
+        const leg = window.__bv?.marx?.leg
         return leg?.kind === 'parked' && leg.leavesAt !== null
       })
     )

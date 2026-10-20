@@ -1,9 +1,8 @@
 // What the player does: climb into the truck and out, take, buy, pick a
 // berry, use an item, drop one and take a drop up, whistle for the truck,
 // talk, the pack and the hotbar.
-// Played alone each one moves the valley at once; in the shared valley the
-// ones that touch the valley's world are a word to the server, and the
-// world frame that comes back moves it (valleysync.ts). The rules are the
+// The ones that touch the valley's world are a word to the server, and
+// the world frame that comes back moves it (valleysync.ts). The rules are the
 // pure modules'; this is the glue that applies them and says so.
 
 import { saveHotbar, saveLook } from './auth.ts'
@@ -17,40 +16,24 @@ import {
   emotesLine,
   onlineLine,
 } from './chat.ts'
-import {
-  arrivalAt,
-  citgoAt,
-  fastTravel as fastTravelTo,
-  visit,
-} from './citgos.ts'
+import { arrivalAt, citgoAt, fastTravel as fastTravelTo } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
-import { corpseWire, emptied, fallen, isEmpty, recover } from './corpses.ts'
+import { emptied, fallen, isEmpty } from './corpses.ts'
 import { affords, cosmeticById } from './cosmetics.ts'
 import { stepIndex } from './cycle.ts'
 import { openDealDialog } from './dealdialog.ts'
 import { ramble } from './dealer.ts'
 import { isDropPickup } from './dropmeshes.ts'
-import {
-  centsOf,
-  DIMES,
-  dropAmount,
-  dropSpot,
-  isCash,
-  QUARTERS,
-  spillsOf,
-} from './drops.ts'
-import { fallDamage } from './fall.ts'
+import { centsOf, DIMES, dropAmount, isCash, QUARTERS } from './drops.ts'
 import { finishById } from './finishes.ts'
-import { burialsOf, bury } from './graves.ts'
 import { openGronDialog } from './grondialog.ts'
-import { hit, mend } from './health.ts'
 import { assign, clearSlot as clearHotbarSlot, place, spent } from './hotbar.ts'
 import { pickupLabel } from './interactions.ts'
 import { addItem, consume } from './inventory.ts'
 import { itemLabel, itemLine } from './itemcopy.ts'
-import { doseOf, healsOf, isKeyItem, isUsable, tripSecondsOf } from './items.ts'
-import { board, call, charter, hopOut as hopOutOf, refused } from './marx.ts'
+import { doseOf, isKeyItem, isUsable, tripSecondsOf } from './items.ts'
+import { call, refused } from './marx.ts'
 import { npcLine } from './npcs.ts'
 import { outfitById } from './outfits.ts'
 import {
@@ -60,7 +43,7 @@ import {
   packItems,
   stashItems,
 } from './packgrid.ts'
-import { enteredAt, exitFrom, fieldEnd, openAt, ringEnd } from './portals.ts'
+import { enteredAt, exitFrom, openAt } from './portals.ts'
 import { levelOf } from './progression.ts'
 import { normalizeChat } from './protocol.ts'
 import { dealerStep, roseLine, roseProgress } from './quests.ts'
@@ -71,8 +54,8 @@ import { openStandDialog } from './standdialog.ts'
 import { move, moveAmount } from './stash.ts'
 import { formatCash } from './store.ts'
 import { planLeg } from './truckplan.ts'
-import { dose, levelsAt, SOBER } from './wardlevels.ts'
-import { damageOf, WARD_OF } from './wards.ts'
+import { dose, SOBER } from './wardlevels.ts'
+import { WARD_OF } from './wards.ts'
 import { charterable } from './worldsync.ts'
 import type { ChatCommand } from './chat.ts'
 import type { CitgoLog } from './citgos.ts'
@@ -83,11 +66,10 @@ import type { Game } from './game.ts'
 import type { Hotbar } from './hotbar.ts'
 import type { DailyStatus, ShelfSpot } from './interactions.ts'
 import type { WardAxis, XZ } from './interfaces.ts'
-import type { Leg, TruckState } from './marx.ts'
+import type { Leg } from './marx.ts'
 import type { NpcId } from './npcs.ts'
 import type { BagAction, BagTab } from './packgrid.ts'
 import type { DailyMessage, PassedMessage, WardLevels } from './protocol.ts'
-import type { ShadeKind } from './shadowmen.ts'
 import type { Pickup } from './world.ts'
 
 // The valley's word on a touch (a struck frame): what it took, what the
@@ -98,10 +80,6 @@ export interface Struck {
   health: number
   max: number
 }
-
-// A shadow that burst, to spill: where, and what kind of shadowman (a
-// tunnel shade has none).
-type Spilled = XZ & { kind?: ShadeKind }
 
 export interface Actions {
   // A line from an NPC into this player's chat log alone (Carlsten's
@@ -127,7 +105,7 @@ export interface Actions {
   stepChapter(step: number): void
   stepEntry(step: number): void
   // Entries of the Book of Shadows this raider has just come across
-  // (book.ts ids): asked of the valley, or played alone written at once.
+  // (book.ts ids): asked of the valley.
   // Anything found or already asked is left out (GameState.known), so the
   // loop may call it on every state-frame tick.
   discover(ids: readonly string[]): void
@@ -143,11 +121,8 @@ export interface Actions {
   // A number key over nothing in the pack empties that slot, as for a kind
   // the pack has run out of.
   clearSlot(slot: number): void
-  // The truck drives `leg` (marx.ts): the valley's, or our own alone.
+  // The truck drives the valley's `leg` (marx.ts).
   followLeg(leg: Leg): void
-  // Played alone, the truck as it now stands: its leg followed when it
-  // changed, and off the bed when it lets us off.
-  setAloneTruck(truck: TruckState): void
   hopOut(line?: string): void
   // Off the bed beside the truck, with no word to the valley: it let us
   // off.
@@ -155,10 +130,9 @@ export interface Actions {
   // A shadow touched you, or you landed from a fall of `height` metres
   // (sharedworld.ts rule 24): its hit off your geometrie, cut by your wards
   // (rule 27; nothing cuts a fall), the valley's word on what it took and
-  // what is left, or alone our own. The last of it shatters your
-  // geometrie, and everything the pack held stays on your body where you
-  // fell (rule 18).
-  strike(by: Hurt, valley?: Struck, height?: number): void
+  // what is left. The last of it shatters your geometrie, and everything
+  // the pack held stays on your body where you fell (rule 18).
+  strike(by: Hurt, valley: Struck): void
   // G: one of `kind` (the last used, in the valley) passed to the raider
   // in reach in front of you (rule 27).
   passKind(kind?: string | null): void
@@ -169,10 +143,6 @@ export interface Actions {
   // The account's geometrie, left and whole, as the valley says it (a
   // forecourt, a use, a new level).
   setHealth(points: number, max: number): void
-  // Played alone, a forecourt makes whole.
-  mendAtForecourt(): void
-  // Played alone, the bodies this raider left, drawn and offered to E.
-  showAloneCorpses(): void
   // F at the locker: one of an item (the open container, or one of
   // anything else) into the locker off a pack tab, or out of it on the
   // Locker tab; with Shift the whole stack (rule 19).
@@ -205,10 +175,8 @@ export interface Actions {
   openPortal(): void
   // The valley refused it.
   portalRefused(reason: string): void
-  // Every frame, at `now` (the valley's clock, or alone the wall clock):
-  // the open portals drawn, ours played alone closed when it is due, one
-  // walked into taking us out of its other end, and played alone the Citgo
-  // we stand at written in our own log.
+  // Every frame, at `now` (the valley's clock): the open portals drawn,
+  // and one walked into taking us out of its other end.
   tendPortals(now: number): void
   // The account's Citgos as the valley says (the welcome, a citgos frame):
   // a new one is said, unless `quiet` or before Begin.
@@ -223,9 +191,6 @@ export interface Actions {
   // picked (to), the joyride (null), or nothing asked (undefined: he left,
   // or the bed is not ours).
   endCharter(to?: XZ | null): void
-  // Shadows burst: played alone, their dimes (a spider's $20) fall where
-  // they were, and each shadowman's tombstone stands beside them.
-  spillBursts(bursts: readonly Spilled[]): void
   // The left button: the flashlight up and on, or down and off.
   toggleFlashlight(): void
   // The pickup is ours: into the pack.
@@ -388,18 +353,15 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (ids.length === 0 || performance.now() < bookWaitUntil) return
     const fresh = newlyFound(s.known, ids)
     if (fresh.length === 0) return
-    // Online, the valley writes it and says so. Before it has welcomed us,
-    // or while it is out of reach after it had, nothing is asked, and a
-    // later frame asks again; only played alone is it written here.
-    if (net.online && s.world) {
-      for (const id of fresh) {
-        s.pending.book.add(id)
-        s.known.add(id)
-      }
-      net.send({ type: 'discover', entries: fresh })
-    } else if (net.status === 'offline' && !s.world) {
-      applyBook(fresh)
+    // The valley writes it and says so. Before it has welcomed us, or
+    // while it is out of reach, nothing is asked, and a later frame asks
+    // again.
+    if (!net.online || !s.world) return
+    for (const id of fresh) {
+      s.pending.book.add(id)
+      s.known.add(id)
     }
+    net.send({ type: 'discover', entries: fresh })
   }
 
   const keepHotbar = (bar: Hotbar) => {
@@ -418,52 +380,26 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   const clearSlot = (slot: number) =>
     keepHotbar(clearHotbarSlot(s.hotbar, slot))
 
-  // Played alone, this raider's id in the truck's bed.
-  const ALONE = 'me'
-  const me = () => (s.world ? net.id : ALONE)
-
-  // The truck drives `leg`, against the valley's clock or, alone, the
-  // wall clock.
+  // The truck drives `leg` against the valley's clock.
   const followLeg = (leg: Leg) => {
     // He has left: no pick to make any more.
     if (leg.kind !== 'parked') endCharter()
     s.truckLeg = leg
     s.truckPlan = planLeg(leg, game.truckContext)
-    const toLocal = s.world
-      ? (ms: number) => net.clock.toLocalMs(ms)
-      : (ms: number) => performance.now() + (ms - Date.now())
-    truck.follow(s.truckPlan, toLocal)
-  }
-
-  const setAloneTruck = (next: TruckState) => {
-    const before = s.aloneTruck
-    s.aloneTruck = next
-    if (s.world) return
-    if (next.leg !== before.leg) followLeg(next.leg)
-    if (s.aboard && !next.riders.includes(ALONE)) leaveBed()
+    truck.follow(s.truckPlan, (ms: number) => net.clock.toLocalMs(ms))
   }
 
   // Into the bed: of the truck at the Citgo, where the countdown starts
   // and the first one in picks on the map where he goes (rule 3), or of
   // the truck we whistled, which drives us home.
   const boardTruck = () => {
-    if (s.aboard) return
+    if (s.aboard || !s.world) return
     closeInventory()
-    if (s.world) {
-      const first = charterable(s.world.truck, net.id)
-      s.aboard = true
-      s.pending.board = true
-      net.send({ type: 'board' })
-      hud.tell(copy('log.board'))
-      if (first) openCharter()
-      return
-    }
-    const first = charterable(s.aloneTruck, ALONE)
-    const next = board(s.aloneTruck, ALONE, Date.now())
-    if (refused(next)) return
+    const first = charterable(s.world.truck, net.id)
     s.aboard = true
+    s.pending.board = true
+    net.send({ type: 'board' })
     hud.tell(copy('log.board'))
-    setAloneTruck(next)
     if (first) openCharter()
   }
 
@@ -493,13 +429,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         ? copy('log.charter', { place: hud.map.placeOf(dest) })
         : copy('log.charter_joyride')
     )
-    if (s.world) {
-      net.send({ type: 'charter', to: dest })
-      return
-    }
-    // Alone, there is never anyone else: he leaves at once.
-    const next = charter(s.aloneTruck, ALONE, dest, Date.now(), true)
-    if (!refused(next)) setAloneTruck(next)
+    net.send({ type: 'charter', to: dest })
   }
 
   // Off the bed, beside the truck.
@@ -514,26 +444,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   const hopOut = (line?: string) => {
     if (!s.aboard) return
     leaveBed(line)
-    if (s.world) {
-      net.send({ type: 'hop-out' })
-      return
-    }
-    const next = hopOutOf(s.aloneTruck, ALONE)
-    if (!refused(next)) setAloneTruck(next)
+    net.send({ type: 'hop-out' })
   }
 
-  // Played alone, the bodies are ours to draw and offer.
-  const showAloneCorpses = () => {
-    if (s.world) return
-    s.corpses = s.aloneCorpses.map(corpseWire)
-    s.myCorpses = s.aloneCorpses.map((c) => c.id)
-    game.corpses.sync(s.corpses)
-  }
-
-  // Static, then you come to on the forecourt: a shadowman's touch, or
-  // the Caretaker's. Everything the pack held stays on your body where you
-  // fell (rule 18): in the valley the valley lays it and its pack frame has
-  // the last word, so the pack shows empty at once; alone it lies at once.
   // What a ward taking the edge off a touch says in the log.
   const wardedLine = (ward: WardAxis): string => {
     switch (ward) {
@@ -549,32 +462,25 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
   // The wards that have said so in the log this session, once each.
   const wardsTold = new Set<WardAxis>()
-  // Struck by a shadow, or landed hard from `height` metres (a fall):
-  // the valley's word on it, or alone our own.
-  const strike = (by: Hurt, valley?: Struck, height = 0) => {
+  // Struck by a shadow, or landed hard (a fall): the valley's word on it.
+  // Static, then you come to on the forecourt when it is the last of you.
+  // Everything the pack held stays on your body where you fell (rule 18):
+  // the valley lays it and its pack frame has the last word, so the pack
+  // shows empty at once.
+  const strike = (by: Hurt, valley: Struck) => {
     if (s.aboard) {
       // Touched as we climbed in: the valley's count stands all the same.
-      if (valley) {
-        s.healthMax = valley.max
-        s.health = valley.health > 0 ? valley.health : valley.max
-      }
+      s.healthMax = valley.max
+      s.health = valley.health > 0 ? valley.health : valley.max
       return
     }
     const now = performance.now()
-    // Rule 27: the wards cut it, the valley's word or alone our own roll.
-    const levels = levelsAt(s.wards, s.time)
-    const { damage, warded } =
-      valley ??
-      (by === 'fall'
-        ? { damage: fallDamage(height, s.healthMax), warded: 0 }
-        : damageOf(by, levels, Math.random()))
+    const { damage, warded } = valley
     s.emoting = null
     // A touch knocks the phone down mid-dial.
     game.phone.hangUp()
-    if (valley) s.healthMax = valley.max
-    s.health = valley
-      ? valley.health
-      : hit(s.health, damage, s.healthMax).points
+    s.healthMax = valley.max
+    s.health = valley.health
     s.graceUntil = now + CONFIG.health.graceSeconds * 1000
     s.hurtAt = now
     const ward = by === 'fall' ? null : WARD_OF[by]
@@ -609,21 +515,6 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     player.keys.clear()
     const items = fallen(s.inventory)
     if (!isEmpty(items)) {
-      if (!s.world) {
-        s.aloneCorpses = [
-          ...s.aloneCorpses,
-          {
-            id: s.nextCorpse++,
-            x: player.pos.x,
-            z: player.pos.z,
-            yaw: player.yaw,
-            name: game.pick.username,
-            outfit: game.pick.outfit,
-            items,
-          },
-        ]
-        showAloneCorpses()
-      }
       s.inventory = emptied(s.inventory)
       refreshBag()
     }
@@ -653,39 +544,18 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (mended) hud.tell(copy('log.mended'))
   }
 
-  // Played alone, a forecourt makes whole (rule 24).
-  const mendAtForecourt = () => {
-    if (s.health >= s.healthMax) return
-    s.health = s.healthMax
-    hud.tell(copy('log.mended'))
-  }
-
-  // E over your own body: everything it holds back into the pack. In the
-  // valley the valley says it was still there (valleysync.ts) and its pack
-  // frame brings the things back; alone they come back at once.
+  // E over your own body: everything it holds back into the pack. The
+  // valley says it was still there (valleysync.ts) and its pack frame
+  // brings the things back.
   const lootCorpse = (id: number) => {
-    if (s.world) {
-      if (s.pending.loots.has(id)) return
-      s.pending.loots.add(id)
-      net.send({ type: 'loot', corpse: id })
-      return
-    }
-    const corpse = s.aloneCorpses.find((c) => c.id === id)
-    if (!corpse) return
-    s.aloneCorpses = s.aloneCorpses.filter((c) => c.id !== id)
-    showAloneCorpses()
-    s.inventory = recover(s.inventory, corpse.items)
-    refreshBag()
-    hud.tell(copy('log.looted'))
+    if (s.pending.loots.has(id)) return
+    s.pending.loots.add(id)
+    net.send({ type: 'loot', corpse: id })
   }
 
-  // E at the lockers: the pack with the Locker tab. The stash is the
-  // account's, so played alone there is none to open.
+  // E at the lockers: the pack with the Locker tab.
   const openLocker = () => {
-    if (!s.world) {
-      hud.tell(copy('log.locker_offline'))
-      return
-    }
+    if (!s.world) return
     openInventory(true)
   }
 
@@ -717,15 +587,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
 
   // E at the Cabbage Stand: its dialog, the pointer free for it as for
-  // Gron's. The stand is the account's (rule 23), so played alone there is
-  // none. Every change is the valley's to make: the dialog asks, and the
-  // stand and pack frames that answer show in it as they land.
+  // Gron's. The stand is the account's (rule 23): every change is the
+  // valley's to make; the dialog asks, and the stand and pack frames that
+  // answer show in it as they land.
   const tendStand = () => {
-    if (s.talking) return
-    if (!s.world || !s.stand) {
-      hud.tell(copy('log.stand_offline'))
-      return
-    }
+    if (s.talking || !s.world || !s.stand) return
     s.standSaid = null
     const ask = (msg: Parameters<typeof net.send>[0]) => {
       s.pending.stand = true
@@ -750,15 +616,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   // E beside Erwin von Dutch, the squatter in the plaza: what he deals
   // and what he wants for it, and his quest, in a dialog with the pointer
-  // free, as at the stand. He deals only in the valley (rules 24 and 25):
-  // played alone there is no one to barter with.
+  // free, as at the stand (rules 25 and 26).
   const openDeal = () => {
     if (s.talking) return
     discover(['squatter'])
-    if (!s.world) {
-      hud.tell(copy('log.deal_offline'))
-      return
-    }
+    if (!s.world) return
     s.talking = true
     s.dealSaid = null
     player.keys.clear()
@@ -831,18 +693,15 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // T: Marx comes to us, if he is free, and drives us home. No whistle
   // carries up out of the Undercroft.
   const callTruck = () => {
-    if (s.aboard) return
+    if (s.aboard || !s.world) return
     if (world.undercroft?.inside(player.pos.x, player.pos.z)) {
       hud.tell(copy('log.whistle_below'))
       return
     }
-    const now = Date.now()
-    const current = s.world?.truck ?? s.aloneTruck
-    const id = me() ?? ''
     // From wherever the truck is, the donut field included.
     const from = { x: truck.x, z: truck.z }
     const to = { x: player.pos.x, z: player.pos.z }
-    const next = call(current, id, from, to, now)
+    const next = call(s.world.truck, net.id ?? '', from, to, Date.now())
     if (refused(next)) {
       hud.tell(copy('log.truck_busy'))
       return
@@ -852,14 +711,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       hud.tell(copy('log.whistle_nothing'))
       return
     }
-    if (s.world) {
-      // One whistle for the whole valley; the world frame drives the truck
-      // to where the valley last heard the whistler.
-      net.send({ type: 'call', from })
-      return
-    }
-    hud.tell(copy('log.whistle'))
-    setAloneTruck(next)
+    // One whistle for the whole valley; the world frame drives the truck
+    // to where the valley last heard the whistler.
+    net.send({ type: 'call', from })
   }
 
   const pocket = (kind: string) => {
@@ -887,35 +741,23 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       if (line) hud.tell(line)
       return
     }
-    if (s.world) {
-      // The shelf is the valley's: ask, and pocket the unit when the
-      // valley says it was still there. The judgement above (stock as
-      // last heard, cash) stands; the valley settles the race.
-      const key = `${shelf.station}:${shelf.item}`
-      if (s.pending.buys.has(key)) return
-      s.pending.buys.add(key)
-      net.send({
-        type: 'buy',
-        station: shelf.station,
-        kind: shelf.item,
-        unit: shelf.unit,
-      })
-      return
-    }
-    const inventoryChanged = next.inventory !== s.inventory
-    s.storeStock = [...next.stock]
-    s.inventory = next.inventory
-    s.cash = next.cash
-    if (inventoryChanged) refreshBag()
-    if (line) hud.tell(line)
+    // The shelf is the valley's: ask, and pocket the unit when the valley
+    // says it was still there. The judgement above (stock as last heard,
+    // cash) stands; the valley settles the race.
+    const key = `${shelf.station}:${shelf.item}`
+    if (s.pending.buys.has(key)) return
+    s.pending.buys.add(key)
+    net.send({
+      type: 'buy',
+      station: shelf.station,
+      kind: shelf.item,
+      unit: shelf.unit,
+    })
   }
 
   // E at a bush: ask the valley for today's berry off it, or say why not.
   const collectBerry = (bush: number, status: DailyStatus) => {
-    if (status === 'offline') {
-      hud.tell(copy('log.berry_offline'))
-      return
-    }
+    if (status === 'offline') return
     if (status === 'picked') {
       hud.tell(copy('log.berry_picked'))
       return
@@ -953,9 +795,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     npcSays(npc, npcLine(npc, s.npcSaid[npc]++))
   }
 
-  // Rule 14: Moab's offer, taken. In the shared valley the valley trades
-  // and the pack frame that follows says it landed (wear); alone, the pack
-  // pays at once.
+  // Rule 14: Moab's offer, taken. The valley trades and the pack frame
+  // that follows says it landed (wear).
   const offerTrade = () => {
     npcSays('moab', copy('moab.offer'))
   }
@@ -995,21 +836,13 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       tradeRefused('short')
       return
     }
-    if (s.world) {
-      s.pending.trade = true
-      net.send({ type: 'trade', offer })
-      return
-    }
-    const { kind, count } = cosmetic.price
-    s.inventory = { ...s.inventory, [kind]: (s.inventory[kind] ?? 0) - count }
-    refreshBag()
-    wear([...s.cosmetics, offer])
+    s.pending.trade = true
+    net.send({ type: 'trade', offer })
   }
 
   // An item with no effect yet does nothing, and a cigarette waits for the
   // one burning.
   const useKind = (kind: string) => {
-    const heals = healsOf(kind, s.healthMax)
     const result = consume(s.inventory, kind, s.effects, s.time)
     if (!result.used) {
       const empty = result.reason === 'empty' ? itemLine(kind, 'empty') : null
@@ -1024,9 +857,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     s.using = { kind, at: s.time }
     s.lastUsed = kind
     // The unit is the account's: the valley takes it out of the pack, and
-    // gives back what it heals; alone it heals at once.
+    // gives back what it heals.
     net.send({ type: 'use', kind })
-    if (!s.world && heals > 0) s.health = mend(s.health, heals, s.healthMax)
     refreshBag()
     const used = itemLine(kind, 'used')
     if (used) hud.tell(used)
@@ -1040,10 +872,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       hud.tell(copy('log.pass_nothing'))
       return
     }
-    if (!s.world) {
-      hud.tell(copy('log.pass_alone'))
-      return
-    }
+    if (!s.world) return
     if (s.aboard) {
       hud.tell(copy('log.pass_aboard'))
       return
@@ -1085,8 +914,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     s.wards = { at: s.time, levels }
   }
 
-  // Rule 12. In the valley the drop lands where our last state frame put
-  // us; the pack shows the units gone at once. Alone it lands at once.
+  // Rule 12. The drop lands where our last state frame put us; the pack
+  // shows the units gone at once.
   const dropKind = (kind: string, all: boolean) => {
     // A key item stays in the pack (items.ts isKeyItem).
     if (isKeyItem(kind)) {
@@ -1101,17 +930,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (count < 1) return
     s.inventory = addItem(s.inventory, kind, -count)
     keepHotbar(spent(s.hotbar, kind, s.inventory))
-    if (s.world) {
-      net.send({ type: 'drop', kind, count })
-      refreshBag()
-      return
-    }
-    const id = s.nextDrop++
-    const at = { x: player.pos.x, z: player.pos.z, yaw: player.yaw }
-    s.drops = [...s.drops, { id, kind, count, ...dropSpot(at, id) }]
-    game.drops.sync(s.drops)
+    net.send({ type: 'drop', kind, count })
     refreshBag()
-    hud.tell(copy('log.dropped', { item: pickupLabel({ kind, count }) }))
   }
 
   // Into the pack, or cash (dimes, a spider's $20) into the wallet; the
@@ -1138,40 +958,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     refreshBag()
   }
 
-  // Shadows burst where `bursts` say: played alone each leaves its dimes
-  // lying there, and each spider its $20 (sharedworld.ts rule 11), and each
-  // shadowman its tombstone, named, beside them (rule 17); a burst with no
-  // kind (a tunnel shade) is never buried. In the valley the valley does
-  // both.
-  const spillBursts = (bursts: readonly Spilled[]) => {
-    if (s.world || bursts.length === 0) return
-    const cash = spillsOf(bursts, null, Math.random).map((spill) => ({
-      id: s.nextDrop++,
-      ...spill,
-    }))
-    s.drops = [...s.drops, ...cash]
-    game.drops.sync(s.drops)
-    const shades = bursts.flatMap(({ x, z, kind }) =>
-      kind ? [{ x, z, kind }] : []
-    )
-    const buried = bury(s.graves, s.nextGrave, burialsOf(shades, Math.random))
-    s.graves = buried.graves
-    s.nextGrave = buried.next
-    game.graves.sync(s.graves)
-  }
-
   const takeDrop = (drop: number) => {
-    if (s.world) {
-      if (s.pending.drops.has(drop)) return
-      s.pending.drops.add(drop)
-      net.send({ type: 'take-drop', drop })
-      return
-    }
-    const lying = s.drops.find((d) => d.id === drop)
-    if (!lying) return
-    s.drops = s.drops.filter((d) => d.id !== drop)
-    game.drops.sync(s.drops)
-    applyDropTaken(lying.kind, lying.count)
+    if (s.pending.drops.has(drop)) return
+    s.pending.drops.add(drop)
+    net.send({ type: 'take-drop', drop })
   }
 
   // The light comes on once the hand is up, and goes off as it goes down;
@@ -1201,10 +991,6 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   const takePickup = (pickup: Pickup) => {
     if (isDropPickup(pickup)) {
       takeDrop(pickup.drop)
-      return
-    }
-    if (!s.world) {
-      applyTake(pickup)
       return
     }
     // Pickups are shared by index: ask, and take it when the valley says
@@ -1447,9 +1233,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     hud.tell(portalRefusal(reason))
   }
 
-  // In the valley the portal opens where our last state frame put us, and
-  // the world frame that comes back says so (valleysync.ts). Alone it
-  // opens at once, our one portal, on the wall clock.
+  // The portal opens where our last state frame put us, and the world
+  // frame that comes back says so (valleysync.ts).
   const openPortal = () => {
     const at = { x: player.pos.x, z: player.pos.z, yaw: player.yaw }
     const station = s.citgos.last
@@ -1458,43 +1243,13 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (citgoAt(at, [world.fuelPoints[station]]) !== null) {
       return portalRefused('at-citgo')
     }
-    if (s.world) {
-      if (s.pendingPortal) return
-      s.pendingPortal = true
-      net.send({ type: 'portal' })
-      return
-    }
-    const id = s.nextPortal++
-    s.portals = [
-      {
-        id,
-        name: game.pick.username,
-        field: fieldEnd(at),
-        citgo: ringEnd(world.rings[station], 0),
-        station,
-        slot: 0,
-        closes: Date.now() + CONFIG.portal.lifeSeconds * 1000,
-      },
-    ]
-    s.myPortal = id
-    hud.tell(copy('log.portal_opened', { citgo: citgoLabel(station) }))
+    if (s.pendingPortal) return
+    s.pendingPortal = true
+    net.send({ type: 'portal' })
   }
 
   const tendPortals = (now: number) => {
     const open = openAt(s.portals, now)
-    if (!s.world) {
-      if (open.length < s.portals.length) {
-        s.portals = open
-        if (s.myPortal !== null && !open.some((p) => p.id === s.myPortal)) {
-          s.myPortal = null
-          hud.tell(copy('log.portal_closed'))
-        }
-      }
-      // Alone, the Citgo we stand at is ours to write (the valley writes
-      // it from our state frames).
-      const here = s.aboard ? null : citgoAt(player.pos, world.fuelPoints)
-      if (here !== null && s.started) applyCitgos(visit(s.citgos, here))
-    }
     game.portals.sync(open)
     game.portals.update(s.time)
     if (s.aboard || performance.now() < s.portalGraceUntil) return
@@ -1602,13 +1357,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     assignSlot,
     clearSlot,
     followLeg,
-    setAloneTruck,
     hopOut,
     leaveBed,
     strike,
     setHealth,
-    mendAtForecourt,
-    showAloneCorpses,
     stowKind,
     unstowKind,
     callTruck,
@@ -1632,7 +1384,6 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     fastTravel,
     endCharter,
     applyDropTaken,
-    spillBursts,
     toggleFlashlight,
     applyTake,
     markTaken,

@@ -1,29 +1,20 @@
 // The Caretaker as seen (caretaker.ts): its body (assets.ts buildCaretaker)
 // floating over the maze's paths, turned to face the player, shaking and
 // paling as two beams burn it, drawing its lantern back as it winds up
-// to strike and lurching out as it lunges. In the shared valley it is the valley's
+// to strike and lurching out as it lunges. It is the valley's
 // (sharedworld.ts rule 13): it rides in the shadowmen frames and is drawn a
-// beat behind the present, between the last two. Played alone, this steps
-// a Caretaker of its own with the player as the one raider, and one
-// flashlight can never burn it.
+// beat behind the present, between the last two.
 
 import * as THREE from 'three'
 import { buildCaretaker } from './assets.ts'
-import { caretakerAt, createCaretaker, stepCaretaker } from './caretaker.ts'
 import { CONFIG } from './config.ts'
-import { worldToMaze } from './maze.ts'
 import { mulberry32, range } from './rng.ts'
 import { keeperCues } from './sfx.ts'
 import type { CaretakerRig } from './assets.ts'
-import type { Caretaker } from './caretaker.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
 import type { MazePlace } from './maze.ts'
 import type { CaretakerWire, ShadowmenMessage } from './protocol.ts'
 import type { ShadeCues } from './sfx.ts'
-import type { AloneFrame } from './shadowcards.ts'
-
-// The player's id when they play alone.
-const ALONE = 'me'
 
 const LUNGE_SECONDS = 0.35
 
@@ -45,15 +36,10 @@ interface CaretakerShadeFrame {
   // A running time for its drift and its lantern.
   time: number
   player: XZ
-  // Null in the shared valley, which steps it itself.
-  alone: AloneFrame | null
   renderAt: number
 }
 
 interface CaretakerShadeUpdate {
-  // It caught the player, played alone; in the shared valley a struck
-  // frame says so.
-  struck: boolean
   // Where it was burned since the last update.
   burned: XZ[]
   // How far it floats from the player, or null while it is burned (the
@@ -64,8 +50,6 @@ interface CaretakerShadeUpdate {
 }
 
 export class CaretakerShade {
-  // Played alone: the Caretaker this client steps.
-  own: Caretaker
   // Where it stands as last drawn, for the dev hook; null while burned.
   shown: CaretakerWire | null = null
   private maze: MazePlace | null
@@ -89,18 +73,6 @@ export class CaretakerShade {
     this.rig = buildCaretaker()
     this.rig.group.visible = false
     scene.add(this.rig.group)
-    this.own = createCaretaker()
-  }
-
-  // Played alone: the Caretaker moved to world (x, z), formed, its hunt
-  // forgotten, floating still until it has someone to hunt, for the specs.
-  place(x: number, z: number): void {
-    if (!this.maze) return
-    this.own = {
-      ...createCaretaker(),
-      ...worldToMaze(this.maze, { x, z }),
-      held: true,
-    }
   }
 
   // A frame from the valley, landed at `at` (local ms).
@@ -115,7 +87,7 @@ export class CaretakerShade {
     this.listen(msg.caretaker?.windup ?? 0)
   }
 
-  // A frame landed or a step taken: whether its windup began.
+  // A frame landed: whether its windup began.
   private listen(windup: number): void {
     if (windup > 0 && this.windup <= 0) this.begun = true
     this.windup = windup
@@ -125,42 +97,9 @@ export class CaretakerShade {
     dt,
     time,
     player,
-    alone,
     renderAt,
   }: CaretakerShadeFrame): CaretakerShadeUpdate {
-    let struck = false
-    let shown: CaretakerWire | null = null
-    if (this.maze && alone) {
-      // Played alone the valley's frames are stale: start them afresh.
-      this.prev = null
-      this.next = null
-      const out = stepCaretaker(this.own, this.rng, {
-        dt,
-        raiders: [{ id: ALONE, x: player.x, z: player.z, ...alone }],
-        place: this.maze,
-      })
-      struck = out.struck.length > 0
-      if (out.burst) this.pending.push(out.burst)
-      if (out.lunged) {
-        this.lunging = 0
-        this.lunged = true
-      }
-      const at = caretakerAt(this.own, this.maze)
-      shown = at && {
-        ...at,
-        burn: this.own.burn / CONFIG.caretaker.burnSeconds,
-        target: this.own.target,
-        windup: this.own.windup / CONFIG.caretaker.windupSeconds,
-      }
-      this.listen(this.own.windup)
-    } else if (this.maze) {
-      // The one this client stepped is not the valley's: a fall back to
-      // playing alone starts fresh.
-      if (this.own.target || this.own.route.length) {
-        this.own = createCaretaker()
-      }
-      shown = this.sample(renderAt)
-    }
+    const shown = this.maze ? this.sample(renderAt) : null
     this.shown = shown
     if (this.lunging !== null) {
       this.lunging += dt
@@ -182,7 +121,7 @@ export class CaretakerShade {
     const distance = shown
       ? Math.hypot(shown.x - player.x, shown.z - player.z)
       : null
-    return { struck, burned, distance, heard }
+    return { burned, distance, heard }
   }
 
   // The valley's Caretaker at renderAt, between the last two frames; it

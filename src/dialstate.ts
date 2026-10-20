@@ -287,6 +287,13 @@ export function applyFrame(
         : next
     }
     case 'peer-joined':
+      // Back from a dropped line under the id we still see: no news.
+      if (s.peers.some((p) => p.id === msg.peer.id)) {
+        return {
+          ...s,
+          peers: s.peers.map((p) => (p.id === msg.peer.id ? msg.peer : p)),
+        }
+      }
       return told(
         {
           ...s,

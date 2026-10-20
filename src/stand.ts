@@ -6,8 +6,7 @@
 // the wallet. Upgrades, paid in cash and goods, raise the table, the rate
 // and the cap, and dress the stand (assets.ts buildStandDressing).
 // sharedworld.ts runs these for the shared valley (rule 23), and the
-// ledger is kept in D1 beside the wallet; the valley played alone has no
-// stand, since nothing is kept. No three.js, no DOM.
+// ledger is kept in D1 beside the wallet. No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'

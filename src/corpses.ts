@@ -4,9 +4,8 @@
 // body, lying where their last state frame put them; they come to at the
 // spawn Citgo with an empty pack and their wallet, and run back for it.
 // Only the account that fell can take its things back, and a body lies
-// until it does, whatever the day. sharedworld.ts runs these for the shared
-// valley (rule 18), actions.ts for the valley played alone. No three.js, no
-// DOM.
+// until it does, whatever the day. sharedworld.ts runs these (rule 18).
+// No three.js, no DOM.
 
 import { INVENTORY_KINDS, isKeyItem } from './items.ts'
 import type { Inventory, XZ } from './interfaces.ts'

@@ -23,8 +23,7 @@
 //
 // Pure, no three.js. In the shared valley the server steps the one field
 // everyone sees (worker/ValleyDO.ts, sharedworld.ts rule 11) and clients
-// draw it (shadowsync.ts); played alone, the client steps its own field
-// with one raider. The silhouette cards that show them are in
+// draw it (shadowsync.ts). The silhouette cards that show them are in
 // src/shadowcards.ts.
 
 import { CONFIG } from './config.ts'
@@ -654,8 +653,8 @@ export function stepShadowmen(
   return { struck, strikers, lunges, bursts }
 }
 
-// A shadowman (or a spider, or a spiderling) standing still at (x, z), for the specs (a dev
-// frame in the shared valley, the dev hook played alone).
+// A shadowman (or a spider, or a spiderling) standing still at (x, z), for
+// the specs (a dev frame).
 export function placeStill(
   field: ShadowmenField,
   x: number,

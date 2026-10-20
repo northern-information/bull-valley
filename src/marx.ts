@@ -2,8 +2,7 @@
 // valley and what it does next, as a chain of legs stamped with server
 // times. The valley keeps the truck (sharedworld.ts) and moves it through
 // these rules; every client drives the same leg against the same clock
-// (truckplan.ts), so all of them agree where the truck is. Played alone,
-// the client runs the same rules against its own clock. No three.js.
+// (truckplan.ts), so all of them agree where the truck is. No three.js.
 //
 // His day, over and over: he reads at the tailgate by the spawn Citgo for
 // CONFIG.truck.readSeconds, then does donuts in the field across Lake

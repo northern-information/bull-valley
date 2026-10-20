@@ -269,8 +269,7 @@ async function boot() {
 
   // --- The valley server -------------------------------------------------
   // Everyone online shares one valley. The socket is same-origin and the
-  // session cookie says who we are; if the server is down or unreachable
-  // the valley is simply empty, and it plays as the player's alone.
+  // session cookie says who we are. Nothing plays until it answers.
   const net = new NetClient({
     url: socketUrl(window.location, import.meta.env.DEV),
     config: CONFIG.net,
@@ -322,13 +321,7 @@ async function boot() {
     hands,
     pick,
     phone: new Phone(hud.phoneCanvas, hud.phone),
-    shadowmen: new ShadowCards({
-      scene,
-      groundAt: world.ground.at,
-      metres: geo.metres,
-      havens: world.fuelPoints,
-      water,
-    }),
+    shadowmen: new ShadowCards({ scene, groundAt: world.ground.at }),
     caretaker: new CaretakerShade({
       scene,
       groundAt: world.ground.at,
@@ -362,11 +355,12 @@ async function boot() {
   }
 
   // --- Input and the valley ----------------------------------------------
-  hud.setBegin('play')
+  // Begin waits for the valley's welcome (valleysync.ts).
+  hud.setConnection('connecting')
   const engagePointer = wirePointer(game)
   const actions = createActions(game, engagePointer)
   wireValley(game, actions)
-  // Not awaited: the game never waits on the network.
+  // Not awaited: Begin waits on it (valleysync.ts).
   void net.connect({
     outfit: pick.outfit,
     pickups: world.pickups.map(({ kind, count, x, z, within }) =>

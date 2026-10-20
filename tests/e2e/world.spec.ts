@@ -237,7 +237,7 @@ base.describe('one visit', { tag: '@raid' }, () => {
       await expect
         .poll(() =>
           page.evaluate(() => {
-            const leg = window.__bv?.marx.leg
+            const leg = window.__bv?.marx?.leg
             return leg?.kind === 'parked' ? leg.leavesAt : 'away'
           })
         )

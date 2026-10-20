@@ -2,7 +2,7 @@
 // rule 17): the stones and the mounds of every grave drawn instanced, one
 // assets.ts tombstoneParts mesh a part, and the carved face alone built
 // per grave (buildTombstoneFace) on ground.at, kept in step with the
-// grave list, the valley's or this raider's alone.
+// valley's grave list.
 
 import * as THREE from 'three'
 import {

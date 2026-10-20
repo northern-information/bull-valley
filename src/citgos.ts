@@ -2,8 +2,7 @@
 // station they stand at now, the log the valley keeps of every one visited
 // and the last, and fast travel from one visited Citgo to another. The
 // valley's reducer runs the log; actions.ts and the map (citgomap.ts) read
-// it for fast travel, and played alone the client keeps its own. No
-// three.js, no DOM.
+// it for fast travel. No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
 import { projectOnSegment } from './coords.ts'

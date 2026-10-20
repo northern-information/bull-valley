@@ -40,12 +40,20 @@ interface ItemLabelView {
 // always as wide as the longest and never resizes when its state changes.
 const BEGIN_LABELS = {
   loading: copy('hud.begin_loading'),
+  connecting: copy('hud.begin_connecting'),
+  reconnecting: copy('hud.begin_reconnecting'),
+  lost: copy('hud.begin_lost'),
   play: copy('hud.begin_play'),
   resume: copy('hud.begin_resume'),
   failed: copy('hud.begin_failed'),
 } as const
 
 type BeginState = keyof typeof BEGIN_LABELS
+
+// The line to the valley, as the intro overlay shows it: reaching it the
+// first time, back again after a drop, given up on, or open. Nothing plays
+// unless it is open.
+export type Connection = 'connecting' | 'reconnecting' | 'lost' | 'online'
 
 // The controls table: two bindings a row, key then action; an odd last
 // one gets the whole row.
@@ -100,6 +108,9 @@ export class Hud {
   exitBtn: HTMLButtonElement
   // Failed is final: the pause overlay never offers Resume over it.
   beginFailed = false
+  // The line to the valley; Begin waits on it.
+  connection: Connection = 'connecting'
+  private paused = false
   accountBtn: HTMLButtonElement
   signOutBtn: HTMLButtonElement
   raiderEl: HTMLElement
@@ -269,7 +280,7 @@ export class Hud {
         return span
       })
     )
-    this.setBegin('play')
+    this.showConnection()
     this.raiderEl = find(this.intro, '[data-bv="intro-username"]')
     this.accountBtn = find(this.intro, '[data-bv="intro-account"]')
     this.signOutBtn = find(this.intro, '[data-bv="intro-sign-out"]')
@@ -498,13 +509,33 @@ export class Hud {
       span.classList.toggle('bv-btn-label--off', !current)
       span.setAttribute('aria-hidden', String(!current))
     }
-    this.beginBtn.disabled = state === 'loading' || state === 'failed'
+    this.beginBtn.disabled =
+      state === 'loading' ||
+      state === 'failed' ||
+      state === 'connecting' ||
+      state === 'reconnecting'
   }
 
   showIntro(show: boolean, paused?: boolean): void {
     this.intro.hidden = !show
     this.root.classList.toggle('bv-shell--intro', show)
-    if (show) this.setBegin(paused ? 'resume' : 'play')
-    this.exitBtn.hidden = !paused
+    this.paused = paused === true
+    if (show) this.showConnection()
+  }
+
+  // The line to the valley changed: Begin says so.
+  setConnection(connection: Connection): void {
+    this.connection = connection
+    this.showConnection()
+  }
+
+  // Begin names the line's state. Exit to Menu shows once paused, but not
+  // when the line is lost, since Begin then goes back to the menu itself.
+  private showConnection(): void {
+    const { connection } = this
+    this.setBegin(
+      connection === 'online' ? (this.paused ? 'resume' : 'play') : connection
+    )
+    this.exitBtn.hidden = !this.paused || connection === 'lost'
   }
 }

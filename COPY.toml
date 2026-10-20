@@ -40,6 +40,9 @@ sign_out = { text = "Sign Out", by = "ai" }
 
 [hud]
 begin_loading = { text = "Resolving Terrain…", by = "ai" }
+begin_connecting = { text = "Reaching the Valley…", by = "ai" }
+begin_reconnecting = { text = "Reconnecting…", by = "ai" }
+begin_lost = { text = "Back to the Menu", by = "ai" }
 begin_play = { text = "Click to Die", by = "ai" }
 begin_resume = { text = "Click to Resume", by = "ai" }
 begin_failed = { text = "The Valley Will Not Resolve", by = "ai" }
@@ -398,7 +401,6 @@ quarters = { text = "You fish {count} quarters out of the machine. +{amount}", b
 short = { text = "You're {amount} short.", by = "ai" }
 sold_out = { text = "Sold out.", by = "ai" }
 refused = { text = "The clerk shakes his head.", by = "ai" }
-berry_offline = { text = "No signal. The bush keeps its berries.", by = "ai" }
 berry_picked = { text = "Picked clean. The bush fills again at midnight.", by = "ai" }
 berry_refused = { text = "The bush gives you nothing.", by = "ai" }
 none_left = { text = "You have none left.", by = "ai" }
@@ -408,7 +410,6 @@ drop_key_item = { text = "You keep hold of it. Someone is counting on you.", by 
 stow_key_item = { text = "That stays on you. The locker can't hold it.", by = "ai" }
 drop_refused = { text = "It won't come loose.", by = "ai" }
 pass_nothing = { text = "Nothing in hand to pass.", by = "ai" }
-pass_alone = { text = "No one out here to pass it to.", by = "ai" }
 pass_aboard = { text = "Not from the truck.", by = "ai" }
 pass_no_one = { text = "No one close enough to take it.", by = "ai" }
 pass_refused = { text = "It doesn't make it across.", by = "ai" }
@@ -430,7 +431,6 @@ plunged = { text = "The ground, all at once. Then the forecourt, and concrete du
 fell = { text = "Your pockets are empty. Everything you carried is still out there, on you, where you fell.", by = "ai" }
 looted = { text = "You take your things back off your own body.", by = "ai" }
 loot_refused = { text = "Your hands go through it. Not now.", by = "ai" }
-locker_offline = { text = "No signal. Your locker will not open.", by = "ai" }
 locker_refused = { text = "The locker sticks.", by = "ai" }
 stowed = { text = "Stowed: {item}", by = "ai" }
 unstowed = { text = "Taken out: {item}", by = "ai" }

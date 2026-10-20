@@ -322,8 +322,7 @@ export const CONFIG = {
     jitter: 0.06,
   },
   store: {
-    // A new account's wallet, in cents (worker/packs.ts). Played alone,
-    // every visit starts with this much.
+    // A new account's wallet, in cents (worker/packs.ts).
     startingCash: 4000,
     // Units of every item on each Citgo's shelves when the day turns.
     perItem: 3,
@@ -471,8 +470,12 @@ export const CONFIG = {
     // so two frames always bracket the moment being drawn.
     sendHz: 10,
     interpolateMs: 150,
-    // Give the first connection this long before playing offline.
+    // How long Dial-Up's modem waits on the first connection before it
+    // says NO CARRIER.
     connectTimeoutMs: 2000,
+    // How long the 3D valley tries to reach the valley again after a drop
+    // before the overlay offers the way back to the menu.
+    giveUpMs: 60_000,
     // Clock-offset pings once online.
     pingMs: 10000,
     // The valley lets go of a socket it has heard nothing from (no ping, no
@@ -480,6 +483,15 @@ export const CONFIG = {
     // no figure standing. Generous: a background tab's timers can run as
     // seldom as once a minute, and one let go too soon only reconnects.
     silentMs: 120_000,
+    // A ping the valley has not answered in this long means the line is
+    // dead though the socket never closed (a network change, a sleep): the
+    // client lets it go and reconnects. Measured from the ping, so a
+    // background tab's slow timers never count against it.
+    deadMs: 8000,
+    // A raider whose socket went stands where they were for this long
+    // before everyone hears them leave, so a reconnect inside it takes
+    // their place back and no one sees them go.
+    lingerMs: 20_000,
     // How long the "signed out" line sits in the chat log before the page
     // reloads to the sign-in card.
     signedOutReloadMs: 2500,

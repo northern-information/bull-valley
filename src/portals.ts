@@ -3,9 +3,8 @@
 // of the last Citgo they stood at (citgos.ts), so anyone can step through
 // to that Citgo and back, or from it out to whoever opened it. Where each
 // end stands, which ring slot the Citgo end takes, which end a raider
-// walked into and where they come out. sharedworld.ts runs these for the
-// shared valley, actions.ts for the valley played alone. No three.js, no
-// DOM.
+// walked into and where they come out. sharedworld.ts runs these, and
+// actions.ts walks a raider through. No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
 import type { Facing } from './drops.ts'

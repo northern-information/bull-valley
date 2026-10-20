@@ -185,6 +185,14 @@ export class ValleyDO extends DurableObject<Env> {
   // When each socket was last heard from, in memory only: a socket missing
   // here (after a wake) counts as heard now.
   private heard = new WeakMap<WebSocket, number>()
+  // Raiders whose socket went, still standing for everyone else until
+  // CONFIG.net.lingerMs is up (then everyone hears them leave), so a
+  // reconnect that names one of its own takes it back unseen. In memory
+  // only: the pending timer keeps the object awake.
+  private lingering = new Map<
+    string,
+    { account: string; me: PeerWire; timer: unknown }
+  >()
   private sweptAt = 0
   // Each socket's attachment as last written, so reading one (every
   // broadcast reads every socket's) is a lookup, not a structured clone;
@@ -785,7 +793,8 @@ export class ValleyDO extends DurableObject<Env> {
   }
 
   // A strike, alone (rule 18): the pack is emptied, then a body laid where
-  // the raider fell with everything it held; a body the valley cannot lay
+  // the raider fell with everything it held, in place of any body the
+  // account had (what that held is lost); a body the valley cannot lay
   // gives it all back. Every socket on the account hears the pack after,
   // so the client's own emptying is put right either way.
   protected async fall(
@@ -822,10 +831,10 @@ export class ValleyDO extends DurableObject<Env> {
       } catch (err) {
         console.error('The pack could not be given back', account, err)
       }
-    } else {
-      await this.apply(reduced)
-      for (const msg of reduced.broadcast) this.broadcast(msg, null)
     }
+    // Even with no new body, a second fall takes the first away.
+    await this.apply(reduced)
+    for (const msg of reduced.broadcast) this.broadcast(msg, null)
     await this.repack(null, null, account)
   }
 
@@ -1150,12 +1159,18 @@ export class ValleyDO extends DurableObject<Env> {
       ws.close(CLOSE.serverError, 'The valley lost the pack')
       return
     }
-    const id = crypto.randomUUID()
+    let id: string = crypto.randomUUID()
+    // A reconnect inside CONFIG.net.lingerMs takes its place back: the same
+    // id, standing where it stood, so no one sees it leave or come.
+    let back = null as PeerWire | null
     const reduced = await this.locked(async () => {
       // A reconnect: the socket this client had may not have closed here
       // yet. Retire it first, so the roster never shows the raider their
       // own ghost.
       if (hello.was) await this.retire(ws, account, hello.was)
+      back = hello.was ? this.takeBack(account, hello.was) : null
+      if (back) id = back.id
+      else this.letGo(account)
       const reduced = reduce(
         this.valley,
         hello.type === 'dial'
@@ -1202,7 +1217,7 @@ export class ValleyDO extends DurableObject<Env> {
       outfit: hello.outfit,
       cosmetics: holdings.cosmetics,
       level: levelOf(xp),
-      at: null,
+      at: back?.at ?? null,
       ...(hello.type === 'dial' ? { dialup: true as const } : {}),
     }
     this.attach(ws, { ...attachment, me })
@@ -1238,9 +1253,12 @@ export class ValleyDO extends DurableObject<Env> {
       quests,
       expedition,
     })
+    // Back from a dropped line: everyone who still sees them hears no news
+    // (the clients take a known id as no arrival), and their friends no
+    // greeting.
     this.broadcast({ type: 'peer-joined', peer: me }, ws)
     for (const msg of reduced.broadcast) this.broadcast(msg, ws)
-    await this.greetFriends(ws, account, name)
+    if (!back) await this.greetFriends(ws, account, name)
   }
 
   private state(
@@ -2117,7 +2135,8 @@ export class ValleyDO extends DurableObject<Env> {
     // Clear the attachment first so a close that fires twice (close after
     // error) announces the departure once.
     this.attach(ws, { ...attachment, me: null })
-    this.broadcast({ type: 'peer-left', id: me.id }, ws)
+    if (attachment.account) this.linger(attachment.account, me)
+    else this.broadcast({ type: 'peer-left', id: me.id }, ws)
     // Where they last stood is where they come back (sharedworld.ts
     // rule 2).
     const reduced = reduce(
@@ -2127,6 +2146,48 @@ export class ValleyDO extends DurableObject<Env> {
     )
     await this.apply(reduced)
     for (const msg of reduced.broadcast) this.broadcast(msg, ws)
+  }
+
+  // A raider gone from the valley's rules stays standing for everyone
+  // else a while; then everyone hears them leave.
+  private linger(account: string, me: PeerWire): void {
+    const timer = this.later(() => {
+      if (this.lingering.get(me.id)?.timer !== timer) return
+      this.lingering.delete(me.id)
+      this.broadcast({ type: 'peer-left', id: me.id }, null)
+    }, CONFIG.net.lingerMs)
+    this.lingering.set(me.id, { account, me, timer })
+  }
+
+  // `run` after `ms`, and how to call it off; the Worker tests replace
+  // both to step the lingering by hand.
+  protected later(run: () => void, ms: number): unknown {
+    return setTimeout(run, ms)
+  }
+
+  protected cancel(timer: unknown): void {
+    clearTimeout(timer as ReturnType<typeof setTimeout>)
+  }
+
+  // The lingering raider `id`, taken back by a reconnect on its own
+  // account; null when there is none to take (another account's, or gone).
+  private takeBack(account: string, id: string): PeerWire | null {
+    const held = this.lingering.get(id)
+    if (!held || held.account !== account) return null
+    this.cancel(held.timer)
+    this.lingering.delete(id)
+    return held.me
+  }
+
+  // A new arrival on an account that is not a reconnect (a reload): its
+  // lingering raiders leave now, so no one sees two of them.
+  private letGo(account: string): void {
+    for (const [id, held] of [...this.lingering]) {
+      if (held.account !== account) continue
+      this.cancel(held.timer)
+      this.lingering.delete(id)
+      this.broadcast({ type: 'peer-left', id }, null)
+    }
   }
 
   // Persist the valley and arm the alarm for its next change, or clear it

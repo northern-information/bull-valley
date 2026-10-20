@@ -20,7 +20,7 @@ import type { Page } from '@playwright/test'
 const shared = (page: Page) => page.evaluate(() => window.__bv?.valley)
 const aboard = (page: Page) => page.evaluate(() => window.__bv?.aboard)
 const legKind = (page: Page) =>
-  page.evaluate(() => window.__bv?.marx.leg.kind ?? null)
+  page.evaluate(() => window.__bv?.marx?.leg.kind ?? null)
 // The prompt as shown: a hidden one keeps the last text it showed, so a
 // check on its text alone can pass before a frame has said what E does.
 const prompt = (page: Page) => page.locator('.bv-prompt:not([hidden])')

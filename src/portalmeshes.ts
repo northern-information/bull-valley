@@ -1,8 +1,8 @@
 // The Citgo portals as they stand in the valley (sharedworld.ts rule 28):
 // both ends of each, one cornmazeparts.ts buildPortal in CITGO_PORTAL's
 // blue on ground.at, turned the way the end faces, with the name of the
-// raider who opened it over it. Kept in step with the open portals, the
-// valley's or this raider's alone.
+// raider who opened it over it. Kept in step with the valley's open
+// portals.
 
 import * as THREE from 'three'
 import { buildPortal, CITGO_PORTAL } from './assets.ts'

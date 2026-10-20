@@ -13,8 +13,8 @@
 // Pure, no three.js. In the Undercroft's own metres; MazePlace carries a
 // raider's world position in and a shade's out, as for the Caretaker,
 // whose pathing they share (caretaker.ts routeTo, clearBetween, advance).
-// The valley steps them beside the shadowmen (sharedworld.ts rule 11);
-// played alone, the client steps its own. Tune them in CONFIG.tunnel.
+// The valley steps them beside the shadowmen (sharedworld.ts rule 11), and
+// tunnelrig.ts draws them. Tune them in CONFIG.tunnel.
 
 import { advance, clearBetween, routeTo } from './caretaker.ts'
 import { CONFIG } from './config.ts'

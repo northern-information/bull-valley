@@ -17,6 +17,7 @@ import { copy } from './copy.ts'
 import { LOCKER_TAB } from './packgrid.ts'
 import { SEASON } from './season.ts'
 import { formatCash } from './store.ts'
+import { exitToMenu } from './titles.ts'
 import type { Actions } from './actions.ts'
 import type { Game } from './game.ts'
 
@@ -49,6 +50,13 @@ export function wirePointer(game: Game): () => void {
     hud.showIntro(false)
   }
   const engagePointer = () => {
+    // Given up on the valley: Begin goes back to the menu. Nothing plays
+    // until the line is open.
+    if (hud.connection === 'lost') {
+      exitToMenu()
+      return
+    }
+    if (hud.connection !== 'online') return
     try {
       // Older browsers return undefined instead of a promise.
       const request: Promise<void> | undefined = hud.canvas.requestPointerLock()
