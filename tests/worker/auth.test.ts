@@ -545,6 +545,17 @@ describe('confirm-signup and username', () => {
     )
     expect((await put({ outfit: 'church' })).res.status).toBe(400)
     expect((await me(jar, s)).account?.look.outfit).toBe('church')
+    // A character Moab trades for, only once the account has it.
+    expect(
+      (await put({ outfit: 'coleman1', finish: 'cherry' })).res.status
+    ).toBe(403)
+    expect((await me(jar, s)).account?.look.outfit).toBe('church')
+    const account = (await me(jar, s)).account?.accountId ?? ''
+    s.cosmetics.set(account, ['coleman-1'])
+    expect(
+      (await put({ outfit: 'coleman1', finish: 'cherry' })).res.status
+    ).toBe(200)
+    expect((await me(jar, s)).account?.look.outfit).toBe('coleman1')
     expect(
       (await put({ outfit: 'church', finish: 'cherry' }, new Jar())).res.status
     ).toBe(401)

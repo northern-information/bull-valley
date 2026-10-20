@@ -2817,6 +2817,47 @@ describe("ValleyDO: Moab's trade", () => {
     expect(back.frames()[0]).toMatchObject({ cosmetics: ['flaming-halo'] })
   })
 
+  it('trades David Coleman: #1 for ten ounces, and only then lets the account raid as him', async () => {
+    const { valley: v, state: s } = await valley()
+    // Not the account's yet: no raiding as him, and no changing into him.
+    const early = await join(v, s, 'A', { outfit: 'coleman1' })
+    expect(early.closeCode).toBe(CLOSE.badOutfit)
+    const a = await join(v, s, 'A', { dev: true })
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ type: 'appearance', outfit: 'coleman1' })
+    )
+    expect(a.last<NackMessage>()).toMatchObject({
+      re: 'appearance',
+      reason: 'locked-outfit',
+    })
+    await v.webSocketMessage(ws(a), grant('gold-bullion', 9))
+    await v.webSocketMessage(ws(a), trade('coleman-1'))
+    expect(a.last<NackMessage>()).toMatchObject({ reason: 'short' })
+    await v.webSocketMessage(ws(a), grant('gold-bullion', 1))
+    await v.webSocketMessage(ws(a), trade('coleman-1'))
+    const pack = a.frames().findLast((m): m is PackMessage => m.type === 'pack')
+    expect(pack).toMatchObject({
+      pack: { 'gold-bullion': 0 },
+      cosmetics: ['coleman-1'],
+    })
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ type: 'appearance', outfit: 'coleman1' })
+    )
+    expect(a.last<PeerUpdatedMessage>()).toMatchObject({
+      type: 'peer-updated',
+      peer: { id: idOf(a), outfit: 'coleman1' },
+    })
+    a.close()
+    await v.webSocketClose(ws(a))
+    const back = await join(v, s, 'A', { outfit: 'coleman1' })
+    expect(back.frames()[0]).toMatchObject({
+      type: 'welcome',
+      cosmetics: ['coleman-1'],
+    })
+  })
+
   it('refuses an offer Moab does not make, and grants nothing off a dev server', async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A')

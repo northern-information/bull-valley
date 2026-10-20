@@ -154,7 +154,7 @@ export interface Actions {
   // The valley's answer at the bush.
   applyDaily(msg: DailyMessage): void
   // Moab, within reach, makes his offer (once per approach).
-  offerTrade(): void
+  offerTrade(offer: CosmeticId): void
   // The account's cosmetics as the valley has them now; a new one is
   // Moab's trade landing.
   wear(cosmetics: CosmeticId[]): void
@@ -797,8 +797,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   // Rule 14: Moab's offer, taken. The valley trades and the pack frame
   // that follows says it landed (wear).
-  const offerTrade = () => {
-    npcSays('moab', copy('moab.offer'))
+  const offerTrade = (offer: CosmeticId) => {
+    const cosmetic = cosmeticById(offer)
+    if (cosmetic) npcSays('moab', cosmetic.offer)
   }
 
   const wear = (cosmetics: CosmeticId[]) => {
@@ -806,9 +807,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     s.cosmetics = cosmetics
     s.pending.trade = false
     for (const id of gained) {
-      npcSays('moab', copy('moab.traded'))
-      const label = cosmeticById(id)?.label ?? id
-      hud.tell(copy('log.cosmetic_worn', { cosmetic: label }))
+      const cosmetic = cosmeticById(id)
+      if (!cosmetic) continue
+      npcSays('moab', cosmetic.traded)
+      hud.tell(cosmetic.worn)
     }
   }
 

@@ -16,6 +16,7 @@ describe('outfits', () => {
       'player',
       'shadow',
       'coleman',
+      'coleman1',
       'kvistad',
       'church',
       'hanson',

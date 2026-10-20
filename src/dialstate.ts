@@ -230,14 +230,7 @@ export function applyFrame(
       // Rule 14: a cosmetic Moab traded, worn now.
       const worn = cosmetics.find((id) => !s.cosmetics.includes(id))
       if (!worn) return next
-      return news(
-        next,
-        copy('log.cosmetic_worn', {
-          cosmetic: cosmeticById(worn)?.label ?? worn,
-        }),
-        now,
-        Date.now()
-      )
+      return news(next, cosmeticById(worn)?.worn ?? worn, now, Date.now())
     }
     case 'stand': {
       if (!isStandLedger(msg.stand)) return s

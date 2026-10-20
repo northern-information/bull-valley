@@ -730,6 +730,7 @@ username_rule = { text = "A username is 3 to 16 letters, digits or underscores",
 username_taken = { text = "That username is taken", by = "ai" }
 username_set = { text = "Your username is already set", by = "ai" }
 look_rule = { text = "Pick a character and a finish from the select", by = "ai" }
+look_locked = { text = "Trade Moab Coldë for that character first", by = "ai" }
 look_failed = { text = "Your character could not be saved", by = "ai" }
 hotbar_rule = { text = "Each number key holds one item from your pack, or nothing", by = "ai" }
 hotbar_failed = { text = "Your hotbar could not be saved", by = "ai" }
@@ -763,6 +764,12 @@ berry_offline = { text = "No Signal", by = "ai" }
 [cosmetics.flaming-halo]
 label = { text = "Flaming Halo", by = "ai" }
 
+[cosmetics.coleman-1]
+label = { text = "Mask of David Coleman: #1", by = "ai" }
+offer = { text = "Gold bullion. Ten troy ounces, and the mask is yours. He will answer to it.", by = "ai" }
+traded = { text = "Number one. Wear him well.", by = "ai" }
+worn = { text = "David Coleman: #1 is yours to raid as. Gron or the select will dress you.", by = "ai" }
+
 # Character names, as the select and the name tags show them. Keys
 # match src/outfits.ts.
 
@@ -771,6 +778,7 @@ marx = { text = "Matthew Marx", by = "tyler" }
 player = { text = "Player", by = "tyler" }
 shadow = { text = "Shadowman", by = "tyler" }
 coleman = { text = "David Coleman", by = "tyler" }
+coleman1 = { text = "David Coleman: #1", by = "ai" }
 kvistad = { text = "David Kvistad", by = "tyler" }
 church = { text = "Kyle Church", by = "tyler" }
 hanson = { text = "Justin Hanson", by = "tyler" }
