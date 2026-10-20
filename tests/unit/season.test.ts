@@ -4,6 +4,7 @@ import {
   newsOf,
   NO_PROGRESS,
   SEASON,
+  seasonOf,
   shownKills,
   tally,
 } from '../../src/season.ts'
@@ -54,5 +55,15 @@ describe('Season One: The Caretaker', () => {
     expect(newsOf({ kills: 2, claimed: false }, false)).toBe('burned')
     expect(newsOf({ kills: 5, claimed: true }, true)).toBe('complete')
     expect(newsOf({ kills: 6, claimed: true }, false)).toBe('again')
+  })
+})
+
+describe('seasonOf', () => {
+  it("reads this season's progress and nothing of another's", () => {
+    expect(seasonOf({ season: SEASON.id, kills: 3, claimed: false })).toEqual({
+      kills: 3,
+      claimed: false,
+    })
+    expect(seasonOf({ season: 'gone', kills: 3, claimed: true })).toBeNull()
   })
 })

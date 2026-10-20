@@ -6,6 +6,7 @@ import {
   shownCount,
   tallyTask,
   taskNews,
+  taskOf,
 } from '../../src/dailytask.ts'
 import type { TaskProgress } from '../../src/dailytask.ts'
 
@@ -67,5 +68,13 @@ describe('the daily task', () => {
     const done = burn(DAILY_TASK.goal, DAY).progress
     expect(taskNews(done, true)).toBe('done')
     expect(taskNews(done, false)).toBe('past')
+  })
+})
+
+describe('taskOf', () => {
+  it("reads this task's progress and nothing of another's", () => {
+    const wire = { task: DAILY_TASK.id, day: 'd', count: 2, claimed: true }
+    expect(taskOf(wire)).toEqual({ day: 'd', count: 2, claimed: true })
+    expect(taskOf({ ...wire, task: 'gone' })).toBeNull()
   })
 })

@@ -962,7 +962,7 @@ export type ServerMessage =
 // A whisper as the valley delivers it (rule 21), with its own clock: to
 // the raider it was for, and back to the sender's sockets with `outgoing`.
 // Both names are usernames as D1 holds them.
-interface WhisperedMessage {
+export interface WhisperedMessage {
   type: 'whisper'
   from: string
   to: string

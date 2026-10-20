@@ -5,6 +5,7 @@ import { copy } from './copy.ts'
 import { EMOTE_IDS, emoteOf } from './emotes.ts'
 import { isValidName } from './protocol.ts'
 import type { EmoteId } from './emotes.ts'
+import type { WhisperedMessage } from './protocol.ts'
 
 // A line a raider said, a whisper to or from this player, a line an NPC
 // said to this player, or a line the game says to the player alone.
@@ -195,4 +196,25 @@ export function emotesLine(): string {
   return copy('emotes.list', {
     list: EMOTE_IDS.map((id) => `/${id}`).join(', '),
   })
+}
+
+// A raider come into the valley, as the log says it: dialed in from a
+// phone, or walking it.
+export function joinedLine(peer: { name: string; dialup?: boolean }): string {
+  return peer.dialup
+    ? copy('log.peer_dialed', { name: peer.name })
+    : copy('log.peer_joined', { name: peer.name })
+}
+
+// A whisper as the log keeps it, by the valley's clock: to whom for the
+// sender, from whom for the raider it was for.
+export function whisperLine(msg: WhisperedMessage): ChatLine {
+  return {
+    kind: 'whisper',
+    name: msg.outgoing
+      ? copy('chat.whisper_to', { name: msg.to })
+      : copy('chat.whisper_from', { name: msg.from }),
+    text: msg.text,
+    at: msg.at,
+  }
 }

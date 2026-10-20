@@ -6,6 +6,7 @@ import {
   friendLines,
   friendNews,
   friendRefusal,
+  listAnswer,
   sameName,
   settledAsk,
   whereabouts,
@@ -158,5 +159,25 @@ describe("the valley's answers", () => {
     expect(friendNews('online', 'Baker')).toBe(
       copy('friends.news_online', { name: 'Baker' })
     )
+  })
+})
+
+describe('listAnswer', () => {
+  const list = [friend({ name: 'Kid', state: 'friend' })]
+
+  it('settles the ask the list shows, and lists it only when asked', () => {
+    expect(listAnswer({ op: 'friend', name: 'kid' }, false, list)).toEqual({
+      settled: copy('friends.now', { name: 'Kid' }),
+      lines: [],
+    })
+    expect(listAnswer(null, true, list)).toEqual({
+      settled: null,
+      lines: friendLines(list),
+    })
+    // An ask the list does not show yet still waits.
+    expect(listAnswer({ op: 'friend', name: 'Other' }, false, list)).toEqual({
+      settled: null,
+      lines: [],
+    })
   })
 })
