@@ -167,6 +167,10 @@ export interface CastleLayout {
 // One story of a mass.
 const STORY = 4
 
+// How deep the slab the castle stands on is, under its base; the rock
+// hangs from its underside.
+export const SLAB = 3
+
 // FNV-1a over the day's key, the seed of the castle.
 export function seedOf(day: string): number {
   let h = 0x811c9dc5
@@ -494,6 +498,11 @@ function topAt(top: Map<string, number>, cell: number, m: Mass): number {
     }
   }
   return highest
+}
+
+// How far under the base the lowest point of the castle's rock hangs.
+export function rockTip(layout: Pick<CastleLayout, 'rock'>): number {
+  return SLAB + Math.max(0, ...layout.rock.map((shard) => shard.depth))
 }
 
 // Which way the lighthouse's beam points at `seconds` on the shared clock,

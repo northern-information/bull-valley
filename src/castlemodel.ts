@@ -10,7 +10,7 @@ import {
   mergeStatic,
   setMotion,
 } from './assetkit.ts'
-import { bobAt, lighthouseAngle } from './castle.ts'
+import { bobAt, lighthouseAngle, SLAB } from './castle.ts'
 import { CONFIG } from './config.ts'
 import { MOAT } from './moat.ts'
 import { concreteArt } from './moatart.ts'
@@ -157,7 +157,7 @@ export function buildCastle(layout: CastleLayout): CastleRig {
     MOAT.island.map((p) => new THREE.Vector2(p.x * 0.88, p.z * 0.88))
   )
   const base = new THREE.ExtrudeGeometry(shape, {
-    depth: 3,
+    depth: SLAB,
     bevelEnabled: false,
   })
   base.rotateX(Math.PI / 2)
@@ -167,7 +167,7 @@ export function buildCastle(layout: CastleLayout): CastleRig {
   for (const shard of layout.rock) {
     const cone = new THREE.ConeGeometry(shard.radius, shard.depth, 5)
     cone.rotateX(Math.PI)
-    const mesh = add(cone, rock, shard.x, -3 - shard.depth / 2, shard.z)
+    const mesh = add(cone, rock, shard.x, -SLAB - shard.depth / 2, shard.z)
     mesh.rotation.y = rng() * Math.PI
   }
   // Loose stones and torn-off rebar hanging under it.
@@ -176,7 +176,7 @@ export function buildCastle(layout: CastleLayout): CastleRig {
     const down = range(rng, 2, s.depth * 0.7)
     const at = new THREE.Vector3(
       s.x + range(rng, -2, 2),
-      -3,
+      -SLAB,
       s.z + range(rng, -2, 2)
     )
     strut(at, at.clone().add(new THREE.Vector3(0, -down, 0)), 0.06, metal)

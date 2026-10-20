@@ -601,8 +601,9 @@ export const CONFIG = {
     },
     // The cranes on the outer rim, leaning out over the moat.
     cranes: 4,
-    // The castle's underside over the rim, and how it bobs.
-    float: 22,
+    // The castle's base, this far over the highest ground anywhere on the
+    // island (its rock hangs under that, well clear), and how it bobs.
+    float: 40,
     bob: { metres: 0.8, seconds: 11 },
     // How many of each it is built of (castle.ts castleOf), on cells this
     // wide.

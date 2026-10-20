@@ -4,7 +4,9 @@ import {
   castleOf,
   FORM_KINDS,
   lighthouseAngle,
+  rockTip,
   seedOf,
+  SLAB,
 } from '../../src/castle.ts'
 import { CONFIG } from '../../src/config.ts'
 import { pointInPolygon } from '../../src/coords.ts'
@@ -127,6 +129,15 @@ describe('castle', () => {
       for (const p of castle.pinnacles) expect(roofs.has(p.y)).toBe(true)
     }
     expect(kinds).toEqual(new Set(FORM_KINDS))
+  })
+
+  it('hangs its rock well clear of the island under it', () => {
+    for (const day of DAYS) {
+      const tip = rockTip(castleOf(day))
+      expect(tip).toBeGreaterThan(SLAB)
+      expect(tip).toBeLessThanOrEqual(CONFIG.castle.float - 10)
+    }
+    expect(rockTip({ rock: [] })).toBe(SLAB)
   })
 
   it('turns the lighthouse on the shared clock', () => {

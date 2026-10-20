@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { buildCastle, buildCrane, buildMoat } from './assets.ts'
 import { castleOf } from './castle.ts'
 import { CONFIG } from './config.ts'
+import { pointInPolygon } from './coords.ts'
 import { dayKey } from './daily.ts'
 import { mazeToWorld } from './maze.ts'
 import {
@@ -94,12 +95,23 @@ export function buildCastleSite(
   })
 
   // The castle's base floats over the highest of the island's edge.
-  const top = Math.max(
-    ...MOAT.island.map((p) => {
-      const w = mazeToWorld(place, p)
-      return raw(w.x, w.z)
-    })
-  )
+  // The castle's base floats over the highest ground on the island, its
+  // middle and its edge both.
+  const ring = MOAT.island.map((p) => [p.x, p.z] as [number, number])
+  const xs = MOAT.island.map((p) => p.x)
+  const zs = MOAT.island.map((p) => p.z)
+  let top = -Infinity
+  for (const p of MOAT.island) {
+    const w = mazeToWorld(place, p)
+    top = Math.max(top, raw(w.x, w.z))
+  }
+  for (let x = Math.min(...xs); x <= Math.max(...xs); x += 3) {
+    for (let z = Math.min(...zs); z <= Math.max(...zs); z += 3) {
+      if (!pointInPolygon(x, z, ring)) continue
+      const w = mazeToWorld(place, { x, z })
+      top = Math.max(top, raw(w.x, w.z))
+    }
+  }
   const holder = new THREE.Group()
   holder.position.set(place.x, top + CONFIG.castle.float, place.z)
   holder.rotation.y = -place.yaw
