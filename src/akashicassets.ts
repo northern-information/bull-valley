@@ -34,6 +34,7 @@ import {
   flatCornPieces,
 } from './cornmazeparts.ts'
 import { buildCrane } from './cranemodel.ts'
+import { ruinsAt } from './crumble.ts'
 import { dayKey } from './daily.ts'
 import { buildDishArray } from './dishes.ts'
 import { buildDrink } from './drinkmodels.ts'
@@ -475,6 +476,11 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     label: 'Castle Entropy, as it will stand tomorrow',
     build: () => sampleCastle(1),
   },
+  {
+    id: 'castle-entropy-crumbling',
+    label: 'Castle Entropy, a wing of it crumbling away',
+    build: sampleCrumbling,
+  },
   ...FORM_KINDS.map((kind) => ({
     id: `spomenik-${kind}`,
     label: `A spomenik's form on Castle Entropy: ${kind}`,
@@ -652,6 +658,26 @@ export const WORLD_ASSETS: AkashicAsset[] = [
 // Castle Entropy `days` from now, on the Central calendar (castle.ts).
 function sampleCastle(days: number): THREE.Object3D {
   const rig = buildCastle(castleOf(dayKey(Date.now() + days * 86_400_000)))
+  return rig.group
+}
+
+// Today's castle from the first moment a mass of it starts to crumble,
+// so its fall plays from the start and the bits keep falling.
+function sampleCrumbling(): THREE.Object3D {
+  const layout = castleOf(dayKey(Date.now()))
+  const rig = buildCastle(layout)
+  let start = 0
+  for (let t = 0; t < CONFIG.castle.ruin.cycle * 20; t += 0.5) {
+    const crumbling = ruinsAt(layout, t).masses.some(
+      (r) => r.stage === 'crumbling' && r.since < 0.5
+    )
+    if (crumbling) {
+      start = t
+      break
+    }
+  }
+  setMotion(rig.group, (t) => rig.update(start + t))
+  rig.update(start)
   return rig.group
 }
 

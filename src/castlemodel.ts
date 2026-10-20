@@ -10,13 +10,15 @@ import {
   mergeStatic,
   setMotion,
 } from './assetkit.ts'
-import { bobAt, lighthouseAngle, SLAB } from './castle.ts'
+import { bobAt, lighthouseAngle, seedOf, SLAB } from './castle.ts'
 import { CONFIG } from './config.ts'
+import { chunkAt, fragmentAt, ruinsAt } from './crumble.ts'
 import { MOAT } from './moat.ts'
 import { concreteArt } from './moatart.ts'
 import { mulberry32, range } from './rng.ts'
 import { buildForm, pillowBox, pillowOut } from './spomenikmodel.ts'
 import type { CastleLayout } from './castle.ts'
+import type { Fragment, Ruin } from './crumble.ts'
 
 // Castle Entropy as seen, from a day's layout (castle.ts castleOf): the
 // rock it floats on and the slab over it, the brutalist masses in poured
@@ -118,6 +120,10 @@ export function buildCastle(layout: CastleLayout): CastleRig {
   // A lancet: a tall window with a pointed arch, standing on its sill.
   const lancet = lancetGeometry(0.9, 2.8)
 
+  // Where the next parts go: the body, or the piece of it (a mass and all
+  // that stands on it, a buttress) that can break away and grow back.
+  let into: THREE.Object3D = body
+
   const add = (
     geometry: THREE.BufferGeometry,
     material: THREE.Material,
@@ -129,7 +135,7 @@ export function buildCastle(layout: CastleLayout): CastleRig {
     const mesh = new THREE.Mesh(geometry, material)
     mesh.position.set(x, y, z)
     mesh.rotation.y = rotY
-    body.add(mesh)
+    into.add(mesh)
     return mesh
   }
   const strut = (
@@ -149,7 +155,7 @@ export function buildCastle(layout: CastleLayout): CastleRig {
       new THREE.Vector3(0, 1, 0),
       b.clone().sub(a).normalize()
     )
-    body.add(mesh)
+    into.add(mesh)
   }
 
   // The slab the castle stands on: the island's shape, drawn in a little.
@@ -190,10 +196,31 @@ export function buildCastle(layout: CastleLayout): CastleRig {
     )
   }
 
+  // Each mass and each buttress hangs off a pivot at its foot, so it can
+  // crumble down into it and grow back up out of it (crumble.ts).
+  const pivotAt = (x: number, y: number, z: number) => {
+    const pivot = new THREE.Group()
+    pivot.position.set(x, y, z)
+    const inner = new THREE.Group()
+    inner.position.set(-x, -y, -z)
+    pivot.add(inner)
+    body.add(pivot)
+    return { pivot, inner }
+  }
+  const massPieces = layout.masses.map((m) => pivotAt(m.x, m.y, m.z))
+  const buttressPieces = layout.buttresses.map((b) =>
+    pivotAt(b.from.x, b.from.y, b.from.z)
+  )
+  const onMass = (index: number) => {
+    into = massPieces[index]?.inner ?? body
+  }
+
   // The church's masses, in stone: buttress piers down their long sides,
   // a row of lancets a story, a steep slate gable, a rose window in each
   // gable end.
-  for (const m of layout.masses.filter((m) => m.style === 'stone')) {
+  for (const [index, m] of layout.masses.entries()) {
+    if (m.style !== 'stone') continue
+    onMass(index)
     add(slab(m.w, m.h, m.d, 6), stone, m.x, m.y + m.h / 2, m.z)
     // Along the ridge, and across it.
     const along = m.ridge === 'x' ? m.w : m.d
@@ -249,7 +276,7 @@ export function buildCastle(layout: CastleLayout): CastleRig {
           const pane = new THREE.Mesh(lancet, glassOf())
           pane.position.copy(p)
           pane.rotation.y = turn + (side > 0 ? 0 : Math.PI)
-          body.add(pane)
+          into.add(pane)
         }
       }
     }
@@ -263,14 +290,14 @@ export function buildCastle(layout: CastleLayout): CastleRig {
       )
       wheel.position.copy(p)
       wheel.rotation.y = turn + (end > 0 ? Math.PI / 2 : -Math.PI / 2)
-      body.add(wheel)
+      into.add(wheel)
       const rim = new THREE.Mesh(
         new THREE.TorusGeometry(rose, 0.22, 4, 12),
         stone
       )
       rim.position.copy(p)
       rim.rotation.y = wheel.rotation.y
-      body.add(rim)
+      into.add(rim)
       for (let k = 0; k < 6; k++) {
         const spoke = new THREE.Mesh(
           new THREE.BoxGeometry(0.12, rose * 2, 0.12),
@@ -278,14 +305,16 @@ export function buildCastle(layout: CastleLayout): CastleRig {
         )
         spoke.position.copy(p)
         spoke.rotation.set(0, wheel.rotation.y, (k / 6) * Math.PI)
-        body.add(spoke)
+        into.add(spoke)
       }
     }
   }
 
   // The concrete gone strange: swollen out of its box like a pillow, its
   // slits riding the swell.
-  for (const m of layout.masses.filter((m) => m.style === 'concrete')) {
+  for (const [index, m] of layout.masses.entries()) {
+    if (m.style !== 'concrete') continue
+    onMass(index)
     add(pillowBox(m.w, m.h, m.d, m.swell, 6), concrete, m.x, m.y + m.h / 2, m.z)
     const stories = Math.max(1, m.rows)
     for (let r = 0; r < stories; r++) {
@@ -325,11 +354,14 @@ export function buildCastle(layout: CastleLayout): CastleRig {
   }
 
   // The spomeniks' forms on the concrete roofs.
-  for (const form of layout.forms)
-    body.add(buildForm(form, formConcrete, metal))
+  for (const form of layout.forms) {
+    onMass(form.on)
+    into.add(buildForm(form, formConcrete, metal))
+  }
 
   // The pinnacles at the stone roofs' corners.
   for (const p of layout.pinnacles) {
+    onMass(p.on)
     add(new THREE.BoxGeometry(0.9, 1.6, 0.9), stone, p.x, p.y + 0.8, p.z)
     add(
       new THREE.ConeGeometry(0.5, p.h, 4),
@@ -344,6 +376,7 @@ export function buildCastle(layout: CastleLayout): CastleRig {
   // The spires: an octagonal drum with its lancets, the cone, crockets up
   // its edges, a finial.
   for (const s of layout.spires) {
+    onMass(s.on)
     const sides = 8
     add(
       new THREE.CylinderGeometry(
@@ -367,7 +400,7 @@ export function buildCastle(layout: CastleLayout): CastleRig {
       )
       pane.rotation.y = Math.PI / 2 - turn
       pane.scale.setScalar(Math.min(1, s.drum / 4))
-      body.add(pane)
+      into.add(pane)
     }
     add(
       new THREE.ConeGeometry(s.radius, s.h, sides),
@@ -408,7 +441,8 @@ export function buildCastle(layout: CastleLayout): CastleRig {
 
   // The flying buttresses: an arc of stones from the low roof's edge up
   // to the tall mass's side, a pinnacle on the pier it springs from.
-  for (const b of layout.buttresses) {
+  for (const [index, b] of layout.buttresses.entries()) {
+    into = buttressPieces[index].inner
     const from = new THREE.Vector3(b.from.x, b.from.y, b.from.z)
     const to = new THREE.Vector3(b.to.x, b.to.y, b.to.z)
     const lift = from.distanceTo(to) * 0.25
@@ -434,6 +468,7 @@ export function buildCastle(layout: CastleLayout): CastleRig {
 
   // The gargoyles: crouched, jutting out over the edge, mouths open.
   for (const g of layout.gargoyles) {
+    onMass(g.on)
     const out = new THREE.Vector3(Math.cos(g.yaw), 0, Math.sin(g.yaw))
     const at = new THREE.Vector3(g.x, g.y, g.z).add(
       out.clone().multiplyScalar(0.6)
@@ -472,6 +507,8 @@ export function buildCastle(layout: CastleLayout): CastleRig {
       mesh.rotation.x = side * 0.6
     }
   }
+
+  into = body
 
   // The lighthouse: a ribbed round tower, a gallery, the lantern room.
   const lh = layout.lighthouse
@@ -577,7 +614,7 @@ export function buildCastle(layout: CastleLayout): CastleRig {
     side: THREE.DoubleSide,
     fog: false,
   })
-  for (const turn of [0, Math.PI]) {
+  for (const turn of [0, (Math.PI * 2) / 3, (Math.PI * 4) / 3]) {
     const beam = new THREE.Mesh(beamGeo, beamMat)
     beam.name = LIGHT_BEAM
     beam.rotation.y = turn
@@ -587,10 +624,108 @@ export function buildCastle(layout: CastleLayout): CastleRig {
   }
   body.add(beams)
 
+  // The bits always falling off it, and the chunks a crumbling piece
+  // throws, each pool one instanced mesh, shrinking and darkening as they
+  // fall (crumble.ts).
+  const frag = CONFIG.castle.fragments
+  const pieceStone = lambert({ color: '#ffffff' })
+  const pool = (count: number) => {
+    const mesh = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      pieceStone,
+      count
+    )
+    mesh.frustumCulled = false
+    mesh.setColorAt(0, new THREE.Color())
+    body.add(mesh)
+    return mesh
+  }
+  const bits = pool(frag.count)
+  const chunks = pool(frag.chunks * 4)
+  const seed = seedOf(layout.day)
+  const dummy = new THREE.Object3D()
+  const shade = new THREE.Color()
+  const fresh = new THREE.Color('#77757a')
+  const dark = new THREE.Color('#141418')
+  const place = (mesh: THREE.InstancedMesh, i: number, f: Fragment | null) => {
+    if (!f || f.fade >= 1) {
+      dummy.scale.setScalar(0)
+    } else {
+      dummy.position.set(f.x, f.y, f.z)
+      dummy.rotation.set(f.spin, f.spin * 0.7, f.spin * 0.3)
+      dummy.scale.setScalar(f.size * (1 - f.fade * 0.6))
+      mesh.setColorAt(i, shade.copy(fresh).lerp(dark, f.fade))
+    }
+    dummy.updateMatrix()
+    mesh.setMatrixAt(i, dummy.matrix)
+  }
+  // A buttress's chunks fall from the box round its arc.
+  const boxOf = (b: CastleLayout['buttresses'][number]) => ({
+    x: (b.from.x + b.to.x) / 2,
+    z: (b.from.z + b.to.z) / 2,
+    y: b.from.y,
+    w: Math.abs(b.to.x - b.from.x) + 1,
+    d: Math.abs(b.to.z - b.from.z) + 1,
+    h: b.to.y - b.from.y + 2,
+  })
+
+  // A piece as its ruin has it: crumbling, it sags, leans and shrinks
+  // into its foot; gone, hidden; regrowing, it rises back out of it.
+  const pose = (pivot: THREE.Group, ruin: Ruin, lean: number) => {
+    pivot.visible = ruin.stage !== 'gone'
+    pivot.scale.set(1, 1, 1)
+    pivot.rotation.set(0, 0, 0)
+    pivot.position.y = (pivot.userData as { y: number }).y
+    if (ruin.stage === 'crumbling') {
+      const e = ruin.u * ruin.u
+      pivot.scale.set(1 - 0.5 * e, 1 - 0.95 * e, 1 - 0.5 * e)
+      pivot.rotation.set(lean * 0.3 * e, 0, -lean * 0.4 * e)
+      pivot.position.y -= 3 * e
+    } else if (ruin.stage === 'regrowing') {
+      const e = 1 - (1 - ruin.u) * (1 - ruin.u)
+      pivot.scale.set(0.6 + 0.4 * e, Math.max(0.01, e), 0.6 + 0.4 * e)
+    }
+  }
+  for (const { pivot } of [...massPieces, ...buttressPieces]) {
+    pivot.userData = { y: pivot.position.y }
+  }
+
   const update = (t: number) => {
     body.position.y = bobAt(t)
     // Moat-local angle from +x toward +z; three turns +y the other way.
     beams.rotation.y = -lighthouseAngle(t)
+    const ruins = ruinsAt(layout, t)
+    ruins.masses.forEach((ruin, i) =>
+      pose(massPieces[i].pivot, ruin, i % 2 === 0 ? 1 : -1)
+    )
+    ruins.buttresses.forEach((ruin, i) =>
+      pose(buttressPieces[i].pivot, ruin, i % 2 === 0 ? -1 : 1)
+    )
+    for (let i = 0; i < frag.count; i++) {
+      place(bits, i, fragmentAt(layout, ruins, i, t))
+    }
+    // The chunks of whatever is crumbling now, as many as the pool holds.
+    let slot = 0
+    const throwOff = (
+      box: Parameters<typeof chunkAt>[0],
+      ruin: Ruin,
+      key: number
+    ) => {
+      if (ruin.stage === 'standing' || ruin.stage === 'regrowing') return
+      for (let j = 0; j < frag.chunks && slot < chunks.count; j++) {
+        const f = chunkAt(box, seed + key, ruin.round, j, ruin.since)
+        if (f) place(chunks, slot++, f)
+      }
+    }
+    ruins.masses.forEach((ruin, i) => throwOff(layout.masses[i], ruin, i))
+    ruins.buttresses.forEach((ruin, i) =>
+      throwOff(boxOf(layout.buttresses[i]), ruin, 1000 + i)
+    )
+    while (slot < chunks.count) place(chunks, slot++, null)
+    bits.instanceMatrix.needsUpdate = true
+    chunks.instanceMatrix.needsUpdate = true
+    if (bits.instanceColor) bits.instanceColor.needsUpdate = true
+    if (chunks.instanceColor) chunks.instanceColor.needsUpdate = true
   }
   update(0)
   setMotion(group, update)

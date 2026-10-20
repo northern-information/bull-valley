@@ -620,6 +620,28 @@ export const CONFIG = {
     cathedral: { min: 40, max: 60 },
     spires: { min: 8, max: 16 },
     forms: { min: 3, max: 6 },
+    // Coming apart (crumble.ts): each piece that can fall, in each round
+    // of `cycle` seconds, falls by a draw of `share`, crumbling for
+    // `crumble`, gone for `gone`, growing back for `regrow`.
+    ruin: { cycle: 100, share: 0.35, crumble: 5, gone: 30, regrow: 14 },
+    // The bits always falling off it (`count` of them, each `life`
+    // seconds long, a share `fromRock` off the rock underneath), and the
+    // chunks a crumbling piece throws (`chunks` of them, breaking off over
+    // `chunkSpread` seconds, each falling `chunkLife`), in metres and
+    // seconds.
+    fragments: {
+      count: 140,
+      life: 4,
+      fromRock: 0.3,
+      gravity: 9.8,
+      drift: 0.6,
+      size: { min: 0.2, max: 0.7 },
+      chunks: 36,
+      chunkSpread: 3,
+      chunkLife: 4,
+      chunkSpeed: 3,
+      chunk: { min: 0.7, max: 2.2 },
+    },
     lighthouse: {
       // Turns a minute, how far each beam reaches, its colour.
       rpm: 5,

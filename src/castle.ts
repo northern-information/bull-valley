@@ -105,6 +105,8 @@ interface Pinnacle {
   y: number
   z: number
   h: number
+  // The mass it stands on, an index into `masses`.
+  on: number
 }
 
 // A gothic spire on a mass's roof: a drum `drum` tall, then a tall cone
@@ -118,12 +120,16 @@ interface Spire {
   h: number
   crockets: number
   drum: number
+  on: number
 }
 
-// A flying buttress, an arc from a low roof's edge to a tall mass's side.
+// A flying buttress, an arc from a low roof's edge to a tall mass's side,
+// `low` and `tall` their indices into `masses`.
 interface Buttress {
   from: { x: number; y: number; z: number }
   to: { x: number; y: number; z: number }
+  low: number
+  tall: number
 }
 
 // A gargoyle crouched on a roof's corner, looking out along `yaw`.
@@ -132,11 +138,14 @@ interface Gargoyle {
   y: number
   z: number
   yaw: number
+  on: number
 }
 
 // The lighthouse: a round tower of `radius` from `y` up `h`, the lamp on
 // top.
 interface Lighthouse {
+  // The mass it stands on, or -1 on the slab.
+  on: number
   x: number
   z: number
   y: number
@@ -157,7 +166,8 @@ export interface CastleLayout {
   masses: Mass[]
   spires: Spire[]
   pinnacles: Pinnacle[]
-  forms: Form[]
+  // Each with the index of the mass it stands on.
+  forms: (Form & { on: number })[]
   buttresses: Buttress[]
   gargoyles: Gargoyle[]
   lighthouse: Lighthouse
@@ -290,7 +300,9 @@ export function castleOf(
   // The cathedral's spire, on the highest stone roof, over everything.
   const stoneRoofs = roofs.filter((r) => r.style === 'stone')
   const nave = stoneRoofs[0] ?? roofs[0]
+  const on = (m: Mass) => masses.indexOf(m)
   spires.push({
+    on: on(nave),
     x: nave.x,
     z: nave.z,
     y: nave.y + nave.h,
@@ -308,6 +320,7 @@ export function castleOf(
     const radius = 0.9 + rng() * 1.4
     const room = Math.max(0, Math.min(roof.w, roof.d) / 2 - radius)
     spires.push({
+      on: on(roof),
       x: roof.x + (rng() * 2 - 1) * room,
       z: roof.z + (rng() * 2 - 1) * room,
       y: roof.y + roof.h,
@@ -323,6 +336,7 @@ export function castleOf(
   for (const roof of stoneRoofs) {
     for (const [sx, sz] of CORNERS) {
       pinnacles.push({
+        on: on(roof),
         x: roof.x + (sx * roof.w) / 2,
         y: roof.y + roof.h,
         z: roof.z + (sz * roof.d) / 2,
@@ -333,7 +347,7 @@ export function castleOf(
 
   // The spomeniks' forms, on the concrete roofs, and one at least.
   const concreteRoofs = roofs.filter((r) => r.style === 'concrete')
-  const forms: Form[] = []
+  const forms: (Form & { on: number })[] = []
   const formCount = between(rng, cfg.forms.min, cfg.forms.max)
   for (let f = 0; f < formCount; f++) {
     const roof =
@@ -347,7 +361,7 @@ export function castleOf(
       y: roof.y + roof.h,
       z: roof.z + (rng() * 2 - 1) * room * 0.3,
     }
-    forms.push(formOf(kind, at, room, rng))
+    forms.push({ ...formOf(kind, at, room, rng), on: on(roof) })
   }
 
   // Flying buttresses: from a roof's edge to the side of a taller mass
@@ -377,6 +391,8 @@ export function castleOf(
         y: Math.min(tall.y + tall.h, lowTop + STORY * 3),
         z: tall.z - (dz / len) * (tall.d / 2),
       },
+      low: on(low),
+      tall: on(tall),
     })
   }
 
@@ -386,6 +402,7 @@ export function castleOf(
     for (const [sx, sz] of CORNERS) {
       if (rng() < 0.55) continue
       gargoyles.push({
+        on: on(roof),
         x: roof.x + (sx * roof.w) / 2,
         y: roof.y + roof.h,
         z: roof.z + (sz * roof.d) / 2,
@@ -401,6 +418,12 @@ export function castleOf(
   const edge = outermost[Math.floor(rng() * Math.min(5, outermost.length))]
   const highest = Math.max(...masses.map((m) => m.y + m.h))
   const lighthouse: Lighthouse = {
+    on: masses.findIndex(
+      (m) =>
+        Math.abs(edge.i * cell - m.x) < m.w / 2 &&
+        Math.abs(edge.j * cell - m.z) < m.d / 2 &&
+        m.y + m.h === topOf(edge.i, edge.j)
+    ),
     x: edge.i * cell,
     z: edge.j * cell,
     y: topOf(edge.i, edge.j),
