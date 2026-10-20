@@ -5,7 +5,7 @@
 // pickup; `drop` says which one it is.
 
 import * as THREE from 'three'
-import { buildDimes, buildPickup, buildTwenty } from './assets.ts'
+import { buildDimes, buildPickup, buildTwenty, disposeTree } from './assets.ts'
 import { isCash, isPickupKind, TWENTY } from './drops.ts'
 import type { Drop } from './drops.ts'
 import type { Pickup } from './world.ts'
@@ -35,7 +35,8 @@ export function createDropMeshes(
 
   const remove = (pickup: DropPickup) => {
     group.remove(pickup.mesh)
-    dispose(pickup.mesh)
+    // Every pickup mesh is built fresh; its art and glow are shared.
+    disposeTree(pickup.mesh)
     byId.delete(pickup.drop)
   }
 
@@ -87,18 +88,4 @@ export function createDropMeshes(
       })
     },
   }
-}
-
-// Every pickup mesh is built fresh (its geometry, its materials, its
-// halo), so those go; its art and its halo's glow are textures shared by
-// every pickup of its kind (assets.ts artTexture, makeGlowTexture), and
-// Three's sprites share one geometry, so those stay.
-function dispose(object: THREE.Object3D): void {
-  object.traverse((o) => {
-    if (o instanceof THREE.Mesh) (o as THREE.Mesh).geometry.dispose()
-    if (o instanceof THREE.Mesh || o instanceof THREE.Sprite) {
-      const materials = o.material as THREE.Material | THREE.Material[]
-      for (const m of [materials].flat()) m.dispose()
-    }
-  })
 }

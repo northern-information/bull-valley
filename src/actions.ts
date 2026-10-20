@@ -212,6 +212,8 @@ export interface Actions {
 
 // After the valley refuses a Book of Shadows ask, the next waits this long.
 const BOOK_RETRY_MS = 3000
+// After a portal or fast travel, no portal takes us for this long.
+const GRACE_MS = CONFIG.portal.graceSeconds * 1000
 
 // engagePointer takes the pointer back once Gron's dialog closes.
 export function createActions(game: Game, engagePointer: () => void): Actions {
@@ -704,7 +706,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     // From wherever the truck is, the donut field included.
     const from = { x: truck.x, z: truck.z }
     const to = { x: player.pos.x, z: player.pos.z }
-    const next = call(s.world.truck, net.id ?? '', from, to, Date.now())
+    const now = net.clock.serverNow(performance.now())
+    const next = call(s.world.truck, net.id ?? '', from, to, now)
     if (refused(next)) {
       hud.tell(copy('log.truck_busy'))
       return
@@ -1252,9 +1255,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (!walked) return
     const out = exitFrom(walked.portal, walked.side)
     player.relocate(out.x, out.z, out.yaw)
-    // A beat before any portal takes us again, whatever stands where we
-    // come out.
-    s.portalGraceUntil = performance.now() + 1000
+    s.portalGraceUntil = performance.now() + GRACE_MS
     hud.tell(
       walked.side === 'field'
         ? copy('log.portal_citgo')
@@ -1307,7 +1308,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     const to = arrivalAt(world.rings[station], world.fuelPoints[station])
     player.relocate(to.x, to.z, to.yaw)
     s.emoting = null
-    s.portalGraceUntil = performance.now() + 1000
+    s.portalGraceUntil = performance.now() + GRACE_MS
     closeMap(true)
     hud.tell(copy('log.travel', { citgo: citgoLabel(station) }))
   }

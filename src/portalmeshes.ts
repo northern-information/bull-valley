@@ -5,7 +5,7 @@
 // portals.
 
 import * as THREE from 'three'
-import { buildPortal, CITGO_PORTAL } from './assets.ts'
+import { buildPortal, CITGO_PORTAL, disposeTree } from './assets.ts'
 import { canvas, EGGSHELL, MONO, text } from './canvas.ts'
 import type { PortalRig } from './assets.ts'
 import type { Portal, PortalEnd } from './portals.ts'
@@ -46,27 +46,6 @@ function nameSprite(name: string): THREE.Sprite {
   return sprite
 }
 
-// Everything one end was built with is its own (a sprite's geometry is
-// three's, shared by every sprite, so it stays).
-function disposeEnd(group: THREE.Object3D): void {
-  const free = (material: THREE.Material) => {
-    if ('map' in material && material.map instanceof THREE.Texture) {
-      material.map.dispose()
-    }
-    material.dispose()
-  }
-  group.traverse((node) => {
-    if (node instanceof THREE.Sprite) free(node.material)
-    if (!(node instanceof THREE.Mesh)) return
-    const mesh = node as THREE.Mesh
-    mesh.geometry.dispose()
-    const materials = Array.isArray(mesh.material)
-      ? mesh.material
-      : [mesh.material]
-    for (const material of materials) free(material)
-  })
-}
-
 export function createPortalMeshes(
   groundAt: (x: number, z: number) => number
 ): PortalMeshes {
@@ -101,7 +80,8 @@ export function createPortalMeshes(
           dispose() {
             for (const end of ends) {
               group.remove(end.group)
-              disposeEnd(end.group)
+              // Everything one end was built with is its own, its maps too.
+              disposeTree(end.group, { maps: true })
             }
           },
         })

@@ -4,7 +4,7 @@
 // Three glue that reads it every frame.
 
 import * as THREE from 'three'
-import { isMesh } from './assets.ts'
+import { disposeTree } from './assets.ts'
 import { canvas, EGGSHELL, MONO, text } from './canvas.ts'
 import { copy } from './copy.ts'
 import { EMOTES, isEmote } from './emotes.ts'
@@ -202,14 +202,7 @@ export class Peers {
     if (!puppet) return
     this.scene.remove(puppet.figure.group)
     // The flashlight's lens glow texture is shared; nothing else of it is.
-    puppet.flashlight.group.traverse((o) => {
-      if (isMesh(o)) {
-        o.geometry.dispose()
-        for (const m of [o.material].flat()) m.dispose()
-      } else if (o instanceof THREE.Sprite) {
-        o.material.dispose()
-      }
-    })
+    disposeTree(puppet.flashlight.group)
     puppet.worn.dispose()
     puppet.label.material.dispose()
     puppet.texture.dispose()

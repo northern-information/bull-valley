@@ -284,8 +284,11 @@ export const CONFIG = {
   // portal ends, `ringRadius` metres round `ring` (station-local like the
   // bush: past the pump island's far end, clear of Moab and the lamps),
   // each facing out; fast travel sets a raider down in the ring's middle.
+  // After a portal or fast travel, no portal takes a raider for
+  // graceSeconds, whatever stands where they come out.
   portal: {
     dialSeconds: 1.5,
+    graceSeconds: 1,
     ahead: 3,
     radius: 0.9,
     exit: 2.2,

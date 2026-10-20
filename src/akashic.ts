@@ -12,6 +12,7 @@ import {
   buildFlashlight,
   buildLockerDoors,
   buildSlurm,
+  disposeTree,
   isMesh,
   meshBounds,
   motionOf,
@@ -422,18 +423,12 @@ function applyToggles(): void {
   resize()
 }
 
-// Meshes, sprites, lines and points carry a material and a geometry, but
-// Object3D declares neither; these narrow by the property being present.
+// Meshes, sprites, lines and points carry a material, but Object3D does
+// not declare one; this narrows by the property being present.
 function hasMaterial(
   o: THREE.Object3D
 ): o is THREE.Object3D & { material: THREE.Material | THREE.Material[] } {
   return 'material' in o
-}
-
-function hasGeometry(
-  o: THREE.Object3D
-): o is THREE.Object3D & { geometry: THREE.BufferGeometry | undefined } {
-  return 'geometry' in o
 }
 
 // A mesh may carry one material or an array (one per geometry group).
@@ -468,16 +463,6 @@ interface Current {
 
 let current: Current | null = null
 
-// The asset's geometries and materials go; its maps stay, since the art
-// and the glow textures are shared across assets (assets.ts artTexture,
-// makeGlowTexture) and the next one may read them.
-function dispose(object: THREE.Object3D): void {
-  object.traverse((o) => {
-    if (hasGeometry(o)) o.geometry?.dispose()
-    for (const m of materialsOf(o)) m.dispose()
-  })
-}
-
 function isPoints(o: THREE.Object3D): o is THREE.Points {
   return 'isPoints' in o && o.isPoints === true
 }
@@ -501,7 +486,8 @@ function selectAsset(id: string): void {
   const asset = ASSETS.find((a) => a.id === id) || ASSETS[0]
   if (current) {
     scene.remove(current.object)
-    dispose(current.object)
+    // Its maps stay: the next asset may read the same art and glow.
+    disposeTree(current.object)
   }
   const object = asset.build()
   scene.add(object)

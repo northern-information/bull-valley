@@ -13,7 +13,7 @@
 // legs raised), then lunges, for everyone to see.
 
 import * as THREE from 'three'
-import { buildShadowSpider } from './assets.ts'
+import { buildShadowSpider, disposeTree } from './assets.ts'
 import { CONFIG } from './config.ts'
 import { mulberry32, range } from './rng.ts'
 import { shadeCues, windupsBegun } from './sfx.ts'
@@ -198,7 +198,7 @@ export class ShadowCards {
       }
       this.drawMan(s, player, perception, dt, lunge)
     }
-    // A spider gone takes its body with it.
+    // A spider gone takes its body with it; its glow is shared and stays.
     for (const [id, spider] of this.spiders) {
       if (seen.has(id)) continue
       this.group.remove(spider.rig.group)
@@ -350,21 +350,4 @@ function sightOf(s: XZ, player: XZ): number {
   const { near, far } = CONFIG.shadowmen.glowFade
   const d = Math.hypot(s.x - player.x, s.z - player.z)
   return Math.min(1, Math.max(0, (far - d) / (far - near)))
-}
-
-// A spider's body is its own: every geometry and material goes with it.
-// Its eyes' and aura's glow are textures every spider shares (assets.ts
-// makeGlowTexture), so those stay.
-function disposeTree(root: THREE.Object3D): void {
-  root.traverse((o) => {
-    if (o instanceof THREE.Mesh || o instanceof THREE.Sprite) {
-      if (o instanceof THREE.Mesh)
-        (o.geometry as THREE.BufferGeometry).dispose()
-      for (const m of [
-        o.material as THREE.Material | THREE.Material[],
-      ].flat()) {
-        m.dispose()
-      }
-    }
-  })
 }
