@@ -15,6 +15,7 @@ import {
   saveLook,
   signOut,
 } from './auth.ts'
+import { mountBuildTag } from './buildtag.ts'
 import { pickOf } from './characters.ts'
 import { citgoNames } from './citgomap.ts'
 import { CONFIG } from './config.ts'
@@ -60,6 +61,7 @@ async function boot(): Promise<void> {
     fontsReady(),
     imagesReady([GRAIN_URL, CONFIG.splash.imageSrc, CONFIG.logo.imageSrc]),
   ])
+  mountBuildTag()
   const account = known?.account ?? null
   const settings = toSettings(account?.settings)
   const net = new NetClient({

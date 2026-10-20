@@ -1,5 +1,6 @@
-// The build's name in the lower right corner of the screen, over every
-// title card, the menu (under its credit) and the valley, always showing.
+// The build's name, always showing: in the 3D valley in the lower right
+// corner, over every title card, the menu (under its credit) and the
+// valley; on Dial-Up on a strip of its own at the very bottom.
 
 import { buildLabel } from './build.ts'
 import { copy } from './copy.ts'
