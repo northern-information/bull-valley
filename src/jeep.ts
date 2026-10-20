@@ -3,10 +3,10 @@ import { castShadows, lambert, mergeStatic } from './assetkit.ts'
 
 // Tyler Etters' red 1995 Jeep Wrangler, a YJ, parked on the spawn Citgo's
 // lot beside Moab Coldë (CONFIG.tyler places it): the square headlights in
-// the seven-slot grille, flat fenders, a black hardtop, the rear glass
-// lifted up on its hinges and the tailgate dropped flat, so whoever sits
-// in the back (figure.ts buildTyler) looks out over the lot. Scenery: it
-// only blocks.
+// the seven-slot grille, flat fenders, a hardtop in the body's red, the
+// rear glass lifted up on its hinges and the tailgate dropped flat, so
+// whoever sits in the back (figure.ts buildTyler) looks out over the lot.
+// Scenery: it only blocks.
 
 // --- The Jeep ------------------------------------------------------------
 
@@ -34,7 +34,6 @@ export function buildJeep(): THREE.Group {
   group.name = 'jeep'
   const red = lambert({ color: '#a3161b' })
   const black = lambert({ color: '#151518' })
-  const top = lambert({ color: '#1d1e22' })
   const carpet = lambert({ color: '#26262a' })
   const steel = lambert({ color: '#8a8d92' })
   const lensWhite = lambert({ color: '#d4d6cc', emissive: '#2a2a24' })
@@ -176,16 +175,16 @@ export function buildJeep(): THREE.Group {
   add(
     group,
     [width + 0.02, 0.07, roofFront - rear],
-    top,
+    red,
     0,
     roof,
     (roofFront + rear) / 2
   )
   for (const side of [1, -1]) {
     const x = side * (half - 0.02)
-    // The door's window, framed, then the hardtop's side: a black panel
+    // The door's window, framed, then the hardtop's side: a red panel
     // with its long window, and the corner post at the back.
-    add(group, [0.04, roof - belt, 0.06], top, x, (roof + belt) / 2, cab - 1.0)
+    add(group, [0.04, roof - belt, 0.06], red, x, (roof + belt) / 2, cab - 1.0)
     add(
       group,
       [0.03, roof - belt - 0.1, 0.9],
@@ -197,7 +196,7 @@ export function buildJeep(): THREE.Group {
     add(
       group,
       [0.05, roof - belt, cab - 1.0 - rear],
-      top,
+      red,
       x,
       (roof + belt) / 2,
       (cab - 1.0 + rear) / 2
@@ -210,7 +209,7 @@ export function buildJeep(): THREE.Group {
       (roof + belt) / 2 + 0.04,
       (cab - 1.0 + rear) / 2 + 0.05
     )
-    add(group, [0.1, roof - belt, 0.08], top, x, (roof + belt) / 2, rear + 0.04)
+    add(group, [0.1, roof - belt, 0.08], red, x, (roof + belt) / 2, rear + 0.04)
     // The mirror on its arm, on the door.
     add(
       group,
@@ -238,7 +237,7 @@ export function buildJeep(): THREE.Group {
   add(
     hatch,
     [width - 0.1, roof - belt - 0.06, 0.04],
-    top,
+    red,
     0,
     -(roof - belt) / 2,
     0
