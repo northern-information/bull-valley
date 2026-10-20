@@ -454,7 +454,7 @@ export class Hud {
   }
 
   // A touch's number under the bar, and what `ward` took off it.
-  popDamage(damage: number, warded: number, ward: WardAxis): void {
+  popDamage(damage: number, warded: number, ward: WardAxis | null): void {
     this.vitals.hit(damage, warded, ward, performance.now())
   }
 

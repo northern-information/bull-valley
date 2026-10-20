@@ -478,6 +478,43 @@ export function slurmScene(event: SlurmEvent, t: number): SlurmScene {
   }
 }
 
+// --- Under a raider's feet -------------------------------------------------
+
+// Where a raider's feet are, as the slurms feel them.
+export interface Feet {
+  x: number
+  y: number
+  z: number
+}
+
+// Whether any raider's feet come down on a slurm at (x, y, z): close
+// enough across and near enough its height (not on a deck over it).
+// Every client asks it of the raiders it sees, so a slurm one raider
+// steps on is squashed for everyone, with nothing on the wire.
+export function treads(
+  at: Feet,
+  feet: readonly Feet[],
+  cfg = CONFIG.slurms
+): boolean {
+  return feet.some(
+    (f) =>
+      Math.hypot(f.x - at.x, f.z - at.z) <= cfg.treadReach &&
+      Math.abs(f.y - at.y) <= cfg.treadHeight
+  )
+}
+
+// A slurm squashed underfoot `since` seconds ago, at the spot it was.
+export function underfoot(at: SlurmAt, since: number): SlurmAt {
+  const { splatSeconds } = CONFIG.slurms
+  return {
+    ...at,
+    phase: since >= splatSeconds ? 'gone' : 'squashed',
+    progress: Math.min(1, since / splatSeconds),
+    stretch: 0,
+    tooth: 0,
+  }
+}
+
 // --- What he says ---------------------------------------------------------
 
 const CURSES = [

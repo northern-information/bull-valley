@@ -40,6 +40,7 @@ import {
   QUARTERS,
   spillsOf,
 } from './drops.ts'
+import { fallDamage } from './fall.ts'
 import { finishById } from './finishes.ts'
 import { burialsOf, bury } from './graves.ts'
 import { openGronDialog } from './grondialog.ts'
@@ -77,6 +78,7 @@ import type { ChatCommand } from './chat.ts'
 import type { CitgoLog } from './citgos.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { EmoteId } from './emotes.ts'
+import type { Hurt } from './fall.ts'
 import type { Game } from './game.ts'
 import type { Hotbar } from './hotbar.ts'
 import type { DailyStatus, ShelfSpot } from './interactions.ts'
@@ -86,7 +88,6 @@ import type { NpcId } from './npcs.ts'
 import type { BagAction, BagTab } from './packgrid.ts'
 import type { DailyMessage, PassedMessage, WardLevels } from './protocol.ts'
 import type { ShadeKind } from './shadowmen.ts'
-import type { ShadowHit } from './wards.ts'
 import type { Pickup } from './world.ts'
 
 // The valley's word on a touch (a struck frame): what it took, what the
@@ -151,12 +152,13 @@ export interface Actions {
   // Off the bed beside the truck, with no word to the valley: it let us
   // off.
   leaveBed(line?: string): void
-  // A shadow touched you (sharedworld.ts rule 24): its hit off your
-  // geometrie, cut by your wards (rule 27), the valley's word on what it
-  // took and what is left, or alone our own. The last of it shatters your
+  // A shadow touched you, or you landed from a fall of `height` metres
+  // (sharedworld.ts rule 24): its hit off your geometrie, cut by your wards
+  // (rule 27; nothing cuts a fall), the valley's word on what it took and
+  // what is left, or alone our own. The last of it shatters your
   // geometrie, and everything the pack held stays on your body where you
   // fell (rule 18).
-  strike(by: ShadowHit, valley?: Struck): void
+  strike(by: Hurt, valley?: Struck, height?: number): void
   // G: one of `kind` (the last used, in the valley) passed to the raider
   // in reach in front of you (rule 27).
   passKind(kind?: string | null): void
@@ -547,7 +549,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
   // The wards that have said so in the log this session, once each.
   const wardsTold = new Set<WardAxis>()
-  const strike = (by: ShadowHit, valley?: Struck) => {
+  // Struck by a shadow, or landed hard from `height` metres (a fall):
+  // the valley's word on it, or alone our own.
+  const strike = (by: Hurt, valley?: Struck, height = 0) => {
     if (s.aboard) {
       // Touched as we climbed in: the valley's count stands all the same.
       if (valley) {
@@ -559,7 +563,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     const now = performance.now()
     // Rule 27: the wards cut it, the valley's word or alone our own roll.
     const levels = levelsAt(s.wards, s.time)
-    const { damage, warded } = valley ?? damageOf(by, levels, Math.random())
+    const { damage, warded } =
+      valley ??
+      (by === 'fall'
+        ? { damage: fallDamage(height, s.healthMax), warded: 0 }
+        : damageOf(by, levels, Math.random()))
     s.emoting = null
     // A touch knocks the phone down mid-dial.
     game.phone.hangUp()
@@ -569,14 +577,22 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       : hit(s.health, damage, s.healthMax).points
     s.graceUntil = now + CONFIG.health.graceSeconds * 1000
     s.hurtAt = now
-    const ward = WARD_OF[by]
+    const ward = by === 'fall' ? null : WARD_OF[by]
     hud.hurt()
     hud.popDamage(damage, warded, ward)
     game.sfx?.play(s.health > 0 ? 'hit' : 'shatter')
     if (s.health > 0) {
-      hud.tell(copy(by === 'caretaker' ? 'log.hit_caretaker' : 'log.hit'))
+      hud.tell(
+        copy(
+          by === 'caretaker'
+            ? 'log.hit_caretaker'
+            : by === 'fall'
+              ? 'log.hit_fall'
+              : 'log.hit'
+        )
+      )
       // The first time a ward takes the edge off, it says so.
-      if (warded > 0 && !wardsTold.has(ward)) {
+      if (ward && warded > 0 && !wardsTold.has(ward)) {
         wardsTold.add(ward)
         hud.tell(wardedLine(ward))
       }
@@ -618,7 +634,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
           ? 'log.caught'
           : by === 'shade' || by === 'warden'
             ? 'log.tunneled'
-            : 'log.struck'
+            : by === 'fall'
+              ? 'log.plunged'
+              : 'log.struck'
       )
     )
     if (!isEmpty(items)) hud.tell(copy('log.fell'))

@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { boundaryMaterial, buildLandmarkBeacon } from './assets.ts'
 import { bookSights } from './booksights.ts'
+import { buildCastleSite } from './castlesite.ts'
 import { CONFIG } from './config.ts'
 import { unitToWorld } from './coords.ts'
 import { buildCornMaze, mazeFrame, mazeLamps, mazePlaceOf } from './cornmaze.ts'
@@ -8,6 +9,7 @@ import { Ground } from './ground.ts'
 import { KEEP, landmarkWorldPositions } from './landmarks.ts'
 import { LOOKOUT, onLookout } from './lookout.ts'
 import { mazeToWorld } from './maze.ts'
+import { carve, castlePlace, moatFloor, onMoatGrounds } from './moat.ts'
 import { buildCroft, buildPlaza, CROFT_TREE_CLEAR } from './plazasite.ts'
 import { buildPoles } from './poles.ts'
 import { mulberry32 } from './rng.ts'
@@ -62,6 +64,7 @@ import { Walls } from './walls.ts'
 import { buildRoads, buildShoulders, buildWater } from './worldsurfaces.ts'
 import type { DishArray, PortalRig, Wreck } from './assets.ts'
 import type { Sight } from './book.ts'
+import type { CastleSite } from './castlesite.ts'
 import type { DonutField } from './donuts.ts'
 import type { GronRig, MoabRig, TylerRig } from './figure.ts'
 import type { Geo, HeightAt, Metres, ShopStock, XZ } from './interfaces.ts'
@@ -69,9 +72,11 @@ import type { PickupKind } from './items.ts'
 import type { MazePlace } from './maze.ts'
 import type { CroftRig, PlazaRig } from './plazasite.ts'
 import type { Cue } from './sfx.ts'
+import type { Feet } from './slurms.ts'
 import type { StoreOrigin, WorldFacing } from './store.ts'
 import type { Streetlights } from './streetlights.ts'
 
+export type { CastleSite } from './castlesite.ts'
 export type { CroftRig, PlazaRig } from './plazasite.ts'
 export type { Streetlights } from './streetlights.ts'
 
@@ -102,12 +107,14 @@ export interface ShelfDisplay {
   // CONFIG.store.displayRange, and show what is left on its shelves.
   // stocks: one per station, indexed like fuelPoints. `seconds` is the
   // shared clock, for the slurms off its dripline (slurms.ts): what they
-  // sound like this frame, and Carlsten's curse when he says it.
+  // sound like this frame, and Carlsten's curse when he says it; `feet`,
+  // every raider on foot this client sees, squash them underfoot.
   update(
     x: number,
     z: number,
     stocks: readonly ShopStock[],
-    seconds: number
+    seconds: number,
+    feet: readonly Feet[]
   ): { cues: Cue[]; curse: string | null }
   // Unit `unit` of `kind` at `station` (its slot on the facing), or null
   // when the display is parked elsewhere.
@@ -222,6 +229,18 @@ export interface World {
   // The places of the Book of Shadows, each found by walking within its
   // reach (book.ts sightsInReach).
   sights: Sight[]
+  // Castle Entropy and its moat, out the spawn Citgo's door past the donut
+  // field; null without
+  // a spawn station.
+  castle: CastleSite | null
+}
+
+// The terrain as buildWorld may cut into it (terrain.ts HeightField): the
+// grid uncut, and the cut, after which every height the world asks for
+// is the cut ground's.
+interface Carvable {
+  raw: HeightAt
+  carve(cut: (raw: HeightAt) => HeightAt): void
 }
 
 // One berry bush: its id (sharedworld.ts BUSHES: 0 at the spawn Citgo, then
@@ -309,7 +328,11 @@ function buildBoundary(
   return group
 }
 
-export function buildWorld(geo: Geo, heightAt: HeightAt): World {
+export function buildWorld(
+  geo: Geo,
+  heightAt: HeightAt,
+  terrain: Carvable | null = null
+): World {
   const metres = geo.metres
   const rng = mulberry32(0x5cad0)
   const mask = buildMask(geo, metres)
@@ -331,6 +354,18 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   const spawnStation = chooseSpawnStation(geo, metres, fuel.points)
   const maze = spawnStation ? mazeFrame(spawnStation) : null
   const donutField = spawnStation ? donutFieldOf(spawnStation) : null
+  // Castle Entropy's moat is cut into the terrain before anything else
+  // stands, so all that does stands on the cut ground (moat.ts).
+  const castlePlaceAt = spawnStation ? castlePlace(spawnStation) : null
+  const raw = terrain ? terrain.raw : heightAt
+  const moatAt = castlePlaceAt
+    ? { place: castlePlaceAt, floor: moatFloor(raw, castlePlaceAt) }
+    : null
+  if (moatAt && terrain) {
+    terrain.carve((uncut) => carve(uncut, moatAt.place, moatAt.floor))
+  }
+  const onMoat = (x: number, z: number) =>
+    moatAt ? onMoatGrounds(moatAt.place, x, z) : false
   const wreckAt = spawnStation
     ? toWorld(spawnStation, [CONFIG.wreck.at.x, 0, CONFIG.wreck.at.z])
     : null
@@ -376,6 +411,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
           : false) ||
         // The lone pine stands alone among the dishes.
         (spawnStation ? insideDishArray(spawnStation, x, z) : false) ||
+        onMoat(x, z) ||
         // No tree grows through a store or its back room.
         fuel.points.some((p) => insideStore(p, x, z, STORE_TREE_CLEAR)),
       pine ? [pine.tree] : []
@@ -435,7 +471,8 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
               }))
             : []),
         ]
-      : []
+      : [],
+    onMoat
   )
   group.add(pickupSet.group)
   let portal: MazePortal | null = null
@@ -461,6 +498,10 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   placeSpunkysGrave(group, ground, walls, spawnStation, pine)
   const { moabs, moabRigs } = placeMoabs(group, ground, walls, fuel.points)
   const { tyler, tylerRig } = placeTyler(group, ground, walls, spawnStation)
+  const castle = moatAt
+    ? buildCastleSite(moatAt.place, raw, moatAt.floor, ground, walls)
+    : null
+  if (castle) group.add(castle.group)
 
   return {
     group,
@@ -512,6 +553,8 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
       plaza: plaza ? mallCenter(plaza.origin) : null,
       undercroft: croft ? croft.rig.place : null,
       landmarks: landmarks.points,
+      castle: castle ? castle.middle : null,
     }),
+    castle,
   }
 }

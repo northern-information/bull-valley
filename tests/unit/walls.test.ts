@@ -73,3 +73,26 @@ describe('Walls', () => {
     expect(edge.between({ x: 9, z: 0 }, { x: 11, z: 0 })).toBe(true)
   })
 })
+
+describe('Walls with a band', () => {
+  // A ledge along x = 0: it stands only for feet at or under 10.
+  const ledge = new Walls()
+  ledge.addWall({ x: 0, z: -5 }, { x: 0, z: 5 }, 0.1, { high: 10 })
+  // A cap that stands only for feet at or over 2.
+  ledge.addWall({ x: 5, z: -5 }, { x: 5, z: 5 }, 0.1, { low: 2 })
+
+  it('stands for feet within it', () => {
+    expect(ledge.resolve(0.2, 0, 0.3, 0).x).toBeCloseTo(0.4)
+    expect(ledge.resolve(5.2, 0, 0.3, 3).x).toBeCloseTo(5.4)
+  })
+
+  it('stands aside for feet past it', () => {
+    expect(ledge.resolve(0.2, 0, 0.3, 12)).toEqual({ x: 0.2, z: 0 })
+    expect(ledge.resolve(5.2, 0, 0.3, 1)).toEqual({ x: 5.2, z: 0 })
+  })
+
+  it('stands for a body with no feet given, and never across a reach', () => {
+    expect(ledge.resolve(0.2, 0, 0.3).x).toBeCloseTo(0.4)
+    expect(ledge.between({ x: -1, z: 0 }, { x: 1, z: 0 })).toBe(false)
+  })
+})

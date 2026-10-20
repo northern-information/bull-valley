@@ -332,17 +332,23 @@ export class VitalsHud {
 
   // A touch: its number under the bar, and what `ward` took off it, added
   // to the last if it came close behind; it fades a while after.
-  hit(damage: number, warded: number, ward: WardAxis, now: number): void {
+  // `ward` is null for what no ward cuts (a fall).
+  hit(
+    damage: number,
+    warded: number,
+    ward: WardAxis | null,
+    now: number
+  ): void {
     const last = this.last
     const pop: Pop =
       last && now - last.at < POP_SUM_MS
         ? {
             damage: last.damage + damage,
             warded: last.warded + warded,
-            ward: warded > 0 ? ward : last.ward,
+            ward: warded > 0 && ward ? ward : last.ward,
             at: now,
           }
-        : { damage, warded, ward, at: now }
+        : { damage, warded, ward: ward ?? AXES[0], at: now }
     this.last = pop
     this.popDamage.textContent = copy('hud.damage', {
       damage: grouped(pop.damage),

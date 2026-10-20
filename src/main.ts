@@ -41,7 +41,12 @@ import { createSfx } from './sfxrig.ts'
 import { ShadowBursts } from './shadowburst.ts'
 import { ShadowCards } from './shadowcards.ts'
 import { createTargets } from './targets.ts'
-import { buildTerrainMesh, createHeightField, loadTerrain } from './terrain.ts'
+import {
+  buildTerrainMesh,
+  createHeightField,
+  cutTerrainHole,
+  loadTerrain,
+} from './terrain.ts'
 import { openAccount, showTitles, signOutAndReload } from './titles.ts'
 import { createTrails } from './trails.ts'
 import { Truck } from './truck.ts'
@@ -130,9 +135,14 @@ async function boot() {
   moonlight.position.set(0.4, 1, -0.6)
   scene.add(moonlight)
 
-  scene.add(buildTerrainMesh(field, geo))
-  const world = buildWorld(geo, heightAt)
+  const terrainMesh = buildTerrainMesh(field, geo)
+  scene.add(terrainMesh)
+  const world = buildWorld(geo, heightAt, field)
   scene.add(world.group)
+  // Castle Entropy's moat is cut into the ground: through the mesh too.
+  if (world.castle) {
+    cutTerrainHole(terrainMesh, world.castle.island, world.castle.outer)
+  }
   const drops = createDropMeshes(world.ground.at)
   scene.add(drops.group)
   const graves = createGravestones(world.ground.at)
@@ -221,6 +231,8 @@ async function boot() {
   const player = new Player({
     camera,
     groundAt: world.ground.at,
+    standAt: (x, z, feetY) =>
+      world.ground.standAt(x, z, feetY, CONFIG.fall.climb),
     collide: world.walls.resolve,
     metres: geo.metres,
     spawn: world.spawn,

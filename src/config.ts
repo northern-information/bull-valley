@@ -51,6 +51,8 @@ export const CONFIG = {
       maze: 8,
       heart: 12,
       keep: 40,
+      // Past the rim, from the island's middle.
+      castle: 90,
     },
     sightRange: 25,
   },
@@ -583,6 +585,105 @@ export const CONFIG = {
       },
     ],
   },
+  // Castle Entropy and its moat (moat.ts, castle.ts, castlesite.ts):
+  // straight out the spawn Citgo's front door, across Lake Avenue past the
+  // donut field, clear of the corn maze. The moat is cut
+  // into the terrain itself (moat.ts carve), an irregular pentagon round an
+  // island no one reaches yet, the castle floating over it and made anew
+  // every Central day.
+  castle: {
+    // The island's middle, station-local like the wreck: +x is out the
+    // store's door toward the road.
+    at: { x: 230, z: -5 },
+    // The pentagon's turn in the world, radians.
+    yaw: 0.35,
+    moat: {
+      // The island's middle radius, how far each corner may wander from it
+      // (a share), and how far each may turn off true (radians).
+      island: 34,
+      wobble: 0.16,
+      twist: 0.16,
+      seed: 0xe471,
+      // Across the channel and down it, from the lowest of the rim.
+      width: 30,
+      depth: 30,
+      // Trees, poles and pickups keep this far off the outer edge.
+      clear: 12,
+    },
+    // The fire escapes on the outer walls (moat.ts fireEscapes): the sides
+    // that carry one, how wide a flight runs (the strip is two), about how
+    // much each climbs, how steep (rise over run), and how deep a landing
+    // is.
+    stairs: {
+      sides: [0, 2, 3],
+      width: 1.1,
+      rise: 3,
+      slope: 0.7,
+      landing: 1.6,
+    },
+    // The cranes on the outer rim, leaning out over the moat.
+    cranes: 4,
+    // The castle's base, this far over the highest ground anywhere on the
+    // island (its rock hangs under that, well clear), and how it bobs.
+    float: 40,
+    bob: { metres: 0.8, seconds: 11 },
+    // How many of each it is built of (castle.ts castleOf), on cells this
+    // wide.
+    cell: 6,
+    masses: { min: 9, max: 15 },
+    // No mass stacks higher than this over the base.
+    stack: 44,
+    // The share of the masses that are the church's stone (the keep always
+    // is), and how far a concrete one swells out of its box at most.
+    stone: 0.5,
+    swell: 0.4,
+    // The cathedral's spire on the keep, how tall; the rest, how many in
+    // all; the spomeniks' forms on the concrete roofs, how many.
+    cathedral: { min: 40, max: 60 },
+    spires: { min: 8, max: 16 },
+    forms: { min: 3, max: 6 },
+    // Coming apart (crumble.ts): each piece that can fall, in each round
+    // of `cycle` seconds, falls by a draw of `share`, crumbling for
+    // `crumble`, gone for `gone`, growing back for `regrow`.
+    ruin: { cycle: 100, share: 0.35, crumble: 5, gone: 30, regrow: 14 },
+    // The bits always falling off it (`count` of them, each `life`
+    // seconds long, a share `fromRock` off the rock underneath), and the
+    // chunks a crumbling piece throws (`chunks` of them, breaking off over
+    // `chunkSpread` seconds, each falling `chunkLife`), in metres and
+    // seconds.
+    fragments: {
+      count: 140,
+      life: 4,
+      fromRock: 0.3,
+      gravity: 9.8,
+      drift: 0.6,
+      size: { min: 0.2, max: 0.7 },
+      chunks: 36,
+      chunkSpread: 3,
+      chunkLife: 4,
+      chunkSpeed: 3,
+      chunk: { min: 0.7, max: 2.2 },
+    },
+    lighthouse: {
+      // Turns a minute, how far each beam reaches, its colour.
+      rpm: 5,
+      beamLength: 420,
+      color: '#4aa8ff',
+    },
+  },
+  // Falling (fall.ts): the feet leave the ground when it drops away more
+  // than `step`, and fall at `gravity` m/s². They climb onto a deck up to
+  // `climb` over them (a store's floor over its slope); a deck higher than
+  // that is a ceiling they walk under (the flight over a flight). A
+  // landing from `safe` metres hurts, scaled to all of a raider's
+  // geometrie at `lethal` (two stories) and past it.
+  fall: {
+    step: 0.6,
+    climb: 2,
+    gravity: 22,
+    safe: 3,
+    lethal: 7,
+  },
   wreck: {
     // The green BMW nosed into a tree beside the spawn Citgo, station-local
     // like the bush: on the station's side of Lake Avenue, across the road
@@ -834,6 +935,26 @@ export const CONFIG = {
     splatSeconds: 5,
     // How close you must be to hear him curse in the log.
     hearRadius: 30,
+    // A raider's feet this close (and this near its height) squash a
+    // slurm that is down and crawling, the Citgo's and the moat's alike.
+    treadReach: 0.5,
+    treadHeight: 0.9,
+    // The moat's (moatslurms.ts): a drop every slot, off the rim, the
+    // island's edge or a crane's hook (`craneShare` of them), each slurm
+    // crawling longer and slower, lying a while, then melting into the
+    // concrete; no one comes out with a bat.
+    moat: {
+      slotSeconds: 20,
+      jitterSeconds: 10,
+      maxCount: 4,
+      multiChance: 0.5,
+      craneShare: 0.35,
+      crawlSpeed: 0.1,
+      crawlSeconds: 7,
+      lingerSeconds: 18,
+      // The rigs drawn at once, more than the slots overlapping hold.
+      pool: 14,
+    },
   },
   moab: {
     // Where Moab Coldë's horse stands at every Citgo, station-local like

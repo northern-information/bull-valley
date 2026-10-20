@@ -11,6 +11,8 @@ import {
   eventAt,
   nextStart,
   slurmScene,
+  treads,
+  underfoot,
 } from './slurms.ts'
 import { STORE_LAYOUT, toWorld } from './store.ts'
 import type { Figure } from './figure.ts'
@@ -18,7 +20,7 @@ import type { Ground } from './ground.ts'
 import type { XZ } from './interfaces.ts'
 import type { Cue } from './sfx.ts'
 import type { SlurmRig } from './slurmmodel.ts'
-import type { CarlstenAt, SlurmEvent } from './slurms.ts'
+import type { CarlstenAt, Feet, SlurmEvent } from './slurms.ts'
 import type { StoreOrigin } from './store.ts'
 
 const STAND = samplePose('stand')
@@ -62,12 +64,14 @@ export interface Slurms {
   group: THREE.Group
   // Draw the drop under way at `station` (-1: parked nowhere) at
   // `seconds` on the shared clock. `player` is where the player stands,
-  // to hear the curse.
+  // to hear the curse; `feet`, every raider on foot this client sees, to
+  // squash a crawling slurm underfoot.
   update(
     station: number,
     origin: StoreOrigin | null,
     seconds: number,
-    player: XZ
+    player: XZ,
+    feet: readonly Feet[]
   ): { cues: Cue[]; curse: string | null }
   // Whether Carlsten is out from behind `station`'s counter.
   away(station: number): boolean
@@ -95,6 +99,9 @@ export function createSlurms(clerk: Figure, ground: Ground): Slurms {
   // What the last frame drew, to hear a landing, a smash or the curse
   // once as it happens.
   let last: { event: SlurmEvent; phases: string[]; t: number } | null = null
+  // When each slurm was trodden on (shared seconds), by station, slot and
+  // index; forgotten once its drop is over.
+  const trodden = new Map<string, number>()
 
   const atCounter = () => {
     if (!out) return
@@ -110,7 +117,7 @@ export function createSlurms(clerk: Figure, ground: Ground): Slurms {
 
   return {
     group,
-    update(station, origin, seconds, player) {
+    update(station, origin, seconds, player, feet) {
       const cues: Cue[] = []
       let curse: string | null = null
       parked = station
@@ -134,8 +141,23 @@ export function createSlurms(clerk: Figure, ground: Ground): Slurms {
       const same =
         last?.event.slot === event.slot && last.event.station === station
       // The slurms: falling off the edge, crawling, or a splat.
+      if (!same) trodden.clear()
       pool.forEach((rig, i) => {
-        const slurm = scene.slurms[i]
+        const key = `${station}:${event.slot}:${i}`
+        let slurm = scene.slurms[i]
+        // Underfoot: a raider stepping on one crawling squashes it.
+        if (slurm?.phase === 'crawling' && !trodden.has(key)) {
+          const [wx, , wz] = world(slurm.x, slurm.z)
+          const at = { x: wx, y: ground.at(wx, wz), z: wz }
+          if (treads(at, feet)) {
+            trodden.set(key, now)
+            cues.push({ id: 'slurm-squish', x: wx, z: wz, rate: 1 })
+          }
+        }
+        const stepped = trodden.get(key)
+        if (slurm && stepped !== undefined) {
+          slurm = underfoot(slurm, now - stepped)
+        }
         const shown =
           slurm !== undefined &&
           slurm.phase !== 'waiting' &&
@@ -168,7 +190,11 @@ export function createSlurms(clerk: Figure, ground: Ground): Slurms {
           const [wx, , wz] = world(slurm.x, slurm.z)
           cues.push({ id: 'slurm-plop', x: wx, z: wz, rate: 1 })
         }
-        if (before === 'crawling' && slurm.phase === 'squashed') {
+        if (
+          before === 'crawling' &&
+          slurm.phase === 'squashed' &&
+          stepped === undefined
+        ) {
           const [wx, , wz] = world(slurm.x, slurm.z)
           cues.push({ id: 'bat-smash', x: wx, z: wz, rate: 1 })
         }
@@ -196,7 +222,13 @@ export function createSlurms(clerk: Figure, ground: Ground): Slurms {
           Math.hypot(wx - player.x, wz - player.z) <= CONFIG.slurms.hearRadius
         if (near) curse = curseOf(event)
       }
-      last = { event, phases: scene.slurms.map((s) => s.phase), t }
+      last = {
+        event,
+        phases: scene.slurms.map((s, i) =>
+          trodden.has(`${station}:${event.slot}:${i}`) ? 'squashed' : s.phase
+        ),
+        t,
+      }
       return { cues, curse }
     },
     away(station) {
