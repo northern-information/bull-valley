@@ -662,17 +662,33 @@ describe("the account's news on the phone", () => {
     applyFrame(DIALED, welcome(over), 0, 0)
   const lastLog = (s: DialState) => s.chat.at(-1)?.text
 
-  it('says a new level, once', () => {
+  it('logs a new level, once', () => {
     let s = start({ xp: xpToReach(2) - 1 })
     s = applyFrame(s, { type: 'xp', xp: xpToReach(2), gained: 1 }, 5, 50)
-    expect(s.said).toEqual({
+    expect(s.chat.at(-1)).toMatchObject({
       text: copy('log.level_up', { level: 2 }),
-      at: 5,
+      at: 50,
     })
-    expect(s.chat.at(-1)).toMatchObject({ at: 50 })
     const lines = s.chat.length
     s = applyFrame(s, { type: 'xp', xp: xpToReach(2) + 1, gained: 1 }, 6, 60)
     expect(s.chat).toHaveLength(lines)
+  })
+
+  it("leaves the screen's word to the phone's own asks", () => {
+    // Erwin's line for a quest step stays up when the rose's page is
+    // written just after it.
+    let s = start()
+    s = applyFrame(
+      s,
+      { type: 'quest', quest: 'rose', step: 'accept', stage: 'given' },
+      5,
+      50
+    )
+    const said = s.said
+    expect(said?.text).toBe(stepNews('accept'))
+    s = applyFrame(s, { type: 'book', found: ['rose'] }, 6, 60)
+    s = applyFrame(s, { type: 'xp', xp: xpToReach(2), gained: 1 }, 6, 60)
+    expect(s.said).toEqual(said)
   })
 
   it("says the season's and the task's news", () => {

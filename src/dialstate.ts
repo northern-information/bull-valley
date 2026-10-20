@@ -298,6 +298,9 @@ export function applyFrame(
       }
       return saying(next, standNews(msg, s.stand), now)
     }
+    // What the account did, here or in the 3D valley, goes into the log
+    // alone: the screen's word (`said`) is the valley's answer to an ask
+    // of the phone's own, which a dialog may be showing.
     case 'xp': {
       // Rule 22: XP only grows, so a frame overtaken by a later one is old
       // news.
@@ -306,7 +309,7 @@ export function applyFrame(
       const next = { ...s, xp }
       return level === null
         ? next
-        : news(next, copy('log.level_up', { level }), now, wall)
+        : told(next, copy('log.level_up', { level }), wall)
     }
     case 'health':
       return { ...s, health: msg.health, healthMax: msg.max }
@@ -420,20 +423,20 @@ export function applyFrame(
     case 'season': {
       const season = seasonOf(msg.season)
       if (!season) return s
-      return news({ ...s, season }, seasonLine(season, msg.rewarded), now, wall)
+      return told({ ...s, season }, seasonLine(season, msg.rewarded), wall)
     }
     case 'task': {
       const task = taskOf(msg.task)
       if (!task) return s
       const line = taskLine(task, msg.rewarded)
       const next = { ...s, task }
-      return line ? news(next, line, now, wall) : next
+      return line ? told(next, line, wall) : next
     }
     case 'book': {
       // A page already written is never written twice, nor said again.
       const fresh = msg.found.filter((id) => !s.book.includes(id))
       return foundLines(fresh).reduce(
-        (after, line) => news(after, line, now, wall),
+        (after, line) => told(after, line, wall),
         { ...s, book: [...s.book, ...fresh] }
       )
     }
@@ -444,7 +447,7 @@ export function applyFrame(
         (station) => s.citgoNames[station] ?? '',
         s.world !== null
       )
-      return lines.reduce((after, line) => news(after, line, now, wall), {
+      return lines.reduce((after, line) => told(after, line, wall), {
         ...s,
         citgos: msg.citgos,
       })
