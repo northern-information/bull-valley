@@ -114,8 +114,9 @@ interface Valuable extends ItemBase {
 }
 
 // What a quest gives or asks for (quests.ts), and the keys, which open
-// their locks for whoever carries them (keys.ts): never used up and never
-// dropped; they go where the pack goes, a strike included.
+// their locks for whoever carries them (keys.ts): never used up, never
+// dropped and never stowed in the locker; a strike leaves them in the pack
+// (corpses.ts), as Elden Ring keeps its key items through a death.
 interface KeyItem extends ItemBase {
   category: 'key-item'
   price?: undefined
@@ -526,10 +527,17 @@ export function isDrink(id: string): boolean {
   return itemById(id)?.category === 'drink'
 }
 
-// Whether `id` is a key item: never dropped, never used up.
+// Whether `id` is a key item: never dropped, never used up, never stowed,
+// and never left on a body.
 export function isKeyItem(id: string): boolean {
   return itemById(id)?.category === 'key-item'
 }
+
+// Every key item, for the valley's strip (worker/d1packs.ts), which leaves
+// them in the pack.
+export const KEY_ITEM_IDS: readonly string[] = ITEMS.filter(
+  (item) => item.category === 'key-item'
+).map((item) => item.id)
 
 export function isMedicine(id: string): boolean {
   return itemById(id)?.category === 'medicine'

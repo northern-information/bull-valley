@@ -9,6 +9,7 @@ import { CONFIG } from '../src/config.ts'
 import { toCosmetics } from '../src/cosmetics.ts'
 import { NO_TASK } from '../src/dailytask.ts'
 import { STARTING_INVENTORY, toInventory } from '../src/inventory.ts'
+import { isKeyItem } from '../src/items.ts'
 import { QUESTS } from '../src/quests.ts'
 import { NO_PROGRESS } from '../src/season.ts'
 import { FRESH_STAND } from '../src/stand.ts'
@@ -72,9 +73,9 @@ export interface PackStore {
     amount: number,
     item: PackItem | null
   ): Promise<boolean>
-  // Everything the pack holds, taken out at once and returned: a strike
-  // (sharedworld.ts rule 18). Each kind is left at zero, never removed, so
-  // the starting items are never given again.
+  // Everything the pack holds but its key items, taken out at once and
+  // returned: a strike (sharedworld.ts rule 18). Each kind is left at zero,
+  // never removed, so the starting items are never given again.
   strip(accountId: string): Promise<Inventory>
   // Units back into the pack, all or none: a body looted, or a strip the
   // valley could not lay a body for.
@@ -248,6 +249,7 @@ export class MemoryPackStore implements PackStore {
     const rows = this.packs.get(accountId) ?? new Map<string, number>()
     const taken: Inventory = {}
     for (const [kind, count] of rows) {
+      if (isKeyItem(kind)) continue
       if (count > 0) taken[kind] = count
       rows.set(kind, 0)
     }

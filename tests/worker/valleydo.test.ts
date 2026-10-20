@@ -13,6 +13,7 @@ import { mazeToWorld } from '../../src/maze.ts'
 import { XP, xpToReach } from '../../src/progression.ts'
 import { CLOSE, PROTOCOL_VERSION } from '../../src/protocol.ts'
 import { SEASON } from '../../src/season.ts'
+import { createValley } from '../../src/sharedworld.ts'
 import { standXp } from '../../src/stand.ts'
 import { dryMap } from '../../src/waterside.ts'
 import { MemoryAccountStore } from '../../worker/accounts.ts'
@@ -38,6 +39,7 @@ import type {
   WorldMessage,
   XpMessage,
 } from '../../src/protocol.ts'
+import type { Valley } from '../../src/sharedworld.ts'
 import type { AccountStore } from '../../worker/accounts.ts'
 import type { PackStore } from '../../worker/packs.ts'
 
@@ -1703,6 +1705,47 @@ describe('ValleyDO: corpse runs', () => {
     ])
     // B's pack never names A's body.
     expect(lastFrame(b)?.corpses ?? []).toEqual([])
+  })
+
+  it('gives the key items on an older body back as its raider comes in', async () => {
+    const body = (
+      id: number,
+      account: string,
+      items: Record<string, number>
+    ) => ({
+      id,
+      x: 5,
+      z: 5,
+      yaw: 0,
+      name: account,
+      outfit: 'coleman' as const,
+      items,
+      account,
+    })
+    const stored = new MockState()
+    stored.storage.map.set('valley', {
+      ...createValley(),
+      corpses: [
+        body(0, 'acct-A', { 'vault-key': 1, marlboro: 4 }),
+        body(1, 'acct-A', { rose: 1 }),
+        body(2, 'acct-B', { 'vault-key': 1 }),
+      ],
+      nextCorpse: 3,
+    })
+    const { valley: v, state: s } = await valley(stored)
+    const a = await join(v, s, 'A')
+    const welcome = a
+      .frames()
+      .find((m): m is WelcomeMessage => m.type === 'welcome')
+    expect(welcome?.pack).toMatchObject({ 'vault-key': 1, rose: 1 })
+    // The body with more on it stays, without the key; the one with the
+    // rose alone is gone. B's is B's to come in for.
+    expect(welcome?.corpses).toEqual([0])
+    const kept = (s.storage.map.get('valley') as Valley).corpses
+    expect(kept.map((c) => [c.id, c.items])).toEqual([
+      [0, { marlboro: 4 }],
+      [2, { 'vault-key': 1 }],
+    ])
   })
 
   it('takes a hard landing off the account, and two stories lay a body', async () => {

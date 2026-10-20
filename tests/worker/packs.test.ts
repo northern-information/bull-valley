@@ -289,6 +289,20 @@ function packContract(makeStore: () => PackStore): void {
     })
   })
 
+  it('leaves the key items in the pack when it is emptied', async () => {
+    const store = makeStore()
+    await store.open('a1')
+    await store.change('a1', 'rose', 1)
+    await store.change('a1', 'vault-key', 1)
+    const taken = await store.strip('a1')
+    expect(taken).not.toHaveProperty('rose')
+    expect(taken).not.toHaveProperty('vault-key')
+    expect(taken).toEqual(pickHeld(STARTING_INVENTORY))
+    const { pack } = await store.get('a1')
+    expect(pack.rose).toBe(1)
+    expect(pack['vault-key']).toBe(1)
+  })
+
   it('moves units into the locker and back, only what the side holds', async () => {
     const store = makeStore()
     await store.open('a1')

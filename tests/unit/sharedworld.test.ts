@@ -1374,6 +1374,36 @@ describe('rule 18: corpse runs', () => {
       at,
     }) satisfies ValleyAction
 
+  it('gives the key items on an account’s bodies back, and lets an empty body go', () => {
+    const v = valleyWith(join('a'), join('b'))
+    v.step({
+      type: 'fall',
+      id: 'a',
+      items: { 'vault-key': 1, marlboro: 2 },
+      at: { x: 0, z: 0, yaw: 0 },
+    })
+    v.step({
+      type: 'fall',
+      id: 'b',
+      items: { rose: 1 },
+      at: { x: 9, z: 0, yaw: 0 },
+    })
+    const r = v.step({ type: 'keys-back', account: 'acct-a' })
+    expect(r.give).toEqual({ account: 'acct-a', items: { 'vault-key': 1 } })
+    expect(r.broadcast).toEqual([])
+    expect(v.valley.corpses.find((c) => c.account === 'acct-a')?.items).toEqual(
+      { marlboro: 2 }
+    )
+    const b = v.step({ type: 'keys-back', account: 'acct-b' })
+    expect(b.give).toEqual({ account: 'acct-b', items: { rose: 1 } })
+    expect(b.broadcast[0]).toMatchObject({ reason: 'looted', corpse: 1 })
+    expect(corpsesOf(v.valley, 'acct-b')).toEqual([])
+    // Nothing left to give back: nothing to do.
+    expect(
+      v.step({ type: 'keys-back', account: 'acct-a' }).give
+    ).toBeUndefined()
+  })
+
   it('lays a body where the raider fell, with everything the pack held', () => {
     const v = valleyWith(join('a'), join('b'))
     const r = v.step(fell('a', { x: 40, z: -12, yaw: 1 }))
@@ -1548,6 +1578,18 @@ describe('rule 19: the stash', () => {
       account: 'acct-a',
       kind: 'marlboro',
       delta: -2,
+    })
+  })
+
+  it('never takes a key item into the locker, but lets one out', () => {
+    const v = valleyWith(join('a'))
+    expect(
+      v.step(stow('a', at(-17, 0), 'stow', 'vault-key', 1)).reply
+    ).toMatchObject({ re: 'stow', reason: 'key-item' })
+    expect(v.step(stow('a', at(-17, 0), 'unstow', 'rose', 1)).stash).toEqual({
+      account: 'acct-a',
+      kind: 'rose',
+      delta: -1,
     })
   })
 

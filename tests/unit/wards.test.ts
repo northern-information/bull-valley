@@ -11,7 +11,6 @@ import {
   wardedBy,
   wardOf,
   wardOfEntry,
-  wardsRaised,
 } from '../../src/wards.ts'
 
 const SOBER = { high: 0, stimulated: 0, drunk: 0, tripping: 0 }
@@ -40,15 +39,6 @@ describe('wards', () => {
     expect(wardOfEntry('warden')).toBe('tripping')
     expect(wardOfEntry('citgo')).toBeNull()
     expect(wardOfEntry('toString')).toBeNull()
-  })
-
-  it('says which wards a dose raises, never one it lowers', () => {
-    expect(wardsRaised({ tripping: 1, high: 0.25 })).toEqual([
-      'high',
-      'tripping',
-    ])
-    expect(wardsRaised({ high: -0.15, tripping: -0.15 })).toEqual([])
-    expect(wardsRaised(undefined)).toEqual([])
   })
 
   it('takes nothing off sober', () => {

@@ -693,6 +693,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // frame has the last word.
   const restash = (kind: string, all: boolean, stow: boolean) => {
     if (!s.lockerOpen || !s.world) return
+    // A key item stays in the pack (items.ts isKeyItem).
+    if (stow && isKeyItem(kind)) {
+      hud.tell(copy('log.stow_key_item'))
+      return
+    }
     const from = stow ? s.inventory : s.stash
     const count = moveAmount(kind, from[kind] || 0, all)
     const moved = stow

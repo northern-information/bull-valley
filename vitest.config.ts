@@ -69,6 +69,7 @@ const THREE_AND_DOM = [
   'grondialog',
   'hud',
   'input',
+  'itemstatsview',
   'itemthumbs',
   'jeep',
   'levelhud',

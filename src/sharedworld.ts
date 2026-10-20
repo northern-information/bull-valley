@@ -104,7 +104,7 @@
 //    where it burst (graves.ts). The graves outlast the day's turn; past
 //    CONFIG.graves.max the oldest goes.
 // 18. Corpse runs (corpses.ts): a strike leaves everything the raider's
-//    pack held on their body, where their last state frame put them; the
+//    pack held but its key items (which stay in the pack) on their body, where their last state frame put them; the
 //    valley takes it all out of the account's pack first, and lays the
 //    body only once it has (Reduced.corpse), or gives it back. The wallet
 //    and the locker are untouched. Only the account that fell can take its
@@ -115,7 +115,7 @@
 //    of every Citgo, the same from any of them. A raider out of the bed
 //    whose last state frame put them at a station can move what their pack
 //    holds into it, or back (Reduced.stash); the valley moves it only when
-//    the side it comes out of holds it.
+//    the side it comes out of holds it. A key item never goes in.
 // 20. The Book of Shadows (book.ts): every entry a raider comes across (a
 //    place in reach, a shadow in sight, one of the folk spoken to, an item
 //    in the pack) is written in the account's book once, at the first
@@ -243,7 +243,7 @@ import { heartPoint, theMaze } from './caretaker.ts'
 import { citgoAt, NO_CITGOS, visit } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { insideRing } from './coords.ts'
-import { corpseWire, isEmpty } from './corpses.ts'
+import { corpseWire, isEmpty, keysOff } from './corpses.ts'
 import { affords, cosmeticById, MOAB_OFFERS } from './cosmetics.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
 import { atDealer, deal, freshDealerStock } from './dealer.ts'
@@ -527,6 +527,9 @@ export type ValleyAction =
   // where the raider's last state frame put them, or null.
   | { type: 'fall'; id: string; items: Inventory; at: Facing | null }
   | { type: 'loot'; id: string; corpse: number; at: XZ | null }
+  // Rule 18: the key items off the account's bodies, back to its pack, as
+  // it comes into the valley (a body laid before strikes kept them).
+  | { type: 'keys-back'; account: string }
   // Rule 24: a shadow's touch, `by` what (wards.ts), roll drawn from 0 to
   // 1 by the valley for its spread; a use of `kind` giving its share
   // back, or made whole (no kind: a forecourt).
@@ -1095,6 +1098,8 @@ function act(
       return onLevel(valley, action, context)
     case 'loot':
       return onLoot(valley, action, context)
+    case 'keys-back':
+      return onKeysBack(valley, action, context)
     case 'stow':
     case 'unstow':
       return onStash(valley, action, context)
@@ -2050,6 +2055,41 @@ function onLoot(
   })
 }
 
+function onKeysBack(
+  valley: Valley,
+  action: ActionOf<'keys-back'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rule 18: a key item never lies on a body. One that does (laid before
+  // that was so) goes back to its account's pack, and a body it leaves
+  // with nothing goes; the valley lays the change only once the pack has
+  // the keys (Reduced.give).
+  const keys: Inventory = {}
+  const gone: number[] = []
+  const corpses = valley.corpses.flatMap((corpse) => {
+    if (corpse.account !== action.account) return [corpse]
+    const off = keysOff(corpse.items)
+    if (isEmpty(off.keys)) return [corpse]
+    for (const [kind, count] of Object.entries(off.keys)) {
+      keys[kind] = (keys[kind] ?? 0) + count
+    }
+    if (isEmpty(off.kept)) {
+      gone.push(corpse.id)
+      return []
+    }
+    return [{ ...corpse, items: off.kept }]
+  })
+  if (isEmpty(keys)) return done(valley, now, { broadcast: [] })
+  const next: Valley = { ...valley, corpses }
+  return done(next, now, {
+    broadcast:
+      next.world && gone.length > 0
+        ? [frame(next, 'looted', { corpse: gone[0] })]
+        : [],
+    give: { account: action.account, items: keys },
+  })
+}
+
 function onStash(
   valley: Valley,
   action: ActionOf<'stow' | 'unstow'>,
@@ -2070,6 +2110,9 @@ function onStash(
     if (!atLocker(action.at, world.havens)) return refuse('no-locker')
   }
   if (!isPackKind(action.kind)) return refuse('not-an-item')
+  // A key item never goes into the locker (items.ts isKeyItem); one
+  // stowed before is let out.
+  if (re === 'stow' && isKeyItem(action.kind)) return refuse('key-item')
   if (action.count < 1) return refuse('nothing')
   return done(valley, now, {
     broadcast: [],
