@@ -89,3 +89,51 @@ test("down in the moat, its walls can't be walked up", async ({ page }) => {
   )
   expect(await page.evaluate(() => window.__bv?.strikes)).toBe(0)
 })
+
+test('a slurm in the moat squashes underfoot', async ({ page }) => {
+  test.slow()
+  await beginRaid(page)
+  // Down on the floor, by the outer wall, where they drop.
+  await page.evaluate(() => {
+    const castle = window.__bv?.world.castle
+    if (!castle) throw new Error('No castle in the valley')
+    const a = castle.outer[1]
+    const b = castle.outer[2]
+    const mid = { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 }
+    const ox = mid.x - castle.middle.x
+    const oz = mid.z - castle.middle.z
+    const len = Math.hypot(ox, oz)
+    window.__bv?.player.relocate(
+      mid.x - (ox / len) * 8,
+      mid.z - (oz / len) * 8,
+      0
+    )
+  })
+  // Wait for one down and crawling, then stand on the youngest (the
+  // others may be near the end of their lying, about to melt anyway).
+  const crawling = () =>
+    page.evaluate(
+      () =>
+        window.__bv?.world.castle
+          ?.slurms()
+          .filter((s) => s.phase === 'crawling')
+          .at(-1) ?? null
+    )
+  await expect.poll(crawling, { timeout: 60_000 }).not.toBeNull()
+  const slurm = await crawling()
+  if (!slurm) throw new Error('No slurm crawling')
+  await page.evaluate(
+    ({ x, z }) => window.__bv?.player.relocate(x, z, 0),
+    slurm
+  )
+  await expect
+    .poll(() =>
+      page.evaluate(
+        (key) =>
+          window.__bv?.world.castle?.slurms().find((s) => s.key === key)
+            ?.phase ?? 'gone',
+        slurm.key
+      )
+    )
+    .toBe('squashed')
+})

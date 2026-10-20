@@ -4,11 +4,12 @@ import type { Form } from './castle.ts'
 // The concrete of Castle Entropy gone strange, after the Yugoslav
 // spomeniks: a box swollen like a pillow (`pillowBox`, every face bulging
 // out of its edges), and the forms that stand on its concrete roofs
-// (`buildForm`, castle.ts `Form`): a bloated column swelling out of its
-// foot and ribbed, a star of fins like Kosmaj's spikes, a wing of concrete
-// cantilevered like Podgarić's, a boulder split down the middle like
-// Tjentište's. Each is built about its own foot, in metres, faceted for
-// the PS1 look.
+// (`buildForm`, castle.ts `Form`), poured as Villeneuve might have: a
+// monolith, a sheer slab leaning off true with grooves cut across it and
+// a lower twin behind, like a wall of Arrakeen; a star of fins like
+// Kosmaj's spikes; a wing of concrete cantilevered like Podgarić's; a
+// faceted boulder split down the middle like Tjentište's. Each is built
+// about its own foot, in metres, hard-edged for the PS1 look.
 
 // A `w` by `h` by `d` box whose faces swell out by `swell` (a share of
 // each half-size) in their middles and not at all at their edges, the
@@ -55,17 +56,18 @@ export function pillowOut(
 }
 
 // One spomenik's form, about its foot.
+// `shadow` is what a groove's depth looks like: near black.
 export function buildForm(
   form: Form,
   concrete: THREE.Material,
-  steel: THREE.Material
+  shadow: THREE.Material
 ): THREE.Group {
   const group = new THREE.Group()
   group.name = `spomenik-${form.kind}`
   group.position.set(form.x, form.y, form.z)
   switch (form.kind) {
-    case 'bloat':
-      bloat(group, form, concrete, steel)
+    case 'monolith':
+      monolith(group, form, concrete, shadow)
       break
     case 'fins':
       fins(group, form, concrete)
@@ -80,50 +82,58 @@ export function buildForm(
   return group
 }
 
-// A column swelling out of its foot like a seed pod and drawn in at the
-// top, steel ribs down it, leaning.
-function bloat(
+// A sheer slab leaning off true on a low plinth, its face cut across by
+// deep grooves and its top sheared off at an angle, a lower twin standing
+// behind it at a step's remove, the two like the walls of something too
+// big to see whole.
+function monolith(
   group: THREE.Group,
-  form: Extract<Form, { kind: 'bloat' }>,
+  form: Extract<Form, { kind: 'monolith' }>,
   concrete: THREE.Material,
-  steel: THREE.Material
+  shadow: THREE.Material
 ): void {
-  const steps = 12
-  const profile: THREE.Vector2[] = [new THREE.Vector2(0.01, 0)]
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps
-    const r =
-      form.radius *
-      (0.5 + form.bulge * Math.sin(Math.PI * Math.pow(t, 0.8)) * (1 - 0.35 * t))
-    profile.push(new THREE.Vector2(Math.max(0.2, r), form.h * t))
-  }
-  profile.push(new THREE.Vector2(form.radius * 0.18, form.h + 0.6))
-  profile.push(new THREE.Vector2(0.01, form.h + 0.9))
-  const lathe = new THREE.LatheGeometry(profile, 12)
-  const pod = new THREE.Mesh(lathe, concrete)
-  const lean = new THREE.Group()
-  lean.rotation.z = form.lean
-  lean.add(pod)
-  // The ribs: steel down its swell.
-  for (let k = 0; k < form.ribs; k++) {
-    const turn = (k / form.ribs) * Math.PI * 2
-    for (let i = 1; i < profile.length - 2; i++) {
-      const a = profile[i]
-      const b = profile[i + 1]
-      const from = new THREE.Vector3(
-        Math.cos(turn) * (a.x + 0.15),
-        a.y,
-        Math.sin(turn) * (a.x + 0.15)
-      )
-      const to = new THREE.Vector3(
-        Math.cos(turn) * (b.x + 0.15),
-        b.y,
-        Math.sin(turn) * (b.x + 0.15)
-      )
-      lean.add(beam(from, to, 0.25, steel))
+  const turn = new THREE.Group()
+  turn.rotation.y = form.yaw
+  const plinth = new THREE.Mesh(
+    new THREE.BoxGeometry(form.w + 2, 0.8, form.depth * 3 + 2),
+    concrete
+  )
+  plinth.position.y = 0.4
+  turn.add(plinth)
+  const slab = (w: number, h: number, z: number, lean: number) => {
+    // The sheared top: one corner higher than the other.
+    const shape = new THREE.Shape([
+      new THREE.Vector2(-w / 2, 0),
+      new THREE.Vector2(w / 2, 0),
+      new THREE.Vector2(w / 2, h * 0.86),
+      new THREE.Vector2(-w / 2, h),
+    ])
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      depth: form.depth,
+      bevelEnabled: false,
+    })
+    geometry.translate(0, 0, -form.depth / 2)
+    const pivot = new THREE.Group()
+    pivot.position.set(0, 0.8, z)
+    pivot.rotation.x = lean
+    pivot.add(new THREE.Mesh(geometry, concrete))
+    // The grooves, dark and deep across both faces.
+    for (let g = 1; g <= form.grooves; g++) {
+      const y = (g / (form.grooves + 1)) * h * 0.82
+      for (const side of [-1, 1]) {
+        const groove = new THREE.Mesh(
+          new THREE.BoxGeometry(w * 0.92, 0.12, 0.08),
+          shadow
+        )
+        groove.position.set(0, y, (side * form.depth) / 2)
+        pivot.add(groove)
+      }
     }
+    turn.add(pivot)
   }
-  group.add(lean)
+  slab(form.w, form.h, 0, form.lean)
+  slab(form.w * 0.7, form.h * 0.62, -form.depth * 1.8, form.lean * 0.5)
+  group.add(turn)
 }
 
 // A star of fins standing round a core, each a spike rising from its outer
@@ -198,53 +208,36 @@ function wing(
   group.add(turn)
 }
 
-// A boulder split down the middle, its halves leaning apart.
+// A boulder split down the middle, its halves leaning apart: each half a
+// faceted block, flat on the cut, broad at the shoulder and sheared to a
+// blunt point.
 function split(
   group: THREE.Group,
   form: Extract<Form, { kind: 'split' }>,
   concrete: THREE.Material
 ): void {
-  const steps = 10
-  const profile: THREE.Vector2[] = []
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps
-    const r =
-      form.radius *
-      Math.pow(Math.sin(Math.PI * t), 0.6) *
-      (1 + 0.18 * Math.sin(3 * Math.PI * t))
-    profile.push(new THREE.Vector2(Math.max(0.01, r), form.h * t))
-  }
+  const r = form.radius
+  const shape = new THREE.Shape([
+    new THREE.Vector2(0, 0),
+    new THREE.Vector2(r * 0.9, 0),
+    new THREE.Vector2(r * 1.15, form.h * 0.38),
+    new THREE.Vector2(r * 0.75, form.h * 0.82),
+    new THREE.Vector2(0.2, form.h),
+    new THREE.Vector2(0, form.h * 0.96),
+  ])
+  const half = new THREE.ExtrudeGeometry(shape, {
+    depth: r * 1.6,
+    bevelEnabled: false,
+  })
+  half.translate(0, 0, -r * 0.8)
   const turn = new THREE.Group()
   turn.rotation.y = form.yaw
   for (const side of [-1, 1]) {
-    const half = new THREE.LatheGeometry(
-      profile,
-      8,
-      side > 0 ? 0 : Math.PI,
-      Math.PI
-    )
     const mesh = new THREE.Mesh(half, concrete)
+    mesh.scale.x = side
     mesh.position.x = (side * form.gap) / 2
-    mesh.rotation.z = -side * 0.2
+    mesh.rotation.z = -side * 0.12
     turn.add(mesh)
   }
   group.add(turn)
-}
-
-function beam(
-  a: THREE.Vector3,
-  b: THREE.Vector3,
-  size: number,
-  material: THREE.Material
-): THREE.Mesh {
-  const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(size, a.distanceTo(b), size),
-    material
-  )
-  mesh.position.copy(a).add(b).multiplyScalar(0.5)
-  mesh.quaternion.setFromUnitVectors(
-    new THREE.Vector3(0, 1, 0),
-    b.clone().sub(a).normalize()
-  )
-  return mesh
 }

@@ -12,6 +12,8 @@ import { mulberry32, range } from './rng.ts'
 
 export interface CraneRig {
   group: THREE.Group
+  // The hook at the cable's end, for the slurms that drop off it.
+  hook: THREE.Object3D
   update(t: number): void
 }
 
@@ -187,5 +189,5 @@ export function buildCrane(seed: number, reach = 40): CraneRig {
   }
   update(0)
   setMotion(group, update)
-  return { group, update }
+  return { group, hook, update }
 }

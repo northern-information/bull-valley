@@ -8,24 +8,32 @@ import { mazeToWorld } from './maze.ts'
 import {
   craneSpots,
   fireEscapes,
+  inChannel,
   MOAT,
   moatEdges,
   moatWalls,
   trickle,
 } from './moat.ts'
+import { moatSlurmsAt } from './moatslurms.ts'
+import { buildSlurm } from './slurmmodel.ts'
+import { treads, underfoot } from './slurms.ts'
 import type { CastleRig, CraneRig, MoatRig } from './assets.ts'
 import type { Ground } from './ground.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
 import type { MazePlace } from './maze.ts'
 import type { FireEscape } from './moat.ts'
+import type { MoatSlurm, MoatSource } from './moatslurms.ts'
+import type { Cue } from './sfx.ts'
+import type { Feet } from './slurms.ts'
 import type { Walls } from './walls.ts'
 
 // Castle Entropy placed (moat.ts, castle.ts): the moat already cut into the
 // terrain (world.ts carves it before anything stands), its fire escapes
 // registered on the Ground flight by flight and their rails, the rim's
 // ledge and the island's edge on the Walls, the moat drawn, the cranes on
-// the rim, and today's castle floating over the island, made anew when the
-// day turns.
+// the rim, the slurms dropping off the edges and the cranes' hooks into
+// the channel (moatslurms.ts), and today's castle floating over the
+// island, made anew when the day turns.
 
 export interface CastleSite {
   group: THREE.Group
@@ -39,11 +47,15 @@ export interface CastleSite {
   // The fire escapes, as the Ground has them.
   stairs: FireEscape[]
   // `t` the shared clock in seconds, `day` its Central day: the castle
-  // bobs and its beams turn wherever the raider is; the moat and the
-  // cranes move only `near` it. A new day builds a new castle.
-  update(t: number, day: string, near: boolean): void
+  // bobs and its beams turn wherever the raider is; the moat, the cranes
+  // and the slurms move only `near` it, squashed under any of `feet`
+  // (slurms.ts `treads`), and the frame's sounds come back. A new day
+  // builds a new castle.
+  update(t: number, day: string, near: boolean, feet: readonly Feet[]): Cue[]
   // Today's castle.
   day(): string
+  // The moat's slurms as the last frame drew them.
+  slurms(): readonly MoatSlurm[]
 }
 
 export function buildCastleSite(
@@ -94,7 +106,92 @@ export function buildCastleSite(
     return crane
   })
 
-  // The castle's base floats over the highest of the island's edge.
+  // Where the slurms drop from: just inside the channel every few metres
+  // under the rim and the island's edge (crawling off from the wall, and
+  // never where a fire escape would catch them), then the cranes' hooks.
+  const sources: MoatSource[] = []
+  const atFloor = (x: number, z: number) => ground.at(x, z) < floor + 1
+  for (const edge of [edges.outer, edges.island]) {
+    edge.forEach((a, i) => {
+      const b = edge[(i + 1) % edge.length]
+      const len = Math.hypot(b.x - a.x, b.z - a.z)
+      const along = { x: (b.x - a.x) / len, z: (b.z - a.z) / len }
+      for (let d = 2.5; d < len - 2; d += 5) {
+        const on = { x: a.x + along.x * d, z: a.z + along.z * d }
+        for (const side of [1, -1]) {
+          const heading = { x: -along.z * side, z: along.x * side }
+          const x = on.x + heading.x * 0.6
+          const z = on.z + heading.z * 0.6
+          if (!inChannel(place, x, z) || !atFloor(x, z)) continue
+          sources.push({ x, y: raw(on.x, on.z), z, heading })
+        }
+      }
+    })
+  }
+  group.updateMatrixWorld(true)
+  const hooks = cranes
+    .map((crane) => crane.hook.getWorldPosition(new THREE.Vector3()))
+    .filter((p) => inChannel(place, p.x, p.z))
+  for (const p of hooks) {
+    sources.push({ x: p.x, y: p.y - 0.4, z: p.z, heading: null })
+  }
+  const slurms = Array.from({ length: CONFIG.slurms.moat.pool }, () => {
+    const rig = buildSlurm()
+    rig.group.visible = false
+    group.add(rig.group)
+    return rig
+  })
+  // When each was trodden on, by its key; forgotten once it is gone.
+  const trodden = new Map<string, number>()
+  // What each looked like last frame, to hear it land.
+  let phases = new Map<string, string>()
+  let drawn: MoatSlurm[] = []
+  const landY = (x: number, z: number) => ground.at(x, z)
+
+  const stepSlurms = (t: number, feet: readonly Feet[]): Cue[] => {
+    const cues: Cue[] = []
+    const seen = new Map<string, string>()
+    drawn = []
+    const now = moatSlurmsAt(sources, hooks.length, t, landY)
+    slurms.forEach((rig, i) => {
+      let slurm = now[i]
+      rig.group.visible = slurm !== undefined
+      if (!slurm) return
+      if (slurm.phase === 'crawling' && !trodden.has(slurm.key)) {
+        if (treads(slurm, feet)) {
+          trodden.set(slurm.key, t)
+          cues.push({ id: 'slurm-squish', x: slurm.x, z: slurm.z, rate: 1 })
+        }
+      }
+      const stepped = trodden.get(slurm.key)
+      if (stepped !== undefined) {
+        slurm = { ...slurm, ...underfoot(slurm, t - stepped) }
+      }
+      rig.group.visible = slurm.phase !== 'gone'
+      if (phases.get(slurm.key) === 'falling' && slurm.phase === 'crawling') {
+        cues.push({ id: 'slurm-plop', x: slurm.x, z: slurm.z, rate: 1 })
+      }
+      seen.set(slurm.key, slurm.phase)
+      drawn.push(slurm)
+      rig.group.position.set(slurm.x, slurm.y, slurm.z)
+      rig.group.rotation.set(
+        slurm.phase === 'falling' ? slurm.progress * 5 : 0,
+        slurm.yaw,
+        0
+      )
+      rig.pose({
+        stretch: slurm.stretch,
+        tooth: slurm.tooth,
+        splat: slurm.phase === 'squashed' ? slurm.progress : null,
+      })
+    })
+    for (const key of trodden.keys()) {
+      if (!seen.has(key)) trodden.delete(key)
+    }
+    phases = seen
+    return cues
+  }
+
   // The castle's base floats over the highest ground on the island, its
   // middle and its edge both.
   const ring = MOAT.island.map((p) => [p.x, p.z] as [number, number])
@@ -120,7 +217,12 @@ export function buildCastleSite(
   let castle: CastleRig = buildCastle(castleOf(today))
   holder.add(castle.group)
 
-  const update = (t: number, day: string, near: boolean) => {
+  const update = (
+    t: number,
+    day: string,
+    near: boolean,
+    feet: readonly Feet[]
+  ): Cue[] => {
     if (day !== today) {
       holder.remove(castle.group)
       castle.dispose()
@@ -129,9 +231,14 @@ export function buildCastleSite(
       holder.add(castle.group)
     }
     castle.update(t)
-    if (!near) return
+    if (!near) {
+      for (const rig of slurms) rig.group.visible = false
+      drawn = []
+      return []
+    }
     moat.update(t)
     for (const crane of cranes) crane.update(t)
+    return stepSlurms(t, feet)
   }
 
   return {
@@ -144,5 +251,6 @@ export function buildCastleSite(
     stairs,
     update,
     day: () => today,
+    slurms: () => drawn,
   }
 }

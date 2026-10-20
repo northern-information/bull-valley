@@ -9,8 +9,9 @@
 // rose window in a gable, pinnacles at the corners, flying buttresses
 // from the low roofs to the tall, gargoyles; the rest are concrete gone
 // strange, swollen like a pillow (`swell`) and crowned with the forms of
-// the Yugoslav spomeniks (`Form`: a bloated ribbed column, a star of
-// fins, a cantilevered wing, a split boulder). Spires stand on the
+// the Yugoslav spomeniks as Villeneuve might have poured them (`Form`: a
+// leaning grooved monolith, a star of fins, a cantilevered wing, a
+// faceted boulder split in two). Spires stand on the
 // highest, the keep's the cathedral's own, the craggy rock it floats on
 // hangs under it all, and one lighthouse stands at its edge, whose blue
 // beam turns on the shared clock (`lighthouseAngle`).
@@ -45,21 +46,24 @@ export interface Mass {
 }
 
 // A spomenik's form, standing at (x, y, z) on a concrete roof or the slab:
-// a bloated column swelling out of `radius` by `bulge`, ribbed and leaning;
+// a monolith, a slab `w` wide, `h` tall and `depth` thick, leaning `lean`
+// off true and turned `yaw`, `grooves` cut across its face, a lower twin
+// behind it;
 // a star of `count` fins reaching out `reach` and up `h`; a wing, a slab
 // curved like a crescent cantilevered `span` across at `tilt`; or a
 // boulder split down the middle, its halves `gap` apart.
 export type Form =
   | {
-      kind: 'bloat'
+      kind: 'monolith'
       x: number
       y: number
       z: number
-      radius: number
+      w: number
       h: number
-      bulge: number
-      ribs: number
+      depth: number
       lean: number
+      yaw: number
+      grooves: number
     }
   | {
       kind: 'fins'
@@ -93,7 +97,7 @@ export type Form =
 
 export type FormKind = Form['kind']
 export const FORM_KINDS: readonly FormKind[] = [
-  'bloat',
+  'monolith',
   'fins',
   'wing',
   'split',
@@ -471,15 +475,16 @@ function formOf(
   rng: Rng
 ): Form {
   switch (kind) {
-    case 'bloat':
+    case 'monolith':
       return {
         kind,
         ...at,
-        radius: room * (0.4 + rng() * 0.2),
-        h: 7 + rng() * 9,
-        bulge: 0.9 + rng() * 0.7,
-        ribs: between(rng, 4, 12),
-        lean: (rng() * 2 - 1) * 0.15,
+        w: room * (0.9 + rng() * 0.5),
+        h: 14 + rng() * 14,
+        depth: 1.2 + rng() * 1.4,
+        lean: 0.05 + rng() * 0.16,
+        yaw: rng() * Math.PI * 2,
+        grooves: between(rng, 4, 12),
       }
     case 'fins':
       return {

@@ -52,6 +52,7 @@ import type { DailyWire, PeerStateWire } from './protocol.ts'
 import type { Cue } from './sfx.ts'
 import type { AloneFrame, ShadowCards } from './shadowcards.ts'
 import type { HeadlightsSent } from './shadowmen.ts'
+import type { Feet as SlurmFeet } from './slurms.ts'
 import type { Targets } from './targets.ts'
 import type { Pickup } from './world.ts'
 
@@ -190,6 +191,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
 
   // The slurms' sounds, heard with the shadows' on the next frame.
   let slurmCues: Cue[] = []
+  let moatCues: Cue[] = []
   // A hard landing for the valley to hear, after where we came down.
   let landing: number | null = null
   let last = performance.now()
@@ -453,7 +455,13 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     bursts.update(dt)
     // What the shadowmen and the Caretaker sound like this frame.
     sfx?.hear(
-      [...swarm.heard.cues, ...keeper.heard.cues, ...tunnelCues, ...slurmCues],
+      [
+        ...swarm.heard.cues,
+        ...keeper.heard.cues,
+        ...tunnelCues,
+        ...slurmCues,
+        ...moatCues,
+      ],
       [...swarm.heard.holds, ...keeper.heard.holds],
       (x, z) => world.ground.at(x, z)
     )
@@ -462,7 +470,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   }
 
   // What stands in the valley and moves on its own clock.
-  const stepScenery = ({ now, time }: FrameClock) => {
+  const stepScenery = ({ now, time }: FrameClock, feetY: number) => {
     // Gron's rain falls on its own clock, Moab's fire burns on it too, the
     // wreck smoulders and blinks on it, and the plaza's last tube flickers.
     if (world.gronRig && world.gron && live(world.gron)) {
@@ -506,7 +514,12 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     const castle = world.castle
     if (castle) {
       const shared = net.clock.serverNow(now)
-      castle.update(shared / 1000, dayKey(shared), live(castle.middle, 120))
+      moatCues = castle.update(
+        shared / 1000,
+        dayKey(shared),
+        live(castle.middle, 120),
+        raidersFeet(feetY)
+      )
     }
   }
 
@@ -691,7 +704,20 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     }
   }
 
-  const followPlayer = (now: number) => {
+  // Every raider on foot this client sees, where their feet are: ours,
+  // and each peer's last frame. A slurm under any of them is squashed.
+  const raidersFeet = (feetY: number): SlurmFeet[] => {
+    const feet: SlurmFeet[] = s.aboard
+      ? []
+      : [{ x: player.pos.x, y: feetY, z: player.pos.z }]
+    for (const peer of peers.list()) {
+      const at = peer.next
+      if (at && !at.riding) feet.push({ x: at.x, y: at.y, z: at.z })
+    }
+    return feet
+  }
+
+  const followPlayer = (now: number, feetY: number) => {
     // The stocked shelves follow the player to the nearest store.
     // With them the slurms off its dripline, on the valley's clock so
     // everyone at that Citgo sees the same drop (slurms.ts).
@@ -699,7 +725,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       player.pos.x,
       player.pos.z,
       s.storeStock,
-      (net.online ? net.clock.serverNow(now) : Date.now()) / 1000
+      (net.online ? net.clock.serverNow(now) : Date.now()) / 1000,
+      raidersFeet(feetY)
     )
     slurmCues = shelves.cues
     if (shelves.curse) actions.npcSays('carlsten', shelves.curse)
@@ -837,7 +864,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     const renderAt = clock.now - CONFIG.net.interpolateMs
     const alone = aloneFrame(clock.now, feet, lit)
     const { swarm, keeper } = stepShadows(clock, alone, renderAt)
-    stepScenery(clock)
+    stepScenery(clock, feet.feetY)
     const portalNow = stepPortals(clock)
     drawMap()
     feelStrikes(clock.now, alone)
@@ -847,7 +874,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     stepPhone(clock.dt, portalNow)
     discoverBook(tick, swarm, keeper)
     pulsePickups(clock.time)
-    followPlayer(clock.now)
+    followPlayer(clock.now, feet.feetY)
     const bushes = bushSpots(clock.now)
     resolveE(bushes)
     showE(clock.now, bushes)

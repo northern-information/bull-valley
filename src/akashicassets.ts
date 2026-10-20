@@ -718,7 +718,7 @@ function sampleForm(kind: FormKind): THREE.Object3D {
     return buildForm(
       { ...form, x: 0, y: 0, z: 0 },
       concrete,
-      lambert({ color: '#4a4f52' })
+      lambert({ color: '#0c0d10' })
     )
   }
   return new THREE.Group()

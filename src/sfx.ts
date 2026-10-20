@@ -32,6 +32,7 @@ export type SfxId =
   | 'caretaker-lunge'
   | 'caretaker-burned'
   | 'slurm-plop'
+  | 'slurm-squish'
   | 'bat-smash'
 
 // A placeholder: a wave swept from one pitch to another (Hz) over its
@@ -202,6 +203,14 @@ export const SFX: Record<SfxId, SfxSpec> = {
     takes: 0,
     gain: 0.6,
     placeholder: { wave: 'sine', from: 180, to: 60, seconds: 0.18 },
+  },
+  // A raider's foot coming down on one.
+  'slurm-squish': {
+    positional: true,
+    loop: false,
+    takes: 0,
+    gain: 0.7,
+    placeholder: { wave: 'noise', from: 600, to: 40, seconds: 0.25 },
   },
   // Carlsten's bat coming down on one.
   'bat-smash': {

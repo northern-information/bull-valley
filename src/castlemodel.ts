@@ -90,28 +90,29 @@ export function buildCastle(layout: CastleLayout): CastleRig {
   const rng = mulberry32(0xca57e)
   const concrete = lambert({ map: concreteTexture('#7d7b77') })
   const pale = lambert({ map: concreteTexture('#8f8c86') })
-  const stone = lambert({ map: concreteTexture('#4d4c55') })
-  const darkStone = lambert({ color: '#2f2e35' })
+  const stone = lambert({ map: concreteTexture('#4e4c4a') })
+  const darkStone = lambert({ color: '#2e2d2c' })
   const rock = lambert({ color: '#3a3631' })
   const slit = lambert({
-    color: '#0c0d10',
-    emissive: new THREE.Color('#3a2a14'),
+    color: '#0c0b0a',
+    emissive: new THREE.Color('#2e2216'),
     emissiveIntensity: 0.25,
   })
-  const metal = lambert({ color: '#4a4f52' })
+  const metal = lambert({ color: '#4a4947' })
   const pipe = lambert({ color: '#5a4636' })
   // The spomeniks' concrete, seen from inside a split boulder too.
   const formConcrete = lambert({
     map: concreteTexture('#8f8c86'),
     side: THREE.DoubleSide,
   })
-  const slate = lambert({ color: '#26262c' })
-  // Stained glass, lit faintly from within: red, blue and amber by turns.
-  const glass = ['#7a1a1a', '#1d2f6e', '#7a5a1a'].map((color) =>
+  const slate = lambert({ color: '#262524' })
+  // The old glass, gone the colour of smoke and dirt, lit faintly from
+  // within: grey, umber and near black by turns.
+  const glass = ['#33302d', '#3f3122', '#1c1b1a'].map((color) =>
     lambert({
-      color: '#0c0c10',
+      color: '#0c0b0a',
       emissive: new THREE.Color(color),
-      emissiveIntensity: 0.9,
+      emissiveIntensity: 0.7,
       side: THREE.DoubleSide,
     })
   )
@@ -356,7 +357,7 @@ export function buildCastle(layout: CastleLayout): CastleRig {
   // The spomeniks' forms on the concrete roofs.
   for (const form of layout.forms) {
     onMass(form.on)
-    into.add(buildForm(form, formConcrete, metal))
+    into.add(buildForm(form, formConcrete, slit))
   }
 
   // The pinnacles at the stone roofs' corners.
@@ -645,8 +646,8 @@ export function buildCastle(layout: CastleLayout): CastleRig {
   const seed = seedOf(layout.day)
   const dummy = new THREE.Object3D()
   const shade = new THREE.Color()
-  const fresh = new THREE.Color('#77757a')
-  const dark = new THREE.Color('#141418')
+  const fresh = new THREE.Color('#767472')
+  const dark = new THREE.Color('#151413')
   const place = (mesh: THREE.InstancedMesh, i: number, f: Fragment | null) => {
     if (!f || f.fade >= 1) {
       dummy.scale.setScalar(0)

@@ -913,6 +913,26 @@ export const CONFIG = {
     splatSeconds: 5,
     // How close you must be to hear him curse in the log.
     hearRadius: 30,
+    // A raider's feet this close (and this near its height) squash a
+    // slurm that is down and crawling, the Citgo's and the moat's alike.
+    treadReach: 0.5,
+    treadHeight: 0.9,
+    // The moat's (moatslurms.ts): a drop every slot, off the rim, the
+    // island's edge or a crane's hook (`craneShare` of them), each slurm
+    // crawling longer and slower, lying a while, then melting into the
+    // concrete; no one comes out with a bat.
+    moat: {
+      slotSeconds: 20,
+      jitterSeconds: 10,
+      maxCount: 4,
+      multiChance: 0.5,
+      craneShare: 0.35,
+      crawlSpeed: 0.1,
+      crawlSeconds: 7,
+      lingerSeconds: 18,
+      // The rigs drawn at once, more than the slots overlapping hold.
+      pool: 14,
+    },
   },
   moab: {
     // Where Moab Coldë's horse stands at every Citgo, station-local like

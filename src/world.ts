@@ -71,6 +71,7 @@ import type { PickupKind } from './items.ts'
 import type { MazePlace } from './maze.ts'
 import type { CroftRig, PlazaRig } from './plazasite.ts'
 import type { Cue } from './sfx.ts'
+import type { Feet } from './slurms.ts'
 import type { StoreOrigin, WorldFacing } from './store.ts'
 import type { Streetlights } from './streetlights.ts'
 
@@ -105,12 +106,14 @@ export interface ShelfDisplay {
   // CONFIG.store.displayRange, and show what is left on its shelves.
   // stocks: one per station, indexed like fuelPoints. `seconds` is the
   // shared clock, for the slurms off its dripline (slurms.ts): what they
-  // sound like this frame, and Carlsten's curse when he says it.
+  // sound like this frame, and Carlsten's curse when he says it; `feet`,
+  // every raider on foot this client sees, squash them underfoot.
   update(
     x: number,
     z: number,
     stocks: readonly ShopStock[],
-    seconds: number
+    seconds: number,
+    feet: readonly Feet[]
   ): { cues: Cue[]; curse: string | null }
   // Unit `unit` of `kind` at `station` (its slot on the facing), or null
   // when the display is parked elsewhere.

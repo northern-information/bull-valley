@@ -10,6 +10,8 @@ import {
   slotStart,
   slurmEvent,
   slurmScene,
+  treads,
+  underfoot,
 } from '../../src/slurms.ts'
 import { STORE_LAYOUT } from '../../src/store.ts'
 import type { SlurmEvent } from '../../src/slurms.ts'
@@ -189,5 +191,42 @@ describe('the curse', () => {
     const lines = new Set([...events()].map(curseOf))
     expect(lines.size).toBe(8)
     expect(lines.has(copy('slurms.curse_1'))).toBe(true)
+  })
+})
+
+describe('underfoot', () => {
+  const at = { x: 3, y: 10, z: -2 }
+
+  it('treads on a slurm only with feet close and level with it', () => {
+    const { treadReach, treadHeight } = CONFIG.slurms
+    expect(treads(at, [])).toBe(false)
+    expect(treads(at, [{ x: 3.1, y: 10, z: -2 }])).toBe(true)
+    expect(treads(at, [{ x: 3 + treadReach * 1.5, y: 10, z: -2 }])).toBe(false)
+    // On a deck over it, or down a level, misses.
+    expect(treads(at, [{ x: 3, y: 10 + treadHeight * 2, z: -2 }])).toBe(false)
+    expect(
+      treads(at, [
+        { x: 50, y: 10, z: 50 },
+        { x: 3, y: 10.2, z: -2.2 },
+      ])
+    ).toBe(true)
+  })
+
+  it('leaves a splat that fades and goes where it was trodden', () => {
+    const crawling = {
+      phase: 'crawling' as const,
+      x: 1,
+      z: 2,
+      progress: 0,
+      yaw: 0.5,
+      stretch: 0.4,
+      tooth: 1,
+    }
+    const fresh = underfoot(crawling, 0)
+    expect(fresh).toMatchObject({ phase: 'squashed', x: 1, z: 2, progress: 0 })
+    expect(fresh.tooth).toBe(0)
+    const half = underfoot(crawling, CONFIG.slurms.splatSeconds / 2)
+    expect(half.progress).toBeCloseTo(0.5)
+    expect(underfoot(crawling, CONFIG.slurms.splatSeconds).phase).toBe('gone')
   })
 })
