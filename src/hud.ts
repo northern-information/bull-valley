@@ -103,9 +103,9 @@ export class Hud {
   staticCanvas: HTMLCanvasElement
   reticle: HTMLDivElement
   intro: HTMLDivElement
-  // The overlay's status: paused, or ready to begin.
-  introState: HTMLElement
   beginBtn: HTMLButtonElement
+  // Back to the main menu, beside Resume once the raider has begun.
+  exitBtn: HTMLButtonElement
   // Failed is final: the pause overlay never offers Resume over it.
   beginFailed = false
   // The line to the valley; Begin waits on it.
@@ -206,8 +206,8 @@ export class Hud {
     ui.appendChild(this.reticle)
 
     // Intro / pause overlay, in the keepers' dialogs' frame (npcdialog.ts):
-    // the header, 01 the season, 02 the controls, 03 who is raiding with
-    // their settings, and Begin in the footer.
+    // the header, the season, the controls, who is raiding with their
+    // settings, and Begin (with Exit to Menu once paused) in the footer.
     this.intro = el('div', 'bv-intro')
     this.intro.setAttribute('role', 'dialog')
     this.intro.setAttribute('aria-modal', 'true')
@@ -218,20 +218,19 @@ export class Hud {
           titleId: 'bv-intro-title',
           title: copy('intro.title'),
           eyebrow: copy('intro.eyebrow'),
-          where: copy('intro.where'),
-          status:
-            '<span class="bv-npc-eyebrow bv-npc-tag" data-bv="intro-state"></span>',
+          where: '',
+          status: '',
           speech: false,
         })}
         <section class="bv-npc-section" data-bv="intro-season">
-          ${sectionHead(1, SEASON_COPY.kicker, 'intro-live')}
+          ${sectionHead(SEASON_COPY.kicker, 'intro-live')}
         </section>
         <section class="bv-npc-section bv-npc-side" data-bv="intro-controls">
-          ${sectionHead(2, copy('intro.controls_label'), 'intro-keys')}
+          ${sectionHead(copy('intro.controls_label'), 'intro-keys')}
           <table class="bv-controls" aria-label="${copy('intro.controls_label')}" data-bv="controls"></table>
         </section>
         <section class="bv-npc-section" data-bv="intro-as" hidden>
-          ${sectionHead(3, copy('intro.raider'), 'intro-raider')}
+          ${sectionHead(copy('intro.raider'), 'intro-raider')}
           <div class="bv-npc-grid">
             <p class="bv-intro-as bv-npc-c6">
               <span class="bv-npc-label">${copy('intro.raiding_as')}</span>
@@ -245,6 +244,7 @@ export class Hud {
         <footer class="bv-npc-foot">
           <p class="bv-npc-label">${copy('intro.fine')}</p>
           <div class="bv-intro-actions">
+            <button type="button" class="bv-btn bv-npc-btn" data-bv="exit-menu" hidden>${copy('intro.exit_menu')}</button>
             <button type="button" class="bv-btn bv-btn--primary bv-btn--stack bv-npc-btn" data-bv="begin"></button>
           </div>
         </footer>
@@ -270,9 +270,9 @@ export class Hud {
     find<HTMLElement>(this.intro, '[data-bv="intro-season"]').append(
       this.season.card
     )
-    this.introState = find(this.intro, '[data-bv="intro-state"]')
     ui.appendChild(this.intro)
     this.beginBtn = find(this.intro, '[data-bv="begin"]')
+    this.exitBtn = find(this.intro, '[data-bv="exit-menu"]')
     this.beginBtn.replaceChildren(
       ...Object.entries(BEGIN_LABELS).map(([state, label]) => {
         const span = text('span', label)
@@ -523,27 +523,19 @@ export class Hud {
     if (show) this.showConnection()
   }
 
-  // The line to the valley changed: Begin and the status say so.
+  // The line to the valley changed: Begin says so.
   setConnection(connection: Connection): void {
     this.connection = connection
     this.showConnection()
   }
 
+  // Begin names the line's state. Exit to Menu shows once paused, but not
+  // when the line is lost, since Begin then goes back to the menu itself.
   private showConnection(): void {
     const { connection } = this
     this.setBegin(
       connection === 'online' ? (this.paused ? 'resume' : 'play') : connection
     )
-    this.introState.textContent = copy(
-      this.connection === 'connecting'
-        ? 'intro.connecting'
-        : this.connection === 'reconnecting'
-          ? 'intro.reconnecting'
-          : this.connection === 'lost'
-            ? 'intro.lost'
-            : this.paused
-              ? 'intro.paused'
-              : 'intro.ready'
-    )
+    this.exitBtn.hidden = !this.paused || connection === 'lost'
   }
 }

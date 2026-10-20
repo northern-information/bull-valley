@@ -17,6 +17,7 @@ import { copy } from './copy.ts'
 import { LOCKER_TAB } from './packgrid.ts'
 import { SEASON } from './season.ts'
 import { formatCash } from './store.ts'
+import { exitToMenu } from './titles.ts'
 import type { Actions } from './actions.ts'
 import type { Game } from './game.ts'
 
@@ -52,7 +53,7 @@ export function wirePointer(game: Game): () => void {
     // Given up on the valley: Begin goes back to the menu. Nothing plays
     // until the line is open.
     if (hud.connection === 'lost') {
-      window.location.reload()
+      exitToMenu()
       return
     }
     if (hud.connection !== 'online') return

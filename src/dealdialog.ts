@@ -87,7 +87,7 @@ export function openDealDialog(options: DealDialogOptions): Promise<void> {
         speech: true,
       })}
       <section class="bv-npc-section">
-        ${sectionHead(1, copy('dealer.pay_with'), 'deal-rate')}
+        ${sectionHead(copy('dealer.pay_with'), 'deal-rate')}
         <div class="bv-npc-chips" role="radiogroup" aria-label="${copy('dealer.pay_with')}" data-bv="deal-pay"></div>
         <div class="bv-npc-empty" data-bv="deal-none">
           <p class="bv-npc-say">${copy('dealer.nothing_to_pay')}</p>
@@ -95,7 +95,7 @@ export function openDealDialog(options: DealDialogOptions): Promise<void> {
         </div>
       </section>
       <section class="bv-npc-section bv-npc-side">
-        ${sectionHead(2, copy('dealer.goods'), 'deal-restocks')}
+        ${sectionHead(copy('dealer.goods'), 'deal-restocks')}
         <div class="bv-npc-table">
           <div class="bv-npc-grid bv-npc-row bv-npc-row--head">
             <span class="bv-npc-label bv-npc-c3">${copy('dealer.good')}</span>
@@ -107,7 +107,7 @@ export function openDealDialog(options: DealDialogOptions): Promise<void> {
         </div>
       </section>
       <section class="bv-npc-section" data-bv="deal-quest">
-        ${sectionHead(3, copy('quests.rose_title'), 'deal-prize')}
+        ${sectionHead(copy('quests.rose_title'), 'deal-prize')}
         <div class="bv-npc-steps" data-bv="deal-steps">${steps}</div>
         <div class="bv-npc-grid">
           <p class="bv-npc-say bv-npc-c8" data-bv="deal-quest-line"></p>

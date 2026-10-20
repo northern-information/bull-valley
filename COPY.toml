@@ -29,13 +29,8 @@ And beware the shadowmen.""", by = "tyler" }
 controls_label = { text = "Controls", by = "ai" }
 fine = { text = "Requires a keyboard and mouse.", by = "ai" }
 raiding_as = { text = "Raiding as", by = "ai" }
-eyebrow = { text = "The Valley", by = "ai" }
-where = { text = "· Bull Valley, Illinois", by = "ai" }
-paused = { text = "Paused", by = "ai" }
-ready = { text = "Ready", by = "ai" }
-connecting = { text = "Reaching the valley", by = "ai" }
-reconnecting = { text = "Signal lost", by = "ai" }
-lost = { text = "Out of reach", by = "ai" }
+eyebrow = { text = "Bull Valley Shadow Wars", by = "ai" }
+exit_menu = { text = "Exit to Menu", by = "ai" }
 raider = { text = "Raider", by = "ai" }
 account = { text = "Account", by = "ai" }
 sign_out = { text = "Sign Out", by = "ai" }
