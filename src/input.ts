@@ -49,6 +49,13 @@ export function wirePointer(game: Game): () => void {
     hud.showIntro(false)
   }
   const engagePointer = () => {
+    // Given up on the valley: Begin goes back to the menu. Nothing plays
+    // until the line is open.
+    if (hud.connection === 'lost') {
+      window.location.reload()
+      return
+    }
+    if (hud.connection !== 'online') return
     try {
       // Older browsers return undefined instead of a promise.
       const request: Promise<void> | undefined = hud.canvas.requestPointerLock()

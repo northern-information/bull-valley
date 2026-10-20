@@ -322,8 +322,7 @@ export const CONFIG = {
     jitter: 0.06,
   },
   store: {
-    // A new account's wallet, in cents (worker/packs.ts). Played alone,
-    // every visit starts with this much.
+    // A new account's wallet, in cents (worker/packs.ts).
     startingCash: 4000,
     // Units of every item on each Citgo's shelves when the day turns.
     perItem: 3,
@@ -471,8 +470,12 @@ export const CONFIG = {
     // so two frames always bracket the moment being drawn.
     sendHz: 10,
     interpolateMs: 150,
-    // Give the first connection this long before playing offline.
+    // How long Dial-Up's modem waits on the first connection before it
+    // says NO CARRIER.
     connectTimeoutMs: 2000,
+    // How long the 3D valley tries to reach the valley again after a drop
+    // before the overlay offers the way back to the menu.
+    giveUpMs: 60_000,
     // Clock-offset pings once online.
     pingMs: 10000,
     // The valley lets go of a socket it has heard nothing from (no ping, no

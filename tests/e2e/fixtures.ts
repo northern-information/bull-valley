@@ -144,10 +144,12 @@ export async function beginRaid(
   await expect
     .poll(() => page.evaluate(() => !!window.__bv), { timeout: 30_000 })
     .toBe(true)
-  // The valley answers (or does not) within CONFIG.net.connectTimeoutMs.
+  // Nothing plays without the valley: Begin waits for its welcome.
   await expect
-    .poll(() => page.evaluate(() => window.__bv?.net.status))
-    .not.toBe('connecting')
+    .poll(() => page.evaluate(() => window.__bv?.net.status), {
+      timeout: 30_000,
+    })
+    .toBe('online')
   // Raiders are on foot from the start: a quiet valley, where only the
   // shadowmen a spec places come for anyone.
   await page.evaluate(() => window.__bv?.calm())

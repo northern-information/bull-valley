@@ -355,8 +355,7 @@ const SPIDERLING_RATE = 1.7
 const near = (at: XZ, player: XZ, hearing: number) =>
   Math.hypot(at.x - player.x, at.z - player.z) <= hearing
 
-// The windups that began between one frame of the valley (or one step
-// played alone) and the next: read as the frames land, not as they are
+// The windups that began between one frame of the valley and the next: read as the frames land, not as they are
 // drawn, so a windup shorter than a drawn frame is still heard.
 export function windupsBegun(
   was: ReadonlyMap<number, number>,

@@ -3,7 +3,6 @@
 // dev builds, so production bundles never carry it.
 
 import { unitToWorld } from './coords.ts'
-import { hurry } from './marx.ts'
 import { isSfxId, SFX_IDS } from './sfx.ts'
 import { levelsAt } from './wardlevels.ts'
 import type { Actions } from './actions.ts'
@@ -66,11 +65,11 @@ interface BvHook {
     readonly id: string | null
     peers(): Peer[]
   }
-  // The shared world as the valley last sent it; null offline.
+  // The shared world as the valley last sent it; null before it has.
   readonly valley: WorldWire | null
-  // Matthew Marx's truck: the valley's, or this client's own alone.
-  readonly marx: TruckState
-  // The berry bushes as the valley last described them; null offline.
+  // Matthew Marx's truck, the valley's; null before it has said.
+  readonly marx: TruckState | null
+  // The berry bushes as the valley last described them; null before.
   readonly daily: DailyWire | null
   readonly aboard: boolean
   // What the glow rings right now (glow.ts); null for nothing.
@@ -91,23 +90,22 @@ interface BvHook {
   readonly friends: readonly FriendWire[]
   // The pack as this client holds it: the valley's last word, plus guesses.
   readonly inventory: Inventory
-  // What lies dropped: the valley's, or this raider's alone.
+  // What lies dropped, the valley's.
   readonly drops: readonly Drop[]
-  // The shadowmen's tombstones: the valley's, or this raider's alone.
+  // The shadowmen's tombstones, the valley's.
   readonly graves: readonly Grave[]
-  // The bodies lying in the valley (the valley's, or this raider's alone),
-  // and which of them are this account's.
+  // The bodies lying in the valley, and which of them are this account's.
   readonly corpses: readonly CorpseWire[]
   readonly myCorpses: readonly number[]
   // What the account's locker holds, and whether the pack is open at it.
   readonly stash: Inventory
   readonly lockerOpen: boolean
-  // The account's Cabbage Stand as the valley last said (null alone), and
+  // The account's Cabbage Stand as the valley last said (null before), and
   // where the stand stands.
   readonly stand: StandLedger | null
   readonly standAt: XZ | null
   // Rule 28: every Citgo the account has stood at and the last, the Citgo
-  // portals open (the valley's, or this raider's alone), the id of ours
+  // portals open, the id of ours
   // while it stands, and whether the phone is up and the map open.
   readonly citgos: CitgoLog
   readonly portals: readonly Portal[]
@@ -134,14 +132,12 @@ interface BvHook {
   // on the map.
   openPortal(): void
   fastTravel(station: number): void
-  // A shadowman standing still at world (x, z): the valley's, through a
-  // dev frame, or this client's own, played alone.
+  // A shadowman standing still at world (x, z), through a dev frame.
   // A spider instead when `spider` (CONFIG.shadowmen.spider).
   // true for a spider, as it always was, or the kind.
   placeShadowman(x: number, z: number, kind?: boolean | ShadeKind): void
   // The Caretaker moved to world (x, z), formed, its hunt forgotten,
-  // floating still until it has someone to hunt: the valley's, through a
-  // dev frame, or this client's own, played alone.
+  // floating still until it has someone to hunt, through a dev frame.
   placeCaretaker(x: number, z: number): void
   hurryTruck(seconds?: number): void
   // Bring the next drop of slurms at the nearest Citgo to now (this
@@ -210,7 +206,7 @@ export function installDevHook(game: Game, actions: Actions): void {
       return s.world
     },
     get marx() {
-      return s.world?.truck ?? s.aloneTruck
+      return s.world?.truck ?? null
     },
     get daily() {
       return s.daily
@@ -313,38 +309,26 @@ export function installDevHook(game: Game, actions: Actions): void {
       // true is a spider, as it always was.
       const shade: ShadeKind =
         kind === true ? 'spider' : kind === false ? 'man' : kind
-      if (net.online) {
-        net.send(
-          shade === 'man'
-            ? { type: 'dev', op: 'shadowman', x, z }
-            : { type: 'dev', op: 'shadowman', x, z, kind: shade }
-        )
-      } else game.shadowmen.place(x, z, shade)
+      net.send(
+        shade === 'man'
+          ? { type: 'dev', op: 'shadowman', x, z }
+          : { type: 'dev', op: 'shadowman', x, z, kind: shade }
+      )
     },
     placeCaretaker(x: number, z: number) {
-      if (net.online) net.send({ type: 'dev', op: 'caretaker', x, z })
-      else game.caretaker.place(x, z)
+      net.send({ type: 'dev', op: 'caretaker', x, z })
     },
     calm() {
-      if (net.online) net.send({ type: 'dev', op: 'calm' })
-      else game.shadowmen.calm = true
+      net.send({ type: 'dev', op: 'calm' })
     },
     get cosmetics() {
       return s.cosmetics
     },
     grant(kind, count = 1) {
-      if (net.online) net.send({ type: 'dev', op: 'grant', kind, count })
-      else {
-        s.inventory = {
-          ...s.inventory,
-          [kind]: (s.inventory[kind] ?? 0) + count,
-        }
-        actions.refreshBag()
-      }
+      net.send({ type: 'dev', op: 'grant', kind, count })
     },
     setHealth(points) {
-      if (net.online) net.send({ type: 'dev', op: 'health', points })
-      else s.health = points
+      net.send({ type: 'dev', op: 'health', points })
     },
     sfxIds: SFX_IDS,
     sfx(id, x, z) {
@@ -362,14 +346,9 @@ export function installDevHook(game: Game, actions: Actions): void {
       game.world.shelves.holdSlurms(on)
     },
     hurryTruck(seconds = 5) {
-      // In the shared valley the server keeps Marx's day; a dev server
-      // lets a spec bring his next change closer.
-      if (s.world) net.send({ type: 'dev', op: 'hurry', seconds })
-      else {
-        actions.setAloneTruck(
-          hurry(s.aloneTruck, Date.now(), seconds, game.truckRoutes)
-        )
-      }
+      // The server keeps Marx's day; a dev server lets a spec bring his
+      // next change closer.
+      net.send({ type: 'dev', op: 'hurry', seconds })
     },
   }
 }

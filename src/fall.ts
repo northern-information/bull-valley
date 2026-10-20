@@ -3,8 +3,8 @@
 // landing) they leave it and fall (player.ts), and the landing hurts by how
 // far they fell: nothing short of `safe`, then a share of the raider's
 // whole growing to all of it at `lethal`, two stories, and past it. The
-// valley takes the hurt off the account (sharedworld.ts rule 24, `plunge`);
-// played alone, the client does. No three.js, no DOM.
+// valley takes the hurt off the account (sharedworld.ts rule 24, `plunge`).
+// No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
 import { clamp01 } from './math.ts'

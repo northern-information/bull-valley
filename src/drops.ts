@@ -1,8 +1,7 @@
 // Dropped items, pure: how much one drop takes out of what a raider
 // carries, where it lands, and what taking it up leaves, and what the
-// shadowmen and the Caretaker leave behind. sharedworld.ts runs these for
-// the shared valley (rules 11, 12 and 13), actions.ts for the valley played
-// alone. No three.js, no DOM.
+// shadowmen and the Caretaker leave behind. sharedworld.ts runs these
+// (rules 11, 12 and 13). No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
 import { isItemId, leftInOpen } from './items.ts'

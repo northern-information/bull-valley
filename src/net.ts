@@ -5,8 +5,11 @@
 // comes back to the valley), and at once when the page comes back into
 // view or the browser says it is online again. A 4xxx close is the server
 // turning us away, and is final; onRefused hears why (no session, a stale
-// build). If the server never answers, the game plays alone: `ready`
-// resolves 'offline' and nothing else changes. Who we are rides on the
+// build). A ping left unanswered past deadMs means the line is dead though
+// the socket never closed, and it is let go and opened again. `ready`
+// resolves 'offline' when the first connection takes longer than
+// connectTimeoutMs (Dial-Up's modem says NO CARRIER); the 3D valley waits
+// on the status instead, and nothing plays until it is online. Who we are rides on the
 // session cookie, not in the hello, so every open first refreshes the
 // session (beforeOpen); an access cookie lapses in minutes.
 

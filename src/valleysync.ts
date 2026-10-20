@@ -25,7 +25,6 @@ import { pickupLabel } from './interactions.ts'
 import { toInventory } from './inventory.ts'
 import { itemLabel } from './itemcopy.ts'
 import { itemById } from './items.ts'
-import { createTruck } from './marx.ts'
 import { levelUp } from './progression.ts'
 import { CLOSE } from './protocol.ts'
 import {
@@ -56,7 +55,12 @@ export function wireValley(game: Game, actions: Actions): void {
 
   // A lost session is not a lost signal: send the raider back to sign in.
   net.onRefused((code) => {
-    if (code !== CLOSE.unauthenticated) return
+    if (code !== CLOSE.unauthenticated) {
+      // Turned away for good (a stale build, a bad frame): nothing plays,
+      // and the overlay offers the way back to the menu.
+      hud.setConnection('lost')
+      return
+    }
     hud.tell(copy('log.signed_out'))
     setTimeout(() => window.location.reload(), CONFIG.net.signedOutReloadMs)
   })
@@ -186,15 +190,6 @@ export function wireValley(game: Game, actions: Actions): void {
       case 'citgos':
         actions.applyCitgos(msg.citgos)
         return
-    }
-  })
-  let wasOnline = false
-  net.onStatus((status) => {
-    if (status === 'online') {
-      wasOnline = true
-    } else if (status === 'offline') {
-      peers.clear()
-      if (wasOnline) hud.tell(copy('log.signal_lost'))
     }
   })
 
@@ -565,23 +560,38 @@ export function wireValley(game: Game, actions: Actions): void {
       actions.applyDaily(msg)
     }
   })
+  // The line to the valley. Nothing plays while it is down: the raider
+  // is stopped with the pointer free and the overlay saying so while the
+  // client reconnects, and after CONFIG.net.giveUpMs without the valley
+  // the overlay offers the way back to the menu. Peers and the world stay
+  // as last said, frozen, and the welcome that ends the drop puts them
+  // right.
+  let giveUp: ReturnType<typeof setTimeout> | null = null
   net.onStatus((status) => {
-    // The line dropped: the valley's world is no longer ours to follow,
-    // and what we hold plays on alone, the truck from where it stands.
-    if (status === 'offline') {
-      s.world = null
-      // Nothing asked of it will be answered now.
-      s.pending = freshPending()
-      s.known = knownOf(s.book, s.pending.book)
-      if (s.aboard) actions.leaveBed()
-      actions.setAloneTruck(createTruck(Date.now()))
-      actions.followLeg(s.aloneTruck.leg)
-      s.daily = null
-      s.stand = null
-      // The valley's bodies are out of reach; ours alone are drawn.
-      if (s.lockerOpen) actions.closeInventory()
-      actions.showAloneCorpses()
+    if (status === 'online') {
+      if (giveUp !== null) clearTimeout(giveUp)
+      giveUp = null
+      hud.setConnection('online')
+      return
     }
+    if (status !== 'offline' || hud.connection === 'lost') return
+    // Nothing asked of it will be answered now.
+    s.pending = freshPending()
+    s.known = knownOf(s.book, s.pending.book)
+    player.keys.clear()
+    actions.closeInventory()
+    actions.closeBook()
+    actions.closeMap()
+    if (document.pointerLockElement) document.exitPointerLock()
+    if (s.started) {
+      hud.tell(copy('log.signal_lost'))
+      hud.showIntro(true, true)
+    }
+    hud.setConnection(s.started ? 'reconnecting' : 'connecting')
+    giveUp ??= setTimeout(() => {
+      giveUp = null
+      if (!net.online) hud.setConnection('lost')
+    }, CONFIG.net.giveUpMs)
   })
 }
 

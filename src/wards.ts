@@ -84,7 +84,7 @@ export interface Damage {
 }
 
 // What a touch from `by` takes off a raider warded at `levels`, `roll`
-// drawn from 0 to 1 by the caller (the valley, or alone the client): its
+// drawn from 0 to 1 by the caller (the valley): its
 // hit give or take its spread, and the wards' cut of that. A missing roll
 // lands square in the middle.
 export function damageOf(
