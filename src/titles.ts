@@ -13,7 +13,7 @@ import { toCosmetics } from './cosmetics.ts'
 import { toHotbar } from './hotbar.ts'
 import { mountMainMenu } from './mainmenu.ts'
 import { mountAccountStep } from './signin.ts'
-import { COLOPHON, LOGO, showSplash, skipTitles } from './splash.ts'
+import { COLOPHON, EPIGRAPH, LOGO, showSplash, skipTitles } from './splash.ts'
 import type { BvAudio } from './audio.ts'
 import type { CharacterPick } from './characters.ts'
 import type { Hotbar } from './hotbar.ts'
@@ -118,7 +118,16 @@ export async function showTitles(
     onAccount: openAccount,
     onSignOut: signOutAndReload,
   })
-  if (!skip && !returned) await showSplash({ audio, config: COLOPHON })
+  // The menu goes up under the last card as it lifts, so its grain and fog
+  // are there through the fade instead of popping in after it.
+  if (!skip && !returned) {
+    await showSplash({
+      audio,
+      config: COLOPHON,
+      epigraph: EPIGRAPH,
+      onLift: () => menu.underlay(),
+    })
+  }
   let known = await me
   const signedIn = !!known?.account?.username
   // A round trip that has not yet ended in an account goes back to it, and

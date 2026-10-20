@@ -4,6 +4,7 @@ import { createActions } from './actions.ts'
 import { buildSky } from './assets.ts'
 import { BvAudio } from './audio.ts'
 import { refreshSession } from './auth.ts'
+import { mountBuildTag } from './buildtag.ts'
 import { CaretakerShade } from './caretakerrig.ts'
 import { mapCitgos } from './citgomap.ts'
 import { CONFIG } from './config.ts'
@@ -78,6 +79,7 @@ async function boot() {
     imagesReady([GRAIN_URL, CONFIG.splash.imageSrc, CONFIG.logo.imageSrc]),
   ])
   const hud = new Hud(root)
+  mountBuildTag()
   const audio = new BvAudio()
   // The title-card cues; dev builds mute them.
   if (import.meta.env.DEV) audio.setMuted(true)

@@ -43,6 +43,9 @@ interface MainMenu {
   // Shows the menu with the options for a raider signed in or not, and
   // resolves with the one chosen, hiding the menu again.
   choose(signedIn: boolean): Promise<MenuChoice>
+  // Lays the menu's black, grain and fog under the colophon as it lifts,
+  // with no logo and no options yet, so nothing pops in as it goes.
+  underlay(): void
   // Takes the menu down for good.
   remove(): void
 }
@@ -141,12 +144,24 @@ export function mountMainMenu({
 
   // The first showing fades the logo and the options up out of the black;
   // later ones come back at once.
+  const startFog = () => {
+    if (fog) return
+    fog = createFog(downscale)
+    if (fog) root.insertBefore(fog.canvas, root.querySelector('.bv-menu-ui'))
+  }
+
+  const underlay = () => {
+    if (shown) return
+    for (const el of faces) el.hidden = true
+    root.hidden = false
+    startFog()
+  }
+
   const reveal = () => {
     root.hidden = false
     if (shown) return
     shown = true
-    fog = createFog(downscale)
-    if (fog) root.insertBefore(fog.canvas, root.querySelector('.bv-menu-ui'))
+    startFog()
     // The colophon's cue may still be tailing; the menu is the music's.
     audio.stopOneShot(config.skipAudioFadeMs)
     if (music) musicFrame = requestAnimationFrame(playMusic)
@@ -158,7 +173,8 @@ export function mountMainMenu({
   // them, which left and right move; Enter and Space press the one in
   // focus, as buttons do; Escape steps back out of Audio or Settings.
   const onKey = (e: KeyboardEvent) => {
-    if (root.hidden) return
+    // Laid under the colophon, the menu offers nothing yet.
+    if (root.hidden || !shown) return
     if (e.code === 'Escape' && (face === 'audio' || face === 'settings')) {
       e.preventDefault()
       show('in')
@@ -222,6 +238,7 @@ export function mountMainMenu({
 
   return {
     choose,
+    underlay,
     remove() {
       document.removeEventListener('keydown', onKey)
       cancelAnimationFrame(musicFrame)

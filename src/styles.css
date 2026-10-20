@@ -1648,6 +1648,9 @@
   display: flex;
   background: rgb(0 0 0 / 78%);
   pointer-events: auto;
+
+  /* Its grain and card stack among themselves, not with the HUD. */
+  isolation: isolate;
 }
 
 /* The controls: two bindings a row, each a keycap and what it does, on
@@ -1786,17 +1789,25 @@
   pointer-events: auto;
 }
 
-.bv-splash::after {
+/* The film grain every menu surface lies under: the title cards, the main
+   menu, the account step and the account panel, the character select and
+   the intro and pause overlay. One scan at one opacity, laid from each
+   surface's own corner (all of them fill the view), so where one surface
+   fades over another the grain stays put. Over the logo, its fog and the
+   turntable; under the options and the cards. */
+.bv-splash::after,
+.bv-menu::after,
+.bv-account::after,
+.bv-select::after,
+.bv-intro::after {
   content: '';
   position: absolute;
   inset: 0;
+  z-index: 2;
   background-image: url('/textures/000973910004.jpg');
   background-repeat: repeat;
   opacity: 0.4;
   pointer-events: none;
-
-  /* The grain lies over everything on the card, the logo's fog included. */
-  z-index: 2;
 }
 
 /* The waiting colophon's edge rides over the grain. */
@@ -1822,11 +1833,40 @@
   object-fit: contain;
 }
 
+.bv-splash-epigraph {
+  margin: 0;
+  padding: 0 1rem;
+  font-family: var(--bv-font, 'IBM Plex Mono', ui-monospace, monospace);
+  font-size: 1.25rem;
+  letter-spacing: 0.08em;
+  color: var(--bv-eggshell);
+  text-align: center;
+  user-select: none;
+}
+
 .bv-splash-hint {
   font-family: var(--bv-font, 'IBM Plex Mono', ui-monospace, monospace);
   font-size: var(--bv-text-size, 1rem);
   color: var(--bv-eggshell);
   opacity: 0.6;
+  user-select: none;
+}
+
+/* The build's name (buildtag.ts) in the lower right corner, over every
+   title card, the menu and the valley; on the menu it sits under the
+   credit, on the menu's edge. */
+.bv-build {
+  position: fixed;
+  right: 2.5rem;
+  bottom: 1rem;
+  z-index: 20;
+  margin: 0;
+  font-family: var(--bv-font, 'IBM Plex Mono', ui-monospace, monospace);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  color: var(--bv-eggshell);
+  opacity: 0.55;
+  pointer-events: none;
   user-select: none;
 }
 
@@ -1855,18 +1895,6 @@
 .bv-menu[hidden],
 .bv-menu [hidden] {
   display: none !important;
-}
-
-/* The card's grain over everything but the options. */
-.bv-menu::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  background-image: url('/textures/000973910004.jpg');
-  background-repeat: repeat;
-  opacity: 0.4;
-  pointer-events: none;
 }
 
 .bv-menu-logo {
@@ -1959,6 +1987,9 @@
 .bv-select-ui {
   position: absolute;
   inset: auto 0 0;
+
+  /* Over the grain. */
+  z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2102,6 +2133,9 @@
 
 .bv-account > *,
 .bv-intro > * {
+  /* The card rides over the surface's grain. */
+  position: relative;
+  z-index: 3;
   box-sizing: border-box;
   max-height: 100%;
   margin: auto;

@@ -23,6 +23,7 @@ const THREE_AND_DOM = [
   'bookhud',
   'bookportraits',
   'buffhud',
+  'buildtag',
   'cabbagestandmodel',
   'canart',
   'canvas',

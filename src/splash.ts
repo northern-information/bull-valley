@@ -15,9 +15,13 @@ import { createSplashMachine } from './splashmachine.ts'
 import type { BvAudio } from './audio.ts'
 import type { SplashTiming } from './splashmachine.ts'
 
-// A card's timings plus what it mounts and plays.
-interface CardConfig extends SplashTiming {
+// A card's timings.
+interface CardTiming extends SplashTiming {
   skipAudioFadeMs: number
+}
+
+// A card's timings plus the image it mounts and the cue it plays.
+interface CardConfig extends CardTiming {
   imageSrc: string
   alt: string
   audioSrc: string
@@ -28,6 +32,11 @@ interface SplashConfig extends CardConfig {
   hint: string
 }
 
+// A card of one line of text, in silence.
+interface EpigraphConfig extends CardTiming {
+  text: string
+}
+
 // The Northern Information colophon and the game's own logo (the main
 // menu's): CONFIG's timings and files, with their words from COPY.toml. The words stay out of
 // config.ts so the pure modules that read CONFIG never load the copy book.
@@ -35,6 +44,12 @@ export const COLOPHON: SplashConfig = {
   ...CONFIG.splash,
   alt: copy('titles.colophon_alt'),
   hint: copy('titles.colophon_hint'),
+}
+
+// The line between the colophon and the main menu.
+export const EPIGRAPH: EpigraphConfig = {
+  ...CONFIG.epigraph,
+  text: copy('titles.epigraph'),
 }
 
 // The main menu's logo: no cue of its own, only its image and its fade.
@@ -48,9 +63,16 @@ export const LOGO: LogoConfig = {
   alt: copy('titles.logo_alt'),
 }
 
-interface CardOptions<C extends CardConfig = CardConfig> {
+interface CardOptions {
   audio: BvAudio
-  config: C
+  config: CardTiming
+  // What the card shows, built on its first gesture, and the cue it plays.
+  face: () => HTMLElement
+  cue?: string
+  // The card's backdrop has begun to lift (skipped, or not): whatever it
+  // uncovers goes up beneath it now, so it shows through the fade rather
+  // than after it.
+  onLift?: (skipped: boolean) => void
 }
 
 // A mounted card. A card mounted early sits black and deaf beneath the
@@ -61,6 +83,8 @@ interface Card {
   root: HTMLDivElement
   listen(): void
   start(): void
+  // Takes the card down at once, unseen.
+  remove(): void
   done: Promise<void>
 }
 
@@ -75,7 +99,7 @@ export function skipTitles(): boolean {
 // Mounts a black card as the last child of <body>, so DOM order stacks it
 // above everything mounted before it, and drives opacity from a RAF loop.
 // Audio failures never block the visual.
-function mountCard({ audio, config }: CardOptions): Card {
+function mountCard({ audio, config, face, cue, onLift }: CardOptions): Card {
   const machine = createSplashMachine({
     now: () => performance.now(),
     cfg: config,
@@ -87,8 +111,10 @@ function mountCard({ audio, config }: CardOptions): Card {
   document.body.appendChild(root)
 
   let rafId: number | null = null
-  let img: HTMLImageElement | null = null
+  let shown: HTMLElement | null = null
   let listening = false
+  let lifted = false
+  let skipped = false
   let resolveDone = () => {}
   const done = new Promise<void>((resolve) => {
     resolveDone = resolve
@@ -103,8 +129,12 @@ function mountCard({ audio, config }: CardOptions): Card {
 
   const frame = () => {
     const { imgAlpha, rootAlpha, complete } = machine.tick()
+    if (rootAlpha < 1 && !lifted) {
+      lifted = true
+      onLift?.(skipped)
+    }
     root.style.opacity = String(rootAlpha)
-    if (img) img.style.opacity = String(imgAlpha)
+    if (shown) shown.style.opacity = String(imgAlpha)
     if (complete) {
       cleanup()
       return
@@ -115,36 +145,31 @@ function mountCard({ audio, config }: CardOptions): Card {
   const onGesture = () => {
     const action = machine.gesture()
     if (action === 'start') {
-      // The colophon's gesture creates the AudioContext; the menu's cue
-      // reuses it.
+      // The colophon's gesture creates the AudioContext; a later card's
+      // cue reuses it.
       audio.initContext()
-      // One cue plays at a time, and a tail still sounding would swallow
-      // this one; clear it first.
-      audio.stopOneShot(config.skipAudioFadeMs)
-      // Not awaited: the cue catches its own failures.
-      void audio.playOneShot(config.audioSrc, {
-        fadeInMs: config.fadeInMs,
-        holdMs: config.holdMs,
-        fadeOutMs: config.fadeOutMs,
-      })
-      const image = document.createElement('img')
-      img = image
-      image.src = config.imageSrc
-      image.alt = config.alt
-      image.style.opacity = '0'
-      // A missing PNG must not show the broken-image glyph or stall the
-      // card; the timer completes regardless.
-      image.addEventListener('error', () => {
-        image.style.visibility = 'hidden'
-      })
-      root.appendChild(image)
+      if (cue) {
+        // One cue plays at a time, and a tail still sounding would swallow
+        // this one; clear it first.
+        audio.stopOneShot(config.skipAudioFadeMs)
+        // Not awaited: the cue catches its own failures.
+        void audio.playOneShot(cue, {
+          fadeInMs: config.fadeInMs,
+          holdMs: config.holdMs,
+          fadeOutMs: config.fadeOutMs,
+        })
+      }
+      shown = face()
+      shown.style.opacity = '0'
+      root.appendChild(shown)
       rafId = requestAnimationFrame(frame)
     } else if (action === 'skip') {
       // Cut to black: the image goes at once, the backdrop tweens out
       // fast, the audio tails slightly longer than the visual.
-      audio.stopOneShot(config.skipAudioFadeMs)
-      if (img) img.remove()
-      img = null
+      skipped = true
+      if (cue) audio.stopOneShot(config.skipAudioFadeMs)
+      shown?.remove()
+      shown = null
     }
   }
 
@@ -160,16 +185,73 @@ function mountCard({ audio, config }: CardOptions): Card {
     onGesture()
   }
 
-  return { root, listen, start, done }
+  return { root, listen, start, remove: cleanup, done }
 }
 
-// The colophon: holds its hint until the first gesture starts it.
-export function showSplash({
+// The colophon's image: a missing PNG must not show the broken-image
+// glyph or stall the card; the timer completes regardless.
+function imageFace(config: CardConfig): () => HTMLElement {
+  return () => {
+    const image = document.createElement('img')
+    image.src = config.imageSrc
+    image.alt = config.alt
+    image.addEventListener('error', () => {
+      image.style.visibility = 'hidden'
+    })
+    return image
+  }
+}
+
+// The epigraph's line.
+function textFace(config: EpigraphConfig): () => HTMLElement {
+  return () => {
+    const line = document.createElement('p')
+    line.className = 'bv-splash-epigraph'
+    line.textContent = config.text
+    return line
+  }
+}
+
+interface SplashOptions {
+  audio: BvAudio
+  config: SplashConfig
+  epigraph: EpigraphConfig
+  // The last card has begun to lift: the menu goes up beneath it.
+  onLift?: () => void
+}
+
+// The colophon, then the epigraph. The colophon holds its hint until the
+// first gesture starts it; the epigraph waits black beneath it and starts
+// as it goes. Skipping the colophon skips the epigraph too.
+export async function showSplash({
   audio,
   config,
-}: CardOptions<SplashConfig>): Promise<void> {
-  if (skipTitles()) return Promise.resolve()
-  const card = mountCard({ audio, config })
+  epigraph,
+  onLift,
+}: SplashOptions): Promise<void> {
+  if (skipTitles()) return
+  let skipped = false
+  // Mounted first, so the colophon stacks over it.
+  const after = mountCard({
+    audio,
+    config: epigraph,
+    face: textFace(epigraph),
+    onLift: () => onLift?.(),
+  })
+  const card = mountCard({
+    audio,
+    config,
+    face: imageFace(config),
+    cue: config.audioSrc,
+    // Its black and grain are the epigraph's, so the colophon lifts over
+    // it unseen; skipped, it lifts straight onto the menu.
+    onLift: (wasSkipped) => {
+      if (!wasSkipped) return
+      skipped = true
+      after.remove()
+      onLift?.()
+    },
+  })
   const hint = document.createElement('span')
   hint.className = 'bv-splash-hint'
   hint.textContent = config.hint
@@ -186,5 +268,8 @@ export function showSplash({
   card.root.addEventListener('click', removeHint)
   document.addEventListener('keydown', removeHint)
   card.listen()
-  return card.done
+  await card.done
+  if (skipped) return
+  after.start()
+  await after.done
 }

@@ -613,11 +613,14 @@ empty_locker = { text = "Your locker is empty. What you leave here, no shadow ta
 [places]
 keep = { text = "Mt. Coleman's Keep", by = "ai" }
 
-# The title cards (src/splash.ts): image alt text and the colophon's hint.
+# The title cards (src/splash.ts): image alt text, the colophon's hint and
+# the epigraph after it; and the build in the corner (src/buildtag.ts).
 
 [titles]
 colophon_alt = { text = "Northern Information", by = "ai" }
 colophon_hint = { text = "Click to Die", by = "ai" }
+epigraph = { text = "Based on true events.", by = "ai" }
+build = { text = "Build {build}", by = "ai" }
 logo_alt = { text = "Bull Valley Shadow Wars", by = "ai" }
 
 # The main menu under the logo (src/mainmenu.ts), and the sign-in card's
