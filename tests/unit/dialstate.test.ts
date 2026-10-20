@@ -382,6 +382,15 @@ describe('the folk, the Citgo and the chat on the phone', () => {
       0
     )
     expect(s.peers[0].level).toBe(4)
+    // Back from a dropped line under the same id: no news in the log.
+    const lines = s.chat.length
+    s = applyFrame(
+      s,
+      { type: 'peer-joined', peer: { ...peer, cosmetics: [], level: 4 } },
+      0
+    )
+    expect(s.peers).toHaveLength(1)
+    expect(s.chat).toHaveLength(lines)
     s = applyFrame(
       s,
       { type: 'chat', id: 'p2', name: 'Kid', text: 'yo', at: 9 },

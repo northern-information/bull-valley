@@ -67,12 +67,16 @@ export function wireValley(game: Game, actions: Actions): void {
     switch (msg.type) {
       case 'welcome': {
         peers.welcome(msg.peers, now)
+        // A new socket has told the valley nothing yet: the next tick
+        // sends where we stand, moving or not.
+        s.lastSent = null
         // Before Begin, the greeting says it; after, a reconnect does.
         if (s.greeted) hud.tell(othersLine(peers.count))
         return
       }
       case 'peer-joined':
-        peers.joined(msg.peer, now)
+        // Back from a dropped line under the id we still see: no news.
+        if (!peers.joined(msg.peer, now)) return
         hud.tell(
           msg.peer.dialup
             ? copy('log.peer_dialed', { name: msg.peer.name })

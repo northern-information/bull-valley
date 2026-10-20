@@ -1,8 +1,10 @@
 // The other players, as data: a table of peers keyed by id, each holding
-// its last two states so a figure can be drawn a little behind the present
-// and glide between frames instead of teleporting ten times a second. Pure
-// and Three-free; peers.ts draws it, valleysync.ts feeds it from the net frames.
+// its last few seconds of states so a figure can be drawn a little behind
+// the present and glide between the two frames either side of that moment,
+// instead of teleporting ten times a second. Pure and Three-free; peers.ts
+// draws it, valleysync.ts feeds it from the net frames.
 
+import { CONFIG } from './config.ts'
 import { toCosmetics } from './cosmetics.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { OutfitId } from './outfits.ts'
@@ -23,11 +25,21 @@ export interface Peer {
   level: number
   // Dialed in from Bull Valley Dial-Up: never placed, so never drawn.
   dialup: boolean
-  // The two most recent states; prev is null until the second arrives, and
-  // both are null until the peer is placed.
-  prev: PeerSnapshot | null
+  // The states heard, oldest first, at most FRAMES_KEPT; empty until the
+  // peer is placed.
+  frames: PeerSnapshot[]
+  // The newest of them, or null until the peer is placed.
   next: PeerSnapshot | null
 }
+
+// How many states a peer keeps: at CONFIG.net.sendHz a few seconds, far
+// more than the render delay ever reaches back.
+export const FRAMES_KEPT = 32
+// A state that comes after a longer silence than GAP_MS (a peer who stood
+// still sends nothing) starts its move from the last state, held until one
+// frame's span before it, not spread across the whole silence.
+const FRAME_MS = 1000 / CONFIG.net.sendHz
+export const GAP_MS = 2.5 * FRAME_MS
 
 // Where to draw a peer this frame. speed drives the walk cycle.
 interface PeerSample extends PeerStateWire {
@@ -40,14 +52,21 @@ export function createPeerTable(): PeerTable {
   return new Map()
 }
 
-// Replaces the table with the server's roster; on every welcome.
+// Makes the table the server's roster; on every welcome. Someone already
+// in it keeps the states we have of them, so our own reconnect never
+// snaps anyone back.
 export function applyWelcome(
   peers: PeerTable,
   roster: readonly PeerWire[],
   now: number
 ): void {
-  peers.clear()
-  for (const wire of roster) applyJoined(peers, wire, now)
+  const ids = new Set(roster.map((wire) => wire.id))
+  for (const id of [...peers.keys()]) if (!ids.has(id)) peers.delete(id)
+  for (const wire of roster) {
+    const peer = applyUpdated(peers, wire)
+    if (!peer) applyJoined(peers, wire, now)
+    else if (!peer.next && wire.at) record(peer, { ...wire.at, at: now })
+  }
 }
 
 export function applyJoined(peers: PeerTable, wire: PeerWire, now: number) {
@@ -58,9 +77,10 @@ export function applyJoined(peers: PeerTable, wire: PeerWire, now: number) {
     cosmetics: toCosmetics(wire.cosmetics),
     level: wire.level,
     dialup: wire.dialup === true,
-    prev: null,
-    next: wire.at ? { ...wire.at, at: now } : null,
+    frames: [],
+    next: null,
   }
+  if (wire.at) record(peer, { ...wire.at, at: now })
   peers.set(wire.id, peer)
   return peer
 }
@@ -87,9 +107,19 @@ export function applyState(
 ): Peer | null {
   const peer = peers.get(id)
   if (!peer) return null
-  peer.prev = peer.next
-  peer.next = { ...state, at: now }
+  const last = peer.next
+  if (last && now - last.at > GAP_MS) {
+    // Held still through the silence: the move starts a frame ago.
+    record(peer, { ...last, at: now - FRAME_MS })
+  }
+  record(peer, { ...state, at: now })
   return peer
+}
+
+function record(peer: Peer, snapshot: PeerSnapshot): void {
+  peer.frames.push(snapshot)
+  if (peer.frames.length > FRAMES_KEPT) peer.frames.shift()
+  peer.next = snapshot
 }
 
 export function applyLeft(peers: PeerTable, id: string): boolean {
@@ -104,30 +134,35 @@ function lerpAngle(a: number, b: number, t: number): number {
   return a + d * t
 }
 
-// The peer's state at renderAt, a moment slightly in the past. Between two
-// snapshots it interpolates; before the first or after the newest it holds,
-// never extrapolating into a wall. Null until the peer is placed.
+// The peer's state at renderAt, a moment slightly in the past: between
+// the two states either side of it, or held at the oldest before them all
+// and at the newest past them, never extrapolating into a wall. Riding and
+// the flashlight take the newest state. Null until the peer is placed.
 export function samplePeer(peer: Peer, renderAt: number): PeerSample | null {
-  const { prev, next } = peer
+  const { frames, next } = peer
   if (!next) return null
-  if (!prev || next.at <= prev.at) return { ...next, speed: 0 }
-  const span = next.at - prev.at
-  const t = Math.min(1, Math.max(0, (renderAt - prev.at) / span))
-  const dx = next.x - prev.x
-  const dz = next.z - prev.z
-  // Metres per second between the two frames; 0 once the newest is reached
-  // and held, so a peer who stopped sending stops walking.
-  const speed = t < 1 ? (Math.hypot(dx, dz) / span) * 1000 : 0
+  let i = frames.length - 1
+  while (i >= 0 && frames[i].at > renderAt) i -= 1
+  if (i < 0)
+    return { ...frames[0], riding: next.riding, light: next.light, speed: 0 }
+  if (i === frames.length - 1) return { ...next, speed: 0 }
+  const prev = frames[i]
+  const to = frames[i + 1]
+  const span = to.at - prev.at
+  const t = span > 0 ? (renderAt - prev.at) / span : 1
+  const dx = to.x - prev.x
+  const dz = to.z - prev.z
   return {
     x: prev.x + dx * t,
-    y: prev.y + (next.y - prev.y) * t,
+    y: prev.y + (to.y - prev.y) * t,
     z: prev.z + dz * t,
-    yaw: lerpAngle(prev.yaw, next.yaw, t),
-    pitch: prev.pitch + (next.pitch - prev.pitch) * t,
-    pose: t < 0.5 ? prev.pose : next.pose,
+    yaw: lerpAngle(prev.yaw, to.yaw, t),
+    pitch: prev.pitch + (to.pitch - prev.pitch) * t,
+    pose: t < 0.5 ? prev.pose : to.pose,
     riding: next.riding,
     light: next.light,
-    speed,
+    // Metres per second between the two states.
+    speed: span > 0 ? (Math.hypot(dx, dz) / span) * 1000 : 0,
   }
 }
 

@@ -145,6 +145,23 @@ class TestValley extends ValleyDO {
   tick(): void {
     this.tickShadows()
   }
+  // The lingering raiders' departures, run by hand (lingerOut).
+  pending = new Map<number, () => void>()
+  private nextTimer = 0
+  protected override later(run: () => void): unknown {
+    const id = this.nextTimer++
+    this.pending.set(id, run)
+    return id
+  }
+  protected override cancel(timer: unknown): void {
+    this.pending.delete(timer as number)
+  }
+  // CONFIG.net.lingerMs is up for everyone lingering.
+  lingerOut(): void {
+    const due = [...this.pending.values()]
+    this.pending.clear()
+    for (const run of due) run()
+  }
   // Rule 24's draw for a touch's spread: square in the middle, unless a
   // test says.
   rolled = 0.5
@@ -948,12 +965,60 @@ describe('ValleyDO', () => {
     // Not a refusal: a client that was only asleep reconnects.
     expect(a.closeCode).toBe(1001)
     expect(b.closeCode).toBeNull()
+    // Everyone hears them leave once the linger is up.
+    v.lingerOut()
     expect(
       b
         .frames()
         .slice(before)
         .find((m) => m.type === 'peer-left')
     ).toEqual({ type: 'peer-left', id: idA })
+  })
+
+  it('lets a dropped raider back in their place inside the linger', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    const was = idOf(a)
+    await v.webSocketMessage(ws(a), state(12, -7))
+    await v.webSocketClose(ws(a))
+    const before = b.sent.length
+    const frame = JSON.parse(hello()) as object
+    // Another account cannot take the place.
+    const thief = stamped('C', { account: 'acct-C' })
+    s.acceptWebSocket(thief)
+    await v.webSocketMessage(ws(thief), JSON.stringify({ ...frame, was }))
+    expect((thief.frames()[0] as WelcomeMessage).id).not.toBe(was)
+    // Its own account does, standing where it stood.
+    const back = stamped('A', { account: 'acct-A' })
+    s.acceptWebSocket(back)
+    await v.webSocketMessage(ws(back), JSON.stringify({ ...frame, was }))
+    expect((back.frames()[0] as WelcomeMessage).id).toBe(was)
+    v.lingerOut()
+    const heard = b.frames().slice(before)
+    expect(heard.some((m) => m.type === 'peer-left')).toBe(false)
+    const joined = heard.find(
+      (m): m is PeerJoinedMessage =>
+        m.type === 'peer-joined' && m.peer.id === was
+    )
+    expect(joined?.peer.at).toMatchObject({ x: 12, z: -7 })
+  })
+
+  it('lets a lingering raider go at once when their account comes anew', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    const was = idOf(a)
+    await v.webSocketClose(ws(a))
+    const before = b.sent.length
+    // A reload: no `was`.
+    await join(v, s, 'A')
+    expect(
+      b
+        .frames()
+        .slice(before)
+        .find((m) => m.type === 'peer-left')
+    ).toEqual({ type: 'peer-left', id: was })
   })
 
   it('retires the socket a reconnect names, so no one sees a ghost', async () => {
@@ -969,14 +1034,18 @@ describe('ValleyDO', () => {
     const frame = JSON.parse(hello()) as object
     await v.webSocketMessage(ws(back), JSON.stringify({ ...frame, was }))
     expect(a.closeCode).toBe(CLOSE.replaced)
+    // Back under the same id: no one hears them leave, and their
+    // arrival names the id everyone still sees.
+    v.lingerOut()
+    const heard = b.frames().slice(before)
+    expect(heard.find((m) => m.type === 'peer-left')).toBeUndefined()
     expect(
-      b
-        .frames()
-        .slice(before)
-        .find((m) => m.type === 'peer-left')
-    ).toEqual({ type: 'peer-left', id: was })
+      heard.find((m): m is PeerJoinedMessage => m.type === 'peer-joined')?.peer
+        .id
+    ).toBe(was)
     // The welcome shows the raider everyone else, and not their old self.
     const roster = back.frames()[0] as WelcomeMessage
+    expect(roster.id).toBe(was)
     expect(roster.peers.map((p) => p.id).sort()).toEqual(
       [idOf(twin), idOf(b)].sort()
     )
@@ -1001,10 +1070,11 @@ describe('ValleyDO', () => {
     const idB = idOf(b)
     await v.webSocketError(ws(b))
     await v.webSocketClose(ws(b))
+    v.lingerOut()
     const frames = a.frames().slice(before)
-    expect(frames.map((m) => m.type)).toEqual(['peer-left', 'world'])
-    expect((frames[0] as PeerLeftMessage).id).toBe(idB)
-    expect((frames[1] as WorldMessage).reason).toBe('left')
+    expect(frames.map((m) => m.type)).toEqual(['world', 'peer-left'])
+    expect((frames[0] as WorldMessage).reason).toBe('left')
+    expect((frames[1] as PeerLeftMessage).id).toBe(idB)
     // The last one out leaves the world as it was, and nothing to wake for.
     await v.webSocketClose(ws(a))
     const stored = s.storage.map.get('valley') as {

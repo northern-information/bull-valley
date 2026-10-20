@@ -93,16 +93,23 @@ export class Peers {
     return [...this.table.values()]
   }
 
-  // The server's roster on every welcome replaces whoever we had.
+  // The server's roster on every welcome replaces whoever we had; those
+  // still here keep where they stand (presence.ts applyWelcome).
   welcome(roster: readonly PeerWire[], now: number): void {
     for (const id of [...this.puppets.keys()]) this.dispose(id)
     applyWelcome(this.table, roster, now)
     for (const peer of this.table.values()) this.build(peer)
   }
 
-  joined(wire: PeerWire, now: number): void {
-    if (this.puppets.has(wire.id)) this.dispose(wire.id)
+  // Whether they are new: one we still see, back from a dropped line under
+  // the same id, keeps where they stand and is only brought up to date.
+  joined(wire: PeerWire, now: number): boolean {
+    if (this.table.has(wire.id)) {
+      this.updated(wire)
+      return false
+    }
     this.build(applyJoined(this.table, wire, now))
+    return true
   }
 
   // A peer changed their name or character at Gron, took a cosmetic from

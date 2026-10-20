@@ -480,6 +480,15 @@ export const CONFIG = {
     // no figure standing. Generous: a background tab's timers can run as
     // seldom as once a minute, and one let go too soon only reconnects.
     silentMs: 120_000,
+    // A ping the valley has not answered in this long means the line is
+    // dead though the socket never closed (a network change, a sleep): the
+    // client lets it go and reconnects. Measured from the ping, so a
+    // background tab's slow timers never count against it.
+    deadMs: 8000,
+    // A raider whose socket went stands where they were for this long
+    // before everyone hears them leave, so a reconnect inside it takes
+    // their place back and no one sees them go.
+    lingerMs: 20_000,
     // How long the "signed out" line sits in the chat log before the page
     // reloads to the sign-in card.
     signedOutReloadMs: 2500,

@@ -39,6 +39,8 @@ interface NetConfig {
   connectTimeoutMs: number
   // How often to measure the clock offset once online.
   pingMs: number
+  // A ping unanswered this long means the line is dead.
+  deadMs: number
 }
 
 interface NetOptions {
@@ -126,6 +128,9 @@ export class NetClient {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private pingTimer: ReturnType<typeof setInterval> | null = null
   private connectTimer: ReturnType<typeof setTimeout> | null = null
+  // When the ping still unanswered went out, or null: any frame from the
+  // valley answers it.
+  private pingOutAt: number | null = null
   private closed = false
   // The server turned us away: no reconnect, however the page stirs.
   private refused = false
@@ -143,7 +148,10 @@ export class NetClient {
     // browser finds the network again, is waiting for nothing.
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') this.retryNow()
+        if (document.visibilityState !== 'visible') return
+        this.retryNow()
+        // Back from a sleep: find out at once whether the line lived.
+        if (this.status === 'online') this.ping()
       })
     }
     if (typeof window !== 'undefined') {
@@ -275,6 +283,7 @@ export class NetClient {
       )
     })
     ws.addEventListener('message', (event: MessageEvent) => {
+      if (this.ws === ws) this.pingOutAt = null
       if (typeof event.data !== 'string') return
       const msg = parseServerMessage(event.data)
       if (!msg) return
@@ -347,14 +356,39 @@ export class NetClient {
 
   private startPings(): void {
     this.stopPings()
-    this.pingTimer = setInterval(() => {
-      this.send({ type: 'ping', t: performance.now() })
-    }, this.config.pingMs)
+    this.pingTimer = setInterval(() => this.ping(), this.config.pingMs)
+  }
+
+  // A ping, unless the last one went unanswered past deadMs: then the line
+  // is dead though the socket never closed, and we let it go.
+  private ping(): void {
+    const now = performance.now()
+    if (this.pingOutAt !== null && now - this.pingOutAt > this.config.deadMs) {
+      this.drop()
+      return
+    }
+    this.pingOutAt ??= now
+    this.send({ type: 'ping', t: now })
+  }
+
+  // Lets go of a socket that went quiet and reconnects; its close, when it
+  // comes, is not ours any more.
+  private drop(): void {
+    const ws = this.ws
+    this.ws = null
+    this.stopPings()
+    try {
+      ws?.close(1000)
+    } catch {
+      // Already closing.
+    }
+    this.scheduleReconnect()
   }
 
   private stopPings(): void {
     if (this.pingTimer !== null) clearInterval(this.pingTimer)
     this.pingTimer = null
+    this.pingOutAt = null
   }
 
   private clearTimers(): void {
