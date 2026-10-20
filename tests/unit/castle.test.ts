@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { bobAt, castleOf, lighthouseAngle, seedOf } from '../../src/castle.ts'
+import {
+  bobAt,
+  castleOf,
+  FORM_KINDS,
+  lighthouseAngle,
+  seedOf,
+} from '../../src/castle.ts'
 import { CONFIG } from '../../src/config.ts'
 import { pointInPolygon } from '../../src/coords.ts'
 import { MOAT } from '../../src/moat.ts'
@@ -70,6 +76,57 @@ describe('castle', () => {
     }
     expect(buttresses).toBeGreaterThan(0)
     expect(gargoyles).toBeGreaterThan(0)
+  })
+
+  it("is a church's stone and swollen concrete, the keep the church's", () => {
+    const styles = new Set<string>()
+    for (const day of DAYS) {
+      const castle = castleOf(day)
+      expect(castle.masses[0].style).toBe('stone')
+      for (const m of castle.masses) {
+        styles.add(m.style)
+        if (m.style === 'stone') expect(m.swell).toBe(0)
+        else {
+          expect(m.swell).toBeGreaterThan(0)
+          expect(m.swell).toBeLessThanOrEqual(CONFIG.castle.swell)
+        }
+      }
+    }
+    expect(styles).toEqual(new Set(['stone', 'concrete']))
+  })
+
+  it("raises the cathedral's spire over every other", () => {
+    const { cathedral } = CONFIG.castle
+    for (const day of DAYS) {
+      const [great, ...rest] = castleOf(day).spires
+      expect(great.h).toBeGreaterThanOrEqual(cathedral.min)
+      expect(great.h).toBeLessThanOrEqual(cathedral.max)
+      for (const s of rest) {
+        expect(s.y + s.drum + s.h).toBeLessThan(
+          great.y + great.drum + great.h + 30
+        )
+        expect(s.h).toBeLessThan(great.h)
+      }
+    }
+  })
+
+  it("crowns the concrete with the spomeniks' forms, every kind in time", () => {
+    const { forms } = CONFIG.castle
+    const kinds = new Set<string>()
+    for (const day of DAYS) {
+      const castle = castleOf(day)
+      expect(castle.forms.length).toBeGreaterThanOrEqual(forms.min)
+      expect(castle.forms.length).toBeLessThanOrEqual(forms.max)
+      const roofs = new Set(castle.masses.map((m) => m.y + m.h))
+      for (const f of castle.forms) {
+        kinds.add(f.kind)
+        expect(roofs.has(f.y)).toBe(true)
+        expect(pointInPolygon(f.x, f.z, island)).toBe(true)
+      }
+      // A pinnacle at every corner of a stone roof.
+      for (const p of castle.pinnacles) expect(roofs.has(p.y)).toBe(true)
+    }
+    expect(kinds).toEqual(new Set(FORM_KINDS))
   })
 
   it('turns the lighthouse on the shared clock', () => {

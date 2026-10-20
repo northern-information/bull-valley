@@ -2,12 +2,18 @@
 // moat's island (moat.ts) and is made anew every Central day (daily.ts
 // dayKey): `castleOf(day)` draws it from a seed of the day, so every
 // raider sees the same castle all day and a different one tomorrow, with
-// nothing on the wire. It is brutalist masses on a coarse grid of cells
+// nothing on the wire. It is masses on a coarse grid of cells
 // (CONFIG.castle.cell), stacked story on story, so a later turn of its
-// parts, like a Rubik's cube's, has whole cells to move; gothic spires on
-// the highest, flying buttresses from the low masses to the tall, gargoyles
-// on the corners, the craggy rock it floats on, and one lighthouse at its
-// edge, whose blue beam turns on the shared clock (`lighthouseAngle`).
+// parts, like a Rubik's cube's, has whole cells to move. Half are an old
+// gothic church's, in dark stone: steep gabled roofs, lancet windows, a
+// rose window in a gable, pinnacles at the corners, flying buttresses
+// from the low roofs to the tall, gargoyles; the rest are concrete gone
+// strange, swollen like a pillow (`swell`) and crowned with the forms of
+// the Yugoslav spomeniks (`Form`: a bloated ribbed column, a star of
+// fins, a cantilevered wing, a split boulder). Spires stand on the
+// highest, the keep's the cathedral's own, the craggy rock it floats on
+// hangs under it all, and one lighthouse stands at its edge, whose blue
+// beam turns on the shared clock (`lighthouseAngle`).
 //
 // Everything is in the moat's own frame (moat-local metres from the
 // island's middle), y up from the castle's base, which floats
@@ -21,9 +27,11 @@ import type { Rng } from './rng.ts'
 
 type CastleConfig = typeof CONFIG.castle
 
-// A brutalist mass: a box `w` by `d` cells' worth of metres, from `y` up
-// `h`, its middle at (x, z), with `rows` of window slits.
-interface Mass {
+// A mass: a box `w` by `d` cells' worth of metres, from `y` up `h`, its
+// middle at (x, z), `rows` stories of windows. A stone mass is a church's,
+// its gable's ridge running along `ridge`; a concrete one bulges out of
+// its box by `swell` (a share of its size) and is flat on top.
+export interface Mass {
   x: number
   z: number
   y: number
@@ -31,10 +39,77 @@ interface Mass {
   d: number
   h: number
   rows: number
+  style: 'stone' | 'concrete'
+  ridge: 'x' | 'z'
+  swell: number
 }
 
-// A gothic spire on a mass's roof: a tall cone of `radius` from `y` up
-// `h`, with `crockets` up its edges.
+// A spomenik's form, standing at (x, y, z) on a concrete roof or the slab:
+// a bloated column swelling out of `radius` by `bulge`, ribbed and leaning;
+// a star of `count` fins reaching out `reach` and up `h`; a wing, a slab
+// curved like a crescent cantilevered `span` across at `tilt`; or a
+// boulder split down the middle, its halves `gap` apart.
+export type Form =
+  | {
+      kind: 'bloat'
+      x: number
+      y: number
+      z: number
+      radius: number
+      h: number
+      bulge: number
+      ribs: number
+      lean: number
+    }
+  | {
+      kind: 'fins'
+      x: number
+      y: number
+      z: number
+      count: number
+      reach: number
+      h: number
+      twist: number
+    }
+  | {
+      kind: 'wing'
+      x: number
+      y: number
+      z: number
+      span: number
+      yaw: number
+      tilt: number
+    }
+  | {
+      kind: 'split'
+      x: number
+      y: number
+      z: number
+      radius: number
+      h: number
+      gap: number
+      yaw: number
+    }
+
+export type FormKind = Form['kind']
+export const FORM_KINDS: readonly FormKind[] = [
+  'bloat',
+  'fins',
+  'wing',
+  'split',
+]
+
+// A pinnacle: a little spire at a stone roof's corner.
+interface Pinnacle {
+  x: number
+  y: number
+  z: number
+  h: number
+}
+
+// A gothic spire on a mass's roof: a drum `drum` tall, then a tall cone
+// of `radius` from its top up `h`, with `crockets` up its edges. The first
+// is the cathedral's, on the keep, the tallest by far.
 interface Spire {
   x: number
   z: number
@@ -42,6 +117,7 @@ interface Spire {
   radius: number
   h: number
   crockets: number
+  drum: number
 }
 
 // A flying buttress, an arc from a low roof's edge to a tall mass's side.
@@ -80,6 +156,8 @@ export interface CastleLayout {
   day: string
   masses: Mass[]
   spires: Spire[]
+  pinnacles: Pinnacle[]
+  forms: Form[]
   buttresses: Buttress[]
   gargoyles: Gargoyle[]
   lighthouse: Lighthouse
@@ -166,6 +244,8 @@ export function castleOf(
     const h = between(rng, 2, Math.min(m === 0 ? 7 : 5, room)) * STORY
     const i0 = Math.min(...footprint.map((c) => c.i))
     const j0 = Math.min(...footprint.map((c) => c.j))
+    // The keep is the church's; the rest stone or concrete by the draw.
+    const style = m === 0 || rng() < cfg.stone ? 'stone' : 'concrete'
     masses.push({
       x: (i0 + (fw - 1) / 2) * cell,
       z: (j0 + (fd - 1) / 2) * cell,
@@ -174,12 +254,26 @@ export function castleOf(
       d: fd * cell,
       h,
       rows: h / STORY,
+      style,
+      ridge: fw > fd || (fw === fd && rng() < 0.5) ? 'x' : 'z',
+      swell: style === 'concrete' ? 0.08 + rng() * (cfg.swell - 0.08) : 0,
     })
     for (const c of footprint) top.set(key(c.i, c.j), base + h)
   }
   // A castle of no mass is no castle: the middle cell, at the least.
   if (masses.length === 0) {
-    masses.push({ x: 0, z: 0, y: 0, w: cell, d: cell, h: STORY * 3, rows: 3 })
+    masses.push({
+      x: 0,
+      z: 0,
+      y: 0,
+      w: cell,
+      d: cell,
+      h: STORY * 3,
+      rows: 3,
+      style: 'stone',
+      ridge: 'x',
+      swell: 0,
+    })
     top.set(key(0, 0), STORY * 3)
   }
 
@@ -189,20 +283,67 @@ export function castleOf(
     .sort((a, b) => b.y + b.h - (a.y + a.h))
 
   const spires: Spire[] = []
+  // The cathedral's spire, on the highest stone roof, over everything.
+  const stoneRoofs = roofs.filter((r) => r.style === 'stone')
+  const nave = stoneRoofs[0] ?? roofs[0]
+  spires.push({
+    x: nave.x,
+    z: nave.z,
+    y: nave.y + nave.h,
+    radius: Math.min(nave.w, nave.d) * 0.3,
+    h: cfg.cathedral.min + rng() * (cfg.cathedral.max - cfg.cathedral.min),
+    crockets: between(rng, 7, 11),
+    drum: 6 + rng() * 4,
+  })
+  // The rest on the stone roofs, the tallest most of all, a few on the
+  // concrete.
   const spireCount = between(rng, cfg.spires.min, cfg.spires.max)
-  for (let s = 0; s < spireCount && roofs.length > 0; s++) {
-    // The tallest roofs most of all.
-    const roof = roofs[Math.floor(rng() * rng() * roofs.length)]
-    const radius = 1.2 + rng() * 1.6
+  for (let s = 1; s < spireCount; s++) {
+    const pool = stoneRoofs.length > 0 && rng() < 0.8 ? stoneRoofs : roofs
+    const roof = pool[Math.floor(rng() * rng() * pool.length)]
+    const radius = 0.9 + rng() * 1.4
     const room = Math.max(0, Math.min(roof.w, roof.d) / 2 - radius)
     spires.push({
       x: roof.x + (rng() * 2 - 1) * room,
       z: roof.z + (rng() * 2 - 1) * room,
       y: roof.y + roof.h,
       radius,
-      h: 10 + rng() * 18,
-      crockets: between(rng, 3, 7),
+      h: 12 + rng() * 22,
+      crockets: between(rng, 3, 8),
+      drum: 2 + rng() * 3,
     })
+  }
+
+  // Pinnacles at the corners of every stone roof.
+  const pinnacles: Pinnacle[] = []
+  for (const roof of stoneRoofs) {
+    for (const [sx, sz] of CORNERS) {
+      pinnacles.push({
+        x: roof.x + (sx * roof.w) / 2,
+        y: roof.y + roof.h,
+        z: roof.z + (sz * roof.d) / 2,
+        h: 3 + rng() * 3,
+      })
+    }
+  }
+
+  // The spomeniks' forms, on the concrete roofs, and one at least.
+  const concreteRoofs = roofs.filter((r) => r.style === 'concrete')
+  const forms: Form[] = []
+  const formCount = between(rng, cfg.forms.min, cfg.forms.max)
+  for (let f = 0; f < formCount; f++) {
+    const roof =
+      concreteRoofs.length > 0
+        ? concreteRoofs[Math.floor(rng() * concreteRoofs.length)]
+        : roofs[roofs.length - 1]
+    const kind = FORM_KINDS[Math.floor(rng() * FORM_KINDS.length)]
+    const room = Math.min(roof.w, roof.d) / 2
+    const at = {
+      x: roof.x + (rng() * 2 - 1) * room * 0.3,
+      y: roof.y + roof.h,
+      z: roof.z + (rng() * 2 - 1) * room * 0.3,
+    }
+    forms.push(formOf(kind, at, room, rng))
   }
 
   // Flying buttresses: from a roof's edge to the side of a taller mass
@@ -237,13 +378,8 @@ export function castleOf(
 
   // Gargoyles on the corners of the roofs, looking out.
   const gargoyles: Gargoyle[] = []
-  for (const roof of roofs) {
-    for (const [sx, sz] of [
-      [-1, -1],
-      [1, -1],
-      [1, 1],
-      [-1, 1],
-    ]) {
+  for (const roof of stoneRoofs) {
+    for (const [sx, sz] of CORNERS) {
       if (rng() < 0.55) continue
       gargoyles.push({
         x: roof.x + (sx * roof.w) / 2,
@@ -254,7 +390,7 @@ export function castleOf(
     }
   }
 
-  // The lighthouse, on the outermost cell, over everything.
+  // The lighthouse, on the outermost cell, over every roof.
   const outermost = [...cells].sort(
     (a, b) => b.i * b.i + b.j * b.j - (a.i * a.i + a.j * a.j)
   )
@@ -280,7 +416,71 @@ export function castleOf(
     }
   })
 
-  return { day, masses, spires, buttresses, gargoyles, lighthouse, rock }
+  return {
+    day,
+    masses,
+    spires,
+    pinnacles,
+    forms,
+    buttresses,
+    gargoyles,
+    lighthouse,
+    rock,
+  }
+}
+
+const CORNERS = [
+  [-1, -1],
+  [1, -1],
+  [1, 1],
+  [-1, 1],
+] as const
+
+// A spomenik's form of `kind` at `at`, no wider than `room` either way.
+function formOf(
+  kind: FormKind,
+  at: { x: number; y: number; z: number },
+  room: number,
+  rng: Rng
+): Form {
+  switch (kind) {
+    case 'bloat':
+      return {
+        kind,
+        ...at,
+        radius: room * (0.4 + rng() * 0.2),
+        h: 7 + rng() * 9,
+        bulge: 0.9 + rng() * 0.7,
+        ribs: between(rng, 4, 12),
+        lean: (rng() * 2 - 1) * 0.15,
+      }
+    case 'fins':
+      return {
+        kind,
+        ...at,
+        count: between(rng, 5, 9),
+        reach: room * (0.7 + rng() * 0.3),
+        h: 9 + rng() * 14,
+        twist: rng() * 0.5,
+      }
+    case 'wing':
+      return {
+        kind,
+        ...at,
+        span: room * (1.4 + rng() * 0.8),
+        yaw: rng() * Math.PI * 2,
+        tilt: 0.2 + rng() * 0.6,
+      }
+    case 'split':
+      return {
+        kind,
+        ...at,
+        radius: room * (0.4 + rng() * 0.2),
+        h: 8 + rng() * 10,
+        gap: 3 + rng() * 2.5,
+        yaw: rng() * Math.PI * 2,
+      }
+  }
 }
 
 // The top of a mass's footprint as it was left: its own roof unless

@@ -1,6 +1,8 @@
 import * as THREE from 'three'
 import {
+  artTexture,
   assembleParts,
+  lambert,
   makeGlowSprite,
   makeGlowTexture,
   setMotion,
@@ -8,7 +10,7 @@ import {
 import { buildBerryBush } from './berrybush.ts'
 import { buildCabbageStand, buildStandDressing } from './cabbagestandmodel.ts'
 import { buildCaretaker } from './caretakermodel.ts'
-import { castleOf } from './castle.ts'
+import { castleOf, FORM_KINDS } from './castle.ts'
 import { buildCastle } from './castlemodel.ts'
 import {
   adSignPart,
@@ -42,6 +44,7 @@ import { buildLookout } from './lookoutmodel.ts'
 import { mazeSpans, SHINING_MAZE } from './maze.ts'
 import { buildMedicine } from './medicinemodels.ts'
 import { fireEscapes, moatEdges, moatFloor, trickle } from './moat.ts'
+import { concreteArt } from './moatart.ts'
 import { buildMoat } from './moatmodel.ts'
 import {
   buildCigarettePack,
@@ -90,12 +93,14 @@ import { buildShadowBurst, SHADOW_BURST } from './shadowburstmodel.ts'
 import { buildShadowSpider, strikeLoopAt } from './shadowspider.ts'
 import { buildSkeletonHorse } from './skeletonhorse.ts'
 import { buildSlurm } from './slurmmodel.ts'
+import { buildForm } from './spomenikmodel.ts'
 import { STORE_LAYOUT } from './store.ts'
 import { STRIP_MALL } from './stripmall.ts'
 import { buildTunnelShade } from './tunnelshademodel.ts'
 import { buildTrapdoor, buildUndercroft } from './undercroftmodel.ts'
 import { buildWreck } from './wreck.ts'
 import type { AkashicAsset, Part } from './assetkit.ts'
+import type { FormKind } from './castle.ts'
 import type { Span } from './maze.ts'
 
 // The Akashic page's registry of the world's assets (akashic.ts adds the
@@ -470,6 +475,11 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     label: 'Castle Entropy, as it will stand tomorrow',
     build: () => sampleCastle(1),
   },
+  ...FORM_KINDS.map((kind) => ({
+    id: `spomenik-${kind}`,
+    label: `A spomenik's form on Castle Entropy: ${kind}`,
+    build: () => sampleForm(kind),
+  })),
   {
     id: 'castle-moat',
     label: "Castle Entropy's moat, with its fire escapes",
@@ -666,4 +676,24 @@ function sampleMoat(): THREE.Object3D {
   lifted.add(rig.group)
   setMotion(lifted, (t) => rig.update(t))
   return lifted
+}
+
+// The first of a spomenik's `kind` in the days from now, at its foot.
+function sampleForm(kind: FormKind): THREE.Object3D {
+  for (let days = 0; days < 400; days++) {
+    const form = castleOf(dayKey(Date.now() + days * 86_400_000)).forms.find(
+      (f) => f.kind === kind
+    )
+    if (!form) continue
+    const concrete = lambert({
+      map: artTexture(concreteArt('#8f8c86')),
+      side: THREE.DoubleSide,
+    })
+    return buildForm(
+      { ...form, x: 0, y: 0, z: 0 },
+      concrete,
+      lambert({ color: '#4a4f52' })
+    )
+  }
+  return new THREE.Group()
 }

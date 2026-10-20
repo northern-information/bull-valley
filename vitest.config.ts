@@ -112,6 +112,7 @@ const THREE_AND_DOM = [
   'shadowspider',
   'signin',
   'skeletonhorse',
+  'spomenikmodel',
   'sky',
   'slurmmodel',
   'slurmrig',

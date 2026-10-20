@@ -610,7 +610,15 @@ export const CONFIG = {
     masses: { min: 9, max: 15 },
     // No mass stacks higher than this over the base.
     stack: 44,
-    spires: { min: 4, max: 8 },
+    // The share of the masses that are the church's stone (the keep always
+    // is), and how far a concrete one swells out of its box at most.
+    stone: 0.5,
+    swell: 0.4,
+    // The cathedral's spire on the keep, how tall; the rest, how many in
+    // all; the spomeniks' forms on the concrete roofs, how many.
+    cathedral: { min: 40, max: 60 },
+    spires: { min: 8, max: 16 },
+    forms: { min: 3, max: 6 },
     lighthouse: {
       // Turns a minute, how far each beam reaches, its colour.
       rpm: 5,

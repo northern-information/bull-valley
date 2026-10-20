@@ -15,6 +15,7 @@ import { CONFIG } from './config.ts'
 import { MOAT } from './moat.ts'
 import { concreteArt } from './moatart.ts'
 import { mulberry32, range } from './rng.ts'
+import { buildForm, pillowBox, pillowOut } from './spomenikmodel.ts'
 import type { CastleLayout } from './castle.ts'
 
 // Castle Entropy as seen, from a day's layout (castle.ts castleOf): the
@@ -63,6 +64,21 @@ function slab(
   return geometry
 }
 
+// A lancet window's pane, `w` wide and `h` tall to its point, its sill at
+// the origin, facing +z.
+function lancetGeometry(w: number, h: number): THREE.ShapeGeometry {
+  const half = w / 2
+  const spring = h - w * 0.9
+  const shape = new THREE.Shape()
+  shape.moveTo(-half, 0)
+  shape.lineTo(half, 0)
+  shape.lineTo(half, spring)
+  shape.quadraticCurveTo(half, h - w * 0.3, 0, h)
+  shape.quadraticCurveTo(-half, h - w * 0.3, -half, spring)
+  shape.lineTo(-half, 0)
+  return new THREE.ShapeGeometry(shape, 3)
+}
+
 export function buildCastle(layout: CastleLayout): CastleRig {
   const group = new THREE.Group()
   group.name = 'castle-entropy'
@@ -72,7 +88,7 @@ export function buildCastle(layout: CastleLayout): CastleRig {
   const rng = mulberry32(0xca57e)
   const concrete = lambert({ map: concreteTexture('#7d7b77') })
   const pale = lambert({ map: concreteTexture('#8f8c86') })
-  const stone = lambert({ color: '#45444c' })
+  const stone = lambert({ map: concreteTexture('#4d4c55') })
   const darkStone = lambert({ color: '#2f2e35' })
   const rock = lambert({ color: '#3a3631' })
   const slit = lambert({
@@ -82,6 +98,25 @@ export function buildCastle(layout: CastleLayout): CastleRig {
   })
   const metal = lambert({ color: '#4a4f52' })
   const pipe = lambert({ color: '#5a4636' })
+  // The spomeniks' concrete, seen from inside a split boulder too.
+  const formConcrete = lambert({
+    map: concreteTexture('#8f8c86'),
+    side: THREE.DoubleSide,
+  })
+  const slate = lambert({ color: '#26262c' })
+  // Stained glass, lit faintly from within: red, blue and amber by turns.
+  const glass = ['#7a1a1a', '#1d2f6e', '#7a5a1a'].map((color) =>
+    lambert({
+      color: '#0c0c10',
+      emissive: new THREE.Color(color),
+      emissiveIntensity: 0.9,
+      side: THREE.DoubleSide,
+    })
+  )
+  let pane = 0
+  const glassOf = () => glass[pane++ % glass.length]
+  // A lancet: a tall window with a pointed arch, standing on its sill.
+  const lancet = lancetGeometry(0.9, 2.8)
 
   const add = (
     geometry: THREE.BufferGeometry,
@@ -155,28 +190,121 @@ export function buildCastle(layout: CastleLayout): CastleRig {
     )
   }
 
-  // The masses: concrete, slits on every face a story apart, a cornice
-  // jutting over the roof, and now and then a pipe run down a face.
-  for (const m of layout.masses) {
-    add(slab(m.w, m.h, m.d, 6), concrete, m.x, m.y + m.h / 2, m.z)
-    const cornice = slab(m.w + 1.2, 0.8, m.d + 1.2, 6)
-    add(cornice, pale, m.x, m.y + m.h - 0.4, m.z)
+  // The church's masses, in stone: buttress piers down their long sides,
+  // a row of lancets a story, a steep slate gable, a rose window in each
+  // gable end.
+  for (const m of layout.masses.filter((m) => m.style === 'stone')) {
+    add(slab(m.w, m.h, m.d, 6), stone, m.x, m.y + m.h / 2, m.z)
+    // Along the ridge, and across it.
+    const along = m.ridge === 'x' ? m.w : m.d
+    const across = m.ridge === 'x' ? m.d : m.w
+    const turn = m.ridge === 'x' ? 0 : Math.PI / 2
+    // A point on the mass in its own frame: `a` along the ridge, `c`
+    // across it, `y` up.
+    const at = (a: number, c: number, y: number) =>
+      m.ridge === 'x'
+        ? new THREE.Vector3(m.x + a, y, m.z + c)
+        : new THREE.Vector3(m.x + c, y, m.z + a)
+    const rise = across * 0.75
+    const gable = new THREE.ExtrudeGeometry(
+      new THREE.Shape([
+        new THREE.Vector2(-across / 2 - 0.4, 0),
+        new THREE.Vector2(across / 2 + 0.4, 0),
+        new THREE.Vector2(0, rise),
+      ]),
+      { depth: along + 0.4, bevelEnabled: false }
+    )
+    gable.translate(0, 0, -(along + 0.4) / 2)
+    // Extruded along z, the ridge; turned to lie along x unless it runs
+    // along z.
+    add(gable, slate, m.x, m.y + m.h, m.z, m.ridge === 'x' ? Math.PI / 2 : 0)
+    const stories = Math.max(1, m.rows)
+    for (const side of [-1, 1]) {
+      // The piers, stepping out at the foot.
+      for (let a = -along / 2; a <= along / 2 + 0.01; a += along / 3) {
+        const foot = at(a, side * (across / 2 + 0.5), m.y + m.h * 0.3)
+        add(
+          new THREE.BoxGeometry(1, m.h * 0.6, 1),
+          stone,
+          foot.x,
+          foot.y,
+          foot.z,
+          turn
+        )
+        const upper = at(a, side * (across / 2 + 0.3), m.y + m.h * 0.75)
+        add(
+          new THREE.BoxGeometry(0.7, m.h * 0.5, 0.7),
+          stone,
+          upper.x,
+          upper.y,
+          upper.z,
+          turn
+        )
+      }
+      // The lancets between them, a row a story.
+      for (let r = 0; r < stories; r++) {
+        const y = m.y + (r + 0.35) * (m.h / stories)
+        for (let a = -along / 2 + along / 6; a < along / 2; a += along / 3) {
+          const p = at(a, side * (across / 2 + 0.06), y)
+          const pane = new THREE.Mesh(lancet, glassOf())
+          pane.position.copy(p)
+          pane.rotation.y = turn + (side > 0 ? 0 : Math.PI)
+          body.add(pane)
+        }
+      }
+    }
+    // A rose window under each gable's peak.
+    const rose = Math.min(across * 0.28, 2.6)
+    for (const end of [-1, 1]) {
+      const p = at(end * (along / 2 + 0.08), 0, m.y + m.h - rose - 0.8)
+      const wheel = new THREE.Mesh(
+        new THREE.CircleGeometry(rose, 12),
+        glassOf()
+      )
+      wheel.position.copy(p)
+      wheel.rotation.y = turn + (end > 0 ? Math.PI / 2 : -Math.PI / 2)
+      body.add(wheel)
+      const rim = new THREE.Mesh(
+        new THREE.TorusGeometry(rose, 0.22, 4, 12),
+        stone
+      )
+      rim.position.copy(p)
+      rim.rotation.y = wheel.rotation.y
+      body.add(rim)
+      for (let k = 0; k < 6; k++) {
+        const spoke = new THREE.Mesh(
+          new THREE.BoxGeometry(0.12, rose * 2, 0.12),
+          stone
+        )
+        spoke.position.copy(p)
+        spoke.rotation.set(0, wheel.rotation.y, (k / 6) * Math.PI)
+        body.add(spoke)
+      }
+    }
+  }
+
+  // The concrete gone strange: swollen out of its box like a pillow, its
+  // slits riding the swell.
+  for (const m of layout.masses.filter((m) => m.style === 'concrete')) {
+    add(pillowBox(m.w, m.h, m.d, m.swell, 6), concrete, m.x, m.y + m.h / 2, m.z)
     const stories = Math.max(1, m.rows)
     for (let r = 0; r < stories; r++) {
       const y = m.y + (r + 0.5) * (m.h / stories)
+      const v = (y - (m.y + m.h / 2)) / (m.h / 2)
       for (const [axis, span, depth] of [
         ['x', m.w, m.d],
         ['z', m.d, m.w],
       ] as const) {
         for (let o = -span / 2 + 1.5; o <= span / 2 - 1.5; o += 2) {
+          const out = pillowOut(depth / 2, m.swell, o / (span / 2), v) + 0.02
           for (const side of [-1, 1]) {
             const g = new THREE.BoxGeometry(
-              axis === 'x' ? 0.35 : 0.12,
+              axis === 'x' ? 0.35 : 0.14,
               2.2,
-              axis === 'x' ? 0.12 : 0.35
+              axis === 'x' ? 0.14 : 0.35
             )
-            const x = axis === 'x' ? m.x + o : m.x + (side * depth) / 2
-            const z = axis === 'x' ? m.z + (side * depth) / 2 : m.z + o
+            const x = axis === 'x' ? m.x + o : m.x + side * out
+            const z = axis === 'x' ? m.z + side * out : m.z + o
             add(g, slit, x, y, z)
           }
         }
@@ -184,8 +312,9 @@ export function buildCastle(layout: CastleLayout): CastleRig {
     }
     if (rng() < 0.4) {
       const side = rng() < 0.5 ? -1 : 1
-      const x = m.x + (side * m.w) / 2 + side * 0.4
-      const z = m.z + range(rng, -m.d / 3, m.d / 3)
+      const out = pillowOut(m.w / 2, m.swell, 0, 0) + 0.4
+      const x = m.x + side * out
+      const z = m.z + range(rng, -m.d / 4, m.d / 4)
       strut(
         new THREE.Vector3(x, m.y, z),
         new THREE.Vector3(x, m.y + m.h, z),
@@ -195,21 +324,56 @@ export function buildCastle(layout: CastleLayout): CastleRig {
     }
   }
 
-  // The spires: a drum, the cone, crockets up its edges, a finial.
-  for (const s of layout.spires) {
-    const sides = 6
+  // The spomeniks' forms on the concrete roofs.
+  for (const form of layout.forms)
+    body.add(buildForm(form, formConcrete, metal))
+
+  // The pinnacles at the stone roofs' corners.
+  for (const p of layout.pinnacles) {
+    add(new THREE.BoxGeometry(0.9, 1.6, 0.9), stone, p.x, p.y + 0.8, p.z)
     add(
-      new THREE.CylinderGeometry(s.radius * 1.1, s.radius * 1.2, 3, sides),
+      new THREE.ConeGeometry(0.5, p.h, 4),
+      darkStone,
+      p.x,
+      p.y + 1.6 + p.h / 2,
+      p.z,
+      Math.PI / 4
+    )
+  }
+
+  // The spires: an octagonal drum with its lancets, the cone, crockets up
+  // its edges, a finial.
+  for (const s of layout.spires) {
+    const sides = 8
+    add(
+      new THREE.CylinderGeometry(
+        s.radius * 1.05,
+        s.radius * 1.2,
+        s.drum,
+        sides
+      ),
       stone,
       s.x,
-      s.y + 1.5,
+      s.y + s.drum / 2,
       s.z
     )
+    for (let e = 0; e < sides; e += 2) {
+      const turn = (e / sides) * Math.PI * 2 + Math.PI / sides
+      const pane = new THREE.Mesh(lancet, glassOf())
+      pane.position.set(
+        s.x + Math.cos(turn) * s.radius * 1.12,
+        s.y + s.drum * 0.25,
+        s.z + Math.sin(turn) * s.radius * 1.12
+      )
+      pane.rotation.y = Math.PI / 2 - turn
+      pane.scale.setScalar(Math.min(1, s.drum / 4))
+      body.add(pane)
+    }
     add(
       new THREE.ConeGeometry(s.radius, s.h, sides),
       darkStone,
       s.x,
-      s.y + 3 + s.h / 2,
+      s.y + s.drum + s.h / 2,
       s.z
     )
     for (let e = 0; e < sides; e++) {
@@ -221,13 +385,13 @@ export function buildCastle(layout: CastleLayout): CastleRig {
           new THREE.BoxGeometry(0.5, 0.25, 0.25),
           stone,
           s.x + Math.cos(turn) * r,
-          s.y + 3 + f * s.h,
+          s.y + s.drum + f * s.h,
           s.z + Math.sin(turn) * r,
           -turn
         )
       }
     }
-    const tip = s.y + 3 + s.h
+    const tip = s.y + s.drum + s.h
     strut(
       new THREE.Vector3(s.x, tip, s.z),
       new THREE.Vector3(s.x, tip + 2.5, s.z),
