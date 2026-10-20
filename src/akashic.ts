@@ -481,7 +481,7 @@ function dispose(object: THREE.Object3D): void {
 function triangleCount(object: THREE.Object3D): number {
   let n = 0
   object.traverse((o) => {
-    // A sprite is one quad (the skulls of the shadow burst).
+    // A sprite is one quad.
     if (o instanceof THREE.Sprite) n += 2
     if (!isMesh(o)) return
     const g = o.geometry
