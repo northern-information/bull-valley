@@ -346,6 +346,7 @@ welcome_none = { text = "No one else in the valley.", by = "ai" }
 welcome_one = { text = "One other in the valley.", by = "ai" }
 welcome_many = { text = "{count} others in the valley.", by = "ai" }
 peer_joined = { text = "{name} is in the valley.", by = "ai" }
+peer_dialed = { text = "{name} dialed in.", by = "ai" }
 peer_left = { text = "{name} is gone.", by = "ai" }
 peer_renamed = { text = "{was} is {name} now.", by = "ai" }
 peer_level = { text = "{name} reached level {level}.", by = "ai" }
@@ -361,6 +362,12 @@ hop_out_moving = { text = "Boots on gravel. The truck rolls on.", by = "ai" }
 end_of_line = { text = "Back at the Citgo. Marx lights a cigarette.", by = "ai" }
 ride_home = { text = "Marx turns for home.", by = "ai" }
 board_refused = { text = "Marx shakes his head. Not now.", by = "ai" }
+charter = { text = "You tap the cab and point. Marx nods: {place}.", by = "ai" }
+charter_joyride = { text = "You leave it to Marx. The long way, then.", by = "ai" }
+charter_other = { text = "Marx is headed for {place}.", by = "ai" }
+charter_other_joyride = { text = "Marx will take the long way round.", by = "ai" }
+charter_refused = { text = "Marx does not hear you over the engine.", by = "ai" }
+dropoff = { text = "Marx slows and waves you off. He turns for home.", by = "ai" }
 cosmetic_worn = { text = "You wear the {cosmetic}. The whole valley can see it burn.", by = "ai" }
 trade_short = { text = "Moab wants {count} oz of {price}. You do not have it.", by = "ai" }
 trade_owned = { text = "You already wear the {cosmetic}.", by = "ai" }
@@ -450,6 +457,8 @@ portal_busy = { text = "Every line to that Citgo is busy.", by = "ai" }
 portal_refused = { text = "The call drops.", by = "ai" }
 portal_hung_up = { text = "You hang up.", by = "ai" }
 citgo_visited = { text = "You found {citgo}. It is on your map.", by = "ai" }
+citgo_bounty = { text = "You found {citgo}. It is on your map. {cash} for the find.", by = "ai" }
+landmark_bounty = { text = "Not many find this place. {cash} for the find.", by = "ai" }
 travel = { text = "The lights go out and come back on. {citgo}.", by = "ai" }
 travel_away = { text = "Fast travel leaves from a Citgo forecourt.", by = "ai" }
 travel_unvisited = { text = "You have not been to {citgo} yet.", by = "ai" }
@@ -474,6 +483,8 @@ last = { text = "Last Citgo: {citgo}. Your portal goes there.", by = "ai" }
 none = { text = "No Citgo yet. Stand on a forecourt.", by = "ai" }
 hint = { text = "Click a visited Citgo to fast travel.", by = "ai" }
 hint_away = { text = "Fast travel leaves from a Citgo forecourt.", by = "ai" }
+hint_charter = { text = "Click where Marx should take you. Esc for the long way, E to hop out.", by = "ai" }
+somewhere = { text = "the middle of nowhere", by = "ai" }
 citgo = { text = "Citgo on {road}", by = "ai" }
 citgo_unnamed = { text = "Citgo #{n}", by = "ai" }
 
@@ -527,6 +538,7 @@ too_fast = { text = "You are speaking too fast.", by = "ai" }
 offline = { text = "No one can hear you.", by = "ai" }
 online = { text = "In the valley: {names}.", by = "ai" }
 online_name = { text = "{name} (level {level})", by = "ai" }
+online_phone = { text = "{name} (level {level}, on the phone)", by = "ai" }
 unknown_command = { text = "No such command. Try /online, /emotes, /friends, /friend name, /unfriend name or /w name message.", by = "ai" }
 usage_whisper = { text = "To whisper: /w name message", by = "ai" }
 usage_friend = { text = "To ask a raider to be friends: /friend name", by = "ai" }
@@ -549,6 +561,7 @@ where_riding = { text = "riding with Marx", by = "ai" }
 where_maze = { text = "in the corn maze", by = "ai" }
 where_citgo = { text = "by a Citgo", by = "ai" }
 where_valley = { text = "out in the valley", by = "ai" }
+where_phone = { text = "on the phone", by = "ai" }
 sent = { text = "You asked {name} to be friends.", by = "ai" }
 now = { text = "You and {name} are friends.", by = "ai" }
 removed = { text = "You and {name} are no longer friends.", by = "ai" }
@@ -1112,3 +1125,123 @@ blurb = { text = "Erwin von Dutch wants it laid at the heart of the corn maze. D
 [items.vault-key]
 label = { text = "Video Vault Key", by = "ai" }
 blurb = { text = "A brass key on a red tag that says BACK, from Erwin von Dutch for the rose. It opens the office behind the Video Vault, for whoever carries it.", by = "ai" }
+
+# Bull Valley Dial-Up, the valley on a phone (src/dialmain.ts and the
+# dial* modules): the brand, the modem it opens on, and its screens.
+
+[dialup]
+title = { text = "Bull Valley Dial-Up", by = "ai" }
+tap = { text = "TAP TO DIAL", by = "ai" }
+skip = { text = "TAP TO SKIP", by = "ai" }
+switch_valley = { text = "Walk the valley instead", by = "ai" }
+refused = { text = "The valley hung up. Reload to dial again.", by = "ai" }
+back = { text = "Back", by = "ai" }
+level = { text = "LV {level}", by = "ai" }
+geometrie = { text = "Geometrie {health} / {max}", by = "ai" }
+
+[dialup.modem]
+atz = { text = "ATZ", by = "ai" }
+ok = { text = "OK", by = "ai" }
+dial = { text = "ATDT 1-815-BULL-VLY", by = "ai" }
+ring = { text = "RINGING", by = "ai" }
+carrier = { text = "CARRIER 28800", by = "ai" }
+protocol = { text = "PROTOCOL: LAP-M", by = "ai" }
+compression = { text = "COMPRESSION: V.42BIS", by = "ai" }
+connect = { text = "CONNECT 56000", by = "ai" }
+login = { text = "LOGIN:", by = "ai" }
+no_carrier = { text = "NO CARRIER", by = "ai" }
+redial = { text = "ATDL", by = "ai" }
+
+[dialup.tabs]
+lobby = { text = "Lobby", by = "ai" }
+pack = { text = "Pack", by = "ai" }
+expeditions = { text = "Expeditions", by = "ai" }
+social = { text = "Social", by = "ai" }
+book = { text = "Book", by = "ai" }
+
+[dialup.lobby]
+stand = { text = "Cabbage Stand", by = "ai" }
+stand_blurb = { text = "Your outpost on the spawn Citgo's lot. Banking while you're away.", by = "ai" }
+locker = { text = "Citgo Locker", by = "ai" }
+locker_blurb = { text = "Your stash, the same at every Citgo.", by = "ai" }
+banked = { text = "{amount} banked", by = "ai" }
+citgo = { text = "Citgo", by = "ai" }
+citgo_blurb = { text = "The shelves of every Citgo you've stood at. {count} found.", by = "ai" }
+erwin_blurb = { text = "Barters out of the Golden Wok. No fiat currency.", by = "ai" }
+gron_blurb = { text = "Changes your name and your character.", by = "ai" }
+moab_blurb = { text = "Burns under every Citgo sign. Trades for gold.", by = "ai" }
+
+[dialup.raider]
+title = { text = "LV {level} · {outfit}", by = "ai" }
+portrait = { text = "{name} as {outfit}", by = "ai" }
+xp = { text = "XP", by = "ai" }
+xp_max = { text = "Top level", by = "ai" }
+of = { text = "{done} / {goal}", by = "ai" }
+done = { text = "Done", by = "ai" }
+season = { text = "Caretaker burned", by = "ai" }
+task = { text = "Shadows today", by = "ai" }
+book = { text = "Book of Shadows", by = "ai" }
+citgos = { text = "Citgos found", by = "ai" }
+worn = { text = "Wearing", by = "ai" }
+wards = { text = "No wards going.", by = "ai" }
+
+[dialup.citgo]
+buy = { text = "Buy", by = "ai" }
+bought = { text = "{item}, bought.", by = "ai" }
+left = { text = "{count} on the shelf", by = "ai" }
+sold_out = { text = "Sold out", by = "ai" }
+short = { text = "Short {amount}", by = "ai" }
+none_visited = { text = "Stand on a Citgo's forecourt in the valley, and its shelves come to the phone.", by = "ai" }
+not_visited = { text = "You haven't stood at that Citgo yet.", by = "ai" }
+no_world = { text = "No one has opened the valley today. Its shelves come up once someone walks it.", by = "ai" }
+
+[dialup.moab]
+trade = { text = "Trade {count} oz of {price} for the {cosmetic}", by = "ai" }
+
+[dialup.expeditions]
+ride = { text = "Ride with Marx", by = "ai" }
+ride_blurb = { text = "Out the back roads in the bed of the white Chevy, picking up what blows by.", by = "ai" }
+corn = { text = "Sweep the Corn", by = "ai" }
+corn_blurb = { text = "Down every path of the maze while the Caretaker floats the other way.", by = "ai" }
+undercroft = { text = "Down the Undercroft", by = "ai" }
+undercroft_blurb = { text = "Under the plaza, past the shades, to the Warden's altar and back.", by = "ai" }
+safe = { text = "Nothing out there lays a hand on you.", by = "ai" }
+risk_warded = { text = "{risk}% chance of coming back hurt; {ward} keeps it down.", by = "ai" }
+loot = { text = "Brings back {loot}.", by = "ai" }
+cash = { text = "cash", by = "ai" }
+send = { text = "Send", by = "ai" }
+locked = { text = "Opens at LV {level}", by = "ai" }
+claim = { text = "Bring It Home", by = "ai" }
+out_now = { text = "Out now", by = "ai" }
+home_now = { text = "Back. Bring it home.", by = "ai" }
+left = { text = "{time} left", by = "ai" }
+hours = { text = "{h}h {m}m", by = "ai" }
+minutes = { text = "{m}:{s}", by = "ai" }
+sent = { text = "Sent out: {run}.", by = "ai" }
+home = { text = "Home with {haul}.", by = "ai" }
+home_hurt = { text = "Home hurt, with only {haul}.", by = "ai" }
+haul_item = { text = "{count} {item}", by = "ai" }
+nothing = { text = "nothing", by = "ai" }
+busy = { text = "Someone's already out. Bring them home first.", by = "ai" }
+locked_refused = { text = "Your level hasn't opened that run yet.", by = "ai" }
+out = { text = "Not back yet.", by = "ai" }
+refused = { text = "The run couldn't go out. Try again soon.", by = "ai" }
+
+[dialup.social]
+placeholder = { text = "Say something to the valley", by = "ai" }
+send = { text = "Send", by = "ai" }
+friends = { text = "Friends", by = "ai" }
+online = { text = "In the valley", by = "ai" }
+accept = { text = "Accept", by = "ai" }
+remove = { text = "Remove", by = "ai" }
+no_body = { text = "Emotes need a body. Walk the valley to take one.", by = "ai" }
+
+[dialup.pack]
+count = { text = "×{count}", by = "ai" }
+stow_one = { text = "Stow 1", by = "ai" }
+stow_all = { text = "Stow all", by = "ai" }
+take_one = { text = "Take 1", by = "ai" }
+take_all = { text = "Take all", by = "ai" }
+hotbar = { text = "Put on the hotbar", by = "ai" }
+hotbar_pick = { text = "Tap a slot for {item}", by = "ai" }
+hotbar_saved = { text = "{item} on slot {slot}.", by = "ai" }

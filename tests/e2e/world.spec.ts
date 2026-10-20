@@ -201,7 +201,7 @@ base.describe('one visit', { tag: '@raid' }, () => {
     await page.keyboard.press('KeyE')
     await expect.poll(pbrs).toBe(0)
     await expect
-      .poll(() => page.evaluate(() => window.__bv?.geometrie.drunk ?? 0))
+      .poll(() => page.evaluate(() => window.__bv?.wards.drunk ?? 0))
       .toBeGreaterThan(0)
     await page.keyboard.press('KeyD')
     expect(await bagTab()).toBe(copy('inventory.tab_loot'))
@@ -209,30 +209,41 @@ base.describe('one visit', { tag: '@raid' }, () => {
     await page.keyboard.press('Tab')
   })
 
-  base('climb into the bed, see the countdown, and hop out', async () => {
-    await moveTo('truck')
-    await expect(prompt()).toHaveText(copy('prompts.board'))
-    // The truck is no item: nothing glows.
-    expect(await page.evaluate(() => window.__bv?.glow ?? null)).toBeNull()
-    await page.keyboard.press('KeyE')
-    await expect.poll(aboard).toBe(true)
-    // Climbing in starts Marx's countdown.
-    await expect(page.locator('.bv-countdown')).toContainText(
-      copy('truck.leaves_in', { clock: '' }).trim()
-    )
-    await expect(prompt()).toHaveText(copy('prompts.hop_out'))
-    await page.keyboard.press('KeyE')
-    await expect.poll(aboard).toBe(false)
-    // An empty bed stops it.
-    await expect
-      .poll(() =>
-        page.evaluate(() => {
-          const leg = window.__bv?.marx.leg
-          return leg?.kind === 'parked' ? leg.leavesAt : 'away'
-        })
+  base(
+    'climb into the bed, get the map to pick from, and hop out',
+    async () => {
+      await moveTo('truck')
+      await expect(prompt()).toHaveText(copy('prompts.board'))
+      // The truck is no item: nothing glows.
+      expect(await page.evaluate(() => window.__bv?.glow ?? null)).toBeNull()
+      await page.keyboard.press('KeyE')
+      await expect.poll(aboard).toBe(true)
+      // The first one in picks where Marx goes on the map; alone in the
+      // valley, no countdown shows.
+      await expect
+        .poll(() => page.evaluate(() => window.__bv?.mapOpen))
+        .toBe(true)
+      await expect(page.locator('.bv-map-hint')).toHaveText(
+        copy('map.hint_charter')
       )
-      .toBeNull()
-  })
+      await expect(page.locator('.bv-countdown')).toBeHidden()
+      // E hops out with the map still open, and closes it.
+      await page.keyboard.press('KeyE')
+      await expect
+        .poll(() => page.evaluate(() => window.__bv?.mapOpen))
+        .toBe(false)
+      await expect.poll(aboard).toBe(false)
+      // An empty bed stops it.
+      await expect
+        .poll(() =>
+          page.evaluate(() => {
+            const leg = window.__bv?.marx.leg
+            return leg?.kind === 'parked' ? leg.leavesAt : 'away'
+          })
+        )
+        .toBeNull()
+    }
+  )
 
   base('take a cabbage into the loot', async () => {
     await moveTo('cabbage')

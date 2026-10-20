@@ -1,0 +1,829 @@
+/* Bull Valley Dial-Up (dialmain.ts): the valley on a phone, in the
+   valley's own house style: eggshell on black, panels edged and dropped
+   on a hard shadow like the dialogs (.bv-npc-ui), labels small, tracked
+   and in caps, the Citgo red for what can be pressed, IBM Plex Mono. Built for a thumb: every target at
+   least 44px, the safe areas kept clear, and nothing scrolls sideways
+   at 360px. */
+
+.bv-dialup {
+  --dial-bg: var(--fi-bg);
+  --dial-panel: #050505;
+  --dial-line: rgb(240 234 214 / 16%);
+  --dial-edge: rgb(240 234 214 / 24%);
+  --dial-ink: var(--bv-eggshell);
+  --dial-dim: rgb(240 234 214 / 60%);
+  --dial-hot: var(--bv-citgo);
+  --dial-shadow: 6px 6px 0 var(--fi-black-shadow);
+  --dial-tap: 44px;
+}
+
+.bv-dialup body {
+  background: var(--dial-bg);
+  color: var(--dial-ink);
+  font-family: var(--bv-font);
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.bv-dialup #bv-root {
+  position: fixed;
+  inset: 0;
+}
+
+/* Hidden means hidden, whatever display a class sets. */
+.bv-dialup [hidden] {
+  display: none !important;
+}
+
+/* The modem: a terminal that types the handshake out, under the game's
+   logo in its fog and over the colophon, all under the title cards'
+   grain (preload.ts waits on it). */
+.bv-modem {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: max(2rem, env(safe-area-inset-top)) 1.25rem
+    max(2rem, env(safe-area-inset-bottom));
+  background: var(--dial-bg);
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.bv-modem::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background-image: url('/textures/000973910004.jpg');
+  background-repeat: repeat;
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.bv-modem-logo {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 7rem;
+}
+
+.bv-modem-logo-img {
+  width: min(100%, 22rem);
+  height: auto;
+}
+
+/* The fog lies over the logo alone here (fog.ts .bv-fog). */
+.bv-modem-logo .bv-fog {
+  position: absolute;
+  inset: -1rem;
+  width: calc(100% + 2rem);
+  height: calc(100% + 2rem);
+}
+
+.bv-modem-colophon {
+  align-self: center;
+  width: 4.5rem;
+  height: auto;
+  opacity: 0.85;
+}
+
+.bv-modem-brand {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--dial-hot);
+}
+
+.bv-modem-screen {
+  flex: 1;
+  margin: 0;
+  font: inherit;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  color: var(--dial-ink);
+}
+
+.bv-modem-screen::after {
+  content: '█';
+  color: var(--dial-hot);
+  animation: bv-dial-blink 1s steps(1) infinite;
+}
+
+.bv-modem-prompt {
+  margin: 0;
+  min-height: 1.5em;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-align: center;
+  letter-spacing: 0.24em;
+  color: var(--dial-dim);
+}
+
+@keyframes bv-dial-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* The shell: the top bar, the view, the tabs along the bottom. */
+.bv-dial {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  background: var(--dial-bg);
+}
+
+.bv-dial-top {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: max(0.75rem, env(safe-area-inset-top)) 1rem 0.75rem;
+  background: var(--dial-panel);
+  border-bottom: 1px solid var(--dial-line);
+}
+
+.bv-dial-who {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.bv-dial-name {
+  overflow: hidden;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bv-dial-lv {
+  color: var(--dial-dim);
+}
+
+.bv-dial-cash {
+  margin-left: auto;
+  font-weight: 700;
+}
+
+.bv-dial-meter {
+  position: relative;
+  height: 0.5rem;
+  background: var(--dial-line);
+}
+
+.bv-dial-meter::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--fill, 0) * 100%);
+  background: var(--dial-ink);
+}
+
+.bv-dial-health {
+  height: 1.4rem;
+  background: rgb(90 10 4 / 70%);
+}
+
+.bv-dial-health::before {
+  background: #d4140a;
+}
+
+.bv-dial-meter-text {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--bv-eggshell);
+}
+
+.bv-dial-wards {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bv-dial-ward {
+  display: inline-flex;
+  gap: 0.25rem;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.bv-dial-ward .bv-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.bv-dial-view {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.bv-dial-tabs {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--dial-panel);
+  border-top: 1px solid var(--dial-line);
+}
+
+.bv-dial-tab {
+  min-height: var(--dial-tap);
+  padding: 0 0.25rem;
+  font: inherit;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dial-dim);
+  background: none;
+  border: 0;
+}
+
+.bv-dial-tab[aria-current='true'] {
+  color: var(--dial-ink);
+  box-shadow: inset 0 3px 0 var(--dial-hot);
+}
+
+/* The lobby's cards. */
+.bv-dial-lobby {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.bv-dial-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-height: 5rem;
+  padding: 1rem;
+  font: inherit;
+  text-align: left;
+  color: var(--dial-ink);
+  background: var(--dial-panel);
+  border: 1px solid var(--dial-edge);
+  box-shadow: var(--dial-shadow);
+}
+
+button.bv-dial-card {
+  border-left: 3px solid var(--dial-hot);
+}
+
+.bv-dial-card-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.bv-dial-card-blurb {
+  font-size: 0.875rem;
+  color: var(--dial-dim);
+}
+
+/* The lobby's foot: the way to the 3D valley, and Sign Out. */
+.bv-dial-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem 0;
+}
+
+.bv-dial-switch {
+  font-size: 0.8rem;
+  color: var(--dial-dim);
+}
+
+/* The raider in their character, with their record beside them. */
+.bv-dial-raider {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.75rem 1rem;
+  padding: 1rem;
+  background: var(--dial-panel);
+  border: 1px solid var(--dial-edge);
+  box-shadow: var(--dial-shadow);
+}
+
+.bv-dial-portrait {
+  align-self: start;
+  width: 120px;
+  height: 200px;
+  background: #050505;
+  border: 1px solid var(--dial-line);
+}
+
+/* The raider on their turntable (avatarview.ts AVATAR_PX). */
+.bv-dial-portrait-canvas {
+  display: block;
+  width: 120px;
+  height: 200px;
+  image-rendering: pixelated;
+  cursor: grab;
+  touch-action: none;
+}
+
+.bv-dial-raider-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.bv-dial-raider-name {
+  margin: 0;
+  overflow: hidden;
+  font-size: 1.15rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bv-dial-raider-title {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--dial-hot);
+}
+
+.bv-dial-stats {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0.5rem 0 0;
+}
+
+.bv-dial-stat {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.15rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+.bv-dial-stat-label {
+  overflow: hidden;
+  font-size: 0.625rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dial-dim);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bv-dial-stat-value {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.bv-dial-stat-bar {
+  grid-column: 1 / -1;
+  height: 0.3rem;
+}
+
+.bv-dial-raider-wards {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bv-dial-raider-calm {
+  font-size: 0.8rem;
+  color: var(--dial-dim);
+}
+
+.bv-dial-ward-level {
+  color: var(--dial-dim);
+}
+
+/* Buttons, chips and lists. */
+.bv-dial-btn,
+.bv-dial-chip,
+.bv-dial-slot {
+  min-height: var(--dial-tap);
+  padding: 0 0.9rem;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dial-ink);
+  background: transparent;
+  border: 1px solid var(--dial-edge);
+}
+
+.bv-dial-btn:disabled {
+  opacity: 0.45;
+}
+
+.bv-dial-chips {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  margin-bottom: 0.75rem;
+}
+
+.bv-dial-chip {
+  flex: none;
+}
+
+.bv-dial-chip[aria-pressed='true'] {
+  color: var(--dial-hot);
+  border-color: var(--dial-hot);
+}
+
+.bv-dial-items {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bv-dial-item {
+  background: var(--dial-panel);
+  border: 1px solid var(--dial-edge);
+}
+
+.bv-dial-item-head {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  min-height: var(--dial-tap);
+  padding: 0 0.9rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.bv-dial-item-head::-webkit-details-marker {
+  display: none;
+}
+
+.bv-dial-item-count {
+  margin-left: auto;
+  color: var(--dial-dim);
+}
+
+.bv-dial-item-body {
+  padding: 0 0.9rem 0.9rem;
+}
+
+.bv-dial-item-blurb {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  color: var(--dial-dim);
+}
+
+.bv-dial-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.bv-dial-note {
+  margin: 0.5rem 0;
+  color: var(--dial-dim);
+}
+
+.bv-dial-hotbar {
+  margin-top: 1.25rem;
+}
+
+.bv-dial-slots {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bv-dial-slot {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The Book of Shadows: the chapters, their entries, and a page. */
+.bv-dial-book-title {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.bv-dial-book-total {
+  margin: 0.2rem 0 0.75rem;
+  font-size: 0.8rem;
+  color: var(--dial-dim);
+}
+
+.bv-dial-entries {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bv-dial-entry {
+  width: 100%;
+  min-height: var(--dial-tap);
+  padding: 0 0.9rem;
+  font: inherit;
+  font-size: 0.875rem;
+  text-align: left;
+  color: var(--dial-ink);
+  background: var(--dial-panel);
+  border: 1px solid var(--dial-edge);
+  border-left: 3px solid var(--dial-hot);
+}
+
+.bv-dial-entry--dark {
+  color: var(--dial-dim);
+  border-left-color: var(--dial-line);
+}
+
+.bv-dial-page-portrait {
+  display: block;
+  width: min(100%, 240px);
+  aspect-ratio: 1;
+  margin: 0 auto 1rem;
+}
+
+.bv-dial-page-name {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.bv-dial-page-lore {
+  margin: 0.75rem 0 0;
+  line-height: 1.55;
+}
+
+.bv-dial-page-lore--dark {
+  color: var(--dial-dim);
+}
+
+/* The Citgo: its shelves, each kind with its price and Buy. */
+.bv-dial-citgo-cash {
+  margin: 0.25rem 0 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.bv-dial-shelf {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem 0.9rem;
+}
+
+.bv-dial-shelf-head,
+.bv-dial-shelf-foot {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bv-dial-shelf-price {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.bv-dial-btn--hot {
+  color: var(--fi-bg);
+  background: var(--dial-hot);
+  border-color: var(--dial-hot);
+}
+
+/* Expeditions: the run out, and every run. */
+.bv-dial-run {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  padding: 1rem;
+  background: var(--dial-panel);
+  border: 1px solid var(--dial-hot);
+  box-shadow: var(--dial-shadow);
+}
+
+.bv-dial-run-name {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.bv-dial-run-bar {
+  height: 0.5rem;
+}
+
+.bv-dial-run-bar::before {
+  background: var(--dial-hot);
+}
+
+.bv-dial-run-left {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--dial-dim);
+}
+
+.bv-dial-expedition {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem 0.9rem;
+}
+
+.bv-dial-expedition .bv-dial-item-blurb {
+  margin: 0;
+}
+
+.bv-dial-haul {
+  margin-top: 1rem;
+}
+
+/* One of the folk in a sheet: Moab. */
+.bv-dial-folk-act {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.bv-dial-folk-says {
+  margin: 0;
+  color: var(--dial-hot);
+}
+
+/* Social: the log, the field, the friends, who is here. */
+.bv-dial-social {
+  display: grid;
+  gap: 1rem;
+}
+
+.bv-dial-log {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  height: 40vh;
+  min-height: 12rem;
+  margin: 0;
+  padding: 0.75rem;
+  overflow-y: auto;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  list-style: none;
+  background: var(--dial-panel);
+  border: 1px solid var(--dial-edge);
+}
+
+.bv-dial-line-at {
+  margin-right: 0.5rem;
+  color: var(--dial-dim);
+}
+
+.bv-dial-line-name {
+  margin-right: 0.5rem;
+  font-weight: 600;
+  color: var(--fi-blue);
+}
+
+.bv-dial-line[data-kind='whisper'] .bv-dial-line-name,
+.bv-dial-line[data-kind='whisper'] .bv-dial-line-text {
+  color: var(--fi-magenta);
+}
+
+.bv-dial-line[data-kind='system'] .bv-dial-line-text {
+  color: var(--dial-dim);
+}
+
+.bv-dial-say {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.bv-dial-say-field {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--dial-tap);
+  padding: 0 0.75rem;
+  font: inherit;
+
+  /* 16px or more, so the phone does not zoom on focus. */
+  font-size: 1rem;
+  color: var(--dial-ink);
+  background: var(--dial-panel);
+  border: 1px solid var(--dial-edge);
+  border-radius: 0;
+}
+
+.bv-dial-say-field:focus {
+  border-color: var(--dial-hot);
+}
+
+.bv-dial-social-head {
+  margin: 0 0 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--dial-dim);
+}
+
+.bv-dial-friend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--dial-line);
+}
+
+.bv-dial-friend-line {
+  flex: 1 1 12rem;
+  font-size: 0.875rem;
+}
+
+.bv-dial-online-name {
+  margin: 0.25rem 0;
+  font-size: 0.875rem;
+}
+
+/* A sheet over the view, with its way back. */
+.bv-dial-sheet {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  background: var(--dial-bg);
+}
+
+.bv-dial-sheet-head {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  padding: max(0.75rem, env(safe-area-inset-top)) 1rem 0.75rem;
+  background: var(--dial-panel);
+  border-bottom: 1px solid var(--dial-line);
+}
+
+.bv-dial-sheet-title {
+  margin: 0;
+  font-size: 0.8125rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.bv-dial-sheet-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+/* The valley's last word, over the tabs. */
+.bv-dial-toast {
+  position: absolute;
+  right: 1rem;
+  bottom: calc(var(--dial-tap) + env(safe-area-inset-bottom) + 0.75rem);
+  left: 1rem;
+  margin: 0;
+  padding: 0.75rem 1rem;
+  background: var(--dial-panel);
+  border: 1px solid var(--dial-hot);
+  box-shadow: var(--dial-shadow);
+}
+
+/* The 3D valley's dialogs (the stand, Erwin, Gron) cover the shell
+   whole on a phone: there is no valley behind them to show through. */
+.bv-dialup .bv-account {
+  background: var(--dial-bg);
+}
+
+/* The stand's dialog, borrowed from the 3D valley, in one column. */
+.bv-dialup .bv-npc-ui--wide {
+  grid-template-columns: 1fr;
+}

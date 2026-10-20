@@ -13,6 +13,7 @@ import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { DealerStock } from './dealer.ts'
 import type { Drop } from './drops.ts'
+import type { ExpeditionOutcome, ExpeditionRun } from './expeditions.ts'
 import type { Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckRoutes, TruckState } from './marx.ts'
@@ -28,7 +29,7 @@ import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 36
+export const PROTOCOL_VERSION = 37
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -107,6 +108,9 @@ export interface PeerWire {
   cosmetics: CosmeticId[]
   level: number
   at: PeerStateWire | null
+  // Dialed in from Bull Valley Dial-Up (sharedworld.ts rule 29): in the
+  // valley, but never placed in it, so never drawn.
+  dialup?: true
 }
 
 // One pickup as this build placed it: what lies there and how many. The
@@ -194,6 +198,8 @@ export type WorldReason =
   | 'home'
   | 'donuts'
   | 'back'
+  | 'charted'
+  | 'dropoff'
   | 'taken'
   | 'bought'
   | 'dropped'
@@ -258,12 +264,30 @@ export interface HelloMessage {
   was?: string
 }
 
+// Bull Valley Dial-Up's hello (sharedworld.ts rule 29): the valley without
+// a body in it, so nothing of the world is carried, only the outfit the
+// raider wears. Who it is comes from the session cookie, as for a hello.
+export interface DialMessage {
+  type: 'dial'
+  v: number
+  outfit: OutfitId
+  // As a hello's: the id this client had before the line dropped.
+  was?: string
+}
+
 interface BoardMessage {
   type: 'board'
 }
 
 interface HopOutMessage {
   type: 'hop-out'
+}
+
+// The first one in the bed picks where Marx goes (sharedworld.ts rule 3):
+// a point on the map, or null for the joyride.
+interface CharterMessage {
+  type: 'charter'
+  to: XZ | null
 }
 
 interface TakeMessage {
@@ -346,6 +370,12 @@ type StandTendMessage =
   | { type: 'stand-stock'; kind: string; count: number }
   | { type: 'stand-collect' }
   | { type: 'stand-upgrade' }
+
+// An expedition (sharedworld.ts rule 30): a run of `kind` sent out, or the
+// run home claimed. Dial-Up only; the valley answers with an
+// ExpeditionMessage (and a PackMessage after a claim), or a nack.
+type ExpeditionTendMessage =
+  { type: 'expedition-send'; kind: string } | { type: 'expedition-claim' }
 
 // A Citgo portal, opened a little ahead of the raider with its twin at the
 // last Citgo they stood at (sharedworld.ts rule 28). The valley places it
@@ -493,11 +523,13 @@ interface PingMessage {
 
 export type ClientMessage =
   | HelloMessage
+  | DialMessage
   | StateMessage
   | HeadlightsMessage
   | PingMessage
   | BoardMessage
   | HopOutMessage
+  | CharterMessage
   | TakeMessage
   | BuyMessage
   | CallMessage
@@ -510,6 +542,7 @@ export type ClientMessage =
   | LootMessage
   | StowMessage
   | StandTendMessage
+  | ExpeditionTendMessage
   | TradeMessage
   | DealMessage
   | QuestMessage
@@ -526,7 +559,7 @@ export type ClientMessage =
 // What a client may be refused for.
 export type NackRe = Exclude<
   ClientMessage['type'],
-  'hello' | 'state' | 'headlights' | 'ping' | 'friends'
+  'hello' | 'dial' | 'state' | 'headlights' | 'ping' | 'friends'
 >
 
 // --- Server → client -------------------------------------------------------
@@ -538,7 +571,9 @@ export interface WelcomeMessage {
   // offset from it.
   serverNow: number
   peers: PeerWire[]
-  world: WorldWire
+  // Null only for a dial-up raider (rule 29) in a valley no 3D raider
+  // has opened a world in yet.
+  world: WorldWire | null
   // Where this account last stood on foot, or null for the spawn Citgo.
   place: Place | null
   // Which bushes still have a berry for this account today.
@@ -563,12 +598,14 @@ export interface WelcomeMessage {
   stand: StandLedger
   // Where the account stands on each quest (quests.ts).
   quests: Record<QuestId, QuestStage>
+  // The account's run out on an expedition (expeditions.ts), or null.
+  expedition: ExpeditionRun | null
   // The account's geometrie left and whole (sharedworld.ts rule 24,
   // health.ts).
   health: number
   healthMax: number
-  // The account's geometrie at serverNow (sharedworld.ts rule 27).
-  geometrie: GeometrieLevels
+  // The account's wards at serverNow (sharedworld.ts rule 27).
+  wards: WardLevels
   // Every Citgo the account has stood at, and the last (rule 28).
   citgos: CitgoLog
 }
@@ -580,8 +617,8 @@ interface CitgosMessage {
   citgos: CitgoLog
 }
 
-// The four wards' levels, each from 0 to 1 (geometrie.ts).
-export interface GeometrieLevels {
+// The four wards' levels, each from 0 to 1 (wardlevels.ts).
+export interface WardLevels {
   high: number
   stimulated: number
   drunk: number
@@ -600,6 +637,15 @@ interface QuestFrame {
   quest: QuestId
   step: QuestStep
   stage: QuestStage
+}
+
+// An account's expedition after a send or a claim (sharedworld.ts rule
+// 30), to every socket signed in to it: the run out, or null, and for a
+// claim what the run brought home.
+export interface ExpeditionMessage {
+  type: 'expedition'
+  run: ExpeditionRun | null
+  outcome?: ExpeditionOutcome
 }
 
 export interface StandMessage {
@@ -694,7 +740,7 @@ export interface WorldMessage {
   reason: WorldReason
   world: WorldWire | null
   // Who did it, for 'joined', 'left', 'boarded', 'hopped-out', 'called',
-  // 'ferry', 'taken', 'bought', 'dealt', 'dropped', 'drop-taken', 'fell',
+  // 'charted', 'ferry', 'taken', 'bought', 'dealt', 'dropped', 'drop-taken', 'fell',
   // 'looted', 'portal-opened'.
   by?: string
   // For 'taken'.
@@ -838,17 +884,17 @@ interface StruckMessage {
   max: number
 }
 
-// The account's geometrie as the valley keeps it (sharedworld.ts rule 27),
+// The account's wards as the valley keeps them (sharedworld.ts rule 27),
 // at the moment the frame is sent: after a use, a pass either way, or a
 // shattering. To every socket signed in to it.
-interface GeometrieMessage {
-  type: 'geometrie'
-  geometrie: GeometrieLevels
+interface WardsMessage {
+  type: 'wards'
+  wards: WardLevels
 }
 
 // Something passed (rule 27): to the raider who took it, naming who passed
 // it (`from`); and back to the giver's sockets naming who took it (`to`).
-// Usernames as D1 holds them. A geometrie frame follows for each side.
+// Usernames as D1 holds them. A wards frame follows for each side.
 export interface PassedMessage {
   type: 'passed'
   kind: string
@@ -894,13 +940,14 @@ export type ServerMessage =
   | ShadowmenMessage
   | StruckMessage
   | HealthMessage
-  | GeometrieMessage
+  | WardsMessage
   | CitgosMessage
   | PassedMessage
   | SeasonMessage
   | BookMessage
   | TaskMessage
   | StandMessage
+  | ExpeditionMessage
   | QuestFrame
   | XpMessage
   | WhisperedMessage
@@ -919,8 +966,9 @@ interface WhisperedMessage {
   outgoing: boolean
 }
 
-// Roughly where a raider is (friends.ts whereabouts).
-export type Whereabouts = 'riding' | 'maze' | 'citgo' | 'valley'
+// Roughly where a raider is (friends.ts whereabouts): on the phone when
+// dialed in from Bull Valley Dial-Up.
+export type Whereabouts = 'riding' | 'maze' | 'citgo' | 'valley' | 'phone'
 
 // One name on an account's friends list: a friend, a raider this account
 // asked (asked) or one asking it (asking); whether they are in the valley
@@ -1276,13 +1324,32 @@ const DEV_OPS: Record<string, (value: Fields) => DevMessage | null> = {
 
 const CLIENT_PARSERS: ClientParsers = {
   hello: parseHello,
+  dial: ({ v, outfit, was }) => {
+    if (typeof v !== 'number' || !Number.isInteger(v)) return null
+    if (typeof outfit !== 'string') return null
+    return {
+      type: 'dial',
+      v,
+      outfit: outfit as OutfitId,
+      ...(typeof was === 'string' && was.length <= ID_MAX ? { was } : {}),
+    }
+  },
   board: bare('board'),
   'hop-out': bare('hop-out'),
+  charter: ({ to }) => {
+    if (to === null) return { type: 'charter', to: null }
+    const at = parseXZ(to)
+    return at && { type: 'charter', to: at }
+  },
   portal: bare('portal'),
   rename: bare('rename'),
   friends: bare('friends'),
   'stand-collect': bare('stand-collect'),
   'stand-upgrade': bare('stand-upgrade'),
+  'expedition-claim': bare('expedition-claim'),
+  // Which runs there are is the valley's to check.
+  'expedition-send': ({ kind }) =>
+    isKind(kind) ? { type: 'expedition-send', kind } : null,
   whisper: ({ to, text }) =>
     isValidName(to) && isValidChat(text) ? { type: 'whisper', to, text } : null,
   friend: ({ name }) => (isValidName(name) ? { type: 'friend', name } : null),

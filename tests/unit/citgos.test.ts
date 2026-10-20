@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest'
+import { citgoNames } from '../../src/citgomap.ts'
 import {
   arrivalAt,
   citgoAt,
   fastTravel,
   NO_CITGOS,
   roadNameNear,
+  surveyedStations,
   visit,
 } from '../../src/citgos.ts'
 import { CONFIG } from '../../src/config.ts'
+import { copy } from '../../src/copy.ts'
 
 const STATIONS = [
   { x: 0, z: 0 },
@@ -97,5 +100,34 @@ describe('naming a Citgo for its road', () => {
 
   it('names none past its reach', () => {
     expect(roadNameNear({ x: 0, z: 1000 }, roads, 250)).toBeNull()
+  })
+})
+
+describe('the Citgos the survey stands', () => {
+  it('leaves out a fuel point at the edge, and names each for its road', () => {
+    const fuel = [
+      { n: 'a', p: [0.5, 0.5] as [number, number] },
+      { n: 'edge', p: [0.01, 0.5] as [number, number] },
+      { n: 'b', p: [0.9, 0.9] as [number, number] },
+    ]
+    expect(surveyedStations(fuel).map((f) => f.n)).toEqual(['a', 'b'])
+    const geo = {
+      metres: { width: 1000, height: 1000 },
+      fuel,
+      roads: [
+        {
+          n: 'Lake Avenue',
+          c: 'primary',
+          p: [
+            [0.4, 0.5],
+            [0.6, 0.5],
+          ],
+        },
+      ],
+    } as unknown as Parameters<typeof citgoNames>[0]
+    expect(citgoNames(geo)).toEqual([
+      copy('map.citgo', { road: 'Lake Avenue' }),
+      copy('map.citgo_unnamed', { n: 2 }),
+    ])
   })
 })

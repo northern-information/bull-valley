@@ -185,6 +185,16 @@ export const CONFIG = {
     cap: 0.75,
     // The tetrahedron turns once in this many seconds (hud.ts).
     turnSeconds: 14,
+    // Each level fades this much a second (a level runs from 0 to 1), so
+    // a full one fades out in 1 / rate seconds: high in four minutes,
+    // stimulated in three, drunk in five, a trip in four (wardlevels.ts).
+    // Per-item doses live in src/items.ts.
+    fadePerSecond: {
+      high: 1 / 240,
+      stimulated: 1 / 180,
+      drunk: 1 / 300,
+      tripping: 1 / 240,
+    },
   },
   // The flashlight in the left hand: the beam that burns shadowmen reaches
   // range metres, halfAngle radians off the line of sight. The light itself
@@ -248,18 +258,6 @@ export const CONFIG = {
     persistence: 0.86,
     // The trails thin out over the last this-many seconds of the trip.
     fadeSeconds: 4,
-  },
-  geometrie: {
-    // Each level fades this much a second (a level runs from 0 to 1), so
-    // a full one fades out in 1 / rate seconds: high in four minutes,
-    // stimulated in three, drunk in five, a trip in four. Per-item doses
-    // live in src/items.ts.
-    fadePerSecond: {
-      high: 1 / 240,
-      stimulated: 1 / 180,
-      drunk: 1 / 300,
-      tripping: 1 / 240,
-    },
   },
   // What the wards do besides warding (buffs.ts), each scaled by its
   // level from 0 to 1. High reaches the flashlight further and wider (a
@@ -386,7 +384,11 @@ export const CONFIG = {
     wanderMetres: 6000, // how far the outbound joyride runs
     // Matthew Marx's day (marx.ts): he reads at the tailgate this long,
     // then does donuts this long, over and over. Climbing into the bed
-    // starts a countdown this long before he leaves on the joyride.
+    // starts a countdown this long before he leaves (marx.ts board): on the
+    // joyride, or wherever the first one in picked on the map (charter).
+    // With no one else in the valley no countdown shows, and he leaves as
+    // soon as the pick is made; this long is only how long he waits for
+    // one.
     readSeconds: 300,
     donutSeconds: 300,
     countdownSeconds: 60,
@@ -662,6 +664,61 @@ export const CONFIG = {
     // He blocks like a post this wide.
     radius: 0.35,
   },
+  // Idle expeditions from Bull Valley Dial-Up (expeditions.ts,
+  // sharedworld.ts rule 30): each run's minutes out, the level it opens
+  // at, the ward that keeps it safe (null for none needed), the chance it
+  // comes back hurt with that ward at nothing, how hard it hurts (a share
+  // of whole geometrie, never the last point), the XP it earns home, and
+  // what it brings back: each roll a kind (cash kinds pay the wallet), how
+  // many, and the chance it comes at all.
+  expeditions: {
+    runs: {
+      ride: {
+        minutes: 15,
+        level: 1,
+        ward: null,
+        risk: 0,
+        hurt: 0,
+        xp: 1,
+        loot: [
+          { kind: 'dimes', min: 5, max: 20, chance: 1 },
+          { kind: 'berries', min: 1, max: 1, chance: 0.25 },
+        ],
+      },
+      corn: {
+        minutes: 60,
+        level: 1,
+        ward: 'drunk',
+        risk: 0.35,
+        hurt: 0.25,
+        xp: 4,
+        loot: [
+          { kind: 'dimes', min: 10, max: 40, chance: 1 },
+          { kind: 'berries', min: 1, max: 3, chance: 0.8 },
+          { kind: 'cabbage', min: 1, max: 3, chance: 0.8 },
+          { kind: 'gold-bullion', min: 1, max: 1, chance: 0.05 },
+        ],
+      },
+      undercroft: {
+        minutes: 240,
+        level: 10,
+        ward: 'tripping',
+        risk: 0.5,
+        hurt: 0.4,
+        xp: 15,
+        loot: [
+          { kind: 'dimes', min: 30, max: 120, chance: 1 },
+          { kind: 'twenty', min: 1, max: 1, chance: 0.3 },
+          { kind: 'gold-bullion', min: 1, max: 1, chance: 0.2 },
+          { kind: 'lsd', min: 1, max: 2, chance: 0.2 },
+        ],
+      },
+    },
+    // The matching ward at its fullest takes this share off the risk.
+    wardCut: 0.8,
+    // A run that comes back hurt brings this share of each roll home.
+    hurtKeeps: 0.5,
+  },
   // The tunnel shades in the Undercroft (tunnelshades.ts): each kind's
   // drift round its lair and its hunt (m/s; the walk is 4.2), how far it
   // sees and feels, its touch, the seconds a beam must hold it, and the
@@ -892,5 +949,13 @@ export const CONFIG = {
     base: 100,
     power: 1.5,
     maxLevel: 99,
+  },
+  // Finding places pays (sharedworld.ts rule 28 and rule 20), once an
+  // account, in cents: every Citgo the first time it stands on the
+  // forecourt (but the first, the spawn Citgo), and Mt. Coleman's Keep the first time its page is written
+  // in the Book of Shadows (book.ts bountyOf).
+  bounties: {
+    citgo: 500,
+    keep: 2500,
   },
 }

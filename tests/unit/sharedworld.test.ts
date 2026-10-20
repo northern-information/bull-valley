@@ -3,10 +3,12 @@ import { heartPoint, theMaze } from '../../src/caretaker.ts'
 import { CONFIG } from '../../src/config.ts'
 import { dayKey, nextMidnight } from '../../src/daily.ts'
 import { costIn, freshDealerStock, goodOf } from '../../src/dealer.ts'
+import { embark, outcomeOf } from '../../src/expeditions.ts'
 import { BASE_GEOMETRIE, maxGeometrie } from '../../src/health.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { contentsOf, getItem, healsOf } from '../../src/items.ts'
 import { LADDER_FOOT, LADDER_TOP, lookoutToWorld } from '../../src/lookout.ts'
+import { nextChange } from '../../src/marx.ts'
 import { mazeToWorld } from '../../src/maze.ts'
 import { PROTOCOL_VERSION } from '../../src/protocol.ts'
 import { mulberry32 } from '../../src/rng.ts'
@@ -29,7 +31,6 @@ import {
   createValley,
   creditedWith,
   dailyFor,
-  geometrieFor,
   healthFor,
   levelFor,
   maxFor,
@@ -38,6 +39,7 @@ import {
   restoreValley,
   toWire,
   wakeAt,
+  wardsFor,
 } from '../../src/sharedworld.ts'
 import { FRESH_STAND, standXp } from '../../src/stand.ts'
 import { UNDERCROFT } from '../../src/undercroft.ts'
@@ -45,6 +47,7 @@ import { damageOf } from '../../src/wards.ts'
 import { dryMap } from '../../src/waterside.ts'
 import { unitsLeft } from './stock.ts'
 import type { CosmeticId } from '../../src/cosmetics.ts'
+import type { ExpeditionRun } from '../../src/expeditions.ts'
 import type { Inventory } from '../../src/interfaces.ts'
 import type { PickupKind } from '../../src/items.ts'
 import type {
@@ -112,7 +115,9 @@ function valleyWith(...actions: ValleyAction[]) {
     }
     const reduced = reduce(valley, action, ctx)
     valley = reduced.valley
-    if (action.type === 'join' && !reduced.reject) present.push(action.id)
+    if ((action.type === 'join' || action.type === 'dial') && !reduced.reject) {
+      present.push(action.id)
+    }
     if (action.type === 'leave') {
       const i = present.indexOf(action.id)
       if (i >= 0) present.splice(i, 1)
@@ -262,6 +267,17 @@ describe('rule 1: the world is persistent', () => {
     })
   })
 
+  it('reads the wards an older build kept as geometrie', () => {
+    const levels = {
+      at: 5,
+      levels: { high: 0.5, stimulated: 0, drunk: 0, tripping: 0 },
+    }
+    const { wards: _, ...rest } = createValley()
+    const older = { ...rest, geometrie: { acct: levels } }
+    expect(restoreValley(older).wards).toEqual({ acct: levels })
+    expect(restoreValley(createValley()).wards).toEqual({})
+  })
+
   it('wakes for the truck or the day, and not with nobody here', () => {
     const v = valleyWith(join('a'))
     expect(wakeAt(v.valley, v.now)).toBe(T0 + CONFIG.truck.readSeconds * SEC)
@@ -352,6 +368,71 @@ describe("rule 3: Marx's truck is the valley's", () => {
     v.tick(ROUTES.joyrideMs)
     expect(reasons(v.step({ type: 'clock' }))).toEqual(['home'])
     expect(v.valley.world?.truck.riders).toEqual([])
+  })
+
+  it('drives the bed where the first one in picked once the countdown runs out', () => {
+    const to = { x: 800, z: -600 }
+    const v = valleyWith(
+      join('a'),
+      join('b'),
+      { type: 'board', id: 'a', at: HERE },
+      { type: 'board', id: 'b', at: HERE }
+    )
+    expect(v.step({ type: 'charter', id: 'b', to }).reply?.reason).toBe(
+      'not-first'
+    )
+    const r = v.step({ type: 'charter', id: 'a', to })
+    expect(reasons(r)).toEqual(['charted'])
+    const leaves = T0 + CONFIG.truck.countdownSeconds * SEC
+    expect(v.valley.world?.truck.leg).toMatchObject({
+      kind: 'parked',
+      leavesAt: leaves,
+      dest: to,
+    })
+    v.tick(CONFIG.truck.countdownSeconds * SEC)
+    expect(reasons(v.step({ type: 'clock' }))).toEqual(['depart'])
+    expect(v.valley.world?.truck.leg).toEqual({
+      kind: 'charter',
+      at: leaves,
+      to,
+    })
+    // Let off there, both earn the ride.
+    const truck = v.valley.world?.truck
+    const due = truck ? nextChange(truck, ROUTES) : null
+    v.tick((due ?? v.now) - v.now)
+    const there = v.step({ type: 'clock' })
+    expect(reasons(there)).toEqual(['dropoff'])
+    expect(v.valley.world?.truck.riders).toEqual([])
+    expect(there.xp).toEqual([
+      { account: 'acct-a', source: 'ride' },
+      { account: 'acct-b', source: 'ride' },
+    ])
+  })
+
+  it('leaves as soon as the pick is made with no one else in the valley', () => {
+    const v = valleyWith(join('a'), { type: 'board', id: 'a', at: HERE })
+    const r = v.step({ type: 'charter', id: 'a', to: null })
+    expect(reasons(r)).toEqual(['charted', 'depart'])
+    expect(v.valley.world?.truck.leg).toEqual({ kind: 'joyride', at: T0 })
+    expect(r.alarm).toBe(T0 + ROUTES.joyrideMs)
+  })
+
+  it('refuses a charter off the map, or from anyone not in the bed', () => {
+    const v = valleyWith(join('a'), join('b'), {
+      type: 'board',
+      id: 'a',
+      at: HERE,
+    })
+    const off = { x: METRES.width, z: 0 }
+    expect(v.step({ type: 'charter', id: 'a', to: off }).reply?.reason).toBe(
+      'off-map'
+    )
+    expect(v.step({ type: 'charter', id: 'b', to: null }).reply?.reason).toBe(
+      'not-first'
+    )
+    expect(
+      v.step({ type: 'charter', id: 'nobody', to: null }).reply?.reason
+    ).toBe('not-in-valley')
   })
 
   it('lets a raider out of the bed, and says why it will not let them in', () => {
@@ -1018,6 +1099,26 @@ describe('rule 28: Citgos, and Citgo portals', () => {
     expect(citgoVisits(v.valley, placed)).toEqual([{ id: 'a', station: 1 }])
     v.step({ type: 'visit', id: 'a', station: 1 })
     expect(citgoVisits(v.valley, placed)).toEqual([])
+  })
+
+  it('pays a bounty and XP the first time an account stands at each Citgo past its first', () => {
+    const v = valleyWith(join('a'))
+    // The first, where every raider starts, pays nothing.
+    const spawn = v.step({ type: 'visit', id: 'a', station: 2 })
+    expect(spawn.earn).toBeUndefined()
+    expect(spawn.xp).toBeUndefined()
+    const first = v.step({ type: 'visit', id: 'a', station: 1 })
+    expect(first.earn).toEqual({
+      account: 'acct-a',
+      amount: CONFIG.bounties.citgo,
+    })
+    expect(first.xp).toEqual([{ account: 'acct-a', source: 'citgo' }])
+    v.step({ type: 'visit', id: 'a', station: 0 })
+    // Back at one already found: the last moves, nothing is paid.
+    const again = v.step({ type: 'visit', id: 'a', station: 1 })
+    expect(again.citgos?.log.last).toBe(1)
+    expect(again.earn).toBeUndefined()
+    expect(again.xp).toBeUndefined()
   })
 
   it("writes the Citgo in the account's log once, and the last", () => {
@@ -2630,21 +2731,21 @@ describe('rule 27: buffs', () => {
 
   it('starts every account sober, and an older valley is too', () => {
     const v = valleyWith(join('a'))
-    expect(geometrieFor(v.valley, 'acct-a', v.now)).toEqual({
+    expect(wardsFor(v.valley, 'acct-a', v.now)).toEqual({
       high: 0,
       stimulated: 0,
       drunk: 0,
       tripping: 0,
     })
-    const { geometrie: _, ...older } = createValley()
-    expect(restoreValley(older).geometrie).toEqual({})
+    const { wards: _, ...older } = createValley()
+    expect(restoreValley(older).wards).toEqual({})
   })
 
   it('doses the user once the unit is out of the pack, fading on its clock', () => {
     const v = valleyWith(join('a'))
     const out = v.step({ type: 'dose', id: 'a', kind: 'joints' })
-    const high = getItem('joints').geometrie.high
-    expect(out.geometrie).toEqual([
+    const high = getItem('joints').wards.high
+    expect(out.wards).toEqual([
       {
         account: 'acct-a',
         levels: { high, stimulated: 0, drunk: 0, tripping: 0 },
@@ -2652,10 +2753,10 @@ describe('rule 27: buffs', () => {
     ])
     expect(out.xp).toBeUndefined()
     v.tick(60 * SEC)
-    const later = geometrieFor(v.valley, 'acct-a', v.now).high
-    expect(later).toBeCloseTo(high - 60 * CONFIG.geometrie.fadePerSecond.high)
+    const later = wardsFor(v.valley, 'acct-a', v.now).high
+    expect(later).toBeCloseTo(high - 60 * CONFIG.wards.fadePerSecond.high)
     expect(
-      v.step({ type: 'dose', id: 'nobody', kind: 'joints' }).geometrie
+      v.step({ type: 'dose', id: 'nobody', kind: 'joints' }).wards
     ).toBeUndefined()
   })
 
@@ -2691,9 +2792,9 @@ describe('rule 27: buffs', () => {
       kind: 'four-loko-blue',
       to: 'b',
     })
-    const { stimulated, drunk } = getItem('four-loko-blue').geometrie
+    const { stimulated, drunk } = getItem('four-loko-blue').wards
     const share = CONFIG.buffs.shareScale
-    expect(out.geometrie).toEqual([
+    expect(out.wards).toEqual([
       {
         account: 'acct-b',
         levels: { high: 0, stimulated, drunk, tripping: 0 },
@@ -2711,7 +2812,7 @@ describe('rule 27: buffs', () => {
     expect(out.xp).toEqual([{ account: 'acct-a', source: 'share' }])
     // A taker gone by then is dosed nothing.
     expect(
-      v.step({ type: 'dose', id: 'a', kind: 'pbr', to: 'nobody' }).geometrie
+      v.step({ type: 'dose', id: 'a', kind: 'pbr', to: 'nobody' }).wards
     ).toBeUndefined()
   })
 
@@ -2728,31 +2829,31 @@ describe('rule 27: buffs', () => {
     v.step({ type: 'set-health', id: 'a', points: BASE_GEOMETRIE })
     v.step({ type: 'dose', id: 'a', kind: 'wild-turkey' })
     v.step({ type: 'dose', id: 'a', kind: 'wild-turkey' })
-    const drunk = geometrieFor(v.valley, 'acct-a', v.now).drunk
+    const drunk = wardsFor(v.valley, 'acct-a', v.now).drunk
     expect(drunk).toBe(1)
     // Drunk wards the Caretaker hard, the shadowmen only a little.
     expect(hit('caretaker')).toEqual({
       by: 'caretaker',
-      ...damageOf('caretaker', geometrieFor(v.valley, 'acct-a', v.now), 0.5),
+      ...damageOf('caretaker', wardsFor(v.valley, 'acct-a', v.now), 0.5),
     })
     expect(hit('caretaker')?.damage).toBe(300)
     expect(hit('man')?.damage).toBe(288)
     v.step({ type: 'set-health', id: 'a', points: 1 })
     const fatal = v.step({ type: 'hit', id: 'a', by: 'man', roll: 0.99 })
     expect(fatal.health?.fatal).toBe(true)
-    expect(fatal.geometrie).toEqual([
+    expect(fatal.wards).toEqual([
       {
         account: 'acct-a',
         levels: { high: 0, stimulated: 0, drunk: 0, tripping: 0 },
       },
     ])
-    expect(v.valley.geometrie).toEqual({})
+    expect(v.valley.wards).toEqual({})
   })
 
   it('wards the Undercroft with a trip', () => {
     const v = valleyWith(join('a'))
     v.step({ type: 'dose', id: 'a', kind: 'lsd' })
-    const levels = geometrieFor(v.valley, 'acct-a', v.now)
+    const levels = wardsFor(v.valley, 'acct-a', v.now)
     expect(levels.tripping).toBe(1)
     const warden = v.step({ type: 'hit', id: 'a', by: 'warden', roll: 0.5 })
     // The trip's ward, and a little for the high besides.
@@ -2771,5 +2872,261 @@ describe('rule 27: buffs', () => {
     const high = shadowRaiders(v.valley, createShadows(), placed, v.now)[0]
     expect(high.beam!.range).toBeGreaterThan(sober.beam!.range)
     expect(high.beam!.halfAngle).toBeGreaterThan(sober.beam!.halfAngle)
+  })
+})
+
+describe('rule 29: Bull Valley Dial-Up', () => {
+  const dial = (id: string, account = `acct-${id}`): ValleyAction => ({
+    type: 'dial',
+    id,
+    account,
+    name: id.toUpperCase(),
+    outfit: 'coleman',
+    level: 3,
+  })
+
+  it('comes into the valley with no body, opening no world', () => {
+    const v = valleyWith(dial('p'))
+    expect(v.valley.world).toBeNull()
+    expect(v.valley.members.p).toMatchObject({
+      account: 'acct-p',
+      level: 3,
+      dialup: true,
+    })
+    expect(v.last().broadcast).toEqual([
+      { type: 'world', reason: 'joined', world: null, by: 'p' },
+    ])
+  })
+
+  it('pays the truck no mind and keeps those already here', () => {
+    const v = valleyWith(join('a'))
+    const leg = v.valley.world?.truck.leg
+    v.tick(1000)
+    v.step(dial('p'))
+    expect(v.valley.world?.truck.leg).toEqual(leg)
+    expect(Object.keys(v.valley.members).sort()).toEqual(['a', 'p'])
+  })
+
+  it('refuses whatever takes a body', () => {
+    const v = valleyWith(join('a'), dial('p'))
+    const refused = (action: ValleyAction) => v.step(action).reply
+    const cases: [ValleyAction, string][] = [
+      [{ type: 'board', id: 'p', at: HERE }, 'board'],
+      [{ type: 'hop-out', id: 'p' }, 'hop-out'],
+      [{ type: 'call', id: 'p', from: HERE, at: HERE }, 'call'],
+      [{ type: 'charter', id: 'p', to: null }, 'charter'],
+      [{ type: 'take', id: 'p', index: 0, at: HERE }, 'take'],
+      [{ type: 'collect', id: 'p', bush: 0, at: HERE }, 'collect'],
+      [{ type: 'use', id: 'p', kind: 'pbr' }, 'use'],
+      [
+        {
+          type: 'pass',
+          id: 'p',
+          to: 'a',
+          kind: 'pbr',
+          from: null,
+          at: null,
+        },
+        'pass',
+      ],
+      [{ type: 'drop', id: 'p', kind: 'pbr', count: 1, at: null }, 'drop'],
+      [{ type: 'take-drop', id: 'p', drop: 0, at: HERE }, 'take-drop'],
+      [{ type: 'loot', id: 'p', corpse: 0, at: HERE }, 'loot'],
+      [{ type: 'open-portal', id: 'p', at: null }, 'portal'],
+      [
+        { type: 'quest', id: 'p', quest: 'rose', step: 'lay', at: HERE },
+        'quest',
+      ],
+    ]
+    for (const [action, re] of cases) {
+      expect(refused(action), action.type).toEqual({
+        type: 'nack',
+        re,
+        reason: 'dialup',
+      })
+    }
+  })
+
+  it("opens the account's locker wherever they are, world or none", () => {
+    const v = valleyWith(dial('p'))
+    const r = v.step({
+      type: 'stow',
+      id: 'p',
+      kind: 'marlboro',
+      count: 2,
+      at: null,
+    })
+    expect(r.reply).toBeUndefined()
+    expect(r.stash).toEqual({ account: 'acct-p', kind: 'marlboro', delta: 2 })
+    // On foot, the locker is still at a Citgo.
+    const w = valleyWith(join('a'))
+    expect(
+      w.step({ type: 'stow', id: 'a', kind: 'marlboro', count: 2, at: null })
+        .reply
+    ).toMatchObject({ reason: 'no-locker' })
+  })
+
+  it('tends the stand wherever they are', () => {
+    const v = valleyWith(dial('p'))
+    const r = reduce(
+      v.valley,
+      { type: 'stand-stock', id: 'p', kind: 'cabbage', count: 2, at: null },
+      {
+        now: T0,
+        present: ['p'],
+        stand: { ledger: FRESH_STAND, pack: { cabbage: 2 }, cash: 0 },
+      }
+    )
+    expect(r.reply).toBeUndefined()
+    expect(r.stand).toMatchObject({ account: 'acct-p', re: 'stock' })
+  })
+
+  it('buys at a Citgo the account has stood at, and no other', () => {
+    const v = valleyWith(join('a'), dial('p', 'acct-a'))
+    const buy = (station: number): ValleyAction => ({
+      type: 'buy',
+      id: 'p',
+      station,
+      kind: 'pbr',
+      unit: 0,
+      at: null,
+    })
+    expect(v.step(buy(1)).reply).toMatchObject({
+      re: 'buy',
+      reason: 'not-visited',
+    })
+    v.step({ type: 'visit', id: 'a', station: 1 })
+    const r = v.step(buy(1))
+    expect(r.reply).toBeUndefined()
+    expect(r.spend).toEqual({ account: 'acct-a', amount: getItem('pbr').price })
+  })
+
+  it('deals with Erwin and takes and hands in the rose from anywhere', () => {
+    const v = valleyWith({ ...joinAs('a'), maze: MAZE }, dial('p'))
+    v.setPack({ marlboro: 200 })
+    const deal = v.step({
+      type: 'deal',
+      id: 'p',
+      kind: 'mushrooms',
+      pay: 'marlboro',
+      at: null,
+    })
+    expect(deal.reply).toBeUndefined()
+    expect(deal.barter).toMatchObject({ account: 'acct-p' })
+    v.setQuest('none', {})
+    expect(
+      v.step({
+        type: 'quest',
+        id: 'p',
+        quest: 'rose',
+        step: 'accept',
+        at: null,
+      }).quest
+    ).toMatchObject({ account: 'acct-p', to: 'given' })
+    v.setQuest('laid', {})
+    expect(
+      v.step({
+        type: 'quest',
+        id: 'p',
+        quest: 'rose',
+        step: 'reward',
+        at: null,
+      }).quest
+    ).toMatchObject({ to: 'done' })
+  })
+})
+
+describe('rule 30: idle expeditions', () => {
+  const NO_LEVELS = { high: 0, stimulated: 0, drunk: 0, tripping: 0 }
+  const dial = (id: string, level = 3): ValleyAction => ({
+    type: 'dial',
+    id,
+    account: `acct-${id}`,
+    name: id.toUpperCase(),
+    outfit: 'coleman',
+    level,
+  })
+  const send = (kind: string, seed = 7): ValleyAction => ({
+    type: 'expedition-send',
+    id: 'p',
+    kind,
+    seed,
+  })
+  const claim: ValleyAction = { type: 'expedition-claim', id: 'p' }
+  const ctx = (run: ExpeditionRun | null, now = T0) => ({
+    now,
+    present: ['p', 'a'],
+    expedition: { run },
+  })
+
+  it('sends a run out from the phone, timed and seeded by the valley', () => {
+    const v = valleyWith(dial('p'))
+    const r = reduce(v.valley, send('corn', 99), ctx(null))
+    expect(r.reply).toBeUndefined()
+    expect(r.expedition).toEqual({
+      account: 'acct-p',
+      run: {
+        id: 'corn',
+        startedAt: T0,
+        endsAt: T0 + CONFIG.expeditions.runs.corn.minutes * 60_000,
+        seed: 99,
+        ward: 0,
+      },
+    })
+  })
+
+  it('refuses a second run, a locked one, an unknown one, and one on foot', () => {
+    const v = valleyWith(join('a'), dial('p'))
+    const out = embark(null, 'ride', 1, NO_LEVELS, T0, 1) as ExpeditionRun
+    const reason = (action: ValleyAction, run: ExpeditionRun | null = null) =>
+      reduce(v.valley, action, ctx(run)).reply?.reason
+    expect(reason(send('corn'), out)).toBe('busy')
+    expect(reason(send('undercroft'))).toBe('locked')
+    expect(reason(send('moon'))).toBe('unknown')
+    expect(
+      reduce(
+        v.valley,
+        { type: 'expedition-send', id: 'a', kind: 'ride', seed: 1 },
+        ctx(null)
+      ).reply?.reason
+    ).toBe('not-dialup')
+    expect(
+      reduce(v.valley, send('ride'), { now: T0, present: ['p'] }).reply?.reason
+    ).toBe('unavailable')
+  })
+
+  it('brings a run home once its time is up, with its haul and its XP', () => {
+    const v = valleyWith(dial('p'))
+    const run = embark(null, 'ride', 3, NO_LEVELS, T0, 5) as ExpeditionRun
+    expect(reduce(v.valley, claim, ctx(null)).reply?.reason).toBe('none')
+    expect(
+      reduce(v.valley, claim, ctx(run, run.endsAt - 1)).reply?.reason
+    ).toBe('out')
+    const r = reduce(v.valley, claim, ctx(run, run.endsAt))
+    expect(r.reply).toBeUndefined()
+    expect(r.expedition).toEqual({
+      account: 'acct-p',
+      run: null,
+      outcome: outcomeOf(run),
+    })
+    expect(r.xp).toEqual([
+      { account: 'acct-p', source: 'expedition', times: outcomeOf(run).xp },
+    ])
+    expect(r.health).toBeUndefined()
+  })
+
+  it('takes geometrie off a run that came back hurt', () => {
+    const v = valleyWith(dial('p'))
+    const seed = Array.from({ length: 200 }, (_, i) => i + 1).find(
+      (s) =>
+        outcomeOf({ id: 'corn', startedAt: 0, endsAt: 0, seed: s, ward: 0 })
+          .hurt
+    )
+    const run = embark(null, 'corn', 3, NO_LEVELS, T0, seed!) as ExpeditionRun
+    const r = reduce(v.valley, claim, ctx(run, run.endsAt))
+    const max = maxFor(v.valley, 'acct-p')
+    const points = max - Math.round(CONFIG.expeditions.runs.corn.hurt * max)
+    expect(r.health).toEqual({ account: 'acct-p', points, max })
+    expect(healthFor(r.valley, 'acct-p')).toBe(points)
   })
 })

@@ -229,11 +229,16 @@ export function wireKeys(
       bookKey(e)
       return
     }
-    // The map's only key closes it; a click on it fast travels.
+    // The map's keys close it, and opened for a charter hop out of the
+    // bed; a click on it fast travels, or picks where Marx goes.
     if (s.mapOpen) {
-      if (actionOf(MAP, e.code) === 'close') {
+      const action = actionOf(MAP, e.code)
+      if (action === 'close') {
         e.preventDefault()
         actions.closeMap(true)
+      } else if (action === 'hopOut' && s.charting) {
+        e.preventDefault()
+        actions.hopOut()
       }
       return
     }

@@ -15,7 +15,10 @@
 // 3. Matthew Marx's truck is the valley's (marx.ts): his reading and his
 //    donuts, his countdown once anyone is in the bed, the joyride out and
 //    home, and the whistle. Anyone arriving while he is at his donuts
-//    brings him home.
+//    brings him home. The first one in the bed may pick where he goes
+//    (charter, a point inside the survey): he takes the bed there and lets
+//    them off, then drives home. With no one else in the valley there is
+//    no countdown: he leaves as soon as the pick is made.
 // 4. A pickup goes to whoever asks first; the rest are told it is gone.
 //    One lying in a walled room (PickupSpec.within) goes only to a raider
 //    standing in it.
@@ -178,8 +181,8 @@
 //    (ValleyContext.quest in, Reduced.quest out); the valley writes the
 //    stage and the pack together, or neither. The key earns quest XP
 //    (rule 22).
-// 27. Buffs (buffs.ts): every account's geometrie (geometrie.ts) is kept
-//    by the valley (Valley.geometrie, on its clock in seconds, only the
+// 27. Buffs (buffs.ts): every account's wards (wardlevels.ts) are kept
+//    by the valley (Valley.wards, on its clock in seconds, only the
 //    accounts not sober), dosed by each use once the pack has given the
 //    unit up, and made sober by the strike of rule 18. It does things: a
 //    raider's high reaches their beam further and wider (shadowRaiders),
@@ -196,7 +199,10 @@
 //    every Citgo each account has stood at, and the last (Valley.citgos):
 //    a raider on foot whose last state frame put them within
 //    CONFIG.portal.visitReach of a station's pump island stands at it
-//    (citgoVisits). A raider on foot, out of the bed and away from their
+//    (citgoVisits). The first time an account stands at a Citgo, past the
+//    first it ever stood at (the spawn Citgo), it pays
+//    CONFIG.bounties.citgo into the wallet (Reduced.earn) and earns citgo
+//    XP (rule 22). A raider on foot, out of the bed and away from their
 //    last Citgo, opens a Citgo portal with the phone: it stands a little
 //    ahead of where their last state frame put them, its twin in a free
 //    slot of the ring on that Citgo's lot, where the world was opened with
@@ -206,8 +212,30 @@
 //    valley keeps only the log and the portals. An account keeps one
 //    portal open at a time (opening another closes the first), each for
 //    CONFIG.portal.lifeSeconds; the day's turn leaves them.
+// 29. Bull Valley Dial-Up: a raider may dial in from a phone with no body
+//    in the valley (a `dial` action, Member.dialup). They open no world
+//    and the truck pays them no mind; they never send a state frame, so
+//    no shadow reaches them and no place is kept. Space is collapsed for
+//    them: their locker and their Cabbage Stand answer wherever they are,
+//    world or none (rules 19 and 23), Erwin deals with them and gives and
+//    rewards the rose from anywhere (rules 25 and 26), and they buy off the
+//    shelves of any Citgo their account has stood at (rule 7, `not-visited`
+//    otherwise). What takes a body is refused them (`dialup`): the truck,
+//    a take, a berry, a use, a pass, a drop or taking one up, a body,
+//    a portal, and laying the rose.
+// 30. Idle expeditions (expeditions.ts): a raider dialed in sends their
+//    raider out on a run, one at a time, if their level has opened it
+//    (`expedition-send`; `busy`, `locked`). The valley draws its seed and
+//    keeps the run with the matching ward's level as it left (rule 27),
+//    so what comes home is settled then; a run home is claimed
+//    (`expedition-claim`; `none` with none out, `out` before its time) and
+//    its haul goes into the pack and the wallet together with the run left
+//    empty (ValleyContext.expedition in, Reduced.expedition out). A run
+//    that came back hurt takes its share of whole geometrie, never the
+//    last point (rule 24), and every run home earns its XP (rule 22). A
+//    raider on foot sends none (`not-dialup`).
 
-import { dosed, geometrieOf, inPassReach, scaled, sobered } from './buffs.ts'
+import { dosed, inPassReach, scaled, sobered, wardsOf } from './buffs.ts'
 import { heartPoint, theMaze } from './caretaker.ts'
 import { citgoAt, NO_CITGOS, visit } from './citgos.ts'
 import { CONFIG } from './config.ts'
@@ -217,7 +245,13 @@ import { affords, cosmeticById, MOAB_OFFERS } from './cosmetics.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
 import { atDealer, deal, freshDealerStock } from './dealer.ts'
 import { centsOf, dropSpot, isCash, takeUp } from './drops.ts'
-import { levelsAt } from './geometrie.ts'
+import {
+  embark,
+  isExpeditionId,
+  isHome,
+  outcomeOf,
+  woundedBy,
+} from './expeditions.ts'
 import { bury } from './graves.ts'
 import {
   hit,
@@ -230,7 +264,7 @@ import {
 } from './health.ts'
 import {
   contentsOf,
-  geometrieOf as doseOf,
+  doseOf,
   healsOf,
   INVENTORY_KINDS,
   isKeyItem,
@@ -241,6 +275,7 @@ import {
   arrive,
   board,
   call,
+  charter,
   createTruck,
   hopOut,
   hurry,
@@ -265,13 +300,14 @@ import {
 } from './stand.ts'
 import { atLocker } from './stash.ts'
 import { freshStock, onShelf, takeUnit } from './store.ts'
+import { levelsAt } from './wardlevels.ts'
 import { damageOf } from './wards.ts'
 import type { CitgoLog } from './citgos.ts'
 import type { Corpse } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { DealerStock } from './dealer.ts'
 import type { Drop, Facing, Spill } from './drops.ts'
-import type { Geometrie } from './geometrie.ts'
+import type { ExpeditionOutcome, ExpeditionRun } from './expeditions.ts'
 import type { Burial, Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckChange, TruckRoutes, TruckState } from './marx.ts'
@@ -282,18 +318,19 @@ import type { XpGrant, XpSource } from './progression.ts'
 import type {
   DailyMessage,
   DailyWire,
-  GeometrieLevels,
   NackMessage,
   NackRe,
   PeerStateWire,
   PickupSpec,
   Place,
+  WardLevels,
   WorldMessage,
   WorldReason,
   WorldWire,
 } from './protocol.ts'
 import type { QuestId, QuestStage, QuestStep } from './quests.ts'
 import type { StandLedger } from './stand.ts'
+import type { WardState } from './wardlevels.ts'
 import type { ShadowHit } from './wards.ts'
 import type { WaterMap } from './waterside.ts'
 
@@ -307,6 +344,9 @@ interface Member {
   // Rule 24: the account's level (progression.ts), which sizes its
   // geometrie.
   level: number
+  // Rule 29: dialed in from Bull Valley Dial-Up, with no body in the
+  // valley.
+  dialup?: true
 }
 
 interface SharedWorld {
@@ -373,9 +413,9 @@ export interface Valley {
   nextCorpse: number
   // Rule 24: account -> the geometrie it has lost, while wounded.
   wounds: Record<string, number>
-  // Rule 27: account -> its geometrie, while not sober, on the valley's
+  // Rule 27: account -> its wards, while not sober, on the valley's
   // clock in seconds.
-  geometrie: Record<string, Geometrie>
+  wards: Record<string, WardState>
   // Rule 28: account -> every Citgo it has stood at, and the last.
   citgos: Record<string, CitgoLog>
 }
@@ -422,6 +462,16 @@ export type ValleyAction =
       // Rule 24: the account's level, read from D1 (1 when absent).
       level?: number
     }
+  // Rule 29: a raider dialed in from Bull Valley Dial-Up, with no body in
+  // the valley, so nothing of the world comes with them.
+  | {
+      type: 'dial'
+      id: string
+      account: string
+      name: string
+      outfit: OutfitId
+      level: number
+    }
   // at: where their last state frame put them, or null.
   | { type: 'leave'; id: string; at: PeerStateWire | null }
   // In every action below, at: where the raider's last state frame put
@@ -429,6 +479,9 @@ export type ValleyAction =
   // to it (CONFIG.valleyReach), never to where a frame says they are.
   | { type: 'board'; id: string; at: XZ | null }
   | { type: 'hop-out'; id: string }
+  // Rule 3: where the first one in the bed picked to go, or the joyride
+  // (null).
+  | { type: 'charter'; id: string; to: XZ | null }
   | { type: 'take'; id: string; index: number; at: XZ | null }
   | {
       type: 'buy'
@@ -497,6 +550,10 @@ export type ValleyAction =
       at: XZ | null
     }
   | { type: 'stand-collect' | 'stand-upgrade'; id: string; at: XZ | null }
+  // Rule 30: a run sent out, with the seed the valley drew, and a run home
+  // claimed.
+  | { type: 'expedition-send'; id: string; kind: string; seed: number }
+  | { type: 'expedition-claim'; id: string }
   // Rule 14: cosmetic `offer` from Moab.
   | { type: 'trade'; id: string; offer: string }
   // Rule 26: one step of `quest`. at: where the raider's last state frame
@@ -532,6 +589,8 @@ interface ValleyContext {
   // For tending the stand: the account's ledger, pack and wallet (cents),
   // as the valley just read them.
   stand?: { ledger: StandLedger; pack: Inventory; cash: number }
+  // For an expedition: the run out, as the valley just read it.
+  expedition?: { run: ExpeditionRun | null }
 }
 
 export interface Reduced {
@@ -597,9 +656,9 @@ export interface Reduced {
     fatal?: true
     hit?: { by: ShadowHit; damage: number; warded: number }
   }
-  // Rule 27: each account's geometrie after a dose or a shattering, for
+  // Rule 27: each account's wards after a dose or a shattering, for
   // its sockets.
-  geometrie?: { account: string; levels: GeometrieLevels }[]
+  wards?: { account: string; levels: WardLevels }[]
   // Rule 27: a pass the valley allowed, once the giver's pack gives the
   // unit up (pack): who to (their id and account) and what.
   passed?: { to: string; account: string; kind: string }
@@ -615,6 +674,17 @@ export interface Reduced {
   stand?: StandChange
   // Rule 28: an account's Citgos after a visit, for its sockets.
   citgos?: { account: string; log: CitgoLog }
+  // Rule 30: a run sent out, or a run home and its haul, written together
+  // or not at all.
+  expedition?: ExpeditionChange
+}
+
+export interface ExpeditionChange {
+  account: string
+  // The run now out, or null once one is home.
+  run: ExpeditionRun | null
+  // For a run home: what it brought.
+  outcome?: ExpeditionOutcome
 }
 
 export interface StandChange {
@@ -668,7 +738,7 @@ export function createValley(): Valley {
     corpses: [],
     nextCorpse: 0,
     wounds: {},
-    geometrie: {},
+    wards: {},
     citgos: {},
   }
 }
@@ -676,22 +746,25 @@ export function createValley(): Valley {
 // The valley as an older build stored it, made current: the fresh one
 // fills in newer fields, and a world opened on another protocol (an older
 // build's raid included) is dropped, so the next arrival opens it afresh.
-// The berries, the places, the bodies, the wounds and the geometrie carry
+// The berries, the places, the bodies, the wounds and the wards carry
 // over; a valley stored as hit points left (an older build's `health`,
 // kept against `healthMax`, three once) is read as wounds at the same
-// share of whole.
+// share of whole, and the wards an older build kept as `geometrie` as
+// the wards.
 export function restoreValley(
   stored: Partial<Valley> & {
     health?: Record<string, number>
     healthMax?: number
+    geometrie?: Record<string, WardState>
   }
 ): Valley {
-  const { health, healthMax, ...rest } = stored
+  const { health, healthMax, geometrie, ...rest } = stored
   const valley: Valley = {
     ...createValley(),
     ...rest,
     wounds:
       rest.wounds ?? (health ? woundsFromHealth(health, healthMax ?? 3) : {}),
+    wards: rest.wards ?? geometrie ?? {},
   }
   const world: Partial<SharedWorld> | null = valley.world ?? null
   if (!world || world.version !== PROTOCOL_VERSION) {
@@ -740,14 +813,14 @@ export function healthFor(valley: Valley, account: string): number {
   return pointsOf(woundsOf(valley.wounds, account), maxFor(valley, account))
 }
 
-// Rule 27: `account`'s geometrie levels at `now` (ms on the valley's
+// Rule 27: `account`'s ward levels at `now` (ms on the valley's
 // clock).
-export function geometrieFor(
+export function wardsFor(
   valley: Valley,
   account: string,
   now: number
-): GeometrieLevels {
-  return levelsAt(geometrieOf(valley.geometrie, account), now / 1000)
+): WardLevels {
+  return levelsAt(wardsOf(valley.wards, account), now / 1000)
 }
 
 // Rule 28: every Citgo `account` has stood at, and the last.
@@ -838,6 +911,7 @@ export function wakeAt(valley: Valley, now: number): number | null {
 const TRUCK_REASONS: Record<TruckChange, WorldReason> = {
   depart: 'depart',
   home: 'home',
+  dropoff: 'dropoff',
   donuts: 'donuts',
   back: 'back',
 }
@@ -873,9 +947,10 @@ function settle(
   const settled = settleTruck(world.truck, now, world.routes)
   // Rule 22: whoever was still in the bed when Marx got home rode with
   // him; one hopping out on the way did not.
-  const xp = settled.changes.includes('home')
-    ? grantsTo(valley, world.truck.riders, 'ride')
-    : []
+  const xp =
+    settled.changes.includes('home') || settled.changes.includes('dropoff')
+      ? grantsTo(valley, world.truck.riders, 'ride')
+      : []
   if (settled.changes.length > 0 && next.world) {
     next = withTruck(next, next.world, settled.truck)
     for (const change of settled.changes) {
@@ -911,13 +986,46 @@ export function reduce(
   const { now } = context
   // Whatever was due has happened before anything else does.
   const settled = settle(before, now)
-  const r = act(settled.valley, action, context)
+  const r =
+    bodiless(settled.valley, action, now) ??
+    act(settled.valley, action, context)
   const broadcast = [...settled.frames, ...r.broadcast]
   if (r.reject) {
     return { ...r, broadcast, alarm: wakeAt(before, now), valley: before }
   }
   const xp = [...settled.xp, ...(r.xp ?? [])]
   return { ...r, broadcast, ...(xp.length > 0 ? { xp } : {}) }
+}
+
+// Rule 29: what takes a body in the valley, refused to a raider dialed in
+// without one, under the frame's own name.
+const NEEDS_A_BODY: Partial<Record<ValleyAction['type'], NackRe>> = {
+  board: 'board',
+  'hop-out': 'hop-out',
+  call: 'call',
+  charter: 'charter',
+  take: 'take',
+  collect: 'collect',
+  use: 'use',
+  pass: 'pass',
+  drop: 'drop',
+  'take-drop': 'take-drop',
+  loot: 'loot',
+  'open-portal': 'portal',
+}
+
+function bodiless(
+  valley: Valley,
+  action: ValleyAction,
+  now: number
+): Reduced | null {
+  if (!('id' in action) || !valley.members[action.id]?.dialup) return null
+  const re =
+    action.type === 'quest' && action.step === 'lay'
+      ? 'quest'
+      : NEEDS_A_BODY[action.type]
+  if (!re) return null
+  return done(valley, now, { broadcast: [], reply: nack(re, 'dialup') })
 }
 
 // One valley action, by its type; each handler below acts on its own.
@@ -934,12 +1042,16 @@ function act(
   switch (action.type) {
     case 'join':
       return onJoin(valley, action, context)
+    case 'dial':
+      return onDial(valley, action, context)
     case 'leave':
       return onLeave(valley, action, context)
     case 'board':
     case 'hop-out':
     case 'call':
       return onTruck(valley, action, context)
+    case 'charter':
+      return onCharter(valley, action, context)
     case 'take':
       return onTake(valley, action, context)
     case 'buy':
@@ -981,6 +1093,9 @@ function act(
     case 'stand-collect':
     case 'stand-upgrade':
       return onStand(valley, action, context)
+    case 'expedition-send':
+    case 'expedition-claim':
+      return onExpedition(valley, action, context)
     case 'trade':
       return onTrade(valley, action, context)
     case 'appearance':
@@ -1058,6 +1173,31 @@ function onJoin(
     level: action.level ?? 1,
   }
   const next: Valley = { ...valley, members, world: { ...world, truck } }
+  return done(next, now, {
+    broadcast: [frame(next, 'joined', { by: action.id })],
+  })
+}
+
+function onDial(
+  valley: Valley,
+  action: ActionOf<'dial'>,
+  { now, present }: ValleyContext
+): Reduced {
+  // Rule 29: in the valley, never placed in it. No world is opened for
+  // them, and the truck pays them no mind.
+  const members: Record<string, Member> = {}
+  for (const m of Object.values(valley.members)) {
+    if (present.includes(m.id)) members[m.id] = m
+  }
+  members[action.id] = {
+    id: action.id,
+    account: action.account,
+    name: action.name,
+    outfit: action.outfit,
+    level: action.level,
+    dialup: true,
+  }
+  const next: Valley = { ...valley, members }
   return done(next, now, {
     broadcast: [frame(next, 'joined', { by: action.id })],
   })
@@ -1158,6 +1298,48 @@ function onTruck(
   })
 }
 
+function onCharter(
+  valley: Valley,
+  action: ActionOf<'charter'>,
+  { now, present }: ValleyContext
+): Reduced {
+  const world = valley.world
+  if (!valley.members[action.id] || !world) {
+    return done(valley, now, {
+      broadcast: [],
+      reply: nack('charter', 'not-in-valley'),
+    })
+  }
+  const { to } = action
+  const { width, height } = world.metres
+  if (to && (Math.abs(to.x) > width / 2 || Math.abs(to.z) > height / 2)) {
+    return done(valley, now, {
+      broadcast: [],
+      reply: nack('charter', 'off-map'),
+    })
+  }
+  // Alone in the valley: no one else here (a second socket on the
+  // account counts as someone).
+  const solo = present.filter((id) => valley.members[id]).length <= 1
+  const truck = charter(world.truck, action.id, to, now, solo)
+  if (refused(truck)) {
+    return done(valley, now, {
+      broadcast: [],
+      reply: nack('charter', truck.refused),
+    })
+  }
+  // Settled at once, so a solo pick leaves now rather than at the next
+  // wake.
+  const settled = settleTruck(truck, now, world.routes)
+  const next = withTruck(valley, world, settled.truck)
+  return done(next, now, {
+    broadcast: [
+      frame(next, 'charted', { by: action.id }),
+      ...settled.changes.map((change) => frame(next, TRUCK_REASONS[change])),
+    ],
+  })
+}
+
 function onTake(
   valley: Valley,
   action: ActionOf<'take'>,
@@ -1246,9 +1428,16 @@ function onBuy(
   }
   // Rule 7.
   if (!onShelf(shelf, kind, unit)) return refuse('sold-out')
-  const haven = world.havens[station] as XZ | undefined
-  const far = haven && tooFar(action.at, haven, CONFIG.stash.stationReach)
-  if (far) return refuse(far)
+  // Rule 29: dialed in, any Citgo the account has stood at; on foot, the
+  // one they stand at.
+  if (member.dialup) {
+    const { visited } = citgosFor(valley, member.account)
+    if (!visited.includes(station)) return refuse('not-visited')
+  } else {
+    const haven = world.havens[station] as XZ | undefined
+    const far = haven && tooFar(action.at, haven, CONFIG.stash.stationReach)
+    if (far) return refuse(far)
+  }
   if (cash === undefined || cash < price) return refuse('short')
   const shelves = world.shelves.map((s, i) =>
     i === station ? takeUnit(s, kind, unit) : s
@@ -1297,7 +1486,9 @@ function onQuest(
     action.step,
     quest.pack,
     {
-      atDealer: atDealer(action.at, world.dealer),
+      // Rule 29: dialed in, Erwin is a call away; the heart of the maze
+      // is not (laying the rose takes a body, bodiless).
+      atDealer: !!member.dialup || atDealer(action.at, world.dealer),
       atHeart: atHeart(action.at, heart),
     }
   )
@@ -1335,7 +1526,10 @@ function onDeal(
   if (!member || !world) return refuse('not-in-valley')
   // Rule 25.
   if (!world.dealer) return refuse('no-dealer')
-  if (!atDealer(action.at, world.dealer)) return refuse('too-far')
+  // Rule 29: dialed in, wherever they are.
+  if (!member.dialup && !atDealer(action.at, world.dealer)) {
+    return refuse('too-far')
+  }
   if (world.truck.riders.includes(action.id)) return refuse('aboard')
   const sale = deal(world.dealerStock, kind, action.pay, holdings?.pack ?? {})
   if (!sale.ok) return refuse(sale.reason)
@@ -1625,14 +1819,14 @@ function onHit(
   const { account } = member
   const max = maxFor(valley, account)
   const before = pointsOf(woundsOf(valley.wounds, account), max)
-  const levels = geometrieFor(valley, account, now)
+  const levels = wardsFor(valley, account, now)
   const { damage, warded } = damageOf(action.by, levels, action.roll)
   const { points, fatal } = hit(before, damage, max)
   const next: Valley = {
     ...valley,
     wounds: withWounds(valley.wounds, account, fatal ? 0 : max - points),
     // A shattering leaves the raider sober.
-    geometrie: fatal ? sobered(valley.geometrie, account) : valley.geometrie,
+    wards: fatal ? sobered(valley.wards, account) : valley.wards,
   }
   const struck = { by: action.by, damage, warded }
   return done(next, now, {
@@ -1642,7 +1836,7 @@ function onHit(
       : { account, points, max, hit: struck },
     ...(fatal
       ? {
-          geometrie: [{ account, levels: geometrieFor(next, account, now) }],
+          wards: [{ account, levels: wardsFor(next, account, now) }],
         }
       : {}),
   })
@@ -1694,7 +1888,7 @@ function onDose(
   if (action.to !== undefined && !taker) {
     return done(valley, now, { broadcast: [] })
   }
-  let record = valley.geometrie
+  let record = valley.wards
   const changed = [member.account]
   if (taker) {
     record = dosed(record, taker.account, amounts, time)
@@ -1708,12 +1902,12 @@ function onDose(
   } else {
     record = dosed(record, member.account, amounts, time)
   }
-  const next = { ...valley, geometrie: record }
+  const next = { ...valley, wards: record }
   return done(next, now, {
     broadcast: [],
-    geometrie: changed.map((account) => ({
+    wards: changed.map((account) => ({
       account,
-      levels: geometrieFor(next, account, now),
+      levels: wardsFor(next, account, now),
     })),
     ...(taker
       ? {
@@ -1833,9 +2027,14 @@ function onStash(
   const re = action.type
   const refuse = (reason: string): Reduced =>
     done(valley, now, { broadcast: [], reply: nack(re, reason) })
-  if (!member || !world) return refuse('not-in-valley')
-  if (isAboard(world.truck, action.id)) return refuse('aboard')
-  if (!atLocker(action.at, world.havens)) return refuse('no-locker')
+  if (!member) return refuse('not-in-valley')
+  // Rule 29: dialed in, the locker is the account's wherever they are,
+  // world or none.
+  if (!member.dialup) {
+    if (!world) return refuse('not-in-valley')
+    if (isAboard(world.truck, action.id)) return refuse('aboard')
+    if (!atLocker(action.at, world.havens)) return refuse('no-locker')
+  }
   if (!isPackKind(action.kind)) return refuse('not-an-item')
   if (action.count < 1) return refuse('nothing')
   return done(valley, now, {
@@ -1859,9 +2058,14 @@ function onStand(
   const re = action.type
   const refuse = (reason: string): Reduced =>
     done(valley, now, { broadcast: [], reply: nack(re, reason) })
-  if (!member || !world) return refuse('not-in-valley')
-  if (isAboard(world.truck, action.id)) return refuse('aboard')
-  if (!atStand(action.at, world.stand)) return refuse('no-stand')
+  if (!member) return refuse('not-in-valley')
+  // Rule 29: dialed in, the stand is the account's wherever they are,
+  // world or none.
+  if (!member.dialup) {
+    if (!world) return refuse('not-in-valley')
+    if (isAboard(world.truck, action.id)) return refuse('aboard')
+    if (!atStand(action.at, world.stand)) return refuse('no-stand')
+  }
   if (!stand) return refuse('unavailable')
   const { ledger, pack } = stand
   const tended = (
@@ -1909,6 +2113,57 @@ function onStand(
     ledger: next,
     items: { ...price.items },
     cash: -price.cash,
+  })
+}
+
+function onExpedition(
+  valley: Valley,
+  action: ActionOf<'expedition-send' | 'expedition-claim'>,
+  { now, expedition }: ValleyContext
+): Reduced {
+  // Rule 30.
+  const member = valley.members[action.id]
+  const re = action.type
+  const refuse = (reason: string): Reduced =>
+    done(valley, now, { broadcast: [], reply: nack(re, reason) })
+  if (!member) return refuse('not-in-valley')
+  if (!member.dialup) return refuse('not-dialup')
+  if (!expedition) return refuse('unavailable')
+  const { account } = member
+  if (action.type === 'expedition-send') {
+    if (!isExpeditionId(action.kind)) return refuse('unknown')
+    const run = embark(
+      expedition.run,
+      action.kind,
+      levelFor(valley, account),
+      wardsFor(valley, account, now),
+      now,
+      action.seed
+    )
+    if (typeof run === 'string') return refuse(run)
+    return done(valley, now, {
+      broadcast: [],
+      expedition: { account, run },
+    })
+  }
+  const run = expedition.run
+  if (!run) return refuse('none')
+  if (!isHome(run, now)) return refuse('out')
+  const outcome = outcomeOf(run)
+  // Rule 24: hurt, never the last point.
+  const max = maxFor(valley, account)
+  const before = healthFor(valley, account)
+  const points = woundedBy(before, max, outcome.damage)
+  const wounded =
+    points === before
+      ? valley
+      : { ...valley, wounds: withWounds(valley.wounds, account, max - points) }
+  return done(wounded, now, {
+    broadcast: [],
+    expedition: { account, run: null, outcome },
+    // Rule 22.
+    xp: [{ account, source: 'expedition', times: outcome.xp }],
+    ...(points === before ? {} : { health: { account, points, max } }),
   })
 }
 
@@ -1984,10 +2239,23 @@ function onVisit(
   const before = citgosFor(valley, account)
   const log = visit(before, action.station)
   if (log === before) return done(valley, now, { broadcast: [] })
+  // Found: new to the account, and not the first it ever stood at (the
+  // spawn Citgo, where every raider starts).
+  const found =
+    before.visited.length > 0 && !before.visited.includes(action.station)
   return done(
     { ...valley, citgos: { ...valley.citgos, [account]: log } },
     now,
-    { broadcast: [], citgos: { account, log } }
+    {
+      broadcast: [],
+      citgos: { account, log },
+      ...(found
+        ? {
+            earn: { account, amount: CONFIG.bounties.citgo },
+            xp: [{ account, source: 'citgo' as const }],
+          }
+        : {}),
+    }
   )
 }
 

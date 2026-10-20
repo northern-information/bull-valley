@@ -9,6 +9,7 @@
 import { newlyFound } from '../src/book.ts'
 import { toCosmetics } from '../src/cosmetics.ts'
 import { NO_TASK } from '../src/dailytask.ts'
+import { isExpeditionRun } from '../src/expeditions.ts'
 import { STARTING_INVENTORY, toInventory } from '../src/inventory.ts'
 import { isQuest, isQuestStage, QUESTS } from '../src/quests.ts'
 import { NO_PROGRESS } from '../src/season.ts'
@@ -16,12 +17,19 @@ import { FRESH_STAND, isStandLedger } from '../src/stand.ts'
 import { STARTING_CASH } from './packs.ts'
 import type { CosmeticId } from '../src/cosmetics.ts'
 import type { TaskProgress } from '../src/dailytask.ts'
+import type { ExpeditionRun } from '../src/expeditions.ts'
 import type { Inventory } from '../src/interfaces.ts'
 import type { QuestId, QuestStage } from '../src/quests.ts'
 import type { SeasonProgress, SeasonReward } from '../src/season.ts'
 import type { StandChange } from '../src/sharedworld.ts'
 import type { StandLedger } from '../src/stand.ts'
-import type { Holdings, PackItem, PackStore, Welcome } from './packs.ts'
+import type {
+  ExpeditionRead,
+  Holdings,
+  PackItem,
+  PackStore,
+  Welcome,
+} from './packs.ts'
 
 interface PackRow {
   kind: string
@@ -95,6 +103,7 @@ export class D1PackStore implements PackStore {
       this.db
         .prepare('SELECT quest, stage FROM quests WHERE account_id = ?')
         .bind(accountId),
+      this.expeditionRead(accountId),
     ])
     const read = rows.slice(opening.length)
     const [
@@ -108,6 +117,7 @@ export class D1PackStore implements PackStore {
       levels,
       stands,
       quests,
+      expeditions,
     ] = read as [
       D1Result<PackRow>,
       D1Result<{ cash: number }>,
@@ -119,6 +129,7 @@ export class D1PackStore implements PackStore {
       D1Result<{ xp: number }>,
       D1Result<StandRow>,
       D1Result<{ quest: string; stage: string }>,
+      D1Result<ExpeditionRow>,
     ]
     return {
       holdings: toHoldings(
@@ -133,6 +144,7 @@ export class D1PackStore implements PackStore {
       xp: levels.results[0]?.xp ?? 0,
       stand: toStand(stands.results[0]).ledger,
       quests: toQuests(quests.results),
+      expedition: toExpedition(expeditions.results[0]).run,
     }
   }
   // The holdings, in the order toHoldings takes them.
@@ -646,6 +658,102 @@ export class D1PackStore implements PackStore {
     }
   }
 
+  private expeditionRead(accountId: string): D1PreparedStatement {
+    return this.db
+      .prepare(
+        'SELECT kind, started_at, ends_at, seed, ward, rev FROM expeditions WHERE account_id = ?'
+      )
+      .bind(accountId)
+  }
+
+  async expedition(accountId: string): Promise<ExpeditionRead> {
+    const row = await this.expeditionRead(accountId).first<ExpeditionRow>()
+    return toExpedition(row ?? undefined)
+  }
+
+  // The row first, so the guarded write always finds one; its write count
+  // goes negative when it is not `rev` any more, against its CHECK, so the
+  // batch is rolled back.
+  async embark(
+    accountId: string,
+    rev: number,
+    run: ExpeditionRun
+  ): Promise<boolean> {
+    return this.guarded([
+      this.db
+        .prepare('INSERT OR IGNORE INTO expeditions (account_id) VALUES (?)')
+        .bind(accountId),
+      this.db
+        .prepare(
+          'UPDATE expeditions SET kind = ?, started_at = ?, ends_at = ?, seed = ?, ward = ?, ' +
+            'rev = CASE WHEN rev = ? THEN rev + 1 ELSE -1 END WHERE account_id = ?'
+        )
+        .bind(
+          run.id,
+          run.startedAt,
+          run.endsAt,
+          run.seed,
+          run.ward,
+          rev,
+          accountId
+        ),
+    ])
+  }
+
+  // The run left empty and its haul into the pack and the wallet, in one
+  // batch, guarded like `embark`.
+  async homecoming(
+    accountId: string,
+    rev: number,
+    { items, cents }: { items: Inventory; cents: number }
+  ): Promise<boolean> {
+    return this.guarded([
+      this.db
+        .prepare('INSERT OR IGNORE INTO expeditions (account_id) VALUES (?)')
+        .bind(accountId),
+      this.db
+        .prepare(
+          'UPDATE expeditions SET kind = NULL, ' +
+            'rev = CASE WHEN rev = ? THEN rev + 1 ELSE -1 END WHERE account_id = ?'
+        )
+        .bind(rev, accountId),
+      ...Object.entries(items)
+        .filter(([, count]) => count > 0)
+        .map(([kind, count]) =>
+          this.db
+            .prepare(
+              'INSERT INTO packs (account_id, kind, count) VALUES (?, ?, ?) ' +
+                'ON CONFLICT (account_id, kind) DO UPDATE SET count = count + excluded.count'
+            )
+            .bind(accountId, kind, count)
+        ),
+      ...(cents > 0
+        ? [
+            this.db
+              .prepare(
+                'INSERT INTO wallets (account_id, cash) VALUES (?, ?) ' +
+                  'ON CONFLICT (account_id) DO UPDATE SET cash = cash + ?'
+              )
+              .bind(accountId, STARTING_CASH + cents, cents),
+          ]
+        : []),
+    ])
+  }
+
+  // A batch that stands whole or not at all: false when a CHECK refused
+  // it.
+  private async guarded(statements: D1PreparedStatement[]): Promise<boolean> {
+    try {
+      await this.db.batch(statements)
+      return true
+    } catch (err) {
+      if (err instanceof Error && /CHECK constraint failed/.test(err.message)) {
+        return false
+      }
+      throw err
+    }
+  }
+
   async xp(accountId: string): Promise<number> {
     const row = await this.db
       .prepare('SELECT xp FROM levels WHERE account_id = ?')
@@ -746,4 +854,27 @@ function toQuests(
     }
   }
   return stages
+}
+
+// An account's expedition as D1 keeps it; no row, or one with no kind,
+// is none out.
+interface ExpeditionRow {
+  kind: string | null
+  started_at: number
+  ends_at: number
+  seed: number
+  ward: number
+  rev: number
+}
+
+function toExpedition(row: ExpeditionRow | undefined): ExpeditionRead {
+  if (!row) return { run: null, rev: 0 }
+  const run = {
+    id: row.kind,
+    startedAt: row.started_at,
+    endsAt: row.ends_at,
+    seed: row.seed,
+    ward: row.ward,
+  }
+  return { run: isExpeditionRun(run) ? run : null, rev: row.rev }
 }

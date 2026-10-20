@@ -23,12 +23,7 @@ import {
   placeStill,
   stepShadowmen,
 } from './shadowmen.ts'
-import {
-  citgosFor,
-  creditedWith,
-  geometrieFor,
-  grantsTo,
-} from './sharedworld.ts'
+import { citgosFor, creditedWith, grantsTo, wardsFor } from './sharedworld.ts'
 import {
   createTunnelShades,
   stepTunnelShades,
@@ -124,7 +119,7 @@ export function shadowRaiders(
       beam: at.light
         ? buffedBeam(
             beamFrom(at, at.yaw, at.pitch, at.pose === 'crouch'),
-            geometrieFor(valley, member.account, now)
+            wardsFor(valley, member.account, now)
           )
         : null,
     })

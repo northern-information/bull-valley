@@ -10,11 +10,11 @@
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { el } from './dom.ts'
-import { AXES } from './geometrie.ts'
 import { BASE_GEOMETRIE } from './health.ts'
 import { ICON_SHAPES, iconSvg } from './icons.ts'
+import { AXES } from './wardlevels.ts'
 import { tetraView } from './wards.ts'
-import type { GeometrieAxis } from './interfaces.ts'
+import type { WardAxis } from './interfaces.ts'
 
 const SVG = 'http://www.w3.org/2000/svg'
 
@@ -46,7 +46,7 @@ export function grouped(n: number): string {
 
 // A ward's name, and the shadows it wards against, as the Book of Shadows
 // and the item card say them.
-export function wardName(axis: GeometrieAxis): string {
+export function wardName(axis: WardAxis): string {
   switch (axis) {
     case 'high':
       return copy('wards.high')
@@ -59,7 +59,7 @@ export function wardName(axis: GeometrieAxis): string {
   }
 }
 
-export function wardAgainst(axis: GeometrieAxis): string {
+export function wardAgainst(axis: WardAxis): string {
   switch (axis) {
     case 'high':
       return copy('wards.high_against')
@@ -75,7 +75,7 @@ export function wardAgainst(axis: GeometrieAxis): string {
 // A line naming `axis` in its colour, its mark before it.
 export function wardLine(
   className: string,
-  axis: GeometrieAxis,
+  axis: WardAxis,
   words: string
 ): HTMLElement {
   const line = el('p', className)
@@ -89,7 +89,7 @@ export function wardLine(
 interface Pop {
   damage: number
   warded: number
-  ward: GeometrieAxis
+  ward: WardAxis
   at: number
 }
 
@@ -97,13 +97,10 @@ export class VitalsHud {
   readonly root: HTMLDivElement
   private readonly tetra: SVGSVGElement
   private readonly hull: SVGPolygonElement
-  private readonly glows = new Map<GeometrieAxis, SVGPolygonElement>()
-  private readonly gradients = new Map<
-    GeometrieAxis,
-    SVGRadialGradientElement
-  >()
+  private readonly glows = new Map<WardAxis, SVGPolygonElement>()
+  private readonly gradients = new Map<WardAxis, SVGRadialGradientElement>()
   private readonly edges: SVGLineElement[] = []
-  private readonly marks = new Map<GeometrieAxis, SVGGElement>()
+  private readonly marks = new Map<WardAxis, SVGGElement>()
   private readonly bar: HTMLDivElement
   private readonly fill: HTMLDivElement
   private readonly lost: HTMLDivElement
@@ -114,7 +111,7 @@ export class VitalsHud {
   private readonly popDamage: HTMLSpanElement
   private readonly popWarded: HTMLSpanElement
   private readonly chips = new Map<
-    GeometrieAxis,
+    WardAxis,
     { li: HTMLLIElement; text: HTMLSpanElement }
   >()
   private wardsView = ''
@@ -256,8 +253,8 @@ export class VitalsHud {
 
   // The wards' levels: each corner's glow and mark, and its chip. Touched
   // only when a level moves by a percent.
-  setWards(levels: Record<GeometrieAxis, number>): void {
-    const percent = (axis: GeometrieAxis) =>
+  setWards(levels: Record<WardAxis, number>): void {
+    const percent = (axis: WardAxis) =>
       Math.round(Math.max(0, Math.min(1, levels[axis] || 0)) * 100)
     const view = AXES.map(percent).join(':')
     if (view === this.wardsView) return
@@ -335,7 +332,7 @@ export class VitalsHud {
 
   // A touch: its number under the bar, and what `ward` took off it, added
   // to the last if it came close behind; it fades a while after.
-  hit(damage: number, warded: number, ward: GeometrieAxis, now: number): void {
+  hit(damage: number, warded: number, ward: WardAxis, now: number): void {
     const last = this.last
     const pop: Pop =
       last && now - last.at < POP_SUM_MS

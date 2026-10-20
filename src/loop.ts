@@ -13,7 +13,6 @@ import { moabOffer } from './cosmetics.ts'
 import { dayKey } from './daily.ts'
 import { onDay, shownCount } from './dailytask.ts'
 import { EMOTES, holds } from './emotes.ts'
-import { levelsAt } from './geometrie.ts'
 import { ease, stepHand, useLift, useSeconds } from './hands.ts'
 import { shakeAt } from './health.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
@@ -42,6 +41,7 @@ import {
 import { formatCash } from './store.ts'
 import { tripLevel } from './trip.ts'
 import { burstHeight, burstScale } from './tunnelrig.ts'
+import { levelsAt } from './wardlevels.ts'
 import { boardable, clockText, countdown, seatOf } from './worldsync.ts'
 import type { Actions } from './actions.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
@@ -115,14 +115,14 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     )
   }
 
-  // Marx's countdown, for whoever is in the bed or standing by it. The
-  // line is filled again only when its clock reads differently.
+  // Marx's countdown, for whoever is in the bed or standing by it, and
+  // only with someone else in the valley (alone, he leaves once the pick is
+  // made). The line is filled again only when its clock reads differently.
   let clockShown = ''
   let clockLine = ''
   const countdownLine = (now: number): string | null => {
-    const left = s.world
-      ? countdown(s.world.truck, net.clock.serverNow(now))
-      : countdown(s.aloneTruck, Date.now())
+    if (!s.world || peers.count === 0) return null
+    const left = countdown(s.world.truck, net.clock.serverNow(now))
     if (left === null) return null
     const near =
       s.aboard ||
@@ -211,8 +211,10 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     if (s.world) return
     const settled = settleTruck(s.aloneTruck, Date.now(), game.truckRoutes)
     if (settled.changes.length === 0) return
+    const wasAboard = s.aboard
     actions.setAloneTruck(settled.truck)
     for (const change of settled.changes) {
+      if (change === 'dropoff' && wasAboard) hud.tell(copy('log.dropoff'))
       if (change === 'donuts') hud.tell(copy('log.marx_donuts'))
       if (change === 'back') hud.tell(copy('log.marx_back'))
       if (change === 'depart' && s.aboard) {
@@ -257,7 +259,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
           (phone.raised ? CONFIG.player.phoneSpeedScale : 1) *
           (smoking ? CONFIG.items.smokingSpeedScale : 1),
         // Rule 27: stimulated, the sprint runs quicker.
-        sprintScale: sprintScale(levelsAt(s.geometrie, s.time)),
+        sprintScale: sprintScale(levelsAt(s.wards, s.time)),
         eye: s.emoting ? EMOTES[s.emoting.id].eye : null,
       })
       feetY = player.groundY
@@ -370,7 +372,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
                   player.pitch,
                   crouching
                 ),
-                levelsAt(s.geometrie, s.time)
+                levelsAt(s.wards, s.time)
               )
             : null,
           lights: [headlightBeam(truck.headlights())],
@@ -611,8 +613,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         return [{ slot, item, icon: thumbs.icon(kind), cooldown }]
       })
     )
-    const levels = levelsAt(s.geometrie, time)
-    hud.setGeometrie(levels)
+    const levels = levelsAt(s.wards, time)
+    hud.setWards(levels)
     hud.turnWards(time)
     hud.setBuffs(activeBuffs(levels, s.effects, time))
     // The daily task as it stands on the valley's day: a count from an

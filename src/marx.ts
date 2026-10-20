@@ -9,10 +9,13 @@
 // CONFIG.truck.readSeconds, then does donuts in the field across Lake
 // Avenue for donutSeconds, then drives home and reads again. Anyone
 // arriving in the valley while he is at his donuts brings him straight
-// home. Anyone climbing into the bed starts a countdownSeconds clock; when
-// it runs out he takes whoever is aboard on the joyride out through the
-// valley and home again, and lets them off at the Citgo. A whistle (T)
-// brings him to the whistler, who climbs in and is driven home.
+// home. Anyone climbing into the bed starts a countdownSeconds clock, and
+// the first one in may pick on the map where he goes (charter); when it
+// runs out he takes whoever is aboard there and lets them off, or with no
+// pick on the joyride out through the valley and home again, letting them
+// off at the Citgo. With no one else in the valley there is no countdown:
+// he leaves as soon as the pick is made. A whistle (T) brings him to the
+// whistler, who climbs in and is driven home.
 //
 // The valley never knows the roads, so it never knows exactly when a drive
 // ends. It reckons generously (a road is never shorter than the straight
@@ -32,17 +35,22 @@ export type Approach =
 export type Leg =
   // By the spawn Citgo, Marx reading at the tailgate: once he is home
   // (`from`, the drive there, or null when he already is). leavesAt is
-  // when he leaves with whoever is in the bed, or null while it is empty.
+  // when he leaves with whoever is in the bed, or null while it is empty;
+  // dest, where the first one in picked to go (absent: the joyride).
   | {
       kind: 'parked'
       at: number
       from: Approach | null
       leavesAt: number | null
+      dest?: XZ
     }
   // In the field by the corn maze, seeded by `at`.
   | { kind: 'donuts'; at: number }
   // Out through the valley and home again, with whoever was aboard.
   | { kind: 'joyride'; at: number }
+  // From home to where the first one in picked, with whoever was aboard,
+  // who are let off there; he drives home empty after.
+  | { kind: 'charter'; at: number; to: XZ }
   // To whoever whistled: from where the truck was to where they stood.
   // rest: Marx was reading at the tailgate, so he walks to his door first.
   | { kind: 'called'; at: number; by: string; from: XZ; to: XZ; rest: boolean }
@@ -125,6 +133,8 @@ export function nextChange(
       return leg.at + cfg.donutSeconds * 1000
     case 'joyride':
       return leg.at + routes.joyrideMs
+    case 'charter':
+      return leg.at + TO_DOOR_SECONDS * 1000 + driveMs(routes.home, leg.to, cfg)
     case 'ferry':
       return leg.at + driveMs(leg.to, routes.home, cfg)
     case 'called':
@@ -133,14 +143,14 @@ export function nextChange(
 }
 
 // Why the truck's leg changed, for the valley's frames and the log.
-export type TruckChange = 'depart' | 'home' | 'donuts' | 'back'
+export type TruckChange = 'depart' | 'home' | 'donuts' | 'back' | 'dropoff'
 
 // Past this many changes in one settle (days with nobody about), the
 // truck is simply put back at the Citgo, reading.
 const MAX_CHANGES = 64
 
 // The truck moved on through every change due by `now`: the countdown
-// running out, the joyride or the ride home done, his reading done, his
+// running out, the joyride, the charter or the ride home done, his reading done, his
 // donuts done. Returns the truck as it stands at `now` and the changes on
 // the way, oldest first.
 export function settleTruck(
@@ -158,7 +168,12 @@ export function settleTruck(
     switch (leg.kind) {
       case 'parked':
         if (leg.leavesAt !== null) {
-          next = { ...next, leg: { kind: 'joyride', at: due } }
+          next = {
+            ...next,
+            leg: leg.dest
+              ? { kind: 'charter', at: due, to: leg.dest }
+              : { kind: 'joyride', at: due },
+          }
           changes.push('depart')
         } else {
           next = { ...next, leg: { kind: 'donuts', at: due } }
@@ -176,6 +191,27 @@ export function settleTruck(
           },
         }
         changes.push('back')
+        break
+      case 'charter':
+        // There: whoever is still aboard is let off, and he drives home
+        // from the end of the road there, Marx having walked to his door.
+        next = {
+          leg: {
+            kind: 'parked',
+            at: due,
+            from: {
+              kind: 'called',
+              at: leg.at,
+              from: routes.home,
+              to: leg.to,
+              rest: true,
+              cut: due,
+            },
+            leavesAt: null,
+          },
+          riders: [],
+        }
+        changes.push('dropoff')
         break
       case 'joyride':
       case 'ferry':
@@ -254,14 +290,39 @@ export function board(
   return { refused: 'gone' }
 }
 
-// `id` gets out of the bed: off the parked truck (the countdown stops when
-// the bed is empty), or over the side wherever the truck is.
+// `id`, the first one in the bed of the truck parked at the Citgo, picks
+// where he goes: `to`, or the joyride (null). With no one else in the
+// valley (`solo`) he leaves at once.
+export function charter(
+  truck: TruckState,
+  id: string,
+  to: XZ | null,
+  now: number,
+  solo: boolean
+): TruckState | Refused {
+  const { leg } = truck
+  if (leg.kind !== 'parked' || leg.leavesAt === null) return { refused: 'gone' }
+  if (truck.riders[0] !== id) return { refused: 'not-first' }
+  const { dest: _dest, ...rest } = leg
+  return {
+    ...truck,
+    leg: {
+      ...rest,
+      leavesAt: solo ? Math.min(now, leg.leavesAt) : leg.leavesAt,
+      ...(to ? { dest: { x: to.x, z: to.z } } : {}),
+    },
+  }
+}
+
+// `id` gets out of the bed: off the parked truck (the countdown and the
+// pick stop when the bed is empty), or over the side wherever the truck is.
 export function hopOut(truck: TruckState, id: string): TruckState | Refused {
   if (!truck.riders.includes(id)) return { refused: 'not-aboard' }
   const riders = truck.riders.filter((r) => r !== id)
   const { leg } = truck
   if (leg.kind === 'parked' && riders.length === 0) {
-    return { riders, leg: { ...leg, leavesAt: null } }
+    const { dest: _dest, ...rest } = leg
+    return { riders, leg: { ...rest, leavesAt: null } }
   }
   return { ...truck, riders }
 }

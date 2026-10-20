@@ -168,6 +168,21 @@ describe('othersLine', () => {
 })
 
 describe('onlineLine', () => {
+  it('says who is on the phone', () => {
+    expect(
+      onlineLine({ name: 'Dave', level: 2 }, [
+        { name: 'Pat', level: 5, dialup: true },
+      ])
+    ).toBe(
+      copy('chat.online', {
+        names: [
+          copy('chat.online_name', { name: 'Dave', level: 2 }),
+          copy('chat.online_phone', { name: 'Pat', level: 5 }),
+        ].join(', '),
+      })
+    )
+  })
+
   const raider = (name: string, level = 1) => ({ name, level })
   const named = (name: string, level = 1) =>
     copy('chat.online_name', { name, level })

@@ -32,6 +32,7 @@
 // left, and the object can hibernate again.
 
 import { DurableObject } from 'cloudflare:workers'
+import { bountyOf } from '../src/book.ts'
 import { isSelectable } from '../src/characters.ts'
 import { CONFIG } from '../src/config.ts'
 import { toCosmetics } from '../src/cosmetics.ts'
@@ -67,24 +68,26 @@ import {
   corpsesOf,
   createValley,
   dailyFor,
-  geometrieFor,
   healthFor,
   maxFor,
   placeOf,
   reduce,
   restoreValley,
   toWire,
+  wardsFor,
 } from '../src/sharedworld.ts'
 import { ACCOUNT_HEADER, NAME_HEADER } from './auth.ts'
 import { D1AccountStore } from './d1accounts.ts'
 import { D1PackStore } from './d1packs.ts'
 import type { CosmeticId } from '../src/cosmetics.ts'
 import type { TaskProgress } from '../src/dailytask.ts'
+import type { ExpeditionRun } from '../src/expeditions.ts'
 import type { FriendRow } from '../src/friends.ts'
 import type { Inventory, XZ } from '../src/interfaces.ts'
 import type { XpGrant } from '../src/progression.ts'
 import type {
   ClientMessage,
+  DialMessage,
   HelloMessage,
   PackMessage,
   PeerStateWire,
@@ -105,7 +108,7 @@ import type {
 import type { StandLedger } from '../src/stand.ts'
 import type { ShadowHit } from '../src/wards.ts'
 import type { AccountStore } from './accounts.ts'
-import type { Holdings, PackStore } from './packs.ts'
+import type { ExpeditionRead, Holdings, PackStore } from './packs.ts'
 
 // Per-socket state, serialized into the socket's attachment (16 KB cap;
 // this is well under 1 KB). `me` is null until the hello. The Worker sets
@@ -237,7 +240,7 @@ export class ValleyDO extends DurableObject<Env> {
     const { me } = attachment
     if (me) {
       await this.frame(ws, attachment, me, msg)
-    } else if (msg.type === 'hello') {
+    } else if (msg.type === 'hello' || msg.type === 'dial') {
       await this.hello(ws, attachment, msg)
     } else {
       ws.close(CLOSE.malformed, 'Expected hello first')
@@ -259,13 +262,17 @@ export class ValleyDO extends DurableObject<Env> {
     const at = standing(me)
     switch (msg.type) {
       case 'hello':
+      case 'dial':
         ws.close(CLOSE.malformed, 'Already said hello')
         return
       case 'state':
+        // Rule 29: dialed in, never placed.
+        if (me.dialup) return
         this.state(ws, attachment, me, msg)
         this.startShadows()
         return
       case 'headlights':
+        if (me.dialup) return
         this.headlights(ws, me, msg)
         return
       case 'ping':
@@ -276,6 +283,9 @@ export class ValleyDO extends DurableObject<Env> {
         return
       case 'board':
         await this.act(ws, { type: 'board', id, at })
+        return
+      case 'charter':
+        await this.act(ws, { type: 'charter', id, to: msg.to })
         return
       case 'take':
         await this.act(ws, { type: 'take', id, index: msg.index, at })
@@ -316,6 +326,16 @@ export class ValleyDO extends DurableObject<Env> {
       case 'stand-collect':
       case 'stand-upgrade':
         await this.tend(ws, account, { ...msg, id, at })
+        return
+      case 'expedition-send':
+        await this.expedition(ws, account, {
+          ...msg,
+          id,
+          seed: Math.floor(this.roll() * 2 ** 32),
+        })
+        return
+      case 'expedition-claim':
+        await this.expedition(ws, account, { ...msg, id })
         return
       case 'trade':
         await this.trade(ws, attachment, { ...msg, id })
@@ -539,9 +559,10 @@ export class ValleyDO extends DurableObject<Env> {
     }
     // Each socket the field round its own raider: the whole of it, to
     // everyone, grows with the raiders squared.
+    // A phone dialed in (rule 29) has no body to draw them round.
     for (const socket of this.ctx.getWebSockets()) {
       const me = this.attachment(socket).me
-      if (!me) continue
+      if (!me || me.dialup) continue
       const at = me.at ? { x: me.at.x, z: me.at.z } : null
       try {
         send(socket, shadowmenNear(out.message, at, SHADOW_FRAME_RADIUS))
@@ -628,7 +649,7 @@ export class ValleyDO extends DurableObject<Env> {
         // Closing sockets throw; their close handler follows.
       }
     }
-    this.tellGeometrie(reduced)
+    this.tellWards(reduced)
     if (!change.fatal) return
     const me = this.attachment(sockets[0]).me
     const at = me?.at ? { x: me.at.x, z: me.at.z, yaw: me.at.yaw } : null
@@ -640,10 +661,10 @@ export class ValleyDO extends DurableObject<Env> {
     return Math.random()
   }
 
-  // Rule 27: every socket on each account dosed hears its geometrie.
-  private tellGeometrie(reduced: Reduced): void {
-    for (const { account, levels } of reduced.geometrie ?? []) {
-      this.toAccount(account, { type: 'geometrie', geometrie: levels })
+  // Rule 27: every socket on each account dosed hears its wards.
+  private tellWards(reduced: Reduced): void {
+    for (const { account, levels } of reduced.wards ?? []) {
+      this.toAccount(account, { type: 'wards', wards: levels })
     }
   }
 
@@ -654,7 +675,7 @@ export class ValleyDO extends DurableObject<Env> {
     await this.locked(async () => {
       const reduced = reduce(this.valley, action, this.context())
       await this.apply(reduced)
-      this.tellGeometrie(reduced)
+      this.tellWards(reduced)
     })
   }
 
@@ -718,6 +739,8 @@ export class ValleyDO extends DurableObject<Env> {
       if (change) {
         this.toAccount(change.account, { type: 'citgos', citgos: change.log })
       }
+      // The first time at this Citgo pays its bounty.
+      if (reduced.earn) await this.pay(null, reduced.earn)
     })
   }
 
@@ -927,6 +950,76 @@ export class ValleyDO extends DurableObject<Env> {
     })
   }
 
+  // An expedition sent or claimed, alone (rule 30): no other frame runs
+  // between reading the run, judging the send or the claim, and writing it
+  // with the haul into the pack and the wallet. Every socket on the
+  // account hears the expedition, and the pack after a claim.
+  private async expedition(
+    ws: WebSocket,
+    account: string | null,
+    action: Extract<
+      ValleyAction,
+      { type: 'expedition-send' | 'expedition-claim' }
+    >
+  ): Promise<void> {
+    if (!account) return
+    const refuse = (reason: string) => {
+      send(ws, { type: 'nack', re: action.type, reason })
+    }
+    if (!allow(this.dropRate, ws, PACK_LIMIT)) {
+      refuse('too-fast')
+      return
+    }
+    await this.locked(async () => {
+      const packs = this.packs()
+      let read: ExpeditionRead
+      try {
+        read = await packs.expedition(account)
+      } catch (err) {
+        console.error('The expedition could not be read', err)
+        refuse('unavailable')
+        return
+      }
+      const reduced = reduce(this.valley, action, {
+        ...this.context(),
+        expedition: { run: read.run },
+      })
+      if (reduced.reply) {
+        send(ws, reduced.reply)
+        return
+      }
+      const change = reduced.expedition
+      if (!change) return
+      let written: boolean
+      try {
+        written = change.outcome
+          ? await packs.homecoming(account, read.rev, {
+              items: change.outcome.items,
+              cents: change.outcome.cents,
+            })
+          : change.run
+            ? await packs.embark(account, read.rev, change.run)
+            : false
+      } catch (err) {
+        console.error('The expedition could not be written', err)
+        refuse('unavailable')
+        return
+      }
+      if (!written) {
+        refuse('busy')
+        return
+      }
+      await this.apply(reduced)
+      if (reduced.health) this.tellHealth(reduced.health)
+      this.toAccount(account, {
+        type: 'expedition',
+        run: change.run,
+        ...(change.outcome ? { outcome: change.outcome } : {}),
+      })
+      if (change.outcome) await this.repack(null, null, account)
+    })
+  }
+
   private attachment(ws: WebSocket): Attachment {
     const cached = this.attachments.get(ws)
     if (cached) return cached
@@ -953,10 +1046,12 @@ export class ValleyDO extends DurableObject<Env> {
     return { now: Date.now(), present: this.presentIds(null) }
   }
 
+  // A hello from the 3D valley, or a dial from Bull Valley Dial-Up (rule
+  // 29), which carries nothing of the world and is never placed.
   private async hello(
     ws: WebSocket,
     attachment: Attachment,
-    hello: HelloMessage
+    hello: HelloMessage | DialMessage
   ): Promise<void> {
     if (hello.v !== PROTOCOL_VERSION) {
       ws.close(CLOSE.badVersion, `Protocol ${PROTOCOL_VERSION} required`)
@@ -992,8 +1087,9 @@ export class ValleyDO extends DurableObject<Env> {
     let xp: number
     let stand: StandLedger
     let quests: Record<QuestId, QuestStage>
+    let expedition: ExpeditionRun | null
     try {
-      ;({ holdings, season, book, task, xp, stand, quests } =
+      ;({ holdings, season, book, task, xp, stand, quests, expedition } =
         await this.packs().welcome(account, SEASON.id, DAILY_TASK.id))
     } catch (err) {
       console.error('The pack could not be opened', err)
@@ -1008,26 +1104,35 @@ export class ValleyDO extends DurableObject<Env> {
       if (hello.was) await this.retire(ws, account, hello.was)
       const reduced = reduce(
         this.valley,
-        {
-          type: 'join',
-          id,
-          account,
-          name,
-          outfit: hello.outfit,
-          pickups: hello.pickups,
-          stations: hello.stations,
-          havens: hello.havens,
-          metres: hello.metres,
-          water: hello.water,
-          maze: hello.maze,
-          routes: hello.truck,
-          stand: hello.stand,
-          bushes: hello.bushes,
-          dealer: hello.dealer,
-          undercroft: hello.undercroft,
-          rings: hello.rings,
-          level: levelOf(xp),
-        },
+        hello.type === 'dial'
+          ? {
+              type: 'dial',
+              id,
+              account,
+              name,
+              outfit: hello.outfit,
+              level: levelOf(xp),
+            }
+          : {
+              type: 'join',
+              id,
+              account,
+              name,
+              outfit: hello.outfit,
+              pickups: hello.pickups,
+              stations: hello.stations,
+              havens: hello.havens,
+              metres: hello.metres,
+              water: hello.water,
+              maze: hello.maze,
+              routes: hello.truck,
+              stand: hello.stand,
+              bushes: hello.bushes,
+              dealer: hello.dealer,
+              undercroft: hello.undercroft,
+              rings: hello.rings,
+              level: levelOf(xp),
+            },
         { now: Date.now(), present: this.presentIds(ws) }
       )
       if (!reduced.reject) await this.apply(reduced)
@@ -1044,10 +1149,12 @@ export class ValleyDO extends DurableObject<Env> {
       cosmetics: holdings.cosmetics,
       level: levelOf(xp),
       at: null,
+      ...(hello.type === 'dial' ? { dialup: true as const } : {}),
     }
     this.attach(ws, { ...attachment, me })
     const world = toWire(this.valley)
-    if (!world || !this.valley.members[id]) {
+    // Only a dial may come into a valley no one has opened a world in.
+    if ((!world && hello.type !== 'dial') || !this.valley.members[id]) {
       ws.close(CLOSE.serverError, 'The valley lost the world')
       return
     }
@@ -1070,11 +1177,12 @@ export class ValleyDO extends DurableObject<Env> {
       task: taskWire(task),
       health: healthFor(this.valley, account),
       healthMax: maxFor(this.valley, account),
-      geometrie: geometrieFor(this.valley, account, now),
+      wards: wardsFor(this.valley, account, now),
       citgos: citgosFor(this.valley, account),
       xp,
       stand,
       quests,
+      expedition,
     })
     this.broadcast({ type: 'peer-joined', peer: me }, ws)
     for (const msg of reduced.broadcast) this.broadcast(msg, ws)
@@ -1226,7 +1334,7 @@ export class ValleyDO extends DurableObject<Env> {
           name: row.username,
           state: row.state,
           online: here !== undefined,
-          where: here ? whereabouts(here.at, world) : null,
+          where: here ? whereabouts(here.at, world, here.dialup) : null,
         }
       }),
     })
@@ -1356,7 +1464,7 @@ export class ValleyDO extends DurableObject<Env> {
   // quarters): into the wallet, then the pack and wallet to every socket
   // on the account.
   private async pay(
-    ws: WebSocket,
+    ws: WebSocket | null,
     { account, amount }: { account: string; amount: number }
   ): Promise<void> {
     try {
@@ -1771,8 +1879,19 @@ export class ValleyDO extends DurableObject<Env> {
     }
     await this.forAccount(account, async () => {
       try {
-        const found = await this.packs().discover(account, entries, Date.now())
+        const packs = this.packs()
+        const found = await packs.discover(account, entries, Date.now())
         if (found.length > 0) this.toAccount(account, { type: 'book', found })
+        // A landmark found for the first time pays its bounty, and XP.
+        const bounty = bountyOf(found)
+        if (bounty > 0) {
+          await packs.earn(account, bounty)
+          this.toAccount(
+            account,
+            this.packFrame(account, await packs.get(account))
+          )
+          void this.award([{ account, source: 'landmark' }])
+        }
       } catch (err) {
         console.error('The book could not be written', account, err)
         send(ws, { type: 'nack', re: 'discover', reason: 'unwritten' })

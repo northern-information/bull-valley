@@ -62,6 +62,9 @@
       type="font/woff2"
       crossorigin
     />
+    <!-- The film grain every title card lies under, waited on by boot with
+         the logos (preload.ts imagesReady), so it never pops in. -->
+    <link rel="preload" href="/textures/000973910004.jpg" as="image" />
     <style>
       @font-face {
         font-family: "IBM Plex Mono";
@@ -121,6 +124,6 @@
   </head>
   <body>
     <main id="bv-root"></main>
-    <script type="module" src="/src/main.ts"></script>
+    <script type="module" src="/src/entry.ts"></script>
   </body>
 </html>

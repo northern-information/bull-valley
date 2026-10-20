@@ -46,6 +46,31 @@ test('climbing into the bed starts the countdown, and Marx leaves with you', asy
     .toBe(true)
 })
 
+test('alone in the valley, the first one in picks where Marx goes and he leaves at once', async ({
+  page,
+}) => {
+  await beginRaid(page)
+  await page.evaluate(() => {
+    const bv = window.__bv
+    if (!bv) throw new Error('no dev hook')
+    bv.player.relocate(bv.truck.x + 1, bv.truck.z + 1, Math.atan2(1, 1))
+  })
+  await heardWhere(page)
+  await page.keyboard.press('KeyE')
+  await expect.poll(() => page.evaluate(() => window.__bv?.mapOpen)).toBe(true)
+  // A click off toward a corner of the map picks a spot on the roads there.
+  const map = page.locator('[data-bv="map"]')
+  const box = await map.boundingBox()
+  if (!box) throw new Error('no map')
+  await map.click({ position: { x: box.width * 0.3, y: box.height * 0.3 } })
+  await expect.poll(() => page.evaluate(() => window.__bv?.mapOpen)).toBe(false)
+  await expect.poll(() => leg(page)).toBe('charter')
+  expect(await page.evaluate(() => window.__bv?.aboard)).toBe(true)
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.truck.moving))
+    .toBe(true)
+})
+
 test('Marx does donuts in the field after reading, until whistled', async ({
   page,
 }) => {
@@ -66,7 +91,7 @@ test('Marx does donuts in the field after reading, until whistled', async ({
   await expect
     .poll(truck, { timeout: 30_000 })
     .toEqual({ drifting: true, inField: true })
-  await page.keyboard.press('t')
+  await page.keyboard.press('y')
   await expect.poll(() => leg(page)).toBe('called')
   await expect.poll(truck).toMatchObject({ drifting: false })
 })
@@ -95,7 +120,7 @@ test('the phone dials a Citgo portal to the last Citgo and back', async ({
   // Out in the valley, far from any Citgo.
   await page.evaluate(() => window.__bv?.teleport(0.5, 0.5))
   await heardWhere(page)
-  await page.keyboard.press('q')
+  await page.keyboard.press('t')
   await expect(page.locator('.bv-phone')).toHaveClass(/bv-phone--raised/)
   await expect
     .poll(() => page.evaluate(() => window.__bv?.myPortal ?? null), {

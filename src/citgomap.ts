@@ -2,17 +2,19 @@
 // the account has stood at lit in Citgo red and the last of them (where
 // the phone's portal goes) ringed and named, with the raider an arrow
 // among them. Clicking a visited Citgo fast travels there (actions.ts,
-// citgos.ts fastTravel). It opens over the valley with the pointer free, as
+// citgos.ts fastTravel). Opened for a charter (the first one into Marx's
+// bed, marx.ts charter), a click anywhere picks where he drives instead. It opens over the valley with the pointer free, as
 // the Book of Shadows does; hud.ts builds it, loop.ts draws it each frame
 // while it is open.
 
 import { context2d, EGGSHELL, MONO } from './canvas.ts'
-import { roadNameNear } from './citgos.ts'
+import { roadNameNear, surveyedStations } from './citgos.ts'
+import { unitToWorld } from './coords.ts'
 import { copy } from './copy.ts'
 import { el } from './dom.ts'
 import type { CitgoLog, MapRoad } from './citgos.ts'
 import type { Facing } from './drops.ts'
-import type { Metres, XZ } from './interfaces.ts'
+import type { Geo, Metres, XZ } from './interfaces.ts'
 
 // One Citgo on the map: where its pump island stands, and what it is
 // called there.
@@ -36,11 +38,15 @@ const CITGO = '#ff4a1c'
 const RAIDER = '#60a5fa'
 const ROAD = 'rgba(240, 234, 214, 0.22)'
 const UNVISITED = 'rgba(240, 234, 214, 0.45)'
+// How near a Citgo a point is still called after it.
+const NEAR_CITGO = 80
 
 export class CitgoMap {
   readonly root: HTMLElement
   // A visited Citgo clicked: actions.ts fast travels there.
   onTravel?: (station: number) => void
+  // Opened for a charter, a point clicked: actions.ts has Marx drive there.
+  onCharter?: (to: XZ) => void
   private readonly canvas: HTMLCanvasElement
   private readonly ctx: CanvasRenderingContext2D
   private readonly count: HTMLElement
@@ -52,6 +58,10 @@ export class CitgoMap {
   private readonly scale: number
   private base: HTMLCanvasElement | null = null
   private hovered: number | null = null
+  // Whether a click picks where Marx drives (a charter), and the world
+  // point under the pointer while it does.
+  private charter = false
+  private pointer: XZ | null = null
 
   constructor(
     ui: HTMLElement,
@@ -89,16 +99,27 @@ export class CitgoMap {
 
     this.canvas.addEventListener('mousemove', (e) => {
       this.hovered = this.pick(e)
-      this.canvas.style.cursor = this.hovered === null ? '' : 'pointer'
+      this.pointer = this.charter ? this.toWorld(e) : null
+      this.canvas.style.cursor = this.charter
+        ? 'crosshair'
+        : this.hovered === null
+          ? ''
+          : 'pointer'
     })
     this.canvas.addEventListener('mouseleave', () => {
       this.hovered = null
+      this.pointer = null
     })
     this.canvas.addEventListener('click', (e) => {
       // Not a click past the map, which closes it.
       e.stopPropagation()
       const station = this.pick(e)
-      if (station !== null) this.onTravel?.(station)
+      if (this.charter) {
+        const to = station === null ? this.toWorld(e) : this.citgos[station]
+        if (to) this.onCharter?.({ x: to.x, z: to.z })
+      } else if (station !== null) {
+        this.onTravel?.(station)
+      }
     })
   }
 
@@ -107,9 +128,31 @@ export class CitgoMap {
     return this.citgos[station]?.label ?? ''
   }
 
-  show(show: boolean): boolean {
+  // What a point is called: the Citgo it is by, or the road it is near.
+  placeOf(at: XZ): string {
+    let best: MapCitgo | null = null
+    let bestD = NEAR_CITGO
+    for (const c of this.citgos) {
+      const d = Math.hypot(at.x - c.x, at.z - c.z)
+      if (d <= bestD) {
+        best = c
+        bestD = d
+      }
+    }
+    if (best) return best.label
+    const road = roadNameNear(at, this.roads)
+    return road ?? copy('map.somewhere')
+  }
+
+  // Shown or hidden; shown for a charter, a click picks where Marx goes.
+  show(show: boolean, charter = false): boolean {
     this.root.hidden = !show
-    if (!show) this.hovered = null
+    this.charter = show && charter
+    this.root.classList.toggle('bv-map--charter', this.charter)
+    if (!show) {
+      this.hovered = null
+      this.pointer = null
+    }
     return show
   }
 
@@ -117,6 +160,16 @@ export class CitgoMap {
   // canvas's.
   private toCanvas(at: XZ): { x: number; y: number } {
     return { x: SIZE / 2 + at.x / this.scale, y: SIZE / 2 + at.z / this.scale }
+  }
+
+  // The world point under the pointer, or null.
+  private toWorld(e: MouseEvent): XZ | null {
+    const box = this.canvas.getBoundingClientRect()
+    if (box.width === 0) return null
+    const k = SIZE / box.width
+    const px = (e.clientX - box.left) * k
+    const py = (e.clientY - box.top) * k
+    return { x: (px - SIZE / 2) * this.scale, z: (py - SIZE / 2) * this.scale }
   }
 
   // The Citgo under the pointer, or null.
@@ -207,6 +260,25 @@ export class CitgoMap {
     ctx.fill()
     ctx.restore()
 
+    // A charter: a cross where the pointer is, named.
+    if (this.charter && this.pointer) {
+      const at =
+        this.hovered === null ? this.pointer : this.citgos[this.hovered]
+      const p = this.toCanvas(at)
+      ctx.strokeStyle = EGGSHELL
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.moveTo(p.x - 7, p.y - 7)
+      ctx.lineTo(p.x + 7, p.y + 7)
+      ctx.moveTo(p.x + 7, p.y - 7)
+      ctx.lineTo(p.x - 7, p.y + 7)
+      ctx.stroke()
+      if (this.hovered === null) {
+        ctx.fillStyle = EGGSHELL
+        ctx.fillText(this.placeOf(at), p.x, p.y - 12)
+      }
+    }
+
     this.count.textContent = copy('map.visited', {
       count: log.visited.length,
       total: this.citgos.length,
@@ -215,8 +287,11 @@ export class CitgoMap {
     this.last.textContent = last
       ? copy('map.last', { citgo: last.label })
       : copy('map.none')
-    this.hint.textContent =
-      here === null ? copy('map.hint_away') : copy('map.hint')
+    this.hint.textContent = this.charter
+      ? copy('map.hint_charter')
+      : here === null
+        ? copy('map.hint_away')
+        : copy('map.hint')
   }
 }
 
@@ -236,4 +311,21 @@ export function mapCitgos(
         : copy('map.citgo_unnamed', { n: i + 1 }),
     }
   })
+}
+
+// Every Citgo's name, indexed like world.fuelPoints, straight from the
+// survey: the same names the map gives, for Bull Valley Dial-Up, which
+// builds no world. Each is named from its fuel point, a few metres off its
+// pump island, well within roadNameNear's reach.
+export function citgoNames(
+  geo: Pick<Geo, 'fuel' | 'roads' | 'metres'>
+): string[] {
+  const roads = geo.roads.map((road) => ({
+    name: road.n,
+    points: road.p.map(([u, v]) => unitToWorld(u, v, geo.metres)),
+  }))
+  const stations = surveyedStations(geo.fuel).map((f) =>
+    unitToWorld(f.p[0], f.p[1], geo.metres)
+  )
+  return mapCitgos(stations, roads).map((citgo) => citgo.label)
 }

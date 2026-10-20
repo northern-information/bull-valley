@@ -45,12 +45,12 @@ export const WORLD = {
   look: { codes: [], key: 'Mouse', labelKey: 'keys.look' },
   flashlight: { codes: [], key: 'Left Click', labelKey: 'keys.flashlight' },
   crouch: { codes: ['KeyC'], key: 'C', labelKey: 'keys.crouch' },
-  phone: { codes: ['KeyQ'], key: 'Q', labelKey: 'keys.phone' },
+  phone: { codes: ['KeyT'], key: 'T', labelKey: 'keys.phone' },
   inventory: { codes: ['Tab'], key: 'Tab', labelKey: 'keys.inventory' },
   book: { codes: ['KeyB'], key: 'B', labelKey: 'keys.book' },
   map: { codes: ['KeyM'], key: 'M', labelKey: 'keys.map' },
   interact: { codes: ['KeyE'], key: 'E', labelKey: 'keys.interact' },
-  callTruck: { codes: ['KeyT'], key: 'T', labelKey: 'keys.call_truck' },
+  callTruck: { codes: ['KeyY'], key: 'Y', labelKey: 'keys.call_truck' },
   // The last thing used, to the raider in reach in front of you.
   pass: { codes: ['KeyG'], key: 'G', labelKey: 'keys.pass' },
   hotbar: { codes: HOTBAR_CODES, key: '1–9', labelKey: 'keys.hotbar' },
@@ -150,9 +150,12 @@ export const BOOK = {
 } as const satisfies Record<string, Binding>
 
 // With the map open (citgomap.ts): M or Esc closes it; a click on a
-// visited Citgo fast travels there.
+// visited Citgo fast travels there. Opened for a charter (the first one
+// into Marx's bed), a click picks where he goes, closing it takes the
+// joyride, and E hops out.
 export const MAP = {
   close: { codes: ['KeyM', 'Escape'], key: 'M', labelKey: 'keys.close' },
+  hopOut: { codes: ['KeyE'], key: 'E', labelKey: 'keys.interact' },
 } as const satisfies Record<string, Binding>
 
 // With a keeper's dialog open (the Cabbage Stand's, Erwin von Dutch's):

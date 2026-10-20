@@ -15,6 +15,7 @@ import { donutRoute } from './donuts.ts'
 import { DonutWake } from './donutwakerig.ts'
 import { createDropMeshes } from './dropmeshes.ts'
 import { finishById } from './finishes.ts'
+import { fontsReady } from './fonts.ts'
 import { FirstPersonHands } from './fphands.ts'
 import { createGameState } from './game.ts'
 import { createGlow } from './glow.ts'
@@ -31,6 +32,7 @@ import { Phone } from './phone.ts'
 import { Player } from './player.ts'
 import { PlayerBody } from './playerbody.ts'
 import { createPortalMeshes } from './portalmeshes.ts'
+import { GRAIN_URL, imagesReady } from './preload.ts'
 import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import { mulberry32 } from './rng.ts'
 import { buildRoadGraph, nearestRoadPoint, wanderRoute } from './roadgraph.ts'
@@ -62,36 +64,14 @@ import type { TruckContext } from './truckplan.ts'
 // The survey and terrain: the game's own map, committed in public/data.
 const DATA_BASE = '/data/bull-valley'
 
-// How long boot waits for IBM Plex Mono before it draws in the fallback face.
-const FONT_TIMEOUT_MS = 3000
-
-// The weights the HUD and canvas text use; the italic loads on first use.
-const FONT_WEIGHTS = [400, 600, 700]
-
-// IBM Plex Mono, loaded before any text exists, so nothing paints in a
-// fallback and then reflows when the face lands (index.html preloads it).
-// Canvas text (the phone, name tags) is drawn after boot, so it gets the face
-// too. A font that never arrives must not hold the game: past the timeout,
-// boot goes on.
-async function fontsReady(): Promise<void> {
-  const timeout = new Promise<void>((resolve) => {
-    setTimeout(resolve, FONT_TIMEOUT_MS)
-  })
-  const load = Promise.all(
-    FONT_WEIGHTS.map((w) => document.fonts.load(`${w} 1em "IBM Plex Mono"`))
-  ).then(
-    () => undefined,
-    (err: unknown) => {
-      console.error('IBM Plex Mono failed to load:', err)
-    }
-  )
-  await Promise.race([load, timeout])
-}
-
 async function boot() {
   const root = document.getElementById('bv-root')
   if (!root) throw new Error('Missing #bv-root')
-  await fontsReady()
+  // The face, the grain and the logos before any card paints.
+  await Promise.all([
+    fontsReady(),
+    imagesReady([GRAIN_URL, CONFIG.splash.imageSrc, CONFIG.logo.imageSrc]),
+  ])
   const hud = new Hud(root)
   const audio = new BvAudio()
   // The title-card cues; dev builds mute them.

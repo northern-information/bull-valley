@@ -3,7 +3,8 @@
 // account wears over it (cosmetics.ts, the Flaming Halo). Like Gron's
 // preview it draws with a renderer of its own, which leaves the game's PS1
 // snap resolution alone; made the first time the pack opens and kept, it
-// draws only while the pack is open.
+// draws only while the pack is open. Bull Valley Dial-Up's lobby shows the
+// raider on one too, where a drag turns them by hand (`drag`).
 
 import * as THREE from 'three'
 import { applyPose, attachCosmetics, buildFigure } from './figure.ts'
@@ -17,6 +18,10 @@ import type { OutfitId } from './outfits.ts'
 // The turntable: turns a second. The canvas's pixel size, tall for a
 // standing figure; styles.css sets its CSS size to match.
 const SPIN_PER_SECOND = 0.6
+// Radians a dragged pixel turns the raider, and how long they hold where
+// a drag left them before the turntable takes over again.
+const DRAG_PER_PX = 0.02
+const HOLD_MS = 1500
 export const AVATAR_PX = { width: 120, height: 200 }
 
 export interface AvatarLook {
@@ -31,9 +36,36 @@ export interface AvatarView {
   stop(): void
 }
 
-export function createAvatarView(canvas: HTMLCanvasElement): AvatarView {
+export function createAvatarView(
+  canvas: HTMLCanvasElement,
+  { drag = false }: { drag?: boolean } = {}
+): AvatarView {
   let renderer: THREE.WebGLRenderer | null = null
   let stopRunning: (() => void) | null = null
+  // The yaw a drag adds, and the pointer and moment it last moved.
+  let turned = 0
+  let held: { pointer: number; x: number } | null = null
+  let heldAt = -Infinity
+  if (drag) {
+    canvas.addEventListener('pointerdown', (e) => {
+      held = { pointer: e.pointerId, x: e.clientX }
+      heldAt = performance.now()
+      canvas.setPointerCapture(e.pointerId)
+    })
+    canvas.addEventListener('pointermove', (e) => {
+      if (held?.pointer !== e.pointerId) return
+      turned += (e.clientX - held.x) * DRAG_PER_PX
+      held.x = e.clientX
+      heldAt = performance.now()
+    })
+    const release = (e: PointerEvent) => {
+      if (held?.pointer !== e.pointerId) return
+      held = null
+      heldAt = performance.now()
+    }
+    canvas.addEventListener('pointerup', release)
+    canvas.addEventListener('pointercancel', release)
+  }
 
   function show(look: AvatarLook): void {
     stop()
@@ -71,8 +103,13 @@ export function createAvatarView(canvas: HTMLCanvasElement): AvatarView {
     let last = performance.now()
     drawing.setAnimationLoop(() => {
       const now = performance.now()
-      turntable.rotation.y +=
-        Math.min(0.05, (now - last) / 1000) * SPIN_PER_SECOND
+      // Held, or just let go: the drag alone turns them.
+      if (!held && now - heldAt > HOLD_MS) {
+        turntable.rotation.y +=
+          Math.min(0.05, (now - last) / 1000) * SPIN_PER_SECOND
+      }
+      turntable.rotation.y += turned
+      turned = 0
       last = now
       worn.update(now / 1000)
       drawing.render(scene, camera)

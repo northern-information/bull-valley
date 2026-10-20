@@ -78,6 +78,13 @@ interface NetIdentity {
 }
 
 // Reconnect schedule; the last delay holds for every attempt after.
+// Bull Valley Dial-Up's word instead (sharedworld.ts rule 29): nothing of
+// the world, only the outfit.
+interface DialIdentity {
+  dial: true
+  outfit: OutfitId
+}
+
 const BACKOFF_MS = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000]
 
 type Listener = (msg: ServerMessage) => void
@@ -109,7 +116,7 @@ export class NetClient {
 
   private url: string
   private config: NetConfig
-  private identity: NetIdentity | null = null
+  private identity: NetIdentity | DialIdentity | null = null
   private ws: WebSocket | null = null
   private attempt = 0
   private listeners: Listener[] = []
@@ -148,7 +155,12 @@ export class NetClient {
     return this.status === 'online'
   }
 
-  connect(identity: NetIdentity): Promise<NetStatus> {
+  // Bull Valley Dial-Up's connection: a dial instead of a hello.
+  dial(outfit: OutfitId): Promise<NetStatus> {
+    return this.connect({ dial: true, outfit })
+  }
+
+  connect(identity: NetIdentity | DialIdentity): Promise<NetStatus> {
     this.identity = identity
     this.closed = false
     this.refused = false
@@ -228,6 +240,19 @@ export class NetClient {
     let sentAt = 0
     ws.addEventListener('open', () => {
       sentAt = performance.now()
+      // Who we were before a reconnect, so the valley drops that ghost.
+      const was = this.id ? { was: this.id } : {}
+      if ('dial' in identity) {
+        ws.send(
+          JSON.stringify({
+            type: 'dial',
+            v: PROTOCOL_VERSION,
+            outfit: identity.outfit,
+            ...was,
+          } satisfies ClientMessage)
+        )
+        return
+      }
       ws.send(
         JSON.stringify({
           type: 'hello',
@@ -245,8 +270,7 @@ export class NetClient {
           dealer: identity.dealer,
           undercroft: identity.undercroft,
           rings: identity.rings,
-          // Who we were before a reconnect, so the valley drops that ghost.
-          ...(this.id ? { was: this.id } : {}),
+          ...was,
         } satisfies ClientMessage)
       )
     })
