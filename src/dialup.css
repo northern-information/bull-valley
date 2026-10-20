@@ -52,7 +52,16 @@
   user-select: none;
 }
 
-.bv-modem::after {
+/* The film grain every Dial-Up surface lies under, the 3D valley's own
+   (styles.css .bv-splash::after): one scan at one opacity, laid from each
+   surface's corner (all of them fill the screen), so where a sheet or a
+   dialog covers the shell the grain stays put. On the modem it lies over
+   everything, as on the title cards; on the shell, its sheets and the
+   dialogs borrowed from the 3D valley, under the bars, cards and panels. */
+.bv-modem::after,
+.bv-dial::after,
+.bv-dial-sheet::after,
+.bv-dialup .bv-account::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -821,6 +830,24 @@ button.bv-dial-card {
    whole on a phone: there is no valley behind them to show through. */
 .bv-dialup .bv-account {
   background: var(--dial-bg);
+}
+
+/* What rides over the grain: the shell's bars and view, the toast and a
+   sheet over them (each with its own grain), a sheet's head and body, and
+   a dialog's card. */
+.bv-dial-top,
+.bv-dial-view,
+.bv-dial-tabs,
+.bv-dial-sheet-head,
+.bv-dial-sheet-body,
+.bv-dialup .bv-account > * {
+  position: relative;
+  z-index: 3;
+}
+
+.bv-dial-toast,
+.bv-dial-sheet {
+  z-index: 4;
 }
 
 /* The stand's dialog, borrowed from the 3D valley, in one column. */
