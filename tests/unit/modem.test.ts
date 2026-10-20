@@ -26,8 +26,9 @@ describe('the modem', () => {
 
   it('types the handshake out on its clock, each cue as it comes due', () => {
     const m = tap(IDLE, T)
-    expect(view(m, T).lines).toEqual(['atz'])
-    expect(view(m, T + 400).lines).toEqual(['atz', 'ok'])
+    expect(view(m, T).lines).toEqual(['build'])
+    expect(view(m, T + 400).lines).toEqual(['build', 'epigraph'])
+    expect(view(m, T + 1500).lines).toEqual(['build', 'epigraph', 'atz', 'ok'])
     const all = view(m, T + HANDSHAKE_MS)
     expect(all.lines).toEqual(
       SCRIPT.flatMap((step) => (step.line ? [step.line] : []))
@@ -39,7 +40,7 @@ describe('the modem', () => {
       'answer',
       'train',
     ])
-    expect(all.cues[0].at).toBe(T + 700)
+    expect(all.cues[0].at).toBe(T + 1800)
     // Through the script, it waits on the line.
     expect(all.done).toBe(false)
   })
@@ -63,15 +64,15 @@ describe('the modem', () => {
 
   it('skips the rest of the script on a second tap, printed but not heard', () => {
     let m = tap(IDLE, T)
-    m = tap(m, T + 800)
-    const v = view(m, T + 800)
+    m = tap(m, T + 1900)
+    const v = view(m, T + 1900)
     expect(v.lines).toContain('compression')
     expect(v.cues.map((c) => c.cue)).toEqual(['dialtone'])
     // A third tap, or one after the script, changes nothing.
-    expect(tap(m, T + 900)).toBe(m)
+    expect(tap(m, T + 2000)).toBe(m)
     expect(tap(tap(IDLE, T), T + HANDSHAKE_MS + 1).skippedAt).toBeNull()
-    m = connected(m, T + 900)
-    expect(view(m, T + 900 + HOLD_MS).done).toBe(true)
+    m = connected(m, T + 2000)
+    expect(view(m, T + 2000 + HOLD_MS).done).toBe(true)
   })
 
   it('says NO CARRIER for each failure, and redials', () => {
