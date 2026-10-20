@@ -331,6 +331,19 @@ button.bv-dial-card {
   padding: 1rem 0;
 }
 
+/* The volume sliders in their sheet: one grid, so every track starts and
+   ends in line whatever its name. */
+.bv-dial-settings {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 1rem 0.8em;
+}
+
+.bv-dial-settings .bv-setting {
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+}
+
 .bv-dial-switch {
   font-size: 0.8rem;
   color: var(--dial-dim);

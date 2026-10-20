@@ -1224,6 +1224,7 @@ citgo_blurb = { text = "The shelves of every Citgo you've stood at. {count} foun
 erwin_blurb = { text = "Barters out of the Golden Wok. No fiat currency.", by = "ai" }
 gron_blurb = { text = "Changes your name and your character.", by = "ai" }
 moab_blurb = { text = "Burns under every Citgo sign. Trades for gold.", by = "ai" }
+audio_blurb = { text = "How loud the music and the sounds play, kept on your account.", by = "ai" }
 
 [dialup.raider]
 title = { text = "LV {level} · {outfit}", by = "ai" }

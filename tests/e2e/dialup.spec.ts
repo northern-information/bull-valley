@@ -319,3 +319,41 @@ test('a dropped line lets every ask go and says so', async ({ browser }) => {
     page.locator('.bv-dial-expedition[data-expedition="ride"] .bv-dial-btn')
   ).toBeEnabled({ timeout: 15_000 })
 })
+
+test('sets the volumes and opens the account from the phone', async ({
+  browser,
+}) => {
+  const page = await phone(browser)
+  const raider = await signIn(page)
+  await page.goto(`/?valley=${freshValley('dial')}`)
+  await dialIn(page)
+  await page.locator('.bv-dial-card[data-card="audio"]').click()
+  const slider = page.locator('[data-bv="setting-sfx"]')
+  await expect(slider).toBeVisible()
+  const start = Number(await slider.inputValue())
+  const saved = page.waitForRequest(
+    (r) => r.url().endsWith('/auth/settings') && r.method() === 'PUT'
+  )
+  await slider.focus()
+  await page.keyboard.press('ArrowLeft')
+  const want = String(start - 5)
+  await expect(slider).toHaveValue(want)
+  await saved
+  // Kept on the account, the same as the 3D valley's Audio.
+  await page.reload()
+  await dialIn(page)
+  await page.locator('.bv-dial-card[data-card="audio"]').click()
+  await expect(slider).toHaveValue(want)
+  await page.getByRole('button', { name: copy('dialup.back') }).click()
+  // The 3D valley's own account panel.
+  await page.locator('[data-bv="dial-account"]').click()
+  const panel = page.getByRole('dialog', {
+    name: copy('panel.title'),
+    exact: true,
+  })
+  await expect(panel.locator('[data-bv="panel-username"]')).toHaveText(
+    raider.username
+  )
+  await panel.locator('[data-bv="panel-close"]').click()
+  await expect(panel).toHaveCount(0)
+})
