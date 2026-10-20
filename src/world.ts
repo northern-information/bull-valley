@@ -30,6 +30,7 @@ import {
   placeMoabs,
   placeSpunkysGrave,
   placeStand,
+  placeTyler,
   placeWreck,
   plantBushes,
   STORE_TREE_CLEAR,
@@ -62,7 +63,7 @@ import { buildRoads, buildShoulders, buildWater } from './worldsurfaces.ts'
 import type { DishArray, PortalRig, Wreck } from './assets.ts'
 import type { Sight } from './book.ts'
 import type { DonutField } from './donuts.ts'
-import type { GronRig, MoabRig } from './figure.ts'
+import type { GronRig, MoabRig, TylerRig } from './figure.ts'
 import type { Geo, HeightAt, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
 import type { MazePlace } from './maze.ts'
@@ -169,6 +170,11 @@ export interface World {
   // and update(t) for the fire.
   moabs: XZ[]
   moabRigs: MoabRig[]
+  // Tyler Etters in the back of his red Jeep beside the spawn station's
+  // Moab: where he sits, and his rig, the body for the glow and update(t)
+  // for his typing. Null without a spawn station.
+  tyler: XZ | null
+  tylerRig: TylerRig | null
   // Where E opens the lockers in each back room (store.ts lockerSpot),
   // indexed like fuelPoints.
   lockers: XZ[]
@@ -196,7 +202,7 @@ export interface World {
   // What to stand on anywhere: the terrain, or the road or lot over it.
   ground: Ground
   // What stops you: the store walls and fixtures, the berry bush, Gron,
-  // Moab and his horse, the wreck and its tree, the dishes, the plaza, the
+  // Moab and his horse, Tyler's Jeep, the wreck and its tree, the dishes, the plaza, the
   // poles and lamps.
   walls: Walls
   // Every station's shelf facings in the world, indexed like fuelPoints.
@@ -454,6 +460,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
   const dishes = placeDishes(group, ground, walls, dishSpots)
   placeSpunkysGrave(group, ground, walls, spawnStation, pine)
   const { moabs, moabRigs } = placeMoabs(group, ground, walls, fuel.points)
+  const { tyler, tylerRig } = placeTyler(group, ground, walls, spawnStation)
 
   return {
     group,
@@ -472,6 +479,8 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     }),
     moabs,
     moabRigs,
+    tyler,
+    tylerRig,
     lockers: fuel.points.map(lockerSpot),
     rings: fuel.points.map((point) => {
       const { ring } = CONFIG.portal

@@ -34,6 +34,7 @@ import { buildDrink } from './drinkmodels.ts'
 import { buildFireRoots, buildRaincloud } from './fire.ts'
 import { itemLabel } from './itemcopy.ts'
 import { ITEMS } from './items.ts'
+import { buildJeep } from './jeep.ts'
 import { buildLookout } from './lookoutmodel.ts'
 import { mazeSpans, SHINING_MAZE } from './maze.ts'
 import { buildMedicine } from './medicinemodels.ts'
@@ -57,6 +58,7 @@ import {
   buildFlamingHalo,
   buildFlashlight,
   buildGuitar,
+  buildLaptop,
   buildScroll,
   buildScythe,
   buildTombstone,
@@ -450,6 +452,11 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     build: () => buildWreck().group,
   },
   {
+    id: 'jeep',
+    label: "Tyler's red Jeep Wrangler, the back open",
+    build: buildJeep,
+  },
+  {
     id: 'lookout',
     label: 'The lookout tower by the corn maze',
     build: () => buildLookout(),
@@ -597,6 +604,11 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     },
   },
   { id: 'book', label: 'Paperback', build: buildBook },
+  {
+    id: 'laptop',
+    label: "Tyler's laptop, hunting for a lock",
+    build: () => buildLaptop().group,
+  },
   {
     id: 'scroll',
     label: "Moab's burning scroll",

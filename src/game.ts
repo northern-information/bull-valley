@@ -355,7 +355,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     pendingBuys: new Set(),
     daily: null,
     onTruckRolls: [],
-    npcSaid: { marx: 0, carlsten: 0, moab: 0 },
+    npcSaid: { marx: 0, carlsten: 0, moab: 0, tyler: 0 },
   }
 }
 

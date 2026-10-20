@@ -474,6 +474,10 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     world.moabRigs.forEach((rig, i) => {
       if (live(world.moabs[i])) rig.update(time)
     })
+    // Tyler types on in the back of his Jeep.
+    if (world.tylerRig && world.tyler && live(world.tyler)) {
+      world.tylerRig.update(time)
+    }
     // Erwin's rose lies at the heart for a raider who laid it (rule 26).
     if (world.portal) {
       const stage = s.quests?.rose

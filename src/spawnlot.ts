@@ -5,11 +5,18 @@ import {
   buildStandDressing,
   buildTombstone,
   buildWreck,
+  JEEP,
   WRECK,
 } from './assets.ts'
 import { CONFIG } from './config.ts'
 import { mazePlaceOf } from './cornmaze.ts'
-import { buildGron, buildMoab, MOAB_BESIDE } from './figure.ts'
+import {
+  buildGron,
+  buildMoab,
+  buildTyler,
+  MOAB_BESIDE,
+  TYLER_IN,
+} from './figure.ts'
 import {
   cellPoint,
   mazeHeart,
@@ -20,7 +27,7 @@ import {
 import { toLocal, toWorld } from './store.ts'
 import type { DishArray, Wreck } from './assets.ts'
 import type { DonutField } from './donuts.ts'
-import type { GronRig, MoabRig } from './figure.ts'
+import type { GronRig, MoabRig, TylerRig } from './figure.ts'
 import type { Ground } from './ground.ts'
 import type { XZ } from './interfaces.ts'
 import type { MazePlace } from './maze.ts'
@@ -361,4 +368,36 @@ export function placeMoabs(
     moabRigs.push(rig)
   }
   return { moabs, moabRigs }
+}
+
+// Tyler Etters in the back of his red Jeep on the spawn Citgo's lot
+// (CONFIG.tyler, station-local), its nose pointed `toward`, so its open
+// back faces Moab and the pumps. The Jeep blocks down its length; he
+// answers E from where he sits.
+export function placeTyler(
+  group: THREE.Group,
+  ground: Ground,
+  walls: Walls,
+  spawnStation: FuelPoint | null
+): { tyler: XZ | null; tylerRig: TylerRig | null } {
+  if (!spawnStation) return { tyler: null, tylerRig: null }
+  const { at, toward, halfLength, radius } = CONFIG.tyler
+  const [x, , z] = toWorld(spawnStation, [at.x, 0, at.z])
+  const [tx, , tz] = toWorld(spawnStation, [toward.x, 0, toward.z])
+  const len = Math.hypot(tx - x, tz - z) || 1
+  const dx = (tx - x) / len
+  const dz = (tz - z) / len
+  const rig = buildTyler()
+  rig.group.position.set(x, ground.at(x, z), z)
+  // The Jeep faces +Z: rotation.y turns +Z to (sin, cos).
+  rig.group.rotation.y = Math.atan2(dx, dz)
+  group.add(rig.group)
+  walls.addWall(
+    { x: x - dx * halfLength, z: z - dz * halfLength },
+    { x: x + dx * halfLength, z: z + dz * halfLength },
+    radius
+  )
+  // He sits in from the open back, a little up off the lot.
+  const seat = JEEP.rear + TYLER_IN
+  return { tyler: { x: x + dx * seat, z: z + dz * seat }, tylerRig: rig }
 }

@@ -13,16 +13,20 @@ import {
   buildAxe,
   buildBat,
   buildBook,
+  buildDrink,
   buildFireRoots,
   buildFlames,
   buildFlamingHalo,
   buildFlashlight,
   buildGuitar,
+  buildJeep,
+  buildLaptop,
   buildRaincloud,
   buildScroll,
   buildScythe,
   buildSkeletonHorse,
   castShadows,
+  JEEP,
   lambert,
   makeGlowSprite,
   makeGlowTexture,
@@ -1091,6 +1095,52 @@ export function buildMoab(groundAt: GroundAt = () => 0): MoabRig {
     scroll.update(t)
   }
   update(0)
+  setMotion(group, update)
+  return { group, figure, update }
+}
+
+// Tyler Etters in the back of his red Jeep beside Moab (spawnlot.ts
+// placeTyler): sat cross-legged on the cargo floor at the open back,
+// facing out of it (rig -Z), hunched over the laptop on the floor in front
+// of him and typing, its screen lit on his face, a can of Rockstar at his
+// side (scenery, never a pickup). The Jeep, the laptop and the can sit
+// beside the figure, not on it, so the ring that marks him as the one E
+// talks to (glow.ts) goes round his body alone. Call update(t) every frame with a
+// running time, for the typing and the screen.
+export interface TylerRig {
+  group: THREE.Group
+  figure: Figure
+  update(t: number): void
+}
+
+// Where he sits, in from the open back, and where the laptop and the can
+// stand on the cargo floor, in his own space.
+export const TYLER_IN = 0.85
+const TYLER_LAPTOP: Vec3 = [0, 0.02, 0.5]
+const TYLER_CAN: Vec3 = [0.42, 0.02, 0.12]
+
+export function buildTyler(): TylerRig {
+  const group = new THREE.Group()
+  group.name = 'tyler'
+  group.add(buildJeep())
+  const seat = new THREE.Group()
+  seat.position.set(0, JEEP.floor, JEEP.rear + TYLER_IN)
+  seat.rotation.y = Math.PI
+  group.add(seat)
+  const figure = buildFigure('tyler')
+  applyPose(figure, samplePose('type'))
+  seat.add(figure.group)
+  const laptop = buildLaptop()
+  laptop.group.position.set(...TYLER_LAPTOP)
+  seat.add(laptop.group)
+  const can = buildDrink('rockstar', { glow: false })
+  can.position.set(...TYLER_CAN)
+  can.rotation.y = 2.4
+  seat.add(can)
+  const update = (t: number) => {
+    applyPose(figure, samplePose('type', t))
+    laptop.update(t)
+  }
   setMotion(group, update)
   return { group, figure, update }
 }
