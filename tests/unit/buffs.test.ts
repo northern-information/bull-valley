@@ -3,7 +3,6 @@ import {
   beamScale,
   buffedBeam,
   dosed,
-  geometrieOf,
   inPassReach,
   isLevels,
   isSober,
@@ -11,9 +10,10 @@ import {
   scaled,
   sobered,
   sprintScale,
+  wardsOf,
 } from '../../src/buffs.ts'
 import { CONFIG } from '../../src/config.ts'
-import { levelsAt, SOBER } from '../../src/geometrie.ts'
+import { levelsAt, SOBER } from '../../src/wardlevels.ts'
 import type { Beam } from '../../src/shadowmen.ts'
 
 const SOBER_LEVELS = { high: 0, stimulated: 0, drunk: 0, tripping: 0 }
@@ -28,7 +28,7 @@ const BEAM: Beam = {
   floor: 0,
 }
 
-describe('what geometrie does', () => {
+describe('what the wards do', () => {
   it('reaches the beam further and wider with high, and not at all sober', () => {
     expect(beamScale(SOBER_LEVELS)).toBe(1)
     expect(buffedBeam(BEAM, SOBER_LEVELS)).toBe(BEAM)
@@ -80,17 +80,17 @@ describe('passing', () => {
   })
 })
 
-describe("the valley's record of geometrie", () => {
+describe("the valley's record of the wards", () => {
   it('doses an account, keeps none sober, and sobers one on a shattering', () => {
     let record = dosed({}, 'a', { high: 0.5 }, 0)
-    expect(levelsAt(geometrieOf(record, 'a'), 0).high).toBe(0.5)
-    expect(geometrieOf(record, 'b')).toBe(SOBER)
+    expect(levelsAt(wardsOf(record, 'a'), 0).high).toBe(0.5)
+    expect(wardsOf(record, 'b')).toBe(SOBER)
     // Water on a sober account writes nothing.
     expect(dosed({}, 'a', { drunk: -0.1 }, 0)).toEqual({})
     // An account long faded is dropped on the next dose of anyone.
     record = dosed(record, 'b', { drunk: 0.2 }, 10_000)
     expect(Object.keys(record)).toEqual(['b'])
-    expect(isSober(geometrieOf(record, 'b'), 10_000)).toBe(false)
+    expect(isSober(wardsOf(record, 'b'), 10_000)).toBe(false)
     expect(sobered(record, 'b')).toEqual({})
   })
 

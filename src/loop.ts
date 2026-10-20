@@ -13,7 +13,6 @@ import { moabOffer } from './cosmetics.ts'
 import { dayKey } from './daily.ts'
 import { onDay, shownCount } from './dailytask.ts'
 import { EMOTES, holds } from './emotes.ts'
-import { levelsAt } from './geometrie.ts'
 import { ease, stepHand, useLift, useSeconds } from './hands.ts'
 import { shakeAt } from './health.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
@@ -42,6 +41,7 @@ import {
 import { formatCash } from './store.ts'
 import { tripLevel } from './trip.ts'
 import { burstHeight, burstScale } from './tunnelrig.ts'
+import { levelsAt } from './wardlevels.ts'
 import { boardable, clockText, countdown, seatOf } from './worldsync.ts'
 import type { Actions } from './actions.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
@@ -257,7 +257,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
           (phone.raised ? CONFIG.player.phoneSpeedScale : 1) *
           (smoking ? CONFIG.items.smokingSpeedScale : 1),
         // Rule 27: stimulated, the sprint runs quicker.
-        sprintScale: sprintScale(levelsAt(s.geometrie, s.time)),
+        sprintScale: sprintScale(levelsAt(s.wards, s.time)),
         eye: s.emoting ? EMOTES[s.emoting.id].eye : null,
       })
       feetY = player.groundY
@@ -361,7 +361,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
                   player.pitch,
                   crouching
                 ),
-                levelsAt(s.geometrie, s.time)
+                levelsAt(s.wards, s.time)
               )
             : null,
           lights: [headlightBeam(truck.headlights())],
@@ -606,8 +606,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         return [{ slot, item, icon: thumbs.icon(kind), cooldown }]
       })
     )
-    const levels = levelsAt(s.geometrie, time)
-    hud.setGeometrie(levels)
+    const levels = levelsAt(s.wards, time)
+    hud.setWards(levels)
     hud.turnWards(time)
     hud.setBuffs(activeBuffs(levels, s.effects, time))
     // The daily task as it stands on the valley's day: a count from an

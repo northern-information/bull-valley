@@ -181,8 +181,8 @@
 //    (ValleyContext.quest in, Reduced.quest out); the valley writes the
 //    stage and the pack together, or neither. The key earns quest XP
 //    (rule 22).
-// 27. Buffs (buffs.ts): every account's geometrie (geometrie.ts) is kept
-//    by the valley (Valley.geometrie, on its clock in seconds, only the
+// 27. Buffs (buffs.ts): every account's wards (wardlevels.ts) are kept
+//    by the valley (Valley.wards, on its clock in seconds, only the
 //    accounts not sober), dosed by each use once the pack has given the
 //    unit up, and made sober by the strike of rule 18. It does things: a
 //    raider's high reaches their beam further and wider (shadowRaiders),
@@ -223,8 +223,19 @@
 //    otherwise). What takes a body is refused them (`dialup`): the truck,
 //    a take, a berry, a use, a pass, a drop or taking one up, a body,
 //    a portal, and laying the rose.
+// 30. Idle expeditions (expeditions.ts): a raider dialed in sends their
+//    raider out on a run, one at a time, if their level has opened it
+//    (`expedition-send`; `busy`, `locked`). The valley draws its seed and
+//    keeps the run with the matching ward's level as it left (rule 27),
+//    so what comes home is settled then; a run home is claimed
+//    (`expedition-claim`; `none` with none out, `out` before its time) and
+//    its haul goes into the pack and the wallet together with the run left
+//    empty (ValleyContext.expedition in, Reduced.expedition out). A run
+//    that came back hurt takes its share of whole geometrie, never the
+//    last point (rule 24), and every run home earns its XP (rule 22). A
+//    raider on foot sends none (`not-dialup`).
 
-import { dosed, geometrieOf, inPassReach, scaled, sobered } from './buffs.ts'
+import { dosed, inPassReach, scaled, sobered, wardsOf } from './buffs.ts'
 import { heartPoint, theMaze } from './caretaker.ts'
 import { citgoAt, NO_CITGOS, visit } from './citgos.ts'
 import { CONFIG } from './config.ts'
@@ -234,7 +245,13 @@ import { affords, cosmeticById, MOAB_OFFERS } from './cosmetics.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
 import { atDealer, deal, freshDealerStock } from './dealer.ts'
 import { centsOf, dropSpot, isCash, takeUp } from './drops.ts'
-import { levelsAt } from './geometrie.ts'
+import {
+  embark,
+  isExpeditionId,
+  isHome,
+  outcomeOf,
+  woundedBy,
+} from './expeditions.ts'
 import { bury } from './graves.ts'
 import {
   hit,
@@ -247,7 +264,7 @@ import {
 } from './health.ts'
 import {
   contentsOf,
-  geometrieOf as doseOf,
+  doseOf,
   healsOf,
   INVENTORY_KINDS,
   isKeyItem,
@@ -283,13 +300,14 @@ import {
 } from './stand.ts'
 import { atLocker } from './stash.ts'
 import { freshStock, onShelf, takeUnit } from './store.ts'
+import { levelsAt } from './wardlevels.ts'
 import { damageOf } from './wards.ts'
 import type { CitgoLog } from './citgos.ts'
 import type { Corpse } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { DealerStock } from './dealer.ts'
 import type { Drop, Facing, Spill } from './drops.ts'
-import type { Geometrie } from './geometrie.ts'
+import type { ExpeditionOutcome, ExpeditionRun } from './expeditions.ts'
 import type { Burial, Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckChange, TruckRoutes, TruckState } from './marx.ts'
@@ -300,18 +318,19 @@ import type { XpGrant, XpSource } from './progression.ts'
 import type {
   DailyMessage,
   DailyWire,
-  GeometrieLevels,
   NackMessage,
   NackRe,
   PeerStateWire,
   PickupSpec,
   Place,
+  WardLevels,
   WorldMessage,
   WorldReason,
   WorldWire,
 } from './protocol.ts'
 import type { QuestId, QuestStage, QuestStep } from './quests.ts'
 import type { StandLedger } from './stand.ts'
+import type { WardState } from './wardlevels.ts'
 import type { ShadowHit } from './wards.ts'
 import type { WaterMap } from './waterside.ts'
 
@@ -394,9 +413,9 @@ export interface Valley {
   nextCorpse: number
   // Rule 24: account -> the geometrie it has lost, while wounded.
   wounds: Record<string, number>
-  // Rule 27: account -> its geometrie, while not sober, on the valley's
+  // Rule 27: account -> its wards, while not sober, on the valley's
   // clock in seconds.
-  geometrie: Record<string, Geometrie>
+  wards: Record<string, WardState>
   // Rule 28: account -> every Citgo it has stood at, and the last.
   citgos: Record<string, CitgoLog>
 }
@@ -531,6 +550,10 @@ export type ValleyAction =
       at: XZ | null
     }
   | { type: 'stand-collect' | 'stand-upgrade'; id: string; at: XZ | null }
+  // Rule 30: a run sent out, with the seed the valley drew, and a run home
+  // claimed.
+  | { type: 'expedition-send'; id: string; kind: string; seed: number }
+  | { type: 'expedition-claim'; id: string }
   // Rule 14: cosmetic `offer` from Moab.
   | { type: 'trade'; id: string; offer: string }
   // Rule 26: one step of `quest`. at: where the raider's last state frame
@@ -566,6 +589,8 @@ interface ValleyContext {
   // For tending the stand: the account's ledger, pack and wallet (cents),
   // as the valley just read them.
   stand?: { ledger: StandLedger; pack: Inventory; cash: number }
+  // For an expedition: the run out, as the valley just read it.
+  expedition?: { run: ExpeditionRun | null }
 }
 
 export interface Reduced {
@@ -631,9 +656,9 @@ export interface Reduced {
     fatal?: true
     hit?: { by: ShadowHit; damage: number; warded: number }
   }
-  // Rule 27: each account's geometrie after a dose or a shattering, for
+  // Rule 27: each account's wards after a dose or a shattering, for
   // its sockets.
-  geometrie?: { account: string; levels: GeometrieLevels }[]
+  wards?: { account: string; levels: WardLevels }[]
   // Rule 27: a pass the valley allowed, once the giver's pack gives the
   // unit up (pack): who to (their id and account) and what.
   passed?: { to: string; account: string; kind: string }
@@ -649,6 +674,17 @@ export interface Reduced {
   stand?: StandChange
   // Rule 28: an account's Citgos after a visit, for its sockets.
   citgos?: { account: string; log: CitgoLog }
+  // Rule 30: a run sent out, or a run home and its haul, written together
+  // or not at all.
+  expedition?: ExpeditionChange
+}
+
+export interface ExpeditionChange {
+  account: string
+  // The run now out, or null once one is home.
+  run: ExpeditionRun | null
+  // For a run home: what it brought.
+  outcome?: ExpeditionOutcome
 }
 
 export interface StandChange {
@@ -702,7 +738,7 @@ export function createValley(): Valley {
     corpses: [],
     nextCorpse: 0,
     wounds: {},
-    geometrie: {},
+    wards: {},
     citgos: {},
   }
 }
@@ -710,22 +746,25 @@ export function createValley(): Valley {
 // The valley as an older build stored it, made current: the fresh one
 // fills in newer fields, and a world opened on another protocol (an older
 // build's raid included) is dropped, so the next arrival opens it afresh.
-// The berries, the places, the bodies, the wounds and the geometrie carry
+// The berries, the places, the bodies, the wounds and the wards carry
 // over; a valley stored as hit points left (an older build's `health`,
 // kept against `healthMax`, three once) is read as wounds at the same
-// share of whole.
+// share of whole, and the wards an older build kept as `geometrie` as
+// the wards.
 export function restoreValley(
   stored: Partial<Valley> & {
     health?: Record<string, number>
     healthMax?: number
+    geometrie?: Record<string, WardState>
   }
 ): Valley {
-  const { health, healthMax, ...rest } = stored
+  const { health, healthMax, geometrie, ...rest } = stored
   const valley: Valley = {
     ...createValley(),
     ...rest,
     wounds:
       rest.wounds ?? (health ? woundsFromHealth(health, healthMax ?? 3) : {}),
+    wards: rest.wards ?? geometrie ?? {},
   }
   const world: Partial<SharedWorld> | null = valley.world ?? null
   if (!world || world.version !== PROTOCOL_VERSION) {
@@ -774,14 +813,14 @@ export function healthFor(valley: Valley, account: string): number {
   return pointsOf(woundsOf(valley.wounds, account), maxFor(valley, account))
 }
 
-// Rule 27: `account`'s geometrie levels at `now` (ms on the valley's
+// Rule 27: `account`'s ward levels at `now` (ms on the valley's
 // clock).
-export function geometrieFor(
+export function wardsFor(
   valley: Valley,
   account: string,
   now: number
-): GeometrieLevels {
-  return levelsAt(geometrieOf(valley.geometrie, account), now / 1000)
+): WardLevels {
+  return levelsAt(wardsOf(valley.wards, account), now / 1000)
 }
 
 // Rule 28: every Citgo `account` has stood at, and the last.
@@ -1054,6 +1093,9 @@ function act(
     case 'stand-collect':
     case 'stand-upgrade':
       return onStand(valley, action, context)
+    case 'expedition-send':
+    case 'expedition-claim':
+      return onExpedition(valley, action, context)
     case 'trade':
       return onTrade(valley, action, context)
     case 'appearance':
@@ -1777,14 +1819,14 @@ function onHit(
   const { account } = member
   const max = maxFor(valley, account)
   const before = pointsOf(woundsOf(valley.wounds, account), max)
-  const levels = geometrieFor(valley, account, now)
+  const levels = wardsFor(valley, account, now)
   const { damage, warded } = damageOf(action.by, levels, action.roll)
   const { points, fatal } = hit(before, damage, max)
   const next: Valley = {
     ...valley,
     wounds: withWounds(valley.wounds, account, fatal ? 0 : max - points),
     // A shattering leaves the raider sober.
-    geometrie: fatal ? sobered(valley.geometrie, account) : valley.geometrie,
+    wards: fatal ? sobered(valley.wards, account) : valley.wards,
   }
   const struck = { by: action.by, damage, warded }
   return done(next, now, {
@@ -1794,7 +1836,7 @@ function onHit(
       : { account, points, max, hit: struck },
     ...(fatal
       ? {
-          geometrie: [{ account, levels: geometrieFor(next, account, now) }],
+          wards: [{ account, levels: wardsFor(next, account, now) }],
         }
       : {}),
   })
@@ -1846,7 +1888,7 @@ function onDose(
   if (action.to !== undefined && !taker) {
     return done(valley, now, { broadcast: [] })
   }
-  let record = valley.geometrie
+  let record = valley.wards
   const changed = [member.account]
   if (taker) {
     record = dosed(record, taker.account, amounts, time)
@@ -1860,12 +1902,12 @@ function onDose(
   } else {
     record = dosed(record, member.account, amounts, time)
   }
-  const next = { ...valley, geometrie: record }
+  const next = { ...valley, wards: record }
   return done(next, now, {
     broadcast: [],
-    geometrie: changed.map((account) => ({
+    wards: changed.map((account) => ({
       account,
-      levels: geometrieFor(next, account, now),
+      levels: wardsFor(next, account, now),
     })),
     ...(taker
       ? {
@@ -2071,6 +2113,57 @@ function onStand(
     ledger: next,
     items: { ...price.items },
     cash: -price.cash,
+  })
+}
+
+function onExpedition(
+  valley: Valley,
+  action: ActionOf<'expedition-send' | 'expedition-claim'>,
+  { now, expedition }: ValleyContext
+): Reduced {
+  // Rule 30.
+  const member = valley.members[action.id]
+  const re = action.type
+  const refuse = (reason: string): Reduced =>
+    done(valley, now, { broadcast: [], reply: nack(re, reason) })
+  if (!member) return refuse('not-in-valley')
+  if (!member.dialup) return refuse('not-dialup')
+  if (!expedition) return refuse('unavailable')
+  const { account } = member
+  if (action.type === 'expedition-send') {
+    if (!isExpeditionId(action.kind)) return refuse('unknown')
+    const run = embark(
+      expedition.run,
+      action.kind,
+      levelFor(valley, account),
+      wardsFor(valley, account, now),
+      now,
+      action.seed
+    )
+    if (typeof run === 'string') return refuse(run)
+    return done(valley, now, {
+      broadcast: [],
+      expedition: { account, run },
+    })
+  }
+  const run = expedition.run
+  if (!run) return refuse('none')
+  if (!isHome(run, now)) return refuse('out')
+  const outcome = outcomeOf(run)
+  // Rule 24: hurt, never the last point.
+  const max = maxFor(valley, account)
+  const before = healthFor(valley, account)
+  const points = woundedBy(before, max, outcome.damage)
+  const wounded =
+    points === before
+      ? valley
+      : { ...valley, wounds: withWounds(valley.wounds, account, max - points) }
+  return done(wounded, now, {
+    broadcast: [],
+    expedition: { account, run: null, outcome },
+    // Rule 22.
+    xp: [{ account, source: 'expedition', times: outcome.xp }],
+    ...(points === before ? {} : { health: { account, points, max } }),
   })
 }
 

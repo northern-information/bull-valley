@@ -171,9 +171,9 @@ export function wireValley(game: Game, actions: Actions): void {
       case 'health':
         actions.setHealth(msg.health, msg.max)
         return
-      // Rule 27: the account's geometrie, and something passed.
-      case 'geometrie':
-        if (isLevels(msg.geometrie)) actions.setGeometrie(msg.geometrie)
+      // Rule 27: the account's wards, and something passed.
+      case 'wards':
+        if (isLevels(msg.wards)) actions.setWards(msg.wards)
         return
       case 'passed':
         actions.applyPassed(msg)
@@ -478,7 +478,7 @@ export function wireValley(game: Game, actions: Actions): void {
       s.placed = true
       s.health = msg.health
       s.healthMax = msg.healthMax
-      if (isLevels(msg.geometrie)) actions.setGeometrie(msg.geometrie)
+      if (isLevels(msg.wards)) actions.setWards(msg.wards)
       applyWorld(msg.world, 'joined', { by: msg.id })
       s.daily = msg.daily
       // What the account already wears is no news.

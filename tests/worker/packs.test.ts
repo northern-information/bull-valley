@@ -60,6 +60,7 @@ function packContract(makeStore: () => PackStore): void {
       xp: 0,
       stand: FRESH_STAND,
       quests: { rose: 'none' },
+      expedition: null,
     })
     await store.change('a1', OTHER, 2)
     await store.discover('a1', ['citgo'], 5)
@@ -347,6 +348,33 @@ function packContract(makeStore: () => PackStore): void {
       pack: { cabbage: 0 },
     })
     expect((await store.stand('a1')).rev).toBe(3)
+  })
+
+  it('keeps a run out, and brings its haul home with it, all or none', async () => {
+    const store = makeStore()
+    await store.open('a1')
+    expect(await store.expedition('a1')).toEqual({ run: null, rev: 0 })
+    const run = {
+      id: 'corn' as const,
+      startedAt: 1000,
+      endsAt: 2000,
+      seed: 4_000_000_000,
+      ward: 0.5,
+    }
+    expect(await store.embark('a1', 1, run)).toBe(false)
+    expect(await store.embark('a1', 0, run)).toBe(true)
+    expect(await store.expedition('a1')).toEqual({ run, rev: 1 })
+    expect((await store.welcome('a1', 'one', 'burn')).expedition).toEqual(run)
+    // A stale claim brings nothing home.
+    const haul = { items: { cabbage: 2, [OTHER]: 1 }, cents: 150 }
+    expect(await store.homecoming('a1', 0, haul)).toBe(false)
+    expect((await store.get('a1')).cash).toBe(STARTING_CASH)
+    expect(await store.homecoming('a1', 1, haul)).toBe(true)
+    expect(await store.expedition('a1')).toEqual({ run: null, rev: 2 })
+    expect(await store.get('a1')).toMatchObject({
+      cash: STARTING_CASH + 150,
+      pack: { cabbage: 2, [OTHER]: 1 },
+    })
   })
 
   it('sells nothing from a wallet never opened', async () => {

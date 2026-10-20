@@ -203,6 +203,11 @@ async function boot(): Promise<void> {
       return citgoNames(geo)
     },
     trade: (offer) => send({ type: 'trade', offer }, { trade: true }),
+    expeditions: {
+      send: (kind) =>
+        send({ type: 'expedition-send', kind }, { expedition: true }),
+      claim: () => send({ type: 'expedition-claim' }, { expedition: true }),
+    },
     social: {
       say: (line) => {
         const said = sayLine(

@@ -621,6 +621,52 @@ button.bv-dial-card {
   border-color: var(--dial-hot);
 }
 
+/* Expeditions: the run out, and every run. */
+.bv-dial-run {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  padding: 1rem;
+  background: var(--dial-panel);
+  border: 1px solid var(--dial-hot);
+  box-shadow: var(--dial-shadow);
+}
+
+.bv-dial-run-name {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.bv-dial-run-bar {
+  height: 0.5rem;
+}
+
+.bv-dial-run-bar::before {
+  background: var(--dial-hot);
+}
+
+.bv-dial-run-left {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--dial-dim);
+}
+
+.bv-dial-expedition {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem 0.9rem;
+}
+
+.bv-dial-expedition .bv-dial-item-blurb {
+  margin: 0;
+}
+
+.bv-dial-haul {
+  margin-top: 1rem;
+}
+
 /* One of the folk in a sheet: Moab. */
 .bv-dial-folk-act {
   display: grid;

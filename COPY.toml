@@ -1150,7 +1150,6 @@ refused = { text = "The valley hung up. Reload to dial again.", by = "ai" }
 back = { text = "Back", by = "ai" }
 level = { text = "LV {level}", by = "ai" }
 geometrie = { text = "Geometrie {health} / {max}", by = "ai" }
-soon = { text = "Not on this line yet.", by = "ai" }
 
 [dialup.modem]
 atz = { text = "ATZ", by = "ai" }
@@ -1210,6 +1209,35 @@ no_world = { text = "No one has opened the valley today. Its shelves come up onc
 
 [dialup.moab]
 trade = { text = "Trade {count} oz of {price} for the {cosmetic}", by = "ai" }
+
+[dialup.expeditions]
+ride = { text = "Ride with Marx", by = "ai" }
+ride_blurb = { text = "Out the back roads in the bed of the white Chevy, picking up what blows by.", by = "ai" }
+corn = { text = "Sweep the Corn", by = "ai" }
+corn_blurb = { text = "Down every path of the maze while the Caretaker floats the other way.", by = "ai" }
+undercroft = { text = "Down the Undercroft", by = "ai" }
+undercroft_blurb = { text = "Under the plaza, past the shades, to the Warden's altar and back.", by = "ai" }
+safe = { text = "Nothing out there lays a hand on you.", by = "ai" }
+risk_warded = { text = "{risk}% chance of coming back hurt; {ward} keeps it down.", by = "ai" }
+loot = { text = "Brings back {loot}.", by = "ai" }
+cash = { text = "cash", by = "ai" }
+send = { text = "Send", by = "ai" }
+locked = { text = "Opens at LV {level}", by = "ai" }
+claim = { text = "Bring It Home", by = "ai" }
+out_now = { text = "Out now", by = "ai" }
+home_now = { text = "Back. Bring it home.", by = "ai" }
+left = { text = "{time} left", by = "ai" }
+hours = { text = "{h}h {m}m", by = "ai" }
+minutes = { text = "{m}:{s}", by = "ai" }
+sent = { text = "Sent out: {run}.", by = "ai" }
+home = { text = "Home with {haul}.", by = "ai" }
+home_hurt = { text = "Home hurt, with only {haul}.", by = "ai" }
+haul_item = { text = "{count} {item}", by = "ai" }
+nothing = { text = "nothing", by = "ai" }
+busy = { text = "Someone's already out. Bring them home first.", by = "ai" }
+locked_refused = { text = "Your level hasn't opened that run yet.", by = "ai" }
+out = { text = "Not back yet.", by = "ai" }
+refused = { text = "The run couldn't go out. Try again soon.", by = "ai" }
 
 [dialup.social]
 placeholder = { text = "Say something to the valley", by = "ai" }

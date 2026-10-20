@@ -41,7 +41,6 @@ import {
   spillsOf,
 } from './drops.ts'
 import { finishById } from './finishes.ts'
-import { dose, levelsAt, SOBER } from './geometrie.ts'
 import { burialsOf, bury } from './graves.ts'
 import { openGronDialog } from './grondialog.ts'
 import { hit, mend } from './health.ts'
@@ -49,13 +48,7 @@ import { assign, clearSlot as clearHotbarSlot, place, spent } from './hotbar.ts'
 import { pickupLabel } from './interactions.ts'
 import { addItem, consume } from './inventory.ts'
 import { itemLabel, itemLine } from './itemcopy.ts'
-import {
-  geometrieOf,
-  healsOf,
-  isKeyItem,
-  isUsable,
-  tripSecondsOf,
-} from './items.ts'
+import { doseOf, healsOf, isKeyItem, isUsable, tripSecondsOf } from './items.ts'
 import { board, call, charter, hopOut as hopOutOf, refused } from './marx.ts'
 import { npcLine } from './npcs.ts'
 import { outfitById } from './outfits.ts'
@@ -77,6 +70,7 @@ import { openStandDialog } from './standdialog.ts'
 import { move, moveAmount } from './stash.ts'
 import { formatCash } from './store.ts'
 import { planLeg } from './truckplan.ts'
+import { dose, levelsAt, SOBER } from './wardlevels.ts'
 import { damageOf, WARD_OF } from './wards.ts'
 import { charterable } from './worldsync.ts'
 import type { ChatCommand } from './chat.ts'
@@ -86,15 +80,11 @@ import type { EmoteId } from './emotes.ts'
 import type { Game } from './game.ts'
 import type { Hotbar } from './hotbar.ts'
 import type { DailyStatus, ShelfSpot } from './interactions.ts'
-import type { GeometrieAxis, XZ } from './interfaces.ts'
+import type { WardAxis, XZ } from './interfaces.ts'
 import type { Leg, TruckState } from './marx.ts'
 import type { NpcId } from './npcs.ts'
 import type { BagAction, BagTab } from './packgrid.ts'
-import type {
-  DailyMessage,
-  GeometrieLevels,
-  PassedMessage,
-} from './protocol.ts'
+import type { DailyMessage, PassedMessage, WardLevels } from './protocol.ts'
 import type { ShadeKind } from './shadowmen.ts'
 import type { ShadowHit } from './wards.ts'
 import type { Pickup } from './world.ts'
@@ -172,8 +162,8 @@ export interface Actions {
   passKind(kind?: string | null): void
   // The valley's word on a pass: to us (`from`), or from us (`to`).
   applyPassed(msg: PassedMessage): void
-  // The account's geometrie as the valley keeps it.
-  setGeometrie(levels: GeometrieLevels): void
+  // The account's wards as the valley keeps them.
+  setWards(levels: WardLevels): void
   // The account's geometrie, left and whole, as the valley says it (a
   // forecourt, a use, a new level).
   setHealth(points: number, max: number): void
@@ -543,7 +533,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // fell (rule 18): in the valley the valley lays it and its pack frame has
   // the last word, so the pack shows empty at once; alone it lies at once.
   // What a ward taking the edge off a touch says in the log.
-  const wardedLine = (ward: GeometrieAxis): string => {
+  const wardedLine = (ward: WardAxis): string => {
     switch (ward) {
       case 'high':
         return copy('log.warded_high')
@@ -556,7 +546,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     }
   }
   // The wards that have said so in the log this session, once each.
-  const wardsTold = new Set<GeometrieAxis>()
+  const wardsTold = new Set<WardAxis>()
   const strike = (by: ShadowHit, valley?: Struck) => {
     if (s.aboard) {
       // Touched as we climbed in: the valley's count stands all the same.
@@ -568,7 +558,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     }
     const now = performance.now()
     // Rule 27: the wards cut it, the valley's word or alone our own roll.
-    const levels = levelsAt(s.geometrie, s.time)
+    const levels = levelsAt(s.wards, s.time)
     const { damage, warded } = valley ?? damageOf(by, levels, Math.random())
     s.emoting = null
     // A touch knocks the phone down mid-dial.
@@ -594,7 +584,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     }
     // Shattered: whole again where you come to, and sober.
     s.health = s.healthMax
-    s.geometrie = SOBER
+    s.wards = SOBER
     s.strikes += 1
     s.strikeUntil = now + CONFIG.shadowmen.strikeSeconds * 1000
     hud.showStatic(true)
@@ -1006,7 +996,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     s.inventory = result.inv
     keepHotbar(spent(s.hotbar, kind, s.inventory))
     s.effects = result.effects
-    s.geometrie = dose(s.geometrie, geometrieOf(kind), s.time)
+    s.wards = dose(s.wards, doseOf(kind), s.time)
     // The right hand brings it up (fphands.ts).
     s.using = { kind, at: s.time }
     s.lastUsed = kind
@@ -1052,7 +1042,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
 
   // The valley's word: taken from us, or passed to us. What it does to
-  // geometrie and health comes in its own frames; the trip is ours to
+  // the wards and health comes in its own frames; the trip is ours to
   // draw.
   const applyPassed = (msg: PassedMessage) => {
     const item = itemLabel(msg.kind)
@@ -1068,8 +1058,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
 
   // Rule 27: the valley's levels, as of now on our own clock.
-  const setGeometrie = (levels: GeometrieLevels) => {
-    s.geometrie = { at: s.time, levels }
+  const setWards = (levels: WardLevels) => {
+    s.wards = { at: s.time, levels }
   }
 
   // Rule 12. In the valley the drop lands where our last state frame put
@@ -1607,7 +1597,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     useKind,
     passKind,
     applyPassed,
-    setGeometrie,
+    setWards,
     dropKind,
     dialPortal,
     openPortal,

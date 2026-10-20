@@ -58,7 +58,7 @@ test('Tab opens the pack, a number key assigns, the hotbar uses and is kept', as
   // It stimulates: the tetrahedron's stimulated corner lights, and its
   // ward's chip shows.
   await expect
-    .poll(() => page.evaluate(() => window.__bv?.geometrie.stimulated ?? 0))
+    .poll(() => page.evaluate(() => window.__bv?.wards.stimulated ?? 0))
     .toBeGreaterThan(0)
   await expect(
     page.locator('.bv-vitals [data-axis="stimulated"]')

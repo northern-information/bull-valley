@@ -17,6 +17,7 @@ import { copy } from './copy.ts'
 import { cosmeticById, toCosmetics } from './cosmetics.ts'
 import { DAILY_TASK, NO_TASK, shownCount } from './dailytask.ts'
 import { dealRefusal } from './dealer.ts'
+import { isExpeditionRun } from './expeditions.ts'
 import {
   friendLines,
   friendNews,
@@ -44,15 +45,20 @@ import type { ChatLine } from './chat.ts'
 import type { CitgoLog } from './citgos.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { TaskProgress } from './dailytask.ts'
+import type {
+  ExpeditionId,
+  ExpeditionOutcome,
+  ExpeditionRun,
+} from './expeditions.ts'
 import type { PendingAsk } from './friends.ts'
 import type { Inventory } from './interfaces.ts'
 import type {
   ClientMessage,
   FriendWire,
-  GeometrieLevels,
   NackMessage,
   PeerWire,
   ServerMessage,
+  WardLevels,
   WorldMessage,
   WorldWire,
 } from './protocol.ts'
@@ -72,13 +78,17 @@ export interface DialState {
   stand: StandLedger | null
   health: number
   healthMax: number
-  wards: GeometrieLevels
+  wards: WardLevels
   season: SeasonProgress
   task: TaskProgress
   // The Book of Shadows entries found (book.ts ids).
   book: string[]
   citgos: CitgoLog
   quests: Record<QuestId, QuestStage>
+  // The run out on an expedition, or null, and what the last one home
+  // brought (rule 30).
+  expedition: ExpeditionRun | null
+  haul: ExpeditionOutcome | null
   // Everyone else in the valley, the chat log (newest last), and the
   // friends list as the valley last sent it.
   peers: PeerWire[]
@@ -102,6 +112,7 @@ export interface Pending {
   buy: { station: number; kind: string } | null
   deal: boolean
   trade: boolean
+  expedition: boolean
   ask: PendingAsk | null
   showFriends: boolean
   whisperTo: string | null
@@ -113,12 +124,13 @@ const NOTHING_PENDING: Pending = {
   buy: null,
   deal: false,
   trade: false,
+  expedition: false,
   ask: null,
   showFriends: false,
   whisperTo: null,
 }
 
-export const NO_WARDS: GeometrieLevels = {
+export const NO_WARDS: WardLevels = {
   high: 0,
   stimulated: 0,
   drunk: 0,
@@ -141,6 +153,8 @@ export const DIALED: DialState = {
   book: [],
   citgos: NO_CITGOS,
   quests: toQuests(null),
+  expedition: null,
+  haul: null,
   peers: [],
   chat: [],
   friends: [],
@@ -188,7 +202,7 @@ export function applyFrame(
         stand: isStandLedger(msg.stand) ? msg.stand : null,
         health: msg.health,
         healthMax: msg.healthMax,
-        wards: isLevels(msg.geometrie) ? msg.geometrie : NO_WARDS,
+        wards: isLevels(msg.wards) ? msg.wards : NO_WARDS,
         season: { kills: msg.season.kills, claimed: msg.season.claimed },
         task: {
           day: msg.task.day,
@@ -198,6 +212,7 @@ export function applyFrame(
         book: [...msg.book],
         citgos: msg.citgos,
         quests: toQuests(msg.quests),
+        expedition: isExpeditionRun(msg.expedition) ? msg.expedition : null,
         peers: [...msg.peers],
         world: msg.world,
         pending: NOTHING_PENDING,
@@ -237,8 +252,8 @@ export function applyFrame(
       return { ...s, xp: Math.max(s.xp, msg.xp) }
     case 'health':
       return { ...s, health: msg.health, healthMax: msg.max }
-    case 'geometrie':
-      return isLevels(msg.geometrie) ? { ...s, wards: msg.geometrie } : s
+    case 'wards':
+      return isLevels(msg.wards) ? { ...s, wards: msg.wards } : s
     case 'world':
       return msg.world ? worldNews({ ...s, world: msg.world }, msg, now) : s
     case 'quest': {
@@ -249,6 +264,27 @@ export function applyFrame(
         pending: { ...s.pending, deal: false },
       }
       return news(next, stepNews(msg.step), now, Date.now())
+    }
+    case 'expedition': {
+      const next: DialState = {
+        ...s,
+        expedition: isExpeditionRun(msg.run) ? msg.run : null,
+        pending: { ...s.pending, expedition: false },
+        ...(msg.outcome ? { haul: msg.outcome } : {}),
+      }
+      if (msg.outcome) {
+        return news(next, haulLine(msg.outcome), now, Date.now())
+      }
+      return next.expedition
+        ? news(
+            next,
+            copy('dialup.expeditions.sent', {
+              run: expeditionName(next.expedition.id),
+            }),
+            now,
+            Date.now()
+          )
+        : next
     }
     case 'peer-joined':
       return told(
@@ -400,6 +436,9 @@ function refused(s: DialState, msg: NackMessage, now: number): DialState {
       return done({ deal: false }, stepRefusal(msg.reason))
     case 'trade':
       return done({ trade: false }, copy('log.trade_refused'))
+    case 'expedition-send':
+    case 'expedition-claim':
+      return done({ expedition: false }, expeditionRefusal(msg.reason))
     case 'chat':
       return done({}, CHAT_COPY.tooFast)
     case 'whisper':
@@ -506,6 +545,48 @@ export function raiderStats(s: DialState, day: string): RaiderStat[] {
     })
   }
   return stats
+}
+
+// A run's name, as the phone shows it.
+export function expeditionName(id: ExpeditionId): string {
+  switch (id) {
+    case 'ride':
+      return copy('dialup.expeditions.ride')
+    case 'corn':
+      return copy('dialup.expeditions.corn')
+    case 'undercroft':
+      return copy('dialup.expeditions.undercroft')
+  }
+}
+
+// What a run brought home, in a line: each kind and the cash, and whether
+// it came back hurt.
+export function haulLine(outcome: ExpeditionOutcome): string {
+  const parts = [
+    ...Object.entries(outcome.items).map(([kind, count]) =>
+      copy('dialup.expeditions.haul_item', { count, item: itemLabel(kind) })
+    ),
+    ...(outcome.cents > 0 ? [formatCash(outcome.cents)] : []),
+  ]
+  const haul =
+    parts.length > 0 ? parts.join(', ') : copy('dialup.expeditions.nothing')
+  return outcome.hurt
+    ? copy('dialup.expeditions.home_hurt', { haul })
+    : copy('dialup.expeditions.home', { haul })
+}
+
+// Why the valley would not send a run or bring one home.
+function expeditionRefusal(reason: string): string {
+  switch (reason) {
+    case 'busy':
+      return copy('dialup.expeditions.busy')
+    case 'locked':
+      return copy('dialup.expeditions.locked_refused')
+    case 'out':
+      return copy('dialup.expeditions.out')
+    default:
+      return copy('dialup.expeditions.refused')
+  }
 }
 
 // One kind on a Citgo's shelves as the phone lists it: its price, how

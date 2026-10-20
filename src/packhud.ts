@@ -10,7 +10,7 @@ import { PACK, PACK_MOUSE } from './bindings.ts'
 import { copy } from './copy.ts'
 import { el, find, text } from './dom.ts'
 import { HOTBAR_SLOTS } from './hotbar.ts'
-import { geometrieOf } from './items.ts'
+import { doseOf } from './items.ts'
 import { npcHeader } from './npcdialog.ts'
 import { bagTabs, LOCKER_TAB, PACK_TABS } from './packgrid.ts'
 import { BAG_TABS } from './packtabs.ts'
@@ -411,7 +411,7 @@ export class PackHud {
       this.cardBlurb.textContent = item.blurb
       // What it wards against, for anything that raises a ward.
       this.cardWards.replaceChildren(
-        ...wardsRaised(geometrieOf(item.kind)).map((ward) =>
+        ...wardsRaised(doseOf(item.kind)).map((ward) =>
           wardLine(
             'bv-ward-line',
             ward,
