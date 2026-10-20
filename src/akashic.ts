@@ -478,11 +478,17 @@ function dispose(object: THREE.Object3D): void {
   })
 }
 
+function isPoints(o: THREE.Object3D): o is THREE.Points {
+  return 'isPoints' in o && o.isPoints === true
+}
+
 function triangleCount(object: THREE.Object3D): number {
   let n = 0
   object.traverse((o) => {
-    // A sprite is one quad.
+    // A sprite is one quad, and so is each point of a cloud (the flecks
+    // and the mist of the shadow burst).
     if (o instanceof THREE.Sprite) n += 2
+    if (isPoints(o)) n += 2 * o.geometry.attributes.position.count
     if (!isMesh(o)) return
     const g = o.geometry
     const tris = (g.index ? g.index.count : g.attributes.position.count) / 3
