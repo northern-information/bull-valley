@@ -118,10 +118,19 @@ export async function heardWhere(page: Page): Promise<void> {
 }
 
 // Down to less geometrie than any touch takes (sharedworld.ts rule 24), so
-// the next touch shatters: the valley's word, heard back.
+// the next touch shatters: the valley's word, heard back. A frame sent as
+// the line drops is lost, and the reconnect sends only where the raider
+// stands, so ask again until the answer comes.
 export async function onLastPoint(page: Page): Promise<void> {
-  await page.evaluate(() => window.__bv?.setHealth(100))
-  await expect.poll(() => page.evaluate(() => window.__bv?.health)).toBe(100)
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const bv = window.__bv
+        if (bv && bv.health !== 100) bv.setHealth(100)
+        return bv?.health
+      })
+    )
+    .toBe(100)
 }
 
 export function freshValley(prefix = 'spec'): string {
