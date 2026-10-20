@@ -2,10 +2,12 @@
 // its last few seconds of states so a figure can be drawn a little behind
 // the present and glide between the two frames either side of that moment,
 // instead of teleporting ten times a second. Pure and Three-free; peers.ts
-// draws it, valleysync.ts feeds it from the net frames.
+// draws it, valleysync.ts feeds it from the net frames. The run of states
+// is framebuffer.ts's, as the shadows' is.
 
 import { CONFIG } from './config.ts'
 import { toCosmetics } from './cosmetics.ts'
+import { between, keepFrame, lerp } from './framebuffer.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { OutfitId } from './outfits.ts'
 import type { PeerPose, PeerStateWire, PeerWire } from './protocol.ts'
@@ -25,21 +27,15 @@ export interface Peer {
   level: number
   // Dialed in from Bull Valley Dial-Up: never placed, so never drawn.
   dialup: boolean
-  // The states heard, oldest first, at most FRAMES_KEPT; empty until the
-  // peer is placed.
+  // The states heard, oldest first, at most framebuffer.ts FRAMES_KEPT;
+  // empty until the peer is placed.
   frames: PeerSnapshot[]
   // The newest of them, or null until the peer is placed.
   next: PeerSnapshot | null
 }
 
-// How many states a peer keeps: at CONFIG.net.sendHz a few seconds, far
-// more than the render delay ever reaches back.
-export const FRAMES_KEPT = 32
-// A state that comes after a longer silence than GAP_MS (a peer who stood
-// still sends nothing) starts its move from the last state, held until one
-// frame's span before it, not spread across the whole silence.
+// The span of one of a peer's states on the wire.
 const FRAME_MS = 1000 / CONFIG.net.sendHz
-export const GAP_MS = 2.5 * FRAME_MS
 
 // Where to draw a peer this frame. speed drives the walk cycle.
 interface PeerSample extends PeerStateWire {
@@ -107,18 +103,12 @@ export function applyState(
 ): Peer | null {
   const peer = peers.get(id)
   if (!peer) return null
-  const last = peer.next
-  if (last && now - last.at > GAP_MS) {
-    // Held still through the silence: the move starts a frame ago.
-    record(peer, { ...last, at: now - FRAME_MS })
-  }
   record(peer, { ...state, at: now })
   return peer
 }
 
 function record(peer: Peer, snapshot: PeerSnapshot): void {
-  peer.frames.push(snapshot)
-  if (peer.frames.length > FRAMES_KEPT) peer.frames.shift()
+  keepFrame(peer.frames, snapshot, FRAME_MS)
   peer.next = snapshot
 }
 
@@ -139,25 +129,19 @@ function lerpAngle(a: number, b: number, t: number): number {
 // and at the newest past them, never extrapolating into a wall. Riding and
 // the flashlight take the newest state. Null until the peer is placed.
 export function samplePeer(peer: Peer, renderAt: number): PeerSample | null {
-  const { frames, next } = peer
-  if (!next) return null
-  let i = frames.length - 1
-  while (i >= 0 && frames[i].at > renderAt) i -= 1
-  if (i < 0)
-    return { ...frames[0], riding: next.riding, light: next.light, speed: 0 }
-  if (i === frames.length - 1) return { ...next, speed: 0 }
-  const prev = frames[i]
-  const to = frames[i + 1]
+  const { next } = peer
+  const at = next ? between(peer.frames, renderAt, (frame) => frame) : null
+  if (!next || !at) return null
+  const { from: prev, to, t } = at
   const span = to.at - prev.at
-  const t = span > 0 ? (renderAt - prev.at) / span : 1
   const dx = to.x - prev.x
   const dz = to.z - prev.z
   return {
-    x: prev.x + dx * t,
-    y: prev.y + (to.y - prev.y) * t,
-    z: prev.z + dz * t,
+    x: lerp(prev.x, to.x, t),
+    y: lerp(prev.y, to.y, t),
+    z: lerp(prev.z, to.z, t),
     yaw: lerpAngle(prev.yaw, to.yaw, t),
-    pitch: prev.pitch + (to.pitch - prev.pitch) * t,
+    pitch: lerp(prev.pitch, to.pitch, t),
     pose: t < 0.5 ? prev.pose : to.pose,
     riding: next.riding,
     light: next.light,
