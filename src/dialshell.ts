@@ -19,6 +19,7 @@ import { DialSocial } from './dialsocial.ts'
 import { raiderStats } from './dialstate.ts'
 import { el, text } from './dom.ts'
 import { iconSvg } from './icons.ts'
+import { clamp01 } from './math.ts'
 import { OUTFITS } from './outfits.ts'
 import { barOf } from './progression.ts'
 import { volumeSliders } from './settingsui.ts'
@@ -507,7 +508,7 @@ export class DialShell {
 
 function meter(className: string, share: number): HTMLElement {
   const m = el('div', `bv-dial-meter ${className}`)
-  m.style.setProperty('--fill', String(Math.max(0, Math.min(1, share))))
+  m.style.setProperty('--fill', String(clamp01(share)))
   return m
 }
 

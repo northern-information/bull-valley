@@ -8,6 +8,7 @@
 // the field here is the whole truth about where they are.
 
 import { CONFIG } from './config.ts'
+import { clamp01 } from './math.ts'
 import { range } from './rng.ts'
 import type { XZ } from './interfaces.ts'
 import type { Rng } from './rng.ts'
@@ -98,6 +99,6 @@ export function bankOpacity(
   const dz = bank.z - player.z
   const near = Math.min(1, Math.hypot(dx, dz) / cfg.nearFade)
   const toEdge = cfg.radius - Math.max(Math.abs(dx), Math.abs(dz))
-  const edge = Math.max(0, Math.min(1, toEdge / cfg.edgeFade))
+  const edge = clamp01(toEdge / cfg.edgeFade)
   return cfg.opacity * (0.3 + 0.7 * swell) * near * edge
 }

@@ -9,6 +9,7 @@
 // DOM.
 
 import { CONFIG } from './config.ts'
+import { clamp01 } from './math.ts'
 import type { XZ } from './interfaces.ts'
 import type { CaretakerWire } from './protocol.ts'
 import type { Rng } from './rng.ts'
@@ -247,8 +248,8 @@ export function sfxGain(
   spec: Pick<SfxSpec, 'gain'>,
   tuning: SfxTuning
 ): number {
-  const level = Math.min(1, Math.max(0, setting / 100))
-  return Math.min(1, Math.max(0, tuning.volume * level * spec.gain))
+  const level = clamp01(setting / 100)
+  return clamp01(tuning.volume * level * spec.gain)
 }
 
 // The placeholder's samples at `sampleRate`, peaking at `peak`. A one-shot

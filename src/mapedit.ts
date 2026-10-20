@@ -5,6 +5,7 @@
 // tests/unit/mapedit.test.ts runs it in Node.
 
 import { pointInPolygon } from './coords.ts'
+import { clamp01 } from './math.ts'
 import type {
   FuelStation,
   Geo,
@@ -69,8 +70,7 @@ function roundUnit(n: number): number {
 }
 
 export function snapPoint(u: number, v: number): UnitPoint {
-  const clamp = (n: number) => Math.min(1, Math.max(0, n))
-  return [roundUnit(clamp(u)), roundUnit(clamp(v))]
+  return [roundUnit(clamp01(u)), roundUnit(clamp01(v))]
 }
 
 function layerList(geo: Geo, layer: LayerId): Feature[] {

@@ -2,6 +2,7 @@
 // (x right/east, y down/south — the projection geo.json is in). No three.js imports: tests/unit/coords.test.ts
 // runs these directly in Node.
 
+import { clamp01 } from './math.ts'
 import type { Metres, UnitPoint } from './interfaces.ts'
 
 export interface Bounds {
@@ -114,10 +115,7 @@ export function projectOnSegment(
   const dx = bx - ax
   const dy = by - ay
   const len2 = dx * dx + dy * dy
-  const t =
-    len2 === 0
-      ? 0
-      : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2))
+  const t = len2 === 0 ? 0 : clamp01(((px - ax) * dx + (py - ay) * dy) / len2)
   const x = ax + t * dx
   const y = ay + t * dy
   return { x, y, t, dist: Math.hypot(px - x, py - y) }

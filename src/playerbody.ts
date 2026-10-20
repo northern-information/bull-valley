@@ -7,6 +7,7 @@
 // characters snapped between animations.
 
 import { applyPose, buildFigure } from './figure.ts'
+import { ahead } from './math.ts'
 import { samplePose, strideOf, stridePose } from './poses.ts'
 import type { Figure } from './figure.ts'
 import type { OutfitId } from './outfits.ts'
@@ -75,9 +76,8 @@ export class PlayerBody {
     const group = this.figure.group
     // The figure faces +Z; the player faces -Z at yaw 0.
     group.rotation.y = yaw + Math.PI
-    const fx = -Math.sin(yaw)
-    const fz = -Math.cos(yaw)
-    group.position.set(x - fx * BACKSET, ground, z - fz * BACKSET)
+    const at = ahead({ x, z }, yaw, -BACKSET)
+    group.position.set(at.x, ground, at.z)
 
     let pose: PoseSample
     if (crouching) {

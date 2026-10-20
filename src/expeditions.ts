@@ -9,6 +9,7 @@
 
 import { CONFIG } from './config.ts'
 import { centsOf, isCash } from './drops.ts'
+import { clamp01 } from './math.ts'
 import { mulberry32 } from './rng.ts'
 import { AXES } from './wardlevels.ts'
 import type { WardAxis } from './interfaces.ts'
@@ -56,7 +57,7 @@ export function wardOf(id: ExpeditionId): WardAxis | null {
 // The chance a run comes back hurt, the matching ward at `ward` (0 to 1).
 export function riskOf(id: ExpeditionId, ward: number): number {
   const { risk } = CONFIG.expeditions.runs[id]
-  const level = Number.isFinite(ward) ? Math.min(1, Math.max(0, ward)) : 0
+  const level = Number.isFinite(ward) ? clamp01(ward) : 0
   const cut = CONFIG.expeditions.wardCut * level
   return risk * (1 - cut)
 }
@@ -126,7 +127,7 @@ export function isHome(run: ExpeditionRun, now: number): boolean {
 // How far out a run is at `now`, 0 to 1.
 export function progressOf(run: ExpeditionRun, now: number): number {
   const span = Math.max(1, run.endsAt - run.startedAt)
-  return Math.min(1, Math.max(0, (now - run.startedAt) / span))
+  return clamp01((now - run.startedAt) / span)
 }
 
 // The geometrie left after a hurt run: `damage` of whole off what is

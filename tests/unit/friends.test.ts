@@ -13,6 +13,7 @@ import {
   whisperRefusal,
 } from '../../src/friends.ts'
 import { mazeToWorld } from '../../src/maze.ts'
+import { inHaven } from '../../src/shadowmen.ts'
 import type { FriendWire, PeerStateWire } from '../../src/protocol.ts'
 
 const at = (x: number, z: number, riding = false): PeerStateWire => ({
@@ -62,6 +63,14 @@ describe('whereabouts', () => {
     const r = CONFIG.shadowmen.havenRadius
     expect(whereabouts(at(r + 1, 0), world)).toBe('valley')
     expect(whereabouts(at(r + 1, 0), null)).toBe('valley')
+  })
+
+  it('says by a Citgo only where the shadowmen cannot reach', () => {
+    const r = CONFIG.shadowmen.havenRadius
+    const havens = [{ x: 0, z: 0 }]
+    expect(inHaven(at(r, 0), havens, r)).toBe(false)
+    expect(whereabouts(at(r, 0), { havens, maze: null })).toBe('valley')
+    expect(whereabouts(at(r - 0.01, 0), { havens, maze: null })).toBe('citgo')
   })
 
   it('says on the phone for a raider dialed in, wherever a frame says', () => {

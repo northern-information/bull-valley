@@ -269,6 +269,75 @@ function giveUp(ct: Caretaker): void {
   ct.homeward = true
 }
 
+// What hunts in the maze or the Undercroft: the Caretaker and the tunnel
+// shades.
+export interface Hunter extends XZ {
+  route: XZ[]
+  target: string | null
+  lastSeen: XZ | null
+  forget: number
+  rethink: number
+}
+
+// How far a hunter knows a raider is there: within senseRadius always,
+// within sightRange with nothing between them; it gives one up after
+// forgetSeconds out of sight.
+export interface Sight {
+  senseRadius: number
+  sightRange: number
+  forgetSeconds: number
+}
+
+// The raider `h` hunts this step, out of `prey`: the one it hunts while it
+// still sees them, or else the nearest it sees, or none. Keeps where it
+// last saw them; `giveUp` runs on a quarry gone or forgotten. Mutates h.
+export function hunt<P extends { r: Raider; at: XZ }>(
+  h: Hunter,
+  prey: readonly P[],
+  map: MazeMap,
+  sight: Sight,
+  dt: number,
+  giveUp: () => void
+): P | undefined {
+  const sees = (at: XZ) => {
+    const d = Math.hypot(at.x - h.x, at.z - h.z)
+    return (
+      d <= sight.senseRadius ||
+      (d <= sight.sightRange && clearBetween(map, h, at, 0))
+    )
+  }
+  let quarry = h.target ? prey.find(({ r }) => r.id === h.target) : undefined
+  if (h.target && !quarry) giveUp()
+  if (quarry) {
+    if (sees(quarry.at)) {
+      h.lastSeen = quarry.at
+      h.forget = sight.forgetSeconds
+    } else {
+      h.forget -= dt
+      if (h.forget <= 0) giveUp()
+      quarry = undefined
+    }
+  }
+  if (!h.target) {
+    let best = Infinity
+    for (const p of prey) {
+      const d = Math.hypot(p.at.x - h.x, p.at.z - h.z)
+      if (d < best && sees(p.at)) {
+        best = d
+        quarry = p
+      }
+    }
+    if (quarry) {
+      h.target = quarry.r.id
+      h.lastSeen = quarry.at
+      h.forget = sight.forgetSeconds
+      h.rethink = 0
+      h.route = []
+    }
+  }
+  return quarry
+}
+
 interface CaretakerStep {
   dt: number
   // Every raider the valley knows, in world metres (shadowmen.ts Raider:
@@ -331,42 +400,7 @@ export function stepCaretaker(
   const prey = local.filter(
     ({ r, at }) => r.vulnerable && inMaze(map.size, at.x, at.z)
   )
-  const sees = (at: XZ) => {
-    const d = Math.hypot(at.x - ct.x, at.z - ct.z)
-    return (
-      d <= cfg.senseRadius ||
-      (d <= cfg.sightRange && clearBetween(map, ct, at, 0))
-    )
-  }
-  let quarry = ct.target ? prey.find(({ r }) => r.id === ct.target) : undefined
-  if (ct.target && !quarry) giveUp(ct)
-  if (quarry) {
-    if (sees(quarry.at)) {
-      ct.lastSeen = quarry.at
-      ct.forget = cfg.forgetSeconds
-    } else {
-      ct.forget -= dt
-      if (ct.forget <= 0) giveUp(ct)
-      quarry = undefined
-    }
-  }
-  if (!ct.target) {
-    let best = Infinity
-    for (const p of prey) {
-      const d = Math.hypot(p.at.x - ct.x, p.at.z - ct.z)
-      if (d < best && sees(p.at)) {
-        best = d
-        quarry = p
-      }
-    }
-    if (quarry) {
-      ct.target = quarry.r.id
-      ct.lastSeen = quarry.at
-      ct.forget = cfg.forgetSeconds
-      ct.rethink = 0
-      ct.route = []
-    }
-  }
+  const quarry = hunt(ct, prey, map, cfg, dt, () => giveUp(ct))
 
   // In reach: it stands and winds up, then lunges. A raider still within
   // reach is struck, and it goes home; one who stepped back is hunted on.

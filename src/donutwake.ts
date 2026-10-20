@@ -5,6 +5,7 @@
 // up to where the truck has got to (`tracksAlong`), so a client arriving
 // mid-leg sees what it has cut already. donutwakerig.ts draws both.
 
+import { clamp01 } from './math.ts'
 import type { XZ } from './interfaces.ts'
 import type { Rng } from './rng.ts'
 
@@ -106,7 +107,7 @@ export function clodsDue(
   tuning: SprayTuning,
   rng: Rng
 ): number {
-  const share = topSpeed > 0 ? Math.min(1, Math.max(0, speed / topSpeed)) : 0
+  const share = topSpeed > 0 ? clamp01(speed / topSpeed) : 0
   const due = tuning.perSecond * share * dt
   return Math.floor(due) + (rng() < due % 1 ? 1 : 0)
 }

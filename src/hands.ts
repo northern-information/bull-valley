@@ -5,6 +5,7 @@
 // ease() shapes it for drawing. fphands.ts draws both.
 
 import { CONFIG } from './config.ts'
+import { clamp01 } from './math.ts'
 
 export type HandsConfig = typeof CONFIG.hands
 
@@ -52,6 +53,6 @@ export function useSeconds(cfg: HandsConfig = CONFIG.hands): number {
 
 // Smoothstep: a hand eases out of rest and into place.
 export function ease(lift: number): number {
-  const t = Math.max(0, Math.min(1, lift))
+  const t = clamp01(lift)
   return t * t * (3 - 2 * t)
 }

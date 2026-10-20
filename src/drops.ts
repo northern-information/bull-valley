@@ -5,7 +5,7 @@
 
 import { CONFIG } from './config.ts'
 import { isItemId, leftInOpen } from './items.ts'
-import { goldenSpot } from './math.ts'
+import { ahead, goldenSpot } from './math.ts'
 import type { XZ } from './interfaces.ts'
 import type { ItemId, PickupKind } from './items.ts'
 import type { Rng } from './rng.ts'
@@ -134,12 +134,8 @@ export function dropAmount(kind: string, held: number, all: boolean): number {
 // Where drop `id` lands: a little ahead of the raider, turned a step round
 // a small circle per id so drops made from one spot lie side by side.
 export function dropSpot(at: Facing, id: number, cfg = CONFIG): XZ {
-  const { ahead, scatter } = cfg.drops
-  const before = {
-    x: at.x - Math.sin(at.yaw) * ahead,
-    z: at.z - Math.cos(at.yaw) * ahead,
-  }
-  return goldenSpot(before, id, scatter)
+  const { scatter } = cfg.drops
+  return goldenSpot(ahead(at, at.yaw, cfg.drops.ahead), id, scatter)
 }
 
 // Taking up a drop with room for `room` more (Infinity for the pack): how

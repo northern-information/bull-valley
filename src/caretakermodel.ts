@@ -6,6 +6,7 @@ import {
   setMotion,
 } from './assetkit.ts'
 import { CONFIG } from './config.ts'
+import { clamp01 } from './math.ts'
 import { applyPS1 } from './ps1.ts'
 import { mulberry32, range } from './rng.ts'
 
@@ -193,8 +194,8 @@ export function buildCaretaker(seed = 0xca2e): CaretakerRig {
       shroud.color.lerpColors(CARETAKER_BODY, CARETAKER_PALE, burn)
     },
     setStrike(windup, lunge) {
-      rear = Math.min(1, Math.max(0, windup))
-      slam = Math.sin(Math.PI * Math.min(1, Math.max(0, lunge)))
+      rear = clamp01(windup)
+      slam = Math.sin(Math.PI * clamp01(lunge))
     },
   }
 }

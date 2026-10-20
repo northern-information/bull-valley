@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { makeGlowSprite, makeGlowTexture, mergeStatic } from './assetkit.ts'
+import { clamp01 } from './math.ts'
 import { mulberry32, range } from './rng.ts'
 
 // --- Shadow spider -------------------------------------------------------
@@ -211,8 +212,8 @@ export function buildShadowSpider(height = 5.6, seed = 0x5b1d): ShadowSpider {
     const lift = 0.1 * H * Math.max(0.15, shown)
     // Striking: rearing back over the windup, then the lunge throws the
     // front down and forward and lets it settle.
-    const rear = Math.min(1, Math.max(0, windup))
-    const slam = Math.sin(Math.PI * Math.min(1, Math.max(0, lunge)))
+    const rear = clamp01(windup)
+    const slam = Math.sin(Math.PI * clamp01(lunge))
     body.position.y =
       bodyY +
       Math.sin(phase * 2) * 0.012 * H * shown +

@@ -10,6 +10,7 @@
 // no DOM.
 
 import { CONFIG } from './config.ts'
+import { clamp01 } from './math.ts'
 import { AXES } from './wardlevels.ts'
 import type { WardAxis } from './interfaces.ts'
 
@@ -68,8 +69,7 @@ export function wardOf(
   cfg = CONFIG.wards
 ): number {
   const axis = WARD_OF[by]
-  const level = (a: WardAxis): number =>
-    Math.max(0, Math.min(1, levels[a] || 0))
+  const level = (a: WardAxis): number => clamp01(levels[a] || 0)
   let other = 0
   for (const a of AXES) if (a !== axis) other = Math.max(other, level(a))
   const ward = cfg.matching * level(axis) + cfg.other * other
@@ -93,7 +93,7 @@ export function damageOf(
   roll = 0.5,
   cfg = { damage: CONFIG.damage, wards: CONFIG.wards }
 ): Damage {
-  const r = Number.isFinite(roll) ? Math.max(0, Math.min(1, roll)) : 0.5
+  const r = Number.isFinite(roll) ? clamp01(roll) : 0.5
   const base = Math.round(
     cfg.damage[by] * (1 + cfg.damage.spread * (2 * r - 1))
   )

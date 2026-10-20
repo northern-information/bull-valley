@@ -7,6 +7,7 @@ import {
 } from './assetkit.ts'
 import { context2d } from './canvas.ts'
 import { applyPose, buildFigure } from './figure.ts'
+import { clamp01 } from './math.ts'
 import { blendPose, JOINTS, samplePose, strideOf, stridePose } from './poses.ts'
 import { applyPS1 } from './ps1.ts'
 import { mulberry32, range } from './rng.ts'
@@ -268,8 +269,8 @@ export function buildShadowman(height = 2.8, seed = 0xd06): ShadowmanRig {
       const pace = speed / scaled
       cycle += (pace * dt) / strideOf(pace)
       const walking = Math.min(1, pace / 0.8)
-      const slam = Math.sin(Math.PI * Math.min(1, Math.max(0, lunge)))
-      const rear = Math.min(1, Math.max(0, windup))
+      const slam = Math.sin(Math.PI * clamp01(lunge))
+      const rear = clamp01(windup)
       let pose = blendPose(STAND, stridePose(cycle, pace), walking)
       pose = crooked(pose, crook, 1 - Math.max(rear, slam))
       pose = blendPose(pose, WINDUP, rear)

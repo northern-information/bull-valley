@@ -11,6 +11,7 @@
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { inMaze, worldToMaze } from './maze.ts'
+import { inHaven } from './shadowmen.ts'
 import type { XZ } from './interfaces.ts'
 import type { MazePlace } from './maze.ts'
 import type { FriendWire, PeerStateWire, Whereabouts } from './protocol.ts'
@@ -72,8 +73,8 @@ export function whereabouts(
     const local = worldToMaze(world.maze, at)
     if (inMaze(CONFIG.maze.size, local.x, local.z)) return 'maze'
   }
-  const near = CONFIG.shadowmen.havenRadius
-  if (world?.havens.some((h) => Math.hypot(h.x - at.x, h.z - at.z) <= near)) {
+  // By a Citgo is where the shadowmen cannot reach (shadowmen.ts inHaven).
+  if (world && inHaven(at, world.havens, CONFIG.shadowmen.havenRadius)) {
     return 'citgo'
   }
   return 'valley'

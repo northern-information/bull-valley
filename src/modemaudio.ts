@@ -6,6 +6,7 @@
 // cut on connect (the hush). Built on the tap that dials, since a phone
 // plays nothing before one; none under e2e.
 
+import { clamp01 } from './math.ts'
 import type { ModemCue } from './modem.ts'
 
 // The number dialed, 1-815-BULL-VLY, as the keypad sends it.
@@ -35,7 +36,7 @@ export class ModemAudio {
   constructor(volume: number) {
     this.ctx = new AudioContext()
     this.out = this.ctx.createGain()
-    this.out.gain.value = Math.max(0, Math.min(1, volume)) * 0.35
+    this.out.gain.value = clamp01(volume) * 0.35
     this.out.connect(this.ctx.destination)
     const length = this.ctx.sampleRate * 2
     this.noise = this.ctx.createBuffer(1, length, this.ctx.sampleRate)

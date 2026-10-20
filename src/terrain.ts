@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { context2d } from './canvas.ts'
 import { bilinearHeight } from './coords.ts'
+import { clamp01 } from './math.ts'
 import { applyPS1 } from './ps1.ts'
 import type { Geo, HeightAt } from './interfaces.ts'
 
@@ -75,8 +76,8 @@ export function createHeightField(
   }
   const { width, height } = geo.metres
   const raw: HeightAt = (x, z) => {
-    const u = Math.max(0, Math.min(1, x / width + 0.5))
-    const v = Math.max(0, Math.min(1, z / height + 0.5))
+    const u = clamp01(x / width + 0.5)
+    const v = clamp01(z / height + 0.5)
     return bilinearHeight(grid, n, u, v)
   }
   let cut: HeightAt = raw
@@ -189,7 +190,7 @@ export function buildTerrainMesh(
       // Cheap deterministic hash per vertex for tonal grain.
       const nn = Math.sin(i * 127.1 + j * 311.7) * 43758.5453
       const grain = (nn - Math.floor(nn) - 0.5) * 0.16
-      tmp.copy(low).lerp(high, Math.min(1, Math.max(0, h / relief + grain)))
+      tmp.copy(low).lerp(high, clamp01(h / relief + grain))
       colors[p * 3] = tmp.r
       colors[p * 3 + 1] = tmp.g
       colors[p * 3 + 2] = tmp.b

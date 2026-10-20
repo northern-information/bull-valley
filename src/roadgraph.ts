@@ -7,6 +7,7 @@
 // interior vertices collapse into edges that keep their full point lists.
 
 import { projectOnSegment, unitToWorld } from './coords.ts'
+import { clamp01 } from './math.ts'
 import { pick } from './rng.ts'
 import type { Metres, Road, XZ } from './interfaces.ts'
 import type { Rng } from './rng.ts'
@@ -398,7 +399,7 @@ export function createWalker(points: readonly RoadPoint[]): Walker {
   const settle = () => {
     while (seg < points.length - 2 && cum[seg + 1] < s) seg++
     const span = cum[seg + 1] - cum[seg] || 1
-    const t = Math.max(0, Math.min(1, (s - cum[seg]) / span))
+    const t = clamp01((s - cum[seg]) / span)
     const a = points[seg]
     const b = points[seg + 1]
     state.x = a.x + (b.x - a.x) * t

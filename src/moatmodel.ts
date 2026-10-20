@@ -6,6 +6,7 @@ import {
   memo,
   mergeStatic,
 } from './assetkit.ts'
+import { clamp01 } from './math.ts'
 import { concreteArt, vineArt } from './moatart.ts'
 import { mulberry32, range } from './rng.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
@@ -112,8 +113,8 @@ export function buildMoat(build: MoatBuild): MoatRig {
       const dz = b.z - a.z
       const len2 = dx * dx + dz * dz || 1
       const t = ((p.x - a.x) * dx + (p.z - a.z) * dz) / len2
-      const cx = a.x + dx * Math.max(0, Math.min(1, t))
-      const cz = a.z + dz * Math.max(0, Math.min(1, t))
+      const cx = a.x + dx * clamp01(t)
+      const cz = a.z + dz * clamp01(t)
       return Math.hypot(p.x - cx, p.z - cz) < pad
     })
 

@@ -7,6 +7,7 @@
 // actions.ts walks a raider through. No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
+import { ahead } from './math.ts'
 import type { Facing } from './drops.ts'
 import type { XZ } from './interfaces.ts'
 
@@ -43,11 +44,7 @@ export function fieldEnd(
   at: Facing,
   cfg: PortalConfig = CONFIG.portal
 ): PortalEnd {
-  return {
-    x: at.x - Math.sin(at.yaw) * cfg.ahead,
-    z: at.z - Math.cos(at.yaw) * cfg.ahead,
-    yaw: at.yaw,
-  }
+  return { ...ahead(at, at.yaw, cfg.ahead), yaw: at.yaw }
 }
 
 // The Citgo end in ring slot `slot` round a lot's ring middle `ring`, its
@@ -127,11 +124,7 @@ export function exitFrom(
   cfg: PortalConfig = CONFIG.portal
 ): Facing {
   const end = side === 'field' ? portal.citgo : portal.field
-  return {
-    x: end.x + Math.sin(end.yaw) * cfg.exit,
-    z: end.z + Math.cos(end.yaw) * cfg.exit,
-    yaw: end.yaw + Math.PI,
-  }
+  return { ...ahead(end, end.yaw, -cfg.exit), yaw: end.yaw + Math.PI }
 }
 
 // What the phone says of a portal closing at `closes` at `now` (both ms):

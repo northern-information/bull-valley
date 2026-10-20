@@ -16,7 +16,7 @@
 // The valley steps them beside the shadowmen (sharedworld.ts rule 11), and
 // tunnelrig.ts draws them. Tune them in CONFIG.tunnel.
 
-import { advance, clearBetween, routeTo } from './caretaker.ts'
+import { advance, clearBetween, hunt, routeTo } from './caretaker.ts'
 import { CONFIG } from './config.ts'
 import { cellPoint, inMaze, mazeToWorld, worldToMaze } from './maze.ts'
 import { inBeam } from './shadowmen.ts'
@@ -181,44 +181,8 @@ export function stepTunnelShades(
           ({ r, at }) =>
             r.vulnerable && (shade.kind !== 'warden' || inRoom(ROOMS.deep, at))
         )
-    const sees = (at: XZ) => {
-      const d = Math.hypot(at.x - shade.x, at.z - shade.z)
-      return (
-        d <= tune.senseRadius ||
-        (d <= tune.sightRange && clearBetween(map, shade, at, 0))
-      )
-    }
-    let quarry = shade.target
-      ? prey.find(({ r }) => r.id === shade.target)
-      : undefined
-    if (shade.target && !quarry) giveUp(shade)
-    if (quarry) {
-      if (sees(quarry.at)) {
-        shade.lastSeen = quarry.at
-        shade.forget = cfg.forgetSeconds
-      } else {
-        shade.forget -= dt
-        if (shade.forget <= 0) giveUp(shade)
-        quarry = undefined
-      }
-    }
-    if (!shade.target) {
-      let best = Infinity
-      for (const p of prey) {
-        const d = Math.hypot(p.at.x - shade.x, p.at.z - shade.z)
-        if (d < best && sees(p.at)) {
-          best = d
-          quarry = p
-        }
-      }
-      if (quarry) {
-        shade.target = quarry.r.id
-        shade.lastSeen = quarry.at
-        shade.forget = cfg.forgetSeconds
-        shade.rethink = 0
-        shade.route = []
-      }
-    }
+    const sight = { ...tune, forgetSeconds: cfg.forgetSeconds }
+    const quarry = hunt(shade, prey, map, sight, dt, () => giveUp(shade))
 
     if (shade.target && shade.lastSeen) {
       shade.rethink -= dt

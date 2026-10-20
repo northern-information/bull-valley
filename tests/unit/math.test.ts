@@ -1,11 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { clamp01, GOLDEN_ANGLE, goldenSpot } from '../../src/math.ts'
+import { ahead, clamp01, GOLDEN_ANGLE, goldenSpot } from '../../src/math.ts'
 
 describe('math', () => {
   it('clamps between 0 and 1', () => {
     expect(clamp01(-1)).toBe(0)
     expect(clamp01(0.25)).toBe(0.25)
     expect(clamp01(7)).toBe(1)
+  })
+
+  it('finds the point in front of a heading, or behind it', () => {
+    const at = { x: 3, z: 5 }
+    expect(ahead(at, 0, 2)).toEqual({ x: 3, z: 3 })
+    const right = ahead(at, -Math.PI / 2, 2)
+    expect(right.x).toBeCloseTo(5)
+    expect(right.z).toBeCloseTo(5)
+    expect(ahead(at, 0, -2)).toEqual({ x: 3, z: 7 })
   })
 
   it('spreads things round a circle by the golden angle', () => {

@@ -13,6 +13,7 @@
 // difference, and nothing need be rescaled when the curve is retuned.
 
 import { CONFIG } from './config.ts'
+import { clamp01 } from './math.ts'
 
 // Geometrie whole at `level` (1 and up).
 export function maxGeometrie(level = 1, cfg = CONFIG.health): number {
@@ -85,7 +86,7 @@ export function woundsFromHealth(
   if (!(storedMax > 0)) return next
   for (const [account, points] of Object.entries(health)) {
     if (!Number.isFinite(points)) continue
-    const share = Math.max(0, Math.min(1, points / storedMax))
+    const share = clamp01(points / storedMax)
     const lost = Math.round((1 - share) * BASE_GEOMETRIE)
     next = withWounds(next, account, Math.min(BASE_GEOMETRIE - 1, lost))
   }

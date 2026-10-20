@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { lambert } from './assetkit.ts'
+import { clamp01 } from './math.ts'
 import { applyPS1 } from './ps1.ts'
 import { mulberry32, range } from './rng.ts'
 import type { Vec3 } from './interfaces.ts'
@@ -113,7 +114,7 @@ export function buildTunnelShade(
     group,
     update,
     setBurn(next) {
-      burn = Math.max(0, Math.min(1, next))
+      burn = clamp01(next)
       body.color.copy(SHADE_BODY).lerp(SHADE_PALE, burn)
       body.opacity = 0.94 - burn * 0.4
     },

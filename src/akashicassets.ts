@@ -43,6 +43,7 @@ import { itemLabel } from './itemcopy.ts'
 import { ITEMS } from './items.ts'
 import { buildJeep } from './jeep.ts'
 import { buildLookout } from './lookoutmodel.ts'
+import { clamp01 } from './math.ts'
 import { mazeSpans, SHINING_MAZE } from './maze.ts'
 import { buildMedicine } from './medicinemodels.ts'
 import { fireEscapes, moatEdges, moatFloor, trickle } from './moat.ts'
@@ -245,7 +246,7 @@ function sampleSlurm(): THREE.Group {
   const pose = (t: number) =>
     slurm.pose({
       stretch: (t * 1.4) % 1,
-      tooth: Math.max(0, Math.min(1, (Math.sin(t * 4) - 0.25) / 0.5)),
+      tooth: clamp01((Math.sin(t * 4) - 0.25) / 0.5),
       splat: null,
     })
   pose(0)

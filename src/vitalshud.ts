@@ -12,6 +12,7 @@ import { copy } from './copy.ts'
 import { el } from './dom.ts'
 import { BASE_GEOMETRIE } from './health.ts'
 import { ICON_SHAPES, iconSvg } from './icons.ts'
+import { clamp01 } from './math.ts'
 import { AXES } from './wardlevels.ts'
 import { tetraView } from './wards.ts'
 import type { WardAxis } from './interfaces.ts'
@@ -255,7 +256,7 @@ export class VitalsHud {
   // only when a level moves by a percent.
   setWards(levels: Record<WardAxis, number>): void {
     const percent = (axis: WardAxis) =>
-      Math.round(Math.max(0, Math.min(1, levels[axis] || 0)) * 100)
+      Math.round(clamp01(levels[axis] || 0) * 100)
     const view = AXES.map(percent).join(':')
     if (view === this.wardsView) return
     this.wardsView = view
@@ -287,7 +288,7 @@ export class VitalsHud {
     if (view === this.healthView) return
     this.healthView = view
     const whole = Math.max(1, max)
-    const share = Math.max(0, Math.min(1, points / whole))
+    const share = clamp01(points / whole)
     const length = BAR.base + Math.max(0, max - BASE_GEOMETRIE) * BAR.perPoint
     this.root.style.setProperty('--bv-vitals-length', `${length}rem`)
     // Lost: the trail holds where it was, then drains (styles.css). Given
