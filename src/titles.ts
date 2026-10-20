@@ -118,7 +118,15 @@ export async function showTitles(
     onAccount: openAccount,
     onSignOut: signOutAndReload,
   })
-  if (!skip && !returned) await showSplash({ audio, config: COLOPHON })
+  // The menu goes up under the colophon as it lifts, so its grain and fog
+  // are there through the fade instead of popping in after it.
+  if (!skip && !returned) {
+    await showSplash({
+      audio,
+      config: COLOPHON,
+      onLift: () => menu.underlay(),
+    })
+  }
   let known = await me
   const signedIn = !!known?.account?.username
   // A round trip that has not yet ended in an account goes back to it, and

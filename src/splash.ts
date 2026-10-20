@@ -51,6 +51,9 @@ export const LOGO: LogoConfig = {
 interface CardOptions<C extends CardConfig = CardConfig> {
   audio: BvAudio
   config: C
+  // The card's backdrop has begun to lift: whatever it uncovers goes up
+  // beneath it now, so it shows through the fade rather than after it.
+  onLift?: () => void
 }
 
 // A mounted card. A card mounted early sits black and deaf beneath the
@@ -75,7 +78,7 @@ export function skipTitles(): boolean {
 // Mounts a black card as the last child of <body>, so DOM order stacks it
 // above everything mounted before it, and drives opacity from a RAF loop.
 // Audio failures never block the visual.
-function mountCard({ audio, config }: CardOptions): Card {
+function mountCard({ audio, config, onLift }: CardOptions): Card {
   const machine = createSplashMachine({
     now: () => performance.now(),
     cfg: config,
@@ -89,6 +92,7 @@ function mountCard({ audio, config }: CardOptions): Card {
   let rafId: number | null = null
   let img: HTMLImageElement | null = null
   let listening = false
+  let lifted = false
   let resolveDone = () => {}
   const done = new Promise<void>((resolve) => {
     resolveDone = resolve
@@ -103,6 +107,10 @@ function mountCard({ audio, config }: CardOptions): Card {
 
   const frame = () => {
     const { imgAlpha, rootAlpha, complete } = machine.tick()
+    if (rootAlpha < 1 && !lifted) {
+      lifted = true
+      onLift?.()
+    }
     root.style.opacity = String(rootAlpha)
     if (img) img.style.opacity = String(imgAlpha)
     if (complete) {
@@ -167,9 +175,10 @@ function mountCard({ audio, config }: CardOptions): Card {
 export function showSplash({
   audio,
   config,
+  onLift,
 }: CardOptions<SplashConfig>): Promise<void> {
   if (skipTitles()) return Promise.resolve()
-  const card = mountCard({ audio, config })
+  const card = mountCard({ audio, config, onLift })
   const hint = document.createElement('span')
   hint.className = 'bv-splash-hint'
   hint.textContent = config.hint
