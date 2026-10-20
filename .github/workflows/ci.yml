@@ -111,7 +111,7 @@ jobs:
     # out in file order, the same count to each (a serial describe stays
     # whole), so every spec runs exactly once and a new one needs nothing
     # here. The jobs are named by number, not by what they hold, and the
-    # e2e-balance job says how evenly they came out (CLAUDE.md, "E2E shards").
+    # e2e-balance job says how evenly they came out (docs/testing.md, "E2E shards").
     strategy:
       fail-fast: false
       matrix:

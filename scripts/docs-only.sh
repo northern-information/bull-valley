@@ -3,7 +3,7 @@
 # can skip the build and the e2e shards for it: they report green at once
 # instead of running. Format, lint, types and the unit tests still run on
 # every change, since prettier checks the docs and the module map test
-# reads CLAUDE.md. Prints `docs-only=true` or `docs-only=false` for
+# reads docs/modules.md. Prints `docs-only=true` or `docs-only=false` for
 # $GITHUB_OUTPUT. Anything it cannot tell (no base, a diff that fails, no
 # files) counts as code, so the full run is never skipped by mistake.
 #
