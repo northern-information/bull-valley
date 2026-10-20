@@ -247,7 +247,7 @@ name = { text = "Castle Entropy", by = "ai" }
 lore = { text = "It hangs over its island with nothing under it but rock and the drop. The moat around it is ten stories of poured concrete. Every night it comes apart and goes back together wrong, and the blue light at its edge never stops turning.", by = "ai" }
 
 [book.shadowman]
-lore = { text = "They cross the valley round every raider, the same ones for everyone. Close enough, one rushes, draws back, and lunges, and its touch takes a piece of you; the third sends you back to the Citgo with nothing. Hold a beam on one and it comes apart into mist and skulls, and leaves its dimes.", by = "ai" }
+lore = { text = "They cross the valley round every raider, the same ones for everyone. Close enough, one rushes, draws back, and lunges, and its touch takes a piece of you; the third sends you back to the Citgo with nothing. Hold a beam on one and it comes apart in a spray of black, and leaves its dimes.", by = "ai" }
 
 [book.spider]
 name = { text = "Shadow Spider", by = "ai" }

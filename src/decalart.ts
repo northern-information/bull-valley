@@ -149,8 +149,7 @@ const SHADE = '#3c3e42'
 const WASH = '#5e6166'
 const BONE = '#a4a6a8'
 
-// A skull of size s (its cranium radius) at (x, y). The shadowmen's
-// bursts (assets.ts buildShadowBurst) throw the same skull.
+// A skull of size s (its cranium radius) at (x, y).
 export function skull(
   ctx: CanvasRenderingContext2D,
   x: number,
