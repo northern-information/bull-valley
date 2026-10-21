@@ -465,6 +465,39 @@ describe('resolveInteraction', () => {
   })
 })
 
+describe('resolveInteraction: another raider', () => {
+  const raider = { name: 'Kid' }
+
+  it('inspects the raider in front, before a pickup', () => {
+    const near: PickupSpot = {
+      kind: 'cabbage',
+      count: 1,
+      x: 250.5,
+      z: 250,
+      taken: false,
+    }
+    expect(resolveInteraction(input({ raider, pickups: [near] }))).toEqual({
+      kind: 'inspect',
+      name: 'Kid',
+    })
+  })
+
+  it('leaves Gron, the truck and the shelves first', () => {
+    expect(resolveInteraction(input({ raider, truck: besideTruck }))).toEqual({
+      kind: 'board',
+    })
+    expect(resolveInteraction(input({ raider, shelf }))?.kind).toBe('buy')
+  })
+
+  it('says whom E inspects', () => {
+    const inspect = { kind: 'inspect', name: 'Kid' } as const
+    expect(interactionPrompt(inspect)).toBe(
+      copy('prompts.inspect', { name: 'Kid' })
+    )
+    expect(interactionKey(inspect)).toBe('inspect:Kid')
+  })
+})
+
 describe('resolveInteraction: bodies and lockers', () => {
   const corpse = {
     id: 4,

@@ -274,6 +274,19 @@
 //    never a raider's spilled wallet) the chance, on the valley's roll, of
 //    as many again into their own wallet (extraDimes, Reduced.found); the
 //    drop and everyone else's take are as they were.
+// 34. Parties (party.ts): a raider invites another in the valley by name,
+//    and the other joins by inviting back (a party of the two, or the
+//    inviter's); a party holds CONFIG.party.size, and a raider is in one
+//    at most. The valley keeps them by account, never in D1 and never
+//    an account on the wire: a raider whose last socket goes is away
+//    from it, back in it on a reconnect, and out of it once the linger
+//    runs out (`party-drop`, or the next arrival); one who leaves is out
+//    at once, and a party of one is none. Every member whose party
+//    changed is sent it again (Reduced.party) with the news
+//    (Reduced.partyNews). A burning of the Caretaker credits every member
+//    of a burner's party placed within CONFIG.party.creditRadius of them
+//    (creditedWithParty). Its chat goes to its members alone, under the
+//    chat rules and rate, and is never kept.
 
 import { bountyOf } from './book.ts'
 import { dosed, inPassReach, scaled, sobered, wardsOf } from './buffs.ts'
@@ -301,6 +314,7 @@ import {
   woundedBy,
 } from './expeditions.ts'
 import { fallDamage } from './fall.ts'
+import { sameName } from './friends.ts'
 import { bury } from './graves.ts'
 import {
   hit,
@@ -337,6 +351,16 @@ import {
   settleTruck,
 } from './marx.ts'
 import { mazeToWorld } from './maze.ts'
+import {
+  dropAway,
+  markAway,
+  NO_PARTIES,
+  partyInvite,
+  partyLeave,
+  partyOf,
+  renamed,
+  withParty,
+} from './party.ts'
 import { fieldEnd, freeSlot, nextClose, openAt, ringEnd } from './portals.ts'
 import { PROTOCOL_VERSION } from './protocol.ts'
 import { atHeart, isQuest, QUESTS, questStep } from './quests.ts'
@@ -372,6 +396,7 @@ import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckChange, TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
 import type { OutfitId } from './outfits.ts'
+import type { Parties, Party } from './party.ts'
 import type { Portal } from './portals.ts'
 import type { XpGrant, XpSource } from './progression.ts'
 import type {
@@ -379,6 +404,7 @@ import type {
   DailyWire,
   NackMessage,
   NackRe,
+  PartyNewsMessage,
   PeerStateWire,
   PickupSpec,
   Place,
@@ -480,6 +506,9 @@ export interface Valley {
   wards: Record<string, WardState>
   // Rule 28: account -> every Citgo it has stood at, and the last.
   citgos: Record<string, CitgoLog>
+  // Rule 34: the parties and the invites waiting, by account (never on
+  // the wire).
+  parties: Parties
 }
 
 interface ValleyCorpse extends Corpse {
@@ -647,6 +676,12 @@ export type ValleyAction =
   | { type: 'deal'; id: string; kind: string; pay: string; at: XZ | null }
   // Rule 9: a new name, a new character, or both.
   | { type: 'appearance'; id: string; name?: string; outfit?: OutfitId }
+  // Rule 34: invite the raider in the valley named `name` (or join them,
+  // inviting back); leave the party; an account whose linger ran out with
+  // no socket left, out of its party.
+  | { type: 'invite'; id: string; name: string }
+  | { type: 'party-leave'; id: string }
+  | { type: 'party-drop'; account: string }
   // Rule 28: the raider stands at Citgo `station`; a Citgo portal opened.
   | { type: 'visit'; id: string; station: number }
   | { type: 'open-portal'; id: string; at: Facing | null }
@@ -773,6 +808,17 @@ export interface Reduced {
   // Rule 33: the dimes loose change found over a burst's, already in the
   // taker's wallet (Reduced.earn), for the account's sockets.
   found?: { account: string; dimes: number }
+  // Rule 34: the accounts whose party (or invites) changed, each to be
+  // sent its party frame (party.ts partyWire), and the news for the log.
+  party?: string[]
+  partyNews?: PartyNews[]
+}
+
+// Rule 34: one line of party news, for one account's log.
+export interface PartyNews {
+  account: string
+  news: PartyNewsMessage['news']
+  name: string
 }
 
 export interface ResearchChange {
@@ -849,6 +895,7 @@ export function createValley(): Valley {
     wounds: {},
     wards: {},
     citgos: {},
+    parties: NO_PARTIES,
   }
 }
 
@@ -1239,6 +1286,12 @@ function act(
       return onTrade(valley, action, context)
     case 'appearance':
       return onAppearance(valley, action, context)
+    case 'invite':
+      return onInvite(valley, action, context)
+    case 'party-leave':
+      return onPartyLeave(valley, action, context)
+    case 'party-drop':
+      return onPartyDrop(valley, action, context)
     case 'visit':
       return onVisit(valley, action, context)
     case 'open-portal':
@@ -1312,10 +1365,37 @@ function onJoin(
     outfit: action.outfit,
     level: action.level ?? 1,
   }
-  const next: Valley = { ...valley, members, world: { ...world, truck } }
+  const arrived = backInParty(
+    { ...valley, members, world: { ...world, truck } },
+    action.account,
+    now
+  )
+  const next = arrived.valley
   return done(next, now, {
     broadcast: [frame(next, 'joined', { by: action.id })],
+    ...partyFields(arrived.party, arrived.partyNews),
   })
+}
+
+// Rule 34: an account in the valley again, back in its party (no longer
+// away), and everyone away past the linger out of theirs; the parties
+// that changed are sent again.
+function backInParty(
+  valley: Valley,
+  account: string,
+  now: number
+): { valley: Valley; party: string[]; partyNews: PartyNews[] } {
+  const dropped = dropLingered(valley, now)
+  const parties = markAway(dropped.valley.parties, account, null)
+  const party = [...dropped.party]
+  for (const to of accountsOf(partyOf(parties, account))) {
+    if (!party.includes(to)) party.push(to)
+  }
+  return {
+    valley: { ...dropped.valley, parties },
+    party,
+    partyNews: dropped.partyNews,
+  }
 }
 
 function onDial(
@@ -1337,9 +1417,11 @@ function onDial(
     level: action.level,
     dialup: true,
   }
-  const next: Valley = { ...valley, members }
+  const arrived = backInParty({ ...valley, members }, action.account, now)
+  const next = arrived.valley
   return done(next, now, {
     broadcast: [frame(next, 'joined', { by: action.id })],
+    ...partyFields(arrived.party, arrived.partyNews),
   })
 }
 
@@ -1352,7 +1434,14 @@ function onLeave(
   if (!member) return done(valley, now, { broadcast: [] })
   const members = { ...valley.members }
   delete members[action.id]
-  let next: Valley = { ...valley, members }
+  // Rule 34: the account's last socket gone, it is away from its party
+  // (out of it once the linger runs out); its party hears it is.
+  const gone = !Object.values(members).some((m) => m.account === member.account)
+  const parties = gone
+    ? markAway(valley.parties, member.account, now)
+    : valley.parties
+  const party = gone ? accountsOf(partyOf(parties, member.account)) : []
+  let next: Valley = { ...valley, members, parties }
   const world = next.world
   // Rule 2: where they stood on foot is where they come back.
   const at = action.at
@@ -1365,10 +1454,13 @@ function onLeave(
       },
     }
   }
-  if (!world) return done(next, now, { broadcast: [] })
+  if (!world) {
+    return done(next, now, { broadcast: [], ...partyFields(party, []) })
+  }
   next = withTruck(next, world, leave(world.truck, action.id, now))
   return done(next, now, {
     broadcast: [frame(next, 'left', { by: action.id })],
+    ...partyFields(party, []),
   })
 }
 
@@ -2528,8 +2620,153 @@ function onAppearance(
         outfit: action.outfit ?? member.outfit,
       },
     },
+    // Rule 34: the parties name them by the new name too.
+    parties: action.name
+      ? renamed(valley.parties, member.account, action.name)
+      : valley.parties,
   }
-  return done(next, now, { broadcast: [] })
+  const party = action.name
+    ? accountsOf(partyOf(next.parties, member.account))
+    : []
+  return done(next, now, { broadcast: [], ...partyFields(party, []) })
+}
+
+// Rule 34: the accounts of a party's members.
+function accountsOf(party: Party | null): string[] {
+  return party ? party.members.map((m) => m.account) : []
+}
+
+// Rule 34: everyone in the valley's parties away past the linger, out;
+// each one's party told, and sent it again.
+function dropLingered(
+  valley: Valley,
+  now: number
+): { valley: Valley; party: string[]; partyNews: PartyNews[] } {
+  const { state, dropped } = dropAway(valley.parties, now - CONFIG.net.lingerMs)
+  if (dropped.length === 0) return { valley, party: [], partyNews: [] }
+  const party: string[] = []
+  const partyNews: PartyNews[] = []
+  for (const { account, party: was } of dropped) {
+    const name = was.members.find((m) => m.account === account)?.name ?? ''
+    for (const to of accountsOf(was)) {
+      if (!party.includes(to)) party.push(to)
+      if (to !== account) partyNews.push({ account: to, news: 'left', name })
+    }
+  }
+  return { valley: { ...valley, parties: state }, party, partyNews }
+}
+
+// The party fields of a Reduced, left out when empty.
+function partyFields(
+  party: readonly string[],
+  partyNews: readonly PartyNews[]
+): Pick<Reduced, 'party' | 'partyNews'> {
+  return {
+    ...(party.length > 0 ? { party: [...party] } : {}),
+    ...(partyNews.length > 0 ? { partyNews: [...partyNews] } : {}),
+  }
+}
+
+// Rule 34: an invite to the raider in the valley named `name`, or theirs
+// taken up by inviting back.
+function onInvite(
+  valley: Valley,
+  action: ActionOf<'invite'>,
+  { now }: ValleyContext
+): Reduced {
+  const me = valley.members[action.id]
+  if (!me) return done(valley, now, { broadcast: [] })
+  const them = Object.values(valley.members).find((m) =>
+    sameName(m.name, action.name)
+  )
+  if (!them) {
+    return done(valley, now, {
+      broadcast: [],
+      reply: nack('invite', 'not-here'),
+    })
+  }
+  const from = { account: me.account, name: me.name }
+  const to = { account: them.account, name: them.name }
+  const out = partyInvite(valley.parties, from, to, now)
+  const next: Valley = { ...valley, parties: out.state }
+  if (out.outcome === 'invited') {
+    return done(next, now, {
+      broadcast: [],
+      ...partyFields(
+        [to.account],
+        [
+          { account: to.account, news: 'invited', name: me.name },
+          { account: me.account, news: 'sent', name: them.name },
+        ]
+      ),
+    })
+  }
+  if (out.outcome !== 'joined') {
+    return done(valley, now, {
+      broadcast: [],
+      reply: nack('invite', out.outcome),
+    })
+  }
+  const members = accountsOf(out.party)
+  return done(next, now, {
+    broadcast: [],
+    ...partyFields(
+      members,
+      members.map((account) => ({ account, news: 'joined', name: me.name }))
+    ),
+  })
+}
+
+// Rule 34: out of the party; everyone in it told, the leaver too.
+function onPartyLeave(
+  valley: Valley,
+  action: ActionOf<'party-leave'>,
+  { now }: ValleyContext
+): Reduced {
+  const me = valley.members[action.id]
+  if (!me) return done(valley, now, { broadcast: [] })
+  const out = partyLeave(valley.parties, me.account)
+  if (!out.party) {
+    return done(valley, now, {
+      broadcast: [],
+      reply: nack('party-leave', 'no-party'),
+    })
+  }
+  const members = accountsOf(out.party)
+  return done({ ...valley, parties: out.state }, now, {
+    broadcast: [],
+    ...partyFields(
+      members,
+      members.map((account) => ({ account, news: 'left', name: me.name }))
+    ),
+  })
+}
+
+// Rule 34: an account gone past the linger with no socket left, out of
+// its party (the valley's linger timer); one back in the meantime stays.
+function onPartyDrop(
+  valley: Valley,
+  action: ActionOf<'party-drop'>,
+  { now }: ValleyContext
+): Reduced {
+  const here = Object.values(valley.members).some(
+    (m) => m.account === action.account
+  )
+  const party = partyOf(valley.parties, action.account)
+  if (here || !party) return done(valley, now, { broadcast: [] })
+  const name =
+    party.members.find((m) => m.account === action.account)?.name ?? ''
+  const out = partyLeave(valley.parties, action.account)
+  const members = accountsOf(out.party)
+  return done({ ...valley, parties: out.state }, now, {
+    broadcast: [],
+    ...partyFields(
+      members,
+      members
+        .filter((account) => account !== action.account)
+        .map((account) => ({ account, news: 'left', name }))
+    ),
+  })
 }
 
 function onVisit(
@@ -2647,6 +2884,26 @@ function onReset(valley: Valley, { now }: ValleyContext): Reduced {
 // Rules 15, 16 and 22: the accounts behind the sockets whose beams burned the
 // Caretaker or burst a shadowman, each once, in the order their beams were
 // counted.
+// Rule 34: the accounts a burning of the Caretaker credits: each burner's
+// (creditedWith), and every member of a burner's party placed within
+// CONFIG.party.creditRadius of them (party.ts withParty).
+export function creditedWithParty(
+  valley: Valley,
+  ids: readonly string[],
+  raiders: readonly { id: string; x: number; z: number }[]
+): string[] {
+  const spots = raiders.flatMap(({ id, x, z }) => {
+    const account = valley.members[id]?.account
+    return account ? [{ id, account, x, z }] : []
+  })
+  const burners = spots.filter((spot) => ids.includes(spot.id))
+  const credited = creditedWith(valley, ids)
+  for (const account of withParty(valley.parties, burners, spots)) {
+    if (!credited.includes(account)) credited.push(account)
+  }
+  return credited
+}
+
 export function creditedWith(valley: Valley, ids: readonly string[]): string[] {
   const accounts: string[] = []
   for (const id of ids) {

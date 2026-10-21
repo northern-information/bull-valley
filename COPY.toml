@@ -532,6 +532,7 @@ locked = { text = "E — Locked", by = "ai" }
 lay = { text = "E — Lay the Rose", by = "ai" }
 descend = { text = "E — Climb Down", by = "ai" }
 ascend = { text = "E — Climb Up", by = "ai" }
+inspect = { text = "E — Inspect {name}", by = "ai" }
 climb_tower = { text = "E — Climb the Lookout", by = "ai" }
 leave_tower = { text = "E — Climb Down", by = "ai" }
 
@@ -564,7 +565,7 @@ offline = { text = "No one can hear you.", by = "ai" }
 online = { text = "In the valley: {names}.", by = "ai" }
 online_name = { text = "{name} (level {level})", by = "ai" }
 online_phone = { text = "{name} (level {level}, on the phone)", by = "ai" }
-unknown_command = { text = "No such command. Try /online, /emotes, /friends, /friend name, /unfriend name or /w name message.", by = "ai" }
+unknown_command = { text = "No such command. Try /online, /emotes, /friends, /friend name, /unfriend name, /inspect name, /invite name, /party, /leave, /p message or /w name message.", by = "ai" }
 usage_whisper = { text = "To whisper: /w name message", by = "ai" }
 usage_friend = { text = "To ask a raider to be friends: /friend name", by = "ai" }
 usage_unfriend = { text = "To stop being friends: /unfriend name", by = "ai" }
@@ -600,6 +601,57 @@ failed = { text = "The friends list could not be changed. Try again soon.", by =
 news_asked = { text = "{name} asks to be friends. /friend {name} to accept.", by = "ai" }
 news_accepted = { text = "{name} is your friend now.", by = "ai" }
 news_online = { text = "Your friend {name} is in the valley.", by = "ai" }
+
+# Parties (src/party.ts): /invite asks a raider, /invite back joins
+# them, /leave, /party lists it, /p says a line to it alone.
+
+[party]
+self = { text = "You are already with yourself.", by = "ai" }
+invited = { text = "You invited {name} to your party.", by = "ai" }
+already_invited = { text = "You already invited {name}.", by = "ai" }
+already_in = { text = "{name} is already in your party.", by = "ai" }
+in_party = { text = "{name} is in another party.", by = "ai" }
+leave_first = { text = "Leave your party first: /leave", by = "ai" }
+full = { text = "A party holds {size}. This one is full.", by = "ai" }
+none = { text = "You are in no party. /invite name asks a raider.", by = "ai" }
+failed = { text = "The party could not be changed. Try again soon.", by = "ai" }
+members = { text = "Your party: {names}.", by = "ai" }
+away = { text = "{name} (away)", by = "ai" }
+left = { text = "You left the party.", by = "ai" }
+you_joined = { text = "You joined the party.", by = "ai" }
+news_invited = { text = "{name} invites you to their party. /invite {name} to join.", by = "ai" }
+news_joined = { text = "{name} joined the party.", by = "ai" }
+news_left = { text = "{name} left the party.", by = "ai" }
+said = { text = "{name} to the party", by = "ai" }
+usage_invite = { text = "To invite a raider: /invite name", by = "ai" }
+usage_say = { text = "To speak to your party: /p message", by = "ai" }
+invite_button = { text = "Invite to Party", by = "ai" }
+invited_button = { text = "Invited", by = "ai" }
+member_button = { text = "In Your Party", by = "ai" }
+join_button = { text = "Join", by = "ai" }
+leave_button = { text = "Leave", by = "ai" }
+heading = { text = "Party", by = "ai" }
+
+# Inspecting another raider (src/inspect.ts): E on one in reach, or
+# /inspect name, opens their card.
+
+[inspect]
+eyebrow = { text = "Raider", by = "ai" }
+online = { text = "In the valley", by = "ai" }
+away = { text = "Away", by = "ai" }
+level = { text = "Level", by = "ai" }
+character = { text = "Character", by = "ai" }
+character_value = { text = "{character}, {finish} guitar", by = "ai" }
+cosmetics = { text = "Wearing", by = "ai" }
+none = { text = "Nothing extra", by = "ai" }
+add_friend = { text = "Add Friend", by = "ai" }
+accept = { text = "Accept Friend", by = "ai" }
+asked = { text = "Asked", by = "ai" }
+friends = { text = "Friends", by = "ai" }
+close = { text = "Close", by = "ai" }
+usage = { text = "To inspect a raider: /inspect name", by = "ai" }
+too_fast = { text = "You are looking too fast.", by = "ai" }
+failed = { text = "That card could not be read. Try again soon.", by = "ai" }
 
 # The Tab pack grid and the hotbar (src/hud.ts). Item cards are under
 # [items].

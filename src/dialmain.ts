@@ -29,6 +29,7 @@ import {
 } from './dialstate.ts'
 import { text } from './dom.ts'
 import { fontsReady } from './fonts.ts'
+import { befriended, partied } from './inspect.ts'
 import { itemLine } from './itemcopy.ts'
 import { mountModem } from './modemhud.ts'
 import { NetClient, socketUrl } from './net.ts'
@@ -124,6 +125,7 @@ async function boot(): Promise<void> {
     state = next
     takeOnShown()
     shell?.render(state)
+    if (msg.type === 'inspected') showInspected()
   })
   net.onRefused((code) => {
     // A session lost mid-play, as the 3D valley says it: the modem is long
@@ -155,6 +157,37 @@ async function boot(): Promise<void> {
     state = asking(state, what, net.online, performance.now())
     net.send(msg)
     shell?.render(state)
+  }
+  // A raider's card (inspect.ts), opened when the valley's answer lands
+  // and brought up to date while it is open (dialstate.ts keeps it).
+  let inspecting = false
+  const showInspected = () => {
+    const card = state.inspected
+    if (inspecting || !card) return
+    inspecting = true
+    void import('./dial3d.ts')
+      .then(({ openInspectDialog }) =>
+        openInspectDialog({
+          card: () => state.inspected ?? card,
+          onFriend: (name) => {
+            send({ type: 'friend', name }, { ask: { op: 'friend', name } })
+            if (net.online && state.inspected) {
+              state = { ...state, inspected: befriended(state.inspected) }
+            }
+          },
+          onParty: (name) => {
+            send({ type: 'invite', name }, { invite: name })
+            if (net.online && state.inspected) {
+              state = { ...state, inspected: partied(state.inspected) }
+            }
+          },
+        })
+      )
+      .finally(() => {
+        inspecting = false
+        state = { ...state, inspected: null }
+        shell?.render(state)
+      })
   }
   // The line dropped: net.ts redials on its own, and nothing asked of it
   // is answered now, so nothing waits on it.
@@ -298,6 +331,9 @@ async function boot(): Promise<void> {
         send({ type: 'friend', name }, { ask: { op: 'friend', name } }),
       unfriend: (name) =>
         send({ type: 'unfriend', name }, { ask: { op: 'unfriend', name } }),
+      inspect: (name) => send({ type: 'inspect', name }, { inspect: name }),
+      invite: (name) => send({ type: 'invite', name }, { invite: name }),
+      leave: () => send({ type: 'party-leave' }, {}),
     },
     openStand: () => {
       void openStandDialog({

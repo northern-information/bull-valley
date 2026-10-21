@@ -164,6 +164,24 @@ describe('chat', () => {
       name: 'Baker',
     })
     expect(parse({ type: 'friend', name: 7 })).toBeNull()
+    expect(parse({ type: 'inspect', name: 'Baker' })).toEqual({
+      type: 'inspect',
+      name: 'Baker',
+    })
+    expect(parse({ type: 'inspect', name: '' })).toBeNull()
+    expect(parse({ type: 'invite', name: 'Baker' })).toEqual({
+      type: 'invite',
+      name: 'Baker',
+    })
+    expect(parse({ type: 'invite' })).toBeNull()
+    expect(parse({ type: 'party-leave', extra: 1 })).toEqual({
+      type: 'party-leave',
+    })
+    expect(parse({ type: 'party-chat', text: 'to the maze' })).toEqual({
+      type: 'party-chat',
+      text: 'to the maze',
+    })
+    expect(parse({ type: 'party-chat', text: '' })).toBeNull()
     expect(parse({ type: 'unfriend' })).toBeNull()
     expect(parse({ type: 'friends', extra: 1 })).toEqual({ type: 'friends' })
   })

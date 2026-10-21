@@ -11,6 +11,7 @@ import {
   emoteLine,
   joinedLine,
   othersLine,
+  partyChatLine,
   peerNews,
   whisperLine,
 } from './chat.ts'
@@ -27,8 +28,10 @@ import {
   whisperRefusal,
 } from './friends.ts'
 import { freshPending } from './game.ts'
+import { inspectRefusal } from './inspect.ts'
 import { pickupLabel } from './interactions.ts'
 import { toInventory } from './inventory.ts'
+import { partyNews, partyRefusal } from './party.ts'
 import { levelUp } from './progression.ts'
 import { CLOSE } from './protocol.ts'
 import {
@@ -164,6 +167,23 @@ export function wireValley(game: Game, actions: Actions): void {
       }
       case 'friend-news':
         hud.tell(friendNews(msg.news, msg.name))
+        return
+      // A raider's card, asked for by E or /inspect.
+      case 'inspected':
+        actions.showInspected(msg.card)
+        return
+      // Rule 34: the party, its news, and a line said to it.
+      case 'party':
+        s.party = { members: msg.members, invites: msg.invites }
+        return
+      case 'party-news':
+        if (msg.news === 'sent' || msg.news === 'joined') {
+          s.pending.invite = null
+        }
+        hud.tell(partyNews(msg.news, msg.name, game.pick.username))
+        return
+      case 'party-chat':
+        hud.chatLine(partyChatLine(msg), now)
         return
       case 'pong':
         return
@@ -371,6 +391,16 @@ export function wireValley(game: Game, actions: Actions): void {
       hud.tell(CHAT_COPY.tooFast)
     } else if (msg.re === 'whisper') {
       hud.tell(whisperRefusal(msg.reason, s.pending.whisperTo ?? ''))
+    } else if (
+      msg.re === 'invite' ||
+      msg.re === 'party-leave' ||
+      msg.re === 'party-chat'
+    ) {
+      hud.tell(partyRefusal(msg.reason, s.pending.invite ?? ''))
+      s.pending.invite = null
+    } else if (msg.re === 'inspect') {
+      hud.tell(inspectRefusal(msg.reason, s.pending.inspect ?? ''))
+      s.pending.inspect = null
     } else if (msg.re === 'friend' || msg.re === 'unfriend') {
       hud.tell(friendRefusal(msg.reason, s.pending.ask?.name ?? ''))
       s.pending.ask = null

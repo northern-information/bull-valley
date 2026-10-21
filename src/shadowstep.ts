@@ -25,6 +25,7 @@ import {
 import {
   citgosFor,
   creditedWith,
+  creditedWithParty,
   grantsTo,
   inTheBed,
   wardsFor,
@@ -242,7 +243,7 @@ function stepKeeper(
       z: round(out.burst.z, 2),
     },
     caught: out.struck,
-    credited: creditedWith(valley, out.burnedBy),
+    credited: creditedWithParty(valley, out.burnedBy, raiders),
   }
 }
 

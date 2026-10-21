@@ -1,4 +1,5 @@
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import { BOOK } from '../../src/book.ts'
 import { heartPoint, theMaze } from '../../src/caretaker.ts'
 import { CONFIG } from '../../src/config.ts'
 import { dayKey } from '../../src/daily.ts'
@@ -1305,6 +1306,128 @@ describe('ValleyDO', () => {
     socket
       .frames()
       .filter((m): m is Extract<ServerMessage, { type: T }> => m.type === type)
+
+  it("sends a raider's card to the asker alone, in the valley or not", async () => {
+    const { valley: v, state: s } = await valley()
+    await named(v, 'Able', 'Baker', 'Dog')
+    const store = v.packStore
+    await store.gainXp('acct-Baker', xpToReach(3))
+    await store.discover('acct-Baker', ['citgo', 'nope'], 0)
+    await store.score(
+      'acct-Baker',
+      SEASON.id,
+      { kills: 2, claimed: false },
+      null
+    )
+    await v.accountStore.setLook('acct-Baker', {
+      outfit: 'kvistad',
+      finish: 'cherry',
+    })
+    const a = await join(v, s, 'Able')
+    const b = await join(v, s, 'Baker')
+    const inspect = (socket: MockSocket, name: string) =>
+      v.webSocketMessage(ws(socket), JSON.stringify({ type: 'inspect', name }))
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ type: 'friend', name: 'Baker' })
+    )
+    const heard = b.frames().length
+    await inspect(a, 'baker')
+    expect(ofType(a, 'inspected').at(-1)?.card).toEqual({
+      name: 'Baker',
+      level: 3,
+      outfit: 'kvistad',
+      finish: 'cherry',
+      cosmetics: [],
+      book: { found: 1, of: BOOK.length },
+      season: { kills: 2, goal: SEASON.goal, claimed: false },
+      friend: 'asked',
+      party: null,
+      online: true,
+    })
+    // Baker heard nothing of it, and no account id went out.
+    expect(b.frames().length).toBe(heard)
+    expect(JSON.stringify(a.frames())).not.toContain('acct-')
+    // Someone away, and the asker's own card.
+    await inspect(a, 'Dog')
+    expect(ofType(a, 'inspected').at(-1)?.card).toEqual(
+      expect.objectContaining({ name: 'Dog', online: false, friend: null })
+    )
+    await inspect(a, 'Able')
+    expect(ofType(a, 'inspected').at(-1)?.card.friend).toBe('self')
+    await inspect(a, 'Nobody')
+    expect(a.last()).toEqual({ type: 'nack', re: 'inspect', reason: 'unknown' })
+    for (let i = 0; i < 10; i++) await inspect(a, 'Baker')
+    expect(a.last()).toEqual({
+      type: 'nack',
+      re: 'inspect',
+      reason: 'too-fast',
+    })
+  })
+
+  it('makes a party by invite, keeps its chat to it, and lets it go', async () => {
+    const { valley: v, state: s } = await valley()
+    await named(v, 'Able', 'Baker', 'Charlie')
+    const a = await join(v, s, 'Able')
+    const b = await join(v, s, 'Baker')
+    const c = await join(v, s, 'Charlie')
+    const say = (socket: MockSocket, msg: object) =>
+      v.webSocketMessage(ws(socket), JSON.stringify(msg))
+    await say(a, { type: 'invite', name: 'baker' })
+    expect(ofType(b, 'party-news')).toEqual([
+      { type: 'party-news', news: 'invited', name: 'Able' },
+    ])
+    expect(ofType(b, 'party').at(-1)).toEqual({
+      type: 'party',
+      members: [],
+      invites: ['Able'],
+    })
+    expect(ofType(a, 'party-news').at(-1)?.news).toBe('sent')
+    await say(b, { type: 'invite', name: 'Able' })
+    const both = {
+      type: 'party',
+      members: [
+        { name: 'Able', online: true },
+        { name: 'Baker', online: true },
+      ],
+      invites: [],
+    }
+    expect(ofType(a, 'party').at(-1)).toEqual(both)
+    expect(ofType(b, 'party').at(-1)).toEqual(both)
+    // Its inspect card says so.
+    await say(a, { type: 'inspect', name: 'Baker' })
+    expect(ofType(a, 'inspected').at(-1)?.card.party).toBe('member')
+    // The party hears its line; Charlie does not.
+    await say(b, { type: 'party-chat', text: 'to the maze' })
+    expect(ofType(a, 'party-chat').at(-1)).toEqual(
+      expect.objectContaining({ from: 'Baker', text: 'to the maze' })
+    )
+    expect(ofType(c, 'party-chat')).toEqual([])
+    await say(c, { type: 'party-chat', text: 'hello?' })
+    expect(c.last()).toEqual({
+      type: 'nack',
+      re: 'party-chat',
+      reason: 'no-party',
+    })
+    expect(JSON.stringify([...a.frames(), ...b.frames()])).not.toContain(
+      'acct-'
+    )
+    // Baker's line drops: away, then out once the linger is up.
+    await v.webSocketClose(ws(b))
+    expect(ofType(a, 'party').at(-1)?.members).toEqual([
+      { name: 'Able', online: true },
+      { name: 'Baker', online: false },
+    ])
+    v.lingerOut()
+    await vi.waitFor(() =>
+      expect(ofType(a, 'party-news').at(-1)).toEqual({
+        type: 'party-news',
+        news: 'left',
+        name: 'Baker',
+      })
+    )
+    expect(ofType(a, 'party').at(-1)?.members).toEqual([])
+  })
 
   it('whispers to one raider by name, echoing it to the sender alone', async () => {
     const { valley: v, state: s } = await valley()

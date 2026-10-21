@@ -629,6 +629,17 @@ export const CONFIG = {
     // about 17 m behind it.
     stationReach: 24,
   },
+  // Parties (party.ts, sharedworld.ts rule 34): a few raiders who play
+  // together for a while, kept by the valley while they are in it.
+  party: {
+    // How many raiders one party holds.
+    size: 4,
+    // How long an invite waits on an answer.
+    inviteMs: 60_000,
+    // How near a raider who burned the Caretaker a party member must stand
+    // to share the credit.
+    creditRadius: 40,
+  },
   // The laptop on the card table in the Citgo bathroom (laptop.ts): a
   // text editor over a pretend file system every raider shares.
   laptop: {

@@ -73,6 +73,7 @@ const THREE_AND_DOM = [
   'hallucinationrig',
   'hud',
   'input',
+  'inspectdialog',
   'itemstatsview',
   'itemthumbs',
   'jeep',

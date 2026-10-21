@@ -630,6 +630,95 @@ describe('the folk, the Citgo and the chat on the phone', () => {
       ).said?.text
     ).toBe(copy('friends.self'))
   })
+
+  it('invites, keeps the party, hears it, and says its news', () => {
+    const self = { name: 'Me', level: 2 }
+    const s = { ...me(), name: 'Me' }
+    const asking = sayLine(s, '/invite Kid', self, 0)
+    expect(asking.frame).toEqual({ type: 'invite', name: 'Kid' })
+    expect(asking.state.pending.invite).toBe('Kid')
+    expect(sayLine(s, '/leave', self, 0).frame).toEqual({
+      type: 'party-leave',
+    })
+    expect(sayLine(s, '/p hi', self, 0).frame).toEqual({
+      type: 'party-chat',
+      text: 'hi',
+    })
+    expect(sayLine(s, '/party', self, 0).state.chat.at(-1)?.text).toBe(
+      copy('party.none')
+    )
+    let after = applyFrame(
+      asking.state,
+      { type: 'party-news', news: 'sent', name: 'Kid' },
+      0,
+      0
+    )
+    expect(after.pending.invite).toBeNull()
+    expect(after.chat.at(-1)?.text).toBe(copy('party.invited', { name: 'Kid' }))
+    const party = {
+      members: [
+        { name: 'Me', online: true },
+        { name: 'Kid', online: true },
+      ],
+      invites: [],
+    }
+    after = applyFrame(after, { type: 'party', ...party }, 0, 0)
+    expect(after.party).toEqual(party)
+    after = applyFrame(
+      after,
+      { type: 'party-news', news: 'joined', name: 'Me' },
+      0,
+      0
+    )
+    expect(after.chat.at(-1)?.text).toBe(copy('party.you_joined'))
+    after = applyFrame(
+      after,
+      { type: 'party-chat', from: 'Kid', text: 'maze?', at: 9 },
+      0,
+      0
+    )
+    expect(after.chat.at(-1)).toEqual(
+      expect.objectContaining({ kind: 'party', text: 'maze?' })
+    )
+    const refused = applyFrame(
+      asking.state,
+      { type: 'nack', re: 'invite', reason: 'in-party' },
+      0,
+      0
+    )
+    expect(refused.said?.text).toBe(copy('party.in_party', { name: 'Kid' }))
+    expect(refused.pending.invite).toBeNull()
+  })
+
+  it("asks for a raider's card, keeps the answer, and says a refusal", () => {
+    const self = { name: 'Me', level: 2 }
+    const asking = sayLine(me(), '/inspect Kid', self, 0)
+    expect(asking.frame).toEqual({ type: 'inspect', name: 'Kid' })
+    expect(asking.state.pending.inspect).toBe('Kid')
+    const card = {
+      name: 'Kid',
+      level: 3,
+      outfit: 'player' as const,
+      finish: 'black' as const,
+      cosmetics: [],
+      book: { found: 1, of: 9 },
+      season: { kills: 0, goal: 5, claimed: false },
+      friend: null,
+      party: null,
+      online: true,
+    }
+    const shown = applyFrame(asking.state, { type: 'inspected', card }, 0, 0)
+    expect(shown.inspected).toEqual(card)
+    expect(shown.pending.inspect).toBeNull()
+    const refused = applyFrame(
+      asking.state,
+      { type: 'nack', re: 'inspect', reason: 'unknown' },
+      0,
+      0
+    )
+    expect(refused.said?.text).toBe(copy('friends.unknown', { name: 'Kid' }))
+    expect(refused.pending.inspect).toBeNull()
+  })
 })
 
 describe('expeditions on the phone', () => {

@@ -41,6 +41,8 @@ import {
 import { finishById } from './finishes.ts'
 import { openGronDialog } from './grondialog.ts'
 import { assign, clearSlot as clearHotbarSlot, place, spent } from './hotbar.ts'
+import { befriended, partied } from './inspect.ts'
+import { openInspectDialog } from './inspectdialog.ts'
 import { pickupLabel } from './interactions.ts'
 import { addItem, consume } from './inventory.ts'
 import { itemLabel, itemLine } from './itemcopy.ts'
@@ -57,6 +59,7 @@ import {
   packItems,
   stashItems,
 } from './packgrid.ts'
+import { partyLines } from './party.ts'
 import { enteredAt, exitFrom, openAt } from './portals.ts'
 import { levelOf } from './progression.ts'
 import { normalizeChat } from './protocol.ts'
@@ -86,6 +89,7 @@ import type { NpcId } from './npcs.ts'
 import type { BagAction, BagTab } from './packgrid.ts'
 import type {
   DailyMessage,
+  InspectWire,
   PassedMessage,
   PeerWire,
   WardLevels,
@@ -224,6 +228,9 @@ export interface Actions {
   markUntaken(pickup: Pickup): void
   // E: whatever the loop last resolved E to do.
   interact(): void
+  // A raider's card from the valley (inspect.ts): opened, or the open one
+  // brought up to date.
+  showInspected(card: InspectWire): void
   // One line to the valley.
   say(typed: string): void
 }
@@ -944,12 +951,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       hud.tell(copy('log.pass_aboard'))
       return
     }
-    const peers = [...game.peers.table.values()].flatMap((peer) =>
-      peer.next && !peer.next.riding
-        ? [{ id: peer.id, x: peer.next.x, z: peer.next.z }]
-        : []
-    )
-    const to = passTarget(player.pos, player.yaw, peers)
+    const to = passTarget(player.pos, player.yaw, game.peers.standing())
     if (!to) {
       hud.tell(copy('log.pass_no_one'))
       return
@@ -1157,6 +1159,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       case 'laptop':
         useLaptop()
         return
+      case 'inspect':
+        inspect(interaction.name)
+        return
       case 'stand':
         tendStand()
         return
@@ -1260,6 +1265,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       case 'usage':
         hud.tell(command.line)
         return
+      case 'party':
+        for (const line of partyLines(s.party)) hud.tell(line)
+        return
     }
     if (!net.online) {
       hud.tell(CHAT_COPY.offline)
@@ -1279,7 +1287,80 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         s.pending.ask = { op: command.name, name: command.who }
         net.send({ type: command.name, name: command.who })
         return
+      case 'inspect':
+        inspect(command.who)
+        return
+      case 'invite':
+        invite(command.who)
+        return
+      case 'leave':
+        net.send({ type: 'party-leave' })
+        return
+      case 'partySay':
+        net.send({ type: 'party-chat', text: command.text })
+        return
     }
+  }
+
+  // Rule 34: an invite to the party, or theirs taken up; the valley's
+  // answer says which (valleysync.ts).
+  const invite = (name: string) => {
+    if (!net.online) {
+      hud.tell(CHAT_COPY.offline)
+      return
+    }
+    s.pending.invite = name
+    net.send({ type: 'invite', name })
+  }
+
+  // A raider's card (inspect.ts), asked of the valley by E or /inspect;
+  // it opens when the answer lands (showInspected).
+  const inspect = (name: string) => {
+    if (!net.online) {
+      hud.tell(CHAT_COPY.offline)
+      return
+    }
+    s.pending.inspect = name
+    net.send({ type: 'inspect', name })
+  }
+
+  // The valley's answer: the card, opened over the valley, or brought up
+  // to date while it is open. Another dialog open keeps it shut.
+  const showInspected = (card: InspectWire) => {
+    s.pending.inspect = null
+    const open = s.inspected !== null
+    s.inspected = card
+    if (open) return
+    if (s.talking) {
+      s.inspected = null
+      return
+    }
+    withDialog(() =>
+      openInspectDialog({
+        card: () => s.inspected ?? card,
+        // Asked (or their asking accepted) at once; the friends list that
+        // comes back says so in the log (valleysync.ts).
+        onFriend: (name) => {
+          if (!net.online) {
+            hud.tell(CHAT_COPY.offline)
+            return
+          }
+          s.pending.ask = { op: 'friend', name }
+          net.send({ type: 'friend', name })
+          if (s.inspected) s.inspected = befriended(s.inspected)
+        },
+        onParty: (name) => {
+          if (!net.online) {
+            hud.tell(CHAT_COPY.offline)
+            return
+          }
+          invite(name)
+          if (s.inspected) s.inspected = partied(s.inspected)
+        },
+      }).then(() => {
+        s.inspected = null
+      })
+    )
   }
 
   // --- Rule 28: Citgos, Citgo portals and fast travel ---------------------
@@ -1482,6 +1563,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     markTaken,
     markUntaken,
     interact,
+    showInspected,
     say,
   }
 }

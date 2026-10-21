@@ -309,6 +309,17 @@ test('with a raider on foot in the valley: the Citgo, Erwin, Moab and the chat',
       desk.evaluate(() => window.__bv?.chat.map((line) => line.text) ?? [])
     )
     .toContain('hello from the phone')
+
+  // A name on the online list opens the card, the halo on it.
+  await page
+    .locator(`.bv-dial-online-name[data-raider="${raider.username}"]`)
+    .first()
+    .click()
+  const card = page.getByRole('dialog', { name: raider.username })
+  await expect(card).toContainText(copy('cosmetics.flaming-halo.label'))
+  await expect(card.locator('[data-bv="inspect-friend"]')).toBeHidden()
+  await card.locator('[data-bv="inspect-close"]').click()
+  await expect(card).toBeHidden()
 })
 
 test('a Citgo never stood at has no shelves on the phone', async ({
