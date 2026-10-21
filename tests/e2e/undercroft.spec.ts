@@ -29,12 +29,14 @@ test('the trapdoor goes down to the Undercroft, its gold, and back up', async ({
   await expect
     .poll(() => page.evaluate(() => window.__bv?.inventory['vault-key']))
     .toBe(1)
-  await page.evaluate(() => {
+  const hatch = await page.evaluate(() => {
     const bv = window.__bv
     const croft = bv?.world.undercroft
     if (!bv || !croft) throw new Error('no Undercroft')
     bv.player.relocate(croft.hatch.x + 0.5, croft.hatch.z, 0)
+    return { x: croft.hatch.x, z: croft.hatch.z }
   })
+  await faceSpot(page, hatch.x, hatch.z, 0)
   await expect(prompt(page)).toHaveText(copy('prompts.descend'))
   await page.keyboard.press('KeyE')
   await expect.poll(() => below(page)).toBe(true)
@@ -68,12 +70,14 @@ test('the trapdoor goes down to the Undercroft, its gold, and back up', async ({
     .toBe(1)
 
   // And back up the ladder.
-  await page.evaluate(() => {
+  const foot = await page.evaluate(() => {
     const bv = window.__bv
     const croft = bv?.world.undercroft
     if (!bv || !croft) throw new Error('no Undercroft')
     bv.player.relocate(croft.foot.x + 0.5, croft.foot.z, 0)
+    return { x: croft.foot.x, z: croft.foot.z }
   })
+  await faceSpot(page, foot.x, foot.z, 1.5)
   await expect(prompt(page)).toHaveText(copy('prompts.ascend'))
   await page.keyboard.press('KeyE')
   await expect.poll(() => below(page)).toBe(false)

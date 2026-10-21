@@ -118,26 +118,28 @@ export async function frames(page: Page, count = 10): Promise<void> {
   )
 }
 
-// Turn the raider to look at what lies on the ground at (x, z), as a
-// raider would before taking it up: a pickup is offered only in view.
+// Turn the raider to look at what stands at (x, z), `rise` over the
+// ground there (a pickup's middle by default), as a raider would before
+// pressing E: E answers only what is in view.
 export async function faceSpot(
   page: Page,
   x: number,
-  z: number
+  z: number,
+  rise = 0.1
 ): Promise<void> {
   await page.evaluate(
-    ([x, z]) => {
+    ([x, z, rise]) => {
       const bv = window.__bv
       if (!bv) throw new Error('no dev hook')
       const { player, world } = bv
       const dx = x - player.pos.x
       const dz = z - player.pos.z
-      const dy = world.ground.at(x, z) + 0.1 - (player.groundY + player.eye)
+      const dy = world.ground.at(x, z) + rise - (player.groundY + player.eye)
       // The view looks along (-sin yaw, -cos yaw).
       player.yaw = Math.atan2(-dx, -dz)
       player.pitch = Math.atan2(dy, Math.hypot(dx, dz))
     },
-    [x, z] as const
+    [x, z, rise] as const
   )
 }
 

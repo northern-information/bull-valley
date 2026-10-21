@@ -25,7 +25,7 @@ const doorStops = (page: Page) =>
 
 // In front of Erwin, the way he faces, and heard there.
 async function toErwin(page: Page): Promise<void> {
-  await page.evaluate(() => {
+  const at = await page.evaluate(() => {
     const bv = window.__bv
     const plaza = bv?.world.plaza
     if (!bv || !plaza) throw new Error('no plaza')
@@ -36,7 +36,9 @@ async function toErwin(page: Page): Promise<void> {
       at.z + Math.cos(turn) * 1.2,
       0
     )
+    return { x: at.x, z: at.z }
   })
+  await faceSpot(page, at.x, at.z, 0.8)
   await heardWhere(page)
 }
 
@@ -73,14 +75,16 @@ test('Erwin barters, the rose earns the key, the key opens the office', async ({
   // Laid at the heart of the maze, the Caretaker parked at the maze's far
   // corner, out of sight of it: a strike there would leave the rose on the
   // raider's body.
-  await page.evaluate(() => {
+  const heart = await page.evaluate(() => {
     const bv = window.__bv
     const portal = bv?.world.portal
     const corner = bv?.world.mazePlace
     if (!bv || !portal || !corner) throw new Error('no maze')
     bv.placeCaretaker(corner.x, corner.z)
     bv.player.relocate(portal.rose.position.x, portal.rose.position.z, 0)
+    return { x: portal.at.x, z: portal.at.z }
   })
+  await faceSpot(page, heart.x, heart.z, 1.2)
   await heardWhere(page)
   await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.lay'))
   await page.keyboard.press('KeyE')
