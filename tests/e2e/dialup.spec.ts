@@ -69,13 +69,31 @@ test('stows from the pack, takes it back out of the locker, and keeps the hotbar
     copy('stats.cigarette')
   )
   await pack.getByRole('button', { name: copy('dialup.pack.stow_one') }).click()
-  // The locker, from the lobby, wherever the raider is.
+  // The locker, from the lobby, wherever the raider is: what is on the
+  // raider apart from what the locker holds, and either way from there.
   await page.locator('.bv-dial-tab[data-tab="lobby"]').click()
   await page.locator('.bv-dial-card[data-card="locker"]').click()
   const stowed = page.locator(
-    '.bv-dial-sheet .bv-dial-item[data-kind="marlboro"]'
+    '.bv-dial-sheet [data-section="locker"] .bv-dial-item[data-kind="marlboro"]'
   )
   await expect(stowed).toBeVisible()
+  // What is still on the raider goes in from the sheet too, and back.
+  const carried = page.locator(
+    '.bv-dial-sheet [data-section="pack"] .bv-dial-item[data-kind="joints"]'
+  )
+  await carried.locator('summary').click()
+  await carried
+    .getByRole('button', { name: copy('dialup.pack.stow_all') })
+    .click()
+  await expect(carried).toHaveCount(0)
+  const joints = page.locator(
+    '.bv-dial-sheet [data-section="locker"] .bv-dial-item[data-kind="joints"]'
+  )
+  await joints.locator('summary').click()
+  await joints
+    .getByRole('button', { name: copy('dialup.pack.take_all') })
+    .click()
+  await expect(carried).toBeVisible()
   await stowed.locator('summary').click()
   await stowed
     .getByRole('button', { name: copy('dialup.pack.take_all') })
