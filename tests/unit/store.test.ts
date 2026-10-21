@@ -14,6 +14,7 @@ import {
   toLocal,
   toWorld,
   unitInView,
+  unitsOf,
   worldFacings,
 } from '../../src/store.ts'
 import { unitsLeft } from './stock.ts'
@@ -23,14 +24,41 @@ import type { StoreOrigin, WorldFacing } from '../../src/store.ts'
 const origin: StoreOrigin = { x: 100, z: -40, yaw: 0.7, y: 12 }
 
 describe('STORE_LAYOUT', () => {
-  it('shelves every priced item once, three units each, and no forage', () => {
+  it('shelves every priced item once, its stock each, and no forage', () => {
     const kinds = STORE_LAYOUT.facings.map((f) => f.kind)
     const forSale = ITEMS.filter((item) => 'price' in item)
     expect(new Set(kinds).size).toBe(forSale.length)
     expect(kinds).toHaveLength(forSale.length)
     expect(kinds).not.toContain('berries')
     for (const facing of STORE_LAYOUT.facings) {
-      expect(facing.slots).toHaveLength(CONFIG.store.perItem)
+      expect(facing.slots).toHaveLength(unitsOf(facing.kind))
+    }
+    expect(unitsOf('pbr')).toBe(CONFIG.store.perItem)
+    expect(unitsOf('ice-mountain')).toBe(20)
+  })
+
+  it('stands every drink in the coolers, behind their glass', () => {
+    const doors = STORE_LAYOUT.boxes.filter((b) => b.finish === 'cooler-glass')
+    expect(doors.length).toBeGreaterThan(0)
+    const glass = Math.min(...doors.map((d) => d.center[0] - d.size[0] / 2))
+    const top = Math.max(...doors.map((d) => d.center[1] + d.size[1] / 2))
+    const base = STORE_LAYOUT.boxes.find((b) => b.name === 'cooler-base')
+    expect(base?.blocks).toBe(true)
+    const drinks = new Set(
+      ITEMS.filter((item) => item.category === 'drink').map((item) => item.id)
+    )
+    const facings = STORE_LAYOUT.facings.filter((f) => drinks.has(f.kind))
+    expect(facings).toHaveLength(drinks.size)
+    for (const facing of facings) {
+      for (const [x, y, z] of facing.slots) {
+        expect(x).toBeLessThan(glass)
+        expect(x).toBeGreaterThan(STORE_LAYOUT.partition)
+        expect(y).toBeLessThan(top)
+        // Inside some door's width.
+        expect(
+          doors.some((d) => Math.abs(z - d.center[2]) < d.size[2] / 2)
+        ).toBe(true)
+      }
     }
   })
 

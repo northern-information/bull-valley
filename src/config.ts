@@ -401,8 +401,10 @@ export const CONFIG = {
   store: {
     // A new account's wallet, in cents (worker/packs.ts).
     startingCash: 4000,
-    // Units of every item on each Citgo's shelves when the day turns.
+    // Units of every item on each Citgo's shelves when the day turns, and
+    // the kinds stocked deeper than that.
     perItem: 3,
+    stock: { 'ice-mountain': 20 } as Readonly<Record<string, number>>,
     // How close a shelf unit must be, from the eye, for E to buy it.
     reach: 2.2,
     // How far off the view ray, in radians, a unit can sit and still be

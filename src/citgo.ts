@@ -107,6 +107,32 @@ const STORE_FINISH: Record<StoreFinish, () => THREE.Material> = {
     }),
   shelf: () => lambert({ color: '#3e434a' }),
   counter: () => lambert({ color: '#5a3426' }),
+  // The coolers: white enamel, a pale lit back the drinks stand against,
+  // a sign strip over the doors that glows from any angle, and doors of
+  // clearer glass than the storefront's, so the drinks show through.
+  cooler: () =>
+    lambert({
+      color: '#d9dcd8',
+      emissive: new THREE.Color('#3a3c3a'),
+      emissiveIntensity: 0.5,
+    }),
+  'cooler-inside': () =>
+    lambert({
+      color: '#c9d6dc',
+      emissive: new THREE.Color('#8fa4ad'),
+      emissiveIntensity: 0.6,
+    }),
+  'cooler-glow': () =>
+    applyPS1(new THREE.MeshBasicMaterial({ color: '#f2f6f8' })),
+  'cooler-glass': () =>
+    applyPS1(
+      new THREE.MeshBasicMaterial({
+        color: '#cfe4ee',
+        transparent: true,
+        opacity: 0.12,
+        depthWrite: false,
+      })
+    ),
   // The lockers' carcass, enamelled steel gone dull.
   locker: () =>
     lambert({
