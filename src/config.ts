@@ -1131,16 +1131,21 @@ export const CONFIG = {
     // crawling longer and slower, lying a while, then melting into the
     // concrete; no one comes out with a bat.
     moat: {
-      slotSeconds: 20,
-      jitterSeconds: 10,
-      maxCount: 4,
-      multiChance: 0.5,
-      craneShare: 0.35,
+      // The channel runs some 600 m round both walls, so the drops come
+      // thick and mostly off the walls: some two dozen lie in it at once,
+      // the nearest to anyone on the floor 10 to 25 m off (a drop every 20
+      // seconds, a third of them under the cranes, left a few in it, 30 to
+      // 100 m off in the fog, and no one saw them).
+      slotSeconds: 2,
+      jitterSeconds: 1.5,
+      maxCount: 3,
+      multiChance: 0.4,
+      craneShare: 0.15,
       crawlSpeed: 0.1,
       crawlSeconds: 7,
       lingerSeconds: 18,
       // The rigs drawn at once, more than the slots overlapping hold.
-      pool: 14,
+      pool: 48,
     },
   },
   moab: {
