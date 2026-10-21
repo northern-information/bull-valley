@@ -1537,6 +1537,73 @@ describe('ValleyDO', () => {
     )
   })
 
+  it('puts a member out, and says why a crew frame was refused', async () => {
+    const { valley: v, state: s } = await valley()
+    await named(v, 'Able', 'Baker', 'Charlie')
+    const a = await join(v, s, 'Able', { dev: true })
+    const b = await join(v, s, 'Baker')
+    const c = await join(v, s, 'Charlie')
+    // Each frame past the friend rate's window, so the refusals are the
+    // crew's own.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+    const say = (socket: MockSocket, msg: object) => {
+      vi.setSystemTime(Date.now() + 10_001)
+      return v.webSocketMessage(ws(socket), JSON.stringify(msg))
+    }
+    const refused = async (socket: MockSocket, msg: object, reason: string) => {
+      await say(socket, msg)
+      expect(socket.last()).toEqual(
+        expect.objectContaining({ type: 'nack', reason })
+      )
+    }
+    // In no crew: nothing to invite to, leave, put out of or say to.
+    await refused(a, { type: 'crew-invite', name: 'Baker' }, 'no-crew')
+    await refused(a, { type: 'crew-leave' }, 'no-crew')
+    await refused(a, { type: 'crew-kick', name: 'Baker' }, 'no-crew')
+    await refused(a, { type: 'crew-chat', text: 'hi' }, 'no-crew')
+    await refused(a, { type: 'crew-join', tag: 'BVC' }, 'no-invite')
+    await refused(a, { type: 'crew-create', tag: 'B_', name: 'Bad' }, 'bad-tag')
+    // The dev server's cash, then a crew.
+    await say(a, { type: 'dev', op: 'earn', cents: CONFIG.crews.cost })
+    expect(ofType(a, 'pack').at(-1)?.cash).toBeGreaterThanOrEqual(
+      CONFIG.crews.cost
+    )
+    await say(a, { type: 'crew-create', tag: 'BVC', name: 'Bull Valley' })
+    await refused(
+      a,
+      { type: 'crew-create', tag: 'ZZ', name: 'Again' },
+      'in-crew'
+    )
+    await refused(a, { type: 'crew-invite', name: 'Nobody' }, 'unknown')
+    await refused(a, { type: 'crew-invite', name: 'Able' }, 'self')
+    await refused(a, { type: 'crew-kick', name: 'Charlie' }, 'not-member')
+    await refused(a, { type: 'crew-kick', name: 'Able' }, 'self')
+    await say(a, { type: 'crew-invite', name: 'Baker' })
+    await say(b, { type: 'crew-join', tag: 'BVC' })
+    await refused(b, { type: 'crew-join', tag: 'BVC' }, 'in-crew')
+    await refused(b, { type: 'crew-kick', name: 'Able' }, 'not-leader')
+    // Charlie in a crew of their own cannot be invited.
+    ;(v.packStore as MemoryPackStore).wallets.set(
+      'acct-Charlie',
+      CONFIG.crews.cost
+    )
+    await say(c, { type: 'crew-create', tag: 'CC', name: 'Charlie Co' })
+    await refused(a, { type: 'crew-invite', name: 'Charlie' }, 'their-crew')
+    // Baker put out: told, and no tag.
+    await say(a, { type: 'crew-kick', name: 'baker' })
+    expect(ofType(b, 'crew-news').at(-1)).toEqual(
+      expect.objectContaining({ news: 'kicked', name: 'Baker' })
+    )
+    expect(ofType(b, 'crew').at(-1)?.crew).toBeNull()
+    const shown = ofType(c, 'peer-updated').filter(
+      (m) => m.peer.name === 'Baker'
+    )
+    expect(shown.at(-1)?.peer.crew).toBeUndefined()
+  })
+
   it('whispers to one raider by name, echoing it to the sender alone', async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'Able')
