@@ -438,8 +438,13 @@ button.bv-dial-card {
   height: 0.3rem;
 }
 
-.bv-dial-raider-wards {
+.bv-dial-raider-state {
   grid-column: 1 / -1;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.bv-dial-raider-wards {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem 0.9rem;
@@ -459,8 +464,7 @@ button.bv-dial-card {
 
 /* Buttons, chips and lists. */
 .bv-dial-btn,
-.bv-dial-chip,
-.bv-dial-slot {
+.bv-dial-chip {
   min-height: var(--dial-tap);
   padding: 0 0.9rem;
   font: inherit;
@@ -559,26 +563,6 @@ button.bv-dial-card {
 .bv-dial-note {
   margin: 0.5rem 0;
   color: var(--dial-dim);
-}
-
-.bv-dial-hotbar {
-  margin-top: 1.25rem;
-}
-
-.bv-dial-slots {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.4rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.bv-dial-slot {
-  width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* The Book of Shadows: the chapters, their entries, and a page. */
@@ -865,7 +849,6 @@ button.bv-dial-card {
 }
 
 .bv-dial-raider-buffs {
-  grid-column: 1 / -1;
   color: var(--dial-dim);
 }
 

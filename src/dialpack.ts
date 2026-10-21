@@ -1,19 +1,17 @@
 // Bull Valley Dial-Up's pack and locker (sharedworld.ts rule 29): the
 // pack's tabs as the 3D valley's (packgrid.ts, packtabs.ts), each item a
-// row to tap open, with what it can do from a phone: stow one or all into
-// the locker (never a key item), and put it on the hotbar (tap the button,
-// then a slot). The locker's sheet keeps what is on the raider and what is
-// in the locker apart, as the 3D valley's pack and its Locker tab do: the
-// pack's rows to stow, its key items (which stay on the raider), and the
-// locker's rows to take out. Never a use or a drop: those take a body.
-// Every move is the valley's to make; the screen asks and redraws when the
-// pack frame lands.
+// row to tap open, with what it can do from a phone: use it, having seen
+// what it would do now, and stow one or all into the locker (never a key
+// item). The hotbar is the 3D valley's alone. The locker's sheet keeps
+// what is on the raider and what is in the locker apart, as the 3D
+// valley's pack and its Locker tab do: the pack's rows to stow, its key
+// items (which stay on the raider), and the locker's rows to take out.
+// Never a pass or a drop: those take a body. Every move is the valley's
+// to make; the screen asks and redraws when the pack frame lands.
 
 import { copy } from './copy.ts'
 import { expeditionName, useImpact } from './dialstate.ts'
 import { el, text } from './dom.ts'
-import { assign, HOTBAR_SLOTS } from './hotbar.ts'
-import { itemLabel } from './itemcopy.ts'
 import { isKeyItem, isUsable } from './items.ts'
 import { statsView } from './itemstatsview.ts'
 import { PACK_TABS, packItems, stashItems } from './packgrid.ts'
@@ -21,7 +19,6 @@ import { BAG_TABS } from './packtabs.ts'
 import { moveAmount } from './stash.ts'
 import { grouped, wardName } from './vitalshud.ts'
 import type { DialState } from './dialstate.ts'
-import type { Hotbar } from './hotbar.ts'
 import type { PackItem } from './interfaces.ts'
 import type { PackTab } from './packgrid.ts'
 
@@ -31,24 +28,18 @@ export interface PackActions {
   use: (kind: string) => void
   // `count` of `kind` into the locker (stow) or out of it.
   move: (type: 'stow' | 'unstow', kind: string, count: number) => void
-  // The bar as it now stands, to be kept on the account.
-  saveHotbar: (bar: Hotbar, said: string) => void
 }
 
-// The pack screen: its tabs over its rows, and the hotbar under them.
+// The pack screen: its tabs over its rows.
 export class DialPack {
   readonly root: HTMLElement
   private tab: PackTab = PACK_TABS[0]
   // The row tapped open, kept across redraws.
   private open: Opened = { kind: null }
-  // The kind waiting for a slot, after Put on the hotbar.
-  private placing: string | null = null
 
-  private hotbar: Hotbar
   private actions: PackActions
 
-  constructor(hotbar: Hotbar, actions: PackActions) {
-    this.hotbar = hotbar
+  constructor(actions: PackActions) {
     this.actions = actions
     this.root = el('section', 'bv-dial-pack')
   }
@@ -74,7 +65,7 @@ export class DialPack {
       (item) => this.rowActions(s, item),
       (item) => (isUsable(item.kind) ? impactView(s, item.kind) : null)
     )
-    this.root.replaceChildren(tabs, list, this.bar(s))
+    this.root.replaceChildren(tabs, list)
   }
 
   private rowActions(s: DialState, item: PackItem): HTMLElement[] {
@@ -89,61 +80,7 @@ export class DialPack {
           ),
         ]
       : []
-    return [
-      ...use,
-      ...stow,
-      button(copy('dialup.pack.hotbar'), false, () => {
-        this.placing = item.kind
-        this.render(s)
-      }),
-    ]
-  }
-
-  // The nine slots; while a kind waits for one, a tap puts it there.
-  private bar(s: DialState): HTMLElement {
-    const wrap = el('div', 'bv-dial-hotbar')
-    if (this.placing) {
-      wrap.append(
-        text(
-          'p',
-          copy('dialup.pack.hotbar_pick', { item: itemLabel(this.placing) }),
-          'bv-dial-note'
-        )
-      )
-    }
-    const row = el('ol', 'bv-dial-slots')
-    for (let slot = 0; slot < HOTBAR_SLOTS; slot++) {
-      const kind = this.hotbar[slot]
-      const cell = el('li')
-      const tap = text(
-        'button',
-        kind ? itemLabel(kind) : String(slot + 1),
-        'bv-dial-slot'
-      )
-      tap.type = 'button'
-      tap.dataset.slot = String(slot)
-      tap.addEventListener('click', () => {
-        const placing = this.placing
-        if (!placing) return
-        this.placing = null
-        // Onto the slot that holds it already takes it off (hotbar.ts
-        // assign), and says so.
-        const off = this.hotbar[slot] === placing
-        this.hotbar = assign(this.hotbar, slot, placing)
-        const words = { item: itemLabel(placing), slot: slot + 1 }
-        this.actions.saveHotbar(
-          this.hotbar,
-          off
-            ? copy('dialup.pack.hotbar_cleared', words)
-            : copy('dialup.pack.hotbar_saved', words)
-        )
-        this.render(s)
-      })
-      cell.append(tap)
-      row.append(cell)
-    }
-    wrap.append(row)
-    return wrap
+    return [...use, ...stow]
   }
 }
 
