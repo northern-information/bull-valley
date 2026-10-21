@@ -252,17 +252,35 @@ export const CONFIG = {
     // Walking speed while a cigarette burns.
     smokingSpeedScale: 0.85,
   },
-  // What anything smoked or drunk does to the view (trip.ts, trails.ts).
+  // The moment anything smoked or drunk is used, the view blurs (trip.ts,
+  // trails.ts).
   trip: {
     // The blur each use starts with, fading out over this long.
     blurSeconds: 1,
     // The blur's reach at its height, in internal pixels.
     blurRadius: 3,
+  },
+  // What the wards do to the view (wardview.ts, trails.ts). Each works at
+  // full strength from `full` up and in proportion below it, so it thins
+  // out as its ward fades. Drunk trails the view; high saturates its
+  // colours and trails it a little; stimulated sharpens it. A trip's
+  // sights are its own.
+  wardView: {
+    // A ward at or past this level works on the view at full strength.
+    full: 0.5,
     // How much of the last frame each frame keeps while trails are full:
     // nearer 1, longer trails.
     persistence: 0.86,
-    // The trails thin out over the last this-many seconds of the trip.
-    fadeSeconds: 4,
+    // The share of full trails a full high adds to the drunk's.
+    highTrails: 0.3,
+    // Saturation at a full high: 1 keeps the colours, 1.9 nearly doubles
+    // how far each sits from grey.
+    saturation: 1.9,
+    // The unsharp mask at a full stimulated: how much of the difference
+    // from its neighbours each pixel gains, and how far off they sit, in
+    // internal pixels.
+    sharpen: 1.6,
+    sharpenRadius: 1,
   },
   // What the wards do besides warding (buffs.ts), each scaled by its
   // level from 0 to 1. High reaches the flashlight further and wider (a

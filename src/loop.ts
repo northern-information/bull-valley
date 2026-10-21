@@ -32,9 +32,10 @@ import { poseOf, stateChanged } from './presence.ts'
 import { levelOf } from './progression.ts'
 import { aimHeightOf, burstScaleOf, headlightsDue } from './shadowmen.ts'
 import { formatCash } from './store.ts'
-import { tripLevel } from './trip.ts'
+import { tripBlur } from './trip.ts'
 import { burstHeight, burstScale } from './tunnelrig.ts'
 import { levelsAt } from './wardlevels.ts'
+import { wardView } from './wardview.ts'
 import { boardable, clockText, countdown, seatOf } from './worldsync.ts'
 import type { Actions } from './actions.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
@@ -762,7 +763,11 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       hud.setBagStatus({ cash: formatCash(s.cash) })
     }
     if (!s.talking && DRAW_VALLEY) {
-      trails.render(scene, camera, tripLevel(s.effects.trip, time))
+      const view = wardView(
+        levelsAt(s.wards, time),
+        tripBlur(s.effects.trip, time)
+      )
+      trails.render(scene, camera, view)
       if (player.locked && !s.inventoryOpen) {
         glow.render(scene, camera, time)
       }
