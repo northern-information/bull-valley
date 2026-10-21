@@ -112,8 +112,10 @@ async function boot(): Promise<void> {
           shell?.render(state)
         })
         .catch(() => undefined)
-      // The friends list, for the Social tab.
+      // The friends list, for the Social tab, and the research, for the
+      // lobby's Recycling Center card and the raider's record (rule 33).
       net.send({ type: 'friends' })
+      net.send({ type: 'research' })
     }
     const next = applyFrame(state, msg, performance.now(), Date.now())
     // A frame that changes nothing the phone shows (a pong, a peer's

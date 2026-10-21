@@ -1,4 +1,5 @@
 import { devices, expect, test } from '@playwright/test'
+import { CONFIG } from '../../src/config.ts'
 import { copy } from './copy.ts'
 import {
   beginRaid,
@@ -191,6 +192,27 @@ test('opens the Cabbage Stand from anywhere', async ({ browser }) => {
   await page.locator('.bv-dial-card[data-card="stand"]').click()
   await expect(page.locator('.bv-stand')).toBeVisible()
   await expect(page.locator('#bv-stand-title')).toHaveText(copy('stand.title'))
+})
+
+test('opens the Recycling Center from anywhere, its level on the card', async ({
+  browser,
+}) => {
+  const page = await phone(browser)
+  await signIn(page)
+  await page.goto(`/?valley=${freshValley('dial')}`)
+  await dialIn(page)
+  const card = page.locator('.bv-dial-card[data-card="recycling"]')
+  await expect(card).toContainText(
+    copy('dialup.lobby.recycling_level', {
+      level: 0,
+      top: CONFIG.recycling.lines.dimes.length,
+    })
+  )
+  await card.click()
+  await expect(page.locator('.bv-recycle')).toBeVisible()
+  await expect(page.locator('#bv-recycle-title')).toHaveText(
+    copy('recycling.title')
+  )
 })
 
 test('a raider in the valley hears a phone dial in', async ({ browser }) => {

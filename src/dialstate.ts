@@ -64,8 +64,13 @@ import {
   stepRefusal,
   toQuests,
 } from './quests.ts'
-import { toResearch } from './recycling.ts'
-import { foundLine, recycleRefusal, researchNews } from './researchlines.ts'
+import { dimesChance, topLevel, toResearch } from './recycling.ts'
+import {
+  foundLine,
+  lineName,
+  recycleRefusal,
+  researchNews,
+} from './researchlines.ts'
 import {
   NO_PROGRESS,
   SEASON,
@@ -721,7 +726,7 @@ function refused(
 // One line of the raider's record: what it counts, how far along, and how
 // full its bar reads (0 to 1), or null where it has none.
 export interface RaiderStat {
-  id: 'xp' | 'season' | 'task' | 'book' | 'citgos' | 'worn'
+  id: 'xp' | 'season' | 'task' | 'book' | 'citgos' | 'loose-change' | 'worn'
   label: string
   value: string
   share: number | null
@@ -775,6 +780,21 @@ export function raiderStats(s: DialState, day: string): RaiderStat[] {
       share: null,
     },
   ]
+  // Rule 33: loose change, once the valley has said the research.
+  if (s.research) {
+    const level = s.research.dimes
+    const top = topLevel('dimes')
+    stats.push({
+      id: 'loose-change',
+      label: lineName('dimes'),
+      value: copy('dialup.raider.loose_change', {
+        pct: Math.round(dimesChance(s.research) * 100),
+        level,
+        top,
+      }),
+      share: level / top,
+    })
+  }
   if (worn.length > 0) {
     stats.push({
       id: 'worn',

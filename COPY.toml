@@ -1295,6 +1295,7 @@ buff_sprint = { text = "Sprint {pct}% faster", by = "ai" }
 task = { text = "Shadows today", by = "ai" }
 book = { text = "Book of Shadows", by = "ai" }
 citgos = { text = "Citgos found", by = "ai" }
+loose_change = { text = "{pct}% · level {level} / {top}", by = "ai" }
 worn = { text = "Wearing", by = "ai" }
 wards = { text = "No wards going.", by = "ai" }
 

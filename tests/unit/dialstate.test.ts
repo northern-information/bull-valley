@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { BOOK, foundLines } from '../../src/book.ts'
+import { CONFIG } from '../../src/config.ts'
 import { copy } from '../../src/copy.ts'
 import { tradeRefusal } from '../../src/cosmetics.ts'
 import { DAILY_TASK, taskLine } from '../../src/dailytask.ts'
@@ -28,6 +29,7 @@ import { xpToReach } from '../../src/progression.ts'
 import { stepNews, stepRefusal } from '../../src/quests.ts'
 import {
   foundLine,
+  lineName,
   recycleRefusal,
   researchNews,
 } from '../../src/researchlines.ts'
@@ -163,6 +165,22 @@ describe("Dial-Up's state", () => {
     )
     expect(s.research).toEqual({ dimes: 2 })
     expect(s.said).toBeNull()
+    // The raider's record shows loose change once the research is known.
+    expect(
+      raiderStats(DIALED, '2026-10-21').some((st) => st.id === 'loose-change')
+    ).toBe(false)
+    expect(
+      raiderStats(s, '2026-10-21').find((st) => st.id === 'loose-change')
+    ).toEqual({
+      id: 'loose-change',
+      label: lineName('dimes'),
+      value: copy('dialup.raider.loose_change', {
+        pct: Math.round(CONFIG.recycling.lines.dimes[1].chance * 100),
+        level: 2,
+        top: CONFIG.recycling.lines.dimes.length,
+      }),
+      share: 2 / CONFIG.recycling.lines.dimes.length,
+    })
     s = applyFrame(
       asked(s, { recycle: true }),
       { type: 'research', research: { dimes: 3 }, line: 'dimes' },
