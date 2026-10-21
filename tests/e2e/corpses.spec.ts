@@ -1,3 +1,6 @@
+import { spilledDimes } from '../../src/corpses.ts'
+import { DIME_CENTS } from '../../src/drops.ts'
+import { formatCash } from '../../src/store.ts'
 import { copy } from './copy.ts'
 import { beginRaid, expect, heardWhere, onLastPoint, test } from './fixtures.ts'
 import type { Page } from '@playwright/test'
@@ -42,6 +45,8 @@ test('a strike leaves the pack on your body, and E takes it back', async ({
   await expect.poll(async () => (await held(page)).marlboro).toBeGreaterThan(19)
   await expect.poll(async () => (await held(page))['vault-key']).toBe(1)
   const before = await held(page)
+  const cash = (await page.evaluate(() => window.__bv?.cash)) ?? 0
+  const spilled = spilledDimes(cash) * DIME_CENTS
 
   await struckDown(page, 1)
   // Everything stays where they fell but the key, which comes along with
@@ -52,6 +57,13 @@ test('a strike leaves the pack on your body, and E takes it back', async ({
     .poll(() => page.evaluate(() => window.__bv?.myCorpses.length))
     .toBe(1)
   await expect(page.locator('.bv-chat')).toContainText(copy('log.fell'))
+  // The strike spilled its share of the wallet where they fell.
+  await expect(page.locator('.bv-chat')).toContainText(
+    copy('log.spilled', { amount: formatCash(spilled) })
+  )
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.cash))
+    .toBe(cash - spilled)
   const [body] = await page.evaluate(() => window.__bv?.corpses ?? [])
   expect(body).toBeDefined()
 

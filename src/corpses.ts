@@ -7,6 +7,8 @@
 // until it does, whatever the day. sharedworld.ts runs these (rule 18).
 // No three.js, no DOM.
 
+import { CONFIG } from './config.ts'
+import { DIME_CENTS } from './drops.ts'
 import { INVENTORY_KINDS, isKeyItem } from './items.ts'
 import type { Inventory, XZ } from './interfaces.ts'
 import type { OutfitId } from './outfits.ts'
@@ -111,4 +113,10 @@ export function nearestCorpse<C extends CorpseWire>(
     }
   }
   return near
+}
+
+// How many dimes a strike spills out of a wallet of `cash` cents: its
+// share (CONFIG.corpses.walletShare), in whole dimes.
+export function spilledDimes(cash: number, cfg = CONFIG.corpses): number {
+  return Math.floor((Math.max(0, cash) * cfg.walletShare) / DIME_CENTS)
 }

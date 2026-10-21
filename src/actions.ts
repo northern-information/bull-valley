@@ -24,13 +24,20 @@ import {
 } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
-import { emptied, fallen, isEmpty } from './corpses.ts'
+import { emptied, fallen, isEmpty, spilledDimes } from './corpses.ts'
 import { affords, cosmeticById, gainedOf, tradeRefusal } from './cosmetics.ts'
 import { stepIndex } from './cycle.ts'
 import { openDealDialog } from './dealdialog.ts'
 import { ramble } from './dealer.ts'
 import { isDropPickup } from './dropmeshes.ts'
-import { centsOf, DIMES, dropAmount, isCash, QUARTERS } from './drops.ts'
+import {
+  centsOf,
+  DIME_CENTS,
+  DIMES,
+  dropAmount,
+  isCash,
+  QUARTERS,
+} from './drops.ts'
 import { finishById } from './finishes.ts'
 import { openGronDialog } from './grondialog.ts'
 import { assign, clearSlot as clearHotbarSlot, place, spent } from './hotbar.ts'
@@ -550,6 +557,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       )
     )
     if (!isEmpty(items)) hud.tell(copy('log.fell'))
+    // Rule 18: the strike spilled a share of the wallet where you fell.
+    const spilled = spilledDimes(s.cash) * DIME_CENTS
+    if (spilled > 0)
+      hud.tell(copy('log.spilled', { amount: formatCash(spilled) }))
   }
 
   // Made whole standing at a Citgo: the lights did it.

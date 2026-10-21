@@ -612,6 +612,9 @@ export const CONFIG = {
   corpses: {
     // How close your body must be for E to take your things back.
     reach: 2.2,
+    // A strike spills this share of the wallet as dimes where the raider
+    // fell (sharedworld.ts rule 18), for whoever gets there first.
+    walletShare: 0.1,
   },
   // The stash: the account's locker in the back room of every Citgo
   // (stash.ts).
