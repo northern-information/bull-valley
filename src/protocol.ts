@@ -832,6 +832,10 @@ export interface PeerUpdatedMessage {
 export interface PeerStateMessage extends PeerStateWire {
   type: 'peer-state'
   id: string
+  // The server's clock when the state reached it, so a client can space
+  // a burst of frames that came late as they were sent (presence.ts
+  // stampOf). Missing from an older server.
+  t?: number
 }
 
 export interface PeerLeftMessage {

@@ -107,7 +107,18 @@ export function wireValley(game: Game, actions: Actions): void {
         const { x, y, z, yaw, pitch, pose, riding, light } = msg
         const peer = peers.table.get(msg.id)
         const was = peer?.next?.pose ?? null
-        peers.state(msg.id, { x, y, z, yaw, pitch, pose, riding, light }, now)
+        // When it was due here: the server's stamp, brought to our clock,
+        // half a round trip on (presence.ts stampOf).
+        const due =
+          msg.t !== undefined && net.clock.synced
+            ? net.clock.toLocalMs(msg.t) + net.clock.rttMs / 2
+            : now
+        peers.state(
+          msg.id,
+          { x, y, z, yaw, pitch, pose, riding, light },
+          now,
+          due
+        )
         // An emote just begun near enough to see: a quiet line in the log.
         const emote = seenEmote(
           was,

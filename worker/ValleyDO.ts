@@ -1299,7 +1299,7 @@ export class ValleyDO extends DurableObject<Env> {
     const at = { x, y, z, yaw, pitch, pose, riding, light }
     const next: PeerWire = { ...me, at }
     this.attach(ws, { ...attachment, me: next })
-    this.broadcast({ type: 'peer-state', id: me.id, ...at }, ws)
+    this.broadcast({ type: 'peer-state', id: me.id, ...at, t: Date.now() }, ws)
   }
 
   // A chat line to everyone, the sender included. Nothing is stored.

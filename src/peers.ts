@@ -121,8 +121,8 @@ export class Peers {
     this.build(peer)
   }
 
-  state(id: string, state: PeerStateWire, now: number): void {
-    applyState(this.table, id, state, now)
+  state(id: string, state: PeerStateWire, now: number, due = now): void {
+    applyState(this.table, id, state, now, due)
   }
 
   left(id: string): void {
