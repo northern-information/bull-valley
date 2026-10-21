@@ -5,7 +5,7 @@ import {
   expect,
   freshRaider,
   freshValley,
-  heardWhere,
+  standInTheOpen,
   watchErrors,
 } from './fixtures.ts'
 import type { Page } from '@playwright/test'
@@ -18,18 +18,6 @@ const held = (page: Page, kind: string) =>
   page.evaluate((k) => window.__bv?.inventory[k] ?? 0, kind)
 const high = (page: Page) => page.evaluate(() => window.__bv?.wards.high ?? 0)
 const health = (page: Page) => page.evaluate(() => window.__bv?.health ?? 0)
-
-// An open spot off the spawn lot, facing -Z, `dz` metres along it.
-async function standInTheOpen(page: Page, dz: number): Promise<void> {
-  await page.evaluate((offset) => {
-    const bv = window.__bv
-    if (!bv) throw new Error('no dev hook')
-    const station = bv.world.spawnStation
-    if (!station) throw new Error('no spawn station')
-    bv.player.relocate(station.x - 150, station.z - 150 + offset, 0)
-  }, dz)
-  await heardWhere(page)
-}
 
 base.describe('buffs', { tag: '@valley' }, () => {
   base('one raider passes a joint to another', async ({ browser }) => {
@@ -47,8 +35,8 @@ base.describe('buffs', { tag: '@valley' }, () => {
       .poll(() => a.evaluate(() => window.__bv?.valley?.members.length))
       .toBe(2)
     // B two metres in front of A.
-    await standInTheOpen(a, 0)
-    await standInTheOpen(b, -2)
+    await standInTheOpen(a)
+    await standInTheOpen(b, 0, -2)
     await b.evaluate(() => window.__bv?.setHealth(100))
     await expect.poll(() => health(b)).toBe(100)
     await expect

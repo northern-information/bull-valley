@@ -1,17 +1,41 @@
 import { devices, expect, test } from '@playwright/test'
 import { copy } from './copy.ts'
-import { beginRaid, freshRaider, freshValley, signIn } from './fixtures.ts'
+import {
+  beginRaid,
+  freshRaider,
+  freshValley,
+  signIn,
+  watchErrors,
+} from './fixtures.ts'
 import type { Browser, Page } from '@playwright/test'
 
 // Bull Valley Dial-Up (sharedworld.ts rule 29): a phone opens on the
 // modem, dials the valley, and tends the account from wherever it is.
 
+// Every page a spec opens, phone or desk, fails it on a console error or
+// an uncaught page error, as the `page` fixture does for the other specs.
+let errors: string[][] = []
+test.beforeEach(() => {
+  errors = []
+})
+test.afterEach(() => {
+  expect(errors.flat()).toEqual([])
+})
+
+async function open(
+  browser: Browser,
+  options?: Parameters<Browser['newContext']>[0]
+): Promise<Page> {
+  const page = await (await browser.newContext(options)).newPage()
+  errors.push(watchErrors(page))
+  return page
+}
+
 // A phone: Chromium's own mobile emulation, so the full Chromium the
 // other specs drive does the work.
-async function phone(browser: Browser): Promise<Page> {
+function phone(browser: Browser): Promise<Page> {
   const { defaultBrowserType: _, ...pixel } = devices['Pixel 5']
-  const context = await browser.newContext(pixel)
-  return context.newPage()
+  return open(browser, pixel)
 }
 
 // Tap through the modem: one tap dials, a second skips the handshake.
@@ -108,7 +132,7 @@ test('opens the Cabbage Stand from anywhere', async ({ browser }) => {
 
 test('a raider in the valley hears a phone dial in', async ({ browser }) => {
   const valley = freshValley('dial')
-  const desk = await (await browser.newContext()).newPage()
+  const desk = await open(browser)
   await beginRaid(desk, 0, { valley })
   const page = await phone(browser)
   const raider = await signIn(page, freshRaider('Phone'))
@@ -146,7 +170,7 @@ test('with a raider on foot in the valley: the Citgo, Erwin, Moab and the chat',
   const valley = freshValley('dial')
   const raider = freshRaider('Both')
   // The account stands at the spawn Citgo in 3D first.
-  const desk = await (await browser.newContext()).newPage()
+  const desk = await open(browser)
   await beginRaid(desk, 0, { valley, raider })
   await expect
     .poll(() => desk.evaluate(() => window.__bv?.citgos.visited.length ?? 0))
