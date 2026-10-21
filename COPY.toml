@@ -382,6 +382,7 @@ cosmetic_worn = { text = "You wear the {cosmetic}. The whole valley can see it b
 trade_short = { text = "Moab wants {count} oz of {price}. You do not have it.", by = "ai" }
 trade_owned = { text = "You already wear the {cosmetic}.", by = "ai" }
 trade_refused = { text = "Moab turns the scroll in the fire. Not now.", by = "ai" }
+use_refused = { text = "It won't go down. Not now.", by = "ai" }
 marx_donuts = { text = "Somewhere across the road, tires tear up a field.", by = "ai" }
 marx_back = { text = "Marx comes back across the road and picks up his book.", by = "ai" }
 season_live = { text = "Season One: The Caretaker is live. Burn him {goal} times for {cash} and a carton of Marlboro Reds.", by = "ai" }
@@ -1237,6 +1238,8 @@ xp_max = { text = "Top level", by = "ai" }
 of = { text = "{done} / {goal}", by = "ai" }
 done = { text = "Done", by = "ai" }
 season = { text = "Caretaker burned", by = "ai" }
+buff_beam = { text = "Flashlight reaches {pct}% further", by = "ai" }
+buff_sprint = { text = "Sprint {pct}% faster", by = "ai" }
 task = { text = "Shadows today", by = "ai" }
 book = { text = "Book of Shadows", by = "ai" }
 citgos = { text = "Citgos found", by = "ai" }
@@ -1307,6 +1310,11 @@ hotbar = { text = "Put on the hotbar", by = "ai" }
 hotbar_pick = { text = "Tap a slot for {item}", by = "ai" }
 hotbar_saved = { text = "{item} on slot {slot}.", by = "ai" }
 hotbar_cleared = { text = "{item} off slot {slot}.", by = "ai" }
+use = { text = "Use", by = "ai" }
+impact = { text = "If you use it now", by = "ai" }
+impact_ward = { text = "{ward} {from}% → {to}%", by = "ai" }
+impact_risk = { text = "{run}: {from}% → {to}% risk", by = "ai" }
+impact_health = { text = "Geometrie {from} → {to}", by = "ai" }
 
 # The laptop on the card table in the Citgo bathroom (src/laptop.ts,
 # src/laptopdialog.ts, src/laptopart.ts). Its readme is LAPTOP.TXT at the

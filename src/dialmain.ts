@@ -36,6 +36,7 @@ import {
 import { text } from './dom.ts'
 import { fontsReady } from './fonts.ts'
 import { toHotbar } from './hotbar.ts'
+import { itemLine } from './itemcopy.ts'
 import { mountModem } from './modemhud.ts'
 import { NetClient, socketUrl } from './net.ts'
 import { GRAIN_URL, imagesReady } from './preload.ts'
@@ -213,6 +214,13 @@ async function boot(): Promise<void> {
     },
     signOut: signOutAndRedial,
     pack: {
+      // Rule 27: the valley takes the unit and doses and mends the
+      // account; the phone says it as the 3D valley does.
+      use: (kind) => {
+        send({ type: 'use', kind }, { use: true })
+        const used = itemLine(kind, 'used')
+        if (net.online && used) say(used)
+      },
       move: (type, kind, count) => {
         if (count > 0) send({ type, kind, count }, { locker: true })
       },

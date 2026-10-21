@@ -3751,7 +3751,7 @@ describe('ValleyDO: Bull Valley Dial-Up', () => {
     expect(p.frames().some((m) => m.type === 'shadowmen')).toBe(false)
   })
 
-  it('stows into the locker from the phone, and refuses a use', async () => {
+  it('stows into the locker from the phone, and uses from the pack', async () => {
     const { valley: v, state: s } = await valley()
     const p = await dial(v, s, 'P')
     await v.webSocketMessage(
@@ -3761,7 +3761,19 @@ describe('ValleyDO: Bull Valley Dial-Up', () => {
     expect(
       p.frames().findLast((m): m is PackMessage => m.type === 'pack')?.stash
     ).toMatchObject({ marlboro: 1 })
-    await v.webSocketMessage(ws(p), '{"type":"use","kind":"marlboro"}')
-    expect(p.last()).toEqual({ type: 'nack', re: 'use', reason: 'dialup' })
+    // A use needs no body (rule 29): out of the pack, into the wards.
+    await v.webSocketMessage(ws(p), '{"type":"use","kind":"joints"}')
+    expect(p.frames().some((m) => m.type === 'nack')).toBe(false)
+    expect(
+      p.frames().findLast((m): m is PackMessage => m.type === 'pack')?.pack
+        .joints ?? 0
+    ).toBe(0)
+    const wards = p
+      .frames()
+      .findLast(
+        (m): m is Extract<ServerMessage, { type: 'wards' }> =>
+          m.type === 'wards'
+      )
+    expect(wards?.wards.high).toBeGreaterThan(0)
   })
 })

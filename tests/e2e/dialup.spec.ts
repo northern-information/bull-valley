@@ -157,6 +157,26 @@ test('stows from the pack, takes it back out of the locker, and keeps the hotbar
   )
 })
 
+test('uses an item from the phone, having seen what it would do', async ({
+  browser,
+}) => {
+  const page = await phone(browser)
+  await signIn(page)
+  await page.goto(`/?valley=${freshValley('dial')}`)
+  await dialIn(page)
+  await page.locator('.bv-dial-tab[data-tab="pack"]').click()
+  const joint = page.locator('.bv-dial-item[data-kind="joints"]')
+  await joint.locator('summary').click()
+  // Before it is used: what it does to the wards, said as the valley would.
+  await expect(joint.locator('.bv-dial-impact')).toContainText(
+    copy('wards.high')
+  )
+  await joint.getByRole('button', { name: copy('dialup.pack.use') }).click()
+  // Out of the pack, and the high it brings shows at the top.
+  await expect(joint).toHaveCount(0)
+  await expect(page.locator('.bv-dial-top [data-ward="high"]')).toBeVisible()
+})
+
 test('opens the Cabbage Stand from anywhere', async ({ browser }) => {
   const page = await phone(browser)
   await signIn(page)

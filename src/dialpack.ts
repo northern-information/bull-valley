@@ -10,20 +10,25 @@
 // pack frame lands.
 
 import { copy } from './copy.ts'
+import { expeditionName, useImpact } from './dialstate.ts'
 import { el, text } from './dom.ts'
 import { assign, HOTBAR_SLOTS } from './hotbar.ts'
 import { itemLabel } from './itemcopy.ts'
-import { isKeyItem } from './items.ts'
+import { isKeyItem, isUsable } from './items.ts'
 import { statsView } from './itemstatsview.ts'
 import { PACK_TABS, packItems, stashItems } from './packgrid.ts'
 import { BAG_TABS } from './packtabs.ts'
 import { moveAmount } from './stash.ts'
+import { grouped, wardName } from './vitalshud.ts'
 import type { DialState } from './dialstate.ts'
 import type { Hotbar } from './hotbar.ts'
 import type { PackItem } from './interfaces.ts'
 import type { PackTab } from './packgrid.ts'
 
 export interface PackActions {
+  // One of `kind` used (sharedworld.ts rule 27): the valley doses the
+  // wards and mends the geometrie.
+  use: (kind: string) => void
   // `count` of `kind` into the locker (stow) or out of it.
   move: (type: 'stow' | 'unstow', kind: string, count: number) => void
   // The bar as it now stands, to be kept on the account.
@@ -62,8 +67,12 @@ export class DialPack {
       tabs.append(chip)
     }
     const items = packItems(s.pack, this.tab)
-    const list = itemRows(items, BAG_TABS[this.tab].empty, this.open, (item) =>
-      this.rowActions(s, item)
+    const list = itemRows(
+      items,
+      BAG_TABS[this.tab].empty,
+      this.open,
+      (item) => this.rowActions(s, item),
+      (item) => (isUsable(item.kind) ? impactView(s, item.kind) : null)
     )
     this.root.replaceChildren(tabs, list, this.bar(s))
   }
@@ -73,7 +82,15 @@ export class DialPack {
     const stow = isKeyItem(item.kind)
       ? []
       : moveButtons(s, item.kind, 'stow', this.actions)
+    const use = isUsable(item.kind)
+      ? [
+          button(copy('dialup.pack.use'), s.pending.use, () =>
+            this.actions.use(item.kind)
+          ),
+        ]
+      : []
     return [
+      ...use,
       ...stow,
       button(copy('dialup.pack.hotbar'), false, () => {
         this.placing = item.kind
@@ -213,6 +230,55 @@ function moveButtons(
   ]
 }
 
+// What using `kind` now would do (dialstate.ts useImpact): each ward it
+// moves, each expedition's risk with it, and the geometrie it mends.
+function impactView(s: DialState, kind: string): HTMLElement | null {
+  const impact = useImpact(s, kind, performance.now())
+  const pct = (level: number) => Math.round(level * 100)
+  const lines = [
+    ...impact.wards.map(({ axis, from, to }) =>
+      text(
+        'li',
+        copy('dialup.pack.impact_ward', {
+          ward: wardName(axis),
+          from: pct(from),
+          to: pct(to),
+        })
+      )
+    ),
+    ...impact.risks.map(({ id, from, to }) =>
+      text(
+        'li',
+        copy('dialup.pack.impact_risk', {
+          run: expeditionName(id),
+          from: pct(from),
+          to: pct(to),
+        })
+      )
+    ),
+    ...(impact.health
+      ? [
+          text(
+            'li',
+            copy('dialup.pack.impact_health', {
+              from: grouped(impact.health.from),
+              to: grouped(impact.health.to),
+            })
+          ),
+        ]
+      : []),
+  ]
+  if (lines.length === 0) return null
+  const wrap = el('div', 'bv-dial-impact')
+  const list = el('ul')
+  list.append(...lines)
+  wrap.append(
+    text('h4', copy('dialup.pack.impact'), 'bv-dial-impact-head'),
+    list
+  )
+  return wrap
+}
+
 function button(
   label: string,
   disabled: boolean,
@@ -244,7 +310,9 @@ function itemRows(
   items: readonly PackItem[],
   empty: string,
   open: Opened,
-  actionsOf: (item: PackItem) => HTMLElement[]
+  actionsOf: (item: PackItem) => HTMLElement[],
+  // What else the opened row says, above its buttons.
+  detailOf: (item: PackItem) => HTMLElement | null = () => null
 ): HTMLElement {
   const list = el('ul', 'bv-dial-items')
   if (items.length === 0) {
@@ -280,6 +348,8 @@ function itemRows(
       text('p', item.blurb, 'bv-dial-item-blurb'),
       ...statsView(item.kind)
     )
+    const detail = detailOf(item)
+    if (detail) body.append(detail)
     // A key item in the locker sheet has nothing a phone can do with it.
     const actions = actionsOf(item)
     if (actions.length > 0) {

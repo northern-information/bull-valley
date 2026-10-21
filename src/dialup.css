@@ -840,6 +840,35 @@ button.bv-dial-card {
   margin-top: 1.5rem;
 }
 
+/* What using an item would do now, in its open row. */
+.bv-dial-impact {
+  margin: 0 0 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--dial-line);
+}
+
+.bv-dial-impact-head {
+  margin: 0 0 0.35rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--dial-dim);
+}
+
+.bv-dial-impact ul,
+.bv-dial-raider-buffs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.875rem;
+}
+
+.bv-dial-raider-buffs {
+  grid-column: 1 / -1;
+  color: var(--dial-dim);
+}
+
 /* A sheet over the view, with its way back. */
 .bv-dial-sheet {
   position: absolute;

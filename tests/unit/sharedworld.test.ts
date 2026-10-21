@@ -3102,7 +3102,6 @@ describe('rule 29: Bull Valley Dial-Up', () => {
       [{ type: 'charter', id: 'p', to: null }, 'charter'],
       [{ type: 'take', id: 'p', index: 0, at: HERE }, 'take'],
       [{ type: 'collect', id: 'p', bush: 0, at: HERE }, 'collect'],
-      [{ type: 'use', id: 'p', kind: 'pbr' }, 'use'],
       [
         {
           type: 'pass',
