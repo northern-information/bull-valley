@@ -70,6 +70,7 @@ const THREE_AND_DOM = [
   'graveart',
   'gravestones',
   'grondialog',
+  'hallucinationrig',
   'hud',
   'input',
   'itemstatsview',

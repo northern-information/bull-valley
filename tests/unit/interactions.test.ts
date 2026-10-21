@@ -685,3 +685,67 @@ describe('the lookout tower', () => {
     )
   })
 })
+
+describe('hallucinations', () => {
+  const me = { x: 250, z: 250 }
+  const person = { id: 3, x: 251, z: 250, shape: 'raider' as const }
+  const thing = {
+    id: 4,
+    x: 250,
+    z: 252,
+    shape: 'thing' as const,
+    item: 'lsd',
+  }
+
+  it('answers E at a person within reach, ahead of whatever stands behind it', () => {
+    expect(
+      resolveInteraction(input({ player: me, hallucinations: [person], shelf }))
+    ).toEqual({ kind: 'hallucination', id: 3, shape: 'raider' })
+  })
+
+  it('answers at a thing within its reach, the nearer first, never from the bed', () => {
+    expect(
+      resolveInteraction(input({ player: me, hallucinations: [thing] }))
+    ).toEqual({ kind: 'hallucination', id: 4, shape: 'thing', item: 'lsd' })
+    expect(
+      resolveInteraction(input({ player: me, hallucinations: [thing, person] }))
+    ).toMatchObject({ id: 3 })
+    expect(
+      resolveInteraction(
+        input({
+          player: me,
+          hallucinations: [
+            { ...person, x: me.x + CONFIG.hallucinations.reach.person + 0.1 },
+          ],
+        })
+      )
+    ).toBeNull()
+    expect(
+      resolveInteraction(
+        input({ riding: true, player: me, hallucinations: [person] })
+      )
+    ).toEqual({ kind: 'hopOut' })
+  })
+
+  it('labels a thing as the real one, and leaves a person to the glow', () => {
+    const asThing = {
+      kind: 'hallucination' as const,
+      id: 4,
+      shape: 'thing' as const,
+      item: 'lsd',
+    }
+    const asPerson = {
+      kind: 'hallucination' as const,
+      id: 3,
+      shape: 'npc' as const,
+    }
+    expect(itemLabel(asThing)).toEqual({
+      text: pickupLabel({ kind: 'lsd', count: 1 }),
+      dim: false,
+    })
+    expect(itemLabel(asPerson)).toBeNull()
+    expect(interactionPrompt(asThing)).toBeNull()
+    expect(interactionPrompt(asPerson)).toBeNull()
+    expect(interactionKey(asThing)).toBe('hallucination:4')
+  })
+})

@@ -28,6 +28,7 @@ import type { PendingAsk } from './friends.ts'
 import type { Glow } from './glow.ts'
 import type { Grave } from './graves.ts'
 import type { Gravestones } from './gravestones.ts'
+import type { Hallucinations } from './hallucinationrig.ts'
 import type { Hand } from './hands.ts'
 import type { Effects, Hotbar } from './hotbar.ts'
 import type { Hud } from './hud.ts'
@@ -390,6 +391,9 @@ export interface Game {
   tunnel: TunnelShades
   // Shadowmen bursting in the beam.
   bursts: ShadowBursts
+  // What a trip shows this raider that is not there (hallucinationrig.ts):
+  // this client's alone, never sent or kept.
+  hallucinations: Hallucinations
   mist: MistCards
   glow: Glow
   // The view through the wards and the blur of a use (trails.ts).

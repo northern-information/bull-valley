@@ -224,6 +224,8 @@ export interface Actions {
 const BOOK_RETRY_MS = 3000
 // After a portal or fast travel, no portal takes us for this long.
 const GRACE_MS = CONFIG.portal.graceSeconds * 1000
+// A hallucination bursting sounds as a shadowman does, pitched up.
+const HALLUCINATION_BURST_RATE = 1.8
 
 // engagePointer takes the pointer back once Gron's dialog closes.
 export function createActions(game: Game, engagePointer: () => void): Actions {
@@ -1166,6 +1168,21 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       case 'locked':
         hud.tell(copy('log.locked'))
         return
+      case 'hallucination': {
+        // It was never there: it bursts in fuchsia, and is gone.
+        const at = game.hallucinations.burst(interaction.id)
+        if (!at) return
+        s.interaction = null
+        game.sfx?.play('shadow-burst', at, HALLUCINATION_BURST_RATE)
+        hud.tell(
+          copy(
+            interaction.shape === 'thing'
+              ? 'hallucinations.thing'
+              : 'hallucinations.person'
+          )
+        )
+        return
+      }
     }
   }
 

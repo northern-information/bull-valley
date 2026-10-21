@@ -797,6 +797,54 @@ export const CONFIG = {
     safe: 3,
     lethal: 7,
   },
+  // What a trip shows that is not there (hallucinations.ts): people and
+  // things out ahead of a raider while the tripping ward is up, this
+  // client's alone.
+  hallucinations: {
+    // Seconds between one and the next: `max` at the faintest trip, `min`
+    // at a full one, each give or take `jitter` of itself. The first of a
+    // trip comes `firstShare` of a gap into it.
+    gapSeconds: { min: 7, max: 40 },
+    jitter: 0.4,
+    firstShare: 0.25,
+    // How many stand at once at a full trip; the level scales it, rounded
+    // up, so even a faint trip shows one.
+    most: 4,
+    // How long one stands, and how long it flickers coming and going.
+    lifeSeconds: { min: 16, max: 34 },
+    fadeInSeconds: 1.2,
+    fadeOutSeconds: 1.6,
+    // The flicker's beats a second while it comes or goes.
+    flickerHz: 18,
+    // Where: within `cone` radians either side of where the raider faces,
+    // a person this many metres out, a thing nearer (it is small); no two
+    // closer than `spacing`; `tries` spots tried before giving up.
+    cone: 0.55,
+    person: { near: 7, far: 15 },
+    thing: { near: 3.5, far: 7 },
+    spacing: 2.5,
+    tries: 6,
+    // A raider wandered this far from one leaves it behind.
+    strayMetres: 45,
+    // The share of things among them, and of the valley's folk among the
+    // people.
+    thingShare: 0.35,
+    npcShare: 0.4,
+    // E reaches a person or a thing from this far, as the real ones do.
+    reach: { person: 2.4, thing: 2.6 },
+    // E on one: its burst of fuchsia solids, flung from its middle,
+    // slowed by the air (drag, per second) and falling.
+    burst: {
+      seconds: 1.7,
+      shards: 26,
+      speed: { min: 2.5, max: 6.5 },
+      up: { min: 1, max: 4.5 },
+      gravity: 5,
+      drag: 1.6,
+      size: { min: 0.05, max: 0.15 },
+      spin: 9,
+    },
+  },
   wreck: {
     // The green BMW nosed into a tree beside the spawn Citgo, station-local
     // like the bush: on the station's side of Lake Avenue, across the road
