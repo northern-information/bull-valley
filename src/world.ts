@@ -43,6 +43,7 @@ import {
 } from './stations.ts'
 import {
   insideStore,
+  laptopAt,
   lockerSpot,
   STORE_LAYOUT,
   toWorld,
@@ -125,6 +126,9 @@ export interface ShelfDisplay {
   // The locker doors in the back room, riding with it too: what the glow
   // rings when E would open the stash.
   lockers: THREE.Object3D
+  // The laptop on the bathroom's card table, riding with it too: what the
+  // glow rings when E would sit down at it.
+  laptop: THREE.Object3D
 }
 
 export interface LandmarkPoint extends XZ {
@@ -178,6 +182,9 @@ export interface World {
   // Where E opens the lockers in each back room (store.ts lockerSpot),
   // indexed like fuelPoints.
   lockers: XZ[]
+  // Where E sits down at the laptop in each bathroom (store.ts laptopAt),
+  // indexed like fuelPoints.
+  laptops: XZ[]
   // The middle of the Citgo portal ring on each station's lot
   // (CONFIG.portal.ring; sharedworld.ts rule 28), indexed like fuelPoints:
   // where fast travel sets a raider down.
@@ -482,6 +489,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
     tyler,
     tylerRig,
     lockers: fuel.points.map(lockerSpot),
+    laptops: fuel.points.map(laptopAt),
     rings: fuel.points.map((point) => {
       const { ring } = CONFIG.portal
       const [x, , z] = toWorld(point, [ring.x, 0, ring.z])

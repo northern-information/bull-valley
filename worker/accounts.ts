@@ -14,6 +14,7 @@ import type {
 } from '../src/account.ts'
 import type { CosmeticId } from '../src/cosmetics.ts'
 import type { AskResult, FriendRow, FriendState } from '../src/friends.ts'
+import type { LaptopFileRow } from '../src/laptop.ts'
 
 export interface Account {
   accountId: string
@@ -101,6 +102,24 @@ export interface AccountStore {
   // No longer friends, and no request either way; false when there was
   // nothing between them.
   unfriend(a: string, b: string): Promise<boolean>
+  // Rule 31: every file on the laptop, without its text, each with its
+  // writer's username (laptop.ts LaptopFileRow).
+  laptopFiles(): Promise<LaptopFileRow[]>
+  // One file's text, or null when there is no such file.
+  laptopBody(id: string): Promise<string | null>
+  // The account's file `id` written over, or with null a new one made
+  // (its id `fresh`); the id kept, or null when `id` is not the
+  // account's or another of its files has the name.
+  saveLaptopFile(
+    accountId: string,
+    id: string | null,
+    fresh: string,
+    name: string,
+    body: string,
+    now: number
+  ): Promise<string | null>
+  // The account's file `id` gone; false when it was not theirs.
+  deleteLaptopFile(accountId: string, id: string): Promise<boolean>
 }
 
 export class MemoryAccountStore implements AccountStore {
@@ -114,6 +133,11 @@ export class MemoryAccountStore implements AccountStore {
   readonly cosmetics = new Map<string, CosmeticId[]>()
   // `${account}/${friend}` -> accepted: one account's side, as in D1.
   readonly friends = new Map<string, boolean>()
+  // The laptop's files by id.
+  readonly laptop = new Map<
+    string,
+    { account: string; name: string; body: string; updated: number }
+  >()
 
   findByProvider(providerKey: string): Promise<LinkedProvider | null> {
     return Promise.resolve(this.providers.get(providerKey) ?? null)
@@ -302,6 +326,59 @@ export class MemoryAccountStore implements AccountStore {
     const one = this.friends.delete(`${a}/${b}`)
     const other = this.friends.delete(`${b}/${a}`)
     return Promise.resolve(one || other)
+  }
+
+  laptopFiles(): Promise<LaptopFileRow[]> {
+    const rows: LaptopFileRow[] = []
+    for (const [id, file] of this.laptop) {
+      const owner = this.accounts.get(file.account)?.username
+      if (!owner) continue
+      rows.push({
+        id,
+        account: file.account,
+        owner,
+        name: file.name,
+        size: file.body.length,
+        updated: file.updated,
+      })
+    }
+    return Promise.resolve(rows)
+  }
+
+  laptopBody(id: string): Promise<string | null> {
+    return Promise.resolve(this.laptop.get(id)?.body ?? null)
+  }
+
+  saveLaptopFile(
+    accountId: string,
+    id: string | null,
+    fresh: string,
+    name: string,
+    body: string,
+    now: number
+  ): Promise<string | null> {
+    const key = id ?? fresh
+    if (id !== null && this.laptop.get(id)?.account !== accountId) {
+      return Promise.resolve(null)
+    }
+    for (const [other, file] of this.laptop) {
+      if (
+        other !== key &&
+        file.account === accountId &&
+        file.name.toLowerCase() === name.toLowerCase()
+      ) {
+        return Promise.resolve(null)
+      }
+    }
+    this.laptop.set(key, { account: accountId, name, body, updated: now })
+    return Promise.resolve(key)
+  }
+
+  deleteLaptopFile(accountId: string, id: string): Promise<boolean> {
+    if (this.laptop.get(id)?.account !== accountId) {
+      return Promise.resolve(false)
+    }
+    return Promise.resolve(this.laptop.delete(id))
   }
 
   private taken(username: string, except?: string): boolean {

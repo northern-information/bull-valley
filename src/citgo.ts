@@ -6,6 +6,7 @@ import {
   makeGlowTexture,
   mergeStatic,
 } from './assetkit.ts'
+import { bathLit } from './bathglow.ts'
 import { canvas, context2d, SANS, text } from './canvas.ts'
 import { buildPickup } from './pickups.ts'
 import { applyPS1 } from './ps1.ts'
@@ -111,26 +112,16 @@ const STORE_FINISH: Record<StoreFinish, () => THREE.Material> = {
       emissiveIntensity: 0.5,
     }),
   // The bathroom: pale tile, white porcelain, a mirror that gives back
-  // nothing but a grey sheen, and the door in a cheap brown laminate.
-  tile: () =>
-    lambert({
-      color: '#a9b0a6',
-      emissive: new THREE.Color('#33362f'),
-      emissiveIntensity: 0.5,
-    }),
-  porcelain: () =>
-    lambert({
-      color: '#e4e2da',
-      emissive: new THREE.Color('#3c3b36'),
-      emissiveIntensity: 0.5,
-    }),
-  mirror: () => applyPS1(new THREE.MeshBasicMaterial({ color: '#8f9ea3' })),
-  door: () =>
-    lambert({
-      color: '#6b4e36',
-      emissive: new THREE.Color('#231a12'),
-      emissiveIntensity: 0.5,
-    }),
+  // nothing but a grey sheen, the door in a cheap brown laminate, the
+  // walls' own faces, and the card table's vinyl top on steel legs. All
+  // of it lit by the laptop's screen and nothing else (bathglow.ts).
+  tile: () => bathLit({ color: '#a9b0a6' }),
+  porcelain: () => bathLit({ color: '#e4e2da' }),
+  mirror: () => bathLit({ color: '#8f9ea3' }),
+  door: () => bathLit({ color: '#6b4e36' }),
+  lining: () => bathLit({ color: '#9a9b92' }),
+  table: () => bathLit({ color: '#2b2622' }),
+  steel: () => bathLit({ color: '#8a8d90' }),
   light: () => applyPS1(new THREE.MeshBasicMaterial({ color: '#eaf1ee' })),
   // Storefront glass: a cool tint you see the lot through. No depth write,
   // so the shelves and the pumps show through from either side.
@@ -173,13 +164,18 @@ export function adSignPart(sign: StoreSign): Part {
   const [w, h] = sign.size
   const geometry = new THREE.BoxGeometry(w, h, STORE_LAYOUT.signDepth)
   const texture = signTexture(sign)
-  const face = lambert({
-    map: texture,
-    emissive: new THREE.Color('#ffffff'),
-    emissiveMap: texture,
-    emissiveIntensity: 0.55,
-  })
-  const edge = lambert({ color: '#23262b' })
+  // In the bathroom only the screen lights it.
+  const face = sign.dark
+    ? bathLit({ map: texture })
+    : lambert({
+        map: texture,
+        emissive: new THREE.Color('#ffffff'),
+        emissiveMap: texture,
+        emissiveIntensity: 0.55,
+      })
+  const edge = sign.dark
+    ? bathLit({ color: '#23262b' })
+    : lambert({ color: '#23262b' })
   return {
     name: `store-${sign.name}`,
     geometry,

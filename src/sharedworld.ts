@@ -234,6 +234,13 @@
 //    that came back hurt takes its share of whole geometrie, never the
 //    last point (rule 24), and every run home earns its XP (rule 22). A
 //    raider on foot sends none (`not-dialup`).
+// 31. The laptop in the Citgo bathroom (laptop.ts): one pretend file
+//    system every raider shares, the readme first and then a folder a
+//    writer. A raider out of the bed whose last state frame put them at a
+//    station may list the files, read any of them, and save or delete
+//    their own (Reduced.laptop); the valley keeps them in D1 and checks a
+//    save against the writer's own files (laptop.ts saveRefusal). Dialed
+//    in there is no laptop (`dialup`).
 
 import { dosed, inPassReach, scaled, sobered, wardsOf } from './buffs.ts'
 import { heartPoint, theMaze } from './caretaker.ts'
@@ -271,6 +278,7 @@ import {
   isUsable,
   itemById,
 } from './items.ts'
+import { atLaptop } from './laptop.ts'
 import {
   arrive,
   board,
@@ -556,6 +564,9 @@ export type ValleyAction =
   | { type: 'expedition-claim'; id: string }
   // Rule 14: cosmetic `offer` from Moab.
   | { type: 'trade'; id: string; offer: string }
+  // Rule 31: the laptop asked to list, read, save or delete (`re`). at:
+  // where the raider's last state frame put them, or null.
+  | { type: 'laptop'; id: string; re: LaptopRe; at: XZ | null }
   // Rule 26: one step of `quest`. at: where the raider's last state frame
   // put them, or null.
   | { type: 'quest'; id: string; quest: string; step: QuestStep; at: XZ | null }
@@ -677,7 +688,14 @@ export interface Reduced {
   // Rule 30: a run sent out, or a run home and its haul, written together
   // or not at all.
   expedition?: ExpeditionChange
+  // Rule 31: the laptop opened to the account; the valley does the rest
+  // against D1.
+  laptop?: { account: string }
 }
+
+// The laptop's frames, each refused under its own name.
+export type LaptopRe =
+  'laptop-list' | 'laptop-read' | 'laptop-save' | 'laptop-delete'
 
 export interface ExpeditionChange {
   account: string
@@ -1089,6 +1107,8 @@ function act(
     case 'stow':
     case 'unstow':
       return onStash(valley, action, context)
+    case 'laptop':
+      return onLaptop(valley, action, context)
     case 'stand-stock':
     case 'stand-collect':
     case 'stand-upgrade':
@@ -2044,6 +2064,27 @@ function onStash(
       kind: action.kind,
       delta: re === 'stow' ? action.count : -action.count,
     },
+  })
+}
+
+function onLaptop(
+  valley: Valley,
+  action: ActionOf<'laptop'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rule 31.
+  const member = valley.members[action.id]
+  const world = valley.world
+  const refuse = (reason: string): Reduced =>
+    done(valley, now, { broadcast: [], reply: nack(action.re, reason) })
+  if (!member) return refuse('not-in-valley')
+  if (member.dialup) return refuse('dialup')
+  if (!world) return refuse('not-in-valley')
+  if (isAboard(world.truck, action.id)) return refuse('aboard')
+  if (!atLaptop(action.at, world.havens)) return refuse('no-laptop')
+  return done(valley, now, {
+    broadcast: [],
+    laptop: { account: member.account },
   })
 }
 

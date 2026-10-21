@@ -34,6 +34,9 @@ export type StoreFinish =
   | 'porcelain'
   | 'mirror'
   | 'door'
+  | 'lining'
+  | 'table'
+  | 'steel'
 
 // One box of the building or its fixtures, centred at `center` with full
 // `size`, both station-local. `blocks` boxes are walls to the player.
@@ -95,6 +98,8 @@ export interface StoreSign {
   center: Vec3
   size: [number, number]
   yaw: number
+  // In the bathroom, lit by the laptop's screen alone (bathglow.ts).
+  dark?: true
 }
 
 // --- The layout ----------------------------------------------------------
@@ -172,6 +177,9 @@ const BATH = {
   door: 1.0,
   toilet: { z: 4.4 },
   sink: { x: -15.6 },
+  // The card table against the +Z wall between the sink and the
+  // partition, the laptop on it facing the doorway (-Z).
+  table: { x: -14.25, size: 0.72, height: 0.7, top: 0.03, leg: 0.025 },
 }
 const BATH_INSIDE = BATH.z + BATH.wall / 2
 const BATH_DOOR_X0 = PARTITION - BATH.door
@@ -270,7 +278,109 @@ function bathroom(wallY: number, wallH: number): StoreBox[] {
       'porcelain'
     ),
     box('mirror', [sink, 1.55, sideZ - 0.01], [0.5, 0.7, 0.02], 'mirror'),
+    ...cardTable(sideZ),
+    ...lining(inner, sideZ),
   ]
+}
+
+// The card table: a vinyl top on four steel legs. The top's footprint
+// blocks; the legs stand under it.
+function cardTable(sideZ: number): StoreBox[] {
+  const { x, size, height, top, leg } = BATH.table
+  const z = sideZ - size / 2 - 0.02
+  const legH = height - top
+  const off = size / 2 - leg
+  const legs = [
+    [-1, -1],
+    [-1, 1],
+    [1, -1],
+    [1, 1],
+  ].map(([i, j], n) =>
+    box(
+      `card-table-leg-${n}`,
+      [x + i * off, FLOOR + legH / 2, z + j * off],
+      [leg, legH, leg],
+      'steel'
+    )
+  )
+  return [
+    box(
+      'card-table',
+      [x, FLOOR + height - top / 2, z],
+      [size, top, size],
+      'table',
+      true
+    ),
+    ...legs,
+  ]
+}
+
+// The bathroom's own faces a hair inside the walls it shares with the
+// rest of the store, the ceiling included, so the screen's light falls on
+// them alone (bathglow.ts) and nothing from the back room does.
+function lining(inner: number, sideZ: number): StoreBox[] {
+  const t = 0.01
+  const depth = sideZ - BATH_INSIDE
+  const midZ = BATH_INSIDE + depth / 2
+  const width = PARTITION - inner
+  const wallH = HEIGHT - FLOOR
+  const midY = FLOOR + wallH / 2
+  const lintelH = HEIGHT - DOOR_HEIGHT
+  return [
+    box(
+      'bath-lining-back',
+      [inner + t / 2, midY, midZ],
+      [t, wallH, depth],
+      'lining'
+    ),
+    box(
+      'bath-lining-partition',
+      [PARTITION - t / 2, midY, midZ],
+      [t, wallH, depth],
+      'lining'
+    ),
+    box(
+      'bath-lining-side',
+      [(inner + PARTITION) / 2, midY, sideZ - t / 2],
+      [width, wallH, t],
+      'lining'
+    ),
+    box(
+      'bath-lining-wall',
+      [(inner + BATH_DOOR_X0) / 2, midY, BATH_INSIDE + t / 2],
+      [BATH_DOOR_X0 - inner, wallH, t],
+      'lining'
+    ),
+    box(
+      'bath-lining-lintel',
+      [
+        (BATH_DOOR_X0 + PARTITION) / 2,
+        HEIGHT - lintelH / 2,
+        BATH_INSIDE + t / 2,
+      ],
+      [PARTITION - BATH_DOOR_X0, lintelH, t],
+      'lining'
+    ),
+    box(
+      'bath-lining-ceiling',
+      [(inner + PARTITION) / 2, HEIGHT - t / 2, midZ],
+      [width, t, depth],
+      'lining'
+    ),
+  ]
+}
+
+// Where the laptop sits on the card table, station-local: the middle of
+// its base on the tabletop, facing -Z (yaw turns asset +Z that way).
+function laptopSpot(): { x: number; y: number; z: number; yaw: number } {
+  const sideZ = HALF_WIDTH - WALL
+  const { x, size, height } = BATH.table
+  return {
+    x,
+    y: FLOOR + height,
+    z: sideZ - size / 2 - 0.02 + 0.06,
+    yaw: Math.PI,
+  }
 }
 
 function buildBoxes(): StoreBox[] {
@@ -570,9 +680,10 @@ function buildSigns(): StoreSign[] {
     {
       name: 'sign-wash-hands',
       art: 'wash-hands',
-      center: [BATH.sink.x + 0.75, 1.55, sideZ],
+      center: [BATH.sink.x + 0.75, 1.55, sideZ - 0.01],
       size: [0.4, 0.3],
       yaw: Math.PI,
+      dark: true,
     },
   ]
 }
@@ -666,9 +777,29 @@ export const STORE_LAYOUT = {
     z: 0,
     floor: FLOOR,
   },
-  // The bathroom wall's centreline, and the doorway through it.
-  bathroom: { z: BATH.z, door: [BATH_DOOR_X0, PARTITION] as const },
+  // The bathroom wall's centreline, and the doorway through it; the
+  // laptop on its card table, and the room's inside (x0..x1 by z0..z1,
+  // station-local), where only the screen gives light.
+  bathroom: {
+    z: BATH.z,
+    door: [BATH_DOOR_X0, PARTITION] as const,
+    laptop: laptopSpot(),
+    inside: {
+      x0: BACK + WALL,
+      x1: PARTITION,
+      z0: BATH_INSIDE,
+      z1: HALF_WIDTH - WALL,
+    },
+  },
 } as const
+
+// Where E sits a raider down at the laptop at a station: its spot on the
+// card table, in the world.
+export function laptopAt(origin: StoreOrigin): XZ {
+  const { x, z } = STORE_LAYOUT.bathroom.laptop
+  const [wx, , wz] = toWorld(origin, [x, 0, z])
+  return { x: wx, z: wz }
+}
 
 // Where E opens the lockers at a station: in front of the middle of the
 // bank, in the world.

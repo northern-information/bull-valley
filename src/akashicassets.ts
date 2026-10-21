@@ -20,6 +20,7 @@ import {
   trashCanParts,
 } from './citgo.ts'
 import { CONFIG } from './config.ts'
+import { copy } from './copy.ts'
 import {
   buildCornMazeSign,
   buildCornWalls,
@@ -35,6 +36,8 @@ import { buildFireRoots, buildRaincloud } from './fire.ts'
 import { itemLabel } from './itemcopy.ts'
 import { ITEMS } from './items.ts'
 import { buildJeep } from './jeep.ts'
+import { buildBathLaptop } from './laptopmodel.ts'
+import { README } from './laptopreadme.ts'
 import { buildLookout } from './lookoutmodel.ts'
 import { mazeSpans, SHINING_MAZE } from './maze.ts'
 import { buildMedicine } from './medicinemodels.ts'
@@ -608,6 +611,11 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     id: 'laptop',
     label: "Tyler's laptop, hunting for a lock",
     build: () => buildLaptop().group,
+  },
+  {
+    id: 'bath-laptop',
+    label: 'The bathroom laptop, the readme up, its own light',
+    build: () => buildBathLaptop(copy('laptop.readme_name'), README).group,
   },
   {
     id: 'scroll',

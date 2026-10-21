@@ -182,6 +182,16 @@ export function wireValley(game: Game, actions: Actions): void {
       case 'citgos':
         actions.applyCitgos(msg.citgos)
         return
+      // Rule 31: the laptop's answers, to its screen while it is open.
+      case 'laptop-files':
+        s.laptop?.files(msg.files)
+        return
+      case 'laptop-file':
+        s.laptop?.file(msg.id, msg.body)
+        return
+      case 'laptop-saved':
+        s.laptop?.saved(msg.id, msg.name)
+        return
     }
   })
   let wasOnline = false
@@ -421,6 +431,8 @@ export function wireValley(game: Game, actions: Actions): void {
       s.pending.stand = false
       s.standSaid = refusalLine(msg.reason)
       hud.tell(s.standSaid)
+    } else if (msg.re.startsWith('laptop-')) {
+      s.laptop?.refused(msg.reason)
     } else if (msg.re === 'portal') {
       actions.portalRefused(msg.reason)
     } else if (msg.re === 'rename' || msg.re === 'appearance') {

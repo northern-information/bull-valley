@@ -513,6 +513,23 @@ export const CONFIG = {
     // about 17 m behind it.
     stationReach: 24,
   },
+  // The laptop on the card table in the Citgo bathroom (laptop.ts): a
+  // text editor over a pretend file system every raider shares.
+  laptop: {
+    // How close the laptop must be for E to sit down at it.
+    reach: 1.5,
+    // The valley opens the files only to a raider whose last state frame
+    // put them within this of a station's pump island, as the locker.
+    stationReach: 24,
+    // A file's name, in characters, and its text.
+    nameMax: 32,
+    bodyMax: 8000,
+    // How many files one account may keep.
+    perAccount: 16,
+    // The screen's light, the only light in the bathroom (bathglow.ts):
+    // its colour, how bright, and how far it reaches before it is gone.
+    glow: { color: '#3f6dff', level: 2.4, reach: 4.5 },
+  },
   daily: {
     // The berry bush at the spawn Citgo: how close E must be to pick.
     reach: 2.6,

@@ -49,6 +49,8 @@ import { pickupLabel } from './interactions.ts'
 import { addItem, consume } from './inventory.ts'
 import { itemLabel, itemLine } from './itemcopy.ts'
 import { doseOf, healsOf, isKeyItem, isUsable, tripSecondsOf } from './items.ts'
+import { openLaptopDialog } from './laptopdialog.ts'
+import { README } from './laptopreadme.ts'
 import { board, call, charter, hopOut as hopOutOf, refused } from './marx.ts'
 import { npcLine } from './npcs.ts'
 import { outfitById } from './outfits.ts'
@@ -671,6 +673,28 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     openInventory(true)
   }
 
+  // E at the laptop in the Citgo bathroom: it fills the view with the
+  // pointer free, as Gron's dialog does, and opens on the editor and the
+  // readme. The files are the valley's (rule 31): the screen asks, and the
+  // answers land in it (valleysync.ts). Played alone only the readme is
+  // there to read.
+  const useLaptop = () => {
+    if (s.talking) return
+    withDialog(() => {
+      const { screen, closed } = openLaptopDialog({
+        me: game.pick.username,
+        readme: README,
+        readmeName: copy('laptop.readme_name'),
+        online: s.world !== null,
+        send: (msg) => net.send(msg),
+      })
+      s.laptop = screen
+      return closed.then(() => {
+        s.laptop = null
+      })
+    })
+  }
+
   // One side of the locker to the other, shown at once; the valley's pack
   // frame has the last word.
   const restash = (kind: string, all: boolean, stow: boolean) => {
@@ -1261,6 +1285,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         return
       case 'locker':
         openLocker()
+        return
+      case 'laptop':
+        useLaptop()
         return
       case 'stand':
         tendStand()

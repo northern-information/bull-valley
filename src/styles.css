@@ -3034,3 +3034,493 @@
     border-left: 0;
   }
 }
+
+/* The laptop in the Citgo bathroom (laptopdialog.ts): its screen fills the
+   view in a dark bezel, 4:3, and shows either the text editor, white on
+   dark blue, or the desktop under it on its wallpaper of green hills and
+   blue sky, with the taskbar along the bottom. */
+
+.bv-laptop {
+  background: rgb(0 0 0 / 88%);
+}
+
+/* The screen is 4:3 inside the bezel's padding and borders (40px across,
+   48px down), so the whole fits the view's height. */
+.bv-laptop-bezel {
+  box-sizing: border-box;
+  width: min(100%, calc((100vh - 2rem - 48px) * 4 / 3 + 40px), 1024px);
+  padding: 18px 18px 26px;
+  background: linear-gradient(#2c2d31, #1b1c1f);
+  border: 1px solid #3c3e44;
+  border-radius: 10px;
+  box-shadow: 0 0 80px rgb(63 109 255 / 35%);
+}
+
+.bv-laptop-screen {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+  font-size: 0.8125rem;
+  background: #000;
+  border: 2px solid #0c0c0e;
+}
+
+/* The desktop. */
+
+.bv-xp {
+  position: absolute;
+  inset: 0;
+  color: #fff;
+  background:
+    radial-gradient(
+      ellipse 18% 6% at 68% 20%,
+      rgb(255 255 255 / 85%),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 12% 4% at 80% 26%,
+      rgb(255 255 255 / 70%),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 22% 7% at 28% 14%,
+      rgb(255 255 255 / 75%),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 90% 42% at 85% 108%,
+      #3f8d22 0 58%,
+      transparent 59%
+    ),
+    radial-gradient(
+      ellipse 140% 52% at 30% 112%,
+      #6fb53c 0 30%,
+      #57a12c 52%,
+      transparent 53%
+    ),
+    linear-gradient(#1f5fd0 0%, #4b8fe6 38%, #9cc6f2 64%, #cfe4f8 72%);
+}
+
+.bv-xp-icons {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.bv-xp-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 92px;
+  padding: 4px;
+  font: inherit;
+  font-size: 0.75rem;
+  color: #fff;
+  text-align: center;
+  text-shadow: 1px 1px 1px rgb(0 0 0 / 80%);
+  cursor: pointer;
+  background: none;
+  border: 1px solid transparent;
+}
+
+.bv-xp-icon:hover,
+.bv-xp-icon:focus {
+  background: rgb(49 106 197 / 55%);
+  border-color: rgb(255 255 255 / 40%);
+}
+
+/* The icons drawn in CSS: a page with its corner turned, a manila folder. */
+.bv-xp-glyph {
+  position: relative;
+  display: block;
+  flex: none;
+  width: 32px;
+  height: 32px;
+}
+
+.bv-xp-glyph--doc {
+  width: 26px;
+  background: linear-gradient(135deg, #fff 0 78%, #c9d4e6 79%);
+  border: 1px solid #7a8aa8;
+  box-shadow:
+    inset 0 9px 0 -7px #9aa9c4,
+    inset 0 15px 0 -13px #9aa9c4,
+    inset 0 21px 0 -19px #9aa9c4;
+}
+
+.bv-xp-glyph--folder {
+  height: 26px;
+  margin-top: 6px;
+  background: linear-gradient(#ffe48a, #e8b93c);
+  border: 1px solid #b38a1e;
+  border-radius: 2px;
+}
+
+.bv-xp-glyph--folder::before {
+  position: absolute;
+  top: -6px;
+  left: -1px;
+  width: 13px;
+  height: 6px;
+  content: '';
+  background: #f2cc5c;
+  border: 1px solid #b38a1e;
+  border-bottom: 0;
+  border-radius: 2px 2px 0 0;
+}
+
+.bv-xp-glyph--small {
+  transform: scale(0.5);
+  transform-origin: left center;
+  margin: -8px -14px -8px 0;
+}
+
+/* A window: the title bar's blue, the red close, the grey body. */
+.bv-xp-window {
+  position: absolute;
+  top: 8%;
+  left: 18%;
+  display: flex;
+  flex-direction: column;
+  width: 70%;
+  height: 72%;
+  color: #000;
+  background: #ece9d8;
+  border: 3px solid #0831d9;
+  border-top: 0;
+  border-radius: 8px 8px 0 0;
+  box-shadow: 4px 4px 12px rgb(0 0 0 / 45%);
+}
+
+.bv-xp-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  padding: 0 4px 0 8px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 1px 1px 0 #0a1a5c;
+  background: linear-gradient(#0997ff, #0053ee 12%, #0050ee 80%, #06f);
+  border-radius: 6px 6px 0 0;
+}
+
+.bv-xp-close {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  color: #fff;
+  cursor: pointer;
+  background: linear-gradient(#e37b62, #c63c1c);
+  border: 1px solid #fff;
+  border-radius: 3px;
+}
+
+.bv-xp-toolbar {
+  display: flex;
+  gap: 4px;
+  padding: 4px 6px;
+  border-bottom: 1px solid #c5c2b2;
+}
+
+.bv-xp-tool {
+  padding: 2px 10px;
+  font: inherit;
+  font-size: 0.75rem;
+  color: #000;
+  cursor: pointer;
+  background: linear-gradient(#fff, #e3e1d6);
+  border: 1px solid #a5a296;
+  border-radius: 3px;
+}
+
+.bv-xp-tool:disabled {
+  color: #a19f94;
+  cursor: default;
+}
+
+.bv-xp-address {
+  display: flex;
+  gap: 8px;
+  padding: 3px 6px;
+  font-size: 0.75rem;
+  border-bottom: 1px solid #c5c2b2;
+}
+
+.bv-xp-address > :first-child {
+  color: #5b5a52;
+}
+
+.bv-xp-address > :last-child {
+  flex: 1;
+  padding: 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: #fff;
+  border: 1px solid #7f9db9;
+}
+
+.bv-xp-list {
+  flex: 1;
+  overflow: auto;
+  background: #fff;
+}
+
+.bv-xp-row {
+  display: grid;
+  grid-template-columns: 1fr 7rem 10rem;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  padding: 2px 6px;
+  font: inherit;
+  font-size: 0.75rem;
+  color: #000;
+  text-align: left;
+  cursor: pointer;
+  background: none;
+  border: 0;
+}
+
+.bv-xp-row--head {
+  color: #3a3a3a;
+  cursor: default;
+  background: linear-gradient(#fff, #ebeadb);
+  border-bottom: 1px solid #d6d2c2;
+}
+
+.bv-xp-row:not(.bv-xp-row--head):hover {
+  background: #e8eef9;
+}
+
+.bv-xp-row--picked,
+.bv-xp-row--picked:not(.bv-xp-row--head):hover {
+  color: #fff;
+  background: #316ac5;
+}
+
+.bv-xp-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bv-xp-cell--name {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.bv-xp-empty {
+  margin: 12px;
+  font-size: 0.75rem;
+  color: #6d6c64;
+}
+
+.bv-xp-statusbar {
+  min-height: 1.2em;
+  padding: 2px 6px;
+  font-size: 0.75rem;
+  border-top: 1px solid #c5c2b2;
+}
+
+/* The start menu, over the taskbar's left end. */
+.bv-xp-start {
+  position: absolute;
+  bottom: 30px;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  width: 240px;
+  color: #000;
+  background: #fff;
+  border: 2px solid #0a49d6;
+  border-radius: 6px 6px 0 0;
+  box-shadow: 3px 3px 10px rgb(0 0 0 / 45%);
+}
+
+.bv-xp-start-user {
+  padding: 10px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 1px 1px 0 #0a1a5c;
+  background: linear-gradient(#1868ce, #0e60cb 50%, #0f5bc4);
+  border-radius: 4px 4px 0 0;
+}
+
+.bv-xp-start-item {
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 0.75rem;
+  color: #000;
+  text-align: left;
+  cursor: pointer;
+  background: none;
+  border: 0;
+}
+
+.bv-xp-start-item:hover {
+  color: #fff;
+  background: #316ac5;
+}
+
+.bv-xp-start-off {
+  border-top: 1px solid #d6d2c2;
+}
+
+.bv-xp-taskbar {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  height: 30px;
+  background: linear-gradient(#3168d5, #2456d6 8%, #1f4fc8 50%, #1941a5);
+  border-top: 1px solid #0c2f8a;
+}
+
+.bv-xp-startbtn {
+  height: 100%;
+  padding: 0 22px 0 14px;
+  font: inherit;
+  font-size: 1rem;
+  font-style: italic;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 1px 1px 1px rgb(0 0 0 / 60%);
+  cursor: pointer;
+  background: linear-gradient(#3e9b3e, #3c9d3c 20%, #2f8a2f 70%, #297c29);
+  border: 0;
+  border-radius: 0 12px 12px 0;
+}
+
+.bv-xp-task {
+  overflow: hidden;
+  max-width: 180px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: #1e4fc0;
+  border: 1px solid #5d8ae6;
+  border-radius: 3px;
+}
+
+.bv-xp-tray {
+  height: 100%;
+  padding: 0 12px;
+  margin-left: auto;
+  font-size: 0.75rem;
+  line-height: 30px;
+  background: linear-gradient(#0c59b9, #139ee9 10%, #18b9ed 14%, #1389e6 90%);
+  border-left: 1px solid #0a3d91;
+}
+
+/* The editor: the readme or any file, white on dark blue. */
+
+.bv-edit {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  color: #f4f4f4;
+  background: #0b1f8f;
+}
+
+.bv-edit-menu,
+.bv-edit-status {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  min-height: 1.6em;
+  padding: 0 6px;
+  color: #0a0a0a;
+}
+
+.bv-edit-menu {
+  background: #b4b4b4;
+}
+
+.bv-edit-status {
+  justify-content: space-between;
+  background: #2aa7a7;
+}
+
+.bv-edit-menuitem {
+  padding: 0 8px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: none;
+  border: 0;
+}
+
+.bv-edit-menuitem:hover {
+  color: #f4f4f4;
+  background: #0a0a0a;
+}
+
+.bv-edit-hint {
+  margin-left: auto;
+}
+
+.bv-edit-frame {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  margin: 10px 6px 6px;
+  border: 3px double #f4f4f4;
+}
+
+.bv-edit-title {
+  display: flex;
+  justify-content: center;
+  margin-top: -0.8em;
+}
+
+.bv-edit-name {
+  width: auto;
+  min-width: 8ch;
+  max-width: 60%;
+  padding: 0 1ch;
+  font: inherit;
+  color: #0b1f8f;
+  text-align: center;
+  field-sizing: content;
+  background: #f4f4f4;
+  border: 0;
+}
+
+.bv-edit-name:read-only {
+  cursor: default;
+}
+
+.bv-edit-text {
+  flex: 1;
+  padding: 6px 8px;
+  font: inherit;
+  line-height: 1.35;
+  color: inherit;
+  tab-size: 8;
+  white-space: pre;
+  resize: none;
+  caret-color: #f4f4f4;
+  background: transparent;
+  border: 0;
+}
+
+.bv-edit-text::selection {
+  color: #0b1f8f;
+  background: #f4f4f4;
+}

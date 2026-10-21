@@ -753,6 +753,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         (c) => s.myCorpses.includes(c.id) && !s.pending.loots.has(c.id)
       ),
       lockers: targets.lockerSpots(inStore),
+      laptops: targets.laptopSpots(inStore),
       stand: world.stand?.at ?? null,
       dealer: world.plaza?.dealer.at ?? null,
       trapdoor: world.undercroft?.hatch ?? null,

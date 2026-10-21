@@ -28,10 +28,12 @@ export interface Targets {
   // The lockers in store `station`'s back room, for the resolver; none
   // outside every store.
   lockerSpots(station: number): LockerSpot[]
+  // The laptop in store `station`'s bathroom, the same way.
+  laptopSpots(station: number): LockerSpot[]
   // What the glow rings for an interaction: the pickup, the shelf unit a
   // buy would take, a bush while today's berry is on it, Gron, or Marx,
-  // Carlsten, Moab or Tyler when E would talk to him, your body, the lockers, the
-  // Cabbage Stand. Nothing for the truck.
+  // Carlsten, Moab or Tyler when E would talk to him, your body, the lockers,
+  // the laptop, the Cabbage Stand. Nothing for the truck.
   glowTarget(action: Interaction<Pickup> | null): THREE.Object3D | null
   // What an item's label floats over: the pickup, the shelf unit a buy
   // would take, or a bush, picked or not. Null for anything else.
@@ -67,6 +69,8 @@ export function createTargets(game: Game): Targets {
         return game.corpses.objectOf(action.corpse)
       case 'locker':
         return world.shelves.lockers
+      case 'laptop':
+        return world.shelves.laptop
       case 'stand':
         return world.stand?.group ?? null
       case 'deal':
@@ -146,6 +150,11 @@ export function createTargets(game: Game): Targets {
 
     lockerSpots(station) {
       const spot = world.lockers[station]
+      return station >= 0 && spot ? [{ ...spot, station }] : []
+    },
+
+    laptopSpots(station) {
+      const spot = world.laptops[station]
       return station >= 0 && spot ? [{ ...spot, station }] : []
     },
 

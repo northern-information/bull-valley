@@ -60,6 +60,45 @@ export function storeContract(makeStore: () => AccountStore): void {
     expect(await store.accountByUsername('nobody')).toBeNull()
   })
 
+  it("keeps the laptop's files, each its writer's", async () => {
+    const store = makeStore()
+    await friendly(store)
+    const text = 'line one\n\tindented  twice\n'
+    expect(
+      await store.saveLaptopFile('a1', null, 'f1', 'notes.txt', text, 10)
+    ).toBe('f1')
+    expect(await store.laptopBody('f1')).toBe(text)
+    expect(await store.laptopBody('nope')).toBeNull()
+    expect(await store.laptopFiles()).toEqual([
+      {
+        id: 'f1',
+        account: 'a1',
+        owner: 'Able',
+        name: 'notes.txt',
+        size: text.length,
+        updated: 10,
+      },
+    ])
+    // A second of the name, in any case, and anyone else's write, refused.
+    expect(
+      await store.saveLaptopFile('a1', null, 'f2', 'NOTES.txt', '', 11)
+    ).toBeNull()
+    expect(
+      await store.saveLaptopFile('a2', 'f1', 'f3', 'notes.txt', 'mine', 12)
+    ).toBeNull()
+    expect(await store.deleteLaptopFile('a2', 'f1')).toBe(false)
+    // Another writer may use the name.
+    expect(
+      await store.saveLaptopFile('a2', null, 'f4', 'notes.txt', 'b', 13)
+    ).toBe('f4')
+    expect(
+      await store.saveLaptopFile('a1', 'f1', 'f5', 'renamed.txt', 'new', 14)
+    ).toBe('f1')
+    expect(await store.laptopBody('f1')).toBe('new')
+    expect(await store.deleteLaptopFile('a1', 'f1')).toBe(true)
+    expect((await store.laptopFiles()).map((f) => f.id)).toEqual(['f4'])
+  })
+
   it('asks, accepts and unfriends, by username', async () => {
     const store = makeStore()
     await friendly(store)
