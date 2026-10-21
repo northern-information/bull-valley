@@ -225,6 +225,12 @@ export class DialShell {
       )
     }
     if (this.sheetOpen === 'moab') this.moab?.update(s)
+    this.showSaid(s)
+  }
+
+  // The valley's last word while it is fresh; the tick takes it away once
+  // it is not, so a stale one never sits over the screen.
+  private showSaid(s: DialState): void {
     const said = s.said
     const fresh = said && performance.now() - said.at < SAID_MS
     this.toast.hidden = !fresh
@@ -248,7 +254,10 @@ export class DialShell {
     const s = this.state
     // The wards fade between the valley's word on them: the top bar's,
     // and the raider's own on the lobby.
-    if (s) this.renderTop(s)
+    if (s) {
+      this.renderTop(s)
+      this.showSaid(s)
+    }
     const raider = this.view.querySelector('.bv-dial-raider-state')
     if (s && raider) raider.replaceChildren(...this.wardLines(s))
     if (s && this.tab === 'expeditions') {

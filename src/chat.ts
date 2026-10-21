@@ -35,7 +35,8 @@ export const CHAT_COPY = {
 // valley: /online, /emotes and an emote's own name (/wave, emotes.ts) are
 // answered here; /w (or /whisper) sends one raider a
 // whisper; /friend asks a raider to be friends or accepts their asking,
-// /unfriend undoes it, and /friends asks for the list (friends.ts).
+// /unfriend undoes it, and /friends asks for the list (friends.ts);
+// /inspect opens a raider's card (inspect.ts).
 // `usage` is a command missing what it needs, with the line that says how.
 export type ChatCommand =
   | { name: 'online' }
@@ -43,9 +44,16 @@ export type ChatCommand =
   | { name: 'emote'; id: EmoteId }
   | { name: 'friends' }
   | { name: 'whisper'; to: string; text: string }
-  | { name: 'friend' | 'unfriend'; who: string }
+  | { name: 'friend' | 'unfriend' | 'inspect'; who: string }
   | { name: 'usage'; line: string }
   | { name: 'unknown' }
+
+// What a command missing its name says.
+const USAGE = {
+  friend: copy('chat.usage_friend'),
+  unfriend: copy('chat.usage_unfriend'),
+  inspect: copy('inspect.usage'),
+} as const
 
 export function chatCommand(text: string): ChatCommand | null {
   if (!text.startsWith('/')) return null
@@ -68,17 +76,9 @@ export function chatCommand(text: string): ChatCommand | null {
     }
     return { name: 'whisper', to, text: said }
   }
-  if (command === 'friend' || command === 'unfriend') {
+  if (command === 'friend' || command === 'unfriend' || command === 'inspect') {
     const [who = ''] = rest
-    if (!who) {
-      return {
-        name: 'usage',
-        line:
-          command === 'friend'
-            ? copy('chat.usage_friend')
-            : copy('chat.usage_unfriend'),
-      }
-    }
+    if (!who) return { name: 'usage', line: USAGE[command] }
     if (!isValidName(who)) {
       return { name: 'usage', line: copy('friends.unknown', { name: who }) }
     }

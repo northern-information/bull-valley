@@ -5,7 +5,7 @@
 import { pulseMaterials } from './assets.ts'
 import { itemsHeld, sightsInReach } from './book.ts'
 import { activeBuffs } from './buffbar.ts'
-import { sprintScale } from './buffs.ts'
+import { passTarget, sprintScale } from './buffs.ts'
 import { citgoAt } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
@@ -734,6 +734,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       heart: heartSpot(),
       locked: lockedDoor(),
       hallucinations: s.aboard ? [] : game.hallucinations.spots(),
+      raider: s.aboard
+        ? null
+        : passTarget(player.pos, player.yaw, game.peers.standing()),
     })
   }
 

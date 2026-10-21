@@ -815,8 +815,17 @@ button.bv-dial-card {
 }
 
 .bv-dial-online-name {
+  display: block;
   margin: 0.25rem 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
   font-size: 0.875rem;
+  text-align: left;
+  text-decoration: underline dotted;
+  cursor: pointer;
 }
 
 /* The locker sheet: what is on the raider over what the locker holds. */

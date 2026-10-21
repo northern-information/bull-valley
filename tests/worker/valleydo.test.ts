@@ -1,4 +1,5 @@
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import { BOOK } from '../../src/book.ts'
 import { heartPoint, theMaze } from '../../src/caretaker.ts'
 import { CONFIG } from '../../src/config.ts'
 import { dayKey } from '../../src/daily.ts'
@@ -1305,6 +1306,63 @@ describe('ValleyDO', () => {
     socket
       .frames()
       .filter((m): m is Extract<ServerMessage, { type: T }> => m.type === type)
+
+  it("sends a raider's card to the asker alone, in the valley or not", async () => {
+    const { valley: v, state: s } = await valley()
+    await named(v, 'Able', 'Baker', 'Dog')
+    const store = v.packStore
+    await store.gainXp('acct-Baker', xpToReach(3))
+    await store.discover('acct-Baker', ['citgo', 'nope'], 0)
+    await store.score(
+      'acct-Baker',
+      SEASON.id,
+      { kills: 2, claimed: false },
+      null
+    )
+    await v.accountStore.setLook('acct-Baker', {
+      outfit: 'kvistad',
+      finish: 'cherry',
+    })
+    const a = await join(v, s, 'Able')
+    const b = await join(v, s, 'Baker')
+    const inspect = (socket: MockSocket, name: string) =>
+      v.webSocketMessage(ws(socket), JSON.stringify({ type: 'inspect', name }))
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ type: 'friend', name: 'Baker' })
+    )
+    const heard = b.frames().length
+    await inspect(a, 'baker')
+    expect(ofType(a, 'inspected').at(-1)?.card).toEqual({
+      name: 'Baker',
+      level: 3,
+      outfit: 'kvistad',
+      finish: 'cherry',
+      cosmetics: [],
+      book: { found: 1, of: BOOK.length },
+      season: { kills: 2, goal: SEASON.goal, claimed: false },
+      friend: 'asked',
+      online: true,
+    })
+    // Baker heard nothing of it, and no account id went out.
+    expect(b.frames().length).toBe(heard)
+    expect(JSON.stringify(a.frames())).not.toContain('acct-')
+    // Someone away, and the asker's own card.
+    await inspect(a, 'Dog')
+    expect(ofType(a, 'inspected').at(-1)?.card).toEqual(
+      expect.objectContaining({ name: 'Dog', online: false, friend: null })
+    )
+    await inspect(a, 'Able')
+    expect(ofType(a, 'inspected').at(-1)?.card.friend).toBe('self')
+    await inspect(a, 'Nobody')
+    expect(a.last()).toEqual({ type: 'nack', re: 'inspect', reason: 'unknown' })
+    for (let i = 0; i < 10; i++) await inspect(a, 'Baker')
+    expect(a.last()).toEqual({
+      type: 'nack',
+      re: 'inspect',
+      reason: 'too-fast',
+    })
+  })
 
   it('whispers to one raider by name, echoing it to the sender alone', async () => {
     const { valley: v, state: s } = await valley()

@@ -109,6 +109,9 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // foot climbs up onto the deck; at its top, E climbs back down.
   | { kind: 'climbTower' }
   | { kind: 'leaveTower' }
+  // Another raider in reach and in front (buffs.ts passTarget): E opens
+  // their card (inspect.ts).
+  | { kind: 'inspect'; name: string }
   // Someone or something a trip shows that is not there
   // (hallucinations.ts): it answers E as the real one would, and E bursts
   // it. `item` is what a thing passes for.
@@ -264,6 +267,8 @@ export interface InteractionInput<P extends PickupSpot> {
   // What a trip shows this raider that is not there, each answering E
   // from as far as the real one would (CONFIG.hallucinations.reach).
   hallucinations?: readonly HallucinationSpot[]
+  // The raider in reach and in front (buffs.ts passTarget), or null.
+  raider?: { name: string } | null
 }
 
 // The first match wins, in this order: hop out while riding; the nearest
@@ -274,7 +279,8 @@ export interface InteractionInput<P extends PickupSpot> {
 // a shelf; take your things back off your nearest body; open the lockers;
 // sit down at the laptop; tend the Cabbage Stand; deal with the squatter; take the nearest pickup
 // in reach of a locked door, or else rattle it; Gron or the nearest berry
-// bush, whichever is nearer; take the nearest pickup.
+// bush, whichever is nearer; inspect the raider in front; take the
+// nearest pickup.
 export function resolveInteraction<P extends PickupSpot>(
   input: InteractionInput<P>
 ): Interaction<P> | null {
@@ -451,6 +457,8 @@ export function resolveInteraction<P extends PickupSpot>(
     return { kind: 'collect', bush: bush.id, status: bush.status }
   }
 
+  if (input.raider) return { kind: 'inspect', name: input.raider.name }
+
   const nearest = nearestPickup(input.pickups, player, walled, view)
   return nearest ? { kind: 'pickup', pickup: nearest } : null
 }
@@ -609,6 +617,8 @@ export function interactionKey(interaction: Interaction): string {
       return `locker:${interaction.station}`
     case 'hallucination':
       return `hallucination:${interaction.id}`
+    case 'inspect':
+      return `inspect:${interaction.name}`
     default:
       return interaction.kind
   }
@@ -657,6 +667,8 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return copy('prompts.climb_tower')
     case 'leaveTower':
       return copy('prompts.leave_tower')
+    case 'inspect':
+      return copy('prompts.inspect', { name: interaction.name })
     // Moab's offer is said, since the glow alone cannot say what he wants.
     case 'trade': {
       const cosmetic = cosmeticById(interaction.offer)

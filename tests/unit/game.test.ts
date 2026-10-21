@@ -14,6 +14,7 @@ describe('freshPending', () => {
     before.ask = { op: 'friend', name: 'dave' }
     before.showFriends = true
     before.whisperTo = 'dave'
+    before.inspect = 'dave'
     before.trade = true
     before.collect = true
     before.stand = true
@@ -29,6 +30,7 @@ describe('freshPending', () => {
       book: new Set(),
       ask: null,
       showFriends: false,
+      inspect: null,
       whisperTo: null,
       stand: false,
       recycle: false,

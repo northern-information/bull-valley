@@ -107,6 +107,22 @@ describe('chatCommand', () => {
     })
   })
 
+  it('reads /inspect and a name', () => {
+    expect(chatCommand('/inspect Baker')).toEqual({
+      name: 'inspect',
+      who: 'Baker',
+    })
+    expect(chatCommand('/Inspect')).toEqual({
+      name: 'usage',
+      line: copy('inspect.usage'),
+    })
+    const long = 'x'.repeat(40)
+    expect(chatCommand(`/inspect ${long}`)).toEqual({
+      name: 'usage',
+      line: copy('friends.unknown', { name: long }),
+    })
+  })
+
   it('reads /friend, /unfriend and /friends', () => {
     expect(chatCommand('/friend Baker')).toEqual({
       name: 'friend',

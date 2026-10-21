@@ -2,8 +2,8 @@
 // valley's one chat channel, its log and a field to say a line (the 3D
 // valley's commands too, dialstate.ts sayLine), the friends list with a
 // way to accept an asking or end a friendship, and who is in the valley
-// now. The field is kept across redraws, so a line half typed survives
-// the valley's frames.
+// now, each name tapped open on their card (inspect.ts). The field is
+// kept across redraws, so a line half typed survives the valley's frames.
 
 import { formatStamp } from './chat.ts'
 import { copy } from './copy.ts'
@@ -17,6 +17,7 @@ export interface SocialActions {
   say(line: string): void
   friend(name: string): void
   unfriend(name: string): void
+  inspect(name: string): void
 }
 
 export class DialSocial {
@@ -73,15 +74,21 @@ export class DialSocial {
     this.renderFriends(s)
     this.online.replaceChildren(
       text('h3', copy('dialup.social.online'), 'bv-dial-social-head'),
-      ...[{ ...self, dialup: true }, ...s.peers].map((p) =>
-        text(
-          'p',
+      ...[{ ...self, dialup: true }, ...s.peers].map((p) => {
+        const row = text(
+          'button',
           p.dialup
             ? copy('chat.online_phone', { name: p.name, level: p.level })
             : copy('chat.online_name', { name: p.name, level: p.level }),
           'bv-dial-online-name'
         )
-      )
+        row.type = 'button'
+        row.dataset.raider = p.name
+        // One card asked at a time: the valley's answer frees them again.
+        row.disabled = s.pending.inspect !== null
+        row.addEventListener('click', () => this.friendActions.inspect(p.name))
+        return row
+      })
     )
   }
 

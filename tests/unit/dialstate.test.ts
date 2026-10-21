@@ -630,6 +630,35 @@ describe('the folk, the Citgo and the chat on the phone', () => {
       ).said?.text
     ).toBe(copy('friends.self'))
   })
+
+  it("asks for a raider's card, keeps the answer, and says a refusal", () => {
+    const self = { name: 'Me', level: 2 }
+    const asking = sayLine(me(), '/inspect Kid', self, 0)
+    expect(asking.frame).toEqual({ type: 'inspect', name: 'Kid' })
+    expect(asking.state.pending.inspect).toBe('Kid')
+    const card = {
+      name: 'Kid',
+      level: 3,
+      outfit: 'player' as const,
+      finish: 'black' as const,
+      cosmetics: [],
+      book: { found: 1, of: 9 },
+      season: { kills: 0, goal: 5, claimed: false },
+      friend: null,
+      online: true,
+    }
+    const shown = applyFrame(asking.state, { type: 'inspected', card }, 0, 0)
+    expect(shown.inspected).toEqual(card)
+    expect(shown.pending.inspect).toBeNull()
+    const refused = applyFrame(
+      asking.state,
+      { type: 'nack', re: 'inspect', reason: 'unknown' },
+      0,
+      0
+    )
+    expect(refused.said?.text).toBe(copy('friends.unknown', { name: 'Kid' }))
+    expect(refused.pending.inspect).toBeNull()
+  })
 })
 
 describe('expeditions on the phone', () => {

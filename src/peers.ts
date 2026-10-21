@@ -218,6 +218,14 @@ export class Peers {
     return members.slice(0, PARTY_MAX)
   }
 
+  // The raiders standing in the valley (placed, and not riding), where
+  // their last state put them: who E or G reaches (buffs.ts passTarget).
+  standing(): { id: string; name: string; x: number; z: number }[] {
+    return this.list().flatMap(({ id, name, next }) =>
+      next && !next.riding ? [{ id, name, x: next.x, z: next.z }] : []
+    )
+  }
+
   state(id: string, state: PeerStateWire, now: number, due = now): void {
     applyState(this.table, id, state, now, due)
   }

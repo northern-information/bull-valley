@@ -164,6 +164,11 @@ describe('chat', () => {
       name: 'Baker',
     })
     expect(parse({ type: 'friend', name: 7 })).toBeNull()
+    expect(parse({ type: 'inspect', name: 'Baker' })).toEqual({
+      type: 'inspect',
+      name: 'Baker',
+    })
+    expect(parse({ type: 'inspect', name: '' })).toBeNull()
     expect(parse({ type: 'unfriend' })).toBeNull()
     expect(parse({ type: 'friends', extra: 1 })).toEqual({ type: 'friends' })
   })

@@ -18,6 +18,7 @@ import type { DealerStock } from './dealer.ts'
 import type { Drop } from './drops.ts'
 import type { ExpeditionOutcome, ExpeditionRun } from './expeditions.ts'
 import type { Hurt } from './fall.ts'
+import type { FinishId } from './finishes.ts'
 import type { Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { LaptopFileInfo } from './laptop.ts'
@@ -34,7 +35,7 @@ import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 40
+export const PROTOCOL_VERSION = 41
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -518,6 +519,14 @@ interface FriendsMessage {
   type: 'friends'
 }
 
+// The card of the raider signed in as `name`, in any case, whether they
+// are in the valley or not (inspect.ts): an inspected frame answers the
+// asker alone.
+interface InspectMessage {
+  type: 'inspect'
+  name: string
+}
+
 // Rule 31: the laptop in the Citgo bathroom. Its files listed (a
 // laptop-files frame answers), one file's text (laptop-file), a file
 // saved as `id` or, with null, as a new one (laptop-saved, then the
@@ -609,6 +618,7 @@ export type ClientMessage =
   | FriendMessage
   | UnfriendMessage
   | FriendsMessage
+  | InspectMessage
   | LaptopListMessage
   | LaptopReadMessage
   | LaptopSaveMessage
@@ -1042,6 +1052,7 @@ export type ServerMessage =
   | WhisperedMessage
   | FriendsListMessage
   | FriendNewsMessage
+  | InspectedMessage
   | LaptopFilesMessage
   | LaptopFileMessage
   | LaptopSavedMessage
@@ -1104,6 +1115,28 @@ interface FriendNewsMessage {
   type: 'friend-news'
   news: 'asked' | 'accepted' | 'online'
   name: string
+}
+
+// One raider's card (inspect.ts), as anyone may see it: their name, level,
+// look, how much of the Book of Shadows they have found and how far
+// through the season they are, read by the valley from D1. `friend` is
+// where the asker stands with them (friends.ts), 'self' for their own
+// card. Never an account id.
+export interface InspectWire {
+  name: string
+  level: number
+  outfit: OutfitId
+  finish: FinishId
+  cosmetics: CosmeticId[]
+  book: { found: number; of: number }
+  season: { kills: number; goal: number; claimed: boolean }
+  friend: FriendWire['state'] | 'self' | null
+  online: boolean
+}
+
+interface InspectedMessage {
+  type: 'inspected'
+  card: InspectWire
 }
 
 // Application close codes (the 4xxx range is ours per RFC 6455). The client
@@ -1482,6 +1515,7 @@ const CLIENT_PARSERS: ClientParsers = {
   friend: ({ name }) => (isValidName(name) ? { type: 'friend', name } : null),
   unfriend: ({ name }) =>
     isValidName(name) ? { type: 'unfriend', name } : null,
+  inspect: ({ name }) => (isValidName(name) ? { type: 'inspect', name } : null),
   collect: ({ bush }) => (isCount(bush) ? { type: 'collect', bush } : null),
   // Widened like the hello's, so a bad id reaches the server's check.
   appearance: ({ outfit }) =>

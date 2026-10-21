@@ -27,6 +27,7 @@ import {
   whisperRefusal,
 } from './friends.ts'
 import { freshPending } from './game.ts'
+import { inspectRefusal } from './inspect.ts'
 import { pickupLabel } from './interactions.ts'
 import { toInventory } from './inventory.ts'
 import { levelUp } from './progression.ts'
@@ -164,6 +165,10 @@ export function wireValley(game: Game, actions: Actions): void {
       }
       case 'friend-news':
         hud.tell(friendNews(msg.news, msg.name))
+        return
+      // A raider's card, asked for by E or /inspect.
+      case 'inspected':
+        actions.showInspected(msg.card)
         return
       case 'pong':
         return
@@ -371,6 +376,9 @@ export function wireValley(game: Game, actions: Actions): void {
       hud.tell(CHAT_COPY.tooFast)
     } else if (msg.re === 'whisper') {
       hud.tell(whisperRefusal(msg.reason, s.pending.whisperTo ?? ''))
+    } else if (msg.re === 'inspect') {
+      hud.tell(inspectRefusal(msg.reason, s.pending.inspect ?? ''))
+      s.pending.inspect = null
     } else if (msg.re === 'friend' || msg.re === 'unfriend') {
       hud.tell(friendRefusal(msg.reason, s.pending.ask?.name ?? ''))
       s.pending.ask = null

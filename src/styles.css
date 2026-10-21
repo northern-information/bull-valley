@@ -3104,6 +3104,25 @@
   align-content: center;
 }
 
+/* A raider's card (inspectdialog.ts): their figure turning beside the
+   rows, and the friend button under them. */
+.bv-inspect-body {
+  align-items: center;
+}
+
+.bv-inspect-avatar {
+  justify-self: center;
+  width: 120px;
+  height: 200px;
+  image-rendering: pixelated;
+  border: 1px solid var(--bv-npc-edge);
+  cursor: grab;
+}
+
+.bv-inspect-stats {
+  align-self: center;
+}
+
 /* A section head with nothing to say on the right lets its rule run. */
 .bv-npc-sh > .bv-npc-label:empty {
   display: none;
