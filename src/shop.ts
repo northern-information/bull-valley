@@ -9,8 +9,8 @@
 import { copy } from './copy.ts'
 import { addItem } from './inventory.ts'
 import { itemLine } from './itemcopy.ts'
-import { contentsOf, itemById } from './items.ts'
-import { formatCash, onShelf, takeUnit } from './store.ts'
+import { contentsOf } from './items.ts'
+import { formatCash, onShelf, shelfPrice, takeUnit } from './store.ts'
 import type { Inventory, ShopStock } from './interfaces.ts'
 
 export interface ShopState {
@@ -36,23 +36,20 @@ export interface Settled {
   line: string | null
 }
 
-// Pays for one unit of `kind` and puts it, full, in the inventory. Refuses short
-// cash.
-export function settle(purse: Purse, kind: string): Settled {
+// Pays `price` for one unit of `kind` and puts it, full, in the
+// inventory. Refuses short cash.
+export function settle(purse: Purse, kind: string, price: number): Settled {
   const { inventory, cash } = purse
-  const item = itemById(kind)
-  // Nothing without a price is on a shelf: forage is the bush's to give.
-  if (!item || item.price === undefined) return { next: null, line: null }
-  if (cash < item.price) {
+  if (cash < price) {
     return {
       next: null,
-      line: copy('log.short', { amount: formatCash(item.price - cash) }),
+      line: copy('log.short', { amount: formatCash(price - cash) }),
     }
   }
   return {
     next: {
       inventory: addItem(inventory, kind, contentsOf(kind)),
-      cash: cash - item.price,
+      cash: cash - price,
     },
     line: itemLine(kind, 'bought'),
   }
@@ -67,14 +64,13 @@ export function buy(
 ): Purchase {
   const { stock } = state
   const shelf = stock[station] as ShopStock | undefined
-  const item = itemById(kind)
-  if (!shelf || !item || item.price === undefined) {
-    return { next: null, line: null }
-  }
+  // Nothing without a price is on a shelf: forage is the bush's to give.
+  const price = shelf ? shelfPrice(kind, shelf[kind]) : undefined
+  if (!shelf || price === undefined) return { next: null, line: null }
   if (!onShelf(shelf, kind, unit)) {
     return { next: null, line: copy('log.sold_out') }
   }
-  const { next, line } = settle(state, kind)
+  const { next, line } = settle(state, kind, price)
   if (!next) return { next: null, line }
   const nextStock = stock.map((s, i) =>
     i === station ? takeUnit(s, kind, unit) : s
@@ -82,16 +78,17 @@ export function buy(
   return { next: { ...next, stock: nextStock }, line }
 }
 
-// Why the valley would not sell `item`, to a raider with `cash` cents: sold
-// out, short (by how much), a Citgo the account has not stood at or no
-// world to buy in (Bull Valley Dial-Up's, sharedworld.ts rule 29), or
-// refused.
+// Why the valley would not sell `item` off `shelf`, to a raider with
+// `cash` cents: sold out, short (by how much, at the shelf's price now), a
+// Citgo the account has not stood at or no world to buy in (Bull Valley
+// Dial-Up's, sharedworld.ts rule 29), or refused.
 export function buyRefusal(
   reason: string,
   item: string | undefined,
-  cash: number
+  cash: number,
+  shelf?: ShopStock
 ): string {
-  const price = item ? itemById(item)?.price : undefined
+  const price = item ? shelfPrice(item, shelf?.[item]) : undefined
   switch (reason) {
     case 'sold-out':
       return copy('log.sold_out')

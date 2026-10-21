@@ -5,7 +5,7 @@ import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { itemLine } from '../../src/itemcopy.ts'
 import { contentsOf, getItem } from '../../src/items.ts'
 import { buy, buyRefusal, settle } from '../../src/shop.ts'
-import { formatCash, freshStock } from '../../src/store.ts'
+import { formatCash, freshStock, shelfPrice } from '../../src/store.ts'
 import { unitsLeft } from './stock.ts'
 import type { ShopState } from '../../src/shop.ts'
 
@@ -78,14 +78,13 @@ describe('buy', () => {
       next: null,
       line: null,
     })
-    expect(settle(fresh(), 'berries')).toEqual({ next: null, line: null })
   })
 })
 
 describe('settle', () => {
   it('pays and pockets without touching any shelf', () => {
     const state = fresh()
-    const { next, line } = settle(state, 'marlboro')
+    const { next, line } = settle(state, 'marlboro', getItem('marlboro').price)
     expect(next?.inventory.marlboro).toBe(
       state.inventory.marlboro + contentsOf('marlboro')
     )
@@ -94,9 +93,18 @@ describe('settle', () => {
     expect(line).toBe(itemLine('marlboro', 'bought'))
   })
 
-  it('refuses short cash and an unknown kind', () => {
-    expect(settle(fresh({ cash: 1 }), 'pbr').next).toBeNull()
-    expect(settle(fresh(), 'moonrock')).toEqual({ next: null, line: null })
+  it('refuses short cash', () => {
+    expect(settle(fresh({ cash: 1 }), 'pbr', 99).next).toBeNull()
+  })
+
+  it('charges the dearer price once a shelf has sold some', () => {
+    const state = fresh()
+    const first = buy(state, 0, 'pbr', 0).next
+    const second = first && buy(first, 0, 'pbr', 1).next
+    expect(first?.cash).toBe(state.cash - getItem('pbr').price)
+    expect(second?.cash).toBe(
+      (first?.cash ?? 0) - (shelfPrice('pbr', [false, true, true]) ?? 0)
+    )
   })
 })
 
@@ -115,5 +123,25 @@ describe('buyRefusal', () => {
       copy('dialup.citgo.no_world')
     )
     expect(buyRefusal('what', 'marlboro', 0)).toBe(copy('log.refused'))
+  })
+})
+
+describe('shelfPrice', () => {
+  it('puts the price up for each unit already sold, to a price ending in 9', () => {
+    const { surge } = CONFIG.store
+    expect(shelfPrice('pbr', [true, true, true])).toBe(99)
+    expect(shelfPrice('pbr', undefined)).toBe(99)
+    const second = shelfPrice('pbr', [false, true, true]) ?? 0
+    const third = shelfPrice('pbr', [false, false, true]) ?? 0
+    expect(second % 10).toBe(9)
+    expect(second).toBeGreaterThanOrEqual(99 * surge)
+    expect(second).toBeLessThan(99 * surge + 10)
+    expect(third).toBeGreaterThanOrEqual(99 * surge ** 2)
+    expect(third).toBeGreaterThan(second)
+  })
+
+  it('has none for what no shelf sells', () => {
+    expect(shelfPrice('berries', [true])).toBeUndefined()
+    expect(shelfPrice('moonrock', [true])).toBeUndefined()
   })
 })

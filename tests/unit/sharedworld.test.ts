@@ -43,6 +43,7 @@ import {
   wardsFor,
 } from '../../src/sharedworld.ts'
 import { FRESH_STAND, standXp } from '../../src/stand.ts'
+import { shelfPrice } from '../../src/store.ts'
 import { UNDERCROFT } from '../../src/undercroft.ts'
 import { damageOf } from '../../src/wards.ts'
 import { dryMap } from '../../src/waterside.ts'
@@ -741,6 +742,20 @@ describe('rule 7: the shelves are shared', () => {
       kind: 'marlboro',
       delta: contentsOf('marlboro'),
     })
+  })
+
+  it('charges more for each unit already gone off that shelf today', () => {
+    const v = valleyWith(join('a'))
+    const paid = [0, 1, 2].map(
+      (unit) => v.step(buy('a', 0, 'pbr', unit)).spend?.amount
+    )
+    expect(paid).toEqual([
+      shelfPrice('pbr', [true, true, true]),
+      shelfPrice('pbr', [false, true, true]),
+      shelfPrice('pbr', [false, false, true]),
+    ])
+    expect(paid[0]).toBe(getItem('pbr').price)
+    expect(paid[2]).toBeGreaterThan(paid[1] ?? Infinity)
   })
 
   it('says sold out, short, or no such shelf', () => {
