@@ -240,7 +240,10 @@
 //    one up, a body, a portal, and laying the rose.
 // 30. Idle expeditions (expeditions.ts): a raider dialed in sends their
 //    raider out on a run, one at a time, if their level has opened it
-//    (`expedition-send`; `busy`, `locked`). The valley draws its seed and
+//    (`expedition-send`; `busy`, `locked`), and if the wallet covers its
+//    buy-in (CONFIG.expeditions.runs[...].cost; ValleyContext.cash in,
+//    Reduced.spend out, taken as the run is written; `short`). The valley
+//    draws its seed and
 //    keeps the run with the matching ward's level as it left (rule 27),
 //    so what comes home is settled then; a run home is claimed
 //    (`expedition-claim`; `none` with none out, `out` before its time) and
@@ -2308,7 +2311,7 @@ function onStand(
 function onExpedition(
   valley: Valley,
   action: ActionOf<'expedition-send' | 'expedition-claim'>,
-  { now, expedition }: ValleyContext
+  { now, expedition, cash }: ValleyContext
 ): Reduced {
   // Rule 30.
   const member = valley.members[action.id]
@@ -2330,9 +2333,13 @@ function onExpedition(
       action.seed
     )
     if (typeof run === 'string') return refuse(run)
+    // Rule 30: a run costs its buy-in, out of the wallet as it leaves.
+    const { cost } = CONFIG.expeditions.runs[action.kind]
+    if (cost > 0 && (cash ?? 0) < cost) return refuse('short')
     return done(valley, now, {
       broadcast: [],
       expedition: { account, run },
+      ...(cost > 0 ? { spend: { account, amount: cost } } : {}),
     })
   }
   const run = expedition.run

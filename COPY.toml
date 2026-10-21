@@ -1293,6 +1293,10 @@ busy = { text = "Someone's already out. Bring them home first.", by = "ai" }
 locked_refused = { text = "Your level hasn't opened that run yet.", by = "ai" }
 out = { text = "Not back yet.", by = "ai" }
 refused = { text = "The run couldn't go out. Try again soon.", by = "ai" }
+cost = { text = "Costs {cost} to send.", by = "ai" }
+free = { text = "Costs nothing to send.", by = "ai" }
+short = { text = "Short {amount}", by = "ai" }
+short_refused = { text = "Your wallet doesn't cover the buy-in.", by = "ai" }
 
 [dialup.social]
 placeholder = { text = "Say something to the valley", by = "ai" }

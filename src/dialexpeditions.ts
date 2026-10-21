@@ -3,8 +3,8 @@
 // clock (`tickExpeditions`, moved in place each second), and Bring It Home
 // once its time is up; then every run there is, each with how long it
 // takes, the level it opens at, the ward that keeps it safe and how much
-// yours does now (expeditions.ts riskOf), what it may bring home, and
-// Send. The last haul home stays under it.
+// yours does now (expeditions.ts riskOf), what it may bring home, what
+// it costs to send, and Send. The last haul home stays under it.
 
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
@@ -20,6 +20,7 @@ import {
 } from './expeditions.ts'
 import { itemLabel } from './itemcopy.ts'
 import { barOf } from './progression.ts'
+import { formatCash } from './store.ts'
 import { wardName } from './vitalshud.ts'
 import type { DialState } from './dialstate.ts'
 import type { ExpeditionId } from './expeditions.ts'
@@ -116,17 +117,23 @@ export function renderExpeditions(
           ),
         ].join(', '),
       }),
+      run.cost > 0
+        ? copy('dialup.expeditions.cost', { cost: formatCash(run.cost) })
+        : copy('dialup.expeditions.free'),
     ].join(' ')
     const locked = level < run.level
+    const short = run.cost - s.cash
     const send = text(
       'button',
       locked
         ? copy('dialup.expeditions.locked', { level: run.level })
-        : copy('dialup.expeditions.send'),
+        : short > 0
+          ? copy('dialup.expeditions.short', { amount: formatCash(short) })
+          : copy('dialup.expeditions.send'),
       'bv-dial-btn'
     )
     send.type = 'button'
-    send.disabled = locked || out !== null || s.pending.expedition
+    send.disabled = locked || short > 0 || out !== null || s.pending.expedition
     send.addEventListener('click', () => actions.send(id))
     li.append(head, facts, send)
     list.append(li)

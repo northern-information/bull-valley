@@ -3753,6 +3753,32 @@ describe('ValleyDO: Bull Valley Dial-Up', () => {
     ).toBe(4000 + outcome.cents)
   })
 
+  it("takes a run's buy-in out of the wallet as it leaves, never past empty", async () => {
+    const { valley: v, state: s } = await valley()
+    const p = await dial(v, s, 'P')
+    const { cost } = CONFIG.expeditions.runs.corn
+    await v.webSocketMessage(ws(p), '{"type":"expedition-send","kind":"corn"}')
+    expect(
+      p
+        .frames()
+        .findLast((m): m is ExpeditionMessage => m.type === 'expedition')
+    ).toMatchObject({ run: { id: 'corn' } })
+    expect(
+      p.frames().findLast((m): m is PackMessage => m.type === 'pack')?.cash
+    ).toBe(STARTING_CASH - cost)
+    expect((await v.packStore.get('acct-P')).cash).toBe(STARTING_CASH - cost)
+    // Short of it, a phone sends nothing and pays nothing.
+    const q = await dial(v, s, 'Q')
+    ;(v.packStore as MemoryPackStore).wallets.set('acct-Q', cost - 1)
+    await v.webSocketMessage(ws(q), '{"type":"expedition-send","kind":"corn"}')
+    expect(q.last()).toEqual({
+      type: 'nack',
+      re: 'expedition-send',
+      reason: 'short',
+    })
+    expect((await v.packStore.get('acct-Q')).cash).toBe(cost - 1)
+  })
+
   it('sends no run for a raider on foot', async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A')

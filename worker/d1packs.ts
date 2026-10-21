@@ -691,12 +691,25 @@ export class D1PackStore implements PackStore {
   // The row first, so the guarded write always finds one; its write count
   // goes negative when it is not `rev` any more, against its CHECK, so the
   // batch is rolled back.
+  // Its buy-in comes out of the wallet in the same batch; a wallet that
+  // does not cover it goes below zero, against its CHECK, and rolls the
+  // batch back too.
   async embark(
     accountId: string,
     rev: number,
-    run: ExpeditionRun
+    run: ExpeditionRun,
+    cost = 0
   ): Promise<boolean> {
     return this.guarded([
+      ...(cost > 0
+        ? [
+            this.db
+              .prepare(
+                'UPDATE wallets SET cash = cash - ? WHERE account_id = ?'
+              )
+              .bind(cost, accountId),
+          ]
+        : []),
       this.db
         .prepare('INSERT OR IGNORE INTO expeditions (account_id) VALUES (?)')
         .bind(accountId),
