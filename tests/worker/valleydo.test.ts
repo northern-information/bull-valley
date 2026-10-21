@@ -522,6 +522,9 @@ describe('ValleyDO', () => {
       light: true,
     })
     expect(fanned.id).toBe(idOf(a))
+    // Stamped with the server's clock as it came, to space a late burst.
+    expect(fanned.t).toBeGreaterThan(0)
+    expect(fanned.t).toBeLessThanOrEqual(Date.now())
     expect(stranger.sent).toEqual([])
   })
 
@@ -1215,6 +1218,8 @@ describe('ValleyDO', () => {
           outfit: 'church',
           cosmetics: [],
           level: 1,
+          health: MAX,
+          max: MAX,
           at: null,
         },
       })
@@ -1844,12 +1849,22 @@ describe('ValleyDO: corpse runs', () => {
     expect(a.frames().some((m) => m.type === 'struck')).toBe(true)
     const pack = lastFrame(a)
     expect(Object.values(pack?.pack ?? {}).every((n) => n === 0)).toBe(true)
-    expect(pack).toMatchObject({ cash: STARTING_CASH, corpses: [0] })
+    // The strike spills its share of the wallet in dimes where A fell.
+    const dimes = Math.floor(
+      (STARTING_CASH * CONFIG.corpses.walletShare) / DIME_CENTS
+    )
+    expect(pack).toMatchObject({
+      cash: STARTING_CASH - dimes * DIME_CENTS,
+      corpses: [0],
+    })
     const fell = worldFrames(b).at(-1)
     expect(fell).toMatchObject({ reason: 'fell', by: idOf(a), corpse: 0 })
     expect(fell?.world?.corpses).toEqual([
       { id: 0, x: 500, z: 500, yaw: 0.5, name: 'A', outfit: 'coleman' },
     ])
+    expect(fell?.world?.drops).toContainEqual(
+      expect.objectContaining({ kind: 'dimes', count: dimes, x: 500, z: 500 })
+    )
     // B's pack never names A's body.
     expect(lastFrame(b)?.corpses ?? []).toEqual([])
   })
@@ -1967,6 +1982,13 @@ describe('ValleyDO: corpse runs', () => {
       health: MAX / 2,
       max: MAX,
     })
+    // Everyone sees A's bar fall (rule 24).
+    expect(b.frames()).toContainEqual({
+      type: 'peer-health',
+      id: idOf(a),
+      health: MAX / 2,
+      max: MAX,
+    })
     // Under a story, nothing; a height past belief is no frame at all.
     const before = a.frames().length
     await v.webSocketMessage(ws(a), '{"type":"fall","height":1}')
@@ -1992,6 +2014,12 @@ describe('ValleyDO: corpse runs', () => {
       by: idOf(a),
     })
     expect(b.frames().some((m) => m.type === 'struck')).toBe(false)
+    // And whole again once the body is laid.
+    expect(b.frames().findLast((m) => m.type === 'peer-health')).toMatchObject({
+      id: idOf(a),
+      health: MAX,
+      max: MAX,
+    })
   })
 
   it('gives the things back to the account that fell, and no one else', async () => {
@@ -3402,19 +3430,29 @@ describe('ValleyDO: health', () => {
     })
   })
 
-  it('makes whole on a Citgo forecourt', async () => {
+  it("gives a forecourt's share back every few seconds, up to whole", async () => {
     const { v, a, a2 } = await out()
-    await v.webSocketMessage(ws(a), '{"type":"dev","op":"health","points":1}')
+    const every = CONFIG.health.forecourt.everySeconds * CONFIG.shadowmen.tickHz
+    const share = Math.round(CONFIG.health.forecourt.share * MAX)
+    await v.webSocketMessage(
+      ws(a),
+      `{"type":"dev","op":"health","points":${MAX - share - 5}}`
+    )
     // The hello put a forecourt at the origin.
     await v.webSocketMessage(ws(a), state(5, 5))
-    v.tick()
-    await settle()
+    const steps = async () => {
+      for (let i = 0; i < every; i++) v.tick()
+      await settle()
+    }
+    // One share in any few seconds, never all of it at once.
+    await steps()
+    expect(healthOf(a).at(-1)).toBe(MAX - 5)
+    expect(healthOf(a2).at(-1)).toBe(MAX - 5)
+    await steps()
     expect(healthOf(a).at(-1)).toBe(MAX)
-    expect(healthOf(a2).at(-1)).toBe(MAX)
     // Whole, it hears nothing more.
     const heard = healthOf(a).length
-    v.tick()
-    await settle()
+    await steps()
     expect(healthOf(a).length).toBe(heard)
   })
 
@@ -3643,6 +3681,35 @@ describe('ValleyDO: Bull Valley Dial-Up', () => {
     return socket
   }
 
+  it("shows a new look on every socket the account has, the asker's last", async () => {
+    const { valley: v, state: s } = await valley()
+    const desk = await join(v, s, 'A', { account: 'acct-A' })
+    const phone = await dial(v, s, 'A', { account: 'acct-A' })
+    const other = await join(v, s, 'B')
+    for (const socket of [desk, phone, other]) socket.sent = []
+    await v.webSocketMessage(
+      ws(phone),
+      JSON.stringify({ type: 'appearance', outfit: 'church' })
+    )
+    const updated = (socket: MockSocket) =>
+      socket
+        .frames()
+        .filter((m): m is PeerUpdatedMessage => m.type === 'peer-updated')
+        .map((m) => [m.peer.id, m.peer.outfit])
+    // Each socket of the account is shown anew, the desk first, so it
+    // hears its own change before the phone's; everyone sees both.
+    const both = [
+      [idOf(desk), 'church'],
+      [idOf(phone), 'church'],
+    ]
+    for (const socket of [desk, phone, other]) {
+      expect(updated(socket)).toEqual(both)
+    }
+    expect((desk.attachment as { me: { outfit: string } }).me.outfit).toBe(
+      'church'
+    )
+  })
+
   it('welcomes a dial into a valley no one has opened a world in', async () => {
     const { valley: v, state: s } = await valley()
     const p = await dial(v, s, 'P')
@@ -3701,6 +3768,32 @@ describe('ValleyDO: Bull Valley Dial-Up', () => {
     ).toBe(4000 + outcome.cents)
   })
 
+  it("takes a run's buy-in out of the wallet as it leaves, never past empty", async () => {
+    const { valley: v, state: s } = await valley()
+    const p = await dial(v, s, 'P')
+    const { cost } = CONFIG.expeditions.runs.corn
+    await v.webSocketMessage(ws(p), '{"type":"expedition-send","kind":"corn"}')
+    expect(
+      p
+        .frames()
+        .findLast((m): m is ExpeditionMessage => m.type === 'expedition')
+    ).toMatchObject({ run: { id: 'corn' } })
+    expect(
+      p.frames().findLast((m): m is PackMessage => m.type === 'pack')?.cash
+    ).toBe(STARTING_CASH - cost)
+    expect((await v.packStore.get('acct-P')).cash).toBe(STARTING_CASH - cost)
+    // Short of it, a phone sends nothing and pays nothing.
+    const q = await dial(v, s, 'Q')
+    ;(v.packStore as MemoryPackStore).wallets.set('acct-Q', cost - 1)
+    await v.webSocketMessage(ws(q), '{"type":"expedition-send","kind":"corn"}')
+    expect(q.last()).toEqual({
+      type: 'nack',
+      re: 'expedition-send',
+      reason: 'short',
+    })
+    expect((await v.packStore.get('acct-Q')).cash).toBe(cost - 1)
+  })
+
   it('sends no run for a raider on foot', async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A')
@@ -3722,7 +3815,7 @@ describe('ValleyDO: Bull Valley Dial-Up', () => {
     expect(p.frames().some((m) => m.type === 'shadowmen')).toBe(false)
   })
 
-  it('stows into the locker from the phone, and refuses a use', async () => {
+  it('stows into the locker from the phone, and uses from the pack', async () => {
     const { valley: v, state: s } = await valley()
     const p = await dial(v, s, 'P')
     await v.webSocketMessage(
@@ -3732,7 +3825,19 @@ describe('ValleyDO: Bull Valley Dial-Up', () => {
     expect(
       p.frames().findLast((m): m is PackMessage => m.type === 'pack')?.stash
     ).toMatchObject({ marlboro: 1 })
-    await v.webSocketMessage(ws(p), '{"type":"use","kind":"marlboro"}')
-    expect(p.last()).toEqual({ type: 'nack', re: 'use', reason: 'dialup' })
+    // A use needs no body (rule 29): out of the pack, into the wards.
+    await v.webSocketMessage(ws(p), '{"type":"use","kind":"joints"}')
+    expect(p.frames().some((m) => m.type === 'nack')).toBe(false)
+    expect(
+      p.frames().findLast((m): m is PackMessage => m.type === 'pack')?.pack
+        .joints ?? 0
+    ).toBe(0)
+    const wards = p
+      .frames()
+      .findLast(
+        (m): m is Extract<ServerMessage, { type: 'wards' }> =>
+          m.type === 'wards'
+      )
+    expect(wards?.wards.high).toBeGreaterThan(0)
   })
 })

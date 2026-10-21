@@ -3,6 +3,7 @@ import { copy } from './copy.ts'
 import {
   beginRaid,
   expect,
+  frames,
   freshRaider,
   freshValley,
   watchErrors,
@@ -53,7 +54,7 @@ base(
       return { x, z }
     })
     await a.keyboard.type('wwww cabbages by the keep')
-    await a.waitForTimeout(300)
+    await frames(a)
     const after = await a.evaluate(() => {
       const { x, z } = window.__bv!.player.pos
       return { x, z }
@@ -69,6 +70,12 @@ base(
       b.getByRole('log', { name: copy('hud.chat_log_label') })
     ).toContainText(`${able.username}: wwww cabbages by the keep`)
 
+    const typeLine = async (page: Page, text: string) => {
+      await page.keyboard.press('Enter')
+      await page.keyboard.type(text)
+      await page.keyboard.press('Enter')
+    }
+
     // /online answers in the asker's log alone; the valley never hears it.
     await b.keyboard.press('Enter')
     await b.keyboard.type('/online')
@@ -82,16 +89,15 @@ base(
           .join(', '),
       })
     )
-    await a.waitForTimeout(500)
-    expect(await lines(a)).toEqual(['wwww cabbages by the keep'])
+    // Baker's next line comes down the same socket after it: once Able
+    // hears that, a leaked /online would already be in Able's log.
+    await typeLine(b, 'the keep is quiet')
+    await expect
+      .poll(() => lines(a))
+      .toEqual(['wwww cabbages by the keep', 'the keep is quiet'])
 
     // A whisper reaches Baker alone, inked as a whisper, and Able's log
     // shows who it went to.
-    const typeLine = async (page: Page, text: string) => {
-      await page.keyboard.press('Enter')
-      await page.keyboard.type(text)
-      await page.keyboard.press('Enter')
-    }
     const whispers = (page: Page) =>
       page.evaluate(
         () =>
@@ -111,7 +117,10 @@ base(
         `${copy('chat.whisper_to', { name: baker.username })}: meet me at the maze`,
       ])
     await expect(b.locator('.bv-chat-line--whisper')).toHaveCount(1)
-    expect(await lines(b)).toEqual(['wwww cabbages by the keep'])
+    expect(await lines(b)).toEqual([
+      'wwww cabbages by the keep',
+      'the keep is quiet',
+    ])
 
     // Able asks, Baker hears it and asks back: friends, both lists say so.
     const log = (page: Page) =>

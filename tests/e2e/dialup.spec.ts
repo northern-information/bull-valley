@@ -4,6 +4,7 @@ import {
   beginRaid,
   freshRaider,
   freshValley,
+  heardWhere,
   signIn,
   watchErrors,
 } from './fixtures.ts'
@@ -78,12 +79,36 @@ test('a phone no one is signed in on gets a login', async ({ browser }) => {
   await expect(page.locator('.bv-account')).toBeVisible({ timeout: 15_000 })
 })
 
-test('stows from the pack, takes it back out of the locker, and keeps the hotbar', async ({
+test('the pack only uses, the locker gives back, and both fit the phone', async ({
   browser,
 }) => {
+  test.slow()
+  const valley = freshValley('dial')
+  const raider = freshRaider('Both')
+  // A joint stowed at the locker in the 3D valley, for the phone to take.
+  const desk = await open(browser)
+  await beginRaid(desk, 0, { valley, raider })
+  await desk.evaluate(() => {
+    const bv = window.__bv
+    const station = bv?.world.spawnStation
+    if (!bv || !station) throw new Error('no spawn station')
+    const spot = bv.world.lockers[bv.world.fuelPoints.indexOf(station)]
+    bv.player.relocate(spot.x, spot.z, 0)
+  })
+  await heardWhere(desk)
+  await desk.keyboard.press('KeyE')
+  await expect
+    .poll(() => desk.evaluate(() => window.__bv?.lockerOpen))
+    .toBe(true)
+  await desk.locator('.bv-bag-cell[data-kind="joints"]').hover()
+  await desk.keyboard.press('KeyF')
+  await expect
+    .poll(() => desk.evaluate(() => window.__bv?.stash.joints))
+    .toBe(1)
+
   const page = await phone(browser)
-  await signIn(page)
-  await page.goto(`/?valley=${freshValley('dial')}`)
+  await signIn(page, raider)
+  await page.goto(`/?valley=${encodeURIComponent(valley)}`)
   await dialIn(page)
   await page.locator('.bv-dial-tab[data-tab="pack"]').click()
   const pack = page.locator('.bv-dial-item[data-kind="marlboro"]')
@@ -94,58 +119,68 @@ test('stows from the pack, takes it back out of the locker, and keeps the hotbar
     /^data:image\/png/
   )
   await expect(pack.locator('.bv-dial-item-spin')).toBeVisible()
-  // Opened, it shows its stats as the 3D pack card does.
+  // Opened, it shows its stats as the 3D pack card does, and the one thing
+  // a phone does with it: Use.
   await expect(pack.locator('.bv-item-stats')).toContainText(
     copy('stats.cigarette')
   )
-  await pack.getByRole('button', { name: copy('dialup.pack.stow_one') }).click()
+  await expect(pack.locator('.bv-dial-btn')).toHaveText([
+    copy('dialup.pack.use'),
+  ])
   // The locker, from the lobby, wherever the raider is: what is on the
-  // raider apart from what the locker holds, and either way from there.
+  // raider apart from what the locker holds, which comes back out.
   await page.locator('.bv-dial-tab[data-tab="lobby"]').click()
   await page.locator('.bv-dial-card[data-card="locker"]').click()
-  const stowed = page.locator(
-    '.bv-dial-sheet [data-section="locker"] .bv-dial-item[data-kind="marlboro"]'
-  )
-  await expect(stowed).toBeVisible()
-  // Key items have a list of their own, and never go in.
   await expect(
     page.locator('.bv-dial-sheet [data-section="keys"]')
   ).toContainText(copy('inventory.empty_key_items'))
-  // What is still on the raider goes in from the sheet too, and back.
-  const carried = page.locator(
-    '.bv-dial-sheet [data-section="pack"] .bv-dial-item[data-kind="joints"]'
-  )
-  await carried.locator('summary').click()
-  await carried
-    .getByRole('button', { name: copy('dialup.pack.stow_all') })
-    .click()
-  await expect(carried).toHaveCount(0)
-  const joints = page.locator(
+  const stowed = page.locator(
     '.bv-dial-sheet [data-section="locker"] .bv-dial-item[data-kind="joints"]'
   )
-  await joints.locator('summary').click()
-  await joints
-    .getByRole('button', { name: copy('dialup.pack.take_all') })
-    .click()
-  await expect(carried).toBeVisible()
   await stowed.locator('summary').click()
   await stowed
     .getByRole('button', { name: copy('dialup.pack.take_all') })
     .click()
   await expect(stowed).toHaveCount(0)
+  await expect(
+    page.locator(
+      '.bv-dial-sheet [data-section="pack"] .bv-dial-item[data-kind="joints"]'
+    )
+  ).toBeVisible()
   await page.getByRole('button', { name: copy('dialup.back') }).click()
-  // A slot on the hotbar, kept on the account.
+  // The pack, with every row open, fits the phone's width: nothing
+  // scrolls the page sideways.
+  await page.locator('.bv-dial-tab[data-tab="pack"]').click()
+  for (const row of await page.locator('.bv-dial-item summary').all()) {
+    await row.click()
+  }
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth
+    )
+  ).toBe(true)
+})
+
+test('uses an item from the phone, having seen what it would do', async ({
+  browser,
+}) => {
+  const page = await phone(browser)
+  await signIn(page)
+  await page.goto(`/?valley=${freshValley('dial')}`)
+  await dialIn(page)
   await page.locator('.bv-dial-tab[data-tab="pack"]').click()
   const joint = page.locator('.bv-dial-item[data-kind="joints"]')
   await joint.locator('summary').click()
-  await joint.getByRole('button', { name: copy('dialup.pack.hotbar') }).click()
-  await page.locator('.bv-dial-slot[data-slot="2"]').click()
-  await expect(page.locator('.bv-dial-toast')).toHaveText(
-    copy('dialup.pack.hotbar_saved', {
-      item: copy('items.joints.label'),
-      slot: 3,
-    })
+  // Before it is used: what it does to the wards, said as the valley would.
+  await expect(joint.locator('.bv-dial-impact')).toContainText(
+    copy('wards.high')
   )
+  await joint.getByRole('button', { name: copy('dialup.pack.use') }).click()
+  // Out of the pack, and the high it brings shows at the top.
+  await expect(joint).toHaveCount(0)
+  await expect(page.locator('.bv-dial-top [data-ward="high"]')).toBeVisible()
 })
 
 test('opens the Cabbage Stand from anywhere', async ({ browser }) => {
@@ -280,6 +315,34 @@ test('Gron changes the name from the phone', async ({ browser }) => {
   await rename.click()
   await page.locator('[data-bv="gron-close"]').click()
   await expect(page.locator('.bv-dial-name')).toHaveText(name)
+})
+
+test('a new name from the phone reaches the account in the 3D valley', async ({
+  browser,
+}) => {
+  test.slow()
+  const valley = freshValley('dial')
+  const raider = freshRaider('Both')
+  const desk = await open(browser)
+  await beginRaid(desk, 0, { valley, raider })
+  const page = await phone(browser)
+  await signIn(page, raider)
+  await page.goto(`/?valley=${encodeURIComponent(valley)}`)
+  await dialIn(page)
+  await page.locator('.bv-dial-card[data-card="gron"]').click()
+  const name = freshRaider('Renamed').username
+  await page.locator('[data-bv="gron-username"]').fill(name)
+  const rename = page.locator('[data-bv="gron-rename"]')
+  await expect(rename).toBeEnabled()
+  await rename.click()
+  await page.locator('[data-bv="gron-close"]').click()
+  // The 3D valley takes it on as its own, and never as another raider's.
+  const said = () =>
+    desk.evaluate(() => window.__bv?.chat.map((line) => line.text) ?? [])
+  await expect.poll(said).toContain(copy('gron.renamed', { name }))
+  expect(await said()).not.toContain(
+    copy('log.peer_renamed', { was: raider.username, name })
+  )
 })
 
 test('signs out from the phone, back to the modem and a login', async ({

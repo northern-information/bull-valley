@@ -3,6 +3,7 @@ import { heartPoint, theMaze } from '../../src/caretaker.ts'
 import { CONFIG } from '../../src/config.ts'
 import { dayKey, nextMidnight } from '../../src/daily.ts'
 import { costIn, freshDealerStock, goodOf } from '../../src/dealer.ts'
+import { DIME_CENTS } from '../../src/drops.ts'
 import { embark, outcomeOf } from '../../src/expeditions.ts'
 import { BASE_GEOMETRIE, maxGeometrie } from '../../src/health.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
@@ -43,6 +44,7 @@ import {
   wardsFor,
 } from '../../src/sharedworld.ts'
 import { FRESH_STAND, standXp } from '../../src/stand.ts'
+import { shelfPrice } from '../../src/store.ts'
 import { UNDERCROFT } from '../../src/undercroft.ts'
 import { damageOf } from '../../src/wards.ts'
 import { dryMap } from '../../src/waterside.ts'
@@ -743,6 +745,20 @@ describe('rule 7: the shelves are shared', () => {
     })
   })
 
+  it('charges more for each unit already gone off that shelf today', () => {
+    const v = valleyWith(join('a'))
+    const paid = [0, 1, 2].map(
+      (unit) => v.step(buy('a', 0, 'pbr', unit)).spend?.amount
+    )
+    expect(paid).toEqual([
+      shelfPrice('pbr', [true, true, true]),
+      shelfPrice('pbr', [false, true, true]),
+      shelfPrice('pbr', [false, false, true]),
+    ])
+    expect(paid[0]).toBe(getItem('pbr').price)
+    expect(paid[2]).toBeGreaterThan(paid[1] ?? Infinity)
+  })
+
   it('says sold out, short, or no such shelf', () => {
     const v = valleyWith(join('a'), join('b'))
     v.step(buy('a'))
@@ -1422,6 +1438,37 @@ describe('rule 18: corpse runs', () => {
     ).toBeUndefined()
   })
 
+  it('spills a share of the wallet in dimes where the raider fell, for anyone', () => {
+    const v = valleyWith(join('a'), join('b'))
+    v.setCash(1234)
+    const dimes = Math.floor((1234 * CONFIG.corpses.walletShare) / DIME_CENTS)
+    const r = v.step(fell('a', { x: 40, z: 50, yaw: 0 }))
+    expect(r.spend).toEqual({ account: 'acct-a', amount: dimes * DIME_CENTS })
+    const drop = v.valley.world?.drops.at(-1)
+    expect(drop).toMatchObject({ kind: 'dimes', count: dimes, x: 40, z: 50 })
+    // Whoever gets there first takes them up.
+    const taken = v.step({
+      type: 'take-drop',
+      id: 'b',
+      drop: drop?.id ?? -1,
+      at: { x: 40, z: 50 },
+    })
+    expect(taken.earn).toEqual({
+      account: 'acct-b',
+      amount: dimes * DIME_CENTS,
+    })
+  })
+
+  it('spills nothing from an empty wallet, or where no one heard the raider', () => {
+    const v = valleyWith(join('a'))
+    v.setCash(5)
+    expect(v.step(fell('a', { x: 0, z: 0, yaw: 0 })).spend).toBeUndefined()
+    v.setCash(5000)
+    const r = v.step(fell('a', null))
+    expect(r.spend).toBeUndefined()
+    expect(v.valley.world?.drops).toEqual([])
+  })
+
   it('lays a body where the raider fell, with everything the pack held', () => {
     const v = valleyWith(join('a'), join('b'))
     const r = v.step(fell('a', { x: 40, z: -12, yaw: 1 }))
@@ -1988,6 +2035,19 @@ describe('rule 22: XP for what a raider does', () => {
       { account: 'acct-c', source: 'berry' },
     ])
     expect(v.step({ type: 'clock' }).xp).toBeUndefined()
+  })
+
+  it('earns nothing for a charter round the block', () => {
+    const near = { x: ROUTES.home.x + 50, z: ROUTES.home.z }
+    const v = valleyWith(join('a'), { type: 'board', id: 'a', at: HERE })
+    v.step({ type: 'charter', id: 'a', to: near })
+    v.step({ type: 'clock' })
+    const truck = v.valley.world?.truck
+    const due = truck ? nextChange(truck, ROUTES) : null
+    v.tick((due ?? v.now) - v.now)
+    const there = v.step({ type: 'clock' })
+    expect(reasons(there)).toEqual(['dropoff'])
+    expect(there.xp).toBeUndefined()
   })
 
   it('earns one ride for an account however many of its sockets rode', () => {
@@ -2805,7 +2865,10 @@ describe('rule 24: geometrie', () => {
       v.step({ type: 'mend', id: 'a', kind: 'joints' }).health?.points
     ).toBe(MAX)
     v.step({ type: 'set-health', id: 'a', points: 1 })
-    // A forecourt: whole at once.
+    // A forecourt: its share at a time, never past whole.
+    const share = Math.round(CONFIG.health.forecourt.share * MAX)
+    expect(v.step({ type: 'mend', id: 'a' }).health?.points).toBe(1 + share)
+    v.step({ type: 'set-health', id: 'a', points: MAX - 1 })
     expect(v.step({ type: 'mend', id: 'a' }).health?.points).toBe(MAX)
   })
 
@@ -3102,7 +3165,6 @@ describe('rule 29: Bull Valley Dial-Up', () => {
       [{ type: 'charter', id: 'p', to: null }, 'charter'],
       [{ type: 'take', id: 'p', index: 0, at: HERE }, 'take'],
       [{ type: 'collect', id: 'p', bush: 0, at: HERE }, 'collect'],
-      [{ type: 'use', id: 'p', kind: 'pbr' }, 'use'],
       [
         {
           type: 'pass',
@@ -3238,10 +3300,11 @@ describe('rule 30: idle expeditions', () => {
     seed,
   })
   const claim: ValleyAction = { type: 'expedition-claim', id: 'p' }
-  const ctx = (run: ExpeditionRun | null, now = T0) => ({
+  const ctx = (run: ExpeditionRun | null, now = T0, cash = 100_000) => ({
     now,
     present: ['p', 'a'],
     expedition: { run },
+    cash,
   })
 
   it('sends a run out from the phone, timed and seeded by the valley', () => {
@@ -3258,6 +3321,22 @@ describe('rule 30: idle expeditions', () => {
         ward: 0,
       },
     })
+  })
+
+  it('takes its buy-in out of the wallet, and refuses a wallet short of it', () => {
+    const v = valleyWith(dial('p'))
+    const { cost } = CONFIG.expeditions.runs.corn
+    expect(reduce(v.valley, send('corn'), ctx(null, T0, cost)).spend).toEqual({
+      account: 'acct-p',
+      amount: cost,
+    })
+    const short = reduce(v.valley, send('corn'), ctx(null, T0, cost - 1))
+    expect(short.reply?.reason).toBe('short')
+    expect(short.expedition).toBeUndefined()
+    // The ride costs nothing.
+    const ride = reduce(v.valley, send('ride'), ctx(null, T0, 0))
+    expect(ride.reply).toBeUndefined()
+    expect(ride.spend).toBeUndefined()
   })
 
   it('refuses a second run, a locked one, an unknown one, and one on foot', () => {

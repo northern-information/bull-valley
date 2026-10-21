@@ -24,13 +24,20 @@ import {
 } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
-import { emptied, fallen, isEmpty } from './corpses.ts'
-import { affords, cosmeticById, gainedOf } from './cosmetics.ts'
+import { emptied, fallen, isEmpty, spilledDimes } from './corpses.ts'
+import { affords, cosmeticById, gainedOf, tradeRefusal } from './cosmetics.ts'
 import { stepIndex } from './cycle.ts'
 import { openDealDialog } from './dealdialog.ts'
 import { ramble } from './dealer.ts'
 import { isDropPickup } from './dropmeshes.ts'
-import { centsOf, DIMES, dropAmount, isCash, QUARTERS } from './drops.ts'
+import {
+  centsOf,
+  DIME_CENTS,
+  DIMES,
+  dropAmount,
+  isCash,
+  QUARTERS,
+} from './drops.ts'
 import { finishById } from './finishes.ts'
 import { openGronDialog } from './grondialog.ts'
 import { assign, clearSlot as clearHotbarSlot, place, spent } from './hotbar.ts'
@@ -59,7 +66,7 @@ import { inHaven } from './shadowmen.ts'
 import { buy as buyItem, settle } from './shop.ts'
 import { openStandDialog } from './standdialog.ts'
 import { move, moveAmount } from './stash.ts'
-import { formatCash } from './store.ts'
+import { formatCash, shelfPrice } from './store.ts'
 import { planLeg } from './truckplan.ts'
 import { dose, SOBER } from './wardlevels.ts'
 import { WARD_OF } from './wards.ts'
@@ -76,7 +83,12 @@ import type { WardAxis, XZ } from './interfaces.ts'
 import type { Leg } from './marx.ts'
 import type { NpcId } from './npcs.ts'
 import type { BagAction, BagTab } from './packgrid.ts'
-import type { DailyMessage, PassedMessage, WardLevels } from './protocol.ts'
+import type {
+  DailyMessage,
+  PassedMessage,
+  PeerWire,
+  WardLevels,
+} from './protocol.ts'
 import type { Pickup } from './world.ts'
 
 // The valley's word on a touch (a struck frame): what it took, what the
@@ -147,6 +159,9 @@ export interface Actions {
   applyPassed(msg: PassedMessage): void
   // The account's wards as the valley keeps them.
   setWards(levels: WardLevels): void
+  // Our own name and body as the valley shows them: a change made on the
+  // account's other app (Dial-Up's Gron) is taken on and said.
+  becomeShown(peer: PeerWire): void
   // The account's geometrie, left and whole, as the valley says it (a
   // forecourt, a use, a new level).
   setHealth(points: number, max: number): void
@@ -156,8 +171,10 @@ export interface Actions {
   stowKind(kind: string, all: boolean): void
   unstowKind(kind: string, all: boolean): void
   callTruck(): void
-  // The buyer's side of a sale, once the valley says the unit is ours.
-  pocket(kind: string): void
+  // The buyer's side of a sale off `station`, once the valley says the
+  // unit is ours: at the shelf's price before it went (store.ts
+  // shelfPrice).
+  pocket(kind: string, station: number): void
   // The valley's answer at the bush.
   applyDaily(msg: DailyMessage): void
   // Moab, within reach, makes his offer (once per approach).
@@ -216,6 +233,8 @@ export interface Actions {
 const BOOK_RETRY_MS = 3000
 // After a portal or fast travel, no portal takes us for this long.
 const GRACE_MS = CONFIG.portal.graceSeconds * 1000
+// A hallucination bursting sounds as a shadowman does, pitched up.
+const HALLUCINATION_BURST_RATE = 1.8
 
 // engagePointer takes the pointer back once Gron's dialog closes.
 export function createActions(game: Game, engagePointer: () => void): Actions {
@@ -538,6 +557,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       )
     )
     if (!isEmpty(items)) hud.tell(copy('log.fell'))
+    // Rule 18: the strike spilled a share of the wallet where you fell.
+    const spilled = spilledDimes(s.cash) * DIME_CENTS
+    if (spilled > 0)
+      hud.tell(copy('log.spilled', { amount: formatCash(spilled) }))
   }
 
   // Made whole standing at a Citgo: the lights did it.
@@ -746,10 +769,13 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     net.send({ type: 'call', from })
   }
 
-  const pocket = (kind: string) => {
+  const pocket = (kind: string, station: number) => {
+    const price = shelfPrice(kind, s.storeStock[station]?.[kind])
+    if (price === undefined) return
     const { next, line } = settle(
       { inventory: s.inventory, cash: s.cash },
-      kind
+      kind,
+      price
     )
     if (next) {
       const inventoryChanged = next.inventory !== s.inventory
@@ -846,18 +872,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   const tradeRefused = (reason: string) => {
     s.pending.trade = false
-    const cosmetic =
-      s.interaction?.kind === 'trade' ? cosmeticById(s.interaction.offer) : null
-    if (reason === 'short' && cosmetic) {
-      hud.tell(
-        copy('log.trade_short', {
-          count: cosmetic.price.count,
-          price: itemLabel(cosmetic.price.kind),
-        })
-      )
-    } else if (reason === 'owned' && cosmetic) {
-      hud.tell(copy('log.trade_owned', { cosmetic: cosmetic.label }))
-    } else hud.tell(copy('log.trade_refused'))
+    const offer = s.interaction?.kind === 'trade' ? s.interaction.offer : null
+    hud.tell(tradeRefusal(reason, offer))
   }
 
   const trade = (offer: CosmeticId) => {
@@ -944,6 +960,22 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // Rule 27: the valley's levels, as of now on our own clock.
   const setWards = (levels: WardLevels) => {
     s.wards = { at: s.time, levels }
+  }
+
+  const becomeShown = (peer: PeerWire) => {
+    const { pick } = game
+    if (peer.name !== pick.username) {
+      pick.username = peer.name
+      hud.setRaider(peer.name)
+      hud.tell(copy('gron.renamed', { name: peer.name }))
+    }
+    if (peer.outfit !== pick.outfit) {
+      game.playerBody.restyle(peer.outfit, finishById(pick.finish).color)
+      game.hands.restyle(peer.outfit)
+      pick.outfit = peer.outfit
+      net.setOutfit(peer.outfit)
+      hud.tell(copy('gron.became', { name: outfitById(peer.outfit).label }))
+    }
   }
 
   // Rule 12. The drop lands where our last state frame put us; the pack
@@ -1142,6 +1174,21 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       case 'locked':
         hud.tell(copy('log.locked'))
         return
+      case 'hallucination': {
+        // It was never there: it bursts in fuchsia, and is gone.
+        const at = game.hallucinations.burst(interaction.id)
+        if (!at) return
+        s.interaction = null
+        game.sfx?.play('shadow-burst', at, HALLUCINATION_BURST_RATE)
+        hud.tell(
+          copy(
+            interaction.shape === 'thing'
+              ? 'hallucinations.thing'
+              : 'hallucinations.person'
+          )
+        )
+        return
+      }
     }
   }
 
@@ -1396,6 +1443,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     passKind,
     applyPassed,
     setWards,
+    becomeShown,
     dropKind,
     dialPortal,
     openPortal,

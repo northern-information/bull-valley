@@ -94,7 +94,7 @@ export const CONFIG = {
     chestHeight: 1.4,
     // One that bursts leaves this many dimes (10¢ each) lying where it
     // was, drawn evenly between the two (drops.ts dimesFor).
-    dimes: { min: 3, max: 20 },
+    dimes: { min: 1, max: 8 },
     // Shadow spiders: twice a shadowman's height, crossing among them as
     // one of the crowd. Each new one in a bubble is a spider by `chance`,
     // or by `nearWaterChance` where it comes in, or the raider stands,
@@ -105,8 +105,8 @@ export const CONFIG = {
     // shadowman, rushes a little faster, touches from further off, and
     // leaves one $20 bill (drops.ts TWENTY) where it burst.
     spider: {
-      chance: 0.03,
-      nearWaterChance: 0.35,
+      chance: 0.02,
+      nearWaterChance: 0.12,
       waterRadius: 120,
       maxPerBubble: 3,
       burnScale: 2,
@@ -163,6 +163,10 @@ export const CONFIG = {
     perLevel: 40,
     round: 10,
     graceSeconds: 3,
+    // A forecourt (rule 24) gives back `share` of whole every
+    // `everySeconds` to a raider standing on it: whole from nothing in a
+    // little under two minutes, so anything that heals is the quicker way.
+    forecourt: { everySeconds: 2, share: 0.02 },
     shakeSeconds: 0.45,
     shakeMetres: 0.07,
   },
@@ -252,17 +256,84 @@ export const CONFIG = {
     // Walking speed while a cigarette burns.
     smokingSpeedScale: 0.85,
   },
-  // What anything smoked or drunk does to the view (trip.ts, trails.ts).
+  // The moment anything smoked or drunk is used, the view blurs (trip.ts,
+  // trails.ts).
   trip: {
     // The blur each use starts with, fading out over this long.
     blurSeconds: 1,
     // The blur's reach at its height, in internal pixels.
     blurRadius: 3,
+  },
+  // What the wards do to the view (wardview.ts, trails.ts). Each works at
+  // full strength from `full` up and in proportion below it, so it thins
+  // out as its ward fades. Drunk trails the view; high saturates its
+  // colours and trails it a little; stimulated sharpens it. A trip's
+  // sights are its own.
+  wardView: {
+    // A ward at or past this level works on the view at full strength.
+    full: 0.5,
     // How much of the last frame each frame keeps while trails are full:
     // nearer 1, longer trails.
     persistence: 0.86,
-    // The trails thin out over the last this-many seconds of the trip.
-    fadeSeconds: 4,
+    // The share of full trails a full high adds to the drunk's.
+    highTrails: 0.3,
+    // Saturation at a full high: 1 keeps the colours, 1.9 nearly doubles
+    // how far each sits from grey.
+    saturation: 1.9,
+    // The unsharp mask at a full stimulated: how much of the difference
+    // from its neighbours each pixel gains, and how far off they sit, in
+    // internal pixels.
+    sharpen: 1.6,
+    sharpenRadius: 1,
+  },
+  // What a trip shows that is not there, in psychedelic fuchsia
+  // (fuchsia.ts), each scaled by the tripping ward from 0 to 1.
+  psych: {
+    // Platonic solids drifting and tumbling round the eye (tripsolids.ts):
+    // up to `max` of them, one more for every 1 / max of the level. Each
+    // comes for `showMin` to `showMax` seconds, fading in and out over
+    // `fadeSeconds`, rests `restMin` to `restMax`, and comes again
+    // somewhere else, `radiusMin` to `radiusMax` metres out and `low` to
+    // `high` metres off the eye, `sizeMin` to `sizeMax` metres across,
+    // circling at up to `orbit` radians a second and tumbling at up to
+    // `tumble`. `opacity` is the face at its fullest; the edges are solid.
+    solids: {
+      max: 12,
+      showMin: 5,
+      showMax: 14,
+      restMin: 1,
+      restMax: 7,
+      fadeSeconds: 1.5,
+      radiusMin: 2.5,
+      radiusMax: 7,
+      low: -1.2,
+      high: 2.2,
+      sizeMin: 0.18,
+      sizeMax: 0.45,
+      orbit: 0.25,
+      tumble: 1.2,
+      opacity: 0.35,
+    },
+    // Constellations drawn between the stars (constellations.ts): up to
+    // `lanes` at once, one more for every 1 / lanes of the level. Each
+    // lane comes round every `periodSeconds` (the lanes staggered across
+    // it) and draws one with a chance of `chanceMin` at the least level,
+    // rising to `chanceMax` at a full trip; it fades in over
+    // `fadeSeconds`, holds, and fades out by `showSeconds`. One joins
+    // `starsMin` to `starsMax` stars within `reach` radians of the first,
+    // which stands at least `lowest` up the sky (the sine of its height).
+    constellations: {
+      lanes: 5,
+      periodSeconds: 11,
+      chanceMin: 0.35,
+      chanceMax: 0.95,
+      showSeconds: 8,
+      fadeSeconds: 1.5,
+      starsMin: 4,
+      starsMax: 8,
+      reach: 0.32,
+      lowest: 0.3,
+    },
   },
   // What the wards do besides warding (buffs.ts), each scaled by its
   // level from 0 to 1. High reaches the flashlight further and wider (a
@@ -332,6 +403,10 @@ export const CONFIG = {
     startingCash: 4000,
     // Units of every item on each Citgo's shelves when the day turns.
     perItem: 3,
+    // Scarcity (store.ts shelfPrice): each unit of a kind already sold off
+    // a station's shelf today puts its price up this many times over, so
+    // the last of anything costs the most.
+    surge: 1.6,
     // How close a shelf unit must be, from the eye, for E to buy it.
     reach: 2.2,
     // How far off the view ray, in radians, a unit can sit and still be
@@ -409,6 +484,10 @@ export const CONFIG = {
     // one.
     readSeconds: 300,
     donutSeconds: 300,
+    // A ride earns its XP (progression.ts XP.ride) only when the drive
+    // that carried it was at least this long, in metres (marx.ts
+    // rideMetres): no hop round the block for it.
+    rideXpMetres: 400,
     countdownSeconds: 60,
     // The countdown shows to whoever is in the bed or this close by.
     countdownReach: 25,
@@ -533,6 +612,9 @@ export const CONFIG = {
   corpses: {
     // How close your body must be for E to take your things back.
     reach: 2.2,
+    // A strike spills this share of the wallet as dimes where the raider
+    // fell (sharedworld.ts rule 18), for whoever gets there first.
+    walletShare: 0.1,
   },
   // The stash: the account's locker in the back room of every Citgo
   // (stash.ts).
@@ -730,6 +812,54 @@ export const CONFIG = {
     safe: 3,
     lethal: 7,
   },
+  // What a trip shows that is not there (hallucinations.ts): people and
+  // things out ahead of a raider while the tripping ward is up, this
+  // client's alone.
+  hallucinations: {
+    // Seconds between one and the next: `max` at the faintest trip, `min`
+    // at a full one, each give or take `jitter` of itself. The first of a
+    // trip comes `firstShare` of a gap into it.
+    gapSeconds: { min: 7, max: 40 },
+    jitter: 0.4,
+    firstShare: 0.25,
+    // How many stand at once at a full trip; the level scales it, rounded
+    // up, so even a faint trip shows one.
+    most: 4,
+    // How long one stands, and how long it flickers coming and going.
+    lifeSeconds: { min: 16, max: 34 },
+    fadeInSeconds: 1.2,
+    fadeOutSeconds: 1.6,
+    // The flicker's beats a second while it comes or goes.
+    flickerHz: 18,
+    // Where: within `cone` radians either side of where the raider faces,
+    // a person this many metres out, a thing nearer (it is small); no two
+    // closer than `spacing`; `tries` spots tried before giving up.
+    cone: 0.55,
+    person: { near: 7, far: 15 },
+    thing: { near: 3.5, far: 7 },
+    spacing: 2.5,
+    tries: 6,
+    // A raider wandered this far from one leaves it behind.
+    strayMetres: 45,
+    // The share of things among them, and of the valley's folk among the
+    // people.
+    thingShare: 0.35,
+    npcShare: 0.4,
+    // E reaches a person or a thing from this far, as the real ones do.
+    reach: { person: 2.4, thing: 2.6 },
+    // E on one: its burst of fuchsia solids, flung from its middle,
+    // slowed by the air (drag, per second) and falling.
+    burst: {
+      seconds: 1.7,
+      shards: 26,
+      speed: { min: 2.5, max: 6.5 },
+      up: { min: 1, max: 4.5 },
+      gravity: 5,
+      drag: 1.6,
+      size: { min: 0.05, max: 0.15 },
+      spin: 9,
+    },
+  },
   wreck: {
     // The green BMW nosed into a tree beside the spawn Citgo, station-local
     // like the bush: on the station's side of Lake Avenue, across the road
@@ -817,7 +947,8 @@ export const CONFIG = {
   // comes back hurt with that ward at nothing, how hard it hurts (a share
   // of whole geometrie, never the last point), the XP it earns home, and
   // what it brings back: each roll a kind (cash kinds pay the wallet), how
-  // many, and the chance it comes at all.
+  // many, and the chance it comes at all; and what sending it costs, in
+  // cents out of the wallet as it leaves (`cost`), whatever comes home.
   expeditions: {
     runs: {
       ride: {
@@ -827,6 +958,7 @@ export const CONFIG = {
         risk: 0,
         hurt: 0,
         xp: 1,
+        cost: 0,
         loot: [
           { kind: 'dimes', min: 5, max: 20, chance: 1 },
           { kind: 'berries', min: 1, max: 1, chance: 0.25 },
@@ -839,6 +971,7 @@ export const CONFIG = {
         risk: 0.35,
         hurt: 0.25,
         xp: 4,
+        cost: 150,
         loot: [
           { kind: 'dimes', min: 10, max: 40, chance: 1 },
           { kind: 'berries', min: 1, max: 3, chance: 0.8 },
@@ -853,6 +986,7 @@ export const CONFIG = {
         risk: 0.5,
         hurt: 0.4,
         xp: 15,
+        cost: 600,
         loot: [
           { kind: 'dimes', min: 30, max: 120, chance: 1 },
           { kind: 'twenty', min: 1, max: 1, chance: 0.3 },
@@ -977,6 +1111,10 @@ export const CONFIG = {
     // After the last he curses, and goes back in this long after.
     curseDelay: 0.4,
     lingerSeconds: 1.4,
+    // A raider's foot gets the last one before he does: he stops, thanks
+    // them this long after, and turns back in this long after that.
+    thanksDelay: 0.3,
+    thanksSeconds: 1.2,
     // A squashed slurm lies as a black splat this long, then fades.
     splatSeconds: 5,
     // How close you must be to hear him curse in the log.

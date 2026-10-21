@@ -10,10 +10,11 @@ import { AXES } from './wardlevels.ts'
 import type { WardAxis } from './interfaces.ts'
 import type { ItemCategory } from './items.ts'
 
-// How long an item works on the view: a cigarette while it smokes, the
-// joint and the psychedelics their perception, a drink and the stimulant
-// their trails.
-export type Lasting = 'smoke' | 'perception' | 'trails'
+// How long an item works: a cigarette while it smokes, the joint and the
+// psychedelics their perception. What a drink or the stimulant does to
+// the view follows its ward as it fades (wardview.ts), so it has no span
+// of its own to show.
+export type Lasting = 'smoke' | 'perception'
 
 export type ItemStat =
   | { stat: 'category'; category: ItemCategory }
@@ -55,14 +56,6 @@ export function itemStats(kind: string): ItemStat[] {
         stat: 'lasts',
         lasting: 'perception',
         seconds: item.perceptionSeconds,
-      })
-      break
-    case 'drink':
-    case 'stimulant':
-      stats.push({
-        stat: 'lasts',
-        lasting: 'trails',
-        seconds: item.tripSeconds,
       })
       break
     default:

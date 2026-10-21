@@ -9,6 +9,7 @@
 // raider is. The state is dialstate.ts's, redrawn whole on every frame.
 
 import { entryOf } from './book.ts'
+import { beamScale, sprintScale } from './buffs.ts'
 import { copy } from './copy.ts'
 import { dayKey } from './daily.ts'
 import { DialBook, renderPage } from './dialbook.ts'
@@ -17,7 +18,7 @@ import { renderExpeditions, tickExpeditions } from './dialexpeditions.ts'
 import { DialMoab } from './dialmoab.ts'
 import { DialPack, renderLocker } from './dialpack.ts'
 import { DialSocial } from './dialsocial.ts'
-import { raiderStats } from './dialstate.ts'
+import { raiderStats, wardsNow } from './dialstate.ts'
 import { el, text } from './dom.ts'
 import { iconSvg } from './icons.ts'
 import { OUTFITS } from './outfits.ts'
@@ -36,7 +37,6 @@ import type { LockerOpen, PackActions } from './dialpack.ts'
 import type { SocialActions } from './dialsocial.ts'
 import type { DialState } from './dialstate.ts'
 import type { FinishId } from './finishes.ts'
-import type { Hotbar } from './hotbar.ts'
 import type { ItemThumbs } from './itemthumbs.ts'
 import type { OutfitId } from './outfits.ts'
 import type { SettingsStore } from './settingsui.ts'
@@ -62,7 +62,6 @@ interface ShellOptions {
   finish: FinishId
   // The 3D models, loaded once when first wanted.
   models: () => Promise<typeof import('./dial3d.ts')>
-  hotbar: Hotbar
   // The valley's clock in ms, for what the stand has banked.
   now: () => number
   pack: PackActions
@@ -155,7 +154,7 @@ export class DialShell {
     head.append(back, this.sheetTitle)
     this.sheetBody = el('div', 'bv-dial-sheet-body')
     this.sheet.append(head, this.sheetBody)
-    this.pack = new DialPack(options.hotbar, options.pack)
+    this.pack = new DialPack(options.pack)
     this.book = new DialBook((entry) => this.openPage(entry))
     this.social = new DialSocial(options.social)
     this.portrait = el('div', 'bv-dial-portrait')
@@ -245,6 +244,11 @@ export class DialShell {
   // clock; once a second, only the figures move.
   tick(): void {
     const s = this.state
+    // The wards fade between the valley's word on them: the top bar's,
+    // and the raider's own on the lobby.
+    if (s) this.renderTop(s)
+    const raider = this.view.querySelector('.bv-dial-raider-state')
+    if (s && raider) raider.replaceChildren(...this.wardLines(s))
     if (s && this.tab === 'expeditions') {
       tickExpeditions(this.view, s, this.options.now())
       return
@@ -421,8 +425,9 @@ export class DialShell {
     health.setAttribute('aria-label', points)
     health.append(text('span', points, 'bv-dial-meter-text'))
     const wards = el('ol', 'bv-dial-wards')
+    const levels = wardsNow(s, performance.now())
     for (const axis of AXES) {
-      const level = Math.round((s.wards[axis] || 0) * 100)
+      const level = Math.round(levels[axis] * 100)
       if (level < 1) continue
       const chip = el('li', 'bv-dial-ward')
       chip.dataset.ward = axis
@@ -528,9 +533,21 @@ export class DialShell {
     }
     head.append(stats)
 
+    // The wards and what they do, refreshed each second as they fade
+    // (tick), the cards around them left alone.
+    const now = el('div', 'bv-dial-raider-state')
+    now.append(...this.wardLines(s))
+    panel.append(this.portrait, head, now)
+    return panel
+  }
+
+  // The wards going, and what they do besides warding while they last
+  // (buffs.ts), in the valley on foot.
+  private wardLines(s: DialState): HTMLElement[] {
     const wards = el('ul', 'bv-dial-raider-wards')
+    const levels = wardsNow(s, performance.now())
     for (const axis of AXES) {
-      const level = s.wards[axis] || 0
+      const level = levels[axis]
       if (Math.round(level * 100) < 1) continue
       const chip = el('li', 'bv-dial-ward')
       chip.dataset.ward = axis
@@ -546,8 +563,18 @@ export class DialShell {
         text('li', copy('dialup.raider.wards'), 'bv-dial-raider-calm')
       )
     }
-    panel.append(this.portrait, head, wards)
-    return panel
+    const buffs = el('ul', 'bv-dial-raider-buffs')
+    const beam = Math.round((beamScale(levels) - 1) * 100)
+    const sprint = Math.round((sprintScale(levels) - 1) * 100)
+    if (beam >= 1) {
+      buffs.append(text('li', copy('dialup.raider.buff_beam', { pct: beam })))
+    }
+    if (sprint >= 1) {
+      buffs.append(
+        text('li', copy('dialup.raider.buff_sprint', { pct: sprint }))
+      )
+    }
+    return buffs.childElementCount > 0 ? [wards, buffs] : [wards]
   }
 }
 

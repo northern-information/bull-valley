@@ -19,13 +19,14 @@ describe('an item’s stats', () => {
     expect(stats.some((one) => one.stat === 'contents')).toBe(true)
   })
 
-  it('names the perception and the trails, and a ward brought down', () => {
+  it('names the perception, a drink by its wards, and a ward brought down', () => {
     expect(itemStats('joints')).toContainEqual(
       expect.objectContaining({ stat: 'lasts', lasting: 'perception' })
     )
     const drinks = itemStats('four-loko-blue')
+    expect(drinks.some((one) => one.stat === 'lasts')).toBe(false)
     expect(drinks).toContainEqual(
-      expect.objectContaining({ stat: 'lasts', lasting: 'trails' })
+      expect.objectContaining({ stat: 'ward', axis: 'drunk' })
     )
     expect(drinks).toContainEqual(expect.objectContaining({ stat: 'heals' }))
     expect(itemStats('eye-drops')).toContainEqual(

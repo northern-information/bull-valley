@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { BOOK, foundLines } from '../../src/book.ts'
 import { copy } from '../../src/copy.ts'
+import { tradeRefusal } from '../../src/cosmetics.ts'
 import { DAILY_TASK, taskLine } from '../../src/dailytask.ts'
 import { dealRefusal } from '../../src/dealer.ts'
 import {
@@ -15,15 +16,20 @@ import {
   raiderStats,
   sayLine,
   shelfOf,
+  useImpact,
+  wardsNow,
   withCitgoNames,
 } from '../../src/dialstate.ts'
+import { riskOf } from '../../src/expeditions.ts'
 import { itemLabel, itemLine } from '../../src/itemcopy.ts'
-import { itemById } from '../../src/items.ts'
+import { healsOf, itemById } from '../../src/items.ts'
+import { outfitById } from '../../src/outfits.ts'
 import { xpToReach } from '../../src/progression.ts'
 import { stepNews, stepRefusal } from '../../src/quests.ts'
 import { SEASON, seasonLine } from '../../src/season.ts'
 import { FRESH_STAND, refusalLine } from '../../src/stand.ts'
-import { formatCash } from '../../src/store.ts'
+import { formatCash, shelfPrice } from '../../src/store.ts'
+import { levelsAt } from '../../src/wardlevels.ts'
 import type { DialState } from '../../src/dialstate.ts'
 import type { ServerMessage, WelcomeMessage } from '../../src/protocol.ts'
 
@@ -139,7 +145,7 @@ describe("Dial-Up's state", () => {
     expect(s.pending.locker).toBe(false)
     // Another refusal says nothing here.
     expect(
-      applyFrame(s, { type: 'nack', re: 'use', reason: 'dialup' }, 9, 9)
+      applyFrame(s, { type: 'nack', re: 'pass', reason: 'dialup' }, 9, 9)
     ).toBe(s)
   })
 
@@ -284,12 +290,12 @@ describe('the folk, the Citgo and the chat on the phone', () => {
   const world = (shelves: Record<string, boolean[]>[]) =>
     ({ shelves, dealer: {} }) as never
 
-  it("lists a Citgo's shelves, the first unit a buy takes", () => {
+  it("lists a Citgo's shelves at their price now, the first unit a buy takes", () => {
     const s = { ...me(), world: world([{ marlboro: [false, true, true] }]) }
     expect(shelfOf(s, 0)).toEqual([
       {
         kind: 'marlboro',
-        price: itemById('marlboro')?.price,
+        price: shelfPrice('marlboro', [false, true, true]),
         left: 2,
         unit: 1,
       },
@@ -618,6 +624,9 @@ describe('expeditions on the phone', () => {
     expect(nack('expedition-send', 'locked').said?.text).toBe(
       copy('dialup.expeditions.locked_refused')
     )
+    expect(nack('expedition-send', 'short').said?.text).toBe(
+      copy('dialup.expeditions.short_refused')
+    )
     expect(nack('expedition-claim', 'out').said?.text).toBe(
       copy('dialup.expeditions.out')
     )
@@ -659,7 +668,7 @@ describe('a dropped line on the phone', () => {
 
 describe("the account's news on the phone", () => {
   const start = (over: Partial<WelcomeMessage> = {}) =>
-    applyFrame(DIALED, welcome(over), 0, 0)
+    applyFrame({ ...DIALED, name: 'Me', outfit: 'player' }, welcome(over), 0, 0)
   const lastLog = (s: DialState) => s.chat.at(-1)?.text
 
   it('logs a new level, once', () => {
@@ -754,12 +763,67 @@ describe("the account's news on the phone", () => {
       s,
       {
         type: 'peer-updated',
-        peer: { ...peer, cosmetics: [], id: 'p1', level: 9 },
+        peer: { ...peer, cosmetics: [], id: 'p1', name: 'Me', level: 9 },
       },
       0,
       0
     )
     expect(s.chat).toHaveLength(lines)
+  })
+
+  it('takes on a name and body changed in the 3D valley, and says so', () => {
+    const me = {
+      id: 'p1',
+      name: 'Me',
+      outfit: 'player',
+      cosmetics: [],
+      level: 1,
+      at: null,
+    } as const
+    let s = start()
+    s = applyFrame(
+      s,
+      { type: 'peer-updated', peer: { ...me, cosmetics: [], name: 'Ace' } },
+      0,
+      10
+    )
+    expect(s.name).toBe('Ace')
+    expect(lastLog(s)).toBe(copy('gron.renamed', { name: 'Ace' }))
+    s = applyFrame(
+      s,
+      {
+        type: 'peer-updated',
+        peer: { ...me, cosmetics: [], name: 'Ace', outfit: 'gron' },
+      },
+      0,
+      20
+    )
+    expect(s.outfit).toBe('gron')
+    expect(lastLog(s)).toBe(
+      copy('gron.became', { name: outfitById('gron').label })
+    )
+  })
+
+  it('says nothing of the account on its other app', () => {
+    // The account in the 3D valley: another peer under our own name.
+    const body = {
+      id: 'p9',
+      name: 'Me',
+      outfit: 'player',
+      cosmetics: [],
+      level: 1,
+      at: null,
+    } as const
+    let s = start({ peers: [{ ...body, cosmetics: [] }] })
+    const lines = s.chat.length
+    s = applyFrame(
+      s,
+      { type: 'peer-updated', peer: { ...body, cosmetics: [], level: 2 } },
+      0,
+      0
+    )
+    expect(s.chat).toHaveLength(lines)
+    expect(s.peers[0].level).toBe(2)
   })
 
   it('says the valley missed a new name or look', () => {
@@ -770,5 +834,101 @@ describe("the account's news on the phone", () => {
       0
     )
     expect(lastLog(s)).toBe(copy('log.change_unheard'))
+  })
+})
+
+describe('the wards on the phone', () => {
+  it("fade from the valley's word as the 3D valley fades them", () => {
+    const levels = { high: 0.5, stimulated: 0.2, drunk: 0, tripping: 0 }
+    const s = applyFrame(DIALED, { type: 'wards', wards: levels }, 1000, 0)
+    expect(wardsNow(s, 1000)).toEqual(levels)
+    const later = wardsNow(s, 11_000)
+    expect(later).toEqual(levelsAt({ at: 1, levels }, 11))
+    expect(later.high).toBeLessThan(levels.high)
+  })
+})
+
+describe('what an item would do, used on the phone', () => {
+  it('raises its ward, lowers the risk of the run that ward guards', () => {
+    const s = applyFrame(DIALED, { type: 'wards', wards: NO_WARDS }, 0, 0)
+    const impact = useImpact(s, 'four-loko-blue', 0)
+    const drunk = impact.wards.find((w) => w.axis === 'drunk')
+    expect(drunk?.from).toBe(0)
+    expect(drunk?.to).toBeGreaterThan(0)
+    const corn = impact.risks.find((r) => r.id === 'corn')
+    expect(corn?.from).toBe(riskOf('corn', 0))
+    expect(corn?.to).toBe(riskOf('corn', drunk?.to ?? 0))
+    expect(corn!.to).toBeLessThan(corn!.from)
+    // A run no ward guards is not moved by it.
+    expect(impact.risks.some((r) => r.id === 'ride')).toBe(false)
+  })
+
+  it('mends geometrie up to whole, and says nothing when whole', () => {
+    const hurt = { ...DIALED, health: 500, healthMax: 1000 }
+    expect(useImpact(hurt, 'marlboro', 0).health).toEqual({
+      from: 500,
+      to: 500 + healsOf('marlboro', 1000),
+    })
+    const whole = { ...DIALED, health: 1000, healthMax: 1000 }
+    expect(useImpact(whole, 'marlboro', 0).health).toBeNull()
+  })
+
+  it('reads the wards faded to now', () => {
+    const levels = { high: 0, stimulated: 0, drunk: 0.6, tripping: 0 }
+    const s = applyFrame(DIALED, { type: 'wards', wards: levels }, 0, 0)
+    const later = useImpact(s, 'four-loko-blue', 60_000)
+    expect(later.wards.find((w) => w.axis === 'drunk')?.from).toBe(
+      wardsNow(s, 60_000).drunk
+    )
+  })
+})
+
+describe('what the 3D valley did, in the phone log', () => {
+  it('logs something passed, either way', () => {
+    let s = applyFrame(DIALED, welcome(), 0, 0)
+    s = applyFrame(s, { type: 'passed', kind: 'joints', to: 'Ace' }, 0, 1)
+    expect(s.chat.at(-1)?.text).toBe(
+      copy('log.passed', { item: itemLabel('joints'), name: 'Ace' })
+    )
+    s = applyFrame(s, { type: 'passed', kind: 'joints', from: 'Kid' }, 0, 2)
+    expect(s.chat.at(-1)?.text).toBe(
+      copy('log.passed_you', { item: itemLabel('joints'), name: 'Kid' })
+    )
+  })
+
+  it("keeps the stand's news in the log, and on the screen only when asked", () => {
+    const line = copy('log.stand_collected', { amount: '$2.50' })
+    const frame = {
+      type: 'stand',
+      re: 'collect',
+      stand: FRESH_STAND,
+      cents: 250,
+    } as const
+    const elsewhere = applyFrame(
+      applyFrame(DIALED, welcome(), 0, 0),
+      frame,
+      5,
+      5
+    )
+    expect(elsewhere.said).toBeNull()
+    expect(elsewhere.chat.at(-1)?.text).toBe(line)
+    const asked_ = applyFrame(
+      asked(applyFrame(DIALED, welcome(), 0, 0), { stand: true }),
+      frame,
+      5,
+      5
+    )
+    expect(asked_.said?.text).toBe(line)
+    expect(asked_.chat.at(-1)?.text).toBe(line)
+  })
+
+  it("words Moab's refusal for the offer the phone made", () => {
+    let s = asked(applyFrame(DIALED, welcome(), 0, 0), {
+      trade: true,
+      tradeOffer: 'flaming-halo',
+    })
+    s = applyFrame(s, { type: 'nack', re: 'trade', reason: 'owned' }, 0, 0)
+    expect(s.pending.tradeOffer).toBeNull()
+    expect(s.chat.at(-1)?.text).toBe(tradeRefusal('owned', 'flaming-halo'))
   })
 })

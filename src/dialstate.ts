@@ -24,7 +24,12 @@ import {
 } from './chat.ts'
 import { citgoLines, NO_CITGOS } from './citgos.ts'
 import { copy } from './copy.ts'
-import { cosmeticById, gainedOf, toCosmetics } from './cosmetics.ts'
+import {
+  cosmeticById,
+  gainedOf,
+  toCosmetics,
+  tradeRefusal,
+} from './cosmetics.ts'
 import {
   DAILY_TASK,
   NO_TASK,
@@ -33,7 +38,12 @@ import {
   taskOf,
 } from './dailytask.ts'
 import { boughtLine, dealRefusal } from './dealer.ts'
-import { isExpeditionRun } from './expeditions.ts'
+import {
+  EXPEDITION_IDS,
+  isExpeditionRun,
+  riskOf,
+  wardOf,
+} from './expeditions.ts'
 import {
   friendNews,
   friendRefusal,
@@ -43,7 +53,8 @@ import {
 import { BASE_GEOMETRIE } from './health.ts'
 import { toInventory } from './inventory.ts'
 import { itemLabel, itemLine } from './itemcopy.ts'
-import { itemById } from './items.ts'
+import { doseOf, healsOf } from './items.ts'
+import { outfitById } from './outfits.ts'
 import { barOf, levelUp } from './progression.ts'
 import { normalizeChat } from './protocol.ts'
 import {
@@ -62,7 +73,8 @@ import {
 } from './season.ts'
 import { buyRefusal } from './shop.ts'
 import { isStandLedger, refusalLine, standNews } from './stand.ts'
-import { formatCash } from './store.ts'
+import { formatCash, shelfPrice } from './store.ts'
+import { AXES, dose, levelsAt } from './wardlevels.ts'
 import type { ChatLine } from './chat.ts'
 import type { CitgoLog } from './citgos.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -73,7 +85,8 @@ import type {
   ExpeditionRun,
 } from './expeditions.ts'
 import type { PendingAsk } from './friends.ts'
-import type { Inventory } from './interfaces.ts'
+import type { Inventory, WardAxis } from './interfaces.ts'
+import type { OutfitId } from './outfits.ts'
 import type {
   ClientMessage,
   FriendWire,
@@ -91,6 +104,10 @@ import type { StandLedger } from './stand.ts'
 export interface DialState {
   // Our id in the valley, from the welcome; null before it.
   id: string | null
+  // The account's name and body, as Gron leaves them here or in the 3D
+  // valley (the valley shows our own peer back to us).
+  name: string
+  outfit: OutfitId | null
   pack: Inventory
   stash: Inventory
   // Cents.
@@ -100,7 +117,10 @@ export interface DialState {
   stand: StandLedger | null
   health: number
   healthMax: number
+  // The wards as the valley last said them, at local `wardsAt` ms; they
+  // fade from there (wardsNow).
   wards: WardLevels
+  wardsAt: number
   season: SeasonProgress
   task: TaskProgress
   // The Book of Shadows entries found (book.ts ids).
@@ -137,7 +157,10 @@ export interface Pending {
   buy: { station: number; kind: string } | null
   deal: boolean
   trade: boolean
+  // The cosmetic asked of Moab, for his refusal's words.
+  tradeOffer: CosmeticId | null
   expedition: boolean
+  use: boolean
   ask: PendingAsk | null
   showFriends: boolean
   whisperTo: string | null
@@ -149,7 +172,9 @@ const NOTHING_PENDING: Pending = {
   buy: null,
   deal: false,
   trade: false,
+  tradeOffer: null,
   expedition: false,
+  use: false,
   ask: null,
   showFriends: false,
   whisperTo: null,
@@ -164,6 +189,8 @@ export const NO_WARDS: WardLevels = {
 
 export const DIALED: DialState = {
   id: null,
+  name: '',
+  outfit: null,
   pack: {},
   stash: {},
   cash: 0,
@@ -173,6 +200,7 @@ export const DIALED: DialState = {
   health: BASE_GEOMETRIE,
   healthMax: BASE_GEOMETRIE,
   wards: NO_WARDS,
+  wardsAt: 0,
   season: NO_PROGRESS,
   task: NO_TASK,
   book: [],
@@ -241,6 +269,76 @@ function news(s: DialState, text: string, at: number, now: number): DialState {
   return told(saying(s, text, at), text, now)
 }
 
+// Our own peer as the valley shows it: a name or body changed in the 3D
+// valley, taken on and said.
+function shownAs(
+  s: DialState,
+  peer: PeerWire,
+  now: number,
+  wall: number
+): DialState {
+  let next = s
+  if (peer.name !== s.name) {
+    next = news(
+      { ...next, name: peer.name },
+      copy('gron.renamed', { name: peer.name }),
+      now,
+      wall
+    )
+  }
+  if (peer.outfit !== s.outfit) {
+    next = news(
+      { ...next, outfit: peer.outfit },
+      copy('gron.became', { name: outfitById(peer.outfit).label }),
+      now,
+      wall
+    )
+  }
+  return next
+}
+
+// The wards at local `now`, faded on the valley's own rates since it last
+// said them (wardlevels.ts levelsAt), as the 3D valley and the valley's
+// expeditions read them.
+export function wardsNow(s: DialState, now: number): WardLevels {
+  return levelsAt({ at: s.wardsAt / 1000, levels: s.wards }, now / 1000)
+}
+
+// What one use of `kind` would do now (sharedworld.ts rules 24 and 27):
+// each ward it moves, faded to now and then dosed, the risk of each
+// expedition that ward guards (expeditions.ts riskOf, as the valley judges
+// a run sent then), and the geometrie it would mend. Levels and risks are
+// 0 to 1.
+export interface UseImpact {
+  wards: { axis: WardAxis; from: number; to: number }[]
+  risks: { id: ExpeditionId; from: number; to: number }[]
+  health: { from: number; to: number } | null
+}
+
+export function useImpact(s: DialState, kind: string, now: number): UseImpact {
+  const before = wardsNow(s, now)
+  const after = levelsAt(dose({ at: 0, levels: before }, doseOf(kind), 0), 0)
+  const moved = AXES.filter((axis) => after[axis] !== before[axis])
+  const risks = EXPEDITION_IDS.flatMap((id) => {
+    const axis = wardOf(id)
+    if (!axis || !moved.includes(axis)) return []
+    return [{ id, from: riskOf(id, before[axis]), to: riskOf(id, after[axis]) }]
+  })
+  const heal = healsOf(kind, s.healthMax)
+  return {
+    wards: moved.map((axis) => ({
+      axis,
+      from: before[axis],
+      to: after[axis],
+    })),
+    risks,
+    health:
+      heal > 0 && s.health < s.healthMax
+        ? { from: s.health, to: Math.min(s.healthMax, s.health + heal) }
+        : null,
+  }
+}
+
 // The state after one frame from the valley, at local `now` (what the
 // screen says is timed by it) and `wall` epoch ms (what the log keeps).
 export function applyFrame(
@@ -263,6 +361,7 @@ export function applyFrame(
         health: msg.health,
         healthMax: msg.healthMax,
         wards: isLevels(msg.wards) ? msg.wards : NO_WARDS,
+        wardsAt: now,
         season: seasonOf(msg.season) ?? NO_PROGRESS,
         task: taskOf(msg.task) ?? NO_TASK,
         book: [...msg.book],
@@ -281,7 +380,13 @@ export function applyFrame(
         stash: toInventory(msg.stash),
         cash: msg.cash,
         cosmetics,
-        pending: { ...s.pending, locker: false, trade: false },
+        pending: {
+          ...s.pending,
+          locker: false,
+          trade: false,
+          tradeOffer: null,
+          use: false,
+        },
       }
       // Rule 14: a cosmetic Moab traded, worn now.
       return gainedOf(s.cosmetics, cosmetics).reduce(
@@ -296,7 +401,24 @@ export function applyFrame(
         stand: msg.stand,
         pending: { ...s.pending, stand: false },
       }
-      return saying(next, standNews(msg, s.stand), now)
+      // The phone's own ask is answered on the screen and in the log; one
+      // from the 3D valley goes into the log alone.
+      const line = standNews(msg, s.stand)
+      if (!line) return next
+      return s.pending.stand
+        ? news(next, line, now, wall)
+        : told(next, line, wall)
+    }
+    // Rule 27: something passed, by this account to a raider or to it.
+    case 'passed': {
+      const item = itemLabel(msg.kind)
+      return told(
+        s,
+        msg.to !== undefined
+          ? copy('log.passed', { item, name: msg.to })
+          : copy('log.passed_you', { item, name: msg.from ?? '' }),
+        wall
+      )
     }
     // What the account did, here or in the 3D valley, goes into the log
     // alone: the screen's word (`said`) is the valley's answer to an ask
@@ -314,7 +436,7 @@ export function applyFrame(
     case 'health':
       return { ...s, health: msg.health, healthMax: msg.max }
     case 'wards':
-      return isLevels(msg.wards) ? { ...s, wards: msg.wards } : s
+      return isLevels(msg.wards) ? { ...s, wards: msg.wards, wardsAt: now } : s
     case 'world':
       return msg.world
         ? worldNews({ ...s, world: msg.world }, msg, now, wall)
@@ -371,8 +493,12 @@ export function applyFrame(
         ...s,
         peers: s.peers.map((p) => (p.id === msg.peer.id ? msg.peer : p)),
       }
-      // Our own comes back too; Gron's dialog has said so already.
-      if (msg.peer.id === s.id) return next
+      // Our own comes back too: from Gron here, said already, or from the
+      // account's Gron in the 3D valley, which we take on and say.
+      if (msg.peer.id === s.id) return shownAs(next, msg.peer, now, wall)
+      // The account in the 3D valley (a username is one account's): its
+      // news is ours, and said already.
+      if (msg.peer.name === s.name) return next
       return peerNews(was, msg.peer).reduce(
         (after, line) => told(after, line, wall),
         next
@@ -518,13 +644,26 @@ function refused(
     news({ ...s, pending: { ...s.pending, ...pending } }, text, now, wall)
   switch (msg.re) {
     case 'buy':
-      return done({ buy: null }, buyRefusal(msg.reason, msg.item, s.cash))
+      return done(
+        { buy: null },
+        buyRefusal(
+          msg.reason,
+          msg.item,
+          s.cash,
+          msg.station === undefined ? undefined : s.world?.shelves[msg.station]
+        )
+      )
     case 'deal':
       return done({ deal: false }, dealRefusal(msg.reason))
     case 'quest':
       return done({ deal: false }, stepRefusal(msg.reason))
     case 'trade':
-      return done({ trade: false }, copy('log.trade_refused'))
+      return done(
+        { trade: false, tradeOffer: null },
+        tradeRefusal(msg.reason, s.pending.tradeOffer)
+      )
+    case 'use':
+      return done({ use: false }, copy('log.use_refused'))
     case 'expedition-send':
     case 'expedition-claim':
       return done({ expedition: false }, expeditionRefusal(msg.reason))
@@ -655,6 +794,8 @@ function expeditionRefusal(reason: string): string {
       return copy('dialup.expeditions.locked_refused')
     case 'out':
       return copy('dialup.expeditions.out')
+    case 'short':
+      return copy('dialup.expeditions.short_refused')
     default:
       return copy('dialup.expeditions.refused')
   }
@@ -676,7 +817,7 @@ export function shelfOf(s: DialState, station: number): ShelfRow[] {
   const shelf = s.world?.shelves[station]
   if (!shelf) return []
   return Object.entries(shelf).flatMap(([kind, units]) => {
-    const price = itemById(kind)?.price
+    const price = shelfPrice(kind, units)
     if (price === undefined) return []
     const unit = units.indexOf(true)
     return [

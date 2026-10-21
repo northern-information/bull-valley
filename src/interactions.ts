@@ -14,6 +14,7 @@ import { npcReach } from './npcs.ts'
 import { formatCash } from './store.ts'
 import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
+import type { HallucinationShape } from './hallucinations.ts'
 import type { XZ } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
 import type { NpcId, NpcSpot } from './npcs.ts'
@@ -106,6 +107,22 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // foot climbs up onto the deck; at its top, E climbs back down.
   | { kind: 'climbTower' }
   | { kind: 'leaveTower' }
+  // Someone or something a trip shows that is not there
+  // (hallucinations.ts): it answers E as the real one would, and E bursts
+  // it. `item` is what a thing passes for.
+  | {
+      kind: 'hallucination'
+      id: number
+      shape: HallucinationShape
+      item?: string
+    }
+
+// A hallucination as the resolver sees it.
+export interface HallucinationSpot extends XZ {
+  id: number
+  shape: HallucinationShape
+  item?: string
+}
 
 // A locker bank as the resolver sees it: where E opens it, and its
 // station.
@@ -160,9 +177,14 @@ export interface InteractionInput<P extends PickupSpot> {
   // The lookout tower's ladder, its foot and its top, and whether this
   // raider is up on the deck; or null.
   lookout?: { foot: XZ; top: XZ; on: boolean } | null
+  // What a trip shows this raider that is not there, each answering E
+  // from as far as the real one would (CONFIG.hallucinations.reach).
+  hallucinations?: readonly HallucinationSpot[]
 }
 
-// The first match wins, in this order: hop out while riding; speak to the
+// The first match wins, in this order: hop out while riding; the nearest
+// hallucination in its reach (it stands where you walked up to it, so it
+// answers before whatever stands behind it); speak to the
 // nearest NPC in his reach, unless a shelf unit is in view; climb into the
 // truck standing still beside you, when it is yours to climb into; buy off
 // a shelf; take your things back off your nearest body; open the lockers;
@@ -174,6 +196,17 @@ export function resolveInteraction<P extends PickupSpot>(
 ): Interaction<P> | null {
   const { player, truck } = input
   if (input.riding) return { kind: 'hopOut' }
+  const seen = nearestHallucination(input.hallucinations ?? [], player)
+  if (seen) {
+    return seen.item === undefined
+      ? { kind: 'hallucination', id: seen.id, shape: seen.shape }
+      : {
+          kind: 'hallucination',
+          id: seen.id,
+          shape: seen.shape,
+          item: seen.item,
+        }
+  }
   // Marx reads by the tailgate, in boarding range: beside him E talks, a
   // step away it boards. Carlsten stands behind the counter of goods, so
   // the facing in view sells first.
@@ -302,6 +335,25 @@ export function resolveInteraction<P extends PickupSpot>(
   return nearest ? { kind: 'pickup', pickup: nearest } : null
 }
 
+// The nearest hallucination within its reach, or null.
+function nearestHallucination(
+  spots: readonly HallucinationSpot[],
+  player: XZ
+): HallucinationSpot | null {
+  const { reach } = CONFIG.hallucinations
+  let best = Infinity
+  let nearest: HallucinationSpot | null = null
+  for (const spot of spots) {
+    const d = Math.hypot(spot.x - player.x, spot.z - player.z)
+    const within = spot.shape === 'thing' ? reach.thing : reach.person
+    if (d < within && d < best) {
+      best = d
+      nearest = spot
+    }
+  }
+  return nearest
+}
+
 // The nearest pickup not yet taken within reach, with no wall between,
 // or null.
 function nearestPickup<P extends PickupSpot>(
@@ -363,6 +415,14 @@ export function itemLabel(interaction: Interaction): ItemLabel | null {
   switch (interaction.kind) {
     case 'pickup':
       return { text: pickupLabel(interaction.pickup), dim: false }
+    // A thing that is not there is labelled as the real one would be.
+    case 'hallucination':
+      return interaction.item === undefined
+        ? null
+        : {
+            text: pickupLabel({ kind: interaction.item, count: 1 }),
+            dim: false,
+          }
     case 'buy':
       return {
         text: copy('labels.price', {
@@ -406,6 +466,8 @@ export function interactionKey(interaction: Interaction): string {
       return `loot:${interaction.corpse}`
     case 'locker':
       return `locker:${interaction.station}`
+    case 'hallucination':
+      return `hallucination:${interaction.id}`
     default:
       return interaction.kind
   }
@@ -436,6 +498,9 @@ export function interactionPrompt(interaction: Interaction): string | null {
     case 'stand':
       return copy('prompts.stand')
     case 'deal':
+      return null
+    // As the real one: a label for a thing, the glow alone for a person.
+    case 'hallucination':
       return null
     case 'locked':
       return copy('prompts.locked')

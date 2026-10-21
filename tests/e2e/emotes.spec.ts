@@ -1,4 +1,5 @@
 import { test as base } from '@playwright/test'
+import { EMOTES } from '../../src/emotes.ts'
 import { copy } from './copy.ts'
 import {
   beginRaid,
@@ -63,10 +64,11 @@ base(
     // A wave holds three seconds, then A stands again.
     await expect.poll(() => peerPose(b), { timeout: 15_000 }).toBe('stand')
 
-    // /sit holds until A moves.
+    // /sit holds until A moves: past the second a wave would have ended,
+    // which only the clock can show.
     await say(a, '/sit')
     await expect.poll(() => peerPose(b)).toBe('sit')
-    await a.waitForTimeout(4000)
+    await a.waitForTimeout((EMOTES.wave.seconds + 1) * 1000)
     expect(await peerPose(b)).toBe('sit')
     await a.keyboard.down('KeyW')
     await expect.poll(() => peerPose(b)).not.toBe('sit')

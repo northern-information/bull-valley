@@ -81,8 +81,30 @@ test("down in the moat, its walls can't be walked up", async ({ page }) => {
   await expect
     .poll(() => page.evaluate(() => window.__bv?.player.groundY))
     .toBeCloseTo(floor ?? 0)
+  // Into the wall until it stops us, or until we leave the floor.
+  const start = await page.evaluate(() => {
+    const { x, z } = window.__bv!.player.pos
+    return { x, z }
+  })
+  let was = 0
   await page.keyboard.down('KeyW')
-  await page.waitForTimeout(2500)
+  await expect
+    .poll(
+      async () => {
+        const { moved, y } = await page.evaluate(({ x, z }) => {
+          const bv = window.__bv!
+          return {
+            moved: Math.hypot(bv.player.pos.x - x, bv.player.pos.z - z),
+            y: bv.player.groundY,
+          }
+        }, start)
+        const still = moved > 1 && moved - was < 0.01
+        was = moved
+        return still || Math.abs(y - (floor ?? 0)) > 0.5
+      },
+      { intervals: [250] }
+    )
+    .toBe(true)
   await page.keyboard.up('KeyW')
   expect(await page.evaluate(() => window.__bv?.player.groundY)).toBeCloseTo(
     floor ?? 0

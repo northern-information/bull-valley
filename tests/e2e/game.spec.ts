@@ -148,8 +148,9 @@ test('the phone dials a Citgo portal to the last Citgo and back', async ({
   // Into the end ahead of us, out at the Citgo.
   await walkInto(portal.field)
   await expect.poll(() => distanceTo(portal.citgo)).toBeLessThan(3)
-  // And back out of the twin, where we dialed from.
-  await page.waitForTimeout(1200)
+  // And back out of the twin, where we dialed from, once the portal that
+  // took us lets us through again.
+  await expect.poll(() => page.evaluate(() => window.__bv?.portalGrace)).toBe(0)
   await walkInto(portal.citgo)
   await expect.poll(() => distanceTo(portal.field)).toBeLessThan(3)
 })
@@ -210,8 +211,9 @@ test("a shadowman's touch takes its hit, and the Citgo makes you whole", async (
     'data-health',
     '1000'
   )
-  await expect(page.locator('.bv-vitals-value')).toHaveText(
-    copy('hud.health_value', { health: '1,000', max: '1,000' })
+  await expect(page.locator('.bv-vitals-bar')).toHaveAttribute(
+    'aria-label',
+    copy('hud.health_label', { health: 1000, max: 1000 })
   )
   await page.evaluate(() => window.__bv?.grant('marlboro', 20))
   await expect
@@ -240,8 +242,9 @@ test("a shadowman's touch takes its hit, and the Citgo makes you whole", async (
     'data-health',
     String(left)
   )
-  await expect(page.locator('.bv-vitals-value')).toHaveText(
-    copy('hud.health_value', { health: left, max: '1,000' })
+  await expect(page.locator('.bv-vitals-bar')).toHaveAttribute(
+    'aria-label',
+    copy('hud.health_label', { health: left, max: 1000 })
   )
   await expect(page.locator('.bv-vitals-damage')).toHaveText(
     copy('hud.damage', { damage: 1000 - left })
@@ -270,7 +273,10 @@ test("a shadowman's touch takes its hit, and the Citgo makes you whole", async (
   ).toBeLessThan(1)
   expect(after?.marlboro).toBeGreaterThan(19)
   expect(after?.bodies).toBe(0)
-  // Back under the Citgo lights, whole again.
+  // Back under the Citgo lights, a share of whole back every few seconds:
+  // one short of whole, it is whole again in one.
+  await page.evaluate(() => window.__bv?.setHealth(990))
+  await expect.poll(() => page.evaluate(() => window.__bv?.health)).toBe(990)
   await page.evaluate(() => {
     const bv = window.__bv
     if (bv) bv.player.relocate(bv.world.spawn.x, bv.world.spawn.z)

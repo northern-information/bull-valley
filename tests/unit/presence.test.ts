@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { FRAMES_KEPT } from '../../src/framebuffer.ts'
 import {
+  applyHealth,
   applyJoined,
   applyLeft,
   applyState,
@@ -9,6 +10,7 @@ import {
   createPeerTable,
   poseOf,
   samplePeer,
+  stampOf,
   stateChanged,
 } from '../../src/presence.ts'
 import type { PeerStateWire, PeerWire } from '../../src/protocol.ts'
@@ -56,6 +58,23 @@ describe('peer table', () => {
     applyWelcome(peers, [{ ...wire('a'), level: 3 }], 300)
     expect(peers.get('a')?.frames.map((f) => f.x)).toEqual([1, 2])
     expect(peers.get('a')?.level).toBe(3)
+  })
+
+  it('spaces a held-back burst as it was sent, never ahead or behind', () => {
+    const peers = createPeerTable()
+    applyJoined(peers, wire('a', false), 0)
+    applyState(peers, 'a', at(1, 1), 100)
+    // Three frames due 100 ms apart, held up and let through at once.
+    applyState(peers, 'a', at(2, 2), 450, 200)
+    applyState(peers, 'a', at(3, 3), 450, 300)
+    applyState(peers, 'a', at(4, 4), 450, 400)
+    expect(peers.get('a')?.frames.map((f) => f.at)).toEqual([
+      100, 200, 300, 400,
+    ])
+    const a = peers.get('a')!
+    // Never later than it came, never before the frame ahead of it.
+    expect(stampOf(a, 500, 900)).toBe(500)
+    expect(stampOf(a, 500, 50)).toBe(400)
   })
 
   it('keeps the latest states and ignores strangers', () => {
@@ -205,5 +224,25 @@ describe('wire helpers', () => {
     expect(stateChanged(base, { ...base, riding: true })).toBe(true)
     expect(stateChanged(base, { ...base, light: true })).toBe(true)
     expect(stateChanged(base, { ...base, pitch: 0.05 })).toBe(true)
+  })
+})
+
+describe('peer geometrie', () => {
+  it('is whole at their level when the valley leaves it off', () => {
+    const peers = createPeerTable()
+    const peer = applyJoined(peers, { ...wire('a'), level: 3 }, 0)
+    expect(peer.max).toBe(1080)
+    expect(peer.health).toBe(1080)
+  })
+
+  it('comes off the wire, and moves with the valley', () => {
+    const peers = createPeerTable()
+    applyJoined(peers, { ...wire('a'), health: 600, max: 1000 }, 0)
+    expect(peers.get('a')).toMatchObject({ health: 600, max: 1000 })
+    expect(applyHealth(peers, 'a', 250, 1000)?.health).toBe(250)
+    expect(applyHealth(peers, 'a', 5000, 1040)?.health).toBe(1040)
+    expect(applyHealth(peers, 'nobody', 1, 1000)).toBeNull()
+    applyUpdated(peers, { ...wire('a'), health: 900, max: 1000 })
+    expect(peers.get('a')?.health).toBe(900)
   })
 })

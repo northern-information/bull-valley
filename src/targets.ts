@@ -5,8 +5,7 @@
 
 import * as THREE from 'three'
 import { meshBounds } from './assets.ts'
-import { itemById } from './items.ts'
-import { insideStore, unitInView } from './store.ts'
+import { insideStore, shelfPrice, unitInView } from './store.ts'
 import type { Game } from './game.ts'
 import type { Interaction, LockerSpot, ShelfSpot } from './interactions.ts'
 import type { Vec3 } from './interfaces.ts'
@@ -79,6 +78,9 @@ export function createTargets(game: Game): Targets {
         return world.plaza?.door ?? null
       case 'lay':
         return world.portal?.rig.group ?? null
+      // What is not there glows as the real one would.
+      case 'hallucination':
+        return game.hallucinations.objectOf(action.id)
       case 'speak':
         switch (action.npc) {
           case 'marx':
@@ -118,14 +120,15 @@ export function createTargets(game: Game): Targets {
         look.y,
         look.z,
       ])
-      const item = seen ? itemById(seen.facing.kind) : null
-      if (!seen || !item || item.price === undefined) return null
+      const kind = seen?.facing.kind
+      const price = kind ? shelfPrice(kind, stock?.[kind]) : undefined
+      if (!seen || !kind || price === undefined) return null
       return {
-        item: item.id,
+        item: kind,
         station,
         unit: seen.unit,
-        price: item.price,
-        affordable: state.cash >= item.price,
+        price,
+        affordable: state.cash >= price,
       }
     },
 
@@ -167,6 +170,8 @@ export function createTargets(game: Game): Targets {
           return glowTarget(action)
         case 'collect':
           return bushObject(action.bush)
+        case 'hallucination':
+          return action.item === undefined ? null : glowTarget(action)
         default:
           return null
       }

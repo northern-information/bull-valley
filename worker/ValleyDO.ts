@@ -189,6 +189,8 @@ export class ValleyDO extends DurableObject<Env> {
   // A dev server's quiet valley (the specs'): no crossing shadowman rushes.
   private calm = false
   private ticker: unknown = null
+  // Steps since a forecourt last gave back its share (rule 24).
+  private forecourtSteps = 0
   // When each socket was last heard from, in memory only: a socket missing
   // here (after a wake) counts as heard now.
   private heard = new WeakMap<WebSocket, number>()
@@ -485,6 +487,29 @@ export class ValleyDO extends DurableObject<Env> {
     max: number
   }): void {
     this.toAccount(account, { type: 'health', health: points, max })
+    this.tellPeersHealth(account, points, max)
+  }
+
+  // Rule 24: everyone in the valley hears an account's geometrie, once for
+  // each of its sockets, so every raider sees every other's bar.
+  private tellPeersHealth(account: string, health: number, max: number): void {
+    for (const socket of this.ctx.getWebSockets()) {
+      const attachment = this.attachment(socket)
+      const me = attachment.me
+      if (attachment.account !== account || !me) continue
+      this.broadcast({ type: 'peer-health', id: me.id, health, max }, null)
+    }
+  }
+
+  // A peer as everyone is shown it: its geometrie stamped on from the
+  // valley's wounds (rule 24), which the socket's own record never holds.
+  private shown(me: PeerWire, account: string | null): PeerWire {
+    if (!account) return me
+    return {
+      ...me,
+      health: healthFor(this.valley, account),
+      max: maxFor(this.valley, account),
+    }
   }
 
   async webSocketClose(ws: WebSocket): Promise<void> {
@@ -612,9 +637,13 @@ export class ValleyDO extends DurableObject<Env> {
     if (bursts.length || burned) {
       void this.spill(bursts, out.message.bursts, burned)
     }
-    // Rule 24: a forecourt makes whole.
-    for (const id of forecourtMends(this.valley, placed)) {
-      void this.mend(id)
+    // Rule 24: a forecourt gives back its share every few seconds.
+    const every = CONFIG.health.forecourt.everySeconds * CONFIG.shadowmen.tickHz
+    if (++this.forecourtSteps >= every) {
+      this.forecourtSteps = 0
+      for (const id of forecourtMends(this.valley, placed)) {
+        void this.mend(id)
+      }
     }
     // Rule 28: a Citgo stood at is written in the account's log.
     for (const { id, station } of citgoVisits(this.valley, placed)) {
@@ -702,6 +731,7 @@ export class ValleyDO extends DurableObject<Env> {
         // Closing sockets throw; their close handler follows.
       }
     }
+    this.tellPeersHealth(account, health, max)
     this.tellWards(reduced)
     if (!change.fatal) return
     const me = this.attachment(sockets[0]).me
@@ -799,8 +829,8 @@ export class ValleyDO extends DurableObject<Env> {
     })
   }
 
-  // Geometrie given back (rule 24): a use of `kind`'s share, or whole on
-  // a forecourt. Every socket on the account hears it.
+  // Geometrie given back (rule 24): a use of `kind`'s share, or the
+  // forecourt's. Every socket on the account hears it.
   protected mend(id: string, kind?: string): Promise<void> {
     return this.locked(() => this.mendHeld(id, kind))
   }
@@ -842,11 +872,27 @@ export class ValleyDO extends DurableObject<Env> {
       await this.repack(null, null, account)
       return
     }
-    const reduced = reduce(
-      this.valley,
-      { type: 'fall', id, items, at },
-      this.context()
-    )
+    // Rule 18: the strike spills a share of the wallet. Unread, or not
+    // taken out of it, nothing spills.
+    let cash = 0
+    try {
+      cash = (await packs.get(account)).cash
+    } catch (err) {
+      console.error('The wallet could not be read for a fall', err)
+    }
+    const fall: ValleyAction = { type: 'fall', id, items, at }
+    let reduced = reduce(this.valley, fall, { ...this.context(), cash })
+    if (reduced.spend) {
+      let paid = false
+      try {
+        paid = await packs.purchase(account, reduced.spend.amount, null)
+      } catch (err) {
+        console.error('The fall could not take from the wallet', err)
+      }
+      if (!paid) {
+        reduced = reduce(this.valley, fall, { ...this.context(), cash: 0 })
+      }
+    }
     if (reduced.corpse === undefined) {
       try {
         await packs.give(account, items)
@@ -857,6 +903,12 @@ export class ValleyDO extends DurableObject<Env> {
     // Even with no new body, a second fall takes the first away.
     await this.apply(reduced)
     for (const msg of reduced.broadcast) this.broadcast(msg, null)
+    // Whole again, or as the fall left them.
+    this.tellPeersHealth(
+      account,
+      healthFor(this.valley, account),
+      maxFor(this.valley, account)
+    )
     await this.repack(null, null, account)
   }
 
@@ -1062,9 +1114,21 @@ export class ValleyDO extends DurableObject<Env> {
         refuse('unavailable')
         return
       }
+      // A send reads the wallet for its buy-in.
+      let cash: number | undefined
+      if (action.type === 'expedition-send') {
+        try {
+          cash = (await packs.get(account)).cash
+        } catch (err) {
+          console.error('The wallet could not be read', err)
+          refuse('unavailable')
+          return
+        }
+      }
       const reduced = reduce(this.valley, action, {
         ...this.context(),
         expedition: { run: read.run },
+        ...(cash === undefined ? {} : { cash }),
       })
       if (reduced.reply) {
         send(ws, reduced.reply)
@@ -1080,7 +1144,12 @@ export class ValleyDO extends DurableObject<Env> {
               cents: change.outcome.cents,
             })
           : change.run
-            ? await packs.embark(account, read.rev, change.run)
+            ? await packs.embark(
+                account,
+                read.rev,
+                change.run,
+                reduced.spend?.amount ?? 0
+              )
             : false
       } catch (err) {
         console.error('The expedition could not be written', err)
@@ -1098,7 +1167,9 @@ export class ValleyDO extends DurableObject<Env> {
         run: change.run,
         ...(change.outcome ? { outcome: change.outcome } : {}),
       })
-      if (change.outcome) await this.repack(null, null, account)
+      if (change.outcome || reduced.spend) {
+        await this.repack(null, null, account)
+      }
     })
   }
 
@@ -1283,7 +1354,7 @@ export class ValleyDO extends DurableObject<Env> {
     // Back from a dropped line: everyone who still sees them hears no news
     // (the clients take a known id as no arrival), and their friends no
     // greeting.
-    this.broadcast({ type: 'peer-joined', peer: me }, ws)
+    this.broadcast({ type: 'peer-joined', peer: this.shown(me, account) }, ws)
     for (const msg of reduced.broadcast) this.broadcast(msg, ws)
     if (!back) await this.greetFriends(ws, account, name)
   }
@@ -1299,7 +1370,7 @@ export class ValleyDO extends DurableObject<Env> {
     const at = { x, y, z, yaw, pitch, pose, riding, light }
     const next: PeerWire = { ...me, at }
     this.attach(ws, { ...attachment, me: next })
-    this.broadcast({ type: 'peer-state', id: me.id, ...at }, ws)
+    this.broadcast({ type: 'peer-state', id: me.id, ...at, t: Date.now() }, ws)
   }
 
   // A chat line to everyone, the sender included. Nothing is stored.
@@ -1595,7 +1666,7 @@ export class ValleyDO extends DurableObject<Env> {
       send(ws, { type: 'nack', re: 'appearance', reason: 'locked-outfit' })
       return
     }
-    await this.reshow(ws, attachment, { ...me, outfit })
+    await this.reshowAccount(ws, attachment, me, { outfit })
   }
 
   // A new username from Gron. The frame names nothing: the account's
@@ -1618,7 +1689,33 @@ export class ValleyDO extends DurableObject<Env> {
       send(ws, { type: 'nack', re: 'rename', reason: 'no-username' })
       return
     }
-    await this.reshow(ws, { ...attachment, name }, { ...me, name })
+    await this.reshowAccount(ws, attachment, me, { name })
+  }
+
+  // A new name or body for the account, on every socket it has signed in
+  // (the 3D valley and Dial-Up both, rule 11), the asker's last: each of
+  // the others hears its own change before anyone's news of it.
+  private async reshowAccount(
+    ws: WebSocket,
+    attachment: Attachment,
+    me: PeerWire,
+    change: Partial<Pick<PeerWire, 'name' | 'outfit'>>
+  ): Promise<void> {
+    const named = (a: Attachment): Attachment =>
+      change.name ? { ...a, name: change.name } : a
+    if (attachment.account) {
+      for (const socket of this.ctx.getWebSockets()) {
+        if (socket === ws) continue
+        const other = this.attachment(socket)
+        if (other.account !== attachment.account || !other.me) continue
+        try {
+          await this.reshow(socket, named(other), { ...other.me, ...change })
+        } catch {
+          // Closing sockets throw; their close handler follows.
+        }
+      }
+    }
+    await this.reshow(ws, named(attachment), { ...me, ...change })
   }
 
   // Stores the raider as now shown, and shows them so to everyone,
@@ -1638,7 +1735,10 @@ export class ValleyDO extends DurableObject<Env> {
         )
       )
     )
-    this.broadcast({ type: 'peer-updated', peer: me }, null)
+    this.broadcast(
+      { type: 'peer-updated', peer: this.shown(me, attachment.account) },
+      null
+    )
   }
 
   // A world action from one player: run it, write what it moves into or
@@ -1977,7 +2077,10 @@ export class ValleyDO extends DurableObject<Env> {
       if (attachment.account !== account || !me) continue
       const next: PeerWire = { ...me, cosmetics: toCosmetics(cosmetics) }
       this.attach(socket, { ...attachment, me: next })
-      this.broadcast({ type: 'peer-updated', peer: next }, null)
+      this.broadcast(
+        { type: 'peer-updated', peer: this.shown(next, account) },
+        null
+      )
     }
   }
 
@@ -2209,7 +2312,10 @@ export class ValleyDO extends DurableObject<Env> {
       if (attachment.account !== account || !me || me.level >= level) continue
       const next: PeerWire = { ...me, level }
       this.attach(socket, { ...attachment, me: next })
-      this.broadcast({ type: 'peer-updated', peer: next }, null)
+      this.broadcast(
+        { type: 'peer-updated', peer: this.shown(next, account) },
+        null
+      )
     }
   }
 
@@ -2374,8 +2480,8 @@ export class ValleyDO extends DurableObject<Env> {
     const peers: PeerWire[] = []
     for (const socket of this.ctx.getWebSockets()) {
       if (socket === exclude) continue
-      const other = this.attachment(socket).me
-      if (other) peers.push(other)
+      const { me: other, account } = this.attachment(socket)
+      if (other) peers.push(this.shown(other, account))
     }
     return peers
   }

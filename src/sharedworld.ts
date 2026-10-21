@@ -32,7 +32,9 @@
 //    for everyone until the day turns. The buyer picks the unit, so the
 //    valley keeps which units are left. A unit is paid for out of the
 //    buyer's wallet, which is their account's; the valley refuses a sale
-//    it does not cover (ValleyContext.cash in, Reduced.spend out).
+//    it does not cover (ValleyContext.cash in, Reduced.spend out). Each
+//    unit of a kind sold off a station's shelf today puts the next one's
+//    price up (store.ts shelfPrice): the last of anything costs the most.
 // 8. Each berry bush gives each account one berry a day: the one at the
 //    spawn Citgo (bush 0) and the ring round the portal at the maze's heart
 //    (1 to CONFIG.maze.bushes.count). The valley remembers only the
@@ -108,8 +110,10 @@
 //    valley takes it all out of the account's pack first, and lays the
 //    body only once it has (Reduced.corpse), or gives it back. One body
 //    an account: a second fall takes the first away, and what it still
-//    held is lost. The wallet
-//    and the locker are untouched. Only the account that fell can take its
+//    held is lost. The locker is untouched, but the strike spills
+//    CONFIG.corpses.walletShare of the wallet (ValleyContext.cash in,
+//    Reduced.spend out) as dimes where the raider fell, the valley's to
+//    leave lying like a burst's, for whoever takes them up first. Only the account that fell can take its
 //    things back (Reduced.give), and a body lies until it does: the day's
 //    turn leaves it, and so does a world opened afresh, since the bodies
 //    are the valley's (Valley.corpses), not the world's.
@@ -137,7 +141,8 @@
 // 22. The raider's level (progression.ts): one XP bar for the account,
 //    fed by everything. A shadowman or spider burst in the raider's beam,
 //    the Caretaker burned with it (a big jump), a ride with Marx that
-//    gets home with them in the bed, the day's berry off a bush, a pickup,
+//    gets home with them in the bed or lets them off where they picked,
+//    over a drive of CONFIG.truck.rideXpMetres or more, the day's berry off a bush, a pickup,
 //    a unit bought, a drop the valley left taken up, and what the Cabbage
 //    Stand pays out when collected (by the cents, rule 23) each earn the
 //    account XP (Reduced.xp, and stepShadows' xp); a raider's own drop
@@ -168,7 +173,8 @@
 //    `plunge`; where a raider stands is its own word) takes fall.ts
 //    fallDamage of its height, no ward cutting it: all of it from two
 //    stories, which is rule 18's strike the same. A raider on foot whose last state frame put them
-//    on a Citgo forecourt is made whole, and a use of anything that heals
+//    on a Citgo forecourt is given back CONFIG.health.forecourt's share
+//    of whole every few seconds until whole, and a use of anything that heals
 //    (items.ts healsPct), once the pack has given the unit up, gives its
 //    share of whole back.
 // 25. The squatter in Bull Valley Plaza deals (dealer.ts), where the
@@ -227,12 +233,17 @@
 //    world or none (rules 19 and 23), Erwin deals with them and gives and
 //    rewards the rose from anywhere (rules 25 and 26), and they buy off the
 //    shelves of any Citgo their account has stood at (rule 7, `not-visited`
-//    otherwise). What takes a body is refused them (`dialup`): the truck,
-//    a take, a berry, a use, a pass, a drop or taking one up, a body,
-//    a portal, and laying the rose.
+//    otherwise). They use what their pack holds as anyone does (rule 10),
+//    dosing their wards and mending their geometrie (rules 24 and 27),
+//    to ready a run (rule 30). What takes a body is refused them
+//    (`dialup`): the truck, a take, a berry, a pass, a drop or taking
+//    one up, a body, a portal, and laying the rose.
 // 30. Idle expeditions (expeditions.ts): a raider dialed in sends their
 //    raider out on a run, one at a time, if their level has opened it
-//    (`expedition-send`; `busy`, `locked`). The valley draws its seed and
+//    (`expedition-send`; `busy`, `locked`), and if the wallet covers its
+//    buy-in (CONFIG.expeditions.runs[...].cost; ValleyContext.cash in,
+//    Reduced.spend out, taken as the run is written; `short`). The valley
+//    draws its seed and
 //    keeps the run with the matching ward's level as it left (rule 27),
 //    so what comes home is settled then; a run home is claimed
 //    (`expedition-claim`; `none` with none out, `out` before its time) and
@@ -255,11 +266,18 @@ import { heartPoint, theMaze } from './caretaker.ts'
 import { citgoAt, NO_CITGOS, visit } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { insideRing } from './coords.ts'
-import { corpseWire, isEmpty, keysOff } from './corpses.ts'
+import { corpseWire, isEmpty, keysOff, spilledDimes } from './corpses.ts'
 import { affords, cosmeticById, MOAB_OFFERS } from './cosmetics.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
 import { atDealer, deal, freshDealerStock } from './dealer.ts'
-import { centsOf, dropSpot, isCash, takeUp } from './drops.ts'
+import {
+  centsOf,
+  DIME_CENTS,
+  DIMES,
+  dropSpot,
+  isCash,
+  takeUp,
+} from './drops.ts'
 import {
   embark,
   isExpeditionId,
@@ -285,7 +303,6 @@ import {
   INVENTORY_KINDS,
   isKeyItem,
   isUsable,
-  itemById,
 } from './items.ts'
 import { atLaptop } from './laptop.ts'
 import {
@@ -300,6 +317,7 @@ import {
   leave,
   nextChange,
   refused,
+  rideMetres,
   settleTruck,
 } from './marx.ts'
 import { mazeToWorld } from './maze.ts'
@@ -316,7 +334,7 @@ import {
   upgrade as upgradeStand,
 } from './stand.ts'
 import { atLocker } from './stash.ts'
-import { freshStock, onShelf, takeUnit } from './store.ts'
+import { freshStock, onShelf, shelfPrice, takeUnit } from './store.ts'
 import { levelsAt } from './wardlevels.ts'
 import { damageOf } from './wards.ts'
 import type { CitgoLog } from './citgos.ts'
@@ -604,7 +622,8 @@ interface ValleyContext {
   // Ids with an open socket right now, so a member whose close was never
   // heard is dropped. On a join, the joiner is not yet among them.
   present: readonly string[]
-  // For a buy: the buyer's wallet in cents, as the valley just read it.
+  // For a buy, or a fall: the account's wallet in cents, as the valley
+  // just read it.
   cash?: number
   // For a trade or a deal: the raider's pack and cosmetics, as the valley
   // just read them.
@@ -999,8 +1018,10 @@ function settle(
   const settled = settleTruck(world.truck, now, world.routes)
   // Rule 22: whoever was still in the bed when Marx got home rode with
   // him; one hopping out on the way did not.
+  // Only a drive of some length earns it (marx.ts rideMetres).
   const xp =
-    settled.changes.includes('home') || settled.changes.includes('dropoff')
+    (settled.changes.includes('home') || settled.changes.includes('dropoff')) &&
+    rideMetres(world.truck.leg, world.routes) >= CONFIG.truck.rideXpMetres
       ? grantsTo(valley, world.truck.riders, 'ride')
       : []
   if (settled.changes.length > 0 && next.world) {
@@ -1058,7 +1079,6 @@ const NEEDS_A_BODY: Partial<Record<ValleyAction['type'], NackRe>> = {
   charter: 'charter',
   take: 'take',
   collect: 'collect',
-  use: 'use',
   pass: 'pass',
   drop: 'drop',
   'take-drop': 'take-drop',
@@ -1480,7 +1500,8 @@ function onBuy(
     })
   if (!member || !world) return refuse('not-in-valley')
   const shelf = world.shelves[station] as ShopStock | undefined
-  const price = itemById(kind)?.price
+  // Rule 7: dearer the emptier the shelf (store.ts shelfPrice).
+  const price = shelf ? shelfPrice(kind, shelf[kind]) : undefined
   if (!shelf || !Object.hasOwn(shelf, kind) || price === undefined) {
     return refuse('no-such-shelf')
   }
@@ -1822,46 +1843,72 @@ function onSpill(
 function onFall(
   valley: Valley,
   action: ActionOf<'fall'>,
-  { now }: ValleyContext
+  { now, cash }: ValleyContext
 ): Reduced {
   // Rule 18. One body an account: a second fall takes the first away,
   // and what it still held is lost. A new body only where the valley
-  // heard the raider stand, and only with something on it.
+  // heard the raider stand, and only with something on it; there too the
+  // share of the wallet the strike spills, in dimes.
   const member = valley.members[action.id]
   if (!member) return done(valley, now, { broadcast: [] })
   const corpses = valley.corpses.filter((c) => c.account !== member.account)
   const lost = corpses.length < valley.corpses.length
-  if (!action.at || isEmpty(action.items)) {
-    if (!lost) return done(valley, now, { broadcast: [] })
-    const next: Valley = { ...valley, corpses }
-    return done(next, now, {
-      broadcast: next.world ? [frame(next, 'fell', { by: action.id })] : [],
-    })
+  const dimes = action.at && valley.world ? spilledDimes(cash ?? 0) : 0
+  const body = action.at && !isEmpty(action.items)
+  if (!body && !lost && dimes === 0) {
+    return done(valley, now, { broadcast: [] })
   }
   const id = valley.nextCorpse
-  const { x, z, yaw } = action.at
-  const next: Valley = {
-    ...valley,
-    corpses: [
-      ...corpses,
-      {
-        id,
-        x,
-        z,
-        yaw,
-        name: member.name,
-        outfit: member.outfit,
-        items: { ...action.items },
-        account: member.account,
-      },
-    ],
-    nextCorpse: id + 1,
+  let next: Valley = { ...valley, corpses }
+  if (body && action.at) {
+    const { x, z, yaw } = action.at
+    next = {
+      ...next,
+      corpses: [
+        ...corpses,
+        {
+          id,
+          x,
+          z,
+          yaw,
+          name: member.name,
+          outfit: member.outfit,
+          items: { ...action.items },
+          account: member.account,
+        },
+      ],
+      nextCorpse: id + 1,
+    }
+  }
+  if (dimes > 0 && action.at && next.world) {
+    const world = next.world
+    const drop: Drop = {
+      id: world.nextDrop,
+      kind: DIMES,
+      count: dimes,
+      x: action.at.x,
+      z: action.at.z,
+      spilled: true,
+    }
+    next = withWorld(next, {
+      ...world,
+      drops: [...world.drops, drop],
+      nextDrop: world.nextDrop + 1,
+    })
   }
   return done(next, now, {
     broadcast: next.world
-      ? [frame(next, 'fell', { by: action.id, corpse: id })]
+      ? [
+          frame(next, 'fell', {
+            by: action.id,
+            ...(body ? { corpse: id } : {}),
+          }),
+        ]
       : [],
-    corpse: id,
+    ...(body ? { corpse: id } : {}),
+    ...(dimes > 0
+      ? { spend: { account: member.account, amount: dimes * DIME_CENTS } }
+      : {}),
   })
 }
 
@@ -2007,7 +2054,8 @@ function onMend(
   action: ActionOf<'mend'>,
   { now }: ValleyContext
 ): Reduced {
-  // Rule 24: a forecourt makes whole; a use gives its share back.
+  // Rule 24: a forecourt gives its share back a few seconds at a time; a
+  // use, the item's.
   const member = valley.members[action.id]
   if (!member) return done(valley, now, { broadcast: [] })
   const { account } = member
@@ -2017,7 +2065,7 @@ function onMend(
   const before = pointsOf(wounds, max)
   const points =
     action.kind === undefined
-      ? max
+      ? mend(before, Math.round(CONFIG.health.forecourt.share * max), max)
       : mend(before, healsOf(action.kind, max), max)
   return done(
     { ...valley, wounds: withWounds(valley.wounds, account, max - points) },
@@ -2263,7 +2311,7 @@ function onStand(
 function onExpedition(
   valley: Valley,
   action: ActionOf<'expedition-send' | 'expedition-claim'>,
-  { now, expedition }: ValleyContext
+  { now, expedition, cash }: ValleyContext
 ): Reduced {
   // Rule 30.
   const member = valley.members[action.id]
@@ -2285,9 +2333,13 @@ function onExpedition(
       action.seed
     )
     if (typeof run === 'string') return refuse(run)
+    // Rule 30: a run costs its buy-in, out of the wallet as it leaves.
+    const { cost } = CONFIG.expeditions.runs[action.kind]
+    if (cost > 0 && (cash ?? 0) < cost) return refuse('short')
     return done(valley, now, {
       broadcast: [],
       expedition: { account, run },
+      ...(cost > 0 ? { spend: { account, amount: cost } } : {}),
     })
   }
   const run = expedition.run

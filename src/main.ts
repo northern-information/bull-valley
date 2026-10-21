@@ -8,6 +8,7 @@ import { mountBuildTag } from './buildtag.ts'
 import { CaretakerShade } from './caretakerrig.ts'
 import { mapCitgos } from './citgomap.ts'
 import { CONFIG } from './config.ts'
+import { Constellations } from './constellationrig.ts'
 import { unitToWorld } from './coords.ts'
 import { copy } from './copy.ts'
 import { createCorpseMeshes } from './corpsemeshes.ts'
@@ -21,6 +22,7 @@ import { FirstPersonHands } from './fphands.ts'
 import { createGameState } from './game.ts'
 import { createGlow } from './glow.ts'
 import { createGravestones } from './gravestones.ts'
+import { Hallucinations } from './hallucinationrig.ts'
 import { Hud } from './hud.ts'
 import { wireKeys, wirePointer } from './input.ts'
 import { createItemThumbs } from './itemthumbs.ts'
@@ -34,6 +36,7 @@ import { Player } from './player.ts'
 import { PlayerBody } from './playerbody.ts'
 import { createPortalMeshes } from './portalmeshes.ts'
 import { GRAIN_URL, imagesReady } from './preload.ts'
+import { levelOf } from './progression.ts'
 import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import { mulberry32 } from './rng.ts'
 import { buildRoadGraph, nearestRoadPoint, wanderRoute } from './roadgraph.ts'
@@ -56,6 +59,7 @@ import {
   signOutAndReload,
 } from './titles.ts'
 import { createTrails } from './trails.ts'
+import { TripSolids } from './tripsolidsrig.ts'
 import { Truck } from './truck.ts'
 import { joyrideMs } from './truckplan.ts'
 import { createTruckRadio } from './truckradiorig.ts'
@@ -333,6 +337,16 @@ async function boot() {
       place: world.undercroft?.place ?? null,
     }),
     bursts: new ShadowBursts(scene),
+    // What a trip shows that is not there, wearing the names of this
+    // raider and whoever else is in the valley.
+    hallucinations: new Hallucinations({
+      scene,
+      groundAt: world.ground.at,
+      people: () => [
+        { name: pick.username, level: levelOf(game.state.xp) },
+        ...game.peers.list().map(({ name, level }) => ({ name, level })),
+      ],
+    }),
     // Ground mist drifts around the player.
     mist: new MistCards({
       scene,
@@ -342,6 +356,8 @@ async function boot() {
     // The ring around whatever E would act on.
     glow: createGlow(renderer, scene),
     trails: createTrails(renderer),
+    solids: new TripSolids(scene),
+    constellations: new Constellations(sky),
     thumbs: createItemThumbs(),
     peers: new Peers(scene),
     net,

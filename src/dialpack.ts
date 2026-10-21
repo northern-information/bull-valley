@@ -1,49 +1,45 @@
 // Bull Valley Dial-Up's pack and locker (sharedworld.ts rule 29): the
 // pack's tabs as the 3D valley's (packgrid.ts, packtabs.ts), each item a
-// row to tap open, with what it can do from a phone: stow one or all into
-// the locker (never a key item), and put it on the hotbar (tap the button,
-// then a slot). The locker's sheet keeps what is on the raider and what is
-// in the locker apart, as the 3D valley's pack and its Locker tab do: the
-// pack's rows to stow, its key items (which stay on the raider), and the
-// locker's rows to take out. Never a use or a drop: those take a body.
-// Every move is the valley's to make; the screen asks and redraws when the
-// pack frame lands.
+// row to tap open, with the one thing a phone does with it: use it,
+// having seen what it would do now. Stowing and the hotbar are the 3D
+// valley's alone. The locker's sheet keeps what is on the raider and what
+// is in the locker apart, as the 3D valley's pack and its Locker tab do:
+// what the raider carries (to use), their key items, and the locker's
+// rows, which come back out one or all to be used. Never a pass or a
+// drop: those take a body. Every move is the valley's to make; the screen
+// asks and redraws when the pack frame lands.
 
 import { copy } from './copy.ts'
+import { expeditionName, useImpact } from './dialstate.ts'
 import { el, text } from './dom.ts'
-import { assign, HOTBAR_SLOTS } from './hotbar.ts'
-import { itemLabel } from './itemcopy.ts'
-import { isKeyItem } from './items.ts'
+import { isKeyItem, isUsable } from './items.ts'
 import { statsView } from './itemstatsview.ts'
 import { PACK_TABS, packItems, stashItems } from './packgrid.ts'
 import { BAG_TABS } from './packtabs.ts'
 import { moveAmount } from './stash.ts'
+import { grouped, wardName } from './vitalshud.ts'
 import type { DialState } from './dialstate.ts'
-import type { Hotbar } from './hotbar.ts'
 import type { PackItem } from './interfaces.ts'
 import type { PackTab } from './packgrid.ts'
 
 export interface PackActions {
-  // `count` of `kind` into the locker (stow) or out of it.
-  move: (type: 'stow' | 'unstow', kind: string, count: number) => void
-  // The bar as it now stands, to be kept on the account.
-  saveHotbar: (bar: Hotbar, said: string) => void
+  // One of `kind` used (sharedworld.ts rule 27): the valley doses the
+  // wards and mends the geometrie.
+  use: (kind: string) => void
+  // `count` of `kind` out of the locker, into the pack.
+  take: (kind: string, count: number) => void
 }
 
-// The pack screen: its tabs over its rows, and the hotbar under them.
+// The pack screen: its tabs over its rows.
 export class DialPack {
   readonly root: HTMLElement
   private tab: PackTab = PACK_TABS[0]
   // The row tapped open, kept across redraws.
   private open: Opened = { kind: null }
-  // The kind waiting for a slot, after Put on the hotbar.
-  private placing: string | null = null
 
-  private hotbar: Hotbar
   private actions: PackActions
 
-  constructor(hotbar: Hotbar, actions: PackActions) {
-    this.hotbar = hotbar
+  constructor(actions: PackActions) {
     this.actions = actions
     this.root = el('section', 'bv-dial-pack')
   }
@@ -62,69 +58,27 @@ export class DialPack {
       tabs.append(chip)
     }
     const items = packItems(s.pack, this.tab)
-    const list = itemRows(items, BAG_TABS[this.tab].empty, this.open, (item) =>
-      this.rowActions(s, item)
+    const list = itemRows(
+      items,
+      BAG_TABS[this.tab].empty,
+      this.open,
+      (item) => useButton(s, item.kind, this.actions),
+      (item) => (isUsable(item.kind) ? impactView(s, item.kind) : null)
     )
-    this.root.replaceChildren(tabs, list, this.bar(s))
+    this.root.replaceChildren(tabs, list)
   }
+}
 
-  private rowActions(s: DialState, item: PackItem): HTMLElement[] {
-    // A key item stays in the pack (items.ts isKeyItem).
-    const stow = isKeyItem(item.kind)
-      ? []
-      : moveButtons(s, item.kind, 'stow', this.actions)
-    return [
-      ...stow,
-      button(copy('dialup.pack.hotbar'), false, () => {
-        this.placing = item.kind
-        this.render(s)
-      }),
-    ]
-  }
-
-  // The nine slots; while a kind waits for one, a tap puts it there.
-  private bar(s: DialState): HTMLElement {
-    const wrap = el('div', 'bv-dial-hotbar')
-    if (this.placing) {
-      wrap.append(
-        text(
-          'p',
-          copy('dialup.pack.hotbar_pick', { item: itemLabel(this.placing) }),
-          'bv-dial-note'
-        )
-      )
-    }
-    const row = el('ol', 'bv-dial-slots')
-    for (let slot = 0; slot < HOTBAR_SLOTS; slot++) {
-      const kind = this.hotbar[slot]
-      const cell = el('li')
-      const tap = text(
-        'button',
-        kind ? itemLabel(kind) : String(slot + 1),
-        'bv-dial-slot'
-      )
-      tap.type = 'button'
-      tap.dataset.slot = String(slot)
-      tap.addEventListener('click', () => {
-        const placing = this.placing
-        if (!placing) return
-        this.placing = null
-        this.hotbar = assign(this.hotbar, slot, placing)
-        this.actions.saveHotbar(
-          this.hotbar,
-          copy('dialup.pack.hotbar_saved', {
-            item: itemLabel(placing),
-            slot: slot + 1,
-          })
-        )
-        this.render(s)
-      })
-      cell.append(tap)
-      row.append(cell)
-    }
-    wrap.append(row)
-    return wrap
-  }
+// Use, for an item a phone can use (items.ts isUsable); nothing else.
+function useButton(
+  s: DialState,
+  kind: string,
+  actions: PackActions
+): HTMLButtonElement[] {
+  if (!isUsable(kind)) return []
+  return [
+    button(copy('dialup.pack.use'), s.pending.use, () => actions.use(kind)),
+  ]
 }
 
 // Which row is open, kept by its screen across redraws.
@@ -139,9 +93,9 @@ export interface LockerOpen {
   locker: Opened
 }
 
-// The locker sheet: what the raider carries that can go in, then the key
-// items they carry, which never go in (items.ts isKeyItem), then
-// everything the locker holds, to take out.
+// The locker sheet: what the raider carries (to use, as on the Pack tab),
+// then the key items they carry, then everything the locker holds, to
+// take out and use.
 export function renderLocker(
   root: HTMLElement,
   s: DialState,
@@ -156,9 +110,10 @@ export function renderLocker(
       copy('dialup.pack.on_you'),
       itemRows(
         carried.filter((item) => !isKeyItem(item.kind)),
-        copy('dialup.pack.nothing_to_stow'),
+        copy('dialup.pack.nothing_on_you'),
         open.pack,
-        (item) => moveButtons(s, item.kind, 'stow', actions)
+        (item) => useButton(s, item.kind, actions),
+        (item) => (isUsable(item.kind) ? impactView(s, item.kind) : null)
       )
     ),
     section(
@@ -173,7 +128,7 @@ export function renderLocker(
         stashItems(s.stash),
         BAG_TABS.locker.empty,
         open.locker,
-        (item) => moveButtons(s, item.kind, 'unstow', actions)
+        (item) => takeButtons(s, item.kind, actions)
       )
     )
   )
@@ -190,24 +145,69 @@ function section(
   return wrap
 }
 
-// One or all of `kind` into the locker (stow) or out of it.
-function moveButtons(
+// One or all of `kind` out of the locker.
+function takeButtons(
   s: DialState,
   kind: string,
-  type: 'stow' | 'unstow',
   actions: PackActions
 ): HTMLButtonElement[] {
-  const stow = type === 'stow'
-  const held = (stow ? s.pack : s.stash)[kind] ?? 0
+  const held = s.stash[kind] ?? 0
   const busy = s.pending.locker
-  const one = stow ? copy('dialup.pack.stow_one') : copy('dialup.pack.take_one')
-  const all = stow ? copy('dialup.pack.stow_all') : copy('dialup.pack.take_all')
   return [
-    button(one, busy, () =>
-      actions.move(type, kind, moveAmount(kind, held, false))
+    button(copy('dialup.pack.take_one'), busy, () =>
+      actions.take(kind, moveAmount(kind, held, false))
     ),
-    button(all, busy, () => actions.move(type, kind, held)),
+    button(copy('dialup.pack.take_all'), busy, () => actions.take(kind, held)),
   ]
+}
+
+// What using `kind` now would do (dialstate.ts useImpact): each ward it
+// moves, each expedition's risk with it, and the geometrie it mends.
+function impactView(s: DialState, kind: string): HTMLElement | null {
+  const impact = useImpact(s, kind, performance.now())
+  const pct = (level: number) => Math.round(level * 100)
+  const lines = [
+    ...impact.wards.map(({ axis, from, to }) =>
+      text(
+        'li',
+        copy('dialup.pack.impact_ward', {
+          ward: wardName(axis),
+          from: pct(from),
+          to: pct(to),
+        })
+      )
+    ),
+    ...impact.risks.map(({ id, from, to }) =>
+      text(
+        'li',
+        copy('dialup.pack.impact_risk', {
+          run: expeditionName(id),
+          from: pct(from),
+          to: pct(to),
+        })
+      )
+    ),
+    ...(impact.health
+      ? [
+          text(
+            'li',
+            copy('dialup.pack.impact_health', {
+              from: grouped(impact.health.from),
+              to: grouped(impact.health.to),
+            })
+          ),
+        ]
+      : []),
+  ]
+  if (lines.length === 0) return null
+  const wrap = el('div', 'bv-dial-impact')
+  const list = el('ul')
+  list.append(...lines)
+  wrap.append(
+    text('h4', copy('dialup.pack.impact'), 'bv-dial-impact-head'),
+    list
+  )
+  return wrap
 }
 
 function button(
@@ -241,7 +241,9 @@ function itemRows(
   items: readonly PackItem[],
   empty: string,
   open: Opened,
-  actionsOf: (item: PackItem) => HTMLElement[]
+  actionsOf: (item: PackItem) => HTMLElement[],
+  // What else the opened row says, above its buttons.
+  detailOf: (item: PackItem) => HTMLElement | null = () => null
 ): HTMLElement {
   const list = el('ul', 'bv-dial-items')
   if (items.length === 0) {
@@ -277,6 +279,8 @@ function itemRows(
       text('p', item.blurb, 'bv-dial-item-blurb'),
       ...statsView(item.kind)
     )
+    const detail = detailOf(item)
+    if (detail) body.append(detail)
     // A key item in the locker sheet has nothing a phone can do with it.
     const actions = actionsOf(item)
     if (actions.length > 0) {

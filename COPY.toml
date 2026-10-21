@@ -51,10 +51,8 @@ countdown_label = { text = "Truck leaves in", by = "ai" }
 chat_log_label = { text = "Chat", by = "ai" }
 chat_input_label = { text = "Say to the valley", by = "ai" }
 wards_label = { text = "Wards: high {high}%, stimulated {stimulated}%, drunk {drunk}%, tripping {tripping}%", by = "ai" }
-health_title = { text = "Geometrie", by = "ai" }
 health_label = { text = "Geometrie: {health} of {max}", by = "ai" }
-health_value = { text = "{health} / {max}", by = "ai" }
-level_tag = { text = "LV {level}", by = "ai" }
+party_label = { text = "{name}: geometrie {health} of {max}", by = "ai" }
 damage = { text = "−{damage}", by = "ai" }
 warded = { text = "−{warded} warded", by = "ai" }
 ward_chip = { text = "{percent}%", by = "ai" }
@@ -382,6 +380,7 @@ cosmetic_worn = { text = "You wear the {cosmetic}. The whole valley can see it b
 trade_short = { text = "Moab wants {count} oz of {price}. You do not have it.", by = "ai" }
 trade_owned = { text = "You already wear the {cosmetic}.", by = "ai" }
 trade_refused = { text = "Moab turns the scroll in the fire. Not now.", by = "ai" }
+use_refused = { text = "It won't go down. Not now.", by = "ai" }
 marx_donuts = { text = "Somewhere across the road, tires tear up a field.", by = "ai" }
 marx_back = { text = "Marx comes back across the road and picks up his book.", by = "ai" }
 season_live = { text = "Season One: The Caretaker is live. Burn him {goal} times for {cash} and a carton of Marlboro Reds.", by = "ai" }
@@ -430,6 +429,7 @@ caught = { text = "A lantern, very close. Then the forecourt, and the smell of c
 tunneled = { text = "Something in the dark, very close. Then the forecourt, and the taste of stone.", by = "ai" }
 plunged = { text = "The ground, all at once. Then the forecourt, and concrete dust in your teeth.", by = "ai" }
 fell = { text = "Your pockets are empty. Everything you carried is still out there, on you, where you fell.", by = "ai" }
+spilled = { text = "Your wallet came open as you went down: {amount} in dimes lies where you fell, for whoever gets there first.", by = "ai" }
 looted = { text = "You take your things back off your own body.", by = "ai" }
 loot_refused = { text = "Your hands go through it. Not now.", by = "ai" }
 locker_refused = { text = "The locker sticks.", by = "ai" }
@@ -474,6 +474,12 @@ travel_away = { text = "Fast travel leaves from a Citgo forecourt.", by = "ai" }
 travel_unvisited = { text = "You have not been to {citgo} yet.", by = "ai" }
 travel_here = { text = "You are already here.", by = "ai" }
 travel_aboard = { text = "Not from the truck bed.", by = "ai" }
+
+# What a trip shows that is not there, bursting (src/hallucinations.ts).
+
+[hallucinations]
+person = { text = "Nobody was there. Fuchsia hangs where they stood.", by = "ai" }
+thing = { text = "Your hand closes on nothing. It goes off in fuchsia.", by = "ai" }
 
 # The phone's Citgo portal app (src/phone.ts).
 
@@ -618,7 +624,6 @@ heals = { text = "Heals", by = "ai" }
 heals_value = { text = "+{pct}% geometrie", by = "ai" }
 smokes = { text = "Smokes", by = "ai" }
 perception = { text = "Perception", by = "ai" }
-trails = { text = "Trails", by = "ai" }
 contents = { text = "Holds", by = "ai" }
 contents_value = { text = "{count} to one", by = "ai" }
 price = { text = "Shelf price", by = "ai" }
@@ -850,6 +855,8 @@ curse_5 = { text = "Who keeps feeding these things?", by = "ai" }
 curse_6 = { text = "Slurms. Again. Unbelievable.", by = "ai" }
 curse_7 = { text = "Don't you show me that tooth.", by = "ai" }
 curse_8 = { text = "I'm not paid enough for slurms.", by = "ai" }
+# When a raider squashes the last one before he gets to it.
+thanks = { text = "Oh, thanks!", by = "ai" }
 
 # Talking to Gron by the berry bush (src/grondialog.ts). One of the says_
 # lines greets you at random; the field, the checks and the Previous / Next
@@ -1235,6 +1242,8 @@ xp_max = { text = "Top level", by = "ai" }
 of = { text = "{done} / {goal}", by = "ai" }
 done = { text = "Done", by = "ai" }
 season = { text = "Caretaker burned", by = "ai" }
+buff_beam = { text = "Flashlight reaches {pct}% further", by = "ai" }
+buff_sprint = { text = "Sprint {pct}% faster", by = "ai" }
 task = { text = "Shadows today", by = "ai" }
 book = { text = "Book of Shadows", by = "ai" }
 citgos = { text = "Citgos found", by = "ai" }
@@ -1282,6 +1291,10 @@ busy = { text = "Someone's already out. Bring them home first.", by = "ai" }
 locked_refused = { text = "Your level hasn't opened that run yet.", by = "ai" }
 out = { text = "Not back yet.", by = "ai" }
 refused = { text = "The run couldn't go out. Try again soon.", by = "ai" }
+cost = { text = "Costs {cost} to send.", by = "ai" }
+free = { text = "Costs nothing to send.", by = "ai" }
+short = { text = "Short {amount}", by = "ai" }
+short_refused = { text = "Your wallet doesn't cover the buy-in.", by = "ai" }
 
 [dialup.social]
 placeholder = { text = "Say something to the valley", by = "ai" }
@@ -1294,16 +1307,16 @@ no_body = { text = "Emotes need a body. Walk the valley to take one.", by = "ai"
 
 [dialup.pack]
 count = { text = "×{count}", by = "ai" }
-stow_one = { text = "Stow 1", by = "ai" }
-stow_all = { text = "Stow all", by = "ai" }
 take_one = { text = "Take 1", by = "ai" }
 take_all = { text = "Take all", by = "ai" }
 on_you = { text = "On you", by = "ai" }
 in_locker = { text = "In the locker", by = "ai" }
-nothing_to_stow = { text = "Nothing on you to stow.", by = "ai" }
-hotbar = { text = "Put on the hotbar", by = "ai" }
-hotbar_pick = { text = "Tap a slot for {item}", by = "ai" }
-hotbar_saved = { text = "{item} on slot {slot}.", by = "ai" }
+nothing_on_you = { text = "Nothing on you.", by = "ai" }
+use = { text = "Use", by = "ai" }
+impact = { text = "If you use it now", by = "ai" }
+impact_ward = { text = "{ward} {from}% → {to}%", by = "ai" }
+impact_risk = { text = "{run}: {from}% → {to}% risk", by = "ai" }
+impact_health = { text = "Geometrie {from} → {to}", by = "ai" }
 
 # The laptop on the card table in the Citgo bathroom (src/laptop.ts,
 # src/laptopdialog.ts, src/laptopart.ts). Its readme is LAPTOP.TXT at the

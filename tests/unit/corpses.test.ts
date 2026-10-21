@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { CONFIG } from '../../src/config.ts'
 import {
   corpseWire,
   emptied,
@@ -7,6 +8,7 @@ import {
   keysOff,
   nearestCorpse,
   recover,
+  spilledDimes,
 } from '../../src/corpses.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import type { Corpse } from '../../src/corpses.ts'
@@ -83,5 +85,15 @@ describe('taking it back', () => {
     expect(nearestCorpse(bodies, [0, 2], at, 2)?.id).toBe(2)
     expect(nearestCorpse(bodies, [0], at, 0.5)).toBeNull()
     expect(nearestCorpse(bodies, [], at, 10)).toBeNull()
+  })
+})
+
+describe('spilledDimes', () => {
+  it("is the strike's share of the wallet, in whole dimes", () => {
+    const cfg = { ...CONFIG.corpses, walletShare: 0.1 }
+    expect(spilledDimes(4000, cfg)).toBe(40)
+    expect(spilledDimes(1234, cfg)).toBe(12)
+    expect(spilledDimes(99, cfg)).toBe(0)
+    expect(spilledDimes(-50, cfg)).toBe(0)
   })
 })

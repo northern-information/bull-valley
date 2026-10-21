@@ -89,10 +89,17 @@ export function wireValley(game: Game, actions: Actions): void {
         hud.tell(joinedLine(msg.peer))
         return
       case 'peer-updated': {
-        // Our own comes back too; the dialog has said so already.
-        if (msg.peer.id === net.id) return
+        // Our own comes back too: from Gron here, said already, or from
+        // the account's Gron on the phone, which we take on.
+        if (msg.peer.id === net.id) {
+          actions.becomeShown(msg.peer)
+          return
+        }
         const was = peers.table.get(msg.peer.id)
         peers.updated(msg.peer)
+        // The account on the phone (a username is one account's): its
+        // news is ours, and said already.
+        if (msg.peer.name === game.pick.username) return
         for (const line of peerNews(was, msg.peer)) hud.tell(line)
         return
       }
@@ -100,7 +107,18 @@ export function wireValley(game: Game, actions: Actions): void {
         const { x, y, z, yaw, pitch, pose, riding, light } = msg
         const peer = peers.table.get(msg.id)
         const was = peer?.next?.pose ?? null
-        peers.state(msg.id, { x, y, z, yaw, pitch, pose, riding, light }, now)
+        // When it was due here: the server's stamp, brought to our clock,
+        // half a round trip on (presence.ts stampOf).
+        const due =
+          msg.t !== undefined && net.clock.synced
+            ? net.clock.toLocalMs(msg.t) + net.clock.rttMs / 2
+            : now
+        peers.state(
+          msg.id,
+          { x, y, z, yaw, pitch, pose, riding, light },
+          now,
+          due
+        )
         // An emote just begun near enough to see: a quiet line in the log.
         const emote = seenEmote(
           was,
@@ -159,6 +177,10 @@ export function wireValley(game: Game, actions: Actions): void {
         return
       case 'health':
         actions.setHealth(msg.health, msg.max)
+        return
+      // Rule 24: another raider's geometrie, for their bar.
+      case 'peer-health':
+        peers.health(msg.id, msg.health, msg.max)
         return
       // Rule 27: the account's wards, and something passed.
       case 'wards':
@@ -237,7 +259,7 @@ export function wireValley(game: Game, actions: Actions): void {
     // The shelves are the valley's; a unit it sold us goes in the pocket.
     if (sale) {
       s.pending.buys.delete(`${sale.station}:${sale.item}`)
-      if (sale.mine) actions.pocket(sale.item)
+      if (sale.mine) actions.pocket(sale.item, sale.station)
     }
     s.storeStock = wire.shelves
 
@@ -337,7 +359,14 @@ export function wireValley(game: Game, actions: Actions): void {
       if (msg.station !== undefined && msg.item) {
         s.pending.buys.delete(`${msg.station}:${msg.item}`)
       }
-      hud.tell(buyRefusal(msg.reason, msg.item, s.cash))
+      hud.tell(
+        buyRefusal(
+          msg.reason,
+          msg.item,
+          s.cash,
+          msg.station === undefined ? undefined : s.storeStock[msg.station]
+        )
+      )
     } else if (msg.re === 'call') {
       hud.tell(copy('log.truck_busy'))
     } else if (msg.re === 'collect') {
