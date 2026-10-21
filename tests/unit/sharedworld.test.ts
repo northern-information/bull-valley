@@ -1048,6 +1048,24 @@ describe("rule 10: the pack is the account's", () => {
       'not-in-valley'
     )
   })
+
+  it('leaves the empty of a unit used in the pack it came out of (rule 32)', () => {
+    const v = valleyWith(join('a'))
+    const empty = (kind: string, left: number) =>
+      v.step({ type: 'empty', id: 'a', kind, left })
+    expect(empty('pbr', 0).pack).toEqual({
+      account: 'acct-a',
+      kind: 'empty-can',
+      delta: 1,
+    })
+    expect(empty('high-life', 4).pack?.kind).toBe('empty-bottle')
+    expect(empty('marlboro', 20).pack?.kind).toBe('empty-pack')
+    expect(empty('marlboro', 19).pack).toBeUndefined()
+    expect(empty('joints', 0).pack).toBeUndefined()
+    const nobody = v.step({ type: 'empty', id: 'z', kind: 'pbr', left: 0 })
+    expect(nobody.pack).toBeUndefined()
+    expect(nobody.reply).toBeUndefined()
+  })
 })
 
 describe('rule 14: Moab trades cosmetics for gold', () => {

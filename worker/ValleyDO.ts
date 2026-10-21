@@ -51,6 +51,7 @@ import {
   PROTOCOL_VERSION,
 } from '../src/protocol.ts'
 import { isQuest } from '../src/quests.ts'
+import { emptyOf } from '../src/recycling.ts'
 import { mulberry32 } from '../src/rng.ts'
 import { SEASON, tally } from '../src/season.ts'
 import {
@@ -413,8 +414,8 @@ export class ValleyDO extends DurableObject<Env> {
     seeHeadlights(this.shadows, me.at, { x, y, z, heading }, Date.now())
   }
 
-  // Rules 24 and 27: once the pack has given the unit up, it doses the
-  // wards and gives its share of geometrie back.
+  // Rules 24, 27 and 32: once the pack has given the unit up, it doses the
+  // wards, gives its share of geometrie back, and leaves its empty.
   // All under one lock, so no strike lands between the unit going and its
   // dose: a raider shattered in between is never dosed after.
   private use(ws: WebSocket, id: string, kind: string): Promise<void> {
@@ -423,7 +424,29 @@ export class ValleyDO extends DurableObject<Env> {
       if (!used) return
       await this.doseHeld({ type: 'dose', id, kind })
       if (healsOf(kind, 100) > 0) await this.mendHeld(id, kind)
+      await this.emptyHeld(ws, id, kind)
     })
+  }
+
+  // Rule 32: what the unit of `kind` just out of `id`'s pack leaves there,
+  // judged from what the pack holds now. Nothing is read for a kind that
+  // never leaves anything.
+  // Held: the caller has the valley's lock.
+  private async emptyHeld(
+    ws: WebSocket,
+    id: string,
+    kind: string
+  ): Promise<void> {
+    const account = this.valley.members[id]?.account
+    if (!account || emptyOf(kind, 0) === null) return
+    let left: number
+    try {
+      left = (await this.packs().get(account)).pack[kind] ?? 0
+    } catch (err) {
+      console.error('The pack could not be read for its empty', kind, err)
+      return
+    }
+    await this.actHeld(ws, { type: 'empty', id, kind, left })
   }
 
   // The dev server's frames, for the specs (the Worker stamped the socket).
@@ -800,6 +823,7 @@ export class ValleyDO extends DurableObject<Env> {
       if (!(await this.repack(ws, pack, pack.account, 'pass'))) return null
       await this.doseHeld({ type: 'dose', id: me.id, kind, to })
       if (healsOf(kind, 100) > 0) await this.mendHeld(to, kind)
+      await this.emptyHeld(ws, me.id, kind)
       return { taker: passed.account, giver: pack.account }
     })
     if (!passed || !taker) return

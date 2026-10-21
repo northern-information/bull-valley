@@ -39,7 +39,7 @@ export function bagTabs(atLocker: boolean): BagTab[] {
 
 // Which tab each item category sits in: forage (the cabbages and the
 // berries) and valuables (the gold bullion) are loot; the keys and what a
-// quest asks for are key items. Nothing is a material yet.
+// quest asks for are key items; the empties are materials.
 const TAB_OF: Record<ItemCategory, PackTab> = {
   cigarette: 'consumables',
   joint: 'consumables',
@@ -49,6 +49,7 @@ const TAB_OF: Record<ItemCategory, PackTab> = {
   medicine: 'consumables',
   forage: 'loot',
   valuable: 'loot',
+  material: 'materials',
   'key-item': 'key-items',
 }
 

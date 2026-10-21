@@ -635,6 +635,7 @@ drink = { text = "Drink", by = "ai" }
 medicine = { text = "Medicine", by = "ai" }
 forage = { text = "Forage", by = "ai" }
 valuable = { text = "Valuable", by = "ai" }
+material = { text = "Material", by = "ai" }
 key_item = { text = "Key item, kept through death", by = "ai" }
 
 # Place names, shown in prompts (src/landmarks.ts).
@@ -1178,6 +1179,18 @@ collected = { text = "A berry off the bush. The rest are for tomorrow.", by = "a
 [items.gold-bullion]
 label = { text = "Gold Bullion", by = "ai" }
 blurb = { text = "One troy ounce, stamped .9999 fine. Moab Coldë has a use for it.", by = "ai" }
+
+[items.empty-can]
+label = { text = "Empty Can", by = "ai" }
+blurb = { text = "Drained and dented, the tab still on. Aluminium is worth something to someone.", by = "ai" }
+
+[items.empty-bottle]
+label = { text = "Empty Bottle", by = "ai" }
+blurb = { text = "Nothing left in it but the smell. Glass keeps.", by = "ai" }
+
+[items.empty-pack]
+label = { text = "Empty Pack", by = "ai" }
+blurb = { text = "Twenty gone. The foil and the cellophane, crushed flat.", by = "ai" }
 
 [items.rose]
 label = { text = "A Single Rose", by = "ai" }

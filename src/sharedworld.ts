@@ -259,6 +259,11 @@
 //    their own (Reduced.laptop); the valley keeps them in D1 and checks a
 //    save against the writer's own files (laptop.ts saveRefusal). Dialed
 //    in there is no laptop (`dialup`).
+// 32. Empties (recycling.ts): once the pack has given up a unit used or
+//    passed (rules 10 and 27), what it leaves goes into the same pack, under
+//    Materials: a drink its can or its bottle, the last cigarette out of a
+//    pack the pack (emptyOf, from what the pack holds after). Dialed in the
+//    same.
 
 import { bountyOf } from './book.ts'
 import { dosed, inPassReach, scaled, sobered, wardsOf } from './buffs.ts'
@@ -324,6 +329,7 @@ import { mazeToWorld } from './maze.ts'
 import { fieldEnd, freeSlot, nextClose, openAt, ringEnd } from './portals.ts'
 import { PROTOCOL_VERSION } from './protocol.ts'
 import { atHeart, isQuest, QUESTS, questStep } from './quests.ts'
+import { emptyOf } from './recycling.ts'
 import {
   affordsUpgrade,
   atStand,
@@ -545,6 +551,9 @@ export type ValleyAction =
   // Rule 27: once the pack gave it up, what a use doses (`to` absent), or
   // a pass doses both sides.
   | { type: 'dose'; id: string; kind: string; to?: string }
+  // Rule 32: once the pack gave up a unit of `kind` used or passed, with
+  // `left` of it still in the pack, what it leaves behind.
+  | { type: 'empty'; id: string; kind: string; left: number }
   // Rule 12. at: where the raider's last state frame put them, or null
   // when the valley has not heard one.
   | { type: 'drop'; id: string; kind: string; count: number; at: Facing | null }
@@ -1152,6 +1161,8 @@ function act(
       return onPass(valley, action, context)
     case 'dose':
       return onDose(valley, action, context)
+    case 'empty':
+      return onEmpty(valley, action, context)
     case 'mend':
       return onMend(valley, action, context)
     case 'set-health':
@@ -1703,6 +1714,21 @@ function onUse(
   return done(valley, now, {
     broadcast: [],
     pack: { account: member.account, kind: action.kind, delta: -1 },
+  })
+}
+
+function onEmpty(
+  valley: Valley,
+  action: ActionOf<'empty'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rule 32: into the pack the unit came out of.
+  const member = valley.members[action.id]
+  const empty = member ? emptyOf(action.kind, action.left) : null
+  if (!member || !empty) return done(valley, now, { broadcast: [] })
+  return done(valley, now, {
+    broadcast: [],
+    pack: { account: member.account, kind: empty, delta: 1 },
   })
 }
 

@@ -28,7 +28,13 @@ const CANS: readonly ContainerKey[] = ['tall', 'slim', 'can12']
 type Family = 'can' | 'bottle'
 
 function familyOf(container: ContainerKey): Family {
-  return CANS.includes(container) ? 'can' : 'bottle'
+  return isCan(container) ? 'can' : 'bottle'
+}
+
+// Whether a drink in `container` comes in a can (an empty can when it is
+// drunk, recycling.ts) rather than a bottle.
+export function isCan(container: ContainerKey): boolean {
+  return CANS.includes(container)
 }
 
 // The height a view fits this drink's family to; a bottle's for anything
