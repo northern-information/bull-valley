@@ -58,6 +58,13 @@ describe('Walls', () => {
     expect(post.between({ x: -1, z: 0 }, { x: 1, z: 0 })).toBe(false)
   })
 
+  it('stands a low wall between nothing, though it stops a body', () => {
+    const counter = new Walls()
+    counter.addWall({ x: 0, z: -5 }, { x: 0, z: 5 }, 0.3, undefined, true)
+    expect(counter.between({ x: 1, z: 0 }, { x: -1, z: 0 })).toBe(false)
+    expect(counter.resolve(0.1, 0, 0.3).x).toBeCloseTo(0.6)
+  })
+
   it('stands no fixture between a hand and what stands in it', () => {
     const cooler = new Walls()
     cooler.addWall({ x: 0, z: -5 }, { x: 0, z: 5 }, 0.3)

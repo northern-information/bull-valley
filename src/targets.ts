@@ -11,8 +11,8 @@ import type { Game } from './game.ts'
 import type {
   Interaction,
   LockerSpot,
-  PickupView,
   ShelfSpot,
+  View,
 } from './interactions.ts'
 import type { Vec3 } from './interfaces.ts'
 import type { NpcSpot } from './npcs.ts'
@@ -32,9 +32,9 @@ export interface Targets {
   // Marx while his truck stands still, Carlsten in store `station`, every
   // Moab and Tyler, for the resolver to weigh by distance.
   npcSpots(station: number): NpcSpot[]
-  // What the eye sees for the pickups, for the resolver: where it is,
-  // where it looks, the feet's height, and each pickup's middle.
-  pickupView(): PickupView<Pickup>
+  // What the eye sees, for the resolver: where it is, where it looks, the
+  // feet's height, the ground under any point, and each pickup's middle.
+  view(): View<Pickup>
   // The lockers in store `station`'s back room, for the resolver; none
   // outside every store.
   lockerSpots(station: number): LockerSpot[]
@@ -147,12 +147,13 @@ export function createTargets(game: Game): Targets {
       }
     },
 
-    pickupView() {
+    view() {
       camera.getWorldDirection(look)
       return {
         eye: [camera.position.x, camera.position.y, camera.position.z],
         dir: [look.x, look.y, look.z],
         feet: player.groundY,
+        groundAt: world.ground.at,
         heightOf,
       }
     },

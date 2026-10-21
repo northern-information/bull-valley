@@ -28,6 +28,9 @@ interface Wall {
   gate?: string
   // The heights of the feet it stands for, when not all of them.
   band?: Band
+  // Under the eye and the hand (a counter, a cooler's kick plate): it
+  // stops a body but stands between nothing.
+  low?: boolean
 }
 
 // The feet a wall stands for: at or over `low`, at or under `high`.
@@ -81,9 +84,12 @@ export class Walls {
     this.open = open
   }
 
-  // A wall, standing for every body, or only for feet within `band`.
-  addWall(a: XZ, b: XZ, half: number, band?: Band) {
-    this.file(band ? { a, b, half, band } : { a, b, half })
+  // A wall, standing for every body, or only for feet within `band`; a
+  // low one stands between nothing (`between`).
+  addWall(a: XZ, b: XZ, half: number, band?: Band, low?: boolean) {
+    const wall: Wall = band ? { a, b, half, band } : { a, b, half }
+    if (low) wall.low = true
+    this.file(wall)
   }
 
   private file(wall: Wall) {
@@ -110,8 +116,9 @@ export class Walls {
   // side of it to the other, so what lies at `to` is out of reach of a
   // hand at `from` (a pickup behind a partition). A post, of no length,
   // never stands across a line; a gate open to the body at `from` stands
-  // aside, a banded wall, a ledge, never stands across a reach, and nor
-  // does the fixture `to` stands in (a bottle at the back of a cooler).
+  // aside, a banded wall, a ledge, never stands across a reach, nor does
+  // a low one the eye and the hand pass over (a counter), nor the fixture
+  // `to` stands in (a bottle at the back of a cooler).
   private crossed(from: XZ, to: XZ): boolean {
     const i0 = Math.floor(Math.min(from.x, to.x) / this.cell)
     const i1 = Math.floor(Math.max(from.x, to.x) / this.cell)
@@ -123,7 +130,7 @@ export class Walls {
           if (wall.gate !== undefined && this.open(wall.gate, from.x, from.z)) {
             continue
           }
-          if (wall.band) continue
+          if (wall.band || wall.low) continue
           if (holds(wall, to)) continue
           if (crosses(from, to, wall)) return true
         }

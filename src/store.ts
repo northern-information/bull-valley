@@ -1163,6 +1163,17 @@ export interface WallSegment {
   a: XZ
   b: XZ
   half: number
+  // Under the eye and the hand (walls.ts): it stands between nothing.
+  low?: boolean
+}
+
+// A fixture whose top is under this, in metres over the floor, is low: a
+// counter the eye and the hand pass over.
+export const LOW_FIXTURE = 1.3
+
+// Whether a box is a low fixture.
+export function isLow(b: { center: Vec3; size: Vec3 }): boolean {
+  return b.center[1] + b.size[1] / 2 < LOW_FIXTURE
 }
 
 export function storeWalls(origin: StoreOrigin): WallSegment[] {
@@ -1180,7 +1191,9 @@ export function storeWalls(origin: StoreOrigin): WallSegment[] {
     const e: Vec3 = alongX ? [cx + reach, 0, cz] : [cx, 0, cz + reach]
     const [ax, , az] = toWorld(origin, a)
     const [ex, , ez] = toWorld(origin, e)
-    walls.push({ a: { x: ax, z: az }, b: { x: ex, z: ez }, half })
+    const wall: WallSegment = { a: { x: ax, z: az }, b: { x: ex, z: ez }, half }
+    if (isLow(b)) wall.low = true
+    walls.push(wall)
   }
   // The dumpster on the pad out back, its length along the wall.
   {

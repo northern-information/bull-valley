@@ -709,11 +709,12 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         distance: truck.distanceTo(player.pos.x, player.pos.z),
         moving: truck.moving,
         boardable: s.world ? boardable(s.world.truck.leg, net.id) : false,
+        at: { x: truck.x, z: truck.z },
       },
       // What lies dropped answers to E like any pickup.
       pickups: allPickups(),
       walled: world.walls.between,
-      view: targets.pickupView(),
+      view: targets.view(),
       shelf: targets.shelfInView(inStore),
       bushes,
       gron: world.gron,

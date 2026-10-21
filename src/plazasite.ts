@@ -276,7 +276,9 @@ export function buildPlaza(
     STRIP_MALL.length / 2,
     deck
   )
-  for (const wall of mallWalls(origin)) walls.addWall(wall.a, wall.b, wall.half)
+  for (const wall of mallWalls(origin)) {
+    walls.addWall(wall.a, wall.b, wall.half, undefined, wall.low)
+  }
   // The back room's door: a gate, standing for whoever lacks its key
   // (keys.ts; the game says who, walls.setGates).
   const { lock } = STRIP_MALL

@@ -8,13 +8,15 @@ import {
   itemLabel,
   pickupLabel,
   resolveInteraction,
+  sightAngle,
+  SIGHTS,
 } from '../../src/interactions.ts'
 import type {
   DailyStatus,
   InteractionInput,
   PickupSpot,
-  PickupView,
   ShelfSpot,
+  View,
 } from '../../src/interactions.ts'
 import type { Vec3 } from '../../src/interfaces.ts'
 import type { NpcSpot } from '../../src/npcs.ts'
@@ -183,10 +185,11 @@ describe('resolveInteraction', () => {
       -0.5 / Math.hypot(0.5, 1.5),
       -1.5 / Math.hypot(0.5, 1.5),
     ]
-    const view = (feet = 0): PickupView<PickupSpot> => ({
+    const view = (feet = 0): View<PickupSpot> => ({
       eye: [250, feet + 1.6, 250],
       dir,
       feet,
+      groundAt: () => feet,
       heightOf: () => 0.1,
     })
     const ahead = at(250, 248.5)
@@ -210,6 +213,70 @@ describe('resolveInteraction', () => {
     expect(
       resolveInteraction(input({ pickups: [ahead], view: view(-10) }))
     ).toBeNull()
+  })
+
+  it('sees a column anywhere up it, wider for a wide thing, never a floor away', () => {
+    const level = { eye: [0, 1.6, 0] as Vec3, dir: [0, 0, -1] as Vec3, feet: 0 }
+    const ahead = { x: 0, z: -1.5 }
+    // Looking level at a person's chest: on them.
+    expect(sightAngle(level, ahead, 0, SIGHTS.person)).toBe(0)
+    // A thing at the feet, looked at level: off the look.
+    expect(sightAngle(level, ahead, 0, SIGHTS.thing)).toBeGreaterThan(
+      CONFIG.player.pickupCone
+    )
+    // Behind, never.
+    expect(
+      sightAngle(level, { x: 0, z: 1.5 }, 0, SIGHTS.person)
+    ).toBeGreaterThan(CONFIG.player.pickupCone)
+    // A floor up, never.
+    expect(sightAngle(level, ahead, 4, SIGHTS.person)).toBe(Infinity)
+    // To the side: a person is off the look where the truck is not.
+    const side = { x: 1.6, z: -1.5 }
+    expect(sightAngle(level, side, 0, SIGHTS.person)).toBeGreaterThan(
+      CONFIG.player.pickupCone
+    )
+    expect(sightAngle(level, side, 0, SIGHTS.truck)).toBeLessThan(
+      CONFIG.player.pickupCone
+    )
+  })
+
+  it('offers no one and nothing out of view or behind a wall', () => {
+    const player = { x: 250, z: 250 }
+    // Looking along -x, level.
+    const view: View<PickupSpot> = {
+      eye: [250, 1.6, 250],
+      dir: [-1, 0, 0],
+      feet: 0,
+      groundAt: () => 0,
+      heightOf: () => 0.1,
+    }
+    const marx: NpcSpot = { id: 'marx', x: 249, z: 250 }
+    const behindMarx: NpcSpot = { id: 'marx', x: 251, z: 250 }
+    expect(resolveInteraction(input({ player, npcs: [marx], view }))).toEqual({
+      kind: 'speak',
+      npc: 'marx',
+    })
+    expect(
+      resolveInteraction(input({ player, npcs: [behindMarx], view }))
+    ).toBeNull()
+    const walled = () => true
+    expect(
+      resolveInteraction(input({ player, npcs: [marx], view, walled }))
+    ).toBeNull()
+    // The stand, the lockers and the bush the same way.
+    const stand = { x: 251, z: 250 }
+    expect(resolveInteraction(input({ player, stand, view }))).toBeNull()
+    expect(resolveInteraction(input({ player, stand }))).toEqual({
+      kind: 'stand',
+    })
+    // The truck beside you only once you look at it.
+    const truck = { ...besideTruck, at: { x: 252, z: 250 } }
+    expect(resolveInteraction(input({ player, truck, view }))).toBeNull()
+    expect(
+      resolveInteraction(
+        input({ player, truck: { ...truck, at: { x: 248, z: 250 } }, view })
+      )
+    ).toEqual({ kind: 'board' })
   })
 
   it('offers the bush within reach, as the valley has it today', () => {

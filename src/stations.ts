@@ -164,7 +164,7 @@ export function buildFuelStations(
       storeY + STORE_LAYOUT.floor
     )
     for (const wall of storeWalls(origin)) {
-      walls.addWall(wall.a, wall.b, wall.half)
+      walls.addWall(wall.a, wall.b, wall.half, undefined, wall.low)
     }
 
     // Canopy and pump island at the fuel point itself, on the lot.
