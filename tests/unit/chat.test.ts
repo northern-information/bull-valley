@@ -10,6 +10,7 @@ import {
   joinedLine,
   onlineLine,
   othersLine,
+  partyChatLine,
   peerNews,
   pushLine,
   whisperLine,
@@ -104,6 +105,54 @@ describe('chatCommand', () => {
     expect(chatCommand(`/w ${long} hi`)).toEqual({
       name: 'usage',
       line: copy('chat.whisper_not_here', { name: long }),
+    })
+  })
+
+  it('reads the party commands', () => {
+    expect(chatCommand('/invite Baker')).toEqual({
+      name: 'invite',
+      who: 'Baker',
+    })
+    expect(chatCommand('/invite')).toEqual({
+      name: 'usage',
+      line: copy('party.usage_invite'),
+    })
+    expect(chatCommand('/party')).toEqual({ name: 'party' })
+    expect(chatCommand('/LEAVE')).toEqual({ name: 'leave' })
+    expect(chatCommand('/p to the maze')).toEqual({
+      name: 'partySay',
+      text: 'to the maze',
+    })
+    expect(chatCommand('/p')).toEqual({
+      name: 'usage',
+      line: copy('party.usage_say'),
+    })
+  })
+
+  it('heads a party line with who said it', () => {
+    expect(
+      partyChatLine({ type: 'party-chat', from: 'Baker', text: 'hi', at: 5 })
+    ).toEqual({
+      kind: 'party',
+      name: copy('party.said', { name: 'Baker' }),
+      text: 'hi',
+      at: 5,
+    })
+  })
+
+  it('reads /inspect and a name', () => {
+    expect(chatCommand('/inspect Baker')).toEqual({
+      name: 'inspect',
+      who: 'Baker',
+    })
+    expect(chatCommand('/Inspect')).toEqual({
+      name: 'usage',
+      line: copy('inspect.usage'),
+    })
+    const long = 'x'.repeat(40)
+    expect(chatCommand(`/inspect ${long}`)).toEqual({
+      name: 'usage',
+      line: copy('friends.unknown', { name: long }),
     })
   })
 

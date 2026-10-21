@@ -91,6 +91,8 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   | { kind: 'laptop'; station: number }
   // The Cabbage Stand: E opens this raider's own (rule 23).
   | { kind: 'stand' }
+  // The wreck: E opens the Recycling Center (rule 33).
+  | { kind: 'recycle' }
   // The squatter in Bull Valley Plaza: E opens what he is selling
   // (dealer.ts).
   | { kind: 'deal' }
@@ -107,6 +109,9 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // foot climbs up onto the deck; at its top, E climbs back down.
   | { kind: 'climbTower' }
   | { kind: 'leaveTower' }
+  // Another raider in reach and in front (buffs.ts passTarget): E opens
+  // their card (inspect.ts).
+  | { kind: 'inspect'; name: string }
   // Someone or something a trip shows that is not there
   // (hallucinations.ts): it answers E as the real one would, and E bursts
   // it. `item` is what a thing passes for.
@@ -152,6 +157,8 @@ export const SIGHTS = {
   lockers: { low: 0, high: 1.85, r: 1.8 },
   laptop: { low: 0.6, high: 1.1, r: 0.35 },
   stand: { low: 0, high: 2.2, r: 1.3 },
+  // The BMW in its tree, roof to wheels and nose to tail.
+  wreck: { low: 0, high: 1.5, r: 2.2 },
   hatch: { low: -0.2, high: 0.3, r: 0.7 },
   // A ladder going up from its foot, and down from its top.
   ladder: { low: 0, high: 3, r: 0.5 },
@@ -241,6 +248,8 @@ export interface InteractionInput<P extends PickupSpot> {
   laptops?: readonly LockerSpot[]
   // The Cabbage Stand's middle, or null.
   stand?: XZ | null
+  // The wreck's middle, or null.
+  wreck?: XZ | null
   // The squatter who deals in the plaza, or null.
   dealer?: XZ | null
   // A locked door this raider lacks the key to, or null.
@@ -258,6 +267,8 @@ export interface InteractionInput<P extends PickupSpot> {
   // What a trip shows this raider that is not there, each answering E
   // from as far as the real one would (CONFIG.hallucinations.reach).
   hallucinations?: readonly HallucinationSpot[]
+  // The raider in reach and in front (buffs.ts passTarget), or null.
+  raider?: { name: string } | null
 }
 
 // The first match wins, in this order: hop out while riding; the nearest
@@ -268,7 +279,8 @@ export interface InteractionInput<P extends PickupSpot> {
 // a shelf; take your things back off your nearest body; open the lockers;
 // sit down at the laptop; tend the Cabbage Stand; deal with the squatter; take the nearest pickup
 // in reach of a locked door, or else rattle it; Gron or the nearest berry
-// bush, whichever is nearer; take the nearest pickup.
+// bush, whichever is nearer; inspect the raider in front; take the
+// nearest pickup.
 export function resolveInteraction<P extends PickupSpot>(
   input: InteractionInput<P>
 ): Interaction<P> | null {
@@ -362,6 +374,16 @@ export function resolveInteraction<P extends PickupSpot>(
     return { kind: 'stand' }
   }
 
+  const wreck = input.wreck
+  if (
+    wreck &&
+    Math.hypot(wreck.x - player.x, wreck.z - player.z) <
+      CONFIG.recycling.reach &&
+    sees(wreck, SIGHTS.wreck)
+  ) {
+    return { kind: 'recycle' }
+  }
+
   const dealer = input.dealer
   if (
     dealer &&
@@ -434,6 +456,8 @@ export function resolveInteraction<P extends PickupSpot>(
   if (bush && toBush < CONFIG.daily.reach) {
     return { kind: 'collect', bush: bush.id, status: bush.status }
   }
+
+  if (input.raider) return { kind: 'inspect', name: input.raider.name }
 
   const nearest = nearestPickup(input.pickups, player, walled, view)
   return nearest ? { kind: 'pickup', pickup: nearest } : null
@@ -593,6 +617,8 @@ export function interactionKey(interaction: Interaction): string {
       return `locker:${interaction.station}`
     case 'hallucination':
       return `hallucination:${interaction.id}`
+    case 'inspect':
+      return `inspect:${interaction.name}`
     default:
       return interaction.kind
   }
@@ -622,6 +648,8 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return copy('prompts.laptop')
     case 'stand':
       return copy('prompts.stand')
+    case 'recycle':
+      return copy('prompts.recycle')
     case 'deal':
       return null
     // As the real one: a label for a thing, the glow alone for a person.
@@ -639,6 +667,8 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return copy('prompts.climb_tower')
     case 'leaveTower':
       return copy('prompts.leave_tower')
+    case 'inspect':
+      return copy('prompts.inspect', { name: interaction.name })
     // Moab's offer is said, since the glow alone cannot say what he wants.
     case 'trade': {
       const cosmetic = cosmeticById(interaction.offer)

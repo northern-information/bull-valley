@@ -5,7 +5,7 @@
 import { pulseMaterials } from './assets.ts'
 import { itemsHeld, sightsInReach } from './book.ts'
 import { activeBuffs } from './buffbar.ts'
-import { sprintScale } from './buffs.ts'
+import { passTarget, sprintScale } from './buffs.ts'
 import { citgoAt } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
@@ -488,13 +488,21 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     return portalNow
   }
 
-  // The map, while it is open: where you stand, your Citgos.
+  // Rule 34: the others in the raider's party, by name.
+  const partyMates = () =>
+    s.party.members
+      .map((m) => m.name)
+      .filter((name) => name !== game.pick.username)
+
+  // The map, while it is open: where you stand, your Citgos, and your
+  // party.
   const drawMap = () => {
     if (s.mapOpen) {
       hud.map?.draw({
         me: { x: player.pos.x, z: player.pos.z, yaw: player.yaw },
         log: s.citgos,
         here: s.aboard ? null : citgoAt(player.pos, world.fuelPoints),
+        party: peers.placed(partyMates()),
       })
     }
   }
@@ -724,6 +732,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       lockers: targets.lockerSpots(inStore),
       laptops: targets.laptopSpots(inStore),
       stand: world.stand?.at ?? null,
+      wreck: world.wreck
+        ? { x: world.wreck.group.position.x, z: world.wreck.group.position.z }
+        : null,
       dealer: world.plaza?.dealer.at ?? null,
       trapdoor: world.undercroft?.hatch ?? null,
       ladder: world.undercroft?.foot ?? null,
@@ -731,6 +742,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       heart: heartSpot(),
       locked: lockedDoor(),
       hallucinations: s.aboard ? [] : game.hallucinations.spots(),
+      raider: s.aboard
+        ? null
+        : passTarget(player.pos, player.yaw, game.peers.standing()),
     })
   }
 
@@ -821,7 +835,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     drawMap()
     feelStrikes(clock.now)
     peers.update(clock.dt, renderAt)
-    hud.setParty(peers.party(camera.position))
+    hud.setParty(peers.party(camera.position, partyMates()))
     const tick = sendState(clock, feet, lit)
     stepHud(clock)
     stepPhone(clock.dt, portalNow)

@@ -29,6 +29,7 @@ import {
 } from './dialstate.ts'
 import { text } from './dom.ts'
 import { fontsReady } from './fonts.ts'
+import { befriended, partied } from './inspect.ts'
 import { itemLine } from './itemcopy.ts'
 import { mountModem } from './modemhud.ts'
 import { NetClient, socketUrl } from './net.ts'
@@ -36,6 +37,7 @@ import { GRAIN_URL, imagesReady } from './preload.ts'
 import { levelOf } from './progression.ts'
 import { CLOSE } from './protocol.ts'
 import { dealerStep, roseLine, roseProgress } from './quests.ts'
+import { openRecycleDialog } from './recycledialog.ts'
 import { createSettingsStore } from './settingsui.ts'
 import { mountAccountStep } from './signin.ts'
 import { SILENT } from './silent.ts'
@@ -111,8 +113,10 @@ async function boot(): Promise<void> {
           shell?.render(state)
         })
         .catch(() => undefined)
-      // The friends list, for the Social tab.
+      // The friends list, for the Social tab, and the research, for the
+      // lobby's Recycling Center card and the raider's record (rule 33).
       net.send({ type: 'friends' })
+      net.send({ type: 'research' })
     }
     const next = applyFrame(state, msg, performance.now(), Date.now())
     // A frame that changes nothing the phone shows (a pong, a peer's
@@ -121,6 +125,7 @@ async function boot(): Promise<void> {
     state = next
     takeOnShown()
     shell?.render(state)
+    if (msg.type === 'inspected') showInspected()
   })
   net.onRefused((code) => {
     // A session lost mid-play, as the 3D valley says it: the modem is long
@@ -152,6 +157,37 @@ async function boot(): Promise<void> {
     state = asking(state, what, net.online, performance.now())
     net.send(msg)
     shell?.render(state)
+  }
+  // A raider's card (inspect.ts), opened when the valley's answer lands
+  // and brought up to date while it is open (dialstate.ts keeps it).
+  let inspecting = false
+  const showInspected = () => {
+    const card = state.inspected
+    if (inspecting || !card) return
+    inspecting = true
+    void import('./dial3d.ts')
+      .then(({ openInspectDialog }) =>
+        openInspectDialog({
+          card: () => state.inspected ?? card,
+          onFriend: (name) => {
+            send({ type: 'friend', name }, { ask: { op: 'friend', name } })
+            if (net.online && state.inspected) {
+              state = { ...state, inspected: befriended(state.inspected) }
+            }
+          },
+          onParty: (name) => {
+            send({ type: 'invite', name }, { invite: name })
+            if (net.online && state.inspected) {
+              state = { ...state, inspected: partied(state.inspected) }
+            }
+          },
+        })
+      )
+      .finally(() => {
+        inspecting = false
+        state = { ...state, inspected: null }
+        shell?.render(state)
+      })
   }
   // The line dropped: net.ts redials on its own, and nothing asked of it
   // is answered now, so nothing waits on it.
@@ -295,6 +331,9 @@ async function boot(): Promise<void> {
         send({ type: 'friend', name }, { ask: { op: 'friend', name } }),
       unfriend: (name) =>
         send({ type: 'unfriend', name }, { ask: { op: 'unfriend', name } }),
+      inspect: (name) => send({ type: 'inspect', name }, { inspect: name }),
+      invite: (name) => send({ type: 'invite', name }, { invite: name }),
+      leave: () => send({ type: 'party-leave' }, {}),
     },
     openStand: () => {
       void openStandDialog({
@@ -309,6 +348,17 @@ async function boot(): Promise<void> {
           send({ type: 'stand-stock', kind, count }, { stand: true }),
         onCollect: () => send({ type: 'stand-collect' }, { stand: true }),
         onUpgrade: () => send({ type: 'stand-upgrade' }, { stand: true }),
+      }).then(() => shell?.render(state))
+    },
+    // Rule 29: dialed in, the wreck is wherever the phone is.
+    openRecycle: () => {
+      send({ type: 'research' }, {})
+      void openRecycleDialog({
+        research: () => state.research,
+        pack: () => state.pack,
+        pending: () => state.pending.recycle,
+        said: () => state.said?.text ?? null,
+        onRecycle: (line) => send({ type: 'recycle', line }, { recycle: true }),
       }).then(() => shell?.render(state))
     },
   })

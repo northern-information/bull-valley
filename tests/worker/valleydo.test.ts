@@ -1,4 +1,5 @@
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import { BOOK } from '../../src/book.ts'
 import { heartPoint, theMaze } from '../../src/caretaker.ts'
 import { CONFIG } from '../../src/config.ts'
 import { dayKey } from '../../src/daily.ts'
@@ -19,6 +20,7 @@ import { dryMap } from '../../src/waterside.ts'
 import { MemoryAccountStore } from '../../worker/accounts.ts'
 import { MemoryPackStore, STARTING_CASH } from '../../worker/packs.ts'
 import { ValleyDO } from '../../worker/ValleyDO.ts'
+import type { Inventory } from '../../src/interfaces.ts'
 import type {
   BookMessage,
   DailyMessage,
@@ -30,6 +32,7 @@ import type {
   PeerLeftMessage,
   PeerStateMessage,
   PeerUpdatedMessage,
+  ResearchMessage,
   SeasonMessage,
   ServerMessage,
   ShadowmenMessage,
@@ -210,6 +213,7 @@ const MAZE = { x: 5000, z: 5000, yaw: 0 }
 
 // Where a build sets up the Cabbage Stand: on the first station's lot.
 const STAND = { x: -4, z: -17 }
+const WRECK = { x: 6, z: 27 }
 const DEALER = { x: -20, z: -55 }
 // Where the Undercroft lies, far from everything else.
 const CROFT = { x: -7000, z: -7000, yaw: 0 }
@@ -245,6 +249,7 @@ const hello = (
     maze: MAZE,
     truck: { home: { x: 10, z: 10 }, joyrideMs: 600_000 },
     stand: STAND,
+    wreck: WRECK,
     bushes: Array.from({ length: 7 }, () => ({ x: 0, z: 0 })),
     dealer: DEALER,
     undercroft: CROFT,
@@ -1302,6 +1307,128 @@ describe('ValleyDO', () => {
       .frames()
       .filter((m): m is Extract<ServerMessage, { type: T }> => m.type === type)
 
+  it("sends a raider's card to the asker alone, in the valley or not", async () => {
+    const { valley: v, state: s } = await valley()
+    await named(v, 'Able', 'Baker', 'Dog')
+    const store = v.packStore
+    await store.gainXp('acct-Baker', xpToReach(3))
+    await store.discover('acct-Baker', ['citgo', 'nope'], 0)
+    await store.score(
+      'acct-Baker',
+      SEASON.id,
+      { kills: 2, claimed: false },
+      null
+    )
+    await v.accountStore.setLook('acct-Baker', {
+      outfit: 'kvistad',
+      finish: 'cherry',
+    })
+    const a = await join(v, s, 'Able')
+    const b = await join(v, s, 'Baker')
+    const inspect = (socket: MockSocket, name: string) =>
+      v.webSocketMessage(ws(socket), JSON.stringify({ type: 'inspect', name }))
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ type: 'friend', name: 'Baker' })
+    )
+    const heard = b.frames().length
+    await inspect(a, 'baker')
+    expect(ofType(a, 'inspected').at(-1)?.card).toEqual({
+      name: 'Baker',
+      level: 3,
+      outfit: 'kvistad',
+      finish: 'cherry',
+      cosmetics: [],
+      book: { found: 1, of: BOOK.length },
+      season: { kills: 2, goal: SEASON.goal, claimed: false },
+      friend: 'asked',
+      party: null,
+      online: true,
+    })
+    // Baker heard nothing of it, and no account id went out.
+    expect(b.frames().length).toBe(heard)
+    expect(JSON.stringify(a.frames())).not.toContain('acct-')
+    // Someone away, and the asker's own card.
+    await inspect(a, 'Dog')
+    expect(ofType(a, 'inspected').at(-1)?.card).toEqual(
+      expect.objectContaining({ name: 'Dog', online: false, friend: null })
+    )
+    await inspect(a, 'Able')
+    expect(ofType(a, 'inspected').at(-1)?.card.friend).toBe('self')
+    await inspect(a, 'Nobody')
+    expect(a.last()).toEqual({ type: 'nack', re: 'inspect', reason: 'unknown' })
+    for (let i = 0; i < 10; i++) await inspect(a, 'Baker')
+    expect(a.last()).toEqual({
+      type: 'nack',
+      re: 'inspect',
+      reason: 'too-fast',
+    })
+  })
+
+  it('makes a party by invite, keeps its chat to it, and lets it go', async () => {
+    const { valley: v, state: s } = await valley()
+    await named(v, 'Able', 'Baker', 'Charlie')
+    const a = await join(v, s, 'Able')
+    const b = await join(v, s, 'Baker')
+    const c = await join(v, s, 'Charlie')
+    const say = (socket: MockSocket, msg: object) =>
+      v.webSocketMessage(ws(socket), JSON.stringify(msg))
+    await say(a, { type: 'invite', name: 'baker' })
+    expect(ofType(b, 'party-news')).toEqual([
+      { type: 'party-news', news: 'invited', name: 'Able' },
+    ])
+    expect(ofType(b, 'party').at(-1)).toEqual({
+      type: 'party',
+      members: [],
+      invites: ['Able'],
+    })
+    expect(ofType(a, 'party-news').at(-1)?.news).toBe('sent')
+    await say(b, { type: 'invite', name: 'Able' })
+    const both = {
+      type: 'party',
+      members: [
+        { name: 'Able', online: true },
+        { name: 'Baker', online: true },
+      ],
+      invites: [],
+    }
+    expect(ofType(a, 'party').at(-1)).toEqual(both)
+    expect(ofType(b, 'party').at(-1)).toEqual(both)
+    // Its inspect card says so.
+    await say(a, { type: 'inspect', name: 'Baker' })
+    expect(ofType(a, 'inspected').at(-1)?.card.party).toBe('member')
+    // The party hears its line; Charlie does not.
+    await say(b, { type: 'party-chat', text: 'to the maze' })
+    expect(ofType(a, 'party-chat').at(-1)).toEqual(
+      expect.objectContaining({ from: 'Baker', text: 'to the maze' })
+    )
+    expect(ofType(c, 'party-chat')).toEqual([])
+    await say(c, { type: 'party-chat', text: 'hello?' })
+    expect(c.last()).toEqual({
+      type: 'nack',
+      re: 'party-chat',
+      reason: 'no-party',
+    })
+    expect(JSON.stringify([...a.frames(), ...b.frames()])).not.toContain(
+      'acct-'
+    )
+    // Baker's line drops: away, then out once the linger is up.
+    await v.webSocketClose(ws(b))
+    expect(ofType(a, 'party').at(-1)?.members).toEqual([
+      { name: 'Able', online: true },
+      { name: 'Baker', online: false },
+    ])
+    v.lingerOut()
+    await vi.waitFor(() =>
+      expect(ofType(a, 'party-news').at(-1)).toEqual({
+        type: 'party-news',
+        news: 'left',
+        name: 'Baker',
+      })
+    )
+    expect(ofType(a, 'party').at(-1)?.members).toEqual([])
+  })
+
   it('whispers to one raider by name, echoing it to the sender alone', async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'Able')
@@ -1547,6 +1674,8 @@ describe('ValleyDO', () => {
       stow: () => Promise.reject(new Error('D1 is down')),
       stand: () => Promise.reject(new Error('D1 is down')),
       tend: () => Promise.reject(new Error('D1 is down')),
+      research: () => Promise.reject(new Error('D1 is down')),
+      recycle: () => Promise.reject(new Error('D1 is down')),
       expedition: () => Promise.reject(new Error('D1 is down')),
       embark: () => Promise.reject(new Error('D1 is down')),
       homecoming: () => Promise.reject(new Error('D1 is down')),
@@ -1653,6 +1782,9 @@ describe('ValleyDO', () => {
         stow: (id, kind, delta) => store.stow(id, kind, delta),
         stand: (id) => store.stand(id),
         tend: (id, rev, change) => store.tend(id, rev, change),
+        research: (id) => store.research(id),
+        recycle: (id, line, from, items) =>
+          store.recycle(id, line, from, items),
         expedition: (id) => store.expedition(id),
         embark: (id, rev, run) => store.embark(id, rev, run),
         homecoming: (id, rev, haul) => store.homecoming(id, rev, haul),
@@ -1770,6 +1902,8 @@ describe('ValleyDO: drops', () => {
       stow: (id, kind, delta) => store.stow(id, kind, delta),
       stand: (id) => store.stand(id),
       tend: (id, rev, change) => store.tend(id, rev, change),
+      research: (id) => store.research(id),
+      recycle: (id, line, from, items) => store.recycle(id, line, from, items),
       expedition: (id) => store.expedition(id),
       embark: (id, rev, run) => store.embark(id, rev, run),
       homecoming: (id, rev, haul) => store.homecoming(id, rev, haul),
@@ -2101,6 +2235,9 @@ describe('ValleyDO: corpse runs', () => {
         stow: (id, kind, delta) => store.stow(id, kind, delta),
         stand: (id) => store.stand(id),
         tend: (id, rev, change) => store.tend(id, rev, change),
+        research: (id) => store.research(id),
+        recycle: (id, line, from, items) =>
+          store.recycle(id, line, from, items),
         expedition: (id) => store.expedition(id),
         embark: (id, rev, run) => store.embark(id, rev, run),
         homecoming: (id, rev, haul) => store.homecoming(id, rev, haul),
@@ -2513,6 +2650,75 @@ describe('ValleyDO: the Cabbage Stand', () => {
   })
 })
 
+describe('ValleyDO: the Recycling Center', () => {
+  const [first] = CONFIG.recycling.lines.dimes
+  const research = (socket: MockSocket) =>
+    socket.frames().findLast((m): m is ResearchMessage => m.type === 'research')
+  const nack = (socket: MockSocket) =>
+    socket.frames().findLast((m): m is NackMessage => m.type === 'nack')
+  const grant = async (v: TestValley, a: MockSocket, items: Inventory) => {
+    for (const [kind, count] of Object.entries(items)) {
+      await v.webSocketMessage(
+        ws(a),
+        JSON.stringify({ type: 'dev', op: 'grant', kind, count })
+      )
+    }
+  }
+
+  it('reads the research, none to begin with', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    await v.webSocketMessage(ws(a), '{"type":"research"}')
+    expect(research(a)).toEqual({ type: 'research', research: { dimes: 0 } })
+  })
+
+  it('buys a level with the empties beside the wreck, the pack and the level together', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const other = await join(v, s, 'A2', { account: 'acct-A' })
+    await v.webSocketMessage(ws(a), state(WRECK.x + 1, WRECK.z))
+    const buy = '{"type":"recycle","line":"dimes"}'
+    await v.webSocketMessage(ws(a), buy)
+    expect(nack(a)).toMatchObject({ re: 'recycle', reason: 'short' })
+    await grant(v, a, first.price)
+    await v.webSocketMessage(ws(a), buy)
+    expect(research(a)).toEqual({
+      type: 'research',
+      research: { dimes: 1 },
+      line: 'dimes',
+    })
+    expect(research(other)?.research.dimes).toBe(1)
+    expect(a.last<PackMessage>().pack['empty-can']).toBe(0)
+    expect(await v.packStore.research('acct-A')).toEqual({ dimes: 1 })
+  })
+
+  it('stays shut away from the wreck, or when the research cannot be read', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    await grant(v, a, first.price)
+    await v.webSocketMessage(ws(a), state(WRECK.x + 400, WRECK.z))
+    await v.webSocketMessage(ws(a), '{"type":"recycle","line":"dimes"}')
+    expect(nack(a)).toMatchObject({ re: 'recycle', reason: 'no-wreck' })
+    const store = v.packStore
+    const error = console.error
+    console.error = () => {}
+    try {
+      // The store as it was, but for the research it can no longer read.
+      v.packStore = Object.assign(Object.create(store) as PackStore, {
+        research: () => Promise.reject(new Error('down')),
+      })
+      await v.webSocketMessage(ws(a), state(WRECK.x, WRECK.z))
+      await v.webSocketMessage(ws(a), '{"type":"recycle","line":"dimes"}')
+      expect(nack(a)).toMatchObject({ re: 'recycle', reason: 'unavailable' })
+      await v.webSocketMessage(ws(a), '{"type":"research"}')
+      expect(nack(a)).toMatchObject({ re: 'recycle', reason: 'unavailable' })
+    } finally {
+      console.error = error
+      v.packStore = store
+    }
+  })
+})
+
 describe('ValleyDO: the shadowmen', () => {
   const shadowFrames = (socket: MockSocket) =>
     socket.frames().filter((m): m is ShadowmenMessage => m.type === 'shadowmen')
@@ -2862,6 +3068,20 @@ describe('ValleyDO: the shadowmen', () => {
     expect(paid.pack).not.toHaveProperty('dimes')
   })
 
+  it("finds loose change over a burst's dimes for a raider with the research", async () => {
+    const { v, b, dimes } = await burst((v) => {
+      ;(v.packStore as MemoryPackStore).researches.set('acct-B', { dimes: 1 })
+      return Promise.resolve()
+    })
+    v.rolled = CONFIG.recycling.lines.dimes[0].chance / 2
+    await v.webSocketMessage(ws(b), state(dimes.x, dimes.z))
+    await v.webSocketMessage(ws(b), `{"type":"take-drop","drop":${dimes.id}}`)
+    expect(b.last<PackMessage>().cash).toBe(
+      STARTING_CASH + 2 * dimes.count * DIME_CENTS
+    )
+    expect(b.frames()).toContainEqual({ type: 'found', dimes: dimes.count })
+  })
+
   it('still sends the wallet when the dimes cannot be paid in', async () => {
     const { v, b, dimes } = await burst()
     const store = v.packStore
@@ -2885,6 +3105,8 @@ describe('ValleyDO: the shadowmen', () => {
       stow: (id, kind, delta) => store.stow(id, kind, delta),
       stand: (id) => store.stand(id),
       tend: (id, rev, change) => store.tend(id, rev, change),
+      research: (id) => store.research(id),
+      recycle: (id, line, from, items) => store.recycle(id, line, from, items),
       expedition: (id) => store.expedition(id),
       embark: (id, rev, run) => store.embark(id, rev, run),
       homecoming: (id, rev, haul) => store.homecoming(id, rev, haul),
@@ -3025,6 +3247,8 @@ describe('ValleyDO: the shadowmen', () => {
       stow: (id, kind, delta) => store.stow(id, kind, delta),
       stand: (id) => store.stand(id),
       tend: (id, rev, change) => store.tend(id, rev, change),
+      research: (id) => store.research(id),
+      recycle: (id, line, from, items) => store.recycle(id, line, from, items),
       expedition: (id) => store.expedition(id),
       embark: (id, rev, run) => store.embark(id, rev, run),
       homecoming: (id, rev, haul) => store.homecoming(id, rev, haul),
@@ -3219,6 +3443,9 @@ describe("ValleyDO: Moab's trade", () => {
         stow: (id, kind, delta) => store.stow(id, kind, delta),
         stand: (id) => store.stand(id),
         tend: (id, rev, change) => store.tend(id, rev, change),
+        research: (id) => store.research(id),
+        recycle: (id, line, from, items) =>
+          store.recycle(id, line, from, items),
         expedition: (id) => store.expedition(id),
         embark: (id, rev, run) => store.embark(id, rev, run),
         homecoming: (id, rev, haul) => store.homecoming(id, rev, haul),

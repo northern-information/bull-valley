@@ -75,6 +75,8 @@ interface NetIdentity {
   truck: TruckRoutes
   // Where the Cabbage Stand stands (rule 23), or null.
   stand: XZ | null
+  // Where the wreck lies (rule 33: the Recycling Center), or null.
+  wreck: XZ | null
   // Where the squatter deals (rule 25), or null.
   dealer: XZ | null
   // Where the Undercroft lies (rule 11: the tunnel shades), or null.
@@ -278,6 +280,7 @@ export class NetClient {
           maze: identity.maze,
           truck: identity.truck,
           stand: identity.stand,
+          wreck: identity.wreck,
           bushes: identity.bushes,
           dealer: identity.dealer,
           undercroft: identity.undercroft,

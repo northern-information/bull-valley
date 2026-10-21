@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { NO_TASK } from '../../src/dailytask.ts'
 import { STARTING_INVENTORY, toInventory } from '../../src/inventory.ts'
+import { FRESH_RESEARCH } from '../../src/recycling.ts'
 import { NO_PROGRESS } from '../../src/season.ts'
 import { FRESH_STAND } from '../../src/stand.ts'
 import { D1PackStore } from '../../worker/d1packs.ts'
@@ -382,6 +383,26 @@ function packContract(makeStore: () => PackStore): void {
       pack: { cabbage: 0 },
     })
     expect((await store.stand('a1')).rev).toBe(3)
+  })
+
+  it('keeps research, writing a level with its empties, all or none', async () => {
+    const store = makeStore()
+    await store.open('a1')
+    expect(await store.research('a1')).toEqual(FRESH_RESEARCH)
+    const price = { 'empty-can': 6, 'empty-pack': 2 }
+    // Short of empties: nothing moves.
+    await store.change('a1', 'empty-can', 6)
+    expect(await store.recycle('a1', 'dimes', 0, price)).toBe(false)
+    expect(await store.research('a1')).toEqual(FRESH_RESEARCH)
+    expect((await store.get('a1')).pack['empty-can']).toBe(6)
+    await store.change('a1', 'empty-pack', 2)
+    // Not at the level it was read at: nothing moves.
+    expect(await store.recycle('a1', 'dimes', 1, price)).toBe(false)
+    expect(await store.recycle('a1', 'dimes', 0, price)).toBe(true)
+    expect(await store.research('a1')).toEqual({ dimes: 1 })
+    const { pack } = await store.get('a1')
+    expect(pack['empty-can']).toBe(0)
+    expect(pack['empty-pack']).toBe(0)
   })
 
   it('keeps a run out, and brings its haul home with it, all or none', async () => {

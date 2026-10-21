@@ -2,7 +2,7 @@
 // kept by the valley so they follow the raider to any browser. The
 // interface is here with an in-memory store for the tests; production is
 // the D1 store in d1packs.ts. The rules of what goes in and out are
-// src/sharedworld.ts's (rules 7, 10, 16, 18, 19, 20, 22, 23 and 30).
+// src/sharedworld.ts's (rules 7, 10, 16, 18, 19, 20, 22, 23, 30 and 33).
 
 import { newlyFound } from '../src/book.ts'
 import { CONFIG } from '../src/config.ts'
@@ -11,6 +11,7 @@ import { NO_TASK } from '../src/dailytask.ts'
 import { STARTING_INVENTORY, toInventory } from '../src/inventory.ts'
 import { isKeyItem } from '../src/items.ts'
 import { QUESTS } from '../src/quests.ts'
+import { FRESH_RESEARCH } from '../src/recycling.ts'
 import { NO_PROGRESS } from '../src/season.ts'
 import { FRESH_STAND } from '../src/stand.ts'
 import type { CosmeticId } from '../src/cosmetics.ts'
@@ -18,6 +19,7 @@ import type { TaskProgress } from '../src/dailytask.ts'
 import type { ExpeditionRun } from '../src/expeditions.ts'
 import type { Inventory } from '../src/interfaces.ts'
 import type { QuestId, QuestStage } from '../src/quests.ts'
+import type { Research, ResearchLine } from '../src/recycling.ts'
 import type { SeasonProgress, SeasonReward } from '../src/season.ts'
 import type { StandChange } from '../src/sharedworld.ts'
 import type { StandLedger } from '../src/stand.ts'
@@ -163,6 +165,18 @@ export interface PackStore {
     rev: number,
     change: Pick<StandChange, 'ledger' | 'items' | 'cash'>
   ): Promise<boolean>
+  // The account's research at the Recycling Center (src/recycling.ts),
+  // level 0 on every line it never bought.
+  research(accountId: string): Promise<Research>
+  // The next level on `line` (sharedworld.ts rule 33), from `from`, with
+  // the empties it costs out of the pack, both or neither; false when the
+  // line is not at `from` any more or the pack falls short.
+  recycle(
+    accountId: string,
+    line: ResearchLine,
+    from: number,
+    items: Inventory
+  ): Promise<boolean>
   // The account's expedition (src/expeditions.ts, sharedworld.ts rule 30).
   expedition(accountId: string): Promise<ExpeditionRead>
   // A run sent out; false when the expedition was written since it was
@@ -207,6 +221,7 @@ export class MemoryPackStore implements PackStore {
   readonly tasks = new Map<string, TaskProgress>()
   readonly questStages = new Map<string, QuestStage>()
   readonly stands = new Map<string, { ledger: StandLedger; rev: number }>()
+  readonly researches = new Map<string, Research>()
   readonly expeditions = new Map<string, ExpeditionRead>()
   readonly levels = new Map<string, number>()
 
@@ -442,6 +457,33 @@ export class MemoryPackStore implements PackStore {
     this.packs.set(accountId, pack)
     this.wallets.set(accountId, wallet + cash)
     this.stands.set(accountId, { ledger, rev: rev + 1 })
+    return Promise.resolve(true)
+  }
+
+  research(accountId: string): Promise<Research> {
+    return Promise.resolve({
+      ...FRESH_RESEARCH,
+      ...this.researches.get(accountId),
+    })
+  }
+
+  recycle(
+    accountId: string,
+    line: ResearchLine,
+    from: number,
+    items: Inventory
+  ): Promise<boolean> {
+    const research = this.researches.get(accountId) ?? { ...FRESH_RESEARCH }
+    const pack = this.packs.get(accountId) ?? new Map<string, number>()
+    const short = Object.entries(items).some(
+      ([kind, count]) => (pack.get(kind) ?? 0) < count
+    )
+    if (research[line] !== from || short) return Promise.resolve(false)
+    for (const [kind, count] of Object.entries(items)) {
+      pack.set(kind, (pack.get(kind) ?? 0) - count)
+    }
+    this.packs.set(accountId, pack)
+    this.researches.set(accountId, { ...research, [line]: from + 1 })
     return Promise.resolve(true)
   }
 

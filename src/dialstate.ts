@@ -18,6 +18,7 @@ import {
   chatCommand,
   joinedLine,
   onlineLine,
+  partyChatLine,
   peerNews,
   pushLine,
   whisperLine,
@@ -51,10 +52,12 @@ import {
   whisperRefusal,
 } from './friends.ts'
 import { BASE_GEOMETRIE } from './health.ts'
+import { inspectRefusal } from './inspect.ts'
 import { toInventory } from './inventory.ts'
 import { itemLabel, itemLine } from './itemcopy.ts'
 import { doseOf, healsOf, itemById } from './items.ts'
 import { outfitById } from './outfits.ts'
+import { partyLines, partyNews, partyRefusal } from './party.ts'
 import { barOf, levelUp } from './progression.ts'
 import { normalizeChat } from './protocol.ts'
 import {
@@ -64,6 +67,13 @@ import {
   stepRefusal,
   toQuests,
 } from './quests.ts'
+import { dimesChance, topLevel, toResearch } from './recycling.ts'
+import {
+  foundLine,
+  lineName,
+  recycleRefusal,
+  researchNews,
+} from './researchlines.ts'
 import {
   NO_PROGRESS,
   SEASON,
@@ -90,7 +100,9 @@ import type { OutfitId } from './outfits.ts'
 import type {
   ClientMessage,
   FriendWire,
+  InspectWire,
   NackMessage,
+  PartyWire,
   PeerWire,
   ServerMessage,
   WardLevels,
@@ -98,6 +110,7 @@ import type {
   WorldWire,
 } from './protocol.ts'
 import type { QuestId, QuestStage } from './quests.ts'
+import type { Research } from './recycling.ts'
 import type { SeasonProgress } from './season.ts'
 import type { StandLedger } from './stand.ts'
 
@@ -115,6 +128,9 @@ export interface DialState {
   cosmetics: CosmeticId[]
   xp: number
   stand: StandLedger | null
+  // Rule 33: the research, as the valley last sent it (asked for as the
+  // Recycling Center opens); null before.
+  research: Research | null
   health: number
   healthMax: number
   // The wards as the valley last said them, at local `wardsAt` ms; they
@@ -136,6 +152,11 @@ export interface DialState {
   peers: PeerWire[]
   chat: ChatLine[]
   friends: FriendWire[]
+  // The raider's card the valley last sent (inspect.ts), while it is open;
+  // null otherwise.
+  inspected: InspectWire | null
+  // Rule 34: the party as the valley last sent it (none at first).
+  party: PartyWire
   // The last snapshot of the world, or null when no 3D raider has opened
   // one.
   world: WorldWire | null
@@ -153,6 +174,7 @@ export interface DialState {
 
 export interface Pending {
   stand: boolean
+  recycle: boolean
   locker: boolean
   buy: { station: number; kind: string } | null
   deal: boolean
@@ -164,10 +186,15 @@ export interface Pending {
   ask: PendingAsk | null
   showFriends: boolean
   whisperTo: string | null
+  // A raider's card asked for, by the name asked.
+  inspect: string | null
+  // Who an invite went to (rule 34), for a refusal's line.
+  invite: string | null
 }
 
 const NOTHING_PENDING: Pending = {
   stand: false,
+  recycle: false,
   locker: false,
   buy: null,
   deal: false,
@@ -178,6 +205,8 @@ const NOTHING_PENDING: Pending = {
   ask: null,
   showFriends: false,
   whisperTo: null,
+  inspect: null,
+  invite: null,
 }
 
 export const NO_WARDS: WardLevels = {
@@ -197,6 +226,7 @@ export const DIALED: DialState = {
   cosmetics: [],
   xp: 0,
   stand: null,
+  research: null,
   health: BASE_GEOMETRIE,
   healthMax: BASE_GEOMETRIE,
   wards: NO_WARDS,
@@ -211,6 +241,8 @@ export const DIALED: DialState = {
   peers: [],
   chat: [],
   friends: [],
+  inspected: null,
+  party: { members: [], invites: [] },
   world: null,
   citgoNames: [],
   said: null,
@@ -409,6 +441,20 @@ export function applyFrame(
         ? news(next, line, now, wall)
         : told(next, line, wall)
     }
+    // Rule 33: the research as read, or a level bought, answered on the
+    // screen and in the log as the stand's is.
+    case 'research': {
+      const next = { ...s, research: toResearch(msg.research) }
+      const line = researchNews(msg)
+      if (!line) return next
+      const done = { ...next, pending: { ...next.pending, recycle: false } }
+      return s.pending.recycle
+        ? news(done, line, now, wall)
+        : told(done, line, wall)
+    }
+    // Rule 33: loose change found in the 3D valley, for the log.
+    case 'found':
+      return told(s, foundLine(msg.dimes), wall)
     // Rule 27: something passed, by this account to a raider or to it.
     case 'passed': {
       const item = itemLabel(msg.kind)
@@ -544,6 +590,25 @@ export function applyFrame(
     }
     case 'friend-news':
       return told(s, friendNews(msg.news, msg.name), wall)
+    case 'inspected':
+      return {
+        ...s,
+        inspected: msg.card,
+        pending: { ...s.pending, inspect: null },
+      }
+    // Rule 34: the party, its news, and a line said to it.
+    case 'party':
+      return { ...s, party: { members: msg.members, invites: msg.invites } }
+    case 'party-news': {
+      const settles = msg.news === 'sent' || msg.news === 'joined'
+      return told(
+        settles ? { ...s, pending: { ...s.pending, invite: null } } : s,
+        partyNews(msg.news, msg.name, s.name),
+        wall
+      )
+    }
+    case 'party-chat':
+      return { ...s, chat: pushLine(s.chat, partyChatLine(msg)) }
     // Another season's or another task's progress says nothing of this
     // one's.
     case 'season': {
@@ -586,6 +651,12 @@ export function applyFrame(
           return saying(
             { ...s, pending: { ...s.pending, stand: false } },
             refusalLine(msg.reason),
+            now
+          )
+        case 'recycle':
+          return saying(
+            { ...s, pending: { ...s.pending, recycle: false } },
+            recycleRefusal(msg.reason),
             now
           )
         case 'stow':
@@ -672,6 +743,18 @@ function refused(
         { ask: null },
         friendRefusal(msg.reason, s.pending.ask?.name ?? '')
       )
+    case 'inspect':
+      return done(
+        { inspect: null },
+        inspectRefusal(msg.reason, s.pending.inspect ?? '')
+      )
+    case 'invite':
+    case 'party-leave':
+    case 'party-chat':
+      return done(
+        { invite: null },
+        partyRefusal(msg.reason, s.pending.invite ?? '')
+      )
     case 'rename':
     case 'appearance':
       // The account kept the change; only the valley's roster missed it.
@@ -684,7 +767,7 @@ function refused(
 // One line of the raider's record: what it counts, how far along, and how
 // full its bar reads (0 to 1), or null where it has none.
 export interface RaiderStat {
-  id: 'xp' | 'season' | 'task' | 'book' | 'citgos' | 'worn'
+  id: 'xp' | 'season' | 'task' | 'book' | 'citgos' | 'loose-change' | 'worn'
   label: string
   value: string
   share: number | null
@@ -738,6 +821,21 @@ export function raiderStats(s: DialState, day: string): RaiderStat[] {
       share: null,
     },
   ]
+  // Rule 33: loose change, once the valley has said the research.
+  if (s.research) {
+    const level = s.research.dimes
+    const top = topLevel('dimes')
+    stats.push({
+      id: 'loose-change',
+      label: lineName('dimes'),
+      value: copy('dialup.raider.loose_change', {
+        pct: Math.round(dimesChance(s.research) * 100),
+        level,
+        top,
+      }),
+      share: level / top,
+    })
+  }
   if (worn.length > 0) {
     stats.push({
       id: 'worn',
@@ -831,8 +929,8 @@ export interface Self {
 
 // A line typed into the phone's chat: the state after it, and the frame
 // it sends the valley (null when it is answered here). A line is said to
-// everyone; /online is answered from the peers; /friends, /w, /friend
-// and /unfriend go to the valley and wait on its answer; an emote needs
+// everyone; /online and /party are answered here; /friends, /w, /friend,
+// /unfriend, /inspect, /invite, /leave and /p go to the valley; an emote needs
 // a body (sharedworld.ts rule 29), so the phone says so.
 export function sayLine(
   s: DialState,
@@ -883,5 +981,24 @@ export function sayLine(
         state: asked(s, { ask: { op: command.name, name: command.who } }),
         frame: { type: command.name, name: command.who },
       }
+    case 'inspect':
+      return {
+        state: asked(s, { inspect: command.who }),
+        frame: { type: 'inspect', name: command.who },
+      }
+    case 'invite':
+      return {
+        state: asked(s, { invite: command.who }),
+        frame: { type: 'invite', name: command.who },
+      }
+    case 'party':
+      return {
+        state: partyLines(s.party).reduce((at, line) => told(at, line, now), s),
+        frame: null,
+      }
+    case 'leave':
+      return { state: s, frame: { type: 'party-leave' } }
+    case 'partySay':
+      return { state: s, frame: { type: 'party-chat', text: command.text } }
   }
 }

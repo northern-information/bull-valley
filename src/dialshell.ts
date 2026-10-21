@@ -23,6 +23,7 @@ import { el, text } from './dom.ts'
 import { iconSvg } from './icons.ts'
 import { OUTFITS } from './outfits.ts'
 import { barOf } from './progression.ts'
+import { topLevel } from './recycling.ts'
 import { volumeSliders } from './settingsui.ts'
 import { collectable } from './stand.ts'
 import { formatCash } from './store.ts'
@@ -67,6 +68,7 @@ interface ShellOptions {
   pack: PackActions
   // Opens the stand's dialog over the shell; Erwin's and Gron's too.
   openStand: () => void
+  openRecycle: () => void
   openErwin: () => void
   openGron: () => void
   // Buys off a Citgo's shelf, with every Citgo's name once the survey
@@ -223,6 +225,12 @@ export class DialShell {
       )
     }
     if (this.sheetOpen === 'moab') this.moab?.update(s)
+    this.showSaid(s)
+  }
+
+  // The valley's last word while it is fresh; the tick takes it away once
+  // it is not, so a stale one never sits over the screen.
+  private showSaid(s: DialState): void {
     const said = s.said
     const fresh = said && performance.now() - said.at < SAID_MS
     this.toast.hidden = !fresh
@@ -246,7 +254,10 @@ export class DialShell {
     const s = this.state
     // The wards fade between the valley's word on them: the top bar's,
     // and the raider's own on the lobby.
-    if (s) this.renderTop(s)
+    if (s) {
+      this.renderTop(s)
+      this.showSaid(s)
+    }
     const raider = this.view.querySelector('.bv-dial-raider-state')
     if (s && raider) raider.replaceChildren(...this.wardLines(s))
     if (s && this.tab === 'expeditions') {
@@ -450,6 +461,17 @@ export class DialShell {
           ? copy('dialup.lobby.banked', { amount: formatCash(banked) })
           : copy('dialup.lobby.stand_blurb'),
         () => this.options.openStand()
+      ),
+      card(
+        'recycling',
+        copy('dialup.lobby.recycling'),
+        s.research
+          ? copy('dialup.lobby.recycling_level', {
+              level: s.research.dimes,
+              top: topLevel('dimes'),
+            })
+          : copy('dialup.lobby.recycling_blurb'),
+        () => this.options.openRecycle()
       ),
       card(
         'locker',

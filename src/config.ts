@@ -629,6 +629,17 @@ export const CONFIG = {
     // about 17 m behind it.
     stationReach: 24,
   },
+  // Parties (party.ts, sharedworld.ts rule 34): a few raiders who play
+  // together for a while, kept by the valley while they are in it.
+  party: {
+    // How many raiders one party holds.
+    size: 4,
+    // How long an invite waits on an answer.
+    inviteMs: 60_000,
+    // How near a raider who burned the Caretaker a party member must stand
+    // to share the credit.
+    creditRadius: 40,
+  },
   // The laptop on the card table in the Citgo bathroom (laptop.ts): a
   // text editor over a pretend file system every raider shares.
   laptop: {
@@ -877,6 +888,39 @@ export const CONFIG = {
     radius: 0.9,
     // Trees keep this far off its middle.
     treeClear: 6,
+  },
+  // The Recycling Center at the wreck (recycling.ts, sharedworld.ts rule
+  // 33): every account feeds its empties in for research, its own and no
+  // one else's.
+  recycling: {
+    // How close the wreck's middle must be for E to open it.
+    reach: 4,
+    // The valley takes a raider's empties only when their last state frame
+    // put them within this of the wreck's middle: generous, since frames
+    // lag.
+    tendReach: 10,
+    // Each research line, level by level from the first: what it does at
+    // that level, and what it costs, in empties out of the pack.
+    lines: {
+      // Loose change: the chance that dimes a burst shadow left come with
+      // as many again, into the taker's own wallet.
+      dimes: [
+        { chance: 0.1, price: { 'empty-can': 6 } },
+        { chance: 0.2, price: { 'empty-can': 12, 'empty-pack': 2 } },
+        {
+          chance: 0.3,
+          price: { 'empty-can': 20, 'empty-pack': 4, 'empty-bottle': 2 },
+        },
+        {
+          chance: 0.4,
+          price: { 'empty-can': 30, 'empty-pack': 6, 'empty-bottle': 4 },
+        },
+        {
+          chance: 0.5,
+          price: { 'empty-can': 45, 'empty-pack': 10, 'empty-bottle': 6 },
+        },
+      ] as { chance: number; price: Record<string, number> }[],
+    },
   },
   lonePine: {
     // The lone pine among the dishes behind the spawn Citgo, station-local

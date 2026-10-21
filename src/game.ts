@@ -50,10 +50,13 @@ import type { Portal } from './portals.ts'
 import type {
   DailyWire,
   FriendWire,
+  InspectWire,
+  PartyWire,
   PeerStateWire,
   WorldWire,
 } from './protocol.ts'
 import type { QuestId, QuestStage } from './quests.ts'
+import type { Research } from './recycling.ts'
 import type { RoadGraph } from './roadgraph.ts'
 import type { SeasonProgress } from './season.ts'
 import type { SettingsStore } from './settingsui.ts'
@@ -97,8 +100,14 @@ export interface Pending {
   ask: PendingAsk | null
   showFriends: boolean
   whisperTo: string | null
+  // A raider's card asked for (inspect.ts), by the name asked.
+  inspect: string | null
+  // Rule 34: who an invite went to, for a refusal's line.
+  invite: string | null
   // Rule 23: a change to the Cabbage Stand.
   stand: boolean
+  // Rule 33: a level bought at the Recycling Center.
+  recycle: boolean
 }
 
 export function freshPending(): Pending {
@@ -114,7 +123,10 @@ export function freshPending(): Pending {
     ask: null,
     showFriends: false,
     whisperTo: null,
+    inspect: null,
+    invite: null,
     stand: false,
+    recycle: false,
   }
 }
 
@@ -228,10 +240,20 @@ export interface GameState {
   // Rule 31: the laptop's screen while this raider sits at it, for the
   // valley's answers; null otherwise.
   laptop: LaptopScreen | null
+  // The raider's card open (inspect.ts), as the valley last sent it; null
+  // while none is.
+  inspected: InspectWire | null
+  // Rule 34: the party as the valley last sent it (none at first).
+  party: PartyWire
   // Rule 23: the account's Cabbage Stand as the valley last sent it; null
   // before it has. And the last word on a change, for the stand's dialog.
   stand: StandLedger | null
   standSaid: string | null
+  // Rule 33: the account's research as the valley last sent it (asked
+  // for as the Recycling Center opens); null before it has. And the last
+  // word on a level, for the dialog.
+  research: Research | null
+  researchSaid: string | null
   // Rule 28: every Citgo the account has stood at, and the last, as the
   // valley last said (the welcome, then every citgos frame). The Citgo
   // portals, from every snapshot; the id of the one this raider opened, while it
@@ -319,8 +341,12 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     stash: {},
     lockerOpen: false,
     laptop: null,
+    inspected: null,
+    party: { members: [], invites: [] },
     stand: null,
     standSaid: null,
+    research: null,
+    researchSaid: null,
     citgos: NO_CITGOS,
     portals: [],
     myPortal: null,

@@ -25,7 +25,7 @@ import type { Rng } from './rng.ts'
 // What lies on the ground to be taken up, and what the pack and the
 // shelves show: the cigarette packs, the joints, the berries, the dimes,
 // the plaza's quarters, the $20 bill, the gold bullion, the cabbage,
-// Erwin's goods, his rose and the Video Vault's key, behind one
+// Erwin's goods, his rose, the Video Vault's key and the empties, behind one
 // buildPickup keyed by kind. The drinks and the medicine are built in their own
 // modules and come in through it.
 
@@ -845,6 +845,151 @@ function buildRose({ glow = true }: PickupOptions = {}): THREE.Group {
   return group
 }
 
+// --- Empties -------------------------------------------------------------
+
+// What a use leaves behind (recycling.ts): a crushed can, a drained bottle
+// and a cigarette pack wrung flat, each lying on its side, plain of any
+// brand. Origin at ground level under the middle.
+
+// A 12 oz can stepped on: pinched in at the middle and squashed a little
+// flat, the tab still on.
+function buildEmptyCan({ glow = true }: PickupOptions = {}): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'empty-can'
+  const metal = lambert({
+    color: '#8e959c',
+    emissive: new THREE.Color('#c9d2da'),
+    emissiveIntensity: 0.25,
+  })
+  const R = 0.033
+  const H = 0.122
+  const body = new THREE.LatheGeometry(
+    [
+      [0, 0],
+      [R * 0.85, 0],
+      [R, H * 0.08],
+      [R * 0.95, H * 0.35],
+      [R * 0.55, H * 0.5],
+      [R * 0.95, H * 0.65],
+      [R, H * 0.92],
+      [R * 0.82, H],
+      [0, H],
+    ].map(([x, y]) => new THREE.Vector2(x, y)),
+    8
+  )
+  // Squashed flat, then laid on its side.
+  body.scale(1, 1, 0.6)
+  body.translate(0, -H / 2, 0)
+  body.rotateZ(Math.PI / 2 - 0.25)
+  const can = new THREE.Mesh(body, metal)
+  can.position.y = R * 0.6
+  group.add(can)
+  if (glow) {
+    const halo = makeGlowSprite(
+      makeGlowTexture('rgba(200, 214, 226, 0.4)'),
+      0.5
+    )
+    halo.position.y = 0.03
+    group.add(halo)
+  }
+  setPulseMaterials(group, [metal])
+  return group
+}
+
+// A longneck drained and laid down: dark brown glass, no cap.
+function buildEmptyBottle({ glow = true }: PickupOptions = {}): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'empty-bottle'
+  const glass = lambert({
+    color: '#3a2412',
+    emissive: new THREE.Color('#8a5a2a'),
+    emissiveIntensity: 0.35,
+    transparent: true,
+    opacity: 0.85,
+  })
+  const R = 0.031
+  const H = 0.235
+  const body = new THREE.LatheGeometry(
+    [
+      [0, 0],
+      [R, 0.004],
+      [R, H * 0.55],
+      [R * 0.45, H * 0.75],
+      [R * 0.4, H * 0.97],
+      [R * 0.48, H],
+      [R * 0.3, H],
+    ].map(([x, y]) => new THREE.Vector2(x, y)),
+    8
+  )
+  body.translate(0, -H / 2, 0)
+  body.rotateZ(Math.PI / 2 + 0.06)
+  const bottle = new THREE.Mesh(body, glass)
+  bottle.position.y = R
+  group.add(bottle)
+  if (glow) {
+    const halo = makeGlowSprite(makeGlowTexture('rgba(230, 160, 90, 0.4)'), 0.6)
+    halo.position.y = 0.03
+    group.add(halo)
+  }
+  setPulseMaterials(group, [glass])
+  return group
+}
+
+// A cigarette pack with nothing in it, wrung and pressed flat: the
+// cardboard white, the foil showing at the open top.
+function buildEmptyPack({ glow = true }: PickupOptions = {}): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'empty-pack'
+  const card = lambert({
+    color: '#bdb8ac',
+    emissive: new THREE.Color('#e8e2d2'),
+    emissiveIntensity: 0.3,
+  })
+  const foil = lambert({
+    color: '#9a9aa0',
+    emissive: new THREE.Color('#d8d8de'),
+    emissiveIntensity: 0.3,
+  })
+  const { width: W, bodyHeight: BH, lidHeight: LH } = PACK
+  const flat = new THREE.BoxGeometry(W, 0.008, BH + LH, 2, 1, 3)
+  // Wrung: each end turned a little against the other.
+  const at = flat.attributes.position
+  for (let i = 0; i < at.count; i++) {
+    const z = at.getZ(i)
+    const turn = (z / (BH + LH)) * 0.5
+    const x = at.getX(i)
+    const y = at.getY(i)
+    at.setXYZ(i, x, y + Math.sin(turn) * x, z)
+  }
+  flat.computeVertexNormals()
+  const pack = new THREE.Mesh(flat, card)
+  pack.position.y = 0.012
+  pack.rotation.y = 0.4
+  group.add(pack)
+  const lining = new THREE.Mesh(
+    new THREE.BoxGeometry(W * 0.9, 0.009, 0.012),
+    foil
+  )
+  lining.position.set(0, 0, (BH + LH) / 2 - 0.006)
+  pack.add(lining)
+  if (glow) {
+    const halo = makeGlowSprite(
+      makeGlowTexture('rgba(232, 226, 210, 0.4)'),
+      0.5
+    )
+    halo.position.y = 0.03
+    group.add(halo)
+  }
+  setPulseMaterials(group, [card, foil])
+  return group
+}
+
+const EMPTIES: Record<string, (options: PickupOptions) => THREE.Group> = {
+  'empty-can': buildEmptyCan,
+  'empty-bottle': buildEmptyBottle,
+  'empty-pack': buildEmptyPack,
+}
+
 // Kinds: 'cabbage', 'dimes', or an item id from items.ts. glow: false
 // leaves out the halo on packs, joints, drinks, medicine, berries, dimes
 // and gold bullion.
@@ -866,6 +1011,8 @@ export function buildPickup(
   if (kind === 'lsd') return buildBlotter({ glow })
   if (kind === 'adderall') return buildAdderall({ glow })
   if (kind === 'rose') return buildRose({ glow })
+  const empty = EMPTIES[kind]
+  if (empty) return empty({ glow })
   if (isMedicine(kind)) return buildMedicine(kind, { glow })
   let mesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshLambertMaterial>
   if (kind === 'cabbage') {

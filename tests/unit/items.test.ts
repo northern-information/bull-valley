@@ -54,6 +54,7 @@ const FIELDS_OF: Record<
   'key-item': { required: [], optional: [] },
   forage: { required: [], optional: [] },
   valuable: { required: [], optional: [] },
+  material: { required: [], optional: [] },
 }
 
 describe('items', () => {
@@ -235,11 +236,13 @@ describe('items', () => {
   it('prices every shelf item in whole cents, and nothing else', () => {
     const items: readonly Item[] = ITEMS
     for (const item of items) {
-      // Everything but the forage, the valuables, the key items and what
-      // only Erwin von Dutch deals (dealer.ts values those) is on a shelf.
+      // Everything but the forage, the valuables, the materials, the key
+      // items and what only Erwin von Dutch deals (dealer.ts values those)
+      // is on a shelf.
       const onShelf =
         item.category !== 'forage' &&
         item.category !== 'valuable' &&
+        item.category !== 'material' &&
         item.category !== 'key-item' &&
         item.category !== 'psychedelic' &&
         item.category !== 'stimulant'

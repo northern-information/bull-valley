@@ -11,7 +11,9 @@ import { contentsOf, getItem, healsOf } from '../../src/items.ts'
 import { LADDER_FOOT, LADDER_TOP, lookoutToWorld } from '../../src/lookout.ts'
 import { nextChange } from '../../src/marx.ts'
 import { mazeToWorld } from '../../src/maze.ts'
+import { partyOf } from '../../src/party.ts'
 import { PROTOCOL_VERSION } from '../../src/protocol.ts'
+import { FRESH_RESEARCH } from '../../src/recycling.ts'
 import { mulberry32 } from '../../src/rng.ts'
 import {
   citgoVisits,
@@ -31,6 +33,7 @@ import {
   corpsesOf,
   createValley,
   creditedWith,
+  creditedWithParty,
   dailyFor,
   findsPay,
   healthFor,
@@ -50,7 +53,7 @@ import { dryMap } from '../../src/waterside.ts'
 import { unitsLeft } from './stock.ts'
 import type { CosmeticId } from '../../src/cosmetics.ts'
 import type { ExpeditionRun } from '../../src/expeditions.ts'
-import type { Inventory } from '../../src/interfaces.ts'
+import type { Inventory, XZ } from '../../src/interfaces.ts'
 import type { PickupKind } from '../../src/items.ts'
 import type {
   DailyMessage,
@@ -59,8 +62,14 @@ import type {
   WorldMessage,
 } from '../../src/protocol.ts'
 import type { QuestStage } from '../../src/quests.ts'
+import type { Research } from '../../src/recycling.ts'
 import type { Placed } from '../../src/shadowstep.ts'
-import type { LaptopRe, Valley, ValleyAction } from '../../src/sharedworld.ts'
+import type {
+  LaptopRe,
+  Reduced,
+  Valley,
+  ValleyAction,
+} from '../../src/sharedworld.ts'
 import type { StandLedger } from '../../src/stand.ts'
 import type { ShadowHit } from '../../src/wards.ts'
 
@@ -91,6 +100,7 @@ const MAZE = { x: 3000, z: 3000, yaw: 0 }
 const ROUTES = { home: { x: 10, z: 10 }, joyrideMs: 600_000 }
 // Where the Cabbage Stand stands (rule 23).
 const STAND = { x: 5, z: -20 }
+const WRECK_SPOT = { x: 30, z: 40 }
 const DEALER = { x: -30, z: -60 }
 // Noon, Central time, so a test has the afternoon before the day turns.
 const T0 = Date.UTC(2026, 9, 7, 17, 0, 0)
@@ -176,6 +186,7 @@ const join = (id: string): ValleyAction => ({
   maze: null,
   routes: ROUTES,
   stand: STAND,
+  wreck: WRECK_SPOT,
   bushes: BUSH_SPOTS,
   dealer: DEALER,
   undercroft: null,
@@ -1033,6 +1044,24 @@ describe("rule 10: the pack is the account's", () => {
       'not-in-valley'
     )
   })
+
+  it('leaves the empty of a unit used in the pack it came out of (rule 32)', () => {
+    const v = valleyWith(join('a'))
+    const empty = (kind: string, left: number) =>
+      v.step({ type: 'empty', id: 'a', kind, left })
+    expect(empty('pbr', 0).pack).toEqual({
+      account: 'acct-a',
+      kind: 'empty-can',
+      delta: 1,
+    })
+    expect(empty('high-life', 4).pack?.kind).toBe('empty-bottle')
+    expect(empty('marlboro', 20).pack?.kind).toBe('empty-pack')
+    expect(empty('marlboro', 19).pack).toBeUndefined()
+    expect(empty('joints', 0).pack).toBeUndefined()
+    const nobody = v.step({ type: 'empty', id: 'z', kind: 'pbr', left: 0 })
+    expect(nobody.pack).toBeUndefined()
+    expect(nobody.reply).toBeUndefined()
+  })
 })
 
 describe('rule 14: Moab trades cosmetics for gold', () => {
@@ -1739,6 +1768,146 @@ describe('rule 31: the laptop', () => {
   })
 })
 
+describe('rule 33: the Recycling Center at the wreck', () => {
+  const beside = { x: WRECK_SPOT.x + 1, z: WRECK_SPOT.z }
+  const [first, second] = CONFIG.recycling.lines.dimes
+  const recycle = (
+    valley: Valley,
+    action: ValleyAction,
+    levels: Research,
+    pack: Inventory
+  ) =>
+    reduce(valley, action, {
+      now: T0,
+      present: ['a'],
+      research: { levels, pack },
+    })
+  const empties = { 'empty-can': 100, 'empty-pack': 100, 'empty-bottle': 100 }
+
+  it('keeps where the wreck lies with the world', () => {
+    expect(valleyWith(join('a')).valley.world?.wreck).toEqual(WRECK_SPOT)
+  })
+
+  it("buys a line's next level with its empties, beside the wreck", () => {
+    const v = valleyWith(join('a'))
+    const action: ValleyAction = {
+      type: 'recycle',
+      id: 'a',
+      line: 'dimes',
+      at: beside,
+    }
+    expect(recycle(v.valley, action, FRESH_RESEARCH, empties).research).toEqual(
+      {
+        account: 'acct-a',
+        line: 'dimes',
+        level: 1,
+        items: first.price,
+      }
+    )
+    expect(
+      recycle(v.valley, action, { dimes: 1 }, empties).research
+    ).toMatchObject({ level: 2, items: second.price })
+  })
+
+  it('refuses away from the wreck, short of empties, at the top, or unread', () => {
+    const v = valleyWith(join('a'))
+    const at = (where: XZ | null): ValleyAction => ({
+      type: 'recycle',
+      id: 'a',
+      line: 'dimes',
+      at: where,
+    })
+    const reason = (r: Reduced) => r.reply?.reason
+    expect(
+      reason(recycle(v.valley, at({ x: 900, z: 900 }), FRESH_RESEARCH, empties))
+    ).toBe('no-wreck')
+    expect(reason(recycle(v.valley, at(null), FRESH_RESEARCH, empties))).toBe(
+      'no-wreck'
+    )
+    expect(
+      reason(recycle(v.valley, at(beside), FRESH_RESEARCH, { 'empty-can': 1 }))
+    ).toBe('short')
+    const top = { dimes: CONFIG.recycling.lines.dimes.length }
+    expect(reason(recycle(v.valley, at(beside), top, empties))).toBe('top')
+    expect(
+      reduce(v.valley, at(beside), { now: T0, present: ['a'] }).reply?.reason
+    ).toBe('unavailable')
+    expect(
+      reason(
+        recycle(
+          v.valley,
+          { type: 'recycle', id: 'z', line: 'dimes', at: beside },
+          FRESH_RESEARCH,
+          empties
+        )
+      )
+    ).toBe('not-in-valley')
+  })
+
+  it('lets a raider dialed in recycle from anywhere (rule 29)', () => {
+    const v = valleyWith({
+      type: 'dial',
+      id: 'a',
+      account: 'acct-a',
+      name: 'A',
+      outfit: 'coleman',
+      level: 1,
+    })
+    const r = recycle(
+      v.valley,
+      { type: 'recycle', id: 'a', line: 'dimes', at: null },
+      FRESH_RESEARCH,
+      empties
+    )
+    expect(r.research?.level).toBe(1)
+  })
+
+  it("finds loose change over a burst's dimes, for the taker alone", () => {
+    const v = valleyWith(join('a'))
+    v.step({ type: 'spill', spills: [{ x: 1, z: 2, kind: 'dimes', count: 6 }] })
+    const take = (roll: number, levels: Research) =>
+      reduce(
+        v.valley,
+        { type: 'take-drop', id: 'a', drop: 0, at: HERE, roll },
+        { now: T0, present: ['a'], research: { levels } }
+      )
+    // Under the chance: as many again, into the wallet.
+    const lucky = take(first.chance / 2, { dimes: 1 })
+    expect(lucky.earn).toEqual({ account: 'acct-a', amount: 120 })
+    expect(lucky.found).toEqual({ account: 'acct-a', dimes: 6 })
+    // The drop and what everyone sees of it are as they were.
+    expect(lucky.broadcast[0]).toMatchObject({ item: 'dimes', count: 6 })
+    // Over the chance, or with no research: only what lay there.
+    expect(take(first.chance, { dimes: 1 }).earn?.amount).toBe(60)
+    expect(take(0, FRESH_RESEARCH).found).toBeUndefined()
+    expect(take(0, FRESH_RESEARCH).earn?.amount).toBe(60)
+  })
+
+  it("never finds more in a raider's spilled wallet", () => {
+    const v = valleyWith(join('a'), join('b'))
+    v.step({
+      type: 'fall',
+      id: 'b',
+      items: {},
+      at: { x: 1, z: 2, yaw: 0 },
+    })
+    const drop = v.valley.world?.drops.find((d) => d.kind === 'dimes')
+    expect(drop).toBeDefined()
+    expect(drop?.burst).toBeUndefined()
+    const r = reduce(
+      v.valley,
+      { type: 'take-drop', id: 'a', drop: drop?.id ?? -1, at: HERE, roll: 0 },
+      {
+        now: T0,
+        present: ['a', 'b'],
+        cash: 100_00,
+        research: { levels: { dimes: 5 } },
+      }
+    )
+    expect(r.found).toBeUndefined()
+  })
+})
+
 describe('rule 23: the Cabbage Stand', () => {
   const HOUR = 60 * 60 * 1000
   const [one, two] = CONFIG.stand.levels
@@ -2065,8 +2234,24 @@ describe('rule 11: a burst shadowman leaves dimes', () => {
     })
     expect(reasons(r)).toEqual(['spilled'])
     expect(v.valley.world?.drops).toEqual([
-      { id: 0, kind: 'dimes', count: 7, x: 10, z: 20, spilled: true },
-      { id: 1, kind: 'dimes', count: 3, x: 50, z: 60, spilled: true },
+      {
+        id: 0,
+        kind: 'dimes',
+        count: 7,
+        x: 10,
+        z: 20,
+        spilled: true,
+        burst: true,
+      },
+      {
+        id: 1,
+        kind: 'dimes',
+        count: 3,
+        x: 50,
+        z: 60,
+        spilled: true,
+        burst: true,
+      },
     ])
     expect(v.valley.world?.nextDrop).toBe(2)
   })
@@ -2146,8 +2331,24 @@ describe('rule 11: a burst shadowman leaves dimes', () => {
       ],
     })
     expect(v.valley.world?.drops).toEqual([
-      { id: 0, kind: 'gold-bullion', count: 1, x: 1, z: 2, spilled: true },
-      { id: 1, kind: 'gold-bullion', count: 1, x: 1.5, z: 2, spilled: true },
+      {
+        id: 0,
+        kind: 'gold-bullion',
+        count: 1,
+        x: 1,
+        z: 2,
+        spilled: true,
+        burst: true,
+      },
+      {
+        id: 1,
+        kind: 'gold-bullion',
+        count: 1,
+        x: 1.5,
+        z: 2,
+        spilled: true,
+        burst: true,
+      },
     ])
     const r = v.step({ type: 'take-drop', id: 'a', drop: 0, at: HERE })
     expect(r.pack).toEqual({
@@ -3377,5 +3578,138 @@ describe('rule 30: idle expeditions', () => {
     const points = max - Math.round(CONFIG.expeditions.runs.corn.hurt * max)
     expect(r.health).toEqual({ account: 'acct-p', points, max })
     expect(healthFor(r.valley, 'acct-p')).toBe(points)
+  })
+})
+
+describe('rule 34: parties', () => {
+  const invite = (id: string, name: string): ValleyAction => ({
+    type: 'invite',
+    id,
+    name,
+  })
+  const names = (v: { valley: Valley }, account: string) =>
+    partyOf(v.valley.parties, account)?.members.map((m) => m.name) ?? []
+
+  it('invites a raider in the valley, who joins by inviting back', () => {
+    const v = valleyWith(join('a'), join('b'), join('c'))
+    let r = v.step(invite('a', 'b'))
+    expect(r.party).toEqual(['acct-b'])
+    expect(r.partyNews).toEqual([
+      { account: 'acct-b', news: 'invited', name: 'A' },
+      { account: 'acct-a', news: 'sent', name: 'B' },
+    ])
+    r = v.step(invite('b', 'a'))
+    expect(r.party).toEqual(['acct-a', 'acct-b'])
+    expect(r.partyNews).toEqual([
+      { account: 'acct-a', news: 'joined', name: 'B' },
+      { account: 'acct-b', news: 'joined', name: 'B' },
+    ])
+    expect(names(v, 'acct-a')).toEqual(['A', 'B'])
+    // Nothing of it on the world's wire.
+    expect(JSON.stringify(r.broadcast)).not.toContain('acct-')
+  })
+
+  it('refuses one not in the valley, and says why the rest are refused', () => {
+    const v = valleyWith(join('a'), join('b'))
+    expect(v.step(invite('a', 'nobody')).reply).toEqual({
+      type: 'nack',
+      re: 'invite',
+      reason: 'not-here',
+    })
+    expect(v.step(invite('a', 'a')).reply?.reason).toBe('self')
+    v.step(invite('a', 'b'))
+    expect(v.step(invite('a', 'B')).reply?.reason).toBe('already-invited')
+    expect(v.step({ type: 'party-leave', id: 'a' }).reply).toEqual({
+      type: 'nack',
+      re: 'party-leave',
+      reason: 'no-party',
+    })
+  })
+
+  it('lets a raider leave, telling everyone in it, and a party of one is none', () => {
+    const v = valleyWith(join('a'), join('b'), join('c'))
+    v.step(invite('a', 'b'))
+    v.step(invite('b', 'a'))
+    v.step(invite('a', 'c'))
+    v.step(invite('c', 'a'))
+    const r = v.step({ type: 'party-leave', id: 'c' })
+    expect(r.party).toEqual(['acct-a', 'acct-b', 'acct-c'])
+    expect(r.partyNews?.map((n) => n.account)).toEqual([
+      'acct-a',
+      'acct-b',
+      'acct-c',
+    ])
+    expect(names(v, 'acct-a')).toEqual(['A', 'B'])
+    v.step({ type: 'party-leave', id: 'b' })
+    expect(v.valley.parties.parties).toEqual([])
+  })
+
+  it('keeps a raider whose line dropped and came back, and drops one gone past the linger', () => {
+    const v = valleyWith(join('a'), join('b'), join('c'))
+    v.step(invite('a', 'b'))
+    v.step(invite('b', 'a'))
+    v.step(invite('a', 'c'))
+    v.step(invite('c', 'a'))
+    // B's socket goes: away, and A and C are sent it.
+    let r = v.step(leaveAs('b'))
+    expect(r.party).toEqual(['acct-a', 'acct-b', 'acct-c'])
+    // Back within the linger: still in it.
+    v.tick(CONFIG.net.lingerMs / 2)
+    v.step(join('b'))
+    expect(names(v, 'acct-a')).toEqual(['A', 'B', 'C'])
+    // C goes, and the valley's linger timer drops them.
+    v.step(leaveAs('c'))
+    r = v.step({ type: 'party-drop', account: 'acct-c' })
+    expect(r.partyNews).toEqual([
+      { account: 'acct-a', news: 'left', name: 'C' },
+      { account: 'acct-b', news: 'left', name: 'C' },
+    ])
+    expect(names(v, 'acct-a')).toEqual(['A', 'B'])
+    // A drop for an account back in the valley does nothing.
+    expect(v.step({ type: 'party-drop', account: 'acct-a' }).party).toBe(
+      undefined
+    )
+  })
+
+  it('drops one gone past the linger on the next arrival, timer or no timer', () => {
+    const v = valleyWith(join('a'), join('b'))
+    v.step(invite('a', 'b'))
+    v.step(invite('b', 'a'))
+    v.step(leaveAs('b'))
+    v.tick(CONFIG.net.lingerMs + 1)
+    const r = v.step(join('c'))
+    expect(r.partyNews).toEqual([
+      { account: 'acct-a', news: 'left', name: 'B' },
+    ])
+    expect(v.valley.parties.parties).toEqual([])
+  })
+
+  it('follows a new name from Gron', () => {
+    const v = valleyWith(join('a'), join('b'))
+    v.step(invite('a', 'b'))
+    v.step(invite('b', 'a'))
+    const r = v.step({ type: 'appearance', id: 'b', name: 'Bee' })
+    expect(r.party).toEqual(['acct-a', 'acct-b'])
+    expect(names(v, 'acct-a')).toEqual(['A', 'Bee'])
+  })
+
+  it('credits the Caretaker to a burner’s party members standing near', () => {
+    const v = valleyWith(join('a'), join('b'), join('c'), join('d'))
+    v.step(invite('a', 'b'))
+    v.step(invite('b', 'a'))
+    v.step(invite('a', 'c'))
+    v.step(invite('c', 'a'))
+    const far = CONFIG.party.creditRadius + 1
+    const raiders = [
+      { id: 'a', x: 0, z: 0 },
+      { id: 'b', x: 5, z: 0 },
+      { id: 'c', x: far, z: 0 },
+      { id: 'd', x: 1, z: 0 },
+    ]
+    expect(creditedWithParty(v.valley, ['a'], raiders)).toEqual([
+      'acct-a',
+      'acct-b',
+    ])
+    expect(creditedWithParty(v.valley, ['d'], raiders)).toEqual(['acct-d'])
   })
 })

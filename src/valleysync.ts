@@ -11,6 +11,7 @@ import {
   emoteLine,
   joinedLine,
   othersLine,
+  partyChatLine,
   peerNews,
   whisperLine,
 } from './chat.ts'
@@ -27,8 +28,10 @@ import {
   whisperRefusal,
 } from './friends.ts'
 import { freshPending } from './game.ts'
+import { inspectRefusal } from './inspect.ts'
 import { pickupLabel } from './interactions.ts'
 import { toInventory } from './inventory.ts'
+import { partyNews, partyRefusal } from './party.ts'
 import { levelUp } from './progression.ts'
 import { CLOSE } from './protocol.ts'
 import {
@@ -38,6 +41,8 @@ import {
   stepRefusal,
   toQuests,
 } from './quests.ts'
+import { toResearch } from './recycling.ts'
+import { foundLine, recycleRefusal, researchNews } from './researchlines.ts'
 import { seasonOf } from './season.ts'
 import { buyRefusal } from './shop.ts'
 import { isStandLedger, refusalLine, standNews } from './stand.ts'
@@ -162,6 +167,23 @@ export function wireValley(game: Game, actions: Actions): void {
       }
       case 'friend-news':
         hud.tell(friendNews(msg.news, msg.name))
+        return
+      // A raider's card, asked for by E or /inspect.
+      case 'inspected':
+        actions.showInspected(msg.card)
+        return
+      // Rule 34: the party, its news, and a line said to it.
+      case 'party':
+        s.party = { members: msg.members, invites: msg.invites }
+        return
+      case 'party-news':
+        if (msg.news === 'sent' || msg.news === 'joined') {
+          s.pending.invite = null
+        }
+        hud.tell(partyNews(msg.news, msg.name, game.pick.username))
+        return
+      case 'party-chat':
+        hud.chatLine(partyChatLine(msg), now)
         return
       case 'pong':
         return
@@ -369,6 +391,16 @@ export function wireValley(game: Game, actions: Actions): void {
       hud.tell(CHAT_COPY.tooFast)
     } else if (msg.re === 'whisper') {
       hud.tell(whisperRefusal(msg.reason, s.pending.whisperTo ?? ''))
+    } else if (
+      msg.re === 'invite' ||
+      msg.re === 'party-leave' ||
+      msg.re === 'party-chat'
+    ) {
+      hud.tell(partyRefusal(msg.reason, s.pending.invite ?? ''))
+      s.pending.invite = null
+    } else if (msg.re === 'inspect') {
+      hud.tell(inspectRefusal(msg.reason, s.pending.inspect ?? ''))
+      s.pending.inspect = null
     } else if (msg.re === 'friend' || msg.re === 'unfriend') {
       hud.tell(friendRefusal(msg.reason, s.pending.ask?.name ?? ''))
       s.pending.ask = null
@@ -423,6 +455,10 @@ export function wireValley(game: Game, actions: Actions): void {
       s.pending.stand = false
       s.standSaid = refusalLine(msg.reason)
       hud.tell(s.standSaid)
+    } else if (msg.re === 'recycle') {
+      s.pending.recycle = false
+      s.researchSaid = recycleRefusal(msg.reason)
+      hud.tell(s.researchSaid)
     } else if (msg.re.startsWith('laptop-')) {
       s.laptop?.refused(msg.reason)
     } else if (msg.re === 'portal') {
@@ -533,6 +569,18 @@ export function wireValley(game: Game, actions: Actions): void {
       s.pending.stand = false
       s.standSaid = standNews(msg, was)
       if (s.standSaid) hud.tell(s.standSaid)
+    } else if (msg.type === 'research') {
+      // Rule 33: the research as the valley read or wrote it, to the
+      // socket that asked, or after a level to every socket on the
+      // account. A level's pack frame follows.
+      s.research = toResearch(msg.research)
+      if (!msg.line) return
+      s.pending.recycle = false
+      s.researchSaid = researchNews(msg)
+      if (s.researchSaid) hud.tell(s.researchSaid)
+    } else if (msg.type === 'found') {
+      // Rule 33: loose change, already in the wallet the pack frame says.
+      hud.tell(foundLine(msg.dimes))
     } else if (msg.type === 'task') {
       // Rule 16: credited with a burn. A reward's pack frame follows.
       if (!applyTask(msg.task)) return

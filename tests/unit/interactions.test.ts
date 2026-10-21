@@ -465,6 +465,39 @@ describe('resolveInteraction', () => {
   })
 })
 
+describe('resolveInteraction: another raider', () => {
+  const raider = { name: 'Kid' }
+
+  it('inspects the raider in front, before a pickup', () => {
+    const near: PickupSpot = {
+      kind: 'cabbage',
+      count: 1,
+      x: 250.5,
+      z: 250,
+      taken: false,
+    }
+    expect(resolveInteraction(input({ raider, pickups: [near] }))).toEqual({
+      kind: 'inspect',
+      name: 'Kid',
+    })
+  })
+
+  it('leaves Gron, the truck and the shelves first', () => {
+    expect(resolveInteraction(input({ raider, truck: besideTruck }))).toEqual({
+      kind: 'board',
+    })
+    expect(resolveInteraction(input({ raider, shelf }))?.kind).toBe('buy')
+  })
+
+  it('says whom E inspects', () => {
+    const inspect = { kind: 'inspect', name: 'Kid' } as const
+    expect(interactionPrompt(inspect)).toBe(
+      copy('prompts.inspect', { name: 'Kid' })
+    )
+    expect(interactionKey(inspect)).toBe('inspect:Kid')
+  })
+})
+
 describe('resolveInteraction: bodies and lockers', () => {
   const corpse = {
     id: 4,
@@ -522,6 +555,39 @@ describe('resolveInteraction: bodies and lockers', () => {
     expect(interactionPrompt({ kind: 'laptop', station: 3 })).toBe(
       copy('prompts.laptop')
     )
+  })
+
+  it('opens the Recycling Center at the wreck, within its reach', () => {
+    expect(resolveInteraction(input({ wreck: { x: 252, z: 250 } }))).toEqual({
+      kind: 'recycle',
+    })
+    const far = { x: 250 + CONFIG.recycling.reach + 0.1, z: 250 }
+    expect(resolveInteraction(input({ wreck: far }))).toBeNull()
+    expect(resolveInteraction(input({ wreck: null }))).toBeNull()
+    expect(interactionPrompt({ kind: 'recycle' })).toBe(copy('prompts.recycle'))
+    // Only in sight: not with it behind the raider, nor with a wall between.
+    const lookingNorth: View<PickupSpot> = {
+      eye: [250, 1.6, 250],
+      dir: [0, 0, -1],
+      feet: 0,
+      groundAt: () => 0,
+      heightOf: () => 0.1,
+    }
+    const ahead = { x: 250, z: 247 }
+    expect(
+      resolveInteraction(input({ wreck: ahead, view: lookingNorth }))
+    ).toEqual({ kind: 'recycle' })
+    expect(
+      resolveInteraction(
+        input({ wreck: { x: 250, z: 253 }, view: lookingNorth })
+      )
+    ).toBeNull()
+    expect(
+      resolveInteraction(
+        input({ wreck: ahead, view: lookingNorth, walled: () => true })
+      )
+    ).toBeNull()
+    expect(itemLabel({ kind: 'recycle' })).toBeNull()
   })
 
   it('opens your Cabbage Stand within its reach', () => {

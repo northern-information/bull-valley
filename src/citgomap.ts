@@ -1,7 +1,8 @@
 // The map (M): the valley from above, its roads and every Citgo, the ones
 // the account has stood at lit in Citgo red and the last of them (where
 // the phone's portal goes) ringed and named, with the raider an arrow
-// among them. Clicking a visited Citgo fast travels there (actions.ts,
+// among them, and each of their party (sharedworld.ts rule 34) a named
+// arrow of its own. Clicking a visited Citgo fast travels there (actions.ts,
 // citgos.ts fastTravel). Opened for a charter (the first one into Marx's
 // bed, marx.ts charter), a click anywhere picks where he drives instead. It opens over the valley with the pointer free, as
 // the Book of Shadows does; hud.ts builds it, loop.ts draws it each frame
@@ -23,11 +24,13 @@ interface MapCitgo extends XZ {
 }
 
 // What one frame of the open map shows: where the raider stands and faces,
-// their Citgos, and the one they stand at (null: out in the valley).
+// their Citgos, the one they stand at (null: out in the valley), and
+// where each of their party placed in the valley stands and faces.
 interface MapFrame {
   me: Facing
   log: CitgoLog
   here: number | null
+  party?: readonly (Facing & { name: string })[]
 }
 
 // The canvas, square, in its own pixels; CSS sizes it.
@@ -36,6 +39,7 @@ const SIZE = 720
 const PICK = 14
 const CITGO = '#ff4a1c'
 const RAIDER = '#60a5fa'
+const PARTY = '#22d3ee'
 const ROAD = 'rgba(240, 234, 214, 0.22)'
 const UNVISITED = 'rgba(240, 234, 214, 0.45)'
 // How near a Citgo a point is still called after it.
@@ -214,7 +218,25 @@ export class CitgoMap {
     return base
   }
 
-  draw({ me, log, here }: MapFrame): void {
+  // An arrow at `at` along a facing of `yaw` (the camera looks along
+  // (-sin yaw, -cos yaw)).
+  private arrow(at: { x: number; y: number }, yaw: number, fill: string) {
+    const ctx = this.ctx
+    ctx.save()
+    ctx.translate(at.x, at.y)
+    ctx.rotate(-yaw)
+    ctx.fillStyle = fill
+    ctx.beginPath()
+    ctx.moveTo(0, -9)
+    ctx.lineTo(6, 7)
+    ctx.lineTo(0, 3)
+    ctx.lineTo(-6, 7)
+    ctx.closePath()
+    ctx.fill()
+    ctx.restore()
+  }
+
+  draw({ me, log, here, party = [] }: MapFrame): void {
     const ctx = this.ctx
     ctx.clearRect(0, 0, SIZE, SIZE)
     ctx.drawImage(this.roadLayer(), 0, 0)
@@ -244,21 +266,16 @@ export class CitgoMap {
         ctx.fillText(c.label, x, y - 14)
       }
     })
-    // The raider: an arrow along their facing (the camera looks along
-    // (-sin yaw, -cos yaw)).
-    const { x, y } = this.toCanvas(me)
-    ctx.save()
-    ctx.translate(x, y)
-    ctx.rotate(-me.yaw)
-    ctx.fillStyle = RAIDER
-    ctx.beginPath()
-    ctx.moveTo(0, -9)
-    ctx.lineTo(6, 7)
-    ctx.lineTo(0, 3)
-    ctx.lineTo(-6, 7)
-    ctx.closePath()
-    ctx.fill()
-    ctx.restore()
+    // The party, each named, under the raider's own arrow.
+    for (const mate of party) {
+      const at = this.toCanvas(mate)
+      this.arrow(at, mate.yaw, PARTY)
+      ctx.fillStyle = PARTY
+      ctx.fillText(mate.name, at.x, at.y - 12)
+    }
+    this.canvas.dataset.party = party.map((mate) => mate.name).join(',')
+    // The raider: an arrow along their facing.
+    this.arrow(this.toCanvas(me), me.yaw, RAIDER)
 
     // A charter: a cross where the pointer is, named.
     if (this.charter && this.pointer) {
