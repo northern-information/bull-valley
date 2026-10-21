@@ -103,6 +103,22 @@
     1px 1px 0 rgb(0 0 0 / 80%);
 }
 
+/* The light pause after Esc (hud.ts showBreak): one line at the top, under
+   the countdown, over a valley still in view; clicks pass to the view. */
+.bv-break {
+  position: absolute;
+  top: 2.6rem;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 0.3rem 0.7rem;
+  white-space: nowrap;
+  pointer-events: none;
+  background: var(--fi-surface-82);
+  border: 1px solid var(--bv-citgo);
+  letter-spacing: 0.08em;
+}
+
 /* The season (seasonhud.ts). The tracker sits in the upper right: the
    season over a row of pips, one lit for each time the Caretaker came
    apart in the raider's beam. Out of sight until a count goes up, when

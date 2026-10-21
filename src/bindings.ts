@@ -59,7 +59,10 @@ export const WORLD = {
     key: 'Enter',
     labelKey: 'keys.chat',
   },
+  // Esc frees the pointer to a light pause (the browser's own, never
+  // bound); the menu frees it to the pause overlay.
   pause: { codes: [], key: 'Esc', labelKey: 'keys.pause' },
+  menu: { codes: ['KeyQ'], key: 'Q', labelKey: 'keys.menu' },
 } as const satisfies Record<string, Binding>
 
 // With the chat field open every other key types; these scroll the log.

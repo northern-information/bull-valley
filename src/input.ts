@@ -70,8 +70,9 @@ export function wirePointer(game: Game): () => void {
 
   // The browser drops pointer lock on Esc and whenever the window loses focus
   // (Alt+Tab, Cmd+number). Neither can be blocked, and the page cannot tell
-  // them apart, so every drop is a pause. An open inventory stays open and
-  // waits for a click; otherwise the pause overlay shows.
+  // them apart, so every drop is a light pause: the valley stays in view
+  // under one line, and a click takes the pointer back. An open panel or
+  // dialog stays open, and the overlay (the menu key, a lost line) stays.
   document.addEventListener('pointerlockchange', () => {
     const locked = document.pointerLockElement === hud.canvas
     player.locked = locked
@@ -85,6 +86,7 @@ export function wirePointer(game: Game): () => void {
     if (locked) {
       s.started = true
       hud.showIntro(false)
+      hud.showBreak(false)
       if (!s.greeted) {
         s.greeted = true
         hud.tell(copy('log.greeting'))
@@ -104,9 +106,10 @@ export function wirePointer(game: Game): () => void {
       !s.inventoryOpen &&
       !s.bookOpen &&
       !s.mapOpen &&
-      !s.talking
+      !s.talking &&
+      !hud.introShown
     ) {
-      hud.showIntro(true, true)
+      hud.showBreak(true)
     }
   })
   window.addEventListener('blur', () => player.keys.clear())
@@ -250,6 +253,17 @@ export function wireKeys(
       }
       return
     }
+    // On the light pause the menu key, or Esc again, opens the overlay.
+    // Some browsers hand the page the Esc that dropped the lock as well,
+    // so one too soon after it is that same press.
+    if (hud.breakShown && !s.talking) {
+      const again = e.code === 'Escape' && !e.repeat && hud.breakFor > 250
+      if (actionOf(WORLD, e.code) === 'menu' || again) {
+        e.preventDefault()
+        hud.showIntro(true, true)
+      }
+      return
+    }
     if (!player.locked || s.talking) return
     // While typing, every key belongs to the field; Enter sends, and
     // PageUp/PageDown scroll the log.
@@ -302,6 +316,11 @@ export function wireKeys(
         e.preventDefault()
         player.keys.clear()
         hud.openChat()
+        return
+      // The overlay first, so the drop that follows leaves it standing.
+      case 'menu':
+        hud.showIntro(true, true)
+        document.exitPointerLock()
         return
     }
   })

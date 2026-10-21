@@ -104,6 +104,9 @@ export class Hud {
   staticCanvas: HTMLCanvasElement
   reticle: HTMLDivElement
   intro: HTMLDivElement
+  // The light pause after Esc: a line at the top over the valley.
+  breakEl: HTMLParagraphElement
+  private breakFrom = 0
   beginBtn: HTMLButtonElement
   // Back to the main menu, beside Resume once the raider has begun.
   exitBtn: HTMLButtonElement
@@ -205,6 +208,13 @@ export class Hud {
     this.reticle = el('div', 'bv-reticle')
     this.reticle.setAttribute('aria-hidden', 'true')
     ui.appendChild(this.reticle)
+
+    // The light pause: Esc frees the pointer and the valley stays in view
+    // under one line; a click takes it back, the menu key opens the overlay.
+    this.breakEl = el('p', 'bv-break')
+    this.breakEl.textContent = copy('hud.break', { key: WORLD.menu.key })
+    this.breakEl.hidden = true
+    ui.appendChild(this.breakEl)
 
     // Intro / pause overlay, in the keepers' dialogs' frame (npcdialog.ts):
     // the header, the season, the controls, who is raiding with their
@@ -518,7 +528,27 @@ export class Hud {
       state === 'reconnecting'
   }
 
+  get breakShown(): boolean {
+    return !this.breakEl.hidden
+  }
+
+  // How long the light pause has shown, in milliseconds.
+  get breakFor(): number {
+    return performance.now() - this.breakFrom
+  }
+
+  showBreak(show: boolean): void {
+    if (show && this.breakEl.hidden) this.breakFrom = performance.now()
+    this.breakEl.hidden = !show
+  }
+
+  get introShown(): boolean {
+    return !this.intro.hidden
+  }
+
+  // The overlay stands in for the light pause.
   showIntro(show: boolean, paused?: boolean): void {
+    if (show) this.showBreak(false)
     this.intro.hidden = !show
     this.root.classList.toggle('bv-shell--intro', show)
     this.paused = paused === true
