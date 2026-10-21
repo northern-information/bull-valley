@@ -29,11 +29,13 @@ describe('what the left hand holds', () => {
     expect(toolsIn(BOTH)).toEqual(['flashlight', 'jar', 'rod'])
   })
 
-  it('steps through what is carried on Q, round to the flashlight', () => {
+  it('steps through what is carried, either way round', () => {
     expect(nextTool('flashlight', BARE)).toBe('flashlight')
     expect(nextTool('flashlight', BOTH)).toBe('jar')
     expect(nextTool('jar', BOTH)).toBe('rod')
     expect(nextTool('rod', BOTH)).toBe('flashlight')
+    expect(nextTool('flashlight', BOTH, -1)).toBe('rod')
+    expect(nextTool('jar', BOTH, -1)).toBe('flashlight')
     expect(nextTool('flashlight', { 'g-loomis': 1 })).toBe('rod')
     // A hand holding what is gone steps to the first thing carried.
     expect(nextTool('rod', JAR)).toBe('flashlight')

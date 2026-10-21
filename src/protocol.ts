@@ -43,7 +43,7 @@ import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 43
+export const PROTOCOL_VERSION = 44
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -281,7 +281,7 @@ export interface HelloMessage {
   bushes: XZ[]
   // The firefly ponds (fishing.ts pondsOf), none or more: no shadow comes
   // inside their havens (rule 11), and the valley lets a raider fish only
-  // from one of them (rule 35).
+  // from one of them (rule 36).
   ponds: PondPlace[]
   // Where the squatter in Bull Valley Plaza sits, or null: the valley
   // deals only with a raider beside him (rule 25).
@@ -422,7 +422,7 @@ type StandTendMessage =
 type RecycleTendMessage =
   { type: 'research' } | { type: 'recycle'; line: ResearchLine }
 
-// Fishing at the firefly pond (sharedworld.ts rule 35): the account's
+// Fishing at the firefly pond (sharedworld.ts rule 36): the account's
 // angler, please; a rod out of the tackle box; nightcrawlers dug out of
 // the bank; a line cast with `bait` on the hook; or the line out reeled in
 // (`landed`: the fish was spent) or given up. The valley checks the
@@ -850,7 +850,7 @@ export interface FoundMessage {
   dimes: number
 }
 
-// The account's angler (rule 35), to every socket signed in to it: in
+// The account's angler (rule 36), to every socket signed in to it: in
 // answer to an angler frame, after a dig (`dug`, the nightcrawlers it
 // turned up, a pack frame following), after the rod comes out of the
 // tackle box (`rod`), and after a catch.
@@ -861,7 +861,7 @@ export interface AnglerMessage {
   rod?: true
 }
 
-// A line cast (rule 35), to the socket that cast it: `hook` null when
+// A line cast (rule 36), to the socket that cast it: `hook` null when
 // nothing will bite, after `bitesIn` ms either way (fishing.ts HookWire).
 export interface LineMessage {
   type: 'line'
@@ -869,7 +869,7 @@ export interface LineMessage {
   hook: HookWire | null
 }
 
-// A slurm caught in a jar (rule 35), to everyone: slurm `index` of slot
+// A slurm caught in a jar (rule 36), to everyone: slurm `index` of slot
 // `slot`'s drop at `station` is off the lot, by raider `by`. The catcher's
 // pack frame follows.
 export interface SlurmJarredMessage {
@@ -880,7 +880,7 @@ export interface SlurmJarredMessage {
   by: string
 }
 
-// How the line out ended (rule 35), to the socket that reeled: what came
+// How the line out ended (rule 36), to the socket that reeled: what came
 // in when it was landed, and the skill after, `up` when it rose.
 export interface CatchMessage {
   type: 'catch'

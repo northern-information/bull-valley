@@ -331,7 +331,7 @@ function burnCredits(
   }
 }
 
-// Rule 35: where the shadowmen turn aside: every Citgo forecourt, and the
+// Rule 36: where the shadowmen turn aside: every Citgo forecourt, and the
 // firefly ponds, each as far past its shore as its haven reaches.
 export function shadeHavens(
   world: Pick<NonNullable<Valley['world']>, 'havens' | 'ponds'>

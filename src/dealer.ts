@@ -29,7 +29,7 @@ export const DEALER_GOODS: readonly DealerGood[] = [
   { kind: 'lsd', worth: 1000, perDay: 4 },
   { kind: 'adderall', worth: 1200, perDay: 3 },
   { kind: 'mushrooms', worth: 1500, perDay: 3 },
-  // The jar a slurm goes into alive (fishing.ts, sharedworld.ts rule 35).
+  // The jar a slurm goes into alive (fishing.ts, sharedworld.ts rule 36).
   { kind: 'slurm-jar', worth: 2500, perDay: 2 },
 ]
 

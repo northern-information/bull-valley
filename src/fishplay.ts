@@ -1,4 +1,4 @@
-// The fight on the line as both apps play it (sharedworld.ts rule 35):
+// The fight on the line as both apps play it (sharedworld.ts rule 36):
 // the tackle box's dialog in the 3D valley (fishdialog.ts) and the pond on
 // Bull Valley Dial-Up (dialfish.ts) step one of these on their own clock.
 // It holds the line in the water as cast, waits out the bite, comes up

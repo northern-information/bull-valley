@@ -96,10 +96,10 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // The wreck: E opens the Recycling Center (rule 33).
   | { kind: 'recycle' }
   // The tackle box on the firefly pond's landing: E opens it to fish
-  // (rule 35).
+  // (rule 36).
   | { kind: 'fish' }
   // A slurm crawling on a Citgo's lot, the jar in hand: the click catches
-  // it (rule 35).
+  // it (rule 36).
   | { kind: 'jar-slurm'; station: number; slot: number; index: number }
   // At a firefly pond with the rod in hand and no line out: the click
   // casts, with the bait it would cast with (null with none).

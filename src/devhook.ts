@@ -122,7 +122,7 @@ interface BvHook {
   // the Recycling Center first opens), and where the wreck lies.
   readonly research: Research | null
   readonly wreckAt: XZ | null
-  // Rule 35: the account's angler as the valley last said (null before the
+  // Rule 36: the account's angler as the valley last said (null before the
   // tackle box first opens), the line in the water, and the firefly ponds:
   // each one's middle, its haven's reach and its tackle box's landing.
   readonly angler: AnglerWire | null
@@ -159,10 +159,10 @@ interface BvHook {
   readonly using: { kind: string; at: number } | null
   teleport(u: number, v: number): void
   // The left button, for a page without pointer lock: the flashlight
-  // alone, or whatever the left hand holds; Q; and A or D in a fight.
+  // alone, or whatever the left hand holds; R; and A or D in a fight.
   toggleFlashlight(): void
   useHeld(): void
-  switchHeld(): void
+  switchHeld(step?: 1 | -1): void
   pressFish(dir: ArrowDir): void
   // A Citgo portal opened ahead of the raider at once, as if the phone had
   // dialed it through; and fast travel to Citgo `station`, as if clicked
@@ -405,7 +405,7 @@ export function installDevHook(game: Game, actions: Actions): void {
     },
     toggleFlashlight: () => actions.toggleFlashlight(),
     useHeld: () => actions.useHeld(),
-    switchHeld: () => actions.switchHeld(),
+    switchHeld: (step: 1 | -1 = 1) => actions.switchHeld(step),
     pressFish: (dir: ArrowDir) => game.fishHud.press(dir),
     openPortal: () => actions.openPortal(),
     fastTravel: (station: number) => actions.fastTravel(station),

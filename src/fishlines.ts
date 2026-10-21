@@ -1,5 +1,5 @@
 // What both apps say of fishing at the firefly pond (fishing.ts,
-// sharedworld.ts rule 35), as Final Fantasy XI says it: the hook's call,
+// sharedworld.ts rule 36), as Final Fantasy XI says it: the hook's call,
 // the feeling a fish far past the skill gives, the catch or how it was
 // lost, the skill rising, what the bank and the tackle box gave, and why
 // the valley refused. Pure but for the copy book; no three.js, no DOM.

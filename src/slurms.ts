@@ -5,7 +5,7 @@
 // the last of them first, he stops on his way, thanks them, and turns
 // back (`afterTrodden`). They never touch a raider, and nothing is kept
 // but what a raider with Erwin von Dutch's jar catches alive while it
-// crawls (`mayJar`, sharedworld.ts rule 35), gone from the lot for
+// crawls (`mayJar`, sharedworld.ts rule 36), gone from the lot for
 // everyone once the valley says so. Every drop is drawn from a
 // seed of the station and the slot of time it falls in, so every client
 // reading the same shared clock sees the same slurms fall at the same

@@ -1,4 +1,4 @@
-// Fishing on Bull Valley Dial-Up (sharedworld.ts rules 29 and 35): the
+// Fishing on Bull Valley Dial-Up (sharedworld.ts rules 29 and 36): the
 // firefly pond in the lobby's sheet, from wherever the raider is, simpler
 // than the tackle box's dialog and made for a thumb. Over it the pond as
 // the phone draws it (pondview.ts, through dial3d.ts): the raider in their

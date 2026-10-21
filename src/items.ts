@@ -125,7 +125,7 @@ interface Material extends ItemBase {
 }
 
 // Never on a shelf and of no use but to sell: what the firefly pond gives
-// up (fishing.ts, sharedworld.ts rule 35). Erwin von Dutch takes it in
+// up (fishing.ts, sharedworld.ts rule 36). Erwin von Dutch takes it in
 // barter at `worth` cents a fish (dealer.ts unitWorth).
 interface Fish extends ItemBase {
   category: 'fish'
@@ -501,7 +501,7 @@ export const ITEMS = [
     start: 0,
   },
   // Caught off a Citgo's lot in Erwin von Dutch's jar before David
-  // Carlsten's bat gets to them (sharedworld.ts rule 35): the shadow
+  // Carlsten's bat gets to them (sharedworld.ts rule 36): the shadow
   // carp's bait, and nothing else's.
   {
     id: 'slurm',
@@ -561,7 +561,7 @@ export const ITEMS = [
     start: 0,
   },
   // Out of the tackle box on the firefly pond's landing, one an account
-  // (sharedworld.ts rule 35): nothing bites without it.
+  // (sharedworld.ts rule 36): nothing bites without it.
   {
     id: 'fishing-rod',
     category: 'key-item',

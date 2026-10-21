@@ -115,7 +115,7 @@ export interface Pending {
   stand: boolean
   // Rule 33: a level bought at the Recycling Center.
   recycle: boolean
-  // Rule 35: a rod, a dig, a cast or a reel at the firefly pond, and a
+  // Rule 36: a rod, a dig, a cast or a reel at the firefly pond, and a
   // slurm into the jar.
   fish: boolean
   jar: boolean
@@ -193,7 +193,7 @@ export interface GameState {
   // How high, stimulated and drunk, on `time` (wardlevels.ts).
   wards: WardState
   // What the left hand holds (held.ts): the flashlight, the slurm jar or
-  // a rod, switched with Q, used with the click.
+  // a rod, switched with R or the wheel, used with the click.
   held: Tool
   // The left hand's lift: the flashlight up and on, or down and off; a
   // jar or a rod is held up for as long as it is in the hand.
@@ -281,7 +281,7 @@ export interface GameState {
   // word on a level, for the dialog.
   research: Research | null
   researchSaid: string | null
-  // Rule 35: the account's angler as the valley last sent it (asked for
+  // Rule 36: the account's angler as the valley last sent it (asked for
   // as the tackle box opens); null before it has. The line in the water,
   // as cast (fishing.ts LineOut), and the last word on fishing.
   angler: AnglerWire | null

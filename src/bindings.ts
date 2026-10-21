@@ -44,9 +44,10 @@ export const WORLD = {
   },
   look: { codes: [], key: 'Mouse', labelKey: 'keys.look' },
   // The left hand's flashlight lit or put out, the slurm jar's catch, or
-  // the rod's cast (held.ts); Q switches what the hand holds.
+  // the rod's cast (held.ts); R, or the wheel, switches what the hand
+  // holds.
   useHeld: { codes: [], key: 'Left Click', labelKey: 'keys.use_held' },
-  held: { codes: ['KeyQ'], key: 'Q', labelKey: 'keys.held' },
+  held: { codes: ['KeyR'], key: 'R', labelKey: 'keys.held' },
   crouch: { codes: ['KeyC'], key: 'C', labelKey: 'keys.crouch' },
   phone: { codes: ['KeyT'], key: 'T', labelKey: 'keys.phone' },
   inventory: { codes: ['Tab'], key: 'Tab', labelKey: 'keys.inventory' },

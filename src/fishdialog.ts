@@ -1,4 +1,4 @@
-// The tackle box on the firefly pond's landing (sharedworld.ts rule 35): a
+// The tackle box on the firefly pond's landing (sharedworld.ts rule 36): a
 // dialog over the valley, opened with E at the box, in the frame Erwin's
 // and the stand's share (npcdialog.ts); Dial-Up fishes the pond in a sheet
 // of its own (dialfish.ts). It shows the angler (the skill, today's catch

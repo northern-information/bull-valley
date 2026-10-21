@@ -83,7 +83,7 @@ export interface Slurms {
   // world, each with its rig for the glow: what a jar can catch.
   crawling(): CrawlingSlurm[]
   // Slurm `index` of slot `slot`'s drop at `station` caught in a jar
-  // (sharedworld.ts rule 35): gone from the lot at once, and Carlsten goes
+  // (sharedworld.ts rule 36): gone from the lot at once, and Carlsten goes
   // after the rest, as after a slurm trodden on.
   jar(station: number, slot: number, index: number): void
   // Dev: bring the next drop at the parked station to now.

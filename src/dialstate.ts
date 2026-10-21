@@ -144,7 +144,7 @@ export interface DialState {
   // Rule 33: the research, as the valley last sent it (asked for as the
   // Recycling Center opens); null before.
   research: Research | null
-  // Rule 35: the angler, as the valley last sent it (asked for as the
+  // Rule 36: the angler, as the valley last sent it (asked for as the
   // phone dials in and as the tackle box opens); null before. The line in
   // the water, as cast (fishing.ts LineOut).
   angler: AnglerWire | null
@@ -484,7 +484,7 @@ export function applyFrame(
     // Rule 33: loose change found in the 3D valley, for the log.
     case 'found':
       return told(s, foundLine(msg.dimes), wall)
-    // Rule 35: the angler as read, or after a dig, the rod or a catch; the
+    // Rule 36: the angler as read, or after a dig, the rod or a catch; the
     // phone's own dig or rod is answered on the screen and in the log, as
     // the stand's is.
     case 'angler': {
@@ -496,7 +496,7 @@ export function applyFrame(
         ? news(done, line, now, wall)
         : told(done, line, wall)
     }
-    // Rule 35: the line in the water, as dealt; the tackle box plays it.
+    // Rule 36: the line in the water, as dealt; the tackle box plays it.
     case 'line':
       return {
         ...s,
@@ -504,7 +504,7 @@ export function applyFrame(
         pending: { ...s.pending, fish: false },
         said: null,
       }
-    // Rule 35: how the line came out.
+    // Rule 36: how the line came out.
     case 'catch': {
       const done = {
         ...s,
@@ -729,7 +729,7 @@ export function applyFrame(
             recycleRefusal(msg.reason),
             now
           )
-        // Rule 35. A reel refused has no line left to reel.
+        // Rule 36. A reel refused has no line left to reel.
         case 'tackle':
         case 'dig':
         case 'cast':
@@ -935,7 +935,7 @@ export function raiderStats(s: DialState, day: string): RaiderStat[] {
       share: level / top,
     })
   }
-  // Rule 35: the fishing skill, once the valley has said the angler.
+  // Rule 36: the fishing skill, once the valley has said the angler.
   if (s.angler) {
     stats.push({
       id: 'fishing',

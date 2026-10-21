@@ -1116,7 +1116,7 @@ dig_wait = { text = "Dig Again in {seconds}s", by = "ai" }
 cast_with = { text = "Cast with {bait}", by = "ai" }
 bait = { text = "Bait", by = "ai" }
 bait_on = { text = "{bait} on the Hook", by = "ai" }
-how = { text = "Q puts the rod in your hand. Stand at the water and click to cast; A and D answer the fish, and a click reels it in once it is spent.", by = "ai" }
+how = { text = "R or the scroll wheel puts the rod in your hand. Stand at the water and click to cast; A and D answer the fish, and a click reels it in once it is spent.", by = "ai" }
 hud_wait = { text = "Waiting on a bite · Click to give up", by = "ai" }
 hud_fight = { text = "A / D to answer · Click to give up", by = "ai" }
 hud_reel = { text = "Click to reel it in", by = "ai" }

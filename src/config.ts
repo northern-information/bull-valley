@@ -937,7 +937,7 @@ export const CONFIG = {
       ] as { chance: number; price: Record<string, number> }[],
     },
   },
-  // Fishing at the firefly pond (fishing.ts, sharedworld.ts rule 35),
+  // Fishing at the firefly pond (fishing.ts, sharedworld.ts rule 36),
   // after Final Fantasy XI's: bait on the hook, a wait, a bite, and a
   // fight against the fish's stamina and the clock, with a skill each
   // account raises a tenth at a time.

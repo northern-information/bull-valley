@@ -17,7 +17,7 @@ export function isTool(value: unknown): value is Tool {
   return (TOOLS as readonly unknown[]).includes(value)
 }
 
-// What `pack` lets a raider hold, in the order Q steps through them: the
+// What `pack` lets a raider hold, in the order R and the wheel step through them: the
 // flashlight always, the jar while one is carried, a rod while one is.
 export function toolsIn(pack: Readonly<Record<string, number>>): Tool[] {
   return TOOLS.filter(
@@ -28,15 +28,18 @@ export function toolsIn(pack: Readonly<Record<string, number>>): Tool[] {
   )
 }
 
-// What the hand holds after Q: the next thing carried, round again to the
-// flashlight.
+// What the hand holds after R or a turn of the wheel: the next thing
+// carried (`step` -1: the one before), round again past the flashlight.
 export function nextTool(
   hand: Tool,
-  pack: Readonly<Record<string, number>>
+  pack: Readonly<Record<string, number>>,
+  step: 1 | -1 = 1
 ): Tool {
   const carried = toolsIn(pack)
   const at = carried.indexOf(hand)
-  return carried[(at + 1) % carried.length]
+  // Holding what is gone, the first thing carried either way.
+  if (at < 0) return carried[0]
+  return carried[(at + step + carried.length) % carried.length]
 }
 
 // What the hand holds now that the pack is `pack`: the same, or the

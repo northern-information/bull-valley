@@ -78,7 +78,7 @@ interface NetIdentity {
   stand: XZ | null
   // Where the wreck lies (rule 33: the Recycling Center), or null.
   wreck: XZ | null
-  // The firefly ponds (rule 35), none or more.
+  // The firefly ponds (rule 36), none or more.
   ponds: PondPlace[]
   // Where the squatter deals (rule 25), or null.
   dealer: XZ | null

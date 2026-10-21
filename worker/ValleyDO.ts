@@ -376,7 +376,7 @@ export class ValleyDO extends DurableObject<Env> {
       case 'recycle':
         await this.recycle(ws, account, { ...msg, id, at })
         return
-      // Rule 35.
+      // Rule 36.
       case 'angler':
         if (account) {
           send(ws, {
@@ -2001,7 +2001,7 @@ export class ValleyDO extends DurableObject<Env> {
     })
   }
 
-  // Rule 35: a rod out of the tackle box or a cast, with the pack read
+  // Rule 36: a rod out of the tackle box or a cast, with the pack read
   // first, so the valley knows the rod and the bait are in it. A pack that
   // cannot be read is refused.
   private withPack(
@@ -2111,7 +2111,7 @@ export class ValleyDO extends DurableObject<Env> {
     const written = await this.write(reduced.pack, reduced.earn)
     if (written !== 'done') {
       if (written === 'none-left' && action.type === 'cast') {
-        // Rule 35: the bait went from the pack since it was read.
+        // Rule 36: the bait went from the pack since it was read.
         send(ws, { type: 'nack', re: 'cast', reason: 'no-bait' })
       } else if (written === 'none-left') {
         send(ws, { type: 'nack', re: 'use', reason: 'none-left' })
@@ -2131,7 +2131,7 @@ export class ValleyDO extends DurableObject<Env> {
         dimes: reduced.found.dimes,
       })
     }
-    // Rule 35: the angler to every socket on the account, and the line or
+    // Rule 36: the angler to every socket on the account, and the line or
     // the catch to the one that fished.
     if (reduced.angler) {
       this.toAccount(reduced.angler.account, reduced.angler.message)

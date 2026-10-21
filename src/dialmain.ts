@@ -355,7 +355,7 @@ async function boot(): Promise<void> {
       }).then(() => shell?.render(state))
     },
     // Rule 29: dialed in, the firefly pond is wherever the phone is, as the
-    // stand is (rule 35), drawn in the lobby's sheet (dialfish.ts).
+    // stand is (rule 36), drawn in the lobby's sheet (dialfish.ts).
     fish: {
       tackle: () => send({ type: 'tackle' }, { fish: true }),
       dig: () => send({ type: 'dig' }, { fish: true }),

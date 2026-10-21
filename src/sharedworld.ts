@@ -534,7 +534,7 @@ interface SharedWorld {
   stand: XZ | null
   // Where the wreck lies, or null (rule 33).
   wreck: XZ | null
-  // The firefly ponds (rule 35).
+  // The firefly ponds (rule 36).
   ponds: PondPlace[]
   // Where each berry bush stands, in bush order (rule 8).
   bushes: XZ[]
@@ -580,7 +580,7 @@ export interface Valley {
   // Rule 34: the parties and the invites waiting, by account (never on
   // the wire).
   parties: Parties
-  // Rule 35: account -> its angler, and socket id -> the line it has out;
+  // Rule 36: account -> its angler, and socket id -> the line it has out;
   // and every slurm caught in a jar (slurms.ts slurmKey), kept only while
   // its drop could still be crawling.
   anglers: Record<string, Angler>
@@ -588,7 +588,7 @@ export interface Valley {
   jarred: string[]
 }
 
-// Rule 35: a line out with a fish (or the junk) on it: whose, what took
+// Rule 36: a line out with a fish (or the junk) on it: whose, what took
 // it, the skill and the rod it was cast with (the fight is reckoned from
 // them; a line an older build left has none, the tackle box's), the seed
 // its arrows came from, and when it bit (valley ms).
@@ -750,13 +750,13 @@ export type ValleyAction =
   | { type: 'stand-collect' | 'stand-upgrade'; id: string; at: XZ | null }
   // Rule 33: the next level on `line`, bought with empties at the wreck.
   | { type: 'recycle'; id: string; line: ResearchLine; at: XZ | null }
-  // Rule 35: a rod out of the tackle box; the bank dug, with the valley's
+  // Rule 36: a rod out of the tackle box; the bank dug, with the valley's
   // roll; a line cast, with the valley's roll for what bites and the seed
   // for when and how it fights; and the line reeled in or given up, with
   // the valley's rolls for the catch and the skill. at: where the raider's
   // last state frame put them, or null.
   | { type: 'tackle'; id: string; at: XZ | null }
-  // Rule 35: slurm `index` of slot `slot`'s drop at `station`, into the
+  // Rule 36: slurm `index` of slot `slot`'s drop at `station`, into the
   // jar. at: where the raider's last state frame put them, or null.
   | {
       type: 'jar-slurm'
@@ -932,11 +932,11 @@ export interface Reduced {
   // Rule 33: the dimes loose change found over a burst's, already in the
   // taker's wallet (Reduced.earn), for the account's sockets.
   found?: { account: string; dimes: number }
-  // Rule 35: the account's angler as it stands now, for its sockets, and
+  // Rule 36: the account's angler as it stands now, for its sockets, and
   // what a line cast or reeled says to the socket that did it.
   angler?: { account: string; message: AnglerMessage }
   fished?: LineMessage | CatchMessage
-  // Rule 35: a slurm caught in a jar, gone from the lot for everyone.
+  // Rule 36: a slurm caught in a jar, gone from the lot for everyone.
   jarred?: SlurmJarredMessage
   // Rule 34: the accounts whose party (or invites) changed, each to be
   // sent its party frame (party.ts partyWire), and the news for the log.
@@ -1136,7 +1136,7 @@ export function citgosFor(valley: Valley, account: string): CitgoLog {
   return valley.citgos[account] ?? NO_CITGOS
 }
 
-// Rule 35: `account`'s angler as the wire carries it.
+// Rule 36: `account`'s angler as the wire carries it.
 export function anglerFor(valley: Valley, account: string, now: number) {
   return anglerWire(valley.anglers[account] ?? FRESH_ANGLER, now)
 }
@@ -1598,7 +1598,7 @@ function onLeave(
     ? markAway(valley.parties, member.account, now)
     : valley.parties
   const party = gone ? accountsOf(partyOf(parties, member.account)) : []
-  // Rule 35: a line left out goes with the socket.
+  // Rule 36: a line left out goes with the socket.
   const lines = { ...valley.lines }
   delete lines[action.id]
   let next: Valley = { ...valley, members, parties, lines }
@@ -2676,7 +2676,7 @@ function onRecycle(
   })
 }
 
-// Rule 35: the lines still out on a socket among `members`; one whose
+// Rule 36: the lines still out on a socket among `members`; one whose
 // socket went without a word goes with it.
 function linesOf(
   valley: Valley,
@@ -2689,7 +2689,7 @@ function linesOf(
   return lines
 }
 
-// Rule 35: the tackle box, the bank and the cast, each from the pond (or
+// Rule 36: the tackle box, the bank and the cast, each from the pond (or
 // dialed in, anywhere).
 function onAngle(
   valley: Valley,
@@ -2785,7 +2785,7 @@ function onAngle(
   })
 }
 
-// Rule 35: a slurm off a Citgo's lot into the jar, from a raider standing
+// Rule 36: a slurm off a Citgo's lot into the jar, from a raider standing
 // at that Citgo, while its drop could still be crawling, once.
 function onJarSlurm(
   valley: Valley,
@@ -2823,7 +2823,7 @@ function onJarSlurm(
   })
 }
 
-// Rule 35: the line out reeled in or given up.
+// Rule 36: the line out reeled in or given up.
 function onReel(
   valley: Valley,
   action: ActionOf<'reel'>,

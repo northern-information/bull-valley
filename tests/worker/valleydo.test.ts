@@ -227,7 +227,7 @@ const MAZE = { x: 5000, z: 5000, yaw: 0 }
 // Where a build sets up the Cabbage Stand: on the first station's lot.
 const STAND = { x: -4, z: -17 }
 const WRECK = { x: 6, z: 27 }
-// The firefly pond (rule 35), clear of every station.
+// The firefly pond (rule 36), clear of every station.
 const POND = { x: -5000, z: 5000, radius: 80, landing: { x: -5060, z: 5000 } }
 const DEALER = { x: -20, z: -55 }
 // Where the Undercroft lies, far from everything else.

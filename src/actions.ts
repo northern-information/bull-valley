@@ -226,8 +226,9 @@ export interface Actions {
   toggleFlashlight(): void
   // The left click: what the left hand holds, used (held.ts).
   useHeld(): void
-  // Q: the next thing carried into the left hand.
-  switchHeld(): void
+  // R or the wheel: the next thing carried into the left hand (`step`
+  // -1: the one before).
+  switchHeld(step?: 1 | -1): void
   // The pickup is ours: into the pack.
   applyTake(pickup: Pickup): void
   // Someone else got it.
@@ -720,7 +721,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   // E at the tackle box on the firefly pond's landing: the angler, a rod
   // and the dig, and the bait the rod casts with, the pointer free for it
-  // as at the stand. The angler is the account's (rule 35): the dialog
+  // as at the stand. The angler is the account's (rule 36): the dialog
   // asks the valley for it as it opens; the angler frames that answer
   // show in it as they land. The cast is the click's, with the rod in hand.
   const fish = () => {
@@ -746,7 +747,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   // The click with the rod in hand: a line out answered (fishhud.ts), or
   // a cast from the bank of a firefly pond with the bait picked at the
-  // tackle box. The valley deals what bites (rule 35).
+  // tackle box. The valley deals what bites (rule 36).
   const castOrReel = () => {
     if (game.fishHud.click() || s.line || s.pending.fish) return
     if (
@@ -769,7 +770,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
 
   // The click with the jar in hand: the slurm it is aimed at, if any in
-  // reach (rule 35). The valley says whether it was still there to catch.
+  // reach (rule 36). The valley says whether it was still there to catch.
   const jarSlurm = () => {
     const aim = s.interaction
     if (aim?.kind !== 'jar-slurm' || s.pending.jar) return
@@ -793,10 +794,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     }
   }
 
-  // Q: the next thing carried into the left hand, raised into view. A
+  // R or the wheel: the next thing carried into the left hand, raised
+  // into view. A
   // line in the water is given up as the rod is put away.
-  const switchHeld = () => {
-    const next = nextTool(s.held, s.inventory)
+  const switchHeld = (step: 1 | -1 = 1) => {
+    const next = nextTool(s.held, s.inventory, step)
     if (next === s.held) return
     if (s.held === 'rod') game.fishHud.giveUp()
     s.held = next

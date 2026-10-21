@@ -463,7 +463,7 @@ describe('parseClientMessage', () => {
       line: 'dimes',
     })
     expect(parse({ type: 'recycle', line: 'beam' })).toBeNull()
-    // Fishing at the firefly pond (rule 35).
+    // Fishing at the firefly pond (rule 36).
     expect(parse({ type: 'angler' })).toEqual({ type: 'angler' })
     expect(parse({ type: 'tackle' })).toEqual({ type: 'tackle' })
     expect(parse({ type: 'dig' })).toEqual({ type: 'dig' })
@@ -492,7 +492,7 @@ describe('parseClientMessage', () => {
     // And where the wreck lies, or that there is none (rule 33).
     expect(parse({ ...hello, wreck: null })).toEqual({ ...hello, wreck: null })
     expect(parse({ ...hello, wreck: 'bmw' })).toBeNull()
-    // And the firefly ponds, none or more (rule 35).
+    // And the firefly ponds, none or more (rule 36).
     expect(parse({ ...hello, ponds: [] })).toEqual({ ...hello, ponds: [] })
     expect(parse({ ...hello, ponds: null })).toBeNull()
     expect(parse({ ...hello, ponds: [{ x: 1, z: 2 }] })).toBeNull()

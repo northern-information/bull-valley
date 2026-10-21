@@ -106,7 +106,7 @@ const ROUTES = { home: { x: 10, z: 10 }, joyrideMs: 600_000 }
 const STAND = { x: 5, z: -20 }
 const WRECK_SPOT = { x: 30, z: 40 }
 const DEALER = { x: -30, z: -60 }
-// The firefly ponds (rule 35), away from every station.
+// The firefly ponds (rule 36), away from every station.
 const POND = { x: 800, z: 0, radius: 100, landing: { x: 720, z: 0 } }
 const FAR_POND = { x: -800, z: 900, radius: 60, landing: { x: -760, z: 860 } }
 // Noon, Central time, so a test has the afternoon before the day turns.
@@ -3736,7 +3736,7 @@ describe('rule 34: parties', () => {
   })
 })
 
-describe('rule 35: fishing and the firefly pond', () => {
+describe('rule 36: fishing and the firefly pond', () => {
   const shore = POND.landing
   const holding = (pack: Inventory) => ({ pack, cosmetics: [] })
   const tackle: Inventory = { 'fishing-rod': 1, nightcrawlers: 5, berries: 1 }
@@ -4102,7 +4102,7 @@ describe('rule 35: fishing and the firefly pond', () => {
   })
 })
 
-describe('rule 35: slurms into the jar', () => {
+describe('rule 36: slurms into the jar', () => {
   const slot = Math.floor(T0 / 1000 / CONFIG.slurms.slotSeconds)
   const jar = (
     valley: Valley,

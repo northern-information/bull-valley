@@ -484,7 +484,7 @@ export function wireValley(game: Game, actions: Actions): void {
       s.researchSaid = recycleRefusal(msg.reason)
       hud.tell(s.researchSaid)
     } else if (msg.re === 'jar-slurm') {
-      // Rule 35: gone, out of reach, or no jar with room in it.
+      // Rule 36: gone, out of reach, or no jar with room in it.
       s.pending.jar = false
       hud.tell(jarRefusal(msg.reason))
     } else if (
@@ -493,7 +493,7 @@ export function wireValley(game: Game, actions: Actions): void {
       msg.re === 'cast' ||
       msg.re === 'reel'
     ) {
-      // Rule 35. A reel refused has no line left to reel.
+      // Rule 36. A reel refused has no line left to reel.
       s.pending.fish = false
       if (msg.re === 'reel') s.line = null
       s.fishSaid = fishRefusal(msg.reason)
@@ -621,7 +621,7 @@ export function wireValley(game: Game, actions: Actions): void {
       // Rule 33: loose change, already in the wallet the pack frame says.
       hud.tell(foundLine(msg.dimes))
     } else if (msg.type === 'angler') {
-      // Rule 35: the angler as read, or after a dig, the rod or a catch,
+      // Rule 36: the angler as read, or after a dig, the rod or a catch,
       // to every socket on the account. A dig's and the rod's pack frame
       // follows.
       const angler = toAnglerWire(msg.angler)
@@ -632,19 +632,19 @@ export function wireValley(game: Game, actions: Actions): void {
       s.fishSaid = news
       hud.tell(news)
     } else if (msg.type === 'line') {
-      // Rule 35: the line in the water, as dealt; the dialog plays it.
+      // Rule 36: the line in the water, as dealt; the dialog plays it.
       s.pending.fish = false
       s.fishSaid = null
       s.line = lineOutOf(msg, performance.now())
     } else if (msg.type === 'slurm-jarred') {
-      // Rule 35: a slurm off the lot into someone's jar; ours, its pack
+      // Rule 36: a slurm off the lot into someone's jar; ours, its pack
       // frame follows.
       world.shelves.jarSlurm(msg.station, msg.slot, msg.index)
       if (msg.by !== net.id) return
       s.pending.jar = false
       hud.tell(copy('log.slurm_jarred'))
     } else if (msg.type === 'catch') {
-      // Rule 35: how the line came out; a landed fish's pack frame
+      // Rule 36: how the line came out; a landed fish's pack frame
       // follows.
       s.pending.fish = false
       s.line = null

@@ -131,7 +131,7 @@ export interface ShelfDisplay {
   // behind the counter to talk to.
   clerkAway(station: number): boolean
   // The slurms crawling on the parked station's lot (slurmrig.ts), and one
-  // caught in a jar, gone from it (sharedworld.ts rule 35).
+  // caught in a jar, gone from it (sharedworld.ts rule 36).
   crawlingSlurms(): CrawlingSlurm[]
   jarSlurm(station: number, slot: number, index: number): void
   // Dev: bring the next drop of slurms at the parked station to now.
@@ -252,7 +252,7 @@ export interface World {
   // field; null without
   // a spawn station.
   castle: CastleSite | null
-  // The firefly ponds (fishing.ts pondsOf, sharedworld.ts rule 35), the
+  // The firefly ponds (fishing.ts pondsOf, sharedworld.ts rule 36), the
   // one behind the spawn Citgo and the one past the corn maze: each its
   // place and shore, the tackle box on its landing, and update(t) for the
   // fireflies. None without a spawn station or water near it.

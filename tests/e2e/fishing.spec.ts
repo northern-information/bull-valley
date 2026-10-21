@@ -1,9 +1,9 @@
 import { copy } from './copy.ts'
 import { beginRaid, expect, frames, heardWhere, test } from './fixtures.ts'
 
-// Rule 35: E at the tackle box on the firefly pond's landing opens it: a
+// Rule 36: E at the tackle box on the firefly pond's landing opens it: a
 // rod out of the box, nightcrawlers out of the bank, and the bait picked.
-// Then Q puts the rod in the left hand and the click casts, and the fight
+// Then R puts the rod in the left hand and the click casts, and the fight
 // plays over the view as Final Fantasy XI plays it, the arrows answered
 // until the fish is spent and a click reels it in.
 
@@ -28,7 +28,7 @@ test('the tackle box gives a rod and bait, and a click casts and fights to the e
   await heardWhere(page)
   await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.fish'))
   // Nothing but the flashlight to hold yet.
-  await page.keyboard.press('KeyQ')
+  await page.keyboard.press('KeyR')
   expect(await page.evaluate(() => window.__bv?.held)).toBe('flashlight')
   await page.keyboard.press('KeyE')
   const dialog = page.locator('.bv-fish')
@@ -61,8 +61,8 @@ test('the tackle box gives a rod and bait, and a click casts and fights to the e
     .poll(() => page.evaluate(() => window.__bv?.player.locked))
     .toBe(true)
 
-  // Q: the rod in the left hand, and the click casts.
-  await page.keyboard.press('KeyQ')
+  // R: the rod in the left hand, and the click casts.
+  await page.keyboard.press('KeyR')
   expect(await page.evaluate(() => window.__bv?.held)).toBe('rod')
   await expect
     .poll(() => page.evaluate(() => window.__bv?.sent?.held))
@@ -176,7 +176,7 @@ test('the rod rack sells three rods, and the best in the pack is fished with', a
   )
 })
 
-// Rule 35: the second firefly pond, past the corn maze, has its own
+// Rule 36: the second firefly pond, past the corn maze, has its own
 // tackle box; and Erwin's jar catches a slurm crawling on a Citgo's lot.
 test('two ponds, and a slurm caught alive in the jar', async ({ page }) => {
   test.slow()
@@ -226,13 +226,13 @@ test('two ponds, and a slurm caught alive in the jar', async ({ page }) => {
     bv.player.pitch = -0.9
   })
   await heardWhere(page)
-  // The flashlight in hand offers nothing; Q puts the jar there, and the
+  // The flashlight in hand offers nothing; the wheel puts the jar there, and the
   // click catches the slurm.
   await expect(page.locator('.bv-prompt')).not.toHaveText(
     copy('prompts.jar_slurm')
   )
-  await page.keyboard.press('KeyQ')
-  expect(await page.evaluate(() => window.__bv?.held)).toBe('jar')
+  await page.mouse.wheel(0, -100)
+  await expect.poll(() => page.evaluate(() => window.__bv?.held)).toBe('jar')
   await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.jar_slurm'))
   await page.keyboard.press('KeyE')
   expect(await page.evaluate(() => window.__bv?.inventory.slurm ?? 0)).toBe(0)
