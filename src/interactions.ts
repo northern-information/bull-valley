@@ -93,6 +93,9 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   | { kind: 'stand' }
   // The wreck: E opens the Recycling Center (rule 33).
   | { kind: 'recycle' }
+  // The tackle box on the firefly pond's landing: E opens it to fish
+  // (rule 35).
+  | { kind: 'fish' }
   // The squatter in Bull Valley Plaza: E opens what he is selling
   // (dealer.ts).
   | { kind: 'deal' }
@@ -250,6 +253,8 @@ export interface InteractionInput<P extends PickupSpot> {
   stand?: XZ | null
   // The wreck's middle, or null.
   wreck?: XZ | null
+  // The tackle box on the firefly pond's landing, or null.
+  tackle?: XZ | null
   // The squatter who deals in the plaza, or null.
   dealer?: XZ | null
   // A locked door this raider lacks the key to, or null.
@@ -382,6 +387,15 @@ export function resolveInteraction<P extends PickupSpot>(
     sees(wreck, SIGHTS.wreck)
   ) {
     return { kind: 'recycle' }
+  }
+
+  const tackle = input.tackle
+  if (
+    tackle &&
+    Math.hypot(tackle.x - player.x, tackle.z - player.z) <
+      CONFIG.fishing.pond.reach
+  ) {
+    return { kind: 'fish' }
   }
 
   const dealer = input.dealer
@@ -650,6 +664,8 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return copy('prompts.stand')
     case 'recycle':
       return copy('prompts.recycle')
+    case 'fish':
+      return copy('prompts.fish')
     case 'deal':
       return null
     // As the real one: a label for a thing, the glow alone for a person.

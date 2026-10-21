@@ -40,6 +40,7 @@ import {
   QUARTERS,
 } from './drops.ts'
 import { finishById } from './finishes.ts'
+import { openFishDialog } from './fishdialog.ts'
 import { openGronDialog } from './grondialog.ts'
 import { assign, clearSlot as clearHotbarSlot, place, spent } from './hotbar.ts'
 import { befriended, partied } from './inspect.ts'
@@ -696,6 +697,41 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     )
   }
 
+  // E at the tackle box on the firefly pond's landing: fishing, the pointer
+  // free for it as at the stand. The angler is the account's (rule 35):
+  // the dialog asks the valley for it as it opens; the angler, line and
+  // catch frames that answer show in it as they land, and the fight is
+  // played in it.
+  const fish = () => {
+    if (s.talking || !s.world) return
+    s.fishSaid = null
+    net.send({ type: 'angler' })
+    const ask = (msg: Parameters<typeof net.send>[0]) => {
+      s.pending.fish = true
+      s.fishSaid = null
+      net.send(msg)
+    }
+    withDialog(() =>
+      openFishDialog({
+        angler: () => s.angler,
+        pack: () => s.inventory,
+        line: () => s.line,
+        pending: () => s.pending.fish,
+        said: () => s.fishSaid,
+        serverNow: () => net.clock.serverNow(performance.now()),
+        onTackle: () => ask({ type: 'tackle' }),
+        onDig: () => ask({ type: 'dig' }),
+        onCast: (bait) => ask({ type: 'cast', bait }),
+        onReel: (landed) => ask({ type: 'reel', landed }),
+        onLineDone: (said) => {
+          s.line = null
+          s.fishSaid = said
+          hud.tell(said)
+        },
+      })
+    )
+  }
+
   // E beside Erwin von Dutch, the squatter in the plaza: what he deals
   // and what he wants for it, and his quest, in a dialog with the pointer
   // free, as at the stand (rules 25 and 26).
@@ -1168,6 +1204,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         return
       case 'recycle':
         recycle()
+        return
+      case 'fish':
+        fish()
         return
       case 'deal':
         openDeal()

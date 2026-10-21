@@ -300,6 +300,28 @@
 //    everyone the moment it is). Its chat goes to its members alone,
 //    under the chat rules and rate, and is never kept. Only names and
 //    tags go on the wire.
+// 36. Fishing and the firefly pond (fishing.ts): the pond the world was
+//    opened with (SharedWorld.pond) is a haven past its farthest shore:
+//    no shadowman, spider or spiderling comes inside it, none rushes a
+//    raider in it, and a rush already on breaks off (shadowstep.ts
+//    shadeHavens, rule 11). Every account keeps its angler (Valley.anglers:
+//    its skill, today's count, and when it may next dig). A raider out of
+//    the bed whose last state frame put them at the pond, or dialed in from
+//    anywhere, takes a rod out of the tackle box when the pack holds none
+//    (`tackle`), digs nightcrawlers out of the bank on the valley's roll,
+//    once a cooldown (`dig`), and casts with a bait the pack holds and the
+//    best rod in it (`cast`; ValleyContext.holdings in; a rod off a Citgo's
+//    rack, rule 7, fights and lands as if the skill were higher, fishing.ts
+//    RODS, but never raises it faster). The valley draws what
+//    bites (fishing.ts hookOf, on the bait, the Central hour and the skill)
+//    and when; nothing biting keeps the bait, a bite takes it out of the
+//    pack and leaves the line out (Valley.lines, one a socket). The client
+//    plays the fight it was dealt and reels (`reel`): given up, or too
+//    late, the fish is gone; landed in time, the valley judges the catch on
+//    the skill (landOf), puts a landed one in the pack with its XP (rule
+//    22), may raise the skill (skillAfter), and counts the day's catch
+//    either way. Past CONFIG.fishing.perDay nothing bites until the day
+//    turns.
 
 import { bountyOf } from './book.ts'
 import { dosed, inPassReach, scaled, sobered, wardsOf } from './buffs.ts'
@@ -327,6 +349,25 @@ import {
   woundedBy,
 } from './expeditions.ts'
 import { fallDamage } from './fall.ts'
+import {
+  anglerWire,
+  BOX_ROD,
+  canDig,
+  catchableOf,
+  counted,
+  dugAt,
+  dugOf,
+  fightOf,
+  FRESH_ANGLER,
+  hookOf,
+  inPond,
+  landOf,
+  reachOf,
+  reelInTime,
+  rodIn,
+  skillAfter,
+  tired,
+} from './fishing.ts'
 import { sameName } from './friends.ts'
 import { bury } from './graves.ts'
 import {
@@ -404,6 +445,7 @@ import type { DealerStock } from './dealer.ts'
 import type { Drop, Facing, Spill } from './drops.ts'
 import type { ExpeditionOutcome, ExpeditionRun } from './expeditions.ts'
 import type { Hurt } from './fall.ts'
+import type { Angler, Bait, PondPlace } from './fishing.ts'
 import type { Burial, Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckChange, TruckRoutes, TruckState } from './marx.ts'
@@ -413,8 +455,11 @@ import type { Parties, Party } from './party.ts'
 import type { Portal } from './portals.ts'
 import type { XpGrant, XpSource } from './progression.ts'
 import type {
+  AnglerMessage,
+  CatchMessage,
   DailyMessage,
   DailyWire,
+  LineMessage,
   NackMessage,
   NackRe,
   PartyNewsMessage,
@@ -478,6 +523,8 @@ interface SharedWorld {
   stand: XZ | null
   // Where the wreck lies, or null (rule 33).
   wreck: XZ | null
+  // The firefly pond, or null (rule 35).
+  pond: PondPlace | null
   // Where each berry bush stands, in bush order (rule 8).
   bushes: XZ[]
   // Where the squatter deals, or null, and what he has left today (rule
@@ -522,6 +569,22 @@ export interface Valley {
   // Rule 34: the parties and the invites waiting, by account (never on
   // the wire).
   parties: Parties
+  // Rule 35: account -> its angler, and socket id -> the line it has out.
+  anglers: Record<string, Angler>
+  lines: Record<string, Line>
+}
+
+// Rule 35: a line out with a fish (or the junk) on it: whose, what took
+// it, the skill and the rod it was cast with (the fight is reckoned from
+// them; a line an older build left has none, the tackle box's), the seed
+// its arrows came from, and when it bit (valley ms).
+export interface Line {
+  account: string
+  kind: string
+  skill: number
+  rod?: string
+  seed: number
+  bitesAt: number
 }
 
 interface ValleyCorpse extends Corpse {
@@ -559,6 +622,7 @@ export type ValleyAction =
       routes: TruckRoutes
       stand: XZ | null
       wreck: XZ | null
+      pond: PondPlace | null
       bushes: XZ[]
       dealer: XZ | null
       undercroft: MazePlace | null
@@ -672,6 +736,29 @@ export type ValleyAction =
   | { type: 'stand-collect' | 'stand-upgrade'; id: string; at: XZ | null }
   // Rule 33: the next level on `line`, bought with empties at the wreck.
   | { type: 'recycle'; id: string; line: ResearchLine; at: XZ | null }
+  // Rule 35: a rod out of the tackle box; the bank dug, with the valley's
+  // roll; a line cast, with the valley's roll for what bites and the seed
+  // for when and how it fights; and the line reeled in or given up, with
+  // the valley's rolls for the catch and the skill. at: where the raider's
+  // last state frame put them, or null.
+  | { type: 'tackle'; id: string; at: XZ | null }
+  | { type: 'dig'; id: string; at: XZ | null; roll: number }
+  | {
+      type: 'cast'
+      id: string
+      bait: Bait
+      at: XZ | null
+      roll: number
+      seed: number
+    }
+  | {
+      type: 'reel'
+      id: string
+      landed: boolean
+      roll: number
+      bonus: number
+      skillRoll: number
+    }
   // Rule 30: a run sent out, with the seed the valley drew, and a run home
   // claimed.
   | { type: 'expedition-send'; id: string; kind: string; seed: number }
@@ -712,8 +799,8 @@ export interface ValleyContext {
   // For a buy, or a fall: the account's wallet in cents, as the valley
   // just read it.
   cash?: number
-  // For a trade or a deal: the raider's pack and cosmetics, as the valley
-  // just read them.
+  // For a trade, a deal, a rod out of the tackle box or a cast: the
+  // raider's pack and cosmetics, as the valley just read them.
   holdings?: { pack: Inventory; cosmetics: readonly CosmeticId[] }
   // For a quest's step: where the account stands on it, and its pack, as
   // the valley just read them.
@@ -821,6 +908,10 @@ export interface Reduced {
   // Rule 33: the dimes loose change found over a burst's, already in the
   // taker's wallet (Reduced.earn), for the account's sockets.
   found?: { account: string; dimes: number }
+  // Rule 35: the account's angler as it stands now, for its sockets, and
+  // what a line cast or reeled says to the socket that did it.
+  angler?: { account: string; message: AnglerMessage }
+  fished?: LineMessage | CatchMessage
   // Rule 34: the accounts whose party (or invites) changed, each to be
   // sent its party frame (party.ts partyWire), and the news for the log.
   party?: string[]
@@ -909,6 +1000,8 @@ export function createValley(): Valley {
     wards: {},
     citgos: {},
     parties: NO_PARTIES,
+    anglers: {},
+    lines: {},
   }
 }
 
@@ -1014,6 +1107,11 @@ export function inTheBed(valley: Valley, id: string): boolean {
 // Rule 28: every Citgo `account` has stood at, and the last.
 export function citgosFor(valley: Valley, account: string): CitgoLog {
   return valley.citgos[account] ?? NO_CITGOS
+}
+
+// Rule 35: `account`'s angler as the wire carries it.
+export function anglerFor(valley: Valley, account: string, now: number) {
+  return anglerWire(valley.anglers[account] ?? FRESH_ANGLER, now)
 }
 
 // Rule 2: where `account` comes back to, or null for the spawn Citgo.
@@ -1292,6 +1390,12 @@ function act(
       return onStand(valley, action, context)
     case 'recycle':
       return onRecycle(valley, action, context)
+    case 'tackle':
+    case 'dig':
+    case 'cast':
+      return onAngle(valley, action, context)
+    case 'reel':
+      return onReel(valley, action, context)
     case 'expedition-send':
     case 'expedition-claim':
       return onExpedition(valley, action, context)
@@ -1350,6 +1454,7 @@ function onJoin(
       routes: action.routes,
       stand: action.stand,
       wreck: action.wreck,
+      pond: action.pond,
       bushes: action.bushes,
       dealer: action.dealer,
       dealerStock: freshDealerStock(),
@@ -1379,7 +1484,12 @@ function onJoin(
     level: action.level ?? 1,
   }
   const arrived = backInParty(
-    { ...valley, members, world: { ...world, truck } },
+    {
+      ...valley,
+      members,
+      lines: linesOf(valley, members),
+      world: { ...world, truck },
+    },
     action.account,
     now
   )
@@ -1430,7 +1540,11 @@ function onDial(
     level: action.level,
     dialup: true,
   }
-  const arrived = backInParty({ ...valley, members }, action.account, now)
+  const arrived = backInParty(
+    { ...valley, members, lines: linesOf(valley, members) },
+    action.account,
+    now
+  )
   const next = arrived.valley
   return done(next, now, {
     broadcast: [frame(next, 'joined', { by: action.id })],
@@ -1454,7 +1568,10 @@ function onLeave(
     ? markAway(valley.parties, member.account, now)
     : valley.parties
   const party = gone ? accountsOf(partyOf(parties, member.account)) : []
-  let next: Valley = { ...valley, members, parties }
+  // Rule 35: a line left out goes with the socket.
+  const lines = { ...valley.lines }
+  delete lines[action.id]
+  let next: Valley = { ...valley, members, parties, lines }
   const world = next.world
   // Rule 2: where they stood on foot is where they come back.
   const at = action.at
@@ -2526,6 +2643,180 @@ function onRecycle(
       level: levels[action.line] + 1,
       items: price,
     },
+  })
+}
+
+// Rule 35: the lines still out on a socket among `members`; one whose
+// socket went without a word goes with it.
+function linesOf(
+  valley: Valley,
+  members: Record<string, Member>
+): Record<string, Line> {
+  const lines: Record<string, Line> = {}
+  for (const [id, line] of Object.entries(valley.lines)) {
+    if (members[id]) lines[id] = line
+  }
+  return lines
+}
+
+// Rule 35: the tackle box, the bank and the cast, each from the pond (or
+// dialed in, anywhere).
+function onAngle(
+  valley: Valley,
+  action: ActionOf<'tackle' | 'dig' | 'cast'>,
+  { now, holdings }: ValleyContext
+): Reduced {
+  const member = valley.members[action.id]
+  const world = valley.world
+  const re = action.type
+  const refuse = (reason: string): Reduced =>
+    done(valley, now, { broadcast: [], reply: nack(re, reason) })
+  if (!member) return refuse('not-in-valley')
+  if (!member.dialup) {
+    if (!world) return refuse('not-in-valley')
+    if (isAboard(world.truck, action.id)) return refuse('aboard')
+    if (!action.at || !inPond(world.pond, action.at)) return refuse('no-pond')
+  }
+  const { account } = member
+  const angler = valley.anglers[account] ?? FRESH_ANGLER
+  const tell = (next: Valley, extra: Partial<AnglerMessage> = {}) => ({
+    account,
+    message: {
+      type: 'angler' as const,
+      angler: anglerWire(next.anglers[account] ?? FRESH_ANGLER, now),
+      ...extra,
+    },
+  })
+  if (action.type === 'dig') {
+    if (!canDig(angler, now)) return refuse('too-soon')
+    const count = dugOf(action.roll)
+    const next: Valley = {
+      ...valley,
+      anglers: { ...valley.anglers, [account]: dugAt(angler, now) },
+    }
+    return done(next, now, {
+      broadcast: [],
+      pack: { account, kind: 'nightcrawlers', delta: count },
+      angler: tell(next, { dug: count }),
+    })
+  }
+  if (!holdings) return refuse('unavailable')
+  // The best rod in the pack is the one fished with.
+  const rod = rodIn(holdings.pack)
+  if (action.type === 'tackle') {
+    if (rod) return refuse('has-rod')
+    return done(valley, now, {
+      broadcast: [],
+      pack: { account, kind: BOX_ROD, delta: 1 },
+      angler: tell(valley, { rod: true }),
+    })
+  }
+  if (valley.lines[action.id]) return refuse('busy')
+  if (!rod) return refuse('no-rod')
+  if ((holdings.pack[action.bait] ?? 0) < 1) return refuse('no-bait')
+  if (tired(angler, now)) return refuse('tired')
+  const { bite } = CONFIG.fishing
+  const wait = bite.min + ((action.seed % 1000) / 1000) * (bite.max - bite.min)
+  const bitesIn = Math.round(wait)
+  const hook = hookOf(action.bait, now, reachOf(angler.skill, rod), action.roll)
+  if (!hook) {
+    return done(valley, now, {
+      broadcast: [],
+      fished: { type: 'line', bitesIn, hook: null },
+    })
+  }
+  const line: Line = {
+    account,
+    kind: hook.kind,
+    skill: angler.skill,
+    rod,
+    seed: action.seed,
+    bitesAt: now + bitesIn,
+  }
+  const next: Valley = {
+    ...valley,
+    lines: { ...valley.lines, [action.id]: line },
+  }
+  return done(next, now, {
+    broadcast: [],
+    // The bait goes as the fish takes it.
+    pack: { account, kind: action.bait, delta: -1 },
+    fished: {
+      type: 'line',
+      bitesIn,
+      hook: {
+        call: hook.call,
+        feeling: hook.feeling,
+        epic: hook.epic,
+        fight: fightOf(hook.kind, angler.skill, rod),
+        seed: action.seed,
+      },
+    },
+  })
+}
+
+// Rule 35: the line out reeled in or given up.
+function onReel(
+  valley: Valley,
+  action: ActionOf<'reel'>,
+  { now }: ValleyContext
+): Reduced {
+  const member = valley.members[action.id]
+  const line = valley.lines[action.id] as Line | undefined
+  const refuse = (reason: string): Reduced =>
+    done(valley, now, { broadcast: [], reply: nack('reel', reason) })
+  if (!member) return refuse('not-in-valley')
+  if (!line) return refuse('no-line')
+  const { account } = member
+  const lines = { ...valley.lines }
+  delete lines[action.id]
+  const angler = valley.anglers[account] ?? FRESH_ANGLER
+  const fight = fightOf(line.kind, line.skill, line.rod)
+  const sinceBite = now - line.bitesAt
+  // Given up, reeled before it bit, or out of time: it is gone, and no
+  // count is taken.
+  if (!action.landed || !reelInTime(fight, sinceBite)) {
+    return done({ ...valley, lines }, now, {
+      broadcast: [],
+      fished: { type: 'catch', outcome: 'gave-up', skill: angler.skill },
+    })
+  }
+  const outcome = landOf(line.kind, line.skill, action.roll, line.rod)
+  const skill =
+    outcome === 'landed'
+      ? skillAfter(line.kind, angler.skill, action.skillRoll, action.bonus)
+      : angler.skill
+  const after: Angler = { ...counted(angler, now), skill }
+  const next: Valley = {
+    ...valley,
+    lines,
+    anglers: { ...valley.anglers, [account]: after },
+  }
+  const angled = {
+    account,
+    message: { type: 'angler' as const, angler: anglerWire(after, now) },
+  }
+  if (outcome !== 'landed') {
+    return done(next, now, {
+      broadcast: [],
+      angler: angled,
+      fished: { type: 'catch', outcome, skill },
+    })
+  }
+  const junk = catchableOf(line.kind)?.junk === true
+  return done(next, now, {
+    broadcast: [],
+    pack: { account, kind: line.kind, delta: 1 },
+    angler: angled,
+    fished: {
+      type: 'catch',
+      outcome,
+      kind: line.kind,
+      skill,
+      ...(skill > angler.skill ? { up: true as const } : {}),
+    },
+    // Rule 22.
+    ...(junk ? {} : { xp: [{ account, source: 'fish' as const }] }),
   })
 }
 

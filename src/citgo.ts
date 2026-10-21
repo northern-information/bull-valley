@@ -10,6 +10,8 @@ import {
 } from './assetkit.ts'
 import { bathLit } from './bathglow.ts'
 import { canvas, context2d, SANS, text } from './canvas.ts'
+import { buildRackRod } from './fishmodels.ts'
+import { isRod } from './items.ts'
 import { buildPickup } from './pickups.ts'
 import { buildDumpster } from './plazamodel.ts'
 import { applyPS1 } from './ps1.ts'
@@ -276,8 +278,10 @@ function dumpsterParts(): Part[] {
   }))
 }
 
-// One shelf unit: what the pack shows, without the halo.
+// One shelf unit: what the pack shows, without the halo; a rod stands
+// upright on its rack.
 function buildShelfItem(kind: string): THREE.Object3D {
+  if (isRod(kind)) return buildRackRod(kind)
   return buildPickup(kind, 0x5ac, { glow: false })
 }
 

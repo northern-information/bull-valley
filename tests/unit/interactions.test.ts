@@ -557,6 +557,16 @@ describe('resolveInteraction: bodies and lockers', () => {
     )
   })
 
+  it('opens the tackle box on the firefly pond, within its reach', () => {
+    expect(resolveInteraction(input({ tackle: { x: 252, z: 250 } }))).toEqual({
+      kind: 'fish',
+    })
+    const far = { x: 250 + CONFIG.fishing.pond.reach + 0.1, z: 250 }
+    expect(resolveInteraction(input({ tackle: far }))).toBeNull()
+    expect(resolveInteraction(input({ tackle: null }))).toBeNull()
+    expect(interactionPrompt({ kind: 'fish' })).toBe(copy('prompts.fish'))
+  })
+
   it('opens the Recycling Center at the wreck, within its reach', () => {
     expect(resolveInteraction(input({ wreck: { x: 252, z: 250 } }))).toEqual({
       kind: 'recycle',

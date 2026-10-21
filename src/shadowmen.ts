@@ -151,8 +151,9 @@ export interface ShadowmenStep {
   dt: number
   raiders: readonly Raider[]
   metres: Metres
-  // Citgo forecourts: shadowmen never enter, and a raider is safe inside.
-  havens: readonly XZ[]
+  // Citgo forecourts and the firefly pond: shadowmen never enter, and a
+  // raider is safe inside.
+  havens: readonly Haven[]
   // A dev server's quiet valley, for the specs: the crossings never rush
   // anyone, and only a shadowman a spec placed does.
   calm?: boolean
@@ -195,8 +196,20 @@ export function inBounds(p: XZ, metres: Metres, inset: number): boolean {
   )
 }
 
-export function inHaven(p: XZ, havens: readonly XZ[], radius: number): boolean {
-  return havens.some((h) => Math.hypot(h.x - p.x, h.z - p.z) < radius)
+// A haven: a Citgo forecourt, which reaches CONFIG.shadowmen.havenRadius,
+// or the firefly pond (fishing.ts), which reaches its own `radius`.
+export interface Haven extends XZ {
+  radius?: number
+}
+
+export function inHaven(
+  p: XZ,
+  havens: readonly Haven[],
+  radius: number
+): boolean {
+  return havens.some(
+    (h) => Math.hypot(h.x - p.x, h.z - p.z) < (h.radius ?? radius)
+  )
 }
 
 // Turns s aside where its step took it into a haven or past the survey's
@@ -206,7 +219,7 @@ function turnAside(
   s: Shadowman,
   from: XZ,
   metres: Metres,
-  havens: readonly XZ[],
+  havens: readonly Haven[],
   cfg: ShadowmenConfig
 ): void {
   const mx = metres.width / 2 - cfg.edgeInset
@@ -224,7 +237,7 @@ function turnAside(
     const nx = s.x - h.x
     const nz = s.z - h.z
     const d = Math.hypot(nx, nz)
-    if (d >= cfg.havenRadius || d === 0) continue
+    if (d >= (h.radius ?? cfg.havenRadius) || d === 0) continue
     const dot = (s.dirX * nx + s.dirZ * nz) / d
     if (dot >= 0) continue
     s.dirX -= (2 * dot * nx) / d
@@ -340,7 +353,7 @@ export function spawnShadowman(
   id: number,
   around: XZ,
   metres: Metres,
-  havens: readonly XZ[],
+  havens: readonly Haven[],
   cfg: ShadowmenConfig,
   preroll = 0,
   kind: ShadeKind = 'man'
@@ -429,7 +442,7 @@ function arrival(
   id: number,
   raider: XZ,
   metres: Metres,
-  havens: readonly XZ[],
+  havens: readonly Haven[],
   water: WaterMap | null,
   cfg: ShadowmenConfig
 ): Shadowman {
@@ -493,7 +506,7 @@ function fill(
   rng: Rng,
   raider: XZ,
   metres: Metres,
-  havens: readonly XZ[],
+  havens: readonly Haven[],
   water: WaterMap | null,
   cfg: ShadowmenConfig
 ): void {

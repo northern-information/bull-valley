@@ -25,6 +25,7 @@ import {
   whisperLine,
 } from './chat.ts'
 import { citgoLines, NO_CITGOS } from './citgos.ts'
+import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import {
   cosmeticById,
@@ -47,6 +48,8 @@ import {
   riskOf,
   wardOf,
 } from './expeditions.ts'
+import { lineOutOf, skillText, toAnglerWire } from './fishing.ts'
+import { anglerNews, catchLine, fishRefusal, skillUpLine } from './fishlines.ts'
 import {
   friendNews,
   friendRefusal,
@@ -96,6 +99,7 @@ import type {
   ExpeditionOutcome,
   ExpeditionRun,
 } from './expeditions.ts'
+import type { AnglerWire, LineOut } from './fishing.ts'
 import type { PendingAsk } from './friends.ts'
 import type { Inventory, WardAxis } from './interfaces.ts'
 import type { OutfitId } from './outfits.ts'
@@ -140,6 +144,11 @@ export interface DialState {
   // Rule 33: the research, as the valley last sent it (asked for as the
   // Recycling Center opens); null before.
   research: Research | null
+  // Rule 35: the angler, as the valley last sent it (asked for as the
+  // phone dials in and as the tackle box opens); null before. The line in
+  // the water, as cast (fishing.ts LineOut).
+  angler: AnglerWire | null
+  line: LineOut | null
   health: number
   healthMax: number
   // The wards as the valley last said them, at local `wardsAt` ms; they
@@ -187,6 +196,7 @@ export interface DialState {
 export interface Pending {
   stand: boolean
   recycle: boolean
+  fish: boolean
   locker: boolean
   buy: { station: number; kind: string } | null
   deal: boolean
@@ -209,6 +219,7 @@ export interface Pending {
 const NOTHING_PENDING: Pending = {
   stand: false,
   recycle: false,
+  fish: false,
   locker: false,
   buy: null,
   deal: false,
@@ -242,6 +253,8 @@ export const DIALED: DialState = {
   xp: 0,
   stand: null,
   research: null,
+  angler: null,
+  line: null,
   health: BASE_GEOMETRIE,
   healthMax: BASE_GEOMETRIE,
   wards: NO_WARDS,
@@ -471,6 +484,36 @@ export function applyFrame(
     // Rule 33: loose change found in the 3D valley, for the log.
     case 'found':
       return told(s, foundLine(msg.dimes), wall)
+    // Rule 35: the angler as read, or after a dig, the rod or a catch; the
+    // phone's own dig or rod is answered on the screen and in the log, as
+    // the stand's is.
+    case 'angler': {
+      const next = { ...s, angler: toAnglerWire(msg.angler) ?? s.angler }
+      const line = anglerNews(msg)
+      if (!line) return next
+      const done = { ...next, pending: { ...next.pending, fish: false } }
+      return s.pending.fish
+        ? news(done, line, now, wall)
+        : told(done, line, wall)
+    }
+    // Rule 35: the line in the water, as dealt; the tackle box plays it.
+    case 'line':
+      return {
+        ...s,
+        line: lineOutOf(msg, now),
+        pending: { ...s.pending, fish: false },
+        said: null,
+      }
+    // Rule 35: how the line came out.
+    case 'catch': {
+      const done = {
+        ...s,
+        line: null,
+        pending: { ...s.pending, fish: false },
+      }
+      const caught = news(done, catchLine(msg), now, wall)
+      return msg.up ? told(caught, skillUpLine(msg.skill), wall) : caught
+    }
     // Rule 27: something passed, by this account to a raider or to it.
     case 'passed': {
       const item = itemLabel(msg.kind)
@@ -686,6 +729,20 @@ export function applyFrame(
             recycleRefusal(msg.reason),
             now
           )
+        // Rule 35. A reel refused has no line left to reel.
+        case 'tackle':
+        case 'dig':
+        case 'cast':
+        case 'reel':
+          return saying(
+            {
+              ...s,
+              line: msg.re === 'reel' ? null : s.line,
+              pending: { ...s.pending, fish: false },
+            },
+            fishRefusal(msg.reason),
+            now
+          )
         case 'stow':
         case 'unstow':
           return saying(
@@ -801,7 +858,15 @@ function refused(
 // One line of the raider's record: what it counts, how far along, and how
 // full its bar reads (0 to 1), or null where it has none.
 export interface RaiderStat {
-  id: 'xp' | 'season' | 'task' | 'book' | 'citgos' | 'loose-change' | 'worn'
+  id:
+    | 'xp'
+    | 'season'
+    | 'task'
+    | 'book'
+    | 'citgos'
+    | 'loose-change'
+    | 'fishing'
+    | 'worn'
   label: string
   value: string
   share: number | null
@@ -868,6 +933,19 @@ export function raiderStats(s: DialState, day: string): RaiderStat[] {
         top,
       }),
       share: level / top,
+    })
+  }
+  // Rule 35: the fishing skill, once the valley has said the angler.
+  if (s.angler) {
+    stats.push({
+      id: 'fishing',
+      label: copy('dialup.raider.fishing'),
+      value: copy('dialup.raider.fishing_value', {
+        skill: skillText(s.angler.skill),
+        caught: s.angler.caught,
+        limit: s.angler.perDay,
+      }),
+      share: s.angler.skill / CONFIG.fishing.skillCap,
     })
   }
   if (worn.length > 0) {

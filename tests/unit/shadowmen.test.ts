@@ -136,6 +136,21 @@ describe('inBounds and inHaven', () => {
     expect(inBounds({ x: METRES.width / 2 - 10, z: 0 }, METRES, 30)).toBe(false)
     expect(inHaven({ x: 10, z: 0 }, [ORIGIN], 60)).toBe(true)
     expect(inHaven({ x: 70, z: 0 }, [ORIGIN], 60)).toBe(false)
+    // The firefly pond reaches as far as its own radius.
+    expect(inHaven({ x: 70, z: 0 }, [{ ...ORIGIN, radius: 80 }], 60)).toBe(true)
+    expect(inHaven({ x: 50, z: 0 }, [{ ...ORIGIN, radius: 40 }], 60)).toBe(
+      false
+    )
+  })
+
+  it('turns aside at a haven of its own radius, as at the firefly pond', () => {
+    const havens = [{ x: 0, z: 0, radius: 150 }]
+    // Heading into the fireflies, a little off their middle.
+    const pond = one({ x: 10, z: -150.1, dirX: 0, dirZ: 1 })
+    for (let i = 0; i < 200; i++) step(pond, undefined, { havens })
+    const s = first(pond)
+    expect(s && inHaven(s, havens, CFG.havenRadius)).toBe(false)
+    expect(s && s.x > 10).toBe(true)
   })
 })
 

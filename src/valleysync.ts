@@ -23,6 +23,8 @@ import { crewNews, crewRefusal } from './crews.ts'
 import { DAILY_TASK, taskLine, taskNews, taskOf } from './dailytask.ts'
 import { boughtLine, dealRefusal } from './dealer.ts'
 import { seenEmote } from './emotes.ts'
+import { lineOutOf, toAnglerWire } from './fishing.ts'
+import { anglerNews, catchLine, fishRefusal, skillUpLine } from './fishlines.ts'
 import {
   friendNews,
   friendRefusal,
@@ -475,6 +477,17 @@ export function wireValley(game: Game, actions: Actions): void {
       s.pending.recycle = false
       s.researchSaid = recycleRefusal(msg.reason)
       hud.tell(s.researchSaid)
+    } else if (
+      msg.re === 'tackle' ||
+      msg.re === 'dig' ||
+      msg.re === 'cast' ||
+      msg.re === 'reel'
+    ) {
+      // Rule 35. A reel refused has no line left to reel.
+      s.pending.fish = false
+      if (msg.re === 'reel') s.line = null
+      s.fishSaid = fishRefusal(msg.reason)
+      hud.tell(s.fishSaid)
     } else if (msg.re.startsWith('laptop-')) {
       s.laptop?.refused(msg.reason)
     } else if (msg.re === 'portal') {
@@ -597,6 +610,30 @@ export function wireValley(game: Game, actions: Actions): void {
     } else if (msg.type === 'found') {
       // Rule 33: loose change, already in the wallet the pack frame says.
       hud.tell(foundLine(msg.dimes))
+    } else if (msg.type === 'angler') {
+      // Rule 35: the angler as read, or after a dig, the rod or a catch,
+      // to every socket on the account. A dig's and the rod's pack frame
+      // follows.
+      const angler = toAnglerWire(msg.angler)
+      if (angler) s.angler = angler
+      const news = anglerNews(msg)
+      if (!news) return
+      s.pending.fish = false
+      s.fishSaid = news
+      hud.tell(news)
+    } else if (msg.type === 'line') {
+      // Rule 35: the line in the water, as dealt; the dialog plays it.
+      s.pending.fish = false
+      s.fishSaid = null
+      s.line = lineOutOf(msg, performance.now())
+    } else if (msg.type === 'catch') {
+      // Rule 35: how the line came out; a landed fish's pack frame
+      // follows.
+      s.pending.fish = false
+      s.line = null
+      s.fishSaid = catchLine(msg)
+      hud.tell(s.fishSaid)
+      if (msg.up) hud.tell(skillUpLine(msg.skill))
     } else if (msg.type === 'task') {
       // Rule 16: credited with a burn. A reward's pack frame follows.
       if (!applyTask(msg.task)) return

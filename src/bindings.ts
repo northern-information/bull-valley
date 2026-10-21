@@ -161,6 +161,22 @@ export const MAP = {
   hopOut: { codes: ['KeyE'], key: 'E', labelKey: 'keys.interact' },
 } as const satisfies Record<string, Binding>
 
+// With a fish on the line in the tackle box's dialog (fishdialog.ts): A or
+// ← and D or → answer the arrows, Space or Enter reels a spent fish in.
+export const FISHING = {
+  left: { codes: ['KeyA', 'ArrowLeft'], key: 'A', labelKey: 'keys.fish_left' },
+  right: {
+    codes: ['KeyD', 'ArrowRight'],
+    key: 'D',
+    labelKey: 'keys.fish_right',
+  },
+  reel: {
+    codes: ['Space', 'Enter', 'NumpadEnter'],
+    key: 'Space',
+    labelKey: 'keys.fish_reel',
+  },
+} as const satisfies Record<string, Binding>
+
 // With a keeper's dialog open (the Cabbage Stand's, Erwin von Dutch's):
 // Esc closes it, and its close button wears the key.
 export const DIALOG = {

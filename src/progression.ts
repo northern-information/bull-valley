@@ -31,6 +31,7 @@ export type XpSource =
   | 'citgo'
   | 'landmark'
   | 'expedition'
+  | 'fish'
 
 // The XP each grants: every grant in one table.
 export const XP: Readonly<Record<XpSource, number>> = {
@@ -74,6 +75,9 @@ export const XP: Readonly<Record<XpSource, number>> = {
   // run's CONFIG.expeditions xp: a long run earns more than a short one,
   // and never more than burning shadows for the same hours would.
   expedition: 10,
+  // A fish landed at the firefly pond (fishing.ts, rule 35); the junk
+  // earns none. The day's limit keeps it from farming.
+  fish: 8,
 }
 
 export interface XpGrant {

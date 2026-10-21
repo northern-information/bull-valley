@@ -117,6 +117,7 @@ async function boot(): Promise<void> {
       // lobby's Recycling Center card and the raider's record (rule 33).
       net.send({ type: 'friends' })
       net.send({ type: 'research' })
+      net.send({ type: 'angler' })
     }
     const next = applyFrame(state, msg, performance.now(), Date.now())
     // A frame that changes nothing the phone shows (a pong, a peer's
@@ -352,6 +353,18 @@ async function boot(): Promise<void> {
         onCollect: () => send({ type: 'stand-collect' }, { stand: true }),
         onUpgrade: () => send({ type: 'stand-upgrade' }, { stand: true }),
       }).then(() => shell?.render(state))
+    },
+    // Rule 29: dialed in, the firefly pond is wherever the phone is, as the
+    // stand is (rule 35), drawn in the lobby's sheet (dialfish.ts).
+    fish: {
+      tackle: () => send({ type: 'tackle' }, { fish: true }),
+      dig: () => send({ type: 'dig' }, { fish: true }),
+      cast: (bait) => send({ type: 'cast', bait }, { fish: true }),
+      reel: (landed) => send({ type: 'reel', landed }, { fish: true }),
+      empty: (said) => {
+        state = { ...state, line: null }
+        say(said)
+      },
     },
     // Rule 29: dialed in, the wreck is wherever the phone is.
     openRecycle: () => {

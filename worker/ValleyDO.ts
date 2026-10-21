@@ -68,6 +68,7 @@ import {
   stepShadows,
 } from '../src/shadowstep.ts'
 import {
+  anglerFor,
   citgosFor,
   corpsesOf,
   createValley,
@@ -374,6 +375,41 @@ export class ValleyDO extends DurableObject<Env> {
         return
       case 'recycle':
         await this.recycle(ws, account, { ...msg, id, at })
+        return
+      // Rule 35.
+      case 'angler':
+        if (account) {
+          send(ws, {
+            type: 'angler',
+            angler: anglerFor(this.valley, account, Date.now()),
+          })
+        }
+        return
+      case 'tackle':
+        await this.withPack(ws, account, { type: 'tackle', id, at })
+        return
+      case 'cast':
+        await this.withPack(ws, account, {
+          type: 'cast',
+          id,
+          bait: msg.bait,
+          at,
+          roll: this.roll(),
+          seed: Math.floor(this.roll() * 2 ** 32),
+        })
+        return
+      case 'dig':
+        await this.act(ws, { type: 'dig', id, at, roll: this.roll() })
+        return
+      case 'reel':
+        await this.act(ws, {
+          type: 'reel',
+          id,
+          landed: msg.landed,
+          roll: this.roll(),
+          bonus: this.roll(),
+          skillRoll: this.roll(),
+        })
         return
       case 'expedition-send':
         await this.expedition(ws, account, {
@@ -1390,6 +1426,7 @@ export class ValleyDO extends DurableObject<Env> {
               routes: hello.truck,
               stand: hello.stand,
               wreck: hello.wreck,
+              pond: hello.pond,
               bushes: hello.bushes,
               dealer: hello.dealer,
               undercroft: hello.undercroft,
@@ -1959,6 +1996,28 @@ export class ValleyDO extends DurableObject<Env> {
     })
   }
 
+  // Rule 35: a rod out of the tackle box or a cast, with the pack read
+  // first, so the valley knows the rod and the bait are in it. A pack that
+  // cannot be read is refused.
+  private withPack(
+    ws: WebSocket,
+    account: string | null,
+    action: Extract<ValleyAction, { type: 'tackle' | 'cast' }>
+  ): Promise<boolean> {
+    return this.locked(async () => {
+      if (!account) return false
+      let holdings: Holdings
+      try {
+        holdings = await this.packs().get(account)
+      } catch (err) {
+        console.error('The pack could not be read', err)
+        send(ws, { type: 'nack', re: action.type, reason: 'unavailable' })
+        return false
+      }
+      return this.actHeld(ws, action, { holdings })
+    })
+  }
+
   // Rule 33: the account's research, to the socket that asked.
   private async sendResearch(ws: WebSocket, account: string): Promise<void> {
     try {
@@ -2040,13 +2099,16 @@ export class ValleyDO extends DurableObject<Env> {
   private async actHeld(
     ws: WebSocket,
     action: ValleyAction,
-    read: Pick<ValleyContext, 'research'> = {}
+    read: Pick<ValleyContext, 'research' | 'holdings'> = {}
   ): Promise<boolean> {
     const reduced = reduce(this.valley, action, { ...this.context(), ...read })
     const account = reduced.pack?.account ?? reduced.earn?.account
     const written = await this.write(reduced.pack, reduced.earn)
     if (written !== 'done') {
-      if (written === 'none-left') {
+      if (written === 'none-left' && action.type === 'cast') {
+        // Rule 35: the bait went from the pack since it was read.
+        send(ws, { type: 'nack', re: 'cast', reason: 'no-bait' })
+      } else if (written === 'none-left') {
         send(ws, { type: 'nack', re: 'use', reason: 'none-left' })
       } else {
         const nack = unwrittenNack(action)
@@ -2064,6 +2126,12 @@ export class ValleyDO extends DurableObject<Env> {
         dimes: reduced.found.dimes,
       })
     }
+    // Rule 35: the angler to every socket on the account, and the line or
+    // the catch to the one that fished.
+    if (reduced.angler) {
+      this.toAccount(reduced.angler.account, reduced.angler.message)
+    }
+    if (reduced.fished) send(ws, reduced.fished)
     for (const msg of reduced.broadcast) this.broadcast(msg, null)
     if (account) await this.repack(ws, null, account)
     return !reduced.reply
@@ -3118,6 +3186,11 @@ function unwrittenNack(action: ValleyAction): NackMessage | null {
       return { type: 'nack', re: 'take-drop', reason, drop: action.drop }
     case 'collect':
       return { type: 'nack', re: 'collect', reason }
+    case 'tackle':
+    case 'dig':
+    case 'cast':
+    case 'reel':
+      return { type: 'nack', re: action.type, reason }
     default:
       return null
   }

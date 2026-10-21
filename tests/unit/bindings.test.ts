@@ -3,6 +3,7 @@ import {
   actionOf,
   BOOK,
   CHAT,
+  FISHING,
   hotbarSlot,
   isHeld,
   MOVE,
@@ -19,6 +20,7 @@ const tables: [string, Record<string, Binding>][] = [
   ['PACK', PACK],
   ['CHAT', CHAT],
   ['BOOK', BOOK],
+  ['FISHING', FISHING],
 ]
 
 describe.each(tables)('%s', (_name, table) => {

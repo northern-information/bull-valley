@@ -2823,6 +2823,59 @@
   background: var(--bv-citgo);
 }
 
+/* The tackle box's fight (fishdialog.ts): the arrow to answer between the
+   two keys, gold for a gold one, the fish's stamina and the line's clock
+   as the till's meters. What is not showing yet stays hidden whatever the
+   frame's own display says. */
+.bv-fish [hidden] {
+  display: none;
+}
+
+.bv-fish-call {
+  font-weight: 600;
+}
+
+.bv-fish-fight {
+  align-items: center;
+}
+
+.bv-fish-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+  font-size: 3rem;
+  line-height: 1;
+  border: 1px solid var(--bv-npc-line);
+}
+
+.bv-fish-arrow--gold {
+  color: var(--fi-gold);
+  border-color: var(--fi-gold);
+  box-shadow: 0 0 8px var(--fi-gold);
+}
+
+.bv-fish-arrow--spent {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--bv-citgo);
+  border-color: var(--bv-citgo);
+}
+
+.bv-fish-dir {
+  min-height: 72px;
+}
+
+/* Reel In wears its key beside its label, as the way out does. */
+.bv-fish-reel {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+}
+
 .bv-stand--full [data-bv='stand-banked'],
 .bv-stand--full [data-bv='stand-cap'] {
   color: var(--bv-citgo);

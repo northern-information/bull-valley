@@ -22,6 +22,12 @@ import {
   withCitgoNames,
 } from '../../src/dialstate.ts'
 import { riskOf } from '../../src/expeditions.ts'
+import {
+  anglerNews,
+  catchLine,
+  fishRefusal,
+  skillUpLine,
+} from '../../src/fishlines.ts'
 import { itemLabel, itemLine } from '../../src/itemcopy.ts'
 import { healsOf, itemById } from '../../src/items.ts'
 import { outfitById } from '../../src/outfits.ts'
@@ -154,6 +160,80 @@ describe("Dial-Up's state", () => {
     expect(
       applyFrame(s, { type: 'nack', re: 'pass', reason: 'dialup' }, 9, 9)
     ).toBe(s)
+  })
+
+  it('keeps the angler and the line, and says the dig, the catch and a refusal', () => {
+    const angler = { skill: 12, caught: 1, perDay: 40, digAt: 0 }
+    let s = applyFrame(DIALED, { type: 'angler', angler }, 1, 1)
+    expect(s.angler).toEqual(angler)
+    expect(s.said).toBeNull()
+    expect(
+      raiderStats(s, '2026-10-21').find((st) => st.id === 'fishing')
+    ).toEqual({
+      id: 'fishing',
+      label: copy('dialup.raider.fishing'),
+      value: copy('dialup.raider.fishing_value', {
+        skill: '1.2',
+        caught: 1,
+        limit: 40,
+      }),
+      share: 12 / CONFIG.fishing.skillCap,
+    })
+    s = applyFrame(
+      asked(s, { fish: true }),
+      { type: 'angler', angler, dug: 2 },
+      2,
+      2
+    )
+    expect(s.pending.fish).toBe(false)
+    expect(s.said).toEqual({ text: anglerNews({ dug: 2 }), at: 2 })
+    // A rod out of the box from the 3D valley goes into the log alone.
+    s = applyFrame(s, { type: 'angler', angler, rod: true }, 3, 3)
+    expect(s.chat.at(-1)?.text).toBe(anglerNews({ rod: true }))
+    // A garbled angler keeps the one it had.
+    s = applyFrame(s, { type: 'angler', angler: null as never }, 3, 3)
+    expect(s.angler).toEqual(angler)
+    s = applyFrame(
+      asked(s, { fish: true }),
+      { type: 'line', bitesIn: 500, hook: null },
+      4,
+      4
+    )
+    expect(s.line).toEqual({ hook: null, bitesAt: 504 })
+    expect(s.pending.fish).toBe(false)
+    s = applyFrame(
+      s,
+      {
+        type: 'catch',
+        outcome: 'landed',
+        kind: 'bluegill',
+        skill: 13,
+        up: true,
+      },
+      5,
+      5
+    )
+    expect(s.line).toBeNull()
+    expect(s.said?.text).toBe(
+      catchLine({ outcome: 'landed', kind: 'bluegill' })
+    )
+    expect(s.chat.at(-1)?.text).toBe(skillUpLine(13))
+    s = applyFrame(
+      { ...asked(s, { fish: true }), line: { hook: null, bitesAt: 9 } },
+      { type: 'nack', re: 'reel', reason: 'no-line' },
+      6,
+      6
+    )
+    expect(s.line).toBeNull()
+    expect(s.pending.fish).toBe(false)
+    expect(s.said).toEqual({ text: fishRefusal('no-line'), at: 6 })
+    s = applyFrame(
+      { ...s, line: { hook: null, bitesAt: 9 } },
+      { type: 'nack', re: 'cast', reason: 'tired' },
+      7,
+      7
+    )
+    expect(s.line).toEqual({ hook: null, bitesAt: 9 })
   })
 
   it('keeps the research, and says a level, loose change and a refusal', () => {

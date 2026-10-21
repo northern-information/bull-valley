@@ -409,7 +409,12 @@ export const CONFIG = {
     // Units of every item on each Citgo's shelves when the day turns, and
     // the kinds stocked deeper than that.
     perItem: 3,
-    stock: { 'ice-mountain': 20 } as Readonly<Record<string, number>>,
+    stock: {
+      'ice-mountain': 20,
+      // The rod rack: fewer of the dearer rods.
+      'ugly-stik': 2,
+      'g-loomis': 1,
+    } as Readonly<Record<string, number>>,
     // How close a shelf unit must be, from the eye, for E to buy it.
     reach: 2.2,
     // How far off the view ray, in radians, a unit can sit and still be
@@ -931,6 +936,65 @@ export const CONFIG = {
         },
       ] as { chance: number; price: Record<string, number> }[],
     },
+  },
+  // Fishing at the firefly pond (fishing.ts, sharedworld.ts rule 35),
+  // after Final Fantasy XI's: bait on the hook, a wait, a bite, and a
+  // fight against the fish's stamina and the clock, with a skill each
+  // account raises a tenth at a time.
+  fishing: {
+    pond: {
+      // The pond is the nearest water area to the spawn Citgo's pump island
+      // whose shore comes within `search` metres of it.
+      search: 450,
+      // The fireflies' haven reaches this far past the farthest shore from
+      // the pond's middle: no shadow comes inside it.
+      margin: 30,
+      // The landing (the tackle box) stands this far back from the water,
+      // on the shore nearest the Citgo.
+      landingBack: 2.5,
+      // How close the landing must be for E to open the tackle box.
+      reach: 3,
+    },
+    // The highest skill, in tenths (100.0).
+    skillCap: 1000,
+    // What bites, by how well a fish takes the bait (fishing.ts FISH
+    // `bait`, a tier 0 to 3): each tier's weight in the draw, and the
+    // weight of nothing biting at all.
+    tierWeights: [0, 30, 60, 75],
+    nothingWeight: 40,
+    // A fish above the raider's skill is rarer by this share a level, down
+    // to `floor` of its weight.
+    gapRarity: 1 / 60,
+    gapFloor: 0.15,
+    // The wait from the cast to the bite, in ms, drawn between the two.
+    bite: { min: 5000, max: 12000 },
+    // The fight (fishing.ts fightOf): the fish's stamina; an arrow every
+    // `arrowMs` (quicker on a large fish), each pressed inside `windowMs`;
+    // a silver arrow takes `silver`, a gold one `gold` times as much, at
+    // `goldChance`; a wrong key or a missed arrow gives the fish `pull`
+    // back; and the clock, in ms.
+    fight: {
+      stamina: 100,
+      arrowMs: { small: 1100, large: 900 },
+      windowMs: { small: 750, large: 600 },
+      silver: 12,
+      gold: 3,
+      goldChance: 0.1,
+      pull: { small: 6, large: 10 },
+      limitMs: { small: 25000, large: 40000, legend: 60000 },
+      // The line that says the clock is running out comes this long before.
+      warnMs: 7000,
+    },
+    // The valley takes a reel no sooner than this share of the quickest
+    // fight could have ended, and no later than this long past the clock.
+    fastShare: 0.75,
+    lateMs: 3000,
+    // A day's catches (and fish lost on the line) an account may take:
+    // past it nothing bites until the day turns, as FFXI's fatigue.
+    perDay: 40,
+    // Digging the mud bank: between `min` and `max` nightcrawlers, once
+    // every `cooldownSeconds` an account.
+    dig: { min: 1, max: 3, cooldownSeconds: 20 },
   },
   lonePine: {
     // The lone pine among the dishes behind the spawn Citgo, station-local

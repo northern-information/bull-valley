@@ -51,6 +51,7 @@ import type {
 import type { Rng } from './rng.ts'
 import type {
   Beam,
+  Haven,
   Raider,
   ShadeKind,
   Shadowman,
@@ -328,6 +329,17 @@ function burnCredits(
   }
 }
 
+// Rule 35: where the shadowmen turn aside: every Citgo forecourt, and the
+// firefly pond, as far past its shore as its haven reaches.
+export function shadeHavens(
+  world: Pick<NonNullable<Valley['world']>, 'havens' | 'pond'>
+): Haven[] {
+  const { pond } = world
+  return pond
+    ? [...world.havens, { x: pond.x, z: pond.z, radius: pond.radius }]
+    : world.havens
+}
+
 // One step of the valley's shadowmen, its Caretaker and its tunnel shades,
 // dt seconds on. Null when there is nothing to step (no world, or no one
 // placed in it), and the field is emptied, so the valley stops stepping
@@ -358,7 +370,7 @@ export function stepShadows(
       dt,
       raiders: surface,
       metres: world.metres,
-      havens: world.havens,
+      havens: shadeHavens(world),
       water: world.water,
       calm,
       lights: headlightsAt(shadows, now),

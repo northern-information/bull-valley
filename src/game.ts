@@ -23,6 +23,7 @@ import type { DonutWake } from './donutwakerig.ts'
 import type { DropMeshes } from './dropmeshes.ts'
 import type { Drop } from './drops.ts'
 import type { Emoting } from './emotes.ts'
+import type { AnglerWire, LineOut } from './fishing.ts'
 import type { FirstPersonHands } from './fphands.ts'
 import type { PendingAsk } from './friends.ts'
 import type { Glow } from './glow.ts'
@@ -112,6 +113,8 @@ export interface Pending {
   stand: boolean
   // Rule 33: a level bought at the Recycling Center.
   recycle: boolean
+  // Rule 35: a rod, a dig, a cast or a reel at the firefly pond.
+  fish: boolean
 }
 
 export function freshPending(): Pending {
@@ -132,6 +135,7 @@ export function freshPending(): Pending {
     crew: null,
     stand: false,
     recycle: false,
+    fish: false,
   }
 }
 
@@ -268,6 +272,12 @@ export interface GameState {
   // word on a level, for the dialog.
   research: Research | null
   researchSaid: string | null
+  // Rule 35: the account's angler as the valley last sent it (asked for
+  // as the tackle box opens); null before it has. The line in the water,
+  // as cast (fishing.ts LineOut), and the last word on fishing.
+  angler: AnglerWire | null
+  line: LineOut | null
+  fishSaid: string | null
   // Rule 28: every Citgo the account has stood at, and the last, as the
   // valley last said (the welcome, then every citgos frame). The Citgo
   // portals, from every snapshot; the id of the one this raider opened, while it
@@ -362,6 +372,9 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     standSaid: null,
     research: null,
     researchSaid: null,
+    angler: null,
+    line: null,
+    fishSaid: null,
     citgos: NO_CITGOS,
     portals: [],
     myPortal: null,

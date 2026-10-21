@@ -447,6 +447,17 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     if (world.wreck && live(world.wreck.group.position)) {
       world.wreck.update(time)
     }
+    // The fireflies blink over the pond, and the bobber floats while a
+    // line is out (fishing.ts).
+    const pond = world.pond
+    if (pond && live(pond.place, pond.place.radius)) {
+      const line = s.line
+      pond.setLine(
+        line !== null,
+        line?.hook != null && performance.now() >= line.bitesAt
+      )
+      pond.update(time)
+    }
     // The dishes slew on the valley's clock, so every raider sees them
     // look the same way.
     const dishes = world.dishes
@@ -735,6 +746,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       wreck: world.wreck
         ? { x: world.wreck.group.position.x, z: world.wreck.group.position.z }
         : null,
+      tackle: world.pond?.landing ?? null,
       dealer: world.plaza?.dealer.at ?? null,
       trapdoor: world.undercroft?.hatch ?? null,
       ladder: world.undercroft?.foot ?? null,

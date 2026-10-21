@@ -13,7 +13,8 @@ import { berryMaterial } from './berrybush.ts'
 import { paintTwenty } from './billart.ts'
 import { canvas } from './canvas.ts'
 import { buildDrink } from './drinkmodels.ts'
-import { isCigarette, isDrink, isMedicine } from './items.ts'
+import { buildFish, buildFishingRod, buildNightcrawlers } from './fishmodels.ts'
+import { isCigarette, isDrink, isFish, isMedicine, isRod } from './items.ts'
 import { buildMedicine } from './medicinemodels.ts'
 import { paintPack } from './packart.ts'
 import { mulberry32, range } from './rng.ts'
@@ -26,7 +27,8 @@ import type { Rng } from './rng.ts'
 // shelves show: the cigarette packs, the joints, the berries, the dimes,
 // the plaza's quarters, the $20 bill, the gold bullion, the cabbage,
 // Erwin's goods, his rose, the Video Vault's key and the empties, behind one
-// buildPickup keyed by kind. The drinks and the medicine are built in their own
+// buildPickup keyed by kind. The drinks, the medicine, and the fish, the
+// fishing rod and the nightcrawlers (fishmodels.ts) are built in their own
 // modules and come in through it.
 
 // --- Cigarette packs -----------------------------------------------------
@@ -1014,6 +1016,11 @@ export function buildPickup(
   const empty = EMPTIES[kind]
   if (empty) return empty({ glow })
   if (isMedicine(kind)) return buildMedicine(kind, { glow })
+  if (isFish(kind)) return buildFish(kind, { glow })
+  if (kind === 'fishing-rod' || isRod(kind)) {
+    return buildFishingRod(kind, { glow })
+  }
+  if (kind === 'nightcrawlers') return buildNightcrawlers({ glow })
   let mesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshLambertMaterial>
   if (kind === 'cabbage') {
     const sphere = new THREE.SphereGeometry(0.35, 6, 5)

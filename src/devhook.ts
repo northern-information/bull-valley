@@ -13,6 +13,7 @@ import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { TaskProgress } from './dailytask.ts'
 import type { Drop } from './drops.ts'
+import type { AnglerWire, LineOut, PondPlace } from './fishing.ts'
 import type { CrewState, Game } from './game.ts'
 import type { Grave } from './graves.ts'
 import type { Hallucination, HallucinationShape } from './hallucinations.ts'
@@ -118,6 +119,12 @@ interface BvHook {
   // the Recycling Center first opens), and where the wreck lies.
   readonly research: Research | null
   readonly wreckAt: XZ | null
+  // Rule 35: the account's angler as the valley last said (null before the
+  // tackle box first opens), the line in the water, and the firefly pond:
+  // its middle, its haven's reach and the tackle box's landing.
+  readonly angler: AnglerWire | null
+  readonly line: LineOut | null
+  readonly pond: PondPlace | null
   // Rule 28: every Citgo the account has stood at and the last, the Citgo
   // portals open, the id of ours while it stands, the milliseconds before
   // a portal takes us again after one has (CONFIG.portal.graceSeconds),
@@ -309,6 +316,18 @@ export function installDevHook(game: Game, actions: Actions): void {
       const wreck = game.world.wreck
       return wreck
         ? { x: wreck.group.position.x, z: wreck.group.position.z }
+        : null
+    },
+    get angler() {
+      return s.angler
+    },
+    get line() {
+      return s.line
+    },
+    get pond() {
+      const pond = game.world.pond?.place
+      return pond
+        ? { x: pond.x, z: pond.z, radius: pond.radius, landing: pond.landing }
         : null
     },
     get citgos() {

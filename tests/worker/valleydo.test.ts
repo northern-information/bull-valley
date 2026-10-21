@@ -7,6 +7,7 @@ import { DAILY_TASK, NO_TASK } from '../../src/dailytask.ts'
 import { costIn, goodOf } from '../../src/dealer.ts'
 import { DIME_CENTS } from '../../src/drops.ts'
 import { outcomeOf } from '../../src/expeditions.ts'
+import { quickestMs } from '../../src/fishing.ts'
 import { BASE_GEOMETRIE } from '../../src/health.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { getItem, healsOf } from '../../src/items.ts'
@@ -23,9 +24,12 @@ import { MemoryPackStore, STARTING_CASH } from '../../worker/packs.ts'
 import { ValleyDO } from '../../worker/ValleyDO.ts'
 import type { Inventory } from '../../src/interfaces.ts'
 import type {
+  AnglerMessage,
   BookMessage,
+  CatchMessage,
   DailyMessage,
   ExpeditionMessage,
+  LineMessage,
   NackMessage,
   PackMessage,
   PeerChatMessage,
@@ -223,6 +227,8 @@ const MAZE = { x: 5000, z: 5000, yaw: 0 }
 // Where a build sets up the Cabbage Stand: on the first station's lot.
 const STAND = { x: -4, z: -17 }
 const WRECK = { x: 6, z: 27 }
+// The firefly pond (rule 35), clear of every station.
+const POND = { x: -5000, z: 5000, radius: 80, landing: { x: -5060, z: 5000 } }
 const DEALER = { x: -20, z: -55 }
 // Where the Undercroft lies, far from everything else.
 const CROFT = { x: -7000, z: -7000, yaw: 0 }
@@ -259,6 +265,7 @@ const hello = (
     truck: { home: { x: 10, z: 10 }, joyrideMs: 600_000 },
     stand: STAND,
     wreck: WRECK,
+    pond: POND,
     bushes: Array.from({ length: 7 }, () => ({ x: 0, z: 0 })),
     dealer: DEALER,
     undercroft: CROFT,
@@ -2887,6 +2894,98 @@ describe('ValleyDO: the Recycling Center', () => {
       expect(nack(a)).toMatchObject({ re: 'recycle', reason: 'unavailable' })
       await v.webSocketMessage(ws(a), '{"type":"research"}')
       expect(nack(a)).toMatchObject({ re: 'recycle', reason: 'unavailable' })
+    } finally {
+      console.error = error
+      v.packStore = store
+    }
+  })
+})
+
+describe('ValleyDO: fishing at the firefly pond', () => {
+  const last = <T extends ServerMessage['type']>(socket: MockSocket, type: T) =>
+    socket
+      .frames()
+      .findLast(
+        (m): m is Extract<ServerMessage, { type: T }> => m.type === type
+      )
+  const send = (v: TestValley, socket: MockSocket, msg: object) =>
+    v.webSocketMessage(ws(socket), JSON.stringify(msg))
+
+  it('digs, takes a rod, casts, and lands what bit, the pack and the angler together', async () => {
+    // Noon Central: on worms, a draw of 0.3 hooks a bluegill at skill 0.
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.UTC(2026, 6, 1, 17) })
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const other = await join(v, s, 'A2', { account: 'acct-A' })
+    v.rolled = 0.3
+    await v.webSocketMessage(ws(a), state(0, 0))
+    await send(v, a, { type: 'dig' })
+    expect(last(a, 'nack')).toMatchObject({ re: 'dig', reason: 'no-pond' })
+    await v.webSocketMessage(ws(a), state(POND.landing.x, POND.landing.z))
+    await send(v, a, { type: 'angler' })
+    expect(last(a, 'angler')?.angler).toMatchObject({ skill: 0, caught: 0 })
+    await send(v, a, { type: 'dig' })
+    expect(last(a, 'angler')?.dug).toBe(CONFIG.fishing.dig.min)
+    expect(last(a, 'pack')?.pack.nightcrawlers).toBe(CONFIG.fishing.dig.min)
+    await send(v, a, { type: 'dig' })
+    expect(last(a, 'nack')).toMatchObject({ re: 'dig', reason: 'too-soon' })
+    await send(v, a, { type: 'cast', bait: 'nightcrawlers' })
+    expect(last(a, 'nack')).toMatchObject({ re: 'cast', reason: 'no-rod' })
+    await send(v, a, { type: 'tackle' })
+    expect(last(other, 'angler')?.rod).toBe(true)
+    expect(last(a, 'pack')?.pack['fishing-rod']).toBe(1)
+    await send(v, a, { type: 'tackle' })
+    expect(last(a, 'nack')).toMatchObject({ re: 'tackle', reason: 'has-rod' })
+    await send(v, a, { type: 'cast', bait: 'nightcrawlers' })
+    const line = last(a, 'line') as LineMessage
+    expect(line.hook?.call).toBe('small')
+    expect(last(other, 'line')).toBeUndefined()
+    expect(last(a, 'pack')?.pack.nightcrawlers).toBe(0)
+    await send(v, a, { type: 'cast', bait: 'berries' })
+    expect(last(a, 'nack')).toMatchObject({ re: 'cast', reason: 'busy' })
+    vi.setSystemTime(Date.now() + line.bitesIn + quickestMs(line.hook!.fight))
+    await send(v, a, { type: 'reel', landed: true })
+    expect(last(a, 'catch') as CatchMessage).toMatchObject({
+      type: 'catch',
+      outcome: 'landed',
+      kind: 'bluegill',
+    })
+    expect(last(a, 'pack')?.pack.bluegill).toBe(1)
+    expect((last(other, 'angler') as AnglerMessage).angler.caught).toBe(1)
+    await send(v, a, { type: 'reel', landed: true })
+    expect(last(a, 'nack')).toMatchObject({ re: 'reel', reason: 'no-line' })
+  })
+
+  it('refuses a cast when the pack cannot be read, or the bait is gone', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    await v.webSocketMessage(ws(a), state(POND.landing.x, POND.landing.z))
+    await send(v, a, { type: 'tackle' })
+    const store = v.packStore
+    const error = console.error
+    console.error = () => {}
+    try {
+      v.packStore = Object.assign(Object.create(store) as PackStore, {
+        get: () => Promise.reject(new Error('down')),
+      })
+      await send(v, a, { type: 'cast', bait: 'berries' })
+      expect(last(a, 'nack')).toMatchObject({
+        re: 'cast',
+        reason: 'unavailable',
+      })
+      // The pack read with a berry in it, gone by the time it is written.
+      v.packStore = Object.assign(Object.create(store) as PackStore, {
+        get: async (id: string) => {
+          const held = await store.get(id)
+          return { ...held, pack: { ...held.pack, berries: 1 } }
+        },
+      })
+      v.rolled = 0.999
+      await send(v, a, { type: 'cast', bait: 'berries' })
+      expect(last(a, 'nack')).toMatchObject({ re: 'cast', reason: 'no-bait' })
     } finally {
       console.error = error
       v.packStore = store

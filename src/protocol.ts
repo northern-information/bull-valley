@@ -6,6 +6,7 @@
 import { USERNAME_MAX } from './account.ts'
 import { EMOTE_IDS } from './emotes.ts'
 import { isFallHeight } from './fall.ts'
+import { isBait, toPondPlace } from './fishing.ts'
 import { isHealth } from './health.ts'
 import { isFileBody, isFileId, isFileName } from './laptop.ts'
 import { isQuestStep } from './quests.ts'
@@ -19,6 +20,13 @@ import type { Drop } from './drops.ts'
 import type { ExpeditionOutcome, ExpeditionRun } from './expeditions.ts'
 import type { Hurt } from './fall.ts'
 import type { FinishId } from './finishes.ts'
+import type {
+  AnglerWire,
+  Bait,
+  CatchOutcome,
+  HookWire,
+  PondPlace,
+} from './fishing.ts'
 import type { Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { LaptopFileInfo } from './laptop.ts'
@@ -265,6 +273,10 @@ export interface HelloMessage {
   // Citgo's, then the maze's ring): a berry only for a raider in reach
   // (rule 8).
   bushes: XZ[]
+  // The firefly pond (fishing.ts), or null: no shadow comes inside its
+  // haven (rule 11), and the valley lets a raider fish only from it (rule
+  // 35).
+  pond: PondPlace | null
   // Where the squatter in Bull Valley Plaza sits, or null: the valley
   // deals only with a raider beside him (rule 25).
   dealer: XZ | null
@@ -403,6 +415,20 @@ type StandTendMessage =
 // PackMessage after a level), or a nack.
 type RecycleTendMessage =
   { type: 'research' } | { type: 'recycle'; line: ResearchLine }
+
+// Fishing at the firefly pond (sharedworld.ts rule 35): the account's
+// angler, please; a rod out of the tackle box; nightcrawlers dug out of
+// the bank; a line cast with `bait` on the hook; or the line out reeled in
+// (`landed`: the fish was spent) or given up. The valley checks the
+// raider's last state frame put them at the pond (dialed in, it is
+// wherever they are), and answers with an AnglerMessage, a LineMessage or
+// a CatchMessage (and a PackMessage), or a nack.
+type FishMessage =
+  | { type: 'angler' }
+  | { type: 'tackle' }
+  | { type: 'dig' }
+  | { type: 'cast'; bait: Bait }
+  | { type: 'reel'; landed: boolean }
 
 // An expedition (sharedworld.ts rule 30): a run of `kind` sent out, or the
 // run home claimed. Dial-Up only; the valley answers with an
@@ -666,6 +692,7 @@ export type ClientMessage =
   | StowMessage
   | StandTendMessage
   | RecycleTendMessage
+  | FishMessage
   | ExpeditionTendMessage
   | TradeMessage
   | DealMessage
@@ -697,7 +724,14 @@ export type ClientMessage =
 // What a client may be refused for.
 export type NackRe = Exclude<
   ClientMessage['type'],
-  'hello' | 'dial' | 'state' | 'headlights' | 'ping' | 'friends' | 'research'
+  | 'hello'
+  | 'dial'
+  | 'state'
+  | 'headlights'
+  | 'ping'
+  | 'friends'
+  | 'research'
+  | 'angler'
 >
 
 // --- Server → client -------------------------------------------------------
@@ -807,6 +841,35 @@ export interface ResearchMessage {
 export interface FoundMessage {
   type: 'found'
   dimes: number
+}
+
+// The account's angler (rule 35), to every socket signed in to it: in
+// answer to an angler frame, after a dig (`dug`, the nightcrawlers it
+// turned up, a pack frame following), after the rod comes out of the
+// tackle box (`rod`), and after a catch.
+export interface AnglerMessage {
+  type: 'angler'
+  angler: AnglerWire
+  dug?: number
+  rod?: true
+}
+
+// A line cast (rule 35), to the socket that cast it: `hook` null when
+// nothing will bite, after `bitesIn` ms either way (fishing.ts HookWire).
+export interface LineMessage {
+  type: 'line'
+  bitesIn: number
+  hook: HookWire | null
+}
+
+// How the line out ended (rule 35), to the socket that reeled: what came
+// in when it was landed, and the skill after, `up` when it rose.
+export interface CatchMessage {
+  type: 'catch'
+  outcome: CatchOutcome
+  kind?: string
+  skill: number
+  up?: true
 }
 
 // An account's progress through the season (sharedworld.ts rule 15): the
@@ -1113,6 +1176,9 @@ export type ServerMessage =
   | StandMessage
   | ResearchMessage
   | FoundMessage
+  | AnglerMessage
+  | LineMessage
+  | CatchMessage
   | ExpeditionMessage
   | QuestFrame
   | XpMessage
@@ -1503,6 +1569,7 @@ type HelloPlaces = Pick<
   | 'truck'
   | 'stand'
   | 'wreck'
+  | 'pond'
   | 'bushes'
   | 'dealer'
   | 'undercroft'
@@ -1519,6 +1586,7 @@ const NO_PLACES: HelloPlaces = {
   truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
   stand: null,
   wreck: null,
+  pond: null,
   bushes: [],
   dealer: null,
   undercroft: null,
@@ -1550,9 +1618,11 @@ function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
   const undercroft = nullable(value.undercroft, parseMazePlace)
   if (maze === undefined || stand === undefined) return null
   if (wreck === undefined) return null
+  const pond = nullable(value.pond, toPondPlace)
+  if (pond === undefined) return null
   if (dealer === undefined || undercroft === undefined) return null
   const places = { havens, metres, water, maze, truck, stand, bushes, dealer }
-  return { ...places, wreck, undercroft, rings }
+  return { ...places, wreck, pond, undercroft, rings }
 }
 
 // A hello. The outfit is checked by the server (characters.ts
@@ -1658,6 +1728,12 @@ const CLIENT_PARSERS: ClientParsers = {
     isFileId(id) ? { type: 'laptop-delete', id } : null,
   'stand-collect': bare('stand-collect'),
   research: bare('research'),
+  angler: bare('angler'),
+  tackle: bare('tackle'),
+  dig: bare('dig'),
+  cast: ({ bait }) => (isBait(bait) ? { type: 'cast', bait } : null),
+  reel: ({ landed }) =>
+    typeof landed === 'boolean' ? { type: 'reel', landed } : null,
   recycle: ({ line }) =>
     isResearchLine(line) ? { type: 'recycle', line } : null,
   'stand-upgrade': bare('stand-upgrade'),

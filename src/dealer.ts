@@ -51,10 +51,13 @@ export function leftOf(stock: DealerStock, kind: string): number {
 }
 
 // What one unit of `kind` (one cigarette, one can, one joint) counts for
-// with him, in cents: its share of the shelf price, at his rate. Zero for
-// anything no Citgo shelf prices, which he will not take.
+// with him, in cents: its share of the shelf price, at his rate, or a
+// fish's worth at the same rate (the Golden Wok takes fish off the pond).
+// Zero for anything else, which he will not take.
 export function unitWorth(kind: string, cfg = CONFIG): number {
-  const price = itemById(kind)?.price
+  const item = itemById(kind)
+  if (item?.category === 'fish') return item.worth * cfg.dealer.rate
+  const price = item?.price
   if (price === undefined) return 0
   return (price / contentsOf(kind)) * cfg.dealer.rate
 }
