@@ -390,7 +390,7 @@ export interface Game {
   bursts: ShadowBursts
   mist: MistCards
   glow: Glow
-  // The view on a trip: the blur and the trails (trails.ts).
+  // The view through the wards and the blur of a use (trails.ts).
   trails: Trails
   // The items as the pack grid and the hotbar draw them.
   thumbs: ItemThumbs

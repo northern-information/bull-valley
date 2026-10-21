@@ -23,8 +23,10 @@
 //   perceptionSeconds  the joint (and a psychedelic) resolves the shadowmen
 //             through the murk
 //   container a drink's shape, a key into CONTAINERS in drinks.ts
-//   tripSeconds  how long a drink's trails last (trip.ts); a cigarette's
-//             last while it smokes, the joint's while perception does
+//   tripSeconds  how long a drink's trip lasts (hotbar.ts Effects.trip,
+//             which the card shows as Trails); a cigarette's lasts while
+//             it smokes, the joint's while perception does. The view's
+//             trails themselves follow the drunk ward (wardview.ts)
 //   form      a medicine's packaging (MedicineForm, the shape assets.ts
 //             builds)
 //   healsPct  the share of whole geometrie one use gives back, in percent
@@ -233,8 +235,8 @@ export const ITEMS = [
   },
   // Drinks, circa 2008. Drinking one moves the wards (wardlevels.ts): the
   // energy drinks stimulate, the beer and the liquor get you drunk, Four
-  // Loko does both, and water sobers you a little. Each blurs the view and
-  // trails it for tripSeconds (trip.ts); the water only blurs. Every one
+  // Loko does both, and water sobers you a little. Each blurs the view as
+  // it goes down (trip.ts); the drunk ward trails it (wardview.ts). Every one
   // gives geometrie back (healsPct). container is a key into
   // CONTAINERS in drinks.ts.
   {
@@ -597,7 +599,7 @@ export function doseOf(id: string): WardDose | undefined {
   }
 }
 
-// How long using one unit of `id` puts trails on the view (trip.ts): a
+// How long using one unit of `id` runs its trip (hotbar.ts Effects.trip): a
 // cigarette while it smokes, the joint while perception lasts, a drink its
 // own tripSeconds. Zero for anything else.
 export function tripSecondsOf(id: string): number {

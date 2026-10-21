@@ -7,7 +7,8 @@
 //
 // They are the account's, kept by the valley (sharedworld.ts rule 27) and
 // sent to the client as levels.
-// What else they do while they last is buffs.ts.
+// What else they do while they last is buffs.ts, and what they do to the
+// view, wardview.ts.
 
 import { CONFIG } from './config.ts'
 import { clamp01 } from './math.ts'
