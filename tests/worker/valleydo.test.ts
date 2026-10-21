@@ -18,6 +18,7 @@ import { createValley } from '../../src/sharedworld.ts'
 import { standXp } from '../../src/stand.ts'
 import { dryMap } from '../../src/waterside.ts'
 import { MemoryAccountStore } from '../../worker/accounts.ts'
+import { MemoryCrewStore } from '../../worker/crews.ts'
 import { MemoryPackStore, STARTING_CASH } from '../../worker/packs.ts'
 import { ValleyDO } from '../../worker/ValleyDO.ts'
 import type { Inventory } from '../../src/interfaces.ts'
@@ -44,6 +45,7 @@ import type {
 } from '../../src/protocol.ts'
 import type { Valley } from '../../src/sharedworld.ts'
 import type { AccountStore } from '../../worker/accounts.ts'
+import type { CrewStore } from '../../worker/crews.ts'
 import type { PackStore } from '../../worker/packs.ts'
 
 // Rule 24: a level 1 raider's whole, and a shadowman's hit.
@@ -137,6 +139,13 @@ class TestValley extends ValleyDO {
   }
   protected override packs(): PackStore {
     return this.packStore
+  }
+  crewStore = new MemoryCrewStore(
+    (this.packStore as MemoryPackStore).wallets,
+    (account) => this.accountStore.accounts.get(account)?.username ?? ''
+  )
+  protected override crews(): CrewStore {
+    return this.crewStore
   }
   protected override startTicker(): unknown {
     this.ticking = true
@@ -1343,6 +1352,8 @@ describe('ValleyDO', () => {
       season: { kills: 2, goal: SEASON.goal, claimed: false },
       friend: 'asked',
       party: null,
+      crew: null,
+      crewInvite: false,
       online: true,
     })
     // Baker heard nothing of it, and no account id went out.
@@ -1427,6 +1438,103 @@ describe('ValleyDO', () => {
       })
     )
     expect(ofType(a, 'party').at(-1)?.members).toEqual([])
+  })
+
+  it('starts a crew for its price, wears its tag, and passes it on', async () => {
+    const { valley: v, state: s } = await valley()
+    await named(v, 'Able', 'Baker', 'Charlie')
+    const a = await join(v, s, 'Able')
+    const b = await join(v, s, 'Baker')
+    const c = await join(v, s, 'Charlie')
+    const say = (socket: MockSocket, msg: object) =>
+      v.webSocketMessage(ws(socket), JSON.stringify(msg))
+    const wallets = (v.packStore as MemoryPackStore).wallets
+    const create = { type: 'crew-create', tag: 'bvc', name: 'Bull Valley' }
+    // Short of the price: nothing taken.
+    wallets.set('acct-Able', CONFIG.crews.cost - 1)
+    await say(a, create)
+    expect(a.last()).toEqual({
+      type: 'nack',
+      re: 'crew-create',
+      reason: 'short',
+    })
+    wallets.set('acct-Able', CONFIG.crews.cost + 500)
+    await say(a, create)
+    expect(ofType(a, 'pack').at(-1)?.cash).toBe(500)
+    expect(ofType(c, 'peer-updated').at(-1)?.peer).toEqual(
+      expect.objectContaining({ name: 'Able', crew: 'BVC' })
+    )
+    expect(ofType(a, 'crew').at(-1)?.crew).toEqual({
+      name: 'Bull Valley',
+      tag: 'BVC',
+      leader: 'Able',
+      members: [{ name: 'Able', online: true }],
+    })
+    // The tag is taken in any case.
+    wallets.set('acct-Baker', CONFIG.crews.cost)
+    await say(b, { type: 'crew-create', tag: 'BVC', name: 'Other' })
+    expect(b.last()).toEqual({
+      type: 'nack',
+      re: 'crew-create',
+      reason: 'tag-taken',
+    })
+    // Invited, Baker joins by the tag.
+    await say(a, { type: 'crew-invite', name: 'baker' })
+    expect(ofType(b, 'crew-news').at(-1)).toEqual({
+      type: 'crew-news',
+      news: 'invited',
+      name: 'Able',
+      tag: 'BVC',
+      crew: 'Bull Valley',
+    })
+    expect(ofType(b, 'crew').at(-1)?.invites).toEqual([
+      { tag: 'BVC', name: 'Bull Valley' },
+    ])
+    await say(b, { type: 'crew-join', tag: 'Bvc' })
+    expect(ofType(c, 'peer-updated').at(-1)?.peer).toEqual(
+      expect.objectContaining({ name: 'Baker', crew: 'BVC' })
+    )
+    expect(ofType(a, 'crew').at(-1)?.crew?.members).toHaveLength(2)
+    // Only the leader invites; the crew hears its line, Charlie does not.
+    await say(b, { type: 'crew-invite', name: 'Charlie' })
+    expect(b.last()).toEqual({
+      type: 'nack',
+      re: 'crew-invite',
+      reason: 'not-leader',
+    })
+    await say(b, { type: 'crew-chat', text: 'meet at the keep' })
+    expect(ofType(a, 'crew-chat').at(-1)).toEqual(
+      expect.objectContaining({ from: 'Baker', text: 'meet at the keep' })
+    )
+    expect(ofType(c, 'crew-chat')).toEqual([])
+    // The inspect card says so, and what Able may do.
+    await say(a, { type: 'inspect', name: 'Charlie' })
+    expect(ofType(a, 'inspected').at(-1)?.card).toEqual(
+      expect.objectContaining({ crew: null, crewInvite: true })
+    )
+    await say(c, { type: 'inspect', name: 'Baker' })
+    expect(ofType(c, 'inspected').at(-1)?.card).toEqual(
+      expect.objectContaining({
+        crew: { name: 'Bull Valley', tag: 'BVC' },
+        crewInvite: false,
+      })
+    )
+    // Able leaves: Baker leads, and Able wears no tag.
+    await say(a, { type: 'crew-leave' })
+    expect(ofType(b, 'crew-news').at(-1)).toEqual(
+      expect.objectContaining({ news: 'leader', name: 'Baker' })
+    )
+    const shown = ofType(c, 'peer-updated').filter(
+      (m) => m.peer.name === 'Able'
+    )
+    expect(shown.at(-1)?.peer.crew).toBeUndefined()
+    expect(ofType(b, 'crew').at(-1)?.crew?.leader).toBe('Baker')
+    // The last one out ends it.
+    await say(b, { type: 'crew-leave' })
+    expect(ofType(b, 'crew').at(-1)?.crew).toBeNull()
+    expect(JSON.stringify([...a.frames(), ...b.frames()])).not.toContain(
+      'acct-'
+    )
   })
 
   it('whispers to one raider by name, echoing it to the sender alone', async () => {

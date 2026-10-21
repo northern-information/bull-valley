@@ -31,6 +31,8 @@ export interface Peer {
   max: number
   // Dialed in from Bull Valley Dial-Up: never placed, so never drawn.
   dialup: boolean
+  // Their crew's tag (sharedworld.ts rule 35), or null.
+  crew: string | null
   // The states heard, oldest first, at most framebuffer.ts FRAMES_KEPT;
   // empty until the peer is placed.
   frames: PeerSnapshot[]
@@ -78,6 +80,7 @@ export function applyJoined(peers: PeerTable, wire: PeerWire, now: number) {
     level: wire.level,
     ...healthOf(wire),
     dialup: wire.dialup === true,
+    crew: wire.crew ?? null,
     frames: [],
     next: null,
   }
@@ -87,7 +90,7 @@ export function applyJoined(peers: PeerTable, wire: PeerWire, now: number) {
 }
 
 // A known peer's new name or character, from Gron, a cosmetic from Moab,
-// or a new level. Their place and motion stay as they were. An unknown id is ignored: we have not seen them join.
+// a new level, or a crew joined or left. Their place and motion stay as they were. An unknown id is ignored: we have not seen them join.
 export function applyUpdated(peers: PeerTable, wire: PeerWire): Peer | null {
   const peer = peers.get(wire.id)
   if (!peer) return null
@@ -95,6 +98,7 @@ export function applyUpdated(peers: PeerTable, wire: PeerWire): Peer | null {
   peer.outfit = wire.outfit
   peer.cosmetics = toCosmetics(wire.cosmetics)
   peer.level = wire.level
+  peer.crew = wire.crew ?? null
   Object.assign(peer, healthOf(wire))
   return peer
 }

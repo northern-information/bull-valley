@@ -489,6 +489,11 @@
   color: var(--fi-cyan);
 }
 
+/* A line said to the raider's crew (rule 35): amber. */
+.bv-chat-line--crew {
+  color: var(--fi-amber);
+}
+
 .bv-chat-stamp {
   margin-right: 1ch;
   color: var(--bv-eggshell);

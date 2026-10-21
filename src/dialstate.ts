@@ -16,6 +16,7 @@ import { isLevels } from './buffs.ts'
 import {
   CHAT_COPY,
   chatCommand,
+  crewChatLine,
   joinedLine,
   onlineLine,
   partyChatLine,
@@ -31,6 +32,7 @@ import {
   toCosmetics,
   tradeRefusal,
 } from './cosmetics.ts'
+import { crewLines, crewNamed, crewNews, crewRefusal } from './crews.ts'
 import {
   DAILY_TASK,
   NO_TASK,
@@ -99,6 +101,7 @@ import type { Inventory, WardAxis } from './interfaces.ts'
 import type { OutfitId } from './outfits.ts'
 import type {
   ClientMessage,
+  CrewWire,
   FriendWire,
   InspectWire,
   NackMessage,
@@ -113,6 +116,12 @@ import type { QuestId, QuestStage } from './quests.ts'
 import type { Research } from './recycling.ts'
 import type { SeasonProgress } from './season.ts'
 import type { StandLedger } from './stand.ts'
+
+// Rule 35: the account's crew (null: none) and the crews inviting it.
+export interface CrewState {
+  crew: CrewWire | null
+  invites: { tag: string; name: string }[]
+}
 
 export interface DialState {
   // Our id in the valley, from the welcome; null before it.
@@ -157,6 +166,9 @@ export interface DialState {
   inspected: InspectWire | null
   // Rule 34: the party as the valley last sent it (none at first).
   party: PartyWire
+  // Rule 35: the crew and the invites waiting, as the valley last sent
+  // them (none at first).
+  crew: CrewState
   // The last snapshot of the world, or null when no 3D raider has opened
   // one.
   world: WorldWire | null
@@ -190,6 +202,8 @@ export interface Pending {
   inspect: string | null
   // Who an invite went to (rule 34), for a refusal's line.
   invite: string | null
+  // What a crew frame named (rule 35), for a refusal's line.
+  crew: string | null
 }
 
 const NOTHING_PENDING: Pending = {
@@ -207,6 +221,7 @@ const NOTHING_PENDING: Pending = {
   whisperTo: null,
   inspect: null,
   invite: null,
+  crew: null,
 }
 
 export const NO_WARDS: WardLevels = {
@@ -243,6 +258,7 @@ export const DIALED: DialState = {
   friends: [],
   inspected: null,
   party: { members: [], invites: [] },
+  crew: { crew: null, invites: [] },
   world: null,
   citgoNames: [],
   said: null,
@@ -609,6 +625,17 @@ export function applyFrame(
     }
     case 'party-chat':
       return { ...s, chat: pushLine(s.chat, partyChatLine(msg)) }
+    // Rule 35: the crew, its news, and a line said to it.
+    case 'crew':
+      return { ...s, crew: { crew: msg.crew, invites: msg.invites } }
+    case 'crew-news':
+      return told(
+        { ...s, pending: { ...s.pending, crew: null } },
+        crewNews(msg, s.name),
+        wall
+      )
+    case 'crew-chat':
+      return { ...s, chat: pushLine(s.chat, crewChatLine(msg)) }
     // Another season's or another task's progress says nothing of this
     // one's.
     case 'season': {
@@ -748,6 +775,13 @@ function refused(
         { inspect: null },
         inspectRefusal(msg.reason, s.pending.inspect ?? '')
       )
+    case 'crew-create':
+    case 'crew-invite':
+    case 'crew-join':
+    case 'crew-leave':
+    case 'crew-kick':
+    case 'crew-chat':
+      return done({ crew: null }, crewRefusal(msg.reason, s.pending.crew ?? ''))
     case 'invite':
     case 'party-leave':
     case 'party-chat':
@@ -930,7 +964,8 @@ export interface Self {
 // A line typed into the phone's chat: the state after it, and the frame
 // it sends the valley (null when it is answered here). A line is said to
 // everyone; /online and /party are answered here; /friends, /w, /friend,
-// /unfriend, /inspect, /invite, /leave and /p go to the valley; an emote needs
+// /unfriend, /inspect, /invite, /leave, /p, /crew's sub-commands and /c
+// go to the valley; /crew alone is answered here too; an emote needs
 // a body (sharedworld.ts rule 29), so the phone says so.
 export function sayLine(
   s: DialState,
@@ -1000,5 +1035,15 @@ export function sayLine(
       return { state: s, frame: { type: 'party-leave' } }
     case 'partySay':
       return { state: s, frame: { type: 'party-chat', text: command.text } }
+    case 'crew':
+      return {
+        state: crewLines(s.crew).reduce((at, line) => told(at, line, now), s),
+        frame: null,
+      }
+    case 'crewFrame':
+      return {
+        state: asked(s, { crew: crewNamed(command.frame) }),
+        frame: command.frame,
+      }
   }
 }

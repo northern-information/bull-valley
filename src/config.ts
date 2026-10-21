@@ -629,6 +629,16 @@ export const CONFIG = {
     // about 17 m behind it.
     stationReach: 24,
   },
+  // Crews (crews.ts, sharedworld.ts rule 35): a name and a tag every
+  // member wears, kept in D1.
+  crews: {
+    // What starting one takes out of the wallet, in cents.
+    cost: 100_00,
+    // How many raiders one crew holds.
+    size: 20,
+    // How long an invite waits on an answer: a week.
+    inviteMs: 7 * 24 * 60 * 60 * 1000,
+  },
   // Parties (party.ts, sharedworld.ts rule 34): a few raiders who play
   // together for a while, kept by the valley while they are in it.
   party: {

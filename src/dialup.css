@@ -767,6 +767,11 @@ button.bv-dial-card {
   color: var(--fi-cyan);
 }
 
+.bv-dial-line[data-kind='crew'] .bv-dial-line-name,
+.bv-dial-line[data-kind='crew'] .bv-dial-line-text {
+  color: var(--fi-amber);
+}
+
 .bv-dial-line[data-kind='system'] .bv-dial-line-text {
   color: var(--dial-dim);
 }

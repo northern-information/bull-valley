@@ -287,6 +287,19 @@
 //    of a burner's party placed within CONFIG.party.creditRadius of them
 //    (creditedWithParty). Its chat goes to its members alone, under the
 //    chat rules and rate, and is never kept.
+// 35. Crews (crews.ts): a crew is its members' for good, kept in D1
+//    beside the accounts (worker/d1crews.ts), never in the shared world:
+//    a name and a 2-to-4 tag each unique in any case, a leader, and up
+//    to CONFIG.crews.size members, an account in one at most. Starting
+//    one takes CONFIG.crews.cost out of the wallet in the same
+//    transaction that writes it. Only the leader invites (any raider, in
+//    the valley or not; the invite waits CONFIG.crews.inviteMs) and puts
+//    a member out; a leader who leaves hands the crew to the member
+//    longest in it, and the last one out ends it. Every member wears the
+//    tag on their name tag (PeerWire.crew, read from D1, changed for
+//    everyone the moment it is). Its chat goes to its members alone,
+//    under the chat rules and rate, and is never kept. Only names and
+//    tags go on the wire.
 
 import { bountyOf } from './book.ts'
 import { dosed, inPassReach, scaled, sobered, wardsOf } from './buffs.ts'

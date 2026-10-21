@@ -48,6 +48,7 @@ import type { PlayerBody } from './playerbody.ts'
 import type { PortalMeshes } from './portalmeshes.ts'
 import type { Portal } from './portals.ts'
 import type {
+  CrewWire,
   DailyWire,
   FriendWire,
   InspectWire,
@@ -104,6 +105,9 @@ export interface Pending {
   inspect: string | null
   // Rule 34: who an invite went to, for a refusal's line.
   invite: string | null
+  // Rule 35: what a crew frame named (a raider or a tag), for a refusal's
+  // line.
+  crew: string | null
   // Rule 23: a change to the Cabbage Stand.
   stand: boolean
   // Rule 33: a level bought at the Recycling Center.
@@ -125,9 +129,16 @@ export function freshPending(): Pending {
     whisperTo: null,
     inspect: null,
     invite: null,
+    crew: null,
     stand: false,
     recycle: false,
   }
+}
+
+// Rule 35: the account's crew (null: none) and the crews inviting it.
+export interface CrewState {
+  crew: CrewWire | null
+  invites: { tag: string; name: string }[]
 }
 
 export interface GameState {
@@ -245,6 +256,9 @@ export interface GameState {
   inspected: InspectWire | null
   // Rule 34: the party as the valley last sent it (none at first).
   party: PartyWire
+  // Rule 35: the crew and the invites waiting, as the valley last sent
+  // them (none at first).
+  crew: CrewState
   // Rule 23: the account's Cabbage Stand as the valley last sent it; null
   // before it has. And the last word on a change, for the stand's dialog.
   stand: StandLedger | null
@@ -343,6 +357,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     laptop: null,
     inspected: null,
     party: { members: [], invites: [] },
+    crew: { crew: null, invites: [] },
     stand: null,
     standSaid: null,
     research: null,

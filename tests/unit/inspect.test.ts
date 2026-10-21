@@ -9,6 +9,7 @@ import {
   cardOf,
   cardRows,
   cardStatus,
+  crewButton,
   friendButton,
   inspectRefusal,
   partied,
@@ -28,6 +29,8 @@ const read = (over: Partial<InspectRead> = {}): InspectRead => ({
   self: false,
   friend: undefined,
   party: null,
+  crew: null,
+  crewInvite: false,
   online: true,
   ...over,
 })
@@ -53,6 +56,8 @@ describe('a raider card', () => {
       season: { kills: SEASON.goal, goal: SEASON.goal, claimed: true },
       friend: null,
       party: null,
+      crew: null,
+      crewInvite: false,
       online: true,
     })
   })
@@ -80,22 +85,23 @@ describe('a raider card', () => {
       copy('inspect.level'),
       copy('inspect.character'),
       copy('inspect.cosmetics'),
+      copy('crew.heading'),
       copy('book.title'),
       copy('season.kicker'),
     ])
     expect(rows[0].value).toBe(copy('level.title', { level: 1 }))
     expect(rows[2].value).toBe(cosmeticById('flaming-halo')?.label)
-    expect(rows[3].value).toBe(
+    expect(rows[4].value).toBe(
       copy('book.tally', { found: 1, of: BOOK.length })
     )
-    expect(rows[4].value).toBe(
+    expect(rows[5].value).toBe(
       copy('season.progress', { kills: 0, goal: SEASON.goal })
     )
     const bare = cardRows(
       cardOf(read({ season: { kills: SEASON.goal, claimed: true } }))
     )
     expect(bare[2].value).toBe(copy('inspect.none'))
-    expect(bare[4].value).toBe(copy('season.complete'))
+    expect(bare[5].value).toBe(copy('season.complete'))
   })
 
   it('says whether they are in the valley', () => {
@@ -161,6 +167,36 @@ describe('the party button', () => {
     expect(partied(cardOf(read())).party).toBe('invited')
     expect(partied(cardOf(read({ party: 'inviting' }))).party).toBe('member')
     expect(partied(cardOf(read({ party: 'member' }))).party).toBe('member')
+  })
+})
+
+describe('the crew row and button', () => {
+  it('shows their crew, and offers the leader an invite to theirs', () => {
+    const inCrew = cardOf(read({ crew: { name: 'Bull Valley', tag: 'bvc' } }))
+    expect(inCrew.crew).toEqual({ name: 'Bull Valley', tag: 'BVC' })
+    expect(cardRows(inCrew)[3]).toEqual({
+      label: copy('crew.heading'),
+      value: copy('crew.heading_line', { tag: 'BVC', crew: 'Bull Valley' }),
+    })
+    expect(cardRows(cardOf(read()))[3].value).toBe(copy('inspect.none_crew'))
+    expect(crewButton(cardOf(read({ crewInvite: true })), false)).toEqual({
+      label: copy('crew.invite_button'),
+      enabled: true,
+    })
+    expect(crewButton(cardOf(read({ crewInvite: true })), true)).toEqual({
+      label: copy('crew.invited_button'),
+      enabled: false,
+    })
+    // Not on their own card, nor for one in a crew already.
+    expect(
+      crewButton(cardOf(read({ crewInvite: true, self: true })), false)
+    ).toBeNull()
+    expect(
+      crewButton(
+        cardOf(read({ crewInvite: true, crew: { name: 'X', tag: 'XX' } })),
+        false
+      )
+    ).toBeNull()
   })
 })
 

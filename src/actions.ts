@@ -26,6 +26,7 @@ import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { emptied, fallen, isEmpty, spilledDimes } from './corpses.ts'
 import { affords, cosmeticById, gainedOf, tradeRefusal } from './cosmetics.ts'
+import { crewLines, crewNamed } from './crews.ts'
 import { stepIndex } from './cycle.ts'
 import { openDealDialog } from './dealdialog.ts'
 import { ramble } from './dealer.ts'
@@ -75,7 +76,7 @@ import { planLeg } from './truckplan.ts'
 import { dose, SOBER } from './wardlevels.ts'
 import { WARD_OF } from './wards.ts'
 import { charterable } from './worldsync.ts'
-import type { ChatCommand } from './chat.ts'
+import type { ChatCommand, CrewFrame } from './chat.ts'
 import type { CitgoLog } from './citgos.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { EmoteId } from './emotes.ts'
@@ -1268,6 +1269,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       case 'party':
         for (const line of partyLines(s.party)) hud.tell(line)
         return
+      case 'crew':
+        for (const line of crewLines(s.crew)) hud.tell(line)
+        return
     }
     if (!net.online) {
       hud.tell(CHAT_COPY.offline)
@@ -1299,7 +1303,20 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       case 'partySay':
         net.send({ type: 'party-chat', text: command.text })
         return
+      case 'crewFrame':
+        sendCrew(command.frame)
+        return
     }
+  }
+
+  // Rule 35: a crew frame, with what it named kept for a refusal's line.
+  const sendCrew = (frame: CrewFrame) => {
+    if (!net.online) {
+      hud.tell(CHAT_COPY.offline)
+      return
+    }
+    s.pending.crew = crewNamed(frame)
+    net.send(frame)
   }
 
   // Rule 34: an invite to the party, or theirs taken up; the valley's
@@ -1349,6 +1366,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
           net.send({ type: 'friend', name })
           if (s.inspected) s.inspected = befriended(s.inspected)
         },
+        onCrew: (name) => sendCrew({ type: 'crew-invite', name }),
         onParty: (name) => {
           if (!net.online) {
             hud.tell(CHAT_COPY.offline)
