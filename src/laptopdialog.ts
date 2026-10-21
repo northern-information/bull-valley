@@ -190,6 +190,15 @@ export function openLaptopDialog(options: LaptopOptions): {
 
   // --- The editor ---------------------------------------------------------
 
+  // A file not this raider's to write is locked rather than read-only: a
+  // read-only text area takes no caret in Chromium, and the readme and
+  // others' files must be walked with the keys like any other, wide art
+  // and all. Every edit is refused instead (beforeinput, below).
+  const locked = () => textField.getAttribute('aria-readonly') === 'true'
+  const setLocked = (on: boolean) => {
+    textField.setAttribute('aria-readonly', String(on))
+  }
+
   const dirty = () =>
     open !== null && open.mine && textField.value !== open.kept
 
@@ -206,7 +215,7 @@ export function openLaptopDialog(options: LaptopOptions): {
     nameField.value = file.name
     nameField.readOnly = !file.mine
     textField.value = text
-    textField.readOnly = !file.mine || file.loading
+    setLocked(!file.mine || file.loading)
     editor.dataset.mine = String(file.mine)
     editSaid.textContent =
       said ||
@@ -511,9 +520,12 @@ export function openLaptopDialog(options: LaptopOptions): {
     'click',
     leaveEditor
   )
+  textField.addEventListener('beforeinput', (e) => {
+    if (locked()) e.preventDefault()
+  })
   textField.addEventListener('keydown', (e) => {
     // A tab is part of the text.
-    if (e.key === 'Tab' && !textField.readOnly) {
+    if (e.key === 'Tab' && !locked()) {
       e.preventDefault()
       textField.setRangeText(
         '\t',
@@ -564,7 +576,7 @@ export function openLaptopDialog(options: LaptopOptions): {
       if (open) {
         if (open.loading) {
           open.loading = false
-          textField.readOnly = !open.mine
+          setLocked(!open.mine)
         }
         editSaid.textContent = line
       } else {

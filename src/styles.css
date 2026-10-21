@@ -3506,9 +3506,12 @@
   cursor: default;
 }
 
+/* A margin, not padding: scrolled to a line's start, the first column
+   sits flush rather than the padding scrolling out of sight. */
 .bv-edit-text {
   flex: 1;
-  padding: 6px 8px;
+  padding: 0;
+  margin: 6px 8px;
   font: inherit;
   line-height: 1.35;
   color: inherit;

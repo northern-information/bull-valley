@@ -39,7 +39,7 @@ test('the bathroom laptop opens on the readme, and keeps what you write', async 
   await expect(page.locator('[data-bv="name"]')).toHaveValue(
     copy('laptop.readme_name')
   )
-  await expect(text).toHaveAttribute('readonly', '')
+  await expect(text).toHaveAttribute('aria-readonly', 'true')
   await expect(page.locator('[data-bv="edit-said"]')).toHaveText(
     copy('laptop.read_only')
   )
@@ -69,7 +69,55 @@ test('the bathroom laptop opens on the readme, and keeps what you write', async 
   await expect(row).toBeVisible()
   await row.dblclick()
   await expect(text).toHaveValue(typed)
-  await expect(text).not.toHaveAttribute('readonly', '')
+  await expect(text).toHaveAttribute('aria-readonly', 'false')
+
+  // Art wider than the screen keeps its lines whole: nothing wraps, and
+  // the caret scrolls along a line as in any monospace editor, read-only
+  // too, the way the readme opens.
+  const wide = Array.from({ length: 6 }, (_, i) =>
+    Array.from({ length: 500 }, (_, c) => '#/\\_ .|'[(c + i) % 7]).join('')
+  ).join('\n')
+  await text.fill(wide)
+  await page.keyboard.press('Control+KeyS')
+  await expect(page.locator('[data-bv="edit-said"]')).toHaveText(
+    copy('laptop.saved')
+  )
+  const view = () =>
+    text.evaluate((el: HTMLTextAreaElement) => ({
+      left: el.scrollLeft,
+      room: el.scrollWidth - el.clientWidth,
+      height: el.scrollHeight,
+    }))
+  await text.press('Control+Home')
+  const start = await view()
+  expect(start.left).toBe(0)
+  expect(start.room).toBeGreaterThan(0)
+  await text.press('End')
+  await expect(page.locator('[data-bv="caret"]')).toHaveText(
+    copy('laptop.caret', { line: 1, col: 501 })
+  )
+  await expect.poll(async () => (await view()).left).toBeGreaterThan(0)
+  await text.press('Home')
+  await expect.poll(async () => (await view()).left).toBe(0)
+  for (let i = 0; i < 120; i++) await text.press('ArrowRight')
+  await expect.poll(async () => (await view()).left).toBeGreaterThan(0)
+  await text.evaluate((el: HTMLTextAreaElement) => {
+    el.setAttribute('aria-readonly', 'true')
+  })
+  await text.press('Home')
+  await text.press('ArrowDown')
+  await text.press('End')
+  await expect(page.locator('[data-bv="caret"]')).toHaveText(
+    copy('laptop.caret', { line: 2, col: 501 })
+  )
+  await expect.poll(async () => (await view()).left).toBeGreaterThan(0)
+  // Locked, nothing typed lands.
+  await text.press('KeyX')
+  await text.press('Backspace')
+  await expect(text).toHaveValue(wide)
+  await text.evaluate((el: HTMLTextAreaElement) => {
+    el.setAttribute('aria-readonly', 'false')
+  })
 
   // Getting up and sitting down again finds the readme.
   await page.keyboard.press('Escape')
