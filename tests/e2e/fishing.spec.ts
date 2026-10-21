@@ -2,11 +2,12 @@ import { copy } from './copy.ts'
 import { beginRaid, expect, frames, heardWhere, test } from './fixtures.ts'
 
 // Rule 35: E at the tackle box on the firefly pond's landing opens it: a
-// rod out of the box, nightcrawlers out of the bank, and a cast played out
-// as Final Fantasy XI plays it, the arrows answered until the fish is spent
-// and reeled in.
+// rod out of the box, nightcrawlers out of the bank, and the bait picked.
+// Then Q puts the rod in the left hand and the click casts, and the fight
+// plays over the view as Final Fantasy XI plays it, the arrows answered
+// until the fish is spent and a click reels it in.
 
-test('the tackle box gives a rod and bait, and a cast is fought to its end', async ({
+test('the tackle box gives a rod and bait, and a click casts and fights to the end', async ({
   page,
 }) => {
   test.slow()
@@ -26,6 +27,9 @@ test('the tackle box gives a rod and bait, and a cast is fought to its end', asy
   })
   await heardWhere(page)
   await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.fish'))
+  // Nothing but the flashlight to hold yet.
+  await page.keyboard.press('KeyQ')
+  expect(await page.evaluate(() => window.__bv?.held)).toBe('flashlight')
   await page.keyboard.press('KeyE')
   const dialog = page.locator('.bv-fish')
   await expect(dialog).toBeVisible()
@@ -33,9 +37,9 @@ test('the tackle box gives a rod and bait, and a cast is fought to its end', asy
     .poll(() => page.evaluate(() => window.__bv?.angler?.skill))
     .toBe(0)
 
-  // Nothing bites without a rod or bait.
-  const cast = dialog.locator('[data-cast="nightcrawlers"]')
-  await expect(cast).toBeDisabled()
+  // No bait to pick until the bank is dug.
+  const worms = dialog.locator('[data-bait-pick="nightcrawlers"]')
+  await expect(worms).toBeDisabled()
   await dialog.locator('[data-bv="fish-rod"]').click()
   await expect
     .poll(() => page.evaluate(() => window.__bv?.inventory['fishing-rod']))
@@ -46,24 +50,41 @@ test('the tackle box gives a rod and bait, and a cast is fought to its end', asy
     .poll(() => page.evaluate(() => window.__bv?.inventory.nightcrawlers ?? 0))
     .toBeGreaterThan(0)
   await expect(dialog.locator('[data-bv="fish-dig"]')).toBeDisabled()
+  await expect(worms).toHaveAttribute('aria-pressed', 'true')
+  await expect(worms).toHaveText(
+    copy('fishing.bait_on', { bait: copy('items.nightcrawlers.label') })
+  )
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  // The pointer is the valley's again.
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.player.locked))
+    .toBe(true)
 
+  // Q: the rod in the left hand, and the click casts.
+  await page.keyboard.press('KeyQ')
+  expect(await page.evaluate(() => window.__bv?.held)).toBe('rod')
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.sent?.held))
+    .toBe('rod')
   const ends = [
     copy('fishing.nothing'),
     copy('fishing.lost_skill'),
     copy('fishing.snap'),
     copy('fishing.gave_up'),
   ]
-  await expect(cast).toBeEnabled()
-  await cast.click()
+  await page.evaluate(() => window.__bv?.useHeld())
   await expect
     .poll(() => page.evaluate(() => window.__bv?.line !== null))
     .toBe(true)
-  await expect(dialog.locator('[data-bv="fish-call"]')).toHaveText(
+  const hud = page.locator('.bv-fish-hud')
+  await expect(hud).toBeVisible()
+  await expect(hud.locator('.bv-fish-hud-call')).toHaveText(
     copy('fishing.waiting')
   )
   // Answer every arrow until the line comes out of the water: spent, the
-  // fish is reeled in; out of time, it is gone.
-  const arrow = dialog.locator('[data-bv="fish-arrow"]')
+  // fish is reeled in with a click; out of time, it is gone.
+  const arrow = hud.locator('.bv-fish-hud-arrow')
   const deadline = Date.now() + 90_000
   while (await page.evaluate(() => window.__bv?.line !== null)) {
     expect(Date.now()).toBeLessThan(deadline)
@@ -71,23 +92,21 @@ test('the tackle box gives a rod and bait, and a cast is fought to its end', asy
     if (shown === '◀') await page.keyboard.press('KeyA')
     else if (shown === '▶') await page.keyboard.press('KeyD')
     else if (shown === copy('fishing.spent')) {
-      await page.keyboard.press('Space')
+      await page.evaluate(() => window.__bv?.useHeld())
     }
     await frames(page, 3)
   }
-  const said = dialog.locator('[data-bv="fish-said"]')
+  await expect(hud).toBeHidden()
+  const caught = [
+    copy('fishing.caught', { item: '' }).slice(0, 10),
+    copy('fishing.caught_junk', { item: '' }).slice(0, 10),
+  ]
   await expect
     .poll(async () => {
-      const text = (await said.textContent()) ?? ''
-      return (
-        ends.includes(text) ||
-        text.startsWith(copy('fishing.caught', { item: '' }).slice(0, 10)) ||
-        text.startsWith(copy('fishing.caught_junk', { item: '' }).slice(0, 10))
-      )
+      const text = (await page.locator('.bv-chat').textContent()) ?? ''
+      return [...ends, ...caught].some((end) => text.includes(end))
     })
     .toBe(true)
-  await page.keyboard.press('Escape')
-  await expect(dialog).toBeHidden()
 })
 
 // The rod rack in every Citgo: three rods, dearer as they are better, too
@@ -207,8 +226,17 @@ test('two ponds, and a slurm caught alive in the jar', async ({ page }) => {
     bv.player.pitch = -0.9
   })
   await heardWhere(page)
+  // The flashlight in hand offers nothing; Q puts the jar there, and the
+  // click catches the slurm.
+  await expect(page.locator('.bv-prompt')).not.toHaveText(
+    copy('prompts.jar_slurm')
+  )
+  await page.keyboard.press('KeyQ')
+  expect(await page.evaluate(() => window.__bv?.held)).toBe('jar')
   await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.jar_slurm'))
   await page.keyboard.press('KeyE')
+  expect(await page.evaluate(() => window.__bv?.inventory.slurm ?? 0)).toBe(0)
+  await page.evaluate(() => window.__bv?.useHeld())
   await expect
     .poll(() => page.evaluate(() => window.__bv?.inventory.slurm ?? 0))
     .toBe(1)

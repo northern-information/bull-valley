@@ -547,7 +547,9 @@ laptop = { text = "E — Use the Laptop", by = "ai" }
 stand = { text = "E — Tend Your Stand", by = "ai" }
 recycle = { text = "E — Recycling Center", by = "ai" }
 fish = { text = "E — Tackle Box", by = "ai" }
-jar_slurm = { text = "E — Catch the Slurm", by = "ai" }
+jar_slurm = { text = "Click — Catch the Slurm", by = "ai" }
+cast = { text = "Click — Cast with {bait}", by = "ai" }
+cast_no_bait = { text = "No Bait — Dig at the Tackle Box", by = "ai" }
 locked = { text = "E — Locked", by = "ai" }
 lay = { text = "E — Lay the Rose", by = "ai" }
 descend = { text = "E — Climb Down", by = "ai" }
@@ -805,7 +807,8 @@ credit = { text = "2008-2026 AD Northern Information", by = "ai" }
 move = { text = "Move", by = "ai" }
 sprint = { text = "Sprint", by = "ai" }
 look = { text = "Look", by = "ai" }
-flashlight = { text = "Flashlight", by = "ai" }
+use_held = { text = "Flashlight, Jar or Rod", by = "ai" }
+held = { text = "Switch Hand", by = "ai" }
 crouch = { text = "Crouch", by = "ai" }
 phone = { text = "Citgo Portal", by = "ai" }
 map = { text = "Map", by = "ai" }
@@ -1110,17 +1113,18 @@ take_rod = { text = "Take a Rod", by = "ai" }
 has_rod = { text = "Fishing With the {rod}", by = "ai" }
 dig = { text = "Dig for Nightcrawlers", by = "ai" }
 dig_wait = { text = "Dig Again in {seconds}s", by = "ai" }
-cast = { text = "Cast", by = "ai" }
 cast_with = { text = "Cast with {bait}", by = "ai" }
-why_rod = { text = "No rod", by = "ai" }
+bait = { text = "Bait", by = "ai" }
+bait_on = { text = "{bait} on the Hook", by = "ai" }
+how = { text = "Q puts the rod in your hand. Stand at the water and click to cast; A and D answer the fish, and a click reels it in once it is spent.", by = "ai" }
+hud_wait = { text = "Waiting on a bite · Click to give up", by = "ai" }
+hud_fight = { text = "A / D to answer · Click to give up", by = "ai" }
+hud_reel = { text = "Click to reel it in", by = "ai" }
 why_bait = { text = "No {bait}", by = "ai" }
 why_tired = { text = "Done for today", by = "ai" }
-line = { text = "The Line", by = "ai" }
 waiting = { text = "The bobber sits on the black water.", by = "ai" }
-waiting_meta = { text = "Waiting", by = "ai" }
 stamina = { text = "Fish", by = "ai" }
 clock = { text = "Line", by = "ai" }
-clock_value = { text = "{seconds}s", by = "ai" }
 spent = { text = "Spent", by = "ai" }
 give_up = { text = "Give Up", by = "ai" }
 reel = { text = "Reel In", by = "ai" }

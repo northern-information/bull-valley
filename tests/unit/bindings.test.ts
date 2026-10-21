@@ -64,7 +64,8 @@ describe('BOOK', () => {
 describe('WORLD', () => {
   it('leaves the mouse and Esc to the browser', () => {
     expect(WORLD.look.codes).toEqual([])
-    expect(WORLD.flashlight.codes).toEqual([])
+    expect(WORLD.useHeld.codes).toEqual([])
+    expect(FISHING.reel.codes).toEqual([])
     expect(WORLD.pause.codes).toEqual([])
   })
 

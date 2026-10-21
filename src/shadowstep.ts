@@ -120,13 +120,15 @@ export function shadowRaiders(
         // Up on the lookout no shadow reaches them.
         !(maze && onLookout(maze, at)) &&
         now >= (shadows.recovering[graceKey(valley, id)] ?? 0),
-      // Rule 27: their high reaches it further and wider.
-      beam: at.light
-        ? buffedBeam(
-            beamFrom(at, at.yaw, at.pitch, at.pose === 'crouch'),
-            wardsFor(valley, member.account, now)
-          )
-        : null,
+      // Rule 27: their high reaches it further and wider. A jar or a rod
+      // in the hand holds no flashlight (held.ts).
+      beam:
+        at.light && !at.held
+          ? buffedBeam(
+              beamFrom(at, at.yaw, at.pitch, at.pose === 'crouch'),
+              wardsFor(valley, member.account, now)
+            )
+          : null,
     })
   }
   return raiders

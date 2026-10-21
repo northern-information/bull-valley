@@ -14,9 +14,10 @@ import { dayKey } from './daily.ts'
 import { onDay, shownCount } from './dailytask.ts'
 import { EMOTES, holds } from './emotes.ts'
 import { hurts } from './fall.ts'
-import { inPond, jarRoom, nearestLanding } from './fishing.ts'
-import { ease, stepHand, useLift, useSeconds } from './hands.ts'
+import { BOX_ROD, inPond, jarRoom, nearestLanding, rodIn } from './fishing.ts'
+import { ease, HAND_DOWN, stepHand, useLift, useSeconds } from './hands.ts'
 import { shakeAt } from './health.ts'
+import { baitFor, toolIn } from './held.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
 import {
   dailyStatus,
@@ -310,19 +311,32 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     }
   }
 
-  // The hands: the flashlight lit once it is all the way up, and the item
-  // just used brought up once. Says whether the flashlight is lit.
+  // The hands: the flashlight lit once it is all the way up, a jar or a
+  // rod held up in its place, and the item just used brought up once.
+  // What the left hand held goes back to the flashlight, down, once the
+  // pack no longer has it, and a line out goes with the rod. Says whether
+  // the flashlight is lit.
   const raiseHands = ({ dt, time }: FrameClock): boolean => {
+    const held = toolIn(s.held, s.inventory)
+    if (held !== s.held) {
+      if (s.held === 'rod') game.fishHud.giveUp()
+      s.held = held
+      s.flashlight = HAND_DOWN
+    }
     s.flashlight = stepHand(s.flashlight, dt)
     if (s.using && time - s.using.at >= useSeconds()) s.using = null
-    const lit = s.flashlight.up && s.flashlight.lift >= 1
+    const lit =
+      s.held === 'flashlight' && s.flashlight.up && s.flashlight.lift >= 1
     const using = s.using ? useLift(s.using.at, time) : 0
     hands.update({
       left: ease(s.flashlight.lift),
+      held: s.held === 'rod' ? (rodIn(s.inventory) ?? BOX_ROD) : s.held,
       right: ease(using),
       kind: s.using?.kind ?? null,
       on: lit,
     })
+    // The line in the water, stepped on the clock its bite was set by.
+    game.fishHud.update(s.line, performance.now())
     return lit
   }
 
@@ -554,6 +568,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         pose: s.emoting?.id ?? poseOf(moveSpeed, crouching),
         riding: s.aboard,
         light: lit,
+        ...(s.held === 'flashlight' ? {} : { held: s.held }),
       }
       if (stateChanged(s.lastSent, state)) {
         s.lastSent = state
@@ -748,11 +763,24 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       wreck: world.wreck
         ? { x: world.wreck.group.position.x, z: world.wreck.group.position.z }
         : null,
-      slurms: jarRoom(s.inventory) ? world.shelves.crawlingSlurms() : [],
+      slurms:
+        s.held === 'jar' && jarRoom(s.inventory)
+          ? world.shelves.crawlingSlurms()
+          : [],
       tackle: nearestLanding(
         world.ponds.map((pond) => pond.place),
         player.pos
       ),
+      cast:
+        s.held === 'rod' &&
+        !s.line &&
+        !s.pending.fish &&
+        inPond(
+          world.ponds.map((pond) => pond.place),
+          player.pos
+        )
+          ? { bait: baitFor(s.bait, s.inventory) }
+          : undefined,
       dealer: world.plaza?.dealer.at ?? null,
       trapdoor: world.undercroft?.hatch ?? null,
       ladder: world.undercroft?.foot ?? null,

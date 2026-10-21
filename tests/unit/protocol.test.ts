@@ -107,6 +107,14 @@ describe('parsePeerState', () => {
     expect(parsePeerState({ ...state, yaw: NaN })).toBeNull()
   })
 
+  it('carries a jar or a rod in hand, and nothing else', () => {
+    expect(parsePeerState({ ...state, held: 'jar' })?.held).toBe('jar')
+    expect(parsePeerState({ ...state, held: 'rod' })?.held).toBe('rod')
+    expect(parsePeerState(state)).not.toHaveProperty('held')
+    expect(parsePeerState({ ...state, held: 'flashlight' })).toBeNull()
+    expect(parsePeerState({ ...state, held: 3 })).toBeNull()
+  })
+
   it('rejects unknown poses and non-boolean riding', () => {
     expect(parsePeerState({ ...state, pose: 'fly' })).toBeNull()
     expect(parsePeerState({ ...state, riding: 'yes' })).toBeNull()

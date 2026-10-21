@@ -41,7 +41,9 @@ import {
 } from './drops.ts'
 import { finishById } from './finishes.ts'
 import { openFishDialog } from './fishdialog.ts'
+import { inPond } from './fishing.ts'
 import { openGronDialog } from './grondialog.ts'
+import { baitFor, nextTool } from './held.ts'
 import { assign, clearSlot as clearHotbarSlot, place, spent } from './hotbar.ts'
 import { befriended, partied } from './inspect.ts'
 import { openInspectDialog } from './inspectdialog.ts'
@@ -222,6 +224,10 @@ export interface Actions {
   endCharter(to?: XZ | null): void
   // The left button: the flashlight up and on, or down and off.
   toggleFlashlight(): void
+  // The left click: what the left hand holds, used (held.ts).
+  useHeld(): void
+  // Q: the next thing carried into the left hand.
+  switchHeld(): void
   // The pickup is ours: into the pack.
   applyTake(pickup: Pickup): void
   // Someone else got it.
@@ -697,39 +703,104 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     )
   }
 
-  // E at the tackle box on the firefly pond's landing: fishing, the pointer
-  // free for it as at the stand. The angler is the account's (rule 35):
-  // the dialog asks the valley for it as it opens; the angler, line and
-  // catch frames that answer show in it as they land, and the fight is
-  // played in it.
+  // A frame to the valley about fishing, the last word on one cleared.
+  const askFish = (msg: Parameters<typeof net.send>[0]) => {
+    s.pending.fish = true
+    s.fishSaid = null
+    net.send(msg)
+  }
+  // The line the click cast: the fish reeled in or let go, and the line
+  // that came up empty, as the fight over the view plays it (fishhud.ts).
+  game.fishHud.onReel = (landed) => askFish({ type: 'reel', landed })
+  game.fishHud.onEmpty = (said) => {
+    s.line = null
+    s.fishSaid = said
+    hud.tell(said)
+  }
+
+  // E at the tackle box on the firefly pond's landing: the angler, a rod
+  // and the dig, and the bait the rod casts with, the pointer free for it
+  // as at the stand. The angler is the account's (rule 35): the dialog
+  // asks the valley for it as it opens; the angler frames that answer
+  // show in it as they land. The cast is the click's, with the rod in hand.
   const fish = () => {
     if (s.talking || !s.world) return
     s.fishSaid = null
     net.send({ type: 'angler' })
-    const ask = (msg: Parameters<typeof net.send>[0]) => {
-      s.pending.fish = true
-      s.fishSaid = null
-      net.send(msg)
-    }
     withDialog(() =>
       openFishDialog({
         angler: () => s.angler,
         pack: () => s.inventory,
-        line: () => s.line,
+        bait: () => baitFor(s.bait, s.inventory),
         pending: () => s.pending.fish,
         said: () => s.fishSaid,
         serverNow: () => net.clock.serverNow(performance.now()),
-        onTackle: () => ask({ type: 'tackle' }),
-        onDig: () => ask({ type: 'dig' }),
-        onCast: (bait) => ask({ type: 'cast', bait }),
-        onReel: (landed) => ask({ type: 'reel', landed }),
-        onLineDone: (said) => {
-          s.line = null
-          s.fishSaid = said
-          hud.tell(said)
+        onTackle: () => askFish({ type: 'tackle' }),
+        onDig: () => askFish({ type: 'dig' }),
+        onBait: (bait) => {
+          s.bait = bait
         },
       })
     )
+  }
+
+  // The click with the rod in hand: a line out answered (fishhud.ts), or
+  // a cast from the bank of a firefly pond with the bait picked at the
+  // tackle box. The valley deals what bites (rule 35).
+  const castOrReel = () => {
+    if (game.fishHud.click() || s.line || s.pending.fish) return
+    if (
+      !inPond(
+        world.ponds.map((pond) => pond.place),
+        player.pos
+      )
+    ) {
+      hud.tell(copy('log.fish_far'))
+      return
+    }
+    const bait = baitFor(s.bait, s.inventory)
+    if (!bait) {
+      hud.tell(copy('log.fish_no_bait'))
+      return
+    }
+    // The raider stands to the line.
+    player.keys.clear()
+    askFish({ type: 'cast', bait })
+  }
+
+  // The click with the jar in hand: the slurm it is aimed at, if any in
+  // reach (rule 35). The valley says whether it was still there to catch.
+  const jarSlurm = () => {
+    const aim = s.interaction
+    if (aim?.kind !== 'jar-slurm' || s.pending.jar) return
+    s.pending.jar = true
+    const { station, slot, index } = aim
+    net.send({ type: 'jar-slurm', station, slot, index })
+  }
+
+  // The left click: whatever the left hand holds, used.
+  const useHeld = () => {
+    if (s.aboard) return
+    switch (s.held) {
+      case 'flashlight':
+        toggleFlashlight()
+        return
+      case 'jar':
+        jarSlurm()
+        return
+      case 'rod':
+        castOrReel()
+    }
+  }
+
+  // Q: the next thing carried into the left hand, raised into view. A
+  // line in the water is given up as the rod is put away.
+  const switchHeld = () => {
+    const next = nextTool(s.held, s.inventory)
+    if (next === s.held) return
+    if (s.held === 'rod') game.fishHud.giveUp()
+    s.held = next
+    s.flashlight = { up: next !== 'flashlight', lift: 0 }
   }
 
   // E beside Erwin von Dutch, the squatter in the plaza: what he deals
@@ -1208,14 +1279,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       case 'fish':
         fish()
         return
-      case 'jar-slurm': {
-        // Rule 35: the valley says whether it was still there to catch.
-        if (s.pending.jar) return
-        s.pending.jar = true
-        const { station, slot, index } = interaction
-        net.send({ type: 'jar-slurm', station, slot, index })
+      // The click's, with the jar or the rod in hand (useHeld).
+      case 'jar-slurm':
+      case 'cast':
         return
-      }
       case 'deal':
         openDeal()
         return
@@ -1624,6 +1691,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     endCharter,
     applyDropTaken,
     toggleFlashlight,
+    useHeld,
+    switchHeld,
     applyTake,
     markTaken,
     markUntaken,

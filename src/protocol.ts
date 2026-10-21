@@ -108,7 +108,13 @@ export interface PeerStateWire {
   pose: PeerPose
   riding: boolean
   light: boolean
+  // What the left hand holds in place of the flashlight (held.ts), for
+  // everyone to see; missing while it holds the flashlight. Only a raider
+  // holding the flashlight burns a shadow with it.
+  held?: HeldWire
 }
+
+export type HeldWire = 'jar' | 'rod'
 
 // A player as the server knows them. `at` is null until their first state
 // frame; a figure is only drawn once it is placed. cosmetics: what they
@@ -1558,10 +1564,11 @@ function parseMetres(value: unknown): Metres | null {
 }
 
 // A state as a client may send it: finite coordinates within the survey, a
-// known pose, boolean riding and light flags.
+// known pose, boolean riding and light flags, and a jar or a rod in hand
+// or nothing.
 export function parsePeerState(value: unknown): PeerStateWire | null {
   if (!isRecord(value)) return null
-  const { x, y, z, yaw, pitch, pose, riding, light } = value
+  const { x, y, z, yaw, pitch, pose, riding, light, held } = value
   if (!isCoord(x) || !isCoord(y) || !isCoord(z)) return null
   if (typeof yaw !== 'number' || !Number.isFinite(yaw)) return null
   if (typeof pitch !== 'number' || !(Math.abs(pitch) <= Math.PI / 2)) {
@@ -1570,7 +1577,9 @@ export function parsePeerState(value: unknown): PeerStateWire | null {
   if (!isPeerPose(pose)) return null
   if (typeof riding !== 'boolean') return null
   if (typeof light !== 'boolean') return null
-  return { x, y, z, yaw, pitch, pose, riding, light }
+  if (held === undefined) return { x, y, z, yaw, pitch, pose, riding, light }
+  if (held !== 'jar' && held !== 'rod') return null
+  return { x, y, z, yaw, pitch, pose, riding, light, held }
 }
 
 // One client frame, by its type. An intersection rather than an Extract,

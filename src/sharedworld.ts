@@ -50,7 +50,9 @@
 //    bubble round every raider (shadowmen.ts). A raider on foot, out of the
 //    bed, and not coming to from a strike can be rushed; a touch strikes
 //    them alone, and they are left alone for the strike's length after.
-//    Anyone's beam burns them, and one that bursts leaves a drop of dimes
+//    Anyone's beam burns them (a flashlight in hand: a raider holding the
+//    slurm jar or a rod in its place, held.ts, has none), and one that
+//    bursts leaves a drop of dimes
 //    where it was (drops.ts dimesFor), lying like any drop (rule 12);
 //    dimes taken up are cash, into the taker's wallet (Reduced.earn), never
 //    the pack. Among them come the shadow spiders, twice the height, far

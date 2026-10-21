@@ -13,11 +13,13 @@ import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { TaskProgress } from './dailytask.ts'
 import type { Drop } from './drops.ts'
-import type { AnglerWire, LineOut, PondPlace } from './fishing.ts'
+import type { AnglerWire, ArrowDir, LineOut, PondPlace } from './fishing.ts'
+import type { FishPhase } from './fishplay.ts'
 import type { CrewState, Game } from './game.ts'
 import type { Grave } from './graves.ts'
 import type { Hallucination, HallucinationShape } from './hallucinations.ts'
 import type { Hand } from './hands.ts'
+import type { Tool } from './held.ts'
 import type { Hotbar } from './hotbar.ts'
 import type { SlurmSpot } from './interactions.ts'
 import type { Inventory, WardAxis, XZ } from './interfaces.ts'
@@ -146,14 +148,22 @@ interface BvHook {
   readonly wards: Record<WardAxis, number>
   // The chat log, oldest first.
   readonly chat: readonly ChatLine[]
-  // The flashlight in the left hand, and the item the right last raised.
+  // The flashlight in the left hand (or the jar or the rod in its place,
+  // `held`), and the item the right last raised.
   readonly flashlight: Hand
+  readonly held: Tool
+  // The fight over the view: where the line stands.
+  readonly fishPhase: FishPhase
   // The last state frame sent to the valley: where it last heard we are.
   readonly sent: PeerStateWire | null
   readonly using: { kind: string; at: number } | null
   teleport(u: number, v: number): void
-  // The left button, for a page without pointer lock.
+  // The left button, for a page without pointer lock: the flashlight
+  // alone, or whatever the left hand holds; Q; and A or D in a fight.
   toggleFlashlight(): void
+  useHeld(): void
+  switchHeld(): void
+  pressFish(dir: ArrowDir): void
   // A Citgo portal opened ahead of the raider at once, as if the phone had
   // dialed it through; and fast travel to Citgo `station`, as if clicked
   // on the map.
@@ -377,6 +387,12 @@ export function installDevHook(game: Game, actions: Actions): void {
     get flashlight() {
       return s.flashlight
     },
+    get held() {
+      return s.held
+    },
+    get fishPhase() {
+      return game.fishHud.phase
+    },
     get sent() {
       return s.lastSent
     },
@@ -388,6 +404,9 @@ export function installDevHook(game: Game, actions: Actions): void {
       player.relocate(x, z)
     },
     toggleFlashlight: () => actions.toggleFlashlight(),
+    useHeld: () => actions.useHeld(),
+    switchHeld: () => actions.switchHeld(),
+    pressFish: (dir: ArrowDir) => game.fishHud.press(dir),
     openPortal: () => actions.openPortal(),
     fastTravel: (station: number) => actions.fastTravel(station),
     placeShadowman(x: number, z: number, kind: boolean | ShadeKind = 'man') {

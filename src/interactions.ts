@@ -8,12 +8,14 @@ import { copy } from './copy.ts'
 import { nearestCorpse } from './corpses.ts'
 import { cosmeticById } from './cosmetics.ts'
 import { GOLD_BULLION, isCash, QUARTERS, TWENTY } from './drops.ts'
+import { baitName } from './fishlines.ts'
 import { itemLabel as itemName } from './itemcopy.ts'
 import { itemById } from './items.ts'
 import { npcReach } from './npcs.ts'
 import { formatCash } from './store.ts'
 import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
+import type { Bait } from './fishing.ts'
 import type { HallucinationShape } from './hallucinations.ts'
 import type { Vec3, XZ } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
@@ -96,8 +98,12 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // The tackle box on the firefly pond's landing: E opens it to fish
   // (rule 35).
   | { kind: 'fish' }
-  // A slurm crawling on a Citgo's lot: E catches it in the jar (rule 35).
+  // A slurm crawling on a Citgo's lot, the jar in hand: the click catches
+  // it (rule 35).
   | { kind: 'jar-slurm'; station: number; slot: number; index: number }
+  // At a firefly pond with the rod in hand and no line out: the click
+  // casts, with the bait it would cast with (null with none).
+  | { kind: 'cast'; bait: Bait | null }
   // The squatter in Bull Valley Plaza: E opens what he is selling
   // (dealer.ts).
   | { kind: 'deal' }
@@ -266,9 +272,12 @@ export interface InteractionInput<P extends PickupSpot> {
   wreck?: XZ | null
   // The tackle box on the firefly pond's landing, or null.
   tackle?: XZ | null
-  // The slurms crawling on the lot, while this raider carries a jar with
+  // The slurms crawling on the lot, while this raider holds a jar with
   // room in it; none otherwise.
   slurms?: readonly SlurmSpot[]
+  // With the rod in hand, no line out, at a firefly pond: the bait it
+  // would cast with. Missing otherwise.
+  cast?: { bait: Bait | null }
   // The squatter who deals in the plaza, or null.
   dealer?: XZ | null
   // A locked door this raider lacks the key to, or null.
@@ -426,6 +435,8 @@ export function resolveInteraction<P extends PickupSpot>(
   ) {
     return { kind: 'fish' }
   }
+
+  if (input.cast) return { kind: 'cast', bait: input.cast.bait }
 
   const dealer = input.dealer
   if (
@@ -662,6 +673,8 @@ export function interactionKey(interaction: Interaction): string {
       return `hallucination:${interaction.id}`
     case 'inspect':
       return `inspect:${interaction.name}`
+    case 'cast':
+      return `cast:${interaction.bait ?? ''}`
     default:
       return interaction.kind
   }
@@ -697,6 +710,10 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return copy('prompts.fish')
     case 'jar-slurm':
       return copy('prompts.jar_slurm')
+    case 'cast':
+      return interaction.bait
+        ? copy('prompts.cast', { bait: baitName(interaction.bait) })
+        : copy('prompts.cast_no_bait')
     case 'deal':
       return null
     // As the real one: a label for a thing, the glow alone for a person.

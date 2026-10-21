@@ -7,6 +7,7 @@ import {
   actionOf,
   BOOK,
   CHAT,
+  FISHING,
   hotbarSlot,
   MAP,
   PACK,
@@ -137,8 +138,10 @@ export function wireKeys(
     else if (s.mapOpen) actions.closeMap(true)
     else if (s.started && !player.locked) engagePointer()
   })
-  // The left button raises the flashlight or puts it down, only with the
-  // pointer locked: the click that takes the pointer back never does.
+  // The left button uses what the left hand holds (held.ts): the
+  // flashlight up or down, the jar's catch, the rod's cast and reel. Only
+  // with the pointer locked: the click that takes the pointer back never
+  // does.
   document.addEventListener('mousedown', (e) => {
     if (e.button !== 0 || !player.locked) return
     if (
@@ -150,7 +153,7 @@ export function wireKeys(
     ) {
       return
     }
-    actions.toggleFlashlight()
+    actions.useHeld()
   })
 
   // With the pack open the keys act on the item under the cursor (PACK in
@@ -280,8 +283,22 @@ export function wireKeys(
       }
       return
     }
+    // A line in the water holds the raider at the bank: A and D (and the
+    // arrows) answer the fish, and nothing walks.
+    if (game.fishHud.out) {
+      const dir = actionOf(FISHING, e.code)
+      if (dir === 'left' || dir === 'right') {
+        e.preventDefault()
+        game.fishHud.press(dir)
+        return
+      }
+      if (actionOf(WORLD, e.code) === 'move') return
+    }
     player.handleKey(e.code, true)
     switch (actionOf(WORLD, e.code)) {
+      case 'held':
+        actions.switchHeld()
+        return
       case 'inventory':
         e.preventDefault()
         actions.openInventory()
