@@ -148,8 +148,9 @@ test('the phone dials a Citgo portal to the last Citgo and back', async ({
   // Into the end ahead of us, out at the Citgo.
   await walkInto(portal.field)
   await expect.poll(() => distanceTo(portal.citgo)).toBeLessThan(3)
-  // And back out of the twin, where we dialed from.
-  await page.waitForTimeout(1200)
+  // And back out of the twin, where we dialed from, once the portal that
+  // took us lets us through again.
+  await expect.poll(() => page.evaluate(() => window.__bv?.portalGrace)).toBe(0)
   await walkInto(portal.citgo)
   await expect.poll(() => distanceTo(portal.field)).toBeLessThan(3)
 })

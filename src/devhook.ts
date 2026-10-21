@@ -107,11 +107,13 @@ interface BvHook {
   readonly stand: StandLedger | null
   readonly standAt: XZ | null
   // Rule 28: every Citgo the account has stood at and the last, the Citgo
-  // portals open, the id of ours
-  // while it stands, and whether the phone is up and the map open.
+  // portals open, the id of ours while it stands, the milliseconds before
+  // a portal takes us again after one has (CONFIG.portal.graceSeconds),
+  // and whether the phone is up and the map open.
   readonly citgos: CitgoLog
   readonly portals: readonly Portal[]
   readonly myPortal: number | null
+  readonly portalGrace: number
   readonly phoneRaised: boolean
   readonly mapOpen: boolean
   // The item on each number key, slot 0 for 1.
@@ -278,6 +280,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     },
     get myPortal() {
       return s.myPortal
+    },
+    get portalGrace() {
+      return Math.max(0, s.portalGraceUntil - performance.now())
     },
     get phoneRaised() {
       return game.phone.raised
