@@ -8,6 +8,7 @@ import { mountBuildTag } from './buildtag.ts'
 import { CaretakerShade } from './caretakerrig.ts'
 import { mapCitgos } from './citgomap.ts'
 import { CONFIG } from './config.ts'
+import { Constellations } from './constellationrig.ts'
 import { unitToWorld } from './coords.ts'
 import { copy } from './copy.ts'
 import { createCorpseMeshes } from './corpsemeshes.ts'
@@ -56,6 +57,7 @@ import {
   signOutAndReload,
 } from './titles.ts'
 import { createTrails } from './trails.ts'
+import { TripSolids } from './tripsolidsrig.ts'
 import { Truck } from './truck.ts'
 import { joyrideMs } from './truckplan.ts'
 import { createTruckRadio } from './truckradiorig.ts'
@@ -342,6 +344,8 @@ async function boot() {
     // The ring around whatever E would act on.
     glow: createGlow(renderer, scene),
     trails: createTrails(renderer),
+    solids: new TripSolids(scene),
+    constellations: new Constellations(sky),
     thumbs: createItemThumbs(),
     peers: new Peers(scene),
     net,

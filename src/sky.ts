@@ -1,22 +1,22 @@
 import * as THREE from 'three'
 import { context2d } from './canvas.ts'
-import { mulberry32 } from './rng.ts'
+import { STARS } from './constellations.ts'
 
 // --- Sky -----------------------------------------------------------------
+
+// How far off the stars hang, metres from the eye.
+export const STAR_RADIUS = 1200
 
 // Stars and the moon. loop.ts moves the group with the player so the sky
 // never recedes into fog.
 export function buildSky(): THREE.Group {
   const sky = new THREE.Group()
-  const starRng = mulberry32(0x57a25)
-  const starPositions = new Float32Array(700 * 3)
-  for (let i = 0; i < 700; i++) {
-    const az = starRng() * Math.PI * 2
-    const el = Math.asin(starRng() * 0.95 + 0.05)
-    const r = 1200
-    starPositions[i * 3] = Math.cos(el) * Math.sin(az) * r
-    starPositions[i * 3 + 1] = Math.sin(el) * r
-    starPositions[i * 3 + 2] = Math.cos(el) * Math.cos(az) * r
+  // The stars are constellations.ts's, so a trip's lines meet them.
+  const starPositions = new Float32Array(STARS.length * 3)
+  for (const [i, star] of STARS.entries()) {
+    starPositions[i * 3] = star.x * STAR_RADIUS
+    starPositions[i * 3 + 1] = star.y * STAR_RADIUS
+    starPositions[i * 3 + 2] = star.z * STAR_RADIUS
   }
   const starGeo = new THREE.BufferGeometry()
   starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3))

@@ -282,6 +282,55 @@ export const CONFIG = {
     sharpen: 1.6,
     sharpenRadius: 1,
   },
+  // What a trip shows that is not there, in psychedelic fuchsia
+  // (fuchsia.ts), each scaled by the tripping ward from 0 to 1.
+  psych: {
+    // Platonic solids drifting and tumbling round the eye (tripsolids.ts):
+    // up to `max` of them, one more for every 1 / max of the level. Each
+    // comes for `showMin` to `showMax` seconds, fading in and out over
+    // `fadeSeconds`, rests `restMin` to `restMax`, and comes again
+    // somewhere else, `radiusMin` to `radiusMax` metres out and `low` to
+    // `high` metres off the eye, `sizeMin` to `sizeMax` metres across,
+    // circling at up to `orbit` radians a second and tumbling at up to
+    // `tumble`. `opacity` is the face at its fullest; the edges are solid.
+    solids: {
+      max: 12,
+      showMin: 5,
+      showMax: 14,
+      restMin: 1,
+      restMax: 7,
+      fadeSeconds: 1.5,
+      radiusMin: 2.5,
+      radiusMax: 7,
+      low: -1.2,
+      high: 2.2,
+      sizeMin: 0.18,
+      sizeMax: 0.45,
+      orbit: 0.25,
+      tumble: 1.2,
+      opacity: 0.35,
+    },
+    // Constellations drawn between the stars (constellations.ts): up to
+    // `lanes` at once, one more for every 1 / lanes of the level. Each
+    // lane comes round every `periodSeconds` (the lanes staggered across
+    // it) and draws one with a chance of `chanceMin` at the least level,
+    // rising to `chanceMax` at a full trip; it fades in over
+    // `fadeSeconds`, holds, and fades out by `showSeconds`. One joins
+    // `starsMin` to `starsMax` stars within `reach` radians of the first,
+    // which stands at least `lowest` up the sky (the sine of its height).
+    constellations: {
+      lanes: 5,
+      periodSeconds: 11,
+      chanceMin: 0.35,
+      chanceMax: 0.95,
+      showSeconds: 8,
+      fadeSeconds: 1.5,
+      starsMin: 4,
+      starsMax: 8,
+      reach: 0.32,
+      lowest: 0.3,
+    },
+  },
   // What the wards do besides warding (buffs.ts), each scaled by its
   // level from 0 to 1. High reaches the flashlight further and wider (a
   // full high, half again); stimulated quickens the sprint (a full one,

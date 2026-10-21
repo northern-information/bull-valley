@@ -14,6 +14,7 @@ import { freshStock } from './store.ts'
 import { SOBER } from './wardlevels.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
 import type { CitgoLog } from './citgos.ts'
+import type { Constellations } from './constellationrig.ts'
 import type { CorpseMeshes } from './corpsemeshes.ts'
 import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -61,6 +62,7 @@ import type { ShadowBursts } from './shadowburst.ts'
 import type { StandLedger } from './stand.ts'
 import type { Titles } from './titles.ts'
 import type { Trails } from './trails.ts'
+import type { TripSolids } from './tripsolidsrig.ts'
 import type { Truck } from './truck.ts'
 import type { TruckContext, TruckPlan } from './truckplan.ts'
 import type { TruckRadio } from './truckradiorig.ts'
@@ -392,6 +394,11 @@ export interface Game {
   glow: Glow
   // The view through the wards and the blur of a use (trails.ts).
   trails: Trails
+  // What a trip shows that is not there: platonic solids round the eye
+  // (tripsolidsrig.ts) and constellations between the stars
+  // (constellationrig.ts).
+  solids: TripSolids
+  constellations: Constellations
   // The items as the pack grid and the hotbar draw them.
   thumbs: ItemThumbs
   peers: Peers
