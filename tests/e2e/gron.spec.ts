@@ -1,5 +1,12 @@
 import { copy } from './copy.ts'
-import { beginRaid, expect, frames, freshRaider, test } from './fixtures.ts'
+import {
+  beginRaid,
+  expect,
+  faceSpot,
+  frames,
+  freshRaider,
+  test,
+} from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
 // Gron stands under his raincloud beside the berry bush. Talking to him
@@ -7,7 +14,7 @@ import type { Page } from '@playwright/test'
 // the game stands aside while he talks.
 
 async function standAtGron(page: Page): Promise<void> {
-  await page.evaluate(() => {
+  const gron = await page.evaluate(() => {
     const bv = window.__bv
     if (!bv) throw new Error('no dev hook')
     const { gron } = bv.world
@@ -22,7 +29,9 @@ async function standAtGron(page: Page): Promise<void> {
       gron.z + (dz / d) * 1.2,
       bv.player.yaw
     )
+    return { x: gron.x, z: gron.z }
   })
+  await faceSpot(page, gron.x, gron.z, 1.2)
 }
 
 const playerAt = (page: Page) =>

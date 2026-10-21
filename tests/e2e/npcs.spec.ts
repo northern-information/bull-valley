@@ -1,5 +1,5 @@
 import { copy } from './copy.ts'
-import { beginRaid, expect, test } from './fixtures.ts'
+import { beginRaid, expect, faceSpot, test } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
 // Walk up to Matthew Marx or David Carlsten and he glows, with no prompt;
@@ -12,7 +12,7 @@ type Who = 'marx' | 'carlsten'
 // so the truck is in boarding range too; in front of Carlsten, the way he
 // faces across the counter.
 async function approach(page: Page, who: Who): Promise<void> {
-  await page.evaluate((who: Who) => {
+  const at = await page.evaluate((who: Who) => {
     const bv = window.__bv
     if (!bv) throw new Error('no dev hook')
     const { world, truck, player } = bv
@@ -32,10 +32,11 @@ async function approach(page: Page, who: Who): Promise<void> {
       dz = facing.z
     }
     const d = Math.hypot(dx, dz)
-    // Looking up, past the shelves, so no facing is in view.
-    player.pitch = 1.2
     player.relocate(at.x + (dx / d) * 1.4, at.z + (dz / d) * 1.4)
+    return { x: at.x, z: at.z }
   }, who)
+  // Looking him in the face, over the counter, so no facing is in view.
+  await faceSpot(page, at.x, at.z, 1.6)
 }
 
 const glowsOn = (page: Page, who: Who) =>

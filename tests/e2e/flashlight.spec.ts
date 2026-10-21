@@ -1,6 +1,6 @@
 import { barOf, XP } from '../../src/progression.ts'
 import { copy } from './copy.ts'
-import { beginRaid, expect, heardWhere, test } from './fixtures.ts'
+import { beginRaid, expect, faceSpot, heardWhere, test } from './fixtures.ts'
 
 // The flashlight in the left hand: the left button raises it and lights
 // it, and a shadowman held in the beam bursts into dimes, which are cash,
@@ -136,6 +136,7 @@ test('a shadowman held in the beam bursts into dimes', async ({ page }) => {
     lying.x,
     lying.z,
   ] as const)
+  await faceSpot(page, lying.x, lying.z)
   // The valley pays only a raider it has heard standing by them.
   await heardWhere(page)
   await expect(page.locator('.bv-item-label')).toContainText(
@@ -218,6 +219,7 @@ test('a shadow spider takes twice as long and leaves a $20 bill', async ({
     bill.x,
     bill.z,
   ] as const)
+  await faceSpot(page, bill.x, bill.z)
   // The valley gives a drop only to a raider it has heard stand in reach.
   await heardWhere(page)
   await expect(page.locator('.bv-item-label')).toContainText(

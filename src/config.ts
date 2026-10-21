@@ -28,8 +28,13 @@ export const CONFIG = {
     // Walking with the phone up, dialing a Citgo portal.
     phoneSpeedScale: 0.6,
     mouseSensitivity: 0.0023,
-    // How close a pickup must be for E to take it.
+    // How close a pickup must be for E to take it, across the ground; how
+    // far above or below the feet it may lie (never a floor away); and how
+    // far off the view, in radians, it may sit and still be the one you
+    // are looking at.
     pickupReach: 2.6,
+    pickupRise: 1.5,
+    pickupCone: 0.6,
     // The body's radius, for the store walls.
     radius: 0.3,
   },
@@ -401,12 +406,10 @@ export const CONFIG = {
   store: {
     // A new account's wallet, in cents (worker/packs.ts).
     startingCash: 4000,
-    // Units of every item on each Citgo's shelves when the day turns.
+    // Units of every item on each Citgo's shelves when the day turns, and
+    // the kinds stocked deeper than that.
     perItem: 3,
-    // Scarcity (store.ts shelfPrice): each unit of a kind already sold off
-    // a station's shelf today puts its price up this many times over, so
-    // the last of anything costs the most.
-    surge: 1.6,
+    stock: { 'ice-mountain': 20 } as Readonly<Record<string, number>>,
     // How close a shelf unit must be, from the eye, for E to buy it.
     reach: 2.2,
     // How far off the view ray, in radians, a unit can sit and still be
