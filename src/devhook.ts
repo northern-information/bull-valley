@@ -28,6 +28,7 @@ import type { Peer } from './presence.ts'
 import type {
   DailyWire,
   FriendWire,
+  PartyWire,
   PeerStateWire,
   TunnelShadeWire,
   WorldWire,
@@ -90,6 +91,8 @@ interface BvHook {
   readonly xp: number
   // The account's friends list, as the valley last sent it.
   readonly friends: readonly FriendWire[]
+  // Rule 34: the party, as the valley last sent it.
+  readonly party: PartyWire
   // The pack as this client holds it: the valley's last word, plus guesses.
   readonly inventory: Inventory
   // What lies dropped, the valley's.
@@ -257,6 +260,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     },
     get friends() {
       return s.friends
+    },
+    get party() {
+      return s.party
     },
     get inventory() {
       return s.inventory

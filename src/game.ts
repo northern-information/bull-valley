@@ -51,6 +51,7 @@ import type {
   DailyWire,
   FriendWire,
   InspectWire,
+  PartyWire,
   PeerStateWire,
   WorldWire,
 } from './protocol.ts'
@@ -101,6 +102,8 @@ export interface Pending {
   whisperTo: string | null
   // A raider's card asked for (inspect.ts), by the name asked.
   inspect: string | null
+  // Rule 34: who an invite went to, for a refusal's line.
+  invite: string | null
   // Rule 23: a change to the Cabbage Stand.
   stand: boolean
   // Rule 33: a level bought at the Recycling Center.
@@ -121,6 +124,7 @@ export function freshPending(): Pending {
     showFriends: false,
     whisperTo: null,
     inspect: null,
+    invite: null,
     stand: false,
     recycle: false,
   }
@@ -239,6 +243,8 @@ export interface GameState {
   // The raider's card open (inspect.ts), as the valley last sent it; null
   // while none is.
   inspected: InspectWire | null
+  // Rule 34: the party as the valley last sent it (none at first).
+  party: PartyWire
   // Rule 23: the account's Cabbage Stand as the valley last sent it; null
   // before it has. And the last word on a change, for the stand's dialog.
   stand: StandLedger | null
@@ -336,6 +342,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     lockerOpen: false,
     laptop: null,
     inspected: null,
+    party: { members: [], invites: [] },
     stand: null,
     standSaid: null,
     research: null,

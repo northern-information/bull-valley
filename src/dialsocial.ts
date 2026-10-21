@@ -2,7 +2,8 @@
 // valley's one chat channel, its log and a field to say a line (the 3D
 // valley's commands too, dialstate.ts sayLine), the friends list with a
 // way to accept an asking or end a friendship, and who is in the valley
-// now, each name tapped open on their card (inspect.ts). The field is
+// now, each name tapped open on their card (inspect.ts), and the party
+// (sharedworld.ts rule 34) with its invites to join and a way to leave. The field is
 // kept across redraws, so a line half typed survives the valley's frames.
 
 import { formatStamp } from './chat.ts'
@@ -18,6 +19,8 @@ export interface SocialActions {
   friend(name: string): void
   unfriend(name: string): void
   inspect(name: string): void
+  invite(name: string): void
+  leave(): void
 }
 
 export class DialSocial {
@@ -27,6 +30,7 @@ export class DialSocial {
   private input = document.createElement('input')
   private friends = el('section', 'bv-dial-friends')
   private online = el('section', 'bv-dial-online')
+  private party = el('section', 'bv-dial-party')
   // The newest line drawn, so the log redraws only when one comes.
   private newest: ChatLine | undefined
   private friendActions: SocialActions
@@ -49,7 +53,7 @@ export class DialSocial {
       actions.say(line)
     })
     this.friendActions = actions
-    this.root.append(this.log, this.form, this.friends, this.online)
+    this.root.append(this.log, this.form, this.party, this.friends, this.online)
   }
 
   render(s: DialState, self: Self): void {
@@ -71,6 +75,7 @@ export class DialSocial {
       )
       this.log.scrollTop = this.log.scrollHeight
     }
+    this.renderParty(s)
     this.renderFriends(s)
     this.online.replaceChildren(
       text('h3', copy('dialup.social.online'), 'bv-dial-social-head'),
@@ -89,6 +94,48 @@ export class DialSocial {
         row.addEventListener('click', () => this.friendActions.inspect(p.name))
         return row
       })
+    )
+  }
+
+  // Rule 34: the party's members and a way out, or the invites waiting;
+  // nothing at all while there is neither.
+  private renderParty(s: DialState): void {
+    const { members, invites } = s.party
+    this.party.hidden = members.length === 0 && invites.length === 0
+    const rows: HTMLElement[] = members.map((m) =>
+      text(
+        'p',
+        m.online ? m.name : copy('party.away', { name: m.name }),
+        'bv-dial-party-name'
+      )
+    )
+    if (members.length > 0) {
+      const leave = text('button', copy('party.leave_button'), 'bv-dial-btn')
+      leave.type = 'button'
+      leave.addEventListener('click', () => this.friendActions.leave())
+      rows.push(leave)
+    }
+    for (const name of invites) {
+      const row = el('div', 'bv-dial-friend')
+      row.dataset.invite = name
+      row.append(
+        text(
+          'span',
+          copy('party.news_invited', { name }),
+          'bv-dial-friend-line'
+        )
+      )
+      const join = text('button', copy('party.join_button'), 'bv-dial-btn')
+      join.type = 'button'
+      // One invite at a time: the valley's answer frees them again.
+      join.disabled = s.pending.invite !== null
+      join.addEventListener('click', () => this.friendActions.invite(name))
+      row.append(join)
+      rows.push(row)
+    }
+    this.party.replaceChildren(
+      text('h3', copy('party.heading'), 'bv-dial-social-head'),
+      ...rows
     )
   }
 

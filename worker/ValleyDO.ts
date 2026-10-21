@@ -43,6 +43,7 @@ import { burialsOf } from '../src/graves.ts'
 import { cardOf } from '../src/inspect.ts'
 import { healsOf } from '../src/items.ts'
 import { listingFor, saveRefusal } from '../src/laptop.ts'
+import { partyOf, standing as partyStanding, partyWire } from '../src/party.ts'
 import { levelOf, levelUp, totals } from '../src/progression.ts'
 import {
   CLOSE,
@@ -94,6 +95,7 @@ import type {
   HelloMessage,
   NackMessage,
   PackMessage,
+  PartyWire,
   PeerStateWire,
   PeerWire,
   SeasonWire,
@@ -406,6 +408,19 @@ export class ValleyDO extends DurableObject<Env> {
         return
       case 'inspect':
         if (account) await this.inspect(ws, account, msg.name)
+        return
+      case 'invite':
+        if (!allow(this.friendRate, ws, FRIEND_LIMIT)) {
+          send(ws, { type: 'nack', re: 'invite', reason: 'too-fast' })
+          return
+        }
+        await this.act(ws, { type: 'invite', id, name: msg.name })
+        return
+      case 'party-leave':
+        await this.act(ws, { type: 'party-leave', id })
+        return
+      case 'party-chat':
+        this.partyChat(ws, attachment, me, msg.text)
         return
       case 'laptop-list':
       case 'laptop-read':
@@ -1403,6 +1418,12 @@ export class ValleyDO extends DurableObject<Env> {
     // greeting.
     this.broadcast({ type: 'peer-joined', peer: this.shown(me, account) }, ws)
     for (const msg of reduced.broadcast) this.broadcast(msg, ws)
+    // Rule 34: the party it is in, or the invites waiting on it (the
+    // client starts with none).
+    const party = this.partyFrame(account)
+    if (party.members.length > 0 || party.invites.length > 0) {
+      send(ws, party)
+    }
     if (!back) await this.greetFriends(ws, account, name)
   }
 
@@ -1470,6 +1491,32 @@ export class ValleyDO extends DurableObject<Env> {
         ...line,
         outgoing: true,
       })
+    }
+  }
+
+  // Rule 34: a line to the raider's party, under the chat rules and its
+  // rate, delivered to every member's sockets. Nothing is stored.
+  private partyChat(
+    ws: WebSocket,
+    attachment: Attachment,
+    me: PeerWire,
+    text: string
+  ): void {
+    if (!allow(this.chatRate, ws, CHAT_LIMIT)) {
+      send(ws, { type: 'nack', re: 'party-chat', reason: 'too-fast' })
+      return
+    }
+    const party = attachment.account
+      ? partyOf(this.valley.parties, attachment.account)
+      : null
+    if (!party) {
+      send(ws, { type: 'nack', re: 'party-chat', reason: 'no-party' })
+      return
+    }
+    const line = { type: 'party-chat' as const, from: me.name, text }
+    const at = Date.now()
+    for (const member of party.members) {
+      this.toAccount(member.account, { ...line, at })
     }
   }
 
@@ -1658,6 +1705,7 @@ export class ValleyDO extends DurableObject<Env> {
         season,
         self: them === account,
         friend: friends.find((row) => row.accountId === them),
+        party: partyStanding(this.valley.parties, account, them, Date.now()),
         online: this.hasSocket(them),
       })
       send(ws, { type: 'inspected', card })
@@ -2626,6 +2674,7 @@ export class ValleyDO extends DurableObject<Env> {
       if (this.lingering.get(me.id)?.timer !== timer) return
       this.lingering.delete(me.id)
       this.broadcast({ type: 'peer-left', id: me.id }, null)
+      void this.dropFromParty(account)
     }, CONFIG.net.lingerMs)
     this.lingering.set(me.id, { account, me, timer })
   }
@@ -2672,6 +2721,44 @@ export class ValleyDO extends DurableObject<Env> {
       await this.ctx.storage.setAlarm(reduced.alarm)
     }
     if (reduced.xp) void this.award(reduced.xp)
+    this.tellParties(reduced)
+  }
+
+  // Rule 34: each account whose party changed, sent it again, and the
+  // news to the ones it is news to.
+  private tellParties(reduced: Reduced): void {
+    for (const account of reduced.party ?? []) {
+      this.toAccount(account, this.partyFrame(account))
+    }
+    for (const { account, news, name } of reduced.partyNews ?? []) {
+      this.toAccount(account, { type: 'party-news', news, name })
+    }
+  }
+
+  // Rule 34: the party as `account` is sent it.
+  private partyFrame(account: string): { type: 'party' } & PartyWire {
+    return {
+      type: 'party',
+      ...partyWire(
+        this.valley.parties,
+        account,
+        (other) => this.hasSocket(other),
+        Date.now()
+      ),
+    }
+  }
+
+  // Rule 34: an account whose linger ran out with no socket left, out of
+  // its party.
+  private dropFromParty(account: string): Promise<void> {
+    return this.locked(async () => {
+      const reduced = reduce(
+        this.valley,
+        { type: 'party-drop', account },
+        this.context()
+      )
+      await this.apply(reduced)
+    })
   }
 
   // Ids of everyone who has said hello, except the socket given.

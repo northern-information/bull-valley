@@ -5,13 +5,14 @@ import { copy } from './copy.ts'
 import { EMOTE_IDS, emoteOf } from './emotes.ts'
 import { isValidName } from './protocol.ts'
 import type { EmoteId } from './emotes.ts'
-import type { WhisperedMessage } from './protocol.ts'
+import type { PartyChatLineMessage, WhisperedMessage } from './protocol.ts'
 
-// A line a raider said, a whisper to or from this player, a line an NPC
-// said to this player, or a line the game says to the player alone.
+// A line a raider said, a whisper to or from this player, a line said to
+// their party, a line an NPC said to this player, or a line the game
+// says to the player alone.
 export interface ChatLine {
-  kind: 'say' | 'whisper' | 'npc' | 'system'
-  // For 'say', 'whisper' and 'npc': who said it, or for a whisper this
+  kind: 'say' | 'whisper' | 'party' | 'npc' | 'system'
+  // For 'say', 'whisper', 'party' and 'npc': who said it, or for a whisper this
   // player sent, who it went to, as the log heads the line.
   name?: string
   text: string
@@ -36,7 +37,9 @@ export const CHAT_COPY = {
 // answered here; /w (or /whisper) sends one raider a
 // whisper; /friend asks a raider to be friends or accepts their asking,
 // /unfriend undoes it, and /friends asks for the list (friends.ts);
-// /inspect opens a raider's card (inspect.ts).
+// /inspect opens a raider's card (inspect.ts); /invite invites a raider
+// to the party or joins theirs, /leave leaves it, /party lists it, and
+// /p says a line to it alone (party.ts).
 // `usage` is a command missing what it needs, with the line that says how.
 export type ChatCommand =
   | { name: 'online' }
@@ -44,7 +47,10 @@ export type ChatCommand =
   | { name: 'emote'; id: EmoteId }
   | { name: 'friends' }
   | { name: 'whisper'; to: string; text: string }
-  | { name: 'friend' | 'unfriend' | 'inspect'; who: string }
+  | { name: 'friend' | 'unfriend' | 'inspect' | 'invite'; who: string }
+  | { name: 'party' }
+  | { name: 'leave' }
+  | { name: 'partySay'; text: string }
   | { name: 'usage'; line: string }
   | { name: 'unknown' }
 
@@ -53,6 +59,7 @@ const USAGE = {
   friend: copy('chat.usage_friend'),
   unfriend: copy('chat.usage_unfriend'),
   inspect: copy('inspect.usage'),
+  invite: copy('party.usage_invite'),
 } as const
 
 export function chatCommand(text: string): ChatCommand | null {
@@ -76,7 +83,20 @@ export function chatCommand(text: string): ChatCommand | null {
     }
     return { name: 'whisper', to, text: said }
   }
-  if (command === 'friend' || command === 'unfriend' || command === 'inspect') {
+  if (command === 'party') return { name: 'party' }
+  if (command === 'leave') return { name: 'leave' }
+  if (command === 'p') {
+    const said = rest.join(' ')
+    return said
+      ? { name: 'partySay', text: said }
+      : { name: 'usage', line: copy('party.usage_say') }
+  }
+  if (
+    command === 'friend' ||
+    command === 'unfriend' ||
+    command === 'inspect' ||
+    command === 'invite'
+  ) {
     const [who = ''] = rest
     if (!who) return { name: 'usage', line: USAGE[command] }
     if (!isValidName(who)) {
@@ -214,6 +234,16 @@ export function whisperLine(msg: WhisperedMessage): ChatLine {
     name: msg.outgoing
       ? copy('chat.whisper_to', { name: msg.to })
       : copy('chat.whisper_from', { name: msg.from }),
+    text: msg.text,
+    at: msg.at,
+  }
+}
+
+// A line said to the party, as the log keeps it, by the valley's clock.
+export function partyChatLine(msg: PartyChatLineMessage): ChatLine {
+  return {
+    kind: 'party',
+    name: copy('party.said', { name: msg.from }),
     text: msg.text,
     at: msg.at,
   }

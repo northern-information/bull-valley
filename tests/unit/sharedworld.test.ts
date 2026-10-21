@@ -11,6 +11,7 @@ import { contentsOf, getItem, healsOf } from '../../src/items.ts'
 import { LADDER_FOOT, LADDER_TOP, lookoutToWorld } from '../../src/lookout.ts'
 import { nextChange } from '../../src/marx.ts'
 import { mazeToWorld } from '../../src/maze.ts'
+import { partyOf } from '../../src/party.ts'
 import { PROTOCOL_VERSION } from '../../src/protocol.ts'
 import { FRESH_RESEARCH } from '../../src/recycling.ts'
 import { mulberry32 } from '../../src/rng.ts'
@@ -32,6 +33,7 @@ import {
   corpsesOf,
   createValley,
   creditedWith,
+  creditedWithParty,
   dailyFor,
   findsPay,
   healthFor,
@@ -3576,5 +3578,138 @@ describe('rule 30: idle expeditions', () => {
     const points = max - Math.round(CONFIG.expeditions.runs.corn.hurt * max)
     expect(r.health).toEqual({ account: 'acct-p', points, max })
     expect(healthFor(r.valley, 'acct-p')).toBe(points)
+  })
+})
+
+describe('rule 34: parties', () => {
+  const invite = (id: string, name: string): ValleyAction => ({
+    type: 'invite',
+    id,
+    name,
+  })
+  const names = (v: { valley: Valley }, account: string) =>
+    partyOf(v.valley.parties, account)?.members.map((m) => m.name) ?? []
+
+  it('invites a raider in the valley, who joins by inviting back', () => {
+    const v = valleyWith(join('a'), join('b'), join('c'))
+    let r = v.step(invite('a', 'b'))
+    expect(r.party).toEqual(['acct-b'])
+    expect(r.partyNews).toEqual([
+      { account: 'acct-b', news: 'invited', name: 'A' },
+      { account: 'acct-a', news: 'sent', name: 'B' },
+    ])
+    r = v.step(invite('b', 'a'))
+    expect(r.party).toEqual(['acct-a', 'acct-b'])
+    expect(r.partyNews).toEqual([
+      { account: 'acct-a', news: 'joined', name: 'B' },
+      { account: 'acct-b', news: 'joined', name: 'B' },
+    ])
+    expect(names(v, 'acct-a')).toEqual(['A', 'B'])
+    // Nothing of it on the world's wire.
+    expect(JSON.stringify(r.broadcast)).not.toContain('acct-')
+  })
+
+  it('refuses one not in the valley, and says why the rest are refused', () => {
+    const v = valleyWith(join('a'), join('b'))
+    expect(v.step(invite('a', 'nobody')).reply).toEqual({
+      type: 'nack',
+      re: 'invite',
+      reason: 'not-here',
+    })
+    expect(v.step(invite('a', 'a')).reply?.reason).toBe('self')
+    v.step(invite('a', 'b'))
+    expect(v.step(invite('a', 'B')).reply?.reason).toBe('already-invited')
+    expect(v.step({ type: 'party-leave', id: 'a' }).reply).toEqual({
+      type: 'nack',
+      re: 'party-leave',
+      reason: 'no-party',
+    })
+  })
+
+  it('lets a raider leave, telling everyone in it, and a party of one is none', () => {
+    const v = valleyWith(join('a'), join('b'), join('c'))
+    v.step(invite('a', 'b'))
+    v.step(invite('b', 'a'))
+    v.step(invite('a', 'c'))
+    v.step(invite('c', 'a'))
+    const r = v.step({ type: 'party-leave', id: 'c' })
+    expect(r.party).toEqual(['acct-a', 'acct-b', 'acct-c'])
+    expect(r.partyNews?.map((n) => n.account)).toEqual([
+      'acct-a',
+      'acct-b',
+      'acct-c',
+    ])
+    expect(names(v, 'acct-a')).toEqual(['A', 'B'])
+    v.step({ type: 'party-leave', id: 'b' })
+    expect(v.valley.parties.parties).toEqual([])
+  })
+
+  it('keeps a raider whose line dropped and came back, and drops one gone past the linger', () => {
+    const v = valleyWith(join('a'), join('b'), join('c'))
+    v.step(invite('a', 'b'))
+    v.step(invite('b', 'a'))
+    v.step(invite('a', 'c'))
+    v.step(invite('c', 'a'))
+    // B's socket goes: away, and A and C are sent it.
+    let r = v.step(leaveAs('b'))
+    expect(r.party).toEqual(['acct-a', 'acct-b', 'acct-c'])
+    // Back within the linger: still in it.
+    v.tick(CONFIG.net.lingerMs / 2)
+    v.step(join('b'))
+    expect(names(v, 'acct-a')).toEqual(['A', 'B', 'C'])
+    // C goes, and the valley's linger timer drops them.
+    v.step(leaveAs('c'))
+    r = v.step({ type: 'party-drop', account: 'acct-c' })
+    expect(r.partyNews).toEqual([
+      { account: 'acct-a', news: 'left', name: 'C' },
+      { account: 'acct-b', news: 'left', name: 'C' },
+    ])
+    expect(names(v, 'acct-a')).toEqual(['A', 'B'])
+    // A drop for an account back in the valley does nothing.
+    expect(v.step({ type: 'party-drop', account: 'acct-a' }).party).toBe(
+      undefined
+    )
+  })
+
+  it('drops one gone past the linger on the next arrival, timer or no timer', () => {
+    const v = valleyWith(join('a'), join('b'))
+    v.step(invite('a', 'b'))
+    v.step(invite('b', 'a'))
+    v.step(leaveAs('b'))
+    v.tick(CONFIG.net.lingerMs + 1)
+    const r = v.step(join('c'))
+    expect(r.partyNews).toEqual([
+      { account: 'acct-a', news: 'left', name: 'B' },
+    ])
+    expect(v.valley.parties.parties).toEqual([])
+  })
+
+  it('follows a new name from Gron', () => {
+    const v = valleyWith(join('a'), join('b'))
+    v.step(invite('a', 'b'))
+    v.step(invite('b', 'a'))
+    const r = v.step({ type: 'appearance', id: 'b', name: 'Bee' })
+    expect(r.party).toEqual(['acct-a', 'acct-b'])
+    expect(names(v, 'acct-a')).toEqual(['A', 'Bee'])
+  })
+
+  it('credits the Caretaker to a burner’s party members standing near', () => {
+    const v = valleyWith(join('a'), join('b'), join('c'), join('d'))
+    v.step(invite('a', 'b'))
+    v.step(invite('b', 'a'))
+    v.step(invite('a', 'c'))
+    v.step(invite('c', 'a'))
+    const far = CONFIG.party.creditRadius + 1
+    const raiders = [
+      { id: 'a', x: 0, z: 0 },
+      { id: 'b', x: 5, z: 0 },
+      { id: 'c', x: far, z: 0 },
+      { id: 'd', x: 1, z: 0 },
+    ]
+    expect(creditedWithParty(v.valley, ['a'], raiders)).toEqual([
+      'acct-a',
+      'acct-b',
+    ])
+    expect(creditedWithParty(v.valley, ['d'], raiders)).toEqual(['acct-d'])
   })
 })

@@ -11,6 +11,8 @@ import {
   cardStatus,
   friendButton,
   inspectRefusal,
+  partied,
+  partyButton,
 } from '../../src/inspect.ts'
 import { xpToReach } from '../../src/progression.ts'
 import { SEASON } from '../../src/season.ts'
@@ -25,6 +27,7 @@ const read = (over: Partial<InspectRead> = {}): InspectRead => ({
   season: { kills: 0, claimed: false },
   self: false,
   friend: undefined,
+  party: null,
   online: true,
   ...over,
 })
@@ -49,6 +52,7 @@ describe('a raider card', () => {
       book: { found: 2, of: BOOK.length },
       season: { kills: SEASON.goal, goal: SEASON.goal, claimed: true },
       friend: null,
+      party: null,
       online: true,
     })
   })
@@ -128,6 +132,35 @@ describe('the friend button', () => {
     expect(befriended(card(null)).friend).toBe('asked')
     expect(befriended(card('asking')).friend).toBe('friend')
     expect(befriended(card('friend')).friend).toBe('friend')
+  })
+})
+
+describe('the party button', () => {
+  it('invites, joins, or only says how the two stand', () => {
+    const card = (party: InspectRead['party'], online = true, self = false) =>
+      cardOf(read({ party, online, self }))
+    expect(partyButton(card(null))).toEqual({
+      label: copy('party.invite_button'),
+      enabled: true,
+    })
+    expect(partyButton(card(null, false))?.enabled).toBe(false)
+    expect(partyButton(card('inviting'))).toEqual({
+      label: copy('party.join_button'),
+      enabled: true,
+    })
+    expect(partyButton(card('invited'))?.enabled).toBe(false)
+    expect(partyButton(card('member'))).toEqual({
+      label: copy('party.member_button'),
+      enabled: false,
+    })
+    expect(partyButton(card(null, true, true))).toBeNull()
+    expect(card('member', true, true).party).toBeNull()
+  })
+
+  it('moves on at once when pressed', () => {
+    expect(partied(cardOf(read())).party).toBe('invited')
+    expect(partied(cardOf(read({ party: 'inviting' }))).party).toBe('member')
+    expect(partied(cardOf(read({ party: 'member' }))).party).toBe('member')
   })
 })
 

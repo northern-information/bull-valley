@@ -3,14 +3,15 @@
 // (npcdialog.ts). Their name heads it, with whether they are in the
 // valley; their figure turns on the left in their character, finish and
 // cosmetics (avatarview.ts), and the card's rows sit on the right. Under
-// it, the friend button asks them (or accepts their asking), or says how
-// the two stand. The caller asks the valley and hands the card in; the
+// it, the friend button asks them (or accepts their asking), and the
+// party button invites them (or joins their party, rule 34), or each says
+// how the two stand. The caller asks the valley and hands the card in; the
 // dialog reads it again every tick, so a fresh answer shows as it lands.
 
 import { AVATAR_PX, createAvatarView } from './avatarview.ts'
 import { copy } from './copy.ts'
 import { el, finder } from './dom.ts'
-import { cardRows, cardStatus, friendButton } from './inspect.ts'
+import { cardRows, cardStatus, friendButton, partyButton } from './inspect.ts'
 import { npcFooter, npcHeader, sectionHead } from './npcdialog.ts'
 import type { InspectWire } from './protocol.ts'
 
@@ -18,6 +19,27 @@ interface InspectDialogOptions {
   // Read again every tick: the card as the valley last sent it.
   card: () => InspectWire
   onFriend: (name: string) => void
+  onParty: (name: string) => void
+}
+
+// A button wearing one of `labels` at a time, all stacked in it so a
+// change never resizes it (bv-btn--stack); none hides it.
+function stacked(
+  button: HTMLButtonElement,
+  labels: readonly string[]
+): (shown: { label: string; enabled: boolean } | null) => void {
+  const spans = labels.map((label) => el('span', '', label))
+  button.replaceChildren(...spans)
+  return (shown) => {
+    button.hidden = shown === null
+    if (!shown) return
+    for (const span of spans) {
+      const current = span.textContent === shown.label
+      span.classList.toggle('bv-btn-label--off', !current)
+      span.setAttribute('aria-hidden', String(!current))
+    }
+    button.disabled = !shown.enabled
+  }
 }
 
 // How often the card is redrawn.
@@ -50,6 +72,7 @@ export function openInspectDialog(
         </div>
         <div class="bv-npc-grid">
           <button type="button" class="bv-btn bv-btn--stack bv-npc-btn bv-btn--primary bv-npc-c4" data-bv="inspect-friend"></button>
+          <button type="button" class="bv-btn bv-btn--stack bv-npc-btn bv-npc-c4" data-bv="inspect-party"></button>
         </div>
       </section>
       ${npcFooter('inspect-said', 'inspect-close', copy('inspect.close'))}
@@ -63,20 +86,24 @@ export function openInspectDialog(
   const level = find<HTMLElement>('[data-bv="inspect-level"]')
   const rows = find<HTMLElement>('[data-bv="inspect-rows"]')
   const friend = find<HTMLButtonElement>('[data-bv="inspect-friend"]')
+  const party = find<HTMLButtonElement>('[data-bv="inspect-party"]')
   const closeBtn = find<HTMLButtonElement>('[data-bv="inspect-close"]')
   const avatar = createAvatarView(
     find<HTMLCanvasElement>('[data-bv="inspect-avatar"]'),
     { drag: true }
   )
-  // Every label the friend button may wear, stacked so a change never
-  // resizes it (bv-btn--stack); all but the one showing are hidden.
-  const labels = [
+  const showFriend = stacked(friend, [
     copy('inspect.add_friend'),
     copy('inspect.accept'),
     copy('inspect.asked'),
     copy('inspect.friends'),
-  ].map((label) => el('span', '', label))
-  friend.replaceChildren(...labels)
+  ])
+  const showParty = stacked(party, [
+    copy('party.invite_button'),
+    copy('party.join_button'),
+    copy('party.invited_button'),
+    copy('party.member_button'),
+  ])
 
   let shown: InspectWire | null = null
   let dressed = ''
@@ -93,16 +120,8 @@ export function openInspectDialog(
         el('dd', '', row.value),
       ])
     )
-    const button = friendButton(card)
-    friend.hidden = button === null
-    if (button) {
-      for (const span of labels) {
-        const current = span.textContent === button.label
-        span.classList.toggle('bv-btn-label--off', !current)
-        span.setAttribute('aria-hidden', String(!current))
-      }
-      friend.disabled = !button.enabled
-    }
+    showFriend(friendButton(card))
+    showParty(partyButton(card))
     const look = {
       outfit: card.outfit,
       finish: card.finish,
@@ -133,6 +152,10 @@ export function openInspectDialog(
 
     friend.addEventListener('click', () => {
       if (shown && friendButton(shown)?.enabled) options.onFriend(shown.name)
+      refresh()
+    })
+    party.addEventListener('click', () => {
+      if (shown && partyButton(shown)?.enabled) options.onParty(shown.name)
       refresh()
     })
     closeBtn.addEventListener('click', close)

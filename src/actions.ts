@@ -41,7 +41,7 @@ import {
 import { finishById } from './finishes.ts'
 import { openGronDialog } from './grondialog.ts'
 import { assign, clearSlot as clearHotbarSlot, place, spent } from './hotbar.ts'
-import { befriended } from './inspect.ts'
+import { befriended, partied } from './inspect.ts'
 import { openInspectDialog } from './inspectdialog.ts'
 import { pickupLabel } from './interactions.ts'
 import { addItem, consume } from './inventory.ts'
@@ -59,6 +59,7 @@ import {
   packItems,
   stashItems,
 } from './packgrid.ts'
+import { partyLines } from './party.ts'
 import { enteredAt, exitFrom, openAt } from './portals.ts'
 import { levelOf } from './progression.ts'
 import { normalizeChat } from './protocol.ts'
@@ -1264,6 +1265,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       case 'usage':
         hud.tell(command.line)
         return
+      case 'party':
+        for (const line of partyLines(s.party)) hud.tell(line)
+        return
     }
     if (!net.online) {
       hud.tell(CHAT_COPY.offline)
@@ -1286,7 +1290,27 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       case 'inspect':
         inspect(command.who)
         return
+      case 'invite':
+        invite(command.who)
+        return
+      case 'leave':
+        net.send({ type: 'party-leave' })
+        return
+      case 'partySay':
+        net.send({ type: 'party-chat', text: command.text })
+        return
     }
+  }
+
+  // Rule 34: an invite to the party, or theirs taken up; the valley's
+  // answer says which (valleysync.ts).
+  const invite = (name: string) => {
+    if (!net.online) {
+      hud.tell(CHAT_COPY.offline)
+      return
+    }
+    s.pending.invite = name
+    net.send({ type: 'invite', name })
   }
 
   // A raider's card (inspect.ts), asked of the valley by E or /inspect;
@@ -1324,6 +1348,14 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
           s.pending.ask = { op: 'friend', name }
           net.send({ type: 'friend', name })
           if (s.inspected) s.inspected = befriended(s.inspected)
+        },
+        onParty: (name) => {
+          if (!net.online) {
+            hud.tell(CHAT_COPY.offline)
+            return
+          }
+          invite(name)
+          if (s.inspected) s.inspected = partied(s.inspected)
         },
       }).then(() => {
         s.inspected = null

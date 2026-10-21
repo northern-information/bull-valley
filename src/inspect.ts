@@ -38,6 +38,8 @@ export interface InspectRead {
   self: boolean
   // The asker's row for the inspected account, if there is one.
   friend: FriendRow | undefined
+  // Where the asker stands with them in a party (party.ts standing).
+  party: InspectWire['party']
   online: boolean
 }
 
@@ -60,6 +62,7 @@ export function cardOf(read: InspectRead): InspectWire {
       claimed: read.season.claimed,
     },
     friend: read.self ? 'self' : (read.friend?.state ?? null),
+    party: read.self ? null : read.party,
     online: read.online,
   }
 }
@@ -135,6 +138,32 @@ export function friendButton(
 export function befriended(card: InspectWire): InspectWire {
   if (card.friend === 'asking') return { ...card, friend: 'friend' }
   if (card.friend === null) return { ...card, friend: 'asked' }
+  return card
+}
+
+// The party button under a card (rule 34): invite them, join them (they
+// invited the asker), or say how the two stand. None on the raider's own
+// card; a raider away from the valley cannot be invited.
+export function partyButton(
+  card: InspectWire
+): { label: string; enabled: boolean } | null {
+  if (card.friend === 'self') return null
+  switch (card.party) {
+    case 'member':
+      return { label: copy('party.member_button'), enabled: false }
+    case 'invited':
+      return { label: copy('party.invited_button'), enabled: false }
+    case 'inviting':
+      return { label: copy('party.join_button'), enabled: card.online }
+    case null:
+      return { label: copy('party.invite_button'), enabled: card.online }
+  }
+}
+
+// The card after the asker pressed its party button.
+export function partied(card: InspectWire): InspectWire {
+  if (card.party === 'inviting') return { ...card, party: 'member' }
+  if (card.party === null) return { ...card, party: 'invited' }
   return card
 }
 

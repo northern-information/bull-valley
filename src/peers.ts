@@ -204,18 +204,35 @@ export class Peers {
   }
 
   // The raiders placed in the valley, nearest `from` first, as the party
-  // list shows them.
-  party(from: { x: number; z: number }): PartyMember[] {
+  // list shows them: the ones named `mates` alone, when the raider is in a
+  // party (sharedworld.ts rule 34), or else everyone near.
+  party(
+    from: { x: number; z: number },
+    mates: readonly string[] = []
+  ): PartyMember[] {
     const members: PartyMember[] = []
     for (const [id, puppet] of this.puppets) {
       const peer = this.table.get(id)
       if (!peer || peer.dialup || !puppet.at) continue
+      if (mates.length > 0 && !mates.includes(peer.name)) continue
       const { name, health, max } = peer
       const distance = Math.hypot(puppet.at.x - from.x, puppet.at.z - from.z)
       members.push({ id, name, health, max, distance })
     }
     members.sort((a, b) => a.distance - b.distance)
     return members.slice(0, PARTY_MAX)
+  }
+
+  // The raiders named `names` placed in the valley, where their last
+  // state put them and which way they face: the party on the map.
+  placed(
+    names: readonly string[]
+  ): { name: string; x: number; z: number; yaw: number }[] {
+    return this.list().flatMap(({ name, next, dialup }) =>
+      next && !dialup && names.includes(name)
+        ? [{ name, x: next.x, z: next.z, yaw: next.yaw }]
+        : []
+    )
   }
 
   // The raiders standing in the valley (placed, and not riding), where

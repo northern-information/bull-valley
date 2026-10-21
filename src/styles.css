@@ -483,6 +483,12 @@
   color: #ff8ad8;
 }
 
+/* A line said to the raider's party (rule 34): cyan, as their arrows on
+   the map. */
+.bv-chat-line--party {
+  color: var(--fi-cyan);
+}
+
 .bv-chat-stamp {
   margin-right: 1ch;
   color: var(--bv-eggshell);

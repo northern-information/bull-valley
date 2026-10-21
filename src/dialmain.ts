@@ -29,7 +29,7 @@ import {
 } from './dialstate.ts'
 import { text } from './dom.ts'
 import { fontsReady } from './fonts.ts'
-import { befriended } from './inspect.ts'
+import { befriended, partied } from './inspect.ts'
 import { itemLine } from './itemcopy.ts'
 import { mountModem } from './modemhud.ts'
 import { NetClient, socketUrl } from './net.ts'
@@ -173,6 +173,12 @@ async function boot(): Promise<void> {
             send({ type: 'friend', name }, { ask: { op: 'friend', name } })
             if (net.online && state.inspected) {
               state = { ...state, inspected: befriended(state.inspected) }
+            }
+          },
+          onParty: (name) => {
+            send({ type: 'invite', name }, { invite: name })
+            if (net.online && state.inspected) {
+              state = { ...state, inspected: partied(state.inspected) }
             }
           },
         })
@@ -326,6 +332,8 @@ async function boot(): Promise<void> {
       unfriend: (name) =>
         send({ type: 'unfriend', name }, { ask: { op: 'unfriend', name } }),
       inspect: (name) => send({ type: 'inspect', name }, { inspect: name }),
+      invite: (name) => send({ type: 'invite', name }, { invite: name }),
+      leave: () => send({ type: 'party-leave' }, {}),
     },
     openStand: () => {
       void openStandDialog({

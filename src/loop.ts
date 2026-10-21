@@ -488,13 +488,21 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     return portalNow
   }
 
-  // The map, while it is open: where you stand, your Citgos.
+  // Rule 34: the others in the raider's party, by name.
+  const partyMates = () =>
+    s.party.members
+      .map((m) => m.name)
+      .filter((name) => name !== game.pick.username)
+
+  // The map, while it is open: where you stand, your Citgos, and your
+  // party.
   const drawMap = () => {
     if (s.mapOpen) {
       hud.map?.draw({
         me: { x: player.pos.x, z: player.pos.z, yaw: player.yaw },
         log: s.citgos,
         here: s.aboard ? null : citgoAt(player.pos, world.fuelPoints),
+        party: peers.placed(partyMates()),
       })
     }
   }
@@ -827,7 +835,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     drawMap()
     feelStrikes(clock.now)
     peers.update(clock.dt, renderAt)
-    hud.setParty(peers.party(camera.position))
+    hud.setParty(peers.party(camera.position, partyMates()))
     const tick = sendState(clock, feet, lit)
     stepHud(clock)
     stepPhone(clock.dt, portalNow)

@@ -35,7 +35,7 @@ import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 41
+export const PROTOCOL_VERSION = 42
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -519,6 +519,24 @@ interface FriendsMessage {
   type: 'friends'
 }
 
+// Rule 34: invite the raider in the valley signed in as `name`, in any
+// case, to this raider's party, or join theirs by inviting back; leave
+// the party; or say a line to it alone (under the chat rules and rate,
+// never kept).
+interface InviteMessage {
+  type: 'invite'
+  name: string
+}
+
+interface PartyLeaveMessage {
+  type: 'party-leave'
+}
+
+interface PartyChatMessage {
+  type: 'party-chat'
+  text: string
+}
+
 // The card of the raider signed in as `name`, in any case, whether they
 // are in the valley or not (inspect.ts): an inspected frame answers the
 // asker alone.
@@ -619,6 +637,9 @@ export type ClientMessage =
   | UnfriendMessage
   | FriendsMessage
   | InspectMessage
+  | InviteMessage
+  | PartyLeaveMessage
+  | PartyChatMessage
   | LaptopListMessage
   | LaptopReadMessage
   | LaptopSaveMessage
@@ -1053,6 +1074,9 @@ export type ServerMessage =
   | FriendsListMessage
   | FriendNewsMessage
   | InspectedMessage
+  | PartyMessage
+  | PartyNewsMessage
+  | PartyChatLineMessage
   | LaptopFilesMessage
   | LaptopFileMessage
   | LaptopSavedMessage
@@ -1131,7 +1155,39 @@ export interface InspectWire {
   book: { found: number; of: number }
   season: { kills: number; goal: number; claimed: boolean }
   friend: FriendWire['state'] | 'self' | null
+  // Where the asker stands with them in a party (rule 34): in the same
+  // one, invited by the asker, inviting the asker, or none of those.
+  party: 'member' | 'invited' | 'inviting' | null
   online: boolean
+}
+
+// Rule 34: the party as one member is sent it (party.ts partyWire): who
+// is in it, by name, each with whether they are in the valley now, and
+// who is inviting this raider. Empty members: in no party.
+export interface PartyWire {
+  members: { name: string; online: boolean }[]
+  invites: string[]
+}
+
+interface PartyMessage extends PartyWire {
+  type: 'party'
+}
+
+// News of the party, for the log: `name` invited this raider, or this
+// raider's invite went to `name` (sent); `name` joined it, or left it
+// (this raider's own name: they did).
+export interface PartyNewsMessage {
+  type: 'party-news'
+  news: 'invited' | 'sent' | 'joined' | 'left'
+  name: string
+}
+
+// A line said to the party, as the valley delivers it to every member.
+export interface PartyChatLineMessage {
+  type: 'party-chat'
+  from: string
+  text: string
+  at: number
 }
 
 interface InspectedMessage {
@@ -1516,6 +1572,10 @@ const CLIENT_PARSERS: ClientParsers = {
   unfriend: ({ name }) =>
     isValidName(name) ? { type: 'unfriend', name } : null,
   inspect: ({ name }) => (isValidName(name) ? { type: 'inspect', name } : null),
+  invite: ({ name }) => (isValidName(name) ? { type: 'invite', name } : null),
+  'party-leave': bare('party-leave'),
+  'party-chat': ({ text }) =>
+    isValidChat(text) ? { type: 'party-chat', text } : null,
   collect: ({ bush }) => (isCount(bush) ? { type: 'collect', bush } : null),
   // Widened like the hello's, so a bad id reaches the server's check.
   appearance: ({ outfit }) =>
