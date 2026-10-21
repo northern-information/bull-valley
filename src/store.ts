@@ -7,6 +7,7 @@
 // what blocks, and what E buys can never drift apart. No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
+import { isSpirit } from './drinks.ts'
 import { ITEMS } from './items.ts'
 import type { HeightAt, ShopStock, Vec3, XZ } from './interfaces.ts'
 import type { ItemId } from './items.ts'
@@ -141,15 +142,16 @@ const GLASS = 0.04
 const FOUNDATION = 1.5
 const FLOOR_CLEARANCE = 0.08
 
-// The coolers along the partition: a bank of reach-in coolers, glass
-// doors on the shop side and drinks on wire shelves behind them, running
-// from a step past the back doorway to the +Z wall. Each door's shelf
+// Along the partition, from a step past the back doorway to the +Z wall:
+// first the liquor's open shelf, then a bank of reach-in coolers, glass
+// doors on the shop side and drinks on wire shelves behind them. Each
+// door's shelf
 // holds one kind, filled top shelf first, door by door; a kind's units
 // stand in lanes across the shelf, front to back.
 const COOLER = {
   depth: 0.65,
   height: 2.05,
-  doors: 6,
+  doors: 5,
   shelves: [1.42, 0.92, 0.42],
   // The kick plate under the doors, and the lit sign strip over them.
   base: 0.15,
@@ -166,6 +168,14 @@ const COOLER_FACE = COOLER_BACK + COOLER.depth
 const COOLER_X = (COOLER_BACK + COOLER_FACE) / 2
 const BOARD = { z0: BACK_DOOR_Z1 + 0.2, z1: HALF_WIDTH - WALL }
 const SHELF_BOARD = 0.04
+// The liquor's shelf at the run's -Z end: an open wooden unit, a bottle
+// kind to a board at the coolers' shelf heights, a cap over the top, and a
+// gap before the coolers start.
+const LIQUOR = { width: 1.5, depth: 0.4, height: 1.85, gap: 0.1 }
+const LIQUOR_FACE = COOLER_BACK + LIQUOR.depth
+const LIQUOR_X = (COOLER_BACK + LIQUOR_FACE) / 2
+const LIQUOR_Z = BOARD.z0 + LIQUOR.width / 2
+const COOLER_Z0 = BOARD.z0 + LIQUOR.width + LIQUOR.gap
 // The counter by the door: cigarettes and joints on top.
 const COUNTER = { x: -8.6, z0: 1.4, z1: 5.0, depth: 0.6, height: 1.0 }
 // Where David Carlsten stands: behind the counter, between it and the
@@ -227,8 +237,8 @@ const SIGN_DEPTH = 0.04
 const MED_RACK = { x0: -12.6, x1: -9.6, height: 1.15, depth: 0.3 }
 const MED_RACK_Z = HALF_WIDTH - WALL - MED_RACK.depth / 2
 
-const BOARD_LENGTH = BOARD.z1 - BOARD.z0
-const BOARD_Z = (BOARD.z0 + BOARD.z1) / 2
+const BOARD_LENGTH = BOARD.z1 - COOLER_Z0
+const BOARD_Z = (COOLER_Z0 + BOARD.z1) / 2
 
 function box(
   name: string,
@@ -242,6 +252,58 @@ function box(
 
 // One door's width in the cooler bank.
 const COOLER_DOOR = BOARD_LENGTH / COOLER.doors
+
+// The liquor's shelf: its kick plate is the footprint that blocks, a back
+// against the partition, an upright at each end, a board at each of the
+// coolers' shelf heights and a cap over the top, all in the counter's
+// wood.
+function liquorShelf(): StoreBox[] {
+  const bodyY = (FLOOR + LIQUOR.height) / 2
+  const bodyH = LIQUOR.height - FLOOR
+  const boxes: StoreBox[] = [
+    box(
+      'liquor-base',
+      [LIQUOR_X, FLOOR + COOLER.base / 2, LIQUOR_Z],
+      [LIQUOR.depth, COOLER.base, LIQUOR.width],
+      'counter',
+      true
+    ),
+    box(
+      'liquor-back',
+      [COOLER_BACK + 0.01, bodyY, LIQUOR_Z],
+      [0.02, bodyH, LIQUOR.width],
+      'counter'
+    ),
+    box(
+      'liquor-cap',
+      [LIQUOR_X, LIQUOR.height - SHELF_BOARD / 2, LIQUOR_Z],
+      [LIQUOR.depth, SHELF_BOARD, LIQUOR.width],
+      'counter'
+    ),
+  ]
+  for (const [i, z] of [BOARD.z0, BOARD.z0 + LIQUOR.width].entries()) {
+    const inward = i === 0 ? 1 : -1
+    boxes.push(
+      box(
+        `liquor-end-${i}`,
+        [LIQUOR_X, bodyY, z + (inward * SHELF_BOARD) / 2],
+        [LIQUOR.depth, bodyH, SHELF_BOARD],
+        'counter'
+      )
+    )
+  }
+  COOLER.shelves.forEach((y, i) => {
+    boxes.push(
+      box(
+        `liquor-board-${i}`,
+        [LIQUOR_X, y - SHELF_BOARD / 2, LIQUOR_Z],
+        [LIQUOR.depth, SHELF_BOARD, LIQUOR.width],
+        'counter'
+      )
+    )
+  })
+  return boxes
+}
 
 // The cooler bank along the partition: the carcass (its kick plate is the
 // footprint that blocks, its ends, the lit back inside, the sign strip over
@@ -275,7 +337,7 @@ function coolers(): StoreBox[] {
       'cooler-inside'
     ),
   ]
-  for (const [i, z] of [BOARD.z0, BOARD.z1].entries()) {
+  for (const [i, z] of [COOLER_Z0, BOARD.z1].entries()) {
     const inward = i === 0 ? 1 : -1
     boxes.push(
       box(
@@ -297,7 +359,7 @@ function coolers(): StoreBox[] {
     )
   })
   for (let d = 0; d < COOLER.doors; d++) {
-    const z0 = BOARD.z0 + d * COOLER_DOOR
+    const z0 = COOLER_Z0 + d * COOLER_DOOR
     const zc = z0 + COOLER_DOOR / 2
     if (d > 0) {
       boxes.push(
@@ -682,6 +744,7 @@ function buildBoxes(): StoreBox[] {
       [WALL, lintelH, DOOR_WIDTH],
       'wall'
     ),
+    ...liquorShelf(),
     ...coolers(),
     box(
       'counter',
@@ -868,10 +931,10 @@ function row(at: Vec3, gap: number, axis: 'x' | 'z'): Vec3[] {
   return slots
 }
 
-// The units of `kind` on a cooler shelf whose front edge, at the glass, is
+// The units of `kind` on a shelf whose front edge (at a cooler's glass) is
 // `at`: in lanes across the shelf centred on it, as many as fit up to
 // COOLER.lanes, then row after row going back. Unit 0 is at the front.
-function inCooler(at: Vec3, kind: ItemId): Vec3[] {
+function inLanes(at: Vec3, kind: ItemId): Vec3[] {
   const n = unitsOf(kind)
   const lanes = Math.min(n, COOLER.lanes)
   const slots: Vec3[] = []
@@ -890,20 +953,34 @@ function inCooler(at: Vec3, kind: ItemId): Vec3[] {
 function buildFacings(): Facing[] {
   const facings: Facing[] = []
   // In the coolers: drinks in ITEMS order, one to a door's shelf, top shelf
-  // first and door by door, art facing out through the glass (+X).
+  // first and door by door, art facing out through the glass (+X). The
+  // liquor is never chilled: it stands on its own shelf, a kind to a
+  // board, top board first.
   const drinks = ITEMS.filter((item) => item.category === 'drink')
-  drinks.forEach((item, i) => {
+  const chilled = drinks.filter((item) => !isSpirit(item.id))
+  chilled.forEach((item, i) => {
     const shelf = Math.floor(i / COOLER.doors)
     const door = i % COOLER.doors
-    const z = BOARD.z0 + COOLER_DOOR * (door + 0.5)
+    const z = COOLER_Z0 + COOLER_DOOR * (door + 0.5)
     const y = COOLER.shelves[shelf]
     if (y === undefined) throw new Error(`no cooler shelf for ${item.id}`)
     facings.push({
       kind: item.id,
-      slots: inCooler([COOLER_FACE, y, z], item.id),
+      slots: inLanes([COOLER_FACE, y, z], item.id),
       yaw: Math.PI / 2,
     })
   })
+  drinks
+    .filter((item) => isSpirit(item.id))
+    .forEach((item, i) => {
+      const y = COOLER.shelves[i]
+      if (y === undefined) throw new Error(`no liquor board for ${item.id}`)
+      facings.push({
+        kind: item.id,
+        slots: inLanes([LIQUOR_FACE, y, LIQUOR_Z], item.id),
+        yaw: Math.PI / 2,
+      })
+    })
   // The counter: cigarettes then joints, art toward the room side (-X),
   // where the customer stands.
   const smokes = ITEMS.filter(

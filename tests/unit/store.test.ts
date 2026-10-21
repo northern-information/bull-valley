@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
+import { isSpirit } from '../../src/drinks.ts'
 import { ITEMS } from '../../src/items.ts'
 import {
   formatCash,
@@ -37,29 +38,36 @@ describe('STORE_LAYOUT', () => {
     expect(unitsOf('ice-mountain')).toBe(20)
   })
 
-  it('stands every drink in the coolers, behind their glass', () => {
+  it('chills every drink but the liquor, which stands on its own shelf', () => {
     const doors = STORE_LAYOUT.boxes.filter((b) => b.finish === 'cooler-glass')
     expect(doors.length).toBeGreaterThan(0)
     const glass = Math.min(...doors.map((d) => d.center[0] - d.size[0] / 2))
     const top = Math.max(...doors.map((d) => d.center[1] + d.size[1] / 2))
-    const base = STORE_LAYOUT.boxes.find((b) => b.name === 'cooler-base')
-    expect(base?.blocks).toBe(true)
-    const drinks = new Set(
-      ITEMS.filter((item) => item.category === 'drink').map((item) => item.id)
-    )
-    const facings = STORE_LAYOUT.facings.filter((f) => drinks.has(f.kind))
-    expect(facings).toHaveLength(drinks.size)
-    for (const facing of facings) {
-      for (const [x, y, z] of facing.slots) {
-        expect(x).toBeLessThan(glass)
-        expect(x).toBeGreaterThan(STORE_LAYOUT.partition)
-        expect(y).toBeLessThan(top)
-        // Inside some door's width.
-        expect(
-          doors.some((d) => Math.abs(z - d.center[2]) < d.size[2] / 2)
-        ).toBe(true)
+    const behindGlass = ([x, y, z]: Vec3) =>
+      x < glass &&
+      x > STORE_LAYOUT.partition &&
+      y < top &&
+      doors.some((d) => Math.abs(z - d.center[2]) < d.size[2] / 2)
+    for (const name of ['cooler-base', 'liquor-base']) {
+      expect(STORE_LAYOUT.boxes.find((b) => b.name === name)?.blocks).toBe(true)
+    }
+    const liquor = STORE_LAYOUT.boxes.find((b) => b.name === 'liquor-base')!
+    const onLiquorShelf = ([x, , z]: Vec3) =>
+      Math.abs(x - liquor.center[0]) < liquor.size[0] / 2 &&
+      Math.abs(z - liquor.center[2]) < liquor.size[2] / 2
+    const drinks = ITEMS.filter((item) => item.category === 'drink')
+    for (const item of drinks) {
+      const facing = STORE_LAYOUT.facings.find((f) => f.kind === item.id)
+      expect(facing).toBeDefined()
+      const spirit = isSpirit(item.id)
+      for (const slot of facing!.slots) {
+        expect(behindGlass(slot)).toBe(!spirit)
+        expect(onLiquorShelf(slot)).toBe(spirit)
       }
     }
+    expect(drinks.filter((item) => isSpirit(item.id)).map((i) => i.id)).toEqual(
+      ['wild-turkey', 'jim-beam', 'grey-goose']
+    )
   })
 
   it('keeps every unit inside the walls', () => {
