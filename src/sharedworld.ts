@@ -32,7 +32,9 @@
 //    for everyone until the day turns. The buyer picks the unit, so the
 //    valley keeps which units are left. A unit is paid for out of the
 //    buyer's wallet, which is their account's; the valley refuses a sale
-//    it does not cover (ValleyContext.cash in, Reduced.spend out).
+//    it does not cover (ValleyContext.cash in, Reduced.spend out). Each
+//    unit of a kind sold off a station's shelf today puts the next one's
+//    price up (store.ts shelfPrice): the last of anything costs the most.
 // 8. Each berry bush gives each account one berry a day: the one at the
 //    spawn Citgo (bush 0) and the ring round the portal at the maze's heart
 //    (1 to CONFIG.maze.bushes.count). The valley remembers only the
@@ -289,7 +291,6 @@ import {
   INVENTORY_KINDS,
   isKeyItem,
   isUsable,
-  itemById,
 } from './items.ts'
 import { atLaptop } from './laptop.ts'
 import {
@@ -321,7 +322,7 @@ import {
   upgrade as upgradeStand,
 } from './stand.ts'
 import { atLocker } from './stash.ts'
-import { freshStock, onShelf, takeUnit } from './store.ts'
+import { freshStock, onShelf, shelfPrice, takeUnit } from './store.ts'
 import { levelsAt } from './wardlevels.ts'
 import { damageOf } from './wards.ts'
 import type { CitgoLog } from './citgos.ts'
@@ -1486,7 +1487,8 @@ function onBuy(
     })
   if (!member || !world) return refuse('not-in-valley')
   const shelf = world.shelves[station] as ShopStock | undefined
-  const price = itemById(kind)?.price
+  // Rule 7: dearer the emptier the shelf (store.ts shelfPrice).
+  const price = shelf ? shelfPrice(kind, shelf[kind]) : undefined
   if (!shelf || !Object.hasOwn(shelf, kind) || price === undefined) {
     return refuse('no-such-shelf')
   }

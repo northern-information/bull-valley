@@ -59,7 +59,7 @@ import { inHaven } from './shadowmen.ts'
 import { buy as buyItem, settle } from './shop.ts'
 import { openStandDialog } from './standdialog.ts'
 import { move, moveAmount } from './stash.ts'
-import { formatCash } from './store.ts'
+import { formatCash, shelfPrice } from './store.ts'
 import { planLeg } from './truckplan.ts'
 import { dose, SOBER } from './wardlevels.ts'
 import { WARD_OF } from './wards.ts'
@@ -164,8 +164,10 @@ export interface Actions {
   stowKind(kind: string, all: boolean): void
   unstowKind(kind: string, all: boolean): void
   callTruck(): void
-  // The buyer's side of a sale, once the valley says the unit is ours.
-  pocket(kind: string): void
+  // The buyer's side of a sale off `station`, once the valley says the
+  // unit is ours: at the shelf's price before it went (store.ts
+  // shelfPrice).
+  pocket(kind: string, station: number): void
   // The valley's answer at the bush.
   applyDaily(msg: DailyMessage): void
   // Moab, within reach, makes his offer (once per approach).
@@ -756,10 +758,13 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     net.send({ type: 'call', from })
   }
 
-  const pocket = (kind: string) => {
+  const pocket = (kind: string, station: number) => {
+    const price = shelfPrice(kind, s.storeStock[station]?.[kind])
+    if (price === undefined) return
     const { next, line } = settle(
       { inventory: s.inventory, cash: s.cash },
-      kind
+      kind,
+      price
     )
     if (next) {
       const inventoryChanged = next.inventory !== s.inventory
