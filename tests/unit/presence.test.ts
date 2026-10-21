@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { FRAMES_KEPT } from '../../src/framebuffer.ts'
 import {
+  applyHealth,
   applyJoined,
   applyLeft,
   applyState,
@@ -223,5 +224,25 @@ describe('wire helpers', () => {
     expect(stateChanged(base, { ...base, riding: true })).toBe(true)
     expect(stateChanged(base, { ...base, light: true })).toBe(true)
     expect(stateChanged(base, { ...base, pitch: 0.05 })).toBe(true)
+  })
+})
+
+describe('peer geometrie', () => {
+  it('is whole at their level when the valley leaves it off', () => {
+    const peers = createPeerTable()
+    const peer = applyJoined(peers, { ...wire('a'), level: 3 }, 0)
+    expect(peer.max).toBe(1080)
+    expect(peer.health).toBe(1080)
+  })
+
+  it('comes off the wire, and moves with the valley', () => {
+    const peers = createPeerTable()
+    applyJoined(peers, { ...wire('a'), health: 600, max: 1000 }, 0)
+    expect(peers.get('a')).toMatchObject({ health: 600, max: 1000 })
+    expect(applyHealth(peers, 'a', 250, 1000)?.health).toBe(250)
+    expect(applyHealth(peers, 'a', 5000, 1040)?.health).toBe(1040)
+    expect(applyHealth(peers, 'nobody', 1, 1000)).toBeNull()
+    applyUpdated(peers, { ...wire('a'), health: 900, max: 1000 })
+    expect(peers.get('a')?.health).toBe(900)
   })
 })

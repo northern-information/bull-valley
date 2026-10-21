@@ -487,6 +487,29 @@ export class ValleyDO extends DurableObject<Env> {
     max: number
   }): void {
     this.toAccount(account, { type: 'health', health: points, max })
+    this.tellPeersHealth(account, points, max)
+  }
+
+  // Rule 24: everyone in the valley hears an account's geometrie, once for
+  // each of its sockets, so every raider sees every other's bar.
+  private tellPeersHealth(account: string, health: number, max: number): void {
+    for (const socket of this.ctx.getWebSockets()) {
+      const attachment = this.attachment(socket)
+      const me = attachment.me
+      if (attachment.account !== account || !me) continue
+      this.broadcast({ type: 'peer-health', id: me.id, health, max }, null)
+    }
+  }
+
+  // A peer as everyone is shown it: its geometrie stamped on from the
+  // valley's wounds (rule 24), which the socket's own record never holds.
+  private shown(me: PeerWire, account: string | null): PeerWire {
+    if (!account) return me
+    return {
+      ...me,
+      health: healthFor(this.valley, account),
+      max: maxFor(this.valley, account),
+    }
   }
 
   async webSocketClose(ws: WebSocket): Promise<void> {
@@ -708,6 +731,7 @@ export class ValleyDO extends DurableObject<Env> {
         // Closing sockets throw; their close handler follows.
       }
     }
+    this.tellPeersHealth(account, health, max)
     this.tellWards(reduced)
     if (!change.fatal) return
     const me = this.attachment(sockets[0]).me
@@ -879,6 +903,12 @@ export class ValleyDO extends DurableObject<Env> {
     // Even with no new body, a second fall takes the first away.
     await this.apply(reduced)
     for (const msg of reduced.broadcast) this.broadcast(msg, null)
+    // Whole again, or as the fall left them.
+    this.tellPeersHealth(
+      account,
+      healthFor(this.valley, account),
+      maxFor(this.valley, account)
+    )
     await this.repack(null, null, account)
   }
 
@@ -1324,7 +1354,7 @@ export class ValleyDO extends DurableObject<Env> {
     // Back from a dropped line: everyone who still sees them hears no news
     // (the clients take a known id as no arrival), and their friends no
     // greeting.
-    this.broadcast({ type: 'peer-joined', peer: me }, ws)
+    this.broadcast({ type: 'peer-joined', peer: this.shown(me, account) }, ws)
     for (const msg of reduced.broadcast) this.broadcast(msg, ws)
     if (!back) await this.greetFriends(ws, account, name)
   }
@@ -1705,7 +1735,10 @@ export class ValleyDO extends DurableObject<Env> {
         )
       )
     )
-    this.broadcast({ type: 'peer-updated', peer: me }, null)
+    this.broadcast(
+      { type: 'peer-updated', peer: this.shown(me, attachment.account) },
+      null
+    )
   }
 
   // A world action from one player: run it, write what it moves into or
@@ -2044,7 +2077,10 @@ export class ValleyDO extends DurableObject<Env> {
       if (attachment.account !== account || !me) continue
       const next: PeerWire = { ...me, cosmetics: toCosmetics(cosmetics) }
       this.attach(socket, { ...attachment, me: next })
-      this.broadcast({ type: 'peer-updated', peer: next }, null)
+      this.broadcast(
+        { type: 'peer-updated', peer: this.shown(next, account) },
+        null
+      )
     }
   }
 
@@ -2276,7 +2312,10 @@ export class ValleyDO extends DurableObject<Env> {
       if (attachment.account !== account || !me || me.level >= level) continue
       const next: PeerWire = { ...me, level }
       this.attach(socket, { ...attachment, me: next })
-      this.broadcast({ type: 'peer-updated', peer: next }, null)
+      this.broadcast(
+        { type: 'peer-updated', peer: this.shown(next, account) },
+        null
+      )
     }
   }
 
@@ -2441,8 +2480,8 @@ export class ValleyDO extends DurableObject<Env> {
     const peers: PeerWire[] = []
     for (const socket of this.ctx.getWebSockets()) {
       if (socket === exclude) continue
-      const other = this.attachment(socket).me
-      if (other) peers.push(other)
+      const { me: other, account } = this.attachment(socket)
+      if (other) peers.push(this.shown(other, account))
     }
     return peers
   }

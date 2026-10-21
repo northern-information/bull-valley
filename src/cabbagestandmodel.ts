@@ -71,11 +71,13 @@ export function buildCabbageStand(seed = 0xcab5): THREE.Group {
     mesh.scale.y = 0.85
     group.add(mesh)
   }
-  for (let i = 0; i < 7; i++) {
+  // Six heads in a staggered row, back and front, short of the table's
+  // right end: the cash box (buildStandDressing) sits there.
+  for (let i = 0; i < 6; i++) {
     lay(
-      -width / 2 + 0.3 + (i / 6) * (width - 0.6) + range(rng, -0.05, 0.05),
+      -width / 2 + 0.3 + i * 0.27 + range(rng, -0.02, 0.02),
       table + 0.15,
-      range(rng, -0.25, 0.2)
+      (i % 2 ? 0.14 : -0.18) + range(rng, -0.03, 0.03)
     )
   }
   // The crate at the table's foot, heads heaped in it.
@@ -162,8 +164,8 @@ export function buildStandDressing(level: number): THREE.Group {
     group.add(tray)
   }
   if (level >= 4) {
-    // The sandwich board stands at the table's other end, out front,
-    // turned a little toward the pumps.
+    // The sandwich board stands out front of the table's other end, past
+    // the awning's left pole, turned a little toward the pumps.
     const face = artTexture(paintOpenBoard())
     const painted = lambert({
       map: face,
@@ -188,7 +190,7 @@ export function buildStandDressing(level: number): THREE.Group {
       panel.rotation.set(-side * lean, side < 0 ? Math.PI : 0, 0)
       board.add(panel)
     }
-    board.position.set(-width / 2 - 0.2, 0, front + 0.75)
+    board.position.set(-width / 2 + 0.45, 0, front + 1.1)
     board.rotation.y = 0.35
     group.add(board)
   }

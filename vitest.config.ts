@@ -99,6 +99,7 @@ const THREE_AND_DOM = [
   'npcdialog',
   'packart',
   'packhud',
+  'partyhud',
   'peers',
   'phone',
   'pickups',

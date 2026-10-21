@@ -8,6 +8,7 @@
 import { CONFIG } from './config.ts'
 import { toCosmetics } from './cosmetics.ts'
 import { between, keepFrame, lerp } from './framebuffer.ts'
+import { maxGeometrie } from './health.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { OutfitId } from './outfits.ts'
 import type { PeerPose, PeerStateWire, PeerWire } from './protocol.ts'
@@ -25,6 +26,9 @@ export interface Peer {
   cosmetics: CosmeticId[]
   // Their account's level (progression.ts).
   level: number
+  // Their geometrie left and whole (health.ts), as the valley last said.
+  health: number
+  max: number
   // Dialed in from Bull Valley Dial-Up: never placed, so never drawn.
   dialup: boolean
   // The states heard, oldest first, at most framebuffer.ts FRAMES_KEPT;
@@ -72,6 +76,7 @@ export function applyJoined(peers: PeerTable, wire: PeerWire, now: number) {
     outfit: wire.outfit,
     cosmetics: toCosmetics(wire.cosmetics),
     level: wire.level,
+    ...healthOf(wire),
     dialup: wire.dialup === true,
     frames: [],
     next: null,
@@ -90,6 +95,29 @@ export function applyUpdated(peers: PeerTable, wire: PeerWire): Peer | null {
   peer.outfit = wire.outfit
   peer.cosmetics = toCosmetics(wire.cosmetics)
   peer.level = wire.level
+  Object.assign(peer, healthOf(wire))
+  return peer
+}
+
+// A peer's geometrie off the wire: whole at their level when the valley
+// left it off.
+function healthOf(wire: PeerWire): { health: number; max: number } {
+  const max = wire.max ?? maxGeometrie(wire.level)
+  return { health: Math.min(max, wire.health ?? max), max }
+}
+
+// A known peer's geometrie changed (sharedworld.ts rule 24). An unknown
+// id is ignored.
+export function applyHealth(
+  peers: PeerTable,
+  id: string,
+  health: number,
+  max: number
+): Peer | null {
+  const peer = peers.get(id)
+  if (!peer) return null
+  peer.max = Math.max(1, max)
+  peer.health = Math.max(0, Math.min(peer.max, health))
   return peer
 }
 

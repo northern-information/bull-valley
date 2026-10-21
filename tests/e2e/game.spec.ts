@@ -211,8 +211,9 @@ test("a shadowman's touch takes its hit, and the Citgo makes you whole", async (
     'data-health',
     '1000'
   )
-  await expect(page.locator('.bv-vitals-value')).toHaveText(
-    copy('hud.health_value', { health: '1,000', max: '1,000' })
+  await expect(page.locator('.bv-vitals-bar')).toHaveAttribute(
+    'aria-label',
+    copy('hud.health_label', { health: 1000, max: 1000 })
   )
   await page.evaluate(() => window.__bv?.grant('marlboro', 20))
   await expect
@@ -241,8 +242,9 @@ test("a shadowman's touch takes its hit, and the Citgo makes you whole", async (
     'data-health',
     String(left)
   )
-  await expect(page.locator('.bv-vitals-value')).toHaveText(
-    copy('hud.health_value', { health: left, max: '1,000' })
+  await expect(page.locator('.bv-vitals-bar')).toHaveAttribute(
+    'aria-label',
+    copy('hud.health_label', { health: left, max: 1000 })
   )
   await expect(page.locator('.bv-vitals-damage')).toHaveText(
     copy('hud.damage', { damage: 1000 - left })

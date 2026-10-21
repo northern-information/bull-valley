@@ -29,7 +29,6 @@ import { inPortal } from './maze.ts'
 import { packItemOf } from './packgrid.ts'
 import { secondsLeft } from './portals.ts'
 import { poseOf, stateChanged } from './presence.ts'
-import { levelOf } from './progression.ts'
 import { aimHeightOf, burstScaleOf, headlightsDue } from './shadowmen.ts'
 import { formatCash } from './store.ts'
 import { tripBlur } from './trip.ts'
@@ -589,7 +588,6 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       hud.task.set(null)
     }
     hud.level.set(net.online ? s.xp : null)
-    hud.setLevel(levelOf(s.xp))
     hud.tickChat(performance.now())
   }
 
@@ -823,6 +821,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     drawMap()
     feelStrikes(clock.now)
     peers.update(clock.dt, renderAt)
+    hud.setParty(peers.party(camera.position))
     const tick = sendState(clock, feet, lit)
     stepHud(clock)
     stepPhone(clock.dt, portalNow)

@@ -1218,6 +1218,8 @@ describe('ValleyDO', () => {
           outfit: 'church',
           cosmetics: [],
           level: 1,
+          health: MAX,
+          max: MAX,
           at: null,
         },
       })
@@ -1980,6 +1982,13 @@ describe('ValleyDO: corpse runs', () => {
       health: MAX / 2,
       max: MAX,
     })
+    // Everyone sees A's bar fall (rule 24).
+    expect(b.frames()).toContainEqual({
+      type: 'peer-health',
+      id: idOf(a),
+      health: MAX / 2,
+      max: MAX,
+    })
     // Under a story, nothing; a height past belief is no frame at all.
     const before = a.frames().length
     await v.webSocketMessage(ws(a), '{"type":"fall","height":1}')
@@ -2005,6 +2014,12 @@ describe('ValleyDO: corpse runs', () => {
       by: idOf(a),
     })
     expect(b.frames().some((m) => m.type === 'struck')).toBe(false)
+    // And whole again once the body is laid.
+    expect(b.frames().findLast((m) => m.type === 'peer-health')).toMatchObject({
+      id: idOf(a),
+      health: MAX,
+      max: MAX,
+    })
   })
 
   it('gives the things back to the account that fell, and no one else', async () => {

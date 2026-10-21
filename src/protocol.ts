@@ -110,6 +110,11 @@ export interface PeerWire {
   outfit: OutfitId
   cosmetics: CosmeticId[]
   level: number
+  // Their geometrie left and whole (sharedworld.ts rule 24), stamped by the
+  // valley from Valley.wounds as it sends the peer; missing only on the
+  // valley's own record of a socket, never on what a client hears.
+  health?: number
+  max?: number
   at: PeerStateWire | null
   // Dialed in from Bull Valley Dial-Up (sharedworld.ts rule 29): in the
   // valley, but never placed in it, so never drawn.
@@ -960,6 +965,16 @@ interface HealthMessage {
   max: number
 }
 
+// A raider's geometrie changed (sharedworld.ts rule 24): a touch, a fall,
+// something that heals, a forecourt, a new level. To everyone in the
+// valley, so every raider sees every other's bar.
+export interface PeerHealthMessage {
+  type: 'peer-health'
+  id: string
+  health: number
+  max: number
+}
+
 interface PongMessage {
   type: 'pong'
   t: number
@@ -981,6 +996,7 @@ export type ServerMessage =
   | ShadowmenMessage
   | StruckMessage
   | HealthMessage
+  | PeerHealthMessage
   | WardsMessage
   | CitgosMessage
   | PassedMessage
