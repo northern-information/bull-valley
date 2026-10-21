@@ -579,6 +579,13 @@
   transition: width 0.9s steps(12) 0.6s;
 }
 
+/* Given back (a forecourt, something used): the fill and the trail climb
+   together over a beat, so a heal never snaps or flickers. */
+.bv-vitals-rise .bv-vitals-fill,
+.bv-vitals-rise .bv-vitals-lost {
+  transition: width 0.6s steps(8);
+}
+
 /* Every other raider in the valley, nearest first: a name small over a
    thin bar as long as their whole (--bv-party-length). */
 .bv-party {

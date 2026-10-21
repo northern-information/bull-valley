@@ -284,8 +284,10 @@ export class VitalsHud {
     const length = BAR.base + Math.max(0, max - BASE_GEOMETRIE) * BAR.perPoint
     this.root.style.setProperty('--bv-vitals-length', `${length}rem`)
     // Lost: the trail holds where it was, then drains (styles.css). Given
-    // back: it follows at once.
+    // back: the fill and the trail climb together over a beat, so a heal
+    // reads as one and never as a flicker.
     this.lost.classList.toggle('bv-vitals-lost--drain', points < this.points)
+    this.bar.classList.toggle('bv-vitals-rise', points > this.points)
     this.points = points
     this.fill.style.width = `${share * 100}%`
     this.lost.style.width = `${share * 100}%`

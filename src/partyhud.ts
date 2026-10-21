@@ -78,10 +78,15 @@ export class PartyHud {
     const length = BAR.base + Math.max(0, max - BASE_GEOMETRIE) * BAR.perPoint
     row.li.style.setProperty('--bv-party-length', `${length}rem`)
     row.name.textContent = name
-    // Lost: the trail holds, then drains; given back, it follows at once.
+    // Lost: the trail holds, then drains; given back, the fill and the
+    // trail climb together over a beat.
     row.lost.classList.toggle(
       'bv-vitals-lost--drain',
       row.health >= 0 && health < row.health
+    )
+    row.bar.classList.toggle(
+      'bv-vitals-rise',
+      row.health >= 0 && health > row.health
     )
     row.health = health
     row.fill.style.width = `${share * 100}%`

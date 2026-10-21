@@ -44,6 +44,9 @@ const LABEL_H = 32
 const BAR_W = 64
 const BAR_H = 4
 const BAR_UNDER = 0.17
+// Given back, the bar climbs to its new share over this long rather than
+// snapping; a loss lands at once.
+const RISE_SECONDS = 0.6
 // The party list (partyhud.ts) names this many, nearest first.
 const PARTY_MAX = 6
 
@@ -75,6 +78,9 @@ interface HealthBar {
   sprite: THREE.Sprite
   texture: THREE.CanvasTexture
   ctx: CanvasRenderingContext2D
+  // The share drawn now, and the share the valley last said.
+  shown: number
+  target: number
   // The fill in canvas pixels as last drawn.
   drawn: number
 }
@@ -93,14 +99,14 @@ function buildHealthBar(): HealthBar {
   })
   const sprite = new THREE.Sprite(material)
   sprite.scale.set(0.6, 0.6 * (BAR_H / BAR_W), 1)
-  return { sprite, texture, ctx: art.ctx, drawn: -1 }
+  return { sprite, texture, ctx: art.ctx, shown: 1, target: 1, drawn: -1 }
 }
 
 // The bar as Elden Ring draws it: a dull gilt hairline round a dark well,
 // filled in deep crimson.
-function drawHealthBar(bar: HealthBar, health: number, max: number): void {
+function drawHealthBar(bar: HealthBar): void {
   const inner = BAR_W - 2
-  const fill = Math.round(inner * Math.max(0, Math.min(1, health / max)))
+  const fill = Math.round(inner * Math.max(0, Math.min(1, bar.shown)))
   if (fill === bar.drawn) return
   bar.drawn = fill
   const { ctx } = bar
@@ -190,7 +196,11 @@ export class Peers {
   health(id: string, health: number, max: number): void {
     const peer = applyHealth(this.table, id, health, max)
     const puppet = this.puppets.get(id)
-    if (peer && puppet) drawHealthBar(puppet.bar, peer.health, peer.max)
+    if (!peer || !puppet) return
+    const bar = puppet.bar
+    bar.target = peer.health / peer.max
+    if (bar.target < bar.shown) bar.shown = bar.target
+    drawHealthBar(bar)
   }
 
   // The raiders placed in the valley, nearest `from` first, as the party
@@ -226,6 +236,12 @@ export class Peers {
   update(dt: number, renderAt: number): void {
     this.time += dt
     for (const [id, puppet] of this.puppets) {
+      // Their bar climbs to what was given back.
+      const bar = puppet.bar
+      if (bar.shown < bar.target) {
+        bar.shown = Math.min(bar.target, bar.shown + dt / RISE_SECONDS)
+        drawHealthBar(bar)
+      }
       const peer = this.table.get(id)
       const at = peer ? samplePeer(peer, renderAt) : null
       const group = puppet.figure.group
@@ -273,7 +289,8 @@ export class Peers {
     }
     const bar = buildHealthBar()
     bar.sprite.position.y = sprite.position.y - BAR_UNDER
-    drawHealthBar(bar, peer.health, peer.max)
+    bar.shown = bar.target = peer.health / peer.max
+    drawHealthBar(bar)
     figure.group.add(sprite, bar.sprite)
     this.scene.add(figure.group)
     this.puppets.set(peer.id, {
