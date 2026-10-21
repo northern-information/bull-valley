@@ -28,8 +28,13 @@ export const CONFIG = {
     // Walking with the phone up, dialing a Citgo portal.
     phoneSpeedScale: 0.6,
     mouseSensitivity: 0.0023,
-    // How close a pickup must be for E to take it.
+    // How close a pickup must be for E to take it, across the ground; how
+    // far above or below the feet it may lie (never a floor away); and how
+    // far off the view, in radians, it may sit and still be the one you
+    // are looking at.
     pickupReach: 2.6,
+    pickupRise: 1.5,
+    pickupCone: 0.6,
     // The body's radius, for the store walls.
     radius: 0.3,
   },
@@ -401,12 +406,10 @@ export const CONFIG = {
   store: {
     // A new account's wallet, in cents (worker/packs.ts).
     startingCash: 4000,
-    // Units of every item on each Citgo's shelves when the day turns.
+    // Units of every item on each Citgo's shelves when the day turns, and
+    // the kinds stocked deeper than that.
     perItem: 3,
-    // Scarcity (store.ts shelfPrice): each unit of a kind already sold off
-    // a station's shelf today puts its price up this many times over, so
-    // the last of anything costs the most.
-    surge: 1.6,
+    stock: { 'ice-mountain': 20 } as Readonly<Record<string, number>>,
     // How close a shelf unit must be, from the eye, for E to buy it.
     reach: 2.2,
     // How far off the view ray, in radians, a unit can sit and still be
@@ -874,6 +877,39 @@ export const CONFIG = {
     radius: 0.9,
     // Trees keep this far off its middle.
     treeClear: 6,
+  },
+  // The Recycling Center at the wreck (recycling.ts, sharedworld.ts rule
+  // 33): every account feeds its empties in for research, its own and no
+  // one else's.
+  recycling: {
+    // How close the wreck's middle must be for E to open it.
+    reach: 4,
+    // The valley takes a raider's empties only when their last state frame
+    // put them within this of the wreck's middle: generous, since frames
+    // lag.
+    tendReach: 10,
+    // Each research line, level by level from the first: what it does at
+    // that level, and what it costs, in empties out of the pack.
+    lines: {
+      // Loose change: the chance that dimes a burst shadow left come with
+      // as many again, into the taker's own wallet.
+      dimes: [
+        { chance: 0.1, price: { 'empty-can': 6 } },
+        { chance: 0.2, price: { 'empty-can': 12, 'empty-pack': 2 } },
+        {
+          chance: 0.3,
+          price: { 'empty-can': 20, 'empty-pack': 4, 'empty-bottle': 2 },
+        },
+        {
+          chance: 0.4,
+          price: { 'empty-can': 30, 'empty-pack': 6, 'empty-bottle': 4 },
+        },
+        {
+          chance: 0.5,
+          price: { 'empty-can': 45, 'empty-pack': 10, 'empty-bottle': 6 },
+        },
+      ] as { chance: number; price: Record<string, number> }[],
+    },
   },
   lonePine: {
     // The lone pine among the dishes behind the spawn Citgo, station-local

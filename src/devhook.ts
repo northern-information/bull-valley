@@ -32,6 +32,7 @@ import type {
   TunnelShadeWire,
   WorldWire,
 } from './protocol.ts'
+import type { Research } from './recycling.ts'
 import type { RoadGraph } from './roadgraph.ts'
 import type { SeasonProgress } from './season.ts'
 import type { ShadowBodies } from './shadowbodies.ts'
@@ -107,6 +108,10 @@ interface BvHook {
   // where the stand stands.
   readonly stand: StandLedger | null
   readonly standAt: XZ | null
+  // Rule 33: the account's research as the valley last said (null before
+  // the Recycling Center first opens), and where the wreck lies.
+  readonly research: Research | null
+  readonly wreckAt: XZ | null
   // Rule 28: every Citgo the account has stood at and the last, the Citgo
   // portals open, the id of ours while it stands, the milliseconds before
   // a portal takes us again after one has (CONFIG.portal.graceSeconds),
@@ -163,6 +168,8 @@ interface BvHook {
   // `count` of `kind` into the pack: the valley's, through a dev frame, or
   // this client's own. Gold bullion has no other way in yet.
   grant(kind: string, count?: number): void
+  // One `kind` used out of the pack, as E in the pack uses it.
+  use(kind: string): void
   // This raider at `points` hit points (1 to whole), for the specs.
   setHealth(points: number): void
   // What a trip shows this raider that is not there (hallucinations.ts):
@@ -281,6 +288,15 @@ export function installDevHook(game: Game, actions: Actions): void {
     get standAt() {
       return game.world.stand?.at ?? null
     },
+    get research() {
+      return s.research
+    },
+    get wreckAt() {
+      const wreck = game.world.wreck
+      return wreck
+        ? { x: wreck.group.position.x, z: wreck.group.position.z }
+        : null
+    },
     get citgos() {
       return s.citgos
     },
@@ -342,6 +358,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     },
     get cosmetics() {
       return s.cosmetics
+    },
+    use(kind) {
+      actions.useKind(kind)
     },
     grant(kind, count = 1) {
       net.send({ type: 'dev', op: 'grant', kind, count })

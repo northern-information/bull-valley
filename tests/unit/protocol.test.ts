@@ -46,6 +46,7 @@ const hello = {
   maze: { x: 120, z: -40, yaw: 0.5 },
   truck: { home: { x: 10, z: -20 }, joyrideMs: 600_000 },
   stand: { x: 6, z: -24 },
+  wreck: { x: 12, z: 30 },
   bushes: [0, 1, 2].map((i) => ({ x: 6 + i, z: -30 })),
   dealer: { x: -10, z: -60 },
   undercroft: { x: -7000, z: -7000, yaw: 0 },
@@ -220,6 +221,7 @@ describe('parseClientMessage', () => {
       maze: _maze,
       truck: _truck,
       stand: _stand,
+      wreck: _wreck,
       bushes: _bushes,
       dealer: _dealer,
       undercroft: _undercroft,
@@ -235,6 +237,7 @@ describe('parseClientMessage', () => {
       maze: null,
       truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
       stand: null,
+      wreck: null,
       bushes: [],
       dealer: null,
       undercroft: null,
@@ -265,6 +268,7 @@ describe('parseClientMessage', () => {
       maze: null,
       truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
       stand: null,
+      wreck: null,
       bushes: [],
       dealer: null,
       undercroft: null,
@@ -389,9 +393,19 @@ describe('parseClientMessage', () => {
       type: 'stand-collect',
     })
     expect(parse({ type: 'stand-upgrade' })).toEqual({ type: 'stand-upgrade' })
+    // The Recycling Center (rule 33): a known line, or nothing.
+    expect(parse({ type: 'research', extra: 1 })).toEqual({ type: 'research' })
+    expect(parse({ type: 'recycle', line: 'dimes' })).toEqual({
+      type: 'recycle',
+      line: 'dimes',
+    })
+    expect(parse({ type: 'recycle', line: 'beam' })).toBeNull()
     // A hello says where the stand stands, or that there is none.
     expect(parse({ ...hello, stand: null })).toEqual({ ...hello, stand: null })
     expect(parse({ ...hello, stand: { x: 'here' } })).toBeNull()
+    // And where the wreck lies, or that there is none (rule 33).
+    expect(parse({ ...hello, wreck: null })).toEqual({ ...hello, wreck: null })
+    expect(parse({ ...hello, wreck: 'bmw' })).toBeNull()
     // A ring on every lot (rule 28), no fewer.
     expect(parse({ ...hello, rings: hello.rings.slice(1) })).toBeNull()
     // And where the squatter deals, or that there is none (rule 25).

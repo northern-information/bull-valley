@@ -38,6 +38,8 @@ import {
   stepRefusal,
   toQuests,
 } from './quests.ts'
+import { toResearch } from './recycling.ts'
+import { foundLine, recycleRefusal, researchNews } from './researchlines.ts'
 import { seasonOf } from './season.ts'
 import { buyRefusal } from './shop.ts'
 import { isStandLedger, refusalLine, standNews } from './stand.ts'
@@ -259,7 +261,7 @@ export function wireValley(game: Game, actions: Actions): void {
     // The shelves are the valley's; a unit it sold us goes in the pocket.
     if (sale) {
       s.pending.buys.delete(`${sale.station}:${sale.item}`)
-      if (sale.mine) actions.pocket(sale.item, sale.station)
+      if (sale.mine) actions.pocket(sale.item)
     }
     s.storeStock = wire.shelves
 
@@ -359,14 +361,7 @@ export function wireValley(game: Game, actions: Actions): void {
       if (msg.station !== undefined && msg.item) {
         s.pending.buys.delete(`${msg.station}:${msg.item}`)
       }
-      hud.tell(
-        buyRefusal(
-          msg.reason,
-          msg.item,
-          s.cash,
-          msg.station === undefined ? undefined : s.storeStock[msg.station]
-        )
-      )
+      hud.tell(buyRefusal(msg.reason, msg.item, s.cash))
     } else if (msg.re === 'call') {
       hud.tell(copy('log.truck_busy'))
     } else if (msg.re === 'collect') {
@@ -430,6 +425,10 @@ export function wireValley(game: Game, actions: Actions): void {
       s.pending.stand = false
       s.standSaid = refusalLine(msg.reason)
       hud.tell(s.standSaid)
+    } else if (msg.re === 'recycle') {
+      s.pending.recycle = false
+      s.researchSaid = recycleRefusal(msg.reason)
+      hud.tell(s.researchSaid)
     } else if (msg.re.startsWith('laptop-')) {
       s.laptop?.refused(msg.reason)
     } else if (msg.re === 'portal') {
@@ -540,6 +539,18 @@ export function wireValley(game: Game, actions: Actions): void {
       s.pending.stand = false
       s.standSaid = standNews(msg, was)
       if (s.standSaid) hud.tell(s.standSaid)
+    } else if (msg.type === 'research') {
+      // Rule 33: the research as the valley read or wrote it, to the
+      // socket that asked, or after a level to every socket on the
+      // account. A level's pack frame follows.
+      s.research = toResearch(msg.research)
+      if (!msg.line) return
+      s.pending.recycle = false
+      s.researchSaid = researchNews(msg)
+      if (s.researchSaid) hud.tell(s.researchSaid)
+    } else if (msg.type === 'found') {
+      // Rule 33: loose change, already in the wallet the pack frame says.
+      hud.tell(foundLine(msg.dimes))
     } else if (msg.type === 'task') {
       // Rule 16: credited with a burn. A reward's pack frame follows.
       if (!applyTask(msg.task)) return

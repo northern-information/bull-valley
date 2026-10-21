@@ -23,6 +23,7 @@ import { el, text } from './dom.ts'
 import { iconSvg } from './icons.ts'
 import { OUTFITS } from './outfits.ts'
 import { barOf } from './progression.ts'
+import { topLevel } from './recycling.ts'
 import { volumeSliders } from './settingsui.ts'
 import { collectable } from './stand.ts'
 import { formatCash } from './store.ts'
@@ -67,6 +68,7 @@ interface ShellOptions {
   pack: PackActions
   // Opens the stand's dialog over the shell; Erwin's and Gron's too.
   openStand: () => void
+  openRecycle: () => void
   openErwin: () => void
   openGron: () => void
   // Buys off a Citgo's shelf, with every Citgo's name once the survey
@@ -450,6 +452,17 @@ export class DialShell {
           ? copy('dialup.lobby.banked', { amount: formatCash(banked) })
           : copy('dialup.lobby.stand_blurb'),
         () => this.options.openStand()
+      ),
+      card(
+        'recycling',
+        copy('dialup.lobby.recycling'),
+        s.research
+          ? copy('dialup.lobby.recycling_level', {
+              level: s.research.dimes,
+              top: topLevel('dimes'),
+            })
+          : copy('dialup.lobby.recycling_blurb'),
+        () => this.options.openRecycle()
       ),
       card(
         'locker',

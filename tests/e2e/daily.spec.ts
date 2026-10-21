@@ -2,6 +2,7 @@ import { copy } from './copy.ts'
 import {
   beginRaid,
   expect,
+  faceSpot,
   freshRaider,
   freshValley,
   heardWhere,
@@ -38,13 +39,15 @@ const berriesShown = (page: Page) =>
   )
 
 async function standAtBush(page: Page): Promise<void> {
-  await page.evaluate(() => {
+  const bush = await page.evaluate(() => {
     const bv = window.__bv
     if (!bv) throw new Error('no dev hook')
     const [bush] = bv.world.bushes
     if (!bush) throw new Error('no berry bush')
     bv.player.relocate(bush.x + 1, bush.z + 1, bv.player.yaw)
+    return { x: bush.x, z: bush.z }
   })
+  await faceSpot(page, bush.x, bush.z, 0.6)
   // The valley gives a berry only to a raider it has heard stand in reach.
   await heardWhere(page)
 }

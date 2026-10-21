@@ -32,9 +32,7 @@
 //    for everyone until the day turns. The buyer picks the unit, so the
 //    valley keeps which units are left. A unit is paid for out of the
 //    buyer's wallet, which is their account's; the valley refuses a sale
-//    it does not cover (ValleyContext.cash in, Reduced.spend out). Each
-//    unit of a kind sold off a station's shelf today puts the next one's
-//    price up (store.ts shelfPrice): the last of anything costs the most.
+//    it does not cover (ValleyContext.cash in, Reduced.spend out).
 // 8. Each berry bush gives each account one berry a day: the one at the
 //    spawn Citgo (bush 0) and the ring round the portal at the maze's heart
 //    (1 to CONFIG.maze.bushes.count). The valley remembers only the
@@ -259,6 +257,23 @@
 //    their own (Reduced.laptop); the valley keeps them in D1 and checks a
 //    save against the writer's own files (laptop.ts saveRefusal). Dialed
 //    in there is no laptop (`dialup`).
+// 32. Empties (recycling.ts): once the pack has given up a unit used or
+//    passed (rules 10 and 27), what it leaves goes into the same pack, under
+//    Materials: a drink its can or its bottle, the last cigarette out of a
+//    pack the pack (emptyOf, from what the pack holds after). Dialed in the
+//    same.
+// 33. The Recycling Center at the wreck (recycling.ts): every account keeps
+//    its own research, a level on each line, in D1. A raider out of the bed
+//    whose last state frame put them beside the wreck (the world was opened
+//    with where it is, SharedWorld.wreck), or dialed in from anywhere, buys
+//    a line's next level with the empties it costs (ValleyContext.research
+//    in, Reduced.research out); the valley writes the level and takes the
+//    empties out of the pack together, or neither. Research is the
+//    account's alone and never reaches the shared world: loose change
+//    (`dimes`) gives a raider taking up dimes a burst left (Drop.burst,
+//    never a raider's spilled wallet) the chance, on the valley's roll, of
+//    as many again into their own wallet (extraDimes, Reduced.found); the
+//    drop and everyone else's take are as they were.
 
 import { bountyOf } from './book.ts'
 import { dosed, inPassReach, scaled, sobered, wardsOf } from './buffs.ts'
@@ -303,6 +318,7 @@ import {
   INVENTORY_KINDS,
   isKeyItem,
   isUsable,
+  itemById,
 } from './items.ts'
 import { atLaptop } from './laptop.ts'
 import {
@@ -325,6 +341,13 @@ import { fieldEnd, freeSlot, nextClose, openAt, ringEnd } from './portals.ts'
 import { PROTOCOL_VERSION } from './protocol.ts'
 import { atHeart, isQuest, QUESTS, questStep } from './quests.ts'
 import {
+  affordsResearch,
+  atWreck,
+  emptyOf,
+  extraDimes,
+  priceOf,
+} from './recycling.ts'
+import {
   affordsUpgrade,
   atStand,
   collect as collectStand,
@@ -334,7 +357,7 @@ import {
   upgrade as upgradeStand,
 } from './stand.ts'
 import { atLocker } from './stash.ts'
-import { freshStock, onShelf, shelfPrice, takeUnit } from './store.ts'
+import { freshStock, onShelf, takeUnit } from './store.ts'
 import { levelsAt } from './wardlevels.ts'
 import { damageOf } from './wards.ts'
 import type { CitgoLog } from './citgos.ts'
@@ -365,6 +388,7 @@ import type {
   WorldWire,
 } from './protocol.ts'
 import type { QuestId, QuestStage, QuestStep } from './quests.ts'
+import type { Research, ResearchLine } from './recycling.ts'
 import type { StandLedger } from './stand.ts'
 import type { WardState } from './wardlevels.ts'
 import type { ShadowHit } from './wards.ts'
@@ -413,6 +437,8 @@ interface SharedWorld {
   routes: TruckRoutes
   // Where the Cabbage Stand stands, or null (rule 23).
   stand: XZ | null
+  // Where the wreck lies, or null (rule 33).
+  wreck: XZ | null
   // Where each berry bush stands, in bush order (rule 8).
   bushes: XZ[]
   // Where the squatter deals, or null, and what he has left today (rule
@@ -490,6 +516,7 @@ export type ValleyAction =
       maze: MazePlace | null
       routes: TruckRoutes
       stand: XZ | null
+      wreck: XZ | null
       bushes: XZ[]
       dealer: XZ | null
       undercroft: MazePlace | null
@@ -545,10 +572,20 @@ export type ValleyAction =
   // Rule 27: once the pack gave it up, what a use doses (`to` absent), or
   // a pass doses both sides.
   | { type: 'dose'; id: string; kind: string; to?: string }
+  // Rule 32: once the pack gave up a unit of `kind` used or passed, with
+  // `left` of it still in the pack, what it leaves behind.
+  | { type: 'empty'; id: string; kind: string; left: number }
   // Rule 12. at: where the raider's last state frame put them, or null
   // when the valley has not heard one.
   | { type: 'drop'; id: string; kind: string; count: number; at: Facing | null }
-  | { type: 'take-drop'; id: string; drop: number; at: XZ | null }
+  // roll: the valley's draw (0 to 1) for loose change (rule 33).
+  | {
+      type: 'take-drop'
+      id: string
+      drop: number
+      at: XZ | null
+      roll?: number
+    }
   // Rules 11, 13 and 17: what the valley leaves of its own accord: the
   // dimes burst shadowmen leave and their tombstones, and the Caretaker's
   // gold bullion.
@@ -591,6 +628,8 @@ export type ValleyAction =
       at: XZ | null
     }
   | { type: 'stand-collect' | 'stand-upgrade'; id: string; at: XZ | null }
+  // Rule 33: the next level on `line`, bought with empties at the wreck.
+  | { type: 'recycle'; id: string; line: ResearchLine; at: XZ | null }
   // Rule 30: a run sent out, with the seed the valley drew, and a run home
   // claimed.
   | { type: 'expedition-send'; id: string; kind: string; seed: number }
@@ -616,7 +655,7 @@ export type ValleyAction =
   | { type: 'hurry'; seconds: number }
   | { type: 'reset' }
 
-interface ValleyContext {
+export interface ValleyContext {
   // Server ms.
   now: number
   // Ids with an open socket right now, so a member whose close was never
@@ -636,6 +675,9 @@ interface ValleyContext {
   stand?: { ledger: StandLedger; pack: Inventory; cash: number }
   // For an expedition: the run out, as the valley just read it.
   expedition?: { run: ExpeditionRun | null }
+  // For recycling and for taking up a drop: the account's research, and
+  // for recycling its pack, as the valley just read them (rule 33).
+  research?: { levels: Research; pack?: Inventory }
 }
 
 export interface Reduced {
@@ -725,6 +767,21 @@ export interface Reduced {
   // Rule 31: the laptop opened to the account; the valley does the rest
   // against D1.
   laptop?: { account: string }
+  // Rule 33: a line's next level, written together with the empties it
+  // took out of the pack, or not at all.
+  research?: ResearchChange
+  // Rule 33: the dimes loose change found over a burst's, already in the
+  // taker's wallet (Reduced.earn), for the account's sockets.
+  found?: { account: string; dimes: number }
+}
+
+export interface ResearchChange {
+  account: string
+  line: ResearchLine
+  // The level reached.
+  level: number
+  // Units out of the pack, each count positive.
+  items: Inventory
 }
 
 // The laptop's frames, each refused under its own name.
@@ -1152,6 +1209,8 @@ function act(
       return onPass(valley, action, context)
     case 'dose':
       return onDose(valley, action, context)
+    case 'empty':
+      return onEmpty(valley, action, context)
     case 'mend':
       return onMend(valley, action, context)
     case 'set-health':
@@ -1171,6 +1230,8 @@ function act(
     case 'stand-collect':
     case 'stand-upgrade':
       return onStand(valley, action, context)
+    case 'recycle':
+      return onRecycle(valley, action, context)
     case 'expedition-send':
     case 'expedition-claim':
       return onExpedition(valley, action, context)
@@ -1222,6 +1283,7 @@ function onJoin(
       maze: action.maze,
       routes: action.routes,
       stand: action.stand,
+      wreck: action.wreck,
       bushes: action.bushes,
       dealer: action.dealer,
       dealerStock: freshDealerStock(),
@@ -1500,8 +1562,7 @@ function onBuy(
     })
   if (!member || !world) return refuse('not-in-valley')
   const shelf = world.shelves[station] as ShopStock | undefined
-  // Rule 7: dearer the emptier the shelf (store.ts shelfPrice).
-  const price = shelf ? shelfPrice(kind, shelf[kind]) : undefined
+  const price = itemById(kind)?.price
   if (!shelf || !Object.hasOwn(shelf, kind) || price === undefined) {
     return refuse('no-such-shelf')
   }
@@ -1706,6 +1767,21 @@ function onUse(
   })
 }
 
+function onEmpty(
+  valley: Valley,
+  action: ActionOf<'empty'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rule 32: into the pack the unit came out of.
+  const member = valley.members[action.id]
+  const empty = member ? emptyOf(action.kind, action.left) : null
+  if (!member || !empty) return done(valley, now, { broadcast: [] })
+  return done(valley, now, {
+    broadcast: [],
+    pack: { account: member.account, kind: empty, delta: 1 },
+  })
+}
+
 function onDrop(
   valley: Valley,
   action: ActionOf<'drop'>,
@@ -1753,7 +1829,7 @@ function onDrop(
 function onTakeDrop(
   valley: Valley,
   action: ActionOf<'take-drop'>,
-  { now }: ValleyContext
+  { now, research }: ValleyContext
 ): Reduced {
   // Rule 12: first to ask wins.
   const member = valley.members[action.id]
@@ -1774,7 +1850,13 @@ function onTakeDrop(
     drops: world.drops.filter((d) => d.id !== drop.id),
   })
   const account = member.account
+  // Rule 33: loose change, over a burst's dimes, for this taker alone.
+  const extra =
+    drop.burst && drop.kind === DIMES && research
+      ? extraDimes(research.levels, taken, action.roll ?? 1)
+      : 0
   return done(next, now, {
+    ...(extra > 0 ? { found: { account, dimes: extra } } : {}),
     broadcast: [
       frame(next, 'drop-taken', {
         by: action.id,
@@ -1786,7 +1868,7 @@ function onTakeDrop(
     // Rule 11: dimes and a spider's $20 are cash; rule 10: anything
     // else, the pack.
     ...(isCash(drop.kind)
-      ? { earn: { account, amount: taken * centsOf(drop.kind) } }
+      ? { earn: { account, amount: (taken + extra) * centsOf(drop.kind) } }
       : { pack: { account, kind: drop.kind, delta: taken } }),
     // Rule 22: only what the valley left, never a raider's own drop.
     ...(drop.spilled ? { xp: [{ account, source: 'drop' as const }] } : {}),
@@ -1822,6 +1904,7 @@ function onSpill(
     x,
     z,
     spilled: true,
+    burst: true,
   }))
   // The oldest of what the valley spilled goes past the cap; what a
   // raider dropped lies.
@@ -2305,6 +2388,39 @@ function onStand(
     ledger: next,
     items: { ...price.items },
     cash: -price.cash,
+  })
+}
+
+function onRecycle(
+  valley: Valley,
+  action: ActionOf<'recycle'>,
+  { now, research }: ValleyContext
+): Reduced {
+  // Rule 33.
+  const member = valley.members[action.id]
+  const world = valley.world
+  const refuse = (reason: string): Reduced =>
+    done(valley, now, { broadcast: [], reply: nack('recycle', reason) })
+  if (!member) return refuse('not-in-valley')
+  // Rule 29: dialed in, the wreck is wherever they are, as the stand is.
+  if (!member.dialup) {
+    if (!world) return refuse('not-in-valley')
+    if (isAboard(world.truck, action.id)) return refuse('aboard')
+    if (!atWreck(action.at, world.wreck)) return refuse('no-wreck')
+  }
+  if (!research?.pack) return refuse('unavailable')
+  const { levels, pack } = research
+  const price = priceOf(levels, action.line)
+  if (!price) return refuse('top')
+  if (!affordsResearch(pack, price)) return refuse('short')
+  return done(valley, now, {
+    broadcast: [],
+    research: {
+      account: member.account,
+      line: action.line,
+      level: levels[action.line] + 1,
+      items: price,
+    },
   })
 }
 

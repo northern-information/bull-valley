@@ -54,6 +54,7 @@ import type {
   WorldWire,
 } from './protocol.ts'
 import type { QuestId, QuestStage } from './quests.ts'
+import type { Research } from './recycling.ts'
 import type { RoadGraph } from './roadgraph.ts'
 import type { SeasonProgress } from './season.ts'
 import type { SettingsStore } from './settingsui.ts'
@@ -99,6 +100,8 @@ export interface Pending {
   whisperTo: string | null
   // Rule 23: a change to the Cabbage Stand.
   stand: boolean
+  // Rule 33: a level bought at the Recycling Center.
+  recycle: boolean
 }
 
 export function freshPending(): Pending {
@@ -115,6 +118,7 @@ export function freshPending(): Pending {
     showFriends: false,
     whisperTo: null,
     stand: false,
+    recycle: false,
   }
 }
 
@@ -232,6 +236,11 @@ export interface GameState {
   // before it has. And the last word on a change, for the stand's dialog.
   stand: StandLedger | null
   standSaid: string | null
+  // Rule 33: the account's research as the valley last sent it (asked
+  // for as the Recycling Center opens); null before it has. And the last
+  // word on a level, for the dialog.
+  research: Research | null
+  researchSaid: string | null
   // Rule 28: every Citgo the account has stood at, and the last, as the
   // valley last said (the welcome, then every citgos frame). The Citgo
   // portals, from every snapshot; the id of the one this raider opened, while it
@@ -321,6 +330,8 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     laptop: null,
     stand: null,
     standSaid: null,
+    research: null,
+    researchSaid: null,
     citgos: NO_CITGOS,
     portals: [],
     myPortal: null,

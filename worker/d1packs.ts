@@ -1,8 +1,8 @@
 // The pack store on D1 (migrations/0002_packs.sql): one row per item an
 // account has held, and one wallet per account; the cosmetics it has
 // (0004_cosmetics.sql); its locker (0007_stashes.sql); its Book of
-// Shadows (0008_book.sql); its XP (0010_levels.sql); and its Cabbage
-// Stand (0011_stands.sql). Every change is a single statement or one
+// Shadows (0008_book.sql); its XP (0010_levels.sql); its Cabbage Stand
+// (0011_stands.sql); and its research (0017_research.sql). Every change is a single statement or one
 // batch, which is one transaction, so two sockets on one account can never
 // lose a unit or a cent between a read and a write.
 
@@ -13,6 +13,7 @@ import { isExpeditionRun } from '../src/expeditions.ts'
 import { STARTING_INVENTORY, toInventory } from '../src/inventory.ts'
 import { KEY_ITEM_IDS } from '../src/items.ts'
 import { isQuest, isQuestStage, QUESTS } from '../src/quests.ts'
+import { toResearch } from '../src/recycling.ts'
 import { NO_PROGRESS } from '../src/season.ts'
 import { FRESH_STAND, isStandLedger } from '../src/stand.ts'
 import { STARTING_CASH } from './packs.ts'
@@ -21,6 +22,7 @@ import type { TaskProgress } from '../src/dailytask.ts'
 import type { ExpeditionRun } from '../src/expeditions.ts'
 import type { Inventory } from '../src/interfaces.ts'
 import type { QuestId, QuestStage } from '../src/quests.ts'
+import type { Research, ResearchLine } from '../src/recycling.ts'
 import type { SeasonProgress, SeasonReward } from '../src/season.ts'
 import type { StandChange } from '../src/sharedworld.ts'
 import type { StandLedger } from '../src/stand.ts'
@@ -767,6 +769,54 @@ export class D1PackStore implements PackStore {
               .bind(accountId, STARTING_CASH + cents, cents),
           ]
         : []),
+    ])
+  }
+
+  async research(accountId: string): Promise<Research> {
+    const rows = await this.db
+      .prepare('SELECT line, level FROM research WHERE account_id = ?')
+      .bind(accountId)
+      .all<{ line: string; level: number }>()
+    return toResearch(
+      Object.fromEntries(rows.results.map(({ line, level }) => [line, level]))
+    )
+  }
+
+  // One batch: the line's level goes negative when it is not `from` any
+  // more, and a pack row when it falls short, each against its CHECK, so
+  // the whole batch is rolled back.
+  recycle(
+    accountId: string,
+    line: ResearchLine,
+    from: number,
+    items: Inventory
+  ): Promise<boolean> {
+    return this.guarded([
+      this.db
+        .prepare(
+          'INSERT OR IGNORE INTO research (account_id, line, level) VALUES (?, ?, 0)'
+        )
+        .bind(accountId, line),
+      this.db
+        .prepare(
+          'UPDATE research SET level = CASE WHEN level = ? THEN level + 1 ELSE -1 END ' +
+            'WHERE account_id = ? AND line = ?'
+        )
+        .bind(from, accountId, line),
+      ...Object.entries(items)
+        .filter(([, count]) => count > 0)
+        .flatMap(([kind, count]) => [
+          this.db
+            .prepare(
+              'INSERT OR IGNORE INTO packs (account_id, kind, count) VALUES (?, ?, 0)'
+            )
+            .bind(accountId, kind),
+          this.db
+            .prepare(
+              'UPDATE packs SET count = count - ? WHERE account_id = ? AND kind = ?'
+            )
+            .bind(count, accountId, kind),
+        ]),
     ])
   }
 

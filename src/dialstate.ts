@@ -53,7 +53,7 @@ import {
 import { BASE_GEOMETRIE } from './health.ts'
 import { toInventory } from './inventory.ts'
 import { itemLabel, itemLine } from './itemcopy.ts'
-import { doseOf, healsOf } from './items.ts'
+import { doseOf, healsOf, itemById } from './items.ts'
 import { outfitById } from './outfits.ts'
 import { barOf, levelUp } from './progression.ts'
 import { normalizeChat } from './protocol.ts'
@@ -64,6 +64,13 @@ import {
   stepRefusal,
   toQuests,
 } from './quests.ts'
+import { dimesChance, topLevel, toResearch } from './recycling.ts'
+import {
+  foundLine,
+  lineName,
+  recycleRefusal,
+  researchNews,
+} from './researchlines.ts'
 import {
   NO_PROGRESS,
   SEASON,
@@ -73,7 +80,7 @@ import {
 } from './season.ts'
 import { buyRefusal } from './shop.ts'
 import { isStandLedger, refusalLine, standNews } from './stand.ts'
-import { formatCash, shelfPrice } from './store.ts'
+import { formatCash } from './store.ts'
 import { AXES, dose, levelsAt } from './wardlevels.ts'
 import type { ChatLine } from './chat.ts'
 import type { CitgoLog } from './citgos.ts'
@@ -98,6 +105,7 @@ import type {
   WorldWire,
 } from './protocol.ts'
 import type { QuestId, QuestStage } from './quests.ts'
+import type { Research } from './recycling.ts'
 import type { SeasonProgress } from './season.ts'
 import type { StandLedger } from './stand.ts'
 
@@ -115,6 +123,9 @@ export interface DialState {
   cosmetics: CosmeticId[]
   xp: number
   stand: StandLedger | null
+  // Rule 33: the research, as the valley last sent it (asked for as the
+  // Recycling Center opens); null before.
+  research: Research | null
   health: number
   healthMax: number
   // The wards as the valley last said them, at local `wardsAt` ms; they
@@ -153,6 +164,7 @@ export interface DialState {
 
 export interface Pending {
   stand: boolean
+  recycle: boolean
   locker: boolean
   buy: { station: number; kind: string } | null
   deal: boolean
@@ -168,6 +180,7 @@ export interface Pending {
 
 const NOTHING_PENDING: Pending = {
   stand: false,
+  recycle: false,
   locker: false,
   buy: null,
   deal: false,
@@ -197,6 +210,7 @@ export const DIALED: DialState = {
   cosmetics: [],
   xp: 0,
   stand: null,
+  research: null,
   health: BASE_GEOMETRIE,
   healthMax: BASE_GEOMETRIE,
   wards: NO_WARDS,
@@ -409,6 +423,20 @@ export function applyFrame(
         ? news(next, line, now, wall)
         : told(next, line, wall)
     }
+    // Rule 33: the research as read, or a level bought, answered on the
+    // screen and in the log as the stand's is.
+    case 'research': {
+      const next = { ...s, research: toResearch(msg.research) }
+      const line = researchNews(msg)
+      if (!line) return next
+      const done = { ...next, pending: { ...next.pending, recycle: false } }
+      return s.pending.recycle
+        ? news(done, line, now, wall)
+        : told(done, line, wall)
+    }
+    // Rule 33: loose change found in the 3D valley, for the log.
+    case 'found':
+      return told(s, foundLine(msg.dimes), wall)
     // Rule 27: something passed, by this account to a raider or to it.
     case 'passed': {
       const item = itemLabel(msg.kind)
@@ -588,6 +616,12 @@ export function applyFrame(
             refusalLine(msg.reason),
             now
           )
+        case 'recycle':
+          return saying(
+            { ...s, pending: { ...s.pending, recycle: false } },
+            recycleRefusal(msg.reason),
+            now
+          )
         case 'stow':
         case 'unstow':
           return saying(
@@ -644,15 +678,7 @@ function refused(
     news({ ...s, pending: { ...s.pending, ...pending } }, text, now, wall)
   switch (msg.re) {
     case 'buy':
-      return done(
-        { buy: null },
-        buyRefusal(
-          msg.reason,
-          msg.item,
-          s.cash,
-          msg.station === undefined ? undefined : s.world?.shelves[msg.station]
-        )
-      )
+      return done({ buy: null }, buyRefusal(msg.reason, msg.item, s.cash))
     case 'deal':
       return done({ deal: false }, dealRefusal(msg.reason))
     case 'quest':
@@ -692,7 +718,7 @@ function refused(
 // One line of the raider's record: what it counts, how far along, and how
 // full its bar reads (0 to 1), or null where it has none.
 export interface RaiderStat {
-  id: 'xp' | 'season' | 'task' | 'book' | 'citgos' | 'worn'
+  id: 'xp' | 'season' | 'task' | 'book' | 'citgos' | 'loose-change' | 'worn'
   label: string
   value: string
   share: number | null
@@ -746,6 +772,21 @@ export function raiderStats(s: DialState, day: string): RaiderStat[] {
       share: null,
     },
   ]
+  // Rule 33: loose change, once the valley has said the research.
+  if (s.research) {
+    const level = s.research.dimes
+    const top = topLevel('dimes')
+    stats.push({
+      id: 'loose-change',
+      label: lineName('dimes'),
+      value: copy('dialup.raider.loose_change', {
+        pct: Math.round(dimesChance(s.research) * 100),
+        level,
+        top,
+      }),
+      share: level / top,
+    })
+  }
   if (worn.length > 0) {
     stats.push({
       id: 'worn',
@@ -817,7 +858,7 @@ export function shelfOf(s: DialState, station: number): ShelfRow[] {
   const shelf = s.world?.shelves[station]
   if (!shelf) return []
   return Object.entries(shelf).flatMap(([kind, units]) => {
-    const price = shelfPrice(kind, units)
+    const price = itemById(kind)?.price
     if (price === undefined) return []
     const unit = units.indexOf(true)
     return [

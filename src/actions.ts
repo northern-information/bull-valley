@@ -61,12 +61,13 @@ import { enteredAt, exitFrom, openAt } from './portals.ts'
 import { levelOf } from './progression.ts'
 import { normalizeChat } from './protocol.ts'
 import { dealerStep, roseLine, roseProgress } from './quests.ts'
+import { openRecycleDialog } from './recycledialog.ts'
 import { callRoute, nearestRoadPoint } from './roadgraph.ts'
 import { inHaven } from './shadowmen.ts'
 import { buy as buyItem, settle } from './shop.ts'
 import { openStandDialog } from './standdialog.ts'
 import { move, moveAmount } from './stash.ts'
-import { formatCash, shelfPrice } from './store.ts'
+import { formatCash } from './store.ts'
 import { planLeg } from './truckplan.ts'
 import { dose, SOBER } from './wardlevels.ts'
 import { WARD_OF } from './wards.ts'
@@ -171,10 +172,8 @@ export interface Actions {
   stowKind(kind: string, all: boolean): void
   unstowKind(kind: string, all: boolean): void
   callTruck(): void
-  // The buyer's side of a sale off `station`, once the valley says the
-  // unit is ours: at the shelf's price before it went (store.ts
-  // shelfPrice).
-  pocket(kind: string, station: number): void
+  // The buyer's side of a sale, once the valley says the unit is ours.
+  pocket(kind: string): void
   // The valley's answer at the bush.
   applyDaily(msg: DailyMessage): void
   // Moab, within reach, makes his offer (once per approach).
@@ -666,6 +665,29 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     )
   }
 
+  // E at the wreck: the Recycling Center, the pointer free for it as at
+  // the stand. The research is the account's (rule 33): the dialog asks
+  // the valley for it as it opens, and asks for each level; the research
+  // and pack frames that answer show in it as they land.
+  const recycle = () => {
+    if (s.talking || !s.world) return
+    s.researchSaid = null
+    net.send({ type: 'research' })
+    withDialog(() =>
+      openRecycleDialog({
+        research: () => (s.world ? s.research : null),
+        pack: () => s.inventory,
+        pending: () => s.pending.recycle,
+        said: () => s.researchSaid,
+        onRecycle: (line) => {
+          s.pending.recycle = true
+          s.researchSaid = null
+          net.send({ type: 'recycle', line })
+        },
+      })
+    )
+  }
+
   // E beside Erwin von Dutch, the squatter in the plaza: what he deals
   // and what he wants for it, and his quest, in a dialog with the pointer
   // free, as at the stand (rules 25 and 26).
@@ -769,13 +791,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     net.send({ type: 'call', from })
   }
 
-  const pocket = (kind: string, station: number) => {
-    const price = shelfPrice(kind, s.storeStock[station]?.[kind])
-    if (price === undefined) return
+  const pocket = (kind: string) => {
     const { next, line } = settle(
       { inventory: s.inventory, cash: s.cash },
-      kind,
-      price
+      kind
     )
     if (next) {
       const inventoryChanged = next.inventory !== s.inventory
@@ -1140,6 +1159,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         return
       case 'stand':
         tendStand()
+        return
+      case 'recycle':
+        recycle()
         return
       case 'deal':
         openDeal()

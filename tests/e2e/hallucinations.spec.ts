@@ -1,5 +1,11 @@
 import { copy } from './copy.ts'
-import { beginRaid, expect, standInTheOpen, test } from './fixtures.ts'
+import {
+  beginRaid,
+  expect,
+  faceSpot,
+  standInTheOpen,
+  test,
+} from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
 // Tripping, the valley shows this raider someone or something that is not
@@ -51,6 +57,7 @@ test('a trip shows what is not there, and E bursts it', async ({ page }) => {
     ({ x, z }) => window.__bv?.player.relocate(x, z + 1, 0),
     seen
   )
+  await faceSpot(page, seen.x, seen.z, 1)
   await expect
     .poll(() =>
       page.evaluate(() => {
