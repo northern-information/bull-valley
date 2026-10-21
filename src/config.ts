@@ -207,6 +207,9 @@ export const CONFIG = {
     distance: 40,
     angle: 0.42,
     penumbra: 0.5,
+    // How bright the beam is on the bathroom's faces, which take no real
+    // light (bathglow.ts).
+    bathLevel: 2.2,
   },
   // Both first-person hands come up and go down over raiseSeconds; an item
   // used from the pack or the hotbar is held up in the right hand for

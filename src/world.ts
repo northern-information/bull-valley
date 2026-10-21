@@ -42,9 +42,9 @@ import {
   stationLamps,
 } from './stations.ts'
 import {
-  insideStore,
   laptopAt,
   lockerSpot,
+  onStoreGrounds,
   STORE_LAYOUT,
   toWorld,
   worldFacings,
@@ -384,7 +384,7 @@ export function buildWorld(geo: Geo, heightAt: HeightAt): World {
         // The lone pine stands alone among the dishes.
         (spawnStation ? insideDishArray(spawnStation, x, z) : false) ||
         // No tree grows through a store or its back room.
-        fuel.points.some((p) => insideStore(p, x, z, STORE_TREE_CLEAR)),
+        fuel.points.some((p) => onStoreGrounds(p, x, z, STORE_TREE_CLEAR)),
       pine ? [pine.tree] : []
     )
   )

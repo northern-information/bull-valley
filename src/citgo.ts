@@ -1,7 +1,9 @@
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { paintAd } from './adart.ts'
 import {
   artTexture,
+  isMesh,
   lambert,
   makeGlowTexture,
   mergeStatic,
@@ -9,6 +11,7 @@ import {
 import { bathLit } from './bathglow.ts'
 import { canvas, context2d, SANS, text } from './canvas.ts'
 import { buildPickup } from './pickups.ts'
+import { buildDumpster } from './plazamodel.ts'
 import { applyPS1 } from './ps1.ts'
 import { CANOPY, STORE_LAYOUT } from './store.ts'
 import type { Part } from './assetkit.ts'
@@ -122,6 +125,15 @@ const STORE_FINISH: Record<StoreFinish, () => THREE.Material> = {
   lining: () => bathLit({ color: '#9a9b92' }),
   table: () => bathLit({ color: '#2b2622' }),
   steel: () => bathLit({ color: '#8a8d90' }),
+  // The back door, grey steel gone dull, and the concrete pad it opens
+  // onto.
+  backdoor: () =>
+    lambert({
+      color: '#6f7479',
+      emissive: new THREE.Color('#25282a'),
+      emissiveIntensity: 0.5,
+    }),
+  pad: () => lambert({ color: '#7d7b74' }),
   light: () => applyPS1(new THREE.MeshBasicMaterial({ color: '#eaf1ee' })),
   // Storefront glass: a cool tint you see the lot through. No depth write,
   // so the shelves and the pumps show through from either side.
@@ -205,7 +217,37 @@ export function storeParts(): Part[] {
     part.geometry.translate(...sign.center)
     return part
   })
-  return [...boxes, ...signs]
+  return [...boxes, ...signs, ...dumpsterParts()]
+}
+
+// The dumpster on the pad out back (plazamodel.ts buildDumpster), its
+// meshes baked into station-local parts, one a material, so it instances
+// with the store.
+function dumpsterParts(): Part[] {
+  const { x, z, yaw } = STORE_LAYOUT.dumpster
+  const dumpster = buildDumpster()
+  dumpster.position.set(x, STORE_LAYOUT.floor, z)
+  dumpster.rotation.y = yaw
+  dumpster.updateMatrixWorld(true)
+  const byMaterial = new Map<THREE.Material, THREE.BufferGeometry[]>()
+  dumpster.traverse((node) => {
+    if (!isMesh(node) || Array.isArray(node.material)) return
+    const source = node.geometry.index
+      ? node.geometry.toNonIndexed()
+      : node.geometry.clone()
+    source.applyMatrix4(node.matrixWorld)
+    const part = new THREE.BufferGeometry()
+    part.setAttribute('position', source.getAttribute('position'))
+    part.setAttribute('normal', source.getAttribute('normal'))
+    const list = byMaterial.get(node.material) ?? []
+    list.push(part)
+    byMaterial.set(node.material, list)
+  })
+  return [...byMaterial].map(([material, geometries], i) => ({
+    name: `store-dumpster-${i}`,
+    geometry: mergeGeometries(geometries),
+    material,
+  }))
 }
 
 // One shelf unit: what the pack shows, without the halo.

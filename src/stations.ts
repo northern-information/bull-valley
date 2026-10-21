@@ -131,8 +131,8 @@ export function buildFuelStations(
 
     // The store behind the pumps: its parts are already in station-local
     // space, so every one takes the pump island's matrix, raised to stand
-    // level over the slope. Its floor is a flat deck at the slab top, and
-    // its walls and fixtures block.
+    // level over the slope. Its floor is a flat deck at the slab top, out
+    // over the pad behind it, and its walls and fixtures block.
     dummy.position.set(x, storeY, z)
     dummy.rotation.set(0, -yaw, 0)
     dummy.scale.setScalar(1)
@@ -143,7 +143,7 @@ export function buildFuelStations(
       z,
       cos,
       sin,
-      STORE_LAYOUT.back,
+      STORE_LAYOUT.pad.back,
       STORE_LAYOUT.front,
       STORE_LAYOUT.halfWidth,
       storeY + STORE_LAYOUT.floor

@@ -192,29 +192,36 @@ describe('space', () => {
     expect(base + STORE_LAYOUT.floor).toBeGreaterThan(highest)
   })
 
-  it('turns blocking boxes into walls, leaving the door open', () => {
+  it('turns blocking boxes into walls, leaving both doors open', () => {
     const walls = storeWalls(origin)
-    // Every blocking box, and the clerk.
+    // Every blocking box, the dumpster, and the clerk.
     expect(walls.length).toBe(
-      STORE_LAYOUT.boxes.filter((b) => b.blocks).length + 1
+      STORE_LAYOUT.boxes.filter((b) => b.blocks).length + 2
     )
     for (const wall of walls) expect(wall.half).toBeGreaterThan(0)
-    // Nothing blocks the middle of the doorway.
-    const [dx, , dz] = toWorld(origin, [STORE_LAYOUT.front - 0.1, 0, 0])
-    for (const { a, b, half } of walls) {
-      const t = Math.max(
-        0,
-        Math.min(
-          1,
-          ((dx - a.x) * (b.x - a.x) + (dz - a.z) * (b.z - a.z)) /
-            ((b.x - a.x) ** 2 + (b.z - a.z) ** 2 || 1)
+    // Nothing blocks the middle of the front doorway or the back door.
+    const doorways: [number, number][] = [
+      [STORE_LAYOUT.front - 0.1, 0],
+      [STORE_LAYOUT.back + 0.1, -4.4],
+      [STORE_LAYOUT.back - 0.4, -4.4],
+    ]
+    for (const [lx, lz] of doorways) {
+      const [dx, , dz] = toWorld(origin, [lx, 0, lz])
+      for (const { a, b, half } of walls) {
+        const t = Math.max(
+          0,
+          Math.min(
+            1,
+            ((dx - a.x) * (b.x - a.x) + (dz - a.z) * (b.z - a.z)) /
+              ((b.x - a.x) ** 2 + (b.z - a.z) ** 2 || 1)
+          )
         )
-      )
-      const px = a.x + (b.x - a.x) * t
-      const pz = a.z + (b.z - a.z) * t
-      expect(Math.hypot(dx - px, dz - pz)).toBeGreaterThan(
-        half + CONFIG.player.radius
-      )
+        const px = a.x + (b.x - a.x) * t
+        const pz = a.z + (b.z - a.z) * t
+        expect(Math.hypot(dx - px, dz - pz)).toBeGreaterThan(
+          half + CONFIG.player.radius
+        )
+      }
     }
   })
 })

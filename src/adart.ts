@@ -261,6 +261,14 @@ function washHands(): CanvasArt {
   return art
 }
 
+// Over the back door: EXIT, lit red on black, the way the code wants it.
+function exit(): CanvasArt {
+  const art = canvas([100, 40], '#141414')
+  const { ctx, w, h } = art
+  text(ctx, 'EXIT', w / 2, h / 2, w - 16, 28, SANS, '#ff3a2a')
+  return art
+}
+
 const PAINTERS: Record<AdId, () => CanvasArt> = {
   smokes,
   thanks,
@@ -273,6 +281,7 @@ const PAINTERS: Record<AdId, () => CanvasArt> = {
   fire,
   restroom,
   'wash-hands': washHands,
+  exit,
 }
 
 export function paintAd(id: AdId): CanvasArt {
