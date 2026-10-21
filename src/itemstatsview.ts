@@ -67,6 +67,17 @@ function statRow(stat: ItemStat): [string, string] | null {
   }
 }
 
+// A ward's line: what a dose wards against, or that it brings the ward
+// down. copy() throws on a value its line has no place for, so each line
+// gets only its own.
+export function wardWords(stat: Extract<ItemStat, { stat: 'ward' }>): string {
+  const ward = wardName(stat.axis)
+  const dose = doseText(stat.dose)
+  return stat.dose > 0
+    ? copy('wards.card_dose', { ward, dose, against: wardAgainst(stat.axis) })
+    : copy('wards.card_lower', { ward, dose })
+}
+
 // The table's rows (dt, dd) and the wards' lines for `kind`.
 export function statsOf(kind: string): {
   rows: HTMLElement[]
@@ -80,17 +91,7 @@ export function statsOf(kind: string): {
     }),
     wards: stats.flatMap((stat) =>
       stat.stat === 'ward'
-        ? [
-            wardLine(
-              'bv-ward-line',
-              stat.axis,
-              copy(stat.dose > 0 ? 'wards.card_dose' : 'wards.card_lower', {
-                ward: wardName(stat.axis),
-                dose: doseText(stat.dose),
-                against: wardAgainst(stat.axis),
-              })
-            ),
-          ]
+        ? [wardLine('bv-ward-line', stat.axis, wardWords(stat))]
         : []
     ),
   }
