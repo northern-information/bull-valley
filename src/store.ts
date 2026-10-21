@@ -176,7 +176,7 @@ const BACK_DOOR_OUT = { z: -4.4, width: 1.0 }
 // height on its own foundation, and the dumpster on it a stride off the
 // back wall, its length along the wall.
 const PAD = { depth: 4.5 }
-const DUMPSTER_SPOT = { x: BACK - 0.6 - 0.65, z: 2.6, yaw: Math.PI / 2 }
+const DUMPSTER_SPOT = { x: BACK - 0.6 - 0.65, z: 2.6, yaw: -Math.PI / 2 }
 // The dumpster's footprint (plazamodel.ts DUMPSTER, its length along the
 // wall), for its wall.
 const DUMPSTER_SIZE = { length: 1.9, width: 1.3 }
