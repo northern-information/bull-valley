@@ -37,7 +37,6 @@ import type { LockerOpen, PackActions } from './dialpack.ts'
 import type { SocialActions } from './dialsocial.ts'
 import type { DialState } from './dialstate.ts'
 import type { FinishId } from './finishes.ts'
-import type { Hotbar } from './hotbar.ts'
 import type { ItemThumbs } from './itemthumbs.ts'
 import type { OutfitId } from './outfits.ts'
 import type { SettingsStore } from './settingsui.ts'
@@ -63,7 +62,6 @@ interface ShellOptions {
   finish: FinishId
   // The 3D models, loaded once when first wanted.
   models: () => Promise<typeof import('./dial3d.ts')>
-  hotbar: Hotbar
   // The valley's clock in ms, for what the stand has banked.
   now: () => number
   pack: PackActions
@@ -156,7 +154,7 @@ export class DialShell {
     head.append(back, this.sheetTitle)
     this.sheetBody = el('div', 'bv-dial-sheet-body')
     this.sheet.append(head, this.sheetBody)
-    this.pack = new DialPack(options.hotbar, options.pack)
+    this.pack = new DialPack(options.pack)
     this.book = new DialBook((entry) => this.openPage(entry))
     this.social = new DialSocial(options.social)
     this.portrait = el('div', 'bv-dial-portrait')
@@ -249,9 +247,8 @@ export class DialShell {
     // The wards fade between the valley's word on them: the top bar's,
     // and the raider's own on the lobby.
     if (s) this.renderTop(s)
-    if (s && this.tab === 'lobby' && !this.sheetOpen) {
-      this.view.replaceChildren(this.lobby(s))
-    }
+    const raider = this.view.querySelector('.bv-dial-raider-state')
+    if (s && raider) raider.replaceChildren(...this.wardLines(s))
     if (s && this.tab === 'expeditions') {
       tickExpeditions(this.view, s, this.options.now())
       return
@@ -536,6 +533,17 @@ export class DialShell {
     }
     head.append(stats)
 
+    // The wards and what they do, refreshed each second as they fade
+    // (tick), the cards around them left alone.
+    const now = el('div', 'bv-dial-raider-state')
+    now.append(...this.wardLines(s))
+    panel.append(this.portrait, head, now)
+    return panel
+  }
+
+  // The wards going, and what they do besides warding while they last
+  // (buffs.ts), in the valley on foot.
+  private wardLines(s: DialState): HTMLElement[] {
     const wards = el('ul', 'bv-dial-raider-wards')
     const levels = wardsNow(s, performance.now())
     for (const axis of AXES) {
@@ -555,8 +563,6 @@ export class DialShell {
         text('li', copy('dialup.raider.wards'), 'bv-dial-raider-calm')
       )
     }
-    // What the wards do besides warding while they last (buffs.ts), in
-    // the valley on foot.
     const buffs = el('ul', 'bv-dial-raider-buffs')
     const beam = Math.round((beamScale(levels) - 1) * 100)
     const sprint = Math.round((sprintScale(levels) - 1) * 100)
@@ -568,9 +574,7 @@ export class DialShell {
         text('li', copy('dialup.raider.buff_sprint', { pct: sprint }))
       )
     }
-    panel.append(this.portrait, head, wards)
-    if (buffs.childElementCount > 0) panel.append(buffs)
-    return panel
+    return buffs.childElementCount > 0 ? [wards, buffs] : [wards]
   }
 }
 

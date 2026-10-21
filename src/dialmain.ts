@@ -9,13 +9,7 @@
 import './styles.css'
 import './dialup.css'
 import { openAccountPanel } from './accountpanel.ts'
-import {
-  fetchMe,
-  refreshSession,
-  saveHotbar,
-  saveLook,
-  signOut,
-} from './auth.ts'
+import { fetchMe, refreshSession, saveLook, signOut } from './auth.ts'
 import { mountBuildTag } from './buildtag.ts'
 import { pickOf } from './characters.ts'
 import { citgoNames } from './citgomap.ts'
@@ -35,7 +29,6 @@ import {
 } from './dialstate.ts'
 import { text } from './dom.ts'
 import { fontsReady } from './fonts.ts'
-import { toHotbar } from './hotbar.ts'
 import { itemLine } from './itemcopy.ts'
 import { mountModem } from './modemhud.ts'
 import { NetClient, socketUrl } from './net.ts'
@@ -201,7 +194,6 @@ async function boot(): Promise<void> {
     outfit: look.outfit,
     finish: look.finish,
     models: () => import('./dial3d.ts'),
-    hotbar: toHotbar(account.hotbar),
     now,
     switchHref: switchUrl(window.location, 'valley'),
     settings,
@@ -223,9 +215,6 @@ async function boot(): Promise<void> {
       },
       move: (type, kind, count) => {
         if (count > 0) send({ type, kind, count }, { locker: true })
-      },
-      saveHotbar: (bar, said) => {
-        void saveHotbar(bar).then((saved) => say(saved.ok ? said : saved.error))
       },
     },
     openErwin: () => {

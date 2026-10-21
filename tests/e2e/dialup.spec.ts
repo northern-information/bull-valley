@@ -78,7 +78,7 @@ test('a phone no one is signed in on gets a login', async ({ browser }) => {
   await expect(page.locator('.bv-account')).toBeVisible({ timeout: 15_000 })
 })
 
-test('stows from the pack, takes it back out of the locker, and keeps the hotbar', async ({
+test('stows from the pack, takes it back out of the locker, and fits the phone', async ({
   browser,
 }) => {
   const page = await phone(browser)
@@ -134,27 +134,19 @@ test('stows from the pack, takes it back out of the locker, and keeps the hotbar
     .click()
   await expect(stowed).toHaveCount(0)
   await page.getByRole('button', { name: copy('dialup.back') }).click()
-  // A slot on the hotbar, kept on the account.
+  // The pack, with every row open, fits the phone's width: nothing
+  // scrolls the page sideways.
   await page.locator('.bv-dial-tab[data-tab="pack"]').click()
-  const joint = page.locator('.bv-dial-item[data-kind="joints"]')
-  await joint.locator('summary').click()
-  await joint.getByRole('button', { name: copy('dialup.pack.hotbar') }).click()
-  await page.locator('.bv-dial-slot[data-slot="2"]').click()
-  await expect(page.locator('.bv-dial-toast')).toHaveText(
-    copy('dialup.pack.hotbar_saved', {
-      item: copy('items.joints.label'),
-      slot: 3,
-    })
-  )
-  // Onto the slot that holds it already takes it off, and says so.
-  await joint.getByRole('button', { name: copy('dialup.pack.hotbar') }).click()
-  await page.locator('.bv-dial-slot[data-slot="2"]').click()
-  await expect(page.locator('.bv-dial-toast')).toHaveText(
-    copy('dialup.pack.hotbar_cleared', {
-      item: copy('items.joints.label'),
-      slot: 3,
-    })
-  )
+  for (const row of await page.locator('.bv-dial-item summary').all()) {
+    await row.click()
+  }
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth
+    )
+  ).toBe(true)
 })
 
 test('uses an item from the phone, having seen what it would do', async ({
