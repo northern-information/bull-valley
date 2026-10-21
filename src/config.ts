@@ -94,7 +94,7 @@ export const CONFIG = {
     chestHeight: 1.4,
     // One that bursts leaves this many dimes (10¢ each) lying where it
     // was, drawn evenly between the two (drops.ts dimesFor).
-    dimes: { min: 3, max: 20 },
+    dimes: { min: 1, max: 8 },
     // Shadow spiders: twice a shadowman's height, crossing among them as
     // one of the crowd. Each new one in a bubble is a spider by `chance`,
     // or by `nearWaterChance` where it comes in, or the raider stands,
@@ -105,8 +105,8 @@ export const CONFIG = {
     // shadowman, rushes a little faster, touches from further off, and
     // leaves one $20 bill (drops.ts TWENTY) where it burst.
     spider: {
-      chance: 0.03,
-      nearWaterChance: 0.35,
+      chance: 0.02,
+      nearWaterChance: 0.12,
       waterRadius: 120,
       maxPerBubble: 3,
       burnScale: 2,
@@ -163,6 +163,10 @@ export const CONFIG = {
     perLevel: 40,
     round: 10,
     graceSeconds: 3,
+    // A forecourt (rule 24) gives back `share` of whole every
+    // `everySeconds` to a raider standing on it: whole from nothing in a
+    // little under two minutes, so anything that heals is the quicker way.
+    forecourt: { everySeconds: 2, share: 0.02 },
     shakeSeconds: 0.45,
     shakeMetres: 0.07,
   },
@@ -476,6 +480,10 @@ export const CONFIG = {
     // one.
     readSeconds: 300,
     donutSeconds: 300,
+    // A ride earns its XP (progression.ts XP.ride) only when the drive
+    // that carried it was at least this long, in metres (marx.ts
+    // rideMetres): no hop round the block for it.
+    rideXpMetres: 400,
     countdownSeconds: 60,
     // The countdown shows to whoever is in the bed or this close by.
     countdownReach: 25,

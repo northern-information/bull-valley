@@ -1990,6 +1990,19 @@ describe('rule 22: XP for what a raider does', () => {
     expect(v.step({ type: 'clock' }).xp).toBeUndefined()
   })
 
+  it('earns nothing for a charter round the block', () => {
+    const near = { x: ROUTES.home.x + 50, z: ROUTES.home.z }
+    const v = valleyWith(join('a'), { type: 'board', id: 'a', at: HERE })
+    v.step({ type: 'charter', id: 'a', to: near })
+    v.step({ type: 'clock' })
+    const truck = v.valley.world?.truck
+    const due = truck ? nextChange(truck, ROUTES) : null
+    v.tick((due ?? v.now) - v.now)
+    const there = v.step({ type: 'clock' })
+    expect(reasons(there)).toEqual(['dropoff'])
+    expect(there.xp).toBeUndefined()
+  })
+
   it('earns one ride for an account however many of its sockets rode', () => {
     const v = valleyWith(
       join('a'),
@@ -2805,7 +2818,10 @@ describe('rule 24: geometrie', () => {
       v.step({ type: 'mend', id: 'a', kind: 'joints' }).health?.points
     ).toBe(MAX)
     v.step({ type: 'set-health', id: 'a', points: 1 })
-    // A forecourt: whole at once.
+    // A forecourt: its share at a time, never past whole.
+    const share = Math.round(CONFIG.health.forecourt.share * MAX)
+    expect(v.step({ type: 'mend', id: 'a' }).health?.points).toBe(1 + share)
+    v.step({ type: 'set-health', id: 'a', points: MAX - 1 })
     expect(v.step({ type: 'mend', id: 'a' }).health?.points).toBe(MAX)
   })
 

@@ -234,6 +234,26 @@ export function settleTruck(
   }
 }
 
+// How far the drive of `leg` carries whoever is in the bed, in metres,
+// as the crow flies: the joyride is the long way round, a charter from
+// home to the pick (or one picked and not yet gone), a ferry from where
+// the whistler stood to home. Anything else carries no one: 0.
+export function rideMetres(leg: Leg, routes: TruckRoutes): number {
+  switch (leg.kind) {
+    case 'joyride':
+      return Infinity
+    case 'charter':
+      return dist(routes.home, leg.to)
+    case 'ferry':
+      return dist(leg.to, routes.home)
+    case 'parked':
+      if (leg.leavesAt === null) return 0
+      return leg.dest ? dist(routes.home, leg.dest) : Infinity
+    default:
+      return 0
+  }
+}
+
 // A refusal, and why.
 interface Refused {
   refused: string

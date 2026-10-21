@@ -137,7 +137,8 @@
 // 22. The raider's level (progression.ts): one XP bar for the account,
 //    fed by everything. A shadowman or spider burst in the raider's beam,
 //    the Caretaker burned with it (a big jump), a ride with Marx that
-//    gets home with them in the bed, the day's berry off a bush, a pickup,
+//    gets home with them in the bed or lets them off where they picked,
+//    over a drive of CONFIG.truck.rideXpMetres or more, the day's berry off a bush, a pickup,
 //    a unit bought, a drop the valley left taken up, and what the Cabbage
 //    Stand pays out when collected (by the cents, rule 23) each earn the
 //    account XP (Reduced.xp, and stepShadows' xp); a raider's own drop
@@ -168,7 +169,8 @@
 //    `plunge`; where a raider stands is its own word) takes fall.ts
 //    fallDamage of its height, no ward cutting it: all of it from two
 //    stories, which is rule 18's strike the same. A raider on foot whose last state frame put them
-//    on a Citgo forecourt is made whole, and a use of anything that heals
+//    on a Citgo forecourt is given back CONFIG.health.forecourt's share
+//    of whole every few seconds until whole, and a use of anything that heals
 //    (items.ts healsPct), once the pack has given the unit up, gives its
 //    share of whole back.
 // 25. The squatter in Bull Valley Plaza deals (dealer.ts), where the
@@ -302,6 +304,7 @@ import {
   leave,
   nextChange,
   refused,
+  rideMetres,
   settleTruck,
 } from './marx.ts'
 import { mazeToWorld } from './maze.ts'
@@ -1001,8 +1004,10 @@ function settle(
   const settled = settleTruck(world.truck, now, world.routes)
   // Rule 22: whoever was still in the bed when Marx got home rode with
   // him; one hopping out on the way did not.
+  // Only a drive of some length earns it (marx.ts rideMetres).
   const xp =
-    settled.changes.includes('home') || settled.changes.includes('dropoff')
+    (settled.changes.includes('home') || settled.changes.includes('dropoff')) &&
+    rideMetres(world.truck.leg, world.routes) >= CONFIG.truck.rideXpMetres
       ? grantsTo(valley, world.truck.riders, 'ride')
       : []
   if (settled.changes.length > 0 && next.world) {
@@ -2008,7 +2013,8 @@ function onMend(
   action: ActionOf<'mend'>,
   { now }: ValleyContext
 ): Reduced {
-  // Rule 24: a forecourt makes whole; a use gives its share back.
+  // Rule 24: a forecourt gives its share back a few seconds at a time; a
+  // use, the item's.
   const member = valley.members[action.id]
   if (!member) return done(valley, now, { broadcast: [] })
   const { account } = member
@@ -2018,7 +2024,7 @@ function onMend(
   const before = pointsOf(wounds, max)
   const points =
     action.kind === undefined
-      ? max
+      ? mend(before, Math.round(CONFIG.health.forecourt.share * max), max)
       : mend(before, healsOf(action.kind, max), max)
   return done(
     { ...valley, wounds: withWounds(valley.wounds, account, max - points) },

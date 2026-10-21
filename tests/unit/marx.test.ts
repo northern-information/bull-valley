@@ -13,6 +13,7 @@ import {
   leave,
   nextChange,
   refused,
+  rideMetres,
   settleTruck,
   TO_DOOR_SECONDS,
 } from '../../src/marx.ts'
@@ -337,5 +338,43 @@ describe("Marx's walk to his door", () => {
   it('takes a few seconds', () => {
     expect(TO_DOOR_SECONDS).toBeGreaterThan(2)
     expect(TO_DOOR_SECONDS).toBeLessThan(6)
+  })
+})
+
+describe('how far a ride carries', () => {
+  const home = ROUTES.home
+  it('reckons each drive with someone in the bed', () => {
+    expect(rideMetres({ kind: 'joyride', at: T0 }, ROUTES)).toBe(Infinity)
+    expect(
+      rideMetres({ kind: 'charter', at: T0, to: { x: 300, z: 400 } }, ROUTES)
+    ).toBe(500)
+    expect(
+      rideMetres(
+        { kind: 'ferry', at: T0, from: home, to: { x: 0, z: 30 } },
+        ROUTES
+      )
+    ).toBe(30)
+    expect(
+      rideMetres(
+        {
+          kind: 'parked',
+          at: T0,
+          from: null,
+          leavesAt: T0,
+          dest: { x: 60, z: 80 },
+        },
+        ROUTES
+      )
+    ).toBe(100)
+    expect(
+      rideMetres({ kind: 'parked', at: T0, from: null, leavesAt: T0 }, ROUTES)
+    ).toBe(Infinity)
+  })
+
+  it('carries no one parked and waiting, or at the donuts', () => {
+    expect(
+      rideMetres({ kind: 'parked', at: T0, from: null, leavesAt: null }, ROUTES)
+    ).toBe(0)
+    expect(rideMetres({ kind: 'donuts', at: T0 }, ROUTES)).toBe(0)
   })
 })
