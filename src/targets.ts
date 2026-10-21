@@ -79,6 +79,9 @@ export function createTargets(game: Game): Targets {
         return world.plaza?.door ?? null
       case 'lay':
         return world.portal?.rig.group ?? null
+      // What is not there glows as the real one would.
+      case 'hallucination':
+        return game.hallucinations.objectOf(action.id)
       case 'speak':
         switch (action.npc) {
           case 'marx':
@@ -167,6 +170,8 @@ export function createTargets(game: Game): Targets {
           return glowTarget(action)
         case 'collect':
           return bushObject(action.bush)
+        case 'hallucination':
+          return action.item === undefined ? null : glowTarget(action)
         default:
           return null
       }

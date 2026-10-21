@@ -476,6 +476,12 @@ travel_unvisited = { text = "You have not been to {citgo} yet.", by = "ai" }
 travel_here = { text = "You are already here.", by = "ai" }
 travel_aboard = { text = "Not from the truck bed.", by = "ai" }
 
+# What a trip shows that is not there, bursting (src/hallucinations.ts).
+
+[hallucinations]
+person = { text = "Nobody was there. Fuchsia hangs where they stood.", by = "ai" }
+thing = { text = "Your hand closes on nothing. It goes off in fuchsia.", by = "ai" }
+
 # The phone's Citgo portal app (src/phone.ts).
 
 [phone]
@@ -619,7 +625,6 @@ heals = { text = "Heals", by = "ai" }
 heals_value = { text = "+{pct}% geometrie", by = "ai" }
 smokes = { text = "Smokes", by = "ai" }
 perception = { text = "Perception", by = "ai" }
-trails = { text = "Trails", by = "ai" }
 contents = { text = "Holds", by = "ai" }
 contents_value = { text = "{count} to one", by = "ai" }
 price = { text = "Shelf price", by = "ai" }

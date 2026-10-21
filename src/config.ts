@@ -252,17 +252,84 @@ export const CONFIG = {
     // Walking speed while a cigarette burns.
     smokingSpeedScale: 0.85,
   },
-  // What anything smoked or drunk does to the view (trip.ts, trails.ts).
+  // The moment anything smoked or drunk is used, the view blurs (trip.ts,
+  // trails.ts).
   trip: {
     // The blur each use starts with, fading out over this long.
     blurSeconds: 1,
     // The blur's reach at its height, in internal pixels.
     blurRadius: 3,
+  },
+  // What the wards do to the view (wardview.ts, trails.ts). Each works at
+  // full strength from `full` up and in proportion below it, so it thins
+  // out as its ward fades. Drunk trails the view; high saturates its
+  // colours and trails it a little; stimulated sharpens it. A trip's
+  // sights are its own.
+  wardView: {
+    // A ward at or past this level works on the view at full strength.
+    full: 0.5,
     // How much of the last frame each frame keeps while trails are full:
     // nearer 1, longer trails.
     persistence: 0.86,
-    // The trails thin out over the last this-many seconds of the trip.
-    fadeSeconds: 4,
+    // The share of full trails a full high adds to the drunk's.
+    highTrails: 0.3,
+    // Saturation at a full high: 1 keeps the colours, 1.9 nearly doubles
+    // how far each sits from grey.
+    saturation: 1.9,
+    // The unsharp mask at a full stimulated: how much of the difference
+    // from its neighbours each pixel gains, and how far off they sit, in
+    // internal pixels.
+    sharpen: 1.6,
+    sharpenRadius: 1,
+  },
+  // What a trip shows that is not there, in psychedelic fuchsia
+  // (fuchsia.ts), each scaled by the tripping ward from 0 to 1.
+  psych: {
+    // Platonic solids drifting and tumbling round the eye (tripsolids.ts):
+    // up to `max` of them, one more for every 1 / max of the level. Each
+    // comes for `showMin` to `showMax` seconds, fading in and out over
+    // `fadeSeconds`, rests `restMin` to `restMax`, and comes again
+    // somewhere else, `radiusMin` to `radiusMax` metres out and `low` to
+    // `high` metres off the eye, `sizeMin` to `sizeMax` metres across,
+    // circling at up to `orbit` radians a second and tumbling at up to
+    // `tumble`. `opacity` is the face at its fullest; the edges are solid.
+    solids: {
+      max: 12,
+      showMin: 5,
+      showMax: 14,
+      restMin: 1,
+      restMax: 7,
+      fadeSeconds: 1.5,
+      radiusMin: 2.5,
+      radiusMax: 7,
+      low: -1.2,
+      high: 2.2,
+      sizeMin: 0.18,
+      sizeMax: 0.45,
+      orbit: 0.25,
+      tumble: 1.2,
+      opacity: 0.35,
+    },
+    // Constellations drawn between the stars (constellations.ts): up to
+    // `lanes` at once, one more for every 1 / lanes of the level. Each
+    // lane comes round every `periodSeconds` (the lanes staggered across
+    // it) and draws one with a chance of `chanceMin` at the least level,
+    // rising to `chanceMax` at a full trip; it fades in over
+    // `fadeSeconds`, holds, and fades out by `showSeconds`. One joins
+    // `starsMin` to `starsMax` stars within `reach` radians of the first,
+    // which stands at least `lowest` up the sky (the sine of its height).
+    constellations: {
+      lanes: 5,
+      periodSeconds: 11,
+      chanceMin: 0.35,
+      chanceMax: 0.95,
+      showSeconds: 8,
+      fadeSeconds: 1.5,
+      starsMin: 4,
+      starsMax: 8,
+      reach: 0.32,
+      lowest: 0.3,
+    },
   },
   // What the wards do besides warding (buffs.ts), each scaled by its
   // level from 0 to 1. High reaches the flashlight further and wider (a
@@ -729,6 +796,54 @@ export const CONFIG = {
     gravity: 22,
     safe: 3,
     lethal: 7,
+  },
+  // What a trip shows that is not there (hallucinations.ts): people and
+  // things out ahead of a raider while the tripping ward is up, this
+  // client's alone.
+  hallucinations: {
+    // Seconds between one and the next: `max` at the faintest trip, `min`
+    // at a full one, each give or take `jitter` of itself. The first of a
+    // trip comes `firstShare` of a gap into it.
+    gapSeconds: { min: 7, max: 40 },
+    jitter: 0.4,
+    firstShare: 0.25,
+    // How many stand at once at a full trip; the level scales it, rounded
+    // up, so even a faint trip shows one.
+    most: 4,
+    // How long one stands, and how long it flickers coming and going.
+    lifeSeconds: { min: 16, max: 34 },
+    fadeInSeconds: 1.2,
+    fadeOutSeconds: 1.6,
+    // The flicker's beats a second while it comes or goes.
+    flickerHz: 18,
+    // Where: within `cone` radians either side of where the raider faces,
+    // a person this many metres out, a thing nearer (it is small); no two
+    // closer than `spacing`; `tries` spots tried before giving up.
+    cone: 0.55,
+    person: { near: 7, far: 15 },
+    thing: { near: 3.5, far: 7 },
+    spacing: 2.5,
+    tries: 6,
+    // A raider wandered this far from one leaves it behind.
+    strayMetres: 45,
+    // The share of things among them, and of the valley's folk among the
+    // people.
+    thingShare: 0.35,
+    npcShare: 0.4,
+    // E reaches a person or a thing from this far, as the real ones do.
+    reach: { person: 2.4, thing: 2.6 },
+    // E on one: its burst of fuchsia solids, flung from its middle,
+    // slowed by the air (drag, per second) and falling.
+    burst: {
+      seconds: 1.7,
+      shards: 26,
+      speed: { min: 2.5, max: 6.5 },
+      up: { min: 1, max: 4.5 },
+      gravity: 5,
+      drag: 1.6,
+      size: { min: 0.05, max: 0.15 },
+      spin: 9,
+    },
   },
   wreck: {
     // The green BMW nosed into a tree beside the spawn Citgo, station-local

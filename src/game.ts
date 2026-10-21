@@ -14,6 +14,7 @@ import { freshStock } from './store.ts'
 import { SOBER } from './wardlevels.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
 import type { CitgoLog } from './citgos.ts'
+import type { Constellations } from './constellationrig.ts'
 import type { CorpseMeshes } from './corpsemeshes.ts'
 import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -27,6 +28,7 @@ import type { PendingAsk } from './friends.ts'
 import type { Glow } from './glow.ts'
 import type { Grave } from './graves.ts'
 import type { Gravestones } from './gravestones.ts'
+import type { Hallucinations } from './hallucinationrig.ts'
 import type { Hand } from './hands.ts'
 import type { Effects, Hotbar } from './hotbar.ts'
 import type { Hud } from './hud.ts'
@@ -61,6 +63,7 @@ import type { ShadowBursts } from './shadowburst.ts'
 import type { StandLedger } from './stand.ts'
 import type { Titles } from './titles.ts'
 import type { Trails } from './trails.ts'
+import type { TripSolids } from './tripsolidsrig.ts'
 import type { Truck } from './truck.ts'
 import type { TruckContext, TruckPlan } from './truckplan.ts'
 import type { TruckRadio } from './truckradiorig.ts'
@@ -388,10 +391,18 @@ export interface Game {
   tunnel: TunnelShades
   // Shadowmen bursting in the beam.
   bursts: ShadowBursts
+  // What a trip shows this raider that is not there (hallucinationrig.ts):
+  // this client's alone, never sent or kept.
+  hallucinations: Hallucinations
   mist: MistCards
   glow: Glow
-  // The view on a trip: the blur and the trails (trails.ts).
+  // The view through the wards and the blur of a use (trails.ts).
   trails: Trails
+  // What a trip shows that is not there: platonic solids round the eye
+  // (tripsolidsrig.ts) and constellations between the stars
+  // (constellationrig.ts).
+  solids: TripSolids
+  constellations: Constellations
   // The items as the pack grid and the hotbar draw them.
   thumbs: ItemThumbs
   peers: Peers

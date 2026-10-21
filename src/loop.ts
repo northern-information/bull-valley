@@ -32,9 +32,10 @@ import { poseOf, stateChanged } from './presence.ts'
 import { levelOf } from './progression.ts'
 import { aimHeightOf, burstScaleOf, headlightsDue } from './shadowmen.ts'
 import { formatCash } from './store.ts'
-import { tripLevel } from './trip.ts'
+import { tripBlur } from './trip.ts'
 import { burstHeight, burstScale } from './tunnelrig.ts'
 import { levelsAt } from './wardlevels.ts'
+import { wardView } from './wardview.ts'
 import { boardable, clockText, countdown, seatOf } from './worldsync.ts'
 import type { Actions } from './actions.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
@@ -95,6 +96,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     mist,
     glow,
     trails,
+    solids,
+    constellations,
     thumbs,
     peers,
   } = game
@@ -394,6 +397,18 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     )
     mist.update({ dt, player: player.pos })
     return { swarm, keeper }
+  }
+
+  // What a trip shows that is not there (hallucinations.ts): out ahead
+  // while the tripping ward is up, gone with it. This raider's alone.
+  const stepHallucinations = ({ dt, time }: FrameClock) => {
+    game.hallucinations.update(dt, {
+      time,
+      tripping: levelsAt(s.wards, time).tripping,
+      player: player.pos,
+      yaw: player.yaw,
+      blocked: world.walls.between,
+    })
   }
 
   // What stands in the valley and moves on its own clock.
@@ -715,6 +730,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       lookout: lookoutSpot(),
       heart: heartSpot(),
       locked: lockedDoor(),
+      hallucinations: s.aboard ? [] : game.hallucinations.spots(),
     })
   }
 
@@ -758,11 +774,19 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
 
   const draw = (time: number) => {
     sky.position.set(player.pos.x, 0, player.pos.z)
+    // What a trip shows that is not there, round the eye and in the sky.
+    const tripping = levelsAt(s.wards, time).tripping
+    solids.update(tripping, time, camera.position)
+    constellations.update(tripping, time)
     if (s.inventoryOpen) {
       hud.setBagStatus({ cash: formatCash(s.cash) })
     }
     if (!s.talking && DRAW_VALLEY) {
-      trails.render(scene, camera, tripLevel(s.effects.trip, time))
+      const view = wardView(
+        levelsAt(s.wards, time),
+        tripBlur(s.effects.trip, time)
+      )
+      trails.render(scene, camera, view)
       if (player.locked && !s.inventoryOpen) {
         glow.render(scene, camera, time)
       }
@@ -792,6 +816,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     const renderAt = clock.now - CONFIG.net.interpolateMs
     const { swarm, keeper } = stepShadows(clock, renderAt)
     stepScenery(clock, feet.feetY)
+    stepHallucinations(clock)
     const portalNow = stepPortals(clock)
     drawMap()
     feelStrikes(clock.now)
