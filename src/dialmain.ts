@@ -213,8 +213,8 @@ async function boot(): Promise<void> {
         const used = itemLine(kind, 'used')
         if (net.online && used) say(used)
       },
-      move: (type, kind, count) => {
-        if (count > 0) send({ type, kind, count }, { locker: true })
+      take: (kind, count) => {
+        if (count > 0) send({ type: 'unstow', kind, count }, { locker: true })
       },
     },
     openErwin: () => {

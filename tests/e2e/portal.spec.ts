@@ -28,7 +28,11 @@ test('the portal at the heart of the maze puts you back at the gate', async ({
   expect(await page.evaluate(() => window.__bv?.player.yaw)).toBeCloseTo(
     exit.yaw
   )
+  // Said in the log; another line (a Citgo found on the way out) may
+  // follow it, so it is looked for, not taken as the last.
   await expect
-    .poll(() => page.evaluate(() => window.__bv?.chat.at(-1)?.text))
-    .toBe(copy('log.portal'))
+    .poll(() =>
+      page.evaluate(() => window.__bv?.chat.map((line) => line.text) ?? [])
+    )
+    .toContain(copy('log.portal'))
 })

@@ -1,13 +1,13 @@
 // Bull Valley Dial-Up's pack and locker (sharedworld.ts rule 29): the
 // pack's tabs as the 3D valley's (packgrid.ts, packtabs.ts), each item a
-// row to tap open, with what it can do from a phone: use it, having seen
-// what it would do now, and stow one or all into the locker (never a key
-// item). The hotbar is the 3D valley's alone. The locker's sheet keeps
-// what is on the raider and what is in the locker apart, as the 3D
-// valley's pack and its Locker tab do: the pack's rows to stow, its key
-// items (which stay on the raider), and the locker's rows to take out.
-// Never a pass or a drop: those take a body. Every move is the valley's
-// to make; the screen asks and redraws when the pack frame lands.
+// row to tap open, with the one thing a phone does with it: use it,
+// having seen what it would do now. Stowing and the hotbar are the 3D
+// valley's alone. The locker's sheet keeps what is on the raider and what
+// is in the locker apart, as the 3D valley's pack and its Locker tab do:
+// what the raider carries (to use), their key items, and the locker's
+// rows, which come back out one or all to be used. Never a pass or a
+// drop: those take a body. Every move is the valley's to make; the screen
+// asks and redraws when the pack frame lands.
 
 import { copy } from './copy.ts'
 import { expeditionName, useImpact } from './dialstate.ts'
@@ -26,8 +26,8 @@ export interface PackActions {
   // One of `kind` used (sharedworld.ts rule 27): the valley doses the
   // wards and mends the geometrie.
   use: (kind: string) => void
-  // `count` of `kind` into the locker (stow) or out of it.
-  move: (type: 'stow' | 'unstow', kind: string, count: number) => void
+  // `count` of `kind` out of the locker, into the pack.
+  take: (kind: string, count: number) => void
 }
 
 // The pack screen: its tabs over its rows.
@@ -62,26 +62,23 @@ export class DialPack {
       items,
       BAG_TABS[this.tab].empty,
       this.open,
-      (item) => this.rowActions(s, item),
+      (item) => useButton(s, item.kind, this.actions),
       (item) => (isUsable(item.kind) ? impactView(s, item.kind) : null)
     )
     this.root.replaceChildren(tabs, list)
   }
+}
 
-  private rowActions(s: DialState, item: PackItem): HTMLElement[] {
-    // A key item stays in the pack (items.ts isKeyItem).
-    const stow = isKeyItem(item.kind)
-      ? []
-      : moveButtons(s, item.kind, 'stow', this.actions)
-    const use = isUsable(item.kind)
-      ? [
-          button(copy('dialup.pack.use'), s.pending.use, () =>
-            this.actions.use(item.kind)
-          ),
-        ]
-      : []
-    return [...use, ...stow]
-  }
+// Use, for an item a phone can use (items.ts isUsable); nothing else.
+function useButton(
+  s: DialState,
+  kind: string,
+  actions: PackActions
+): HTMLButtonElement[] {
+  if (!isUsable(kind)) return []
+  return [
+    button(copy('dialup.pack.use'), s.pending.use, () => actions.use(kind)),
+  ]
 }
 
 // Which row is open, kept by its screen across redraws.
@@ -96,9 +93,9 @@ export interface LockerOpen {
   locker: Opened
 }
 
-// The locker sheet: what the raider carries that can go in, then the key
-// items they carry, which never go in (items.ts isKeyItem), then
-// everything the locker holds, to take out.
+// The locker sheet: what the raider carries (to use, as on the Pack tab),
+// then the key items they carry, then everything the locker holds, to
+// take out and use.
 export function renderLocker(
   root: HTMLElement,
   s: DialState,
@@ -113,9 +110,10 @@ export function renderLocker(
       copy('dialup.pack.on_you'),
       itemRows(
         carried.filter((item) => !isKeyItem(item.kind)),
-        copy('dialup.pack.nothing_to_stow'),
+        copy('dialup.pack.nothing_on_you'),
         open.pack,
-        (item) => moveButtons(s, item.kind, 'stow', actions)
+        (item) => useButton(s, item.kind, actions),
+        (item) => (isUsable(item.kind) ? impactView(s, item.kind) : null)
       )
     ),
     section(
@@ -130,7 +128,7 @@ export function renderLocker(
         stashItems(s.stash),
         BAG_TABS.locker.empty,
         open.locker,
-        (item) => moveButtons(s, item.kind, 'unstow', actions)
+        (item) => takeButtons(s, item.kind, actions)
       )
     )
   )
@@ -147,23 +145,19 @@ function section(
   return wrap
 }
 
-// One or all of `kind` into the locker (stow) or out of it.
-function moveButtons(
+// One or all of `kind` out of the locker.
+function takeButtons(
   s: DialState,
   kind: string,
-  type: 'stow' | 'unstow',
   actions: PackActions
 ): HTMLButtonElement[] {
-  const stow = type === 'stow'
-  const held = (stow ? s.pack : s.stash)[kind] ?? 0
+  const held = s.stash[kind] ?? 0
   const busy = s.pending.locker
-  const one = stow ? copy('dialup.pack.stow_one') : copy('dialup.pack.take_one')
-  const all = stow ? copy('dialup.pack.stow_all') : copy('dialup.pack.take_all')
   return [
-    button(one, busy, () =>
-      actions.move(type, kind, moveAmount(kind, held, false))
+    button(copy('dialup.pack.take_one'), busy, () =>
+      actions.take(kind, moveAmount(kind, held, false))
     ),
-    button(all, busy, () => actions.move(type, kind, held)),
+    button(copy('dialup.pack.take_all'), busy, () => actions.take(kind, held)),
   ]
 }
 
