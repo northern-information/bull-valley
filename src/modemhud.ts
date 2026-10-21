@@ -6,6 +6,7 @@
 // caller tells it how the line answered (connected, signedOut, noCarrier)
 // and waits on `done`, which says whether a login is wanted.
 
+import { BUILD } from './buildtag.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { el } from './dom.ts'
@@ -15,7 +16,10 @@ import { ModemAudio } from './modemaudio.ts'
 import { COLOPHON, LOGO } from './splash.ts'
 import type { Modem, ModemLine } from './modem.ts'
 
+// The banner's lines are the 3D valley's own (splash.ts, buildtag.ts).
 const LINES: Record<ModemLine, string> = {
+  build: copy('titles.build', { build: BUILD }),
+  epigraph: copy('titles.epigraph'),
   atz: copy('dialup.modem.atz'),
   ok: copy('dialup.modem.ok'),
   dial: copy('dialup.modem.dial'),

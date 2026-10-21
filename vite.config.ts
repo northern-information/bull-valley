@@ -1,6 +1,8 @@
+import { execSync } from 'node:child_process'
 import { readFile, writeFile } from 'node:fs/promises'
 import { cloudflare } from '@cloudflare/vite-plugin'
 import { defineConfig } from 'vite'
+import { buildDay } from './src/build.ts'
 import { isGeo, serializeGeo } from './src/mapedit.ts'
 import type { IncomingMessage } from 'node:http'
 import type { Plugin } from 'vite'
@@ -75,7 +77,22 @@ function akashicMapSave(mode: string): Plugin {
   }
 }
 
+// The commit being bundled, for the build's name (buildtag.ts); a tree
+// with no git says so.
+function commitHash(): string {
+  try {
+    return execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim()
+  } catch {
+    return 'nogit'
+  }
+}
+
 export default defineConfig(({ mode }) => ({
+  // The build's day and commit, named in the corner of every screen.
+  define: {
+    __BUILD_DAY__: JSON.stringify(buildDay(new Date())),
+    __BUILD_HASH__: JSON.stringify(commitHash()),
+  },
   // The Worker, its Durable Object, and the accounts database run in workerd
   // beside the dev server, so `npm run dev` is the whole stack. Dev state
   // (who was in the valley, who has an account) persists under

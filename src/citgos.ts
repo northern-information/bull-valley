@@ -2,11 +2,12 @@
 // station they stand at now, the log the valley keeps of every one visited
 // and the last, and fast travel from one visited Citgo to another. The
 // valley's reducer runs the log; actions.ts and the map (citgomap.ts) read
-// it for fast travel, and played alone the client keeps its own. No
-// three.js, no DOM.
+// it for fast travel. No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
 import { projectOnSegment } from './coords.ts'
+import { copy } from './copy.ts'
+import { formatCash } from './store.ts'
 import type { Facing } from './drops.ts'
 import type { FuelStation, XZ } from './interfaces.ts'
 
@@ -113,4 +114,25 @@ export function roadNameNear(
     }
   }
   return best
+}
+
+// What a new log says in the log: each Citgo found since `before`, named
+// by `label`, with its bounty when the valley paid one (in a world, for
+// any but the first ever; sharedworld.ts rule 28).
+export function citgoLines(
+  before: CitgoLog,
+  after: CitgoLog,
+  label: (station: number) => string,
+  inWorld: boolean
+): string[] {
+  const found = after.visited.filter((i) => !before.visited.includes(i))
+  const paid = inWorld && after.visited.length > found.length
+  return found.map((station) =>
+    paid
+      ? copy('log.citgo_bounty', {
+          citgo: label(station),
+          cash: formatCash(CONFIG.bounties.citgo),
+        })
+      : copy('log.citgo_visited', { citgo: label(station) })
+  )
 }

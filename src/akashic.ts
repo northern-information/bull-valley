@@ -12,6 +12,7 @@ import {
   buildFlashlight,
   buildLockerDoors,
   buildSlurm,
+  disposeTree,
   isMesh,
   meshBounds,
   motionOf,
@@ -40,7 +41,7 @@ import { OUTFIT_IDS, OUTFITS } from './outfits.ts'
 import { flashlightArm, samplePose, strideOf, stridePose } from './poses.ts'
 import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import { mulberry32 } from './rng.ts'
-import { strikeReach } from './shadowcards.ts'
+import { strikeReach } from './shadowbodies.ts'
 import { buildShadowman } from './shadowmanmodel.ts'
 import { poseCarlsten } from './slurmrig.ts'
 import { buildTruckMesh } from './truck.ts'
@@ -94,7 +95,7 @@ function sampleFigure(outfitId: OutfitId): THREE.Group {
   return figure.group
 }
 
-// A shadowman (shadowcards.ts), standing, walking in place, or winding
+// A shadowman (shadowbodies.ts), standing, walking in place, or winding
 // up and lunging at the view. `frame` says, at each moment, how fast it
 // walks and how far through a strike it is.
 function sampleShadowmanDoing(
@@ -422,18 +423,12 @@ function applyToggles(): void {
   resize()
 }
 
-// Meshes, sprites, lines and points carry a material and a geometry, but
-// Object3D declares neither; these narrow by the property being present.
+// Meshes, sprites, lines and points carry a material, but Object3D does
+// not declare one; this narrows by the property being present.
 function hasMaterial(
   o: THREE.Object3D
 ): o is THREE.Object3D & { material: THREE.Material | THREE.Material[] } {
   return 'material' in o
-}
-
-function hasGeometry(
-  o: THREE.Object3D
-): o is THREE.Object3D & { geometry: THREE.BufferGeometry | undefined } {
-  return 'geometry' in o
 }
 
 // A mesh may carry one material or an array (one per geometry group).
@@ -468,21 +463,17 @@ interface Current {
 
 let current: Current | null = null
 
-// The asset's geometries and materials go; its maps stay, since the art
-// and the glow textures are shared across assets (assets.ts artTexture,
-// makeGlowTexture) and the next one may read them.
-function dispose(object: THREE.Object3D): void {
-  object.traverse((o) => {
-    if (hasGeometry(o)) o.geometry?.dispose()
-    for (const m of materialsOf(o)) m.dispose()
-  })
+function isPoints(o: THREE.Object3D): o is THREE.Points {
+  return 'isPoints' in o && o.isPoints === true
 }
 
 function triangleCount(object: THREE.Object3D): number {
   let n = 0
   object.traverse((o) => {
-    // A sprite is one quad (the skulls of the shadow burst).
+    // A sprite is one quad, and so is each point of a cloud (the flecks
+    // and the mist of the shadow burst).
     if (o instanceof THREE.Sprite) n += 2
+    if (isPoints(o)) n += 2 * o.geometry.attributes.position.count
     if (!isMesh(o)) return
     const g = o.geometry
     const tris = (g.index ? g.index.count : g.attributes.position.count) / 3
@@ -495,7 +486,8 @@ function selectAsset(id: string): void {
   const asset = ASSETS.find((a) => a.id === id) || ASSETS[0]
   if (current) {
     scene.remove(current.object)
-    dispose(current.object)
+    // Its maps stay: the next asset may read the same art and glow.
+    disposeTree(current.object)
   }
   const object = asset.build()
   scene.add(object)

@@ -9,14 +9,13 @@ import { HAND_DOWN } from './hands.ts'
 import { BASE_GEOMETRIE } from './health.ts'
 import { NO_EFFECTS } from './hotbar.ts'
 import { STARTING_INVENTORY } from './inventory.ts'
-import { createTruck } from './marx.ts'
 import { NO_PROGRESS } from './season.ts'
 import { freshStock } from './store.ts'
 import { SOBER } from './wardlevels.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
 import type { CitgoLog } from './citgos.ts'
 import type { CorpseMeshes } from './corpsemeshes.ts'
-import type { Corpse, CorpseWire } from './corpses.ts'
+import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { TaskProgress } from './dailytask.ts'
 import type { DonutWake } from './donutwakerig.ts'
@@ -35,7 +34,7 @@ import type { Interaction } from './interactions.ts'
 import type { Geo, Inventory, ShopStock } from './interfaces.ts'
 import type { ItemThumbs } from './itemthumbs.ts'
 import type { LaptopScreen } from './laptopdialog.ts'
-import type { Leg, TruckRoutes, TruckState } from './marx.ts'
+import type { Leg, TruckRoutes } from './marx.ts'
 import type { MistCards } from './mistcards.ts'
 import type { Music } from './musicrig.ts'
 import type { NetClient } from './net.ts'
@@ -57,8 +56,8 @@ import type { RoadGraph } from './roadgraph.ts'
 import type { SeasonProgress } from './season.ts'
 import type { SettingsStore } from './settingsui.ts'
 import type { Sfx } from './sfxrig.ts'
+import type { ShadowBodies } from './shadowbodies.ts'
 import type { ShadowBursts } from './shadowburst.ts'
-import type { ShadowCards } from './shadowcards.ts'
 import type { StandLedger } from './stand.ts'
 import type { Titles } from './titles.ts'
 import type { Trails } from './trails.ts'
@@ -119,14 +118,11 @@ export function freshPending(): Pending {
 export interface GameState {
   // The account's pack as the valley last sent it (the welcome, then every
   // pack frame), with this client's own changes applied in the meantime.
-  // Alone, the starting pack, and nothing is kept.
   inventory: Inventory
   // The account's wallet in cents, as the valley last sent it (with this
-  // client's own spending applied in the meantime); alone, a fresh one,
-  // and nothing is kept.
+  // client's own spending applied in the meantime).
   cash: number
-  // What the account wears (cosmetics.ts), as the valley last sent it;
-  // alone, nothing, and nothing is kept.
+  // What the account wears (cosmetics.ts), as the valley last sent it.
   cosmetics: CosmeticId[]
   // Everything asked of the valley and not yet answered.
   pending: Pending
@@ -134,22 +130,20 @@ export interface GameState {
   // stay in his reach; null otherwise. He says it once each time.
   offeredBy: number | null
   // The account's progress through the season (season.ts) as the valley
-  // last sent it; alone, none, and nothing is kept.
+  // last sent it.
   season: SeasonProgress
   // The Book of Shadows entries the account has found (book.ts), as the
-  // valley last said (the welcome, then every book frame); alone, what this
-  // client has come across, and nothing is kept. And it with the entries
+  // valley last said (the welcome, then every book frame). And it with the entries
   // asked (pending.book), as one set (book.ts knownOf), kept in step with
   // each change, for the loop's asks.
   book: Set<string>
   known: Set<string>
   // The account's progress on the daily task (dailytask.ts) as the valley
-  // last sent it, on the day it counts; alone, none, and nothing is kept.
+  // last sent it, on the day it counts.
   task: TaskProgress
   // Rule 21: the account's friends list as the valley last sent it.
   friends: FriendWire[]
-  // The account's XP in all (progression.ts) as the valley last sent it;
-  // alone, none, and nothing is kept.
+  // The account's XP in all (progression.ts) as the valley last sent it.
   xp: number
   // Every Citgo's shelves, one stock per station like world.fuelPoints.
   storeStock: ShopStock[]
@@ -179,7 +173,7 @@ export interface GameState {
   // while.
   strikeUntil: number
   // Geometrie, the hit points (health.ts): the account's in the valley,
-  // left and whole, as it last said; this client's own played alone.
+  // left and whole, as it last said.
   // After a touch nothing may touch again until graceUntil, and the view
   // shakes from hurtAt (both local ms, like strikeUntil).
   health: number
@@ -204,11 +198,9 @@ export interface GameState {
   // The last state frame sent to the valley, and seconds since.
   lastSent: PeerStateWire | null
   sinceSent: number
-  // The shared world, once the valley has answered. Null offline, where
-  // the valley is this player's alone.
+  // The shared world, once the valley has answered; null until then. It
+  // stays as last said while the line is down, and nothing plays.
   world: WorldWire | null
-  // Played alone, Matthew Marx's truck this client keeps (marx.ts).
-  aloneTruck: TruckState
   // The leg the truck is driving now, the valley's or our own, and what
   // the truck does for it (truckplan.ts).
   truckLeg: Leg | null
@@ -217,26 +209,16 @@ export interface GameState {
   aboard: boolean
   // The welcome has put us where the account last stood.
   placed: boolean
-  // What lies dropped (sharedworld.ts rule 12): the valley's, from every
-  // snapshot, or this raider's own when played alone, numbered from
-  // nextDrop.
+  // What lies dropped (sharedworld.ts rule 12), from every snapshot.
   drops: Drop[]
-  nextDrop: number
-  // The shadowmen's tombstones (rule 17): the valley's, from every
-  // snapshot, or this raider's own when played alone, numbered from
-  // nextGrave.
+  // The shadowmen's tombstones (rule 17), from every snapshot.
   graves: Grave[]
-  nextGrave: number
-  // Rule 18: the bodies lying in the valley, the valley's from every
-  // snapshot, or this raider's own when played alone (aloneCorpses, with
-  // what each holds, numbered from nextCorpse); and which of them are
-  // this account's.
+  // Rule 18: the bodies lying in the valley, from every snapshot, and
+  // which of them are this account's.
   corpses: CorpseWire[]
   myCorpses: number[]
-  aloneCorpses: Corpse[]
-  nextCorpse: number
   // Rule 19: what the account's locker holds, as the valley last sent it
-  // (with this client's own moves applied in the meantime); alone, nothing.
+  // (with this client's own moves applied in the meantime).
   // lockerOpen: the pack is open at the locker, with its Locker tab.
   stash: Inventory
   lockerOpen: boolean
@@ -244,22 +226,18 @@ export interface GameState {
   // valley's answers; null otherwise.
   laptop: LaptopScreen | null
   // Rule 23: the account's Cabbage Stand as the valley last sent it; null
-  // alone, where there is none. And the last word on a change, for the
-  // stand's dialog.
+  // before it has. And the last word on a change, for the stand's dialog.
   stand: StandLedger | null
   standSaid: string | null
   // Rule 28: every Citgo the account has stood at, and the last, as the
-  // valley last said (the welcome, then every citgos frame); alone, this
-  // client's own. The Citgo portals, the valley's from every snapshot, or
-  // this raider's own when played alone (numbered from nextPortal, closing
-  // on the wall clock); the id of the one this raider opened, while it
+  // valley last said (the welcome, then every citgos frame). The Citgo
+  // portals, from every snapshot; the id of the one this raider opened, while it
   // stands; a portal asked of the valley and not yet answered; after
   // stepping through one or fast travelling, the local ms
   // (performance.now) before which no portal takes them; and whether the
   // map is open.
   citgos: CitgoLog
   portals: Portal[]
-  nextPortal: number
   myPortal: number | null
   pendingPortal: boolean
   portalGraceUntil: number
@@ -273,13 +251,14 @@ export interface GameState {
   dealSaid: string | null
   rambled: number
   // Rule 26: where the account stands on each quest (null before the
-  // valley says, or played alone), and a step not yet answered.
+  // valley says), and a step not yet answered.
   quests: Record<QuestId, QuestStage> | null
   pendingQuest: boolean
   // Shelf units asked of the valley and not yet answered, as station:kind.
   pendingBuys: Set<string>
   // The berry bushes as the valley last described them (the welcome, then
-  // every daily frame); null offline. The day's berries are the valley's.
+  // every daily frame); null before it has. The day's berries are the
+  // valley's.
   daily: DailyWire | null
   // Lines that wait for the truck to roll: Matthew Marx walks from the
   // tailgate to his door first, and the truck holds until he is in.
@@ -326,19 +305,14 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     lastSent: null,
     sinceSent: 0,
     world: null,
-    aloneTruck: createTruck(Date.now()),
     truckLeg: null,
     truckPlan: null,
     aboard: false,
     placed: false,
     drops: [],
-    nextDrop: 0,
     graves: [],
-    nextGrave: 0,
     corpses: [],
     myCorpses: [],
-    aloneCorpses: [],
-    nextCorpse: 0,
     stash: {},
     lockerOpen: false,
     laptop: null,
@@ -346,7 +320,6 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     standSaid: null,
     citgos: NO_CITGOS,
     portals: [],
-    nextPortal: 0,
     myPortal: null,
     pendingPortal: false,
     portalGraceUntil: 0,
@@ -408,7 +381,7 @@ export interface Game {
   pick: Titles
   // The phone, dialing Citgo portals (Q).
   phone: Phone
-  shadowmen: ShadowCards
+  shadowmen: ShadowBodies
   // The Caretaker in the corn maze.
   caretaker: CaretakerShade
   // The tunnel shades in the Undercroft.

@@ -1,11 +1,11 @@
 // The chat log in the lower left: what it holds and when it fades. Pure:
-// the lines come from the valley's chat frames (or the player's own, when
-// offline) and hud.ts draws them. Nothing is kept past the page.
+// the lines come from the valley's chat frames and hud.ts draws them. Nothing is kept past the page.
 
 import { copy } from './copy.ts'
 import { EMOTE_IDS, emoteOf } from './emotes.ts'
 import { isValidName } from './protocol.ts'
 import type { EmoteId } from './emotes.ts'
+import type { WhisperedMessage } from './protocol.ts'
 
 // A line a raider said, a whisper to or from this player, a line an NPC
 // said to this player, or a line the game says to the player alone.
@@ -196,4 +196,43 @@ export function emotesLine(): string {
   return copy('emotes.list', {
     list: EMOTE_IDS.map((id) => `/${id}`).join(', '),
   })
+}
+
+// A raider come into the valley, as the log says it: dialed in from a
+// phone, or walking it.
+export function joinedLine(peer: { name: string; dialup?: boolean }): string {
+  return peer.dialup
+    ? copy('log.peer_dialed', { name: peer.name })
+    : copy('log.peer_joined', { name: peer.name })
+}
+
+// A whisper as the log keeps it, by the valley's clock: to whom for the
+// sender, from whom for the raider it was for.
+export function whisperLine(msg: WhisperedMessage): ChatLine {
+  return {
+    kind: 'whisper',
+    name: msg.outgoing
+      ? copy('chat.whisper_to', { name: msg.to })
+      : copy('chat.whisper_from', { name: msg.from }),
+    text: msg.text,
+    at: msg.at,
+  }
+}
+
+// A raider's new word from the valley, as the log says it: a new name,
+// and a new level (sharedworld.ts rule 22). Nothing for a raider not seen
+// before.
+export function peerNews(
+  was: { name: string; level: number } | undefined,
+  peer: { name: string; level: number }
+): string[] {
+  if (!was) return []
+  const lines: string[] = []
+  if (was.name !== peer.name) {
+    lines.push(copy('log.peer_renamed', { was: was.name, name: peer.name }))
+  }
+  if (peer.level > was.level) {
+    lines.push(copy('log.peer_level', { name: peer.name, level: peer.level }))
+  }
+  return lines
 }

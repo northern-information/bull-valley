@@ -157,7 +157,7 @@ export function buildShelves(
       )
       return slot?.object ?? null
     },
-    update(x, z, stocks, seconds) {
+    update(x, z, stocks, seconds, feet) {
       let best = -1
       let bestD = CONFIG.store.displayRange
       centers.forEach((c, i) => {
@@ -171,7 +171,7 @@ export function buildShelves(
       display.visible = best >= 0
       lights.setOn(best >= 0)
       const at = best >= 0 ? points[best] : null
-      const heard = slurms.update(best, at, seconds, { x, z })
+      const heard = slurms.update(best, at, seconds, { x, z }, feet)
       if (!at) {
         laptop.update(seconds, false)
         return heard
@@ -191,5 +191,3 @@ export function buildShelves(
     holdSlurms: (on) => slurms.hold(on),
   }
 }
-
-// Beacon markers for the hand-placed landmarks, color-coded so they read

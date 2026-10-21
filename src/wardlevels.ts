@@ -6,7 +6,7 @@
 // lit by its level; wards.ts says what each wards against.
 //
 // They are the account's, kept by the valley (sharedworld.ts rule 27) and
-// sent to the client as levels; played alone, the client keeps its own.
+// sent to the client as levels.
 // What else they do while they last is buffs.ts.
 
 import { CONFIG } from './config.ts'

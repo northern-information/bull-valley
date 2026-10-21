@@ -140,3 +140,56 @@ describe('Ground', () => {
     expect(low.at(4, 0)).toBeCloseTo(100.4)
   })
 })
+
+describe('Ground.standAt', () => {
+  // Flat terrain at 0, two flights stacked over the same strip: one from
+  // 6 down to 3 along x, and over it the one before, from 9 down to 6 the
+  // other way.
+  const flat = () => 0
+  const ground = new Ground(flat)
+  ground.addRibbon(
+    [
+      { x: 0, z: 0, y: 6 },
+      { x: 10, z: 0, y: 3 },
+    ],
+    1.4,
+    0
+  )
+  ground.addRibbon(
+    [
+      { x: 10, z: 0, y: 9 },
+      { x: 0, z: 0, y: 6 },
+    ],
+    1.4,
+    0
+  )
+
+  it('stands feet on the flight they are on, not the one over it', () => {
+    // Halfway: the lower flight is at 4.5, the upper at 7.5.
+    expect(ground.standAt(5, 0, 4.5, 0.6)).toBeCloseTo(4.5)
+    expect(ground.standAt(5, 0, 7.5, 0.6)).toBeCloseTo(7.5)
+    // at() is the highest, as ever.
+    expect(ground.at(5, 0)).toBeCloseTo(7.5)
+  })
+
+  it('lets feet in the air come down on the first deck under them', () => {
+    expect(ground.standAt(5, 0, 6, 0.6)).toBeCloseTo(4.5)
+    expect(ground.standAt(5, 0, 2, 0.6)).toBe(0)
+    // Off the strip, the terrain.
+    expect(ground.standAt(5, 3, 7.5, 0.6)).toBe(0)
+  })
+
+  it('climbs onto the lowest deck when every one is over the feet', () => {
+    const ridge = new Ground(() => 10)
+    expect(ridge.standAt(0, 0, 0, 0.6)).toBe(10)
+    ridge.addFloor(0, 0, 1, 0, -1, 1, 1, 12)
+    expect(ridge.standAt(0, 0, 0, 0.6)).toBe(10)
+    expect(ridge.standAt(0, 0, 11.5, 0.6)).toBe(12)
+  })
+
+  it('takes no surface under the terrain for a deck', () => {
+    const ridge = new Ground(() => 10)
+    ridge.addFloor(0, 0, 1, 0, -1, 1, 1, 4)
+    expect(ridge.standAt(0, 0, 4, 0.6)).toBe(10)
+  })
+})

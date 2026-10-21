@@ -1,4 +1,5 @@
 import { test as base } from '@playwright/test'
+import { CONFIG } from '../../src/config.ts'
 import {
   beginRaid,
   expect,
@@ -79,7 +80,7 @@ base(
     // The shadowmen are the valley's: both see the same ones.
     const shadowIds = (page: Page) =>
       page.evaluate(() =>
-        (window.__bv?.shadowmen.table.next?.shadowmen ?? [])
+        (window.__bv?.shadowmen.table.frames.at(-1)?.shadowmen ?? [])
           .map((s) => s.id)
           .sort((x, y) => x - y)
           .join()
@@ -112,9 +113,12 @@ base(
     await b.mouse.up()
     await expect.poll(beamOn).toBe(false)
 
-    // B leaves; A's valley empties.
+    // B leaves; A's valley empties once B has lingered long enough that
+    // no reconnect is coming (CONFIG.net.lingerMs).
+    base.setTimeout(base.info().timeout + CONFIG.net.lingerMs)
     await contextB.close()
-    await expect.poll(() => peers(a)).toHaveLength(0)
+    const lingered = { timeout: CONFIG.net.lingerMs + 10_000 }
+    await expect.poll(() => peers(a), lingered).toHaveLength(0)
     await expect.poll(figureVisible).toBeNull()
 
     expect(errorsA).toEqual([])

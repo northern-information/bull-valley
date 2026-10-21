@@ -13,6 +13,8 @@
 //   nin              the band's box logo, on the chest. Torso, 123×150.
 //   paramore         the band name, on the chest. Torso, 123×150.
 //   against-me       the band name, on the chest. Torso, 123×150.
+//   number-one       a white patch with a black 1 on the left breast, a
+//                    jumpsuit's number. Torso, 123×150.
 //   guitar-strap     a strap from the right shoulder to the left hip.
 //                    Torso, 123×150.
 //   torn-tank        a black tank top's cut and its tears: the neck scoop,
@@ -149,8 +151,7 @@ const SHADE = '#3c3e42'
 const WASH = '#5e6166'
 const BONE = '#a4a6a8'
 
-// A skull of size s (its cranium radius) at (x, y). The shadowmen's
-// bursts (assets.ts buildShadowBurst) throw the same skull.
+// A skull of size s (its cranium radius) at (x, y).
 export function skull(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -432,6 +433,17 @@ function againstMe(): CanvasArt {
   return art
 }
 
+// A jumpsuit's number: a white patch on the left breast (the canvas's
+// right, since its left edge is the body's right), a black 1 on it.
+function numberOne(): CanvasArt {
+  const art = canvas(TORSO)
+  const { ctx } = art
+  ctx.fillStyle = '#e8e6e0'
+  ctx.fillRect(76, 26, 26, 30)
+  text(ctx, '1', 89, 42, 20, 26, CONDENSED, '#111113')
+  return art
+}
+
 function russ(): CanvasArt {
   const gold = '#d9b23a'
   const art = canvas(BUCKLE, gold)
@@ -593,6 +605,7 @@ const DECAL_PAINTERS: Record<DecalId, DecalPainter> = {
   'open-shirt': openShirt,
   paramore,
   'against-me': againstMe,
+  'number-one': numberOne,
 }
 
 // Tattoos ink only onto skin a layer below already painted.

@@ -226,6 +226,20 @@ describe('callback', () => {
     expect(fresh.res.status).toBe(400)
   })
 
+  it('refuses a state that matches with no verifier, before the provider', async () => {
+    const jar = new Jar()
+    const gh = provider({ id: 1, login: 'newbie' })
+    const login = await call('/auth/github/login', { jar })
+    const state = new URL(login.location ?? '').searchParams.get('state')
+    delete jar.cookies[COOKIE.pkce]
+    const back = await call(`/auth/github/callback?code=c&state=${state}`, {
+      jar,
+      fetch: gh.impl,
+    })
+    expect(back.res.status).toBe(400)
+    expect(gh.calls).toEqual([])
+  })
+
   it('lands with the provider error', async () => {
     const { res, location } = await call(
       '/auth/github/callback?error=access_denied'
@@ -545,6 +559,17 @@ describe('confirm-signup and username', () => {
     )
     expect((await put({ outfit: 'church' })).res.status).toBe(400)
     expect((await me(jar, s)).account?.look.outfit).toBe('church')
+    // A character Moab trades for, only once the account has it.
+    expect(
+      (await put({ outfit: 'coleman1', finish: 'cherry' })).res.status
+    ).toBe(403)
+    expect((await me(jar, s)).account?.look.outfit).toBe('church')
+    const account = (await me(jar, s)).account?.accountId ?? ''
+    s.cosmetics.set(account, ['coleman-1'])
+    expect(
+      (await put({ outfit: 'coleman1', finish: 'cherry' })).res.status
+    ).toBe(200)
+    expect((await me(jar, s)).account?.look.outfit).toBe('coleman1')
     expect(
       (await put({ outfit: 'church', finish: 'cherry' }, new Jar())).res.status
     ).toBe(401)

@@ -1,9 +1,13 @@
 // The other players, as data: a table of peers keyed by id, each holding
-// its last two states so a figure can be drawn a little behind the present
-// and glide between frames instead of teleporting ten times a second. Pure
-// and Three-free; peers.ts draws it, valleysync.ts feeds it from the net frames.
+// its last few seconds of states so a figure can be drawn a little behind
+// the present and glide between the two frames either side of that moment,
+// instead of teleporting ten times a second. Pure and Three-free; peers.ts
+// draws it, valleysync.ts feeds it from the net frames. The run of states
+// is framebuffer.ts's, as the shadows' is.
 
+import { CONFIG } from './config.ts'
 import { toCosmetics } from './cosmetics.ts'
+import { between, keepFrame, lerp } from './framebuffer.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { OutfitId } from './outfits.ts'
 import type { PeerPose, PeerStateWire, PeerWire } from './protocol.ts'
@@ -23,11 +27,15 @@ export interface Peer {
   level: number
   // Dialed in from Bull Valley Dial-Up: never placed, so never drawn.
   dialup: boolean
-  // The two most recent states; prev is null until the second arrives, and
-  // both are null until the peer is placed.
-  prev: PeerSnapshot | null
+  // The states heard, oldest first, at most framebuffer.ts FRAMES_KEPT;
+  // empty until the peer is placed.
+  frames: PeerSnapshot[]
+  // The newest of them, or null until the peer is placed.
   next: PeerSnapshot | null
 }
+
+// The span of one of a peer's states on the wire.
+const FRAME_MS = 1000 / CONFIG.net.sendHz
 
 // Where to draw a peer this frame. speed drives the walk cycle.
 interface PeerSample extends PeerStateWire {
@@ -40,14 +48,21 @@ export function createPeerTable(): PeerTable {
   return new Map()
 }
 
-// Replaces the table with the server's roster; on every welcome.
+// Makes the table the server's roster; on every welcome. Someone already
+// in it keeps the states we have of them, so our own reconnect never
+// snaps anyone back.
 export function applyWelcome(
   peers: PeerTable,
   roster: readonly PeerWire[],
   now: number
 ): void {
-  peers.clear()
-  for (const wire of roster) applyJoined(peers, wire, now)
+  const ids = new Set(roster.map((wire) => wire.id))
+  for (const id of [...peers.keys()]) if (!ids.has(id)) peers.delete(id)
+  for (const wire of roster) {
+    const peer = applyUpdated(peers, wire)
+    if (!peer) applyJoined(peers, wire, now)
+    else if (!peer.next && wire.at) record(peer, { ...wire.at, at: now })
+  }
 }
 
 export function applyJoined(peers: PeerTable, wire: PeerWire, now: number) {
@@ -58,9 +73,10 @@ export function applyJoined(peers: PeerTable, wire: PeerWire, now: number) {
     cosmetics: toCosmetics(wire.cosmetics),
     level: wire.level,
     dialup: wire.dialup === true,
-    prev: null,
-    next: wire.at ? { ...wire.at, at: now } : null,
+    frames: [],
+    next: null,
   }
+  if (wire.at) record(peer, { ...wire.at, at: now })
   peers.set(wire.id, peer)
   return peer
 }
@@ -87,9 +103,13 @@ export function applyState(
 ): Peer | null {
   const peer = peers.get(id)
   if (!peer) return null
-  peer.prev = peer.next
-  peer.next = { ...state, at: now }
+  record(peer, { ...state, at: now })
   return peer
+}
+
+function record(peer: Peer, snapshot: PeerSnapshot): void {
+  keepFrame(peer.frames, snapshot, FRAME_MS)
+  peer.next = snapshot
 }
 
 export function applyLeft(peers: PeerTable, id: string): boolean {
@@ -104,30 +124,29 @@ function lerpAngle(a: number, b: number, t: number): number {
   return a + d * t
 }
 
-// The peer's state at renderAt, a moment slightly in the past. Between two
-// snapshots it interpolates; before the first or after the newest it holds,
-// never extrapolating into a wall. Null until the peer is placed.
+// The peer's state at renderAt, a moment slightly in the past: between
+// the two states either side of it, or held at the oldest before them all
+// and at the newest past them, never extrapolating into a wall. Riding and
+// the flashlight take the newest state. Null until the peer is placed.
 export function samplePeer(peer: Peer, renderAt: number): PeerSample | null {
-  const { prev, next } = peer
-  if (!next) return null
-  if (!prev || next.at <= prev.at) return { ...next, speed: 0 }
-  const span = next.at - prev.at
-  const t = Math.min(1, Math.max(0, (renderAt - prev.at) / span))
-  const dx = next.x - prev.x
-  const dz = next.z - prev.z
-  // Metres per second between the two frames; 0 once the newest is reached
-  // and held, so a peer who stopped sending stops walking.
-  const speed = t < 1 ? (Math.hypot(dx, dz) / span) * 1000 : 0
+  const { next } = peer
+  const at = next ? between(peer.frames, renderAt, (frame) => frame) : null
+  if (!next || !at) return null
+  const { from: prev, to, t } = at
+  const span = to.at - prev.at
+  const dx = to.x - prev.x
+  const dz = to.z - prev.z
   return {
-    x: prev.x + dx * t,
-    y: prev.y + (next.y - prev.y) * t,
-    z: prev.z + dz * t,
-    yaw: lerpAngle(prev.yaw, next.yaw, t),
-    pitch: prev.pitch + (next.pitch - prev.pitch) * t,
-    pose: t < 0.5 ? prev.pose : next.pose,
+    x: lerp(prev.x, to.x, t),
+    y: lerp(prev.y, to.y, t),
+    z: lerp(prev.z, to.z, t),
+    yaw: lerpAngle(prev.yaw, to.yaw, t),
+    pitch: lerp(prev.pitch, to.pitch, t),
+    pose: t < 0.5 ? prev.pose : to.pose,
     riding: next.riding,
     light: next.light,
-    speed,
+    // Metres per second between the two states.
+    speed: span > 0 ? (Math.hypot(dx, dz) / span) * 1000 : 0,
   }
 }
 

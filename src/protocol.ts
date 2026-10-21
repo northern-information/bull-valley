@@ -5,6 +5,7 @@
 
 import { USERNAME_MAX } from './account.ts'
 import { EMOTE_IDS } from './emotes.ts'
+import { isFallHeight } from './fall.ts'
 import { isHealth } from './health.ts'
 import { isFileBody, isFileId, isFileName } from './laptop.ts'
 import { isQuestStep } from './quests.ts'
@@ -15,6 +16,7 @@ import type { CosmeticId } from './cosmetics.ts'
 import type { DealerStock } from './dealer.ts'
 import type { Drop } from './drops.ts'
 import type { ExpeditionOutcome, ExpeditionRun } from './expeditions.ts'
+import type { Hurt } from './fall.ts'
 import type { Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { LaptopFileInfo } from './laptop.ts'
@@ -26,12 +28,11 @@ import type { QuestId, QuestStage, QuestStep } from './quests.ts'
 import type { Burst, ShadeKind, TruckPose } from './shadowmen.ts'
 import type { StandLedger } from './stand.ts'
 import type { TunnelKind } from './tunnelshades.ts'
-import type { ShadowHit } from './wards.ts'
 import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 37
+export const PROTOCOL_VERSION = 38
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -354,6 +355,14 @@ interface LootMessage {
   corpse: number
 }
 
+// The raider landed from a fall of `height` metres (rule 24): where they
+// stand is their own word, so the valley takes the client's for how far
+// they fell (fall.ts), and answers with a struck frame when it hurt.
+interface FallMessage {
+  type: 'fall'
+  height: number
+}
+
 // `count` of `kind` out of the pack into the account's locker (stow), or
 // out of the locker into the pack (unstow), at a Citgo (rule 19). The
 // valley checks the raider's last state frame put them at one.
@@ -568,6 +577,7 @@ export type ClientMessage =
   | TakeDropMessage
   | PortalMessage
   | LootMessage
+  | FallMessage
   | StowMessage
   | StandTendMessage
   | ExpeditionTendMessage
@@ -657,10 +667,6 @@ export interface WardLevels {
   tripping: number
 }
 
-// The account's Cabbage Stand after it was tended (rule 23), to every
-// socket signed in to it: what was done, the ledger as the valley wrote
-// it, and for a collect the cents paid into the wallet. A pack frame
-// follows with the pack and the wallet.
 // A quest's step went through (sharedworld.ts rule 26): where the
 // account stands on it now. To every socket on the account, with a
 // PackMessage after it.
@@ -680,6 +686,10 @@ export interface ExpeditionMessage {
   outcome?: ExpeditionOutcome
 }
 
+// The account's Cabbage Stand after it was tended (rule 23), to every
+// socket signed in to it: what was done, the ledger as the valley wrote
+// it, and for a collect the cents paid into the wallet. A pack frame
+// follows with the pack and the wallet.
 export interface StandMessage {
   type: 'stand'
   re: 'stock' | 'collect' | 'upgrade'
@@ -785,7 +795,8 @@ export interface WorldMessage {
   // down or taken up.
   drop?: number
   count?: number
-  // For 'fell' and 'looted': the body's id.
+  // For 'fell' and 'looted': the body's id ('fell' has none when a
+  // second fall only took the first body away).
   corpse?: number
   // For 'portal-opened': the portal's id.
   portal?: number
@@ -902,14 +913,15 @@ export interface ShadowmenMessage {
   tunnelWounds: TunnelBurstWire[]
 }
 
-// A shadow touched this raider (sharedworld.ts rule 24): what (`by`), what
-// it took (`damage`) and what the wards took off it (`warded`, rule 27),
+// A shadow touched this raider, or they landed hard (sharedworld.ts rule
+// 24): what (`by`), what it took (`damage`) and what the wards took off it
+// (`warded`, rule 27, nothing off a fall),
 // and the geometrie the account has left of `max`, 0 when the touch
 // shattered it (the account is whole again after, rule 18's fall
 // following).
 interface StruckMessage {
   type: 'struck'
-  by: ShadowHit
+  by: Hurt
   damage: number
   warded: number
   health: number
@@ -950,12 +962,6 @@ interface PongMessage {
   serverNow: number
 }
 
-interface ErrorMessage {
-  type: 'error'
-  code: string
-  message: string
-}
-
 export type ServerMessage =
   | WelcomeMessage
   | PeerJoinedMessage
@@ -968,7 +974,6 @@ export type ServerMessage =
   | PackMessage
   | PeerChatMessage
   | PongMessage
-  | ErrorMessage
   | ShadowmenMessage
   | StruckMessage
   | HealthMessage
@@ -1011,7 +1016,7 @@ interface LaptopSavedMessage {
 // A whisper as the valley delivers it (rule 21), with its own clock: to
 // the raider it was for, and back to the sender's sockets with `outgoing`.
 // Both names are usernames as D1 holds them.
-interface WhisperedMessage {
+export interface WhisperedMessage {
   type: 'whisper'
   from: string
   to: string
@@ -1441,6 +1446,8 @@ const CLIENT_PARSERS: ClientParsers = {
   'take-drop': ({ drop }) =>
     isCount(drop) ? { type: 'take-drop', drop } : null,
   loot: ({ corpse }) => (isCount(corpse) ? { type: 'loot', corpse } : null),
+  fall: ({ height }) =>
+    isFallHeight(height) ? { type: 'fall', height } : null,
   stow: (value) => {
     const units = parseUnits(value)
     return units && { type: 'stow', ...units }

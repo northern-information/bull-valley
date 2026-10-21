@@ -15,6 +15,7 @@
   --dial-hot: var(--bv-citgo);
   --dial-shadow: 6px 6px 0 var(--fi-black-shadow);
   --dial-tap: 44px;
+  --dial-build: 1.5rem;
 }
 
 .bv-dialup body {
@@ -27,7 +28,25 @@
 
 .bv-dialup #bv-root {
   position: fixed;
-  inset: 0;
+
+  /* The app stands on the build's strip and the safe area under it. */
+  inset: 0 0 calc(var(--dial-build) + env(safe-area-inset-bottom));
+}
+
+/* The build's name (buildtag.ts) on a strip of its own at the very
+   bottom, under the tabs, the modem and every sheet, over the safe area. */
+.bv-dialup .bv-build {
+  right: 0;
+  bottom: env(safe-area-inset-bottom);
+  left: 0;
+  height: var(--dial-build);
+  font-size: 0.625rem;
+  line-height: var(--dial-build);
+  color: var(--dial-dim);
+  text-align: center;
+  background: var(--dial-bg);
+  border-top: 1px solid var(--dial-line);
+  opacity: 1;
 }
 
 /* Hidden means hidden, whatever display a class sets. */
@@ -44,15 +63,24 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  padding: max(2rem, env(safe-area-inset-top)) 1.25rem
-    max(2rem, env(safe-area-inset-bottom));
+  padding: max(2rem, env(safe-area-inset-top)) 1.25rem 2rem;
   background: var(--dial-bg);
   cursor: pointer;
   touch-action: manipulation;
   user-select: none;
 }
 
-.bv-modem::after {
+/* The film grain every Dial-Up surface lies under, the 3D valley's own
+   (styles.css .bv-splash::after): one scan at one opacity, laid from each
+   surface's corner (all of them fill the screen), so where a sheet or a
+   dialog covers the shell the grain stays put. On the modem it lies over
+   everything, as on the title cards; on the shell, its sheets and the
+   dialogs borrowed from the 3D valley, under the bars, cards and panels. */
+.bv-modem::after,
+.bv-dial::after,
+.bv-dial-sheet::after,
+.bv-dialup .bv-account::after,
+.bv-dialup .bv-build::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -235,7 +263,6 @@
 .bv-dial-tabs {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  padding-bottom: env(safe-area-inset-bottom);
   background: var(--dial-panel);
   border-top: 1px solid var(--dial-line);
 }
@@ -302,6 +329,19 @@ button.bv-dial-card {
   align-items: center;
   justify-content: center;
   padding: 1rem 0;
+}
+
+/* The volume sliders in their sheet: one grid, so every track starts and
+   ends in line whatever its name. */
+.bv-dial-settings {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 1rem 0.8em;
+}
+
+.bv-dial-settings .bv-setting {
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
 }
 
 .bv-dial-switch {
@@ -480,6 +520,21 @@ button.bv-dial-card {
   display: none;
 }
 
+/* An item's still (itemthumbs.ts icon), blank until the 3D loads, and
+   the open row's turntable. */
+.bv-dial-item-icon {
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.bv-dial-item-spin {
+  display: block;
+  width: 8rem;
+  height: 8rem;
+  margin: 0 auto 0.75rem;
+}
+
 .bv-dial-item-count {
   margin-left: auto;
   color: var(--dial-dim);
@@ -610,7 +665,13 @@ button.bv-dial-card {
   justify-content: space-between;
 }
 
+/* The still and the name together, the price at the far end. */
+.bv-dial-shelf-head {
+  justify-content: flex-start;
+}
+
 .bv-dial-shelf-price {
+  margin-left: auto;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -745,7 +806,8 @@ button.bv-dial-card {
   border-color: var(--dial-hot);
 }
 
-.bv-dial-social-head {
+.bv-dial-social-head,
+.bv-dial-locker-head {
   margin: 0 0 0.5rem;
   font-size: 0.6875rem;
   font-weight: 600;
@@ -771,6 +833,11 @@ button.bv-dial-card {
 .bv-dial-online-name {
   margin: 0.25rem 0;
   font-size: 0.875rem;
+}
+
+/* The locker sheet: what is on the raider over what the locker holds. */
+.bv-dial-locker-part + .bv-dial-locker-part {
+  margin-top: 1.5rem;
 }
 
 /* A sheet over the view, with its way back. */
@@ -808,7 +875,7 @@ button.bv-dial-card {
 .bv-dial-toast {
   position: absolute;
   right: 1rem;
-  bottom: calc(var(--dial-tap) + env(safe-area-inset-bottom) + 0.75rem);
+  bottom: calc(var(--dial-tap) + 0.75rem);
   left: 1rem;
   margin: 0;
   padding: 0.75rem 1rem;
@@ -821,6 +888,24 @@ button.bv-dial-card {
    whole on a phone: there is no valley behind them to show through. */
 .bv-dialup .bv-account {
   background: var(--dial-bg);
+}
+
+/* What rides over the grain: the shell's bars and view, the toast and a
+   sheet over them (each with its own grain), a sheet's head and body, and
+   a dialog's card. */
+.bv-dial-top,
+.bv-dial-view,
+.bv-dial-tabs,
+.bv-dial-sheet-head,
+.bv-dial-sheet-body,
+.bv-dialup .bv-account > * {
+  position: relative;
+  z-index: 3;
+}
+
+.bv-dial-toast,
+.bv-dial-sheet {
+  z-index: 4;
 }
 
 /* The stand's dialog, borrowed from the 3D valley, in one column. */

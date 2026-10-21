@@ -1,20 +1,19 @@
 // Bull Valley Dial-Up's shell (sharedworld.ts rule 29), once the modem has
 // connected: the top bar (the raider, their level and its bar, the wallet,
 // geometrie and the wards going), the tabs along the bottom (Lobby, Pack,
-// Expeditions, Social, Book; Expeditions and Social not on this line
-// yet), the
-// lobby (the raider in their character with their record, and the cards
-// for the Cabbage Stand and the locker) and the sheets
-// they open, and a toast for the valley's last word. Space is collapsed:
-// no card is anywhere, so every one opens wherever the raider is. The
-// state is dialstate.ts's, redrawn whole on every frame.
+// Expeditions, Social, Book), the lobby (the raider in their character
+// with their record, and the cards for the Cabbage Stand and the locker)
+// and the sheets they open, and a toast for the valley's last word. Every
+// item row shows the item in 3D once three.js has loaded (showItems). Space
+// is collapsed: no card is anywhere, so every one opens wherever the
+// raider is. The state is dialstate.ts's, redrawn whole on every frame.
 
 import { entryOf } from './book.ts'
 import { copy } from './copy.ts'
 import { dayKey } from './daily.ts'
 import { DialBook, renderPage } from './dialbook.ts'
 import { renderCitgo } from './dialcitgo.ts'
-import { renderExpeditions } from './dialexpeditions.ts'
+import { renderExpeditions, tickExpeditions } from './dialexpeditions.ts'
 import { DialMoab } from './dialmoab.ts'
 import { DialPack, renderLocker } from './dialpack.ts'
 import { DialSocial } from './dialsocial.ts'
@@ -23,6 +22,7 @@ import { el, text } from './dom.ts'
 import { iconSvg } from './icons.ts'
 import { OUTFITS } from './outfits.ts'
 import { barOf } from './progression.ts'
+import { volumeSliders } from './settingsui.ts'
 import { collectable } from './stand.ts'
 import { formatCash } from './store.ts'
 import { grouped, wardName } from './vitalshud.ts'
@@ -32,13 +32,14 @@ import type { BookEntry } from './book.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { CitgoActions, CitgoOpen } from './dialcitgo.ts'
 import type { ExpeditionActions } from './dialexpeditions.ts'
-import type { Opened, PackActions } from './dialpack.ts'
+import type { LockerOpen, PackActions } from './dialpack.ts'
 import type { SocialActions } from './dialsocial.ts'
 import type { DialState } from './dialstate.ts'
 import type { FinishId } from './finishes.ts'
 import type { Hotbar } from './hotbar.ts'
 import type { ItemThumbs } from './itemthumbs.ts'
 import type { OutfitId } from './outfits.ts'
+import type { SettingsStore } from './settingsui.ts'
 
 export type DialTab = 'lobby' | 'pack' | 'expeditions' | 'social' | 'book'
 
@@ -79,8 +80,13 @@ interface ShellOptions {
   social: SocialActions
   // Sends a run out, and brings it home.
   expeditions: ExpeditionActions
+  // The account's music and sound volumes, shared with the 3D valley
+  // (settingsui.ts).
+  settings: SettingsStore
   // The same page in the 3D valley.
   switchHref: string
+  // Opens the account panel (accountpanel.ts) over the shell.
+  openAccount: () => void
   // Signs the phone out, back to the modem.
   signOut: () => void
 }
@@ -94,8 +100,15 @@ export class DialShell {
   private sheetBody: HTMLElement
   private sheetTitle: HTMLElement
   private tab: DialTab = 'lobby'
-  private sheetOpen: 'locker' | 'page' | 'citgo' | 'moab' | null = null
-  private lockerOpen: Opened = { kind: null }
+  private sheetOpen: 'locker' | 'page' | 'citgo' | 'moab' | 'audio' | null =
+    null
+  // The volume sliders, built once and kept in step with the store.
+  private sliders: HTMLElement | null = null
+  private lockerOpen: LockerOpen = {
+    pack: { kind: null },
+    keys: { kind: null },
+    locker: { kind: null },
+  }
   private citgoOpen: CitgoOpen = { station: null }
   private names: string[] | null = null
   private pack: DialPack
@@ -110,6 +123,8 @@ export class DialShell {
   private avatar: AvatarView | null = null
   private dressed = ''
   private thumbs: ItemThumbs | null = null
+  // The item turning on the thumbs' renderer, when one is.
+  private spinning: HTMLCanvasElement | null = null
   private models: ReturnType<ShellOptions['models']> | null = null
 
   private options: ShellOptions
@@ -149,6 +164,13 @@ export class DialShell {
     this.portrait.append(this.avatarCanvas)
     this.root.append(this.top, this.view, this.toast, tabs, this.sheet)
     parent.append(this.root)
+    // Every redraw, the shell's or a screen's own (a pack tab, a Citgo
+    // chip), and every row tapped open or shut, gets its items drawn.
+    new MutationObserver(() => this.showItems()).observe(this.root, {
+      childList: true,
+      subtree: true,
+    })
+    this.root.addEventListener('toggle', () => this.showItems(), true)
   }
 
   render(s: DialState): void {
@@ -219,17 +241,12 @@ export class DialShell {
     if (this.state) this.render(this.state)
   }
 
-  // The stand's banked cents tick on the valley's clock; once a second,
-  // only the figure moves.
+  // The stand's banked cents and the expedition out tick on the valley's
+  // clock; once a second, only the figures move.
   tick(): void {
     const s = this.state
     if (s && this.tab === 'expeditions') {
-      renderExpeditions(
-        this.view,
-        s,
-        this.options.now(),
-        this.options.expeditions
-      )
+      tickExpeditions(this.view, s, this.options.now())
       return
     }
     const blurb = this.view.querySelector(
@@ -244,6 +261,17 @@ export class DialShell {
     this.tab = tab
     this.closeSheet()
     if (this.state) this.render(this.state)
+  }
+
+  private openAudio(): void {
+    this.sheetOpen = 'audio'
+    this.sheetTitle.textContent = copy('menu.audio')
+    this.sheet.hidden = false
+    if (!this.sliders) {
+      this.sliders = el('div', 'bv-dial-settings')
+      this.sliders.append(...volumeSliders(this.options.settings))
+    }
+    this.sheetBody.replaceChildren(this.sliders)
   }
 
   private openLocker(): void {
@@ -283,6 +311,36 @@ export class DialShell {
     })
   }
 
+  // The items' stills on every row, and the open row's turntable, as the
+  // 3D pack draws them (itemthumbs.ts), once the 3D has loaded. A book
+  // page and Moab turn their portraits on the same renderer, and keep it
+  // while their sheet is open.
+  private showItems(): void {
+    const blank = 'img.bv-dial-item-icon:not([src])'
+    if (!this.root.querySelector(blank) && this.openSpin() === this.spinning) {
+      return
+    }
+    void this.load().then((models) => {
+      const thumbs = (this.thumbs ??= models.createItemThumbs())
+      for (const img of this.root.querySelectorAll<HTMLImageElement>(blank)) {
+        img.src = thumbs.icon(img.dataset.kind ?? '')
+      }
+      if (this.sheetOpen === 'page' || this.sheetOpen === 'moab') return
+      const canvas = this.openSpin()
+      if (canvas === this.spinning) return
+      this.spinning = canvas
+      if (canvas) thumbs.spin(canvas, canvas.dataset.kind ?? '')
+      else thumbs.stop()
+    })
+  }
+
+  // The turntable of the row open on whatever shows: the sheet, or the
+  // view under it.
+  private openSpin(): HTMLCanvasElement | null {
+    const shown = this.sheetOpen ? this.sheetBody : this.view
+    return shown.querySelector('details[open] canvas.bv-dial-item-spin')
+  }
+
   // An entry's page in the sheet, its portrait turning.
   private openPage(entry: BookEntry): void {
     const known = this.state?.book.includes(entry.id) ?? false
@@ -293,6 +351,7 @@ export class DialShell {
     void this.load().then((models) => {
       if (this.sheetOpen !== 'page' || !canvas.isConnected) return
       this.thumbs ??= models.createItemThumbs()
+      this.spinning = null
       const { build, fitAs } = models.portraitOf(entry)
       this.thumbs.spinModel(canvas, `book:${entry.id}`, build, !known, fitAs)
     })
@@ -327,6 +386,7 @@ export class DialShell {
       const entry = entryOf('moab')
       if (this.sheetOpen !== 'moab' || !canvas.isConnected || !entry) return
       this.thumbs ??= models.createItemThumbs()
+      this.spinning = null
       const { build } = models.portraitOf(entry)
       this.thumbs.spinModel(canvas, 'book:moab', build, false)
     })
@@ -409,11 +469,18 @@ export class DialShell {
       ),
       card('moab', copy('outfits.moab'), copy('dialup.lobby.moab_blurb'), () =>
         this.openMoab()
+      ),
+      card('audio', copy('menu.audio'), copy('dialup.lobby.audio_blurb'), () =>
+        this.openAudio()
       )
     )
     const foot = el('div', 'bv-dial-foot')
     const away = text('a', copy('dialup.switch_valley'), 'bv-dial-switch')
     away.href = this.options.switchHref
+    const account = text('button', copy('menu.account'), 'bv-dial-btn')
+    account.type = 'button'
+    account.dataset.bv = 'dial-account'
+    account.addEventListener('click', () => this.options.openAccount())
     const out = text('button', copy('panel.sign_out'), 'bv-dial-btn')
     out.type = 'button'
     out.dataset.bv = 'dial-sign-out'
@@ -421,7 +488,8 @@ export class DialShell {
       out.disabled = true
       this.options.signOut()
     })
-    foot.append(away, out)
+    // The buttons side by side, the way to the 3D valley under them.
+    foot.append(account, out, away)
     grid.append(foot)
     return grid
   }
@@ -493,15 +561,15 @@ function card(
   id: string,
   title: string,
   blurb: string,
-  onOpen: (() => void) | null
+  onOpen: () => void
 ): HTMLElement {
-  const c = el(onOpen ? 'button' : 'div', 'bv-dial-card')
-  if (c instanceof HTMLButtonElement) c.type = 'button'
+  const c = el('button', 'bv-dial-card')
+  c.type = 'button'
   c.dataset.card = id
   c.append(
     text('span', title, 'bv-dial-card-title'),
     text('span', blurb, 'bv-dial-card-blurb')
   )
-  if (onOpen) c.addEventListener('click', onOpen)
+  c.addEventListener('click', onOpen)
   return c
 }

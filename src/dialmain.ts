@@ -8,6 +8,7 @@
 
 import './styles.css'
 import './dialup.css'
+import { openAccountPanel } from './accountpanel.ts'
 import {
   fetchMe,
   refreshSession,
@@ -15,6 +16,7 @@ import {
   saveLook,
   signOut,
 } from './auth.ts'
+import { mountBuildTag } from './buildtag.ts'
 import { pickOf } from './characters.ts'
 import { citgoNames } from './citgomap.ts'
 import { CONFIG } from './config.ts'
@@ -23,7 +25,14 @@ import { openDealDialog } from './dealdialog.ts'
 import { ramble } from './dealer.ts'
 import { switchUrl } from './dialpick.ts'
 import { DialShell } from './dialshell.ts'
-import { applyFrame, asked, DIALED, sayLine } from './dialstate.ts'
+import {
+  applyFrame,
+  asking,
+  DIALED,
+  lineLost,
+  sayLine,
+  withCitgoNames,
+} from './dialstate.ts'
 import { text } from './dom.ts'
 import { fontsReady } from './fonts.ts'
 import { toHotbar } from './hotbar.ts'
@@ -33,8 +42,9 @@ import { GRAIN_URL, imagesReady } from './preload.ts'
 import { levelOf } from './progression.ts'
 import { CLOSE } from './protocol.ts'
 import { dealerStep, roseLine, roseProgress } from './quests.ts'
-import { toSettings } from './settings.ts'
+import { createSettingsStore } from './settingsui.ts'
 import { mountAccountStep } from './signin.ts'
+import { SILENT } from './silent.ts'
 import { openStandDialog } from './standdialog.ts'
 import type { DialState, Pending } from './dialstate.ts'
 import type { Geo } from './interfaces.ts'
@@ -60,8 +70,12 @@ async function boot(): Promise<void> {
     fontsReady(),
     imagesReady([GRAIN_URL, CONFIG.splash.imageSrc, CONFIG.logo.imageSrc]),
   ])
+  mountBuildTag()
   const account = known?.account ?? null
-  const settings = toSettings(account?.settings)
+  // The account's volumes, shared with the 3D valley and saved to the
+  // account a moment after a slider is let go (settingsui.ts).
+  const settings = createSettingsStore()
+  settings.load(account?.settings)
   const net = new NetClient({
     url: socketUrl(window.location, import.meta.env.DEV),
     config: CONFIG.net,
@@ -69,10 +83,17 @@ async function boot(): Promise<void> {
   })
 
   let state: DialState = DIALED
+  // Each Citgo's name off the survey, read once: the Citgo sheet lists
+  // them, and the log names a Citgo found.
+  let named: Promise<string[]> | null = null
+  const names = () =>
+    (named ??= fetch('/data/bull-valley/geo.json')
+      .then((res) => res.json() as Promise<Geo>)
+      .then(citgoNames))
   let shell: DialShell | null = null
   const modem = mountModem(root, {
-    // Under e2e the valley is never heard.
-    volume: import.meta.env.MODE === 'test' ? null : settings.sfx / 100,
+    // A silent page (silent.ts) is never heard.
+    volume: SILENT ? null : settings.current.sfx / 100,
     onDial: () => {
       if (!account?.username) {
         modem.signedOut()
@@ -86,12 +107,19 @@ async function boot(): Promise<void> {
   net.on((msg) => {
     if (msg.type === 'welcome') {
       modem.connected()
+      // Without the survey a Citgo found goes unnamed in the log.
+      void names()
+        .then((list) => {
+          state = withCitgoNames(state, list)
+          shell?.render(state)
+        })
+        .catch(() => undefined)
       // The friends list, for the Social tab.
       net.send({ type: 'friends' })
     }
-    const next = applyFrame(state, msg, performance.now())
+    const next = applyFrame(state, msg, performance.now(), Date.now())
     // A frame that changes nothing the phone shows (a pong, a peer's
-    // state) leaves the screen be, so a tap never lands on a redraw.
+    // state) leaves the screen be.
     if (next === state) return
     state = next
     shell?.render(state)
@@ -113,12 +141,25 @@ async function boot(): Promise<void> {
     return
   }
 
+  // An ask waits on the valley only while the line is up; a tap on a
+  // dropped line says so and leaves every button free.
   const send = (msg: ClientMessage, what: Partial<Pending>) => {
-    state = asked(state, what)
+    state = asking(state, what, net.online, performance.now())
     net.send(msg)
     shell?.render(state)
   }
+  // The line dropped: net.ts redials on its own, and nothing asked of it
+  // is answered now, so nothing waits on it.
+  net.onStatus((status) => {
+    if (status !== 'offline' || !shell) return
+    state = lineLost(state, performance.now(), Date.now())
+    shell.render(state)
+  })
   const now = () => net.clock.serverNow(performance.now())
+  // Signed out, the modem dials again and the line answers LOGIN.
+  const signOutAndRedial = () => {
+    void signOut().then(() => window.location.reload())
+  }
   // The valley's word on the screen, for what the phone itself says.
   const say = (text: string) => {
     state = { ...state, said: { text, at: performance.now() } }
@@ -137,10 +178,15 @@ async function boot(): Promise<void> {
     hotbar: toHotbar(account.hotbar),
     now,
     switchHref: switchUrl(window.location, 'valley'),
-    // Signed out, the modem dials again and the line answers LOGIN.
-    signOut: () => {
-      void signOut().then(() => window.location.reload())
+    settings,
+    // The 3D valley's own panel: providers to link and unlink, and Sign
+    // Out.
+    openAccount: () => {
+      void openAccountPanel({ onSignOut: signOutAndRedial }).then(() =>
+        shell?.render(state)
+      )
     },
+    signOut: signOutAndRedial,
     pack: {
       move: (type, kind, count) => {
         if (count > 0) send({ type, kind, count }, { locker: true })
@@ -197,11 +243,7 @@ async function boot(): Promise<void> {
       buy: (station, kind, unit) =>
         send({ type: 'buy', station, kind, unit }, { buy: { station, kind } }),
     },
-    citgoNames: async () => {
-      const res = await fetch('/data/bull-valley/geo.json')
-      const geo = (await res.json()) as Geo
-      return citgoNames(geo)
-    },
+    citgoNames: names,
     trade: (offer) => send({ type: 'trade', offer }, { trade: true }),
     expeditions: {
       send: (kind) =>
@@ -216,6 +258,10 @@ async function boot(): Promise<void> {
           { name: username, level: levelOf(state.xp) },
           Date.now()
         )
+        if (said.frame && !net.online) {
+          say(copy('dialup.no_signal'))
+          return
+        }
         state = said.state
         if (said.frame) net.send(said.frame)
         shell?.render(state)

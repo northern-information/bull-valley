@@ -910,17 +910,21 @@
 }
 
 /* The tabs over the grid: tracked caps, the shown one eggshell over a
-   Citgo-red rule; the locker's set apart at the end. */
+   Citgo-red rule; the locker's set apart at the end. A narrow pack
+   scrolls them sideways with no bar. The grey rule is an inset shadow,
+   not a border, so the shown tab's rule covers it without overflowing
+   the row (which made it scroll down too). */
 .bv-bag-tabs {
   display: flex;
   gap: 20px;
-  overflow-x: auto;
+  overflow: auto hidden;
+  scrollbar-width: none;
   white-space: nowrap;
-  border-bottom: 1px solid var(--bv-npc-line);
+  box-shadow: inset 0 -1px 0 var(--bv-npc-line);
 }
 
 .bv-bag-tab {
-  margin: 0 0 -1px;
+  margin: 0;
   padding: 0 0 8px;
   font: inherit;
   font-size: 0.6875rem;
@@ -1070,8 +1074,8 @@
   flex-direction: column;
   gap: 8px;
   box-sizing: border-box;
-  width: 18rem;
-  padding: 20px;
+  width: 22rem;
+  padding: 16px 20px;
   background: #050505;
   border: 1px solid var(--bv-npc-edge);
   box-shadow: 8px 8px 0 var(--fi-black-shadow);
@@ -1082,11 +1086,24 @@
   margin: 0;
 }
 
+.bv-bag-card-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.bv-bag-card-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
 .bv-bag-card-view {
   display: block;
-  width: 144px;
-  height: 144px;
-  margin: 0 auto 8px;
+  flex: none;
+  width: 112px;
+  height: 112px;
 }
 
 .bv-bag-card-name {
@@ -1103,10 +1120,51 @@
   color: var(--bv-npc-soft);
 }
 
+/* An item's stats (itemstatsview.ts), in the 3D valley's pack card and
+   Dial-Up's pack alike: a label on the left and its value on the right,
+   one a row on thin rules, like a page of the Book of Shadows, and a line
+   for each ward it moves under them. */
+.bv-item-stats {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  margin: 4px 0;
+  border-top: 1px solid rgb(240 234 214 / 16%);
+}
+
+.bv-item-stats dt,
+.bv-item-stats dd {
+  margin: 0;
+  padding: 3px 0;
+  font-size: 0.8125rem;
+  border-bottom: 1px solid rgb(240 234 214 / 16%);
+}
+
+.bv-item-stats dt {
+  padding-right: 12px;
+  color: rgb(240 234 214 / 75%);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.bv-item-stats dd {
+  font-weight: 600;
+  text-align: right;
+}
+
+.bv-item-wards {
+  margin: 0 0 8px;
+}
+
+.bv-item-wards .bv-ward-line {
+  margin: 0 0 4px;
+  font-size: 0.8125rem;
+}
+
 /* The keys: a keycap and what it does, one a row, on the frame's rules. */
 .bv-bag-card-keys {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 12px;
   margin: 4px 0 0;
   padding: 8px 0 0;
   list-style: none;
@@ -1648,6 +1706,9 @@
   display: flex;
   background: rgb(0 0 0 / 78%);
   pointer-events: auto;
+
+  /* Its grain and card stack among themselves, not with the HUD. */
+  isolation: isolate;
 }
 
 /* The controls: two bindings a row, each a keycap and what it does, on
@@ -1786,17 +1847,25 @@
   pointer-events: auto;
 }
 
-.bv-splash::after {
+/* The film grain every menu surface lies under: the title cards, the main
+   menu, the account step and the account panel, the character select and
+   the intro and pause overlay. One scan at one opacity, laid from each
+   surface's own corner (all of them fill the view), so where one surface
+   fades over another the grain stays put. Over the logo, its fog and the
+   turntable; under the options and the cards. */
+.bv-splash::after,
+.bv-menu::after,
+.bv-account::after,
+.bv-select::after,
+.bv-intro::after {
   content: '';
   position: absolute;
   inset: 0;
+  z-index: 2;
   background-image: url('/textures/000973910004.jpg');
   background-repeat: repeat;
   opacity: 0.4;
   pointer-events: none;
-
-  /* The grain lies over everything on the card, the logo's fog included. */
-  z-index: 2;
 }
 
 /* The waiting colophon's edge rides over the grain. */
@@ -1822,11 +1891,40 @@
   object-fit: contain;
 }
 
+.bv-splash-epigraph {
+  margin: 0;
+  padding: 0 1rem;
+  font-family: var(--bv-font, 'IBM Plex Mono', ui-monospace, monospace);
+  font-size: 1.25rem;
+  letter-spacing: 0.08em;
+  color: var(--bv-eggshell);
+  text-align: center;
+  user-select: none;
+}
+
 .bv-splash-hint {
   font-family: var(--bv-font, 'IBM Plex Mono', ui-monospace, monospace);
   font-size: var(--bv-text-size, 1rem);
   color: var(--bv-eggshell);
   opacity: 0.6;
+  user-select: none;
+}
+
+/* The build's name (buildtag.ts) in the lower right corner, over every
+   title card, the menu and the valley; on the menu it sits under the
+   credit, on the menu's edge. */
+.bv-build {
+  position: fixed;
+  right: 2.5rem;
+  bottom: 1rem;
+  z-index: 20;
+  margin: 0;
+  font-family: var(--bv-font, 'IBM Plex Mono', ui-monospace, monospace);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  color: var(--bv-eggshell);
+  opacity: 0.55;
+  pointer-events: none;
   user-select: none;
 }
 
@@ -1855,18 +1953,6 @@
 .bv-menu[hidden],
 .bv-menu [hidden] {
   display: none !important;
-}
-
-/* The card's grain over everything but the options. */
-.bv-menu::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  background-image: url('/textures/000973910004.jpg');
-  background-repeat: repeat;
-  opacity: 0.4;
-  pointer-events: none;
 }
 
 .bv-menu-logo {
@@ -1959,6 +2045,9 @@
 .bv-select-ui {
   position: absolute;
   inset: auto 0 0;
+
+  /* Over the grain. */
+  z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2102,6 +2191,9 @@
 
 .bv-account > *,
 .bv-intro > * {
+  /* The card rides over the surface's grain. */
+  position: relative;
+  z-index: 3;
   box-sizing: border-box;
   max-height: 100%;
   margin: auto;
@@ -2572,18 +2664,11 @@
   }
 }
 
-/* A section's head row: 01 in Citgo red, the name, a rule, the meta. */
+/* A section's head row: the name in Citgo red, a rule, the meta. */
 .bv-npc-sh {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.bv-npc-num {
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  color: var(--bv-citgo);
 }
 
 .bv-npc-rule {

@@ -15,6 +15,31 @@ permissions:
   contents: read
 
 jobs:
+  # Whether a PR touches only the docs (scripts/docs-only.sh). For one that
+  # does, the build and the e2e shards report green without running, so a
+  # branch rule that requires them never holds it back. A push to main
+  # always runs everything, since the deploy follows it.
+  changes:
+    name: What changed
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      docs-only: ${{ steps.diff.outputs.docs-only }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 0
+      - id: diff
+        name: Is it docs only
+        run: |
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            scripts/docs-only.sh "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo docs-only=false >> "$GITHUB_OUTPUT"
+          fi
+          cat "$GITHUB_OUTPUT"
+
   check:
     name: Format, lint, and types
     runs-on: ubuntu-24.04
@@ -46,8 +71,13 @@ jobs:
       - run: npm ci
       - run: npm run test:unit:coverage
 
+  # Skipped for a docs-only PR (a skipped job satisfies a required check).
+  # It runs whenever `changes` did not say docs-only, a failed `changes`
+  # included, so nothing but a clean docs-only answer ever skips it.
   build:
     name: Build
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.docs-only != 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -60,8 +90,13 @@ jobs:
       # The check job already type-checks, so the build here skips `tsc -b`.
       - run: npm run build:only
 
+  # A docs-only PR runs each shard with its steps skipped, never the job:
+  # a matrix job skipped whole reports one check under its unexpanded name,
+  # and the required `E2E tests (n/3)` checks would wait on it forever.
   e2e:
     name: E2E tests (${{ matrix.shard }}/${{ strategy.job-total }})
+    needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     # Playwright's image has the browsers and their system packages, so the
@@ -76,20 +111,29 @@ jobs:
     # out in file order, the same count to each (a serial describe stays
     # whole), so every spec runs exactly once and a new one needs nothing
     # here. The jobs are named by number, not by what they hold, and the
-    # e2e-balance job says how evenly they came out (CLAUDE.md, "E2E shards").
+    # e2e-balance job says how evenly they came out (docs/testing.md, "E2E shards").
     strategy:
       fail-fast: false
       matrix:
         shard: [1, 2, 3]
+    env:
+      RUN: ${{ needs.changes.outputs.docs-only != 'true' }}
     steps:
+      - name: Docs only, nothing to run
+        if: env.RUN != 'true'
+        run: echo 'This PR touches only the docs; the shard has nothing to run.'
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.RUN == 'true'
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: env.RUN == 'true'
         with:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+        if: env.RUN == 'true'
       # scripts/e2e-balance.mjs times the shards by this step's name.
       - name: Run the shard
+        if: env.RUN == 'true'
         run: npm run test:e2e -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}
       - name: Upload the Playwright traces
         if: failure()
@@ -101,7 +145,9 @@ jobs:
 
   e2e-balance:
     name: E2E shard balance
-    needs: e2e
+    needs: [changes, e2e]
+    # Nothing to compare when the shards ran nothing.
+    if: ${{ !cancelled() && needs.changes.outputs.docs-only != 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     # Reads this run's job timings; it only warns, so it never holds back

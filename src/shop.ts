@@ -81,3 +81,29 @@ export function buy(
   )
   return { next: { ...next, stock: nextStock }, line }
 }
+
+// Why the valley would not sell `item`, to a raider with `cash` cents: sold
+// out, short (by how much), a Citgo the account has not stood at or no
+// world to buy in (Bull Valley Dial-Up's, sharedworld.ts rule 29), or
+// refused.
+export function buyRefusal(
+  reason: string,
+  item: string | undefined,
+  cash: number
+): string {
+  const price = item ? itemById(item)?.price : undefined
+  switch (reason) {
+    case 'sold-out':
+      return copy('log.sold_out')
+    case 'short':
+      return price === undefined
+        ? copy('log.refused')
+        : copy('log.short', { amount: formatCash(Math.max(0, price - cash)) })
+    case 'not-visited':
+      return copy('dialup.citgo.not_visited')
+    case 'not-in-valley':
+      return copy('dialup.citgo.no_world')
+    default:
+      return copy('log.refused')
+  }
+}

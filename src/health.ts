@@ -6,7 +6,7 @@
 // body (corpses.ts), and they come to whole. A Citgo forecourt makes them
 // whole, and anything smoked, drunk or swallowed gives back its share of
 // whole (items.ts healsPct). sharedworld.ts keeps each account's (rule
-// 24), actions.ts the one a raider playing alone has. No three.js, no DOM.
+// 24). No three.js, no DOM.
 //
 // The valley keeps what each account has lost (its wounds), not what it
 // has left, so a new level's larger whole tops a raider up by the

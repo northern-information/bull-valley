@@ -1,13 +1,13 @@
 // Corpse runs, pure: what a raider struck leaves where they fell, and
-// taking it back. A strike leaves everything the pack held on the raider's
+// taking it back. A strike leaves everything the pack held but its key
+// items (items.ts isKeyItem, which stay in the pack) on the raider's
 // body, lying where their last state frame put them; they come to at the
 // spawn Citgo with an empty pack and their wallet, and run back for it.
 // Only the account that fell can take its things back, and a body lies
-// until it does, whatever the day. sharedworld.ts runs these for the shared
-// valley (rule 18), actions.ts for the valley played alone. No three.js, no
-// DOM.
+// until it does, whatever the day. sharedworld.ts runs these (rule 18).
+// No three.js, no DOM.
 
-import { INVENTORY_KINDS } from './items.ts'
+import { INVENTORY_KINDS, isKeyItem } from './items.ts'
 import type { Inventory, XZ } from './interfaces.ts'
 import type { OutfitId } from './outfits.ts'
 
@@ -27,14 +27,33 @@ export interface Corpse extends CorpseWire {
 }
 
 // What a fall leaves on the body: every kind the pack holds at least one
-// of, in items.ts order; anything else in the pack is dropped.
+// of but the key items, in items.ts order; anything else in the pack is
+// dropped.
 export function fallen(pack: Inventory): Inventory {
   const items: Inventory = {}
   for (const kind of INVENTORY_KINDS) {
+    if (isKeyItem(kind)) continue
     const count = Math.max(0, Math.floor(pack[kind] || 0))
     if (count > 0) items[kind] = count
   }
   return items
+}
+
+// A body's items split into what stays on it and its key items, which go
+// back to the pack: a body laid before key items were kept through a
+// strike (sharedworld.ts rule 18).
+export function keysOff(items: Inventory): {
+  kept: Inventory
+  keys: Inventory
+} {
+  const kept: Inventory = {}
+  const keys: Inventory = {}
+  for (const [kind, count] of Object.entries(items)) {
+    if (!(count > 0)) continue
+    if (isKeyItem(kind)) keys[kind] = count
+    else kept[kind] = count
+  }
+  return { kept, keys }
 }
 
 // Whether the body holds nothing, so a fall with an empty pack leaves none.
@@ -51,9 +70,14 @@ export function recover(pack: Inventory, items: Inventory): Inventory {
   return next
 }
 
-// A pack with nothing in it: every kind at zero, as a strike leaves it.
+// The pack a strike leaves: every kind at zero but the key items, kept.
 export function emptied(pack: Inventory): Inventory {
-  return Object.fromEntries(Object.keys(pack).map((kind) => [kind, 0]))
+  return Object.fromEntries(
+    Object.entries(pack).map(([kind, count]) => [
+      kind,
+      isKeyItem(kind) ? count : 0,
+    ])
+  )
 }
 
 // A body without its contents, for the wire.

@@ -5,7 +5,7 @@
 import { pulseMaterials } from './assets.ts'
 import { itemsHeld, sightsInReach } from './book.ts'
 import { activeBuffs } from './buffbar.ts'
-import { buffedBeam, sprintScale } from './buffs.ts'
+import { sprintScale } from './buffs.ts'
 import { citgoAt } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
@@ -13,6 +13,7 @@ import { moabOffer } from './cosmetics.ts'
 import { dayKey } from './daily.ts'
 import { onDay, shownCount } from './dailytask.ts'
 import { EMOTES, holds } from './emotes.ts'
+import { hurts } from './fall.ts'
 import { ease, stepHand, useLift, useSeconds } from './hands.ts'
 import { shakeAt } from './health.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
@@ -24,20 +25,12 @@ import {
   resolveInteraction,
 } from './interactions.ts'
 import { isLock, passes } from './keys.ts'
-import { settleTruck } from './marx.ts'
 import { inPortal } from './maze.ts'
 import { packItemOf } from './packgrid.ts'
 import { secondsLeft } from './portals.ts'
 import { poseOf, stateChanged } from './presence.ts'
 import { levelOf } from './progression.ts'
-import {
-  aimHeightOf,
-  beamFrom,
-  burstScaleOf,
-  headlightBeam,
-  headlightsDue,
-  inHaven,
-} from './shadowmen.ts'
+import { aimHeightOf, burstScaleOf, headlightsDue } from './shadowmen.ts'
 import { formatCash } from './store.ts'
 import { tripLevel } from './trip.ts'
 import { burstHeight, burstScale } from './tunnelrig.ts'
@@ -49,8 +42,9 @@ import type { Game } from './game.ts'
 import type { BushSpot } from './interactions.ts'
 import type { DailyWire, PeerStateWire } from './protocol.ts'
 import type { Cue } from './sfx.ts'
-import type { AloneFrame, ShadowCards } from './shadowcards.ts'
+import type { ShadowBodies } from './shadowbodies.ts'
 import type { HeadlightsSent } from './shadowmen.ts'
+import type { Feet as SlurmFeet } from './slurms.ts'
 import type { Targets } from './targets.ts'
 import type { Pickup } from './world.ts'
 
@@ -116,8 +110,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   }
 
   // Marx's countdown, for whoever is in the bed or standing by it, and
-  // only with someone else in the valley (alone, he leaves once the pick is
-  // made). The line is filled again only when its clock reads differently.
+  // only with someone else in the valley (with no one else, he leaves once
+  // the pick is made). The line is filled again only when its clock reads differently.
   let clockShown = ''
   let clockLine = ''
   const countdownLine = (now: number): string | null => {
@@ -191,6 +185,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
 
   // The slurms' sounds, heard with the shadows' on the next frame.
   let slurmCues: Cue[] = []
+  let moatCues: Cue[] = []
+  // A hard landing for the valley to hear, after where we came down.
+  let landing: number | null = null
   let last = performance.now()
   // Real seconds since the last frame, and the same capped at maxStep: the
   // capped step moves the player, the item timers, and the animation, so a
@@ -204,25 +201,6 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     return { now, dt, time: s.time }
   }
 
-  // Played alone, Matthew Marx keeps his day on the wall clock, never the
-  // capped step, which on a slow machine would stretch it out of shape. In
-  // the shared valley the valley keeps it and says so.
-  const settleAloneTruck = () => {
-    if (s.world) return
-    const settled = settleTruck(s.aloneTruck, Date.now(), game.truckRoutes)
-    if (settled.changes.length === 0) return
-    const wasAboard = s.aboard
-    actions.setAloneTruck(settled.truck)
-    for (const change of settled.changes) {
-      if (change === 'dropoff' && wasAboard) hud.tell(copy('log.dropoff'))
-      if (change === 'donuts') hud.tell(copy('log.marx_donuts'))
-      if (change === 'back') hud.tell(copy('log.marx_back'))
-      if (change === 'depart' && s.aboard) {
-        s.onTruckRolls = [copy('log.truck_leaves'), copy('log.hop_out_hint')]
-      }
-    }
-  }
-
   // Where the feet stand and how, for the body and for the wire.
   const rideOrWalk = ({ now, dt, time }: FrameClock): Feet => {
     const smoking = time < s.effects.smoking.end
@@ -233,11 +211,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       // The one place the camera leaves player.update(): ride the bed with
       // free look, keeping player.pos honest for everything that reads it.
       const truckState = truck.update(dt, now)
-      const seat = truck.bedSeat(
-        s.world
-          ? seatOf(s.world, net.id)
-          : Math.max(0, s.aloneTruck.riders.indexOf('me'))
-      )
+      const seat = truck.bedSeat(s.world ? seatOf(s.world, net.id) : 0)
       player.relocate(seat.x, seat.z, player.yaw)
       camera.position.set(seat.x, seat.y, seat.z)
       camera.rotation.set(player.pitch, player.yaw, 0)
@@ -265,6 +239,12 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       feetY = player.groundY
       moveSpeed = playerState.speed
       crouching = playerState.crouching
+      // A hard landing (rule 24): the valley hears where we came down
+      // first (sendState), then how far.
+      const fell = playerState.landed
+      if (fell !== null && hurts(fell) && now >= s.strikeUntil && net.online) {
+        landing = fell
+      }
       // An emote holds while the raider stands still; moving, crouching or
       // its seconds running out end it.
       const nowSeconds = now / 1000
@@ -343,60 +323,18 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     return lit
   }
 
-  // The shadowmen cross whatever anyone is doing, but only rush and touch a
-  // player on foot who is not already coming to from the last strike. In
-  // the shared valley they are the valley's, and it says when one touches
-  // you (null); played alone, this client steps them on these terms.
-  const aloneFrame = (
-    now: number,
-    { feetY, crouching }: Feet,
-    lit: boolean
-  ): AloneFrame | null =>
-    net.online
-      ? null
-      : {
-          vulnerable:
-            s.started &&
-            !s.aboard &&
-            // Up on the lookout no shadow reaches them (rule 11).
-            !world.lookout?.on(player.pos.x, player.pos.z) &&
-            now >= s.strikeUntil &&
-            now >= s.graceUntil,
-          // The same beam the valley would aim from this raider's frame,
-          // reached out by their high (rule 27).
-          beam: lit
-            ? buffedBeam(
-                beamFrom(
-                  { x: player.pos.x, y: feetY, z: player.pos.z },
-                  player.yaw,
-                  player.pitch,
-                  crouching
-                ),
-                levelsAt(s.wards, s.time)
-              )
-            : null,
-          lights: [headlightBeam(truck.headlights())],
-        }
-
-  // The shadowmen, the Caretaker and the tunnel shades, their strikes and
-  // bursts and what they sound like, and the mist.
-  const stepShadows = (
-    { dt, time }: FrameClock,
-    alone: AloneFrame | null,
-    renderAt: number
-  ) => {
+  // The shadowmen, the Caretaker and the tunnel shades, the valley's,
+  // drawn a beat behind the present: their bursts and what they sound
+  // like, and the mist. Their touches come in the valley's own frames.
+  const stepShadows = ({ dt, time }: FrameClock, renderAt: number) => {
     const perception = time < s.effects.perception.end
-    // Down in the Undercroft only the tunnel shades walk (rule 11).
     const croft = world.undercroft
-    const below = croft ? croft.inside(player.pos.x, player.pos.z) : false
     const swarm = shadowmen.update({
       dt,
       player: player.pos,
       perception,
-      alone: below ? null : alone,
       renderAt,
     })
-    if (swarm.struck) actions.strike(swarm.struck)
     for (const at of swarm.bursts) {
       // A spider bursts where its body hung, twice as big; a spiderling
       // half as big.
@@ -405,19 +343,13 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         world.ground.at(at.x, at.z) + aimHeightOf(at.kind, CONFIG.shadowmen)
       bursts.spawn(at.x, y, at.z, size)
     }
-    // Each leaves its dimes (a spider its $20) and its tombstone where it
-    // burst (the valley's do that itself).
-    actions.spillBursts(swarm.bursts)
-    // The Caretaker walks the maze on the same terms; played alone, one
-    // beam is never enough to burn it.
+    // The Caretaker walks the maze on the same terms.
     const keeper = caretaker.update({
       dt,
       time,
       player: player.pos,
-      alone: below ? null : alone,
       renderAt,
     })
-    if (keeper.struck) actions.strike('caretaker')
     for (const at of keeper.burned) {
       const y = world.ground.at(at.x, at.z) + CONFIG.caretaker.chestHeight
       bursts.spawn(at.x, y, at.z)
@@ -427,10 +359,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       dt,
       time,
       player: player.pos,
-      alone,
       renderAt,
     })
-    if (tunnel.struck) actions.strike(tunnel.struck)
     for (const at of tunnel.bursts) {
       const y = world.ground.at(at.x, at.z) + burstHeight(at.kind)
       bursts.spawn(at.x, y, at.z, burstScale(at.kind))
@@ -448,13 +378,17 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         rate: kind === 'warden' ? 0.6 : 1,
       })
     )
-    // Played alone each leaves its dimes, but no stone.
-    actions.spillBursts(tunnel.bursts.map(({ x, z }) => ({ x, z })))
     croft?.update(time)
     bursts.update(dt)
     // What the shadowmen and the Caretaker sound like this frame.
     sfx?.hear(
-      [...swarm.heard.cues, ...keeper.heard.cues, ...tunnelCues, ...slurmCues],
+      [
+        ...swarm.heard.cues,
+        ...keeper.heard.cues,
+        ...tunnelCues,
+        ...slurmCues,
+        ...moatCues,
+      ],
       [...swarm.heard.holds, ...keeper.heard.holds],
       (x, z) => world.ground.at(x, z)
     )
@@ -463,7 +397,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   }
 
   // What stands in the valley and moves on its own clock.
-  const stepScenery = ({ now, time }: FrameClock) => {
+  const stepScenery = ({ now, time }: FrameClock, feetY: number) => {
     // Gron's rain falls on its own clock, Moab's fire burns on it too, the
     // wreck smoulders and blinks on it, and the plaza's last tube flickers.
     if (world.gronRig && world.gron && live(world.gron)) {
@@ -505,6 +439,19 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     if (dishes && live(dishes.middle, dishes.reach)) {
       dishes.update(net.clock.serverNow(now) / 1000)
     }
+    // Castle Entropy bobs and its lighthouse sweeps the valley from
+    // anywhere, on the valley's clock, and is made anew when the Central
+    // day turns (castle.ts); its moat and cranes move only near.
+    const castle = world.castle
+    if (castle) {
+      const shared = net.clock.serverNow(now)
+      moatCues = castle.update(
+        shared / 1000,
+        dayKey(shared),
+        live(castle.middle, 120),
+        raidersFeet(feetY)
+      )
+    }
   }
 
   // The portals. Says the moment the Citgo portals' clock reads.
@@ -520,9 +467,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         hud.tell(copy('log.portal'))
       }
     }
-    // The Citgo portals (rule 28), on the valley's clock, or alone on the
-    // wall clock: drawn, and one walked into takes you out of its twin.
-    const portalNow = s.world ? net.clock.serverNow(now) : Date.now()
+    // The Citgo portals (rule 28), on the valley's clock: drawn, and one
+    // walked into takes you out of its twin.
+    const portalNow = net.clock.serverNow(now)
     actions.tendPortals(portalNow)
     return portalNow
   }
@@ -539,19 +486,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   }
 
   // The static after a strike, health, and the shake of a touch.
-  const feelStrikes = (now: number, alone: AloneFrame | null) => {
+  const feelStrikes = (now: number) => {
     if (now < s.strikeUntil) hud.drawStatic()
     else if (!hud.staticWrap.hidden) hud.showStatic(false)
-    // Rule 24: played alone, a forecourt makes whole (the valley does
-    // that itself). A touch shakes the view a moment.
-    if (
-      alone &&
-      s.started &&
-      !s.aboard &&
-      inHaven(player.pos, world.fuelPoints, CONFIG.shadowmen.havenRadius)
-    ) {
-      actions.mendAtForecourt()
-    }
     hud.setHealth(s.health, s.healthMax)
     const shake = shakeAt((now - s.hurtAt) / 1000)
     if (shake > 0) {
@@ -570,7 +507,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     lit: boolean
   ): boolean => {
     s.sinceSent += dt
-    const tick = s.sinceSent >= 1 / CONFIG.net.sendHz
+    const tick = s.sinceSent >= 1 / CONFIG.net.sendHz || landing !== null
     if (tick) s.sinceSent = 0
     if (net.online && tick) {
       const state: PeerStateWire = {
@@ -586,6 +523,10 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       if (stateChanged(s.lastSent, state)) {
         s.lastSent = state
         net.sendState(state)
+      }
+      if (landing !== null) {
+        net.send({ type: 'fall', height: landing })
+        landing = null
       }
       // Near Marx's truck, where it stands, so the valley can aim its
       // headlights at the shadowmen round us: as it drives, once where
@@ -622,7 +563,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     hud.turnWards(time)
     hud.setBuffs(activeBuffs(levels, s.effects, time))
     // The daily task as it stands on the valley's day: a count from an
-    // earlier day reads as nothing done. Alone, nothing is kept to show.
+    // earlier day reads as nothing done.
     if (net.online) {
       const day = dayKey(net.clock.serverNow(now))
       hud.task.set({
@@ -652,7 +593,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   // frame's cadence.
   const discoverBook = (
     tick: boolean,
-    swarm: ReturnType<ShadowCards['update']>,
+    swarm: ReturnType<ShadowBodies['update']>,
     keeper: ReturnType<CaretakerShade['update']>
   ) => {
     if (s.started && tick) {
@@ -684,7 +625,20 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     }
   }
 
-  const followPlayer = (now: number) => {
+  // Every raider on foot this client sees, where their feet are: ours,
+  // and each peer's last frame. A slurm under any of them is squashed.
+  const raidersFeet = (feetY: number): SlurmFeet[] => {
+    const feet: SlurmFeet[] = s.aboard
+      ? []
+      : [{ x: player.pos.x, y: feetY, z: player.pos.z }]
+    for (const peer of peers.list()) {
+      const at = peer.next
+      if (at && !at.riding) feet.push({ x: at.x, y: at.y, z: at.z })
+    }
+    return feet
+  }
+
+  const followPlayer = (now: number, feetY: number) => {
     // The stocked shelves follow the player to the nearest store.
     // With them the slurms off its dripline, on the valley's clock so
     // everyone at that Citgo sees the same drop (slurms.ts).
@@ -692,7 +646,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       player.pos.x,
       player.pos.z,
       s.storeStock,
-      (net.online ? net.clock.serverNow(now) : Date.now()) / 1000
+      (net.online ? net.clock.serverNow(now) : Date.now()) / 1000,
+      raidersFeet(feetY)
     )
     slurmCues = shelves.cues
     if (shelves.curse) actions.npcSays('carlsten', shelves.curse)
@@ -732,14 +687,13 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   // What E would do right now.
   const resolveE = (bushes: BushSpot[]) => {
     const inStore = targets.storeIndex()
-    const leg = s.world?.truck.leg ?? s.aloneTruck.leg
     s.interaction = resolveInteraction({
       riding: s.aboard,
       player: player.pos,
       truck: {
         distance: truck.distanceTo(player.pos.x, player.pos.z),
         moving: truck.moving,
-        boardable: boardable(leg, s.world ? net.id : 'me'),
+        boardable: s.world ? boardable(s.world.truck.leg, net.id) : false,
       },
       // What lies dropped answers to E like any pickup.
       pickups: allPickups(),
@@ -770,7 +724,13 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     const interaction = s.interaction
     // Rule 14: Moab makes his offer as you come into his reach.
     const offering = interaction?.kind === 'trade' ? interaction.station : null
-    if (offering !== null && offering !== s.offeredBy) actions.offerTrade()
+    if (
+      interaction?.kind === 'trade' &&
+      offering !== null &&
+      offering !== s.offeredBy
+    ) {
+      actions.offerTrade(interaction.offer)
+    }
     s.offeredBy = offering
     const key = interaction ? interactionKey(interaction) : null
     if (key !== promptKey) {
@@ -820,7 +780,6 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
 
   const frame = () => {
     const clock = advanceClocks()
-    settleAloneTruck()
     const feet = rideOrWalk(clock)
     // The clods his wheels throw and the ruts they cut.
     donutWake?.update(clock.dt, truck)
@@ -831,19 +790,18 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     // frames always bracket the moment: the peers, and the valley's
     // shadowmen.
     const renderAt = clock.now - CONFIG.net.interpolateMs
-    const alone = aloneFrame(clock.now, feet, lit)
-    const { swarm, keeper } = stepShadows(clock, alone, renderAt)
-    stepScenery(clock)
+    const { swarm, keeper } = stepShadows(clock, renderAt)
+    stepScenery(clock, feet.feetY)
     const portalNow = stepPortals(clock)
     drawMap()
-    feelStrikes(clock.now, alone)
+    feelStrikes(clock.now)
     peers.update(clock.dt, renderAt)
     const tick = sendState(clock, feet, lit)
     stepHud(clock)
     stepPhone(clock.dt, portalNow)
     discoverBook(tick, swarm, keeper)
     pulsePickups(clock.time)
-    followPlayer(clock.now)
+    followPlayer(clock.now, feet.feetY)
     const bushes = bushSpots(clock.now)
     resolveE(bushes)
     showE(clock.now, bushes)

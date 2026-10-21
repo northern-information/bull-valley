@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { FRAMES_KEPT } from '../../src/framebuffer.ts'
 import {
   applyJoined,
   applyLeft,
@@ -47,7 +48,17 @@ describe('peer table', () => {
     expect(peers.get('b')?.next).toBeNull()
   })
 
-  it('keeps the last two states and ignores strangers', () => {
+  it('keeps what it has of anyone still there on a welcome', () => {
+    const peers = createPeerTable()
+    applyJoined(peers, wire('a', false), 0)
+    applyState(peers, 'a', at(1, 1), 100)
+    applyState(peers, 'a', at(2, 2), 200)
+    applyWelcome(peers, [{ ...wire('a'), level: 3 }], 300)
+    expect(peers.get('a')?.frames.map((f) => f.x)).toEqual([1, 2])
+    expect(peers.get('a')?.level).toBe(3)
+  })
+
+  it('keeps the latest states and ignores strangers', () => {
     const peers = createPeerTable()
     applyJoined(peers, wire('a', false), 0)
     expect(applyState(peers, 'nobody', at(1, 1), 5)).toBeNull()
@@ -55,8 +66,13 @@ describe('peer table', () => {
     applyState(peers, 'a', at(2, 2), 200)
     applyState(peers, 'a', at(3, 3), 300)
     const a = peers.get('a')
-    expect(a?.prev?.x).toBe(2)
+    expect(a?.frames.map((f) => f.x)).toEqual([1, 2, 3])
     expect(a?.next?.x).toBe(3)
+    for (let i = 0; i < FRAMES_KEPT + 5; i++) {
+      applyState(peers, 'a', at(i, 0), 400 + i * 100)
+    }
+    expect(a?.frames).toHaveLength(FRAMES_KEPT)
+    expect(a?.next?.x).toBe(FRAMES_KEPT + 4)
     expect(applyLeft(peers, 'a')).toBe(true)
     expect(applyLeft(peers, 'a')).toBe(false)
   })
@@ -80,7 +96,7 @@ describe('peer table', () => {
       level: 4,
       cosmetics: ['flaming-halo'],
     })
-    expect(peers.get('a')?.prev?.x).toBe(1)
+    expect(peers.get('a')?.frames.map((f) => f.x)).toEqual([1, 2])
     expect(peers.get('a')?.next?.x).toBe(2)
     expect(applyUpdated(peers, wire('nobody'))).toBeNull()
     expect(peers.has('nobody')).toBe(false)
@@ -106,7 +122,8 @@ describe('samplePeer', () => {
     const peer = applyJoined(peers, wire('a', false), 0)
     applyState(peers, 'a', at(0, 0, { pose: 'stand' }), 1000)
     applyState(peers, 'a', at(3, 4, { y: 2, pose: 'walk' }), 1100)
-    expect(samplePeer(peer, 900)).toMatchObject({ x: 0, z: 0, y: 0, speed: 50 })
+    // Before the first: held there, standing.
+    expect(samplePeer(peer, 900)).toMatchObject({ x: 0, z: 0, y: 0, speed: 0 })
     const mid = samplePeer(peer, 1050)
     expect(mid?.x).toBeCloseTo(1.5)
     expect(mid?.z).toBeCloseTo(2)
@@ -120,6 +137,30 @@ describe('samplePeer', () => {
     expect(samplePeer(peer, 1110)?.light).toBe(true)
     // Past the newest frame: hold it, and stop walking.
     expect(samplePeer(peer, 2000)).toMatchObject({ x: 3, z: 4, speed: 0 })
+  })
+
+  it('draws between the two states either side of the moment', () => {
+    const peers = createPeerTable()
+    const peer = applyJoined(peers, wire('a', false), 0)
+    applyState(peers, 'a', at(0, 0), 1000)
+    applyState(peers, 'a', at(1, 0), 1100)
+    // Drawn 150 ms behind: just before the third state lands, and just
+    // after, the drawing goes on from where it was, never back.
+    const before = samplePeer(peer, 1199 - 150)?.x ?? NaN
+    applyState(peers, 'a', at(2, 0), 1200)
+    const after = samplePeer(peer, 1201 - 150)?.x ?? NaN
+    expect(before).toBeCloseTo(0.49)
+    expect(after).toBeCloseTo(0.51)
+  })
+
+  it('starts a move after a silence a frame before it, not across it', () => {
+    const peers = createPeerTable()
+    const peer = applyJoined(peers, wire('a', false), 0)
+    applyState(peers, 'a', at(0, 0), 1000)
+    // Stood still for five seconds, then stepped.
+    applyState(peers, 'a', at(1, 0), 6000)
+    expect(samplePeer(peer, 5800)).toMatchObject({ x: 0, speed: 0 })
+    expect(samplePeer(peer, 5950)?.x).toBeCloseTo(0.5)
   })
 
   it('turns the short way round', () => {

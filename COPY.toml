@@ -29,10 +29,8 @@ And beware the shadowmen.""", by = "tyler" }
 controls_label = { text = "Controls", by = "ai" }
 fine = { text = "Requires a keyboard and mouse.", by = "ai" }
 raiding_as = { text = "Raiding as", by = "ai" }
-eyebrow = { text = "The Valley", by = "ai" }
-where = { text = "· Bull Valley, Illinois", by = "ai" }
-paused = { text = "Paused", by = "ai" }
-ready = { text = "Ready", by = "ai" }
+eyebrow = { text = "Bull Valley Shadow Wars", by = "ai" }
+exit_menu = { text = "Exit to Menu", by = "ai" }
 raider = { text = "Raider", by = "ai" }
 account = { text = "Account", by = "ai" }
 sign_out = { text = "Sign Out", by = "ai" }
@@ -42,6 +40,9 @@ sign_out = { text = "Sign Out", by = "ai" }
 
 [hud]
 begin_loading = { text = "Resolving Terrain…", by = "ai" }
+begin_connecting = { text = "Reaching the Valley…", by = "ai" }
+begin_reconnecting = { text = "Reconnecting…", by = "ai" }
+begin_lost = { text = "Back to the Menu", by = "ai" }
 begin_play = { text = "Click to Die", by = "ai" }
 begin_resume = { text = "Click to Resume", by = "ai" }
 begin_failed = { text = "The Valley Will Not Resolve", by = "ai" }
@@ -81,7 +82,8 @@ high_against = { text = "the shadowmen", by = "ai" }
 stimulated_against = { text = "the spiders", by = "ai" }
 drunk_against = { text = "the Caretaker", by = "ai" }
 tripping_against = { text = "the Undercroft's shades", by = "ai" }
-card = { text = "{ward}: wards against {against}", by = "ai" }
+card_dose = { text = "{ward} {dose}: wards against {against}", by = "ai" }
+card_lower = { text = "{ward} {dose}: brings it down", by = "ai" }
 
 # The season (src/seasonhud.ts): the card on the intro and pause overlay,
 # the tracker in the upper right, and the banners.
@@ -201,6 +203,7 @@ unknown_lore = { text = "Not yet found. Something in the valley is still waiting
 found_all = { text = "Every page written.", by = "ai" }
 toast = { text = "Written in the Book of Shadows", by = "ai" }
 toast_many = { text = "{count} new pages", by = "ai" }
+written = { text = "Written in the Book of Shadows: {names}.", by = "ai" }
 toast_hint = { text = "B to read", by = "ai" }
 
 [book.citgo]
@@ -242,8 +245,12 @@ lore = { text = "A ring of berry bushes round a door that opens back onto the ga
 [book.keep]
 lore = { text = "A light on the hill to the north. The beacon burns whether anyone is home or not.", by = "ai" }
 
+[book.castle]
+name = { text = "Castle Entropy", by = "ai" }
+lore = { text = "It hangs over its island with nothing under it but rock and the drop. The moat around it is ten stories of poured concrete. Every night it comes apart and goes back together wrong, and the blue light at its edge never stops turning.", by = "ai" }
+
 [book.shadowman]
-lore = { text = "They cross the valley round every raider, the same ones for everyone. Close enough, one rushes, draws back, and lunges, and its touch takes a piece of you; the third sends you back to the Citgo with nothing. Hold a beam on one and it comes apart into mist and skulls, and leaves its dimes.", by = "ai" }
+lore = { text = "They cross the valley round every raider, the same ones for everyone. Close enough, one rushes, draws back, and lunges, and its touch takes a piece of you; the third sends you back to the Citgo with nothing. Hold a beam on one and it comes apart in a spray of black, and leaves its dimes.", by = "ai" }
 
 [book.spider]
 name = { text = "Shadow Spider", by = "ai" }
@@ -395,16 +402,15 @@ quarters = { text = "You fish {count} quarters out of the machine. +{amount}", b
 short = { text = "You're {amount} short.", by = "ai" }
 sold_out = { text = "Sold out.", by = "ai" }
 refused = { text = "The clerk shakes his head.", by = "ai" }
-berry_offline = { text = "No signal. The bush keeps its berries.", by = "ai" }
 berry_picked = { text = "Picked clean. The bush fills again at midnight.", by = "ai" }
 berry_refused = { text = "The bush gives you nothing.", by = "ai" }
 none_left = { text = "You have none left.", by = "ai" }
 dropped = { text = "Dropped: {item}", by = "ai" }
 drop_aboard = { text = "Not from the truck.", by = "ai" }
 drop_key_item = { text = "You keep hold of it. Someone is counting on you.", by = "ai" }
+stow_key_item = { text = "That stays on you. The locker can't hold it.", by = "ai" }
 drop_refused = { text = "It won't come loose.", by = "ai" }
 pass_nothing = { text = "Nothing in hand to pass.", by = "ai" }
-pass_alone = { text = "No one out here to pass it to.", by = "ai" }
 pass_aboard = { text = "Not from the truck.", by = "ai" }
 pass_no_one = { text = "No one close enough to take it.", by = "ai" }
 pass_refused = { text = "It doesn't make it across.", by = "ai" }
@@ -414,6 +420,7 @@ change_unheard = { text = "The valley missed that. Others will see it when you n
 struck = { text = "You are somewhere else. Time is missing.", by = "ai" }
 hit = { text = "Something cold goes through you. It takes a piece with it.", by = "ai" }
 hit_caretaker = { text = "The lantern swings into you. A piece of you stays in the corn.", by = "ai" }
+hit_fall = { text = "You land hard. Something in you cracks and stays cracked.", by = "ai" }
 warded_high = { text = "The high takes the edge off it.", by = "ai" }
 warded_stimulated = { text = "You're too wired for it to sink in. The legs only graze you.", by = "ai" }
 warded_drunk = { text = "The lantern lands soft. You're too loose to break.", by = "ai" }
@@ -421,10 +428,10 @@ warded_tripping = { text = "It reaches for you and finds only part of you there.
 mended = { text = "Under the Citgo lights you come back together.", by = "ai" }
 caught = { text = "A lantern, very close. Then the forecourt, and the smell of cold corn.", by = "ai" }
 tunneled = { text = "Something in the dark, very close. Then the forecourt, and the taste of stone.", by = "ai" }
+plunged = { text = "The ground, all at once. Then the forecourt, and concrete dust in your teeth.", by = "ai" }
 fell = { text = "Your pockets are empty. Everything you carried is still out there, on you, where you fell.", by = "ai" }
 looted = { text = "You take your things back off your own body.", by = "ai" }
 loot_refused = { text = "Your hands go through it. Not now.", by = "ai" }
-locker_offline = { text = "No signal. Your locker will not open.", by = "ai" }
 locker_refused = { text = "The locker sticks.", by = "ai" }
 stowed = { text = "Stowed: {item}", by = "ai" }
 unstowed = { text = "Taken out: {item}", by = "ai" }
@@ -603,16 +610,42 @@ empty_materials = { text = "Nothing to build with yet.", by = "ai" }
 tab_locker = { text = "Locker", by = "ai" }
 empty_locker = { text = "Your locker is empty. What you leave here, no shadow takes.", by = "ai" }
 
+# An item's stats on its card in the pack (src/itemstats.ts, src/packhud.ts).
+
+[stats]
+kind = { text = "Kind", by = "ai" }
+heals = { text = "Heals", by = "ai" }
+heals_value = { text = "+{pct}% geometrie", by = "ai" }
+smokes = { text = "Smokes", by = "ai" }
+perception = { text = "Perception", by = "ai" }
+trails = { text = "Trails", by = "ai" }
+contents = { text = "Holds", by = "ai" }
+contents_value = { text = "{count} to one", by = "ai" }
+price = { text = "Shelf price", by = "ai" }
+cigarette = { text = "Cigarettes", by = "ai" }
+joint = { text = "Smoke", by = "ai" }
+psychedelic = { text = "Psychedelic", by = "ai" }
+stimulant = { text = "Stimulant", by = "ai" }
+drink = { text = "Drink", by = "ai" }
+medicine = { text = "Medicine", by = "ai" }
+forage = { text = "Forage", by = "ai" }
+valuable = { text = "Valuable", by = "ai" }
+key_item = { text = "Key item, kept through death", by = "ai" }
+
 # Place names, shown in prompts (src/landmarks.ts).
 
 [places]
 keep = { text = "Mt. Coleman's Keep", by = "ai" }
 
-# The title cards (src/splash.ts): image alt text and the colophon's hint.
+# The title cards (src/splash.ts): image alt text, the colophon's hint and
+# the epigraph after it; and the build in the corner (src/buildtag.ts).
+# Dial-Up's modem prints the build and the epigraph first (src/modemhud.ts).
 
 [titles]
 colophon_alt = { text = "Northern Information", by = "ai" }
 colophon_hint = { text = "Click to Die", by = "ai" }
+epigraph = { text = "Based on true events.", by = "ai" }
+build = { text = "Build {build}", by = "ai" }
 logo_alt = { text = "Bull Valley Shadow Wars", by = "ai" }
 
 # The main menu under the logo (src/mainmenu.ts), and the sign-in card's
@@ -699,6 +732,7 @@ username_rule = { text = "A username is 3 to 16 letters, digits or underscores",
 username_taken = { text = "That username is taken", by = "ai" }
 username_set = { text = "Your username is already set", by = "ai" }
 look_rule = { text = "Pick a character and a finish from the select", by = "ai" }
+look_locked = { text = "Trade Moab Coldë for that character first", by = "ai" }
 look_failed = { text = "Your character could not be saved", by = "ai" }
 hotbar_rule = { text = "Each number key holds one item from your pack, or nothing", by = "ai" }
 hotbar_failed = { text = "Your hotbar could not be saved", by = "ai" }
@@ -732,6 +766,12 @@ berry_offline = { text = "No Signal", by = "ai" }
 [cosmetics.flaming-halo]
 label = { text = "Flaming Halo", by = "ai" }
 
+[cosmetics.coleman-1]
+label = { text = "Mask of David Coleman: #1", by = "ai" }
+offer = { text = "Gold bullion. Ten troy ounces, and the mask is yours. He will answer to it.", by = "ai" }
+traded = { text = "Number one. Wear him well.", by = "ai" }
+worn = { text = "David Coleman: #1 is yours to raid as. Gron or the select will dress you.", by = "ai" }
+
 # Character names, as the select and the name tags show them. Keys
 # match src/outfits.ts.
 
@@ -740,6 +780,7 @@ marx = { text = "Matthew Marx", by = "tyler" }
 player = { text = "Player", by = "tyler" }
 shadow = { text = "Shadowman", by = "tyler" }
 coleman = { text = "David Coleman", by = "tyler" }
+coleman1 = { text = "David Coleman: #1", by = "ai" }
 kvistad = { text = "David Kvistad", by = "tyler" }
 church = { text = "Kyle Church", by = "tyler" }
 hanson = { text = "Justin Hanson", by = "tyler" }
@@ -1148,6 +1189,7 @@ tap = { text = "TAP TO DIAL", by = "ai" }
 skip = { text = "TAP TO SKIP", by = "ai" }
 switch_valley = { text = "Walk the valley instead", by = "ai" }
 refused = { text = "The valley hung up. Reload to dial again.", by = "ai" }
+no_signal = { text = "No signal. Redialing the valley…", by = "ai" }
 back = { text = "Back", by = "ai" }
 level = { text = "LV {level}", by = "ai" }
 geometrie = { text = "Geometrie {health} / {max}", by = "ai" }
@@ -1183,6 +1225,7 @@ citgo_blurb = { text = "The shelves of every Citgo you've stood at. {count} foun
 erwin_blurb = { text = "Barters out of the Golden Wok. No fiat currency.", by = "ai" }
 gron_blurb = { text = "Changes your name and your character.", by = "ai" }
 moab_blurb = { text = "Burns under every Citgo sign. Trades for gold.", by = "ai" }
+audio_blurb = { text = "How loud the music and the sounds play, kept on your account.", by = "ai" }
 
 [dialup.raider]
 title = { text = "LV {level} · {outfit}", by = "ai" }
@@ -1255,6 +1298,9 @@ stow_one = { text = "Stow 1", by = "ai" }
 stow_all = { text = "Stow all", by = "ai" }
 take_one = { text = "Take 1", by = "ai" }
 take_all = { text = "Take all", by = "ai" }
+on_you = { text = "On you", by = "ai" }
+in_locker = { text = "In the locker", by = "ai" }
+nothing_to_stow = { text = "Nothing on you to stow.", by = "ai" }
 hotbar = { text = "Put on the hotbar", by = "ai" }
 hotbar_pick = { text = "Tap a slot for {item}", by = "ai" }
 hotbar_saved = { text = "{item} on slot {slot}.", by = "ai" }

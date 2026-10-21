@@ -104,9 +104,11 @@
 //    where it burst (graves.ts). The graves outlast the day's turn; past
 //    CONFIG.graves.max the oldest goes.
 // 18. Corpse runs (corpses.ts): a strike leaves everything the raider's
-//    pack held on their body, where their last state frame put them; the
+//    pack held but its key items (which stay in the pack) on their body, where their last state frame put them; the
 //    valley takes it all out of the account's pack first, and lays the
-//    body only once it has (Reduced.corpse), or gives it back. The wallet
+//    body only once it has (Reduced.corpse), or gives it back. One body
+//    an account: a second fall takes the first away, and what it still
+//    held is lost. The wallet
 //    and the locker are untouched. Only the account that fell can take its
 //    things back (Reduced.give), and a body lies until it does: the day's
 //    turn leaves it, and so does a world opened afresh, since the bodies
@@ -115,13 +117,15 @@
 //    of every Citgo, the same from any of them. A raider out of the bed
 //    whose last state frame put them at a station can move what their pack
 //    holds into it, or back (Reduced.stash); the valley moves it only when
-//    the side it comes out of holds it.
+//    the side it comes out of holds it. A key item never goes in.
 // 20. The Book of Shadows (book.ts): every entry a raider comes across (a
 //    place in reach, a shadow in sight, one of the folk spoken to, an item
 //    in the pack) is written in the account's book once, at the first
 //    time; an ask names only what the raider met, and only the real
 //    entries the account had not found are news (book.ts newlyFound).
-//    The book is the account's, kept by the valley in D1.
+//    The book is the account's, kept by the valley in D1. A landmark
+//    found for the first time pays its bounty into the wallet and its XP
+//    (findsPay); the valley writes the find and the cents together.
 // 21. Friends and whispers (friends.ts): a raider asks another by name,
 //    and they are friends once the other asks back; the friendships are
 //    the accounts', in D1 beside them, and only usernames go on the wire.
@@ -160,7 +164,10 @@
 //    sockets were touched, and lets the raider alone for
 //    CONFIG.health.graceSeconds where they stand. The touch that takes the
 //    last is the strike of rule 18 (Reduced.health.fatal), and the account
-//    is whole again after. A raider on foot whose last state frame put them
+//    is whole again after. A fall the client says it landed from (a
+//    `plunge`; where a raider stands is its own word) takes fall.ts
+//    fallDamage of its height, no ward cutting it: all of it from two
+//    stories, which is rule 18's strike the same. A raider on foot whose last state frame put them
 //    on a Citgo forecourt is made whole, and a use of anything that heals
 //    (items.ts healsPct), once the pack has given the unit up, gives its
 //    share of whole back.
@@ -242,12 +249,13 @@
 //    save against the writer's own files (laptop.ts saveRefusal). Dialed
 //    in there is no laptop (`dialup`).
 
+import { bountyOf } from './book.ts'
 import { dosed, inPassReach, scaled, sobered, wardsOf } from './buffs.ts'
 import { heartPoint, theMaze } from './caretaker.ts'
 import { citgoAt, NO_CITGOS, visit } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { insideRing } from './coords.ts'
-import { corpseWire, isEmpty } from './corpses.ts'
+import { corpseWire, isEmpty, keysOff } from './corpses.ts'
 import { affords, cosmeticById, MOAB_OFFERS } from './cosmetics.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
 import { atDealer, deal, freshDealerStock } from './dealer.ts'
@@ -259,6 +267,7 @@ import {
   outcomeOf,
   woundedBy,
 } from './expeditions.ts'
+import { fallDamage } from './fall.ts'
 import { bury } from './graves.ts'
 import {
   hit,
@@ -316,6 +325,7 @@ import type { CosmeticId } from './cosmetics.ts'
 import type { DealerStock } from './dealer.ts'
 import type { Drop, Facing, Spill } from './drops.ts'
 import type { ExpeditionOutcome, ExpeditionRun } from './expeditions.ts'
+import type { Hurt } from './fall.ts'
 import type { Burial, Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckChange, TruckRoutes, TruckState } from './marx.ts'
@@ -445,7 +455,6 @@ function bushKey(account: string, bush: number): string {
 export interface Spot {
   x: number
   z: number
-  riding: boolean
 }
 
 export type ValleyAction =
@@ -530,10 +539,16 @@ export type ValleyAction =
   // where the raider's last state frame put them, or null.
   | { type: 'fall'; id: string; items: Inventory; at: Facing | null }
   | { type: 'loot'; id: string; corpse: number; at: XZ | null }
+  // Rule 18: the key items off the account's bodies, back to its pack, as
+  // it comes into the valley (a body laid before strikes kept them).
+  | { type: 'keys-back'; account: string }
   // Rule 24: a shadow's touch, `by` what (wards.ts), roll drawn from 0 to
-  // 1 by the valley for its spread; a use of `kind` giving its share
-  // back, or made whole (no kind: a forecourt).
+  // 1 by the valley for its spread.
   | { type: 'hit'; id: string; by: ShadowHit; roll?: number }
+  // Rule 24: a fall landed from `height` metres, by the client's word.
+  | { type: 'plunge'; id: string; height: number }
+  // Rule 24: a use of `kind` giving its share back, or made whole (no
+  // kind: a forecourt).
   | { type: 'mend'; id: string; kind?: string }
   // Rule 24: the account reached `level` (rule 22).
   | { type: 'level'; account: string; level: number }
@@ -665,7 +680,7 @@ export interface Reduced {
     points: number
     max: number
     fatal?: true
-    hit?: { by: ShadowHit; damage: number; warded: number }
+    hit?: { by: Hurt; damage: number; warded: number }
   }
   // Rule 27: each account's wards after a dose or a shattering, for
   // its sockets.
@@ -763,7 +778,7 @@ export function createValley(): Valley {
 
 // The valley as an older build stored it, made current: the fresh one
 // fills in newer fields, and a world opened on another protocol (an older
-// build's raid included) is dropped, so the next arrival opens it afresh.
+// build's included) is dropped, so the next arrival opens it afresh.
 // The berries, the places, the bodies, the wounds and the wards carry
 // over; a valley stored as hit points left (an older build's `health`,
 // kept against `healthMax`, three once) is read as wounds at the same
@@ -839,6 +854,25 @@ export function wardsFor(
   now: number
 ): WardLevels {
   return levelsAt(wardsOf(valley.wards, account), now / 1000)
+}
+
+// Rule 20: what the entries `account` just found pay. A landmark found
+// for the first time (the Keep) pays its bounty (book.ts bountyOf) and its
+// XP (rule 22); anything else pays nothing.
+export function findsPay(
+  account: string,
+  found: readonly string[]
+): { cents: number; xp: XpGrant[] } {
+  const cents = bountyOf(found)
+  if (cents <= 0) return { cents: 0, xp: [] }
+  return { cents, xp: [{ account, source: 'landmark' }] }
+}
+
+// Rule 3: whether raider `id` is in Marx's bed, by the valley's own truck.
+// A state frame's `riding` is the client's word, for drawing peers only:
+// no rule reads it, so a client that says it rides is not out of reach.
+export function inTheBed(valley: Valley, id: string): boolean {
+  return valley.world !== null && isAboard(valley.world.truck, id)
 }
 
 // Rule 28: every Citgo `account` has stood at, and the last.
@@ -1092,6 +1126,8 @@ function act(
       return onFall(valley, action, context)
     case 'hit':
       return onHit(valley, action, context)
+    case 'plunge':
+      return onPlunge(valley, action, context)
     case 'pass':
       return onPass(valley, action, context)
     case 'dose':
@@ -1104,6 +1140,8 @@ function act(
       return onLevel(valley, action, context)
     case 'loot':
       return onLoot(valley, action, context)
+    case 'keys-back':
+      return onKeysBack(valley, action, context)
     case 'stow':
     case 'unstow':
       return onStash(valley, action, context)
@@ -1236,7 +1274,7 @@ function onLeave(
   const world = next.world
   // Rule 2: where they stood on foot is where they come back.
   const at = action.at
-  if (at && !at.riding && !(world && isAboard(world.truck, action.id))) {
+  if (at && !inTheBed(valley, action.id)) {
     next = {
       ...next,
       places: {
@@ -1786,27 +1824,26 @@ function onFall(
   action: ActionOf<'fall'>,
   { now }: ValleyContext
 ): Reduced {
-  // Rule 18. A body only where the valley heard the raider stand, and
-  // only with something on it.
+  // Rule 18. One body an account: a second fall takes the first away,
+  // and what it still held is lost. A new body only where the valley
+  // heard the raider stand, and only with something on it.
   const member = valley.members[action.id]
-  if (!member || !action.at || isEmpty(action.items)) {
-    return done(valley, now, { broadcast: [] })
+  if (!member) return done(valley, now, { broadcast: [] })
+  const corpses = valley.corpses.filter((c) => c.account !== member.account)
+  const lost = corpses.length < valley.corpses.length
+  if (!action.at || isEmpty(action.items)) {
+    if (!lost) return done(valley, now, { broadcast: [] })
+    const next: Valley = { ...valley, corpses }
+    return done(next, now, {
+      broadcast: next.world ? [frame(next, 'fell', { by: action.id })] : [],
+    })
   }
   const id = valley.nextCorpse
   const { x, z, yaw } = action.at
-  // One body an account: what an earlier one still held is carried
-  // onto this one, so nothing is lost and nothing lies forever.
-  const items = { ...action.items }
-  for (const old of valley.corpses) {
-    if (old.account !== member.account) continue
-    for (const [kind, count] of Object.entries(old.items)) {
-      items[kind] = (items[kind] ?? 0) + count
-    }
-  }
   const next: Valley = {
     ...valley,
     corpses: [
-      ...valley.corpses.filter((c) => c.account !== member.account),
+      ...corpses,
       {
         id,
         x,
@@ -1814,7 +1851,7 @@ function onFall(
         yaw,
         name: member.name,
         outfit: member.outfit,
-        items,
+        items: { ...action.items },
         account: member.account,
       },
     ],
@@ -1837,18 +1874,43 @@ function onHit(
   const member = valley.members[action.id]
   if (!member) return done(valley, now, { broadcast: [] })
   const { account } = member
-  const max = maxFor(valley, account)
-  const before = pointsOf(woundsOf(valley.wounds, account), max)
   const levels = wardsFor(valley, account, now)
   const { damage, warded } = damageOf(action.by, levels, action.roll)
-  const { points, fatal } = hit(before, damage, max)
+  return hurt(valley, account, now, { by: action.by, damage, warded })
+}
+
+function onPlunge(
+  valley: Valley,
+  action: ActionOf<'plunge'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rule 24: a fall, no ward cutting it. A raider on the phone has no body
+  // to fall.
+  const member = valley.members[action.id]
+  if (!member || member.dialup) return done(valley, now, { broadcast: [] })
+  const { account } = member
+  const damage = fallDamage(action.height, maxFor(valley, account))
+  if (damage === 0) return done(valley, now, { broadcast: [] })
+  return hurt(valley, account, now, { by: 'fall', damage, warded: 0 })
+}
+
+// Rule 24: `struck` off the account's geometrie; the last of it shatters
+// it, the account whole and sober again after.
+function hurt(
+  valley: Valley,
+  account: string,
+  now: number,
+  struck: { by: Hurt; damage: number; warded: number }
+): Reduced {
+  const max = maxFor(valley, account)
+  const before = pointsOf(woundsOf(valley.wounds, account), max)
+  const { points, fatal } = hit(before, struck.damage, max)
   const next: Valley = {
     ...valley,
     wounds: withWounds(valley.wounds, account, fatal ? 0 : max - points),
     // A shattering leaves the raider sober.
     wards: fatal ? sobered(valley.wards, account) : valley.wards,
   }
-  const struck = { by: action.by, damage, warded }
   return done(next, now, {
     broadcast: [],
     health: fatal
@@ -1878,13 +1940,16 @@ function onPass(
     return refuse('not-an-item')
   }
   if (!taker || taker.account === member.account) return refuse('no-one')
-  const truck = valley.world?.truck
-  const onFoot = (id: string, at: Spot | null) =>
-    at !== null && !at.riding && !(truck && isAboard(truck, id))
-  if (!onFoot(action.id, action.from) || !onFoot(action.to, action.at)) {
+  const { from, at } = action
+  if (
+    !from ||
+    !at ||
+    inTheBed(valley, action.id) ||
+    inTheBed(valley, action.to)
+  ) {
     return refuse('not-on-foot')
   }
-  if (!inPassReach(action.from!, action.at!)) return refuse('too-far')
+  if (!inPassReach(from, at)) return refuse('too-far')
   return done(valley, now, {
     broadcast: [],
     pack: { account: member.account, kind: action.kind, delta: -1 },
@@ -2036,6 +2101,41 @@ function onLoot(
   })
 }
 
+function onKeysBack(
+  valley: Valley,
+  action: ActionOf<'keys-back'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rule 18: a key item never lies on a body. One that does (laid before
+  // that was so) goes back to its account's pack, and a body it leaves
+  // with nothing goes; the valley lays the change only once the pack has
+  // the keys (Reduced.give).
+  const keys: Inventory = {}
+  const gone: number[] = []
+  const corpses = valley.corpses.flatMap((corpse) => {
+    if (corpse.account !== action.account) return [corpse]
+    const off = keysOff(corpse.items)
+    if (isEmpty(off.keys)) return [corpse]
+    for (const [kind, count] of Object.entries(off.keys)) {
+      keys[kind] = (keys[kind] ?? 0) + count
+    }
+    if (isEmpty(off.kept)) {
+      gone.push(corpse.id)
+      return []
+    }
+    return [{ ...corpse, items: off.kept }]
+  })
+  if (isEmpty(keys)) return done(valley, now, { broadcast: [] })
+  const next: Valley = { ...valley, corpses }
+  return done(next, now, {
+    broadcast:
+      next.world && gone.length > 0
+        ? [frame(next, 'looted', { corpse: gone[0] })]
+        : [],
+    give: { account: action.account, items: keys },
+  })
+}
+
 function onStash(
   valley: Valley,
   action: ActionOf<'stow' | 'unstow'>,
@@ -2056,6 +2156,9 @@ function onStash(
     if (!atLocker(action.at, world.havens)) return refuse('no-locker')
   }
   if (!isPackKind(action.kind)) return refuse('not-an-item')
+  // A key item never goes into the locker (items.ts isKeyItem); one
+  // stowed before is let out.
+  if (re === 'stow' && isKeyItem(action.kind)) return refuse('key-item')
   if (action.count < 1) return refuse('nothing')
   return done(valley, now, {
     broadcast: [],

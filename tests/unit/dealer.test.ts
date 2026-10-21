@@ -3,6 +3,7 @@ import { CONFIG } from '../../src/config.ts'
 import { copy } from '../../src/copy.ts'
 import {
   atDealer,
+  boughtLine,
   costIn,
   deal,
   DEALER_GOODS,
@@ -14,6 +15,7 @@ import {
   ramble,
   unitWorth,
 } from '../../src/dealer.ts'
+import { itemLabel } from '../../src/itemcopy.ts'
 import { getItem, itemById } from '../../src/items.ts'
 
 const lsd = goodOf('lsd')
@@ -123,5 +125,13 @@ describe('Erwin von Dutch', () => {
     expect(dealRefusal('worthless')).toBe(copy('dealer.worthless'))
     expect(dealRefusal('too-far')).toBe(copy('dealer.too_far'))
     expect(dealRefusal('unavailable')).toBe(copy('dealer.refused'))
+  })
+})
+
+describe('boughtLine', () => {
+  it('names the good a deal brought', () => {
+    expect(boughtLine('lsd')).toBe(
+      copy('dealer.bought', { item: itemLabel('lsd') })
+    )
   })
 })

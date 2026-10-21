@@ -6,26 +6,29 @@
 
 import { knownOf, toFound } from './book.ts'
 import { isLevels } from './buffs.ts'
-import { CHAT_COPY, emoteLine, othersLine } from './chat.ts'
+import {
+  CHAT_COPY,
+  emoteLine,
+  joinedLine,
+  othersLine,
+  peerNews,
+  whisperLine,
+} from './chat.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { toCosmetics } from './cosmetics.ts'
-import { DAILY_TASK, taskNews } from './dailytask.ts'
-import { dealRefusal } from './dealer.ts'
+import { DAILY_TASK, taskLine, taskNews, taskOf } from './dailytask.ts'
+import { boughtLine, dealRefusal } from './dealer.ts'
 import { seenEmote } from './emotes.ts'
 import {
-  friendLines,
   friendNews,
   friendRefusal,
-  settledAsk,
+  listAnswer,
   whisperRefusal,
 } from './friends.ts'
 import { freshPending } from './game.ts'
 import { pickupLabel } from './interactions.ts'
 import { toInventory } from './inventory.ts'
-import { itemLabel } from './itemcopy.ts'
-import { itemById } from './items.ts'
-import { createTruck } from './marx.ts'
 import { levelUp } from './progression.ts'
 import { CLOSE } from './protocol.ts'
 import {
@@ -35,7 +38,8 @@ import {
   stepRefusal,
   toQuests,
 } from './quests.ts'
-import { SEASON } from './season.ts'
+import { seasonOf } from './season.ts'
+import { buyRefusal } from './shop.ts'
 import { isStandLedger, refusalLine, standNews } from './stand.ts'
 import { formatCash } from './store.ts'
 import { newLeg, portalNews, reconcileBed, settledBy } from './worldsync.ts'
@@ -56,7 +60,12 @@ export function wireValley(game: Game, actions: Actions): void {
 
   // A lost session is not a lost signal: send the raider back to sign in.
   net.onRefused((code) => {
-    if (code !== CLOSE.unauthenticated) return
+    if (code !== CLOSE.unauthenticated) {
+      // Turned away for good (a stale build, a bad frame): nothing plays,
+      // and the overlay offers the way back to the menu.
+      hud.setConnection('lost')
+      return
+    }
     hud.tell(copy('log.signed_out'))
     setTimeout(() => window.location.reload(), CONFIG.net.signedOutReloadMs)
   })
@@ -67,33 +76,24 @@ export function wireValley(game: Game, actions: Actions): void {
     switch (msg.type) {
       case 'welcome': {
         peers.welcome(msg.peers, now)
+        // A new socket has told the valley nothing yet: the next tick
+        // sends where we stand, moving or not.
+        s.lastSent = null
         // Before Begin, the greeting says it; after, a reconnect does.
         if (s.greeted) hud.tell(othersLine(peers.count))
         return
       }
       case 'peer-joined':
-        peers.joined(msg.peer, now)
-        hud.tell(
-          msg.peer.dialup
-            ? copy('log.peer_dialed', { name: msg.peer.name })
-            : copy('log.peer_joined', { name: msg.peer.name })
-        )
+        // Back from a dropped line under the id we still see: no news.
+        if (!peers.joined(msg.peer, now)) return
+        hud.tell(joinedLine(msg.peer))
         return
       case 'peer-updated': {
         // Our own comes back too; the dialog has said so already.
         if (msg.peer.id === net.id) return
         const was = peers.table.get(msg.peer.id)
-        const { name, level } = msg.peer
-        const wasLevel = was?.level
-        const wasName = was?.name
         peers.updated(msg.peer)
-        if (wasName && wasName !== name) {
-          hud.tell(copy('log.peer_renamed', { was: wasName, name }))
-        }
-        // Rule 22.
-        if (wasLevel !== undefined && level > wasLevel) {
-          hud.tell(copy('log.peer_level', { name, level }))
-        }
+        for (const line of peerNews(was, msg.peer)) hud.tell(line)
         return
       }
       case 'peer-state': {
@@ -125,36 +125,25 @@ export function wireValley(game: Game, actions: Actions): void {
         return
       // Rule 21: a whisper, to this raider or echoed from one they sent.
       case 'whisper':
-        hud.chatLine(
-          {
-            kind: 'whisper',
-            name: msg.outgoing
-              ? copy('chat.whisper_to', { name: msg.to })
-              : copy('chat.whisper_from', { name: msg.from }),
-            text: msg.text,
-            at: msg.at,
-          },
-          now
-        )
+        hud.chatLine(whisperLine(msg), now)
         return
       case 'friends': {
         s.friends = msg.friends
-        const settled = s.pending.ask && settledAsk(s.pending.ask, msg.friends)
+        const { settled, lines } = listAnswer(
+          s.pending.ask,
+          s.pending.showFriends,
+          msg.friends
+        )
         if (settled) {
           s.pending.ask = null
           hud.tell(settled)
         }
-        if (s.pending.showFriends) {
-          s.pending.showFriends = false
-          for (const line of friendLines(msg.friends)) hud.tell(line)
-        }
+        s.pending.showFriends = false
+        for (const line of lines) hud.tell(line)
         return
       }
       case 'friend-news':
         hud.tell(friendNews(msg.news, msg.name))
-        return
-      case 'error':
-        console.warn('Valley:', msg.code, msg.message)
         return
       case 'pong':
         return
@@ -192,15 +181,6 @@ export function wireValley(game: Game, actions: Actions): void {
       case 'laptop-saved':
         s.laptop?.saved(msg.id, msg.name)
         return
-    }
-  })
-  let wasOnline = false
-  net.onStatus((status) => {
-    if (status === 'online') {
-      wasOnline = true
-    } else if (status === 'offline') {
-      peers.clear()
-      if (wasOnline) hud.tell(copy('log.signal_lost'))
     }
   })
 
@@ -251,9 +231,7 @@ export function wireValley(game: Game, actions: Actions): void {
     // goods and the wallet.
     if (reason === 'dealt' && me !== null && detail.by === me) {
       s.pendingDeal = false
-      s.dealSaid = copy('dealer.bought', {
-        item: detail.item ? itemLabel(detail.item) : '',
-      })
+      s.dealSaid = boughtLine(detail.item ?? '')
       hud.tell(s.dealSaid)
     }
     // The shelves are the valley's; a unit it sold us goes in the pocket.
@@ -359,15 +337,7 @@ export function wireValley(game: Game, actions: Actions): void {
       if (msg.station !== undefined && msg.item) {
         s.pending.buys.delete(`${msg.station}:${msg.item}`)
       }
-      const price = msg.item ? itemById(msg.item)?.price : undefined
-      if (msg.reason === 'sold-out') hud.tell(copy('log.sold_out'))
-      else if (msg.reason === 'short' && price !== undefined) {
-        hud.tell(
-          copy('log.short', {
-            amount: formatCash(Math.max(0, price - s.cash)),
-          })
-        )
-      } else hud.tell(copy('log.refused'))
+      hud.tell(buyRefusal(msg.reason, msg.item, s.cash))
     } else if (msg.re === 'call') {
       hud.tell(copy('log.truck_busy'))
     } else if (msg.re === 'collect') {
@@ -467,8 +437,9 @@ export function wireValley(game: Game, actions: Actions): void {
   // The account's progress through the season, when it is this season's;
   // false for another's.
   const applySeason = (wire: SeasonWire): boolean => {
-    if (wire.season !== SEASON.id) return false
-    s.season = { kills: wire.kills, claimed: wire.claimed }
+    const progress = seasonOf(wire)
+    if (!progress) return false
+    s.season = progress
     hud.season.set(s.season)
     return true
   }
@@ -476,8 +447,9 @@ export function wireValley(game: Game, actions: Actions): void {
   // The account's progress on the daily task, when it is this task's;
   // false for another's.
   const applyTask = (wire: TaskWire): boolean => {
-    if (wire.task !== DAILY_TASK.id) return false
-    s.task = { day: wire.day, count: wire.count, claimed: wire.claimed }
+    const progress = taskOf(wire)
+    if (!progress) return false
+    s.task = progress
     return true
   }
 
@@ -542,20 +514,19 @@ export function wireValley(game: Game, actions: Actions): void {
     } else if (msg.type === 'task') {
       // Rule 16: credited with a burn. A reward's pack frame follows.
       if (!applyTask(msg.task)) return
-      const { goal } = DAILY_TASK
-      const cash = formatCash(DAILY_TASK.reward)
       const news = taskNews(s.task, msg.rewarded)
       if (news === 'done') {
         hud.season.announce({
           kicker: copy('task.kicker'),
           headline: copy('task.banner_done'),
-          detail: copy('task.banner_paid', { cash }),
+          detail: copy('task.banner_paid', {
+            cash: formatCash(DAILY_TASK.reward),
+          }),
           gold: true,
         })
-        hud.tell(copy('log.task_reward', { goal, cash }))
-      } else if (news === 'burned') {
-        hud.tell(copy('log.task_burned', { count: s.task.count, goal }))
       }
+      const line = taskLine(s.task, msg.rewarded)
+      if (line) hud.tell(line)
       if (news !== 'past') hud.season.flash()
     } else if (msg.type === 'season') {
       // Rule 15: credited with burning the Caretaker. A reward's pack
@@ -573,23 +544,38 @@ export function wireValley(game: Game, actions: Actions): void {
       actions.applyDaily(msg)
     }
   })
+  // The line to the valley. Nothing plays while it is down: the raider
+  // is stopped with the pointer free and the overlay saying so while the
+  // client reconnects, and after CONFIG.net.giveUpMs without the valley
+  // the overlay offers the way back to the menu. Peers and the world stay
+  // as last said, frozen, and the welcome that ends the drop puts them
+  // right.
+  let giveUp: ReturnType<typeof setTimeout> | null = null
   net.onStatus((status) => {
-    // The line dropped: the valley's world is no longer ours to follow,
-    // and what we hold plays on alone, the truck from where it stands.
-    if (status === 'offline') {
-      s.world = null
-      // Nothing asked of it will be answered now.
-      s.pending = freshPending()
-      s.known = knownOf(s.book, s.pending.book)
-      if (s.aboard) actions.leaveBed()
-      actions.setAloneTruck(createTruck(Date.now()))
-      actions.followLeg(s.aloneTruck.leg)
-      s.daily = null
-      s.stand = null
-      // The valley's bodies are out of reach; ours alone are drawn.
-      if (s.lockerOpen) actions.closeInventory()
-      actions.showAloneCorpses()
+    if (status === 'online') {
+      if (giveUp !== null) clearTimeout(giveUp)
+      giveUp = null
+      hud.setConnection('online')
+      return
     }
+    if (status !== 'offline' || hud.connection === 'lost') return
+    // Nothing asked of it will be answered now.
+    s.pending = freshPending()
+    s.known = knownOf(s.book, s.pending.book)
+    player.keys.clear()
+    actions.closeInventory()
+    actions.closeBook()
+    actions.closeMap()
+    if (document.pointerLockElement) document.exitPointerLock()
+    if (s.started) {
+      hud.tell(copy('log.signal_lost'))
+      hud.showIntro(true, true)
+    }
+    hud.setConnection(s.started ? 'reconnecting' : 'connecting')
+    giveUp ??= setTimeout(() => {
+      giveUp = null
+      if (!net.online) hud.setConnection('lost')
+    }, CONFIG.net.giveUpMs)
   })
 }
 

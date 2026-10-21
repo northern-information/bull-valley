@@ -42,6 +42,7 @@ export type DecalId =
   | 'open-shirt'
   | 'paramore'
   | 'against-me'
+  | 'number-one'
 
 // Where an outfit prints a decal over the body: across the torso front,
 // across the front of both thighs, or all round both bare arms.
@@ -190,13 +191,20 @@ export interface Outfit {
   loose?: number
   // Each part's prints, painted in order (decalart.ts paintPrints).
   prints?: Partial<Record<PrintPart, DecalId[]>>
+  // A photograph worn over the face in place of the nose and the brow
+  // (maskart.ts paints it, figure.ts lays it on the front of the head).
+  mask?: MaskId
 }
+
+// The masks a face can wear, each a photograph under public/textures.
+export type MaskId = 'kabuki'
 
 export type OutfitId =
   | 'marx'
   | 'player'
   | 'shadow'
   | 'coleman'
+  | 'coleman1'
   | 'kvistad'
   | 'church'
   | 'hanson'
@@ -1054,7 +1062,7 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
       coat: '#07080c',
     },
     addons: ['hood'],
-    // "Arms: too long" — the silhouette cards in shadowcards.ts.
+    // "Arms: too long", as the shadowmen were first drawn.
     proportions: { arm: 1.4, leg: 1.12 },
   },
   coleman: {
@@ -1072,6 +1080,23 @@ export const OUTFITS: Record<OutfitId, Outfit> = {
     addons: ['goatee', 'mustache', 'belt', 'belt-loops', 'buckle'],
     sleeves: 'short',
     prints: { torso: ['suicide-silence'] },
+  },
+  // David Coleman as #1: the same buzz cut, in a blue jumpsuit with his
+  // number on the chest, and a white kabuki mask over the face. Moab Coldë
+  // trades him for gold (characters.ts UNLOCKED_BY).
+  coleman1: {
+    label: copy('outfits.coleman1'),
+    colors: {
+      skin: '#efcfb4',
+      hair: '#9c7a58',
+      shirt: '#24418c',
+      pants: '#24418c',
+      boots: '#060607',
+      belt: '#1a2c5e',
+    },
+    addons: ['belt', 'belt-loops'],
+    mask: 'kabuki',
+    prints: { torso: ['number-one'] },
   },
   kvistad: {
     label: copy('outfits.kvistad'),

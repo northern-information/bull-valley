@@ -2,15 +2,18 @@ import { copy } from './copy.ts'
 import { beginRaid, expect, heardWhere, onLastPoint, test } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
-// Rule 18: a strike leaves everything the pack held on the raider's body,
-// where they fell, and E over it takes it all back. Rule 19: the locker in
-// the back room of every Citgo keeps what is stowed there, through a
-// strike.
+// Rule 18: a strike leaves everything the pack held but its key items on
+// the raider's body, where they fell, and E over it takes it all back.
+// Rule 19: the locker in the back room of every Citgo keeps what is stowed
+// there, through a strike, and never takes a key item.
 
 const held = (page: Page) =>
   page.evaluate(() => ({ ...(window.__bv?.inventory ?? {}) }))
+// Everything but the key items, which a strike leaves in the pack.
 const carrying = async (page: Page) =>
-  Object.values(await held(page)).reduce((sum, n) => sum + n, 0)
+  Object.entries(await held(page))
+    .filter(([kind]) => kind !== 'vault-key')
+    .reduce((sum, [, n]) => sum + n, 0)
 
 // Out of the forecourt haven on the last point of health, then a
 // shadowman beside you: the valley has it rush you, and says it touched
@@ -35,12 +38,16 @@ test('a strike leaves the pack on your body, and E takes it back', async ({
   test.slow()
   await beginRaid(page)
   await page.evaluate(() => window.__bv?.grant('marlboro', 20))
+  await page.evaluate(() => window.__bv?.grant('vault-key', 1))
   await expect.poll(async () => (await held(page)).marlboro).toBeGreaterThan(19)
+  await expect.poll(async () => (await held(page))['vault-key']).toBe(1)
   const before = await held(page)
 
   await struckDown(page, 1)
-  // Everything stays where they fell; the wallet comes along.
+  // Everything stays where they fell but the key, which comes along with
+  // the wallet.
   await expect.poll(() => carrying(page)).toBe(0)
+  await expect.poll(async () => (await held(page))['vault-key']).toBe(1)
   await expect
     .poll(() => page.evaluate(() => window.__bv?.myCorpses.length))
     .toBe(1)
@@ -70,7 +77,9 @@ test('the locker in the back room keeps what you stow, through a strike', async 
   test.slow()
   await beginRaid(page)
   await page.evaluate(() => window.__bv?.grant('joints', 3))
+  await page.evaluate(() => window.__bv?.grant('vault-key', 1))
   await expect.poll(async () => (await held(page)).joints).toBeGreaterThan(2)
+  await expect.poll(async () => (await held(page))['vault-key']).toBe(1)
   const joints = (await held(page)).joints
 
   // Into the back room of the spawn Citgo, in front of the lockers.
@@ -108,6 +117,18 @@ test('the locker in the back room keeps what you stow, through a strike', async 
     .poll(() => page.evaluate(() => window.__bv?.stash.joints))
     .toBe(0)
   await expect.poll(async () => (await held(page)).joints).toBe(joints)
+
+  // A key item stays on you: F over it says so, and the locker never has
+  // it.
+  await page.locator('#bv-bag-tab-key-items').click()
+  await page.locator('.bv-bag-cell[data-kind="vault-key"]').hover()
+  await page.keyboard.press('KeyF')
+  await expect(page.locator('.bv-chat')).toContainText(
+    copy('log.stow_key_item')
+  )
+  expect(await page.evaluate(() => window.__bv?.stash['vault-key'] ?? 0)).toBe(
+    0
+  )
 
   // Stowed for good, then struck: the locker keeps them.
   await page.locator('#bv-bag-tab-consumables').click()

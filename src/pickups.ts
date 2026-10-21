@@ -873,7 +873,7 @@ export function buildPickup(
     sphere.translate(0, 0.35, 0)
     mesh = new THREE.Mesh(
       sphere,
-      new THREE.MeshLambertMaterial({
+      lambert({
         color: '#1c2a16',
         emissive: new THREE.Color('#9be88a'),
         emissiveIntensity: 0.5,

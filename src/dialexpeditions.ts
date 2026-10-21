@@ -1,9 +1,10 @@
 // Bull Valley Dial-Up's Expeditions tab (sharedworld.ts rule 30): the run
 // out, if any, with how far along it is and the time left on the valley's
-// clock, and Bring It Home once its time is up; then every run there is,
-// each with how long it takes, the level it opens at, the ward that keeps
-// it safe and how much yours does now (expeditions.ts riskOf), what it
-// may bring home, and Send. The last haul home stays under it.
+// clock (`tickExpeditions`, moved in place each second), and Bring It Home
+// once its time is up; then every run there is, each with how long it
+// takes, the level it opens at, the ward that keeps it safe and how much
+// yours does now (expeditions.ts riskOf), what it may bring home, and
+// Send. The last haul home stays under it.
 
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
@@ -65,28 +66,18 @@ export function renderExpeditions(
   if (out) {
     const card = el('section', 'bv-dial-run')
     card.dataset.run = out.id
-    const home = isHome(out, now)
-    const bar = el('div', 'bv-dial-meter bv-dial-run-bar')
-    bar.style.setProperty('--fill', String(progressOf(out, now)))
     const claim = text(
       'button',
       copy('dialup.expeditions.claim'),
       'bv-dial-btn bv-dial-btn--hot'
     )
     claim.type = 'button'
-    claim.disabled = !home || s.pending.expedition
     claim.addEventListener('click', () => actions.claim())
     card.append(
       text('p', copy('dialup.expeditions.out_now'), 'bv-dial-social-head'),
       text('h3', expeditionName(out.id), 'bv-dial-run-name'),
-      bar,
-      text(
-        'p',
-        home
-          ? copy('dialup.expeditions.home_now')
-          : copy('dialup.expeditions.left', { time: spanOf(out.endsAt - now) }),
-        'bv-dial-run-left'
-      ),
+      el('div', 'bv-dial-meter bv-dial-run-bar'),
+      el('p', 'bv-dial-run-left'),
       claim
     )
     parts.push(card)
@@ -146,4 +137,30 @@ export function renderExpeditions(
     parts.push(text('p', haulLine(s.haul), 'bv-dial-note bv-dial-haul'))
   }
   root.replaceChildren(...parts)
+  tickExpeditions(root, s, now)
+}
+
+// What moves on the valley's clock alone, moved in place: the run's bar,
+// its time left, and Bring It Home once it is back. The rest waits on a
+// frame, so a tap never lands on a node being replaced.
+export function tickExpeditions(
+  root: HTMLElement,
+  s: DialState,
+  now: number
+): void {
+  const out = s.expedition
+  const card = root.querySelector<HTMLElement>('.bv-dial-run')
+  if (!out || !card) return
+  const home = isHome(out, now)
+  card
+    .querySelector<HTMLElement>('.bv-dial-run-bar')
+    ?.style.setProperty('--fill', String(progressOf(out, now)))
+  const left = card.querySelector('.bv-dial-run-left')
+  if (left) {
+    left.textContent = home
+      ? copy('dialup.expeditions.home_now')
+      : copy('dialup.expeditions.left', { time: spanOf(out.endsAt - now) })
+  }
+  const claim = card.querySelector<HTMLButtonElement>('.bv-dial-btn')
+  if (claim) claim.disabled = !home || s.pending.expedition
 }

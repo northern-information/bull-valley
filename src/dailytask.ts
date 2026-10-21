@@ -9,7 +9,10 @@
 // (worker/packs.ts); this says what a burn does to it, by the counting
 // every goal shares (goal.ts).
 
+import { copy } from './copy.ts'
 import { advance, goalNews, shownProgress } from './goal.ts'
+import { formatCash } from './store.ts'
+import type { TaskWire } from './protocol.ts'
 
 interface DailyTask {
   // The key the account's progress is kept under.
@@ -71,4 +74,35 @@ type TaskNews = 'done' | 'burned' | 'past'
 export function taskNews(progress: TaskProgress, rewarded: boolean): TaskNews {
   const news = goalNews(progress, rewarded)
   return news === 'paid' ? 'done' : news === 'past' ? 'past' : 'burned'
+}
+
+// The account's progress as the valley sent it, when it is this task's;
+// null for another's, which says nothing of this one.
+export function taskOf(
+  wire: TaskWire,
+  task: DailyTask = DAILY_TASK
+): TaskProgress | null {
+  return wire.task === task.id
+    ? { day: wire.day, count: wire.count, claimed: wire.claimed }
+    : null
+}
+
+// A burn credited, as the log says it: the reward paid, or how far along
+// today's task; null past the goal, which is no news.
+export function taskLine(
+  progress: TaskProgress,
+  rewarded: boolean
+): string | null {
+  const { goal } = DAILY_TASK
+  switch (taskNews(progress, rewarded)) {
+    case 'done':
+      return copy('log.task_reward', {
+        goal,
+        cash: formatCash(DAILY_TASK.reward),
+      })
+    case 'burned':
+      return copy('log.task_burned', { count: progress.count, goal })
+    case 'past':
+      return null
+  }
 }

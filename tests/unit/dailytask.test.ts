@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest'
+import { copy } from '../../src/copy.ts'
 import {
   DAILY_TASK,
   NO_TASK,
   onDay,
   shownCount,
   tallyTask,
+  taskLine,
   taskNews,
+  taskOf,
 } from '../../src/dailytask.ts'
+import { formatCash } from '../../src/store.ts'
 import type { TaskProgress } from '../../src/dailytask.ts'
 
 const DAY = '2026-10-07'
@@ -67,5 +71,28 @@ describe('the daily task', () => {
     const done = burn(DAILY_TASK.goal, DAY).progress
     expect(taskNews(done, true)).toBe('done')
     expect(taskNews(done, false)).toBe('past')
+  })
+})
+
+describe('taskOf', () => {
+  it("reads this task's progress and nothing of another's", () => {
+    const wire = { task: DAILY_TASK.id, day: 'd', count: 2, claimed: true }
+    expect(taskOf(wire)).toEqual({ day: 'd', count: 2, claimed: true })
+    expect(taskOf({ ...wire, task: 'gone' })).toBeNull()
+  })
+})
+
+describe('taskLine', () => {
+  it('says the reward or how far along, and nothing past the goal', () => {
+    const { goal } = DAILY_TASK
+    expect(taskLine({ day: 'd', count: goal, claimed: true }, true)).toBe(
+      copy('log.task_reward', { goal, cash: formatCash(DAILY_TASK.reward) })
+    )
+    expect(taskLine({ day: 'd', count: 2, claimed: false }, false)).toBe(
+      copy('log.task_burned', { count: 2, goal })
+    )
+    expect(
+      taskLine({ day: 'd', count: goal + 1, claimed: true }, false)
+    ).toBeNull()
   })
 })

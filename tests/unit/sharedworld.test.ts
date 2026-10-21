@@ -31,6 +31,7 @@ import {
   createValley,
   creditedWith,
   dailyFor,
+  findsPay,
   healthFor,
   levelFor,
   maxFor,
@@ -93,6 +94,15 @@ const DEALER = { x: -30, z: -60 }
 // Noon, Central time, so a test has the afternoon before the day turns.
 const T0 = Date.UTC(2026, 9, 7, 17, 0, 0)
 const SEC = 1000
+
+// Raiders `ids` in Marx's bed, as the valley's own truck has them (rule 3).
+// A state frame's `riding` puts no one there.
+function seated(valley: Valley, ...ids: string[]): Valley {
+  const world = valley.world
+  if (!world) throw new Error('no world to sit in')
+  const riders = [...world.truck.riders, ...ids]
+  return { ...valley, world: { ...world, truck: { ...world.truck, riders } } }
+}
 
 // A little harness: applies actions in order, remembering who is present.
 function valleyWith(...actions: ValleyAction[]) {
@@ -308,11 +318,8 @@ describe('rule 2: a raider comes back where they stood', () => {
     expect(placeOf(v.valley, 'acct-a')).toEqual({ x: 120, z: -40, yaw: 1.5 })
   })
 
-  it('keeps nothing new for a raider who left riding, or unheard', () => {
+  it('keeps nothing new for a raider who left from the bed, or unheard', () => {
     const v = valleyWith(join('a'), leaveAs('a', at()))
-    v.step(join('a'))
-    v.step(leaveAs('a', at({ x: 0, riding: true })))
-    expect(placeOf(v.valley, 'acct-a')).toEqual({ x: 120, z: -40, yaw: 1.5 })
     v.step(join('a'))
     v.step({ type: 'board', id: 'a', at: HERE })
     v.step(leaveAs('a', at({ x: 5 })))
@@ -320,6 +327,12 @@ describe('rule 2: a raider comes back where they stood', () => {
     v.step(join('a'))
     v.step(leaveAs('a', null))
     expect(placeOf(v.valley, 'acct-a')?.x).toBe(120)
+  })
+
+  it('keeps where they stood when only their frame said they rode', () => {
+    const v = valleyWith(join('a'))
+    v.step(leaveAs('a', at({ x: 0, riding: true })))
+    expect(placeOf(v.valley, 'acct-a')?.x).toBe(0)
   })
 })
 
@@ -1096,9 +1109,14 @@ describe('rule 28: Citgos, and Citgo portals', () => {
       { id: 'c', at: standing(900, 900) },
       { id: 'd', at: null },
     ]
-    expect(citgoVisits(v.valley, placed)).toEqual([{ id: 'a', station: 1 }])
+    // In the bed, 'b' visits nothing. The riding flag in their frame does
+    // not keep them out: the bed does.
+    expect(citgoVisits(seated(v.valley, 'b'), placed)).toEqual([
+      { id: 'a', station: 1 },
+    ])
     v.step({ type: 'visit', id: 'a', station: 1 })
-    expect(citgoVisits(v.valley, placed)).toEqual([])
+    expect(citgoVisits(seated(v.valley, 'b'), placed)).toEqual([])
+    expect(citgoVisits(v.valley, placed)).toEqual([{ id: 'b', station: 1 }])
   })
 
   it('pays a bounty and XP the first time an account stands at each Citgo past its first', () => {
@@ -1374,6 +1392,36 @@ describe('rule 18: corpse runs', () => {
       at,
     }) satisfies ValleyAction
 
+  it('gives the key items on an account’s bodies back, and lets an empty body go', () => {
+    const v = valleyWith(join('a'), join('b'))
+    v.step({
+      type: 'fall',
+      id: 'a',
+      items: { 'vault-key': 1, marlboro: 2 },
+      at: { x: 0, z: 0, yaw: 0 },
+    })
+    v.step({
+      type: 'fall',
+      id: 'b',
+      items: { rose: 1 },
+      at: { x: 9, z: 0, yaw: 0 },
+    })
+    const r = v.step({ type: 'keys-back', account: 'acct-a' })
+    expect(r.give).toEqual({ account: 'acct-a', items: { 'vault-key': 1 } })
+    expect(r.broadcast).toEqual([])
+    expect(v.valley.corpses.find((c) => c.account === 'acct-a')?.items).toEqual(
+      { marlboro: 2 }
+    )
+    const b = v.step({ type: 'keys-back', account: 'acct-b' })
+    expect(b.give).toEqual({ account: 'acct-b', items: { rose: 1 } })
+    expect(b.broadcast[0]).toMatchObject({ reason: 'looted', corpse: 1 })
+    expect(corpsesOf(v.valley, 'acct-b')).toEqual([])
+    // Nothing left to give back: nothing to do.
+    expect(
+      v.step({ type: 'keys-back', account: 'acct-a' }).give
+    ).toBeUndefined()
+  })
+
   it('lays a body where the raider fell, with everything the pack held', () => {
     const v = valleyWith(join('a'), join('b'))
     const r = v.step(fell('a', { x: 40, z: -12, yaw: 1 }))
@@ -1397,7 +1445,7 @@ describe('rule 18: corpse runs', () => {
     ])
     expect(corpsesOf(v.valley, 'acct-a')).toEqual([0])
     expect(corpsesOf(v.valley, 'acct-b')).toEqual([])
-    // A second fall lays one body, with what the first still held.
+    // A second fall lays one body, and what the first held is lost.
     const again = v.step({
       type: 'fall',
       id: 'a',
@@ -1406,14 +1454,31 @@ describe('rule 18: corpse runs', () => {
     })
     expect(again.corpse).toBe(1)
     expect(corpsesOf(v.valley, 'acct-a')).toEqual([1])
-    expect(v.valley.corpses[0].items).toEqual({
-      marlboro: 14,
-      'gold-bullion': 1,
-      cabbage: 1,
-    })
+    expect(v.valley.corpses[0].items).toEqual({ marlboro: 2, cabbage: 1 })
     // Another account's body lies on.
     v.step(fell('b', { x: 1, z: 1, yaw: 0 }))
     expect(v.valley.corpses.map((c) => c.id)).toEqual([1, 2])
+  })
+
+  it('takes the first body away on a second fall that lays none', () => {
+    const v = valleyWith(join('a'), join('b'))
+    v.step(fell('a', { x: 40, z: -12, yaw: 1 }))
+    v.step(fell('b', { x: 1, z: 1, yaw: 0 }))
+    const empty = v.step({
+      type: 'fall',
+      id: 'a',
+      items: {},
+      at: { x: 0, z: 0, yaw: 0 },
+    })
+    expect(empty.corpse).toBeUndefined()
+    expect(empty.broadcast[0]).toMatchObject({ reason: 'fell', by: 'a' })
+    expect(empty.broadcast[0].world?.corpses.map((c) => c.id)).toEqual([1])
+    expect(corpsesOf(v.valley, 'acct-a')).toEqual([])
+    // Nowhere heard, the same.
+    v.step(fell('a', { x: 40, z: -12, yaw: 1 }))
+    expect(v.step(fell('a', null)).corpse).toBeUndefined()
+    expect(corpsesOf(v.valley, 'acct-a')).toEqual([])
+    expect(corpsesOf(v.valley, 'acct-b')).toEqual([1])
   })
 
   it('lays none with nothing on it, nowhere heard, or for a stranger', () => {
@@ -1548,6 +1613,18 @@ describe('rule 19: the stash', () => {
       account: 'acct-a',
       kind: 'marlboro',
       delta: -2,
+    })
+  })
+
+  it('never takes a key item into the locker, but lets one out', () => {
+    const v = valleyWith(join('a'))
+    expect(
+      v.step(stow('a', at(-17, 0), 'stow', 'vault-key', 1)).reply
+    ).toMatchObject({ re: 'stow', reason: 'key-item' })
+    expect(v.step(stow('a', at(-17, 0), 'unstow', 'rose', 1)).stash).toEqual({
+      account: 'acct-a',
+      kind: 'rose',
+      delta: -1,
     })
   })
 
@@ -1810,6 +1887,17 @@ describe('rule 23: the Cabbage Stand', () => {
       tend(v.valley, { type: 'stand-collect', id: 'a', at: beside }, fresh)
         .reply
     ).toMatchObject({ reason: 'no-stand' })
+  })
+})
+
+describe('rule 20: what a find pays', () => {
+  it('pays the Keep its bounty and XP, and nothing else anything', () => {
+    expect(findsPay('acct-a', ['keep', 'marx'])).toEqual({
+      cents: CONFIG.bounties.keep,
+      xp: [{ account: 'acct-a', source: 'landmark' }],
+    })
+    expect(findsPay('acct-a', ['marx', 'citgo'])).toEqual({ cents: 0, xp: [] })
+    expect(findsPay('acct-a', [])).toEqual({ cents: 0, xp: [] })
   })
 })
 
@@ -2114,7 +2202,9 @@ describe("rule 11: the shadowmen are the valley's", () => {
       shadowRaiders(aboard, shadows, [{ id: 'a', at: state() }], T0)[0]
         .vulnerable
     ).toBe(false)
-    expect(vulnerable(state({ riding: true }))).toBe(false)
+    // A frame's word that it rides is not the bed: a client that says so
+    // on foot is rushed like anyone.
+    expect(vulnerable(state({ riding: true }))).toBe(true)
     shadows.recovering['acct-b'] = T0 + 1
     expect(vulnerable(state())).toBe(false)
   })
@@ -2216,10 +2306,10 @@ describe("rule 11: the shadowmen are the valley's", () => {
   })
 
   it('bursts in a beam, and sends where', () => {
-    const v = valley()
+    const v = seated(valley(), 'b')
     const shadows = createShadows()
     // From the bed, so it stands still to burn rather than rushing.
-    const placed = [{ id: 'b', at: state({ light: true, riding: true }) }]
+    const placed = [{ id: 'b', at: state({ light: true }) }]
     stepShadows(v, shadows, placed, mulberry32(1), { now: T0, dt: 0 })
     shadows.field.shadowmen = []
     const id = shadows.field.nextId
@@ -2237,10 +2327,10 @@ describe("rule 11: the shadowmen are the valley's", () => {
   })
 
   it("burns in Marx's headlights while a raider near says where they are", () => {
-    const v = valley()
+    const v = seated(valley(), 'b')
     const shadows = createShadows()
     // From the bed, light down, so the one placed stands still to burn.
-    const placed = [{ id: 'b', at: state({ riding: true }) }]
+    const placed = [{ id: 'b', at: state() }]
     stepShadows(v, shadows, placed, mulberry32(1), { now: T0, dt: 0 })
     shadows.field.shadowmen = []
     // The truck 20 m east of the raider, facing north (-Z), on the one placed.
@@ -2272,9 +2362,9 @@ describe("rule 11: the shadowmen are the valley's", () => {
   })
 
   it('sends a spider as one, its burn against its own longer time', () => {
-    const v = valley()
+    const v = seated(valley(), 'b')
     const shadows = createShadows()
-    const placed = [{ id: 'b', at: state({ light: true, riding: true }) }]
+    const placed = [{ id: 'b', at: state({ light: true }) }]
     stepShadows(v, shadows, placed, mulberry32(1), { now: T0, dt: 0 })
     shadows.field.shadowmen = []
     placeShadowman(shadows, 500, 490, 'spider')
@@ -2515,16 +2605,16 @@ describe('rule 13: the Caretaker keeps the maze', () => {
     expect(shadows.caretaker.target).toBeNull()
   })
 
-  it('never hunts a raider riding, or outside the corn', () => {
+  it('never hunts a raider in the bed, or outside the corn', () => {
     const v = valley()
-    for (const where of [
-      state({ ...at(0, 2), riding: true }),
-      state({ x: MAZE.x - 5, z: MAZE.z - 5 }),
-    ]) {
+    for (const [valleyNow, where] of [
+      [seated(v, 'b'), state({ ...at(0, 2) })],
+      [v, state({ x: MAZE.x - 5, z: MAZE.z - 5 })],
+    ] as const) {
       const shadows = createShadows()
-      placeCaretaker(v, shadows, at().x, at().z)
+      placeCaretaker(valleyNow, shadows, at().x, at().z)
       const out = stepShadows(
-        v,
+        valleyNow,
         shadows,
         [{ id: 'b', at: where }],
         mulberry32(1),
@@ -2539,13 +2629,13 @@ describe('rule 13: the Caretaker keeps the maze', () => {
   })
 
   it('shrugs off one beam, is burned by two, and forms again at the heart', () => {
-    const v = valley()
+    const v = seated(valley(), 'a', 'b')
     const shadows = createShadows()
     placeCaretaker(v, shadows, at().x, at().z)
     // Down the court from it, looking at it (+z is yaw pi), from the bed so
     // it never comes for them.
     const lit = (dx: number) =>
-      state({ ...at(dx, -8), yaw: Math.PI, light: true, riding: true })
+      state({ ...at(dx, -8), yaw: Math.PI, light: true })
     const step = (placed: Placed[], dt: number) => {
       shadows.field.shadowmen = []
       return stepShadows(v, shadows, placed, mulberry32(1), { now: T0, dt })
@@ -2660,6 +2750,31 @@ describe('rule 24: geometrie', () => {
     expect(healthFor(v.valley, 'acct-a')).toBe(MAX)
   })
 
+  it('takes a fall off it by its height, nothing cutting it', () => {
+    const { safe, lethal } = CONFIG.fall
+    const v = valleyWith(join('a'))
+    // Dosed to the eyes: no ward cuts a fall.
+    v.step({ type: 'dose', id: 'a', kind: 'joints' })
+    expect(
+      v.step({ type: 'plunge', id: 'a', height: safe - 0.5 }).health
+    ).toBeUndefined()
+    const half = (safe + lethal) / 2
+    expect(v.step({ type: 'plunge', id: 'a', height: half }).health).toEqual({
+      account: 'acct-a',
+      points: MAX - MAX / 2,
+      max: MAX,
+      hit: { by: 'fall', damage: MAX / 2, warded: 0 },
+    })
+    // Two stories shatter it, and the account is whole and sober after.
+    const fatal = v.step({ type: 'plunge', id: 'a', height: 30 })
+    expect(fatal.health).toMatchObject({ points: 0, fatal: true })
+    expect(fatal.health?.hit).toEqual({ by: 'fall', damage: MAX, warded: 0 })
+    expect(healthFor(v.valley, 'acct-a')).toBe(MAX)
+    expect(
+      v.step({ type: 'plunge', id: 'nobody', height: 30 }).health
+    ).toBeUndefined()
+  })
+
   it("is the account's: a second socket shares it, and a stranger has none", () => {
     const second = { ...joinAs('b'), account: 'acct-a' }
     const v = valleyWith(join('a'), second)
@@ -2729,21 +2844,25 @@ describe('rule 24: geometrie', () => {
         { id: 'c', at: at() },
       ])
     ).toEqual(['a'])
+    // In the bed, no one is made whole; a frame that only says it rides is.
+    expect(
+      forecourtMends(seated(v.valley, 'a'), [{ id: 'a', at: yard }])
+    ).toEqual([])
     expect(
       forecourtMends(v.valley, [{ id: 'a', at: { ...yard, riding: true } }])
-    ).toEqual([])
+    ).toEqual(['a'])
     expect(forecourtMends(v.valley, [{ id: 'a', at: null }])).toEqual([])
   })
 
   it('counts no spiderling toward the daily task or XP', () => {
-    const v = valleyWith(join('a'))
+    const bed = seated(valleyWith(join('a')).valley, 'a')
     const shadows = createShadows()
     // From the bed, lit, so the brood holds still to burn.
-    const placed = [{ id: 'a', at: at({ light: true, riding: true }) }]
-    stepShadows(v.valley, shadows, placed, mulberry32(1), { now: T0, dt: 0 })
+    const placed = [{ id: 'a', at: at({ light: true }) }]
+    stepShadows(bed, shadows, placed, mulberry32(1), { now: T0, dt: 0 })
     shadows.field.shadowmen = []
     placeShadowman(shadows, 500, 490, 'spiderling')
-    const out = stepShadows(v.valley, shadows, placed, mulberry32(1), {
+    const out = stepShadows(bed, shadows, placed, mulberry32(1), {
       now: T0,
       dt: CONFIG.shadowmen.spiderling.burnSeconds,
     })
@@ -2768,7 +2887,7 @@ describe('rule 27: buffs', () => {
     light: false,
     ...over,
   })
-  const spot = (x: number, z: number, riding = false) => ({ x, z, riding })
+  const spot = (x: number, z: number) => ({ x, z })
   const pass = (
     over: Partial<Extract<ValleyAction, { type: 'pass' }>> = {}
   ): ValleyAction => ({
@@ -2825,7 +2944,14 @@ describe('rule 27: buffs', () => {
     const v = valleyWith(join('a'), join('b'), second)
     const reason = (action: ValleyAction) => v.step(action).reply?.reason
     expect(reason(pass({ at: spot(510, 500) }))).toBe('too-far')
-    expect(reason(pass({ at: spot(501, 500, true) }))).toBe('not-on-foot')
+    for (const rider of ['a', 'b']) {
+      const bed = valleyWith(join('a'), join('b'), {
+        type: 'board',
+        id: rider,
+        at: HERE,
+      })
+      expect(bed.step(pass()).reply?.reason).toBe('not-on-foot')
+    }
     expect(reason(pass({ from: null }))).toBe('not-on-foot')
     expect(reason(pass({ at: null }))).toBe('not-on-foot')
     expect(reason(pass({ to: 'c' }))).toBe('no-one')
@@ -2957,6 +3083,13 @@ describe('rule 29: Bull Valley Dial-Up', () => {
     v.step(dial('p'))
     expect(v.valley.world?.truck.leg).toEqual(leg)
     expect(Object.keys(v.valley.members).sort()).toEqual(['a', 'p'])
+  })
+
+  it('never falls', () => {
+    const v = valleyWith(dial('p'))
+    expect(
+      v.step({ type: 'plunge', id: 'p', height: 30 }).health
+    ).toBeUndefined()
   })
 
   it('refuses whatever takes a body', () => {

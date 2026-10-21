@@ -1,11 +1,11 @@
 // The Citgo portals as they stand in the valley (sharedworld.ts rule 28):
 // both ends of each, one cornmazeparts.ts buildPortal in CITGO_PORTAL's
 // blue on ground.at, turned the way the end faces, with the name of the
-// raider who opened it over it. Kept in step with the open portals, the
-// valley's or this raider's alone.
+// raider who opened it over it. Kept in step with the valley's open
+// portals.
 
 import * as THREE from 'three'
-import { buildPortal, CITGO_PORTAL } from './assets.ts'
+import { buildPortal, CITGO_PORTAL, disposeTree } from './assets.ts'
 import { canvas, EGGSHELL, MONO, text } from './canvas.ts'
 import type { PortalRig } from './assets.ts'
 import type { Portal, PortalEnd } from './portals.ts'
@@ -46,27 +46,6 @@ function nameSprite(name: string): THREE.Sprite {
   return sprite
 }
 
-// Everything one end was built with is its own (a sprite's geometry is
-// three's, shared by every sprite, so it stays).
-function disposeEnd(group: THREE.Object3D): void {
-  const free = (material: THREE.Material) => {
-    if ('map' in material && material.map instanceof THREE.Texture) {
-      material.map.dispose()
-    }
-    material.dispose()
-  }
-  group.traverse((node) => {
-    if (node instanceof THREE.Sprite) free(node.material)
-    if (!(node instanceof THREE.Mesh)) return
-    const mesh = node as THREE.Mesh
-    mesh.geometry.dispose()
-    const materials = Array.isArray(mesh.material)
-      ? mesh.material
-      : [mesh.material]
-    for (const material of materials) free(material)
-  })
-}
-
 export function createPortalMeshes(
   groundAt: (x: number, z: number) => number
 ): PortalMeshes {
@@ -101,7 +80,8 @@ export function createPortalMeshes(
           dispose() {
             for (const end of ends) {
               group.remove(end.group)
-              disposeEnd(end.group)
+              // Everything one end was built with is its own, its maps too.
+              disposeTree(end.group, { maps: true })
             }
           },
         })

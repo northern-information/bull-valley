@@ -4,32 +4,47 @@
 // the season, the daily task, the Book of Shadows and the Citgos found,
 // the quests, who else is in the valley, the chat log and the friends
 // list, and the world as the last snapshot left it (the shelves, Erwin's
-// stock); and the raider's record as the lobby shows it (`raiderStats`). The phone keeps nothing of
-// its own: every number on it is the valley's last word. Each frame may
-// also leave a line for the screen to say (`said`), and each ask waits on
-// an answer (`pending`). dialmain.ts feeds it.
+// stock); and the raider's record as the lobby shows it (`raiderStats`).
+// The phone keeps nothing of its own: every number on it is the valley's
+// last word. Each frame may also leave a line for the screen to say
+// (`said`), and each ask waits on an answer (`pending`). dialmain.ts feeds
+// it, with both clocks: no clock is read here. What both apps read the
+// same way lives in the pure module it belongs to.
 
-import { BOOK } from './book.ts'
+import { BOOK, foundLines } from './book.ts'
 import { isLevels } from './buffs.ts'
-import { CHAT_COPY, chatCommand, onlineLine, pushLine } from './chat.ts'
-import { NO_CITGOS } from './citgos.ts'
+import {
+  CHAT_COPY,
+  chatCommand,
+  joinedLine,
+  onlineLine,
+  peerNews,
+  pushLine,
+  whisperLine,
+} from './chat.ts'
+import { citgoLines, NO_CITGOS } from './citgos.ts'
 import { copy } from './copy.ts'
-import { cosmeticById, toCosmetics } from './cosmetics.ts'
-import { DAILY_TASK, NO_TASK, shownCount } from './dailytask.ts'
-import { dealRefusal } from './dealer.ts'
+import { cosmeticById, gainedOf, toCosmetics } from './cosmetics.ts'
+import {
+  DAILY_TASK,
+  NO_TASK,
+  shownCount,
+  taskLine,
+  taskOf,
+} from './dailytask.ts'
+import { boughtLine, dealRefusal } from './dealer.ts'
 import { isExpeditionRun } from './expeditions.ts'
 import {
-  friendLines,
   friendNews,
   friendRefusal,
-  settledAsk,
+  listAnswer,
   whisperRefusal,
 } from './friends.ts'
 import { BASE_GEOMETRIE } from './health.ts'
 import { toInventory } from './inventory.ts'
 import { itemLabel, itemLine } from './itemcopy.ts'
 import { itemById } from './items.ts'
-import { barOf } from './progression.ts'
+import { barOf, levelUp } from './progression.ts'
 import { normalizeChat } from './protocol.ts'
 import {
   isQuest,
@@ -38,7 +53,14 @@ import {
   stepRefusal,
   toQuests,
 } from './quests.ts'
-import { NO_PROGRESS, SEASON, shownKills } from './season.ts'
+import {
+  NO_PROGRESS,
+  SEASON,
+  seasonLine,
+  seasonOf,
+  shownKills,
+} from './season.ts'
+import { buyRefusal } from './shop.ts'
 import { isStandLedger, refusalLine, standNews } from './stand.ts'
 import { formatCash } from './store.ts'
 import type { ChatLine } from './chat.ts'
@@ -97,6 +119,9 @@ export interface DialState {
   // The last snapshot of the world, or null when no 3D raider has opened
   // one.
   world: WorldWire | null
+  // Each Citgo's name, as the map names it (citgomap.ts citgoNames), once
+  // the survey is read; empty before.
+  citgoNames: readonly string[]
   // The last word for the screen, and when (local ms).
   said: { text: string; at: number } | null
   // Asks the valley has not answered yet: the stand's, the locker's, a
@@ -159,6 +184,7 @@ export const DIALED: DialState = {
   chat: [],
   friends: [],
   world: null,
+  citgoNames: [],
   said: null,
   pending: NOTHING_PENDING,
 }
@@ -173,6 +199,38 @@ export function asked(s: DialState, what: Partial<Pending>): DialState {
   return { ...s, pending: { ...s.pending, ...what }, said: null }
 }
 
+// An ask the phone would send, at local `at`: waiting on the valley while
+// the line is up; while it is down nothing would answer, so nothing waits
+// and the screen says there is no signal.
+export function asking(
+  s: DialState,
+  what: Partial<Pending>,
+  online: boolean,
+  at: number
+): DialState {
+  return online ? asked(s, what) : saying(s, copy('dialup.no_signal'), at)
+}
+
+// The line to the valley dropped, at local `at` (`now` epoch ms for the
+// log): nothing asked of it will be answered, so nothing waits. The
+// welcome that ends the drop puts the rest right.
+export function lineLost(s: DialState, at: number, now: number): DialState {
+  return news(
+    { ...s, pending: NOTHING_PENDING },
+    copy('log.signal_lost'),
+    at,
+    now
+  )
+}
+
+// Each Citgo's name, read off the survey, for the lines that name one.
+export function withCitgoNames(
+  s: DialState,
+  names: readonly string[]
+): DialState {
+  return { ...s, citgoNames: names }
+}
+
 // The log with one more line from the game, at `now` (epoch ms).
 function told(s: DialState, text: string, now: number): DialState {
   return { ...s, chat: pushLine(s.chat, { kind: 'system', text, at: now }) }
@@ -183,11 +241,13 @@ function news(s: DialState, text: string, at: number, now: number): DialState {
   return told(saying(s, text, at), text, now)
 }
 
-// The state after one frame from the valley, at local `now`.
+// The state after one frame from the valley, at local `now` (what the
+// screen says is timed by it) and `wall` epoch ms (what the log keeps).
 export function applyFrame(
   s: DialState,
   msg: ServerMessage,
-  now: number
+  now: number,
+  wall: number
 ): DialState {
   switch (msg.type) {
     case 'welcome':
@@ -203,12 +263,8 @@ export function applyFrame(
         health: msg.health,
         healthMax: msg.healthMax,
         wards: isLevels(msg.wards) ? msg.wards : NO_WARDS,
-        season: { kills: msg.season.kills, claimed: msg.season.claimed },
-        task: {
-          day: msg.task.day,
-          count: msg.task.count,
-          claimed: msg.task.claimed,
-        },
+        season: seasonOf(msg.season) ?? NO_PROGRESS,
+        task: taskOf(msg.task) ?? NO_TASK,
         book: [...msg.book],
         citgos: msg.citgos,
         quests: toQuests(msg.quests),
@@ -228,15 +284,9 @@ export function applyFrame(
         pending: { ...s.pending, locker: false, trade: false },
       }
       // Rule 14: a cosmetic Moab traded, worn now.
-      const worn = cosmetics.find((id) => !s.cosmetics.includes(id))
-      if (!worn) return next
-      return news(
-        next,
-        copy('log.cosmetic_worn', {
-          cosmetic: cosmeticById(worn)?.label ?? worn,
-        }),
-        now,
-        Date.now()
+      return gainedOf(s.cosmetics, cosmetics).reduce(
+        (after, id) => news(after, cosmeticById(id)?.worn ?? id, now, wall),
+        next
       )
     }
     case 'stand': {
@@ -248,14 +298,27 @@ export function applyFrame(
       }
       return saying(next, standNews(msg, s.stand), now)
     }
-    case 'xp':
-      return { ...s, xp: Math.max(s.xp, msg.xp) }
+    // What the account did, here or in the 3D valley, goes into the log
+    // alone: the screen's word (`said`) is the valley's answer to an ask
+    // of the phone's own, which a dialog may be showing.
+    case 'xp': {
+      // Rule 22: XP only grows, so a frame overtaken by a later one is old
+      // news.
+      const xp = Math.max(s.xp, msg.xp)
+      const level = levelUp(s.xp, xp)
+      const next = { ...s, xp }
+      return level === null
+        ? next
+        : told(next, copy('log.level_up', { level }), wall)
+    }
     case 'health':
       return { ...s, health: msg.health, healthMax: msg.max }
     case 'wards':
       return isLevels(msg.wards) ? { ...s, wards: msg.wards } : s
     case 'world':
-      return msg.world ? worldNews({ ...s, world: msg.world }, msg, now) : s
+      return msg.world
+        ? worldNews({ ...s, world: msg.world }, msg, now, wall)
+        : s
     case 'quest': {
       if (!isQuest(msg.quest) || !isQuestStage(msg.stage)) return s
       const next = {
@@ -263,7 +326,7 @@ export function applyFrame(
         quests: { ...s.quests, [msg.quest]: msg.stage },
         pending: { ...s.pending, deal: false },
       }
-      return news(next, stepNews(msg.step), now, Date.now())
+      return news(next, stepNews(msg.step), now, wall)
     }
     case 'expedition': {
       const next: DialState = {
@@ -273,7 +336,7 @@ export function applyFrame(
         ...(msg.outcome ? { haul: msg.outcome } : {}),
       }
       if (msg.outcome) {
-        return news(next, haulLine(msg.outcome), now, Date.now())
+        return news(next, haulLine(msg.outcome), now, wall)
       }
       return next.expedition
         ? news(
@@ -282,31 +345,44 @@ export function applyFrame(
               run: expeditionName(next.expedition.id),
             }),
             now,
-            Date.now()
+            wall
           )
         : next
     }
     case 'peer-joined':
+      // Back from a dropped line under the id we still see: no news.
+      if (s.peers.some((p) => p.id === msg.peer.id)) {
+        return {
+          ...s,
+          peers: s.peers.map((p) => (p.id === msg.peer.id ? msg.peer : p)),
+        }
+      }
       return told(
         {
           ...s,
           peers: [...s.peers.filter((p) => p.id !== msg.peer.id), msg.peer],
         },
-        msg.peer.dialup
-          ? copy('log.peer_dialed', { name: msg.peer.name })
-          : copy('log.peer_joined', { name: msg.peer.name }),
-        Date.now()
+        joinedLine(msg.peer),
+        wall
       )
-    case 'peer-updated':
-      return {
+    case 'peer-updated': {
+      const was = s.peers.find((p) => p.id === msg.peer.id)
+      const next = {
         ...s,
         peers: s.peers.map((p) => (p.id === msg.peer.id ? msg.peer : p)),
       }
+      // Our own comes back too; Gron's dialog has said so already.
+      if (msg.peer.id === s.id) return next
+      return peerNews(was, msg.peer).reduce(
+        (after, line) => told(after, line, wall),
+        next
+      )
+    }
     case 'peer-left': {
       const gone = s.peers.find((p) => p.id === msg.id)
       const next = { ...s, peers: s.peers.filter((p) => p.id !== msg.id) }
       return gone
-        ? told(next, copy('log.peer_left', { name: gone.name }), Date.now())
+        ? told(next, copy('log.peer_left', { name: gone.name }), wall)
         : next
     }
     case 'chat':
@@ -320,19 +396,13 @@ export function applyFrame(
         }),
       }
     case 'whisper':
-      return {
-        ...s,
-        chat: pushLine(s.chat, {
-          kind: 'whisper',
-          name: msg.outgoing
-            ? copy('chat.whisper_to', { name: msg.to })
-            : copy('chat.whisper_from', { name: msg.from }),
-          text: msg.text,
-          at: msg.at,
-        }),
-      }
+      return { ...s, chat: pushLine(s.chat, whisperLine(msg)) }
     case 'friends': {
-      const settled = s.pending.ask && settledAsk(s.pending.ask, msg.friends)
+      const { settled, lines } = listAnswer(
+        s.pending.ask,
+        s.pending.showFriends,
+        msg.friends
+      )
       let next: DialState = {
         ...s,
         friends: msg.friends,
@@ -342,37 +412,46 @@ export function applyFrame(
           showFriends: false,
         },
       }
-      if (settled) next = news(next, settled, now, Date.now())
-      if (s.pending.showFriends) {
-        for (const line of friendLines(msg.friends)) {
-          next = told(next, line, Date.now())
-        }
-      }
+      if (settled) next = news(next, settled, now, wall)
+      for (const line of lines) next = told(next, line, wall)
       return next
     }
     case 'friend-news':
-      return told(s, friendNews(msg.news, msg.name), Date.now())
-    case 'season':
-      return {
+      return told(s, friendNews(msg.news, msg.name), wall)
+    // Another season's or another task's progress says nothing of this
+    // one's.
+    case 'season': {
+      const season = seasonOf(msg.season)
+      if (!season) return s
+      return told({ ...s, season }, seasonLine(season, msg.rewarded), wall)
+    }
+    case 'task': {
+      const task = taskOf(msg.task)
+      if (!task) return s
+      const line = taskLine(task, msg.rewarded)
+      const next = { ...s, task }
+      return line ? told(next, line, wall) : next
+    }
+    case 'book': {
+      // A page already written is never written twice, nor said again.
+      const fresh = msg.found.filter((id) => !s.book.includes(id))
+      return foundLines(fresh).reduce(
+        (after, line) => told(after, line, wall),
+        { ...s, book: [...s.book, ...fresh] }
+      )
+    }
+    case 'citgos': {
+      const lines = citgoLines(
+        s.citgos,
+        msg.citgos,
+        (station) => s.citgoNames[station] ?? '',
+        s.world !== null
+      )
+      return lines.reduce((after, line) => told(after, line, wall), {
         ...s,
-        season: { kills: msg.season.kills, claimed: msg.season.claimed },
-      }
-    case 'task':
-      return {
-        ...s,
-        task: {
-          day: msg.task.day,
-          count: msg.task.count,
-          claimed: msg.task.claimed,
-        },
-      }
-    case 'book':
-      return {
-        ...s,
-        book: [...s.book, ...msg.found.filter((id) => !s.book.includes(id))],
-      }
-    case 'citgos':
-      return { ...s, citgos: msg.citgos }
+        citgos: msg.citgos,
+      })
+    }
     case 'nack':
       switch (msg.re) {
         case 'stand-stock':
@@ -391,7 +470,7 @@ export function applyFrame(
             now
           )
         default:
-          return refused(s, msg, now)
+          return refused(s, msg, now, wall)
       }
     default:
       return s
@@ -400,7 +479,12 @@ export function applyFrame(
 
 // What a snapshot means to this raider: a unit they bought, a deal of
 // theirs with Erwin.
-function worldNews(s: DialState, msg: WorldMessage, now: number): DialState {
+function worldNews(
+  s: DialState,
+  msg: WorldMessage,
+  now: number,
+  wall: number
+): DialState {
   if (s.id === null || msg.by !== s.id || !msg.item) return s
   if (msg.reason === 'bought') {
     return news(
@@ -408,15 +492,15 @@ function worldNews(s: DialState, msg: WorldMessage, now: number): DialState {
       itemLine(msg.item, 'bought') ??
         copy('dialup.citgo.bought', { item: itemLabel(msg.item) }),
       now,
-      Date.now()
+      wall
     )
   }
   if (msg.reason === 'dealt') {
     return news(
       { ...s, pending: { ...s.pending, deal: false } },
-      copy('dealer.bought', { item: itemLabel(msg.item) }),
+      boughtLine(msg.item),
       now,
-      Date.now()
+      wall
     )
   }
   return s
@@ -424,12 +508,17 @@ function worldNews(s: DialState, msg: WorldMessage, now: number): DialState {
 
 // The valley's refusal of a buy, a deal, a quest step, a trade, a line, a
 // whisper or a friend asked.
-function refused(s: DialState, msg: NackMessage, now: number): DialState {
+function refused(
+  s: DialState,
+  msg: NackMessage,
+  now: number,
+  wall: number
+): DialState {
   const done = (pending: Partial<Pending>, text: string) =>
-    news({ ...s, pending: { ...s.pending, ...pending } }, text, now, Date.now())
+    news({ ...s, pending: { ...s.pending, ...pending } }, text, now, wall)
   switch (msg.re) {
     case 'buy':
-      return done({ buy: null }, buyRefusal(s, msg))
+      return done({ buy: null }, buyRefusal(msg.reason, msg.item, s.cash))
     case 'deal':
       return done({ deal: false }, dealRefusal(msg.reason))
     case 'quest':
@@ -452,30 +541,12 @@ function refused(s: DialState, msg: NackMessage, now: number): DialState {
         { ask: null },
         friendRefusal(msg.reason, s.pending.ask?.name ?? '')
       )
+    case 'rename':
+    case 'appearance':
+      // The account kept the change; only the valley's roster missed it.
+      return done({}, copy('log.change_unheard'))
     default:
       return s
-  }
-}
-
-// Why the valley would not sell: sold out, short, a Citgo the account has
-// not stood at, or no world to buy in.
-function buyRefusal(s: DialState, msg: NackMessage): string {
-  const price = msg.item ? itemById(msg.item)?.price : undefined
-  switch (msg.reason) {
-    case 'sold-out':
-      return copy('log.sold_out')
-    case 'short':
-      return price === undefined
-        ? copy('log.refused')
-        : copy('log.short', {
-            amount: formatCash(Math.max(0, price - s.cash)),
-          })
-    case 'not-visited':
-      return copy('dialup.citgo.not_visited')
-    case 'not-in-valley':
-      return copy('dialup.citgo.no_world')
-    default:
-      return copy('log.refused')
   }
 }
 

@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest'
+import { copy } from '../../src/copy.ts'
 import { contentsOf } from '../../src/items.ts'
 import {
   newsOf,
   NO_PROGRESS,
   SEASON,
+  seasonLine,
+  seasonOf,
   shownKills,
   tally,
 } from '../../src/season.ts'
+import { formatCash } from '../../src/store.ts'
 
 describe('Season One: The Caretaker', () => {
   it('asks for five burnings and pays $100 and a carton of Reds', () => {
@@ -54,5 +58,29 @@ describe('Season One: The Caretaker', () => {
     expect(newsOf({ kills: 2, claimed: false }, false)).toBe('burned')
     expect(newsOf({ kills: 5, claimed: true }, true)).toBe('complete')
     expect(newsOf({ kills: 6, claimed: true }, false)).toBe('again')
+  })
+})
+
+describe('seasonOf', () => {
+  it("reads this season's progress and nothing of another's", () => {
+    expect(seasonOf({ season: SEASON.id, kills: 3, claimed: false })).toEqual({
+      kills: 3,
+      claimed: false,
+    })
+    expect(seasonOf({ season: 'gone', kills: 3, claimed: true })).toBeNull()
+  })
+})
+
+describe('seasonLine', () => {
+  it('says the reward, how far along, or one more past the end', () => {
+    expect(seasonLine({ kills: 5, claimed: true }, true)).toBe(
+      copy('log.season_reward', { cash: formatCash(SEASON.reward.cash) })
+    )
+    expect(seasonLine({ kills: 2, claimed: false }, false)).toBe(
+      copy('log.season_burned', { kills: 2, goal: SEASON.goal })
+    )
+    expect(seasonLine({ kills: 6, claimed: true }, false)).toBe(
+      copy('log.season_burned_again')
+    )
   })
 })

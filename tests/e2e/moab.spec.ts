@@ -112,3 +112,56 @@ test('Moab Coldë trades the Flaming Halo for an ounce of gold', async ({
   await expect(page.locator('.bv-bag')).toBeVisible()
   await expect(page.locator('.bv-bag-avatar')).toBeVisible()
 })
+
+test('Moab Coldë trades David Coleman: #1 for ten ounces of gold', async ({
+  page,
+}) => {
+  await beginRaid(page)
+  const look = (outfit: string) =>
+    page.evaluate(
+      async (outfit) =>
+        (
+          await fetch('/auth/look', {
+            method: 'PUT',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ outfit, finish: 'black' }),
+          })
+        ).status,
+      outfit
+    )
+  // The refusal before the trade is the Worker tests' (tests/worker
+  // auth.test.ts): the fixture counts any 4xx as a page error.
+  await page.evaluate(() => window.__bv?.grant('gold-bullion', 10))
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.inventory['gold-bullion']))
+    .toBe(10)
+  await standAtMoab(page)
+  // Carrying enough, he offers #1 before the halo.
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.chat.at(-1)?.text))
+    .toBe(copy('cosmetics.coleman-1.offer'))
+  await expect(page.locator('.bv-prompt')).toHaveText(
+    copy('prompts.trade', {
+      count: 10,
+      price: copy('items.gold-bullion.label'),
+      cosmetic: copy('cosmetics.coleman-1.label'),
+    })
+  )
+  await page.keyboard.press('KeyE')
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.cosmetics))
+    .toEqual(['coleman-1'])
+  expect(
+    await page.evaluate(() => window.__bv?.inventory['gold-bullion'])
+  ).toBe(0)
+  const lines = await page.evaluate(() =>
+    window.__bv?.chat.slice(-2).map((line) => line.text)
+  )
+  expect(lines).toEqual([
+    copy('cosmetics.coleman-1.traded'),
+    copy('cosmetics.coleman-1.worn'),
+  ])
+  // His now: the account may raid as him.
+  expect(await look('coleman1')).toBe(200)
+})

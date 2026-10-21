@@ -230,6 +230,26 @@ function packContract(makeStore: () => PackStore): void {
     expect(await store.book('a2')).toEqual([])
   })
 
+  it('pays what the finds are worth with them, and never again', async () => {
+    const store = makeStore()
+    await store.open('a1')
+    const before = (await store.get('a1')).cash
+    const asked: string[][] = []
+    const pays = (found: readonly string[]) => {
+      asked.push([...found])
+      return found.includes('keep') ? 2500 : 0
+    }
+    expect(await store.discover('a1', ['keep', 'marx'], 1, pays)).toEqual([
+      'keep',
+      'marx',
+    ])
+    expect((await store.get('a1')).cash).toBe(before + 2500)
+    expect(await store.discover('a1', ['keep'], 2, pays)).toEqual([])
+    expect((await store.get('a1')).cash).toBe(before + 2500)
+    // Only what was new is ever priced.
+    expect(asked).toEqual([['keep', 'marx']])
+  })
+
   it('keeps daily task progress, paying its reward with it', async () => {
     const store = makeStore()
     await store.open('a1')
@@ -287,6 +307,20 @@ function packContract(makeStore: () => PackStore): void {
       ...STARTING_INVENTORY,
       [OTHER]: 2,
     })
+  })
+
+  it('leaves the key items in the pack when it is emptied', async () => {
+    const store = makeStore()
+    await store.open('a1')
+    await store.change('a1', 'rose', 1)
+    await store.change('a1', 'vault-key', 1)
+    const taken = await store.strip('a1')
+    expect(taken).not.toHaveProperty('rose')
+    expect(taken).not.toHaveProperty('vault-key')
+    expect(taken).toEqual(pickHeld(STARTING_INVENTORY))
+    const { pack } = await store.get('a1')
+    expect(pack.rose).toBe(1)
+    expect(pack['vault-key']).toBe(1)
   })
 
   it('moves units into the locker and back, only what the side holds', async () => {
@@ -409,6 +443,21 @@ describe('D1PackStore', () => {
       store.purchase('a1', 100, { kind: OTHER, delta: -1 })
     ).rejects.toThrow(/CHECK/)
     expect((await store.get('a1')).cash).toBe(STARTING_CASH)
+  })
+
+  it('writes no find when its bounty cannot go into the wallet', async () => {
+    const { db, sqlite } = testD1()
+    sqlite.exec(
+      "INSERT INTO accounts (account_id, primary_provider, created_at, last_login_at) VALUES ('a1', 'dev:1', 0, 0)"
+    )
+    const store = new D1PackStore(db)
+    await store.open('a1')
+    // No wallet to write: the batch rolls back, the book row with it.
+    sqlite.exec('DROP TABLE wallets')
+    await expect(
+      store.discover('a1', ['keep'], 1, () => 2500)
+    ).rejects.toThrow()
+    expect(await store.book('a1')).toEqual([])
   })
 
   it('reads a stand row no build wrote as a fresh stand', async () => {

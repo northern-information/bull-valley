@@ -6,6 +6,7 @@ import {
   freshRaider,
   freshValley,
   heardWhere,
+  standInTheOpen,
   watchErrors,
 } from './fixtures.ts'
 import type { Page } from '@playwright/test'
@@ -19,19 +20,6 @@ const drops = (page: Page) =>
   page.evaluate(() => (window.__bv?.drops ?? []).filter((d) => !d.spilled))
 const held = (page: Page, kind: string) =>
   page.evaluate((k) => window.__bv?.inventory[k] ?? 0, kind)
-
-// An open spot off the spawn lot, clear of Gron, the bush and the store,
-// where nothing else answers E first.
-async function standInTheOpen(page: Page, dx: number): Promise<void> {
-  await page.evaluate((offset) => {
-    const bv = window.__bv
-    if (!bv) throw new Error('no dev hook')
-    const station = bv.world.spawnStation
-    if (!station) throw new Error('no spawn station')
-    bv.player.relocate(station.x - 150 + offset, station.z - 150, 0)
-  }, dx)
-  await heardWhere(page)
-}
 
 // Tab, hover the item's cell, and press `key` over it.
 async function overItem(page: Page, kind: string, key: string): Promise<void> {
@@ -60,7 +48,7 @@ base.describe('drops', { tag: '@valley' }, () => {
       await expect
         .poll(() => a.evaluate(() => window.__bv?.valley?.members.length))
         .toBe(2)
-      await standInTheOpen(a, 0)
+      await standInTheOpen(a)
       await standInTheOpen(b, 4)
 
       // A sets one joint down; the valley takes it out of A's pack, and

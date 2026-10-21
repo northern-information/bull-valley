@@ -8,7 +8,7 @@
 
 import { copy } from './copy.ts'
 import { el } from './dom.ts'
-import { newsOf, SEASON, shownKills } from './season.ts'
+import { newsOf, SEASON, seasonLine, shownKills } from './season.ts'
 import { formatCash } from './store.ts'
 import type { SeasonProgress } from './season.ts'
 
@@ -182,19 +182,19 @@ export class SeasonHud {
           detail: copy('season.banner_paid', { cash }),
           gold: true,
         })
-        return copy('log.season_reward', { cash })
+        return seasonLine(progress, rewarded)
       case 'burned':
         this.announce({
           kicker: `${SEASON_COPY.kicker} · ${SEASON_COPY.title}`,
           headline: copy('season.banner_burned', { kills, goal: SEASON.goal }),
         })
-        return copy('log.season_burned', { kills, goal: SEASON.goal })
+        return seasonLine(progress, rewarded)
       case 'again':
         this.announce({
           kicker: `${SEASON_COPY.kicker} · ${SEASON_COPY.title}`,
           headline: copy('season.banner_burned_again'),
         })
-        return copy('log.season_burned_again')
+        return seasonLine(progress, rewarded)
     }
   }
 }

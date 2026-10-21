@@ -3,6 +3,7 @@ import { citgoNames } from '../../src/citgomap.ts'
 import {
   arrivalAt,
   citgoAt,
+  citgoLines,
   fastTravel,
   NO_CITGOS,
   roadNameNear,
@@ -11,6 +12,7 @@ import {
 } from '../../src/citgos.ts'
 import { CONFIG } from '../../src/config.ts'
 import { copy } from '../../src/copy.ts'
+import { formatCash } from '../../src/store.ts'
 
 const STATIONS = [
   { x: 0, z: 0 },
@@ -129,5 +131,29 @@ describe('the Citgos the survey stands', () => {
       copy('map.citgo', { road: 'Lake Avenue' }),
       copy('map.citgo_unnamed', { n: 2 }),
     ])
+  })
+})
+
+describe('citgoLines', () => {
+  const label = (station: number) => `Citgo ${station}`
+
+  it('names each Citgo found, paid in a world but for the first ever', () => {
+    const none = { last: null, visited: [] }
+    const first = { last: 2, visited: [2] }
+    expect(citgoLines(none, first, label, true)).toEqual([
+      copy('log.citgo_visited', { citgo: 'Citgo 2' }),
+    ])
+    expect(
+      citgoLines(first, { last: 5, visited: [2, 5] }, label, true)
+    ).toEqual([
+      copy('log.citgo_bounty', {
+        citgo: 'Citgo 5',
+        cash: formatCash(CONFIG.bounties.citgo),
+      }),
+    ])
+    expect(
+      citgoLines(first, { last: 5, visited: [2, 5] }, label, false)
+    ).toEqual([copy('log.citgo_visited', { citgo: 'Citgo 5' })])
+    expect(citgoLines(first, first, label, true)).toEqual([])
   })
 })

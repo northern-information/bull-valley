@@ -275,7 +275,6 @@ export class MemoryAccountStore implements AccountStore {
     return Promise.resolve([...(this.cosmetics.get(accountId) ?? [])])
   }
 
-  // Whether another account holds the name; `except` is never counted.
   accountByUsername(
     username: string
   ): Promise<{ accountId: string; username: string } | null> {
@@ -381,6 +380,7 @@ export class MemoryAccountStore implements AccountStore {
     return Promise.resolve(this.laptop.delete(id))
   }
 
+  // Whether another account holds the name; `except` is never counted.
   private taken(username: string, except?: string): boolean {
     const want = username.toLowerCase()
     for (const account of this.accounts.values()) {

@@ -11,6 +11,7 @@
 
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
+import { itemLabel } from './itemcopy.ts'
 import { contentsOf, itemById } from './items.ts'
 import type { Inventory, XZ } from './interfaces.ts'
 import type { ItemId } from './items.ts'
@@ -154,4 +155,9 @@ const RAMBLES = [
 
 export function ramble(said: number): string {
   return RAMBLES[said % RAMBLES.length]
+}
+
+// A deal of the raider's own, done, as the log says it.
+export function boughtLine(item: string): string {
+  return copy('dealer.bought', { item: itemLabel(item) })
 }

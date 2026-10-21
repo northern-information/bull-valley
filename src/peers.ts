@@ -4,7 +4,7 @@
 // Three glue that reads it every frame.
 
 import * as THREE from 'three'
-import { isMesh } from './assets.ts'
+import { disposeTree } from './assets.ts'
 import { canvas, EGGSHELL, MONO, text } from './canvas.ts'
 import { copy } from './copy.ts'
 import { EMOTES, isEmote } from './emotes.ts'
@@ -49,15 +49,13 @@ interface Puppet {
   cycle: number
 }
 
-function buildLabel(
-  name: string,
-  level: number
-): {
+// A name tag as the peers wear it, its own material and texture to
+// dispose; corpsemeshes.ts floats one over each body too.
+export function nameLabel(tag: string): {
   sprite: THREE.Sprite
   texture: THREE.CanvasTexture
 } {
   const art = canvas([LABEL_W, LABEL_H])
-  const tag = copy('level.tag', { name, level })
   text(art.ctx, tag, LABEL_W / 2, LABEL_H / 2, LABEL_W - 8, 18, MONO, EGGSHELL)
   const texture = new THREE.CanvasTexture(art.c)
   texture.magFilter = THREE.NearestFilter
@@ -95,16 +93,23 @@ export class Peers {
     return [...this.table.values()]
   }
 
-  // The server's roster on every welcome replaces whoever we had.
+  // The server's roster on every welcome replaces whoever we had; those
+  // still here keep where they stand (presence.ts applyWelcome).
   welcome(roster: readonly PeerWire[], now: number): void {
     for (const id of [...this.puppets.keys()]) this.dispose(id)
     applyWelcome(this.table, roster, now)
     for (const peer of this.table.values()) this.build(peer)
   }
 
-  joined(wire: PeerWire, now: number): void {
-    if (this.puppets.has(wire.id)) this.dispose(wire.id)
+  // Whether they are new: one we still see, back from a dropped line under
+  // the same id, keeps where they stand and is only brought up to date.
+  joined(wire: PeerWire, now: number): boolean {
+    if (this.table.has(wire.id)) {
+      this.updated(wire)
+      return false
+    }
     this.build(applyJoined(this.table, wire, now))
+    return true
   }
 
   // A peer changed their name or character at Gron, took a cosmetic from
@@ -171,7 +176,9 @@ export class Peers {
     figure.group.visible = false
     const flashlight = attachFlashlight(figure)
     const worn = attachCosmetics(figure, peer.cosmetics)
-    const { sprite, texture } = buildLabel(peer.name, peer.level)
+    const { sprite, texture } = nameLabel(
+      copy('level.tag', { name: peer.name, level: peer.level })
+    )
     if (peer.cosmetics.includes('flaming-halo')) {
       sprite.position.y = LABEL_OVER_HALO
     }
@@ -195,14 +202,7 @@ export class Peers {
     if (!puppet) return
     this.scene.remove(puppet.figure.group)
     // The flashlight's lens glow texture is shared; nothing else of it is.
-    puppet.flashlight.group.traverse((o) => {
-      if (isMesh(o)) {
-        o.geometry.dispose()
-        for (const m of [o.material].flat()) m.dispose()
-      } else if (o instanceof THREE.Sprite) {
-        o.material.dispose()
-      }
-    })
+    disposeTree(puppet.flashlight.group)
     puppet.worn.dispose()
     puppet.label.material.dispose()
     puppet.texture.dispose()

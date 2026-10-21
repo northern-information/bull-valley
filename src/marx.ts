@@ -2,8 +2,7 @@
 // valley and what it does next, as a chain of legs stamped with server
 // times. The valley keeps the truck (sharedworld.ts) and moves it through
 // these rules; every client drives the same leg against the same clock
-// (truckplan.ts), so all of them agree where the truck is. Played alone,
-// the client runs the same rules against its own clock. No three.js.
+// (truckplan.ts), so all of them agree where the truck is. No three.js.
 //
 // His day, over and over: he reads at the tailgate by the spawn Citgo for
 // CONFIG.truck.readSeconds, then does donuts in the field across Lake
@@ -14,7 +13,7 @@
 // runs out he takes whoever is aboard there and lets them off, or with no
 // pick on the joyride out through the valley and home again, letting them
 // off at the Citgo. With no one else in the valley there is no countdown:
-// he leaves as soon as the pick is made. A whistle (T) brings him to the
+// he leaves as soon as the pick is made. A whistle (Y) brings him to the
 // whistler, who climbs in and is driven home.
 //
 // The valley never knows the roads, so it never knows exactly when a drive

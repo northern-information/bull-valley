@@ -12,7 +12,6 @@ import { citgoAt } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { woundsOf } from './health.ts'
 import { onLookout } from './lookout.ts'
-import { isAboard } from './marx.ts'
 import { worldToMaze } from './maze.ts'
 import {
   beamFrom,
@@ -23,7 +22,13 @@ import {
   placeStill,
   stepShadowmen,
 } from './shadowmen.ts'
-import { citgosFor, creditedWith, grantsTo, wardsFor } from './sharedworld.ts'
+import {
+  citgosFor,
+  creditedWith,
+  grantsTo,
+  inTheBed,
+  wardsFor,
+} from './sharedworld.ts'
 import {
   createTunnelShades,
   stepTunnelShades,
@@ -100,7 +105,6 @@ export function shadowRaiders(
   now: number
 ): Raider[] {
   const raiders: Raider[] = []
-  const truck = valley.world?.truck
   const maze = valley.world?.maze ?? null
   for (const { id, at } of placed) {
     const member = valley.members[id]
@@ -110,8 +114,7 @@ export function shadowRaiders(
       x: at.x,
       z: at.z,
       vulnerable:
-        !at.riding &&
-        !(truck && isAboard(truck, id)) &&
+        !inTheBed(valley, id) &&
         // Up on the lookout no shadow reaches them.
         !(maze && onLookout(maze, at)) &&
         now >= (shadows.recovering[graceKey(valley, id)] ?? 0),
@@ -419,7 +422,8 @@ export function forecourtMends(
   const seen = new Set<string>()
   for (const { id, at } of placed) {
     const member = valley.members[id]
-    if (!at || !member || at.riding || seen.has(member.account)) continue
+    if (!at || !member || seen.has(member.account)) continue
+    if (inTheBed(valley, id)) continue
     if (woundsOf(valley.wounds, member.account) <= 0) continue
     if (!inHaven(at, world.havens, cfg.havenRadius)) continue
     seen.add(member.account)
@@ -441,7 +445,8 @@ export function citgoVisits(
   const seen = new Set<string>()
   for (const { id, at } of placed) {
     const member = valley.members[id]
-    if (!at || !member || at.riding || seen.has(member.account)) continue
+    if (!at || !member || seen.has(member.account)) continue
+    if (inTheBed(valley, id)) continue
     const station = citgoAt(at, world.havens)
     if (station === null) continue
     seen.add(member.account)

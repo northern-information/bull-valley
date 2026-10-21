@@ -1,10 +1,8 @@
 // The tunnel shades as seen (tunnelshades.ts): one body each (assets.ts
 // buildTunnelShade) walking the Undercroft's floor, turned to face the
-// player, paling and shaking as a beam burns it. In the shared valley they
-// are the valley's (sharedworld.ts rule 11): they ride in the shadowmen
-// frames and are drawn a beat behind the present, between the last two.
-// Played alone, this steps shades of its own with the player as the one
-// raider.
+// player, paling and shaking as a beam burns it. They are the valley's
+// (sharedworld.ts rule 11): they ride in the shadowmen frames and are
+// drawn a beat behind the present, between the last two.
 
 import { buildTunnelShade } from './assets.ts'
 import { CONFIG } from './config.ts'
@@ -14,11 +12,6 @@ import {
   createShadowTable,
   sampleShadowmen,
 } from './shadowsync.ts'
-import {
-  createTunnelShades,
-  stepTunnelShades,
-  tunnelShadesAt,
-} from './tunnelshades.ts'
 import type { TunnelShadeRig } from './assets.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
 import type { MazePlace } from './maze.ts'
@@ -27,13 +20,8 @@ import type {
   TunnelBurstWire,
   TunnelShadeWire,
 } from './protocol.ts'
-import type { AloneFrame } from './shadowcards.ts'
 import type { ShadowTable } from './shadowsync.ts'
-import type { TunnelKind, TunnelShade } from './tunnelshades.ts'
 import type * as THREE from 'three'
-
-// The player's id when they play alone.
-const ALONE = 'me'
 
 interface TunnelShadesOptions {
   scene: THREE.Object3D
@@ -46,15 +34,10 @@ interface TunnelShadesFrame {
   dt: number
   time: number
   player: XZ
-  // Null in the shared valley, which steps them itself.
-  alone: AloneFrame | null
   renderAt: number
 }
 
 interface TunnelShadesUpdate {
-  // What touched the player, played alone; in the shared valley a struck
-  // frame says so.
-  struck: TunnelKind | null
   // Where they burst since the last update, and where one took a hit it
   // stands (the Warden) and went into the dark.
   bursts: TunnelBurstWire[]
@@ -62,8 +45,6 @@ interface TunnelShadesUpdate {
 }
 
 export class TunnelShades {
-  // Played alone: the shades this client steps.
-  own: TunnelShade[]
   // Where each stands as last drawn, for the dev hook.
   shown: TunnelShadeWire[] = []
   private place: MazePlace | null
@@ -79,7 +60,6 @@ export class TunnelShades {
     this.scene = scene
     this.place = place
     this.groundAt = groundAt
-    this.own = createTunnelShades()
   }
 
   // A frame from the valley, landed at `at` (local ms).
@@ -89,45 +69,15 @@ export class TunnelShades {
     this.hits.push(...msg.tunnelWounds)
   }
 
-  update({
-    dt,
-    time,
-    player,
-    alone,
-    renderAt,
-  }: TunnelShadesFrame): TunnelShadesUpdate {
-    let struck: TunnelKind | null = null
-    let shown: TunnelShadeWire[] = []
-    if (this.place && alone) {
-      // Played alone the valley's frames are stale: start them afresh.
-      this.table = createShadowTable()
-      const out = stepTunnelShades(this.own, this.rng, {
-        dt,
-        raiders: [{ id: ALONE, x: player.x, z: player.z, ...alone }],
-        place: this.place,
-      })
-      struck = out.struck.length > 0 ? (out.strikers[ALONE] ?? 'shade') : null
-      this.pending.push(...out.bursts.map(({ x, z, kind }) => ({ x, z, kind })))
-      this.hits.push(...out.wounds)
-      shown = tunnelShadesAt(this.own, this.place).map((s) => ({
-        id: s.id,
-        kind: s.kind,
-        x: s.world.x,
-        z: s.world.z,
-        burn: s.burn / CONFIG.tunnel[s.kind].burnSeconds,
-        hurt: s.wounds / CONFIG.tunnel[s.kind].hits,
-        target: s.target,
-      }))
-    } else if (this.place) {
-      shown = sampleShadowmen(this.table, renderAt)
-    }
+  update({ time, player, renderAt }: TunnelShadesFrame): TunnelShadesUpdate {
+    const shown = this.place ? sampleShadowmen(this.table, renderAt) : []
     this.shown = shown
     this.draw(shown, player, time)
     const bursts = this.pending
     const wounds = this.hits
     this.pending = []
     this.hits = []
-    return { struck, bursts, wounds }
+    return { bursts, wounds }
   }
 
   private draw(

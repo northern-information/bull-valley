@@ -14,6 +14,21 @@ export const COSMETICS = [
     label: copy('cosmetics.flaming-halo.label'),
     // What it takes from the pack: one troy ounce of gold.
     price: { kind: 'gold-bullion', count: 1 },
+    offer: copy('moab.offer'),
+    traded: copy('moab.traded'),
+    worn: copy('log.cosmetic_worn', {
+      cosmetic: copy('cosmetics.flaming-halo.label'),
+    }),
+  },
+  {
+    // Not worn over a character but a character of its own: David
+    // Coleman: #1 joins the account's roster (characters.ts UNLOCKED_BY).
+    id: 'coleman-1',
+    label: copy('cosmetics.coleman-1.label'),
+    price: { kind: 'gold-bullion', count: 10 },
+    offer: copy('cosmetics.coleman-1.offer'),
+    traded: copy('cosmetics.coleman-1.traded'),
+    worn: copy('cosmetics.coleman-1.worn'),
   },
 ] as const satisfies readonly Cosmetic[]
 
@@ -21,12 +36,19 @@ export interface Cosmetic {
   id: string
   label: string
   price: { kind: ItemId; count: number }
+  // What Moab says offering it, and having traded it.
+  offer: string
+  traded: string
+  // The log's line once it is the account's.
+  worn: string
 }
 
 export type CosmeticId = (typeof COSMETICS)[number]['id']
 
-// Every cosmetic Moab trades for, in the order he offers them.
-export const MOAB_OFFERS: readonly CosmeticId[] = ['flaming-halo']
+// Every cosmetic Moab trades for, in the order he offers them: the dearest
+// first, so a raider carrying enough for #1 is offered #1, and one carrying
+// less the halo.
+export const MOAB_OFFERS: readonly CosmeticId[] = ['coleman-1', 'flaming-halo']
 
 export function cosmeticById(id: string): Cosmetic | null {
   return COSMETICS.find((cosmetic) => cosmetic.id === id) ?? null
@@ -57,4 +79,19 @@ export function moabOffer(
     if (!owned.includes(id) && affords(pack, id)) return id
   }
   return null
+}
+
+// What Moab asks of a raider he has no offer for: the first of his
+// cosmetics they do not have yet, or null when they have them all.
+export function moabWants(owned: readonly CosmeticId[]): CosmeticId | null {
+  return MOAB_OFFERS.find((id) => !owned.includes(id)) ?? null
+}
+
+// The cosmetics `after` holds that `before` did not: what a trade just
+// gave the account to wear.
+export function gainedOf(
+  before: readonly CosmeticId[],
+  after: readonly CosmeticId[]
+): CosmeticId[] {
+  return after.filter((id) => !before.includes(id))
 }

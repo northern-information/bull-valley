@@ -59,13 +59,6 @@ export function wardOfEntry(id: string): WardAxis | null {
   return by ? WARD_OF[by] : null
 }
 
-// The wards a dose raises, in the corners' order.
-export function wardsRaised(
-  dose: Partial<Readonly<Record<WardAxis, number>>> | undefined
-): WardAxis[] {
-  return AXES.filter((axis) => (dose?.[axis] ?? 0) > 0)
-}
-
 type Levels = Readonly<Record<WardAxis, number>>
 
 // The share of a touch from `by` the wards at `levels` take off, 0 to cap.
@@ -91,7 +84,7 @@ export interface Damage {
 }
 
 // What a touch from `by` takes off a raider warded at `levels`, `roll`
-// drawn from 0 to 1 by the caller (the valley, or alone the client): its
+// drawn from 0 to 1 by the caller (the valley): its
 // hit give or take its spread, and the wards' cut of that. A missing roll
 // lands square in the middle.
 export function damageOf(

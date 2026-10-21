@@ -1,17 +1,41 @@
 import { devices, expect, test } from '@playwright/test'
 import { copy } from './copy.ts'
-import { beginRaid, freshRaider, freshValley, signIn } from './fixtures.ts'
+import {
+  beginRaid,
+  freshRaider,
+  freshValley,
+  signIn,
+  watchErrors,
+} from './fixtures.ts'
 import type { Browser, Page } from '@playwright/test'
 
 // Bull Valley Dial-Up (sharedworld.ts rule 29): a phone opens on the
 // modem, dials the valley, and tends the account from wherever it is.
 
+// Every page a spec opens, phone or desk, fails it on a console error or
+// an uncaught page error, as the `page` fixture does for the other specs.
+let errors: string[][] = []
+test.beforeEach(() => {
+  errors = []
+})
+test.afterEach(() => {
+  expect(errors.flat()).toEqual([])
+})
+
+async function open(
+  browser: Browser,
+  options?: Parameters<Browser['newContext']>[0]
+): Promise<Page> {
+  const page = await (await browser.newContext(options)).newPage()
+  errors.push(watchErrors(page))
+  return page
+}
+
 // A phone: Chromium's own mobile emulation, so the full Chromium the
 // other specs drive does the work.
-async function phone(browser: Browser): Promise<Page> {
+function phone(browser: Browser): Promise<Page> {
   const { defaultBrowserType: _, ...pixel } = devices['Pixel 5']
-  const context = await browser.newContext(pixel)
-  return context.newPage()
+  return open(browser, pixel)
 }
 
 // Tap through the modem: one tap dials, a second skips the handshake.
@@ -64,14 +88,46 @@ test('stows from the pack, takes it back out of the locker, and keeps the hotbar
   await page.locator('.bv-dial-tab[data-tab="pack"]').click()
   const pack = page.locator('.bv-dial-item[data-kind="marlboro"]')
   await pack.locator('summary').click()
+  // Each row shows its item in 3D: a still, and opened, a turntable.
+  await expect(pack.locator('.bv-dial-item-icon')).toHaveAttribute(
+    'src',
+    /^data:image\/png/
+  )
+  await expect(pack.locator('.bv-dial-item-spin')).toBeVisible()
+  // Opened, it shows its stats as the 3D pack card does.
+  await expect(pack.locator('.bv-item-stats')).toContainText(
+    copy('stats.cigarette')
+  )
   await pack.getByRole('button', { name: copy('dialup.pack.stow_one') }).click()
-  // The locker, from the lobby, wherever the raider is.
+  // The locker, from the lobby, wherever the raider is: what is on the
+  // raider apart from what the locker holds, and either way from there.
   await page.locator('.bv-dial-tab[data-tab="lobby"]').click()
   await page.locator('.bv-dial-card[data-card="locker"]').click()
   const stowed = page.locator(
-    '.bv-dial-sheet .bv-dial-item[data-kind="marlboro"]'
+    '.bv-dial-sheet [data-section="locker"] .bv-dial-item[data-kind="marlboro"]'
   )
   await expect(stowed).toBeVisible()
+  // Key items have a list of their own, and never go in.
+  await expect(
+    page.locator('.bv-dial-sheet [data-section="keys"]')
+  ).toContainText(copy('inventory.empty_key_items'))
+  // What is still on the raider goes in from the sheet too, and back.
+  const carried = page.locator(
+    '.bv-dial-sheet [data-section="pack"] .bv-dial-item[data-kind="joints"]'
+  )
+  await carried.locator('summary').click()
+  await carried
+    .getByRole('button', { name: copy('dialup.pack.stow_all') })
+    .click()
+  await expect(carried).toHaveCount(0)
+  const joints = page.locator(
+    '.bv-dial-sheet [data-section="locker"] .bv-dial-item[data-kind="joints"]'
+  )
+  await joints.locator('summary').click()
+  await joints
+    .getByRole('button', { name: copy('dialup.pack.take_all') })
+    .click()
+  await expect(carried).toBeVisible()
   await stowed.locator('summary').click()
   await stowed
     .getByRole('button', { name: copy('dialup.pack.take_all') })
@@ -104,7 +160,7 @@ test('opens the Cabbage Stand from anywhere', async ({ browser }) => {
 
 test('a raider in the valley hears a phone dial in', async ({ browser }) => {
   const valley = freshValley('dial')
-  const desk = await (await browser.newContext()).newPage()
+  const desk = await open(browser)
   await beginRaid(desk, 0, { valley })
   const page = await phone(browser)
   const raider = await signIn(page, freshRaider('Phone'))
@@ -142,7 +198,7 @@ test('with a raider on foot in the valley: the Citgo, Erwin, Moab and the chat',
   const valley = freshValley('dial')
   const raider = freshRaider('Both')
   // The account stands at the spawn Citgo in 3D first.
-  const desk = await (await browser.newContext()).newPage()
+  const desk = await open(browser)
   await beginRaid(desk, 0, { valley, raider })
   await expect
     .poll(() => desk.evaluate(() => window.__bv?.citgos.visited.length ?? 0))
@@ -266,9 +322,90 @@ test('sends a run out on an expedition, one at a time', async ({ browser }) => {
   await expect(
     page.locator('.bv-dial-expedition[data-expedition="corn"] .bv-dial-btn')
   ).toBeDisabled()
+  // The clock moves the time left in place: the card a tap would land on
+  // is the same node a tick later.
+  const left = out.locator('.bv-dial-run-left')
+  await out.evaluate((card) => {
+    card.dataset.kept = 'yes'
+  })
+  const before = await left.textContent()
+  await expect(left).not.toHaveText(before ?? '', { timeout: 5_000 })
+  await expect(out).toHaveAttribute('data-kept', 'yes')
   // Kept by the valley: a redial finds it still out.
   await page.reload()
   await dialIn(page)
   await page.locator('.bv-dial-tab[data-tab="expeditions"]').click()
   await expect(page.locator('.bv-dial-run[data-run="ride"]')).toBeVisible()
+})
+
+test('a dropped line lets every ask go and says so', async ({ browser }) => {
+  const page = await phone(browser)
+  // Keep every socket the page opens, so the spec can drop the valley's.
+  await page.addInitScript(() => {
+    const Socket = window.WebSocket
+    const kept: WebSocket[] = []
+    Object.assign(window, { __sockets: kept })
+    window.WebSocket = class extends Socket {
+      constructor(...args: ConstructorParameters<typeof WebSocket>) {
+        super(...args)
+        kept.push(this)
+      }
+    }
+  })
+  await signIn(page)
+  await page.goto(`/?valley=${freshValley('dial')}`)
+  await dialIn(page)
+  await page.evaluate(() => {
+    const kept = (window as unknown as { __sockets: WebSocket[] }).__sockets
+    // The valley's line alone: Vite's own reloads the page when it drops.
+    for (const socket of kept) {
+      if (new URL(socket.url).pathname === '/ws') socket.close()
+    }
+  })
+  await expect(page.locator('.bv-dial-toast')).toHaveText(
+    copy('log.signal_lost')
+  )
+  // net.ts redials on its own, and the phone plays on.
+  await page.locator('.bv-dial-tab[data-tab="expeditions"]').click()
+  await expect(
+    page.locator('.bv-dial-expedition[data-expedition="ride"] .bv-dial-btn')
+  ).toBeEnabled({ timeout: 15_000 })
+})
+
+test('sets the volumes and opens the account from the phone', async ({
+  browser,
+}) => {
+  const page = await phone(browser)
+  const raider = await signIn(page)
+  await page.goto(`/?valley=${freshValley('dial')}`)
+  await dialIn(page)
+  await page.locator('.bv-dial-card[data-card="audio"]').click()
+  const slider = page.locator('[data-bv="setting-sfx"]')
+  await expect(slider).toBeVisible()
+  const start = Number(await slider.inputValue())
+  const saved = page.waitForRequest(
+    (r) => r.url().endsWith('/auth/settings') && r.method() === 'PUT'
+  )
+  await slider.focus()
+  await page.keyboard.press('ArrowLeft')
+  const want = String(start - 5)
+  await expect(slider).toHaveValue(want)
+  await saved
+  // Kept on the account, the same as the 3D valley's Audio.
+  await page.reload()
+  await dialIn(page)
+  await page.locator('.bv-dial-card[data-card="audio"]').click()
+  await expect(slider).toHaveValue(want)
+  await page.getByRole('button', { name: copy('dialup.back') }).click()
+  // The 3D valley's own account panel.
+  await page.locator('[data-bv="dial-account"]').click()
+  const panel = page.getByRole('dialog', {
+    name: copy('panel.title'),
+    exact: true,
+  })
+  await expect(panel.locator('[data-bv="panel-username"]')).toHaveText(
+    raider.username
+  )
+  await panel.locator('[data-bv="panel-close"]').click()
+  await expect(panel).toHaveCount(0)
 })

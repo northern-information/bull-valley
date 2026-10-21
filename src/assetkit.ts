@@ -231,6 +231,25 @@ export function pulseMaterials(
   return PULSE.get(object) ?? []
 }
 
+// Frees what everything under `root` was built with: each geometry and
+// material. Three's sprites share one geometry, so it stays. Maps stay
+// too (the art and glow textures are shared, `artTexture` and
+// `makeGlowTexture`), unless `maps` says the tree painted its own.
+export function disposeTree(root: THREE.Object3D, { maps = false } = {}) {
+  root.traverse((node) => {
+    const o = node as THREE.Object3D & {
+      geometry?: THREE.BufferGeometry
+      material?: THREE.Material | THREE.Material[]
+    }
+    if (!(o instanceof THREE.Sprite)) o.geometry?.dispose()
+    if (!o.material) return
+    for (const m of [o.material].flat()) {
+      if (maps && 'map' in m && m.map instanceof THREE.Texture) m.map.dispose()
+      m.dispose()
+    }
+  })
+}
+
 // Every mesh under `root` throws a shadow under the station lights.
 export function castShadows(root: THREE.Object3D): void {
   root.traverse((o) => {
@@ -254,11 +273,14 @@ export function assembleParts(parts: Part[]): THREE.Group {
 
 // Bounds from meshes only: glow sprites are unit planes scaled up, and would
 // frame a camera on empty air.
+// So would a beam of light (the lighthouse's, reaching 400 m), named
+// LIGHT_BEAM.
+export const LIGHT_BEAM = 'light-beam'
 export function meshBounds(object: THREE.Object3D): THREE.Box3 {
   const box = new THREE.Box3()
   object.updateMatrixWorld(true)
   object.traverse((o) => {
-    if (isMesh(o)) box.expandByObject(o)
+    if (isMesh(o) && o.name !== LIGHT_BEAM) box.expandByObject(o)
   })
   return box
 }

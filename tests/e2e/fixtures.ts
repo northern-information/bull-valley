@@ -117,11 +117,40 @@ export async function heardWhere(page: Page): Promise<void> {
     .toBeLessThan(1)
 }
 
+// An open spot off the spawn lot, clear of Gron, the bush and the store,
+// where nothing else answers E first; `dx` and `dz` metres off it.
+export async function standInTheOpen(
+  page: Page,
+  dx = 0,
+  dz = 0
+): Promise<void> {
+  await page.evaluate(
+    ([x, z]) => {
+      const bv = window.__bv
+      if (!bv) throw new Error('no dev hook')
+      const station = bv.world.spawnStation
+      if (!station) throw new Error('no spawn station')
+      bv.player.relocate(station.x - 150 + x, station.z - 150 + z, 0)
+    },
+    [dx, dz]
+  )
+  await heardWhere(page)
+}
+
 // Down to less geometrie than any touch takes (sharedworld.ts rule 24), so
-// the next touch shatters: the valley's word, heard back.
+// the next touch shatters: the valley's word, heard back. A frame sent as
+// the line drops is lost, and the reconnect sends only where the raider
+// stands, so ask again until the answer comes.
 export async function onLastPoint(page: Page): Promise<void> {
-  await page.evaluate(() => window.__bv?.setHealth(100))
-  await expect.poll(() => page.evaluate(() => window.__bv?.health)).toBe(100)
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const bv = window.__bv
+        if (bv && bv.health !== 100) bv.setHealth(100)
+        return bv?.health
+      })
+    )
+    .toBe(100)
 }
 
 export function freshValley(prefix = 'spec'): string {
@@ -144,10 +173,12 @@ export async function beginRaid(
   await expect
     .poll(() => page.evaluate(() => !!window.__bv), { timeout: 30_000 })
     .toBe(true)
-  // The valley answers (or does not) within CONFIG.net.connectTimeoutMs.
+  // Nothing plays without the valley: Begin waits for its welcome.
   await expect
-    .poll(() => page.evaluate(() => window.__bv?.net.status))
-    .not.toBe('connecting')
+    .poll(() => page.evaluate(() => window.__bv?.net.status), {
+      timeout: 30_000,
+    })
+    .toBe('online')
   // Raiders are on foot from the start: a quiet valley, where only the
   // shadowmen a spec places come for anyone.
   await page.evaluate(() => window.__bv?.calm())

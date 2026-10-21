@@ -9,6 +9,7 @@ import { CONFIG } from '../src/config.ts'
 import { toCosmetics } from '../src/cosmetics.ts'
 import { NO_TASK } from '../src/dailytask.ts'
 import { STARTING_INVENTORY, toInventory } from '../src/inventory.ts'
+import { isKeyItem } from '../src/items.ts'
 import { QUESTS } from '../src/quests.ts'
 import { NO_PROGRESS } from '../src/season.ts'
 import { FRESH_STAND } from '../src/stand.ts'
@@ -72,9 +73,9 @@ export interface PackStore {
     amount: number,
     item: PackItem | null
   ): Promise<boolean>
-  // Everything the pack holds, taken out at once and returned: a strike
-  // (sharedworld.ts rule 18). Each kind is left at zero, never removed, so
-  // the starting items are never given again.
+  // Everything the pack holds but its key items, taken out at once and
+  // returned: a strike (sharedworld.ts rule 18). Each kind is left at zero,
+  // never removed, so the starting items are never given again.
   strip(accountId: string): Promise<Inventory>
   // Units back into the pack, all or none: a body looted, or a strip the
   // valley could not lay a body for.
@@ -116,11 +117,14 @@ export interface PackStore {
   // order found.
   book(accountId: string): Promise<string[]>
   // Writes the entries the account had not found (book.ts newlyFound), at
-  // `now`, and returns them; known and unreal ones are left out.
+  // `now`, and returns them; known and unreal ones are left out. The cents
+  // those finds pay (`pays`, sharedworld.ts findsPay) go into the wallet in
+  // the same transaction, so a find is never written without its bounty.
   discover(
     accountId: string,
     entries: readonly string[],
-    now: number
+    now: number,
+    pays?: (found: readonly string[]) => number
   ): Promise<string[]>
   // The account's progress on daily task `task` as last written, on
   // whatever day that was (dailytask.ts onDay reads it for today).
@@ -248,6 +252,7 @@ export class MemoryPackStore implements PackStore {
     const rows = this.packs.get(accountId) ?? new Map<string, number>()
     const taken: Inventory = {}
     for (const [kind, count] of rows) {
+      if (isKeyItem(kind)) continue
       if (count > 0) taken[kind] = count
       rows.set(kind, 0)
     }
@@ -348,10 +353,22 @@ export class MemoryPackStore implements PackStore {
     return Promise.resolve([...(this.books.get(accountId) ?? [])])
   }
 
-  discover(accountId: string, entries: readonly string[]): Promise<string[]> {
+  discover(
+    accountId: string,
+    entries: readonly string[],
+    _now: number,
+    pays?: (found: readonly string[]) => number
+  ): Promise<string[]> {
     const found = this.books.get(accountId) ?? []
     const fresh = newlyFound(new Set(found), entries)
     this.books.set(accountId, [...found, ...fresh])
+    const cents = fresh.length > 0 ? (pays?.(fresh) ?? 0) : 0
+    if (cents > 0) {
+      this.wallets.set(
+        accountId,
+        (this.wallets.get(accountId) ?? STARTING_CASH) + cents
+      )
+    }
     return Promise.resolve(fresh)
   }
 

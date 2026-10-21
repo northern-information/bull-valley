@@ -13,6 +13,7 @@ import { mazeToWorld } from '../../src/maze.ts'
 import { XP, xpToReach } from '../../src/progression.ts'
 import { CLOSE, PROTOCOL_VERSION } from '../../src/protocol.ts'
 import { SEASON } from '../../src/season.ts'
+import { createValley } from '../../src/sharedworld.ts'
 import { standXp } from '../../src/stand.ts'
 import { dryMap } from '../../src/waterside.ts'
 import { MemoryAccountStore } from '../../worker/accounts.ts'
@@ -38,6 +39,7 @@ import type {
   WorldMessage,
   XpMessage,
 } from '../../src/protocol.ts'
+import type { Valley } from '../../src/sharedworld.ts'
 import type { AccountStore } from '../../worker/accounts.ts'
 import type { PackStore } from '../../worker/packs.ts'
 
@@ -142,6 +144,23 @@ class TestValley extends ValleyDO {
   }
   tick(): void {
     this.tickShadows()
+  }
+  // The lingering raiders' departures, run by hand (lingerOut).
+  pending = new Map<number, () => void>()
+  private nextTimer = 0
+  protected override later(run: () => void): unknown {
+    const id = this.nextTimer++
+    this.pending.set(id, run)
+    return id
+  }
+  protected override cancel(timer: unknown): void {
+    this.pending.delete(timer as number)
+  }
+  // CONFIG.net.lingerMs is up for everyone lingering.
+  lingerOut(): void {
+    const due = [...this.pending.values()]
+    this.pending.clear()
+    for (const run of due) run()
   }
   // Rule 24's draw for a touch's spread: square in the middle, unless a
   // test says.
@@ -260,6 +279,17 @@ const state = (x: number, z: number, light = false) =>
     riding: false,
     light,
   })
+
+// Into Marx's bed, where no shadow reaches (rule 3): heard by the parked
+// truck, then a board. The valley reads the bed off its own truck, never
+// off a state frame's `riding`, so a spec that keeps a raider safe while
+// their beam burns puts them in it this way.
+async function intoTheBed(v: TestValley, socket: MockSocket) {
+  await v.webSocketMessage(ws(socket), state(10, 10))
+  await v.webSocketMessage(ws(socket), '{"type":"board"}')
+  const boarded = socket.last<WorldMessage>()
+  if (boarded.reason !== 'boarded') throw new Error('not in the bed')
+}
 
 const chat = (text: string) => JSON.stringify({ type: 'chat', text })
 
@@ -510,6 +540,38 @@ describe('ValleyDO', () => {
     await settledWhen(() => visited() === 1)
     expect(cash()).toBeUndefined()
     await v.webSocketMessage(ws(a), state(3, 4))
+    v.tick()
+    await settledWhen(() => cash() === 4000 + CONFIG.bounties.citgo)
+    expect(visited()).toBe(2)
+  })
+
+  it('leaves a Citgo unfound while its bounty cannot be paid, and pays it on the next step', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const cash = () =>
+      a.frames().findLast((m): m is PackMessage => m.type === 'pack')?.cash
+    const visited = () =>
+      a
+        .frames()
+        .flatMap((m) => (m.type === 'citgos' ? [m.citgos.visited.length] : []))
+        .at(-1)
+    await v.webSocketMessage(ws(a), state(1003, 4))
+    v.tick()
+    await settledWhen(() => visited() === 1)
+    const store = v.packStore
+    let down = true
+    v.packStore = Object.assign(Object.create(store) as PackStore, {
+      earn: (...args: Parameters<PackStore['earn']>) =>
+        down ? Promise.reject(new Error('down')) : store.earn(...args),
+    })
+    await v.webSocketMessage(ws(a), state(3, 4))
+    v.tick()
+    await settle()
+    await settle()
+    // The wallet would not take it: the log still says one Citgo.
+    expect(visited()).toBe(1)
+    expect(cash()).toBeUndefined()
+    down = false
     v.tick()
     await settledWhen(() => cash() === 4000 + CONFIG.bounties.citgo)
     expect(visited()).toBe(2)
@@ -790,6 +852,40 @@ describe('ValleyDO', () => {
     expect(stored.world.taken).toContain(4)
   })
 
+  it('leaves a pickup in the valley when its pack write fails, and lets a retry take it', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    await v.webSocketMessage(ws(b), state(0, 0))
+    const store = v.packStore
+    let down = true
+    v.packStore = Object.assign(Object.create(store) as PackStore, {
+      change: (...args: Parameters<PackStore['change']>) =>
+        down ? Promise.reject(new Error('down')) : store.change(...args),
+    })
+    const before = (await store.get('acct-B')).pack
+    const heard = a.sent.length
+    await v.webSocketMessage(ws(b), '{"type":"take","index":4}')
+    expect(b.frames().findLast((m) => m.type === 'nack')).toEqual({
+      type: 'nack',
+      re: 'take',
+      reason: 'unwritten',
+      index: 4,
+    })
+    // No one heard it taken, the world kept it, and the pack is as it was.
+    expect(a.sent.length).toBe(heard)
+    const stored = s.storage.map.get('valley') as {
+      world: { taken: number[] }
+    }
+    expect(stored.world.taken).not.toContain(4)
+    expect((await store.get('acct-B')).pack).toEqual(before)
+    // D1 back, the same take lands.
+    down = false
+    await v.webSocketMessage(ws(b), '{"type":"take","index":4}')
+    expect(a.last<WorldMessage>()).toMatchObject({ reason: 'taken', index: 4 })
+    expect((await store.get('acct-B')).pack).not.toEqual(before)
+  })
+
   it('walks the rose quest: the rose from Erwin, laid at the heart, the key back', async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A')
@@ -946,12 +1042,60 @@ describe('ValleyDO', () => {
     // Not a refusal: a client that was only asleep reconnects.
     expect(a.closeCode).toBe(1001)
     expect(b.closeCode).toBeNull()
+    // Everyone hears them leave once the linger is up.
+    v.lingerOut()
     expect(
       b
         .frames()
         .slice(before)
         .find((m) => m.type === 'peer-left')
     ).toEqual({ type: 'peer-left', id: idA })
+  })
+
+  it('lets a dropped raider back in their place inside the linger', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    const was = idOf(a)
+    await v.webSocketMessage(ws(a), state(12, -7))
+    await v.webSocketClose(ws(a))
+    const before = b.sent.length
+    const frame = JSON.parse(hello()) as object
+    // Another account cannot take the place.
+    const thief = stamped('C', { account: 'acct-C' })
+    s.acceptWebSocket(thief)
+    await v.webSocketMessage(ws(thief), JSON.stringify({ ...frame, was }))
+    expect((thief.frames()[0] as WelcomeMessage).id).not.toBe(was)
+    // Its own account does, standing where it stood.
+    const back = stamped('A', { account: 'acct-A' })
+    s.acceptWebSocket(back)
+    await v.webSocketMessage(ws(back), JSON.stringify({ ...frame, was }))
+    expect((back.frames()[0] as WelcomeMessage).id).toBe(was)
+    v.lingerOut()
+    const heard = b.frames().slice(before)
+    expect(heard.some((m) => m.type === 'peer-left')).toBe(false)
+    const joined = heard.find(
+      (m): m is PeerJoinedMessage =>
+        m.type === 'peer-joined' && m.peer.id === was
+    )
+    expect(joined?.peer.at).toMatchObject({ x: 12, z: -7 })
+  })
+
+  it('lets a lingering raider go at once when their account comes anew', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    const was = idOf(a)
+    await v.webSocketClose(ws(a))
+    const before = b.sent.length
+    // A reload: no `was`.
+    await join(v, s, 'A')
+    expect(
+      b
+        .frames()
+        .slice(before)
+        .find((m) => m.type === 'peer-left')
+    ).toEqual({ type: 'peer-left', id: was })
   })
 
   it('retires the socket a reconnect names, so no one sees a ghost', async () => {
@@ -967,14 +1111,18 @@ describe('ValleyDO', () => {
     const frame = JSON.parse(hello()) as object
     await v.webSocketMessage(ws(back), JSON.stringify({ ...frame, was }))
     expect(a.closeCode).toBe(CLOSE.replaced)
+    // Back under the same id: no one hears them leave, and their
+    // arrival names the id everyone still sees.
+    v.lingerOut()
+    const heard = b.frames().slice(before)
+    expect(heard.find((m) => m.type === 'peer-left')).toBeUndefined()
     expect(
-      b
-        .frames()
-        .slice(before)
-        .find((m) => m.type === 'peer-left')
-    ).toEqual({ type: 'peer-left', id: was })
+      heard.find((m): m is PeerJoinedMessage => m.type === 'peer-joined')?.peer
+        .id
+    ).toBe(was)
     // The welcome shows the raider everyone else, and not their old self.
     const roster = back.frames()[0] as WelcomeMessage
+    expect(roster.id).toBe(was)
     expect(roster.peers.map((p) => p.id).sort()).toEqual(
       [idOf(twin), idOf(b)].sort()
     )
@@ -999,10 +1147,11 @@ describe('ValleyDO', () => {
     const idB = idOf(b)
     await v.webSocketError(ws(b))
     await v.webSocketClose(ws(b))
+    v.lingerOut()
     const frames = a.frames().slice(before)
-    expect(frames.map((m) => m.type)).toEqual(['peer-left', 'world'])
-    expect((frames[0] as PeerLeftMessage).id).toBe(idB)
-    expect((frames[1] as WorldMessage).reason).toBe('left')
+    expect(frames.map((m) => m.type)).toEqual(['world', 'peer-left'])
+    expect((frames[0] as WorldMessage).reason).toBe('left')
+    expect((frames[1] as PeerLeftMessage).id).toBe(idB)
     // The last one out leaves the world as it was, and nothing to wake for.
     await v.webSocketClose(ws(a))
     const stored = s.storage.map.get('valley') as {
@@ -1705,6 +1854,146 @@ describe('ValleyDO: corpse runs', () => {
     expect(lastFrame(b)?.corpses ?? []).toEqual([])
   })
 
+  it('doses a use before a strike that came while it was being written, never after the fall', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    await v.alarm()
+    await v.webSocketMessage(ws(a), state(500, 500))
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"calm"}')
+    await v.webSocketMessage(ws(a), '{"type":"dev","op":"health","points":1}')
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"shadowman","x":500,"z":501}'
+    )
+    // The joint's pack write waits until the test lets it land.
+    const store = v.packStore
+    let release = () => {}
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    v.packStore = Object.assign(Object.create(store) as PackStore, {
+      change: async (...args: Parameters<PackStore['change']>) => {
+        if (args[2] < 0) await held
+        return store.change(...args)
+      },
+    })
+    const using = v.webSocketMessage(ws(a), '{"type":"use","kind":"joints"}')
+    await settle()
+    // The shadowman winds up and lunges while the use is written.
+    for (let i = 0; i < 30; i++) {
+      v.tick()
+      await settle()
+    }
+    release()
+    await using
+    await settledWhen(() => a.frames().some((m) => m.type === 'struck'), 60)
+    const frames = a.frames()
+    const struck = frames.findIndex((m) => m.type === 'struck')
+    const dosed = frames.findIndex(
+      (m) => m.type === 'wards' && m.wards.high > 0
+    )
+    expect(struck).toBeGreaterThan(-1)
+    expect(dosed).toBeGreaterThan(-1)
+    expect(dosed).toBeLessThan(struck)
+    // The joint's heal and its ward against shadowmen were in before the
+    // touch, so the raider on their last point lives through it, still
+    // high: the touch never lands between the unit and its dose.
+    const hit = frames[struck]
+    expect(hit?.type === 'struck' && hit.health).toBeGreaterThan(0)
+    expect(
+      frames.findLast(
+        (m): m is Extract<typeof m, { type: 'wards' }> => m.type === 'wards'
+      )?.wards.high
+    ).toBeGreaterThan(0)
+  })
+
+  it('gives the key items on an older body back as its raider comes in', async () => {
+    const body = (
+      id: number,
+      account: string,
+      items: Record<string, number>
+    ) => ({
+      id,
+      x: 5,
+      z: 5,
+      yaw: 0,
+      name: account,
+      outfit: 'coleman' as const,
+      items,
+      account,
+    })
+    const stored = new MockState()
+    stored.storage.map.set('valley', {
+      ...createValley(),
+      corpses: [
+        body(0, 'acct-A', { 'vault-key': 1, marlboro: 4 }),
+        body(1, 'acct-A', { rose: 1 }),
+        body(2, 'acct-B', { 'vault-key': 1 }),
+      ],
+      nextCorpse: 3,
+    })
+    const { valley: v, state: s } = await valley(stored)
+    const a = await join(v, s, 'A')
+    const welcome = a
+      .frames()
+      .find((m): m is WelcomeMessage => m.type === 'welcome')
+    expect(welcome?.pack).toMatchObject({ 'vault-key': 1, rose: 1 })
+    // The body with more on it stays, without the key; the one with the
+    // rose alone is gone. B's is B's to come in for.
+    expect(welcome?.corpses).toEqual([0])
+    const kept = (s.storage.map.get('valley') as Valley).corpses
+    expect(kept.map((c) => [c.id, c.items])).toEqual([
+      [0, { marlboro: 4 }],
+      [2, { 'vault-key': 1 }],
+    ])
+  })
+
+  it('takes a hard landing off the account, and two stories lay a body', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    await v.alarm()
+    await v.webSocketMessage(ws(a), state(500, 500))
+    const { safe, lethal } = CONFIG.fall
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ type: 'fall', height: (safe + lethal) / 2 })
+    )
+    expect(a.frames()).toContainEqual({
+      type: 'struck',
+      by: 'fall',
+      damage: MAX / 2,
+      warded: 0,
+      health: MAX / 2,
+      max: MAX,
+    })
+    // Under a story, nothing; a height past belief is no frame at all.
+    const before = a.frames().length
+    await v.webSocketMessage(ws(a), '{"type":"fall","height":1}')
+    await v.webSocketMessage(ws(a), '{"type":"fall","height":9000}')
+    expect(
+      a
+        .frames()
+        .slice(before)
+        .some((m) => m.type === 'struck')
+    ).toBe(false)
+    await v.webSocketMessage(ws(a), '{"type":"fall","height":30}')
+    expect(a.frames()).toContainEqual({
+      type: 'struck',
+      by: 'fall',
+      damage: MAX,
+      warded: 0,
+      health: 0,
+      max: MAX,
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(worldFrames(b).at(-1)).toMatchObject({
+      reason: 'fell',
+      by: idOf(a),
+    })
+    expect(b.frames().some((m) => m.type === 'struck')).toBe(false)
+  })
+
   it('gives the things back to the account that fell, and no one else', async () => {
     const { v, a, b } = await struck()
     await v.webSocketMessage(ws(b), '{"type":"loot","corpse":0}')
@@ -2321,6 +2610,8 @@ describe('ValleyDO: the shadowmen', () => {
         yaw: Math.PI,
         riding: true,
       })
+    await intoTheBed(v, a)
+    await intoTheBed(v, b)
     await v.webSocketMessage(ws(a), lit(0))
     await v.webSocketMessage(ws(b), lit(0.5))
     await v.webSocketMessage(
@@ -2360,6 +2651,7 @@ describe('ValleyDO: the shadowmen', () => {
     await seed(v)
     const a = await join(v, s, 'A', { dev: true })
     const b = await join(v, s, 'B')
+    await intoTheBed(v, a)
     await v.webSocketMessage(
       ws(a),
       JSON.stringify({ ...JSON.parse(state(500, 500, true)), riding: true })
@@ -2385,10 +2677,26 @@ describe('ValleyDO: the shadowmen', () => {
     return { v, a, b, dimes, grave, x, z }
   }
 
+  it('strikes a raider on foot whose state frame says they ride', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ ...JSON.parse(state(500, 500)), riding: true })
+    )
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"shadowman","x":500,"z":501}'
+    )
+    await tickUntilStruck(v, a)
+    expect(a.frames().some((m) => m.type === 'struck')).toBe(true)
+  })
+
   it("burns one in Marx's headlights, as a raider near the truck says where it stands", async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A', { dev: true })
     // In the bed, light down, so the one placed stands to burn.
+    await intoTheBed(v, a)
     await v.webSocketMessage(
       ws(a),
       JSON.stringify({ ...JSON.parse(state(500, 500)), riding: true })
@@ -2499,7 +2807,8 @@ describe('ValleyDO: the shadowmen', () => {
       )
     })
     await settledWhen(() => tasks(a).some((t) => t.rewarded))
-    expect(tasks(a).at(-1)).toMatchObject({
+    // A crossing shadowman may burn after it, so read the frame that paid.
+    expect(tasks(a).find((t) => t.rewarded)).toMatchObject({
       task: { count: DAILY_TASK.goal, claimed: true },
       rewarded: true,
     })
@@ -2598,6 +2907,8 @@ describe('ValleyDO: the shadowmen', () => {
         riding: true,
         light: true,
       })
+    await intoTheBed(v, a)
+    await intoTheBed(v, b)
     await v.webSocketMessage(ws(a2), state(900, 900))
     // No crossing shadowman rushes A2: a strike would empty the account's
     // pack onto a body.
@@ -2711,6 +3022,8 @@ describe('ValleyDO: the shadowmen', () => {
         riding: true,
         light: true,
       })
+    await intoTheBed(v, a)
+    await intoTheBed(v, b)
     await v.webSocketMessage(ws(a), lit(0))
     await v.webSocketMessage(ws(b), lit(0.5))
     await v.webSocketMessage(
@@ -2790,6 +3103,47 @@ describe("ValleyDO: Moab's trade", () => {
     await v.webSocketClose(ws(a))
     const back = await join(v, s, 'A')
     expect(back.frames()[0]).toMatchObject({ cosmetics: ['flaming-halo'] })
+  })
+
+  it('trades David Coleman: #1 for ten ounces, and only then lets the account raid as him', async () => {
+    const { valley: v, state: s } = await valley()
+    // Not the account's yet: no raiding as him, and no changing into him.
+    const early = await join(v, s, 'A', { outfit: 'coleman1' })
+    expect(early.closeCode).toBe(CLOSE.badOutfit)
+    const a = await join(v, s, 'A', { dev: true })
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ type: 'appearance', outfit: 'coleman1' })
+    )
+    expect(a.last<NackMessage>()).toMatchObject({
+      re: 'appearance',
+      reason: 'locked-outfit',
+    })
+    await v.webSocketMessage(ws(a), grant('gold-bullion', 9))
+    await v.webSocketMessage(ws(a), trade('coleman-1'))
+    expect(a.last<NackMessage>()).toMatchObject({ reason: 'short' })
+    await v.webSocketMessage(ws(a), grant('gold-bullion', 1))
+    await v.webSocketMessage(ws(a), trade('coleman-1'))
+    const pack = a.frames().findLast((m): m is PackMessage => m.type === 'pack')
+    expect(pack).toMatchObject({
+      pack: { 'gold-bullion': 0 },
+      cosmetics: ['coleman-1'],
+    })
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ type: 'appearance', outfit: 'coleman1' })
+    )
+    expect(a.last<PeerUpdatedMessage>()).toMatchObject({
+      type: 'peer-updated',
+      peer: { id: idOf(a), outfit: 'coleman1' },
+    })
+    a.close()
+    await v.webSocketClose(ws(a))
+    const back = await join(v, s, 'A', { outfit: 'coleman1' })
+    expect(back.frames()[0]).toMatchObject({
+      type: 'welcome',
+      cosmetics: ['coleman-1'],
+    })
   })
 
   it('refuses an offer Moab does not make, and grants nothing off a dev server', async () => {

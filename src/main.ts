@@ -4,6 +4,7 @@ import { createActions } from './actions.ts'
 import { buildSky } from './assets.ts'
 import { BvAudio } from './audio.ts'
 import { refreshSession } from './auth.ts'
+import { mountBuildTag } from './buildtag.ts'
 import { CaretakerShade } from './caretakerrig.ts'
 import { mapCitgos } from './citgomap.ts'
 import { CONFIG } from './config.ts'
@@ -38,11 +39,22 @@ import { mulberry32 } from './rng.ts'
 import { buildRoadGraph, nearestRoadPoint, wanderRoute } from './roadgraph.ts'
 import { createSettingsStore } from './settingsui.ts'
 import { createSfx } from './sfxrig.ts'
+import { ShadowBodies } from './shadowbodies.ts'
 import { ShadowBursts } from './shadowburst.ts'
-import { ShadowCards } from './shadowcards.ts'
+import { SILENT } from './silent.ts'
 import { createTargets } from './targets.ts'
-import { buildTerrainMesh, createHeightField, loadTerrain } from './terrain.ts'
-import { openAccount, showTitles, signOutAndReload } from './titles.ts'
+import {
+  buildTerrainMesh,
+  createHeightField,
+  cutTerrainHole,
+  loadTerrain,
+} from './terrain.ts'
+import {
+  exitToMenu,
+  openAccount,
+  showTitles,
+  signOutAndReload,
+} from './titles.ts'
 import { createTrails } from './trails.ts'
 import { Truck } from './truck.ts'
 import { joyrideMs } from './truckplan.ts'
@@ -73,6 +85,7 @@ async function boot() {
     imagesReady([GRAIN_URL, CONFIG.splash.imageSrc, CONFIG.logo.imageSrc]),
   ])
   const hud = new Hud(root)
+  mountBuildTag()
   const audio = new BvAudio()
   // The title-card cues; dev builds mute them.
   if (import.meta.env.DEV) audio.setMuted(true)
@@ -84,9 +97,9 @@ async function boot() {
   // The raider's settings: the menu's Audio and the pause overlay share
   // them, and the music reads them every frame.
   const settings = createSettingsStore()
-  // The valley's music, from the main menu on. Under e2e the valley is
-  // never heard.
-  const music = import.meta.env.MODE === 'test' ? null : createMusic()
+  // The valley's music, from the main menu on. A silent page (silent.ts)
+  // is never heard.
+  const music = SILENT ? null : createMusic()
   const titles = showTitles(audio, settings, music)
   hud.showIntro(true, false)
   hud.setBegin('loading')
@@ -130,9 +143,14 @@ async function boot() {
   moonlight.position.set(0.4, 1, -0.6)
   scene.add(moonlight)
 
-  scene.add(buildTerrainMesh(field, geo))
-  const world = buildWorld(geo, heightAt)
+  const terrainMesh = buildTerrainMesh(field, geo)
+  scene.add(terrainMesh)
+  const world = buildWorld(geo, heightAt, field)
   scene.add(world.group)
+  // Castle Entropy's moat is cut into the ground: through the mesh too.
+  if (world.castle) {
+    cutTerrainHole(terrainMesh, world.castle.island, world.castle.outer)
+  }
   const drops = createDropMeshes(world.ground.at)
   scene.add(drops.group)
   const graves = createGravestones(world.ground.at)
@@ -221,6 +239,8 @@ async function boot() {
   const player = new Player({
     camera,
     groundAt: world.ground.at,
+    standAt: (x, z, feetY) =>
+      world.ground.standAt(x, z, feetY, CONFIG.fall.climb),
     collide: world.walls.resolve,
     metres: geo.metres,
     spawn: world.spawn,
@@ -234,6 +254,10 @@ async function boot() {
     hud.signOutBtn.disabled = true
     signOutAndReload()
   })
+  hud.exitBtn.addEventListener('click', () => {
+    hud.exitBtn.disabled = true
+    exitToMenu()
+  })
   const playerBody = new PlayerBody(
     scene,
     pick.outfit,
@@ -245,8 +269,7 @@ async function boot() {
 
   // --- The valley server -------------------------------------------------
   // Everyone online shares one valley. The socket is same-origin and the
-  // session cookie says who we are; if the server is down or unreachable
-  // the valley is simply empty, and it plays as the player's alone.
+  // session cookie says who we are. Nothing plays until it answers.
   const net = new NetClient({
     url: socketUrl(window.location, import.meta.env.DEV),
     config: CONFIG.net,
@@ -270,7 +293,7 @@ async function boot() {
     portals,
     graph,
     truck,
-    radio: import.meta.env.MODE === 'test' ? null : createTruckRadio(),
+    radio: SILENT ? null : createTruckRadio(),
     donutWake: world.donutField
       ? new DonutWake({
           scene,
@@ -279,17 +302,16 @@ async function boot() {
         })
       : null,
     music,
-    // Under e2e the valley is never heard.
+    // A silent page (silent.ts) is never heard.
     // A dev build with ?sfx=local auditions files from public/sfx/.
-    sfx:
-      import.meta.env.MODE === 'test'
-        ? null
-        : createSfx(
-            import.meta.env.DEV &&
-              new URLSearchParams(window.location.search).get('sfx') === 'local'
-              ? { base: '/sfx/', probe: true }
-              : {}
-          ),
+    sfx: SILENT
+      ? null
+      : createSfx(
+          import.meta.env.DEV &&
+            new URLSearchParams(window.location.search).get('sfx') === 'local'
+            ? { base: '/sfx/', probe: true }
+            : {}
+        ),
     settings,
     truckContext,
     truckRoutes,
@@ -299,13 +321,7 @@ async function boot() {
     hands,
     pick,
     phone: new Phone(hud.phoneCanvas, hud.phone),
-    shadowmen: new ShadowCards({
-      scene,
-      groundAt: world.ground.at,
-      metres: geo.metres,
-      havens: world.fuelPoints,
-      water,
-    }),
+    shadowmen: new ShadowBodies({ scene, groundAt: world.ground.at }),
     caretaker: new CaretakerShade({
       scene,
       groundAt: world.ground.at,
@@ -339,11 +355,12 @@ async function boot() {
   }
 
   // --- Input and the valley ----------------------------------------------
-  hud.setBegin('play')
+  // Begin waits for the valley's welcome (valleysync.ts).
+  hud.setConnection('connecting')
   const engagePointer = wirePointer(game)
   const actions = createActions(game, engagePointer)
   wireValley(game, actions)
-  // Not awaited: the game never waits on the network.
+  // Not awaited: Begin waits on it (valleysync.ts).
   void net.connect({
     outfit: pick.outfit,
     pickups: world.pickups.map(({ kind, count, x, z, within }) =>

@@ -11,6 +11,7 @@ import { toCosmetics } from '../src/cosmetics.ts'
 import { NO_TASK } from '../src/dailytask.ts'
 import { isExpeditionRun } from '../src/expeditions.ts'
 import { STARTING_INVENTORY, toInventory } from '../src/inventory.ts'
+import { KEY_ITEM_IDS } from '../src/items.ts'
 import { isQuest, isQuestStage, QUESTS } from '../src/quests.ts'
 import { NO_PROGRESS } from '../src/season.ts'
 import { FRESH_STAND, isStandLedger } from '../src/stand.ts'
@@ -182,19 +183,21 @@ export class D1PackStore implements PackStore {
     )
   }
 
-  // One batch is one transaction: what is read is what is zeroed.
+  // One batch is one transaction: what is read is what is zeroed. The key
+  // items stay in the pack (items.ts isKeyItem).
   async strip(accountId: string): Promise<Inventory> {
+    const kept = `kind NOT IN (${KEY_ITEM_IDS.map(() => '?').join(', ')})`
     const [held] = await this.db.batch<PackRow>([
       this.db
         .prepare(
-          'SELECT kind, count FROM packs WHERE account_id = ? AND count > 0'
+          `SELECT kind, count FROM packs WHERE account_id = ? AND count > 0 AND ${kept}`
         )
-        .bind(accountId),
+        .bind(accountId, ...KEY_ITEM_IDS),
       this.db
         .prepare(
-          'UPDATE packs SET count = 0 WHERE account_id = ? AND count > 0'
+          `UPDATE packs SET count = 0 WHERE account_id = ? AND count > 0 AND ${kept}`
         )
-        .bind(accountId),
+        .bind(accountId, ...KEY_ITEM_IDS),
     ])
     return Object.fromEntries(
       (held?.results ?? []).map((row) => [row.kind, row.count])
@@ -439,22 +442,37 @@ export class D1PackStore implements PackStore {
 
   // Each entry goes in only where the account has no row for it, so one
   // found twice keeps the first time; what goes in is what was not there.
+  // One batch is one transaction: the rows found and the cents they pay
+  // land together or not at all. The valley asks under the account's own
+  // lock, so the entries read as new here are the ones the batch writes.
   async discover(
     accountId: string,
     entries: readonly string[],
-    now: number
+    now: number,
+    pays?: (found: readonly string[]) => number
   ): Promise<string[]> {
     const fresh = newlyFound(new Set(await this.book(accountId)), entries)
     if (fresh.length === 0) return []
-    const results = await this.db.batch(
-      fresh.map((entry) =>
+    const cents = pays?.(fresh) ?? 0
+    const results = await this.db.batch([
+      ...fresh.map((entry) =>
         this.db
           .prepare(
             'INSERT OR IGNORE INTO book (account_id, entry, found_at) VALUES (?, ?, ?)'
           )
           .bind(accountId, entry, now)
-      )
-    )
+      ),
+      ...(cents > 0
+        ? [
+            this.db
+              .prepare(
+                'INSERT INTO wallets (account_id, cash) VALUES (?, ?) ' +
+                  'ON CONFLICT (account_id) DO UPDATE SET cash = cash + ?'
+              )
+              .bind(accountId, STARTING_CASH + cents, cents),
+          ]
+        : []),
+    ])
     return fresh.filter((_, i) => (results[i]?.meta.changes ?? 0) > 0)
   }
 
@@ -564,7 +582,6 @@ export class D1PackStore implements PackStore {
     ])
   }
 
-  // The row is made the first time, so a tend always has one to guard.
   // A read, never a write: `tend` makes the row the first time.
   async stand(
     accountId: string

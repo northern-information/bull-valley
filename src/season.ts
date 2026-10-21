@@ -9,8 +9,11 @@
 // (worker/packs.ts); this says what a burning does to it, by the counting
 // every goal shares (goal.ts).
 
+import { copy } from './copy.ts'
 import { advance, goalNews, shownProgress } from './goal.ts'
 import { contentsOf } from './items.ts'
+import { formatCash } from './store.ts'
+import type { SeasonWire } from './protocol.ts'
 
 // What finishing the season pays: cents into the wallet, units of one kind
 // into the pack.
@@ -92,4 +95,36 @@ export function newsOf(
     rewarded
   )
   return news === 'paid' ? 'complete' : news === 'past' ? 'again' : 'burned'
+}
+
+// The account's progress as the valley sent it, when it is this season's;
+// null for another's, which says nothing of this one.
+export function seasonOf(
+  wire: SeasonWire,
+  season: Season = SEASON
+): SeasonProgress | null {
+  return wire.season === season.id
+    ? { kills: wire.kills, claimed: wire.claimed }
+    : null
+}
+
+// A burning credited, as the log says it: the reward paid, how far along
+// the season, or one more past its end.
+export function seasonLine(
+  progress: SeasonProgress,
+  rewarded: boolean
+): string {
+  switch (newsOf(progress, rewarded)) {
+    case 'complete':
+      return copy('log.season_reward', {
+        cash: formatCash(SEASON.reward.cash),
+      })
+    case 'burned':
+      return copy('log.season_burned', {
+        kills: shownKills(progress),
+        goal: SEASON.goal,
+      })
+    case 'again':
+      return copy('log.season_burned_again')
+  }
 }
