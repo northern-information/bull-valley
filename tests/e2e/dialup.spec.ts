@@ -77,6 +77,10 @@ test('stows from the pack, takes it back out of the locker, and keeps the hotbar
     '.bv-dial-sheet [data-section="locker"] .bv-dial-item[data-kind="marlboro"]'
   )
   await expect(stowed).toBeVisible()
+  // Key items have a list of their own, and never go in.
+  await expect(
+    page.locator('.bv-dial-sheet [data-section="keys"]')
+  ).toContainText(copy('inventory.empty_key_items'))
   // What is still on the raider goes in from the sheet too, and back.
   const carried = page.locator(
     '.bv-dial-sheet [data-section="pack"] .bv-dial-item[data-kind="joints"]'

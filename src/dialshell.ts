@@ -105,6 +105,7 @@ export class DialShell {
   private sliders: HTMLElement | null = null
   private lockerOpen: LockerOpen = {
     pack: { kind: null },
+    keys: { kind: null },
     locker: { kind: null },
   }
   private citgoOpen: CitgoOpen = { station: null }

@@ -4,9 +4,10 @@
 // the locker (never a key item), and put it on the hotbar (tap the button,
 // then a slot). The locker's sheet keeps what is on the raider and what is
 // in the locker apart, as the 3D valley's pack and its Locker tab do: the
-// pack's rows to stow, over the locker's to take out. Never a use or a
-// drop: those take a body. Every move is the valley's to make; the screen
-// asks and redraws when the pack frame lands.
+// pack's rows to stow, its key items (which stay on the raider), and the
+// locker's rows to take out. Never a use or a drop: those take a body.
+// Every move is the valley's to make; the screen asks and redraws when the
+// pack frame lands.
 
 import { copy } from './copy.ts'
 import { el, text } from './dom.ts'
@@ -131,31 +132,39 @@ export interface Opened {
   kind: string | null
 }
 
-// The locker sheet's two lists, each with its own row open.
+// The locker sheet's three lists, each with its own row open.
 export interface LockerOpen {
   pack: Opened
+  keys: Opened
   locker: Opened
 }
 
-// The locker sheet: what the raider carries that can go in (every key
-// item stays out), then everything the locker holds, to take out.
+// The locker sheet: what the raider carries that can go in, then the key
+// items they carry, which never go in (items.ts isKeyItem), then
+// everything the locker holds, to take out.
 export function renderLocker(
   root: HTMLElement,
   s: DialState,
   actions: PackActions,
   open: LockerOpen
 ): void {
-  const carried = stashItems(s.pack).filter((item) => !isKeyItem(item.kind))
+  const carried = stashItems(s.pack)
+  const keys = carried.filter((item) => isKeyItem(item.kind))
   root.replaceChildren(
     section(
       'pack',
       copy('dialup.pack.on_you'),
       itemRows(
-        carried,
+        carried.filter((item) => !isKeyItem(item.kind)),
         copy('dialup.pack.nothing_to_stow'),
         open.pack,
         (item) => moveButtons(s, item.kind, 'stow', actions)
       )
+    ),
+    section(
+      'keys',
+      BAG_TABS['key-items'].label,
+      itemRows(keys, BAG_TABS['key-items'].empty, open.keys, () => [])
     ),
     section(
       'locker',
@@ -250,9 +259,13 @@ function itemRows(
       text('p', item.blurb, 'bv-dial-item-blurb'),
       ...statsView(item.kind)
     )
-    const buttons = el('div', 'bv-dial-row')
-    buttons.append(...actionsOf(item))
-    body.append(buttons)
+    // A key item in the locker sheet has nothing a phone can do with it.
+    const actions = actionsOf(item)
+    if (actions.length > 0) {
+      const buttons = el('div', 'bv-dial-row')
+      buttons.append(...actions)
+      body.append(buttons)
+    }
     head.append(summary, body)
     row.append(head)
     list.append(row)
