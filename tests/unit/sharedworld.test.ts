@@ -3300,10 +3300,11 @@ describe('rule 30: idle expeditions', () => {
     seed,
   })
   const claim: ValleyAction = { type: 'expedition-claim', id: 'p' }
-  const ctx = (run: ExpeditionRun | null, now = T0) => ({
+  const ctx = (run: ExpeditionRun | null, now = T0, cash = 100_000) => ({
     now,
     present: ['p', 'a'],
     expedition: { run },
+    cash,
   })
 
   it('sends a run out from the phone, timed and seeded by the valley', () => {
@@ -3320,6 +3321,22 @@ describe('rule 30: idle expeditions', () => {
         ward: 0,
       },
     })
+  })
+
+  it('takes its buy-in out of the wallet, and refuses a wallet short of it', () => {
+    const v = valleyWith(dial('p'))
+    const { cost } = CONFIG.expeditions.runs.corn
+    expect(reduce(v.valley, send('corn'), ctx(null, T0, cost)).spend).toEqual({
+      account: 'acct-p',
+      amount: cost,
+    })
+    const short = reduce(v.valley, send('corn'), ctx(null, T0, cost - 1))
+    expect(short.reply?.reason).toBe('short')
+    expect(short.expedition).toBeUndefined()
+    // The ride costs nothing.
+    const ride = reduce(v.valley, send('ride'), ctx(null, T0, 0))
+    expect(ride.reply).toBeUndefined()
+    expect(ride.spend).toBeUndefined()
   })
 
   it('refuses a second run, a locked one, an unknown one, and one on foot', () => {

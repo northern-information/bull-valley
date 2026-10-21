@@ -624,6 +624,9 @@ describe('expeditions on the phone', () => {
     expect(nack('expedition-send', 'locked').said?.text).toBe(
       copy('dialup.expeditions.locked_refused')
     )
+    expect(nack('expedition-send', 'short').said?.text).toBe(
+      copy('dialup.expeditions.short_refused')
+    )
     expect(nack('expedition-claim', 'out').said?.text).toBe(
       copy('dialup.expeditions.out')
     )

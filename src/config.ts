@@ -947,7 +947,8 @@ export const CONFIG = {
   // comes back hurt with that ward at nothing, how hard it hurts (a share
   // of whole geometrie, never the last point), the XP it earns home, and
   // what it brings back: each roll a kind (cash kinds pay the wallet), how
-  // many, and the chance it comes at all.
+  // many, and the chance it comes at all; and what sending it costs, in
+  // cents out of the wallet as it leaves (`cost`), whatever comes home.
   expeditions: {
     runs: {
       ride: {
@@ -957,6 +958,7 @@ export const CONFIG = {
         risk: 0,
         hurt: 0,
         xp: 1,
+        cost: 0,
         loot: [
           { kind: 'dimes', min: 5, max: 20, chance: 1 },
           { kind: 'berries', min: 1, max: 1, chance: 0.25 },
@@ -969,6 +971,7 @@ export const CONFIG = {
         risk: 0.35,
         hurt: 0.25,
         xp: 4,
+        cost: 150,
         loot: [
           { kind: 'dimes', min: 10, max: 40, chance: 1 },
           { kind: 'berries', min: 1, max: 3, chance: 0.8 },
@@ -983,6 +986,7 @@ export const CONFIG = {
         risk: 0.5,
         hurt: 0.4,
         xp: 15,
+        cost: 600,
         loot: [
           { kind: 'dimes', min: 30, max: 120, chance: 1 },
           { kind: 'twenty', min: 1, max: 1, chance: 0.3 },

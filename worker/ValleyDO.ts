@@ -1084,9 +1084,21 @@ export class ValleyDO extends DurableObject<Env> {
         refuse('unavailable')
         return
       }
+      // A send reads the wallet for its buy-in.
+      let cash: number | undefined
+      if (action.type === 'expedition-send') {
+        try {
+          cash = (await packs.get(account)).cash
+        } catch (err) {
+          console.error('The wallet could not be read', err)
+          refuse('unavailable')
+          return
+        }
+      }
       const reduced = reduce(this.valley, action, {
         ...this.context(),
         expedition: { run: read.run },
+        ...(cash === undefined ? {} : { cash }),
       })
       if (reduced.reply) {
         send(ws, reduced.reply)
@@ -1102,7 +1114,12 @@ export class ValleyDO extends DurableObject<Env> {
               cents: change.outcome.cents,
             })
           : change.run
-            ? await packs.embark(account, read.rev, change.run)
+            ? await packs.embark(
+                account,
+                read.rev,
+                change.run,
+                reduced.spend?.amount ?? 0
+              )
             : false
       } catch (err) {
         console.error('The expedition could not be written', err)
@@ -1120,7 +1137,9 @@ export class ValleyDO extends DurableObject<Env> {
         run: change.run,
         ...(change.outcome ? { outcome: change.outcome } : {}),
       })
-      if (change.outcome) await this.repack(null, null, account)
+      if (change.outcome || reduced.spend) {
+        await this.repack(null, null, account)
+      }
     })
   }
 

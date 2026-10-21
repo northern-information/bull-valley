@@ -167,7 +167,12 @@ export interface PackStore {
   expedition(accountId: string): Promise<ExpeditionRead>
   // A run sent out; false when the expedition was written since it was
   // read at `rev`.
-  embark(accountId: string, rev: number, run: ExpeditionRun): Promise<boolean>
+  embark(
+    accountId: string,
+    rev: number,
+    run: ExpeditionRun,
+    cost?: number
+  ): Promise<boolean>
   // A run home, the expedition left empty, with what it brought into the
   // pack (units by kind) and the wallet (cents), all or none; false when
   // the expedition was written since it was read at `rev`.
@@ -446,9 +451,16 @@ export class MemoryPackStore implements PackStore {
     )
   }
 
-  embark(accountId: string, rev: number, run: ExpeditionRun): Promise<boolean> {
+  embark(
+    accountId: string,
+    rev: number,
+    run: ExpeditionRun,
+    cost = 0
+  ): Promise<boolean> {
     const was = this.expeditions.get(accountId)?.rev ?? 0
-    if (was !== rev) return Promise.resolve(false)
+    const cash = this.wallets.get(accountId) ?? 0
+    if (was !== rev || cash < cost) return Promise.resolve(false)
+    if (cost > 0) this.wallets.set(accountId, cash - cost)
     this.expeditions.set(accountId, { run, rev: rev + 1 })
     return Promise.resolve(true)
   }

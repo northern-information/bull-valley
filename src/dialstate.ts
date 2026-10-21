@@ -794,6 +794,8 @@ function expeditionRefusal(reason: string): string {
       return copy('dialup.expeditions.locked_refused')
     case 'out':
       return copy('dialup.expeditions.out')
+    case 'short':
+      return copy('dialup.expeditions.short_refused')
     default:
       return copy('dialup.expeditions.refused')
   }
