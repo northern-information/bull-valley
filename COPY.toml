@@ -51,10 +51,8 @@ countdown_label = { text = "Truck leaves in", by = "ai" }
 chat_log_label = { text = "Chat", by = "ai" }
 chat_input_label = { text = "Say to the valley", by = "ai" }
 wards_label = { text = "Wards: high {high}%, stimulated {stimulated}%, drunk {drunk}%, tripping {tripping}%", by = "ai" }
-health_title = { text = "Geometrie", by = "ai" }
 health_label = { text = "Geometrie: {health} of {max}", by = "ai" }
-health_value = { text = "{health} / {max}", by = "ai" }
-level_tag = { text = "LV {level}", by = "ai" }
+party_label = { text = "{name}: geometrie {health} of {max}", by = "ai" }
 damage = { text = "−{damage}", by = "ai" }
 warded = { text = "−{warded} warded", by = "ai" }
 ward_chip = { text = "{percent}%", by = "ai" }
