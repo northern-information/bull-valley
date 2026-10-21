@@ -1,3 +1,4 @@
+import { CONFIG } from '../../src/config.ts'
 import { copy } from './copy.ts'
 import {
   beginRaid,
@@ -141,12 +142,13 @@ test.describe('two flashlights', { tag: '@valley' }, () => {
     await a.evaluate(({ x, z }) => window.__bv?.placeCaretaker(x, z), there)
     await expect.poll(() => shown(a)).not.toBeNull()
 
-    // One beam, held well past what two would need.
+    // One beam, held well past what two would need: what is under test is
+    // that time passes and nothing burns, so this waits on the clock.
     await a.evaluate(() => window.__bv?.toggleFlashlight())
     await expect
       .poll(() => a.evaluate(() => window.__bv?.sent?.light))
       .toBe(true)
-    await a.waitForTimeout(3000)
+    await a.waitForTimeout(CONFIG.caretaker.burnSeconds * 2.5 * 1000)
     expect((await shown(a))?.burn ?? 1).toBe(0)
 
     // Two: it pales, then is gone, for both of them.

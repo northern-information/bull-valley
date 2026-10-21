@@ -1,5 +1,5 @@
 import { copy } from './copy.ts'
-import { beginRaid, expect, freshRaider, test } from './fixtures.ts'
+import { beginRaid, expect, frames, freshRaider, test } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
 // Gron stands under his raincloud beside the berry bush. Talking to him
@@ -60,7 +60,7 @@ test('Gron changes your name and your character', async ({ page }) => {
   const name = freshRaider('Gron_Made').username
   await field.fill('')
   await field.pressSequentially('wwww')
-  await page.waitForTimeout(300)
+  await frames(page)
   expect(await playerAt(page)).toEqual(before)
 
   // A new name, checked as you type, then saved.

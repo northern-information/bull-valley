@@ -104,6 +104,20 @@ interface BeginOptions {
 // After a teleport, until the valley has been told where the raider now
 // stands: its shadowmen cross round the place it last heard, and one placed
 // far from every raider it knows is gone in its next step.
+// Lets the game step `count` frames (its loop runs on the animation
+// frame): whatever a key held or typed would have moved by then, it has.
+export async function frames(page: Page, count = 10): Promise<void> {
+  await page.evaluate(
+    (n) =>
+      new Promise<void>((done) => {
+        let left = n
+        const step = () => (--left > 0 ? requestAnimationFrame(step) : done())
+        requestAnimationFrame(step)
+      }),
+    count
+  )
+}
+
 export async function heardWhere(page: Page): Promise<void> {
   await expect
     .poll(() =>
