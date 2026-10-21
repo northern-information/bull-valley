@@ -1,5 +1,5 @@
 import { copy } from './copy.ts'
-import { beginRaid, expect, heardWhere, test } from './fixtures.ts'
+import { beginRaid, expect, faceSpot, heardWhere, test } from './fixtures.ts'
 
 // Rules 32 and 33: a drink drunk leaves its empty in the pack, and E at
 // the wreck opens the Recycling Center, where empties buy research.
@@ -24,8 +24,8 @@ test('a drink leaves its can, and the wreck turns empties into loose change', as
     .poll(() => page.evaluate(() => window.__bv?.inventory['empty-can']))
     .toBe(6)
 
-  // Beside the wreck, toward the spawn Citgo.
-  await page.evaluate(() => {
+  // Beside the wreck, toward the spawn Citgo, looking at it.
+  const at = await page.evaluate(() => {
     const bv = window.__bv
     const at = bv?.wreckAt
     const station = bv?.world.spawnStation
@@ -34,7 +34,9 @@ test('a drink leaves its can, and the wreck turns empties into loose change', as
     const x = at.x + ((station.x - at.x) / d) * 2.5
     const z = at.z + ((station.z - at.z) / d) * 2.5
     bv.player.relocate(x, z, 0)
+    return { x: at.x, z: at.z }
   })
+  await faceSpot(page, at.x, at.z, 0.7)
   await heardWhere(page)
   await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.recycle'))
   await page.keyboard.press('KeyE')

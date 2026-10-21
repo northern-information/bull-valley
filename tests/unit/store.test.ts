@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
+import { isSpirit } from '../../src/drinks.ts'
 import { ITEMS } from '../../src/items.ts'
 import {
   formatCash,
@@ -14,8 +15,10 @@ import {
   toLocal,
   toWorld,
   unitInView,
+  unitsOf,
   worldFacings,
 } from '../../src/store.ts'
+import { Walls } from '../../src/walls.ts'
 import { unitsLeft } from './stock.ts'
 import type { Vec3 } from '../../src/interfaces.ts'
 import type { StoreOrigin, WorldFacing } from '../../src/store.ts'
@@ -23,15 +26,49 @@ import type { StoreOrigin, WorldFacing } from '../../src/store.ts'
 const origin: StoreOrigin = { x: 100, z: -40, yaw: 0.7, y: 12 }
 
 describe('STORE_LAYOUT', () => {
-  it('shelves every priced item once, three units each, and no forage', () => {
+  it('shelves every priced item once, its stock each, and no forage', () => {
     const kinds = STORE_LAYOUT.facings.map((f) => f.kind)
     const forSale = ITEMS.filter((item) => 'price' in item)
     expect(new Set(kinds).size).toBe(forSale.length)
     expect(kinds).toHaveLength(forSale.length)
     expect(kinds).not.toContain('berries')
     for (const facing of STORE_LAYOUT.facings) {
-      expect(facing.slots).toHaveLength(CONFIG.store.perItem)
+      expect(facing.slots).toHaveLength(unitsOf(facing.kind))
     }
+    expect(unitsOf('pbr')).toBe(CONFIG.store.perItem)
+    expect(unitsOf('ice-mountain')).toBe(20)
+  })
+
+  it('chills every drink but the liquor, which stands on its own shelf', () => {
+    const doors = STORE_LAYOUT.boxes.filter((b) => b.finish === 'cooler-glass')
+    expect(doors.length).toBeGreaterThan(0)
+    const glass = Math.min(...doors.map((d) => d.center[0] - d.size[0] / 2))
+    const top = Math.max(...doors.map((d) => d.center[1] + d.size[1] / 2))
+    const behindGlass = ([x, y, z]: Vec3) =>
+      x < glass &&
+      x > STORE_LAYOUT.partition &&
+      y < top &&
+      doors.some((d) => Math.abs(z - d.center[2]) < d.size[2] / 2)
+    for (const name of ['cooler-base', 'liquor-base']) {
+      expect(STORE_LAYOUT.boxes.find((b) => b.name === name)?.blocks).toBe(true)
+    }
+    const liquor = STORE_LAYOUT.boxes.find((b) => b.name === 'liquor-base')!
+    const onLiquorShelf = ([x, , z]: Vec3) =>
+      Math.abs(x - liquor.center[0]) < liquor.size[0] / 2 &&
+      Math.abs(z - liquor.center[2]) < liquor.size[2] / 2
+    const drinks = ITEMS.filter((item) => item.category === 'drink')
+    for (const item of drinks) {
+      const facing = STORE_LAYOUT.facings.find((f) => f.kind === item.id)
+      expect(facing).toBeDefined()
+      const spirit = isSpirit(item.id)
+      for (const slot of facing!.slots) {
+        expect(behindGlass(slot)).toBe(!spirit)
+        expect(onLiquorShelf(slot)).toBe(spirit)
+      }
+    }
+    expect(drinks.filter((item) => isSpirit(item.id)).map((i) => i.id)).toEqual(
+      ['wild-turkey', 'jim-beam', 'grey-goose']
+    )
   })
 
   it('keeps every unit inside the walls', () => {
@@ -346,6 +383,55 @@ describe('shopping', () => {
       { kind: 'pbr', units: [[0, 1.5, -(CONFIG.store.reach + 0.1)]] },
     ]
     expect(unitInView(far, stock, eye, ahead)).toBeNull()
+  })
+
+  it('never sees a unit through a wall', () => {
+    const facings: WorldFacing[] = [{ kind: 'pbr', units: [[0, 1.5, -1]] }]
+    const stock = freshStock(1)[0]
+    const eye: Vec3 = [0, 1.5, 0]
+    const ahead: Vec3 = [0, 0, -1]
+    const walls = new Walls()
+    walls.addWall({ x: -2, z: -0.5 }, { x: 2, z: -0.5 }, 0.1)
+    expect(unitInView(facings, stock, eye, ahead, walls.between)).toBeNull()
+    // The fixture the unit stands in is no wall to it.
+    const cooler = new Walls()
+    cooler.addWall({ x: -2, z: -1.1 }, { x: 2, z: -1.1 }, 0.3)
+    expect(
+      unitInView(facings, stock, eye, ahead, cooler.between)?.facing.kind
+    ).toBe('pbr')
+  })
+
+  it('sells no drink through the partition from the back room', () => {
+    const walls = new Walls()
+    for (const wall of storeWalls(origin)) {
+      walls.addWall(wall.a, wall.b, wall.half)
+    }
+    const facings = worldFacings(origin)
+    const stock = freshStock(1)[0]
+    const pbr = facings.find((f) => f.kind === 'pbr')!.units[0]
+    const look = (from: Vec3): Vec3 => {
+      const d = [pbr[0] - from[0], pbr[1] - from[1], pbr[2] - from[2]]
+      const n = Math.hypot(d[0], d[1], d[2])
+      return [d[0] / n, d[1] / n, d[2] / n]
+    }
+    const { z } = toLocal(origin, pbr[0], pbr[2])
+    // From the shop, a step in front of the glass: in view.
+    const shop = toWorld(origin, [STORE_LAYOUT.partition + 1.6, 1.6, z])
+    const seen = unitInView(facings, stock, shop, look(shop), walls.between)
+    expect(seen?.facing.kind).toBe('pbr')
+    // The back rows of the water stand in the cooler, behind no wall.
+    const water = facings.find((f) => f.kind === 'ice-mountain')!
+    const back = water.units[water.units.length - 1]
+    const wz = toLocal(origin, back[0], back[2]).z
+    const front = toWorld(origin, [STORE_LAYOUT.partition + 1.2, 1.6, wz])
+    const at = (p: Vec3) => ({ x: p[0], z: p[2] })
+    expect(walls.between(at(front), at(back))).toBe(false)
+    // From the back room, just behind the partition: nothing.
+    const backRoom = toWorld(origin, [STORE_LAYOUT.partition - 0.4, 1.6, z])
+    expect(unitInView(facings, stock, backRoom, look(backRoom))).not.toBeNull()
+    expect(
+      unitInView(facings, stock, backRoom, look(backRoom), walls.between)
+    ).toBeNull()
   })
 
   it('places each world unit at its slot', () => {

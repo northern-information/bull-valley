@@ -261,7 +261,7 @@ export function wireValley(game: Game, actions: Actions): void {
     // The shelves are the valley's; a unit it sold us goes in the pocket.
     if (sale) {
       s.pending.buys.delete(`${sale.station}:${sale.item}`)
-      if (sale.mine) actions.pocket(sale.item, sale.station)
+      if (sale.mine) actions.pocket(sale.item)
     }
     s.storeStock = wire.shelves
 
@@ -361,14 +361,7 @@ export function wireValley(game: Game, actions: Actions): void {
       if (msg.station !== undefined && msg.item) {
         s.pending.buys.delete(`${msg.station}:${msg.item}`)
       }
-      hud.tell(
-        buyRefusal(
-          msg.reason,
-          msg.item,
-          s.cash,
-          msg.station === undefined ? undefined : s.storeStock[msg.station]
-        )
-      )
+      hud.tell(buyRefusal(msg.reason, msg.item, s.cash))
     } else if (msg.re === 'call') {
       hud.tell(copy('log.truck_busy'))
     } else if (msg.re === 'collect') {

@@ -53,7 +53,7 @@ import {
 import { BASE_GEOMETRIE } from './health.ts'
 import { toInventory } from './inventory.ts'
 import { itemLabel, itemLine } from './itemcopy.ts'
-import { doseOf, healsOf } from './items.ts'
+import { doseOf, healsOf, itemById } from './items.ts'
 import { outfitById } from './outfits.ts'
 import { barOf, levelUp } from './progression.ts'
 import { normalizeChat } from './protocol.ts'
@@ -80,7 +80,7 @@ import {
 } from './season.ts'
 import { buyRefusal } from './shop.ts'
 import { isStandLedger, refusalLine, standNews } from './stand.ts'
-import { formatCash, shelfPrice } from './store.ts'
+import { formatCash } from './store.ts'
 import { AXES, dose, levelsAt } from './wardlevels.ts'
 import type { ChatLine } from './chat.ts'
 import type { CitgoLog } from './citgos.ts'
@@ -678,15 +678,7 @@ function refused(
     news({ ...s, pending: { ...s.pending, ...pending } }, text, now, wall)
   switch (msg.re) {
     case 'buy':
-      return done(
-        { buy: null },
-        buyRefusal(
-          msg.reason,
-          msg.item,
-          s.cash,
-          msg.station === undefined ? undefined : s.world?.shelves[msg.station]
-        )
-      )
+      return done({ buy: null }, buyRefusal(msg.reason, msg.item, s.cash))
     case 'deal':
       return done({ deal: false }, dealRefusal(msg.reason))
     case 'quest':
@@ -866,7 +858,7 @@ export function shelfOf(s: DialState, station: number): ShelfRow[] {
   const shelf = s.world?.shelves[station]
   if (!shelf) return []
   return Object.entries(shelf).flatMap(([kind, units]) => {
-    const price = shelfPrice(kind, units)
+    const price = itemById(kind)?.price
     if (price === undefined) return []
     const unit = units.indexOf(true)
     return [

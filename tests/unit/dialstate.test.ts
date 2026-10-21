@@ -35,7 +35,7 @@ import {
 } from '../../src/researchlines.ts'
 import { SEASON, seasonLine } from '../../src/season.ts'
 import { FRESH_STAND, refusalLine } from '../../src/stand.ts'
-import { formatCash, shelfPrice } from '../../src/store.ts'
+import { formatCash } from '../../src/store.ts'
 import { levelsAt } from '../../src/wardlevels.ts'
 import type { DialState } from '../../src/dialstate.ts'
 import type { ServerMessage, WelcomeMessage } from '../../src/protocol.ts'
@@ -358,12 +358,12 @@ describe('the folk, the Citgo and the chat on the phone', () => {
   const world = (shelves: Record<string, boolean[]>[]) =>
     ({ shelves, dealer: {} }) as never
 
-  it("lists a Citgo's shelves at their price now, the first unit a buy takes", () => {
+  it("lists a Citgo's shelves, the first unit a buy takes", () => {
     const s = { ...me(), world: world([{ marlboro: [false, true, true] }]) }
     expect(shelfOf(s, 0)).toEqual([
       {
         kind: 'marlboro',
-        price: shelfPrice('marlboro', [false, true, true]),
+        price: itemById('marlboro')?.price,
         left: 2,
         unit: 1,
       },

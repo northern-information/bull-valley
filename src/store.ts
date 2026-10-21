@@ -7,7 +7,8 @@
 // what blocks, and what E buys can never drift apart. No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
-import { itemById, ITEMS } from './items.ts'
+import { isSpirit } from './drinks.ts'
+import { ITEMS } from './items.ts'
 import type { HeightAt, ShopStock, Vec3, XZ } from './interfaces.ts'
 import type { ItemId } from './items.ts'
 
@@ -20,7 +21,8 @@ export interface StoreOrigin extends XZ {
 }
 
 // What a box is drawn in; assets.ts maps each to a material. `light` is a
-// lit fluorescent panel, `glass` a storefront window.
+// lit fluorescent panel, `glass` a storefront window; the coolers have
+// their own enamel, glass, lit back and sign strip.
 export type StoreFinish =
   | 'floor'
   | 'wall'
@@ -29,6 +31,10 @@ export type StoreFinish =
   | 'counter'
   | 'light'
   | 'glass'
+  | 'cooler'
+  | 'cooler-glass'
+  | 'cooler-inside'
+  | 'cooler-glow'
   | 'locker'
   | 'tile'
   | 'porcelain'
@@ -136,13 +142,40 @@ const GLASS = 0.04
 const FOUNDATION = 1.5
 const FLOOR_CLEARANCE = 0.08
 
-// The shelving along the partition: two boards, drinks on both, running
-// from a step past the back doorway to the +Z wall.
-const SHELF_DEPTH = 0.5
-const SHELF_X = PARTITION + WALL + SHELF_DEPTH / 2
+// Along the partition, from a step past the back doorway to the +Z wall:
+// first the liquor's open shelf, then a bank of reach-in coolers, glass
+// doors on the shop side and drinks on wire shelves behind them. Each
+// door's shelf
+// holds one kind, filled top shelf first, door by door; a kind's units
+// stand in lanes across the shelf, front to back.
+const COOLER = {
+  depth: 0.65,
+  height: 2.05,
+  doors: 5,
+  shelves: [1.42, 0.92, 0.42],
+  // The kick plate under the doors, and the lit sign strip over them.
+  base: 0.15,
+  header: 0.2,
+  // The steel between doors, and how far a lane and a row sit apart.
+  mullion: 0.05,
+  lane: 0.2,
+  row: 0.11,
+  // The most lanes across one shelf; more units go further back.
+  lanes: 5,
+}
+const COOLER_BACK = PARTITION + WALL
+const COOLER_FACE = COOLER_BACK + COOLER.depth
+const COOLER_X = (COOLER_BACK + COOLER_FACE) / 2
 const BOARD = { z0: BACK_DOOR_Z1 + 0.2, z1: HALF_WIDTH - WALL }
-const SHELF_TOPS = [0.6, 1.3]
 const SHELF_BOARD = 0.04
+// The liquor's shelf at the run's -Z end: an open wooden unit, a bottle
+// kind to a board at the coolers' shelf heights, a cap over the top, and a
+// gap before the coolers start.
+const LIQUOR = { width: 1.5, depth: 0.4, height: 1.85, gap: 0.1 }
+const LIQUOR_FACE = COOLER_BACK + LIQUOR.depth
+const LIQUOR_X = (COOLER_BACK + LIQUOR_FACE) / 2
+const LIQUOR_Z = BOARD.z0 + LIQUOR.width / 2
+const COOLER_Z0 = BOARD.z0 + LIQUOR.width + LIQUOR.gap
 // The counter by the door: cigarettes and joints on top.
 const COUNTER = { x: -8.6, z0: 1.4, z1: 5.0, depth: 0.6, height: 1.0 }
 // Where David Carlsten stands: behind the counter, between it and the
@@ -204,8 +237,8 @@ const SIGN_DEPTH = 0.04
 const MED_RACK = { x0: -12.6, x1: -9.6, height: 1.15, depth: 0.3 }
 const MED_RACK_Z = HALF_WIDTH - WALL - MED_RACK.depth / 2
 
-const BOARD_LENGTH = BOARD.z1 - BOARD.z0
-const BOARD_Z = (BOARD.z0 + BOARD.z1) / 2
+const BOARD_LENGTH = BOARD.z1 - COOLER_Z0
+const BOARD_Z = (COOLER_Z0 + BOARD.z1) / 2
 
 function box(
   name: string,
@@ -215,6 +248,146 @@ function box(
   blocks = false
 ): StoreBox {
   return { name, center, size, finish, blocks }
+}
+
+// One door's width in the cooler bank.
+const COOLER_DOOR = BOARD_LENGTH / COOLER.doors
+
+// The liquor's shelf: its kick plate is the footprint that blocks, a back
+// against the partition, an upright at each end, a board at each of the
+// coolers' shelf heights and a cap over the top, all in the counter's
+// wood.
+function liquorShelf(): StoreBox[] {
+  const bodyY = (FLOOR + LIQUOR.height) / 2
+  const bodyH = LIQUOR.height - FLOOR
+  const boxes: StoreBox[] = [
+    box(
+      'liquor-base',
+      [LIQUOR_X, FLOOR + COOLER.base / 2, LIQUOR_Z],
+      [LIQUOR.depth, COOLER.base, LIQUOR.width],
+      'counter',
+      true
+    ),
+    box(
+      'liquor-back',
+      [COOLER_BACK + 0.01, bodyY, LIQUOR_Z],
+      [0.02, bodyH, LIQUOR.width],
+      'counter'
+    ),
+    box(
+      'liquor-cap',
+      [LIQUOR_X, LIQUOR.height - SHELF_BOARD / 2, LIQUOR_Z],
+      [LIQUOR.depth, SHELF_BOARD, LIQUOR.width],
+      'counter'
+    ),
+  ]
+  for (const [i, z] of [BOARD.z0, BOARD.z0 + LIQUOR.width].entries()) {
+    const inward = i === 0 ? 1 : -1
+    boxes.push(
+      box(
+        `liquor-end-${i}`,
+        [LIQUOR_X, bodyY, z + (inward * SHELF_BOARD) / 2],
+        [LIQUOR.depth, bodyH, SHELF_BOARD],
+        'counter'
+      )
+    )
+  }
+  COOLER.shelves.forEach((y, i) => {
+    boxes.push(
+      box(
+        `liquor-board-${i}`,
+        [LIQUOR_X, y - SHELF_BOARD / 2, LIQUOR_Z],
+        [LIQUOR.depth, SHELF_BOARD, LIQUOR.width],
+        'counter'
+      )
+    )
+  })
+  return boxes
+}
+
+// The cooler bank along the partition: the carcass (its kick plate is the
+// footprint that blocks, its ends, the lit back inside, the sign strip over
+// the doors), a wire shelf at every height, and the glass doors on the
+// shop side between their mullions, each with its handle.
+function coolers(): StoreBox[] {
+  const bottom = FLOOR + COOLER.base
+  const top = COOLER.height - COOLER.header
+  const doorY = (bottom + top) / 2
+  const doorH = top - bottom
+  const bodyY = (FLOOR + COOLER.height) / 2
+  const bodyH = COOLER.height - FLOOR
+  const boxes: StoreBox[] = [
+    box(
+      'cooler-base',
+      [COOLER_X, FLOOR + COOLER.base / 2, BOARD_Z],
+      [COOLER.depth, COOLER.base, BOARD_LENGTH],
+      'cooler',
+      true
+    ),
+    box(
+      'cooler-header',
+      [COOLER_X, COOLER.height - COOLER.header / 2, BOARD_Z],
+      [COOLER.depth, COOLER.header, BOARD_LENGTH],
+      'cooler-glow'
+    ),
+    box(
+      'cooler-back',
+      [COOLER_BACK + 0.01, doorY, BOARD_Z],
+      [0.02, doorH, BOARD_LENGTH],
+      'cooler-inside'
+    ),
+  ]
+  for (const [i, z] of [COOLER_Z0, BOARD.z1].entries()) {
+    const inward = i === 0 ? 1 : -1
+    boxes.push(
+      box(
+        `cooler-end-${i}`,
+        [COOLER_X, bodyY, z + (inward * COOLER.mullion) / 2],
+        [COOLER.depth, bodyH, COOLER.mullion],
+        'cooler'
+      )
+    )
+  }
+  COOLER.shelves.forEach((y, i) => {
+    boxes.push(
+      box(
+        `cooler-shelf-${i}`,
+        [COOLER_X, y - SHELF_BOARD / 2, BOARD_Z],
+        [COOLER.depth - 0.04, SHELF_BOARD, BOARD_LENGTH],
+        'shelf'
+      )
+    )
+  })
+  for (let d = 0; d < COOLER.doors; d++) {
+    const z0 = COOLER_Z0 + d * COOLER_DOOR
+    const zc = z0 + COOLER_DOOR / 2
+    if (d > 0) {
+      boxes.push(
+        box(
+          `cooler-mullion-${d}`,
+          [COOLER_FACE - COOLER.mullion / 2, doorY, z0],
+          [COOLER.mullion, doorH, COOLER.mullion],
+          'cooler'
+        )
+      )
+    }
+    boxes.push(
+      box(
+        `cooler-door-${d}`,
+        [COOLER_FACE + 0.01, doorY, zc],
+        [0.02, doorH, COOLER_DOOR - COOLER.mullion],
+        'cooler-glass'
+      ),
+      // The handle up the door's +Z edge, where it swings open from.
+      box(
+        `cooler-handle-${d}`,
+        [COOLER_FACE + 0.04, doorY, z0 + COOLER_DOOR - 0.12],
+        [0.025, 0.6, 0.025],
+        'cooler'
+      )
+    )
+  }
+  return boxes
 }
 
 // The bathroom in the back room's +Z end: its wall with the doorway
@@ -571,14 +744,8 @@ function buildBoxes(): StoreBox[] {
       [WALL, lintelH, DOOR_WIDTH],
       'wall'
     ),
-    // The shelving unit's footprint blocks; the boards are drawn on it.
-    box(
-      'shelf-unit',
-      [SHELF_X, FLOOR + 0.02, BOARD_Z],
-      [SHELF_DEPTH, 0.04, BOARD_LENGTH],
-      'shelf',
-      true
-    ),
+    ...liquorShelf(),
+    ...coolers(),
     box(
       'counter',
       [COUNTER.x, COUNTER.height / 2, (COUNTER.z0 + COUNTER.z1) / 2],
@@ -599,16 +766,6 @@ function buildBoxes(): StoreBox[] {
       true
     ),
   ]
-  SHELF_TOPS.forEach((top, i) => {
-    boxes.push(
-      box(
-        `shelf-board-${i}`,
-        [SHELF_X, top - SHELF_BOARD / 2, BOARD_Z],
-        [SHELF_DEPTH, SHELF_BOARD, BOARD_LENGTH],
-        'shelf'
-      )
-    )
-  })
   LIGHT.rows.forEach((x, r) => {
     LIGHT.along.forEach((z, a) => {
       boxes.push(
@@ -758,7 +915,7 @@ function buildSigns(): StoreSign[] {
 }
 
 // Units of one kind sit this far apart along their run.
-const UNIT_GAP = { drink: 0.26, counter: 0.12, medicine: 0.11 }
+const UNIT_GAP = { counter: 0.12, medicine: 0.11 }
 
 // `count` units centred on `at`, spread along local Z (or local X for the
 // medicine rack, which runs along a side wall).
@@ -774,24 +931,56 @@ function row(at: Vec3, gap: number, axis: 'x' | 'z'): Vec3[] {
   return slots
 }
 
+// The units of `kind` on a shelf whose front edge (at a cooler's glass) is
+// `at`: in lanes across the shelf centred on it, as many as fit up to
+// COOLER.lanes, then row after row going back. Unit 0 is at the front.
+function inLanes(at: Vec3, kind: ItemId): Vec3[] {
+  const n = unitsOf(kind)
+  const lanes = Math.min(n, COOLER.lanes)
+  const slots: Vec3[] = []
+  for (let i = 0; i < n; i++) {
+    const lane = i % lanes
+    const rank = Math.floor(i / lanes)
+    slots.push([
+      at[0] - COOLER.row * (rank + 1),
+      at[1],
+      at[2] + (lane - (lanes - 1) / 2) * COOLER.lane,
+    ])
+  }
+  return slots
+}
+
 function buildFacings(): Facing[] {
   const facings: Facing[] = []
+  // In the coolers: drinks in ITEMS order, one to a door's shelf, top shelf
+  // first and door by door, art facing out through the glass (+X). The
+  // liquor is never chilled: it stands on its own shelf, a kind to a
+  // board, top board first.
   const drinks = ITEMS.filter((item) => item.category === 'drink')
-  const perBoard = Math.ceil(drinks.length / SHELF_TOPS.length)
-  const pitch = BOARD_LENGTH / perBoard
-  // Along the partition: drinks left to right in ITEMS order, top board
-  // first, art facing into the shop (+X).
-  drinks.forEach((item, i) => {
-    const board = Math.floor(i / perBoard)
-    const col = i % perBoard
-    const z = BOARD.z0 + pitch * (col + 0.5)
-    const top = SHELF_TOPS[SHELF_TOPS.length - 1 - board]
+  const chilled = drinks.filter((item) => !isSpirit(item.id))
+  chilled.forEach((item, i) => {
+    const shelf = Math.floor(i / COOLER.doors)
+    const door = i % COOLER.doors
+    const z = COOLER_Z0 + COOLER_DOOR * (door + 0.5)
+    const y = COOLER.shelves[shelf]
+    if (y === undefined) throw new Error(`no cooler shelf for ${item.id}`)
     facings.push({
       kind: item.id,
-      slots: row([SHELF_X, top, z], UNIT_GAP.drink, 'z'),
+      slots: inLanes([COOLER_FACE, y, z], item.id),
       yaw: Math.PI / 2,
     })
   })
+  drinks
+    .filter((item) => isSpirit(item.id))
+    .forEach((item, i) => {
+      const y = COOLER.shelves[i]
+      if (y === undefined) throw new Error(`no liquor board for ${item.id}`)
+      facings.push({
+        kind: item.id,
+        slots: inLanes([LIQUOR_FACE, y, LIQUOR_Z], item.id),
+        yaw: Math.PI / 2,
+      })
+    })
   // The counter: cigarettes then joints, art toward the room side (-X),
   // where the customer stands.
   const smokes = ITEMS.filter(
@@ -974,6 +1163,17 @@ export interface WallSegment {
   a: XZ
   b: XZ
   half: number
+  // Under the eye and the hand (walls.ts): it stands between nothing.
+  low?: boolean
+}
+
+// A fixture whose top is under this, in metres over the floor, is low: a
+// counter the eye and the hand pass over.
+export const LOW_FIXTURE = 1.3
+
+// Whether a box is a low fixture.
+export function isLow(b: { center: Vec3; size: Vec3 }): boolean {
+  return b.center[1] + b.size[1] / 2 < LOW_FIXTURE
 }
 
 export function storeWalls(origin: StoreOrigin): WallSegment[] {
@@ -991,7 +1191,9 @@ export function storeWalls(origin: StoreOrigin): WallSegment[] {
     const e: Vec3 = alongX ? [cx + reach, 0, cz] : [cx, 0, cz + reach]
     const [ax, , az] = toWorld(origin, a)
     const [ex, , ez] = toWorld(origin, e)
-    walls.push({ a: { x: ax, z: az }, b: { x: ex, z: ez }, half })
+    const wall: WallSegment = { a: { x: ax, z: az }, b: { x: ex, z: ez }, half }
+    if (isLow(b)) wall.low = true
+    walls.push(wall)
   }
   // The dumpster on the pad out back, its length along the wall.
   {
@@ -1019,15 +1221,17 @@ export function worldFacings(origin: StoreOrigin): WorldFacing[] {
 
 // --- Shopping ------------------------------------------------------------
 
+// How many units of `kind` each Citgo stocks when the day turns.
+export function unitsOf(kind: string): number {
+  return CONFIG.store.stock[kind] ?? CONFIG.store.perItem
+}
+
 // Full shelves at every station, for a new day.
 export function freshStock(stationCount: number): ShopStock[] {
   return Array.from({ length: stationCount }, () => {
     const full: ShopStock = {}
     for (const facing of STORE_LAYOUT.facings) {
-      full[facing.kind] = Array.from(
-        { length: CONFIG.store.perItem },
-        () => true
-      )
+      full[facing.kind] = facing.slots.map(() => true)
     }
     return full
   })
@@ -1040,22 +1244,6 @@ export function onShelf(
   unit: number
 ): boolean {
   return shelf?.[kind]?.[unit] === true
-}
-
-// What the next unit of `kind` off a shelf whose units of it are `units`
-// costs, in cents: its shelf price for the first of the day, then
-// CONFIG.store.surge times over for each one already sold, up to the next
-// price ending in 9. Undefined for anything with no shelf price.
-export function shelfPrice(
-  kind: string,
-  units: readonly boolean[] | undefined,
-  cfg = CONFIG.store
-): number | undefined {
-  const price = itemById(kind)?.price
-  if (price === undefined) return undefined
-  const sold = units ? units.filter((on) => !on).length : 0
-  if (sold === 0) return price
-  return Math.ceil((price * cfg.surge ** sold + 1) / 10) * 10 - 1
 }
 
 // A shelf with one unit gone, as a new value.
@@ -1071,12 +1259,15 @@ export function takeUnit(
 // the eye, inside the aim cone, and the closest to the view ray among
 // those. Units sit a hand's width apart, so the one under the crosshair
 // wins. `dir` is the unit look direction, pitch included, so looking at a
-// board picks it. Null when nothing qualifies.
+// board picks it. A unit with a wall between it and the eye (`walled`,
+// walls.ts between: the partition, from the back room) is never in view.
+// Null when nothing qualifies.
 export function unitInView<F extends WorldFacing>(
   facings: readonly F[],
   stock: ShopStock,
   eye: Vec3,
-  dir: Vec3
+  dir: Vec3,
+  walled?: (from: XZ, to: XZ) => boolean
 ): UnitInView<F> | null {
   const { reach, aimCone } = CONFIG.store
   let best: UnitInView<F> | null = null
@@ -1091,7 +1282,10 @@ export function unitInView<F extends WorldFacing>(
       if (d > reach || d < 1e-6) continue
       const cos = (dx * dir[0] + dy * dir[1] + dz * dir[2]) / d
       const angle = Math.acos(Math.max(-1, Math.min(1, cos)))
-      if (angle <= bestAngle) {
+      if (
+        angle <= bestAngle &&
+        !walled?.({ x: eye[0], z: eye[2] }, { x: at[0], z: at[2] })
+      ) {
         bestAngle = angle
         best = { facing, unit }
       }

@@ -1,5 +1,5 @@
 import { copy } from './copy.ts'
-import { beginRaid, expect, heardWhere, test } from './fixtures.ts'
+import { beginRaid, expect, faceSpot, heardWhere, test } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
 // Rule 23: every account keeps its own Cabbage Stand on the spawn Citgo's
@@ -25,7 +25,7 @@ test('E at the stand puts cabbages out and buys the next level', async ({
   const cash = await page.evaluate(() => window.__bv?.cash ?? 0)
 
   // In front of the stand, on the pumps' side of it.
-  await page.evaluate(() => {
+  const at = await page.evaluate(() => {
     const bv = window.__bv
     const at = bv?.standAt
     const station = bv?.world.spawnStation
@@ -34,7 +34,9 @@ test('E at the stand puts cabbages out and buys the next level', async ({
     const x = at.x + ((station.x - at.x) / d) * 1.8
     const z = at.z + ((station.z - at.z) / d) * 1.8
     bv.player.relocate(x, z, 0)
+    return { x: at.x, z: at.z }
   })
+  await faceSpot(page, at.x, at.z, 1)
   await heardWhere(page)
   await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.stand'))
   await page.keyboard.press('KeyE')

@@ -9,7 +9,7 @@
 
 import { CONFIG } from './config.ts'
 import { mulberry32, range } from './rng.ts'
-import { toLocal, toWorld } from './store.ts'
+import { isLow, toLocal, toWorld } from './store.ts'
 import type { Vec3, XZ } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
 import type { LockId } from './keys.ts'
@@ -1537,7 +1537,9 @@ export function boxWall(
   const e: Vec3 = alongX ? [cx + reach, 0, cz] : [cx, 0, cz + reach]
   const [ax, , az] = toWorld(origin, a)
   const [ex, , ez] = toWorld(origin, e)
-  return { a: { x: ax, z: az }, b: { x: ex, z: ez }, half }
+  const wall: WallSegment = { a: { x: ax, z: az }, b: { x: ex, z: ez }, half }
+  if (isLow(b)) wall.low = true
+  return wall
 }
 
 // The locked door's gate in the world (walls.ts addGate): a wall for

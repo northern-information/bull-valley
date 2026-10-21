@@ -3,6 +3,7 @@ import { copy } from './copy.ts'
 import {
   beginRaid,
   expect,
+  faceSpot,
   freshRaider,
   freshValley,
   heardWhere,
@@ -70,6 +71,7 @@ base.describe('drops', { tag: '@valley' }, () => {
         lying.x,
         lying.z,
       ] as const)
+      await faceSpot(b, lying.x, lying.z)
       // The valley gives a drop only to a raider it has heard stand in reach.
       await heardWhere(b)
       await expect(b.locator('.bv-item-label')).toContainText(

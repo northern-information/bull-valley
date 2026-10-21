@@ -25,6 +25,16 @@ export const CONTAINERS: Record<ContainerKey, Container> = {
 // would shrink a 16 oz can to half a Grey Goose bottle.
 const CANS: readonly ContainerKey[] = ['tall', 'slim', 'can12']
 
+// The spirits' bottles: liquor stands at room temperature, on the open
+// shelf beside the coolers (store.ts), never behind their glass.
+const SPIRITS: readonly ContainerKey[] = ['bourbon', 'square', 'goose']
+
+// Whether this drink is hard liquor.
+export function isSpirit(id: string): boolean {
+  const item = itemById(id)
+  return item?.category === 'drink' && SPIRITS.includes(item.container)
+}
+
 type Family = 'can' | 'bottle'
 
 function familyOf(container: ContainerKey): Family {
