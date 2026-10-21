@@ -9,6 +9,7 @@ import {
   createPeerTable,
   poseOf,
   samplePeer,
+  stampOf,
   stateChanged,
 } from '../../src/presence.ts'
 import type { PeerStateWire, PeerWire } from '../../src/protocol.ts'
@@ -56,6 +57,23 @@ describe('peer table', () => {
     applyWelcome(peers, [{ ...wire('a'), level: 3 }], 300)
     expect(peers.get('a')?.frames.map((f) => f.x)).toEqual([1, 2])
     expect(peers.get('a')?.level).toBe(3)
+  })
+
+  it('spaces a held-back burst as it was sent, never ahead or behind', () => {
+    const peers = createPeerTable()
+    applyJoined(peers, wire('a', false), 0)
+    applyState(peers, 'a', at(1, 1), 100)
+    // Three frames due 100 ms apart, held up and let through at once.
+    applyState(peers, 'a', at(2, 2), 450, 200)
+    applyState(peers, 'a', at(3, 3), 450, 300)
+    applyState(peers, 'a', at(4, 4), 450, 400)
+    expect(peers.get('a')?.frames.map((f) => f.at)).toEqual([
+      100, 200, 300, 400,
+    ])
+    const a = peers.get('a')!
+    // Never later than it came, never before the frame ahead of it.
+    expect(stampOf(a, 500, 900)).toBe(500)
+    expect(stampOf(a, 500, 50)).toBe(400)
   })
 
   it('keeps the latest states and ignores strangers', () => {

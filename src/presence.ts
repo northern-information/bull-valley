@@ -99,12 +99,22 @@ export function applyState(
   peers: PeerTable,
   id: string,
   state: PeerStateWire,
-  now: number
+  now: number,
+  due: number = now
 ): Peer | null {
   const peer = peers.get(id)
   if (!peer) return null
-  record(peer, { ...state, at: now })
+  record(peer, { ...state, at: stampOf(peer, now, due) })
   return peer
+}
+
+// When a state is kept as having come (local ms): when it was due, from
+// the server's stamp and the round trip (`due`), so frames a stall held
+// back and let through together keep the spacing they were sent with;
+// never later than it came, and never before the frame ahead of it.
+export function stampOf(peer: Peer, now: number, due: number): number {
+  const last = peer.frames.at(-1)?.at ?? -Infinity
+  return Math.max(last, Math.min(now, due))
 }
 
 function record(peer: Peer, snapshot: PeerSnapshot): void {

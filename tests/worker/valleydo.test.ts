@@ -522,6 +522,9 @@ describe('ValleyDO', () => {
       light: true,
     })
     expect(fanned.id).toBe(idOf(a))
+    // Stamped with the server's clock as it came, to space a late burst.
+    expect(fanned.t).toBeGreaterThan(0)
+    expect(fanned.t).toBeLessThanOrEqual(Date.now())
     expect(stranger.sent).toEqual([])
   })
 
