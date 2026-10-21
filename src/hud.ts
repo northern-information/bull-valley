@@ -45,7 +45,6 @@ const BEGIN_LABELS = {
   reconnecting: copy('hud.begin_reconnecting'),
   lost: copy('hud.begin_lost'),
   play: copy('hud.begin_play'),
-  resume: copy('hud.begin_resume'),
   failed: copy('hud.begin_failed'),
 } as const
 
@@ -509,8 +508,8 @@ export class Hud {
     ctx.putImageData(img, 0, 0)
   }
 
-  // Shows one of the Begin button's labels; it is clickable only to play or
-  // resume. The others stay in the button, hidden, holding its width.
+  // Shows one of the Begin button's labels; it is clickable only to play,
+  // from the intro or paused alike. The others stay in the button, hidden, holding its width.
   setBegin(state: BeginState): void {
     if (this.beginFailed) return
     if (state === 'failed') this.beginFailed = true
@@ -565,9 +564,7 @@ export class Hud {
   // when the line is lost, since Begin then goes back to the menu itself.
   private showConnection(): void {
     const { connection } = this
-    this.setBegin(
-      connection === 'online' ? (this.paused ? 'resume' : 'play') : connection
-    )
+    this.setBegin(connection === 'online' ? 'play' : connection)
     this.exitBtn.hidden = !this.paused || connection === 'lost'
   }
 }
