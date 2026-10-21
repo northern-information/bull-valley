@@ -182,6 +182,36 @@ describe('chat', () => {
       text: 'to the maze',
     })
     expect(parse({ type: 'party-chat', text: '' })).toBeNull()
+    expect(
+      parse({ type: 'crew-create', tag: 'BVC', name: 'Bull Valley' })
+    ).toEqual({ type: 'crew-create', tag: 'BVC', name: 'Bull Valley' })
+    expect(
+      parse({ type: 'crew-create', tag: 'B'.repeat(9), name: 'X' })
+    ).toBeNull()
+    expect(parse({ type: 'crew-invite', name: 'Baker' })).toEqual({
+      type: 'crew-invite',
+      name: 'Baker',
+    })
+    expect(parse({ type: 'crew-join', tag: 'BVC' })).toEqual({
+      type: 'crew-join',
+      tag: 'BVC',
+    })
+    expect(parse({ type: 'crew-join', tag: '' })).toBeNull()
+    expect(parse({ type: 'crew-leave' })).toEqual({ type: 'crew-leave' })
+    expect(parse({ type: 'crew-kick', name: 'Baker' })).toEqual({
+      type: 'crew-kick',
+      name: 'Baker',
+    })
+    expect(parse({ type: 'crew-chat', text: 'hi' })).toEqual({
+      type: 'crew-chat',
+      text: 'hi',
+    })
+    expect(parse({ type: 'dev', op: 'earn', cents: 500 })).toEqual({
+      type: 'dev',
+      op: 'earn',
+      cents: 500,
+    })
+    expect(parse({ type: 'dev', op: 'earn', cents: 0 })).toBeNull()
     expect(parse({ type: 'unfriend' })).toBeNull()
     expect(parse({ type: 'friends', extra: 1 })).toEqual({ type: 'friends' })
   })

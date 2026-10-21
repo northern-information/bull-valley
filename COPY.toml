@@ -120,6 +120,7 @@ tracker_label = { text = "Raider level {level}: {into} of {span} XP to the next"
 tracker_label_max = { text = "Raider level {level}, the highest", by = "ai" }
 banner = { text = "Level {level}", by = "ai" }
 tag = { text = "{name} · {level}", by = "ai" }
+tag_crew = { text = "[{tag}] {name} · {level}", by = "ai" }
 
 # The sign-in card (src/signin.ts).
 
@@ -565,7 +566,7 @@ offline = { text = "No one can hear you.", by = "ai" }
 online = { text = "In the valley: {names}.", by = "ai" }
 online_name = { text = "{name} (level {level})", by = "ai" }
 online_phone = { text = "{name} (level {level}, on the phone)", by = "ai" }
-unknown_command = { text = "No such command. Try /online, /emotes, /friends, /friend name, /unfriend name, /inspect name, /invite name, /party, /leave, /p message or /w name message.", by = "ai" }
+unknown_command = { text = "No such command. Try /online, /emotes, /friends, /friend name, /unfriend name, /inspect name, /invite name, /party, /leave, /p message, /crew, /c message or /w name message.", by = "ai" }
 usage_whisper = { text = "To whisper: /w name message", by = "ai" }
 usage_friend = { text = "To ask a raider to be friends: /friend name", by = "ai" }
 usage_unfriend = { text = "To stop being friends: /unfriend name", by = "ai" }
@@ -632,6 +633,49 @@ join_button = { text = "Join", by = "ai" }
 leave_button = { text = "Leave", by = "ai" }
 heading = { text = "Party", by = "ai" }
 
+# Crews (src/crews.ts): /crew create TAG Name starts one, /crew invite
+# name (the leader), /crew join TAG, /crew leave, /crew kick name (the
+# leader), /crew lists it, /c says a line to it alone.
+
+[crew]
+heading = { text = "Crew", by = "ai" }
+heading_line = { text = "[{tag}] {crew}", by = "ai" }
+members = { text = "Members: {names}.", by = "ai" }
+leader_name = { text = "{name} (leader)", by = "ai" }
+none = { text = "You are in no crew. /crew create TAG Name starts one.", by = "ai" }
+invite_waiting = { text = "[{tag}] {crew} invites you. /crew join {tag} to join.", by = "ai" }
+created = { text = "You started [{tag}] {crew}. You lead it.", by = "ai" }
+news_invited = { text = "{name} invites you to [{tag}] {crew}. /crew join {tag} to join.", by = "ai" }
+sent = { text = "You invited {name} to the crew.", by = "ai" }
+you_joined = { text = "You joined [{tag}] {crew}.", by = "ai" }
+news_joined = { text = "{name} joined the crew.", by = "ai" }
+you_left = { text = "You left the crew.", by = "ai" }
+news_left = { text = "{name} left the crew.", by = "ai" }
+you_kicked = { text = "You were put out of the crew.", by = "ai" }
+news_kicked = { text = "{name} was put out of the crew.", by = "ai" }
+you_lead = { text = "You lead the crew now.", by = "ai" }
+news_leader = { text = "{name} leads the crew now.", by = "ai" }
+ended = { text = "[{tag}] is no more.", by = "ai" }
+said = { text = "{name} to the crew", by = "ai" }
+short = { text = "Starting a crew costs {cost}.", by = "ai" }
+tag_taken = { text = "Another crew wears [{tag}].", by = "ai" }
+name_taken = { text = "Another crew has that name.", by = "ai" }
+bad_tag = { text = "A tag is 2 to 4 letters or digits.", by = "ai" }
+in_crew = { text = "You are in a crew already. /crew leave first.", by = "ai" }
+their_crew = { text = "{name} is in a crew already.", by = "ai" }
+not_leader = { text = "Only the crew's leader can do that.", by = "ai" }
+no_invite = { text = "No invite from [{tag}] is waiting.", by = "ai" }
+not_member = { text = "{name} is not in your crew.", by = "ai" }
+self = { text = "Not yourself.", by = "ai" }
+full = { text = "A crew holds {size}. This one is full.", by = "ai" }
+failed = { text = "The crew could not be changed. Try again soon.", by = "ai" }
+usage = { text = "Crews: /crew create TAG Name, /crew invite name, /crew join TAG, /crew leave, /crew kick name, /c message", by = "ai" }
+usage_say = { text = "To speak to your crew: /c message", by = "ai" }
+invite_button = { text = "Invite to Crew", by = "ai" }
+invited_button = { text = "Invited to Crew", by = "ai" }
+join_button = { text = "Join", by = "ai" }
+leave_button = { text = "Leave", by = "ai" }
+
 # Inspecting another raider (src/inspect.ts): E on one in reach, or
 # /inspect name, opens their card.
 
@@ -644,6 +688,7 @@ character = { text = "Character", by = "ai" }
 character_value = { text = "{character}, {finish} guitar", by = "ai" }
 cosmetics = { text = "Wearing", by = "ai" }
 none = { text = "Nothing extra", by = "ai" }
+none_crew = { text = "None", by = "ai" }
 add_friend = { text = "Add Friend", by = "ai" }
 accept = { text = "Accept Friend", by = "ai" }
 asked = { text = "Asked", by = "ai" }

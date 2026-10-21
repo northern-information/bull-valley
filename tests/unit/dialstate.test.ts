@@ -690,6 +690,61 @@ describe('the folk, the Citgo and the chat on the phone', () => {
     expect(refused.pending.invite).toBeNull()
   })
 
+  it('sends the crew commands, keeps the crew, hears it, and says its news', () => {
+    const self = { name: 'Me', level: 2 }
+    const s = { ...me(), name: 'Me' }
+    const asking = sayLine(s, '/crew invite Kid', self, 0)
+    expect(asking.frame).toEqual({ type: 'crew-invite', name: 'Kid' })
+    expect(asking.state.pending.crew).toBe('Kid')
+    expect(sayLine(s, '/crew', self, 0).state.chat.at(-1)?.text).toBe(
+      copy('crew.none')
+    )
+    const crew = {
+      name: 'Bull Valley',
+      tag: 'BVC',
+      leader: 'Me',
+      members: [{ name: 'Me', online: true }],
+    }
+    let after = applyFrame(
+      asking.state,
+      { type: 'crew', crew, invites: [] },
+      0,
+      0
+    )
+    expect(after.crew.crew).toEqual(crew)
+    after = applyFrame(
+      after,
+      {
+        type: 'crew-news',
+        news: 'sent',
+        name: 'Kid',
+        tag: 'BVC',
+        crew: 'Bull Valley',
+      },
+      0,
+      0
+    )
+    expect(after.pending.crew).toBeNull()
+    expect(after.chat.at(-1)?.text).toBe(copy('crew.sent', { name: 'Kid' }))
+    after = applyFrame(
+      after,
+      { type: 'crew-chat', from: 'Kid', text: 'keep?', at: 9 },
+      0,
+      0
+    )
+    expect(after.chat.at(-1)).toEqual(
+      expect.objectContaining({ kind: 'crew', text: 'keep?' })
+    )
+    const refused = applyFrame(
+      asking.state,
+      { type: 'nack', re: 'crew-invite', reason: 'their-crew' },
+      0,
+      0
+    )
+    expect(refused.said?.text).toBe(copy('crew.their_crew', { name: 'Kid' }))
+    expect(refused.pending.crew).toBeNull()
+  })
+
   it("asks for a raider's card, keeps the answer, and says a refusal", () => {
     const self = { name: 'Me', level: 2 }
     const asking = sayLine(me(), '/inspect Kid', self, 0)
@@ -705,6 +760,8 @@ describe('the folk, the Citgo and the chat on the phone', () => {
       season: { kills: 0, goal: 5, claimed: false },
       friend: null,
       party: null,
+      crew: null,
+      crewInvite: false,
       online: true,
     }
     const shown = applyFrame(asking.state, { type: 'inspected', card }, 0, 0)

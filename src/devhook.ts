@@ -13,7 +13,7 @@ import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { TaskProgress } from './dailytask.ts'
 import type { Drop } from './drops.ts'
-import type { Game } from './game.ts'
+import type { CrewState, Game } from './game.ts'
 import type { Grave } from './graves.ts'
 import type { Hallucination, HallucinationShape } from './hallucinations.ts'
 import type { Hand } from './hands.ts'
@@ -93,6 +93,9 @@ interface BvHook {
   readonly friends: readonly FriendWire[]
   // Rule 34: the party, as the valley last sent it.
   readonly party: PartyWire
+  // Rule 35: the crew and the invites waiting, as the valley last sent
+  // them.
+  readonly crew: CrewState
   // The pack as this client holds it: the valley's last word, plus guesses.
   readonly inventory: Inventory
   // What lies dropped, the valley's.
@@ -171,6 +174,8 @@ interface BvHook {
   // `count` of `kind` into the pack: the valley's, through a dev frame, or
   // this client's own. Gold bullion has no other way in yet.
   grant(kind: string, count?: number): void
+  // `cents` into the wallet, through a dev frame.
+  earn(cents: number): void
   // One `kind` used out of the pack, as E in the pack uses it.
   use(kind: string): void
   // This raider at `points` hit points (1 to whole), for the specs.
@@ -263,6 +268,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     },
     get party() {
       return s.party
+    },
+    get crew() {
+      return s.crew
     },
     get inventory() {
       return s.inventory
@@ -370,6 +378,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     },
     grant(kind, count = 1) {
       net.send({ type: 'dev', op: 'grant', kind, count })
+    },
+    earn(cents) {
+      net.send({ type: 'dev', op: 'earn', cents })
     },
     setHealth(points) {
       net.send({ type: 'dev', op: 'health', points })

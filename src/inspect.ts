@@ -14,6 +14,7 @@ import { BOOK } from './book.ts'
 import { pickOf } from './characters.ts'
 import { copy } from './copy.ts'
 import { cosmeticById } from './cosmetics.ts'
+import { showTag } from './crews.ts'
 import { finishById } from './finishes.ts'
 import { outfitById } from './outfits.ts'
 import { levelOf } from './progression.ts'
@@ -40,6 +41,9 @@ export interface InspectRead {
   friend: FriendRow | undefined
   // Where the asker stands with them in a party (party.ts standing).
   party: InspectWire['party']
+  // Rule 35: their crew, and whether the asker may invite them to theirs.
+  crew: InspectWire['crew']
+  crewInvite: boolean
   online: boolean
 }
 
@@ -63,6 +67,8 @@ export function cardOf(read: InspectRead): InspectWire {
     },
     friend: read.self ? 'self' : (read.friend?.state ?? null),
     party: read.self ? null : read.party,
+    crew: read.crew && { name: read.crew.name, tag: showTag(read.crew.tag) },
+    crewInvite: !read.self && read.crew === null && read.crewInvite,
     online: read.online,
   }
 }
@@ -92,6 +98,15 @@ export function cardRows(card: InspectWire): CardRow[] {
     {
       label: copy('inspect.cosmetics'),
       value: worn.length > 0 ? worn.join(', ') : copy('inspect.none'),
+    },
+    {
+      label: copy('crew.heading'),
+      value: card.crew
+        ? copy('crew.heading_line', {
+            tag: card.crew.tag,
+            crew: card.crew.name,
+          })
+        : copy('inspect.none_crew'),
     },
     {
       label: copy('book.title'),
@@ -165,6 +180,18 @@ export function partied(card: InspectWire): InspectWire {
   if (card.party === 'inviting') return { ...card, party: 'member' }
   if (card.party === null) return { ...card, party: 'invited' }
   return card
+}
+
+// The crew button under a card (rule 35): an invite to the asker's crew,
+// shown only when the asker leads one and they are in none.
+export function crewButton(
+  card: InspectWire,
+  sent: boolean
+): { label: string; enabled: boolean } | null {
+  if (!card.crewInvite) return null
+  return sent
+    ? { label: copy('crew.invited_button'), enabled: false }
+    : { label: copy('crew.invite_button'), enabled: true }
 }
 
 // Why the valley refused an inspect, as the log says it.

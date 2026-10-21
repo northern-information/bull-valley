@@ -35,7 +35,7 @@ import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 42
+export const PROTOCOL_VERSION = 43
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -122,6 +122,9 @@ export interface PeerWire {
   // Dialed in from Bull Valley Dial-Up (sharedworld.ts rule 29): in the
   // valley, but never placed in it, so never drawn.
   dialup?: true
+  // Rule 35: their crew's tag, as D1 holds it, shown on their name tag;
+  // missing while in no crew.
+  crew?: string
 }
 
 // One pickup as this build placed it: what lies there and how many. The
@@ -481,6 +484,8 @@ type DevMessage =
   | { type: 'dev'; op: 'calm' }
   // `count` of `kind` into this raider's pack, for the specs.
   | { type: 'dev'; op: 'grant'; kind: string; count: number }
+  // `cents` into this raider's wallet, for the specs.
+  | { type: 'dev'; op: 'earn'; cents: number }
   // This raider's account at `points` of health (sharedworld.ts rule 24),
   // for the specs.
   | { type: 'dev'; op: 'health'; points: number }
@@ -534,6 +539,41 @@ interface PartyLeaveMessage {
 
 interface PartyChatMessage {
   type: 'party-chat'
+  text: string
+}
+
+// Rule 35: crews. Start one (its tag and name; the cost comes out of the
+// wallet), invite a raider to it by name (the leader alone), join one
+// that invited this raider by its tag, leave it, put a member out (the
+// leader alone), or say a line to it alone (under the chat rules and
+// rate, never kept).
+interface CrewCreateMessage {
+  type: 'crew-create'
+  tag: string
+  name: string
+}
+
+interface CrewInviteMessage {
+  type: 'crew-invite'
+  name: string
+}
+
+interface CrewJoinMessage {
+  type: 'crew-join'
+  tag: string
+}
+
+interface CrewLeaveMessage {
+  type: 'crew-leave'
+}
+
+interface CrewKickMessage {
+  type: 'crew-kick'
+  name: string
+}
+
+interface CrewChatMessage {
+  type: 'crew-chat'
   text: string
 }
 
@@ -640,6 +680,12 @@ export type ClientMessage =
   | InviteMessage
   | PartyLeaveMessage
   | PartyChatMessage
+  | CrewCreateMessage
+  | CrewInviteMessage
+  | CrewJoinMessage
+  | CrewLeaveMessage
+  | CrewKickMessage
+  | CrewChatMessage
   | LaptopListMessage
   | LaptopReadMessage
   | LaptopSaveMessage
@@ -1077,6 +1123,9 @@ export type ServerMessage =
   | PartyMessage
   | PartyNewsMessage
   | PartyChatLineMessage
+  | CrewMessage
+  | CrewNewsMessage
+  | CrewChatLineMessage
   | LaptopFilesMessage
   | LaptopFileMessage
   | LaptopSavedMessage
@@ -1158,6 +1207,10 @@ export interface InspectWire {
   // Where the asker stands with them in a party (rule 34): in the same
   // one, invited by the asker, inviting the asker, or none of those.
   party: 'member' | 'invited' | 'inviting' | null
+  // Rule 35: their crew, and whether the asker may invite them to theirs
+  // (the asker leads one, and they are in none).
+  crew: { name: string; tag: string } | null
+  crewInvite: boolean
   online: boolean
 }
 
@@ -1185,6 +1238,50 @@ export interface PartyNewsMessage {
 // A line said to the party, as the valley delivers it to every member.
 export interface PartyChatLineMessage {
   type: 'party-chat'
+  from: string
+  text: string
+  at: number
+}
+
+// Rule 35: a crew as a member is sent it (crews.ts crewWire): its name,
+// its tag, who leads it, and its members by name (the leader first), each
+// with whether they are in the valley now.
+export interface CrewWire {
+  name: string
+  tag: string
+  leader: string
+  members: { name: string; online: boolean }[]
+}
+
+// The account's crew (null: none) and the crews inviting it.
+interface CrewMessage {
+  type: 'crew'
+  crew: CrewWire | null
+  invites: { tag: string; name: string }[]
+}
+
+// News of a crew, for the log: started; `name` invited by crew `tag`
+// (named `crew`), or this raider's invite gone to `name` (sent); `name`
+// joined, left, was put out, or leads it now; or it ended.
+export interface CrewNewsMessage {
+  type: 'crew-news'
+  news:
+    | 'created'
+    | 'invited'
+    | 'sent'
+    | 'joined'
+    | 'left'
+    | 'kicked'
+    | 'leader'
+    | 'ended'
+  name: string
+  tag: string
+  crew: string
+}
+
+// A line said to the crew, as the valley delivers it to every member.
+export interface CrewChatLineMessage {
+  type: 'crew-chat'
   from: string
   text: string
   at: number
@@ -1508,6 +1605,8 @@ const DEV_OPS: Record<string, (value: Fields) => DevMessage | null> = {
     const units = parseUnits(value)
     return units && { type: 'dev', op: 'grant', ...units }
   },
+  earn: ({ cents }) =>
+    isCount(cents) && cents > 0 ? { type: 'dev', op: 'earn', cents } : null,
   health: ({ points }) =>
     isHealth(points) && points > 0
       ? { type: 'dev', op: 'health', points }
@@ -1576,6 +1675,22 @@ const CLIENT_PARSERS: ClientParsers = {
   'party-leave': bare('party-leave'),
   'party-chat': ({ text }) =>
     isValidChat(text) ? { type: 'party-chat', text } : null,
+  // The tag's and the name's rules are the valley's to check (crews.ts).
+  'crew-create': ({ tag, name }) =>
+    typeof tag === 'string' && tag.length <= 8 && isValidName(name)
+      ? { type: 'crew-create', tag, name }
+      : null,
+  'crew-invite': ({ name }) =>
+    isValidName(name) ? { type: 'crew-invite', name } : null,
+  'crew-join': ({ tag }) =>
+    typeof tag === 'string' && tag.length > 0 && tag.length <= 8
+      ? { type: 'crew-join', tag }
+      : null,
+  'crew-leave': bare('crew-leave'),
+  'crew-kick': ({ name }) =>
+    isValidName(name) ? { type: 'crew-kick', name } : null,
+  'crew-chat': ({ text }) =>
+    isValidChat(text) ? { type: 'crew-chat', text } : null,
   collect: ({ bush }) => (isCount(bush) ? { type: 'collect', bush } : null),
   // Widened like the hello's, so a bad id reaches the server's check.
   appearance: ({ outfit }) =>

@@ -144,6 +144,15 @@ export function nameLabel(tag: string): {
   return { sprite, texture }
 }
 
+// A peer's name tag: their name and level, and their crew's tag before
+// them when they are in one (sharedworld.ts rule 35).
+function tagOf(peer: Peer): string {
+  const { name, level, crew } = peer
+  return crew
+    ? copy('level.tag_crew', { tag: crew, name, level })
+    : copy('level.tag', { name, level })
+}
+
 export class Peers {
   table: PeerTable
   private scene: THREE.Object3D
@@ -306,9 +315,7 @@ export class Peers {
     figure.group.visible = false
     const flashlight = attachFlashlight(figure)
     const worn = attachCosmetics(figure, peer.cosmetics)
-    const { sprite, texture } = nameLabel(
-      copy('level.tag', { name: peer.name, level: peer.level })
-    )
+    const { sprite, texture } = nameLabel(tagOf(peer))
     if (peer.cosmetics.includes('flaming-halo')) {
       sprite.position.y = LABEL_OVER_HALO
     }

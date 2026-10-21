@@ -3,15 +3,22 @@
 // (npcdialog.ts). Their name heads it, with whether they are in the
 // valley; their figure turns on the left in their character, finish and
 // cosmetics (avatarview.ts), and the card's rows sit on the right. Under
-// it, the friend button asks them (or accepts their asking), and the
-// party button invites them (or joins their party, rule 34), or each says
-// how the two stand. The caller asks the valley and hands the card in; the
+// it, the friend button asks them (or accepts their asking), the party
+// button invites them (or joins their party, rule 34), and for a crew's
+// leader the crew button invites them to it (rule 35), or each says how
+// the two stand. The caller asks the valley and hands the card in; the
 // dialog reads it again every tick, so a fresh answer shows as it lands.
 
 import { AVATAR_PX, createAvatarView } from './avatarview.ts'
 import { copy } from './copy.ts'
 import { el, finder } from './dom.ts'
-import { cardRows, cardStatus, friendButton, partyButton } from './inspect.ts'
+import {
+  cardRows,
+  cardStatus,
+  crewButton,
+  friendButton,
+  partyButton,
+} from './inspect.ts'
 import { npcFooter, npcHeader, sectionHead } from './npcdialog.ts'
 import type { InspectWire } from './protocol.ts'
 
@@ -20,6 +27,7 @@ interface InspectDialogOptions {
   card: () => InspectWire
   onFriend: (name: string) => void
   onParty: (name: string) => void
+  onCrew: (name: string) => void
 }
 
 // A button wearing one of `labels` at a time, all stacked in it so a
@@ -73,6 +81,7 @@ export function openInspectDialog(
         <div class="bv-npc-grid">
           <button type="button" class="bv-btn bv-btn--stack bv-npc-btn bv-btn--primary bv-npc-c4" data-bv="inspect-friend"></button>
           <button type="button" class="bv-btn bv-btn--stack bv-npc-btn bv-npc-c4" data-bv="inspect-party"></button>
+          <button type="button" class="bv-btn bv-btn--stack bv-npc-btn bv-npc-c4" data-bv="inspect-crew"></button>
         </div>
       </section>
       ${npcFooter('inspect-said', 'inspect-close', copy('inspect.close'))}
@@ -87,6 +96,7 @@ export function openInspectDialog(
   const rows = find<HTMLElement>('[data-bv="inspect-rows"]')
   const friend = find<HTMLButtonElement>('[data-bv="inspect-friend"]')
   const party = find<HTMLButtonElement>('[data-bv="inspect-party"]')
+  const crew = find<HTMLButtonElement>('[data-bv="inspect-crew"]')
   const closeBtn = find<HTMLButtonElement>('[data-bv="inspect-close"]')
   const avatar = createAvatarView(
     find<HTMLCanvasElement>('[data-bv="inspect-avatar"]'),
@@ -98,6 +108,12 @@ export function openInspectDialog(
     copy('inspect.asked'),
     copy('inspect.friends'),
   ])
+  const showCrew = stacked(crew, [
+    copy('crew.invite_button'),
+    copy('crew.invited_button'),
+  ])
+  // Rule 35: an invite to the asker's crew sent from this card.
+  let crewSent = false
   const showParty = stacked(party, [
     copy('party.invite_button'),
     copy('party.join_button'),
@@ -122,6 +138,7 @@ export function openInspectDialog(
     )
     showFriend(friendButton(card))
     showParty(partyButton(card))
+    showCrew(crewButton(card, crewSent))
     const look = {
       outfit: card.outfit,
       finish: card.finish,
@@ -156,6 +173,14 @@ export function openInspectDialog(
     })
     party.addEventListener('click', () => {
       if (shown && partyButton(shown)?.enabled) options.onParty(shown.name)
+      refresh()
+    })
+    crew.addEventListener('click', () => {
+      if (shown && crewButton(shown, crewSent)?.enabled) {
+        crewSent = true
+        options.onCrew(shown.name)
+        shown = null
+      }
       refresh()
     })
     closeBtn.addEventListener('click', close)

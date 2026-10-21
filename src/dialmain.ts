@@ -175,6 +175,7 @@ async function boot(): Promise<void> {
               state = { ...state, inspected: befriended(state.inspected) }
             }
           },
+          onCrew: (name) => send({ type: 'crew-invite', name }, { crew: name }),
           onParty: (name) => {
             send({ type: 'invite', name }, { invite: name })
             if (net.online && state.inspected) {
@@ -334,6 +335,8 @@ async function boot(): Promise<void> {
       inspect: (name) => send({ type: 'inspect', name }, { inspect: name }),
       invite: (name) => send({ type: 'invite', name }, { invite: name }),
       leave: () => send({ type: 'party-leave' }, {}),
+      crewJoin: (tag) => send({ type: 'crew-join', tag }, { crew: tag }),
+      crewLeave: () => send({ type: 'crew-leave' }, {}),
     },
     openStand: () => {
       void openStandDialog({
