@@ -268,7 +268,8 @@ async function boot(): Promise<void> {
         send({ type: 'buy', station, kind, unit }, { buy: { station, kind } }),
     },
     citgoNames: names,
-    trade: (offer) => send({ type: 'trade', offer }, { trade: true }),
+    trade: (offer) =>
+      send({ type: 'trade', offer }, { trade: true, tradeOffer: offer }),
     expeditions: {
       send: (kind) =>
         send({ type: 'expedition-send', kind }, { expedition: true }),

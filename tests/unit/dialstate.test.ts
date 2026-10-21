@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { BOOK, foundLines } from '../../src/book.ts'
 import { copy } from '../../src/copy.ts'
+import { tradeRefusal } from '../../src/cosmetics.ts'
 import { DAILY_TASK, taskLine } from '../../src/dailytask.ts'
 import { dealRefusal } from '../../src/dealer.ts'
 import {
@@ -876,5 +877,55 @@ describe('what an item would do, used on the phone', () => {
     expect(later.wards.find((w) => w.axis === 'drunk')?.from).toBe(
       wardsNow(s, 60_000).drunk
     )
+  })
+})
+
+describe('what the 3D valley did, in the phone log', () => {
+  it('logs something passed, either way', () => {
+    let s = applyFrame(DIALED, welcome(), 0, 0)
+    s = applyFrame(s, { type: 'passed', kind: 'joints', to: 'Ace' }, 0, 1)
+    expect(s.chat.at(-1)?.text).toBe(
+      copy('log.passed', { item: itemLabel('joints'), name: 'Ace' })
+    )
+    s = applyFrame(s, { type: 'passed', kind: 'joints', from: 'Kid' }, 0, 2)
+    expect(s.chat.at(-1)?.text).toBe(
+      copy('log.passed_you', { item: itemLabel('joints'), name: 'Kid' })
+    )
+  })
+
+  it("keeps the stand's news in the log, and on the screen only when asked", () => {
+    const line = copy('log.stand_collected', { amount: '$2.50' })
+    const frame = {
+      type: 'stand',
+      re: 'collect',
+      stand: FRESH_STAND,
+      cents: 250,
+    } as const
+    const elsewhere = applyFrame(
+      applyFrame(DIALED, welcome(), 0, 0),
+      frame,
+      5,
+      5
+    )
+    expect(elsewhere.said).toBeNull()
+    expect(elsewhere.chat.at(-1)?.text).toBe(line)
+    const asked_ = applyFrame(
+      asked(applyFrame(DIALED, welcome(), 0, 0), { stand: true }),
+      frame,
+      5,
+      5
+    )
+    expect(asked_.said?.text).toBe(line)
+    expect(asked_.chat.at(-1)?.text).toBe(line)
+  })
+
+  it("words Moab's refusal for the offer the phone made", () => {
+    let s = asked(applyFrame(DIALED, welcome(), 0, 0), {
+      trade: true,
+      tradeOffer: 'flaming-halo',
+    })
+    s = applyFrame(s, { type: 'nack', re: 'trade', reason: 'owned' }, 0, 0)
+    expect(s.pending.tradeOffer).toBeNull()
+    expect(s.chat.at(-1)?.text).toBe(tradeRefusal('owned', 'flaming-halo'))
   })
 })

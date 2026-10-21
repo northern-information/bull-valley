@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { copy } from '../../src/copy.ts'
 import {
   affords,
   cosmeticById,
@@ -8,8 +9,10 @@ import {
   moabOffer,
   moabWants,
   toCosmetics,
+  tradeRefusal,
 } from '../../src/cosmetics.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
+import { itemLabel } from '../../src/itemcopy.ts'
 import { itemById } from '../../src/items.ts'
 
 const carrying = (gold: number) => ({
@@ -90,5 +93,22 @@ describe('gainedOf', () => {
       'coleman-1',
     ])
     expect(gainedOf(['flaming-halo'], ['flaming-halo'])).toEqual([])
+  })
+})
+
+describe("Moab's refusal", () => {
+  it('says what a trade is short of, that it is owned, or no', () => {
+    const halo = cosmeticById('flaming-halo')!
+    expect(tradeRefusal('short', 'flaming-halo')).toBe(
+      copy('log.trade_short', {
+        count: halo.price.count,
+        price: itemLabel(halo.price.kind),
+      })
+    )
+    expect(tradeRefusal('owned', 'flaming-halo')).toBe(
+      copy('log.trade_owned', { cosmetic: halo.label })
+    )
+    expect(tradeRefusal('short', null)).toBe(copy('log.trade_refused'))
+    expect(tradeRefusal('gone', 'flaming-halo')).toBe(copy('log.trade_refused'))
   })
 })
