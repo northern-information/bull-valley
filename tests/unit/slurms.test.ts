@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
 import { copy } from '../../src/copy.ts'
+import { mulberry32 } from '../../src/rng.ts'
 import {
+  afterTrodden,
   AT_COUNTER,
   curseOf,
   DRIPLINES,
   eventAt,
+  lineOf,
   nextStart,
   slotStart,
   slurmEvent,
@@ -14,7 +17,7 @@ import {
   underfoot,
 } from '../../src/slurms.ts'
 import { STORE_LAYOUT } from '../../src/store.ts'
-import type { SlurmEvent } from '../../src/slurms.ts'
+import type { Slurm, SlurmEvent } from '../../src/slurms.ts'
 
 const STATIONS = [0, 1, 7, 14]
 const SLOTS = Array.from({ length: 400 }, (_, i) => 29_000_000 + i)
@@ -97,9 +100,9 @@ describe('a drop', () => {
     for (const event of events()) {
       for (const slurm of event.slurms) {
         expect(slurm.smashAt).toBeGreaterThan(slurm.landAt + crawlSeconds)
-        expect(slurm.smashAt).toBeLessThan(event.curseAt)
+        expect(slurm.smashAt).toBeLessThan(event.sayAt)
       }
-      expect(event.curseAt).toBeLessThan(event.back)
+      expect(event.sayAt).toBeLessThan(event.back)
     }
   })
 })
@@ -191,6 +194,149 @@ describe('the curse', () => {
     const lines = new Set([...events()].map(curseOf))
     expect(lines.size).toBe(8)
     expect(lines.has(copy('slurms.curse_1'))).toBe(true)
+  })
+
+  it('is the line he says, with nothing trodden on', () => {
+    for (const event of [...events()].slice(0, 50)) {
+      expect(lineOf(event)).toBe(curseOf(event))
+    }
+  })
+})
+
+describe('trodden on before Carlsten gets there', () => {
+  const all = [...events()]
+  const singles = all.filter((e) => e.slurms.length === 1).slice(0, 200)
+  const several = all.filter((e) => e.slurms.length > 1).slice(0, 200)
+  const { windupSeconds, smashSeconds, recoverSeconds, thanksDelay } =
+    CONFIG.slurms
+  // When he would have raised the bat at `slurm`.
+  const swingAt = (slurm: Slurm) => slurm.smashAt - smashSeconds - windupSeconds
+  const none = (event: SlurmEvent) => event.slurms.map(() => Infinity)
+
+  it('is the same drop with nothing trodden on', () => {
+    const event = singles[0]
+    expect(afterTrodden(event, none(event))).toBe(event)
+  })
+
+  it('is the same drop up to the first one trodden on', () => {
+    for (const event of several) {
+      const trodden = none(event)
+      const d = (event.out + swingAt(event.slurms[0])) / 2
+      trodden[0] = d
+      const after = afterTrodden(event, trodden)
+      for (let t = 0; t < d; t += 0.1) {
+        expect(slurmScene(after, t).carlsten).toEqual(
+          slurmScene(event, t).carlsten
+        )
+      }
+    }
+  })
+
+  it('stops him on his way out, thanks them, and turns him back', () => {
+    for (const event of singles) {
+      const d = (event.out + swingAt(event.slurms[0])) / 2
+      const after = afterTrodden(event, [d])
+      expect(after.thanks).toBe(true)
+      expect(lineOf(after)).toBe(copy('slurms.thanks'))
+      expect(after.sayAt).toBeCloseTo(d + thanksDelay)
+      expect(after.slurms[0].smashAt).toBe(Infinity)
+      // Stood where he was when it went, facing the way he was going.
+      const going = slurmScene(after, d - 1e-6).carlsten
+      expect(going.action).toBe('walk')
+      const stood = slurmScene(after, after.sayAt).carlsten
+      expect(stood.action).toBe('stand')
+      expect(stood.away).toBe(true)
+      expect(Math.hypot(stood.x - going.x, stood.z - going.z)).toBeLessThan(
+        0.05
+      )
+      expect(stood.yaw).toBeCloseTo(going.yaw)
+      // Never a swing; back behind the counter, and before the drop is over.
+      const actions = new Set<string>()
+      for (let t = after.out; t < after.back; t += 0.05) {
+        actions.add(slurmScene(after, t).carlsten.action)
+      }
+      expect([...actions].sort()).toEqual(['stand', 'walk'])
+      expect(after.back).toBeLessThan(event.back)
+      expect(slurmScene(after, after.back).carlsten).toEqual(AT_COUNTER)
+      // He turns round: his first step back goes the other way.
+      const turned = after.legs.find((leg) => leg.t0 >= after.sayAt)
+      expect(turned?.kind).toBe('walk')
+      const back = slurmScene(after, (turned!.t0 + turned!.t1) / 2).carlsten
+      expect(Math.cos(back.yaw - going.yaw)).toBeLessThan(0)
+    }
+  })
+
+  it('never brings him out for one gone before he leaves', () => {
+    for (const event of singles) {
+      const after = afterTrodden(event, [event.out - 0.1])
+      for (let t = 0; t < event.end; t += 0.1) {
+        expect(slurmScene(after, t).carlsten).toEqual(AT_COUNTER)
+      }
+    }
+  })
+
+  it('sends him after the rest, and curses, while any are left', () => {
+    for (const event of several) {
+      const first = [...event.slurms].sort((a, b) => a.smashAt - b.smashAt)[0]
+      const i = event.slurms.indexOf(first)
+      const trodden = none(event)
+      trodden[i] = (event.out + swingAt(first)) / 2
+      const after = afterTrodden(event, trodden)
+      expect(after.thanks).toBe(false)
+      expect(lineOf(after)).toBe(curseOf(event))
+      after.slurms.forEach((slurm, k) => {
+        if (k === i) expect(slurm.smashAt).toBe(Infinity)
+        else expect(slurm.smashAt).toBeLessThan(after.sayAt)
+      })
+    }
+  })
+
+  it('thanks them for the last one, after smashing the rest', () => {
+    let thanked = 0
+    for (const event of several) {
+      const order = [...event.slurms].sort((a, b) => a.smashAt - b.smashAt)
+      const lastOne = order[order.length - 1]
+      const before = order[order.length - 2]
+      // On his way to it, past the beat to recover from the one before.
+      const setOff = before.smashAt + recoverSeconds
+      const d = (setOff + swingAt(lastOne)) / 2
+      const trodden = none(event)
+      trodden[event.slurms.indexOf(lastOne)] = d
+      const after = afterTrodden(event, trodden)
+      expect(after.thanks).toBe(true)
+      expect(after.sayAt).toBeCloseTo(d + thanksDelay)
+      expect(after.slurms[event.slurms.indexOf(before)].smashAt).toBeCloseTo(
+        before.smashAt
+      )
+      thanked++
+    }
+    expect(thanked).toBeGreaterThan(0)
+  })
+
+  it('keeps him on his way, and back within the drop, however they go', () => {
+    const rng = mulberry32(7)
+    for (const event of all.slice(0, 600)) {
+      const trodden = event.slurms.map((slurm) =>
+        rng() < 0.5
+          ? slurm.landAt + rng() * (event.back - slurm.landAt)
+          : Infinity
+      )
+      const after = afterTrodden(event, trodden)
+      expect(after.back).toBeLessThanOrEqual(event.end)
+      let outside = false
+      for (let t = after.out; t < after.back; t += 0.05) {
+        const at = slurmScene(after, t).carlsten
+        if (at.x > STORE_LAYOUT.front && !outside) {
+          expect(Math.abs(at.z)).toBeLessThan(STORE_LAYOUT.doorWidth / 2)
+          outside = true
+        }
+        if (after.dripline !== 'eave') {
+          const under = Math.abs(at.x) < 0.8 && Math.abs(at.z) < 2.2
+          expect(under).toBe(false)
+        }
+      }
+      expect(slurmScene(after, after.back).carlsten).toEqual(AT_COUNTER)
+    }
   })
 })
 

@@ -108,8 +108,9 @@ export interface ShelfDisplay {
   // CONFIG.store.displayRange, and show what is left on its shelves.
   // stocks: one per station, indexed like fuelPoints. `seconds` is the
   // shared clock, for the slurms off its dripline (slurms.ts): what they
-  // sound like this frame, and Carlsten's curse when he says it; `feet`,
-  // every raider on foot this client sees, squash them underfoot.
+  // sound like this frame, and Carlsten's line when he says it (a curse,
+  // or his thanks when a foot got the last one first); `feet`, every
+  // raider on foot this client sees, squash them underfoot.
   update(
     x: number,
     z: number,

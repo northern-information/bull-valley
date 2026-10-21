@@ -5,10 +5,11 @@ import { applyPose } from './figure.ts'
 import { ease } from './hands.ts'
 import { blendPose, samplePose, strideOf, stridePose } from './poses.ts'
 import {
+  afterTrodden,
   AT_COUNTER,
-  curseOf,
   DRIPLINES,
   eventAt,
+  lineOf,
   nextStart,
   slurmScene,
   treads,
@@ -58,14 +59,16 @@ export function poseCarlsten(figure: Figure, at: CarlstenAt): void {
 // The slurms at the station the shelf display is parked at, and Carlsten
 // coming out after them: a few slug rigs riding in the display's
 // station-local group, the clerk moved and posed, the sounds of a frame
-// and the curse when he says it.
+// and his line when he says it (a curse, or his thanks to a raider whose
+// foot got the last one before he did).
 export interface Slurms {
   // Station-local, added to the group that parks at the nearest station.
   group: THREE.Group
   // Draw the drop under way at `station` (-1: parked nowhere) at
   // `seconds` on the shared clock. `player` is where the player stands,
-  // to hear the curse; `feet`, every raider on foot this client sees, to
-  // squash a crawling slurm underfoot.
+  // to hear his line; `feet`, every raider on foot this client sees, to
+  // squash a crawling slurm underfoot (and Carlsten, the last one squashed
+  // before he gets to it, turns back with his thanks).
   update(
     station: number,
     origin: StoreOrigin | null,
@@ -131,17 +134,27 @@ export function createSlurms(clerk: Figure, ground: Ground): Slurms {
         last = null
         return { cues, curse }
       }
-      const { event, t } = under
+      const { t } = under
+      const same =
+        last?.event.slot === under.event.slot && last.event.station === station
+      if (!same) trodden.clear()
+      // The drop as Carlsten plays it, with any trodden on before he got
+      // to them out of his way (slurms.ts afterTrodden).
+      const event = afterTrodden(
+        under.event,
+        under.event.slurms.map(
+          (_, i) =>
+            (trodden.get(`${station}:${under.event.slot}:${i}`) ?? Infinity) -
+            under.event.start
+        )
+      )
       const scene = slurmScene(event, t)
       const world = (x: number, z: number) => toWorld(origin, [x, 0, z])
       const groundAt = (x: number, z: number) => {
         const [wx, , wz] = world(x, z)
         return ground.at(wx, wz) - origin.y
       }
-      const same =
-        last?.event.slot === event.slot && last.event.station === station
       // The slurms: falling off the edge, crawling, or a splat.
-      if (!same) trodden.clear()
       pool.forEach((rig, i) => {
         const key = `${station}:${event.slot}:${i}`
         let slurm = scene.slurms[i]
@@ -214,13 +227,13 @@ export function createSlurms(clerk: Figure, ground: Ground): Slurms {
       } else {
         atCounter()
       }
-      // The curse, once, to whoever is near enough to hear it.
-      const curseAt = event.curseAt
-      if (same && last && last.t < curseAt && t >= curseAt) {
+      // His line, once, to whoever is near enough to hear it.
+      const sayAt = event.sayAt
+      if (same && last && last.t < sayAt && t >= sayAt) {
         const [wx, , wz] = world(at.x, at.z)
         const near =
           Math.hypot(wx - player.x, wz - player.z) <= CONFIG.slurms.hearRadius
-        if (near) curse = curseOf(event)
+        if (near) curse = lineOf(event)
       }
       last = {
         event,
