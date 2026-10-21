@@ -97,6 +97,8 @@ export class DialSocial {
           'bv-dial-btn'
         )
         accept.type = 'button'
+        // One ask at a time: the valley's answer frees them again.
+        accept.disabled = s.pending.ask !== null
         accept.addEventListener('click', () =>
           this.friendActions.friend(f.name)
         )
@@ -104,6 +106,7 @@ export class DialSocial {
       }
       const remove = text('button', copy('dialup.social.remove'), 'bv-dial-btn')
       remove.type = 'button'
+      remove.disabled = s.pending.ask !== null
       remove.addEventListener('click', () =>
         this.friendActions.unfriend(f.name)
       )

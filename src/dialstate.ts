@@ -24,7 +24,12 @@ import {
 } from './chat.ts'
 import { citgoLines, NO_CITGOS } from './citgos.ts'
 import { copy } from './copy.ts'
-import { cosmeticById, gainedOf, toCosmetics } from './cosmetics.ts'
+import {
+  cosmeticById,
+  gainedOf,
+  toCosmetics,
+  tradeRefusal,
+} from './cosmetics.ts'
 import {
   DAILY_TASK,
   NO_TASK,
@@ -152,6 +157,8 @@ export interface Pending {
   buy: { station: number; kind: string } | null
   deal: boolean
   trade: boolean
+  // The cosmetic asked of Moab, for his refusal's words.
+  tradeOffer: CosmeticId | null
   expedition: boolean
   use: boolean
   ask: PendingAsk | null
@@ -165,6 +172,7 @@ const NOTHING_PENDING: Pending = {
   buy: null,
   deal: false,
   trade: false,
+  tradeOffer: null,
   expedition: false,
   use: false,
   ask: null,
@@ -372,7 +380,13 @@ export function applyFrame(
         stash: toInventory(msg.stash),
         cash: msg.cash,
         cosmetics,
-        pending: { ...s.pending, locker: false, trade: false, use: false },
+        pending: {
+          ...s.pending,
+          locker: false,
+          trade: false,
+          tradeOffer: null,
+          use: false,
+        },
       }
       // Rule 14: a cosmetic Moab traded, worn now.
       return gainedOf(s.cosmetics, cosmetics).reduce(
@@ -387,7 +401,24 @@ export function applyFrame(
         stand: msg.stand,
         pending: { ...s.pending, stand: false },
       }
-      return saying(next, standNews(msg, s.stand), now)
+      // The phone's own ask is answered on the screen and in the log; one
+      // from the 3D valley goes into the log alone.
+      const line = standNews(msg, s.stand)
+      if (!line) return next
+      return s.pending.stand
+        ? news(next, line, now, wall)
+        : told(next, line, wall)
+    }
+    // Rule 27: something passed, by this account to a raider or to it.
+    case 'passed': {
+      const item = itemLabel(msg.kind)
+      return told(
+        s,
+        msg.to !== undefined
+          ? copy('log.passed', { item, name: msg.to })
+          : copy('log.passed_you', { item, name: msg.from ?? '' }),
+        wall
+      )
     }
     // What the account did, here or in the 3D valley, goes into the log
     // alone: the screen's word (`said`) is the valley's answer to an ask
@@ -619,7 +650,10 @@ function refused(
     case 'quest':
       return done({ deal: false }, stepRefusal(msg.reason))
     case 'trade':
-      return done({ trade: false }, copy('log.trade_refused'))
+      return done(
+        { trade: false, tradeOffer: null },
+        tradeRefusal(msg.reason, s.pending.tradeOffer)
+      )
     case 'use':
       return done({ use: false }, copy('log.use_refused'))
     case 'expedition-send':

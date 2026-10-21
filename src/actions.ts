@@ -25,7 +25,7 @@ import {
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { emptied, fallen, isEmpty } from './corpses.ts'
-import { affords, cosmeticById, gainedOf } from './cosmetics.ts'
+import { affords, cosmeticById, gainedOf, tradeRefusal } from './cosmetics.ts'
 import { stepIndex } from './cycle.ts'
 import { openDealDialog } from './dealdialog.ts'
 import { ramble } from './dealer.ts'
@@ -856,18 +856,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   const tradeRefused = (reason: string) => {
     s.pending.trade = false
-    const cosmetic =
-      s.interaction?.kind === 'trade' ? cosmeticById(s.interaction.offer) : null
-    if (reason === 'short' && cosmetic) {
-      hud.tell(
-        copy('log.trade_short', {
-          count: cosmetic.price.count,
-          price: itemLabel(cosmetic.price.kind),
-        })
-      )
-    } else if (reason === 'owned' && cosmetic) {
-      hud.tell(copy('log.trade_owned', { cosmetic: cosmetic.label }))
-    } else hud.tell(copy('log.trade_refused'))
+    const offer = s.interaction?.kind === 'trade' ? s.interaction.offer : null
+    hud.tell(tradeRefusal(reason, offer))
   }
 
   const trade = (offer: CosmeticId) => {

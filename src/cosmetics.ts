@@ -5,6 +5,7 @@
 // trades for gold (sharedworld.ts rule 14). Meshes stay in assets.ts.
 
 import { copy } from './copy.ts'
+import { itemLabel } from './itemcopy.ts'
 import type { Inventory } from './interfaces.ts'
 import type { ItemId } from './items.ts'
 
@@ -94,4 +95,20 @@ export function gainedOf(
   after: readonly CosmeticId[]
 ): CosmeticId[] {
   return after.filter((id) => !before.includes(id))
+}
+
+// Moab's refusal of a trade for `offer`, as both apps say it: short of
+// what it costs, already owned, or anything else.
+export function tradeRefusal(reason: string, offer: string | null): string {
+  const cosmetic = offer ? cosmeticById(offer) : null
+  if (reason === 'short' && cosmetic) {
+    return copy('log.trade_short', {
+      count: cosmetic.price.count,
+      price: itemLabel(cosmetic.price.kind),
+    })
+  }
+  if (reason === 'owned' && cosmetic) {
+    return copy('log.trade_owned', { cosmetic: cosmetic.label })
+  }
+  return copy('log.trade_refused')
 }
