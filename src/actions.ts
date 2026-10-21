@@ -1208,6 +1208,14 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       case 'fish':
         fish()
         return
+      case 'jar-slurm': {
+        // Rule 35: the valley says whether it was still there to catch.
+        if (s.pending.jar) return
+        s.pending.jar = true
+        const { station, slot, index } = interaction
+        net.send({ type: 'jar-slurm', station, slot, index })
+        return
+      }
       case 'deal':
         openDeal()
         return

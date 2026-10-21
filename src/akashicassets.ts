@@ -326,6 +326,7 @@ const FISH_LABELS: [string, string][] = [
   ['channel-catfish', 'Channel catfish'],
   ['common-carp', 'Common carp'],
   ['ghost-catfish', 'Ghost catfish'],
+  ['shadow-carp', 'Shadow carp'],
 ]
 
 // Registry for the Akashic page, in cycle order. The truck (with its
@@ -431,6 +432,16 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     id: 'fishing-rod',
     label: 'Fishing rod',
     build: () => buildPickup('fishing-rod'),
+  },
+  {
+    id: 'slurm-jar',
+    label: 'Slurm jar',
+    build: () => buildPickup('slurm-jar'),
+  },
+  {
+    id: 'slurm-caught',
+    label: 'Slurm, caught',
+    build: () => buildPickup('slurm'),
   },
   ...ITEMS.filter((item) => item.category === 'rod').flatMap(({ id }) => [
     { id, label: `Rod: ${itemLabel(id)}`, build: () => buildPickup(id) },

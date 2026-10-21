@@ -55,7 +55,7 @@ export function openFishDialog(options: FishDialogOptions): Promise<void> {
   root.setAttribute('aria-labelledby', 'bv-fish-title')
   const casts = BAITS.map(
     (bait) => `
-      <div class="bv-npc-act bv-npc-c6">
+      <div class="bv-npc-act bv-npc-c4">
         <button type="button" class="bv-btn bv-npc-btn bv-btn--primary" data-cast="${bait}"></button>
         <span class="bv-npc-why" data-cast-why="${bait}"></span>
       </div>`
@@ -83,7 +83,7 @@ export function openFishDialog(options: FishDialogOptions): Promise<void> {
           </div>
           ${BAITS.map(
             (bait) => `
-          <div class="bv-npc-stat bv-npc-c3">
+          <div class="bv-npc-stat bv-npc-c2">
             <span class="bv-npc-label">${baitName(bait)}</span>
             <span class="bv-npc-numeral" data-bait="${bait}"></span>
           </div>`

@@ -106,8 +106,9 @@ const ROUTES = { home: { x: 10, z: 10 }, joyrideMs: 600_000 }
 const STAND = { x: 5, z: -20 }
 const WRECK_SPOT = { x: 30, z: 40 }
 const DEALER = { x: -30, z: -60 }
-// The firefly pond (rule 35), away from every station.
+// The firefly ponds (rule 35), away from every station.
 const POND = { x: 800, z: 0, radius: 100, landing: { x: 720, z: 0 } }
+const FAR_POND = { x: -800, z: 900, radius: 60, landing: { x: -760, z: 860 } }
 // Noon, Central time, so a test has the afternoon before the day turns.
 const T0 = Date.UTC(2026, 9, 7, 17, 0, 0)
 const SEC = 1000
@@ -193,7 +194,7 @@ const join = (id: string): ValleyAction => ({
   routes: ROUTES,
   stand: STAND,
   wreck: WRECK_SPOT,
-  pond: POND,
+  ponds: [POND, FAR_POND],
   bushes: BUSH_SPOTS,
   dealer: DEALER,
   undercroft: null,
@@ -3765,8 +3766,8 @@ describe('rule 35: fishing and the firefly pond', () => {
     return { valley: r.valley, line, r }
   }
 
-  it('keeps where the pond lies with the world', () => {
-    expect(valleyWith(join('a')).valley.world?.pond).toEqual(POND)
+  it('keeps where the ponds lie with the world', () => {
+    expect(valleyWith(join('a')).valley.world?.ponds).toEqual([POND, FAR_POND])
   })
 
   it('turns every shadow aside at the pond, as at a forecourt (rule 11)', () => {
@@ -3774,8 +3775,9 @@ describe('rule 35: fishing and the firefly pond', () => {
     expect(shadeHavens(world)).toEqual([
       ...HAVENS,
       { x: POND.x, z: POND.z, radius: POND.radius },
+      { x: FAR_POND.x, z: FAR_POND.z, radius: FAR_POND.radius },
     ])
-    expect(shadeHavens({ ...world, pond: null })).toEqual(HAVENS)
+    expect(shadeHavens({ ...world, ponds: [] })).toEqual(HAVENS)
   })
 
   it('lets no shadow touch a raider in the fireflies', () => {
@@ -3848,6 +3850,8 @@ describe('rule 35: fishing and the firefly pond', () => {
     const far = { x: 0, z: 0 }
     expect(reason(fish(v.valley, cast({ at: far })))).toBe('no-pond')
     expect(reason(fish(v.valley, cast({ at: null })))).toBe('no-pond')
+    // Either pond will do.
+    expect(fish(v.valley, cast({ at: FAR_POND.landing })).reply).toBeUndefined()
     expect(
       reason(fish(v.valley, { type: 'dig', id: 'a', at: far, roll: 0 }))
     ).toBe('no-pond')
@@ -4081,5 +4085,83 @@ describe('rule 35: fishing and the firefly pond', () => {
     expect(
       fish(v.valley, { type: 'dig', id: 'a', at: null, roll: 0 }).pack?.kind
     ).toBe('nightcrawlers')
+  })
+})
+
+describe('rule 35: slurms into the jar', () => {
+  const slot = Math.floor(T0 / 1000 / CONFIG.slurms.slotSeconds)
+  const jar = (
+    valley: Valley,
+    over: Partial<Extract<ValleyAction, { type: 'jar-slurm' }>> = {},
+    pack: Inventory | null = { 'slurm-jar': 1 },
+    now = T0
+  ) =>
+    reduce(
+      valley,
+      {
+        type: 'jar-slurm',
+        id: 'a',
+        station: 0,
+        slot,
+        index: 0,
+        at: HAVENS[0],
+        ...over,
+      },
+      {
+        now,
+        present: ['a'],
+        ...(pack ? { holdings: { pack, cosmetics: [] } } : {}),
+      }
+    )
+  const reason = (r: Reduced) => r.reply?.reason
+
+  it('puts a slurm crawling at the Citgo into the jar, and tells everyone', () => {
+    const v = valleyWith(join('a'))
+    const r = jar(v.valley)
+    expect(r.pack).toEqual({ account: 'acct-a', kind: 'slurm', delta: 1 })
+    expect(r.jarred).toEqual({
+      type: 'slurm-jarred',
+      station: 0,
+      slot,
+      index: 0,
+      by: 'a',
+    })
+    expect(r.valley.jarred).toEqual([`0:${slot}:0`])
+    // Once.
+    expect(reason(jar(r.valley))).toBe('gone')
+    // And forgotten once its drop is long over.
+    const later = T0 + 10 * CONFIG.slurms.slotSeconds * 1000
+    const next = jar(r.valley, { slot: slot + 10 }, { 'slurm-jar': 1 }, later)
+    expect(next.valley.jarred).toEqual([`0:${slot + 10}:0`])
+  })
+
+  it('refuses without a jar, with it full, away from the Citgo, or a slurm long gone', () => {
+    const v = valleyWith(join('a'))
+    expect(reason(jar(v.valley, {}, {}))).toBe('no-jar')
+    expect(
+      reason(
+        jar(v.valley, {}, { 'slurm-jar': 1, slurm: CONFIG.fishing.jar.holds })
+      )
+    ).toBe('jar-full')
+    expect(reason(jar(v.valley, {}, null))).toBe('unavailable')
+    expect(reason(jar(v.valley, { at: HAVENS[1] }))).toBe('too-far')
+    expect(reason(jar(v.valley, { at: null }))).toBe('too-far')
+    expect(reason(jar(v.valley, { slot: slot - 5 }))).toBe('gone')
+    expect(reason(jar(v.valley, { index: 99 }))).toBe('gone')
+    expect(reason(jar(v.valley, { id: 'z' }))).toBe('not-in-valley')
+    const aboard = valleyWith(join('a'), { type: 'board', id: 'a', at: HERE })
+    expect(reason(jar(aboard.valley))).toBe('aboard')
+  })
+
+  it('takes a body: none from Dial-Up (rule 29)', () => {
+    const v = valleyWith({
+      type: 'dial',
+      id: 'a',
+      account: 'acct-a',
+      name: 'A',
+      outfit: 'coleman',
+      level: 1,
+    })
+    expect(reason(jar(v.valley))).toBe('dialup')
   })
 })

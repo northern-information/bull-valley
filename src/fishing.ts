@@ -28,7 +28,7 @@ import type { ItemId } from './items.ts'
 type FishingConfig = typeof CONFIG.fishing
 
 // What goes on the hook.
-export const BAITS = ['nightcrawlers', 'berries'] as const
+export const BAITS = ['nightcrawlers', 'berries', 'slurm'] as const
 export type Bait = (typeof BAITS)[number]
 
 export function isBait(value: unknown): value is Bait {
@@ -129,6 +129,14 @@ export const FISH: readonly Catchable[] = [
     size: 'large',
     bait: { nightcrawlers: 1, berries: 3 },
     hours: ['dawn', 'day', 'dusk'],
+  },
+  // The shadow carp: a carp gone the colour of the shadowmen, red-eyed,
+  // that bites on a slurm and on nothing else, at any hour.
+  {
+    kind: 'shadow-carp',
+    level: 45,
+    size: 'large',
+    bait: { slurm: 3 },
   },
   {
     kind: 'ghost-catfish',
@@ -617,6 +625,17 @@ export function skillAfter(
   return Math.min(cfg.skillCap, skill + 1 + more)
 }
 
+// --- The jar -----------------------------------------------------------
+
+// Whether `pack` carries a jar with room in it for another slurm.
+export function jarRoom(
+  pack: Readonly<Record<string, number>>,
+  cfg: FishingConfig = CONFIG.fishing
+): boolean {
+  const jars = pack['slurm-jar'] ?? 0
+  return jars > 0 && (pack.slurm ?? 0) < jars * cfg.jar.holds
+}
+
 // --- Digging -----------------------------------------------------------
 
 // How many nightcrawlers a dig turns up, on the valley's roll.
@@ -658,15 +677,16 @@ export interface Pond extends PondPlace {
   shore: XZ[]
 }
 
-// The pond: the water area whose shore comes nearest `from` (the spawn
-// Citgo's pump island), within CONFIG.fishing.pond.search; its middle the
-// mean of its shore, its haven past the farthest of it, and the landing
-// on the shore nearest `from`, set back from the water. Null with no such
-// water.
+// A pond: the water area whose shore comes nearest `from`, within
+// CONFIG.fishing.pond.search; its middle the mean of its shore, its haven
+// past the farthest of it, and the landing on the shore nearest `toward`
+// (the spawn Citgo's pump island), set back from the water. Null with no
+// such water.
 export function pondOf(
   water: readonly Water[],
   toWorld: (u: number, v: number) => XZ,
   from: XZ,
+  toward: XZ = from,
   cfg: FishingConfig = CONFIG.fishing
 ): Pond | null {
   let best: { shore: XZ[]; d: number } | null = null
@@ -682,13 +702,38 @@ export function pondOf(
   const x = shore.reduce((sum, p) => sum + p.x, 0) / shore.length
   const z = shore.reduce((sum, p) => sum + p.z, 0) / shore.length
   const far = Math.max(...shore.map((p) => Math.hypot(p.x - x, p.z - z)))
-  const near = nearestOnShore(shore, from)
+  const near = nearestOnShore(shore, toward)
   const out = Math.hypot(near.x - x, near.z - z) || 1
   const landing = {
     x: near.x + ((near.x - x) / out) * cfg.pond.landingBack,
     z: near.z + ((near.z - z) / out) * cfg.pond.landingBack,
   }
   return { x, z, radius: far + cfg.pond.margin, landing, shore }
+}
+
+// Every firefly pond (CONFIG.fishing.ponds), found from the spawn Citgo
+// `station` (its pump island and the way it faces), its landing on the
+// shore nearest the Citgo; a find that comes to a pond already found, or
+// to none, adds nothing.
+export function pondsOf(
+  water: readonly Water[],
+  toWorld: (u: number, v: number) => XZ,
+  station: XZ & { yaw: number },
+  cfg: FishingConfig = CONFIG.fishing
+): Pond[] {
+  const cos = Math.cos(station.yaw)
+  const sin = Math.sin(station.yaw)
+  const ponds: Pond[] = []
+  for (const { find } of cfg.ponds) {
+    const from = {
+      x: station.x + cos * find.x - sin * find.z,
+      z: station.z + sin * find.x + cos * find.z,
+    }
+    const pond = pondOf(water, toWorld, from, station, cfg)
+    if (!pond || ponds.some((p) => p.x === pond.x && p.z === pond.z)) continue
+    ponds.push(pond)
+  }
+  return ponds
 }
 
 // The point of the closed shore nearest `p`.
@@ -722,8 +767,25 @@ export function shoreDistance(shore: readonly XZ[], p: XZ): number {
 }
 
 // Whether `p` is in the fireflies' haven.
-export function inPond(pond: PondPlace | null, p: XZ): boolean {
-  return pond !== null && Math.hypot(p.x - pond.x, p.z - pond.z) < pond.radius
+export function inPond(ponds: readonly PondPlace[], p: XZ): boolean {
+  return ponds.some(
+    (pond) => Math.hypot(p.x - pond.x, p.z - pond.z) < pond.radius
+  )
+}
+
+// The landing (its tackle box) nearest `p`, of every pond's; null with
+// no pond.
+export function nearestLanding(ponds: readonly PondPlace[], p: XZ): XZ | null {
+  let best: XZ | null = null
+  let bestD = Infinity
+  for (const { landing } of ponds) {
+    const d = Math.hypot(landing.x - p.x, landing.z - p.z)
+    if (d < bestD) {
+      bestD = d
+      best = landing
+    }
+  }
+  return best
 }
 
 // A pond place off the wire: every number finite and the radius

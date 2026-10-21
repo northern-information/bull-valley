@@ -11,12 +11,12 @@ test('the tackle box gives a rod and bait, and a cast is fought to its end', asy
 }) => {
   test.slow()
   await beginRaid(page)
-  const pond = await page.evaluate(() => window.__bv?.pond ?? null)
+  const pond = await page.evaluate(() => window.__bv?.ponds[0] ?? null)
   expect(pond).not.toBeNull()
   // A step back from the box, inside the fireflies' haven.
   await page.evaluate(() => {
     const bv = window.__bv
-    const pond = bv?.pond
+    const pond = bv?.ponds[0]
     if (!bv || !pond) throw new Error('no pond')
     const { landing } = pond
     const d = Math.hypot(landing.x - pond.x, landing.z - pond.z)
@@ -146,7 +146,7 @@ test('the rod rack sells three rods, and the best in the pack is fished with', a
     .toBe(1)
   await page.evaluate(() => {
     const bv = window.__bv
-    const pond = bv?.pond
+    const pond = bv?.ponds[0]
     if (!bv || !pond) throw new Error('no pond')
     bv.player.relocate(pond.landing.x + 1, pond.landing.z, 0)
   })
@@ -155,4 +155,62 @@ test('the rod rack sells three rods, and the best in the pack is fished with', a
   await expect(page.locator('[data-bv="fish-rod"]')).toHaveText(
     copy('fishing.has_rod', { rod: copy('items.g-loomis.label') })
   )
+})
+
+// Rule 35: the second firefly pond, past the corn maze, has its own
+// tackle box; and Erwin's jar catches a slurm crawling on a Citgo's lot.
+test('two ponds, and a slurm caught alive in the jar', async ({ page }) => {
+  test.slow()
+  await beginRaid(page)
+  const ponds = await page.evaluate(() => window.__bv?.ponds ?? [])
+  expect(ponds).toHaveLength(2)
+  // The far pond's tackle box opens its own dialog.
+  await page.evaluate(() => {
+    const bv = window.__bv
+    const pond = bv?.ponds[1]
+    if (!bv || !pond) throw new Error('no second pond')
+    bv.player.relocate(pond.landing.x + 1, pond.landing.z, 0)
+  })
+  await heardWhere(page)
+  await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.fish'))
+  await page.keyboard.press('KeyE')
+  await expect(page.locator('.bv-fish')).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  // At the spawn Citgo with a jar, a drop brought on, a slurm crawling.
+  await page.evaluate(() => window.__bv?.grant('slurm-jar', 1))
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.inventory['slurm-jar']))
+    .toBe(1)
+  await page.evaluate(() => {
+    const bv = window.__bv
+    const station = bv?.world.spawnStation
+    if (!bv || !station) throw new Error('no spawn station')
+    bv.player.relocate(station.x + 3, station.z + 3, 0)
+  })
+  // The shelf display parks at the Citgo on the next frames; then the next
+  // drop is brought to now.
+  await frames(page, 5)
+  await page.evaluate(() => window.__bv?.hurrySlurms())
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.slurms.length ?? 0), {
+      timeout: 20_000,
+    })
+    .toBeGreaterThan(0)
+  // Beside it, looking down at it.
+  await page.evaluate(() => {
+    const bv = window.__bv
+    const slurm = bv?.slurms[0]
+    if (!bv || !slurm) throw new Error('no slurm')
+    bv.player.relocate(slurm.x + 0.9, slurm.z, 0)
+    bv.player.yaw = Math.PI / 2
+    bv.player.pitch = -0.9
+  })
+  await heardWhere(page)
+  await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.jar_slurm'))
+  await page.keyboard.press('KeyE')
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.inventory.slurm ?? 0))
+    .toBe(1)
+  await expect(page.locator('.bv-chat')).toContainText(copy('log.slurm_jarred'))
 })

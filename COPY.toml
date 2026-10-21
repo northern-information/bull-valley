@@ -457,6 +457,12 @@ fish_dug_out = { text = "The bank is dug out here. Give it a minute.", by = "ai"
 fish_busy = { text = "Your line is already in the water.", by = "ai" }
 fish_offline = { text = "No signal. The pond is still.", by = "ai" }
 fish_refused = { text = "Nothing is biting right now.", by = "ai" }
+slurm_jarred = { text = "You scoop the slurm into the jar. It bares its tooth at you through the glass.", by = "ai" }
+jar_none = { text = "You need something to keep it in. Erwin von Dutch has jars.", by = "ai" }
+jar_full = { text = "The jar is full. The slurms in it are watching you.", by = "ai" }
+jar_far = { text = "You are too far from it.", by = "ai" }
+jar_gone = { text = "It is gone before you get the lid off.", by = "ai" }
+jar_refused = { text = "The slurm will not go in.", by = "ai" }
 stand_offline = { text = "No signal. The stand is shut.", by = "ai" }
 locked = { text = "Locked. The handle does not give.", by = "ai" }
 deal_offline = { text = "No signal. Erwin von Dutch will not deal with a stranger alone.", by = "ai" }
@@ -541,6 +547,7 @@ laptop = { text = "E — Use the Laptop", by = "ai" }
 stand = { text = "E — Tend Your Stand", by = "ai" }
 recycle = { text = "E — Recycling Center", by = "ai" }
 fish = { text = "E — Tackle Box", by = "ai" }
+jar_slurm = { text = "E — Catch the Slurm", by = "ai" }
 locked = { text = "E — Locked", by = "ai" }
 lay = { text = "E — Lay the Rose", by = "ai" }
 descend = { text = "E — Climb Down", by = "ai" }
@@ -1399,6 +1406,18 @@ blurb = { text = "A brass key on a red tag that says BACK, from Erwin von Dutch 
 label = { text = "Fishing Rod", by = "ai" }
 blurb = { text = "Six feet of fiberglass and a spinning reel, out of the tackle box at the firefly pond. Nothing bites without it.", by = "ai" }
 
+[items.slurm]
+label = { text = "Slurm", by = "ai" }
+blurb = { text = "A black slug off a Citgo's dripline, caught alive before Carlsten's bat found it. It keeps baring its tooth. The shadow carp will take nothing else.", by = "ai" }
+
+[items.slurm-jar]
+label = { text = "Slurm Jar", by = "ai" }
+blurb = { text = "A gallon Mason jar from Erwin von Dutch, nail holes in the lid. E on a slurm still crawling on a Citgo's lot puts it in. Holds six.", by = "ai" }
+
+[items.shadow-carp]
+label = { text = "Shadow Carp", by = "ai" }
+blurb = { text = "A carp gone the colour of the shadowmen, one red eye burning. It rose for a slurm and nothing else. Erwin von Dutch wants to know where you got it.", by = "ai" }
+
 [items.zebco-33]
 label = { text = "Zebco 33", by = "ai" }
 blurb = { text = "The push-button spincast every kid in Illinois learned on. Forgiving, and a little longer on the line than the tackle box's rod.", by = "ai" }
@@ -1509,7 +1528,7 @@ audio_blurb = { text = "How loud the music and the sounds play, kept on your acc
 
 [dialup.fish]
 scene = { text = "You, on the shore of the firefly pond, rod in hand.", by = "ai" }
-angler = { text = "Skill {skill} · {caught}/{limit} today · {worms} worms · {berries} berries · {rod}", by = "ai" }
+angler = { text = "Skill {skill} · {caught}/{limit} today · {worms} worms · {berries} berries · {slurms} slurms · {rod}", by = "ai" }
 no_rod = { text = "no rod", by = "ai" }
 
 [dialup.raider]

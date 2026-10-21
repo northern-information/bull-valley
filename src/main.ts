@@ -391,14 +391,12 @@ async function boot() {
     maze: world.mazePlace,
     truck: truckRoutes,
     bushes: world.bushes.map(({ x, z }) => ({ x, z })),
-    pond: world.pond
-      ? {
-          x: world.pond.place.x,
-          z: world.pond.place.z,
-          radius: world.pond.place.radius,
-          landing: world.pond.place.landing,
-        }
-      : null,
+    ponds: world.ponds.map(({ place }) => ({
+      x: place.x,
+      z: place.z,
+      radius: place.radius,
+      landing: place.landing,
+    })),
     stand: world.stand ? world.stand.at : null,
     wreck: world.wreck
       ? { x: world.wreck.group.position.x, z: world.wreck.group.position.z }

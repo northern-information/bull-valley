@@ -95,3 +95,20 @@ export function fishRefusal(reason: string): string {
       return copy('log.fish_refused')
   }
 }
+
+// Why the valley would not let the slurm into the jar.
+export function jarRefusal(reason: string): string {
+  switch (reason) {
+    case 'no-jar':
+      return copy('log.jar_none')
+    case 'jar-full':
+      return copy('log.jar_full')
+    case 'too-far':
+    case 'aboard':
+      return copy('log.jar_far')
+    case 'gone':
+      return copy('log.jar_gone')
+    default:
+      return copy('log.jar_refused')
+  }
+}

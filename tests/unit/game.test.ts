@@ -39,6 +39,7 @@ describe('freshPending', () => {
       stand: false,
       recycle: false,
       fish: false,
+      jar: false,
     })
     expect(fresh.takes).not.toBe(before.takes)
     expect(before.takes.has(3)).toBe(true)

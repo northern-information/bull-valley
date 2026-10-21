@@ -388,6 +388,9 @@ export class ValleyDO extends DurableObject<Env> {
       case 'tackle':
         await this.withPack(ws, account, { type: 'tackle', id, at })
         return
+      case 'jar-slurm':
+        await this.withPack(ws, account, { ...msg, id, at })
+        return
       case 'cast':
         await this.withPack(ws, account, {
           type: 'cast',
@@ -1426,7 +1429,7 @@ export class ValleyDO extends DurableObject<Env> {
               routes: hello.truck,
               stand: hello.stand,
               wreck: hello.wreck,
-              pond: hello.pond,
+              ponds: hello.ponds,
               bushes: hello.bushes,
               dealer: hello.dealer,
               undercroft: hello.undercroft,
@@ -2002,7 +2005,7 @@ export class ValleyDO extends DurableObject<Env> {
   private withPack(
     ws: WebSocket,
     account: string | null,
-    action: Extract<ValleyAction, { type: 'tackle' | 'cast' }>
+    action: Extract<ValleyAction, { type: 'tackle' | 'cast' | 'jar-slurm' }>
   ): Promise<boolean> {
     return this.locked(async () => {
       if (!account) return false
@@ -2132,6 +2135,7 @@ export class ValleyDO extends DurableObject<Env> {
       this.toAccount(reduced.angler.account, reduced.angler.message)
     }
     if (reduced.fished) send(ws, reduced.fished)
+    if (reduced.jarred) this.broadcast(reduced.jarred, null)
     for (const msg of reduced.broadcast) this.broadcast(msg, null)
     if (account) await this.repack(ws, null, account)
     return !reduced.reply
@@ -3190,6 +3194,7 @@ function unwrittenNack(action: ValleyAction): NackMessage | null {
     case 'dig':
     case 'cast':
     case 'reel':
+    case 'jar-slurm':
       return { type: 'nack', re: action.type, reason }
     default:
       return null

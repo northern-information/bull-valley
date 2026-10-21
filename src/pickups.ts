@@ -13,7 +13,13 @@ import { berryMaterial } from './berrybush.ts'
 import { paintTwenty } from './billart.ts'
 import { canvas } from './canvas.ts'
 import { buildDrink } from './drinkmodels.ts'
-import { buildFish, buildFishingRod, buildNightcrawlers } from './fishmodels.ts'
+import {
+  buildFish,
+  buildFishingRod,
+  buildNightcrawlers,
+  buildSlurmCatch,
+  buildSlurmJar,
+} from './fishmodels.ts'
 import { isCigarette, isDrink, isFish, isMedicine, isRod } from './items.ts'
 import { buildMedicine } from './medicinemodels.ts'
 import { paintPack } from './packart.ts'
@@ -1017,6 +1023,8 @@ export function buildPickup(
   if (empty) return empty({ glow })
   if (isMedicine(kind)) return buildMedicine(kind, { glow })
   if (isFish(kind)) return buildFish(kind, { glow })
+  if (kind === 'slurm-jar') return buildSlurmJar({ glow })
+  if (kind === 'slurm') return buildSlurmCatch()
   if (kind === 'fishing-rod' || isRod(kind)) {
     return buildFishingRod(kind, { glow })
   }

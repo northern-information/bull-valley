@@ -265,7 +265,7 @@ const hello = (
     truck: { home: { x: 10, z: 10 }, joyrideMs: 600_000 },
     stand: STAND,
     wreck: WRECK,
-    pond: POND,
+    ponds: [POND],
     bushes: Array.from({ length: 7 }, () => ({ x: 0, z: 0 })),
     dealer: DEALER,
     undercroft: CROFT,
@@ -2957,6 +2957,27 @@ describe('ValleyDO: fishing at the firefly pond', () => {
     expect((last(other, 'angler') as AnglerMessage).angler.caught).toBe(1)
     await send(v, a, { type: 'reel', landed: true })
     expect(last(a, 'nack')).toMatchObject({ re: 'reel', reason: 'no-line' })
+  })
+
+  it('jars a slurm crawling at the Citgo, and tells everyone it is gone', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const b = await join(v, s, 'B')
+    await v.webSocketMessage(ws(a), state(0, 0))
+    const slot = Math.floor(Date.now() / 1000 / CONFIG.slurms.slotSeconds)
+    const catchOne = { type: 'jar-slurm', station: 0, slot, index: 0 }
+    await send(v, a, catchOne)
+    expect(last(a, 'nack')).toMatchObject({ re: 'jar-slurm', reason: 'no-jar' })
+    await send(v, a, { type: 'dev', op: 'grant', kind: 'slurm-jar', count: 1 })
+    await send(v, a, catchOne)
+    expect(last(b, 'slurm-jarred')).toEqual({
+      ...catchOne,
+      type: 'slurm-jarred',
+      by: idOf(a),
+    })
+    expect(last(a, 'pack')?.pack.slurm).toBe(1)
+    await send(v, a, catchOne)
+    expect(last(a, 'nack')).toMatchObject({ re: 'jar-slurm', reason: 'gone' })
   })
 
   it('refuses a cast when the pack cannot be read, or the bait is gone', async () => {

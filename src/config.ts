@@ -942,9 +942,17 @@ export const CONFIG = {
   // fight against the fish's stamina and the clock, with a skill each
   // account raises a tenth at a time.
   fishing: {
+    // The firefly ponds, each the water area whose shore comes nearest its
+    // `find` point (station-local to the spawn Citgo, like the wreck),
+    // within pond.search of it: the pond behind the Citgo past the dish
+    // array, and the one past the far side of the corn maze from Lake
+    // Avenue. Each landing is on the shore nearest the Citgo.
+    ponds: [
+      { find: { x: 0, z: 0 } },
+      { find: { x: 290, z: 200 } },
+    ] as readonly { find: { x: number; z: number } }[],
     pond: {
-      // The pond is the nearest water area to the spawn Citgo's pump island
-      // whose shore comes within `search` metres of it.
+      // How far from its `find` point a pond's shore may be.
       search: 450,
       // The fireflies' haven reaches this far past the farthest shore from
       // the pond's middle: no shadow comes inside it.
@@ -992,6 +1000,10 @@ export const CONFIG = {
     // A day's catches (and fish lost on the line) an account may take:
     // past it nothing bites until the day turns, as FFXI's fatigue.
     perDay: 40,
+    // Erwin von Dutch's slurm jar: each one carried holds `holds` live
+    // slurms, caught off a Citgo's lot while they crawl (slurms.ts), with
+    // E within `reach` of one.
+    jar: { holds: 6, reach: 1.8 },
     // Digging the mud bank: between `min` and `max` nightcrawlers, once
     // every `cooldownSeconds` an account.
     dig: { min: 1, max: 3, cooldownSeconds: 20 },

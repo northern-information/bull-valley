@@ -24,7 +24,13 @@ import { DAILY_TASK, taskLine, taskNews, taskOf } from './dailytask.ts'
 import { boughtLine, dealRefusal } from './dealer.ts'
 import { seenEmote } from './emotes.ts'
 import { lineOutOf, toAnglerWire } from './fishing.ts'
-import { anglerNews, catchLine, fishRefusal, skillUpLine } from './fishlines.ts'
+import {
+  anglerNews,
+  catchLine,
+  fishRefusal,
+  jarRefusal,
+  skillUpLine,
+} from './fishlines.ts'
 import {
   friendNews,
   friendRefusal,
@@ -477,6 +483,10 @@ export function wireValley(game: Game, actions: Actions): void {
       s.pending.recycle = false
       s.researchSaid = recycleRefusal(msg.reason)
       hud.tell(s.researchSaid)
+    } else if (msg.re === 'jar-slurm') {
+      // Rule 35: gone, out of reach, or no jar with room in it.
+      s.pending.jar = false
+      hud.tell(jarRefusal(msg.reason))
     } else if (
       msg.re === 'tackle' ||
       msg.re === 'dig' ||
@@ -626,6 +636,13 @@ export function wireValley(game: Game, actions: Actions): void {
       s.pending.fish = false
       s.fishSaid = null
       s.line = lineOutOf(msg, performance.now())
+    } else if (msg.type === 'slurm-jarred') {
+      // Rule 35: a slurm off the lot into someone's jar; ours, its pack
+      // frame follows.
+      world.shelves.jarSlurm(msg.station, msg.slot, msg.index)
+      if (msg.by !== net.id) return
+      s.pending.jar = false
+      hud.tell(copy('log.slurm_jarred'))
     } else if (msg.type === 'catch') {
       // Rule 35: how the line came out; a landed fish's pack frame
       // follows.

@@ -7,6 +7,7 @@ import {
   feelingLine,
   fishRefusal,
   hookLine,
+  jarRefusal,
   skillUpLine,
 } from '../../src/fishlines.ts'
 import { itemLabel } from '../../src/itemcopy.ts'
@@ -63,6 +64,20 @@ describe('what fishing says', () => {
     ]
     for (const [reason, key] of lines) {
       expect(fishRefusal(reason), reason).toBe(copy(key))
+    }
+  })
+
+  it('says why a slurm would not go in the jar', () => {
+    const lines: [string, string][] = [
+      ['no-jar', 'log.jar_none'],
+      ['jar-full', 'log.jar_full'],
+      ['too-far', 'log.jar_far'],
+      ['aboard', 'log.jar_far'],
+      ['gone', 'log.jar_gone'],
+      ['unwritten', 'log.jar_refused'],
+    ]
+    for (const [reason, key] of lines) {
+      expect(jarRefusal(reason), reason).toBe(copy(key))
     }
   })
 })

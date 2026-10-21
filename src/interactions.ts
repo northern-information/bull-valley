@@ -96,6 +96,8 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // The tackle box on the firefly pond's landing: E opens it to fish
   // (rule 35).
   | { kind: 'fish' }
+  // A slurm crawling on a Citgo's lot: E catches it in the jar (rule 35).
+  | { kind: 'jar-slurm'; station: number; slot: number; index: number }
   // The squatter in Bull Valley Plaza: E opens what he is selling
   // (dealer.ts).
   | { kind: 'deal' }
@@ -160,6 +162,8 @@ export const SIGHTS = {
   lockers: { low: 0, high: 1.85, r: 1.8 },
   laptop: { low: 0.6, high: 1.1, r: 0.35 },
   stand: { low: 0, high: 2.2, r: 1.3 },
+  // A slurm crawling on a lot.
+  slurm: { low: -0.1, high: 0.15, r: 0.2 },
   // The BMW in its tree, roof to wheels and nose to tail.
   wreck: { low: 0, high: 1.5, r: 2.2 },
   hatch: { low: -0.2, high: 0.3, r: 0.7 },
@@ -213,6 +217,13 @@ export interface LockerSpot extends XZ {
   station: number
 }
 
+// A slurm a jar could catch (slurmrig.ts): which, and where it crawls.
+export interface SlurmSpot extends XZ {
+  station: number
+  slot: number
+  index: number
+}
+
 export interface InteractionInput<P extends PickupSpot> {
   // In the bed of the truck.
   riding: boolean
@@ -255,6 +266,9 @@ export interface InteractionInput<P extends PickupSpot> {
   wreck?: XZ | null
   // The tackle box on the firefly pond's landing, or null.
   tackle?: XZ | null
+  // The slurms crawling on the lot, while this raider carries a jar with
+  // room in it; none otherwise.
+  slurms?: readonly SlurmSpot[]
   // The squatter who deals in the plaza, or null.
   dealer?: XZ | null
   // A locked door this raider lacks the key to, or null.
@@ -387,6 +401,21 @@ export function resolveInteraction<P extends PickupSpot>(
     sees(wreck, SIGHTS.wreck)
   ) {
     return { kind: 'recycle' }
+  }
+
+  // The nearest slurm in reach, in view.
+  let slurm: SlurmSpot | null = null
+  let slurmD: number = CONFIG.fishing.jar.reach
+  for (const spot of input.slurms ?? []) {
+    const d = Math.hypot(spot.x - player.x, spot.z - player.z)
+    if (d < slurmD && sees(spot, SIGHTS.slurm)) {
+      slurm = spot
+      slurmD = d
+    }
+  }
+  if (slurm) {
+    const { station, slot, index } = slurm
+    return { kind: 'jar-slurm', station, slot, index }
   }
 
   const tackle = input.tackle
@@ -666,6 +695,8 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return copy('prompts.recycle')
     case 'fish':
       return copy('prompts.fish')
+    case 'jar-slurm':
+      return copy('prompts.jar_slurm')
     case 'deal':
       return null
     // As the real one: a label for a thing, the glow alone for a person.

@@ -301,7 +301,7 @@
 //    under the chat rules and rate, and is never kept. Only names and
 //    tags go on the wire.
 // 36. Fishing and the firefly pond (fishing.ts): the pond the world was
-//    opened with (SharedWorld.pond) is a haven past its farthest shore:
+//    opened with (SharedWorld.ponds) is a haven past its farthest shore:
 //    no shadowman, spider or spiderling comes inside it, none rushes a
 //    raider in it, and a rush already on breaks off (shadowstep.ts
 //    shadeHavens, rule 11). Every account keeps its angler (Valley.anglers:
@@ -321,7 +321,13 @@
 //    the skill (landOf), puts a landed one in the pack with its XP (rule
 //    22), may raise the skill (skillAfter), and counts the day's catch
 //    either way. Past CONFIG.fishing.perDay nothing bites until the day
-//    turns.
+//    turns. The shadow carp takes only a slurm: a raider out of the bed
+//    whose last state frame put them at a Citgo, carrying Erwin von
+//    Dutch's jar with room in it (jarRoom), catches a slurm of a drop
+//    there that could still be crawling (slurms.ts mayJar), once
+//    (Valley.jarred), into the pack (`jar-slurm`; ValleyContext.holdings
+//    in), and everyone hears it is off the lot (Reduced.jarred). Dialed
+//    in, there is no slurm to catch (`dialup`).
 
 import { bountyOf } from './book.ts'
 import { dosed, inPassReach, scaled, sobered, wardsOf } from './buffs.ts'
@@ -361,6 +367,7 @@ import {
   FRESH_ANGLER,
   hookOf,
   inPond,
+  jarRoom,
   landOf,
   reachOf,
   reelInTime,
@@ -425,6 +432,7 @@ import {
   extraDimes,
   priceOf,
 } from './recycling.ts'
+import { mayJar, slotOf, slurmKey } from './slurms.ts'
 import {
   affordsUpgrade,
   atStand,
@@ -466,6 +474,7 @@ import type {
   PeerStateWire,
   PickupSpec,
   Place,
+  SlurmJarredMessage,
   WardLevels,
   WorldMessage,
   WorldReason,
@@ -523,8 +532,8 @@ interface SharedWorld {
   stand: XZ | null
   // Where the wreck lies, or null (rule 33).
   wreck: XZ | null
-  // The firefly pond, or null (rule 35).
-  pond: PondPlace | null
+  // The firefly ponds (rule 35).
+  ponds: PondPlace[]
   // Where each berry bush stands, in bush order (rule 8).
   bushes: XZ[]
   // Where the squatter deals, or null, and what he has left today (rule
@@ -569,9 +578,12 @@ export interface Valley {
   // Rule 34: the parties and the invites waiting, by account (never on
   // the wire).
   parties: Parties
-  // Rule 35: account -> its angler, and socket id -> the line it has out.
+  // Rule 35: account -> its angler, and socket id -> the line it has out;
+  // and every slurm caught in a jar (slurms.ts slurmKey), kept only while
+  // its drop could still be crawling.
   anglers: Record<string, Angler>
   lines: Record<string, Line>
+  jarred: string[]
 }
 
 // Rule 35: a line out with a fish (or the junk) on it: whose, what took
@@ -622,7 +634,7 @@ export type ValleyAction =
       routes: TruckRoutes
       stand: XZ | null
       wreck: XZ | null
-      pond: PondPlace | null
+      ponds: PondPlace[]
       bushes: XZ[]
       dealer: XZ | null
       undercroft: MazePlace | null
@@ -742,6 +754,16 @@ export type ValleyAction =
   // the valley's rolls for the catch and the skill. at: where the raider's
   // last state frame put them, or null.
   | { type: 'tackle'; id: string; at: XZ | null }
+  // Rule 35: slurm `index` of slot `slot`'s drop at `station`, into the
+  // jar. at: where the raider's last state frame put them, or null.
+  | {
+      type: 'jar-slurm'
+      id: string
+      station: number
+      slot: number
+      index: number
+      at: XZ | null
+    }
   | { type: 'dig'; id: string; at: XZ | null; roll: number }
   | {
       type: 'cast'
@@ -912,6 +934,8 @@ export interface Reduced {
   // what a line cast or reeled says to the socket that did it.
   angler?: { account: string; message: AnglerMessage }
   fished?: LineMessage | CatchMessage
+  // Rule 35: a slurm caught in a jar, gone from the lot for everyone.
+  jarred?: SlurmJarredMessage
   // Rule 34: the accounts whose party (or invites) changed, each to be
   // sent its party frame (party.ts partyWire), and the news for the log.
   party?: string[]
@@ -1002,6 +1026,7 @@ export function createValley(): Valley {
     parties: NO_PARTIES,
     anglers: {},
     lines: {},
+    jarred: [],
   }
 }
 
@@ -1299,6 +1324,7 @@ const NEEDS_A_BODY: Partial<Record<ValleyAction['type'], NackRe>> = {
   'take-drop': 'take-drop',
   loot: 'loot',
   'open-portal': 'portal',
+  'jar-slurm': 'jar-slurm',
 }
 
 function bodiless(
@@ -1396,6 +1422,8 @@ function act(
       return onAngle(valley, action, context)
     case 'reel':
       return onReel(valley, action, context)
+    case 'jar-slurm':
+      return onJarSlurm(valley, action, context)
     case 'expedition-send':
     case 'expedition-claim':
       return onExpedition(valley, action, context)
@@ -1454,7 +1482,7 @@ function onJoin(
       routes: action.routes,
       stand: action.stand,
       wreck: action.wreck,
-      pond: action.pond,
+      ponds: action.ponds,
       bushes: action.bushes,
       dealer: action.dealer,
       dealerStock: freshDealerStock(),
@@ -2675,7 +2703,7 @@ function onAngle(
   if (!member.dialup) {
     if (!world) return refuse('not-in-valley')
     if (isAboard(world.truck, action.id)) return refuse('aboard')
-    if (!action.at || !inPond(world.pond, action.at)) return refuse('no-pond')
+    if (!action.at || !inPond(world.ponds, action.at)) return refuse('no-pond')
   }
   const { account } = member
   const angler = valley.anglers[account] ?? FRESH_ANGLER
@@ -2752,6 +2780,44 @@ function onAngle(
         seed: action.seed,
       },
     },
+  })
+}
+
+// Rule 35: a slurm off a Citgo's lot into the jar, from a raider standing
+// at that Citgo, while its drop could still be crawling, once.
+function onJarSlurm(
+  valley: Valley,
+  action: ActionOf<'jar-slurm'>,
+  { now, holdings }: ValleyContext
+): Reduced {
+  const member = valley.members[action.id]
+  const world = valley.world
+  const refuse = (reason: string): Reduced =>
+    done(valley, now, { broadcast: [], reply: nack('jar-slurm', reason) })
+  if (!member || !world) return refuse('not-in-valley')
+  if (isAboard(world.truck, action.id)) return refuse('aboard')
+  const { station, slot, index } = action
+  if (!action.at || citgoAt(action.at, world.havens) !== station) {
+    return refuse('too-far')
+  }
+  const seconds = now / 1000
+  const key = slurmKey(station, slot, index)
+  if (!mayJar(station, slot, index, seconds) || valley.jarred.includes(key)) {
+    return refuse('gone')
+  }
+  if (!holdings) return refuse('unavailable')
+  if ((holdings.pack['slurm-jar'] ?? 0) < 1) return refuse('no-jar')
+  if (!jarRoom(holdings.pack)) return refuse('jar-full')
+  // Only the drops that could still be crawling are remembered.
+  const recent = slotOf(seconds) - 3
+  const jarred = [
+    ...valley.jarred.filter((k) => Number(k.split(':')[1]) >= recent),
+    key,
+  ]
+  return done({ ...valley, jarred }, now, {
+    broadcast: [],
+    pack: { account: member.account, kind: 'slurm', delta: 1 },
+    jarred: { type: 'slurm-jarred', station, slot, index, by: action.id },
   })
 }
 

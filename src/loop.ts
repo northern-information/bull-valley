@@ -14,6 +14,7 @@ import { dayKey } from './daily.ts'
 import { onDay, shownCount } from './dailytask.ts'
 import { EMOTES, holds } from './emotes.ts'
 import { hurts } from './fall.ts'
+import { inPond, jarRoom, nearestLanding } from './fishing.ts'
 import { ease, stepHand, useLift, useSeconds } from './hands.ts'
 import { shakeAt } from './health.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
@@ -447,11 +448,12 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     if (world.wreck && live(world.wreck.group.position)) {
       world.wreck.update(time)
     }
-    // The fireflies blink over the pond, and the bobber floats while a
-    // line is out (fishing.ts).
-    const pond = world.pond
-    if (pond && live(pond.place, pond.place.radius)) {
-      const line = s.line
+    // The fireflies blink over each pond near enough to see, and the
+    // bobber floats while a line is out, off the pond the raider stands
+    // at (fishing.ts).
+    for (const pond of world.ponds) {
+      if (!live(pond.place, pond.place.radius)) continue
+      const line = inPond([pond.place], player.pos) ? s.line : null
       pond.setLine(
         line !== null,
         line?.hook != null && performance.now() >= line.bitesAt
@@ -746,7 +748,11 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       wreck: world.wreck
         ? { x: world.wreck.group.position.x, z: world.wreck.group.position.z }
         : null,
-      tackle: world.pond?.landing ?? null,
+      slurms: jarRoom(s.inventory) ? world.shelves.crawlingSlurms() : [],
+      tackle: nearestLanding(
+        world.ponds.map((pond) => pond.place),
+        player.pos
+      ),
       dealer: world.plaza?.dealer.at ?? null,
       trapdoor: world.undercroft?.hatch ?? null,
       ladder: world.undercroft?.foot ?? null,

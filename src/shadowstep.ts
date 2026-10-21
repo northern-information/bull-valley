@@ -330,14 +330,14 @@ function burnCredits(
 }
 
 // Rule 35: where the shadowmen turn aside: every Citgo forecourt, and the
-// firefly pond, as far past its shore as its haven reaches.
+// firefly ponds, each as far past its shore as its haven reaches.
 export function shadeHavens(
-  world: Pick<NonNullable<Valley['world']>, 'havens' | 'pond'>
+  world: Pick<NonNullable<Valley['world']>, 'havens' | 'ponds'>
 ): Haven[] {
-  const { pond } = world
-  return pond
-    ? [...world.havens, { x: pond.x, z: pond.z, radius: pond.radius }]
-    : world.havens
+  return [
+    ...world.havens,
+    ...world.ponds.map(({ x, z, radius }) => ({ x, z, radius })),
+  ]
 }
 
 // One step of the valley's shadowmen, its Caretaker and its tunnel shades,

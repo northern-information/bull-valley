@@ -3,8 +3,10 @@
 // canopy), and David Carlsten comes out from behind the counter with his
 // bat, smashes each one, curses, and goes back in; if a raider's foot gets
 // the last of them first, he stops on his way, thanks them, and turns
-// back (`afterTrodden`). Scenery only: they
-// never touch a raider and nothing is kept. Every drop is drawn from a
+// back (`afterTrodden`). They never touch a raider, and nothing is kept
+// but what a raider with Erwin von Dutch's jar catches alive while it
+// crawls (`mayJar`, sharedworld.ts rule 35), gone from the lot for
+// everyone once the valley says so. Every drop is drawn from a
 // seed of the station and the slot of time it falls in, so every client
 // reading the same shared clock sees the same slurms fall at the same
 // moment, with nothing on the wire. All in station-local space (store.ts),
@@ -404,6 +406,37 @@ export function eventAt(
     if (t < event.end) return { event, t }
   }
   return null
+}
+
+// --- In the jar ------------------------------------------------------------
+
+// One slurm of one drop at one station, as the jar's catches are kept.
+export function slurmKey(station: number, slot: number, index: number): string {
+  return `${station}:${slot}:${index}`
+}
+
+// The slot `seconds` (since the epoch on the shared clock) falls in.
+export function slotOf(seconds: number): number {
+  return Math.floor(seconds / CONFIG.slurms.slotSeconds)
+}
+
+// Whether slurm `index` of slot `slot` at `station` could be crawling on
+// the lot around `seconds`: its drop is this slot, one either side, or one
+// further (a drop runs into the next slot, and a client may run its clock
+// a little off), and it has that many slurms. The valley asks it of a
+// catch; it never knows a raider's foot or Carlsten's bat, so a catch it
+// lets through is the client's word that the slurm still crawled.
+export function mayJar(
+  station: number,
+  slot: number,
+  index: number,
+  seconds: number
+): boolean {
+  if (!Number.isInteger(slot) || !Number.isInteger(index) || index < 0) {
+    return false
+  }
+  if (Math.abs(slot - slotOf(seconds)) > 2) return false
+  return index < slurmEvent(station, slot).slurms.length
 }
 
 // When the next drop at `station` starts, at or after `seconds`.

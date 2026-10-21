@@ -5,7 +5,7 @@ import { buildCastleSite } from './castlesite.ts'
 import { CONFIG } from './config.ts'
 import { unitToWorld } from './coords.ts'
 import { buildCornMaze, mazeFrame, mazeLamps, mazePlaceOf } from './cornmaze.ts'
-import { pondOf } from './fishing.ts'
+import { pondsOf } from './fishing.ts'
 import { Ground } from './ground.ts'
 import { KEEP, landmarkWorldPositions } from './landmarks.ts'
 import { LOOKOUT, onLookout } from './lookout.ts'
@@ -76,6 +76,7 @@ import type { MazePlace } from './maze.ts'
 import type { CroftRig, PlazaRig } from './plazasite.ts'
 import type { PondRig } from './pondsite.ts'
 import type { Cue } from './sfx.ts'
+import type { CrawlingSlurm } from './slurmrig.ts'
 import type { Feet } from './slurms.ts'
 import type { StoreOrigin, WorldFacing } from './store.ts'
 import type { Streetlights } from './streetlights.ts'
@@ -129,6 +130,10 @@ export interface ShelfDisplay {
   // Whether he is out on `station`'s lot after the slurms, with no one
   // behind the counter to talk to.
   clerkAway(station: number): boolean
+  // The slurms crawling on the parked station's lot (slurmrig.ts), and one
+  // caught in a jar, gone from it (sharedworld.ts rule 35).
+  crawlingSlurms(): CrawlingSlurm[]
+  jarSlurm(station: number, slot: number, index: number): void
   // Dev: bring the next drop of slurms at the parked station to now.
   hurrySlurms(): void
   // Dev: hold every drop off (or let them fall again), Carlsten behind
@@ -247,11 +252,11 @@ export interface World {
   // field; null without
   // a spawn station.
   castle: CastleSite | null
-  // The firefly pond behind the spawn Citgo (fishing.ts, sharedworld.ts
-  // rule 35): its place and shore, the tackle box on its landing, and
-  // update(t) for the fireflies. Null without a spawn station or water
-  // near it.
-  pond: PondRig | null
+  // The firefly ponds (fishing.ts pondsOf, sharedworld.ts rule 35), the
+  // one behind the spawn Citgo and the one past the corn maze: each its
+  // place and shore, the tackle box on its landing, and update(t) for the
+  // fireflies. None without a spawn station or water near it.
+  ponds: PondRig[]
 }
 
 // The terrain as buildWorld may cut into it (terrain.ts HeightField): the
@@ -389,10 +394,10 @@ export function buildWorld(
   const wreckAt = spawnStation
     ? toWorld(spawnStation, [CONFIG.wreck.at.x, 0, CONFIG.wreck.at.z])
     : null
-  // The pond with the fireflies, the water nearest the spawn Citgo.
-  const pondAt = spawnStation
-    ? pondOf(geo.water, (u, v) => unitToWorld(u, v, metres), spawnStation)
-    : null
+  // The ponds with the fireflies.
+  const pondsAt = spawnStation
+    ? pondsOf(geo.water, (u, v) => unitToWorld(u, v, metres), spawnStation)
+    : []
   const dishSpots = spawnStation ? dishSpotsOf(spawnStation) : []
   const pine = spawnStation ? lonePineOf(spawnStation) : null
   const plaza = spawnStation
@@ -426,11 +431,10 @@ export function buildWorld(
         (wreckAt
           ? Math.hypot(x - wreckAt[0], z - wreckAt[2]) < CONFIG.wreck.treeClear
           : false) ||
-        // The pond's landing stands in the open.
-        (pondAt
-          ? Math.hypot(x - pondAt.landing.x, z - pondAt.landing.z) <
-            POND_TREE_CLEAR
-          : false) ||
+        // A pond's landing stands in the open.
+        pondsAt.some(
+          (p) => Math.hypot(x - p.landing.x, z - p.landing.z) < POND_TREE_CLEAR
+        ) ||
         dishSpots.some(
           (d) => Math.hypot(x - d.x, z - d.z) < CONFIG.dishes.treeClear
         ) ||
@@ -531,8 +535,8 @@ export function buildWorld(
     ? buildCastleSite(moatAt.place, raw, moatAt.floor, ground, walls)
     : null
   if (castle) group.add(castle.group)
-  const pond = pondAt ? placePond(pondAt, ground, walls) : null
-  if (pond) group.add(pond.group)
+  const ponds = pondsAt.map((at) => placePond(at, ground, walls))
+  for (const pond of ponds) group.add(pond.group)
 
   return {
     group,
@@ -588,6 +592,6 @@ export function buildWorld(
       castle: castle ? castle.middle : null,
     }),
     castle,
-    pond,
+    ponds,
   }
 }

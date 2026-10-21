@@ -21,10 +21,13 @@ import {
   inPond,
   isBait,
   isCatch,
+  jarRoom,
   landChance,
   landOf,
   lineOutOf,
+  nearestLanding,
   pondOf,
+  pondsOf,
   pressFight,
   quickestMs,
   reachOf,
@@ -55,7 +58,7 @@ const NIGHT = Date.UTC(2026, 6, 2, 3)
 
 describe('fishing', () => {
   it('knows its baits', () => {
-    expect(BAITS).toEqual(['nightcrawlers', 'berries'])
+    expect(BAITS).toEqual(['nightcrawlers', 'berries', 'slurm'])
     expect(isBait('berries')).toBe(true)
     expect(isBait('cabbage')).toBe(false)
   })
@@ -293,6 +296,30 @@ describe('fishing', () => {
     expect(landOf('largemouth-bass', 0, 0.5, 'g-loomis')).toBe('landed')
   })
 
+  it('hooks the shadow carp on a slurm, and nothing else on one', () => {
+    const kinds = new Set<string>()
+    for (let i = 0; i < 1000; i++) {
+      const h = hookOf('slurm', NOON, 1000, i / 1000)
+      kinds.add(h?.kind ?? 'nothing')
+    }
+    expect(kinds).toEqual(new Set(['nothing', 'shadow-carp']))
+    // And never on any other bait.
+    for (let i = 0; i < 1000; i++) {
+      expect(hookOf('nightcrawlers', NIGHT, 1000, i / 1000)?.kind).not.toBe(
+        'shadow-carp'
+      )
+    }
+  })
+
+  it('has room in the jar for each one carried', () => {
+    const { holds } = CONFIG.fishing.jar
+    expect(jarRoom({})).toBe(false)
+    expect(jarRoom({ slurm: 1 })).toBe(false)
+    expect(jarRoom({ 'slurm-jar': 1, slurm: holds - 1 })).toBe(true)
+    expect(jarRoom({ 'slurm-jar': 1, slurm: holds })).toBe(false)
+    expect(jarRoom({ 'slurm-jar': 2, slurm: holds })).toBe(true)
+  })
+
   it('lands a fish within ten levels, loses one past fifty', () => {
     expect(landChance(10, 0)).toBe(1)
     expect(landChance(30, 0)).toBeCloseTo(0.5)
@@ -414,12 +441,45 @@ describe('fishing', () => {
       expect(pondOf([far, stream], toWorld, { x: 0, z: 0 })).toBeNull()
     })
 
-    it('holds a raider inside its haven', () => {
-      const pond = pondOf([square], toWorld, { x: 0, z: 0 })
-      expect(inPond(pond, { x: 500, z: 0 })).toBe(true)
-      expect(inPond(pond, pond!.landing)).toBe(true)
-      expect(inPond(pond, { x: 0, z: 0 })).toBe(false)
-      expect(inPond(null, { x: 500, z: 0 })).toBe(false)
+    it('holds a raider inside any haven, and finds the nearest landing', () => {
+      const pond = pondOf([square], toWorld, { x: 0, z: 0 })!
+      const other = pondOf([far], toWorld, { x: 5000, z: 0 }, { x: 0, z: 0 })!
+      expect(inPond([pond, other], { x: 500, z: 0 })).toBe(true)
+      expect(inPond([pond, other], { x: 5500, z: 0 })).toBe(true)
+      expect(inPond([pond], pond.landing)).toBe(true)
+      expect(inPond([pond, other], { x: 0, z: 0 })).toBe(false)
+      expect(inPond([], { x: 500, z: 0 })).toBe(false)
+      // The far pond's landing faces the Citgo, on its near shore.
+      expect(other.landing.x).toBeLessThan(5450)
+      expect(nearestLanding([pond, other], { x: 5600, z: 0 })).toBe(
+        other.landing
+      )
+      expect(nearestLanding([pond, other], { x: 0, z: 0 })).toBe(pond.landing)
+      expect(nearestLanding([], { x: 0, z: 0 })).toBeNull()
+    })
+
+    it('finds every firefly pond from the spawn Citgo, each once', () => {
+      // A Citgo at the origin facing +x: the first find is at it, the
+      // second out past the maze, station-local.
+      const cfg = {
+        ...CONFIG.fishing,
+        ponds: [
+          { find: { x: 0, z: 0 } },
+          { find: { x: 5000, z: 0 } },
+          { find: { x: 10, z: 0 } },
+        ],
+      }
+      const station = { x: 0, z: 0, yaw: 0 }
+      const ponds = pondsOf([square, far], toWorld, station, cfg)
+      expect(ponds.map((p) => p.x)).toEqual([500, 5500])
+      // Turned a quarter, the second find falls on no water.
+      const turned = pondsOf(
+        [square, far],
+        toWorld,
+        { ...station, yaw: 1.5 },
+        cfg
+      )
+      expect(turned.map((p) => p.x)).toEqual([500])
     })
 
     it('reads a place off the wire', () => {

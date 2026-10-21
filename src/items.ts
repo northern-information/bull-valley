@@ -500,6 +500,14 @@ export const ITEMS = [
     category: 'forage',
     start: 0,
   },
+  // Caught off a Citgo's lot in Erwin von Dutch's jar before David
+  // Carlsten's bat gets to them (sharedworld.ts rule 35): the shadow
+  // carp's bait, and nothing else's.
+  {
+    id: 'slurm',
+    category: 'forage',
+    start: 0,
+  },
   // Valuables. Not for sale and of no use, but Moab Coldë takes them in
   // trade (cosmetics.ts). One unit is one troy ounce.
   {
@@ -535,6 +543,7 @@ export const ITEMS = [
   { id: 'channel-catfish', category: 'fish', start: 0, worth: 1200 },
   { id: 'common-carp', category: 'fish', start: 0, worth: 1400 },
   { id: 'ghost-catfish', category: 'fish', start: 0, worth: 9000 },
+  { id: 'shadow-carp', category: 'fish', start: 0, worth: 4000 },
   // Rods (Rod above), on the rack by the side wall in every Citgo, the
   // cheapest first.
   { id: 'zebco-33', category: 'rod', start: 0, price: 5000 },
@@ -555,6 +564,13 @@ export const ITEMS = [
   // (sharedworld.ts rule 35): nothing bites without it.
   {
     id: 'fishing-rod',
+    category: 'key-item',
+    start: 0,
+  },
+  // Erwin von Dutch's jar (dealer.ts): a slurm goes in it alive. Each one
+  // carried holds CONFIG.fishing.jar.holds of them.
+  {
+    id: 'slurm-jar',
     category: 'key-item',
     start: 0,
   },

@@ -11,6 +11,7 @@ import {
 } from './assetkit.ts'
 import { canvas } from './canvas.ts'
 import { mulberry32, range } from './rng.ts'
+import { buildSlurm } from './slurmmodel.ts'
 import type { PickupOptions } from './assetkit.ts'
 import type { CanvasArt } from './canvas.ts'
 
@@ -228,6 +229,27 @@ const FISH: Record<string, FishSpec> = {
     shine: 0.4,
     halo: WATERY,
     marks: (art) => bigScales(art, 'rgba(50, 30, 8, 0.55)'),
+  },
+  // A carp gone the colour of the shadowmen: black on black, its scales a
+  // shade off it, and a red eye that burns as a shadow spider's do.
+  'shadow-carp': {
+    length: 0.62,
+    depth: 0.3,
+    thickness: 0.15,
+    peak: 0.56,
+    stock: 0.24,
+    snout: 0.26,
+    tail: 'fork',
+    dorsal: 'carp',
+    barbels: 4,
+    back: '#020203',
+    flank: '#0b0b0e',
+    belly: '#16151a',
+    fin: '#050506',
+    iris: '#ff1e1e',
+    shine: 0.15,
+    halo: 'rgba(255, 40, 40, 0.18)',
+    marks: (art) => bigScales(art, 'rgba(60, 60, 72, 0.5)'),
   },
   // The pond's legend: an albino channel cat near a metre long, bone white
   // with pink eyes, glowing faintly on its own.
@@ -1133,4 +1155,79 @@ export function buildBobber(): THREE.Group {
   button.position.y = r + 0.013
   ball.add(button)
   return group
+}
+
+// --- The slurm jar -------------------------------------------------------
+
+// Erwin von Dutch's slurm jar: a gallon Mason jar, the glass gone cloudy,
+// a tin lid with holes knocked through it with a nail, and a slurm curled
+// in the bottom of it for good measure (slurmmodel.ts, shrunk).
+export function buildSlurmJar({
+  glow = true,
+}: PickupOptions = {}): THREE.Group {
+  const r = 0.085
+  const h = 0.24
+  const group = new THREE.Group()
+  group.name = 'slurm-jar'
+  const glass = lambert({
+    color: '#a9c4bc',
+    emissive: new THREE.Color('#1c2a26'),
+    transparent: true,
+    opacity: 0.38,
+    depthWrite: false,
+  })
+  const tin = lambert({ color: '#9a978c' })
+  const hole = lambert({ color: '#141414' })
+  const body = new THREE.Mesh(
+    new THREE.CylinderGeometry(r, r, h * 0.84, 12, 1, true),
+    glass
+  )
+  body.position.y = h * 0.42
+  group.add(body)
+  const shoulder = new THREE.Mesh(
+    new THREE.CylinderGeometry(r * 0.8, r, h * 0.1, 12, 1, true),
+    glass
+  )
+  shoulder.position.y = h * 0.89
+  group.add(shoulder)
+  const bottom = new THREE.Mesh(new THREE.CircleGeometry(r, 12), glass)
+  bottom.rotation.x = -Math.PI / 2
+  bottom.position.y = 0.002
+  group.add(bottom)
+  const lid = new THREE.Mesh(
+    new THREE.CylinderGeometry(r * 0.82, r * 0.82, h * 0.07, 12),
+    tin
+  )
+  lid.position.y = h * 0.97
+  group.add(lid)
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2
+    const dot = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.002, 0.008), hole)
+    dot.position.set(Math.cos(a) * r * 0.4, h + 0.002, Math.sin(a) * r * 0.4)
+    group.add(dot)
+  }
+  const slurm = buildSlurm()
+  slurm.pose({ stretch: 0, tooth: 0.6, splat: null })
+  slurm.group.scale.setScalar(0.32)
+  slurm.group.position.y = 0.004
+  slurm.group.rotation.y = 0.8
+  group.add(slurm.group)
+  if (glow) {
+    const halo = makeGlowSprite(
+      makeGlowTexture('rgba(190, 220, 210, 0.35)'),
+      0.6
+    )
+    halo.position.y = h / 2
+    group.add(halo)
+  }
+  setPulseMaterials(group, [tin])
+  return group
+}
+
+// A slurm taken alive, as the pack and a dropped one show it: whole, its
+// tooth half out.
+export function buildSlurmCatch(): THREE.Group {
+  const slurm = buildSlurm()
+  slurm.pose({ stretch: 0.3, tooth: 0.5, splat: null })
+  return slurm.group
 }

@@ -273,10 +273,10 @@ export interface HelloMessage {
   // Citgo's, then the maze's ring): a berry only for a raider in reach
   // (rule 8).
   bushes: XZ[]
-  // The firefly pond (fishing.ts), or null: no shadow comes inside its
-  // haven (rule 11), and the valley lets a raider fish only from it (rule
-  // 35).
-  pond: PondPlace | null
+  // The firefly ponds (fishing.ts pondsOf), none or more: no shadow comes
+  // inside their havens (rule 11), and the valley lets a raider fish only
+  // from one of them (rule 35).
+  ponds: PondPlace[]
   // Where the squatter in Bull Valley Plaza sits, or null: the valley
   // deals only with a raider beside him (rule 25).
   dealer: XZ | null
@@ -429,6 +429,7 @@ type FishMessage =
   | { type: 'dig' }
   | { type: 'cast'; bait: Bait }
   | { type: 'reel'; landed: boolean }
+  | { type: 'jar-slurm'; station: number; slot: number; index: number }
 
 // An expedition (sharedworld.ts rule 30): a run of `kind` sent out, or the
 // run home claimed. Dial-Up only; the valley answers with an
@@ -862,6 +863,17 @@ export interface LineMessage {
   hook: HookWire | null
 }
 
+// A slurm caught in a jar (rule 35), to everyone: slurm `index` of slot
+// `slot`'s drop at `station` is off the lot, by raider `by`. The catcher's
+// pack frame follows.
+export interface SlurmJarredMessage {
+  type: 'slurm-jarred'
+  station: number
+  slot: number
+  index: number
+  by: string
+}
+
 // How the line out ended (rule 35), to the socket that reeled: what came
 // in when it was landed, and the skill after, `up` when it rose.
 export interface CatchMessage {
@@ -1179,6 +1191,7 @@ export type ServerMessage =
   | AnglerMessage
   | LineMessage
   | CatchMessage
+  | SlurmJarredMessage
   | ExpeditionMessage
   | QuestFrame
   | XpMessage
@@ -1486,6 +1499,20 @@ function parseHavens(value: unknown, stations: number): XZ[] | null {
   return parseSpots(value, stations)
 }
 
+// The firefly ponds: at most PONDS_MAX, each a pond place.
+const PONDS_MAX = 8
+
+function parsePonds(value: unknown): PondPlace[] | null {
+  if (!Array.isArray(value) || value.length > PONDS_MAX) return null
+  const ponds: PondPlace[] = []
+  for (const entry of value as unknown[]) {
+    const pond = toPondPlace(entry)
+    if (!pond) return null
+    ponds.push(pond)
+  }
+  return ponds
+}
+
 // At most `max` places.
 function parseSpots(value: unknown, max: number): XZ[] | null {
   if (!Array.isArray(value) || value.length > max) return null
@@ -1569,7 +1596,7 @@ type HelloPlaces = Pick<
   | 'truck'
   | 'stand'
   | 'wreck'
-  | 'pond'
+  | 'ponds'
   | 'bushes'
   | 'dealer'
   | 'undercroft'
@@ -1586,7 +1613,7 @@ const NO_PLACES: HelloPlaces = {
   truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
   stand: null,
   wreck: null,
-  pond: null,
+  ponds: [],
   bushes: [],
   dealer: null,
   undercroft: null,
@@ -1618,11 +1645,11 @@ function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
   const undercroft = nullable(value.undercroft, parseMazePlace)
   if (maze === undefined || stand === undefined) return null
   if (wreck === undefined) return null
-  const pond = nullable(value.pond, toPondPlace)
-  if (pond === undefined) return null
+  const ponds = parsePonds(value.ponds)
+  if (!ponds) return null
   if (dealer === undefined || undercroft === undefined) return null
   const places = { havens, metres, water, maze, truck, stand, bushes, dealer }
-  return { ...places, wreck, pond, undercroft, rings }
+  return { ...places, wreck, ponds, undercroft, rings }
 }
 
 // A hello. The outfit is checked by the server (characters.ts
@@ -1734,6 +1761,17 @@ const CLIENT_PARSERS: ClientParsers = {
   cast: ({ bait }) => (isBait(bait) ? { type: 'cast', bait } : null),
   reel: ({ landed }) =>
     typeof landed === 'boolean' ? { type: 'reel', landed } : null,
+  // Which slurms there are, and whether one crawls, is the valley's to
+  // check.
+  'jar-slurm': ({ station, slot, index }) =>
+    isCount(station) && Number.isInteger(slot) && isCount(index)
+      ? {
+          type: 'jar-slurm',
+          station,
+          slot: slot as number,
+          index,
+        }
+      : null,
   recycle: ({ line }) =>
     isResearchLine(line) ? { type: 'recycle', line } : null,
   'stand-upgrade': bare('stand-upgrade'),

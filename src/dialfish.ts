@@ -112,6 +112,7 @@ export class DialFish {
           limit: a.perDay,
           worms: s.pack.nightcrawlers ?? 0,
           berries: s.pack.berries ?? 0,
+          slurms: s.pack.slurm ?? 0,
           rod: rod ? itemLabel(rod) : copy('dialup.fish.no_rod'),
         })
       : copy('fishing.reading')

@@ -113,8 +113,10 @@ export interface Pending {
   stand: boolean
   // Rule 33: a level bought at the Recycling Center.
   recycle: boolean
-  // Rule 35: a rod, a dig, a cast or a reel at the firefly pond.
+  // Rule 35: a rod, a dig, a cast or a reel at the firefly pond, and a
+  // slurm into the jar.
   fish: boolean
+  jar: boolean
 }
 
 export function freshPending(): Pending {
@@ -136,6 +138,7 @@ export function freshPending(): Pending {
     stand: false,
     recycle: false,
     fish: false,
+    jar: false,
   }
 }
 
