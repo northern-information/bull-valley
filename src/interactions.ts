@@ -15,7 +15,7 @@ import { formatCash } from './store.ts'
 import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { HallucinationShape } from './hallucinations.ts'
-import type { XZ } from './interfaces.ts'
+import type { Vec3, XZ } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
 import type { NpcId, NpcSpot } from './npcs.ts'
 import type { DailyWire } from './protocol.ts'
@@ -117,6 +117,15 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
       item?: string
     }
 
+// What the eye sees for the pickups: the eye, the unit look direction,
+// the feet's height, and where each pickup is aimed at (its middle).
+export interface PickupView<P extends PickupSpot> {
+  eye: Vec3
+  dir: Vec3
+  feet: number
+  heightOf: (pickup: P) => number
+}
+
 // A hallucination as the resolver sees it.
 export interface HallucinationSpot extends XZ {
   id: number
@@ -142,6 +151,11 @@ export interface InteractionInput<P extends PickupSpot> {
   // behind one is out of reach however near it lies. Left out, nothing
   // does.
   walled?: (from: XZ, to: XZ) => boolean
+  // Where the eye is and which way it looks (a unit vector), and how high
+  // each pickup stands: a pickup must be in view to be taken, the one
+  // nearest the middle of it first, and lie about the raider's own level.
+  // Left out, the nearest pickup answers wherever it lies.
+  view?: PickupView<P>
   // The shelf unit in view inside a store, or null.
   shelf: ShelfSpot | null
   // The berry bushes (the spawn Citgo's and the maze's), and how each
@@ -312,7 +326,12 @@ export function resolveInteraction<P extends PickupSpot>(
     Math.hypot(locked.x - player.x, locked.z - player.z) <
       CONFIG.stripMall.doorReach
   ) {
-    const pickup = nearestPickup(input.pickups, player, input.walled)
+    const pickup = nearestPickup(
+      input.pickups,
+      player,
+      input.walled,
+      input.view
+    )
     return pickup ? { kind: 'pickup', pickup } : { kind: 'locked' }
   }
 
@@ -331,7 +350,7 @@ export function resolveInteraction<P extends PickupSpot>(
     return { kind: 'collect', bush: bush.id, status: bush.status }
   }
 
-  const nearest = nearestPickup(input.pickups, player, input.walled)
+  const nearest = nearestPickup(input.pickups, player, input.walled, input.view)
   return nearest ? { kind: 'pickup', pickup: nearest } : null
 }
 
@@ -354,14 +373,18 @@ function nearestHallucination(
   return nearest
 }
 
-// The nearest pickup not yet taken within reach, with no wall between,
-// or null.
+// The pickup E would take: not yet taken, within reach, with no wall
+// between. Given the view, only one in it (inside CONFIG.player.pickupCone
+// of the look, about the raider's own level) and the one nearest the
+// middle of it; else the nearest. Null when none qualifies.
 function nearestPickup<P extends PickupSpot>(
   pickups: readonly P[],
   player: XZ,
-  walled?: (from: XZ, to: XZ) => boolean
+  walled?: (from: XZ, to: XZ) => boolean,
+  view?: PickupView<P>
 ): P | null {
-  let best = CONFIG.player.pickupReach
+  const { pickupReach, pickupRise, pickupCone } = CONFIG.player
+  let best = view ? pickupCone : pickupReach
   let nearest: P | null = null
   for (const pickup of pickups) {
     if (pickup.taken) continue
@@ -369,12 +392,31 @@ function nearestPickup<P extends PickupSpot>(
       continue
     }
     const d = Math.hypot(pickup.x - player.x, pickup.z - player.z)
-    if (d < best && !walled?.(player, pickup)) {
-      best = d
+    if (d >= pickupReach) continue
+    let score = d
+    if (view) {
+      const y = view.heightOf(pickup)
+      if (Math.abs(y - view.feet) > pickupRise) continue
+      score = aimAngle(view.eye, view.dir, [pickup.x, y, pickup.z])
+    }
+    if (score < best && !walled?.(player, pickup)) {
+      best = score
       nearest = pickup
     }
   }
   return nearest
+}
+
+// The angle, in radians, between the look `dir` (a unit vector) from `eye`
+// and the line to `at`; 0 for a point at the eye.
+export function aimAngle(eye: Vec3, dir: Vec3, at: Vec3): number {
+  const dx = at[0] - eye[0]
+  const dy = at[1] - eye[1]
+  const dz = at[2] - eye[2]
+  const d = Math.hypot(dx, dy, dz)
+  if (d < 1e-6) return 0
+  const cos = (dx * dir[0] + dy * dir[1] + dz * dir[2]) / d
+  return Math.acos(Math.max(-1, Math.min(1, cos)))
 }
 
 // What an item is called on its floating label: its name, and a count for

@@ -713,6 +713,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       // What lies dropped answers to E like any pickup.
       pickups: allPickups(),
       walled: world.walls.between,
+      view: targets.pickupView(),
       shelf: targets.shelfInView(inStore),
       bushes,
       gron: world.gron,

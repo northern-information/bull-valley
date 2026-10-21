@@ -1,5 +1,5 @@
 import { copy } from './copy.ts'
-import { beginRaid, expect, heardWhere, test } from './fixtures.ts'
+import { beginRaid, expect, faceSpot, heardWhere, test } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
 // Bull Valley Plaza: Erwin von Dutch, the squatter in the Golden Wok,
@@ -100,12 +100,14 @@ test('Erwin barters, the rose earns the key, the key opens the office', async ({
 
   // The $20 in the safe, taken up, goes into the wallet.
   const paid = await cash(page)
-  await page.evaluate(() => {
+  const twenty = await page.evaluate(() => {
     const bv = window.__bv
     const twenty = bv?.world.pickups.find((p) => p.kind === 'twenty')
     if (!bv || !twenty) throw new Error('no twenty')
     bv.player.relocate(twenty.x + 0.6, twenty.z, 0)
+    return { x: twenty.x, z: twenty.z }
   })
+  await faceSpot(page, twenty.x, twenty.z)
   // The valley pays only a raider it has heard standing by it.
   await heardWhere(page)
   await expect(page.locator('.bv-item-label')).toContainText(

@@ -8,13 +8,20 @@ import { meshBounds } from './assets.ts'
 import { itemById } from './items.ts'
 import { insideStore, unitInView } from './store.ts'
 import type { Game } from './game.ts'
-import type { Interaction, LockerSpot, ShelfSpot } from './interactions.ts'
+import type {
+  Interaction,
+  LockerSpot,
+  PickupView,
+  ShelfSpot,
+} from './interactions.ts'
 import type { Vec3 } from './interfaces.ts'
 import type { NpcSpot } from './npcs.ts'
 import type { Pickup } from './world.ts'
 
 // How far over the top of an item its label sits, in metres.
 const LABEL_LIFT = 0.03
+// How far over its base a pickup is aimed at: about its middle.
+const PICKUP_MIDDLE = 0.08
 
 export interface Targets {
   // The store the player stands inside, as an index into world.fuelPoints,
@@ -25,6 +32,9 @@ export interface Targets {
   // Marx while his truck stands still, Carlsten in store `station`, every
   // Moab and Tyler, for the resolver to weigh by distance.
   npcSpots(station: number): NpcSpot[]
+  // What the eye sees for the pickups, for the resolver: where it is,
+  // where it looks, the feet's height, and each pickup's middle.
+  pickupView(): PickupView<Pickup>
   // The lockers in store `station`'s back room, for the resolver; none
   // outside every store.
   lockerSpots(station: number): LockerSpot[]
@@ -48,6 +58,9 @@ export function createTargets(game: Game): Targets {
   const { camera, world, truck, player, state } = game
   const look = new THREE.Vector3()
   const labelPoint = new THREE.Vector3()
+  const pickupPoint = new THREE.Vector3()
+  const heightOf = (pickup: Pickup) =>
+    pickup.mesh.getWorldPosition(pickupPoint).y + PICKUP_MIDDLE
   const bushObject = (id: number) =>
     world.bushes.find((b) => b.id === id)?.object ?? null
 
@@ -116,11 +129,13 @@ export function createTargets(game: Game): Targets {
         camera.position.z,
       ]
       const stock = state.storeStock[station]
-      const seen = unitInView(world.facings[station], stock, eye, [
-        look.x,
-        look.y,
-        look.z,
-      ])
+      const seen = unitInView(
+        world.facings[station],
+        stock,
+        eye,
+        [look.x, look.y, look.z],
+        world.walls.between
+      )
       const item = seen ? itemById(seen.facing.kind) : null
       if (!seen || !item || item.price === undefined) return null
       return {
@@ -129,6 +144,16 @@ export function createTargets(game: Game): Targets {
         unit: seen.unit,
         price: item.price,
         affordable: state.cash >= item.price,
+      }
+    },
+
+    pickupView() {
+      camera.getWorldDirection(look)
+      return {
+        eye: [camera.position.x, camera.position.y, camera.position.z],
+        dir: [look.x, look.y, look.z],
+        feet: player.groundY,
+        heightOf,
       }
     },
 

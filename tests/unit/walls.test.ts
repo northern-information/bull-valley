@@ -58,6 +58,15 @@ describe('Walls', () => {
     expect(post.between({ x: -1, z: 0 }, { x: 1, z: 0 })).toBe(false)
   })
 
+  it('stands no fixture between a hand and what stands in it', () => {
+    const cooler = new Walls()
+    cooler.addWall({ x: 0, z: -5 }, { x: 0, z: 5 }, 0.3)
+    // A bottle at the back of it, past its middle: no wall to the hand.
+    expect(cooler.between({ x: 1, z: 0 }, { x: -0.2, z: 0 })).toBe(false)
+    // Past its far face, it stands between.
+    expect(cooler.between({ x: 1, z: 0 }, { x: -0.4, z: 0 })).toBe(true)
+  })
+
   it('stands a gate between unless it is open to the one reaching', () => {
     const door = new Walls()
     door.addGate({ x: 0, z: -1 }, { x: 0, z: 1 }, 0.1, 'vault')

@@ -110,7 +110,8 @@ export class Walls {
   // side of it to the other, so what lies at `to` is out of reach of a
   // hand at `from` (a pickup behind a partition). A post, of no length,
   // never stands across a line; a gate open to the body at `from` stands
-  // aside, and a banded wall, a ledge, never stands across a reach.
+  // aside, a banded wall, a ledge, never stands across a reach, and nor
+  // does the fixture `to` stands in (a bottle at the back of a cooler).
   private crossed(from: XZ, to: XZ): boolean {
     const i0 = Math.floor(Math.min(from.x, to.x) / this.cell)
     const i1 = Math.floor(Math.max(from.x, to.x) / this.cell)
@@ -123,6 +124,7 @@ export class Walls {
             continue
           }
           if (wall.band) continue
+          if (holds(wall, to)) continue
           if (crosses(from, to, wall)) return true
         }
       }
@@ -172,6 +174,12 @@ export class Walls {
     }
     return { x: px, z: pz }
   }
+}
+
+// Whether `p` stands inside the wall's capsule: in the fixture itself.
+function holds(wall: Wall, p: XZ): boolean {
+  const { a, b } = wall
+  return projectOnSegment(p.x, p.z, a.x, a.z, b.x, b.z).dist < wall.half
 }
 
 // Whether segment pq crosses the wall's centreline, run on through the

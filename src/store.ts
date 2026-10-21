@@ -1246,12 +1246,15 @@ export function takeUnit(
 // the eye, inside the aim cone, and the closest to the view ray among
 // those. Units sit a hand's width apart, so the one under the crosshair
 // wins. `dir` is the unit look direction, pitch included, so looking at a
-// board picks it. Null when nothing qualifies.
+// board picks it. A unit with a wall between it and the eye (`walled`,
+// walls.ts between: the partition, from the back room) is never in view.
+// Null when nothing qualifies.
 export function unitInView<F extends WorldFacing>(
   facings: readonly F[],
   stock: ShopStock,
   eye: Vec3,
-  dir: Vec3
+  dir: Vec3,
+  walled?: (from: XZ, to: XZ) => boolean
 ): UnitInView<F> | null {
   const { reach, aimCone } = CONFIG.store
   let best: UnitInView<F> | null = null
@@ -1266,7 +1269,10 @@ export function unitInView<F extends WorldFacing>(
       if (d > reach || d < 1e-6) continue
       const cos = (dx * dir[0] + dy * dir[1] + dz * dir[2]) / d
       const angle = Math.acos(Math.max(-1, Math.min(1, cos)))
-      if (angle <= bestAngle) {
+      if (
+        angle <= bestAngle &&
+        !walled?.({ x: eye[0], z: eye[2] }, { x: at[0], z: at[2] })
+      ) {
         bestAngle = angle
         best = { facing, unit }
       }

@@ -28,8 +28,13 @@ export const CONFIG = {
     // Walking with the phone up, dialing a Citgo portal.
     phoneSpeedScale: 0.6,
     mouseSensitivity: 0.0023,
-    // How close a pickup must be for E to take it.
+    // How close a pickup must be for E to take it, across the ground; how
+    // far above or below the feet it may lie (never a floor away); and how
+    // far off the view, in radians, it may sit and still be the one you
+    // are looking at.
     pickupReach: 2.6,
+    pickupRise: 1.5,
+    pickupCone: 0.6,
     // The body's radius, for the store walls.
     radius: 0.3,
   },

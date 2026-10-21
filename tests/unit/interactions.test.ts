@@ -13,8 +13,10 @@ import type {
   DailyStatus,
   InteractionInput,
   PickupSpot,
+  PickupView,
   ShelfSpot,
 } from '../../src/interactions.ts'
+import type { Vec3 } from '../../src/interfaces.ts'
 import type { NpcSpot } from '../../src/npcs.ts'
 
 const spawnStation = { x: 0, z: 0 }
@@ -165,6 +167,49 @@ describe('resolveInteraction', () => {
     expect(
       resolveInteraction(input({ pickups: [behind, before], walled }))
     ).toEqual({ kind: 'pickup', pickup: before })
+  })
+
+  it('offers only a pickup in view, the one nearest the middle of it', () => {
+    const at = (x: number, z: number): PickupSpot => ({
+      x,
+      z,
+      kind: 'wild-turkey',
+      count: 1,
+      taken: false,
+    })
+    // Looking along -z from the eye over (250, 250), down a little.
+    const dir: Vec3 = [
+      0,
+      -0.5 / Math.hypot(0.5, 1.5),
+      -1.5 / Math.hypot(0.5, 1.5),
+    ]
+    const view = (feet = 0): PickupView<PickupSpot> => ({
+      eye: [250, feet + 1.6, 250],
+      dir,
+      feet,
+      heightOf: () => 0.1,
+    })
+    const ahead = at(250, 248.5)
+    const behind = at(250, 250.5)
+    const beside = at(251.5, 249.6)
+    // The nearest is behind: out of view, it is never offered.
+    expect(
+      resolveInteraction(
+        input({ pickups: [behind, beside, ahead], view: view() })
+      )
+    ).toEqual({ kind: 'pickup', pickup: ahead })
+    expect(
+      resolveInteraction(input({ pickups: [behind, beside], view: view() }))
+    ).toBeNull()
+    // Without a view, the nearest answers as before.
+    expect(resolveInteraction(input({ pickups: [behind, ahead] }))).toEqual({
+      kind: 'pickup',
+      pickup: behind,
+    })
+    // A floor away, never.
+    expect(
+      resolveInteraction(input({ pickups: [ahead], view: view(-10) }))
+    ).toBeNull()
   })
 
   it('offers the bush within reach, as the valley has it today', () => {

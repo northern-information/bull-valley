@@ -1,5 +1,5 @@
 import { copy } from './copy.ts'
-import { beginRaid, expect, heardWhere, test } from './fixtures.ts'
+import { beginRaid, expect, faceSpot, heardWhere, test } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
 // The Undercroft: down the trapdoor in the Video Vault's office to the old
@@ -47,14 +47,16 @@ test('the trapdoor goes down to the Undercroft, its gold, and back up', async ({
     .toBeGreaterThan(0)
 
   // The gold on the altar, first to take it.
-  await page.evaluate(() => {
+  const gold = await page.evaluate(() => {
     const bv = window.__bv
     const gold = bv?.world.pickups.find(
       (p) => p.kind === 'gold-bullion' && bv.world.undercroft?.inside(p.x, p.z)
     )
     if (!bv || !gold) throw new Error('no gold')
     bv.player.relocate(gold.x + 0.4, gold.z, 0)
+    return { x: gold.x, z: gold.z }
   })
+  await faceSpot(page, gold.x, gold.z)
   // The valley hands it over only to a raider it has heard standing by it.
   await heardWhere(page)
   await expect(page.locator('.bv-item-label')).toContainText(
