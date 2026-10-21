@@ -51,6 +51,7 @@ import {
   PROTOCOL_VERSION,
 } from '../src/protocol.ts'
 import { isQuest } from '../src/quests.ts'
+import { emptyOf } from '../src/recycling.ts'
 import { mulberry32 } from '../src/rng.ts'
 import { SEASON, tally } from '../src/season.ts'
 import {
@@ -99,6 +100,7 @@ import type {
   TaskWire,
 } from '../src/protocol.ts'
 import type { QuestId, QuestStage } from '../src/quests.ts'
+import type { Research } from '../src/recycling.ts'
 import type { SeasonProgress } from '../src/season.ts'
 import type { ShadeKind, TruckPose } from '../src/shadowmen.ts'
 import type {
@@ -106,6 +108,7 @@ import type {
   Reduced,
   Valley,
   ValleyAction,
+  ValleyContext,
 } from '../src/sharedworld.ts'
 import type { StandLedger } from '../src/stand.ts'
 import type { ShadowHit } from '../src/wards.ts'
@@ -326,7 +329,13 @@ export class ValleyDO extends DurableObject<Env> {
         await this.setDown(ws, account, { ...msg, id, at: facing(me) })
         return
       case 'take-drop':
-        await this.act(ws, { type: 'take-drop', id, drop: msg.drop, at })
+        await this.takeDrop(ws, account, {
+          type: 'take-drop',
+          id,
+          drop: msg.drop,
+          at,
+          roll: this.roll(),
+        })
         return
       case 'portal':
         // Rule 28: ahead of the raider, the way they face.
@@ -347,6 +356,12 @@ export class ValleyDO extends DurableObject<Env> {
       case 'stand-collect':
       case 'stand-upgrade':
         await this.tend(ws, account, { ...msg, id, at })
+        return
+      case 'research':
+        if (account) await this.sendResearch(ws, account)
+        return
+      case 'recycle':
+        await this.recycle(ws, account, { ...msg, id, at })
         return
       case 'expedition-send':
         await this.expedition(ws, account, {
@@ -413,8 +428,8 @@ export class ValleyDO extends DurableObject<Env> {
     seeHeadlights(this.shadows, me.at, { x, y, z, heading }, Date.now())
   }
 
-  // Rules 24 and 27: once the pack has given the unit up, it doses the
-  // wards and gives its share of geometrie back.
+  // Rules 24, 27 and 32: once the pack has given the unit up, it doses the
+  // wards, gives its share of geometrie back, and leaves its empty.
   // All under one lock, so no strike lands between the unit going and its
   // dose: a raider shattered in between is never dosed after.
   private use(ws: WebSocket, id: string, kind: string): Promise<void> {
@@ -423,7 +438,29 @@ export class ValleyDO extends DurableObject<Env> {
       if (!used) return
       await this.doseHeld({ type: 'dose', id, kind })
       if (healsOf(kind, 100) > 0) await this.mendHeld(id, kind)
+      await this.emptyHeld(ws, id, kind)
     })
+  }
+
+  // Rule 32: what the unit of `kind` just out of `id`'s pack leaves there,
+  // judged from what the pack holds now. Nothing is read for a kind that
+  // never leaves anything.
+  // Held: the caller has the valley's lock.
+  private async emptyHeld(
+    ws: WebSocket,
+    id: string,
+    kind: string
+  ): Promise<void> {
+    const account = this.valley.members[id]?.account
+    if (!account || emptyOf(kind, 0) === null) return
+    let left: number
+    try {
+      left = (await this.packs().get(account)).pack[kind] ?? 0
+    } catch (err) {
+      console.error('The pack could not be read for its empty', kind, err)
+      return
+    }
+    await this.actHeld(ws, { type: 'empty', id, kind, left })
   }
 
   // The dev server's frames, for the specs (the Worker stamped the socket).
@@ -800,6 +837,7 @@ export class ValleyDO extends DurableObject<Env> {
       if (!(await this.repack(ws, pack, pack.account, 'pass'))) return null
       await this.doseHeld({ type: 'dose', id: me.id, kind, to })
       if (healsOf(kind, 100) > 0) await this.mendHeld(to, kind)
+      await this.emptyHeld(ws, me.id, kind)
       return { taker: passed.account, giver: pack.account }
     })
     if (!passed || !taker) return
@@ -1294,6 +1332,7 @@ export class ValleyDO extends DurableObject<Env> {
               maze: hello.maze,
               routes: hello.truck,
               stand: hello.stand,
+              wreck: hello.wreck,
               bushes: hello.bushes,
               dealer: hello.dealer,
               undercroft: hello.undercroft,
@@ -1751,9 +1790,111 @@ export class ValleyDO extends DurableObject<Env> {
     return this.locked(() => this.actHeld(ws, action))
   }
 
+  // Rule 33: a drop taken up, with the taker's research read first, so
+  // loose change can find more over a burst's dimes. A research that
+  // cannot be read finds nothing more; the drop is taken all the same.
+  private takeDrop(
+    ws: WebSocket,
+    account: string | null,
+    action: Extract<ValleyAction, { type: 'take-drop' }>
+  ): Promise<boolean> {
+    return this.locked(async () => {
+      let levels: Research | null = null
+      if (account) {
+        try {
+          levels = await this.packs().research(account)
+        } catch (err) {
+          console.error('The research could not be read', err)
+        }
+      }
+      return this.actHeld(ws, action, levels ? { research: { levels } } : {})
+    })
+  }
+
+  // Rule 33: the account's research, to the socket that asked.
+  private async sendResearch(ws: WebSocket, account: string): Promise<void> {
+    try {
+      const research = await this.packs().research(account)
+      send(ws, { type: 'research', research })
+    } catch (err) {
+      console.error('The research could not be read', err)
+      send(ws, { type: 'nack', re: 'recycle', reason: 'unavailable' })
+    }
+  }
+
+  // The next level on a research line, alone (rule 33): no other frame
+  // runs between reading the research and the pack, judging the level
+  // against them, and writing both together. Every socket on the account
+  // hears the research and the pack after.
+  private async recycle(
+    ws: WebSocket,
+    account: string | null,
+    action: Extract<ValleyAction, { type: 'recycle' }>
+  ): Promise<void> {
+    if (!account) return
+    const refuse = (reason: string) => {
+      send(ws, { type: 'nack', re: 'recycle', reason })
+    }
+    if (!allow(this.dropRate, ws, PACK_LIMIT)) {
+      refuse('too-fast')
+      return
+    }
+    await this.locked(async () => {
+      const packs = this.packs()
+      let levels: Research
+      let holdings: Holdings
+      try {
+        levels = await packs.research(account)
+        holdings = await packs.get(account)
+      } catch (err) {
+        console.error('The research could not be read', err)
+        refuse('unavailable')
+        return
+      }
+      const reduced = reduce(this.valley, action, {
+        ...this.context(),
+        research: { levels, pack: holdings.pack },
+      })
+      if (reduced.reply) {
+        send(ws, reduced.reply)
+        return
+      }
+      const change = reduced.research
+      if (!change) return
+      let written: boolean
+      try {
+        written = await packs.recycle(
+          account,
+          change.line,
+          change.level - 1,
+          change.items
+        )
+      } catch (err) {
+        console.error('The research could not be written', err)
+        refuse('unavailable')
+        return
+      }
+      if (!written) {
+        refuse('short')
+        return
+      }
+      await this.apply(reduced)
+      this.toAccount(account, {
+        type: 'research',
+        research: { ...levels, [change.line]: change.level },
+        line: change.line,
+      })
+      await this.repack(null, null, account)
+    })
+  }
+
   // Held: the caller has the valley's lock.
-  private async actHeld(ws: WebSocket, action: ValleyAction): Promise<boolean> {
-    const reduced = reduce(this.valley, action, this.context())
+  private async actHeld(
+    ws: WebSocket,
+    action: ValleyAction,
+    read: Pick<ValleyContext, 'research'> = {}
+  ): Promise<boolean> {
+    const reduced = reduce(this.valley, action, { ...this.context(), ...read })
     const account = reduced.pack?.account ?? reduced.earn?.account
     const written = await this.write(reduced.pack, reduced.earn)
     if (written !== 'done') {
@@ -1769,6 +1910,12 @@ export class ValleyDO extends DurableObject<Env> {
     await this.apply(reduced)
     if (reduced.reply) send(ws, reduced.reply)
     if (reduced.daily) send(ws, reduced.daily)
+    if (reduced.found) {
+      this.toAccount(reduced.found.account, {
+        type: 'found',
+        dimes: reduced.found.dimes,
+      })
+    }
     for (const msg of reduced.broadcast) this.broadcast(msg, null)
     if (account) await this.repack(ws, null, account)
     return !reduced.reply

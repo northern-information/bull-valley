@@ -31,6 +31,7 @@ describe('freshPending', () => {
       showFriends: false,
       whisperTo: null,
       stand: false,
+      recycle: false,
     })
     expect(fresh.takes).not.toBe(before.takes)
     expect(before.takes.has(3)).toBe(true)

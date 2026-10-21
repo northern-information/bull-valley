@@ -10,7 +10,8 @@
 // checking which fields exist. Common to all:
 //   id        inventory kind and mesh key
 //   category  'cigarette' | 'joint' | 'psychedelic' | 'stimulant' |
-//             'drink' | 'medicine' | 'forage' | 'valuable' | 'key-item'
+//             'drink' | 'medicine' | 'forage' | 'valuable' | 'material' |
+//             'key-item'
 //   start     count in a new inventory
 //   contents  how many the pack, bottle or box holds (1 when absent); the
 //             inventory counts these, and a buy or a pickup adds a full one
@@ -115,6 +116,14 @@ interface Valuable extends ItemBase {
   price?: undefined
 }
 
+// Never on a shelf and of no use yet: what using something leaves behind
+// (recycling.ts emptyOf, sharedworld.ts rule 32), for the Recycling Center
+// at the wreck to take in.
+interface Material extends ItemBase {
+  category: 'material'
+  price?: undefined
+}
+
 // What a quest gives or asks for (quests.ts), and the keys, which open
 // their locks for whoever carries them (keys.ts): never used up, never
 // dropped and never stowed in the locker; a strike leaves them in the pack
@@ -133,6 +142,7 @@ export type Item =
   | Stimulant
   | Forage
   | Valuable
+  | Material
   | KeyItem
 
 export type ItemCategory = Item['category']
@@ -473,6 +483,23 @@ export const ITEMS = [
     category: 'valuable',
     start: 0,
   },
+  // Materials (Material above): a drink leaves its can or its bottle, and
+  // the last cigarette out of a pack leaves the pack (recycling.ts).
+  {
+    id: 'empty-can',
+    category: 'material',
+    start: 0,
+  },
+  {
+    id: 'empty-bottle',
+    category: 'material',
+    start: 0,
+  },
+  {
+    id: 'empty-pack',
+    category: 'material',
+    start: 0,
+  },
   // Key items (KeyItem above).
   {
     id: 'rose',
@@ -561,6 +588,7 @@ export function isUsable(id: string): boolean {
       return (item.healsPct ?? 0) > 0
     case 'forage':
     case 'valuable':
+    case 'material':
     case 'key-item':
       return false
   }

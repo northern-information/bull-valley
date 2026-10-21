@@ -31,6 +31,8 @@ function categoryName(category: ItemCategory): string {
       return copy('stats.forage')
     case 'valuable':
       return copy('stats.valuable')
+    case 'material':
+      return copy('stats.material')
     case 'key-item':
       return copy('stats.key_item')
   }

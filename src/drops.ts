@@ -115,6 +115,10 @@ export interface Drop extends XZ {
   // set down out of a raider's pack: taking it up earns XP
   // (progression.ts).
   spilled?: true
+  // Left by a shadow bursting (or the Caretaker burning), not a raider's
+  // wallet spilled where they fell: loose change finds more only in these
+  // (recycling.ts, sharedworld.ts rule 33).
+  burst?: true
 }
 
 // Where a raider stands and faces, as their last state frame said.

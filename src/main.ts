@@ -392,6 +392,9 @@ async function boot() {
     truck: truckRoutes,
     bushes: world.bushes.map(({ x, z }) => ({ x, z })),
     stand: world.stand ? world.stand.at : null,
+    wreck: world.wreck
+      ? { x: world.wreck.group.position.x, z: world.wreck.group.position.z }
+      : null,
     dealer: world.plaza ? world.plaza.dealer.at : null,
     undercroft: world.undercroft?.place ?? null,
     rings: world.rings,

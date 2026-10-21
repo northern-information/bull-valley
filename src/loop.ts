@@ -724,6 +724,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       lockers: targets.lockerSpots(inStore),
       laptops: targets.laptopSpots(inStore),
       stand: world.stand?.at ?? null,
+      wreck: world.wreck
+        ? { x: world.wreck.group.position.x, z: world.wreck.group.position.z }
+        : null,
       dealer: world.plaza?.dealer.at ?? null,
       trapdoor: world.undercroft?.hatch ?? null,
       ladder: world.undercroft?.foot ?? null,

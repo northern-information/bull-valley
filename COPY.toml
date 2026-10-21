@@ -438,6 +438,13 @@ unstowed = { text = "Taken out: {item}", by = "ai" }
 stand_stocked = { text = "On the stand: {item}", by = "ai" }
 stand_collected = { text = "The stand paid you {amount}.", by = "ai" }
 stand_upgraded = { text = "Your stand is level {level} now.", by = "ai" }
+researched = { text = "{line} is level {level} now.", by = "ai" }
+found_dimes = { text = "Loose change: {count} more dimes, {amount}.", by = "ai" }
+recycle_far = { text = "You are too far from the wreck.", by = "ai" }
+recycle_short = { text = "You do not have the empties for that.", by = "ai" }
+recycle_top = { text = "There is nothing more to learn there.", by = "ai" }
+recycle_offline = { text = "No signal. The wreck is quiet.", by = "ai" }
+recycle_refused = { text = "The wreck will not take that right now.", by = "ai" }
 stand_offline = { text = "No signal. The stand is shut.", by = "ai" }
 locked = { text = "Locked. The handle does not give.", by = "ai" }
 deal_offline = { text = "No signal. Erwin von Dutch will not deal with a stranger alone.", by = "ai" }
@@ -520,6 +527,7 @@ loot = { text = "E — Take Your Things Back", by = "ai" }
 locker = { text = "E — Open Your Locker", by = "ai" }
 laptop = { text = "E — Use the Laptop", by = "ai" }
 stand = { text = "E — Tend Your Stand", by = "ai" }
+recycle = { text = "E — Recycling Center", by = "ai" }
 locked = { text = "E — Locked", by = "ai" }
 lay = { text = "E — Lay the Rose", by = "ai" }
 descend = { text = "E — Climb Down", by = "ai" }
@@ -635,6 +643,7 @@ drink = { text = "Drink", by = "ai" }
 medicine = { text = "Medicine", by = "ai" }
 forage = { text = "Forage", by = "ai" }
 valuable = { text = "Valuable", by = "ai" }
+material = { text = "Material", by = "ai" }
 key_item = { text = "Key item, kept through death", by = "ai" }
 
 # Place names, shown in prompts (src/landmarks.ts).
@@ -924,6 +933,30 @@ top = { text = "Fully Upgraded", by = "ai" }
 top_meta = { text = "Holds {shelf} · {rate}/hr · Banks {hours}h", by = "ai" }
 close = { text = "Close", by = "ai" }
 
+# The Recycling Center at the wreck (src/recycledialog.ts, both apps):
+# empties in, research out (src/recycling.ts).
+
+[recycling]
+title = { text = "Recycling Center", by = "ai" }
+eyebrow = { text = "Your Research", by = "ai" }
+where = { text = "· The Wreck", by = "ai" }
+says = { text = "The BMW in the tree takes cans, bottles and packs. Feed it and you learn where the money falls.", by = "ai" }
+materials = { text = "Materials", by = "ai" }
+materials_meta = { text = "In Your Pack", by = "ai" }
+line_dimes = { text = "Loose Change", by = "ai" }
+line_dimes_blurb = { text = "A chance that the dimes a burst shadow leaves come with as many again, into your wallet alone.", by = "ai" }
+level = { text = "Level {level} / {top}", by = "ai" }
+chance = { text = "Chance", by = "ai" }
+chance_value = { text = "{pct}%", by = "ai" }
+costs = { text = "Costs", by = "ai" }
+need = { text = "Need", by = "ai" }
+have = { text = "Have", by = "ai" }
+research = { text = "Research Level {level}", by = "ai" }
+short_item = { text = "Need {count} more {item}", by = "ai" }
+top = { text = "Fully Researched", by = "ai" }
+reading = { text = "Reading the wreck…", by = "ai" }
+close = { text = "Close", by = "ai" }
+
 # What Moab Coldë says under the Citgo sign when you press E beside him.
 
 # Tyler Etters in the back of his red Jeep beside Moab at the spawn Citgo
@@ -1179,6 +1212,18 @@ collected = { text = "A berry off the bush. The rest are for tomorrow.", by = "a
 label = { text = "Gold Bullion", by = "ai" }
 blurb = { text = "One troy ounce, stamped .9999 fine. Moab Coldë has a use for it.", by = "ai" }
 
+[items.empty-can]
+label = { text = "Empty Can", by = "ai" }
+blurb = { text = "Drained and dented, the tab still on. Aluminium is worth something to someone.", by = "ai" }
+
+[items.empty-bottle]
+label = { text = "Empty Bottle", by = "ai" }
+blurb = { text = "Nothing left in it but the smell. Glass keeps.", by = "ai" }
+
+[items.empty-pack]
+label = { text = "Empty Pack", by = "ai" }
+blurb = { text = "Twenty gone. The foil and the cellophane, crushed flat.", by = "ai" }
+
 [items.rose]
 label = { text = "A Single Rose", by = "ai" }
 blurb = { text = "Erwin von Dutch wants it laid at the heart of the corn maze. Don't ask him why. He will tell you.", by = "ai" }
@@ -1224,6 +1269,9 @@ book = { text = "Book", by = "ai" }
 [dialup.lobby]
 stand = { text = "Cabbage Stand", by = "ai" }
 stand_blurb = { text = "Your outpost on the spawn Citgo's lot. Banking while you're away.", by = "ai" }
+recycling = { text = "Recycling Center", by = "ai" }
+recycling_blurb = { text = "Feed your empties to the wreck for research.", by = "ai" }
+recycling_level = { text = "Loose change, level {level} of {top}.", by = "ai" }
 locker = { text = "Citgo Locker", by = "ai" }
 locker_blurb = { text = "Your stash, the same at every Citgo.", by = "ai" }
 banked = { text = "{amount} banked", by = "ai" }
@@ -1247,6 +1295,7 @@ buff_sprint = { text = "Sprint {pct}% faster", by = "ai" }
 task = { text = "Shadows today", by = "ai" }
 book = { text = "Book of Shadows", by = "ai" }
 citgos = { text = "Citgos found", by = "ai" }
+loose_change = { text = "{pct}% · level {level} / {top}", by = "ai" }
 worn = { text = "Wearing", by = "ai" }
 wards = { text = "No wards going.", by = "ai" }
 

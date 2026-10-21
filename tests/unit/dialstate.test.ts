@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { BOOK, foundLines } from '../../src/book.ts'
+import { CONFIG } from '../../src/config.ts'
 import { copy } from '../../src/copy.ts'
 import { tradeRefusal } from '../../src/cosmetics.ts'
 import { DAILY_TASK, taskLine } from '../../src/dailytask.ts'
@@ -26,6 +27,12 @@ import { healsOf, itemById } from '../../src/items.ts'
 import { outfitById } from '../../src/outfits.ts'
 import { xpToReach } from '../../src/progression.ts'
 import { stepNews, stepRefusal } from '../../src/quests.ts'
+import {
+  foundLine,
+  lineName,
+  recycleRefusal,
+  researchNews,
+} from '../../src/researchlines.ts'
 import { SEASON, seasonLine } from '../../src/season.ts'
 import { FRESH_STAND, refusalLine } from '../../src/stand.ts'
 import { formatCash } from '../../src/store.ts'
@@ -147,6 +154,67 @@ describe("Dial-Up's state", () => {
     expect(
       applyFrame(s, { type: 'nack', re: 'pass', reason: 'dialup' }, 9, 9)
     ).toBe(s)
+  })
+
+  it('keeps the research, and says a level, loose change and a refusal', () => {
+    let s = applyFrame(
+      DIALED,
+      { type: 'research', research: { dimes: 2 } },
+      1,
+      1
+    )
+    expect(s.research).toEqual({ dimes: 2 })
+    expect(s.said).toBeNull()
+    // The raider's record shows loose change once the research is known.
+    expect(
+      raiderStats(DIALED, '2026-10-21').some((st) => st.id === 'loose-change')
+    ).toBe(false)
+    expect(
+      raiderStats(s, '2026-10-21').find((st) => st.id === 'loose-change')
+    ).toEqual({
+      id: 'loose-change',
+      label: lineName('dimes'),
+      value: copy('dialup.raider.loose_change', {
+        pct: Math.round(CONFIG.recycling.lines.dimes[1].chance * 100),
+        level: 2,
+        top: CONFIG.recycling.lines.dimes.length,
+      }),
+      share: 2 / CONFIG.recycling.lines.dimes.length,
+    })
+    s = applyFrame(
+      asked(s, { recycle: true }),
+      { type: 'research', research: { dimes: 3 }, line: 'dimes' },
+      2,
+      2
+    )
+    expect(s.research).toEqual({ dimes: 3 })
+    expect(s.pending.recycle).toBe(false)
+    expect(s.said).toEqual({
+      text: researchNews({ research: { dimes: 3 }, line: 'dimes' }),
+      at: 2,
+    })
+    // A level bought from the 3D valley goes into the log alone.
+    const before = s.said
+    s = applyFrame(
+      s,
+      { type: 'research', research: { dimes: 4 }, line: 'dimes' },
+      3,
+      3
+    )
+    expect(s.said).toBe(before)
+    expect(s.chat.at(-1)?.text).toBe(
+      researchNews({ research: { dimes: 4 }, line: 'dimes' })
+    )
+    s = applyFrame(s, { type: 'found', dimes: 5 }, 4, 4)
+    expect(s.chat.at(-1)?.text).toBe(foundLine(5))
+    s = applyFrame(
+      asked(s, { recycle: true }),
+      { type: 'nack', re: 'recycle', reason: 'short' },
+      5,
+      5
+    )
+    expect(s.pending.recycle).toBe(false)
+    expect(s.said).toEqual({ text: recycleRefusal('short'), at: 5 })
   })
 
   it('follows the XP up, geometrie, the wards and the world', () => {
