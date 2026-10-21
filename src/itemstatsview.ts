@@ -46,13 +46,9 @@ function statRow(stat: ItemStat): [string, string] | null {
       return [copy('stats.heals'), copy('stats.heals_value', { pct: stat.pct })]
     case 'lasts':
       return [
-        copy(
-          stat.lasting === 'smoke'
-            ? 'stats.smokes'
-            : stat.lasting === 'perception'
-              ? 'stats.perception'
-              : 'stats.trails'
-        ),
+        stat.lasting === 'smoke'
+          ? copy('stats.smokes')
+          : copy('stats.perception'),
         spanOf(stat.seconds),
       ]
     case 'contents':

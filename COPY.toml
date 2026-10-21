@@ -625,7 +625,6 @@ heals = { text = "Heals", by = "ai" }
 heals_value = { text = "+{pct}% geometrie", by = "ai" }
 smokes = { text = "Smokes", by = "ai" }
 perception = { text = "Perception", by = "ai" }
-trails = { text = "Trails", by = "ai" }
 contents = { text = "Holds", by = "ai" }
 contents_value = { text = "{count} to one", by = "ai" }
 price = { text = "Shelf price", by = "ai" }
