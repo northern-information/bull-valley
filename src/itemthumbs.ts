@@ -1,9 +1,10 @@
-// The items as the pack grid, its hover card and the hotbar show them: one
-// plain renderer of its own (no PS1 downscale, antialiased) off screen,
-// which draws each item once into a still icon and spins the hovered one on
-// the card. Each model is fitted to a unit cell. The Book of Shadows spins
-// its portraits on the same renderer (spinModel): any model, playing what
-// moves on its own, and drawn as a dark shape until its entry is found.
+// The items as the pack grid, its hover card, the hotbar and Dial-Up's item
+// rows show them: one plain renderer of its own (no PS1 downscale,
+// antialiased) off screen, which draws each item once into a still icon and
+// spins the hovered one on the card (or the phone's open row). Each model
+// is fitted to a unit cell. The Book of Shadows spins its portraits on the
+// same renderer (spinModel): any model, playing what moves on its own, and
+// drawn as a dark shape until its entry is found.
 
 import * as THREE from 'three'
 import { buildPickup, isMesh, meshBounds, motionOf } from './assets.ts'
@@ -187,8 +188,12 @@ export function createItemThumbs(): ItemThumbs {
     return url
   }
 
+  // The model turning, while one is.
+  let turning: string | null = null
+
   function stop(): void {
     renderer?.setAnimationLoop(null)
+    turning = null
   }
 
   // Turns the spinner on the canvas every frame, playing its model's own
@@ -198,10 +203,14 @@ export function createItemThumbs(): ItemThumbs {
     key: string,
     spinner: THREE.Group
   ): void {
+    // The same model on a new canvas (a redraw of its row) turns on from
+    // where it was.
+    const again = turning === key
     stop()
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-    spinner.rotation.y = REST_YAW
+    if (!again) spinner.rotation.y = REST_YAW
+    turning = key
     const motion = motionOf(spinner.children[0])
     const start = performance.now()
     let last = start

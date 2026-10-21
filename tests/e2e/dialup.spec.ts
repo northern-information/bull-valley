@@ -88,6 +88,12 @@ test('stows from the pack, takes it back out of the locker, and keeps the hotbar
   await page.locator('.bv-dial-tab[data-tab="pack"]').click()
   const pack = page.locator('.bv-dial-item[data-kind="marlboro"]')
   await pack.locator('summary').click()
+  // Each row shows its item in 3D: a still, and opened, a turntable.
+  await expect(pack.locator('.bv-dial-item-icon')).toHaveAttribute(
+    'src',
+    /^data:image\/png/
+  )
+  await expect(pack.locator('.bv-dial-item-spin')).toBeVisible()
   // Opened, it shows its stats as the 3D pack card does.
   await expect(pack.locator('.bv-item-stats')).toContainText(
     copy('stats.cigarette')

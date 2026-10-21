@@ -520,6 +520,21 @@ button.bv-dial-card {
   display: none;
 }
 
+/* An item's still (itemthumbs.ts icon), blank until the 3D loads, and
+   the open row's turntable. */
+.bv-dial-item-icon {
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.bv-dial-item-spin {
+  display: block;
+  width: 8rem;
+  height: 8rem;
+  margin: 0 auto 0.75rem;
+}
+
 .bv-dial-item-count {
   margin-left: auto;
   color: var(--dial-dim);
@@ -650,7 +665,13 @@ button.bv-dial-card {
   justify-content: space-between;
 }
 
+/* The still and the name together, the price at the far end. */
+.bv-dial-shelf-head {
+  justify-content: flex-start;
+}
+
 .bv-dial-shelf-price {
+  margin-left: auto;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }

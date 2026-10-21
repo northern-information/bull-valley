@@ -3,7 +3,8 @@
 // geometrie and the wards going), the tabs along the bottom (Lobby, Pack,
 // Expeditions, Social, Book), the lobby (the raider in their character
 // with their record, and the cards for the Cabbage Stand and the locker)
-// and the sheets they open, and a toast for the valley's last word. Space
+// and the sheets they open, and a toast for the valley's last word. Every
+// item row shows the item in 3D once three.js has loaded (showItems). Space
 // is collapsed: no card is anywhere, so every one opens wherever the
 // raider is. The state is dialstate.ts's, redrawn whole on every frame.
 
@@ -122,6 +123,8 @@ export class DialShell {
   private avatar: AvatarView | null = null
   private dressed = ''
   private thumbs: ItemThumbs | null = null
+  // The item turning on the thumbs' renderer, when one is.
+  private spinning: HTMLCanvasElement | null = null
   private models: ReturnType<ShellOptions['models']> | null = null
 
   private options: ShellOptions
@@ -161,6 +164,13 @@ export class DialShell {
     this.portrait.append(this.avatarCanvas)
     this.root.append(this.top, this.view, this.toast, tabs, this.sheet)
     parent.append(this.root)
+    // Every redraw, the shell's or a screen's own (a pack tab, a Citgo
+    // chip), and every row tapped open or shut, gets its items drawn.
+    new MutationObserver(() => this.showItems()).observe(this.root, {
+      childList: true,
+      subtree: true,
+    })
+    this.root.addEventListener('toggle', () => this.showItems(), true)
   }
 
   render(s: DialState): void {
@@ -301,6 +311,36 @@ export class DialShell {
     })
   }
 
+  // The items' stills on every row, and the open row's turntable, as the
+  // 3D pack draws them (itemthumbs.ts), once the 3D has loaded. A book
+  // page and Moab turn their portraits on the same renderer, and keep it
+  // while their sheet is open.
+  private showItems(): void {
+    const blank = 'img.bv-dial-item-icon:not([src])'
+    if (!this.root.querySelector(blank) && this.openSpin() === this.spinning) {
+      return
+    }
+    void this.load().then((models) => {
+      const thumbs = (this.thumbs ??= models.createItemThumbs())
+      for (const img of this.root.querySelectorAll<HTMLImageElement>(blank)) {
+        img.src = thumbs.icon(img.dataset.kind ?? '')
+      }
+      if (this.sheetOpen === 'page' || this.sheetOpen === 'moab') return
+      const canvas = this.openSpin()
+      if (canvas === this.spinning) return
+      this.spinning = canvas
+      if (canvas) thumbs.spin(canvas, canvas.dataset.kind ?? '')
+      else thumbs.stop()
+    })
+  }
+
+  // The turntable of the row open on whatever shows: the sheet, or the
+  // view under it.
+  private openSpin(): HTMLCanvasElement | null {
+    const shown = this.sheetOpen ? this.sheetBody : this.view
+    return shown.querySelector('details[open] canvas.bv-dial-item-spin')
+  }
+
   // An entry's page in the sheet, its portrait turning.
   private openPage(entry: BookEntry): void {
     const known = this.state?.book.includes(entry.id) ?? false
@@ -311,6 +351,7 @@ export class DialShell {
     void this.load().then((models) => {
       if (this.sheetOpen !== 'page' || !canvas.isConnected) return
       this.thumbs ??= models.createItemThumbs()
+      this.spinning = null
       const { build, fitAs } = models.portraitOf(entry)
       this.thumbs.spinModel(canvas, `book:${entry.id}`, build, !known, fitAs)
     })
@@ -345,6 +386,7 @@ export class DialShell {
       const entry = entryOf('moab')
       if (this.sheetOpen !== 'moab' || !canvas.isConnected || !entry) return
       this.thumbs ??= models.createItemThumbs()
+      this.spinning = null
       const { build } = models.portraitOf(entry)
       this.thumbs.spinModel(canvas, 'book:moab', build, false)
     })

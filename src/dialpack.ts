@@ -222,8 +222,20 @@ function button(
   return b
 }
 
-// A list of items, each its label and count, opening to its blurb, its
-// stats (itemstatsview.ts, as the 3D valley's pack card shows them) and
+// An item's still, drawn by the shell once the 3D has loaded
+// (dialshell.ts showItems, itemthumbs.ts icon): empty until then.
+export function itemIcon(kind: string): HTMLImageElement {
+  const img = el('img', 'bv-dial-item-icon')
+  img.dataset.kind = kind
+  img.alt = ''
+  return img
+}
+
+// The opened row's turntable, in canvas pixels: twice its CSS size.
+const SPIN_PX = 256
+
+// A list of items, each its still, label and count, opening to its
+// turntable, its blurb, its stats (itemstatsview.ts, as the 3D valley's pack card shows them) and
 // its buttons when tapped.
 function itemRows(
   items: readonly PackItem[],
@@ -247,6 +259,7 @@ function itemRows(
     })
     const summary = el('summary', 'bv-dial-item-head')
     summary.append(
+      itemIcon(item.kind),
       text('span', item.label, 'bv-dial-item-name'),
       text(
         'span',
@@ -255,7 +268,12 @@ function itemRows(
       )
     )
     const body = el('div', 'bv-dial-item-body')
+    const spin = el('canvas', 'bv-dial-item-spin')
+    spin.dataset.kind = item.kind
+    spin.width = SPIN_PX
+    spin.height = SPIN_PX
     body.append(
+      spin,
       text('p', item.blurb, 'bv-dial-item-blurb'),
       ...statsView(item.kind)
     )

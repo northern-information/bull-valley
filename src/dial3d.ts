@@ -1,7 +1,8 @@
 // The 3D the phone draws, loaded on its own (dialshell.ts imports it
 // dynamically once the modem has connected, so the modem never waits on
-// three.js): the raider on the lobby's turntable (avatarview.ts) and the
-// Book of Shadows' portraits and Moab's (itemthumbs.ts spinModel,
+// three.js): the raider on the lobby's turntable (avatarview.ts), every
+// item row's still and the open row's turntable (itemthumbs.ts), the Book
+// of Shadows' portraits and Moab's (itemthumbs.ts spinModel,
 // bookportraits.ts), and Gron's dialog with its turntable (grondialog.ts),
 // the 3D valley's own models.
 

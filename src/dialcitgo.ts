@@ -2,11 +2,13 @@
 // any Citgo the account has stood at, bought off from wherever the raider
 // is. The Citgos visited as chips, each named as the map names it (the
 // names come once the survey has loaded, citgomap.ts citgoNames), and the
-// one picked's shelves, every kind with its price and how many are left,
-// unit by unit as the valley keeps them (dialstate.ts shelfOf). A buy
-// takes the first unit on the shelf; the valley settles it.
+// one picked's shelves, every kind with its still (dialpack.ts itemIcon),
+// its price and how many are left, unit by unit as the valley keeps them
+// (dialstate.ts shelfOf). A buy takes the first unit on the shelf; the
+// valley settles it.
 
 import { copy } from './copy.ts'
+import { itemIcon } from './dialpack.ts'
 import { shelfOf } from './dialstate.ts'
 import { el, text } from './dom.ts'
 import { itemLabel } from './itemcopy.ts'
@@ -70,6 +72,7 @@ export function renderCitgo(
     li.dataset.kind = row.kind
     const head = el('div', 'bv-dial-shelf-head')
     head.append(
+      itemIcon(row.kind),
       text('span', itemLabel(row.kind), 'bv-dial-shelf-name'),
       text('span', formatCash(row.price), 'bv-dial-shelf-price')
     )
