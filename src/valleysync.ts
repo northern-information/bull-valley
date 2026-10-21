@@ -178,6 +178,10 @@ export function wireValley(game: Game, actions: Actions): void {
       case 'health':
         actions.setHealth(msg.health, msg.max)
         return
+      // Rule 24: another raider's geometrie, for their bar.
+      case 'peer-health':
+        peers.health(msg.id, msg.health, msg.max)
+        return
       // Rule 27: the account's wards, and something passed.
       case 'wards':
         if (isLevels(msg.wards)) actions.setWards(msg.wards)

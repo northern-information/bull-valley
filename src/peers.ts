@@ -1,6 +1,7 @@
 // The other players in the valley, drawn: one shared figure per peer in
 // their outfit, posed from the state they sent, with their name and level
-// on a small pixelated sprite overhead. The data lives in presence.ts; this is the
+// on a small pixelated sprite overhead, and their geometrie in a thin bar
+// under it (sharedworld.ts rule 24). The data lives in presence.ts; this is the
 // Three glue that reads it every frame.
 
 import * as THREE from 'three'
@@ -17,6 +18,7 @@ import {
 } from './figure.ts'
 import { flashlightArm, samplePose, strideOf, stridePose } from './poses.ts'
 import {
+  applyHealth,
   applyJoined,
   applyLeft,
   applyState,
@@ -37,6 +39,22 @@ const LABEL_OVER_HALO = 2.25
 // The label canvas: power-of-two sides, drawn once per peer.
 const LABEL_W = 128
 const LABEL_H = 32
+// Their geometrie, a thin bar just under the name: canvas pixels, drawn
+// again only when the share moves a pixel.
+const BAR_W = 64
+const BAR_H = 4
+const BAR_UNDER = 0.17
+// The party list (partyhud.ts) names this many, nearest first.
+const PARTY_MAX = 6
+
+// A peer in the party list: who, their geometrie, and how far off.
+export interface PartyMember {
+  id: string
+  name: string
+  health: number
+  max: number
+  distance: number
+}
 
 interface Puppet {
   figure: Figure
@@ -46,7 +64,54 @@ interface Puppet {
   worn: Worn
   label: THREE.Sprite
   texture: THREE.CanvasTexture
+  bar: HealthBar
   cycle: number
+  // Where they were drawn this frame, for the party list's order; null
+  // while unplaced.
+  at: { x: number; z: number } | null
+}
+
+interface HealthBar {
+  sprite: THREE.Sprite
+  texture: THREE.CanvasTexture
+  ctx: CanvasRenderingContext2D
+  // The fill in canvas pixels as last drawn.
+  drawn: number
+}
+
+function buildHealthBar(): HealthBar {
+  const art = canvas([BAR_W, BAR_H])
+  const texture = new THREE.CanvasTexture(art.c)
+  texture.magFilter = THREE.NearestFilter
+  texture.minFilter = THREE.NearestFilter
+  texture.colorSpace = THREE.SRGBColorSpace
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+    fog: true,
+  })
+  const sprite = new THREE.Sprite(material)
+  sprite.scale.set(0.6, 0.6 * (BAR_H / BAR_W), 1)
+  return { sprite, texture, ctx: art.ctx, drawn: -1 }
+}
+
+// The bar as Elden Ring draws it: a dull gilt hairline round a dark well,
+// filled in deep crimson.
+function drawHealthBar(bar: HealthBar, health: number, max: number): void {
+  const inner = BAR_W - 2
+  const fill = Math.round(inner * Math.max(0, Math.min(1, health / max)))
+  if (fill === bar.drawn) return
+  bar.drawn = fill
+  const { ctx } = bar
+  ctx.clearRect(0, 0, BAR_W, BAR_H)
+  ctx.fillStyle = 'rgb(150 130 100 / 70%)'
+  ctx.fillRect(0, 0, BAR_W, BAR_H)
+  ctx.fillStyle = 'rgb(10 6 5 / 85%)'
+  ctx.fillRect(1, 1, inner, BAR_H - 2)
+  ctx.fillStyle = '#9e1b14'
+  ctx.fillRect(1, 1, fill, BAR_H - 2)
+  bar.texture.needsUpdate = true
 }
 
 // A name tag as the peers wear it, its own material and texture to
@@ -121,6 +186,28 @@ export class Peers {
     this.build(peer)
   }
 
+  // A peer's geometrie, from the valley's peer-health frame.
+  health(id: string, health: number, max: number): void {
+    const peer = applyHealth(this.table, id, health, max)
+    const puppet = this.puppets.get(id)
+    if (peer && puppet) drawHealthBar(puppet.bar, peer.health, peer.max)
+  }
+
+  // The raiders placed in the valley, nearest `from` first, as the party
+  // list shows them.
+  party(from: { x: number; z: number }): PartyMember[] {
+    const members: PartyMember[] = []
+    for (const [id, puppet] of this.puppets) {
+      const peer = this.table.get(id)
+      if (!peer || peer.dialup || !puppet.at) continue
+      const { name, health, max } = peer
+      const distance = Math.hypot(puppet.at.x - from.x, puppet.at.z - from.z)
+      members.push({ id, name, health, max, distance })
+    }
+    members.sort((a, b) => a.distance - b.distance)
+    return members.slice(0, PARTY_MAX)
+  }
+
   state(id: string, state: PeerStateWire, now: number, due = now): void {
     applyState(this.table, id, state, now, due)
   }
@@ -144,9 +231,11 @@ export class Peers {
       const group = puppet.figure.group
       if (!at) {
         group.visible = false
+        puppet.at = null
         continue
       }
       group.visible = true
+      puppet.at = { x: at.x, z: at.z }
       // The figure faces +Z; a player faces -Z at yaw 0.
       group.rotation.y = at.yaw + Math.PI
       group.position.set(at.x, at.y, at.z)
@@ -182,7 +271,10 @@ export class Peers {
     if (peer.cosmetics.includes('flaming-halo')) {
       sprite.position.y = LABEL_OVER_HALO
     }
-    figure.group.add(sprite)
+    const bar = buildHealthBar()
+    bar.sprite.position.y = sprite.position.y - BAR_UNDER
+    drawHealthBar(bar, peer.health, peer.max)
+    figure.group.add(sprite, bar.sprite)
     this.scene.add(figure.group)
     this.puppets.set(peer.id, {
       figure,
@@ -190,7 +282,9 @@ export class Peers {
       worn,
       label: sprite,
       texture,
+      bar,
       cycle: 0,
+      at: null,
     })
   }
 
@@ -206,6 +300,8 @@ export class Peers {
     puppet.worn.dispose()
     puppet.label.material.dispose()
     puppet.texture.dispose()
+    puppet.bar.sprite.material.dispose()
+    puppet.bar.texture.dispose()
     this.puppets.delete(id)
   }
 }

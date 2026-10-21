@@ -5,6 +5,7 @@ import {
   expect,
   freshRaider,
   freshValley,
+  heardWhere,
   watchErrors,
 } from './fixtures.ts'
 import type { Page } from '@playwright/test'
@@ -112,6 +113,17 @@ base(
     await b.mouse.down()
     await b.mouse.up()
     await expect.poll(beamOn).toBe(false)
+
+    // Every raider's geometrie is everyone's to see: B, off the forecourt
+    // (which would make them whole), loses some, and A's list under its
+    // own bar says so.
+    const row = a.locator(`.bv-party-member[data-peer="${idB}"]`)
+    await expect(row).toHaveAttribute('data-health', '1000')
+    await b.evaluate(() => window.__bv?.teleport(0.5, 0.5))
+    await heardWhere(b)
+    await b.evaluate(() => window.__bv?.setHealth(400))
+    await expect.poll(async () => (await peers(a))[0]?.health ?? null).toBe(400)
+    await expect(row).toHaveAttribute('data-health', '400')
 
     // B leaves; A's valley empties once B has lingered long enough that
     // no reconnect is coming (CONFIG.net.lingerMs).

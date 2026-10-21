@@ -503,15 +503,17 @@
   box-shadow: 3px 3px 0 var(--fi-black-shadow);
 }
 
-/* Geometrie and the wards, upper left, as Dark Souls keeps its bars
+/* Geometrie and the wards, upper left, as Elden Ring keeps its bars
    (vitalshud.ts): the wards' tetrahedron turning, each corner glowing red
-   with its level; beside it the geometrie bar, as long as the raider's
-   whole (--bv-vitals-length, growing with the level, never past the
-   view), with a pale trail of what a touch took draining after it; under
-   it the touch's big number and what the wards took off it, then a chip
-   for every ward going. */
+   with its level; beside it the geometrie bar, thin and quiet, a dull gilt
+   hairline round a dark well filled in deep crimson, no numbers on it, as
+   long as the raider's whole (--bv-vitals-length, growing with the level,
+   never past the view), with a yellow trail of what a touch took draining
+   after it; under it the touch's number and what the wards took off it, a
+   chip for every ward going, then every other raider's bar
+   (partyhud.ts). */
 .bv-vitals {
-  --bv-vitals-length: 16rem;
+  --bv-vitals-length: 14rem;
 
   position: absolute;
   top: 0.9rem;
@@ -533,35 +535,25 @@
 .bv-vitals-column {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.35rem;
   min-width: 0;
-  padding-top: 0.35rem;
+  padding-top: 1.6rem;
 }
 
-.bv-vitals-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  width: min(var(--bv-vitals-length), 42vw);
-  min-width: 11rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  text-shadow:
-    0 0 3px rgb(0 0 0 / 90%),
-    1px 1px 0 rgb(0 0 0 / 80%);
+.bv-vitals-bar,
+.bv-party-bar {
+  position: relative;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: rgb(10 6 5 / 70%);
+  border: 1px solid rgb(150 130 100 / 55%);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 70%);
 }
 
 .bv-vitals-bar {
-  position: relative;
-  box-sizing: border-box;
   width: min(var(--bv-vitals-length), 42vw);
-  min-width: 11rem;
-  height: 2.2rem;
-  overflow: hidden;
-  background: rgb(40 4 2 / 78%);
-  border: 3px solid #ffb39a;
-  filter: drop-shadow(3px 3px 0 var(--fi-black-shadow));
+  min-width: 9rem;
+  height: 0.55rem;
   transition: width 0.4s steps(6);
 }
 
@@ -572,43 +564,56 @@
 }
 
 .bv-vitals-fill {
-  background: #d4140a;
-  box-shadow:
-    inset 0 -0.6rem 0 rgb(90 10 4 / 55%),
-    inset 0 0.25rem 0 rgb(255 140 110 / 35%);
+  background: #9e1b14;
+  box-shadow: inset 0 1px 0 rgb(230 90 70 / 30%);
   transition: width 0.15s steps(3);
 }
 
-/* What a touch took: pale, holding a beat, then draining after the fill. */
+/* What a touch took: Elden Ring's yellow, holding a beat, then draining
+   after the fill. */
 .bv-vitals-lost {
-  background: #ffd9a8;
+  background: #d8b04a;
 }
 
 .bv-vitals-lost--drain {
   transition: width 0.9s steps(12) 0.6s;
 }
 
-.bv-vitals-tick {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  margin-left: -1px;
-  background: rgb(255 179 154 / 35%);
+/* Every other raider in the valley, nearest first: a name small over a
+   thin bar as long as their whole (--bv-party-length). */
+.bv-party {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0.2rem 0 0;
+  padding: 0;
+  list-style: none;
 }
 
-.bv-vitals-value {
-  position: absolute;
-  inset: 0 0.6rem 0 auto;
-  display: grid;
-  place-items: center;
-  font-size: 1.15rem;
-  font-weight: 700;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
+.bv-party-member {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.bv-party-name {
+  overflow: hidden;
+  max-width: min(var(--bv-party-length, 9rem), 30vw);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: var(--bv-eggshell);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.85;
   text-shadow:
-    1px 1px 0 rgb(0 0 0 / 85%),
-    0 0 4px rgb(0 0 0 / 70%);
+    0 0 3px rgb(0 0 0 / 90%),
+    1px 1px 0 rgb(0 0 0 / 80%);
+}
+
+.bv-party-bar {
+  width: min(var(--bv-party-length, 9rem), 30vw);
+  min-width: 5rem;
+  height: 0.35rem;
 }
 
 /* The touch: a big number, and what the wards took off it in the ward's
@@ -617,7 +622,7 @@
   display: flex;
   gap: 0.75rem;
   align-items: baseline;
-  min-height: 1.9rem;
+  min-height: 1.3rem;
   opacity: 0;
   text-shadow:
     0 0 3px rgb(0 0 0 / 90%),
@@ -648,10 +653,10 @@
 }
 
 .bv-vitals-damage {
-  font-size: 1.7rem;
-  font-weight: 700;
+  font-size: 1.2rem;
+  font-weight: 600;
   line-height: 1;
-  color: #ff5a3c;
+  color: #e8d9c0;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1825,8 +1830,12 @@
     height: 4.5rem;
   }
 
+  .bv-vitals-column {
+    padding-top: 1.1rem;
+  }
+
   .bv-vitals-bar {
-    height: 1.8rem;
+    height: 0.45rem;
   }
 }
 

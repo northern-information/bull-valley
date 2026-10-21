@@ -24,6 +24,7 @@ import type { ChatLine } from './chat.ts'
 import type { PackItem, WardAxis } from './interfaces.ts'
 import type { BagTab } from './packgrid.ts'
 import type { BagStatus, HotbarSlotView } from './packhud.ts'
+import type { PartyMember } from './peers.ts'
 import type { SettingsStore } from './settingsui.ts'
 
 // The floating name over an item, placed by its top in the view: x and y
@@ -442,8 +443,9 @@ export class Hud {
     this.vitals.turn(time)
   }
 
-  setLevel(level: number): void {
-    this.vitals.setLevel(level)
+  // Every other raider's geometrie under ours (partyhud.ts).
+  setParty(members: readonly PartyMember[]): void {
+    this.vitals.party.set(members)
   }
 
   // Pointer lock drives the center dot.

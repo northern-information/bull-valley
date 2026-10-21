@@ -1,10 +1,11 @@
 // Geometrie and the wards as seen, in the upper left: the wards'
 // tetrahedron turning (wards.ts tetraView), each corner lit by its level
-// and carrying its mark (icons.ts); beside it the geometrie bar, as long as
-// the raider's whole is (health.ts maxGeometrie: it grows with the level),
-// a pale trail of what a touch just took draining after it, the points on
-// it and the level over it; under the bar the last touch's number, with
-// what the wards took off it, and a chip for every ward going. hud.ts
+// and carrying its mark (icons.ts); beside it the geometrie bar as Elden
+// Ring draws its own, thin and quiet with no numbers on it, as long as the
+// raider's whole is (health.ts maxGeometrie: it grows with the level), a
+// yellow trail of what a touch just took draining after it; under the bar
+// the last touch's number, with what the wards took off it, a chip for
+// every ward going, and every other raider's bar (partyhud.ts). hud.ts
 // builds it and delegates; loop.ts turns it every frame.
 
 import { CONFIG } from './config.ts'
@@ -12,6 +13,7 @@ import { copy } from './copy.ts'
 import { el } from './dom.ts'
 import { BASE_GEOMETRIE } from './health.ts'
 import { ICON_SHAPES, iconSvg } from './icons.ts'
+import { PartyHud } from './partyhud.ts'
 import { AXES } from './wardlevels.ts'
 import { tetraView } from './wards.ts'
 import type { WardAxis } from './interfaces.ts'
@@ -26,7 +28,7 @@ const POP_HOLD_MS = 2600
 
 // The bar's length: `base` rem at level 1's whole, `perPoint` rem more
 // for every point past it (the rest is capped in styles.css).
-const BAR = { base: 16, perPoint: 0.008 }
+const BAR = { base: 14, perPoint: 0.007 }
 
 function svg<K extends keyof SVGElementTagNameMap>(
   tag: K,
@@ -104,9 +106,6 @@ export class VitalsHud {
   private readonly bar: HTMLDivElement
   private readonly fill: HTMLDivElement
   private readonly lost: HTMLDivElement
-  private readonly ticks: HTMLDivElement
-  private readonly value: HTMLSpanElement
-  private readonly levelTag: HTMLSpanElement
   private readonly pop: HTMLDivElement
   private readonly popDamage: HTMLSpanElement
   private readonly popWarded: HTMLSpanElement
@@ -116,10 +115,10 @@ export class VitalsHud {
   >()
   private wardsView = ''
   private healthView = ''
-  private levelView = -1
   private turnView = NaN
   private points = BASE_GEOMETRIE
   private last: Pop | null = null
+  readonly party: PartyHud
 
   constructor(parent: HTMLElement) {
     this.root = el('div', 'bv-vitals')
@@ -168,19 +167,13 @@ export class VitalsHud {
       this.tetra.append(mark)
     }
 
-    // The bar, its title and level over it.
+    // The bar.
     const column = el('div', 'bv-vitals-column')
-    const head = el('div', 'bv-vitals-head')
-    const title = el('span', 'bv-vitals-title', copy('hud.health_title'))
-    this.levelTag = el('span', 'bv-vitals-level')
-    head.append(title, this.levelTag)
     this.bar = el('div', 'bv-vitals-bar')
     this.bar.setAttribute('role', 'img')
     this.lost = el('div', 'bv-vitals-lost')
     this.fill = el('div', 'bv-vitals-fill')
-    this.ticks = el('div', 'bv-vitals-ticks')
-    this.value = el('span', 'bv-vitals-value')
-    this.bar.append(this.lost, this.fill, this.ticks, this.value)
+    this.bar.append(this.lost, this.fill)
 
     // The last touch's number, and the wards going.
     this.pop = el('div', 'bv-vitals-pop')
@@ -201,12 +194,12 @@ export class VitalsHud {
       chips.append(li)
       this.chips.set(axis, { li, text })
     }
-    column.append(head, this.bar, this.pop, chips)
+    column.append(this.bar, this.pop, chips)
+    this.party = new PartyHud(column)
 
     this.root.append(this.tetra, column)
     parent.append(this.root)
     this.setHealth(BASE_GEOMETRIE, BASE_GEOMETRIE)
-    this.setLevel(1)
     this.turn(0)
   }
 
@@ -296,38 +289,12 @@ export class VitalsHud {
     this.points = points
     this.fill.style.width = `${share * 100}%`
     this.lost.style.width = `${share * 100}%`
-    // A tick at every thousand.
-    const ticks = Math.max(0, Math.ceil(whole / 1000) - 1)
-    if (this.ticks.childElementCount !== ticks) {
-      this.ticks.replaceChildren(
-        ...Array.from({ length: ticks }, (_, i) => {
-          const tick = el('span', 'bv-vitals-tick')
-          tick.style.left = `${(((i + 1) * 1000) / whole) * 100}%`
-          return tick
-        })
-      )
-    } else {
-      ;[...this.ticks.children].forEach((tick, i) => {
-        ;(tick as HTMLElement).style.left =
-          `${(((i + 1) * 1000) / whole) * 100}%`
-      })
-    }
-    this.value.textContent = copy('hud.health_value', {
-      health: grouped(points),
-      max: grouped(max),
-    })
     this.root.dataset.health = String(points)
     this.root.dataset.max = String(max)
     this.bar.setAttribute(
       'aria-label',
       copy('hud.health_label', { health: points, max })
     )
-  }
-
-  setLevel(level: number): void {
-    if (level === this.levelView) return
-    this.levelView = level
-    this.levelTag.textContent = copy('hud.level_tag', { level })
   }
 
   // A touch: its number under the bar, and what `ward` took off it, added
