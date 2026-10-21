@@ -95,6 +95,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     mist,
     glow,
     trails,
+    solids,
+    constellations,
     thumbs,
     peers,
   } = game
@@ -758,6 +760,10 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
 
   const draw = (time: number) => {
     sky.position.set(player.pos.x, 0, player.pos.z)
+    // What a trip shows that is not there, round the eye and in the sky.
+    const tripping = levelsAt(s.wards, time).tripping
+    solids.update(tripping, time, camera.position)
+    constellations.update(tripping, time)
     if (s.inventoryOpen) {
       hud.setBagStatus({ cash: formatCash(s.cash) })
     }
