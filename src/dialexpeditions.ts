@@ -8,7 +8,7 @@
 
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
-import { expeditionName, haulLine } from './dialstate.ts'
+import { expeditionName, haulLine, wardsNow } from './dialstate.ts'
 import { el, text } from './dom.ts'
 import { isCash } from './drops.ts'
 import {
@@ -83,6 +83,7 @@ export function renderExpeditions(
     parts.push(card)
   }
   const list = el('ul', 'bv-dial-items')
+  const levels = wardsNow(s, performance.now())
   for (const id of EXPEDITION_IDS) {
     const run = CONFIG.expeditions.runs[id]
     const li = el('li', 'bv-dial-item bv-dial-expedition')
@@ -93,7 +94,8 @@ export function renderExpeditions(
       text('span', spanOf(run.minutes * 60_000), 'bv-dial-shelf-price')
     )
     const ward = wardOf(id)
-    const risk = Math.round(riskOf(id, ward ? s.wards[ward] : 0) * 100)
+    // Judged on the wards as they stand now, faded, as the valley judges.
+    const risk = Math.round(riskOf(id, ward ? levels[ward] : 0) * 100)
     const facts = el('p', 'bv-dial-item-blurb')
     facts.textContent = [
       blurbOf(id),

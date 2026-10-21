@@ -17,7 +17,7 @@ import { renderExpeditions, tickExpeditions } from './dialexpeditions.ts'
 import { DialMoab } from './dialmoab.ts'
 import { DialPack, renderLocker } from './dialpack.ts'
 import { DialSocial } from './dialsocial.ts'
-import { raiderStats } from './dialstate.ts'
+import { raiderStats, wardsNow } from './dialstate.ts'
 import { el, text } from './dom.ts'
 import { iconSvg } from './icons.ts'
 import { OUTFITS } from './outfits.ts'
@@ -245,6 +245,8 @@ export class DialShell {
   // clock; once a second, only the figures move.
   tick(): void {
     const s = this.state
+    // The wards fade between the valley's word on them.
+    if (s) this.renderTop(s)
     if (s && this.tab === 'expeditions') {
       tickExpeditions(this.view, s, this.options.now())
       return
@@ -421,8 +423,9 @@ export class DialShell {
     health.setAttribute('aria-label', points)
     health.append(text('span', points, 'bv-dial-meter-text'))
     const wards = el('ol', 'bv-dial-wards')
+    const levels = wardsNow(s, performance.now())
     for (const axis of AXES) {
-      const level = Math.round((s.wards[axis] || 0) * 100)
+      const level = Math.round(levels[axis] * 100)
       if (level < 1) continue
       const chip = el('li', 'bv-dial-ward')
       chip.dataset.ward = axis
@@ -529,8 +532,9 @@ export class DialShell {
     head.append(stats)
 
     const wards = el('ul', 'bv-dial-raider-wards')
+    const levels = wardsNow(s, performance.now())
     for (const axis of AXES) {
-      const level = s.wards[axis] || 0
+      const level = levels[axis]
       if (Math.round(level * 100) < 1) continue
       const chip = el('li', 'bv-dial-ward')
       chip.dataset.ward = axis

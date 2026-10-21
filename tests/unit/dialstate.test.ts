@@ -15,15 +15,18 @@ import {
   raiderStats,
   sayLine,
   shelfOf,
+  wardsNow,
   withCitgoNames,
 } from '../../src/dialstate.ts'
 import { itemLabel, itemLine } from '../../src/itemcopy.ts'
 import { itemById } from '../../src/items.ts'
+import { outfitById } from '../../src/outfits.ts'
 import { xpToReach } from '../../src/progression.ts'
 import { stepNews, stepRefusal } from '../../src/quests.ts'
 import { SEASON, seasonLine } from '../../src/season.ts'
 import { FRESH_STAND, refusalLine } from '../../src/stand.ts'
 import { formatCash } from '../../src/store.ts'
+import { levelsAt } from '../../src/wardlevels.ts'
 import type { DialState } from '../../src/dialstate.ts'
 import type { ServerMessage, WelcomeMessage } from '../../src/protocol.ts'
 
@@ -659,7 +662,7 @@ describe('a dropped line on the phone', () => {
 
 describe("the account's news on the phone", () => {
   const start = (over: Partial<WelcomeMessage> = {}) =>
-    applyFrame(DIALED, welcome(over), 0, 0)
+    applyFrame({ ...DIALED, name: 'Me', outfit: 'player' }, welcome(over), 0, 0)
   const lastLog = (s: DialState) => s.chat.at(-1)?.text
 
   it('logs a new level, once', () => {
@@ -754,12 +757,67 @@ describe("the account's news on the phone", () => {
       s,
       {
         type: 'peer-updated',
-        peer: { ...peer, cosmetics: [], id: 'p1', level: 9 },
+        peer: { ...peer, cosmetics: [], id: 'p1', name: 'Me', level: 9 },
       },
       0,
       0
     )
     expect(s.chat).toHaveLength(lines)
+  })
+
+  it('takes on a name and body changed in the 3D valley, and says so', () => {
+    const me = {
+      id: 'p1',
+      name: 'Me',
+      outfit: 'player',
+      cosmetics: [],
+      level: 1,
+      at: null,
+    } as const
+    let s = start()
+    s = applyFrame(
+      s,
+      { type: 'peer-updated', peer: { ...me, cosmetics: [], name: 'Ace' } },
+      0,
+      10
+    )
+    expect(s.name).toBe('Ace')
+    expect(lastLog(s)).toBe(copy('gron.renamed', { name: 'Ace' }))
+    s = applyFrame(
+      s,
+      {
+        type: 'peer-updated',
+        peer: { ...me, cosmetics: [], name: 'Ace', outfit: 'gron' },
+      },
+      0,
+      20
+    )
+    expect(s.outfit).toBe('gron')
+    expect(lastLog(s)).toBe(
+      copy('gron.became', { name: outfitById('gron').label })
+    )
+  })
+
+  it('says nothing of the account on its other app', () => {
+    // The account in the 3D valley: another peer under our own name.
+    const body = {
+      id: 'p9',
+      name: 'Me',
+      outfit: 'player',
+      cosmetics: [],
+      level: 1,
+      at: null,
+    } as const
+    let s = start({ peers: [{ ...body, cosmetics: [] }] })
+    const lines = s.chat.length
+    s = applyFrame(
+      s,
+      { type: 'peer-updated', peer: { ...body, cosmetics: [], level: 2 } },
+      0,
+      0
+    )
+    expect(s.chat).toHaveLength(lines)
+    expect(s.peers[0].level).toBe(2)
   })
 
   it('says the valley missed a new name or look', () => {
@@ -770,5 +828,16 @@ describe("the account's news on the phone", () => {
       0
     )
     expect(lastLog(s)).toBe(copy('log.change_unheard'))
+  })
+})
+
+describe('the wards on the phone', () => {
+  it("fade from the valley's word as the 3D valley fades them", () => {
+    const levels = { high: 0.5, stimulated: 0.2, drunk: 0, tripping: 0 }
+    const s = applyFrame(DIALED, { type: 'wards', wards: levels }, 1000, 0)
+    expect(wardsNow(s, 1000)).toEqual(levels)
+    const later = wardsNow(s, 11_000)
+    expect(later).toEqual(levelsAt({ at: 1, levels }, 11))
+    expect(later.high).toBeLessThan(levels.high)
   })
 })

@@ -104,12 +104,20 @@ test("the Caretaker's touch puts you back at the Citgo", async ({ page }) => {
   await onLastPoint(page)
   await page.evaluate(({ x, z }) => window.__bv?.placeCaretaker(x, z), there)
   await expect.poll(() => page.evaluate(() => window.__bv?.strikes)).toBe(1)
-  // Caught, and then told the pack lies where it fell.
+  // Caught, and then told the pack lies where it fell. Back at the Citgo,
+  // Carlsten may say his piece between or after, so the two are looked
+  // for in order, not as the last two lines.
+  const caught = copy('log.caught')
+  const fell = copy('log.fell')
   await expect
-    .poll(() =>
-      page.evaluate(() => window.__bv?.chat.slice(-2).map((line) => line.text))
-    )
-    .toEqual([copy('log.caught'), copy('log.fell')])
+    .poll(async () => {
+      const lines = await page.evaluate(
+        () => window.__bv?.chat.map((line) => line.text) ?? []
+      )
+      const at = lines.lastIndexOf(caught)
+      return at >= 0 && lines.indexOf(fell, at) > at
+    })
+    .toBe(true)
   const fromSpawn = await page.evaluate(() => {
     const bv = window.__bv
     if (!bv) return null

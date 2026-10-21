@@ -44,6 +44,7 @@ import { BASE_GEOMETRIE } from './health.ts'
 import { toInventory } from './inventory.ts'
 import { itemLabel, itemLine } from './itemcopy.ts'
 import { itemById } from './items.ts'
+import { outfitById } from './outfits.ts'
 import { barOf, levelUp } from './progression.ts'
 import { normalizeChat } from './protocol.ts'
 import {
@@ -63,6 +64,7 @@ import {
 import { buyRefusal } from './shop.ts'
 import { isStandLedger, refusalLine, standNews } from './stand.ts'
 import { formatCash } from './store.ts'
+import { levelsAt } from './wardlevels.ts'
 import type { ChatLine } from './chat.ts'
 import type { CitgoLog } from './citgos.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -74,6 +76,7 @@ import type {
 } from './expeditions.ts'
 import type { PendingAsk } from './friends.ts'
 import type { Inventory } from './interfaces.ts'
+import type { OutfitId } from './outfits.ts'
 import type {
   ClientMessage,
   FriendWire,
@@ -91,6 +94,10 @@ import type { StandLedger } from './stand.ts'
 export interface DialState {
   // Our id in the valley, from the welcome; null before it.
   id: string | null
+  // The account's name and body, as Gron leaves them here or in the 3D
+  // valley (the valley shows our own peer back to us).
+  name: string
+  outfit: OutfitId | null
   pack: Inventory
   stash: Inventory
   // Cents.
@@ -100,7 +107,10 @@ export interface DialState {
   stand: StandLedger | null
   health: number
   healthMax: number
+  // The wards as the valley last said them, at local `wardsAt` ms; they
+  // fade from there (wardsNow).
   wards: WardLevels
+  wardsAt: number
   season: SeasonProgress
   task: TaskProgress
   // The Book of Shadows entries found (book.ts ids).
@@ -164,6 +174,8 @@ export const NO_WARDS: WardLevels = {
 
 export const DIALED: DialState = {
   id: null,
+  name: '',
+  outfit: null,
   pack: {},
   stash: {},
   cash: 0,
@@ -173,6 +185,7 @@ export const DIALED: DialState = {
   health: BASE_GEOMETRIE,
   healthMax: BASE_GEOMETRIE,
   wards: NO_WARDS,
+  wardsAt: 0,
   season: NO_PROGRESS,
   task: NO_TASK,
   book: [],
@@ -241,6 +254,41 @@ function news(s: DialState, text: string, at: number, now: number): DialState {
   return told(saying(s, text, at), text, now)
 }
 
+// Our own peer as the valley shows it: a name or body changed in the 3D
+// valley, taken on and said.
+function shownAs(
+  s: DialState,
+  peer: PeerWire,
+  now: number,
+  wall: number
+): DialState {
+  let next = s
+  if (peer.name !== s.name) {
+    next = news(
+      { ...next, name: peer.name },
+      copy('gron.renamed', { name: peer.name }),
+      now,
+      wall
+    )
+  }
+  if (peer.outfit !== s.outfit) {
+    next = news(
+      { ...next, outfit: peer.outfit },
+      copy('gron.became', { name: outfitById(peer.outfit).label }),
+      now,
+      wall
+    )
+  }
+  return next
+}
+
+// The wards at local `now`, faded on the valley's own rates since it last
+// said them (wardlevels.ts levelsAt), as the 3D valley and the valley's
+// expeditions read them.
+export function wardsNow(s: DialState, now: number): WardLevels {
+  return levelsAt({ at: s.wardsAt / 1000, levels: s.wards }, now / 1000)
+}
+
 // The state after one frame from the valley, at local `now` (what the
 // screen says is timed by it) and `wall` epoch ms (what the log keeps).
 export function applyFrame(
@@ -263,6 +311,7 @@ export function applyFrame(
         health: msg.health,
         healthMax: msg.healthMax,
         wards: isLevels(msg.wards) ? msg.wards : NO_WARDS,
+        wardsAt: now,
         season: seasonOf(msg.season) ?? NO_PROGRESS,
         task: taskOf(msg.task) ?? NO_TASK,
         book: [...msg.book],
@@ -314,7 +363,7 @@ export function applyFrame(
     case 'health':
       return { ...s, health: msg.health, healthMax: msg.max }
     case 'wards':
-      return isLevels(msg.wards) ? { ...s, wards: msg.wards } : s
+      return isLevels(msg.wards) ? { ...s, wards: msg.wards, wardsAt: now } : s
     case 'world':
       return msg.world
         ? worldNews({ ...s, world: msg.world }, msg, now, wall)
@@ -371,8 +420,12 @@ export function applyFrame(
         ...s,
         peers: s.peers.map((p) => (p.id === msg.peer.id ? msg.peer : p)),
       }
-      // Our own comes back too; Gron's dialog has said so already.
-      if (msg.peer.id === s.id) return next
+      // Our own comes back too: from Gron here, said already, or from the
+      // account's Gron in the 3D valley, which we take on and say.
+      if (msg.peer.id === s.id) return shownAs(next, msg.peer, now, wall)
+      // The account in the 3D valley (a username is one account's): its
+      // news is ours, and said already.
+      if (msg.peer.name === s.name) return next
       return peerNews(was, msg.peer).reduce(
         (after, line) => told(after, line, wall),
         next

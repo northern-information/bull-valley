@@ -3643,6 +3643,35 @@ describe('ValleyDO: Bull Valley Dial-Up', () => {
     return socket
   }
 
+  it("shows a new look on every socket the account has, the asker's last", async () => {
+    const { valley: v, state: s } = await valley()
+    const desk = await join(v, s, 'A', { account: 'acct-A' })
+    const phone = await dial(v, s, 'A', { account: 'acct-A' })
+    const other = await join(v, s, 'B')
+    for (const socket of [desk, phone, other]) socket.sent = []
+    await v.webSocketMessage(
+      ws(phone),
+      JSON.stringify({ type: 'appearance', outfit: 'church' })
+    )
+    const updated = (socket: MockSocket) =>
+      socket
+        .frames()
+        .filter((m): m is PeerUpdatedMessage => m.type === 'peer-updated')
+        .map((m) => [m.peer.id, m.peer.outfit])
+    // Each socket of the account is shown anew, the desk first, so it
+    // hears its own change before the phone's; everyone sees both.
+    const both = [
+      [idOf(desk), 'church'],
+      [idOf(phone), 'church'],
+    ]
+    for (const socket of [desk, phone, other]) {
+      expect(updated(socket)).toEqual(both)
+    }
+    expect((desk.attachment as { me: { outfit: string } }).me.outfit).toBe(
+      'church'
+    )
+  })
+
   it('welcomes a dial into a valley no one has opened a world in', async () => {
     const { valley: v, state: s } = await valley()
     const p = await dial(v, s, 'P')

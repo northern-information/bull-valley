@@ -109,13 +109,16 @@ export class DialPack {
         const placing = this.placing
         if (!placing) return
         this.placing = null
+        // Onto the slot that holds it already takes it off (hotbar.ts
+        // assign), and says so.
+        const off = this.hotbar[slot] === placing
         this.hotbar = assign(this.hotbar, slot, placing)
+        const words = { item: itemLabel(placing), slot: slot + 1 }
         this.actions.saveHotbar(
           this.hotbar,
-          copy('dialup.pack.hotbar_saved', {
-            item: itemLabel(placing),
-            slot: slot + 1,
-          })
+          off
+            ? copy('dialup.pack.hotbar_cleared', words)
+            : copy('dialup.pack.hotbar_saved', words)
         )
         this.render(s)
       })

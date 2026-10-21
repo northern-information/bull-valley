@@ -89,10 +89,17 @@ export function wireValley(game: Game, actions: Actions): void {
         hud.tell(joinedLine(msg.peer))
         return
       case 'peer-updated': {
-        // Our own comes back too; the dialog has said so already.
-        if (msg.peer.id === net.id) return
+        // Our own comes back too: from Gron here, said already, or from
+        // the account's Gron on the phone, which we take on.
+        if (msg.peer.id === net.id) {
+          actions.becomeShown(msg.peer)
+          return
+        }
         const was = peers.table.get(msg.peer.id)
         peers.updated(msg.peer)
+        // The account on the phone (a username is one account's): its
+        // news is ours, and said already.
+        if (msg.peer.name === game.pick.username) return
         for (const line of peerNews(was, msg.peer)) hud.tell(line)
         return
       }

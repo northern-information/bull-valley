@@ -76,7 +76,12 @@ import type { WardAxis, XZ } from './interfaces.ts'
 import type { Leg } from './marx.ts'
 import type { NpcId } from './npcs.ts'
 import type { BagAction, BagTab } from './packgrid.ts'
-import type { DailyMessage, PassedMessage, WardLevels } from './protocol.ts'
+import type {
+  DailyMessage,
+  PassedMessage,
+  PeerWire,
+  WardLevels,
+} from './protocol.ts'
 import type { Pickup } from './world.ts'
 
 // The valley's word on a touch (a struck frame): what it took, what the
@@ -147,6 +152,9 @@ export interface Actions {
   applyPassed(msg: PassedMessage): void
   // The account's wards as the valley keeps them.
   setWards(levels: WardLevels): void
+  // Our own name and body as the valley shows them: a change made on the
+  // account's other app (Dial-Up's Gron) is taken on and said.
+  becomeShown(peer: PeerWire): void
   // The account's geometrie, left and whole, as the valley says it (a
   // forecourt, a use, a new level).
   setHealth(points: number, max: number): void
@@ -946,6 +954,22 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     s.wards = { at: s.time, levels }
   }
 
+  const becomeShown = (peer: PeerWire) => {
+    const { pick } = game
+    if (peer.name !== pick.username) {
+      pick.username = peer.name
+      hud.setRaider(peer.name)
+      hud.tell(copy('gron.renamed', { name: peer.name }))
+    }
+    if (peer.outfit !== pick.outfit) {
+      game.playerBody.restyle(peer.outfit, finishById(pick.finish).color)
+      game.hands.restyle(peer.outfit)
+      pick.outfit = peer.outfit
+      net.setOutfit(peer.outfit)
+      hud.tell(copy('gron.became', { name: outfitById(peer.outfit).label }))
+    }
+  }
+
   // Rule 12. The drop lands where our last state frame put us; the pack
   // shows the units gone at once.
   const dropKind = (kind: string, all: boolean) => {
@@ -1396,6 +1420,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     passKind,
     applyPassed,
     setWards,
+    becomeShown,
     dropKind,
     dialPortal,
     openPortal,

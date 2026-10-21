@@ -146,6 +146,15 @@ test('stows from the pack, takes it back out of the locker, and keeps the hotbar
       slot: 3,
     })
   )
+  // Onto the slot that holds it already takes it off, and says so.
+  await joint.getByRole('button', { name: copy('dialup.pack.hotbar') }).click()
+  await page.locator('.bv-dial-slot[data-slot="2"]').click()
+  await expect(page.locator('.bv-dial-toast')).toHaveText(
+    copy('dialup.pack.hotbar_cleared', {
+      item: copy('items.joints.label'),
+      slot: 3,
+    })
+  )
 })
 
 test('opens the Cabbage Stand from anywhere', async ({ browser }) => {
@@ -280,6 +289,34 @@ test('Gron changes the name from the phone', async ({ browser }) => {
   await rename.click()
   await page.locator('[data-bv="gron-close"]').click()
   await expect(page.locator('.bv-dial-name')).toHaveText(name)
+})
+
+test('a new name from the phone reaches the account in the 3D valley', async ({
+  browser,
+}) => {
+  test.slow()
+  const valley = freshValley('dial')
+  const raider = freshRaider('Both')
+  const desk = await open(browser)
+  await beginRaid(desk, 0, { valley, raider })
+  const page = await phone(browser)
+  await signIn(page, raider)
+  await page.goto(`/?valley=${encodeURIComponent(valley)}`)
+  await dialIn(page)
+  await page.locator('.bv-dial-card[data-card="gron"]').click()
+  const name = freshRaider('Renamed').username
+  await page.locator('[data-bv="gron-username"]').fill(name)
+  const rename = page.locator('[data-bv="gron-rename"]')
+  await expect(rename).toBeEnabled()
+  await rename.click()
+  await page.locator('[data-bv="gron-close"]').click()
+  // The 3D valley takes it on as its own, and never as another raider's.
+  const said = () =>
+    desk.evaluate(() => window.__bv?.chat.map((line) => line.text) ?? [])
+  await expect.poll(said).toContain(copy('gron.renamed', { name }))
+  expect(await said()).not.toContain(
+    copy('log.peer_renamed', { was: raider.username, name })
+  )
 })
 
 test('signs out from the phone, back to the modem and a login', async ({
