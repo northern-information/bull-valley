@@ -110,8 +110,10 @@
 //    valley takes it all out of the account's pack first, and lays the
 //    body only once it has (Reduced.corpse), or gives it back. One body
 //    an account: a second fall takes the first away, and what it still
-//    held is lost. The wallet
-//    and the locker are untouched. Only the account that fell can take its
+//    held is lost. The locker is untouched, but the strike spills
+//    CONFIG.corpses.walletShare of the wallet (ValleyContext.cash in,
+//    Reduced.spend out) as dimes where the raider fell, the valley's to
+//    leave lying like a burst's, for whoever takes them up first. Only the account that fell can take its
 //    things back (Reduced.give), and a body lies until it does: the day's
 //    turn leaves it, and so does a world opened afresh, since the bodies
 //    are the valley's (Valley.corpses), not the world's.
@@ -261,11 +263,18 @@ import { heartPoint, theMaze } from './caretaker.ts'
 import { citgoAt, NO_CITGOS, visit } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { insideRing } from './coords.ts'
-import { corpseWire, isEmpty, keysOff } from './corpses.ts'
+import { corpseWire, isEmpty, keysOff, spilledDimes } from './corpses.ts'
 import { affords, cosmeticById, MOAB_OFFERS } from './cosmetics.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
 import { atDealer, deal, freshDealerStock } from './dealer.ts'
-import { centsOf, dropSpot, isCash, takeUp } from './drops.ts'
+import {
+  centsOf,
+  DIME_CENTS,
+  DIMES,
+  dropSpot,
+  isCash,
+  takeUp,
+} from './drops.ts'
 import {
   embark,
   isExpeditionId,
@@ -610,7 +619,8 @@ interface ValleyContext {
   // Ids with an open socket right now, so a member whose close was never
   // heard is dropped. On a join, the joiner is not yet among them.
   present: readonly string[]
-  // For a buy: the buyer's wallet in cents, as the valley just read it.
+  // For a buy, or a fall: the account's wallet in cents, as the valley
+  // just read it.
   cash?: number
   // For a trade or a deal: the raider's pack and cosmetics, as the valley
   // just read them.
@@ -1830,46 +1840,72 @@ function onSpill(
 function onFall(
   valley: Valley,
   action: ActionOf<'fall'>,
-  { now }: ValleyContext
+  { now, cash }: ValleyContext
 ): Reduced {
   // Rule 18. One body an account: a second fall takes the first away,
   // and what it still held is lost. A new body only where the valley
-  // heard the raider stand, and only with something on it.
+  // heard the raider stand, and only with something on it; there too the
+  // share of the wallet the strike spills, in dimes.
   const member = valley.members[action.id]
   if (!member) return done(valley, now, { broadcast: [] })
   const corpses = valley.corpses.filter((c) => c.account !== member.account)
   const lost = corpses.length < valley.corpses.length
-  if (!action.at || isEmpty(action.items)) {
-    if (!lost) return done(valley, now, { broadcast: [] })
-    const next: Valley = { ...valley, corpses }
-    return done(next, now, {
-      broadcast: next.world ? [frame(next, 'fell', { by: action.id })] : [],
-    })
+  const dimes = action.at && valley.world ? spilledDimes(cash ?? 0) : 0
+  const body = action.at && !isEmpty(action.items)
+  if (!body && !lost && dimes === 0) {
+    return done(valley, now, { broadcast: [] })
   }
   const id = valley.nextCorpse
-  const { x, z, yaw } = action.at
-  const next: Valley = {
-    ...valley,
-    corpses: [
-      ...corpses,
-      {
-        id,
-        x,
-        z,
-        yaw,
-        name: member.name,
-        outfit: member.outfit,
-        items: { ...action.items },
-        account: member.account,
-      },
-    ],
-    nextCorpse: id + 1,
+  let next: Valley = { ...valley, corpses }
+  if (body && action.at) {
+    const { x, z, yaw } = action.at
+    next = {
+      ...next,
+      corpses: [
+        ...corpses,
+        {
+          id,
+          x,
+          z,
+          yaw,
+          name: member.name,
+          outfit: member.outfit,
+          items: { ...action.items },
+          account: member.account,
+        },
+      ],
+      nextCorpse: id + 1,
+    }
+  }
+  if (dimes > 0 && action.at && next.world) {
+    const world = next.world
+    const drop: Drop = {
+      id: world.nextDrop,
+      kind: DIMES,
+      count: dimes,
+      x: action.at.x,
+      z: action.at.z,
+      spilled: true,
+    }
+    next = withWorld(next, {
+      ...world,
+      drops: [...world.drops, drop],
+      nextDrop: world.nextDrop + 1,
+    })
   }
   return done(next, now, {
     broadcast: next.world
-      ? [frame(next, 'fell', { by: action.id, corpse: id })]
+      ? [
+          frame(next, 'fell', {
+            by: action.id,
+            ...(body ? { corpse: id } : {}),
+          }),
+        ]
       : [],
-    corpse: id,
+    ...(body ? { corpse: id } : {}),
+    ...(dimes > 0
+      ? { spend: { account: member.account, amount: dimes * DIME_CENTS } }
+      : {}),
   })
 }
 

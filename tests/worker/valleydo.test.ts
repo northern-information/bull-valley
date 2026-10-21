@@ -1847,12 +1847,22 @@ describe('ValleyDO: corpse runs', () => {
     expect(a.frames().some((m) => m.type === 'struck')).toBe(true)
     const pack = lastFrame(a)
     expect(Object.values(pack?.pack ?? {}).every((n) => n === 0)).toBe(true)
-    expect(pack).toMatchObject({ cash: STARTING_CASH, corpses: [0] })
+    // The strike spills its share of the wallet in dimes where A fell.
+    const dimes = Math.floor(
+      (STARTING_CASH * CONFIG.corpses.walletShare) / DIME_CENTS
+    )
+    expect(pack).toMatchObject({
+      cash: STARTING_CASH - dimes * DIME_CENTS,
+      corpses: [0],
+    })
     const fell = worldFrames(b).at(-1)
     expect(fell).toMatchObject({ reason: 'fell', by: idOf(a), corpse: 0 })
     expect(fell?.world?.corpses).toEqual([
       { id: 0, x: 500, z: 500, yaw: 0.5, name: 'A', outfit: 'coleman' },
     ])
+    expect(fell?.world?.drops).toContainEqual(
+      expect.objectContaining({ kind: 'dimes', count: dimes, x: 500, z: 500 })
+    )
     // B's pack never names A's body.
     expect(lastFrame(b)?.corpses ?? []).toEqual([])
   })

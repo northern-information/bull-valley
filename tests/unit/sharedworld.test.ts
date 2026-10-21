@@ -3,6 +3,7 @@ import { heartPoint, theMaze } from '../../src/caretaker.ts'
 import { CONFIG } from '../../src/config.ts'
 import { dayKey, nextMidnight } from '../../src/daily.ts'
 import { costIn, freshDealerStock, goodOf } from '../../src/dealer.ts'
+import { DIME_CENTS } from '../../src/drops.ts'
 import { embark, outcomeOf } from '../../src/expeditions.ts'
 import { BASE_GEOMETRIE, maxGeometrie } from '../../src/health.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
@@ -1435,6 +1436,37 @@ describe('rule 18: corpse runs', () => {
     expect(
       v.step({ type: 'keys-back', account: 'acct-a' }).give
     ).toBeUndefined()
+  })
+
+  it('spills a share of the wallet in dimes where the raider fell, for anyone', () => {
+    const v = valleyWith(join('a'), join('b'))
+    v.setCash(1234)
+    const dimes = Math.floor((1234 * CONFIG.corpses.walletShare) / DIME_CENTS)
+    const r = v.step(fell('a', { x: 40, z: 50, yaw: 0 }))
+    expect(r.spend).toEqual({ account: 'acct-a', amount: dimes * DIME_CENTS })
+    const drop = v.valley.world?.drops.at(-1)
+    expect(drop).toMatchObject({ kind: 'dimes', count: dimes, x: 40, z: 50 })
+    // Whoever gets there first takes them up.
+    const taken = v.step({
+      type: 'take-drop',
+      id: 'b',
+      drop: drop?.id ?? -1,
+      at: { x: 40, z: 50 },
+    })
+    expect(taken.earn).toEqual({
+      account: 'acct-b',
+      amount: dimes * DIME_CENTS,
+    })
+  })
+
+  it('spills nothing from an empty wallet, or where no one heard the raider', () => {
+    const v = valleyWith(join('a'))
+    v.setCash(5)
+    expect(v.step(fell('a', { x: 0, z: 0, yaw: 0 })).spend).toBeUndefined()
+    v.setCash(5000)
+    const r = v.step(fell('a', null))
+    expect(r.spend).toBeUndefined()
+    expect(v.valley.world?.drops).toEqual([])
   })
 
   it('lays a body where the raider fell, with everything the pack held', () => {

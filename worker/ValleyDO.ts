@@ -848,11 +848,27 @@ export class ValleyDO extends DurableObject<Env> {
       await this.repack(null, null, account)
       return
     }
-    const reduced = reduce(
-      this.valley,
-      { type: 'fall', id, items, at },
-      this.context()
-    )
+    // Rule 18: the strike spills a share of the wallet. Unread, or not
+    // taken out of it, nothing spills.
+    let cash = 0
+    try {
+      cash = (await packs.get(account)).cash
+    } catch (err) {
+      console.error('The wallet could not be read for a fall', err)
+    }
+    const fall: ValleyAction = { type: 'fall', id, items, at }
+    let reduced = reduce(this.valley, fall, { ...this.context(), cash })
+    if (reduced.spend) {
+      let paid = false
+      try {
+        paid = await packs.purchase(account, reduced.spend.amount, null)
+      } catch (err) {
+        console.error('The fall could not take from the wallet', err)
+      }
+      if (!paid) {
+        reduced = reduce(this.valley, fall, { ...this.context(), cash: 0 })
+      }
+    }
     if (reduced.corpse === undefined) {
       try {
         await packs.give(account, items)

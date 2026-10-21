@@ -431,6 +431,7 @@ caught = { text = "A lantern, very close. Then the forecourt, and the smell of c
 tunneled = { text = "Something in the dark, very close. Then the forecourt, and the taste of stone.", by = "ai" }
 plunged = { text = "The ground, all at once. Then the forecourt, and concrete dust in your teeth.", by = "ai" }
 fell = { text = "Your pockets are empty. Everything you carried is still out there, on you, where you fell.", by = "ai" }
+spilled = { text = "Your wallet came open as you went down: {amount} in dimes lies where you fell, for whoever gets there first.", by = "ai" }
 looted = { text = "You take your things back off your own body.", by = "ai" }
 loot_refused = { text = "Your hands go through it. Not now.", by = "ai" }
 locker_refused = { text = "The locker sticks.", by = "ai" }
