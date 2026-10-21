@@ -189,6 +189,8 @@ export class ValleyDO extends DurableObject<Env> {
   // A dev server's quiet valley (the specs'): no crossing shadowman rushes.
   private calm = false
   private ticker: unknown = null
+  // Steps since a forecourt last gave back its share (rule 24).
+  private forecourtSteps = 0
   // When each socket was last heard from, in memory only: a socket missing
   // here (after a wake) counts as heard now.
   private heard = new WeakMap<WebSocket, number>()
@@ -612,9 +614,13 @@ export class ValleyDO extends DurableObject<Env> {
     if (bursts.length || burned) {
       void this.spill(bursts, out.message.bursts, burned)
     }
-    // Rule 24: a forecourt makes whole.
-    for (const id of forecourtMends(this.valley, placed)) {
-      void this.mend(id)
+    // Rule 24: a forecourt gives back its share every few seconds.
+    const every = CONFIG.health.forecourt.everySeconds * CONFIG.shadowmen.tickHz
+    if (++this.forecourtSteps >= every) {
+      this.forecourtSteps = 0
+      for (const id of forecourtMends(this.valley, placed)) {
+        void this.mend(id)
+      }
     }
     // Rule 28: a Citgo stood at is written in the account's log.
     for (const { id, station } of citgoVisits(this.valley, placed)) {
@@ -799,8 +805,8 @@ export class ValleyDO extends DurableObject<Env> {
     })
   }
 
-  // Geometrie given back (rule 24): a use of `kind`'s share, or whole on
-  // a forecourt. Every socket on the account hears it.
+  // Geometrie given back (rule 24): a use of `kind`'s share, or the
+  // forecourt's. Every socket on the account hears it.
   protected mend(id: string, kind?: string): Promise<void> {
     return this.locked(() => this.mendHeld(id, kind))
   }

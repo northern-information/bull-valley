@@ -3405,19 +3405,29 @@ describe('ValleyDO: health', () => {
     })
   })
 
-  it('makes whole on a Citgo forecourt', async () => {
+  it("gives a forecourt's share back every few seconds, up to whole", async () => {
     const { v, a, a2 } = await out()
-    await v.webSocketMessage(ws(a), '{"type":"dev","op":"health","points":1}')
+    const every = CONFIG.health.forecourt.everySeconds * CONFIG.shadowmen.tickHz
+    const share = Math.round(CONFIG.health.forecourt.share * MAX)
+    await v.webSocketMessage(
+      ws(a),
+      `{"type":"dev","op":"health","points":${MAX - share - 5}}`
+    )
     // The hello put a forecourt at the origin.
     await v.webSocketMessage(ws(a), state(5, 5))
-    v.tick()
-    await settle()
+    const steps = async () => {
+      for (let i = 0; i < every; i++) v.tick()
+      await settle()
+    }
+    // One share in any few seconds, never all of it at once.
+    await steps()
+    expect(healthOf(a).at(-1)).toBe(MAX - 5)
+    expect(healthOf(a2).at(-1)).toBe(MAX - 5)
+    await steps()
     expect(healthOf(a).at(-1)).toBe(MAX)
-    expect(healthOf(a2).at(-1)).toBe(MAX)
     // Whole, it hears nothing more.
     const heard = healthOf(a).length
-    v.tick()
-    await settle()
+    await steps()
     expect(healthOf(a).length).toBe(heard)
   })
 

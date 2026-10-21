@@ -271,7 +271,10 @@ test("a shadowman's touch takes its hit, and the Citgo makes you whole", async (
   ).toBeLessThan(1)
   expect(after?.marlboro).toBeGreaterThan(19)
   expect(after?.bodies).toBe(0)
-  // Back under the Citgo lights, whole again.
+  // Back under the Citgo lights, a share of whole back every few seconds:
+  // one short of whole, it is whole again in one.
+  await page.evaluate(() => window.__bv?.setHealth(990))
+  await expect.poll(() => page.evaluate(() => window.__bv?.health)).toBe(990)
   await page.evaluate(() => {
     const bv = window.__bv
     if (bv) bv.player.relocate(bv.world.spawn.x, bv.world.spawn.z)
