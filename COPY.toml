@@ -850,6 +850,8 @@ curse_5 = { text = "Who keeps feeding these things?", by = "ai" }
 curse_6 = { text = "Slurms. Again. Unbelievable.", by = "ai" }
 curse_7 = { text = "Don't you show me that tooth.", by = "ai" }
 curse_8 = { text = "I'm not paid enough for slurms.", by = "ai" }
+# When a raider squashes the last one before he gets to it.
+thanks = { text = "Oh, thanks!", by = "ai" }
 
 # Talking to Gron by the berry bush (src/grondialog.ts). One of the says_
 # lines greets you at random; the field, the checks and the Previous / Next

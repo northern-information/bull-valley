@@ -1,7 +1,9 @@
 // Pure: the slurms. Every 30 to 90 seconds a few black slugs drop off a
 // Citgo's dripline (the store's front eave, or an edge of the pump
 // canopy), and David Carlsten comes out from behind the counter with his
-// bat, smashes each one, curses, and goes back in. Scenery only: they
+// bat, smashes each one, curses, and goes back in; if a raider's foot gets
+// the last of them first, he stops on his way, thanks them, and turns
+// back (`afterTrodden`). Scenery only: they
 // never touch a raider and nothing is kept. Every drop is drawn from a
 // seed of the station and the slot of time it falls in, so every client
 // reading the same shared clock sees the same slurms fall at the same
@@ -136,7 +138,7 @@ type Leg =
   | { kind: 'curse'; at: XZ; yaw: number; t0: number; t1: number }
 
 // One drop at one station: the slurms, Carlsten's legs out and back, when
-// he curses and which line, and how long it all lasts.
+// he speaks and which line, and how long it all lasts.
 export interface SlurmEvent {
   station: number
   slot: number
@@ -148,8 +150,12 @@ export interface SlurmEvent {
   // When he leaves the counter, and is back behind it.
   out: number
   back: number
-  curseAt: number
+  // When he says his line: a curse (`curse`, which one) after the last
+  // he smashed, or his thanks (`thanks`) when a raider's foot got the
+  // last of them before he reached it (`afterTrodden`).
+  sayAt: number
   curse: number
+  thanks: boolean
   // When the last splat is gone and he is back.
   end: number
 }
@@ -220,8 +226,9 @@ export function slurmEvent(station: number, slot: number): SlurmEvent {
     legs: plan.legs,
     out: plan.out,
     back: plan.back,
-    curseAt: plan.curseAt,
+    sayAt: plan.sayAt,
     curse,
+    thanks: plan.thanks,
     end: Math.max(plan.back, lastSmash + tuning.splatSeconds),
   }
 }
@@ -248,38 +255,85 @@ export function yawToward(from: XZ, to: XZ): number {
 // Carlsten's legs: out from behind the counter once the first slurm is
 // down, round to the edge, a swing at each slurm (nearest first; each
 // slurm learns when it is smashed), a curse, and back the way he came.
+// `trodden` is, for each slurm, how far into the drop a raider's foot
+// squashed it (none, Infinity): one gone before he reaches it is no
+// longer his, and he goes after the nearest left; with none left and
+// none smashed by him, he stops where he is, says his thanks, and turns
+// back the way he came. All gone before he leaves, he never does.
 function carlstenPlan(
   dripline: Dripline,
-  slurms: Slurm[]
-): { legs: Leg[]; out: number; back: number; curseAt: number } {
+  slurms: Slurm[],
+  trodden: readonly number[] = []
+): { legs: Leg[]; out: number; back: number; sayAt: number; thanks: boolean } {
   const tuning = CONFIG.slurms
   const spec = DRIPLINES[dripline]
+  const gone = (slurm: Slurm) => trodden[slurms.indexOf(slurm)] ?? Infinity
   const legs: Leg[] = []
   let t = slurms[0].landAt + tuning.reactSeconds
   const out = t
+  if (Math.max(...slurms.map(gone)) <= out) {
+    return { legs, out, back: out, sayAt: Infinity, thanks: false }
+  }
   let at: XZ = { x: clerk.x, z: clerk.z }
+  let yaw = clerk.yaw
   let walked = 0
-  const walkTo = (to: XZ) => {
+  // Walk to `to`, or stop short where he stands at `stop` if that comes
+  // first; whether he stopped.
+  const walkTo = (to: XZ, stop = Infinity): boolean => {
     const length = distance(at, to)
-    if (length < 1e-6) return
+    if (length < 1e-6) return false
     const t1 = t + length / tuning.walkSpeed
-    legs.push({ kind: 'walk', from: at, to, t0: t, t1, walked })
-    walked += length
-    at = to
-    t = t1
+    const halt = stop >= t && stop < t1
+    const end = halt ? stop : t1
+    const f = (end - t) / (t1 - t)
+    const until = {
+      x: at.x + (to.x - at.x) * f,
+      z: at.z + (to.z - at.z) * f,
+    }
+    yaw = yawToward(at, to)
+    if (end > t) {
+      legs.push({ kind: 'walk', from: at, to: until, t0: t, t1: end, walked })
+    }
+    walked += length * f
+    at = until
+    t = end
+    return halt
   }
   const way = [BEHIND, OUTSIDE, ...route(dripline, slurms)]
-  for (const point of way) walkTo(point)
-  const left = [...slurms]
-  let lastSmashed = slurms[0]
-  while (left.length > 0) {
+  // The way points he has reached, to go back by.
+  const passed: XZ[] = []
+  let left = [...slurms]
+  let lastSmashed: Slurm | null = null
+  // Whether the last he set off after went underfoot before he got there.
+  let thanks = false
+  // Out the door and round, unless the last of them is gone on the way.
+  let stopped = false
+  for (const point of way) {
+    stopped = walkTo(point, Math.max(...left.map(gone)))
+    if (stopped) thanks = true
+    if (stopped) break
+    passed.push(point)
+  }
+  while (!stopped) {
     // The nearest still crawling, from where he stands.
+    left = left.filter((slurm) => gone(slurm) > t)
+    if (left.length === 0) {
+      thanks ||= !lastSmashed
+      break
+    }
     left.sort((a, b) => distance(at, a.rest) - distance(at, b.rest))
-    const slurm = left.shift() as Slurm
-    walkTo({
+    const slurm = left[0]
+    // Gone underfoot before he gets there: after the next, if any.
+    const target = {
       x: slurm.rest.x + spec.out.x * tuning.standOff,
       z: slurm.rest.z + spec.out.z * tuning.standOff,
-    })
+    }
+    if (walkTo(target, gone(slurm))) {
+      thanks = true
+      continue
+    }
+    thanks = false
+    left.shift()
     const raised = t + tuning.windupSeconds
     const impact = raised + tuning.smashSeconds
     const t1 = impact + tuning.recoverSeconds
@@ -296,19 +350,44 @@ function carlstenPlan(
     lastSmashed = slurm
     t = t1
   }
-  const curseAt = lastSmashed.smashAt + tuning.curseDelay
-  const lingered = Math.max(t, curseAt) + tuning.lingerSeconds
-  legs.push({
-    kind: 'curse',
-    at,
-    yaw: yawToward(at, lastSmashed.rest),
-    t0: t,
-    t1: lingered,
-  })
+  let sayAt: number
+  let lingered: number
+  if (lastSmashed && !thanks) {
+    sayAt = lastSmashed.smashAt + tuning.curseDelay
+    lingered = Math.max(t, sayAt) + tuning.lingerSeconds
+    yaw = yawToward(at, lastSmashed.rest)
+  } else {
+    sayAt = t + tuning.thanksDelay
+    lingered = sayAt + tuning.thanksSeconds
+  }
+  legs.push({ kind: 'curse', at, yaw, t0: t, t1: lingered })
   t = lingered
-  for (const point of [...way].reverse()) walkTo(point)
+  for (const point of [...passed].reverse()) walkTo(point)
   walkTo({ x: clerk.x, z: clerk.z })
-  return { legs, out, back: t, curseAt }
+  return { legs, out, back: t, sayAt, thanks }
+}
+
+// The drop `event` again, with the slurms a raider's foot squashed before
+// Carlsten got to them out of his plan: `trodden` is, for each slurm, how
+// far into the drop it went underfoot (none, Infinity). Until the first of
+// them it is the same drop, so he never jumps; from then on he goes after
+// those left, or, none left for him, thanks whoever it was and goes back.
+export function afterTrodden(
+  event: SlurmEvent,
+  trodden: readonly number[]
+): SlurmEvent {
+  if (!trodden.some(Number.isFinite)) return event
+  const slurms = event.slurms.map((slurm) => ({ ...slurm, smashAt: Infinity }))
+  const plan = carlstenPlan(event.dripline, slurms, trodden)
+  return {
+    ...event,
+    slurms,
+    legs: plan.legs,
+    out: plan.out,
+    back: plan.back,
+    sayAt: plan.sayAt,
+    thanks: plan.thanks,
+  }
 }
 
 // The drop under way at `station` at `seconds` (since the epoch on the
@@ -528,7 +607,13 @@ const CURSES = [
   copy('slurms.curse_8'),
 ]
 
-// What he says after a drop: its line, round again past the last.
+// What he curses after a drop: its line, round again past the last.
 export function curseOf(event: SlurmEvent): string {
   return CURSES[event.curse % CURSES.length]
+}
+
+// What he says at `sayAt`: the curse, or his thanks to whoever squashed
+// the last one before he got there.
+export function lineOf(event: SlurmEvent): string {
+  return event.thanks ? copy('slurms.thanks') : curseOf(event)
 }

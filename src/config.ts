@@ -977,6 +977,10 @@ export const CONFIG = {
     // After the last he curses, and goes back in this long after.
     curseDelay: 0.4,
     lingerSeconds: 1.4,
+    // A raider's foot gets the last one before he does: he stops, thanks
+    // them this long after, and turns back in this long after that.
+    thanksDelay: 0.3,
+    thanksSeconds: 1.2,
     // A squashed slurm lies as a black splat this long, then fades.
     splatSeconds: 5,
     // How close you must be to hear him curse in the log.
