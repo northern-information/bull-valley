@@ -44,8 +44,8 @@ begin_connecting = { text = "Reaching the Valley…", by = "ai" }
 begin_reconnecting = { text = "Reconnecting…", by = "ai" }
 begin_lost = { text = "Back to the Menu", by = "ai" }
 begin_play = { text = "Click to Die", by = "ai" }
-begin_resume = { text = "Click to Resume", by = "ai" }
 begin_failed = { text = "The Valley Will Not Resolve", by = "ai" }
+break = { text = "Click to Die · {key} for the Menu", by = "ai" }
 geometrie_shattered = { text = "GEOMETRIE SHATTERED", by = "ai" }
 countdown_label = { text = "Truck leaves in", by = "ai" }
 chat_log_label = { text = "Chat", by = "ai" }
@@ -799,6 +799,7 @@ chat = { text = "Chat", by = "ai" }
 chat_scroll_up = { text = "Scroll Up", by = "ai" }
 chat_scroll_down = { text = "Scroll Down", by = "ai" }
 pause = { text = "Pause", by = "ai" }
+menu = { text = "Menu", by = "ai" }
 use = { text = "Use", by = "ai" }
 assign = { text = "Assign", by = "ai" }
 clear_slot = { text = "Clear Slot", by = "ai" }
