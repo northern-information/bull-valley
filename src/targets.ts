@@ -5,7 +5,8 @@
 
 import * as THREE from 'three'
 import { meshBounds } from './assets.ts'
-import { insideStore, shelfPrice, unitInView } from './store.ts'
+import { itemById } from './items.ts'
+import { insideStore, unitInView } from './store.ts'
 import type { Game } from './game.ts'
 import type { Interaction, LockerSpot, ShelfSpot } from './interactions.ts'
 import type { Vec3 } from './interfaces.ts'
@@ -120,15 +121,14 @@ export function createTargets(game: Game): Targets {
         look.y,
         look.z,
       ])
-      const kind = seen?.facing.kind
-      const price = kind ? shelfPrice(kind, stock?.[kind]) : undefined
-      if (!seen || !kind || price === undefined) return null
+      const item = seen ? itemById(seen.facing.kind) : null
+      if (!seen || !item || item.price === undefined) return null
       return {
-        item: kind,
+        item: item.id,
         station,
         unit: seen.unit,
-        price,
-        affordable: state.cash >= price,
+        price: item.price,
+        affordable: state.cash >= item.price,
       }
     },
 

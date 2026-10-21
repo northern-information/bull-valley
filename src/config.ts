@@ -403,10 +403,6 @@ export const CONFIG = {
     startingCash: 4000,
     // Units of every item on each Citgo's shelves when the day turns.
     perItem: 3,
-    // Scarcity (store.ts shelfPrice): each unit of a kind already sold off
-    // a station's shelf today puts its price up this many times over, so
-    // the last of anything costs the most.
-    surge: 1.6,
     // How close a shelf unit must be, from the eye, for E to buy it.
     reach: 2.2,
     // How far off the view ray, in radians, a unit can sit and still be

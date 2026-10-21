@@ -7,7 +7,7 @@
 // what blocks, and what E buys can never drift apart. No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
-import { itemById, ITEMS } from './items.ts'
+import { ITEMS } from './items.ts'
 import type { HeightAt, ShopStock, Vec3, XZ } from './interfaces.ts'
 import type { ItemId } from './items.ts'
 
@@ -1040,22 +1040,6 @@ export function onShelf(
   unit: number
 ): boolean {
   return shelf?.[kind]?.[unit] === true
-}
-
-// What the next unit of `kind` off a shelf whose units of it are `units`
-// costs, in cents: its shelf price for the first of the day, then
-// CONFIG.store.surge times over for each one already sold, up to the next
-// price ending in 9. Undefined for anything with no shelf price.
-export function shelfPrice(
-  kind: string,
-  units: readonly boolean[] | undefined,
-  cfg = CONFIG.store
-): number | undefined {
-  const price = itemById(kind)?.price
-  if (price === undefined) return undefined
-  const sold = units ? units.filter((on) => !on).length : 0
-  if (sold === 0) return price
-  return Math.ceil((price * cfg.surge ** sold + 1) / 10) * 10 - 1
 }
 
 // A shelf with one unit gone, as a new value.
