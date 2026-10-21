@@ -33,7 +33,12 @@ import {
   taskOf,
 } from './dailytask.ts'
 import { boughtLine, dealRefusal } from './dealer.ts'
-import { isExpeditionRun } from './expeditions.ts'
+import {
+  EXPEDITION_IDS,
+  isExpeditionRun,
+  riskOf,
+  wardOf,
+} from './expeditions.ts'
 import {
   friendNews,
   friendRefusal,
@@ -43,7 +48,7 @@ import {
 import { BASE_GEOMETRIE } from './health.ts'
 import { toInventory } from './inventory.ts'
 import { itemLabel, itemLine } from './itemcopy.ts'
-import { itemById } from './items.ts'
+import { doseOf, healsOf, itemById } from './items.ts'
 import { outfitById } from './outfits.ts'
 import { barOf, levelUp } from './progression.ts'
 import { normalizeChat } from './protocol.ts'
@@ -64,7 +69,7 @@ import {
 import { buyRefusal } from './shop.ts'
 import { isStandLedger, refusalLine, standNews } from './stand.ts'
 import { formatCash } from './store.ts'
-import { levelsAt } from './wardlevels.ts'
+import { AXES, dose, levelsAt } from './wardlevels.ts'
 import type { ChatLine } from './chat.ts'
 import type { CitgoLog } from './citgos.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -75,7 +80,7 @@ import type {
   ExpeditionRun,
 } from './expeditions.ts'
 import type { PendingAsk } from './friends.ts'
-import type { Inventory } from './interfaces.ts'
+import type { Inventory, WardAxis } from './interfaces.ts'
 import type { OutfitId } from './outfits.ts'
 import type {
   ClientMessage,
@@ -148,6 +153,7 @@ export interface Pending {
   deal: boolean
   trade: boolean
   expedition: boolean
+  use: boolean
   ask: PendingAsk | null
   showFriends: boolean
   whisperTo: string | null
@@ -160,6 +166,7 @@ const NOTHING_PENDING: Pending = {
   deal: false,
   trade: false,
   expedition: false,
+  use: false,
   ask: null,
   showFriends: false,
   whisperTo: null,
@@ -289,6 +296,41 @@ export function wardsNow(s: DialState, now: number): WardLevels {
   return levelsAt({ at: s.wardsAt / 1000, levels: s.wards }, now / 1000)
 }
 
+// What one use of `kind` would do now (sharedworld.ts rules 24 and 27):
+// each ward it moves, faded to now and then dosed, the risk of each
+// expedition that ward guards (expeditions.ts riskOf, as the valley judges
+// a run sent then), and the geometrie it would mend. Levels and risks are
+// 0 to 1.
+export interface UseImpact {
+  wards: { axis: WardAxis; from: number; to: number }[]
+  risks: { id: ExpeditionId; from: number; to: number }[]
+  health: { from: number; to: number } | null
+}
+
+export function useImpact(s: DialState, kind: string, now: number): UseImpact {
+  const before = wardsNow(s, now)
+  const after = levelsAt(dose({ at: 0, levels: before }, doseOf(kind), 0), 0)
+  const moved = AXES.filter((axis) => after[axis] !== before[axis])
+  const risks = EXPEDITION_IDS.flatMap((id) => {
+    const axis = wardOf(id)
+    if (!axis || !moved.includes(axis)) return []
+    return [{ id, from: riskOf(id, before[axis]), to: riskOf(id, after[axis]) }]
+  })
+  const heal = healsOf(kind, s.healthMax)
+  return {
+    wards: moved.map((axis) => ({
+      axis,
+      from: before[axis],
+      to: after[axis],
+    })),
+    risks,
+    health:
+      heal > 0 && s.health < s.healthMax
+        ? { from: s.health, to: Math.min(s.healthMax, s.health + heal) }
+        : null,
+  }
+}
+
 // The state after one frame from the valley, at local `now` (what the
 // screen says is timed by it) and `wall` epoch ms (what the log keeps).
 export function applyFrame(
@@ -330,7 +372,7 @@ export function applyFrame(
         stash: toInventory(msg.stash),
         cash: msg.cash,
         cosmetics,
-        pending: { ...s.pending, locker: false, trade: false },
+        pending: { ...s.pending, locker: false, trade: false, use: false },
       }
       // Rule 14: a cosmetic Moab traded, worn now.
       return gainedOf(s.cosmetics, cosmetics).reduce(
@@ -578,6 +620,8 @@ function refused(
       return done({ deal: false }, stepRefusal(msg.reason))
     case 'trade':
       return done({ trade: false }, copy('log.trade_refused'))
+    case 'use':
+      return done({ use: false }, copy('log.use_refused'))
     case 'expedition-send':
     case 'expedition-claim':
       return done({ expedition: false }, expeditionRefusal(msg.reason))

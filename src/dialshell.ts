@@ -9,6 +9,7 @@
 // raider is. The state is dialstate.ts's, redrawn whole on every frame.
 
 import { entryOf } from './book.ts'
+import { beamScale, sprintScale } from './buffs.ts'
 import { copy } from './copy.ts'
 import { dayKey } from './daily.ts'
 import { DialBook, renderPage } from './dialbook.ts'
@@ -245,8 +246,12 @@ export class DialShell {
   // clock; once a second, only the figures move.
   tick(): void {
     const s = this.state
-    // The wards fade between the valley's word on them.
+    // The wards fade between the valley's word on them: the top bar's,
+    // and the raider's own on the lobby.
     if (s) this.renderTop(s)
+    if (s && this.tab === 'lobby' && !this.sheetOpen) {
+      this.view.replaceChildren(this.lobby(s))
+    }
     if (s && this.tab === 'expeditions') {
       tickExpeditions(this.view, s, this.options.now())
       return
@@ -550,7 +555,21 @@ export class DialShell {
         text('li', copy('dialup.raider.wards'), 'bv-dial-raider-calm')
       )
     }
+    // What the wards do besides warding while they last (buffs.ts), in
+    // the valley on foot.
+    const buffs = el('ul', 'bv-dial-raider-buffs')
+    const beam = Math.round((beamScale(levels) - 1) * 100)
+    const sprint = Math.round((sprintScale(levels) - 1) * 100)
+    if (beam >= 1) {
+      buffs.append(text('li', copy('dialup.raider.buff_beam', { pct: beam })))
+    }
+    if (sprint >= 1) {
+      buffs.append(
+        text('li', copy('dialup.raider.buff_sprint', { pct: sprint }))
+      )
+    }
     panel.append(this.portrait, head, wards)
+    if (buffs.childElementCount > 0) panel.append(buffs)
     return panel
   }
 }

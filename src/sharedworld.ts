@@ -227,9 +227,11 @@
 //    world or none (rules 19 and 23), Erwin deals with them and gives and
 //    rewards the rose from anywhere (rules 25 and 26), and they buy off the
 //    shelves of any Citgo their account has stood at (rule 7, `not-visited`
-//    otherwise). What takes a body is refused them (`dialup`): the truck,
-//    a take, a berry, a use, a pass, a drop or taking one up, a body,
-//    a portal, and laying the rose.
+//    otherwise). They use what their pack holds as anyone does (rule 10),
+//    dosing their wards and mending their geometrie (rules 24 and 27),
+//    to ready a run (rule 30). What takes a body is refused them
+//    (`dialup`): the truck, a take, a berry, a pass, a drop or taking
+//    one up, a body, a portal, and laying the rose.
 // 30. Idle expeditions (expeditions.ts): a raider dialed in sends their
 //    raider out on a run, one at a time, if their level has opened it
 //    (`expedition-send`; `busy`, `locked`). The valley draws its seed and
@@ -1058,7 +1060,6 @@ const NEEDS_A_BODY: Partial<Record<ValleyAction['type'], NackRe>> = {
   charter: 'charter',
   take: 'take',
   collect: 'collect',
-  use: 'use',
   pass: 'pass',
   drop: 'drop',
   'take-drop': 'take-drop',

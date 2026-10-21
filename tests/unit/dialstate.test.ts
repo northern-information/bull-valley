@@ -15,11 +15,13 @@ import {
   raiderStats,
   sayLine,
   shelfOf,
+  useImpact,
   wardsNow,
   withCitgoNames,
 } from '../../src/dialstate.ts'
+import { riskOf } from '../../src/expeditions.ts'
 import { itemLabel, itemLine } from '../../src/itemcopy.ts'
-import { itemById } from '../../src/items.ts'
+import { healsOf, itemById } from '../../src/items.ts'
 import { outfitById } from '../../src/outfits.ts'
 import { xpToReach } from '../../src/progression.ts'
 import { stepNews, stepRefusal } from '../../src/quests.ts'
@@ -142,7 +144,7 @@ describe("Dial-Up's state", () => {
     expect(s.pending.locker).toBe(false)
     // Another refusal says nothing here.
     expect(
-      applyFrame(s, { type: 'nack', re: 'use', reason: 'dialup' }, 9, 9)
+      applyFrame(s, { type: 'nack', re: 'pass', reason: 'dialup' }, 9, 9)
     ).toBe(s)
   })
 
@@ -839,5 +841,40 @@ describe('the wards on the phone', () => {
     const later = wardsNow(s, 11_000)
     expect(later).toEqual(levelsAt({ at: 1, levels }, 11))
     expect(later.high).toBeLessThan(levels.high)
+  })
+})
+
+describe('what an item would do, used on the phone', () => {
+  it('raises its ward, lowers the risk of the run that ward guards', () => {
+    const s = applyFrame(DIALED, { type: 'wards', wards: NO_WARDS }, 0, 0)
+    const impact = useImpact(s, 'four-loko-blue', 0)
+    const drunk = impact.wards.find((w) => w.axis === 'drunk')
+    expect(drunk?.from).toBe(0)
+    expect(drunk?.to).toBeGreaterThan(0)
+    const corn = impact.risks.find((r) => r.id === 'corn')
+    expect(corn?.from).toBe(riskOf('corn', 0))
+    expect(corn?.to).toBe(riskOf('corn', drunk?.to ?? 0))
+    expect(corn!.to).toBeLessThan(corn!.from)
+    // A run no ward guards is not moved by it.
+    expect(impact.risks.some((r) => r.id === 'ride')).toBe(false)
+  })
+
+  it('mends geometrie up to whole, and says nothing when whole', () => {
+    const hurt = { ...DIALED, health: 500, healthMax: 1000 }
+    expect(useImpact(hurt, 'marlboro', 0).health).toEqual({
+      from: 500,
+      to: 500 + healsOf('marlboro', 1000),
+    })
+    const whole = { ...DIALED, health: 1000, healthMax: 1000 }
+    expect(useImpact(whole, 'marlboro', 0).health).toBeNull()
+  })
+
+  it('reads the wards faded to now', () => {
+    const levels = { high: 0, stimulated: 0, drunk: 0.6, tripping: 0 }
+    const s = applyFrame(DIALED, { type: 'wards', wards: levels }, 0, 0)
+    const later = useImpact(s, 'four-loko-blue', 60_000)
+    expect(later.wards.find((w) => w.axis === 'drunk')?.from).toBe(
+      wardsNow(s, 60_000).drunk
+    )
   })
 })
