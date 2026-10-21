@@ -83,6 +83,9 @@ async function boot(): Promise<void> {
   })
 
   let state: DialState = DIALED
+  // Takes on a name or body the valley shows back (set once the shell is
+  // up).
+  let takeOnShown = () => {}
   // Each Citgo's name off the survey, read once: the Citgo sheet lists
   // them, and the log names a Citgo found.
   let named: Promise<string[]> | null = null
@@ -122,9 +125,17 @@ async function boot(): Promise<void> {
     // state) leaves the screen be.
     if (next === state) return
     state = next
+    takeOnShown()
     shell?.render(state)
   })
   net.onRefused((code) => {
+    // A session lost mid-play, as the 3D valley says it: the modem is long
+    // gone, so say so and come back to it, where the line answers LOGIN.
+    if (code === CLOSE.unauthenticated && shell) {
+      say(copy('log.signed_out'))
+      setTimeout(() => window.location.reload(), CONFIG.net.signedOutReloadMs)
+      return
+    }
     if (code === CLOSE.unauthenticated) {
       modem.signedOut()
       return
@@ -165,9 +176,23 @@ async function boot(): Promise<void> {
     state = { ...state, said: { text, at: performance.now() } }
     shell?.render(state)
   }
-  // Who the raider is, as Gron leaves them.
+  // Who the raider is, as Gron leaves them, here or in the 3D valley.
   let username = account.username
   let look = pickOf(account.look)
+  state = { ...state, name: username, outfit: look.outfit }
+  // A name or body changed in the 3D valley comes back as our own peer
+  // (dialstate.ts): the shell and a redial's dial take it on.
+  takeOnShown = () => {
+    if (state.name !== username) {
+      username = state.name
+      shell?.setName(username)
+    }
+    if (state.outfit && state.outfit !== look.outfit) {
+      look = { ...look, outfit: state.outfit }
+      shell?.setLook(look.outfit, look.finish)
+      net.setOutfit(look.outfit)
+    }
+  }
   // Erwin's rambles, in turn.
   let rambled = 0
   shell = new DialShell(root, {
@@ -223,11 +248,13 @@ async function boot(): Promise<void> {
           cosmetics: state.cosmetics,
           onRenamed: (name) => {
             username = name
+            state = { ...state, name }
             shell?.setName(name)
             net.send({ type: 'rename' })
           },
           onBecome: (outfit, finish) => {
             look = { outfit, finish }
+            state = { ...state, outfit }
             void saveLook(look).then((saved) => {
               if (!saved.ok) say(saved.error)
             })

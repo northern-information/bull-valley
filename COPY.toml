@@ -1304,6 +1304,7 @@ nothing_to_stow = { text = "Nothing on you to stow.", by = "ai" }
 hotbar = { text = "Put on the hotbar", by = "ai" }
 hotbar_pick = { text = "Tap a slot for {item}", by = "ai" }
 hotbar_saved = { text = "{item} on slot {slot}.", by = "ai" }
+hotbar_cleared = { text = "{item} off slot {slot}.", by = "ai" }
 
 # The laptop on the card table in the Citgo bathroom (src/laptop.ts,
 # src/laptopdialog.ts, src/laptopart.ts). Its readme is LAPTOP.TXT at the

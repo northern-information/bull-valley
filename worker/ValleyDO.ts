@@ -1595,7 +1595,7 @@ export class ValleyDO extends DurableObject<Env> {
       send(ws, { type: 'nack', re: 'appearance', reason: 'locked-outfit' })
       return
     }
-    await this.reshow(ws, attachment, { ...me, outfit })
+    await this.reshowAccount(ws, attachment, me, { outfit })
   }
 
   // A new username from Gron. The frame names nothing: the account's
@@ -1618,7 +1618,33 @@ export class ValleyDO extends DurableObject<Env> {
       send(ws, { type: 'nack', re: 'rename', reason: 'no-username' })
       return
     }
-    await this.reshow(ws, { ...attachment, name }, { ...me, name })
+    await this.reshowAccount(ws, attachment, me, { name })
+  }
+
+  // A new name or body for the account, on every socket it has signed in
+  // (the 3D valley and Dial-Up both, rule 11), the asker's last: each of
+  // the others hears its own change before anyone's news of it.
+  private async reshowAccount(
+    ws: WebSocket,
+    attachment: Attachment,
+    me: PeerWire,
+    change: Partial<Pick<PeerWire, 'name' | 'outfit'>>
+  ): Promise<void> {
+    const named = (a: Attachment): Attachment =>
+      change.name ? { ...a, name: change.name } : a
+    if (attachment.account) {
+      for (const socket of this.ctx.getWebSockets()) {
+        if (socket === ws) continue
+        const other = this.attachment(socket)
+        if (other.account !== attachment.account || !other.me) continue
+        try {
+          await this.reshow(socket, named(other), { ...other.me, ...change })
+        } catch {
+          // Closing sockets throw; their close handler follows.
+        }
+      }
+    }
+    await this.reshow(ws, named(attachment), { ...me, ...change })
   }
 
   // Stores the raider as now shown, and shows them so to everyone,
