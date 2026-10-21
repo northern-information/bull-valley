@@ -396,6 +396,18 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     return { swarm, keeper }
   }
 
+  // What a trip shows that is not there (hallucinations.ts): out ahead
+  // while the tripping ward is up, gone with it. This raider's alone.
+  const stepHallucinations = ({ dt, time }: FrameClock) => {
+    game.hallucinations.update(dt, {
+      time,
+      tripping: levelsAt(s.wards, time).tripping,
+      player: player.pos,
+      yaw: player.yaw,
+      blocked: world.walls.between,
+    })
+  }
+
   // What stands in the valley and moves on its own clock.
   const stepScenery = ({ now, time }: FrameClock, feetY: number) => {
     // Gron's rain falls on its own clock, Moab's fire burns on it too, the
@@ -715,6 +727,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       lookout: lookoutSpot(),
       heart: heartSpot(),
       locked: lockedDoor(),
+      hallucinations: s.aboard ? [] : game.hallucinations.spots(),
     })
   }
 
@@ -792,6 +805,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     const renderAt = clock.now - CONFIG.net.interpolateMs
     const { swarm, keeper } = stepShadows(clock, renderAt)
     stepScenery(clock, feet.feetY)
+    stepHallucinations(clock)
     const portalNow = stepPortals(clock)
     drawMap()
     feelStrikes(clock.now)

@@ -15,6 +15,7 @@ import type { TaskProgress } from './dailytask.ts'
 import type { Drop } from './drops.ts'
 import type { Game } from './game.ts'
 import type { Grave } from './graves.ts'
+import type { Hallucination, HallucinationShape } from './hallucinations.ts'
 import type { Hand } from './hands.ts'
 import type { Hotbar } from './hotbar.ts'
 import type { Inventory, WardAxis, XZ } from './interfaces.ts'
@@ -164,6 +165,14 @@ interface BvHook {
   grant(kind: string, count?: number): void
   // This raider at `points` hit points (1 to whole), for the specs.
   setHealth(points: number): void
+  // What a trip shows this raider that is not there (hallucinations.ts):
+  // those standing, the bursts set off so far, and one made out ahead
+  // now, whatever the trip (it flickers out again unless they trip).
+  hallucinations: {
+    readonly list: readonly Hallucination[]
+    readonly bursts: number
+    conjure(shape?: HallucinationShape): Hallucination | null
+  }
 }
 
 declare global {
@@ -339,6 +348,25 @@ export function installDevHook(game: Game, actions: Actions): void {
     },
     setHealth(points) {
       net.send({ type: 'dev', op: 'health', points })
+    },
+    hallucinations: {
+      get list() {
+        return game.hallucinations.list
+      },
+      get bursts() {
+        return game.hallucinations.bursts
+      },
+      conjure: (shape) =>
+        game.hallucinations.conjure(
+          {
+            time: s.time,
+            tripping: levelsAt(s.wards, s.time).tripping,
+            player: player.pos,
+            yaw: player.yaw,
+            blocked: game.world.walls.between,
+          },
+          shape
+        ),
     },
     sfxIds: SFX_IDS,
     sfx(id, x, z) {

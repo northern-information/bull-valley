@@ -21,6 +21,7 @@ import { FirstPersonHands } from './fphands.ts'
 import { createGameState } from './game.ts'
 import { createGlow } from './glow.ts'
 import { createGravestones } from './gravestones.ts'
+import { Hallucinations } from './hallucinationrig.ts'
 import { Hud } from './hud.ts'
 import { wireKeys, wirePointer } from './input.ts'
 import { createItemThumbs } from './itemthumbs.ts'
@@ -34,6 +35,7 @@ import { Player } from './player.ts'
 import { PlayerBody } from './playerbody.ts'
 import { createPortalMeshes } from './portalmeshes.ts'
 import { GRAIN_URL, imagesReady } from './preload.ts'
+import { levelOf } from './progression.ts'
 import { createPS1Renderer, setSnapResolution } from './ps1.ts'
 import { mulberry32 } from './rng.ts'
 import { buildRoadGraph, nearestRoadPoint, wanderRoute } from './roadgraph.ts'
@@ -333,6 +335,16 @@ async function boot() {
       place: world.undercroft?.place ?? null,
     }),
     bursts: new ShadowBursts(scene),
+    // What a trip shows that is not there, wearing the names of this
+    // raider and whoever else is in the valley.
+    hallucinations: new Hallucinations({
+      scene,
+      groundAt: world.ground.at,
+      people: () => [
+        { name: pick.username, level: levelOf(game.state.xp) },
+        ...game.peers.list().map(({ name, level }) => ({ name, level })),
+      ],
+    }),
     // Ground mist drifts around the player.
     mist: new MistCards({
       scene,
