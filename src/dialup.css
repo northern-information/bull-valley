@@ -785,7 +785,8 @@ button.bv-dial-card {
   border-color: var(--dial-hot);
 }
 
-.bv-dial-social-head {
+.bv-dial-social-head,
+.bv-dial-locker-head {
   margin: 0 0 0.5rem;
   font-size: 0.6875rem;
   font-weight: 600;
@@ -811,6 +812,11 @@ button.bv-dial-card {
 .bv-dial-online-name {
   margin: 0.25rem 0;
   font-size: 0.875rem;
+}
+
+/* The locker sheet: what is on the raider over what the locker holds. */
+.bv-dial-locker-part + .bv-dial-locker-part {
+  margin-top: 1.5rem;
 }
 
 /* A sheet over the view, with its way back. */

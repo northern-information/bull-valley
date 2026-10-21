@@ -31,7 +31,7 @@ import type { BookEntry } from './book.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { CitgoActions, CitgoOpen } from './dialcitgo.ts'
 import type { ExpeditionActions } from './dialexpeditions.ts'
-import type { Opened, PackActions } from './dialpack.ts'
+import type { LockerOpen, PackActions } from './dialpack.ts'
 import type { SocialActions } from './dialsocial.ts'
 import type { DialState } from './dialstate.ts'
 import type { FinishId } from './finishes.ts'
@@ -103,7 +103,11 @@ export class DialShell {
     null
   // The volume sliders, built once and kept in step with the store.
   private sliders: HTMLElement | null = null
-  private lockerOpen: Opened = { kind: null }
+  private lockerOpen: LockerOpen = {
+    pack: { kind: null },
+    keys: { kind: null },
+    locker: { kind: null },
+  }
   private citgoOpen: CitgoOpen = { station: null }
   private names: string[] | null = null
   private pack: DialPack
