@@ -1299,13 +1299,11 @@ no_body = { text = "Emotes need a body. Walk the valley to take one.", by = "ai"
 
 [dialup.pack]
 count = { text = "×{count}", by = "ai" }
-stow_one = { text = "Stow 1", by = "ai" }
-stow_all = { text = "Stow all", by = "ai" }
 take_one = { text = "Take 1", by = "ai" }
 take_all = { text = "Take all", by = "ai" }
 on_you = { text = "On you", by = "ai" }
 in_locker = { text = "In the locker", by = "ai" }
-nothing_to_stow = { text = "Nothing on you to stow.", by = "ai" }
+nothing_on_you = { text = "Nothing on you.", by = "ai" }
 use = { text = "Use", by = "ai" }
 impact = { text = "If you use it now", by = "ai" }
 impact_ward = { text = "{ward} {from}% → {to}%", by = "ai" }
