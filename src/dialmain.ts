@@ -36,6 +36,7 @@ import { GRAIN_URL, imagesReady } from './preload.ts'
 import { levelOf } from './progression.ts'
 import { CLOSE } from './protocol.ts'
 import { dealerStep, roseLine, roseProgress } from './quests.ts'
+import { openRecycleDialog } from './recycledialog.ts'
 import { createSettingsStore } from './settingsui.ts'
 import { mountAccountStep } from './signin.ts'
 import { SILENT } from './silent.ts'
@@ -309,6 +310,17 @@ async function boot(): Promise<void> {
           send({ type: 'stand-stock', kind, count }, { stand: true }),
         onCollect: () => send({ type: 'stand-collect' }, { stand: true }),
         onUpgrade: () => send({ type: 'stand-upgrade' }, { stand: true }),
+      }).then(() => shell?.render(state))
+    },
+    // Rule 29: dialed in, the wreck is wherever the phone is.
+    openRecycle: () => {
+      send({ type: 'research' }, {})
+      void openRecycleDialog({
+        research: () => state.research,
+        pack: () => state.pack,
+        pending: () => state.pending.recycle,
+        said: () => state.said?.text ?? null,
+        onRecycle: (line) => send({ type: 'recycle', line }, { recycle: true }),
       }).then(() => shell?.render(state))
     },
   })

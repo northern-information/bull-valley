@@ -19,6 +19,7 @@ import { dryMap } from '../../src/waterside.ts'
 import { MemoryAccountStore } from '../../worker/accounts.ts'
 import { MemoryPackStore, STARTING_CASH } from '../../worker/packs.ts'
 import { ValleyDO } from '../../worker/ValleyDO.ts'
+import type { Inventory } from '../../src/interfaces.ts'
 import type {
   BookMessage,
   DailyMessage,
@@ -30,6 +31,7 @@ import type {
   PeerLeftMessage,
   PeerStateMessage,
   PeerUpdatedMessage,
+  ResearchMessage,
   SeasonMessage,
   ServerMessage,
   ShadowmenMessage,
@@ -210,6 +212,7 @@ const MAZE = { x: 5000, z: 5000, yaw: 0 }
 
 // Where a build sets up the Cabbage Stand: on the first station's lot.
 const STAND = { x: -4, z: -17 }
+const WRECK = { x: 6, z: 27 }
 const DEALER = { x: -20, z: -55 }
 // Where the Undercroft lies, far from everything else.
 const CROFT = { x: -7000, z: -7000, yaw: 0 }
@@ -245,6 +248,7 @@ const hello = (
     maze: MAZE,
     truck: { home: { x: 10, z: 10 }, joyrideMs: 600_000 },
     stand: STAND,
+    wreck: WRECK,
     bushes: Array.from({ length: 7 }, () => ({ x: 0, z: 0 })),
     dealer: DEALER,
     undercroft: CROFT,
@@ -1547,6 +1551,8 @@ describe('ValleyDO', () => {
       stow: () => Promise.reject(new Error('D1 is down')),
       stand: () => Promise.reject(new Error('D1 is down')),
       tend: () => Promise.reject(new Error('D1 is down')),
+      research: () => Promise.reject(new Error('D1 is down')),
+      recycle: () => Promise.reject(new Error('D1 is down')),
       expedition: () => Promise.reject(new Error('D1 is down')),
       embark: () => Promise.reject(new Error('D1 is down')),
       homecoming: () => Promise.reject(new Error('D1 is down')),
@@ -1653,6 +1659,9 @@ describe('ValleyDO', () => {
         stow: (id, kind, delta) => store.stow(id, kind, delta),
         stand: (id) => store.stand(id),
         tend: (id, rev, change) => store.tend(id, rev, change),
+        research: (id) => store.research(id),
+        recycle: (id, line, from, items) =>
+          store.recycle(id, line, from, items),
         expedition: (id) => store.expedition(id),
         embark: (id, rev, run) => store.embark(id, rev, run),
         homecoming: (id, rev, haul) => store.homecoming(id, rev, haul),
@@ -1770,6 +1779,8 @@ describe('ValleyDO: drops', () => {
       stow: (id, kind, delta) => store.stow(id, kind, delta),
       stand: (id) => store.stand(id),
       tend: (id, rev, change) => store.tend(id, rev, change),
+      research: (id) => store.research(id),
+      recycle: (id, line, from, items) => store.recycle(id, line, from, items),
       expedition: (id) => store.expedition(id),
       embark: (id, rev, run) => store.embark(id, rev, run),
       homecoming: (id, rev, haul) => store.homecoming(id, rev, haul),
@@ -2101,6 +2112,9 @@ describe('ValleyDO: corpse runs', () => {
         stow: (id, kind, delta) => store.stow(id, kind, delta),
         stand: (id) => store.stand(id),
         tend: (id, rev, change) => store.tend(id, rev, change),
+        research: (id) => store.research(id),
+        recycle: (id, line, from, items) =>
+          store.recycle(id, line, from, items),
         expedition: (id) => store.expedition(id),
         embark: (id, rev, run) => store.embark(id, rev, run),
         homecoming: (id, rev, haul) => store.homecoming(id, rev, haul),
@@ -2513,6 +2527,75 @@ describe('ValleyDO: the Cabbage Stand', () => {
   })
 })
 
+describe('ValleyDO: the Recycling Center', () => {
+  const [first] = CONFIG.recycling.lines.dimes
+  const research = (socket: MockSocket) =>
+    socket.frames().findLast((m): m is ResearchMessage => m.type === 'research')
+  const nack = (socket: MockSocket) =>
+    socket.frames().findLast((m): m is NackMessage => m.type === 'nack')
+  const grant = async (v: TestValley, a: MockSocket, items: Inventory) => {
+    for (const [kind, count] of Object.entries(items)) {
+      await v.webSocketMessage(
+        ws(a),
+        JSON.stringify({ type: 'dev', op: 'grant', kind, count })
+      )
+    }
+  }
+
+  it('reads the research, none to begin with', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    await v.webSocketMessage(ws(a), '{"type":"research"}')
+    expect(research(a)).toEqual({ type: 'research', research: { dimes: 0 } })
+  })
+
+  it('buys a level with the empties beside the wreck, the pack and the level together', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const other = await join(v, s, 'A2', { account: 'acct-A' })
+    await v.webSocketMessage(ws(a), state(WRECK.x + 1, WRECK.z))
+    const buy = '{"type":"recycle","line":"dimes"}'
+    await v.webSocketMessage(ws(a), buy)
+    expect(nack(a)).toMatchObject({ re: 'recycle', reason: 'short' })
+    await grant(v, a, first.price)
+    await v.webSocketMessage(ws(a), buy)
+    expect(research(a)).toEqual({
+      type: 'research',
+      research: { dimes: 1 },
+      line: 'dimes',
+    })
+    expect(research(other)?.research.dimes).toBe(1)
+    expect(a.last<PackMessage>().pack['empty-can']).toBe(0)
+    expect(await v.packStore.research('acct-A')).toEqual({ dimes: 1 })
+  })
+
+  it('stays shut away from the wreck, or when the research cannot be read', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    await grant(v, a, first.price)
+    await v.webSocketMessage(ws(a), state(WRECK.x + 400, WRECK.z))
+    await v.webSocketMessage(ws(a), '{"type":"recycle","line":"dimes"}')
+    expect(nack(a)).toMatchObject({ re: 'recycle', reason: 'no-wreck' })
+    const store = v.packStore
+    const error = console.error
+    console.error = () => {}
+    try {
+      // The store as it was, but for the research it can no longer read.
+      v.packStore = Object.assign(Object.create(store) as PackStore, {
+        research: () => Promise.reject(new Error('down')),
+      })
+      await v.webSocketMessage(ws(a), state(WRECK.x, WRECK.z))
+      await v.webSocketMessage(ws(a), '{"type":"recycle","line":"dimes"}')
+      expect(nack(a)).toMatchObject({ re: 'recycle', reason: 'unavailable' })
+      await v.webSocketMessage(ws(a), '{"type":"research"}')
+      expect(nack(a)).toMatchObject({ re: 'recycle', reason: 'unavailable' })
+    } finally {
+      console.error = error
+      v.packStore = store
+    }
+  })
+})
+
 describe('ValleyDO: the shadowmen', () => {
   const shadowFrames = (socket: MockSocket) =>
     socket.frames().filter((m): m is ShadowmenMessage => m.type === 'shadowmen')
@@ -2862,6 +2945,20 @@ describe('ValleyDO: the shadowmen', () => {
     expect(paid.pack).not.toHaveProperty('dimes')
   })
 
+  it("finds loose change over a burst's dimes for a raider with the research", async () => {
+    const { v, b, dimes } = await burst((v) => {
+      ;(v.packStore as MemoryPackStore).researches.set('acct-B', { dimes: 1 })
+      return Promise.resolve()
+    })
+    v.rolled = CONFIG.recycling.lines.dimes[0].chance / 2
+    await v.webSocketMessage(ws(b), state(dimes.x, dimes.z))
+    await v.webSocketMessage(ws(b), `{"type":"take-drop","drop":${dimes.id}}`)
+    expect(b.last<PackMessage>().cash).toBe(
+      STARTING_CASH + 2 * dimes.count * DIME_CENTS
+    )
+    expect(b.frames()).toContainEqual({ type: 'found', dimes: dimes.count })
+  })
+
   it('still sends the wallet when the dimes cannot be paid in', async () => {
     const { v, b, dimes } = await burst()
     const store = v.packStore
@@ -2885,6 +2982,8 @@ describe('ValleyDO: the shadowmen', () => {
       stow: (id, kind, delta) => store.stow(id, kind, delta),
       stand: (id) => store.stand(id),
       tend: (id, rev, change) => store.tend(id, rev, change),
+      research: (id) => store.research(id),
+      recycle: (id, line, from, items) => store.recycle(id, line, from, items),
       expedition: (id) => store.expedition(id),
       embark: (id, rev, run) => store.embark(id, rev, run),
       homecoming: (id, rev, haul) => store.homecoming(id, rev, haul),
@@ -3025,6 +3124,8 @@ describe('ValleyDO: the shadowmen', () => {
       stow: (id, kind, delta) => store.stow(id, kind, delta),
       stand: (id) => store.stand(id),
       tend: (id, rev, change) => store.tend(id, rev, change),
+      research: (id) => store.research(id),
+      recycle: (id, line, from, items) => store.recycle(id, line, from, items),
       expedition: (id) => store.expedition(id),
       embark: (id, rev, run) => store.embark(id, rev, run),
       homecoming: (id, rev, haul) => store.homecoming(id, rev, haul),
@@ -3219,6 +3320,9 @@ describe("ValleyDO: Moab's trade", () => {
         stow: (id, kind, delta) => store.stow(id, kind, delta),
         stand: (id) => store.stand(id),
         tend: (id, rev, change) => store.tend(id, rev, change),
+        research: (id) => store.research(id),
+        recycle: (id, line, from, items) =>
+          store.recycle(id, line, from, items),
         expedition: (id) => store.expedition(id),
         embark: (id, rev, run) => store.embark(id, rev, run),
         homecoming: (id, rev, haul) => store.homecoming(id, rev, haul),

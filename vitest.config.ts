@@ -112,6 +112,7 @@ const THREE_AND_DOM = [
   'preload',
   'props',
   'ps1',
+  'recycledialog',
   'roadsideparts',
   'scatter',
   'seasonhud',

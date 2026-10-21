@@ -412,6 +412,17 @@ describe('resolveInteraction: bodies and lockers', () => {
     )
   })
 
+  it('opens the Recycling Center at the wreck, within its reach', () => {
+    expect(resolveInteraction(input({ wreck: { x: 252, z: 250 } }))).toEqual({
+      kind: 'recycle',
+    })
+    const far = { x: 250 + CONFIG.recycling.reach + 0.1, z: 250 }
+    expect(resolveInteraction(input({ wreck: far }))).toBeNull()
+    expect(resolveInteraction(input({ wreck: null }))).toBeNull()
+    expect(interactionPrompt({ kind: 'recycle' })).toBe(copy('prompts.recycle'))
+    expect(itemLabel({ kind: 'recycle' })).toBeNull()
+  })
+
   it('opens your Cabbage Stand within its reach', () => {
     expect(resolveInteraction(input({ stand: { x: 251, z: 250 } }))).toEqual({
       kind: 'stand',

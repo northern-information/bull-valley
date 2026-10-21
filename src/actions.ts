@@ -61,6 +61,7 @@ import { enteredAt, exitFrom, openAt } from './portals.ts'
 import { levelOf } from './progression.ts'
 import { normalizeChat } from './protocol.ts'
 import { dealerStep, roseLine, roseProgress } from './quests.ts'
+import { openRecycleDialog } from './recycledialog.ts'
 import { callRoute, nearestRoadPoint } from './roadgraph.ts'
 import { inHaven } from './shadowmen.ts'
 import { buy as buyItem, settle } from './shop.ts'
@@ -666,6 +667,29 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     )
   }
 
+  // E at the wreck: the Recycling Center, the pointer free for it as at
+  // the stand. The research is the account's (rule 33): the dialog asks
+  // the valley for it as it opens, and asks for each level; the research
+  // and pack frames that answer show in it as they land.
+  const recycle = () => {
+    if (s.talking || !s.world) return
+    s.researchSaid = null
+    net.send({ type: 'research' })
+    withDialog(() =>
+      openRecycleDialog({
+        research: () => (s.world ? s.research : null),
+        pack: () => s.inventory,
+        pending: () => s.pending.recycle,
+        said: () => s.researchSaid,
+        onRecycle: (line) => {
+          s.pending.recycle = true
+          s.researchSaid = null
+          net.send({ type: 'recycle', line })
+        },
+      })
+    )
+  }
+
   // E beside Erwin von Dutch, the squatter in the plaza: what he deals
   // and what he wants for it, and his quest, in a dialog with the pointer
   // free, as at the stand (rules 25 and 26).
@@ -1140,6 +1164,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         return
       case 'stand':
         tendStand()
+        return
+      case 'recycle':
+        recycle()
         return
       case 'deal':
         openDeal()

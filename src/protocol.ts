@@ -9,6 +9,7 @@ import { isFallHeight } from './fall.ts'
 import { isHealth } from './health.ts'
 import { isFileBody, isFileId, isFileName } from './laptop.ts'
 import { isQuestStep } from './quests.ts'
+import { isResearchLine } from './recycling.ts'
 import { isWaterMap } from './waterside.ts'
 import type { CitgoLog } from './citgos.ts'
 import type { CorpseWire } from './corpses.ts'
@@ -25,6 +26,7 @@ import type { MazePlace } from './maze.ts'
 import type { OutfitId } from './outfits.ts'
 import type { Portal } from './portals.ts'
 import type { QuestId, QuestStage, QuestStep } from './quests.ts'
+import type { Research, ResearchLine } from './recycling.ts'
 import type { Burst, ShadeKind, TruckPose } from './shadowmen.ts'
 import type { StandLedger } from './stand.ts'
 import type { TunnelKind } from './tunnelshades.ts'
@@ -32,7 +34,7 @@ import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 38
+export const PROTOCOL_VERSION = 39
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -252,6 +254,9 @@ export interface HelloMessage {
   // Where the Cabbage Stand stands, or null: the valley tends each
   // account's stand only for a raider beside it (rule 23).
   stand: XZ | null
+  // Where the wreck lies, or null: the valley takes each account's
+  // empties only from a raider beside it (rule 33).
+  wreck: XZ | null
   // Where each berry bush stands, in sharedworld.ts bush order (the spawn
   // Citgo's, then the maze's ring): a berry only for a raider in reach
   // (rule 8).
@@ -386,6 +391,14 @@ type StandTendMessage =
   | { type: 'stand-stock'; kind: string; count: number }
   | { type: 'stand-collect' }
   | { type: 'stand-upgrade' }
+
+// The Recycling Center at the wreck (sharedworld.ts rule 33): the
+// account's research, please, or the next level on `line` bought with the
+// empties it costs. The valley checks the raider's last state frame put
+// them beside the wreck, and answers with a ResearchMessage (and a
+// PackMessage after a level), or a nack.
+type RecycleTendMessage =
+  { type: 'research' } | { type: 'recycle'; line: ResearchLine }
 
 // An expedition (sharedworld.ts rule 30): a run of `kind` sent out, or the
 // run home claimed. Dial-Up only; the valley answers with an
@@ -585,6 +598,7 @@ export type ClientMessage =
   | FallMessage
   | StowMessage
   | StandTendMessage
+  | RecycleTendMessage
   | ExpeditionTendMessage
   | TradeMessage
   | DealMessage
@@ -606,7 +620,7 @@ export type ClientMessage =
 // What a client may be refused for.
 export type NackRe = Exclude<
   ClientMessage['type'],
-  'hello' | 'dial' | 'state' | 'headlights' | 'ping' | 'friends'
+  'hello' | 'dial' | 'state' | 'headlights' | 'ping' | 'friends' | 'research'
 >
 
 // --- Server → client -------------------------------------------------------
@@ -700,6 +714,22 @@ export interface StandMessage {
   re: 'stock' | 'collect' | 'upgrade'
   stand: StandLedger
   cents?: number
+}
+
+// The account's research (rule 33), to every socket signed in to it: in
+// answer to a research frame, or with `line` the level just bought on it,
+// a pack frame following with the empties gone.
+export interface ResearchMessage {
+  type: 'research'
+  research: Research
+  line?: ResearchLine
+}
+
+// Loose change (rule 33): the dimes found over a burst's, already in the
+// wallet, to every socket signed in to the account that took them up.
+export interface FoundMessage {
+  type: 'found'
+  dimes: number
 }
 
 // An account's progress through the season (sharedworld.ts rule 15): the
@@ -1004,6 +1034,8 @@ export type ServerMessage =
   | BookMessage
   | TaskMessage
   | StandMessage
+  | ResearchMessage
+  | FoundMessage
   | ExpeditionMessage
   | QuestFrame
   | XpMessage
@@ -1284,6 +1316,7 @@ type HelloPlaces = Pick<
   | 'maze'
   | 'truck'
   | 'stand'
+  | 'wreck'
   | 'bushes'
   | 'dealer'
   | 'undercroft'
@@ -1299,6 +1332,7 @@ const NO_PLACES: HelloPlaces = {
   maze: null,
   truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
   stand: null,
+  wreck: null,
   bushes: [],
   dealer: null,
   undercroft: null,
@@ -1325,12 +1359,14 @@ function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
   if (!havens || !metres || !water || !truck || !bushes || !rings) return null
   const maze = nullable(value.maze, parseMazePlace)
   const stand = nullable(value.stand, parseXZ)
+  const wreck = nullable(value.wreck, parseXZ)
   const dealer = nullable(value.dealer, parseXZ)
   const undercroft = nullable(value.undercroft, parseMazePlace)
   if (maze === undefined || stand === undefined) return null
+  if (wreck === undefined) return null
   if (dealer === undefined || undercroft === undefined) return null
   const places = { havens, metres, water, maze, truck, stand, bushes, dealer }
-  return { ...places, undercroft, rings }
+  return { ...places, wreck, undercroft, rings }
 }
 
 // A hello. The outfit is checked by the server (characters.ts
@@ -1433,6 +1469,9 @@ const CLIENT_PARSERS: ClientParsers = {
   'laptop-delete': ({ id }) =>
     isFileId(id) ? { type: 'laptop-delete', id } : null,
   'stand-collect': bare('stand-collect'),
+  research: bare('research'),
+  recycle: ({ line }) =>
+    isResearchLine(line) ? { type: 'recycle', line } : null,
   'stand-upgrade': bare('stand-upgrade'),
   'expedition-claim': bare('expedition-claim'),
   // Which runs there are is the valley's to check.

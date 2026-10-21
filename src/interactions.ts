@@ -91,6 +91,8 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   | { kind: 'laptop'; station: number }
   // The Cabbage Stand: E opens this raider's own (rule 23).
   | { kind: 'stand' }
+  // The wreck: E opens the Recycling Center (rule 33).
+  | { kind: 'recycle' }
   // The squatter in Bull Valley Plaza: E opens what he is selling
   // (dealer.ts).
   | { kind: 'deal' }
@@ -163,6 +165,8 @@ export interface InteractionInput<P extends PickupSpot> {
   laptops?: readonly LockerSpot[]
   // The Cabbage Stand's middle, or null.
   stand?: XZ | null
+  // The wreck's middle, or null.
+  wreck?: XZ | null
   // The squatter who deals in the plaza, or null.
   dealer?: XZ | null
   // A locked door this raider lacks the key to, or null.
@@ -268,6 +272,14 @@ export function resolveInteraction<P extends PickupSpot>(
     Math.hypot(stand.x - player.x, stand.z - player.z) < CONFIG.stand.reach
   ) {
     return { kind: 'stand' }
+  }
+
+  const wreck = input.wreck
+  if (
+    wreck &&
+    Math.hypot(wreck.x - player.x, wreck.z - player.z) < CONFIG.recycling.reach
+  ) {
+    return { kind: 'recycle' }
   }
 
   const dealer = input.dealer
@@ -497,6 +509,8 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return copy('prompts.laptop')
     case 'stand':
       return copy('prompts.stand')
+    case 'recycle':
+      return copy('prompts.recycle')
     case 'deal':
       return null
     // As the real one: a label for a thing, the glow alone for a person.

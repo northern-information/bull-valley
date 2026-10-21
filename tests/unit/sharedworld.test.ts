@@ -12,6 +12,7 @@ import { LADDER_FOOT, LADDER_TOP, lookoutToWorld } from '../../src/lookout.ts'
 import { nextChange } from '../../src/marx.ts'
 import { mazeToWorld } from '../../src/maze.ts'
 import { PROTOCOL_VERSION } from '../../src/protocol.ts'
+import { FRESH_RESEARCH } from '../../src/recycling.ts'
 import { mulberry32 } from '../../src/rng.ts'
 import {
   citgoVisits,
@@ -51,7 +52,7 @@ import { dryMap } from '../../src/waterside.ts'
 import { unitsLeft } from './stock.ts'
 import type { CosmeticId } from '../../src/cosmetics.ts'
 import type { ExpeditionRun } from '../../src/expeditions.ts'
-import type { Inventory } from '../../src/interfaces.ts'
+import type { Inventory, XZ } from '../../src/interfaces.ts'
 import type { PickupKind } from '../../src/items.ts'
 import type {
   DailyMessage,
@@ -60,8 +61,14 @@ import type {
   WorldMessage,
 } from '../../src/protocol.ts'
 import type { QuestStage } from '../../src/quests.ts'
+import type { Research } from '../../src/recycling.ts'
 import type { Placed } from '../../src/shadowstep.ts'
-import type { LaptopRe, Valley, ValleyAction } from '../../src/sharedworld.ts'
+import type {
+  LaptopRe,
+  Reduced,
+  Valley,
+  ValleyAction,
+} from '../../src/sharedworld.ts'
 import type { StandLedger } from '../../src/stand.ts'
 import type { ShadowHit } from '../../src/wards.ts'
 
@@ -92,6 +99,7 @@ const MAZE = { x: 3000, z: 3000, yaw: 0 }
 const ROUTES = { home: { x: 10, z: 10 }, joyrideMs: 600_000 }
 // Where the Cabbage Stand stands (rule 23).
 const STAND = { x: 5, z: -20 }
+const WRECK_SPOT = { x: 30, z: 40 }
 const DEALER = { x: -30, z: -60 }
 // Noon, Central time, so a test has the afternoon before the day turns.
 const T0 = Date.UTC(2026, 9, 7, 17, 0, 0)
@@ -177,6 +185,7 @@ const join = (id: string): ValleyAction => ({
   maze: null,
   routes: ROUTES,
   stand: STAND,
+  wreck: WRECK_SPOT,
   bushes: BUSH_SPOTS,
   dealer: DEALER,
   undercroft: null,
@@ -1772,6 +1781,146 @@ describe('rule 31: the laptop', () => {
   })
 })
 
+describe('rule 33: the Recycling Center at the wreck', () => {
+  const beside = { x: WRECK_SPOT.x + 1, z: WRECK_SPOT.z }
+  const [first, second] = CONFIG.recycling.lines.dimes
+  const recycle = (
+    valley: Valley,
+    action: ValleyAction,
+    levels: Research,
+    pack: Inventory
+  ) =>
+    reduce(valley, action, {
+      now: T0,
+      present: ['a'],
+      research: { levels, pack },
+    })
+  const empties = { 'empty-can': 100, 'empty-pack': 100, 'empty-bottle': 100 }
+
+  it('keeps where the wreck lies with the world', () => {
+    expect(valleyWith(join('a')).valley.world?.wreck).toEqual(WRECK_SPOT)
+  })
+
+  it("buys a line's next level with its empties, beside the wreck", () => {
+    const v = valleyWith(join('a'))
+    const action: ValleyAction = {
+      type: 'recycle',
+      id: 'a',
+      line: 'dimes',
+      at: beside,
+    }
+    expect(recycle(v.valley, action, FRESH_RESEARCH, empties).research).toEqual(
+      {
+        account: 'acct-a',
+        line: 'dimes',
+        level: 1,
+        items: first.price,
+      }
+    )
+    expect(
+      recycle(v.valley, action, { dimes: 1 }, empties).research
+    ).toMatchObject({ level: 2, items: second.price })
+  })
+
+  it('refuses away from the wreck, short of empties, at the top, or unread', () => {
+    const v = valleyWith(join('a'))
+    const at = (where: XZ | null): ValleyAction => ({
+      type: 'recycle',
+      id: 'a',
+      line: 'dimes',
+      at: where,
+    })
+    const reason = (r: Reduced) => r.reply?.reason
+    expect(
+      reason(recycle(v.valley, at({ x: 900, z: 900 }), FRESH_RESEARCH, empties))
+    ).toBe('no-wreck')
+    expect(reason(recycle(v.valley, at(null), FRESH_RESEARCH, empties))).toBe(
+      'no-wreck'
+    )
+    expect(
+      reason(recycle(v.valley, at(beside), FRESH_RESEARCH, { 'empty-can': 1 }))
+    ).toBe('short')
+    const top = { dimes: CONFIG.recycling.lines.dimes.length }
+    expect(reason(recycle(v.valley, at(beside), top, empties))).toBe('top')
+    expect(
+      reduce(v.valley, at(beside), { now: T0, present: ['a'] }).reply?.reason
+    ).toBe('unavailable')
+    expect(
+      reason(
+        recycle(
+          v.valley,
+          { type: 'recycle', id: 'z', line: 'dimes', at: beside },
+          FRESH_RESEARCH,
+          empties
+        )
+      )
+    ).toBe('not-in-valley')
+  })
+
+  it('lets a raider dialed in recycle from anywhere (rule 29)', () => {
+    const v = valleyWith({
+      type: 'dial',
+      id: 'a',
+      account: 'acct-a',
+      name: 'A',
+      outfit: 'coleman',
+      level: 1,
+    })
+    const r = recycle(
+      v.valley,
+      { type: 'recycle', id: 'a', line: 'dimes', at: null },
+      FRESH_RESEARCH,
+      empties
+    )
+    expect(r.research?.level).toBe(1)
+  })
+
+  it("finds loose change over a burst's dimes, for the taker alone", () => {
+    const v = valleyWith(join('a'))
+    v.step({ type: 'spill', spills: [{ x: 1, z: 2, kind: 'dimes', count: 6 }] })
+    const take = (roll: number, levels: Research) =>
+      reduce(
+        v.valley,
+        { type: 'take-drop', id: 'a', drop: 0, at: HERE, roll },
+        { now: T0, present: ['a'], research: { levels } }
+      )
+    // Under the chance: as many again, into the wallet.
+    const lucky = take(first.chance / 2, { dimes: 1 })
+    expect(lucky.earn).toEqual({ account: 'acct-a', amount: 120 })
+    expect(lucky.found).toEqual({ account: 'acct-a', dimes: 6 })
+    // The drop and what everyone sees of it are as they were.
+    expect(lucky.broadcast[0]).toMatchObject({ item: 'dimes', count: 6 })
+    // Over the chance, or with no research: only what lay there.
+    expect(take(first.chance, { dimes: 1 }).earn?.amount).toBe(60)
+    expect(take(0, FRESH_RESEARCH).found).toBeUndefined()
+    expect(take(0, FRESH_RESEARCH).earn?.amount).toBe(60)
+  })
+
+  it("never finds more in a raider's spilled wallet", () => {
+    const v = valleyWith(join('a'), join('b'))
+    v.step({
+      type: 'fall',
+      id: 'b',
+      items: {},
+      at: { x: 1, z: 2, yaw: 0 },
+    })
+    const drop = v.valley.world?.drops.find((d) => d.kind === 'dimes')
+    expect(drop).toBeDefined()
+    expect(drop?.burst).toBeUndefined()
+    const r = reduce(
+      v.valley,
+      { type: 'take-drop', id: 'a', drop: drop?.id ?? -1, at: HERE, roll: 0 },
+      {
+        now: T0,
+        present: ['a', 'b'],
+        cash: 100_00,
+        research: { levels: { dimes: 5 } },
+      }
+    )
+    expect(r.found).toBeUndefined()
+  })
+})
+
 describe('rule 23: the Cabbage Stand', () => {
   const HOUR = 60 * 60 * 1000
   const [one, two] = CONFIG.stand.levels
@@ -2098,8 +2247,24 @@ describe('rule 11: a burst shadowman leaves dimes', () => {
     })
     expect(reasons(r)).toEqual(['spilled'])
     expect(v.valley.world?.drops).toEqual([
-      { id: 0, kind: 'dimes', count: 7, x: 10, z: 20, spilled: true },
-      { id: 1, kind: 'dimes', count: 3, x: 50, z: 60, spilled: true },
+      {
+        id: 0,
+        kind: 'dimes',
+        count: 7,
+        x: 10,
+        z: 20,
+        spilled: true,
+        burst: true,
+      },
+      {
+        id: 1,
+        kind: 'dimes',
+        count: 3,
+        x: 50,
+        z: 60,
+        spilled: true,
+        burst: true,
+      },
     ])
     expect(v.valley.world?.nextDrop).toBe(2)
   })
@@ -2179,8 +2344,24 @@ describe('rule 11: a burst shadowman leaves dimes', () => {
       ],
     })
     expect(v.valley.world?.drops).toEqual([
-      { id: 0, kind: 'gold-bullion', count: 1, x: 1, z: 2, spilled: true },
-      { id: 1, kind: 'gold-bullion', count: 1, x: 1.5, z: 2, spilled: true },
+      {
+        id: 0,
+        kind: 'gold-bullion',
+        count: 1,
+        x: 1,
+        z: 2,
+        spilled: true,
+        burst: true,
+      },
+      {
+        id: 1,
+        kind: 'gold-bullion',
+        count: 1,
+        x: 1.5,
+        z: 2,
+        spilled: true,
+        burst: true,
+      },
     ])
     const r = v.step({ type: 'take-drop', id: 'a', drop: 0, at: HERE })
     expect(r.pack).toEqual({
