@@ -16,6 +16,7 @@ import type {
 } from '../src/account.ts'
 import type { CosmeticId } from '../src/cosmetics.ts'
 import type { AskResult, FriendRow, FriendState } from '../src/friends.ts'
+import type { LaptopFileRow } from '../src/laptop.ts'
 import type {
   Account,
   AccountStore,
@@ -404,6 +405,68 @@ export class D1AccountStore implements AccountStore {
       .bind(a, b, b, a)
       .run()
     return result.meta.changes > 0
+  }
+
+  // Rule 31: every file with its writer's username, never its text.
+  async laptopFiles(): Promise<LaptopFileRow[]> {
+    const { results } = await this.db
+      .prepare(
+        'SELECT f.file_id AS id, f.account_id AS account, a.username AS owner, ' +
+          'f.name AS name, length(f.body) AS size, f.updated_at AS updated ' +
+          'FROM laptop_files f JOIN accounts a ON a.account_id = f.account_id ' +
+          'WHERE a.username IS NOT NULL'
+      )
+      .all<LaptopFileRow>()
+    return results
+  }
+
+  async laptopBody(id: string): Promise<string | null> {
+    const row = await this.db
+      .prepare('SELECT body FROM laptop_files WHERE file_id = ?')
+      .bind(id)
+      .first<{ body: string }>()
+    return row?.body ?? null
+  }
+
+  // A new file is one row, the unique name index refusing a second of a
+  // name; a file written over is changed only where it is the account's.
+  async saveLaptopFile(
+    accountId: string,
+    id: string | null,
+    fresh: string,
+    name: string,
+    body: string,
+    now: number
+  ): Promise<string | null> {
+    try {
+      if (id === null) {
+        await this.db
+          .prepare(
+            'INSERT INTO laptop_files (file_id, account_id, name, body, updated_at) VALUES (?, ?, ?, ?, ?)'
+          )
+          .bind(fresh, accountId, name, body, now)
+          .run()
+        return fresh
+      }
+      const { meta } = await this.db
+        .prepare(
+          'UPDATE laptop_files SET name = ?, body = ?, updated_at = ? WHERE file_id = ? AND account_id = ?'
+        )
+        .bind(name, body, now, id, accountId)
+        .run()
+      return meta.changes > 0 ? id : null
+    } catch (err) {
+      if (String(err).includes('UNIQUE')) return null
+      throw err
+    }
+  }
+
+  async deleteLaptopFile(accountId: string, id: string): Promise<boolean> {
+    const { meta } = await this.db
+      .prepare('DELETE FROM laptop_files WHERE file_id = ? AND account_id = ?')
+      .bind(id, accountId)
+      .run()
+    return meta.changes > 0
   }
 
   private insertProvider(provider: LinkedProvider): D1PreparedStatement {

@@ -2185,6 +2185,140 @@ describe('ValleyDO: the stash', () => {
   })
 })
 
+describe('ValleyDO: the laptop', () => {
+  const frame = (msg: Record<string, unknown>) => JSON.stringify(msg)
+  const ofType = <T extends ServerMessage['type']>(
+    socket: MockSocket,
+    type: T
+  ) =>
+    socket
+      .frames()
+      .filter((m): m is Extract<ServerMessage, { type: T }> => m.type === type)
+  const nack = (socket: MockSocket) =>
+    socket.frames().findLast((m): m is NackMessage => m.type === 'nack')
+  // The account under its socket's name, as D1 would hold it.
+  const named = async (v: TestValley, name: string) => {
+    const id = `acct-${name}`
+    await v.accountStore.create(
+      {
+        accountId: id,
+        username: name,
+        role: 'user',
+        primaryProvider: `dev:${id}`,
+        createdAt: 0,
+        lastLoginAt: 0,
+        session: 0,
+      },
+      {
+        providerKey: `dev:${id}`,
+        accountId: id,
+        provider: 'dev',
+        providerId: id,
+        displayName: id,
+        avatarUrl: null,
+        linkedAt: 0,
+      }
+    )
+  }
+
+  it('saves, lists, reads and deletes, each writer their own', async () => {
+    const { valley: v, state: s } = await valley()
+    await named(v, 'Able')
+    await named(v, 'Baker')
+    const a = await join(v, s, 'Able')
+    const b = await join(v, s, 'Baker')
+    await v.webSocketMessage(ws(a), state(1000 - 15, 4))
+    await v.webSocketMessage(ws(b), state(-15, 4))
+    const body = 'dear diary\n\t  the  spaces stay\n'
+    await v.webSocketMessage(
+      ws(a),
+      frame({ type: 'laptop-save', id: null, name: 'diary.txt', body })
+    )
+    const saved = ofType(a, 'laptop-saved').at(-1)
+    expect(saved?.name).toBe('diary.txt')
+    const id = saved?.id ?? ''
+    expect(ofType(a, 'laptop-files').at(-1)?.files).toEqual([
+      expect.objectContaining({
+        id,
+        owner: 'Able',
+        name: 'diary.txt',
+        size: body.length,
+        mine: true,
+      }),
+    ])
+    // Anyone reads it, word for word; only Able is told it is theirs.
+    await v.webSocketMessage(ws(b), frame({ type: 'laptop-list' }))
+    expect(ofType(b, 'laptop-files').at(-1)?.files[0].mine).toBe(false)
+    await v.webSocketMessage(ws(b), frame({ type: 'laptop-read', id }))
+    expect(ofType(b, 'laptop-file').at(-1)).toEqual({
+      type: 'laptop-file',
+      id,
+      body,
+    })
+    // No one else saves over it or deletes it.
+    await v.webSocketMessage(
+      ws(b),
+      frame({ type: 'laptop-save', id, name: 'mine.txt', body: 'x' })
+    )
+    expect(nack(b)).toMatchObject({ re: 'laptop-save', reason: 'not-yours' })
+    await v.webSocketMessage(ws(b), frame({ type: 'laptop-delete', id }))
+    expect(nack(b)).toMatchObject({ re: 'laptop-delete', reason: 'not-yours' })
+    // Its writer has no second of the name, in any case.
+    await v.webSocketMessage(
+      ws(a),
+      frame({ type: 'laptop-save', id: null, name: 'DIARY.txt', body: '' })
+    )
+    expect(nack(a)).toMatchObject({ reason: 'name-taken' })
+    await v.webSocketMessage(
+      ws(a),
+      frame({ type: 'laptop-save', id, name: 'diary.txt', body: 'again' })
+    )
+    await v.webSocketMessage(ws(a), frame({ type: 'laptop-read', id }))
+    expect(ofType(a, 'laptop-file').at(-1)?.body).toBe('again')
+    await v.webSocketMessage(ws(a), frame({ type: 'laptop-delete', id }))
+    expect(ofType(a, 'laptop-files').at(-1)?.files).toEqual([])
+    await v.webSocketMessage(ws(a), frame({ type: 'laptop-read', id }))
+    expect(nack(a)).toMatchObject({ re: 'laptop-read', reason: 'gone' })
+  })
+
+  it('keeps the files shut away from a Citgo, past the count, or when D1 is down', async () => {
+    const { valley: v, state: s } = await valley()
+    await named(v, 'Able')
+    const a = await join(v, s, 'Able')
+    await v.webSocketMessage(ws(a), frame({ type: 'laptop-list' }))
+    expect(nack(a)).toMatchObject({ re: 'laptop-list', reason: 'no-laptop' })
+    await v.webSocketMessage(ws(a), state(5, 5))
+    for (let i = 0; i <= CONFIG.laptop.perAccount; i++) {
+      await v.webSocketMessage(
+        ws(a),
+        frame({ type: 'laptop-save', id: null, name: `f${i}`, body: '' })
+      )
+    }
+    expect(ofType(a, 'laptop-saved')).toHaveLength(CONFIG.laptop.perAccount)
+    expect(nack(a)).toMatchObject({ reason: 'too-many' })
+    const store = v.accountStore
+    store.laptopFiles = () => Promise.reject(new Error('down'))
+    const error = console.error
+    console.error = () => {}
+    try {
+      await v.webSocketMessage(ws(a), frame({ type: 'laptop-list' }))
+    } finally {
+      console.error = error
+    }
+    expect(nack(a)).toMatchObject({ reason: 'unavailable' })
+  })
+
+  it('refuses a flood', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    await v.webSocketMessage(ws(a), state(5, 5))
+    for (let i = 0; i < 25; i++) {
+      await v.webSocketMessage(ws(a), frame({ type: 'laptop-list' }))
+    }
+    expect(nack(a)).toMatchObject({ re: 'laptop-list', reason: 'too-fast' })
+  })
+})
+
 describe('ValleyDO: the Cabbage Stand', () => {
   const HOUR = 60 * 60 * 1000
   const [one, two] = CONFIG.stand.levels

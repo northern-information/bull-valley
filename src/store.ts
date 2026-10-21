@@ -34,6 +34,11 @@ export type StoreFinish =
   | 'porcelain'
   | 'mirror'
   | 'door'
+  | 'lining'
+  | 'table'
+  | 'steel'
+  | 'backdoor'
+  | 'pad'
 
 // One box of the building or its fixtures, centred at `center` with full
 // `size`, both station-local. `blocks` boxes are walls to the player.
@@ -79,6 +84,7 @@ export type AdId =
   | 'fire'
   | 'restroom'
   | 'wash-hands'
+  | 'exit'
 
 // A photograph pinned to a wall: the path of an image under public/.
 interface Photo {
@@ -95,6 +101,8 @@ export interface StoreSign {
   center: Vec3
   size: [number, number]
   yaw: number
+  // In the bathroom, lit by the laptop's screen alone (bathglow.ts).
+  dark?: true
 }
 
 // --- The layout ----------------------------------------------------------
@@ -160,6 +168,18 @@ const LIGHT = {
 // the partition (+X), centred across the room. Every raider's stash is in
 // one of them (stash.ts); E in front of the bank opens yours.
 const LOCKERS = { count: 8, width: 0.45, height: 1.85, depth: 0.5 }
+// The back door, through the back wall to the right of the lockers as you
+// face them (-Z), near the corner: a steel door stood open outward onto
+// the pad, against the wall.
+const BACK_DOOR_OUT = { z: -4.4, width: 1.0 }
+// The concrete pad out back, the store's whole width, at the floor's
+// height on its own foundation, and the dumpster on it a stride off the
+// back wall, its length along the wall.
+const PAD = { depth: 4.5 }
+const DUMPSTER_SPOT = { x: BACK - 0.6 - 0.65, z: 2.6, yaw: -Math.PI / 2 }
+// The dumpster's footprint (plazamodel.ts DUMPSTER, its length along the
+// wall), for its wall.
+const DUMPSTER_SIZE = { length: 1.9, width: 1.3 }
 // The bathroom: the back room's +Z end walled off past the lockers, its
 // doorway against the partition. Inside, the toilet against the back wall
 // and the sink under its mirror on the +Z wall. Decoration only, though
@@ -172,6 +192,9 @@ const BATH = {
   door: 1.0,
   toilet: { z: 4.4 },
   sink: { x: -15.6 },
+  // The card table against the +Z wall between the sink and the
+  // partition, the laptop on it facing the doorway (-Z).
+  table: { x: -14.25, size: 0.72, height: 0.7, top: 0.03, leg: 0.025 },
 }
 const BATH_INSIDE = BATH.z + BATH.wall / 2
 const BATH_DOOR_X0 = PARTITION - BATH.door
@@ -270,6 +293,160 @@ function bathroom(wallY: number, wallH: number): StoreBox[] {
       'porcelain'
     ),
     box('mirror', [sink, 1.55, sideZ - 0.01], [0.5, 0.7, 0.02], 'mirror'),
+    ...cardTable(sideZ),
+    ...lining(inner, sideZ),
+  ]
+}
+
+// The card table: a vinyl top on four steel legs. The top's footprint
+// blocks; the legs stand under it.
+function cardTable(sideZ: number): StoreBox[] {
+  const { x, size, height, top, leg } = BATH.table
+  const z = sideZ - size / 2 - 0.02
+  const legH = height - top
+  const off = size / 2 - leg
+  const legs = [
+    [-1, -1],
+    [-1, 1],
+    [1, -1],
+    [1, 1],
+  ].map(([i, j], n) =>
+    box(
+      `card-table-leg-${n}`,
+      [x + i * off, FLOOR + legH / 2, z + j * off],
+      [leg, legH, leg],
+      'steel'
+    )
+  )
+  return [
+    box(
+      'card-table',
+      [x, FLOOR + height - top / 2, z],
+      [size, top, size],
+      'table',
+      true
+    ),
+    ...legs,
+  ]
+}
+
+// The bathroom's own faces a hair inside the walls it shares with the
+// rest of the store, the ceiling included, so the screen's light falls on
+// them alone (bathglow.ts) and nothing from the back room does.
+function lining(inner: number, sideZ: number): StoreBox[] {
+  const t = 0.01
+  const depth = sideZ - BATH_INSIDE
+  const midZ = BATH_INSIDE + depth / 2
+  const width = PARTITION - inner
+  const wallH = HEIGHT - FLOOR
+  const midY = FLOOR + wallH / 2
+  const lintelH = HEIGHT - DOOR_HEIGHT
+  return [
+    box(
+      'bath-lining-back',
+      [inner + t / 2, midY, midZ],
+      [t, wallH, depth],
+      'lining'
+    ),
+    box(
+      'bath-lining-partition',
+      [PARTITION - t / 2, midY, midZ],
+      [t, wallH, depth],
+      'lining'
+    ),
+    box(
+      'bath-lining-side',
+      [(inner + PARTITION) / 2, midY, sideZ - t / 2],
+      [width, wallH, t],
+      'lining'
+    ),
+    box(
+      'bath-lining-wall',
+      [(inner + BATH_DOOR_X0) / 2, midY, BATH_INSIDE + t / 2],
+      [BATH_DOOR_X0 - inner, wallH, t],
+      'lining'
+    ),
+    box(
+      'bath-lining-lintel',
+      [
+        (BATH_DOOR_X0 + PARTITION) / 2,
+        HEIGHT - lintelH / 2,
+        BATH_INSIDE + t / 2,
+      ],
+      [PARTITION - BATH_DOOR_X0, lintelH, t],
+      'lining'
+    ),
+    box(
+      'bath-lining-ceiling',
+      [(inner + PARTITION) / 2, HEIGHT - t / 2, midZ],
+      [width, t, depth],
+      'lining'
+    ),
+  ]
+}
+
+// Where the laptop sits on the card table, station-local: the middle of
+// its base on the tabletop, facing -Z (yaw turns asset +Z that way).
+function laptopSpot(): { x: number; y: number; z: number; yaw: number } {
+  const sideZ = HALF_WIDTH - WALL
+  const { x, size, height } = BATH.table
+  return {
+    x,
+    y: FLOOR + height,
+    z: sideZ - size / 2 - 0.02 + 0.06,
+    yaw: Math.PI,
+  }
+}
+
+// The back wall either side of the back door and the lintel over it, the
+// door stood open against the wall outside, and the pad it opens onto.
+function backWall(wallY: number, wallH: number): StoreBox[] {
+  const x = BACK + WALL / 2
+  const z0 = BACK_DOOR_OUT.z - BACK_DOOR_OUT.width / 2
+  const z1 = BACK_DOOR_OUT.z + BACK_DOOR_OUT.width / 2
+  const lintelH = HEIGHT - DOOR_HEIGHT
+  const leaf = BACK_DOOR_OUT.width - 0.04
+  return [
+    box(
+      'wall-back-corner',
+      [x, wallY, (-HALF_WIDTH + z0) / 2],
+      [WALL, wallH, z0 + HALF_WIDTH],
+      'wall',
+      true
+    ),
+    box(
+      'wall-back',
+      [x, wallY, (z1 + HALF_WIDTH) / 2],
+      [WALL, wallH, HALF_WIDTH - z1],
+      'wall',
+      true
+    ),
+    box(
+      'wall-back-lintel',
+      [x, HEIGHT - lintelH / 2, BACK_DOOR_OUT.z],
+      [WALL, lintelH, BACK_DOOR_OUT.width],
+      'wall'
+    ),
+    // Hinged on the corner side, swung out flat against the wall.
+    box(
+      'back-door',
+      [BACK - 0.03, FLOOR + (DOOR_HEIGHT - 0.02) / 2, z0 - leaf / 2],
+      [0.05, DOOR_HEIGHT - 0.02, leaf],
+      'backdoor',
+      true
+    ),
+    box(
+      'back-door-bar',
+      [BACK - 0.08, FLOOR + 1.0, z0 - leaf / 2],
+      [0.05, 0.05, leaf * 0.7],
+      'steel'
+    ),
+    box(
+      'back-pad',
+      [BACK - PAD.depth / 2, (FLOOR - FOUNDATION) / 2, 0],
+      [PAD.depth, FLOOR + FOUNDATION, HALF_WIDTH * 2],
+      'pad'
+    ),
   ]
 }
 
@@ -342,13 +519,7 @@ function buildBoxes(): StoreBox[] {
     ),
     box('floor', [midX, FLOOR / 2, 0], [depth, FLOOR, HALF_WIDTH * 2], 'floor'),
     box('roof', [midX, HEIGHT + 0.1, 0], [depth, 0.2, HALF_WIDTH * 2], 'roof'),
-    box(
-      'wall-back',
-      [BACK + WALL / 2, wallY, 0],
-      [WALL, wallH, HALF_WIDTH * 2],
-      'wall',
-      true
-    ),
+    ...backWall(wallY, wallH),
     // The partition between the shop and the back room, from the doorway
     // to the +Z wall, and the lintel over the doorway.
     box(
@@ -527,8 +698,16 @@ function buildSigns(): StoreSign[] {
     {
       name: 'sign-lift',
       art: 'lift',
-      center: [backX, 1.6, -3.4],
+      center: [backX, 1.6, -2.85],
       size: [0.6, 0.8],
+      yaw: Math.PI / 2,
+    },
+    // Over the back door, inside.
+    {
+      name: 'sign-exit',
+      art: 'exit',
+      center: [backX, 2.62, BACK_DOOR_OUT.z],
+      size: [0.5, 0.2],
       yaw: Math.PI / 2,
     },
     // On the -Z wall, between the back wall and the doorway.
@@ -570,9 +749,10 @@ function buildSigns(): StoreSign[] {
     {
       name: 'sign-wash-hands',
       art: 'wash-hands',
-      center: [BATH.sink.x + 0.75, 1.55, sideZ],
+      center: [BATH.sink.x + 0.75, 1.55, sideZ - 0.01],
       size: [0.4, 0.3],
       yaw: Math.PI,
+      dark: true,
     },
   ]
 }
@@ -666,9 +846,33 @@ export const STORE_LAYOUT = {
     z: 0,
     floor: FLOOR,
   },
-  // The bathroom wall's centreline, and the doorway through it.
-  bathroom: { z: BATH.z, door: [BATH_DOOR_X0, PARTITION] as const },
+  // The pad out back, from the back wall out to `back`, and the dumpster
+  // on it.
+  pad: { back: BACK - PAD.depth },
+  dumpster: DUMPSTER_SPOT,
+  // The bathroom wall's centreline, and the doorway through it; the
+  // laptop on its card table, and the room's inside (x0..x1 by z0..z1,
+  // station-local), where only the screen gives light.
+  bathroom: {
+    z: BATH.z,
+    door: [BATH_DOOR_X0, PARTITION] as const,
+    laptop: laptopSpot(),
+    inside: {
+      x0: BACK + WALL,
+      x1: PARTITION,
+      z0: BATH_INSIDE,
+      z1: HALF_WIDTH - WALL,
+    },
+  },
 } as const
+
+// Where E sits a raider down at the laptop at a station: its spot on the
+// card table, in the world.
+export function laptopAt(origin: StoreOrigin): XZ {
+  const { x, z } = STORE_LAYOUT.bathroom.laptop
+  const [wx, , wz] = toWorld(origin, [x, 0, z])
+  return { x: wx, z: wz }
+}
 
 // Where E opens the lockers at a station: in front of the middle of the
 // bank, in the world.
@@ -693,8 +897,8 @@ export function toWorld(origin: StoreOrigin, [lx, ly, lz]: Vec3): Vec3 {
 }
 
 // The height a station's store stands on: the lot height at the pump
-// island, or higher where the terrain under the footprint would poke
-// through the floor. `terrain` is the raw heightfield. Sampled every metre
+// island, or higher where the terrain under the footprint (the pad out
+// back included) would poke through the floor. `terrain` is the raw heightfield. Sampled every metre
 // or so, corners and edges included.
 export function storeBase(
   station: XZ & { yaw: number },
@@ -702,12 +906,13 @@ export function storeBase(
   terrain: HeightAt
 ): number {
   const origin: StoreOrigin = { ...station, y: 0 }
-  const nx = Math.ceil(FRONT - BACK)
+  const back = BACK - PAD.depth
+  const nx = Math.ceil(FRONT - back)
   const nz = Math.ceil(HALF_WIDTH * 2)
   let highest = -Infinity
   for (let i = 0; i <= nx; i++) {
     for (let j = 0; j <= nz; j++) {
-      const lx = BACK + ((FRONT - BACK) * i) / nx
+      const lx = back + ((FRONT - back) * i) / nx
       const lz = -HALF_WIDTH + (HALF_WIDTH * 2 * j) / nz
       const [x, , z] = toWorld(origin, [lx, 0, lz])
       highest = Math.max(highest, terrain(x, z))
@@ -736,6 +941,22 @@ export function insideStore(
   const p = toLocal(origin, x, z)
   return (
     p.x > BACK - margin &&
+    p.x < FRONT + margin &&
+    Math.abs(p.z) < HALF_WIDTH + margin
+  )
+}
+
+// Whether a world point stands on the store or the pad out back, or within
+// `margin` metres of them: what the trees keep off.
+export function onStoreGrounds(
+  origin: StoreOrigin,
+  x: number,
+  z: number,
+  margin = 0
+): boolean {
+  const p = toLocal(origin, x, z)
+  return (
+    p.x > BACK - PAD.depth - margin &&
     p.x < FRONT + margin &&
     Math.abs(p.z) < HALF_WIDTH + margin
   )
@@ -771,6 +992,15 @@ export function storeWalls(origin: StoreOrigin): WallSegment[] {
     const [ax, , az] = toWorld(origin, a)
     const [ex, , ez] = toWorld(origin, e)
     walls.push({ a: { x: ax, z: az }, b: { x: ex, z: ez }, half })
+  }
+  // The dumpster on the pad out back, its length along the wall.
+  {
+    const { x, z } = DUMPSTER_SPOT
+    const half = DUMPSTER_SIZE.width / 2
+    const reach = DUMPSTER_SIZE.length / 2 - half
+    const [ax, , az] = toWorld(origin, [x, 0, z - reach])
+    const [bx, , bz] = toWorld(origin, [x, 0, z + reach])
+    walls.push({ a: { x: ax, z: az }, b: { x: bx, z: bz }, half })
   }
   // The clerk: a zero-length wall is a disc.
   const [cx, , cz] = toWorld(origin, [CLERK.x, 0, CLERK.z])

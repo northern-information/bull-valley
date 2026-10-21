@@ -33,6 +33,7 @@ import type { Hud } from './hud.ts'
 import type { Interaction } from './interactions.ts'
 import type { Geo, Inventory, ShopStock } from './interfaces.ts'
 import type { ItemThumbs } from './itemthumbs.ts'
+import type { LaptopScreen } from './laptopdialog.ts'
 import type { Leg, TruckRoutes } from './marx.ts'
 import type { MistCards } from './mistcards.ts'
 import type { Music } from './musicrig.ts'
@@ -221,6 +222,9 @@ export interface GameState {
   // lockerOpen: the pack is open at the locker, with its Locker tab.
   stash: Inventory
   lockerOpen: boolean
+  // Rule 31: the laptop's screen while this raider sits at it, for the
+  // valley's answers; null otherwise.
+  laptop: LaptopScreen | null
   // Rule 23: the account's Cabbage Stand as the valley last sent it; null
   // before it has. And the last word on a change, for the stand's dialog.
   stand: StandLedger | null
@@ -311,6 +315,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     myCorpses: [],
     stash: {},
     lockerOpen: false,
+    laptop: null,
     stand: null,
     standSaid: null,
     citgos: NO_CITGOS,

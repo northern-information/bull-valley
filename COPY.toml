@@ -512,6 +512,7 @@ board = { text = "E — Climb into the Bed", by = "ai" }
 trade = { text = "E — Trade {count} oz of {price} for the {cosmetic}", by = "ai" }
 loot = { text = "E — Take Your Things Back", by = "ai" }
 locker = { text = "E — Open Your Locker", by = "ai" }
+laptop = { text = "E — Use the Laptop", by = "ai" }
 stand = { text = "E — Tend Your Stand", by = "ai" }
 locked = { text = "E — Locked", by = "ai" }
 lay = { text = "E — Lay the Rose", by = "ai" }
@@ -1303,3 +1304,56 @@ nothing_to_stow = { text = "Nothing on you to stow.", by = "ai" }
 hotbar = { text = "Put on the hotbar", by = "ai" }
 hotbar_pick = { text = "Tap a slot for {item}", by = "ai" }
 hotbar_saved = { text = "{item} on slot {slot}.", by = "ai" }
+
+# The laptop on the card table in the Citgo bathroom (src/laptop.ts,
+# src/laptopdialog.ts, src/laptopart.ts). Its readme is LAPTOP.TXT at the
+# repo root, kept as typed.
+[laptop]
+title = { text = "The Laptop", by = "ai" }
+readme_name = { text = "README.TXT", by = "ai" }
+menu = { text = " File  Edit  Search  View  Options  Help", by = "ai" }
+status = { text = " <Esc=Desktop>  <Ctrl+S=Save>      Line:{line}  Col:{col}", by = "ai" }
+save = { text = "Save", by = "ai" }
+close = { text = "Close", by = "ai" }
+hint = { text = "Ctrl+S Save · Esc Desktop", by = "ai" }
+caret = { text = "Line:{line}  Col:{col}", by = "ai" }
+read_only = { text = "READ ONLY", by = "ai" }
+loading = { text = "Loading…", by = "ai" }
+saving = { text = "Saving…", by = "ai" }
+saved = { text = "Saved.", by = "ai" }
+unsaved = { text = "Not saved. Esc again to throw it away.", by = "ai" }
+bad_name = { text = "A name is letters, digits, spaces, dots, dashes, underscores and brackets.", by = "ai" }
+offline = { text = "No signal. The files are kept by the valley.", by = "ai" }
+untitled = { text = "New Text Document.txt", by = "ai" }
+untitled_n = { text = "New Text Document ({n}).txt", by = "ai" }
+my_documents = { text = "My Documents", by = "ai" }
+documents = { text = "Documents and Settings", by = "ai" }
+start = { text = "start", by = "ai" }
+turn_off = { text = "Turn Off Computer", by = "ai" }
+new_file = { text = "New Text Document", by = "ai" }
+up = { text = "Up", by = "ai" }
+open = { text = "Open", by = "ai" }
+delete = { text = "Delete", by = "ai" }
+delete_confirm = { text = "Delete? Again", by = "ai" }
+address = { text = "Address", by = "ai" }
+root = { text = "C:\\Documents and Settings", by = "ai" }
+folder_path = { text = "C:\\Documents and Settings\\{owner}", by = "ai" }
+col_name = { text = "Name", by = "ai" }
+col_size = { text = "Size", by = "ai" }
+col_items = { text = "Items", by = "ai" }
+col_modified = { text = "Date Modified", by = "ai" }
+item = { text = "1 item", by = "ai" }
+items = { text = "{count} items", by = "ai" }
+kb = { text = "{kb} KB", by = "ai" }
+empty = { text = "This folder is empty.", by = "ai" }
+clock_am = { text = "{h}:{m} AM", by = "ai" }
+clock_pm = { text = "{h}:{m} PM", by = "ai" }
+
+[laptop.refused]
+not_yours = { text = "That file is not yours to change.", by = "ai" }
+name_taken = { text = "You already have a file by that name.", by = "ai" }
+too_many = { text = "Your folder is full. Delete one of your {count} files first.", by = "ai" }
+gone = { text = "That file is gone.", by = "ai" }
+too_fast = { text = "Slow down. The disk is still spinning.", by = "ai" }
+no_laptop = { text = "Sit down at the laptop first.", by = "ai" }
+other = { text = "The laptop could not do that.", by = "ai" }

@@ -7,6 +7,7 @@ import { USERNAME_MAX } from './account.ts'
 import { EMOTE_IDS } from './emotes.ts'
 import { isFallHeight } from './fall.ts'
 import { isHealth } from './health.ts'
+import { isFileBody, isFileId, isFileName } from './laptop.ts'
 import { isQuestStep } from './quests.ts'
 import { isWaterMap } from './waterside.ts'
 import type { CitgoLog } from './citgos.ts'
@@ -18,6 +19,7 @@ import type { ExpeditionOutcome, ExpeditionRun } from './expeditions.ts'
 import type { Hurt } from './fall.ts'
 import type { Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
+import type { LaptopFileInfo } from './laptop.ts'
 import type { TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
 import type { OutfitId } from './outfits.ts'
@@ -498,6 +500,32 @@ interface FriendsMessage {
   type: 'friends'
 }
 
+// Rule 31: the laptop in the Citgo bathroom. Its files listed (a
+// laptop-files frame answers), one file's text (laptop-file), a file
+// saved as `id` or, with null, as a new one (laptop-saved, then the
+// listing), or deleted (the listing). Only the writer's own are theirs to
+// save or delete; the valley checks.
+interface LaptopListMessage {
+  type: 'laptop-list'
+}
+
+interface LaptopReadMessage {
+  type: 'laptop-read'
+  id: string
+}
+
+interface LaptopSaveMessage {
+  type: 'laptop-save'
+  id: string | null
+  name: string
+  body: string
+}
+
+interface LaptopDeleteMessage {
+  type: 'laptop-delete'
+  id: string
+}
+
 // Gron changed this raider's character. The outfit is checked by the
 // server against the select's roster (characters.ts isSelectable), like
 // the hello's.
@@ -562,6 +590,10 @@ export type ClientMessage =
   | FriendMessage
   | UnfriendMessage
   | FriendsMessage
+  | LaptopListMessage
+  | LaptopReadMessage
+  | LaptopSaveMessage
+  | LaptopDeleteMessage
   | AppearanceMessage
   | RenameMessage
   | DevMessage
@@ -958,6 +990,28 @@ export type ServerMessage =
   | WhisperedMessage
   | FriendsListMessage
   | FriendNewsMessage
+  | LaptopFilesMessage
+  | LaptopFileMessage
+  | LaptopSavedMessage
+
+// Rule 31: every file on the laptop (none of their text), one file's
+// text, and the id a save was kept under.
+interface LaptopFilesMessage {
+  type: 'laptop-files'
+  files: LaptopFileInfo[]
+}
+
+interface LaptopFileMessage {
+  type: 'laptop-file'
+  id: string
+  body: string
+}
+
+interface LaptopSavedMessage {
+  type: 'laptop-saved'
+  id: string
+  name: string
+}
 
 // A whisper as the valley delivers it (rule 21), with its own clock: to
 // the raider it was for, and back to the sender's sockets with `outgoing`.
@@ -1349,6 +1403,15 @@ const CLIENT_PARSERS: ClientParsers = {
   portal: bare('portal'),
   rename: bare('rename'),
   friends: bare('friends'),
+  'laptop-list': bare('laptop-list'),
+  'laptop-read': ({ id }) =>
+    isFileId(id) ? { type: 'laptop-read', id } : null,
+  'laptop-save': ({ id, name, body }) =>
+    (id === null || isFileId(id)) && isFileName(name) && isFileBody(body)
+      ? { type: 'laptop-save', id, name, body }
+      : null,
+  'laptop-delete': ({ id }) =>
+    isFileId(id) ? { type: 'laptop-delete', id } : null,
   'stand-collect': bare('stand-collect'),
   'stand-upgrade': bare('stand-upgrade'),
   'expedition-claim': bare('expedition-claim'),

@@ -396,6 +396,22 @@ describe('resolveInteraction: bodies and lockers', () => {
     expect(resolveInteraction(input({ lockers: away }))).toBeNull()
   })
 
+  it('sits down at the laptop within reach, after a shelf in view', () => {
+    const laptops = [{ x: 251, z: 250, station: 3 }]
+    expect(resolveInteraction(input({ laptops }))).toEqual({
+      kind: 'laptop',
+      station: 3,
+    })
+    expect(
+      resolveInteraction(input({ laptops, shelf: { ...shelf, station: 3 } }))
+    ).toMatchObject({ kind: 'buy' })
+    const away = [{ x: 250 + CONFIG.laptop.reach + 0.1, z: 250, station: 3 }]
+    expect(resolveInteraction(input({ laptops: away }))).toBeNull()
+    expect(interactionPrompt({ kind: 'laptop', station: 3 })).toBe(
+      copy('prompts.laptop')
+    )
+  })
+
   it('opens your Cabbage Stand within its reach', () => {
     expect(resolveInteraction(input({ stand: { x: 251, z: 250 } }))).toEqual({
       kind: 'stand',

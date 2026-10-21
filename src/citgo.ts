@@ -1,13 +1,17 @@
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { paintAd } from './adart.ts'
 import {
   artTexture,
+  isMesh,
   lambert,
   makeGlowTexture,
   mergeStatic,
 } from './assetkit.ts'
+import { bathLit } from './bathglow.ts'
 import { canvas, context2d, SANS, text } from './canvas.ts'
 import { buildPickup } from './pickups.ts'
+import { buildDumpster } from './plazamodel.ts'
 import { applyPS1 } from './ps1.ts'
 import { CANOPY, STORE_LAYOUT } from './store.ts'
 import type { Part } from './assetkit.ts'
@@ -111,26 +115,25 @@ const STORE_FINISH: Record<StoreFinish, () => THREE.Material> = {
       emissiveIntensity: 0.5,
     }),
   // The bathroom: pale tile, white porcelain, a mirror that gives back
-  // nothing but a grey sheen, and the door in a cheap brown laminate.
-  tile: () =>
+  // nothing but a grey sheen, the door in a cheap brown laminate, the
+  // walls' own faces, and the card table's vinyl top on steel legs. All
+  // of it lit by the laptop's screen and nothing else (bathglow.ts).
+  tile: () => bathLit({ color: '#a9b0a6' }),
+  porcelain: () => bathLit({ color: '#e4e2da' }),
+  mirror: () => bathLit({ color: '#8f9ea3' }),
+  door: () => bathLit({ color: '#6b4e36' }),
+  lining: () => bathLit({ color: '#9a9b92' }),
+  table: () => bathLit({ color: '#2b2622' }),
+  steel: () => bathLit({ color: '#8a8d90' }),
+  // The back door, grey steel gone dull, and the concrete pad it opens
+  // onto.
+  backdoor: () =>
     lambert({
-      color: '#a9b0a6',
-      emissive: new THREE.Color('#33362f'),
+      color: '#6f7479',
+      emissive: new THREE.Color('#25282a'),
       emissiveIntensity: 0.5,
     }),
-  porcelain: () =>
-    lambert({
-      color: '#e4e2da',
-      emissive: new THREE.Color('#3c3b36'),
-      emissiveIntensity: 0.5,
-    }),
-  mirror: () => applyPS1(new THREE.MeshBasicMaterial({ color: '#8f9ea3' })),
-  door: () =>
-    lambert({
-      color: '#6b4e36',
-      emissive: new THREE.Color('#231a12'),
-      emissiveIntensity: 0.5,
-    }),
+  pad: () => lambert({ color: '#7d7b74' }),
   light: () => applyPS1(new THREE.MeshBasicMaterial({ color: '#eaf1ee' })),
   // Storefront glass: a cool tint you see the lot through. No depth write,
   // so the shelves and the pumps show through from either side.
@@ -173,13 +176,18 @@ export function adSignPart(sign: StoreSign): Part {
   const [w, h] = sign.size
   const geometry = new THREE.BoxGeometry(w, h, STORE_LAYOUT.signDepth)
   const texture = signTexture(sign)
-  const face = lambert({
-    map: texture,
-    emissive: new THREE.Color('#ffffff'),
-    emissiveMap: texture,
-    emissiveIntensity: 0.55,
-  })
-  const edge = lambert({ color: '#23262b' })
+  // In the bathroom only the screen lights it.
+  const face = sign.dark
+    ? bathLit({ map: texture })
+    : lambert({
+        map: texture,
+        emissive: new THREE.Color('#ffffff'),
+        emissiveMap: texture,
+        emissiveIntensity: 0.55,
+      })
+  const edge = sign.dark
+    ? bathLit({ color: '#23262b' })
+    : lambert({ color: '#23262b' })
   return {
     name: `store-${sign.name}`,
     geometry,
@@ -209,7 +217,37 @@ export function storeParts(): Part[] {
     part.geometry.translate(...sign.center)
     return part
   })
-  return [...boxes, ...signs]
+  return [...boxes, ...signs, ...dumpsterParts()]
+}
+
+// The dumpster on the pad out back (plazamodel.ts buildDumpster), its
+// meshes baked into station-local parts, one a material, so it instances
+// with the store.
+function dumpsterParts(): Part[] {
+  const { x, z, yaw } = STORE_LAYOUT.dumpster
+  const dumpster = buildDumpster()
+  dumpster.position.set(x, STORE_LAYOUT.floor, z)
+  dumpster.rotation.y = yaw
+  dumpster.updateMatrixWorld(true)
+  const byMaterial = new Map<THREE.Material, THREE.BufferGeometry[]>()
+  dumpster.traverse((node) => {
+    if (!isMesh(node) || Array.isArray(node.material)) return
+    const source = node.geometry.index
+      ? node.geometry.toNonIndexed()
+      : node.geometry.clone()
+    source.applyMatrix4(node.matrixWorld)
+    const part = new THREE.BufferGeometry()
+    part.setAttribute('position', source.getAttribute('position'))
+    part.setAttribute('normal', source.getAttribute('normal'))
+    const list = byMaterial.get(node.material) ?? []
+    list.push(part)
+    byMaterial.set(node.material, list)
+  })
+  return [...byMaterial].map(([material, geometries], i) => ({
+    name: `store-dumpster-${i}`,
+    geometry: mergeGeometries(geometries),
+    material,
+  }))
 }
 
 // One shelf unit: what the pack shows, without the halo.

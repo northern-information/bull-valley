@@ -59,7 +59,7 @@ import type {
 } from '../../src/protocol.ts'
 import type { QuestStage } from '../../src/quests.ts'
 import type { Placed } from '../../src/shadowstep.ts'
-import type { Valley, ValleyAction } from '../../src/sharedworld.ts'
+import type { LaptopRe, Valley, ValleyAction } from '../../src/sharedworld.ts'
 import type { StandLedger } from '../../src/stand.ts'
 import type { ShadowHit } from '../../src/wards.ts'
 
@@ -1650,6 +1650,58 @@ describe('rule 19: the stash', () => {
     })
     v.step({ type: 'board', id: 'a', at: HERE })
     expect(v.step(stow('a', at(0, 0))).reply).toMatchObject({
+      reason: 'aboard',
+    })
+  })
+})
+
+describe('rule 31: the laptop', () => {
+  const at = (x: number, z: number) => ({ x, z })
+  const dial: ValleyAction = {
+    type: 'dial',
+    id: 'p',
+    account: 'acct-p',
+    name: 'P',
+    outfit: 'coleman',
+    level: 3,
+  }
+  const laptop = (
+    id: string,
+    where: { x: number; z: number } | null,
+    re: LaptopRe = 'laptop-list'
+  ): ValleyAction => ({ type: 'laptop', id, re, at: where })
+
+  it('opens the files to the account at any Citgo, changing nothing', () => {
+    const v = valleyWith(join('a'))
+    const before = v.valley
+    const r = v.step(laptop('a', at(2000 - 15, 4), 'laptop-save'))
+    expect(r.reply).toBeUndefined()
+    expect(r.laptop).toEqual({ account: 'acct-a' })
+    expect(r.broadcast).toEqual([])
+    expect(r.valley.world?.pickups).toEqual(before.world?.pickups)
+  })
+
+  it('opens no laptop away from a Citgo, from the bed, dialed in or for a stranger', () => {
+    const v = valleyWith(join('a'), dial)
+    const far = CONFIG.laptop.stationReach + 1
+    expect(v.step(laptop('a', at(far, 0), 'laptop-read')).reply).toEqual({
+      type: 'nack',
+      re: 'laptop-read',
+      reason: 'no-laptop',
+    })
+    expect(v.step(laptop('a', null)).reply).toMatchObject({
+      reason: 'no-laptop',
+    })
+    expect(v.step(laptop('p', at(0, 0), 'laptop-delete')).reply).toEqual({
+      type: 'nack',
+      re: 'laptop-delete',
+      reason: 'dialup',
+    })
+    expect(v.step(laptop('nobody', at(0, 0))).reply).toMatchObject({
+      reason: 'not-in-valley',
+    })
+    v.step({ type: 'board', id: 'a', at: HERE })
+    expect(v.step(laptop('a', at(0, 0))).reply).toMatchObject({
       reason: 'aboard',
     })
   })

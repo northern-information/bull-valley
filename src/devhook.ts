@@ -100,6 +100,8 @@ interface BvHook {
   // What the account's locker holds, and whether the pack is open at it.
   readonly stash: Inventory
   readonly lockerOpen: boolean
+  // Sitting at the laptop in the Citgo bathroom (rule 31).
+  readonly laptopOpen: boolean
   // The account's Cabbage Stand as the valley last said (null before), and
   // where the stand stands.
   readonly stand: StandLedger | null
@@ -258,6 +260,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     },
     get lockerOpen() {
       return s.lockerOpen
+    },
+    get laptopOpen() {
+      return s.laptop !== null
     },
     get stand() {
       return s.stand

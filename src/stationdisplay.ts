@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import {
+  buildBathLaptop,
   buildLockerDoors,
   buildShelfDisplay,
   CANOPY,
@@ -7,7 +8,9 @@ import {
   FUEL_LAYOUT,
 } from './assets.ts'
 import { CONFIG } from './config.ts'
+import { copy } from './copy.ts'
 import { applyPose, buildFigure } from './figure.ts'
+import { README } from './laptopreadme.ts'
 import { samplePose } from './poses.ts'
 import { createSlurms } from './slurmrig.ts'
 import { onShelf, STORE_LAYOUT, storeCenter } from './store.ts'
@@ -127,6 +130,12 @@ export function buildShelves(
   display.add(slurms.group)
   const lockers = buildLockerDoors()
   display.add(lockers)
+  // The laptop on the bathroom's card table, the room's only light.
+  const laptop = buildBathLaptop(copy('laptop.readme_name'), README)
+  const seat = STORE_LAYOUT.bathroom.laptop
+  laptop.group.position.set(seat.x, seat.y, seat.z)
+  laptop.group.rotation.y = seat.yaw
+  display.add(laptop.group)
   castShadows(display)
   // The display and the lights park together at the nearest station.
   const lights = buildStationLights()
@@ -140,6 +149,7 @@ export function buildShelves(
     group,
     clerk: clerk.group,
     lockers,
+    laptop: laptop.group,
     unitFor(station, kind, unit) {
       if (station !== parked) return null
       const slot = slots.find(
@@ -162,9 +172,13 @@ export function buildShelves(
       lights.setOn(best >= 0)
       const at = best >= 0 ? points[best] : null
       const heard = slurms.update(best, at, seconds, { x, z }, feet)
-      if (!at) return heard
+      if (!at) {
+        laptop.update(seconds, false)
+        return heard
+      }
       group.position.set(at.x, at.y, at.z)
       group.rotation.set(0, -at.yaw, 0)
+      laptop.update(seconds)
       const stock = stocks[best] ?? {}
       for (const slot of slots) {
         const kind = facings[slot.facing].kind

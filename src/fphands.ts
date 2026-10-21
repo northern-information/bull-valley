@@ -11,6 +11,7 @@
 
 import * as THREE from 'three'
 import { buildFlashlight, buildPickup, meshBounds } from './assets.ts'
+import { setBathTorch } from './bathglow.ts'
 import { CONFIG } from './config.ts'
 import { buildForearm } from './figure.ts'
 import { GLOW_LAYER } from './glow.ts'
@@ -65,6 +66,8 @@ export class FirstPersonHands {
   private holder: THREE.Group
   private held: { kind: string; object: THREE.Object3D } | null = null
   private items = new Map<string, THREE.Object3D>()
+  private lens = new THREE.Vector3()
+  private aim = new THREE.Vector3()
 
   constructor(camera: THREE.Camera, outfitId: OutfitId) {
     this.group = new THREE.Group()
@@ -96,6 +99,12 @@ export class FirstPersonHands {
   update({ left, right, kind, on }: HandsFrame): void {
     this.flashlight.setOn(on)
     this.light.intensity = on ? CONFIG.flashlight.intensity : 0
+    // The bathroom takes no real light, so it is told where the beam is.
+    this.light.updateWorldMatrix(true, false)
+    this.light.target.updateWorldMatrix(true, false)
+    this.light.getWorldPosition(this.lens)
+    this.light.target.getWorldPosition(this.aim)
+    setBathTorch(this.lens, this.aim.sub(this.lens), on)
     place(this.left, LEFT, left)
     this.hold(right > 0 ? kind : null)
     place(this.right, RIGHT, right)

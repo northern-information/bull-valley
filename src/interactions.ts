@@ -85,6 +85,9 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // The lockers in the back room of station `station`: E opens the stash
   // (rule 19).
   | { kind: 'locker'; station: number }
+  // The laptop in the bathroom of station `station`: E sits down at it
+  // (rule 31).
+  | { kind: 'laptop'; station: number }
   // The Cabbage Stand: E opens this raider's own (rule 23).
   | { kind: 'stand' }
   // The squatter in Bull Valley Plaza: E opens what he is selling
@@ -139,6 +142,8 @@ export interface InteractionInput<P extends PickupSpot> {
   // locker banks; others' bodies are no one else's to loot.
   corpses?: readonly CorpseWire[]
   lockers?: readonly LockerSpot[]
+  // The laptop in the bathroom of the store the raider stands in.
+  laptops?: readonly LockerSpot[]
   // The Cabbage Stand's middle, or null.
   stand?: XZ | null
   // The squatter who deals in the plaza, or null.
@@ -161,7 +166,7 @@ export interface InteractionInput<P extends PickupSpot> {
 // nearest NPC in his reach, unless a shelf unit is in view; climb into the
 // truck standing still beside you, when it is yours to climb into; buy off
 // a shelf; take your things back off your nearest body; open the lockers;
-// tend the Cabbage Stand; deal with the squatter; take the nearest pickup
+// sit down at the laptop; tend the Cabbage Stand; deal with the squatter; take the nearest pickup
 // in reach of a locked door, or else rattle it; Gron or the nearest berry
 // bush, whichever is nearer; take the nearest pickup.
 export function resolveInteraction<P extends PickupSpot>(
@@ -215,6 +220,12 @@ export function resolveInteraction<P extends PickupSpot>(
     const d = Math.hypot(locker.x - player.x, locker.z - player.z)
     if (d < CONFIG.stash.reach) {
       return { kind: 'locker', station: locker.station }
+    }
+  }
+  for (const laptop of input.laptops ?? []) {
+    const d = Math.hypot(laptop.x - player.x, laptop.z - player.z)
+    if (d < CONFIG.laptop.reach) {
+      return { kind: 'laptop', station: laptop.station }
     }
   }
 
@@ -420,6 +431,8 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return copy('prompts.loot')
     case 'locker':
       return copy('prompts.locker')
+    case 'laptop':
+      return copy('prompts.laptop')
     case 'stand':
       return copy('prompts.stand')
     case 'deal':

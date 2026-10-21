@@ -41,6 +41,7 @@ import { spillsOf } from '../src/drops.ts'
 import { sameName, whereabouts } from '../src/friends.ts'
 import { burialsOf } from '../src/graves.ts'
 import { healsOf } from '../src/items.ts'
+import { listingFor, saveRefusal } from '../src/laptop.ts'
 import { levelOf, levelUp, totals } from '../src/progression.ts'
 import {
   CLOSE,
@@ -135,6 +136,10 @@ const CHAT_LIMIT: RateLimit = { count: 5, ms: 10_000 }
 // Friend requests and removals one socket may make in ten seconds.
 const FRIEND_LIMIT: RateLimit = { count: 5, ms: 10_000 }
 
+// The laptop's frames one socket may send in ten seconds (rule 31):
+// opening folders and files, and saving.
+const LAPTOP_LIMIT: RateLimit = { count: 20, ms: 10_000 }
+
 // Changes at Gron one socket may make in ten seconds; each one rebuilds a
 // figure for everyone, so the rest are nacked.
 const APPEARANCE_LIMIT: RateLimit = { count: 5, ms: 10_000 }
@@ -175,6 +180,7 @@ export class ValleyDO extends DurableObject<Env> {
   private chatRate = new WeakMap<WebSocket, RateWindow>()
   private appearanceRate = new WeakMap<WebSocket, RateWindow>()
   private friendRate = new WeakMap<WebSocket, RateWindow>()
+  private laptopRate = new WeakMap<WebSocket, RateWindow>()
   private dropRate = new WeakMap<WebSocket, RateWindow>()
   private discoverRate = new WeakMap<WebSocket, RateWindow>()
   // Rules 11 and 13, in memory only: gone whenever the object sleeps.
@@ -375,6 +381,12 @@ export class ValleyDO extends DurableObject<Env> {
         return
       case 'friends':
         if (account) await this.sendFriends(account)
+        return
+      case 'laptop-list':
+      case 'laptop-read':
+      case 'laptop-save':
+      case 'laptop-delete':
+        await this.laptop(ws, msg, id, at)
         return
       case 'appearance':
         await this.restyle(ws, attachment, me, msg.outfit)
@@ -1340,6 +1352,99 @@ export class ValleyDO extends DurableObject<Env> {
         ...line,
         outgoing: true,
       })
+    }
+  }
+
+  // Rule 31: the laptop's files, listed, read, saved or deleted. The
+  // reducer says whether the raider stands at a laptop; the files are
+  // D1's, written alone for the account so two saves never both pass the
+  // writer's count.
+  private async laptop(
+    ws: WebSocket,
+    msg: Extract<
+      ClientMessage,
+      {
+        type: 'laptop-list' | 'laptop-read' | 'laptop-save' | 'laptop-delete'
+      }
+    >,
+    id: string,
+    at: XZ | null
+  ): Promise<void> {
+    const re = msg.type
+    const refuse = (reason: string) => {
+      send(ws, { type: 'nack', re, reason })
+    }
+    if (!allow(this.laptopRate, ws, LAPTOP_LIMIT)) {
+      refuse('too-fast')
+      return
+    }
+    const reduced = reduce(
+      this.valley,
+      { type: 'laptop', id, re, at },
+      this.context()
+    )
+    if (reduced.reply) {
+      send(ws, reduced.reply)
+      return
+    }
+    const account = reduced.laptop?.account
+    if (!account) return
+    const accounts = this.accounts()
+    const list = async () => {
+      send(ws, {
+        type: 'laptop-files',
+        files: listingFor(await accounts.laptopFiles(), account),
+      })
+    }
+    try {
+      switch (msg.type) {
+        case 'laptop-list':
+          await list()
+          return
+        case 'laptop-read': {
+          const body = await accounts.laptopBody(msg.id)
+          if (body === null) refuse('gone')
+          else send(ws, { type: 'laptop-file', id: msg.id, body })
+          return
+        }
+        case 'laptop-delete':
+          await this.forAccount(account, async () => {
+            if (!(await accounts.deleteLaptopFile(account, msg.id))) {
+              refuse('not-yours')
+            }
+          })
+          await list()
+          return
+        case 'laptop-save': {
+          const saved = await this.forAccount(account, async () => {
+            const own = (await accounts.laptopFiles()).filter(
+              (f) => f.account === account
+            )
+            const why = saveRefusal(own, msg.id, msg.name)
+            if (why) {
+              refuse(why)
+              return null
+            }
+            const kept = await accounts.saveLaptopFile(
+              account,
+              msg.id,
+              crypto.randomUUID().replaceAll('-', ''),
+              msg.name,
+              msg.body,
+              Date.now()
+            )
+            if (!kept) refuse('name-taken')
+            return kept
+          })
+          if (saved)
+            send(ws, { type: 'laptop-saved', id: saved, name: msg.name })
+          await list()
+          return
+        }
+      }
+    } catch (err) {
+      console.error('The laptop could not be read or written', err)
+      refuse('unavailable')
     }
   }
 
