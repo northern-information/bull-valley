@@ -14,10 +14,19 @@ import { dayKey } from './daily.ts'
 import { onDay, shownCount } from './dailytask.ts'
 import { EMOTES, holds } from './emotes.ts'
 import { hurts } from './fall.ts'
+import { havenNews } from './fireflies.ts'
 import { BOX_ROD, inPond, jarRoom, nearestLanding, rodIn } from './fishing.ts'
 import { ease, stepHand, useLift, useSeconds } from './hands.ts'
 import { shakeAt } from './health.ts'
-import { baitFor, inHand, toolOf } from './held.ts'
+import {
+  baitFor,
+  CAST,
+  castPose,
+  inHand,
+  SCOOP,
+  scoopPose,
+  toolOf,
+} from './held.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
 import {
   dailyStatus,
@@ -312,10 +321,11 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   }
 
   // The hands: the selected slot's tool raised (held.ts), the flashlight
-  // lit once it is all the way up, a jar or a rod held up in its place,
-  // and the item just used brought up once. A new tool comes up from
-  // below, the flashlight dark, and a line out goes with the rod. Says
-  // whether the flashlight is lit.
+  // lit once it is all the way up, a jar or a rod held up in its place
+  // (the jar scooping on a click, the rod casting), and the item just
+  // used brought up once. A new tool comes up from below, the flashlight
+  // dark, and a line out goes with the rod. Says whether the flashlight
+  // is lit.
   const raiseHands = ({ dt, time }: FrameClock): boolean => {
     const held = toolOf(inHand(s.hotbar, s.selected, s.inventory))
     if (held !== s.held) {
@@ -328,8 +338,28 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     const lit =
       s.held === 'flashlight' && s.flashlight.up && s.flashlight.lift >= 1
     const using = s.using ? useLift(s.using.at, time) : 0
+    // The rod's cast, played out once and done with.
+    if (
+      s.castAt !== null &&
+      (s.held !== 'rod' || time - s.castAt >= CAST.lands)
+    ) {
+      // The bobber down on the water, with a line out to land it on.
+      if (s.held === 'rod' && (s.line || s.pending.fish)) {
+        game.sfx?.play('bobber-plop')
+      }
+      s.castAt = null
+    }
+    // The jar's scoop, played out once and done with.
+    if (
+      s.scoopAt !== null &&
+      (s.held !== 'jar' || time - s.scoopAt >= SCOOP.settle)
+    ) {
+      s.scoopAt = null
+    }
     hands.update({
       left: ease(s.flashlight.lift),
+      cast: s.castAt === null ? 0 : castPose(time - s.castAt).tilt,
+      scoop: scoopPose(s.scoopAt === null ? -1 : time - s.scoopAt),
       held:
         s.held === 'rod' ? (rodIn(s.inventory) ?? BOX_ROD) : (s.held ?? 'none'),
       right: ease(using),
@@ -468,13 +498,25 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     // at (fishing.ts).
     for (const pond of world.ponds) {
       if (!live(pond.place, pond.place.radius)) continue
-      const line = inPond([pond.place], player.pos) ? s.line : null
+      // The bobber is on the water once the cast has flown.
+      const line =
+        inPond([pond.place], player.pos) && s.castAt === null ? s.line : null
       pond.setLine(
         line !== null,
         line?.hook != null && performance.now() >= line.bitesAt
       )
-      pond.update(time)
+      pond.update(time, net.clock.serverNow(now) / 1000)
     }
+    // Into a pond's firefly haven, or out of it, the log says so; not
+    // until the welcome has put the raider where they stand.
+    const sheltered = inPond(
+      world.ponds.map((pond) => pond.place),
+      player.pos
+    )
+    const news = havenNews(s.placed ? s.inFireflies : null, sheltered)
+    if (news)
+      hud.tell(copy(news === 'in' ? 'log.fireflies_in' : 'log.fireflies_out'))
+    s.inFireflies = s.placed ? sheltered : null
     // The dishes slew on the valley's clock, so every raider sees them
     // look the same way.
     const dishes = world.dishes
@@ -522,8 +564,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       .map((m) => m.name)
       .filter((name) => name !== game.pick.username)
 
-  // The map, while it is open: where you stand, your Citgos, and your
-  // party.
+  // The map, while it is open: where you stand, your Citgos, your party,
+  // and your waypoints.
   const drawMap = () => {
     if (s.mapOpen) {
       hud.map?.draw({
@@ -531,6 +573,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         log: s.citgos,
         here: s.aboard ? null : citgoAt(player.pos, world.fuelPoints),
         party: peers.placed(partyMates()),
+        marks: s.waypoints,
       })
     }
   }
@@ -596,9 +639,14 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     return tick
   }
 
-  // The countdown, the hotbar, geometrie and the buffs, the tracker's
-  // rows, and the chat log.
+  // The compass, the countdown, the hotbar, geometrie and the buffs, the
+  // tracker's rows, and the chat log.
   const stepHud = ({ now, time }: FrameClock) => {
+    hud.compass.set({
+      me: { x: player.pos.x, z: player.pos.z, yaw: player.yaw },
+      waypoints: s.waypoints,
+      party: peers.placed(partyMates()),
+    })
     hud.setCountdown(countdownLine(now))
 
     hud.setHotbar(

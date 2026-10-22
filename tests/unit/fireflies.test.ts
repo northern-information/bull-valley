@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { FIREFLY, fireflyAt, fireflyField } from '../../src/fireflies.ts'
+import {
+  FIREFLY,
+  fireflyAt,
+  fireflyField,
+  havenNews,
+} from '../../src/fireflies.ts'
 
 const CENTRE = { x: 120, z: -40 }
 const RADIUS = 30
@@ -81,5 +86,17 @@ describe('fireflies', () => {
       const b = fireflyAt(fly, 10.1)
       expect(Math.hypot(b.x - a.x, b.z - a.z)).toBeLessThan(0.15)
     }
+  })
+})
+
+describe('havenNews', () => {
+  it('says the crossing, either way, and nothing else', () => {
+    expect(havenNews(false, true)).toBe('in')
+    expect(havenNews(true, false)).toBe('out')
+    expect(havenNews(true, true)).toBeNull()
+    expect(havenNews(false, false)).toBeNull()
+    // The first reading is never a crossing.
+    expect(havenNews(null, true)).toBeNull()
+    expect(havenNews(null, false)).toBeNull()
   })
 })

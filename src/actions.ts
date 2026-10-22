@@ -105,6 +105,7 @@ import type {
   PeerWire,
   WardLevels,
 } from './protocol.ts'
+import type { Waypoints } from './waypoints.ts'
 import type { Pickup } from './world.ts'
 
 // The valley's word on a touch (a struck frame): what it took, what the
@@ -220,6 +221,11 @@ export interface Actions {
   // The account's Citgos as the valley says (the welcome, a citgos frame):
   // a new one is said, unless `quiet` or before Begin.
   applyCitgos(log: CitgoLog, quiet?: boolean): void
+  // Rule 37: the account's waypoints as the valley says (the welcome, a
+  // waypoints frame): drawn on the map and the compass, a pillar at each;
+  // and a pin the valley would not take yet.
+  applyWaypoints(points: Waypoints): void
+  waypointsRefused(): void
   // M: the map, over the valley with the pointer free; relock as
   // closeBook's.
   openMap(): void
@@ -241,7 +247,7 @@ export interface Actions {
   // The welcome's pack: a bar from before the kit was things gets it
   // (hotbar.ts seedKit).
   seedKit(): void
-  // A gift the valley gave (sharedworld.ts rule 37): said, and put on the
+  // A gift the valley gave (sharedworld.ts rule 38): said, and put on the
   // bar.
   gifted(kind: string): void
   // A kind newly in the pack that the hand has a use for: onto the first
@@ -731,6 +737,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // The line the click cast: the fish reeled in or let go, and the line
   // that came up empty, as the fight over the view plays it (fishhud.ts).
   game.fishHud.onReel = (landed) => askFish({ type: 'reel', landed })
+  game.fishHud.onSound = (id) => game.sfx?.play(id)
   game.fishHud.onEmpty = (said) => {
     s.line = null
     s.fishSaid = said
@@ -755,7 +762,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         said: () => s.fishSaid,
         serverNow: () => net.clock.serverNow(performance.now()),
         onTackle: () => askFish({ type: 'tackle' }),
-        onDig: () => askFish({ type: 'dig' }),
+        onDig: () => {
+          game.sfx?.play('dig')
+          askFish({ type: 'dig' })
+        },
         onBait: (bait) => {
           s.bait = bait
         },
@@ -782,14 +792,18 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       hud.tell(copy('log.fish_no_bait'))
       return
     }
-    // The raider stands to the line.
+    // The raider stands to the line, and the rod swings.
     player.keys.clear()
+    s.castAt = s.time
+    game.sfx?.play('rod-cast')
     askFish({ type: 'cast', bait })
   }
 
-  // The click with the jar in hand: the slurm it is aimed at, if any in
-  // reach (rule 36). The valley says whether it was still there to catch.
+  // The click with the jar in hand: a scoop, and the slurm it is aimed
+  // at, if any in reach (rule 36). The valley says whether it was still
+  // there to catch.
   const jarSlurm = () => {
+    if (s.scoopAt === null) s.scoopAt = s.time
     const aim = s.interaction
     if (aim?.kind !== 'jar-slurm' || s.pending.jar) return
     s.pending.jar = true
@@ -835,7 +849,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   const shelveKind = (kind: string) => keepHotbar(shelve(s.hotbar, kind))
 
-  // Rule 37: Marx's whistle, given the first time we meet him.
+  // Rule 38: Marx's whistle, given the first time we meet him.
   const gifted = (kind: string) => {
     if (kind !== 'marx-whistle') return
     npcSays('marx', copy('marx.whistle_gift'))
@@ -1322,7 +1336,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       case 'fish':
         fish()
         return
-      // The click's, with the jar or the rod in hand (useHeld).
+      // The click's, with the jar or the rod in hand (useHand).
       case 'jar-slurm':
       case 'cast':
         return
@@ -1667,9 +1681,27 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     closeMap(true)
     hud.tell(copy('log.travel', { citgo: citgoLabel(station) }))
   }
+  // --- Rule 37: waypoints -------------------------------------------------
+
+  const applyWaypoints = (points: Waypoints) => {
+    s.waypoints = points
+    game.pillars.sync(points)
+  }
+
+  // A pin placed or lifted on the map: the valley keeps them, and its
+  // answer draws them. Offline there is no valley, and they last the
+  // session.
+  const markWaypoints = (points: Waypoints) => {
+    if (net.online) net.send({ type: 'waypoints', points: [...points] })
+    else applyWaypoints(points)
+  }
+
+  const waypointsRefused = () => hud.tell(copy('log.waypoints_refused'))
+
   if (hud.map) {
     hud.map.onTravel = fastTravel
     hud.map.onCharter = (to) => endCharter(to)
+    hud.map.onMark = markWaypoints
   }
 
   const say = (typed: string) => {
@@ -1731,6 +1763,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     portalRefused,
     tendPortals,
     applyCitgos,
+    applyWaypoints,
+    waypointsRefused,
     openMap,
     closeMap,
     fastTravel,

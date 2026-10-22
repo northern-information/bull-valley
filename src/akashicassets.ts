@@ -41,7 +41,15 @@ import { buildDishArray } from './dishes.ts'
 import { buildDrink } from './drinkmodels.ts'
 import { buildTyler } from './figure.ts'
 import { buildFireRoots, buildRaincloud } from './fire.ts'
-import { buildBobber, buildRackRod, buildTackleBox } from './fishmodels.ts'
+import {
+  buildBobber,
+  buildOilLantern,
+  buildPicnicTable,
+  buildProppedRod,
+  buildRackRod,
+  buildStringer,
+  buildTackleBox,
+} from './fishmodels.ts'
 import { itemLabel } from './itemcopy.ts'
 import { ITEMS } from './items.ts'
 import { buildJeep, buildRadarDish } from './jeep.ts'
@@ -83,6 +91,7 @@ import { applyPS1 } from './ps1.ts'
 import { mulberry32, range } from './rng.ts'
 import {
   buildLandmarkBeacon,
+  buildWaypointPillar,
   gravestonePart,
   POLE_ARM_DROP,
   POLE_INSULATOR_X,
@@ -392,6 +401,11 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     label: "Beacon: Mt. Coleman's Keep",
     build: () => buildLandmarkBeacon('#e879f9'),
   },
+  {
+    id: 'waypoint-pillar',
+    label: 'Waypoint pillar',
+    build: buildWaypointPillar,
+  },
   { id: 'cabbage', label: 'Cabbage', build: () => buildPickup('cabbage') },
   ...ITEMS.filter((item) => item.category === 'cigarette').map((item) => ({
     id: `pack-${item.id}`,
@@ -473,6 +487,22 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     build: () => buildPickup('nightcrawlers'),
   },
   { id: 'tackle-box', label: 'Tackle box', build: () => buildTackleBox() },
+  {
+    id: 'picnic-table',
+    label: 'Picnic table',
+    build: () => buildPicnicTable(),
+  },
+  { id: 'stringer', label: 'Stringer of fish', build: () => buildStringer() },
+  {
+    id: 'propped-rod',
+    label: 'Rod propped on the bank',
+    build: () => buildProppedRod('zebco-33').group,
+  },
+  {
+    id: 'oil-lantern',
+    label: 'Oil lantern',
+    build: () => buildOilLantern().group,
+  },
   { id: 'bobber', label: 'Bobber', build: () => buildBobber() },
   {
     id: 'tombstone',

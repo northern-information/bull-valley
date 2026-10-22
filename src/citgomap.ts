@@ -4,18 +4,22 @@
 // among them, and each of their party (sharedworld.ts rule 34) a named
 // arrow of its own. Clicking a visited Citgo fast travels there (actions.ts,
 // citgos.ts fastTravel). Opened for a charter (the first one into Marx's
-// bed, marx.ts charter), a click anywhere picks where he drives instead. It opens over the valley with the pointer free, as
-// the Book of Shadows does; hud.ts builds it, loop.ts draws it each frame
-// while it is open.
+// bed, marx.ts charter), a click anywhere picks where he drives instead.
+// Otherwise a click anywhere else pins a waypoint there (waypoints.ts,
+// sharedworld.ts rule 37), and a click on a pin lifts it. It opens over
+// the valley with the pointer free, as the Book of Shadows does; hud.ts
+// builds it, loop.ts draws it each frame while it is open.
 
 import { context2d, EGGSHELL, MONO } from './canvas.ts'
 import { roadNameNear, surveyedStations } from './citgos.ts'
 import { unitToWorld } from './coords.ts'
 import { copy } from './copy.ts'
 import { el } from './dom.ts'
+import { liftWaypoint, placeWaypoint, WAYPOINT_MAX } from './waypoints.ts'
 import type { CitgoLog, MapRoad } from './citgos.ts'
 import type { Facing } from './drops.ts'
 import type { Geo, Metres, XZ } from './interfaces.ts'
+import type { Waypoints } from './waypoints.ts'
 
 // One Citgo on the map: where its pump island stands, and what it is
 // called there.
@@ -25,12 +29,14 @@ interface MapCitgo extends XZ {
 
 // What one frame of the open map shows: where the raider stands and faces,
 // their Citgos, the one they stand at (null: out in the valley), and
-// where each of their party placed in the valley stands and faces.
+// where each of their party placed in the valley stands and faces, and
+// their waypoints.
 interface MapFrame {
   me: Facing
   log: CitgoLog
   here: number | null
   party?: readonly (Facing & { name: string })[]
+  marks?: Waypoints
 }
 
 // The canvas, square, in its own pixels; CSS sizes it.
@@ -40,6 +46,7 @@ const PICK = 14
 const CITGO = '#ff4a1c'
 const RAIDER = '#60a5fa'
 const PARTY = '#22d3ee'
+const PIN = '#f0ead6'
 const ROAD = 'rgba(240, 234, 214, 0.22)'
 const UNVISITED = 'rgba(240, 234, 214, 0.45)'
 // How near a Citgo a point is still called after it.
@@ -51,9 +58,13 @@ export class CitgoMap {
   onTravel?: (station: number) => void
   // Opened for a charter, a point clicked: actions.ts has Marx drive there.
   onCharter?: (to: XZ) => void
+  // A pin placed or lifted: every waypoint as it should now stand, for
+  // actions.ts to send the valley.
+  onMark?: (marks: Waypoints) => void
   private readonly canvas: HTMLCanvasElement
   private readonly ctx: CanvasRenderingContext2D
   private readonly count: HTMLElement
+  private readonly pinCount: HTMLElement
   private readonly last: HTMLElement
   private readonly hint: HTMLElement
   private readonly citgos: readonly MapCitgo[]
@@ -66,6 +77,9 @@ export class CitgoMap {
   // point under the pointer while it does.
   private charter = false
   private pointer: XZ | null = null
+  // The waypoints as last drawn, and the one under the pointer.
+  private marks: Waypoints = []
+  private hoveredPin: number | null = null
 
   constructor(
     ui: HTMLElement,
@@ -89,7 +103,12 @@ export class CitgoMap {
     this.root.hidden = true
     const head = el('header', 'bv-map-head')
     this.count = el('p', 'bv-map-count')
-    head.append(el('h2', 'bv-map-title', copy('map.title')), this.count)
+    this.pinCount = el('p', 'bv-map-count')
+    head.append(
+      el('h2', 'bv-map-title', copy('map.title')),
+      this.count,
+      this.pinCount
+    )
     this.canvas = el('canvas', 'bv-map-canvas')
     this.canvas.width = SIZE
     this.canvas.height = SIZE
@@ -103,15 +122,16 @@ export class CitgoMap {
 
     this.canvas.addEventListener('mousemove', (e) => {
       this.hovered = this.pick(e)
+      this.hoveredPin = this.charter ? null : this.pickPin(e)
       this.pointer = this.charter ? this.toWorld(e) : null
-      this.canvas.style.cursor = this.charter
-        ? 'crosshair'
-        : this.hovered === null
-          ? ''
+      this.canvas.style.cursor =
+        this.charter || (this.hovered === null && this.hoveredPin === null)
+          ? 'crosshair'
           : 'pointer'
     })
     this.canvas.addEventListener('mouseleave', () => {
       this.hovered = null
+      this.hoveredPin = null
       this.pointer = null
     })
     this.canvas.addEventListener('click', (e) => {
@@ -123,6 +143,15 @@ export class CitgoMap {
         if (to) this.onCharter?.({ x: to.x, z: to.z })
       } else if (station !== null) {
         this.onTravel?.(station)
+      } else {
+        const pin = this.pickPin(e)
+        if (pin !== null) {
+          this.hoveredPin = null
+          this.onMark?.(liftWaypoint(this.marks, pin))
+        } else {
+          const at = this.toWorld(e)
+          if (at) this.onMark?.(placeWaypoint(this.marks, at))
+        }
       }
     })
   }
@@ -155,6 +184,7 @@ export class CitgoMap {
     this.root.classList.toggle('bv-map--charter', this.charter)
     if (!show) {
       this.hovered = null
+      this.hoveredPin = null
       this.pointer = null
     }
     return show
@@ -178,6 +208,17 @@ export class CitgoMap {
 
   // The Citgo under the pointer, or null.
   private pick(e: MouseEvent): number | null {
+    return this.nearest(e, this.citgos)
+  }
+
+  // The waypoint under the pointer, or null.
+  private pickPin(e: MouseEvent): number | null {
+    return this.nearest(e, this.marks)
+  }
+
+  // The one of `points` within PICK of the pointer and nearest it, or
+  // null.
+  private nearest(e: MouseEvent, points: readonly XZ[]): number | null {
     const box = this.canvas.getBoundingClientRect()
     if (box.width === 0) return null
     const k = SIZE / box.width
@@ -185,7 +226,7 @@ export class CitgoMap {
     const py = (e.clientY - box.top) * k
     let best: number | null = null
     let bestD = PICK * k
-    this.citgos.forEach((c, i) => {
+    points.forEach((c, i) => {
       const { x, y } = this.toCanvas(c)
       const d = Math.hypot(px - x, py - y)
       if (d <= bestD) {
@@ -236,7 +277,11 @@ export class CitgoMap {
     ctx.restore()
   }
 
-  draw({ me, log, here, party = [] }: MapFrame): void {
+  draw({ me, log, here, party = [], marks = [] }: MapFrame): void {
+    this.marks = marks
+    if (this.hoveredPin !== null && this.hoveredPin >= marks.length) {
+      this.hoveredPin = null
+    }
     const ctx = this.ctx
     ctx.clearRect(0, 0, SIZE, SIZE)
     ctx.drawImage(this.roadLayer(), 0, 0)
@@ -266,6 +311,26 @@ export class CitgoMap {
         ctx.fillText(c.label, x, y - 14)
       }
     })
+    // The waypoints: numbered diamonds, the hovered one named.
+    marks.forEach((mark, i) => {
+      const { x, y } = this.toCanvas(mark)
+      ctx.fillStyle = PIN
+      ctx.beginPath()
+      ctx.moveTo(x, y - 7)
+      ctx.lineTo(x + 6, y)
+      ctx.lineTo(x, y + 7)
+      ctx.lineTo(x - 6, y)
+      ctx.closePath()
+      ctx.fill()
+      ctx.fillText(
+        i === this.hoveredPin
+          ? copy('map.pin', { n: i + 1, place: this.placeOf(mark) })
+          : String(i + 1),
+        x,
+        y - 10
+      )
+    })
+    this.canvas.dataset.pins = String(marks.length)
     // The party, each named, under the raider's own arrow.
     for (const mate of party) {
       const at = this.toCanvas(mate)
@@ -299,6 +364,10 @@ export class CitgoMap {
     this.count.textContent = copy('map.visited', {
       count: log.visited.length,
       total: this.citgos.length,
+    })
+    this.pinCount.textContent = copy('map.pins', {
+      count: marks.length,
+      max: WAYPOINT_MAX,
     })
     const last = log.last === null ? null : this.citgos[log.last]
     this.last.textContent = last

@@ -8,7 +8,7 @@ import {
 import { buildFlashlight } from './props.ts'
 import type { PickupOptions } from './assetkit.ts'
 
-// What every raider carries (sharedworld.ts rule 37), as the pack, the
+// What every raider carries (sharedworld.ts rule 38), as the pack, the
 // hotbar and the hand show it: the flashlight lying down, the Citgo
 // phone, and Matthew Marx's whistle, an old brass police whistle on a
 // waxed cord. Origin at ground level under the middle, real sizes in

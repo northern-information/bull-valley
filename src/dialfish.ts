@@ -16,10 +16,12 @@ import { el, text } from './dom.ts'
 import { BAITS, rodIn, skillText, warned } from './fishing.ts'
 import { baitName, feelingLine, hookLine } from './fishlines.ts'
 import { FishPlay } from './fishplay.ts'
+import { CAST } from './held.ts'
 import { itemLabel } from './itemcopy.ts'
 import type { DialState } from './dialstate.ts'
 import type { Bait } from './fishing.ts'
 import type { PondLine } from './pondview.ts'
+import type { SfxId } from './sfx.ts'
 
 export interface FishActions {
   tackle(): void
@@ -28,6 +30,8 @@ export interface FishActions {
   reel(landed: boolean): void
   // The line came up empty, with what to say.
   empty(said: string): void
+  // A sound of fishing (sfx.ts), heard in the head.
+  sound(id: SfxId): void
 }
 
 // How often the fight steps and the sheet is redrawn while it is open.
@@ -52,6 +56,10 @@ export class DialFish {
   private drawn = ''
   private actions: FishActions
   private serverNow: () => number
+  // When the line went out (performance.now()), and whether its bobber
+  // has landed yet.
+  private outAt: number | null = null
+  private landed = false
   // Told what the line is doing every tick, for the pond view.
   onLine: (line: PondLine) => void = () => {}
 
@@ -61,6 +69,7 @@ export class DialFish {
     this.play = new FishPlay({
       reel: (landed) => actions.reel(landed),
       empty: (said) => actions.empty(said),
+      sound: (id) => actions.sound(id),
     })
     this.canvas.className = 'bv-dial-pond-canvas'
     this.canvas.setAttribute('role', 'img')
@@ -116,6 +125,16 @@ export class DialFish {
           rod: rod ? itemLabel(rod) : copy('dialup.fish.no_rod'),
         })
       : copy('fishing.reading')
+
+    // The bobber lands on the water as the cast the pond view plays does.
+    const out = phase !== 'none' && phase !== 'done'
+    if (!out) this.outAt = null
+    else if (this.outAt === null) this.outAt = now
+    else if (!this.landed && now - this.outAt >= CAST.lands * 1000) {
+      this.landed = true
+      this.actions.sound('bobber-plop')
+    }
+    if (!out) this.landed = false
 
     const arrow = this.play.arrow
     this.onLine(
@@ -229,7 +248,10 @@ export class DialFish {
         ...BAITS.map((bait) =>
           button(
             copy('fishing.cast_with', { bait: baitName(bait) }),
-            () => this.actions.cast(bait),
+            () => {
+              this.actions.sound('rod-cast')
+              this.actions.cast(bait)
+            },
             {
               hot: true,
               off: busy || tired || (s.pack[bait] ?? 0) < 1,
@@ -241,7 +263,10 @@ export class DialFish {
           digIn > 0
             ? copy('fishing.dig_wait', { seconds: digIn })
             : copy('fishing.dig'),
-          () => this.actions.dig(),
+          () => {
+            this.actions.sound('dig')
+            this.actions.dig()
+          },
           { off: busy || digIn > 0, key: 'dig' }
         ),
       ]

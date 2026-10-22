@@ -3,6 +3,7 @@ import { copy } from '../../src/copy.ts'
 import { fightOf, quickestMs } from '../../src/fishing.ts'
 import { FishPlay } from '../../src/fishplay.ts'
 import type { LineOut } from '../../src/fishing.ts'
+import type { FishSound } from '../../src/fishplay.ts'
 
 const fight = fightOf('bluegill', 0)
 const hooked = (bitesAt = 1000): LineOut => ({
@@ -10,15 +11,17 @@ const hooked = (bitesAt = 1000): LineOut => ({
   bitesAt,
 })
 
-// A player and what it said: every reel, and every empty line.
+// A player and what it said: every reel, every empty line, every sound.
 function player() {
   const reels: boolean[] = []
   const empties: string[] = []
+  const sounds: FishSound[] = []
   const play = new FishPlay({
     reel: (landed) => reels.push(landed),
     empty: (said) => empties.push(said),
+    sound: (id) => sounds.push(id),
   })
-  return { play, reels, empties }
+  return { play, reels, empties, sounds }
 }
 
 describe('playing the line', () => {
@@ -69,6 +72,43 @@ describe('playing the line', () => {
     play.reelIn()
     expect(reels).toEqual([true])
     expect(play.phase(now)).toBe('done')
+  })
+
+  it('sounds the bite once, a crank for each answer, and the reel in', () => {
+    const { play, sounds } = player()
+    const line = hooked()
+    let now = 0
+    play.step(line, now)
+    let presses = 0
+    while (play.phase(now) !== 'spent') {
+      now += 20
+      play.step(line, now)
+      const arrow = play.arrow
+      if (arrow) {
+        play.press(arrow.dir)
+        presses++
+      }
+    }
+    play.reelIn()
+    expect(sounds).toEqual([
+      'fish-bite',
+      ...Array<FishSound>(presses).fill('reel-click'),
+      'reel-in',
+    ])
+  })
+
+  it('sounds nothing for an empty line, and the snap when time runs out', () => {
+    const empty = player()
+    const nothing: LineOut = { hook: null, bitesAt: 100 }
+    empty.play.step(nothing, 0)
+    empty.play.step(nothing, 200)
+    expect(empty.sounds).toEqual([])
+    const { play, sounds } = player()
+    const line = hooked(0)
+    let now = 0
+    play.step(line, now)
+    while (play.phase(now) !== 'done') play.step(line, (now += 200))
+    expect(sounds).toEqual(['fish-bite', 'line-snap'])
   })
 
   it('never reels in a fish not yet spent, and lets one go on giving up', () => {

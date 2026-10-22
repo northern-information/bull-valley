@@ -15,3 +15,4 @@
 - `npm run copy:ai` — list the lines in `COPY.toml` still marked `by = "ai"`
 - `npm run images` — regenerate `public/favicon.ico` and `public/apple-touch-icon.png` from `public/favicon.svg`, and the link-preview card `public/og.png` from the logo (needs ImageMagick 7, `brew install imagemagick`)
 - `package.json` `overrides` pins `sharp` to 0.35.5 under miniflare, which pins 0.35.4, the release with the librsvg CVE. Drop the override once miniflare's own pin is 0.35.5 or later (`npm ls sharp` shows which it takes)
+- Claude Code cloud sessions run `.claude/hooks/session-start.sh` at start (registered in `.claude/settings.json`; it does nothing off the cloud): `npm install`, `npm run types`, `npm run db:migrate`, and `npx playwright install chromium`, since the container's preinstalled browsers are built for an older Playwright than the pinned one. The rest of `.claude/` stays gitignored

@@ -56,7 +56,8 @@
 //    where it was (drops.ts dimesFor), lying like any drop (rule 12);
 //    dimes taken up are cash, into the taker's wallet (Reduced.earn), never
 //    the pack. Among them come the shadow spiders, twice the height, far
-//    more often near the water the world was opened with (waterside.ts),
+//    more often near the lairs the world was opened with (lairs.ts: the
+//    dish array, Castle Entropy, Bull Valley Plaza),
 //    twice as long to burn, and each leaves a $20 bill, cash the same way.
 //    Marx's headlights burn them too, crediting no one: the valley never
 //    knows the roads, so it aims them from where a raider near the truck
@@ -330,7 +331,13 @@
 //    (Valley.jarred), into the pack (`jar-slurm`; ValleyContext.holdings
 //    in), and everyone hears it is off the lot (Reduced.jarred). Dialed
 //    in, there is no slurm to catch (`dialup`).
-// 37. The kit (items.ts, held.ts): every account carries the flashlight
+// 37. Waypoints (waypoints.ts): the valley keeps each account's pins on
+//    the map, up to WAYPOINT_MAX, the oldest dropped past it
+//    (Valley.waypoints). A raider sends the whole list at once (a `mark`
+//    action); the valley keeps only the points inside the survey, and
+//    every socket on the account hears the list it kept. The compass and
+//    the pillars they draw are the client's.
+// 38. The kit (items.ts, held.ts): every account carries the flashlight
 //    and the Citgo phone from its first welcome (items.ts `start`), and
 //    Matthew Marx gives it his whistle the first time it meets him (rule
 //    20: the Book of Shadows' `marx`), once. giftsOwed reads what is owed
@@ -458,6 +465,7 @@ import { atLocker } from './stash.ts'
 import { freshStock, onShelf, takeUnit } from './store.ts'
 import { levelsAt } from './wardlevels.ts'
 import { damageOf } from './wards.ts'
+import { cleanWaypoints, NO_WAYPOINTS, sameWaypoints } from './waypoints.ts'
 import type { CitgoLog } from './citgos.ts'
 import type { Corpse } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -468,6 +476,7 @@ import type { Hurt } from './fall.ts'
 import type { Angler, Bait, PondPlace } from './fishing.ts'
 import type { Burial, Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
+import type { Lair } from './lairs.ts'
 import type { TruckChange, TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
 import type { OutfitId } from './outfits.ts'
@@ -497,7 +506,7 @@ import type { Research, ResearchLine } from './recycling.ts'
 import type { StandLedger } from './stand.ts'
 import type { WardState } from './wardlevels.ts'
 import type { ShadowHit } from './wards.ts'
-import type { WaterMap } from './waterside.ts'
+import type { Waypoints } from './waypoints.ts'
 
 // A raider online: one socket.
 interface Member {
@@ -536,8 +545,8 @@ interface SharedWorld {
   stations: number
   havens: XZ[]
   metres: Metres
-  // Where the water's edges run (rule 11: the spiders).
-  water: WaterMap
+  // The spiders' lairs (rule 11, lairs.ts).
+  lairs: Lair[]
   maze: MazePlace | null
   routes: TruckRoutes
   // Where the Cabbage Stand stands, or null (rule 23).
@@ -590,6 +599,8 @@ export interface Valley {
   // Rule 34: the parties and the invites waiting, by account (never on
   // the wire).
   parties: Parties
+  // Rule 37: account -> its waypoints.
+  waypoints: Record<string, Waypoints>
   // Rule 36: account -> its angler, and socket id -> the line it has out;
   // and every slurm caught in a jar (slurms.ts slurmKey), kept only while
   // its drop could still be crawling.
@@ -641,7 +652,7 @@ export type ValleyAction =
       stations: number
       havens: XZ[]
       metres: Metres
-      water: WaterMap
+      lairs: Lair[]
       maze: MazePlace | null
       routes: TruckRoutes
       stand: XZ | null
@@ -819,6 +830,8 @@ export type ValleyAction =
   // Rule 28: the raider stands at Citgo `station`; a Citgo portal opened.
   | { type: 'visit'; id: string; station: number }
   | { type: 'open-portal'; id: string; at: Facing | null }
+  // Rule 37: the raider's waypoints, all of them.
+  | { type: 'mark'; id: string; points: readonly XZ[] }
   // The valley's own clock: the truck and the day, moved on.
   | { type: 'clock' }
   | { type: 'hurry'; seconds: number }
@@ -931,6 +944,8 @@ export interface Reduced {
   stand?: StandChange
   // Rule 28: an account's Citgos after a visit, for its sockets.
   citgos?: { account: string; log: CitgoLog }
+  // Rule 37: an account's waypoints as kept, for its sockets.
+  waypoints?: { account: string; points: Waypoints }
   // Rule 30: a run sent out, or a run home and its haul, written together
   // or not at all.
   expedition?: ExpeditionChange
@@ -1037,6 +1052,7 @@ export function createValley(): Valley {
     wards: {},
     citgos: {},
     parties: NO_PARTIES,
+    waypoints: {},
     anglers: {},
     lines: {},
     jarred: [],
@@ -1135,7 +1151,7 @@ export function findsPay(
   return { cents, xp: [{ account, source: 'landmark' }] }
 }
 
-// Rule 37: what an account is owed for the entries its book holds, one of
+// Rule 38: what an account is owed for the entries its book holds, one of
 // each gift neither its pack nor its locker holds.
 export function giftsOwed(
   pack: Readonly<Inventory>,
@@ -1151,7 +1167,7 @@ export function giftsOwed(
   return owed
 }
 
-// Rule 37: whether the pack the valley just read holds `kind`.
+// Rule 38: whether the pack the valley just read holds `kind`.
 function carries(holdings: ValleyContext['holdings'], kind: string): boolean {
   return (holdings?.pack[kind] ?? 0) > 0
 }
@@ -1166,6 +1182,11 @@ export function inTheBed(valley: Valley, id: string): boolean {
 // Rule 28: every Citgo `account` has stood at, and the last.
 export function citgosFor(valley: Valley, account: string): CitgoLog {
   return valley.citgos[account] ?? NO_CITGOS
+}
+
+// Rule 37: the waypoints `account` keeps.
+export function waypointsFor(valley: Valley, account: string): Waypoints {
+  return valley.waypoints[account] ?? NO_WAYPOINTS
 }
 
 // Rule 36: `account`'s angler as the wire carries it.
@@ -1475,6 +1496,8 @@ function act(
       return onVisit(valley, action, context)
     case 'open-portal':
       return onOpenPortal(valley, action, context)
+    case 'mark':
+      return onMark(valley, action, context)
     case 'clock':
       return done(valley, context.now, { broadcast: [] })
     case 'hurry':
@@ -1511,7 +1534,7 @@ function onJoin(
       stations: action.stations,
       havens: action.havens,
       metres: action.metres,
-      water: action.water,
+      lairs: action.lairs,
       maze: action.maze,
       routes: action.routes,
       stand: action.stand,
@@ -1669,7 +1692,7 @@ function onTruck(
       reply: nack(re, 'not-in-valley'),
     })
   }
-  // Rule 37: no whistle, no call.
+  // Rule 38: no whistle, no call.
   if (action.type === 'call' && !carries(holdings, 'marx-whistle')) {
     return done(valley, now, { broadcast: [], reply: nack(re, 'no-whistle') })
   }
@@ -3216,12 +3239,31 @@ function onVisit(
   )
 }
 
+function onMark(
+  valley: Valley,
+  action: ActionOf<'mark'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rule 37.
+  const member = valley.members[action.id]
+  const world = valley.world
+  if (!member || !world) return done(valley, now, { broadcast: [] })
+  const { account } = member
+  const points = cleanWaypoints(action.points, world.metres)
+  // Heard back even unchanged, so a client that asked for more than was
+  // kept draws what was.
+  const kept = sameWaypoints(points, waypointsFor(valley, account))
+    ? valley
+    : { ...valley, waypoints: { ...valley.waypoints, [account]: points } }
+  return done(kept, now, { broadcast: [], waypoints: { account, points } })
+}
+
 function onOpenPortal(
   valley: Valley,
   action: ActionOf<'open-portal'>,
   { now, holdings }: ValleyContext
 ): Reduced {
-  // Rule 28, and rule 37: no phone, no portal.
+  // Rule 28, and rule 38: no phone, no portal.
   const member = valley.members[action.id]
   const world = valley.world
   const refuse = (reason: string): Reduced =>

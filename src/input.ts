@@ -91,13 +91,13 @@ export function wirePointer(game: Game): () => void {
       if (!s.greeted) {
         s.greeted = true
         hud.tell(copy('log.greeting'))
-        // The season, announced once a page.
-        hud.season.live()
+        // The season, announced once a page, in red in the log.
         hud.tell(
           copy('log.season_live', {
             goal: SEASON.goal,
             cash: formatCash(SEASON.reward.cash),
-          })
+          }),
+          'alert'
         )
         // How many others, once the valley has said; a late welcome says it.
         if (net.online) hud.tell(othersLine(peers.count))

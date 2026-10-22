@@ -17,7 +17,6 @@ import { CLOSE, PROTOCOL_VERSION } from '../../src/protocol.ts'
 import { SEASON } from '../../src/season.ts'
 import { createValley } from '../../src/sharedworld.ts'
 import { standXp } from '../../src/stand.ts'
-import { dryMap } from '../../src/waterside.ts'
 import { MemoryAccountStore } from '../../worker/accounts.ts'
 import { MemoryCrewStore } from '../../worker/crews.ts'
 import { MemoryPackStore, STARTING_CASH } from '../../worker/packs.ts'
@@ -260,7 +259,7 @@ const hello = (
     stations,
     havens: Array.from({ length: stations }, (_, i) => ({ x: i * 1000, z: 0 })),
     metres: { width: 15059, height: 15038 },
-    water: dryMap({ width: 15059, height: 15038 }),
+    lairs: [],
     maze: MAZE,
     truck: { home: { x: 10, z: 10 }, joyrideMs: 600_000 },
     stand: STAND,
@@ -4399,5 +4398,45 @@ describe('ValleyDO: Bull Valley Dial-Up', () => {
           m.type === 'wards'
       )
     expect(wards?.wards.high).toBeGreaterThan(0)
+  })
+})
+
+describe('ValleyDO: waypoints', () => {
+  const mark = (points: unknown) =>
+    JSON.stringify({ type: 'waypoints', points })
+
+  it("keeps an account's pins, tells every socket on it, and welcomes it back with them", async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    expect(a.frames().find((m) => m.type === 'welcome')).toMatchObject({
+      waypoints: [],
+    })
+    const twin = await join(v, s, 'A2', { account: 'acct-A' })
+    await v.webSocketMessage(ws(a), mark([{ x: 10, z: -20 }]))
+    const pins = { type: 'waypoints', points: [{ x: 10, z: -20 }] }
+    expect(a.last()).toEqual(pins)
+    expect(twin.last()).toEqual(pins)
+    expect(b.frames().some((m) => m.type === 'waypoints')).toBe(false)
+    const again = await join(v, s, 'A3', { account: 'acct-A' })
+    expect(again.frames().find((m) => m.type === 'welcome')).toMatchObject({
+      waypoints: [{ x: 10, z: -20 }],
+    })
+  })
+
+  it('refuses a frame of too many pins, and nacks one too soon', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const many = Array.from({ length: 6 }, (_, i) => ({ x: i, z: 0 }))
+    await v.webSocketMessage(ws(a), mark(many))
+    expect(a.frames().some((m) => m.type === 'waypoints')).toBe(false)
+    for (let i = 0; i < 21; i++) {
+      await v.webSocketMessage(ws(a), mark([{ x: i, z: 0 }]))
+    }
+    expect(a.last()).toMatchObject({
+      type: 'nack',
+      re: 'waypoints',
+      reason: 'too-fast',
+    })
   })
 })

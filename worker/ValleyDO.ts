@@ -83,6 +83,7 @@ import {
   restoreValley,
   toWire,
   wardsFor,
+  waypointsFor,
 } from '../src/sharedworld.ts'
 import { ACCOUNT_HEADER, NAME_HEADER } from './auth.ts'
 import { D1AccountStore } from './d1accounts.ts'
@@ -169,6 +170,10 @@ const DROP_LIMIT: RateLimit = { count: 20, ms: 10_000 }
 // Every other write to the pack (the locker, the stand): the same pace.
 const PACK_LIMIT: RateLimit = DROP_LIMIT
 
+// Waypoint frames one socket may send in ten seconds (rule 37): a pin at
+// a click, so the rest are nacked.
+const MARK_LIMIT: RateLimit = { count: 20, ms: 10_000 }
+
 // Discover frames one socket may send in ten seconds; each reads and
 // writes D1, so the rest are nacked (the client asks again).
 const DISCOVER_LIMIT: RateLimit = { count: 10, ms: 10_000 }
@@ -201,6 +206,7 @@ export class ValleyDO extends DurableObject<Env> {
   private inspectRate = new WeakMap<WebSocket, RateWindow>()
   private dropRate = new WeakMap<WebSocket, RateWindow>()
   private discoverRate = new WeakMap<WebSocket, RateWindow>()
+  private markRate = new WeakMap<WebSocket, RateWindow>()
   // Rules 11 and 13, in memory only: gone whenever the object sleeps.
   private shadows = createShadows()
   private shadowRng = mulberry32(Math.floor(Math.random() * 2 ** 32))
@@ -329,7 +335,7 @@ export class ValleyDO extends DurableObject<Env> {
         await this.purchase(ws, attachment, { ...msg, id, at })
         return
       case 'call':
-        // Rule 37: the whistle is read out of the pack.
+        // Rule 38: the whistle is read out of the pack.
         await this.withPack(ws, account, {
           type: 'call',
           id,
@@ -359,7 +365,7 @@ export class ValleyDO extends DurableObject<Env> {
         })
         return
       case 'portal':
-        // Rule 28: ahead of the raider, the way they face; rule 37: the
+        // Rule 28: ahead of the raider, the way they face; rule 38: the
         // phone is read out of the pack.
         await this.withPack(ws, account, {
           type: 'open-portal',
@@ -449,6 +455,9 @@ export class ValleyDO extends DurableObject<Env> {
         return
       case 'discover':
         await this.discover(ws, account, msg.entries)
+        return
+      case 'waypoints':
+        await this.mark(ws, id, msg.points)
         return
       case 'chat':
         this.chat(ws, me, msg.text)
@@ -968,6 +977,31 @@ export class ValleyDO extends DurableObject<Env> {
     })
   }
 
+  // The raider's waypoints, all of them (rule 37): every socket on the
+  // account hears the ones the valley kept.
+  private async mark(
+    ws: WebSocket,
+    id: string,
+    points: readonly XZ[]
+  ): Promise<void> {
+    if (!allow(this.markRate, ws, MARK_LIMIT)) {
+      send(ws, { type: 'nack', re: 'waypoints', reason: 'too-fast' })
+      return
+    }
+    await this.locked(async () => {
+      const reduced = reduce(
+        this.valley,
+        { type: 'mark', id, points },
+        this.context()
+      )
+      await this.apply(reduced)
+      const kept = reduced.waypoints
+      if (kept) {
+        this.toAccount(kept.account, { type: 'waypoints', points: kept.points })
+      }
+    })
+  }
+
   // Geometrie given back (rule 24): a use of `kind`'s share, or the
   // forecourt's. Every socket on the account hears it.
   protected mend(id: string, kind?: string): Promise<void> {
@@ -1386,7 +1420,7 @@ export class ValleyDO extends DurableObject<Env> {
     try {
       ;({ holdings, season, book, task, xp, stand, quests, expedition } =
         await this.packs().welcome(account, SEASON.id, DAILY_TASK.id))
-      // Rule 37: an account that met Marx before his whistle was a thing
+      // Rule 38: an account that met Marx before his whistle was a thing
       // is given it now, under its own lock.
       const owed = giftsOwed(holdings.pack, holdings.stash, book)
       if (Object.keys(owed).length > 0) {
@@ -1446,7 +1480,7 @@ export class ValleyDO extends DurableObject<Env> {
               stations: hello.stations,
               havens: hello.havens,
               metres: hello.metres,
-              water: hello.water,
+              lairs: hello.lairs,
               maze: hello.maze,
               routes: hello.truck,
               stand: hello.stand,
@@ -1505,6 +1539,7 @@ export class ValleyDO extends DurableObject<Env> {
       healthMax: maxFor(this.valley, account),
       wards: wardsFor(this.valley, account, now),
       citgos: citgosFor(this.valley, account),
+      waypoints: waypointsFor(this.valley, account),
       xp,
       stand,
       quests,
@@ -2024,7 +2059,7 @@ export class ValleyDO extends DurableObject<Env> {
   }
 
   // Rule 36: a rod out of the tackle box or a cast, with the pack read
-  // first, so the valley knows the rod and the bait are in it; rule 37: a
+  // first, so the valley knows the rod and the bait are in it; rule 38: a
   // whistle or a portal, the whistle or the phone. A pack that cannot be
   // read is refused.
   private withPack(
@@ -2590,7 +2625,7 @@ export class ValleyDO extends DurableObject<Env> {
     )
   }
 
-  // Rule 37: what the account's book is owed and its pack and locker do
+  // Rule 38: what the account's book is owed and its pack and locker do
   // not hold (Marx's whistle), given; whether anything was. Run under the
   // account's own lock, so two sockets never give it twice.
   private async giveOwed(account: string): Promise<boolean> {
@@ -2632,7 +2667,7 @@ export class ValleyDO extends DurableObject<Env> {
         )
         if (found.length > 0) this.toAccount(account, { type: 'book', found })
         const { cents, xp } = findsPay(account, found)
-        // Rule 37: a find that gives (Marx's whistle) gives it now.
+        // Rule 38: a find that gives (Marx's whistle) gives it now.
         const gave = found.some((entry) => GIFTS[entry] !== undefined)
           ? await this.giveOwed(account)
           : false

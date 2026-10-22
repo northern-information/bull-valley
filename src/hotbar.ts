@@ -52,7 +52,7 @@ export function clearSlot(bar: Hotbar, slot: number): Hotbar {
   return bar.map((held, i) => (i === slot ? null : held))
 }
 
-// The kit every raider carries (items.ts, sharedworld.ts rule 37), in the
+// The kit every raider carries (items.ts, sharedworld.ts rule 38), in the
 // order it lands on a bar.
 export const KIT: readonly string[] = [
   'flashlight',

@@ -178,7 +178,7 @@ export function portalNews(
   }
 }
 
-// Rule 37: the gifts a pack frame brought, kinds the valley gives for a
+// Rule 38: the gifts a pack frame brought, kinds the valley gives for a
 // first meeting (Marx's whistle) that the pack held none of before and
 // holds now.
 export function giftsIn(

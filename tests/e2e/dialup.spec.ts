@@ -132,7 +132,7 @@ test('the pack only uses, the locker gives back, and both fit the phone', async 
   // raider apart from what the locker holds, which comes back out.
   await page.locator('.bv-dial-tab[data-tab="lobby"]').click()
   await page.locator('.bv-dial-card[data-card="locker"]').click()
-  // The kit every raider carries (sharedworld.ts rule 37) is on them.
+  // The kit every raider carries (sharedworld.ts rule 38) is on them.
   const keys = page.locator('.bv-dial-sheet [data-section="keys"]')
   await expect(keys).toContainText(copy('items.flashlight.label'))
   await expect(keys).toContainText(copy('items.citgo-phone.label'))

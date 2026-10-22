@@ -460,6 +460,8 @@ recycle_refused = { text = "The wreck will not take that right now.", by = "ai" 
 fish_rod = { text = "You take a rod out of the tackle box. Somebody left it rigged.", by = "ai" }
 fish_dug = { text = "You dig into the mud bank. Nightcrawlers: {count}.", by = "ai" }
 fish_far = { text = "You are too far from the pond.", by = "ai" }
+fireflies_in = { text = "Fireflies protect you from the shadows.", by = "ai" }
+fireflies_out = { text = "You leave the light of the fireflies, back into the shadows.", by = "ai" }
 fish_has_rod = { text = "You already have a rod.", by = "ai" }
 fish_no_rod = { text = "You need a rod. There is one in the tackle box.", by = "ai" }
 fish_no_bait = { text = "You have nothing to put on the hook.", by = "ai" }
@@ -510,6 +512,7 @@ travel = { text = "The lights go out and come back on. {citgo}.", by = "ai" }
 travel_away = { text = "Fast travel leaves from a Citgo forecourt.", by = "ai" }
 travel_unvisited = { text = "You have not been to {citgo} yet.", by = "ai" }
 travel_here = { text = "You are already here.", by = "ai" }
+waypoints_refused = { text = "Easy on the pins. Try again in a moment.", by = "ai" }
 travel_aboard = { text = "Not from the truck bed.", by = "ai" }
 
 # What a trip shows that is not there, bursting (src/hallucinations.ts).
@@ -534,12 +537,23 @@ title = { text = "Map", by = "ai" }
 visited = { text = "{count} of {total} Citgos visited", by = "ai" }
 last = { text = "Last Citgo: {citgo}. Your portal goes there.", by = "ai" }
 none = { text = "No Citgo yet. Stand on a forecourt.", by = "ai" }
-hint = { text = "Click a visited Citgo to fast travel.", by = "ai" }
-hint_away = { text = "Fast travel leaves from a Citgo forecourt.", by = "ai" }
+hint = { text = "Click a visited Citgo to fast travel, anywhere else to pin a waypoint.", by = "ai" }
+hint_away = { text = "Fast travel leaves from a Citgo forecourt. Click anywhere to pin a waypoint.", by = "ai" }
 hint_charter = { text = "Click where Marx should take you. M for the long way, E to hop out.", by = "ai" }
 somewhere = { text = "the middle of nowhere", by = "ai" }
 citgo = { text = "Citgo on {road}", by = "ai" }
 citgo_unnamed = { text = "Citgo #{n}", by = "ai" }
+pin = { text = "{n}. {place}. Click to lift it.", by = "ai" }
+pins = { text = "{count} of {max} waypoints", by = "ai" }
+
+# The compass across the top of the screen (src/compasshud.ts).
+
+[compass]
+n = { text = "N", by = "ai" }
+e = { text = "E", by = "ai" }
+s = { text = "S", by = "ai" }
+w = { text = "W", by = "ai" }
+metres = { text = "{metres} m", by = "ai" }
 
 # Marx's countdown once anyone is in the bed (src/loop.ts).
 

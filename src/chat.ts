@@ -15,9 +15,9 @@ import type {
 
 // A line a raider said, a whisper to or from this player, a line said to
 // their party, a line an NPC said to this player, or a line the game
-// says to the player alone.
+// says to the player alone ('alert' for one it means to stand out, in red).
 export interface ChatLine {
-  kind: 'say' | 'whisper' | 'party' | 'crew' | 'npc' | 'system'
+  kind: 'say' | 'whisper' | 'party' | 'crew' | 'npc' | 'system' | 'alert'
   // For 'say', 'whisper', 'party' and 'npc': who said it, or for a whisper this
   // player sent, who it went to, as the log heads the line.
   name?: string

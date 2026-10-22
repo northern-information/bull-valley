@@ -1,4 +1,4 @@
-// All DOM: countdown, the season (seasonhud.ts), the chat log (chathud.ts),
+// All DOM: the compass (compasshud.ts), countdown, the season (seasonhud.ts), the chat log (chathud.ts),
 // the phone, geometrie and the wards (vitalshud.ts), the pack grid, its item card and the
 // hotbar (packhud.ts), prompts, item labels, the intro/menu overlay, and
 // the strike static. Markup is generated here so index.html stays a bare
@@ -9,6 +9,7 @@ import { BookHud } from './bookhud.ts'
 import { BuffHud } from './buffhud.ts'
 import { ChatHud } from './chathud.ts'
 import { CitgoMap } from './citgomap.ts'
+import { CompassHud } from './compasshud.ts'
 import { copy } from './copy.ts'
 import { el, find, text } from './dom.ts'
 import { LevelHud } from './levelhud.ts'
@@ -130,6 +131,8 @@ export class Hud {
   book: BookHud
   // The map (M), once the world is built (mountMap).
   map: CitgoMap | null = null
+  // The compass across the top, while the pointer is locked.
+  compass: CompassHud
   private ui: HTMLElement
   // The daily task's row in the season's tracker.
   task: TaskHud
@@ -152,6 +155,9 @@ export class Hud {
     this.season = new SeasonHud(ui)
     this.task = new TaskHud(this.season.tracker)
     this.level = new LevelHud(this.season.tracker)
+
+    // The compass, top center, the countdown under it.
+    this.compass = new CompassHud(ui)
 
     // Loadout countdown: bare numbers, top center.
     this.countdown = el('p', 'bv-countdown')
@@ -387,9 +393,10 @@ export class Hud {
 
   // --- The chat log (chathud.ts) ------------------------------------------
 
-  // A line the game says to the player alone, in the chat log.
-  tell(text: string): void {
-    this.chat.tell(text)
+  // A line the game says to the player alone, in the chat log; an alert
+  // stands out in red.
+  tell(text: string, kind: 'system' | 'alert' = 'system'): void {
+    this.chat.tell(text, kind)
   }
 
   chatLine(line: ChatLine, now: number): void {

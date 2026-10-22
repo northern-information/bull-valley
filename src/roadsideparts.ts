@@ -226,3 +226,44 @@ export function buildLandmarkBeacon(
   group.add(sprite)
   return group
 }
+
+// --- Waypoint pillar -----------------------------------------------------
+
+// How tall a waypoint's pillar of light rises.
+export const WAYPOINT_PILLAR_HEIGHT = 140
+
+// A waypoint (waypoints.ts) as it stands in the valley: a thin, faint
+// column of light, a thinner core inside a wider haze, added over what is
+// behind and never fogged, so it reads from across the valley without
+// hiding anything. Origin at ground level.
+export function buildWaypointPillar(): THREE.Group {
+  const group = new THREE.Group()
+  const layer = (radius: number, opacity: number) => {
+    const geometry = new THREE.CylinderGeometry(
+      radius,
+      radius,
+      WAYPOINT_PILLAR_HEIGHT,
+      8,
+      1,
+      true
+    )
+    geometry.translate(0, WAYPOINT_PILLAR_HEIGHT / 2, 0)
+    const mesh = new THREE.Mesh(
+      geometry,
+      new THREE.MeshBasicMaterial({
+        color: '#f0ead6',
+        transparent: true,
+        opacity,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        fog: false,
+      })
+    )
+    mesh.renderOrder = 2
+    group.add(mesh)
+  }
+  layer(0.12, 0.35)
+  layer(0.6, 0.08)
+  return group
+}

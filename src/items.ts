@@ -567,7 +567,7 @@ export const ITEMS = [
     category: 'key-item',
     start: 0,
   },
-  // What every raider carries (sharedworld.ts rule 37): the flashlight and
+  // What every raider carries (sharedworld.ts rule 38): the flashlight and
   // the Citgo phone from the first welcome, and Matthew Marx's whistle
   // from the first time the account meets him. Each sits on the hotbar
   // and is used from the hand (held.ts) as anything else is.

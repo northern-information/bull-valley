@@ -91,7 +91,7 @@ test('Marx does donuts in the field after reading, until whistled', async ({
   await expect
     .poll(truck, { timeout: 30_000 })
     .toEqual({ drifting: true, inField: true })
-  // Marx's whistle (sharedworld.ts rule 37), onto the bar as it comes,
+  // Marx's whistle (sharedworld.ts rule 38), onto the bar as it comes,
   // in the hand by its number key, and blown with the click.
   await page.evaluate(() => window.__bv?.grant('marx-whistle', 1))
   await expect

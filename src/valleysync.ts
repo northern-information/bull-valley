@@ -57,6 +57,7 @@ import { seasonOf } from './season.ts'
 import { buyRefusal } from './shop.ts'
 import { isStandLedger, refusalLine, standNews } from './stand.ts'
 import { formatCash } from './store.ts'
+import { toWaypoints } from './waypoints.ts'
 import {
   giftsIn,
   newLeg,
@@ -242,6 +243,10 @@ export function wireValley(game: Game, actions: Actions): void {
       // Rule 28: a Citgo stood at, written.
       case 'citgos':
         actions.applyCitgos(msg.citgos)
+        return
+      // Rule 37: a pin placed or lifted, on any socket of the account.
+      case 'waypoints':
+        actions.applyWaypoints(toWaypoints(msg.points))
         return
       // Rule 31: the laptop's answers, to its screen while it is open.
       case 'laptop-files':
@@ -447,6 +452,8 @@ export function wireValley(game: Game, actions: Actions): void {
       hud.tell(passRefusal(msg.reason))
     } else if (msg.re === 'discover') {
       actions.bookRefused()
+    } else if (msg.re === 'waypoints') {
+      actions.waypointsRefused()
     } else if (msg.re === 'take-drop') {
       if (msg.drop !== undefined) s.pending.drops.delete(msg.drop)
       if (msg.reason === 'gone') hud.tell(copy('log.taken_first'))
@@ -520,7 +527,7 @@ export function wireValley(game: Game, actions: Actions): void {
   // The valley's word on the pack, the wallet, the locker and which bodies
   // are ours replaces this client's guesses.
   // `welcomed`: the welcome's pack, which is no news; a later frame's
-  // gift (sharedworld.ts rule 37, worldsync.ts giftsIn) is said.
+  // gift (sharedworld.ts rule 38, worldsync.ts giftsIn) is said.
   const applyPack = (
     {
       pack,
@@ -594,6 +601,7 @@ export function wireValley(game: Game, actions: Actions): void {
       s.quests = toQuests(msg.quests)
       // The Citgos the account has stood at already are no news.
       actions.applyCitgos(msg.citgos, true)
+      actions.applyWaypoints(toWaypoints(msg.waypoints))
     } else if (msg.type === 'quest') {
       // Rule 26: a step of a quest went through, to every socket on the
       // account. Its pack frame follows.
@@ -662,6 +670,7 @@ export function wireValley(game: Game, actions: Actions): void {
       world.shelves.jarSlurm(msg.station, msg.slot, msg.index)
       if (msg.by !== net.id) return
       s.pending.jar = false
+      game.sfx?.play('jar-clink')
       hud.tell(copy('log.slurm_jarred'))
     } else if (msg.type === 'catch') {
       // Rule 36: how the line came out; a landed fish's pack frame
@@ -669,6 +678,8 @@ export function wireValley(game: Game, actions: Actions): void {
       s.pending.fish = false
       s.line = null
       s.fishSaid = catchLine(msg)
+      // A fish too big for the skill breaks the line as it comes in.
+      if (msg.outcome === 'snap') game.sfx?.play('line-snap')
       hud.tell(s.fishSaid)
       if (msg.up) hud.tell(skillUpLine(msg.skill))
     } else if (msg.type === 'task') {

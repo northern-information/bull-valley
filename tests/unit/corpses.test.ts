@@ -58,7 +58,7 @@ describe('a fall', () => {
     for (const [kind, count] of Object.entries(empty)) {
       expect(count).toBe(isKeyItem(kind) ? STARTING_INVENTORY[kind] : 0)
     }
-    // The kit every raider carries is kept (sharedworld.ts rule 37).
+    // The kit every raider carries is kept (sharedworld.ts rule 38).
     expect(empty.flashlight).toBe(1)
     expect(empty['citgo-phone']).toBe(1)
   })
