@@ -15,12 +15,16 @@ import { pointInPolygon } from './coords.ts'
 import { dayKey } from './daily.ts'
 import { mazeToWorld } from './maze.ts'
 import {
+  catchPipe,
   craneSpots,
   fireEscapes,
   inChannel,
   MOAT,
   moatEdges,
+  moatPipes,
   moatWalls,
+  pipeDecks,
+  pipeWalls,
   trickle,
 } from './moat.ts'
 import { moatSlurmsAt } from './moatslurms.ts'
@@ -31,7 +35,7 @@ import type { YardSpot } from './castleyard.ts'
 import type { Ground } from './ground.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
 import type { MazePlace } from './maze.ts'
-import type { FireEscape } from './moat.ts'
+import type { FireEscape, MoatPipe } from './moat.ts'
 import type { MoatSlurm, MoatSource } from './moatslurms.ts'
 import type { Cue } from './sfx.ts'
 import type { Feet } from './slurms.ts'
@@ -40,10 +44,11 @@ import type { Walls } from './walls.ts'
 // Castle Entropy placed (moat.ts, castle.ts): the moat already cut into the
 // terrain (world.ts carves it before anything stands), its fire escapes
 // registered on the Ground flight by flight and their rails, the rim's
-// ledge and the island's edge on the Walls, the moat drawn, the concrete
-// poured round the rim (on the Ground) and the works on it (castleyard.ts:
-// the bent poles, the supplies, the light towers and the payphone, each
-// on the Walls), the cranes on the rim, the slurms dropping off the edges and the cranes' hooks into
+// ledge, the island's edge and the pipes on the Walls (the pipes' tops on
+// the Ground too), the moat drawn, the concrete poured round the rim (on
+// the Ground) and the works on it (castleyard.ts: the bent poles, the
+// supplies, the light towers and the payphone, each on the Walls), the
+// cranes on the rim, the slurms dropping off the edges and the cranes' hooks into
 // the channel (moatslurms.ts), and today's castle floating over the
 // island, made anew when the day turns.
 
@@ -56,8 +61,18 @@ export interface CastleSite {
   outer: XZ[]
   // The middle of the island, for the Book of Shadows.
   middle: XZ
-  // The fire escapes, as the Ground has them.
+  // The fire escapes, as the Ground has them, and the pipes.
   stairs: FireEscape[]
+  pipes: MoatPipe[]
+  // Where a raider falling at (x, z) from `from` to `to` this frame, in a
+  // fall begun at `start`, lands on a pipe, or null (moat.ts catchPipe).
+  catchAt: (
+    x: number,
+    z: number,
+    from: number,
+    to: number,
+    start: number
+  ) => (XZ & { y: number }) | null
   // The payphone on the rim (castleyard.ts payphoneSpot).
   payphone: YardSpot
   // `t` the shared clock in seconds, `day` its Central day: the castle
@@ -100,12 +115,23 @@ export function buildCastleSite(
   for (const wall of moatWalls(raw, place)) {
     walls.addWall(wall.a, wall.b, wall.half, wall.band)
   }
+  // The pipes along the walls, round the fire escapes: what they stop,
+  // and their tops to walk along.
+  const pipes = moatPipes(raw, place, floor, stairs)
+  for (const wall of pipes.flatMap((pipe) => pipeWalls(pipe))) {
+    walls.addWall(wall.a, wall.b, wall.half, wall.band)
+  }
+  const decks = pipes.flatMap(pipeDecks)
+  for (const deck of decks) {
+    ground.addRibbon([deck.a, deck.b], deck.width, 0)
+  }
 
   const moat: MoatRig = buildMoat({
     ...edges,
     raw,
     floor,
     stairs,
+    pipes,
     trickle: trickle(place),
     middle: place,
   })
@@ -151,7 +177,14 @@ export function buildCastleSite(
   // under the rim and the island's edge (crawling off from the wall, and
   // never where a fire escape would catch them), then the cranes' hooks.
   const sources: MoatSource[] = []
-  const atFloor = (x: number, z: number) => ground.at(x, z) < floor + 1
+  // Under a fire escape's strip (whatever pipes run over the floor).
+  const underStair = (x: number, z: number) =>
+    stairs.some(({ ends: [a, b], inward, depth }) => {
+      const len = Math.hypot(b.x - a.x, b.z - a.z)
+      const t = ((x - a.x) * (b.x - a.x) + (z - a.z) * (b.z - a.z)) / len
+      const s = (x - a.x) * inward.x + (z - a.z) * inward.z
+      return t > -1 && t < len + 1 && s > -1 && s < depth + 1
+    })
   for (const edge of [edges.outer, edges.island]) {
     edge.forEach((a, i) => {
       const b = edge[(i + 1) % edge.length]
@@ -163,7 +196,7 @@ export function buildCastleSite(
           const heading = { x: -along.z * side, z: along.x * side }
           const x = on.x + heading.x * 0.6
           const z = on.z + heading.z * 0.6
-          if (!inChannel(place, x, z) || !atFloor(x, z)) continue
+          if (!inChannel(place, x, z) || underStair(x, z)) continue
           sources.push({ x, y: raw(on.x, on.z), z, heading })
         }
       }
@@ -187,7 +220,9 @@ export function buildCastleSite(
   // What each looked like last frame, to hear it land.
   let phases = new Map<string, string>()
   let drawn: MoatSlurm[] = []
-  const landY = (x: number, z: number) => ground.at(x, z)
+  // They fall past the pipes to the floor, and crawl on it.
+  const landY = (x: number, z: number) =>
+    ground.standAt(x, z, floor, CONFIG.fall.climb)
 
   const stepSlurms = (t: number, feet: readonly Feet[]): Cue[] => {
     const cues: Cue[] = []
@@ -291,6 +326,11 @@ export function buildCastleSite(
     outer: edges.outer,
     middle: { x: place.x, z: place.z },
     stairs,
+    pipes,
+    catchAt: (x, z, from, to, start) =>
+      inChannel(place, x, z)
+        ? catchPipe(decks, { x, z }, from, to, start)
+        : null,
     payphone,
     update,
     day: () => today,

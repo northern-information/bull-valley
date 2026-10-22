@@ -31,8 +31,10 @@ import { text } from './dom.ts'
 import { fontsReady } from './fonts.ts'
 import { befriended, partied } from './inspect.ts'
 import { itemLine } from './itemcopy.ts'
+import { openMoabDialog } from './moabdialog.ts'
 import { mountModem } from './modemhud.ts'
 import { NetClient, socketUrl } from './net.ts'
+import { npcLine } from './npcs.ts'
 import { GRAIN_URL, imagesReady } from './preload.ts'
 import { levelOf } from './progression.ts'
 import { CLOSE } from './protocol.ts'
@@ -40,6 +42,7 @@ import { dealerStep, roseLine, roseProgress } from './quests.ts'
 import { openRecycleDialog } from './recycledialog.ts'
 import { createSettingsStore } from './settingsui.ts'
 import { createSfx } from './sfxrig.ts'
+import { openShopDialog } from './shopdialog.ts'
 import { mountAccountStep } from './signin.ts'
 import { SILENT } from './silent.ts'
 import { openStandDialog } from './standdialog.ts'
@@ -243,6 +246,8 @@ async function boot(): Promise<void> {
   }
   // Erwin's rambles, in turn.
   let rambled = 0
+  // Carlsten's lines as his shelves open, in turn.
+  let carlstenSaid = 0
   shell = new DialShell(root, {
     name: username,
     outfit: look.outfit,
@@ -282,8 +287,9 @@ async function boot(): Promise<void> {
           ...roseLine(state.quests.rose, state.pack),
           step: roseProgress(state.quests.rose, state.pack),
         }),
-        onDeal: (kind, pay) =>
-          send({ type: 'deal', kind, pay }, { deal: true }),
+        icon: (kind) => shell?.icon(kind) ?? Promise.reject(new Error()),
+        onDeal: (kind, offer) =>
+          send({ type: 'deal', kind, offer }, { deal: true }),
         onQuest: () => {
           const step = dealerStep(state.quests.rose)
           if (step) send({ type: 'quest', quest: 'rose', step }, { deal: true })
@@ -318,12 +324,37 @@ async function boot(): Promise<void> {
       )
     },
     citgo: {
-      buy: (station, kind, unit) =>
-        send({ type: 'buy', station, kind, unit }, { buy: { station, kind } }),
+      open: (station, name) => {
+        void openShopDialog({
+          name,
+          says: npcLine('carlsten', carlstenSaid++),
+          pick: null,
+          shelf: () => state.world?.shelves[station] ?? null,
+          cash: () => state.cash,
+          pending: () => state.pending.buy !== null,
+          said: () => state.said?.text ?? null,
+          icon: (kind) => shell?.icon(kind) ?? Promise.reject(new Error()),
+          onBuy: (kind, unit) =>
+            send(
+              { type: 'buy', station, kind, unit },
+              { buy: { station, kind } }
+            ),
+        }).then(() => shell?.render(state))
+      },
     },
     citgoNames: names,
-    trade: (offer) =>
-      send({ type: 'trade', offer }, { trade: true, tradeOffer: offer }),
+    openMoab: () => {
+      void openMoabDialog({
+        open: () => state.world !== null,
+        pack: () => state.pack,
+        owned: () => state.cosmetics,
+        pending: () => state.pending.trade,
+        said: () => state.said?.text ?? null,
+        icon: (kind) => shell?.icon(kind) ?? Promise.reject(new Error()),
+        onTrade: (offer) =>
+          send({ type: 'trade', offer }, { trade: true, tradeOffer: offer }),
+      }).then(() => shell?.render(state))
+    },
     expeditions: {
       send: (kind) =>
         send({ type: 'expedition-send', kind }, { expedition: true }),

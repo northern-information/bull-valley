@@ -272,6 +272,13 @@ export function openLaptopDialog(options: LaptopOptions): {
       return
     }
     open = null
+    // A hidden field keeps the focus until the browser next draws, and E
+    // into a field types rather than getting up (npcdialog.ts
+    // closesDialog): let it go now, so the desktop's E gets up at once.
+    const focused = document.activeElement
+    if (focused instanceof HTMLElement && editor.contains(focused)) {
+      focused.blur()
+    }
     editor.hidden = true
     desktop.hidden = false
     drawExplorer()

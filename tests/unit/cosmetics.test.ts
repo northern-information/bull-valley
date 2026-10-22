@@ -8,6 +8,7 @@ import {
   MOAB_OFFERS,
   moabOffer,
   moabWants,
+  moabWorth,
   toCosmetics,
   tradeRefusal,
 } from '../../src/cosmetics.ts'
@@ -61,6 +62,15 @@ describe('cosmetics', () => {
     expect(moabWants([])).toBe('coleman-1')
     expect(moabWants(['coleman-1'])).toBe('flaming-halo')
     expect(moabWants(['coleman-1', 'flaming-halo'])).toBeNull()
+  })
+
+  it('counts gold by the ounce in his window, and nothing else', () => {
+    expect(moabWorth('gold-bullion')).toBe(1)
+    expect(moabWorth('marlboro')).toBe(0)
+    for (const id of MOAB_OFFERS) {
+      const cosmetic = cosmeticById(id)
+      expect(cosmetic && moabWorth(cosmetic.price.kind)).toBe(1)
+    }
   })
 
   it('keeps only the known cosmetics, each once, in table order', () => {

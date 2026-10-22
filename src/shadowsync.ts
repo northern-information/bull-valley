@@ -6,9 +6,12 @@
 // peers (presence.ts). The newest frame says which are drawn: one only in
 // it has just come in, and holds where it first showed until the drawing
 // reaches it; one gone from it (out of the bubble, or burst) is no longer
-// drawn.
+// drawn. Each is drawn on the deck a body at the valley's height for it
+// would stand on (`drawnAt`), so one walking the moat's floor is never
+// drawn up on the fire escape over it.
 
 import { between, keepFrame, lerp } from './framebuffer.ts'
+import type { HeightAt } from './interfaces.ts'
 import type { ShadowmanWire } from './protocol.ts'
 
 // Anything the valley steps and sends whole every step.
@@ -16,6 +19,8 @@ interface Stepped {
   id: number
   x: number
   z: number
+  // The ground's height under it, where the valley sent one.
+  y?: number
   burn: number
 }
 
@@ -68,7 +73,21 @@ export function sampleShadowmen<T extends Stepped>(
       ...s,
       x: lerp(from.x, to.x, t),
       z: lerp(from.z, to.z, t),
+      ...(from.y !== undefined && to.y !== undefined
+        ? { y: lerp(from.y, to.y, t) }
+        : {}),
       burn: lerp(from.burn, to.burn, t),
     }
   })
+}
+
+// The height to draw a shadow (or where it burst) at: the deck its feet
+// at the valley's height for it stand on (world.ground.standAt, as a
+// raider's would), or the highest deck there where the valley sent none.
+export function drawnAt(
+  s: { x: number; z: number; y?: number },
+  groundAt: HeightAt,
+  standAt: (x: number, z: number, feetY: number) => number
+): number {
+  return s.y === undefined ? groundAt(s.x, s.z) : standAt(s.x, s.z, s.y)
 }

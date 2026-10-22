@@ -107,3 +107,32 @@ export function buyRefusal(
       return copy('log.refused')
   }
 }
+
+// One kind on a Citgo's shelves as a trade window lists it: its price, how
+// many are left, and the unit a buy takes (the first still on the shelf),
+// or null when none are.
+export interface ShelfRow {
+  kind: string
+  price: number
+  left: number
+  unit: number | null
+}
+
+// A Citgo's shelves, in the store's own order; none for a station with no
+// shelf, and nothing without a price.
+export function shelfRows(shelf: ShopStock | undefined): ShelfRow[] {
+  if (!shelf) return []
+  return Object.entries(shelf).flatMap(([kind, units]) => {
+    const price = itemById(kind)?.price
+    if (price === undefined) return []
+    const unit = units.indexOf(true)
+    return [
+      {
+        kind,
+        price,
+        left: units.filter(Boolean).length,
+        unit: unit < 0 ? null : unit,
+      },
+    ]
+  })
+}

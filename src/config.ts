@@ -89,6 +89,11 @@ export const CONFIG = {
     // still within reachScale times its touch. A beat to step away.
     windupSeconds: 0.35,
     reachScale: 1.25,
+    // How far up and down a shadow reaches from the ground it stands on
+    // (shadowmen.ts reachesUp): feet no more than `under` below it, and no
+    // more than its aim height and `over` above it. Past that a raider is
+    // out of its reach, and it never rushes them.
+    vertical: { under: 1, over: 0.8 },
     // Citgo forecourts are havens: shadowmen turn aside at the lights and
     // nothing can touch you inside.
     havenRadius: 60,
@@ -773,14 +778,43 @@ export const CONFIG = {
     },
     // The fire escapes on the outer walls (moat.ts fireEscapes): the sides
     // that carry one, how wide a flight runs (the strip is two), about how
-    // much each climbs, how steep (rise over run), and how deep a landing
-    // is.
+    // much each climbs and how steep (rise over run). No two alike: each
+    // turn lands up to `vary.turn` metres on or short of where it would,
+    // and each landing runs on past its turn between `vary.landing.min`
+    // and `max` metres, drawn from `seed` and the side. A flight never
+    // climbs less than a body can step onto (CONFIG.fall.climb), so no
+    // flight over another is ever stood on from below.
     stairs: {
       sides: [0, 2, 3],
       width: 1.1,
       rise: 3,
       slope: 0.7,
-      landing: 1.6,
+      seed: 0x5ca1e,
+      vary: {
+        turn: 0.5,
+        landing: { min: 1.2, max: 3.6 },
+      },
+    },
+    // The maze of pipes down the moat's walls (moat.ts moatPipes): levels
+    // from `under` metres under the rim's lowest down by `drop` at a time
+    // (more than a body climbs, so the maze only goes down, and a fall
+    // from one level to the next only hurts), none nearer the floor than
+    // `floorClear`. Each level is broken into runs `length` long with
+    // `gap`s between, each run `rows` metres further out from the wall
+    // than the first row, a share `missing`; a run on the lowest level
+    // turns down to the floor at its end by the chance `toFloor`. Ranges
+    // are [least, most].
+    pipes: {
+      seed: 0x91be5,
+      under: [2.5, 3.5] as const,
+      drop: [2.5, 3.2] as const,
+      floorClear: 3,
+      length: [4, 14] as const,
+      gap: [0.6, 3] as const,
+      rows: [0, 1.3, 2.6],
+      missing: 0.1,
+      toFloor: 0.3,
+      radius: [0.15, 0.4] as const,
     },
     // The cranes on the outer rim, leaning out over the moat.
     cranes: 4,
@@ -899,6 +933,12 @@ export const CONFIG = {
     gravity: 22,
     safe: 3,
     lethal: 7,
+    // A raider falling past a pipe in the moat lands on it when within
+    // this much of its top's edge (moat.ts catchPipe): one who walks off
+    // the rim over one is caught, one who sprints off sails past.
+    catchReach: 2,
+    // And clings this long, going nowhere, before they can move on it.
+    steadySeconds: 0.6,
   },
   // What a trip shows that is not there (hallucinations.ts): people and
   // things out ahead of a raider while the tripping ward is up, this

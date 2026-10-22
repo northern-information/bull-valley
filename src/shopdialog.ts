@@ -1,0 +1,88 @@
+// A Citgo's shelves (sharedworld.ts rules 7 and 29): the trade window
+// (tradewindow.ts), kept by David Carlsten, opened with E on a shelf unit
+// or at him behind the counter, and from Dial-Up's Citgo sheet for any
+// Citgo the account has stood at. The Citgo takes cash, so your side is
+// the wallet; his side is every kind on the shelves (shop.ts shelfRows),
+// each at its shelf price with how many are left today. A trade buys one
+// unit: the one picked in the valley while it is still on the shelf,
+// else the first; the valley settles it.
+
+import { copy } from './copy.ts'
+import { itemLabel } from './itemcopy.ts'
+import { shelfRows } from './shop.ts'
+import { formatCash } from './store.ts'
+import { openTradeWindow } from './tradewindow.ts'
+import type { ShopStock } from './interfaces.ts'
+
+interface ShopDialogOptions {
+  // The Citgo's name as the map gives it, and what Carlsten says as it
+  // opens.
+  name: string
+  says: string
+  // The kind picked as it opens, and the unit of it the raider looked
+  // at, or null.
+  pick: { kind: string; unit: number | null } | null
+  // Read again every tick: the shelves as the valley last sent them (null
+  // with no valley), the wallet, whether a buy is still unanswered, and
+  // the last word on one.
+  shelf: () => ShopStock | null
+  cash: () => number
+  pending: () => boolean
+  said: () => string | null
+  icon: (kind: string) => Promise<string>
+  onBuy: (kind: string, unit: number) => void
+}
+
+// Mounts the Citgo's window over everything and resolves once it is
+// closed.
+export function openShopDialog(options: ShopDialogOptions): Promise<void> {
+  const rowOf = (kind: string) =>
+    shelfRows(options.shelf() ?? undefined).find((r) => r.kind === kind)
+  const kinds = shelfRows(options.shelf() ?? undefined)
+  return openTradeWindow({
+    name: 'bv-citgo',
+    title: copy('outfits.carlsten'),
+    eyebrow: copy('shop.eyebrow'),
+    where: options.name ? copy('shop.where', { citgo: options.name }) : '',
+    tag: copy('shop.cash_only'),
+    says: options.says,
+    tab: copy('shop.eyebrow'),
+    mineMeta: copy('shop.to_the_cent'),
+    hisMeta: copy('trade.restocks'),
+    nothing: '',
+    nothingHint: '',
+    goods: kinds.map((row) => ({
+      id: row.kind,
+      kind: row.kind,
+      label: itemLabel(row.kind),
+      worth: row.price,
+      note: () => {
+        const left = rowOf(row.kind)?.left ?? 0
+        return left < 1
+          ? copy('shop.sold_out')
+          : copy('shop.left', { count: left })
+      },
+      left: () => null,
+      out: () =>
+        (rowOf(row.kind)?.left ?? 0) < 1 ? copy('log.sold_out') : null,
+    })),
+    worthOf: () => 0,
+    cash: options.cash,
+    format: formatCash,
+    pick: options.pick?.kind ?? null,
+    open: () => options.shelf() !== null,
+    pack: () => ({}),
+    pending: options.pending,
+    said: options.said,
+    icon: options.icon,
+    onTrade: (kind) => {
+      const shelf = options.shelf()
+      const looked = options.pick?.kind === kind ? options.pick.unit : null
+      const unit =
+        looked !== null && shelf?.[kind]?.[looked]
+          ? looked
+          : (rowOf(kind)?.unit ?? null)
+      if (unit !== null) options.onBuy(kind, unit)
+    },
+  })
+}

@@ -13,12 +13,16 @@
 // feet on the flight they are on. The rim is open: walking off it is a fall (fall.ts).
 // What stops a raider (`moatWalls`): a ledge along the outer edge that
 // stands only for feet down in the channel, the island's edge, and each
-// stair's rails, its foot open only at the floor. Cranes lean out over the
-// channel from the rim (`craneSpots`) and a trickle of water runs down its
-// middle (`trickle`). No three.js, no DOM.
+// stair's rails, its foot open only at the floor, with a rail between its
+// lanes so no one steps across onto the flight over or under theirs. Pipes
+// run along the walls (`moatPipes`), out round any fire escape in their
+// way: they stop a raider walking into one (`pipeWalls`), and are walked
+// along by whoever gets up on one (`pipeDecks`). Cranes lean out over the channel from the
+// rim (`craneSpots`) and a trickle of water runs down its middle
+// (`trickle`). No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
-import { pointInPolygon } from './coords.ts'
+import { pointInPolygon, projectOnSegment } from './coords.ts'
 import { mazeToWorld, worldToMaze } from './maze.ts'
 import { mulberry32 } from './rng.ts'
 import { toWorld } from './store.ts'
@@ -227,7 +231,9 @@ interface Flight {
 }
 
 // A landing: a flat floor, laid out like Ground.addFloor (along x0..x1 on
-// (cos, sin) through (x, z), halfWidth either side), at `y`.
+// (cos, sin) through (x, z), halfWidth either side), at `y`. `far` is the
+// end away from the flights (-1 at x0, 1 at x1), railed unless `open`
+// (the foot, where it lets out onto the floor).
 interface Landing {
   x: number
   z: number
@@ -237,6 +243,8 @@ interface Landing {
   x1: number
   halfWidth: number
   y: number
+  far: -1 | 1
+  open: boolean
 }
 
 // One fire escape, in the world: its flights from the top down, its
@@ -252,6 +260,8 @@ export interface FireEscape {
   foot: XZ & { y: number }
   // One lane's width; the strip is two.
   width: number
+  // How far the outer rail stands out from the wall.
+  depth: number
   // Along the wall, the strip's two ends, and the wall's inward normal.
   ends: [XZ, XZ]
   inward: XZ
@@ -259,10 +269,14 @@ export interface FireEscape {
 
 // The fire escapes on the outer sides CONFIG.castle.stairs.sides names:
 // each a strip two lanes of `width` wide against the wall at the side's
-// middle, `n` flights of about `rise` each, down the outer lane and back
-// down the inner by turns (so a flight never lies right over the one
-// before it), landings across both lanes at both ends, the top at the rim
-// and the foot on the floor at the end the last flight comes down to.
+// middle, flights of about `rise` each, down the outer lane and back down
+// the inner by turns (so a flight never lies right over the one before
+// it), landings across both lanes at each turn, the top at the rim and
+// the foot on the floor at the end the last flight comes down to. No two
+// are alike (`vary`): each turns a little further on or short of the
+// last at its end, so its flights run longer or shorter (and climb as
+// much more or less, all at one pitch), and its landings run on past the
+// turn by more or less.
 export function fireEscapes(
   raw: HeightAt,
   place: MazePlace,
@@ -272,6 +286,10 @@ export function fireEscapes(
   return cfg.sides.map((side) => fireEscape(raw, place, floor, side, cfg))
 }
 
+// How far a lane's rail stands its band over and under the feet on the
+// flight or landing it rails.
+const RAIL_BAND = 1
+
 function fireEscape(
   raw: HeightAt,
   place: MazePlace,
@@ -279,6 +297,7 @@ function fireEscape(
   side: number,
   cfg: StairConfig
 ): FireEscape {
+  const rng = mulberry32(cfg.seed + side * 0x9e37)
   const n5 = MOAT.outer.length
   const a = MOAT.outer[side % n5]
   const b = MOAT.outer[(side + 1) % n5]
@@ -291,12 +310,13 @@ function fireEscape(
     inward = { x: -inward.x, z: -inward.z }
   }
   const run = cfg.rise / cfg.slope
-  const half = run / 2 + cfg.landing
   const gap = 0.05
-  // Out from the wall: the inner lane's middle, the outer's, the strip's.
+  // Out from the wall: the inner lane's middle, the outer's, the strip's
+  // (where the lanes meet), and the outer rail.
   const inner = gap + cfg.width / 2
   const outer = gap + (cfg.width * 3) / 2
   const strip = gap + cfg.width
+  const rail = gap + cfg.width * 2 + 0.05
   // A landing runs from the wall itself out over both lanes.
   const deep = (gap + cfg.width * 2) / 2
   // Moat-local: t along the wall from the side's middle, s out from it.
@@ -305,64 +325,96 @@ function fireEscape(
     z: mid.z + u.z * t + inward.z * s,
   })
   const world = (t: number, s: number) => mazeToWorld(place, local(t, s))
-  const endA = -half
-  const endB = half
-  const runA = -run / 2
-  const runB = run / 2
-  const head = world((endA + runA) / 2, 0)
+  const jitter = () => (rng() * 2 - 1) * cfg.vary.turn
+  const landingLength = () =>
+    cfg.vary.landing.min + rng() * (cfg.vary.landing.max - cfg.vary.landing.min)
+  // The top landing, at the near end, on the rim.
+  const turn0 = -run / 2 + jitter()
+  const length0 = landingLength()
+  const head = world(turn0 - length0 / 2, 0)
   const topY = raw(head.x, head.z)
-  // Where a raider steps onto it, on the rim behind the top landing.
-  const rim = world((endA + runA) / 2, -0.6)
   const drop = Math.max(cfg.rise, topY - floor)
   const count = Math.max(1, Math.round(drop / cfg.rise))
-  const step = drop / count
+  // Where each flight turns: at the near end (-run / 2) for the even
+  // ones, the far end for the odd, each jittered; and how far each
+  // landing runs on past its turn.
+  const turns = [turn0]
+  const lengths = [length0]
+  for (let j = 1; j <= count; j++) {
+    turns.push((j % 2 === 0 ? -run / 2 : run / 2) + jitter())
+    lengths.push(landingLength())
+  }
+  // Each flight climbs its share of the drop by how long it runs, so all
+  // stand at one pitch.
+  const runs = turns.slice(1).map((t, i) => Math.abs(t - turns[i]))
+  const total = runs.reduce((sum, r) => sum + r, 0)
+  const heights = [topY]
+  runs.forEach((r, i) => heights.push(heights[i] - (drop * r) / total))
+  heights[count] = floor
   const flights: Flight[] = []
   for (let i = 0; i < count; i++) {
-    const from = i % 2 === 0 ? runA : runB
-    const to = i % 2 === 0 ? runB : runA
     const lane = i % 2 === 0 ? outer : inner
     flights.push({
-      a: { ...world(from, lane), y: topY - step * i },
-      b: { ...world(to, lane), y: topY - step * (i + 1) },
+      a: { ...world(turns[i], lane), y: heights[i] },
+      b: { ...world(turns[i + 1], lane), y: heights[i + 1] },
     })
   }
   // The turn that carries landing-local +x along the wall.
   const along = mazeToWorld({ x: 0, z: 0, yaw: place.yaw }, u)
   const centre = world(0, deep)
-  const landing = (end: 'a' | 'b', y: number): Landing => ({
-    x: centre.x,
-    z: centre.z,
-    cos: along.x,
-    sin: along.z,
-    // A little over the flights' ends, so no seam opens between the lanes.
-    x0: end === 'a' ? endA : runB - LAP,
-    x1: end === 'a' ? runA + LAP : endB,
-    halfWidth: deep,
-    y,
+  const landings: Landing[] = turns.map((t, j) => {
+    // The near end's landings run on toward -t, the far end's toward +t,
+    // a little over the flights' ends so no seam opens between the lanes.
+    const far = j % 2 === 0 ? -1 : 1
+    return {
+      x: centre.x,
+      z: centre.z,
+      cos: along.x,
+      sin: along.z,
+      x0: far < 0 ? t - lengths[j] : t - LAP,
+      x1: far < 0 ? t + LAP : t + lengths[j],
+      halfWidth: deep,
+      y: heights[j],
+      far,
+      open: j === count,
+    }
   })
-  const landings: Landing[] = [landing('a', topY)]
-  for (let j = 1; j <= count; j++) {
-    landings.push(landing((j - 1) % 2 === 0 ? 'b' : 'a', topY - step * j))
-  }
-  // The foot: the end the last flight comes down to, on the floor.
-  const footEnd = (count - 1) % 2 === 0 ? endB : endA
-  const rail = gap + cfg.width * 2 + 0.05
+  const x0 = Math.min(...landings.map((l) => l.x0))
+  const x1 = Math.max(...landings.map((l) => l.x1))
+  const band = (low: number, high: number) => ({
+    low: low - RAIL_BAND,
+    high: high + RAIL_BAND,
+  })
   const rails: MoatWall[] = [
-    { a: world(endA, rail), b: world(endB, rail), half: 0.06 },
-    {
-      a: world(endA, 0),
-      b: world(endA, rail),
+    // The outer rail, end to end, for everyone.
+    { a: world(x0, rail), b: world(x1, rail), half: 0.06 },
+    // Between the lanes, each flight's length, for the feet on it: the
+    // landings turn round their ends.
+    ...flights.map((f, i) => ({
+      a: world(turns[i], strip),
+      b: world(turns[i + 1], strip),
       half: 0.06,
-      ...(footEnd === endA ? { band: { low: floor + 1 } } : {}),
-    },
-    {
-      a: world(endB, 0),
-      b: world(endB, rail),
-      half: 0.06,
-      ...(footEnd === endB ? { band: { low: floor + 1 } } : {}),
-    },
+      band: band(f.b.y, f.a.y),
+    })),
+    // Across each landing's far end, for the feet on it, but the foot's.
+    ...landings
+      .filter((l) => !l.open)
+      .map((l) => {
+        const t = l.far < 0 ? l.x0 : l.x1
+        return {
+          a: world(t, 0),
+          b: world(t, rail),
+          half: 0.06,
+          band: band(l.y, l.y),
+        }
+      }),
   ]
-  const foot = world(footEnd + Math.sign(footEnd) * 1.5, strip)
+  // The foot: past the last landing's far end, on the floor.
+  const last = landings[count]
+  const footAt = (last.far < 0 ? last.x0 : last.x1) + last.far * 1.5
+  const foot = world(footAt, strip)
+  // Where a raider steps onto it, on the rim behind the top landing.
+  const rim = world(turn0 - length0 / 2, -0.6)
   return {
     side,
     flights,
@@ -371,7 +423,8 @@ function fireEscape(
     top: { ...rim, y: raw(rim.x, rim.z) },
     foot: { ...foot, y: floor },
     width: cfg.width,
-    ends: [world(endA, 0), world(endB, 0)],
+    depth: rail,
+    ends: [world(x0, 0), world(x1, 0)],
     inward: mazeToWorld({ x: 0, z: 0, yaw: place.yaw }, inward),
   }
 }
@@ -397,6 +450,255 @@ export function moatWalls(raw: HeightAt, place: MazePlace): MoatWall[] {
   }
   return walls
 }
+
+// A pipe along a wall of the moat, in the world: its bends from one end
+// to the other, all at one height (the last may drop to the floor), how
+// thick, which paint, where along its first stretch a valve wheel and a
+// junction box sit (a share of it, or null), and the face's normal toward
+// the channel.
+export interface MoatPipe {
+  points: (XZ & { y: number })[]
+  radius: number
+  grey: boolean
+  valve: number | null
+  junction: number | null
+  normal: XZ
+  // A point on the wall's line, for how far out each bend stands.
+  wall: XZ
+}
+
+// How far a pipe keeps off a fire escape's ends and its outer rail, over
+// its own radius, and how far its ends keep off the stair (so a drop to
+// the floor never stands in the foot's way).
+const PIPE_CLEAR = 0.4
+const PIPE_END_CLEAR = 4
+// How far a pipe's ends keep off the wall's corners, so pipes on two
+// walls never cross where they meet.
+const PIPE_CORNER = 3
+
+// The pipes down the moat's walls, a maze of them on each side of each
+// edge: levels from `CONFIG.castle.pipes.under` under the rim's lowest (a
+// raider who walks off the rim lands on one, `catchPipe`) down by `drop`
+// at a time, as far as `floorClear` over the floor, each level broken
+// into runs `length` long with `gap`s between, each run in one of the
+// `rows` out from the wall, a share `missing`. Clear of the corners. A
+// run by a fire escape bends out past its outer rail and back.
+export function moatPipes(
+  raw: HeightAt,
+  place: MazePlace,
+  floor: number,
+  stairs: readonly FireEscape[],
+  cfg = CONFIG.castle.pipes
+): MoatPipe[] {
+  const rng = mulberry32(cfg.seed)
+  const between = ([lo, hi]: readonly [number, number]) =>
+    lo + rng() * (hi - lo)
+  const edges = moatEdges(place)
+  const pipes: MoatPipe[] = []
+  const n = edges.outer.length
+  for (let k = 0; k < n; k++) {
+    for (const outer of [true, false]) {
+      const edge = outer ? edges.outer : edges.island
+      const a = edge[k]
+      const b = edge[(k + 1) % n]
+      const len = Math.hypot(b.x - a.x, b.z - a.z)
+      const u = { x: (b.x - a.x) / len, z: (b.z - a.z) / len }
+      // Toward the channel: in to the middle from the outer edge, out
+      // from the island's.
+      let normal = { x: -u.z, z: u.x }
+      const toward =
+        normal.x * ((a.x + b.x) / 2 - place.x) +
+          normal.z * ((a.z + b.z) / 2 - place.z) <
+        0
+      if (toward !== outer) normal = { x: -normal.x, z: -normal.z }
+      // The rim along the wall, and its lowest between two stretches.
+      const rims = alongEdge([a, b], 2)
+        .concat([b])
+        .map((p) => ({
+          d: (p.x - a.x) * u.x + (p.z - a.z) * u.z,
+          y: raw(p.x, p.z),
+        }))
+      const highTop = Math.max(...rims.map((r) => r.y))
+      const rimOver = (d0: number, d1: number) =>
+        Math.min(
+          ...rims.filter((r) => r.d >= d0 - 2 && r.d <= d1 + 2).map((r) => r.y)
+        )
+      // The stairs on this wall, as stretches along it.
+      const along = (p: XZ) => (p.x - a.x) * u.x + (p.z - a.z) * u.z
+      const busy = outer
+        ? stairs
+            .filter((s) => s.side % n === k)
+            .map((s) => {
+              const d = [along(s.ends[0]), along(s.ends[1])]
+              return { from: Math.min(...d), to: Math.max(...d), s }
+            })
+            .sort((p, q) => p.from - q.from)
+        : []
+      const at = (d: number, out: number, y: number) => ({
+        x: a.x + u.x * d + normal.x * out,
+        z: a.z + u.z * d + normal.z * out,
+        y,
+      })
+      const near = (d: number) =>
+        busy.some(
+          ({ from, to }) => d > from - PIPE_END_CLEAR && d < to + PIPE_END_CLEAR
+        )
+      // Where each level's tops run, from just under the rim's highest
+      // down; a run is laid only where the rim over it stands `under` over
+      // it, so wherever the rim runs, the first run under it is near.
+      const tops: number[] = []
+      for (
+        let top = highTop - between(cfg.under);
+        top >= floor + cfg.floorClear;
+        top -= between(cfg.drop)
+      ) {
+        tops.push(top)
+      }
+      // Out from the wall where a run in the stretch a to b must stand to
+      // clear a fire escape: past its outer rail, or nowhere in particular.
+      const clearOf = (d0: number, d1: number, radius: number) =>
+        busy
+          .filter(({ from, to }) => {
+            const clear = radius + PIPE_CLEAR
+            return d1 > from - clear && d0 < to + clear
+          })
+          .map(({ from, to, s }) => {
+            const clear = radius + PIPE_CLEAR
+            return { from: from - clear, to: to + clear, out: s.depth + clear }
+          })
+      for (const top of tops) {
+        // Each level broken into runs along the wall, each in a row out
+        // from it, with gaps between and now and then one missing.
+        for (
+          let d0 = PIPE_CORNER + between(cfg.gap) / 2;
+          d0 < len - PIPE_CORNER - 2;
+        ) {
+          const d1 = Math.min(d0 + between(cfg.length), len - PIPE_CORNER)
+          const radius = between(cfg.radius)
+          const row = cfg.rows[Math.floor(rng() * cfg.rows.length)]
+          const grey = rng() < 0.5
+          const valve = rng() < 0.6 ? rng() : null
+          const junction = rng() < 0.5 ? rng() : null
+          const missing = rng() < cfg.missing
+          // Only the lowest level turns down to the floor, past nothing
+          // under it, and never by a stair's foot.
+          const drop = rng() < cfg.toFloor && top === tops.at(-1) && !near(d1)
+          const next = d1 + between(cfg.gap)
+          if (missing || d1 - d0 < 2 || rimOver(d0, d1) - top < cfg.under[0]) {
+            d0 = next
+            continue
+          }
+          const y = top - radius
+          const base = radius + 0.75 + row
+          // Round any fire escape in the way: out past its rail and back.
+          const zones = clearOf(d0, d1, radius)
+          const offAt = (d: number) =>
+            Math.max(
+              base,
+              ...zones.filter((z) => d >= z.from && d <= z.to).map((z) => z.out)
+            )
+          const points = [at(d0, offAt(d0), y)]
+          for (const zone of zones) {
+            if (zone.out <= base) continue
+            if (zone.from > d0) {
+              points.push(at(zone.from, base, y), at(zone.from, zone.out, y))
+            }
+            if (zone.to < d1) {
+              points.push(at(zone.to, zone.out, y), at(zone.to, base, y))
+            }
+          }
+          points.push(at(d1, offAt(d1), y))
+          if (drop) points.push(at(d1, offAt(d1), floor))
+          pipes.push({ points, radius, grey, valve, junction, normal, wall: a })
+          d0 = next
+        }
+      }
+    }
+  }
+  return pipes
+}
+
+// The walls a pipe stands as: each stretch, and a drop to the floor, for
+// any body whose head would meet it (feet within `body` under it) and too
+// far under its top to step up onto it (more than `climb`, as Ground
+// standAt climbs); nearer, a body steps up onto it (`pipeDecks`).
+export function pipeWalls(
+  pipe: MoatPipe,
+  body = 2,
+  climb = CONFIG.fall.climb
+): MoatWall[] {
+  const walls: MoatWall[] = []
+  for (let i = 0; i < pipe.points.length - 1; i++) {
+    const p = pipe.points[i]
+    const q = pipe.points[i + 1]
+    const top = Math.max(p.y, q.y) + pipe.radius
+    const bottom = Math.min(p.y, q.y)
+    walls.push({
+      a: { x: p.x, z: p.z },
+      b: { x: q.x, z: q.z },
+      half: pipe.radius,
+      band: { low: bottom - body, high: top - climb },
+    })
+  }
+  return walls
+}
+
+// How far a foot hangs over a pipe's sides and still stands on it.
+const PIPE_FOOTING = 0.15
+
+// What of a pipe is walked on: the top of each level stretch, a deck as
+// wide as the pipe and a foot's hang either side (its ends round, so the
+// bends join), for Ground.addRibbon.
+export interface PipeDeck {
+  a: XZ & { y: number }
+  b: XZ & { y: number }
+  width: number
+}
+
+export function pipeDecks(pipe: MoatPipe): PipeDeck[] {
+  const decks: PipeDeck[] = []
+  for (let i = 0; i < pipe.points.length - 1; i++) {
+    const p = pipe.points[i]
+    const q = pipe.points[i + 1]
+    if (p.y !== q.y) continue
+    const y = p.y + pipe.radius
+    decks.push({
+      a: { x: p.x, z: p.z, y },
+      b: { x: q.x, z: q.z, y },
+      width: pipe.radius * 2 + PIPE_FOOTING * 2,
+    })
+  }
+  return decks
+}
+
+// A raider falling past a pipe catches it: of the decks whose top the
+// feet dropped past this frame (from `from` down to `to`), the highest
+// within `reach` of the deck's edge, and where on its middle they land;
+// never the one they fell from (at `start`, where the fall began). Null when they fall past
+// every one. Short of a fall's whole drift, so a raider who walks off the
+// rim over a pipe may land on it, and one who sprints off sails past.
+export function catchPipe(
+  decks: readonly PipeDeck[],
+  at: XZ,
+  from: number,
+  to: number,
+  start = from,
+  reach = CONFIG.fall.catchReach
+): (XZ & { y: number }) | null {
+  let best: (XZ & { y: number }) | null = null
+  for (const { a, b, width } of decks) {
+    const y = a.y
+    if (y > from || y < to || y >= start - CATCH_LEAVE) continue
+    if (best && y <= best.y) continue
+    const p = projectOnSegment(at.x, at.z, a.x, a.z, b.x, b.z)
+    if (p.dist > width / 2 + reach) continue
+    best = { x: p.x, z: p.y, y }
+  }
+  return best
+}
+
+// Feet this little over a deck have only just left it: no catch.
+const CATCH_LEAVE = 0.05
 
 // A crane on the rim: where its mast stands, the way its jib reaches (at
 // the island), and how far it reaches.

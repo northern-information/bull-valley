@@ -101,7 +101,7 @@ test('Marx glows when you come near and recites a stanza at a time', async ({
   await expect.poll(() => glowsOn(page, 'marx')).toBe(false)
 })
 
-test('Carlsten glows when you come near and cycles through his lines', async ({
+test('Carlsten glows when you come near and opens his shelves, a line each time', async ({
   page,
 }) => {
   await beginRaid(page)
@@ -121,11 +121,20 @@ test('Carlsten glows when you come near and cycles through his lines', async ({
   await approach(page, 'carlsten')
   await expect.poll(() => glowsOn(page, 'carlsten')).toBe(true)
   await expect(page.locator('.bv-prompt')).toBeHidden()
-  const name = copy('outfits.carlsten')
+  // He keeps the Citgo's shelves: E opens their trade window, his next
+  // line under his name.
+  const shop = page.locator('.bv-citgo')
   for (const key of ['says_1', 'says_2', 'says_3', 'says_1']) {
     await page.keyboard.press('KeyE')
+    await expect(shop.locator('[data-bv="npc-lede"]')).toHaveText(
+      copy(`carlsten.${key}`)
+    )
+    await page.keyboard.press('KeyE')
+    await expect(shop).toBeHidden()
+    // The game acts on E again once it has the pointer back, which comes
+    // a beat after the window closes; a raider never presses that fast.
     await expect
-      .poll(() => lastLine(page))
-      .toBe(`${name}: ${copy(`carlsten.${key}`)}`)
+      .poll(() => page.evaluate(() => window.__bv?.player.locked))
+      .toBe(true)
   }
 })

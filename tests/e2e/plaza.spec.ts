@@ -59,15 +59,25 @@ test('Erwin barters, the rose earns the key, the key opens the office', async ({
   const dialog = page.locator('.bv-deal')
   await expect(dialog).toBeVisible()
   await expect(dialog).toContainText(copy('dealer.ramble_1'))
-  await dialog.locator('[data-kind="marlboro"]').click()
-  await dialog.locator('[data-good="lsd"] [data-bv="deal-buy"]').click()
+  // Smokes put down one at a time, then evened up for the rest.
+  await dialog.locator('[data-good="lsd"]').click()
+  const more = dialog.locator('[data-kind="marlboro"] [data-bv="trade-more"]')
+  await more.click()
+  await more.click()
+  await expect(
+    dialog.locator('[data-kind="marlboro"] [data-bv="trade-count"]')
+  ).toHaveText('2')
+  await expect(dialog.locator('[data-bv="trade-go"]')).toBeDisabled()
+  await dialog.locator('[data-bv="trade-even"]').click()
+  await dialog.locator('[data-bv="trade-go"]').click()
   await expect.poll(() => held(page, 'lsd')).toBe(1)
   expect(await held(page, 'marlboro')).toBeLessThan(smokes)
   expect(await cash(page)).toBe(before)
 
-  // He gives the rose.
+  // He gives the rose, on his quest's tab.
+  await dialog.locator('[data-bv="trade-tab-quest"]').click()
   await expect(dialog).toContainText(copy('quests.rose_offer'))
-  await dialog.locator('[data-bv="deal-quest-go"]').click()
+  await dialog.locator('[data-bv="trade-quest-go"]').click()
   await expect.poll(() => held(page, 'rose')).toBe(1)
   await page.keyboard.press('KeyE')
   await expect(dialog).toBeHidden()
@@ -96,8 +106,9 @@ test('Erwin barters, the rose earns the key, the key opens the office', async ({
   // Back to Erwin for the key; the door lets this raider through.
   await toErwin(page)
   await page.keyboard.press('KeyE')
+  await dialog.locator('[data-bv="trade-tab-quest"]').click()
   await expect(dialog).toContainText(copy('quests.rose_laid'))
-  await dialog.locator('[data-bv="deal-quest-go"]').click()
+  await dialog.locator('[data-bv="trade-quest-go"]').click()
   await expect.poll(() => held(page, 'vault-key')).toBe(1)
   await page.keyboard.press('KeyE')
   expect(await doorStops(page)).toBe(false)

@@ -24,6 +24,7 @@ import { createGameState } from './game.ts'
 import { createGlow } from './glow.ts'
 import { createGravestones } from './gravestones.ts'
 import { Hallucinations } from './hallucinationrig.ts'
+import { DATA_BASE } from './heightmap.ts'
 import { Hud } from './hud.ts'
 import { wireKeys, wirePointer } from './input.ts'
 import { createItemThumbs } from './itemthumbs.ts'
@@ -81,7 +82,6 @@ import type { TruckContext } from './truckplan.ts'
 // (what E is aimed at) and loop.ts (the frame).
 
 // The survey and terrain: the game's own map, committed in public/data.
-const DATA_BASE = '/data/bull-valley'
 
 async function boot() {
   const root = document.getElementById('bv-root')
@@ -258,6 +258,7 @@ async function boot() {
     standAt: (x, z, feetY) =>
       world.ground.standAt(x, z, feetY, CONFIG.fall.climb),
     collide: world.walls.resolve,
+    catchAt: world.castle?.catchAt,
     metres: geo.metres,
     spawn: world.spawn,
   })
@@ -339,7 +340,12 @@ async function boot() {
     fishHud,
     pick,
     phone: new Phone(hud.phoneCanvas, hud.phone),
-    shadowmen: new ShadowBodies({ scene, groundAt: world.ground.at }),
+    shadowmen: new ShadowBodies({
+      scene,
+      groundAt: world.ground.at,
+      standAt: (x, z, feetY) =>
+        world.ground.standAt(x, z, feetY, CONFIG.fall.climb),
+    }),
     caretaker: new CaretakerShade({
       scene,
       groundAt: world.ground.at,
@@ -418,6 +424,7 @@ async function boot() {
       : null,
     dealer: world.plaza ? world.plaza.dealer.at : null,
     undercroft: world.undercroft?.place ?? null,
+    moat: world.castle?.place ?? null,
     rings: world.rings,
     payphones: world.payphones.map(({ x, z }) => ({ x, z })),
   })

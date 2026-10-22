@@ -63,6 +63,7 @@ import { doseOf, isKeyItem, isUsable, tripSecondsOf } from './items.ts'
 import { openLaptopDialog } from './laptopdialog.ts'
 import { README } from './laptopreadme.ts'
 import { call, refused } from './marx.ts'
+import { openMoabDialog } from './moabdialog.ts'
 import { npcLine } from './npcs.ts'
 import { outfitById } from './outfits.ts'
 import {
@@ -81,6 +82,7 @@ import { openRecycleDialog } from './recycledialog.ts'
 import { callRoute, nearestRoadPoint } from './roadgraph.ts'
 import { inHaven } from './shadowmen.ts'
 import { buy as buyItem, settle } from './shop.ts'
+import { openShopDialog } from './shopdialog.ts'
 import { openStandDialog } from './standdialog.ts'
 import { move, moveAmount } from './stash.ts'
 import { formatCash } from './store.ts'
@@ -884,10 +886,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
               step: roseProgress(s.quests.rose, s.inventory),
             }
           : null,
-      onDeal: (kind, pay) => {
+      icon: (kind) => Promise.resolve(game.thumbs.icon(kind)),
+      onDeal: (kind, offer) => {
         s.pendingDeal = true
         s.dealSaid = null
-        net.send({ type: 'deal', kind, pay })
+        net.send({ type: 'deal', kind, offer })
       },
       onQuest: () => {
         const step = s.quests ? dealerStep(s.quests.rose) : null
@@ -974,9 +977,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       if (inventoryChanged) refreshBag()
     }
     if (line) hud.tell(line)
+    s.shopSaid = line
   }
 
-  const buy = (shelf: ShelfSpot) => {
+  const buy = (shelf: Pick<ShelfSpot, 'station' | 'item' | 'unit'>) => {
     const { next, line } = buyItem(
       { stock: s.storeStock, inventory: s.inventory, cash: s.cash },
       shelf.station,
@@ -985,8 +989,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     )
     if (!next) {
       if (line) hud.tell(line)
+      s.shopSaid = line
       return
     }
+    s.shopSaid = null
     // The shelf is the valley's: ask, and pocket the unit when the valley
     // says it was still there. The judgement above (stock as last heard,
     // cash) stands; the valley settles the race.
@@ -998,6 +1004,31 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       station: shelf.station,
       kind: shelf.item,
       unit: shelf.unit,
+    })
+  }
+
+  // E on a shelf unit, or at Carlsten behind the counter: the Citgo's
+  // shelves in the trade window, with the pointer free, as at Erwin's and
+  // Moab's (rule 7). The unit looked at is picked.
+  const openShop = (station: number, pick: ShelfSpot | null) => {
+    if (s.talking) return
+    s.talking = true
+    s.shopSaid = null
+    player.keys.clear()
+    if (document.pointerLockElement) document.exitPointerLock()
+    void openShopDialog({
+      name: citgoLabel(station),
+      says: npcLine('carlsten', s.npcSaid.carlsten++),
+      pick: pick && { kind: pick.item, unit: pick.unit },
+      shelf: () => (s.world ? (s.storeStock[station] ?? null) : null),
+      cash: () => s.cash,
+      pending: () => s.pending.buys.size > 0,
+      said: () => s.shopSaid,
+      icon: (kind) => Promise.resolve(game.thumbs.icon(kind)),
+      onBuy: (item, unit) => buy({ station, item, unit }),
+    }).then(() => {
+      s.talking = false
+      engagePointer()
     })
   }
 
@@ -1048,6 +1079,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (cosmetic) npcSays('moab', cosmetic.offer)
   }
 
+  // The cosmetic last asked of Moab, and the last word on a trade with
+  // him, for his window.
+  let asked: CosmeticId | null = null
+  let moabSaid: string | null = null
+
   const wear = (cosmetics: CosmeticId[]) => {
     const gained = gainedOf(s.cosmetics, cosmetics)
     s.cosmetics = cosmetics
@@ -1057,25 +1093,50 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       if (!cosmetic) continue
       npcSays('moab', cosmetic.traded)
       hud.tell(cosmetic.worn)
+      moabSaid = cosmetic.worn
     }
   }
 
   const tradeRefused = (reason: string) => {
     s.pending.trade = false
-    const offer = s.interaction?.kind === 'trade' ? s.interaction.offer : null
-    hud.tell(tradeRefusal(reason, offer))
+    moabSaid = tradeRefusal(reason, asked)
+    hud.tell(moabSaid)
   }
 
   const trade = (offer: CosmeticId) => {
     if (s.pending.trade) return
     const cosmetic = cosmeticById(offer)
     if (!cosmetic || s.cosmetics.includes(offer)) return
+    asked = offer
+    moabSaid = null
     if (!affords(s.inventory, offer)) {
       tradeRefused('short')
       return
     }
     s.pending.trade = true
     net.send({ type: 'trade', offer })
+  }
+
+  // E beside Moab Coldë: his trade window, with the pointer free, as at
+  // Erwin's (rule 14).
+  const openMoab = () => {
+    if (s.talking) return
+    s.talking = true
+    moabSaid = null
+    player.keys.clear()
+    if (document.pointerLockElement) document.exitPointerLock()
+    void openMoabDialog({
+      open: () => s.world !== null,
+      pack: () => s.inventory,
+      owned: () => s.cosmetics,
+      pending: () => s.pending.trade,
+      said: () => moabSaid,
+      icon: (kind) => Promise.resolve(game.thumbs.icon(kind)),
+      onTrade: trade,
+    }).then(() => {
+      s.talking = false
+      engagePointer()
+    })
   }
 
   // An item with no effect yet does nothing, and a cigarette waits for the
@@ -1300,7 +1361,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         takePickup(interaction.pickup)
         return
       case 'buy':
-        buy(interaction)
+        openShop(interaction.station, interaction)
         return
       case 'collect':
         collectBerry(interaction.bush, interaction.status)
@@ -1311,11 +1372,19 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         return
       case 'speak':
         discover([interaction.npc])
+        // Carlsten keeps the Citgo's shelves: E at him opens them.
+        if (
+          interaction.npc === 'carlsten' &&
+          interaction.station !== undefined
+        ) {
+          openShop(interaction.station, null)
+          return
+        }
         speakTo(interaction.npc)
         return
       case 'trade':
         discover(['moab'])
-        trade(interaction.offer)
+        openMoab()
         return
       case 'loot':
         lootCorpse(interaction.corpse)

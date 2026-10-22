@@ -51,7 +51,7 @@ The e2e suite needs Chromium once: `npx playwright install chromium`.
 
 - [CLAUDE.md](CLAUDE.md): the standing rules and where to read next.
 - [docs/tooling.md](docs/tooling.md): every command, CI, deploys, secrets.
-- [docs/mvp-loop.md](docs/mvp-loop.md): what a raider sees and does.
+- [docs/gameplay.md](docs/gameplay.md): what a raider sees and does.
 - [docs/multiplayer.md](docs/multiplayer.md): the Worker, the wire, D1, auth, and the shared world's rules.
 - [docs/modules.md](docs/modules.md): one line for every module under `src/` and `worker/`.
 - [docs/testing.md](docs/testing.md): driving the game in a browser and the e2e shards.

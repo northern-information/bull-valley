@@ -72,7 +72,11 @@ const headingOf = (v: XZ) => Math.atan2(v.z, v.x)
 function crowding(place: MazePlace, cfg: CastleConfig) {
   const all = sides()
   const stairs = cfg.stairs
-  const half = stairs.rise / stairs.slope / 2 + stairs.landing
+  // As far along the wall as a fire escape can reach from its middle:
+  // half a flight, its turn's furthest, and its longest landing (moat.ts
+  // fireEscapes).
+  const half =
+    stairs.rise / stairs.slope / 2 + stairs.vary.turn + stairs.vary.landing.max
   const strips = stairs.sides.map((k) => {
     const s = all[k % all.length]
     return [
