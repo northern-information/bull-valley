@@ -1,5 +1,5 @@
 // The account's waypoints as they stand in the valley (waypoints.ts,
-// sharedworld.ts rule 36): one roadsideparts.ts buildWaypointPillar on
+// sharedworld.ts rule 37): one roadsideparts.ts buildWaypointPillar on
 // ground.at at each. Kept in step with state.waypoints; only this raider
 // sees their own.
 

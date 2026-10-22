@@ -6,7 +6,7 @@
 // citgos.ts fastTravel). Opened for a charter (the first one into Marx's
 // bed, marx.ts charter), a click anywhere picks where he drives instead.
 // Otherwise a click anywhere else pins a waypoint there (waypoints.ts,
-// sharedworld.ts rule 36), and a click on a pin lifts it. It opens over
+// sharedworld.ts rule 37), and a click on a pin lifts it. It opens over
 // the valley with the pointer free, as the Book of Shadows does; hud.ts
 // builds it, loop.ts draws it each frame while it is open.
 

@@ -1,7 +1,7 @@
 // The compass: a faint strip across the top of the screen, half the
 // horizon wide, the raider's facing in its middle. North, east, south and
 // west ride it as letters over hairline ticks; each waypoint the account
-// keeps (sharedworld.ts rule 36, waypoints.ts) is a small diamond, its
+// keeps (sharedworld.ts rule 37, waypoints.ts) is a small diamond, its
 // distance said under it while it is dead ahead; each of the raider's
 // party placed in the valley (rule 34) is a cyan tick. Shown only while
 // the pointer is locked and nothing is open over the valley, as the

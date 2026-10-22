@@ -86,6 +86,17 @@ export function createTargets(game: Game): Targets {
         return world.shelves.laptop
       case 'stand':
         return world.stand?.group ?? null
+      case 'jar-slurm':
+        return (
+          world.shelves
+            .crawlingSlurms()
+            .find(
+              (s) =>
+                s.station === action.station &&
+                s.slot === action.slot &&
+                s.index === action.index
+            )?.object ?? null
+        )
       case 'deal':
         return world.plaza?.dealer.group ?? null
       case 'locked':

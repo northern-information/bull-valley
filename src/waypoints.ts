@@ -1,4 +1,4 @@
-// Waypoints and the compass (sharedworld.ts rule 36): the points an
+// Waypoints and the compass (sharedworld.ts rule 37): the points an
 // account pins on the map (citgomap.ts), up to WAYPOINT_MAX of them, kept
 // by the valley; and where a facing puts any point on the compass strip
 // across the top of the screen (compasshud.ts). Pure: no three, no DOM.

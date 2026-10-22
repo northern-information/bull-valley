@@ -55,6 +55,8 @@ const FIELDS_OF: Record<
   forage: { required: [], optional: [] },
   valuable: { required: [], optional: [] },
   material: { required: [], optional: [] },
+  fish: { required: ['worth'], optional: [] },
+  rod: { required: ['price'], optional: [] },
 }
 
 describe('items', () => {
@@ -243,6 +245,7 @@ describe('items', () => {
         item.category !== 'forage' &&
         item.category !== 'valuable' &&
         item.category !== 'material' &&
+        item.category !== 'fish' &&
         item.category !== 'key-item' &&
         item.category !== 'psychedelic' &&
         item.category !== 'stimulant'

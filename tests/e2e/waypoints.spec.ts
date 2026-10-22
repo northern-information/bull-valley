@@ -7,7 +7,7 @@ import {
 } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
-// Waypoints (sharedworld.ts rule 36): a click on the map pins one, a click
+// Waypoints (sharedworld.ts rule 37): a click on the map pins one, a click
 // on the pin lifts it, the compass shows each, and the valley keeps them
 // for the account.
 

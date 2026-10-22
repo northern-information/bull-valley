@@ -755,6 +755,16 @@ function setGrip(figure: Figure, side: 'L' | 'R', closed: boolean) {
   grip.visible = closed
 }
 
+// Close a hand round something held in it from outside (the rod at the
+// pond on Dial-Up, pondview.ts), or open it again.
+export function gripWith(
+  figure: Figure,
+  side: 'L' | 'R',
+  closed: boolean
+): void {
+  setGrip(figure, side, closed)
+}
+
 // How far the first-person wrist is cocked back (a positive x rotation
 // swings the hand back off the forearm's line).
 const WRIST_COCK = 0.4

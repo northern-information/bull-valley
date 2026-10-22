@@ -5,6 +5,7 @@ import { dayKey, nextMidnight } from '../../src/daily.ts'
 import { costIn, freshDealerStock, goodOf } from '../../src/dealer.ts'
 import { DIME_CENTS } from '../../src/drops.ts'
 import { embark, outcomeOf } from '../../src/expeditions.ts'
+import { fightOf, quickestMs } from '../../src/fishing.ts'
 import { BASE_GEOMETRIE, maxGeometrie } from '../../src/health.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { contentsOf, getItem, healsOf } from '../../src/items.ts'
@@ -23,11 +24,13 @@ import {
   placeCaretaker,
   placeShadowman,
   seeHeadlights,
+  shadeHavens,
   shadowmenNear,
   shadowRaiders,
   stepShadows,
 } from '../../src/shadowstep.ts'
 import {
+  anglerFor,
   BUSHES,
   citgosFor,
   corpsesOf,
@@ -50,7 +53,6 @@ import {
 import { FRESH_STAND, standXp } from '../../src/stand.ts'
 import { UNDERCROFT } from '../../src/undercroft.ts'
 import { damageOf } from '../../src/wards.ts'
-import { dryMap } from '../../src/waterside.ts'
 import { WAYPOINT_MAX } from '../../src/waypoints.ts'
 import { unitsLeft } from './stock.ts'
 import type { CosmeticId } from '../../src/cosmetics.ts'
@@ -59,6 +61,7 @@ import type { Inventory, XZ } from '../../src/interfaces.ts'
 import type { PickupKind } from '../../src/items.ts'
 import type {
   DailyMessage,
+  LineMessage,
   PeerStateWire,
   PickupSpec,
   WorldMessage,
@@ -104,6 +107,9 @@ const ROUTES = { home: { x: 10, z: 10 }, joyrideMs: 600_000 }
 const STAND = { x: 5, z: -20 }
 const WRECK_SPOT = { x: 30, z: 40 }
 const DEALER = { x: -30, z: -60 }
+// The firefly ponds (rule 36), away from every station.
+const POND = { x: 800, z: 0, radius: 100, landing: { x: 720, z: 0 } }
+const FAR_POND = { x: -800, z: 900, radius: 60, landing: { x: -760, z: 860 } }
 // Noon, Central time, so a test has the afternoon before the day turns.
 const T0 = Date.UTC(2026, 9, 7, 17, 0, 0)
 const SEC = 1000
@@ -184,11 +190,12 @@ const join = (id: string): ValleyAction => ({
   stations: STATIONS,
   havens: HAVENS,
   metres: METRES,
-  water: dryMap(METRES),
+  lairs: [],
   maze: null,
   routes: ROUTES,
   stand: STAND,
   wreck: WRECK_SPOT,
+  ponds: [POND, FAR_POND],
   bushes: BUSH_SPOTS,
   dealer: DEALER,
   undercroft: null,
@@ -2492,6 +2499,20 @@ describe("rule 11: the shadowmen are the valley's", () => {
     expect(lit.beam?.floor).toBe(0)
   })
 
+  it('aims no beam for a raider holding a jar or a rod, light or not', () => {
+    const v = valley()
+    const raiders = shadowRaiders(
+      v,
+      createShadows(),
+      [
+        { id: 'a', at: state({ light: true, held: 'jar' }) },
+        { id: 'b', at: state({ light: true, held: 'rod' }) },
+      ],
+      T0
+    )
+    expect(raiders.map((r) => r.beam)).toEqual([null, null])
+  })
+
   it('steps the field and sends all of it, rounded', () => {
     const v = valley()
     const shadows = createShadows()
@@ -3716,7 +3737,7 @@ describe('rule 34: parties', () => {
   })
 })
 
-describe('rule 36: waypoints', () => {
+describe('rule 37: waypoints', () => {
   const mark = (id: string, points: XZ[]): ValleyAction => ({
     type: 'mark',
     id,
@@ -3765,5 +3786,449 @@ describe('rule 36: waypoints', () => {
     const { waypoints: _, ...older } = stored
     expect(restoreValley(older).waypoints).toEqual({})
     expect(v.step(mark('nobody', [{ x: 1, z: 1 }])).waypoints).toBeUndefined()
+  })
+})
+
+describe('rule 36: fishing and the firefly pond', () => {
+  const shore = POND.landing
+  const holding = (pack: Inventory) => ({ pack, cosmetics: [] })
+  const tackle: Inventory = { 'fishing-rod': 1, nightcrawlers: 5, berries: 1 }
+  const fish = (
+    valley: Valley,
+    action: ValleyAction,
+    pack: Inventory | null = tackle,
+    now = T0
+  ) =>
+    reduce(valley, action, {
+      now,
+      present: ['a'],
+      ...(pack ? { holdings: holding(pack) } : {}),
+    })
+  const cast = (over: Partial<ValleyAction> = {}): ValleyAction =>
+    ({
+      type: 'cast',
+      id: 'a',
+      bait: 'nightcrawlers',
+      at: shore,
+      roll: 0.999,
+      seed: 1234,
+      ...over,
+    }) as ValleyAction
+  const reel = (over: Partial<ValleyAction> = {}): ValleyAction =>
+    ({
+      type: 'reel',
+      id: 'a',
+      landed: true,
+      roll: 0.999,
+      bonus: 0,
+      skillRoll: 1,
+      ...over,
+    }) as ValleyAction
+  const reason = (r: Reduced) => r.reply?.reason
+  // A line out on the first raider, and when it bit.
+  const hooked = () => {
+    const v = valleyWith(join('a'))
+    const r = fish(v.valley, cast())
+    const line = r.valley.lines.a
+    return { valley: r.valley, line, r }
+  }
+
+  it('keeps where the ponds lie with the world', () => {
+    expect(valleyWith(join('a')).valley.world?.ponds).toEqual([POND, FAR_POND])
+  })
+
+  it('turns every shadow aside at the pond, as at a forecourt (rule 11)', () => {
+    const world = valleyWith(join('a')).valley.world!
+    expect(shadeHavens(world)).toEqual([
+      ...HAVENS,
+      { x: POND.x, z: POND.z, radius: POND.radius },
+      { x: FAR_POND.x, z: FAR_POND.z, radius: FAR_POND.radius },
+    ])
+    expect(shadeHavens({ ...world, ponds: [] })).toEqual(HAVENS)
+  })
+
+  it('lets no shadow touch a raider in the fireflies', () => {
+    const v = valleyWith(join('a')).valley
+    const shadows = createShadows()
+    const at: PeerStateWire = {
+      x: POND.x,
+      y: 0,
+      z: POND.z,
+      yaw: 0,
+      pitch: 0,
+      pose: 'stand',
+      riding: false,
+      light: false,
+    }
+    const placed = [{ id: 'a', at }]
+    stepShadows(v, shadows, placed, mulberry32(1), { now: T0, dt: 0 })
+    shadows.field.shadowmen = []
+    placeShadowman(shadows, POND.x, POND.z + 1)
+    placeShadowman(shadows, POND.x + 1, POND.z, 'spider')
+    let struck: string[] = []
+    for (let i = 0; i < 20; i++) {
+      const out = stepShadows(v, shadows, placed, mulberry32(1), {
+        now: T0,
+        dt: 0.1,
+      })
+      struck = [...struck, ...(out?.struck ?? [])]
+    }
+    expect(struck).toEqual([])
+  })
+
+  it('gives a rod out of the tackle box to a pack without one', () => {
+    const v = valleyWith(join('a'))
+    const r = fish(v.valley, { type: 'tackle', id: 'a', at: shore }, {})
+    expect(r.pack).toEqual({ account: 'acct-a', kind: 'fishing-rod', delta: 1 })
+    expect(r.angler?.message).toMatchObject({ type: 'angler', rod: true })
+    expect(reason(fish(v.valley, { type: 'tackle', id: 'a', at: shore }))).toBe(
+      'has-rod'
+    )
+    expect(
+      reason(fish(v.valley, { type: 'tackle', id: 'a', at: shore }, null))
+    ).toBe('unavailable')
+  })
+
+  it('digs nightcrawlers on the roll, then rests the bank', () => {
+    const v = valleyWith(join('a'))
+    const dig = (roll: number): ValleyAction => ({
+      type: 'dig',
+      id: 'a',
+      at: shore,
+      roll,
+    })
+    const r = fish(v.valley, dig(0.999), null)
+    const { max, cooldownSeconds } = CONFIG.fishing.dig
+    expect(r.pack).toEqual({
+      account: 'acct-a',
+      kind: 'nightcrawlers',
+      delta: max,
+    })
+    expect(r.angler?.message.dug).toBe(max)
+    expect(r.valley.anglers['acct-a'].digAt).toBe(T0 + cooldownSeconds * SEC)
+    expect(reason(fish(r.valley, dig(0), null, T0 + SEC))).toBe('too-soon')
+    expect(
+      fish(r.valley, dig(0), null, T0 + cooldownSeconds * SEC).pack?.delta
+    ).toBe(CONFIG.fishing.dig.min)
+  })
+
+  it('refuses away from the pond, in the bed, or out of the valley', () => {
+    const v = valleyWith(join('a'))
+    const far = { x: 0, z: 0 }
+    expect(reason(fish(v.valley, cast({ at: far })))).toBe('no-pond')
+    expect(reason(fish(v.valley, cast({ at: null })))).toBe('no-pond')
+    // Either pond will do.
+    expect(fish(v.valley, cast({ at: FAR_POND.landing })).reply).toBeUndefined()
+    expect(
+      reason(fish(v.valley, { type: 'dig', id: 'a', at: far, roll: 0 }))
+    ).toBe('no-pond')
+    const aboard = valleyWith(join('a'), { type: 'board', id: 'a', at: HERE })
+    expect(reason(fish(aboard.valley, cast()))).toBe('aboard')
+    expect(reason(fish(v.valley, cast({ id: 'z' })))).toBe('not-in-valley')
+    expect(reason(fish(createValley(), cast()))).toBe('not-in-valley')
+  })
+
+  it('casts with the best rod in the pack, the fight and the catch its own', () => {
+    const v = valleyWith(join('a'))
+    const pack = { ...tackle, 'g-loomis': 1 }
+    const r = fish(v.valley, cast(), pack)
+    const line = r.valley.lines.a
+    expect(line.rod).toBe('g-loomis')
+    expect((r.fished as LineMessage).hook?.fight).toEqual(
+      fightOf(line.kind, 0, 'g-loomis')
+    )
+    // A bought rod is a rod: the tackle box keeps its own.
+    expect(
+      reason(fish(v.valley, { type: 'tackle', id: 'a', at: shore }, pack))
+    ).toBe('has-rod')
+    // A bass far past the skill, landed on the Loomis, lost without it.
+    const on = (rod?: string): Valley => ({
+      ...v.valley,
+      lines: {
+        a: {
+          account: 'acct-a',
+          kind: 'largemouth-bass',
+          skill: 0,
+          ...(rod ? { rod } : {}),
+          seed: 1,
+          bitesAt: T0,
+        },
+      },
+    })
+    const at = (rod?: string) =>
+      T0 + quickestMs(fightOf('largemouth-bass', 0, rod))
+    expect(
+      fish(on('g-loomis'), reel({ roll: 0.5 }), null, at('g-loomis')).fished
+    ).toMatchObject({ outcome: 'landed' })
+    expect(fish(on(), reel({ roll: 0.5 }), null, at()).fished).toMatchObject({
+      outcome: 'snap',
+    })
+  })
+
+  it('casts only with a rod and the bait, and one line at a time', () => {
+    const v = valleyWith(join('a'))
+    expect(reason(fish(v.valley, cast(), { nightcrawlers: 3 }))).toBe('no-rod')
+    expect(reason(fish(v.valley, cast(), { 'fishing-rod': 1 }))).toBe('no-bait')
+    expect(reason(fish(v.valley, cast(), null))).toBe('unavailable')
+    const { valley } = hooked()
+    expect(reason(fish(valley, cast()))).toBe('busy')
+  })
+
+  it('keeps the bait when nothing bites, and sends an empty line', () => {
+    const v = valleyWith(join('a'))
+    const r = fish(v.valley, cast({ roll: 0 }))
+    expect(r.pack).toBeUndefined()
+    expect(r.valley.lines).toEqual({})
+    expect(r.fished).toMatchObject({ type: 'line', hook: null })
+    const { bite } = CONFIG.fishing
+    const wait = (r.fished as { bitesIn: number }).bitesIn
+    expect(wait).toBeGreaterThanOrEqual(bite.min)
+    expect(wait).toBeLessThanOrEqual(bite.max)
+  })
+
+  it('takes the bait on a bite and deals the fight, never saying the fish', () => {
+    const { r, line } = hooked()
+    expect(r.pack).toEqual({
+      account: 'acct-a',
+      kind: 'nightcrawlers',
+      delta: -1,
+    })
+    expect(line).toMatchObject({ account: 'acct-a', skill: 0, seed: 1234 })
+    const msg = r.fished as LineMessage
+    expect(line.bitesAt).toBe(T0 + msg.bitesIn)
+    expect(msg.hook?.fight).toEqual(fightOf(line.kind, 0))
+    expect(msg.hook?.seed).toBe(1234)
+    expect(JSON.stringify(msg)).not.toContain(line.kind)
+  })
+
+  it('lands a spent fish reeled in time: the pack, the count, the XP', () => {
+    const v = valleyWith(join('a'))
+    const on = (kind: string): Valley => ({
+      ...v.valley,
+      lines: { a: { account: 'acct-a', kind, skill: 0, seed: 1, bitesAt: T0 } },
+    })
+    const landed = (kind: string) =>
+      fish(on(kind), reel(), null, T0 + quickestMs(fightOf(kind, 0)))
+    const r = landed('bluegill')
+    expect(r.valley.lines).toEqual({})
+    expect(r.pack).toEqual({ account: 'acct-a', kind: 'bluegill', delta: 1 })
+    expect(r.fished).toMatchObject({
+      type: 'catch',
+      outcome: 'landed',
+      kind: 'bluegill',
+    })
+    expect(r.valley.anglers['acct-a'].caught).toBe(1)
+    expect(r.xp).toEqual([{ account: 'acct-a', source: 'fish' }])
+    expect(r.angler?.message.angler.caught).toBe(1)
+    // The junk comes in too, and earns nothing.
+    const can = landed('empty-can')
+    expect(can.pack?.kind).toBe('empty-can')
+    expect(can.xp).toBeUndefined()
+  })
+
+  it('raises the skill on a fish above it', () => {
+    // A perch on the line for a raider at skill 0.
+    const v = valleyWith(join('a'))
+    const valley: Valley = {
+      ...v.valley,
+      lines: {
+        a: {
+          account: 'acct-a',
+          kind: 'yellow-perch',
+          skill: 0,
+          seed: 1,
+          bitesAt: T0,
+        },
+      },
+    }
+    const at = T0 + quickestMs(fightOf('yellow-perch', 0))
+    // A sure land, a sure rise.
+    const r = fish(valley, reel({ roll: 0, skillRoll: 0, bonus: 0 }), null, at)
+    expect(r.fished).toMatchObject({ outcome: 'landed', skill: 1, up: true })
+    expect(r.valley.anglers['acct-a'].skill).toBe(1)
+  })
+
+  it('loses a fish far past the skill, a large one snapping the line', () => {
+    const v = valleyWith(join('a'))
+    const on = (kind: string): Valley => ({
+      ...v.valley,
+      lines: { a: { account: 'acct-a', kind, skill: 0, seed: 1, bitesAt: T0 } },
+    })
+    const at = (kind: string) => T0 + quickestMs(fightOf(kind, 0))
+    const small = fish(
+      on('bullhead'),
+      reel({ roll: 0.99 }),
+      null,
+      at('bullhead')
+    )
+    expect(small.fished).toMatchObject({ outcome: 'skill' })
+    expect(small.pack).toBeUndefined()
+    // A loss counts toward the day, as FFXI's fatigue does.
+    expect(small.valley.anglers['acct-a'].caught).toBe(1)
+    const large = fish(
+      on('channel-catfish'),
+      reel({ roll: 0.99 }),
+      null,
+      at('channel-catfish')
+    )
+    expect(large.fished).toMatchObject({ outcome: 'snap' })
+  })
+
+  it('lets a fish go given up, reeled too soon or too late, and counts none', () => {
+    const { valley, line } = hooked()
+    const fight = fightOf(line.kind, 0)
+    const gone = (r: Reduced) => {
+      expect(r.fished).toMatchObject({ type: 'catch', outcome: 'gave-up' })
+      expect(r.pack).toBeUndefined()
+      expect(r.valley.lines).toEqual({})
+      expect(r.valley.anglers['acct-a']).toBeUndefined()
+    }
+    gone(fish(valley, reel({ landed: false }), null, line.bitesAt + 10))
+    gone(fish(valley, reel(), null, line.bitesAt))
+    gone(
+      fish(
+        valley,
+        reel(),
+        null,
+        line.bitesAt + fight.limitMs + CONFIG.fishing.lateMs + 1
+      )
+    )
+    expect(reason(fish(valley, reel({ id: 'z' }), null))).toBe('not-in-valley')
+    expect(reason(fish(createValley(), reel(), null))).toBe('not-in-valley')
+    const v = valleyWith(join('a'))
+    expect(reason(fish(v.valley, reel(), null))).toBe('no-line')
+  })
+
+  it("lets nothing bite past the day's limit, until the day turns", () => {
+    const v = valleyWith(join('a'))
+    const worn: Valley = {
+      ...v.valley,
+      anglers: {
+        'acct-a': {
+          skill: 0,
+          day: dayKey(T0),
+          caught: CONFIG.fishing.perDay,
+          digAt: 0,
+        },
+      },
+    }
+    expect(reason(fish(worn, cast()))).toBe('tired')
+    const tomorrow = nextMidnight(T0) + SEC
+    expect(fish(worn, cast(), tackle, tomorrow).reply).toBeUndefined()
+  })
+
+  it('takes the line out with the socket that leaves', () => {
+    const { valley } = hooked()
+    const r = reduce(valley, leaveAs('a'), { now: T0, present: ['a'] })
+    expect(r.valley.lines).toEqual({})
+    // A socket gone without a word takes its line with it on the next
+    // arrival.
+    const joined = reduce(valley, join('b'), { now: T0, present: [] })
+    expect(joined.valley.lines).toEqual({})
+    const kept = reduce(valley, join('b'), { now: T0, present: ['a'] })
+    expect(Object.keys(kept.valley.lines)).toEqual(['a'])
+  })
+
+  it('reads the angler for the wire, fresh for an account that never fished', () => {
+    const v = valleyWith(join('a'))
+    expect(anglerFor(v.valley, 'acct-a', T0)).toEqual({
+      skill: 0,
+      caught: 0,
+      perDay: CONFIG.fishing.perDay,
+      digAt: 0,
+    })
+  })
+
+  it('lets a raider dialed in fish from anywhere (rule 29)', () => {
+    const v = valleyWith({
+      type: 'dial',
+      id: 'a',
+      account: 'acct-a',
+      name: 'A',
+      outfit: 'coleman',
+      level: 1,
+    })
+    expect(fish(v.valley, cast({ at: null })).reply).toBeUndefined()
+    expect(
+      fish(v.valley, { type: 'dig', id: 'a', at: null, roll: 0 }).pack?.kind
+    ).toBe('nightcrawlers')
+  })
+})
+
+describe('rule 36: slurms into the jar', () => {
+  const slot = Math.floor(T0 / 1000 / CONFIG.slurms.slotSeconds)
+  const jar = (
+    valley: Valley,
+    over: Partial<Extract<ValleyAction, { type: 'jar-slurm' }>> = {},
+    pack: Inventory | null = { 'slurm-jar': 1 },
+    now = T0
+  ) =>
+    reduce(
+      valley,
+      {
+        type: 'jar-slurm',
+        id: 'a',
+        station: 0,
+        slot,
+        index: 0,
+        at: HAVENS[0],
+        ...over,
+      },
+      {
+        now,
+        present: ['a'],
+        ...(pack ? { holdings: { pack, cosmetics: [] } } : {}),
+      }
+    )
+  const reason = (r: Reduced) => r.reply?.reason
+
+  it('puts a slurm crawling at the Citgo into the jar, and tells everyone', () => {
+    const v = valleyWith(join('a'))
+    const r = jar(v.valley)
+    expect(r.pack).toEqual({ account: 'acct-a', kind: 'slurm', delta: 1 })
+    expect(r.jarred).toEqual({
+      type: 'slurm-jarred',
+      station: 0,
+      slot,
+      index: 0,
+      by: 'a',
+    })
+    expect(r.valley.jarred).toEqual([`0:${slot}:0`])
+    // Once.
+    expect(reason(jar(r.valley))).toBe('gone')
+    // And forgotten once its drop is long over.
+    const later = T0 + 10 * CONFIG.slurms.slotSeconds * 1000
+    const next = jar(r.valley, { slot: slot + 10 }, { 'slurm-jar': 1 }, later)
+    expect(next.valley.jarred).toEqual([`0:${slot + 10}:0`])
+  })
+
+  it('refuses without a jar, with it full, away from the Citgo, or a slurm long gone', () => {
+    const v = valleyWith(join('a'))
+    expect(reason(jar(v.valley, {}, {}))).toBe('no-jar')
+    expect(
+      reason(
+        jar(v.valley, {}, { 'slurm-jar': 1, slurm: CONFIG.fishing.jar.holds })
+      )
+    ).toBe('jar-full')
+    expect(reason(jar(v.valley, {}, null))).toBe('unavailable')
+    expect(reason(jar(v.valley, { at: HAVENS[1] }))).toBe('too-far')
+    expect(reason(jar(v.valley, { at: null }))).toBe('too-far')
+    expect(reason(jar(v.valley, { slot: slot - 5 }))).toBe('gone')
+    expect(reason(jar(v.valley, { index: 99 }))).toBe('gone')
+    expect(reason(jar(v.valley, { id: 'z' }))).toBe('not-in-valley')
+    const aboard = valleyWith(join('a'), { type: 'board', id: 'a', at: HERE })
+    expect(reason(jar(aboard.valley))).toBe('aboard')
+  })
+
+  it('takes a body: none from Dial-Up (rule 29)', () => {
+    const v = valleyWith({
+      type: 'dial',
+      id: 'a',
+      account: 'acct-a',
+      name: 'A',
+      outfit: 'coleman',
+      level: 1,
+    })
+    expect(reason(jar(v.valley))).toBe('dialup')
   })
 })

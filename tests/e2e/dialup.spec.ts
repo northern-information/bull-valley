@@ -215,6 +215,42 @@ test('opens the Recycling Center from anywhere, its level on the card', async ({
   )
 })
 
+test('fishes the firefly pond from anywhere, the raider on its shore', async ({
+  browser,
+}) => {
+  const page = await phone(browser)
+  await signIn(page)
+  await page.goto(`/?valley=${freshValley('dial')}`)
+  await dialIn(page)
+  const card = page.locator('.bv-dial-card[data-card="fishing"]')
+  await expect(card).toContainText(
+    copy('dialup.lobby.fishing_skill', {
+      skill: '0.0',
+      caught: 0,
+      limit: CONFIG.fishing.perDay,
+    })
+  )
+  await card.click()
+  // The pond in its sheet: the raider on the shore, drawn on the phone.
+  const sheet = page.locator('.bv-dial-fish')
+  await expect(sheet).toBeVisible()
+  await expect(sheet.locator('.bv-dial-pond-canvas')).toBeVisible()
+  // Dialed in, the rod comes out of the box from wherever the phone is,
+  // and the bank is dug; then a cast puts a line in the water.
+  await sheet.locator('[data-fish="rod"]').click()
+  await expect(sheet.locator('.bv-dial-fish-angler')).toContainText(
+    copy('items.fishing-rod.label')
+  )
+  await sheet.locator('[data-fish="dig"]').click()
+  const cast = sheet.locator('[data-fish="cast-nightcrawlers"]')
+  await expect(cast).toBeEnabled()
+  await cast.click()
+  await expect(sheet.locator('.bv-dial-pond-call')).toHaveText(
+    copy('fishing.waiting')
+  )
+  await expect(sheet.locator('[data-fish="give-up"]')).toBeVisible()
+})
+
 test('a raider in the valley hears a phone dial in', async ({ browser }) => {
   const valley = freshValley('dial')
   const desk = await open(browser)

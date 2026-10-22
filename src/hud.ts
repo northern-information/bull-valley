@@ -46,7 +46,6 @@ const BEGIN_LABELS = {
   reconnecting: copy('hud.begin_reconnecting'),
   lost: copy('hud.begin_lost'),
   play: copy('hud.begin_play'),
-  resume: copy('hud.begin_resume'),
   failed: copy('hud.begin_failed'),
 } as const
 
@@ -105,6 +104,9 @@ export class Hud {
   staticCanvas: HTMLCanvasElement
   reticle: HTMLDivElement
   intro: HTMLDivElement
+  // The light pause after Esc: a line at the top over the valley.
+  breakEl: HTMLParagraphElement
+  private breakFrom = 0
   beginBtn: HTMLButtonElement
   // Back to the main menu, beside Resume once the raider has begun.
   exitBtn: HTMLButtonElement
@@ -211,6 +213,13 @@ export class Hud {
     this.reticle = el('div', 'bv-reticle')
     this.reticle.setAttribute('aria-hidden', 'true')
     ui.appendChild(this.reticle)
+
+    // The light pause: Esc frees the pointer and the valley stays in view
+    // under one line; a click takes it back, the menu key opens the overlay.
+    this.breakEl = el('p', 'bv-break')
+    this.breakEl.textContent = copy('hud.break', { key: WORLD.menu.key })
+    this.breakEl.hidden = true
+    ui.appendChild(this.breakEl)
 
     // Intro / pause overlay, in the keepers' dialogs' frame (npcdialog.ts):
     // the header, the season, the controls, who is raiding with their
@@ -505,8 +514,8 @@ export class Hud {
     ctx.putImageData(img, 0, 0)
   }
 
-  // Shows one of the Begin button's labels; it is clickable only to play or
-  // resume. The others stay in the button, hidden, holding its width.
+  // Shows one of the Begin button's labels; it is clickable only to play,
+  // from the intro or paused alike. The others stay in the button, hidden, holding its width.
   setBegin(state: BeginState): void {
     if (this.beginFailed) return
     if (state === 'failed') this.beginFailed = true
@@ -524,7 +533,27 @@ export class Hud {
       state === 'reconnecting'
   }
 
+  get breakShown(): boolean {
+    return !this.breakEl.hidden
+  }
+
+  // How long the light pause has shown, in milliseconds.
+  get breakFor(): number {
+    return performance.now() - this.breakFrom
+  }
+
+  showBreak(show: boolean): void {
+    if (show && this.breakEl.hidden) this.breakFrom = performance.now()
+    this.breakEl.hidden = !show
+  }
+
+  get introShown(): boolean {
+    return !this.intro.hidden
+  }
+
+  // The overlay stands in for the light pause.
   showIntro(show: boolean, paused?: boolean): void {
+    if (show) this.showBreak(false)
     this.intro.hidden = !show
     this.root.classList.toggle('bv-shell--intro', show)
     this.paused = paused === true
@@ -541,9 +570,7 @@ export class Hud {
   // when the line is lost, since Begin then goes back to the menu itself.
   private showConnection(): void {
     const { connection } = this
-    this.setBegin(
-      connection === 'online' ? (this.paused ? 'resume' : 'play') : connection
-    )
+    this.setBegin(connection === 'online' ? 'play' : connection)
     this.exitBtn.hidden = !this.paused || connection === 'lost'
   }
 }

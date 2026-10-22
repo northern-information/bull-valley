@@ -19,7 +19,6 @@ import {
   PICKUPS_MAX,
   PROTOCOL_VERSION,
 } from '../../src/protocol.ts'
-import { dryMap } from '../../src/waterside.ts'
 import { WAYPOINT_MAX } from '../../src/waypoints.ts'
 
 const state = {
@@ -43,11 +42,15 @@ const hello = {
   stations: 5,
   havens: [0, 1, 2, 3, 4].map((i) => ({ x: i * 100, z: i })),
   metres: { width: 15059, height: 15038 },
-  water: dryMap({ width: 15059, height: 15038 }),
+  lairs: [],
   maze: { x: 120, z: -40, yaw: 0.5 },
   truck: { home: { x: 10, z: -20 }, joyrideMs: 600_000 },
   stand: { x: 6, z: -24 },
   wreck: { x: 12, z: 30 },
+  ponds: [
+    { x: -300, z: 40, radius: 120, landing: { x: -220, z: 10 } },
+    { x: 600, z: 400, radius: 90, landing: { x: 540, z: 360 } },
+  ],
   bushes: [0, 1, 2].map((i) => ({ x: 6 + i, z: -30 })),
   dealer: { x: -10, z: -60 },
   undercroft: { x: -7000, z: -7000, yaw: 0 },
@@ -102,6 +105,14 @@ describe('parsePeerState', () => {
     expect(parsePeerState({ ...state, z: MAX_COORD + 1 })).toBeNull()
     expect(parsePeerState({ ...state, x: '1' })).toBeNull()
     expect(parsePeerState({ ...state, yaw: NaN })).toBeNull()
+  })
+
+  it('carries a jar or a rod in hand, and nothing else', () => {
+    expect(parsePeerState({ ...state, held: 'jar' })?.held).toBe('jar')
+    expect(parsePeerState({ ...state, held: 'rod' })?.held).toBe('rod')
+    expect(parsePeerState(state)).not.toHaveProperty('held')
+    expect(parsePeerState({ ...state, held: 'flashlight' })).toBeNull()
+    expect(parsePeerState({ ...state, held: 3 })).toBeNull()
   })
 
   it('rejects unknown poses and non-boolean riding', () => {
@@ -266,11 +277,12 @@ describe('parseClientMessage', () => {
     const {
       havens: _havens,
       metres: _metres,
-      water: _water,
+      lairs: _lairs,
       maze: _maze,
       truck: _truck,
       stand: _stand,
       wreck: _wreck,
+      ponds: _ponds,
       bushes: _bushes,
       dealer: _dealer,
       undercroft: _undercroft,
@@ -282,11 +294,12 @@ describe('parseClientMessage', () => {
       v: PROTOCOL_VERSION - 1,
       havens: [],
       metres: { width: 0, height: 0 },
-      water: { cell: 100, cols: 1, rows: 1, bits: 'AA==' },
+      lairs: [],
       maze: null,
       truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
       stand: null,
       wreck: null,
+      ponds: [],
       bushes: [],
       dealer: null,
       undercroft: null,
@@ -313,11 +326,12 @@ describe('parseClientMessage', () => {
       v: PROTOCOL_VERSION - 1,
       havens: [],
       metres: { width: 0, height: 0 },
-      water: { cell: 100, cols: 1, rows: 1, bits: 'AA==' },
+      lairs: [],
       maze: null,
       truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
       stand: null,
       wreck: null,
+      ponds: [],
       bushes: [],
       dealer: null,
       undercroft: null,
@@ -465,12 +479,51 @@ describe('parseClientMessage', () => {
       line: 'dimes',
     })
     expect(parse({ type: 'recycle', line: 'beam' })).toBeNull()
+    // Fishing at the firefly pond (rule 36).
+    expect(parse({ type: 'angler' })).toEqual({ type: 'angler' })
+    expect(parse({ type: 'tackle' })).toEqual({ type: 'tackle' })
+    expect(parse({ type: 'dig' })).toEqual({ type: 'dig' })
+    expect(parse({ type: 'cast', bait: 'berries' })).toEqual({
+      type: 'cast',
+      bait: 'berries',
+    })
+    expect(parse({ type: 'cast', bait: 'cabbage' })).toBeNull()
+    expect(parse({ type: 'reel', landed: false })).toEqual({
+      type: 'reel',
+      landed: false,
+    })
+    expect(parse({ type: 'reel', landed: 'yes' })).toBeNull()
+    expect(parse({ type: 'jar-slurm', station: 2, slot: 9, index: 1 })).toEqual(
+      { type: 'jar-slurm', station: 2, slot: 9, index: 1 }
+    )
+    expect(
+      parse({ type: 'jar-slurm', station: 2, slot: 9.5, index: 1 })
+    ).toBeNull()
+    expect(
+      parse({ type: 'jar-slurm', station: -1, slot: 9, index: 1 })
+    ).toBeNull()
     // A hello says where the stand stands, or that there is none.
     expect(parse({ ...hello, stand: null })).toEqual({ ...hello, stand: null })
     expect(parse({ ...hello, stand: { x: 'here' } })).toBeNull()
     // And where the wreck lies, or that there is none (rule 33).
     expect(parse({ ...hello, wreck: null })).toEqual({ ...hello, wreck: null })
     expect(parse({ ...hello, wreck: 'bmw' })).toBeNull()
+    // And the firefly ponds, none or more (rule 36).
+    expect(parse({ ...hello, ponds: [] })).toEqual({ ...hello, ponds: [] })
+    expect(parse({ ...hello, ponds: null })).toBeNull()
+    expect(parse({ ...hello, ponds: [{ x: 1, z: 2 }] })).toBeNull()
+    expect(parse({ ...hello, ponds: Array(9).fill(hello.ponds[0]) })).toBeNull()
+    // And the spiders' lairs, none or more, each with a reach (rule 11).
+    const lair = { x: 10, z: -20, radius: 45 }
+    expect(parse({ ...hello, lairs: [lair] })).toEqual({
+      ...hello,
+      lairs: [lair],
+    })
+    expect(parse({ ...hello, lairs: null })).toBeNull()
+    expect(parse({ ...hello, lairs: [{ x: 1, z: 2 }] })).toBeNull()
+    expect(parse({ ...hello, lairs: [{ ...lair, radius: 0 }] })).toBeNull()
+    expect(parse({ ...hello, lairs: [{ ...lair, x: NaN }] })).toBeNull()
+    expect(parse({ ...hello, lairs: Array(9).fill(lair) })).toBeNull()
     // A ring on every lot (rule 28), no fewer.
     expect(parse({ ...hello, rings: hello.rings.slice(1) })).toBeNull()
     // And where the squatter deals, or that there is none (rule 25).

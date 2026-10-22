@@ -13,8 +13,8 @@ import {
   spawnShadowman,
   stepShadowmen,
 } from '../../src/shadowmen.ts'
-import { waterMapOf } from '../../src/waterside.ts'
 import type { Metres, XZ } from '../../src/interfaces.ts'
+import type { Lair } from '../../src/lairs.ts'
 import type {
   Beam,
   Raider,
@@ -23,7 +23,6 @@ import type {
   ShadowmenField,
   ShadowmenStep,
 } from '../../src/shadowmen.ts'
-import type { WaterMap } from '../../src/waterside.ts'
 
 // Pinned so the tests do not move when CONFIG.shadowmen is retuned.
 const CFG: ShadowmenConfig = {
@@ -31,8 +30,8 @@ const CFG: ShadowmenConfig = {
   dimes: { min: 3, max: 20 },
   spider: {
     chance: 0,
-    nearWaterChance: 0,
-    waterRadius: 120,
+    lairChance: 0,
+    lairReach: 120,
     maxPerBubble: 3,
     burnScale: 2,
     burstScale: 2,
@@ -136,6 +135,21 @@ describe('inBounds and inHaven', () => {
     expect(inBounds({ x: METRES.width / 2 - 10, z: 0 }, METRES, 30)).toBe(false)
     expect(inHaven({ x: 10, z: 0 }, [ORIGIN], 60)).toBe(true)
     expect(inHaven({ x: 70, z: 0 }, [ORIGIN], 60)).toBe(false)
+    // The firefly pond reaches as far as its own radius.
+    expect(inHaven({ x: 70, z: 0 }, [{ ...ORIGIN, radius: 80 }], 60)).toBe(true)
+    expect(inHaven({ x: 50, z: 0 }, [{ ...ORIGIN, radius: 40 }], 60)).toBe(
+      false
+    )
+  })
+
+  it('turns aside at a haven of its own radius, as at the firefly pond', () => {
+    const havens = [{ x: 0, z: 0, radius: 150 }]
+    // Heading into the fireflies, a little off their middle.
+    const pond = one({ x: 10, z: -150.1, dirX: 0, dirZ: 1 })
+    for (let i = 0; i < 200; i++) step(pond, undefined, { havens })
+    const s = first(pond)
+    expect(s && inHaven(s, havens, CFG.havenRadius)).toBe(false)
+    expect(s && s.x > 10).toBe(true)
   })
 })
 
@@ -673,63 +687,51 @@ describe('the flashlight', () => {
 })
 
 describe('the shadow spiders', () => {
-  // Wet everywhere round the origin: a stream through the survey's middle.
-  const wet = waterMapOf(
-    [
-      {
-        k: 'line',
-        n: '',
-        p: [
-          [0.49, 0.5],
-          [0.51, 0.5],
-        ],
-      },
-    ],
-    METRES
-  )
+  // A lair round the origin, where the raider stands.
+  const lair: Lair[] = [{ x: 0, z: 0, radius: 30 }]
   const spiderCfg = (over: Partial<ShadowmenConfig['spider']>) => ({
     ...CFG,
     spider: { ...CFG.spider, ...over },
   })
-  const fill = (cfg: ShadowmenConfig, water: WaterMap | null, seed: number) => {
+  const fill = (cfg: ShadowmenConfig, lairs: Lair[], seed: number) => {
     const field = createShadowmen()
     stepShadowmen(
       field,
       mulberry32(seed),
-      { dt: DT, raiders: [raider()], metres: METRES, havens: NONE, water },
+      { dt: DT, raiders: [raider()], metres: METRES, havens: NONE, lairs },
       cfg
     )
     return field.shadowmen.filter((s) => s.kind === 'spider').length
   }
 
-  it('come by their chance, and far more often near water', () => {
+  it('come by their chance, and far more often near a lair', () => {
     const cfg = spiderCfg({
       chance: 0.05,
-      nearWaterChance: 0.6,
+      lairChance: 0.6,
       maxPerBubble: 6,
     })
-    let dry = 0
-    let damp = 0
+    let away = 0
+    let near = 0
     for (let seed = 1; seed <= 60; seed++) {
-      dry += fill(cfg, null, seed)
-      damp += fill(cfg, wet, seed)
+      away += fill(cfg, [], seed)
+      near += fill(cfg, lair, seed)
     }
-    expect(damp).toBeGreaterThan(dry * 4)
+    expect(near).toBeGreaterThan(away * 4)
   })
 
   it('never crowd a bubble past maxPerBubble', () => {
-    const cfg = spiderCfg({ chance: 1, nearWaterChance: 1, maxPerBubble: 2 })
+    const cfg = spiderCfg({ chance: 1, lairChance: 1, maxPerBubble: 2 })
     for (let seed = 1; seed <= 10; seed++) {
-      expect(fill(cfg, wet, seed)).toBe(2)
+      expect(fill(cfg, lair, seed)).toBe(2)
     }
   })
 
   it('never come at a chance of nothing', () => {
-    expect(fill(CFG, wet, 1)).toBe(0)
+    expect(fill(CFG, lair, 1)).toBe(0)
   })
 
   it('cross at their own pace, rush faster and touch from further off', () => {
-    const cfg = spiderCfg({ chance: 1, nearWaterChance: 1, maxPerBubble: 6 })
+    const cfg = spiderCfg({ chance: 1, lairChance: 1, maxPerBubble: 6 })
     const field = createShadowmen()
     stepShadowmen(
       field,

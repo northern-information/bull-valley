@@ -3,6 +3,7 @@ import {
   actionOf,
   BOOK,
   CHAT,
+  FISHING,
   hotbarSlot,
   isHeld,
   MOVE,
@@ -19,6 +20,7 @@ const tables: [string, Record<string, Binding>][] = [
   ['PACK', PACK],
   ['CHAT', CHAT],
   ['BOOK', BOOK],
+  ['FISHING', FISHING],
 ]
 
 describe.each(tables)('%s', (_name, table) => {
@@ -62,7 +64,8 @@ describe('BOOK', () => {
 describe('WORLD', () => {
   it('leaves the mouse and Esc to the browser', () => {
     expect(WORLD.look.codes).toEqual([])
-    expect(WORLD.flashlight.codes).toEqual([])
+    expect(WORLD.useHeld.codes).toEqual([])
+    expect(FISHING.reel.codes).toEqual([])
     expect(WORLD.pause.codes).toEqual([])
   })
 

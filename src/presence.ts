@@ -168,8 +168,8 @@ function lerpAngle(a: number, b: number, t: number): number {
 
 // The peer's state at renderAt, a moment slightly in the past: between
 // the two states either side of it, or held at the oldest before them all
-// and at the newest past them, never extrapolating into a wall. Riding and
-// the flashlight take the newest state. Null until the peer is placed.
+// and at the newest past them, never extrapolating into a wall. Riding,
+// the flashlight and what the hand holds take the newest state. Null until the peer is placed.
 export function samplePeer(peer: Peer, renderAt: number): PeerSample | null {
   const { next } = peer
   const at = next ? between(peer.frames, renderAt, (frame) => frame) : null
@@ -187,6 +187,7 @@ export function samplePeer(peer: Peer, renderAt: number): PeerSample | null {
     pose: t < 0.5 ? prev.pose : to.pose,
     riding: next.riding,
     light: next.light,
+    ...(next.held ? { held: next.held } : {}),
     // Metres per second between the two states.
     speed: span > 0 ? (Math.hypot(dx, dz) / span) * 1000 : 0,
   }
@@ -214,6 +215,7 @@ export function stateChanged(
     Math.abs(last.pitch - next.pitch) > 0.01 ||
     last.pose !== next.pose ||
     last.riding !== next.riding ||
-    last.light !== next.light
+    last.light !== next.light ||
+    last.held !== next.held
   )
 }

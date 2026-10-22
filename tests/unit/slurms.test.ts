@@ -9,9 +9,12 @@ import {
   DRIPLINES,
   eventAt,
   lineOf,
+  mayJar,
   nextStart,
+  slotOf,
   slotStart,
   slurmEvent,
+  slurmKey,
   slurmScene,
   treads,
   underfoot,
@@ -374,5 +377,27 @@ describe('underfoot', () => {
     const half = underfoot(crawling, CONFIG.slurms.splatSeconds / 2)
     expect(half.progress).toBeCloseTo(0.5)
     expect(underfoot(crawling, CONFIG.slurms.splatSeconds).phase).toBe('gone')
+  })
+})
+
+describe('the jar', () => {
+  const { slotSeconds } = CONFIG.slurms
+
+  it('keys one slurm of one drop at one station', () => {
+    expect(slurmKey(3, 120, 1)).toBe('3:120:1')
+    expect(slotOf(slotSeconds * 7.5)).toBe(7)
+  })
+
+  it('lets a slurm of a drop near now in, and none past its count', () => {
+    const slot = 1000
+    const seconds = slot * slotSeconds + 10
+    const count = slurmEvent(2, slot).slurms.length
+    expect(mayJar(2, slot, 0, seconds)).toBe(true)
+    expect(mayJar(2, slot, count - 1, seconds)).toBe(true)
+    expect(mayJar(2, slot, count, seconds)).toBe(false)
+    expect(mayJar(2, slot + 2, 0, seconds)).toBe(true)
+    expect(mayJar(2, slot - 3, 0, seconds)).toBe(false)
+    expect(mayJar(2, slot, -1, seconds)).toBe(false)
+    expect(mayJar(2, slot + 0.5, 0, seconds)).toBe(false)
   })
 })
