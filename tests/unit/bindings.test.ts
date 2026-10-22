@@ -3,9 +3,11 @@ import {
   actionOf,
   BOOK,
   CHAT,
+  DIALOG,
   FISHING,
   hotbarSlot,
   isHeld,
+  MAP,
   MOVE,
   moveAxis,
   PACK,
@@ -61,12 +63,27 @@ describe('BOOK', () => {
   })
 })
 
+describe('Esc', () => {
+  // Esc frees the pointer and nothing else: no table closes on it.
+  it('is bound nowhere', () => {
+    for (const table of [...tables.map(([, t]) => t), MAP, DIALOG]) {
+      expect(actionOf(table, 'Escape')).toBeNull()
+    }
+  })
+
+  it('closes each panel on the key that opens it', () => {
+    expect(PACK.close.codes).toEqual([...WORLD.inventory.codes])
+    expect(MAP.close.codes).toEqual([...WORLD.map.codes])
+    expect(DIALOG.close.codes).toEqual([...WORLD.interact.codes])
+  })
+})
+
 describe('WORLD', () => {
   it('leaves the mouse and Esc to the browser', () => {
     expect(WORLD.look.codes).toEqual([])
     expect(WORLD.useHeld.codes).toEqual([])
     expect(FISHING.reel.codes).toEqual([])
-    expect(WORLD.pause.codes).toEqual([])
+    expect(WORLD.menu.codes).toEqual([])
   })
 
   it('moves on the four MOVE keys', () => {
@@ -86,11 +103,11 @@ describe('PACK', () => {
     expect(actionOf(PACK, 'Digit0')).toBeNull()
   })
 
-  it('uses on E or Enter and closes on Tab or Esc', () => {
+  it('uses on E or Enter and closes on Tab alone', () => {
     expect(actionOf(PACK, 'KeyE')).toBe('use')
     expect(actionOf(PACK, 'Enter')).toBe('use')
     expect(actionOf(PACK, 'Tab')).toBe('close')
-    expect(actionOf(PACK, 'Escape')).toBe('close')
+    expect(actionOf(PACK, 'Escape')).toBeNull()
   })
 
   it('drops on X, and Shift+X is only its label', () => {

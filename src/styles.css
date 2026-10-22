@@ -32,7 +32,7 @@
   background: var(--fi-bg);
 }
 
-/* While the pointer is free (the intro, the pause overlay, the pack, a
+/* While the pointer is free (the intro, the menu overlay, the pack, a
    refused lock) a Citgo-red edge glows round the view, and round the
    colophon while it waits for its first click (splash.ts showSplash). */
 .bv-shell::after,
@@ -101,22 +101,6 @@
   text-shadow:
     0 0 3px rgb(0 0 0 / 90%),
     1px 1px 0 rgb(0 0 0 / 80%);
-}
-
-/* The light pause after Esc (hud.ts showBreak): one line at the top, under
-   the countdown, over a valley still in view; clicks pass to the view. */
-.bv-break {
-  position: absolute;
-  top: 2.6rem;
-  left: 50%;
-  transform: translateX(-50%);
-  margin: 0;
-  padding: 0.3rem 0.7rem;
-  white-space: nowrap;
-  pointer-events: none;
-  background: var(--fi-surface-82);
-  border: 1px solid var(--bv-citgo);
-  letter-spacing: 0.08em;
 }
 
 /* The season (seasonhud.ts). The tracker sits in the upper right: the
@@ -246,7 +230,7 @@
   box-shadow: 0 0 6px var(--bv-citgo);
 }
 
-/* The season's card under its section head on the intro and pause
+/* The season's card under its section head on the intro and menu
    overlay (hud.ts): the title, what it asks, what it pays in gold, and
    the pips. */
 .bv-season-card {
@@ -1736,7 +1720,7 @@
   letter-spacing: 0.3em;
 }
 
-/* Intro / pause: the keepers' dialogs' frame (npcdialog.ts) over a
+/* Intro / menu: the keepers' dialogs' frame (npcdialog.ts) over a
    scrim, wide (.bv-npc-ui--wide): the season and the raider down the
    left, the controls on the right. */
 .bv-intro {
@@ -1797,6 +1781,15 @@
   /* One slider a row: the raider's column is too narrow for two. */
   grid-template-columns: minmax(0, 1fr);
   gap: 12px;
+}
+
+/* The menu's list (hud.ts): the overlay's few ways on, one a row, as
+   short as the main menu's. */
+.bv-overlay-list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.8rem;
 }
 
 .bv-intro-actions {
@@ -1892,7 +1885,7 @@
 
 /* The film grain every menu surface lies under: the title cards, the main
    menu, the account step and the account panel, the character select and
-   the intro and pause overlay. One scan at one opacity, laid from each
+   the intro and menu overlay. One scan at one opacity, laid from each
    surface's own corner (all of them fill the view), so where one surface
    fades over another the grain stays put. Over the logo, its fog and the
    turntable; under the options and the cards. */
@@ -2130,7 +2123,7 @@
 }
 
 /* A setting: its name, a slider, and where the slider stands, on one
-   line in the main menu's Audio and on the pause overlay. */
+   line in the main menu's Audio and on the menu overlay. */
 .bv-setting {
   display: grid;
   grid-template-columns: auto 1fr 4ch;
@@ -3188,7 +3181,7 @@
   border: 1px solid currentcolor;
 }
 
-/* The pause overlay and the pack in the frame: the pack's header sits in
+/* The menu overlay and the pack in the frame: the pack's header sits in
    a panel with no reset of its own, and the overlay's lede keeps the
    copy's line breaks. */
 .bv-bag .bv-npc-eyebrows,

@@ -140,7 +140,7 @@ base.describe('a shared world', { tag: '@valley' }, () => {
       // The prompt is hidden while the map is open, so it says nothing
       // until the map closes.
       await expect.poll(() => a.evaluate(() => window.__bv?.mapOpen)).toBe(true)
-      await a.keyboard.press('Escape')
+      await a.keyboard.press('KeyM')
       await expect
         .poll(() => a.evaluate(() => window.__bv?.mapOpen))
         .toBe(false)

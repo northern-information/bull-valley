@@ -16,8 +16,9 @@
 # provider names (Google, Discord, GitHub), the Akashic dev page, and the
 # words painted on packs, cans, medicine and the Citgo signs.
 
-# The intro card, which is also the pause card on Esc (src/hud.ts). The
-# note keeps its line breaks.
+# The intro card, which is also the menu on Esc (src/hud.ts): one face at
+# a time, the intro's before the first Begin, then the menu's list and the
+# faces it opens ([overlay]). The valley is live and plays on under it. The note keeps its line breaks.
 
 [intro]
 title = { text = "BULL VALLEY SHADOW WARS", by = "tyler" }
@@ -35,6 +36,15 @@ raider = { text = "Raider", by = "ai" }
 account = { text = "Account", by = "ai" }
 sign_out = { text = "Sign Out", by = "ai" }
 
+# The menu's list on the overlay (src/hud.ts), and the Back on the faces
+# it opens. Nothing pauses: the valley plays on under it.
+
+[overlay]
+label = { text = "Menu", by = "ai" }
+controls = { text = "Controls", by = "ai" }
+settings = { text = "Settings", by = "ai" }
+back = { text = "Back", by = "ai" }
+
 # The rest of the HUD (src/hud.ts): the Begin button's states, the static
 # when geometrie shatters, and labels read by screen readers.
 
@@ -45,7 +55,6 @@ begin_reconnecting = { text = "Reconnecting…", by = "ai" }
 begin_lost = { text = "Back to the Menu", by = "ai" }
 begin_play = { text = "Click to Die", by = "ai" }
 begin_failed = { text = "The Valley Will Not Resolve", by = "ai" }
-break = { text = "Click to Die · {key} for the Menu", by = "ai" }
 geometrie_shattered = { text = "GEOMETRIE SHATTERED", by = "ai" }
 countdown_label = { text = "Truck leaves in", by = "ai" }
 chat_log_label = { text = "Chat", by = "ai" }
@@ -524,7 +533,7 @@ last = { text = "Last Citgo: {citgo}. Your portal goes there.", by = "ai" }
 none = { text = "No Citgo yet. Stand on a forecourt.", by = "ai" }
 hint = { text = "Click a visited Citgo to fast travel.", by = "ai" }
 hint_away = { text = "Fast travel leaves from a Citgo forecourt.", by = "ai" }
-hint_charter = { text = "Click where Marx should take you. Esc for the long way, E to hop out.", by = "ai" }
+hint_charter = { text = "Click where Marx should take you. M for the long way, E to hop out.", by = "ai" }
 somewhere = { text = "the middle of nowhere", by = "ai" }
 citgo = { text = "Citgo on {road}", by = "ai" }
 citgo_unnamed = { text = "Citgo #{n}", by = "ai" }
@@ -822,8 +831,8 @@ hotbar = { text = "Use Hotbar Item", by = "ai" }
 chat = { text = "Chat", by = "ai" }
 chat_scroll_up = { text = "Scroll Up", by = "ai" }
 chat_scroll_down = { text = "Scroll Down", by = "ai" }
-pause = { text = "Pause", by = "ai" }
 menu = { text = "Menu", by = "ai" }
+controls = { text = "Controls", by = "ai" }
 use = { text = "Use", by = "ai" }
 assign = { text = "Assign", by = "ai" }
 clear_slot = { text = "Clear Slot", by = "ai" }

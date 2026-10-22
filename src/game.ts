@@ -229,7 +229,7 @@ export interface GameState {
   // it, as the pack's is.
   bookOpen: boolean
   // Gron's dialog, or the stand's, is open: the pointer is free for it,
-  // and the game's keys, mouse look and pause screen stand aside until it
+  // and the game's keys, mouse look and menu overlay stand aside until it
   // closes.
   talking: boolean
   // What E would do right now; resolved every frame in the loop.

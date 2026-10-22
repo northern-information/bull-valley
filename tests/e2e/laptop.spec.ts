@@ -122,7 +122,7 @@ test('the bathroom laptop opens on the readme, and keeps what you write', async 
   // Getting up and sitting down again finds the readme.
   await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
-  await page.keyboard.press('Escape')
+  await page.keyboard.press('KeyE')
   await expect
     .poll(() => page.evaluate(() => window.__bv?.laptopOpen))
     .toBe(false)

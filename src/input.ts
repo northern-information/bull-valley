@@ -1,4 +1,4 @@
-// The pointer and the keys. Pointer lock starts and pauses the game; the
+// The pointer and the keys. Pointer lock starts the game and its drop opens the menu (the valley plays on); the
 // keys are bindings.ts's (WORLD in the valley, PACK with the pack open,
 // BOOK with the Book of Shadows open, CHAT while typing), and what they do
 // is actions.ts's.
@@ -71,9 +71,9 @@ export function wirePointer(game: Game): () => void {
 
   // The browser drops pointer lock on Esc and whenever the window loses focus
   // (Alt+Tab, Cmd+number). Neither can be blocked, and the page cannot tell
-  // them apart, so every drop is a light pause: the valley stays in view
-  // under one line, and a click takes the pointer back. An open panel or
-  // dialog stays open, and the overlay (the menu key, a lost line) stays.
+  // them apart, so every drop opens the menu, in one press, as other
+  // browser games do; the valley is live and plays on under it. An open panel or dialog stays open (it freed the
+  // pointer itself), and an overlay already up (H, a lost line) stays.
   document.addEventListener('pointerlockchange', () => {
     const locked = document.pointerLockElement === hud.canvas
     player.locked = locked
@@ -87,7 +87,6 @@ export function wirePointer(game: Game): () => void {
     if (locked) {
       s.started = true
       hud.showIntro(false)
-      hud.showBreak(false)
       if (!s.greeted) {
         s.greeted = true
         hud.tell(copy('log.greeting'))
@@ -110,7 +109,7 @@ export function wirePointer(game: Game): () => void {
       !s.talking &&
       !hud.introShown
     ) {
-      hud.showBreak(true)
+      hud.showIntro(true, true)
     }
   })
   window.addEventListener('blur', () => player.keys.clear())
@@ -261,17 +260,6 @@ export function wireKeys(
       }
       return
     }
-    // On the light pause the menu key, or Esc again, opens the overlay.
-    // Some browsers hand the page the Esc that dropped the lock as well,
-    // so one too soon after it is that same press.
-    if (hud.breakShown && !s.talking) {
-      const again = e.code === 'Escape' && !e.repeat && hud.breakFor > 250
-      if (actionOf(WORLD, e.code) === 'menu' || again) {
-        e.preventDefault()
-        hud.showIntro(true, true)
-      }
-      return
-    }
     if (!player.locked || s.talking) return
     // While typing, every key belongs to the field; Enter sends, and
     // PageUp/PageDown scroll the log.
@@ -340,8 +328,9 @@ export function wireKeys(
         hud.openChat()
         return
       // The overlay first, so the drop that follows leaves it standing.
-      case 'menu':
-        hud.showIntro(true, true)
+      case 'controls':
+        e.preventDefault()
+        hud.showIntro(true, true, 'controls')
         document.exitPointerLock()
         return
     }

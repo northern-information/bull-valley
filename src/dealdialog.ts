@@ -14,7 +14,13 @@ import { copy } from './copy.ts'
 import { costIn, DEALER_GOODS, leftOf, payable } from './dealer.ts'
 import { el, finder } from './dom.ts'
 import { itemLabel } from './itemcopy.ts'
-import { npcFooter, npcHeader, sectionHead, setPips } from './npcdialog.ts'
+import {
+  closesDialog,
+  npcFooter,
+  npcHeader,
+  sectionHead,
+  setPips,
+} from './npcdialog.ts'
 import type { DealerStock } from './dealer.ts'
 import type { Inventory } from './interfaces.ts'
 
@@ -226,9 +232,9 @@ export function openDealDialog(options: DealDialogOptions): Promise<void> {
 
   return new Promise<void>((resolve) => {
     // The game listens on the document too, and pointer lock is off while
-    // the dialog is open, so its keys do nothing; Escape closes it.
+    // the dialog is open, so its keys do nothing; E closes it.
     const onKey = (e: KeyboardEvent) => {
-      if (e.code !== 'Escape') return
+      if (!closesDialog(e)) return
       e.preventDefault()
       close()
     }

@@ -12,7 +12,13 @@
 import { copy } from './copy.ts'
 import { el, finder } from './dom.ts'
 import { itemLabel } from './itemcopy.ts'
-import { npcFooter, npcHeader, sectionHead, setPips } from './npcdialog.ts'
+import {
+  closesDialog,
+  npcFooter,
+  npcHeader,
+  sectionHead,
+  setPips,
+} from './npcdialog.ts'
 import {
   accruedAt,
   affordsUpgrade,
@@ -384,9 +390,9 @@ export function openStandDialog(options: StandDialogOptions): Promise<void> {
       refresh()
     }
     // The game listens on the document too, and pointer lock is off while
-    // the dialog is open, so its keys do nothing; Escape closes it.
+    // the dialog is open, so its keys do nothing; E closes it.
     const onKey = (e: KeyboardEvent) => {
-      if (e.code !== 'Escape') return
+      if (!closesDialog(e)) return
       e.preventDefault()
       close()
     }

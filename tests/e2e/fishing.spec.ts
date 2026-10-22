@@ -54,7 +54,7 @@ test('the tackle box gives a rod and bait, and a click casts and fights to the e
   await expect(worms).toHaveText(
     copy('fishing.bait_on', { bait: copy('items.nightcrawlers.label') })
   )
-  await page.keyboard.press('Escape')
+  await page.keyboard.press('KeyE')
   await expect(dialog).toBeHidden()
   // The pointer is the valley's again.
   await expect
@@ -194,7 +194,7 @@ test('two ponds, and a slurm caught alive in the jar', async ({ page }) => {
   await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.fish'))
   await page.keyboard.press('KeyE')
   await expect(page.locator('.bv-fish')).toBeVisible()
-  await page.keyboard.press('Escape')
+  await page.keyboard.press('KeyE')
 
   // At the spawn Citgo with a jar, a drop brought on, a slurm crawling.
   await page.evaluate(() => window.__bv?.grant('slurm-jar', 1))

@@ -63,10 +63,12 @@ export const WORLD = {
     key: 'Enter',
     labelKey: 'keys.chat',
   },
-  // Esc frees the pointer to a light pause (the browser's own, never
-  // bound); the menu frees it to the pause overlay.
-  pause: { codes: [], key: 'Esc', labelKey: 'keys.pause' },
-  menu: { codes: ['KeyQ'], key: 'Q', labelKey: 'keys.menu' },
+  // The controls card, over the valley, which plays on.
+  controls: { codes: ['KeyH'], key: 'H', labelKey: 'keys.controls' },
+  // Esc frees the pointer (the browser's own, never bound), and a freed
+  // pointer is the menu; the valley is live and never pauses. Esc does nothing else anywhere in the
+  // valley: every panel closes on the key that opened it.
+  menu: { codes: [], key: 'Esc', labelKey: 'keys.menu' },
 } as const satisfies Record<string, Binding>
 
 // With the chat field open every other key types; these scroll the log.
@@ -81,8 +83,7 @@ export const CHAT = {
 
 // With the pack open: these act on the item under the cursor or switch
 // the tab, and nothing reaches the player. Enter is a quiet alias for E,
-// the arrows for A and D, and Esc for Tab, since the pointer is free and
-// Esc no longer drops a lock.
+// and the arrows for A and D. Tab closes it, never Esc.
 export const PACK = {
   use: { codes: ['KeyE', 'Enter'], key: 'E', labelKey: 'keys.use' },
   // The item to the raider in reach in front of you.
@@ -108,7 +109,7 @@ export const PACK = {
     key: 'D',
     labelKey: 'keys.switch_tab',
   },
-  close: { codes: ['Tab', 'Escape'], key: 'Tab', labelKey: 'keys.close' },
+  close: { codes: ['Tab'], key: 'Tab', labelKey: 'keys.close' },
 } as const satisfies Record<string, Binding>
 
 // The mouse in the open pack (hud.ts), as its card names it: buttonKey is
@@ -130,7 +131,7 @@ export const PACK_MOUSE = {
 } as const satisfies Record<string, MouseBinding>
 
 // With the Book of Shadows open (bookhud.ts): A and D switch the chapter,
-// W and S turn to the entry above or below, and B or Esc closes it. The
+// W and S turn to the entry above or below, and B closes it. The
 // arrows are quiet aliases, as in the pack.
 export const BOOK = {
   prevChapter: {
@@ -153,15 +154,15 @@ export const BOOK = {
     key: 'S',
     labelKey: 'keys.turn_page',
   },
-  close: { codes: ['KeyB', 'Escape'], key: 'B', labelKey: 'keys.close' },
+  close: { codes: ['KeyB'], key: 'B', labelKey: 'keys.close' },
 } as const satisfies Record<string, Binding>
 
-// With the map open (citgomap.ts): M or Esc closes it; a click on a
+// With the map open (citgomap.ts): M closes it; a click on a
 // visited Citgo fast travels there. Opened for a charter (the first one
 // into Marx's bed), a click picks where he goes, closing it takes the
 // joyride, and E hops out.
 export const MAP = {
-  close: { codes: ['KeyM', 'Escape'], key: 'M', labelKey: 'keys.close' },
+  close: { codes: ['KeyM'], key: 'M', labelKey: 'keys.close' },
   hopOut: { codes: ['KeyE'], key: 'E', labelKey: 'keys.interact' },
 } as const satisfies Record<string, Binding>
 
@@ -177,10 +178,11 @@ export const FISHING = {
   reel: { codes: [], key: 'Left Click', labelKey: 'keys.fish_reel' },
 } as const satisfies Record<string, Binding>
 
-// With a keeper's dialog open (the Cabbage Stand's, Erwin von Dutch's):
-// Esc closes it, and its close button wears the key.
+// With a keeper's dialog open (the Cabbage Stand's, Erwin von Dutch's,
+// Gron's, a raider's card, the laptop): E, the key that opened it, closes
+// it (npcdialog.ts closesDialog), and its close button wears the key.
 export const DIALOG = {
-  close: { codes: ['Escape'], key: 'Esc', labelKey: 'keys.close' },
+  close: { codes: ['KeyE'], key: 'E', labelKey: 'keys.close' },
 } as const satisfies Record<string, Binding>
 
 // The pack's keys the controls table lists too, under the valley's: only

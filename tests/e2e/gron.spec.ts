@@ -109,9 +109,9 @@ test('Gron changes your name and your character', async ({ page }) => {
     )
     .toBe('coleman')
 
-  // Escape sends him away, and the valley knows the new name: a chat line
+  // E sends him away, and the valley knows the new name: a chat line
   // comes back from it under the name the valley read from the account.
-  await page.keyboard.press('Escape')
+  await page.keyboard.press('KeyE')
   await expect(dialog).toHaveCount(0)
   await expect
     .poll(() => page.evaluate(() => window.__bv?.player.locked))
