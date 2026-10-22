@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { BOOK } from '../../src/book.ts'
 import { heartPoint, theMaze } from '../../src/caretaker.ts'
@@ -269,6 +270,7 @@ const hello = (
     bushes: Array.from({ length: 7 }, () => ({ x: 0, z: 0 })),
     dealer: DEALER,
     undercroft: CROFT,
+    moat: null,
     rings: Array.from({ length: stations }, (_, i) => ({
       x: i * 1000 + 2,
       z: 14,
@@ -1035,6 +1037,11 @@ describe('ValleyDO', () => {
   })
 
   it('keeps the dev frames for dev sockets', async () => {
+    // Noon Central, so the day's turn is not the next thing due.
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.UTC(2026, 6, 1, 17) })
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
     const { valley: v, state: s } = await valley()
     const plain = await join(v, s, 'A')
     await v.webSocketMessage(
@@ -3052,6 +3059,63 @@ describe('ValleyDO: the shadowmen', () => {
     await v.webSocketClose(ws(b))
     v.tick()
     expect(v.ticking).toBe(false)
+  })
+
+  it('stands them on the ground it reads from its own assets', async () => {
+    const served: string[] = []
+    const ASSETS = {
+      fetch: (url: string) => {
+        const path = new URL(url).pathname
+        served.push(path)
+        const file = readFileSync(`public${path}`)
+        return Promise.resolve(new Response(file))
+      },
+    }
+    const { valley: v, state: s } = await valley(new MockState(), {
+      ASSETS,
+    } as unknown as Partial<Env>)
+    const a = await join(v, s, 'A')
+    await v.webSocketMessage(ws(a), state(0, 0))
+    v.tick()
+    // Until the terrain is read, no shadow has a height.
+    expect(shadowFrames(a)[0].shadowmen[0].y).toBeUndefined()
+    await settledWhen(() => {
+      v.tick()
+      return shadowFrames(a).at(-1)?.shadowmen[0]?.y !== undefined
+    }, 200)
+    expect(served.sort()).toEqual([
+      '/data/bull-valley/geo.json',
+      '/data/bull-valley/terrain.png',
+    ])
+    const last = shadowFrames(a).at(-1)
+    for (const man of last?.shadowmen ?? []) {
+      expect(man.y).toBeGreaterThanOrEqual(0)
+      expect(man.y).toBeLessThan(100)
+    }
+  })
+
+  it('stays flat, and says so once, when it cannot read the ground', async () => {
+    const error = console.error
+    const said: unknown[] = []
+    console.error = (...args: unknown[]) => said.push(args[0])
+    try {
+      const ASSETS = {
+        fetch: () => Promise.resolve(new Response('', { status: 404 })),
+      }
+      const { valley: v, state: s } = await valley(new MockState(), {
+        ASSETS,
+      } as unknown as Partial<Env>)
+      const a = await join(v, s, 'A')
+      await v.webSocketMessage(ws(a), state(0, 0))
+      for (let i = 0; i < 5; i++) {
+        v.tick()
+        await settle()
+      }
+      expect(said).toEqual(['The valley could not read its ground'])
+      expect(shadowFrames(a).at(-1)?.shadowmen[0].y).toBeUndefined()
+    } finally {
+      console.error = error
+    }
   })
 
   it('sends each raider the shadowmen round them, not the whole valley', async () => {

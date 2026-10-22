@@ -42,6 +42,7 @@ import { DAILY_TASK, tallyTask } from '../src/dailytask.ts'
 import { spillsOf } from '../src/drops.ts'
 import { sameName, whereabouts } from '../src/friends.ts'
 import { burialsOf } from '../src/graves.ts'
+import { DATA_BASE, readHeightGrid, valleyGround } from '../src/heightmap.ts'
 import { cardOf } from '../src/inspect.ts'
 import { healsOf } from '../src/items.ts'
 import { listingFor, saveRefusal } from '../src/laptop.ts'
@@ -95,7 +96,8 @@ import type { CrewRow } from '../src/crews.ts'
 import type { TaskProgress } from '../src/dailytask.ts'
 import type { ExpeditionRun } from '../src/expeditions.ts'
 import type { FriendRow } from '../src/friends.ts'
-import type { Inventory, XZ } from '../src/interfaces.ts'
+import type { HeightAt, Inventory, XZ } from '../src/interfaces.ts'
+import type { MazePlace } from '../src/maze.ts'
 import type { XpGrant } from '../src/progression.ts'
 import type {
   ClientMessage,
@@ -194,6 +196,15 @@ interface RateLimit {
   ms: number
 }
 
+// The Worker's own assets answer any origin; a dev server's (Vite, behind
+// the binding) refuses a host it does not know, so ask as localhost.
+const ASSET_ORIGIN = 'http://localhost'
+
+function samePlace(a: MazePlace | null, b: MazePlace | null): boolean {
+  if (!a || !b) return a === b
+  return a.x === b.x && a.z === b.z && a.yaw === b.yaw
+}
+
 export class ValleyDO extends DurableObject<Env> {
   private valley: Valley = createValley()
   // Rate windows live in memory only; a wake from hibernation starts them
@@ -213,6 +224,12 @@ export class ValleyDO extends DurableObject<Env> {
   private shadowRng = mulberry32(Math.floor(Math.random() * 2 ** 32))
   // A dev server's quiet valley (the specs'): no crossing shadowman rushes.
   private calm = false
+  // Rule 11: the terrain as the map has it, read from the Worker's own
+  // assets once a wake (null until then, and for good if it cannot be),
+  // and the ground the shadowmen walk, with the world's moat cut in.
+  private terrain: HeightAt | null = null
+  private reading: Promise<void> | null = null
+  private ground: { moat: MazePlace | null; at: HeightAt } | null = null
   private ticker: unknown = null
   // Steps since a forecourt last gave back its share (rule 24).
   private forecourtSteps = 0
@@ -746,6 +763,40 @@ export class ValleyDO extends DurableObject<Env> {
   }
   private tickFailed = false
 
+  // Rule 11: the ground the shadowmen walk, or null while the terrain is
+  // still being read (the first step asks for it).
+  private groundNow(): HeightAt | null {
+    if (!this.terrain) {
+      this.readTerrain()
+      return null
+    }
+    const moat = this.valley.world?.moat ?? null
+    if (!this.ground || !samePlace(this.ground.moat, moat)) {
+      this.ground = { moat, at: valleyGround(this.terrain, moat) }
+    }
+    return this.ground.at
+  }
+
+  private readTerrain(): void {
+    const assets = (this.env as Partial<Env>).ASSETS
+    if (this.reading || !assets) return
+    const get = async (file: string) => {
+      const res = await assets.fetch(`${ASSET_ORIGIN}${DATA_BASE}/${file}`)
+      if (!res.ok) throw new Error(`${file}: ${res.status}`)
+      return res
+    }
+    this.reading = (async () => {
+      const [png, geo] = await Promise.all([
+        get('terrain.png').then((r) => r.arrayBuffer()),
+        get('geo.json').then((r) => r.text()),
+      ])
+      this.terrain = (await readHeightGrid(new Uint8Array(png), geo)).raw
+    })().catch((err: unknown) => {
+      // Flat until the next wake: every shadow reaches every height.
+      console.error('The valley could not read its ground', err)
+    })
+  }
+
   private tickShadowsUnguarded(): void {
     this.sweep(Date.now())
     const placed = this.roster(null).map(({ id, at }) => ({ id, at }))
@@ -753,6 +804,7 @@ export class ValleyDO extends DurableObject<Env> {
       now: Date.now(),
       dt: 1 / CONFIG.shadowmen.tickHz,
       calm: this.calm,
+      ground: this.groundNow(),
     })
     if (!out) {
       if (this.ticker !== null) this.stopTicker(this.ticker)
@@ -1510,6 +1562,7 @@ export class ValleyDO extends DurableObject<Env> {
               bushes: hello.bushes,
               dealer: hello.dealer,
               undercroft: hello.undercroft,
+              moat: hello.moat,
               rings: hello.rings,
               payphones: hello.payphones,
               level: levelOf(xp),

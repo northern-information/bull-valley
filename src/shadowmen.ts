@@ -17,6 +17,13 @@
 // and one that bursts breaks into a brood of spiderlings, small and quick,
 // that rush whoever is near.
 //
+// They walk the ground (the valley's, heightmap.ts valleyGround) and reach
+// no higher or lower than a body: a raider up a fire escape, on the
+// moat's rim over the floor or down on it under the rim is out of reach
+// of a shadow at the other height, and is never rushed by it. A beam
+// finds one where it stands, so one shone down off the rim burns what
+// walks the floor.
+//
 // Nothing touches at once: one in reach winds up (windupSeconds) and then
 // lunges, and the lunge lands only if its raider is still within reach.
 // A raider struck is let alone for a little while (sharedworld.ts
@@ -30,7 +37,7 @@
 import { CONFIG } from './config.ts'
 import { nearLair } from './lairs.ts'
 import { range } from './rng.ts'
-import type { Metres, XZ } from './interfaces.ts'
+import type { HeightAt, Metres, XZ } from './interfaces.ts'
 import type { Lair } from './lairs.ts'
 import type { Rng } from './rng.ts'
 
@@ -88,6 +95,22 @@ export function aimHeightOf(kind: ShadeKind, cfg: ShadowmenConfig): number {
   return cfg.chestHeight
 }
 
+// Whether a shadow standing at `s.y` reaches feet at `r.y`: no further
+// under it than `vertical.under`, no further over it than its aim and
+// `vertical.over`. Where either height is not known, it reaches.
+export function reachesUp(
+  s: { kind: ShadeKind; y?: number },
+  r: { y?: number },
+  cfg: ShadowmenConfig
+): boolean {
+  if (s.y === undefined || r.y === undefined) return true
+  const dy = r.y - s.y
+  return (
+    dy >= -cfg.vertical.under &&
+    dy <= aimHeightOf(s.kind, cfg) + cfg.vertical.over
+  )
+}
+
 // One shadowman mid-crossing, or rushing a raider.
 export interface Shadowman {
   // Unique in its field, never reused: bodies and bursts follow it.
@@ -95,6 +118,8 @@ export interface Shadowman {
   kind: ShadeKind
   x: number
   z: number
+  // The height of the ground it stands on, where the valley knows it.
+  y?: number
   // Unit heading.
   dirX: number
   dirZ: number
@@ -135,6 +160,8 @@ export interface Raider {
   id: string
   x: number
   z: number
+  // Their feet's height, from their last state frame.
+  y?: number
   vulnerable: boolean
   // Their flashlight, while it is up and on.
   beam: Beam | null
@@ -164,6 +191,10 @@ export interface ShadowmenStep {
   // The spiders' lairs (lairs.ts): they come far more often near one.
   // None, and they come at their plain chance.
   lairs?: readonly Lair[]
+  // The ground they walk (heightmap.ts valleyGround). None, and they have
+  // no height: every raider is within reach up and down, and a beam finds
+  // one at its holder's feet.
+  ground?: HeightAt | null
 }
 
 // Where one burst, by which shadowman, and what it was.
@@ -172,6 +203,8 @@ export interface Burst {
   kind: ShadeKind
   x: number
   z: number
+  // The ground it stood on, where the valley knew it.
+  y?: number
 }
 
 // A burst as the step saw it: also the raiders whose beams were on the
@@ -543,6 +576,7 @@ export function stepShadowmen(
     calm = false,
     lairs = [],
     lights = [],
+    ground = null,
   }: ShadowmenStep,
   cfg: ShadowmenConfig = CONFIG.shadowmen
 ): ShadowmenUpdate {
@@ -568,9 +602,15 @@ export function stepShadowmen(
   )
   const lit = raiders.filter((r) => r.beam !== null)
 
+  const stand = (s: Shadowman): void => {
+    if (ground) s.y = ground(s.x, s.z)
+  }
   const kept: Shadowman[] = []
   for (const s of field.shadowmen) {
-    let target = s.target ? exposed.find((r) => r.id === s.target) : undefined
+    stand(s)
+    let target = s.target
+      ? exposed.find((r) => r.id === s.target && reachesUp(s, r, cfg))
+      : undefined
     if (s.target && !target) {
       // Breaks off: keeps its heading, back to a crossing pace.
       s.target = null
@@ -581,6 +621,7 @@ export function stepShadowmen(
       // The nearest exposed raider inside the rush radius.
       let best = rushRadiusOf(s.kind, cfg)
       for (const r of exposed) {
+        if (!reachesUp(s, r, cfg)) continue
         const d = Math.hypot(r.x - s.x, r.z - s.z)
         if (d < best) {
           best = d
@@ -614,7 +655,7 @@ export function stepShadowmen(
         s.windup = 0
         lunges.push(s.id)
         const d = Math.hypot(target.x - s.x, target.z - s.z)
-        if (d < reach * cfg.reachScale) {
+        if (d < reach * cfg.reachScale && reachesUp(s, target, cfg)) {
           struck.push(target.id)
           strikers[target.id] = s.kind
         }
@@ -625,26 +666,36 @@ export function stepShadowmen(
       s.x += s.dirX * s.speed * dt
       s.z += s.dirZ * s.speed * dt
       turnAside(s, from, metres, havens, cfg)
+      stand(s)
     }
     let nearest = Infinity
     for (const r of raiders) {
       nearest = Math.min(nearest, Math.hypot(r.x - s.x, r.z - s.z))
     }
     if (nearest > cfg.despawnRadius) continue
+    // Where a beam finds it: over the ground it stands on, or over the
+    // beam's own floor where that is not known.
     const aim = aimHeightOf(s.kind, cfg)
+    const body = (beam: Beam) => ({
+      x: s.x,
+      y: (s.y ?? beam.floor) + aim,
+      z: s.z,
+    })
     const by = lit
-      .filter(({ beam }) =>
-        beam ? inBeam(beam, { x: s.x, y: beam.floor + aim, z: s.z }) : false
-      )
+      .filter(({ beam }) => (beam ? inBeam(beam, body(beam)) : false))
       .map((r) => r.id)
     const held =
-      by.length > 0 ||
-      lights.some((beam) =>
-        inBeam(beam, { x: s.x, y: beam.floor + aim, z: s.z })
-      )
+      by.length > 0 || lights.some((beam) => inBeam(beam, body(beam)))
     s.burn = held ? s.burn + dt : Math.max(0, s.burn - dt)
     if (s.burn >= burnSecondsOf(s.kind, cfg)) {
-      bursts.push({ id: s.id, kind: s.kind, x: s.x, z: s.z, by })
+      bursts.push({
+        id: s.id,
+        kind: s.kind,
+        x: s.x,
+        z: s.z,
+        ...(s.y !== undefined ? { y: s.y } : {}),
+        by,
+      })
       if (s.kind === 'spider') brood.push(...broodOf(field, rng, s, cfg))
       continue
     }
@@ -661,6 +712,8 @@ export function stepShadowmen(
     )
     field.cooldowns[raider.id] = cfg.spawnInterval
   }
+  // Every one on the ground, the brood and the new arrivals among them.
+  for (const s of field.shadowmen) stand(s)
 
   return { struck, strikers, lunges, bursts }
 }

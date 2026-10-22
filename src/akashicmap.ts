@@ -7,6 +7,7 @@
 
 import { context2d } from './canvas.ts'
 import { unitToWorld } from './coords.ts'
+import { DATA_BASE } from './heightmap.ts'
 import { CABBAGE_PATCH, landmarkWorldPositions } from './landmarks.ts'
 import {
   addFeature,
@@ -43,7 +44,6 @@ import type {
 import type { FeatureRef, Hit, LayerId, Patch, Shape } from './mapedit.ts'
 import type { TerrainData } from './terrain.ts'
 
-const DATA_BASE = '/data/bull-valley'
 const SAVE_URL = '/__akashic/geo'
 
 // The dev hook on window.__akashic.map.

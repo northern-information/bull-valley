@@ -21,6 +21,7 @@ import { buildShadowman } from './shadowmanmodel.ts'
 import {
   applyShadowFrame,
   createShadowTable,
+  drawnAt,
   sampleShadowmen,
 } from './shadowsync.ts'
 import type { ShadowSpider } from './assets.ts'
@@ -34,14 +35,17 @@ import type { ShadowTable } from './shadowsync.ts'
 
 interface ShadowBodiesOptions {
   scene: THREE.Object3D
-  // What the shadowmen stand on: world.ground.at, never the bare terrain.
+  // What the shadowmen stand on: world.ground.at, never the bare terrain,
+  // and the deck feet at a height stand on (world.ground.standAt), for
+  // the height the valley stands each at (shadowsync.ts drawnAt).
   groundAt: HeightAt
+  standAt: (x: number, z: number, feetY: number) => number
 }
 
 // One shown, as the valley sends it.
 type Shown = Pick<
   ShadowmanWire,
-  'id' | 'kind' | 'x' | 'z' | 'burn' | 'target' | 'windup'
+  'id' | 'kind' | 'x' | 'z' | 'y' | 'burn' | 'target' | 'windup'
 >
 
 export const LUNGE_SECONDS = 0.3
@@ -98,6 +102,7 @@ interface Man {
 
 export class ShadowBodies {
   groundAt: HeightAt
+  standAt: (x: number, z: number, feetY: number) => number
   // The last two frames the valley sent.
   table: ShadowTable
   group: THREE.Group
@@ -115,8 +120,9 @@ export class ShadowBodies {
   private frame = new Map<number, ShadeHeard>()
   private known = new Map<number, ShadeHeard>()
 
-  constructor({ scene, groundAt }: ShadowBodiesOptions) {
+  constructor({ scene, groundAt, standAt }: ShadowBodiesOptions) {
     this.groundAt = groundAt
+    this.standAt = standAt
     this.rng = mulberry32(0xd06)
     this.group = new THREE.Group()
     this.group.name = 'shadowmen'
@@ -253,7 +259,7 @@ export class ShadowBodies {
     const shake = burn * 0.18
     spider.rig.group.position.set(
       s.x + range(this.rng, -shake, shake),
-      this.groundAt(s.x, s.z),
+      drawnAt(s, this.groundAt, this.standAt),
       s.z + range(this.rng, -shake, shake)
     )
     spider.rig.group.rotation.y = spider.heading
@@ -328,7 +334,7 @@ export class ShadowBodies {
     const back = strikeReach(windup, lunge)
     man.rig.group.position.set(
       s.x - Math.sin(facing) * back + range(this.rng, -shake, shake),
-      this.groundAt(s.x, s.z) + range(this.rng, -0.02, 0.02),
+      drawnAt(s, this.groundAt, this.standAt) + range(this.rng, -0.02, 0.02),
       s.z - Math.cos(facing) * back + range(this.rng, -shake, shake)
     )
     man.rig.group.rotation.y = man.heading

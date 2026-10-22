@@ -3,6 +3,7 @@ import { CONFIG } from '../../src/config.ts'
 import {
   applyShadowFrame,
   createShadowTable,
+  drawnAt,
   sampleShadowmen,
 } from '../../src/shadowsync.ts'
 import type { ShadowmanWire } from '../../src/protocol.ts'
@@ -86,5 +87,28 @@ describe('sampleShadowmen', () => {
     }
     // And it glides, rather than holding and jumping once a frame.
     expect(moved).toBeGreaterThan(150)
+  })
+})
+
+describe('height', () => {
+  it('draws between the heights the valley sent, when it sent both', () => {
+    const table = createShadowTable()
+    applyShadowFrame(table, [man(1, 0, { y: 10 })], 0)
+    applyShadowFrame(table, [man(1, 2, { y: 14 })], 100)
+    expect(sampleShadowmen(table, 50)[0].y).toBeCloseTo(12)
+    const flat = createShadowTable()
+    applyShadowFrame(flat, [man(1, 0)], 0)
+    applyShadowFrame(flat, [man(1, 2)], 100)
+    expect(sampleShadowmen(flat, 50)[0].y).toBeUndefined()
+  })
+
+  it("stands one on the deck at the valley's height, or the highest", () => {
+    // A fire escape's flight 12 m over a floor at 0.
+    const groundAt = () => 12
+    const standAt = (_x: number, _z: number, feet: number) =>
+      feet + 2 >= 12 ? 12 : 0
+    expect(drawnAt({ x: 0, z: 0, y: 0 }, groundAt, standAt)).toBe(0)
+    expect(drawnAt({ x: 0, z: 0, y: 11 }, groundAt, standAt)).toBe(12)
+    expect(drawnAt({ x: 0, z: 0 }, groundAt, standAt)).toBe(12)
   })
 })

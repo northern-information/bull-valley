@@ -54,6 +54,7 @@ const hello = {
   bushes: [0, 1, 2].map((i) => ({ x: 6 + i, z: -30 })),
   dealer: { x: -10, z: -60 },
   undercroft: { x: -7000, z: -7000, yaw: 0 },
+  moat: { x: 400, z: 30, yaw: 0.35 },
   rings: [0, 1, 2, 3, 4].map((i) => ({ x: i * 100 + 2, z: i + 14 })),
   payphones: [{ x: 230, z: -60 }],
 }
@@ -287,6 +288,7 @@ describe('parseClientMessage', () => {
       bushes: _bushes,
       dealer: _dealer,
       undercroft: _undercroft,
+      moat: _moat,
       rings: _rings,
       payphones: _payphones,
       ...older
@@ -305,6 +307,7 @@ describe('parseClientMessage', () => {
       bushes: [],
       dealer: null,
       undercroft: null,
+      moat: null,
       rings: [],
       payphones: [],
     })
@@ -322,6 +325,7 @@ describe('parseClientMessage', () => {
         bushes: 'berries',
         dealer: 'wick',
         undercroft: 'cellar',
+        moat: 'deep',
         rings: 'round',
       })
     ).toEqual({
@@ -338,12 +342,17 @@ describe('parseClientMessage', () => {
       bushes: [],
       dealer: null,
       undercroft: null,
+      moat: null,
       rings: [],
       payphones: [],
     })
     // The current version still requires them all.
     expect(parse({ ...older, v: PROTOCOL_VERSION })).toBeNull()
     expect(parse({ ...hello, dealer: 'wick' })).toBeNull()
+    expect(
+      parse({ ...hello, moat: { place: hello.maze, floor: 'deep' } })
+    ).toBeNull()
+    expect(parse({ ...hello, moat: null })).toEqual({ ...hello, moat: null })
     expect(parse({ ...hello, maze: null, stand: null })).toEqual({
       ...hello,
       maze: null,

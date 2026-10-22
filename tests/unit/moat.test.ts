@@ -6,19 +6,24 @@ import { mazeToWorld } from '../../src/maze.ts'
 import {
   carve,
   castlePlace,
+  catchPipe,
   craneSpots,
   fireEscapes,
   inChannel,
   MOAT,
   moatEdges,
   moatFloor,
+  moatPipes,
   moatShape,
   moatWalls,
   onIsland,
   onMoatGrounds,
+  pipeDecks,
+  pipeWalls,
   trickle,
 } from '../../src/moat.ts'
 import { Walls } from '../../src/walls.ts'
+import type { XZ } from '../../src/interfaces.ts'
 
 // A gentle slope for the terrain round the moat.
 const raw = (x: number, z: number) => 200 + x * 0.02 - z * 0.01
@@ -165,25 +170,370 @@ describe('moat', () => {
     }
   })
 
-  it('lets the foot out only at the floor', () => {
+  it('lets a raider up on a pipe walk it, and stops one under it', () => {
+    const pipes = moatPipes(raw, place, floor, stairs)
+    const decks = new Ground(carve(raw, place, floor))
+    for (const deck of pipes.flatMap(pipeDecks)) {
+      decks.addRibbon([deck.a, deck.b], deck.width, 0)
+    }
+    const walls = new Walls()
+    for (const w of pipes.flatMap((pipe) => pipeWalls(pipe))) {
+      walls.addWall(w.a, w.b, w.half, w.band)
+    }
+    for (const pipe of pipes) {
+      const top = pipe.points[0].y + pipe.radius
+      // Every level stretch is a deck; a drop to the floor is none.
+      const level = pipe.points.filter(
+        (p, i) => i > 0 && p.y === pipe.points[i - 1].y
+      )
+      expect(pipeDecks(pipe)).toHaveLength(level.length)
+      // Along its length, feet on it stay on it, and nothing stops them.
+      for (let i = 0; i < pipe.points.length - 1; i++) {
+        const p = pipe.points[i]
+        const q = pipe.points[i + 1]
+        if (p.y !== q.y) continue
+        for (let j = 0; j <= 10; j++) {
+          const at = {
+            x: p.x + (q.x - p.x) * (j / 10),
+            z: p.z + (q.z - p.z) * (j / 10),
+          }
+          expect(decks.standAt(at.x, at.z, top, climb)).toBeCloseTo(top)
+          expect(walls.resolve(at.x, at.z, 0.3, top)).toEqual(at)
+        }
+      }
+      // A body a step under its top climbs onto it; one too far under to
+      // climb it, whose head would meet it, is stopped.
+      const [p, q] = pipe.points
+      const mid = { x: (p.x + q.x) / 2, z: (p.z + q.z) / 2 }
+      expect(decks.standAt(mid.x, mid.z, top - 1, climb)).toBeCloseTo(top)
+      expect(walls.resolve(mid.x, mid.z, 0.3, top - 1)).toEqual(mid)
+      const under = top - climb - 0.1
+      expect(walls.resolve(mid.x, mid.z, 0.3, under)).not.toEqual(mid)
+      expect(decks.standAt(mid.x, mid.z, under, climb)).toBeLessThan(top)
+      // From the floor it is out of reach.
+      expect(decks.standAt(mid.x, mid.z, floor, climb)).toBe(floor)
+    }
+  })
+
+  it('lays a maze of pipes down every wall, level under level', () => {
+    const cfg = CONFIG.castle.pipes
+    const pipes = moatPipes(raw, place, floor, stairs)
+    const walls = new Map<string, typeof pipes>()
+    for (const pipe of pipes) {
+      const key = `${pipe.wall.x},${pipe.wall.z}`
+      walls.set(key, [...(walls.get(key) ?? []), pipe])
+    }
+    expect(walls.size).toBe(10)
+    for (const maze of walls.values()) {
+      const tops = [
+        ...new Set(maze.map((p) => (p.points[0].y + p.radius).toFixed(6))),
+      ]
+        .map(Number)
+        .sort((a, b) => b - a)
+      // Many levels, each a drop under the last, the lowest clear of the
+      // floor.
+      expect(tops.length).toBeGreaterThan(4)
+      tops.slice(1).forEach((top, i) => {
+        const gap = tops[i] - top
+        expect(gap).toBeGreaterThanOrEqual(cfg.drop[0] - 1e-6)
+        // A level may lie bare where the rim runs low, or every run on it
+        // be missing.
+        expect(gap).toBeLessThanOrEqual(cfg.drop[1] * 3)
+      })
+      expect(tops.at(-1)).toBeGreaterThanOrEqual(floor + cfg.floorClear)
+      // Each level broken into runs in rows out from the wall.
+      const level = maze.filter(
+        (p) => (p.points[0].y + p.radius).toFixed(6) === tops[2].toFixed(6)
+      )
+      expect(level.length).toBeGreaterThanOrEqual(2)
+      expect(maze.length / tops.length).toBeGreaterThan(2)
+      for (const pipe of maze) {
+        const [p] = pipe.points
+        const out =
+          (p.x - pipe.wall.x) * pipe.normal.x +
+          (p.z - pipe.wall.z) * pipe.normal.z
+        const rows = cfg.rows.map((row) => pipe.radius + 0.75 + row)
+        // In a row, or out past a fire escape's rail.
+        expect(
+          rows.some((r) => Math.abs(r - out) < 1e-6) || out > rows[0]
+        ).toBe(true)
+        // Only the lowest level turns down to the floor.
+        if (pipe.points.at(-1)?.y === floor) {
+          expect(pipe.points[0].y + pipe.radius).toBeCloseTo(tops.at(-1) ?? 0)
+        }
+      }
+    }
+  })
+
+  it('catches a raider falling past a pipe, within reach of its top', () => {
+    const deck = {
+      a: { x: 0, z: 0, y: 10 },
+      b: { x: 10, z: 0, y: 10 },
+      width: 0.6,
+    }
+    const reach = 1.2
+    // Dropping past its top over it, or within reach of its edge.
+    expect(catchPipe([deck], { x: 4, z: 0.5 }, 10.3, 9.8, 10.3, reach)).toEqual(
+      {
+        x: 4,
+        z: 0,
+        y: 10,
+      }
+    )
+    expect(
+      catchPipe([deck], { x: 4, z: 1.4 }, 10.3, 9.8, 10.3, reach)
+    ).not.toBeNull()
+    // Too far off, not yet down to it, or already past it.
+    expect(
+      catchPipe([deck], { x: 4, z: 1.6 }, 10.3, 9.8, 10.3, reach)
+    ).toBeNull()
+    expect(
+      catchPipe([deck], { x: 4, z: 0 }, 10.6, 10.2, 10.6, reach)
+    ).toBeNull()
+    expect(catchPipe([deck], { x: 4, z: 0 }, 9.9, 9.5, 9.9, reach)).toBeNull()
+    // Never the pipe just stepped off, however the frames fall.
+    expect(catchPipe([deck], { x: 4, z: 0 }, 10, 9.9, 10, reach)).toBeNull()
+    expect(catchPipe([deck], { x: 4, z: 0 }, 10.02, 9.9, 10, reach)).toBeNull()
+    // But one crossed in the first breath of a frame, in a fall from over
+    // it, is caught.
+    expect(
+      catchPipe([deck], { x: 4, z: 0 }, 10.02, 9.8, 13, reach)
+    ).not.toBeNull()
+    // Off its end, by the round of the end.
+    expect(catchPipe([deck], { x: 11, z: 0 }, 10.3, 9.8, 10.3, reach)).toEqual({
+      x: 10,
+      z: 0,
+      y: 10,
+    })
+    // Of two dropped past in one frame, the higher.
+    const lower = {
+      ...deck,
+      a: { ...deck.a, y: 9.9 },
+      b: { ...deck.b, y: 9.9 },
+    }
+    expect(
+      catchPipe([lower, deck], { x: 4, z: 0 }, 10.3, 9.5, 10.3, reach)?.y
+    ).toBe(10)
+  })
+
+  it('catches most raiders who walk off the rim, hurt, not dead', () => {
+    const pipes = moatPipes(raw, place, floor, stairs)
+    const decks = pipes.flatMap(pipeDecks)
+    const { gravity, lethal } = CONFIG.fall
+    const { walkSpeed, sprintSpeed } = CONFIG.player
+    // From every metre of the outer rim, straight out over the channel,
+    // landing on a pipe, or a fire escape (ground), or the floor.
+    const fall = (from: XZ, out: XZ, speed: number) => {
+      let { x, z } = from
+      const start = raw(x, z)
+      let y = start
+      let v = 0
+      const dt = 1 / 60
+      while (y > floor) {
+        v += gravity * dt
+        const next = y - v * dt
+        x += out.x * speed * dt
+        z += out.z * speed * dt
+        const caught = inChannel(place, x, z)
+          ? catchPipe(decks, { x, z }, y, next, start)
+          : null
+        if (caught) return start - caught.y
+        const deck = ground.standAt(x, z, y, 0)
+        if (deck > floor + 0.5 && deck >= next && deck <= y) return start - deck
+        y = next
+      }
+      return start - floor
+    }
+    const outer = moatEdges(place).outer
+    const falls = { walk: [] as number[], sprint: [] as number[] }
+    outer.forEach((a, k) => {
+      const b = outer[(k + 1) % outer.length]
+      const len = Math.hypot(b.x - a.x, b.z - a.z)
+      const u = { x: (b.x - a.x) / len, z: (b.z - a.z) / len }
+      let out = { x: -u.z, z: u.x }
+      const mid = { x: (a.x + b.x) / 2 - place.x, z: (a.z + b.z) / 2 - place.z }
+      if (out.x * mid.x + out.z * mid.z > 0) out = { x: -out.x, z: -out.z }
+      for (let d = 1; d < len - 1; d++) {
+        const from = { x: a.x + u.x * d, z: a.z + u.z * d }
+        falls.walk.push(fall(from, out, walkSpeed))
+        falls.sprint.push(fall(from, out, sprintSpeed))
+      }
+    })
+    const share = (h: number[], test: (x: number) => boolean) =>
+      h.filter(test).length / h.length
+    // Nine in ten walking off are caught short of a fatal fall, most of
+    // them hurt by it.
+    expect(share(falls.walk, (h) => h < lethal)).toBeGreaterThan(0.9)
+    expect(share(falls.walk, (h) => h >= CONFIG.fall.safe)).toBeGreaterThan(0.5)
+    // A sprint off sails out past most of them.
+    expect(share(falls.sprint, (h) => h < lethal)).toBeLessThan(
+      share(falls.walk, (h) => h < lethal)
+    )
+  })
+
+  it('rails the far end of every landing, but lets the foot out at the floor', () => {
     const walls = new Walls()
     for (const stair of stairs) {
       for (const r of stair.rails) walls.addWall(r.a, r.b, r.half, r.band)
     }
     for (const stair of stairs) {
-      const last = stair.flights.at(-1)
-      if (!last) throw new Error('no flights')
-      // From the last flight's foot out through its end: open on the
-      // floor, closed a story up.
-      const from = last.b
-      const dx = stair.foot.x - from.x
-      const dz = stair.foot.z - from.z
-      const crossing = { x: from.x + dx * 0.55, z: from.z + dz * 0.55 }
-      const low = walls.resolve(crossing.x, crossing.z, 0.3, floor)
-      const high = walls.resolve(crossing.x, crossing.z, 0.3, floor + 3)
-      expect(Math.hypot(low.x - crossing.x, low.z - crossing.z)).toBeLessThan(
-        Math.hypot(high.x - crossing.x, high.z - crossing.z) + 1e-9
+      for (const l of stair.landings) {
+        // Just short of the far end, on the landing's middle.
+        const t = l.far < 0 ? l.x0 + 0.1 : l.x1 - 0.1
+        const p = { x: l.x + l.cos * t, z: l.z + l.sin * t }
+        const out = walls.resolve(p.x, p.z, 0.3, l.y)
+        const moved = Math.hypot(out.x - p.x, out.z - p.z)
+        if (l.open) {
+          expect(l.y).toBe(floor)
+          expect(moved).toBe(0)
+        } else {
+          expect(moved).toBeGreaterThan(0.2)
+        }
+      }
+      expect(stair.landings.filter((l) => l.open)).toHaveLength(1)
+    }
+  })
+
+  it('makes no two fire escapes alike, their landings long and short', () => {
+    const { vary, rise } = CONFIG.castle.stairs
+    for (const stair of stairs) {
+      const lengths = stair.landings.map((l) => l.x1 - l.x0)
+      expect(new Set(lengths.map((x) => x.toFixed(1))).size).toBeGreaterThan(
+        lengths.length / 2
       )
+      for (const x of lengths) {
+        expect(x).toBeGreaterThanOrEqual(vary.landing.min)
+        expect(x).toBeLessThanOrEqual(vary.landing.max + 0.5)
+      }
+      // Every flight climbs more than a body steps onto, and about `rise`.
+      for (const f of stair.flights) {
+        expect(f.a.y - f.b.y).toBeGreaterThan(climb)
+        expect(f.a.y - f.b.y).toBeLessThan(rise * 1.5)
+      }
+    }
+    const [one, two] = stairs.map((s) =>
+      s.landings.map((l) => (l.x1 - l.x0).toFixed(2)).join()
+    )
+    expect(one).not.toBe(two)
+  })
+
+  it('rails the lanes apart, so no one steps across onto another flight', () => {
+    const walls = new Walls()
+    for (const stair of stairs) {
+      for (const r of stair.rails) walls.addWall(r.a, r.b, r.half, r.band)
+    }
+    for (const w of moatWalls(raw, place)) {
+      walls.addWall(w.a, w.b, w.half, w.band)
+    }
+    const { radius } = CONFIG.player
+    const lerp = (p: XZ, q: XZ, t: number) => ({
+      x: p.x + (q.x - p.x) * t,
+      z: p.z + (q.z - p.z) * t,
+    })
+    for (const stair of stairs) {
+      stair.flights.forEach((f, i) => {
+        const feet = (f.a.y + f.b.y) / 2
+        // Halfway down, a step toward the other lane is pushed back.
+        const mid = lerp(f.a, f.b, 0.5)
+        const next = stair.flights[i + 1] ?? stair.flights[i - 1]
+        const across = lerp(mid, lerp(next.a, next.b, 0.5), 0.5)
+        const out = walls.resolve(across.x, across.z, radius, feet)
+        expect(Math.hypot(out.x - across.x, out.z - across.z)).toBeGreaterThan(
+          0.2
+        )
+        // Down the lane's middle, nothing stands in the way, nor round the
+        // landing at its foot to the next flight's head.
+        const path: XZ[] = [f.a, f.b]
+        const after = stair.flights[i + 1]
+        if (after) {
+          // Halfway from the turn to the landing's railed far end.
+          const l = stair.landings[i + 1]
+          const axis = { x: l.cos, z: l.sin }
+          const at = (f.b.x - l.x) * axis.x + (f.b.z - l.z) * axis.z
+          const half = ((l.far < 0 ? l.x0 : l.x1) - at) / 2
+          const by = { x: axis.x * half, z: axis.z * half }
+          path.push({ x: f.b.x + by.x, z: f.b.z + by.z })
+          path.push({ x: after.a.x + by.x, z: after.a.z + by.z }, after.a)
+        }
+        for (let k = 0; k < path.length - 1; k++) {
+          for (let j = 0; j <= 20; j++) {
+            const p = lerp(path[k], path[k + 1], j / 20)
+            const y = k === 0 ? f.a.y + (f.b.y - f.a.y) * (j / 20) : f.b.y
+            const q = walls.resolve(p.x, p.z, radius, y)
+            expect(Math.hypot(q.x - p.x, q.z - p.z)).toBeLessThan(1e-9)
+          }
+        }
+      })
+    }
+  })
+
+  it('runs its pipes round the fire escapes, and they stop a raider', () => {
+    const pipes = moatPipes(raw, place, floor, stairs)
+    expect(pipes.length).toBeGreaterThan(10)
+    expect(moatPipes(raw, place, floor, stairs)).toEqual(pipes)
+    // Every stair's strip, from its wall out past its outer rail.
+    const strip = (stair: (typeof stairs)[number], p: XZ) => {
+      const [a, b] = stair.ends
+      const len = Math.hypot(b.x - a.x, b.z - a.z)
+      const t = ((p.x - a.x) * (b.x - a.x) + (p.z - a.z) * (b.z - a.z)) / len
+      const s = (p.x - a.x) * stair.inward.x + (p.z - a.z) * stair.inward.z
+      return t > -0.3 && t < len + 0.3 && s > -0.5 && s < stair.depth + 0.3
+    }
+    let detours = 0
+    for (const pipe of pipes) {
+      if (pipe.points.length > 3) detours++
+      for (let i = 0; i < pipe.points.length - 1; i++) {
+        const p = pipe.points[i]
+        const q = pipe.points[i + 1]
+        for (let j = 0; j <= 40; j++) {
+          const at = {
+            x: p.x + (q.x - p.x) * (j / 40),
+            z: p.z + (q.z - p.z) * (j / 40),
+          }
+          for (const stair of stairs) expect(strip(stair, at)).toBe(false)
+        }
+      }
+      // Between the floor and the rim, never in a raider's walk below.
+      for (const p of pipe.points.slice(0, 2)) {
+        expect(p.y).toBeGreaterThanOrEqual(floor + 3)
+      }
+    }
+    expect(detours).toBeGreaterThan(0)
+    // On any one wall, pipes run on one level or far enough apart that
+    // one walking a pipe never steps up onto the one over it.
+    pipes.forEach((one, i) => {
+      for (const other of pipes.slice(i + 1)) {
+        const sameWall =
+          Math.abs(one.normal.x - other.normal.x) < 1e-9 &&
+          Math.abs(one.normal.z - other.normal.z) < 1e-9
+        if (!sameWall) continue
+        // On one level, or a climb apart.
+        const gap = Math.abs(
+          one.points[0].y + one.radius - other.points[0].y - other.radius
+        )
+        if (gap > 1e-9) expect(gap).toBeGreaterThan(climb)
+      }
+    })
+    // Every stretch stands for a head at its height; a drop to the floor
+    // stands for feet on the floor, a stretch overhead does not.
+    const walls = new Walls()
+    for (const w of pipes.flatMap((pipe) => pipeWalls(pipe))) {
+      walls.addWall(w.a, w.b, w.half, w.band)
+    }
+    for (const pipe of pipes) {
+      const own = new Walls()
+      for (const w of pipeWalls(pipe)) own.addWall(w.a, w.b, w.half, w.band)
+      const [p, q] = pipe.points
+      const mid = { x: (p.x + q.x) / 2, z: (p.z + q.z) / 2 }
+      const at = (feet: number) => own.resolve(mid.x, mid.z, 0.3, feet)
+      // Out of a step's reach under its top, a head meets it.
+      expect(at(p.y + pipe.radius - climb - 0.1)).not.toEqual(mid)
+      expect(at(floor)).toEqual(mid)
+      const last = pipe.points.at(-1)
+      if (last && last.y === floor) {
+        const by = { x: last.x + 0.1, z: last.z }
+        expect(walls.resolve(by.x, by.z, 0.3, floor)).not.toEqual(by)
+      }
     }
   })
 

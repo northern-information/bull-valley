@@ -41,6 +41,7 @@ import { packItemOf } from './packgrid.ts'
 import { secondsLeft } from './portals.ts'
 import { poseOf, stateChanged } from './presence.ts'
 import { aimHeightOf, burstScaleOf, headlightsDue } from './shadowmen.ts'
+import { drawnAt } from './shadowsync.ts'
 import { formatCash } from './store.ts'
 import { tripBlur } from './trip.ts'
 import { burstHeight, burstScale } from './tunnelrig.ts'
@@ -388,7 +389,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       // half as big.
       const size = burstScaleOf(at.kind ?? 'man', CONFIG.shadowmen)
       const y =
-        world.ground.at(at.x, at.z) + aimHeightOf(at.kind, CONFIG.shadowmen)
+        drawnAt(at, world.ground.at, (x, z, feet) =>
+          world.ground.standAt(x, z, feet, CONFIG.fall.climb)
+        ) + aimHeightOf(at.kind, CONFIG.shadowmen)
       bursts.spawn(at.x, y, at.z, size)
     }
     // The Caretaker walks the maze on the same terms.
