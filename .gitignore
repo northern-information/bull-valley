@@ -3,7 +3,9 @@ dist/
 .DS_Store
 *.local
 .playwright-mcp/
-.claude/
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
 test-results/
 playwright-report/
 coverage/
