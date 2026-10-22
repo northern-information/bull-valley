@@ -1449,55 +1449,20 @@ export function buildStringer(): THREE.Group {
   return group
 }
 
-// A rod propped on the bank to fish on its own: its butt in the grass and
-// its blank laid in the fork of a stick pushed into the ground, tipping up
-// and out over the water (+Z). `tip` is where its line leaves it, in the
-// group's own frame.
-export const PROPPED = {
-  // The rod's rise off the ground, radians, and where along it the fork
-  // holds it, metres from the butt.
-  rise: 0.5,
-  fork: 0.75,
-}
-
-export function buildProppedRod(kind: string): {
-  group: THREE.Group
-  tip: THREE.Vector3
-} {
+// A rod set down leaning on something: its butt in the grass at the
+// origin, rising `rise` radians off the ground along +X, its reel hung
+// under the blank. No line out.
+export function buildLeaningRod(kind: string, rise: number): THREE.Group {
   const group = new THREE.Group()
-  group.name = `propped-${kind}`
-  // The rod alone (fishmodels ROD: +X to the tip, the butt at -length/2),
-  // its butt at the origin, turned to point out along +Z and up.
+  group.name = `leaning-${kind}`
+  // The rod alone (fishmodels ROD: +X to the tip, the butt at -length/2,
+  // the reel out on +Z), turned on its axis to hang the reel under it.
   const rod = buildFishingRod(kind, { glow: false }).children[0]
   rod.position.set(ROD.length / 2, 0, 0)
+  rod.rotation.x = Math.PI / 2
   const lay = new THREE.Group()
   lay.add(rod)
-  lay.rotation.set(0, -Math.PI / 2, PROPPED.rise, 'YXZ')
+  lay.rotation.z = rise
   group.add(lay)
-  // The forked stick: a leaning stake up to the blank, two prongs either
-  // side of it.
-  const stick = lambert({ color: '#4e3d2c' })
-  const forkY = Math.sin(PROPPED.rise) * PROPPED.fork
-  const forkZ = Math.cos(PROPPED.rise) * PROPPED.fork
-  const stake = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.012, 0.016, forkY, 5),
-    stick
-  )
-  stake.position.set(0, forkY / 2 - 0.02, forkZ)
-  group.add(stake)
-  for (const side of [-1, 1]) {
-    const prong = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.008, 0.01, 0.09, 4),
-      stick
-    )
-    prong.position.set(side * 0.02, forkY + 0.02, forkZ)
-    prong.rotation.z = -side * 0.4
-    group.add(prong)
-  }
-  const tip = new THREE.Vector3(
-    0,
-    Math.sin(PROPPED.rise) * ROD.length,
-    Math.cos(PROPPED.rise) * ROD.length
-  )
-  return { group, tip }
+  return group
 }
