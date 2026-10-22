@@ -34,6 +34,7 @@ import { itemLine } from './itemcopy.ts'
 import { openMoabDialog } from './moabdialog.ts'
 import { mountModem } from './modemhud.ts'
 import { NetClient, socketUrl } from './net.ts'
+import { npcLine } from './npcs.ts'
 import { GRAIN_URL, imagesReady } from './preload.ts'
 import { levelOf } from './progression.ts'
 import { CLOSE } from './protocol.ts'
@@ -41,6 +42,7 @@ import { dealerStep, roseLine, roseProgress } from './quests.ts'
 import { openRecycleDialog } from './recycledialog.ts'
 import { createSettingsStore } from './settingsui.ts'
 import { createSfx } from './sfxrig.ts'
+import { openShopDialog } from './shopdialog.ts'
 import { mountAccountStep } from './signin.ts'
 import { SILENT } from './silent.ts'
 import { openStandDialog } from './standdialog.ts'
@@ -244,6 +246,8 @@ async function boot(): Promise<void> {
   }
   // Erwin's rambles, in turn.
   let rambled = 0
+  // Carlsten's lines as his shelves open, in turn.
+  let carlstenSaid = 0
   shell = new DialShell(root, {
     name: username,
     outfit: look.outfit,
@@ -320,8 +324,23 @@ async function boot(): Promise<void> {
       )
     },
     citgo: {
-      buy: (station, kind, unit) =>
-        send({ type: 'buy', station, kind, unit }, { buy: { station, kind } }),
+      open: (station, name) => {
+        void openShopDialog({
+          name,
+          says: npcLine('carlsten', carlstenSaid++),
+          pick: null,
+          shelf: () => state.world?.shelves[station] ?? null,
+          cash: () => state.cash,
+          pending: () => state.pending.buy !== null,
+          said: () => state.said?.text ?? null,
+          icon: (kind) => shell?.icon(kind) ?? Promise.reject(new Error()),
+          onBuy: (kind, unit) =>
+            send(
+              { type: 'buy', station, kind, unit },
+              { buy: { station, kind } }
+            ),
+        }).then(() => shell?.render(state))
+      },
     },
     citgoNames: names,
     openMoab: () => {

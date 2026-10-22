@@ -31,7 +31,7 @@ import { grouped, wardName } from './vitalshud.ts'
 import { AXES } from './wardlevels.ts'
 import type { AvatarView } from './avatarview.ts'
 import type { BookEntry } from './book.ts'
-import type { CitgoActions, CitgoOpen } from './dialcitgo.ts'
+import type { CitgoActions } from './dialcitgo.ts'
 import type { ExpeditionActions } from './dialexpeditions.ts'
 import type { FishActions } from './dialfish.ts'
 import type { LockerOpen, PackActions } from './dialpack.ts'
@@ -74,8 +74,8 @@ interface ShellOptions {
   fish: FishActions
   openErwin: () => void
   openGron: () => void
-  // Buys off a Citgo's shelf, with every Citgo's name once the survey
-  // has loaded (citgomap.ts citgoNames).
+  // Opens a Citgo's shelves in the trade window, with every Citgo's name
+  // once the survey has loaded (citgomap.ts citgoNames).
   citgo: CitgoActions
   citgoNames: () => Promise<string[]>
   // Opens Moab's trade window over the shell.
@@ -113,7 +113,6 @@ export class DialShell {
     keys: { kind: null },
     locker: { kind: null },
   }
-  private citgoOpen: CitgoOpen = { station: null }
   private names: string[] | null = null
   private pack: DialPack
   private book: DialBook
@@ -225,13 +224,7 @@ export class DialShell {
       renderLocker(this.sheetBody, s, this.options.pack, this.lockerOpen)
     }
     if (this.sheetOpen === 'citgo') {
-      renderCitgo(
-        this.sheetBody,
-        s,
-        this.names,
-        this.citgoOpen,
-        this.options.citgo
-      )
+      renderCitgo(this.sheetBody, s, this.names, this.options.citgo)
     }
     if (this.sheetOpen === 'fish') {
       this.fish.update(s)

@@ -73,6 +73,7 @@ import { openRecycleDialog } from './recycledialog.ts'
 import { callRoute, nearestRoadPoint } from './roadgraph.ts'
 import { inHaven } from './shadowmen.ts'
 import { buy as buyItem, settle } from './shop.ts'
+import { openShopDialog } from './shopdialog.ts'
 import { openStandDialog } from './standdialog.ts'
 import { move, moveAmount } from './stash.ts'
 import { formatCash } from './store.ts'
@@ -934,9 +935,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       if (inventoryChanged) refreshBag()
     }
     if (line) hud.tell(line)
+    s.shopSaid = line
   }
 
-  const buy = (shelf: ShelfSpot) => {
+  const buy = (shelf: Pick<ShelfSpot, 'station' | 'item' | 'unit'>) => {
     const { next, line } = buyItem(
       { stock: s.storeStock, inventory: s.inventory, cash: s.cash },
       shelf.station,
@@ -945,8 +947,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     )
     if (!next) {
       if (line) hud.tell(line)
+      s.shopSaid = line
       return
     }
+    s.shopSaid = null
     // The shelf is the valley's: ask, and pocket the unit when the valley
     // says it was still there. The judgement above (stock as last heard,
     // cash) stands; the valley settles the race.
@@ -958,6 +962,31 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       station: shelf.station,
       kind: shelf.item,
       unit: shelf.unit,
+    })
+  }
+
+  // E on a shelf unit, or at Carlsten behind the counter: the Citgo's
+  // shelves in the trade window, with the pointer free, as at Erwin's and
+  // Moab's (rule 7). The unit looked at is picked.
+  const openShop = (station: number, pick: ShelfSpot | null) => {
+    if (s.talking) return
+    s.talking = true
+    s.shopSaid = null
+    player.keys.clear()
+    if (document.pointerLockElement) document.exitPointerLock()
+    void openShopDialog({
+      name: citgoLabel(station),
+      says: npcLine('carlsten', s.npcSaid.carlsten++),
+      pick: pick && { kind: pick.item, unit: pick.unit },
+      shelf: () => (s.world ? (s.storeStock[station] ?? null) : null),
+      cash: () => s.cash,
+      pending: () => s.pending.buys.size > 0,
+      said: () => s.shopSaid,
+      icon: (kind) => Promise.resolve(game.thumbs.icon(kind)),
+      onBuy: (item, unit) => buy({ station, item, unit }),
+    }).then(() => {
+      s.talking = false
+      engagePointer()
     })
   }
 
@@ -1287,7 +1316,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         takePickup(interaction.pickup)
         return
       case 'buy':
-        buy(interaction)
+        openShop(interaction.station, interaction)
         return
       case 'collect':
         collectBerry(interaction.bush, interaction.status)
@@ -1298,6 +1327,14 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         return
       case 'speak':
         discover([interaction.npc])
+        // Carlsten keeps the Citgo's shelves: E at him opens them.
+        if (
+          interaction.npc === 'carlsten' &&
+          interaction.station !== undefined
+        ) {
+          openShop(interaction.station, null)
+          return
+        }
         speakTo(interaction.npc)
         return
       case 'trade':

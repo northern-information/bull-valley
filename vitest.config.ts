@@ -45,6 +45,7 @@ const THREE_AND_DOM = [
   'cranemodel',
   'dealdialog',
   'moabdialog',
+  'shopdialog',
   'tradewindow',
   'decalart',
   'devhook',

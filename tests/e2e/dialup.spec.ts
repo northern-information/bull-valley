@@ -301,13 +301,17 @@ test('with a raider on foot in the valley: the Citgo, Erwin, Moab and the chat',
   await page.goto(`/?valley=${encodeURIComponent(valley)}`)
   await dialIn(page)
 
-  // The Citgo: its shelves, bought off from the phone.
+  // The Citgo: the one stood at, its shelves in the trade window, bought
+  // off from the phone.
   await page.locator('.bv-dial-card[data-card="citgo"]').click()
   const cash = page.locator('.bv-dial-cash')
   const before = await cash.textContent()
-  const shelf = page.locator('.bv-dial-shelf').first()
-  await shelf.getByRole('button', { name: copy('dialup.citgo.buy') }).click()
+  await page.locator('.bv-dial-citgo').first().click()
+  const shop = page.locator('.bv-citgo')
+  await expect(shop).toBeVisible()
+  await shop.locator('[data-bv="trade-go"]').click()
   await expect(cash).not.toHaveText(before ?? '')
+  await shop.locator('[data-bv="trade-close"]').click()
   await page.getByRole('button', { name: copy('dialup.back') }).click()
 
   // Erwin barters and gives the rose from anywhere.

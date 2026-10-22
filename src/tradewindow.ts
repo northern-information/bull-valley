@@ -70,6 +70,11 @@ export interface TradeWindowOptions {
   // What one unit counts for with him (zero: he does not take it), and
   // that measure as the window prints it.
   worthOf: WorthOf
+  // A trader paid in cash (a Citgo's shelves): read every tick, the
+  // wallet, in his measure. Your side is then the wallet alone, and the
+  // table weighs it against his price: cash pays to the cent, so there is
+  // nothing to put down, clear or even up.
+  cash?: () => number
   format: (worth: number) => string
   // The good picked as it opens, or null for the first to be had.
   pick: string | null
@@ -128,6 +133,7 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
   const { worthOf, format, quest } = options
   const root = document.createElement('div')
   root.className = `bv-account bv-npc bv-trade ${options.name}`
+  if (options.cash) root.classList.add('bv-trade--cash')
   root.setAttribute('role', 'dialog')
   root.setAttribute('aria-modal', 'true')
   root.setAttribute('aria-labelledby', 'bv-trade-title')
@@ -170,6 +176,10 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
       <section class="bv-npc-section" data-bv="trade-mine">
         ${sectionHead(copy('trade.your_side'), 'trade-mine-meta')}
         <div class="bv-trade-list" data-bv="trade-offer"></div>
+        <div class="bv-trade-wallet" data-bv="trade-wallet-box">
+          <span class="bv-npc-label">${copy('trade.wallet')}</span>
+          <b data-bv="trade-wallet"></b>
+        </div>
         <div class="bv-npc-empty" data-bv="trade-none">
           <p class="bv-npc-say">${options.nothing}</p>
           <span class="bv-npc-label">${options.nothingHint}</span>
@@ -210,6 +220,10 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
   find<HTMLElement>('[data-bv="trade-his-meta"]').textContent = options.hisMeta
   const offerList = find<HTMLDivElement>('[data-bv="trade-offer"]')
   const payNone = find<HTMLDivElement>('[data-bv="trade-none"]')
+  const walletBox = find<HTMLElement>('[data-bv="trade-wallet-box"]')
+  const wallet = find<HTMLElement>('[data-bv="trade-wallet"]')
+  const cash = options.cash
+  walletBox.hidden = !cash
   const goodsList = find<HTMLDivElement>('[data-bv="trade-goods"]')
   const give = find<HTMLElement>('[data-bv="trade-give"]')
   const ask = find<HTMLElement>('[data-bv="trade-ask"]')
@@ -349,8 +363,10 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
       shown = key
       buildOffer(kinds)
     }
-    offerList.hidden = kinds.length === 0
-    payNone.hidden = kinds.length > 0
+    offerList.hidden = !!cash || kinds.length === 0
+    payNone.hidden = !!cash || kinds.length > 0
+    const held = cash?.() ?? 0
+    if (cash) wallet.textContent = format(held)
 
     // His side: the good picked, moved off one that cannot be had.
     const picked = options.goods.find((g) => g.id === want)
@@ -370,10 +386,10 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
     const good = options.goods.find((g) => g.id === want) ?? null
     const out = good?.out() ?? null
     const need = good?.worth ?? 0
-    const worth = offerWorth(offer, worthOf)
+    const worth = cash ? Math.min(held, need) : offerWorth(offer, worthOf)
     const even = good !== null && worth >= need - 1e-6
-    const spare = even ? spareIn(need, offer, worthOf) : []
-    const fill = good ? evenUp(need, pack, offer, worthOf) : null
+    const spare = even && !cash ? spareIn(need, offer, worthOf) : []
+    const fill = good && !cash ? evenUp(need, pack, offer, worthOf) : null
     const label = good?.label ?? ''
     give.textContent = format(worth)
     ask.textContent = format(need)
@@ -381,7 +397,7 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
     table.classList.toggle('bv-trade-table--even', even && spare.length === 0)
     table.classList.toggle('bv-trade-table--over', spare.length > 0)
     if (out !== null) state.textContent = out
-    else if (worth <= 0) {
+    else if (worth <= 0 && !cash) {
       state.textContent = fill
         ? copy('trade.table_empty', { item: label })
         : copy('trade.cannot_cover', { item: label })
@@ -404,6 +420,8 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
       row.less.disabled = busy || on < 1
       row.more.disabled = busy || on >= held || even
     }
+    clearBtn.hidden = !!cash
+    evenBtn.hidden = !!cash
     clearBtn.disabled = busy || worth <= 0
     evenBtn.disabled =
       busy || fill === null || sameOffer(fill, offer) || out !== null
@@ -474,6 +492,12 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
     document.addEventListener('keydown', onKey)
 
     refresh()
+    // The good picked as it opens is in view in his list.
+    const picked = goodRows.find((row) => row.good.id === want)?.row
+    if (picked) {
+      goodsList.scrollTop =
+        picked.offsetTop - (goodsList.clientHeight - picked.offsetHeight) / 2
+    }
     closeBtn.focus({ preventScroll: true })
   })
 }

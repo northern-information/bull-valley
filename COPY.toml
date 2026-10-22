@@ -302,7 +302,6 @@ where = { text = "· The Golden Wok", by = "ai" }
 no_fiat = { text = "No Fiat", by = "ai" }
 pay_rate = { text = "Counted at {percent}% of Shelf", by = "ai" }
 pay_hint = { text = "Cigarettes, drinks, fish, anything a Citgo shelf prices", by = "ai" }
-restocks = { text = "Restocks at Midnight", by = "ai" }
 sold_out_button = { text = "Sold Out", by = "ai" }
 nothing_to_pay = { text = "\"You've got nothing I want. Come back with smokes, or something to drink.\"", by = "ai" }
 bought = { text = "Erwin von Dutch slides you the {item}. \"Pleasure doing business outside the system.\"", by = "ai" }
@@ -335,6 +334,18 @@ table_over = { text = "He makes no change. Take back some {item}.", by = "ai" }
 table_even = { text = "Even. Trade for the {item}.", by = "ai" }
 close = { text = "Leave", by = "ai" }
 offline = { text = "No signal. Nothing changes hands while the valley is gone.", by = "ai" }
+restocks = { text = "Restocks at Midnight", by = "ai" }
+wallet = { text = "Wallet", by = "ai" }
+
+# A Citgo's shelves in the trade window (src/shopdialog.ts, both apps).
+
+[shop]
+eyebrow = { text = "Shop", by = "ai" }
+where = { text = "· {citgo}", by = "ai" }
+cash_only = { text = "Cash Only", by = "ai" }
+to_the_cent = { text = "Paid to the Cent", by = "ai" }
+left = { text = "{count} on the shelf", by = "ai" }
+sold_out = { text = "Sold Out", by = "ai" }
 
 [quests]
 rose_offer = { text = "\"There's something at the heart of the corn maze that wants a rose. A single one. Lay it down for me and the back room of the Video Vault is yours. I have the key. I've always had the key.\"", by = "ai" }
@@ -1589,11 +1600,7 @@ worn = { text = "Wearing", by = "ai" }
 wards = { text = "No wards going.", by = "ai" }
 
 [dialup.citgo]
-buy = { text = "Buy", by = "ai" }
 bought = { text = "{item}, bought.", by = "ai" }
-left = { text = "{count} on the shelf", by = "ai" }
-sold_out = { text = "Sold out", by = "ai" }
-short = { text = "Short {amount}", by = "ai" }
 none_visited = { text = "Stand on a Citgo's forecourt in the valley, and its shelves come to the phone.", by = "ai" }
 not_visited = { text = "You haven't stood at that Citgo yet.", by = "ai" }
 no_world = { text = "No one has opened the valley today. Its shelves come up once someone walks it.", by = "ai" }

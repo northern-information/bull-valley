@@ -323,6 +323,8 @@ export interface GameState {
   pendingDeal: boolean
   dealSaid: string | null
   rambled: number
+  // Rule 7: the last word on a buy, for the Citgo's trade window.
+  shopSaid: string | null
   // Rule 26: where the account stands on each quest (null before the
   // valley says), and a step not yet answered.
   quests: Record<QuestId, QuestStage> | null
@@ -414,6 +416,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     pendingDeal: false,
     dealSaid: null,
     rambled: 0,
+    shopSaid: null,
     quests: null,
     pendingQuest: false,
     pendingBuys: new Set(),

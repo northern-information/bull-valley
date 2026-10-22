@@ -121,9 +121,13 @@ base.describe('a shared world', { tag: '@valley' }, () => {
         })
       )
       await a.keyboard.press('KeyE')
+      const shop = a.locator('.bv-citgo')
+      await shop.locator('[data-bv="trade-go"]').click()
       await expect
         .poll(() => a.evaluate(() => window.__bv?.cash))
         .toBe(4000 - 99)
+      await a.keyboard.press('Escape')
+      await expect(shop).toBeHidden()
       await expect
         .poll(async () => (await shared(b))?.shelves[spawnIndex].pbr)
         .toEqual([false, ...Array<boolean>(perItem - 1).fill(true)])

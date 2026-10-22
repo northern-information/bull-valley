@@ -179,7 +179,7 @@ export function createTargets(game: Game): Targets {
       // counter to talk to (slurms.ts).
       const carlsten = world.clerks[station]
       if (carlsten && !world.shelves.clerkAway(station)) {
-        spots.push({ id: 'carlsten', ...carlsten })
+        spots.push({ id: 'carlsten', ...carlsten, station })
       }
       // A Moab under every station's sign.
       world.moabs.forEach((moab, i) => {

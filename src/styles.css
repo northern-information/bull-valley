@@ -3240,7 +3240,8 @@ canvas {
 .bv-trade-list {
   display: flex;
   flex-direction: column;
-  max-height: 220px;
+  position: relative;
+  max-height: 176px;
   overflow-y: auto;
   scrollbar-width: thin;
 }
@@ -3370,6 +3371,21 @@ canvas {
 .bv-trade-row--good:disabled {
   cursor: not-allowed;
   background: transparent;
+}
+
+/* A trader paid in cash: your side is the wallet, and Trade takes the
+   row alone. */
+.bv-trade-wallet {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  border: 1px solid var(--bv-npc-line);
+}
+
+.bv-trade-wallet b {
+  font-size: 1.75rem;
+  line-height: 2rem;
 }
 
 /* The trade and a trader's quest as two tabs (the pack's, .bv-bag-tabs)
@@ -3630,7 +3646,7 @@ canvas {
     grid-template-columns: 1fr 1fr;
   }
 
-  .bv-trade-acts > [data-bv='deal-go'] {
+  .bv-trade-acts > [data-bv='trade-go'] {
     grid-column: 1 / -1;
   }
 
@@ -3638,6 +3654,11 @@ canvas {
     padding-left: 0;
     border-left: 0;
   }
+}
+
+/* A trader paid in cash: Trade takes the row alone, at any width. */
+.bv-trade--cash .bv-trade-acts {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 /* The laptop in the Citgo bathroom (laptopdialog.ts): its screen fills the

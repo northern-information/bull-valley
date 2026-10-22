@@ -4,7 +4,7 @@ import { copy } from '../../src/copy.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { itemLine } from '../../src/itemcopy.ts'
 import { contentsOf, getItem } from '../../src/items.ts'
-import { buy, buyRefusal, settle } from '../../src/shop.ts'
+import { buy, buyRefusal, settle, shelfRows } from '../../src/shop.ts'
 import { formatCash, freshStock } from '../../src/store.ts'
 import { unitsLeft } from './stock.ts'
 import type { ShopState } from '../../src/shop.ts'
@@ -115,5 +115,25 @@ describe('buyRefusal', () => {
       copy('dialup.citgo.no_world')
     )
     expect(buyRefusal('what', 'marlboro', 0)).toBe(copy('log.refused'))
+  })
+})
+
+describe('shelfRows', () => {
+  it('lists each priced kind with its price, what is left, and the first unit a buy takes', () => {
+    const shelf = {
+      pbr: [false, true, true],
+      cabbage: [true],
+      marlboro: [false],
+    }
+    expect(shelfRows(shelf)).toEqual([
+      { kind: 'pbr', price: getItem('pbr').price, left: 2, unit: 1 },
+      {
+        kind: 'marlboro',
+        price: getItem('marlboro').price,
+        left: 0,
+        unit: null,
+      },
+    ])
+    expect(shelfRows(undefined)).toEqual([])
   })
 })

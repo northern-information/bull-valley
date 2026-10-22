@@ -49,7 +49,7 @@ export function openDealDialog(options: DealDialogOptions): Promise<void> {
     mineMeta: copy('dealer.pay_rate', {
       percent: Math.round(CONFIG.dealer.rate * 100),
     }),
-    hisMeta: copy('dealer.restocks'),
+    hisMeta: copy('trade.restocks'),
     nothing: copy('dealer.nothing_to_pay'),
     nothingHint: copy('dealer.pay_hint'),
     goods: DEALER_GOODS.map((good) => ({
