@@ -81,6 +81,7 @@ import {
   restoreValley,
   toWire,
   wardsFor,
+  waypointsFor,
 } from '../src/sharedworld.ts'
 import { ACCOUNT_HEADER, NAME_HEADER } from './auth.ts'
 import { D1AccountStore } from './d1accounts.ts'
@@ -167,6 +168,10 @@ const DROP_LIMIT: RateLimit = { count: 20, ms: 10_000 }
 // Every other write to the pack (the locker, the stand): the same pace.
 const PACK_LIMIT: RateLimit = DROP_LIMIT
 
+// Waypoint frames one socket may send in ten seconds (rule 37): a pin at
+// a click, so the rest are nacked.
+const MARK_LIMIT: RateLimit = { count: 20, ms: 10_000 }
+
 // Discover frames one socket may send in ten seconds; each reads and
 // writes D1, so the rest are nacked (the client asks again).
 const DISCOVER_LIMIT: RateLimit = { count: 10, ms: 10_000 }
@@ -199,6 +204,7 @@ export class ValleyDO extends DurableObject<Env> {
   private inspectRate = new WeakMap<WebSocket, RateWindow>()
   private dropRate = new WeakMap<WebSocket, RateWindow>()
   private discoverRate = new WeakMap<WebSocket, RateWindow>()
+  private markRate = new WeakMap<WebSocket, RateWindow>()
   // Rules 11 and 13, in memory only: gone whenever the object sleeps.
   private shadows = createShadows()
   private shadowRng = mulberry32(Math.floor(Math.random() * 2 ** 32))
@@ -436,6 +442,9 @@ export class ValleyDO extends DurableObject<Env> {
         return
       case 'discover':
         await this.discover(ws, account, msg.entries)
+        return
+      case 'waypoints':
+        await this.mark(ws, id, msg.points)
         return
       case 'chat':
         this.chat(ws, me, msg.text)
@@ -952,6 +961,31 @@ export class ValleyDO extends DurableObject<Env> {
         this.toAccount(change.account, { type: 'citgos', citgos: change.log })
       }
       if (reduced.earn) await this.repack(null, null, reduced.earn.account)
+    })
+  }
+
+  // The raider's waypoints, all of them (rule 37): every socket on the
+  // account hears the ones the valley kept.
+  private async mark(
+    ws: WebSocket,
+    id: string,
+    points: readonly XZ[]
+  ): Promise<void> {
+    if (!allow(this.markRate, ws, MARK_LIMIT)) {
+      send(ws, { type: 'nack', re: 'waypoints', reason: 'too-fast' })
+      return
+    }
+    await this.locked(async () => {
+      const reduced = reduce(
+        this.valley,
+        { type: 'mark', id, points },
+        this.context()
+      )
+      await this.apply(reduced)
+      const kept = reduced.waypoints
+      if (kept) {
+        this.toAccount(kept.account, { type: 'waypoints', points: kept.points })
+      }
     })
   }
 
@@ -1483,6 +1517,7 @@ export class ValleyDO extends DurableObject<Env> {
       healthMax: maxFor(this.valley, account),
       wards: wardsFor(this.valley, account, now),
       citgos: citgosFor(this.valley, account),
+      waypoints: waypointsFor(this.valley, account),
       xp,
       stand,
       quests,

@@ -98,6 +98,7 @@ import type {
   PeerWire,
   WardLevels,
 } from './protocol.ts'
+import type { Waypoints } from './waypoints.ts'
 import type { Pickup } from './world.ts'
 
 // The valley's word on a touch (a struck frame): what it took, what the
@@ -212,6 +213,11 @@ export interface Actions {
   // The account's Citgos as the valley says (the welcome, a citgos frame):
   // a new one is said, unless `quiet` or before Begin.
   applyCitgos(log: CitgoLog, quiet?: boolean): void
+  // Rule 37: the account's waypoints as the valley says (the welcome, a
+  // waypoints frame): drawn on the map and the compass, a pillar at each;
+  // and a pin the valley would not take yet.
+  applyWaypoints(points: Waypoints): void
+  waypointsRefused(): void
   // M: the map, over the valley with the pointer free; relock as
   // closeBook's.
   openMap(): void
@@ -1629,9 +1635,27 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     closeMap(true)
     hud.tell(copy('log.travel', { citgo: citgoLabel(station) }))
   }
+  // --- Rule 37: waypoints -------------------------------------------------
+
+  const applyWaypoints = (points: Waypoints) => {
+    s.waypoints = points
+    game.pillars.sync(points)
+  }
+
+  // A pin placed or lifted on the map: the valley keeps them, and its
+  // answer draws them. Offline there is no valley, and they last the
+  // session.
+  const markWaypoints = (points: Waypoints) => {
+    if (net.online) net.send({ type: 'waypoints', points: [...points] })
+    else applyWaypoints(points)
+  }
+
+  const waypointsRefused = () => hud.tell(copy('log.waypoints_refused'))
+
   if (hud.map) {
     hud.map.onTravel = fastTravel
     hud.map.onCharter = (to) => endCharter(to)
+    hud.map.onMark = markWaypoints
   }
 
   const say = (typed: string) => {
@@ -1693,6 +1717,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     portalRefused,
     tendPortals,
     applyCitgos,
+    applyWaypoints,
+    waypointsRefused,
     openMap,
     closeMap,
     fastTravel,

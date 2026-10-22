@@ -44,6 +44,7 @@ import type { ShadowBodies } from './shadowbodies.ts'
 import type { ShadeKind } from './shadowmen.ts'
 import type { StandLedger } from './stand.ts'
 import type { Truck } from './truck.ts'
+import type { Waypoints } from './waypoints.ts'
 import type { World } from './world.ts'
 import type * as THREE from 'three'
 
@@ -141,6 +142,8 @@ interface BvHook {
   readonly portalGrace: number
   readonly phoneRaised: boolean
   readonly mapOpen: boolean
+  // Rule 37: the account's waypoints, as the valley last said.
+  readonly waypoints: Waypoints
   // The item on each number key, slot 0 for 1.
   readonly hotbar: Hotbar
   // The wards right now: how high, stimulated, drunk and tripping, each
@@ -374,6 +377,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     },
     get mapOpen() {
       return s.mapOpen
+    },
+    get waypoints() {
+      return s.waypoints
     },
     get hotbar() {
       return s.hotbar

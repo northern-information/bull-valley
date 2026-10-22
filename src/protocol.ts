@@ -11,6 +11,7 @@ import { isHealth } from './health.ts'
 import { isFileBody, isFileId, isFileName } from './laptop.ts'
 import { isQuestStep } from './quests.ts'
 import { isResearchLine } from './recycling.ts'
+import { WAYPOINT_MAX } from './waypoints.ts'
 import type { CitgoLog } from './citgos.ts'
 import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -39,10 +40,11 @@ import type { Research, ResearchLine } from './recycling.ts'
 import type { Burst, ShadeKind, TruckPose } from './shadowmen.ts'
 import type { StandLedger } from './stand.ts'
 import type { TunnelKind } from './tunnelshades.ts'
+import type { Waypoints } from './waypoints.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 46
+export const PROTOCOL_VERSION = 47
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -495,6 +497,14 @@ interface DiscoverMessage {
   entries: string[]
 }
 
+// Every waypoint this raider keeps (sharedworld.ts rule 37), the whole
+// list at once: a pin placed or lifted on the map. The valley keeps those
+// inside the survey and answers with a WaypointsMessage.
+interface MarkMessage {
+  type: 'waypoints'
+  points: XZ[]
+}
+
 // Dev-server only: the Worker stamps the socket, and production ignores
 // these. hurry brings the truck's next change to `seconds` from now;
 // reset opens the world afresh.
@@ -705,6 +715,7 @@ export type ClientMessage =
   | DealMessage
   | QuestMessage
   | DiscoverMessage
+  | MarkMessage
   | ChatMessage
   | WhisperMessage
   | FriendMessage
@@ -787,6 +798,8 @@ export interface WelcomeMessage {
   wards: WardLevels
   // Every Citgo the account has stood at, and the last (rule 28).
   citgos: CitgoLog
+  // The account's waypoints (rule 37).
+  waypoints: Waypoints
 }
 
 // The account's Citgos after it stood at one not yet the last (rule 28).
@@ -794,6 +807,13 @@ export interface WelcomeMessage {
 interface CitgosMessage {
   type: 'citgos'
   citgos: CitgoLog
+}
+
+// The account's waypoints as the valley kept them (rule 37). To every
+// socket signed in to it.
+interface WaypointsMessage {
+  type: 'waypoints'
+  points: Waypoints
 }
 
 // The four wards' levels, each from 0 to 1 (wardlevels.ts).
@@ -1187,6 +1207,7 @@ export type ServerMessage =
   | PeerHealthMessage
   | WardsMessage
   | CitgosMessage
+  | WaypointsMessage
   | PassedMessage
   | SeasonMessage
   | BookMessage
@@ -1885,6 +1906,13 @@ const CLIENT_PARSERS: ClientParsers = {
     entries.every(isKind)
       ? { type: 'discover', entries }
       : null,
+  waypoints: ({ points }) => {
+    if (!Array.isArray(points) || points.length > WAYPOINT_MAX) return null
+    const parsed = points.map(parseXZ)
+    return parsed.every((p) => p !== null)
+      ? { type: 'waypoints', points: parsed }
+      : null
+  },
   call: (value) => {
     const from = parseXZ(value.from)
     return from && { type: 'call', from }

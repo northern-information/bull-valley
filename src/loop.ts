@@ -546,8 +546,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       .map((m) => m.name)
       .filter((name) => name !== game.pick.username)
 
-  // The map, while it is open: where you stand, your Citgos, and your
-  // party.
+  // The map, while it is open: where you stand, your Citgos, your party,
+  // and your waypoints.
   const drawMap = () => {
     if (s.mapOpen) {
       hud.map?.draw({
@@ -555,6 +555,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         log: s.citgos,
         here: s.aboard ? null : citgoAt(player.pos, world.fuelPoints),
         party: peers.placed(partyMates()),
+        marks: s.waypoints,
       })
     }
   }
@@ -620,9 +621,14 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     return tick
   }
 
-  // The countdown, the hotbar, geometrie and the buffs, the tracker's
-  // rows, and the chat log.
+  // The compass, the countdown, the hotbar, geometrie and the buffs, the
+  // tracker's rows, and the chat log.
   const stepHud = ({ now, time }: FrameClock) => {
+    hud.compass.set({
+      me: { x: player.pos.x, z: player.pos.z, yaw: player.yaw },
+      waypoints: s.waypoints,
+      party: peers.placed(partyMates()),
+    })
     hud.setCountdown(countdownLine(now))
 
     hud.setHotbar(
