@@ -296,7 +296,7 @@ lore = { text = "A burning skeleton in a red trench coat, his back to his burnin
 lore = { text = "Sleeps behind the Golden Wok's boards with his candles and his chalk. Takes no cash: he barters for what the Citgo sells, at a little under its price. He has a rose that wants to go somewhere.", by = "ai" }
 
 [book.tyler]
-lore = { text = "Sits cross-legged in the back of a red Jeep Wrangler beside Moab, hunched over a laptop with the hatch up. Whatever he is tuning in, it is not ready yet.", by = "ai" }
+lore = { text = "Sits cross-legged in the back of a red Jeep Wrangler beside Moab, hunched over a laptop with the hatch up, a portable radar dish on the roof cabled down to it. He helps run the Citgo portals. Whatever else he is tuning in, it is not ready yet.", by = "ai" }
 
 # Erwin von Dutch, the squatter in Bull Valley Plaza (src/dealer.ts,
 # src/dealdialog.ts), and his quest (src/quests.ts).
