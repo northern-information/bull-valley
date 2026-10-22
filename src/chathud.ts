@@ -42,9 +42,9 @@ export class ChatHud {
     dock.appendChild(this.root)
   }
 
-  // A line the game says to the player alone.
-  tell(text: string): void {
-    this.line({ kind: 'system', text, at: Date.now() }, performance.now())
+  // A line the game says to the player alone; an alert stands out in red.
+  tell(text: string, kind: 'system' | 'alert' = 'system'): void {
+    this.line({ kind, text, at: Date.now() }, performance.now())
   }
 
   // One line into the log, stamped and colored by who said it. Text from
