@@ -20,6 +20,7 @@ import {
   PROTOCOL_VERSION,
 } from '../../src/protocol.ts'
 import { dryMap } from '../../src/waterside.ts'
+import { WAYPOINT_MAX } from '../../src/waypoints.ts'
 
 const state = {
   x: 1.5,
@@ -360,6 +361,22 @@ describe('parseClientMessage', () => {
       x: 1,
       z: -2,
     })
+  })
+
+  it('parses a waypoints frame of up to WAYPOINT_MAX points', () => {
+    const pins = [{ x: 1, z: -2 }]
+    expect(parse({ type: 'waypoints', points: pins })).toEqual({
+      type: 'waypoints',
+      points: pins,
+    })
+    expect(parse({ type: 'waypoints', points: [] })).toEqual({
+      type: 'waypoints',
+      points: [],
+    })
+    const many = Array.from({ length: WAYPOINT_MAX + 1 }, () => pins[0])
+    expect(parse({ type: 'waypoints', points: many })).toBeNull()
+    expect(parse({ type: 'waypoints', points: [{ x: 1 }] })).toBeNull()
+    expect(parse({ type: 'waypoints', points: 'here' })).toBeNull()
   })
 
   it('parses a discover frame, leaving which entries are real to the valley', () => {

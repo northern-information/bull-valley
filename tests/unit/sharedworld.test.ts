@@ -45,11 +45,13 @@ import {
   toWire,
   wakeAt,
   wardsFor,
+  waypointsFor,
 } from '../../src/sharedworld.ts'
 import { FRESH_STAND, standXp } from '../../src/stand.ts'
 import { UNDERCROFT } from '../../src/undercroft.ts'
 import { damageOf } from '../../src/wards.ts'
 import { dryMap } from '../../src/waterside.ts'
+import { WAYPOINT_MAX } from '../../src/waypoints.ts'
 import { unitsLeft } from './stock.ts'
 import type { CosmeticId } from '../../src/cosmetics.ts'
 import type { ExpeditionRun } from '../../src/expeditions.ts'
@@ -3711,5 +3713,57 @@ describe('rule 34: parties', () => {
       'acct-b',
     ])
     expect(creditedWithParty(v.valley, ['d'], raiders)).toEqual(['acct-d'])
+  })
+})
+
+describe('rule 36: waypoints', () => {
+  const mark = (id: string, points: XZ[]): ValleyAction => ({
+    type: 'mark',
+    id,
+    points,
+  })
+
+  it('keeps an account its pins, inside the survey, for every socket on it', () => {
+    const v = valleyWith(join('a'))
+    const pins = [
+      { x: 10, z: -20 },
+      { x: METRES.width, z: 0 },
+    ]
+    const reduced = v.step(mark('a', pins))
+    expect(reduced.waypoints).toEqual({
+      account: 'acct-a',
+      points: [{ x: 10, z: -20 }],
+    })
+    expect(waypointsFor(v.valley, 'acct-a')).toEqual([{ x: 10, z: -20 }])
+    expect(waypointsFor(v.valley, 'acct-b')).toEqual([])
+    // Cleared.
+    v.step(mark('a', []))
+    expect(waypointsFor(v.valley, 'acct-a')).toEqual([])
+  })
+
+  it('keeps the newest WAYPOINT_MAX and answers even unchanged', () => {
+    const v = valleyWith(join('a'))
+    const many = Array.from({ length: WAYPOINT_MAX + 2 }, (_, i) => ({
+      x: i,
+      z: 0,
+    }))
+    v.step(mark('a', many))
+    const kept = waypointsFor(v.valley, 'acct-a')
+    expect(kept).toEqual(many.slice(-WAYPOINT_MAX))
+    const again = v.step(mark('a', many))
+    expect(again.valley).toBe(v.valley)
+    expect(again.waypoints?.points).toEqual(kept)
+  })
+
+  it('carries over a restore, and ignores a stranger', () => {
+    const v = valleyWith(join('a'))
+    v.step(mark('a', [{ x: 1, z: 2 }]))
+    const stored = JSON.parse(JSON.stringify(v.valley)) as Valley
+    expect(waypointsFor(restoreValley(stored), 'acct-a')).toEqual([
+      { x: 1, z: 2 },
+    ])
+    const { waypoints: _, ...older } = stored
+    expect(restoreValley(older).waypoints).toEqual({})
+    expect(v.step(mark('nobody', [{ x: 1, z: 1 }])).waypoints).toBeUndefined()
   })
 })

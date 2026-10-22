@@ -81,6 +81,7 @@ import { applyPS1 } from './ps1.ts'
 import { mulberry32, range } from './rng.ts'
 import {
   buildLandmarkBeacon,
+  buildWaypointPillar,
   gravestonePart,
   POLE_ARM_DROP,
   POLE_INSULATOR_X,
@@ -375,6 +376,11 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     id: 'beacon-keep',
     label: "Beacon: Mt. Coleman's Keep",
     build: () => buildLandmarkBeacon('#e879f9'),
+  },
+  {
+    id: 'waypoint-pillar',
+    label: 'Waypoint pillar',
+    build: buildWaypointPillar,
   },
   { id: 'cabbage', label: 'Cabbage', build: () => buildPickup('cabbage') },
   ...ITEMS.filter((item) => item.category === 'cigarette').map((item) => ({

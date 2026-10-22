@@ -90,10 +90,10 @@
 }
 
 /* Loadout countdown: bare numbers, no box. The dark halo keeps it legible
-   on snow and on night sky. */
+   on snow and on night sky. Under the compass. */
 .bv-countdown {
   position: absolute;
-  top: 0.9rem;
+  top: 3.4rem;
   left: 50%;
   transform: translateX(-50%);
   margin: 0;
@@ -1667,6 +1667,94 @@
     rgb(0 0 0 / 35%) calc(var(--cd, 0) * 1turn),
     transparent 0
   );
+}
+
+/* The compass (compasshud.ts): a faint hairline across the top centre,
+   half the horizon wide and fading out at both ends, the facing at its
+   notch. Letters for the cardinals, hairlines between, eggshell diamonds
+   for waypoints (bright dead ahead, their distance under the notch), cyan
+   ticks for the party. Shown when the reticle is. */
+.bv-compass {
+  position: absolute;
+  top: 0.9rem;
+  left: 50%;
+  width: min(24rem, calc(100% - 2rem));
+  transform: translateX(-50%);
+  visibility: hidden;
+  opacity: 0.45;
+  text-shadow: 0 0 3px rgb(0 0 0 / 90%);
+}
+
+.bv-shell--locked:not(.bv-shell--inventory) .bv-compass {
+  visibility: visible;
+}
+
+.bv-compass-strip {
+  position: relative;
+  height: 1.5rem;
+  border-bottom: 1px solid rgb(240 234 214 / 35%);
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 22%,
+    #000 78%,
+    transparent
+  );
+}
+
+.bv-compass-strip > span {
+  position: absolute;
+  bottom: 0;
+  transform: translateX(-50%);
+}
+
+.bv-compass-tick {
+  width: 1px;
+  height: 0.35rem;
+  background: var(--bv-eggshell);
+  opacity: 0.6;
+}
+
+.bv-compass-letter {
+  bottom: 0.2rem;
+  line-height: 1;
+  letter-spacing: 0.08em;
+}
+
+.bv-compass-notch {
+  left: 50%;
+  bottom: -0.3rem;
+  width: 1px;
+  height: 0.6rem;
+  background: var(--bv-eggshell);
+}
+
+.bv-compass-pin {
+  bottom: 0.35rem;
+  width: 0.4rem;
+  height: 0.4rem;
+  background: var(--bv-eggshell);
+  opacity: 0.7;
+  rotate: 45deg;
+}
+
+.bv-compass-pin--ahead {
+  opacity: 1;
+  box-shadow: 0 0 6px var(--bv-eggshell);
+}
+
+.bv-compass-mate {
+  bottom: 0.3rem;
+  width: 2px;
+  height: 0.6rem;
+  background: #22d3ee;
+}
+
+.bv-compass-far {
+  display: block;
+  margin-top: 0.35rem;
+  min-height: 1lh;
+  text-align: center;
 }
 
 /* Center dot. Only while locked and on foot or riding; the inventory, intro

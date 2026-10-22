@@ -49,6 +49,7 @@ import { seasonOf } from './season.ts'
 import { buyRefusal } from './shop.ts'
 import { isStandLedger, refusalLine, standNews } from './stand.ts'
 import { formatCash } from './store.ts'
+import { toWaypoints } from './waypoints.ts'
 import { newLeg, portalNews, reconcileBed, settledBy } from './worldsync.ts'
 import type { Actions } from './actions.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -227,6 +228,10 @@ export function wireValley(game: Game, actions: Actions): void {
       // Rule 28: a Citgo stood at, written.
       case 'citgos':
         actions.applyCitgos(msg.citgos)
+        return
+      // Rule 36: a pin placed or lifted, on any socket of the account.
+      case 'waypoints':
+        actions.applyWaypoints(toWaypoints(msg.points))
         return
       // Rule 31: the laptop's answers, to its screen while it is open.
       case 'laptop-files':
@@ -430,6 +435,8 @@ export function wireValley(game: Game, actions: Actions): void {
       hud.tell(passRefusal(msg.reason))
     } else if (msg.re === 'discover') {
       actions.bookRefused()
+    } else if (msg.re === 'waypoints') {
+      actions.waypointsRefused()
     } else if (msg.re === 'take-drop') {
       if (msg.drop !== undefined) s.pending.drops.delete(msg.drop)
       if (msg.reason === 'gone') hud.tell(copy('log.taken_first'))
@@ -551,6 +558,7 @@ export function wireValley(game: Game, actions: Actions): void {
       s.quests = toQuests(msg.quests)
       // The Citgos the account has stood at already are no news.
       actions.applyCitgos(msg.citgos, true)
+      actions.applyWaypoints(toWaypoints(msg.waypoints))
     } else if (msg.type === 'quest') {
       // Rule 26: a step of a quest went through, to every socket on the
       // account. Its pack frame follows.

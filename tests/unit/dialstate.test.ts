@@ -63,6 +63,7 @@ const welcome = (over: Partial<WelcomeMessage> = {}): ServerMessage => ({
   healthMax: 1000,
   wards: { ...NO_WARDS, high: 0.5 },
   citgos: { last: null, visited: [] },
+  waypoints: [],
   expedition: null,
   ...over,
 })

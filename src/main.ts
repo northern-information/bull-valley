@@ -66,6 +66,7 @@ import { createTruckRadio } from './truckradiorig.ts'
 import { TunnelShades } from './tunnelrig.ts'
 import { wireValley } from './valleysync.ts'
 import { waterMapOf } from './waterside.ts'
+import { createWaypointMeshes } from './waypointmeshes.ts'
 import { buildWorld } from './world.ts'
 import type { Game } from './game.ts'
 import type { Geo } from './interfaces.ts'
@@ -163,6 +164,8 @@ async function boot() {
   scene.add(corpses.group)
   const portals = createPortalMeshes(world.ground.at)
   scene.add(portals.group)
+  const pillars = createWaypointMeshes(world.ground.at)
+  scene.add(pillars.group)
   // The map (M): the survey's roads, and every Citgo named for its road.
   const mapRoads = geo.roads.map((road) => ({
     name: road.n,
@@ -295,6 +298,7 @@ async function boot() {
     graves,
     corpses,
     portals,
+    pillars,
     graph,
     truck,
     radio: SILENT ? null : createTruckRadio(),

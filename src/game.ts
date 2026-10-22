@@ -12,6 +12,7 @@ import { STARTING_INVENTORY } from './inventory.ts'
 import { NO_PROGRESS } from './season.ts'
 import { freshStock } from './store.ts'
 import { SOBER } from './wardlevels.ts'
+import { NO_WAYPOINTS } from './waypoints.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
 import type { CitgoLog } from './citgos.ts'
 import type { Constellations } from './constellationrig.ts'
@@ -73,6 +74,8 @@ import type { TruckContext, TruckPlan } from './truckplan.ts'
 import type { TruckRadio } from './truckradiorig.ts'
 import type { TunnelShades } from './tunnelrig.ts'
 import type { WardState } from './wardlevels.ts'
+import type { WaypointMeshes } from './waypointmeshes.ts'
+import type { Waypoints } from './waypoints.ts'
 import type { FuelPoint, Pickup, World } from './world.ts'
 import type * as THREE from 'three'
 
@@ -281,6 +284,9 @@ export interface GameState {
   pendingPortal: boolean
   portalGraceUntil: number
   mapOpen: boolean
+  // Rule 36: the account's waypoints, as the valley last said (the
+  // welcome, then every waypoints frame).
+  waypoints: Waypoints
   // Rule 3: the map is open for us to pick where Marx drives (we were the
   // first one into the bed), and not yet picked.
   charting: boolean
@@ -368,6 +374,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     pendingPortal: false,
     portalGraceUntil: 0,
     mapOpen: false,
+    waypoints: NO_WAYPOINTS,
     charting: false,
     pendingDeal: false,
     dealSaid: null,
@@ -399,6 +406,8 @@ export interface Game {
   corpses: CorpseMeshes
   // The Citgo portals, kept in step with the open ones of state.portals.
   portals: PortalMeshes
+  // Rule 36: a pillar of light at each of state.waypoints.
+  pillars: WaypointMeshes
   graph: RoadGraph
   truck: Truck
   // Marx's radio while the truck rolls (truckradiorig.ts), none under e2e.

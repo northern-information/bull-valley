@@ -300,6 +300,12 @@
 //    everyone the moment it is). Its chat goes to its members alone,
 //    under the chat rules and rate, and is never kept. Only names and
 //    tags go on the wire.
+// 36. Waypoints (waypoints.ts): the valley keeps each account's pins on
+//    the map, up to WAYPOINT_MAX, the oldest dropped past it
+//    (Valley.waypoints). A raider sends the whole list at once (a `mark`
+//    action); the valley keeps only the points inside the survey, and
+//    every socket on the account hears the list it kept. The compass and
+//    the pillars they draw are the client's.
 
 import { bountyOf } from './book.ts'
 import { dosed, inPassReach, scaled, sobered, wardsOf } from './buffs.ts'
@@ -397,6 +403,7 @@ import { atLocker } from './stash.ts'
 import { freshStock, onShelf, takeUnit } from './store.ts'
 import { levelsAt } from './wardlevels.ts'
 import { damageOf } from './wards.ts'
+import { cleanWaypoints, NO_WAYPOINTS, sameWaypoints } from './waypoints.ts'
 import type { CitgoLog } from './citgos.ts'
 import type { Corpse } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -432,6 +439,7 @@ import type { StandLedger } from './stand.ts'
 import type { WardState } from './wardlevels.ts'
 import type { ShadowHit } from './wards.ts'
 import type { WaterMap } from './waterside.ts'
+import type { Waypoints } from './waypoints.ts'
 
 // A raider online: one socket.
 interface Member {
@@ -522,6 +530,8 @@ export interface Valley {
   // Rule 34: the parties and the invites waiting, by account (never on
   // the wire).
   parties: Parties
+  // Rule 36: account -> its waypoints.
+  waypoints: Record<string, Waypoints>
 }
 
 interface ValleyCorpse extends Corpse {
@@ -698,6 +708,8 @@ export type ValleyAction =
   // Rule 28: the raider stands at Citgo `station`; a Citgo portal opened.
   | { type: 'visit'; id: string; station: number }
   | { type: 'open-portal'; id: string; at: Facing | null }
+  // Rule 36: the raider's waypoints, all of them.
+  | { type: 'mark'; id: string; points: readonly XZ[] }
   // The valley's own clock: the truck and the day, moved on.
   | { type: 'clock' }
   | { type: 'hurry'; seconds: number }
@@ -809,6 +821,8 @@ export interface Reduced {
   stand?: StandChange
   // Rule 28: an account's Citgos after a visit, for its sockets.
   citgos?: { account: string; log: CitgoLog }
+  // Rule 36: an account's waypoints as kept, for its sockets.
+  waypoints?: { account: string; points: Waypoints }
   // Rule 30: a run sent out, or a run home and its haul, written together
   // or not at all.
   expedition?: ExpeditionChange
@@ -909,6 +923,7 @@ export function createValley(): Valley {
     wards: {},
     citgos: {},
     parties: NO_PARTIES,
+    waypoints: {},
   }
 }
 
@@ -1014,6 +1029,11 @@ export function inTheBed(valley: Valley, id: string): boolean {
 // Rule 28: every Citgo `account` has stood at, and the last.
 export function citgosFor(valley: Valley, account: string): CitgoLog {
   return valley.citgos[account] ?? NO_CITGOS
+}
+
+// Rule 36: the waypoints `account` keeps.
+export function waypointsFor(valley: Valley, account: string): Waypoints {
+  return valley.waypoints[account] ?? NO_WAYPOINTS
 }
 
 // Rule 2: where `account` comes back to, or null for the spawn Citgo.
@@ -1309,6 +1329,8 @@ function act(
       return onVisit(valley, action, context)
     case 'open-portal':
       return onOpenPortal(valley, action, context)
+    case 'mark':
+      return onMark(valley, action, context)
     case 'clock':
       return done(valley, context.now, { broadcast: [] })
     case 'hurry':
@@ -2819,6 +2841,25 @@ function onVisit(
         : {}),
     }
   )
+}
+
+function onMark(
+  valley: Valley,
+  action: ActionOf<'mark'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rule 36.
+  const member = valley.members[action.id]
+  const world = valley.world
+  if (!member || !world) return done(valley, now, { broadcast: [] })
+  const { account } = member
+  const points = cleanWaypoints(action.points, world.metres)
+  // Heard back even unchanged, so a client that asked for more than was
+  // kept draws what was.
+  const kept = sameWaypoints(points, waypointsFor(valley, account))
+    ? valley
+    : { ...valley, waypoints: { ...valley.waypoints, [account]: points } }
+  return done(kept, now, { broadcast: [], waypoints: { account, points } })
 }
 
 function onOpenPortal(
