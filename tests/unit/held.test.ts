@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   baitFor,
+  CAST,
+  castPose,
   isTool,
   nextTool,
   toolIn,
@@ -54,5 +56,33 @@ describe('what the left hand holds', () => {
     expect(baitFor('berries', pack)).toBe('nightcrawlers')
     expect(baitFor('slurm', { slurm: 0, berries: 3 })).toBe('berries')
     expect(baitFor(null, BARE)).toBeNull()
+  })
+})
+
+describe('a cast', () => {
+  it('rests, with the bobber on the water, outside the cast', () => {
+    expect(castPose(-1)).toEqual({ tilt: 0, fly: 1 })
+    expect(castPose(CAST.lands)).toEqual({ tilt: 0, fly: 1 })
+    expect(castPose(0)).toEqual({ tilt: 0, fly: 0 })
+  })
+
+  it('swings back, whips forward past rest, and settles', () => {
+    expect(castPose(CAST.back).tilt).toBeCloseTo(CAST.up)
+    expect(castPose(CAST.whip).tilt).toBeCloseTo(-CAST.down)
+    expect(castPose(CAST.settle).tilt).toBeCloseTo(0)
+    // Never further back or forward than the swing goes.
+    for (let t = 0; t < CAST.lands; t += 0.01) {
+      const { tilt } = castPose(t)
+      expect(tilt).toBeLessThanOrEqual(CAST.up + 1e-9)
+      expect(tilt).toBeGreaterThanOrEqual(-CAST.down - 1e-9)
+    }
+  })
+
+  it('lets the bobber go on the whip and lands it after', () => {
+    expect(castPose(CAST.release).fly).toBe(0)
+    expect(castPose(CAST.release - 0.05).fly).toBe(0)
+    const half = castPose((CAST.release + CAST.lands) / 2).fly
+    expect(half).toBeCloseTo(0.5)
+    expect(castPose(CAST.lands - 0.001).fly).toBeGreaterThan(0.99)
   })
 })

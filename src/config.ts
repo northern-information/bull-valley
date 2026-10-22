@@ -945,11 +945,16 @@ export const CONFIG = {
     // The firefly ponds, each the water area whose shore comes nearest its
     // `find` point (station-local to the spawn Citgo, like the wreck),
     // within pond.search of it: the pond behind the Citgo past the dish
-    // array, and the one past the far side of the corn maze from Lake
-    // Avenue. Each landing is on the shore nearest the Citgo.
+    // array, the one past the far side of the corn maze from Lake Avenue,
+    // and the one across Lake Avenue from the maze's far end, on the
+    // Citgo's side. That last one is not on the survey: it was drawn into
+    // geo.json's water by hand, far enough from the spawn Citgo that its
+    // lot is not near water for the spiders (CONFIG.shadowmen.spider
+    // waterRadius). Each landing is on the shore nearest the Citgo.
     ponds: [
-      { find: { x: 0, z: 0 } },
+      { find: { x: -288, z: -46 } },
       { find: { x: 290, z: 200 } },
+      { find: { x: -90, z: 210 } },
     ] as readonly { find: { x: number; z: number } }[],
     pond: {
       // How far from its `find` point a pond's shore may be.

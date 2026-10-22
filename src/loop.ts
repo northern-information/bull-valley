@@ -14,10 +14,11 @@ import { dayKey } from './daily.ts'
 import { onDay, shownCount } from './dailytask.ts'
 import { EMOTES, holds } from './emotes.ts'
 import { hurts } from './fall.ts'
+import { havenNews } from './fireflies.ts'
 import { BOX_ROD, inPond, jarRoom, nearestLanding, rodIn } from './fishing.ts'
 import { ease, HAND_DOWN, stepHand, useLift, useSeconds } from './hands.ts'
 import { shakeAt } from './health.ts'
-import { baitFor, toolIn } from './held.ts'
+import { baitFor, CAST, castPose, toolIn } from './held.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
 import {
   dailyStatus,
@@ -328,8 +329,20 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     const lit =
       s.held === 'flashlight' && s.flashlight.up && s.flashlight.lift >= 1
     const using = s.using ? useLift(s.using.at, time) : 0
+    // The rod's cast, played out once and done with.
+    if (
+      s.castAt !== null &&
+      (s.held !== 'rod' || time - s.castAt >= CAST.lands)
+    ) {
+      // The bobber down on the water, with a line out to land it on.
+      if (s.held === 'rod' && (s.line || s.pending.fish)) {
+        game.sfx?.play('bobber-plop')
+      }
+      s.castAt = null
+    }
     hands.update({
       left: ease(s.flashlight.lift),
+      cast: s.castAt === null ? 0 : castPose(time - s.castAt).tilt,
       held: s.held === 'rod' ? (rodIn(s.inventory) ?? BOX_ROD) : s.held,
       right: ease(using),
       kind: s.using?.kind ?? null,
@@ -467,13 +480,25 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     // at (fishing.ts).
     for (const pond of world.ponds) {
       if (!live(pond.place, pond.place.radius)) continue
-      const line = inPond([pond.place], player.pos) ? s.line : null
+      // The bobber is on the water once the cast has flown.
+      const line =
+        inPond([pond.place], player.pos) && s.castAt === null ? s.line : null
       pond.setLine(
         line !== null,
         line?.hook != null && performance.now() >= line.bitesAt
       )
       pond.update(time)
     }
+    // Into a pond's firefly haven, or out of it, the log says so; not
+    // until the welcome has put the raider where they stand.
+    const sheltered = inPond(
+      world.ponds.map((pond) => pond.place),
+      player.pos
+    )
+    const news = havenNews(s.placed ? s.inFireflies : null, sheltered)
+    if (news)
+      hud.tell(copy(news === 'in' ? 'log.fireflies_in' : 'log.fireflies_out'))
+    s.inFireflies = s.placed ? sheltered : null
     // The dishes slew on the valley's clock, so every raider sees them
     // look the same way.
     const dishes = world.dishes

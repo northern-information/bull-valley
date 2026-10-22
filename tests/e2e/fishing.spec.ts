@@ -176,13 +176,13 @@ test('the rod rack sells three rods, and the best in the pack is fished with', a
   )
 })
 
-// Rule 36: the second firefly pond, past the corn maze, has its own
+// Rule 36: three firefly ponds, the second past the corn maze with its own
 // tackle box; and Erwin's jar catches a slurm crawling on a Citgo's lot.
-test('two ponds, and a slurm caught alive in the jar', async ({ page }) => {
+test('three ponds, and a slurm caught alive in the jar', async ({ page }) => {
   test.slow()
   await beginRaid(page)
   const ponds = await page.evaluate(() => window.__bv?.ponds ?? [])
-  expect(ponds).toHaveLength(2)
+  expect(ponds).toHaveLength(3)
   // The far pond's tackle box opens its own dialog.
   await page.evaluate(() => {
     const bv = window.__bv
@@ -207,6 +207,12 @@ test('two ponds, and a slurm caught alive in the jar', async ({ page }) => {
     if (!bv || !station) throw new Error('no spawn station')
     bv.player.relocate(station.x + 3, station.z + 3, 0)
   })
+  // The wheel puts the jar in the left hand: only a jar in hand catches.
+  await expect(page.locator('.bv-prompt')).not.toHaveText(
+    copy('prompts.jar_slurm')
+  )
+  await page.mouse.wheel(0, -100)
+  await expect.poll(() => page.evaluate(() => window.__bv?.held)).toBe('jar')
   // The shelf display parks at the Citgo on the next frames; then the next
   // drop is brought to now.
   await frames(page, 5)
@@ -226,13 +232,7 @@ test('two ponds, and a slurm caught alive in the jar', async ({ page }) => {
     bv.player.pitch = -0.9
   })
   await heardWhere(page)
-  // The flashlight in hand offers nothing; the wheel puts the jar there, and the
-  // click catches the slurm.
-  await expect(page.locator('.bv-prompt')).not.toHaveText(
-    copy('prompts.jar_slurm')
-  )
-  await page.mouse.wheel(0, -100)
-  await expect.poll(() => page.evaluate(() => window.__bv?.held)).toBe('jar')
+  // The click catches it; E does not.
   await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.jar_slurm'))
   await page.keyboard.press('KeyE')
   expect(await page.evaluate(() => window.__bv?.inventory.slurm ?? 0)).toBe(0)
@@ -241,4 +241,33 @@ test('two ponds, and a slurm caught alive in the jar', async ({ page }) => {
     .poll(() => page.evaluate(() => window.__bv?.inventory.slurm ?? 0))
     .toBe(1)
   await expect(page.locator('.bv-chat')).toContainText(copy('log.slurm_jarred'))
+})
+
+// The third pond, across Lake Avenue from the maze, and what the log says
+// on walking into the fireflies' light and out of it again.
+test('the fireflies say so as you come into their light and leave it', async ({
+  page,
+}) => {
+  await beginRaid(page)
+  const ponds = await page.evaluate(() => window.__bv?.ponds ?? [])
+  expect(ponds).toHaveLength(3)
+  const chat = page.locator('.bv-chat')
+  await expect(chat).not.toContainText(copy('log.fireflies_in'))
+  // To the third pond's landing, inside its haven.
+  await page.evaluate(() => {
+    const bv = window.__bv
+    const pond = bv?.ponds[2]
+    if (!bv || !pond) throw new Error('no third pond')
+    bv.player.relocate(pond.landing.x, pond.landing.z, 0)
+  })
+  await expect(chat).toContainText(copy('log.fireflies_in'))
+  await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.fish'))
+  // Back to the Citgo, out of it.
+  await page.evaluate(() => {
+    const bv = window.__bv
+    const station = bv?.world.spawnStation
+    if (!bv || !station) throw new Error('no spawn station')
+    bv.player.relocate(station.x, station.z, 0)
+  })
+  await expect(chat).toContainText(copy('log.fireflies_out'))
 })

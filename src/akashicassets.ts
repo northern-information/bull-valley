@@ -40,7 +40,13 @@ import { dayKey } from './daily.ts'
 import { buildDishArray } from './dishes.ts'
 import { buildDrink } from './drinkmodels.ts'
 import { buildFireRoots, buildRaincloud } from './fire.ts'
-import { buildBobber, buildRackRod, buildTackleBox } from './fishmodels.ts'
+import {
+  buildBobber,
+  buildOilLantern,
+  buildPicnicTable,
+  buildRackRod,
+  buildTackleBox,
+} from './fishmodels.ts'
 import { itemLabel } from './itemcopy.ts'
 import { ITEMS } from './items.ts'
 import { buildJeep } from './jeep.ts'
@@ -457,6 +463,16 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     build: () => buildPickup('nightcrawlers'),
   },
   { id: 'tackle-box', label: 'Tackle box', build: () => buildTackleBox() },
+  {
+    id: 'picnic-table',
+    label: 'Picnic table',
+    build: () => buildPicnicTable(),
+  },
+  {
+    id: 'oil-lantern',
+    label: 'Oil lantern',
+    build: () => buildOilLantern().group,
+  },
   { id: 'bobber', label: 'Bobber', build: () => buildBobber() },
   {
     id: 'tombstone',

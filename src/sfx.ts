@@ -34,6 +34,14 @@ export type SfxId =
   | 'slurm-plop'
   | 'slurm-squish'
   | 'bat-smash'
+  | 'rod-cast'
+  | 'bobber-plop'
+  | 'fish-bite'
+  | 'reel-click'
+  | 'reel-in'
+  | 'line-snap'
+  | 'dig'
+  | 'jar-clink'
 
 // A placeholder: a wave swept from one pitch to another (Hz) over its
 // seconds, or for noise a low-pass swept the same way; `pulse` beats its
@@ -219,6 +227,83 @@ export const SFX: Record<SfxId, SfxSpec> = {
     takes: 0,
     gain: 0.9,
     placeholder: { wave: 'noise', from: 1800, to: 90, seconds: 0.35 },
+  },
+  // Fishing (fishing.ts, fishplay.ts), every one in the angler's head, in
+  // both apps: the rod's swing through the air.
+  'rod-cast': {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.6,
+    placeholder: { wave: 'noise', from: 3000, to: 500, seconds: 0.35 },
+  },
+  // The bobber landing on the water.
+  'bobber-plop': {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.6,
+    placeholder: { wave: 'sine', from: 420, to: 110, seconds: 0.15 },
+  },
+  // Something takes the bait and the bobber goes under.
+  'fish-bite': {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.8,
+    placeholder: { wave: 'noise', from: 1400, to: 120, seconds: 0.4 },
+  },
+  // The reel's handle cranked, an arrow answered.
+  'reel-click': {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.45,
+    placeholder: {
+      wave: 'square',
+      from: 2400,
+      to: 2400,
+      seconds: 0.08,
+      pulse: 40,
+    },
+  },
+  // A spent fish reeled in and out of the water.
+  'reel-in': {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.7,
+    placeholder: {
+      wave: 'square',
+      from: 1600,
+      to: 1600,
+      seconds: 0.6,
+      pulse: 30,
+    },
+  },
+  // The line gives: snapped, or a fish lost.
+  'line-snap': {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.8,
+    placeholder: { wave: 'sawtooth', from: 2200, to: 300, seconds: 0.12 },
+  },
+  // A spade into the bank, for nightcrawlers.
+  dig: {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.7,
+    placeholder: { wave: 'noise', from: 500, to: 80, seconds: 0.3 },
+  },
+  // A slurm dropped into the glass jar, and the lid screwed down.
+  'jar-clink': {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.6,
+    placeholder: { wave: 'triangle', from: 2600, to: 2400, seconds: 0.2 },
   },
 }
 

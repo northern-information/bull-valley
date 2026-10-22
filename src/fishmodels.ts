@@ -1231,3 +1231,161 @@ export function buildSlurmCatch(): THREE.Group {
   slurm.pose({ stretch: 0.3, tooth: 0.5, splat: null })
   return slurm.group
 }
+
+// --- The picnic table and its oil lantern ---------------------------------
+
+// The table the tackle box sits on at every firefly pond: a park picnic
+// table, its top and both benches one piece on A-frame legs at each end,
+// the boards silvered and dark at their seams. Its long side runs across
+// +X; the benches stand out on +Z and -Z. Metres.
+export const PICNIC = {
+  length: 1.8,
+  top: { y: 0.76, depth: 0.76, boards: 5 },
+  seat: { y: 0.45, depth: 0.26, out: 0.62 },
+  board: 0.045,
+  // How far in from each end the A-frames stand.
+  inset: 0.28,
+}
+
+export function buildPicnicTable(): THREE.Group {
+  const P = PICNIC
+  const group = new THREE.Group()
+  group.name = 'picnic-table'
+  const rng = mulberry32(0x91c)
+  // Weathered pine, each board a little lighter or darker than the next.
+  const boardMaterials = ['#8a7a64', '#7d6e59', '#958670', '#71634f'].map(
+    (color) => lambert({ color })
+  )
+  const frame = lambert({ color: '#5e5242' })
+  const plank = (w: number, d: number, x: number, y: number, z: number) => {
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(w, P.board, d * 0.94),
+      boardMaterials[Math.floor(rng() * boardMaterials.length)]
+    )
+    mesh.position.set(x, y, z)
+    group.add(mesh)
+  }
+  const step = P.top.depth / P.top.boards
+  for (let i = 0; i < P.top.boards; i++) {
+    plank(P.length, step, 0, P.top.y, -P.top.depth / 2 + step * (i + 0.5))
+  }
+  for (const side of [-1, 1]) {
+    plank(P.length, P.seat.depth, 0, P.seat.y, side * P.seat.out)
+  }
+  // Each end: two legs splayed out from under the top to the ground past
+  // the benches, a rail under the top, and one under both benches.
+  const half = P.length / 2 - P.inset
+  for (const end of [-half, half]) {
+    for (const side of [-1, 1]) {
+      const footZ = side * (P.seat.out + 0.08)
+      const topZ = side * 0.16
+      const rise = P.top.y
+      const run = footZ - topZ
+      const leg = new THREE.Mesh(
+        new THREE.BoxGeometry(0.06, Math.hypot(rise, run), 0.09),
+        frame
+      )
+      leg.position.set(end, rise / 2, (footZ + topZ) / 2)
+      leg.rotation.x = Math.atan2(run, rise)
+      group.add(leg)
+    }
+    const under = new THREE.Mesh(
+      new THREE.BoxGeometry(0.06, 0.09, P.top.depth),
+      frame
+    )
+    under.position.set(end, P.top.y - 0.07, 0)
+    group.add(under)
+    const seatRail = new THREE.Mesh(
+      new THREE.BoxGeometry(0.06, 0.09, 2 * P.seat.out + P.seat.depth),
+      frame
+    )
+    seatRail.position.set(end, P.seat.y - 0.07, 0)
+    group.add(seatRail)
+  }
+  return group
+}
+
+// A hurricane lantern, lit: a tin fount of kerosene, the wick's flame in
+// a glass globe between two guard wires, a vented cap and a bail to carry
+// it by, and a warm halo big enough to find it by from across the field.
+// `update(t)` flickers the flame and the halo.
+export interface OilLantern {
+  group: THREE.Group
+  update(t: number): void
+}
+
+// The lantern's halo across, metres: seen from well off through the fog.
+const LANTERN_HALO = 3.2
+
+export function buildOilLantern(): OilLantern {
+  const group = new THREE.Group()
+  group.name = 'oil-lantern'
+  const tin = lambert({ color: '#7a2a20' })
+  const wire = lambert({ color: '#2b2b2b' })
+  const fount = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.07, 0.08, 0.07, 12),
+    tin
+  )
+  fount.position.y = 0.035
+  group.add(fount)
+  const collar = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.045, 0.06, 0.02, 12),
+    wire
+  )
+  collar.position.y = 0.08
+  group.add(collar)
+  // The globe: amber glass, lit from inside.
+  const globe = new THREE.Mesh(
+    new THREE.SphereGeometry(0.06, 12, 8),
+    new THREE.MeshBasicMaterial({
+      color: '#ffcf7a',
+      transparent: true,
+      opacity: 0.55,
+      depthWrite: false,
+    })
+  )
+  globe.scale.y = 1.35
+  globe.position.y = 0.16
+  group.add(globe)
+  const flameMaterial = new THREE.MeshBasicMaterial({ color: '#ffe2a0' })
+  const flame = new THREE.Mesh(
+    new THREE.ConeGeometry(0.012, 0.045, 6),
+    flameMaterial
+  )
+  flame.position.y = 0.14
+  group.add(flame)
+  // Two guard wires up either side of the globe, and the cap over it.
+  for (const side of [-1, 1]) {
+    const guard = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.004, 0.004, 0.18, 4),
+      wire
+    )
+    guard.position.set(side * 0.075, 0.17, 0)
+    group.add(guard)
+  }
+  const cap = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.035, 0.07, 0.04, 12),
+    tin
+  )
+  cap.position.y = 0.27
+  group.add(cap)
+  const bail = new THREE.Mesh(
+    new THREE.TorusGeometry(0.07, 0.004, 4, 16, Math.PI),
+    wire
+  )
+  bail.position.y = 0.29
+  group.add(bail)
+  const halo = makeGlowSprite(makeGlowTexture('#ffb050'), LANTERN_HALO)
+  halo.position.y = 0.16
+  group.add(halo)
+  return {
+    group,
+    update(t) {
+      // Two waves out of step: a slow breath and a quick guttering.
+      const flicker =
+        0.85 + 0.1 * Math.sin(t * 2.3) + 0.05 * Math.sin(t * 13.7 + 1.3)
+      halo.scale.setScalar(LANTERN_HALO * flicker)
+      flame.scale.y = 0.8 + 0.4 * (flicker - 0.75)
+    },
+  }
+}

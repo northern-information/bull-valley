@@ -26,6 +26,9 @@ interface HandsFrame {
   right: number
   // What the left hand holds: 'flashlight', 'jar', or a rod's kind.
   held: string
+  // A cast's swing of the left arm, radians (held.ts castPose): back, up
+  // over the shoulder, positive; forward, toward the water, negative.
+  cast: number
   // What the right hand holds, or null for an empty hand.
   kind: string | null
   // The flashlight is lit.
@@ -105,7 +108,7 @@ export class FirstPersonHands {
     this.dress(outfitId)
   }
 
-  update({ left, right, held, kind, on }: HandsFrame): void {
+  update({ left, right, held, cast, kind, on }: HandsFrame): void {
     this.holdLeft(held)
     this.flashlight.setOn(on)
     this.light.intensity = on ? CONFIG.flashlight.intensity : 0
@@ -116,6 +119,9 @@ export class FirstPersonHands {
     this.light.target.getWorldPosition(this.aim)
     setBathTorch(this.lens, this.aim.sub(this.lens), on)
     place(this.left, LEFT, left)
+    // Tipping the forearm up past its rest swings the rod back over the
+    // shoulder; down, out at the water.
+    this.left.rotation.x += cast
     this.hold(right > 0 ? kind : null)
     place(this.right, RIGHT, right)
     this.holder.quaternion.copy(this.right.quaternion).invert()

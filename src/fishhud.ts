@@ -15,7 +15,7 @@ import { spent, warned } from './fishing.ts'
 import { feelingLine, hookLine } from './fishlines.ts'
 import { FishPlay } from './fishplay.ts'
 import type { ArrowDir, LineOut } from './fishing.ts'
-import type { FishPhase } from './fishplay.ts'
+import type { FishPhase, FishSound } from './fishplay.ts'
 
 export class FishHud {
   readonly root = el('div', 'bv-fish-hud')
@@ -32,11 +32,14 @@ export class FishHud {
   // the line comes up empty, with what to say (actions.ts sends them).
   onReel: (landed: boolean) => void = () => {}
   onEmpty: (said: string) => void = () => {}
+  // Told what the fight sounds like (fishplay.ts FishSound).
+  onSound: (id: FishSound) => void = () => {}
 
   constructor() {
     this.play = new FishPlay({
       reel: (landed) => this.onReel(landed),
       empty: (said) => this.onEmpty(said),
+      sound: (id) => this.onSound(id),
     })
     this.root.hidden = true
     this.root.setAttribute('aria-live', 'polite')

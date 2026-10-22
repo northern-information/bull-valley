@@ -28,8 +28,9 @@ interface SfxFrame {
   started: boolean
   // The raider's sounds setting, in percent.
   setting: number
-  // Where the raider hears from.
-  listener: Camera
+  // Where the raider hears from; none where nothing is placed (Bull
+  // Valley Dial-Up hears only what is in the head).
+  listener?: Camera
 }
 
 export interface XYZ {
@@ -182,6 +183,7 @@ export function createSfx({
       if (ctx.state === 'suspended') void ctx.resume()
       if (master) master.gain.value = sfxGain(setting, { gain: 1 }, CONFIG.sfx)
       // The listener stands at the camera, facing as it faces.
+      if (!listener) return
       listener.updateMatrixWorld()
       const m = listener.matrixWorld.elements
       const ear = ctx.listener

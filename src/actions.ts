@@ -713,6 +713,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // The line the click cast: the fish reeled in or let go, and the line
   // that came up empty, as the fight over the view plays it (fishhud.ts).
   game.fishHud.onReel = (landed) => askFish({ type: 'reel', landed })
+  game.fishHud.onSound = (id) => game.sfx?.play(id)
   game.fishHud.onEmpty = (said) => {
     s.line = null
     s.fishSaid = said
@@ -737,7 +738,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         said: () => s.fishSaid,
         serverNow: () => net.clock.serverNow(performance.now()),
         onTackle: () => askFish({ type: 'tackle' }),
-        onDig: () => askFish({ type: 'dig' }),
+        onDig: () => {
+          game.sfx?.play('dig')
+          askFish({ type: 'dig' })
+        },
         onBait: (bait) => {
           s.bait = bait
         },
@@ -764,8 +768,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       hud.tell(copy('log.fish_no_bait'))
       return
     }
-    // The raider stands to the line.
+    // The raider stands to the line, and the rod swings.
     player.keys.clear()
+    s.castAt = s.time
+    game.sfx?.play('rod-cast')
     askFish({ type: 'cast', bait })
   }
 
