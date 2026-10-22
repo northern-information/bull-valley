@@ -21,6 +21,7 @@ import {
   createShadows,
   forecourtMends,
   headlightsAt,
+  phoneVisits,
   placeCaretaker,
   placeShadowman,
   seeHeadlights,
@@ -98,6 +99,7 @@ const HAVENS = [
 ]
 // The middle of each station's Citgo portal ring (rule 28).
 const RINGS = HAVENS.map(({ x, z }) => ({ x: x + 2, z: z + 14 }))
+const PAYPHONES = [{ x: 700, z: -300 }]
 const METRES = { width: 15059, height: 15038 }
 // Where a build with a corn maze puts it (rule 13). The default join's
 // build has none, so the shadowmen's tests step only shadowmen.
@@ -214,6 +216,7 @@ const join = (id: string): ValleyAction => ({
   dealer: DEALER,
   undercroft: null,
   rings: RINGS,
+  payphones: PAYPHONES,
 })
 
 // A join as its own action shape, so a test can sign it in elsewhere.
@@ -1208,6 +1211,43 @@ describe('rule 28: Citgos, and Citgo portals', () => {
     v.step({ type: 'visit', id: 'a', station: 1 })
     expect(citgoVisits(seated(v.valley, 'b'), placed)).toEqual([])
     expect(citgoVisits(v.valley, placed)).toEqual([{ id: 'b', station: 1 }])
+  })
+
+  it('says who stands at a payphone their account has not found', () => {
+    const v = valleyWith(join('a'), join('b'), join('c'))
+    const at = PAYPHONES[0]
+    const placed: Placed[] = [
+      { id: 'a', at: standing(at.x + 1, at.z) },
+      { id: 'b', at: standing(at.x, at.z + 1) },
+      { id: 'c', at: standing(at.x + 40, at.z) },
+    ]
+    expect(phoneVisits(seated(v.valley, 'b'), placed)).toEqual([
+      { id: 'a', phone: 0 },
+    ])
+    const found = v.step({ type: 'find-phone', id: 'a', phone: 0 })
+    expect(found.citgos).toEqual({
+      account: 'acct-a',
+      log: { last: null, visited: [], phones: [0] },
+    })
+    // Found pays nothing, and is never the last Citgo.
+    expect(found.earn).toBeUndefined()
+    expect(found.xp).toBeUndefined()
+    expect(phoneVisits(v.valley, placed)).toEqual([{ id: 'b', phone: 0 }])
+    expect(citgosFor(v.valley, 'acct-a').last).toBeNull()
+    // Again, or a payphone the world never placed: nothing.
+    expect(v.step({ type: 'find-phone', id: 'a', phone: 0 }).citgos).toBe(
+      undefined
+    )
+    expect(v.step({ type: 'find-phone', id: 'a', phone: 1 }).citgos).toBe(
+      undefined
+    )
+    // A visit after keeps the payphones found.
+    v.step({ type: 'visit', id: 'a', station: 1 })
+    expect(citgosFor(v.valley, 'acct-a')).toEqual({
+      last: 1,
+      visited: [1],
+      phones: [0],
+    })
   })
 
   it('pays a bounty and XP the first time an account stands at each Citgo past its first', () => {

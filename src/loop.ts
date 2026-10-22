@@ -6,7 +6,7 @@ import { pulseMaterials } from './assets.ts'
 import { itemsHeld, sightsInReach } from './book.ts'
 import { activeBuffs } from './buffbar.ts'
 import { passTarget, sprintScale } from './buffs.ts'
-import { citgoAt } from './citgos.ts'
+import { phonesOf, stopAt } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { moabOffer } from './cosmetics.ts'
@@ -564,14 +564,24 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       .map((m) => m.name)
       .filter((name) => name !== game.pick.username)
 
-  // The map, while it is open: where you stand, your Citgos, your party,
-  // and your waypoints.
+  // The Citgo or the found payphone fast travel would leave from.
+  const travelFrom = () => {
+    if (s.aboard) return null
+    const stop = stopAt(player.pos, world.fuelPoints, world.payphones)
+    if (stop && 'phone' in stop) {
+      return phonesOf(s.citgos).includes(stop.phone) ? stop : null
+    }
+    return stop
+  }
+
+  // The map, while it is open: where you stand, your Citgos and payphones,
+  // your party, and your waypoints.
   const drawMap = () => {
     if (s.mapOpen) {
       hud.map?.draw({
         me: { x: player.pos.x, z: player.pos.z, yaw: player.yaw },
         log: s.citgos,
-        here: s.aboard ? null : citgoAt(player.pos, world.fuelPoints),
+        here: travelFrom(),
         party: peers.placed(partyMates()),
         marks: s.waypoints,
       })

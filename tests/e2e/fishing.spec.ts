@@ -240,18 +240,30 @@ test('three ponds, and a slurm caught alive in the jar', async ({ page }) => {
       timeout: 20_000,
     })
     .toBeGreaterThan(0)
-  // Beside it, looking down at it.
-  await page.evaluate(() => {
-    const bv = window.__bv
-    const slurm = bv?.slurms[0]
-    if (!bv || !slurm) throw new Error('no slurm')
-    bv.player.relocate(slurm.x + 0.9, slurm.z, 0)
-    bv.player.yaw = Math.PI / 2
-    bv.player.pitch = -0.9
-  })
-  await heardWhere(page)
-  // The click catches it; E does not.
-  await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.jar_slurm'))
+  // Beside one, looking down at it. Slurms crawl, and Carlsten bats them,
+  // so on a slow machine the one stood beside can be gone before the
+  // prompt reads: stand beside whichever crawls now until the click has
+  // one to catch.
+  await expect(async () => {
+    await page.evaluate(() => {
+      const bv = window.__bv
+      if (!bv) throw new Error('no hook')
+      const slurm = bv.slurms[0]
+      if (!slurm) {
+        bv.hurrySlurms()
+        throw new Error('no slurm')
+      }
+      bv.player.relocate(slurm.x + 0.9, slurm.z, 0)
+      bv.player.yaw = Math.PI / 2
+      bv.player.pitch = -0.9
+    })
+    await heardWhere(page)
+    // The click catches it; E does not.
+    await expect(page.locator('.bv-prompt')).toHaveText(
+      copy('prompts.jar_slurm'),
+      { timeout: 2_000 }
+    )
+  }).toPass({ timeout: 30_000 })
   await page.keyboard.press('KeyE')
   expect(await page.evaluate(() => window.__bv?.inventory.slurm ?? 0)).toBe(0)
   await page.evaluate(() => window.__bv?.useHand())

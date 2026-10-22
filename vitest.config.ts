@@ -33,6 +33,7 @@ const THREE_AND_DOM = [
   'caretakerrig',
   'castlemodel',
   'castlesite',
+  'castleyardmodel',
   'characterselect',
   'chathud',
   'citgo',
@@ -109,6 +110,7 @@ const THREE_AND_DOM = [
   'packart',
   'packhud',
   'partyhud',
+  'payphonemodel',
   'peers',
   'phone',
   'pickups',
@@ -169,6 +171,7 @@ const THREE_AND_DOM = [
   'world',
   'worldsurfaces',
   'wreck',
+  'yardprops',
 ]
 
 export default defineConfig({

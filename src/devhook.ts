@@ -176,6 +176,8 @@ interface BvHook {
   // on the map.
   openPortal(): void
   fastTravel(station: number): void
+  // Fast travel to payphone `phone`.
+  phoneTravel(phone: number): void
   // A shadowman standing still at world (x, z), through a dev frame.
   // A spider instead when `spider` (CONFIG.shadowmen.spider).
   // true for a spider, as it always was, or the kind.
@@ -424,7 +426,8 @@ export function installDevHook(game: Game, actions: Actions): void {
     select: (slot: number) => actions.select(slot),
     pressFish: (dir: ArrowDir) => game.fishHud.press(dir),
     openPortal: () => actions.openPortal(),
-    fastTravel: (station: number) => actions.fastTravel(station),
+    fastTravel: (station: number) => actions.fastTravel({ citgo: station }),
+    phoneTravel: (phone: number) => actions.fastTravel({ phone }),
     placeShadowman(x: number, z: number, kind: boolean | ShadeKind = 'man') {
       // true is a spider, as it always was.
       const shade: ShadeKind =
