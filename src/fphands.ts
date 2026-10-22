@@ -18,6 +18,7 @@ import { buildForearm } from './figure.ts'
 import { GLOW_LAYER } from './glow.ts'
 import { buildHeldJar, buildHeldRod } from './heldmodels.ts'
 import type { Flashlight } from './assets.ts'
+import type { ScoopPose } from './held.ts'
 import type { OutfitId } from './outfits.ts'
 
 interface HandsFrame {
@@ -29,6 +30,9 @@ interface HandsFrame {
   // A cast's swing of the left arm, radians (held.ts castPose): back, up
   // over the shoulder, positive; forward, toward the water, negative.
   cast: number
+  // The jar's scoop (held.ts scoopPose): the arm's dip and sweep, the
+  // jar's tip in the fist, and the hand's reach out ahead.
+  scoop: ScoopPose
   // What the right hand holds, or null for an empty hand.
   kind: string | null
   // The flashlight is lit.
@@ -108,7 +112,7 @@ export class FirstPersonHands {
     this.dress(outfitId)
   }
 
-  update({ left, right, held, cast, kind, on }: HandsFrame): void {
+  update({ left, right, held, cast, scoop, kind, on }: HandsFrame): void {
     this.holdLeft(held)
     this.flashlight.setOn(on)
     this.light.intensity = on ? CONFIG.flashlight.intensity : 0
@@ -122,6 +126,11 @@ export class FirstPersonHands {
     // Tipping the forearm up past its rest swings the rod back over the
     // shoulder; down, out at the water.
     this.left.rotation.x += cast
+    // The scoop dips the forearm down and out at the lot, and tips the
+    // jar's mouth (up the view, the forearm's -Z) ahead, down its -Y.
+    this.left.rotation.x += scoop.tilt
+    this.left.position.z -= scoop.reach
+    if (this.inLeft?.kind === 'jar') this.inLeft.object.rotation.x = -scoop.tip
     this.hold(right > 0 ? kind : null)
     place(this.right, RIGHT, right)
     this.holder.quaternion.copy(this.right.quaternion).invert()

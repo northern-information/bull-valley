@@ -299,6 +299,9 @@ export interface GameState {
   // When the rod was last cast, on `time` (held.ts castPose); null once
   // the cast is over.
   castAt: number | null
+  // When the jar last scooped, on `time` (held.ts scoopPose); null once
+  // the scoop is over.
+  scoopAt: number | null
   // Rule 28: every Citgo the account has stood at, and the last, as the
   // valley last said (the welcome, then every citgos frame). The Citgo
   // portals, from every snapshot; the id of the one this raider opened, while it
@@ -403,6 +406,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     bait: null,
     inFireflies: null,
     castAt: null,
+    scoopAt: null,
     citgos: NO_CITGOS,
     portals: [],
     myPortal: null,
