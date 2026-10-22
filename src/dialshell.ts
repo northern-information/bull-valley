@@ -23,7 +23,6 @@ import { rodIn, skillText } from './fishing.ts'
 import { iconSvg } from './icons.ts'
 import { OUTFITS } from './outfits.ts'
 import { barOf } from './progression.ts'
-import { topLevel } from './recycling.ts'
 import { volumeSliders } from './settingsui.ts'
 import { collectable } from './stand.ts'
 import { formatCash } from './store.ts'
@@ -491,10 +490,7 @@ export class DialShell {
         'recycling',
         copy('dialup.lobby.recycling'),
         s.research
-          ? copy('dialup.lobby.recycling_level', {
-              level: s.research.dimes,
-              top: topLevel('dimes'),
-            })
+          ? copy('dialup.lobby.recycling_level', { level: s.research.dimes })
           : copy('dialup.lobby.recycling_blurb'),
         () => this.options.openRecycle()
       ),

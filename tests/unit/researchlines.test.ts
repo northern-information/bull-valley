@@ -36,7 +36,6 @@ describe('what the Recycling Center says', () => {
     expect(recycleRefusal('no-wreck')).toBe(copy('log.recycle_far'))
     expect(recycleRefusal('aboard')).toBe(copy('log.recycle_far'))
     expect(recycleRefusal('short')).toBe(copy('log.recycle_short'))
-    expect(recycleRefusal('top')).toBe(copy('log.recycle_top'))
     expect(recycleRefusal('not-in-valley')).toBe(copy('log.recycle_offline'))
     expect(recycleRefusal('too-fast')).toBe(copy('log.recycle_refused'))
   })

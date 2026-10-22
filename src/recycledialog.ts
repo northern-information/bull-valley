@@ -11,19 +11,12 @@ import { copy } from './copy.ts'
 import { el, finder } from './dom.ts'
 import { itemLabel } from './itemcopy.ts'
 import { ITEMS } from './items.ts'
-import {
-  closesDialog,
-  npcFooter,
-  npcHeader,
-  sectionHead,
-  setPips,
-} from './npcdialog.ts'
+import { closesDialog, npcFooter, npcHeader, sectionHead } from './npcdialog.ts'
 import {
   affordsResearch,
   dimesChance,
   priceOf,
   RESEARCH_LINES,
-  topLevel,
 } from './recycling.ts'
 import { lineBlurb, lineName } from './researchlines.ts'
 import type { Inventory } from './interfaces.ts'
@@ -93,7 +86,6 @@ export function openRecycleDialog(
             <div class="bv-npc-cost-rows" data-bv="recycle-costs"></div>
           </div>
           <div class="bv-npc-act bv-npc-c12 bv-npc-right">
-            <span class="bv-npc-pips" data-bv="recycle-pips"></span>
             <button type="button" class="bv-btn bv-npc-btn bv-btn--primary" data-bv="recycle-buy"></button>
             <span class="bv-npc-why" data-bv="recycle-short"></span>
           </div>
@@ -139,11 +131,9 @@ export function openRecycleDialog(
       line,
       meta: find<HTMLElement>(`[data-bv="recycle-${line}"]`, section),
       now: part('recycle-now'),
-      arrow: part('recycle-arrow'),
       then: part('recycle-then'),
       price: part('recycle-price'),
       costs: part('recycle-costs'),
-      pips: part('recycle-pips'),
       buy: find<HTMLButtonElement>('[data-bv="recycle-buy"]', section),
       short: part('recycle-short'),
     }
@@ -177,23 +167,12 @@ export function openRecycleDialog(
       cell.textContent = String(pack[kind] || 0)
     for (const part of sections) {
       const { line } = part
-      const top = topLevel(line)
       const level = research?.[line] ?? 0
-      part.meta.textContent = copy('recycling.level', { level, top })
-      setPips(part.pips, level, top)
+      part.meta.textContent = copy('recycling.level', { level })
       const now = research ?? { dimes: 0 }
       part.now.textContent = effectOf(line, now)
       const price = research ? priceOf(research, line) : null
-      const atTop = research !== null && price === null
-      part.arrow.hidden = atTop
-      part.then.hidden = atTop
       part.price.hidden = price === null
-      if (atTop) {
-        part.buy.textContent = copy('recycling.top')
-        part.buy.disabled = true
-        part.short.textContent = ''
-        continue
-      }
       part.then.textContent = effectOf(line, { ...now, [line]: level + 1 })
       part.buy.textContent = copy('recycling.research', { level: level + 1 })
       if (!price) {

@@ -169,7 +169,8 @@
 //    with it (SharedWorld.stand). A raider out of the bed whose last state
 //    frame put them beside it can put cabbages and berries out of the pack
 //    on its table, collect what it banked on the valley's clock into the
-//    wallet, or buy its next level with cash and goods (ValleyContext.stand
+//    wallet, or buy its next level, of which there is always another,
+//    with cash and goods (ValleyContext.stand
 //    in, Reduced.stand out); the valley writes the ledger, the pack and the
 //    wallet together, or none of them. A collect earns XP by the cents it
 //    pays (stand.ts standXp, rule 22).
@@ -291,7 +292,7 @@
 //    its own research, a level on each line, in D1. A raider out of the bed
 //    whose last state frame put them beside the wreck (the world was opened
 //    with where it is, SharedWorld.wreck), or dialed in from anywhere, buys
-//    a line's next level with the empties it costs (ValleyContext.research
+//    a line's next level (a line never ends) with the empties it costs (ValleyContext.research
 //    in, Reduced.research out); the valley writes the level and takes the
 //    empties out of the pack together, or neither. Research is the
 //    account's alone and never reaches the shared world: loose change
@@ -2850,11 +2851,9 @@ function onStand(
     )
   }
   const price = upgradePrice(ledger)
-  const next = upgradeStand(ledger, now)
-  if (!price || !next) return refuse('top')
   if (!affordsUpgrade(ledger, stand.cash, pack)) return refuse('short')
   return tended({
-    ledger: next,
+    ledger: upgradeStand(ledger, now),
     items: { ...price.items },
     cash: -price.cash,
   })
@@ -2880,7 +2879,6 @@ function onRecycle(
   if (!research?.pack) return refuse('unavailable')
   const { levels, pack } = research
   const price = priceOf(levels, action.line)
-  if (!price) return refuse('top')
   if (!affordsResearch(pack, price)) return refuse('short')
   return done(valley, now, {
     broadcast: [],

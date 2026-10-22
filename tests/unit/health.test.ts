@@ -8,7 +8,6 @@ import {
   mend,
   pointsOf,
   shakeAt,
-  TOP_GEOMETRIE,
   withWounds,
   woundsFromHealth,
   woundsOf,
@@ -22,7 +21,6 @@ describe('geometrie whole', () => {
     expect(maxGeometrie(25)).toBe(1960)
     expect(maxGeometrie(50)).toBe(2960)
     expect(maxGeometrie(99)).toBe(4920)
-    expect(TOP_GEOMETRIE).toBe(maxGeometrie(CONFIG.progression.maxLevel))
     for (let level = 1; level < 99; level++) {
       expect(maxGeometrie(level + 1)).toBeGreaterThan(maxGeometrie(level))
       expect(maxGeometrie(level) % CONFIG.health.round).toBe(0)
@@ -85,8 +83,8 @@ describe('health', () => {
 
   it('reads a geometrie off the wire', () => {
     expect(isHealth(0)).toBe(true)
-    expect(isHealth(TOP_GEOMETRIE)).toBe(true)
-    expect(isHealth(TOP_GEOMETRIE + 1)).toBe(false)
+    expect(isHealth(maxGeometrie(1000))).toBe(true)
+    expect(isHealth(Number.MAX_SAFE_INTEGER + 1)).toBe(false)
     expect(isHealth(1.5)).toBe(false)
     expect(isHealth(-1)).toBe(false)
     expect(isHealth('2')).toBe(false)

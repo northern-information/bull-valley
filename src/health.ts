@@ -24,9 +24,6 @@ export function maxGeometrie(level = 1, cfg = CONFIG.health): number {
 // Whole at level 1, what a raider starts with.
 export const BASE_GEOMETRIE = maxGeometrie(1)
 
-// The most geometrie any raider can have, at the highest level.
-export const TOP_GEOMETRIE = maxGeometrie(CONFIG.progression.maxLevel)
-
 // A touch of `damage` off `points` of `max`: the points left, and whether
 // it was the last (the account is whole again after, so `points` is what
 // the raider is told: 0).
@@ -94,12 +91,7 @@ export function woundsFromHealth(
 
 // Whether a wire value is a count of geometrie.
 export function isHealth(value: unknown): value is number {
-  return (
-    typeof value === 'number' &&
-    Number.isInteger(value) &&
-    value >= 0 &&
-    value <= TOP_GEOMETRIE
-  )
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
 }
 
 // How far the view shakes `since` seconds after a touch, in metres: the

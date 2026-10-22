@@ -43,9 +43,9 @@ export function isResearchLine(value: unknown): value is ResearchLine {
   return (RESEARCH_LINES as readonly unknown[]).includes(value)
 }
 
-// Every line's level, each a whole number from 0 to its top; anything
-// else in `raw` is dropped.
-export function toResearch(raw: unknown, cfg = CONFIG): Research {
+// Every line's level, each a whole number from 0 up; anything else in
+// `raw` is dropped.
+export function toResearch(raw: unknown): Research {
   const source = (raw && typeof raw === 'object' ? raw : {}) as Record<
     string,
     unknown
@@ -53,26 +53,43 @@ export function toResearch(raw: unknown, cfg = CONFIG): Research {
   const research = { ...FRESH_RESEARCH }
   for (const line of RESEARCH_LINES) {
     const n = Math.floor(Number(source[line]))
-    research[line] = Number.isFinite(n)
-      ? Math.min(Math.max(n, 0), topLevel(line, cfg))
-      : 0
+    research[line] = Number.isSafeInteger(n) ? Math.max(n, 0) : 0
   }
   return research
 }
 
-// The highest level `line` goes to.
-export function topLevel(line: ResearchLine, cfg = CONFIG): number {
-  return cfg.recycling.lines[line].length
+interface ResearchStep {
+  chance: number
+  price: Inventory
 }
 
-// What the next level on `line` costs in empties, or null at the top.
+// Level `level` (1 on) of `line`: what it does and what it costs. The
+// config lists the first few; past its last, every level more closes
+// CONFIG.recycling.beyond's share of what the chance still lacks of
+// certain and costs its factor more empties than the one before.
+function stepOf(line: ResearchLine, level: number, cfg = CONFIG): ResearchStep {
+  const listed = cfg.recycling.lines[line]
+  if (level <= listed.length) return listed[Math.max(level, 1) - 1]
+  const last = listed[listed.length - 1]
+  const { closes, price } = cfg.recycling.beyond[line]
+  const past = level - listed.length
+  const costs: Inventory = {}
+  for (const [kind, n] of Object.entries(last.price)) {
+    costs[kind] = Math.ceil(n * price ** past)
+  }
+  return {
+    chance: 1 - (1 - last.chance) * (1 - closes) ** past,
+    price: costs,
+  }
+}
+
+// What the next level on `line` costs in empties. There is always a next.
 export function priceOf(
   research: Research,
   line: ResearchLine,
   cfg = CONFIG
-): Inventory | null {
-  const next = cfg.recycling.lines[line][research[line]]
-  return next ? { ...next.price } : null
+): Inventory {
+  return { ...stepOf(line, research[line] + 1, cfg).price }
 }
 
 // Whether `pack` holds every empty `price` asks for.
@@ -83,7 +100,7 @@ export function affordsResearch(pack: Inventory, price: Inventory): boolean {
 // The chance a burst's dimes come with as many again, at `research`.
 export function dimesChance(research: Research, cfg = CONFIG): number {
   const level = research.dimes
-  return level > 0 ? cfg.recycling.lines.dimes[level - 1].chance : 0
+  return level > 0 ? stepOf('dimes', level, cfg).chance : 0
 }
 
 // The dimes over and above the `taken` a burst left, found with the

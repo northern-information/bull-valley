@@ -124,9 +124,7 @@ banner_paid = { text = "+{cash}", by = "ai" }
 kicker = { text = "Raider", by = "ai" }
 title = { text = "Level {level}", by = "ai" }
 progress = { text = "{into}/{span} XP", by = "ai" }
-max = { text = "Max", by = "ai" }
 tracker_label = { text = "Raider level {level}: {into} of {span} XP to the next", by = "ai" }
-tracker_label_max = { text = "Raider level {level}, the highest", by = "ai" }
 banner = { text = "Level {level}", by = "ai" }
 tag = { text = "{name} · {level}", by = "ai" }
 tag_crew = { text = "[{tag}] {name} · {level}", by = "ai" }
@@ -478,7 +476,6 @@ researched = { text = "{line} is level {level} now.", by = "ai" }
 found_dimes = { text = "Loose change: {count} more dimes, {amount}.", by = "ai" }
 recycle_far = { text = "You are too far from the wreck.", by = "ai" }
 recycle_short = { text = "You do not have the empties for that.", by = "ai" }
-recycle_top = { text = "There is nothing more to learn there.", by = "ai" }
 recycle_offline = { text = "No signal. The wreck is quiet.", by = "ai" }
 recycle_refused = { text = "The wreck will not take that right now.", by = "ai" }
 fish_rod = { text = "You take a rod out of the tackle box. Somebody left it rigged.", by = "ai" }
@@ -512,7 +509,6 @@ stand_short = { text = "You cannot cover that.", by = "ai" }
 stand_none = { text = "You have none of those to put out.", by = "ai" }
 stand_full = { text = "The table has no room for more.", by = "ai" }
 stand_empty = { text = "Not a cent to collect yet.", by = "ai" }
-stand_top = { text = "Your stand is as good as it gets.", by = "ai" }
 stand_refused = { text = "The stand will not do that right now.", by = "ai" }
 edge = { text = "The valley ends here.", by = "ai" }
 portal_opened = { text = "A Citgo portal tears open in front of you. Its twin burns at {citgo}.", by = "ai" }
@@ -1067,7 +1063,7 @@ title = { text = "Bull Valley Cabbage Stand", by = "ai" }
 eyebrow = { text = "Your Outpost", by = "ai" }
 where = { text = "· Spawn Citgo", by = "ai" }
 says = { text = "Your stand. Leave something on the table and it sells while you are gone.", by = "ai" }
-level = { text = "Level {level} / {top}", by = "ai" }
+level = { text = "Level {level}", by = "ai" }
 till = { text = "Till", by = "ai" }
 cap = { text = "Banks up to {cap}", by = "ai" }
 banked = { text = "Banked", by = "ai" }
@@ -1104,8 +1100,6 @@ cash = { text = "Cash", by = "ai" }
 upgrade = { text = "Upgrade to Level {level}", by = "ai" }
 short_cash = { text = "Need {amount} more", by = "ai" }
 short_item = { text = "Need {count} more {item}", by = "ai" }
-top = { text = "Fully Upgraded", by = "ai" }
-top_meta = { text = "Holds {shelf} · {rate}/hr · Banks {hours}h", by = "ai" }
 close = { text = "Close", by = "ai" }
 
 # The Recycling Center at the wreck (src/recycledialog.ts, both apps):
@@ -1120,7 +1114,7 @@ materials = { text = "Materials", by = "ai" }
 materials_meta = { text = "In Your Pack", by = "ai" }
 line_dimes = { text = "Loose Change", by = "ai" }
 line_dimes_blurb = { text = "A chance that the dimes a burst shadow leaves come with as many again, into your wallet alone.", by = "ai" }
-level = { text = "Level {level} / {top}", by = "ai" }
+level = { text = "Level {level}", by = "ai" }
 chance = { text = "Chance", by = "ai" }
 chance_value = { text = "{pct}%", by = "ai" }
 costs = { text = "Costs", by = "ai" }
@@ -1128,7 +1122,6 @@ need = { text = "Need", by = "ai" }
 have = { text = "Have", by = "ai" }
 research = { text = "Research Level {level}", by = "ai" }
 short_item = { text = "Need {count} more {item}", by = "ai" }
-top = { text = "Fully Researched", by = "ai" }
 reading = { text = "Reading the wreck…", by = "ai" }
 close = { text = "Close", by = "ai" }
 
@@ -1587,7 +1580,7 @@ stand = { text = "Cabbage Stand", by = "ai" }
 stand_blurb = { text = "Your outpost on the spawn Citgo's lot. Banking while you're away.", by = "ai" }
 recycling = { text = "Recycling Center", by = "ai" }
 recycling_blurb = { text = "Feed your empties to the wreck for research.", by = "ai" }
-recycling_level = { text = "Loose change, level {level} of {top}.", by = "ai" }
+recycling_level = { text = "Loose change, level {level}.", by = "ai" }
 fishing = { text = "Firefly Pond", by = "ai" }
 fishing_blurb = { text = "The tackle box on the landing. Cast from here.", by = "ai" }
 fishing_skill = { text = "Skill {skill}. {caught} of {limit} today.", by = "ai" }
@@ -1610,7 +1603,6 @@ no_rod = { text = "no rod", by = "ai" }
 title = { text = "LV {level} · {outfit}", by = "ai" }
 portrait = { text = "{name} as {outfit}", by = "ai" }
 xp = { text = "XP", by = "ai" }
-xp_max = { text = "Top level", by = "ai" }
 of = { text = "{done} / {goal}", by = "ai" }
 done = { text = "Done", by = "ai" }
 season = { text = "Caretaker burned", by = "ai" }
@@ -1619,7 +1611,7 @@ buff_sprint = { text = "Sprint {pct}% faster", by = "ai" }
 task = { text = "Shadows today", by = "ai" }
 book = { text = "Book of Shadows", by = "ai" }
 citgos = { text = "Citgos found", by = "ai" }
-loose_change = { text = "{pct}% · level {level} / {top}", by = "ai" }
+loose_change = { text = "{pct}% · level {level}", by = "ai" }
 fishing = { text = "Fishing", by = "ai" }
 fishing_value = { text = "{skill} · {caught} / {limit} today", by = "ai" }
 worn = { text = "Wearing", by = "ai" }

@@ -20,7 +20,7 @@ import { nextChange } from '../../src/marx.ts'
 import { mazeToWorld } from '../../src/maze.ts'
 import { partyOf } from '../../src/party.ts'
 import { PROTOCOL_VERSION } from '../../src/protocol.ts'
-import { FRESH_RESEARCH } from '../../src/recycling.ts'
+import { FRESH_RESEARCH, priceOf } from '../../src/recycling.ts'
 import { mulberry32 } from '../../src/rng.ts'
 import {
   citgoVisits,
@@ -58,7 +58,7 @@ import {
   wardsFor,
   waypointsFor,
 } from '../../src/sharedworld.ts'
-import { FRESH_STAND, standXp } from '../../src/stand.ts'
+import { FRESH_STAND, standXp, upgradePrice } from '../../src/stand.ts'
 import { STORE_LAYOUT } from '../../src/store.ts'
 import { UNDERCROFT } from '../../src/undercroft.ts'
 import { damageOf } from '../../src/wards.ts'
@@ -2102,9 +2102,17 @@ describe('rule 33: the Recycling Center at the wreck', () => {
     expect(
       recycle(v.valley, action, { dimes: 1 }, empties).research
     ).toMatchObject({ level: 2, items: second.price })
+    // Past the last listed level there is always a next.
+    const listed = CONFIG.recycling.lines.dimes.length
+    const past = { dimes: listed }
+    const price = priceOf(past, 'dimes')
+    expect(recycle(v.valley, action, past, price).research).toMatchObject({
+      level: listed + 1,
+      items: price,
+    })
   })
 
-  it('refuses away from the wreck, short of empties, at the top, or unread', () => {
+  it('refuses away from the wreck, short of empties, or unread', () => {
     const v = valleyWith(join('a'))
     const at = (where: XZ | null): ValleyAction => ({
       type: 'recycle',
@@ -2122,8 +2130,6 @@ describe('rule 33: the Recycling Center at the wreck', () => {
     expect(
       reason(recycle(v.valley, at(beside), FRESH_RESEARCH, { 'empty-can': 1 }))
     ).toBe('short')
-    const top = { dimes: CONFIG.recycling.lines.dimes.length }
-    expect(reason(recycle(v.valley, at(beside), top, empties))).toBe('top')
     expect(
       reduce(v.valley, at(beside), { now: T0, present: ['a'] }).reply?.reason
     ).toBe('unavailable')
@@ -2345,14 +2351,21 @@ describe('rule 23: the Cabbage Stand', () => {
         { ...rich, cash: price.cash - 1 }
       ).reply
     ).toMatchObject({ reason: 'short' })
-    const top = { ...FRESH_STAND, level: CONFIG.stand.levels.length }
-    expect(
-      tend(
-        v.valley,
-        { type: 'stand-upgrade', id: 'a', at: beside },
-        { ...rich, ledger: top }
-      ).reply
-    ).toMatchObject({ reason: 'top' })
+    // Past the last listed level there is always a next.
+    const past = { ...FRESH_STAND, level: CONFIG.stand.levels.length }
+    const dear = upgradePrice(past)
+    const on = tend(
+      v.valley,
+      { type: 'stand-upgrade', id: 'a', at: beside },
+      { ledger: past, pack: { ...dear.items }, cash: dear.cash }
+    )
+    expect(on.reply).toBeUndefined()
+    expect(on.stand).toMatchObject({
+      re: 'upgrade',
+      ledger: { level: past.level + 1 },
+      items: dear.items,
+      cash: -dear.cash,
+    })
   })
 
   it('is tended only beside it, out of the bed, by a raider in the valley', () => {
