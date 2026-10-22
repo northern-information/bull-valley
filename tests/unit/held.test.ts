@@ -5,6 +5,8 @@ import {
   castPose,
   isTool,
   nextTool,
+  SCOOP,
+  scoopPose,
   toolIn,
   TOOLS,
   toolsIn,
@@ -84,5 +86,39 @@ describe('a cast', () => {
     const half = castPose((CAST.release + CAST.lands) / 2).fly
     expect(half).toBeCloseTo(0.5)
     expect(castPose(CAST.lands - 0.001).fly).toBeGreaterThan(0.99)
+  })
+})
+
+describe('a scoop', () => {
+  it('rests outside the scoop', () => {
+    const rest = { tilt: 0, tip: 0, reach: 0 }
+    expect(scoopPose(-1)).toEqual(rest)
+    expect(scoopPose(SCOOP.settle)).toEqual(rest)
+    const start = scoopPose(0)
+    expect(start.tilt).toBeCloseTo(0)
+    expect(start.tip).toBe(0)
+    expect(start.reach).toBe(0)
+  })
+
+  it('dips down and out with the jar tipped, sweeps up, and settles', () => {
+    const bottom = scoopPose(SCOOP.dip)
+    expect(bottom.tilt).toBeCloseTo(-SCOOP.down)
+    expect(bottom.tip).toBeCloseTo(SCOOP.tip)
+    expect(bottom.reach).toBeCloseTo(SCOOP.reach)
+    const top = scoopPose(SCOOP.sweep)
+    expect(top.tilt).toBeCloseTo(SCOOP.up)
+    expect(top.tip).toBeCloseTo(0)
+    expect(top.reach).toBeCloseTo(0)
+    expect(scoopPose(SCOOP.settle - 1e-6).tilt).toBeCloseTo(0)
+    // Never further down or up, nor tipped or out further, than it goes.
+    for (let t = 0; t < SCOOP.settle; t += 0.01) {
+      const { tilt, tip, reach } = scoopPose(t)
+      expect(tilt).toBeLessThanOrEqual(SCOOP.up + 1e-9)
+      expect(tilt).toBeGreaterThanOrEqual(-SCOOP.down - 1e-9)
+      expect(tip).toBeGreaterThanOrEqual(0)
+      expect(tip).toBeLessThanOrEqual(SCOOP.tip + 1e-9)
+      expect(reach).toBeGreaterThanOrEqual(0)
+      expect(reach).toBeLessThanOrEqual(SCOOP.reach + 1e-9)
+    }
   })
 })

@@ -781,9 +781,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     askFish({ type: 'cast', bait })
   }
 
-  // The click with the jar in hand: the slurm it is aimed at, if any in
-  // reach (rule 36). The valley says whether it was still there to catch.
+  // The click with the jar in hand: a scoop, and the slurm it is aimed
+  // at, if any in reach (rule 36). The valley says whether it was still
+  // there to catch.
   const jarSlurm = () => {
+    if (s.scoopAt === null) s.scoopAt = s.time
     const aim = s.interaction
     if (aim?.kind !== 'jar-slurm' || s.pending.jar) return
     s.pending.jar = true

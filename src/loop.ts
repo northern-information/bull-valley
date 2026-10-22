@@ -18,7 +18,7 @@ import { havenNews } from './fireflies.ts'
 import { BOX_ROD, inPond, jarRoom, nearestLanding, rodIn } from './fishing.ts'
 import { ease, HAND_DOWN, stepHand, useLift, useSeconds } from './hands.ts'
 import { shakeAt } from './health.ts'
-import { baitFor, CAST, castPose, toolIn } from './held.ts'
+import { baitFor, CAST, castPose, SCOOP, scoopPose, toolIn } from './held.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
 import {
   dailyStatus,
@@ -313,7 +313,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   }
 
   // The hands: the flashlight lit once it is all the way up, a jar or a
-  // rod held up in its place, and the item just used brought up once.
+  // rod held up in its place (the jar scooping on a click, the rod
+  // casting), and the item just used brought up once.
   // What the left hand held goes back to the flashlight, down, once the
   // pack no longer has it, and a line out goes with the rod. Says whether
   // the flashlight is lit.
@@ -340,9 +341,17 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       }
       s.castAt = null
     }
+    // The jar's scoop, played out once and done with.
+    if (
+      s.scoopAt !== null &&
+      (s.held !== 'jar' || time - s.scoopAt >= SCOOP.settle)
+    ) {
+      s.scoopAt = null
+    }
     hands.update({
       left: ease(s.flashlight.lift),
       cast: s.castAt === null ? 0 : castPose(time - s.castAt).tilt,
+      scoop: scoopPose(s.scoopAt === null ? -1 : time - s.scoopAt),
       held: s.held === 'rod' ? (rodIn(s.inventory) ?? BOX_ROD) : s.held,
       right: ease(using),
       kind: s.using?.kind ?? null,
