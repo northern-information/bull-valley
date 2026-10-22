@@ -803,10 +803,13 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     askFish({ type: 'cast', bait })
   }
 
-  // The click with the jar in hand: a scoop, and the slurm it is aimed
-  // at, if any in reach (rule 36). The valley says whether it was still
+  // E or the click on a slurm in reach, or the click with the jar in hand:
+  // the jar brought to hand if it is on the bar, a scoop, and the slurm it
+  // is aimed at, if any (rule 36). The valley says whether it was still
   // there to catch.
   const jarSlurm = () => {
+    const jar = s.hotbar.indexOf('slurm-jar')
+    if (s.held !== 'jar' && jar >= 0) s.selected = jar
     if (s.scoopAt === null) s.scoopAt = s.time
     const aim = s.interaction
     if (aim?.kind !== 'jar-slurm' || s.pending.jar) return
@@ -820,6 +823,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   // The left click: whatever the hand holds, used (held.ts useOf).
   const useHand = () => {
+    // A slurm glowing takes the click whatever the hand holds, as E does.
+    if (s.interaction?.kind === 'jar-slurm' && !s.aboard) {
+      jarSlurm()
+      return
+    }
     const kind = heldKind()
     switch (useOf(kind, kind !== null && isUsable(kind))) {
       case 'light':
@@ -1407,8 +1415,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       case 'fish':
         fish()
         return
-      // The click's, with the jar or the rod in hand (useHand).
       case 'jar-slurm':
+        jarSlurm()
+        return
+      // The click's, with the rod in hand (useHand).
       case 'cast':
         return
       case 'deal':

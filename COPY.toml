@@ -598,7 +598,7 @@ laptop = { text = "E — Use the Laptop", by = "ai" }
 stand = { text = "E — Tend Your Stand", by = "ai" }
 recycle = { text = "E — Recycling Center", by = "ai" }
 fish = { text = "E — Tackle Box", by = "ai" }
-jar_slurm = { text = "Click — Catch the Slurm", by = "ai" }
+jar_slurm = { text = "E — Catch the Slurm", by = "ai" }
 cast = { text = "Click — Cast with {bait}", by = "ai" }
 cast_no_bait = { text = "No Bait — Dig at the Tackle Box", by = "ai" }
 locked = { text = "E — Locked", by = "ai" }

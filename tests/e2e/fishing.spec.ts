@@ -224,13 +224,11 @@ test('three ponds, and a slurm caught alive in the jar', async ({ page }) => {
     if (!bv || !station) throw new Error('no spawn station')
     bv.player.relocate(station.x + 3, station.z + 3, 0)
   })
-  // The jar went onto the bar as it came; its number key puts it in the
-  // hand: only a jar in hand catches.
-  await expect(page.locator('.bv-prompt')).not.toHaveText(
-    copy('prompts.jar_slurm')
-  )
-  await selectKind(page, 'slurm-jar')
-  await expect.poll(() => page.evaluate(() => window.__bv?.held)).toBe('jar')
+  // The jar went onto the bar as it came, the flashlight still in hand.
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.hotbar.includes('slurm-jar')))
+    .toBe(true)
+  expect(await page.evaluate(() => window.__bv?.held)).toBe('flashlight')
   // The shelf display parks at the Citgo on the next frames; then the next
   // drop is brought to now.
   await frames(page, 5)
@@ -263,18 +261,19 @@ test('three ponds, and a slurm caught alive in the jar', async ({ page }) => {
       bv.player.pitch = -0.9
     })
     await heardWhere(page)
-    // The click catches it; E does not.
+    // It glows as anything E answers does, and E brings the jar to hand
+    // and catches it.
     await expect(page.locator('.bv-prompt')).toHaveText(
       copy('prompts.jar_slurm'),
       { timeout: 2_000 }
     )
+    expect(await page.evaluate(() => window.__bv?.glow !== null)).toBe(true)
     await page.keyboard.press('KeyE')
-    expect(await jarred()).toBe(0)
-    await page.evaluate(() => window.__bv?.useHand())
     await expect.poll(jarred, { timeout: 5_000 }).toBe(1)
     // Drops come 30 to 90 seconds apart (CONFIG.slurms).
   }).toPass({ timeout: 150_000 })
   expect(await jarred()).toBe(1)
+  expect(await page.evaluate(() => window.__bv?.held)).toBe('jar')
   await expect(page.locator('.bv-chat')).toContainText(copy('log.slurm_jarred'))
 })
 
