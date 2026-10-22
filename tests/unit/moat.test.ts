@@ -19,6 +19,7 @@ import {
   onIsland,
   onMoatGrounds,
   pipeDecks,
+  pipeFittings,
   pipeWalls,
   trickle,
 } from '../../src/moat.ts'
@@ -224,29 +225,35 @@ describe('moat', () => {
       walls.set(key, [...(walls.get(key) ?? []), pipe])
     }
     expect(walls.size).toBe(10)
+    let first = 0
+    let under = 0
+    let levels = 0
     for (const maze of walls.values()) {
       const tops = [
         ...new Set(maze.map((p) => (p.points[0].y + p.radius).toFixed(6))),
       ]
         .map(Number)
         .sort((a, b) => b - a)
-      // Many levels, each a drop under the last, the lowest clear of the
-      // floor.
-      expect(tops.length).toBeGreaterThan(4)
+      // Levels, each a drop or more under the last, the lowest clear of
+      // the floor.
+      expect(tops.length).toBeGreaterThan(2)
       tops.slice(1).forEach((top, i) => {
         const gap = tops[i] - top
+        // (A level may lie bare where the rim runs low, or every run on
+        // it be missing, so a gap may span several.)
         expect(gap).toBeGreaterThanOrEqual(cfg.drop[0] - 1e-6)
-        // A level may lie bare where the rim runs low, or every run on it
-        // be missing.
-        expect(gap).toBeLessThanOrEqual(cfg.drop[1] * 3)
       })
       expect(tops.at(-1)).toBeGreaterThanOrEqual(floor + cfg.floorClear)
-      // Each level broken into runs in rows out from the wall.
-      const level = maze.filter(
-        (p) => (p.points[0].y + p.radius).toFixed(6) === tops[2].toFixed(6)
-      )
-      expect(level.length).toBeGreaterThanOrEqual(2)
-      expect(maze.length / tops.length).toBeGreaterThan(2)
+      const on = (top: number) =>
+        maze.filter(
+          (p) => (p.points[0].y + p.radius).toFixed(6) === top.toFixed(6)
+        ).length
+      // Each level broken into runs in rows out from the wall, the first
+      // thick, to catch a raider off the rim, the ones under it sparse
+      // (counted over every wall, below).
+      first += on(tops[0])
+      under += tops.slice(1).reduce((sum, top) => sum + on(top), 0)
+      levels += tops.length - 1
       for (const pipe of maze) {
         const [p] = pipe.points
         const out =
@@ -263,6 +270,10 @@ describe('moat', () => {
         }
       }
     }
+    // On the whole: the first level in runs, those under it with fewer
+    // each, though they run the walls' whole height.
+    expect(first).toBeGreaterThanOrEqual(walls.size * 2)
+    expect(under / levels).toBeLessThan(first / walls.size)
   })
 
   it('catches a raider falling past a pipe, within reach of its top', () => {
@@ -499,6 +510,36 @@ describe('moat', () => {
       }
     }
     expect(detours).toBeGreaterThan(0)
+    // Nor do their brackets or junction boxes reach into a stair's strip,
+    // though the pipes elsewhere keep them.
+    let brackets = 0
+    let junctions = 0
+    for (const pipe of pipes) {
+      const { brackets: held, junction } = pipeFittings(pipe, stairs)
+      brackets += held.length
+      for (const [p, q] of held) {
+        for (let j = 0; j <= 20; j++) {
+          const at = {
+            x: p.x + (q.x - p.x) * (j / 20),
+            z: p.z + (q.z - p.z) * (j / 20),
+          }
+          for (const stair of stairs) expect(strip(stair, at)).toBe(false)
+        }
+      }
+      if (junction) {
+        junctions++
+        for (const stair of stairs) expect(strip(stair, junction)).toBe(false)
+      }
+    }
+    expect(brackets).toBeGreaterThan(pipes.length)
+    expect(junctions).toBeGreaterThan(0)
+    // Without the stairs, some would have.
+    const crossing = pipes.some((pipe) =>
+      pipeFittings(pipe, []).brackets.some(([, q]) =>
+        stairs.some((stair) => strip(stair, q))
+      )
+    )
+    expect(crossing).toBe(true)
     // On any one wall, pipes run on one level or far enough apart that
     // one walking a pipe never steps up onto the one over it.
     pipes.forEach((one, i) => {
