@@ -84,6 +84,8 @@ interface NetIdentity {
   dealer: XZ | null
   // Where the Undercroft lies (rule 11: the tunnel shades), or null.
   undercroft: MazePlace | null
+  // Where the moat lies (rule 11: the ground the shadowmen walk), or null.
+  moat: MazePlace | null
   // The middle of each lot's Citgo portal ring (rule 28).
   rings: XZ[]
   // Where each payphone stands (rule 28).
@@ -290,6 +292,7 @@ export class NetClient {
           bushes: identity.bushes,
           dealer: identity.dealer,
           undercroft: identity.undercroft,
+          moat: identity.moat,
           rings: identity.rings,
           payphones: identity.payphones,
           ...was,

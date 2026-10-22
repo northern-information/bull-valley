@@ -69,7 +69,16 @@
 //    in one beam into dimes, the Warden among them. Up on the lookout
 //    tower by the maze's gate (lookout.ts) no shadow reaches a raider: no
 //    shadowman rushes them and the Caretaker never hunts them, though their
-//    beam still burns what is below. The valley steps the field
+//    beam still burns what is below. The shadowmen walk the ground: once
+//    the valley has read the heightmap (heightmap.ts, from the Worker's
+//    own assets) and cut in Castle Entropy's moat the world was opened
+//    with (valleyGround), each stands at the ground's height and reaches
+//    only feet near it (shadowmen.ts reachesUp): a raider up a fire
+//    escape, or on the rim over the moat's floor, is out of reach of the
+//    shadows at the other height, and a beam finds a shadow where it
+//    stands, so one shone down into the moat burns what walks its floor.
+//    Until it has read the ground every shadow reaches every height, as
+//    on a flat valley. The valley steps the field
 //    (shadowstep.ts stepShadows, over this Valley) and keeps it in memory
 //    only: the shadowmen are gone whenever no one is placed in the valley.
 // 12. A raider out of the bed can drop what their pack holds (the valley
@@ -570,6 +579,9 @@ interface SharedWorld {
   dealerStock: DealerStock
   // Where the Undercroft lies, or null (rule 11: the tunnel shades).
   undercroft: MazePlace | null
+  // Where Castle Entropy's moat lies, or null (rule 11: the valley cuts it
+  // into the ground its shadowmen walk).
+  moat: MazePlace | null
   // Rule 28: the middle of the portal ring on each station's lot, indexed
   // like havens; the portals open now, each with the account that opened
   // it (never on the wire); and the id the next one gets.
@@ -670,6 +682,7 @@ export type ValleyAction =
       bushes: XZ[]
       dealer: XZ | null
       undercroft: MazePlace | null
+      moat: MazePlace | null
       rings: XZ[]
       payphones: XZ[]
       // Rule 24: the account's level, read from D1 (1 when absent).
@@ -1558,6 +1571,7 @@ function onJoin(
       dealer: action.dealer,
       dealerStock: freshDealerStock(),
       undercroft: action.undercroft,
+      moat: action.moat,
       rings: action.rings,
       portals: [],
       nextPortal: 0,

@@ -215,6 +215,7 @@ const join = (id: string): ValleyAction => ({
   bushes: BUSH_SPOTS,
   dealer: DEALER,
   undercroft: null,
+  moat: null,
   rings: RINGS,
   payphones: PAYPHONES,
 })
@@ -2573,6 +2574,23 @@ describe("rule 11: the shadowmen are the valley's", () => {
     expect(at({ x: 0, z: 0 }).vulnerable).toBe(false)
     // At the ladder's foot they are back within reach.
     expect(at(LADDER_FOOT).vulnerable).toBe(true)
+  })
+
+  it('opens the world with where its moat lies', () => {
+    const moat = { x: 2000, z: 2000, yaw: 0.35 }
+    const v = valleyWith({ ...join('a'), moat } as ValleyAction).valley
+    expect(v.world?.moat).toEqual(moat)
+  })
+
+  it('gives each raider the height of their feet, for the shadows', () => {
+    const v = valley()
+    const [r] = shadowRaiders(
+      v,
+      createShadows(),
+      [{ id: 'a', at: state({ y: 12.5 }) }],
+      T0
+    )
+    expect(r.y).toBe(12.5)
   })
 
   it('aims a beam only for a raider whose light is on', () => {

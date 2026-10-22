@@ -44,7 +44,7 @@ import type { Waypoints } from './waypoints.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 49
+export const PROTOCOL_VERSION = 50
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -293,6 +293,9 @@ export interface HelloMessage {
   // Where the Undercroft lies (undercroft.ts), or null: the valley steps
   // its tunnel shades in it (rule 11).
   undercroft: MazePlace | null
+  // Where Castle Entropy's moat lies (moat.ts castlePlace), or null: the
+  // valley cuts it into the ground its shadowmen walk (rule 11).
+  moat: MazePlace | null
   // The middle of the Citgo portal ring on each station's lot, in
   // world.fuelPoints order (rule 28).
   rings: XZ[]
@@ -1079,6 +1082,9 @@ export interface ShadowmanWire {
   kind?: Exclude<ShadeKind, 'man'>
   x: number
   z: number
+  // The height of the ground it stands on, once the valley has read the
+  // ground (rule 11); the client stands it on its own deck nearest that.
+  y?: number
   burn: number
   target: string | null
   // How far through its windup before it lunges (0 to 1), when winding up.
@@ -1657,6 +1663,7 @@ type HelloPlaces = Pick<
   | 'bushes'
   | 'dealer'
   | 'undercroft'
+  | 'moat'
   | 'rings'
   | 'payphones'
 >
@@ -1675,6 +1682,7 @@ const NO_PLACES: HelloPlaces = {
   bushes: [],
   dealer: null,
   undercroft: null,
+  moat: null,
   rings: [],
   payphones: [],
 }
@@ -1702,6 +1710,7 @@ function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
   const wreck = nullable(value.wreck, parseXZ)
   const dealer = nullable(value.dealer, parseXZ)
   const undercroft = nullable(value.undercroft, parseMazePlace)
+  const moat = nullable(value.moat, parseMazePlace)
   if (maze === undefined || stand === undefined) return null
   if (wreck === undefined) return null
   const ponds = parsePonds(value.ponds)
@@ -1709,8 +1718,9 @@ function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
   const payphones = parseSpots(value.payphones, PAYPHONES_MAX)
   if (!payphones) return null
   if (dealer === undefined || undercroft === undefined) return null
+  if (moat === undefined) return null
   const places = { havens, metres, lairs, maze, truck, stand, bushes, dealer }
-  return { ...places, wreck, ponds, undercroft, rings, payphones }
+  return { ...places, wreck, ponds, undercroft, moat, rings, payphones }
 }
 
 // A hello. The outfit is checked by the server (characters.ts
