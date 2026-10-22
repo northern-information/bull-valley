@@ -126,6 +126,11 @@ test('the bathroom laptop opens on the readme, and keeps what you write', async 
   await expect
     .poll(() => page.evaluate(() => window.__bv?.laptopOpen))
     .toBe(false)
+  // E sits down again only once the valley offers the laptop again: on a
+  // slow runner the frame that says so can come after the key.
+  await expect(page.locator('.bv-prompt:not([hidden])')).toHaveText(
+    copy('prompts.laptop')
+  )
   await page.keyboard.press('KeyE')
   await expect(page.locator('[data-bv="name"]')).toHaveValue(
     copy('laptop.readme_name')

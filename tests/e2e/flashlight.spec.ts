@@ -10,39 +10,27 @@ import { beginRaid, expect, faceSpot, heardWhere, test } from './fixtures.ts'
 const flashlight = (page: import('@playwright/test').Page) =>
   page.evaluate(() => window.__bv?.flashlight)
 
-test('the left button raises the flashlight and puts it down', async ({
-  page,
-}) => {
-  await beginRaid(page)
-  expect(await flashlight(page)).toEqual({ up: false, lift: 0 })
-
-  await page.mouse.down()
-  await page.mouse.up()
-  await expect.poll(() => flashlight(page)).toEqual({ up: true, lift: 1 })
-  // The light is the camera's: on once the hand is all the way up.
-  const intensity = () =>
-    page.evaluate(() => {
-      let found = 0
-      window.__bv?.camera.traverse((o) => {
-        if ('isSpotLight' in o && o.isSpotLight) {
-          found = (o as unknown as { intensity: number }).intensity
-        }
-      })
-      return found
+// The light is the camera's: on once the hand is all the way up.
+const intensity = (page: import('@playwright/test').Page) =>
+  page.evaluate(() => {
+    let found = 0
+    window.__bv?.camera.traverse((o) => {
+      if ('isSpotLight' in o && o.isSpotLight) {
+        found = (o as unknown as { intensity: number }).intensity
+      }
     })
-  await expect.poll(intensity).toBeGreaterThan(0)
-
-  await page.mouse.down()
-  await page.mouse.up()
-  await expect.poll(() => flashlight(page)).toEqual({ up: false, lift: 0 })
-  await expect.poll(intensity).toBe(0)
-})
+    return found
+  })
 
 test('a shadowman held in the beam bursts into dimes', async ({ page }) => {
   await beginRaid(page)
+  // The left button raises the flashlight and lights it.
+  expect(await flashlight(page)).toEqual({ up: false, lift: 0 })
+  await expect.poll(() => intensity(page)).toBe(0)
   await page.mouse.down()
   await page.mouse.up()
   await expect.poll(() => flashlight(page)).toEqual({ up: true, lift: 1 })
+  await expect.poll(() => intensity(page)).toBeGreaterThan(0)
 
   // Out past the Citgo's haven, then one standing still down the line of
   // sight: past the distance it would rush from (CONFIG.shadowmen
@@ -154,6 +142,11 @@ test('a shadowman held in the beam bursts into dimes', async ({ page }) => {
   await expect(page.locator('.bv-chat')).toContainText(
     copy('log.dimes', { count: lying.count, amount })
   )
+  // And the left button puts it down again, and its light out.
+  await page.mouse.down()
+  await page.mouse.up()
+  await expect.poll(() => flashlight(page)).toEqual({ up: false, lift: 0 })
+  await expect.poll(() => intensity(page)).toBe(0)
 })
 
 test('a shadow spider takes twice as long and leaves a $20 bill', async ({
