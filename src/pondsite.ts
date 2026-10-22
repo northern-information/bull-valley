@@ -2,9 +2,9 @@
 // 35) as it stands in the valley: the fireflies over it and its shores,
 // whose haven no shadow comes inside, the old tackle box on a picnic
 // table on the landing nearest the Citgo, a lit oil lantern beside it to
-// find it by from across the field, and the bobber that floats out from
-// the landing while
-// the raider has a line in the water. Three glue: the pond's place and
+// find it by from across the field, two rods leaning on its end, and the
+// bobber that floats out from the landing while the raider has a line in
+// the water. Three glue: the pond's place and
 // every rule are fishing.ts's.
 
 import * as THREE from 'three'
@@ -13,9 +13,9 @@ import { buildFireflies } from './fireflyrig.ts'
 import {
   buildBobber,
   buildFishLevel,
+  buildLeaningRod,
   buildOilLantern,
   buildPicnicTable,
-  buildProppedRod,
   buildStringer,
   buildTackleBox,
   PICNIC,
@@ -46,13 +46,13 @@ const TABLE_RADIUS = PICNIC.seat.out + PICNIC.seat.depth / 2
 // Where along the table's top the box and the lantern sit, from its middle.
 const BOX_ALONG = 0.3
 const LANTERN_ALONG = 0.55
-// The two rods propped on the bank: this far either side of the landing
-// along the table, and this far on from it toward the water; each line
-// runs out this far past its tip to its bobber.
-const PROPPED_SIDE = 3.5
-const PROPPED_ON = 1.6
-const PROPPED_LINE = 3
-const PROPPED_KINDS = ['zebco-33', 'ugly-stik']
+// The two rods leaning on the table's end past the lantern: each butt this
+// far out from the end, this far either side of the table's middle, and
+// turned this far off square, so they stand a little apart.
+const LEANING = [
+  { kind: 'zebco-33', out: 0.42, on: -0.2, yaw: 0.06 },
+  { kind: 'ugly-stik', out: 0.5, on: 0.22, yaw: -0.08 },
+]
 // The stringer's post: off the table's end past the box, toward the water.
 const STRINGER_AT = { along: -(PICNIC.length / 2 + 0.6), on: 0.4 }
 const POST_RADIUS = 0.12
@@ -105,6 +105,20 @@ export function placePond(pond: Pond, ground: Ground, walls: Walls): PondRig {
   stringer.position.y = ground.at(post.x, post.z) - table.position.y
   walls.addWall(post, post, POST_RADIUS)
 
+  // Two rods set down against the table's end, butts in the grass inside
+  // the table's capsule, each resting on the edge of its top.
+  const edge = PICNIC.top.y + PICNIC.board / 2
+  for (const { kind, out, on, yaw } of LEANING) {
+    const rod = buildLeaningRod(kind, Math.atan2(edge, out))
+    const butt = half + out
+    const x = landing.x + along.x * butt + Math.sin(toward) * on
+    const z = landing.z + along.z * butt + Math.cos(toward) * on
+    rod.position.set(butt, ground.at(x, z) - table.position.y, on)
+    // Leaning back toward the table: its local +X turned to the table's -X.
+    rod.rotation.y = Math.PI + yaw
+    table.add(rod)
+  }
+
   const fireflies = buildFireflies(
     { x: pond.x, z: pond.z },
     pond.radius - CONFIG.fishing.pond.margin / 2,
@@ -125,41 +139,6 @@ export function placePond(pond: Pond, ground: Ground, walls: Walls): PondRig {
   bobber.visible = false
   group.add(bobber)
   let biting = false
-
-  // Two rods fishing on their own, propped in forked sticks on the bank
-  // either side of the landing, each line out to a bobber of its own.
-  const lineMaterial = new THREE.LineBasicMaterial({ color: '#c8d6c0' })
-  const idle: THREE.Object3D[] = []
-  PROPPED_KINDS.forEach((kind, i) => {
-    const side = i === 0 ? -1 : 1
-    const x =
-      landing.x + along.x * side * PROPPED_SIDE + Math.sin(toward) * PROPPED_ON
-    const z =
-      landing.z + along.z * side * PROPPED_SIDE + Math.cos(toward) * PROPPED_ON
-    const { group: propped, tip } = buildProppedRod(kind)
-    propped.position.set(x, ground.at(x, z), z)
-    propped.rotation.y = toward
-    group.add(propped)
-    propped.updateMatrixWorld(true)
-    const from = propped.localToWorld(tip.clone())
-    const to = new THREE.Vector3(
-      from.x + Math.sin(toward) * PROPPED_LINE,
-      level,
-      from.z + Math.cos(toward) * PROPPED_LINE
-    )
-    const sag = from.clone().lerp(to, 0.6)
-    sag.y -= 0.3
-    group.add(
-      new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints([from, sag, to]),
-        lineMaterial
-      )
-    )
-    const float = buildBobber()
-    float.position.copy(to)
-    group.add(float)
-    idle.push(float)
-  })
 
   // The fish that leap (leaps.ts), each kind built once and shown while
   // its leap is under way.
@@ -184,11 +163,6 @@ export function placePond(pond: Pond, ground: Ground, walls: Walls): PondRig {
     update(t, valley) {
       fireflies.update(t)
       lantern.update(t)
-      // The propped rods' bobbers ride the water out of step.
-      idle.forEach((float, i) => {
-        float.position.y =
-          level + Math.sin((t + i * 1.7) * Math.PI * 2 * BOB.hz) * BOB.metres
-      })
       const leap = leapAt(valley, seed, pond.shore.length)
       for (const [kind, fish] of leapers) {
         fish.visible = leap?.kind === kind

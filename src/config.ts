@@ -1019,7 +1019,7 @@ export const CONFIG = {
       margin: 30,
       // The landing (the tackle box) stands this far back from the water,
       // on the shore nearest the Citgo.
-      landingBack: 2.5,
+      landingBack: 1.2,
       // How close the landing must be for E to open the tackle box.
       reach: 3,
     },

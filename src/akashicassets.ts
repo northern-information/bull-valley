@@ -43,9 +43,9 @@ import { buildDrink } from './drinkmodels.ts'
 import { buildFireRoots, buildRaincloud } from './fire.ts'
 import {
   buildBobber,
+  buildLeaningRod,
   buildOilLantern,
   buildPicnicTable,
-  buildProppedRod,
   buildRackRod,
   buildStringer,
   buildTackleBox,
@@ -481,9 +481,9 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   },
   { id: 'stringer', label: 'Stringer of fish', build: () => buildStringer() },
   {
-    id: 'propped-rod',
-    label: 'Rod propped on the bank',
-    build: () => buildProppedRod('zebco-33').group,
+    id: 'leaning-rod',
+    label: 'Rod leaning on the table',
+    build: () => buildLeaningRod('zebco-33', 1.05),
   },
   {
     id: 'oil-lantern',
