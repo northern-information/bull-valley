@@ -3,10 +3,17 @@
 // lights, and fog as main.ts — so an asset can be checked without a game.
 // Assets come from the same builders the game places. Map mode (#map,
 // akashicmap.ts) shows the survey from above to edit by hand. Dev hook:
-// window.__akashic (ids, select, setView, animate, current, mode, map).
+// window.__akashic (ids, select, setView, animate, current, filter, shown,
+// mode, map).
 
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+import {
+  ASSET_KINDS,
+  assetMatches,
+  KIND_LABELS,
+  kindOf,
+} from './akashicfilter.ts'
 import { mountMap } from './akashicmap.ts'
 import {
   buildFlashlight,
@@ -45,6 +52,7 @@ import { strikeReach } from './shadowbodies.ts'
 import { buildShadowman } from './shadowmanmodel.ts'
 import { poseCarlsten } from './slurmrig.ts'
 import { buildTruckMesh } from './truck.ts'
+import type { KindFilter } from './akashicfilter.ts'
 import type { MapHook } from './akashicmap.ts'
 import type { AkashicAsset } from './assets.ts'
 import type { EmoteId } from './emotes.ts'
@@ -58,6 +66,9 @@ interface AkashicHook {
   // Play or hold what moves; held, it stands at HOLD_SECONDS.
   animate(on: boolean): void
   readonly current: string | undefined
+  // Narrow the list to a kind and a search; the ids it then shows.
+  filter(kind: KindFilter, search?: string): void
+  readonly shown: string[]
   // Assets or the map; the map's own hook.
   mode(mode: Mode): void
   map: MapHook
@@ -447,7 +458,6 @@ function setWireframe(object: THREE.Object3D, on: boolean): void {
 // --- Asset selection -----------------------------------------------------
 
 const select = requireElement<HTMLSelectElement>('.ak-panel select')
-for (const asset of ASSETS) select.add(new Option(asset.label, asset.id))
 select.addEventListener('change', () => selectAsset(select.value))
 for (const btn of document.querySelectorAll<HTMLElement>('[data-step]')) {
   btn.addEventListener('click', () => step(Number(btn.dataset.step)))
@@ -514,6 +524,8 @@ function selectAsset(id: string): void {
   controls.maxDistance = dist * 6
   setView(35, 20, dist)
 
+  // A deep link or the hook may pick an asset the filters hide.
+  if (!shown.some((a) => a.id === asset.id)) setFilter('all', '')
   select.value = asset.id
   if (mode === 'assets' && location.hash.slice(1) !== asset.id) {
     history.replaceState(null, '', `#${asset.id}`)
@@ -525,11 +537,64 @@ function selectAsset(id: string): void {
     `${m(size.x)} × ${m(size.y)} × ${m(size.z)} m (x × y × z)`
 }
 
+// The arrows cycle what the filters show; with nothing shown, everything.
 function step(delta: number): void {
-  const i = ASSETS.findIndex((a) => a.id === current?.asset.id)
-  const next = (i + delta + ASSETS.length) % ASSETS.length
-  selectAsset(ASSETS[next].id)
+  const list = shown.length ? shown : ASSETS
+  const i = list.findIndex((a) => a.id === current?.asset.id)
+  const next = i < 0 ? (delta > 0 ? 0 : list.length - 1) : i + delta
+  selectAsset(list[(next + list.length) % list.length].id)
 }
+
+// --- Filters -------------------------------------------------------------
+
+const searchEl = requireElement<HTMLInputElement>('.ak-search')
+const kindsEl = requireElement<HTMLElement>('.ak-kinds')
+let kind: KindFilter = 'all'
+let shown: AkashicAsset[] = ASSETS
+
+const kindButtons = (['all', ...ASSET_KINDS] as const).map((k) => {
+  const count =
+    k === 'all'
+      ? ASSETS.length
+      : ASSETS.filter((a) => kindOf(a.id) === k).length
+  const btn = document.createElement('button')
+  btn.type = 'button'
+  btn.dataset.kind = k
+  btn.textContent = `${KIND_LABELS[k]} ${count}`
+  btn.addEventListener('click', () => setFilter(k, searchEl.value))
+  kindsEl.append(btn)
+  return btn
+})
+
+searchEl.addEventListener('input', () => setFilter(kind, searchEl.value))
+searchEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (searchEl.value) setFilter(kind, '')
+    else searchEl.blur()
+  } else if (e.key === 'Enter') searchEl.blur()
+})
+
+// Refill the list; if the shown asset falls out of it, show its first.
+function setFilter(next: KindFilter, search: string): void {
+  kind = next
+  searchEl.value = search
+  for (const b of kindButtons) {
+    b.setAttribute('aria-pressed', String(b.dataset.kind === kind))
+  }
+  shown = ASSETS.filter((a) => assetMatches(a, kind, search))
+  select.replaceChildren()
+  for (const asset of shown) select.add(new Option(asset.label, asset.id))
+  if (!shown.length) {
+    select.add(new Option('No asset matches', ''))
+    select.disabled = true
+    return
+  }
+  select.disabled = false
+  if (current && shown.some((a) => a.id === current?.asset.id)) {
+    select.value = current.asset.id
+  } else if (current) selectAsset(shown[0].id)
+}
+setFilter('all', '')
 
 // Azimuth 0 looks at the asset's front (+Z); degrees, elevation above the
 // ground plane. Distance defaults to the current one.
@@ -550,7 +615,15 @@ function setView(azimuth: number, elevation: number, distance?: number): void {
 
 document.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLSelectElement) return
-  if (e.target instanceof HTMLInputElement && e.target.type === 'text') return
+  if (e.target instanceof HTMLInputElement && e.target.type !== 'checkbox') {
+    return
+  }
+  if (e.key === '/' && mode === 'assets') {
+    e.preventDefault()
+    searchEl.focus()
+    searchEl.select()
+    return
+  }
   if (e.code === 'KeyM' && !e.metaKey && !e.ctrlKey) {
     setMode(mode === 'map' ? 'assets' : 'map')
     return
@@ -644,6 +717,10 @@ window.__akashic = {
   animate: (on) => setToggle('animate', on),
   get current() {
     return current?.asset.id
+  },
+  filter: (k, search = '') => setFilter(k, search),
+  get shown() {
+    return shown.map((a) => a.id)
   },
   mode: setMode,
   map: map.hook,
