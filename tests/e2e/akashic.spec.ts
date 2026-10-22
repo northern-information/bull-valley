@@ -55,3 +55,37 @@ test('the map mode edits the survey and undoes it', async ({ page }) => {
   await expect(page.locator('.ak-map')).toBeHidden()
   await expect(page.locator('.ak-canvas')).toBeVisible()
 })
+
+test('the kind chips and the search narrow the asset list', async ({
+  page,
+}) => {
+  await page.goto('/akashic')
+  await expect.poll(() => page.evaluate(() => !!window.__akashic)).toBe(true)
+  const all = await page.evaluate(() => window.__akashic!.ids.length)
+
+  await page.locator('.ak-kinds [data-kind="characters"]').click()
+  const characters = await page.evaluate(() => window.__akashic!.shown)
+  expect(characters.length).toBeGreaterThan(0)
+  expect(characters.length).toBeLessThan(all)
+  expect(characters).toContain(
+    await page.evaluate(() => window.__akashic!.current)
+  )
+  await expect(page.locator('select[name="asset"] option')).toHaveCount(
+    characters.length
+  )
+
+  await page.locator('.ak-search').fill('shadowman')
+  const found = await page.evaluate(() => window.__akashic!.shown)
+  expect(found).toContain('shadowman')
+  expect(found.every((id) => characters.includes(id))).toBe(true)
+
+  // → cycles within what is shown.
+  await page.locator('.ak-search').blur()
+  await page.keyboard.press('ArrowRight')
+  expect(found).toContain(await page.evaluate(() => window.__akashic!.current))
+
+  // A deep link to a hidden asset clears the filters.
+  await page.evaluate(() => window.__akashic!.select('pump'))
+  expect(await page.evaluate(() => window.__akashic!.shown.length)).toBe(all)
+  await expect(page.locator('.ak-search')).toHaveValue('')
+})
