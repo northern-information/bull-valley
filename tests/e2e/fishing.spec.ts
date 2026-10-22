@@ -1,11 +1,26 @@
 import { copy } from './copy.ts'
 import { beginRaid, expect, frames, heardWhere, test } from './fixtures.ts'
+import type { Page } from '@playwright/test'
 
 // Rule 36: E at the tackle box on the firefly pond's landing opens it: a
 // rod out of the box, nightcrawlers out of the bank, and the bait picked.
-// Then R puts the rod in the left hand and the click casts, and the fight
+// The rod lands on the bar; its number key puts it in the hand and the
+// click casts, and the fight
 // plays over the view as Final Fantasy XI plays it, the arrows answered
 // until the fish is spent and a click reels it in.
+
+// A tool newly in the pack lands on the hotbar (held.ts); its number key
+// puts it in the hand.
+async function selectKind(page: Page, kind: string): Promise<void> {
+  await expect
+    .poll(() => page.evaluate((k) => window.__bv?.hotbar.indexOf(k), kind))
+    .toBeGreaterThanOrEqual(0)
+  const slot = await page.evaluate(
+    (k) => window.__bv?.hotbar.indexOf(k) ?? -1,
+    kind
+  )
+  await page.keyboard.press(`Digit${slot + 1}`)
+}
 
 test('the tackle box gives a rod and bait, and a click casts and fights to the end', async ({
   page,
@@ -27,9 +42,10 @@ test('the tackle box gives a rod and bait, and a click casts and fights to the e
   })
   await heardWhere(page)
   await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.fish'))
-  // Nothing but the flashlight to hold yet.
-  await page.keyboard.press('KeyR')
-  expect(await page.evaluate(() => window.__bv?.held)).toBe('flashlight')
+  // The flashlight in hand, from the first slot of the bar.
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.held))
+    .toBe('flashlight')
   await page.keyboard.press('KeyE')
   const dialog = page.locator('.bv-fish')
   await expect(dialog).toBeVisible()
@@ -61,9 +77,10 @@ test('the tackle box gives a rod and bait, and a click casts and fights to the e
     .poll(() => page.evaluate(() => window.__bv?.player.locked))
     .toBe(true)
 
-  // R: the rod in the left hand, and the click casts.
-  await page.keyboard.press('KeyR')
-  expect(await page.evaluate(() => window.__bv?.held)).toBe('rod')
+  // The rod went onto the bar as it came out of the box: its number key
+  // puts it in the hand, and the click casts.
+  await selectKind(page, 'fishing-rod')
+  await expect.poll(() => page.evaluate(() => window.__bv?.held)).toBe('rod')
   await expect
     .poll(() => page.evaluate(() => window.__bv?.sent?.held))
     .toBe('rod')
@@ -73,7 +90,7 @@ test('the tackle box gives a rod and bait, and a click casts and fights to the e
     copy('fishing.snap'),
     copy('fishing.gave_up'),
   ]
-  await page.evaluate(() => window.__bv?.useHeld())
+  await page.evaluate(() => window.__bv?.useHand())
   await expect
     .poll(() => page.evaluate(() => window.__bv?.line !== null))
     .toBe(true)
@@ -92,7 +109,7 @@ test('the tackle box gives a rod and bait, and a click casts and fights to the e
     if (shown === '◀') await page.keyboard.press('KeyA')
     else if (shown === '▶') await page.keyboard.press('KeyD')
     else if (shown === copy('fishing.spent')) {
-      await page.evaluate(() => window.__bv?.useHeld())
+      await page.evaluate(() => window.__bv?.useHand())
     }
     await frames(page, 3)
   }
@@ -226,17 +243,17 @@ test('two ponds, and a slurm caught alive in the jar', async ({ page }) => {
     bv.player.pitch = -0.9
   })
   await heardWhere(page)
-  // The flashlight in hand offers nothing; the wheel puts the jar there, and the
-  // click catches the slurm.
+  // The flashlight in hand offers nothing; the jar's number key puts it
+  // there, and the click catches the slurm.
   await expect(page.locator('.bv-prompt')).not.toHaveText(
     copy('prompts.jar_slurm')
   )
-  await page.mouse.wheel(0, -100)
+  await selectKind(page, 'slurm-jar')
   await expect.poll(() => page.evaluate(() => window.__bv?.held)).toBe('jar')
   await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.jar_slurm'))
   await page.keyboard.press('KeyE')
   expect(await page.evaluate(() => window.__bv?.inventory.slurm ?? 0)).toBe(0)
-  await page.evaluate(() => window.__bv?.useHeld())
+  await page.evaluate(() => window.__bv?.useHand())
   await expect
     .poll(() => page.evaluate(() => window.__bv?.inventory.slurm ?? 0))
     .toBe(1)

@@ -13,7 +13,14 @@ import { BAG_TABS } from '../../src/packtabs.ts'
 import type { Inventory, PackItem } from '../../src/interfaces.ts'
 
 const kinds = (items: PackItem[]) => items.map((item) => item.kind)
-const empty: Inventory = { ...STARTING_INVENTORY, marlboro: 0, joints: 0 }
+// A new pack, used down to nothing but the kit it can never lose.
+const empty: Inventory = {
+  ...STARTING_INVENTORY,
+  marlboro: 0,
+  joints: 0,
+  flashlight: 0,
+  'citgo-phone': 0,
+}
 const consumables = (inv: Inventory) => packItems(inv, 'consumables')
 
 describe('PACK_TABS', () => {

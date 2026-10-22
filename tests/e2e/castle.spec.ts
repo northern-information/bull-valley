@@ -1,3 +1,4 @@
+import { isKeyItem } from '../../src/items.ts'
 import { inChannel } from '../../src/moat.ts'
 import { copy } from './copy.ts'
 import { beginRaid, expect, heardWhere, test } from './fixtures.ts'
@@ -8,10 +9,14 @@ import type { Page } from '@playwright/test'
 // shatters a raider's geometrie, leaving the pack on their body at the
 // bottom (sharedworld.ts rules 24 and 18).
 
-const carrying = (page: Page) =>
-  page.evaluate(() =>
-    Object.values(window.__bv?.inventory ?? {}).reduce((sum, n) => sum + n, 0)
-  )
+// What the pack holds that a strike takes: everything but the key items
+// (the flashlight and the phone among them), which stay.
+const carrying = async (page: Page) => {
+  const pack = await page.evaluate(() => window.__bv?.inventory ?? {})
+  return Object.entries(pack)
+    .filter(([kind]) => !isKeyItem(kind))
+    .reduce((sum, [, n]) => sum + n, 0)
+}
 
 test("walking off the moat's rim shatters, the body at the bottom", async ({
   page,

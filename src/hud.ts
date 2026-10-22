@@ -216,9 +216,9 @@ export class Hud {
     ui.appendChild(this.reticle)
 
     // Intro / menu overlay, in the keepers' dialogs' frame (npcdialog.ts),
-    // one face at a time (OverlayFace): the intro's season and controls
-    // before the first Begin; once begun, a short list (Controls,
-    // Settings, Exit to Menu), each opening its own face with Back. Begin
+    // one face at a time (OverlayFace): the intro's season and controls,
+    // with Settings, before the first Begin; once begun, a short list
+    // (Controls, Settings, Exit to Menu), each opening its own face with Back. Begin
     // is in the footer on every face. Each part names the faces it shows
     // on (data-faces).
     this.intro = el('div', 'bv-intro')
@@ -238,8 +238,8 @@ export class Hud {
         <section class="bv-npc-section" data-bv="intro-season" data-faces="intro">
           ${sectionHead(SEASON_COPY.kicker, 'intro-live')}
         </section>
-        <nav class="bv-overlay-list" aria-label="${copy('overlay.label')}" data-faces="menu">
-          <button type="button" class="bv-btn bv-npc-btn" data-bv="overlay-controls">${copy('overlay.controls')}</button>
+        <nav class="bv-overlay-list" aria-label="${copy('overlay.label')}" data-faces="intro menu">
+          <button type="button" class="bv-btn bv-npc-btn" data-bv="overlay-controls" data-faces="menu">${copy('overlay.controls')}</button>
           <button type="button" class="bv-btn bv-npc-btn" data-bv="overlay-settings">${copy('overlay.settings')}</button>
           <button type="button" class="bv-btn bv-npc-btn" data-bv="exit-menu" hidden>${copy('intro.exit_menu')}</button>
         </nav>
@@ -480,8 +480,8 @@ export class Hud {
     return this.map?.show(show, charter) ?? false
   }
 
-  setHotbar(slots: HotbarSlotView[]): void {
-    this.pack.setHotbar(slots)
+  setHotbar(slots: HotbarSlotView[], selected: number): void {
+    this.pack.setHotbar(slots, selected)
   }
 
   // The loop calls these every frame; the vitals touch the page only when

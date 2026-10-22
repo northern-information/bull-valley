@@ -8,6 +8,8 @@ import {
   isHotbar,
   NO_EFFECTS,
   place,
+  seedKit,
+  shelve,
   shownSlots,
   spent,
   toHotbar,
@@ -39,6 +41,36 @@ describe('assign', () => {
   it('ignores a slot off the bar', () => {
     expect(assign(EMPTY_HOTBAR, 9, 'camel')).toBe(EMPTY_HOTBAR)
     expect(assign(EMPTY_HOTBAR, -1, 'camel')).toBe(EMPTY_HOTBAR)
+  })
+})
+
+describe('the kit', () => {
+  const KIT = { flashlight: 1, 'citgo-phone': 1 }
+
+  it('seeds a bar from before the kit with what the pack holds of it', () => {
+    const bar = assign(EMPTY_HOTBAR, 0, 'marlboro')
+    const seeded = seedKit(bar, KIT)
+    expect(seeded.slice(0, 3)).toEqual([
+      'marlboro',
+      'flashlight',
+      'citgo-phone',
+    ])
+    // The whistle not yet given is not seeded.
+    expect(seeded).not.toContain('marx-whistle')
+  })
+
+  it('keeps a bar that holds any of the kit as the raider set it', () => {
+    const bar = assign(EMPTY_HOTBAR, 4, 'citgo-phone')
+    expect(seedKit(bar, KIT)).toBe(bar)
+  })
+
+  it('shelves a kind on the first empty slot, once, while one is empty', () => {
+    const bar = assign(EMPTY_HOTBAR, 0, 'flashlight')
+    const shelved = shelve(bar, 'marx-whistle')
+    expect(shelved[1]).toBe('marx-whistle')
+    expect(shelve(shelved, 'marx-whistle')).toBe(shelved)
+    const full = EMPTY_HOTBAR.map((_, i) => `k${i}`)
+    expect(shelve(full, 'marx-whistle')).toBe(full)
   })
 })
 

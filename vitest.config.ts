@@ -83,6 +83,7 @@ const THREE_AND_DOM = [
   'itemstatsview',
   'itemthumbs',
   'jeep',
+  'kitmodels',
   'laptopart',
   'laptopdialog',
   'laptopmodel',

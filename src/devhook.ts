@@ -151,7 +151,10 @@ interface BvHook {
   // The flashlight in the left hand (or the jar or the rod in its place,
   // `held`), and the item the right last raised.
   readonly flashlight: Hand
-  readonly held: Tool
+  readonly held: Tool | null
+  // The hotbar slot the hand holds, and what is in it while the pack is.
+  readonly selected: number
+  readonly inHand: string | null
   // The fight over the view: where the line stands.
   readonly fishPhase: FishPhase
   // The last state frame sent to the valley: where it last heard we are.
@@ -159,10 +162,11 @@ interface BvHook {
   readonly using: { kind: string; at: number } | null
   teleport(u: number, v: number): void
   // The left button, for a page without pointer lock: the flashlight
-  // alone, or whatever the left hand holds; R; and A or D in a fight.
+  // alone, or whatever the hand holds; a number key; and A or D in a
+  // fight.
   toggleFlashlight(): void
-  useHeld(): void
-  switchHeld(step?: 1 | -1): void
+  useHand(): void
+  select(slot: number): void
   pressFish(dir: ArrowDir): void
   // A Citgo portal opened ahead of the raider at once, as if the phone had
   // dialed it through; and fast travel to Citgo `station`, as if clicked
@@ -390,6 +394,12 @@ export function installDevHook(game: Game, actions: Actions): void {
     get held() {
       return s.held
     },
+    get selected() {
+      return s.selected
+    },
+    get inHand() {
+      return actions.inHand()
+    },
     get fishPhase() {
       return game.fishHud.phase
     },
@@ -404,8 +414,8 @@ export function installDevHook(game: Game, actions: Actions): void {
       player.relocate(x, z)
     },
     toggleFlashlight: () => actions.toggleFlashlight(),
-    useHeld: () => actions.useHeld(),
-    switchHeld: (step: 1 | -1 = 1) => actions.switchHeld(step),
+    useHand: () => actions.useHand(),
+    select: (slot: number) => actions.select(slot),
     pressFish: (dir: ArrowDir) => game.fishHud.press(dir),
     openPortal: () => actions.openPortal(),
     fastTravel: (station: number) => actions.fastTravel(station),

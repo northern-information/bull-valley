@@ -423,6 +423,21 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   },
   { id: 'adderall', label: 'Adderall', build: () => buildPickup('adderall') },
   { id: 'rose', label: "Erwin's rose", build: () => buildPickup('rose') },
+  {
+    id: 'flashlight-item',
+    label: 'Flashlight (in the pack)',
+    build: () => buildPickup('flashlight'),
+  },
+  {
+    id: 'citgo-phone',
+    label: 'Citgo phone',
+    build: () => buildPickup('citgo-phone'),
+  },
+  {
+    id: 'marx-whistle',
+    label: "Marx's whistle",
+    build: () => buildPickup('marx-whistle'),
+  },
   ...FISH_LABELS.map(([id, label]) => ({
     id: `fish-${id}`,
     label: `Fish: ${label}`,

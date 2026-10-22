@@ -26,8 +26,8 @@ export const MOVE = {
   right: 'KeyD',
 } as const
 
-// The number keys, slot 0 first: each one fires its hotbar slot in the
-// valley and assigns to it in the pack.
+// The number keys, slot 0 first: each one selects its hotbar slot, the
+// hand, in the valley, and assigns to it in the pack.
 const HOTBAR_CODES: readonly string[] = Array.from(
   { length: 9 }, // hotbar.ts HOTBAR_SLOTS; that module reads copy, this one cannot
   (_, i) => `Digit${i + 1}`
@@ -43,24 +43,23 @@ export const WORLD = {
     labelKey: 'keys.sprint',
   },
   look: { codes: [], key: 'Mouse', labelKey: 'keys.look' },
-  // The left hand's flashlight lit or put out, the slurm jar's catch, or
-  // the rod's cast (held.ts); R, or the wheel, switches what the hand
-  // holds.
-  useHeld: { codes: [], key: 'Left Click', labelKey: 'keys.use_held' },
-  held: { codes: ['KeyR'], key: 'R', labelKey: 'keys.held' },
   crouch: { codes: ['KeyC'], key: 'C', labelKey: 'keys.crouch' },
-  phone: { codes: ['KeyT'], key: 'T', labelKey: 'keys.phone' },
+  // The hotbar is the hand (held.ts): a number key or the wheel selects a
+  // slot, and the click uses what is in it, the flashlight, the phone and
+  // Marx's whistle as anything else.
+  hotbar: { codes: HOTBAR_CODES, key: '1–9 / Wheel', labelKey: 'keys.select' },
+  use: { codes: [], key: 'Left Click', labelKey: 'keys.use_hand' },
+  // One of what the hand holds, set down; never a key item.
+  drop: { codes: ['KeyQ'], key: 'Q', labelKey: 'keys.drop' },
+  // What the hand holds, to the raider in reach in front of you.
+  pass: { codes: ['KeyG'], key: 'G', labelKey: 'keys.pass' },
   inventory: { codes: ['Tab'], key: 'Tab', labelKey: 'keys.inventory' },
   book: { codes: ['KeyB'], key: 'B', labelKey: 'keys.book' },
   map: { codes: ['KeyM'], key: 'M', labelKey: 'keys.map' },
   interact: { codes: ['KeyE'], key: 'E', labelKey: 'keys.interact' },
-  callTruck: { codes: ['KeyY'], key: 'Y', labelKey: 'keys.call_truck' },
-  // The last thing used, to the raider in reach in front of you.
-  pass: { codes: ['KeyG'], key: 'G', labelKey: 'keys.pass' },
-  hotbar: { codes: HOTBAR_CODES, key: '1–9', labelKey: 'keys.hotbar' },
   chat: {
-    codes: ['Enter', 'NumpadEnter'],
-    key: 'Enter',
+    codes: ['Enter', 'NumpadEnter', 'KeyT'],
+    key: 'Enter / T',
     labelKey: 'keys.chat',
   },
   // The controls card, over the valley, which plays on.

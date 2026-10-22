@@ -81,7 +81,7 @@ describe('Esc', () => {
 describe('WORLD', () => {
   it('leaves the mouse and Esc to the browser', () => {
     expect(WORLD.look.codes).toEqual([])
-    expect(WORLD.useHeld.codes).toEqual([])
+    expect(WORLD.use.codes).toEqual([])
     expect(FISHING.reel.codes).toEqual([])
     expect(WORLD.menu.codes).toEqual([])
   })
@@ -90,8 +90,17 @@ describe('WORLD', () => {
     expect([...WORLD.move.codes].sort()).toEqual(Object.values(MOVE).sort())
   })
 
-  it('fires the hotbar on the same keys the pack assigns with', () => {
+  it('selects the hand on the same keys the pack assigns with', () => {
     expect(PACK.assign.codes).toEqual(WORLD.hotbar.codes)
+  })
+
+  it('opens the chat on Enter or T', () => {
+    expect(actionOf(WORLD, 'Enter')).toBe('chat')
+    expect(actionOf(WORLD, 'KeyT')).toBe('chat')
+  })
+
+  it('drops what the hand holds on Q', () => {
+    expect(actionOf(WORLD, 'KeyQ')).toBe('drop')
   })
 })
 

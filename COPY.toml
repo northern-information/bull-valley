@@ -401,6 +401,8 @@ task_reward = { text = "Daily task done: {goal} shadowmen burned. {cash} into yo
 season_reward = { text = "Season One complete. {cash} and a carton of Marlboro Reds are in your pack.", by = "ai" }
 whistle = { text = "You whistle into the dark. An engine turns over, far off.", by = "ai" }
 whistle_nothing = { text = "You whistle into the dark. Nothing turns over.", by = "ai" }
+whistle_given = { text = "Matthew Marx gives you his whistle. It is on your hotbar.", by = "ai" }
+no_whistle = { text = "You have nothing to whistle with. Talk to Marx at his truck.", by = "ai" }
 whistle_other = { text = "Far off, an engine turns over. Someone whistled.", by = "ai" }
 truck_busy = { text = "Marx is already on a call.", by = "ai" }
 taken = { text = "Taken: {item}", by = "ai" }
@@ -500,6 +502,7 @@ portal_no_citgo = { text = "No Citgo to call yet. Stand on a forecourt first.", 
 portal_busy = { text = "Every line to that Citgo is busy.", by = "ai" }
 portal_refused = { text = "The call drops.", by = "ai" }
 portal_hung_up = { text = "You hang up.", by = "ai" }
+portal_no_phone = { text = "You have no phone to dial with.", by = "ai" }
 citgo_visited = { text = "You found {citgo}. It is on your map.", by = "ai" }
 citgo_bounty = { text = "You found {citgo}. It is on your map. {cash} for the find.", by = "ai" }
 landmark_bounty = { text = "Not many find this place. {cash} for the find.", by = "ai" }
@@ -816,18 +819,15 @@ credit = { text = "2008-2026 AD Northern Information", by = "ai" }
 move = { text = "Move", by = "ai" }
 sprint = { text = "Sprint", by = "ai" }
 look = { text = "Look", by = "ai" }
-use_held = { text = "Flashlight, Jar or Rod", by = "ai" }
-held = { text = "Switch Hand", by = "ai" }
 crouch = { text = "Crouch", by = "ai" }
-phone = { text = "Citgo Portal", by = "ai" }
 map = { text = "Map", by = "ai" }
 inventory = { text = "Inventory", by = "ai" }
 book = { text = "Book of Shadows", by = "ai" }
 interact = { text = "Interact", by = "ai" }
-call_truck = { text = "Call the Truck", by = "ai" }
-pass = { text = "Pass It", by = "ai" }
+pass = { text = "Pass What You Hold", by = "ai" }
+select = { text = "Select What You Hold", by = "ai" }
+use_hand = { text = "Use What You Hold", by = "ai" }
 pass_item = { text = "Pass to a Raider", by = "ai" }
-hotbar = { text = "Use Hotbar Item", by = "ai" }
 chat = { text = "Chat", by = "ai" }
 chat_scroll_up = { text = "Scroll Up", by = "ai" }
 chat_scroll_down = { text = "Scroll Down", by = "ai" }
@@ -952,6 +952,7 @@ terry = { text = "Terry", by = "ai" }
 # The texts keep their line breaks.
 
 [marx]
+whistle_gift = { text = "\"Here. It was my father's. Blow it, and I'll come to you.\"", by = "ai" }
 stanza_1 = { text = """
 O, whistle, and I'll come to you, my lad;
   O, whistle, and I'll come to you, my lad;
@@ -1422,6 +1423,18 @@ blurb = { text = "Six feet of fiberglass and a spinning reel, out of the tackle 
 [items.slurm]
 label = { text = "Slurm", by = "ai" }
 blurb = { text = "A black slug off a Citgo's dripline, caught alive before Carlsten's bat found it. It keeps baring its tooth. The shadow carp will take nothing else.", by = "ai" }
+
+[items.flashlight]
+label = { text = "Flashlight", by = "ai" }
+blurb = { text = "A yellow plastic two-cell flashlight. Lit, its beam burns shadows. Select it and click to light it or put it out.", by = "ai" }
+
+[items.citgo-phone]
+label = { text = "Citgo Phone", by = "ai" }
+blurb = { text = "A cheap black phone with one number in it. Select it and click to dial a portal to the last Citgo you stood at.", by = "ai" }
+
+[items.marx-whistle]
+label = { text = "Marx's Whistle", by = "ai" }
+blurb = { text = "A dented brass police whistle on a waxed cord, older than the truck. Matthew Marx gave it to you. Select it and click, and he comes.", by = "ai" }
 
 [items.slurm-jar]
 label = { text = "Slurm Jar", by = "ai" }

@@ -1637,6 +1637,13 @@
   opacity: 0.3;
 }
 
+/* The slot the hand holds (held.ts): framed in Citgo red, as Minecraft
+   frames its own, and shown even empty. */
+.bv-hot-slot--held {
+  border: 2px solid var(--bv-citgo);
+  padding: 2px;
+}
+
 /* With the pack open the bar takes the mouse: every slot shows, an item
    drags onto one, and a slot drags off. */
 .bv-shell--inventory .bv-hotbar {

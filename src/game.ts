@@ -192,9 +192,13 @@ export interface GameState {
   effects: Effects
   // How high, stimulated and drunk, on `time` (wardlevels.ts).
   wards: WardState
-  // What the left hand holds (held.ts): the flashlight, the slurm jar or
-  // a rod, switched with R or the wheel, used with the click.
-  held: Tool
+  // The hotbar slot the hand holds (held.ts): picked with the number keys
+  // or the wheel, used with the click. This page's alone; the account
+  // keeps the bar, not where the hand is on it.
+  selected: number
+  // The tool in the hand as the loop last raised it (held.ts toolOf): the
+  // flashlight, the slurm jar or a rod, or null for anything else.
+  held: Tool | null
   // The left hand's lift: the flashlight up and on, or down and off; a
   // jar or a rod is held up for as long as it is in the hand.
   flashlight: Hand
@@ -347,7 +351,8 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     time: 0,
     effects: NO_EFFECTS,
     wards: SOBER,
-    held: 'flashlight',
+    selected: 0,
+    held: null,
     flashlight: HAND_DOWN,
     using: null,
     lastUsed: null,

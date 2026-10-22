@@ -15,6 +15,7 @@ import {
 } from './bindings.ts'
 import { othersLine } from './chat.ts'
 import { copy } from './copy.ts'
+import { stepSlot } from './held.ts'
 import { LOCKER_TAB } from './packgrid.ts'
 import { SEASON } from './season.ts'
 import { formatCash } from './store.ts'
@@ -121,9 +122,12 @@ export function wirePointer(game: Game): () => void {
   return engagePointer
 }
 
-// How far the wheel turns for one step of the left hand (a mouse's notch
+// How far the wheel turns for one step along the hotbar (a mouse's notch
 // is about 100), and the least time between two steps, ms.
 const WHEEL_NOTCH = 50
+// The keys that send a chat line: the chat binding's, but T, which only
+// opens the field.
+const SENDS: readonly string[] = WORLD.chat.codes.filter((c) => c !== 'KeyT')
 const WHEEL_MS = 150
 
 // The keys, and the click on the view; engagePointer is wirePointer's.
@@ -142,10 +146,12 @@ export function wireKeys(
     else if (s.mapOpen) actions.closeMap(true)
     else if (s.started && !player.locked) engagePointer()
   })
-  // The left button uses what the left hand holds (held.ts): the
-  // flashlight up or down, the jar's catch, the rod's cast and reel. Only
-  // with the pointer locked: the click that takes the pointer back never
-  // does.
+  // The left button uses what the hand holds (held.ts): the flashlight
+  // up or down, the jar's catch, the rod's cast and reel, the phone
+  // dialed, the whistle blown, anything usable used. Only with the pointer
+  // locked: the click that takes the pointer back never does. The right
+  // button is kept for a second use; nothing has one yet, and the
+  // browser's menu never opens over the view.
   document.addEventListener('mousedown', (e) => {
     if (e.button !== 0 || !player.locked) return
     if (
@@ -157,8 +163,9 @@ export function wireKeys(
     ) {
       return
     }
-    actions.useHeld()
+    actions.useHand()
   })
+  hud.canvas.addEventListener('contextmenu', (e) => e.preventDefault())
 
   // With the pack open the keys act on the item under the cursor (PACK in
   // bindings.ts) and never reach the player.
@@ -261,11 +268,12 @@ export function wireKeys(
       return
     }
     if (!player.locked || s.talking) return
-    // While typing, every key belongs to the field; Enter sends, and
-    // PageUp/PageDown scroll the log.
+    // While typing, every key belongs to the field; Enter sends (T only
+    // opens it, and types once it is open), and PageUp/PageDown scroll
+    // the log.
     if (hud.chatOpen) {
       if (e.code === 'Tab') e.preventDefault()
-      if (actionOf(WORLD, e.code) === 'chat' && !e.isComposing) {
+      if (SENDS.includes(e.code) && !e.isComposing) {
         e.preventDefault()
         actions.say(hud.closeChat())
       }
@@ -289,9 +297,6 @@ export function wireKeys(
     }
     player.handleKey(e.code, true)
     switch (actionOf(WORLD, e.code)) {
-      case 'held':
-        actions.switchHeld()
-        return
       case 'inventory':
         e.preventDefault()
         actions.openInventory()
@@ -300,29 +305,28 @@ export function wireKeys(
         e.preventDefault()
         actions.openBook()
         return
-      case 'phone':
-        actions.dialPortal()
-        return
       case 'map':
         e.preventDefault()
         actions.openMap()
         return
       case 'pass':
-        actions.passKind()
+        actions.passKind(actions.inHand())
         return
-      case 'hotbar': {
-        const slot = hotbarSlot(e.code)
-        const kind = slot === null ? null : s.hotbar[slot]
-        if (kind) actions.useKind(kind)
+      case 'drop': {
+        const kind = actions.inHand()
+        if (kind) actions.dropKind(kind, false)
         return
       }
-      case 'callTruck':
-        actions.callTruck()
+      case 'hotbar': {
+        const slot = hotbarSlot(e.code)
+        if (slot !== null) actions.select(slot)
         return
+      }
       case 'interact':
         actions.interact()
         return
       case 'chat':
+        // The T that opens the field never lands in it.
         e.preventDefault()
         player.keys.clear()
         hud.openChat()
@@ -338,7 +342,7 @@ export function wireKeys(
   document.addEventListener('keyup', (e) => player.handleKey(e.code, false))
   // Under pointer lock the wheel lands on the canvas, never the log, so
   // while typing it is passed along. Otherwise, in the valley, it steps
-  // what the left hand holds as R does: down the next, up the one before.
+  // the hand along the hotbar: down the next slot, up the one before.
   // A trackpad sends a flurry of small deltas, so they add up to a notch,
   // and one step at most lands in a notch's time.
   let wheeled = 0
@@ -364,7 +368,7 @@ export function wireKeys(
       wheeled += e.deltaY
       const now = performance.now()
       if (Math.abs(wheeled) < WHEEL_NOTCH || now - steppedAt < WHEEL_MS) return
-      actions.switchHeld(wheeled > 0 ? 1 : -1)
+      actions.select(stepSlot(s.selected, wheeled > 0 ? 1 : -1))
       wheeled = 0
       steppedAt = now
     },

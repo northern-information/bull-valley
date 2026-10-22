@@ -24,7 +24,8 @@ interface HandsFrame {
   // 0 out of view, 1 held up: hands.ts lifts, already eased.
   left: number
   right: number
-  // What the left hand holds: 'flashlight', 'jar', or a rod's kind.
+  // What the left hand holds: 'flashlight', 'jar', a rod's kind, or
+  // 'none'.
   held: string
   // What the right hand holds, or null for an empty hand.
   kind: string | null
@@ -142,10 +143,10 @@ export class FirstPersonHands {
   }
 
   // What the left fist holds: the flashlight, or the jar or a rod in its
-  // place.
+  // place, or nothing in sight ('none': the phone, the whistle, a pack).
   private holdLeft(held: string): void {
     this.flashlight.group.visible = held === 'flashlight'
-    const kind = held === 'flashlight' ? null : held
+    const kind = held === 'flashlight' || held === 'none' ? null : held
     if ((this.inLeft?.kind ?? null) === kind) return
     if (this.inLeft) this.inLeft.object.removeFromParent()
     this.inLeft = null

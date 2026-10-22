@@ -52,6 +52,33 @@ export function clearSlot(bar: Hotbar, slot: number): Hotbar {
   return bar.map((held, i) => (i === slot ? null : held))
 }
 
+// The kit every raider carries (items.ts, sharedworld.ts rule 37), in the
+// order it lands on a bar.
+export const KIT: readonly string[] = [
+  'flashlight',
+  'citgo-phone',
+  'marx-whistle',
+]
+
+// Puts kind on the first empty slot, unless it is on the bar already or
+// no slot is empty.
+export function shelve(bar: Hotbar, kind: string): Hotbar {
+  if (bar.includes(kind)) return bar
+  const slot = bar.indexOf(null)
+  return slot < 0 ? bar : bar.map((held, i) => (i === slot ? kind : held))
+}
+
+// A bar from before the kit was things in the pack holds none of it: the
+// kit the pack holds goes onto its first empty slots, in KIT order. A bar
+// with any of the kit on it is the raider's own, and kept.
+export function seedKit(
+  bar: Hotbar,
+  pack: Readonly<Record<string, number>>
+): Hotbar {
+  if (KIT.some((kind) => bar.includes(kind))) return bar
+  return KIT.filter((kind) => (pack[kind] ?? 0) > 0).reduce(shelve, bar)
+}
+
 // The assigned slots in number order, as the bar shows them.
 export function shownSlots(bar: Hotbar): { slot: number; kind: string }[] {
   const shown: { slot: number; kind: string }[] = []
