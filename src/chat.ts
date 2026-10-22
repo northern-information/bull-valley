@@ -8,9 +8,10 @@ import type { EmoteId } from './emotes.ts'
 import type { WhisperedMessage } from './protocol.ts'
 
 // A line a raider said, a whisper to or from this player, a line an NPC
-// said to this player, or a line the game says to the player alone.
+// said to this player, or a line the game says to the player alone ('alert'
+// for one it means to stand out, in red).
 export interface ChatLine {
-  kind: 'say' | 'whisper' | 'npc' | 'system'
+  kind: 'say' | 'whisper' | 'npc' | 'system' | 'alert'
   // For 'say', 'whisper' and 'npc': who said it, or for a whisper this
   // player sent, who it went to, as the log heads the line.
   name?: string

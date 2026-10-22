@@ -336,9 +336,10 @@ export class Hud {
 
   // --- The chat log (chathud.ts) ------------------------------------------
 
-  // A line the game says to the player alone, in the chat log.
-  tell(text: string): void {
-    this.chat.tell(text)
+  // A line the game says to the player alone, in the chat log; an alert
+  // stands out in red.
+  tell(text: string, kind: 'system' | 'alert' = 'system'): void {
+    this.chat.tell(text, kind)
   }
 
   chatLine(line: ChatLine, now: number): void {

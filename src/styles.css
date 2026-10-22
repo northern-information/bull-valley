@@ -477,6 +477,11 @@
   color: var(--fi-gold);
 }
 
+/* A line the game means to stand out (the season going live): Citgo red. */
+.bv-chat-line--alert {
+  color: var(--bv-citgo);
+}
+
 /* A whisper, to this raider or from them: pink, set apart from the
    valley's blue. */
 .bv-chat-line--whisper {
