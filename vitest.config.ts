@@ -140,6 +140,7 @@ const THREE_AND_DOM = [
   'streetlights',
   'surfaces',
   'targets',
+  'tapfeedback',
   'taskhud',
   'terrain',
   'titles',

@@ -42,6 +42,7 @@ import { createSettingsStore } from './settingsui.ts'
 import { mountAccountStep } from './signin.ts'
 import { SILENT } from './silent.ts'
 import { openStandDialog } from './standdialog.ts'
+import { mountTapBurst } from './tapfeedback.ts'
 import type { DialState, Pending } from './dialstate.ts'
 import type { Geo } from './interfaces.ts'
 import type { ClientMessage } from './protocol.ts'
@@ -72,6 +73,8 @@ async function boot(): Promise<void> {
   // account a moment after a slider is let go (settingsui.ts).
   const settings = createSettingsStore()
   settings.load(account?.settings)
+  // Every tap on a button bursts and ticks (tapfeedback.ts).
+  mountTapBurst(() => settings.current.sfx)
   const net = new NetClient({
     url: socketUrl(window.location, import.meta.env.DEV),
     config: CONFIG.net,

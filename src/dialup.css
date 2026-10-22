@@ -938,3 +938,23 @@ button.bv-dial-card {
 .bv-dialup .bv-npc-ui--wide {
   grid-template-columns: 1fr;
 }
+
+/* A phone has no keyboard: the keys the dialogs wear on their buttons
+   (npcdialog.ts, the Esc on the way out) and the sign-in's key hints
+   (signin.ts) are not shown. */
+.bv-dialup .bv-npc-key,
+.bv-dialup .bv-select-hint {
+  display: none;
+}
+
+/* The burst a tap throws (tapfeedback.ts mountTapBurst), over everything
+   and never in a finger's way. */
+.bv-tapburst {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  image-rendering: pixelated;
+}
