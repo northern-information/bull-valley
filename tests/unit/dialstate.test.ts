@@ -22,6 +22,12 @@ import {
   withCitgoNames,
 } from '../../src/dialstate.ts'
 import { riskOf } from '../../src/expeditions.ts'
+import {
+  anglerNews,
+  catchLine,
+  fishRefusal,
+  skillUpLine,
+} from '../../src/fishlines.ts'
 import { itemLabel, itemLine } from '../../src/itemcopy.ts'
 import { healsOf, itemById } from '../../src/items.ts'
 import { outfitById } from '../../src/outfits.ts'
@@ -63,6 +69,7 @@ const welcome = (over: Partial<WelcomeMessage> = {}): ServerMessage => ({
   healthMax: 1000,
   wards: { ...NO_WARDS, high: 0.5 },
   citgos: { last: null, visited: [] },
+  waypoints: [],
   expedition: null,
   ...over,
 })
@@ -154,6 +161,80 @@ describe("Dial-Up's state", () => {
     expect(
       applyFrame(s, { type: 'nack', re: 'pass', reason: 'dialup' }, 9, 9)
     ).toBe(s)
+  })
+
+  it('keeps the angler and the line, and says the dig, the catch and a refusal', () => {
+    const angler = { skill: 12, caught: 1, perDay: 40, digAt: 0 }
+    let s = applyFrame(DIALED, { type: 'angler', angler }, 1, 1)
+    expect(s.angler).toEqual(angler)
+    expect(s.said).toBeNull()
+    expect(
+      raiderStats(s, '2026-10-21').find((st) => st.id === 'fishing')
+    ).toEqual({
+      id: 'fishing',
+      label: copy('dialup.raider.fishing'),
+      value: copy('dialup.raider.fishing_value', {
+        skill: '1.2',
+        caught: 1,
+        limit: 40,
+      }),
+      share: 12 / CONFIG.fishing.skillCap,
+    })
+    s = applyFrame(
+      asked(s, { fish: true }),
+      { type: 'angler', angler, dug: 2 },
+      2,
+      2
+    )
+    expect(s.pending.fish).toBe(false)
+    expect(s.said).toEqual({ text: anglerNews({ dug: 2 }), at: 2 })
+    // A rod out of the box from the 3D valley goes into the log alone.
+    s = applyFrame(s, { type: 'angler', angler, rod: true }, 3, 3)
+    expect(s.chat.at(-1)?.text).toBe(anglerNews({ rod: true }))
+    // A garbled angler keeps the one it had.
+    s = applyFrame(s, { type: 'angler', angler: null as never }, 3, 3)
+    expect(s.angler).toEqual(angler)
+    s = applyFrame(
+      asked(s, { fish: true }),
+      { type: 'line', bitesIn: 500, hook: null },
+      4,
+      4
+    )
+    expect(s.line).toEqual({ hook: null, bitesAt: 504 })
+    expect(s.pending.fish).toBe(false)
+    s = applyFrame(
+      s,
+      {
+        type: 'catch',
+        outcome: 'landed',
+        kind: 'bluegill',
+        skill: 13,
+        up: true,
+      },
+      5,
+      5
+    )
+    expect(s.line).toBeNull()
+    expect(s.said?.text).toBe(
+      catchLine({ outcome: 'landed', kind: 'bluegill' })
+    )
+    expect(s.chat.at(-1)?.text).toBe(skillUpLine(13))
+    s = applyFrame(
+      { ...asked(s, { fish: true }), line: { hook: null, bitesAt: 9 } },
+      { type: 'nack', re: 'reel', reason: 'no-line' },
+      6,
+      6
+    )
+    expect(s.line).toBeNull()
+    expect(s.pending.fish).toBe(false)
+    expect(s.said).toEqual({ text: fishRefusal('no-line'), at: 6 })
+    s = applyFrame(
+      { ...s, line: { hook: null, bitesAt: 9 } },
+      { type: 'nack', re: 'cast', reason: 'tired' },
+      7,
+      7
+    )
+    expect(s.line).toEqual({ hook: null, bitesAt: 9 })
   })
 
   it('keeps the research, and says a level, loose change and a refusal', () => {
@@ -629,6 +710,152 @@ describe('the folk, the Citgo and the chat on the phone', () => {
         0
       ).said?.text
     ).toBe(copy('friends.self'))
+  })
+
+  it('invites, keeps the party, hears it, and says its news', () => {
+    const self = { name: 'Me', level: 2 }
+    const s = { ...me(), name: 'Me' }
+    const asking = sayLine(s, '/invite Kid', self, 0)
+    expect(asking.frame).toEqual({ type: 'invite', name: 'Kid' })
+    expect(asking.state.pending.invite).toBe('Kid')
+    expect(sayLine(s, '/leave', self, 0).frame).toEqual({
+      type: 'party-leave',
+    })
+    expect(sayLine(s, '/p hi', self, 0).frame).toEqual({
+      type: 'party-chat',
+      text: 'hi',
+    })
+    expect(sayLine(s, '/party', self, 0).state.chat.at(-1)?.text).toBe(
+      copy('party.none')
+    )
+    let after = applyFrame(
+      asking.state,
+      { type: 'party-news', news: 'sent', name: 'Kid' },
+      0,
+      0
+    )
+    expect(after.pending.invite).toBeNull()
+    expect(after.chat.at(-1)?.text).toBe(copy('party.invited', { name: 'Kid' }))
+    const party = {
+      members: [
+        { name: 'Me', online: true },
+        { name: 'Kid', online: true },
+      ],
+      invites: [],
+    }
+    after = applyFrame(after, { type: 'party', ...party }, 0, 0)
+    expect(after.party).toEqual(party)
+    after = applyFrame(
+      after,
+      { type: 'party-news', news: 'joined', name: 'Me' },
+      0,
+      0
+    )
+    expect(after.chat.at(-1)?.text).toBe(copy('party.you_joined'))
+    after = applyFrame(
+      after,
+      { type: 'party-chat', from: 'Kid', text: 'maze?', at: 9 },
+      0,
+      0
+    )
+    expect(after.chat.at(-1)).toEqual(
+      expect.objectContaining({ kind: 'party', text: 'maze?' })
+    )
+    const refused = applyFrame(
+      asking.state,
+      { type: 'nack', re: 'invite', reason: 'in-party' },
+      0,
+      0
+    )
+    expect(refused.said?.text).toBe(copy('party.in_party', { name: 'Kid' }))
+    expect(refused.pending.invite).toBeNull()
+  })
+
+  it('sends the crew commands, keeps the crew, hears it, and says its news', () => {
+    const self = { name: 'Me', level: 2 }
+    const s = { ...me(), name: 'Me' }
+    const asking = sayLine(s, '/crew invite Kid', self, 0)
+    expect(asking.frame).toEqual({ type: 'crew-invite', name: 'Kid' })
+    expect(asking.state.pending.crew).toBe('Kid')
+    expect(sayLine(s, '/crew', self, 0).state.chat.at(-1)?.text).toBe(
+      copy('crew.none')
+    )
+    const crew = {
+      name: 'Bull Valley',
+      tag: 'BVC',
+      leader: 'Me',
+      members: [{ name: 'Me', online: true }],
+    }
+    let after = applyFrame(
+      asking.state,
+      { type: 'crew', crew, invites: [] },
+      0,
+      0
+    )
+    expect(after.crew.crew).toEqual(crew)
+    after = applyFrame(
+      after,
+      {
+        type: 'crew-news',
+        news: 'sent',
+        name: 'Kid',
+        tag: 'BVC',
+        crew: 'Bull Valley',
+      },
+      0,
+      0
+    )
+    expect(after.pending.crew).toBeNull()
+    expect(after.chat.at(-1)?.text).toBe(copy('crew.sent', { name: 'Kid' }))
+    after = applyFrame(
+      after,
+      { type: 'crew-chat', from: 'Kid', text: 'keep?', at: 9 },
+      0,
+      0
+    )
+    expect(after.chat.at(-1)).toEqual(
+      expect.objectContaining({ kind: 'crew', text: 'keep?' })
+    )
+    const refused = applyFrame(
+      asking.state,
+      { type: 'nack', re: 'crew-invite', reason: 'their-crew' },
+      0,
+      0
+    )
+    expect(refused.said?.text).toBe(copy('crew.their_crew', { name: 'Kid' }))
+    expect(refused.pending.crew).toBeNull()
+  })
+
+  it("asks for a raider's card, keeps the answer, and says a refusal", () => {
+    const self = { name: 'Me', level: 2 }
+    const asking = sayLine(me(), '/inspect Kid', self, 0)
+    expect(asking.frame).toEqual({ type: 'inspect', name: 'Kid' })
+    expect(asking.state.pending.inspect).toBe('Kid')
+    const card = {
+      name: 'Kid',
+      level: 3,
+      outfit: 'player' as const,
+      finish: 'black' as const,
+      cosmetics: [],
+      book: { found: 1, of: 9 },
+      season: { kills: 0, goal: 5, claimed: false },
+      friend: null,
+      party: null,
+      crew: null,
+      crewInvite: false,
+      online: true,
+    }
+    const shown = applyFrame(asking.state, { type: 'inspected', card }, 0, 0)
+    expect(shown.inspected).toEqual(card)
+    expect(shown.pending.inspect).toBeNull()
+    const refused = applyFrame(
+      asking.state,
+      { type: 'nack', re: 'inspect', reason: 'unknown' },
+      0,
+      0
+    )
+    expect(refused.said?.text).toBe(copy('friends.unknown', { name: 'Kid' }))
+    expect(refused.pending.inspect).toBeNull()
   })
 })
 

@@ -8,18 +8,29 @@ import { knownOf, toFound } from './book.ts'
 import { isLevels } from './buffs.ts'
 import {
   CHAT_COPY,
+  crewChatLine,
   emoteLine,
   joinedLine,
   othersLine,
+  partyChatLine,
   peerNews,
   whisperLine,
 } from './chat.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { toCosmetics } from './cosmetics.ts'
+import { crewNews, crewRefusal } from './crews.ts'
 import { DAILY_TASK, taskLine, taskNews, taskOf } from './dailytask.ts'
 import { boughtLine, dealRefusal } from './dealer.ts'
 import { seenEmote } from './emotes.ts'
+import { lineOutOf, toAnglerWire } from './fishing.ts'
+import {
+  anglerNews,
+  catchLine,
+  fishRefusal,
+  jarRefusal,
+  skillUpLine,
+} from './fishlines.ts'
 import {
   friendNews,
   friendRefusal,
@@ -27,8 +38,10 @@ import {
   whisperRefusal,
 } from './friends.ts'
 import { freshPending } from './game.ts'
+import { inspectRefusal } from './inspect.ts'
 import { pickupLabel } from './interactions.ts'
 import { toInventory } from './inventory.ts'
+import { partyNews, partyRefusal } from './party.ts'
 import { levelUp } from './progression.ts'
 import { CLOSE } from './protocol.ts'
 import {
@@ -44,7 +57,15 @@ import { seasonOf } from './season.ts'
 import { buyRefusal } from './shop.ts'
 import { isStandLedger, refusalLine, standNews } from './stand.ts'
 import { formatCash } from './store.ts'
-import { newLeg, portalNews, reconcileBed, settledBy } from './worldsync.ts'
+import { toWaypoints } from './waypoints.ts'
+import {
+  giftsIn,
+  newLeg,
+  portalNews,
+  reconcileBed,
+  settledBy,
+  toolsIn,
+} from './worldsync.ts'
 import type { Actions } from './actions.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { Game } from './game.ts'
@@ -165,6 +186,34 @@ export function wireValley(game: Game, actions: Actions): void {
       case 'friend-news':
         hud.tell(friendNews(msg.news, msg.name))
         return
+      // A raider's card, asked for by E or /inspect.
+      case 'inspected':
+        actions.showInspected(msg.card)
+        return
+      // Rule 34: the party, its news, and a line said to it.
+      case 'party':
+        s.party = { members: msg.members, invites: msg.invites }
+        return
+      case 'party-news':
+        if (msg.news === 'sent' || msg.news === 'joined') {
+          s.pending.invite = null
+        }
+        hud.tell(partyNews(msg.news, msg.name, game.pick.username))
+        return
+      case 'party-chat':
+        hud.chatLine(partyChatLine(msg), now)
+        return
+      // Rule 35: the crew, its news, and a line said to it.
+      case 'crew':
+        s.crew = { crew: msg.crew, invites: msg.invites }
+        return
+      case 'crew-news':
+        s.pending.crew = null
+        hud.tell(crewNews(msg, game.pick.username))
+        return
+      case 'crew-chat':
+        hud.chatLine(crewChatLine(msg), now)
+        return
       case 'pong':
         return
       // Rule 11: the valley's shadowmen, every step, and a touch.
@@ -194,6 +243,10 @@ export function wireValley(game: Game, actions: Actions): void {
       // Rule 28: a Citgo stood at, written.
       case 'citgos':
         actions.applyCitgos(msg.citgos)
+        return
+      // Rule 37: a pin placed or lifted, on any socket of the account.
+      case 'waypoints':
+        actions.applyWaypoints(toWaypoints(msg.points))
         return
       // Rule 31: the laptop's answers, to its screen while it is open.
       case 'laptop-files':
@@ -363,7 +416,9 @@ export function wireValley(game: Game, actions: Actions): void {
       }
       hud.tell(buyRefusal(msg.reason, msg.item, s.cash))
     } else if (msg.re === 'call') {
-      hud.tell(copy('log.truck_busy'))
+      hud.tell(
+        copy(msg.reason === 'no-whistle' ? 'log.no_whistle' : 'log.truck_busy')
+      )
     } else if (msg.re === 'collect') {
       s.pending.collect = false
       hud.tell(copy('log.berry_refused'))
@@ -371,6 +426,19 @@ export function wireValley(game: Game, actions: Actions): void {
       hud.tell(CHAT_COPY.tooFast)
     } else if (msg.re === 'whisper') {
       hud.tell(whisperRefusal(msg.reason, s.pending.whisperTo ?? ''))
+    } else if (msg.re.startsWith('crew-')) {
+      hud.tell(crewRefusal(msg.reason, s.pending.crew ?? ''))
+      s.pending.crew = null
+    } else if (
+      msg.re === 'invite' ||
+      msg.re === 'party-leave' ||
+      msg.re === 'party-chat'
+    ) {
+      hud.tell(partyRefusal(msg.reason, s.pending.invite ?? ''))
+      s.pending.invite = null
+    } else if (msg.re === 'inspect') {
+      hud.tell(inspectRefusal(msg.reason, s.pending.inspect ?? ''))
+      s.pending.inspect = null
     } else if (msg.re === 'friend' || msg.re === 'unfriend') {
       hud.tell(friendRefusal(msg.reason, s.pending.ask?.name ?? ''))
       s.pending.ask = null
@@ -384,6 +452,8 @@ export function wireValley(game: Game, actions: Actions): void {
       hud.tell(passRefusal(msg.reason))
     } else if (msg.re === 'discover') {
       actions.bookRefused()
+    } else if (msg.re === 'waypoints') {
+      actions.waypointsRefused()
     } else if (msg.re === 'take-drop') {
       if (msg.drop !== undefined) s.pending.drops.delete(msg.drop)
       if (msg.reason === 'gone') hud.tell(copy('log.taken_first'))
@@ -429,6 +499,21 @@ export function wireValley(game: Game, actions: Actions): void {
       s.pending.recycle = false
       s.researchSaid = recycleRefusal(msg.reason)
       hud.tell(s.researchSaid)
+    } else if (msg.re === 'jar-slurm') {
+      // Rule 36: gone, out of reach, or no jar with room in it.
+      s.pending.jar = false
+      hud.tell(jarRefusal(msg.reason))
+    } else if (
+      msg.re === 'tackle' ||
+      msg.re === 'dig' ||
+      msg.re === 'cast' ||
+      msg.re === 'reel'
+    ) {
+      // Rule 36. A reel refused has no line left to reel.
+      s.pending.fish = false
+      if (msg.re === 'reel') s.line = null
+      s.fishSaid = fishRefusal(msg.reason)
+      hud.tell(s.fishSaid)
     } else if (msg.re.startsWith('laptop-')) {
       s.laptop?.refused(msg.reason)
     } else if (msg.re === 'portal') {
@@ -441,25 +526,36 @@ export function wireValley(game: Game, actions: Actions): void {
 
   // The valley's word on the pack, the wallet, the locker and which bodies
   // are ours replaces this client's guesses.
-  const applyPack = ({
-    pack,
-    cash,
-    cosmetics,
-    stash,
-    corpses,
-  }: {
-    pack: Inventory
-    cash: number
-    cosmetics: CosmeticId[]
-    stash: Inventory
-    corpses: number[]
-  }) => {
-    s.inventory = toInventory(pack)
+  // `welcomed`: the welcome's pack, which is no news; a later frame's
+  // gift (sharedworld.ts rule 38, worldsync.ts giftsIn) is said.
+  const applyPack = (
+    {
+      pack,
+      cash,
+      cosmetics,
+      stash,
+      corpses,
+    }: {
+      pack: Inventory
+      cash: number
+      cosmetics: CosmeticId[]
+      stash: Inventory
+      corpses: number[]
+    },
+    welcomed = false
+  ) => {
+    const next = toInventory(pack)
+    const gifts = welcomed ? [] : giftsIn(s.inventory, next)
+    const tools = welcomed ? [] : toolsIn(s.inventory, next)
+    s.inventory = next
     s.cash = cash
     s.stash = toInventory(stash)
     s.myCorpses = corpses
     actions.refreshBag()
     actions.wear(toCosmetics(cosmetics))
+    if (welcomed) actions.seedKit()
+    for (const kind of tools) actions.shelve(kind)
+    for (const kind of gifts) actions.gifted(kind)
   }
 
   // The account's progress through the season, when it is this season's;
@@ -495,7 +591,7 @@ export function wireValley(game: Game, actions: Actions): void {
       s.daily = msg.daily
       // What the account already wears is no news.
       s.cosmetics = toCosmetics(msg.cosmetics)
-      applyPack(msg)
+      applyPack(msg, true)
       applySeason(msg.season)
       applyTask(msg.task)
       // What the account has found already is no news.
@@ -505,6 +601,7 @@ export function wireValley(game: Game, actions: Actions): void {
       s.quests = toQuests(msg.quests)
       // The Citgos the account has stood at already are no news.
       actions.applyCitgos(msg.citgos, true)
+      actions.applyWaypoints(toWaypoints(msg.waypoints))
     } else if (msg.type === 'quest') {
       // Rule 26: a step of a quest went through, to every socket on the
       // account. Its pack frame follows.
@@ -551,6 +648,40 @@ export function wireValley(game: Game, actions: Actions): void {
     } else if (msg.type === 'found') {
       // Rule 33: loose change, already in the wallet the pack frame says.
       hud.tell(foundLine(msg.dimes))
+    } else if (msg.type === 'angler') {
+      // Rule 36: the angler as read, or after a dig, the rod or a catch,
+      // to every socket on the account. A dig's and the rod's pack frame
+      // follows.
+      const angler = toAnglerWire(msg.angler)
+      if (angler) s.angler = angler
+      const news = anglerNews(msg)
+      if (!news) return
+      s.pending.fish = false
+      s.fishSaid = news
+      hud.tell(news)
+    } else if (msg.type === 'line') {
+      // Rule 36: the line in the water, as dealt; the dialog plays it.
+      s.pending.fish = false
+      s.fishSaid = null
+      s.line = lineOutOf(msg, performance.now())
+    } else if (msg.type === 'slurm-jarred') {
+      // Rule 36: a slurm off the lot into someone's jar; ours, its pack
+      // frame follows.
+      world.shelves.jarSlurm(msg.station, msg.slot, msg.index)
+      if (msg.by !== net.id) return
+      s.pending.jar = false
+      game.sfx?.play('jar-clink')
+      hud.tell(copy('log.slurm_jarred'))
+    } else if (msg.type === 'catch') {
+      // Rule 36: how the line came out; a landed fish's pack frame
+      // follows.
+      s.pending.fish = false
+      s.line = null
+      s.fishSaid = catchLine(msg)
+      // A fish too big for the skill breaks the line as it comes in.
+      if (msg.outcome === 'snap') game.sfx?.play('line-snap')
+      hud.tell(s.fishSaid)
+      if (msg.up) hud.tell(skillUpLine(msg.skill))
     } else if (msg.type === 'task') {
       // Rule 16: credited with a burn. A reward's pack frame follows.
       if (!applyTask(msg.task)) return

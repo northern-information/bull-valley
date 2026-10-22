@@ -1,4 +1,5 @@
 import { CONFIG } from '../../src/config.ts'
+import { isKeyItem } from '../../src/items.ts'
 import { inChannel } from '../../src/moat.ts'
 import { copy } from './copy.ts'
 import { beginRaid, expect, heardWhere, test } from './fixtures.ts'
@@ -13,8 +14,8 @@ import type { Page } from '@playwright/test'
 
 // A spot on the outer rim to run straight off at `speed`, found by
 // falling from it as the game does (gravity, the pipes' catch, the
-// ground): where every fall from a metre either side, at the speed and a
-// little short of it, is `caught` on a pipe short of a fatal fall, or
+// ground): where every fall from a metre either side, at the speed and
+// short of it (a short run-up inside the fence), is `caught` on a pipe short of a fatal fall, or
 // reaches the `floor` with nothing on the way. The raider is set down
 // `back` metres short of it, facing out over the channel; it says how
 // high the rim is there.
@@ -22,7 +23,7 @@ async function offTheRim(
   page: Page,
   speed: number,
   want: 'caught' | 'floor',
-  back = 4
+  back = 0.8
 ): Promise<{ rim: number }> {
   return page.evaluate(
     ({ speed, want, back, fall }) => {
@@ -67,7 +68,7 @@ async function offTheRim(
         if (out.x * mx + out.z * mz > 0) out = { x: -out.x, z: -out.z }
         for (let d = 10; d < len - 10; d += 0.5) {
           const fine = [-1, 0, 1].every((dd) =>
-            [speed * 0.85, speed].every((v0) => {
+            [speed * 0.7, speed].every((v0) => {
               const x = a.x + u.x * (d + dd)
               const z = a.z + u.z * (d + dd)
               const end = land(x, z, out, v0)
@@ -92,10 +93,14 @@ async function offTheRim(
 
 const health = (page: Page) => page.evaluate(() => window.__bv?.health ?? 0)
 
-const carrying = (page: Page) =>
-  page.evaluate(() =>
-    Object.values(window.__bv?.inventory ?? {}).reduce((sum, n) => sum + n, 0)
-  )
+// What the pack holds that a strike takes: everything but the key items
+// (the flashlight and the phone among them), which stay.
+const carrying = async (page: Page) => {
+  const pack = await page.evaluate(() => window.__bv?.inventory ?? {})
+  return Object.entries(pack)
+    .filter(([kind]) => !isKeyItem(kind))
+    .reduce((sum, [, n]) => sum + n, 0)
+}
 
 test("sprinting off the moat's rim shatters, the body at the bottom", async ({
   page,
@@ -105,8 +110,8 @@ test("sprinting off the moat's rim shatters, the body at the bottom", async ({
   await page.evaluate(() => window.__bv?.grant('marlboro', 20))
   await expect.poll(() => carrying(page)).toBeGreaterThan(19)
 
-  // On the rim a run-up back from a spot where no pipe on the way down
-  // catches a sprinter.
+  // On the rim just back from the edge, inside the fence (castleyard.ts),
+  // where no pipe on the way down catches a sprinter.
   const place = await page.evaluate(() => window.__bv?.world.castle?.place)
   if (!place) throw new Error('No castle in the valley')
   await offTheRim(page, CONFIG.player.sprintSpeed, 'floor')
@@ -206,16 +211,26 @@ test('a slurm in the moat squashes underfoot', async ({ page }) => {
       0
     )
   })
-  // Wait for one down and crawling, then stand on the youngest (the
-  // others may be near the end of their lying, about to melt anyway).
+  // Wait for one down and crawling out from under the pipes, then stand
+  // on the youngest (the others may be near the end of their lying, about
+  // to melt anyway): a raider is set down on the highest deck where they
+  // stand, and a pipe over a slurm would hold them up off it.
   const crawling = () =>
-    page.evaluate(
-      () =>
-        window.__bv?.world.castle
-          ?.slurms()
-          .filter((s) => s.phase === 'crawling')
+    page.evaluate(() => {
+      const bv = window.__bv
+      const castle = bv?.world.castle
+      if (!bv || !castle) return null
+      return (
+        castle
+          .slurms()
+          .filter(
+            (s) =>
+              s.phase === 'crawling' &&
+              bv.world.ground.at(s.x, s.z) < castle.floor + 1
+          )
           .at(-1) ?? null
-    )
+      )
+    })
   await expect.poll(crawling, { timeout: 60_000 }).not.toBeNull()
   const slurm = await crawling()
   if (!slurm) throw new Error('No slurm crawling')
@@ -349,8 +364,9 @@ test('a raider who walks off the rim lands on a pipe, hurt', async ({
   page,
 }) => {
   await beginRaid(page)
-  // A step back from a spot where a pipe catches whoever walks off.
-  const { rim } = await offTheRim(page, CONFIG.player.walkSpeed, 'caught', 1)
+  // Inside the fence, a step back from a spot where a pipe catches
+  // whoever walks off.
+  const { rim } = await offTheRim(page, CONFIG.player.walkSpeed, 'caught')
   await heardWhere(page)
   const whole = await health(page)
   // Walked off the edge, and let go of the key on the way down (clinging
@@ -374,4 +390,61 @@ test('a raider who walks off the rim lands on a pipe, hurt', async ({
   expect(await page.evaluate(() => window.__bv?.strikes)).toBe(0)
   expect(await health(page)).toBeLessThanOrEqual(whole)
   expect(await health(page)).toBeGreaterThan(0)
+})
+
+test('the payphone on the rim, once found, is a stop for fast travel', async ({
+  page,
+}) => {
+  test.slow()
+  await beginRaid(page)
+  const phoneAt = () =>
+    page.evaluate(() => {
+      const phone = window.__bv?.world.payphones[0]
+      if (!phone) throw new Error('No payphone in the valley')
+      return { x: phone.x, z: phone.z }
+    })
+  const fromPhone = async () => {
+    const at = await phoneAt()
+    return page.evaluate((at) => {
+      const { x, z } = window.__bv!.player.pos
+      return Math.hypot(x - at.x, z - at.z)
+    }, at)
+  }
+  // Not yet found: no fast travel there.
+  await page.evaluate(() => window.__bv?.phoneTravel(0))
+  expect(await fromPhone()).toBeGreaterThan(50)
+
+  // Stand at it, and the valley writes it in the account's log.
+  const at = await phoneAt()
+  await page.evaluate((at) => {
+    const phone = window.__bv!.world.payphones[0]
+    window.__bv?.player.relocate(
+      at.x + Math.cos(phone.yaw) * 1.5,
+      at.z + Math.sin(phone.yaw) * 1.5,
+      0
+    )
+  }, at)
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.citgos.phones ?? []), {
+      timeout: 15_000,
+    })
+    .toContain(0)
+  await expect(page.locator('.bv-chat')).toContainText(
+    copy('log.payphone_found')
+  )
+
+  // From the payphone to the spawn Citgo, and back again.
+  const home = await page.evaluate(() => window.__bv?.citgos.last ?? 0)
+  await page.evaluate((i) => window.__bv?.fastTravel(i), home)
+  await expect
+    .poll(() =>
+      page.evaluate((i) => {
+        const bv = window.__bv!
+        const ring = bv.world.rings[i]
+        return Math.hypot(bv.player.pos.x - ring.x, bv.player.pos.z - ring.z)
+      }, home)
+    )
+    .toBeLessThan(1)
+  await page.evaluate(() => window.__bv?.phoneTravel(0))
+  await expect.poll(fromPhone).toBeLessThan(2.5)
 })

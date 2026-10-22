@@ -1,33 +1,44 @@
 // The map (M): the valley from above, its roads and every Citgo, the ones
 // the account has stood at lit in Citgo red and the last of them (where
-// the phone's portal goes) ringed and named, with the raider an arrow
-// among them. Clicking a visited Citgo fast travels there (actions.ts,
-// citgos.ts fastTravel). Opened for a charter (the first one into Marx's
-// bed, marx.ts charter), a click anywhere picks where he drives instead. It opens over the valley with the pointer free, as
-// the Book of Shadows does; hud.ts builds it, loop.ts draws it each frame
-// while it is open.
+// the phone's portal goes) ringed and named, every payphone the account
+// has found a pale blue dot (one not found is not shown), with the raider
+// an arrow among them, and each of their party (sharedworld.ts rule 34) a
+// named arrow of its own. Clicking a visited Citgo or a found payphone fast
+// travels there (actions.ts, citgos.ts fastTravel). Opened for a charter
+// (the first one into Marx's bed, marx.ts charter), a click anywhere picks
+// where he drives instead. Otherwise a click anywhere else pins a waypoint
+// there (waypoints.ts, sharedworld.ts rule 37), and a click on a pin lifts
+// it. It opens over the valley with the pointer free, as the Book of
+// Shadows does; hud.ts builds it, loop.ts draws it each frame while it is
+// open.
 
 import { context2d, EGGSHELL, MONO } from './canvas.ts'
-import { roadNameNear, surveyedStations } from './citgos.ts'
+import { phonesOf, roadNameNear, surveyedStations } from './citgos.ts'
 import { unitToWorld } from './coords.ts'
 import { copy } from './copy.ts'
 import { el } from './dom.ts'
-import type { CitgoLog, MapRoad } from './citgos.ts'
+import { liftWaypoint, placeWaypoint, WAYPOINT_MAX } from './waypoints.ts'
+import type { CitgoLog, MapRoad, Stop } from './citgos.ts'
 import type { Facing } from './drops.ts'
 import type { Geo, Metres, XZ } from './interfaces.ts'
+import type { Waypoints } from './waypoints.ts'
 
-// One Citgo on the map: where its pump island stands, and what it is
-// called there.
+// One Citgo or payphone on the map: where it stands, and what it is called
+// there.
 interface MapCitgo extends XZ {
   label: string
 }
 
 // What one frame of the open map shows: where the raider stands and faces,
-// their Citgos, and the one they stand at (null: out in the valley).
+// their Citgos and payphones, the one they stand at and may fast travel
+// from (null: out in the valley), where each of their party placed in the
+// valley stands and faces, and their waypoints.
 interface MapFrame {
   me: Facing
   log: CitgoLog
-  here: number | null
+  here: Stop | null
+  party?: readonly (Facing & { name: string })[]
+  marks?: Waypoints
 }
 
 // The canvas, square, in its own pixels; CSS sizes it.
@@ -35,7 +46,10 @@ const SIZE = 720
 // Pixels round a Citgo a pointer may land and still pick it.
 const PICK = 14
 const CITGO = '#ff4a1c'
+const PAYPHONE = '#9ec5ff'
 const RAIDER = '#60a5fa'
+const PARTY = '#22d3ee'
+const PIN = '#f0ead6'
 const ROAD = 'rgba(240, 234, 214, 0.22)'
 const UNVISITED = 'rgba(240, 234, 214, 0.45)'
 // How near a Citgo a point is still called after it.
@@ -43,25 +57,36 @@ const NEAR_CITGO = 80
 
 export class CitgoMap {
   readonly root: HTMLElement
-  // A visited Citgo clicked: actions.ts fast travels there.
-  onTravel?: (station: number) => void
+  // A visited Citgo or a found payphone clicked: actions.ts fast travels
+  // there.
+  onTravel?: (to: Stop) => void
   // Opened for a charter, a point clicked: actions.ts has Marx drive there.
   onCharter?: (to: XZ) => void
+  // A pin placed or lifted: every waypoint as it should now stand, for
+  // actions.ts to send the valley.
+  onMark?: (marks: Waypoints) => void
   private readonly canvas: HTMLCanvasElement
   private readonly ctx: CanvasRenderingContext2D
   private readonly count: HTMLElement
+  private readonly pinCount: HTMLElement
   private readonly last: HTMLElement
   private readonly hint: HTMLElement
   private readonly citgos: readonly MapCitgo[]
+  private readonly phones: readonly MapCitgo[]
+  // The payphones found, as the last frame drew them: only those pick.
+  private found: readonly number[] = []
   private readonly roads: readonly MapRoad[]
   // World metres per canvas pixel, and the world point at its middle.
   private readonly scale: number
   private base: HTMLCanvasElement | null = null
-  private hovered: number | null = null
+  private hovered: Stop | null = null
   // Whether a click picks where Marx drives (a charter), and the world
   // point under the pointer while it does.
   private charter = false
   private pointer: XZ | null = null
+  // The waypoints as last drawn, and the one under the pointer.
+  private marks: Waypoints = []
+  private hoveredPin: number | null = null
 
   constructor(
     ui: HTMLElement,
@@ -69,14 +94,17 @@ export class CitgoMap {
       roads,
       metres,
       citgos,
+      phones = [],
     }: {
       roads: readonly MapRoad[]
       metres: Metres
       citgos: readonly MapCitgo[]
+      phones?: readonly MapCitgo[]
     }
   ) {
     this.roads = roads
     this.citgos = citgos
+    this.phones = phones
     this.scale = Math.max(metres.width, metres.height) / SIZE
 
     this.root = el('section', 'bv-map')
@@ -85,7 +113,12 @@ export class CitgoMap {
     this.root.hidden = true
     const head = el('header', 'bv-map-head')
     this.count = el('p', 'bv-map-count')
-    head.append(el('h2', 'bv-map-title', copy('map.title')), this.count)
+    this.pinCount = el('p', 'bv-map-count')
+    head.append(
+      el('h2', 'bv-map-title', copy('map.title')),
+      this.count,
+      this.pinCount
+    )
     this.canvas = el('canvas', 'bv-map-canvas')
     this.canvas.width = SIZE
     this.canvas.height = SIZE
@@ -99,26 +132,36 @@ export class CitgoMap {
 
     this.canvas.addEventListener('mousemove', (e) => {
       this.hovered = this.pick(e)
+      this.hoveredPin = this.charter ? null : this.pickPin(e)
       this.pointer = this.charter ? this.toWorld(e) : null
-      this.canvas.style.cursor = this.charter
-        ? 'crosshair'
-        : this.hovered === null
-          ? ''
+      this.canvas.style.cursor =
+        this.charter || (this.hovered === null && this.hoveredPin === null)
+          ? 'crosshair'
           : 'pointer'
     })
     this.canvas.addEventListener('mouseleave', () => {
       this.hovered = null
+      this.hoveredPin = null
       this.pointer = null
     })
     this.canvas.addEventListener('click', (e) => {
       // Not a click past the map, which closes it.
       e.stopPropagation()
-      const station = this.pick(e)
+      const stop = this.pick(e)
       if (this.charter) {
-        const to = station === null ? this.toWorld(e) : this.citgos[station]
+        const to = stop === null ? this.toWorld(e) : this.placeOfStop(stop)
         if (to) this.onCharter?.({ x: to.x, z: to.z })
-      } else if (station !== null) {
-        this.onTravel?.(station)
+      } else if (stop !== null) {
+        this.onTravel?.(stop)
+      } else {
+        const pin = this.pickPin(e)
+        if (pin !== null) {
+          this.hoveredPin = null
+          this.onMark?.(liftWaypoint(this.marks, pin))
+        } else {
+          const at = this.toWorld(e)
+          if (at) this.onMark?.(placeWaypoint(this.marks, at))
+        }
       }
     })
   }
@@ -126,6 +169,11 @@ export class CitgoMap {
   // What the map calls Citgo `station`.
   label(station: number): string {
     return this.citgos[station]?.label ?? ''
+  }
+
+  // A Citgo or a payphone, as the map has it.
+  private placeOfStop(stop: Stop): MapCitgo | undefined {
+    return 'citgo' in stop ? this.citgos[stop.citgo] : this.phones[stop.phone]
   }
 
   // What a point is called: the Citgo it is by, or the road it is near.
@@ -151,6 +199,7 @@ export class CitgoMap {
     this.root.classList.toggle('bv-map--charter', this.charter)
     if (!show) {
       this.hovered = null
+      this.hoveredPin = null
       this.pointer = null
     }
     return show
@@ -172,8 +221,25 @@ export class CitgoMap {
     return { x: (px - SIZE / 2) * this.scale, z: (py - SIZE / 2) * this.scale }
   }
 
-  // The Citgo under the pointer, or null.
-  private pick(e: MouseEvent): number | null {
+  // The Citgo or found payphone under the pointer, or null.
+  private pick(e: MouseEvent): Stop | null {
+    const stops: Stop[] = this.citgos.map((_, citgo) => ({ citgo }))
+    for (const phone of this.found) {
+      if (this.phones[phone]) stops.push({ phone })
+    }
+    const at = stops.map((stop) => this.placeOfStop(stop) as MapCitgo)
+    const i = this.nearest(e, at)
+    return i === null ? null : stops[i]
+  }
+
+  // The waypoint under the pointer, or null.
+  private pickPin(e: MouseEvent): number | null {
+    return this.nearest(e, this.marks)
+  }
+
+  // The one of `points` within PICK of the pointer and nearest it, or
+  // null.
+  private nearest(e: MouseEvent, points: readonly XZ[]): number | null {
     const box = this.canvas.getBoundingClientRect()
     if (box.width === 0) return null
     const k = SIZE / box.width
@@ -181,7 +247,7 @@ export class CitgoMap {
     const py = (e.clientY - box.top) * k
     let best: number | null = null
     let bestD = PICK * k
-    this.citgos.forEach((c, i) => {
+    points.forEach((c, i) => {
       const { x, y } = this.toCanvas(c)
       const d = Math.hypot(px - x, py - y)
       if (d <= bestD) {
@@ -190,6 +256,14 @@ export class CitgoMap {
       }
     })
     return best
+  }
+
+  private isHovered(stop: Stop): boolean {
+    const h = this.hovered
+    if (h === null) return false
+    return 'citgo' in stop
+      ? 'citgo' in h && h.citgo === stop.citgo
+      : 'phone' in h && h.phone === stop.phone
   }
 
   // The roads, drawn once.
@@ -214,7 +288,29 @@ export class CitgoMap {
     return base
   }
 
-  draw({ me, log, here }: MapFrame): void {
+  // An arrow at `at` along a facing of `yaw` (the camera looks along
+  // (-sin yaw, -cos yaw)).
+  private arrow(at: { x: number; y: number }, yaw: number, fill: string) {
+    const ctx = this.ctx
+    ctx.save()
+    ctx.translate(at.x, at.y)
+    ctx.rotate(-yaw)
+    ctx.fillStyle = fill
+    ctx.beginPath()
+    ctx.moveTo(0, -9)
+    ctx.lineTo(6, 7)
+    ctx.lineTo(0, 3)
+    ctx.lineTo(-6, 7)
+    ctx.closePath()
+    ctx.fill()
+    ctx.restore()
+  }
+
+  draw({ me, log, here, party = [], marks = [] }: MapFrame): void {
+    this.marks = marks
+    if (this.hoveredPin !== null && this.hoveredPin >= marks.length) {
+      this.hoveredPin = null
+    }
     const ctx = this.ctx
     ctx.clearRect(0, 0, SIZE, SIZE)
     ctx.drawImage(this.roadLayer(), 0, 0)
@@ -239,31 +335,62 @@ export class CitgoMap {
         ctx.arc(x, y, 11, 0, Math.PI * 2)
         ctx.stroke()
       }
-      if (i === log.last || i === this.hovered) {
+      if (i === log.last || this.isHovered({ citgo: i })) {
         ctx.fillStyle = EGGSHELL
         ctx.fillText(c.label, x, y - 14)
       }
     })
-    // The raider: an arrow along their facing (the camera looks along
-    // (-sin yaw, -cos yaw)).
-    const { x, y } = this.toCanvas(me)
-    ctx.save()
-    ctx.translate(x, y)
-    ctx.rotate(-me.yaw)
-    ctx.fillStyle = RAIDER
-    ctx.beginPath()
-    ctx.moveTo(0, -9)
-    ctx.lineTo(6, 7)
-    ctx.lineTo(0, 3)
-    ctx.lineTo(-6, 7)
-    ctx.closePath()
-    ctx.fill()
-    ctx.restore()
+    // The payphones found, each a dot, named under the pointer.
+    this.found = phonesOf(log)
+    for (const phone of this.found) {
+      const p = this.phones[phone] as MapCitgo | undefined
+      if (!p) continue
+      const { x, y } = this.toCanvas(p)
+      ctx.fillStyle = PAYPHONE
+      ctx.beginPath()
+      ctx.arc(x, y, 5, 0, Math.PI * 2)
+      ctx.fill()
+      if (this.isHovered({ phone })) {
+        ctx.fillStyle = EGGSHELL
+        ctx.fillText(p.label, x, y - 12)
+      }
+    }
+    this.canvas.dataset.phones = this.found.join(',')
+    // The waypoints: numbered diamonds, the hovered one named.
+    marks.forEach((mark, i) => {
+      const { x, y } = this.toCanvas(mark)
+      ctx.fillStyle = PIN
+      ctx.beginPath()
+      ctx.moveTo(x, y - 7)
+      ctx.lineTo(x + 6, y)
+      ctx.lineTo(x, y + 7)
+      ctx.lineTo(x - 6, y)
+      ctx.closePath()
+      ctx.fill()
+      ctx.fillText(
+        i === this.hoveredPin
+          ? copy('map.pin', { n: i + 1, place: this.placeOf(mark) })
+          : String(i + 1),
+        x,
+        y - 10
+      )
+    })
+    this.canvas.dataset.pins = String(marks.length)
+    // The party, each named, under the raider's own arrow.
+    for (const mate of party) {
+      const at = this.toCanvas(mate)
+      this.arrow(at, mate.yaw, PARTY)
+      ctx.fillStyle = PARTY
+      ctx.fillText(mate.name, at.x, at.y - 12)
+    }
+    this.canvas.dataset.party = party.map((mate) => mate.name).join(',')
+    // The raider: an arrow along their facing.
+    this.arrow(this.toCanvas(me), me.yaw, RAIDER)
 
     // A charter: a cross where the pointer is, named.
     if (this.charter && this.pointer) {
       const at =
-        this.hovered === null ? this.pointer : this.citgos[this.hovered]
+        (this.hovered && this.placeOfStop(this.hovered)) ?? this.pointer
       const p = this.toCanvas(at)
       ctx.strokeStyle = EGGSHELL
       ctx.lineWidth = 2
@@ -282,6 +409,10 @@ export class CitgoMap {
     this.count.textContent = copy('map.visited', {
       count: log.visited.length,
       total: this.citgos.length,
+    })
+    this.pinCount.textContent = copy('map.pins', {
+      count: marks.length,
+      max: WAYPOINT_MAX,
     })
     const last = log.last === null ? null : this.citgos[log.last]
     this.last.textContent = last

@@ -5,8 +5,8 @@
 import { pulseMaterials } from './assets.ts'
 import { itemsHeld, sightsInReach } from './book.ts'
 import { activeBuffs } from './buffbar.ts'
-import { sprintScale } from './buffs.ts'
-import { citgoAt } from './citgos.ts'
+import { passTarget, sprintScale } from './buffs.ts'
+import { phonesOf, stopAt } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { moabOffer } from './cosmetics.ts'
@@ -14,8 +14,19 @@ import { dayKey } from './daily.ts'
 import { onDay, shownCount } from './dailytask.ts'
 import { EMOTES, holds } from './emotes.ts'
 import { hurts } from './fall.ts'
+import { havenNews } from './fireflies.ts'
+import { BOX_ROD, inPond, jarRoom, nearestLanding, rodIn } from './fishing.ts'
 import { ease, stepHand, useLift, useSeconds } from './hands.ts'
 import { shakeAt } from './health.ts'
+import {
+  baitFor,
+  CAST,
+  castPose,
+  inHand,
+  SCOOP,
+  scoopPose,
+  toolOf,
+} from './held.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
 import {
   dailyStatus,
@@ -310,19 +321,54 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     }
   }
 
-  // The hands: the flashlight lit once it is all the way up, and the item
-  // just used brought up once. Says whether the flashlight is lit.
+  // The hands: the selected slot's tool raised (held.ts), the flashlight
+  // lit once it is all the way up, a jar or a rod held up in its place
+  // (the jar scooping on a click, the rod casting), and the item just
+  // used brought up once. A new tool comes up from below, the flashlight
+  // dark, and a line out goes with the rod. Says whether the flashlight
+  // is lit.
   const raiseHands = ({ dt, time }: FrameClock): boolean => {
+    const held = toolOf(inHand(s.hotbar, s.selected, s.inventory))
+    if (held !== s.held) {
+      if (s.held === 'rod') game.fishHud.giveUp()
+      s.held = held
+      s.flashlight = { up: held === 'jar' || held === 'rod', lift: 0 }
+    }
     s.flashlight = stepHand(s.flashlight, dt)
     if (s.using && time - s.using.at >= useSeconds()) s.using = null
-    const lit = s.flashlight.up && s.flashlight.lift >= 1
+    const lit =
+      s.held === 'flashlight' && s.flashlight.up && s.flashlight.lift >= 1
     const using = s.using ? useLift(s.using.at, time) : 0
+    // The rod's cast, played out once and done with.
+    if (
+      s.castAt !== null &&
+      (s.held !== 'rod' || time - s.castAt >= CAST.lands)
+    ) {
+      // The bobber down on the water, with a line out to land it on.
+      if (s.held === 'rod' && (s.line || s.pending.fish)) {
+        game.sfx?.play('bobber-plop')
+      }
+      s.castAt = null
+    }
+    // The jar's scoop, played out once and done with.
+    if (
+      s.scoopAt !== null &&
+      (s.held !== 'jar' || time - s.scoopAt >= SCOOP.settle)
+    ) {
+      s.scoopAt = null
+    }
     hands.update({
       left: ease(s.flashlight.lift),
+      cast: s.castAt === null ? 0 : castPose(time - s.castAt).tilt,
+      scoop: scoopPose(s.scoopAt === null ? -1 : time - s.scoopAt),
+      held:
+        s.held === 'rod' ? (rodIn(s.inventory) ?? BOX_ROD) : (s.held ?? 'none'),
       right: ease(using),
       kind: s.using?.kind ?? null,
       on: lit,
     })
+    // The line in the water, stepped on the clock its bite was set by.
+    game.fishHud.update(s.line, performance.now())
     return lit
   }
 
@@ -450,6 +496,30 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     if (world.wreck && live(world.wreck.group.position)) {
       world.wreck.update(time)
     }
+    // The fireflies blink over each pond near enough to see, and the
+    // bobber floats while a line is out, off the pond the raider stands
+    // at (fishing.ts).
+    for (const pond of world.ponds) {
+      if (!live(pond.place, pond.place.radius)) continue
+      // The bobber is on the water once the cast has flown.
+      const line =
+        inPond([pond.place], player.pos) && s.castAt === null ? s.line : null
+      pond.setLine(
+        line !== null,
+        line?.hook != null && performance.now() >= line.bitesAt
+      )
+      pond.update(time, net.clock.serverNow(now) / 1000)
+    }
+    // Into a pond's firefly haven, or out of it, the log says so; not
+    // until the welcome has put the raider where they stand.
+    const sheltered = inPond(
+      world.ponds.map((pond) => pond.place),
+      player.pos
+    )
+    const news = havenNews(s.placed ? s.inFireflies : null, sheltered)
+    if (news)
+      hud.tell(copy(news === 'in' ? 'log.fireflies_in' : 'log.fireflies_out'))
+    s.inFireflies = s.placed ? sheltered : null
     // The dishes slew on the valley's clock, so every raider sees them
     // look the same way.
     const dishes = world.dishes
@@ -491,13 +561,32 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     return portalNow
   }
 
-  // The map, while it is open: where you stand, your Citgos.
+  // Rule 34: the others in the raider's party, by name.
+  const partyMates = () =>
+    s.party.members
+      .map((m) => m.name)
+      .filter((name) => name !== game.pick.username)
+
+  // The Citgo or the found payphone fast travel would leave from.
+  const travelFrom = () => {
+    if (s.aboard) return null
+    const stop = stopAt(player.pos, world.fuelPoints, world.payphones)
+    if (stop && 'phone' in stop) {
+      return phonesOf(s.citgos).includes(stop.phone) ? stop : null
+    }
+    return stop
+  }
+
+  // The map, while it is open: where you stand, your Citgos and payphones,
+  // your party, and your waypoints.
   const drawMap = () => {
     if (s.mapOpen) {
       hud.map?.draw({
         me: { x: player.pos.x, z: player.pos.z, yaw: player.yaw },
         log: s.citgos,
-        here: s.aboard ? null : citgoAt(player.pos, world.fuelPoints),
+        here: travelFrom(),
+        party: peers.placed(partyMates()),
+        marks: s.waypoints,
       })
     }
   }
@@ -536,6 +625,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         pose: s.emoting?.id ?? poseOf(moveSpeed, crouching),
         riding: s.aboard,
         light: lit,
+        ...(s.held === 'flashlight' ? {} : { held: s.held ?? 'none' }),
       }
       if (stateChanged(s.lastSent, state)) {
         s.lastSent = state
@@ -562,9 +652,14 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     return tick
   }
 
-  // The countdown, the hotbar, geometrie and the buffs, the tracker's
-  // rows, and the chat log.
+  // The compass, the countdown, the hotbar, geometrie and the buffs, the
+  // tracker's rows, and the chat log.
   const stepHud = ({ now, time }: FrameClock) => {
+    hud.compass.set({
+      me: { x: player.pos.x, z: player.pos.z, yaw: player.yaw },
+      waypoints: s.waypoints,
+      party: peers.placed(partyMates()),
+    })
     hud.setCountdown(countdownLine(now))
 
     hud.setHotbar(
@@ -573,7 +668,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         if (!item) return []
         const cooldown = cooldownOf(kind, s.effects, time)
         return [{ slot, item, icon: thumbs.icon(kind), cooldown }]
-      })
+      }),
+      s.selected
     )
     const levels = levelsAt(s.wards, time)
     hud.setWards(levels)
@@ -730,6 +826,24 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       wreck: world.wreck
         ? { x: world.wreck.group.position.x, z: world.wreck.group.position.z }
         : null,
+      slurms:
+        s.held === 'jar' && jarRoom(s.inventory)
+          ? world.shelves.crawlingSlurms()
+          : [],
+      tackle: nearestLanding(
+        world.ponds.map((pond) => pond.place),
+        player.pos
+      ),
+      cast:
+        s.held === 'rod' &&
+        !s.line &&
+        !s.pending.fish &&
+        inPond(
+          world.ponds.map((pond) => pond.place),
+          player.pos
+        )
+          ? { bait: baitFor(s.bait, s.inventory) }
+          : undefined,
       dealer: world.plaza?.dealer.at ?? null,
       trapdoor: world.undercroft?.hatch ?? null,
       ladder: world.undercroft?.foot ?? null,
@@ -737,6 +851,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       heart: heartSpot(),
       locked: lockedDoor(),
       hallucinations: s.aboard ? [] : game.hallucinations.spots(),
+      raider: s.aboard
+        ? null
+        : passTarget(player.pos, player.yaw, game.peers.standing()),
     })
   }
 
@@ -827,7 +944,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     drawMap()
     feelStrikes(clock.now)
     peers.update(clock.dt, renderAt)
-    hud.setParty(peers.party(camera.position))
+    hud.setParty(peers.party(camera.position, partyMates()))
     const tick = sendState(clock, feet, lit)
     stepHud(clock)
     stepPhone(clock.dt, portalNow)

@@ -1,6 +1,15 @@
 import * as THREE from 'three'
 import { buildCastle, buildCrane, buildMoat } from './assets.ts'
 import { castleOf } from './castle.ts'
+import {
+  apronOf,
+  clutterWall,
+  payphoneSpot,
+  yardClutter,
+  yardLamps,
+  yardPoles,
+} from './castleyard.ts'
+import { buildYard } from './castleyardmodel.ts'
 import { CONFIG } from './config.ts'
 import { pointInPolygon } from './coords.ts'
 import { dayKey } from './daily.ts'
@@ -22,6 +31,7 @@ import { moatSlurmsAt } from './moatslurms.ts'
 import { buildSlurm } from './slurmmodel.ts'
 import { treads, underfoot } from './slurms.ts'
 import type { CastleRig, CraneRig, MoatRig } from './assets.ts'
+import type { YardSpot } from './castleyard.ts'
 import type { Ground } from './ground.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
 import type { MazePlace } from './maze.ts'
@@ -35,8 +45,10 @@ import type { Walls } from './walls.ts'
 // terrain (world.ts carves it before anything stands), its fire escapes
 // registered on the Ground flight by flight and their rails, the rim's
 // ledge, the island's edge and the pipes on the Walls (the pipes' tops on
-// the Ground too), the moat drawn, the cranes on
-// the rim, the slurms dropping off the edges and the cranes' hooks into
+// the Ground too), the moat drawn, the concrete poured round the rim (on
+// the Ground) and the works on it (castleyard.ts: the bent poles, the
+// supplies, the light towers and the payphone, each on the Walls), the
+// cranes on the rim, the slurms dropping off the edges and the cranes' hooks into
 // the channel (moatslurms.ts), and today's castle floating over the
 // island, made anew when the day turns.
 
@@ -61,6 +73,8 @@ export interface CastleSite {
     to: number,
     start: number
   ) => (XZ & { y: number }) | null
+  // The payphone on the rim (castleyard.ts payphoneSpot).
+  payphone: YardSpot
   // `t` the shared clock in seconds, `day` its Central day: the castle
   // bobs and its beams turn wherever the raider is; the moat, the cranes
   // and the slurms move only `near` it, squashed under any of `feet`
@@ -122,6 +136,33 @@ export function buildCastleSite(
     middle: place,
   })
   group.add(moat.group)
+
+  // The concrete round the rim, then the works on it.
+  const apron = apronOf(place)
+  const yardCfg = CONFIG.castle.yard
+  ground.addTrail(apron.line, apron.width, yardCfg.lift)
+  const poles = yardPoles(place)
+  for (const pole of poles) walls.addWall(pole, pole, yardCfg.poles.radius)
+  const clutter = yardClutter(place)
+  for (const pile of clutter) {
+    const wall = clutterWall(pile)
+    walls.addWall(wall.a, wall.b, wall.half)
+  }
+  const lamps = yardLamps(place)
+  for (const lamp of lamps) walls.addWall(lamp, lamp, 1.2)
+  const payphone = payphoneSpot(place)
+  walls.addWall(payphone, payphone, 0.4)
+  const yard = buildYard({
+    apron,
+    poles,
+    clutter,
+    lamps,
+    payphone,
+    raw,
+    lift: yardCfg.lift,
+    at: ground.at,
+  })
+  group.add(yard.group)
 
   const cranes: CraneRig[] = craneSpots(place).map((spot) => {
     const crane = buildCrane(spot.seed, spot.reach)
@@ -272,6 +313,7 @@ export function buildCastleSite(
       return []
     }
     moat.update(t)
+    yard.update(t)
     for (const crane of cranes) crane.update(t)
     return stepSlurms(t, feet)
   }
@@ -289,6 +331,7 @@ export function buildCastleSite(
       inChannel(place, x, z)
         ? catchPipe(decks, { x, z }, from, to, start)
         : null,
+    payphone,
     update,
     day: () => today,
     slurms: () => drawn,

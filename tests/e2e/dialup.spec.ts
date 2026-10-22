@@ -132,9 +132,10 @@ test('the pack only uses, the locker gives back, and both fit the phone', async 
   // raider apart from what the locker holds, which comes back out.
   await page.locator('.bv-dial-tab[data-tab="lobby"]').click()
   await page.locator('.bv-dial-card[data-card="locker"]').click()
-  await expect(
-    page.locator('.bv-dial-sheet [data-section="keys"]')
-  ).toContainText(copy('inventory.empty_key_items'))
+  // The kit every raider carries (sharedworld.ts rule 38) is on them.
+  const keys = page.locator('.bv-dial-sheet [data-section="keys"]')
+  await expect(keys).toContainText(copy('items.flashlight.label'))
+  await expect(keys).toContainText(copy('items.citgo-phone.label'))
   const stowed = page.locator(
     '.bv-dial-sheet [data-section="locker"] .bv-dial-item[data-kind="joints"]'
   )
@@ -213,6 +214,42 @@ test('opens the Recycling Center from anywhere, its level on the card', async ({
   await expect(page.locator('#bv-recycle-title')).toHaveText(
     copy('recycling.title')
   )
+})
+
+test('fishes the firefly pond from anywhere, the raider on its shore', async ({
+  browser,
+}) => {
+  const page = await phone(browser)
+  await signIn(page)
+  await page.goto(`/?valley=${freshValley('dial')}`)
+  await dialIn(page)
+  const card = page.locator('.bv-dial-card[data-card="fishing"]')
+  await expect(card).toContainText(
+    copy('dialup.lobby.fishing_skill', {
+      skill: '0.0',
+      caught: 0,
+      limit: CONFIG.fishing.perDay,
+    })
+  )
+  await card.click()
+  // The pond in its sheet: the raider on the shore, drawn on the phone.
+  const sheet = page.locator('.bv-dial-fish')
+  await expect(sheet).toBeVisible()
+  await expect(sheet.locator('.bv-dial-pond-canvas')).toBeVisible()
+  // Dialed in, the rod comes out of the box from wherever the phone is,
+  // and the bank is dug; then a cast puts a line in the water.
+  await sheet.locator('[data-fish="rod"]').click()
+  await expect(sheet.locator('.bv-dial-fish-angler')).toContainText(
+    copy('items.fishing-rod.label')
+  )
+  await sheet.locator('[data-fish="dig"]').click()
+  const cast = sheet.locator('[data-fish="cast-nightcrawlers"]')
+  await expect(cast).toBeEnabled()
+  await cast.click()
+  await expect(sheet.locator('.bv-dial-pond-call')).toHaveText(
+    copy('fishing.waiting')
+  )
+  await expect(sheet.locator('[data-fish="give-up"]')).toBeVisible()
 })
 
 test('a raider in the valley hears a phone dial in', async ({ browser }) => {
@@ -309,6 +346,17 @@ test('with a raider on foot in the valley: the Citgo, Erwin, Moab and the chat',
       desk.evaluate(() => window.__bv?.chat.map((line) => line.text) ?? [])
     )
     .toContain('hello from the phone')
+
+  // A name on the online list opens the card, the halo on it.
+  await page
+    .locator(`.bv-dial-online-name[data-raider="${raider.username}"]`)
+    .first()
+    .click()
+  const card = page.getByRole('dialog', { name: raider.username })
+  await expect(card).toContainText(copy('cosmetics.flaming-halo.label'))
+  await expect(card.locator('[data-bv="inspect-friend"]')).toBeHidden()
+  await card.locator('[data-bv="inspect-close"]').click()
+  await expect(card).toBeHidden()
 })
 
 test('a Citgo never stood at has no shelves on the phone', async ({

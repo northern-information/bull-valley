@@ -3,6 +3,7 @@ import {
   CHAT_FADE_MS,
   CHAT_LINES,
   chatCommand,
+  crewChatLine,
   emoteLine,
   emotesLine,
   formatStamp,
@@ -10,6 +11,7 @@ import {
   joinedLine,
   onlineLine,
   othersLine,
+  partyChatLine,
   peerNews,
   pushLine,
   whisperLine,
@@ -104,6 +106,109 @@ describe('chatCommand', () => {
     expect(chatCommand(`/w ${long} hi`)).toEqual({
       name: 'usage',
       line: copy('chat.whisper_not_here', { name: long }),
+    })
+  })
+
+  it('reads the party commands', () => {
+    expect(chatCommand('/invite Baker')).toEqual({
+      name: 'invite',
+      who: 'Baker',
+    })
+    expect(chatCommand('/invite')).toEqual({
+      name: 'usage',
+      line: copy('party.usage_invite'),
+    })
+    expect(chatCommand('/party')).toEqual({ name: 'party' })
+    expect(chatCommand('/LEAVE')).toEqual({ name: 'leave' })
+    expect(chatCommand('/p to the maze')).toEqual({
+      name: 'partySay',
+      text: 'to the maze',
+    })
+    expect(chatCommand('/p')).toEqual({
+      name: 'usage',
+      line: copy('party.usage_say'),
+    })
+  })
+
+  it('reads /crew and its sub-commands, and /c', () => {
+    const frame = (text: string) => {
+      const command = chatCommand(text)
+      return command?.name === 'crewFrame' ? command.frame : command
+    }
+    const usage = { name: 'usage', line: copy('crew.usage') }
+    expect(chatCommand('/crew')).toEqual({ name: 'crew' })
+    expect(frame('/crew create bvc Bull Valley Crew')).toEqual({
+      type: 'crew-create',
+      tag: 'bvc',
+      name: 'Bull Valley Crew',
+    })
+    expect(frame('/crew create bvc')).toEqual(usage)
+    expect(frame('/crew create B Crew')).toEqual({
+      name: 'usage',
+      line: copy('crew.bad_tag'),
+    })
+    expect(frame('/crew invite Baker')).toEqual({
+      type: 'crew-invite',
+      name: 'Baker',
+    })
+    expect(frame('/crew invite')).toEqual(usage)
+    expect(frame(`/crew kick ${'x'.repeat(40)}`)).toEqual({
+      name: 'usage',
+      line: copy('friends.unknown', { name: 'x'.repeat(40) }),
+    })
+    expect(frame('/crew kick Baker')).toEqual({
+      type: 'crew-kick',
+      name: 'Baker',
+    })
+    expect(frame('/crew join BVC')).toEqual({ type: 'crew-join', tag: 'BVC' })
+    expect(frame('/crew join')).toEqual(usage)
+    expect(frame('/crew leave')).toEqual({ type: 'crew-leave' })
+    expect(frame('/crew dance')).toEqual(usage)
+    expect(frame('/c to the keep')).toEqual({
+      type: 'crew-chat',
+      text: 'to the keep',
+    })
+    expect(chatCommand('/c')).toEqual({
+      name: 'usage',
+      line: copy('crew.usage_say'),
+    })
+  })
+
+  it('heads a crew line with who said it', () => {
+    expect(
+      crewChatLine({ type: 'crew-chat', from: 'Baker', text: 'hi', at: 5 })
+    ).toEqual({
+      kind: 'crew',
+      name: copy('crew.said', { name: 'Baker' }),
+      text: 'hi',
+      at: 5,
+    })
+  })
+
+  it('heads a party line with who said it', () => {
+    expect(
+      partyChatLine({ type: 'party-chat', from: 'Baker', text: 'hi', at: 5 })
+    ).toEqual({
+      kind: 'party',
+      name: copy('party.said', { name: 'Baker' }),
+      text: 'hi',
+      at: 5,
+    })
+  })
+
+  it('reads /inspect and a name', () => {
+    expect(chatCommand('/inspect Baker')).toEqual({
+      name: 'inspect',
+      who: 'Baker',
+    })
+    expect(chatCommand('/Inspect')).toEqual({
+      name: 'usage',
+      line: copy('inspect.usage'),
+    })
+    const long = 'x'.repeat(40)
+    expect(chatCommand(`/inspect ${long}`)).toEqual({
+      name: 'usage',
+      line: copy('friends.unknown', { name: long }),
     })
   })
 

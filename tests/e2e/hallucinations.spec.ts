@@ -38,6 +38,7 @@ test('a trip shows what is not there, and E bursts it', async ({ page }) => {
     .poll(() => page.evaluate(() => window.__bv?.player.locked))
     .toBe(true)
   await page.keyboard.press('Digit1')
+  await page.evaluate(() => window.__bv?.useHand())
   await expect
     .poll(() => page.evaluate(() => window.__bv?.wards.tripping ?? 0))
     .toBeGreaterThan(0.5)

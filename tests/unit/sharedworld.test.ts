@@ -5,12 +5,14 @@ import { dayKey, nextMidnight } from '../../src/daily.ts'
 import { costIn, freshDealerStock, goodOf } from '../../src/dealer.ts'
 import { DIME_CENTS } from '../../src/drops.ts'
 import { embark, outcomeOf } from '../../src/expeditions.ts'
+import { fightOf, quickestMs } from '../../src/fishing.ts'
 import { BASE_GEOMETRIE, maxGeometrie } from '../../src/health.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { contentsOf, getItem, healsOf } from '../../src/items.ts'
 import { LADDER_FOOT, LADDER_TOP, lookoutToWorld } from '../../src/lookout.ts'
 import { nextChange } from '../../src/marx.ts'
 import { mazeToWorld } from '../../src/maze.ts'
+import { partyOf } from '../../src/party.ts'
 import { PROTOCOL_VERSION } from '../../src/protocol.ts'
 import { FRESH_RESEARCH } from '../../src/recycling.ts'
 import { mulberry32 } from '../../src/rng.ts'
@@ -19,21 +21,26 @@ import {
   createShadows,
   forecourtMends,
   headlightsAt,
+  phoneVisits,
   placeCaretaker,
   placeShadowman,
   seeHeadlights,
+  shadeHavens,
   shadowmenNear,
   shadowRaiders,
   stepShadows,
 } from '../../src/shadowstep.ts'
 import {
+  anglerFor,
   BUSHES,
   citgosFor,
   corpsesOf,
   createValley,
   creditedWith,
+  creditedWithParty,
   dailyFor,
   findsPay,
+  giftsOwed,
   healthFor,
   levelFor,
   maxFor,
@@ -43,11 +50,12 @@ import {
   toWire,
   wakeAt,
   wardsFor,
+  waypointsFor,
 } from '../../src/sharedworld.ts'
 import { FRESH_STAND, standXp } from '../../src/stand.ts'
 import { UNDERCROFT } from '../../src/undercroft.ts'
 import { damageOf } from '../../src/wards.ts'
-import { dryMap } from '../../src/waterside.ts'
+import { WAYPOINT_MAX } from '../../src/waypoints.ts'
 import { unitsLeft } from './stock.ts'
 import type { CosmeticId } from '../../src/cosmetics.ts'
 import type { ExpeditionRun } from '../../src/expeditions.ts'
@@ -55,6 +63,7 @@ import type { Inventory, XZ } from '../../src/interfaces.ts'
 import type { PickupKind } from '../../src/items.ts'
 import type {
   DailyMessage,
+  LineMessage,
   PeerStateWire,
   PickupSpec,
   WorldMessage,
@@ -90,6 +99,7 @@ const HAVENS = [
 ]
 // The middle of each station's Citgo portal ring (rule 28).
 const RINGS = HAVENS.map(({ x, z }) => ({ x: x + 2, z: z + 14 }))
+const PAYPHONES = [{ x: 700, z: -300 }]
 const METRES = { width: 15059, height: 15038 }
 // Where a build with a corn maze puts it (rule 13). The default join's
 // build has none, so the shadowmen's tests step only shadowmen.
@@ -100,6 +110,9 @@ const ROUTES = { home: { x: 10, z: 10 }, joyrideMs: 600_000 }
 const STAND = { x: 5, z: -20 }
 const WRECK_SPOT = { x: 30, z: 40 }
 const DEALER = { x: -30, z: -60 }
+// The firefly ponds (rule 36), away from every station.
+const POND = { x: 800, z: 0, radius: 100, landing: { x: 720, z: 0 } }
+const FAR_POND = { x: -800, z: 900, radius: 60, landing: { x: -760, z: 860 } }
 // Noon, Central time, so a test has the afternoon before the day turns.
 const T0 = Date.UTC(2026, 9, 7, 17, 0, 0)
 const SEC = 1000
@@ -111,6 +124,15 @@ function seated(valley: Valley, ...ids: string[]): Valley {
   if (!world) throw new Error('no world to sit in')
   const riders = [...world.truck.riders, ...ids]
   return { ...valley, world: { ...world, truck: { ...world.truck, riders } } }
+}
+
+// What a whistle or a portal reads the pack for (rule 38), when a test
+// says nothing of the pack: the kit every raider carries.
+const KITTED: ReadonlySet<string> = new Set(['call', 'open-portal'])
+const KIT_PACK: Inventory = {
+  flashlight: 1,
+  'citgo-phone': 1,
+  'marx-whistle': 1,
 }
 
 // A little harness: applies actions in order, remembering who is present.
@@ -129,7 +151,11 @@ function valleyWith(...actions: ValleyAction[]) {
       now,
       present: [...present],
       cash,
-      ...(pack ? { holdings: { pack, cosmetics: [] } } : {}),
+      ...(pack
+        ? { holdings: { pack, cosmetics: [] } }
+        : KITTED.has(action.type)
+          ? { holdings: { pack: KIT_PACK, cosmetics: [] } }
+          : {}),
       ...(quest ? { quest } : {}),
     }
     const reduced = reduce(valley, action, ctx)
@@ -180,16 +206,18 @@ const join = (id: string): ValleyAction => ({
   stations: STATIONS,
   havens: HAVENS,
   metres: METRES,
-  water: dryMap(METRES),
+  lairs: [],
   maze: null,
   routes: ROUTES,
   stand: STAND,
   wreck: WRECK_SPOT,
+  ponds: [POND, FAR_POND],
   bushes: BUSH_SPOTS,
   dealer: DEALER,
   undercroft: null,
   moat: null,
   rings: RINGS,
+  payphones: PAYPHONES,
 })
 
 // A join as its own action shape, so a test can sign it in elsewhere.
@@ -648,6 +676,44 @@ describe("the valley's reach", () => {
       from: ROUTES.home,
       to: far,
     })
+  })
+})
+
+describe('rule 38: the kit', () => {
+  const to = { x: 400, z: 900 }
+
+  it("owes Marx's whistle once the book holds him, until the account has it", () => {
+    expect(giftsOwed({}, {}, [])).toEqual({})
+    expect(giftsOwed({}, {}, ['citgo', 'marx'])).toEqual({ 'marx-whistle': 1 })
+    expect(giftsOwed({ 'marx-whistle': 1 }, {}, ['marx'])).toEqual({})
+    // In the locker is still the account's.
+    expect(giftsOwed({}, { 'marx-whistle': 1 }, ['marx'])).toEqual({})
+    expect(giftsOwed({ 'marx-whistle': 0 }, {}, ['marx'])).toEqual({
+      'marx-whistle': 1,
+    })
+  })
+
+  it('whistles only with the whistle in the pack', () => {
+    const v = valleyWith(join('a'))
+    v.setPack({ flashlight: 1, 'citgo-phone': 1 })
+    const from = { x: 10, z: 10 }
+    expect(v.step({ type: 'call', id: 'a', from, at: to }).reply?.reason).toBe(
+      'no-whistle'
+    )
+    expect(v.valley.world?.truck.leg.kind).not.toBe('called')
+    v.setPack({ 'marx-whistle': 1 })
+    expect(reasons(v.step({ type: 'call', id: 'a', from, at: to }))).toEqual([
+      'called',
+    ])
+  })
+
+  it('opens a portal only with the phone in the pack', () => {
+    const v = valleyWith(join('a'))
+    v.setPack({ flashlight: 1 })
+    expect(
+      v.step({ type: 'open-portal', id: 'a', at: { x: 500, z: 500, yaw: 0 } })
+        .reply?.reason
+    ).toBe('no-phone')
   })
 })
 
@@ -1146,6 +1212,43 @@ describe('rule 28: Citgos, and Citgo portals', () => {
     v.step({ type: 'visit', id: 'a', station: 1 })
     expect(citgoVisits(seated(v.valley, 'b'), placed)).toEqual([])
     expect(citgoVisits(v.valley, placed)).toEqual([{ id: 'b', station: 1 }])
+  })
+
+  it('says who stands at a payphone their account has not found', () => {
+    const v = valleyWith(join('a'), join('b'), join('c'))
+    const at = PAYPHONES[0]
+    const placed: Placed[] = [
+      { id: 'a', at: standing(at.x + 1, at.z) },
+      { id: 'b', at: standing(at.x, at.z + 1) },
+      { id: 'c', at: standing(at.x + 40, at.z) },
+    ]
+    expect(phoneVisits(seated(v.valley, 'b'), placed)).toEqual([
+      { id: 'a', phone: 0 },
+    ])
+    const found = v.step({ type: 'find-phone', id: 'a', phone: 0 })
+    expect(found.citgos).toEqual({
+      account: 'acct-a',
+      log: { last: null, visited: [], phones: [0] },
+    })
+    // Found pays nothing, and is never the last Citgo.
+    expect(found.earn).toBeUndefined()
+    expect(found.xp).toBeUndefined()
+    expect(phoneVisits(v.valley, placed)).toEqual([{ id: 'b', phone: 0 }])
+    expect(citgosFor(v.valley, 'acct-a').last).toBeNull()
+    // Again, or a payphone the world never placed: nothing.
+    expect(v.step({ type: 'find-phone', id: 'a', phone: 0 }).citgos).toBe(
+      undefined
+    )
+    expect(v.step({ type: 'find-phone', id: 'a', phone: 1 }).citgos).toBe(
+      undefined
+    )
+    // A visit after keeps the payphones found.
+    v.step({ type: 'visit', id: 'a', station: 1 })
+    expect(citgosFor(v.valley, 'acct-a')).toEqual({
+      last: 1,
+      visited: [1],
+      phones: [0],
+    })
   })
 
   it('pays a bounty and XP the first time an account stands at each Citgo past its first', () => {
@@ -2506,6 +2609,20 @@ describe("rule 11: the shadowmen are the valley's", () => {
     expect(lit.beam?.floor).toBe(0)
   })
 
+  it('aims no beam for a raider holding a jar or a rod, light or not', () => {
+    const v = valley()
+    const raiders = shadowRaiders(
+      v,
+      createShadows(),
+      [
+        { id: 'a', at: state({ light: true, held: 'jar' }) },
+        { id: 'b', at: state({ light: true, held: 'rod' }) },
+      ],
+      T0
+    )
+    expect(raiders.map((r) => r.beam)).toEqual([null, null])
+  })
+
   it('steps the field and sends all of it, rounded', () => {
     const v = valley()
     const shadows = createShadows()
@@ -3594,5 +3711,634 @@ describe('rule 30: idle expeditions', () => {
     const points = max - Math.round(CONFIG.expeditions.runs.corn.hurt * max)
     expect(r.health).toEqual({ account: 'acct-p', points, max })
     expect(healthFor(r.valley, 'acct-p')).toBe(points)
+  })
+})
+
+describe('rule 34: parties', () => {
+  const invite = (id: string, name: string): ValleyAction => ({
+    type: 'invite',
+    id,
+    name,
+  })
+  const names = (v: { valley: Valley }, account: string) =>
+    partyOf(v.valley.parties, account)?.members.map((m) => m.name) ?? []
+
+  it('invites a raider in the valley, who joins by inviting back', () => {
+    const v = valleyWith(join('a'), join('b'), join('c'))
+    let r = v.step(invite('a', 'b'))
+    expect(r.party).toEqual(['acct-b'])
+    expect(r.partyNews).toEqual([
+      { account: 'acct-b', news: 'invited', name: 'A' },
+      { account: 'acct-a', news: 'sent', name: 'B' },
+    ])
+    r = v.step(invite('b', 'a'))
+    expect(r.party).toEqual(['acct-a', 'acct-b'])
+    expect(r.partyNews).toEqual([
+      { account: 'acct-a', news: 'joined', name: 'B' },
+      { account: 'acct-b', news: 'joined', name: 'B' },
+    ])
+    expect(names(v, 'acct-a')).toEqual(['A', 'B'])
+    // Nothing of it on the world's wire.
+    expect(JSON.stringify(r.broadcast)).not.toContain('acct-')
+  })
+
+  it('refuses one not in the valley, and says why the rest are refused', () => {
+    const v = valleyWith(join('a'), join('b'))
+    expect(v.step(invite('a', 'nobody')).reply).toEqual({
+      type: 'nack',
+      re: 'invite',
+      reason: 'not-here',
+    })
+    expect(v.step(invite('a', 'a')).reply?.reason).toBe('self')
+    v.step(invite('a', 'b'))
+    expect(v.step(invite('a', 'B')).reply?.reason).toBe('already-invited')
+    expect(v.step({ type: 'party-leave', id: 'a' }).reply).toEqual({
+      type: 'nack',
+      re: 'party-leave',
+      reason: 'no-party',
+    })
+  })
+
+  it('lets a raider leave, telling everyone in it, and a party of one is none', () => {
+    const v = valleyWith(join('a'), join('b'), join('c'))
+    v.step(invite('a', 'b'))
+    v.step(invite('b', 'a'))
+    v.step(invite('a', 'c'))
+    v.step(invite('c', 'a'))
+    const r = v.step({ type: 'party-leave', id: 'c' })
+    expect(r.party).toEqual(['acct-a', 'acct-b', 'acct-c'])
+    expect(r.partyNews?.map((n) => n.account)).toEqual([
+      'acct-a',
+      'acct-b',
+      'acct-c',
+    ])
+    expect(names(v, 'acct-a')).toEqual(['A', 'B'])
+    v.step({ type: 'party-leave', id: 'b' })
+    expect(v.valley.parties.parties).toEqual([])
+  })
+
+  it('keeps a raider whose line dropped and came back, and drops one gone past the linger', () => {
+    const v = valleyWith(join('a'), join('b'), join('c'))
+    v.step(invite('a', 'b'))
+    v.step(invite('b', 'a'))
+    v.step(invite('a', 'c'))
+    v.step(invite('c', 'a'))
+    // B's socket goes: away, and A and C are sent it.
+    let r = v.step(leaveAs('b'))
+    expect(r.party).toEqual(['acct-a', 'acct-b', 'acct-c'])
+    // Back within the linger: still in it.
+    v.tick(CONFIG.net.lingerMs / 2)
+    v.step(join('b'))
+    expect(names(v, 'acct-a')).toEqual(['A', 'B', 'C'])
+    // C goes, and the valley's linger timer drops them.
+    v.step(leaveAs('c'))
+    r = v.step({ type: 'party-drop', account: 'acct-c' })
+    expect(r.partyNews).toEqual([
+      { account: 'acct-a', news: 'left', name: 'C' },
+      { account: 'acct-b', news: 'left', name: 'C' },
+    ])
+    expect(names(v, 'acct-a')).toEqual(['A', 'B'])
+    // A drop for an account back in the valley does nothing.
+    expect(v.step({ type: 'party-drop', account: 'acct-a' }).party).toBe(
+      undefined
+    )
+  })
+
+  it('drops one gone past the linger on the next arrival, timer or no timer', () => {
+    const v = valleyWith(join('a'), join('b'))
+    v.step(invite('a', 'b'))
+    v.step(invite('b', 'a'))
+    v.step(leaveAs('b'))
+    v.tick(CONFIG.net.lingerMs + 1)
+    const r = v.step(join('c'))
+    expect(r.partyNews).toEqual([
+      { account: 'acct-a', news: 'left', name: 'B' },
+    ])
+    expect(v.valley.parties.parties).toEqual([])
+  })
+
+  it('follows a new name from Gron', () => {
+    const v = valleyWith(join('a'), join('b'))
+    v.step(invite('a', 'b'))
+    v.step(invite('b', 'a'))
+    const r = v.step({ type: 'appearance', id: 'b', name: 'Bee' })
+    expect(r.party).toEqual(['acct-a', 'acct-b'])
+    expect(names(v, 'acct-a')).toEqual(['A', 'Bee'])
+  })
+
+  it('credits the Caretaker to a burner’s party members standing near', () => {
+    const v = valleyWith(join('a'), join('b'), join('c'), join('d'))
+    v.step(invite('a', 'b'))
+    v.step(invite('b', 'a'))
+    v.step(invite('a', 'c'))
+    v.step(invite('c', 'a'))
+    const far = CONFIG.party.creditRadius + 1
+    const raiders = [
+      { id: 'a', x: 0, z: 0 },
+      { id: 'b', x: 5, z: 0 },
+      { id: 'c', x: far, z: 0 },
+      { id: 'd', x: 1, z: 0 },
+    ]
+    expect(creditedWithParty(v.valley, ['a'], raiders)).toEqual([
+      'acct-a',
+      'acct-b',
+    ])
+    expect(creditedWithParty(v.valley, ['d'], raiders)).toEqual(['acct-d'])
+  })
+})
+
+describe('rule 37: waypoints', () => {
+  const mark = (id: string, points: XZ[]): ValleyAction => ({
+    type: 'mark',
+    id,
+    points,
+  })
+
+  it('keeps an account its pins, inside the survey, for every socket on it', () => {
+    const v = valleyWith(join('a'))
+    const pins = [
+      { x: 10, z: -20 },
+      { x: METRES.width, z: 0 },
+    ]
+    const reduced = v.step(mark('a', pins))
+    expect(reduced.waypoints).toEqual({
+      account: 'acct-a',
+      points: [{ x: 10, z: -20 }],
+    })
+    expect(waypointsFor(v.valley, 'acct-a')).toEqual([{ x: 10, z: -20 }])
+    expect(waypointsFor(v.valley, 'acct-b')).toEqual([])
+    // Cleared.
+    v.step(mark('a', []))
+    expect(waypointsFor(v.valley, 'acct-a')).toEqual([])
+  })
+
+  it('keeps the newest WAYPOINT_MAX and answers even unchanged', () => {
+    const v = valleyWith(join('a'))
+    const many = Array.from({ length: WAYPOINT_MAX + 2 }, (_, i) => ({
+      x: i,
+      z: 0,
+    }))
+    v.step(mark('a', many))
+    const kept = waypointsFor(v.valley, 'acct-a')
+    expect(kept).toEqual(many.slice(-WAYPOINT_MAX))
+    const again = v.step(mark('a', many))
+    expect(again.valley).toBe(v.valley)
+    expect(again.waypoints?.points).toEqual(kept)
+  })
+
+  it('carries over a restore, and ignores a stranger', () => {
+    const v = valleyWith(join('a'))
+    v.step(mark('a', [{ x: 1, z: 2 }]))
+    const stored = JSON.parse(JSON.stringify(v.valley)) as Valley
+    expect(waypointsFor(restoreValley(stored), 'acct-a')).toEqual([
+      { x: 1, z: 2 },
+    ])
+    const { waypoints: _, ...older } = stored
+    expect(restoreValley(older).waypoints).toEqual({})
+    expect(v.step(mark('nobody', [{ x: 1, z: 1 }])).waypoints).toBeUndefined()
+  })
+})
+
+describe('rule 36: fishing and the firefly pond', () => {
+  const shore = POND.landing
+  const holding = (pack: Inventory) => ({ pack, cosmetics: [] })
+  const tackle: Inventory = { 'fishing-rod': 1, nightcrawlers: 5, berries: 1 }
+  const fish = (
+    valley: Valley,
+    action: ValleyAction,
+    pack: Inventory | null = tackle,
+    now = T0
+  ) =>
+    reduce(valley, action, {
+      now,
+      present: ['a'],
+      ...(pack ? { holdings: holding(pack) } : {}),
+    })
+  const cast = (over: Partial<ValleyAction> = {}): ValleyAction =>
+    ({
+      type: 'cast',
+      id: 'a',
+      bait: 'nightcrawlers',
+      at: shore,
+      roll: 0.999,
+      seed: 1234,
+      ...over,
+    }) as ValleyAction
+  const reel = (over: Partial<ValleyAction> = {}): ValleyAction =>
+    ({
+      type: 'reel',
+      id: 'a',
+      landed: true,
+      roll: 0.999,
+      bonus: 0,
+      skillRoll: 1,
+      ...over,
+    }) as ValleyAction
+  const reason = (r: Reduced) => r.reply?.reason
+  // A line out on the first raider, and when it bit.
+  const hooked = () => {
+    const v = valleyWith(join('a'))
+    const r = fish(v.valley, cast())
+    const line = r.valley.lines.a
+    return { valley: r.valley, line, r }
+  }
+
+  it('keeps where the ponds lie with the world', () => {
+    expect(valleyWith(join('a')).valley.world?.ponds).toEqual([POND, FAR_POND])
+  })
+
+  it('turns every shadow aside at the pond, as at a forecourt (rule 11)', () => {
+    const world = valleyWith(join('a')).valley.world!
+    expect(shadeHavens(world)).toEqual([
+      ...HAVENS,
+      { x: POND.x, z: POND.z, radius: POND.radius },
+      { x: FAR_POND.x, z: FAR_POND.z, radius: FAR_POND.radius },
+    ])
+    expect(shadeHavens({ ...world, ponds: [] })).toEqual(HAVENS)
+  })
+
+  it('lets no shadow touch a raider in the fireflies', () => {
+    const v = valleyWith(join('a')).valley
+    const shadows = createShadows()
+    const at: PeerStateWire = {
+      x: POND.x,
+      y: 0,
+      z: POND.z,
+      yaw: 0,
+      pitch: 0,
+      pose: 'stand',
+      riding: false,
+      light: false,
+    }
+    const placed = [{ id: 'a', at }]
+    stepShadows(v, shadows, placed, mulberry32(1), { now: T0, dt: 0 })
+    shadows.field.shadowmen = []
+    placeShadowman(shadows, POND.x, POND.z + 1)
+    placeShadowman(shadows, POND.x + 1, POND.z, 'spider')
+    let struck: string[] = []
+    for (let i = 0; i < 20; i++) {
+      const out = stepShadows(v, shadows, placed, mulberry32(1), {
+        now: T0,
+        dt: 0.1,
+      })
+      struck = [...struck, ...(out?.struck ?? [])]
+    }
+    expect(struck).toEqual([])
+  })
+
+  it('gives a rod out of the tackle box to a pack without one', () => {
+    const v = valleyWith(join('a'))
+    const r = fish(v.valley, { type: 'tackle', id: 'a', at: shore }, {})
+    expect(r.pack).toEqual({ account: 'acct-a', kind: 'fishing-rod', delta: 1 })
+    expect(r.angler?.message).toMatchObject({ type: 'angler', rod: true })
+    expect(reason(fish(v.valley, { type: 'tackle', id: 'a', at: shore }))).toBe(
+      'has-rod'
+    )
+    expect(
+      reason(fish(v.valley, { type: 'tackle', id: 'a', at: shore }, null))
+    ).toBe('unavailable')
+  })
+
+  it('digs nightcrawlers on the roll, then rests the bank', () => {
+    const v = valleyWith(join('a'))
+    const dig = (roll: number): ValleyAction => ({
+      type: 'dig',
+      id: 'a',
+      at: shore,
+      roll,
+    })
+    const r = fish(v.valley, dig(0.999), null)
+    const { max, cooldownSeconds } = CONFIG.fishing.dig
+    expect(r.pack).toEqual({
+      account: 'acct-a',
+      kind: 'nightcrawlers',
+      delta: max,
+    })
+    expect(r.angler?.message.dug).toBe(max)
+    expect(r.valley.anglers['acct-a'].digAt).toBe(T0 + cooldownSeconds * SEC)
+    expect(reason(fish(r.valley, dig(0), null, T0 + SEC))).toBe('too-soon')
+    expect(
+      fish(r.valley, dig(0), null, T0 + cooldownSeconds * SEC).pack?.delta
+    ).toBe(CONFIG.fishing.dig.min)
+  })
+
+  it('refuses away from the pond, in the bed, or out of the valley', () => {
+    const v = valleyWith(join('a'))
+    const far = { x: 0, z: 0 }
+    expect(reason(fish(v.valley, cast({ at: far })))).toBe('no-pond')
+    expect(reason(fish(v.valley, cast({ at: null })))).toBe('no-pond')
+    // Either pond will do.
+    expect(fish(v.valley, cast({ at: FAR_POND.landing })).reply).toBeUndefined()
+    expect(
+      reason(fish(v.valley, { type: 'dig', id: 'a', at: far, roll: 0 }))
+    ).toBe('no-pond')
+    const aboard = valleyWith(join('a'), { type: 'board', id: 'a', at: HERE })
+    expect(reason(fish(aboard.valley, cast()))).toBe('aboard')
+    expect(reason(fish(v.valley, cast({ id: 'z' })))).toBe('not-in-valley')
+    expect(reason(fish(createValley(), cast()))).toBe('not-in-valley')
+  })
+
+  it('casts with the best rod in the pack, the fight and the catch its own', () => {
+    const v = valleyWith(join('a'))
+    const pack = { ...tackle, 'g-loomis': 1 }
+    const r = fish(v.valley, cast(), pack)
+    const line = r.valley.lines.a
+    expect(line.rod).toBe('g-loomis')
+    expect((r.fished as LineMessage).hook?.fight).toEqual(
+      fightOf(line.kind, 0, 'g-loomis')
+    )
+    // A bought rod is a rod: the tackle box keeps its own.
+    expect(
+      reason(fish(v.valley, { type: 'tackle', id: 'a', at: shore }, pack))
+    ).toBe('has-rod')
+    // A bass far past the skill, landed on the Loomis, lost without it.
+    const on = (rod?: string): Valley => ({
+      ...v.valley,
+      lines: {
+        a: {
+          account: 'acct-a',
+          kind: 'largemouth-bass',
+          skill: 0,
+          ...(rod ? { rod } : {}),
+          seed: 1,
+          bitesAt: T0,
+        },
+      },
+    })
+    const at = (rod?: string) =>
+      T0 + quickestMs(fightOf('largemouth-bass', 0, rod))
+    expect(
+      fish(on('g-loomis'), reel({ roll: 0.5 }), null, at('g-loomis')).fished
+    ).toMatchObject({ outcome: 'landed' })
+    expect(fish(on(), reel({ roll: 0.5 }), null, at()).fished).toMatchObject({
+      outcome: 'snap',
+    })
+  })
+
+  it('casts only with a rod and the bait, and one line at a time', () => {
+    const v = valleyWith(join('a'))
+    expect(reason(fish(v.valley, cast(), { nightcrawlers: 3 }))).toBe('no-rod')
+    expect(reason(fish(v.valley, cast(), { 'fishing-rod': 1 }))).toBe('no-bait')
+    expect(reason(fish(v.valley, cast(), null))).toBe('unavailable')
+    const { valley } = hooked()
+    expect(reason(fish(valley, cast()))).toBe('busy')
+  })
+
+  it('keeps the bait when nothing bites, and sends an empty line', () => {
+    const v = valleyWith(join('a'))
+    const r = fish(v.valley, cast({ roll: 0 }))
+    expect(r.pack).toBeUndefined()
+    expect(r.valley.lines).toEqual({})
+    expect(r.fished).toMatchObject({ type: 'line', hook: null })
+    const { bite } = CONFIG.fishing
+    const wait = (r.fished as { bitesIn: number }).bitesIn
+    expect(wait).toBeGreaterThanOrEqual(bite.min)
+    expect(wait).toBeLessThanOrEqual(bite.max)
+  })
+
+  it('takes the bait on a bite and deals the fight, never saying the fish', () => {
+    const { r, line } = hooked()
+    expect(r.pack).toEqual({
+      account: 'acct-a',
+      kind: 'nightcrawlers',
+      delta: -1,
+    })
+    expect(line).toMatchObject({ account: 'acct-a', skill: 0, seed: 1234 })
+    const msg = r.fished as LineMessage
+    expect(line.bitesAt).toBe(T0 + msg.bitesIn)
+    expect(msg.hook?.fight).toEqual(fightOf(line.kind, 0))
+    expect(msg.hook?.seed).toBe(1234)
+    expect(JSON.stringify(msg)).not.toContain(line.kind)
+  })
+
+  it('lands a spent fish reeled in time: the pack, the count, the XP', () => {
+    const v = valleyWith(join('a'))
+    const on = (kind: string): Valley => ({
+      ...v.valley,
+      lines: { a: { account: 'acct-a', kind, skill: 0, seed: 1, bitesAt: T0 } },
+    })
+    const landed = (kind: string) =>
+      fish(on(kind), reel(), null, T0 + quickestMs(fightOf(kind, 0)))
+    const r = landed('bluegill')
+    expect(r.valley.lines).toEqual({})
+    expect(r.pack).toEqual({ account: 'acct-a', kind: 'bluegill', delta: 1 })
+    expect(r.fished).toMatchObject({
+      type: 'catch',
+      outcome: 'landed',
+      kind: 'bluegill',
+    })
+    expect(r.valley.anglers['acct-a'].caught).toBe(1)
+    expect(r.xp).toEqual([{ account: 'acct-a', source: 'fish' }])
+    expect(r.angler?.message.angler.caught).toBe(1)
+    // The junk comes in too, and earns nothing.
+    const can = landed('empty-can')
+    expect(can.pack?.kind).toBe('empty-can')
+    expect(can.xp).toBeUndefined()
+  })
+
+  it('raises the skill on a fish above it', () => {
+    // A perch on the line for a raider at skill 0.
+    const v = valleyWith(join('a'))
+    const valley: Valley = {
+      ...v.valley,
+      lines: {
+        a: {
+          account: 'acct-a',
+          kind: 'yellow-perch',
+          skill: 0,
+          seed: 1,
+          bitesAt: T0,
+        },
+      },
+    }
+    const at = T0 + quickestMs(fightOf('yellow-perch', 0))
+    // A sure land, a sure rise.
+    const r = fish(valley, reel({ roll: 0, skillRoll: 0, bonus: 0 }), null, at)
+    expect(r.fished).toMatchObject({ outcome: 'landed', skill: 1, up: true })
+    expect(r.valley.anglers['acct-a'].skill).toBe(1)
+  })
+
+  it('loses a fish far past the skill, a large one snapping the line', () => {
+    const v = valleyWith(join('a'))
+    const on = (kind: string): Valley => ({
+      ...v.valley,
+      lines: { a: { account: 'acct-a', kind, skill: 0, seed: 1, bitesAt: T0 } },
+    })
+    const at = (kind: string) => T0 + quickestMs(fightOf(kind, 0))
+    const small = fish(
+      on('bullhead'),
+      reel({ roll: 0.99 }),
+      null,
+      at('bullhead')
+    )
+    expect(small.fished).toMatchObject({ outcome: 'skill' })
+    expect(small.pack).toBeUndefined()
+    // A loss counts toward the day, as FFXI's fatigue does.
+    expect(small.valley.anglers['acct-a'].caught).toBe(1)
+    const large = fish(
+      on('channel-catfish'),
+      reel({ roll: 0.99 }),
+      null,
+      at('channel-catfish')
+    )
+    expect(large.fished).toMatchObject({ outcome: 'snap' })
+  })
+
+  it('lets a fish go given up, reeled too soon or too late, and counts none', () => {
+    const { valley, line } = hooked()
+    const fight = fightOf(line.kind, 0)
+    const gone = (r: Reduced) => {
+      expect(r.fished).toMatchObject({ type: 'catch', outcome: 'gave-up' })
+      expect(r.pack).toBeUndefined()
+      expect(r.valley.lines).toEqual({})
+      expect(r.valley.anglers['acct-a']).toBeUndefined()
+    }
+    gone(fish(valley, reel({ landed: false }), null, line.bitesAt + 10))
+    gone(fish(valley, reel(), null, line.bitesAt))
+    gone(
+      fish(
+        valley,
+        reel(),
+        null,
+        line.bitesAt + fight.limitMs + CONFIG.fishing.lateMs + 1
+      )
+    )
+    expect(reason(fish(valley, reel({ id: 'z' }), null))).toBe('not-in-valley')
+    expect(reason(fish(createValley(), reel(), null))).toBe('not-in-valley')
+    const v = valleyWith(join('a'))
+    expect(reason(fish(v.valley, reel(), null))).toBe('no-line')
+  })
+
+  it("lets nothing bite past the day's limit, until the day turns", () => {
+    const v = valleyWith(join('a'))
+    const worn: Valley = {
+      ...v.valley,
+      anglers: {
+        'acct-a': {
+          skill: 0,
+          day: dayKey(T0),
+          caught: CONFIG.fishing.perDay,
+          digAt: 0,
+        },
+      },
+    }
+    expect(reason(fish(worn, cast()))).toBe('tired')
+    const tomorrow = nextMidnight(T0) + SEC
+    expect(fish(worn, cast(), tackle, tomorrow).reply).toBeUndefined()
+  })
+
+  it('takes the line out with the socket that leaves', () => {
+    const { valley } = hooked()
+    const r = reduce(valley, leaveAs('a'), { now: T0, present: ['a'] })
+    expect(r.valley.lines).toEqual({})
+    // A socket gone without a word takes its line with it on the next
+    // arrival.
+    const joined = reduce(valley, join('b'), { now: T0, present: [] })
+    expect(joined.valley.lines).toEqual({})
+    const kept = reduce(valley, join('b'), { now: T0, present: ['a'] })
+    expect(Object.keys(kept.valley.lines)).toEqual(['a'])
+  })
+
+  it('reads the angler for the wire, fresh for an account that never fished', () => {
+    const v = valleyWith(join('a'))
+    expect(anglerFor(v.valley, 'acct-a', T0)).toEqual({
+      skill: 0,
+      caught: 0,
+      perDay: CONFIG.fishing.perDay,
+      digAt: 0,
+    })
+  })
+
+  it('lets a raider dialed in fish from anywhere (rule 29)', () => {
+    const v = valleyWith({
+      type: 'dial',
+      id: 'a',
+      account: 'acct-a',
+      name: 'A',
+      outfit: 'coleman',
+      level: 1,
+    })
+    expect(fish(v.valley, cast({ at: null })).reply).toBeUndefined()
+    expect(
+      fish(v.valley, { type: 'dig', id: 'a', at: null, roll: 0 }).pack?.kind
+    ).toBe('nightcrawlers')
+  })
+})
+
+describe('rule 36: slurms into the jar', () => {
+  const slot = Math.floor(T0 / 1000 / CONFIG.slurms.slotSeconds)
+  const jar = (
+    valley: Valley,
+    over: Partial<Extract<ValleyAction, { type: 'jar-slurm' }>> = {},
+    pack: Inventory | null = { 'slurm-jar': 1 },
+    now = T0
+  ) =>
+    reduce(
+      valley,
+      {
+        type: 'jar-slurm',
+        id: 'a',
+        station: 0,
+        slot,
+        index: 0,
+        at: HAVENS[0],
+        ...over,
+      },
+      {
+        now,
+        present: ['a'],
+        ...(pack ? { holdings: { pack, cosmetics: [] } } : {}),
+      }
+    )
+  const reason = (r: Reduced) => r.reply?.reason
+
+  it('puts a slurm crawling at the Citgo into the jar, and tells everyone', () => {
+    const v = valleyWith(join('a'))
+    const r = jar(v.valley)
+    expect(r.pack).toEqual({ account: 'acct-a', kind: 'slurm', delta: 1 })
+    expect(r.jarred).toEqual({
+      type: 'slurm-jarred',
+      station: 0,
+      slot,
+      index: 0,
+      by: 'a',
+    })
+    expect(r.valley.jarred).toEqual([`0:${slot}:0`])
+    // Once.
+    expect(reason(jar(r.valley))).toBe('gone')
+    // And forgotten once its drop is long over.
+    const later = T0 + 10 * CONFIG.slurms.slotSeconds * 1000
+    const next = jar(r.valley, { slot: slot + 10 }, { 'slurm-jar': 1 }, later)
+    expect(next.valley.jarred).toEqual([`0:${slot + 10}:0`])
+  })
+
+  it('refuses without a jar, with it full, away from the Citgo, or a slurm long gone', () => {
+    const v = valleyWith(join('a'))
+    expect(reason(jar(v.valley, {}, {}))).toBe('no-jar')
+    expect(
+      reason(
+        jar(v.valley, {}, { 'slurm-jar': 1, slurm: CONFIG.fishing.jar.holds })
+      )
+    ).toBe('jar-full')
+    expect(reason(jar(v.valley, {}, null))).toBe('unavailable')
+    expect(reason(jar(v.valley, { at: HAVENS[1] }))).toBe('too-far')
+    expect(reason(jar(v.valley, { at: null }))).toBe('too-far')
+    expect(reason(jar(v.valley, { slot: slot - 5 }))).toBe('gone')
+    expect(reason(jar(v.valley, { index: 99 }))).toBe('gone')
+    expect(reason(jar(v.valley, { id: 'z' }))).toBe('not-in-valley')
+    const aboard = valleyWith(join('a'), { type: 'board', id: 'a', at: HERE })
+    expect(reason(jar(aboard.valley))).toBe('aboard')
+  })
+
+  it('takes a body: none from Dial-Up (rule 29)', () => {
+    const v = valleyWith({
+      type: 'dial',
+      id: 'a',
+      account: 'acct-a',
+      name: 'A',
+      outfit: 'coleman',
+      level: 1,
+    })
+    expect(reason(jar(v.valley))).toBe('dialup')
   })
 })

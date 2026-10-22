@@ -27,6 +27,9 @@ export const CONFIG = {
     crouchSpeed: 2.2,
     // Walking with the phone up, dialing a Citgo portal.
     phoneSpeedScale: 0.6,
+    // How high Space lifts the feet, metres (fall.ts jumpSpeed): a hop,
+    // under CONFIG.fall.step, so it never reads as a fall.
+    jumpHeight: 0.5,
     mouseSensitivity: 0.0023,
     // How close a pickup must be for E to take it, across the ground; how
     // far above or below the feet it may lie (never a floor away); and how
@@ -107,8 +110,9 @@ export const CONFIG = {
     dimes: { min: 1, max: 8 },
     // Shadow spiders: twice a shadowman's height, crossing among them as
     // one of the crowd. Each new one in a bubble is a spider by `chance`,
-    // or by `nearWaterChance` where it comes in, or the raider stands,
-    // within waterRadius metres of water (waterside.ts), and never more
+    // or by `lairChance` where it comes in, or the raider stands, within
+    // lairReach metres of one of its lairs (lairs.ts: the dish array,
+    // Castle Entropy, Bull Valley Plaza), and never more
     // than maxPerBubble round one raider. A beam takes burnScale times a
     // shadowman's burnSeconds to burst one, aimed at aimHeight over the
     // ground, where its body hangs. It crosses a little slower than a
@@ -116,8 +120,8 @@ export const CONFIG = {
     // leaves one $20 bill (drops.ts TWENTY) where it burst.
     spider: {
       chance: 0.02,
-      nearWaterChance: 0.12,
-      waterRadius: 120,
+      lairChance: 0.12,
+      lairReach: 120,
       maxPerBubble: 3,
       burnScale: 2,
       // Its burst, against a shadowman's.
@@ -414,7 +418,12 @@ export const CONFIG = {
     // Units of every item on each Citgo's shelves when the day turns, and
     // the kinds stocked deeper than that.
     perItem: 3,
-    stock: { 'ice-mountain': 20 } as Readonly<Record<string, number>>,
+    stock: {
+      'ice-mountain': 20,
+      // The rod rack: fewer of the dearer rods.
+      'ugly-stik': 2,
+      'g-loomis': 1,
+    } as Readonly<Record<string, number>>,
     // How close a shelf unit must be, from the eye, for E to buy it.
     reach: 2.2,
     // How far off the view ray, in radians, a unit can sit and still be
@@ -634,6 +643,27 @@ export const CONFIG = {
     // about 17 m behind it.
     stationReach: 24,
   },
+  // Crews (crews.ts, sharedworld.ts rule 35): a name and a tag every
+  // member wears, kept in D1.
+  crews: {
+    // What starting one takes out of the wallet, in cents.
+    cost: 100_00,
+    // How many raiders one crew holds.
+    size: 20,
+    // How long an invite waits on an answer: a week.
+    inviteMs: 7 * 24 * 60 * 60 * 1000,
+  },
+  // Parties (party.ts, sharedworld.ts rule 34): a few raiders who play
+  // together for a while, kept by the valley while they are in it.
+  party: {
+    // How many raiders one party holds.
+    size: 4,
+    // How long an invite waits on an answer.
+    inviteMs: 60_000,
+    // How near a raider who burned the Caretaker a party member must stand
+    // to share the credit.
+    creditRadius: 40,
+  },
   // The laptop on the card table in the Citgo bathroom (laptop.ts): a
   // text editor over a pretend file system every raider shares.
   laptop: {
@@ -788,6 +818,61 @@ export const CONFIG = {
     },
     // The cranes on the outer rim, leaning out over the moat.
     cranes: 4,
+    // The works round the rim (castleyard.ts), in metres and seconds.
+    yard: {
+      // The concrete poured round the outer edge: how far out it runs, and
+      // how far over the terrain it lies, as a lot does.
+      apron: 9,
+      lift: 0.26,
+      // The poles of the unfinished fence: the rows, each this far out
+      // from the edge, a pole about every `every` metres along each (give
+      // or take `jitter`), a share `skip` never set; each `height` long,
+      // standing straight to its `knee`, then bent in toward the island by
+      // `bend` (radians off true); a share `broken` with a span loose and
+      // floating.
+      poles: {
+        rows: [1.4, 2.9],
+        every: 2.1,
+        jitter: 0.5,
+        skip: 0.12,
+        height: { min: 5.4, max: 6.6 },
+        knee: { min: 2.6, max: 4 },
+        bend: { min: 0.4, max: 0.65 },
+        radius: 0.07,
+        broken: 0.42,
+      },
+      // A loose span: how long, how high it hangs over where it broke, and
+      // how far it bobs. Each round of `cycle` it crumbles away by a draw
+      // of `share`, over `crumble`, stays gone for `gone` and comes back
+      // over `regrow`. `crumbs` bits always fall off each, `crumbLife`
+      // long; a crumbling span throws `burst` more, bigger.
+      float: {
+        span: { min: 0.8, max: 2.2 },
+        lift: { min: 0.3, max: 1.2 },
+        bob: 0.14,
+        cycle: 60,
+        share: 0.35,
+        crumble: 4,
+        gone: 18,
+        regrow: 9,
+        crumbs: 3,
+        burst: 6,
+        crumbLife: 2.6,
+        gravity: 9.8,
+      },
+      // Nothing the yard sets down comes nearer than `clear` to a fire
+      // escape's top or a crane's footing.
+      clear: 5,
+      // The supplies: a pile about every `every` metres along each side by
+      // a draw of `share`, from `from` to `to` out from the edge.
+      clutter: { every: 6.5, share: 0.75, from: 4.4, to: 7.8 },
+      // The light towers, one to a side, this far out, each with a pool
+      // of light this wide in front of it.
+      lamps: { out: 6.4, pool: 10 },
+      // The payphone: on outer side `side`, `along` its length, `out` from
+      // the edge; a raider within `reach` of it stands at it.
+      payphone: { side: 1, along: 0.42, out: 5.6, reach: 3 },
+    },
     // The castle's base, this far over the highest ground anywhere on the
     // island (its rock hangs under that, well clear), and how it bobs.
     float: 40,
@@ -950,6 +1035,81 @@ export const CONFIG = {
         },
       ] as { chance: number; price: Record<string, number> }[],
     },
+  },
+  // Fishing at the firefly pond (fishing.ts, sharedworld.ts rule 36),
+  // after Final Fantasy XI's: bait on the hook, a wait, a bite, and a
+  // fight against the fish's stamina and the clock, with a skill each
+  // account raises a tenth at a time.
+  fishing: {
+    // The firefly ponds, each the water area whose shore comes nearest its
+    // `find` point (station-local to the spawn Citgo, like the wreck),
+    // within pond.search of it: the pond behind the Citgo past the dish
+    // array, the one past the far side of the corn maze from Lake Avenue,
+    // and the one across Lake Avenue from the middle of the maze, on the
+    // Citgo's side. That last one is not on the survey: it was drawn into
+    // geo.json's water by hand. Each landing is on the shore nearest the
+    // Citgo.
+    ponds: [
+      { find: { x: -288, z: -46 } },
+      { find: { x: 290, z: 200 } },
+      { find: { x: -55, z: 140 } },
+    ] as readonly { find: { x: number; z: number } }[],
+    pond: {
+      // How far from its `find` point a pond's shore may be.
+      search: 450,
+      // The fireflies' haven reaches this far past the farthest shore from
+      // the pond's middle: no shadow comes inside it.
+      margin: 30,
+      // The landing (the tackle box) stands this far back from the water,
+      // on the shore nearest the Citgo.
+      landingBack: 1.2,
+      // How close the landing must be for E to open the tackle box.
+      reach: 3,
+    },
+    // The highest skill, in tenths (100.0).
+    skillCap: 1000,
+    // What bites, by how well a fish takes the bait (fishing.ts FISH
+    // `bait`, a tier 0 to 3): each tier's weight in the draw, and the
+    // weight of nothing biting at all.
+    tierWeights: [0, 30, 60, 75],
+    nothingWeight: 40,
+    // A fish above the raider's skill is rarer by this share a level, down
+    // to `floor` of its weight.
+    gapRarity: 1 / 60,
+    gapFloor: 0.15,
+    // The wait from the cast to the bite, in ms, drawn between the two.
+    bite: { min: 5000, max: 12000 },
+    // The fight (fishing.ts fightOf): the fish's stamina; an arrow every
+    // `arrowMs` (quicker on a large fish), each pressed inside `windowMs`;
+    // a silver arrow takes `silver`, a gold one `gold` times as much, at
+    // `goldChance`; a wrong key or a missed arrow gives the fish `pull`
+    // back; and the clock, in ms.
+    fight: {
+      stamina: 100,
+      arrowMs: { small: 1100, large: 900 },
+      windowMs: { small: 750, large: 600 },
+      silver: 12,
+      gold: 3,
+      goldChance: 0.1,
+      pull: { small: 6, large: 10 },
+      limitMs: { small: 25000, large: 40000, legend: 60000 },
+      // The line that says the clock is running out comes this long before.
+      warnMs: 7000,
+    },
+    // The valley takes a reel no sooner than this share of the quickest
+    // fight could have ended, and no later than this long past the clock.
+    fastShare: 0.75,
+    lateMs: 3000,
+    // A day's catches (and fish lost on the line) an account may take:
+    // past it nothing bites until the day turns, as FFXI's fatigue.
+    perDay: 40,
+    // Erwin von Dutch's slurm jar: each one carried holds `holds` live
+    // slurms, caught off a Citgo's lot while they crawl (slurms.ts), with
+    // E within `reach` of one.
+    jar: { holds: 6, reach: 1.8 },
+    // Digging the mud bank: between `min` and `max` nightcrawlers, once
+    // every `cooldownSeconds` an account.
+    dig: { min: 1, max: 3, cooldownSeconds: 20 },
   },
   lonePine: {
     // The lone pine among the dishes behind the spawn Citgo, station-local
@@ -1204,16 +1364,21 @@ export const CONFIG = {
     // crawling longer and slower, lying a while, then melting into the
     // concrete; no one comes out with a bat.
     moat: {
-      slotSeconds: 20,
-      jitterSeconds: 10,
-      maxCount: 4,
-      multiChance: 0.5,
-      craneShare: 0.35,
+      // The channel runs some 600 m round both walls, so the drops come
+      // thick and mostly off the walls: some two dozen lie in it at once,
+      // the nearest to anyone on the floor 10 to 25 m off (a drop every 20
+      // seconds, a third of them under the cranes, left a few in it, 30 to
+      // 100 m off in the fog, and no one saw them).
+      slotSeconds: 2,
+      jitterSeconds: 1.5,
+      maxCount: 3,
+      multiChance: 0.4,
+      craneShare: 0.15,
       crawlSpeed: 0.1,
       crawlSeconds: 7,
       lingerSeconds: 18,
       // The rigs drawn at once, more than the slots overlapping hold.
-      pool: 14,
+      pool: 48,
     },
   },
   moab: {

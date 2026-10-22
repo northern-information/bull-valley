@@ -11,6 +11,7 @@ import {
   spilledDimes,
 } from '../../src/corpses.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
+import { isKeyItem } from '../../src/items.ts'
 import type { Corpse } from '../../src/corpses.ts'
 
 const body = (id: number, x: number, z: number): Corpse => ({
@@ -51,10 +52,15 @@ describe('a fall', () => {
     expect(isEmpty({ joints: 1 })).toBe(false)
   })
 
-  it('empties the pack, every kind at zero', () => {
+  it('empties the pack, every kind at zero but the key items', () => {
     const empty = emptied(STARTING_INVENTORY)
     expect(Object.keys(empty)).toEqual(Object.keys(STARTING_INVENTORY))
-    expect(Object.values(empty).every((n) => n === 0)).toBe(true)
+    for (const [kind, count] of Object.entries(empty)) {
+      expect(count).toBe(isKeyItem(kind) ? STARTING_INVENTORY[kind] : 0)
+    }
+    // The kit every raider carries is kept (sharedworld.ts rule 38).
+    expect(empty.flashlight).toBe(1)
+    expect(empty['citgo-phone']).toBe(1)
   })
 })
 

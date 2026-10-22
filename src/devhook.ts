@@ -13,11 +13,15 @@ import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { TaskProgress } from './dailytask.ts'
 import type { Drop } from './drops.ts'
-import type { Game } from './game.ts'
+import type { AnglerWire, ArrowDir, LineOut, PondPlace } from './fishing.ts'
+import type { FishPhase } from './fishplay.ts'
+import type { CrewState, Game } from './game.ts'
 import type { Grave } from './graves.ts'
 import type { Hallucination, HallucinationShape } from './hallucinations.ts'
 import type { Hand } from './hands.ts'
+import type { Tool } from './held.ts'
 import type { Hotbar } from './hotbar.ts'
+import type { SlurmSpot } from './interactions.ts'
 import type { Inventory, WardAxis, XZ } from './interfaces.ts'
 import type { TruckState } from './marx.ts'
 import type { MistCards } from './mistcards.ts'
@@ -28,6 +32,7 @@ import type { Peer } from './presence.ts'
 import type {
   DailyWire,
   FriendWire,
+  PartyWire,
   PeerStateWire,
   TunnelShadeWire,
   WorldWire,
@@ -39,6 +44,7 @@ import type { ShadowBodies } from './shadowbodies.ts'
 import type { ShadeKind } from './shadowmen.ts'
 import type { StandLedger } from './stand.ts'
 import type { Truck } from './truck.ts'
+import type { Waypoints } from './waypoints.ts'
 import type { World } from './world.ts'
 import type * as THREE from 'three'
 
@@ -90,6 +96,11 @@ interface BvHook {
   readonly xp: number
   // The account's friends list, as the valley last sent it.
   readonly friends: readonly FriendWire[]
+  // Rule 34: the party, as the valley last sent it.
+  readonly party: PartyWire
+  // Rule 35: the crew and the invites waiting, as the valley last sent
+  // them.
+  readonly crew: CrewState
   // The pack as this client holds it: the valley's last word, plus guesses.
   readonly inventory: Inventory
   // What lies dropped, the valley's.
@@ -112,6 +123,15 @@ interface BvHook {
   // the Recycling Center first opens), and where the wreck lies.
   readonly research: Research | null
   readonly wreckAt: XZ | null
+  // Rule 36: the account's angler as the valley last said (null before the
+  // tackle box first opens), the line in the water, and the firefly ponds:
+  // each one's middle, its haven's reach and its tackle box's landing.
+  readonly angler: AnglerWire | null
+  readonly line: LineOut | null
+  readonly ponds: PondPlace[]
+  // The slurms crawling on the parked Citgo's lot, in the world (what a
+  // jar can catch).
+  readonly slurms: SlurmSpot[]
   // Rule 28: every Citgo the account has stood at and the last, the Citgo
   // portals open, the id of ours while it stands, the milliseconds before
   // a portal takes us again after one has (CONFIG.portal.graceSeconds),
@@ -122,6 +142,8 @@ interface BvHook {
   readonly portalGrace: number
   readonly phoneRaised: boolean
   readonly mapOpen: boolean
+  // Rule 37: the account's waypoints, as the valley last said.
+  readonly waypoints: Waypoints
   // The item on each number key, slot 0 for 1.
   readonly hotbar: Hotbar
   // The wards right now: how high, stimulated, drunk and tripping, each
@@ -129,19 +151,33 @@ interface BvHook {
   readonly wards: Record<WardAxis, number>
   // The chat log, oldest first.
   readonly chat: readonly ChatLine[]
-  // The flashlight in the left hand, and the item the right last raised.
+  // The flashlight in the left hand (or the jar or the rod in its place,
+  // `held`), and the item the right last raised.
   readonly flashlight: Hand
+  readonly held: Tool | null
+  // The hotbar slot the hand holds, and what is in it while the pack is.
+  readonly selected: number
+  readonly inHand: string | null
+  // The fight over the view: where the line stands.
+  readonly fishPhase: FishPhase
   // The last state frame sent to the valley: where it last heard we are.
   readonly sent: PeerStateWire | null
   readonly using: { kind: string; at: number } | null
   teleport(u: number, v: number): void
-  // The left button, for a page without pointer lock.
+  // The left button, for a page without pointer lock: the flashlight
+  // alone, or whatever the hand holds; a number key; and A or D in a
+  // fight.
   toggleFlashlight(): void
+  useHand(): void
+  select(slot: number): void
+  pressFish(dir: ArrowDir): void
   // A Citgo portal opened ahead of the raider at once, as if the phone had
   // dialed it through; and fast travel to Citgo `station`, as if clicked
   // on the map.
   openPortal(): void
   fastTravel(station: number): void
+  // Fast travel to payphone `phone`.
+  phoneTravel(phone: number): void
   // A shadowman standing still at world (x, z), through a dev frame.
   // A spider instead when `spider` (CONFIG.shadowmen.spider).
   // true for a spider, as it always was, or the kind.
@@ -168,6 +204,8 @@ interface BvHook {
   // `count` of `kind` into the pack: the valley's, through a dev frame, or
   // this client's own. Gold bullion has no other way in yet.
   grant(kind: string, count?: number): void
+  // `cents` into the wallet, through a dev frame.
+  earn(cents: number): void
   // One `kind` used out of the pack, as E in the pack uses it.
   use(kind: string): void
   // This raider at `points` hit points (1 to whole), for the specs.
@@ -258,6 +296,12 @@ export function installDevHook(game: Game, actions: Actions): void {
     get friends() {
       return s.friends
     },
+    get party() {
+      return s.party
+    },
+    get crew() {
+      return s.crew
+    },
     get inventory() {
       return s.inventory
     },
@@ -297,6 +341,31 @@ export function installDevHook(game: Game, actions: Actions): void {
         ? { x: wreck.group.position.x, z: wreck.group.position.z }
         : null
     },
+    get angler() {
+      return s.angler
+    },
+    get line() {
+      return s.line
+    },
+    get slurms() {
+      return game.world.shelves
+        .crawlingSlurms()
+        .map(({ station, slot, index, x, z }) => ({
+          station,
+          slot,
+          index,
+          x,
+          z,
+        }))
+    },
+    get ponds() {
+      return game.world.ponds.map(({ place }) => ({
+        x: place.x,
+        z: place.z,
+        radius: place.radius,
+        landing: place.landing,
+      }))
+    },
     get citgos() {
       return s.citgos
     },
@@ -315,6 +384,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     get mapOpen() {
       return s.mapOpen
     },
+    get waypoints() {
+      return s.waypoints
+    },
     get hotbar() {
       return s.hotbar
     },
@@ -327,6 +399,18 @@ export function installDevHook(game: Game, actions: Actions): void {
     get flashlight() {
       return s.flashlight
     },
+    get held() {
+      return s.held
+    },
+    get selected() {
+      return s.selected
+    },
+    get inHand() {
+      return actions.inHand()
+    },
+    get fishPhase() {
+      return game.fishHud.phase
+    },
     get sent() {
       return s.lastSent
     },
@@ -338,8 +422,12 @@ export function installDevHook(game: Game, actions: Actions): void {
       player.relocate(x, z)
     },
     toggleFlashlight: () => actions.toggleFlashlight(),
+    useHand: () => actions.useHand(),
+    select: (slot: number) => actions.select(slot),
+    pressFish: (dir: ArrowDir) => game.fishHud.press(dir),
     openPortal: () => actions.openPortal(),
-    fastTravel: (station: number) => actions.fastTravel(station),
+    fastTravel: (station: number) => actions.fastTravel({ citgo: station }),
+    phoneTravel: (phone: number) => actions.fastTravel({ phone }),
     placeShadowman(x: number, z: number, kind: boolean | ShadeKind = 'man') {
       // true is a spider, as it always was.
       const shade: ShadeKind =
@@ -364,6 +452,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     },
     grant(kind, count = 1) {
       net.send({ type: 'dev', op: 'grant', kind, count })
+    },
+    earn(cents) {
+      net.send({ type: 'dev', op: 'earn', cents })
     },
     setHealth(points) {
       net.send({ type: 'dev', op: 'health', points })

@@ -8,7 +8,7 @@
 
 import { buffedBeam } from './buffs.ts'
 import { caretakerAt, createCaretaker, stepCaretaker } from './caretaker.ts'
-import { citgoAt } from './citgos.ts'
+import { citgoAt, phoneAt, phonesOf } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { woundsOf } from './health.ts'
 import { onLookout } from './lookout.ts'
@@ -25,6 +25,7 @@ import {
 import {
   citgosFor,
   creditedWith,
+  creditedWithParty,
   grantsTo,
   inTheBed,
   wardsFor,
@@ -50,6 +51,7 @@ import type {
 import type { Rng } from './rng.ts'
 import type {
   Beam,
+  Haven,
   Raider,
   ShadeKind,
   Shadowman,
@@ -119,13 +121,15 @@ export function shadowRaiders(
         // Up on the lookout no shadow reaches them.
         !(maze && onLookout(maze, at)) &&
         now >= (shadows.recovering[graceKey(valley, id)] ?? 0),
-      // Rule 27: their high reaches it further and wider.
-      beam: at.light
-        ? buffedBeam(
-            beamFrom(at, at.yaw, at.pitch, at.pose === 'crouch'),
-            wardsFor(valley, member.account, now)
-          )
-        : null,
+      // Rule 27: their high reaches it further and wider. A jar or a rod
+      // in the hand holds no flashlight (held.ts).
+      beam:
+        at.light && !at.held
+          ? buffedBeam(
+              beamFrom(at, at.yaw, at.pitch, at.pose === 'crouch'),
+              wardsFor(valley, member.account, now)
+            )
+          : null,
     })
   }
   return raiders
@@ -243,7 +247,7 @@ function stepKeeper(
       z: round(out.burst.z, 2),
     },
     caught: out.struck,
-    credited: creditedWith(valley, out.burnedBy),
+    credited: creditedWithParty(valley, out.burnedBy, raiders),
   }
 }
 
@@ -329,6 +333,17 @@ function burnCredits(
   }
 }
 
+// Rule 36: where the shadowmen turn aside: every Citgo forecourt, and the
+// firefly ponds, each as far past its shore as its haven reaches.
+export function shadeHavens(
+  world: Pick<NonNullable<Valley['world']>, 'havens' | 'ponds'>
+): Haven[] {
+  return [
+    ...world.havens,
+    ...world.ponds.map(({ x, z, radius }) => ({ x, z, radius })),
+  ]
+}
+
 // One step of the valley's shadowmen, its Caretaker and its tunnel shades,
 // dt seconds on. Null when there is nothing to step (no world, or no one
 // placed in it), and the field is emptied, so the valley stops stepping
@@ -366,8 +381,8 @@ export function stepShadows(
       dt,
       raiders: surface,
       metres: world.metres,
-      havens: world.havens,
-      water: world.water,
+      havens: shadeHavens(world),
+      lairs: world.lairs,
       calm,
       lights: headlightsAt(shadows, now),
       ground,
@@ -465,6 +480,29 @@ export function citgoVisits(
     visits.push({ id, station })
   }
   return visits
+}
+
+// Rule 28: each raider on foot, out of the bed, standing at a payphone
+// their account has not found, by their last state frame; one an account.
+export function phoneVisits(
+  valley: Valley,
+  placed: readonly Placed[]
+): { id: string; phone: number }[] {
+  const world = valley.world
+  if (!world || world.payphones.length === 0) return []
+  const finds: { id: string; phone: number }[] = []
+  const seen = new Set<string>()
+  for (const { id, at } of placed) {
+    const member = valley.members[id]
+    if (!at || !member || seen.has(member.account)) continue
+    if (inTheBed(valley, id)) continue
+    const phone = phoneAt(at, world.payphones)
+    if (phone === null) continue
+    seen.add(member.account)
+    if (phonesOf(citgosFor(valley, member.account)).includes(phone)) continue
+    finds.push({ id, phone })
+  }
+  return finds
 }
 
 // A dev server's shadowman (or spider) standing still at (x, z), for the

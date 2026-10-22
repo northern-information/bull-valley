@@ -2,11 +2,16 @@ import { describe, expect, it } from 'vitest'
 import { citgoNames } from '../../src/citgomap.ts'
 import {
   arrivalAt,
+  arrivalAtPhone,
   citgoAt,
   citgoLines,
   fastTravel,
+  findPhone,
   NO_CITGOS,
+  phoneAt,
+  phonesOf,
   roadNameNear,
+  stopAt,
   surveyedStations,
   visit,
 } from '../../src/citgos.ts'
@@ -48,16 +53,37 @@ describe('the log of Citgos', () => {
 })
 
 describe('fast travel', () => {
-  const log = { last: 0, visited: [0, 1] }
+  const log = { last: 0, visited: [0, 1], phones: [0] }
 
   it('goes from a Citgo to one visited', () => {
-    expect(fastTravel(log, 0, 1)).toBe('ok')
+    expect(fastTravel(log, { citgo: 0 }, { citgo: 1 })).toBe('ok')
   })
 
   it('leaves only from a Citgo, never to one unseen or to where you stand', () => {
-    expect(fastTravel(log, null, 1)).toBe('not-at-citgo')
-    expect(fastTravel(log, 0, 2)).toBe('not-visited')
-    expect(fastTravel(log, 1, 1)).toBe('here')
+    expect(fastTravel(log, null, { citgo: 1 })).toBe('not-at-citgo')
+    expect(fastTravel(log, { citgo: 0 }, { citgo: 2 })).toBe('not-visited')
+    expect(fastTravel(log, { citgo: 1 }, { citgo: 1 })).toBe('here')
+  })
+
+  it('goes to and from a payphone found, as from a Citgo', () => {
+    expect(fastTravel(log, { citgo: 1 }, { phone: 0 })).toBe('ok')
+    expect(fastTravel(log, { phone: 0 }, { citgo: 1 })).toBe('ok')
+    expect(fastTravel(log, { phone: 0 }, { phone: 0 })).toBe('here')
+    expect(fastTravel(log, { citgo: 0 }, { phone: 1 })).toBe('not-visited')
+    // A payphone not yet found is no place to leave from.
+    expect(fastTravel(log, { phone: 1 }, { citgo: 0 })).toBe('not-at-citgo')
+    // A log kept before there were payphones has found none.
+    const old = { last: 0, visited: [0, 1] }
+    expect(fastTravel(old, { citgo: 0 }, { phone: 0 })).toBe('not-visited')
+  })
+
+  it('knows where a raider stands: a Citgo first, else a payphone', () => {
+    const phones = [{ x: 500, z: 0 }]
+    expect(stopAt({ x: 2, z: 0 }, STATIONS, phones)).toEqual({ citgo: 0 })
+    expect(stopAt({ x: 501, z: 1 }, STATIONS, phones)).toEqual({ phone: 0 })
+    const reach = CONFIG.castle.yard.payphone.reach
+    expect(stopAt({ x: 500 + reach + 0.01, z: 0 }, STATIONS, phones)).toBeNull()
+    expect(phoneAt({ x: 500, z: reach }, phones)).toBe(0)
   })
 
   it('sets you down at the ring, facing the pump island', () => {
@@ -67,6 +93,34 @@ describe('fast travel', () => {
     // The camera looks along (-sin yaw, -cos yaw): toward -x.
     expect(-Math.sin(to.yaw)).toBeCloseTo(-1, 9)
     expect(-Math.cos(to.yaw)).toBeCloseTo(0, 9)
+  })
+
+  it('sets you down in front of a payphone, facing it', () => {
+    // Its face looks along +z.
+    const to = arrivalAtPhone({ x: 4, z: 4, yaw: Math.PI / 2 })
+    expect(to.x).toBeCloseTo(4, 9)
+    expect(to.z).toBeGreaterThan(5)
+    expect(-Math.sin(to.yaw)).toBeCloseTo(0, 9)
+    expect(-Math.cos(to.yaw)).toBeCloseTo(-1, 9)
+  })
+})
+
+describe('the payphones found', () => {
+  it('writes each once, in the order found, and leaves the last Citgo', () => {
+    const one = findPhone({ last: 2, visited: [2] }, 1)
+    expect(one).toEqual({ last: 2, visited: [2], phones: [1] })
+    expect(findPhone(one, 0).phones).toEqual([1, 0])
+    expect(findPhone(one, 1)).toBe(one)
+    expect(phonesOf(NO_CITGOS)).toEqual([])
+  })
+
+  it('says each payphone found in the log', () => {
+    const before = { last: 0, visited: [0] }
+    const after = findPhone(before, 0)
+    expect(citgoLines(before, after, () => 'x', true)).toEqual([
+      copy('log.payphone_found'),
+    ])
+    expect(citgoLines(after, after, () => 'x', true)).toEqual([])
   })
 })
 

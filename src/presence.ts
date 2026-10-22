@@ -31,6 +31,8 @@ export interface Peer {
   max: number
   // Dialed in from Bull Valley Dial-Up: never placed, so never drawn.
   dialup: boolean
+  // Their crew's tag (sharedworld.ts rule 35), or null.
+  crew: string | null
   // The states heard, oldest first, at most framebuffer.ts FRAMES_KEPT;
   // empty until the peer is placed.
   frames: PeerSnapshot[]
@@ -78,6 +80,7 @@ export function applyJoined(peers: PeerTable, wire: PeerWire, now: number) {
     level: wire.level,
     ...healthOf(wire),
     dialup: wire.dialup === true,
+    crew: wire.crew ?? null,
     frames: [],
     next: null,
   }
@@ -87,7 +90,7 @@ export function applyJoined(peers: PeerTable, wire: PeerWire, now: number) {
 }
 
 // A known peer's new name or character, from Gron, a cosmetic from Moab,
-// or a new level. Their place and motion stay as they were. An unknown id is ignored: we have not seen them join.
+// a new level, or a crew joined or left. Their place and motion stay as they were. An unknown id is ignored: we have not seen them join.
 export function applyUpdated(peers: PeerTable, wire: PeerWire): Peer | null {
   const peer = peers.get(wire.id)
   if (!peer) return null
@@ -95,6 +98,7 @@ export function applyUpdated(peers: PeerTable, wire: PeerWire): Peer | null {
   peer.outfit = wire.outfit
   peer.cosmetics = toCosmetics(wire.cosmetics)
   peer.level = wire.level
+  peer.crew = wire.crew ?? null
   Object.assign(peer, healthOf(wire))
   return peer
 }
@@ -164,8 +168,8 @@ function lerpAngle(a: number, b: number, t: number): number {
 
 // The peer's state at renderAt, a moment slightly in the past: between
 // the two states either side of it, or held at the oldest before them all
-// and at the newest past them, never extrapolating into a wall. Riding and
-// the flashlight take the newest state. Null until the peer is placed.
+// and at the newest past them, never extrapolating into a wall. Riding,
+// the flashlight and what the hand holds take the newest state. Null until the peer is placed.
 export function samplePeer(peer: Peer, renderAt: number): PeerSample | null {
   const { next } = peer
   const at = next ? between(peer.frames, renderAt, (frame) => frame) : null
@@ -183,6 +187,7 @@ export function samplePeer(peer: Peer, renderAt: number): PeerSample | null {
     pose: t < 0.5 ? prev.pose : to.pose,
     riding: next.riding,
     light: next.light,
+    ...(next.held ? { held: next.held } : {}),
     // Metres per second between the two states.
     speed: span > 0 ? (Math.hypot(dx, dz) / span) * 1000 : 0,
   }
@@ -210,6 +215,7 @@ export function stateChanged(
     Math.abs(last.pitch - next.pitch) > 0.01 ||
     last.pose !== next.pose ||
     last.riding !== next.riding ||
-    last.light !== next.light
+    last.light !== next.light ||
+    last.held !== next.held
   )
 }

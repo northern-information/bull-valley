@@ -762,6 +762,16 @@ button.bv-dial-card {
   color: var(--fi-magenta);
 }
 
+.bv-dial-line[data-kind='party'] .bv-dial-line-name,
+.bv-dial-line[data-kind='party'] .bv-dial-line-text {
+  color: var(--fi-cyan);
+}
+
+.bv-dial-line[data-kind='crew'] .bv-dial-line-name,
+.bv-dial-line[data-kind='crew'] .bv-dial-line-text {
+  color: var(--fi-amber);
+}
+
 .bv-dial-line[data-kind='system'] .bv-dial-line-text {
   color: var(--dial-dim);
 }
@@ -815,8 +825,17 @@ button.bv-dial-card {
 }
 
 .bv-dial-online-name {
+  display: block;
   margin: 0.25rem 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
   font-size: 0.875rem;
+  text-align: left;
+  text-decoration: underline dotted;
+  cursor: pointer;
 }
 
 /* The locker sheet: what is on the raider over what the locker holds. */
@@ -923,4 +942,111 @@ button.bv-dial-card {
 /* The stand's dialog, borrowed from the 3D valley, in one column. */
 .bv-dialup .bv-npc-ui--wide {
   grid-template-columns: 1fr;
+}
+
+/* A phone has no keyboard: the keys the dialogs wear on their buttons
+   (npcdialog.ts, the Esc on the way out) and the sign-in's key hints
+   (signin.ts) are not shown. */
+.bv-dialup .bv-npc-key,
+.bv-dialup .bv-select-hint {
+  display: none;
+}
+
+/* The burst a tap throws (tapfeedback.ts mountTapBurst), over everything
+   and never in a finger's way. */
+.bv-tapburst {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  image-rendering: pixelated;
+}
+
+/* Fishing at the firefly pond (dialfish.ts): the scene, the hook's call
+   over its foot and the arrow over its middle, then one line of the
+   angler, the two bars and one row of big buttons. */
+.bv-dial-fish {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.bv-dial-pond {
+  position: relative;
+  border: 1px solid var(--dial-edge);
+}
+
+.bv-dial-pond-canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 320 / 200;
+  image-rendering: pixelated;
+}
+
+.bv-dial-pond-arrow {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 3rem;
+  font-weight: 700;
+  color: var(--dial-ink);
+  text-shadow: 0 0 6px rgb(0 0 0 / 90%);
+  pointer-events: none;
+}
+
+.bv-dial-pond-arrow--gold {
+  color: var(--fi-gold);
+}
+
+.bv-dial-pond-call {
+  position: absolute;
+  inset: auto 0 0;
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: rgb(0 0 0 / 60%);
+}
+
+.bv-dial-pond-call:empty {
+  display: none;
+}
+
+.bv-dial-fish-angler,
+.bv-dial-fish-feel {
+  margin: 0;
+}
+
+.bv-dial-fish-feel {
+  color: var(--dial-hot);
+}
+
+.bv-dial-fish-bars {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.4rem 0.6rem;
+  align-items: center;
+}
+
+.bv-dial-fish-bars[hidden],
+.bv-dial-fish-feel[hidden] {
+  display: none;
+}
+
+.bv-dial-fish-act {
+  display: grid;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  gap: 0.5rem;
+}
+
+.bv-dial-fish-act[data-phase='none'] {
+  grid-auto-flow: row;
+}
+
+.bv-dial-fish-act[data-phase='fight'] .bv-dial-btn {
+  min-height: calc(var(--dial-tap) * 2);
+  font-size: 1.5rem;
 }

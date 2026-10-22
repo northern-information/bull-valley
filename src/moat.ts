@@ -57,7 +57,7 @@ export function moatShape(cfg: MoatConfig = CONFIG.castle.moat): MoatShape {
 
 // A convex polygon's sides each pushed `by` out, the corners where the
 // pushed sides meet.
-function inflate(poly: readonly XZ[], by: number): XZ[] {
+export function inflate(poly: readonly XZ[], by: number): XZ[] {
   const n = poly.length
   const normal = (k: number) => {
     const a = poly[k]

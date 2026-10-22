@@ -5,6 +5,7 @@ import { buildCastleSite } from './castlesite.ts'
 import { CONFIG } from './config.ts'
 import { unitToWorld } from './coords.ts'
 import { buildCornMaze, mazeFrame, mazeLamps, mazePlaceOf } from './cornmaze.ts'
+import { pondsOf } from './fishing.ts'
 import { Ground } from './ground.ts'
 import { KEEP, landmarkWorldPositions } from './landmarks.ts'
 import { LOOKOUT, onLookout } from './lookout.ts'
@@ -12,6 +13,7 @@ import { mazeToWorld } from './maze.ts'
 import { carve, castlePlace, moatFloor, onMoatGrounds } from './moat.ts'
 import { buildCroft, buildPlaza, CROFT_TREE_CLEAR } from './plazasite.ts'
 import { buildPoles } from './poles.ts'
+import { placePond } from './pondsite.ts'
 import { mulberry32 } from './rng.ts'
 import { placeRoadside } from './roadside.ts'
 import {
@@ -66,13 +68,16 @@ import { buildRoads, buildShoulders, buildWater } from './worldsurfaces.ts'
 import type { DishArray, PortalRig, Wreck } from './assets.ts'
 import type { Sight } from './book.ts'
 import type { CastleSite } from './castlesite.ts'
+import type { YardSpot } from './castleyard.ts'
 import type { DonutField } from './donuts.ts'
 import type { GronRig, MoabRig, TylerRig } from './figure.ts'
 import type { Geo, HeightAt, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
 import type { MazePlace } from './maze.ts'
 import type { CroftRig, PlazaRig } from './plazasite.ts'
+import type { PondRig } from './pondsite.ts'
 import type { Cue } from './sfx.ts'
+import type { CrawlingSlurm } from './slurmrig.ts'
 import type { Feet } from './slurms.ts'
 import type { StoreOrigin, WorldFacing } from './store.ts'
 import type { Streetlights } from './streetlights.ts'
@@ -126,6 +131,10 @@ export interface ShelfDisplay {
   // Whether he is out on `station`'s lot after the slurms, with no one
   // behind the counter to talk to.
   clerkAway(station: number): boolean
+  // The slurms crawling on the parked station's lot (slurmrig.ts), and one
+  // caught in a jar, gone from it (sharedworld.ts rule 36).
+  crawlingSlurms(): CrawlingSlurm[]
+  jarSlurm(station: number, slot: number, index: number): void
   // Dev: bring the next drop of slurms at the parked station to now.
   hurrySlurms(): void
   // Dev: hold every drop off (or let them fall again), Carlsten behind
@@ -156,6 +165,9 @@ export interface Pickup extends XZ {
 export interface Spawn extends XZ {
   yaw: number
 }
+
+// Trees keep this far off the pond's landing.
+const POND_TREE_CLEAR = 6
 
 // What buildWorld returns: the scene group plus the gameplay anchors.
 export interface World {
@@ -241,6 +253,14 @@ export interface World {
   // field; null without
   // a spawn station.
   castle: CastleSite | null
+  // The firefly ponds (fishing.ts pondsOf, sharedworld.ts rule 36), the
+  // one behind the spawn Citgo and the one past the corn maze: each its
+  // place and shore, the tackle box on its landing, and update(t) for the
+  // fireflies. None without a spawn station or water near it.
+  ponds: PondRig[]
+  // The payphones (castleyard.ts payphoneSpot, sharedworld.ts rule 28):
+  // the one on Castle Entropy's rim, none without the castle.
+  payphones: YardSpot[]
 }
 
 // The terrain as buildWorld may cut into it (terrain.ts HeightField): the
@@ -378,6 +398,10 @@ export function buildWorld(
   const wreckAt = spawnStation
     ? toWorld(spawnStation, [CONFIG.wreck.at.x, 0, CONFIG.wreck.at.z])
     : null
+  // The ponds with the fireflies.
+  const pondsAt = spawnStation
+    ? pondsOf(geo.water, (u, v) => unitToWorld(u, v, metres), spawnStation)
+    : []
   const dishSpots = spawnStation ? dishSpotsOf(spawnStation) : []
   const pine = spawnStation ? lonePineOf(spawnStation) : null
   const plaza = spawnStation
@@ -411,6 +435,10 @@ export function buildWorld(
         (wreckAt
           ? Math.hypot(x - wreckAt[0], z - wreckAt[2]) < CONFIG.wreck.treeClear
           : false) ||
+        // A pond's landing stands in the open.
+        pondsAt.some(
+          (p) => Math.hypot(x - p.landing.x, z - p.landing.z) < POND_TREE_CLEAR
+        ) ||
         dishSpots.some(
           (d) => Math.hypot(x - d.x, z - d.z) < CONFIG.dishes.treeClear
         ) ||
@@ -511,6 +539,8 @@ export function buildWorld(
     ? buildCastleSite(moatAt.place, raw, moatAt.floor, ground, walls)
     : null
   if (castle) group.add(castle.group)
+  const ponds = pondsAt.map((at) => placePond(at, ground, walls))
+  for (const pond of ponds) group.add(pond.group)
 
   return {
     group,
@@ -566,5 +596,7 @@ export function buildWorld(
       castle: castle ? castle.middle : null,
     }),
     castle,
+    ponds,
+    payphones: castle ? [castle.payphone] : [],
   }
 }

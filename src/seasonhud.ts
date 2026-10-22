@@ -1,9 +1,9 @@
 // The season as the raider sees it (season.ts): the card on the intro and
-// pause overlay that says what the season asks and pays, the tracker in
+// menu overlay that says what the season asks and pays, the tracker in
 // the upper right (out of sight but for a few seconds after the season's,
 // the daily task's or the level's count goes up), and the banners that
-// sweep across the view when the season goes live, when the raider helps
-// burn the Caretaker, and when the season is done. Hud builds it;
+// sweep across the view when the raider helps burn the Caretaker and when
+// the season is done. The season going live is a red line in the log. Hud builds it;
 // valleysync.ts and input.ts feed it.
 
 import { copy } from './copy.ts'
@@ -65,7 +65,7 @@ export class SeasonHud {
     this.tracker.append(head, this.progressRow())
     ui.appendChild(this.tracker)
 
-    // The card, for the intro and pause overlay (Hud places it under the
+    // The card, for the intro and menu overlay (Hud places it under the
     // section head that names the season and says it is live).
     this.card = el('div', 'bv-season-card')
     this.card.setAttribute('aria-label', SEASON_COPY.kicker)
@@ -155,15 +155,6 @@ export class SeasonHud {
     void b.offsetWidth
     b.classList.add('bv-banner--on')
     setTimeout(() => this.next(), BANNER_MS)
-  }
-
-  // The season going live, the first time the raider begins.
-  live(): void {
-    this.announce({
-      kicker: `${SEASON_COPY.kicker} · ${SEASON_COPY.live}`,
-      headline: SEASON_COPY.title,
-      detail: SEASON_COPY.reward,
-    })
   }
 
   // The raider was credited with burning the Caretaker: the banner for it,

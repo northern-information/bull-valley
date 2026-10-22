@@ -26,7 +26,7 @@ interface MainMenuOptions {
   config: LogoConfig
   // The fog's render downscale, the game's.
   downscale: number
-  // The raider's settings, shared with the pause overlay.
+  // The raider's settings, shared with the menu overlay.
   settings: SettingsStore
   // The valley's music, started with the menu; none under e2e.
   music: Music | null

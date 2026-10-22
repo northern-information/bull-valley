@@ -2,11 +2,13 @@
 // valley's one chat channel, its log and a field to say a line (the 3D
 // valley's commands too, dialstate.ts sayLine), the friends list with a
 // way to accept an asking or end a friendship, and who is in the valley
-// now. The field is kept across redraws, so a line half typed survives
-// the valley's frames.
+// now, each name tapped open on their card (inspect.ts), and the party
+// (sharedworld.ts rule 34) with its invites to join and a way to leave. The field is
+// kept across redraws, so a line half typed survives the valley's frames.
 
 import { formatStamp } from './chat.ts'
 import { copy } from './copy.ts'
+import { crewLines } from './crews.ts'
 import { el, text } from './dom.ts'
 import { friendLines } from './friends.ts'
 import { CHAT_MAX } from './protocol.ts'
@@ -17,6 +19,11 @@ export interface SocialActions {
   say(line: string): void
   friend(name: string): void
   unfriend(name: string): void
+  inspect(name: string): void
+  invite(name: string): void
+  leave(): void
+  crewJoin(tag: string): void
+  crewLeave(): void
 }
 
 export class DialSocial {
@@ -26,6 +33,8 @@ export class DialSocial {
   private input = document.createElement('input')
   private friends = el('section', 'bv-dial-friends')
   private online = el('section', 'bv-dial-online')
+  private party = el('section', 'bv-dial-party')
+  private crew = el('section', 'bv-dial-crew')
   // The newest line drawn, so the log redraws only when one comes.
   private newest: ChatLine | undefined
   private friendActions: SocialActions
@@ -48,7 +57,7 @@ export class DialSocial {
       actions.say(line)
     })
     this.friendActions = actions
-    this.root.append(this.log, this.form, this.friends, this.online)
+    this.root.append(this.log, this.form, this.party, this.friends, this.online)
   }
 
   render(s: DialState, self: Self): void {
@@ -70,18 +79,112 @@ export class DialSocial {
       )
       this.log.scrollTop = this.log.scrollHeight
     }
+    this.renderParty(s)
+    this.renderCrew(s)
     this.renderFriends(s)
     this.online.replaceChildren(
       text('h3', copy('dialup.social.online'), 'bv-dial-social-head'),
-      ...[{ ...self, dialup: true }, ...s.peers].map((p) =>
-        text(
-          'p',
+      ...[{ ...self, dialup: true }, ...s.peers].map((p) => {
+        // Rule 35: the crew's tag before the name, as on a name tag.
+        const name =
+          'crew' in p && p.crew
+            ? copy('crew.heading_line', { tag: p.crew, crew: p.name })
+            : p.name
+        const row = text(
+          'button',
           p.dialup
-            ? copy('chat.online_phone', { name: p.name, level: p.level })
-            : copy('chat.online_name', { name: p.name, level: p.level }),
+            ? copy('chat.online_phone', { name, level: p.level })
+            : copy('chat.online_name', { name, level: p.level }),
           'bv-dial-online-name'
         )
+        row.type = 'button'
+        row.dataset.raider = p.name
+        // One card asked at a time: the valley's answer frees them again.
+        row.disabled = s.pending.inspect !== null
+        row.addEventListener('click', () => this.friendActions.inspect(p.name))
+        return row
+      })
+    )
+  }
+
+  // Rule 34: the party's members and a way out, or the invites waiting;
+  // nothing at all while there is neither.
+  private renderParty(s: DialState): void {
+    const { members, invites } = s.party
+    this.party.hidden = members.length === 0 && invites.length === 0
+    const rows: HTMLElement[] = members.map((m) =>
+      text(
+        'p',
+        m.online ? m.name : copy('party.away', { name: m.name }),
+        'bv-dial-party-name'
       )
+    )
+    if (members.length > 0) {
+      const leave = text('button', copy('party.leave_button'), 'bv-dial-btn')
+      leave.type = 'button'
+      leave.addEventListener('click', () => this.friendActions.leave())
+      rows.push(leave)
+    }
+    for (const name of invites) {
+      const row = el('div', 'bv-dial-friend')
+      row.dataset.invite = name
+      row.append(
+        text(
+          'span',
+          copy('party.news_invited', { name }),
+          'bv-dial-friend-line'
+        )
+      )
+      const join = text('button', copy('party.join_button'), 'bv-dial-btn')
+      join.type = 'button'
+      // One invite at a time: the valley's answer frees them again.
+      join.disabled = s.pending.invite !== null
+      join.addEventListener('click', () => this.friendActions.invite(name))
+      row.append(join)
+      rows.push(row)
+    }
+    this.party.replaceChildren(
+      text('h3', copy('party.heading'), 'bv-dial-social-head'),
+      ...rows
+    )
+  }
+
+  // Rule 35: the crew's name and members and a way out, or the invites
+  // waiting with Join, or the way to start one.
+  private renderCrew(s: DialState): void {
+    const { crew, invites } = s.crew
+    const rows: HTMLElement[] = crewLines(s.crew)
+      .slice(0, crew ? 2 : 1)
+      .map((line) => text('p', line, 'bv-dial-crew-line'))
+    if (crew) {
+      const leave = text('button', copy('crew.leave_button'), 'bv-dial-btn')
+      leave.type = 'button'
+      leave.addEventListener('click', () => this.friendActions.crewLeave())
+      rows.push(leave)
+    }
+    for (const invite of crew ? [] : invites) {
+      const row = el('div', 'bv-dial-friend')
+      row.dataset.crewInvite = invite.tag
+      row.append(
+        text(
+          'span',
+          copy('crew.invite_waiting', { tag: invite.tag, crew: invite.name }),
+          'bv-dial-friend-line'
+        )
+      )
+      const join = text('button', copy('crew.join_button'), 'bv-dial-btn')
+      join.type = 'button'
+      // One crew frame at a time: the valley's answer frees them again.
+      join.disabled = s.pending.crew !== null
+      join.addEventListener('click', () =>
+        this.friendActions.crewJoin(invite.tag)
+      )
+      row.append(join)
+      rows.push(row)
+    }
+    this.crew.replaceChildren(
+      text('h3', copy('crew.heading'), 'bv-dial-social-head'),
+      ...rows
     )
   }
 

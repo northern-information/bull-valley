@@ -22,7 +22,9 @@ import {
   WS_PATH,
 } from './protocol.ts'
 import type { ClockSync } from './clock.ts'
+import type { PondPlace } from './fishing.ts'
 import type { Metres, XZ } from './interfaces.ts'
+import type { Lair } from './lairs.ts'
 import type { TruckRoutes } from './marx.ts'
 import type { MazePlace } from './maze.ts'
 import type { OutfitId } from './outfits.ts'
@@ -33,7 +35,6 @@ import type {
   ServerMessage,
 } from './protocol.ts'
 import type { TruckPose } from './shadowmen.ts'
-import type { WaterMap } from './waterside.ts'
 
 export type NetStatus = 'connecting' | 'online' | 'offline'
 
@@ -65,8 +66,8 @@ interface NetIdentity {
   // Each station's forecourt and the survey's size; see HelloMessage.
   havens: XZ[]
   metres: Metres
-  // Where the water's edges run; see HelloMessage.
-  water: WaterMap
+  // The spiders' lairs; see HelloMessage.
+  lairs: Lair[]
   // Where the corn maze lies (the Caretaker's, rule 13), or null.
   maze: MazePlace | null
   // Where each berry bush stands; see HelloMessage.
@@ -77,6 +78,8 @@ interface NetIdentity {
   stand: XZ | null
   // Where the wreck lies (rule 33: the Recycling Center), or null.
   wreck: XZ | null
+  // The firefly ponds (rule 36), none or more.
+  ponds: PondPlace[]
   // Where the squatter deals (rule 25), or null.
   dealer: XZ | null
   // Where the Undercroft lies (rule 11: the tunnel shades), or null.
@@ -85,6 +88,8 @@ interface NetIdentity {
   moat: MazePlace | null
   // The middle of each lot's Citgo portal ring (rule 28).
   rings: XZ[]
+  // Where each payphone stands (rule 28).
+  payphones: XZ[]
 }
 
 // Reconnect schedule; the last delay holds for every attempt after.
@@ -278,16 +283,18 @@ export class NetClient {
           stations: identity.stations,
           havens: identity.havens,
           metres: identity.metres,
-          water: identity.water,
+          lairs: identity.lairs,
           maze: identity.maze,
           truck: identity.truck,
           stand: identity.stand,
           wreck: identity.wreck,
+          ponds: identity.ponds,
           bushes: identity.bushes,
           dealer: identity.dealer,
           undercroft: identity.undercroft,
           moat: identity.moat,
           rings: identity.rings,
+          payphones: identity.payphones,
           ...was,
         } satisfies ClientMessage)
       )

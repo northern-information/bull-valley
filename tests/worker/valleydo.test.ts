@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import { BOOK } from '../../src/book.ts'
 import { heartPoint, theMaze } from '../../src/caretaker.ts'
 import { CONFIG } from '../../src/config.ts'
 import { dayKey } from '../../src/daily.ts'
@@ -7,24 +8,28 @@ import { DAILY_TASK, NO_TASK } from '../../src/dailytask.ts'
 import { costIn, goodOf } from '../../src/dealer.ts'
 import { DIME_CENTS } from '../../src/drops.ts'
 import { outcomeOf } from '../../src/expeditions.ts'
+import { quickestMs } from '../../src/fishing.ts'
 import { BASE_GEOMETRIE } from '../../src/health.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
-import { getItem, healsOf } from '../../src/items.ts'
+import { getItem, healsOf, isKeyItem } from '../../src/items.ts'
 import { mazeToWorld } from '../../src/maze.ts'
 import { XP, xpToReach } from '../../src/progression.ts'
 import { CLOSE, PROTOCOL_VERSION } from '../../src/protocol.ts'
 import { SEASON } from '../../src/season.ts'
 import { createValley } from '../../src/sharedworld.ts'
 import { standXp } from '../../src/stand.ts'
-import { dryMap } from '../../src/waterside.ts'
 import { MemoryAccountStore } from '../../worker/accounts.ts'
+import { MemoryCrewStore } from '../../worker/crews.ts'
 import { MemoryPackStore, STARTING_CASH } from '../../worker/packs.ts'
 import { ValleyDO } from '../../worker/ValleyDO.ts'
 import type { Inventory } from '../../src/interfaces.ts'
 import type {
+  AnglerMessage,
   BookMessage,
+  CatchMessage,
   DailyMessage,
   ExpeditionMessage,
+  LineMessage,
   NackMessage,
   PackMessage,
   PeerChatMessage,
@@ -44,6 +49,7 @@ import type {
 } from '../../src/protocol.ts'
 import type { Valley } from '../../src/sharedworld.ts'
 import type { AccountStore } from '../../worker/accounts.ts'
+import type { CrewStore } from '../../worker/crews.ts'
 import type { PackStore } from '../../worker/packs.ts'
 
 // Rule 24: a level 1 raider's whole, and a shadowman's hit.
@@ -138,6 +144,13 @@ class TestValley extends ValleyDO {
   protected override packs(): PackStore {
     return this.packStore
   }
+  crewStore = new MemoryCrewStore(
+    (this.packStore as MemoryPackStore).wallets,
+    (account) => this.accountStore.accounts.get(account)?.username ?? ''
+  )
+  protected override crews(): CrewStore {
+    return this.crewStore
+  }
   protected override startTicker(): unknown {
     this.ticking = true
     return 1
@@ -213,7 +226,10 @@ const MAZE = { x: 5000, z: 5000, yaw: 0 }
 
 // Where a build sets up the Cabbage Stand: on the first station's lot.
 const STAND = { x: -4, z: -17 }
+const PAYPHONE = { x: 3000, z: -3000 }
 const WRECK = { x: 6, z: 27 }
+// The firefly pond (rule 36), clear of every station.
+const POND = { x: -5000, z: 5000, radius: 80, landing: { x: -5060, z: 5000 } }
 const DEALER = { x: -20, z: -55 }
 // Where the Undercroft lies, far from everything else.
 const CROFT = { x: -7000, z: -7000, yaw: 0 }
@@ -245,11 +261,12 @@ const hello = (
     stations,
     havens: Array.from({ length: stations }, (_, i) => ({ x: i * 1000, z: 0 })),
     metres: { width: 15059, height: 15038 },
-    water: dryMap({ width: 15059, height: 15038 }),
+    lairs: [],
     maze: MAZE,
     truck: { home: { x: 10, z: 10 }, joyrideMs: 600_000 },
     stand: STAND,
     wreck: WRECK,
+    ponds: [POND],
     bushes: Array.from({ length: 7 }, () => ({ x: 0, z: 0 })),
     dealer: DEALER,
     undercroft: CROFT,
@@ -258,6 +275,7 @@ const hello = (
       x: i * 1000 + 2,
       z: 14,
     })),
+    payphones: [PAYPHONE],
   })
 
 // The last pack frame a socket was sent.
@@ -1308,6 +1326,294 @@ describe('ValleyDO', () => {
       .frames()
       .filter((m): m is Extract<ServerMessage, { type: T }> => m.type === type)
 
+  it("sends a raider's card to the asker alone, in the valley or not", async () => {
+    const { valley: v, state: s } = await valley()
+    await named(v, 'Able', 'Baker', 'Dog')
+    const store = v.packStore
+    await store.gainXp('acct-Baker', xpToReach(3))
+    await store.discover('acct-Baker', ['citgo', 'nope'], 0)
+    await store.score(
+      'acct-Baker',
+      SEASON.id,
+      { kills: 2, claimed: false },
+      null
+    )
+    await v.accountStore.setLook('acct-Baker', {
+      outfit: 'kvistad',
+      finish: 'cherry',
+    })
+    const a = await join(v, s, 'Able')
+    const b = await join(v, s, 'Baker')
+    const inspect = (socket: MockSocket, name: string) =>
+      v.webSocketMessage(ws(socket), JSON.stringify({ type: 'inspect', name }))
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ type: 'friend', name: 'Baker' })
+    )
+    const heard = b.frames().length
+    await inspect(a, 'baker')
+    expect(ofType(a, 'inspected').at(-1)?.card).toEqual({
+      name: 'Baker',
+      level: 3,
+      outfit: 'kvistad',
+      finish: 'cherry',
+      cosmetics: [],
+      book: { found: 1, of: BOOK.length },
+      season: { kills: 2, goal: SEASON.goal, claimed: false },
+      friend: 'asked',
+      party: null,
+      crew: null,
+      crewInvite: false,
+      online: true,
+    })
+    // Baker heard nothing of it, and no account id went out.
+    expect(b.frames().length).toBe(heard)
+    expect(JSON.stringify(a.frames())).not.toContain('acct-')
+    // Someone away, and the asker's own card.
+    await inspect(a, 'Dog')
+    expect(ofType(a, 'inspected').at(-1)?.card).toEqual(
+      expect.objectContaining({ name: 'Dog', online: false, friend: null })
+    )
+    await inspect(a, 'Able')
+    expect(ofType(a, 'inspected').at(-1)?.card.friend).toBe('self')
+    await inspect(a, 'Nobody')
+    expect(a.last()).toEqual({ type: 'nack', re: 'inspect', reason: 'unknown' })
+    for (let i = 0; i < 10; i++) await inspect(a, 'Baker')
+    expect(a.last()).toEqual({
+      type: 'nack',
+      re: 'inspect',
+      reason: 'too-fast',
+    })
+  })
+
+  it('makes a party by invite, keeps its chat to it, and lets it go', async () => {
+    const { valley: v, state: s } = await valley()
+    await named(v, 'Able', 'Baker', 'Charlie')
+    const a = await join(v, s, 'Able')
+    const b = await join(v, s, 'Baker')
+    const c = await join(v, s, 'Charlie')
+    const say = (socket: MockSocket, msg: object) =>
+      v.webSocketMessage(ws(socket), JSON.stringify(msg))
+    await say(a, { type: 'invite', name: 'baker' })
+    expect(ofType(b, 'party-news')).toEqual([
+      { type: 'party-news', news: 'invited', name: 'Able' },
+    ])
+    expect(ofType(b, 'party').at(-1)).toEqual({
+      type: 'party',
+      members: [],
+      invites: ['Able'],
+    })
+    expect(ofType(a, 'party-news').at(-1)?.news).toBe('sent')
+    await say(b, { type: 'invite', name: 'Able' })
+    const both = {
+      type: 'party',
+      members: [
+        { name: 'Able', online: true },
+        { name: 'Baker', online: true },
+      ],
+      invites: [],
+    }
+    expect(ofType(a, 'party').at(-1)).toEqual(both)
+    expect(ofType(b, 'party').at(-1)).toEqual(both)
+    // Its inspect card says so.
+    await say(a, { type: 'inspect', name: 'Baker' })
+    expect(ofType(a, 'inspected').at(-1)?.card.party).toBe('member')
+    // The party hears its line; Charlie does not.
+    await say(b, { type: 'party-chat', text: 'to the maze' })
+    expect(ofType(a, 'party-chat').at(-1)).toEqual(
+      expect.objectContaining({ from: 'Baker', text: 'to the maze' })
+    )
+    expect(ofType(c, 'party-chat')).toEqual([])
+    await say(c, { type: 'party-chat', text: 'hello?' })
+    expect(c.last()).toEqual({
+      type: 'nack',
+      re: 'party-chat',
+      reason: 'no-party',
+    })
+    expect(JSON.stringify([...a.frames(), ...b.frames()])).not.toContain(
+      'acct-'
+    )
+    // Baker's line drops: away, then out once the linger is up.
+    await v.webSocketClose(ws(b))
+    expect(ofType(a, 'party').at(-1)?.members).toEqual([
+      { name: 'Able', online: true },
+      { name: 'Baker', online: false },
+    ])
+    v.lingerOut()
+    await vi.waitFor(() =>
+      expect(ofType(a, 'party-news').at(-1)).toEqual({
+        type: 'party-news',
+        news: 'left',
+        name: 'Baker',
+      })
+    )
+    expect(ofType(a, 'party').at(-1)?.members).toEqual([])
+  })
+
+  it('starts a crew for its price, wears its tag, and passes it on', async () => {
+    const { valley: v, state: s } = await valley()
+    await named(v, 'Able', 'Baker', 'Charlie')
+    const a = await join(v, s, 'Able')
+    const b = await join(v, s, 'Baker')
+    const c = await join(v, s, 'Charlie')
+    const say = (socket: MockSocket, msg: object) =>
+      v.webSocketMessage(ws(socket), JSON.stringify(msg))
+    const wallets = (v.packStore as MemoryPackStore).wallets
+    const create = { type: 'crew-create', tag: 'bvc', name: 'Bull Valley' }
+    // Short of the price: nothing taken.
+    wallets.set('acct-Able', CONFIG.crews.cost - 1)
+    await say(a, create)
+    expect(a.last()).toEqual({
+      type: 'nack',
+      re: 'crew-create',
+      reason: 'short',
+    })
+    wallets.set('acct-Able', CONFIG.crews.cost + 500)
+    await say(a, create)
+    expect(ofType(a, 'pack').at(-1)?.cash).toBe(500)
+    expect(ofType(c, 'peer-updated').at(-1)?.peer).toEqual(
+      expect.objectContaining({ name: 'Able', crew: 'BVC' })
+    )
+    expect(ofType(a, 'crew').at(-1)?.crew).toEqual({
+      name: 'Bull Valley',
+      tag: 'BVC',
+      leader: 'Able',
+      members: [{ name: 'Able', online: true }],
+    })
+    // The tag is taken in any case.
+    wallets.set('acct-Baker', CONFIG.crews.cost)
+    await say(b, { type: 'crew-create', tag: 'BVC', name: 'Other' })
+    expect(b.last()).toEqual({
+      type: 'nack',
+      re: 'crew-create',
+      reason: 'tag-taken',
+    })
+    // Invited, Baker joins by the tag.
+    await say(a, { type: 'crew-invite', name: 'baker' })
+    expect(ofType(b, 'crew-news').at(-1)).toEqual({
+      type: 'crew-news',
+      news: 'invited',
+      name: 'Able',
+      tag: 'BVC',
+      crew: 'Bull Valley',
+    })
+    expect(ofType(b, 'crew').at(-1)?.invites).toEqual([
+      { tag: 'BVC', name: 'Bull Valley' },
+    ])
+    await say(b, { type: 'crew-join', tag: 'Bvc' })
+    expect(ofType(c, 'peer-updated').at(-1)?.peer).toEqual(
+      expect.objectContaining({ name: 'Baker', crew: 'BVC' })
+    )
+    expect(ofType(a, 'crew').at(-1)?.crew?.members).toHaveLength(2)
+    // Only the leader invites; the crew hears its line, Charlie does not.
+    await say(b, { type: 'crew-invite', name: 'Charlie' })
+    expect(b.last()).toEqual({
+      type: 'nack',
+      re: 'crew-invite',
+      reason: 'not-leader',
+    })
+    await say(b, { type: 'crew-chat', text: 'meet at the keep' })
+    expect(ofType(a, 'crew-chat').at(-1)).toEqual(
+      expect.objectContaining({ from: 'Baker', text: 'meet at the keep' })
+    )
+    expect(ofType(c, 'crew-chat')).toEqual([])
+    // The inspect card says so, and what Able may do.
+    await say(a, { type: 'inspect', name: 'Charlie' })
+    expect(ofType(a, 'inspected').at(-1)?.card).toEqual(
+      expect.objectContaining({ crew: null, crewInvite: true })
+    )
+    await say(c, { type: 'inspect', name: 'Baker' })
+    expect(ofType(c, 'inspected').at(-1)?.card).toEqual(
+      expect.objectContaining({
+        crew: { name: 'Bull Valley', tag: 'BVC' },
+        crewInvite: false,
+      })
+    )
+    // Able leaves: Baker leads, and Able wears no tag.
+    await say(a, { type: 'crew-leave' })
+    expect(ofType(b, 'crew-news').at(-1)).toEqual(
+      expect.objectContaining({ news: 'leader', name: 'Baker' })
+    )
+    const shown = ofType(c, 'peer-updated').filter(
+      (m) => m.peer.name === 'Able'
+    )
+    expect(shown.at(-1)?.peer.crew).toBeUndefined()
+    expect(ofType(b, 'crew').at(-1)?.crew?.leader).toBe('Baker')
+    // The last one out ends it.
+    await say(b, { type: 'crew-leave' })
+    expect(ofType(b, 'crew').at(-1)?.crew).toBeNull()
+    expect(JSON.stringify([...a.frames(), ...b.frames()])).not.toContain(
+      'acct-'
+    )
+  })
+
+  it('puts a member out, and says why a crew frame was refused', async () => {
+    const { valley: v, state: s } = await valley()
+    await named(v, 'Able', 'Baker', 'Charlie')
+    const a = await join(v, s, 'Able', { dev: true })
+    const b = await join(v, s, 'Baker')
+    const c = await join(v, s, 'Charlie')
+    // Each frame past the friend rate's window, so the refusals are the
+    // crew's own.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+    const say = (socket: MockSocket, msg: object) => {
+      vi.setSystemTime(Date.now() + 10_001)
+      return v.webSocketMessage(ws(socket), JSON.stringify(msg))
+    }
+    const refused = async (socket: MockSocket, msg: object, reason: string) => {
+      await say(socket, msg)
+      expect(socket.last()).toEqual(
+        expect.objectContaining({ type: 'nack', reason })
+      )
+    }
+    // In no crew: nothing to invite to, leave, put out of or say to.
+    await refused(a, { type: 'crew-invite', name: 'Baker' }, 'no-crew')
+    await refused(a, { type: 'crew-leave' }, 'no-crew')
+    await refused(a, { type: 'crew-kick', name: 'Baker' }, 'no-crew')
+    await refused(a, { type: 'crew-chat', text: 'hi' }, 'no-crew')
+    await refused(a, { type: 'crew-join', tag: 'BVC' }, 'no-invite')
+    await refused(a, { type: 'crew-create', tag: 'B_', name: 'Bad' }, 'bad-tag')
+    // The dev server's cash, then a crew.
+    await say(a, { type: 'dev', op: 'earn', cents: CONFIG.crews.cost })
+    expect(ofType(a, 'pack').at(-1)?.cash).toBeGreaterThanOrEqual(
+      CONFIG.crews.cost
+    )
+    await say(a, { type: 'crew-create', tag: 'BVC', name: 'Bull Valley' })
+    await refused(
+      a,
+      { type: 'crew-create', tag: 'ZZ', name: 'Again' },
+      'in-crew'
+    )
+    await refused(a, { type: 'crew-invite', name: 'Nobody' }, 'unknown')
+    await refused(a, { type: 'crew-invite', name: 'Able' }, 'self')
+    await refused(a, { type: 'crew-kick', name: 'Charlie' }, 'not-member')
+    await refused(a, { type: 'crew-kick', name: 'Able' }, 'self')
+    await say(a, { type: 'crew-invite', name: 'Baker' })
+    await say(b, { type: 'crew-join', tag: 'BVC' })
+    await refused(b, { type: 'crew-join', tag: 'BVC' }, 'in-crew')
+    await refused(b, { type: 'crew-kick', name: 'Able' }, 'not-leader')
+    // Charlie in a crew of their own cannot be invited.
+    ;(v.packStore as MemoryPackStore).wallets.set(
+      'acct-Charlie',
+      CONFIG.crews.cost
+    )
+    await say(c, { type: 'crew-create', tag: 'CC', name: 'Charlie Co' })
+    await refused(a, { type: 'crew-invite', name: 'Charlie' }, 'their-crew')
+    // Baker put out: told, and no tag.
+    await say(a, { type: 'crew-kick', name: 'baker' })
+    expect(ofType(b, 'crew-news').at(-1)).toEqual(
+      expect.objectContaining({ news: 'kicked', name: 'Baker' })
+    )
+    expect(ofType(b, 'crew').at(-1)?.crew).toBeNull()
+    const shown = ofType(c, 'peer-updated').filter(
+      (m) => m.peer.name === 'Baker'
+    )
+    expect(shown.at(-1)?.peer.crew).toBeUndefined()
+  })
+
   it('whispers to one raider by name, echoing it to the sender alone', async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'Able')
@@ -1861,7 +2167,13 @@ describe('ValleyDO: corpse runs', () => {
     const { a, b } = await struck()
     expect(a.frames().some((m) => m.type === 'struck')).toBe(true)
     const pack = lastFrame(a)
-    expect(Object.values(pack?.pack ?? {}).every((n) => n === 0)).toBe(true)
+    // All of it but the key items, the kit every raider carries among them.
+    expect(
+      Object.entries(pack?.pack ?? {}).every(
+        ([kind, n]) => isKeyItem(kind) || n === 0
+      )
+    ).toBe(true)
+    expect(pack?.pack.flashlight).toBe(1)
     // The strike spills its share of the wallet in dimes where A fell.
     const dimes = Math.floor(
       (STARTING_CASH * CONFIG.corpses.walletShare) / DIME_CENTS
@@ -2591,6 +2903,119 @@ describe('ValleyDO: the Recycling Center', () => {
       expect(nack(a)).toMatchObject({ re: 'recycle', reason: 'unavailable' })
       await v.webSocketMessage(ws(a), '{"type":"research"}')
       expect(nack(a)).toMatchObject({ re: 'recycle', reason: 'unavailable' })
+    } finally {
+      console.error = error
+      v.packStore = store
+    }
+  })
+})
+
+describe('ValleyDO: fishing at the firefly pond', () => {
+  const last = <T extends ServerMessage['type']>(socket: MockSocket, type: T) =>
+    socket
+      .frames()
+      .findLast(
+        (m): m is Extract<ServerMessage, { type: T }> => m.type === type
+      )
+  const send = (v: TestValley, socket: MockSocket, msg: object) =>
+    v.webSocketMessage(ws(socket), JSON.stringify(msg))
+
+  it('digs, takes a rod, casts, and lands what bit, the pack and the angler together', async () => {
+    // Noon Central: on worms, a draw of 0.3 hooks a bluegill at skill 0.
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.UTC(2026, 6, 1, 17) })
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const other = await join(v, s, 'A2', { account: 'acct-A' })
+    v.rolled = 0.3
+    await v.webSocketMessage(ws(a), state(0, 0))
+    await send(v, a, { type: 'dig' })
+    expect(last(a, 'nack')).toMatchObject({ re: 'dig', reason: 'no-pond' })
+    await v.webSocketMessage(ws(a), state(POND.landing.x, POND.landing.z))
+    await send(v, a, { type: 'angler' })
+    expect(last(a, 'angler')?.angler).toMatchObject({ skill: 0, caught: 0 })
+    await send(v, a, { type: 'dig' })
+    expect(last(a, 'angler')?.dug).toBe(CONFIG.fishing.dig.min)
+    expect(last(a, 'pack')?.pack.nightcrawlers).toBe(CONFIG.fishing.dig.min)
+    await send(v, a, { type: 'dig' })
+    expect(last(a, 'nack')).toMatchObject({ re: 'dig', reason: 'too-soon' })
+    await send(v, a, { type: 'cast', bait: 'nightcrawlers' })
+    expect(last(a, 'nack')).toMatchObject({ re: 'cast', reason: 'no-rod' })
+    await send(v, a, { type: 'tackle' })
+    expect(last(other, 'angler')?.rod).toBe(true)
+    expect(last(a, 'pack')?.pack['fishing-rod']).toBe(1)
+    await send(v, a, { type: 'tackle' })
+    expect(last(a, 'nack')).toMatchObject({ re: 'tackle', reason: 'has-rod' })
+    await send(v, a, { type: 'cast', bait: 'nightcrawlers' })
+    const line = last(a, 'line') as LineMessage
+    expect(line.hook?.call).toBe('small')
+    expect(last(other, 'line')).toBeUndefined()
+    expect(last(a, 'pack')?.pack.nightcrawlers).toBe(0)
+    await send(v, a, { type: 'cast', bait: 'berries' })
+    expect(last(a, 'nack')).toMatchObject({ re: 'cast', reason: 'busy' })
+    vi.setSystemTime(Date.now() + line.bitesIn + quickestMs(line.hook!.fight))
+    await send(v, a, { type: 'reel', landed: true })
+    expect(last(a, 'catch') as CatchMessage).toMatchObject({
+      type: 'catch',
+      outcome: 'landed',
+      kind: 'bluegill',
+    })
+    expect(last(a, 'pack')?.pack.bluegill).toBe(1)
+    expect((last(other, 'angler') as AnglerMessage).angler.caught).toBe(1)
+    await send(v, a, { type: 'reel', landed: true })
+    expect(last(a, 'nack')).toMatchObject({ re: 'reel', reason: 'no-line' })
+  })
+
+  it('jars a slurm crawling at the Citgo, and tells everyone it is gone', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const b = await join(v, s, 'B')
+    await v.webSocketMessage(ws(a), state(0, 0))
+    const slot = Math.floor(Date.now() / 1000 / CONFIG.slurms.slotSeconds)
+    const catchOne = { type: 'jar-slurm', station: 0, slot, index: 0 }
+    await send(v, a, catchOne)
+    expect(last(a, 'nack')).toMatchObject({ re: 'jar-slurm', reason: 'no-jar' })
+    await send(v, a, { type: 'dev', op: 'grant', kind: 'slurm-jar', count: 1 })
+    await send(v, a, catchOne)
+    expect(last(b, 'slurm-jarred')).toEqual({
+      ...catchOne,
+      type: 'slurm-jarred',
+      by: idOf(a),
+    })
+    expect(last(a, 'pack')?.pack.slurm).toBe(1)
+    await send(v, a, catchOne)
+    expect(last(a, 'nack')).toMatchObject({ re: 'jar-slurm', reason: 'gone' })
+  })
+
+  it('refuses a cast when the pack cannot be read, or the bait is gone', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    await v.webSocketMessage(ws(a), state(POND.landing.x, POND.landing.z))
+    await send(v, a, { type: 'tackle' })
+    const store = v.packStore
+    const error = console.error
+    console.error = () => {}
+    try {
+      v.packStore = Object.assign(Object.create(store) as PackStore, {
+        get: () => Promise.reject(new Error('down')),
+      })
+      await send(v, a, { type: 'cast', bait: 'berries' })
+      expect(last(a, 'nack')).toMatchObject({
+        re: 'cast',
+        reason: 'unavailable',
+      })
+      // The pack read with a berry in it, gone by the time it is written.
+      v.packStore = Object.assign(Object.create(store) as PackStore, {
+        get: async (id: string) => {
+          const held = await store.get(id)
+          return { ...held, pack: { ...held.pack, berries: 1 } }
+        },
+      })
+      v.rolled = 0.999
+      await send(v, a, { type: 'cast', bait: 'berries' })
+      expect(last(a, 'nack')).toMatchObject({ re: 'cast', reason: 'no-bait' })
     } finally {
       console.error = error
       v.packStore = store
@@ -3442,6 +3867,38 @@ describe('ValleyDO: the Book of Shadows', () => {
     })
   })
 
+  it("gives Marx's whistle the first time the account meets him, once", async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const whistles = () =>
+      a.frames().findLast((m): m is PackMessage => m.type === 'pack')?.pack[
+        'marx-whistle'
+      ]
+    // Every account carries the flashlight and the phone from its welcome.
+    expect(a.frames()[0]).toMatchObject({
+      type: 'welcome',
+      pack: { flashlight: 1, 'citgo-phone': 1 },
+    })
+    expect(whistles() ?? 0).toBe(0)
+    await v.webSocketMessage(ws(a), discover('marx'))
+    expect(whistles()).toBe(1)
+    await v.webSocketMessage(ws(a), discover('marx'))
+    expect(whistles()).toBe(1)
+    expect((await v.packStore.get('acct-A')).pack['marx-whistle']).toBe(1)
+  })
+
+  it('gives the whistle at the welcome to an account that met Marx before it', async () => {
+    const { valley: v, state: s } = await valley()
+    await v.packStore.open('acct-Old')
+    await v.packStore.discover('acct-Old', ['marx'], 0)
+    const old = await join(v, s, 'Old', { account: 'acct-Old' })
+    expect(old.frames()[0]).toMatchObject({
+      type: 'welcome',
+      pack: { 'marx-whistle': 1 },
+    })
+    expect((await v.packStore.get('acct-Old')).pack['marx-whistle']).toBe(1)
+  })
+
   it('pays the bounty for the Keep found, once', async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A')
@@ -4002,5 +4459,45 @@ describe('ValleyDO: Bull Valley Dial-Up', () => {
           m.type === 'wards'
       )
     expect(wards?.wards.high).toBeGreaterThan(0)
+  })
+})
+
+describe('ValleyDO: waypoints', () => {
+  const mark = (points: unknown) =>
+    JSON.stringify({ type: 'waypoints', points })
+
+  it("keeps an account's pins, tells every socket on it, and welcomes it back with them", async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const b = await join(v, s, 'B')
+    expect(a.frames().find((m) => m.type === 'welcome')).toMatchObject({
+      waypoints: [],
+    })
+    const twin = await join(v, s, 'A2', { account: 'acct-A' })
+    await v.webSocketMessage(ws(a), mark([{ x: 10, z: -20 }]))
+    const pins = { type: 'waypoints', points: [{ x: 10, z: -20 }] }
+    expect(a.last()).toEqual(pins)
+    expect(twin.last()).toEqual(pins)
+    expect(b.frames().some((m) => m.type === 'waypoints')).toBe(false)
+    const again = await join(v, s, 'A3', { account: 'acct-A' })
+    expect(again.frames().find((m) => m.type === 'welcome')).toMatchObject({
+      waypoints: [{ x: 10, z: -20 }],
+    })
+  })
+
+  it('refuses a frame of too many pins, and nacks one too soon', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const many = Array.from({ length: 6 }, (_, i) => ({ x: i, z: 0 }))
+    await v.webSocketMessage(ws(a), mark(many))
+    expect(a.frames().some((m) => m.type === 'waypoints')).toBe(false)
+    for (let i = 0; i < 21; i++) {
+      await v.webSocketMessage(ws(a), mark([{ x: i, z: 0 }]))
+    }
+    expect(a.last()).toMatchObject({
+      type: 'nack',
+      re: 'waypoints',
+      reason: 'too-fast',
+    })
   })
 })

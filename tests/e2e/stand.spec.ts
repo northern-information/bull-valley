@@ -72,6 +72,6 @@ test('E at the stand puts cabbages out and buys the next level', async ({
 
   // Nothing banked yet, so nothing to collect.
   await expect(dialog.locator('[data-bv="stand-collect"]')).toBeDisabled()
-  await page.keyboard.press('Escape')
+  await page.keyboard.press('KeyE')
   await expect(dialog).toBeHidden()
 })

@@ -17,6 +17,7 @@ import { donutRoute } from './donuts.ts'
 import { DonutWake } from './donutwakerig.ts'
 import { createDropMeshes } from './dropmeshes.ts'
 import { finishById } from './finishes.ts'
+import { FishHud } from './fishhud.ts'
 import { fontsReady } from './fonts.ts'
 import { FirstPersonHands } from './fphands.ts'
 import { createGameState } from './game.ts'
@@ -27,6 +28,7 @@ import { DATA_BASE } from './heightmap.ts'
 import { Hud } from './hud.ts'
 import { wireKeys, wirePointer } from './input.ts'
 import { createItemThumbs } from './itemthumbs.ts'
+import { lairsOf } from './lairs.ts'
 import { startLoop } from './loop.ts'
 import { MistCards } from './mistcards.ts'
 import { createMusic } from './musicrig.ts'
@@ -46,6 +48,7 @@ import { createSfx } from './sfxrig.ts'
 import { ShadowBodies } from './shadowbodies.ts'
 import { ShadowBursts } from './shadowburst.ts'
 import { SILENT } from './silent.ts'
+import { mountTapRipple } from './tapfeedback.ts'
 import { createTargets } from './targets.ts'
 import {
   buildTerrainMesh,
@@ -66,7 +69,7 @@ import { joyrideMs } from './truckplan.ts'
 import { createTruckRadio } from './truckradiorig.ts'
 import { TunnelShades } from './tunnelrig.ts'
 import { wireValley } from './valleysync.ts'
-import { waterMapOf } from './waterside.ts'
+import { createWaypointMeshes } from './waypointmeshes.ts'
 import { buildWorld } from './world.ts'
 import type { Game } from './game.ts'
 import type { Geo } from './interfaces.ts'
@@ -101,6 +104,8 @@ async function boot() {
   // The raider's settings: the menu's Audio and the pause overlay share
   // them, and the music reads them every frame.
   const settings = createSettingsStore()
+  // Every click on a button presses in, ripples and ticks (tapfeedback.ts).
+  mountTapRipple(() => settings.current.sfx)
   // The valley's music, from the main menu on. A silent page (silent.ts)
   // is never heard.
   const music = SILENT ? null : createMusic()
@@ -163,6 +168,8 @@ async function boot() {
   scene.add(corpses.group)
   const portals = createPortalMeshes(world.ground.at)
   scene.add(portals.group)
+  const pillars = createWaypointMeshes(world.ground.at)
+  scene.add(pillars.group)
   // The map (M): the survey's roads, and every Citgo named for its road.
   const mapRoads = geo.roads.map((road) => ({
     name: road.n,
@@ -172,6 +179,11 @@ async function boot() {
     roads: mapRoads,
     metres: geo.metres,
     citgos: mapCitgos(world.fuelPoints, mapRoads),
+    phones: world.payphones.map(({ x, z }) => ({
+      x,
+      z,
+      label: copy('map.payphone'),
+    })),
   })
 
   // Sky furniture rides along with the player so it never recedes into fog.
@@ -271,6 +283,8 @@ async function boot() {
   // The hands hang off the camera, so the camera joins the scene.
   scene.add(camera)
   const hands = new FirstPersonHands(camera, pick.outfit)
+  const fishHud = new FishHud()
+  root.append(fishHud.root)
 
   // --- The valley server -------------------------------------------------
   // Everyone online shares one valley. The socket is same-origin and the
@@ -281,8 +295,6 @@ async function boot() {
     beforeOpen: () => refreshSession(),
   })
 
-  // Where the water's edges run: the valley's spiders come up near them.
-  const water = waterMapOf(geo.water, geo.metres)
   const game: Game = {
     state: createGameState(world.fuelPoints.length, pick.hotbar),
     geo,
@@ -296,6 +308,7 @@ async function boot() {
     graves,
     corpses,
     portals,
+    pillars,
     graph,
     truck,
     radio: SILENT ? null : createTruckRadio(),
@@ -324,6 +337,7 @@ async function boot() {
     player,
     playerBody,
     hands,
+    fishHud,
     pick,
     phone: new Phone(hud.phoneCanvas, hud.phone),
     shadowmen: new ShadowBodies({
@@ -393,10 +407,17 @@ async function boot() {
     stations: world.fuelPoints.length,
     havens: world.fuelPoints.map(({ x, z }) => ({ x, z })),
     metres: geo.metres,
-    water,
+    // The spiders' lairs round the spawn Citgo, none without one.
+    lairs: world.spawnStation ? lairsOf(world.spawnStation) : [],
     maze: world.mazePlace,
     truck: truckRoutes,
     bushes: world.bushes.map(({ x, z }) => ({ x, z })),
+    ponds: world.ponds.map(({ place }) => ({
+      x: place.x,
+      z: place.z,
+      radius: place.radius,
+      landing: place.landing,
+    })),
     stand: world.stand ? world.stand.at : null,
     wreck: world.wreck
       ? { x: world.wreck.group.position.x, z: world.wreck.group.position.z }
@@ -405,6 +426,7 @@ async function boot() {
     undercroft: world.undercroft?.place ?? null,
     moat: world.castle?.place ?? null,
     rings: world.rings,
+    payphones: world.payphones.map(({ x, z }) => ({ x, z })),
   })
   wireKeys(game, actions, engagePointer)
 

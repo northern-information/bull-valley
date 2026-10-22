@@ -11,6 +11,7 @@ import {
   eventAt,
   lineOf,
   nextStart,
+  slurmKey,
   slurmScene,
   treads,
   underfoot,
@@ -78,10 +79,27 @@ export interface Slurms {
   ): { cues: Cue[]; curse: string | null }
   // Whether Carlsten is out from behind `station`'s counter.
   away(station: number): boolean
+  // The slurms crawling on the lot as the last frame drew them, in the
+  // world, each with its rig for the glow: what a jar can catch.
+  crawling(): CrawlingSlurm[]
+  // Slurm `index` of slot `slot`'s drop at `station` caught in a jar
+  // (sharedworld.ts rule 36): gone from the lot at once, and Carlsten goes
+  // after the rest, as after a slurm trodden on.
+  jar(station: number, slot: number, index: number): void
   // Dev: bring the next drop at the parked station to now.
   hurry(): void
   // Dev: hold every drop off, as if between drops, until let go.
   hold(on: boolean): void
+}
+
+// A slurm crawling on a lot, as a jar sees it.
+export interface CrawlingSlurm {
+  station: number
+  slot: number
+  index: number
+  x: number
+  z: number
+  object: THREE.Object3D
 }
 
 export function createSlurms(clerk: Figure, ground: Ground): Slurms {
@@ -105,6 +123,9 @@ export function createSlurms(clerk: Figure, ground: Ground): Slurms {
   // When each slurm was trodden on (shared seconds), by station, slot and
   // index; forgotten once its drop is over.
   const trodden = new Map<string, number>()
+  // When each was caught in a jar, the same; gone from sight at once.
+  const jarred = new Map<string, number>()
+  let crawling: CrawlingSlurm[] = []
 
   const atCounter = () => {
     if (!out) return
@@ -128,6 +149,7 @@ export function createSlurms(clerk: Figure, ground: Ground): Slurms {
       const now = seconds + offset
       const under =
         !held && station >= 0 && origin ? eventAt(station, now) : null
+      crawling = []
       if (!under || !origin) {
         for (const rig of pool) rig.group.visible = false
         atCounter()
@@ -137,16 +159,26 @@ export function createSlurms(clerk: Figure, ground: Ground): Slurms {
       const { t } = under
       const same =
         last?.event.slot === under.event.slot && last.event.station === station
-      if (!same) trodden.clear()
+      if (!same) {
+        trodden.clear()
+        for (const key of jarred.keys()) {
+          if (!key.startsWith(`${station}:${under.event.slot}:`)) {
+            jarred.delete(key)
+          }
+        }
+      }
       // The drop as Carlsten plays it, with any trodden on before he got
       // to them out of his way (slurms.ts afterTrodden).
       const event = afterTrodden(
         under.event,
-        under.event.slurms.map(
-          (_, i) =>
-            (trodden.get(`${station}:${under.event.slot}:${i}`) ?? Infinity) -
-            under.event.start
-        )
+        under.event.slurms.map((_, i) => {
+          const key = slurmKey(station, under.event.slot, i)
+          const gone = Math.min(
+            trodden.get(key) ?? Infinity,
+            jarred.get(key) ?? Infinity
+          )
+          return gone - under.event.start
+        })
       )
       const scene = slurmScene(event, t)
       const world = (x: number, z: number) => toWorld(origin, [x, 0, z])
@@ -156,8 +188,13 @@ export function createSlurms(clerk: Figure, ground: Ground): Slurms {
       }
       // The slurms: falling off the edge, crawling, or a splat.
       pool.forEach((rig, i) => {
-        const key = `${station}:${event.slot}:${i}`
+        const key = slurmKey(station, event.slot, i)
         let slurm = scene.slurms[i]
+        // In a jar: off the lot.
+        if (jarred.has(key)) {
+          rig.group.visible = false
+          return
+        }
         // Underfoot: a raider stepping on one crawling squashes it.
         if (slurm?.phase === 'crawling' && !trodden.has(key)) {
           const [wx, , wz] = world(slurm.x, slurm.z)
@@ -197,6 +234,17 @@ export function createSlurms(clerk: Figure, ground: Ground): Slurms {
           tooth: slurm.tooth,
           splat: slurm.phase === 'squashed' ? slurm.progress : null,
         })
+        if (slurm.phase === 'crawling') {
+          const [wx, , wz] = world(slurm.x, slurm.z)
+          crawling.push({
+            station,
+            slot: event.slot,
+            index: i,
+            x: wx,
+            z: wz,
+            object: rig.group,
+          })
+        }
         // A landing and a smash, heard once.
         const before = same ? last?.phases[i] : undefined
         if (before === 'falling' && slurm.phase === 'crawling') {
@@ -237,15 +285,21 @@ export function createSlurms(clerk: Figure, ground: Ground): Slurms {
       }
       last = {
         event,
-        phases: scene.slurms.map((s, i) =>
-          trodden.has(`${station}:${event.slot}:${i}`) ? 'squashed' : s.phase
-        ),
+        phases: scene.slurms.map((s, i) => {
+          const key = slurmKey(station, event.slot, i)
+          if (jarred.has(key)) return 'gone'
+          return trodden.has(key) ? 'squashed' : s.phase
+        }),
         t,
       }
       return { cues, curse }
     },
     away(station) {
       return station === parked && out
+    },
+    crawling: () => crawling,
+    jar(station, slot, index) {
+      jarred.set(slurmKey(station, slot, index), lastSeconds + offset)
     },
     hurry() {
       if (parked < 0) return

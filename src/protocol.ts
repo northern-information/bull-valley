@@ -6,11 +6,12 @@
 import { USERNAME_MAX } from './account.ts'
 import { EMOTE_IDS } from './emotes.ts'
 import { isFallHeight } from './fall.ts'
+import { isBait, toPondPlace } from './fishing.ts'
 import { isHealth } from './health.ts'
 import { isFileBody, isFileId, isFileName } from './laptop.ts'
 import { isQuestStep } from './quests.ts'
 import { isResearchLine } from './recycling.ts'
-import { isWaterMap } from './waterside.ts'
+import { WAYPOINT_MAX } from './waypoints.ts'
 import type { CitgoLog } from './citgos.ts'
 import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -18,8 +19,17 @@ import type { DealerStock } from './dealer.ts'
 import type { Drop } from './drops.ts'
 import type { ExpeditionOutcome, ExpeditionRun } from './expeditions.ts'
 import type { Hurt } from './fall.ts'
+import type { FinishId } from './finishes.ts'
+import type {
+  AnglerWire,
+  Bait,
+  CatchOutcome,
+  HookWire,
+  PondPlace,
+} from './fishing.ts'
 import type { Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
+import type { Lair } from './lairs.ts'
 import type { LaptopFileInfo } from './laptop.ts'
 import type { TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
@@ -30,11 +40,11 @@ import type { Research, ResearchLine } from './recycling.ts'
 import type { Burst, ShadeKind, TruckPose } from './shadowmen.ts'
 import type { StandLedger } from './stand.ts'
 import type { TunnelKind } from './tunnelshades.ts'
-import type { WaterMap } from './waterside.ts'
+import type { Waypoints } from './waypoints.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 42
+export const PROTOCOL_VERSION = 50
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -76,7 +86,7 @@ export const MAX_COORD = 20_000
 // against the pack, this only keeps the arithmetic sane.
 export const COUNT_MAX = 1_000_000
 // No frame from a client is longer than this: the hello, with every pickup
-// and the water map, is the biggest at a few tens of thousands.
+// and its place, is the biggest at a few tens of thousands.
 export const FRAME_MAX = 256_000
 
 // How a figure stands this instant: standing, walking, crouched, or one of
@@ -99,7 +109,15 @@ export interface PeerStateWire {
   pose: PeerPose
   riding: boolean
   light: boolean
+  // What the left hand holds in place of the flashlight (held.ts), for
+  // everyone to see; missing while it holds the flashlight. Only a raider
+  // holding the flashlight burns a shadow with it.
+  held?: HeldWire
 }
+
+// 'none': the hand holds something out of sight (the phone, the whistle,
+// a pack of cigarettes), or nothing (held.ts toolOf).
+export type HeldWire = 'jar' | 'rod' | 'none'
 
 // A player as the server knows them. `at` is null until their first state
 // frame; a figure is only drawn once it is placed. cosmetics: what they
@@ -121,6 +139,9 @@ export interface PeerWire {
   // Dialed in from Bull Valley Dial-Up (sharedworld.ts rule 29): in the
   // valley, but never placed in it, so never drawn.
   dialup?: true
+  // Rule 35: their crew's tag, as D1 holds it, shown on their name tag;
+  // missing while in no crew.
+  crew?: string
 }
 
 // One pickup as this build placed it: what lies there and how many. The
@@ -242,9 +263,10 @@ export interface HelloMessage {
   // the shadowmen with them (sharedworld.ts rule 11).
   havens: XZ[]
   metres: Metres
-  // Where the water's edges run (waterside.ts): the shadow spiders come up
-  // more often near them (rule 11).
-  water: WaterMap
+  // The spiders' lairs (lairs.ts): the dish array, Castle Entropy and
+  // Bull Valley Plaza, or none; the shadow spiders come far more often
+  // near them (rule 11).
+  lairs: Lair[]
   // Where the corn maze lies, or null: the valley steps the Caretaker in
   // it (rule 13).
   maze: MazePlace | null
@@ -261,6 +283,10 @@ export interface HelloMessage {
   // Citgo's, then the maze's ring): a berry only for a raider in reach
   // (rule 8).
   bushes: XZ[]
+  // The firefly ponds (fishing.ts pondsOf), none or more: no shadow comes
+  // inside their havens (rule 11), and the valley lets a raider fish only
+  // from one of them (rule 36).
+  ponds: PondPlace[]
   // Where the squatter in Bull Valley Plaza sits, or null: the valley
   // deals only with a raider beside him (rule 25).
   dealer: XZ | null
@@ -273,6 +299,9 @@ export interface HelloMessage {
   // The middle of the Citgo portal ring on each station's lot, in
   // world.fuelPoints order (rule 28).
   rings: XZ[]
+  // Where each payphone stands (castleyard.ts payphoneSpot), none or more:
+  // a raider who stands at one finds it for fast travel (rule 28).
+  payphones: XZ[]
   // On a reconnect, the id this client had before the line dropped. The
   // valley may not have heard that socket close yet; it retires it if it is
   // the same account's, so the raider is not welcomed back beside their own
@@ -403,6 +432,21 @@ type StandTendMessage =
 type RecycleTendMessage =
   { type: 'research' } | { type: 'recycle'; line: ResearchLine }
 
+// Fishing at the firefly pond (sharedworld.ts rule 36): the account's
+// angler, please; a rod out of the tackle box; nightcrawlers dug out of
+// the bank; a line cast with `bait` on the hook; or the line out reeled in
+// (`landed`: the fish was spent) or given up. The valley checks the
+// raider's last state frame put them at the pond (dialed in, it is
+// wherever they are), and answers with an AnglerMessage, a LineMessage or
+// a CatchMessage (and a PackMessage), or a nack.
+type FishMessage =
+  | { type: 'angler' }
+  | { type: 'tackle' }
+  | { type: 'dig' }
+  | { type: 'cast'; bait: Bait }
+  | { type: 'reel'; landed: boolean }
+  | { type: 'jar-slurm'; station: number; slot: number; index: number }
+
 // An expedition (sharedworld.ts rule 30): a run of `kind` sent out, or the
 // run home claimed. Dial-Up only; the valley answers with an
 // ExpeditionMessage (and a PackMessage after a claim), or a nack.
@@ -461,6 +505,14 @@ interface DiscoverMessage {
   entries: string[]
 }
 
+// Every waypoint this raider keeps (sharedworld.ts rule 37), the whole
+// list at once: a pin placed or lifted on the map. The valley keeps those
+// inside the survey and answers with a WaypointsMessage.
+interface MarkMessage {
+  type: 'waypoints'
+  points: XZ[]
+}
+
 // Dev-server only: the Worker stamps the socket, and production ignores
 // these. hurry brings the truck's next change to `seconds` from now;
 // reset opens the world afresh.
@@ -483,6 +535,8 @@ type DevMessage =
   | { type: 'dev'; op: 'calm' }
   // `count` of `kind` into this raider's pack, for the specs.
   | { type: 'dev'; op: 'grant'; kind: string; count: number }
+  // `cents` into this raider's wallet, for the specs.
+  | { type: 'dev'; op: 'earn'; cents: number }
   // This raider's account at `points` of health (sharedworld.ts rule 24),
   // for the specs.
   | { type: 'dev'; op: 'health'; points: number }
@@ -519,6 +573,67 @@ interface UnfriendMessage {
 // The account's friends list, please (a friends frame answers).
 interface FriendsMessage {
   type: 'friends'
+}
+
+// Rule 34: invite the raider in the valley signed in as `name`, in any
+// case, to this raider's party, or join theirs by inviting back; leave
+// the party; or say a line to it alone (under the chat rules and rate,
+// never kept).
+interface InviteMessage {
+  type: 'invite'
+  name: string
+}
+
+interface PartyLeaveMessage {
+  type: 'party-leave'
+}
+
+interface PartyChatMessage {
+  type: 'party-chat'
+  text: string
+}
+
+// Rule 35: crews. Start one (its tag and name; the cost comes out of the
+// wallet), invite a raider to it by name (the leader alone), join one
+// that invited this raider by its tag, leave it, put a member out (the
+// leader alone), or say a line to it alone (under the chat rules and
+// rate, never kept).
+interface CrewCreateMessage {
+  type: 'crew-create'
+  tag: string
+  name: string
+}
+
+interface CrewInviteMessage {
+  type: 'crew-invite'
+  name: string
+}
+
+interface CrewJoinMessage {
+  type: 'crew-join'
+  tag: string
+}
+
+interface CrewLeaveMessage {
+  type: 'crew-leave'
+}
+
+interface CrewKickMessage {
+  type: 'crew-kick'
+  name: string
+}
+
+interface CrewChatMessage {
+  type: 'crew-chat'
+  text: string
+}
+
+// The card of the raider signed in as `name`, in any case, whether they
+// are in the valley or not (inspect.ts): an inspected frame answers the
+// asker alone.
+interface InspectMessage {
+  type: 'inspect'
+  name: string
 }
 
 // Rule 31: the laptop in the Citgo bathroom. Its files listed (a
@@ -602,16 +717,28 @@ export type ClientMessage =
   | StowMessage
   | StandTendMessage
   | RecycleTendMessage
+  | FishMessage
   | ExpeditionTendMessage
   | TradeMessage
   | DealMessage
   | QuestMessage
   | DiscoverMessage
+  | MarkMessage
   | ChatMessage
   | WhisperMessage
   | FriendMessage
   | UnfriendMessage
   | FriendsMessage
+  | InspectMessage
+  | InviteMessage
+  | PartyLeaveMessage
+  | PartyChatMessage
+  | CrewCreateMessage
+  | CrewInviteMessage
+  | CrewJoinMessage
+  | CrewLeaveMessage
+  | CrewKickMessage
+  | CrewChatMessage
   | LaptopListMessage
   | LaptopReadMessage
   | LaptopSaveMessage
@@ -623,7 +750,14 @@ export type ClientMessage =
 // What a client may be refused for.
 export type NackRe = Exclude<
   ClientMessage['type'],
-  'hello' | 'dial' | 'state' | 'headlights' | 'ping' | 'friends' | 'research'
+  | 'hello'
+  | 'dial'
+  | 'state'
+  | 'headlights'
+  | 'ping'
+  | 'friends'
+  | 'research'
+  | 'angler'
 >
 
 // --- Server → client -------------------------------------------------------
@@ -672,6 +806,8 @@ export interface WelcomeMessage {
   wards: WardLevels
   // Every Citgo the account has stood at, and the last (rule 28).
   citgos: CitgoLog
+  // The account's waypoints (rule 37).
+  waypoints: Waypoints
 }
 
 // The account's Citgos after it stood at one not yet the last (rule 28).
@@ -679,6 +815,13 @@ export interface WelcomeMessage {
 interface CitgosMessage {
   type: 'citgos'
   citgos: CitgoLog
+}
+
+// The account's waypoints as the valley kept them (rule 37). To every
+// socket signed in to it.
+interface WaypointsMessage {
+  type: 'waypoints'
+  points: Waypoints
 }
 
 // The four wards' levels, each from 0 to 1 (wardlevels.ts).
@@ -733,6 +876,46 @@ export interface ResearchMessage {
 export interface FoundMessage {
   type: 'found'
   dimes: number
+}
+
+// The account's angler (rule 36), to every socket signed in to it: in
+// answer to an angler frame, after a dig (`dug`, the nightcrawlers it
+// turned up, a pack frame following), after the rod comes out of the
+// tackle box (`rod`), and after a catch.
+export interface AnglerMessage {
+  type: 'angler'
+  angler: AnglerWire
+  dug?: number
+  rod?: true
+}
+
+// A line cast (rule 36), to the socket that cast it: `hook` null when
+// nothing will bite, after `bitesIn` ms either way (fishing.ts HookWire).
+export interface LineMessage {
+  type: 'line'
+  bitesIn: number
+  hook: HookWire | null
+}
+
+// A slurm caught in a jar (rule 36), to everyone: slurm `index` of slot
+// `slot`'s drop at `station` is off the lot, by raider `by`. The catcher's
+// pack frame follows.
+export interface SlurmJarredMessage {
+  type: 'slurm-jarred'
+  station: number
+  slot: number
+  index: number
+  by: string
+}
+
+// How the line out ended (rule 36), to the socket that reeled: what came
+// in when it was landed, and the skill after, `up` when it rose.
+export interface CatchMessage {
+  type: 'catch'
+  outcome: CatchOutcome
+  kind?: string
+  skill: number
+  up?: true
 }
 
 // An account's progress through the season (sharedworld.ts rule 15): the
@@ -1035,6 +1218,7 @@ export type ServerMessage =
   | PeerHealthMessage
   | WardsMessage
   | CitgosMessage
+  | WaypointsMessage
   | PassedMessage
   | SeasonMessage
   | BookMessage
@@ -1042,12 +1226,23 @@ export type ServerMessage =
   | StandMessage
   | ResearchMessage
   | FoundMessage
+  | AnglerMessage
+  | LineMessage
+  | CatchMessage
+  | SlurmJarredMessage
   | ExpeditionMessage
   | QuestFrame
   | XpMessage
   | WhisperedMessage
   | FriendsListMessage
   | FriendNewsMessage
+  | InspectedMessage
+  | PartyMessage
+  | PartyNewsMessage
+  | PartyChatLineMessage
+  | CrewMessage
+  | CrewNewsMessage
+  | CrewChatLineMessage
   | LaptopFilesMessage
   | LaptopFileMessage
   | LaptopSavedMessage
@@ -1110,6 +1305,108 @@ interface FriendNewsMessage {
   type: 'friend-news'
   news: 'asked' | 'accepted' | 'online'
   name: string
+}
+
+// One raider's card (inspect.ts), as anyone may see it: their name, level,
+// look, how much of the Book of Shadows they have found and how far
+// through the season they are, read by the valley from D1. `friend` is
+// where the asker stands with them (friends.ts), 'self' for their own
+// card. Never an account id.
+export interface InspectWire {
+  name: string
+  level: number
+  outfit: OutfitId
+  finish: FinishId
+  cosmetics: CosmeticId[]
+  book: { found: number; of: number }
+  season: { kills: number; goal: number; claimed: boolean }
+  friend: FriendWire['state'] | 'self' | null
+  // Where the asker stands with them in a party (rule 34): in the same
+  // one, invited by the asker, inviting the asker, or none of those.
+  party: 'member' | 'invited' | 'inviting' | null
+  // Rule 35: their crew, and whether the asker may invite them to theirs
+  // (the asker leads one, and they are in none).
+  crew: { name: string; tag: string } | null
+  crewInvite: boolean
+  online: boolean
+}
+
+// Rule 34: the party as one member is sent it (party.ts partyWire): who
+// is in it, by name, each with whether they are in the valley now, and
+// who is inviting this raider. Empty members: in no party.
+export interface PartyWire {
+  members: { name: string; online: boolean }[]
+  invites: string[]
+}
+
+interface PartyMessage extends PartyWire {
+  type: 'party'
+}
+
+// News of the party, for the log: `name` invited this raider, or this
+// raider's invite went to `name` (sent); `name` joined it, or left it
+// (this raider's own name: they did).
+export interface PartyNewsMessage {
+  type: 'party-news'
+  news: 'invited' | 'sent' | 'joined' | 'left'
+  name: string
+}
+
+// A line said to the party, as the valley delivers it to every member.
+export interface PartyChatLineMessage {
+  type: 'party-chat'
+  from: string
+  text: string
+  at: number
+}
+
+// Rule 35: a crew as a member is sent it (crews.ts crewWire): its name,
+// its tag, who leads it, and its members by name (the leader first), each
+// with whether they are in the valley now.
+export interface CrewWire {
+  name: string
+  tag: string
+  leader: string
+  members: { name: string; online: boolean }[]
+}
+
+// The account's crew (null: none) and the crews inviting it.
+interface CrewMessage {
+  type: 'crew'
+  crew: CrewWire | null
+  invites: { tag: string; name: string }[]
+}
+
+// News of a crew, for the log: started; `name` invited by crew `tag`
+// (named `crew`), or this raider's invite gone to `name` (sent); `name`
+// joined, left, was put out, or leads it now; or it ended.
+export interface CrewNewsMessage {
+  type: 'crew-news'
+  news:
+    | 'created'
+    | 'invited'
+    | 'sent'
+    | 'joined'
+    | 'left'
+    | 'kicked'
+    | 'leader'
+    | 'ended'
+  name: string
+  tag: string
+  crew: string
+}
+
+// A line said to the crew, as the valley delivers it to every member.
+export interface CrewChatLineMessage {
+  type: 'crew-chat'
+  from: string
+  text: string
+  at: number
+}
+
+interface InspectedMessage {
+  type: 'inspected'
+  card: InspectWire
 }
 
 // Application close codes (the 4xxx range is ours per RFC 6455). The client
@@ -1240,6 +1537,42 @@ function parseHavens(value: unknown, stations: number): XZ[] | null {
   return parseSpots(value, stations)
 }
 
+// The spiders' lairs: at most LAIRS_MAX, each a place inside the survey
+// and a reach no wider than it.
+const LAIRS_MAX = 8
+
+function parseLairs(value: unknown): Lair[] | null {
+  if (!Array.isArray(value) || value.length > LAIRS_MAX) return null
+  const lairs: Lair[] = []
+  for (const entry of value as unknown[]) {
+    const at = parseXZ(entry)
+    if (!at || !isRecord(entry)) return null
+    const { radius } = entry
+    if (typeof radius !== 'number' || !(radius > 0 && radius <= MAX_COORD)) {
+      return null
+    }
+    lairs.push({ ...at, radius })
+  }
+  return lairs
+}
+
+// The payphones a hello may place.
+const PAYPHONES_MAX = 8
+
+// The firefly ponds: at most PONDS_MAX, each a pond place.
+const PONDS_MAX = 8
+
+function parsePonds(value: unknown): PondPlace[] | null {
+  if (!Array.isArray(value) || value.length > PONDS_MAX) return null
+  const ponds: PondPlace[] = []
+  for (const entry of value as unknown[]) {
+    const pond = toPondPlace(entry)
+    if (!pond) return null
+    ponds.push(pond)
+  }
+  return ponds
+}
+
 // At most `max` places.
 function parseSpots(value: unknown, max: number): XZ[] | null {
   if (!Array.isArray(value) || value.length > max) return null
@@ -1285,10 +1618,11 @@ function parseMetres(value: unknown): Metres | null {
 }
 
 // A state as a client may send it: finite coordinates within the survey, a
-// known pose, boolean riding and light flags.
+// known pose, boolean riding and light flags, and a jar or a rod in hand
+// or nothing.
 export function parsePeerState(value: unknown): PeerStateWire | null {
   if (!isRecord(value)) return null
-  const { x, y, z, yaw, pitch, pose, riding, light } = value
+  const { x, y, z, yaw, pitch, pose, riding, light, held } = value
   if (!isCoord(x) || !isCoord(y) || !isCoord(z)) return null
   if (typeof yaw !== 'number' || !Number.isFinite(yaw)) return null
   if (typeof pitch !== 'number' || !(Math.abs(pitch) <= Math.PI / 2)) {
@@ -1297,7 +1631,9 @@ export function parsePeerState(value: unknown): PeerStateWire | null {
   if (!isPeerPose(pose)) return null
   if (typeof riding !== 'boolean') return null
   if (typeof light !== 'boolean') return null
-  return { x, y, z, yaw, pitch, pose, riding, light }
+  if (held === undefined) return { x, y, z, yaw, pitch, pose, riding, light }
+  if (held !== 'jar' && held !== 'rod' && held !== 'none') return null
+  return { x, y, z, yaw, pitch, pose, riding, light, held }
 }
 
 // One client frame, by its type. An intersection rather than an Extract,
@@ -1318,16 +1654,18 @@ type HelloPlaces = Pick<
   HelloMessage,
   | 'havens'
   | 'metres'
-  | 'water'
+  | 'lairs'
   | 'maze'
   | 'truck'
   | 'stand'
   | 'wreck'
+  | 'ponds'
   | 'bushes'
   | 'dealer'
   | 'undercroft'
   | 'moat'
   | 'rings'
+  | 'payphones'
 >
 
 // An older build's places: none. The server refuses its version before it
@@ -1335,16 +1673,18 @@ type HelloPlaces = Pick<
 const NO_PLACES: HelloPlaces = {
   havens: [],
   metres: { width: 0, height: 0 },
-  water: { cell: 100, cols: 1, rows: 1, bits: 'AA==' },
+  lairs: [],
   maze: null,
   truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
   stand: null,
   wreck: null,
+  ponds: [],
   bushes: [],
   dealer: null,
   undercroft: null,
   moat: null,
   rings: [],
+  payphones: [],
 }
 
 // A place a hello may leave null (no maze, no stand): undefined when it is
@@ -1360,11 +1700,11 @@ function nullable<T>(
 function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
   const havens = parseHavens(value.havens, stations)
   const metres = parseMetres(value.metres)
-  const water = isWaterMap(value.water) ? value.water : null
+  const lairs = parseLairs(value.lairs)
   const truck = parseRoutes(value.truck)
   const bushes = parseSpots(value.bushes, BUSHES_MAX)
   const rings = parseHavens(value.rings, stations)
-  if (!havens || !metres || !water || !truck || !bushes || !rings) return null
+  if (!havens || !metres || !lairs || !truck || !bushes || !rings) return null
   const maze = nullable(value.maze, parseMazePlace)
   const stand = nullable(value.stand, parseXZ)
   const wreck = nullable(value.wreck, parseXZ)
@@ -1373,10 +1713,14 @@ function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
   const moat = nullable(value.moat, parseMazePlace)
   if (maze === undefined || stand === undefined) return null
   if (wreck === undefined) return null
+  const ponds = parsePonds(value.ponds)
+  if (!ponds) return null
+  const payphones = parseSpots(value.payphones, PAYPHONES_MAX)
+  if (!payphones) return null
   if (dealer === undefined || undercroft === undefined) return null
   if (moat === undefined) return null
-  const places = { havens, metres, water, maze, truck, stand, bushes, dealer }
-  return { ...places, wreck, undercroft, moat, rings }
+  const places = { havens, metres, lairs, maze, truck, stand, bushes, dealer }
+  return { ...places, wreck, ponds, undercroft, moat, rings, payphones }
 }
 
 // A hello. The outfit is checked by the server (characters.ts
@@ -1429,6 +1773,8 @@ const DEV_OPS: Record<string, (value: Fields) => DevMessage | null> = {
     const units = parseUnits(value)
     return units && { type: 'dev', op: 'grant', ...units }
   },
+  earn: ({ cents }) =>
+    isCount(cents) && cents > 0 ? { type: 'dev', op: 'earn', cents } : null,
   health: ({ points }) =>
     isHealth(points) && points > 0
       ? { type: 'dev', op: 'health', points }
@@ -1480,6 +1826,23 @@ const CLIENT_PARSERS: ClientParsers = {
     isFileId(id) ? { type: 'laptop-delete', id } : null,
   'stand-collect': bare('stand-collect'),
   research: bare('research'),
+  angler: bare('angler'),
+  tackle: bare('tackle'),
+  dig: bare('dig'),
+  cast: ({ bait }) => (isBait(bait) ? { type: 'cast', bait } : null),
+  reel: ({ landed }) =>
+    typeof landed === 'boolean' ? { type: 'reel', landed } : null,
+  // Which slurms there are, and whether one crawls, is the valley's to
+  // check.
+  'jar-slurm': ({ station, slot, index }) =>
+    isCount(station) && Number.isInteger(slot) && isCount(index)
+      ? {
+          type: 'jar-slurm',
+          station,
+          slot: slot as number,
+          index,
+        }
+      : null,
   recycle: ({ line }) =>
     isResearchLine(line) ? { type: 'recycle', line } : null,
   'stand-upgrade': bare('stand-upgrade'),
@@ -1492,6 +1855,27 @@ const CLIENT_PARSERS: ClientParsers = {
   friend: ({ name }) => (isValidName(name) ? { type: 'friend', name } : null),
   unfriend: ({ name }) =>
     isValidName(name) ? { type: 'unfriend', name } : null,
+  inspect: ({ name }) => (isValidName(name) ? { type: 'inspect', name } : null),
+  invite: ({ name }) => (isValidName(name) ? { type: 'invite', name } : null),
+  'party-leave': bare('party-leave'),
+  'party-chat': ({ text }) =>
+    isValidChat(text) ? { type: 'party-chat', text } : null,
+  // The tag's and the name's rules are the valley's to check (crews.ts).
+  'crew-create': ({ tag, name }) =>
+    typeof tag === 'string' && tag.length <= 8 && isValidName(name)
+      ? { type: 'crew-create', tag, name }
+      : null,
+  'crew-invite': ({ name }) =>
+    isValidName(name) ? { type: 'crew-invite', name } : null,
+  'crew-join': ({ tag }) =>
+    typeof tag === 'string' && tag.length > 0 && tag.length <= 8
+      ? { type: 'crew-join', tag }
+      : null,
+  'crew-leave': bare('crew-leave'),
+  'crew-kick': ({ name }) =>
+    isValidName(name) ? { type: 'crew-kick', name } : null,
+  'crew-chat': ({ text }) =>
+    isValidChat(text) ? { type: 'crew-chat', text } : null,
   collect: ({ bush }) => (isCount(bush) ? { type: 'collect', bush } : null),
   // Widened like the hello's, so a bad id reaches the server's check.
   appearance: ({ outfit }) =>
@@ -1544,6 +1928,13 @@ const CLIENT_PARSERS: ClientParsers = {
     entries.every(isKind)
       ? { type: 'discover', entries }
       : null,
+  waypoints: ({ points }) => {
+    if (!Array.isArray(points) || points.length > WAYPOINT_MAX) return null
+    const parsed = points.map(parseXZ)
+    return parsed.every((p) => p !== null)
+      ? { type: 'waypoints', points: parsed }
+      : null
+  },
   call: (value) => {
     const from = parseXZ(value.from)
     return from && { type: 'call', from }

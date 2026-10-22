@@ -18,14 +18,17 @@ import {
 } from './chat.ts'
 import {
   arrivalAt,
+  arrivalAtPhone,
   citgoAt,
   citgoLines,
   fastTravel as fastTravelTo,
+  stopAt,
 } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { emptied, fallen, isEmpty, spilledDimes } from './corpses.ts'
 import { affords, cosmeticById, gainedOf, tradeRefusal } from './cosmetics.ts'
+import { crewLines, crewNamed } from './crews.ts'
 import { stepIndex } from './cycle.ts'
 import { openDealDialog } from './dealdialog.ts'
 import { ramble } from './dealer.ts'
@@ -39,8 +42,20 @@ import {
   QUARTERS,
 } from './drops.ts'
 import { finishById } from './finishes.ts'
+import { openFishDialog } from './fishdialog.ts'
+import { inPond } from './fishing.ts'
 import { openGronDialog } from './grondialog.ts'
-import { assign, clearSlot as clearHotbarSlot, place, spent } from './hotbar.ts'
+import { baitFor, inHand, useOf } from './held.ts'
+import {
+  assign,
+  clearSlot as clearHotbarSlot,
+  place,
+  seedKit,
+  shelve,
+  spent,
+} from './hotbar.ts'
+import { befriended, partied } from './inspect.ts'
+import { openInspectDialog } from './inspectdialog.ts'
 import { pickupLabel } from './interactions.ts'
 import { addItem, consume } from './inventory.ts'
 import { itemLabel, itemLine } from './itemcopy.ts'
@@ -57,6 +72,7 @@ import {
   packItems,
   stashItems,
 } from './packgrid.ts'
+import { partyLines } from './party.ts'
 import { enteredAt, exitFrom, openAt } from './portals.ts'
 import { levelOf } from './progression.ts'
 import { normalizeChat } from './protocol.ts'
@@ -72,8 +88,8 @@ import { planLeg } from './truckplan.ts'
 import { dose, SOBER } from './wardlevels.ts'
 import { WARD_OF } from './wards.ts'
 import { charterable } from './worldsync.ts'
-import type { ChatCommand } from './chat.ts'
-import type { CitgoLog } from './citgos.ts'
+import type { ChatCommand, CrewFrame } from './chat.ts'
+import type { CitgoLog, Stop } from './citgos.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { EmoteId } from './emotes.ts'
 import type { Hurt } from './fall.ts'
@@ -86,10 +102,12 @@ import type { NpcId } from './npcs.ts'
 import type { BagAction, BagTab } from './packgrid.ts'
 import type {
   DailyMessage,
+  InspectWire,
   PassedMessage,
   PeerWire,
   WardLevels,
 } from './protocol.ts'
+import type { Waypoints } from './waypoints.ts'
 import type { Pickup } from './world.ts'
 
 // The valley's word on a touch (a struck frame): what it took, what the
@@ -183,15 +201,16 @@ export interface Actions {
   wear(cosmetics: CosmeticId[]): void
   // The valley refused the trade.
   tradeRefused(reason: string): void
-  // One of an item, used: E over it in the pack, or its hotbar key.
+  // One of an item, used: E over it in the pack, or the click with it in
+  // hand.
   useKind(kind: string): void
   // X over an item in the pack: one of it set down (the open container,
   // or one of anything else), or with Shift the whole stack.
   dropKind(kind: string, all: boolean): void
   // The valley says a drop came up into our pack.
   applyDropTaken(kind: string, count: number): void
-  // Q: the phone dials a Citgo portal, or hangs up on one dialing
-  // (sharedworld.ts rule 28).
+  // The click with the Citgo phone in hand: it dials a Citgo portal, or
+  // hangs up on one dialing (sharedworld.ts rule 28).
   dialPortal(): void
   // The dial went through: the portal opens ahead of us (in the valley,
   // asked of it).
@@ -204,18 +223,38 @@ export interface Actions {
   // The account's Citgos as the valley says (the welcome, a citgos frame):
   // a new one is said, unless `quiet` or before Begin.
   applyCitgos(log: CitgoLog, quiet?: boolean): void
+  // Rule 37: the account's waypoints as the valley says (the welcome, a
+  // waypoints frame): drawn on the map and the compass, a pillar at each;
+  // and a pin the valley would not take yet.
+  applyWaypoints(points: Waypoints): void
+  waypointsRefused(): void
   // M: the map, over the valley with the pointer free; relock as
   // closeBook's.
   openMap(): void
   closeMap(relock?: boolean): void
-  // A Citgo on the map clicked: fast travel there.
-  fastTravel(station: number): void
+  // A Citgo or a payphone on the map clicked: fast travel there.
+  fastTravel(to: Stop): void
   // Rule 3: the map opened for us to pick where Marx goes ends: a point
   // picked (to), the joyride (null), or nothing asked (undefined: he left,
   // or the bed is not ours).
   endCharter(to?: XZ | null): void
   // The left button: the flashlight up and on, or down and off.
   toggleFlashlight(): void
+  // The left click: what the hand holds, used (held.ts).
+  useHand(): void
+  // A number key or the wheel: the hotbar slot the hand holds.
+  select(slot: number): void
+  // What the hand holds, or null.
+  inHand(): string | null
+  // The welcome's pack: a bar from before the kit was things gets it
+  // (hotbar.ts seedKit).
+  seedKit(): void
+  // A gift the valley gave (sharedworld.ts rule 38): said, and put on the
+  // bar.
+  gifted(kind: string): void
+  // A kind newly in the pack that the hand has a use for: onto the first
+  // empty slot, unless it is on the bar.
+  shelve(kind: string): void
   // The pickup is ours: into the pack.
   applyTake(pickup: Pickup): void
   // Someone else got it.
@@ -224,6 +263,9 @@ export interface Actions {
   markUntaken(pickup: Pickup): void
   // E: whatever the loop last resolved E to do.
   interact(): void
+  // A raider's card from the valley (inspect.ts): opened, or the open one
+  // brought up to date.
+  showInspected(card: InspectWire): void
   // One line to the valley.
   say(typed: string): void
 }
@@ -688,6 +730,135 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     )
   }
 
+  // A frame to the valley about fishing, the last word on one cleared.
+  const askFish = (msg: Parameters<typeof net.send>[0]) => {
+    s.pending.fish = true
+    s.fishSaid = null
+    net.send(msg)
+  }
+  // The line the click cast: the fish reeled in or let go, and the line
+  // that came up empty, as the fight over the view plays it (fishhud.ts).
+  game.fishHud.onReel = (landed) => askFish({ type: 'reel', landed })
+  game.fishHud.onSound = (id) => game.sfx?.play(id)
+  game.fishHud.onEmpty = (said) => {
+    s.line = null
+    s.fishSaid = said
+    hud.tell(said)
+  }
+
+  // E at the tackle box on the firefly pond's landing: the angler, a rod
+  // and the dig, and the bait the rod casts with, the pointer free for it
+  // as at the stand. The angler is the account's (rule 36): the dialog
+  // asks the valley for it as it opens; the angler frames that answer
+  // show in it as they land. The cast is the click's, with the rod in hand.
+  const fish = () => {
+    if (s.talking || !s.world) return
+    s.fishSaid = null
+    net.send({ type: 'angler' })
+    withDialog(() =>
+      openFishDialog({
+        angler: () => s.angler,
+        pack: () => s.inventory,
+        bait: () => baitFor(s.bait, s.inventory),
+        pending: () => s.pending.fish,
+        said: () => s.fishSaid,
+        serverNow: () => net.clock.serverNow(performance.now()),
+        onTackle: () => askFish({ type: 'tackle' }),
+        onDig: () => {
+          game.sfx?.play('dig')
+          askFish({ type: 'dig' })
+        },
+        onBait: (bait) => {
+          s.bait = bait
+        },
+      })
+    )
+  }
+
+  // The click with the rod in hand: a line out answered (fishhud.ts), or
+  // a cast from the bank of a firefly pond with the bait picked at the
+  // tackle box. The valley deals what bites (rule 36).
+  const castOrReel = () => {
+    if (game.fishHud.click() || s.line || s.pending.fish) return
+    if (
+      !inPond(
+        world.ponds.map((pond) => pond.place),
+        player.pos
+      )
+    ) {
+      hud.tell(copy('log.fish_far'))
+      return
+    }
+    const bait = baitFor(s.bait, s.inventory)
+    if (!bait) {
+      hud.tell(copy('log.fish_no_bait'))
+      return
+    }
+    // The raider stands to the line, and the rod swings.
+    player.keys.clear()
+    s.castAt = s.time
+    game.sfx?.play('rod-cast')
+    askFish({ type: 'cast', bait })
+  }
+
+  // The click with the jar in hand: a scoop, and the slurm it is aimed
+  // at, if any in reach (rule 36). The valley says whether it was still
+  // there to catch.
+  const jarSlurm = () => {
+    if (s.scoopAt === null) s.scoopAt = s.time
+    const aim = s.interaction
+    if (aim?.kind !== 'jar-slurm' || s.pending.jar) return
+    s.pending.jar = true
+    const { station, slot, index } = aim
+    net.send({ type: 'jar-slurm', station, slot, index })
+  }
+
+  // What the hand holds: the selected slot's kind, while the pack does.
+  const heldKind = () => inHand(s.hotbar, s.selected, s.inventory)
+
+  // The left click: whatever the hand holds, used (held.ts useOf).
+  const useHand = () => {
+    const kind = heldKind()
+    switch (useOf(kind, kind !== null && isUsable(kind))) {
+      case 'light':
+        if (!s.aboard) toggleFlashlight()
+        return
+      case 'catch':
+        if (!s.aboard) jarSlurm()
+        return
+      case 'cast':
+        if (!s.aboard) castOrReel()
+        return
+      case 'dial':
+        dialPortal()
+        return
+      case 'whistle':
+        callTruck()
+        return
+      case 'use':
+        if (kind) useKind(kind)
+        return
+    }
+  }
+
+  // A number key or the wheel: the slot the hand holds. The loop raises
+  // what is in it (raiseHands), and gives up a line out as the rod goes.
+  const select = (slot: number) => {
+    s.selected = slot
+  }
+
+  const seedTheKit = () => keepHotbar(seedKit(s.hotbar, s.inventory))
+
+  const shelveKind = (kind: string) => keepHotbar(shelve(s.hotbar, kind))
+
+  // Rule 38: Marx's whistle, given the first time we meet him.
+  const gifted = (kind: string) => {
+    if (kind !== 'marx-whistle') return
+    npcSays('marx', copy('marx.whistle_gift'))
+    hud.tell(copy('log.whistle_given'))
+    shelveKind(kind)
+  }
+
   // E beside Erwin von Dutch, the squatter in the plaza: what he deals
   // and what he wants for it, and his quest, in a dialog with the pointer
   // free, as at the stand (rules 25 and 26).
@@ -764,8 +935,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
   hud.pack.onAction = bagAction
 
-  // T: Marx comes to us, if he is free, and drives us home. No whistle
-  // carries up out of the Undercroft.
+  // The click with Marx's whistle in hand: he comes to us, if he is free,
+  // and drives us home. No whistle carries up out of the Undercroft.
   const callTruck = () => {
     if (s.aboard || !s.world) return
     if (world.undercroft?.inside(player.pos.x, player.pos.z)) {
@@ -944,12 +1115,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       hud.tell(copy('log.pass_aboard'))
       return
     }
-    const peers = [...game.peers.table.values()].flatMap((peer) =>
-      peer.next && !peer.next.riding
-        ? [{ id: peer.id, x: peer.next.x, z: peer.next.z }]
-        : []
-    )
-    const to = passTarget(player.pos, player.yaw, peers)
+    const to = passTarget(player.pos, player.yaw, game.peers.standing())
     if (!to) {
       hud.tell(copy('log.pass_no_one'))
       return
@@ -1032,8 +1198,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
             : copy('log.twenty', { amount: paid })
       )
     } else {
+      const had = (s.inventory[kind] ?? 0) > 0
       s.inventory = addItem(s.inventory, kind, count)
       hud.tell(copy('log.taken', { item: pickupLabel({ kind, count }) }))
+      // A tool taken up goes on the bar, as a pack frame's does.
+      if (!had && useOf(kind, false) !== null) shelveKind(kind)
     }
     s.interaction = null
     hud.prompt(null)
@@ -1157,11 +1326,21 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       case 'laptop':
         useLaptop()
         return
+      case 'inspect':
+        inspect(interaction.name)
+        return
       case 'stand':
         tendStand()
         return
       case 'recycle':
         recycle()
+        return
+      case 'fish':
+        fish()
+        return
+      // The click's, with the jar or the rod in hand (useHand).
+      case 'jar-slurm':
+      case 'cast':
         return
       case 'deal':
         openDeal()
@@ -1260,6 +1439,12 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       case 'usage':
         hud.tell(command.line)
         return
+      case 'party':
+        for (const line of partyLines(s.party)) hud.tell(line)
+        return
+      case 'crew':
+        for (const line of crewLines(s.crew)) hud.tell(line)
+        return
     }
     if (!net.online) {
       hud.tell(CHAT_COPY.offline)
@@ -1279,25 +1464,116 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         s.pending.ask = { op: command.name, name: command.who }
         net.send({ type: command.name, name: command.who })
         return
+      case 'inspect':
+        inspect(command.who)
+        return
+      case 'invite':
+        invite(command.who)
+        return
+      case 'leave':
+        net.send({ type: 'party-leave' })
+        return
+      case 'partySay':
+        net.send({ type: 'party-chat', text: command.text })
+        return
+      case 'crewFrame':
+        sendCrew(command.frame)
+        return
     }
+  }
+
+  // Rule 35: a crew frame, with what it named kept for a refusal's line.
+  const sendCrew = (frame: CrewFrame) => {
+    if (!net.online) {
+      hud.tell(CHAT_COPY.offline)
+      return
+    }
+    s.pending.crew = crewNamed(frame)
+    net.send(frame)
+  }
+
+  // Rule 34: an invite to the party, or theirs taken up; the valley's
+  // answer says which (valleysync.ts).
+  const invite = (name: string) => {
+    if (!net.online) {
+      hud.tell(CHAT_COPY.offline)
+      return
+    }
+    s.pending.invite = name
+    net.send({ type: 'invite', name })
+  }
+
+  // A raider's card (inspect.ts), asked of the valley by E or /inspect;
+  // it opens when the answer lands (showInspected).
+  const inspect = (name: string) => {
+    if (!net.online) {
+      hud.tell(CHAT_COPY.offline)
+      return
+    }
+    s.pending.inspect = name
+    net.send({ type: 'inspect', name })
+  }
+
+  // The valley's answer: the card, opened over the valley, or brought up
+  // to date while it is open. Another dialog open keeps it shut.
+  const showInspected = (card: InspectWire) => {
+    s.pending.inspect = null
+    const open = s.inspected !== null
+    s.inspected = card
+    if (open) return
+    if (s.talking) {
+      s.inspected = null
+      return
+    }
+    withDialog(() =>
+      openInspectDialog({
+        card: () => s.inspected ?? card,
+        // Asked (or their asking accepted) at once; the friends list that
+        // comes back says so in the log (valleysync.ts).
+        onFriend: (name) => {
+          if (!net.online) {
+            hud.tell(CHAT_COPY.offline)
+            return
+          }
+          s.pending.ask = { op: 'friend', name }
+          net.send({ type: 'friend', name })
+          if (s.inspected) s.inspected = befriended(s.inspected)
+        },
+        onCrew: (name) => sendCrew({ type: 'crew-invite', name }),
+        onParty: (name) => {
+          if (!net.online) {
+            hud.tell(CHAT_COPY.offline)
+            return
+          }
+          invite(name)
+          if (s.inspected) s.inspected = partied(s.inspected)
+        },
+      }).then(() => {
+        s.inspected = null
+      })
+    )
   }
 
   // --- Rule 28: Citgos, Citgo portals and fast travel ---------------------
 
   const citgoLabel = (station: number | null) =>
     station === null ? '' : (hud.map?.label(station) ?? '')
+  const stopLabel = (stop: Stop) =>
+    'citgo' in stop ? citgoLabel(stop.citgo) : copy('map.payphone')
 
   const applyCitgos = (log: CitgoLog, quiet = false) => {
     const before = s.citgos
     s.citgos = log
     // Before Begin there is no one to tell: the spawn Citgo is found then.
     if (quiet || !s.started) return
-    for (const line of citgoLines(before, log, citgoLabel, s.world !== null)) {
+    const inWorld = s.world !== null
+    for (const line of citgoLines(before, log, citgoLabel, inWorld)) {
       hud.tell(line)
     }
   }
 
-  // Q. The phone dials first; aboard it has no signal.
+  // The click with the phone in hand. It dials first; aboard it has no
+  // signal.
   const dialPortal = () => {
     if (s.aboard) {
       hud.tell(copy('log.portal_aboard'))
@@ -1316,6 +1592,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         return copy('log.portal_no_citgo')
       case 'busy':
         return copy('log.portal_busy')
+      case 'no-phone':
+        return copy('log.portal_no_phone')
       default:
         return copy('log.portal_refused')
     }
@@ -1381,36 +1659,58 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (relock) engagePointer()
   }
 
-  // From the Citgo we stand at to one visited (citgos.ts fastTravel): set
-  // down in the middle of its portal ring. Where we stand is our own word,
-  // so the valley hears it from the next state frame.
-  const fastTravel = (station: number) => {
+  // From the Citgo or the found payphone we stand at to a Citgo visited
+  // or a payphone found (citgos.ts fastTravel): set down in the middle of
+  // the Citgo's portal ring, or in front of the payphone. Where we stand is
+  // our own word, so the valley hears it from the next state frame.
+  const fastTravel = (stop: Stop) => {
     if (s.aboard) {
       hud.tell(copy('log.travel_aboard'))
       return
     }
-    const here = citgoAt(player.pos, world.fuelPoints)
-    const verdict = fastTravelTo(s.citgos, here, station)
+    const here = stopAt(player.pos, world.fuelPoints, world.payphones)
+    const verdict = fastTravelTo(s.citgos, here, stop)
     if (verdict !== 'ok') {
       hud.tell(
         verdict === 'not-at-citgo'
           ? copy('log.travel_away')
           : verdict === 'here'
             ? copy('log.travel_here')
-            : copy('log.travel_unvisited', { citgo: citgoLabel(station) })
+            : copy('log.travel_unvisited', { citgo: stopLabel(stop) })
       )
       return
     }
-    const to = arrivalAt(world.rings[station], world.fuelPoints[station])
+    const to =
+      'citgo' in stop
+        ? arrivalAt(world.rings[stop.citgo], world.fuelPoints[stop.citgo])
+        : arrivalAtPhone(world.payphones[stop.phone])
     player.relocate(to.x, to.z, to.yaw)
     s.emoting = null
     s.portalGraceUntil = performance.now() + GRACE_MS
     closeMap(true)
-    hud.tell(copy('log.travel', { citgo: citgoLabel(station) }))
+    hud.tell(copy('log.travel', { citgo: stopLabel(stop) }))
   }
+  // --- Rule 37: waypoints -------------------------------------------------
+
+  const applyWaypoints = (points: Waypoints) => {
+    s.waypoints = points
+    game.pillars.sync(points)
+  }
+
+  // A pin placed or lifted on the map: the valley keeps them, and its
+  // answer draws them. Offline there is no valley, and they last the
+  // session.
+  const markWaypoints = (points: Waypoints) => {
+    if (net.online) net.send({ type: 'waypoints', points: [...points] })
+    else applyWaypoints(points)
+  }
+
+  const waypointsRefused = () => hud.tell(copy('log.waypoints_refused'))
+
   if (hud.map) {
     hud.map.onTravel = fastTravel
     hud.map.onCharter = (to) => endCharter(to)
+    hud.map.onMark = markWaypoints
   }
 
   const say = (typed: string) => {
@@ -1472,16 +1772,25 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     portalRefused,
     tendPortals,
     applyCitgos,
+    applyWaypoints,
+    waypointsRefused,
     openMap,
     closeMap,
     fastTravel,
     endCharter,
     applyDropTaken,
     toggleFlashlight,
+    useHand,
+    select,
+    inHand: heldKind,
+    seedKit: seedTheKit,
+    gifted,
+    shelve: shelveKind,
     applyTake,
     markTaken,
     markUntaken,
     interact,
+    showInspected,
     say,
   }
 }

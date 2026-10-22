@@ -1,5 +1,6 @@
 // The player's own hands in first person, hung off the camera: the left
-// holds the flashlight, the right holds up whatever was just used. Each
+// holds the flashlight, or the slurm jar or a rod in its place (held.ts),
+// the right holds up whatever was just used. Each
 // comes up from below the frame by its lift (hands.ts) and goes back down
 // out of view. The forearms are the outfit's own (figure.ts buildForearm).
 //
@@ -15,13 +16,24 @@ import { setBathTorch } from './bathglow.ts'
 import { CONFIG } from './config.ts'
 import { buildForearm } from './figure.ts'
 import { GLOW_LAYER } from './glow.ts'
+import { buildHeldJar, buildHeldRod } from './heldmodels.ts'
 import type { Flashlight } from './assets.ts'
+import type { ScoopPose } from './held.ts'
 import type { OutfitId } from './outfits.ts'
 
 interface HandsFrame {
   // 0 out of view, 1 held up: hands.ts lifts, already eased.
   left: number
   right: number
+  // What the left hand holds: 'flashlight', 'jar', a rod's kind, or
+  // 'none'.
+  held: string
+  // A cast's swing of the left arm, radians (held.ts castPose): back, up
+  // over the shoulder, positive; forward, toward the water, negative.
+  cast: number
+  // The jar's scoop (held.ts scoopPose): the arm's dip and sweep, the
+  // jar's tip in the fist, and the hand's reach out ahead.
+  scoop: ScoopPose
   // What the right hand holds, or null for an empty hand.
   kind: string | null
   // The flashlight is lit.
@@ -65,6 +77,11 @@ export class FirstPersonHands {
   // Keeps the held item upright in the view whatever the arm is doing.
   private holder: THREE.Group
   private held: { kind: string; object: THREE.Object3D } | null = null
+  // The left fist, and what it holds in place of the flashlight: each
+  // built once, the first time it is held, and kept.
+  private leftFist: THREE.Group | null = null
+  private inLeft: { kind: string; object: THREE.Object3D } | null = null
+  private lefts = new Map<string, THREE.Object3D>()
   private items = new Map<string, THREE.Object3D>()
   private lens = new THREE.Vector3()
   private aim = new THREE.Vector3()
@@ -96,7 +113,8 @@ export class FirstPersonHands {
     this.dress(outfitId)
   }
 
-  update({ left, right, kind, on }: HandsFrame): void {
+  update({ left, right, held, cast, scoop, kind, on }: HandsFrame): void {
+    this.holdLeft(held)
     this.flashlight.setOn(on)
     this.light.intensity = on ? CONFIG.flashlight.intensity : 0
     // The bathroom takes no real light, so it is told where the beam is.
@@ -106,6 +124,14 @@ export class FirstPersonHands {
     this.light.target.getWorldPosition(this.aim)
     setBathTorch(this.lens, this.aim.sub(this.lens), on)
     place(this.left, LEFT, left)
+    // Tipping the forearm up past its rest swings the rod back over the
+    // shoulder; down, out at the water.
+    this.left.rotation.x += cast
+    // The scoop dips the forearm down and out at the lot, and tips the
+    // jar's mouth (up the view, the forearm's -Z) ahead, down its -Y.
+    this.left.rotation.x += scoop.tilt
+    this.left.position.z -= scoop.reach
+    if (this.inLeft?.kind === 'jar') this.inLeft.object.rotation.x = -scoop.tip
     this.hold(right > 0 ? kind : null)
     place(this.right, RIGHT, right)
     this.holder.quaternion.copy(this.right.quaternion).invert()
@@ -121,12 +147,38 @@ export class FirstPersonHands {
     // The barrel's +Z down the forearm's -Y, as a peer holds it.
     this.flashlight.group.rotation.x = Math.PI / 2
     left.fist.add(this.flashlight.group)
+    if (this.inLeft) left.fist.add(this.inLeft.object)
+    this.leftFist = left.fist
     right.fist.add(this.holder)
     for (const arm of [this.left, this.right]) {
       arm.traverse((o) => {
         o.castShadow = false
       })
     }
+  }
+
+  // What the left fist holds: the flashlight, or the jar or a rod in its
+  // place, or nothing in sight ('none': the phone, the whistle, a pack).
+  private holdLeft(held: string): void {
+    this.flashlight.group.visible = held === 'flashlight'
+    const kind = held === 'flashlight' || held === 'none' ? null : held
+    if ((this.inLeft?.kind ?? null) === kind) return
+    if (this.inLeft) this.inLeft.object.removeFromParent()
+    this.inLeft = null
+    if (!kind) return
+    let object = this.lefts.get(kind)
+    if (!object) {
+      object =
+        kind === 'jar'
+          ? buildHeldJar(-1, LEFT_SCALE)
+          : buildHeldRod(kind, -1, LEFT_SCALE)
+      object.traverse((o) => {
+        o.castShadow = false
+      })
+      this.lefts.set(kind, object)
+    }
+    this.leftFist?.add(object)
+    this.inLeft = { kind, object }
   }
 
   // The item kind in the right hand: each kind is built once, the first
@@ -145,6 +197,10 @@ export class FirstPersonHands {
     this.held = { kind, object }
   }
 }
+
+// What the left fist holds in first person, shrunk toward the eye as
+// the right hand's items are.
+const LEFT_SCALE = 0.6
 
 // A hand at its lift: down out of view at 0, at its spot at 1.
 function place(arm: THREE.Group, spot: Arm, lift: number): void {
