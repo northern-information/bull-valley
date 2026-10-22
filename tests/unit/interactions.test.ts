@@ -465,6 +465,39 @@ describe('resolveInteraction', () => {
   })
 })
 
+describe('resolveInteraction: another raider', () => {
+  const raider = { name: 'Kid' }
+
+  it('inspects the raider in front, before a pickup', () => {
+    const near: PickupSpot = {
+      kind: 'cabbage',
+      count: 1,
+      x: 250.5,
+      z: 250,
+      taken: false,
+    }
+    expect(resolveInteraction(input({ raider, pickups: [near] }))).toEqual({
+      kind: 'inspect',
+      name: 'Kid',
+    })
+  })
+
+  it('leaves Gron, the truck and the shelves first', () => {
+    expect(resolveInteraction(input({ raider, truck: besideTruck }))).toEqual({
+      kind: 'board',
+    })
+    expect(resolveInteraction(input({ raider, shelf }))?.kind).toBe('buy')
+  })
+
+  it('says whom E inspects', () => {
+    const inspect = { kind: 'inspect', name: 'Kid' } as const
+    expect(interactionPrompt(inspect)).toBe(
+      copy('prompts.inspect', { name: 'Kid' })
+    )
+    expect(interactionKey(inspect)).toBe('inspect:Kid')
+  })
+})
+
 describe('resolveInteraction: bodies and lockers', () => {
   const corpse = {
     id: 4,
@@ -522,6 +555,38 @@ describe('resolveInteraction: bodies and lockers', () => {
     expect(interactionPrompt({ kind: 'laptop', station: 3 })).toBe(
       copy('prompts.laptop')
     )
+  })
+
+  it('catches the nearest slurm in reach in the jar', () => {
+    const near = { x: 251, z: 250, station: 1, slot: 7, index: 2 }
+    const nearer = { x: 250.5, z: 250, station: 1, slot: 7, index: 0 }
+    const far = {
+      x: 250 + CONFIG.fishing.jar.reach + 0.1,
+      z: 250,
+      station: 1,
+      slot: 7,
+      index: 1,
+    }
+    expect(resolveInteraction(input({ slurms: [near, nearer, far] }))).toEqual({
+      kind: 'jar-slurm',
+      station: 1,
+      slot: 7,
+      index: 0,
+    })
+    expect(resolveInteraction(input({ slurms: [far] }))).toBeNull()
+    expect(
+      interactionPrompt({ kind: 'jar-slurm', station: 1, slot: 7, index: 0 })
+    ).toBe(copy('prompts.jar_slurm'))
+  })
+
+  it('opens the tackle box on the firefly pond, within its reach', () => {
+    expect(resolveInteraction(input({ tackle: { x: 252, z: 250 } }))).toEqual({
+      kind: 'fish',
+    })
+    const far = { x: 250 + CONFIG.fishing.pond.reach + 0.1, z: 250 }
+    expect(resolveInteraction(input({ tackle: far }))).toBeNull()
+    expect(resolveInteraction(input({ tackle: null }))).toBeNull()
+    expect(interactionPrompt({ kind: 'fish' })).toBe(copy('prompts.fish'))
   })
 
   it('opens the Recycling Center at the wreck, within its reach', () => {

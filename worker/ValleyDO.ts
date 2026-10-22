@@ -35,13 +35,16 @@ import { DurableObject } from 'cloudflare:workers'
 import { isSelectable, mayRaidAs } from '../src/characters.ts'
 import { CONFIG } from '../src/config.ts'
 import { toCosmetics } from '../src/cosmetics.ts'
+import { crewWire, isValidCrewName, isValidTag, showTag } from '../src/crews.ts'
 import { dayKey } from '../src/daily.ts'
 import { DAILY_TASK, tallyTask } from '../src/dailytask.ts'
 import { spillsOf } from '../src/drops.ts'
 import { sameName, whereabouts } from '../src/friends.ts'
 import { burialsOf } from '../src/graves.ts'
+import { cardOf } from '../src/inspect.ts'
 import { healsOf } from '../src/items.ts'
 import { listingFor, saveRefusal } from '../src/laptop.ts'
+import { partyOf, standing as partyStanding, partyWire } from '../src/party.ts'
 import { levelOf, levelUp, totals } from '../src/progression.ts'
 import {
   CLOSE,
@@ -65,6 +68,7 @@ import {
   stepShadows,
 } from '../src/shadowstep.ts'
 import {
+  anglerFor,
   citgosFor,
   corpsesOf,
   createValley,
@@ -80,8 +84,10 @@ import {
 } from '../src/sharedworld.ts'
 import { ACCOUNT_HEADER, NAME_HEADER } from './auth.ts'
 import { D1AccountStore } from './d1accounts.ts'
+import { D1CrewStore } from './d1crews.ts'
 import { D1PackStore } from './d1packs.ts'
 import type { CosmeticId } from '../src/cosmetics.ts'
+import type { CrewRow } from '../src/crews.ts'
 import type { TaskProgress } from '../src/dailytask.ts'
 import type { ExpeditionRun } from '../src/expeditions.ts'
 import type { FriendRow } from '../src/friends.ts'
@@ -89,10 +95,12 @@ import type { Inventory, XZ } from '../src/interfaces.ts'
 import type { XpGrant } from '../src/progression.ts'
 import type {
   ClientMessage,
+  CrewNewsMessage,
   DialMessage,
   HelloMessage,
   NackMessage,
   PackMessage,
+  PartyWire,
   PeerStateWire,
   PeerWire,
   SeasonWire,
@@ -113,6 +121,7 @@ import type {
 import type { StandLedger } from '../src/stand.ts'
 import type { ShadowHit } from '../src/wards.ts'
 import type { AccountStore } from './accounts.ts'
+import type { CrewStore, Parted } from './crews.ts'
 import type { ExpeditionRead, Holdings, PackStore } from './packs.ts'
 
 // Per-socket state, serialized into the socket's attachment (16 KB cap;
@@ -138,6 +147,9 @@ const CHAT_LIMIT: RateLimit = { count: 5, ms: 10_000 }
 
 // Friend requests and removals one socket may make in ten seconds.
 const FRIEND_LIMIT: RateLimit = { count: 5, ms: 10_000 }
+
+// Inspects one socket may make in ten seconds; each reads D1 six ways.
+const INSPECT_LIMIT: RateLimit = { count: 10, ms: 10_000 }
 
 // The laptop's frames one socket may send in ten seconds (rule 31):
 // opening folders and files, and saving.
@@ -184,6 +196,7 @@ export class ValleyDO extends DurableObject<Env> {
   private appearanceRate = new WeakMap<WebSocket, RateWindow>()
   private friendRate = new WeakMap<WebSocket, RateWindow>()
   private laptopRate = new WeakMap<WebSocket, RateWindow>()
+  private inspectRate = new WeakMap<WebSocket, RateWindow>()
   private dropRate = new WeakMap<WebSocket, RateWindow>()
   private discoverRate = new WeakMap<WebSocket, RateWindow>()
   // Rules 11 and 13, in memory only: gone whenever the object sleeps.
@@ -363,6 +376,44 @@ export class ValleyDO extends DurableObject<Env> {
       case 'recycle':
         await this.recycle(ws, account, { ...msg, id, at })
         return
+      // Rule 36.
+      case 'angler':
+        if (account) {
+          send(ws, {
+            type: 'angler',
+            angler: anglerFor(this.valley, account, Date.now()),
+          })
+        }
+        return
+      case 'tackle':
+        await this.withPack(ws, account, { type: 'tackle', id, at })
+        return
+      case 'jar-slurm':
+        await this.withPack(ws, account, { ...msg, id, at })
+        return
+      case 'cast':
+        await this.withPack(ws, account, {
+          type: 'cast',
+          id,
+          bait: msg.bait,
+          at,
+          roll: this.roll(),
+          seed: Math.floor(this.roll() * 2 ** 32),
+        })
+        return
+      case 'dig':
+        await this.act(ws, { type: 'dig', id, at, roll: this.roll() })
+        return
+      case 'reel':
+        await this.act(ws, {
+          type: 'reel',
+          id,
+          landed: msg.landed,
+          roll: this.roll(),
+          bonus: this.roll(),
+          skillRoll: this.roll(),
+        })
+        return
       case 'expedition-send':
         await this.expedition(ws, account, {
           ...msg,
@@ -398,6 +449,32 @@ export class ValleyDO extends DurableObject<Env> {
         return
       case 'friends':
         if (account) await this.sendFriends(account)
+        return
+      case 'inspect':
+        if (account) await this.inspect(ws, account, msg.name)
+        return
+      case 'invite':
+        if (!allow(this.friendRate, ws, FRIEND_LIMIT)) {
+          send(ws, { type: 'nack', re: 'invite', reason: 'too-fast' })
+          return
+        }
+        await this.act(ws, { type: 'invite', id, name: msg.name })
+        return
+      case 'party-leave':
+        await this.act(ws, { type: 'party-leave', id })
+        return
+      case 'party-chat':
+        this.partyChat(ws, attachment, me, msg.text)
+        return
+      case 'crew-create':
+      case 'crew-invite':
+      case 'crew-join':
+      case 'crew-leave':
+      case 'crew-kick':
+        await this.crewAct(ws, attachment, me, msg)
+        return
+      case 'crew-chat':
+        await this.crewChat(ws, attachment, me, msg.text)
         return
       case 'laptop-list':
       case 'laptop-read':
@@ -485,6 +562,12 @@ export class ValleyDO extends DurableObject<Env> {
       case 'grant':
         if (account) {
           await this.repack(ws, { account, kind: msg.kind, delta: msg.count })
+        }
+        return
+      case 'earn':
+        if (account) {
+          await this.packs().earn(account, msg.cents)
+          await this.repack(ws, null, account)
         }
         return
       case 'health':
@@ -602,6 +685,11 @@ export class ValleyDO extends DurableObject<Env> {
     return (this.d1Packs ??= new D1PackStore(this.env.DB))
   }
   private d1Packs: PackStore | null = null
+  // Rule 35: the crews, on the same D1.
+  protected crews(): CrewStore {
+    return (this.d1Crews ??= new D1CrewStore(this.env.DB))
+  }
+  private d1Crews: CrewStore | null = null
 
   // The shadowmen's clock; the Worker tests step them by hand instead.
   protected startTicker(step: () => void, ms: number): unknown {
@@ -1290,6 +1378,14 @@ export class ValleyDO extends DurableObject<Env> {
       ws.close(CLOSE.serverError, 'The valley lost the pack')
       return
     }
+    // Rule 35: the crew's tag on their name tag; none when it cannot be
+    // read, until the next change shows it.
+    let crew: string | null = null
+    try {
+      crew = await this.crews().tagOf(account)
+    } catch (err) {
+      console.error('The crew could not be read', err)
+    }
     // A character Moab trades for, only once the account has traded for it.
     if (!mayRaidAs(hello.outfit, holdings.cosmetics)) {
       ws.close(CLOSE.badOutfit, 'Outfit not unlocked')
@@ -1328,11 +1424,12 @@ export class ValleyDO extends DurableObject<Env> {
               stations: hello.stations,
               havens: hello.havens,
               metres: hello.metres,
-              water: hello.water,
+              lairs: hello.lairs,
               maze: hello.maze,
               routes: hello.truck,
               stand: hello.stand,
               wreck: hello.wreck,
+              ponds: hello.ponds,
               bushes: hello.bushes,
               dealer: hello.dealer,
               undercroft: hello.undercroft,
@@ -1356,6 +1453,7 @@ export class ValleyDO extends DurableObject<Env> {
       level: levelOf(xp),
       at: back?.at ?? null,
       ...(hello.type === 'dial' ? { dialup: true as const } : {}),
+      ...(crew ? { crew: showTag(crew) } : {}),
     }
     this.attach(ws, { ...attachment, me })
     const world = toWire(this.valley)
@@ -1395,6 +1493,13 @@ export class ValleyDO extends DurableObject<Env> {
     // greeting.
     this.broadcast({ type: 'peer-joined', peer: this.shown(me, account) }, ws)
     for (const msg of reduced.broadcast) this.broadcast(msg, ws)
+    // Rule 34: the party it is in, or the invites waiting on it (the
+    // client starts with none).
+    const party = this.partyFrame(account)
+    if (party.members.length > 0 || party.invites.length > 0) {
+      send(ws, party)
+    }
+    await this.sendCrew(account, ws)
     if (!back) await this.greetFriends(ws, account, name)
   }
 
@@ -1405,8 +1510,10 @@ export class ValleyDO extends DurableObject<Env> {
     state: PeerStateWire
   ): void {
     if (!allow(this.stateRate, ws, STATE_LIMIT)) return
-    const { x, y, z, yaw, pitch, pose, riding, light } = state
-    const at = { x, y, z, yaw, pitch, pose, riding, light }
+    const { x, y, z, yaw, pitch, pose, riding, light, held } = state
+    const at = held
+      ? { x, y, z, yaw, pitch, pose, riding, light, held }
+      : { x, y, z, yaw, pitch, pose, riding, light }
     const next: PeerWire = { ...me, at }
     this.attach(ws, { ...attachment, me: next })
     this.broadcast({ type: 'peer-state', id: me.id, ...at, t: Date.now() }, ws)
@@ -1462,6 +1569,32 @@ export class ValleyDO extends DurableObject<Env> {
         ...line,
         outgoing: true,
       })
+    }
+  }
+
+  // Rule 34: a line to the raider's party, under the chat rules and its
+  // rate, delivered to every member's sockets. Nothing is stored.
+  private partyChat(
+    ws: WebSocket,
+    attachment: Attachment,
+    me: PeerWire,
+    text: string
+  ): void {
+    if (!allow(this.chatRate, ws, CHAT_LIMIT)) {
+      send(ws, { type: 'nack', re: 'party-chat', reason: 'too-fast' })
+      return
+    }
+    const party = attachment.account
+      ? partyOf(this.valley.parties, attachment.account)
+      : null
+    if (!party) {
+      send(ws, { type: 'nack', re: 'party-chat', reason: 'no-party' })
+      return
+    }
+    const line = { type: 'party-chat' as const, from: me.name, text }
+    const at = Date.now()
+    for (const member of party.members) {
+      this.toAccount(member.account, { ...line, at })
     }
   }
 
@@ -1607,6 +1740,63 @@ export class ValleyDO extends DurableObject<Env> {
     } catch (err) {
       console.error('The friends list could not be changed', err)
       send(ws, { type: 'nack', re: op, reason: 'server' })
+    }
+  }
+
+  // A raider's card (inspect.ts), read from D1 and sent to the asker's
+  // socket alone, whether the raider is in the valley or not.
+  private async inspect(
+    ws: WebSocket,
+    account: string,
+    name: string
+  ): Promise<void> {
+    const refuse = (reason: string) => {
+      send(ws, { type: 'nack', re: 'inspect', reason })
+    }
+    if (!allow(this.inspectRate, ws, INSPECT_LIMIT)) {
+      refuse('too-fast')
+      return
+    }
+    try {
+      const accounts = this.accounts()
+      const packs = this.packs()
+      const other = await accounts.accountByUsername(name)
+      if (!other) {
+        refuse('unknown')
+        return
+      }
+      const them = other.accountId
+      const crews = this.crews()
+      const [xp, look, cosmetics, found, season, friends, theirCrew, myCrew] =
+        await Promise.all([
+          packs.xp(them),
+          accounts.lookOf(them),
+          accounts.cosmeticsOf(them),
+          packs.book(them),
+          packs.season(them, SEASON.id),
+          accounts.friendsOf(account),
+          crews.crewOf(them),
+          crews.crewOf(account),
+        ])
+      const card = cardOf({
+        name: other.username,
+        xp,
+        look,
+        cosmetics,
+        found,
+        season,
+        self: them === account,
+        friend: friends.find((row) => row.accountId === them),
+        party: partyStanding(this.valley.parties, account, them, Date.now()),
+        crew: theirCrew && { name: theirCrew.name, tag: theirCrew.tag },
+        crewInvite:
+          myCrew !== null && myCrew.leader === account && theirCrew === null,
+        online: this.hasSocket(them),
+      })
+      send(ws, { type: 'inspected', card })
+    } catch (err) {
+      console.error('A card could not be read', err)
+      refuse('unavailable')
     }
   }
 
@@ -1811,6 +2001,28 @@ export class ValleyDO extends DurableObject<Env> {
     })
   }
 
+  // Rule 36: a rod out of the tackle box or a cast, with the pack read
+  // first, so the valley knows the rod and the bait are in it. A pack that
+  // cannot be read is refused.
+  private withPack(
+    ws: WebSocket,
+    account: string | null,
+    action: Extract<ValleyAction, { type: 'tackle' | 'cast' | 'jar-slurm' }>
+  ): Promise<boolean> {
+    return this.locked(async () => {
+      if (!account) return false
+      let holdings: Holdings
+      try {
+        holdings = await this.packs().get(account)
+      } catch (err) {
+        console.error('The pack could not be read', err)
+        send(ws, { type: 'nack', re: action.type, reason: 'unavailable' })
+        return false
+      }
+      return this.actHeld(ws, action, { holdings })
+    })
+  }
+
   // Rule 33: the account's research, to the socket that asked.
   private async sendResearch(ws: WebSocket, account: string): Promise<void> {
     try {
@@ -1892,13 +2104,16 @@ export class ValleyDO extends DurableObject<Env> {
   private async actHeld(
     ws: WebSocket,
     action: ValleyAction,
-    read: Pick<ValleyContext, 'research'> = {}
+    read: Pick<ValleyContext, 'research' | 'holdings'> = {}
   ): Promise<boolean> {
     const reduced = reduce(this.valley, action, { ...this.context(), ...read })
     const account = reduced.pack?.account ?? reduced.earn?.account
     const written = await this.write(reduced.pack, reduced.earn)
     if (written !== 'done') {
-      if (written === 'none-left') {
+      if (written === 'none-left' && action.type === 'cast') {
+        // Rule 36: the bait went from the pack since it was read.
+        send(ws, { type: 'nack', re: 'cast', reason: 'no-bait' })
+      } else if (written === 'none-left') {
         send(ws, { type: 'nack', re: 'use', reason: 'none-left' })
       } else {
         const nack = unwrittenNack(action)
@@ -1916,6 +2131,13 @@ export class ValleyDO extends DurableObject<Env> {
         dimes: reduced.found.dimes,
       })
     }
+    // Rule 36: the angler to every socket on the account, and the line or
+    // the catch to the one that fished.
+    if (reduced.angler) {
+      this.toAccount(reduced.angler.account, reduced.angler.message)
+    }
+    if (reduced.fished) send(ws, reduced.fished)
+    if (reduced.jarred) this.broadcast(reduced.jarred, null)
     for (const msg of reduced.broadcast) this.broadcast(msg, null)
     if (account) await this.repack(ws, null, account)
     return !reduced.reply
@@ -2466,6 +2688,237 @@ export class ValleyDO extends DurableObject<Env> {
     }
   }
 
+  // Rule 35: every socket on `account` shown to everyone wearing `tag`
+  // (null: none).
+  private recrew(account: string, tag: string | null): void {
+    for (const socket of this.ctx.getWebSockets()) {
+      const attachment = this.attachment(socket)
+      const me = attachment.me
+      if (attachment.account !== account || !me) continue
+      const { crew: _, ...rest } = me
+      const next: PeerWire = tag ? { ...rest, crew: showTag(tag) } : rest
+      this.attach(socket, { ...attachment, me: next })
+      this.broadcast(
+        { type: 'peer-updated', peer: this.shown(next, account) },
+        null
+      )
+    }
+  }
+
+  // Rule 35: the account's crew and the invites waiting on it, to every
+  // socket on it (or to `ws` alone, at hello, and only when there is
+  // anything to say).
+  private async sendCrew(account: string, ws?: WebSocket): Promise<void> {
+    try {
+      const store = this.crews()
+      const crew = await store.crewOf(account)
+      const invites = await store.invitesOf(
+        account,
+        Date.now() - CONFIG.crews.inviteMs
+      )
+      const wire = crewWire(
+        crew,
+        invites.map(({ tag, name }) => ({ tag: showTag(tag), name })),
+        (other) => this.hasSocket(other)
+      )
+      const msg: ServerMessage = { type: 'crew', ...wire }
+      if (!ws) this.toAccount(account, msg)
+      else if (wire.crew || wire.invites.length > 0) send(ws, msg)
+    } catch (err) {
+      console.error('The crew could not be read', err)
+    }
+  }
+
+  // Rule 35: news of `crew` to each of `accounts`.
+  private crewNews(
+    accounts: readonly string[],
+    crew: CrewRow,
+    news: CrewNewsMessage['news'],
+    name: string
+  ): void {
+    const msg: ServerMessage = {
+      type: 'crew-news',
+      news,
+      name,
+      tag: showTag(crew.tag),
+      crew: crew.name,
+    }
+    for (const account of accounts) this.toAccount(account, msg)
+  }
+
+  // Rule 35: a crew started, a raider invited to it, an invite taken up,
+  // the crew left, or a member put out. All under the valley's lock, so a
+  // read and the write it decides stand together; the store keeps them in
+  // D1.
+  private async crewAct(
+    ws: WebSocket,
+    attachment: Attachment,
+    me: PeerWire,
+    msg: Extract<
+      ClientMessage,
+      {
+        type:
+          | 'crew-create'
+          | 'crew-invite'
+          | 'crew-join'
+          | 'crew-leave'
+          | 'crew-kick'
+      }
+    >
+  ): Promise<void> {
+    const account = attachment.account
+    if (!account) return
+    const re = msg.type
+    const refuse = (reason: string) => {
+      send(ws, { type: 'nack', re, reason })
+    }
+    if (!allow(this.friendRate, ws, FRIEND_LIMIT)) {
+      refuse('too-fast')
+      return
+    }
+    const store = this.crews()
+    const now = Date.now()
+    const accounts = (crew: CrewRow) => crew.members.map((m) => m.account)
+    try {
+      await this.locked(async () => {
+        const mine = await store.crewOf(account)
+        switch (msg.type) {
+          case 'crew-create': {
+            if (!isValidTag(msg.tag)) return refuse('bad-tag')
+            if (!isValidCrewName(msg.name)) return refuse('bad-name')
+            if (mine) return refuse('in-crew')
+            const made = await store.create(
+              account,
+              crypto.randomUUID(),
+              msg.name,
+              msg.tag,
+              CONFIG.crews.cost,
+              now
+            )
+            if (made !== 'ok') return refuse(made)
+            const crew = await store.crewOf(account)
+            if (!crew) return
+            await this.repack(ws, null, account)
+            this.recrew(account, crew.tag)
+            this.crewNews([account], crew, 'created', me.name)
+            await this.sendCrew(account)
+            return
+          }
+          case 'crew-invite': {
+            if (!mine) return refuse('no-crew')
+            if (mine.leader !== account) return refuse('not-leader')
+            const other = await this.accounts().accountByUsername(msg.name)
+            if (!other) return refuse('unknown')
+            if (other.accountId === account) return refuse('self')
+            if (await store.tagOf(other.accountId)) return refuse('their-crew')
+            if (mine.members.length >= CONFIG.crews.size) return refuse('full')
+            await store.invite(mine.id, other.accountId, now)
+            this.crewNews([other.accountId], mine, 'invited', me.name)
+            this.crewNews([account], mine, 'sent', other.username)
+            await this.sendCrew(other.accountId)
+            return
+          }
+          case 'crew-join': {
+            if (mine) return refuse('in-crew')
+            const crew = await store.crewByTag(msg.tag)
+            const waiting = crew
+              ? (
+                  await store.invitesOf(account, now - CONFIG.crews.inviteMs)
+                ).some((i) => i.id === crew.id)
+              : false
+            if (!crew || !waiting) return refuse('no-invite')
+            if (crew.members.length >= CONFIG.crews.size) return refuse('full')
+            await store.join(crew.id, account, now)
+            this.recrew(account, crew.tag)
+            const everyone = [...accounts(crew), account]
+            this.crewNews(everyone, crew, 'joined', me.name)
+            for (const member of everyone) await this.sendCrew(member)
+            return
+          }
+          case 'crew-leave': {
+            const parted = await store.leave(account)
+            if (!parted) return refuse('no-crew')
+            await this.parted(account, me.name, parted, 'left')
+            return
+          }
+          case 'crew-kick': {
+            if (!mine) return refuse('no-crew')
+            if (mine.leader !== account) return refuse('not-leader')
+            const member = mine.members.find((m) =>
+              sameName(m.username, msg.name)
+            )
+            if (!member) return refuse('not-member')
+            if (member.account === account) return refuse('self')
+            const parted = await store.leave(member.account)
+            if (parted) {
+              await this.parted(
+                member.account,
+                member.username,
+                parted,
+                'kicked'
+              )
+            }
+            return
+          }
+        }
+      })
+    } catch (err) {
+      console.error('The crew could not be changed', err)
+      refuse('unavailable')
+    }
+  }
+
+  // Rule 35: `account` (named `name`) out of its crew: its tag off, every
+  // member told (a new leader too), and every member sent the crew again.
+  private async parted(
+    account: string,
+    name: string,
+    parted: Parted,
+    news: 'left' | 'kicked'
+  ): Promise<void> {
+    const { crew, leader } = parted
+    const all = crew.members.map((m) => m.account)
+    this.recrew(account, null)
+    this.crewNews(all, crew, news, name)
+    if (leader !== null && leader !== crew.leader) {
+      const led = crew.members.find((m) => m.account === leader)
+      const rest = all.filter((other) => other !== account)
+      this.crewNews(rest, crew, 'leader', led?.username ?? '')
+    }
+    for (const member of all) await this.sendCrew(member)
+  }
+
+  // Rule 35: a line to the raider's crew, under the chat rules and its
+  // rate, delivered to every member's sockets. Nothing is stored.
+  private async crewChat(
+    ws: WebSocket,
+    attachment: Attachment,
+    me: PeerWire,
+    text: string
+  ): Promise<void> {
+    if (!allow(this.chatRate, ws, CHAT_LIMIT)) {
+      send(ws, { type: 'nack', re: 'crew-chat', reason: 'too-fast' })
+      return
+    }
+    let crew: CrewRow | null = null
+    try {
+      crew = attachment.account
+        ? await this.crews().crewOf(attachment.account)
+        : null
+    } catch (err) {
+      console.error('The crew could not be read', err)
+    }
+    if (!crew) {
+      send(ws, { type: 'nack', re: 'crew-chat', reason: 'no-crew' })
+      return
+    }
+    const line = { type: 'crew-chat' as const, from: me.name, text }
+    const at = Date.now()
+    for (const member of crew.members) {
+      this.toAccount(member.account, { ...line, at })
+    }
+  }
+
   // The account's pack frame: its holdings, and its bodies lying in the
   // valley.
   private packFrame(account: string, holdings: Holdings): PackMessage {
@@ -2569,6 +3022,7 @@ export class ValleyDO extends DurableObject<Env> {
       if (this.lingering.get(me.id)?.timer !== timer) return
       this.lingering.delete(me.id)
       this.broadcast({ type: 'peer-left', id: me.id }, null)
+      void this.dropFromParty(account)
     }, CONFIG.net.lingerMs)
     this.lingering.set(me.id, { account, me, timer })
   }
@@ -2615,6 +3069,44 @@ export class ValleyDO extends DurableObject<Env> {
       await this.ctx.storage.setAlarm(reduced.alarm)
     }
     if (reduced.xp) void this.award(reduced.xp)
+    this.tellParties(reduced)
+  }
+
+  // Rule 34: each account whose party changed, sent it again, and the
+  // news to the ones it is news to.
+  private tellParties(reduced: Reduced): void {
+    for (const account of reduced.party ?? []) {
+      this.toAccount(account, this.partyFrame(account))
+    }
+    for (const { account, news, name } of reduced.partyNews ?? []) {
+      this.toAccount(account, { type: 'party-news', news, name })
+    }
+  }
+
+  // Rule 34: the party as `account` is sent it.
+  private partyFrame(account: string): { type: 'party' } & PartyWire {
+    return {
+      type: 'party',
+      ...partyWire(
+        this.valley.parties,
+        account,
+        (other) => this.hasSocket(other),
+        Date.now()
+      ),
+    }
+  }
+
+  // Rule 34: an account whose linger ran out with no socket left, out of
+  // its party.
+  private dropFromParty(account: string): Promise<void> {
+    return this.locked(async () => {
+      const reduced = reduce(
+        this.valley,
+        { type: 'party-drop', account },
+        this.context()
+      )
+      await this.apply(reduced)
+    })
   }
 
   // Ids of everyone who has said hello, except the socket given.
@@ -2700,6 +3192,12 @@ function unwrittenNack(action: ValleyAction): NackMessage | null {
       return { type: 'nack', re: 'take-drop', reason, drop: action.drop }
     case 'collect':
       return { type: 'nack', re: 'collect', reason }
+    case 'tackle':
+    case 'dig':
+    case 'cast':
+    case 'reel':
+    case 'jar-slurm':
+      return { type: 'nack', re: action.type, reason }
     default:
       return null
   }

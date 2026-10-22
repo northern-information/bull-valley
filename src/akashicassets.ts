@@ -40,6 +40,15 @@ import { dayKey } from './daily.ts'
 import { buildDishArray } from './dishes.ts'
 import { buildDrink } from './drinkmodels.ts'
 import { buildFireRoots, buildRaincloud } from './fire.ts'
+import {
+  buildBobber,
+  buildOilLantern,
+  buildPicnicTable,
+  buildProppedRod,
+  buildRackRod,
+  buildStringer,
+  buildTackleBox,
+} from './fishmodels.ts'
 import { itemLabel } from './itemcopy.ts'
 import { ITEMS } from './items.ts'
 import { buildJeep } from './jeep.ts'
@@ -314,6 +323,20 @@ function sampleGuitar(): THREE.Group {
   return group
 }
 
+// The firefly pond's fish (items.ts), smallest first, named for the page.
+const FISH_LABELS: [string, string][] = [
+  ['bluegill', 'Bluegill'],
+  ['pumpkinseed', 'Pumpkinseed'],
+  ['yellow-perch', 'Yellow perch'],
+  ['black-crappie', 'Black crappie'],
+  ['bullhead', 'Bullhead'],
+  ['largemouth-bass', 'Largemouth bass'],
+  ['channel-catfish', 'Channel catfish'],
+  ['common-carp', 'Common carp'],
+  ['ghost-catfish', 'Ghost catfish'],
+  ['shadow-carp', 'Shadow carp'],
+]
+
 // Registry for the Akashic page, in cycle order. The truck (with its
 // driver) and the shadowman come in from their own modules, because both
 // need figure or game code; see src/akashic.ts.
@@ -408,6 +431,57 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   },
   { id: 'adderall', label: 'Adderall', build: () => buildPickup('adderall') },
   { id: 'rose', label: "Erwin's rose", build: () => buildPickup('rose') },
+  ...FISH_LABELS.map(([id, label]) => ({
+    id: `fish-${id}`,
+    label: `Fish: ${label}`,
+    build: () => buildPickup(id),
+  })),
+  {
+    id: 'fishing-rod',
+    label: 'Fishing rod',
+    build: () => buildPickup('fishing-rod'),
+  },
+  {
+    id: 'slurm-jar',
+    label: 'Slurm jar',
+    build: () => buildPickup('slurm-jar'),
+  },
+  {
+    id: 'slurm-caught',
+    label: 'Slurm, caught',
+    build: () => buildPickup('slurm'),
+  },
+  ...ITEMS.filter((item) => item.category === 'rod').flatMap(({ id }) => [
+    { id, label: `Rod: ${itemLabel(id)}`, build: () => buildPickup(id) },
+    {
+      id: `${id}-racked`,
+      label: `Rod: ${itemLabel(id)}, on the rack`,
+      build: () => buildRackRod(id),
+    },
+  ]),
+  {
+    id: 'nightcrawlers',
+    label: 'Nightcrawlers',
+    build: () => buildPickup('nightcrawlers'),
+  },
+  { id: 'tackle-box', label: 'Tackle box', build: () => buildTackleBox() },
+  {
+    id: 'picnic-table',
+    label: 'Picnic table',
+    build: () => buildPicnicTable(),
+  },
+  { id: 'stringer', label: 'Stringer of fish', build: () => buildStringer() },
+  {
+    id: 'propped-rod',
+    label: 'Rod propped on the bank',
+    build: () => buildProppedRod('zebco-33').group,
+  },
+  {
+    id: 'oil-lantern',
+    label: 'Oil lantern',
+    build: () => buildOilLantern().group,
+  },
+  { id: 'bobber', label: 'Bobber', build: () => buildBobber() },
   {
     id: 'tombstone',
     label: "Tombstone: a shadowman's",

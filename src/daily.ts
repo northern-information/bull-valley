@@ -57,6 +57,12 @@ function wallClock(ms: number, zone: string): WallClock {
   }
 }
 
+// The hour on the wall clock in Central time at `ms`, 0 to 23: what time
+// of day the fish at the firefly pond keep (fishing.ts).
+export function centralHour(ms: number, zone = DAILY_ZONE): number {
+  return wallClock(ms, zone).hour
+}
+
 // The zone's offset from UTC at `ms`, in ms (negative west of Greenwich).
 function zoneOffset(ms: number, zone: string): number {
   const w = wallClock(ms, zone)

@@ -103,6 +103,22 @@
     1px 1px 0 rgb(0 0 0 / 80%);
 }
 
+/* The light pause after Esc (hud.ts showBreak): one line at the top, under
+   the countdown, over a valley still in view; clicks pass to the view. */
+.bv-break {
+  position: absolute;
+  top: 2.6rem;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 0.3rem 0.7rem;
+  white-space: nowrap;
+  pointer-events: none;
+  background: var(--fi-surface-82);
+  border: 1px solid var(--bv-citgo);
+  letter-spacing: 0.08em;
+}
+
 /* The season (seasonhud.ts). The tracker sits in the upper right: the
    season over a row of pips, one lit for each time the Caretaker came
    apart in the raider's beam. Out of sight until a count goes up, when
@@ -486,6 +502,17 @@
    valley's blue. */
 .bv-chat-line--whisper {
   color: #ff8ad8;
+}
+
+/* A line said to the raider's party (rule 34): cyan, as their arrows on
+   the map. */
+.bv-chat-line--party {
+  color: var(--fi-cyan);
+}
+
+/* A line said to the raider's crew (rule 35): amber. */
+.bv-chat-line--crew {
+  color: var(--fi-amber);
 }
 
 .bv-chat-stamp {
@@ -2801,6 +2828,95 @@
   background: var(--bv-citgo);
 }
 
+/* The tackle box (fishdialog.ts): what is not showing yet stays hidden
+   whatever the frame's own display says. */
+.bv-fish [hidden] {
+  display: none;
+}
+
+/* The line in the water over the view (fishhud.ts), low in the middle
+   above the prompt: the call and the feeling, then the arrow between its
+   two keys and the two meters under them, and what the click does now. */
+.bv-fish-hud {
+  position: absolute;
+  left: 50%;
+  bottom: 28%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-sizing: border-box;
+  width: min(420px, calc(100% - 2rem));
+  padding: 12px 16px;
+  text-align: center;
+  background: var(--fi-surface-82);
+  border: 1px solid var(--fi-cyan);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.bv-fish-hud[hidden],
+.bv-fish-hud [hidden] {
+  display: none;
+}
+
+.bv-fish-hud p {
+  margin: 0;
+}
+
+.bv-fish-hud-call {
+  font-weight: 600;
+}
+
+.bv-fish-hud-how {
+  letter-spacing: 0.08em;
+  opacity: 0.8;
+}
+
+.bv-fish-hud-fight {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.bv-fish-hud-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  font-size: 2.5rem;
+  line-height: 1;
+  border: 1px solid rgb(240 234 214 / 16%);
+}
+
+.bv-fish-hud-meter {
+  display: flex;
+  flex-direction: column;
+  grid-column: 1 / -1;
+  gap: 4px;
+  text-align: left;
+}
+
+.bv-fish-hud .bv-npc-meter > div {
+  height: 100%;
+  background: var(--bv-eggshell);
+}
+
+.bv-fish-hud-arrow--gold {
+  color: var(--fi-gold);
+  border-color: var(--fi-gold);
+  box-shadow: 0 0 8px var(--fi-gold);
+}
+
+.bv-fish-hud-arrow--spent {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--bv-citgo);
+  border-color: var(--bv-citgo);
+}
+
 .bv-stand--full [data-bv='stand-banked'],
 .bv-stand--full [data-bv='stand-cap'] {
   color: var(--bv-citgo);
@@ -3107,6 +3223,25 @@
 
 .bv-intro .bv-btn--stack {
   align-content: center;
+}
+
+/* A raider's card (inspectdialog.ts): their figure turning beside the
+   rows, and the friend button under them. */
+.bv-inspect-body {
+  align-items: center;
+}
+
+.bv-inspect-avatar {
+  justify-self: center;
+  width: 120px;
+  height: 200px;
+  image-rendering: pixelated;
+  border: 1px solid var(--bv-npc-edge);
+  cursor: grab;
+}
+
+.bv-inspect-stats {
+  align-self: center;
 }
 
 /* A section head with nothing to say on the right lets its rule run. */

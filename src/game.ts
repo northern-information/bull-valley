@@ -23,6 +23,8 @@ import type { DonutWake } from './donutwakerig.ts'
 import type { DropMeshes } from './dropmeshes.ts'
 import type { Drop } from './drops.ts'
 import type { Emoting } from './emotes.ts'
+import type { FishHud } from './fishhud.ts'
+import type { AnglerWire, Bait, LineOut } from './fishing.ts'
 import type { FirstPersonHands } from './fphands.ts'
 import type { PendingAsk } from './friends.ts'
 import type { Glow } from './glow.ts'
@@ -30,6 +32,7 @@ import type { Grave } from './graves.ts'
 import type { Gravestones } from './gravestones.ts'
 import type { Hallucinations } from './hallucinationrig.ts'
 import type { Hand } from './hands.ts'
+import type { Tool } from './held.ts'
 import type { Effects, Hotbar } from './hotbar.ts'
 import type { Hud } from './hud.ts'
 import type { Interaction } from './interactions.ts'
@@ -48,8 +51,11 @@ import type { PlayerBody } from './playerbody.ts'
 import type { PortalMeshes } from './portalmeshes.ts'
 import type { Portal } from './portals.ts'
 import type {
+  CrewWire,
   DailyWire,
   FriendWire,
+  InspectWire,
+  PartyWire,
   PeerStateWire,
   WorldWire,
 } from './protocol.ts'
@@ -98,10 +104,21 @@ export interface Pending {
   ask: PendingAsk | null
   showFriends: boolean
   whisperTo: string | null
+  // A raider's card asked for (inspect.ts), by the name asked.
+  inspect: string | null
+  // Rule 34: who an invite went to, for a refusal's line.
+  invite: string | null
+  // Rule 35: what a crew frame named (a raider or a tag), for a refusal's
+  // line.
+  crew: string | null
   // Rule 23: a change to the Cabbage Stand.
   stand: boolean
   // Rule 33: a level bought at the Recycling Center.
   recycle: boolean
+  // Rule 36: a rod, a dig, a cast or a reel at the firefly pond, and a
+  // slurm into the jar.
+  fish: boolean
+  jar: boolean
 }
 
 export function freshPending(): Pending {
@@ -117,9 +134,20 @@ export function freshPending(): Pending {
     ask: null,
     showFriends: false,
     whisperTo: null,
+    inspect: null,
+    invite: null,
+    crew: null,
     stand: false,
     recycle: false,
+    fish: false,
+    jar: false,
   }
+}
+
+// Rule 35: the account's crew (null: none) and the crews inviting it.
+export interface CrewState {
+  crew: CrewWire | null
+  invites: { tag: string; name: string }[]
 }
 
 export interface GameState {
@@ -164,7 +192,11 @@ export interface GameState {
   effects: Effects
   // How high, stimulated and drunk, on `time` (wardlevels.ts).
   wards: WardState
-  // The flashlight in the left hand: up and on, or down and off.
+  // What the left hand holds (held.ts): the flashlight, the slurm jar or
+  // a rod, switched with R or the wheel, used with the click.
+  held: Tool
+  // The left hand's lift: the flashlight up and on, or down and off; a
+  // jar or a rod is held up for as long as it is in the hand.
   flashlight: Hand
   // The item the right hand last brought up, and when, on `time`.
   using: { kind: string; at: number } | null
@@ -232,6 +264,14 @@ export interface GameState {
   // Rule 31: the laptop's screen while this raider sits at it, for the
   // valley's answers; null otherwise.
   laptop: LaptopScreen | null
+  // The raider's card open (inspect.ts), as the valley last sent it; null
+  // while none is.
+  inspected: InspectWire | null
+  // Rule 34: the party as the valley last sent it (none at first).
+  party: PartyWire
+  // Rule 35: the crew and the invites waiting, as the valley last sent
+  // them (none at first).
+  crew: CrewState
   // Rule 23: the account's Cabbage Stand as the valley last sent it; null
   // before it has. And the last word on a change, for the stand's dialog.
   stand: StandLedger | null
@@ -241,6 +281,21 @@ export interface GameState {
   // word on a level, for the dialog.
   research: Research | null
   researchSaid: string | null
+  // Rule 36: the account's angler as the valley last sent it (asked for
+  // as the tackle box opens); null before it has. The line in the water,
+  // as cast (fishing.ts LineOut), and the last word on fishing.
+  angler: AnglerWire | null
+  line: LineOut | null
+  fishSaid: string | null
+  // The bait the rod casts with, picked at the tackle box; null for the
+  // first one carried.
+  bait: Bait | null
+  // Inside a pond's firefly haven as last read; null before the welcome
+  // has placed the raider.
+  inFireflies: boolean | null
+  // When the rod was last cast, on `time` (held.ts castPose); null once
+  // the cast is over.
+  castAt: number | null
   // Rule 28: every Citgo the account has stood at, and the last, as the
   // valley last said (the welcome, then every citgos frame). The Citgo
   // portals, from every snapshot; the id of the one this raider opened, while it
@@ -298,6 +353,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     time: 0,
     effects: NO_EFFECTS,
     wards: SOBER,
+    held: 'flashlight',
     flashlight: HAND_DOWN,
     using: null,
     lastUsed: null,
@@ -328,10 +384,19 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     stash: {},
     lockerOpen: false,
     laptop: null,
+    inspected: null,
+    party: { members: [], invites: [] },
+    crew: { crew: null, invites: [] },
     stand: null,
     standSaid: null,
     research: null,
     researchSaid: null,
+    angler: null,
+    line: null,
+    fishSaid: null,
+    bait: null,
+    inFireflies: null,
+    castAt: null,
     citgos: NO_CITGOS,
     portals: [],
     myPortal: null,
@@ -391,6 +456,8 @@ export interface Game {
   playerBody: PlayerBody
   // The hands in first person, and the flashlight's light.
   hands: FirstPersonHands
+  // The line in the water over the view, while the rod fishes.
+  fishHud: FishHud
   // The account and outfit from the titles; Gron changes them.
   pick: Titles
   // The phone, dialing Citgo portals (Q).

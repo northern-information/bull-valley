@@ -187,6 +187,8 @@ export function buildShelves(
       return heard
     },
     clerkAway: (station) => slurms.away(station),
+    crawlingSlurms: () => slurms.crawling(),
+    jarSlurm: (station, slot, index) => slurms.jar(station, slot, index),
     hurrySlurms: () => slurms.hurry(),
     holdSlurms: (on) => slurms.hold(on),
   }

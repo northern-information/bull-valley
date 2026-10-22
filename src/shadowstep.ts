@@ -25,6 +25,7 @@ import {
 import {
   citgosFor,
   creditedWith,
+  creditedWithParty,
   grantsTo,
   inTheBed,
   wardsFor,
@@ -50,6 +51,7 @@ import type {
 import type { Rng } from './rng.ts'
 import type {
   Beam,
+  Haven,
   Raider,
   ShadeKind,
   Shadowman,
@@ -118,13 +120,15 @@ export function shadowRaiders(
         // Up on the lookout no shadow reaches them.
         !(maze && onLookout(maze, at)) &&
         now >= (shadows.recovering[graceKey(valley, id)] ?? 0),
-      // Rule 27: their high reaches it further and wider.
-      beam: at.light
-        ? buffedBeam(
-            beamFrom(at, at.yaw, at.pitch, at.pose === 'crouch'),
-            wardsFor(valley, member.account, now)
-          )
-        : null,
+      // Rule 27: their high reaches it further and wider. A jar or a rod
+      // in the hand holds no flashlight (held.ts).
+      beam:
+        at.light && !at.held
+          ? buffedBeam(
+              beamFrom(at, at.yaw, at.pitch, at.pose === 'crouch'),
+              wardsFor(valley, member.account, now)
+            )
+          : null,
     })
   }
   return raiders
@@ -242,7 +246,7 @@ function stepKeeper(
       z: round(out.burst.z, 2),
     },
     caught: out.struck,
-    credited: creditedWith(valley, out.burnedBy),
+    credited: creditedWithParty(valley, out.burnedBy, raiders),
   }
 }
 
@@ -327,6 +331,17 @@ function burnCredits(
   }
 }
 
+// Rule 36: where the shadowmen turn aside: every Citgo forecourt, and the
+// firefly ponds, each as far past its shore as its haven reaches.
+export function shadeHavens(
+  world: Pick<NonNullable<Valley['world']>, 'havens' | 'ponds'>
+): Haven[] {
+  return [
+    ...world.havens,
+    ...world.ponds.map(({ x, z, radius }) => ({ x, z, radius })),
+  ]
+}
+
 // One step of the valley's shadowmen, its Caretaker and its tunnel shades,
 // dt seconds on. Null when there is nothing to step (no world, or no one
 // placed in it), and the field is emptied, so the valley stops stepping
@@ -357,8 +372,8 @@ export function stepShadows(
       dt,
       raiders: surface,
       metres: world.metres,
-      havens: world.havens,
-      water: world.water,
+      havens: shadeHavens(world),
+      lairs: world.lairs,
       calm,
       lights: headlightsAt(shadows, now),
     },
