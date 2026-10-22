@@ -13,11 +13,15 @@ import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { TaskProgress } from './dailytask.ts'
 import type { Drop } from './drops.ts'
+import type { AnglerWire, ArrowDir, LineOut, PondPlace } from './fishing.ts'
+import type { FishPhase } from './fishplay.ts'
 import type { CrewState, Game } from './game.ts'
 import type { Grave } from './graves.ts'
 import type { Hallucination, HallucinationShape } from './hallucinations.ts'
 import type { Hand } from './hands.ts'
+import type { Tool } from './held.ts'
 import type { Hotbar } from './hotbar.ts'
+import type { SlurmSpot } from './interactions.ts'
 import type { Inventory, WardAxis, XZ } from './interfaces.ts'
 import type { TruckState } from './marx.ts'
 import type { MistCards } from './mistcards.ts'
@@ -118,6 +122,15 @@ interface BvHook {
   // the Recycling Center first opens), and where the wreck lies.
   readonly research: Research | null
   readonly wreckAt: XZ | null
+  // Rule 36: the account's angler as the valley last said (null before the
+  // tackle box first opens), the line in the water, and the firefly ponds:
+  // each one's middle, its haven's reach and its tackle box's landing.
+  readonly angler: AnglerWire | null
+  readonly line: LineOut | null
+  readonly ponds: PondPlace[]
+  // The slurms crawling on the parked Citgo's lot, in the world (what a
+  // jar can catch).
+  readonly slurms: SlurmSpot[]
   // Rule 28: every Citgo the account has stood at and the last, the Citgo
   // portals open, the id of ours while it stands, the milliseconds before
   // a portal takes us again after one has (CONFIG.portal.graceSeconds),
@@ -135,14 +148,22 @@ interface BvHook {
   readonly wards: Record<WardAxis, number>
   // The chat log, oldest first.
   readonly chat: readonly ChatLine[]
-  // The flashlight in the left hand, and the item the right last raised.
+  // The flashlight in the left hand (or the jar or the rod in its place,
+  // `held`), and the item the right last raised.
   readonly flashlight: Hand
+  readonly held: Tool
+  // The fight over the view: where the line stands.
+  readonly fishPhase: FishPhase
   // The last state frame sent to the valley: where it last heard we are.
   readonly sent: PeerStateWire | null
   readonly using: { kind: string; at: number } | null
   teleport(u: number, v: number): void
-  // The left button, for a page without pointer lock.
+  // The left button, for a page without pointer lock: the flashlight
+  // alone, or whatever the left hand holds; R; and A or D in a fight.
   toggleFlashlight(): void
+  useHeld(): void
+  switchHeld(step?: 1 | -1): void
+  pressFish(dir: ArrowDir): void
   // A Citgo portal opened ahead of the raider at once, as if the phone had
   // dialed it through; and fast travel to Citgo `station`, as if clicked
   // on the map.
@@ -311,6 +332,31 @@ export function installDevHook(game: Game, actions: Actions): void {
         ? { x: wreck.group.position.x, z: wreck.group.position.z }
         : null
     },
+    get angler() {
+      return s.angler
+    },
+    get line() {
+      return s.line
+    },
+    get slurms() {
+      return game.world.shelves
+        .crawlingSlurms()
+        .map(({ station, slot, index, x, z }) => ({
+          station,
+          slot,
+          index,
+          x,
+          z,
+        }))
+    },
+    get ponds() {
+      return game.world.ponds.map(({ place }) => ({
+        x: place.x,
+        z: place.z,
+        radius: place.radius,
+        landing: place.landing,
+      }))
+    },
     get citgos() {
       return s.citgos
     },
@@ -341,6 +387,12 @@ export function installDevHook(game: Game, actions: Actions): void {
     get flashlight() {
       return s.flashlight
     },
+    get held() {
+      return s.held
+    },
+    get fishPhase() {
+      return game.fishHud.phase
+    },
     get sent() {
       return s.lastSent
     },
@@ -352,6 +404,9 @@ export function installDevHook(game: Game, actions: Actions): void {
       player.relocate(x, z)
     },
     toggleFlashlight: () => actions.toggleFlashlight(),
+    useHeld: () => actions.useHeld(),
+    switchHeld: (step: 1 | -1 = 1) => actions.switchHeld(step),
+    pressFish: (dir: ArrowDir) => game.fishHud.press(dir),
     openPortal: () => actions.openPortal(),
     fastTravel: (station: number) => actions.fastTravel(station),
     placeShadowman(x: number, z: number, kind: boolean | ShadeKind = 'man') {

@@ -7,6 +7,7 @@ import {
   actionOf,
   BOOK,
   CHAT,
+  FISHING,
   hotbarSlot,
   MAP,
   PACK,
@@ -121,6 +122,11 @@ export function wirePointer(game: Game): () => void {
   return engagePointer
 }
 
+// How far the wheel turns for one step of the left hand (a mouse's notch
+// is about 100), and the least time between two steps, ms.
+const WHEEL_NOTCH = 50
+const WHEEL_MS = 150
+
 // The keys, and the click on the view; engagePointer is wirePointer's.
 export function wireKeys(
   game: Game,
@@ -137,8 +143,10 @@ export function wireKeys(
     else if (s.mapOpen) actions.closeMap(true)
     else if (s.started && !player.locked) engagePointer()
   })
-  // The left button raises the flashlight or puts it down, only with the
-  // pointer locked: the click that takes the pointer back never does.
+  // The left button uses what the left hand holds (held.ts): the
+  // flashlight up or down, the jar's catch, the rod's cast and reel. Only
+  // with the pointer locked: the click that takes the pointer back never
+  // does.
   document.addEventListener('mousedown', (e) => {
     if (e.button !== 0 || !player.locked) return
     if (
@@ -150,7 +158,7 @@ export function wireKeys(
     ) {
       return
     }
-    actions.toggleFlashlight()
+    actions.useHeld()
   })
 
   // With the pack open the keys act on the item under the cursor (PACK in
@@ -280,8 +288,22 @@ export function wireKeys(
       }
       return
     }
+    // A line in the water holds the raider at the bank: A and D (and the
+    // arrows) answer the fish, and nothing walks.
+    if (game.fishHud.out) {
+      const dir = actionOf(FISHING, e.code)
+      if (dir === 'left' || dir === 'right') {
+        e.preventDefault()
+        game.fishHud.press(dir)
+        return
+      }
+      if (actionOf(WORLD, e.code) === 'move') return
+    }
     player.handleKey(e.code, true)
     switch (actionOf(WORLD, e.code)) {
+      case 'held':
+        actions.switchHeld()
+        return
       case 'inventory':
         e.preventDefault()
         actions.openInventory()
@@ -326,13 +348,36 @@ export function wireKeys(
   })
   document.addEventListener('keyup', (e) => player.handleKey(e.code, false))
   // Under pointer lock the wheel lands on the canvas, never the log, so
-  // while typing it is passed along.
+  // while typing it is passed along. Otherwise, in the valley, it steps
+  // what the left hand holds as R does: down the next, up the one before.
+  // A trackpad sends a flurry of small deltas, so they add up to a notch,
+  // and one step at most lands in a notch's time.
+  let wheeled = 0
+  let steppedAt = 0
   document.addEventListener(
     'wheel',
     (e) => {
-      if (!hud.chatOpen) return
+      if (hud.chatOpen) {
+        e.preventDefault()
+        hud.wheelChat(e)
+        return
+      }
+      if (
+        !player.locked ||
+        s.inventoryOpen ||
+        s.bookOpen ||
+        s.mapOpen ||
+        s.talking
+      ) {
+        return
+      }
       e.preventDefault()
-      hud.wheelChat(e)
+      wheeled += e.deltaY
+      const now = performance.now()
+      if (Math.abs(wheeled) < WHEEL_NOTCH || now - steppedAt < WHEEL_MS) return
+      actions.switchHeld(wheeled > 0 ? 1 : -1)
+      wheeled = 0
+      steppedAt = now
     },
     { passive: false }
   )

@@ -17,6 +17,7 @@ import { donutRoute } from './donuts.ts'
 import { DonutWake } from './donutwakerig.ts'
 import { createDropMeshes } from './dropmeshes.ts'
 import { finishById } from './finishes.ts'
+import { FishHud } from './fishhud.ts'
 import { fontsReady } from './fonts.ts'
 import { FirstPersonHands } from './fphands.ts'
 import { createGameState } from './game.ts'
@@ -270,6 +271,8 @@ async function boot() {
   // The hands hang off the camera, so the camera joins the scene.
   scene.add(camera)
   const hands = new FirstPersonHands(camera, pick.outfit)
+  const fishHud = new FishHud()
+  root.append(fishHud.root)
 
   // --- The valley server -------------------------------------------------
   // Everyone online shares one valley. The socket is same-origin and the
@@ -323,6 +326,7 @@ async function boot() {
     player,
     playerBody,
     hands,
+    fishHud,
     pick,
     phone: new Phone(hud.phoneCanvas, hud.phone),
     shadowmen: new ShadowBodies({ scene, groundAt: world.ground.at }),
@@ -391,6 +395,12 @@ async function boot() {
     maze: world.mazePlace,
     truck: truckRoutes,
     bushes: world.bushes.map(({ x, z }) => ({ x, z })),
+    ponds: world.ponds.map(({ place }) => ({
+      x: place.x,
+      z: place.z,
+      radius: place.radius,
+      landing: place.landing,
+    })),
     stand: world.stand ? world.stand.at : null,
     wreck: world.wreck
       ? { x: world.wreck.group.position.x, z: world.wreck.group.position.z }

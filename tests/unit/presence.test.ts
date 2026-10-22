@@ -154,6 +154,10 @@ describe('samplePeer', () => {
     // The flashlight takes the newest frame, like riding.
     applyState(peers, 'a', at(3, 4, { light: true }), 1200)
     expect(samplePeer(peer, 1110)?.light).toBe(true)
+    expect(samplePeer(peer, 1110)).not.toHaveProperty('held')
+    // So does what the hand holds.
+    applyState(peers, 'a', at(3, 4, { held: 'jar' }), 1250)
+    expect(samplePeer(peer, 1110)?.held).toBe('jar')
     // Past the newest frame: hold it, and stop walking.
     expect(samplePeer(peer, 2000)).toMatchObject({ x: 3, z: 4, speed: 0 })
   })
@@ -223,6 +227,7 @@ describe('wire helpers', () => {
     expect(stateChanged(base, { ...base, pose: 'crouch' })).toBe(true)
     expect(stateChanged(base, { ...base, riding: true })).toBe(true)
     expect(stateChanged(base, { ...base, light: true })).toBe(true)
+    expect(stateChanged(base, { ...base, held: 'rod' })).toBe(true)
     expect(stateChanged(base, { ...base, pitch: 0.05 })).toBe(true)
   })
 })

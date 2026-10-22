@@ -43,7 +43,11 @@ export const WORLD = {
     labelKey: 'keys.sprint',
   },
   look: { codes: [], key: 'Mouse', labelKey: 'keys.look' },
-  flashlight: { codes: [], key: 'Left Click', labelKey: 'keys.flashlight' },
+  // The left hand's flashlight lit or put out, the slurm jar's catch, or
+  // the rod's cast (held.ts); R, or the wheel, switches what the hand
+  // holds.
+  useHeld: { codes: [], key: 'Left Click', labelKey: 'keys.use_held' },
+  held: { codes: ['KeyR'], key: 'R', labelKey: 'keys.held' },
   crouch: { codes: ['KeyC'], key: 'C', labelKey: 'keys.crouch' },
   phone: { codes: ['KeyT'], key: 'T', labelKey: 'keys.phone' },
   inventory: { codes: ['Tab'], key: 'Tab', labelKey: 'keys.inventory' },
@@ -159,6 +163,18 @@ export const BOOK = {
 export const MAP = {
   close: { codes: ['KeyM', 'Escape'], key: 'M', labelKey: 'keys.close' },
   hopOut: { codes: ['KeyE'], key: 'E', labelKey: 'keys.interact' },
+} as const satisfies Record<string, Binding>
+
+// With a line in the water (fishhud.ts): A or ← and D or → answer the
+// arrows in place of walking, and the click reels a spent fish in.
+export const FISHING = {
+  left: { codes: ['KeyA', 'ArrowLeft'], key: 'A', labelKey: 'keys.fish_left' },
+  right: {
+    codes: ['KeyD', 'ArrowRight'],
+    key: 'D',
+    labelKey: 'keys.fish_right',
+  },
+  reel: { codes: [], key: 'Left Click', labelKey: 'keys.fish_reel' },
 } as const satisfies Record<string, Binding>
 
 // With a keeper's dialog open (the Cabbage Stand's, Erwin von Dutch's):

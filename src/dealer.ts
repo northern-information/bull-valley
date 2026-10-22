@@ -29,6 +29,8 @@ export const DEALER_GOODS: readonly DealerGood[] = [
   { kind: 'lsd', worth: 1000, perDay: 4 },
   { kind: 'adderall', worth: 1200, perDay: 3 },
   { kind: 'mushrooms', worth: 1500, perDay: 3 },
+  // The jar a slurm goes into alive (fishing.ts, sharedworld.ts rule 36).
+  { kind: 'slurm-jar', worth: 2500, perDay: 2 },
 ]
 
 // Good -> how many he has left today.
@@ -51,10 +53,13 @@ export function leftOf(stock: DealerStock, kind: string): number {
 }
 
 // What one unit of `kind` (one cigarette, one can, one joint) counts for
-// with him, in cents: its share of the shelf price, at his rate. Zero for
-// anything no Citgo shelf prices, which he will not take.
+// with him, in cents: its share of the shelf price, at his rate, or a
+// fish's worth at the same rate (the Golden Wok takes fish off the pond).
+// Zero for anything else, which he will not take.
 export function unitWorth(kind: string, cfg = CONFIG): number {
-  const price = itemById(kind)?.price
+  const item = itemById(kind)
+  if (item?.category === 'fish') return item.worth * cfg.dealer.rate
+  const price = item?.price
   if (price === undefined) return 0
   return (price / contentsOf(kind)) * cfg.dealer.rate
 }
