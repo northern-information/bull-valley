@@ -12,7 +12,8 @@
 //
 // Among them cross the shadow spiders, twice a shadowman's height: one
 // new arrival in a bubble is a spider now and then, and far more often
-// near water (waterside.ts); a beam takes twice as long to burst one,
+// near one of their lairs, the dishes, the castle and the plaza
+// (lairs.ts); a beam takes twice as long to burst one,
 // and one that bursts breaks into a brood of spiderlings, small and quick,
 // that rush whoever is near.
 //
@@ -27,11 +28,11 @@
 // src/shadowbodies.ts.
 
 import { CONFIG } from './config.ts'
+import { nearLair } from './lairs.ts'
 import { range } from './rng.ts'
-import { nearWater } from './waterside.ts'
 import type { Metres, XZ } from './interfaces.ts'
+import type { Lair } from './lairs.ts'
 import type { Rng } from './rng.ts'
-import type { WaterMap } from './waterside.ts'
 
 export type ShadowmenConfig = typeof CONFIG.shadowmen
 
@@ -160,9 +161,9 @@ export interface ShadowmenStep {
   // Beams no raider holds (Marx's headlights): they burn like any other,
   // but credit no one.
   lights?: readonly Beam[]
-  // Where the water is: spiders come up more often near it. None, and
-  // they come at their plain chance.
-  water?: WaterMap | null
+  // The spiders' lairs (lairs.ts): they come far more often near one.
+  // None, and they come at their plain chance.
+  lairs?: readonly Lair[]
 }
 
 // Where one burst, by which shadowman, and what it was.
@@ -405,15 +406,14 @@ export function spawnShadowman(
 }
 
 // Whether the next arrival round `raider`, coming in at `at`, is a spider:
-// by the spider's chance, or its near-water chance when either is close to
-// water, while the bubble holds fewer than maxPerBubble.
+// by the spider's chance, or its lair chance when either is near one of
+// its lairs, while the bubble holds fewer than maxPerBubble.
 function spiderComes(
   rng: Rng,
   field: ShadowmenField,
   raider: XZ,
   at: XZ,
-  metres: Metres,
-  water: WaterMap | null,
+  lairs: readonly Lair[],
   cfg: ShadowmenConfig
 ): boolean {
   const roll = rng()
@@ -428,11 +428,10 @@ function spiderComes(
     }
   }
   if (spiders >= spider.maxPerBubble) return false
-  const wet =
-    !!water &&
-    (nearWater(water, metres, raider, spider.waterRadius) ||
-      nearWater(water, metres, at, spider.waterRadius))
-  return roll < (wet ? spider.nearWaterChance : spider.chance)
+  const lured =
+    nearLair(lairs, raider, spider.lairReach) ||
+    nearLair(lairs, at, spider.lairReach)
+  return roll < (lured ? spider.lairChance : spider.chance)
 }
 
 // One new arrival round `raider`: a shadowman, or now and then a spider.
@@ -443,11 +442,11 @@ function arrival(
   raider: XZ,
   metres: Metres,
   havens: readonly Haven[],
-  water: WaterMap | null,
+  lairs: readonly Lair[],
   cfg: ShadowmenConfig
 ): Shadowman {
   const fresh = spawnShadowman(rng, id, raider, metres, havens, cfg)
-  if (!spiderComes(rng, field, raider, fresh, metres, water, cfg)) return fresh
+  if (!spiderComes(rng, field, raider, fresh, lairs, cfg)) return fresh
   const [slow, fast] = speedRange('spider', cfg)
   return { ...fresh, kind: 'spider', speed: range(rng, slow, fast) }
 }
@@ -507,11 +506,11 @@ function fill(
   raider: XZ,
   metres: Metres,
   havens: readonly Haven[],
-  water: WaterMap | null,
+  lairs: readonly Lair[],
   cfg: ShadowmenConfig
 ): void {
   for (let n = near(field, raider, cfg); n < cfg.count; n++) {
-    const fresh = arrival(rng, field, 0, raider, metres, havens, water, cfg)
+    const fresh = arrival(rng, field, 0, raider, metres, havens, lairs, cfg)
     // How far along its heading the crossing stays inside the spawn ring:
     // the distance to its closest approach, plus the half-chord beyond it.
     const px = raider.x - fresh.x
@@ -542,7 +541,7 @@ export function stepShadowmen(
     metres,
     havens,
     calm = false,
-    water = null,
+    lairs = [],
     lights = [],
   }: ShadowmenStep,
   cfg: ShadowmenConfig = CONFIG.shadowmen
@@ -557,7 +556,7 @@ export function stepShadowmen(
   const cooldowns: Record<string, number> = {}
   for (const raider of raiders) {
     if (!(raider.id in field.cooldowns)) {
-      fill(field, rng, raider, metres, havens, water, cfg)
+      fill(field, rng, raider, metres, havens, lairs, cfg)
     }
     cooldowns[raider.id] = field.cooldowns[raider.id] ?? 0
   }
@@ -658,7 +657,7 @@ export function stepShadowmen(
     field.cooldowns[raider.id] = cooldown
     if (cooldown > 0 || near(field, raider, cfg) >= cfg.count) continue
     field.shadowmen.push(
-      arrival(rng, field, field.nextId++, raider, metres, havens, water, cfg)
+      arrival(rng, field, field.nextId++, raider, metres, havens, lairs, cfg)
     )
     field.cooldowns[raider.id] = cfg.spawnInterval
   }

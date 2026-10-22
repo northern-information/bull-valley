@@ -17,7 +17,6 @@ import { CLOSE, PROTOCOL_VERSION } from '../../src/protocol.ts'
 import { SEASON } from '../../src/season.ts'
 import { createValley } from '../../src/sharedworld.ts'
 import { standXp } from '../../src/stand.ts'
-import { dryMap } from '../../src/waterside.ts'
 import { MemoryAccountStore } from '../../worker/accounts.ts'
 import { MemoryCrewStore } from '../../worker/crews.ts'
 import { MemoryPackStore, STARTING_CASH } from '../../worker/packs.ts'
@@ -260,7 +259,7 @@ const hello = (
     stations,
     havens: Array.from({ length: stations }, (_, i) => ({ x: i * 1000, z: 0 })),
     metres: { width: 15059, height: 15038 },
-    water: dryMap({ width: 15059, height: 15038 }),
+    lairs: [],
     maze: MAZE,
     truck: { home: { x: 10, z: 10 }, joyrideMs: 600_000 },
     stand: STAND,

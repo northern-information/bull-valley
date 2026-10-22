@@ -19,7 +19,6 @@ import {
   PICKUPS_MAX,
   PROTOCOL_VERSION,
 } from '../../src/protocol.ts'
-import { dryMap } from '../../src/waterside.ts'
 
 const state = {
   x: 1.5,
@@ -42,7 +41,7 @@ const hello = {
   stations: 5,
   havens: [0, 1, 2, 3, 4].map((i) => ({ x: i * 100, z: i })),
   metres: { width: 15059, height: 15038 },
-  water: dryMap({ width: 15059, height: 15038 }),
+  lairs: [],
   maze: { x: 120, z: -40, yaw: 0.5 },
   truck: { home: { x: 10, z: -20 }, joyrideMs: 600_000 },
   stand: { x: 6, z: -24 },
@@ -277,7 +276,7 @@ describe('parseClientMessage', () => {
     const {
       havens: _havens,
       metres: _metres,
-      water: _water,
+      lairs: _lairs,
       maze: _maze,
       truck: _truck,
       stand: _stand,
@@ -294,7 +293,7 @@ describe('parseClientMessage', () => {
       v: PROTOCOL_VERSION - 1,
       havens: [],
       metres: { width: 0, height: 0 },
-      water: { cell: 100, cols: 1, rows: 1, bits: 'AA==' },
+      lairs: [],
       maze: null,
       truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
       stand: null,
@@ -326,7 +325,7 @@ describe('parseClientMessage', () => {
       v: PROTOCOL_VERSION - 1,
       havens: [],
       metres: { width: 0, height: 0 },
-      water: { cell: 100, cols: 1, rows: 1, bits: 'AA==' },
+      lairs: [],
       maze: null,
       truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
       stand: null,
@@ -497,6 +496,17 @@ describe('parseClientMessage', () => {
     expect(parse({ ...hello, ponds: null })).toBeNull()
     expect(parse({ ...hello, ponds: [{ x: 1, z: 2 }] })).toBeNull()
     expect(parse({ ...hello, ponds: Array(9).fill(hello.ponds[0]) })).toBeNull()
+    // And the spiders' lairs, none or more, each with a reach (rule 11).
+    const lair = { x: 10, z: -20, radius: 45 }
+    expect(parse({ ...hello, lairs: [lair] })).toEqual({
+      ...hello,
+      lairs: [lair],
+    })
+    expect(parse({ ...hello, lairs: null })).toBeNull()
+    expect(parse({ ...hello, lairs: [{ x: 1, z: 2 }] })).toBeNull()
+    expect(parse({ ...hello, lairs: [{ ...lair, radius: 0 }] })).toBeNull()
+    expect(parse({ ...hello, lairs: [{ ...lair, x: NaN }] })).toBeNull()
+    expect(parse({ ...hello, lairs: Array(9).fill(lair) })).toBeNull()
     // A ring on every lot (rule 28), no fewer.
     expect(parse({ ...hello, rings: hello.rings.slice(1) })).toBeNull()
     // And where the squatter deals, or that there is none (rule 25).

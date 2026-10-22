@@ -102,8 +102,9 @@ export const CONFIG = {
     dimes: { min: 1, max: 8 },
     // Shadow spiders: twice a shadowman's height, crossing among them as
     // one of the crowd. Each new one in a bubble is a spider by `chance`,
-    // or by `nearWaterChance` where it comes in, or the raider stands,
-    // within waterRadius metres of water (waterside.ts), and never more
+    // or by `lairChance` where it comes in, or the raider stands, within
+    // lairReach metres of one of its lairs (lairs.ts: the dish array,
+    // Castle Entropy, Bull Valley Plaza), and never more
     // than maxPerBubble round one raider. A beam takes burnScale times a
     // shadowman's burnSeconds to burst one, aimed at aimHeight over the
     // ground, where its body hangs. It crosses a little slower than a
@@ -111,8 +112,8 @@ export const CONFIG = {
     // leaves one $20 bill (drops.ts TWENTY) where it burst.
     spider: {
       chance: 0.02,
-      nearWaterChance: 0.12,
-      waterRadius: 120,
+      lairChance: 0.12,
+      lairReach: 120,
       maxPerBubble: 3,
       burnScale: 2,
       // Its burst, against a shadowman's.
@@ -946,15 +947,14 @@ export const CONFIG = {
     // `find` point (station-local to the spawn Citgo, like the wreck),
     // within pond.search of it: the pond behind the Citgo past the dish
     // array, the one past the far side of the corn maze from Lake Avenue,
-    // and the one across Lake Avenue from the maze's far end, on the
+    // and the one across Lake Avenue from the middle of the maze, on the
     // Citgo's side. That last one is not on the survey: it was drawn into
-    // geo.json's water by hand, far enough from the spawn Citgo that its
-    // lot is not near water for the spiders (CONFIG.shadowmen.spider
-    // waterRadius). Each landing is on the shore nearest the Citgo.
+    // geo.json's water by hand. Each landing is on the shore nearest the
+    // Citgo.
     ponds: [
       { find: { x: -288, z: -46 } },
       { find: { x: 290, z: 200 } },
-      { find: { x: -90, z: 210 } },
+      { find: { x: -55, z: 140 } },
     ] as readonly { find: { x: number; z: number } }[],
     pond: {
       // How far from its `find` point a pond's shore may be.
