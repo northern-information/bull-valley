@@ -13,6 +13,7 @@ import {
   buildAxe,
   buildBat,
   buildBook,
+  buildCable,
   buildDrink,
   buildFireRoots,
   buildFlames,
@@ -21,6 +22,7 @@ import {
   buildGuitar,
   buildJeep,
   buildLaptop,
+  buildRadarDish,
   buildRaincloud,
   buildScroll,
   buildScythe,
@@ -1140,7 +1142,8 @@ export function buildMoab(groundAt: GroundAt = () => 0): MoabRig {
 // placeTyler): sat cross-legged on the cargo floor at the open back,
 // facing out of it (rig -Z), hunched over the laptop on the floor in front
 // of him and typing, its screen lit on his face, a can of Rockstar at his
-// side (scenery, never a pickup). The Jeep, the laptop and the can sit
+// side, and the portable radar dish on the roof cabled down into the
+// laptop, for he helps run the Citgo portals (scenery, never a pickup). The Jeep, the laptop and the can sit
 // beside the figure, not on it, so the ring that marks him as the one E
 // talks to (glow.ts) goes round his body alone. Call update(t) every frame with a
 // running time, for the typing and the screen.
@@ -1176,6 +1179,33 @@ export function buildTyler(): TylerRig {
   can.position.set(...TYLER_CAN)
   can.rotation.y = 2.4
   seat.add(can)
+  // He helps run the Citgo portals: the radar dish on the roof listens,
+  // and its cable comes along the hardtop, over its back edge, down the
+  // open back's corner and across the carpet into the laptop's side.
+  const roofTop = JEEP.roof + 0.035
+  const dish = buildRadarDish()
+  dish.group.position.set(0.3, roofTop, JEEP.rear + 0.85)
+  group.add(dish.group)
+  group.updateMatrixWorld(true)
+  const port = seat.localToWorld(
+    new THREE.Vector3(
+      TYLER_LAPTOP[0] + 0.17,
+      TYLER_LAPTOP[1] + 0.012,
+      TYLER_LAPTOP[2] + 0.06
+    )
+  )
+  group.add(
+    buildCable([
+      dish.group.localToWorld(dish.socket.clone()),
+      new THREE.Vector3(0.52, roofTop + 0.012, JEEP.rear + 0.4),
+      new THREE.Vector3(0.62, roofTop + 0.01, JEEP.rear + 0.02),
+      new THREE.Vector3(0.68, JEEP.roof - 0.3, JEEP.rear - 0.02),
+      new THREE.Vector3(0.66, JEEP.floor + 0.25, JEEP.rear + 0.04),
+      new THREE.Vector3(0.6, JEEP.floor + 0.02, JEEP.rear + 0.3),
+      new THREE.Vector3(port.x + 0.12, JEEP.floor + 0.015, port.z),
+      port,
+    ])
+  )
   const update = (t: number) => {
     applyPose(figure, samplePose('type', t))
     laptop.update(t)

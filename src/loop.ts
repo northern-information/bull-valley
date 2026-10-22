@@ -6,7 +6,7 @@ import { pulseMaterials } from './assets.ts'
 import { itemsHeld, sightsInReach } from './book.ts'
 import { activeBuffs } from './buffbar.ts'
 import { passTarget, sprintScale } from './buffs.ts'
-import { citgoAt } from './citgos.ts'
+import { phonesOf, stopAt } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { moabOffer } from './cosmetics.ts'
@@ -16,9 +16,17 @@ import { EMOTES, holds } from './emotes.ts'
 import { hurts } from './fall.ts'
 import { havenNews } from './fireflies.ts'
 import { BOX_ROD, inPond, jarRoom, nearestLanding, rodIn } from './fishing.ts'
-import { ease, HAND_DOWN, stepHand, useLift, useSeconds } from './hands.ts'
+import { ease, stepHand, useLift, useSeconds } from './hands.ts'
 import { shakeAt } from './health.ts'
-import { baitFor, CAST, castPose, toolIn } from './held.ts'
+import {
+  baitFor,
+  CAST,
+  castPose,
+  inHand,
+  SCOOP,
+  scoopPose,
+  toolOf,
+} from './held.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
 import {
   dailyStatus,
@@ -312,17 +320,18 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     }
   }
 
-  // The hands: the flashlight lit once it is all the way up, a jar or a
-  // rod held up in its place, and the item just used brought up once.
-  // What the left hand held goes back to the flashlight, down, once the
-  // pack no longer has it, and a line out goes with the rod. Says whether
-  // the flashlight is lit.
+  // The hands: the selected slot's tool raised (held.ts), the flashlight
+  // lit once it is all the way up, a jar or a rod held up in its place
+  // (the jar scooping on a click, the rod casting), and the item just
+  // used brought up once. A new tool comes up from below, the flashlight
+  // dark, and a line out goes with the rod. Says whether the flashlight
+  // is lit.
   const raiseHands = ({ dt, time }: FrameClock): boolean => {
-    const held = toolIn(s.held, s.inventory)
+    const held = toolOf(inHand(s.hotbar, s.selected, s.inventory))
     if (held !== s.held) {
       if (s.held === 'rod') game.fishHud.giveUp()
       s.held = held
-      s.flashlight = HAND_DOWN
+      s.flashlight = { up: held === 'jar' || held === 'rod', lift: 0 }
     }
     s.flashlight = stepHand(s.flashlight, dt)
     if (s.using && time - s.using.at >= useSeconds()) s.using = null
@@ -340,10 +349,19 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       }
       s.castAt = null
     }
+    // The jar's scoop, played out once and done with.
+    if (
+      s.scoopAt !== null &&
+      (s.held !== 'jar' || time - s.scoopAt >= SCOOP.settle)
+    ) {
+      s.scoopAt = null
+    }
     hands.update({
       left: ease(s.flashlight.lift),
       cast: s.castAt === null ? 0 : castPose(time - s.castAt).tilt,
-      held: s.held === 'rod' ? (rodIn(s.inventory) ?? BOX_ROD) : s.held,
+      scoop: scoopPose(s.scoopAt === null ? -1 : time - s.scoopAt),
+      held:
+        s.held === 'rod' ? (rodIn(s.inventory) ?? BOX_ROD) : (s.held ?? 'none'),
       right: ease(using),
       kind: s.using?.kind ?? null,
       on: lit,
@@ -546,14 +564,24 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       .map((m) => m.name)
       .filter((name) => name !== game.pick.username)
 
-  // The map, while it is open: where you stand, your Citgos, your party,
-  // and your waypoints.
+  // The Citgo or the found payphone fast travel would leave from.
+  const travelFrom = () => {
+    if (s.aboard) return null
+    const stop = stopAt(player.pos, world.fuelPoints, world.payphones)
+    if (stop && 'phone' in stop) {
+      return phonesOf(s.citgos).includes(stop.phone) ? stop : null
+    }
+    return stop
+  }
+
+  // The map, while it is open: where you stand, your Citgos and payphones,
+  // your party, and your waypoints.
   const drawMap = () => {
     if (s.mapOpen) {
       hud.map?.draw({
         me: { x: player.pos.x, z: player.pos.z, yaw: player.yaw },
         log: s.citgos,
-        here: s.aboard ? null : citgoAt(player.pos, world.fuelPoints),
+        here: travelFrom(),
         party: peers.placed(partyMates()),
         marks: s.waypoints,
       })
@@ -594,7 +622,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         pose: s.emoting?.id ?? poseOf(moveSpeed, crouching),
         riding: s.aboard,
         light: lit,
-        ...(s.held === 'flashlight' ? {} : { held: s.held }),
+        ...(s.held === 'flashlight' ? {} : { held: s.held ?? 'none' }),
       }
       if (stateChanged(s.lastSent, state)) {
         s.lastSent = state
@@ -637,7 +665,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         if (!item) return []
         const cooldown = cooldownOf(kind, s.effects, time)
         return [{ slot, item, icon: thumbs.icon(kind), cooldown }]
-      })
+      }),
+      s.selected
     )
     const levels = levelsAt(s.wards, time)
     hud.setWards(levels)

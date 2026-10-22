@@ -4,7 +4,7 @@ import type { Page } from '@playwright/test'
 
 // Walk up to Matthew Marx or David Carlsten and he glows, with no prompt;
 // E has him say his next line in the chat log: Marx a stanza of Burns,
-// Carlsten small talk.
+// Carlsten small talk. The first time, Marx gives his whistle too.
 
 type Who = 'marx' | 'carlsten'
 
@@ -46,6 +46,12 @@ const glowsOn = (page: Page, who: Who) =>
     return bv.glow === body
   }, who)
 
+// Every NPC line in the log, each after its timestamp.
+const npcLines = (page: Page) =>
+  page
+    .locator('.bv-chat-line--npc')
+    .evaluateAll((lines) => lines.map((p) => p.lastChild?.textContent ?? ''))
+
 // The newest NPC line in the log, after its timestamp.
 const lastLine = (page: Page) =>
   page
@@ -62,9 +68,25 @@ test('Marx glows when you come near and recites a stanza at a time', async ({
   await expect(page.locator('.bv-prompt')).toBeHidden()
   const name = copy('outfits.marx')
   await page.keyboard.press('KeyE')
+  // The gift may land before the first look, so the stanza is looked for
+  // among his lines, not as the last.
+  await expect
+    .poll(() => npcLines(page))
+    .toContain(`${name}: ${copy('marx.stanza_1')}`)
+  // Met for the first time, he gives his whistle (sharedworld.ts rule
+  // 37): into the pack, said, and onto the bar.
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.inventory['marx-whistle']))
+    .toBe(1)
   await expect
     .poll(() => lastLine(page))
-    .toBe(`${name}: ${copy('marx.stanza_1')}`)
+    .toBe(`${name}: ${copy('marx.whistle_gift')}`)
+  await expect(page.locator('.bv-chat')).toContainText(
+    copy('log.whistle_given')
+  )
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.hotbar))
+    .toContain('marx-whistle')
   await page.keyboard.press('KeyE')
   await expect
     .poll(() => lastLine(page))
@@ -107,7 +129,7 @@ test('Carlsten glows when you come near and opens his shelves, a line each time'
     await expect(shop.locator('[data-bv="npc-lede"]')).toHaveText(
       copy(`carlsten.${key}`)
     )
-    await page.keyboard.press('Escape')
+    await page.keyboard.press('KeyE')
     await expect(shop).toBeHidden()
   }
 })

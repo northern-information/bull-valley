@@ -21,6 +21,11 @@ import {
   buildSlurmJar,
 } from './fishmodels.ts'
 import { isCigarette, isDrink, isFish, isMedicine, isRod } from './items.ts'
+import {
+  buildCitgoPhone,
+  buildFlashlightItem,
+  buildMarxWhistle,
+} from './kitmodels.ts'
 import { buildMedicine } from './medicinemodels.ts'
 import { paintPack } from './packart.ts'
 import { mulberry32, range } from './rng.ts'
@@ -34,7 +39,8 @@ import type { Rng } from './rng.ts'
 // the plaza's quarters, the $20 bill, the gold bullion, the cabbage,
 // Erwin's goods, his rose, the Video Vault's key and the empties, behind one
 // buildPickup keyed by kind. The drinks, the medicine, and the fish, the
-// fishing rod and the nightcrawlers (fishmodels.ts) are built in their own
+// fishing rod and the nightcrawlers (fishmodels.ts), and the flashlight,
+// the Citgo phone and Marx's whistle (kitmodels.ts) are built in their own
 // modules and come in through it.
 
 // --- Cigarette packs -----------------------------------------------------
@@ -1029,6 +1035,9 @@ export function buildPickup(
     return buildFishingRod(kind, { glow })
   }
   if (kind === 'nightcrawlers') return buildNightcrawlers({ glow })
+  if (kind === 'flashlight') return buildFlashlightItem({ glow })
+  if (kind === 'citgo-phone') return buildCitgoPhone({ glow })
+  if (kind === 'marx-whistle') return buildMarxWhistle({ glow })
   let mesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshLambertMaterial>
   if (kind === 'cabbage') {
     const sphere = new THREE.SphereGeometry(0.35, 6, 5)

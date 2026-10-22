@@ -1,11 +1,26 @@
 import { copy } from './copy.ts'
 import { beginRaid, expect, frames, heardWhere, test } from './fixtures.ts'
+import type { Page } from '@playwright/test'
 
 // Rule 36: E at the tackle box on the firefly pond's landing opens it: a
 // rod out of the box, nightcrawlers out of the bank, and the bait picked.
-// Then R puts the rod in the left hand and the click casts, and the fight
+// The rod lands on the bar; its number key puts it in the hand and the
+// click casts, and the fight
 // plays over the view as Final Fantasy XI plays it, the arrows answered
 // until the fish is spent and a click reels it in.
+
+// A tool newly in the pack lands on the hotbar (held.ts); its number key
+// puts it in the hand.
+async function selectKind(page: Page, kind: string): Promise<void> {
+  await expect
+    .poll(() => page.evaluate((k) => window.__bv?.hotbar.indexOf(k), kind))
+    .toBeGreaterThanOrEqual(0)
+  const slot = await page.evaluate(
+    (k) => window.__bv?.hotbar.indexOf(k) ?? -1,
+    kind
+  )
+  await page.keyboard.press(`Digit${slot + 1}`)
+}
 
 test('the tackle box gives a rod and bait, and a click casts and fights to the end', async ({
   page,
@@ -27,9 +42,10 @@ test('the tackle box gives a rod and bait, and a click casts and fights to the e
   })
   await heardWhere(page)
   await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.fish'))
-  // Nothing but the flashlight to hold yet.
-  await page.keyboard.press('KeyR')
-  expect(await page.evaluate(() => window.__bv?.held)).toBe('flashlight')
+  // The flashlight in hand, from the first slot of the bar.
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.held))
+    .toBe('flashlight')
   await page.keyboard.press('KeyE')
   const dialog = page.locator('.bv-fish')
   await expect(dialog).toBeVisible()
@@ -54,16 +70,17 @@ test('the tackle box gives a rod and bait, and a click casts and fights to the e
   await expect(worms).toHaveText(
     copy('fishing.bait_on', { bait: copy('items.nightcrawlers.label') })
   )
-  await page.keyboard.press('Escape')
+  await page.keyboard.press('KeyE')
   await expect(dialog).toBeHidden()
   // The pointer is the valley's again.
   await expect
     .poll(() => page.evaluate(() => window.__bv?.player.locked))
     .toBe(true)
 
-  // R: the rod in the left hand, and the click casts.
-  await page.keyboard.press('KeyR')
-  expect(await page.evaluate(() => window.__bv?.held)).toBe('rod')
+  // The rod went onto the bar as it came out of the box: its number key
+  // puts it in the hand, and the click casts.
+  await selectKind(page, 'fishing-rod')
+  await expect.poll(() => page.evaluate(() => window.__bv?.held)).toBe('rod')
   await expect
     .poll(() => page.evaluate(() => window.__bv?.sent?.held))
     .toBe('rod')
@@ -73,7 +90,7 @@ test('the tackle box gives a rod and bait, and a click casts and fights to the e
     copy('fishing.snap'),
     copy('fishing.gave_up'),
   ]
-  await page.evaluate(() => window.__bv?.useHeld())
+  await page.evaluate(() => window.__bv?.useHand())
   await expect
     .poll(() => page.evaluate(() => window.__bv?.line !== null))
     .toBe(true)
@@ -92,7 +109,7 @@ test('the tackle box gives a rod and bait, and a click casts and fights to the e
     if (shown === '◀') await page.keyboard.press('KeyA')
     else if (shown === '▶') await page.keyboard.press('KeyD')
     else if (shown === copy('fishing.spent')) {
-      await page.evaluate(() => window.__bv?.useHeld())
+      await page.evaluate(() => window.__bv?.useHand())
     }
     await frames(page, 3)
   }
@@ -194,7 +211,7 @@ test('three ponds, and a slurm caught alive in the jar', async ({ page }) => {
   await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.fish'))
   await page.keyboard.press('KeyE')
   await expect(page.locator('.bv-fish')).toBeVisible()
-  await page.keyboard.press('Escape')
+  await page.keyboard.press('KeyE')
 
   // At the spawn Citgo with a jar, a drop brought on, a slurm crawling.
   await page.evaluate(() => window.__bv?.grant('slurm-jar', 1))
@@ -207,11 +224,12 @@ test('three ponds, and a slurm caught alive in the jar', async ({ page }) => {
     if (!bv || !station) throw new Error('no spawn station')
     bv.player.relocate(station.x + 3, station.z + 3, 0)
   })
-  // The wheel puts the jar in the left hand: only a jar in hand catches.
+  // The jar went onto the bar as it came; its number key puts it in the
+  // hand: only a jar in hand catches.
   await expect(page.locator('.bv-prompt')).not.toHaveText(
     copy('prompts.jar_slurm')
   )
-  await page.mouse.wheel(0, -100)
+  await selectKind(page, 'slurm-jar')
   await expect.poll(() => page.evaluate(() => window.__bv?.held)).toBe('jar')
   // The shelf display parks at the Citgo on the next frames; then the next
   // drop is brought to now.
@@ -222,21 +240,33 @@ test('three ponds, and a slurm caught alive in the jar', async ({ page }) => {
       timeout: 20_000,
     })
     .toBeGreaterThan(0)
-  // Beside it, looking down at it.
-  await page.evaluate(() => {
-    const bv = window.__bv
-    const slurm = bv?.slurms[0]
-    if (!bv || !slurm) throw new Error('no slurm')
-    bv.player.relocate(slurm.x + 0.9, slurm.z, 0)
-    bv.player.yaw = Math.PI / 2
-    bv.player.pitch = -0.9
-  })
-  await heardWhere(page)
-  // The click catches it; E does not.
-  await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.jar_slurm'))
+  // Beside one, looking down at it. Slurms crawl, and Carlsten bats them,
+  // so on a slow machine the one stood beside can be gone before the
+  // prompt reads: stand beside whichever crawls now until the click has
+  // one to catch.
+  await expect(async () => {
+    await page.evaluate(() => {
+      const bv = window.__bv
+      if (!bv) throw new Error('no hook')
+      const slurm = bv.slurms[0]
+      if (!slurm) {
+        bv.hurrySlurms()
+        throw new Error('no slurm')
+      }
+      bv.player.relocate(slurm.x + 0.9, slurm.z, 0)
+      bv.player.yaw = Math.PI / 2
+      bv.player.pitch = -0.9
+    })
+    await heardWhere(page)
+    // The click catches it; E does not.
+    await expect(page.locator('.bv-prompt')).toHaveText(
+      copy('prompts.jar_slurm'),
+      { timeout: 2_000 }
+    )
+  }).toPass({ timeout: 30_000 })
   await page.keyboard.press('KeyE')
   expect(await page.evaluate(() => window.__bv?.inventory.slurm ?? 0)).toBe(0)
-  await page.evaluate(() => window.__bv?.useHeld())
+  await page.evaluate(() => window.__bv?.useHand())
   await expect
     .poll(() => page.evaluate(() => window.__bv?.inventory.slurm ?? 0))
     .toBe(1)

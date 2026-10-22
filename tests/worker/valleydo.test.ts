@@ -10,7 +10,7 @@ import { outcomeOf } from '../../src/expeditions.ts'
 import { quickestMs } from '../../src/fishing.ts'
 import { BASE_GEOMETRIE } from '../../src/health.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
-import { getItem, healsOf } from '../../src/items.ts'
+import { getItem, healsOf, isKeyItem } from '../../src/items.ts'
 import { mazeToWorld } from '../../src/maze.ts'
 import { XP, xpToReach } from '../../src/progression.ts'
 import { CLOSE, PROTOCOL_VERSION } from '../../src/protocol.ts'
@@ -225,6 +225,7 @@ const MAZE = { x: 5000, z: 5000, yaw: 0 }
 
 // Where a build sets up the Cabbage Stand: on the first station's lot.
 const STAND = { x: -4, z: -17 }
+const PAYPHONE = { x: 3000, z: -3000 }
 const WRECK = { x: 6, z: 27 }
 // The firefly pond (rule 36), clear of every station.
 const POND = { x: -5000, z: 5000, radius: 80, landing: { x: -5060, z: 5000 } }
@@ -272,6 +273,7 @@ const hello = (
       x: i * 1000 + 2,
       z: 14,
     })),
+    payphones: [PAYPHONE],
   })
 
 // The last pack frame a socket was sent.
@@ -2168,7 +2170,13 @@ describe('ValleyDO: corpse runs', () => {
     const { a, b } = await struck()
     expect(a.frames().some((m) => m.type === 'struck')).toBe(true)
     const pack = lastFrame(a)
-    expect(Object.values(pack?.pack ?? {}).every((n) => n === 0)).toBe(true)
+    // All of it but the key items, the kit every raider carries among them.
+    expect(
+      Object.entries(pack?.pack ?? {}).every(
+        ([kind, n]) => isKeyItem(kind) || n === 0
+      )
+    ).toBe(true)
+    expect(pack?.pack.flashlight).toBe(1)
     // The strike spills its share of the wallet in dimes where A fell.
     const dimes = Math.floor(
       (STARTING_CASH * CONFIG.corpses.walletShare) / DIME_CENTS
@@ -3803,6 +3811,38 @@ describe('ValleyDO: the Book of Shadows', () => {
       type: 'welcome',
       book: ['citgo', 'marlboro', 'marx'],
     })
+  })
+
+  it("gives Marx's whistle the first time the account meets him, once", async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const whistles = () =>
+      a.frames().findLast((m): m is PackMessage => m.type === 'pack')?.pack[
+        'marx-whistle'
+      ]
+    // Every account carries the flashlight and the phone from its welcome.
+    expect(a.frames()[0]).toMatchObject({
+      type: 'welcome',
+      pack: { flashlight: 1, 'citgo-phone': 1 },
+    })
+    expect(whistles() ?? 0).toBe(0)
+    await v.webSocketMessage(ws(a), discover('marx'))
+    expect(whistles()).toBe(1)
+    await v.webSocketMessage(ws(a), discover('marx'))
+    expect(whistles()).toBe(1)
+    expect((await v.packStore.get('acct-A')).pack['marx-whistle']).toBe(1)
+  })
+
+  it('gives the whistle at the welcome to an account that met Marx before it', async () => {
+    const { valley: v, state: s } = await valley()
+    await v.packStore.open('acct-Old')
+    await v.packStore.discover('acct-Old', ['marx'], 0)
+    const old = await join(v, s, 'Old', { account: 'acct-Old' })
+    expect(old.frames()[0]).toMatchObject({
+      type: 'welcome',
+      pack: { 'marx-whistle': 1 },
+    })
+    expect((await v.packStore.get('acct-Old')).pack['marx-whistle']).toBe(1)
   })
 
   it('pays the bounty for the Keep found, once', async () => {

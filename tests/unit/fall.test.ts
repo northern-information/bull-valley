@@ -6,6 +6,8 @@ import {
   fallDamage,
   hurts,
   isFallHeight,
+  jumpSpeed,
+  mayJump,
 } from '../../src/fall.ts'
 
 const { safe, lethal, step } = CONFIG.fall
@@ -37,5 +39,24 @@ describe('fall', () => {
     expect(isFallHeight(FALL_MAX + 1)).toBe(false)
     expect(isFallHeight('30')).toBe(false)
     expect(isFallHeight(Number.POSITIVE_INFINITY)).toBe(false)
+  })
+})
+
+describe('a jump', () => {
+  it('leaves the ground fast enough to rise its height, and no higher', () => {
+    const v = jumpSpeed(0.5, CONFIG.fall)
+    // v² = 2gh: at the top it has risen just the height.
+    expect((v * v) / (2 * CONFIG.fall.gravity)).toBeCloseTo(0.5)
+    expect(jumpSpeed(0, CONFIG.fall)).toBe(0)
+    // Never so high it reads as a fall onto the same ground.
+    expect(CONFIG.player.jumpHeight).toBeLessThan(CONFIG.fall.safe)
+  })
+
+  it('goes only from the ground, standing, and out of an emote', () => {
+    const still = { falling: false, crouching: false, emoting: false }
+    expect(mayJump(still)).toBe(true)
+    expect(mayJump({ ...still, falling: true })).toBe(false)
+    expect(mayJump({ ...still, crouching: true })).toBe(false)
+    expect(mayJump({ ...still, emoting: true })).toBe(false)
   })
 })

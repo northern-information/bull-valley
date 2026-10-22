@@ -1,12 +1,12 @@
 // The frame the Cabbage Stand's dialog and the trade window share
-// (standdialog.ts, tradewindow.ts), and that the pause overlay (hud.ts) and
+// (standdialog.ts, tradewindow.ts), and that the menu overlay (hud.ts) and
 // the pack (packhud.ts) wear too: a header (an eyebrow, the status on the
 // right, the title, the keeper's line), sections each opened by a head
 // row, and a footer with the valley's last word and the way out. The
 // markup is styles.css's .bv-npc; each dialog fills its own sections on
 // the 12-column grid.
 
-import { DIALOG } from './bindings.ts'
+import { actionOf, DIALOG } from './bindings.ts'
 import { el } from './dom.ts'
 
 // The header as markup. The caller sets the line under the title as text
@@ -44,7 +44,21 @@ export function sectionHead(name: string, meta: string): string {
     </div>`
 }
 
-// The footer: the valley's last word on the left, the way out (Esc) on the
+// Whether a key closes the dialog: its close key (E, the key that opened
+// it), never Esc, which only ever frees the pointer. Not while a field
+// holds the caret, where E types, nor on the repeat of the E held down
+// from opening it.
+export function closesDialog(e: KeyboardEvent): boolean {
+  if (e.repeat || actionOf(DIALOG, e.code) !== 'close') return false
+  const target = e.target
+  return !(
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    (target instanceof HTMLElement && target.isContentEditable)
+  )
+}
+
+// The footer: the valley's last word on the left, the way out (E) on the
 // right.
 export function npcFooter(said: string, close: string, label: string): string {
   return `

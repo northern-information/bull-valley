@@ -27,6 +27,7 @@ import {
   createShadows,
   forecourtMends,
   headlightsAt,
+  phoneVisits,
   placeCaretaker,
   placeShadowman,
   seeHeadlights,
@@ -45,6 +46,7 @@ import {
   creditedWithParty,
   dailyFor,
   findsPay,
+  giftsOwed,
   healthFor,
   levelFor,
   maxFor,
@@ -103,6 +105,7 @@ const HAVENS = [
 ]
 // The middle of each station's Citgo portal ring (rule 28).
 const RINGS = HAVENS.map(({ x, z }) => ({ x: x + 2, z: z + 14 }))
+const PAYPHONES = [{ x: 700, z: -300 }]
 const METRES = { width: 15059, height: 15038 }
 // Where a build with a corn maze puts it (rule 13). The default join's
 // build has none, so the shadowmen's tests step only shadowmen.
@@ -129,6 +132,15 @@ function seated(valley: Valley, ...ids: string[]): Valley {
   return { ...valley, world: { ...world, truck: { ...world.truck, riders } } }
 }
 
+// What a whistle or a portal reads the pack for (rule 38), when a test
+// says nothing of the pack: the kit every raider carries.
+const KITTED: ReadonlySet<string> = new Set(['call', 'open-portal'])
+const KIT_PACK: Inventory = {
+  flashlight: 1,
+  'citgo-phone': 1,
+  'marx-whistle': 1,
+}
+
 // A little harness: applies actions in order, remembering who is present.
 function valleyWith(...actions: ValleyAction[]) {
   let valley = createValley()
@@ -145,7 +157,11 @@ function valleyWith(...actions: ValleyAction[]) {
       now,
       present: [...present],
       cash,
-      ...(pack ? { holdings: { pack, cosmetics: [] } } : {}),
+      ...(pack
+        ? { holdings: { pack, cosmetics: [] } }
+        : KITTED.has(action.type)
+          ? { holdings: { pack: KIT_PACK, cosmetics: [] } }
+          : {}),
       ...(quest ? { quest } : {}),
     }
     const reduced = reduce(valley, action, ctx)
@@ -206,6 +222,7 @@ const join = (id: string): ValleyAction => ({
   dealer: DEALER,
   undercroft: null,
   rings: RINGS,
+  payphones: PAYPHONES,
 })
 
 // A join as its own action shape, so a test can sign it in elsewhere.
@@ -664,6 +681,44 @@ describe("the valley's reach", () => {
       from: ROUTES.home,
       to: far,
     })
+  })
+})
+
+describe('rule 38: the kit', () => {
+  const to = { x: 400, z: 900 }
+
+  it("owes Marx's whistle once the book holds him, until the account has it", () => {
+    expect(giftsOwed({}, {}, [])).toEqual({})
+    expect(giftsOwed({}, {}, ['citgo', 'marx'])).toEqual({ 'marx-whistle': 1 })
+    expect(giftsOwed({ 'marx-whistle': 1 }, {}, ['marx'])).toEqual({})
+    // In the locker is still the account's.
+    expect(giftsOwed({}, { 'marx-whistle': 1 }, ['marx'])).toEqual({})
+    expect(giftsOwed({ 'marx-whistle': 0 }, {}, ['marx'])).toEqual({
+      'marx-whistle': 1,
+    })
+  })
+
+  it('whistles only with the whistle in the pack', () => {
+    const v = valleyWith(join('a'))
+    v.setPack({ flashlight: 1, 'citgo-phone': 1 })
+    const from = { x: 10, z: 10 }
+    expect(v.step({ type: 'call', id: 'a', from, at: to }).reply?.reason).toBe(
+      'no-whistle'
+    )
+    expect(v.valley.world?.truck.leg.kind).not.toBe('called')
+    v.setPack({ 'marx-whistle': 1 })
+    expect(reasons(v.step({ type: 'call', id: 'a', from, at: to }))).toEqual([
+      'called',
+    ])
+  })
+
+  it('opens a portal only with the phone in the pack', () => {
+    const v = valleyWith(join('a'))
+    v.setPack({ flashlight: 1 })
+    expect(
+      v.step({ type: 'open-portal', id: 'a', at: { x: 500, z: 500, yaw: 0 } })
+        .reply?.reason
+    ).toBe('no-phone')
   })
 })
 
@@ -1195,6 +1250,43 @@ describe('rule 28: Citgos, and Citgo portals', () => {
     v.step({ type: 'visit', id: 'a', station: 1 })
     expect(citgoVisits(seated(v.valley, 'b'), placed)).toEqual([])
     expect(citgoVisits(v.valley, placed)).toEqual([{ id: 'b', station: 1 }])
+  })
+
+  it('says who stands at a payphone their account has not found', () => {
+    const v = valleyWith(join('a'), join('b'), join('c'))
+    const at = PAYPHONES[0]
+    const placed: Placed[] = [
+      { id: 'a', at: standing(at.x + 1, at.z) },
+      { id: 'b', at: standing(at.x, at.z + 1) },
+      { id: 'c', at: standing(at.x + 40, at.z) },
+    ]
+    expect(phoneVisits(seated(v.valley, 'b'), placed)).toEqual([
+      { id: 'a', phone: 0 },
+    ])
+    const found = v.step({ type: 'find-phone', id: 'a', phone: 0 })
+    expect(found.citgos).toEqual({
+      account: 'acct-a',
+      log: { last: null, visited: [], phones: [0] },
+    })
+    // Found pays nothing, and is never the last Citgo.
+    expect(found.earn).toBeUndefined()
+    expect(found.xp).toBeUndefined()
+    expect(phoneVisits(v.valley, placed)).toEqual([{ id: 'b', phone: 0 }])
+    expect(citgosFor(v.valley, 'acct-a').last).toBeNull()
+    // Again, or a payphone the world never placed: nothing.
+    expect(v.step({ type: 'find-phone', id: 'a', phone: 0 }).citgos).toBe(
+      undefined
+    )
+    expect(v.step({ type: 'find-phone', id: 'a', phone: 1 }).citgos).toBe(
+      undefined
+    )
+    // A visit after keeps the payphones found.
+    v.step({ type: 'visit', id: 'a', station: 1 })
+    expect(citgosFor(v.valley, 'acct-a')).toEqual({
+      last: 1,
+      visited: [1],
+      phones: [0],
+    })
   })
 
   it('pays a bounty and XP the first time an account stands at each Citgo past its first', () => {

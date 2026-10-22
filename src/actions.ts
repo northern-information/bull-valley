@@ -18,9 +18,11 @@ import {
 } from './chat.ts'
 import {
   arrivalAt,
+  arrivalAtPhone,
   citgoAt,
   citgoLines,
   fastTravel as fastTravelTo,
+  stopAt,
 } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
@@ -43,8 +45,15 @@ import { finishById } from './finishes.ts'
 import { openFishDialog } from './fishdialog.ts'
 import { inPond } from './fishing.ts'
 import { openGronDialog } from './grondialog.ts'
-import { baitFor, nextTool } from './held.ts'
-import { assign, clearSlot as clearHotbarSlot, place, spent } from './hotbar.ts'
+import { baitFor, inHand, useOf } from './held.ts'
+import {
+  assign,
+  clearSlot as clearHotbarSlot,
+  place,
+  seedKit,
+  shelve,
+  spent,
+} from './hotbar.ts'
 import { befriended, partied } from './inspect.ts'
 import { openInspectDialog } from './inspectdialog.ts'
 import { pickupLabel } from './interactions.ts'
@@ -82,7 +91,7 @@ import { dose, SOBER } from './wardlevels.ts'
 import { WARD_OF } from './wards.ts'
 import { charterable } from './worldsync.ts'
 import type { ChatCommand, CrewFrame } from './chat.ts'
-import type { CitgoLog } from './citgos.ts'
+import type { CitgoLog, Stop } from './citgos.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { EmoteId } from './emotes.ts'
 import type { Hurt } from './fall.ts'
@@ -194,15 +203,16 @@ export interface Actions {
   wear(cosmetics: CosmeticId[]): void
   // The valley refused the trade.
   tradeRefused(reason: string): void
-  // One of an item, used: E over it in the pack, or its hotbar key.
+  // One of an item, used: E over it in the pack, or the click with it in
+  // hand.
   useKind(kind: string): void
   // X over an item in the pack: one of it set down (the open container,
   // or one of anything else), or with Shift the whole stack.
   dropKind(kind: string, all: boolean): void
   // The valley says a drop came up into our pack.
   applyDropTaken(kind: string, count: number): void
-  // Q: the phone dials a Citgo portal, or hangs up on one dialing
-  // (sharedworld.ts rule 28).
+  // The click with the Citgo phone in hand: it dials a Citgo portal, or
+  // hangs up on one dialing (sharedworld.ts rule 28).
   dialPortal(): void
   // The dial went through: the portal opens ahead of us (in the valley,
   // asked of it).
@@ -224,19 +234,29 @@ export interface Actions {
   // closeBook's.
   openMap(): void
   closeMap(relock?: boolean): void
-  // A Citgo on the map clicked: fast travel there.
-  fastTravel(station: number): void
+  // A Citgo or a payphone on the map clicked: fast travel there.
+  fastTravel(to: Stop): void
   // Rule 3: the map opened for us to pick where Marx goes ends: a point
   // picked (to), the joyride (null), or nothing asked (undefined: he left,
   // or the bed is not ours).
   endCharter(to?: XZ | null): void
   // The left button: the flashlight up and on, or down and off.
   toggleFlashlight(): void
-  // The left click: what the left hand holds, used (held.ts).
-  useHeld(): void
-  // R or the wheel: the next thing carried into the left hand (`step`
-  // -1: the one before).
-  switchHeld(step?: 1 | -1): void
+  // The left click: what the hand holds, used (held.ts).
+  useHand(): void
+  // A number key or the wheel: the hotbar slot the hand holds.
+  select(slot: number): void
+  // What the hand holds, or null.
+  inHand(): string | null
+  // The welcome's pack: a bar from before the kit was things gets it
+  // (hotbar.ts seedKit).
+  seedKit(): void
+  // A gift the valley gave (sharedworld.ts rule 38): said, and put on the
+  // bar.
+  gifted(kind: string): void
+  // A kind newly in the pack that the hand has a use for: onto the first
+  // empty slot, unless it is on the bar.
+  shelve(kind: string): void
   // The pickup is ours: into the pack.
   applyTake(pickup: Pickup): void
   // Someone else got it.
@@ -783,9 +803,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     askFish({ type: 'cast', bait })
   }
 
-  // The click with the jar in hand: the slurm it is aimed at, if any in
-  // reach (rule 36). The valley says whether it was still there to catch.
+  // The click with the jar in hand: a scoop, and the slurm it is aimed
+  // at, if any in reach (rule 36). The valley says whether it was still
+  // there to catch.
   const jarSlurm = () => {
+    if (s.scoopAt === null) s.scoopAt = s.time
     const aim = s.interaction
     if (aim?.kind !== 'jar-slurm' || s.pending.jar) return
     s.pending.jar = true
@@ -793,30 +815,50 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     net.send({ type: 'jar-slurm', station, slot, index })
   }
 
-  // The left click: whatever the left hand holds, used.
-  const useHeld = () => {
-    if (s.aboard) return
-    switch (s.held) {
-      case 'flashlight':
-        toggleFlashlight()
+  // What the hand holds: the selected slot's kind, while the pack does.
+  const heldKind = () => inHand(s.hotbar, s.selected, s.inventory)
+
+  // The left click: whatever the hand holds, used (held.ts useOf).
+  const useHand = () => {
+    const kind = heldKind()
+    switch (useOf(kind, kind !== null && isUsable(kind))) {
+      case 'light':
+        if (!s.aboard) toggleFlashlight()
         return
-      case 'jar':
-        jarSlurm()
+      case 'catch':
+        if (!s.aboard) jarSlurm()
         return
-      case 'rod':
-        castOrReel()
+      case 'cast':
+        if (!s.aboard) castOrReel()
+        return
+      case 'dial':
+        dialPortal()
+        return
+      case 'whistle':
+        callTruck()
+        return
+      case 'use':
+        if (kind) useKind(kind)
+        return
     }
   }
 
-  // R or the wheel: the next thing carried into the left hand, raised
-  // into view. A
-  // line in the water is given up as the rod is put away.
-  const switchHeld = (step: 1 | -1 = 1) => {
-    const next = nextTool(s.held, s.inventory, step)
-    if (next === s.held) return
-    if (s.held === 'rod') game.fishHud.giveUp()
-    s.held = next
-    s.flashlight = { up: next !== 'flashlight', lift: 0 }
+  // A number key or the wheel: the slot the hand holds. The loop raises
+  // what is in it (raiseHands), and gives up a line out as the rod goes.
+  const select = (slot: number) => {
+    s.selected = slot
+  }
+
+  const seedTheKit = () => keepHotbar(seedKit(s.hotbar, s.inventory))
+
+  const shelveKind = (kind: string) => keepHotbar(shelve(s.hotbar, kind))
+
+  // Rule 38: Marx's whistle, given the first time we meet him.
+  const gifted = (kind: string) => {
+    if (kind !== 'marx-whistle') return
+    npcSays('marx', copy('marx.whistle_gift'))
+    hud.tell(copy('log.whistle_given'))
+    shelveKind(kind)
   }
 
   // E beside Erwin von Dutch, the squatter in the plaza: what he deals
@@ -896,8 +938,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
   hud.pack.onAction = bagAction
 
-  // T: Marx comes to us, if he is free, and drives us home. No whistle
-  // carries up out of the Undercroft.
+  // The click with Marx's whistle in hand: he comes to us, if he is free,
+  // and drives us home. No whistle carries up out of the Undercroft.
   const callTruck = () => {
     if (s.aboard || !s.world) return
     if (world.undercroft?.inside(player.pos.x, player.pos.z)) {
@@ -1217,8 +1259,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
             : copy('log.twenty', { amount: paid })
       )
     } else {
+      const had = (s.inventory[kind] ?? 0) > 0
       s.inventory = addItem(s.inventory, kind, count)
       hud.tell(copy('log.taken', { item: pickupLabel({ kind, count }) }))
+      // A tool taken up goes on the bar, as a pack frame's does.
+      if (!had && useOf(kind, false) !== null) shelveKind(kind)
     }
     s.interaction = null
     hud.prompt(null)
@@ -1362,7 +1407,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       case 'fish':
         fish()
         return
-      // The click's, with the jar or the rod in hand (useHeld).
+      // The click's, with the jar or the rod in hand (useHand).
       case 'jar-slurm':
       case 'cast':
         return
@@ -1582,18 +1627,22 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   const citgoLabel = (station: number | null) =>
     station === null ? '' : (hud.map?.label(station) ?? '')
+  const stopLabel = (stop: Stop) =>
+    'citgo' in stop ? citgoLabel(stop.citgo) : copy('map.payphone')
 
   const applyCitgos = (log: CitgoLog, quiet = false) => {
     const before = s.citgos
     s.citgos = log
     // Before Begin there is no one to tell: the spawn Citgo is found then.
     if (quiet || !s.started) return
-    for (const line of citgoLines(before, log, citgoLabel, s.world !== null)) {
+    const inWorld = s.world !== null
+    for (const line of citgoLines(before, log, citgoLabel, inWorld)) {
       hud.tell(line)
     }
   }
 
-  // Q. The phone dials first; aboard it has no signal.
+  // The click with the phone in hand. It dials first; aboard it has no
+  // signal.
   const dialPortal = () => {
     if (s.aboard) {
       hud.tell(copy('log.portal_aboard'))
@@ -1612,6 +1661,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         return copy('log.portal_no_citgo')
       case 'busy':
         return copy('log.portal_busy')
+      case 'no-phone':
+        return copy('log.portal_no_phone')
       default:
         return copy('log.portal_refused')
     }
@@ -1677,32 +1728,36 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (relock) engagePointer()
   }
 
-  // From the Citgo we stand at to one visited (citgos.ts fastTravel): set
-  // down in the middle of its portal ring. Where we stand is our own word,
-  // so the valley hears it from the next state frame.
-  const fastTravel = (station: number) => {
+  // From the Citgo or the found payphone we stand at to a Citgo visited
+  // or a payphone found (citgos.ts fastTravel): set down in the middle of
+  // the Citgo's portal ring, or in front of the payphone. Where we stand is
+  // our own word, so the valley hears it from the next state frame.
+  const fastTravel = (stop: Stop) => {
     if (s.aboard) {
       hud.tell(copy('log.travel_aboard'))
       return
     }
-    const here = citgoAt(player.pos, world.fuelPoints)
-    const verdict = fastTravelTo(s.citgos, here, station)
+    const here = stopAt(player.pos, world.fuelPoints, world.payphones)
+    const verdict = fastTravelTo(s.citgos, here, stop)
     if (verdict !== 'ok') {
       hud.tell(
         verdict === 'not-at-citgo'
           ? copy('log.travel_away')
           : verdict === 'here'
             ? copy('log.travel_here')
-            : copy('log.travel_unvisited', { citgo: citgoLabel(station) })
+            : copy('log.travel_unvisited', { citgo: stopLabel(stop) })
       )
       return
     }
-    const to = arrivalAt(world.rings[station], world.fuelPoints[station])
+    const to =
+      'citgo' in stop
+        ? arrivalAt(world.rings[stop.citgo], world.fuelPoints[stop.citgo])
+        : arrivalAtPhone(world.payphones[stop.phone])
     player.relocate(to.x, to.z, to.yaw)
     s.emoting = null
     s.portalGraceUntil = performance.now() + GRACE_MS
     closeMap(true)
-    hud.tell(copy('log.travel', { citgo: citgoLabel(station) }))
+    hud.tell(copy('log.travel', { citgo: stopLabel(stop) }))
   }
   // --- Rule 37: waypoints -------------------------------------------------
 
@@ -1794,8 +1849,12 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     endCharter,
     applyDropTaken,
     toggleFlashlight,
-    useHeld,
-    switchHeld,
+    useHand,
+    select,
+    inHand: heldKind,
+    seedKit: seedTheKit,
+    gifted,
+    shelve: shelveKind,
     applyTake,
     markTaken,
     markUntaken,

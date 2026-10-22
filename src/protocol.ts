@@ -44,7 +44,7 @@ import type { Waypoints } from './waypoints.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 48
+export const PROTOCOL_VERSION = 50
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -115,7 +115,9 @@ export interface PeerStateWire {
   held?: HeldWire
 }
 
-export type HeldWire = 'jar' | 'rod'
+// 'none': the hand holds something out of sight (the phone, the whistle,
+// a pack of cigarettes), or nothing (held.ts toolOf).
+export type HeldWire = 'jar' | 'rod' | 'none'
 
 // A player as the server knows them. `at` is null until their first state
 // frame; a figure is only drawn once it is placed. cosmetics: what they
@@ -294,6 +296,9 @@ export interface HelloMessage {
   // The middle of the Citgo portal ring on each station's lot, in
   // world.fuelPoints order (rule 28).
   rings: XZ[]
+  // Where each payphone stands (castleyard.ts payphoneSpot), none or more:
+  // a raider who stands at one finds it for fast travel (rule 28).
+  payphones: XZ[]
   // On a reconnect, the id this client had before the line dropped. The
   // valley may not have heard that socket close yet; it retires it if it is
   // the same account's, so the raider is not welcomed back beside their own
@@ -1545,6 +1550,9 @@ function parseLairs(value: unknown): Lair[] | null {
   return lairs
 }
 
+// The payphones a hello may place.
+const PAYPHONES_MAX = 8
+
 // The firefly ponds: at most PONDS_MAX, each a pond place.
 const PONDS_MAX = 8
 
@@ -1618,7 +1626,7 @@ export function parsePeerState(value: unknown): PeerStateWire | null {
   if (typeof riding !== 'boolean') return null
   if (typeof light !== 'boolean') return null
   if (held === undefined) return { x, y, z, yaw, pitch, pose, riding, light }
-  if (held !== 'jar' && held !== 'rod') return null
+  if (held !== 'jar' && held !== 'rod' && held !== 'none') return null
   return { x, y, z, yaw, pitch, pose, riding, light, held }
 }
 
@@ -1650,6 +1658,7 @@ type HelloPlaces = Pick<
   | 'dealer'
   | 'undercroft'
   | 'rings'
+  | 'payphones'
 >
 
 // An older build's places: none. The server refuses its version before it
@@ -1667,6 +1676,7 @@ const NO_PLACES: HelloPlaces = {
   dealer: null,
   undercroft: null,
   rings: [],
+  payphones: [],
 }
 
 // A place a hello may leave null (no maze, no stand): undefined when it is
@@ -1696,9 +1706,11 @@ function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
   if (wreck === undefined) return null
   const ponds = parsePonds(value.ponds)
   if (!ponds) return null
+  const payphones = parseSpots(value.payphones, PAYPHONES_MAX)
+  if (!payphones) return null
   if (dealer === undefined || undercroft === undefined) return null
   const places = { havens, metres, lairs, maze, truck, stand, bushes, dealer }
-  return { ...places, wreck, ponds, undercroft, rings }
+  return { ...places, wreck, ponds, undercroft, rings, payphones }
 }
 
 // A hello. The outfit is checked by the server (characters.ts

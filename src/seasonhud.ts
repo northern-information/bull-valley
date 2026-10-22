@@ -1,5 +1,5 @@
 // The season as the raider sees it (season.ts): the card on the intro and
-// pause overlay that says what the season asks and pays, the tracker in
+// menu overlay that says what the season asks and pays, the tracker in
 // the upper right (out of sight but for a few seconds after the season's,
 // the daily task's or the level's count goes up), and the banners that
 // sweep across the view when the raider helps burn the Caretaker and when
@@ -65,7 +65,7 @@ export class SeasonHud {
     this.tracker.append(head, this.progressRow())
     ui.appendChild(this.tracker)
 
-    // The card, for the intro and pause overlay (Hud places it under the
+    // The card, for the intro and menu overlay (Hud places it under the
     // section head that names the season and says it is live).
     this.card = el('div', 'bv-season-card')
     this.card.setAttribute('aria-label', SEASON_COPY.kicker)

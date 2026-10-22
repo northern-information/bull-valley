@@ -48,6 +48,7 @@ async function openMoab(page: Page) {
 }
 
 test('Moab Coldë opens his trade window', async ({ page }) => {
+  test.slow()
   await beginRaid(page)
   await standAtMoab(page)
   // The spawn station's Moab glows, and nothing else says so.
@@ -74,13 +75,14 @@ test('Moab Coldë opens his trade window', async ({ page }) => {
   await expect(moab.locator('[data-bv="trade-go"]')).toBeDisabled()
   // The pointer is free while it is open, as at Erwin's.
   expect(await page.evaluate(() => window.__bv?.player.locked)).toBe(false)
-  await page.keyboard.press('Escape')
+  await page.keyboard.press('KeyE')
   await expect(moab).toBeHidden()
 })
 
 test('Moab Coldë trades the Flaming Halo for an ounce of gold', async ({
   page,
 }) => {
+  test.slow()
   await beginRaid(page)
   // Gold bullion has no way into the pack yet but the dev hook.
   await page.evaluate(() => window.__bv?.grant('gold-bullion'))
@@ -123,7 +125,7 @@ test('Moab Coldë trades the Flaming Halo for an ounce of gold', async ({
   await expect(moab.locator('[data-good="flaming-halo"]')).toContainText(
     copy('moab.yours')
   )
-  await page.keyboard.press('Escape')
+  await page.keyboard.press('KeyE')
   // The account wears it from the titles on: the select dresses every
   // character in what /auth/me says.
   const me = (await (await page.request.get('/auth/me')).json()) as {
@@ -139,6 +141,7 @@ test('Moab Coldë trades the Flaming Halo for an ounce of gold', async ({
 test('Moab Coldë trades David Coleman: #1 for ten ounces of gold', async ({
   page,
 }) => {
+  test.slow()
   await beginRaid(page)
   const look = (outfit: string) =>
     page.evaluate(
@@ -189,7 +192,7 @@ test('Moab Coldë trades David Coleman: #1 for ten ounces of gold', async ({
       )
     )
     .toBe(true)
-  await page.keyboard.press('Escape')
+  await page.keyboard.press('KeyE')
   // His now: the account may raid as him.
   expect(await look('coleman1')).toBe(200)
 })

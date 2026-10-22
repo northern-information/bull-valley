@@ -13,7 +13,7 @@ import { finder } from './dom.ts'
 import { BAITS, rodIn, skillText } from './fishing.ts'
 import { baitName } from './fishlines.ts'
 import { itemLabel } from './itemcopy.ts'
-import { npcFooter, npcHeader, sectionHead } from './npcdialog.ts'
+import { closesDialog, npcFooter, npcHeader, sectionHead } from './npcdialog.ts'
 import type { AnglerWire, Bait } from './fishing.ts'
 import type { Inventory } from './interfaces.ts'
 
@@ -165,9 +165,9 @@ export function openFishDialog(options: FishDialogOptions): Promise<void> {
 
   return new Promise<void>((resolve) => {
     // The game listens on the document too, and pointer lock is off while
-    // the dialog is open, so its keys do nothing; Escape closes it.
+    // the dialog is open, so its keys do nothing; E closes it.
     const onKey = (e: KeyboardEvent) => {
-      if (e.code !== 'Escape') return
+      if (!closesDialog(e)) return
       e.preventDefault()
       close()
     }

@@ -58,7 +58,14 @@ import { buyRefusal } from './shop.ts'
 import { isStandLedger, refusalLine, standNews } from './stand.ts'
 import { formatCash } from './store.ts'
 import { toWaypoints } from './waypoints.ts'
-import { newLeg, portalNews, reconcileBed, settledBy } from './worldsync.ts'
+import {
+  giftsIn,
+  newLeg,
+  portalNews,
+  reconcileBed,
+  settledBy,
+  toolsIn,
+} from './worldsync.ts'
 import type { Actions } from './actions.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { Game } from './game.ts'
@@ -410,7 +417,9 @@ export function wireValley(game: Game, actions: Actions): void {
       s.shopSaid = buyRefusal(msg.reason, msg.item, s.cash)
       hud.tell(s.shopSaid)
     } else if (msg.re === 'call') {
-      hud.tell(copy('log.truck_busy'))
+      hud.tell(
+        copy(msg.reason === 'no-whistle' ? 'log.no_whistle' : 'log.truck_busy')
+      )
     } else if (msg.re === 'collect') {
       s.pending.collect = false
       hud.tell(copy('log.berry_refused'))
@@ -518,25 +527,36 @@ export function wireValley(game: Game, actions: Actions): void {
 
   // The valley's word on the pack, the wallet, the locker and which bodies
   // are ours replaces this client's guesses.
-  const applyPack = ({
-    pack,
-    cash,
-    cosmetics,
-    stash,
-    corpses,
-  }: {
-    pack: Inventory
-    cash: number
-    cosmetics: CosmeticId[]
-    stash: Inventory
-    corpses: number[]
-  }) => {
-    s.inventory = toInventory(pack)
+  // `welcomed`: the welcome's pack, which is no news; a later frame's
+  // gift (sharedworld.ts rule 38, worldsync.ts giftsIn) is said.
+  const applyPack = (
+    {
+      pack,
+      cash,
+      cosmetics,
+      stash,
+      corpses,
+    }: {
+      pack: Inventory
+      cash: number
+      cosmetics: CosmeticId[]
+      stash: Inventory
+      corpses: number[]
+    },
+    welcomed = false
+  ) => {
+    const next = toInventory(pack)
+    const gifts = welcomed ? [] : giftsIn(s.inventory, next)
+    const tools = welcomed ? [] : toolsIn(s.inventory, next)
+    s.inventory = next
     s.cash = cash
     s.stash = toInventory(stash)
     s.myCorpses = corpses
     actions.refreshBag()
     actions.wear(toCosmetics(cosmetics))
+    if (welcomed) actions.seedKit()
+    for (const kind of tools) actions.shelve(kind)
+    for (const kind of gifts) actions.gifted(kind)
   }
 
   // The account's progress through the season, when it is this season's;
@@ -572,7 +592,7 @@ export function wireValley(game: Game, actions: Actions): void {
       s.daily = msg.daily
       // What the account already wears is no news.
       s.cosmetics = toCosmetics(msg.cosmetics)
-      applyPack(msg)
+      applyPack(msg, true)
       applySeason(msg.season)
       applyTask(msg.task)
       // What the account has found already is no news.

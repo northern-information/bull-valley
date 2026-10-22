@@ -32,6 +32,7 @@
 // left, and the object can hibernate again.
 
 import { DurableObject } from 'cloudflare:workers'
+import { GIFTS } from '../src/book.ts'
 import { isSelectable, mayRaidAs } from '../src/characters.ts'
 import { CONFIG } from '../src/config.ts'
 import { toCosmetics } from '../src/cosmetics.ts'
@@ -61,6 +62,7 @@ import {
   citgoVisits,
   createShadows,
   forecourtMends,
+  phoneVisits,
   placeCaretaker,
   placeShadowman,
   seeHeadlights,
@@ -74,6 +76,7 @@ import {
   createValley,
   dailyFor,
   findsPay,
+  giftsOwed,
   healthFor,
   maxFor,
   placeOf,
@@ -333,7 +336,13 @@ export class ValleyDO extends DurableObject<Env> {
         await this.purchase(ws, attachment, { ...msg, id, at })
         return
       case 'call':
-        await this.act(ws, { type: 'call', id, from: msg.from, at })
+        // Rule 38: the whistle is read out of the pack.
+        await this.withPack(ws, account, {
+          type: 'call',
+          id,
+          from: msg.from,
+          at,
+        })
         return
       case 'collect':
         await this.act(ws, { type: 'collect', id, bush: msg.bush, at })
@@ -357,8 +366,13 @@ export class ValleyDO extends DurableObject<Env> {
         })
         return
       case 'portal':
-        // Rule 28: ahead of the raider, the way they face.
-        await this.act(ws, { type: 'open-portal', id, at: facing(me) })
+        // Rule 28: ahead of the raider, the way they face; rule 38: the
+        // phone is read out of the pack.
+        await this.withPack(ws, account, {
+          type: 'open-portal',
+          id,
+          at: facing(me),
+        })
         return
       case 'loot':
         await this.loot(ws, account, { ...msg, id, at })
@@ -783,6 +797,9 @@ export class ValleyDO extends DurableObject<Env> {
     for (const { id, station } of citgoVisits(this.valley, placed)) {
       void this.visit(id, station)
     }
+    for (const { id, phone } of phoneVisits(this.valley, placed)) {
+      void this.findPhone(id, phone)
+    }
     if (out.struck.length === 0) return
     // Rule 24: each account struck takes its hit, once however many of its
     // sockets were touched.
@@ -985,6 +1002,23 @@ export class ValleyDO extends DurableObject<Env> {
       const kept = reduced.waypoints
       if (kept) {
         this.toAccount(kept.account, { type: 'waypoints', points: kept.points })
+      }
+    })
+  }
+
+  // A raider finds a payphone (rule 28): every socket on the account hears
+  // its Citgos, the payphone with them.
+  protected async findPhone(id: string, phone: number): Promise<void> {
+    await this.locked(async () => {
+      const reduced = reduce(
+        this.valley,
+        { type: 'find-phone', id, phone },
+        this.context()
+      )
+      await this.apply(reduced)
+      const change = reduced.citgos
+      if (change) {
+        this.toAccount(change.account, { type: 'citgos', citgos: change.log })
       }
     })
   }
@@ -1407,6 +1441,15 @@ export class ValleyDO extends DurableObject<Env> {
     try {
       ;({ holdings, season, book, task, xp, stand, quests, expedition } =
         await this.packs().welcome(account, SEASON.id, DAILY_TASK.id))
+      // Rule 38: an account that met Marx before his whistle was a thing
+      // is given it now, under its own lock.
+      const owed = giftsOwed(holdings.pack, holdings.stash, book)
+      if (Object.keys(owed).length > 0) {
+        const gave = await this.forAccount(account, () =>
+          this.giveOwed(account)
+        )
+        if (gave) holdings = await this.packs().get(account)
+      }
     } catch (err) {
       console.error('The pack could not be opened', err)
       ws.close(CLOSE.serverError, 'The valley lost the pack')
@@ -1468,6 +1511,7 @@ export class ValleyDO extends DurableObject<Env> {
               dealer: hello.dealer,
               undercroft: hello.undercroft,
               rings: hello.rings,
+              payphones: hello.payphones,
               level: levelOf(xp),
             },
         { now: Date.now(), present: this.presentIds(ws) }
@@ -2037,12 +2081,16 @@ export class ValleyDO extends DurableObject<Env> {
   }
 
   // Rule 36: a rod out of the tackle box or a cast, with the pack read
-  // first, so the valley knows the rod and the bait are in it. A pack that
-  // cannot be read is refused.
+  // first, so the valley knows the rod and the bait are in it; rule 38: a
+  // whistle or a portal, the whistle or the phone. A pack that cannot be
+  // read is refused.
   private withPack(
     ws: WebSocket,
     account: string | null,
-    action: Extract<ValleyAction, { type: 'tackle' | 'cast' | 'jar-slurm' }>
+    action: Extract<
+      ValleyAction,
+      { type: 'tackle' | 'cast' | 'jar-slurm' | 'call' | 'open-portal' }
+    >
   ): Promise<boolean> {
     return this.locked(async () => {
       if (!account) return false
@@ -2051,7 +2099,8 @@ export class ValleyDO extends DurableObject<Env> {
         holdings = await this.packs().get(account)
       } catch (err) {
         console.error('The pack could not be read', err)
-        send(ws, { type: 'nack', re: action.type, reason: 'unavailable' })
+        const re = action.type === 'open-portal' ? 'portal' : action.type
+        send(ws, { type: 'nack', re, reason: 'unavailable' })
         return false
       }
       return this.actHeld(ws, action, { holdings })
@@ -2598,6 +2647,21 @@ export class ValleyDO extends DurableObject<Env> {
     )
   }
 
+  // Rule 38: what the account's book is owed and its pack and locker do
+  // not hold (Marx's whistle), given; whether anything was. Run under the
+  // account's own lock, so two sockets never give it twice.
+  private async giveOwed(account: string): Promise<boolean> {
+    const packs = this.packs()
+    const [holdings, book] = await Promise.all([
+      packs.get(account),
+      packs.book(account),
+    ])
+    const owed = giftsOwed(holdings.pack, holdings.stash, book)
+    if (Object.keys(owed).length === 0) return false
+    await packs.give(account, owed)
+    return true
+  }
+
   // Rule 20: the entries the raider came across, written in the account's
   // Book of Shadows alone, so two sockets on one account never both call
   // one new. Every socket on the account hears what was new; a frame too
@@ -2625,7 +2689,11 @@ export class ValleyDO extends DurableObject<Env> {
         )
         if (found.length > 0) this.toAccount(account, { type: 'book', found })
         const { cents, xp } = findsPay(account, found)
-        if (cents > 0) {
+        // Rule 38: a find that gives (Marx's whistle) gives it now.
+        const gave = found.some((entry) => GIFTS[entry] !== undefined)
+          ? await this.giveOwed(account)
+          : false
+        if (cents > 0 || gave) {
           this.toAccount(
             account,
             this.packFrame(account, await packs.get(account))

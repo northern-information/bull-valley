@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { NO_TASK } from '../../src/dailytask.ts'
 import { STARTING_INVENTORY, toInventory } from '../../src/inventory.ts'
+import { isKeyItem } from '../../src/items.ts'
 import { FRESH_RESEARCH } from '../../src/recycling.ts'
 import { NO_PROGRESS } from '../../src/season.ts'
 import { FRESH_STAND } from '../../src/stand.ts'
@@ -18,6 +19,23 @@ const EMPTY = toInventory({})
 // The kinds a pack holds at least one of.
 function pickHeld(pack: Record<string, number>): Record<string, number> {
   return Object.fromEntries(Object.entries(pack).filter(([, n]) => n > 0))
+}
+
+// What a strike takes of a pack: everything held but the key items (the
+// kit every raider carries among them), which stay.
+function strippable(pack: Record<string, number>): Record<string, number> {
+  return pickHeld(
+    Object.fromEntries(
+      Object.entries(pack).filter(([kind]) => !isKeyItem(kind))
+    )
+  )
+}
+
+// The key items of a pack, which a strike leaves in it.
+function kept(pack: Record<string, number>): Record<string, number> {
+  return Object.fromEntries(
+    Object.entries(pack).filter(([kind]) => isKeyItem(kind))
+  )
 }
 
 // The contract every pack store keeps. Each store is handed an account
@@ -297,12 +315,17 @@ function packContract(makeStore: () => PackStore): void {
     await store.open('a1')
     await store.change('a1', OTHER, 2)
     const taken = await store.strip('a1')
-    expect(taken).toEqual({ ...pickHeld(STARTING_INVENTORY), [OTHER]: 2 })
+    expect(taken).toEqual({ ...strippable(STARTING_INVENTORY), [OTHER]: 2 })
     const { pack, cash } = await store.get('a1')
-    expect(Object.values(pack).every((n) => n === 0)).toBe(true)
+    expect(
+      Object.entries(pack).every(([kind, n]) => isKeyItem(kind) || n === 0)
+    ).toBe(true)
     expect(cash).toBe(STARTING_CASH)
     // Emptied is not never opened: the starting pack is not given again.
-    expect((await store.open('a1')).pack).toEqual(EMPTY)
+    expect((await store.open('a1')).pack).toEqual({
+      ...EMPTY,
+      ...kept(STARTING_INVENTORY),
+    })
     expect(await store.strip('a1')).toEqual({})
     await store.give('a1', taken)
     await store.give('a1', {})
@@ -320,7 +343,7 @@ function packContract(makeStore: () => PackStore): void {
     const taken = await store.strip('a1')
     expect(taken).not.toHaveProperty('rose')
     expect(taken).not.toHaveProperty('vault-key')
-    expect(taken).toEqual(pickHeld(STARTING_INVENTORY))
+    expect(taken).toEqual(strippable(STARTING_INVENTORY))
     const { pack } = await store.get('a1')
     expect(pack.rose).toBe(1)
     expect(pack['vault-key']).toBe(1)

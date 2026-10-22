@@ -18,7 +18,13 @@ import { evenUp, offerWorth, payable, spareIn } from './barter.ts'
 import { copy } from './copy.ts'
 import { el, finder } from './dom.ts'
 import { itemLabel } from './itemcopy.ts'
-import { npcFooter, npcHeader, sectionHead, setPips } from './npcdialog.ts'
+import {
+  closesDialog,
+  npcFooter,
+  npcHeader,
+  sectionHead,
+  setPips,
+} from './npcdialog.ts'
 import type { WorthOf } from './barter.ts'
 import type { Inventory } from './interfaces.ts'
 
@@ -453,9 +459,10 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
 
   return new Promise<void>((resolve) => {
     // The game listens on the document too, and pointer lock is off while
-    // the window is open, so its keys do nothing; Escape closes it.
+    // the window is open, so its keys do nothing; E, the key that opened
+    // it, closes it, as every dialog's does (npcdialog.ts closesDialog).
     const onKey = (e: KeyboardEvent) => {
-      if (e.code !== 'Escape') return
+      if (!closesDialog(e)) return
       e.preventDefault()
       close()
     }

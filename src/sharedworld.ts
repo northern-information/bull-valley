@@ -226,7 +226,14 @@
 //    client's: where a raider stands is their own client's word, so the
 //    valley keeps only the log and the portals. An account keeps one
 //    portal open at a time (opening another closes the first), each for
-//    CONFIG.portal.lifeSeconds; the day's turn leaves them.
+//    CONFIG.portal.lifeSeconds; the day's turn leaves them. The valley
+//    keeps every payphone each account has found in the same log
+//    (CitgoLog.phones): a raider on foot whose last state frame put them
+//    within CONFIG.castle.yard.payphone.reach of one the world was opened
+//    with (SharedWorld.payphones) finds it (phoneVisits, a `find-phone`
+//    action). It pays nothing and is never the last Citgo; fast travel
+//    leaves from and comes to a found payphone as it does a visited
+//    Citgo.
 // 29. Bull Valley Dial-Up: a raider may dial in from a phone with no body
 //    in the valley (a `dial` action, Member.dialup). They open no world
 //    and the truck pays them no mind; they never send a state frame, so
@@ -338,11 +345,21 @@
 //    action); the valley keeps only the points inside the survey, and
 //    every socket on the account hears the list it kept. The compass and
 //    the pillars they draw are the client's.
+// 38. The kit (items.ts, held.ts): every account carries the flashlight
+//    and the Citgo phone from its first welcome (items.ts `start`), and
+//    Matthew Marx gives it his whistle the first time it meets him (rule
+//    20: the Book of Shadows' `marx`), once. giftsOwed reads what is owed
+//    off the pack, the locker and the book, so an account that met him
+//    before the whistle was a thing is given it at its next welcome. All
+//    three are key items: kept through a death (rule 18), never dropped
+//    or passed. A whistle (`call`) needs the whistle in the pack, and a
+//    portal (`open-portal`, rule 28) the phone (ValleyContext.holdings
+//    in, as the valley just read them).
 
-import { bountyOf } from './book.ts'
+import { bountyOf, GIFTS } from './book.ts'
 import { dosed, inPassReach, scaled, sobered, wardsOf } from './buffs.ts'
 import { heartPoint, theMaze } from './caretaker.ts'
-import { citgoAt, NO_CITGOS, visit } from './citgos.ts'
+import { citgoAt, findPhone, NO_CITGOS, visit } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { insideRing } from './coords.ts'
 import { corpseWire, isEmpty, keysOff, spilledDimes } from './corpses.ts'
@@ -560,6 +577,8 @@ interface SharedWorld {
   rings: XZ[]
   portals: ValleyPortal[]
   nextPortal: number
+  // Rule 28: where each payphone stands.
+  payphones: XZ[]
 }
 
 interface ValleyPortal extends Portal {
@@ -653,6 +672,7 @@ export type ValleyAction =
       dealer: XZ | null
       undercroft: MazePlace | null
       rings: XZ[]
+      payphones: XZ[]
       // Rule 24: the account's level, read from D1 (1 when absent).
       level?: number
     }
@@ -825,8 +845,10 @@ export type ValleyAction =
   | { type: 'invite'; id: string; name: string }
   | { type: 'party-leave'; id: string }
   | { type: 'party-drop'; account: string }
-  // Rule 28: the raider stands at Citgo `station`; a Citgo portal opened.
+  // Rule 28: the raider stands at Citgo `station`, or at payphone `phone`;
+  // a Citgo portal opened.
   | { type: 'visit'; id: string; station: number }
+  | { type: 'find-phone'; id: string; phone: number }
   | { type: 'open-portal'; id: string; at: Facing | null }
   // Rule 37: the raider's waypoints, all of them.
   | { type: 'mark'; id: string; points: readonly XZ[] }
@@ -844,8 +866,9 @@ export interface ValleyContext {
   // For a buy, or a fall: the account's wallet in cents, as the valley
   // just read it.
   cash?: number
-  // For a trade, a deal, a rod out of the tackle box or a cast: the
-  // raider's pack and cosmetics, as the valley just read them.
+  // For a trade, a deal, a rod out of the tackle box, a cast, a whistle or
+  // a portal: the raider's pack and cosmetics, as the valley just read
+  // them.
   holdings?: { pack: Inventory; cosmetics: readonly CosmeticId[] }
   // For a quest's step: where the account stands on it, and its pack, as
   // the valley just read them.
@@ -1146,6 +1169,27 @@ export function findsPay(
   const cents = bountyOf(found)
   if (cents <= 0) return { cents: 0, xp: [] }
   return { cents, xp: [{ account, source: 'landmark' }] }
+}
+
+// Rule 38: what an account is owed for the entries its book holds, one of
+// each gift neither its pack nor its locker holds.
+export function giftsOwed(
+  pack: Readonly<Inventory>,
+  stash: Readonly<Inventory>,
+  book: readonly string[]
+): Inventory {
+  const owed: Inventory = {}
+  for (const entry of book) {
+    const kind = GIFTS[entry]
+    if (!kind || (pack[kind] ?? 0) > 0 || (stash[kind] ?? 0) > 0) continue
+    owed[kind] = 1
+  }
+  return owed
+}
+
+// Rule 38: whether the pack the valley just read holds `kind`.
+function carries(holdings: ValleyContext['holdings'], kind: string): boolean {
+  return (holdings?.pack[kind] ?? 0) > 0
 }
 
 // Rule 3: whether raider `id` is in Marx's bed, by the valley's own truck.
@@ -1470,6 +1514,8 @@ function act(
       return onPartyDrop(valley, action, context)
     case 'visit':
       return onVisit(valley, action, context)
+    case 'find-phone':
+      return onFindPhone(valley, action, context)
     case 'open-portal':
       return onOpenPortal(valley, action, context)
     case 'mark':
@@ -1523,6 +1569,7 @@ function onJoin(
       rings: action.rings,
       portals: [],
       nextPortal: 0,
+      payphones: action.payphones,
     }
   } else if (
     !samePickups(world.pickups, action.pickups) ||
@@ -1658,7 +1705,7 @@ function onLeave(
 function onTruck(
   valley: Valley,
   action: ActionOf<'board' | 'hop-out' | 'call'>,
-  { now }: ValleyContext
+  { now, holdings }: ValleyContext
 ): Reduced {
   const world = valley.world
   const re = action.type
@@ -1667,6 +1714,10 @@ function onTruck(
       broadcast: [],
       reply: nack(re, 'not-in-valley'),
     })
+  }
+  // Rule 38: no whistle, no call.
+  if (action.type === 'call' && !carries(holdings, 'marx-whistle')) {
+    return done(valley, now, { broadcast: [], reply: nack(re, 'no-whistle') })
   }
   // Where the bed is to climb into: parked at home, or come to a
   // whistle; and a whistle only from where the valley heard the
@@ -3230,17 +3281,42 @@ function onMark(
   return done(kept, now, { broadcast: [], waypoints: { account, points } })
 }
 
-function onOpenPortal(
+function onFindPhone(
   valley: Valley,
-  action: ActionOf<'open-portal'>,
+  action: ActionOf<'find-phone'>,
   { now }: ValleyContext
 ): Reduced {
   // Rule 28.
   const member = valley.members[action.id]
   const world = valley.world
+  const nothing = () => done(valley, now, { broadcast: [] })
+  if (!member || !world || !Number.isInteger(action.phone)) return nothing()
+  if (action.phone < 0 || action.phone >= world.payphones.length) {
+    return nothing()
+  }
+  const { account } = member
+  const before = citgosFor(valley, account)
+  const log = findPhone(before, action.phone)
+  if (log === before) return nothing()
+  return done(
+    { ...valley, citgos: { ...valley.citgos, [account]: log } },
+    now,
+    { broadcast: [], citgos: { account, log } }
+  )
+}
+
+function onOpenPortal(
+  valley: Valley,
+  action: ActionOf<'open-portal'>,
+  { now, holdings }: ValleyContext
+): Reduced {
+  // Rule 28, and rule 38: no phone, no portal.
+  const member = valley.members[action.id]
+  const world = valley.world
   const refuse = (reason: string): Reduced =>
     done(valley, now, { broadcast: [], reply: nack('portal', reason) })
   if (!member || !world) return refuse('not-in-valley')
+  if (!carries(holdings, 'citgo-phone')) return refuse('no-phone')
   if (isAboard(world.truck, action.id)) return refuse('aboard')
   if (!action.at) return refuse('no-position')
   const station = citgosFor(valley, member.account).last

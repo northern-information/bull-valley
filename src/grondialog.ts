@@ -19,6 +19,7 @@ import { stepIndex } from './cycle.ts'
 import { finder, setStatus } from './dom.ts'
 import { applyPose, attachCosmetics, buildFigure } from './figure.ts'
 import { finishById, FINISHES } from './finishes.ts'
+import { closesDialog } from './npcdialog.ts'
 import { outfitById } from './outfits.ts'
 import { samplePose } from './poses.ts'
 import { createPS1Renderer } from './ps1.ts'
@@ -296,9 +297,9 @@ export function openGronDialog({
     // --- The dialog --------------------------------------------------------
 
     // The game listens on the document too, and pointer lock is off while
-    // Gron talks, so its keys do nothing; Escape closes the dialog.
+    // Gron talks, so its keys do nothing; E closes the dialog.
     const onKey = (e: KeyboardEvent) => {
-      if (e.code !== 'Escape') return
+      if (!closesDialog(e)) return
       e.preventDefault()
       close()
     }

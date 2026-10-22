@@ -18,17 +18,22 @@ import { buildForearm } from './figure.ts'
 import { GLOW_LAYER } from './glow.ts'
 import { buildHeldJar, buildHeldRod } from './heldmodels.ts'
 import type { Flashlight } from './assets.ts'
+import type { ScoopPose } from './held.ts'
 import type { OutfitId } from './outfits.ts'
 
 interface HandsFrame {
   // 0 out of view, 1 held up: hands.ts lifts, already eased.
   left: number
   right: number
-  // What the left hand holds: 'flashlight', 'jar', or a rod's kind.
+  // What the left hand holds: 'flashlight', 'jar', a rod's kind, or
+  // 'none'.
   held: string
   // A cast's swing of the left arm, radians (held.ts castPose): back, up
   // over the shoulder, positive; forward, toward the water, negative.
   cast: number
+  // The jar's scoop (held.ts scoopPose): the arm's dip and sweep, the
+  // jar's tip in the fist, and the hand's reach out ahead.
+  scoop: ScoopPose
   // What the right hand holds, or null for an empty hand.
   kind: string | null
   // The flashlight is lit.
@@ -108,7 +113,7 @@ export class FirstPersonHands {
     this.dress(outfitId)
   }
 
-  update({ left, right, held, cast, kind, on }: HandsFrame): void {
+  update({ left, right, held, cast, scoop, kind, on }: HandsFrame): void {
     this.holdLeft(held)
     this.flashlight.setOn(on)
     this.light.intensity = on ? CONFIG.flashlight.intensity : 0
@@ -122,6 +127,11 @@ export class FirstPersonHands {
     // Tipping the forearm up past its rest swings the rod back over the
     // shoulder; down, out at the water.
     this.left.rotation.x += cast
+    // The scoop dips the forearm down and out at the lot, and tips the
+    // jar's mouth (up the view, the forearm's -Z) ahead, down its -Y.
+    this.left.rotation.x += scoop.tilt
+    this.left.position.z -= scoop.reach
+    if (this.inLeft?.kind === 'jar') this.inLeft.object.rotation.x = -scoop.tip
     this.hold(right > 0 ? kind : null)
     place(this.right, RIGHT, right)
     this.holder.quaternion.copy(this.right.quaternion).invert()
@@ -148,10 +158,10 @@ export class FirstPersonHands {
   }
 
   // What the left fist holds: the flashlight, or the jar or a rod in its
-  // place.
+  // place, or nothing in sight ('none': the phone, the whistle, a pack).
   private holdLeft(held: string): void {
     this.flashlight.group.visible = held === 'flashlight'
-    const kind = held === 'flashlight' ? null : held
+    const kind = held === 'flashlight' || held === 'none' ? null : held
     if ((this.inLeft?.kind ?? null) === kind) return
     if (this.inLeft) this.inLeft.object.removeFromParent()
     this.inLeft = null

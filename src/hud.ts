@@ -1,6 +1,6 @@
 // All DOM: the compass (compasshud.ts), countdown, the season (seasonhud.ts), the chat log (chathud.ts),
 // the phone, geometrie and the wards (vitalshud.ts), the pack grid, its item card and the
-// hotbar (packhud.ts), prompts, item labels, the intro/pause overlay, and
+// hotbar (packhud.ts), prompts, item labels, the intro/menu overlay, and
 // the strike static. Markup is generated here so index.html stays a bare
 // #bv-root.
 
@@ -56,6 +56,11 @@ type BeginState = keyof typeof BEGIN_LABELS
 // unless it is open.
 export type Connection = 'connecting' | 'reconnecting' | 'lost' | 'online'
 
+// The overlay's faces: the intro before the first Begin; once begun, the
+// menu (the valley plays on under it, never paused), and the Controls and
+// Settings it opens.
+export type OverlayFace = 'intro' | 'menu' | 'controls' | 'settings'
+
 // The controls table: two bindings a row, key then action; an odd last
 // one gets the whole row.
 function controlRows(
@@ -104,17 +109,19 @@ export class Hud {
   staticCanvas: HTMLCanvasElement
   reticle: HTMLDivElement
   intro: HTMLDivElement
-  // The light pause after Esc: a line at the top over the valley.
-  breakEl: HTMLParagraphElement
-  private breakFrom = 0
+  // Which face the overlay shows (OverlayFace).
+  private face: OverlayFace = 'intro'
+  // Whether the titles have settled who is raiding: the Settings face's
+  // Raiding As line waits on it.
+  private raiderSet = false
   beginBtn: HTMLButtonElement
   // Back to the main menu, beside Resume once the raider has begun.
   exitBtn: HTMLButtonElement
-  // Failed is final: the pause overlay never offers Resume over it.
+  // Failed is final: the menu overlay never offers Resume over it.
   beginFailed = false
   // The line to the valley; Begin waits on it.
   connection: Connection = 'connecting'
-  private paused = false
+  private begun = false
   accountBtn: HTMLButtonElement
   signOutBtn: HTMLButtonElement
   raiderEl: HTMLElement
@@ -214,16 +221,12 @@ export class Hud {
     this.reticle.setAttribute('aria-hidden', 'true')
     ui.appendChild(this.reticle)
 
-    // The light pause: Esc frees the pointer and the valley stays in view
-    // under one line; a click takes it back, the menu key opens the overlay.
-    this.breakEl = el('p', 'bv-break')
-    this.breakEl.textContent = copy('hud.break', { key: WORLD.menu.key })
-    this.breakEl.hidden = true
-    ui.appendChild(this.breakEl)
-
-    // Intro / pause overlay, in the keepers' dialogs' frame (npcdialog.ts):
-    // the header, the season, the controls, who is raiding with their
-    // settings, and Begin (with Exit to Menu once paused) in the footer.
+    // Intro / menu overlay, in the keepers' dialogs' frame (npcdialog.ts),
+    // one face at a time (OverlayFace): the intro's season and controls,
+    // with Settings, before the first Begin; once begun, a short list
+    // (Controls, Settings, Exit to Menu), each opening its own face with Back. Begin
+    // is in the footer on every face. Each part names the faces it shows
+    // on (data-faces).
     this.intro = el('div', 'bv-intro')
     this.intro.setAttribute('role', 'dialog')
     this.intro.setAttribute('aria-modal', 'true')
@@ -238,14 +241,19 @@ export class Hud {
           status: '',
           speech: false,
         })}
-        <section class="bv-npc-section" data-bv="intro-season">
+        <section class="bv-npc-section" data-bv="intro-season" data-faces="intro">
           ${sectionHead(SEASON_COPY.kicker, 'intro-live')}
         </section>
-        <section class="bv-npc-section bv-npc-side" data-bv="intro-controls">
+        <nav class="bv-overlay-list" aria-label="${copy('overlay.label')}" data-faces="intro menu">
+          <button type="button" class="bv-btn bv-npc-btn" data-bv="overlay-controls" data-faces="menu">${copy('overlay.controls')}</button>
+          <button type="button" class="bv-btn bv-npc-btn" data-bv="overlay-settings">${copy('overlay.settings')}</button>
+          <button type="button" class="bv-btn bv-npc-btn" data-bv="exit-menu" hidden>${copy('intro.exit_menu')}</button>
+        </nav>
+        <section class="bv-npc-section bv-npc-side" data-bv="intro-controls" data-faces="intro controls">
           ${sectionHead(copy('intro.controls_label'), 'intro-keys')}
           <table class="bv-controls" aria-label="${copy('intro.controls_label')}" data-bv="controls"></table>
         </section>
-        <section class="bv-npc-section" data-bv="intro-as" hidden>
+        <section class="bv-npc-section" data-bv="intro-as" data-faces="settings">
           ${sectionHead(copy('intro.raider'), 'intro-raider')}
           <div class="bv-npc-grid">
             <p class="bv-intro-as bv-npc-c6">
@@ -258,9 +266,9 @@ export class Hud {
           </div>
         </section>
         <footer class="bv-npc-foot">
-          <p class="bv-npc-label">${copy('intro.fine')}</p>
+          <p class="bv-npc-label" data-faces="intro">${copy('intro.fine')}</p>
           <div class="bv-intro-actions">
-            <button type="button" class="bv-btn bv-npc-btn" data-bv="exit-menu" hidden>${copy('intro.exit_menu')}</button>
+            <button type="button" class="bv-btn bv-npc-btn" data-bv="overlay-back" data-faces="controls settings">${copy('overlay.back')}</button>
             <button type="button" class="bv-btn bv-btn--primary bv-btn--stack bv-npc-btn" data-bv="begin"></button>
           </div>
         </footer>
@@ -300,13 +308,47 @@ export class Hud {
     this.raiderEl = find(this.intro, '[data-bv="intro-username"]')
     this.accountBtn = find(this.intro, '[data-bv="intro-account"]')
     this.signOutBtn = find(this.intro, '[data-bv="intro-sign-out"]')
+    const open = (face: OverlayFace) => () => this.showFace(face)
+    find(this.intro, '[data-bv="overlay-controls"]').addEventListener(
+      'click',
+      open('controls')
+    )
+    find(this.intro, '[data-bv="overlay-settings"]').addEventListener(
+      'click',
+      open('settings')
+    )
+    find(this.intro, '[data-bv="overlay-back"]').addEventListener('click', () =>
+      this.showFace(this.begun ? 'menu' : 'intro')
+    )
+    this.showFace('intro')
   }
 
-  // Who the pause overlay says is raiding, with Account and Sign Out beside
+  // The overlay's face: the parts that name it show, the rest hide. The
+  // poem under the title is the intro's alone.
+  private showFace(face: OverlayFace): void {
+    this.face = face
+    for (const part of this.intro.querySelectorAll<HTMLElement>(
+      '[data-faces]'
+    )) {
+      const on = (part.dataset.faces ?? '').split(' ').includes(face)
+      part.hidden = !on || (part.dataset.bv === 'intro-as' && !this.raiderSet)
+    }
+    find<HTMLElement>(this.intro, '[data-bv="npc-lede"]').hidden =
+      face !== 'intro'
+    this.intro.dataset.face = face
+  }
+
+  // The face the overlay shows, for the specs and the keys.
+  get overlayFace(): OverlayFace {
+    return this.face
+  }
+
+  // Who the menu's Settings says is raiding, with Account and Sign Out beside
   // it; hidden until the titles settle a username.
   setRaider(username: string): void {
     this.raiderEl.textContent = username
-    find<HTMLElement>(this.intro, '[data-bv="intro-as"]').hidden = false
+    this.raiderSet = true
+    this.showFace(this.face)
   }
 
   // The volume sliders on the Raiding As line, sharing the main menu's
@@ -445,8 +487,8 @@ export class Hud {
     return this.map?.show(show, charter) ?? false
   }
 
-  setHotbar(slots: HotbarSlotView[]): void {
-    this.pack.setHotbar(slots)
+  setHotbar(slots: HotbarSlotView[], selected: number): void {
+    this.pack.setHotbar(slots, selected)
   }
 
   // The loop calls these every frame; the vitals touch the page only when
@@ -516,7 +558,7 @@ export class Hud {
   }
 
   // Shows one of the Begin button's labels; it is clickable only to play,
-  // from the intro or paused alike. The others stay in the button, hidden, holding its width.
+  // from the intro or the menu alike. The others stay in the button, hidden, holding its width.
   setBegin(state: BeginState): void {
     if (this.beginFailed) return
     if (state === 'failed') this.beginFailed = true
@@ -534,31 +576,21 @@ export class Hud {
       state === 'reconnecting'
   }
 
-  get breakShown(): boolean {
-    return !this.breakEl.hidden
-  }
-
-  // How long the light pause has shown, in milliseconds.
-  get breakFor(): number {
-    return performance.now() - this.breakFrom
-  }
-
-  showBreak(show: boolean): void {
-    if (show && this.breakEl.hidden) this.breakFrom = performance.now()
-    this.breakEl.hidden = !show
-  }
-
   get introShown(): boolean {
     return !this.intro.hidden
   }
 
-  // The overlay stands in for the light pause.
-  showIntro(show: boolean, paused?: boolean): void {
-    if (show) this.showBreak(false)
+  // The overlay, on the intro before the first Begin, and on the menu (or
+  // `face`, as H opens Controls) once begun (the valley never
+  // stops under it).
+  showIntro(show: boolean, begun?: boolean, face?: OverlayFace): void {
     this.intro.hidden = !show
     this.root.classList.toggle('bv-shell--intro', show)
-    this.paused = paused === true
-    if (show) this.showConnection()
+    this.begun = begun === true
+    if (show) {
+      this.showFace(face ?? (this.begun ? 'menu' : 'intro'))
+      this.showConnection()
+    }
   }
 
   // The line to the valley changed: Begin says so.
@@ -567,11 +599,11 @@ export class Hud {
     this.showConnection()
   }
 
-  // Begin names the line's state. Exit to Menu shows once paused, but not
+  // Begin names the line's state. Exit to Menu shows once begun, but not
   // when the line is lost, since Begin then goes back to the menu itself.
   private showConnection(): void {
     const { connection } = this
     this.setBegin(connection === 'online' ? 'play' : connection)
-    this.exitBtn.hidden = !this.paused || connection === 'lost'
+    this.exitBtn.hidden = !this.begun || connection === 'lost'
   }
 }

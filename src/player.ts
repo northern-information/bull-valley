@@ -1,11 +1,12 @@
 import * as THREE from 'three'
 import { isHeld, moveAxis, WORLD } from './bindings.ts'
 import { CONFIG } from './config.ts'
-import { airborne } from './fall.ts'
+import { airborne, jumpSpeed, mayJump } from './fall.ts'
 import type { HeightAt, Metres, XZ } from './interfaces.ts'
 
 // First-person controller: the movement keys (bindings.ts) relative to
-// yaw, sprint and crouch, pointer-lock mouse look, feet on world.ground.at.
+// yaw, sprint and crouch, Space's jump, pointer-lock mouse look, feet on
+// world.ground.at.
 // Where the ground drops away (off the moat's rim, off a landing) the feet
 // leave it and fall (fall.ts), carried on by what speed they had, and the
 // landing says how far they fell.
@@ -81,6 +82,8 @@ export class Player {
   // fell, or null on the ground.
   fallSpeed: number
   fallFrom: number | null
+  // Space was pressed since the last frame (jump()).
+  private wantJump = false
 
   constructor({
     camera,
@@ -120,6 +123,13 @@ export class Player {
     this.groundY = this.groundAt(x, z)
     this.fallSpeed = 0
     this.fallFrom = null
+  }
+
+  // Space: the feet leave the ground on the next frame, if they may
+  // (fall.ts mayJump). A jump is a fall that starts upward, so it lands
+  // as any fall does, and only a long drop past the takeoff hurts.
+  jump() {
+    this.wantJump = true
   }
 
   handleKey(code: string, down: boolean) {
@@ -194,6 +204,21 @@ export class Player {
 
     this.bobPhase += speedNow * dt * 1.6
     const bobSin = Math.sin(this.bobPhase)
+
+    const jumping = this.wantJump
+    this.wantJump = false
+    if (
+      jumping &&
+      this.locked &&
+      mayJump({
+        falling: this.fallFrom !== null,
+        crouching,
+        emoting: mods.eye != null,
+      })
+    ) {
+      this.fallFrom = this.groundY
+      this.fallSpeed = -jumpSpeed()
+    }
 
     const targetEye =
       mods.eye ?? (crouching ? cfg.crouchEyeHeight : cfg.eyeHeight)

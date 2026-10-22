@@ -187,7 +187,7 @@ base.describe('one visit', { tag: '@raid' }, () => {
     await shop.locator('[data-bv="trade-go"]').click()
     await expect.poll(cash).toBe(4000 - 99)
     await expect(shop.locator('[data-bv="trade-wallet"]')).toHaveText('$39.01')
-    await page.keyboard.press('Escape')
+    await page.keyboard.press('KeyE')
     await expect(shop).toBeHidden()
     await expect
       .poll(() => shelfUnit('pbr', 0))
