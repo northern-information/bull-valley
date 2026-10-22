@@ -6,6 +6,7 @@ import { mazeToWorld } from '../../src/maze.ts'
 import {
   carve,
   castlePlace,
+  catchPipe,
   craneSpots,
   fireEscapes,
   inChannel,
@@ -212,6 +213,129 @@ describe('moat', () => {
       // From the floor it is out of reach.
       expect(decks.standAt(mid.x, mid.z, floor, climb)).toBe(floor)
     }
+  })
+
+  it('stacks pipes down every wall from just under the rim', () => {
+    const cfg = CONFIG.castle.pipes
+    const pipes = moatPipes(raw, place, floor, stairs)
+    const edges = moatEdges(place)
+    const walls = new Map<string, typeof pipes>()
+    for (const pipe of pipes) {
+      const key = `${pipe.normal.x.toFixed(6)},${pipe.normal.z.toFixed(6)}`
+      walls.set(key, [...(walls.get(key) ?? []), pipe])
+    }
+    expect(walls.size).toBe(10)
+    const rims = [...edges.outer, ...edges.island].map((p) => raw(p.x, p.z))
+    for (const stack of walls.values()) {
+      const tops = stack
+        .map((p) => p.points[0].y + p.radius)
+        .sort((a, b) => b - a)
+      // Under the rim by no more than a fall survives, and stacked a
+      // survivable drop apart (or twice that, where one is missing).
+      expect(tops[0]).toBeLessThan(Math.max(...rims) - cfg.under[0] + 1e-9)
+      tops.slice(1).forEach((top, i) => {
+        const gap = tops[i] - top
+        expect(gap).toBeGreaterThanOrEqual(cfg.drop[0] - 1e-9)
+        expect(gap).toBeLessThanOrEqual(cfg.drop[1] * 3)
+      })
+      expect(tops.at(-1)).toBeGreaterThanOrEqual(floor + cfg.floorClear)
+      // Only the lowest turns down to the floor.
+      stack.forEach((pipe) => {
+        const low = pipe.points.at(-1)?.y === floor
+        if (low) expect(pipe.points[0].y + pipe.radius).toBe(tops.at(-1))
+      })
+    }
+  })
+
+  it('catches a raider falling past a pipe, within reach of its top', () => {
+    const deck = {
+      a: { x: 0, z: 0, y: 10 },
+      b: { x: 10, z: 0, y: 10 },
+      width: 0.6,
+    }
+    const reach = 1.2
+    // Dropping past its top over it, or within reach of its edge.
+    expect(catchPipe([deck], { x: 4, z: 0.5 }, 10.3, 9.8, reach)).toEqual({
+      x: 4,
+      z: 0,
+      y: 10,
+    })
+    expect(catchPipe([deck], { x: 4, z: 1.4 }, 10.3, 9.8, reach)).not.toBeNull()
+    // Too far off, not yet down to it, or already past it.
+    expect(catchPipe([deck], { x: 4, z: 1.6 }, 10.3, 9.8, reach)).toBeNull()
+    expect(catchPipe([deck], { x: 4, z: 0 }, 10.6, 10.2, reach)).toBeNull()
+    expect(catchPipe([deck], { x: 4, z: 0 }, 9.9, 9.5, reach)).toBeNull()
+    // Never the pipe just stepped off.
+    expect(catchPipe([deck], { x: 4, z: 0 }, 10, 9.9, reach)).toBeNull()
+    // Off its end, by the round of the end.
+    expect(catchPipe([deck], { x: 11, z: 0 }, 10.3, 9.8, reach)).toEqual({
+      x: 10,
+      z: 0,
+      y: 10,
+    })
+    // Of two dropped past in one frame, the higher.
+    const lower = {
+      ...deck,
+      a: { ...deck.a, y: 9.9 },
+      b: { ...deck.b, y: 9.9 },
+    }
+    expect(catchPipe([lower, deck], { x: 4, z: 0 }, 10.3, 9.5, reach)?.y).toBe(
+      10
+    )
+  })
+
+  it('saves a raider who walks off the rim over its top pipe, not a sprinter', () => {
+    const pipes = moatPipes(raw, place, floor, stairs)
+    const decks = pipes.flatMap(pipeDecks)
+    const { gravity } = CONFIG.fall
+    const { walkSpeed, sprintSpeed } = CONFIG.player
+    // The highest pipe on an outer wall without a fire escape, and the
+    // rim over the middle of its first stretch.
+    const outer = moatEdges(place).outer
+    const top = pipes
+      .filter((p) => {
+        const [a] = p.points
+        return outer.some((o, k) => {
+          const b = outer[(k + 1) % outer.length]
+          const len = Math.hypot(b.x - o.x, b.z - o.z)
+          const across =
+            Math.abs((b.x - o.x) * (a.z - o.z) - (a.x - o.x) * (b.z - o.z)) /
+            len
+          return across < 2 && !CONFIG.castle.stairs.sides.includes(k)
+        })
+      })
+      .sort((p, q) => q.points[0].y - p.points[0].y)[0]
+    const [p, q] = top.points
+    const mid = { x: (p.x + q.x) / 2, z: (p.z + q.z) / 2 }
+    const off = top.radius + 0.75
+    // On the wall's line over it, walking straight out over the channel.
+    const edge = {
+      x: mid.x - top.normal.x * off,
+      z: mid.z - top.normal.z * off,
+    }
+    const fall = (speed: number) => {
+      let { x, z } = edge
+      let y = raw(edge.x, edge.z)
+      let v = 0
+      const dt = 1 / 60
+      while (y > floor) {
+        v += gravity * dt
+        const next = y - v * dt
+        x += top.normal.x * speed * dt
+        z += top.normal.z * speed * dt
+        const caught = catchPipe(decks, { x, z }, y, next)
+        if (caught) return { caught, from: raw(edge.x, edge.z) }
+        y = next
+      }
+      return null
+    }
+    const walked = fall(walkSpeed)
+    expect(walked?.caught.y).toBeCloseTo(top.points[0].y + top.radius)
+    // And short of a fatal fall.
+    expect((walked?.from ?? 0) - (walked?.caught.y ?? 0)).toBeLessThan(
+      CONFIG.fall.lethal
+    )
+    expect(fall(sprintSpeed)).toBeNull()
   })
 
   it('rails the far end of every landing, but lets the foot out at the floor', () => {

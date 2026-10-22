@@ -765,6 +765,22 @@ export const CONFIG = {
         landing: { min: 1.2, max: 3.6 },
       },
     },
+    // The pipes stacked down the moat's walls (moat.ts moatPipes): the
+    // first `under` metres under the rim's lowest (a fall onto it is
+    // short of `CONFIG.fall.lethal`), each next one `drop` under the one
+    // over it (more than a body climbs, so walking one never lifts a
+    // raider onto the next, and short of lethal), none nearer the floor
+    // than `floorClear`; a share `missing` left out, and the lowest on a wall
+    // turning down to the floor at its end by the chance `toFloor`. Ranges are [least, most].
+    pipes: {
+      seed: 0x91be5,
+      under: [2.5, 4] as const,
+      drop: [3, 5] as const,
+      floorClear: 3,
+      missing: 0.2,
+      toFloor: 0.5,
+      radius: [0.15, 0.4] as const,
+    },
     // The cranes on the outer rim, leaning out over the moat.
     cranes: 4,
     // The castle's base, this far over the highest ground anywhere on the
@@ -827,6 +843,12 @@ export const CONFIG = {
     gravity: 22,
     safe: 3,
     lethal: 7,
+    // A raider falling past a pipe in the moat lands on it when within
+    // this much of its top's edge (moat.ts catchPipe): one who walks off
+    // the rim over one is caught, one who sprints off sails past.
+    catchReach: 2,
+    // And clings this long, going nowhere, before they can move on it.
+    steadySeconds: 0.6,
   },
   // What a trip shows that is not there (hallucinations.ts): people and
   // things out ahead of a raider while the tripping ward is up, this

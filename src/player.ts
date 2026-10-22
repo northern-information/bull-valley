@@ -8,7 +8,8 @@ import type { HeightAt, Metres, XZ } from './interfaces.ts'
 // yaw, sprint and crouch, pointer-lock mouse look, feet on world.ground.at.
 // Where the ground drops away (off the moat's rim, off a landing) the feet
 // leave it and fall (fall.ts), carried on by what speed they had, and the
-// landing says how far they fell.
+// landing says how far they fell. A fall past something to catch (the
+// moat's pipes) may land on it instead.
 // The camera never leaves this class; loop.ts only reads the
 // returned state.
 
@@ -28,11 +29,21 @@ interface PlayerOptions {
   // What stops the player: world.walls.resolve, given the feet's height.
   // Omitted, nothing does.
   collide?: Collide
+  // What a fall catches on the way down (the moat's pipes, moat.ts
+  // catchPipe): where the feet land, dropping from `from` to `to` this
+  // frame, or null.
+  catchAt?: CatchAt
   metres: Metres
   spawn: PlayerSpawn
 }
 
 type Collide = (x: number, z: number, radius: number, feet?: number) => XZ
+type CatchAt = (
+  x: number,
+  z: number,
+  from: number,
+  to: number
+) => (XZ & { y: number }) | null
 
 // Per-frame movement modifiers from items and the phone.
 interface PlayerMods {
@@ -61,6 +72,7 @@ export class Player {
   groundAt: HeightAt
   standAt: (x: number, z: number, feetY: number) => number
   collide: Collide | null
+  catchAt: CatchAt | null
   metres: Metres
   pos: THREE.Vector3
   yaw: number
@@ -77,6 +89,9 @@ export class Player {
   forward: THREE.Vector3
   onEdge: (() => void) | null
   edgeCooldown: number
+  // Seconds left clinging to what a fall caught on (CONFIG.fall
+  // steadySeconds), going nowhere.
+  steady: number
   // Falling: how fast the feet drop (m/s, down), and from how high they
   // fell, or null on the ground.
   fallSpeed: number
@@ -87,6 +102,7 @@ export class Player {
     groundAt,
     standAt,
     collide,
+    catchAt,
     metres,
     spawn,
   }: PlayerOptions) {
@@ -95,6 +111,7 @@ export class Player {
     this.groundAt = groundAt
     this.standAt = standAt ?? ((x, z) => groundAt(x, z))
     this.collide = collide ?? null
+    this.catchAt = catchAt ?? null
     this.metres = metres
     this.pos = new THREE.Vector3(spawn.x, 0, spawn.z)
     this.yaw = spawn.yaw || 0
@@ -110,6 +127,7 @@ export class Player {
     this.edgeCooldown = 0
     this.fallSpeed = 0
     this.fallFrom = null
+    this.steady = 0
   }
 
   // Set down at (x, z), on the highest deck there: never a fall.
@@ -120,6 +138,7 @@ export class Player {
     this.groundY = this.groundAt(x, z)
     this.fallSpeed = 0
     this.fallFrom = null
+    this.steady = 0
   }
 
   handleKey(code: string, down: boolean) {
@@ -156,6 +175,12 @@ export class Player {
       // forward is (-sin, 0, -cos); right is (cos, 0, -sin)
       targetX = (-sin * iz + cos * ix) * inv * speed
       targetZ = (-cos * iz - sin * ix) * inv * speed
+    }
+    // Caught on a pipe, a raider clings a moment before going anywhere.
+    this.steady = Math.max(0, this.steady - dt)
+    if (this.steady > 0) {
+      targetX = 0
+      targetZ = 0
     }
     // In the air, the feet go where they were going.
     if (this.fallFrom === null) {
@@ -234,6 +259,19 @@ export class Player {
     this.fallSpeed += CONFIG.fall.gravity * dt
     const next = this.groundY - this.fallSpeed * dt
     const under = this.standAt(this.pos.x, this.pos.z, this.groundY)
+    // Caught on the way down: onto it, all the speed gone.
+    const caught = this.catchAt?.(this.pos.x, this.pos.z, this.groundY, next)
+    if (caught && caught.y > under) {
+      this.pos.x = caught.x
+      this.pos.z = caught.z
+      this.vel.set(0, 0, 0)
+      this.steady = CONFIG.fall.steadySeconds
+      const height = this.fallFrom - caught.y
+      this.groundY = caught.y
+      this.fallFrom = null
+      this.fallSpeed = 0
+      return height
+    }
     if (next > under) {
       this.groundY = next
       return null

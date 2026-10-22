@@ -22,7 +22,7 @@
 // (`trickle`). No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
-import { pointInPolygon } from './coords.ts'
+import { pointInPolygon, projectOnSegment } from './coords.ts'
 import { mazeToWorld, worldToMaze } from './maze.ts'
 import { mulberry32 } from './rng.ts'
 import { toWorld } from './store.ts'
@@ -470,23 +470,29 @@ export interface MoatPipe {
 // the floor never stands in the foot's way).
 const PIPE_CLEAR = 0.4
 const PIPE_END_CLEAR = 4
-// How far apart the pipes on one wall run, top to top: more than a body
-// climbs (CONFIG.fall.climb), so one walking a pipe is never lifted onto
-// the one over it.
-const PIPE_HEADROOM = 2.5
+// How far a pipe's ends keep off the wall's corners, so pipes on two
+// walls never cross where they meet.
+const PIPE_CORNER = 3
 
-// The pipes along the moat's walls, one to three runs on each side of
-// each edge, each at a height between the floor and the rim's lowest. A
-// run whose stretch crosses a fire escape bends out from the wall round
-// its outer rail and back; one whose end would fall on or by a stair is
-// not laid.
+// The pipes along the moat's walls, stacked down each side of each edge:
+// the first `CONFIG.castle.pipes.under` under the rim's lowest (a raider
+// who walks off the rim may land on it, `catchPipe`), then each next one
+// down `drop` under the one over it, as far as `floorClear` over the
+// floor, now and then one missing (`missing`). Each runs a stretch of
+// its wall, clear of the corners. A run whose stretch crosses a fire
+// escape bends out from the wall round its outer rail and back; one
+// whose end would fall on or by a stair is drawn again, and not laid if
+// it still would.
 export function moatPipes(
   raw: HeightAt,
   place: MazePlace,
   floor: number,
-  stairs: readonly FireEscape[]
+  stairs: readonly FireEscape[],
+  cfg = CONFIG.castle.pipes
 ): MoatPipe[] {
-  const rng = mulberry32(0x91be5)
+  const rng = mulberry32(cfg.seed)
+  const between = ([lo, hi]: readonly [number, number]) =>
+    lo + rng() * (hi - lo)
   const edges = moatEdges(place)
   const pipes: MoatPipe[] = []
   const n = edges.outer.length
@@ -525,27 +531,39 @@ export function moatPipes(
         z: a.z + u.z * d + normal.z * out,
         y,
       })
-      const runs = 1 + Math.floor(rng() * 3)
-      const laid: number[] = []
-      for (let r = 0; r < runs; r++) {
-        const y = floor + 3 + rng() * Math.max(1, lowTop - floor - 6)
-        const d0 = len * rng() * 0.4
-        const d1 = len * (0.6 + rng() * 0.4)
-        const radius = 0.15 + rng() * 0.25
+      const near = (d: number) =>
+        busy.some(
+          ({ from, to }) => d > from - PIPE_END_CLEAR && d < to + PIPE_END_CLEAR
+        )
+      // Where each pipe's top runs, from just under the rim down.
+      const tops: number[] = []
+      for (
+        let top = lowTop - between(cfg.under);
+        top >= floor + cfg.floorClear;
+        top -= between(cfg.drop)
+      ) {
+        if (tops.length === 0 || rng() >= cfg.missing) tops.push(top)
+      }
+      for (const top of tops) {
+        const radius = between(cfg.radius)
+        const y = top - radius
         const grey = rng() < 0.5
         const valve = rng() < 0.6 ? rng() : null
         const junction = rng() < 0.5 ? rng() : null
-        const drop = rng() < 0.45
+        // Only the lowest turns down to the floor: past none under it.
+        const drop = rng() < cfg.toFloor && top === tops.at(-1)
         const off = radius + 0.75
-        const near = (d: number) =>
-          busy.some(
-            ({ from, to }) =>
-              d > from - PIPE_END_CLEAR && d < to + PIPE_END_CLEAR
-          )
+        // Its stretch, clear of the corners, drawn again if an end would
+        // fall by a stair.
+        const stretch = () => [
+          PIPE_CORNER + rng() * (len * 0.4 - PIPE_CORNER),
+          len - PIPE_CORNER - rng() * (len * 0.4 - PIPE_CORNER),
+        ]
+        let [d0, d1] = stretch()
+        for (let tries = 1; tries < 4 && (near(d0) || near(d1)); tries++) {
+          ;[d0, d1] = stretch()
+        }
         if (near(d0) || near(d1)) continue
-        const top = y + radius
-        if (laid.some((t) => Math.abs(t - top) < PIPE_HEADROOM)) continue
-        laid.push(top)
         const points = [at(d0, off, y)]
         for (const { from, to, s } of busy) {
           if (to < d0 || from > d1) continue
@@ -598,10 +616,14 @@ const PIPE_FOOTING = 0.15
 // What of a pipe is walked on: the top of each level stretch, a deck as
 // wide as the pipe and a foot's hang either side (its ends round, so the
 // bends join), for Ground.addRibbon.
-export function pipeDecks(
-  pipe: MoatPipe
-): { a: XZ & { y: number }; b: XZ & { y: number }; width: number }[] {
-  const decks = []
+export interface PipeDeck {
+  a: XZ & { y: number }
+  b: XZ & { y: number }
+  width: number
+}
+
+export function pipeDecks(pipe: MoatPipe): PipeDeck[] {
+  const decks: PipeDeck[] = []
   for (let i = 0; i < pipe.points.length - 1; i++) {
     const p = pipe.points[i]
     const q = pipe.points[i + 1]
@@ -615,6 +637,34 @@ export function pipeDecks(
   }
   return decks
 }
+
+// A raider falling past a pipe catches it: of the decks whose top the
+// feet dropped past this frame (from `from` down to `to`, the pipe they
+// stepped off never among them), the highest within `reach` of the deck's
+// edge, and where on its middle they land. Null when they fall past
+// every one. Short of a fall's whole drift, so a raider who walks off the
+// rim over a pipe may land on it, and one who sprints off sails past.
+export function catchPipe(
+  decks: readonly PipeDeck[],
+  at: XZ,
+  from: number,
+  to: number,
+  reach = CONFIG.fall.catchReach
+): (XZ & { y: number }) | null {
+  let best: (XZ & { y: number }) | null = null
+  for (const { a, b, width } of decks) {
+    const y = a.y
+    if (y >= from - CATCH_LEAVE || y < to) continue
+    if (best && y <= best.y) continue
+    const p = projectOnSegment(at.x, at.z, a.x, a.z, b.x, b.z)
+    if (p.dist > width / 2 + reach) continue
+    best = { x: p.x, z: p.y, y }
+  }
+  return best
+}
+
+// Feet this little over a deck have only just left it: no catch.
+const CATCH_LEAVE = 0.05
 
 // A crane on the rim: where its mast stands, the way its jib reaches (at
 // the island), and how far it reaches.

@@ -6,6 +6,7 @@ import { pointInPolygon } from './coords.ts'
 import { dayKey } from './daily.ts'
 import { mazeToWorld } from './maze.ts'
 import {
+  catchPipe,
   craneSpots,
   fireEscapes,
   inChannel,
@@ -51,6 +52,14 @@ export interface CastleSite {
   // The fire escapes, as the Ground has them, and the pipes.
   stairs: FireEscape[]
   pipes: MoatPipe[]
+  // Where a raider falling at (x, z) from `from` to `to` lands on a pipe,
+  // or null (moat.ts catchPipe).
+  catchAt: (
+    x: number,
+    z: number,
+    from: number,
+    to: number
+  ) => (XZ & { y: number }) | null
   // `t` the shared clock in seconds, `day` its Central day: the castle
   // bobs and its beams turn wherever the raider is; the moat, the cranes
   // and the slurms move only `near` it, squashed under any of `feet`
@@ -97,7 +106,8 @@ export function buildCastleSite(
   for (const wall of pipes.flatMap((pipe) => pipeWalls(pipe))) {
     walls.addWall(wall.a, wall.b, wall.half, wall.band)
   }
-  for (const deck of pipes.flatMap(pipeDecks)) {
+  const decks = pipes.flatMap(pipeDecks)
+  for (const deck of decks) {
     ground.addRibbon([deck.a, deck.b], deck.width, 0)
   }
 
@@ -265,6 +275,8 @@ export function buildCastleSite(
     middle: { x: place.x, z: place.z },
     stairs,
     pipes,
+    catchAt: (x, z, from, to) =>
+      inChannel(place, x, z) ? catchPipe(decks, { x, z }, from, to) : null,
     update,
     day: () => today,
     slurms: () => drawn,

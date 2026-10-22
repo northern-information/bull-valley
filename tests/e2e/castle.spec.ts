@@ -6,7 +6,8 @@ import type { Page } from '@playwright/test'
 // Castle Entropy's moat is cut ten stories into the ground, and its rim is
 // open: walking off it is a fall (fall.ts), and two stories or more
 // shatters a raider's geometrie, leaving the pack on their body at the
-// bottom (sharedworld.ts rules 24 and 18). The shadowmen walk its floor
+// bottom (sharedworld.ts rules 24 and 18), unless a pipe down the wall
+// catches them on the way (moat.ts catchPipe). The shadowmen walk its floor
 // at the floor's height and reach no one up a fire escape (rule 11).
 
 const health = (page: Page) => page.evaluate(() => window.__bv?.health ?? 0)
@@ -16,7 +17,7 @@ const carrying = (page: Page) =>
     Object.values(window.__bv?.inventory ?? {}).reduce((sum, n) => sum + n, 0)
   )
 
-test("walking off the moat's rim shatters, the body at the bottom", async ({
+test("sprinting off the moat's rim shatters, the body at the bottom", async ({
   page,
 }) => {
   test.slow()
@@ -44,11 +45,14 @@ test("walking off the moat's rim shatters, the body at the bottom", async ({
   await heardWhere(page)
   const rim = await page.evaluate(() => window.__bv?.player.groundY ?? 0)
 
+  // Sprinting, too fast for any pipe on the way down to catch them.
+  await page.keyboard.down('ShiftLeft')
   await page.keyboard.down('KeyW')
   await expect
     .poll(() => page.evaluate(() => window.__bv?.strikes), { timeout: 30_000 })
     .toBe(1)
   await page.keyboard.up('KeyW')
+  await page.keyboard.up('ShiftLeft')
   await expect(page.locator('.bv-chat')).toContainText(copy('log.plunged'))
   // Whole again at the spawn Citgo, and everything left on the body.
   await expect.poll(() => carrying(page)).toBe(0)
@@ -223,12 +227,16 @@ test('a shadowman on the floor never reaches a raider up a fire escape', async (
 
 test('a raider up on a pipe walks along it', async ({ page }) => {
   await beginRaid(page)
-  // On the longest level stretch of a pipe, at one end, facing the other.
+  // On the longest level stretch of the highest pipe, at one end, facing
+  // the other.
   const run = await page.evaluate(() => {
     const castle = window.__bv?.world.castle
     if (!castle) throw new Error('No castle in the valley')
     let best = { len: 0, a: { x: 0, z: 0 }, b: { x: 0, z: 0 }, top: 0 }
-    for (const pipe of castle.pipes) {
+    // The highest pipe of all: the pipes are stacked down their walls, and
+    // a raider is set down on the highest deck where they stand.
+    const highest = Math.max(...castle.pipes.map((p) => p.points[0].y))
+    for (const pipe of castle.pipes.filter((p) => p.points[0].y === highest)) {
       pipe.points.slice(1).forEach((q, i) => {
         const p = pipe.points[i]
         const len = Math.hypot(q.x - p.x, q.z - p.z)
@@ -267,4 +275,61 @@ test('a raider up on a pipe walks along it', async ({ page }) => {
     .toBeGreaterThan(Math.min(4, run.len - 1))
   await page.keyboard.up('KeyW')
   expect(await feet()).toBeCloseTo(run.top, 1)
+})
+
+test('a raider who walks off the rim lands on the pipe under it', async ({
+  page,
+}) => {
+  await beginRaid(page)
+  // The highest pipe on side 1 (no fire escape), and the rim a step back
+  // from the wall over the middle of its first stretch, facing out over
+  // the channel.
+  const pipe = await page.evaluate(() => {
+    const castle = window.__bv?.world.castle
+    if (!castle) throw new Error('No castle in the valley')
+    const a = castle.outer[1]
+    const b = castle.outer[2]
+    const len = Math.hypot(b.x - a.x, b.z - a.z)
+    const onSide = castle.pipes.filter((p) => {
+      const o = p.points[0]
+      const across =
+        Math.abs((b.x - a.x) * (o.z - a.z) - (o.x - a.x) * (b.z - a.z)) / len
+      return across < 2
+    })
+    const top = onSide.sort((p, q) => q.points[0].y - p.points[0].y)[0]
+    const [p, q] = top.points
+    const off = top.radius + 0.75
+    const n = top.normal
+    const mid = { x: (p.x + q.x) / 2, z: (p.z + q.z) / 2 }
+    // Forward is (-sin yaw, -cos yaw): along the normal, into the channel.
+    window.__bv?.player.relocate(
+      mid.x - n.x * (off + 1),
+      mid.z - n.z * (off + 1),
+      Math.atan2(-n.x, -n.z)
+    )
+    return { top: p.y + top.radius }
+  })
+  await heardWhere(page)
+  const whole = await health(page)
+  // Walked off the edge, and let go of the key on the way down (clinging
+  // a moment on what catches them, CONFIG.fall.steadySeconds).
+  await page.keyboard.down('KeyW')
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.player.fallFrom ?? null), {
+      timeout: 10_000,
+      intervals: [20],
+    })
+    .not.toBeNull()
+  await page.keyboard.up('KeyW')
+  // Down on the pipe, hurt maybe, never shattered.
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.player.fallFrom ?? null))
+    .toBeNull()
+  expect(await page.evaluate(() => window.__bv?.player.groundY)).toBeCloseTo(
+    pipe.top,
+    1
+  )
+  expect(await page.evaluate(() => window.__bv?.strikes)).toBe(0)
+  expect(await health(page)).toBeLessThanOrEqual(whole)
+  expect(await health(page)).toBeGreaterThan(0)
 })

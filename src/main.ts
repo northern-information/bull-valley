@@ -246,6 +246,7 @@ async function boot() {
     standAt: (x, z, feetY) =>
       world.ground.standAt(x, z, feetY, CONFIG.fall.climb),
     collide: world.walls.resolve,
+    catchAt: world.castle?.catchAt,
     metres: geo.metres,
     spawn: world.spawn,
   })
