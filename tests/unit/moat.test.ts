@@ -17,6 +17,7 @@ import {
   moatWalls,
   onIsland,
   onMoatGrounds,
+  pipeDecks,
   pipeWalls,
   trickle,
 } from '../../src/moat.ts'
@@ -168,6 +169,51 @@ describe('moat', () => {
     }
   })
 
+  it('lets a raider up on a pipe walk it, and stops one under it', () => {
+    const pipes = moatPipes(raw, place, floor, stairs)
+    const decks = new Ground(carve(raw, place, floor))
+    for (const deck of pipes.flatMap(pipeDecks)) {
+      decks.addRibbon([deck.a, deck.b], deck.width, 0)
+    }
+    const walls = new Walls()
+    for (const w of pipes.flatMap((pipe) => pipeWalls(pipe))) {
+      walls.addWall(w.a, w.b, w.half, w.band)
+    }
+    for (const pipe of pipes) {
+      const top = pipe.points[0].y + pipe.radius
+      // Every level stretch is a deck; a drop to the floor is none.
+      const level = pipe.points.filter(
+        (p, i) => i > 0 && p.y === pipe.points[i - 1].y
+      )
+      expect(pipeDecks(pipe)).toHaveLength(level.length)
+      // Along its length, feet on it stay on it, and nothing stops them.
+      for (let i = 0; i < pipe.points.length - 1; i++) {
+        const p = pipe.points[i]
+        const q = pipe.points[i + 1]
+        if (p.y !== q.y) continue
+        for (let j = 0; j <= 10; j++) {
+          const at = {
+            x: p.x + (q.x - p.x) * (j / 10),
+            z: p.z + (q.z - p.z) * (j / 10),
+          }
+          expect(decks.standAt(at.x, at.z, top, climb)).toBeCloseTo(top)
+          expect(walls.resolve(at.x, at.z, 0.3, top)).toEqual(at)
+        }
+      }
+      // A body a step under its top climbs onto it; one too far under to
+      // climb it, whose head would meet it, is stopped.
+      const [p, q] = pipe.points
+      const mid = { x: (p.x + q.x) / 2, z: (p.z + q.z) / 2 }
+      expect(decks.standAt(mid.x, mid.z, top - 1, climb)).toBeCloseTo(top)
+      expect(walls.resolve(mid.x, mid.z, 0.3, top - 1)).toEqual(mid)
+      const under = top - climb - 0.1
+      expect(walls.resolve(mid.x, mid.z, 0.3, under)).not.toEqual(mid)
+      expect(decks.standAt(mid.x, mid.z, under, climb)).toBeLessThan(top)
+      // From the floor it is out of reach.
+      expect(decks.standAt(mid.x, mid.z, floor, climb)).toBe(floor)
+    }
+  })
+
   it('rails the far end of every landing, but lets the foot out at the floor', () => {
     const walls = new Walls()
     for (const stair of stairs) {
@@ -296,6 +342,20 @@ describe('moat', () => {
       }
     }
     expect(detours).toBeGreaterThan(0)
+    // On any one wall, pipes run far enough apart that one walking a pipe
+    // never steps up onto the one over it.
+    pipes.forEach((one, i) => {
+      for (const other of pipes.slice(i + 1)) {
+        const sameWall =
+          Math.abs(one.normal.x - other.normal.x) < 1e-9 &&
+          Math.abs(one.normal.z - other.normal.z) < 1e-9
+        if (!sameWall) continue
+        const gap = Math.abs(
+          one.points[0].y + one.radius - other.points[0].y - other.radius
+        )
+        expect(gap).toBeGreaterThan(climb)
+      }
+    })
     // Every stretch stands for a head at its height; a drop to the floor
     // stands for feet on the floor, a stretch overhead does not.
     const walls = new Walls()
@@ -306,7 +366,8 @@ describe('moat', () => {
       const [p, q] = pipe.points
       const mid = { x: (p.x + q.x) / 2, z: (p.z + q.z) / 2 }
       const at = (feet: number) => walls.resolve(mid.x, mid.z, 0.3, feet)
-      expect(at(p.y - 1)).not.toEqual(mid)
+      // Out of a step's reach under its top, a head meets it.
+      expect(at(p.y + pipe.radius - climb - 0.1)).not.toEqual(mid)
       expect(at(floor)).toEqual(mid)
       const last = pipe.points.at(-1)
       if (last && last.y === floor) {

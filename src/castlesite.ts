@@ -13,6 +13,7 @@ import {
   moatEdges,
   moatPipes,
   moatWalls,
+  pipeDecks,
   pipeWalls,
   trickle,
 } from './moat.ts'
@@ -23,7 +24,7 @@ import type { CastleRig, CraneRig, MoatRig } from './assets.ts'
 import type { Ground } from './ground.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
 import type { MazePlace } from './maze.ts'
-import type { FireEscape } from './moat.ts'
+import type { FireEscape, MoatPipe } from './moat.ts'
 import type { MoatSlurm, MoatSource } from './moatslurms.ts'
 import type { Cue } from './sfx.ts'
 import type { Feet } from './slurms.ts'
@@ -32,7 +33,8 @@ import type { Walls } from './walls.ts'
 // Castle Entropy placed (moat.ts, castle.ts): the moat already cut into the
 // terrain (world.ts carves it before anything stands), its fire escapes
 // registered on the Ground flight by flight and their rails, the rim's
-// ledge, the island's edge and the pipes on the Walls, the moat drawn, the cranes on
+// ledge, the island's edge and the pipes on the Walls (the pipes' tops on
+// the Ground too), the moat drawn, the cranes on
 // the rim, the slurms dropping off the edges and the cranes' hooks into
 // the channel (moatslurms.ts), and today's castle floating over the
 // island, made anew when the day turns.
@@ -46,8 +48,9 @@ export interface CastleSite {
   outer: XZ[]
   // The middle of the island, for the Book of Shadows.
   middle: XZ
-  // The fire escapes, as the Ground has them.
+  // The fire escapes, as the Ground has them, and the pipes.
   stairs: FireEscape[]
+  pipes: MoatPipe[]
   // `t` the shared clock in seconds, `day` its Central day: the castle
   // bobs and its beams turn wherever the raider is; the moat, the cranes
   // and the slurms move only `near` it, squashed under any of `feet`
@@ -88,10 +91,14 @@ export function buildCastleSite(
   for (const wall of moatWalls(raw, place)) {
     walls.addWall(wall.a, wall.b, wall.half, wall.band)
   }
-  // The pipes along the walls, round the fire escapes, and what they stop.
+  // The pipes along the walls, round the fire escapes: what they stop,
+  // and their tops to walk along.
   const pipes = moatPipes(raw, place, floor, stairs)
   for (const wall of pipes.flatMap((pipe) => pipeWalls(pipe))) {
     walls.addWall(wall.a, wall.b, wall.half, wall.band)
+  }
+  for (const deck of pipes.flatMap(pipeDecks)) {
+    ground.addRibbon([deck.a, deck.b], deck.width, 0)
   }
 
   const moat: MoatRig = buildMoat({
@@ -257,6 +264,7 @@ export function buildCastleSite(
     outer: edges.outer,
     middle: { x: place.x, z: place.z },
     stairs,
+    pipes,
     update,
     day: () => today,
     slurms: () => drawn,

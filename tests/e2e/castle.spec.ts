@@ -9,6 +9,8 @@ import type { Page } from '@playwright/test'
 // bottom (sharedworld.ts rules 24 and 18). The shadowmen walk its floor
 // at the floor's height and reach no one up a fire escape (rule 11).
 
+const health = (page: Page) => page.evaluate(() => window.__bv?.health ?? 0)
+
 const carrying = (page: Page) =>
   page.evaluate(() =>
     Object.values(window.__bv?.inventory ?? {}).reduce((sum, n) => sum + n, 0)
@@ -175,9 +177,15 @@ test('a shadowman on the floor never reaches a raider up a fire escape', async (
     const x = (a.x + b.x) / 2
     const z = (a.z + b.z) / 2
     window.__bv?.player.relocate(x, z, 0)
-    return { x, z, foot: stair.foot, floor: castle.floor }
+    // Out on the floor past the foot, clear of the pipes along the wall.
+    const foot = {
+      x: stair.foot.x + stair.inward.x * 4,
+      z: stair.foot.z + stair.inward.z * 4,
+    }
+    return { x, z, foot, floor: castle.floor }
   })
   await heardWhere(page)
+  const whole = await health(page)
   // One stood on the floor right under them: the valley stands it there,
   // and it never strikes.
   await page.evaluate(
@@ -197,17 +205,66 @@ test('a shadowman on the floor never reaches a raider up a fire escape', async (
     .poll(async () => (await under())?.y, { timeout: 30_000 })
     .toBeCloseTo(spot.floor, 1)
   await page.waitForTimeout(3000)
-  expect(await page.evaluate(() => window.__bv?.strikes)).toBe(0)
-  // Down at the foot, beside one on the floor, they are struck.
+  expect(await health(page)).toBe(whole)
+  // Down on the floor past the foot, beside one there, they are struck.
   await page.evaluate(({ foot }) => {
     window.__bv?.player.relocate(foot.x, foot.z, 0)
   }, spot)
   await heardWhere(page)
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.player.groundY))
+    .toBeCloseTo(spot.floor, 1)
   await page.evaluate(
     ({ foot }) => window.__bv?.placeShadowman(foot.x + 1, foot.z),
     spot
   )
+  await expect.poll(() => health(page), { timeout: 15_000 }).toBeLessThan(whole)
+})
+
+test('a raider up on a pipe walks along it', async ({ page }) => {
+  await beginRaid(page)
+  // On the longest level stretch of a pipe, at one end, facing the other.
+  const run = await page.evaluate(() => {
+    const castle = window.__bv?.world.castle
+    if (!castle) throw new Error('No castle in the valley')
+    let best = { len: 0, a: { x: 0, z: 0 }, b: { x: 0, z: 0 }, top: 0 }
+    for (const pipe of castle.pipes) {
+      pipe.points.slice(1).forEach((q, i) => {
+        const p = pipe.points[i]
+        const len = Math.hypot(q.x - p.x, q.z - p.z)
+        if (p.y === q.y && len > best.len) {
+          best = { len, a: p, b: q, top: p.y + pipe.radius }
+        }
+      })
+    }
+    const { a, b } = best
+    const ux = (b.x - a.x) / best.len
+    const uz = (b.z - a.z) / best.len
+    // Forward is (-sin yaw, -cos yaw).
+    window.__bv?.player.relocate(
+      a.x + ux * 0.5,
+      a.z + uz * 0.5,
+      Math.atan2(-ux, -uz)
+    )
+    return best
+  })
+  await heardWhere(page)
+  const feet = () => page.evaluate(() => window.__bv?.player.groundY ?? 0)
+  await expect.poll(feet).toBeCloseTo(run.top, 1)
+  // Walked a few metres along it, still up on it.
+  await page.keyboard.down('KeyW')
   await expect
-    .poll(() => page.evaluate(() => window.__bv?.strikes), { timeout: 15_000 })
-    .toBe(1)
+    .poll(() =>
+      page.evaluate(
+        ({ a }) =>
+          Math.hypot(
+            (window.__bv?.player.pos.x ?? 0) - a.x,
+            (window.__bv?.player.pos.z ?? 0) - a.z
+          ),
+        run
+      )
+    )
+    .toBeGreaterThan(Math.min(4, run.len - 1))
+  await page.keyboard.up('KeyW')
+  expect(await feet()).toBeCloseTo(run.top, 1)
 })

@@ -16,7 +16,8 @@
 // stair's rails, its foot open only at the floor, with a rail between its
 // lanes so no one steps across onto the flight over or under theirs. Pipes
 // run along the walls (`moatPipes`), out round any fire escape in their
-// way, and stop a raider too. Cranes lean out over the channel from the
+// way: they stop a raider walking into one (`pipeWalls`), and are walked
+// along by whoever gets up on one (`pipeDecks`). Cranes lean out over the channel from the
 // rim (`craneSpots`) and a trickle of water runs down its middle
 // (`trickle`). No three.js, no DOM.
 
@@ -469,6 +470,10 @@ export interface MoatPipe {
 // the floor never stands in the foot's way).
 const PIPE_CLEAR = 0.4
 const PIPE_END_CLEAR = 4
+// How far apart the pipes on one wall run, top to top: more than a body
+// climbs (CONFIG.fall.climb), so one walking a pipe is never lifted onto
+// the one over it.
+const PIPE_HEADROOM = 2.5
 
 // The pipes along the moat's walls, one to three runs on each side of
 // each edge, each at a height between the floor and the rim's lowest. A
@@ -521,6 +526,7 @@ export function moatPipes(
         y,
       })
       const runs = 1 + Math.floor(rng() * 3)
+      const laid: number[] = []
       for (let r = 0; r < runs; r++) {
         const y = floor + 3 + rng() * Math.max(1, lowTop - floor - 6)
         const d0 = len * rng() * 0.4
@@ -537,6 +543,9 @@ export function moatPipes(
               d > from - PIPE_END_CLEAR && d < to + PIPE_END_CLEAR
           )
         if (near(d0) || near(d1)) continue
+        const top = y + radius
+        if (laid.some((t) => Math.abs(t - top) < PIPE_HEADROOM)) continue
+        laid.push(top)
         const points = [at(d0, off, y)]
         for (const { from, to, s } of busy) {
           if (to < d0 || from > d1) continue
@@ -558,10 +567,15 @@ export function moatPipes(
   return pipes
 }
 
-// The walls a pipe stands as: each stretch at its height for any body
-// whose head would meet it (feet within `body` under it), and a drop to
-// the floor for every body below its top.
-export function pipeWalls(pipe: MoatPipe, body = 2): MoatWall[] {
+// The walls a pipe stands as: each stretch, and a drop to the floor, for
+// any body whose head would meet it (feet within `body` under it) and too
+// far under its top to step up onto it (more than `climb`, as Ground
+// standAt climbs); nearer, a body steps up onto it (`pipeDecks`).
+export function pipeWalls(
+  pipe: MoatPipe,
+  body = 2,
+  climb = CONFIG.fall.climb
+): MoatWall[] {
   const walls: MoatWall[] = []
   for (let i = 0; i < pipe.points.length - 1; i++) {
     const p = pipe.points[i]
@@ -572,10 +586,34 @@ export function pipeWalls(pipe: MoatPipe, body = 2): MoatWall[] {
       a: { x: p.x, z: p.z },
       b: { x: q.x, z: q.z },
       half: pipe.radius,
-      band: { low: bottom - body, high: top },
+      band: { low: bottom - body, high: top - climb },
     })
   }
   return walls
+}
+
+// How far a foot hangs over a pipe's sides and still stands on it.
+const PIPE_FOOTING = 0.15
+
+// What of a pipe is walked on: the top of each level stretch, a deck as
+// wide as the pipe and a foot's hang either side (its ends round, so the
+// bends join), for Ground.addRibbon.
+export function pipeDecks(
+  pipe: MoatPipe
+): { a: XZ & { y: number }; b: XZ & { y: number }; width: number }[] {
+  const decks = []
+  for (let i = 0; i < pipe.points.length - 1; i++) {
+    const p = pipe.points[i]
+    const q = pipe.points[i + 1]
+    if (p.y !== q.y) continue
+    const y = p.y + pipe.radius
+    decks.push({
+      a: { x: p.x, z: p.z, y },
+      b: { x: q.x, z: q.z, y },
+      width: pipe.radius * 2 + PIPE_FOOTING * 2,
+    })
+  }
+  return decks
 }
 
 // A crane on the rim: where its mast stands, the way its jib reaches (at
