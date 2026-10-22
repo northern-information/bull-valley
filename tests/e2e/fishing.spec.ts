@@ -244,7 +244,11 @@ test('three ponds, and a slurm caught alive in the jar', async ({ page }) => {
   // so on a slow machine the one stood beside can be gone before the
   // prompt reads, or before the click lands: stand beside whichever
   // crawls now and click again until one is caught. A click with nothing
-  // in reach only scoops the air.
+  // in reach only scoops the air. With none crawling, wait for the next
+  // drop, never hurry again: each hurry runs this client's slurm clock
+  // further ahead of the valley's, which takes a catch only from a drop
+  // within two slots of its own (slurms.ts mayJar), so a second or third
+  // hurry on a slow runner had every catch refused as gone.
   const jarred = () => page.evaluate(() => window.__bv?.inventory.slurm ?? 0)
   await expect(async () => {
     // A catch the last try waited out may have landed since.
@@ -253,10 +257,7 @@ test('three ponds, and a slurm caught alive in the jar', async ({ page }) => {
       const bv = window.__bv
       if (!bv) throw new Error('no hook')
       const slurm = bv.slurms[0]
-      if (!slurm) {
-        bv.hurrySlurms()
-        throw new Error('no slurm')
-      }
+      if (!slurm) throw new Error('no slurm crawling yet')
       bv.player.relocate(slurm.x + 0.9, slurm.z, 0)
       bv.player.yaw = Math.PI / 2
       bv.player.pitch = -0.9
@@ -271,7 +272,8 @@ test('three ponds, and a slurm caught alive in the jar', async ({ page }) => {
     expect(await jarred()).toBe(0)
     await page.evaluate(() => window.__bv?.useHand())
     await expect.poll(jarred, { timeout: 5_000 }).toBe(1)
-  }).toPass({ timeout: 45_000 })
+    // Drops come 30 to 90 seconds apart (CONFIG.slurms).
+  }).toPass({ timeout: 150_000 })
   expect(await jarred()).toBe(1)
   await expect(page.locator('.bv-chat')).toContainText(copy('log.slurm_jarred'))
 })
