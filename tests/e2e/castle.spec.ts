@@ -1,3 +1,4 @@
+import { CONFIG } from '../../src/config.ts'
 import { inChannel } from '../../src/moat.ts'
 import { copy } from './copy.ts'
 import { beginRaid, expect, heardWhere, test } from './fixtures.ts'
@@ -9,6 +10,85 @@ import type { Page } from '@playwright/test'
 // bottom (sharedworld.ts rules 24 and 18), unless a pipe down the wall
 // catches them on the way (moat.ts catchPipe). The shadowmen walk its floor
 // at the floor's height and reach no one up a fire escape (rule 11).
+
+// A spot on the outer rim to run straight off at `speed`, found by
+// falling from it as the game does (gravity, the pipes' catch, the
+// ground): where every fall from a metre either side, at the speed and a
+// little short of it, is `caught` on a pipe short of a fatal fall, or
+// reaches the `floor` with nothing on the way. The raider is set down
+// `back` metres short of it, facing out over the channel; it says how
+// high the rim is there.
+async function offTheRim(
+  page: Page,
+  speed: number,
+  want: 'caught' | 'floor',
+  back = 4
+): Promise<{ rim: number }> {
+  return page.evaluate(
+    ({ speed, want, back, fall }) => {
+      const bv = window.__bv
+      const castle = bv?.world.castle
+      if (!bv || !castle) throw new Error('No castle in the valley')
+      const ground = bv.world.ground
+      const land = (
+        x: number,
+        z: number,
+        out: { x: number; z: number },
+        v0: number
+      ) => {
+        const start = ground.at(x, z)
+        let y = start
+        let v = 0
+        const dt = 1 / 60
+        while (y > castle.floor) {
+          v += fall.gravity * dt
+          const next = y - v * dt
+          x += out.x * v0 * dt
+          z += out.z * v0 * dt
+          const caught = castle.catchAt(x, z, y, next, start)
+          if (caught) return { by: 'caught', drop: start - caught.y }
+          const deck = ground.standAt(x, z, y, 0)
+          if (deck > castle.floor + 0.5 && deck >= next && deck <= y) {
+            return { by: 'deck', drop: start - deck }
+          }
+          y = next
+        }
+        return { by: 'floor', drop: start - castle.floor }
+      }
+      const outer = castle.outer
+      for (let k = 0; k < outer.length; k++) {
+        const a = outer[k]
+        const b = outer[(k + 1) % outer.length]
+        const len = Math.hypot(b.x - a.x, b.z - a.z)
+        const u = { x: (b.x - a.x) / len, z: (b.z - a.z) / len }
+        let out = { x: -u.z, z: u.x }
+        const mx = (a.x + b.x) / 2 - castle.middle.x
+        const mz = (a.z + b.z) / 2 - castle.middle.z
+        if (out.x * mx + out.z * mz > 0) out = { x: -out.x, z: -out.z }
+        for (let d = 10; d < len - 10; d += 0.5) {
+          const fine = [-1, 0, 1].every((dd) =>
+            [speed * 0.85, speed].every((v0) => {
+              const x = a.x + u.x * (d + dd)
+              const z = a.z + u.z * (d + dd)
+              const end = land(x, z, out, v0)
+              return want === 'caught'
+                ? end.by === 'caught' && end.drop < fall.lethal - 0.5
+                : end.by === 'floor'
+            })
+          )
+          if (!fine) continue
+          const x = a.x + u.x * d - out.x * back
+          const z = a.z + u.z * d - out.z * back
+          // Forward is (-sin yaw, -cos yaw): along `out`.
+          bv.player.relocate(x, z, Math.atan2(-out.x, -out.z))
+          return { rim: ground.at(a.x + u.x * d, a.z + u.z * d) }
+        }
+      }
+      throw new Error(`No spot on the rim to fall to the ${want}`)
+    },
+    { speed, want, back, fall: CONFIG.fall }
+  )
+}
 
 const health = (page: Page) => page.evaluate(() => window.__bv?.health ?? 0)
 
@@ -25,27 +105,15 @@ test("sprinting off the moat's rim shatters, the body at the bottom", async ({
   await page.evaluate(() => window.__bv?.grant('marlboro', 20))
   await expect.poll(() => carrying(page)).toBeGreaterThan(19)
 
-  // On the rim a couple of metres back from the edge, facing the island.
-  const place = await page.evaluate(() => {
-    const castle = window.__bv?.world.castle
-    if (!castle) throw new Error('No castle in the valley')
-    const a = castle.outer[1]
-    const b = castle.outer[2]
-    const mid = { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 }
-    const ox = mid.x - castle.middle.x
-    const oz = mid.z - castle.middle.z
-    const len = Math.hypot(ox, oz)
-    const x = mid.x + (ox / len) * 2
-    const z = mid.z + (oz / len) * 2
-    // Forward is (-sin yaw, -cos yaw): toward the middle.
-    const yaw = Math.atan2(ox / len, oz / len)
-    window.__bv?.player.relocate(x, z, yaw)
-    return castle.place
-  })
+  // On the rim a run-up back from a spot where no pipe on the way down
+  // catches a sprinter.
+  const place = await page.evaluate(() => window.__bv?.world.castle?.place)
+  if (!place) throw new Error('No castle in the valley')
+  await offTheRim(page, CONFIG.player.sprintSpeed, 'floor')
   await heardWhere(page)
   const rim = await page.evaluate(() => window.__bv?.player.groundY ?? 0)
 
-  // Sprinting, too fast for any pipe on the way down to catch them.
+  // Sprinting, out past every pipe on the way down.
   await page.keyboard.down('ShiftLeft')
   await page.keyboard.down('KeyW')
   await expect
@@ -68,7 +136,7 @@ test("sprinting off the moat's rim shatters, the body at the bottom", async ({
 
 test("down in the moat, its walls can't be walked up", async ({ page }) => {
   await beginRaid(page)
-  // On the floor, a few metres in from the outer wall, facing it.
+  // On the floor, in from the outer wall past its pipes, facing it.
   await page.evaluate(() => {
     const castle = window.__bv?.world.castle
     if (!castle) throw new Error('No castle in the valley')
@@ -78,8 +146,8 @@ test("down in the moat, its walls can't be walked up", async ({ page }) => {
     const ox = mid.x - castle.middle.x
     const oz = mid.z - castle.middle.z
     const len = Math.hypot(ox, oz)
-    const x = mid.x - (ox / len) * 4
-    const z = mid.z - (oz / len) * 4
+    const x = mid.x - (ox / len) * 6
+    const z = mid.z - (oz / len) * 6
     // Forward, (-sin yaw, -cos yaw), away from the middle.
     const yaw = Math.atan2(-ox / len, -oz / len)
     window.__bv?.player.relocate(x, z, yaw)
@@ -277,38 +345,12 @@ test('a raider up on a pipe walks along it', async ({ page }) => {
   expect(await feet()).toBeCloseTo(run.top, 1)
 })
 
-test('a raider who walks off the rim lands on the pipe under it', async ({
+test('a raider who walks off the rim lands on a pipe, hurt', async ({
   page,
 }) => {
   await beginRaid(page)
-  // The highest pipe on side 1 (no fire escape), and the rim a step back
-  // from the wall over the middle of its first stretch, facing out over
-  // the channel.
-  const pipe = await page.evaluate(() => {
-    const castle = window.__bv?.world.castle
-    if (!castle) throw new Error('No castle in the valley')
-    const a = castle.outer[1]
-    const b = castle.outer[2]
-    const len = Math.hypot(b.x - a.x, b.z - a.z)
-    const onSide = castle.pipes.filter((p) => {
-      const o = p.points[0]
-      const across =
-        Math.abs((b.x - a.x) * (o.z - a.z) - (o.x - a.x) * (b.z - a.z)) / len
-      return across < 2
-    })
-    const top = onSide.sort((p, q) => q.points[0].y - p.points[0].y)[0]
-    const [p, q] = top.points
-    const off = top.radius + 0.75
-    const n = top.normal
-    const mid = { x: (p.x + q.x) / 2, z: (p.z + q.z) / 2 }
-    // Forward is (-sin yaw, -cos yaw): along the normal, into the channel.
-    window.__bv?.player.relocate(
-      mid.x - n.x * (off + 1),
-      mid.z - n.z * (off + 1),
-      Math.atan2(-n.x, -n.z)
-    )
-    return { top: p.y + top.radius }
-  })
+  // A step back from a spot where a pipe catches whoever walks off.
+  const { rim } = await offTheRim(page, CONFIG.player.walkSpeed, 'caught', 1)
   await heardWhere(page)
   const whole = await health(page)
   // Walked off the edge, and let go of the key on the way down (clinging
@@ -321,14 +363,14 @@ test('a raider who walks off the rim lands on the pipe under it', async ({
     })
     .not.toBeNull()
   await page.keyboard.up('KeyW')
-  // Down on the pipe, hurt maybe, never shattered.
+  // Down on a pipe, short of the floor, never shattered.
   await expect
     .poll(() => page.evaluate(() => window.__bv?.player.fallFrom ?? null))
     .toBeNull()
-  expect(await page.evaluate(() => window.__bv?.player.groundY)).toBeCloseTo(
-    pipe.top,
-    1
-  )
+  const on = await page.evaluate(() => window.__bv?.player.groundY ?? 0)
+  const floor = await page.evaluate(() => window.__bv?.world.castle?.floor ?? 0)
+  expect(on).toBeLessThan(rim)
+  expect(on).toBeGreaterThan(floor + 2)
   expect(await page.evaluate(() => window.__bv?.strikes)).toBe(0)
   expect(await health(page)).toBeLessThanOrEqual(whole)
   expect(await health(page)).toBeGreaterThan(0)

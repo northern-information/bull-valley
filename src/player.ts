@@ -31,7 +31,7 @@ interface PlayerOptions {
   collide?: Collide
   // What a fall catches on the way down (the moat's pipes, moat.ts
   // catchPipe): where the feet land, dropping from `from` to `to` this
-  // frame, or null.
+  // frame in a fall begun at `start`, or null.
   catchAt?: CatchAt
   metres: Metres
   spawn: PlayerSpawn
@@ -42,7 +42,8 @@ type CatchAt = (
   x: number,
   z: number,
   from: number,
-  to: number
+  to: number,
+  start: number
 ) => (XZ & { y: number }) | null
 
 // Per-frame movement modifiers from items and the phone.
@@ -260,7 +261,13 @@ export class Player {
     const next = this.groundY - this.fallSpeed * dt
     const under = this.standAt(this.pos.x, this.pos.z, this.groundY)
     // Caught on the way down: onto it, all the speed gone.
-    const caught = this.catchAt?.(this.pos.x, this.pos.z, this.groundY, next)
+    const caught = this.catchAt?.(
+      this.pos.x,
+      this.pos.z,
+      this.groundY,
+      next,
+      this.fallFrom
+    )
     if (caught && caught.y > under) {
       this.pos.x = caught.x
       this.pos.z = caught.z

@@ -765,20 +765,25 @@ export const CONFIG = {
         landing: { min: 1.2, max: 3.6 },
       },
     },
-    // The pipes stacked down the moat's walls (moat.ts moatPipes): the
-    // first `under` metres under the rim's lowest (a fall onto it is
-    // short of `CONFIG.fall.lethal`), each next one `drop` under the one
-    // over it (more than a body climbs, so walking one never lifts a
-    // raider onto the next, and short of lethal), none nearer the floor
-    // than `floorClear`; a share `missing` left out, and the lowest on a wall
-    // turning down to the floor at its end by the chance `toFloor`. Ranges are [least, most].
+    // The maze of pipes down the moat's walls (moat.ts moatPipes): levels
+    // from `under` metres under the rim's lowest down by `drop` at a time
+    // (more than a body climbs, so the maze only goes down, and a fall
+    // from one level to the next only hurts), none nearer the floor than
+    // `floorClear`. Each level is broken into runs `length` long with
+    // `gap`s between, each run `rows` metres further out from the wall
+    // than the first row, a share `missing`; a run on the lowest level
+    // turns down to the floor at its end by the chance `toFloor`. Ranges
+    // are [least, most].
     pipes: {
       seed: 0x91be5,
-      under: [2.5, 4] as const,
-      drop: [3, 5] as const,
+      under: [2.5, 3.5] as const,
+      drop: [2.5, 3.2] as const,
       floorClear: 3,
-      missing: 0.2,
-      toFloor: 0.5,
+      length: [4, 14] as const,
+      gap: [0.6, 3] as const,
+      rows: [0, 1.3, 2.6],
+      missing: 0.1,
+      toFloor: 0.3,
       radius: [0.15, 0.4] as const,
     },
     // The cranes on the outer rim, leaning out over the moat.

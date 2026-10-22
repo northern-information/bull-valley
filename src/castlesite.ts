@@ -52,13 +52,14 @@ export interface CastleSite {
   // The fire escapes, as the Ground has them, and the pipes.
   stairs: FireEscape[]
   pipes: MoatPipe[]
-  // Where a raider falling at (x, z) from `from` to `to` lands on a pipe,
-  // or null (moat.ts catchPipe).
+  // Where a raider falling at (x, z) from `from` to `to` this frame, in a
+  // fall begun at `start`, lands on a pipe, or null (moat.ts catchPipe).
   catchAt: (
     x: number,
     z: number,
     from: number,
-    to: number
+    to: number,
+    start: number
   ) => (XZ & { y: number }) | null
   // `t` the shared clock in seconds, `day` its Central day: the castle
   // bobs and its beams turn wherever the raider is; the moat, the cranes
@@ -135,7 +136,14 @@ export function buildCastleSite(
   // under the rim and the island's edge (crawling off from the wall, and
   // never where a fire escape would catch them), then the cranes' hooks.
   const sources: MoatSource[] = []
-  const atFloor = (x: number, z: number) => ground.at(x, z) < floor + 1
+  // Under a fire escape's strip (whatever pipes run over the floor).
+  const underStair = (x: number, z: number) =>
+    stairs.some(({ ends: [a, b], inward, depth }) => {
+      const len = Math.hypot(b.x - a.x, b.z - a.z)
+      const t = ((x - a.x) * (b.x - a.x) + (z - a.z) * (b.z - a.z)) / len
+      const s = (x - a.x) * inward.x + (z - a.z) * inward.z
+      return t > -1 && t < len + 1 && s > -1 && s < depth + 1
+    })
   for (const edge of [edges.outer, edges.island]) {
     edge.forEach((a, i) => {
       const b = edge[(i + 1) % edge.length]
@@ -147,7 +155,7 @@ export function buildCastleSite(
           const heading = { x: -along.z * side, z: along.x * side }
           const x = on.x + heading.x * 0.6
           const z = on.z + heading.z * 0.6
-          if (!inChannel(place, x, z) || !atFloor(x, z)) continue
+          if (!inChannel(place, x, z) || underStair(x, z)) continue
           sources.push({ x, y: raw(on.x, on.z), z, heading })
         }
       }
@@ -171,7 +179,9 @@ export function buildCastleSite(
   // What each looked like last frame, to hear it land.
   let phases = new Map<string, string>()
   let drawn: MoatSlurm[] = []
-  const landY = (x: number, z: number) => ground.at(x, z)
+  // They fall past the pipes to the floor, and crawl on it.
+  const landY = (x: number, z: number) =>
+    ground.standAt(x, z, floor, CONFIG.fall.climb)
 
   const stepSlurms = (t: number, feet: readonly Feet[]): Cue[] => {
     const cues: Cue[] = []
@@ -275,8 +285,10 @@ export function buildCastleSite(
     middle: { x: place.x, z: place.z },
     stairs,
     pipes,
-    catchAt: (x, z, from, to) =>
-      inChannel(place, x, z) ? catchPipe(decks, { x, z }, from, to) : null,
+    catchAt: (x, z, from, to, start) =>
+      inChannel(place, x, z)
+        ? catchPipe(decks, { x, z }, from, to, start)
+        : null,
     update,
     day: () => today,
     slurms: () => drawn,

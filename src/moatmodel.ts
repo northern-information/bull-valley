@@ -6,6 +6,7 @@ import {
   memo,
   mergeStatic,
 } from './assetkit.ts'
+import { CONFIG } from './config.ts'
 import { concreteArt, vineArt } from './moatart.ts'
 import { mulberry32, range } from './rng.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
@@ -354,9 +355,13 @@ function pipeRun(
   box: THREE.Material,
   iron: THREE.Material
 ): void {
-  const { radius, normal } = run
+  const { radius, normal, wall } = run
   const points = run.points.map((p) => new THREE.Vector3(p.x, p.y, p.z))
-  const off = radius + 0.75
+  // How far out from the wall a point stands, and the furthest row: past
+  // it, a stretch is going round a fire escape, and hangs from its bends.
+  const outOf = (p: THREE.Vector3) =>
+    (p.x - wall.x) * normal.x + (p.z - wall.z) * normal.z
+  const furthest = radius + 0.75 + Math.max(...CONFIG.castle.pipes.rows)
   for (let i = 0; i < points.length - 1; i++) {
     const from = points[i]
     const to = points[i + 1]
@@ -380,19 +385,17 @@ function pipeRun(
       knuckle.position.copy(from)
       group.add(knuckle)
     }
-    // Brackets back to the wall, where the stretch runs along it.
+    // Brackets back to the wall, where the stretch runs along it in its
+    // row.
     if (from.y !== to.y) continue
-    const hugs = (p: THREE.Vector3) =>
-      Math.abs(
-        (p.x - points[0].x) * normal.x + (p.z - points[0].z) * normal.z
-      ) < 1e-3
-    if (!hugs(from) || !hugs(to)) continue
+    const out = outOf(from)
+    if (Math.abs(out - outOf(to)) > 1e-3 || out > furthest + 1e-3) continue
     for (let d = 0; d <= span; d += 4) {
       const at = from.clone().lerp(to, d / span)
       strut(
         group,
         at,
-        at.clone().add(new THREE.Vector3(-normal.x * off, 0, -normal.z * off)),
+        at.clone().add(new THREE.Vector3(-normal.x * out, 0, -normal.z * out)),
         0.12,
         iron
       )
@@ -411,12 +414,14 @@ function pipeRun(
     group.add(wheel)
   }
   if (run.junction !== null) {
-    const junction = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.6, 0.6), box)
+    // On the wall over the pipe, clear of the level over it.
+    const junction = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 0.6), box)
     const at = from.clone().lerp(to, run.junction)
+    const back = outOf(at) - 0.3
     junction.position.set(
-      at.x - normal.x * 0.4,
-      at.y + 1.4,
-      at.z - normal.z * 0.4
+      at.x - normal.x * back,
+      at.y + 1.1,
+      at.z - normal.z * back
     )
     junction.rotation.y = -Math.atan2(-normal.x, normal.z)
     group.add(junction)

@@ -463,6 +463,8 @@ export interface MoatPipe {
   valve: number | null
   junction: number | null
   normal: XZ
+  // A point on the wall's line, for how far out each bend stands.
+  wall: XZ
 }
 
 // How far a pipe keeps off a fire escape's ends and its outer rail, over
@@ -474,15 +476,13 @@ const PIPE_END_CLEAR = 4
 // walls never cross where they meet.
 const PIPE_CORNER = 3
 
-// The pipes along the moat's walls, stacked down each side of each edge:
-// the first `CONFIG.castle.pipes.under` under the rim's lowest (a raider
-// who walks off the rim may land on it, `catchPipe`), then each next one
-// down `drop` under the one over it, as far as `floorClear` over the
-// floor, now and then one missing (`missing`). Each runs a stretch of
-// its wall, clear of the corners. A run whose stretch crosses a fire
-// escape bends out from the wall round its outer rail and back; one
-// whose end would fall on or by a stair is drawn again, and not laid if
-// it still would.
+// The pipes down the moat's walls, a maze of them on each side of each
+// edge: levels from `CONFIG.castle.pipes.under` under the rim's lowest (a
+// raider who walks off the rim lands on one, `catchPipe`) down by `drop`
+// at a time, as far as `floorClear` over the floor, each level broken
+// into runs `length` long with `gap`s between, each run in one of the
+// `rows` out from the wall, a share `missing`. Clear of the corners. A
+// run by a fire escape bends out past its outer rail and back.
 export function moatPipes(
   raw: HeightAt,
   place: MazePlace,
@@ -511,10 +511,18 @@ export function moatPipes(
           normal.z * ((a.z + b.z) / 2 - place.z) <
         0
       if (toward !== outer) normal = { x: -normal.x, z: -normal.z }
-      let lowTop = Infinity
-      for (const p of alongEdge([a, b], 3).concat([b])) {
-        lowTop = Math.min(lowTop, raw(p.x, p.z))
-      }
+      // The rim along the wall, and its lowest between two stretches.
+      const rims = alongEdge([a, b], 2)
+        .concat([b])
+        .map((p) => ({
+          d: (p.x - a.x) * u.x + (p.z - a.z) * u.z,
+          y: raw(p.x, p.z),
+        }))
+      const highTop = Math.max(...rims.map((r) => r.y))
+      const rimOver = (d0: number, d1: number) =>
+        Math.min(
+          ...rims.filter((r) => r.d >= d0 - 2 && r.d <= d1 + 2).map((r) => r.y)
+        )
       // The stairs on this wall, as stretches along it.
       const along = (p: XZ) => (p.x - a.x) * u.x + (p.z - a.z) * u.z
       const busy = outer
@@ -535,50 +543,75 @@ export function moatPipes(
         busy.some(
           ({ from, to }) => d > from - PIPE_END_CLEAR && d < to + PIPE_END_CLEAR
         )
-      // Where each pipe's top runs, from just under the rim down.
+      // Where each level's tops run, from just under the rim's highest
+      // down; a run is laid only where the rim over it stands `under` over
+      // it, so wherever the rim runs, the first run under it is near.
       const tops: number[] = []
       for (
-        let top = lowTop - between(cfg.under);
+        let top = highTop - between(cfg.under);
         top >= floor + cfg.floorClear;
         top -= between(cfg.drop)
       ) {
-        if (tops.length === 0 || rng() >= cfg.missing) tops.push(top)
+        tops.push(top)
       }
+      // Out from the wall where a run in the stretch a to b must stand to
+      // clear a fire escape: past its outer rail, or nowhere in particular.
+      const clearOf = (d0: number, d1: number, radius: number) =>
+        busy
+          .filter(({ from, to }) => {
+            const clear = radius + PIPE_CLEAR
+            return d1 > from - clear && d0 < to + clear
+          })
+          .map(({ from, to, s }) => {
+            const clear = radius + PIPE_CLEAR
+            return { from: from - clear, to: to + clear, out: s.depth + clear }
+          })
       for (const top of tops) {
-        const radius = between(cfg.radius)
-        const y = top - radius
-        const grey = rng() < 0.5
-        const valve = rng() < 0.6 ? rng() : null
-        const junction = rng() < 0.5 ? rng() : null
-        // Only the lowest turns down to the floor: past none under it.
-        const drop = rng() < cfg.toFloor && top === tops.at(-1)
-        const off = radius + 0.75
-        // Its stretch, clear of the corners, drawn again if an end would
-        // fall by a stair.
-        const stretch = () => [
-          PIPE_CORNER + rng() * (len * 0.4 - PIPE_CORNER),
-          len - PIPE_CORNER - rng() * (len * 0.4 - PIPE_CORNER),
-        ]
-        let [d0, d1] = stretch()
-        for (let tries = 1; tries < 4 && (near(d0) || near(d1)); tries++) {
-          ;[d0, d1] = stretch()
+        // Each level broken into runs along the wall, each in a row out
+        // from it, with gaps between and now and then one missing.
+        for (
+          let d0 = PIPE_CORNER + between(cfg.gap) / 2;
+          d0 < len - PIPE_CORNER - 2;
+        ) {
+          const d1 = Math.min(d0 + between(cfg.length), len - PIPE_CORNER)
+          const radius = between(cfg.radius)
+          const row = cfg.rows[Math.floor(rng() * cfg.rows.length)]
+          const grey = rng() < 0.5
+          const valve = rng() < 0.6 ? rng() : null
+          const junction = rng() < 0.5 ? rng() : null
+          const missing = rng() < cfg.missing
+          // Only the lowest level turns down to the floor, past nothing
+          // under it, and never by a stair's foot.
+          const drop = rng() < cfg.toFloor && top === tops.at(-1) && !near(d1)
+          const next = d1 + between(cfg.gap)
+          if (missing || d1 - d0 < 2 || rimOver(d0, d1) - top < cfg.under[0]) {
+            d0 = next
+            continue
+          }
+          const y = top - radius
+          const base = radius + 0.75 + row
+          // Round any fire escape in the way: out past its rail and back.
+          const zones = clearOf(d0, d1, radius)
+          const offAt = (d: number) =>
+            Math.max(
+              base,
+              ...zones.filter((z) => d >= z.from && d <= z.to).map((z) => z.out)
+            )
+          const points = [at(d0, offAt(d0), y)]
+          for (const zone of zones) {
+            if (zone.out <= base) continue
+            if (zone.from > d0) {
+              points.push(at(zone.from, base, y), at(zone.from, zone.out, y))
+            }
+            if (zone.to < d1) {
+              points.push(at(zone.to, zone.out, y), at(zone.to, base, y))
+            }
+          }
+          points.push(at(d1, offAt(d1), y))
+          if (drop) points.push(at(d1, offAt(d1), floor))
+          pipes.push({ points, radius, grey, valve, junction, normal, wall: a })
+          d0 = next
         }
-        if (near(d0) || near(d1)) continue
-        const points = [at(d0, off, y)]
-        for (const { from, to, s } of busy) {
-          if (to < d0 || from > d1) continue
-          const clear = radius + PIPE_CLEAR
-          const out = s.depth + clear
-          points.push(
-            at(from - clear, off, y),
-            at(from - clear, out, y),
-            at(to + clear, out, y),
-            at(to + clear, off, y)
-          )
-        }
-        points.push(at(d1, off, y))
-        if (drop) points.push({ ...at(d1, off, floor) })
-        pipes.push({ points, radius, grey, valve, junction, normal })
       }
     }
   }
@@ -639,9 +672,9 @@ export function pipeDecks(pipe: MoatPipe): PipeDeck[] {
 }
 
 // A raider falling past a pipe catches it: of the decks whose top the
-// feet dropped past this frame (from `from` down to `to`, the pipe they
-// stepped off never among them), the highest within `reach` of the deck's
-// edge, and where on its middle they land. Null when they fall past
+// feet dropped past this frame (from `from` down to `to`), the highest
+// within `reach` of the deck's edge, and where on its middle they land;
+// never the one they fell from (at `start`, where the fall began). Null when they fall past
 // every one. Short of a fall's whole drift, so a raider who walks off the
 // rim over a pipe may land on it, and one who sprints off sails past.
 export function catchPipe(
@@ -649,12 +682,13 @@ export function catchPipe(
   at: XZ,
   from: number,
   to: number,
+  start = from,
   reach = CONFIG.fall.catchReach
 ): (XZ & { y: number }) | null {
   let best: (XZ & { y: number }) | null = null
   for (const { a, b, width } of decks) {
     const y = a.y
-    if (y >= from - CATCH_LEAVE || y < to) continue
+    if (y > from || y < to || y >= start - CATCH_LEAVE) continue
     if (best && y <= best.y) continue
     const p = projectOnSegment(at.x, at.z, a.x, a.z, b.x, b.z)
     if (p.dist > width / 2 + reach) continue
