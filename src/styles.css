@@ -89,6 +89,20 @@
   outline: none;
 }
 
+/* A game, not a page: a click and drag never selects text or drags an
+   image, on any layer of either app. Every element's user-select is auto,
+   which takes none from here, and text fields, where auto means text, keep
+   their caret and selection. */
+html {
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+img,
+canvas {
+  -webkit-user-drag: none;
+}
+
 /* Loadout countdown: bare numbers, no box. The dark halo keeps it legible
    on snow and on night sky. Under the compass. */
 .bv-countdown {
