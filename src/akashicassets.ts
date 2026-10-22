@@ -44,7 +44,9 @@ import {
   buildBobber,
   buildOilLantern,
   buildPicnicTable,
+  buildProppedRod,
   buildRackRod,
+  buildStringer,
   buildTackleBox,
 } from './fishmodels.ts'
 import { itemLabel } from './itemcopy.ts'
@@ -467,6 +469,12 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     id: 'picnic-table',
     label: 'Picnic table',
     build: () => buildPicnicTable(),
+  },
+  { id: 'stringer', label: 'Stringer of fish', build: () => buildStringer() },
+  {
+    id: 'propped-rod',
+    label: 'Rod propped on the bank',
+    build: () => buildProppedRod('zebco-33').group,
   },
   {
     id: 'oil-lantern',

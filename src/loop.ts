@@ -487,7 +487,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         line !== null,
         line?.hook != null && performance.now() >= line.bitesAt
       )
-      pond.update(time)
+      pond.update(time, net.clock.serverNow(now) / 1000)
     }
     // Into a pond's firefly haven, or out of it, the log says so; not
     // until the welcome has put the raider where they stand.

@@ -1389,3 +1389,115 @@ export function buildOilLantern(): OilLantern {
     },
   }
 }
+
+// --- What hangs about the landing -------------------------------------------
+
+// A fish of `kind` level, as it swims or leaps: the body as built, head
+// +X and back +Y, not laid on its side, its middle at the origin.
+export function buildFishLevel(kind: string): THREE.Group {
+  const fish = buildFish(kind, { glow: false })
+  const body = fish.children[0]
+  body.rotation.set(0, 0, 0)
+  body.position.set(0, 0, 0)
+  const group = new THREE.Group()
+  group.name = `level-${kind}`
+  group.add(body)
+  return group
+}
+
+// A stringer of the pond's catch on a post by the picnic table: a weathered
+// stake, a nail near its top, and the cord down from it through the gills
+// of each fish, hanging head up one under another, the biggest lowest.
+export const STRINGER = {
+  post: 1.35,
+  nail: 1.22,
+  kinds: ['bluegill', 'yellow-perch', 'largemouth-bass'],
+  // The gap down the cord between one fish's mouth and the next.
+  gap: 0.05,
+}
+
+export function buildStringer(): THREE.Group {
+  const S = STRINGER
+  const group = new THREE.Group()
+  group.name = 'stringer'
+  const wood = lambert({ color: '#6b5a45' })
+  const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, S.post, 0.08), wood)
+  post.position.y = S.post / 2
+  group.add(post)
+  // The cord hangs off the post's front (+Z), the fish strung down it.
+  const cordMaterial = new THREE.LineBasicMaterial({ color: '#d6cfb8' })
+  let y = S.nail
+  const cord = [new THREE.Vector3(0, y, 0.05)]
+  for (const kind of S.kinds) {
+    // Head up, as it hangs by its gills.
+    const fish = buildFishLevel(kind)
+    fish.rotation.z = Math.PI / 2
+    fish.updateMatrixWorld(true)
+    const box = new THREE.Box3().setFromObject(fish)
+    // Its mouth at the cord's end, the body hanging under it.
+    y -= S.gap
+    fish.position.set(0, y - box.max.y, 0.07)
+    // Turned a little each, as they twist on the cord.
+    fish.rotation.y = 0.4 * (S.kinds.indexOf(kind) - 1)
+    group.add(fish)
+    cord.push(new THREE.Vector3(0, y, 0.07))
+    y -= box.max.y - box.min.y
+  }
+  group.add(
+    new THREE.Line(new THREE.BufferGeometry().setFromPoints(cord), cordMaterial)
+  )
+  return group
+}
+
+// A rod propped on the bank to fish on its own: its butt in the grass and
+// its blank laid in the fork of a stick pushed into the ground, tipping up
+// and out over the water (+Z). `tip` is where its line leaves it, in the
+// group's own frame.
+export const PROPPED = {
+  // The rod's rise off the ground, radians, and where along it the fork
+  // holds it, metres from the butt.
+  rise: 0.5,
+  fork: 0.75,
+}
+
+export function buildProppedRod(kind: string): {
+  group: THREE.Group
+  tip: THREE.Vector3
+} {
+  const group = new THREE.Group()
+  group.name = `propped-${kind}`
+  // The rod alone (fishmodels ROD: +X to the tip, the butt at -length/2),
+  // its butt at the origin, turned to point out along +Z and up.
+  const rod = buildFishingRod(kind, { glow: false }).children[0]
+  rod.position.set(ROD.length / 2, 0, 0)
+  const lay = new THREE.Group()
+  lay.add(rod)
+  lay.rotation.set(0, -Math.PI / 2, PROPPED.rise, 'YXZ')
+  group.add(lay)
+  // The forked stick: a leaning stake up to the blank, two prongs either
+  // side of it.
+  const stick = lambert({ color: '#4e3d2c' })
+  const forkY = Math.sin(PROPPED.rise) * PROPPED.fork
+  const forkZ = Math.cos(PROPPED.rise) * PROPPED.fork
+  const stake = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.012, 0.016, forkY, 5),
+    stick
+  )
+  stake.position.set(0, forkY / 2 - 0.02, forkZ)
+  group.add(stake)
+  for (const side of [-1, 1]) {
+    const prong = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.008, 0.01, 0.09, 4),
+      stick
+    )
+    prong.position.set(side * 0.02, forkY + 0.02, forkZ)
+    prong.rotation.z = -side * 0.4
+    group.add(prong)
+  }
+  const tip = new THREE.Vector3(
+    0,
+    Math.sin(PROPPED.rise) * ROD.length,
+    Math.cos(PROPPED.rise) * ROD.length
+  )
+  return { group, tip }
+}
