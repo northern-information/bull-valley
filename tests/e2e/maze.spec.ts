@@ -12,10 +12,9 @@ import {
 } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
-// The heart of the corn maze: six berry bushes round the portal, each
-// with a berry a day for every account, and the Caretaker, who keeps the
-// maze. Its touch is a strike; one beam does nothing to it, and two at
-// once burn it.
+// The heart of the corn maze and the Caretaker, who keeps it. Its touch
+// is a strike; one beam does nothing to it, and two at once burn it. The
+// berry bushes round the portal are daily.spec.ts's.
 
 // A spot at the heart, `along` metres down the court (the maze's own z,
 // the way its length runs) and `across` it, in the world.
@@ -59,41 +58,6 @@ async function standLooking(
 
 const shown = (page: Page) =>
   page.evaluate(() => window.__bv?.caretaker.shown ?? null)
-
-test('a bush at the heart gives a berry of its own', async ({ page }) => {
-  await beginRaid(page)
-  const berries = () => page.evaluate(() => window.__bv?.inventory.berries)
-  expect(await berries()).toBe(0)
-  // The Caretaker parked at the maze's far corner, out of sight of the
-  // heart: a strike there would leave the berry on the raider's body.
-  await page.evaluate(() => {
-    const bv = window.__bv
-    const corner = bv?.world.mazePlace
-    if (!bv || !corner) throw new Error('no maze')
-    bv.placeCaretaker(corner.x, corner.z)
-  })
-  // A step in from the second bush toward the portal.
-  await page.evaluate(() => {
-    const bv = window.__bv
-    const bush = bv?.world.bushes[1]
-    const heart = bv?.world.portal?.at
-    if (!bv || !bush || !heart) throw new Error('no maze bush')
-    const d = Math.hypot(heart.x - bush.x, heart.z - bush.z)
-    bv.player.relocate(
-      bush.x + ((heart.x - bush.x) / d) * 0.9,
-      bush.z + ((heart.z - bush.z) / d) * 0.9,
-      bv.player.yaw
-    )
-  })
-  // The valley gives a berry only to a raider it has heard stand in reach.
-  await heardWhere(page)
-  const label = page.locator('.bv-item-label')
-  await expect(label).toHaveText(copy('labels.berries'))
-  await page.keyboard.press('KeyE')
-  await expect.poll(berries).toBe(1)
-  await expect(label).toHaveText(copy('labels.berry_picked'))
-  expect(await page.evaluate(() => window.__bv?.daily?.collected)).toEqual([1])
-})
 
 test("the Caretaker's touch puts you back at the Citgo", async ({ page }) => {
   await beginRaid(page)

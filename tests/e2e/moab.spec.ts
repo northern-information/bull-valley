@@ -17,7 +17,7 @@ const inOrder = (lines: string[], first: string, then: string) => {
 // Moab Coldë stands by his burning horse under every Citgo sign. Come near
 // and he glows, with no prompt, and says his offer if the pack can pay for
 // one; E opens his trade window, the one Erwin von Dutch keeps too
-// (tradewindow.ts).
+// (tradewindow.ts). Each trade is its own test: each needs its own pack.
 
 async function standAtMoab(page: Page): Promise<void> {
   await page.evaluate(() => {
@@ -47,11 +47,19 @@ async function openMoab(page: Page) {
   return dialog
 }
 
-test('Moab Coldë opens his trade window', async ({ page }) => {
+test('Moab Coldë trades the Flaming Halo for an ounce of gold', async ({
+  page,
+}) => {
   test.slow()
   await beginRaid(page)
+  // Gold bullion has no way into the pack yet but the dev hook.
+  await page.evaluate(() => window.__bv?.grant('gold-bullion'))
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.inventory['gold-bullion']))
+    .toBe(1)
   await standAtMoab(page)
-  // The spawn station's Moab glows, and nothing else says so.
+  // In his reach he makes his offer; he glows, and nothing else says E.
+  await expect.poll(() => said(page)).toContain(copy('moab.offer'))
   await expect
     .poll(() =>
       page.evaluate(() => {
@@ -65,39 +73,14 @@ test('Moab Coldë opens his trade window', async ({ page }) => {
     .toBe(true)
   await expect(page.locator('.bv-prompt')).toBeHidden()
   const moab = await openMoab(page)
-  // With no gold he says his one line, and asks for #1 first.
-  await expect(moab).toContainText(copy('moab.says'))
-  await expect(moab.locator('[data-good="coleman-1"]')).toHaveAttribute(
-    'aria-checked',
-    'true'
-  )
-  await expect(moab).toContainText(copy('moab.nothing_to_pay'))
-  await expect(moab.locator('[data-bv="trade-go"]')).toBeDisabled()
-  // The pointer is free while it is open, as at Erwin's.
-  expect(await page.evaluate(() => window.__bv?.player.locked)).toBe(false)
-  await page.keyboard.press('KeyE')
-  await expect(moab).toBeHidden()
-})
-
-test('Moab Coldë trades the Flaming Halo for an ounce of gold', async ({
-  page,
-}) => {
-  test.slow()
-  await beginRaid(page)
-  // Gold bullion has no way into the pack yet but the dev hook.
-  await page.evaluate(() => window.__bv?.grant('gold-bullion'))
-  await expect
-    .poll(() => page.evaluate(() => window.__bv?.inventory['gold-bullion']))
-    .toBe(1)
-  await standAtMoab(page)
-  // In his reach he makes his offer; the glow alone says E.
-  await expect.poll(() => said(page)).toContain(copy('moab.offer'))
-  await expect(page.locator('.bv-prompt')).toBeHidden()
-  const moab = await openMoab(page)
+  // His offer is his line, and picked; the pointer is free while it is
+  // open, as at Erwin's.
+  await expect(moab).toContainText(copy('moab.offer'))
   await expect(moab.locator('[data-good="flaming-halo"]')).toHaveAttribute(
     'aria-checked',
     'true'
   )
+  expect(await page.evaluate(() => window.__bv?.player.locked)).toBe(false)
   // An ounce down on the table is even.
   await moab
     .locator('[data-kind="gold-bullion"] [data-bv="trade-more"]')
@@ -120,12 +103,20 @@ test('Moab Coldë trades the Flaming Halo for an ounce of gold', async ({
       )
     )
     .toBe(true)
-  // Worn for good: the halo's row says it is yours, and can't be had again.
+  // Worn for good: the halo's row says it is yours, and can't be had again;
+  // he moves on to #1, which the empty pack cannot pay for.
   await expect(moab.locator('[data-good="flaming-halo"]')).toBeDisabled()
   await expect(moab.locator('[data-good="flaming-halo"]')).toContainText(
     copy('moab.yours')
   )
+  await expect(moab.locator('[data-good="coleman-1"]')).toHaveAttribute(
+    'aria-checked',
+    'true'
+  )
+  await expect(moab).toContainText(copy('moab.nothing_to_pay'))
+  await expect(moab.locator('[data-bv="trade-go"]')).toBeDisabled()
   await page.keyboard.press('KeyE')
+  await expect(moab).toBeHidden()
   // The account wears it from the titles on: the select dresses every
   // character in what /auth/me says.
   const me = (await (await page.request.get('/auth/me')).json()) as {
