@@ -258,3 +258,112 @@ export function buildJeep(): THREE.Group {
   castShadows(group)
   return group
 }
+
+// --- The radar dish ------------------------------------------------------
+
+// Tyler helps run the Citgo portals, and this is how he listens for them:
+// a portable radar dish clamped to the hardtop on a stubby tripod, tipped
+// up at the sky, with a feed horn held out over it on three struts. Its
+// cable comes off the mast's foot (`socket`, in the dish's own space).
+// Origin at the foot of the tripod.
+export interface RadarDish {
+  group: THREE.Group
+  socket: THREE.Vector3
+}
+
+export function buildRadarDish(): RadarDish {
+  const group = new THREE.Group()
+  group.name = 'radar-dish'
+  const grey = lambert({ color: '#c7c9c4', side: THREE.DoubleSide })
+  const metal = lambert({ color: '#5d6166' })
+  const black = lambert({ color: '#151518' })
+
+  // The tripod: three splayed legs, a clamp plate under them.
+  const plate = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.02, 0.34), black)
+  plate.position.y = 0.01
+  group.add(plate)
+  const mast = 0.42
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2
+    const leg = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.012, 0.012, 0.3, 5),
+      metal
+    )
+    leg.position.set(Math.cos(a) * 0.08, 0.13, Math.sin(a) * 0.08)
+    leg.rotation.set(Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5)
+    group.add(leg)
+  }
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.02, 0.02, mast, 6),
+    metal
+  )
+  pole.position.y = mast / 2
+  group.add(pole)
+
+  // The dish on its yoke at the mast's head, a shallow paraboloid facing
+  // up and out, the feed horn at its focus.
+  const head = new THREE.Group()
+  head.position.y = mast
+  head.rotation.set(-0.75, 0.6, 0)
+  group.add(head)
+  const radius = 0.34
+  const focal = 0.22
+  const rim: THREE.Vector2[] = []
+  for (let i = 0; i <= 6; i++) {
+    const r = (i / 6) * radius
+    rim.push(new THREE.Vector2(r, (r * r) / (4 * focal)))
+  }
+  const dish = new THREE.Mesh(new THREE.LatheGeometry(rim, 14), grey)
+  dish.rotation.x = Math.PI / 2
+  dish.position.z = 0.04
+  head.add(dish)
+  const hub = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.05, 0.06, 8),
+    metal
+  )
+  hub.rotation.x = Math.PI / 2
+  head.add(hub)
+  const horn = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.025, 0.04, 0.08, 6),
+    black
+  )
+  horn.rotation.x = Math.PI / 2
+  horn.position.z = 0.04 + focal
+  head.add(horn)
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 + Math.PI / 2
+    const from = new THREE.Vector3(
+      Math.cos(a) * radius * 0.92,
+      Math.sin(a) * radius * 0.92,
+      0.04 + (radius * radius) / (4 * focal)
+    )
+    const to = new THREE.Vector3(0, 0, 0.04 + focal)
+    const length = from.distanceTo(to)
+    const strut = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.006, 0.006, length, 4),
+      metal
+    )
+    strut.position.copy(from).add(to).multiplyScalar(0.5)
+    strut.quaternion.setFromUnitVectors(
+      new THREE.Vector3(0, 1, 0),
+      to.clone().sub(from).normalize()
+    )
+    head.add(strut)
+  }
+
+  mergeStatic(group)
+  castShadows(group)
+  return { group, socket: new THREE.Vector3(0.05, 0.04, 0) }
+}
+
+// A cable laid through `points` (a black rubber run, sagging where the
+// points let it), as Tyler's runs from the dish to the laptop.
+export function buildCable(points: readonly THREE.Vector3[]): THREE.Mesh {
+  const curve = new THREE.CatmullRomCurve3([...points])
+  const cable = new THREE.Mesh(
+    new THREE.TubeGeometry(curve, points.length * 10, 0.009, 4),
+    lambert({ color: '#121214' })
+  )
+  cable.name = 'dish-cable'
+  return cable
+}

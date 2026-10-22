@@ -15,21 +15,9 @@ test('Tab opens the pack, a number key assigns, the hotbar uses and is kept', as
   const marlboros = () =>
     page.evaluate(() => window.__bv?.inventory.marlboro ?? 0)
 
-  // Esc is the browser's and only frees the pointer to a light pause; Q
-  // opens the pause overlay, and its Click to Die goes back in.
-  const intro = page.locator('.bv-intro')
-  await expect(intro).toBeHidden()
-  await page.keyboard.press('KeyQ')
-  await expect(intro).toBeVisible()
-  await expect(page.locator('.bv-break')).toBeHidden()
-  await page.getByRole('button', { name: copy('hud.begin_play') }).click()
-  await expect(intro).toBeHidden()
-  await expect
-    .poll(() => page.evaluate(() => window.__bv?.player.locked))
-    .toBe(true)
-
-  // A new account's bar is empty, so none shows.
-  await expect(slots).toHaveCount(0)
+  // A new account's bar holds the kit every raider carries: the
+  // flashlight on 1 and the phone on 2.
+  await expect(slots).toHaveCount(2)
   await page.keyboard.press('Tab')
   await expect(open).toHaveCount(1)
   await expect(card).toBeHidden()
@@ -62,8 +50,12 @@ test('Tab opens the pack, a number key assigns, the hotbar uses and is kept', as
   await page.keyboard.press('Digit3')
   await saved
   await expect.poll(async () => (await hotbar())?.[2]).toBe('marlboro')
-  await expect(slots).toHaveCount(1)
-  await expect(slots.locator('.bv-hot-key')).toHaveText('3')
+  // Beside the kit every raider carries, the flashlight on 1 and the
+  // phone on 2.
+  await expect(slots).toHaveCount(3)
+  await expect(
+    page.locator('.bv-hot-slot[data-kind="marlboro"] .bv-hot-key')
+  ).toHaveText('3')
 
   // Closing locks the pointer again, a beat later.
   await page.keyboard.press('Tab')
@@ -72,9 +64,15 @@ test('Tab opens the pack, a number key assigns, the hotbar uses and is kept', as
     .poll(() => page.evaluate(() => window.__bv?.player.locked))
     .toBe(true)
 
-  // 3 in the valley smokes one, and says so in the chat.
+  // 3 in the valley puts it in the hand, framed on the bar, and the click
+  // smokes one, and says so in the chat.
   const before = await marlboros()
   await page.keyboard.press('Digit3')
+  await expect(
+    page.locator('.bv-hot-slot[data-kind="marlboro"]')
+  ).toHaveAttribute('aria-current', 'true')
+  expect(await marlboros()).toBe(before)
+  await page.evaluate(() => window.__bv?.useHand())
   await expect.poll(marlboros).toBe(before - 1)
   // The right hand brings the pack up.
   expect(await page.evaluate(() => window.__bv?.using?.kind)).toBe('marlboro')
@@ -107,7 +105,7 @@ test('Tab opens the pack, a number key assigns, the hotbar uses and is kept', as
     .poll(() => page.evaluate(() => !!window.__bv), { timeout: 30_000 })
     .toBe(true)
   await expect.poll(async () => (await hotbar())?.[2]).toBe('marlboro')
-  await expect(slots).toHaveCount(1)
+  await expect(slots).toHaveCount(3)
 
   // In the pack, 3 over nothing empties the slot, as for a kind run out.
   await page.locator('[data-bv="begin"]').click()
@@ -124,7 +122,8 @@ test('Tab opens the pack, a number key assigns, the hotbar uses and is kept', as
   await page.keyboard.press('Digit3')
   await cleared
   await expect.poll(async () => (await hotbar())?.[2]).toBeNull()
-  await expect(slots).toHaveCount(0)
+  // The kit stays, and the hand (back on 1 after the reload) with it.
+  await expect(slots).toHaveCount(2)
 })
 
 test('the mouse selects, uses, drags to the hotbar and opens a menu; a spent kind leaves the bar', async ({

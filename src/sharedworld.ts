@@ -344,8 +344,18 @@
 //    action); the valley keeps only the points inside the survey, and
 //    every socket on the account hears the list it kept. The compass and
 //    the pillars they draw are the client's.
+// 38. The kit (items.ts, held.ts): every account carries the flashlight
+//    and the Citgo phone from its first welcome (items.ts `start`), and
+//    Matthew Marx gives it his whistle the first time it meets him (rule
+//    20: the Book of Shadows' `marx`), once. giftsOwed reads what is owed
+//    off the pack, the locker and the book, so an account that met him
+//    before the whistle was a thing is given it at its next welcome. All
+//    three are key items: kept through a death (rule 18), never dropped
+//    or passed. A whistle (`call`) needs the whistle in the pack, and a
+//    portal (`open-portal`, rule 28) the phone (ValleyContext.holdings
+//    in, as the valley just read them).
 
-import { bountyOf } from './book.ts'
+import { bountyOf, GIFTS } from './book.ts'
 import { dosed, inPassReach, scaled, sobered, wardsOf } from './buffs.ts'
 import { heartPoint, theMaze } from './caretaker.ts'
 import { citgoAt, findPhone, NO_CITGOS, visit } from './citgos.ts'
@@ -848,8 +858,9 @@ export interface ValleyContext {
   // For a buy, or a fall: the account's wallet in cents, as the valley
   // just read it.
   cash?: number
-  // For a trade, a deal, a rod out of the tackle box or a cast: the
-  // raider's pack and cosmetics, as the valley just read them.
+  // For a trade, a deal, a rod out of the tackle box, a cast, a whistle or
+  // a portal: the raider's pack and cosmetics, as the valley just read
+  // them.
   holdings?: { pack: Inventory; cosmetics: readonly CosmeticId[] }
   // For a quest's step: where the account stands on it, and its pack, as
   // the valley just read them.
@@ -1150,6 +1161,27 @@ export function findsPay(
   const cents = bountyOf(found)
   if (cents <= 0) return { cents: 0, xp: [] }
   return { cents, xp: [{ account, source: 'landmark' }] }
+}
+
+// Rule 38: what an account is owed for the entries its book holds, one of
+// each gift neither its pack nor its locker holds.
+export function giftsOwed(
+  pack: Readonly<Inventory>,
+  stash: Readonly<Inventory>,
+  book: readonly string[]
+): Inventory {
+  const owed: Inventory = {}
+  for (const entry of book) {
+    const kind = GIFTS[entry]
+    if (!kind || (pack[kind] ?? 0) > 0 || (stash[kind] ?? 0) > 0) continue
+    owed[kind] = 1
+  }
+  return owed
+}
+
+// Rule 38: whether the pack the valley just read holds `kind`.
+function carries(holdings: ValleyContext['holdings'], kind: string): boolean {
+  return (holdings?.pack[kind] ?? 0) > 0
 }
 
 // Rule 3: whether raider `id` is in Marx's bed, by the valley's own truck.
@@ -1665,7 +1697,7 @@ function onLeave(
 function onTruck(
   valley: Valley,
   action: ActionOf<'board' | 'hop-out' | 'call'>,
-  { now }: ValleyContext
+  { now, holdings }: ValleyContext
 ): Reduced {
   const world = valley.world
   const re = action.type
@@ -1674,6 +1706,10 @@ function onTruck(
       broadcast: [],
       reply: nack(re, 'not-in-valley'),
     })
+  }
+  // Rule 38: no whistle, no call.
+  if (action.type === 'call' && !carries(holdings, 'marx-whistle')) {
+    return done(valley, now, { broadcast: [], reply: nack(re, 'no-whistle') })
   }
   // Where the bed is to climb into: parked at home, or come to a
   // whistle; and a whistle only from where the valley heard the
@@ -3264,14 +3300,15 @@ function onFindPhone(
 function onOpenPortal(
   valley: Valley,
   action: ActionOf<'open-portal'>,
-  { now }: ValleyContext
+  { now, holdings }: ValleyContext
 ): Reduced {
-  // Rule 28.
+  // Rule 28, and rule 38: no phone, no portal.
   const member = valley.members[action.id]
   const world = valley.world
   const refuse = (reason: string): Reduced =>
     done(valley, now, { broadcast: [], reply: nack('portal', reason) })
   if (!member || !world) return refuse('not-in-valley')
+  if (!carries(holdings, 'citgo-phone')) return refuse('no-phone')
   if (isAboard(world.truck, action.id)) return refuse('aboard')
   if (!action.at) return refuse('no-position')
   const station = citgosFor(valley, member.account).last

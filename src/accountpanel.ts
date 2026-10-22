@@ -1,4 +1,4 @@
-// The account panel, opened from the character select or the pause
+// The account panel, opened from the character select or the menu
 // overlay: who you are, the providers that sign you in, Link Another
 // Account, and Sign Out. A black overlay over everything, mounted on open
 // and removed on close.

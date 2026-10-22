@@ -3,9 +3,11 @@ import {
   actionOf,
   BOOK,
   CHAT,
+  DIALOG,
   FISHING,
   hotbarSlot,
   isHeld,
+  MAP,
   MOVE,
   moveAxis,
   PACK,
@@ -61,20 +63,48 @@ describe('BOOK', () => {
   })
 })
 
+describe('Esc', () => {
+  // Esc frees the pointer and nothing else: no table closes on it.
+  it('is bound nowhere', () => {
+    for (const table of [...tables.map(([, t]) => t), MAP, DIALOG]) {
+      expect(actionOf(table, 'Escape')).toBeNull()
+    }
+  })
+
+  it('closes each panel on the key that opens it', () => {
+    expect(PACK.close.codes).toEqual([...WORLD.inventory.codes])
+    expect(MAP.close.codes).toEqual([...WORLD.map.codes])
+    expect(DIALOG.close.codes).toEqual([...WORLD.interact.codes])
+  })
+})
+
 describe('WORLD', () => {
   it('leaves the mouse and Esc to the browser', () => {
     expect(WORLD.look.codes).toEqual([])
-    expect(WORLD.useHeld.codes).toEqual([])
+    expect(WORLD.use.codes).toEqual([])
     expect(FISHING.reel.codes).toEqual([])
-    expect(WORLD.pause.codes).toEqual([])
+    expect(WORLD.menu.codes).toEqual([])
   })
 
   it('moves on the four MOVE keys', () => {
     expect([...WORLD.move.codes].sort()).toEqual(Object.values(MOVE).sort())
   })
 
-  it('fires the hotbar on the same keys the pack assigns with', () => {
+  it('selects the hand on the same keys the pack assigns with', () => {
     expect(PACK.assign.codes).toEqual(WORLD.hotbar.codes)
+  })
+
+  it('opens the chat on Enter or T', () => {
+    expect(actionOf(WORLD, 'Enter')).toBe('chat')
+    expect(actionOf(WORLD, 'KeyT')).toBe('chat')
+  })
+
+  it('jumps on Space', () => {
+    expect(actionOf(WORLD, 'Space')).toBe('jump')
+  })
+
+  it('drops what the hand holds on Q', () => {
+    expect(actionOf(WORLD, 'KeyQ')).toBe('drop')
   })
 })
 
@@ -86,11 +116,11 @@ describe('PACK', () => {
     expect(actionOf(PACK, 'Digit0')).toBeNull()
   })
 
-  it('uses on E or Enter and closes on Tab or Esc', () => {
+  it('uses on E or Enter and closes on Tab alone', () => {
     expect(actionOf(PACK, 'KeyE')).toBe('use')
     expect(actionOf(PACK, 'Enter')).toBe('use')
     expect(actionOf(PACK, 'Tab')).toBe('close')
-    expect(actionOf(PACK, 'Escape')).toBe('close')
+    expect(actionOf(PACK, 'Escape')).toBeNull()
   })
 
   it('drops on X, and Shift+X is only its label', () => {

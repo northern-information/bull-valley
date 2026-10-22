@@ -21,7 +21,7 @@ const typeLine = async (page: Page, text: string) => {
 
 // A closed dialog takes the pointer back before the keys play again.
 const closeCard = async (page: Page) => {
-  await page.keyboard.press('Escape')
+  await page.keyboard.press('KeyE')
   await expect
     .poll(() => page.evaluate(() => window.__bv?.player.locked))
     .toBe(true)

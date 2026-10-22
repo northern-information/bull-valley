@@ -308,7 +308,7 @@ export class Peers {
       // The flashlight up and on, or the jar or the rod held out in its
       // place, whatever the legs are doing.
       this.hold(puppet, at.held ?? null)
-      if (at.light || at.held) {
+      if (at.held !== 'none' && (at.light || at.held)) {
         applyJoints(puppet.figure, flashlightArm(at.pitch))
       }
       puppet.flashlight.setOn(at.light && !at.held)
@@ -348,7 +348,8 @@ export class Peers {
   }
 
   // What a peer's left fist holds: the flashlight, or the jar or a rod in
-  // its place. Which rod is not sent; every peer's is the box's.
+  // its place, or nothing in sight ('none'). Which rod is not sent; every
+  // peer's is the box's.
   private hold(puppet: Puppet, held: HeldWire | null): void {
     puppet.flashlight.group.visible = held === null
     if ((puppet.held?.kind ?? null) === held) return
@@ -357,7 +358,7 @@ export class Peers {
       disposeTree(puppet.held.object)
     }
     puppet.held = null
-    if (!held) return
+    if (!held || held === 'none') return
     const object = held === 'jar' ? buildHeldJar(1) : buildHeldRod(BOX_ROD, 1)
     puppet.figure.fists.L.add(object)
     puppet.held = { kind: held, object }

@@ -4,6 +4,8 @@
 // drop was theirs, where they sit in the bed, and what the truck is up to.
 // No three.js, no DOM.
 
+import { GIFTS } from './book.ts'
+import { useOf } from './held.ts'
 import type { Leg, TruckState } from './marx.ts'
 import type { Portal } from './portals.ts'
 import type { WorldMessage, WorldWire } from './protocol.ts'
@@ -174,4 +176,32 @@ export function portalNews(
     mine: standing ? myPortal : null,
     closed: myPortal !== null && !standing,
   }
+}
+
+// Rule 38: the gifts a pack frame brought, kinds the valley gives for a
+// first meeting (Marx's whistle) that the pack held none of before and
+// holds now.
+export function giftsIn(
+  before: Readonly<Record<string, number>>,
+  after: Readonly<Record<string, number>>
+): string[] {
+  return Object.values(GIFTS).filter(
+    (kind) => (before[kind] ?? 0) <= 0 && (after[kind] ?? 0) > 0
+  )
+}
+
+// What a pack frame brought that the hand has a use of its own for (the
+// flashlight, the jar, a rod, the phone, the whistle; held.ts useOf), and
+// the pack held none of before: each goes onto the bar, as Minecraft puts
+// what is picked up there.
+export function toolsIn(
+  before: Readonly<Record<string, number>>,
+  after: Readonly<Record<string, number>>
+): string[] {
+  return Object.keys(after).filter(
+    (kind) =>
+      (before[kind] ?? 0) <= 0 &&
+      (after[kind] ?? 0) > 0 &&
+      useOf(kind, false) !== null
+  )
 }

@@ -567,6 +567,25 @@ export const ITEMS = [
     category: 'key-item',
     start: 0,
   },
+  // What every raider carries (sharedworld.ts rule 38): the flashlight and
+  // the Citgo phone from the first welcome, and Matthew Marx's whistle
+  // from the first time the account meets him. Each sits on the hotbar
+  // and is used from the hand (held.ts) as anything else is.
+  {
+    id: 'flashlight',
+    category: 'key-item',
+    start: 1,
+  },
+  {
+    id: 'citgo-phone',
+    category: 'key-item',
+    start: 1,
+  },
+  {
+    id: 'marx-whistle',
+    category: 'key-item',
+    start: 0,
+  },
   // Erwin von Dutch's jar (dealer.ts): a slurm goes in it alive. Each one
   // carried holds CONFIG.fishing.jar.holds of them.
   {

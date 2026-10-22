@@ -44,7 +44,7 @@ import type { Waypoints } from './waypoints.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 48
+export const PROTOCOL_VERSION = 49
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -115,7 +115,9 @@ export interface PeerStateWire {
   held?: HeldWire
 }
 
-export type HeldWire = 'jar' | 'rod'
+// 'none': the hand holds something out of sight (the phone, the whistle,
+// a pack of cigarettes), or nothing (held.ts toolOf).
+export type HeldWire = 'jar' | 'rod' | 'none'
 
 // A player as the server knows them. `at` is null until their first state
 // frame; a figure is only drawn once it is placed. cosmetics: what they
@@ -1624,7 +1626,7 @@ export function parsePeerState(value: unknown): PeerStateWire | null {
   if (typeof riding !== 'boolean') return null
   if (typeof light !== 'boolean') return null
   if (held === undefined) return { x, y, z, yaw, pitch, pose, riding, light }
-  if (held !== 'jar' && held !== 'rod') return null
+  if (held !== 'jar' && held !== 'rod' && held !== 'none') return null
   return { x, y, z, yaw, pitch, pose, riding, light, held }
 }
 

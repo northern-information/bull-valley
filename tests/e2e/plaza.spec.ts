@@ -69,7 +69,7 @@ test('Erwin barters, the rose earns the key, the key opens the office', async ({
   await expect(dialog).toContainText(copy('quests.rose_offer'))
   await dialog.locator('[data-bv="deal-quest-go"]').click()
   await expect.poll(() => held(page, 'rose')).toBe(1)
-  await page.keyboard.press('Escape')
+  await page.keyboard.press('KeyE')
   await expect(dialog).toBeHidden()
 
   // Laid at the heart of the maze, the Caretaker parked at the maze's far
@@ -99,7 +99,7 @@ test('Erwin barters, the rose earns the key, the key opens the office', async ({
   await expect(dialog).toContainText(copy('quests.rose_laid'))
   await dialog.locator('[data-bv="deal-quest-go"]').click()
   await expect.poll(() => held(page, 'vault-key')).toBe(1)
-  await page.keyboard.press('Escape')
+  await page.keyboard.press('KeyE')
   expect(await doorStops(page)).toBe(false)
 
   // The $20 in the safe, taken up, goes into the wallet.

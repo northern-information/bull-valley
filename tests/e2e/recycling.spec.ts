@@ -60,6 +60,6 @@ test('a drink leaves its can, and the wreck turns empties into loose change', as
   await expect(
     dialog.locator('[data-line="dimes"] [data-bv="recycle-buy"]')
   ).toBeDisabled()
-  await page.keyboard.press('Escape')
+  await page.keyboard.press('KeyE')
   await expect(dialog).toBeHidden()
 })

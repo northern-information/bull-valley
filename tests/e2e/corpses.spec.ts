@@ -1,5 +1,6 @@
 import { spilledDimes } from '../../src/corpses.ts'
 import { DIME_CENTS } from '../../src/drops.ts'
+import { isKeyItem } from '../../src/items.ts'
 import { formatCash } from '../../src/store.ts'
 import { copy } from './copy.ts'
 import { beginRaid, expect, heardWhere, onLastPoint, test } from './fixtures.ts'
@@ -15,7 +16,7 @@ const held = (page: Page) =>
 // Everything but the key items, which a strike leaves in the pack.
 const carrying = async (page: Page) =>
   Object.entries(await held(page))
-    .filter(([kind]) => kind !== 'vault-key')
+    .filter(([kind]) => !isKeyItem(kind))
     .reduce((sum, [, n]) => sum + n, 0)
 
 // Out of the forecourt haven on the last point of health, then a

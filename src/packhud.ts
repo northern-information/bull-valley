@@ -728,11 +728,13 @@ export class PackHud {
   // The loop calls this every frame. The slots are rebuilt only when what
   // they hold changes; the cooldown sweeps are touched only when they move.
   // With the pack open every slot shows, the empty ones too, so an item
-  // can be dragged onto any of them.
-  setHotbar(slots: HotbarSlotView[]): void {
+  // can be dragged onto any of them. The slot the hand holds (`selected`,
+  // held.ts) is framed, and shows even empty, so the hand is always found.
+  setHotbar(slots: HotbarSlotView[], selected: number): void {
     const open = !this.bag.hidden
     const key = [
       open ? 'open' : 'shut',
+      `hand:${selected}`,
       ...slots.map(
         ({ slot, item }) => `${slot}:${item.kind}:${item.stock}:${item.left}`
       ),
@@ -742,7 +744,9 @@ export class PackHud {
       const views = new Map(slots.map((view) => [view.slot, view]))
       const shown = open
         ? Array.from({ length: HOTBAR_SLOTS }, (_, slot) => slot)
-        : slots.map(({ slot }) => slot)
+        : Array.from({ length: HOTBAR_SLOTS }, (_, slot) => slot).filter(
+            (slot) => slot === selected || views.has(slot)
+          )
       const lis: HTMLLIElement[] = []
       this.hotbarSlots = []
       for (const slot of shown) {
@@ -750,6 +754,7 @@ export class PackHud {
         if (!view) {
           const li = el('li', 'bv-hot-slot bv-hot-slot--empty')
           li.dataset.slot = String(slot)
+          held(li, slot === selected)
           li.setAttribute(
             'aria-label',
             `${slot + 1}: ${copy('inventory.hotbar_empty')}`
@@ -762,6 +767,7 @@ export class PackHud {
         const li = el('li', 'bv-hot-slot')
         li.dataset.slot = String(slot)
         li.dataset.kind = item.kind
+        held(li, slot === selected)
         li.classList.toggle('bv-hot-slot--out', item.stock < 1)
         li.setAttribute(
           'aria-label',
@@ -798,4 +804,11 @@ export class PackHud {
       shown.cd.textContent = cooldown ? String(cooldown.seconds) : ''
     })
   }
+}
+
+// Frames the slot the hand holds (held.ts), and says so to a screen
+// reader.
+function held(li: HTMLLIElement, on: boolean): void {
+  li.classList.toggle('bv-hot-slot--held', on)
+  if (on) li.setAttribute('aria-current', 'true')
 }

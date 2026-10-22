@@ -251,6 +251,12 @@ export const BOUNTIES: Readonly<Record<string, number>> = {
   keep: CONFIG.bounties.keep,
 }
 
+// What an entry gives the first time it is found, and keeps given
+// (sharedworld.ts rule 38): Marx's whistle, for meeting Marx.
+export const GIFTS: Readonly<Record<string, string>> = {
+  marx: 'marx-whistle',
+}
+
 export function bountyOf(found: readonly string[]): number {
   return found.reduce((sum, id) => sum + (BOUNTIES[id] ?? 0), 0)
 }

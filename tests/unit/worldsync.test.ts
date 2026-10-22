@@ -5,11 +5,13 @@ import {
   charterable,
   clockText,
   countdown,
+  giftsIn,
   newLeg,
   portalNews,
   reconcileBed,
   seatOf,
   settledBy,
+  toolsIn,
 } from '../../src/worldsync.ts'
 import type { Leg } from '../../src/marx.ts'
 import type { Portal } from '../../src/portals.ts'
@@ -297,5 +299,31 @@ describe('Citgo portals', () => {
     expect(portalNews({ reason: 'joined' }, withPortals(), 'me', null)).toEqual(
       { opened: null, mine: null, closed: false }
     )
+  })
+})
+
+describe('gifts', () => {
+  it('says a gift the pack did not hold before and holds now', () => {
+    expect(giftsIn({}, { 'marx-whistle': 1 })).toEqual(['marx-whistle'])
+    expect(giftsIn({ 'marx-whistle': 0 }, { 'marx-whistle': 1 })).toEqual([
+      'marx-whistle',
+    ])
+    // Held already, or still not held, is no news; nor is anything else.
+    expect(giftsIn({ 'marx-whistle': 1 }, { 'marx-whistle': 1 })).toEqual([])
+    expect(giftsIn({}, { marlboro: 20 })).toEqual([])
+  })
+})
+
+describe('tools', () => {
+  it('puts on the bar what the hand has a use for, newly in the pack', () => {
+    expect(toolsIn({}, { 'fishing-rod': 1, nightcrawlers: 6 })).toEqual([
+      'fishing-rod',
+    ])
+    expect(toolsIn({ 'slurm-jar': 0 }, { 'slurm-jar': 1 })).toEqual([
+      'slurm-jar',
+    ])
+    // Carried already, a pack of cigarettes, or nothing new: none.
+    expect(toolsIn({ 'zebco-33': 1 }, { 'zebco-33': 1 })).toEqual([])
+    expect(toolsIn({}, { marlboro: 20 })).toEqual([])
   })
 })
