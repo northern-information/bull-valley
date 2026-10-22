@@ -16,8 +16,12 @@ import type { Page } from '@playwright/test'
 // round trip lands back past the colophon, on Choose Your Username, behind
 // the magic word, and then on the menu with Die.
 
+// A titles button by its words, never the menu overlay's own Settings
+// waiting under the titles (hud.ts, data-bv="overlay-…").
 const menuButton = (page: Page, key: string) =>
-  page.getByRole('button', { name: copy(key), exact: true })
+  page
+    .getByRole('button', { name: copy(key), exact: true })
+    .and(page.locator(':not([data-bv^="overlay-"])'))
 
 // Colophon, then the menu, then Create Account to the sign-in face.
 async function toSignIn(page: Page): Promise<void> {

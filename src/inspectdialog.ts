@@ -19,7 +19,7 @@ import {
   friendButton,
   partyButton,
 } from './inspect.ts'
-import { npcFooter, npcHeader, sectionHead } from './npcdialog.ts'
+import { closesDialog, npcFooter, npcHeader, sectionHead } from './npcdialog.ts'
 import type { InspectWire } from './protocol.ts'
 
 interface InspectDialogOptions {
@@ -153,7 +153,7 @@ export function openInspectDialog(
 
   return new Promise<void>((resolve) => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code !== 'Escape') return
+      if (!closesDialog(e)) return
       e.preventDefault()
       close()
     }

@@ -16,8 +16,9 @@
 # provider names (Google, Discord, GitHub), the Akashic dev page, and the
 # words painted on packs, cans, medicine and the Citgo signs.
 
-# The intro card, which is also the pause card on Esc (src/hud.ts). The
-# note keeps its line breaks.
+# The intro card, which is also the menu on Esc (src/hud.ts): one face at
+# a time, the intro's before the first Begin, then the menu's list and the
+# faces it opens ([overlay]). The valley is live and plays on under it. The note keeps its line breaks.
 
 [intro]
 title = { text = "BULL VALLEY SHADOW WARS", by = "tyler" }
@@ -35,6 +36,15 @@ raider = { text = "Raider", by = "ai" }
 account = { text = "Account", by = "ai" }
 sign_out = { text = "Sign Out", by = "ai" }
 
+# The menu's list on the overlay (src/hud.ts), and the Back on the faces
+# it opens. Nothing pauses: the valley plays on under it.
+
+[overlay]
+label = { text = "Menu", by = "ai" }
+controls = { text = "Controls", by = "ai" }
+settings = { text = "Settings", by = "ai" }
+back = { text = "Back", by = "ai" }
+
 # The rest of the HUD (src/hud.ts): the Begin button's states, the static
 # when geometrie shatters, and labels read by screen readers.
 
@@ -45,7 +55,6 @@ begin_reconnecting = { text = "Reconnecting…", by = "ai" }
 begin_lost = { text = "Back to the Menu", by = "ai" }
 begin_play = { text = "Click to Die", by = "ai" }
 begin_failed = { text = "The Valley Will Not Resolve", by = "ai" }
-break = { text = "Click to Die · {key} for the Menu", by = "ai" }
 geometrie_shattered = { text = "GEOMETRIE SHATTERED", by = "ai" }
 countdown_label = { text = "Truck leaves in", by = "ai" }
 chat_log_label = { text = "Chat", by = "ai" }
@@ -287,7 +296,7 @@ lore = { text = "A burning skeleton in a red trench coat, his back to his burnin
 lore = { text = "Sleeps behind the Golden Wok's boards with his candles and his chalk. Takes no cash: he barters for what the Citgo sells, at a little under its price. He has a rose that wants to go somewhere.", by = "ai" }
 
 [book.tyler]
-lore = { text = "Sits cross-legged in the back of a red Jeep Wrangler beside Moab, hunched over a laptop with the hatch up. Whatever he is tuning in, it is not ready yet.", by = "ai" }
+lore = { text = "Sits cross-legged in the back of a red Jeep Wrangler beside Moab, hunched over a laptop with the hatch up, a portable radar dish on the roof cabled down to it. He helps run the Citgo portals. Whatever else he is tuning in, it is not ready yet.", by = "ai" }
 
 # Erwin von Dutch, the squatter in Bull Valley Plaza (src/dealer.ts,
 # src/dealdialog.ts), and his quest (src/quests.ts).
@@ -392,6 +401,8 @@ task_reward = { text = "Daily task done: {goal} shadowmen burned. {cash} into yo
 season_reward = { text = "Season One complete. {cash} and a carton of Marlboro Reds are in your pack.", by = "ai" }
 whistle = { text = "You whistle into the dark. An engine turns over, far off.", by = "ai" }
 whistle_nothing = { text = "You whistle into the dark. Nothing turns over.", by = "ai" }
+whistle_given = { text = "Matthew Marx gives you his whistle. It is on your hotbar.", by = "ai" }
+no_whistle = { text = "You have nothing to whistle with. Talk to Marx at his truck.", by = "ai" }
 whistle_other = { text = "Far off, an engine turns over. Someone whistled.", by = "ai" }
 truck_busy = { text = "Marx is already on a call.", by = "ai" }
 taken = { text = "Taken: {item}", by = "ai" }
@@ -493,6 +504,7 @@ portal_no_citgo = { text = "No Citgo to call yet. Stand on a forecourt first.", 
 portal_busy = { text = "Every line to that Citgo is busy.", by = "ai" }
 portal_refused = { text = "The call drops.", by = "ai" }
 portal_hung_up = { text = "You hang up.", by = "ai" }
+portal_no_phone = { text = "You have no phone to dial with.", by = "ai" }
 citgo_visited = { text = "You found {citgo}. It is on your map.", by = "ai" }
 citgo_bounty = { text = "You found {citgo}. It is on your map. {cash} for the find.", by = "ai" }
 payphone_found = { text = "The payphone still has a dial tone. It is on your map: fast travel leaves from it and comes back to it.", by = "ai" }
@@ -529,7 +541,7 @@ last = { text = "Last Citgo: {citgo}. Your portal goes there.", by = "ai" }
 none = { text = "No Citgo yet. Stand on a forecourt.", by = "ai" }
 hint = { text = "Click a visited Citgo or a found payphone to fast travel, anywhere else to pin a waypoint.", by = "ai" }
 hint_away = { text = "Fast travel leaves from a Citgo forecourt or a found payphone. Click anywhere to pin a waypoint.", by = "ai" }
-hint_charter = { text = "Click where Marx should take you. Esc for the long way, E to hop out.", by = "ai" }
+hint_charter = { text = "Click where Marx should take you. M for the long way, E to hop out.", by = "ai" }
 somewhere = { text = "the middle of nowhere", by = "ai" }
 citgo = { text = "Citgo on {road}", by = "ai" }
 citgo_unnamed = { text = "Citgo #{n}", by = "ai" }
@@ -824,23 +836,21 @@ credit = { text = "2008-2026 AD Northern Information", by = "ai" }
 move = { text = "Move", by = "ai" }
 sprint = { text = "Sprint", by = "ai" }
 look = { text = "Look", by = "ai" }
-use_held = { text = "Flashlight, Jar or Rod", by = "ai" }
-held = { text = "Switch Hand", by = "ai" }
 crouch = { text = "Crouch", by = "ai" }
-phone = { text = "Citgo Portal", by = "ai" }
+jump = { text = "Jump", by = "ai" }
 map = { text = "Map", by = "ai" }
 inventory = { text = "Inventory", by = "ai" }
 book = { text = "Book of Shadows", by = "ai" }
 interact = { text = "Interact", by = "ai" }
-call_truck = { text = "Call the Truck", by = "ai" }
-pass = { text = "Pass It", by = "ai" }
+pass = { text = "Pass What You Hold", by = "ai" }
+select = { text = "Select What You Hold", by = "ai" }
+use_hand = { text = "Use What You Hold", by = "ai" }
 pass_item = { text = "Pass to a Raider", by = "ai" }
-hotbar = { text = "Use Hotbar Item", by = "ai" }
 chat = { text = "Chat", by = "ai" }
 chat_scroll_up = { text = "Scroll Up", by = "ai" }
 chat_scroll_down = { text = "Scroll Down", by = "ai" }
-pause = { text = "Pause", by = "ai" }
 menu = { text = "Menu", by = "ai" }
+controls = { text = "Controls", by = "ai" }
 use = { text = "Use", by = "ai" }
 assign = { text = "Assign", by = "ai" }
 clear_slot = { text = "Clear Slot", by = "ai" }
@@ -960,6 +970,7 @@ terry = { text = "Terry", by = "ai" }
 # The texts keep their line breaks.
 
 [marx]
+whistle_gift = { text = "\"Here. It was my father's. Blow it, and I'll come to you.\"", by = "ai" }
 stanza_1 = { text = """
 O, whistle, and I'll come to you, my lad;
   O, whistle, and I'll come to you, my lad;
@@ -1430,6 +1441,18 @@ blurb = { text = "Six feet of fiberglass and a spinning reel, out of the tackle 
 [items.slurm]
 label = { text = "Slurm", by = "ai" }
 blurb = { text = "A black slug off a Citgo's dripline, caught alive before Carlsten's bat found it. It keeps baring its tooth. The shadow carp will take nothing else.", by = "ai" }
+
+[items.flashlight]
+label = { text = "Flashlight", by = "ai" }
+blurb = { text = "A yellow plastic two-cell flashlight. Lit, its beam burns shadows. Select it and click to light it or put it out.", by = "ai" }
+
+[items.citgo-phone]
+label = { text = "Citgo Phone", by = "ai" }
+blurb = { text = "A cheap black phone with one number in it. Select it and click to dial a portal to the last Citgo you stood at.", by = "ai" }
+
+[items.marx-whistle]
+label = { text = "Marx's Whistle", by = "ai" }
+blurb = { text = "A dented brass police whistle on a waxed cord, older than the truck. Matthew Marx gave it to you. Select it and click, and he comes.", by = "ai" }
 
 [items.slurm-jar]
 label = { text = "Slurm Jar", by = "ai" }

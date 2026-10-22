@@ -40,6 +40,7 @@ import { ruinsAt } from './crumble.ts'
 import { dayKey } from './daily.ts'
 import { buildDishArray } from './dishes.ts'
 import { buildDrink } from './drinkmodels.ts'
+import { buildTyler } from './figure.ts'
 import { buildFireRoots, buildRaincloud } from './fire.ts'
 import {
   buildBobber,
@@ -52,7 +53,7 @@ import {
 } from './fishmodels.ts'
 import { itemLabel } from './itemcopy.ts'
 import { ITEMS } from './items.ts'
-import { buildJeep } from './jeep.ts'
+import { buildJeep, buildRadarDish } from './jeep.ts'
 import { buildBathLaptop } from './laptopmodel.ts'
 import { README } from './laptopreadme.ts'
 import { buildLookout } from './lookoutmodel.ts'
@@ -440,6 +441,21 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   },
   { id: 'adderall', label: 'Adderall', build: () => buildPickup('adderall') },
   { id: 'rose', label: "Erwin's rose", build: () => buildPickup('rose') },
+  {
+    id: 'flashlight-item',
+    label: 'Flashlight (in the pack)',
+    build: () => buildPickup('flashlight'),
+  },
+  {
+    id: 'citgo-phone',
+    label: 'Citgo phone',
+    build: () => buildPickup('citgo-phone'),
+  },
+  {
+    id: 'marx-whistle',
+    label: "Marx's whistle",
+    build: () => buildPickup('marx-whistle'),
+  },
   ...FISH_LABELS.map(([id, label]) => ({
     id: `fish-${id}`,
     label: `Fish: ${label}`,
@@ -568,6 +584,16 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     id: 'jeep',
     label: "Tyler's red Jeep Wrangler, the back open",
     build: buildJeep,
+  },
+  {
+    id: 'tyler-jeep',
+    label: 'Tyler in his Jeep, the radar dish on the roof cabled to the laptop',
+    build: () => buildTyler().group,
+  },
+  {
+    id: 'radar-dish',
+    label: "Tyler's portable radar dish",
+    build: () => buildRadarDish().group,
   },
   {
     id: 'lookout',

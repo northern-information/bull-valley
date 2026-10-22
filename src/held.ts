@@ -1,14 +1,20 @@
-// Pure: what a raider holds in the left hand, and what the left click does
-// with it. Every raider carries the flashlight; Erwin von Dutch's slurm jar
-// and a rod (the best one in the pack, fishing.ts rodIn) can take its
-// place. One at a time: the click lights the flashlight, catches the slurm
-// the jar is aimed at, or casts the rod (and reels it in). The hand goes
-// out on the state frame so everyone sees what a raider holds, and the
-// valley lets only a raider holding the flashlight burn a shadow with it
-// (shadowstep.ts shadowRaiders). No three.js, no DOM.
+// Pure: what a raider holds, and what the left click does with it. The
+// hotbar is the hand, as Minecraft, Rust and Valheim have it: the number
+// keys and the wheel select a slot, and what is in it is what the raider
+// holds while the pack does. Every ability is a thing in a slot: the
+// flashlight lit or put out, the Citgo phone dialed, Marx's whistle
+// blown, Erwin von Dutch's slurm jar's catch, a rod's cast (and its
+// reel), and anything usable used. One at a time, so holding the
+// flashlight means holding nothing else. The tool the hand shows goes out
+// on the state frame so everyone sees it, and the valley lets only a
+// raider whose flashlight is lit burn a shadow with it (shadowstep.ts
+// shadowRaiders). No three.js, no DOM.
 
-import { BAITS, rodIn } from './fishing.ts'
+import { BAITS, BOX_ROD } from './fishing.ts'
+import { HOTBAR_SLOTS } from './hotbar.ts'
+import { isRod } from './items.ts'
 import type { Bait } from './fishing.ts'
+import type { Hotbar } from './hotbar.ts'
 
 export const TOOLS = ['flashlight', 'jar', 'rod'] as const
 export type Tool = (typeof TOOLS)[number]
@@ -17,39 +23,53 @@ export function isTool(value: unknown): value is Tool {
   return (TOOLS as readonly unknown[]).includes(value)
 }
 
-// What `pack` lets a raider hold, in the order R and the wheel step through them: the
-// flashlight always, the jar while one is carried, a rod while one is.
-export function toolsIn(pack: Readonly<Record<string, number>>): Tool[] {
-  return TOOLS.filter(
-    (hand) =>
-      hand === 'flashlight' ||
-      (hand === 'jar' && (pack['slurm-jar'] ?? 0) > 0) ||
-      (hand === 'rod' && rodIn(pack) !== null)
-  )
+// The tool a kind is in the hand, as the hand rigs draw it and the state
+// frame says it: the flashlight, the jar, or any rod; null for the rest,
+// which the hand holds out of sight.
+export function toolOf(kind: string | null): Tool | null {
+  if (kind === 'flashlight') return 'flashlight'
+  if (kind === 'slurm-jar') return 'jar'
+  if (kind === BOX_ROD || (kind !== null && isRod(kind))) return 'rod'
+  return null
 }
 
-// What the hand holds after R or a turn of the wheel: the next thing
-// carried (`step` -1: the one before), round again past the flashlight.
-export function nextTool(
-  hand: Tool,
-  pack: Readonly<Record<string, number>>,
-  step: 1 | -1 = 1
-): Tool {
-  const carried = toolsIn(pack)
-  const at = carried.indexOf(hand)
-  // Holding what is gone, the first thing carried either way.
-  if (at < 0) return carried[0]
-  return carried[(at + step + carried.length) % carried.length]
+// What the left click does with a kind in hand: light the flashlight (or
+// put it out), catch with the jar, cast or reel the rod, dial the phone,
+// blow the whistle, use anything usable (`usable`, items.ts canUse as the
+// pack reads it), or nothing.
+export type HandUse =
+  'light' | 'catch' | 'cast' | 'dial' | 'whistle' | 'use' | null
+
+export function useOf(kind: string | null, usable: boolean): HandUse {
+  if (kind === null) return null
+  switch (toolOf(kind)) {
+    case 'flashlight':
+      return 'light'
+    case 'jar':
+      return 'catch'
+    case 'rod':
+      return 'cast'
+  }
+  if (kind === 'citgo-phone') return 'dial'
+  if (kind === 'marx-whistle') return 'whistle'
+  return usable ? 'use' : null
 }
 
-// What the hand holds now that the pack is `pack`: the same, or the
-// flashlight once what it held is no longer carried (dropped, left on a
-// body).
-export function toolIn(
-  hand: Tool,
+// What the hand holds: the selected slot's kind while the pack holds one,
+// else nothing.
+export function inHand(
+  bar: Hotbar,
+  slot: number,
   pack: Readonly<Record<string, number>>
-): Tool {
-  return toolsIn(pack).includes(hand) ? hand : 'flashlight'
+): string | null {
+  const kind = bar[slot] ?? null
+  return kind !== null && (pack[kind] ?? 0) > 0 ? kind : null
+}
+
+// The slot a turn of the wheel selects: the next (`step` -1: the one
+// before), round again past either end.
+export function stepSlot(slot: number, step: 1 | -1): number {
+  return (slot + step + HOTBAR_SLOTS) % HOTBAR_SLOTS
 }
 
 // The bait the rod casts with: the one picked at the tackle box while one

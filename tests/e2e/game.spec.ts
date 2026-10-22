@@ -91,9 +91,45 @@ test('Marx does donuts in the field after reading, until whistled', async ({
   await expect
     .poll(truck, { timeout: 30_000 })
     .toEqual({ drifting: true, inField: true })
-  await page.keyboard.press('y')
+  // Marx's whistle (sharedworld.ts rule 38), onto the bar as it comes,
+  // in the hand by its number key, and blown with the click.
+  await page.evaluate(() => window.__bv?.grant('marx-whistle', 1))
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.__bv?.hotbar.indexOf('marx-whistle'))
+    )
+    .toBeGreaterThanOrEqual(0)
+  const slot = await page.evaluate(
+    () => window.__bv?.hotbar.indexOf('marx-whistle') ?? -1
+  )
+  await page.keyboard.press(`Digit${slot + 1}`)
+  await page.evaluate(() => window.__bv?.useHand())
   await expect.poll(() => leg(page)).toBe('called')
   await expect.poll(truck).toMatchObject({ drifting: false })
+})
+
+test('Space jumps, and the feet come back down where they left', async ({
+  page,
+}) => {
+  await beginRaid(page)
+  await page.evaluate(() => window.__bv?.teleport(0.5, 0.5))
+  await heardWhere(page)
+  const feet = () => page.evaluate(() => window.__bv?.player.groundY ?? 0)
+  const ground = await feet()
+  let top = ground
+  await page.keyboard.press('Space')
+  await expect
+    .poll(async () => {
+      top = Math.max(top, await feet())
+      return top - ground
+    })
+    .toBeGreaterThan(0.2)
+  // Down again, and no fall told: a hop is not a hard landing.
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.player.fallFrom ?? null))
+    .toBeNull()
+  expect(Math.abs((await feet()) - ground)).toBeLessThan(0.1)
+  expect(await page.evaluate(() => window.__bv?.strikes)).toBe(0)
 })
 
 test('shadowmen cross the valley', async ({ page }) => {
@@ -122,7 +158,13 @@ test('the phone dials a Citgo portal to the last Citgo and back', async ({
   // Out in the valley, far from any Citgo.
   await page.evaluate(() => window.__bv?.teleport(0.5, 0.5))
   await heardWhere(page)
-  await page.keyboard.press('t')
+  // The phone is on 2 of a new bar: its key puts it in the hand, and the
+  // click dials.
+  await page.keyboard.press('Digit2')
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.inHand))
+    .toBe('citgo-phone')
+  await page.evaluate(() => window.__bv?.useHand())
   await expect(page.locator('.bv-phone')).toHaveClass(/bv-phone--raised/)
   await expect
     .poll(() => page.evaluate(() => window.__bv?.myPortal ?? null), {
@@ -366,7 +408,8 @@ test('the chosen character is the body you raid in, and is remembered', async ({
     .toBe(true)
   expect(await outfit()).toBe('kvistad')
 
-  // The pause overlay opens the account panel.
+  // The menu's Settings opens the account panel.
+  await page.locator('[data-bv="overlay-settings"]').click()
   await page.locator('[data-bv="intro-account"]').click()
   const panel = page.getByRole('dialog', {
     name: copy('panel.title'),

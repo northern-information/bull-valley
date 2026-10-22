@@ -6,7 +6,7 @@
 // wallpaper with the readme, My Documents and Documents and Settings on
 // it, a window to browse every raider's folder, and the taskbar. Anyone's
 // file opens to read; their own open to write, and New Text Document
-// makes another. Esc on the desktop, or Turn Off Computer, gets up and
+// makes another. E on the bare desktop, or Turn Off Computer, gets up and
 // walks away, and the next one to sit down finds the editor and the readme
 // again. The valley keeps the files: the dialog asks with `send` and hears
 // the answers through the screen it hands back. Everything a raider wrote
@@ -22,6 +22,7 @@ import {
   normalizeBody,
   README_ID,
 } from './laptop.ts'
+import { closesDialog } from './npcdialog.ts'
 import type { LaptopFileInfo, LaptopFolder } from './laptop.ts'
 import type { ClientMessage } from './protocol.ts'
 
@@ -594,12 +595,22 @@ export function openLaptopDialog(options: LaptopOptions): {
         save()
         return
       }
-      if (e.code !== 'Escape') return
-      e.preventDefault()
-      if (!editor.hidden) leaveEditor()
-      else if (!startMenu.hidden) startMenu.hidden = true
-      else if (!explorer.hidden) closeExplorer()
-      else close()
+      // Esc is the computer's own key, a step back inside it (the
+      // editor's status line names it); it never gets up from the table.
+      // E does, from the bare desktop, as it closes every dialog.
+      if (e.code === 'Escape') {
+        e.preventDefault()
+        if (!editor.hidden) leaveEditor()
+        else if (!startMenu.hidden) startMenu.hidden = true
+        else if (!explorer.hidden) closeExplorer()
+        return
+      }
+      if (editor.hidden && startMenu.hidden && explorer.hidden) {
+        if (closesDialog(e)) {
+          e.preventDefault()
+          close()
+        }
+      }
     }
     document.addEventListener('keydown', onKey)
     find<HTMLButtonElement>('[data-bv="start-off"]').addEventListener(
