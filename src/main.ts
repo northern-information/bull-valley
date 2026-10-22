@@ -179,6 +179,11 @@ async function boot() {
     roads: mapRoads,
     metres: geo.metres,
     citgos: mapCitgos(world.fuelPoints, mapRoads),
+    phones: world.payphones.map(({ x, z }) => ({
+      x,
+      z,
+      label: copy('map.payphone'),
+    })),
   })
 
   // Sky furniture rides along with the player so it never recedes into fog.
@@ -414,6 +419,7 @@ async function boot() {
     dealer: world.plaza ? world.plaza.dealer.at : null,
     undercroft: world.undercroft?.place ?? null,
     rings: world.rings,
+    payphones: world.payphones.map(({ x, z }) => ({ x, z })),
   })
   wireKeys(game, actions, engagePointer)
 

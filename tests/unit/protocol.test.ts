@@ -55,6 +55,7 @@ const hello = {
   dealer: { x: -10, z: -60 },
   undercroft: { x: -7000, z: -7000, yaw: 0 },
   rings: [0, 1, 2, 3, 4].map((i) => ({ x: i * 100 + 2, z: i + 14 })),
+  payphones: [{ x: 230, z: -60 }],
 }
 
 const parse = (value: unknown) => parseClientMessage(JSON.stringify(value))
@@ -287,6 +288,7 @@ describe('parseClientMessage', () => {
       dealer: _dealer,
       undercroft: _undercroft,
       rings: _rings,
+      payphones: _payphones,
       ...older
     } = hello
     expect(parse({ ...older, v: PROTOCOL_VERSION - 1 })).toEqual({
@@ -304,6 +306,7 @@ describe('parseClientMessage', () => {
       dealer: null,
       undercroft: null,
       rings: [],
+      payphones: [],
     })
     // Any bad one reads as none in an older build, a good map beside them
     // too: the places come all together or not at all.
@@ -336,6 +339,7 @@ describe('parseClientMessage', () => {
       dealer: null,
       undercroft: null,
       rings: [],
+      payphones: [],
     })
     // The current version still requires them all.
     expect(parse({ ...older, v: PROTOCOL_VERSION })).toBeNull()

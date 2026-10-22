@@ -225,7 +225,14 @@
 //    client's: where a raider stands is their own client's word, so the
 //    valley keeps only the log and the portals. An account keeps one
 //    portal open at a time (opening another closes the first), each for
-//    CONFIG.portal.lifeSeconds; the day's turn leaves them.
+//    CONFIG.portal.lifeSeconds; the day's turn leaves them. The valley
+//    keeps every payphone each account has found in the same log
+//    (CitgoLog.phones): a raider on foot whose last state frame put them
+//    within CONFIG.castle.yard.payphone.reach of one the world was opened
+//    with (SharedWorld.payphones) finds it (phoneVisits, a `find-phone`
+//    action). It pays nothing and is never the last Citgo; fast travel
+//    leaves from and comes to a found payphone as it does a visited
+//    Citgo.
 // 29. Bull Valley Dial-Up: a raider may dial in from a phone with no body
 //    in the valley (a `dial` action, Member.dialup). They open no world
 //    and the truck pays them no mind; they never send a state frame, so
@@ -341,7 +348,7 @@
 import { bountyOf } from './book.ts'
 import { dosed, inPassReach, scaled, sobered, wardsOf } from './buffs.ts'
 import { heartPoint, theMaze } from './caretaker.ts'
-import { citgoAt, NO_CITGOS, visit } from './citgos.ts'
+import { citgoAt, findPhone, NO_CITGOS, visit } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { insideRing } from './coords.ts'
 import { corpseWire, isEmpty, keysOff, spilledDimes } from './corpses.ts'
@@ -559,6 +566,8 @@ interface SharedWorld {
   rings: XZ[]
   portals: ValleyPortal[]
   nextPortal: number
+  // Rule 28: where each payphone stands.
+  payphones: XZ[]
 }
 
 interface ValleyPortal extends Portal {
@@ -652,6 +661,7 @@ export type ValleyAction =
       dealer: XZ | null
       undercroft: MazePlace | null
       rings: XZ[]
+      payphones: XZ[]
       // Rule 24: the account's level, read from D1 (1 when absent).
       level?: number
     }
@@ -817,8 +827,10 @@ export type ValleyAction =
   | { type: 'invite'; id: string; name: string }
   | { type: 'party-leave'; id: string }
   | { type: 'party-drop'; account: string }
-  // Rule 28: the raider stands at Citgo `station`; a Citgo portal opened.
+  // Rule 28: the raider stands at Citgo `station`, or at payphone `phone`;
+  // a Citgo portal opened.
   | { type: 'visit'; id: string; station: number }
+  | { type: 'find-phone'; id: string; phone: number }
   | { type: 'open-portal'; id: string; at: Facing | null }
   // Rule 37: the raider's waypoints, all of them.
   | { type: 'mark'; id: string; points: readonly XZ[] }
@@ -1462,6 +1474,8 @@ function act(
       return onPartyDrop(valley, action, context)
     case 'visit':
       return onVisit(valley, action, context)
+    case 'find-phone':
+      return onFindPhone(valley, action, context)
     case 'open-portal':
       return onOpenPortal(valley, action, context)
     case 'mark':
@@ -1515,6 +1529,7 @@ function onJoin(
       rings: action.rings,
       portals: [],
       nextPortal: 0,
+      payphones: action.payphones,
     }
   } else if (
     !samePickups(world.pickups, action.pickups) ||
@@ -3220,6 +3235,30 @@ function onMark(
     ? valley
     : { ...valley, waypoints: { ...valley.waypoints, [account]: points } }
   return done(kept, now, { broadcast: [], waypoints: { account, points } })
+}
+
+function onFindPhone(
+  valley: Valley,
+  action: ActionOf<'find-phone'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rule 28.
+  const member = valley.members[action.id]
+  const world = valley.world
+  const nothing = () => done(valley, now, { broadcast: [] })
+  if (!member || !world || !Number.isInteger(action.phone)) return nothing()
+  if (action.phone < 0 || action.phone >= world.payphones.length) {
+    return nothing()
+  }
+  const { account } = member
+  const before = citgosFor(valley, account)
+  const log = findPhone(before, action.phone)
+  if (log === before) return nothing()
+  return done(
+    { ...valley, citgos: { ...valley.citgos, [account]: log } },
+    now,
+    { broadcast: [], citgos: { account, log } }
+  )
 }
 
 function onOpenPortal(

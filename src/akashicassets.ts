@@ -12,6 +12,7 @@ import { buildCabbageStand, buildStandDressing } from './cabbagestandmodel.ts'
 import { buildCaretaker } from './caretakermodel.ts'
 import { castleOf, FORM_KINDS } from './castle.ts'
 import { buildCastle } from './castlemodel.ts'
+import { CLUTTER_KINDS } from './castleyard.ts'
 import {
   adSignPart,
   buildLockerDoors,
@@ -60,6 +61,7 @@ import { buildMedicine } from './medicinemodels.ts'
 import { fireEscapes, moatEdges, moatFloor, trickle } from './moat.ts'
 import { concreteArt } from './moatart.ts'
 import { buildMoat } from './moatmodel.ts'
+import { buildPayphone } from './payphonemodel.ts'
 import {
   buildCigarettePack,
   buildDimes,
@@ -115,6 +117,7 @@ import { STRIP_MALL } from './stripmall.ts'
 import { buildTunnelShade } from './tunnelshademodel.ts'
 import { buildTrapdoor, buildUndercroft } from './undercroftmodel.ts'
 import { buildWreck } from './wreck.ts'
+import { buildClutter, buildLightTower } from './yardprops.ts'
 import type { AkashicAsset, Part } from './assetkit.ts'
 import type { FormKind } from './castle.ts'
 import type { Span } from './maze.ts'
@@ -600,6 +603,21 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     id: 'moat-crane',
     label: "A crane rotting on the moat's rim",
     build: () => buildCrane(0xc4a1).group,
+  },
+  ...CLUTTER_KINDS.map((kind) => ({
+    id: `yard-${kind}`,
+    label: `Left lying round the castle's rim: ${kind}`,
+    build: () => buildClutter(kind, 0x51ed),
+  })),
+  {
+    id: 'light-tower',
+    label: "A light tower on the castle's rim",
+    build: () => buildLightTower(0x1a90).group,
+  },
+  {
+    id: 'payphone',
+    label: "The payphone on the castle's rim",
+    build: buildPayphone,
   },
   {
     id: 'strip-mall',

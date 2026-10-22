@@ -781,6 +781,61 @@ export const CONFIG = {
     },
     // The cranes on the outer rim, leaning out over the moat.
     cranes: 4,
+    // The works round the rim (castleyard.ts), in metres and seconds.
+    yard: {
+      // The concrete poured round the outer edge: how far out it runs, and
+      // how far over the terrain it lies, as a lot does.
+      apron: 9,
+      lift: 0.26,
+      // The poles of the unfinished fence: the rows, each this far out
+      // from the edge, a pole about every `every` metres along each (give
+      // or take `jitter`), a share `skip` never set; each `height` long,
+      // standing straight to its `knee`, then bent in toward the island by
+      // `bend` (radians off true); a share `broken` with a span loose and
+      // floating.
+      poles: {
+        rows: [1.4, 2.9],
+        every: 2.1,
+        jitter: 0.5,
+        skip: 0.12,
+        height: { min: 5.4, max: 6.6 },
+        knee: { min: 2.6, max: 4 },
+        bend: { min: 0.4, max: 0.65 },
+        radius: 0.07,
+        broken: 0.42,
+      },
+      // A loose span: how long, how high it hangs over where it broke, and
+      // how far it bobs. Each round of `cycle` it crumbles away by a draw
+      // of `share`, over `crumble`, stays gone for `gone` and comes back
+      // over `regrow`. `crumbs` bits always fall off each, `crumbLife`
+      // long; a crumbling span throws `burst` more, bigger.
+      float: {
+        span: { min: 0.8, max: 2.2 },
+        lift: { min: 0.3, max: 1.2 },
+        bob: 0.14,
+        cycle: 60,
+        share: 0.35,
+        crumble: 4,
+        gone: 18,
+        regrow: 9,
+        crumbs: 3,
+        burst: 6,
+        crumbLife: 2.6,
+        gravity: 9.8,
+      },
+      // Nothing the yard sets down comes nearer than `clear` to a fire
+      // escape's top or a crane's footing.
+      clear: 5,
+      // The supplies: a pile about every `every` metres along each side by
+      // a draw of `share`, from `from` to `to` out from the edge.
+      clutter: { every: 6.5, share: 0.75, from: 4.4, to: 7.8 },
+      // The light towers, one to a side, this far out, each with a pool
+      // of light this wide in front of it.
+      lamps: { out: 6.4, pool: 10 },
+      // The payphone: on outer side `side`, `along` its length, `out` from
+      // the edge; a raider within `reach` of it stands at it.
+      payphone: { side: 1, along: 0.42, out: 5.6, reach: 3 },
+    },
     // The castle's base, this far over the highest ground anywhere on the
     // island (its rock hangs under that, well clear), and how it bobs.
     float: 40,
