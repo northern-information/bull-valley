@@ -950,6 +950,21 @@ button.bv-dial-card {
   image-rendering: pixelated;
 }
 
+/* A fish landed: the valley's own banner (styles.css bv-banner), swept
+   across the top of the pond's scene instead of the view, smaller and set
+   tighter for it, so the fish coming up on the line shows under it. */
+.bv-dial-pond .bv-banner {
+  top: 0.4rem;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em !important;
+  pointer-events: none;
+}
+
+.bv-dial-pond .bv-banner-headline {
+  font-size: 1rem;
+}
+
 .bv-dial-pond-arrow {
   position: absolute;
   inset: 0;

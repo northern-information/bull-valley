@@ -6,6 +6,7 @@ import { pulseMaterials } from './assets.ts'
 import { itemsHeld, sightsInReach } from './book.ts'
 import { activeBuffs } from './buffbar.ts'
 import { passTarget, sprintScale } from './buffs.ts'
+import { hoistPose } from './catchfanfare.ts'
 import { phonesOf, stopAt } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
@@ -508,8 +509,16 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         line !== null,
         line?.hook != null && performance.now() >= line.bitesAt
       )
+      // The fish landed, up out of the water before the raider.
+      const hoist = s.hoist && inPond([pond.place], player.pos) ? s.hoist : null
+      pond.setHoist(
+        hoist?.kind ?? null,
+        time - (hoist?.at ?? 0),
+        camera.position
+      )
       pond.update(time, net.clock.serverNow(now) / 1000)
     }
+    if (s.hoist && !hoistPose(time - s.hoist.at)) s.hoist = null
     // Into a pond's firefly haven, or out of it, the log says so; not
     // until the welcome has put the raider where they stand.
     const sheltered = inPond(

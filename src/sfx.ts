@@ -39,6 +39,7 @@ export type SfxId =
   | 'fish-bite'
   | 'reel-click'
   | 'reel-in'
+  | 'fish-fanfare'
   | 'line-snap'
   | 'dig'
   | 'jar-clink'
@@ -279,6 +280,20 @@ export const SFX: Record<SfxId, SfxSpec> = {
       to: 1600,
       seconds: 0.6,
       pulse: 30,
+    },
+  },
+  // A fish landed (catchfanfare.ts): the little fanfare under the banner.
+  'fish-fanfare': {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.75,
+    placeholder: {
+      wave: 'triangle',
+      from: 523,
+      to: 1568,
+      seconds: 1.1,
+      pulse: 7,
     },
   },
   // The line gives: snapped, or a fish lost.
