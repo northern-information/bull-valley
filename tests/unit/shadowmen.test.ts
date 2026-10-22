@@ -10,6 +10,7 @@ import {
   inBeam,
   inBounds,
   inHaven,
+  reachesUp,
   spawnShadowman,
   stepShadowmen,
 } from '../../src/shadowmen.ts'
@@ -68,6 +69,7 @@ const CFG: ShadowmenConfig = {
   touchRadius: 1.4,
   windupSeconds: 0.3,
   reachScale: 1.25,
+  vertical: { under: 1, over: 0.8 },
   havenRadius: 60,
   strikeSeconds: 1.6,
   burnSeconds: 0.5,
@@ -833,5 +835,102 @@ describe('a burst', () => {
     expect(burstScaleOf('spiderling', CONFIG.shadowmen)).toBe(
       CONFIG.shadowmen.spiderling.burstScale
     )
+  })
+})
+
+describe('height', () => {
+  // A cliff: the ground 30 m down for z under -10, flat at 0 elsewhere.
+  const cliff = (_x: number, z: number) => (z < -10 ? -30 : 0)
+  const steps = Math.round(CFG.windupSeconds / DT) + 2
+
+  it('reaches feet near its own height, and no further up or down', () => {
+    const man = { kind: 'man' as const, y: 10 }
+    expect(reachesUp(man, { y: 10 }, CFG)).toBe(true)
+    expect(reachesUp(man, { y: 9.1 }, CFG)).toBe(true)
+    expect(reachesUp(man, { y: 8.9 }, CFG)).toBe(false)
+    expect(reachesUp(man, { y: 12.1 }, CFG)).toBe(true)
+    expect(reachesUp(man, { y: 12.3 }, CFG)).toBe(false)
+    // A spider stands taller.
+    expect(reachesUp({ kind: 'spider', y: 10 }, { y: 13 }, CFG)).toBe(true)
+    // Not knowing either height, it reaches.
+    expect(reachesUp({ kind: 'man' }, { y: 99 }, CFG)).toBe(true)
+    expect(reachesUp(man, {}, CFG)).toBe(true)
+  })
+
+  it('stands every shadowman on the ground it walks', () => {
+    const field = one({ z: -100 })
+    step(field, undefined, { ground: cliff })
+    expect(first(field)?.y).toBe(-30)
+    // Without a ground, none has a height.
+    const flat = one()
+    step(flat)
+    expect(first(flat)?.y).toBeUndefined()
+  })
+
+  it('never rushes nor strikes a raider over or under its reach', () => {
+    // Up a fire escape over the floor it walks.
+    const field = one({ z: -12, x: 0 })
+    const up = [raider({ x: 0, z: -12.5, y: -20, vulnerable: true })]
+    for (let i = 0; i < steps; i++) {
+      expect(
+        step(field, undefined, { raiders: up, ground: cliff }).struck
+      ).toEqual([])
+    }
+    expect(first(field)?.target).toBeNull()
+    // The same raider down on the floor beside it is rushed and struck.
+    const floor = one({ z: -12, x: 0 })
+    const down = [raider({ x: 0, z: -12.5, y: -30, vulnerable: true })]
+    const struck = Array.from(
+      { length: steps },
+      () => step(floor, undefined, { raiders: down, ground: cliff }).struck
+    ).flat()
+    expect(struck).toEqual(['a'])
+  })
+
+  it('breaks off a raider who climbs out of its reach', () => {
+    const field = one({ z: -40, target: 'a', speed: CFG.rushSpeed })
+    const raiders = [raider({ x: 0, z: -20, y: -30, vulnerable: true })]
+    step(field, undefined, { raiders, ground: cliff })
+    expect(first(field)?.target).toBe('a')
+    raiders[0] = { ...raiders[0], y: -25 }
+    step(field, undefined, { raiders, ground: cliff })
+    expect(first(field)?.target).toBeNull()
+  })
+
+  it('is found by a beam where it stands, below the holder too', () => {
+    // From the rim, aimed down at the floor 20 m out.
+    const down: Beam = {
+      origin: { x: 0, y: 1.7, z: 0 },
+      dir: (() => {
+        const dz = -20
+        const dy = -30 + CFG.chestHeight - 1.7
+        const d = Math.hypot(dz, dy)
+        return { x: 0, y: dy / d, z: dz / d }
+      })(),
+      range: 60,
+      halfAngle: 0.3,
+      floor: 0,
+    }
+    const raiders = [raider({ beam: down })]
+    const field = one({ z: -20, speed: 0 })
+    step(field, undefined, { raiders, ground: cliff })
+    expect(first(field)?.burn).toBeGreaterThan(0)
+    // Without the ground it stands at the holder's floor, out of the beam.
+    const flat = one({ z: -20, speed: 0 })
+    step(flat, undefined, { raiders })
+    expect(first(flat)?.burn).toBe(0)
+  })
+
+  it('says how high it stood when it burst', () => {
+    const field = one({ z: -20, speed: 0 })
+    const level: Beam = { ...BEAM, origin: { x: 0, y: -28.3, z: 0 } }
+    let bursts: { y?: number }[] = []
+    for (let i = 0; i < 40 && bursts.length === 0; i++) {
+      bursts = step(field, undefined, {
+        raiders: [raider({ beam: level })],
+        ground: cliff,
+      }).bursts
+    }
+    expect(bursts[0]?.y).toBe(-30)
   })
 })

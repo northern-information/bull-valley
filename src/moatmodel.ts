@@ -424,8 +424,9 @@ function pipeRun(
 }
 
 // One fire escape in rusted iron: each flight's stringers, treads and
-// handrail, each landing's grating, rails and the brackets that hold it
-// to the wall.
+// handrail, each landing's grating, its rails along the outer edge and
+// across the far end (the foot's open), and the brackets that hold it to
+// the wall.
 function fireEscape(
   group: THREE.Group,
   stair: FireEscape,
@@ -503,5 +504,18 @@ function fireEscape(
       strut(group, p, wallAt, 0.07, iron)
     }
     strut(group, outerA.clone().add(up), outerB.clone().add(up), 0.05, iron)
+    // Across the far end, back to the wall, but at the foot.
+    if (landing.open) continue
+    const end = landing.far < 0 ? outerA : outerB
+    const wallEnd = end.clone().sub(out.clone().multiplyScalar(2))
+    strut(group, wallEnd, wallEnd.clone().add(up), 0.05, iron)
+    strut(group, end.clone().add(up), wallEnd.clone().add(up), 0.05, iron)
+    strut(
+      group,
+      end.clone().add(up.clone().multiplyScalar(0.5)),
+      wallEnd.clone().add(up.clone().multiplyScalar(0.5)),
+      0.04,
+      iron
+    )
   }
 }

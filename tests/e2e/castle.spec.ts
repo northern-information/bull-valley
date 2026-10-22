@@ -6,7 +6,8 @@ import type { Page } from '@playwright/test'
 // Castle Entropy's moat is cut ten stories into the ground, and its rim is
 // open: walking off it is a fall (fall.ts), and two stories or more
 // shatters a raider's geometrie, leaving the pack on their body at the
-// bottom (sharedworld.ts rules 24 and 18).
+// bottom (sharedworld.ts rules 24 and 18). The shadowmen walk its floor
+// at the floor's height and reach no one up a fire escape (rule 11).
 
 const carrying = (page: Page) =>
   page.evaluate(() =>
@@ -158,4 +159,55 @@ test('a slurm in the moat squashes underfoot', async ({ page }) => {
       )
     )
     .toBe('squashed')
+})
+
+test('a shadowman on the floor never reaches a raider up a fire escape', async ({
+  page,
+}) => {
+  test.slow()
+  await beginRaid(page)
+  // Halfway down the top flight of a fire escape, the floor far below.
+  const spot = await page.evaluate(() => {
+    const castle = window.__bv?.world.castle
+    if (!castle) throw new Error('No castle in the valley')
+    const [stair] = castle.stairs
+    const { a, b } = stair.flights[0]
+    const x = (a.x + b.x) / 2
+    const z = (a.z + b.z) / 2
+    window.__bv?.player.relocate(x, z, 0)
+    return { x, z, foot: stair.foot, floor: castle.floor }
+  })
+  await heardWhere(page)
+  // One stood on the floor right under them: the valley stands it there,
+  // and it never strikes.
+  await page.evaluate(
+    ({ x, z }) => window.__bv?.placeShadowman(x + 0.5, z),
+    spot
+  )
+  const under = () =>
+    page.evaluate(
+      ({ x, z }) =>
+        window.__bv?.shadowmen.table.frames
+          .at(-1)
+          ?.shadowmen.find((s) => Math.hypot(s.x - x - 0.5, s.z - z) < 0.1) ??
+        null,
+      spot
+    )
+  await expect
+    .poll(async () => (await under())?.y, { timeout: 30_000 })
+    .toBeCloseTo(spot.floor, 1)
+  await page.waitForTimeout(3000)
+  expect(await page.evaluate(() => window.__bv?.strikes)).toBe(0)
+  // Down at the foot, beside one on the floor, they are struck.
+  await page.evaluate(({ foot }) => {
+    window.__bv?.player.relocate(foot.x, foot.z, 0)
+  }, spot)
+  await heardWhere(page)
+  await page.evaluate(
+    ({ foot }) => window.__bv?.placeShadowman(foot.x + 1, foot.z),
+    spot
+  )
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.strikes), { timeout: 15_000 })
+    .toBe(1)
 })

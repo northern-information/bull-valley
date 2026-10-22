@@ -23,7 +23,6 @@ import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { LaptopFileInfo } from './laptop.ts'
 import type { TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
-import type { MoatAt } from './moat.ts'
 import type { OutfitId } from './outfits.ts'
 import type { Portal } from './portals.ts'
 import type { QuestId, QuestStage, QuestStep } from './quests.ts'
@@ -35,7 +34,7 @@ import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 41
+export const PROTOCOL_VERSION = 42
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -268,10 +267,9 @@ export interface HelloMessage {
   // Where the Undercroft lies (undercroft.ts), or null: the valley steps
   // its tunnel shades in it (rule 11).
   undercroft: MazePlace | null
-  // Where Castle Entropy's moat lies and how deep its floor is (moat.ts),
-  // or null: a raider up a fire escape is out of every shadow's reach
-  // (rule 11).
-  moat: MoatAt | null
+  // Where Castle Entropy's moat lies (moat.ts castlePlace), or null: the
+  // valley cuts it into the ground its shadowmen walk (rule 11).
+  moat: MazePlace | null
   // The middle of the Citgo portal ring on each station's lot, in
   // world.fuelPoints order (rule 28).
   rings: XZ[]
@@ -901,6 +899,9 @@ export interface ShadowmanWire {
   kind?: Exclude<ShadeKind, 'man'>
   x: number
   z: number
+  // The height of the ground it stands on, once the valley has read the
+  // ground (rule 11); the client stands it on its own deck nearest that.
+  y?: number
   burn: number
   target: string | null
   // How far through its windup before it lunges (0 to 1), when winding up.
@@ -1275,16 +1276,6 @@ function parseMazePlace(value: unknown): MazePlace | undefined {
   return { ...at, yaw }
 }
 
-function parseMoat(value: unknown): MoatAt | undefined {
-  if (!isRecord(value)) return undefined
-  const place = parseMazePlace(value.place)
-  const { floor } = value
-  if (!place || typeof floor !== 'number' || !Number.isFinite(floor)) {
-    return undefined
-  }
-  return { place, floor }
-}
-
 function parseMetres(value: unknown): Metres | null {
   if (!isRecord(value)) return null
   const { width, height } = value
@@ -1379,7 +1370,7 @@ function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
   const wreck = nullable(value.wreck, parseXZ)
   const dealer = nullable(value.dealer, parseXZ)
   const undercroft = nullable(value.undercroft, parseMazePlace)
-  const moat = nullable(value.moat, parseMoat)
+  const moat = nullable(value.moat, parseMazePlace)
   if (maze === undefined || stand === undefined) return null
   if (wreck === undefined) return null
   if (dealer === undefined || undercroft === undefined) return null

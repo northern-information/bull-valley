@@ -1,14 +1,11 @@
 import * as THREE from 'three'
 import { context2d } from './canvas.ts'
-import { bilinearHeight } from './coords.ts'
+import { heightGrid } from './heightmap.ts'
 import { applyPS1 } from './ps1.ts'
+import type { TerrainData } from './heightmap.ts'
 import type { Geo, HeightAt } from './interfaces.ts'
 
-// The decoded heightmap: size×size heights, normalized 0..1.
-export interface TerrainData {
-  heights: Float32Array
-  size: number
-}
+export type { TerrainData } from './heightmap.ts'
 
 interface HeightField {
   seg: number
@@ -49,36 +46,15 @@ export async function loadTerrain(url: string): Promise<TerrainData> {
   return { heights, size }
 }
 
-// The playable height field, in metres of relief above the valley floor.
-//
-// Everything — the terrain mesh, the player's feet, road ribbons, trees,
-// shadowmen — samples THIS grid, which is the heightmap decimated to the
-// mesh resolution. If features sampled the full-resolution map instead, they
-// would sink below or float above the rendered surface wherever the two
-// disagree (the classic draping bug).
-//
-// seg 480 over the ~15 km frame keeps the grid near the old 240-over-9 km
-// spacing (~31 m per cell).
+// The playable height field (heightmap.ts heightGrid): the terrain mesh,
+// the player's feet, the roads, the trees and the shadowmen all sample it,
+// and so does the valley.
 export function createHeightField(
   terrain: TerrainData,
   geo: Pick<Geo, 'terrain' | 'metres'>,
   seg = 480
 ): HeightField {
-  const n = seg + 1
-  const relief = geo.terrain.max - geo.terrain.min
-  const grid = new Float32Array(n * n)
-  for (let j = 0; j < n; j++) {
-    for (let i = 0; i < n; i++) {
-      grid[j * n + i] =
-        bilinearHeight(terrain.heights, terrain.size, i / seg, j / seg) * relief
-    }
-  }
-  const { width, height } = geo.metres
-  const raw: HeightAt = (x, z) => {
-    const u = Math.max(0, Math.min(1, x / width + 0.5))
-    const v = Math.max(0, Math.min(1, z / height + 0.5))
-    return bilinearHeight(grid, n, u, v)
-  }
+  const { n, grid, relief, raw } = heightGrid(terrain, geo, seg)
   let cut: HeightAt = raw
   return {
     seg,

@@ -13,7 +13,6 @@ import { CONFIG } from './config.ts'
 import { woundsOf } from './health.ts'
 import { onLookout } from './lookout.ts'
 import { worldToMaze } from './maze.ts'
-import { aloft } from './moat.ts'
 import {
   beamFrom,
   burnSecondsOf,
@@ -37,7 +36,7 @@ import {
 } from './tunnelshades.ts'
 import { inUndercroft } from './undercroft.ts'
 import type { Caretaker } from './caretaker.ts'
-import type { XZ } from './interfaces.ts'
+import type { HeightAt, XZ } from './interfaces.ts'
 import type { MazePlace } from './maze.ts'
 import type { XpGrant } from './progression.ts'
 import type {
@@ -107,7 +106,6 @@ export function shadowRaiders(
 ): Raider[] {
   const raiders: Raider[] = []
   const maze = valley.world?.maze ?? null
-  const moat = valley.world?.moat ?? null
   for (const { id, at } of placed) {
     const member = valley.members[id]
     if (!at || !member) continue
@@ -115,12 +113,11 @@ export function shadowRaiders(
       id,
       x: at.x,
       z: at.z,
+      y: at.y,
       vulnerable:
         !inTheBed(valley, id) &&
         // Up on the lookout no shadow reaches them.
         !(maze && onLookout(maze, at)) &&
-        // Nor up a fire escape over the moat.
-        !(moat && aloft(moat, at)) &&
         now >= (shadows.recovering[graceKey(valley, id)] ?? 0),
       // Rule 27: their high reaches it further and wider.
       beam: at.light
@@ -279,6 +276,7 @@ function shadowmanWire(s: Shadowman, cfg: ShadowmenConfig): ShadowmanWire {
     ...(s.kind !== 'man' ? { kind: s.kind } : {}),
     x: round(s.x, 2),
     z: round(s.z, 2),
+    ...(s.y !== undefined ? { y: round(s.y, 2) } : {}),
     burn: share(s.burn, burnSecondsOf(s.kind, cfg)),
     target: s.target,
     ...(windup > 0 ? { windup } : {}),
@@ -334,13 +332,20 @@ function burnCredits(
 // One step of the valley's shadowmen, its Caretaker and its tunnel shades,
 // dt seconds on. Null when there is nothing to step (no world, or no one
 // placed in it), and the field is emptied, so the valley stops stepping
-// until someone is placed again. Mutates shadows.
+// until someone is placed again. `ground` is the valley's
+// (heightmap.ts valleyGround) once it has read it: the shadowmen walk it
+// and reach a raider only at their own height. Mutates shadows.
 export function stepShadows(
   valley: Valley,
   shadows: Shadows,
   placed: readonly Placed[],
   rng: Rng,
-  { now, dt, calm = false }: { now: number; dt: number; calm?: boolean },
+  {
+    now,
+    dt,
+    calm = false,
+    ground = null,
+  }: { now: number; dt: number; calm?: boolean; ground?: HeightAt | null },
   cfg = CONFIG.shadowmen
 ): ShadowStep | null {
   const world = valley.world
@@ -365,6 +370,7 @@ export function stepShadows(
       water: world.water,
       calm,
       lights: headlightsAt(shadows, now),
+      ground,
     },
     cfg
   )
@@ -398,6 +404,7 @@ export function stepShadows(
         kind: b.kind,
         x: round(b.x, 2),
         z: round(b.z, 2),
+        ...(b.y !== undefined ? { y: round(b.y, 2) } : {}),
       })),
       caretaker: keeper.caretaker,
       burned: keeper.burned,

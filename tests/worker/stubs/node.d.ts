@@ -1,4 +1,5 @@
-// The few Node APIs the D1 shim (d1.ts) uses. The Worker tests are typed
+// The few Node APIs the D1 shim (d1.ts) and the specs reading the map
+// (valleydo.test.ts) use. The Worker tests are typed
 // against the Workers runtime, whose globals clash with @types/node, so
 // this declares only what the shim calls.
 
@@ -9,6 +10,7 @@ interface ImportMeta {
 declare module 'node:fs' {
   export function readdirSync(path: URL): string[]
   export function readFileSync(path: URL, encoding: 'utf8'): string
+  export function readFileSync(path: URL | string): Uint8Array
 }
 
 declare module 'node:sqlite' {

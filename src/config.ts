@@ -86,6 +86,11 @@ export const CONFIG = {
     // still within reachScale times its touch. A beat to step away.
     windupSeconds: 0.35,
     reachScale: 1.25,
+    // How far up and down a shadow reaches from the ground it stands on
+    // (shadowmen.ts reachesUp): feet no more than `under` below it, and no
+    // more than its aim height and `over` above it. Past that a raider is
+    // out of its reach, and it never rushes them.
+    vertical: { under: 1, over: 0.8 },
     // Citgo forecourts are havens: shadowmen turn aside at the lights and
     // nothing can touch you inside.
     havenRadius: 60,
@@ -740,20 +745,25 @@ export const CONFIG = {
       depth: 30,
       // Trees, poles and pickups keep this far off the outer edge.
       clear: 12,
-      // Feet over the channel this far over its floor are up a fire
-      // escape, out of every shadow's reach (moat.ts aloft).
-      aloft: 2,
     },
     // The fire escapes on the outer walls (moat.ts fireEscapes): the sides
     // that carry one, how wide a flight runs (the strip is two), about how
-    // much each climbs, how steep (rise over run), and how deep a landing
-    // is.
+    // much each climbs and how steep (rise over run). No two alike: each
+    // turn lands up to `vary.turn` metres on or short of where it would,
+    // and each landing runs on past its turn between `vary.landing.min`
+    // and `max` metres, drawn from `seed` and the side. A flight never
+    // climbs less than a body can step onto (CONFIG.fall.climb), so no
+    // flight over another is ever stood on from below.
     stairs: {
       sides: [0, 2, 3],
       width: 1.1,
       rise: 3,
       slope: 0.7,
-      landing: 1.6,
+      seed: 0x5ca1e,
+      vary: {
+        turn: 0.5,
+        landing: { min: 1.2, max: 3.6 },
+      },
     },
     // The cranes on the outer rim, leaning out over the moat.
     cranes: 4,

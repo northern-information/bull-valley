@@ -18,8 +18,7 @@
 // run along the walls (`moatPipes`), out round any fire escape in their
 // way, and stop a raider too. Cranes lean out over the channel from the
 // rim (`craneSpots`) and a trickle of water runs down its middle
-// (`trickle`). A raider up a fire escape is out of reach of the shadows
-// below (`aloft`). No three.js, no DOM.
+// (`trickle`). No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
 import { pointInPolygon } from './coords.ts'
@@ -231,7 +230,9 @@ interface Flight {
 }
 
 // A landing: a flat floor, laid out like Ground.addFloor (along x0..x1 on
-// (cos, sin) through (x, z), halfWidth either side), at `y`.
+// (cos, sin) through (x, z), halfWidth either side), at `y`. `far` is the
+// end away from the flights (-1 at x0, 1 at x1), railed unless `open`
+// (the foot, where it lets out onto the floor).
 interface Landing {
   x: number
   z: number
@@ -241,6 +242,8 @@ interface Landing {
   x1: number
   halfWidth: number
   y: number
+  far: -1 | 1
+  open: boolean
 }
 
 // One fire escape, in the world: its flights from the top down, its
@@ -265,10 +268,14 @@ export interface FireEscape {
 
 // The fire escapes on the outer sides CONFIG.castle.stairs.sides names:
 // each a strip two lanes of `width` wide against the wall at the side's
-// middle, `n` flights of about `rise` each, down the outer lane and back
-// down the inner by turns (so a flight never lies right over the one
-// before it), landings across both lanes at both ends, the top at the rim
-// and the foot on the floor at the end the last flight comes down to.
+// middle, flights of about `rise` each, down the outer lane and back down
+// the inner by turns (so a flight never lies right over the one before
+// it), landings across both lanes at each turn, the top at the rim and
+// the foot on the floor at the end the last flight comes down to. No two
+// are alike (`vary`): each turns a little further on or short of the
+// last at its end, so its flights run longer or shorter (and climb as
+// much more or less, all at one pitch), and its landings run on past the
+// turn by more or less.
 export function fireEscapes(
   raw: HeightAt,
   place: MazePlace,
@@ -278,6 +285,10 @@ export function fireEscapes(
   return cfg.sides.map((side) => fireEscape(raw, place, floor, side, cfg))
 }
 
+// How far a lane's rail stands its band over and under the feet on the
+// flight or landing it rails.
+const RAIL_BAND = 1
+
 function fireEscape(
   raw: HeightAt,
   place: MazePlace,
@@ -285,6 +296,7 @@ function fireEscape(
   side: number,
   cfg: StairConfig
 ): FireEscape {
+  const rng = mulberry32(cfg.seed + side * 0x9e37)
   const n5 = MOAT.outer.length
   const a = MOAT.outer[side % n5]
   const b = MOAT.outer[(side + 1) % n5]
@@ -297,12 +309,13 @@ function fireEscape(
     inward = { x: -inward.x, z: -inward.z }
   }
   const run = cfg.rise / cfg.slope
-  const half = run / 2 + cfg.landing
   const gap = 0.05
-  // Out from the wall: the inner lane's middle, the outer's, the strip's.
+  // Out from the wall: the inner lane's middle, the outer's, the strip's
+  // (where the lanes meet), and the outer rail.
   const inner = gap + cfg.width / 2
   const outer = gap + (cfg.width * 3) / 2
   const strip = gap + cfg.width
+  const rail = gap + cfg.width * 2 + 0.05
   // A landing runs from the wall itself out over both lanes.
   const deep = (gap + cfg.width * 2) / 2
   // Moat-local: t along the wall from the side's middle, s out from it.
@@ -311,67 +324,96 @@ function fireEscape(
     z: mid.z + u.z * t + inward.z * s,
   })
   const world = (t: number, s: number) => mazeToWorld(place, local(t, s))
-  const endA = -half
-  const endB = half
-  const runA = -run / 2
-  const runB = run / 2
-  const head = world((endA + runA) / 2, 0)
+  const jitter = () => (rng() * 2 - 1) * cfg.vary.turn
+  const landingLength = () =>
+    cfg.vary.landing.min + rng() * (cfg.vary.landing.max - cfg.vary.landing.min)
+  // The top landing, at the near end, on the rim.
+  const turn0 = -run / 2 + jitter()
+  const length0 = landingLength()
+  const head = world(turn0 - length0 / 2, 0)
   const topY = raw(head.x, head.z)
-  // Where a raider steps onto it, on the rim behind the top landing.
-  const rim = world((endA + runA) / 2, -0.6)
   const drop = Math.max(cfg.rise, topY - floor)
   const count = Math.max(1, Math.round(drop / cfg.rise))
-  const step = drop / count
+  // Where each flight turns: at the near end (-run / 2) for the even
+  // ones, the far end for the odd, each jittered; and how far each
+  // landing runs on past its turn.
+  const turns = [turn0]
+  const lengths = [length0]
+  for (let j = 1; j <= count; j++) {
+    turns.push((j % 2 === 0 ? -run / 2 : run / 2) + jitter())
+    lengths.push(landingLength())
+  }
+  // Each flight climbs its share of the drop by how long it runs, so all
+  // stand at one pitch.
+  const runs = turns.slice(1).map((t, i) => Math.abs(t - turns[i]))
+  const total = runs.reduce((sum, r) => sum + r, 0)
+  const heights = [topY]
+  runs.forEach((r, i) => heights.push(heights[i] - (drop * r) / total))
+  heights[count] = floor
   const flights: Flight[] = []
   for (let i = 0; i < count; i++) {
-    const from = i % 2 === 0 ? runA : runB
-    const to = i % 2 === 0 ? runB : runA
     const lane = i % 2 === 0 ? outer : inner
     flights.push({
-      a: { ...world(from, lane), y: topY - step * i },
-      b: { ...world(to, lane), y: topY - step * (i + 1) },
+      a: { ...world(turns[i], lane), y: heights[i] },
+      b: { ...world(turns[i + 1], lane), y: heights[i + 1] },
     })
   }
   // The turn that carries landing-local +x along the wall.
   const along = mazeToWorld({ x: 0, z: 0, yaw: place.yaw }, u)
   const centre = world(0, deep)
-  const landing = (end: 'a' | 'b', y: number): Landing => ({
-    x: centre.x,
-    z: centre.z,
-    cos: along.x,
-    sin: along.z,
-    // A little over the flights' ends, so no seam opens between the lanes.
-    x0: end === 'a' ? endA : runB - LAP,
-    x1: end === 'a' ? runA + LAP : endB,
-    halfWidth: deep,
-    y,
+  const landings: Landing[] = turns.map((t, j) => {
+    // The near end's landings run on toward -t, the far end's toward +t,
+    // a little over the flights' ends so no seam opens between the lanes.
+    const far = j % 2 === 0 ? -1 : 1
+    return {
+      x: centre.x,
+      z: centre.z,
+      cos: along.x,
+      sin: along.z,
+      x0: far < 0 ? t - lengths[j] : t - LAP,
+      x1: far < 0 ? t + LAP : t + lengths[j],
+      halfWidth: deep,
+      y: heights[j],
+      far,
+      open: j === count,
+    }
   })
-  const landings: Landing[] = [landing('a', topY)]
-  for (let j = 1; j <= count; j++) {
-    landings.push(landing((j - 1) % 2 === 0 ? 'b' : 'a', topY - step * j))
-  }
-  // The foot: the end the last flight comes down to, on the floor.
-  const footEnd = (count - 1) % 2 === 0 ? endB : endA
-  const rail = gap + cfg.width * 2 + 0.05
+  const x0 = Math.min(...landings.map((l) => l.x0))
+  const x1 = Math.max(...landings.map((l) => l.x1))
+  const band = (low: number, high: number) => ({
+    low: low - RAIL_BAND,
+    high: high + RAIL_BAND,
+  })
   const rails: MoatWall[] = [
-    { a: world(endA, rail), b: world(endB, rail), half: 0.06 },
-    // Between the lanes, the flights' length: the landings turn round its
-    // ends.
-    { a: world(runA, strip), b: world(runB, strip), half: 0.06 },
-    {
-      a: world(endA, 0),
-      b: world(endA, rail),
+    // The outer rail, end to end, for everyone.
+    { a: world(x0, rail), b: world(x1, rail), half: 0.06 },
+    // Between the lanes, each flight's length, for the feet on it: the
+    // landings turn round their ends.
+    ...flights.map((f, i) => ({
+      a: world(turns[i], strip),
+      b: world(turns[i + 1], strip),
       half: 0.06,
-      ...(footEnd === endA ? { band: { low: floor + 1 } } : {}),
-    },
-    {
-      a: world(endB, 0),
-      b: world(endB, rail),
-      half: 0.06,
-      ...(footEnd === endB ? { band: { low: floor + 1 } } : {}),
-    },
+      band: band(f.b.y, f.a.y),
+    })),
+    // Across each landing's far end, for the feet on it, but the foot's.
+    ...landings
+      .filter((l) => !l.open)
+      .map((l) => {
+        const t = l.far < 0 ? l.x0 : l.x1
+        return {
+          a: world(t, 0),
+          b: world(t, rail),
+          half: 0.06,
+          band: band(l.y, l.y),
+        }
+      }),
   ]
-  const foot = world(footEnd + Math.sign(footEnd) * 1.5, strip)
+  // The foot: past the last landing's far end, on the floor.
+  const last = landings[count]
+  const footAt = (last.far < 0 ? last.x0 : last.x1) + last.far * 1.5
+  const foot = world(footAt, strip)
+  // Where a raider steps onto it, on the rim behind the top landing.
+  const rim = world(turn0 - length0 / 2, -0.6)
   return {
     side,
     flights,
@@ -381,27 +423,9 @@ function fireEscape(
     foot: { ...foot, y: floor },
     width: cfg.width,
     depth: rail,
-    ends: [world(endA, 0), world(endB, 0)],
+    ends: [world(x0, 0), world(x1, 0)],
     inward: mazeToWorld({ x: 0, z: 0, yaw: place.yaw }, inward),
   }
-}
-
-// Where the moat lies and how deep its floor is, as the valley is told
-// (sharedworld.ts rule 11).
-export interface MoatAt {
-  place: MazePlace
-  floor: number
-}
-
-// Whether feet at `at` are up a fire escape: over the channel, and more
-// than CONFIG.castle.moat.aloft over its floor (only a fire escape holds
-// anyone there), so out of reach of every shadow, which walks the floor.
-export function aloft(
-  moat: MoatAt,
-  at: XZ & { y: number },
-  cfg: MoatConfig = CONFIG.castle.moat
-): boolean {
-  return at.y > moat.floor + cfg.aloft && inChannel(moat.place, at.x, at.z)
 }
 
 // What stops a raider at the moat: a ledge along each outer side that

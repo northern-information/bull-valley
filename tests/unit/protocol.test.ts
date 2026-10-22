@@ -50,7 +50,7 @@ const hello = {
   bushes: [0, 1, 2].map((i) => ({ x: 6 + i, z: -30 })),
   dealer: { x: -10, z: -60 },
   undercroft: { x: -7000, z: -7000, yaw: 0 },
-  moat: { place: { x: 400, z: 30, yaw: 0.35 }, floor: 170 },
+  moat: { x: 400, z: 30, yaw: 0.35 },
   rings: [0, 1, 2, 3, 4].map((i) => ({ x: i * 100 + 2, z: i + 14 })),
 }
 

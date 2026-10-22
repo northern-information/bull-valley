@@ -4,7 +4,6 @@ import { pointInPolygon } from '../../src/coords.ts'
 import { Ground } from '../../src/ground.ts'
 import { mazeToWorld } from '../../src/maze.ts'
 import {
-  aloft,
   carve,
   castlePlace,
   craneSpots,
@@ -169,26 +168,50 @@ describe('moat', () => {
     }
   })
 
-  it('lets the foot out only at the floor', () => {
+  it('rails the far end of every landing, but lets the foot out at the floor', () => {
     const walls = new Walls()
     for (const stair of stairs) {
       for (const r of stair.rails) walls.addWall(r.a, r.b, r.half, r.band)
     }
     for (const stair of stairs) {
-      const last = stair.flights.at(-1)
-      if (!last) throw new Error('no flights')
-      // From the last flight's foot out through its end: open on the
-      // floor, closed a story up.
-      const from = last.b
-      const dx = stair.foot.x - from.x
-      const dz = stair.foot.z - from.z
-      const crossing = { x: from.x + dx * 0.55, z: from.z + dz * 0.55 }
-      const low = walls.resolve(crossing.x, crossing.z, 0.3, floor)
-      const high = walls.resolve(crossing.x, crossing.z, 0.3, floor + 3)
-      expect(Math.hypot(low.x - crossing.x, low.z - crossing.z)).toBeLessThan(
-        Math.hypot(high.x - crossing.x, high.z - crossing.z) + 1e-9
-      )
+      for (const l of stair.landings) {
+        // Just short of the far end, on the landing's middle.
+        const t = l.far < 0 ? l.x0 + 0.1 : l.x1 - 0.1
+        const p = { x: l.x + l.cos * t, z: l.z + l.sin * t }
+        const out = walls.resolve(p.x, p.z, 0.3, l.y)
+        const moved = Math.hypot(out.x - p.x, out.z - p.z)
+        if (l.open) {
+          expect(l.y).toBe(floor)
+          expect(moved).toBe(0)
+        } else {
+          expect(moved).toBeGreaterThan(0.2)
+        }
+      }
+      expect(stair.landings.filter((l) => l.open)).toHaveLength(1)
     }
+  })
+
+  it('makes no two fire escapes alike, their landings long and short', () => {
+    const { vary, rise } = CONFIG.castle.stairs
+    for (const stair of stairs) {
+      const lengths = stair.landings.map((l) => l.x1 - l.x0)
+      expect(new Set(lengths.map((x) => x.toFixed(1))).size).toBeGreaterThan(
+        lengths.length / 2
+      )
+      for (const x of lengths) {
+        expect(x).toBeGreaterThanOrEqual(vary.landing.min)
+        expect(x).toBeLessThanOrEqual(vary.landing.max + 0.5)
+      }
+      // Every flight climbs more than a body steps onto, and about `rise`.
+      for (const f of stair.flights) {
+        expect(f.a.y - f.b.y).toBeGreaterThan(climb)
+        expect(f.a.y - f.b.y).toBeLessThan(rise * 1.5)
+      }
+    }
+    const [one, two] = stairs.map((s) =>
+      s.landings.map((l) => (l.x1 - l.x0).toFixed(2)).join()
+    )
+    expect(one).not.toBe(two)
   })
 
   it('rails the lanes apart, so no one steps across onto another flight', () => {
@@ -217,14 +240,17 @@ describe('moat', () => {
         )
         // Down the lane's middle, nothing stands in the way, nor round the
         // landing at its foot to the next flight's head.
-        const run = Math.hypot(f.b.x - f.a.x, f.b.z - f.a.z)
-        const on = { x: (f.b.x - f.a.x) / run, z: (f.b.z - f.a.z) / run }
         const path: XZ[] = [f.a, f.b]
         const after = stair.flights[i + 1]
         if (after) {
-          const turn = { x: f.b.x + on.x, z: f.b.z + on.z }
-          path.push(turn, { x: after.a.x + on.x, z: after.a.z + on.z })
-          path.push(after.a)
+          // Halfway from the turn to the landing's railed far end.
+          const l = stair.landings[i + 1]
+          const axis = { x: l.cos, z: l.sin }
+          const at = (f.b.x - l.x) * axis.x + (f.b.z - l.z) * axis.z
+          const half = ((l.far < 0 ? l.x0 : l.x1) - at) / 2
+          const by = { x: axis.x * half, z: axis.z * half }
+          path.push({ x: f.b.x + by.x, z: f.b.z + by.z })
+          path.push({ x: after.a.x + by.x, z: after.a.z + by.z }, after.a)
         }
         for (let k = 0; k < path.length - 1; k++) {
           for (let j = 0; j <= 20; j++) {
@@ -287,19 +313,6 @@ describe('moat', () => {
         const by = { x: last.x + 0.1, z: last.z }
         expect(walls.resolve(by.x, by.z, 0.3, floor)).not.toEqual(by)
       }
-    }
-  })
-
-  it('holds a raider up a fire escape out of reach of the floor', () => {
-    const moat = { place, floor }
-    const { aloft: over } = CONFIG.castle.moat
-    for (const stair of stairs) {
-      const f = stair.flights[0]
-      expect(aloft(moat, f.a)).toBe(true)
-      expect(aloft(moat, { ...stair.foot, y: floor })).toBe(false)
-      expect(aloft(moat, { ...stair.foot, y: floor + over - 0.1 })).toBe(false)
-      // On the rim, off the channel, they are on the ground.
-      expect(aloft(moat, stair.top)).toBe(false)
     }
   })
 
