@@ -740,6 +740,9 @@ export const CONFIG = {
       depth: 30,
       // Trees, poles and pickups keep this far off the outer edge.
       clear: 12,
+      // Feet over the channel this far over its floor are up a fire
+      // escape, out of every shadow's reach (moat.ts aloft).
+      aloft: 2,
     },
     // The fire escapes on the outer walls (moat.ts fireEscapes): the sides
     // that carry one, how wide a flight runs (the strip is two), about how

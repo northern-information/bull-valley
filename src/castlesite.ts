@@ -11,7 +11,9 @@ import {
   inChannel,
   MOAT,
   moatEdges,
+  moatPipes,
   moatWalls,
+  pipeWalls,
   trickle,
 } from './moat.ts'
 import { moatSlurmsAt } from './moatslurms.ts'
@@ -30,7 +32,7 @@ import type { Walls } from './walls.ts'
 // Castle Entropy placed (moat.ts, castle.ts): the moat already cut into the
 // terrain (world.ts carves it before anything stands), its fire escapes
 // registered on the Ground flight by flight and their rails, the rim's
-// ledge and the island's edge on the Walls, the moat drawn, the cranes on
+// ledge, the island's edge and the pipes on the Walls, the moat drawn, the cranes on
 // the rim, the slurms dropping off the edges and the cranes' hooks into
 // the channel (moatslurms.ts), and today's castle floating over the
 // island, made anew when the day turns.
@@ -86,12 +88,18 @@ export function buildCastleSite(
   for (const wall of moatWalls(raw, place)) {
     walls.addWall(wall.a, wall.b, wall.half, wall.band)
   }
+  // The pipes along the walls, round the fire escapes, and what they stop.
+  const pipes = moatPipes(raw, place, floor, stairs)
+  for (const wall of pipes.flatMap((pipe) => pipeWalls(pipe))) {
+    walls.addWall(wall.a, wall.b, wall.half, wall.band)
+  }
 
   const moat: MoatRig = buildMoat({
     ...edges,
     raw,
     floor,
     stairs,
+    pipes,
     trickle: trickle(place),
     middle: place,
   })

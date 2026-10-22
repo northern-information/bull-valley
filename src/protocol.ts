@@ -23,6 +23,7 @@ import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { LaptopFileInfo } from './laptop.ts'
 import type { TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
+import type { MoatAt } from './moat.ts'
 import type { OutfitId } from './outfits.ts'
 import type { Portal } from './portals.ts'
 import type { QuestId, QuestStage, QuestStep } from './quests.ts'
@@ -34,7 +35,7 @@ import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 40
+export const PROTOCOL_VERSION = 41
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -267,6 +268,10 @@ export interface HelloMessage {
   // Where the Undercroft lies (undercroft.ts), or null: the valley steps
   // its tunnel shades in it (rule 11).
   undercroft: MazePlace | null
+  // Where Castle Entropy's moat lies and how deep its floor is (moat.ts),
+  // or null: a raider up a fire escape is out of every shadow's reach
+  // (rule 11).
+  moat: MoatAt | null
   // The middle of the Citgo portal ring on each station's lot, in
   // world.fuelPoints order (rule 28).
   rings: XZ[]
@@ -1270,6 +1275,16 @@ function parseMazePlace(value: unknown): MazePlace | undefined {
   return { ...at, yaw }
 }
 
+function parseMoat(value: unknown): MoatAt | undefined {
+  if (!isRecord(value)) return undefined
+  const place = parseMazePlace(value.place)
+  const { floor } = value
+  if (!place || typeof floor !== 'number' || !Number.isFinite(floor)) {
+    return undefined
+  }
+  return { place, floor }
+}
+
 function parseMetres(value: unknown): Metres | null {
   if (!isRecord(value)) return null
   const { width, height } = value
@@ -1320,6 +1335,7 @@ type HelloPlaces = Pick<
   | 'bushes'
   | 'dealer'
   | 'undercroft'
+  | 'moat'
   | 'rings'
 >
 
@@ -1336,6 +1352,7 @@ const NO_PLACES: HelloPlaces = {
   bushes: [],
   dealer: null,
   undercroft: null,
+  moat: null,
   rings: [],
 }
 
@@ -1362,11 +1379,13 @@ function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
   const wreck = nullable(value.wreck, parseXZ)
   const dealer = nullable(value.dealer, parseXZ)
   const undercroft = nullable(value.undercroft, parseMazePlace)
+  const moat = nullable(value.moat, parseMoat)
   if (maze === undefined || stand === undefined) return null
   if (wreck === undefined) return null
   if (dealer === undefined || undercroft === undefined) return null
+  if (moat === undefined) return null
   const places = { havens, metres, water, maze, truck, stand, bushes, dealer }
-  return { ...places, wreck, undercroft, rings }
+  return { ...places, wreck, undercroft, moat, rings }
 }
 
 // A hello. The outfit is checked by the server (characters.ts

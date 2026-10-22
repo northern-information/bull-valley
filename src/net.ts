@@ -25,6 +25,7 @@ import type { ClockSync } from './clock.ts'
 import type { Metres, XZ } from './interfaces.ts'
 import type { TruckRoutes } from './marx.ts'
 import type { MazePlace } from './maze.ts'
+import type { MoatAt } from './moat.ts'
 import type { OutfitId } from './outfits.ts'
 import type {
   ClientMessage,
@@ -81,6 +82,8 @@ interface NetIdentity {
   dealer: XZ | null
   // Where the Undercroft lies (rule 11: the tunnel shades), or null.
   undercroft: MazePlace | null
+  // Where the moat lies and its floor (rule 11: up a fire escape), or null.
+  moat: MoatAt | null
   // The middle of each lot's Citgo portal ring (rule 28).
   rings: XZ[]
 }
@@ -284,6 +287,7 @@ export class NetClient {
           bushes: identity.bushes,
           dealer: identity.dealer,
           undercroft: identity.undercroft,
+          moat: identity.moat,
           rings: identity.rings,
           ...was,
         } satisfies ClientMessage)

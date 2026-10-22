@@ -11,6 +11,7 @@ import { contentsOf, getItem, healsOf } from '../../src/items.ts'
 import { LADDER_FOOT, LADDER_TOP, lookoutToWorld } from '../../src/lookout.ts'
 import { nextChange } from '../../src/marx.ts'
 import { mazeToWorld } from '../../src/maze.ts'
+import { trickle } from '../../src/moat.ts'
 import { PROTOCOL_VERSION } from '../../src/protocol.ts'
 import { FRESH_RESEARCH } from '../../src/recycling.ts'
 import { mulberry32 } from '../../src/rng.ts'
@@ -188,6 +189,7 @@ const join = (id: string): ValleyAction => ({
   bushes: BUSH_SPOTS,
   dealer: DEALER,
   undercroft: null,
+  moat: null,
   rings: RINGS,
 })
 
@@ -2470,6 +2472,21 @@ describe("rule 11: the shadowmen are the valley's", () => {
     expect(at({ x: 0, z: 0 }).vulnerable).toBe(false)
     // At the ladder's foot they are back within reach.
     expect(at(LADDER_FOOT).vulnerable).toBe(true)
+  })
+
+  it('reaches no raider up a fire escape over the moat, only the floor', () => {
+    const place = { x: 2000, z: 2000, yaw: 0.35 }
+    const moat = { place, floor: 100 }
+    const v = valleyWith({ ...join('a'), moat } as ValleyAction).valley
+    const [over] = trickle(place)
+    const at = (p: { x: number; y: number; z: number }) =>
+      shadowRaiders(v, createShadows(), [{ id: 'a', at: state(p) }], T0)[0]
+        .vulnerable
+    const { aloft } = CONFIG.castle.moat
+    expect(at({ ...over, y: moat.floor + aloft + 4 })).toBe(false)
+    // On the floor, and on the ground off the channel, within reach.
+    expect(at({ ...over, y: moat.floor })).toBe(true)
+    expect(at({ x: place.x + 9000, y: moat.floor + 30, z: place.z })).toBe(true)
   })
 
   it('aims a beam only for a raider whose light is on', () => {

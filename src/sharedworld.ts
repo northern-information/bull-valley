@@ -66,7 +66,10 @@
 //    in one beam into dimes, the Warden among them. Up on the lookout
 //    tower by the maze's gate (lookout.ts) no shadow reaches a raider: no
 //    shadowman rushes them and the Caretaker never hunts them, though their
-//    beam still burns what is below. The valley steps the field
+//    beam still burns what is below. Nor up a fire escape in Castle
+//    Entropy's moat the world was opened with (moat.ts aloft): the valley
+//    has no heights, so a raider over the channel well over its floor is
+//    out of reach of the shadows walking it. The valley steps the field
 //    (shadowstep.ts stepShadows, over this Valley) and keeps it in memory
 //    only: the shadowmen are gone whenever no one is placed in the valley.
 // 12. A raider out of the bed can drop what their pack holds (the valley
@@ -371,6 +374,7 @@ import type { Burial, Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { TruckChange, TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
+import type { MoatAt } from './moat.ts'
 import type { OutfitId } from './outfits.ts'
 import type { Portal } from './portals.ts'
 import type { XpGrant, XpSource } from './progression.ts'
@@ -447,6 +451,9 @@ interface SharedWorld {
   dealerStock: DealerStock
   // Where the Undercroft lies, or null (rule 11: the tunnel shades).
   undercroft: MazePlace | null
+  // Where the moat lies and its floor, or null (rule 11: up a fire
+  // escape).
+  moat: MoatAt | null
   // Rule 28: the middle of the portal ring on each station's lot, indexed
   // like havens; the portals open now, each with the account that opened
   // it (never on the wire); and the id the next one gets.
@@ -520,6 +527,7 @@ export type ValleyAction =
       bushes: XZ[]
       dealer: XZ | null
       undercroft: MazePlace | null
+      moat: MoatAt | null
       rings: XZ[]
       // Rule 24: the account's level, read from D1 (1 when absent).
       level?: number
@@ -1288,6 +1296,7 @@ function onJoin(
       dealer: action.dealer,
       dealerStock: freshDealerStock(),
       undercroft: action.undercroft,
+      moat: action.moat,
       rings: action.rings,
       portals: [],
       nextPortal: 0,

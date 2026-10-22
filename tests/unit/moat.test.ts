@@ -4,6 +4,7 @@ import { pointInPolygon } from '../../src/coords.ts'
 import { Ground } from '../../src/ground.ts'
 import { mazeToWorld } from '../../src/maze.ts'
 import {
+  aloft,
   carve,
   castlePlace,
   craneSpots,
@@ -12,13 +13,16 @@ import {
   MOAT,
   moatEdges,
   moatFloor,
+  moatPipes,
   moatShape,
   moatWalls,
   onIsland,
   onMoatGrounds,
+  pipeWalls,
   trickle,
 } from '../../src/moat.ts'
 import { Walls } from '../../src/walls.ts'
+import type { XZ } from '../../src/interfaces.ts'
 
 // A gentle slope for the terrain round the moat.
 const raw = (x: number, z: number) => 200 + x * 0.02 - z * 0.01
@@ -184,6 +188,118 @@ describe('moat', () => {
       expect(Math.hypot(low.x - crossing.x, low.z - crossing.z)).toBeLessThan(
         Math.hypot(high.x - crossing.x, high.z - crossing.z) + 1e-9
       )
+    }
+  })
+
+  it('rails the lanes apart, so no one steps across onto another flight', () => {
+    const walls = new Walls()
+    for (const stair of stairs) {
+      for (const r of stair.rails) walls.addWall(r.a, r.b, r.half, r.band)
+    }
+    for (const w of moatWalls(raw, place)) {
+      walls.addWall(w.a, w.b, w.half, w.band)
+    }
+    const { radius } = CONFIG.player
+    const lerp = (p: XZ, q: XZ, t: number) => ({
+      x: p.x + (q.x - p.x) * t,
+      z: p.z + (q.z - p.z) * t,
+    })
+    for (const stair of stairs) {
+      stair.flights.forEach((f, i) => {
+        const feet = (f.a.y + f.b.y) / 2
+        // Halfway down, a step toward the other lane is pushed back.
+        const mid = lerp(f.a, f.b, 0.5)
+        const next = stair.flights[i + 1] ?? stair.flights[i - 1]
+        const across = lerp(mid, lerp(next.a, next.b, 0.5), 0.5)
+        const out = walls.resolve(across.x, across.z, radius, feet)
+        expect(Math.hypot(out.x - across.x, out.z - across.z)).toBeGreaterThan(
+          0.2
+        )
+        // Down the lane's middle, nothing stands in the way, nor round the
+        // landing at its foot to the next flight's head.
+        const run = Math.hypot(f.b.x - f.a.x, f.b.z - f.a.z)
+        const on = { x: (f.b.x - f.a.x) / run, z: (f.b.z - f.a.z) / run }
+        const path: XZ[] = [f.a, f.b]
+        const after = stair.flights[i + 1]
+        if (after) {
+          const turn = { x: f.b.x + on.x, z: f.b.z + on.z }
+          path.push(turn, { x: after.a.x + on.x, z: after.a.z + on.z })
+          path.push(after.a)
+        }
+        for (let k = 0; k < path.length - 1; k++) {
+          for (let j = 0; j <= 20; j++) {
+            const p = lerp(path[k], path[k + 1], j / 20)
+            const y = k === 0 ? f.a.y + (f.b.y - f.a.y) * (j / 20) : f.b.y
+            const q = walls.resolve(p.x, p.z, radius, y)
+            expect(Math.hypot(q.x - p.x, q.z - p.z)).toBeLessThan(1e-9)
+          }
+        }
+      })
+    }
+  })
+
+  it('runs its pipes round the fire escapes, and they stop a raider', () => {
+    const pipes = moatPipes(raw, place, floor, stairs)
+    expect(pipes.length).toBeGreaterThan(10)
+    expect(moatPipes(raw, place, floor, stairs)).toEqual(pipes)
+    // Every stair's strip, from its wall out past its outer rail.
+    const strip = (stair: (typeof stairs)[number], p: XZ) => {
+      const [a, b] = stair.ends
+      const len = Math.hypot(b.x - a.x, b.z - a.z)
+      const t = ((p.x - a.x) * (b.x - a.x) + (p.z - a.z) * (b.z - a.z)) / len
+      const s = (p.x - a.x) * stair.inward.x + (p.z - a.z) * stair.inward.z
+      return t > -0.3 && t < len + 0.3 && s > -0.5 && s < stair.depth + 0.3
+    }
+    let detours = 0
+    for (const pipe of pipes) {
+      if (pipe.points.length > 3) detours++
+      for (let i = 0; i < pipe.points.length - 1; i++) {
+        const p = pipe.points[i]
+        const q = pipe.points[i + 1]
+        for (let j = 0; j <= 40; j++) {
+          const at = {
+            x: p.x + (q.x - p.x) * (j / 40),
+            z: p.z + (q.z - p.z) * (j / 40),
+          }
+          for (const stair of stairs) expect(strip(stair, at)).toBe(false)
+        }
+      }
+      // Between the floor and the rim, never in a raider's walk below.
+      for (const p of pipe.points.slice(0, 2)) {
+        expect(p.y).toBeGreaterThanOrEqual(floor + 3)
+      }
+    }
+    expect(detours).toBeGreaterThan(0)
+    // Every stretch stands for a head at its height; a drop to the floor
+    // stands for feet on the floor, a stretch overhead does not.
+    const walls = new Walls()
+    for (const w of pipes.flatMap((pipe) => pipeWalls(pipe))) {
+      walls.addWall(w.a, w.b, w.half, w.band)
+    }
+    for (const pipe of pipes) {
+      const [p, q] = pipe.points
+      const mid = { x: (p.x + q.x) / 2, z: (p.z + q.z) / 2 }
+      const at = (feet: number) => walls.resolve(mid.x, mid.z, 0.3, feet)
+      expect(at(p.y - 1)).not.toEqual(mid)
+      expect(at(floor)).toEqual(mid)
+      const last = pipe.points.at(-1)
+      if (last && last.y === floor) {
+        const by = { x: last.x + 0.1, z: last.z }
+        expect(walls.resolve(by.x, by.z, 0.3, floor)).not.toEqual(by)
+      }
+    }
+  })
+
+  it('holds a raider up a fire escape out of reach of the floor', () => {
+    const moat = { place, floor }
+    const { aloft: over } = CONFIG.castle.moat
+    for (const stair of stairs) {
+      const f = stair.flights[0]
+      expect(aloft(moat, f.a)).toBe(true)
+      expect(aloft(moat, { ...stair.foot, y: floor })).toBe(false)
+      expect(aloft(moat, { ...stair.foot, y: floor + over - 0.1 })).toBe(false)
+      // On the rim, off the channel, they are on the ground.
+      expect(aloft(moat, stair.top)).toBe(false)
     }
   })
 

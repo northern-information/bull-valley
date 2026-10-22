@@ -397,6 +397,9 @@ async function boot() {
       : null,
     dealer: world.plaza ? world.plaza.dealer.at : null,
     undercroft: world.undercroft?.place ?? null,
+    moat: world.castle
+      ? { place: world.castle.place, floor: world.castle.floor }
+      : null,
     rings: world.rings,
   })
   wireKeys(game, actions, engagePointer)

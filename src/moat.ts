@@ -13,9 +13,13 @@
 // feet on the flight they are on. The rim is open: walking off it is a fall (fall.ts).
 // What stops a raider (`moatWalls`): a ledge along the outer edge that
 // stands only for feet down in the channel, the island's edge, and each
-// stair's rails, its foot open only at the floor. Cranes lean out over the
-// channel from the rim (`craneSpots`) and a trickle of water runs down its
-// middle (`trickle`). No three.js, no DOM.
+// stair's rails, its foot open only at the floor, with a rail between its
+// lanes so no one steps across onto the flight over or under theirs. Pipes
+// run along the walls (`moatPipes`), out round any fire escape in their
+// way, and stop a raider too. Cranes lean out over the channel from the
+// rim (`craneSpots`) and a trickle of water runs down its middle
+// (`trickle`). A raider up a fire escape is out of reach of the shadows
+// below (`aloft`). No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
 import { pointInPolygon } from './coords.ts'
@@ -252,6 +256,8 @@ export interface FireEscape {
   foot: XZ & { y: number }
   // One lane's width; the strip is two.
   width: number
+  // How far the outer rail stands out from the wall.
+  depth: number
   // Along the wall, the strip's two ends, and the wall's inward normal.
   ends: [XZ, XZ]
   inward: XZ
@@ -349,6 +355,9 @@ function fireEscape(
   const rail = gap + cfg.width * 2 + 0.05
   const rails: MoatWall[] = [
     { a: world(endA, rail), b: world(endB, rail), half: 0.06 },
+    // Between the lanes, the flights' length: the landings turn round its
+    // ends.
+    { a: world(runA, strip), b: world(runB, strip), half: 0.06 },
     {
       a: world(endA, 0),
       b: world(endA, rail),
@@ -371,9 +380,28 @@ function fireEscape(
     top: { ...rim, y: raw(rim.x, rim.z) },
     foot: { ...foot, y: floor },
     width: cfg.width,
+    depth: rail,
     ends: [world(endA, 0), world(endB, 0)],
     inward: mazeToWorld({ x: 0, z: 0, yaw: place.yaw }, inward),
   }
+}
+
+// Where the moat lies and how deep its floor is, as the valley is told
+// (sharedworld.ts rule 11).
+export interface MoatAt {
+  place: MazePlace
+  floor: number
+}
+
+// Whether feet at `at` are up a fire escape: over the channel, and more
+// than CONFIG.castle.moat.aloft over its floor (only a fire escape holds
+// anyone there), so out of reach of every shadow, which walks the floor.
+export function aloft(
+  moat: MoatAt,
+  at: XZ & { y: number },
+  cfg: MoatConfig = CONFIG.castle.moat
+): boolean {
+  return at.y > moat.floor + cfg.aloft && inChannel(moat.place, at.x, at.z)
 }
 
 // What stops a raider at the moat: a ledge along each outer side that
@@ -393,6 +421,134 @@ export function moatWalls(raw: HeightAt, place: MazePlace): MoatWall[] {
       a: mazeToWorld(place, MOAT.island[k]),
       b: mazeToWorld(place, MOAT.island[(k + 1) % n]),
       half: WALL_HALF,
+    })
+  }
+  return walls
+}
+
+// A pipe along a wall of the moat, in the world: its bends from one end
+// to the other, all at one height (the last may drop to the floor), how
+// thick, which paint, where along its first stretch a valve wheel and a
+// junction box sit (a share of it, or null), and the face's normal toward
+// the channel.
+export interface MoatPipe {
+  points: (XZ & { y: number })[]
+  radius: number
+  grey: boolean
+  valve: number | null
+  junction: number | null
+  normal: XZ
+}
+
+// How far a pipe keeps off a fire escape's ends and its outer rail, over
+// its own radius, and how far its ends keep off the stair (so a drop to
+// the floor never stands in the foot's way).
+const PIPE_CLEAR = 0.4
+const PIPE_END_CLEAR = 4
+
+// The pipes along the moat's walls, one to three runs on each side of
+// each edge, each at a height between the floor and the rim's lowest. A
+// run whose stretch crosses a fire escape bends out from the wall round
+// its outer rail and back; one whose end would fall on or by a stair is
+// not laid.
+export function moatPipes(
+  raw: HeightAt,
+  place: MazePlace,
+  floor: number,
+  stairs: readonly FireEscape[]
+): MoatPipe[] {
+  const rng = mulberry32(0x91be5)
+  const edges = moatEdges(place)
+  const pipes: MoatPipe[] = []
+  const n = edges.outer.length
+  for (let k = 0; k < n; k++) {
+    for (const outer of [true, false]) {
+      const edge = outer ? edges.outer : edges.island
+      const a = edge[k]
+      const b = edge[(k + 1) % n]
+      const len = Math.hypot(b.x - a.x, b.z - a.z)
+      const u = { x: (b.x - a.x) / len, z: (b.z - a.z) / len }
+      // Toward the channel: in to the middle from the outer edge, out
+      // from the island's.
+      let normal = { x: -u.z, z: u.x }
+      const toward =
+        normal.x * ((a.x + b.x) / 2 - place.x) +
+          normal.z * ((a.z + b.z) / 2 - place.z) <
+        0
+      if (toward !== outer) normal = { x: -normal.x, z: -normal.z }
+      let lowTop = Infinity
+      for (const p of alongEdge([a, b], 3).concat([b])) {
+        lowTop = Math.min(lowTop, raw(p.x, p.z))
+      }
+      // The stairs on this wall, as stretches along it.
+      const along = (p: XZ) => (p.x - a.x) * u.x + (p.z - a.z) * u.z
+      const busy = outer
+        ? stairs
+            .filter((s) => s.side % n === k)
+            .map((s) => {
+              const d = [along(s.ends[0]), along(s.ends[1])]
+              return { from: Math.min(...d), to: Math.max(...d), s }
+            })
+            .sort((p, q) => p.from - q.from)
+        : []
+      const at = (d: number, out: number, y: number) => ({
+        x: a.x + u.x * d + normal.x * out,
+        z: a.z + u.z * d + normal.z * out,
+        y,
+      })
+      const runs = 1 + Math.floor(rng() * 3)
+      for (let r = 0; r < runs; r++) {
+        const y = floor + 3 + rng() * Math.max(1, lowTop - floor - 6)
+        const d0 = len * rng() * 0.4
+        const d1 = len * (0.6 + rng() * 0.4)
+        const radius = 0.15 + rng() * 0.25
+        const grey = rng() < 0.5
+        const valve = rng() < 0.6 ? rng() : null
+        const junction = rng() < 0.5 ? rng() : null
+        const drop = rng() < 0.45
+        const off = radius + 0.75
+        const near = (d: number) =>
+          busy.some(
+            ({ from, to }) =>
+              d > from - PIPE_END_CLEAR && d < to + PIPE_END_CLEAR
+          )
+        if (near(d0) || near(d1)) continue
+        const points = [at(d0, off, y)]
+        for (const { from, to, s } of busy) {
+          if (to < d0 || from > d1) continue
+          const clear = radius + PIPE_CLEAR
+          const out = s.depth + clear
+          points.push(
+            at(from - clear, off, y),
+            at(from - clear, out, y),
+            at(to + clear, out, y),
+            at(to + clear, off, y)
+          )
+        }
+        points.push(at(d1, off, y))
+        if (drop) points.push({ ...at(d1, off, floor) })
+        pipes.push({ points, radius, grey, valve, junction, normal })
+      }
+    }
+  }
+  return pipes
+}
+
+// The walls a pipe stands as: each stretch at its height for any body
+// whose head would meet it (feet within `body` under it), and a drop to
+// the floor for every body below its top.
+export function pipeWalls(pipe: MoatPipe, body = 2): MoatWall[] {
+  const walls: MoatWall[] = []
+  for (let i = 0; i < pipe.points.length - 1; i++) {
+    const p = pipe.points[i]
+    const q = pipe.points[i + 1]
+    const top = Math.max(p.y, q.y) + pipe.radius
+    const bottom = Math.min(p.y, q.y)
+    walls.push({
+      a: { x: p.x, z: p.z },
+      b: { x: q.x, z: q.z },
+      half: pipe.radius,
+      band: { low: bottom - body, high: top },
     })
   }
   return walls

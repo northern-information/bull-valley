@@ -48,7 +48,13 @@ import { README } from './laptopreadme.ts'
 import { buildLookout } from './lookoutmodel.ts'
 import { mazeSpans, SHINING_MAZE } from './maze.ts'
 import { buildMedicine } from './medicinemodels.ts'
-import { fireEscapes, moatEdges, moatFloor, trickle } from './moat.ts'
+import {
+  fireEscapes,
+  moatEdges,
+  moatFloor,
+  moatPipes,
+  trickle,
+} from './moat.ts'
 import { concreteArt } from './moatart.ts'
 import { buildMoat } from './moatmodel.ts'
 import {
@@ -723,11 +729,13 @@ function sampleMoat(): THREE.Object3D {
     4 * Math.sin(x / 40) + 3 * Math.cos(z / 55)
   const floor = moatFloor(raw, place)
   const edges = moatEdges(place)
+  const stairs = fireEscapes(raw, place, floor)
   const rig = buildMoat({
     ...edges,
     raw,
     floor,
-    stairs: fireEscapes(raw, place, floor),
+    stairs,
+    pipes: moatPipes(raw, place, floor, stairs),
     trickle: trickle(place),
     middle: place,
   })

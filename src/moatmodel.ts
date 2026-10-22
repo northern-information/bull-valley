@@ -9,12 +9,13 @@ import {
 import { concreteArt, vineArt } from './moatart.ts'
 import { mulberry32, range } from './rng.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
-import type { FireEscape } from './moat.ts'
+import type { FireEscape, MoatPipe } from './moat.ts'
 
 // Castle Entropy's moat as seen (moat.ts): the concrete walls cut down from
 // the rim to the floor on both edges, a coping along the top of each that
 // hides the cut in the terrain, the floor and the trickle of water down its
-// middle, pipes, valves and ribs on the walls, vines hanging down them, and
+// middle, pipes (moat.ts lays them, round the fire escapes), valves and
+// ribs on the walls, vines hanging down them, and
 // the fire escapes in rusted iron. Everything is laid in the world (the
 // moat is the terrain's, so its walls follow the rim's every rise); the
 // trickle's water creeps in `update`.
@@ -32,6 +33,8 @@ interface MoatBuild {
   raw: HeightAt
   floor: number
   stairs: readonly FireEscape[]
+  // The pipes along the walls (moat.ts moatPipes).
+  pipes: readonly MoatPipe[]
   trickle: readonly XZ[]
   // The island's middle, which way is in.
   middle: XZ
@@ -181,7 +184,6 @@ export function buildMoat(build: MoatBuild): MoatRig {
     }
 
     // Ribs down the face, every so often.
-    const lowTop = Math.min(...tops.map((p) => p.y))
     for (let d = PANEL; d < len - 2; d += PANEL * 1.5) {
       const x = a.x + ux * d
       const z = a.z + uz * d
@@ -194,83 +196,6 @@ export function buildMoat(build: MoatBuild): MoatRig {
       rib.position.set(x + nx * 0.3, (top + floor) / 2, z + nz * 0.3)
       rib.rotation.y = -Math.atan2(uz, ux)
       group.add(rib)
-    }
-
-    // Pipes along the face, a valve or a junction box on some; the odd one
-    // turns down the face to the floor.
-    const runs = 1 + Math.floor(rng() * 3)
-    for (let r = 0; r < runs; r++) {
-      const y = floor + range(rng, 3, Math.max(4, lowTop - floor - 3))
-      const t0 = range(rng, 0, 0.4)
-      const t1 = range(rng, 0.6, 1)
-      const radius = range(rng, 0.15, 0.4)
-      const off = radius + 0.75
-      const from = new THREE.Vector3(
-        a.x + (b.x - a.x) * t0 + nx * off,
-        y,
-        a.z + (b.z - a.z) * t0 + nz * off
-      )
-      const to = new THREE.Vector3(
-        a.x + (b.x - a.x) * t1 + nx * off,
-        y,
-        a.z + (b.z - a.z) * t1 + nz * off
-      )
-      if (nearStair(from, 4) || nearStair(to, 4)) continue
-      const material = rng() < 0.5 ? pipe : pipeGrey
-      const tube = new THREE.Mesh(
-        new THREE.CylinderGeometry(radius, radius, from.distanceTo(to), 6),
-        material
-      )
-      tube.position.copy(from).add(to).multiplyScalar(0.5)
-      tube.quaternion.setFromUnitVectors(
-        new THREE.Vector3(0, 1, 0),
-        to.clone().sub(from).normalize()
-      )
-      group.add(tube)
-      // Brackets back to the wall.
-      const span = from.distanceTo(to)
-      for (let d = 0; d <= span; d += 4) {
-        const at = from.clone().lerp(to, d / span)
-        strut(
-          group,
-          at,
-          at.clone().add(new THREE.Vector3(-nx * off, 0, -nz * off)),
-          0.12,
-          iron
-        )
-      }
-      if (rng() < 0.6) {
-        const wheel = new THREE.Mesh(
-          new THREE.TorusGeometry(radius + 0.3, 0.06, 4, 8),
-          valve
-        )
-        wheel.position.copy(from.clone().lerp(to, rng()))
-        wheel.position.x += nx * (radius + 0.1)
-        wheel.position.z += nz * (radius + 0.1)
-        wheel.rotation.y = -Math.atan2(nz, nx) + Math.PI / 2
-        group.add(wheel)
-      }
-      if (rng() < 0.5) {
-        const junction = new THREE.Mesh(
-          new THREE.BoxGeometry(1.2, 1.6, 0.6),
-          box
-        )
-        const at = from.clone().lerp(to, rng())
-        junction.position.set(at.x - nx * 0.4, y + 1.4, at.z - nz * 0.4)
-        junction.rotation.y = -Math.atan2(uz, ux)
-        group.add(junction)
-      }
-      if (rng() < 0.45) {
-        // Down to the floor, and into it.
-        const down = to.clone()
-        down.y = floor
-        const drop = new THREE.Mesh(
-          new THREE.CylinderGeometry(radius, radius, to.y - floor, 6),
-          material
-        )
-        drop.position.copy(to).add(down).multiplyScalar(0.5)
-        group.add(drop)
-      }
     }
 
     // Vines, hanging from the coping.
@@ -343,6 +268,11 @@ export function buildMoat(build: MoatBuild): MoatRig {
     group.add(chunk)
   }
 
+  // The pipes.
+  for (const run of build.pipes) {
+    pipeRun(group, run, run.grey ? pipeGrey : pipe, valve, box, iron)
+  }
+
   // The fire escapes.
   for (const stair of build.stairs) fireEscape(group, stair, iron, ironLight)
 
@@ -411,6 +341,86 @@ export function buildMoat(build: MoatBuild): MoatRig {
     if (sheen) sheen.offset.x = -t * 0.08
   }
   return { group, update }
+}
+
+// One pipe: a tube along each stretch with a knuckle at each bend,
+// brackets back to the wall from the stretches that hug it, and its valve
+// wheel and junction box on its first stretch.
+function pipeRun(
+  group: THREE.Group,
+  run: MoatPipe,
+  material: THREE.Material,
+  valve: THREE.Material,
+  box: THREE.Material,
+  iron: THREE.Material
+): void {
+  const { radius, normal } = run
+  const points = run.points.map((p) => new THREE.Vector3(p.x, p.y, p.z))
+  const off = radius + 0.75
+  for (let i = 0; i < points.length - 1; i++) {
+    const from = points[i]
+    const to = points[i + 1]
+    const span = from.distanceTo(to)
+    if (span < 1e-3) continue
+    const tube = new THREE.Mesh(
+      new THREE.CylinderGeometry(radius, radius, span, 6),
+      material
+    )
+    tube.position.copy(from).add(to).multiplyScalar(0.5)
+    tube.quaternion.setFromUnitVectors(
+      new THREE.Vector3(0, 1, 0),
+      to.clone().sub(from).normalize()
+    )
+    group.add(tube)
+    if (i > 0) {
+      const knuckle = new THREE.Mesh(
+        new THREE.SphereGeometry(radius * 1.15, 6, 4),
+        material
+      )
+      knuckle.position.copy(from)
+      group.add(knuckle)
+    }
+    // Brackets back to the wall, where the stretch runs along it.
+    if (from.y !== to.y) continue
+    const hugs = (p: THREE.Vector3) =>
+      Math.abs(
+        (p.x - points[0].x) * normal.x + (p.z - points[0].z) * normal.z
+      ) < 1e-3
+    if (!hugs(from) || !hugs(to)) continue
+    for (let d = 0; d <= span; d += 4) {
+      const at = from.clone().lerp(to, d / span)
+      strut(
+        group,
+        at,
+        at.clone().add(new THREE.Vector3(-normal.x * off, 0, -normal.z * off)),
+        0.12,
+        iron
+      )
+    }
+  }
+  const [from, to] = points
+  if (run.valve !== null) {
+    const wheel = new THREE.Mesh(
+      new THREE.TorusGeometry(radius + 0.3, 0.06, 4, 8),
+      valve
+    )
+    wheel.position.copy(from.clone().lerp(to, run.valve))
+    wheel.position.x += normal.x * (radius + 0.1)
+    wheel.position.z += normal.z * (radius + 0.1)
+    wheel.rotation.y = -Math.atan2(normal.z, normal.x) + Math.PI / 2
+    group.add(wheel)
+  }
+  if (run.junction !== null) {
+    const junction = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.6, 0.6), box)
+    const at = from.clone().lerp(to, run.junction)
+    junction.position.set(
+      at.x - normal.x * 0.4,
+      at.y + 1.4,
+      at.z - normal.z * 0.4
+    )
+    junction.rotation.y = -Math.atan2(-normal.x, normal.z)
+    group.add(junction)
+  }
 }
 
 // One fire escape in rusted iron: each flight's stringers, treads and

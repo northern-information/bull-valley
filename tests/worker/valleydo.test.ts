@@ -252,6 +252,7 @@ const hello = (
     bushes: Array.from({ length: 7 }, () => ({ x: 0, z: 0 })),
     dealer: DEALER,
     undercroft: CROFT,
+    moat: null,
     rings: Array.from({ length: stations }, (_, i) => ({
       x: i * 1000 + 2,
       z: 14,

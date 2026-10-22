@@ -13,6 +13,7 @@ import { CONFIG } from './config.ts'
 import { woundsOf } from './health.ts'
 import { onLookout } from './lookout.ts'
 import { worldToMaze } from './maze.ts'
+import { aloft } from './moat.ts'
 import {
   beamFrom,
   burnSecondsOf,
@@ -106,6 +107,7 @@ export function shadowRaiders(
 ): Raider[] {
   const raiders: Raider[] = []
   const maze = valley.world?.maze ?? null
+  const moat = valley.world?.moat ?? null
   for (const { id, at } of placed) {
     const member = valley.members[id]
     if (!at || !member) continue
@@ -117,6 +119,8 @@ export function shadowRaiders(
         !inTheBed(valley, id) &&
         // Up on the lookout no shadow reaches them.
         !(maze && onLookout(maze, at)) &&
+        // Nor up a fire escape over the moat.
+        !(moat && aloft(moat, at)) &&
         now >= (shadows.recovering[graceKey(valley, id)] ?? 0),
       // Rule 27: their high reaches it further and wider.
       beam: at.light
