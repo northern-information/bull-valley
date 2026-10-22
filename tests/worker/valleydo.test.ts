@@ -605,6 +605,11 @@ describe('ValleyDO', () => {
   })
 
   it('writes the Citgos a raider stands at, and opens a Citgo portal to the last', async () => {
+    // Noon Central, so the day's turn is not the next thing due.
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.UTC(2026, 6, 1, 17) })
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A')
     const b = await join(v, s, 'B')
@@ -706,7 +711,8 @@ describe('ValleyDO', () => {
   })
 
   it('runs the truck: the bed, the countdown, the joyride, and pickups', async () => {
-    vi.useFakeTimers({ toFake: ['Date'], now: Date.now() })
+    // Noon Central, so the day's turn is not the next thing due.
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.UTC(2026, 6, 1, 17) })
     onTestFinished(() => {
       vi.useRealTimers()
     })
@@ -1025,6 +1031,11 @@ describe('ValleyDO', () => {
   })
 
   it('keeps the dev frames for dev sockets', async () => {
+    // Noon Central, so the day's turn is not the next thing due.
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.UTC(2026, 6, 1, 17) })
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
     const { valley: v, state: s } = await valley()
     const plain = await join(v, s, 'A')
     await v.webSocketMessage(
